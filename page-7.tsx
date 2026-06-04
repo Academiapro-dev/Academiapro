@@ -8,7 +8,7 @@ export default function HomePage() {
 
   return (
     <>
-      <Nav />
+    
       <main>
 
         {/* ── HERO ── */}
