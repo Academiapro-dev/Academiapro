@@ -1,8 +1,8 @@
 export default function Home() {
   return (
-    <main>
+    <main style={{padding: '40px', fontFamily: 'Arial'}}>
       <h1>AcadémIA Pro</h1>
-      <p>Site en construction</p>
+      <p>Site en ligne.</p>
     </main>
   )
 }
