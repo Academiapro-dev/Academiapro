@@ -1,7 +1,9 @@
 'use client'
 import { useState, useRef, useEffect } from 'react'
-import Nav from '@/components/layout/Nav'
-import Footer from '@/components/layout/Footer'
+// Nav removed
+// Footer removed
+
+
 import { PRATICIENS_BIENETRE } from '@/lib/data'
 
 const SYSTEMS: Record<string, string> = {
