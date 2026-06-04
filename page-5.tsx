@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import Link from 'next/link'
-import { FORMATIONS } from '@/lib/data'
+import { FORMATIONS } from '/data'
 
 
 export default function FinancementPage() {
