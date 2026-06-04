@@ -40,6 +40,7 @@ export default function HomePage() {
               <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>{f.titre}</h3>
               <p style={{ fontSize: 13, color: 'var(--dim)', lineHeight: 1.6 }}>{f.desc?.substring(0, 120)}...
 
+
             </div>
           ))}
         </div>
