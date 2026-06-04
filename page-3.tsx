@@ -23,7 +23,7 @@ const CATS = ['Tous', 'Financement CPF', 'Métiers IA', 'Bien-être', 'Formation
 export default function BlogPage() {
   return (
     <>
-      <Nav/>
+
       <main style={{ paddingTop: 64 }}>
         <section style={{ padding: '60px 6% 48px', textAlign: 'center', background: 'var(--s1)', borderBottom: '1px solid var(--border)' }}>
           <h1 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 'clamp(36px,5vw,56px)', fontWeight: 700, marginBottom: 14 }}>
