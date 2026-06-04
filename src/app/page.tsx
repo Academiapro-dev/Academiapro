@@ -71,6 +71,34 @@ export default function HomePage() {
           </Link>
         </div>
       </section>
+      {/* FINANCEMENT */}
+      <section style={{ padding: '72px 6%', textAlign: 'center', borderTop: '1px solid var(--border)' }}>
+        <h2 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 'clamp(28px,3.5vw,44px)', fontWeight: 700, marginBottom: 16 }}>
+          Financement à <em style={{ color: 'var(--gold)', fontStyle: 'italic' }}>0 EUR</em>
+        </h2>
+        <p style={{ fontSize: 16, color: 'var(--dim)', maxWidth: 480, margin: '0 auto 40px', lineHeight: 1.7 }}>
+          Dans 95% des cas, nos formations sont entièrement financées. CPF · OPCO · Transitions Pro · AGEFIPH
+        </p>
+        <Link href="/financement" style={{ padding: '14px 32px', borderRadius: 10, background: 'var(--gold)', color: '#050508', fontWeight: 700, textDecoration: 'none' }}>
+          Simuler mon financement →
+        </Link>
+      </section>
+
+      {/* FOOTER */}
+      <footer style={{ padding: '48px 6%', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 24 }}>
+        <div>
+          <div style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 24, fontWeight: 700, marginBottom: 8 }}>AcadémIA Pro</div>
+          <p style={{ fontSize: 13, color: 'var(--dim)' }}>Centre de formation 100% IA</p>
+        </div>
+        <div style={{ display: 'flex', gap: 32, flexWrap: 'wrap', fontSize: 14 }}>
+          <Link href="/formations" style={{ color: 'var(--dim)', textDecoration: 'none' }}>Formations</Link>
+          <Link href="/agents" style={{ color: 'var(--dim)', textDecoration: 'none' }}>Agents IA</Link>
+          <Link href="/financement" style={{ color: 'var(--dim)', textDecoration: 'none' }}>Financement</Link>
+          <Link href="/blog" style={{ color: 'var(--dim)', textDecoration: 'none' }}>Blog</Link>
+          <Link href="/contact" style={{ color: 'var(--dim)', textDecoration: 'none' }}>Contact</Link>
+        </div>
+        <p style={{ fontSize: 12, color: 'var(--dim)', width: '100%' }}>© 2026 AcadémIA Pro · Tous droits réservés</p>
+      </footer>
 
     </main>
   )
