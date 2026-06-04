@@ -69,7 +69,7 @@ export default function ContactPage() {
             </div>
           </div>
         </section>
-      </main>
+   </div>
       
 
       <style>{`
