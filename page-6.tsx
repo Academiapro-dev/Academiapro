@@ -133,7 +133,7 @@ export default function FormationsPage() {
           <Link href="/agents#unia" className="btn-gold">🎯 Entretien gratuit avec UNIA</Link>
         </section>
       </main>
-      <Footer/>
+      
     </>
   )
 }
