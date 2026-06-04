@@ -1,7 +1,5 @@
 'use client'
 import { useState } from 'react'
-import Nav from '@/components/layout/Nav'
-import Footer from '@/components/layout/Footer'
 import Link from 'next/link'
 import { FORMATIONS } from '@/lib/data'
 
