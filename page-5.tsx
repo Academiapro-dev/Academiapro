@@ -146,7 +146,7 @@ export default function FinancementPage() {
         </section>
 
       </main>
-      <Footer/>
+    
     </>
   )
 }
