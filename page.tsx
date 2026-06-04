@@ -1,8 +1,8 @@
 'use client'
 import { useState, useRef, useEffect } from 'react'
-import Nav from '@/components/layout/Nav'
-import Footer from '@/components/layout/Footer'
-import { AGENTS } from '@/lib/data'
+// Nav removed
+// Footer removed
+import { AGENTS } from './data'
 
 const QUICK: Record<string, string[]> = {
   unia: ['Mon solde CPF ?', 'Quelle formation pour moi ?', 'Financement OPCO ?', 'Je suis en reconversion'],
