@@ -244,7 +244,7 @@ export default function AgentsPage() {
           </div>
         </section>
       </main>
-      <Footer/>
+      
     </>
   )
 }
