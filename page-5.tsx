@@ -25,8 +25,7 @@ export default function FinancementPage() {
   }
 
   return (
-    <>
-      <Nav/>
+    
       <main style={{ paddingTop: 64 }}>
 
         {/* Hero */}
