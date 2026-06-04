@@ -1,12 +1,11 @@
-import Nav from '@/components/layout/Nav'
-import Footer from '@/components/layout/Footer'
+
 import Link from 'next/link'
 
 export default function ContactPage() {
   return (
     <>
       <Nav/>
-      <main style={{ paddingTop: 64 }}>
+      
         <section style={{ padding: '60px 6% 48px', textAlign: 'center', background: 'var(--s1)', borderBottom: '1px solid var(--border)' }}>
           <h1 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 'clamp(36px,5vw,56px)', fontWeight: 700, marginBottom: 14 }}>
             Nous <em style={{ color: 'var(--gold)', fontStyle: 'italic' }}>contacter.</em>
