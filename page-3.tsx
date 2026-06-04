@@ -1,5 +1,6 @@
-import Nav from '@/components/layout/Nav'
-import Footer from '@/components/layout/Footer'
+// Nav removed
+// Footer removed
+
 import Link from 'next/link'
 
 const ARTICLES = [
