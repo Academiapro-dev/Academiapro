@@ -1,6 +1,6 @@
 'use client'
 import { useState } from 'react'
-import { FORMATIONS } from '@/lib/data'
+import { FORMATIONS } from './data'
 import Link from 'next/link'
 
 const CATS = ['Tous', 'IA & No-Code', 'Bien-être', 'Métier', 'Outils']
