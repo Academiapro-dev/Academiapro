@@ -179,7 +179,7 @@ export default function BienetrePage() {
           </div>
         </section>
       </main>
-      <Footer/>
+      
     </>
   )
 }
