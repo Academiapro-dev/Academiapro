@@ -1,6 +1,6 @@
 'use client'
 import Link from 'next/link'
-import { FORMATIONS, AGENTS, PRATICIENS_BIENETRE } from './data'
+import { FORMATIONS, AGENTS, PRATICIENS_BIENETRE } from '../../data'
 
 export default function HomePage() {
   const topFormations = FORMATIONS.slice(0, 8)
