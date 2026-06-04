@@ -180,7 +180,7 @@ export default function AgentsPage() {
 
   return (
     <>
-      <Nav/>
+      
       <main style={{ paddingTop: 64 }}>
         {/* Hero */}
         <section style={{ padding: '60px 6% 40px', textAlign: 'center' }}>
