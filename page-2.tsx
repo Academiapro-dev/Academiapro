@@ -113,7 +113,7 @@ export default function BienetrePage() {
 
   return (
     <>
-      <Nav/>
+      
       <main style={{ paddingTop: 64 }}>
         <section style={{ padding: '60px 6% 48px', textAlign: 'center' }}>
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '5px 16px', borderRadius: 20, background: 'rgba(14,196,176,0.08)', border: '1px solid rgba(14,196,176,0.2)', fontSize: 10, color: 'var(--teal)', fontWeight: 600, marginBottom: 20, letterSpacing: 1.5 }}>
