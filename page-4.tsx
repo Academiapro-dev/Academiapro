@@ -70,7 +70,7 @@ export default function ContactPage() {
           </div>
         </section>
       </main>
-      <Footer/>
+      
 
       <style>{`
         @media (max-width: 768px) {
