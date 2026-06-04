@@ -3,6 +3,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { FORMATIONS } from '@/lib/data'
 
+
 export default function FinancementPage() {
   const [statut, setStatut] = useState('')
   const [mois, setMois] = useState('')
