@@ -1,5 +1,4 @@
-import Nav from '@/components/layout/Nav'
-import Footer from '@/components/layout/Footer'
+
 import Link from 'next/link'
 import { FORMATIONS, AGENTS, PRATICIENS_BIENETRE } from '@/lib/data'
 
