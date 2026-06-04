@@ -1,4 +1,3 @@
-
 import Link from 'next/link'
 import { FORMATIONS, AGENTS, PRATICIENS_BIENETRE } from './data'
 
