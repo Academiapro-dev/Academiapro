@@ -148,6 +148,6 @@ export default function FinancementPage() {
 
       </main>
     
-    </>
+    
   )
 }
