@@ -48,6 +48,29 @@ export default function HomePage() {
           </Link>
         </div>
       </section>
+      {/* AGENTS IA */}
+      <section style={{ padding: '72px 6%', background: 'var(--s2)', borderTop: '1px solid var(--border)' }}>
+        <h2 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 'clamp(28px,3.5vw,44px)', fontWeight: 700, textAlign: 'center', marginBottom: 16 }}>
+          Vos <em style={{ color: 'var(--gold)', fontStyle: 'italic' }}>Agents IA</em> personnels
+        </h2>
+        <p style={{ fontSize: 16, color: 'var(--dim)', textAlign: 'center', maxWidth: 480, margin: '0 auto 48px' }}>
+          Formateur Expert disponible 24h/24 · Coach Personnel · Spécialistes métier
+        </p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 20, maxWidth: 1100, margin: '0 auto' }}>
+          {topAgents.map((a: any) => (
+            <div key={a.id} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 16, padding: 28 }}>
+              <div style={{ fontSize: 32, marginBottom: 12 }}>{a.avatar}</div>
+              <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 6 }}>{a.name}</h3>
+              <p style={{ fontSize: 13, color: 'var(--dim)', lineHeight: 1.6 }}>{a.role}</p>
+            </div>
+          ))}
+        </div>
+        <div style={{ textAlign: 'center', marginTop: 40 }}>
+          <Link href="/agents" style={{ padding: '14px 32px', borderRadius: 10, background: 'var(--gold)', color: '#050508', fontWeight: 700, textDecoration: 'none' }}>
+            Rencontrer tous les agents →
+          </Link>
+        </div>
+      </section>
 
     </main>
   )
