@@ -4,7 +4,8 @@ import { useState, useRef, useEffect } from 'react'
 // Footer removed
 
 
-import { PRATICIENS_BIENETRE } from '@/lib/data'
+import { PRATICIENS_BIENETRE } from './data'
+
 
 
 const SYSTEMS: Record<string, string> = {
