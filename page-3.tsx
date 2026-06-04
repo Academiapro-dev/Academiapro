@@ -93,7 +93,7 @@ export default function BlogPage() {
           </div>
         </section>
       </main>
-      <Footer/>
+      
 
       <style>{`
         @media (max-width: 768px) {
