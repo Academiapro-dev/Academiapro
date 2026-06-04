@@ -19,7 +19,7 @@ export default function FormationsPage() {
 
   return (
     <>
-      <Nav/>
+    
       <main style={{ paddingTop: 64 }}>
 
         {/* Hero */}
