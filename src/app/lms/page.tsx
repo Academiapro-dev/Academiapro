@@ -110,4 +110,130 @@ export default function LMSPage() {
 
             <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 16, padding: 24 }}>
               <div style={{ fontSize: 13, fontWeight: 
+              700, color: 'var(--gold)', marginBottom: 16 }}>PROCHAIN MODULE</div>
+              <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 8 }}>{APPRENANT.prochainModule}</div>
+              <div style={{ fontSize: 12, color: 'var(--dim)', marginBottom: 16 }}>{APPRENANT.prochainDate}</div>
+              <Link href="/lms?onglet=modules" style={{ padding: '8px 18px', borderRadius: 10, background: 'var(--gold)', color: '#050508', fontSize: 12, fontWeight: 700, textDecoration: 'none' }}>
+                Accéder au module →
+              </Link>
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+            <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 16, padding: 24 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--gold)', marginBottom: 16 }}>VOTRE FORMATEUR</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+                <img src="https://api.dicebear.com/8.x/lorelei/svg?seed=thomas&backgroundColor=2a2a2a&radius=50" style={{ width: 48, height: 48, borderRadius: '50%', border: '2px solid #c8a96e' }} alt="Thomas" />
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 700 }}>{APPRENANT.formateur}</div>
+                  <div style={{ fontSize: 12, color: 'var(--dim)' }}>Product Builder No-Code & IA</div>
+                </div>
+              </div>
+              <button onClick={() => setOnglet('formateur')} style={{ width: '100%', padding: '10px', borderRadius: 10, background: 'var(--gold)', border: 'none', cursor: 'pointer', color: '#050508', fontSize: 12, fontWeight: 700 }}>
+                Poser une question →
+              </button>
+            </div>
+
+            <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 16, padding: 24 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--gold)', marginBottom: 16 }}>VOTRE COACH PERSONNEL</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+                <img src="https://api.dicebear.com/8.x/lorelei/svg?seed=isabelle&backgroundColor=1a0a2e&radius=50" style={{ width: 48, height: 48, borderRadius: '50%', border: '2px solid #0ec4b0' }} alt="Isabelle" />
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 700 }}>{APPRENANT.coach}</div>
+                  <div style={{ fontSize: 12, color: 'var(--dim)' }}>Coach ICF PCC · Méthode GROW</div>
+                </div>
+              </div>
+              <button onClick={() => setOnglet('coach')} style={{ width: '100%', padding: '10px', borderRadius: 10, background: '#0ec4b0', border: 'none', cursor: 'pointer', color: '#050508', fontSize: 12, fontWeight: 700 }}>
+                Session coaching →
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {onglet === 'modules' && (
+        <div style={{ padding: '32px 6%' }}>
+          <h2 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 24, fontWeight: 700, marginBottom: 24 }}>Parcours de formation</h2>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {MODULES.map(m => (
+              <div key={m.num} style={{
+                background: 'var(--card)', border: `1px solid ${m.statut === 'en cours' ? 'var(--gold)' : 'var(--border)'}`,
+                borderRadius: 14, padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 16,
+              }}>
+                <div style={{
+                  width: 36, height: 36, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, flexShrink: 0,
+                  background: m.statut === 'terminé' ? 'rgba(0,230,118,0.15)' : m.statut === 'en cours' ? 'var(--gold-pale)' : 'var(--s2)',
+                  color: m.statut === 'terminé' ? '#00e676' : m.statut === 'en cours' ? 'var(--gold)' : 'var(--dim)',
+                  border: `1px solid ${m.statut === 'terminé' ? 'rgba(0,230,118,0.3)' : m.statut === 'en cours' ? 'var(--gold)' : 'var(--border)'}`,
+                }}>
+                  {m.statut === 'terminé' ? '✓' : m.num}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 14, fontWeight: 600 }}>Module {m.num} — {m.titre}</div>
+                  <div style={{ fontSize: 11, color: 'var(--dim)', marginTop: 2 }}>
+                    {m.statut === 'terminé' ? `Score : ${m.score}/100` : m.statut === 'en cours' ? 'En cours...' : 'À venir'}
+                  </div>
+                </div>
+                {m.statut === 'en cours' && (
+                  <button onClick={() => setOnglet('formateur')} style={{ padding: '8px 16px', borderRadius: 8, background: 'var(--gold)', border: 'none', cursor: 'pointer', color: '#050508', fontSize: 11, fontWeight: 700 }}>
+                    Continuer →
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {(onglet === 'formateur' || onglet === 'coach') && (
+        <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 130px)', padding: '20px 6%' }}>
+          <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 12, padding: '16px 20px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
+            <img
+              src={onglet === 'formateur' ? "https://api.dicebear.com/8.x/lorelei/svg?seed=thomas&backgroundColor=2a2a2a&radius=50" : "https://api.dicebear.com/8.x/lorelei/svg?seed=isabelle&backgroundColor=1a0a2e&radius=50"}
+              style={{ width: 48, height: 48, borderRadius: '50%', border: `2px solid ${onglet === 'formateur' ? '#c8a96e' : '#0ec4b0'}` }}
+              alt="agent"
+            />
+            <div>
+              <div style={{ fontSize: 15, fontWeight: 700 }}>{onglet === 'formateur' ? 'Thomas Martin' : 'Isabelle Moreau'}</div>
+              <div style={{ fontSize: 12, color: onglet === 'formateur' ? 'var(--gold)' : '#0ec4b0' }}>
+                {onglet === 'formateur' ? 'Formateur Expert IA · F01' : 'Coach Personnel ICF PCC'}
+              </div>
+            </div>
+          </div>
+
+          <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 16 }}>
+            {chatHistory.map((m, i) => (
+              <div key={i} style={{ display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
+                <div style={{
+                  maxWidth: '70%', padding: '12px 16px',
+                  borderRadius: m.role === 'user' ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
+                  background: m.role === 'user' ? 'var(--gold)' : 'var(--card)',
+                  color: m.role === 'user' ? '#050508' : 'var(--text)',
+                  fontSize: 14, lineHeight: 1.6,
+                  border: m.role === 'assistant' ? '1px solid var(--border)' : 'none',
+                }}>
+                  {m.content}
+                </div>
+              </div>
+            ))}
+            {loading && <div style={{ padding: '12px 16px', background: 'var(--card)', borderRadius: 12, fontSize: 14, color: 'var(--dim)', width: 60, border: '1px solid var(--border)' }}>···</div>}
+          </div>
+
+          <div style={{ display: 'flex', gap: 10 }}>
+            <input
+              value={chatMsg}
+              onChange={e => setChatMsg(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && sendMsg()}
+              placeholder={onglet === 'formateur' ? 'Poser une question à Thomas...' : 'Parler à Isabelle...'}
+              style={{ flex: 1, background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 12, padding: '13px 16px', color: 'var(--text)', fontSize: 14, outline: 'none' }}
+            />
+            <button onClick={sendMsg} disabled={loading} style={{ padding: '13px 24px', borderRadius: 12, background: onglet === 'formateur' ? 'var(--gold)' : '#0ec4b0', border: 'none', cursor: 'pointer', color: '#050508', fontSize: 14, fontWeight: 700 }}>
+              Envoyer →
+            </button>
+          </div>
+        </div>
+      )}
+    </main>
+  )
+}
 
