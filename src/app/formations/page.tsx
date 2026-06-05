@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import Link from 'next/link'
-import { FORMATIONS } from '../../../../data'
+import { FORMATIONS } from '../../../data'
 
 export default function FormationDetailPage({ params }: { params: { code: string } }) {
   const formation = FORMATIONS.find((f: any) => f.code.toLowerCase() === params.code.toLowerCase())
