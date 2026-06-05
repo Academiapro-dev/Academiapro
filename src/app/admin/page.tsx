@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 
-const MOT_DE_PASSE = 'academiapro2026'
+const MOT_DE_PASSE = 'academiapr1326'
 
 const EQUIPE_A = [
   { id: 'architecte', nom: 'Agent Architecte & Logistique', icon: '🏛️', desc: 'Locaux, infrastructure, logistique du centre' },
