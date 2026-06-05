@@ -19,10 +19,8 @@ export default function FormationsPage() {
 
   return (
     <>
-    
       <main style={{ paddingTop: 64 }}>
 
-        {/* Hero */}
         <section style={{ padding: '60px 6% 48px', textAlign: 'center', background: 'var(--s1)', borderBottom: '1px solid var(--border)' }}>
           <h1 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 'clamp(36px,5vw,60px)', fontWeight: 700, marginBottom: 14 }}>
             43 formations <em style={{ color: 'var(--gold)', fontStyle: 'italic' }}>certifiantes.</em>
@@ -30,8 +28,6 @@ export default function FormationsPage() {
           <p style={{ fontSize: 16, color: 'var(--dim)', maxWidth: 560, margin: '0 auto 32px', lineHeight: 1.7 }}>
             Formateur Expert IA 24h/24 + Coach Personnel inclus dans chaque formation. CPF · OPCO · Transitions Pro · DOM-TOM.
           </p>
-
-          {/* Search */}
           <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap', maxWidth: 600, margin: '0 auto' }}>
             <input
               value={search}
@@ -48,7 +44,6 @@ export default function FormationsPage() {
           </div>
         </section>
 
-        {/* Filtres catégories */}
         <div style={{ padding: '20px 6%', display: 'flex', gap: 8, flexWrap: 'wrap', background: 'var(--s1)', borderBottom: '1px solid var(--border)' }}>
           {CATS.map(c => (
             <button key={c} onClick={() => setCat(c)} style={{
@@ -63,9 +58,8 @@ export default function FormationsPage() {
           </span>
         </div>
 
-        {/* Grid */}
         <section style={{ padding: '32px 6% 60px' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
             {filtered.map(f => (
               <div key={f.code} style={{
                 background: 'var(--card)', border: '1px solid var(--border)',
@@ -86,7 +80,11 @@ export default function FormationsPage() {
                 </div>
 
                 <div style={{ fontSize: 10, color: 'var(--dim)', fontFamily: 'monospace', marginBottom: 4 }}>{f.code}</div>
-                <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', lineHeight: 1.4, marginBottom: 14, flex: 1 }}>{f.titre}</div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', lineHeight: 1.4, marginBottom: 10 }}>{f.titre}</div>
+
+                {f.description && (
+                  <p style={{ fontSize: 12, color: 'var(--dim)', lineHeight: 1.6, marginBottom: 14, flex: 1 }}>{f.description}</p>
+                )}
 
                 <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginBottom: 16 }}>
                   <span style={{ padding: '3px 9px', borderRadius: 8, background: 'rgba(0,230,118,0.1)', border: '1px solid rgba(0,230,118,0.2)', fontSize: 10, color: 'var(--green)', fontWeight: 600 }}>{f.cert}</span>
@@ -99,7 +97,7 @@ export default function FormationsPage() {
                   <Link href="/agents#unia" style={{
                     flex: 1, padding: '10px', borderRadius: 10, textAlign: 'center',
                     background: 'var(--gold)', color: '#050508', fontSize: 12, fontWeight: 700,
-                    textDecoration: 'none', transition: 'opacity 0.2s',
+                    textDecoration: 'none',
                   }}>
                     S'inscrire
                   </Link>
@@ -122,7 +120,6 @@ export default function FormationsPage() {
           )}
         </section>
 
-        {/* CTA UNIA */}
         <section style={{ padding: '60px 6%', textAlign: 'center', background: 'var(--s1)', borderTop: '1px solid var(--border)' }}>
           <h2 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 'clamp(28px,3.5vw,44px)', fontWeight: 700, marginBottom: 14 }}>
             Pas sûr de quelle formation choisir ?
@@ -133,7 +130,6 @@ export default function FormationsPage() {
           <Link href="/agents#unia" className="btn-gold">🎯 Entretien gratuit avec UNIA</Link>
         </section>
       </main>
-      
     </>
   )
 }
