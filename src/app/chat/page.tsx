@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
-import { AGENTS } from '../../../data'
+import { AGENTS } from '../../data'
 
 export default function ChatPage() {
   const [agentId, setAgentId] = useState('unia')
