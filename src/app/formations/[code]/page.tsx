@@ -19,7 +19,6 @@ export default function FormationDetailPage({ params }: { params: { code: string
 
   return (
     <main style={{ paddingTop: 64, minHeight: '100vh', background: 'var(--s1)' }}>
-
       <section style={{ padding: '60px 6% 48px', borderBottom: '1px solid var(--border)', position: 'relative' }}>
         <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: 'linear-gradient(90deg, transparent, var(--gold), transparent)' }}/>
         <Link href="/formations" style={{ fontSize: 12, color: 'var(--dim)', textDecoration: 'none', marginBottom: 20, display: 'inline-block' }}>← Toutes les formations</Link>
@@ -71,7 +70,15 @@ export default function FormationDetailPage({ params }: { params: { code: string
             <button key={o.id} onClick={() => setOnglet(o.id)} style={{
               padding: '16px 20px', background: 'transparent', border: 'none', cursor: 'pointer',
               borderBottom: `2px solid ${onglet === o.id ? 'var(--gold)' : 'transparent'}`,
-                      {onglet === 'programme' && (
+              color: onglet === o.id ? 'var(--gold)' : 'var(--dim)', fontSize: 13, fontWeight: 600,
+            }}>{o.label}</button>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ padding: '48px 6%', maxWidth: 1100, margin: '0 auto' }}>
+
+        {onglet === 'programme' && (
           <div>
             <h2 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 32, fontWeight: 700, marginBottom: 32 }}>Programme complet</h2>
             {(formation as any).chapitres ? (
@@ -109,52 +116,27 @@ export default function FormationDetailPage({ params }: { params: { code: string
           </div>
         )}
 
-                      {m.contenu.split(' · ').map((item: string, i: number) => (
-                        <span key={i}>
-                          <span style={{ color: 'var(--gold)', marginRight: 4 }}>·</span>{item}{' '}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 16, padding: 32, textAlign: 'center', color: 'var(--dim)' }}>
-                Programme détaillé disponible sur demande. Contactez UNIA pour un entretien personnalisé.
-              </div>
-            )}
-          </div>
-        )}
-
         {onglet === 'financement' && (
           <div>
             <h2 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 32, fontWeight: 700, marginBottom: 32 }}>Options de financement</h2>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
               {[
-                { icon: '💳', titre: 'CPF', desc: 'Compte Personnel de Formation jusqu\'à 5 000 EUR. Utilisable sans accord employeur.', dispo: formation.cpf, color: '#c8a96e' },
-                { icon: '🏢', titre: 'OPCO', desc: `${(formation as any).opco === true ? 'Tous OPCO' : (formation as any).opco || 'Sur demande'}. Prise en charge totale par votre OPCO.`, dispo: !!(formation as any).opco, color: '#448aff' },
-                { icon: '🔄', titre: 'Transitions Pro', desc: 'Maintien de salaire + formation financée pour les CDI en reconversion.', dispo: !!(formation as any).tp, color: '#00e676' },
-                { icon: '🏛️', titre: 'France Travail', desc: 'Financement pour demandeurs d\'emploi. Allocations maintenues pendant la formation.', dispo: true, color: '#9b7cf4' },
-                { icon: '♿', titre: 'AGEFIPH', desc: 'Aide complémentaire jusqu\'à 5 000 EUR pour les personnes avec RQTH.', dispo: !!(formation as any).handicap, color: '#0ec4b0' },
-                { icon: '🏝️', titre: 'DOM-TOM', desc: 'Dispositifs spécifiques LADOM et aides régionales pour les résidents d\'outre-mer.', dispo: !!(formation as any).domtom, color: '#f06292' },
+                { icon: '💳', titre: 'CPF', desc: 'Compte Personnel de Formation jusqu\'à 5 000 EUR.', dispo: formation.cpf, color: '#c8a96e' },
+                { icon: '🏢', titre: 'OPCO', desc: `${(formation as any).opco === true ? 'Tous OPCO' : (formation as any).opco || 'Sur demande'}.`, dispo: !!(formation as any).opco, color: '#448aff' },
+                { icon: '🔄', titre: 'Transitions Pro', desc: 'Maintien de salaire + formation financée.', dispo: !!(formation as any).tp, color: '#00e676' },
+                { icon: '🏛️', titre: 'France Travail', desc: 'Financement pour demandeurs d\'emploi.', dispo: true, color: '#9b7cf4' },
+                { icon: '♿', titre: 'AGEFIPH', desc: 'Aide complémentaire jusqu\'à 5 000 EUR.', dispo: !!(formation as any).handicap, color: '#0ec4b0' },
+                { icon: '🏝', titre: 'DOM-TOM', desc: 'Dispositifs spécifiques LADOM.', dispo: !!(formation as any).domtom, color: '#f06292' },
               ].map(d => (
                 <div key={d.titre} style={{ background: 'var(--card)', border: `1px solid ${d.dispo ? d.color + '40' : 'var(--border)'}`, borderRadius: 16, padding: 20, opacity: d.dispo ? 1 : 0.5 }}>
                   <div style={{ fontSize: 28, marginBottom: 10 }}>{d.icon}</div>
                   <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>{d.titre}</div>
                   <div style={{ fontSize: 13, color: 'var(--dim)', lineHeight: 1.6, marginBottom: 12 }}>{d.desc}</div>
                   <div style={{ fontSize: 11, fontWeight: 700, color: d.dispo ? d.color : 'var(--dim)' }}>
-                    {d.dispo ? '✓ Disponible pour cette formation' : '✗ Non disponible'}
+                    {d.dispo ? '✓ Disponible' : '✗ Non disponible'}
                   </div>
                 </div>
               ))}
-            </div>
-            <div style={{ marginTop: 32, background: 'var(--card)', border: '1px solid var(--gold)', borderRadius: 16, padding: 24, textAlign: 'center' }}>
-              <div style={{ fontSize: 24, marginBottom: 12 }}>🎯</div>
-              <h3 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 22, fontWeight: 700, marginBottom: 8 }}>Simulez votre financement en 20 minutes</h3>
-              <p style={{ fontSize: 14, color: 'var(--dim)', marginBottom: 20 }}>UNIA calcule votre reste à charge — souvent 0 EUR.</p>
-              <Link href="/chat?agent=unia" style={{ padding: '12px 28px', borderRadius: 10, background: 'var(--gold)', color: '#050508', fontWeight: 700, textDecoration: 'none', fontSize: 14 }}>
-                Démarrer l'entretien gratuit →
-              </Link>
             </div>
           </div>
         )}
@@ -163,22 +145,7 @@ export default function FormationDetailPage({ params }: { params: { code: string
           <div>
             <h2 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 32, fontWeight: 700, marginBottom: 32 }}>Débouchés & Perspectives</h2>
             <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 16, padding: 32, marginBottom: 24 }}>
-              <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 16, color: 'var(--gold)' }}>Ce que vous serez capable de faire</h3>
               <p style={{ fontSize: 14, color: 'var(--dim)', lineHeight: 1.7 }}>{formation.description}</p>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: 16 }}>
-              {[
-                { icon: '💼', titre: 'Salarié', desc: 'Montée en compétences · Évolution de poste · Augmentation salariale' },
-                { icon: '🚀', titre: 'Freelance', desc: 'Missions indépendantes · Tarif journalier · Liberté professionnelle' },
-                { icon: '🏢', titre: 'Entrepreneur', desc: 'Création d\'entreprise · Lancement produit · Développement business' },
-                { icon: '🎓', titre: 'Formateur', desc: 'Transmettre ses compétences · Créer des formations · Revenus complémentaires' },
-              ].map(d => (
-                <div key={d.titre} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 14, padding: 20 }}>
-                  <div style={{ fontSize: 28, marginBottom: 10 }}>{d.icon}</div>
-                  <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>{d.titre}</div>
-                  <div style={{ fontSize: 13, color: 'var(--dim)', lineHeight: 1.6 }}>{d.desc}</div>
-                </div>
-              ))}
             </div>
           </div>
         )}
@@ -187,23 +154,9 @@ export default function FormationDetailPage({ params }: { params: { code: string
           <div style={{ maxWidth: 600, margin: '0 auto', textAlign: 'center' }}>
             <div style={{ fontSize: 48, marginBottom: 16 }}>🎯</div>
             <h2 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 32, fontWeight: 700, marginBottom: 16 }}>Prêt à démarrer ?</h2>
-            <p style={{ fontSize: 15, color: 'var(--dim)', lineHeight: 1.7, marginBottom: 32 }}>
-              Commencez par un entretien gratuit de 20 minutes avec UNIA. Elle vérifie que cette formation correspond à votre profil et simule votre plan de financement.
-            </p>
             <Link href="/chat?agent=unia" style={{ display: 'block', padding: '16px', borderRadius: 12, background: 'var(--gold)', color: '#050508', fontWeight: 700, textDecoration: 'none', fontSize: 15, marginBottom: 16 }}>
               🎯 Démarrer l'entretien gratuit avec UNIA
             </Link>
-            <Link href="/contact" style={{ display: 'block', padding: '14px', borderRadius: 12, background: 'transparent', border: '1px solid var(--border)', color: 'var(--dim)', textDecoration: 'none', fontSize: 14 }}>
-              Contacter l'équipe →
-            </Link>
-            <div style={{ marginTop: 32, padding: 20, background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 14 }}>
-              <div style={{ fontSize: 13, color: 'var(--dim)', lineHeight: 1.8 }}>
-                ✓ Entretien 100% gratuit et sans engagement<br/>
-                ✓ Réponse en moins de 2 secondes<br/>
-                ✓ Financement simulé en direct<br/>
-                ✓ Convention de formation envoyée sous 24h
-              </div>
-            </div>
           </div>
         )}
 
