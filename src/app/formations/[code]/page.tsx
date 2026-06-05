@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { FORMATIONS } from '../../../data'
 
 export default function FormationDetailPage({ params }: { params: { code: string } }) {
-  const formation = FORMATIONS.find((f: any) => f.code.toLowerCase() === params.code.toLowerCase())
+  const formation = FORMATIONS.find((f: any) => f?.code?.toLowerCase() === params.code?.toLowerCase())
   const [onglet, setOnglet] = useState('programme')
 
   if (!formation) return (
