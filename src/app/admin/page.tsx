@@ -76,7 +76,8 @@ export default function AdminPage() {
         <h1 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 28, fontWeight: 700, marginBottom: 8 }}>Back-office CAM</h1>
         <p style={{ fontSize: 13, color: 'var(--dim)', marginBottom: 28 }}>Accès réservé — AcadémIA Pro</p>
         <input
-          type="password"
+          type={voir ? 'text' : 'password'}
+
           value={mdp}
           onChange={e => setMdp(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && login()}
