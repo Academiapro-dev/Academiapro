@@ -545,8 +545,7 @@ export const FORMATIONS = [
     ]},
     { num: 4, titre: 'Agents Autonomes', heures: '20h', modules: [
       { num: 1, titre: 'Architecture agents', heures: '6h', contenu: 'ReAct · Planning · Memory · Tools · Multi-agents · Orchestration' },
-      { num: 2, titre: 'Alternatives et comparatif', heures: '4h', contenu: 'Comparatif Make/n8n/Zapier/Activepieces · Choisir
-         son stack' },
+      { num: 2, titre: 'Alternatives et comparatif', heures: '4h', contenu: 'Comparatif Make/n8n/Zapier/Activepieces · Choisir son stack' },
       { num: 3, titre: 'Projet final automatisation', heures: '10h', contenu: 'Automatiser un processus métier réel · ROI calculé · Documentation · Certification' },
     ]},
   ]},
