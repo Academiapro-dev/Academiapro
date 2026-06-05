@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from 'react'
 // Footer removed
 
 
-import { PRATICIENS_BIENETRE } from './data'
+import { PRATICIENS_BIENETRE } from from './src/data'
 
 
 
