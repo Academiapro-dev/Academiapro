@@ -71,32 +71,44 @@ export default function FormationDetailPage({ params }: { params: { code: string
             <button key={o.id} onClick={() => setOnglet(o.id)} style={{
               padding: '16px 20px', background: 'transparent', border: 'none', cursor: 'pointer',
               borderBottom: `2px solid ${onglet === o.id ? 'var(--gold)' : 'transparent'}`,
-              color: onglet === o.id ? 'var(--gold)' : 'var(--dim)', fontSize: 13, fontWeight: 600,
-            }}>{o.label}</button>
-          ))}
-        </div>
-      </div>
-
-      <div style={{ padding: '48px 6%', maxWidth: 1100, margin: '0 auto' }}>
-
-        {onglet === 'programme' && (
+                      {onglet === 'programme' && (
           <div>
             <h2 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 32, fontWeight: 700, marginBottom: 32 }}>Programme complet</h2>
-            {(formation as any).modules ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                {((formation as any).modules as any[]).map((m: any) => (
-                  <div key={m.num} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 16, padding: 24, position: 'relative', overflow: 'hidden' }}>
-                    <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: 'var(--gold)' }}/>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+            {(formation as any).chapitres ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {((formation as any).chapitres as any[]).map((chapitre: any) => (
+                  <div key={chapitre.num} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 16, overflow: 'hidden' }}>
+                    <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                        <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--gold-pale)', border: '1px solid var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: 'var(--gold)', flexShrink: 0 }}>
-                          {m.num}
+                        <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--gold-pale)', border: '1px solid var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: 'var(--gold)' }}>{chapitre.num}</div>
+                        <div>
+                          <div style={{ fontSize: 15, fontWeight: 700 }}>Chapitre {chapitre.num} — {chapitre.titre}</div>
+                          <div style={{ fontSize: 11, color: 'var(--dim)' }}>{chapitre.modules?.length} modules · {chapitre.heures}</div>
                         </div>
-                        <h3 style={{ fontSize: 16, fontWeight: 700 }}>Module {m.num} — {m.titre}</h3>
                       </div>
-                      <span style={{ padding: '4px 12px', borderRadius: 8, background: 'var(--s2)', fontSize: 11, color: 'var(--dim)', fontWeight: 600, flexShrink: 0 }}>{m.heures}</span>
                     </div>
-                    <div style={{ fontSize: 13, color: 'var(--dim)', lineHeight: 1.7, paddingLeft: 48 }}>
+                    <div style={{ padding: '16px 24px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      {chapitre.modules?.map((m: any) => (
+                        <div key={m.num} style={{ background: 'var(--s1)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 18px', borderLeft: '3px solid var(--gold)' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                            <span style={{ fontSize: 13, fontWeight: 600 }}>Module {m.num} — {m.titre}</span>
+                            <span style={{ fontSize: 11, color: 'var(--dim)' }}>{m.heures}</span>
+                          </div>
+                          <div style={{ fontSize: 12, color: 'var(--dim)', lineHeight: 1.6 }}>{m.contenu}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 16, padding: 32, textAlign: 'center', color: 'var(--dim)' }}>
+                Programme détaillé disponible sur demande.
+              </div>
+            )}
+          </div>
+        )}
+
                       {m.contenu.split(' · ').map((item: string, i: number) => (
                         <span key={i}>
                           <span style={{ color: 'var(--gold)', marginRight: 4 }}>·</span>{item}{' '}
