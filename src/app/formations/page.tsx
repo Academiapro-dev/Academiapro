@@ -89,11 +89,12 @@ export default function FormationsPage() {
                   {f.domtom && <span style={{ padding: '3px 9px', borderRadius: 8, background: 'rgba(200,169,110,0.08)', fontSize: 10, color: 'var(--dim)', fontWeight: 500 }}>DOM-TOM</span>}
                 </div>
                 <div style={{ display: 'flex', gap: 8 }}>
-                  <Link href="/agents#unia" style={{
-                    flex: 1, padding: '10px', borderRadius: 10, textAlign: 'center',
-                    background: 'var(--gold)', color: '#050508', fontSize: 12, fontWeight: 700,
-                    textDecoration: 'none',
-                  }}>S'inscrire</Link>
+   <Link href={`/formations/${f.code.toLowerCase()}`} style={{
+    flex: 1, padding: '10px', borderRadius: 10, textAlign: 'center',
+    background: 'var(--gold)', color: '#050508', fontSize: 12, fontWeight: 700,
+    textDecoration: 'none',
+  }}>Voir la formation</Link>
+
                   <div style={{ padding: '10px 14px', borderRadius: 10, background: 'transparent', border: '1px solid var(--border)', color: 'var(--dim)', fontSize: 11, display: 'flex', alignItems: 'center' }}>
                     {f.heures}
                   </div>
