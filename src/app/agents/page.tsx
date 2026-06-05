@@ -1,6 +1,6 @@
 'use client'
 import { useState } from 'react'
-import { AGENTS } from '../../../data'
+import { AGENTS } from '../../data'
 import Link from 'next/link'
 
 export default function AgentsPage() {
