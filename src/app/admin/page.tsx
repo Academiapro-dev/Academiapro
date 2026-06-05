@@ -44,6 +44,7 @@ export default function AdminPage() {
   const [prompt, setPrompt] = useState('')
   const [reponse, setReponse] = useState('')
   const [loading, setLoading] = useState(false)
+  const [voir, setVoir] = useState(false)
 
   const login = () => {
     if (mdp === MOT_DE_PASSE) { setAuth(true); setErreur(false) }
