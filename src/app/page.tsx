@@ -30,11 +30,12 @@ export default function HomePage() {
             <div key={f.code} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 16, padding: 28 }}>
               <div style={{ fontSize: 28, marginBottom: 12 }}>{f.icon}</div>
               <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>{f.titre}</h3>
-              <p style={{ fontSize: 13, color: 'var(--dim)', lineHeight: 1.6 }}>{f.desc}</p>
+              <p style={{ fontSize: 13, color: 'var(--dim)', lineHeight: 1.6 }}>{f.description}</p>
             </div>
           ))}
         </div>
       </section>
+
       <section style={{ padding: '72px 6%', borderTop: '1px solid var(--border)' }}>
         <h2 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 'clamp(28px,3.5vw,44px)', fontWeight: 700, textAlign: 'center', marginBottom: 48 }}>
           Vos Agents IA personnels
@@ -42,9 +43,22 @@ export default function HomePage() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 20, maxWidth: 1100, margin: '0 auto' }}>
           {topAgents.map((a: any) => (
             <div key={a.id} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 16, padding: 28 }}>
-              <div style={{ fontSize: 32, marginBottom: 12 }}>{a.avatar}</div>
-              <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 6 }}>{a.name}</h3>
-              <p style={{ fontSize: 13, color: 'var(--dim)', lineHeight: 1.6 }}>{a.role}</p>
+              <div style={{ marginBottom: 14 }}>
+                {a.avatar ? (
+                  <img
+                    src={a.avatar}
+                    alt={a.nom}
+                    style={{ width: 64, height: 64, borderRadius: '50%', border: `2px solid ${a.color}` }}
+                  />
+                ) : (
+                  <div style={{ fontSize: 32 }}>{a.icon}</div>
+                )}
+              </div>
+              <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 6 }}>{a.nom}</h3>
+              <p style={{ fontSize: 13, color: 'var(--dim)', lineHeight: 1.6, marginBottom: 8 }}>{a.role}</p>
+              {a.bio && (
+                <p style={{ fontSize: 12, color: 'var(--dim)', lineHeight: 1.5 }}>{a.bio}</p>
+              )}
             </div>
           ))}
         </div>
