@@ -1949,7 +1949,6 @@ export const FORMATIONS = [
         modules: [
           { num: 1, titre: 'Interface et scénarios', heures: '8h', contenu: 'Interface Make · Scénarios · Modules · Connexions · Filtres · Routeurs · Agrégateurs' },
     { num: 2, titre: 'Intégrations essentielles', heures: '7h', contenu: 'Gmail · Sheets · Airtable · Slack · Notion · Webhooks entrant/sortant · Scheduling' },
-
        ],
      },
      {
