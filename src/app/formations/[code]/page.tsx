@@ -2,6 +2,12 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { FORMATIONS } from '../../../../data'
+export async function generateStaticParams() {
+  return FORMATIONS.map((f: any) => ({
+    code: f.code.toLowerCase(),
+  }))
+}
+
 
 export default function FormationDetailPage({ params }: { params: { code: string } }) {
   const formation = FORMATIONS.find((f: any) => f.code.toLowerCase() === params.code.toLowerCase())
