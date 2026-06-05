@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import Link from 'next/link'
-import { FORMATIONS } from './data'
+import { FORMATIONS } from './src/data'
 
 
 export default function FinancementPage() {
