@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import Link from 'next/link'
-import { FORMATIONS, AGENTS } from '../../../data'
+import { FORMATIONS, AGENTS } from '../../data'
 
 const APPRENANT = {
   nom: 'Jacques',
