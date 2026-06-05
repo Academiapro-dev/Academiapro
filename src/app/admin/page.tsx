@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 
-const MOT_DE_PASSE = 'academiapr1326'
+const MOT_DE_PASSE = 'academiapro1326'
 
 const EQUIPE_A = [
   { id: 'architecte', nom: 'Agent Architecte & Logistique', icon: '🏛️', desc: 'Locaux, infrastructure, logistique du centre' },
@@ -18,17 +18,17 @@ const EQUIPE_B = [
   { id: 'multimedia', nom: 'Agent Multimédia & Outils', icon: '🎬', desc: 'Vidéos, supports, quiz, outils e-learning' },
   { id: 'management', nom: 'Agent Péda — Management & Leadership', icon: '👔', desc: 'Modules management, leadership, PMP' },
   { id: 'digital', nom: 'Agent Péda — Digital & Tech', icon: '💻', desc: 'Modules développement, cybersécurité, data' },
-  { id: 'finance-péda', nom: 'Agent Péda — Finance & Comptabilité', icon: '📊', desc: 'Modules finance, comptabilité, gestion' },
+  { id: 'finance-peda', nom: 'Agent Péda — Finance & Comptabilité', icon: '📊', desc: 'Modules finance, comptabilité, gestion' },
   { id: 'rh-soft', nom: 'Agent Péda — RH & Soft Skills', icon: '🤝', desc: 'Modules RH, communication, gestion du stress' },
-  { id: 'marketing-péda', nom: 'Agent Péda — Marketing & Vente', icon: '📢', desc: 'Modules marketing digital, vente, négociation' },
+  { id: 'marketing-peda', nom: 'Agent Péda — Marketing & Vente', icon: '📢', desc: 'Modules marketing digital, vente, négociation' },
   { id: 'technique', nom: 'Agent Péda — Métiers Techniques', icon: '🔧', desc: 'Modules métiers techniques et industriels' },
   { id: 'product-ia', nom: 'Agent Péda — Product Manager IA', icon: '🏗️', desc: 'Modules product management augmenté IA' },
   { id: 'nocode', nom: 'Agent Péda — Builder No-Code', icon: '🫧', desc: 'Modules Bubble, Webflow, no-code' },
   { id: 'prompt', nom: 'Agent Péda — Prompt Engineering', icon: '⚡', desc: 'Modules prompt, Claude API, GPT' },
-  { id: 'automatisation', nom: 'Agent Péda — Automatisation & Agents IA', icon: '⚙', desc: 'Modules Make, n8n, agents autonomes' },
+  { id: 'automatisation', nom: 'Agent Péda — Automatisation & Agents IA', icon: '⚙️', desc: 'Modules Make, n8n, agents autonomes' },
   { id: 'entrepreneuriat', nom: 'Agent Péda — Entrepreneuriat IA', icon: '🚀', desc: 'Modules business model, lancement, scaling IA' },
   { id: 'anglais', nom: 'Agent Péda — Anglais Business', icon: '🇬🇧', desc: 'Modules anglais professionnel, TOEIC, TOEFL' },
-  { id: 'francais', nom: 'Agent Péda — Français FLE', icon: '🇫🇷', desc: 'Modules français langue étrangère, DELF' },
+  { id: 'francais', nom: 'Agent Péda — Français FLE', icon: '🇫', desc: 'Modules français langue étrangère, DELF' },
   { id: 'espagnol', nom: 'Agent Péda — Espagnol', icon: '🇪🇸', desc: 'Modules espagnol professionnel, DELE' },
   { id: 'allemand', nom: 'Agent Péda — Allemand', icon: '🇩🇪', desc: 'Modules allemand professionnel, Goethe' },
   { id: 'mandarin', nom: 'Agent Péda — Mandarin', icon: '🇨🇳', desc: 'Modules mandarin business, HSK' },
@@ -39,12 +39,12 @@ const EQUIPE_B = [
 export default function AdminPage() {
   const [auth, setAuth] = useState(false)
   const [mdp, setMdp] = useState('')
+  const [voir, setVoir] = useState(false)
   const [erreur, setErreur] = useState(false)
   const [agentActif, setAgentActif] = useState<any>(null)
   const [prompt, setPrompt] = useState('')
   const [reponse, setReponse] = useState('')
   const [loading, setLoading] = useState(false)
-  const [voir, setVoir] = useState(false)
 
   const login = () => {
     if (mdp === MOT_DE_PASSE) { setAuth(true); setErreur(false) }
@@ -76,15 +76,19 @@ export default function AdminPage() {
         <div style={{ fontSize: 48, marginBottom: 16 }}>⚡</div>
         <h1 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 28, fontWeight: 700, marginBottom: 8 }}>Back-office CAM</h1>
         <p style={{ fontSize: 13, color: 'var(--dim)', marginBottom: 28 }}>Accès réservé — AcadémIA Pro</p>
-        <input
-          type={voir ? 'text' : 'password'}
-
-          value={mdp}
-          onChange={e => setMdp(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && login()}
-          placeholder="Mot de passe"
-          style={{ width: '100%', background: 'var(--s1)', border: `1px solid ${erreur ? 'red' : 'var(--border)'}`, borderRadius: 10, padding: '12px 16px', color: 'var(--text)', fontSize: 14, outline: 'none', boxSizing: 'border-box', marginBottom: 12 }}
-        />
+        <div style={{ position: 'relative', marginBottom: 12 }}>
+          <input
+            type={voir ? 'text' : 'password'}
+            value={mdp}
+            onChange={e => setMdp(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && login()}
+            placeholder="Mot de passe"
+            style={{ width: '100%', background: 'var(--s1)', border: `1px solid ${erreur ? 'red' : 'var(--border)'}`, borderRadius: 10, padding: '12px 48px 12px 16px', color: 'var(--text)', fontSize: 14, outline: 'none', boxSizing: 'border-box' }}
+          />
+          <button onClick={() => setVoir(v => !v)} style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 18 }}>
+            {voir ? '🙈' : '👁️'}
+          </button>
+        </div>
         {erreur && <p style={{ color: 'red', fontSize: 12, marginBottom: 12 }}>Mot de passe incorrect</p>}
         <button onClick={login} style={{ width: '100%', padding: '12px', borderRadius: 10, background: 'var(--gold)', border: 'none', cursor: 'pointer', color: '#050508', fontSize: 14, fontWeight: 700 }}>
           Accéder →
@@ -176,4 +180,3 @@ export default function AdminPage() {
     </main>
   )
 }
-
