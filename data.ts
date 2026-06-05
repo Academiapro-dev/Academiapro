@@ -999,3 +999,4 @@ export const STATS = {
   certifications: 'RS · RNCP · CompTIA · ICF',
   financement: 'CPF · OPCO · Transitions Pro · France Travail',
 }
+
