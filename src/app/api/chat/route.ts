@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { AGENTS } from '../../data'
+import { AGENTS } from '../../../data'
 
 export async function POST(req: NextRequest) {
   const { agentId, messages } = await req.json()
