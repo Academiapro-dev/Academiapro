@@ -41,6 +41,7 @@ export default function Nav() {
         <Link href="/financement" style={{ color: 'rgba(240,237,232,0.5)', textDecoration: 'none' }}>Financement</Link>
         <Link href="/blog" style={{ color: 'rgba(240,237,232,0.5)', textDecoration: 'none' }}>Blog</Link>
         <Link href="/contact" style={{ color: 'rgba(240,237,232,0.5)', textDecoration: 'none' }}>Contact</Link>
+        <Link href="/lms" style={{ color: 'rgba(240,237,232,0.5)', textDecoration: 'none' }}>Mon LMS</Link>
         <Link href="/chat?agent=unia" style={{
           padding: '8px 18px', borderRadius: 10,
           background: '#c8a96e', color: '#050508',
