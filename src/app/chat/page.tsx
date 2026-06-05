@@ -58,11 +58,9 @@ export default function ChatPage() {
 
       <div style={{ padding: '16px 6%', borderBottom: '1px solid var(--border)', background: 'var(--s1)', display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          {agent.avatar ? (
-            <img src={agent.avatar} alt={agent.nom} style={{ width: 48, height: 48, borderRadius: '50%', border: `2px solid ${agent.color}` }} />
-          ) : (
-            <span style={{ fontSize: 32 }}>{agent.icon}</span>
-          )}
+          <div style={{ width: 48, height: 48, borderRadius: '50%', border: `2px solid ${agent.color}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, background: `${agent.color}20` }}>
+            {agent.icon}
+          </div>
           <div>
             <div style={{ fontSize: 15, fontWeight: 700 }}>{agent.nom}</div>
             <div style={{ fontSize: 12, color: agent.color }}>{agent.spec}</div>
@@ -84,7 +82,9 @@ export default function ChatPage() {
         {messages.map((m, i) => (
           <div key={i} style={{ display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
             {m.role === 'assistant' && (
-              <img src={agent.avatar} alt={agent.nom} style={{ width: 32, height: 32, borderRadius: '50%', border: `1px solid ${agent.color}`, marginRight: 10, flexShrink: 0, alignSelf: 'flex-end' }} />
+              <div style={{ width: 32, height: 32, borderRadius: '50%', border: `1px solid ${agent.color}`, marginRight: 10, flexShrink: 0, alignSelf: 'flex-end', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, background: `${agent.color}20` }}>
+                {agent.icon}
+              </div>
             )}
             <div style={{
               maxWidth: '70%', padding: '12px 16px', borderRadius: m.role === 'user' ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
@@ -99,7 +99,9 @@ export default function ChatPage() {
         ))}
         {loading && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <img src={agent.avatar} alt={agent.nom} style={{ width: 32, height: 32, borderRadius: '50%', border: `1px solid ${agent.color}` }} />
+            <div style={{ width: 32, height: 32, borderRadius: '50%', border: `1px solid ${agent.color}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, background: `${agent.color}20` }}>
+              {agent.icon}
+            </div>
             <div style={{ padding: '12px 16px', borderRadius: '16px 16px 16px 4px', background: 'var(--card)', border: '1px solid var(--border)', fontSize: 14, color: 'var(--dim)' }}>
               ···
             </div>
@@ -124,4 +126,3 @@ export default function ChatPage() {
     </main>
   )
 }
-
