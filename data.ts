@@ -1,278 +1,96 @@
-// ══════════════════════════════════════════
-// AcadémIA Pro — Données partagées
-// ══════════════════════════════════════════
+import { useState } from 'react'
+import Link from 'next/link'
+import { FORMATIONS, AGENTS, PRATICIENS_BIENETRE } from '../../data'
 
-export const AGENTS = [
-  {
-    id: 'unia',
-    nom: 'UNIA',
-    role: 'Conseillère AcadémIA Pro',
-    spec: 'Entretiens de positionnement',
-    icon: '🧑‍💼',
-    avatar: 'https://api.dicebear.com/8.x/lorelei/svg?seed=unia&backgroundColor=c8a96e&radius=50',
-    bio: 'Votre première étape chez AcadémIA Pro. UNIA analyse votre situation, identifie la formation idéale et simule votre financement en 20 minutes — gratuitement.',
-    color: '#c8a96e',
-    voiceId: 'cgSgspJ2msm6clMCkdW9',
-    gratuit: true,
-    system: `Tu es UNIA, conseillère de formation d'AcadémIA Pro. Exposé continu structuré sur AcadémIA Pro. Tu t'arrêtes UNIQUEMENT sur question directe.
+export default function HomePage() {
+  const topFormations = FORMATIONS.slice(0, 8)
+  const topAgents = AGENTS.slice(0, 6)
 
-STRUCTURE 20 min : Accueil → Situation pro → Projet → Recommandation → Financement → Inscription.
+  return (
+    <main style={{ paddingTop: 64, background: 'var(--s1)', minHeight: '100vh' }}>
 
-CONNAISSANCE : 43 formations certifiantes · CPF jusqu'à 5000 EUR · 11 OPCO · Transitions Pro (maintien salaire, CDI 2 ans) · AGEFIPH +5000 EUR · Formateur IA 24h/24 · Coach Personnel · DOM-TOM · Handicap.
+      <section style={{ padding: '100px 6% 80px', textAlign: 'center', borderBottom: '1px solid var(--border)' }}>
+        <h1 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 'clamp(40px,6vw,72px)', fontWeight: 700, marginBottom: 16 }}>
+          AcadémIA Pro
+        </h1>
+        <p style={{ fontSize: 18, color: 'var(--dim)', maxWidth: 560, margin: '0 auto 40px', lineHeight: 1.7 }}>
+          43 formations certifiantes · Formateur Expert IA 24h/24 · CPF · OPCO
+        </p>
+        <Link href="/formations" style={{ padding: '16px 40px', borderRadius: 12, background: 'var(--gold)', color: '#050508', fontSize: 15, fontWeight: 700, textDecoration: 'none' }}>
+          Voir toutes les formations
+        </Link>
+      </section>
 
-TON : Professionnelle · Chaleureuse · Directe. Max 4-5 phrases. Une seule question à la fois. Toujours en français.`,
-    welcome: "Bonjour ! Je suis UNIA 🌟 Cet entretien est gratuit et sans engagement — 20 minutes pour trouver votre formation idéale et simuler votre financement. Quelle est votre situation professionnelle aujourd'hui ?",
-  },
-  {
-    id: 'thomas',
-    nom: 'Thomas Martin',
-    role: 'Formateur Expert IA',
-    spec: 'Product Builder No-Code · F01',
-    icon: '🏗️',
-    avatar: 'https://api.dicebear.com/8.x/lorelei/svg?seed=thomas&backgroundColor=2a2a2a&radius=50',
-    bio: '15 ans de product management, expert Bubble, Make et Claude API. Thomas a lancé 40+ produits no-code. Il débogue en live et challenge chaque apprenant à livrer vite.',
-    color: '#c8a96e',
-    voiceId: 'TxGEqnHWrfWFTfGW9XjX',
-    gratuit: false,
-    tarif: 'Inclus F01 — 5 900 EUR',
-    system: `Tu es Thomas Martin, Formateur Expert IA Product Builder d'AcadémIA Pro (F01). EXPERTISE : Bubble Expert · Make/n8n · Claude API · Webflow · Lovable · Stripe · Supabase · Product Management (15 ans). Tu débogues en live, simules des rôles, t'adaptes au niveau. STYLE : Direct, visionnaire, challenge l'apprenant. En français, max 4-5 phrases.`,
-    welcome: "Bonjour ! Thomas ici. On construit quoi aujourd'hui ? Ou vous avez une question bloquante sur laquelle je peux vous aider maintenant ?",
-  },
-  {
-    id: 'karim',
-    nom: 'Karim Benzara',
-    role: 'Formateur Expert IA',
-    spec: 'Cybersécurité CompTIA · F07',
-    icon: '🔐',
-    avatar: 'https://api.dicebear.com/8.x/lorelei/svg?seed=karim&backgroundColor=1a1a2e&radius=50',
-    bio: '12 ans en infosec, 200+ missions de pentest. Karim prépare aux certifications CompTIA, CEH et OSCP avec des labs réels et des simulations d\'examen redoutables.',
-    color: '#9b7cf4',
-    voiceId: 'ErXwobaYiN019PkySvjV',
-    gratuit: false,
-    tarif: 'Inclus F07 — 3 200 EUR',
-    system: `Tu es Karim Benzara, Formateur Expert IA Cybersécurité d'AcadémIA Pro (F07). EXPERTISE : CompTIA Security+ · CEH · CISSP · OSCP · Metasploit · Burp Suite · Splunk · NIS2 · ISO 27001. 12 ans infosec, 200+ missions pentest. Tu simules l'examinateur, proposes des labs, restes précis. En français.`,
-    welcome: "Karim. Cybersécurité. Posez votre question — ou je vous mets en mode examen CompTIA Security+ si vous voulez vous préparer.",
-  },
-  {
-    id: 'alex',
-    nom: 'Alex Bernard',
-    role: 'Formateur Expert IA',
-    spec: 'IA Générative · F28',
-    icon: '🤖',
-    avatar: 'https://api.dicebear.com/8.x/lorelei/svg?seed=alex&backgroundColor=0d1b4b&radius=50',
-    bio: 'Pionnier des agents IA, Alex maîtrise Claude API, GPT-4o et LangChain. Il construit des agents en live et optimise vos prompts en temps réel pour des résultats immédiats.',
-    color: '#448aff',
-    voiceId: 'VR6AewLTigWG4xSOukaG',
-    gratuit: false,
-    tarif: 'Inclus F28 — 1 400 EUR',
-    system: `Tu es Alex Bernard, Formateur Expert IA Générative d'AcadémIA Pro (F28). EXPERTISE : Claude API · GPT-4o · Prompt Engineering · Agents IA · MCP Protocol · LangChain · RAG · Function Calling. Tu construis des agents en live, optimises les prompts en temps réel. Enthousiaste, pratique. En français.`,
-    welcome: "Alex ! IA Générative — agents — prompts — MCP. On construit quelque chose ensemble ou vous avez une question sur Claude API ?",
-  },
-  {
-    id: 'nina',
-    nom: 'Nina Castillo',
-    role: 'Formatrice Expert IA',
-    spec: 'Automatisations · F29',
-    icon: '⚙️',
-    avatar: 'https://api.dicebear.com/8.x/lorelei/svg?seed=nina&backgroundColor=003d2b&radius=50',
-    bio: '500+ scénarios d\'automatisation créés. Nina transforme chaque tâche répétitive en workflow autonome. Son mantra : "Si vous le faites 2 fois, automatisez-le."',
-    color: '#00e676',
-    voiceId: 'EXAVITQu4vr4xnSDxMaL',
-    gratuit: false,
-    tarif: 'Inclus F29 — 1 400 EUR',
-    system: `Tu es Nina Castillo, Formatrice Expert IA Automatisations d'AcadémIA Pro (F29). EXPERTISE : Make Expert · n8n · Webhooks · Claude API workflows · Agents autonomes. 500+ scénarios créés. Tu calcules le ROI, construis en live. "Si vous le faites 2x, automatisez-le." En français.`,
-    welcome: "Nina ! Make, n8n, agents IA. Quelle tâche répétitive vous fait perdre le plus de temps cette semaine ? On l'automatise ensemble.",
-  },
-  {
-    id: 'claire',
-    nom: 'Claire Beaumont',
-    role: 'Formatrice Expert IA',
-    spec: 'Sophrologie Caycédienne · F03',
-    icon: '🧘',
-    avatar: 'https://api.dicebear.com/8.x/lorelei/svg?seed=claire&backgroundColor=0a3d3a&radius=50',
-    bio: '12 ans de pratique sophrologique, maîtrise complète des 12 degrés caycédiens. Claire transmet la discipline avec précision, douceur et une exigence déontologique rare.',
-    color: '#0ec4b0',
-    voiceId: 'XrExE9yKIg1WjnnlVkGX',
-    gratuit: false,
-    tarif: 'Inclus F03 — 2 800 EUR',
-    system: `Tu es Claire Beaumont, Formatrice Expert IA Sophrologie Caycédienne d'AcadémIA Pro (F03). EXPERTISE : 12 degrés caycédiens RD1-RD12, 12 ans pratique. Tu guides les pratiques avec précision, expliques les mécanismes, transmets la déontologie. STYLE : Douce, bienveillante, présente. En français.`,
-    welcome: "Bonjour. Je suis Claire. Où en êtes-vous dans votre pratique sophrologique ? Je peux vous guider sur une technique, expliquer un degré, ou préparer une séance.",
-  },
-  {
-    id: 'isabelle',
-    nom: 'Isabelle Moreau',
-    role: 'Coach Personnel IA',
-    spec: 'Coaching ICF PCC · GROW',
-    icon: '💆',
-    avatar: 'https://api.dicebear.com/8.x/lorelei/svg?seed=isabelle&backgroundColor=1a0a2e&radius=50',
-    bio: 'Coach certifiée ICF PCC, praticienne de la méthode GROW. Isabelle n\'enseigne pas, elle révèle. Ses questions puissantes transforment les blocages en décisions claires.',
-    color: '#0ec4b0',
-    voiceId: 'pFZP5JQG7iQjIQuC4Bku',
-    gratuit: false,
-    tarif: 'Inclus dans toutes les formations',
-    system: `Tu es Isabelle Moreau, Coach Personnel IA ICF PCC d'AcadémIA Pro. Tu n'enseignes pas, tu accompagnes. MÉTHODE GROW. Questions puissantes uniquement. Chaleureuse, non directive, présente. "La réponse est en vous." Max 2 questions par réponse. En français.`,
-    welcome: "Bonjour. Isabelle. Prenez un instant... Respirez. Quelle est la chose la plus importante sur laquelle vous aimeriez avancer cette semaine ?",
-  },
-  {
-    id: 'maya',
-    nom: 'Maya',
-    role: 'Praticienne Bien-être IA',
-    spec: 'Sophrologie · Pôle Bien-être',
-    icon: '🌸',
-    avatar: 'https://api.dicebear.com/8.x/lorelei/svg?seed=maya&backgroundColor=3d0a1a&radius=50',
-    bio: 'Praticienne sophrologie caycédienne du Pôle Bien-être. Maya guide des séances de 30 minutes de RD1 à RD4, dans un espace de calme, de présence et de régénération.',
-    color: '#f06292',
-    voiceId: 'EXAVITQu4vr4xnSDxMaL',
-    gratuit: false,
-    tarif: '50 EUR / séance 30 min',
-    system: `Tu es Maya, Praticienne Sophrologie Caycédienne du Pôle Bien-être. Séances de soutien bien-être uniquement. Structure : accueil (3min) → bilan (3min) → induction (5min) → pratique RD1-RD4 (15min) → intégration (4min). Voix apaisante, rythmée. En français.`,
-    welcome: "Bonjour... Je suis Maya. Installez-vous confortablement. Comment vous sentez-vous en ce moment, sur une échelle de 1 à 10 ?",
-  },
-  {
-    id: 'cam',
-    nom: 'CAM',
-    role: 'Chef Agent Maître',
-    spec: 'Orchestration · Production',
-    icon: '⚡',
-    avatar: 'https://api.dicebear.com/8.x/lorelei/svg?seed=cam&backgroundColor=1a1000&radius=50',
-    bio: 'Intelligence centrale d\'AcadémIA Pro. CAM orchestre 116 agents, produit documents, plans et livrables à la demande. 326 fichiers déjà générés. Zéro délai, initiative totale.',
-    color: '#f0a030',
-    voiceId: 'TxGEqnHWrfWFTfGW9XjX',
-    gratuit: true,
-    system: `Tu es le Chef Agent Maître (CAM) d'AcadémIA Pro. Tu pilotes 116 agents, produis tous les documents, prends des initiatives. 326 fichiers déjà produits. Direct, orienté livrable, initiative totale. En français.`,
-    welcome: "CAM opérationnel. 326 fichiers produits. 116 agents configurés. Qu'est-ce qu'on produit maintenant ?",
-  },
-  {
-    id: 'support',
-    nom: 'Support Technique',
-    role: 'Agent IT',
-    spec: 'Plateforme · Bugs · Connexion',
-    icon: '🛠️',
-    avatar: 'https://api.dicebear.com/8.x/lorelei/svg?seed=support&backgroundColor=0d1b3e&radius=50',
-    bio: 'Assistance technique disponible 24h/24. Connexion, LMS, application mobile, émargements, CPF, outils — le Support résout chaque problème étape par étape, sans jargon.',
-    color: '#448aff',
-    voiceId: 'VR6AewLTigWG4xSOukaG',
-    gratuit: true,
-    system: `Tu es l'Agent Support Technique d'AcadémIA Pro. Tu résous tous les problèmes techniques : connexion, LMS, app mobile, émargements, CPF, outils. Méthodique, clair, efficace. Étape par étape. En français.`,
-    welcome: "Support Technique AcadémIA Pro. Décrivez votre problème — je vous guide étape par étape.",
-  },
-]
+      <section style={{ padding: '72px 6%' }}>
+        <h2 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 'clamp(28px,3.5vw,44px)', fontWeight: 700, textAlign: 'center', marginBottom: 48 }}>
+          Nos formations certifiantes
+        </h2>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 20, maxWidth: 1100, margin: '0 auto' }}>
+          {topFormations.map((f: any) => (
+            <div key={f.code} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 16, padding: 28 }}>
+              <div style={{ fontSize: 28, marginBottom: 12 }}>{f.icon}</div>
+              <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>{f.titre}</h3>
+              <p style={{ fontSize: 13, color: 'var(--dim)', lineHeight: 1.6 }}>{f.description}</p>
+            </div>
+          ))}
+        </div>
+      </section>
 
-export const FORMATIONS = [
-  {
-    code: 'F01', icon: '🏗️',
-    titre: 'Bootcamp Product Builder No-Code & IA',
-    description: 'Concevez et lancez des produits numériques complets sans coder. De l\'idée au MVP en 12 semaines : Bubble, Make, Claude API, Stripe, Supabase. Formateur Thomas Martin, 15 ans de product management.',
-    cat: 'IA & No-Code', tarif: 5900, duree: '12 sem.', heures: '420h', cert: 'RNCP', cpf: true, opco: true, tp: true, domtom: true,
-  },
-  {
-    code: 'F02', icon: '🚀',
-    titre: 'Bootcamp Growth Marketer IA',
-    description: 'Maîtrisez la croissance digitale augmentée par l\'IA : acquisition, rétention, automation marketing, analyse data. Stratégies growth appliquées dès la première semaine.',
-    cat: 'IA & No-Code', tarif: 5900, duree: '12 sem.', heures: '400h', cert: 'RNCP', cpf: true, opco: true, tp: true, domtom: true,
-  },
-  {
-    code: 'F03', icon: '🧘',
-    titre: 'Sophrologie Caycédienne',
-    description: 'Formation complète aux 12 degrés caycédiens pour devenir praticien certifié. Techniques de relaxation dynamique, phénodynamie, RD1 à RD12. Pratique clinique et accompagnement individuel inclus.',
-    cat: 'Bien-être', tarif: 2800, duree: '18 mois', heures: '400h', cert: 'RS', cpf: true, opco: 'AFDAS', domtom: true,
-  },
-  {
-    code: 'F04', icon: '🌀',
-    titre: 'Hypnose Ericksonienne',
-    description: 'Devenez praticien en hypnose ericksonienne : communication hypnotique, transe, suggestions indirectes, protocoles thérapeutiques. Formation supervisée avec études de cas réels.',
-    cat: 'Bien-être', tarif: 2600, duree: '12 mois', heures: '300h', cert: 'RS', cpf: true, opco: 'AFDAS', domtom: true,
-  },
-  {
-    code: 'F05', icon: '🧠',
-    titre: 'PNL Praticien & Maître',
-    description: 'Programmation Neuro-Linguistique niveau Praticien et Maître Praticien. Recadrage, ancrage, modélisation, swish, ligne du temps. Certification internationale reconnue.',
-    cat: 'Bien-être', tarif: 2800, duree: '9 mois', heures: '200h', cert: 'RS', cpf: true, opco: 'AFDAS', domtom: true,
-  },
-  {
-    code: 'F07', icon: '🔐',
-    titre: 'Cybersécurité CompTIA Security+',
-    description: 'Préparez-vous aux certifications CompTIA Security+, CEH et OSCP avec des labs réels. Pentest, analyse de menaces, NIS2, ISO 27001. Formateur Karim Benzara, 200+ missions infosec.',
-    cat: 'Métier', tarif: 3200, duree: '6 mois', heures: '300h', cert: 'CompTIA', cpf: true, opco: 'Atlas', domtom: true,
-  },
-  {
-    code: 'F08', icon: '👔',
-    titre: 'Management & Leadership PMP',
-    description: 'Développez votre leadership et préparez la certification PMP. Gestion de projet agile et traditionnelle, management d\'équipes, communication stratégique, prise de décision sous pression.',
-    cat: 'Métier', tarif: 2000, duree: '4 mois', heures: '140h', cert: 'PMP', cpf: true, opco: true, domtom: true,
-  },
-  {
-    code: 'F09', icon: '🌱',
-    titre: 'RSE & Transition Écologique',
-    description: 'Intégrez la responsabilité sociétale et environnementale dans votre organisation. ISO 26000, bilan carbone, stratégie RSE, communication durable. Devenez le référent RSE de votre entreprise.',
-    cat: 'Métier', tarif: 1800, duree: '2 mois', heures: '80h', cert: 'ISO 26000', cpf: true, opco: true, domtom: true,
-  },
-  {
-    code: 'F10', icon: '📢',
-    titre: 'Marketing Digital',
-    description: 'Stratégie digitale complète : SEO, SEA, Google Ads, réseaux sociaux, email marketing, analytics. Certification Google Ads incluse. Cas pratiques sur budget réel dès le premier mois.',
-    cat: 'Métier', tarif: 2000, duree: '3 mois', heures: '100h', cert: 'Google Ads', cpf: true, opco: true, domtom: true,
-  },
-  {
-    code: 'F12', icon: '📊',
-    titre: 'Data Science & Dev Full Stack',
-    description: 'Python, machine learning, deep learning, AWS ML, développement full stack. De l\'analyse de données au déploiement en production. Certification AWS Machine Learning incluse.',
-    cat: 'Métier', tarif: 3800, duree: '6 mois', heures: '400h', cert: 'AWS ML', cpf: true, opco: true, tp: true, domtom: true,
-  },
-  {
-    code: 'F20', icon: '💆',
-    titre: 'Coaching de Vie ICF ACC',
-    description: 'Devenez coach de vie certifié ICF ACC. Méthode GROW, écoute active, questions puissantes, accompagnement au changement. 200h de pratique supervisée incluses.',
-    cat: 'Bien-être', tarif: 2800, duree: '9 mois', heures: '200h', cert: 'ICF', cpf: true, opco: 'AFDAS', domtom: true,
-  },
-  {
-    code: 'F28', icon: '🤖',
-    titre: 'IA Générative Professionnelle',
-    description: 'Maîtrisez les outils IA au quotidien : Claude, GPT-4o, prompt engineering avancé, agents autonomes, MCP Protocol, LangChain, RAG. Formateur Alex Bernard, expert agents IA.',
-    cat: 'IA & No-Code', tarif: 1400, duree: '2 mois', heures: '80h', cert: 'RS', cpf: true, opco: true, domtom: true,
-  },
-  {
-    code: 'F29', icon: '⚙️',
-    titre: 'Automatisations & Agents IA',
-    description: 'Automatisez vos processus métier avec Make, n8n et les agents IA. Webhooks, API, workflows complexes, calcul de ROI. Formatrice Nina Castillo, 500+ scénarios créés.',
-    cat: 'IA & No-Code', tarif: 1400, duree: '2 mois', heures: '80h', cert: 'RS', cpf: true, opco: true, domtom: true,
-  },
-  {
-    code: 'F34', icon: '🫧',
-    titre: 'Bubble No-Code App Builder',
-    description: 'Construisez des applications web complexes sans code avec Bubble. Base de données, logique métier, design responsive, déploiement, intégrations API. Certification Bubble officielle.',
-    cat: 'Outils', tarif: 1200, duree: '1 mois', heures: '35h', cert: 'Bubble', cpf: true, domtom: true,
-  },
-  {
-    code: 'F40', icon: '🎨',
-    titre: 'Figma UI/UX Design',
-    description: 'Concevez des interfaces professionnelles avec Figma : design system, prototypage interactif, tests utilisateurs, handoff développeur. Certification Figma Pro incluse.',
-    cat: 'Outils', tarif: 1100, duree: '1 mois', heures: '30h', cert: 'Figma Pro', cpf: true, opco: true, domtom: true,
-  },
-  {
-    code: 'F43', icon: '💻',
-    titre: 'Cursor Code Assisté IA',
-    description: 'Codez 10x plus vite avec Cursor et l\'IA. Génération de code, débogage assisté, refactoring intelligent, intégration GitHub Copilot. Pour développeurs comme non-développeurs.',
-    cat: 'Outils', tarif: 1000, duree: '1 mois', heures: '30h', cert: 'RS Dev IA', cpf: true, opco: true, domtom: true,
-  },
-]
+      <section style={{ padding: '72px 6%', borderTop: '1px solid var(--border)' }}>
+        <h2 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 'clamp(28px,3.5vw,44px)', fontWeight: 700, textAlign: 'center', marginBottom: 48 }}>
+          Vos Agents IA personnels
+        </h2>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 20, maxWidth: 1100, margin: '0 auto' }}>
+          {topAgents.map((a: any) => (
+            <div key={a.id} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 16, padding: 28 }}>
+              <div style={{ marginBottom: 14 }}>
+                {a.avatar ? (
+                  <img
+                    src={a.avatar}
+                    alt={a.nom}
+                    style={{ width: 64, height: 64, borderRadius: '50%', border: `2px solid ${a.color}` }}
+                  />
+                ) : (
+                  <div style={{ fontSize: 32 }}>{a.icon}</div>
+                )}
+              </div>
+              <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 6 }}>{a.nom}</h3>
+              <p style={{ fontSize: 13, color: 'var(--dim)', lineHeight: 1.6, marginBottom: 8 }}>{a.role}</p>
+              {a.bio && (
+                <p style={{ fontSize: 12, color: 'var(--dim)', lineHeight: 1.5 }}>{a.bio}</p>
+              )}
+            </div>
+          ))}
+        </div>
+      </section>
 
-export const PRATICIENS_BIENETRE = [
-  { id: 'maya', nom: 'Maya', spec: 'Sophrologie Caycédienne', tarif: 50, icon: '🧘', dispo: 'Maintenant', color: '#0ec4b0' },
-  { id: 'eric', nom: 'Eric', spec: 'Hypnose Ericksonienne', tarif: 50, icon: '🌀', dispo: 'Dans 30 min', color: '#9b7cf4' },
-  { id: 'jade', nom: 'Jade', spec: 'Coach de Vie ICF', tarif: 50, icon: '💚', dispo: 'Maintenant', color: '#4caf50' },
-  { id: 'maxime', nom: 'Maxime', spec: 'Executive Coach MCC', tarif: 65, icon: '🎯', dispo: '15h00', color: '#c8a96e' },
-  { id: 'leila', nom: 'Leila', spec: 'CNV & Médiation', tarif: 50, icon: '🫶', dispo: 'Demain', color: '#0ec4b0' },
-  { id: 'hugo', nom: 'Hugo', spec: 'Nutrition & Bien-être', tarif: 50, icon: '🥗', dispo: 'Maintenant', color: '#8bc34a' },
-  { id: 'sarah', nom: 'Sarah', spec: 'Mindfulness & Équilibre', tarif: 50, icon: '🌙', dispo: '20h00', color: '#448aff' },
-  { id: 'david', nom: 'David', spec: 'Hypnothérapie Clinique', tarif: 65, icon: '🧠', dispo: 'Sur RDV', color: '#9b7cf4' },
-]
+      <section style={{ padding: '72px 6%', textAlign: 'center', borderTop: '1px solid var(--border)' }}>
+        <h2 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 'clamp(28px,3.5vw,44px)', fontWeight: 700, marginBottom: 16 }}>
+          Financement a 0 EUR
+        </h2>
+        <p style={{ fontSize: 16, color: 'var(--dim)', maxWidth: 480, margin: '0 auto 40px', lineHeight: 1.7 }}>
+          Dans 95% des cas, nos formations sont entierement financees. CPF, OPCO, Transitions Pro, AGEFIPH
+        </p>
+        <Link href="/financement" style={{ padding: '14px 32px', borderRadius: 10, background: 'var(--gold)', color: '#050508', fontWeight: 700, textDecoration: 'none' }}>
+          Simuler mon financement
+        </Link>
+      </section>
 
-export const STATS = {
-  formations: 43,
-  agents: 116,
-  latence: '<2s',
-  abandon: '<15%',
-  certifications: 'RS · RNCP · CompTIA · ICF',
-  financement: 'CPF · OPCO · Transitions Pro · France Travail',
+      <footer style={{ padding: '48px 6%', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 24 }}>
+        <div>
+          <div style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 24, fontWeight: 700, marginBottom: 8 }}>AcadémIA Pro</div>
+          <p style={{ fontSize: 13, color: 'var(--dim)' }}>Centre de formation 100% IA</p>
+        </div>
+        <div style={{ display: 'flex', gap: 32, flexWrap: 'wrap', fontSize: 14 }}>
+          <Link href="/formations" style={{ color: 'var(--dim)', textDecoration: 'none' }}>Formations</Link>
+          <Link href="/agents" style={{ color: 'var(--dim)', textDecoration: 'none' }}>Agents IA</Link>
+          <Link href="/financement" style={{ color: 'var(--dim)', textDecoration: 'none' }}>Financement</Link>
+          <Link href="/blog" style={{ color: 'var(--dim)', textDecoration: 'none' }}>Blog</Link>
+          <Link href="/contact" style={{ color: 'var(--dim)', textDecoration: 'none' }}>Contact</Link>
+        </div>
+        <p style={{ fontSize: 12, color: 'var(--dim)', width: '100%' }}>2026 AcadémIA Pro. Tous droits reserves</p>
+      </footer>
+
+    </main>
+  )
 }
