@@ -2,12 +2,6 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { FORMATIONS } from '../../../../data'
-export async function generateStaticParams() {
-  return FORMATIONS.map((f: any) => ({
-    code: f.code.toLowerCase(),
-  }))
-}
-
 
 export default function FormationDetailPage({ params }: { params: { code: string } }) {
   const formation = FORMATIONS.find((f: any) => f.code.toLowerCase() === params.code.toLowerCase())
@@ -72,7 +66,7 @@ export default function FormationDetailPage({ params }: { params: { code: string
             { id: 'programme', label: '📚 Programme' },
             { id: 'financement', label: '💳 Financement' },
             { id: 'debouches', label: '🎯 Débouchés' },
-            { id: 'inscription', label: '✍ S\'inscrire' },
+            { id: 'inscription', label: '✍️ S\'inscrire' },
           ].map(o => (
             <button key={o.id} onClick={() => setOnglet(o.id)} style={{
               padding: '16px 20px', background: 'transparent', border: 'none', cursor: 'pointer',
