@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { AGENTS } from '../../data'
+import { AGENTS } from '../../../data'
 
 const MOTS_CLES_PDF = [
   'support de cours', 'pdf', 'cours en pdf', 'documents', 'supports',
