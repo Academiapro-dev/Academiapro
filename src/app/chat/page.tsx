@@ -41,8 +41,12 @@ export default function ChatPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          agentId,
-          messages: [...messages, userMsg],
+  agentId,
+  messages: [...messages, userMsg],
+  userEmail: 'jacklalou26@gmail.com',
+  formationCode: 'F01',
+}),
+
         }),
       })
       const data = await res.json()
