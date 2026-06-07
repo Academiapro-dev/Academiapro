@@ -109,7 +109,7 @@ export async function POST(req: NextRequest) {
   }
 
   await resend.emails.send({
-    from: 'AcadémIA Pro <onboarding@resend.dev>',
+    from: 'AcadémIA Pro <noreply@academiapro.fr>',
     to: email,
     subject: `📚 Support de cours complet — ${formation.titre}`,
     html: `
