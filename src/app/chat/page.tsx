@@ -9,7 +9,7 @@ export default function ChatPage() {
   const [loading, setLoading] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
 
-  const agent = AGENTS.find((a: any) => a.id === agentId) || AGENTS[0]
+  const agent = AGENTS.find((a: any) => a.id === agentId) || AGENTS[0] as any
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
