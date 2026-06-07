@@ -24,17 +24,20 @@ export async function POST(req: NextRequest) {
   if (error || !stagiaire) {
     return NextResponse.json({ error: 'Accès refusé.' }, { status: 403 })
   }
-
   const lienHTML = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/formations-pdf/${formation_code}_support_cours.html`
 
-  const pdfRes = await fetch('https://api.pdfshift.io/v3/convert/pdf', {
+  const htmlRes = await fetch(lienHTML)
+const htmlContent = await htmlRes.text()
+
+const pdfRes = await fetch('https://api.pdfshift.io/v3/convert/pdf', {
   method: 'POST',
   headers: {
     'Authorization': 'Basic ' + Buffer.from('api:sk_60bc11c38e94fc7f8a958ef1b491045d74283b3a').toString('base64'),
     'Content-Type': 'application/json',
   },
-  body: JSON.stringify({ source: lienHTML }),
+  body: JSON.stringify({ source: htmlContent }),
 })
+
 
 
   const pdfBuffer = await pdfRes.arrayBuffer()
