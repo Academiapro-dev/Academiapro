@@ -45,9 +45,6 @@ export default function ChatPage() {
                     messages: [...messages, userMsg],
           userEmail: 'jacklalou26@gmail.com',
           formationCode: 'F01',
-
-          userEmail: 'jacklalou26@gmail.com',
-          formationCode: 'F01',
         }),
       })
       const data = await res.json()
