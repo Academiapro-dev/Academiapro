@@ -10,8 +10,6 @@ const resend = new Resend(process.env.RESEND_API_KEY)
 
 export const maxDuration = 300
 
-
-
 export async function POST(req: NextRequest) {
   const { email, formation_code } = await req.json()
 
@@ -26,23 +24,20 @@ export async function POST(req: NextRequest) {
   if (error || !stagiaire) {
     return NextResponse.json({ error: 'Accès refusé.' }, { status: 403 })
   }
+
   const lienHTML = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/formations-pdf/${formation_code}_support_cours.html`
 
   const htmlRes = await fetch(lienHTML)
-const htmlContent = await htmlRes.text()
+  const htmlContent = await htmlRes.text()
 
-const pdfRes = await fetch('https://api.pdfshift.io/v3/convert/pdf', {
-  method: 'POST',
-  headers: {
-    'Authorization': 'Basic ' + Buffer.from('api:sk_60bc11c38e94fc7f8a958ef1b491045d74283b3a').toString('base64'),
-    'Content-Type': 'application/json',
-  },
-  body: JSON.stringify({ 
-  source: htmlContent,
-
-})
-
-
+  const pdfRes = await fetch('https://api.pdfshift.io/v3/convert/pdf', {
+    method: 'POST',
+    headers: {
+      'Authorization': 'Basic ' + Buffer.from('api:sk_60bc11c38e94fc7f8a958ef1b491045d74283b3a').toString('base64'),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ source: htmlContent }),
+  })
 
   const pdfBuffer = await pdfRes.arrayBuffer()
   const pdfBase64 = Buffer.from(pdfBuffer).toString('base64')
