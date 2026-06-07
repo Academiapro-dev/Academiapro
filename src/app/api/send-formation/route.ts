@@ -17,12 +17,14 @@ export async function POST(req: NextRequest) {
     .from('stagiaires')
     .select('*')
     .eq('email', email)
-    .eq('formation_code', formation_code)
-    .eq('statut_paiement', 'payé')
     .single()
 
   if (error || !stagiaire) {
-    return NextResponse.json({ error: 'Accès refusé.' }, { status: 403 })
+    return NextResponse.json({ error: 'Accès refusé. Votre inscription n\'est pas encore finalisée.' }, { status: 403 })
+  }
+
+  if (stagiaire.role !== 'admin' && stagiaire.formation_code !== formation_code) {
+    return NextResponse.json({ error: 'Vous n\'êtes pas inscrit à cette formation.' }, { status: 403 })
   }
 
   const lienHTML = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/formations-pdf/${formation_code}_support_cours.html`
@@ -37,7 +39,6 @@ export async function POST(req: NextRequest) {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({ source: htmlContent }),
-
   })
 
   const pdfBuffer = await pdfRes.arrayBuffer()
