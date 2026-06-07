@@ -39,8 +39,6 @@ const pdfRes = await fetch('https://api.pdfshift.io/v3/convert/pdf', {
   },
   body: JSON.stringify({ 
   source: htmlContent,
-  footer: '<div style="text-align:center;font-size:11px;color:#888;font-family:Georgia,serif;">AcadémIA Pro — Page {{page}} / {{total}}</div>'
-}),
 
 })
 
