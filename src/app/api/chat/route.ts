@@ -7,36 +7,53 @@ const MOTS_CLES_PDF = [
   'mon cours', 'les documents', 'le programme', 'cours complet'
 ]
 
+const FORMATIONS_KEYWORDS: Record<string, string[]> = {
+  'F01': ['product builder', 'no-code', 'bubble', 'nocode', 'saas', 'make', 'webflow'],
+  'F02': ['growth', 'marketing', 'growth marketer', 'seo', 'google ads', 'meta ads'],
+  'F03': ['sophrologie', 'sophrologue', 'caycédienne', 'caycedo', 'rd1', 'rd2'],
+  'F04': ['hypnose', 'hypnothérapie', 'ericksonienne', 'erickson', 'induction'],
+  'F05': ['pnl', 'programmation neurolinguistique', 'neurolinguistique', 'praticien pnl'],
+}
+
+function detecterFormation(message: string): string | null {
+  const msg = message.toLowerCase()
+  for (const [code, keywords] of Object.entries(FORMATIONS_KEYWORDS)) {
+    if (keywords.some(k => msg.includes(k))) return code
+  }
+  return null
+}
+
 export async function POST(req: NextRequest) {
   const { agentId, messages, userEmail, formationCode } = await req.json()
 
   const agent = AGENTS.find((a: any) => a.id === agentId) || AGENTS[0]
 
-  // Détecter si le stagiaire demande son support de cours
   const dernierMessage = messages[messages.length - 1]?.content?.toLowerCase() || ''
   const demandePDF = MOTS_CLES_PDF.some(mot => dernierMessage.includes(mot))
 
-  if (demandePDF && userEmail && formationCode) {
+  const formationDetectee = formationCode || detecterFormation(dernierMessage)
+
+  if (demandePDF && userEmail && formationDetectee) {
     try {
       const sendRes = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL || 'https://academiapro.vercel.app'}/api/send-formation`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: userEmail, formation_code: formationCode })
+        body: JSON.stringify({ email: userEmail, formation_code: formationDetectee })
       })
       const sendData = await sendRes.json()
 
       if (sendData.success) {
-        return NextResponse.json({ 
-          content: `✅ Parfait ! Je viens d'envoyer votre support de cours complet de la formation F01 à l'adresse ${userEmail}. Vérifiez votre boîte mail dans quelques instants. 📚` 
+        return NextResponse.json({
+          content: `✅ Votre support de cours complet pour la formation ${formationDetectee} vient d'être envoyé à ${userEmail}. Vérifiez votre boîte mail dans quelques instants. 📚`
         })
       } else {
-        return NextResponse.json({ 
-          content: `Je n'ai pas pu envoyer votre support de cours. ${sendData.error || 'Veuillez contacter notre équipe.'}` 
+        return NextResponse.json({
+          content: `Je n'ai pas pu envoyer votre support de cours. ${sendData.error || 'Veuillez contacter notre équipe.'}`
         })
       }
     } catch (e) {
-      return NextResponse.json({ 
-        content: `Une erreur est survenue lors de l'envoi. Veuillez réessayer.` 
+      return NextResponse.json({
+        content: `Une erreur est survenue lors de l'envoi. Veuillez réessayer.`
       })
     }
   }
