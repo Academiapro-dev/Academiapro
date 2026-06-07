@@ -42,7 +42,10 @@ export default function ChatPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           agentId,
-          messages: [...messages, userMsg],
+                    messages: [...messages, userMsg],
+          userEmail: 'jacklalou26@gmail.com',
+          formationCode: 'F01',
+
           userEmail: 'jacklalou26@gmail.com',
           formationCode: 'F01',
         }),
