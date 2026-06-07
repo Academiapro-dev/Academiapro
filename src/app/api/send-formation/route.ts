@@ -35,7 +35,11 @@ const pdfRes = await fetch('https://api.pdfshift.io/v3/convert/pdf', {
     'Authorization': 'Basic ' + Buffer.from('api:sk_60bc11c38e94fc7f8a958ef1b491045d74283b3a').toString('base64'),
     'Content-Type': 'application/json',
   },
-  body: JSON.stringify({ source: htmlContent }),
+  body: JSON.stringify({ 
+  source: htmlContent,
+  footer: '<div style="text-align:center;font-size:11px;color:#888;font-family:Georgia,serif;">AcadémIA Pro — Page {{page}} / {{total}}</div>'
+}),
+
 })
 
 
