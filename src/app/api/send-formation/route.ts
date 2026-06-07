@@ -27,13 +27,7 @@ export async function POST(req: NextRequest) {
 
   const lienHTML = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/formations-pdf/${formation_code}_support_cours.html`
 
-  const formData = new FormData()
-  formData.append('url', lienHTML)
-
-  const pdfRes = await fetch('https://demo.gotenberg.dev/forms/chromium/convert/url', {
-    method: 'POST',
-    body: formData,
-  })
+  const pdfRes = await fetch(`https://api.html2pdf.app/v1/generate?url=${encodeURIComponent(lienHTML)}&apikey=live_pdf_free`)
 
   const pdfBuffer = await pdfRes.arrayBuffer()
   const pdfBase64 = Buffer.from(pdfBuffer).toString('base64')
