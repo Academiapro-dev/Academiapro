@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
-import { AGENTS } from '../../data'
+import { AGENTS } from '../../../data'
 
 export default function ChatPage() {
   const [agentId, setAgentId] = useState('unia')
@@ -42,9 +42,8 @@ export default function ChatPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           agentId,
-                    messages: [...messages, userMsg],
+          messages: [...messages, userMsg],
           userEmail: 'jacklalou26@gmail.com',
-          formationCode: 'F01',
         }),
       })
       const data = await res.json()
@@ -57,9 +56,14 @@ export default function ChatPage() {
 
   return (
     <main style={{ paddingTop: 64, height: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--s1)' }}>
+
       <div style={{ padding: '16px 6%', borderBottom: '1px solid var(--border)', background: 'var(--s1)', display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <span style={{ fontSize: 32 }}>{agent.icon}</span>
+          {agent.avatar ? (
+            <img src={agent.avatar} alt={agent.nom} style={{ width: 48, height: 48, borderRadius: '50%', border: `2px solid ${agent.color}` }} />
+          ) : (
+            <span style={{ fontSize: 32 }}>{agent.icon}</span>
+          )}
           <div>
             <div style={{ fontSize: 15, fontWeight: 700 }}>{agent.nom}</div>
             <div style={{ fontSize: 12, color: agent.color }}>{agent.spec}</div>
@@ -81,7 +85,7 @@ export default function ChatPage() {
         {messages.map((m, i) => (
           <div key={i} style={{ display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
             {m.role === 'assistant' && (
-              <span style={{ fontSize: 24, marginRight: 10, alignSelf: 'flex-end' }}>{agent.icon}</span>
+              <img src={agent.avatar} alt={agent.nom} style={{ width: 32, height: 32, borderRadius: '50%', border: `1px solid ${agent.color}`, marginRight: 10, flexShrink: 0, alignSelf: 'flex-end' }} />
             )}
             <div style={{
               maxWidth: '70%', padding: '12px 16px', borderRadius: m.role === 'user' ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
@@ -96,8 +100,10 @@ export default function ChatPage() {
         ))}
         {loading && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontSize: 24 }}>{agent.icon}</span>
-            <div style={{ padding: '12px 16px', borderRadius: '16px 16px 16px 4px', background: 'var(--card)', border: '1px solid var(--border)', fontSize: 14, color: 'var(--dim)' }}>···</div>
+            <img src={agent.avatar} alt={agent.nom} style={{ width: 32, height: 32, borderRadius: '50%', border: `1px solid ${agent.color}` }} />
+            <div style={{ padding: '12px 16px', borderRadius: '16px 16px 16px 4px', background: 'var(--card)', border: '1px solid var(--border)', fontSize: 14, color: 'var(--dim)' }}>
+              ···
+            </div>
           </div>
         )}
         <div ref={bottomRef} />
@@ -115,6 +121,7 @@ export default function ChatPage() {
           Envoyer →
         </button>
       </div>
+
     </main>
   )
 }
