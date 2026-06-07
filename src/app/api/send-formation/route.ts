@@ -6,8 +6,9 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
-
 const resend = new Resend(process.env.RESEND_API_KEY)
+
+export const maxDuration = 60
 
 export async function POST(req: NextRequest) {
   const { email, formation_code } = await req.json()
@@ -21,10 +22,21 @@ export async function POST(req: NextRequest) {
     .single()
 
   if (error || !stagiaire) {
-    return NextResponse.json({ error: 'Accès refusé. Votre inscription n\'est pas encore finalisée.' }, { status: 403 })
+    return NextResponse.json({ error: 'Accès refusé.' }, { status: 403 })
   }
 
-  const lienPDF = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/formations-pdf/${formation_code}_support_cours.html`
+  const lienHTML = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/formations-pdf/${formation_code}_support_cours.html`
+
+  const formData = new FormData()
+  formData.append('url', lienHTML)
+
+  const pdfRes = await fetch('https://demo.gotenberg.dev/forms/chromium/convert/url', {
+    method: 'POST',
+    body: formData,
+  })
+
+  const pdfBuffer = await pdfRes.arrayBuffer()
+  const pdfBase64 = Buffer.from(pdfBuffer).toString('base64')
 
   await resend.emails.send({
     from: 'AcadémIA Pro <onboarding@resend.dev>',
@@ -38,18 +50,17 @@ export async function POST(req: NextRequest) {
         </div>
         <div style="padding:32px 0;">
           <p style="font-size:16px;color:#333;">Bonjour ${stagiaire.nom},</p>
-          <p style="font-size:15px;color:#555;line-height:1.7;">
-            Votre support de cours complet pour la formation <strong>${formation_code}</strong> est disponible.
-          </p>
-          <div style="text-align:center;margin:32px 0;">
-            <a href="${lienPDF}" style="background:#c8a96e;color:#050508;padding:16px 32px;border-radius:8px;text-decoration:none;font-weight:700;font-size:16px;">
-              📚 Accéder à mon support de cours
-            </a>
-          </div>
-          <p style="font-size:13px;color:#888;">Ce lien est personnel et confidentiel.</p>
+          <p style="font-size:15px;color:#555;line-height:1.7;">Votre support de cours complet est en pièce jointe.</p>
+          <p style="font-size:13px;color:#888;">Document personnel et confidentiel — AcadémIA Pro 2026</p>
         </div>
       </div>
-    `
+    `,
+    attachments: [
+      {
+        filename: `${formation_code}_support_cours.pdf`,
+        content: pdfBase64,
+      }
+    ]
   })
 
   await supabase
@@ -58,5 +69,5 @@ export async function POST(req: NextRequest) {
     .eq('email', email)
     .eq('formation_code', formation_code)
 
-  return NextResponse.json({ success: true, message: 'Support de cours envoyé !' })
+  return NextResponse.json({ success: true, message: 'Support PDF envoyé !' })
 }
