@@ -36,13 +36,7 @@ export async function POST(req: NextRequest) {
       'Authorization': 'Basic ' + Buffer.from('api:sk_60bc11c38e94fc7f8a958ef1b491045d74283b3a').toString('base64'),
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
-  source: htmlContent,
-  footer: {
-    html: '<div style="width:100%;text-align:center;font-size:11px;color:#888;font-family:Georgia,serif;padding:10px;">AcadémIA Pro — Page <span class="pageNumber"></span> / <span class="totalPages"></span></div>',
-    height: '30px'
-  }
-}),
+    body: JSON.stringify({ source: htmlContent }),
 
   })
 
