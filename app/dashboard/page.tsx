@@ -1,339 +1,324 @@
 ```tsx
-"use client";
+// app/dashboard/page.tsx
+'use client';
 
-import { useState } from "react";
+import { useEffect, useState, useRef } from 'react';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { motion, AnimatePresence } from 'framer-motion';
 
-// ─── Types ───────────────────────────────────────────────────────────────────
+// ============================================================
+// TYPES
+// ============================================================
+interface Stagiaire {
+  id: string;
+  nom: string;
+  prenom: string;
+  email: string;
+  avatar_url?: string;
+  formations_inscrites: Formation[];
+  certificats: Certificat[];
+  prochaine_seance?: SeanceLive;
+  derniere_formation_id?: string;
+}
 
 interface Formation {
   id: string;
-  title: string;
-  progress: number;
-  completedModules: number;
-  totalModules: number;
-  lastModule: string;
-  category: string;
+  titre: string;
+  description: string;
+  progression: number;
+  total_modules: number;
+  modules_completes: number;
+  duree_totale: string;
+  categorie: string;
+  image_url?: string;
+  derniere_activite: string;
 }
 
-interface LiveSession {
+interface Certificat {
   id: string;
-  title: string;
-  instructor: string;
+  titre: string;
+  date_obtention: string;
+  organisme: string;
+  url_pdf?: string;
+}
+
+interface SeanceLive {
+  id: string;
+  titre: string;
   date: string;
-  time: string;
-  duration: string;
-  joinUrl: string;
-}
-
-interface Certificate {
-  id: string;
-  title: string;
-  issueDate: string;
-  formation: string;
+  heure: string;
+  formateur: string;
+  lien_zoom?: string;
+  places_restantes: number;
 }
 
 interface Notification {
   id: string;
   message: string;
-  type: "info" | "alert" | "success";
-  time: string;
-  read: boolean;
+  type: 'info' | 'success' | 'warning';
+  lu: boolean;
+  created_at: string;
 }
 
-interface ChatMessage {
+interface Message {
   id: string;
-  role: "user" | "assistant";
+  role: 'user' | 'assistant';
   content: string;
-  time: string;
+  timestamp: Date;
 }
 
-// ─── Mock Data ────────────────────────────────────────────────────────────────
-
-const USER = {
-  firstName: "Sophie",
-  lastName: "Martin",
-  email: "sophie.martin@email.com",
-  avatar: "SM",
-  memberSince: "2024",
+// ============================================================
+// MOCK DATA (fallback si Supabase non configuré)
+// ============================================================
+const MOCK_DATA: Stagiaire = {
+  id: '1',
+  nom: 'Dupont',
+  prenom: 'Marie',
+  email: 'marie.dupont@email.com',
+  formations_inscrites: [
+    {
+      id: 'f1',
+      titre: 'Intelligence Artificielle & Machine Learning',
+      description: 'Maîtrisez les fondamentaux de l\'IA et du ML',
+      progression: 68,
+      total_modules: 12,
+      modules_completes: 8,
+      duree_totale: '24h',
+      categorie: 'IA',
+      derniere_activite: '2024-01-15',
+    },
+    {
+      id: 'f2',
+      titre: 'Développement Web Full-Stack',
+      description: 'React, Node.js, bases de données modernes',
+      progression: 35,
+      total_modules: 20,
+      modules_completes: 7,
+      duree_totale: '40h',
+      categorie: 'Dev',
+      derniere_activite: '2024-01-12',
+    },
+    {
+      id: 'f3',
+      titre: 'Leadership & Management Agile',
+      description: 'Développez votre leadership en environnement Agile',
+      progression: 90,
+      total_modules: 8,
+      modules_completes: 7,
+      duree_totale: '16h',
+      categorie: 'Management',
+      derniere_activite: '2024-01-14',
+    },
+  ],
+  certificats: [
+    {
+      id: 'c1',
+      titre: 'Python pour la Data Science',
+      date_obtention: '2023-11-20',
+      organisme: 'AcadémIA Pro',
+    },
+    {
+      id: 'c2',
+      titre: 'Fondamentaux du Cloud AWS',
+      date_obtention: '2023-12-05',
+      organisme: 'AcadémIA Pro',
+    },
+    {
+      id: 'c3',
+      titre: 'Communication Professionnelle',
+      date_obtention: '2024-01-10',
+      organisme: 'AcadémIA Pro',
+    },
+  ],
+  prochaine_seance: {
+    id: 's1',
+    titre: 'Workshop IA Générative : Cas Pratiques',
+    date: '2024-01-22',
+    heure: '14:00',
+    formateur: 'Dr. Alexandre Martin',
+    lien_zoom: 'https://zoom.us/j/example',
+    places_restantes: 4,
+  },
+  derniere_formation_id: 'f1',
 };
 
-const FORMATIONS: Formation[] = [
+const MOCK_NOTIFICATIONS: Notification[] = [
   {
-    id: "f1",
-    title: "Intelligence Artificielle & Machine Learning",
-    progress: 68,
-    completedModules: 17,
-    totalModules: 25,
-    lastModule: "Réseaux de neurones convolutifs",
-    category: "IA",
+    id: 'n1',
+    message: 'Nouveau module disponible dans "IA & Machine Learning"',
+    type: 'info',
+    lu: false,
+    created_at: '2024-01-15T10:00:00',
   },
   {
-    id: "f2",
-    title: "Leadership & Management Stratégique",
-    progress: 42,
-    completedModules: 9,
-    totalModules: 21,
-    lastModule: "Communication en situation de crise",
-    category: "Management",
+    id: 'n2',
+    message: 'Félicitations ! Vous avez obtenu votre certificat Python 🎉',
+    type: 'success',
+    lu: false,
+    created_at: '2024-01-14T15:30:00',
   },
   {
-    id: "f3",
-    title: "Data Science Avancée",
-    progress: 15,
-    completedModules: 3,
-    totalModules: 20,
-    lastModule: "Nettoyage et préparation des données",
-    category: "Data",
+    id: 'n3',
+    message: 'Rappel : Séance live dans 2 jours',
+    type: 'warning',
+    lu: true,
+    created_at: '2024-01-13T09:00:00',
   },
 ];
 
-const LIVE_SESSION: LiveSession = {
-  id: "l1",
-  title: "Masterclass : IA Générative en entreprise",
-  instructor: "Dr. Luc Beaumont",
-  date: "Aujourd'hui",
-  time: "18h00",
-  duration: "90 min",
-  joinUrl: "#",
-};
+// ============================================================
+// COMPOSANTS UTILITAIRES
+// ============================================================
 
-const CERTIFICATES: Certificate[] = [
-  {
-    id: "c1",
-    title: "Expert en Cybersécurité",
-    issueDate: "15 mars 2024",
-    formation: "Cybersécurité Fondamentaux",
-  },
-  {
-    id: "c2",
-    title: "Python pour la Data Science",
-    issueDate: "02 janvier 2024",
-    formation: "Python Avancé",
-  },
-  {
-    id: "c3",
-    title: "Gestion de Projet Agile",
-    issueDate: "10 novembre 2023",
-    formation: "Méthodes Agile & Scrum",
-  },
-];
+const GoldIcon = ({ children, size = 20 }: { children: React.ReactNode; size?: number }) => (
+  <span style={{ color: '#c8a96e', fontSize: size }} className="flex items-center justify-center">
+    {children}
+  </span>
+);
 
-const NOTIFICATIONS: Notification[] = [
-  {
-    id: "n1",
-    message: "Nouveau module disponible dans votre formation IA",
-    type: "info",
-    time: "Il y a 2h",
-    read: false,
-  },
-  {
-    id: "n2",
-    message: "Rappel : Classe virtuelle dans 1 heure",
-    type: "alert",
-    time: "Il y a 30 min",
-    read: false,
-  },
-  {
-    id: "n3",
-    message: "Félicitations ! Vous avez complété 70% de votre formation",
-    type: "success",
-    time: "Hier",
-    read: true,
-  },
-];
-
-// ─── Sub-Components ───────────────────────────────────────────────────────────
-
-const ProgressBar = ({
-  progress,
-  className = "",
-}: {
-  progress: number;
-  className?: string;
-}) => (
-  <div
-    className={`w-full bg-white/10 rounded-full overflow-hidden ${className}`}
-    style={{ height: "6px" }}
-  >
-    <div
-      className="h-full rounded-full transition-all duration-700 ease-out"
+const ProgressBar = ({ value, animated = true }: { value: number; animated?: boolean }) => (
+  <div className="w-full h-2 rounded-full" style={{ backgroundColor: '#1a1a2e' }}>
+    <motion.div
+      className="h-2 rounded-full"
       style={{
-        width: `${progress}%`,
-        background: "linear-gradient(90deg, #c8a96e, #e8c98e)",
+        background: 'linear-gradient(90deg, #c8a96e, #e8c98e)',
+        boxShadow: '0 0 8px rgba(200, 169, 110, 0.4)',
       }}
+      initial={animated ? { width: 0 } : { width: `${value}%` }}
+      animate={{ width: `${value}%` }}
+      transition={{ duration: 1.2, ease: 'easeOut' }}
     />
   </div>
 );
 
-const GoldButton = ({
-  children,
-  onClick,
-  className = "",
-  size = "md",
-}: {
-  children: React.ReactNode;
-  onClick?: () => void;
-  className?: string;
-  size?: "sm" | "md" | "lg";
-}) => {
-  const sizes = {
-    sm: "px-4 py-2 text-xs",
-    md: "px-6 py-3 text-sm",
-    lg: "px-8 py-4 text-base",
+const CategoryBadge = ({ categorie }: { categorie: string }) => {
+  const colors: Record<string, string> = {
+    IA: '#7c3aed',
+    Dev: '#0891b2',
+    Management: '#059669',
+    Design: '#db2777',
   };
   return (
-    <button
-      onClick={onClick}
-      className={`inline-flex items-center justify-center gap-2 font-semibold tracking-widest uppercase transition-all duration-300 hover:opacity-90 hover:scale-105 active:scale-95 rounded-sm ${sizes[size]} ${className}`}
+    <span
+      className="text-xs px-2 py-0.5 rounded-full font-medium"
       style={{
-        background: "linear-gradient(135deg, #c8a96e, #a07840)",
-        color: "#050508",
-        fontFamily: "Georgia, serif",
-        letterSpacing: "0.12em",
+        backgroundColor: `${colors[categorie] || '#6b7280'}20`,
+        color: colors[categorie] || '#6b7280',
+        border: `1px solid ${colors[categorie] || '#6b7280'}40`,
       }}
     >
-      {children}
-    </button>
+      {categorie}
+    </span>
   );
 };
 
-const GhostButton = ({
-  children,
-  onClick,
-  className = "",
-  active = false,
+// ============================================================
+// COMPOSANT NOTIFICATIONS
+// ============================================================
+const NotificationPanel = ({
+  notifications,
+  onClose,
+  onMarkAllRead,
 }: {
-  children: React.ReactNode;
-  onClick?: () => void;
-  className?: string;
-  active?: boolean;
+  notifications: Notification[];
+  onClose: () => void;
+  onMarkAllRead: () => void;
 }) => (
-  <button
-    onClick={onClick}
-    className={`px-4 py-2 text-sm transition-all duration-200 rounded-sm ${className}`}
+  <motion.div
+    initial={{ opacity: 0, y: -10, scale: 0.95 }}
+    animate={{ opacity: 1, y: 0, scale: 1 }}
+    exit={{ opacity: 0, y: -10, scale: 0.95 }}
+    className="absolute right-0 top-12 w-80 rounded-2xl overflow-hidden shadow-2xl z-50"
     style={{
-      border: active ? "1px solid #c8a96e" : "1px solid rgba(200,169,110,0.3)",
-      color: active ? "#c8a96e" : "rgba(200,169,110,0.7)",
-      background: active ? "rgba(200,169,110,0.08)" : "transparent",
-      fontFamily: "Georgia, serif",
+      backgroundColor: '#0d0d1a',
+      border: '1px solid rgba(200, 169, 110, 0.2)',
     }}
   >
-    {children}
-  </button>
+    <div
+      className="flex items-center justify-between p-4"
+      style={{ borderBottom: '1px solid rgba(200, 169, 110, 0.1)' }}
+    >
+      <span className="font-semibold text-white">Notifications</span>
+      <button
+        onClick={onMarkAllRead}
+        className="text-xs hover:text-yellow-300 transition-colors"
+        style={{ color: '#c8a96e' }}
+      >
+        Tout marquer lu
+      </button>
+    </div>
+    <div className="max-h-72 overflow-y-auto">
+      {notifications.map((notif) => (
+        <div
+          key={notif.id}
+          className="p-4 hover:bg-white/5 transition-colors cursor-pointer"
+          style={{
+            borderBottom: '1px solid rgba(255,255,255,0.05)',
+            opacity: notif.lu ? 0.6 : 1,
+          }}
+        >
+          <div className="flex gap-3 items-start">
+            <div
+              className="w-2 h-2 rounded-full mt-1.5 flex-shrink-0"
+              style={{
+                backgroundColor: notif.lu
+                  ? 'transparent'
+                  : notif.type === 'success'
+                  ? '#10b981'
+                  : notif.type === 'warning'
+                  ? '#f59e0b'
+                  : '#c8a96e',
+              }}
+            />
+            <div>
+              <p className="text-sm text-gray-300">{notif.message}</p>
+              <p className="text-xs text-gray-600 mt-1">
+                {new Date(notif.created_at).toLocaleDateString('fr-FR')}
+              </p>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+    <div className="p-3 text-center">
+      <button
+        onClick={onClose}
+        className="text-xs text-gray-500 hover:text-gray-300 transition-colors"
+      >
+        Fermer
+      </button>
+    </div>
+  </motion.div>
 );
 
-// ─── Views ────────────────────────────────────────────────────────────────────
+// ============================================================
+// COMPOSANT AGENT IA CHAT
+// ============================================================
+const AIChat = ({ onClose }: { onClose: () => void }) => {
+  const [messages, setMessages] = useState<Message[]>([
+    {
+      id: '1',
+      role: 'assistant',
+      content:
+        'Bonjour ! Je suis votre assistant IA AcadémIA Pro. Comment puis-je vous aider dans votre apprentissage aujourd\'hui ?',
+      timestamp: new Date(),
+    },
+  ]);
+  const [input, setInput] = useState('');
+  const [isTyping, setIsTyping] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
-const HomeView = ({
-  onResume,
-  onJoinLive,
-}: {
-  onResume: () => void;
-  onJoinLive: () => void;
-}) => (
-  <div className="space-y-8">
-    {/* Hero Welcome */}
-    <div
-      className="relative overflow-hidden rounded-sm p-8"
-      style={{
-        background:
-          "linear-gradient(135deg, rgba(200,169,110,0.12) 0%, rgba(200,169,110,0.04) 100%)",
-        border: "1px solid rgba(200,169,110,0.2)",
-      }}
-    >
-      <div
-        className="absolute inset-0 opacity-5"
-        style={{
-          backgroundImage:
-            "radial-gradient(circle at 20% 50%, #c8a96e 0%, transparent 60%)",
-        }}
-      />
-      <div className="relative">
-        <p
-          className="text-xs tracking-widest uppercase mb-2"
-          style={{ color: "rgba(200,169,110,0.6)", fontFamily: "Georgia, serif" }}
-        >
-          Bienvenue sur AcadémIA Pro
-        </p>
-        <h1
-          className="text-3xl md:text-4xl font-bold mb-2"
-          style={{ color: "#c8a96e", fontFamily: "Georgia, serif" }}
-        >
-          Bonjour, {USER.firstName}
-        </h1>
-        <p className="text-sm mb-6" style={{ color: "rgba(255,255,255,0.5)" }}>
-          Vous avez{" "}
-          <span style={{ color: "#c8a96e" }}>3 formations en cours</span> ·{" "}
-          <span style={{ color: "#c8a96e" }}>2 notifications</span> non lues
-        </p>
-        <GoldButton onClick={onResume} size="lg">
-          ▶ Reprendre ma formation
-        </GoldButton>
-      </div>
-    </div>
+  const QUICK_REPLIES = [
+    'Où en suis-je dans ma formation ?',
+    'Prochaine séance live ?',
+    'Mes certificats',
+    'Aide pour un exercice',
+  ];
 
-    {/* Live Alert */}
-    <div
-      className="flex flex-col sm:flex-row items-start sm:items-center gap-4 p-5 rounded-sm"
-      style={{
-        background: "rgba(200,169,110,0.06)",
-        border: "1px solid rgba(200,169,110,0.35)",
-      }}
-    >
-      <div className="flex items-center gap-3 flex-1">
-        <div className="relative flex-shrink-0">
-          <div
-            className="w-3 h-3 rounded-full animate-pulse"
-            style={{ background: "#c8a96e" }}
-          />
-          <div
-            className="absolute inset-0 w-3 h-3 rounded-full animate-ping opacity-50"
-            style={{ background: "#c8a96e" }}
-          />
-        </div>
-        <div>
-          <p
-            className="text-xs tracking-widest uppercase mb-0.5"
-            style={{ color: "#c8a96e", fontFamily: "Georgia, serif" }}
-          >
-            Classe virtuelle — {LIVE_SESSION.date} à {LIVE_SESSION.time}
-          </p>
-          <p className="text-sm font-medium" style={{ color: "#fff" }}>
-            {LIVE_SESSION.title}
-          </p>
-          <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.4)" }}>
-            Avec {LIVE_SESSION.instructor} · {LIVE_SESSION.duration}
-          </p>
-        </div>
-      </div>
-      <GoldButton onClick={onJoinLive} size="sm">
-        Rejoindre
-      </GoldButton>
-    </div>
-
-    {/* Active Formations */}
-    <div>
-      <p
-        className="text-xs tracking-widest uppercase mb-4"
-        style={{ color: "rgba(200,169,110,0.6)", fontFamily: "Georgia, serif" }}
-      >
-        Formations en cours
-      </p>
-      <div className="space-y-3">
-        {FORMATIONS.map((f) => (
-          <div
-            key={f.id}
-            className="p-5 rounded-sm transition-all duration-200 hover:border-opacity-60 cursor-pointer"
-            style={{
-              background: "rgba(255,255,255,0.02)",
-              border: "1px solid rgba(255,255,255,0.07)",
-            }}
-          >
-            <div className="flex items-start justify-between gap-3 mb-3">
-              <div className="flex-1 min-w-0">
-                <span
-                  className="text-xs px-2 py-0.5 rounded-sm mb-2 inline-block"
-                  style={{
-                    background: "rgba(200,169,110,0.12)",
-                    color: "#c8a96e",
-                    fontFamily:
+  const simulateResponse = async (userMessage: string) => {
+    setIsTyping(true);
+    await new Promise((r) => setTimeout(r, 1200));
+    
+    const responses: Record<string, string> = {
+      'Où en suis-je dans ma formation ?':
+        'Vous progressez très bien ! Votre formation principale "IA & Machine Learning
