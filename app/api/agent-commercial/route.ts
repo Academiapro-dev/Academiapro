@@ -10,48 +10,56 @@ import OpenAI from "openai";
 
 type UserProfile =
   | "particulier"
-  | "salarie"
+  | "salarié"
   | "demandeur_emploi"
   | "entrepreneur";
 
 type ObjectionType =
   | "trop_cher"
   | "pas_le_temps"
-  | "pas_sur"
-  | "veut_reflechir"
-  | "autre";
+  | "pas_sûr"
+  | "veut_réfléchir"
+  | "none";
 
-type AccompagnementLevel = "essentiel" | "premium" | "vip";
+type AccompagnementLevel = "essentiel" | "premium" | "elite";
 
-type ConversionDay = "J0" | "J1" | "J3" | "J7";
+type SequenceDay = "J0" | "J1" | "J3" | "J7";
 
-interface ProspectSession {
+interface ProspectData {
+  prospectId: string;
   sessionId: string;
-  userId?: string;
-  profile?: UserProfile;
+  profile: UserProfile;
   visitCount: number;
   formationId?: string;
-  formationName?: string;
-  lastVisitTimestamp: number;
-  firstVisitTimestamp: number;
-  score: number;
-  conversionDay: ConversionDay;
-  detectedBudget?: "low" | "medium" | "high";
-  company?: string;
+  formationTitle?: string;
+  budget?: number;
+  message?: string;
+  sequenceDay?: SequenceDay;
+  previousObjections?: ObjectionType[];
+  companyName?: string;
   employeeCount?: number;
-  actions: ProspectAction[];
+  actions?: ProspectAction[];
 }
 
 interface ProspectAction {
-  type: string;
-  timestamp: number;
-  metadata?: Record<string, unknown>;
+  type:
+    | "visit"
+    | "video_watch"
+    | "syllabus_download"
+    | "demo_request"
+    | "faq_read"
+    | "pricing_view"
+    | "testimonial_read"
+    | "cart_abandon";
+  timestamp: string;
+  duration?: number;
 }
 
-interface ScoringRule {
-  action: string;
-  points: number;
-  description: string;
+interface ScoringResult {
+  score: number;
+  level: "cold" | "warm" | "hot" | "burning";
+  triggers: string[];
+  recommendedAction: string;
 }
 
 interface AccompagnementOffer {
@@ -59,170 +67,101 @@ interface AccompagnementOffer {
   name: string;
   price: number;
   features: string[];
-  idealFor: string;
+  bestFor: string;
 }
 
-interface ConversionMessage {
+interface ConversionSequence {
+  day: SequenceDay;
   subject: string;
-  body: string;
+  content: string;
   cta: string;
+  ctaUrl: string;
 }
 
-interface QuoteItem {
-  description: string;
-  quantity: number;
-  unitPrice: number;
-  total: number;
-}
-
-interface AutoQuote {
-  quoteNumber: string;
-  company: string;
-  date: string;
+interface Quote {
+  quoteId: string;
+  companyName: string;
+  employeeCount: number;
+  formations: Formation[];
+  totalPrice: number;
+  discount: number;
+  finalPrice: number;
   validUntil: string;
-  items: QuoteItem[];
-  subtotal: number;
-  tax: number;
-  total: number;
-  paymentTerms: string;
-  notes: string;
+  paymentOptions: PaymentOption[];
 }
 
-interface CommercialAgentRequest {
-  action:
-    | "chat"
-    | "score_prospect"
-    | "check_proactive_trigger"
-    | "generate_quote"
-    | "get_conversion_sequence"
-    | "handle_objection"
-    | "get_offers_by_profile";
-  message?: string;
-  session: ProspectSession;
-  objectionType?: ObjectionType;
-  conversationHistory?: Array<{ role: "user" | "assistant"; content: string }>;
+interface Formation {
+  id: string;
+  title: string;
+  pricePerSeat: number;
+  seats: number;
 }
 
-interface CommercialAgentResponse {
+interface PaymentOption {
+  type: "comptant" | "3x" | "6x" | "cpf" | "opco";
+  label: string;
+  monthlyAmount?: number;
+  details: string;
+}
+
+interface AgentResponse {
   success: boolean;
-  data?: {
-    reply?: string;
-    score?: number;
-    scoreBreakdown?: Record<string, number>;
-    shouldTriggerProactiveChat?: boolean;
-    proactiveChatMessage?: string;
-    quote?: AutoQuote;
-    conversionSequence?: Record<ConversionDay, ConversionMessage>;
-    objectionResponse?: string;
-    offers?: AccompagnementOffer[];
-    updatedSession?: ProspectSession;
-    suggestedNextAction?: string;
-  };
-  error?: string;
-  metadata?: {
-    processingTime: number;
-    model: string;
-    tokensUsed?: number;
-  };
+  prospectId: string;
+  score: ScoringResult;
+  proactiveChat?: ProactiveChatTrigger;
+  message: string;
+  objectionHandling?: ObjectionResponse;
+  offers?: AccompagnementOffer[];
+  sequence?: ConversionSequence;
+  quote?: Quote;
+  nextAction: string;
+  metadata: ResponseMetadata;
+}
+
+interface ProactiveChatTrigger {
+  shouldTrigger: boolean;
+  triggerReason: string;
+  openingMessage: string;
+  delay: number;
+}
+
+interface ObjectionResponse {
+  detectedObjection: ObjectionType;
+  response: string;
+  incentive: string;
+  urgency: string;
+}
+
+interface ResponseMetadata {
+  timestamp: string;
+  processingTime: number;
+  model: string;
+  tokensUsed?: number;
 }
 
 // ============================================================
-// CONSTANTS & CONFIGURATION
+// CONFIGURATION & CONSTANTES
 // ============================================================
 
-const SCORING_RULES: ScoringRule[] = [
-  { action: "page_visit", points: 2, description: "Visite d'une page" },
-  {
-    action: "formation_view",
-    points: 5,
-    description: "Vue fiche formation",
-  },
-  {
-    action: "formation_repeated_view",
-    points: 15,
-    description: "3+ vues même formation",
-  },
-  {
-    action: "pricing_view",
-    points: 10,
-    description: "Vue page tarification",
-  },
-  {
-    action: "chat_initiated",
-    points: 8,
-    description: "Initiation du chat",
-  },
-  {
-    action: "demo_requested",
-    points: 25,
-    description: "Demande de démo",
-  },
-  {
-    action: "brochure_downloaded",
-    points: 12,
-    description: "Téléchargement brochure",
-  },
-  {
-    action: "video_watched_50",
-    points: 8,
-    description: "Vidéo visionnée à 50%",
-  },
-  {
-    action: "video_watched_100",
-    points: 15,
-    description: "Vidéo visionnée en entier",
-  },
-  {
-    action: "quiz_completed",
-    points: 20,
-    description: "Quiz de positionnement complété",
-  },
-  {
-    action: "testimonial_read",
-    points: 5,
-    description: "Lecture témoignage",
-  },
-  {
-    action: "comparison_page",
-    points: 18,
-    description: "Comparaison des offres",
-  },
-  {
-    action: "faq_read",
-    points: 7,
-    description: "Lecture FAQ",
-  },
-  {
-    action: "email_opened",
-    points: 3,
-    description: "Email ouvert",
-  },
-  {
-    action: "email_clicked",
-    points: 10,
-    description: "Lien email cliqué",
-  },
-  {
-    action: "profile_completed",
-    points: 20,
-    description: "Profil complété",
-  },
-  {
-    action: "cart_added",
-    points: 30,
-    description: "Ajout au panier",
-  },
-  {
-    action: "checkout_started",
-    points: 40,
-    description: "Paiement initié",
-  },
-  {
-    action: "free_module_started",
-    points: 25,
-    description: "Module gratuit démarré",
-  },
-];
+const SCORING_WEIGHTS: Record<string, number> = {
+  visit: 5,
+  video_watch: 15,
+  syllabus_download: 20,
+  demo_request: 30,
+  faq_read: 8,
+  pricing_view: 25,
+  testimonial_read: 10,
+  cart_abandon: 35,
+  multiple_visits: 20,
+  return_visit: 15,
+};
+
+const PROFILE_MULTIPLIERS: Record<UserProfile, number> = {
+  entrepreneur: 1.3,
+  salarié: 1.1,
+  particulier: 1.0,
+  demandeur_emploi: 0.9,
+};
 
 const ACCOMPAGNEMENT_OFFERS: AccompagnementOffer[] = [
   {
@@ -230,131 +169,132 @@ const ACCOMPAGNEMENT_OFFERS: AccompagnementOffer[] = [
     name: "Essentiel",
     price: 297,
     features: [
-      "Accès illimité à la formation",
-      "Support email sous 48h",
-      "Communauté privée en ligne",
-      "Ressources pédagogiques téléchargeables",
-      "Certificat de réussite",
+      "Accès complet à la formation",
+      "Supports PDF téléchargeables",
+      "Forum communautaire",
+      "Certificat de completion",
+      "Accès 12 mois",
     ],
-    idealFor: "Profils autonomes avec budget maîtrisé",
+    bestFor: "Apprenants autonomes avec budget limité",
   },
   {
     level: "premium",
     name: "Premium",
     price: 597,
     features: [
-      "Tout l'Essentiel inclus",
-      "2 sessions coaching individuel (1h)",
-      "Correction personnalisée des exercices",
-      "Support prioritaire sous 4h",
-      "Accès aux sessions live mensuelles",
-      "Groupe WhatsApp exclusif",
+      "Tout Essentiel inclus",
+      "4 sessions coaching individuel (1h)",
+      "Révisions de projets personnalisées",
+      "Accès groupe WhatsApp VIP",
+      "Garantie satisfaction 30 jours",
+      "Accès à vie",
     ],
-    idealFor: "Profils cherchant un encadrement personnalisé",
+    bestFor: "Professionnels souhaitant un suivi personnalisé",
   },
   {
-    level: "vip",
-    name: "VIP Intensif",
+    level: "elite",
+    name: "Élite",
     price: 1497,
     features: [
-      "Tout le Premium inclus",
-      "8 sessions coaching individuel (1h)",
-      "Suivi hebdomadaire personnalisé",
-      "Hotline directe formateur",
+      "Tout Premium inclus",
+      "Coaching illimité 6 mois",
       "Plan d'action sur-mesure",
+      "Accès réseau alumni exclusif",
       "Garantie résultat ou remboursé",
-      "Accès vie entière aux mises à jour",
+      "Sessions live hebdomadaires",
+      "Placement professionnel assisté",
     ],
-    idealFor: "Profils cherchant les meilleurs résultats garantis",
+    bestFor: "Transformation complète garantie",
   },
 ];
 
-const PROFILE_DISCOUNT: Record<UserProfile, number> = {
-  particulier: 0,
-  salarie: 10,
-  demandeur_emploi: 30,
-  entrepreneur: 15,
+const OBJECTION_HANDLERS: Record<
+  ObjectionType,
+  { response: string; incentive: string; urgency: string }
+> = {
+  trop_cher: {
+    response:
+      "Je comprends totalement cette préoccupation. Permettez-moi de vous montrer comment rendre cet investissement accessible.",
+    incentive:
+      "Paiement en 3x sans frais disponible. Pour la formule Essentiel : seulement 99€/mois. CPF mobilisable jusqu'à 100% pour les salariés.",
+    urgency:
+      "Offre de paiement facilité disponible jusqu'à dimanche minuit uniquement.",
+  },
+  pas_le_temps: {
+    response:
+      "Bonne nouvelle : notre formation est conçue pour les professionnels occupés !",
+    incentive:
+      "20 minutes par jour suffisent. Modules courts de 8-12 minutes. Apprenez dans le bus, à la pause déjeuner, le soir. Mobile-first.",
+    urgency:
+      "Démarrez aujourd'hui et terminez en 6 semaines à votre rythme. Pas de dates imposées.",
+  },
+  pas_sûr: {
+    response:
+      "Votre hésitation est tout à fait légitime. C'est pourquoi nous avons créé une option sans risque.",
+    incentive:
+      "Accédez GRATUITEMENT au Module 1 complet (valeur 97€). Testez la qualité avant tout engagement. Garantie satisfait ou remboursé 30 jours.",
+    urgency:
+      "Plus de 2 847 apprenants ont franchi le pas avec cette garantie. Rejoignez-les sans risque.",
+  },
+  veut_réfléchir: {
+    response:
+      "Absolument, prenez le temps qu'il vous faut. Je mets en place un suivi personnalisé pour vous.",
+    incentive:
+      "Séquence d'emails enrichis sur 30 jours. Témoignages, études de cas, FAQ. Votre conseiller dédié disponible par chat.",
+    urgency:
+      "Votre place est réservée 72h au tarif actuel. Les prix augmentent le 1er du mois prochain.",
+  },
+  none: {
+    response: "Comment puis-je vous aider à prendre la meilleure décision ?",
+    incentive: "Découvrez notre formation et ses avantages uniques.",
+    urgency: "Places limitées disponibles ce mois-ci.",
+  },
 };
 
-const PROFILE_FINANCING: Record<UserProfile, string[]> = {
-  particulier: [
-    "Paiement en 3x sans frais",
-    "Carte bancaire, virement, PayPal",
-  ],
-  salarie: [
-    "CPF (Compte Personnel Formation)",
-    "Prise en charge employeur possible",
-    "Paiement en 3x sans frais",
-  ],
-  demandeur_emploi: [
-    "Prise en charge Pôle Emploi / France Travail",
-    "AIF (Aide Individuelle à la Formation)",
-    "Paiement en 3x sans frais",
-  ],
-  entrepreneur: [
-    "Déductible fiscalement",
-    "OPCO (pour TNS éligibles)",
-    "Paiement en 3x sans frais",
-    "Facture entreprise disponible",
-  ],
+const CONVERSION_SEQUENCES: Record<
+  SequenceDay,
+  { subject: string; content: string; cta: string; ctaUrl: string }
+> = {
+  J0: {
+    subject: "🎯 Vous avez consulté [Formation] — Un message de votre coach",
+    content:
+      "Bonjour ! J'ai remarqué votre intérêt pour notre formation. Je suis là pour répondre à toutes vos questions. Avez-vous eu le temps de consulter le programme complet ? Voici ce que nos apprenants disent après la première semaine...",
+    cta: "Voir les témoignages →",
+    ctaUrl: "/formations/[id]/testimonials",
+  },
+  J1: {
+    subject: "💡 [Prénom], voici ce que vous manquez (Module 1 offert)",
+    content:
+      "24h se sont écoulées depuis votre visite. Pour vous permettre de juger sur pièce, nous vous offrons un accès gratuit au Module 1. Pas de carte bancaire requise. Découvrez notre méthode en 20 minutes.",
+    cta: "Accéder au Module 1 GRATUIT →",
+    ctaUrl: "/formations/[id]/module-1-gratuit",
+  },
+  J3: {
+    subject: "⏰ Votre place est encore disponible (mais pour combien de temps ?)",
+    content:
+      "Bonne nouvelle : nous avons encore quelques places disponibles pour la prochaine session. Mauvaise nouvelle : elles partent vite. Notre taux de complétion de 94% n'est pas un hasard — c'est notre méthode pédagogique unique.",
+    cta: "Sécuriser ma place maintenant →",
+    ctaUrl: "/formations/[id]/inscription",
+  },
+  J7: {
+    subject: "🚀 Dernière chance — Offre spéciale expire dans 48h",
+    content:
+      "Il y a 7 jours, vous avez montré de l'intérêt pour votre développement professionnel. C'est le bon moment pour agir. Offre exceptionnelle : -20% sur la formule Premium + 2 sessions coaching offertes. Code : DECISION7",
+    cta: "Profiter de l'offre -20% →",
+    ctaUrl: "/formations/[id]/offre-speciale?code=DECISION7",
+  },
+};
+
+const PROFILE_MESSAGES: Record<UserProfile, string> = {
+  particulier:
+    "Investissez dans vous-même. Cette formation est un tremplin vers vos objectifs personnels et professionnels.",
+  salarié:
+    "Votre CPF peut financer jusqu'à 100% de cette formation. Montez en compétences sans débourser un centime.",
+  demandeur_emploi:
+    "Pôle Emploi et les OPCO peuvent financer votre formation. Transformez cette période en opportunité de montée en compétences.",
+  entrepreneur:
+    "ROI mesurable en 30 jours. Cette formation vous permettra d'augmenter votre chiffre d'affaires et d'optimiser vos process.",
 };
 
 // ============================================================
-// SYSTEM PROMPT BUILDER
-// ============================================================
-
-function buildSystemPrompt(session: ProspectSession): string {
-  const profileContext = session.profile
-    ? getProfileContext(session.profile)
-    : "profil non défini";
-
-  const urgencyLevel =
-    session.score >= 70
-      ? "ÉLEVÉE"
-      : session.score >= 40
-        ? "MODÉRÉE"
-        : "FAIBLE";
-
-  const financing = session.profile
-    ? PROFILE_FINANCING[session.profile].join(", ")
-    : "Paiement en 3x sans frais disponible";
-
-  return `Tu es Alex, l'agent commercial expert d'AcadémIA Pro, une plateforme de formation professionnelle en ligne de premier plan. 
-Tu combines empathie, expertise pédagogique et excellence commerciale.
-
-═══════════════════════════════════════
-CONTEXTE PROSPECT ACTUEL
-═══════════════════════════════════════
-• Session ID: ${session.sessionId}
-• Score d'intérêt: ${session.score}/100 (urgence ${urgencyLevel})
-• Profil détecté: ${profileContext}
-• Formation consultée: ${session.formationName || "Non spécifiée"}
-• Nombre de visites: ${session.visitCount}
-• Phase séquence: ${session.conversionDay}
-• Budget estimé: ${session.detectedBudget || "non détecté"}
-${session.company ? `• Entreprise: ${session.company} (${session.employeeCount || "?"} employés)` : ""}
-
-═══════════════════════════════════════
-TA MISSION COMMERCIALE
-═══════════════════════════════════════
-1. QUALIFIER rapidement le besoin réel du prospect
-2. CRÉER de la valeur avant de parler prix
-3. TRAITER les objections avec empathie et preuves sociales
-4. PROPOSER l'offre adaptée au profil et budget
-5. CONVERTIR avec une offre limitée dans le temps (urgence éthique)
-
-═══════════════════════════════════════
-OFFRES DISPONIBLES
-═══════════════════════════════════════
-• Essentiel: 297€ → Formation complète + support email + communauté
-• Premium: 597€ → + 2 coachings individuels + suivi personnalisé
-• VIP Intensif: 1 497€ → + 8 coachings + garantie résultat + accès à vie
-
-Options de financement pour ce profil: ${financing}
-
-═══════════════════════════════════════
-TRAITEMENT DES OBJECTIONS
-═══════════════════════════════════════
-❌ "Trop cher" → 
-  - Ramener au coût par jour (ex: 297€ = 0,81€/jour sur 1 an)
-  - Proposer le paiement en 3x SANS
+// FONCTIONS
