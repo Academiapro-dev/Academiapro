@@ -4,12 +4,14 @@ import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@supabase/supabase-js";
 
-// ─────────────────────────────────────────────
-// Types
-// ─────────────────────────────────────────────
+// ============================================================
+// TYPES & INTERFACES
+// ============================================================
+
 interface Message {
   role: "user" | "assistant";
   content: string;
+  timestamp?: string;
 }
 
 interface TutorRequest {
@@ -19,261 +21,260 @@ interface TutorRequest {
   conversation_id?: string;
 }
 
-interface ConversationRow {
+interface Formation {
+  id: string;
+  titre: string;
+  domaine: string;
+  niveau: string;
+  objectifs: string[];
+  competences_cles: string[];
+}
+
+interface AbandonSignal {
+  detected: boolean;
+  score: number;
+  reasons: string[];
+}
+
+interface TutorResponse {
+  response: string;
+  conversation_id: string;
+  abandon_signal: AbandonSignal;
+  tokens_used: number;
+  processing_time_ms: number;
+  formation_context: string;
+}
+
+interface ConversationRecord {
   id: string;
   apprenant_id: string;
   formation_id: string;
   messages: Message[];
   created_at: string;
-  abandon_signals: number;
+  updated_at?: string;
+  abandon_score?: number;
 }
 
-interface FormationConfig {
-  domaine: string;
-  expert_persona: string;
-  system_prompt: string;
-  ia_tips: string[];
-}
-
-// ─────────────────────────────────────────────
-// Clients
-// ─────────────────────────────────────────────
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY!,
-});
+// ============================================================
+// SUPABASE CLIENT
+// ============================================================
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-// ─────────────────────────────────────────────
-// Configurations formations
-// ─────────────────────────────────────────────
-const FORMATION_CONFIGS: Record<string, FormationConfig> = {
-  developpement_web: {
-    domaine: "Développement Web",
-    expert_persona: "développeur senior full-stack avec 15 ans d'expérience",
-    system_prompt: `Tu es un développeur senior full-stack expert (React, Next.js, Node.js, bases de données).
-Tu accompagnes des apprenants dans leur parcours d'apprentissage du développement web.
-Ton style : pédagogue, bienveillant, concret. Tu donnes toujours des exemples de code commentés.
-Tu poses des questions de vérification pour t'assurer de la compréhension.`,
-    ia_tips: [
-      "Utilise GitHub Copilot pour accélérer l'écriture de code boilerplate",
-      "ChatGPT et Claude excellent pour déboguer et expliquer les messages d'erreur",
-      "Prompt engineering : décris toujours le contexte (framework, version, contrainte)",
+// ============================================================
+// ANTHROPIC CLIENT
+// ============================================================
+
+const anthropic = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY!,
+});
+
+// ============================================================
+// FORMATIONS CATALOGUE (à remplacer par DB en production)
+// ============================================================
+
+const FORMATIONS_CATALOGUE: Record<string, Formation> = {
+  "formation-dev-web": {
+    id: "formation-dev-web",
+    titre: "Développement Web Full Stack",
+    domaine: "informatique",
+    niveau: "intermédiaire",
+    objectifs: [
+      "Maîtriser HTML/CSS/JavaScript",
+      "Développer des APIs REST",
+      "Utiliser React et Node.js",
     ],
+    competences_cles: ["Frontend", "Backend", "Base de données", "DevOps"],
   },
-  data_science: {
-    domaine: "Data Science & IA",
-    expert_persona: "data scientist senior spécialisé ML/IA avec doctorat",
-    system_prompt: `Tu es un data scientist expert (Python, pandas, scikit-learn, deep learning, statistiques).
-Tu guides des apprenants à travers les concepts complexes de la data science avec clarté et rigueur.
-Ton style : rigoureux mais accessible, tu utilises des analogies pour les concepts abstraits.
-Tu encourages l'approche expérimentale et la pensée critique sur les données.`,
-    ia_tips: [
-      "Code Interpreter de ChatGPT est idéal pour l'analyse exploratoire rapide",
-      "Claude excelle pour expliquer des algorithmes complexes et revoir ton code Python",
-      "Copilot dans Jupyter accélère l'écriture de pipelines ML répétitifs",
+  "formation-data-science": {
+    id: "formation-data-science",
+    titre: "Data Science & Machine Learning",
+    domaine: "data",
+    niveau: "avancé",
+    objectifs: [
+      "Analyser des données complexes",
+      "Construire des modèles ML",
+      "Visualiser des insights",
     ],
+    competences_cles: ["Python", "Statistiques", "ML", "Visualisation"],
   },
-  marketing_digital: {
-    domaine: "Marketing Digital",
-    expert_persona: "directeur marketing digital avec expertise growth hacking",
-    system_prompt: `Tu es un expert en marketing digital (SEO, SEA, social media, content marketing, analytics).
-Tu coaces des apprenants pour maîtriser les stratégies digitales modernes.
-Ton style : orienté résultats, tu illustres avec des cas concrets et des métriques réelles.
-Tu encourages la créativité tout en restant data-driven.`,
-    ia_tips: [
-      "ChatGPT et Claude transforment la création de contenu : briefings, A/B tests, copywriting",
-      "Midjourney et DALL-E pour créer des visuels de campagne en quelques secondes",
-      "Utilise l'IA pour analyser tes concurrents et générer des insights stratégiques",
+  "formation-marketing-digital": {
+    id: "formation-marketing-digital",
+    titre: "Marketing Digital & Growth",
+    domaine: "marketing",
+    niveau: "débutant",
+    objectifs: [
+      "Créer des campagnes digitales",
+      "Analyser les métriques",
+      "Optimiser les conversions",
     ],
+    competences_cles: ["SEO/SEA", "Social Media", "Analytics", "Content"],
   },
-  default: {
-    domaine: "Formation Professionnelle",
-    expert_persona: "formateur expert et pédagogue expérimenté",
-    system_prompt: `Tu es un formateur expert et pédagogue expérimenté.
-Tu accompagnes des apprenants dans leur parcours de formation professionnelle.
-Ton style : bienveillant, structuré, adaptatif selon le niveau de l'apprenant.
-Tu vérifies régulièrement la compréhension et adaptes tes explications.`,
-    ia_tips: [
-      "L'IA générative peut vous aider à créer des fiches de révision personnalisées",
-      "Utilisez Claude ou ChatGPT comme partenaire de pratique et de questions-réponses",
-      "L'IA accélère la recherche d'informations complémentaires sur votre domaine",
+  "formation-gestion-projet": {
+    id: "formation-gestion-projet",
+    titre: "Gestion de Projet Agile",
+    domaine: "management",
+    niveau: "intermédiaire",
+    objectifs: [
+      "Maîtriser Scrum et Kanban",
+      "Gérer une équipe agile",
+      "Livrer des projets avec succès",
     ],
+    competences_cles: ["Scrum", "Kanban", "Leadership", "Communication"],
   },
 };
 
-// ─────────────────────────────────────────────
-// Détection signaux d'abandon
-// ─────────────────────────────────────────────
-const ABANDON_SIGNALS = [
-  /je (ne |n')comprends (pas|plus|rien)/i,
-  /c'est trop (difficile|compliqué|dur)/i,
-  /j'abandonne/i,
-  /je (lâche|laisse) tomber/i,
-  /ça (ne|n') sert (à rien|pas)/i,
-  /je suis (nul|nulle|pas fait|pas faite)/i,
-  /c'est (inutile|impossible pour moi)/i,
-  /je vais (arrêter|tout arrêter)/i,
-  /frustré|découragé|démotivé/i,
-  /perdre (mon temps|la tête)/i,
-];
+// ============================================================
+// SYSTEM PROMPTS PAR DOMAINE
+// ============================================================
 
-function detectAbandonSignals(message: string): boolean {
-  return ABANDON_SIGNALS.some((pattern) => pattern.test(message));
-}
+function buildSystemPrompt(formation: Formation): string {
+  const aiAdviceByDomain: Record<string, string> = {
+    informatique: `
+## 🤖 Conseils IA Générative pour le Développement
+- Utilise GitHub Copilot pour accélérer l'écriture de code répétitif
+- Prompts efficaces : sois précis sur le langage, le contexte et les contraintes
+- Valide TOUJOURS le code généré par l'IA avant de l'intégrer
+- L'IA excelle pour : boilerplate, tests unitaires, documentation, refactoring
+- L'IA limite : logique métier complexe, sécurité critique, architecture
+- Prompt template : "En [langage], écris [fonction] qui [objectif] avec [contraintes]"`,
 
-// ─────────────────────────────────────────────
-// Alerte agent anti-abandon
-// ─────────────────────────────────────────────
-async function triggerAbandonAlert(
-  apprenant_id: string,
-  formation_id: string,
-  message: string,
-  conversation_id: string
-): Promise<void> {
-  try {
-    await supabase.from("abandon_alerts").insert({
-      apprenant_id,
-      formation_id,
-      conversation_id,
-      trigger_message: message.substring(0, 200),
-      detected_at: new Date().toISOString(),
-      status: "pending",
-      severity: "medium",
-    });
+    data: `
+## 🤖 Conseils IA Générative pour la Data Science
+- Utilise Claude/ChatGPT pour générer du code d'analyse exploratoire
+- Prompts data : spécifie le format de tes données, la librairie souhaitée
+- L'IA peut t'aider à interpréter des résultats statistiques
+- Attention aux hallucinations sur les résultats numériques - vérifie toujours
+- Utilise l'IA pour documenter tes notebooks et expliquer tes modèles
+- Prompt template : "Avec pandas/sklearn, [action] sur [description_dataset]"`,
 
-    // Appel webhook agent anti-abandon si configuré
-    if (process.env.ABANDON_AGENT_WEBHOOK_URL) {
-      await fetch(process.env.ABANDON_AGENT_WEBHOOK_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          apprenant_id,
-          formation_id,
-          conversation_id,
-          timestamp: new Date().toISOString(),
-        }),
-      }).catch(() => {
-        // Non-bloquant : on log mais on ne plante pas la réponse
-        console.warn("[AbandonAlert] Webhook call failed silently");
-      });
-    }
-  } catch (error) {
-    console.error("[AbandonAlert] Failed to create alert:", error);
-  }
-}
+    marketing: `
+## 🤖 Conseils IA Générative pour le Marketing Digital
+- L'IA est excellent pour : copywriting, A/B testing d'accroches, briefs créatifs
+- Utilise ChatGPT/Claude pour générer des variations de messages publicitaires
+- Prompts marketing : définis le persona cible, le ton, l'objectif de conversion
+- L'IA peut analyser et optimiser tes landing pages si tu lui fournis le texte
+- Attention : personnalise toujours le contenu généré avec ta brand voice
+- Prompt template : "Pour [persona], rédige [type_contenu] avec ton [caractère]"`,
 
-// ─────────────────────────────────────────────
-// Récupération / création conversation Supabase
-// ─────────────────────────────────────────────
-async function getOrCreateConversation(
-  apprenant_id: string,
-  formation_id: string,
-  conversation_id?: string
-): Promise<ConversationRow> {
-  // Récupération conversation existante
-  if (conversation_id) {
-    const { data, error } = await supabase
-      .from("agents_conversations")
-      .select("*")
-      .eq("id", conversation_id)
-      .eq("apprenant_id", apprenant_id)
-      .single();
-
-    if (!error && data) return data as ConversationRow;
-  }
-
-  // Recherche dernière conversation active pour cette formation
-  const { data: existing } = await supabase
-    .from("agents_conversations")
-    .select("*")
-    .eq("apprenant_id", apprenant_id)
-    .eq("formation_id", formation_id)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .single();
-
-  if (existing) return existing as ConversationRow;
-
-  // Création nouvelle conversation
-  const { data: created, error: createError } = await supabase
-    .from("agents_conversations")
-    .insert({
-      apprenant_id,
-      formation_id,
-      messages: [],
-      abandon_signals: 0,
-      created_at: new Date().toISOString(),
-    })
-    .select()
-    .single();
-
-  if (createError || !created) {
-    throw new Error(`Failed to create conversation: ${createError?.message}`);
-  }
-
-  return created as ConversationRow;
-}
-
-// ─────────────────────────────────────────────
-// Mise à jour conversation Supabase
-// ─────────────────────────────────────────────
-async function updateConversation(
-  conversation_id: string,
-  newMessages: Message[],
-  hasAbandonSignal: boolean
-): Promise<void> {
-  const updateData: Record<string, unknown> = {
-    messages: newMessages,
-    updated_at: new Date().toISOString(),
+    management: `
+## 🤖 Conseils IA Générative pour la Gestion de Projet
+- Utilise l'IA pour générer des templates : user stories, critères d'acceptance
+- L'IA peut t'aider à structurer des rétrospectives et faciliter des ateliers
+- Prompts agile : donne le contexte du projet, l'équipe, les contraintes
+- Génère des plans de communication et des reporting automatiquement
+- L'IA excelle pour : résolution de conflits, facilitation, documentation
+- Prompt template : "En contexte [projet], rédige [livrable] pour [audience]"`,
   };
 
-  if (hasAbandonSignal) {
-    // Incrémentation compteur signaux abandon
-    const { data } = await supabase
-      .from("agents_conversations")
-      .select("abandon_signals")
-      .eq("id", conversation_id)
-      .single();
+  const domainExpertise: Record<string, string> = {
+    informatique: `expert développeur full-stack senior avec 15 ans d'expérience, 
+    spécialisé en architecture logicielle, bonnes pratiques de code et pédagogie technique`,
+    data: `expert data scientist et ML engineer avec 12 ans d'expérience, 
+    spécialisé en statistiques appliquées, modélisation et communication des insights`,
+    marketing: `expert en marketing digital et growth hacking avec 10 ans d'expérience, 
+    spécialisé en acquisition, rétention et optimisation des conversions`,
+    management: `expert en gestion de projet agile et leadership avec 15 ans d'expérience, 
+    coach certifié Scrum Master et spécialiste transformation digitale`,
+  };
 
-    updateData.abandon_signals = ((data?.abandon_signals as number) || 0) + 1;
-  }
+  const expertise =
+    domainExpertise[formation.domaine] ||
+    "expert pédagogue polyvalent avec expertise multidisciplinaire";
+  const aiAdvice =
+    aiAdviceByDomain[formation.domaine] || aiAdviceByDomain["informatique"];
 
-  await supabase
-    .from("agents_conversations")
-    .update(updateData)
-    .eq("id", conversation_id);
+  return `# 🎓 AcadémIA Pro - Agent Tuteur Expert
+
+## TON IDENTITÉ
+Tu es ARIA (Adaptive Responsive Intelligence for Academics), ${expertise}.
+Tu es le tuteur personnel dédié à la formation **"${formation.titre}"** (niveau: ${formation.niveau}).
+
+## TA MISSION PRINCIPALE
+Accompagner l'apprenant avec bienveillance et expertise pour qu'il maîtrise ces compétences :
+${formation.competences_cles.map((c) => `- ${c}`).join("\n")}
+
+Et atteigne ces objectifs :
+${formation.objectifs.map((o) => `- ${o}`).join("\n")}
+
+## TON STYLE PÉDAGOGIQUE
+1. **Socrateur** : Guide par des questions plutôt que donner les réponses directement
+2. **Progressif** : Adapte la complexité au niveau détecté dans la conversation
+3. **Concret** : Toujours illustrer avec des exemples pratiques et du monde réel
+4. **Encourageant** : Célèbre les progrès, normalise les erreurs comme apprentissage
+5. **Structuré** : Organise tes réponses avec des titres clairs quand c'est pertinent
+
+## FORMAT DE RÉPONSE
+- Réponses concises : 150-300 mots maximum sauf pour exercices/explications détaillées
+- Utilise des emojis avec parcimonie pour rendre vivant (max 2-3 par message)
+- Code : toujours avec blocs formatés et commentaires explicatifs
+- Fin de message : propose TOUJOURS une prochaine étape ou question de vérification
+- Langue : Français courant et professionnel
+
+## GESTION DES EXERCICES
+Quand tu proposes un exercice :
+- Énonce clairement l'objectif pédagogique
+- Décompose en étapes si complexe
+- Fournis des indices progressifs si l'apprenant bloque
+- Valide et explique la solution complète après tentative
+
+## GESTION DES ERREURS & BLOCAGES
+- Ne jamais juger négativement une erreur
+- Identifier la source du blocage (conceptuelle, technique, motivation)
+- Proposer une approche alternative si la première n'a pas fonctionné
+- Suggérer des ressources complémentaires si nécessaire
+
+${aiAdvice}
+
+## CONTRAINTES IMPORTANTES
+- Ne JAMAIS mentionner que tu es Claude ou un produit Anthropic
+- Tu es ARIA, l'IA de AcadémIA Pro
+- Si on te demande ta technologie : "Je suis ARIA, l'assistant IA propriétaire d'AcadémIA Pro"
+- Reste toujours dans le contexte de la formation ${formation.titre}
+- Pour les questions hors-sujet : recadre gentiment vers la formation`;
 }
 
-// ─────────────────────────────────────────────
-// Construction system prompt complet
-// ─────────────────────────────────────────────
-function buildSystemPrompt(
-  config: FormationConfig,
-  hasAbandonSignal: boolean
-): string {
-  const iaTipsFormatted = config.ia_tips
-    .map((tip, i) => `  ${i + 1}. ${tip}`)
-    .join("\n");
+// ============================================================
+// ABANDON SIGNAL DETECTOR
+// ============================================================
 
-  const abandonGuidance = hasAbandonSignal
-    ? `
-⚠️ ATTENTION - SIGNAL DE DÉMOTIVATION DÉTECTÉ :
-L'apprenant montre des signes de découragement. Priorité absolue :
-1. Reconnaître et valider son ressenti avec empathie
-2. Reformuler la difficulté en challenge surmontable
-3. Rappeler ses progrès accomplis
-4. Proposer une approche plus simple ou décomposée
-5. Terminer ta réponse par un encouragement sincère et un micro-objectif atteignable
-`
-    : "";
+function detectAbandonSignals(
+  messages: Message[],
+  currentMessage: string
+): AbandonSignal {
+  const abandonKeywords = [
+    "je comprends pas",
+    "trop difficile",
+    "à quoi ça sert",
+    "c'est nul",
+    "j'arrête",
+    "je laisse tomber",
+    "c'est inutile",
+    "rien compris",
+    "trop compliqué",
+    "perte de temps",
+    "démotivé",
+    "découragé",
+    "j'y arrive pas",
+    "c'est pas pour moi",
+    "impossible",
+    "je sais pas",
+    "helpless",
+    "abandonner",
+  ];
 
-  return `Tu es ${config.expert_persona} et tuteur IA pour AcadémIA Pro, spécialisé en ${config.domaine}.
+  const frustrationIndicators = [
+    "???",
+    "!!!",
+    "wtf",
+    "nul",
+    "merde",
+    "pfff",
+    "bof",
+  ];
 
-${config.system_prompt}
-
-═══════════════════════════════════════
-DIR
+  let score = 0;
+  const reasons: string[]
