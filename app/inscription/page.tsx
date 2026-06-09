@@ -1,4 +1,4 @@
-```typescript
+```tsx
 // app/inscription/page.tsx
 "use client";
 
@@ -13,332 +13,304 @@ import {
   useElements,
 } from "@stripe/react-stripe-js";
 
-const stripePromise = loadStripe(
-  process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!
-);
-
 // ─── Types ────────────────────────────────────────────────────────────────────
+
+type Step = "auth" | "profile" | "formation" | "niveau" | "paiement";
+
+interface UserProfile {
+  nom: string;
+  prenom: string;
+  email: string;
+  password: string;
+  avatar?: string;
+}
 
 interface Formation {
   id: string;
-  title: string;
+  titre: string;
   description: string;
-  duration: string;
-  level: string;
-  price: number;
+  duree: string;
+  niveau: string;
+  emoji: string;
+  categorie: string;
+}
+
+interface NiveauAccompagnement {
+  id: "elearning" | "premium" | "avatar";
+  label: string;
+  description: string;
+  prix: number;
   badge: string;
-}
-
-interface AccompagnementLevel {
-  id: string;
-  name: string;
-  description: string;
-  price: number;
   features: string[];
-  icon: string;
-  popular?: boolean;
+  couleur: string;
 }
 
-interface FormData {
-  firstName: string;
-  lastName: string;
-  email: string;
-  password: string;
-  confirmPassword: string;
-  selectedFormation: string;
-  selectedLevel: string;
-  paymentMethod: "card" | "apple_pay" | "google_pay" | "installment";
-  acceptTerms: boolean;
-}
+// ─── Constants ────────────────────────────────────────────────────────────────
 
-// ─── Data ─────────────────────────────────────────────────────────────────────
+const stripePromise = loadStripe(
+  process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || "pk_test_placeholder"
+);
 
-const formations: Formation[] = [
+const FORMATIONS: Formation[] = [
   {
-    id: "ia-business",
-    title: "IA & Business Intelligence",
-    description: "Maîtrisez l'IA pour transformer votre entreprise",
-    duration: "48h",
-    level: "Intermédiaire",
-    price: 1290,
-    badge: "🔥 Best-seller",
+    id: "dev-web",
+    titre: "Développement Web Full Stack",
+    description: "React, Next.js, Node.js, bases de données",
+    duree: "6 mois",
+    niveau: "Débutant → Expert",
+    emoji: "💻",
+    categorie: "Tech",
   },
   {
-    id: "prompt-engineering",
-    title: "Prompt Engineering Avancé",
-    description: "Devenez expert en communication avec les LLMs",
-    duration: "24h",
-    level: "Débutant",
-    price: 690,
-    badge: "⚡ Nouveau",
+    id: "ia-ml",
+    titre: "Intelligence Artificielle & ML",
+    description: "Python, TensorFlow, LLMs, Prompt Engineering",
+    duree: "4 mois",
+    niveau: "Intermédiaire",
+    emoji: "🤖",
+    categorie: "Tech",
   },
   {
-    id: "ml-pratique",
-    title: "Machine Learning Pratique",
-    description: "Construisez vos premiers modèles prédictifs",
-    duration: "72h",
-    level: "Avancé",
-    price: 1890,
-    badge: "🎯 Certifiant",
+    id: "design-ux",
+    titre: "Design UX/UI Professionnel",
+    description: "Figma, Design System, Prototypage",
+    duree: "3 mois",
+    niveau: "Tous niveaux",
+    emoji: "🎨",
+    categorie: "Design",
   },
   {
-    id: "chatgpt-pro",
-    title: "ChatGPT & LLMs Pro",
-    description: "Automatisez votre workflow avec l'IA générative",
-    duration: "16h",
-    level: "Débutant",
-    price: 490,
-    badge: "💡 Populaire",
+    id: "data-analytics",
+    titre: "Data Science & Analytics",
+    description: "Python, SQL, Tableau, Machine Learning",
+    duree: "5 mois",
+    niveau: "Débutant → Avancé",
+    emoji: "📊",
+    categorie: "Data",
   },
   {
-    id: "data-science",
-    title: "Data Science Complète",
-    description: "Du traitement des données à la visualisation avancée",
-    duration: "96h",
-    level: "Avancé",
-    price: 2490,
-    badge: "🏆 Expert",
+    id: "cybersecurite",
+    titre: "Cybersécurité & Ethical Hacking",
+    description: "Pentest, OSCP, CTF, Sécurité réseau",
+    duree: "4 mois",
+    niveau: "Intermédiaire",
+    emoji: "🔐",
+    categorie: "Sécurité",
   },
   {
-    id: "ia-marketing",
-    title: "IA pour le Marketing",
-    description: "Révolutionnez vos campagnes avec l'intelligence artificielle",
-    duration: "32h",
-    level: "Intermédiaire",
-    price: 890,
-    badge: "📈 ROI garanti",
+    id: "marketing-digital",
+    titre: "Marketing Digital & Growth",
+    description: "SEO, Ads, Email Marketing, Analytics",
+    duree: "2 mois",
+    niveau: "Tous niveaux",
+    emoji: "📈",
+    categorie: "Business",
   },
 ];
 
-const accompagnementLevels: AccompagnementLevel[] = [
+const NIVEAUX: NiveauAccompagnement[] = [
   {
     id: "elearning",
-    name: "E-Learning",
+    label: "E-Learning",
     description: "Apprenez à votre rythme",
-    price: 0,
-    icon: "🎓",
+    prix: 49,
+    badge: "Essentiel",
     features: [
-      "Accès aux vidéos HD",
+      "Accès illimité aux cours",
       "Exercices pratiques",
+      "Certificat de réussite",
       "Forum communautaire",
-      "Certificat de completion",
       "Mises à jour incluses",
     ],
+    couleur: "from-slate-700 to-slate-600",
   },
   {
     id: "premium",
-    name: "Premium 24/7",
-    description: "Support expert illimité",
-    price: 299,
-    icon: "⭐",
-    popular: true,
+    label: "Premium 24/7",
+    description: "Accompagnement IA personnalisé",
+    prix: 149,
+    badge: "Populaire",
     features: [
       "Tout E-Learning inclus",
-      "Mentor dédié 24/7",
-      "Sessions live hebdo",
-      "Revue de code perso",
-      "Accès prioritaire Discord",
-      "Garantie satisfaction 30j",
+      "IA Coach disponible 24/7",
+      "Sessions live hebdomadaires",
+      "Correction personnalisée",
+      "Mentorat par experts",
+      "Accès réseau Alumni",
     ],
+    couleur: "from-amber-700 to-amber-600",
   },
   {
-    id: "live-avatar",
-    name: "Live Avatar",
-    description: "L'IA comme professeur personnel",
-    price: 599,
-    icon: "🤖",
+    id: "avatar",
+    label: "Live Avatar",
+    description: "Professeur IA en temps réel",
+    prix: 299,
+    badge: "Premium",
     features: [
       "Tout Premium inclus",
-      "Avatar IA personnalisé",
-      "Sessions immersives VR",
-      "Coaching IA adaptatif",
-      "Simulation d'entretiens",
-      "Placement professionnel",
+      "Avatar IA interactif",
+      "Sessions illimitées",
+      "Roadmap 100% personnalisée",
+      "Simulation d'entretien",
       "Garantie emploi 6 mois",
+      "Accès événements VIP",
     ],
+    couleur: "from-purple-700 to-purple-600",
   },
 ];
 
-// ─── Payment Form Component ───────────────────────────────────────────────────
+// ─── Stripe Payment Form ───────────────────────────────────────────────────────
 
-function PaymentForm({
-  formData,
-  totalPrice,
+function StripePaymentForm({
+  montant,
+  formation,
+  niveau,
+  userProfile,
   onSuccess,
-  isLoading,
-  setIsLoading,
 }: {
-  formData: FormData;
-  totalPrice: number;
+  montant: number;
+  formation: Formation | null;
+  niveau: NiveauAccompagnement | null;
+  userProfile: UserProfile;
   onSuccess: () => void;
-  isLoading: boolean;
-  setIsLoading: (v: boolean) => void;
 }) {
   const stripe = useStripe();
   const elements = useElements();
-  const [cardError, setCardError] = useState<string>("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [paiementMode, setPaiementMode] = useState<"cb" | "3x">("cb");
 
-  const handlePayment = async () => {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     if (!stripe || !elements) return;
 
-    setIsLoading(true);
-    setCardError("");
+    setLoading(true);
+    setError("");
 
     try {
-      const response = await fetch("/api/create-payment-intent", {
+      // Créer PaymentIntent via API
+      const response = await fetch("/api/stripe/create-payment-intent", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          amount: totalPrice * 100,
-          email: formData.email,
-          metadata: {
-            formation: formData.selectedFormation,
-            level: formData.selectedLevel,
-            firstName: formData.firstName,
-            lastName: formData.lastName,
-          },
+          montant: montant * 100,
+          email: userProfile.email,
+          formation: formation?.id,
+          niveau: niveau?.id,
+          mode: paiementMode,
         }),
       });
 
       const { clientSecret, error: apiError } = await response.json();
 
       if (apiError) {
-        setCardError(apiError);
-        setIsLoading(false);
+        setError(apiError);
+        setLoading(false);
         return;
       }
 
       const cardElement = elements.getElement(CardElement);
       if (!cardElement) return;
 
-      const { error, paymentIntent } = await stripe.confirmCardPayment(
-        clientSecret,
-        {
+      const { error: stripeError, paymentIntent } =
+        await stripe.confirmCardPayment(clientSecret, {
           payment_method: {
             card: cardElement,
             billing_details: {
-              name: `${formData.firstName} ${formData.lastName}`,
-              email: formData.email,
+              name: `${userProfile.prenom} ${userProfile.nom}`,
+              email: userProfile.email,
             },
           },
-        }
-      );
+        });
 
-      if (error) {
-        setCardError(error.message || "Erreur de paiement");
-        setIsLoading(false);
-        return;
-      }
-
-      if (paymentIntent?.status === "succeeded") {
-        await fetch("/api/send-confirmation", {
+      if (stripeError) {
+        setError(stripeError.message || "Erreur de paiement");
+      } else if (paymentIntent?.status === "succeeded") {
+        // Envoyer email de confirmation
+        await fetch("/api/email/confirmation", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            email: formData.email,
-            firstName: formData.firstName,
-            formation: formData.selectedFormation,
-            level: formData.selectedLevel,
+            email: userProfile.email,
+            prenom: userProfile.prenom,
+            formation: formation?.titre,
+            niveau: niveau?.label,
+            montant,
           }),
         });
         onSuccess();
       }
     } catch {
-      setCardError("Une erreur inattendue s'est produite");
-      setIsLoading(false);
+      setError("Une erreur est survenue. Veuillez réessayer.");
     }
+
+    setLoading(false);
   };
+
+  const montant3x = Math.ceil((montant * 1.015) / 3);
 
   return (
-    <div className="space-y-4">
-      <div className="p-4 rounded-xl border border-gold-500/30 bg-neutral-900/80">
-        <CardElement
-          options={{
-            style: {
-              base: {
-                color: "#f5f5f5",
-                fontFamily: "Inter, sans-serif",
-                fontSize: "16px",
-                "::placeholder": { color: "#6b7280" },
-                iconColor: "#D4AF37",
-              },
-              invalid: { color: "#ef4444", iconColor: "#ef4444" },
-            },
-          }}
-        />
+    <form onSubmit={handleSubmit} className="space-y-6">
+      {/* Mode paiement */}
+      <div className="grid grid-cols-2 gap-3">
+        <button
+          type="button"
+          onClick={() => setPaiementMode("cb")}
+          className={`py-3 px-4 rounded-xl border text-sm font-medium transition-all duration-200 ${
+            paiementMode === "cb"
+              ? "border-amber-500 bg-amber-500/10 text-amber-400"
+              : "border-white/10 text-gray-400 hover:border-white/20"
+          }`}
+        >
+          💳 Paiement comptant
+        </button>
+        <button
+          type="button"
+          onClick={() => setPaiementMode("3x")}
+          className={`py-3 px-4 rounded-xl border text-sm font-medium transition-all duration-200 ${
+            paiementMode === "3x"
+              ? "border-amber-500 bg-amber-500/10 text-amber-400"
+              : "border-white/10 text-gray-400 hover:border-white/20"
+          }`}
+        >
+          🔄 3x sans frais
+        </button>
       </div>
-      {cardError && (
-        <p className="text-red-400 text-sm flex items-center gap-2">
-          <span>⚠️</span> {cardError}
-        </p>
+
+      {paiementMode === "3x" && (
+        <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-4">
+          <p className="text-emerald-400 text-sm font-medium">
+            ✨ 3 mensualités de {montant3x}€/mois — Sans frais
+          </p>
+          <p className="text-gray-400 text-xs mt-1">
+            Total : {montant3x * 3}€ · Frais de dossier : 0€
+          </p>
+        </div>
       )}
-      <button
-        onClick={handlePayment}
-        disabled={isLoading || !stripe}
-        className="w-full py-4 rounded-xl font-bold text-lg bg-gradient-to-r from-yellow-600 to-yellow-400 text-black hover:from-yellow-500 hover:to-yellow-300 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 shadow-lg shadow-yellow-900/30"
-      >
-        {isLoading ? (
-          <>
-            <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24" fill="none">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-            </svg>
-            Traitement en cours...
-          </>
-        ) : (
-          <>
-            <span>🔒</span>
-            Payer {totalPrice.toLocaleString("fr-FR")} € maintenant
-          </>
-        )}
-      </button>
-    </div>
-  );
-}
 
-// ─── Main Component ───────────────────────────────────────────────────────────
-
-export default function InscriptionPage() {
-  const router = useRouter();
-  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
-  const [authMethod, setAuthMethod] = useState<"oauth" | "email" | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [errors, setErrors] = useState<Partial<FormData>>({});
-  const [showPassword, setShowPassword] = useState(false);
-  const [paymentSuccess, setPaymentSuccess] = useState(false);
-
-  const [formData, setFormData] = useState<FormData>({
-    firstName: "",
-    lastName: "",
-    email: "",
-    password: "",
-    confirmPassword: "",
-    selectedFormation: "",
-    selectedLevel: "",
-    paymentMethod: "card",
-    acceptTerms: false,
-  });
-
-  const selectedFormationData = formations.find(
-    (f) => f.id === formData.selectedFormation
-  );
-  const selectedLevelData = accompagnementLevels.find(
-    (l) => l.id === formData.selectedLevel
-  );
-  const totalPrice =
-    (selectedFormationData?.price || 0) + (selectedLevelData?.price || 0);
-
-  const updateForm = (field: keyof FormData, value: string | boolean) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
-    if (errors[field]) {
-      setErrors((prev) => ({ ...prev, [field]: undefined }));
-    }
-  };
-
-  const handleGoogleAuth = async () => {
-    setIsLoading(true);
-    try {
-      // Simulate OAuth - replace with actual NextAuth signIn
-      // await signIn("google", { callbackUrl: "/inscription?step=2" });
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-      setFormData((prev) => ({
+      {/* Wallets */}
+      <div className="grid grid-cols-2 gap-3">
+        <button
+          type="button"
+          className="flex items-center justify-center gap-2 py-3 px-4 bg-black border border-white/10 rounded-xl text-white text-sm font-medium hover:border-white/25 transition-all duration-200 group"
+          onClick={() => {
+            // Apple Pay via Stripe Payment Request Button
+          }}
+        >
+          <span className="text-lg"></span>
+          <span>Apple Pay</span>
+        </button>
+        <button
+          type="button"
+          className="flex items-center justify-center gap-2 py-3 px-4 bg-white/5 border border-white/10 rounded-xl text-white text-sm font-medium hover:border-white/25 transition-all duration-200"
+          onClick={() => {
+            // Google Pay via Stripe Payment Request Button
+          }}
+        >
+          <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none">
+            <path
+              d="M12 11.4v2.4h3.84c-.16 1-.62 1.84-1.32 2.4l2.14 1.66c1.24-1.14 1.96-2.82 1.96-4.82 0-.46-.04-.9-.12-1.32H12z"
+              fill="#4285F4"
+            />
+            <path
+              d="M5.84 14.32C5.6 13.7 5.46 13.02 5.46 12.3s.14-1.4.38-2.02L3.72 8.62C3.14 9.78 2.82
