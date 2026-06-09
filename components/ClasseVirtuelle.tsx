@@ -8,14 +8,13 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 interface Participant {
   id: string;
   name: string;
-  avatar?: string;
+  role: "student" | "instructor" | "ai";
   isHandRaised: boolean;
   isMuted: boolean;
   isCameraOff: boolean;
   isInBreakout: boolean;
   joinedAt: Date;
-  isSigned: boolean;
-  role: "student" | "instructor" | "ai-avatar";
+  avatar?: string;
 }
 
 interface ChatMessage {
@@ -24,275 +23,218 @@ interface ChatMessage {
   senderName: string;
   content: string;
   timestamp: Date;
-  type: "text" | "system" | "emoji";
+  type: "text" | "system" | "reaction";
 }
 
 interface BreakoutRoom {
   id: string;
   name: string;
   participants: string[];
-  maxParticipants: number;
+  maxCapacity: number;
 }
 
-interface DrawingPoint {
-  x: number;
-  y: number;
+interface WhiteboardElement {
+  id: string;
+  type: "pen" | "rect" | "circle" | "text" | "arrow";
+  points?: { x: number; y: number }[];
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
   color: string;
-  size: number;
-  type: "draw" | "erase" | "start";
+  strokeWidth: number;
+  text?: string;
+}
+
+interface SessionInfo {
+  id: string;
+  title: string;
+  instructor: string;
+  startTime: Date;
+  duration: number;
+  isRecording: boolean;
+  recordingDuration: number;
 }
 
 type ActivePanel = "chat" | "participants" | "whiteboard" | "breakout" | null;
+type DrawTool = "pen" | "rect" | "circle" | "text" | "arrow" | "eraser" | "select";
 
 // ============================================================
-// MOCK DATA
+// MOCK DATA & HELPERS
 // ============================================================
 
 const MOCK_PARTICIPANTS: Participant[] = [
   {
-    id: "ai-1",
-    name: "Prof. Aria (IA)",
+    id: "ai-instructor",
+    name: "Alex IA — Formateur",
+    role: "ai",
     isHandRaised: false,
     isMuted: false,
     isCameraOff: false,
     isInBreakout: false,
     joinedAt: new Date(),
-    isSigned: true,
-    role: "ai-avatar",
+    avatar: "https://api.dicebear.com/7.x/bottts/svg?seed=alex",
   },
   {
     id: "user-1",
-    name: "Sophie Martin",
+    name: "Marie Dupont",
+    role: "student",
     isHandRaised: true,
     isMuted: false,
     isCameraOff: false,
     isInBreakout: false,
     joinedAt: new Date(),
-    isSigned: true,
-    role: "student",
+    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=marie",
   },
   {
     id: "user-2",
-    name: "Thomas Dupont",
+    name: "Thomas Martin",
+    role: "student",
     isHandRaised: false,
     isMuted: true,
     isCameraOff: true,
     isInBreakout: false,
     joinedAt: new Date(),
-    isSigned: true,
-    role: "student",
+    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=thomas",
   },
   {
     id: "user-3",
-    name: "Emma Leroy",
+    name: "Sophie Leroy",
+    role: "student",
     isHandRaised: false,
     isMuted: false,
     isCameraOff: false,
     isInBreakout: true,
     joinedAt: new Date(),
-    isSigned: true,
-    role: "student",
+    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=sophie",
   },
   {
     id: "user-4",
     name: "Lucas Bernard",
+    role: "student",
     isHandRaised: false,
     isMuted: true,
     isCameraOff: false,
     isInBreakout: false,
     joinedAt: new Date(),
-    isSigned: false,
-    role: "student",
+    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=lucas",
   },
 ];
 
 const MOCK_MESSAGES: ChatMessage[] = [
   {
-    id: "msg-1",
-    senderId: "ai-1",
-    senderName: "Prof. Aria (IA)",
-    content: "Bienvenue dans cette session ! Je suis votre formateur IA pour aujourd'hui. 🎓",
+    id: "m1",
+    senderId: "system",
+    senderName: "Système",
+    content: "La session a démarré. Bienvenue dans AcadémIA Pro !",
+    timestamp: new Date(Date.now() - 900000),
+    type: "system",
+  },
+  {
+    id: "m2",
+    senderId: "ai-instructor",
+    senderName: "Alex IA",
+    content:
+      "Bonjour à tous ! Aujourd'hui nous allons explorer les fondamentaux du Machine Learning. N'hésitez pas à lever la main pour poser vos questions.",
+    timestamp: new Date(Date.now() - 600000),
+    type: "text",
+  },
+  {
+    id: "m3",
+    senderId: "user-1",
+    senderName: "Marie Dupont",
+    content: "Bonjour Alex ! Très enthousiaste pour cette session 🎉",
     timestamp: new Date(Date.now() - 300000),
     type: "text",
   },
   {
-    id: "msg-2",
-    senderId: "system",
-    senderName: "Système",
-    content: "Sophie Martin a rejoint la session",
-    timestamp: new Date(Date.now() - 240000),
-    type: "system",
-  },
-  {
-    id: "msg-3",
-    senderId: "user-1",
-    senderName: "Sophie Martin",
-    content: "Bonjour tout le monde ! Prête pour ce cours ! 👋",
-    timestamp: new Date(Date.now() - 180000),
-    type: "text",
-  },
-  {
-    id: "msg-4",
+    id: "m4",
     senderId: "user-2",
-    senderName: "Thomas Dupont",
-    content: "Peut-on avoir le support de cours en PDF svp ?",
+    senderName: "Thomas Martin",
+    content: "Est-ce qu'on aura accès au support de cours après la session ?",
     timestamp: new Date(Date.now() - 120000),
     type: "text",
   },
 ];
 
 const MOCK_BREAKOUT_ROOMS: BreakoutRoom[] = [
-  { id: "br-1", name: "Groupe A - Exercice", participants: ["user-3"], maxParticipants: 4 },
-  { id: "br-2", name: "Groupe B - Discussion", participants: [], maxParticipants: 4 },
-  { id: "br-3", name: "Groupe C - Projet", participants: [], maxParticipants: 4 },
+  { id: "br-1", name: "Groupe Alpha", participants: ["user-3"], maxCapacity: 4 },
+  { id: "br-2", name: "Groupe Beta", participants: [], maxCapacity: 4 },
+  { id: "br-3", name: "Groupe Gamma", participants: [], maxCapacity: 4 },
 ];
-
-// ============================================================
-// UTILITY FUNCTIONS
-// ============================================================
-
-const formatTime = (date: Date): string => {
-  return date.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
-};
 
 const formatDuration = (seconds: number): string => {
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
   const s = seconds % 60;
-  return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+  if (h > 0) return `${h}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+  return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
 };
 
-const getInitials = (name: string): string => {
-  return name
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
+const formatTime = (date: Date): string => {
+  return date.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
 };
 
 // ============================================================
-// SUB-COMPONENTS
+// SVG ICONS
 // ============================================================
 
-// --- Avatar Component ---
-const Avatar: React.FC<{ name: string; size?: "sm" | "md" | "lg"; isAI?: boolean }> = ({
-  name,
-  size = "md",
-  isAI = false,
-}) => {
-  const sizes = { sm: "w-8 h-8 text-xs", md: "w-10 h-10 text-sm", lg: "w-14 h-14 text-base" };
-  return (
-    <div
-      className={`${sizes[size]} rounded-full flex items-center justify-center font-bold flex-shrink-0 relative ${
-        isAI
-          ? "bg-gradient-to-br from-yellow-400 to-yellow-600 text-gray-900"
-          : "bg-gradient-to-br from-gray-600 to-gray-700 text-yellow-400"
-      }`}
-    >
-      {getInitials(name)}
-      {isAI && (
-        <span className="absolute -bottom-1 -right-1 w-4 h-4 bg-yellow-400 rounded-full flex items-center justify-center text-gray-900 text-xs">
-          ✦
-        </span>
+const Icons = {
+  Mic: ({ muted }: { muted?: boolean }) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-5 h-5">
+      {muted ? (
+        <>
+          <line x1="1" y1="1" x2="23" y2="23" />
+          <path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6" />
+          <path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23" />
+          <line x1="12" y1="19" x2="12" y2="23" />
+          <line x1="8" y1="23" x2="16" y2="23" />
+        </>
+      ) : (
+        <>
+          <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+          <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+          <line x1="12" y1="19" x2="12" y2="23" />
+          <line x1="8" y1="23" x2="16" y2="23" />
+        </>
       )}
-    </div>
-  );
-};
-
-// --- Status Indicator ---
-const StatusDot: React.FC<{ active: boolean; pulse?: boolean }> = ({ active, pulse = false }) => (
-  <span
-    className={`inline-block w-2 h-2 rounded-full ${
-      active ? "bg-green-400" : "bg-gray-500"
-    } ${pulse && active ? "animate-pulse" : ""}`}
-  />
-);
-
-// --- Icon Button ---
-const IconButton: React.FC<{
-  onClick: () => void;
-  active?: boolean;
-  danger?: boolean;
-  disabled?: boolean;
-  title: string;
-  children: React.ReactNode;
-  badge?: number;
-}> = ({ onClick, active = true, danger = false, disabled = false, title, children, badge }) => (
-  <button
-    onClick={onClick}
-    disabled={disabled}
-    title={title}
-    className={`relative p-3 rounded-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-yellow-400/50 ${
-      danger
-        ? "bg-red-600 hover:bg-red-500 text-white"
-        : active
-        ? "bg-gray-700 hover:bg-gray-600 text-white"
-        : "bg-gray-800 hover:bg-gray-700 text-gray-400"
-    } ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
-  >
-    {children}
-    {badge !== undefined && badge > 0 && (
-      <span className="absolute -top-1 -right-1 w-5 h-5 bg-yellow-400 text-gray-900 text-xs font-bold rounded-full flex items-center justify-center">
-        {badge > 9 ? "9+" : badge}
-      </span>
-    )}
-  </button>
-);
-
-// --- Video Tile ---
-const VideoTile: React.FC<{
-  participant: Participant;
-  isMain?: boolean;
-  isSelf?: boolean;
-}> = ({ participant, isMain = false, isSelf = false }) => {
-  const bgColors = [
-    "from-blue-900 to-blue-800",
-    "from-purple-900 to-purple-800",
-    "from-teal-900 to-teal-800",
-    "from-indigo-900 to-indigo-800",
-  ];
-  const colorIndex = participant.id.charCodeAt(participant.id.length - 1) % bgColors.length;
-
-  return (
-    <div
-      className={`relative rounded-xl overflow-hidden bg-gradient-to-br ${bgColors[colorIndex]} border ${
-        isMain
-          ? "border-yellow-400/50"
-          : participant.isHandRaised
-          ? "border-yellow-400 animate-pulse"
-          : "border-gray-700/50"
-      } flex items-center justify-center group`}
-    >
-      {/* Simulated video / camera off */}
-      {participant.isCameraOff || participant.role === "ai-avatar" ? (
-        <div className="flex flex-col items-center gap-2">
-          {participant.role === "ai-avatar" ? (
-            <div className="relative">
-              <div
-                className={`${
-                  isMain ? "w-24 h-24" : "w-12 h-12"
-                } rounded-full bg-gradient-to-br from-yellow-400 to-yellow-600 flex items-center justify-center`}
-              >
-                <span className={`font-bold text-gray-900 ${isMain ? "text-3xl" : "text-lg"}`}>
-                  {getInitials(participant.name)}
-                </span>
-              </div>
-              <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-yellow-400 rounded-full flex items-center justify-center">
-                <span className="text-gray-900 text-xs">✦</span>
-              </div>
-              {/* AI speaking animation */}
-              <div className="absolute -inset-2 rounded-full border-2 border-yellow-400/30 animate-ping" />
-            </div>
-          ) : (
-            <div
-              className={`${isMain ? "w-20 h-20" : "w-10 h-10"} rounded-full bg-gray-700 flex items-center justify-center`}
-            >
-              <span className={`font-bold text-yellow-400 ${isMain ? "text-2xl" : "text-sm"}`}>
-                {getInitials(participant.name)}
-              </span>
-            </div>
-          )}
-          {isMain && (
-            <p className="text-gray-400 text-sm">
-              {participant.role === "ai-avatar" ? "Avatar
+    </svg>
+  ),
+  Camera: ({ off }: { off?: boolean }) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-5 h-5">
+      {off ? (
+        <>
+          <path d="M16 16v1a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2m5.66 0H14a2 2 0 0 1 2 2v3.34l1 1L23 7v10" />
+          <line x1="1" y1="1" x2="23" y2="23" />
+        </>
+      ) : (
+        <>
+          <polygon points="23 7 16 12 23 17 23 7" />
+          <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+        </>
+      )}
+    </svg>
+  ),
+  Screen: () => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-5 h-5">
+      <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+      <line x1="8" y1="21" x2="16" y2="21" />
+      <line x1="12" y1="17" x2="12" y2="21" />
+    </svg>
+  ),
+  Hand: ({ raised }: { raised?: boolean }) => (
+    <svg viewBox="0 0 24 24" fill={raised ? "currentColor" : "none"} stroke="currentColor" strokeWidth={2} className="w-5 h-5">
+      <path d="M18 11V6a2 2 0 0 0-2-2 2 2 0 0 0-2 2" />
+      <path d="M14 10V4a2 2 0 0 0-2-2 2 2 0 0 0-2 2v2" />
+      <path d="M10 10.5V6a2 2 0 0 0-2-2 2 2 0 0 0-2 2v8" />
+      <path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15" />
+    </svg>
+  ),
+  Chat: () => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-5 h-5">
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+    </svg>
+  ),
+  Users: () => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-5 h-5">
+      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0
