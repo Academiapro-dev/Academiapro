@@ -5,20 +5,21 @@ import Anthropic from "@anthropic-ai/sdk";
 import { NextRequest, NextResponse } from "next/server";
 
 const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY!,
+  apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
 // Types
 interface Formation {
   id: string;
   title: string;
-  domain: string;
   description: string;
+  domain: string;
   duration: string;
   level: string;
   price: number;
   instructor: string;
-  objectives: string[];
+  topics: string[];
+  prerequisites?: string[];
   relatedFormations?: string[];
 }
 
@@ -28,8 +29,13 @@ interface SEOMetadata {
   h1: string;
   h2s: string[];
   longTailKeywords: string[];
-  schemaOrg: object;
-  faqSnippets: { question: string; answer: string }[];
+  schemaOrgJsonLd: object;
+  faqRichSnippets: FAQ[];
+}
+
+interface FAQ {
+  question: string;
+  answer: string;
 }
 
 interface BlogArticle {
@@ -37,21 +43,30 @@ interface BlogArticle {
   slug: string;
   metaDescription: string;
   content: string;
-  internalLinks: { text: string; url: string }[];
+  internalLinks: InternalLink[];
   keywords: string[];
 }
 
-interface InternalMeshingData {
-  formationId: string;
-  complementaryFormations: { id: string; relevanceScore: number; reason: string }[];
-  internalLinks: { anchorText: string; targetUrl: string; context: string }[];
+interface InternalLink {
+  anchorText: string;
+  targetUrl: string;
+  context: string;
 }
 
 interface KeywordReport {
   formationId: string;
-  primaryKeywords: { keyword: string; volume: string; difficulty: string; intent: string }[];
-  secondaryKeywords: { keyword: string; volume: string }[];
+  primaryKeywords: KeywordData[];
+  secondaryKeywords: KeywordData[];
+  longTailKeywords: KeywordData[];
+  competitorKeywords: string[];
   recommendations: string[];
+}
+
+interface KeywordData {
+  keyword: string;
+  searchVolume: string;
+  difficulty: string;
+  intent: string;
 }
 
 interface SitemapEntry {
@@ -62,230 +77,259 @@ interface SitemapEntry {
 }
 
 interface SEOAgentRequest {
-  action: "generate_metadata" | "generate_blog" | "optimize_meshing" | "keyword_report" | "generate_sitemap" | "full_audit";
-  formations: Formation[];
-  siteBaseUrl?: string;
-  targetDomain?: string;
+  action:
+    | "generate-seo-metadata"
+    | "generate-blog-article"
+    | "optimize-internal-linking"
+    | "keyword-report"
+    | "generate-sitemap";
+  formations?: Formation[];
+  formation?: Formation;
+  domain?: string;
+  baseUrl?: string;
 }
 
-// Stream helper
-function createStreamResponse() {
-  const encoder = new TextEncoder();
-  let controller: ReadableStreamDefaultController;
-
-  const stream = new ReadableStream({
-    start(c) {
-      controller = c;
-    },
-  });
-
-  const send = (data: object) => {
-    const chunk = encoder.encode(`data: ${JSON.stringify(data)}\n\n`);
-    controller.enqueue(chunk);
-  };
-
-  const close = () => {
-    controller.close();
-  };
-
-  return { stream, send, close };
+interface SEOAgentResponse {
+  success: boolean;
+  action: string;
+  data?: unknown;
+  error?: string;
+  generatedAt: string;
 }
 
-// Generate SEO metadata for a formation
-async function generateFormationMetadata(
-  formation: Formation,
-  send: (data: object) => void
-): Promise<SEOMetadata> {
-  send({ type: "progress", message: `Génération métadonnées SEO pour: ${formation.title}`, formationId: formation.id });
-
-  const prompt = `Tu es un expert SEO spécialisé en e-learning et formations professionnelles. 
-  
-  Génère des métadonnées SEO optimisées pour cette formation de la plateforme AcadémIA Pro:
-  
-  Titre: ${formation.title}
-  Domaine: ${formation.domain}
-  Description: ${formation.description}
-  Durée: ${formation.duration}
-  Niveau: ${formation.level}
-  Prix: ${formation.price}€
-  Formateur: ${formation.instructor}
-  Objectifs: ${formation.objectives.join(", ")}
-  
-  Retourne UNIQUEMENT un JSON valide avec cette structure exacte:
-  {
-    "title": "titre SEO optimisé 50-60 caractères avec mot clé principal",
-    "metaDescription": "description 150-160 caractères avec appel à l'action",
-    "h1": "H1 optimisé unique pour la page",
-    "h2s": ["H2 section 1", "H2 section 2", "H2 section 3", "H2 section 4", "H2 section 5"],
-    "longTailKeywords": ["mot clé longue traîne 1", "mot clé longue traîne 2", "mot clé longue traîne 3", "mot clé longue traîne 4", "mot clé longue traîne 5", "mot clé longue traîne 6", "mot clé longue traîne 7", "mot clé longue traîne 8"],
-    "schemaOrg": {
-      "@context": "https://schema.org",
-      "@type": "Course",
-      "name": "nom de la formation",
-      "description": "description longue",
-      "provider": {
-        "@type": "Organization",
-        "name": "AcadémIA Pro",
-        "sameAs": "https://academia-pro.fr"
-      },
-      "instructor": {
-        "@type": "Person",
-        "name": "${formation.instructor}"
-      },
-      "timeRequired": "${formation.duration}",
-      "educationalLevel": "${formation.level}",
-      "offers": {
-        "@type": "Offer",
-        "price": "${formation.price}",
-        "priceCurrency": "EUR"
-      }
-    },
-    "faqSnippets": [
-      {"question": "question fréquente 1", "answer": "réponse détaillée 1"},
-      {"question": "question fréquente 2", "answer": "réponse détaillée 2"},
-      {"question": "question fréquente 3", "answer": "réponse détaillée 3"},
-      {"question": "question fréquente 4", "answer": "réponse détaillée 4"},
-      {"question": "question fréquente 5", "answer": "réponse détaillée 5"}
-    ]
-  }`;
-
+// Streaming text accumulator
+async function streamClaudeResponse(prompt: string): Promise<string> {
   let fullContent = "";
 
-  const stream = anthropic.messages.stream({
+  const stream = await anthropic.messages.stream({
     model: "claude-opus-4-5",
-    max_tokens: 2000,
-    messages: [{ role: "user", content: prompt }],
+    max_tokens: 4096,
+    messages: [
+      {
+        role: "user",
+        content: prompt,
+      },
+    ],
+    system: `Tu es un expert SEO spécialisé dans le secteur de la formation professionnelle et e-learning. 
+Tu travailles pour AcadémIA Pro, une plateforme de formations en ligne premium.
+Tu génères du contenu SEO optimisé, structuré et conforme aux meilleures pratiques Google 2024.
+Tu réponds UNIQUEMENT en JSON valide, sans markdown ni texte supplémentaire.`,
   });
 
   for await (const chunk of stream) {
-    if (chunk.type === "content_block_delta" && chunk.delta.type === "text_delta") {
+    if (
+      chunk.type === "content_block_delta" &&
+      chunk.delta.type === "text_delta"
+    ) {
       fullContent += chunk.delta.text;
-      send({ type: "stream", formationId: formation.id, chunk: chunk.delta.text });
+      process.stdout.write(chunk.delta.text);
     }
   }
 
-  const jsonMatch = fullContent.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) throw new Error(`Invalid JSON response for formation ${formation.id}`);
-  
-  return JSON.parse(jsonMatch[0]) as SEOMetadata;
+  return fullContent;
 }
 
-// Generate blog article for a domain
+// Generate SEO Metadata for a formation
+async function generateSEOMetadata(
+  formation: Formation
+): Promise<SEOMetadata> {
+  const prompt = `Génère les métadonnées SEO complètes pour cette formation en ligne :
+
+Formation :
+- Titre : ${formation.title}
+- Description : ${formation.description}
+- Domaine : ${formation.domain}
+- Durée : ${formation.duration}
+- Niveau : ${formation.level}
+- Prix : ${formation.price}€
+- Formateur : ${formation.instructor}
+- Sujets abordés : ${formation.topics.join(", ")}
+- Prérequis : ${formation.prerequisites?.join(", ") || "Aucun"}
+
+Génère un JSON avec cette structure EXACTE :
+{
+  "title": "titre SEO optimisé 50-60 caractères avec mot clé principal",
+  "metaDescription": "meta description 150-160 caractères avec appel à l'action",
+  "h1": "H1 optimisé avec mot clé principal",
+  "h2s": ["H2 section 1", "H2 section 2", "H2 section 3", "H2 section 4", "H2 section 5"],
+  "longTailKeywords": ["mot clé longue traîne 1", "mot clé longue traîne 2", "mot clé longue traîne 3", "mot clé longue traîne 4", "mot clé longue traîne 5", "mot clé longue traîne 6", "mot clé longue traîne 7", "mot clé longue traîne 8"],
+  "schemaOrgJsonLd": {
+    "@context": "https://schema.org",
+    "@type": "Course",
+    "name": "nom complet formation",
+    "description": "description détaillée",
+    "provider": {
+      "@type": "Organization",
+      "name": "AcadémIA Pro",
+      "sameAs": "https://academia-pro.fr"
+    },
+    "instructor": {
+      "@type": "Person",
+      "name": "${formation.instructor}"
+    },
+    "courseMode": "online",
+    "duration": "${formation.duration}",
+    "inLanguage": "fr",
+    "offers": {
+      "@type": "Offer",
+      "price": "${formation.price}",
+      "priceCurrency": "EUR",
+      "availability": "https://schema.org/InStock"
+    },
+    "educationalLevel": "${formation.level}",
+    "about": ${JSON.stringify(formation.topics)}
+  },
+  "faqRichSnippets": [
+    {
+      "question": "question fréquente 1 sur la formation",
+      "answer": "réponse détaillée et utile"
+    },
+    {
+      "question": "question fréquente 2",
+      "answer": "réponse détaillée"
+    },
+    {
+      "question": "question fréquente 3",
+      "answer": "réponse détaillée"
+    },
+    {
+      "question": "question fréquente 4",
+      "answer": "réponse détaillée"
+    },
+    {
+      "question": "question fréquente 5",
+      "answer": "réponse détaillée"
+    }
+  ]
+}`;
+
+  const response = await streamClaudeResponse(prompt);
+
+  try {
+    const jsonMatch = response.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error("No JSON found in response");
+    return JSON.parse(jsonMatch[0]) as SEOMetadata;
+  } catch {
+    throw new Error(`Failed to parse SEO metadata: ${response}`);
+  }
+}
+
+// Generate Blog Article for a domain
 async function generateBlogArticle(
   domain: string,
-  formations: Formation[],
-  send: (data: object) => void
+  formations: Formation[]
 ): Promise<BlogArticle> {
-  send({ type: "progress", message: `Génération article blog pour le domaine: ${domain}` });
-
-  const domainFormations = formations.filter(f => f.domain === domain);
-  const formationsList = domainFormations.map(f => `- ${f.title}: ${f.description}`).join("\n");
-
-  const prompt = `Tu es un expert en content marketing et SEO pour les plateformes e-learning.
-  
-  Génère un article de blog SEO optimisé pour AcadémIA Pro sur le domaine: ${domain}
-  
-  Formations disponibles dans ce domaine:
-  ${formationsList}
-  
-  L'article doit:
-  - Cibler des mots clés à fort volume de recherche
-  - Inclure des liens internes naturels vers les formations
-  - Faire entre 1500-2000 mots
-  - Avoir une structure avec H2 et H3
-  - Inclure des conseils pratiques et concrets
-  
-  Retourne UNIQUEMENT un JSON valide:
-  {
-    "title": "titre article optimisé SEO",
-    "slug": "url-slug-optimise",
-    "metaDescription": "meta description 150-160 caractères",
-    "content": "contenu complet de l'article en markdown avec ## pour H2 et ### pour H3",
-    "internalLinks": [
-      {"text": "texte ancre", "url": "/formations/[id]"},
-      {"text": "texte ancre 2", "url": "/formations/[id2]"}
-    ],
-    "keywords": ["mot clé principal", "mot clé secondaire 1", "mot clé secondaire 2", "mot clé secondaire 3"]
-  }`;
-
-  let fullContent = "";
-
-  const stream = anthropic.messages.stream({
-    model: "claude-opus-4-5",
-    max_tokens: 4000,
-    messages: [{ role: "user", content: prompt }],
-  });
-
-  for await (const chunk of stream) {
-    if (chunk.type === "content_block_delta" && chunk.delta.type === "text_delta") {
-      fullContent += chunk.delta.text;
-      send({ type: "stream", domain, chunk: chunk.delta.text });
-    }
-  }
-
-  const jsonMatch = fullContent.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) throw new Error(`Invalid JSON response for domain ${domain}`);
-  
-  return JSON.parse(jsonMatch[0]) as BlogArticle;
-}
-
-// Optimize internal meshing
-async function optimizeInternalMeshing(
-  formation: Formation,
-  allFormations: Formation[],
-  send: (data: object) => void
-): Promise<InternalMeshingData> {
-  send({ type: "progress", message: `Optimisation maillage interne pour: ${formation.title}`, formationId: formation.id });
-
-  const otherFormations = allFormations
-    .filter(f => f.id !== formation.id)
-    .map(f => `ID: ${f.id} | Titre: ${f.title} | Domaine: ${f.domain} | Objectifs: ${f.objectives.slice(0, 2).join(", ")}`)
+  const formationsList = formations
+    .filter((f) => f.domain === domain)
+    .map((f) => `- ${f.title} (${f.level}, ${f.duration})`)
     .join("\n");
 
-  const prompt = `Tu es un expert SEO spécialisé en architecture de site et maillage interne.
-  
-  Analyse cette formation et identifie les meilleures opportunités de maillage interne:
-  
-  FORMATION CIBLE:
-  - ID: ${formation.id}
-  - Titre: ${formation.title}
-  - Domaine: ${formation.domain}
-  - Objectifs: ${formation.objectives.join(", ")}
-  
-  AUTRES FORMATIONS DISPONIBLES:
-  ${otherFormations}
-  
-  Identifie les 3-5 formations les plus complémentaires et propose des liens contextuels naturels.
-  
-  Retourne UNIQUEMENT un JSON valide:
-  {
-    "formationId": "${formation.id}",
-    "complementaryFormations": [
+  const prompt = `Génère un article de blog SEO complet pour le domaine "${domain}" sur la plateforme AcadémIA Pro.
+
+Formations disponibles dans ce domaine :
+${formationsList}
+
+L'article doit :
+- Cibler des mots clés à fort potentiel pour le domaine ${domain}
+- Inclure des liens internes naturels vers les formations
+- Avoir minimum 1500 mots
+- Être structuré avec des H2 et H3
+- Être orienté pour aider les lecteurs à choisir leur formation
+
+Génère un JSON avec cette structure EXACTE :
+{
+  "title": "titre article SEO optimisé",
+  "slug": "slug-url-optimise",
+  "metaDescription": "meta description 150-160 caractères",
+  "content": "contenu HTML complet de l'article avec balises H2, H3, p, ul, li",
+  "internalLinks": [
+    {
+      "anchorText": "texte ancre optimisé",
+      "targetUrl": "/formations/slug-formation",
+      "context": "contexte où placer ce lien dans l'article"
+    }
+  ],
+  "keywords": ["mot clé principal", "mot clé secondaire 1", "mot clé secondaire 2", "longue traîne 1", "longue traîne 2"]
+}`;
+
+  const response = await streamClaudeResponse(prompt);
+
+  try {
+    const jsonMatch = response.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error("No JSON found in response");
+    return JSON.parse(jsonMatch[0]) as BlogArticle;
+  } catch {
+    throw new Error(`Failed to parse blog article: ${response}`);
+  }
+}
+
+// Optimize Internal Linking
+async function optimizeInternalLinking(formations: Formation[]): Promise<{
+  linkingMap: Record<string, InternalLink[]>;
+  recommendations: string[];
+  siloClusters: Record<string, string[]>;
+}> {
+  const formationsData = formations
+    .map(
+      (f) =>
+        `ID: ${f.id} | Titre: ${f.title} | Domaine: ${f.domain} | Sujets: ${f.topics.join(", ")}`
+    )
+    .join("\n");
+
+  const prompt = `Optimise le maillage interne pour ces formations sur AcadémIA Pro :
+
+${formationsData}
+
+Analyse les relations thématiques et génère une stratégie de maillage interne optimale.
+
+Génère un JSON avec cette structure EXACTE :
+{
+  "linkingMap": {
+    "formation-id-1": [
       {
-        "id": "id-formation",
-        "relevanceScore": 95,
-        "reason": "raison de la complémentarité"
-      }
-    ],
-    "internalLinks": [
-      {
-        "anchorText": "texte ancre naturel et optimisé",
-        "targetUrl": "/formations/[id]",
-        "context": "phrase de contexte dans laquelle intégrer le lien"
+        "anchorText": "texte ancre naturel",
+        "targetUrl": "/formations/formation-id-2",
+        "context": "description du contexte de placement"
       }
     ]
-  }`;
+  },
+  "recommendations": [
+    "recommandation stratégique 1",
+    "recommandation stratégique 2",
+    "recommandation stratégique 3",
+    "recommandation stratégique 4",
+    "recommandation stratégique 5"
+  ],
+  "siloClusters": {
+    "nom-cluster-1": ["formation-id-1", "formation-id-2"],
+    "nom-cluster-2": ["formation-id-3", "formation-id-4"]
+  }
+}`;
 
-  let fullContent = "";
+  const response = await streamClaudeResponse(prompt);
 
-  const stream = anthropic.messages.stream({
-    model: "claude-opus-4-5",
-    max_tokens: 1500,
-    messages: [{ role: "user", content: prompt }],
-  });
+  try {
+    const jsonMatch = response.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error("No JSON found in response");
+    return JSON.parse(jsonMatch[0]);
+  } catch {
+    throw new Error(`Failed to parse internal linking data: ${response}`);
+  }
+}
 
-  for await (const chunk of stream) {
-    if (chunk.type === "content_block_delta" && chunk.delta.type === "text_delta") {
-      fullContent += chunk.delta.text;
-      send({ type: "stream", formationId: formation.id, chunk: chunk.delta.text });
-    }
+// Generate Keyword Report
+async function generateKeywordReport(
+  formation: Formation
+): Promise<KeywordReport> {
+  const prompt = `Génère un rapport complet de mots clés pour cette formation :
+
+Formation :
+- Titre : ${formation.title}
+- Domaine : ${formation.domain}
+- Niveau : ${formation.level}
+- Sujets : ${formation.topics.join(", ")}
+
+Analyse les opportunités de positionnement SEO pour le marché francophone.
+
+Génère un JSON avec cette structure EXACTE :
+{
