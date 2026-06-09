@@ -1,318 +1,195 @@
 ```tsx
-// components/ReservationAcademiaPro.tsx
 "use client";
 
-import { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useState } from "react";
 
-// ============================================================
-// TYPES
-// ============================================================
-interface Technique {
-  id: string;
-  name: string;
-  icon: string;
-  description: string;
-  agent: Agent;
-  color: string;
-}
-
-interface Agent {
-  name: string;
-  avatar: string;
-  specialty: string;
-  rating: number;
-  sessions: number;
-  bio: string;
-}
-
-interface TimeSlot {
-  time: string;
-  available: boolean;
-  period: "morning" | "afternoon" | "evening" | "night";
-}
-
-interface Pack {
-  id: string;
-  name: string;
-  price: number;
-  sessions: number;
-  features: string[];
-  popular: boolean;
-  color: string;
-}
-
-interface BookingState {
-  technique: Technique | null;
-  date: Date | null;
-  timeSlot: string | null;
-  pack: Pack | null;
-  step: number;
-  firstName: string;
-  lastName: string;
-  email: string;
-  phone: string;
-  objectives: string;
-  paymentMethod: "card" | "paypal" | null;
-  notifications: { email: boolean; sms: boolean };
-}
-
-// ============================================================
-// DATA
-// ============================================================
-const TECHNIQUES: Technique[] = [
+const specialties = [
   {
-    id: "hypnose",
+    id: 1,
     name: "Hypnose",
-    icon: "🌀",
-    description: "Transformation profonde par états modifiés de conscience",
-    color: "#9b59b6",
-    agent: {
-      name: "Agent Hypnos",
-      avatar: "H",
-      specialty: "Hypnothérapeute IA Certifié",
-      rating: 4.9,
-      sessions: 2847,
-      bio: "Expert en hypnose ericksonienne et thérapeutique. Spécialisé dans les phobies, addictions et gestion du stress.",
-    },
+    emoji: "🌀",
+    avatar: "Dr. Hypnos IA",
+    description: "Accédez à votre inconscient pour transformer vos schémas limitants et libérer votre potentiel caché.",
+    benefits: ["Arrêt du tabac", "Gestion des phobies", "Confiance en soi", "Sommeil réparateur"],
+    color: "from-purple-900/40 to-indigo-900/40",
+    accent: "#9b72cf",
   },
   {
-    id: "pnl",
+    id: 2,
     name: "PNL",
-    icon: "🧠",
-    description: "Programmation Neuro-Linguistique pour reprogrammer vos schémas",
-    color: "#3498db",
-    agent: {
-      name: "Agent Nexus",
-      avatar: "N",
-      specialty: "Praticien PNL Master IA",
-      rating: 4.8,
-      sessions: 3124,
-      bio: "Maître praticien PNL utilisant les dernières techniques de modélisation cognitive pour transformer vos comportements.",
-    },
+    emoji: "🧠",
+    avatar: "Coach NLP IA",
+    description: "Reprogrammez vos pensées et comportements grâce à la Programmation Neuro-Linguistique.",
+    benefits: ["Communication efficace", "Objectifs clairs", "Dépassement de soi", "Relations harmonieuses"],
+    color: "from-blue-900/40 to-cyan-900/40",
+    accent: "#4a9eff",
   },
   {
-    id: "sophrologie",
+    id: 3,
     name: "Sophrologie",
-    icon: "🌸",
-    description: "Harmonie corps-esprit par la relaxation dynamique",
-    color: "#e91e8c",
-    agent: {
-      name: "Agent Sophia",
-      avatar: "S",
-      specialty: "Sophrologue IA Niveau 3",
-      rating: 4.9,
-      sessions: 1956,
-      bio: "Sophrologue certifiée spécialisée en gestion du stress, préparation mentale et accompagnement des transitions de vie.",
-    },
+    emoji: "🌊",
+    avatar: "Sophro IA",
+    description: "Harmonisez corps et esprit par des techniques de relaxation dynamique et de visualisation positive.",
+    benefits: ["Gestion du stress", "Préparation mentale", "Équilibre émotionnel", "Vitalité accrue"],
+    color: "from-teal-900/40 to-emerald-900/40",
+    accent: "#2dd4bf",
   },
   {
-    id: "meditation",
+    id: 4,
     name: "Méditation",
-    icon: "🪷",
-    description: "Pleine conscience et éveil intérieur guidés par IA",
-    color: "#f39c12",
-    agent: {
-      name: "Agent Zen",
-      avatar: "Z",
-      specialty: "Guide Méditation IA",
-      rating: 4.7,
-      sessions: 4521,
-      bio: "Guide expert en méditation Vipassana, Transcendantale et MBSR. Plus de 10 000 heures de pratique simulée.",
-    },
+    emoji: "🧘",
+    avatar: "Zen Master IA",
+    description: "Cultivez la pleine conscience et la sérénité intérieure à travers des pratiques méditatives guidées.",
+    benefits: ["Paix intérieure", "Clarté mentale", "Réduction anxiété", "Présence au moment"],
+    color: "from-amber-900/40 to-orange-900/40",
+    accent: "#f59e0b",
   },
   {
-    id: "yoga",
+    id: 5,
     name: "Yoga",
-    icon: "🧘",
-    description: "Pratique traditionnelle adaptée par intelligence artificielle",
-    color: "#27ae60",
-    agent: {
-      name: "Agent Shakti",
-      avatar: "Y",
-      specialty: "Instructeur Yoga IA RYT-500",
-      rating: 4.8,
-      sessions: 2103,
-      bio: "Instructeur certifié RYT-500 couvrant Hatha, Vinyasa, Yin et Kundalini. Adaptation personnalisée en temps réel.",
-    },
+    emoji: "🌸",
+    avatar: "Yogi IA",
+    description: "Unifiez corps, souffle et esprit pour une santé globale et un équilibre de vie durable.",
+    benefits: ["Flexibilité", "Force intérieure", "Équilibre corps-esprit", "Énergie vitale"],
+    color: "from-rose-900/40 to-pink-900/40",
+    accent: "#f472b6",
   },
   {
-    id: "reflexologie",
+    id: 6,
     name: "Réflexologie",
-    icon: "👋",
-    description: "Équilibre énergétique par les points réflexes virtuels",
-    color: "#e74c3c",
-    agent: {
-      name: "Agent Reflexo",
-      avatar: "R",
-      specialty: "Réflexologue IA Certifié",
-      rating: 4.6,
-      sessions: 987,
-      bio: "Expert en réflexologie plantaire, palmaire et auriculaire. Cartographie énergétique personnalisée avec IA.",
-    },
+    emoji: "👣",
+    avatar: "Reflex IA",
+    description: "Stimulez les zones réflexes pour rétablir l'équilibre énergétique et soutenir l'auto-guérison.",
+    benefits: ["Détente profonde", "Circulation améliorée", "Organes stimulés", "Douleurs soulagées"],
+    color: "from-lime-900/40 to-green-900/40",
+    accent: "#84cc16",
   },
   {
-    id: "aromatherapie",
+    id: 7,
     name: "Aromathérapie",
-    icon: "🌿",
-    description: "Protocoles olfactifs thérapeutiques personnalisés",
-    color: "#16a085",
-    agent: {
-      name: "Agent Aroma",
-      avatar: "A",
-      specialty: "Aromathérapeute IA Expert",
-      rating: 4.7,
-      sessions: 1234,
-      bio: "Aromathérapeute clinique avec base de données de 500+ huiles essentielles. Formulations sur mesure selon votre profil.",
-    },
+    emoji: "🌿",
+    avatar: "Aroma IA",
+    description: "Exploitez le pouvoir thérapeutique des huiles essentielles pour votre bien-être physique et mental.",
+    benefits: ["Immunité renforcée", "Humeur positive", "Sommeil amélioré", "Vitalité naturelle"],
+    color: "from-green-900/40 to-teal-900/40",
+    accent: "#34d399",
   },
   {
-    id: "naturopathie",
+    id: 8,
     name: "Naturopathie",
-    icon: "🌱",
-    description: "Médecine naturelle holistique assistée par IA",
-    color: "#8e44ad",
-    agent: {
-      name: "Agent Natura",
-      avatar: "T",
-      specialty: "Naturopathe IA ND",
-      rating: 4.8,
-      sessions: 1678,
-      bio: "Naturopathe diplômé intégrant phytothérapie, oligothérapie et hygiène de vie. Approche préventive et curative.",
-    },
+    emoji: "🌱",
+    avatar: "Natura IA",
+    description: "Adoptez une approche holistique de la santé en harmonie avec les lois naturelles de votre corps.",
+    benefits: ["Santé optimale", "Prévention maladies", "Équilibre naturel", "Longévité"],
+    color: "from-emerald-900/40 to-cyan-900/40",
+    accent: "#10b981",
   },
   {
-    id: "nutrition",
+    id: 9,
     name: "Nutrition",
-    icon: "🥗",
-    description: "Plans nutritionnels IA basés sur votre génétique et biome",
-    color: "#f1c40f",
-    agent: {
-      name: "Agent Nutri",
-      avatar: "U",
-      specialty: "Nutritionniste IA Clinique",
-      rating: 4.9,
-      sessions: 3456,
-      bio: "Diététicien-nutritionniste IA analysant 200+ biomarqueurs pour des recommandations alimentaires ultra-personnalisées.",
-    },
+    emoji: "🥗",
+    avatar: "Nutri IA",
+    description: "Transformez votre relation à l'alimentation avec des conseils personnalisés pour votre santé.",
+    benefits: ["Poids idéal", "Énergie durable", "Microbiome sain", "Performances accrues"],
+    color: "from-yellow-900/40 to-amber-900/40",
+    accent: "#fbbf24",
   },
   {
-    id: "coaching",
-    name: "Coaching",
-    icon: "🎯",
-    description: "Accompagnement performance et développement personnel",
-    color: "#2c3e50",
-    agent: {
-      name: "Agent Coach",
-      avatar: "C",
-      specialty: "Life & Business Coach IA ICF",
-      rating: 4.9,
-      sessions: 5234,
-      bio: "Coach certifié ICF PCC spécialisé leadership, entrepreneuriat et transformation personnelle. Méthodes éprouvées.",
-    },
+    id: 10,
+    name: "Coaching Personnel",
+    emoji: "⚡",
+    avatar: "Coach Pro IA",
+    description: "Libérez votre plein potentiel et construisez la vie que vous méritez avec un coaching sur mesure.",
+    benefits: ["Vision claire", "Actions concrètes", "Motivation durable", "Épanouissement"],
+    color: "from-violet-900/40 to-purple-900/40",
+    accent: "#8b5cf6",
   },
   {
-    id: "langues",
+    id: 11,
+    name: "Coaching Professionnel",
+    emoji: "💼",
+    avatar: "Executive IA",
+    description: "Développez votre leadership et atteignez vos objectifs professionnels avec excellence.",
+    benefits: ["Leadership fort", "Carrière accélérée", "Équipe performante", "Succès durable"],
+    color: "from-blue-900/40 to-indigo-900/40",
+    accent: "#6366f1",
+  },
+  {
+    id: 12,
+    name: "Intelligence Émotionnelle",
+    emoji: "💛",
+    avatar: "EQ Master IA",
+    description: "Développez votre intelligence émotionnelle pour des relations plus riches et une vie plus épanouie.",
+    benefits: ["Empathie profonde", "Gestion émotions", "Relations harmonieuses", "Leadership émotionnel"],
+    color: "from-orange-900/40 to-red-900/40",
+    accent: "#fb923c",
+  },
+  {
+    id: 13,
+    name: "Gestion du Stress",
+    emoji: "🎯",
+    avatar: "Zen Coach IA",
+    description: "Maîtrisez les techniques anti-stress les plus efficaces pour retrouver calme et sérénité durablement.",
+    benefits: ["Calme instantané", "Résistance stress", "Sommeil profond", "Équilibre vie-travail"],
+    color: "from-sky-900/40 to-blue-900/40",
+    accent: "#38bdf8",
+  },
+  {
+    id: 14,
     name: "Langues",
-    icon: "🗣️",
-    description: "Immersion linguistique accélérée avec tuteur IA natif",
-    color: "#1abc9c",
-    agent: {
-      name: "Agent Lingua",
-      avatar: "L",
-      specialty: "Polyglotte IA 47 Langues",
-      rating: 4.8,
-      sessions: 7891,
-      bio: "Tuteur linguistique maîtrisant 47 langues avec accent natif. Méthode immersive adaptée à votre niveau et objectifs.",
-    },
-  },
-  {
-    id: "ia",
-    name: "IA & Tech",
-    icon: "🤖",
-    description: "Maîtrisez l'IA : prompts, outils, automation et futur",
-    color: "#c8a96e",
-    agent: {
-      name: "Agent Prometheus",
-      avatar: "P",
-      specialty: "Expert IA & Transformation Digitale",
-      rating: 5.0,
-      sessions: 4123,
-      bio: "Expert en IA générative, LLMs, automatisation et stratégie digitale. Guide vers la maîtrise des outils IA actuels.",
-    },
+    emoji: "🌍",
+    avatar: "Lingua IA",
+    description: "Apprenez et maîtrisez de nouvelles langues grâce à des méthodes cognitives et immersives avancées.",
+    benefits: ["Fluidité rapide", "Accent naturel", "Culture intégrée", "Confiance orale"],
+    color: "from-fuchsia-900/40 to-violet-900/40",
+    accent: "#e879f9",
   },
 ];
 
-const PACKS: Pack[] = [
+const pricingPlans = [
   {
-    id: "discovery",
-    name: "Découverte",
-    price: 29,
-    sessions: 1,
-    popular: false,
-    color: "#718096",
-    features: [
-      "1 séance individuelle 45min",
-      "Agent IA spécialisé dédié",
-      "Rapport de session PDF",
-      "Support email 24h",
-      "Accès ressources de base",
+    category: "Séances à l'unité",
+    items: [
+      { name: "Séance Découverte", price: 29, description: "Première fois", badge: "PREMIER ACCÈS", badgeColor: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" },
+      { name: "Séance Standard", price: 59, description: "Tarif unitaire", badge: null, badgeColor: "" },
+      { name: "Séance Expert", price: 79, description: "Techniques avancées", badge: "PREMIUM", badgeColor: "bg-amber-500/20 text-amber-400 border-amber-500/30" },
     ],
   },
   {
-    id: "transformation",
-    name: "Transformation",
-    price: 49,
-    sessions: 3,
-    popular: true,
-    color: "#c8a96e",
-    features: [
-      "3 séances individuelles 60min",
-      "Agent IA spécialisé dédié",
-      "Plan personnalisé IA",
-      "Rapports détaillés + suivi",
-      "Support prioritaire 24/7",
-      "Accès ressources premium",
-      "Exercices inter-séances",
+    category: "Packs",
+    items: [
+      { name: "Pack 5 Séances", price: 249, description: "Économie de 46€", badge: "−46€", badgeColor: "bg-blue-500/20 text-blue-400 border-blue-500/30" },
+      { name: "Pack 10 Séances", price: 449, description: "Économie de 141€", badge: "−141€", badgeColor: "bg-purple-500/20 text-purple-400 border-purple-500/30" },
     ],
   },
   {
-    id: "excellence",
-    name: "Excellence",
-    price: 79,
-    sessions: 7,
-    popular: false,
-    color: "#9b59b6",
-    features: [
-      "7 séances individuelles 90min",
-      "Multi-agents spécialisés",
-      "Programme sur mesure IA",
-      "Analytics comportementaux",
-      "Support VIP dédié 24/7",
-      "Toutes ressources illimitées",
-      "Exercices quotidiens IA",
-      "Accès communauté exclusive",
-      "Certificat de progression",
+    category: "Abonnements mensuels",
+    items: [
+      { name: "Essentiel", price: 49, description: "1 séance / mois", badge: null, badgeColor: "", perMonth: true },
+      { name: "Bien-être", price: 79, description: "2 séances / mois", badge: "BEST-SELLER", badgeColor: "bg-[#c8a96e]/20 text-[#c8a96e] border-[#c8a96e]/40", perMonth: true, highlight: true },
+      { name: "Intensif", price: 129, description: "4 séances / mois", badge: "MAX", badgeColor: "bg-red-500/20 text-red-400 border-red-500/30", perMonth: true },
     ],
   },
 ];
 
-// ============================================================
-// UTILITY FUNCTIONS
-// ============================================================
-function generateCalendarDays(year: number, month: number): (Date | null)[] {
-  const firstDay = new Date(year, month, 1).getDay();
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const days: (Date | null)[] = [];
-  const startDay = firstDay === 0 ? 6 : firstDay - 1;
-  for (let i = 0; i < startDay; i++) days.push(null);
-  for (let i = 1; i <= daysInMonth; i++) days.push(new Date(year, month, i));
-  return days;
-}
+const timeSlots = [
+  "07:00", "07:30", "08:00", "08:30", "09:00", "09:30",
+  "10:00", "10:30", "11:00", "11:30", "12:00", "12:30",
+  "13:00", "13:30", "14:00", "14:30", "15:00", "15:30",
+  "16:00", "16:30", "17:00", "17:30", "18:00", "18:30",
+  "19:00", "19:30", "20:00", "20:30", "21:00", "21:30",
+  "22:00", "22:30", "23:00", "23:30",
+];
 
-function generateTimeSlots(): TimeSlot[] {
-  const slots: TimeSlot[] = [];
-  for (let h = 0; h < 24; h++) {
-    for (let m = 0; m < 60; m += 30) {
-      const hour = h.toString().padStart(2, "0");
-      const min = m.toString().pad
+const getDaysInMonth = (year: number, month: number) => new Date(year, month + 1, 0).getDate();
+const getFirstDayOfMonth = (year: number, month: number) => new Date(year, month, 1).getDay();
+
+export default function SeancesTherapeutiques() {
+  const [activeTab, setActiveTab] = useState<"specialties" | "pricing" | "booking">("specialties");
+  const [selectedSpecialty, setSelectedSpecialty] = useState<typeof specialties[0] | null>(null);
+  const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [selectedDay, setSelectedDay] = useState<number | null>(null);
+  const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
+  const [bookingStep, setBookingStep] = useState(1);
+  const [showModal, set
