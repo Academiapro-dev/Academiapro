@@ -1,4 +1,3 @@
-```tsx
 // app/verifier/[certificatId]/page.tsx
 
 import { Metadata } from "next";
