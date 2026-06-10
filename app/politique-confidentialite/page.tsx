@@ -1,4 +1,3 @@
-```tsx
 // app/politique-confidentialite/page.tsx
 import type { Metadata } from 'next'
 
