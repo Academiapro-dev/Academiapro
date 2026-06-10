@@ -1,4 +1,3 @@
-```tsx
 "use client";
 
 import { useState } from "react";
@@ -312,4 +311,3 @@ export default function MiniCoursPage() {
                     <p
                       className="text-sm sm:text-base mb-3"
                       style={{ color: "rgba(245,240,232,0.55)" }}
-                
