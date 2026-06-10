@@ -1,4 +1,3 @@
-```tsx
 "use client";
 
 import { useState } from "react";
@@ -428,4 +427,3 @@ export default function WeeklyMarketingReport() {
                       "Plateforme",
                       "Posts",
                       "Reach",
-                      
