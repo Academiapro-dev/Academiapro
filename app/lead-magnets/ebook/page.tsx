@@ -1,4 +1,3 @@
-```tsx
 // app/ebook-gratuit/page.tsx
 "use client";
 
