@@ -1,4 +1,3 @@
-```tsx
 "use client";
 
 import { useState } from "react";
@@ -298,4 +297,3 @@ export default function AgentsDashboard() {
                           {agent.name}
                         </h4>
                         <p className="text-xs mt-0.5" style={{ color: "#6b7280" }}>
-                          
