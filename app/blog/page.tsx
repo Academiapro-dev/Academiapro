@@ -1,4 +1,3 @@
-```tsx
 // app/blog/page.tsx
 import type { Metadata } from 'next'
 import BlogPageClient from './BlogPageClient'
@@ -308,4 +307,3 @@ function FeaturedArticle({ article }: { article: Article }) {
         {/* Image */}
         <div className="relative overflow-hidden">
           <div
-            
