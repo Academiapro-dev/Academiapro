@@ -1,4 +1,3 @@
-```tsx
 // app/blog/[slug]/page.tsx
 import type { Metadata } from "next";
 import BlogArticlePage from "@/components/blog/BlogArticlePage";
