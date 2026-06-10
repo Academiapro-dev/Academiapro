@@ -1,4 +1,3 @@
-```tsx
 // app/cgv/page.tsx
 import type { Metadata } from 'next'
 
