@@ -1,4 +1,3 @@
-```tsx
 "use client";
 
 import { useState } from "react";
@@ -408,4 +407,3 @@ const FiveYearChart = ({
         <div className="flex items-center gap-2">
           <div className="w-8 h-0.5 bg-[#c8a96e]" />
           <span className="text-xs text-gray-400">Avec montage</span>
-        
