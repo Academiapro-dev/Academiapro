@@ -1,4 +1,3 @@
-```tsx
 // app/links/page.tsx
 import type { Metadata } from "next";
 import Link from "next/link";
