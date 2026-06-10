@@ -2,345 +2,368 @@
 "use client";
 
 import { useState } from "react";
-import { CheckCircle, Star, Zap, Crown, TrendingUp, Users, Shield, ChevronDown, ChevronUp, CreditCard, Award, Sparkles } from "lucide-react";
 
-const packs = [
+interface Pack {
+  id: string;
+  name: string;
+  price: number;
+  originalPrice: number;
+  badge: string;
+  badgeColor: string;
+  isNew?: boolean;
+  isBestSeller?: boolean;
+  isRecommended?: boolean;
+  theme: string;
+  includes: string[];
+  highlight?: string;
+  description: string;
+}
+
+const packs: Pack[] = [
   {
     id: "starter",
     name: "STARTER PACK IA",
     price: 47,
-    originalPrice: null,
-    savings: null,
-    badge: "OFFRE DE LANCEMENT",
-    badgeColor: "bg-blue-500",
-    icon: Zap,
-    ctaText: "Je veux ma place — 47€",
-    highlight: false,
-    formations: [],
-    contents: [
-      "100 prompts Claude par métier",
-      "Guide démarrage rapide",
-      "Accès module 1 F128",
-      "Communauté Discord",
-      "Garantie 30 jours",
+    originalPrice: 47,
+    badge: "OFFRE ENTRÉE",
+    badgeColor: "from-slate-500 to-slate-600",
+    theme: "decouverte",
+    description: "Découvrez l'IA avec les essentiels pour commencer",
+    includes: [
+      "100 prompts Claude",
+      "Guide PDF exclusif",
+      "Module F128 (intro)",
+      "Accès Discord communauté",
+      "Garantie satisfait 30 jours",
     ],
-    bonuses: [],
-    description: "Parfait pour découvrir la puissance de l'IA dans votre métier",
+    highlight: "Parfait pour débuter",
   },
   {
-    id: "ia-complet",
-    name: "PACK IA COMPLET",
-    price: 2690,
-    originalPrice: 3360,
-    savings: 670,
-    badge: "BEST-SELLER",
-    badgeColor: "bg-amber-500",
-    icon: Star,
-    ctaText: "Obtenir le Pack IA Complet",
-    highlight: true,
-    formations: [
-      { code: "F128", title: "Expert Claude", price: 690 },
-      { code: "F129", title: "No-Code IA", price: 790 },
-      { code: "F130", title: "Apps Natives IA", price: 990 },
-      { code: "F131", title: "Marketing Digital IA", price: 890 },
+    id: "starter-complet",
+    name: "PACK STARTER COMPLET",
+    price: 97,
+    originalPrice: 191,
+    badge: "MEILLEUR DÉPART",
+    badgeColor: "from-blue-600 to-blue-700",
+    isNew: true,
+    theme: "decouverte",
+    description: "Le starter enrichi pour une vraie montée en compétences",
+    includes: [
+      "Tout le Starter Pack IA",
+      "SK01 — Écrire avec Claude",
+      "SK06 — Prompts parfaits",
+      "SK07 — Make.com automatisation",
+      "Garantie satisfait 30 jours",
     ],
-    contents: [],
-    bonuses: [
-      "Agent IA tuteur dédié pour chaque formation",
-      "Accès prioritaire nouvelles formations IA",
-      "Badge Expert IA AcadémIA Pro",
+    highlight: "3 Skills IA incluses",
+  },
+  {
+    id: "skills-ia",
+    name: "PACK SKILLS IA",
+    price: 597,
+    originalPrice: 970,
+    badge: "PACK SKILLS",
+    badgeColor: "from-violet-600 to-violet-700",
+    isNew: true,
+    theme: "skills",
+    description: "Maîtrisez les 10 compétences IA essentielles du marché",
+    includes: [
+      "SK01 — Écrire avec Claude",
+      "SK02 — Automatisation avancée",
+      "SK03 — Data & Analyse IA",
+      "SK04 — Création de contenu",
+      "SK05 — SEO & IA",
+      "SK06 — Prompts parfaits",
+      "SK07 — Make.com",
+      "SK08 — Workflows IA",
+      "SK09 — IA & Productivité",
+      "SK10 — IA Business",
+      "Garantie satisfait 30 jours",
     ],
-    description: "Maîtrisez l'IA de A à Z et devenez un expert reconnu",
+    highlight: "10 Skills complètes",
   },
   {
     id: "marketing",
     name: "PACK MARKETING DIGITAL × IA",
     price: 1490,
     originalPrice: 1980,
-    savings: 490,
     badge: "RECOMMANDÉ",
-    badgeColor: "bg-emerald-500",
-    icon: TrendingUp,
-    ctaText: "Obtenir le Pack Marketing",
-    highlight: false,
-    formations: [
-      { code: "F10", title: "Marketing Digital", price: 690 },
-      { code: "F43", title: "Community Management", price: 400 },
-      { code: "F131", title: "Marketing Digital × IA Expert", price: 890 },
+    badgeColor: "from-emerald-600 to-emerald-700",
+    isRecommended: true,
+    theme: "marketing",
+    description: "Dominez le marketing digital grâce à l'intelligence artificielle",
+    includes: [
+      "F10 — Marketing Digital",
+      "F43 — Community Management",
+      "F131 — Marketing Digital IA",
+      "Accès Discord VIP",
+      "Garantie satisfait 30 jours",
     ],
-    contents: [],
-    bonuses: [
-      "Templates campagnes prêts à utiliser",
-      "50 prompts marketing",
-      "Audit marketing offert",
+    highlight: "3 formations certifiantes",
+  },
+  {
+    id: "ia-complet",
+    name: "PACK IA COMPLET",
+    price: 2690,
+    originalPrice: 3360,
+    badge: "BEST-SELLER",
+    badgeColor: "from-amber-500 to-orange-600",
+    isBestSeller: true,
+    theme: "ia",
+    description: "Le pack référence pour devenir expert en IA",
+    includes: [
+      "F128 — Expert Claude IA",
+      "F129 — No-Code & IA",
+      "F130 — Apps Natives IA",
+      "F131 — Marketing Digital IA",
+      "Support prioritaire",
+      "Garantie satisfait 30 jours",
     ],
-    description: "Boostez votre marketing grâce aux dernières techniques IA",
+    highlight: "4 formations expertes",
+  },
+  {
+    id: "ia-skills",
+    name: "PACK IA + SKILLS",
+    price: 2990,
+    originalPrice: 4330,
+    badge: "PACK ULTIME IA",
+    badgeColor: "from-purple-600 to-pink-600",
+    isNew: true,
+    theme: "ia",
+    description: "La combinaison ultime formations IA + toutes les skills",
+    includes: [
+      "F128 — Expert Claude IA",
+      "F129 — No-Code & IA",
+      "F130 — Apps Natives IA",
+      "F131 — Marketing Digital IA",
+      "SK01 à SK10 — Les 10 Skills IA",
+      "Support prioritaire",
+      "Garantie satisfait 30 jours",
+    ],
+    highlight: "4 formations + 10 skills",
   },
   {
     id: "entrepreneur",
-    name: "PACK ENTREPRENEUR DIGITAL COMPLET",
+    name: "PACK ENTREPRENEUR DIGITAL",
     price: 3490,
     originalPrice: 5530,
-    savings: 2040,
-    badge: "OFFRE PREMIUM",
-    badgeColor: "bg-purple-500",
-    icon: Crown,
-    ctaText: "Accéder au Pack Premium",
-    highlight: false,
-    formations: [
-      { code: "F38", title: "Entrepreneuriat", price: 690 },
-      { code: "F125", title: "Personal Branding", price: 590 },
-      { code: "F127", title: "Négociation", price: 590 },
-      { code: "F128", title: "Expert Claude", price: 690 },
-      { code: "F129", title: "No-Code IA", price: 790 },
-      { code: "F130", title: "Apps Natives IA", price: 990 },
-      { code: "F131", title: "Marketing Digital IA", price: 890 },
+    badge: "PREMIUM",
+    badgeColor: "from-rose-600 to-red-700",
+    theme: "entrepreneur",
+    description: "Lancez et développez votre business digital avec l'IA",
+    includes: [
+      "F38 — Entrepreneuriat Digital",
+      "F125 — Création d'entreprise",
+      "F127 — Stratégie Business",
+      "F128 — Expert Claude IA",
+      "F129 — No-Code & IA",
+      "F130 — Apps Natives IA",
+      "F131 — Marketing Digital IA",
+      "Coaching de groupe mensuel",
+      "Garantie satisfait 30 jours",
     ],
-    contents: [],
-    bonuses: [
-      "Séance coaching stratégique offerte",
-      "Accès VIP toutes nouvelles formations",
-      "Badge Entrepreneur Digital Elite",
+    highlight: "7 formations + coaching",
+  },
+  {
+    id: "entrepreneur-elite",
+    name: "PACK ENTREPRENEUR ELITE",
+    price: 3990,
+    originalPrice: 6500,
+    badge: "VIP",
+    badgeColor: "from-yellow-500 to-amber-600",
+    theme: "entrepreneur",
+    description: "L'offre la plus complète pour les entrepreneurs ambitieux",
+    includes: [
+      "F38 — Entrepreneuriat Digital",
+      "F125 — Création d'entreprise",
+      "F127 — Stratégie Business",
+      "F128 — Expert Claude IA",
+      "F129 — No-Code & IA",
+      "F130 — Apps Natives IA",
+      "F131 — Marketing Digital IA",
+      "SK01 à SK15 — Les 15 Skills IA",
+      "Coaching individuel 1h",
+      "Accès VIP à vie",
+      "Garantie satisfait 30 jours",
     ],
-    description: "Le pack ultime pour bâtir votre empire digital avec l'IA",
+    highlight: "7 formations + 15 skills + coaching",
   },
 ];
 
-const faqs = [
-  {
-    question: "Puis-je payer en plusieurs fois ?",
-    answer:
-      "Oui ! Tous nos packs sont disponibles en paiement 3x sans frais. Le montant est divisé en 3 mensualités égales prélevées automatiquement. Aucuns frais supplémentaires.",
-  },
-  {
-    question: "Combien de temps ai-je accès aux formations ?",
-    answer:
-      "Vous bénéficiez d'un accès à vie à toutes les formations incluses dans votre pack. Vous pouvez les suivre à votre rythme, les revoir autant de fois que vous le souhaitez.",
-  },
-  {
-    question: "La garantie 30 jours s'applique-t-elle à tous les packs ?",
-    answer:
-      "Absolument. Si dans les 30 jours suivant votre achat vous n'êtes pas satisfait(e), nous vous remboursons intégralement, sans question ni condition.",
-  },
-  {
-    question: "Les formations sont-elles accessibles immédiatement ?",
-    answer:
-      "Oui, dès validation de votre paiement vous recevez un email avec vos accès. Vous pouvez commencer à apprendre dans les minutes suivant votre inscription.",
-  },
-  {
-    question: "Puis-je passer d'un pack à un pack supérieur ?",
-    answer:
-      "Bien sûr ! Vous pouvez upgrader votre pack à tout moment. Vous ne payez que la différence entre votre pack actuel et le pack supérieur.",
-  },
-  {
-    question: "Y a-t-il un support si j'ai des questions ?",
-    answer:
-      "Chaque pack inclut un accès à notre communauté Discord active. Les packs premium incluent un agent IA tuteur dédié et un accès prioritaire au support humain.",
-  },
+const themes = [
+  { id: "all", label: "Tous les packs" },
+  { id: "decouverte", label: "Découverte" },
+  { id: "skills", label: "Skills IA" },
+  { id: "marketing", label: "Marketing" },
+  { id: "ia", label: "IA Expert" },
+  { id: "entrepreneur", label: "Entrepreneur" },
 ];
 
-const individualFormations = [
-  { code: "F10", title: "Marketing Digital", price: 690 },
-  { code: "F38", title: "Entrepreneuriat", price: 690 },
-  { code: "F43", title: "Community Management", price: 400 },
-  { code: "F125", title: "Personal Branding", price: 590 },
-  { code: "F127", title: "Négociation", price: 590 },
-  { code: "F128", title: "Expert Claude", price: 690 },
-  { code: "F129", title: "No-Code IA", price: 790 },
-  { code: "F130", title: "Apps Natives IA", price: 990 },
-  { code: "F131", title: "Marketing Digital IA", price: 890 },
-];
+type SortType = "price-asc" | "price-desc" | "savings";
 
 export default function PacksPage() {
-  const [openFaq, setOpenFaq] = useState<number | null>(null);
-  const [billingCycle, setBillingCycle] = useState<"once" | "3x">("once");
+  const [sortBy, setSortBy] = useState<SortType>("price-asc");
+  const [selectedTheme, setSelectedTheme] = useState("all");
+  const [compareMode, setCompareMode] = useState(false);
+  const [selectedForCompare, setSelectedForCompare] = useState<string[]>([]);
+  const [expandedPack, setExpandedPack] = useState<string | null>(null);
 
-  const formatPrice = (price: number, mode: "once" | "3x") => {
-    if (mode === "3x") {
-      return `3 × ${Math.ceil(price / 3)}€`;
-    }
-    return `${price.toLocaleString("fr-FR")}€`;
+  const getSavings = (pack: Pack) => pack.originalPrice - pack.price;
+  const getSavingsPercent = (pack: Pack) =>
+    Math.round(((pack.originalPrice - pack.price) / pack.originalPrice) * 100);
+
+  const filteredPacks = packs
+    .filter((p) => selectedTheme === "all" || p.theme === selectedTheme)
+    .sort((a, b) => {
+      if (sortBy === "price-asc") return a.price - b.price;
+      if (sortBy === "price-desc") return b.price - a.price;
+      if (sortBy === "savings") return getSavings(b) - getSavings(a);
+      return 0;
+    });
+
+  const toggleCompare = (id: string) => {
+    setSelectedForCompare((prev) =>
+      prev.includes(id)
+        ? prev.filter((x) => x !== id)
+        : prev.length < 3
+        ? [...prev, id]
+        : prev
+    );
   };
+
+  const packsToCompare = packs.filter((p) =>
+    selectedForCompare.includes(p.id)
+  );
 
   return (
     <div
       className="min-h-screen"
-      style={{ backgroundColor: "#050508", color: "#f0ece4" }}
+      style={{ backgroundColor: "#050508", color: "#f0e6d3" }}
     >
       {/* ── HERO ── */}
-      <section className="relative overflow-hidden pt-24 pb-16 px-4">
-        {/* Background glow */}
+      <div className="relative overflow-hidden">
         <div
-          className="absolute inset-0 opacity-10"
+          className="absolute inset-0 opacity-20"
           style={{
             background:
-              "radial-gradient(ellipse 80% 50% at 50% -20%, #c8a96e, transparent)",
+              "radial-gradient(ellipse 80% 50% at 50% -10%, #c8a96e44, transparent)",
           }}
         />
-        <div className="relative max-w-6xl mx-auto text-center">
+        <div className="absolute inset-0 opacity-5"
+          style={{
+            backgroundImage: `repeating-linear-gradient(0deg, transparent, transparent 60px, #c8a96e22 60px, #c8a96e22 61px), repeating-linear-gradient(90deg, transparent, transparent 60px, #c8a96e22 60px, #c8a96e22 61px)`,
+          }}
+        />
+        <div className="relative max-w-7xl mx-auto px-4 pt-20 pb-16 text-center">
           <div
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold mb-6 border"
+            className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-semibold tracking-widest mb-6 border"
             style={{
-              backgroundColor: "rgba(200,169,110,0.1)",
-              borderColor: "rgba(200,169,110,0.3)",
+              borderColor: "#c8a96e44",
+              backgroundColor: "#c8a96e11",
               color: "#c8a96e",
             }}
           >
-            <Sparkles size={14} />
-            Économisez jusqu'à 2 040€ sur nos packs
+            <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />
+            ACADÉMIA PRO — OFFRES EXCLUSIVES
           </div>
-
-          <h1 className="text-4xl md:text-6xl font-black mb-6 leading-tight">
-            Nos{" "}
-            <span style={{ color: "#c8a96e" }}>Packs Formations</span>
-            <br />
-            AcadémIA Pro
+          <h1 className="text-5xl md:text-7xl font-black mb-4 tracking-tight">
+            <span style={{ color: "#f0e6d3" }}>Nos </span>
+            <span
+              style={{
+                background: "linear-gradient(135deg, #c8a96e, #e8c98e, #a07840)",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+              }}
+            >
+              Packs Formations
+            </span>
           </h1>
-
-          <p className="text-lg md:text-xl text-gray-400 max-w-2xl mx-auto mb-10">
-            Des bundles soigneusement conçus pour accélérer votre montée en
-            compétences IA. Formations, bonus exclusifs et accompagnement
-            inclus.
+          <p className="text-lg md:text-xl max-w-2xl mx-auto mb-3" style={{ color: "#9b8a70" }}>
+            8 packs conçus pour votre niveau et vos ambitions.
+            De 47€ à 3 990€, trouvez votre accélérateur.
           </p>
-
-          {/* Billing toggle */}
-          <div
-            className="inline-flex items-center rounded-xl p-1 border"
-            style={{
-              backgroundColor: "rgba(255,255,255,0.04)",
-              borderColor: "rgba(255,255,255,0.08)",
-            }}
-          >
-            <button
-              onClick={() => setBillingCycle("once")}
-              className={`px-6 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 ${
-                billingCycle === "once"
-                  ? "text-black"
-                  : "text-gray-400 hover:text-white"
-              }`}
-              style={
-                billingCycle === "once"
-                  ? { backgroundColor: "#c8a96e" }
-                  : {}
-              }
-            >
-              Paiement unique
-            </button>
-            <button
-              onClick={() => setBillingCycle("3x")}
-              className={`px-6 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 ${
-                billingCycle === "3x"
-                  ? "text-black"
-                  : "text-gray-400 hover:text-white"
-              }`}
-              style={
-                billingCycle === "3x"
-                  ? { backgroundColor: "#c8a96e" }
-                  : {}
-              }
-            >
-              3× sans frais
-            </button>
+          <div className="flex flex-wrap justify-center gap-6 mt-8">
+            {[
+              { icon: "🛡️", text: "Garantie 30 jours" },
+              { icon: "💳", text: "3x sans frais dès 490€" },
+              { icon: "🏆", text: "Certifications incluses" },
+              { icon: "🤖", text: "IA de pointe" },
+            ].map((item) => (
+              <div
+                key={item.text}
+                className="flex items-center gap-2 text-sm"
+                style={{ color: "#9b8a70" }}
+              >
+                <span>{item.icon}</span>
+                <span>{item.text}</span>
+              </div>
+            ))}
           </div>
         </div>
-      </section>
+      </div>
 
-      {/* ── PACKS GRID ── */}
-      <section className="max-w-7xl mx-auto px-4 pb-24">
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-          {packs.map((pack) => {
-            const Icon = pack.icon;
-            return (
+      {/* ── STATS BAR ── */}
+      <div
+        className="border-y"
+        style={{ borderColor: "#c8a96e22", backgroundColor: "#0a0a0f" }}
+      >
+        <div className="max-w-7xl mx-auto px-4 py-4 grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+          {[
+            { value: "8", label: "Packs disponibles" },
+            { value: "2 500+", label: "Apprenants formés" },
+            { value: "jusqu'à −62%", label: "Économies réalisées" },
+            { value: "4.9/5", label: "Satisfaction moyenne" },
+          ].map((stat) => (
+            <div key={stat.label}>
               <div
-                key={pack.id}
-                className={`relative flex flex-col rounded-2xl border transition-all duration-300 hover:-translate-y-1 ${
-                  pack.highlight
-                    ? "shadow-2xl scale-[1.02]"
-                    : "hover:shadow-xl"
-                }`}
-                style={{
-                  backgroundColor: pack.highlight
-                    ? "rgba(200,169,110,0.06)"
-                    : "rgba(255,255,255,0.03)",
-                  borderColor: pack.highlight
-                    ? "#c8a96e"
-                    : "rgba(255,255,255,0.08)",
-                  boxShadow: pack.highlight
-                    ? "0 0 60px rgba(200,169,110,0.15)"
-                    : undefined,
-                }}
+                className="text-2xl font-black"
+                style={{ color: "#c8a96e" }}
               >
-                {/* Badge */}
-                <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
-                  <span
-                    className={`${pack.badgeColor} text-white text-xs font-black px-4 py-1.5 rounded-full tracking-wider whitespace-nowrap shadow-lg`}
-                  >
-                    {pack.badge}
-                  </span>
-                </div>
+                {stat.value}
+              </div>
+              <div className="text-xs mt-0.5" style={{ color: "#5a4f3f" }}>
+                {stat.label}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
 
-                <div className="p-6 flex flex-col flex-1 pt-8">
-                  {/* Icon + Name */}
-                  <div className="flex items-start gap-3 mb-4">
-                    <div
-                      className="p-2.5 rounded-xl shrink-0"
-                      style={{
-                        backgroundColor: "rgba(200,169,110,0.12)",
-                      }}
-                    >
-                      <Icon size={20} style={{ color: "#c8a96e" }} />
-                    </div>
-                    <h2 className="text-sm font-black leading-tight uppercase tracking-wide">
-                      {pack.name}
-                    </h2>
-                  </div>
-
-                  <p className="text-gray-400 text-sm mb-5">
-                    {pack.description}
-                  </p>
-
-                  {/* Price */}
-                  <div className="mb-5">
-                    <div className="flex items-end gap-2">
-                      <span
-                        className="text-3xl font-black"
-                        style={{ color: "#c8a96e" }}
-                      >
-                        {billingCycle === "3x"
-                          ? `3 × ${Math.ceil(pack.price / 3)}€`
-                          : `${pack.price.toLocaleString("fr-FR")}€`}
-                      </span>
-                    </div>
-                    {pack.originalPrice && (
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className="text-gray-500 line-through text-sm">
-                          {pack.originalPrice.toLocaleString("fr-FR")}€
-                        </span>
-                        <span
-                          className="text-xs font-bold px-2 py-0.5 rounded-full"
-                          style={{
-                            backgroundColor: "rgba(34,197,94,0.15)",
-                            color: "#4ade80",
-                          }}
-                        >
-                          -{pack.savings?.toLocaleString("fr-FR")}€
-                        </span>
-                      </div>
-                    )}
-                    {billingCycle === "3x" && (
-                      <p className="text-xs text-gray-500 mt-1">
-                        soit {pack.price.toLocaleString("fr-FR")}€ au total
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Formations */}
-                  {pack.formations.length > 0 && (
-                    <div className="mb-4">
-                      <p
-                        className="text-xs font-bold uppercase tracking-widest mb-2"
-                        style={{ color: "#c8a96e" }}
-                      >
-                        Formations incluses
-                      </p>
-                      <ul className="space-y-1.5
+      {/* ── CONTROLS ── */}
+      <div className="max-w-7xl mx-auto px-4 py-8">
+        <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
+          {/* Themes */}
+          <div className="flex flex-wrap gap-2">
+            {themes.map((t) => (
+              <button
+                key={t.id}
+                onClick={() => setSelectedTheme(t.id)}
+                className="px-4 py-2 rounded-full text-sm font-semibold transition-all duration-200"
+                style={
+                  selectedTheme === t.id
+                    ? {
+                        background:
+                          "linear-gradient(135deg, #c8a96e, #a07840)",
+                        color: "#050508",
+                      }
+                    : {
+                        backgroundColor: "#0f0f18",
+                        color: "#9b8a70",
+                        border: "1px solid #c8a96e22",
+                      }
+                }
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+          {/* Sort + Compare */}
+          <div className="flex gap-3 items-center flex-wrap">
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as SortType)}
+              className="px-4 py-2 rounded-lg text-sm font-semibold cursor-pointer"
+              style={{
+                backgroundColor: "#0f0f18",
+                color: "#c8a96e",
+                border:
