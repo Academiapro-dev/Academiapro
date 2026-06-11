@@ -1,4 +1,3 @@
-```typescript
 // app/api/agent-marketing/contenu/article-blog/route.ts
 
 import { NextRequest, NextResponse } from "next/server";
