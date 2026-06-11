@@ -1,4 +1,3 @@
-```typescript
 // app/api/inpi/route.ts - Main INPI Agent API Route
 // Next.js 14 TypeScript - Agent INPI AcadémIA Pro
 
