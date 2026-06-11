@@ -1,265 +1,426 @@
-export default function ArticlePage({ params }: { params: { slug: string } }) {
-  const articles: Record<string, {
-    title: string;
-    date: string;
-    category: string;
-    content: string[];
-    author: string;
-    formation: string;
-    formationSlug: string;
-    readTime: string;
-    tags: string[];
-  }> = {
-    "intelligence-artificielle-education": {
-      title: "L'Intelligence Artificielle révolutionne l'éducation moderne",
-      date: "15 janvier 2024",
-      category: "Intelligence Artificielle",
-      content: [
-        "L'intelligence artificielle transforme profondément les méthodes pédagogiques contemporaines. Les algorithmes d'apprentissage adaptatif permettent désormais de personnaliser chaque parcours éducatif selon les besoins spécifiques de l'apprenant, créant une expérience unique et optimisée.",
-        "Les plateformes éducatives intégrant l'IA analysent en temps réel les performances des étudiants, identifiant les lacunes et proposant des exercices ciblés. Cette approche data-driven représente une évolution majeure par rapport aux méthodes traditionnelles uniformisées.",
-        "Les tuteurs virtuels alimentés par des modèles de langage avancés offrent une disponibilité 24h/24, répondant instantanément aux questions des apprenants. La qualité des réponses atteint désormais un niveau comparable à celui d'enseignants humains qualifiés.",
-        "L'analyse prédictive permet d'anticiper les difficultés avant qu'elles ne deviennent problématiques. En détectant les signaux faibles dans les comportements d'apprentissage, les systèmes IA peuvent intervenir de manière proactive pour maintenir la motivation et la progression.",
-        "Cette révolution pédagogique soulève également des questions éthiques importantes concernant la protection des données, l'équité d'accès et le rôle fondamental de l'enseignant humain dans le processus éducatif."
-      ],
-      author: "AcadémIA Pro",
-      formation: "Maîtrisez l'IA pour l'Éducation",
-      formationSlug: "ia-pour-education",
-      readTime: "8 min",
-      tags: ["IA", "Pédagogie", "Innovation", "EdTech"]
-    },
-    "prompt-engineering-maitrise": {
-      title: "Maîtriser le Prompt Engineering pour maximiser vos résultats",
-      date: "22 janvier 2024",
-      category: "Prompt Engineering",
-      content: [
-        "Le prompt engineering est devenu une compétence fondamentale dans l'ère de l'intelligence artificielle générative. La capacité à formuler des instructions précises et efficaces détermine directement la qualité des outputs produits par les modèles de langage.",
-        "Les techniques avancées comme le chain-of-thought prompting permettent d'améliorer significativement le raisonnement des LLMs sur des problèmes complexes. En guidant le modèle étape par étape, on obtient des résultats bien supérieurs aux approches directes.",
-        "La structure d'un prompt optimal comprend généralement un contexte clair, une instruction précise, des exemples pertinents et des contraintes bien définies. Cette architecture en quatre composantes constitue la base de toute stratégie de prompting efficace.",
-        "Les few-shot examples représentent l'un des outils les plus puissants du prompt engineer. En fournissant deux à cinq exemples illustratifs, on calibre le comportement du modèle et on réduit drastiquement la variance des outputs.",
-        "L'itération constitue le cœur de la pratique du prompt engineering. Chaque interaction avec un LLM doit être analysée, documentée et affinée pour construire progressivement une bibliothèque de prompts performants adaptés à vos cas d'usage spécifiques."
-      ],
-      author: "AcadémIA Pro",
-      formation: "Certification Prompt Engineering Expert",
-      formationSlug: "prompt-engineering-expert",
-      readTime: "12 min",
-      tags: ["Prompts", "LLM", "ChatGPT", "Productivité"]
-    },
-    "avenir-travail-ia": {
-      title: "L'avenir du travail à l'ère de l'IA générative",
-      date: "8 février 2024",
-      category: "Futur du Travail",
-      content: [
-        "L'avènement de l'IA générative remodèle fondamentalement le paysage professionnel mondial. Les métiers qui semblaient immunisés contre l'automatisation se retrouvent aujourd'hui profondément transformés par des outils capables de générer du texte, des images et du code.",
-        "Contrairement aux révolutions industrielles précédentes, la transition actuelle touche simultanément les emplois cognitifs et créatifs. Les professionnels du droit, de la finance, du marketing et du développement logiciel doivent tous repenser leur proposition de valeur.",
-        "Les compétences qui résistent à l'automatisation se cristallisent autour de l'intelligence émotionnelle, de la pensée critique contextuelle et de la capacité à orchestrer des systèmes IA complexes. L'humain devient chef d'orchestre plutôt qu'exécutant.",
-        "Les organisations qui prospèrent dans ce nouvel environnement sont celles qui adoptent une approche d'augmentation plutôt que de substitution. L'humain augmenté par l'IA surpasse systématiquement l'IA seule dans les tâches à forte valeur ajoutée.",
-        "La formation continue et l'adaptabilité deviennent les véritables actifs stratégiques des professionnels du 21ème siècle. Investir dans sa compréhension de l'IA n'est plus optionnel, c'est une nécessité de survie professionnelle."
-      ],
-      author: "AcadémIA Pro",
-      formation: "Préparez-vous aux Métiers de Demain",
-      formationSlug: "metiers-ia-futur",
-      readTime: "10 min",
-      tags: ["Carrière", "Automatisation", "Compétences", "Transformation"]
-    }
+export default async function BlogArticlePage({
+  params,
+}: {
+  params: { slug: string };
+}) {
+  const { createClient } = await import("@supabase/supabase-js");
+
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
+
+  const { data: article } = await supabase
+    .from("articles")
+    .select("*")
+    .eq("slug", params.slug)
+    .single();
+
+  const { data: similarArticles } = await supabase
+    .from("articles")
+    .select("id, title, slug, category, created_at")
+    .neq("slug", params.slug)
+    .limit(3);
+
+  const displayArticle = article || {
+    id: "demo",
+    title: "Comment l'IA Révolutionne l'Apprentissage Académique en 2025",
+    slug: "ia-apprentissage-academique-2025",
+    category: "Intelligence Artificielle",
+    content: `
+      L'intelligence artificielle transforme profondément la manière dont les étudiants apprennent et progressent dans leur cursus académique. AcadémIA Pro se positionne à l'avant-garde de cette révolution pédagogique.
+
+      Aujourd'hui, les algorithmes d'apprentissage adaptatif permettent de personnaliser chaque parcours éducatif selon le rythme, les forces et les lacunes de chaque apprenant. Finis les cours magistraux uniformes : place à une pédagogie sur mesure, augmentée par la data et l'IA.
+
+      Les études montrent que les étudiants utilisant des plateformes IA comme AcadémIA Pro améliorent leurs résultats de 40% en moyenne sur une période de 3 mois. La rétention de l'information est multipliée par 2,5 grâce aux techniques de répétition espacée pilotées par l'IA.
+
+      Notre moteur d'IA analyse en temps réel les patterns d'apprentissage, identifie les zones de difficulté et propose automatiquement des ressources complémentaires ciblées. Cette approche data-driven révolutionne l'efficacité pédagogique.
+
+      Les formateurs partenaires d'AcadémIA Pro témoignent d'une réduction de 60% du temps consacré aux tâches répétitives, leur permettant de se concentrer sur ce qui compte vraiment : l'accompagnement humain et la transmission de passion.
+
+      L'avenir de l'éducation est hybride, intelligent et personnalisé. AcadémIA Pro est votre partenaire pour naviguer dans cette transformation et en faire un levier de réussite extraordinaire.
+    `,
+    author: "AcadémIA Pro",
+    created_at: new Date().toISOString(),
+    formation_slug: "formation-ia-academique",
+    formation_title: "Formation IA & Pédagogie Avancée",
   };
 
-  const similarArticles = [
+  const staticSimilar = [
     {
-      slug: "intelligence-artificielle-education",
-      title: "L'IA révolutionne l'éducation moderne",
+      id: "s1",
+      title: "5 Techniques IA pour Mémoriser 10x Plus Vite",
+      slug: "techniques-ia-memorisation",
+      category: "Méthodes d'apprentissage",
+      created_at: new Date(Date.now() - 86400000 * 3).toISOString(),
+    },
+    {
+      id: "s2",
+      title: "Prompt Engineering pour Étudiants : Guide Complet",
+      slug: "prompt-engineering-etudiants",
       category: "Intelligence Artificielle",
-      date: "15 jan 2024",
-      readTime: "8 min"
+      created_at: new Date(Date.now() - 86400000 * 7).toISOString(),
     },
     {
-      slug: "prompt-engineering-maitrise",
-      title: "Maîtriser le Prompt Engineering",
-      category: "Prompt Engineering",
-      date: "22 jan 2024",
-      readTime: "12 min"
+      id: "s3",
+      title: "AcadémIA Pro vs ChatGPT : Lequel Choisir pour Étudier ?",
+      slug: "academia-vs-chatgpt-etudes",
+      category: "Comparatifs",
+      created_at: new Date(Date.now() - 86400000 * 14).toISOString(),
     },
-    {
-      slug: "avenir-travail-ia",
-      title: "L'avenir du travail avec l'IA",
-      category: "Futur du Travail",
-      date: "8 fév 2024",
-      readTime: "10 min"
-    }
   ];
 
-  const article = articles[params.slug] || articles["intelligence-artificielle-education"];
-  const filteredSimilar = similarArticles.filter(a => a.slug !== params.slug).slice(0, 2);
+  const displaySimilar =
+    similarArticles && similarArticles.length > 0
+      ? similarArticles
+      : staticSimilar;
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString("fr-FR", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+  };
+
+  const paragraphs = displayArticle.content
+    ? displayArticle.content
+        .split("\n\n")
+        .filter((p: string) => p.trim() !== "")
+    : [];
 
   return (
-    <div style={{
-      backgroundColor: "#050508",
-      minHeight: "100vh",
-      fontFamily: "'Segoe UI', system-ui, -apple-system, sans-serif",
-      color: "#e8e8f0"
-    }}>
-
-      <nav style={{
-        backgroundColor: "rgba(5, 5, 8, 0.95)",
-        borderBottom: "1px solid rgba(200, 169, 110, 0.2)",
-        padding: "0 24px",
-        position: "sticky",
-        top: 0,
-        zIndex: 100,
-        backdropFilter: "blur(20px)"
-      }}>
-        <div style={{
-          maxWidth: "1200px",
-          margin: "0 auto",
+    <div
+      style={{
+        backgroundColor: "#050508",
+        minHeight: "100vh",
+        fontFamily:
+          "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+        color: "#e8e8f0",
+      }}
+    >
+      {/* HEADER NAV */}
+      <nav
+        style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          zIndex: 100,
+          backgroundColor: "rgba(5, 5, 8, 0.92)",
+          backdropFilter: "blur(20px)",
+          borderBottom: "1px solid rgba(200, 169, 110, 0.15)",
+          padding: "0 24px",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          height: "72px"
-        }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-            <div style={{
-              width: "38px",
-              height: "38px",
+          height: "64px",
+        }}
+      >
+        <a
+          href="/"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "10px",
+            textDecoration: "none",
+          }}
+        >
+          <div
+            style={{
+              width: "36px",
+              height: "36px",
               borderRadius: "10px",
-              background: "linear-gradient(135deg, #c8a96e, #a07840)",
+              background: "linear-gradient(135deg, #c8a96e, #f0d080)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               fontSize: "18px",
-              fontWeight: "800",
-              color: "#050508"
-            }}>A</div>
-            <span style={{
-              fontSize: "20px",
-              fontWeight: "700",
-              background: "linear-gradient(135deg, #c8a96e, #e8c878)",
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent"
-            }}>AcadémIA Pro</span>
-          </div>
-
-          <div style={{ display: "flex", gap: "32px", alignItems: "center" }}>
-            {["Blog", "Formations", "À propos", "Contact"].map(item => (
-              <a key={item} href="#" style={{
-                color: "#9090a8",
-                textDecoration: "none",
-                fontSize: "15px",
-                fontWeight: "500",
-                transition: "color 0.2s"
-              }}>{item}</a>
-            ))}
-            <a href="#formation" style={{
-              backgroundColor: "#c8a96e",
+              fontWeight: "900",
               color: "#050508",
-              padding: "10px 20px",
-              borderRadius: "8px",
+            }}
+          >
+            A
+          </div>
+          <span
+            style={{
+              fontSize: "18px",
+              fontWeight: "700",
+              background: "linear-gradient(135deg, #c8a96e, #f0d080)",
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+            }}
+          >
+            AcadémIA Pro
+          </span>
+        </a>
+
+        <div style={{ display: "flex", alignItems: "center", gap: "24px" }}>
+          <a
+            href="/blog"
+            style={{
+              color: "#c8a96e",
               textDecoration: "none",
               fontSize: "14px",
-              fontWeight: "700"
-            }}>Commencer</a>
-          </div>
+              fontWeight: "500",
+            }}
+          >
+            ← Blog
+          </a>
+          <a
+            href="/formations"
+            style={{
+              backgroundColor: "#c8a96e",
+              color: "#050508",
+              textDecoration: "none",
+              fontSize: "14px",
+              fontWeight: "700",
+              padding: "8px 20px",
+              borderRadius: "8px",
+            }}
+          >
+            Formations
+          </a>
         </div>
       </nav>
 
-      <div style={{
-        maxWidth: "1200px",
-        margin: "0 auto",
-        padding: "40px 24px 0"
-      }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "32px" }}>
-          <a href="#" style={{ color: "#9090a8", textDecoration: "none", fontSize: "14px" }}>Accueil</a>
-          <span style={{ color: "#4a4a60", fontSize: "14px" }}>›</span>
-          <a href="#" style={{ color: "#9090a8", textDecoration: "none", fontSize: "14px" }}>Blog</a>
-          <span style={{ color: "#4a4a60", fontSize: "14px" }}>›</span>
-          <span style={{ color: "#c8a96e", fontSize: "14px" }}>{article.category}</span>
-        </div>
-      </div>
-
-      <header style={{
-        maxWidth: "1200px",
-        margin: "0 auto",
-        padding: "0 24px 60px"
-      }}>
-        <div style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: "8px",
-          backgroundColor: "rgba(200, 169, 110, 0.12)",
-          border: "1px solid rgba(200, 169, 110, 0.3)",
-          borderRadius: "20px",
-          padding: "6px 14px",
-          marginBottom: "24px"
-        }}>
-          <div style={{
-            width: "6px",
-            height: "6px",
-            borderRadius: "50%",
-            backgroundColor: "#c8a96e"
-          }}></div>
-          <span style={{ color: "#c8a96e", fontSize: "13px", fontWeight: "600" }}>{article.category}</span>
+      {/* HERO ARTICLE */}
+      <div
+        style={{
+          paddingTop: "104px",
+          paddingBottom: "60px",
+          padding: "104px 24px 60px",
+          maxWidth: "860px",
+          margin: "0 auto",
+        }}
+      >
+        {/* BADGE CATÉGORIE */}
+        <div style={{ marginBottom: "24px", marginTop: "40px" }}>
+          <span
+            style={{
+              display: "inline-block",
+              backgroundColor: "rgba(200, 169, 110, 0.12)",
+              border: "1px solid rgba(200, 169, 110, 0.35)",
+              color: "#c8a96e",
+              fontSize: "12px",
+              fontWeight: "700",
+              padding: "6px 16px",
+              borderRadius: "100px",
+              letterSpacing: "0.08em",
+              textTransform: "uppercase",
+            }}
+          >
+            {displayArticle.category || "Article"}
+          </span>
         </div>
 
-        <h1 style={{
-          fontSize: "clamp(28px, 5vw, 52px)",
-          fontWeight: "800",
-          lineHeight: "1.2",
-          marginBottom: "28px",
-          maxWidth: "820px",
-          background: "linear-gradient(135deg, #ffffff 0%, #c8c8e0 100%)",
-          WebkitBackgroundClip: "text",
-          WebkitTextFillColor: "transparent"
-        }}>{article.title}</h1>
+        {/* TITRE */}
+        <h1
+          style={{
+            fontSize: "clamp(28px, 5vw, 52px)",
+            fontWeight: "800",
+            lineHeight: "1.15",
+            color: "#f0ece4",
+            marginBottom: "28px",
+            letterSpacing: "-0.02em",
+          }}
+        >
+          {displayArticle.title}
+        </h1>
 
-        <div style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "24px",
-          flexWrap: "wrap"
-        }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-            <div style={{
-              width: "44px",
-              height: "44px",
+        {/* AUTEUR & DATE */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "16px",
+            paddingBottom: "32px",
+            borderBottom: "1px solid rgba(200, 169, 110, 0.12)",
+            marginBottom: "48px",
+          }}
+        >
+          {/* AVATAR IA */}
+          <div
+            style={{
+              width: "52px",
+              height: "52px",
               borderRadius: "50%",
-              background: "linear-gradient(135deg, #c8a96e, #6040c8)",
+              background: "linear-gradient(135deg, #c8a96e 0%, #8b6914 50%, #c8a96e 100%)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              fontSize: "18px",
-              border: "2px solid rgba(200, 169, 110, 0.4)",
+              fontSize: "22px",
+              flexShrink: 0,
+              boxShadow: "0 0 20px rgba(200, 169, 110, 0.35)",
               position: "relative",
-              overflow: "hidden"
-            }}>
-              <div style={{
+            }}
+          >
+            🤖
+            <div
+              style={{
                 position: "absolute",
-                width: "100%",
-                height: "100%",
-                background: "linear-gradient(135deg, rgba(200, 169, 110, 0.8), rgba(96, 64, 200, 0.8))",
+                bottom: "1px",
+                right: "1px",
+                width: "14px",
+                height: "14px",
+                backgroundColor: "#22c55e",
+                borderRadius: "50%",
+                border: "2px solid #050508",
+              }}
+            />
+          </div>
+
+          <div>
+            <div
+              style={{
+                fontSize: "15px",
+                fontWeight: "700",
+                color: "#f0ece4",
+                marginBottom: "3px",
+              }}
+            >
+              {displayArticle.author || "Avatar IA AcadémIA Pro"}
+            </div>
+            <div
+              style={{
+                fontSize: "13px",
+                color: "rgba(200, 169, 110, 0.7)",
                 display: "flex",
                 alignItems: "center",
-                justifyContent: "center"
-              }}>
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                  <circle cx="12" cy="8" r="3" fill="white" fillOpacity="0.9"/>
-                  <path d="M6 20c0-3.314 2.686-6 6-6s6 2.686 6 6" stroke="white" strokeWidth="1.5" strokeLinecap="round" fill="none"/>
-                  <circle cx="18" cy="6" r="2" fill="#c8a96e"/>
-                  <path d="M16 4l1 1 2-2" stroke="#050508" strokeWidth="1.2" strokeLinecap="round"/>
-                </svg>
-              </div>
-            </div>
-            <div>
-              <p style={{ margin: 0, fontSize: "14px", fontWeight: "700", color: "#e8e8f0" }}>{article.author}</p>
-              <p style={{ margin: 0, fontSize: "12px", color: "#c8a96e", fontWeight: "600" }}>IA Pédagogique Certifiée</p>
+                gap: "8px",
+              }}
+            >
+              <span>✦ Intelligence Artificielle AcadémIA</span>
+              <span style={{ color: "rgba(200, 169, 110, 0.3)" }}>•</span>
+              <span>
+                {displayArticle.created_at
+                  ? formatDate(displayArticle.created_at)
+                  : ""}
+              </span>
             </div>
           </div>
 
-          <div style={{ width: "1px", height: "32px", backgroundColor: "rgba(200, 169, 110, 0.2)" }}></div>
+          <div style={{ marginLeft: "auto", display: "flex", gap: "10px" }}>
+            <button
+              style={{
+                backgroundColor: "rgba(200, 169, 110, 0.08)",
+                border: "1px solid rgba(200, 169, 110, 0.2)",
+                color: "#c8a96e",
+                padding: "8px 16px",
+                borderRadius: "8px",
+                cursor: "pointer",
+                fontSize: "13px",
+                fontWeight: "500",
+              }}
+            >
+              Partager
+            </button>
+          </div>
+        </div>
 
-          <div style={{ display: "flex", gap: "20px", alignItems: "center" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#9090a8" strokeWidth="2">
-                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-                <line x1="16" y1="2" x2="16" y2="6"/>
-                <line x1="8" y1="2" x2="8" y2="6"/>
-                <line x1="3" y1="10" x2="21" y2="10"/>
-              </svg>
-              <span style={{ color:
+        {/* CONTENU ARTICLE */}
+        <article>
+          {paragraphs.map((paragraph: string, index: number) => (
+            <p
+              key={index}
+              style={{
+                fontSize: "17px",
+                lineHeight: "1.85",
+                color: "rgba(232, 232, 240, 0.85)",
+                marginBottom: "28px",
+                letterSpacing: "0.01em",
+              }}
+            >
+              {paragraph.trim()}
+            </p>
+          ))}
+        </article>
+
+        {/* TAGS / SHARE */}
+        <div
+          style={{
+            marginTop: "48px",
+            paddingTop: "32px",
+            borderTop: "1px solid rgba(200, 169, 110, 0.12)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: "16px",
+          }}
+        >
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            {["IA", "Apprentissage", "Pédagogie", "Innovation"].map((tag) => (
+              <span
+                key={tag}
+                style={{
+                  backgroundColor: "rgba(200, 169, 110, 0.07)",
+                  border: "1px solid rgba(200, 169, 110, 0.2)",
+                  color: "rgba(200, 169, 110, 0.8)",
+                  fontSize: "12px",
+                  fontWeight: "500",
+                  padding: "5px 12px",
+                  borderRadius: "6px",
+                }}
+              >
+                #{tag}
+              </span>
+            ))}
+          </div>
+          <div
+            style={{ fontSize: "13px", color: "rgba(232, 232, 240, 0.4)" }}
+          >
+            Généré par AcadémIA Pro
+          </div>
+        </div>
+      </div>
+
+      {/* CTA FORMATION */}
+      <div
+        style={{
+          margin: "0 auto 80px",
+          maxWidth: "860px",
+          padding: "0 24px",
+        }}
+      >
+        <div
+          style={{
+            background:
+              "linear-gradient(135deg, rgba(200, 169, 110, 0.08) 0%, rgba(200, 169, 110, 0.03) 100%)",
+            border: "1px solid rgba(200, 169, 110, 0.25)",
+            borderRadius: "20px",
+            padding: "48px",
+            textAlign: "center",
+            position: "relative",
+            overflow: "hidden",
+          }}
+        >
+          {/* Décoration fond */}
+          <div
+            style={{
+              position: "absolute",
+              top: "-60px",
+              right: "-60px",
+              width: "200px",
+              height: "200px",
+              borderRadius: "50%",
+              background:
+                "radial-gradient(circle, rgba(200, 169, 110, 0.08) 0%, transparent 70%)",
+              pointerEvents: "none",
+            }}
+          />
+
+          <div
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: "64px",
+              height: "64px",
+              borderRadius: "18px",
+              background: "linear-gradient(135deg, #c8a96e, #8b6914)",
+              fontSize: "28px",
+              marginBottom: "24px",
+              boxShadow: "0 8px 32px rgba(200, 169, 110, 0.3)",
+            }}
+          >
