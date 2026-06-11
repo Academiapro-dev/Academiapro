@@ -1,489 +1,386 @@
-export default function CertificatsDashboard() {
-  const stats = {
-    total: 1247,
-    thiMonth: 89,
-    byLevel: {
-      Attestation: 312,
-      Certificat: 445,
-      Expert: 287,
-      Master: 203,
-    },
-    qrVerifications: 156,
+export default async function AdminCertificatsPage() {
+
+  const { createClient } = await import('@supabase/supabase-js');
+
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+    process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+  );
+
+  const { data: certificats, error } = await supabase
+    .from('certificats')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  const { data: stats } = await supabase
+    .from('certificats')
+    .select('statut');
+
+  const total = stats?.length || 0;
+  const actifs = stats?.filter((c: any) => c.statut === 'actif').length || 0;
+  const revoques = stats?.filter((c: any) => c.statut === 'revoque').length || 0;
+  const enAttente = stats?.filter((c: any) => c.statut === 'en_attente').length || 0;
+
+  const pageStyle: React.CSSProperties = {
+    minHeight: '100vh',
+    backgroundColor: '#050508',
+    fontFamily: "'Segoe UI', system-ui, sans-serif",
+    color: '#e8e0d0',
+    padding: '0',
+    margin: '0',
   };
 
-  const certificates = [
-    {
-      id: "CERT-2024-001",
-      learner: "Sophie Marchand",
-      formation: "Intelligence Artificielle Fondamentaux",
-      level: "Master",
-      mention: "Très Bien",
-      date: "2024-11-15",
-      status: "active",
-    },
-    {
-      id: "CERT-2024-002",
-      learner: "Thomas Dubois",
-      formation: "Machine Learning Avancé",
-      level: "Expert",
-      mention: "Bien",
-      date: "2024-11-18",
-      status: "active",
-    },
-    {
-      id: "CERT-2024-003",
-      learner: "Amira Benali",
-      formation: "Python pour la Data Science",
-      level: "Certificat",
-      mention: "Excellent",
-      date: "2024-11-20",
-      status: "active",
-    },
-    {
-      id: "CERT-2024-004",
-      learner: "Lucas Petit",
-      formation: "Introduction au Deep Learning",
-      level: "Attestation",
-      mention: "Passable",
-      date: "2024-11-22",
-      status: "active",
-    },
-    {
-      id: "CERT-2024-005",
-      learner: "Chloé Laurent",
-      formation: "NLP et Traitement du Texte",
-      level: "Expert",
-      mention: "Très Bien",
-      date: "2024-11-25",
-      status: "revoked",
-    },
-    {
-      id: "CERT-2024-006",
-      learner: "Karim Mansouri",
-      formation: "Vision par Ordinateur",
-      level: "Master",
-      mention: "Excellent",
-      date: "2024-11-28",
-      status: "active",
-    },
-    {
-      id: "CERT-2024-007",
-      learner: "Élise Fontaine",
-      formation: "Éthique et IA Responsable",
-      level: "Certificat",
-      mention: "Bien",
-      date: "2024-12-01",
-      status: "active",
-    },
-  ];
+  const headerStyle: React.CSSProperties = {
+    background: 'linear-gradient(135deg, #0a0a12 0%, #0d0d1a 50%, #080810 100%)',
+    borderBottom: '1px solid rgba(200, 169, 110, 0.3)',
+    padding: '24px 40px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    position: 'sticky',
+    top: '0',
+    zIndex: 100,
+    backdropFilter: 'blur(20px)',
+  };
 
-  const getLevelColor = (level: string) => {
-    const colors: Record<string, string> = {
-      Attestation: "#6eb5c8",
-      Certificat: "#6ec87a",
-      Expert: "#c8a96e",
-      Master: "#c86e6e",
+  const logoStyle: React.CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px',
+  };
+
+  const logoIconStyle: React.CSSProperties = {
+    width: '42px',
+    height: '42px',
+    background: 'linear-gradient(135deg, #c8a96e, #e8c98e)',
+    borderRadius: '10px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: '20px',
+    fontWeight: '700',
+    color: '#050508',
+    boxShadow: '0 4px 20px rgba(200, 169, 110, 0.4)',
+  };
+
+  const brandStyle: React.CSSProperties = {
+    display: 'flex',
+    flexDirection: 'column',
+  };
+
+  const brandNameStyle: React.CSSProperties = {
+    fontSize: '18px',
+    fontWeight: '700',
+    background: 'linear-gradient(135deg, #c8a96e, #e8c98e)',
+    WebkitBackgroundClip: 'text',
+    WebkitTextFillColor: 'transparent',
+    backgroundClip: 'text',
+    lineHeight: '1.2',
+  };
+
+  const brandSubStyle: React.CSSProperties = {
+    fontSize: '11px',
+    color: 'rgba(200, 169, 110, 0.6)',
+    letterSpacing: '2px',
+    textTransform: 'uppercase',
+  };
+
+  const headerActionsStyle: React.CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px',
+  };
+
+  const adminBadgeStyle: React.CSSProperties = {
+    background: 'rgba(200, 169, 110, 0.1)',
+    border: '1px solid rgba(200, 169, 110, 0.3)',
+    borderRadius: '20px',
+    padding: '6px 16px',
+    fontSize: '12px',
+    color: '#c8a96e',
+    letterSpacing: '1px',
+  };
+
+  const mainStyle: React.CSSProperties = {
+    padding: '40px',
+    maxWidth: '1400px',
+    margin: '0 auto',
+  };
+
+  const pageTitleStyle: React.CSSProperties = {
+    fontSize: '32px',
+    fontWeight: '700',
+    color: '#fff',
+    marginBottom: '4px',
+  };
+
+  const pageTitleAccentStyle: React.CSSProperties = {
+    background: 'linear-gradient(135deg, #c8a96e, #e8c98e)',
+    WebkitBackgroundClip: 'text',
+    WebkitTextFillColor: 'transparent',
+    backgroundClip: 'text',
+  };
+
+  const pageSubtitleStyle: React.CSSProperties = {
+    fontSize: '14px',
+    color: 'rgba(232, 224, 208, 0.5)',
+    marginBottom: '40px',
+  };
+
+  const statsGridStyle: React.CSSProperties = {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(4, 1fr)',
+    gap: '20px',
+    marginBottom: '40px',
+  };
+
+  const statCardStyle: React.CSSProperties = {
+    background: 'linear-gradient(135deg, rgba(255,255,255,0.03) 0%, rgba(200,169,110,0.03) 100%)',
+    border: '1px solid rgba(200, 169, 110, 0.15)',
+    borderRadius: '16px',
+    padding: '24px',
+    position: 'relative',
+    overflow: 'hidden',
+  };
+
+  const statCardGlowStyle: React.CSSProperties = {
+    position: 'absolute',
+    top: '0',
+    left: '0',
+    right: '0',
+    height: '2px',
+    background: 'linear-gradient(90deg, transparent, #c8a96e, transparent)',
+  };
+
+  const statLabelStyle: React.CSSProperties = {
+    fontSize: '12px',
+    color: 'rgba(200, 169, 110, 0.7)',
+    letterSpacing: '1.5px',
+    textTransform: 'uppercase',
+    marginBottom: '12px',
+  };
+
+  const statValueStyle: React.CSSProperties = {
+    fontSize: '42px',
+    fontWeight: '700',
+    color: '#fff',
+    lineHeight: '1',
+    marginBottom: '8px',
+  };
+
+  const statTrendStyle: React.CSSProperties = {
+    fontSize: '12px',
+    color: 'rgba(232, 224, 208, 0.4)',
+  };
+
+  const actionsBarStyle: React.CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px',
+    marginBottom: '32px',
+    flexWrap: 'wrap' as const,
+  };
+
+  const primaryBtnStyle: React.CSSProperties = {
+    background: 'linear-gradient(135deg, #c8a96e, #e8c98e)',
+    border: 'none',
+    borderRadius: '10px',
+    padding: '12px 24px',
+    fontSize: '14px',
+    fontWeight: '600',
+    color: '#050508',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    transition: 'all 0.2s',
+    boxShadow: '0 4px 20px rgba(200, 169, 110, 0.3)',
+  };
+
+  const secondaryBtnStyle: React.CSSProperties = {
+    background: 'rgba(200, 169, 110, 0.08)',
+    border: '1px solid rgba(200, 169, 110, 0.25)',
+    borderRadius: '10px',
+    padding: '12px 24px',
+    fontSize: '14px',
+    fontWeight: '500',
+    color: '#c8a96e',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    transition: 'all 0.2s',
+  };
+
+  const searchStyle: React.CSSProperties = {
+    background: 'rgba(255,255,255,0.04)',
+    border: '1px solid rgba(200, 169, 110, 0.2)',
+    borderRadius: '10px',
+    padding: '12px 16px',
+    fontSize: '14px',
+    color: '#e8e0d0',
+    outline: 'none',
+    width: '280px',
+    marginLeft: 'auto',
+  };
+
+  const tableContainerStyle: React.CSSProperties = {
+    background: 'linear-gradient(135deg, rgba(255,255,255,0.02) 0%, rgba(200,169,110,0.02) 100%)',
+    border: '1px solid rgba(200, 169, 110, 0.12)',
+    borderRadius: '20px',
+    overflow: 'hidden',
+  };
+
+  const tableHeaderStyle: React.CSSProperties = {
+    padding: '20px 28px',
+    borderBottom: '1px solid rgba(200, 169, 110, 0.1)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    background: 'rgba(200, 169, 110, 0.03)',
+  };
+
+  const tableHeaderTitleStyle: React.CSSProperties = {
+    fontSize: '16px',
+    fontWeight: '600',
+    color: '#fff',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+  };
+
+  const tableStyle: React.CSSProperties = {
+    width: '100%',
+    borderCollapse: 'collapse' as const,
+  };
+
+  const thStyle: React.CSSProperties = {
+    padding: '14px 20px',
+    textAlign: 'left' as const,
+    fontSize: '11px',
+    fontWeight: '600',
+    color: 'rgba(200, 169, 110, 0.7)',
+    letterSpacing: '1.5px',
+    textTransform: 'uppercase' as const,
+    borderBottom: '1px solid rgba(200, 169, 110, 0.08)',
+    background: 'rgba(200, 169, 110, 0.02)',
+  };
+
+  const tdStyle: React.CSSProperties = {
+    padding: '16px 20px',
+    fontSize: '14px',
+    color: '#e8e0d0',
+    borderBottom: '1px solid rgba(255,255,255,0.04)',
+    verticalAlign: 'middle' as const,
+  };
+
+  const certIdStyle: React.CSSProperties = {
+    fontFamily: 'monospace',
+    fontSize: '12px',
+    color: '#c8a96e',
+    background: 'rgba(200, 169, 110, 0.1)',
+    padding: '4px 10px',
+    borderRadius: '6px',
+    display: 'inline-block',
+  };
+
+  const avatarStyle: React.CSSProperties = {
+    width: '36px',
+    height: '36px',
+    borderRadius: '50%',
+    background: 'linear-gradient(135deg, #c8a96e40, #c8a96e20)',
+    border: '1px solid rgba(200, 169, 110, 0.3)',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: '14px',
+    fontWeight: '600',
+    color: '#c8a96e',
+    marginRight: '10px',
+  };
+
+  const userCellStyle: React.CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+  };
+
+  const userInfoStyle: React.CSSProperties = {
+    display: 'flex',
+    flexDirection: 'column',
+  };
+
+  const userNameStyle: React.CSSProperties = {
+    fontSize: '14px',
+    fontWeight: '500',
+    color: '#fff',
+  };
+
+  const userEmailStyle: React.CSSProperties = {
+    fontSize: '12px',
+    color: 'rgba(232, 224, 208, 0.4)',
+  };
+
+  const getStatusStyle = (statut: string): React.CSSProperties => {
+    const base: React.CSSProperties = {
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: '6px',
+      padding: '5px 12px',
+      borderRadius: '20px',
+      fontSize: '12px',
+      fontWeight: '500',
+      letterSpacing: '0.5px',
     };
-    return colors[level] || "#ffffff";
+    if (statut === 'actif') return { ...base, background: 'rgba(34, 197, 94, 0.1)', color: '#22c55e', border: '1px solid rgba(34, 197, 94, 0.2)' };
+    if (statut === 'revoque') return { ...base, background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.2)' };
+    return { ...base, background: 'rgba(200, 169, 110, 0.1)', color: '#c8a96e', border: '1px solid rgba(200, 169, 110, 0.2)' };
   };
 
-  const getMentionColor = (mention: string) => {
-    const colors: Record<string, string> = {
-      Excellent: "#c8a96e",
-      "Très Bien": "#6ec87a",
-      Bien: "#6eb5c8",
-      Passable: "#a0a0a0",
-    };
-    return colors[mention] || "#ffffff";
+  const getStatusDot = (statut: string): React.CSSProperties => ({
+    width: '6px',
+    height: '6px',
+    borderRadius: '50%',
+    backgroundColor: statut === 'actif' ? '#22c55e' : statut === 'revoque' ? '#ef4444' : '#c8a96e',
+    display: 'inline-block',
+  });
+
+  const actionGroupStyle: React.CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
   };
 
-  const levelData = Object.entries(stats.byLevel);
-  const maxLevelValue = Math.max(...Object.values(stats.byLevel));
+  const iconBtnStyle: React.CSSProperties = {
+    width: '32px',
+    height: '32px',
+    borderRadius: '8px',
+    border: '1px solid rgba(200, 169, 110, 0.2)',
+    background: 'rgba(200, 169, 110, 0.06)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    cursor: 'pointer',
+    fontSize: '14px',
+    transition: 'all 0.2s',
+    color: '#c8a96e',
+  };
 
-  return (
-    <div
-      style={{
-        minHeight: "100vh",
-        backgroundColor: "#050508",
-        fontFamily: "'Segoe UI', system-ui, -apple-system, sans-serif",
-        color: "#e8e0d0",
-        padding: "0",
-        margin: "0",
-      }}
-    >
-      <div
-        style={{
-          background:
-            "linear-gradient(135deg, #0a0a12 0%, #050508 50%, #0a0806 100%)",
-          borderBottom: "1px solid rgba(200, 169, 110, 0.2)",
-          padding: "20px 32px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          position: "sticky",
-          top: 0,
-          zIndex: 100,
-          backdropFilter: "blur(10px)",
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-          <div
-            style={{
-              width: "42px",
-              height: "42px",
-              background:
-                "linear-gradient(135deg, #c8a96e 0%, #a07840 100%)",
-              borderRadius: "10px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: "20px",
-              boxShadow: "0 0 20px rgba(200, 169, 110, 0.4)",
-            }}
-          >
-            🎓
-          </div>
-          <div>
-            <div
-              style={{
-                fontSize: "20px",
-                fontWeight: "700",
-                background:
-                  "linear-gradient(135deg, #c8a96e 0%, #e8d4a8 100%)",
-                WebkitBackgroundClip: "text",
-                WebkitTextFillColor: "transparent",
-                letterSpacing: "0.5px",
-              }}
-            >
-              AcadémIA Pro
-            </div>
-            <div
-              style={{
-                fontSize: "11px",
-                color: "rgba(200, 169, 110, 0.6)",
-                letterSpacing: "2px",
-                textTransform: "uppercase",
-              }}
-            >
-              Gestion des Certificats
-            </div>
-          </div>
-        </div>
+  const iconBtnDangerStyle: React.CSSProperties = {
+    ...iconBtnStyle,
+    border: '1px solid rgba(239, 68, 68, 0.2)',
+    background: 'rgba(239, 68, 68, 0.06)',
+    color: '#ef4444',
+  };
 
-        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-              backgroundColor: "rgba(200, 169, 110, 0.08)",
-              border: "1px solid rgba(200, 169, 110, 0.2)",
-              borderRadius: "20px",
-              padding: "8px 16px",
-              fontSize: "13px",
-              color: "rgba(200, 169, 110, 0.8)",
-            }}
-          >
-            <span
-              style={{
-                width: "7px",
-                height: "7px",
-                backgroundColor: "#6ec87a",
-                borderRadius: "50%",
-                display: "inline-block",
-                boxShadow: "0 0 6px #6ec87a",
-              }}
-            />
-            Admin Dashboard
-          </div>
-          <div
-            style={{
-              width: "36px",
-              height: "36px",
-              background:
-                "linear-gradient(135deg, #c8a96e 0%, #a07840 100%)",
-              borderRadius: "50%",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: "14px",
-              fontWeight: "700",
-              color: "#050508",
-              cursor: "pointer",
-            }}
-          >
-            A
-          </div>
-        </div>
-      </div>
+  const emptyStateStyle: React.CSSProperties = {
+    textAlign: 'center' as const,
+    padding: '80px 40px',
+    color: 'rgba(232, 224, 208, 0.4)',
+  };
 
-      <div style={{ padding: "32px", maxWidth: "1400px", margin: "0 auto" }}>
-        <div
-          style={{
-            display: "flex",
-            alignItems: "flex-start",
-            justifyContent: "space-between",
-            marginBottom: "32px",
-            flexWrap: "wrap",
-            gap: "16px",
-          }}
-        >
-          <div>
-            <h1
-              style={{
-                fontSize: "28px",
-                fontWeight: "700",
-                margin: "0 0 6px 0",
-                color: "#e8e0d0",
-                letterSpacing: "-0.5px",
-              }}
-            >
-              Tableau de Bord Certificats
-            </h1>
-            <p
-              style={{
-                margin: 0,
-                fontSize: "14px",
-                color: "rgba(232, 224, 208, 0.4)",
-              }}
-            >
-              Décembre 2024 — Vue d'ensemble & Administration
-            </p>
-          </div>
-
-          <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-            <button
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
-                padding: "10px 18px",
-                backgroundColor: "rgba(200, 169, 110, 0.1)",
-                border: "1px solid rgba(200, 169, 110, 0.3)",
-                borderRadius: "8px",
-                color: "#c8a96e",
-                fontSize: "13px",
-                fontWeight: "600",
-                cursor: "pointer",
-                transition: "all 0.2s",
-              }}
-            >
-              <span>📄</span>
-              Rapport Mensuel
-            </button>
-            <button
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
-                padding: "10px 18px",
-                background:
-                  "linear-gradient(135deg, #c8a96e 0%, #a07840 100%)",
-                border: "none",
-                borderRadius: "8px",
-                color: "#050508",
-                fontSize: "13px",
-                fontWeight: "700",
-                cursor: "pointer",
-                boxShadow: "0 4px 15px rgba(200, 169, 110, 0.3)",
-              }}
-            >
-              <span>✨</span>
-              Générer Certificat
-            </button>
-          </div>
-        </div>
-
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-            gap: "16px",
-            marginBottom: "28px",
-          }}
-        >
-          {[
-            {
-              label: "Total Certificats",
-              value: stats.total.toLocaleString(),
-              icon: "🏆",
-              sub: "+12% vs année précédente",
-              accent: "#c8a96e",
-              glow: "rgba(200, 169, 110, 0.15)",
-            },
-            {
-              label: "Ce Mois",
-              value: stats.thiMonth,
-              icon: "📅",
-              sub: "Novembre 2024",
-              accent: "#6ec87a",
-              glow: "rgba(110, 200, 122, 0.15)",
-            },
-            {
-              label: "Vérifications QR",
-              value: stats.qrVerifications,
-              icon: "🔍",
-              sub: "Ce mois",
-              accent: "#6eb5c8",
-              glow: "rgba(110, 181, 200, 0.15)",
-            },
-            {
-              label: "Taux de Réussite",
-              value: "94.2%",
-              icon: "📈",
-              sub: "Moyenne générale",
-              accent: "#c86e6e",
-              glow: "rgba(200, 110, 110, 0.15)",
-            },
-          ].map((card, index) => (
-            <div
-              key={index}
-              style={{
-                backgroundColor: "#0d0d15",
-                border: `1px solid ${card.accent}30`,
-                borderRadius: "14px",
-                padding: "22px",
-                position: "relative",
-                overflow: "hidden",
-                boxShadow: `0 4px 24px ${card.glow}`,
-              }}
-            >
-              <div
-                style={{
-                  position: "absolute",
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  height: "2px",
-                  background: `linear-gradient(90deg, transparent, ${card.accent}, transparent)`,
-                }}
-              />
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "flex-start",
-                  marginBottom: "14px",
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: "11px",
-                    color: "rgba(232, 224, 208, 0.4)",
-                    textTransform: "uppercase",
-                    letterSpacing: "1.5px",
-                    fontWeight: "600",
-                  }}
-                >
-                  {card.label}
-                </div>
-                <div
-                  style={{
-                    width: "32px",
-                    height: "32px",
-                    backgroundColor: `${card.accent}15`,
-                    borderRadius: "8px",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: "16px",
-                  }}
-                >
-                  {card.icon}
-                </div>
-              </div>
-              <div
-                style={{
-                  fontSize: "32px",
-                  fontWeight: "800",
-                  color: card.accent,
-                  marginBottom: "6px",
-                  lineHeight: 1,
-                }}
-              >
-                {card.value}
-              </div>
-              <div
-                style={{
-                  fontSize: "11px",
-                  color: "rgba(232, 224, 208, 0.35)",
-                }}
-              >
-                {card.sub}
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr",
-            gap: "20px",
-            marginBottom: "28px",
-          }}
-        >
-          <div
-            style={{
-              backgroundColor: "#0d0d15",
-              border: "1px solid rgba(200, 169, 110, 0.15)",
-              borderRadius: "14px",
-              padding: "24px",
-              position: "relative",
-              overflow: "hidden",
-            }}
-          >
-            <div
-              style={{
-                position: "absolute",
-                top: 0,
-                left: 0,
-                right: 0,
-                height: "2px",
-                background:
-                  "linear-gradient(90deg, transparent, #c8a96e, transparent)",
-              }}
-            />
-            <h3
-              style={{
-                margin: "0 0 20px 0",
-                fontSize: "15px",
-                fontWeight: "600",
-                color: "#e8e0d0",
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
-              }}
-            >
-              <span
-                style={{
-                  width: "20px",
-                  height: "20px",
-                  backgroundColor: "rgba(200, 169, 110, 0.2)",
-                  borderRadius: "4px",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: "11px",
-                }}
-              >
-                📊
-              </span>
-              Répartition par Niveau
-            </h3>
-
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "14px",
-              }}
-            >
-              {levelData.map(([level, count]) => (
-                <div key={level}>
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      marginBottom: "6px",
-                    }}
+  const footerStyle: React.CSSProperties = {
+    borderTop: '1px solid rgba(200, 169, 110, 0.1)',
+    padding: '16px 28px',
+    display: 'flex',
+    alignItems: 'center',
+    just
