@@ -1,4 +1,3 @@
-```tsx
 // app/layout.tsx
 import type { Metadata } from "next";
 import { Georgia } from "next/font/google";
