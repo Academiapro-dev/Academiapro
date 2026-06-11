@@ -1,4 +1,3 @@
-```tsx
 // app/dashboard/page.tsx
 'use client';
 
