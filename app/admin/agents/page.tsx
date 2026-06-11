@@ -1,428 +1,400 @@
-export default function AgentsDashboard() {
+export default async function AgentsPage() {
   const agents = [
     {
       id: 1,
       name: "Mr Comptable",
-      icon: "🧾",
-      status: "actif",
-      lastAction: "Génération bilan mensuel Q4",
-      lastActionTime: "Il y a 3 min",
-      kpis: [
-        { label: "Factures traitées", value: "247", unit: "aujourd'hui" },
-        { label: "CA analysé", value: "€124K", unit: "ce mois" },
-        { label: "Écritures auto", value: "1.2K", unit: "total" },
-      ],
-      color: "#c8a96e",
-      bgAccent: "rgba(200, 169, 110, 0.08)",
+      role: "Comptabilité & Finance",
+      status: "active",
+      emoji: "📊",
+      kpis: {
+        tasksCompleted: 142,
+        successRate: 98.5,
+        avgResponseTime: "1.2s",
+        activeUsers: 34,
+      },
+      lastAction: "Génération bilan Q4 2024 pour client Dupont SARL",
+      lastActionTime: "Il y a 3 minutes",
+      color: "#4ade80",
     },
     {
       id: 2,
       name: "Mr Juridique",
-      icon: "⚖️",
-      status: "actif",
-      lastAction: "Rédaction contrat SaaS client Nexus",
-      lastActionTime: "Il y a 11 min",
-      kpis: [
-        { label: "Contrats rédigés", value: "34", unit: "ce mois" },
-        { label: "Conformités vérifiées", value: "89", unit: "total" },
-        { label: "Alertes légales", value: "2", unit: "en cours" },
-      ],
-      color: "#a78bfa",
-      bgAccent: "rgba(167, 139, 250, 0.08)",
+      role: "Droit & Conformité",
+      status: "active",
+      emoji: "⚖️",
+      kpis: {
+        tasksCompleted: 89,
+        successRate: 99.1,
+        avgResponseTime: "2.1s",
+        activeUsers: 21,
+      },
+      lastAction: "Rédaction contrat de prestation de services SAS TechVision",
+      lastActionTime: "Il y a 7 minutes",
+      color: "#60a5fa",
     },
     {
       id: 3,
       name: "Agent Marketing",
-      icon: "📣",
-      status: "actif",
-      lastAction: "Campagne email automatisée — segment B2B",
-      lastActionTime: "Il y a 7 min",
-      kpis: [
-        { label: "Campagnes actives", value: "8", unit: "en cours" },
-        { label: "Leads générés", value: "312", unit: "ce mois" },
-        { label: "Taux conversion", value: "4.7%", unit: "moy." },
-      ],
-      color: "#34d399",
-      bgAccent: "rgba(52, 211, 153, 0.08)",
+      role: "Stratégie & Communication",
+      status: "active",
+      emoji: "📣",
+      kpis: {
+        tasksCompleted: 203,
+        successRate: 96.8,
+        avgResponseTime: "0.9s",
+        activeUsers: 58,
+      },
+      lastAction: "Création campagne LinkedIn pour lancement produit NovaTech",
+      lastActionTime: "Il y a 1 minute",
+      color: "#f472b6",
     },
     {
       id: 4,
-      name: "Agent Certificateur",
-      icon: "🏅",
-      status: "actif",
-      lastAction: "Validation certification Qualiopi dossier #442",
-      lastActionTime: "Il y a 22 min",
-      kpis: [
-        { label: "Dossiers validés", value: "56", unit: "ce mois" },
-        { label: "En attente", value: "12", unit: "dossiers" },
-        { label: "Taux réussite", value: "97.2%", unit: "" },
-      ],
-      color: "#f59e0b",
-      bgAccent: "rgba(245, 158, 11, 0.08)",
-    },
-    {
-      id: 5,
-      name: "Agent INPI",
-      icon: "🔏",
-      status: "actif",
-      lastAction: "Dépôt marque AcadémIA — classe 41 confirmée",
-      lastActionTime: "Il y a 45 min",
-      kpis: [
-        { label: "Dépôts traités", value: "19", unit: "ce mois" },
-        { label: "Marques protégées", value: "143", unit: "total" },
-        { label: "Délai moyen", value: "2.3j", unit: "traitement" },
-      ],
-      color: "#60a5fa",
-      bgAccent: "rgba(96, 165, 250, 0.08)",
-    },
-    {
-      id: 6,
-      name: "Agent Tuteur",
-      icon: "🎓",
-      status: "actif",
-      lastAction: "Session live 38 apprenants — module IA avancée",
-      lastActionTime: "Il y a 2 min",
-      kpis: [
-        { label: "Apprenants actifs", value: "1.4K", unit: "aujourd'hui" },
-        { label: "Modules complétés", value: "287", unit: "ce mois" },
-        { label: "Satisfaction", value: "4.9/5", unit: "" },
-      ],
-      color: "#f472b6",
-      bgAccent: "rgba(244, 114, 182, 0.08)",
-    },
-    {
-      id: 7,
-      name: "Agent Commercial",
-      icon: "💼",
-      status: "actif",
-      lastAction: "Proposition commerciale envoyée — prospect TechFlow",
-      lastActionTime: "Il y a 18 min",
-      kpis: [
-        { label: "Devis générés", value: "73", unit: "ce mois" },
-        { label: "Pipeline", value: "€890K", unit: "en cours" },
-        { label: "Closing rate", value: "68%", unit: "" },
-      ],
-      color: "#fb923c",
-      bgAccent: "rgba(251, 146, 60, 0.08)",
-    },
-  ];
-
-  const globalStats = [
-    {
-      label: "Actions aujourd'hui",
-      value: "2,847",
-      icon: "⚡",
-      sub: "+18% vs hier",
+      name: "Certificateur",
+      role: "Validation & Certification",
+      status: "idle",
+      emoji: "🏅",
+      kpis: {
+        tasksCompleted: 67,
+        successRate: 100,
+        avgResponseTime: "3.4s",
+        activeUsers: 12,
+      },
+      lastAction: "Validation certification ISO 9001 dossier entreprise Meridian",
+      lastActionTime: "Il y a 22 minutes",
       color: "#c8a96e",
     },
     {
-      label: "CA généré",
-      value: "€47,320",
-      icon: "💰",
-      sub: "Ce mois: €312K",
-      color: "#34d399",
-    },
-    {
-      label: "Documents traités",
-      value: "1,094",
-      icon: "📄",
-      sub: "Aujourd'hui",
+      id: 5,
+      name: "INPI",
+      role: "Propriété Intellectuelle",
+      status: "processing",
+      emoji: "🔏",
+      kpis: {
+        tasksCompleted: 45,
+        successRate: 97.7,
+        avgResponseTime: "4.8s",
+        activeUsers: 9,
+      },
+      lastAction: "Dépôt marque en cours - Société Lumière Créative Paris",
+      lastActionTime: "En cours maintenant",
       color: "#a78bfa",
     },
     {
-      label: "Agents actifs",
-      value: "7/7",
-      icon: "🤖",
-      sub: "100% opérationnels",
-      color: "#60a5fa",
+      id: 6,
+      name: "Tuteur",
+      role: "Formation & Pédagogie",
+      status: "active",
+      emoji: "🎓",
+      kpis: {
+        tasksCompleted: 318,
+        successRate: 95.2,
+        avgResponseTime: "1.5s",
+        activeUsers: 87,
+      },
+      lastAction: "Session formation comptabilité avancée - 12 apprenants actifs",
+      lastActionTime: "Il y a 2 minutes",
+      color: "#34d399",
+    },
+    {
+      id: 7,
+      name: "Commercial",
+      role: "Vente & Développement",
+      status: "active",
+      emoji: "💼",
+      kpis: {
+        tasksCompleted: 176,
+        successRate: 93.4,
+        avgResponseTime: "1.1s",
+        activeUsers: 43,
+      },
+      lastAction: "Proposition commerciale générée - Prospect GlobalEdge Consulting",
+      lastActionTime: "Il y a 5 minutes",
+      color: "#fb923c",
     },
   ];
+
+  const totalTasks = agents.reduce((sum, a) => sum + a.kpis.tasksCompleted, 0);
+  const activeAgents = agents.filter((a) => a.status === "active").length;
+  const avgSuccess =
+    agents.reduce((sum, a) => sum + a.kpis.successRate, 0) / agents.length;
+  const totalUsers = agents.reduce((sum, a) => sum + a.kpis.activeUsers, 0);
+
+  const getStatusConfig = (status: string) => {
+    switch (status) {
+      case "active":
+        return { label: "Actif", bg: "rgba(74,222,128,0.15)", color: "#4ade80", dot: "#4ade80" };
+      case "idle":
+        return { label: "En veille", bg: "rgba(200,169,110,0.15)", color: "#c8a96e", dot: "#c8a96e" };
+      case "processing":
+        return { label: "En traitement", bg: "rgba(96,165,250,0.15)", color: "#60a5fa", dot: "#60a5fa" };
+      default:
+        return { label: "Inconnu", bg: "rgba(156,163,175,0.15)", color: "#9ca3af", dot: "#9ca3af" };
+    }
+  };
 
   return (
     <div
       style={{
         minHeight: "100vh",
         backgroundColor: "#050508",
-        fontFamily:
-          "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-        color: "#ffffff",
+        fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
+        color: "#e8e0d0",
         padding: "0",
         margin: "0",
       }}
     >
-      {}
       <div
         style={{
           position: "fixed",
-          top: 0,
-          left: 0,
-          right: 0,
-          zIndex: 100,
-          backgroundColor: "rgba(5, 5, 8, 0.92)",
-          backdropFilter: "blur(20px)",
-          borderBottom: "1px solid rgba(200, 169, 110, 0.15)",
-          padding: "0 40px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          height: "72px",
+          top: "0",
+          left: "0",
+          right: "0",
+          bottom: "0",
+          backgroundImage:
+            "radial-gradient(ellipse 80% 50% at 50% -20%, rgba(200,169,110,0.08) 0%, transparent 70%), radial-gradient(ellipse 60% 40% at 80% 80%, rgba(200,169,110,0.04) 0%, transparent 60%)",
+          pointerEvents: "none",
+          zIndex: 0,
         }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-          <div
-            style={{
-              width: "40px",
-              height: "40px",
-              background:
-                "linear-gradient(135deg, #c8a96e 0%, #a07840 100%)",
-              borderRadius: "10px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: "20px",
-              boxShadow: "0 0 20px rgba(200, 169, 110, 0.3)",
-            }}
-          >
-            🎓
-          </div>
-          <div>
-            <div
-              style={{
-                fontSize: "18px",
-                fontWeight: "700",
-                background:
-                  "linear-gradient(135deg, #c8a96e 0%, #e8c98e 50%, #c8a96e 100%)",
-                WebkitBackgroundClip: "text",
-                WebkitTextFillColor: "transparent",
-                letterSpacing: "-0.3px",
-              }}
-            >
-              AcadémIA Pro
-            </div>
-            <div
-              style={{ fontSize: "11px", color: "rgba(255,255,255,0.4)", marginTop: "1px" }}
-            >
-              Centre de Contrôle IA
-            </div>
-          </div>
-        </div>
+      />
 
-        <div style={{ display: "flex", alignItems: "center", gap: "24px" }}>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-              padding: "6px 14px",
-              backgroundColor: "rgba(52, 211, 153, 0.1)",
-              border: "1px solid rgba(52, 211, 153, 0.2)",
-              borderRadius: "20px",
-            }}
-          >
+      <div style={{ position: "relative", zIndex: 1 }}>
+        <header
+          style={{
+            borderBottom: "1px solid rgba(200,169,110,0.15)",
+            padding: "20px 40px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            backdropFilter: "blur(10px)",
+            backgroundColor: "rgba(5,5,8,0.8)",
+            position: "sticky",
+            top: 0,
+            zIndex: 100,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
             <div
               style={{
-                width: "7px",
-                height: "7px",
-                backgroundColor: "#34d399",
-                borderRadius: "50%",
-                boxShadow: "0 0 8px #34d399",
-                animation: "pulse 2s infinite",
-              }}
-            />
-            <span style={{ fontSize: "12px", color: "#34d399", fontWeight: "600" }}>
-              Tous systèmes opérationnels
-            </span>
-          </div>
-
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "10px",
-              padding: "6px 16px 6px 10px",
-              backgroundColor: "rgba(200, 169, 110, 0.08)",
-              border: "1px solid rgba(200, 169, 110, 0.2)",
-              borderRadius: "24px",
-              cursor: "pointer",
-            }}
-          >
-            <div
-              style={{
-                width: "30px",
-                height: "30px",
+                width: "40px",
+                height: "40px",
+                borderRadius: "10px",
                 background: "linear-gradient(135deg, #c8a96e, #a07840)",
-                borderRadius: "50%",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                fontSize: "14px",
+                fontSize: "20px",
+                boxShadow: "0 0 20px rgba(200,169,110,0.3)",
               }}
             >
-              👤
+              🤖
             </div>
             <div>
-              <div style={{ fontSize: "12px", fontWeight: "600", color: "#c8a96e" }}>
-                Admin
+              <h1
+                style={{
+                  margin: 0,
+                  fontSize: "20px",
+                  fontWeight: "700",
+                  background: "linear-gradient(135deg, #c8a96e, #e8d5a3)",
+                  WebkitBackgroundClip: "text",
+                  WebkitTextFillColor: "transparent",
+                  letterSpacing: "-0.3px",
+                }}
+              >
+                AcadémIA Pro
+              </h1>
+              <p
+                style={{
+                  margin: 0,
+                  fontSize: "12px",
+                  color: "rgba(200,169,110,0.6)",
+                  letterSpacing: "0.5px",
+                }}
+              >
+                PANNEAU ADMINISTRATION AGENTS IA
+              </p>
+            </div>
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: "24px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <div
+                style={{
+                  width: "8px",
+                  height: "8px",
+                  borderRadius: "50%",
+                  backgroundColor: "#4ade80",
+                  boxShadow: "0 0 8px #4ade80",
+                  animation: "pulse 2s infinite",
+                }}
+              />
+              <span style={{ fontSize: "13px", color: "rgba(232,224,208,0.6)" }}>
+                Supabase connecté
+              </span>
+            </div>
+            <div
+              style={{
+                padding: "8px 16px",
+                borderRadius: "8px",
+                border: "1px solid rgba(200,169,110,0.3)",
+                backgroundColor: "rgba(200,169,110,0.08)",
+                fontSize: "13px",
+                color: "#c8a96e",
+                cursor: "pointer",
+              }}
+            >
+              Admin ▾
+            </div>
+          </div>
+        </header>
+
+        <main style={{ padding: "40px" }}>
+          <div style={{ marginBottom: "40px" }}>
+            <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: "8px" }}>
+              <div>
+                <h2
+                  style={{
+                    margin: "0 0 6px 0",
+                    fontSize: "28px",
+                    fontWeight: "800",
+                    color: "#e8e0d0",
+                    letterSpacing: "-0.5px",
+                  }}
+                >
+                  Vue d'ensemble des Agents
+                </h2>
+                <p style={{ margin: 0, fontSize: "14px", color: "rgba(232,224,208,0.45)" }}>
+                  Surveillance en temps réel · 7 agents intelligents déployés
+                </p>
               </div>
-              <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.35)" }}>
-                Super Administrateur
+              <div
+                style={{
+                  fontSize: "12px",
+                  color: "rgba(200,169,110,0.5)",
+                  letterSpacing: "0.5px",
+                }}
+              >
+                DERNIÈRE MAJ : {new Date().toLocaleTimeString("fr-FR")}
               </div>
             </div>
           </div>
-        </div>
-      </div>
 
-      {}
-      <div style={{ paddingTop: "72px" }}>
-        {}
-        <div
-          style={{
-            padding: "48px 40px 32px",
-            position: "relative",
-            overflow: "hidden",
-          }}
-        >
           <div
             style={{
-              position: "absolute",
-              top: "-100px",
-              left: "50%",
-              transform: "translateX(-50%)",
-              width: "600px",
-              height: "300px",
-              background:
-                "radial-gradient(ellipse, rgba(200, 169, 110, 0.06) 0%, transparent 70%)",
-              pointerEvents: "none",
+              display: "grid",
+              gridTemplateColumns: "repeat(4, 1fr)",
+              gap: "16px",
+              marginBottom: "40px",
             }}
-          />
+          >
+            {[
+              { label: "Tâches Complétées", value: totalTasks.toLocaleString(), icon: "✅", sub: "Total cumulé", change: "+12%" },
+              { label: "Agents Actifs", value: `${activeAgents}/7`, icon: "🟢", sub: "En ce moment", change: "Optimal" },
+              { label: "Taux de Succès", value: `${avgSuccess.toFixed(1)}%`, icon: "🎯", sub: "Moyenne globale", change: "+0.3%" },
+              { label: "Utilisateurs Actifs", value: totalUsers.toString(), icon: "👥", sub: "Sessions en cours", change: "+8%" },
+            ].map((stat, i) => (
+              <div
+                key={i}
+                style={{
+                  backgroundColor: "rgba(255,255,255,0.02)",
+                  border: "1px solid rgba(200,169,110,0.12)",
+                  borderRadius: "16px",
+                  padding: "24px",
+                  position: "relative",
+                  overflow: "hidden",
+                  transition: "all 0.3s ease",
+                }}
+              >
+                <div
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    height: "2px",
+                    background: "linear-gradient(90deg, transparent, #c8a96e, transparent)",
+                    opacity: 0.5,
+                  }}
+                />
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "16px" }}>
+                  <span style={{ fontSize: "24px" }}>{stat.icon}</span>
+                  <span
+                    style={{
+                      fontSize: "11px",
+                      padding: "3px 8px",
+                      borderRadius: "20px",
+                      backgroundColor: "rgba(74,222,128,0.1)",
+                      color: "#4ade80",
+                      fontWeight: "600",
+                    }}
+                  >
+                    {stat.change}
+                  </span>
+                </div>
+                <div
+                  style={{
+                    fontSize: "32px",
+                    fontWeight: "800",
+                    color: "#c8a96e",
+                    letterSpacing: "-1px",
+                    marginBottom: "4px",
+                  }}
+                >
+                  {stat.value}
+                </div>
+                <div style={{ fontSize: "13px", color: "rgba(232,224,208,0.7)", fontWeight: "600", marginBottom: "2px" }}>
+                  {stat.label}
+                </div>
+                <div style={{ fontSize: "11px", color: "rgba(232,224,208,0.35)" }}>{stat.sub}</div>
+              </div>
+            ))}
+          </div>
 
           <div
             style={{
-              display: "flex",
-              alignItems: "flex-start",
-              justifyContent: "space-between",
-              flexWrap: "wrap",
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(380px, 1fr))",
               gap: "20px",
             }}
           >
-            <div>
-              <div
-                style={{
-                  fontSize: "11px",
-                  fontWeight: "700",
-                  letterSpacing: "3px",
-                  color: "#c8a96e",
-                  textTransform: "uppercase",
-                  marginBottom: "8px",
-                  opacity: 0.8,
-                }}
-              >
-                Tableau de bord
-              </div>
-              <h1
-                style={{
-                  fontSize: "36px",
-                  fontWeight: "800",
-                  margin: "0 0 8px 0",
-                  letterSpacing: "-1px",
-                  lineHeight: 1.1,
-                }}
-              >
-                Dashboard Agents IA
-              </h1>
-              <p style={{ color: "rgba(255,255,255,0.45)", margin: 0, fontSize: "15px" }}>
-                Supervision et contrôle de vos 7 agents intelligents en temps réel
-              </p>
-            </div>
+            {agents.map((agent) => {
+              const statusConfig = getStatusConfig(agent.status);
+              return (
+                <div
+                  key={agent.id}
+                  style={{
+                    backgroundColor: "rgba(255,255,255,0.025)",
+                    border: "1px solid rgba(200,169,110,0.1)",
+                    borderRadius: "20px",
+                    padding: "0",
+                    overflow: "hidden",
+                    position: "relative",
+                    transition: "all 0.3s ease",
+                  }}
+                >
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      height: "3px",
+                      background: `linear-gradient(90deg, ${agent.color}60, ${agent.color}, ${agent.color}60)`,
+                    }}
+                  />
 
-            <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
-              <div
-                style={{
-                  padding: "8px 16px",
-                  backgroundColor: "rgba(255,255,255,0.04)",
-                  border: "1px solid rgba(255,255,255,0.08)",
-                  borderRadius: "10px",
-                  fontSize: "13px",
-                  color: "rgba(255,255,255,0.5)",
-                  cursor: "pointer",
-                }}
-              >
-                📊 Exporter rapport
-              </div>
-              <div
-                style={{
-                  padding: "8px 20px",
-                  background: "linear-gradient(135deg, #c8a96e 0%, #a07840 100%)",
-                  borderRadius: "10px",
-                  fontSize: "13px",
-                  fontWeight: "600",
-                  color: "#050508",
-                  cursor: "pointer",
-                  boxShadow: "0 4px 20px rgba(200, 169, 110, 0.25)",
-                }}
-              >
-                ⚙️ Configuration
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {}
-        <div
-          style={{
-            padding: "0 40px 40px",
-            display: "grid",
-            gridTemplateColumns: "repeat(4, 1fr)",
-            gap: "16px",
-          }}
-        >
-          {globalStats.map((stat, i) => (
-            <div
-              key={i}
-              style={{
-                backgroundColor: "rgba(255,255,255,0.025)",
-                border: `1px solid rgba(255,255,255,0.07)`,
-                borderRadius: "16px",
-                padding: "24px",
-                position: "relative",
-                overflow: "hidden",
-                transition: "all 0.3s ease",
-              }}
-            >
-              <div
-                style={{
-                  position: "absolute",
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  height: "2px",
-                  background: `linear-gradient(90deg, transparent, ${stat.color}, transparent)`,
-                  opacity: 0.6,
-                }}
-              />
-              <div
-                style={{
-                  position: "absolute",
-                  top: "-30px",
-                  right: "-20px",
-                  fontSize: "70px",
-                  opacity: 0.04,
-                  transform: "rotate(-15deg)",
-                }}
-              >
-                {stat.icon}
-              </div>
-
-              <div
-                style={{
-                  fontSize: "28px",
-                  marginBottom: "8px",
-                  filter: "drop-shadow(0 0 8px rgba(255,255,255,0.2))",
-                }}
-              >
-                {stat.icon}
-              </div>
-              <div
-                style={{
-                  fontSize: "32px",
-                  fontWeight: "800",
+                  <div
+                    style={{
+                      padding: "24px 24px 20px 24px",
+                      borderBottom: "1px solid rgba(200,169,110,0.06)",
+                      display: "flex",
+                      alignItems: "flex-start",
+                      justifyContent: "space-between",
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
+                      <div
+                        style={{
+                          width: "52px",
+                          height: "52px",
+                          borderRadius: "
