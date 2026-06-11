@@ -1,4 +1,3 @@
-```typescript
 // app/api/agent-marketing/google-ads/generer-campagnes/route.ts
 
 import { NextRequest, NextResponse } from "next/server";
