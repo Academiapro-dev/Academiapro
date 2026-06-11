@@ -1,428 +1,471 @@
-export default function MesSéances() {
-  const styles: Record<string, React.CSSProperties> = {
-    page: {
-      minHeight: "100vh",
-      backgroundColor: "#050508",
-      color: "#e8e0d0",
-      fontFamily: "'Segoe UI', system-ui, -apple-system, sans-serif",
-      padding: "0",
-      margin: "0",
-    },
-    header: {
-      background: "linear-gradient(135deg, #0a0a0f 0%, #12100e 100%)",
-      borderBottom: "1px solid rgba(200, 169, 110, 0.2)",
-      padding: "24px 40px",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "space-between",
-    },
-    logo: {
-      fontSize: "22px",
-      fontWeight: "700",
-      color: "#c8a96e",
-      letterSpacing: "0.5px",
-    },
-    logoSub: {
-      fontSize: "11px",
-      color: "rgba(200, 169, 110, 0.6)",
-      letterSpacing: "2px",
-      textTransform: "uppercase" as const,
-      marginTop: "2px",
-    },
-    headerRight: {
-      display: "flex",
-      alignItems: "center",
-      gap: "16px",
-    },
-    avatar: {
-      width: "40px",
-      height: "40px",
-      borderRadius: "50%",
-      background: "linear-gradient(135deg, #c8a96e, #9a7a3e)",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      fontSize: "16px",
-      fontWeight: "700",
-      color: "#050508",
-      cursor: "pointer",
-    },
-    main: {
-      maxWidth: "1200px",
-      margin: "0 auto",
-      padding: "40px 40px",
-    },
-    pageTitle: {
-      fontSize: "32px",
-      fontWeight: "700",
-      color: "#ffffff",
-      marginBottom: "6px",
-    },
-    pageSubtitle: {
-      fontSize: "15px",
-      color: "rgba(232, 224, 208, 0.5)",
-      marginBottom: "40px",
-    },
-    grid: {
-      display: "grid",
-      gridTemplateColumns: "1fr 1fr",
-      gap: "24px",
-      marginBottom: "24px",
-    },
-    gridFull: {
-      display: "grid",
-      gridTemplateColumns: "1fr",
-      gap: "24px",
-      marginBottom: "24px",
-    },
-    card: {
-      background: "linear-gradient(145deg, #0d0d12 0%, #0a0a0e 100%)",
-      border: "1px solid rgba(200, 169, 110, 0.15)",
-      borderRadius: "16px",
-      padding: "28px",
-    },
-    cardGold: {
-      background: "linear-gradient(145deg, #12100a 0%, #0e0c08 100%)",
-      border: "1px solid rgba(200, 169, 110, 0.35)",
-      borderRadius: "16px",
-      padding: "28px",
-    },
-    cardHeader: {
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "space-between",
-      marginBottom: "22px",
-    },
-    cardTitle: {
-      fontSize: "16px",
-      fontWeight: "600",
-      color: "#c8a96e",
-      letterSpacing: "0.3px",
-    },
-    cardIcon: {
-      fontSize: "20px",
-      opacity: 0.7,
-    },
-    sessionItem: {
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "space-between",
-      padding: "14px 16px",
-      background: "rgba(200, 169, 110, 0.04)",
-      border: "1px solid rgba(200, 169, 110, 0.1)",
-      borderRadius: "10px",
-      marginBottom: "10px",
-    },
-    sessionLeft: {
-      display: "flex",
-      alignItems: "center",
-      gap: "14px",
-    },
-    sessionIconBox: {
-      width: "42px",
-      height: "42px",
-      borderRadius: "10px",
-      background: "rgba(200, 169, 110, 0.1)",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      fontSize: "18px",
-    },
-    sessionTitle: {
-      fontSize: "14px",
-      fontWeight: "600",
-      color: "#ffffff",
-      marginBottom: "3px",
-    },
-    sessionMeta: {
-      fontSize: "12px",
-      color: "rgba(232, 224, 208, 0.45)",
-    },
-    badgeLive: {
-      display: "inline-flex",
-      alignItems: "center",
-      gap: "5px",
-      background: "rgba(200, 169, 110, 0.12)",
-      border: "1px solid rgba(200, 169, 110, 0.3)",
-      borderRadius: "20px",
-      padding: "3px 10px",
-      fontSize: "11px",
-      color: "#c8a96e",
-      fontWeight: "600",
-      marginBottom: "4px",
-    },
-    dot: {
-      width: "6px",
-      height: "6px",
-      borderRadius: "50%",
-      background: "#c8a96e",
-    },
-    btnPrimary: {
-      background: "linear-gradient(135deg, #c8a96e 0%, #a8843e 100%)",
-      color: "#050508",
-      border: "none",
-      borderRadius: "8px",
-      padding: "8px 16px",
-      fontSize: "12px",
-      fontWeight: "700",
-      cursor: "pointer",
-      letterSpacing: "0.3px",
-      whiteSpace: "nowrap" as const,
-    },
-    btnSecondary: {
-      background: "transparent",
-      color: "#c8a96e",
-      border: "1px solid rgba(200, 169, 110, 0.4)",
-      borderRadius: "8px",
-      padding: "8px 16px",
-      fontSize: "12px",
-      fontWeight: "600",
-      cursor: "pointer",
-      letterSpacing: "0.3px",
-      whiteSpace: "nowrap" as const,
-    },
-    btnGhost: {
-      background: "rgba(200, 169, 110, 0.07)",
-      color: "rgba(232, 224, 208, 0.6)",
-      border: "1px solid rgba(200, 169, 110, 0.1)",
-      borderRadius: "8px",
-      padding: "8px 16px",
-      fontSize: "12px",
-      fontWeight: "600",
-      cursor: "pointer",
-      whiteSpace: "nowrap" as const,
-    },
-    divider: {
-      height: "1px",
-      background: "rgba(200, 169, 110, 0.1)",
-      margin: "16px 0",
-    },
-    subscriptionRow: {
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "space-between",
-      marginBottom: "12px",
-    },
-    subscriptionLabel: {
-      fontSize: "13px",
-      color: "rgba(232, 224, 208, 0.5)",
-    },
-    subscriptionValue: {
-      fontSize: "13px",
-      color: "#ffffff",
-      fontWeight: "600",
-    },
-    planBadge: {
-      display: "inline-flex",
-      alignItems: "center",
-      gap: "6px",
-      background: "linear-gradient(135deg, rgba(200,169,110,0.15), rgba(200,169,110,0.05))",
-      border: "1px solid rgba(200, 169, 110, 0.4)",
-      borderRadius: "8px",
-      padding: "4px 12px",
-      fontSize: "12px",
-      color: "#c8a96e",
-      fontWeight: "700",
-      letterSpacing: "0.5px",
-    },
-    specialtyGrid: {
-      display: "grid",
-      gridTemplateColumns: "repeat(3, 1fr)",
-      gap: "12px",
-      marginBottom: "20px",
-    },
-    specialtyCard: {
-      background: "rgba(200, 169, 110, 0.04)",
-      border: "1px solid rgba(200, 169, 110, 0.12)",
-      borderRadius: "10px",
-      padding: "14px 12px",
-      cursor: "pointer",
-      textAlign: "center" as const,
-      transition: "all 0.2s",
-    },
-    specialtyCardActive: {
-      background: "rgba(200, 169, 110, 0.12)",
-      border: "1px solid rgba(200, 169, 110, 0.45)",
-      borderRadius: "10px",
-      padding: "14px 12px",
-      cursor: "pointer",
-      textAlign: "center" as const,
-    },
-    specialtyIcon: {
-      fontSize: "22px",
-      marginBottom: "6px",
-    },
-    specialtyName: {
-      fontSize: "11px",
-      color: "rgba(232, 224, 208, 0.7)",
-      fontWeight: "600",
-      lineHeight: "1.3",
-    },
-    modeRow: {
-      display: "flex",
-      gap: "12px",
-      marginBottom: "20px",
-    },
-    modeBtn: {
-      flex: 1,
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: "8px",
-      padding: "12px",
-      background: "rgba(200, 169, 110, 0.04)",
-      border: "1px solid rgba(200, 169, 110, 0.12)",
-      borderRadius: "10px",
-      cursor: "pointer",
-      fontSize: "13px",
-      color: "rgba(232, 224, 208, 0.6)",
-      fontWeight: "600",
-    },
-    modeBtnActive: {
-      flex: 1,
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: "8px",
-      padding: "12px",
-      background: "rgba(200, 169, 110, 0.12)",
-      border: "1px solid rgba(200, 169, 110, 0.45)",
-      borderRadius: "10px",
-      cursor: "pointer",
-      fontSize: "13px",
-      color: "#c8a96e",
-      fontWeight: "700",
-    },
-    bookingBtn: {
-      width: "100%",
-      background: "linear-gradient(135deg, #c8a96e 0%, #a8843e 100%)",
-      color: "#050508",
-      border: "none",
-      borderRadius: "10px",
-      padding: "14px",
-      fontSize: "14px",
-      fontWeight: "700",
-      cursor: "pointer",
-      letterSpacing: "0.5px",
-    },
-    historyBadge: {
-      display: "inline-block",
-      padding: "2px 8px",
-      borderRadius: "6px",
-      fontSize: "10px",
-      fontWeight: "700",
-      letterSpacing: "0.5px",
-    },
-    statsRow: {
-      display: "grid",
-      gridTemplateColumns: "repeat(3, 1fr)",
-      gap: "12px",
-      marginBottom: "22px",
-    },
-    statBox: {
-      background: "rgba(200, 169, 110, 0.05)",
-      border: "1px solid rgba(200, 169, 110, 0.1)",
-      borderRadius: "10px",
-      padding: "12px",
-      textAlign: "center" as const,
-    },
-    statNumber: {
-      fontSize: "22px",
-      fontWeight: "700",
-      color: "#c8a96e",
-      lineHeight: "1",
-      marginBottom: "4px",
-    },
-    statLabel: {
-      fontSize: "10px",
-      color: "rgba(232, 224, 208, 0.4)",
-      letterSpacing: "0.5px",
-      textTransform: "uppercase" as const,
-    },
-    emptyState: {
-      textAlign: "center" as const,
-      padding: "30px 20px",
-      color: "rgba(232, 224, 208, 0.3)",
-      fontSize: "13px",
-    },
-    navTabs: {
-      display: "flex",
-      gap: "4px",
-      background: "rgba(200, 169, 110, 0.05)",
-      border: "1px solid rgba(200, 169, 110, 0.1)",
-      borderRadius: "10px",
-      padding: "4px",
-      marginBottom: "28px",
-    },
-    navTab: {
-      flex: 1,
-      padding: "10px 16px",
-      background: "transparent",
-      border: "none",
-      borderRadius: "7px",
-      color: "rgba(232, 224, 208, 0.45)",
-      fontSize: "13px",
-      fontWeight: "600",
-      cursor: "pointer",
-    },
-    navTabActive: {
-      flex: 1,
-      padding: "10px 16px",
-      background: "rgba(200, 169, 110, 0.12)",
-      border: "1px solid rgba(200, 169, 110, 0.25)",
-      borderRadius: "7px",
-      color: "#c8a96e",
-      fontSize: "13px",
-      fontWeight: "700",
-      cursor: "pointer",
-    },
-  };
+export default function MesSeances() {
+  const [activeFilter, setActiveFilter] = React.useState<string>("tous");
+  const [typeFilter, setTypeFilter] = React.useState<string>("tous");
+  const [specialiteFilter, setSpecialiteFilter] = React.useState<string>("toutes");
 
-  const upcomingSessions = [
+  const seancesAVenir = [
     {
       id: 1,
-      title: "Mathématiques avancées",
-      tutor: "Dr. Isabelle Moreau",
-      date: "Aujourd'hui",
-      time: "18h00 – 19h30",
-      mode: "Visio",
-      icon: "📐",
-      isToday: true,
+      titre: "Stratégie Marketing Digital",
+      expert: "Dr. Sophie Lemaire",
+      date: "15 Jan 2025",
+      heure: "14h00",
+      duree: "60 min",
+      type: "visio",
+      specialite: "Marketing",
+      statut: "confirmé",
+      avatar: "SL",
     },
     {
       id: 2,
-      title: "Physique quantique",
-      tutor: "Prof. Antoine Leclerc",
-      date: "Demain",
-      time: "14h00 – 15h30",
-      mode: "Visio",
-      icon: "⚛️",
-      isToday: false,
+      titre: "Optimisation SEO Avancée",
+      expert: "Marc Dupont",
+      date: "18 Jan 2025",
+      heure: "10h30",
+      duree: "45 min",
+      type: "audio",
+      specialite: "SEO",
+      statut: "en attente",
+      avatar: "MD",
     },
     {
       id: 3,
-      title: "Littérature française",
-      tutor: "Mme. Claire Dupont",
-      date: "Ven. 17 jan.",
-      time: "10h00 – 11h00",
-      mode: "Audio",
-      icon: "📖",
-      isToday: false,
+      titre: "Leadership & Management",
+      expert: "Claire Moreau",
+      date: "22 Jan 2025",
+      heure: "16h00",
+      duree: "90 min",
+      type: "visio",
+      specialite: "Management",
+      statut: "confirmé",
+      avatar: "CM",
     },
   ];
 
-  const pastSessions = [
+  const seancesPassees = [
+    {
+      id: 4,
+      titre: "Introduction à l'IA Générative",
+      expert: "Thomas Bernard",
+      date: "08 Jan 2025",
+      heure: "11h00",
+      duree: "60 min",
+      type: "visio",
+      specialite: "IA",
+      note: 5,
+      replay: true,
+      avatar: "TB",
+    },
+    {
+      id: 5,
+      titre: "Comptabilité & Finance",
+      expert: "Isabelle Roux",
+      date: "03 Jan 2025",
+      heure: "09h00",
+      duree: "45 min",
+      type: "audio",
+      specialite: "Finance",
+      note: 4,
+      replay: false,
+      avatar: "IR",
+    },
+    {
+      id: 6,
+      titre: "Growth Hacking Strategies",
+      expert: "Nicolas Petit",
+      date: "28 Dec 2024",
+      heure: "15h30",
+      duree: "75 min",
+      type: "visio",
+      specialite: "Marketing",
+      note: 5,
+      replay: true,
+      avatar: "NP",
+    },
+    {
+      id: 7,
+      titre: "Négociation Commerciale",
+      expert: "Dr. Sophie Lemaire",
+      date: "20 Dec 2024",
+      heure: "14h00",
+      duree: "60 min",
+      type: "visio",
+      specialite: "Commercial",
+      note: 4,
+      replay: true,
+      avatar: "SL",
+    },
+  ];
+
+  const abonnements = [
     {
       id: 1,
-      title: "Chimie organique",
-      tutor: "Dr. Paul Bernard",
-      date: "Lun. 13 jan.",
-      duration: "90 min",
-      score: "Excellent",
-      icon: "🧪",
-      scoreColor: "#4ade80",
+      nom: "AcadémIA Pro",
+      plan: "Annuel",
+      seancesRestantes: 8,
+      seancesTotal: 12,
+      renouvellement: "15 Mars 2025",
+      couleur: "#c8a96e",
     },
     {
       id: 2,
-      title: "Algèbre linéaire",
-      tutor: "Prof. Isabelle Moreau",
+      nom: "Accès Replays",
+      plan: "Mensuel",
+      seancesRestantes: null,
+      seancesTotal: null,
+      renouvellement: "01 Fév 2025",
+      couleur: "#7c6aae",
+    },
+  ];
+
+  const specialites = ["toutes", "Marketing", "SEO", "Management", "IA", "Finance", "Commercial"];
+
+  const filteredAVenir = seancesAVenir.filter((s) => {
+    const typeOk = typeFilter === "tous" || s.type === typeFilter;
+    const specOk = specialiteFilter === "toutes" || s.specialite === specialiteFilter;
+    return typeOk && specOk;
+  });
+
+  const filteredPassees = seancesPassees.filter((s) => {
+    const typeOk = typeFilter === "tous" || s.type === typeFilter;
+    const specOk = specialiteFilter === "toutes" || s.specialite === specialiteFilter;
+    const replayOk = activeFilter !== "replays" || s.replay === true;
+    return typeOk && specOk && replayOk;
+  });
+
+  const renderStars = (note: number) => {
+    return Array.from({ length: 5 }, (_, i) => (
+      React.createElement("span", {
+        key: i,
+        style: { color: i < note ? "#c8a96e" : "#2a2a3e", fontSize: "14px" }
+      }, "★")
+    ));
+  };
+
+  const getTypeIcon = (type: string) => {
+    if (type === "visio") return "🎥";
+    if (type === "audio") return "🎧";
+    return "📱";
+  };
+
+  const getStatutStyle = (statut: string) => {
+    if (statut === "confirmé") {
+      return {
+        background: "rgba(72, 199, 142, 0.15)",
+        color: "#48c78e",
+        border: "1px solid rgba(72, 199, 142, 0.3)",
+        padding: "3px 10px",
+        borderRadius: "20px",
+        fontSize: "11px",
+        fontWeight: "600",
+        letterSpacing: "0.5px",
+        textTransform: "uppercase" as const,
+      };
+    }
+    return {
+      background: "rgba(255, 183, 77, 0.15)",
+      color: "#ffb74d",
+      border: "1px solid rgba(255, 183, 77, 0.3)",
+      padding: "3px 10px",
+      borderRadius: "20px",
+      fontSize: "11px",
+      fontWeight: "600",
+      letterSpacing: "0.5px",
+      textTransform: "uppercase" as const,
+    };
+  };
+
+  return React.createElement(
+    "div",
+    {
+      style: {
+        minHeight: "100vh",
+        background: "#050508",
+        fontFamily: "'Segoe UI', system-ui, -apple-system, sans-serif",
+        color: "#e8e8f0",
+      },
+    },
+    React.createElement(
+      "div",
+      {
+        style: {
+          background: "linear-gradient(180deg, #0d0d1a 0%, #050508 100%)",
+          borderBottom: "1px solid rgba(200, 169, 110, 0.15)",
+          padding: "0 40px",
+        },
+      },
+      React.createElement(
+        "div",
+        {
+          style: {
+            maxWidth: "1200px",
+            margin: "0 auto",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            height: "72px",
+          },
+        },
+        React.createElement(
+          "div",
+          { style: { display: "flex", alignItems: "center", gap: "12px" } },
+          React.createElement(
+            "div",
+            {
+              style: {
+                width: "36px",
+                height: "36px",
+                background: "linear-gradient(135deg, #c8a96e, #a07840)",
+                borderRadius: "10px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: "18px",
+              },
+            },
+            "🎓"
+          ),
+          React.createElement(
+            "span",
+            {
+              style: {
+                fontSize: "20px",
+                fontWeight: "700",
+                background: "linear-gradient(135deg, #c8a96e, #e8d5a3)",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                letterSpacing: "-0.5px",
+              },
+            },
+            "AcadémIA Pro"
+          )
+        ),
+        React.createElement(
+          "div",
+          { style: { display: "flex", alignItems: "center", gap: "20px" } },
+          React.createElement(
+            "span",
+            { style: { color: "#888", fontSize: "13px" } },
+            "Tableau de bord"
+          ),
+          React.createElement(
+            "span",
+            { style: { color: "#c8a96e", fontSize: "13px", fontWeight: "600" } },
+            "Mes séances"
+          ),
+          React.createElement(
+            "span",
+            { style: { color: "#888", fontSize: "13px" } },
+            "Experts"
+          ),
+          React.createElement(
+            "div",
+            {
+              style: {
+                width: "36px",
+                height: "36px",
+                background: "linear-gradient(135deg, #c8a96e, #a07840)",
+                borderRadius: "50%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: "14px",
+                fontWeight: "700",
+                color: "#050508",
+                cursor: "pointer",
+              },
+            },
+            "JD"
+          )
+        )
+      )
+    ),
+    React.createElement(
+      "div",
+      {
+        style: {
+          maxWidth: "1200px",
+          margin: "0 auto",
+          padding: "40px 40px 80px",
+        },
+      },
+      React.createElement(
+        "div",
+        {
+          style: {
+            display: "flex",
+            alignItems: "flex-start",
+            justifyContent: "space-between",
+            marginBottom: "40px",
+            flexWrap: "wrap" as const,
+            gap: "20px",
+          },
+        },
+        React.createElement(
+          "div",
+          null,
+          React.createElement(
+            "h1",
+            {
+              style: {
+                fontSize: "32px",
+                fontWeight: "800",
+                color: "#ffffff",
+                margin: "0 0 8px 0",
+                letterSpacing: "-1px",
+              },
+            },
+            "Mes Séances"
+          ),
+          React.createElement(
+            "p",
+            { style: { color: "#666", margin: 0, fontSize: "15px" } },
+            "Gérez vos formations personnalisées avec vos experts"
+          )
+        ),
+        React.createElement(
+          "button",
+          {
+            style: {
+              background: "linear-gradient(135deg, #c8a96e, #a07840)",
+              color: "#050508",
+              border: "none",
+              padding: "14px 28px",
+              borderRadius: "12px",
+              fontSize: "14px",
+              fontWeight: "700",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              letterSpacing: "0.3px",
+              boxShadow: "0 4px 20px rgba(200, 169, 110, 0.3)",
+            },
+          },
+          React.createElement("span", { style: { fontSize: "16px" } }, "+"),
+          "Réserver une séance"
+        )
+      ),
+      React.createElement(
+        "div",
+        {
+          style: {
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+            gap: "16px",
+            marginBottom: "40px",
+          },
+        },
+        abonnements.map((abo) =>
+          React.createElement(
+            "div",
+            {
+              key: abo.id,
+              style: {
+                background: "linear-gradient(135deg, #0d0d1a, #12121f)",
+                border: `1px solid ${abo.couleur}30`,
+                borderRadius: "16px",
+                padding: "24px",
+                position: "relative" as const,
+                overflow: "hidden",
+              },
+            },
+            React.createElement("div", {
+              style: {
+                position: "absolute" as const,
+                top: 0,
+                left: 0,
+                right: 0,
+                height: "3px",
+                background: `linear-gradient(90deg, ${abo.couleur}, transparent)`,
+              },
+            }),
+            React.createElement(
+              "div",
+              {
+                style: {
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "flex-start",
+                  marginBottom: "16px",
+                },
+              },
+              React.createElement(
+                "div",
+                null,
+                React.createElement(
+                  "div",
+                  {
+                    style: {
+                      fontSize: "12px",
+                      color: "#555",
+                      textTransform: "uppercase" as const,
+                      letterSpacing: "1px",
+                      marginBottom: "4px",
+                    },
+                  },
+                  "Abonnement actif"
+                ),
+                React.createElement(
+                  "div",
+                  { style: { fontSize: "16px", fontWeight: "700", color: "#fff" } },
+                  abo.nom
+                )
+              ),
+              React.createElement(
+                "span",
+                {
+                  style: {
+                    background: `${abo.couleur}20`,
+                    color: abo.couleur,
+                    border: `1px solid ${abo.couleur}40`,
+                    padding: "4px 10px",
+                    borderRadius: "20px",
+                    fontSize: "11px",
+                    fontWeight: "600",
+                  },
+                },
+                abo.plan
+              )
+            ),
+            abo.seancesRestantes !== null &&
+              React.createElement(
+                "div",
+                { style: { marginBottom: "12px" } },
+                React.createElement(
+                  "div",
+                  {
+                    style: {
+                      display: "flex",
+                      justifyContent: "space-between",
+                      marginBottom: "6px",
+                    },
+                  },
+                  React.createElement(
+                    "span",
+                    { style: { fontSize: "13px", color: "#888" } },
+                    "Séances restantes"
+                  ),
+                  React.createElement(
+                    "span",
+                    { style: { fontSize: "13px", color: "#fff", fontWeight: "600" } },
+                    `${abo.seancesRestantes}/${abo.seancesTotal}`
+                  )
+                ),
+                React.createElement(
+                  "div",
+                  {
+                    style: {
+                      height: "6px",
+                      background: "#1a1a2e",
+                      borderRadius: "3px",
+                      overflow: "hidden",
+                    },
+                  },
+                  React.createElement("div", {
+                    style: {
+                      height: "100%",
+                      width: `${((abo.seancesRestantes ?? 0) / (abo.seancesTotal ?? 1)) * 100}%`,
+                      background: `linear-gradient(90deg, ${abo.couleur}, ${abo.couleur}80)`,
+                      borderRadius: "3px",
+                    },
