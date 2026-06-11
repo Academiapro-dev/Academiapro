@@ -2,7 +2,7 @@ import { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "Blog - AcadémIA Pro",
-  description: "Articles et conseils sur la formation et l'IA",
+  description: "Nos articles",
 };
 
 export default function BlogPage() {
