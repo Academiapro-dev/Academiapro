@@ -407,3 +407,4 @@ export default function MentionsLegales() {
           </div>
           <div style={{ marginTop: '20px' }}>
             <p style={styles.parag
+}}
