@@ -1,4 +1,3 @@
-```typescript
 // app/api/auth/[...nextauth]/route.ts
 
 import NextAuth, { NextAuthOptions, Session, User } from "next-auth";
