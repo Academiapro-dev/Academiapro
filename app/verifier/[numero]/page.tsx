@@ -434,3 +434,4 @@ export default async function VerifierPage({ params }: { params: { numero: strin
           <div style={styles.card}>
             <div style={styles.cardTopStripe} />
             <div style
+}
