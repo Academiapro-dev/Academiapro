@@ -1,4 +1,3 @@
-```typescript
 // app/api/sessions/generate-report/route.ts
 
 import { NextRequest, NextResponse } from "next/server";
@@ -279,4 +278,4 @@ function generateEmailHTML(
     <!-- Greeting -->
     <div style="background: white; border-radius: 16px; padding: 28px; margin-top: 24px; box-shadow: 0 2px 12px rgba(102,126,234,0.08);">
       <p style="color: #374151; font-size: 16px; line-height: 1.6; margin: 0 0 16px 0;">
-        Bonjour <strong style="color: #667EEA;">${prenom}</strong> 
+        Bonjour <strong style="color: #667EEA;">${prenom}</strong>
