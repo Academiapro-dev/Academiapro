@@ -368,3 +368,4 @@ export default function WebinarPage() {
               border: `2px solid rgba(200,169,110,0.4)`,
               display: "flex",
               alignItems: "center",
+}}}
