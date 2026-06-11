@@ -476,3 +476,4 @@ export default function AcademiaPro() {
           </div>
         </div>
       </section>
+}
