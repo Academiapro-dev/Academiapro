@@ -1,4 +1,3 @@
-```typescript
 // app/api/tunnel-vente/route.ts
 // Types et interfaces globaux
 
