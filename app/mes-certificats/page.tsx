@@ -1,413 +1,473 @@
 import React, { useState } from "react";
 
-const certifications = [
+const certificates = [
   {
     id: 1,
-    formation: "React & TypeScript Avancé",
-    niveau: "Master",
-    mention: "Très Bien",
-    date: "15 Mars 2024",
-    pdf: "#",
-    linkedin: "#",
+    formation: "Machine Learning Specialization",
+    niveau: 1,
+    mention: "Distinction",
+    date: "Mars 2024",
+    organisme: "Coursera / Stanford",
+    fichier: "ml-specialization.pdf",
+    linkedin: "https://linkedin.com/in/yourprofile",
   },
   {
     id: 2,
-    formation: "Node.js & API REST",
-    niveau: "Expert",
-    mention: "Bien",
-    date: "22 Janvier 2024",
-    pdf: "#",
-    linkedin: "#",
+    formation: "AWS Solutions Architect",
+    niveau: 2,
+    mention: "Excellence",
+    date: "Janvier 2024",
+    organisme: "Amazon Web Services",
+    fichier: "aws-architect.pdf",
+    linkedin: "https://linkedin.com/in/yourprofile",
   },
   {
     id: 3,
-    formation: "UX/UI Design Fondamentaux",
-    niveau: "Certificat",
-    mention: "Assez Bien",
-    date: "10 Novembre 2023",
-    pdf: "#",
-    linkedin: "#",
+    formation: "React Advanced Patterns",
+    niveau: 1,
+    mention: "Très Bien",
+    date: "Novembre 2023",
+    organisme: "Frontend Masters",
+    fichier: "react-advanced.pdf",
+    linkedin: "https://linkedin.com/in/yourprofile",
   },
   {
     id: 4,
-    formation: "Introduction au Cloud AWS",
-    niveau: "Attestation",
-    mention: "Passable",
-    date: "05 Septembre 2023",
-    pdf: "#",
-    linkedin: "#",
+    formation: "Data Science Professional",
+    niveau: 3,
+    mention: "Excellence",
+    date: "Septembre 2023",
+    organisme: "IBM / Coursera",
+    fichier: "data-science.pdf",
+    linkedin: "https://linkedin.com/in/yourprofile",
   },
   {
     id: 5,
-    formation: "Machine Learning avec Python",
-    niveau: "Expert",
-    mention: "Très Bien",
-    date: "18 Juillet 2023",
-    pdf: "#",
-    linkedin: "#",
+    formation: "Docker & Kubernetes Mastery",
+    niveau: 2,
+    mention: "Bien",
+    date: "Juillet 2023",
+    organisme: "Udemy",
+    fichier: "docker-k8s.pdf",
+    linkedin: "https://linkedin.com/in/yourprofile",
   },
   {
     id: 6,
-    formation: "Cybersécurité Essentielle",
-    niveau: "Master",
+    formation: "TypeScript Expert Certification",
+    niveau: 4,
+    mention: "Distinction",
+    date: "Mai 2023",
+    organisme: "Microsoft Learn",
+    fichier: "typescript-expert.pdf",
+    linkedin: "https://linkedin.com/in/yourprofile",
+  },
+  {
+    id: 7,
+    formation: "Cybersecurity Fundamentals",
+    niveau: 1,
     mention: "Bien",
-    date: "02 Mai 2023",
-    pdf: "#",
-    linkedin: "#",
+    date: "Février 2023",
+    organisme: "CISCO Networking Academy",
+    fichier: "cybersec.pdf",
+    linkedin: "https://linkedin.com/in/yourprofile",
+  },
+  {
+    id: 8,
+    formation: "Full Stack Web Development",
+    niveau: 3,
+    mention: "Très Bien",
+    date: "Décembre 2022",
+    organisme: "OpenClassrooms",
+    fichier: "fullstack.pdf",
+    linkedin: "https://linkedin.com/in/yourprofile",
   },
 ];
 
-const niveauConfig: Record<string, { bg: string; text: string; border: string; icon: string }> = {
-  Attestation: {
-    bg: "rgba(100, 100, 120, 0.15)",
-    text: "#a0a0b8",
-    border: "rgba(100, 100, 120, 0.4)",
-    icon: "◈",
-  },
-  Certificat: {
-    bg: "rgba(200, 169, 110, 0.12)",
-    text: "#c8a96e",
-    border: "rgba(200, 169, 110, 0.4)",
-    icon: "◆",
-  },
-  Expert: {
-    bg: "rgba(180, 140, 80, 0.18)",
-    text: "#e0b87a",
-    border: "rgba(200, 169, 110, 0.6)",
-    icon: "★",
-  },
-  Master: {
-    bg: "rgba(200, 169, 110, 0.22)",
-    text: "#f0d090",
-    border: "rgba(220, 190, 120, 0.8)",
-    icon: "♛",
-  },
+const niveauLabels: Record<number, string> = {
+  1: "Fondamental",
+  2: "Intermédiaire",
+  3: "Avancé",
+  4: "Expert",
+};
+
+const niveauColors: Record<number, string> = {
+  1: "#c8a96e",
+  2: "#e0c080",
+  3: "#f0d090",
+  4: "#ffffff",
 };
 
 const mentionColors: Record<string, string> = {
-  "Passable": "#a0a0b8",
-  "Assez Bien": "#90b8d0",
-  "Bien": "#90d0a8",
-  "Très Bien": "#c8a96e",
+  "Bien": "#c8a96e",
+  "Très Bien": "#e0c080",
+  "Distinction": "#f0d090",
+  "Excellence": "#ffffff",
 };
 
-const CertificationCard = ({ cert }: { cert: typeof certifications[0] }) => {
-  const [hoveredBtn, setHoveredBtn] = useState<string | null>(null);
-  const [cardHovered, setCardHovered] = useState(false);
-  const config = niveauConfig[cert.niveau];
+const gold = "#c8a96e";
+const goldLight = "#e0c080";
+const bg = "#050508";
+const cardBg = "#0d0d14";
+const borderColor = "#2a2520";
 
-  return (
-    <div
-      onMouseEnter={() => setCardHovered(true)}
-      onMouseLeave={() => setCardHovered(false)}
-      style={{
-        background: cardHovered
-          ? "linear-gradient(135deg, rgba(200,169,110,0.08) 0%, rgba(10,10,20,0.95) 100%)"
-          : "linear-gradient(135deg, rgba(255,255,255,0.03) 0%, rgba(5,5,8,0.95) 100%)",
-        border: cardHovered
-          ? "1px solid rgba(200,169,110,0.35)"
-          : "1px solid rgba(255,255,255,0.07)",
-        borderRadius: "16px",
-        padding: "24px",
-        display: "flex",
-        flexDirection: "column",
-        gap: "16px",
-        transition: "all 0.35s ease",
-        cursor: "default",
-        boxShadow: cardHovered
-          ? "0 8px 40px rgba(200,169,110,0.12), inset 0 1px 0 rgba(200,169,110,0.1)"
-          : "0 4px 20px rgba(0,0,0,0.4)",
-        position: "relative",
-        overflow: "hidden",
-      }}
-    >
-      <div
-        style={{
-          position: "absolute",
-          top: "-40px",
-          right: "-40px",
-          width: "120px",
-          height: "120px",
-          borderRadius: "50%",
-          background: "radial-gradient(circle, rgba(200,169,110,0.06) 0%, transparent 70%)",
-          transition: "opacity 0.35s ease",
-          opacity: cardHovered ? 1 : 0,
-        }}
-      />
+export default function Certifications() {
+  const [filterNiveau, setFilterNiveau] = useState<number | null>(null);
+  const [hoveredId, setHoveredId] = useState<number | null>(null);
+  const [hoveredFilter, setHoveredFilter] = useState<number | null>(null);
 
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px" }}>
-        <h3
-          style={{
-            color: "#f0e8d8",
-            fontSize: "15px",
-            fontWeight: "600",
-            margin: 0,
-            lineHeight: "1.4",
-            flex: 1,
-            letterSpacing: "0.01em",
-          }}
-        >
-          {cert.formation}
-        </h3>
-        <span
-          style={{
-            background: config.bg,
-            color: config.text,
-            border: "1px solid " + config.border,
-            borderRadius: "8px",
-            padding: "4px 10px",
-            fontSize: "11px",
-            fontWeight: "700",
-            letterSpacing: "0.08em",
-            textTransform: "uppercase" as const,
-            whiteSpace: "nowrap" as const,
-            display: "flex",
-            alignItems: "center",
-            gap: "5px",
-            flexShrink: 0,
-          }}
-        >
-          <span style={{ fontSize: "10px" }}>{config.icon}</span>
-          {cert.niveau}
-        </span>
-      </div>
-
-      <div
-        style={{
-          display: "flex",
-          gap: "20px",
-          flexWrap: "wrap" as const,
-        }}
-      >
-        <div style={{ display: "flex", flexDirection: "column", gap: "3px" }}>
-          <span style={{ color: "#555570", fontSize: "10px", letterSpacing: "0.1em", textTransform: "uppercase" as const }}>
-            Mention
-          </span>
-          <span
-            style={{
-              color: mentionColors[cert.mention] || "#c8a96e",
-              fontSize: "13px",
-              fontWeight: "600",
-            }}
-          >
-            {cert.mention}
-          </span>
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: "3px" }}>
-          <span style={{ color: "#555570", fontSize: "10px", letterSpacing: "0.1em", textTransform: "uppercase" as const }}>
-            Date
-          </span>
-          <span style={{ color: "#8888a0", fontSize: "13px", fontWeight: "500" }}>
-            {cert.date}
-          </span>
-        </div>
-      </div>
-
-      <div
-        style={{
-          height: "1px",
-          background: "linear-gradient(90deg, transparent, rgba(200,169,110,0.2), transparent)",
-        }}
-      />
-
-      <div style={{ display: "flex", gap: "10px" }}>
-        <a
-          href={cert.pdf}
-          onMouseEnter={() => setHoveredBtn("pdf" + cert.id)}
-          onMouseLeave={() => setHoveredBtn(null)}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "7px",
-            padding: "9px 16px",
-            borderRadius: "9px",
-            background: hoveredBtn === "pdf" + cert.id
-              ? "linear-gradient(135deg, #c8a96e, #e0b87a)"
-              : "rgba(200,169,110,0.1)",
-            border: "1px solid rgba(200,169,110,0.3)",
-            color: hoveredBtn === "pdf" + cert.id ? "#050508" : "#c8a96e",
-            fontSize: "12px",
-            fontWeight: "600",
-            textDecoration: "none",
-            transition: "all 0.25s ease",
-            letterSpacing: "0.03em",
-            cursor: "pointer",
-            flex: 1,
-            justifyContent: "center",
-          }}
-        >
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-            <polyline points="7 10 12 15 17 10" />
-            <line x1="12" y1="15" x2="12" y2="3" />
-          </svg>
-          Télécharger PDF
-        </a>
-
-        <a
-          href={cert.linkedin}
-          onMouseEnter={() => setHoveredBtn("li" + cert.id)}
-          onMouseLeave={() => setHoveredBtn(null)}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "7px",
-            padding: "9px 16px",
-            borderRadius: "9px",
-            background: hoveredBtn === "li" + cert.id
-              ? "rgba(10, 102, 194, 0.9)"
-              : "rgba(10, 102, 194, 0.1)",
-            border: "1px solid rgba(10,102,194,0.4)",
-            color: hoveredBtn === "li" + cert.id ? "#ffffff" : "#5ba4e0",
-            fontSize: "12px",
-            fontWeight: "600",
-            textDecoration: "none",
-            transition: "all 0.25s ease",
-            letterSpacing: "0.03em",
-            cursor: "pointer",
-            flex: 1,
-            justifyContent: "center",
-          }}
-        >
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z" />
-            <rect x="2" y="9" width="4" height="12" />
-            <circle cx="4" cy="4" r="2" />
-          </svg>
-          Partager
-        </a>
-      </div>
-    </div>
-  );
-};
-
-const LevelFilter = ({
-  levels,
-  active,
-  onChange,
-}: {
-  levels: string[];
-  active: string;
-  onChange: (l: string) => void;
-}) => {
-  const [hovered, setHovered] = useState<string | null>(null);
-
-  return (
-    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" as const }}>
-      {["Tous", ...levels].map((level) => {
-        const isActive = active === level;
-        const isHov = hovered === level;
-        const config = niveauConfig[level];
-
-        return (
-          <button
-            key={level}
-            onClick={() => onChange(level)}
-            onMouseEnter={() => setHovered(level)}
-            onMouseLeave={() => setHovered(null)}
-            style={{
-              padding: "8px 16px",
-              borderRadius: "10px",
-              border: isActive
-                ? "1px solid " + (config ? config.border : "rgba(200,169,110,0.6)")
-                : "1px solid rgba(255,255,255,0.08)",
-              background: isActive
-                ? config
-                  ? config.bg
-                  : "rgba(200,169,110,0.15)"
-                : isHov
-                ? "rgba(255,255,255,0.05)"
-                : "transparent",
-              color: isActive
-                ? config
-                  ? config.text
-                  : "#c8a96e"
-                : isHov
-                ? "#c8a96e"
-                : "#666680",
-              fontSize: "12px",
-              fontWeight: isActive ? "700" : "500",
-              cursor: "pointer",
-              transition: "all 0.2s ease",
-              letterSpacing: "0.05em",
-              display: "flex",
-              alignItems: "center",
-              gap: "5px",
-            }}
-          >
-            {config && (
-              <span style={{ fontSize: "10px" }}>{config.icon}</span>
-            )}
-            {level}
-          </button>
-        );
-      })}
-    </div>
-  );
-};
-
-export default function MesCertificats() {
-  const [activeFilter, setActiveFilter] = useState("Tous");
-  const levels = ["Attestation", "Certificat", "Expert", "Master"];
-
-  const filtered =
-    activeFilter === "Tous"
-      ? certifications
-      : certifications.filter((c) => c.niveau === activeFilter);
-
-  const stats = levels.map((l) => ({
-    niveau: l,
-    count: certifications.filter((c) => c.niveau === l).length,
-  }));
+  const filtered = filterNiveau
+    ? certificates.filter((c) => c.niveau === filterNiveau)
+    : certificates;
 
   return (
     <div
       style={{
         minHeight: "100vh",
-        background: "#050508",
-        fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
-        padding: "40px 20px",
+        backgroundColor: bg,
+        fontFamily: "'Segoe UI', system-ui, sans-serif",
+        padding: "0",
+        margin: "0",
       }}
     >
       <div
         style={{
-          maxWidth: "900px",
+          maxWidth: "1100px",
           margin: "0 auto",
-          display: "flex",
-          flexDirection: "column",
-          gap: "32px",
+          padding: "60px 24px 80px",
         }}
       >
-        {/* Header */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-            <div
-              style={{
-                width: "3px",
-                height: "32px",
-                background: "linear-gradient(180deg, #c8a96e, #e0b87a)",
-                borderRadius: "2px",
-              }}
-            />
-            <h1
-              style={{
-                color: "#f0e8d8",
-                fontSize: "28px",
-                fontWeight: "700",
-                margin: 0,
-                letterSpacing: "-0.02em",
-              }}
-            >
-              Mes Certificats
-            </h1>
-          </div>
-          <p style={{ color: "#555570", fontSize: "14px", margin: "0 0 0 15px" }}>
-            {certifications.length} certifications obtenues
+        <div style={{ textAlign: "center", marginBottom: "56px" }}>
+          <div
+            style={{
+              display: "inline-block",
+              width: "48px",
+              height: "2px",
+              backgroundColor: gold,
+              marginBottom: "20px",
+            }}
+          />
+          <h1
+            style={{
+              color: "#ffffff",
+              fontSize: "38px",
+              fontWeight: "300",
+              letterSpacing: "6px",
+              textTransform: "uppercase",
+              margin: "0 0 12px",
+            }}
+          >
+            Mes Certifications
+          </h1>
+          <p
+            style={{
+              color: gold,
+              fontSize: "14px",
+              letterSpacing: "3px",
+              textTransform: "uppercase",
+              margin: "0",
+              fontWeight: "400",
+            }}
+          >
+            Formations — Niveaux — Mentions
           </p>
+          <div
+            style={{
+              display: "inline-block",
+              width: "48px",
+              height: "2px",
+              backgroundColor: gold,
+              marginTop: "20px",
+            }}
+          />
         </div>
 
-        {/* Stats */}
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            gap: "10px",
+            marginBottom: "48px",
+            flexWrap: "wrap",
+          }}
+        >
+          <button
+            onClick={() => setFilterNiveau(null)}
+            onMouseEnter={() => setHoveredFilter(0)}
+            onMouseLeave={() => setHoveredFilter(null)}
+            style={{
+              padding: "8px 20px",
+              backgroundColor: filterNiveau === null
+                ? gold
+                : hoveredFilter === 0 ? "#1a1a22" : "transparent",
+              color: filterNiveau === null ? bg : gold,
+              border: "1px solid " + gold,
+              borderRadius: "2px",
+              cursor: "pointer",
+              fontSize: "11px",
+              letterSpacing: "2px",
+              textTransform: "uppercase",
+              fontWeight: "500",
+              transition: "all 0.2s",
+            }}
+          >
+            Tous
+          </button>
+          {[1, 2, 3, 4].map((n) => (
+            <button
+              key={n}
+              onClick={() => setFilterNiveau(n)}
+              onMouseEnter={() => setHoveredFilter(n)}
+              onMouseLeave={() => setHoveredFilter(null)}
+              style={{
+                padding: "8px 20px",
+                backgroundColor: filterNiveau === n
+                  ? gold
+                  : hoveredFilter === n ? "#1a1a22" : "transparent",
+                color: filterNiveau === n ? bg : niveauColors[n],
+                border: "1px solid " + niveauColors[n],
+                borderRadius: "2px",
+                cursor: "pointer",
+                fontSize: "11px",
+                letterSpacing: "2px",
+                textTransform: "uppercase",
+                fontWeight: "500",
+                transition: "all 0.2s",
+              }}
+            >
+              {niveauLabels[n]}
+            </button>
+          ))}
+        </div>
+
         <div
           style={{
             display: "grid",
-            gridTemplateColumns:
+            gridTemplateColumns: "repeat(auto-fill, minmax(480px, 1fr))",
+            gap: "2px",
+          }}
+        >
+          {filtered.map((cert) => (
+            <div
+              key={cert.id}
+              onMouseEnter={() => setHoveredId(cert.id)}
+              onMouseLeave={() => setHoveredId(null)}
+              style={{
+                backgroundColor: hoveredId === cert.id ? "#12121c" : cardBg,
+                border: "1px solid " + (hoveredId === cert.id ? "#3a3028" : borderColor),
+                padding: "28px 32px",
+                transition: "all 0.25s",
+                position: "relative",
+                overflow: "hidden",
+              }}
+            >
+              <div
+                style={{
+                  position: "absolute",
+                  top: "0",
+                  left: "0",
+                  width: hoveredId === cert.id ? "3px" : "0px",
+                  height: "100%",
+                  backgroundColor: niveauColors[cert.niveau],
+                  transition: "width 0.25s",
+                }}
+              />
+
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "flex-start",
+                  marginBottom: "16px",
+                  gap: "12px",
+                }}
+              >
+                <div style={{ flex: 1 }}>
+                  <h3
+                    style={{
+                      color: "#ffffff",
+                      fontSize: "16px",
+                      fontWeight: "500",
+                      margin: "0 0 4px",
+                      letterSpacing: "0.5px",
+                    }}
+                  >
+                    {cert.formation}
+                  </h3>
+                  <span
+                    style={{
+                      color: "#888",
+                      fontSize: "12px",
+                      letterSpacing: "1px",
+                    }}
+                  >
+                    {cert.organisme}
+                  </span>
+                </div>
+
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "flex-end",
+                    gap: "6px",
+                    flexShrink: 0,
+                  }}
+                >
+                  <span
+                    style={{
+                      backgroundColor: "transparent",
+                      border: "1px solid " + niveauColors[cert.niveau],
+                      color: niveauColors[cert.niveau],
+                      padding: "3px 10px",
+                      fontSize: "9px",
+                      letterSpacing: "2px",
+                      textTransform: "uppercase",
+                      fontWeight: "600",
+                      borderRadius: "1px",
+                    }}
+                  >
+                    N{cert.niveau} — {niveauLabels[cert.niveau]}
+                  </span>
+                  <span
+                    style={{
+                      color: mentionColors[cert.mention] || gold,
+                      fontSize: "10px",
+                      letterSpacing: "1.5px",
+                      textTransform: "uppercase",
+                      fontWeight: "500",
+                    }}
+                  >
+                    ✦ {cert.mention}
+                  </span>
+                </div>
+              </div>
+
+              <div
+                style={{
+                  height: "1px",
+                  backgroundColor: borderColor,
+                  marginBottom: "16px",
+                }}
+              />
+
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    color: "#666",
+                    fontSize: "12px",
+                    letterSpacing: "1px",
+                  }}
+                >
+                  <span style={{ color: gold, fontSize: "10px" }}>◈</span>
+                  {cert.date}
+                </div>
+
+                <div style={{ display: "flex", gap: "10px" }}>
+                  <a
+                    href={cert.fichier}
+                    download
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      padding: "6px 14px",
+                      backgroundColor: "transparent",
+                      border: "1px solid #2a2520",
+                      color: gold,
+                      fontSize: "10px",
+                      letterSpacing: "1.5px",
+                      textTransform: "uppercase",
+                      textDecoration: "none",
+                      borderRadius: "1px",
+                      transition: "all 0.2s",
+                    }}
+                  >
+                    <svg
+                      width="10"
+                      height="10"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                      <polyline points="7 10 12 15 17 10" />
+                      <line x1="12" y1="15" x2="12" y2="3" />
+                    </svg>
+                    PDF
+                  </a>
+
+                  <a
+                    href={cert.linkedin}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      padding: "6px 14px",
+                      backgroundColor: "transparent",
+                      border: "1px solid #0077b5",
+                      color: "#0077b5",
+                      fontSize: "10px",
+                      letterSpacing: "1.5px",
+                      textTransform: "uppercase",
+                      textDecoration: "none",
+                      borderRadius: "1px",
+                      transition: "all 0.2s",
+                    }}
+                  >
+                    <svg
+                      width="10"
+                      height="10"
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                    >
+                      <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z" />
+                      <rect x="2" y="9" width="4" height="12" />
+                      <circle cx="4" cy="4" r="2" />
+                    </svg>
+                    LinkedIn
+                  </a>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div
+          style={{
+            marginTop: "60px",
+            padding: "24px 32px",
+            backgroundColor: cardBg,
+            border: "1px solid " + borderColor,
+            display: "flex",
+            justifyContent: "space-around",
+            flexWrap: "wrap",
+            gap: "24px",
+          }}
+        >
+          {[1, 2, 3, 4].map((n) => (
+            <div key={n} style={{ textAlign: "center" }}>
+              <div
+                style={{
+                  fontSize: "28px",
+                  fontWeight: "200",
+                  color: niveauColors[n],
+                  letterSpacing: "2px",
+                }}
+              >
+                {certificates.filter((c) => c.niveau === n).length}
+              </div>
+              <div
+                style={{
+                  fontSize:
