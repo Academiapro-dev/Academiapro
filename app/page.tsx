@@ -230,3 +230,4 @@ export default async function HomePage() {
 
       {/* FORMATIONS PHARES */}
       <section id="formations" style={{ padding: "80px 24px"
+}}}
