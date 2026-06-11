@@ -475,3 +475,4 @@ export default async function MonEspaceSeancesPage() {
                         border: "1px solid #1a1a30",
                         borderRadius: "8px",
                         padding: "8px 14px",
+}}}}
