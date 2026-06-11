@@ -1,4 +1,3 @@
-```tsx
 "use client";
 
 import { useState, useMemo } from "react";
@@ -77,4 +76,4 @@ const formations: Formation[] = [
   { id: 36, title: "Anglais des Affaires B2", domain: "Langues", duration: "60h", level: "Intermédiaire", price: 699, support: "Live Avatar", description: "Communication professionnelle en anglais", popular: true },
   { id: 37, title: "Espagnol Professionnel A1-B1", domain: "Langues", duration: "50h", level: "Débutant", price: 549, support: "Premium 24/7", description: "Espagnol pour le milieu des affaires" },
   { id: 38, title: "Anglais TOEIC Préparation", domain: "Langues", duration: "40h", level: "Intermédiaire", price: 449, support: "Premium 24/7", description: "Préparez et décrochez votre TOEIC", popular: true },
-  { id: 39, title: "Mandarin Business Débutant", domain: "Langues", duration: "45h", level: "Débutant", price: 
+  { id: 39, title: "Mandarin Business Débutant", domain: "Langues", duration: "45h", level: "Débutant", price:
