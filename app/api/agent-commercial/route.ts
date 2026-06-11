@@ -427,3 +427,4 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const { searchParams } = new URL(request.url);
     const statut = searchParams.get("statut") as StatutProspect | null;
     const scoreMin = searchParams.get("score_min");
+}}
