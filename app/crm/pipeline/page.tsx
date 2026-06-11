@@ -1,391 +1,502 @@
 export default function PipelineCRM() {
-  const [cards, setCards] = React.useState([
+  const columns = [
     {
-      id: "1",
-      name: "Sophie Martin",
-      formation: "MBA Digital",
-      commercial: "Alice Dupont",
-      value: 12000,
-      probability: 20,
-      daysInStage: 3,
-      stage: "Lead",
-      email: "sophie.martin@email.com",
-      phone: "06 12 34 56 78",
+      id: "lead",
+      label: "Lead",
+      color: "#3b82f6",
+      bgColor: "rgba(59,130,246,0.08)",
+      borderColor: "rgba(59,130,246,0.3)",
     },
     {
-      id: "2",
-      name: "Thomas Leblanc",
+      id: "qualification",
+      label: "Qualification",
+      color: "#8b5cf6",
+      bgColor: "rgba(139,92,246,0.08)",
+      borderColor: "rgba(139,92,246,0.3)",
+    },
+    {
+      id: "proposition",
+      label: "Proposition",
+      color: "#c8a96e",
+      bgColor: "rgba(200,169,110,0.08)",
+      borderColor: "rgba(200,169,110,0.3)",
+    },
+    {
+      id: "negociation",
+      label: "Négociation",
+      color: "#f97316",
+      bgColor: "rgba(249,115,22,0.08)",
+      borderColor: "rgba(249,115,22,0.3)",
+    },
+    {
+      id: "gagne",
+      label: "Gagné",
+      color: "#22c55e",
+      bgColor: "rgba(34,197,94,0.08)",
+      borderColor: "rgba(34,197,94,0.3)",
+    },
+    {
+      id: "perdu",
+      label: "Perdu",
+      color: "#ef4444",
+      bgColor: "rgba(239,68,68,0.08)",
+      borderColor: "rgba(239,68,68,0.3)",
+    },
+  ];
+
+  const prospects = [
+    {
+      id: 1,
+      nom: "Sophie Martin",
+      formation: "MBA Digital",
+      montant: 8500,
+      probabilite: 15,
+      jours: 2,
+      colonne: "lead",
+      avatar: "SM",
+    },
+    {
+      id: 2,
+      nom: "Thomas Dubois",
+      formation: "Master IA",
+      montant: 12000,
+      probabilite: 20,
+      jours: 5,
+      colonne: "lead",
+      avatar: "TD",
+    },
+    {
+      id: 3,
+      nom: "Camille Rousseau",
+      formation: "BTS Commerce",
+      montant: 4200,
+      probabilite: 25,
+      jours: 1,
+      colonne: "lead",
+      avatar: "CR",
+    },
+    {
+      id: 4,
+      nom: "Alexandre Petit",
+      formation: "Master Finance",
+      montant: 11000,
+      probabilite: 40,
+      jours: 8,
+      colonne: "qualification",
+      avatar: "AP",
+    },
+    {
+      id: 5,
+      nom: "Marie Lefevre",
+      formation: "Licence Pro RH",
+      montant: 5800,
+      probabilite: 45,
+      jours: 12,
+      colonne: "qualification",
+      avatar: "ML",
+    },
+    {
+      id: 6,
+      nom: "Nicolas Bernard",
+      formation: "MBA Marketing",
+      montant: 9200,
+      probabilite: 50,
+      jours: 6,
+      colonne: "qualification",
+      avatar: "NB",
+    },
+    {
+      id: 7,
+      nom: "Isabelle Moreau",
       formation: "Master Data Science",
-      commercial: "Bob Bernard",
-      value: 18500,
-      probability: 45,
-      daysInStage: 7,
-      stage: "Qualifié",
-      email: "thomas.leblanc@email.com",
-      phone: "06 23 45 67 89",
+      montant: 13500,
+      probabilite: 65,
+      jours: 14,
+      colonne: "proposition",
+      avatar: "IM",
     },
     {
-      id: "3",
-      name: "Camille Rousseau",
-      formation: "Bootcamp Dev",
-      commercial: "Alice Dupont",
-      value: 8000,
-      probability: 65,
-      daysInStage: 12,
-      stage: "Proposition",
-      email: "camille.rousseau@email.com",
-      phone: "06 34 56 78 90",
+      id: 8,
+      nom: "Julien Simon",
+      formation: "DU Entrepreneuriat",
+      montant: 6700,
+      probabilite: 60,
+      jours: 9,
+      colonne: "proposition",
+      avatar: "JS",
     },
     {
-      id: "4",
-      name: "Marc Fontaine",
-      formation: "MBA Digital",
-      commercial: "Claire Moreau",
-      value: 22000,
-      probability: 80,
-      daysInStage: 5,
-      stage: "Négociation",
-      email: "marc.fontaine@email.com",
-      phone: "06 45 67 89 01",
+      id: 9,
+      nom: "Lucie Fontaine",
+      formation: "Master Cybersécurité",
+      montant: 14200,
+      probabilite: 70,
+      jours: 3,
+      colonne: "proposition",
+      avatar: "LF",
     },
     {
-      id: "5",
-      name: "Julie Petit",
-      formation: "Master Data Science",
-      commercial: "Bob Bernard",
-      value: 15000,
-      probability: 100,
-      daysInStage: 2,
-      stage: "Fermé",
-      email: "julie.petit@email.com",
-      phone: "06 56 78 90 12",
+      id: 10,
+      nom: "Pierre Garnier",
+      formation: "MBA Santé",
+      montant: 10500,
+      probabilite: 80,
+      jours: 18,
+      colonne: "negociation",
+      avatar: "PG",
     },
     {
-      id: "6",
-      name: "Antoine Garnier",
-      formation: "Bootcamp Dev",
-      commercial: "Claire Moreau",
-      value: 9500,
-      probability: 30,
-      daysInStage: 15,
-      stage: "Lead",
-      email: "antoine.garnier@email.com",
-      phone: "06 67 89 01 23",
+      id: 11,
+      nom: "Emma Durand",
+      formation: "Master Droit des Affaires",
+      montant: 9800,
+      probabilite: 85,
+      jours: 21,
+      colonne: "negociation",
+      avatar: "ED",
     },
     {
-      id: "7",
-      name: "Lucie Simon",
-      formation: "MBA Digital",
-      commercial: "Alice Dupont",
-      value: 25000,
-      probability: 70,
-      daysInStage: 8,
-      stage: "Négociation",
-      email: "lucie.simon@email.com",
-      phone: "06 78 90 12 34",
+      id: 12,
+      nom: "Antoine Mercier",
+      formation: "Executive MBA",
+      montant: 18000,
+      probabilite: 90,
+      jours: 7,
+      colonne: "negociation",
+      avatar: "AM",
     },
     {
-      id: "8",
-      name: "Paul Durand",
-      formation: "Master Data Science",
-      commercial: "Claire Moreau",
-      value: 16000,
-      probability: 55,
-      daysInStage: 4,
-      stage: "Qualifié",
-      email: "paul.durand@email.com",
-      phone: "06 89 01 23 45",
+      id: 13,
+      nom: "Clara Bonnet",
+      formation: "Master Communication",
+      montant: 7600,
+      probabilite: 100,
+      jours: 30,
+      colonne: "gagne",
+      avatar: "CB",
     },
     {
-      id: "9",
-      name: "Emma Laurent",
-      formation: "Bootcamp Dev",
-      commercial: "Bob Bernard",
-      value: 7500,
-      probability: 85,
-      daysInStage: 9,
-      stage: "Proposition",
-      email: "emma.laurent@email.com",
-      phone: "06 90 12 34 56",
+      id: 14,
+      nom: "Romain Chevalier",
+      formation: "MBA Tech",
+      montant: 15000,
+      probabilite: 100,
+      jours: 25,
+      colonne: "gagne",
+      avatar: "RC",
     },
     {
-      id: "10",
-      name: "Nicolas Bernard",
-      formation: "MBA Digital",
-      commercial: "Alice Dupont",
-      value: 30000,
-      probability: 100,
-      daysInStage: 1,
-      stage: "Fermé",
-      email: "nicolas.bernard@email.com",
-      phone: "06 01 23 45 67",
+      id: 15,
+      nom: "Manon Girard",
+      formation: "Licence Pro Logistique",
+      montant: 4500,
+      probabilite: 0,
+      jours: 45,
+      colonne: "perdu",
+      avatar: "MG",
     },
-  ]);
+    {
+      id: 16,
+      nom: "Hugo Lambert",
+      formation: "Master Audit",
+      montant: 8900,
+      probabilite: 0,
+      jours: 38,
+      colonne: "perdu",
+      avatar: "HL",
+    },
+  ];
 
-  const [filterFormation, setFilterFormation] = React.useState("Tous");
-  const [filterCommercial, setFilterCommercial] = React.useState("Tous");
-  const [filterMontant, setFilterMontant] = React.useState("Tous");
-  const [draggedCardId, setDraggedCardId] = React.useState<string | null>(null);
-  const [dragOverStage, setDragOverStage] = React.useState<string | null>(null);
-  const [selectedCard, setSelectedCard] = React.useState<string | null>(null);
-  const [hoveredCard, setHoveredCard] = React.useState<string | null>(null);
-  const [hoveredStage, setHoveredStage] = React.useState<string | null>(null);
+  const getColumnProspects = (colonneId: string) =>
+    prospects.filter((p) => p.colonne === colonneId);
 
-  const stages = ["Lead", "Qualifié", "Proposition", "Négociation", "Fermé"];
+  const getColumnTotal = (colonneId: string) =>
+    getColumnProspects(colonneId).reduce((sum, p) => sum + p.montant, 0);
 
-  const formations = ["Tous", "MBA Digital", "Master Data Science", "Bootcamp Dev"];
-  const commerciaux = ["Tous", "Alice Dupont", "Bob Bernard", "Claire Moreau"];
-  const montants = ["Tous", "< 10 000 €", "10 000 - 20 000 €", "> 20 000 €"];
+  const totalPipeline = prospects.reduce((sum, p) => sum + p.montant, 0);
+  const totalGagne = prospects
+    .filter((p) => p.colonne === "gagne")
+    .reduce((sum, p) => sum + p.montant, 0);
+  const totalNegociation = prospects
+    .filter((p) => p.colonne === "negociation")
+    .reduce((sum, p) => sum + p.montant, 0);
 
-  const getFilteredCards = () => {
-    return cards.filter((card) => {
-      const formationMatch = filterFormation === "Tous" || card.formation === filterFormation;
-      const commercialMatch = filterCommercial === "Tous" || card.commercial === filterCommercial;
-      let montantMatch = true;
-      if (filterMontant === "< 10 000 €") montantMatch = card.value < 10000;
-      else if (filterMontant === "10 000 - 20 000 €") montantMatch = card.value >= 10000 && card.value <= 20000;
-      else if (filterMontant === "> 20 000 €") montantMatch = card.value > 20000;
-      return formationMatch && commercialMatch && montantMatch;
-    });
-  };
+  const formatMontant = (montant: number) =>
+    new Intl.NumberFormat("fr-FR", {
+      style: "currency",
+      currency: "EUR",
+      maximumFractionDigits: 0,
+    }).format(montant);
 
-  const getStageCards = (stage: string) => {
-    return getFilteredCards().filter((card) => card.stage === stage);
-  };
-
-  const getStageTotal = (stage: string) => {
-    return getStageCards(stage).reduce((sum, card) => sum + card.value, 0);
-  };
-
-  const getWeightedTotal = (stage: string) => {
-    return getStageCards(stage).reduce((sum, card) => sum + (card.value * card.probability) / 100, 0);
-  };
-
-  const handleDragStart = (e: React.DragEvent, cardId: string) => {
-    setDraggedCardId(cardId);
-    e.dataTransfer.effectAllowed = "move";
-  };
-
-  const handleDragOver = (e: React.DragEvent, stage: string) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = "move";
-    setDragOverStage(stage);
-  };
-
-  const handleDrop = (e: React.DragEvent, stage: string) => {
-    e.preventDefault();
-    if (draggedCardId) {
-      setCards((prev) =>
-        prev.map((card) =>
-          card.id === draggedCardId
-            ? { ...card, stage, daysInStage: 0 }
-            : card
-        )
-      );
-    }
-    setDraggedCardId(null);
-    setDragOverStage(null);
-  };
-
-  const handleDragEnd = () => {
-    setDraggedCardId(null);
-    setDragOverStage(null);
-  };
-
-  const getStageColor = (stage: string) => {
-    const colors: Record<string, string> = {
-      Lead: "#6b7fd7",
-      Qualifié: "#c8a96e",
-      Proposition: "#7bc8a4",
-      Négociation: "#e07b54",
-      Fermé: "#a78bfa",
-    };
-    return colors[stage] || "#c8a96e";
-  };
-
-  const getProbabilityColor = (prob: number) => {
-    if (prob >= 80) return "#7bc8a4";
-    if (prob >= 50) return "#c8a96e";
-    if (prob >= 30) return "#e07b54";
+  const getProbabiliteColor = (prob: number) => {
+    if (prob >= 80) return "#22c55e";
+    if (prob >= 60) return "#c8a96e";
+    if (prob >= 40) return "#f97316";
     return "#ef4444";
   };
 
-  const getDaysColor = (days: number) => {
-    if (days <= 5) return "#7bc8a4";
-    if (days <= 10) return "#c8a96e";
-    return "#e07b54";
+  const getJoursColor = (jours: number) => {
+    if (jours <= 7) return "#22c55e";
+    if (jours <= 14) return "#c8a96e";
+    if (jours <= 21) return "#f97316";
+    return "#ef4444";
   };
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(value);
+  const getAvatarBg = (colonne: string) => {
+    const col = columns.find((c) => c.id === colonne);
+    return col ? col.color : "#c8a96e";
   };
-
-  const getTotalPipeline = () => {
-    return getFilteredCards().reduce((sum, card) => sum + card.value, 0);
-  };
-
-  const getWeightedPipeline = () => {
-    return getFilteredCards().reduce((sum, card) => sum + (card.value * card.probability) / 100, 0);
-  };
-
-  const getClosedRevenue = () => {
-    return getFilteredCards()
-      .filter((c) => c.stage === "Fermé")
-      .reduce((sum, card) => sum + card.value, 0);
-  };
-
-  const selectedCardData = cards.find((c) => c.id === selectedCard);
 
   return (
     <div
       style={{
         minHeight: "100vh",
         backgroundColor: "#050508",
-        fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
-        color: "#e8e8f0",
+        fontFamily:
+          "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+        color: "#e2e8f0",
         overflowX: "hidden",
       }}
     >
       <div
         style={{
-          background: "linear-gradient(135deg, #0a0a12 0%, #0d0d1a 50%, #080810 100%)",
+          background:
+            "linear-gradient(135deg, rgba(200,169,110,0.05) 0%, transparent 50%)",
           borderBottom: "1px solid rgba(200,169,110,0.15)",
           padding: "0 32px",
-          position: "sticky",
-          top: 0,
-          zIndex: 100,
-          backdropFilter: "blur(20px)",
         }}
       >
         <div
           style={{
-            maxWidth: "1600px",
+            maxWidth: "1800px",
             margin: "0 auto",
+            padding: "24px 0",
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
-            height: "68px",
+            flexWrap: "wrap",
+            gap: "16px",
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
             <div
               style={{
-                width: "38px",
-                height: "38px",
-                background: "linear-gradient(135deg, #c8a96e, #e8c98e)",
-                borderRadius: "10px",
+                width: "44px",
+                height: "44px",
+                background:
+                  "linear-gradient(135deg, #c8a96e 0%, #a07840 100%)",
+                borderRadius: "12px",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                fontSize: "18px",
-                fontWeight: "800",
-                color: "#050508",
-                boxShadow: "0 4px 15px rgba(200,169,110,0.3)",
+                fontSize: "20px",
+                boxShadow: "0 4px 20px rgba(200,169,110,0.3)",
               }}
             >
-              A
+              🎓
             </div>
             <div>
               <div
                 style={{
-                  fontSize: "18px",
+                  fontSize: "22px",
                   fontWeight: "700",
-                  background: "linear-gradient(135deg, #c8a96e, #e8d5a8)",
+                  background:
+                    "linear-gradient(135deg, #c8a96e 0%, #e8c98e 100%)",
                   WebkitBackgroundClip: "text",
                   WebkitTextFillColor: "transparent",
-                  letterSpacing: "-0.3px",
+                  letterSpacing: "-0.5px",
                 }}
               >
                 AcadémIA Pro
               </div>
-              <div style={{ fontSize: "11px", color: "rgba(200,169,110,0.5)", letterSpacing: "0.5px", marginTop: "-2px" }}>
-                CRM Pipeline
+              <div
+                style={{
+                  fontSize: "12px",
+                  color: "rgba(200,169,110,0.6)",
+                  letterSpacing: "2px",
+                  textTransform: "uppercase",
+                  marginTop: "2px",
+                }}
+              >
+                Pipeline CRM
               </div>
             </div>
           </div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            {["Dashboard", "Pipeline", "Prospects", "Rapports", "Paramètres"].map((item) => (
-              <button
-                key={item}
-                style={{
-                  background: item === "Pipeline" ? "rgba(200,169,110,0.12)" : "transparent",
-                  border: item === "Pipeline" ? "1px solid rgba(200,169,110,0.25)" : "1px solid transparent",
-                  color: item === "Pipeline" ? "#c8a96e" : "rgba(232,232,240,0.5)",
-                  padding: "6px 14px",
-                  borderRadius: "8px",
-                  fontSize: "13px",
-                  fontWeight: item === "Pipeline" ? "600" : "400",
-                  cursor: "pointer",
-                  transition: "all 0.2s",
-                }}
-              >
-                {item}
-              </button>
-            ))}
-          </div>
-
-          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "24px",
+              flexWrap: "wrap",
+            }}
+          >
             <div
               style={{
-                width: "8px",
-                height: "8px",
-                borderRadius: "50%",
-                backgroundColor: "#7bc8a4",
-                boxShadow: "0 0 8px rgba(123,200,164,0.6)",
-              }}
-            />
-            <div style={{ fontSize: "13px", color: "rgba(232,232,240,0.6)" }}>Alice Dupont</div>
-            <div
-              style={{
-                width: "34px",
-                height: "34px",
-                borderRadius: "50%",
-                background: "linear-gradient(135deg, #c8a96e, #a07840)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: "14px",
-                fontWeight: "700",
-                color: "#050508",
+                background: "rgba(200,169,110,0.08)",
+                border: "1px solid rgba(200,169,110,0.2)",
+                borderRadius: "12px",
+                padding: "12px 20px",
+                textAlign: "center",
               }}
             >
-              AD
+              <div
+                style={{
+                  fontSize: "11px",
+                  color: "rgba(200,169,110,0.6)",
+                  textTransform: "uppercase",
+                  letterSpacing: "1px",
+                  marginBottom: "4px",
+                }}
+              >
+                Pipeline Total
+              </div>
+              <div
+                style={{
+                  fontSize: "20px",
+                  fontWeight: "700",
+                  color: "#c8a96e",
+                }}
+              >
+                {formatMontant(totalPipeline)}
+              </div>
+            </div>
+
+            <div
+              style={{
+                background: "rgba(34,197,94,0.08)",
+                border: "1px solid rgba(34,197,94,0.2)",
+                borderRadius: "12px",
+                padding: "12px 20px",
+                textAlign: "center",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: "11px",
+                  color: "rgba(34,197,94,0.6)",
+                  textTransform: "uppercase",
+                  letterSpacing: "1px",
+                  marginBottom: "4px",
+                }}
+              >
+                Revenus Gagnés
+              </div>
+              <div
+                style={{
+                  fontSize: "20px",
+                  fontWeight: "700",
+                  color: "#22c55e",
+                }}
+              >
+                {formatMontant(totalGagne)}
+              </div>
+            </div>
+
+            <div
+              style={{
+                background: "rgba(249,115,22,0.08)",
+                border: "1px solid rgba(249,115,22,0.2)",
+                borderRadius: "12px",
+                padding: "12px 20px",
+                textAlign: "center",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: "11px",
+                  color: "rgba(249,115,22,0.6)",
+                  textTransform: "uppercase",
+                  letterSpacing: "1px",
+                  marginBottom: "4px",
+                }}
+              >
+                En Négociation
+              </div>
+              <div
+                style={{
+                  fontSize: "20px",
+                  fontWeight: "700",
+                  color: "#f97316",
+                }}
+              >
+                {formatMontant(totalNegociation)}
+              </div>
+            </div>
+
+            <div
+              style={{
+                background: "rgba(200,169,110,0.08)",
+                border: "1px solid rgba(200,169,110,0.2)",
+                borderRadius: "12px",
+                padding: "12px 20px",
+                textAlign: "center",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: "11px",
+                  color: "rgba(200,169,110,0.6)",
+                  textTransform: "uppercase",
+                  letterSpacing: "1px",
+                  marginBottom: "4px",
+                }}
+              >
+                Prospects Actifs
+              </div>
+              <div
+                style={{
+                  fontSize: "20px",
+                  fontWeight: "700",
+                  color: "#c8a96e",
+                }}
+              >
+                {
+                  prospects.filter(
+                    (p) => p.colonne !== "gagne" && p.colonne !== "perdu"
+                  ).length
+                }
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      <div style={{ maxWidth: "1600px", margin: "0 auto", padding: "28px 32px" }}>
-        <div style={{ marginBottom: "28px" }}>
-          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "20px" }}>
-            <div>
-              <h1
-                style={{
-                  fontSize: "26px",
-                  fontWeight: "700",
-                  color: "#e8e8f0",
-                  margin: "0 0 4px 0",
-                  letterSpacing: "-0.5px",
-                }}
-              >
-                Pipeline Commercial
-              </h1>
-              <p style={{ fontSize: "14px", color: "rgba(232,232,240,0.45)", margin: 0 }}>
-                {getFilteredCards().length} prospects actifs · Mise à jour il y a 2 min
-              </p>
-            </div>
-            <button
+      <div
+        style={{
+          maxWidth: "1800px",
+          margin: "0 auto",
+          padding: "32px",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginBottom: "28px",
+            flexWrap: "wrap",
+            gap: "12px",
+          }}
+        >
+          <div>
+            <h1
               style={{
-                background: "linear-gradient(135deg, #c8a96e, #a07840)",
-                border: "none",
-                color: "#050508",
-                padding: "10px 20px",
-                borderRadius: "10px",
-                fontSize: "13px",
+                fontSize: "24px",
                 fontWeight: "700",
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
-                boxShadow: "0 4px 15px rgba
+                color: "#f1f5f9",
+                margin: "0 0 4px 0",
+                letterSpacing: "-0.5px",
+              }}
+            >
+              Pipeline Commercial
+            </h1>
+            <p
+              style={{
+                fontSize: "14px",
+                color: "rgba(200,169,110,0.6)",
+                margin: 0,
+              }}
+            >
+              {prospects.length} prospects · Mis à jour aujourd'hui
+            </p
