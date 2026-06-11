@@ -393,3 +393,4 @@ export default async function ContactsPage() {
   };
 
   const scoreBarBgStyle: React.
+}
