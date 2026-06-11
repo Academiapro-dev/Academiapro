@@ -428,3 +428,4 @@ export default function AcademiaSalesTunnel() {
 
   const renderTimer = () => {
     const minutes = Math.floor(timeLeft / 60
+}}
