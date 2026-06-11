@@ -1,4 +1,3 @@
-```tsx
 // app/login/page.tsx
 "use client";
 
