@@ -396,3 +396,4 @@ export default async function PipelinePage() {
                     const createdAt = prospect.created_at ? new Date(prospect.created_at).toLocaleDateString("fr-FR", { day: "2-digit", month: "short" }) : "";
 
                     return (
+}}}}}
