@@ -403,3 +403,4 @@ export default function BlogAcademiaPro() {
                 <div
                   style={{
                     display: "flex",
+}}}}
