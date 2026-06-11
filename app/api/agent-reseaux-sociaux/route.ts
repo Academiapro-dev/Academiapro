@@ -1,4 +1,3 @@
-```typescript
 // app/api/agent-reseaux-sociaux/route.ts
 // Main router - Not used directly, see individual route files below
 
