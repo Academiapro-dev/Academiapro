@@ -1,173 +1,407 @@
-export default function SeancesTherapeutiques() {
-  const specialites = [
-    { nom: "Hypnose", emoji: "🌀", description: "Accédez à votre inconscient pour transformer vos schémas limitants" },
-    { nom: "PNL", emoji: "🧠", description: "Reprogrammez vos pensées avec la Programmation Neuro-Linguistique" },
-    { nom: "Sophrologie", emoji: "🌿", description: "Harmonisez corps et esprit par des techniques de relaxation" },
-    { nom: "Coaching", emoji: "🎯", description: "Atteignez vos objectifs avec un accompagnement personnalisé" },
-    { nom: "Méditation", emoji: "☯️", description: "Cultivez la pleine conscience et la sérénité intérieure" },
-    { nom: "Gestion du stress", emoji: "💆", description: "Maîtrisez vos réactions face aux situations stressantes" },
-    { nom: "Burn-out", emoji: "🔥", description: "Récupérez et reconstruisez après l'épuisement professionnel" },
-    { nom: "Sommeil", emoji: "🌙", description: "Retrouvez un sommeil réparateur et des nuits paisibles" },
-    { nom: "Confiance en soi", emoji: "⭐", description: "Développez une estime de soi solide et durable" },
-    { nom: "Relations", emoji: "💞", description: "Améliorez vos relations personnelles et professionnelles" },
-    { nom: "Procrastination", emoji: "⏰", description: "Passez à l'action et libérez-vous de la procrastination" },
-    { nom: "Anxiété", emoji: "🕊️", description: "Apaisez vos angoisses et retrouvez la tranquillité" },
-    { nom: "Développement personnel", emoji: "🌱", description: "Épanouissez-vous et réalisez votre plein potentiel" },
-    { nom: "Équilibre vie pro/perso", emoji: "⚖️", description: "Trouvez l'harmonie entre vie professionnelle et personnelle" },
+export default async function SeancesPage() {
+  const { createClient } = await import("@supabase/supabase-js");
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL as string;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string;
+  const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+  const { data: sessionData } = await supabase.auth.getSession();
+  const user = sessionData?.session?.user ?? null;
+
+  const specialties = [
+    {
+      id: 1,
+      name: "Psychothérapie Cognitive",
+      description: "Restructuration des schémas de pensée négatifs et développement de nouvelles perspectives mentales adaptatives.",
+      icon: "🧠",
+      duration: "50 min",
+      category: "Cognition",
+    },
+    {
+      id: 2,
+      name: "Thérapie Comportementale",
+      description: "Modification des comportements inadaptés par des techniques de conditionnement et d'exposition progressive.",
+      icon: "🔄",
+      duration: "45 min",
+      category: "Comportement",
+    },
+    {
+      id: 3,
+      name: "Analyse Émotionnelle",
+      description: "Identification et régulation des émotions complexes pour une meilleure intelligence émotionnelle quotidienne.",
+      icon: "💫",
+      duration: "55 min",
+      category: "Émotions",
+    },
+    {
+      id: 4,
+      name: "Hypnothérapie Clinique",
+      description: "Accès à l'inconscient profond pour débloquer des ressources intérieures et traiter des traumatismes enfouis.",
+      icon: "🌀",
+      duration: "60 min",
+      category: "Inconscient",
+    },
+    {
+      id: 5,
+      name: "Thérapie EMDR",
+      description: "Désensibilisation par mouvements oculaires pour le traitement des troubles post-traumatiques complexes.",
+      icon: "👁️",
+      duration: "75 min",
+      category: "Trauma",
+    },
+    {
+      id: 6,
+      name: "Pleine Conscience",
+      description: "Pratiques de mindfulness et méditation guidée pour ancrer la présence et réduire l'anxiété chronique.",
+      icon: "🍃",
+      duration: "40 min",
+      category: "Méditation",
+    },
+    {
+      id: 7,
+      name: "Thérapie Systémique",
+      description: "Analyse des dynamiques relationnelles familiales et sociales impactant l'équilibre psychologique individuel.",
+      icon: "🕸️",
+      duration: "60 min",
+      category: "Relations",
+    },
+    {
+      id: 8,
+      name: "Psychanalyse Brève",
+      description: "Exploration ciblée des conflits inconscients et des mécanismes de défense dans un cadre thérapeutique structuré.",
+      icon: "🔍",
+      duration: "50 min",
+      category: "Inconscient",
+    },
+    {
+      id: 9,
+      name: "Gestion du Stress",
+      description: "Techniques avancées de relaxation, biofeedback et restructuration cognitive pour neutraliser le stress chronique.",
+      icon: "⚡",
+      duration: "45 min",
+      category: "Stress",
+    },
+    {
+      id: 10,
+      name: "Thérapie Narrative",
+      description: "Réécriture de son histoire personnelle pour transformer les récits limitants en récits de croissance et de résilience.",
+      icon: "📖",
+      duration: "55 min",
+      category: "Identité",
+    },
+    {
+      id: 11,
+      name: "Art-thérapie Digitale",
+      description: "Expression créative assistée par IA pour extérioriser les émotions refoulées et reconstruire l'estime de soi.",
+      icon: "🎨",
+      duration: "60 min",
+      category: "Créativité",
+    },
+    {
+      id: 12,
+      name: "Coaching Existentiel",
+      description: "Questionnement philosophique profond sur le sens, les valeurs et la direction de vie pour une existence authentique.",
+      icon: "🌟",
+      duration: "50 min",
+      category: "Sens",
+    },
+    {
+      id: 13,
+      name: "Thérapie Somatique",
+      description: "Libération des tensions corporelles liées aux traumatismes psychologiques via des techniques corps-esprit intégrées.",
+      icon: "🫀",
+      duration: "65 min",
+      category: "Corps",
+    },
+    {
+      id: 14,
+      name: "Neurofeedback IA",
+      description: "Entraînement cérébral augmenté par intelligence artificielle pour optimiser les ondes cérébrales et la neuroplasticité.",
+      icon: "🤖",
+      duration: "70 min",
+      category: "Neurosciences",
+    },
   ];
 
-  const seancesIndividuelles = [
+  const pricingPlans = [
     {
-      titre: "Séance Découverte",
-      prix: "29",
-      duree: "30 min",
-      description: "Idéale pour une première approche et définir vos besoins",
-      features: ["Bilan initial personnalisé", "Présentation des approches", "Plan d'accompagnement", "Support par email"],
-      accentColor: "#a0845a",
-      popular: false,
+      id: "decouverte",
+      name: "Découverte",
+      price: 29,
+      color: "#a0a0b0",
+      features: ["1 séance d'introduction", "Bilan initial IA", "Support email 48h", "Accès ressources de base"],
     },
     {
-      titre: "Séance Standard",
-      prix: "59",
-      duree: "60 min",
-      description: "La séance complète pour un travail en profondeur",
-      features: ["Séance complète 60 min", "Techniques avancées", "Exercices personnalisés", "Suivi entre séances", "Enregistrement audio"],
-      accentColor: "#c8a96e",
-      popular: true,
+      id: "standard",
+      name: "Standard",
+      price: 59,
+      color: "#c8a96e",
+      features: ["4 séances par mois", "Suivi personnalisé IA", "Support prioritaire 24h", "Accès bibliothèque complète", "Rapport mensuel"],
+      recommended: true,
     },
     {
-      titre: "Séance Expert",
-      prix: "79",
-      duree: "90 min",
-      description: "L'expérience premium pour une transformation profonde",
-      features: ["Séance intensive 90 min", "Multi-approches combinées", "Plan de transformation", "Support prioritaire 7j/7", "Enregistrement + ressources", "Suivi personnalisé mensuel"],
-      accentColor: "#e8c97e",
-      popular: false,
+      id: "expert",
+      name: "Expert",
+      price: 79,
+      color: "#e8c97e",
+      features: ["8 séances par mois", "Thérapeute dédié IA", "Support illimité 24/7", "Toutes spécialités incluses", "Rapport hebdomadaire", "Sessions groupe VIP"],
     },
   ];
-
-  const packs = [
-    {
-      titre: "Pack Essentiel",
-      nombreSeances: "5 séances",
-      prix: "249",
-      prixParSeance: "49.80",
-      economie: "46€ économisés",
-      description: "Commencez votre transformation en profondeur",
-      features: ["5 séances Standard (60 min)", "Planning flexible", "Suivi personnalisé", "Accès ressources exclusives", "Support email prioritaire"],
-      gradient: "linear-gradient(135deg, #1a1508 0%, #2a1f0a 100%)",
-    },
-    {
-      titre: "Pack Transformation",
-      nombreSeances: "10 séances",
-      prix: "449",
-      prixParSeance: "44.90",
-      economie: "141€ économisés",
-      description: "Le programme complet pour une transformation durable",
-      features: ["10 séances Standard (60 min)", "Planning ultra-flexible", "Suivi hebdomadaire", "Accès ressources VIP", "Support WhatsApp dédié", "Bilan mensuel approfondi", "2 séances Expert offertes"],
-      gradient: "linear-gradient(135deg, #1a1205 0%, #3a2510 100%)",
-    },
-  ];
-
-  const [specialiteActive, setSpecialiteActive] = React.useState<number | null>(null);
-  const [hoveredCard, setHoveredCard] = React.useState<string | null>(null);
 
   return (
-    <div style={{ backgroundColor: "#050508", minHeight: "100vh", fontFamily: "'Segoe UI', system-ui, -apple-system, sans-serif", color: "#ffffff", overflowX: "hidden" }}>
-      
-      {/* Navigation */}
-      <nav style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 1000, backgroundColor: "rgba(5, 5, 8, 0.95)", backdropFilter: "blur(20px)", borderBottom: "1px solid rgba(200, 169, 110, 0.15)", padding: "0 24px" }}>
-        <div style={{ maxWidth: "1200px", margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", height: "72px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-            <div style={{ width: "40px", height: "40px", borderRadius: "10px", background: "linear-gradient(135deg, #c8a96e, #a0845a)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "20px" }}>🎓</div>
-            <div>
-              <div style={{ fontSize: "18px", fontWeight: "700", color: "#c8a96e", letterSpacing: "0.5px" }}>AcadémIA Pro</div>
-              <div style={{ fontSize: "11px", color: "rgba(200, 169, 110, 0.6)", letterSpacing: "1px", textTransform: "uppercase" }}>Séances Thérapeutiques</div>
-            </div>
+    <div
+      style={{
+        minHeight: "100vh",
+        backgroundColor: "#050508",
+        fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
+        color: "#e8e8f0",
+        overflowX: "hidden",
+      }}
+    >
+      <div
+        style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          zIndex: 100,
+          backgroundColor: "rgba(5, 5, 8, 0.92)",
+          backdropFilter: "blur(20px)",
+          borderBottom: "1px solid rgba(200, 169, 110, 0.15)",
+          padding: "0 2rem",
+          height: "70px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <div
+            style={{
+              width: "36px",
+              height: "36px",
+              borderRadius: "10px",
+              background: "linear-gradient(135deg, #c8a96e, #e8c97e)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: "18px",
+              fontWeight: "bold",
+              color: "#050508",
+            }}
+          >
+            A
           </div>
-          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-            <a href="#specialites" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "14px", padding: "8px 16px", borderRadius: "8px", transition: "color 0.2s" }}>Spécialités</a>
-            <a href="#tarifs" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "14px", padding: "8px 16px", borderRadius: "8px" }}>Tarifs</a>
-            <a href="#packs" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "14px", padding: "8px 16px", borderRadius: "8px" }}>Packs</a>
-            <button style={{ backgroundColor: "#c8a96e", color: "#050508", border: "none", borderRadius: "10px", padding: "10px 20px", fontSize: "14px", fontWeight: "700", cursor: "pointer", letterSpacing: "0.3px" }}>
-              Réserver
-            </button>
-          </div>
+          <span
+            style={{
+              fontSize: "1.2rem",
+              fontWeight: "700",
+              background: "linear-gradient(135deg, #c8a96e, #e8c97e)",
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+              backgroundClip: "text",
+            }}
+          >
+            AcadémIA Pro
+          </span>
         </div>
-      </nav>
 
-      {/* Hero Section */}
-      <section style={{ paddingTop: "140px", paddingBottom: "100px", paddingLeft: "24px", paddingRight: "24px", position: "relative", overflow: "hidden" }}>
-        
-        {/* Background decorations */}
-        <div style={{ position: "absolute", top: "10%", left: "5%", width: "400px", height: "400px", borderRadius: "50%", background: "radial-gradient(circle, rgba(200, 169, 110, 0.06) 0%, transparent 70%)", pointerEvents: "none" }} />
-        <div style={{ position: "absolute", bottom: "10%", right: "5%", width: "500px", height: "500px", borderRadius: "50%", background: "radial-gradient(circle, rgba(200, 169, 110, 0.04) 0%, transparent 70%)", pointerEvents: "none" }} />
-        <div style={{ position: "absolute", top: "30%", left: "50%", transform: "translateX(-50%)", width: "600px", height: "2px", background: "linear-gradient(90deg, transparent, rgba(200, 169, 110, 0.1), transparent)", pointerEvents: "none" }} />
+        <nav style={{ display: "flex", alignItems: "center", gap: "2rem" }}>
+          <a
+            href="/"
+            style={{
+              color: "rgba(232, 232, 240, 0.6)",
+              textDecoration: "none",
+              fontSize: "0.9rem",
+              transition: "color 0.2s",
+            }}
+          >
+            Accueil
+          </a>
+          <a
+            href="/seances"
+            style={{
+              color: "#c8a96e",
+              textDecoration: "none",
+              fontSize: "0.9rem",
+              fontWeight: "600",
+            }}
+          >
+            Séances
+          </a>
+          <a
+            href="/about"
+            style={{
+              color: "rgba(232, 232, 240, 0.6)",
+              textDecoration: "none",
+              fontSize: "0.9rem",
+            }}
+          >
+            À propos
+          </a>
+          {user ? (
+            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+              <div
+                style={{
+                  width: "34px",
+                  height: "34px",
+                  borderRadius: "50%",
+                  background: "linear-gradient(135deg, #c8a96e, #e8c97e)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: "14px",
+                  fontWeight: "700",
+                  color: "#050508",
+                }}
+              >
+                {user.email?.charAt(0).toUpperCase()}
+              </div>
+              <span style={{ fontSize: "0.85rem", color: "rgba(232, 232, 240, 0.7)" }}>
+                {user.email?.split("@")[0]}
+              </span>
+            </div>
+          ) : (
+            <a
+              href="/login"
+              style={{
+                padding: "8px 20px",
+                background: "linear-gradient(135deg, #c8a96e, #e8c97e)",
+                color: "#050508",
+                borderRadius: "8px",
+                textDecoration: "none",
+                fontSize: "0.875rem",
+                fontWeight: "600",
+              }}
+            >
+              Connexion
+            </a>
+          )}
+        </nav>
+      </div>
 
-        <div style={{ maxWidth: "900px", margin: "0 auto", textAlign: "center", position: "relative" }}>
-          
-          {/* Badge */}
-          <div style={{ display: "inline-flex", alignItems: "center", gap: "8px", backgroundColor: "rgba(200, 169, 110, 0.1)", border: "1px solid rgba(200, 169, 110, 0.25)", borderRadius: "50px", padding: "8px 20px", marginBottom: "32px" }}>
-            <div style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: "#c8a96e", boxShadow: "0 0 8px #c8a96e" }} />
-            <span style={{ fontSize: "13px", color: "#c8a96e", letterSpacing: "1.5px", textTransform: "uppercase", fontWeight: "600" }}>Thérapie & Bien-être IA Augmenté</span>
+      <div style={{ paddingTop: "70px" }}>
+        <div
+          style={{
+            position: "relative",
+            padding: "5rem 2rem 4rem",
+            textAlign: "center",
+            overflow: "hidden",
+          }}
+        >
+          <div
+            style={{
+              position: "absolute",
+              top: "50%",
+              left: "50%",
+              transform: "translate(-50%, -50%)",
+              width: "600px",
+              height: "400px",
+              background: "radial-gradient(ellipse, rgba(200, 169, 110, 0.08) 0%, transparent 70%)",
+              pointerEvents: "none",
+            }}
+          />
+
+          <div
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "8px",
+              padding: "6px 16px",
+              borderRadius: "100px",
+              border: "1px solid rgba(200, 169, 110, 0.3)",
+              backgroundColor: "rgba(200, 169, 110, 0.05)",
+              marginBottom: "1.5rem",
+            }}
+          >
+            <span style={{ fontSize: "0.75rem", color: "#c8a96e", fontWeight: "600", letterSpacing: "0.1em", textTransform: "uppercase" }}>
+              Thérapie Augmentée par IA
+            </span>
           </div>
 
-          <h1 style={{ fontSize: "clamp(36px, 6vw, 72px)", fontWeight: "800", lineHeight: "1.1", marginBottom: "24px", letterSpacing: "-1px" }}>
-            <span style={{ color: "#ffffff" }}>Transformez votre</span>
+          <h1
+            style={{
+              fontSize: "clamp(2.5rem, 6vw, 4rem)",
+              fontWeight: "800",
+              lineHeight: 1.1,
+              marginBottom: "1.5rem",
+              letterSpacing: "-0.02em",
+            }}
+          >
+            <span style={{ color: "#e8e8f0" }}>Vos Séances</span>
             <br />
-            <span style={{ background: "linear-gradient(135deg, #c8a96e, #e8c97e, #a0845a)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>vie intérieure</span>
-            <br />
-            <span style={{ color: "#ffffff" }}>avec nos experts</span>
+            <span
+              style={{
+                background: "linear-gradient(135deg, #c8a96e 0%, #e8c97e 50%, #c8a96e 100%)",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                backgroundClip: "text",
+              }}
+            >
+              Thérapeutiques
+            </span>
           </h1>
 
-          <p style={{ fontSize: "18px", color: "rgba(255,255,255,0.55)", lineHeight: "1.7", maxWidth: "620px", margin: "0 auto 48px", fontWeight: "400" }}>
-            14 spécialités thérapeutiques, des praticiens certifiés et une approche personnalisée augmentée par l'intelligence artificielle pour votre bien-être durable.
+          <p
+            style={{
+              fontSize: "1.1rem",
+              color: "rgba(232, 232, 240, 0.55)",
+              maxWidth: "600px",
+              margin: "0 auto 2rem",
+              lineHeight: 1.7,
+            }}
+          >
+            14 spécialités thérapeutiques guidées par intelligence artificielle. 
+            Un accompagnement personnalisé, confidentiel et disponible à tout moment.
           </p>
 
-          {/* CTA Buttons */}
-          <div style={{ display: "flex", gap: "16px", justifyContent: "center", flexWrap: "wrap", marginBottom: "64px" }}>
-            <button style={{ backgroundColor: "#c8a96e", color: "#050508", border: "none", borderRadius: "12px", padding: "16px 36px", fontSize: "16px", fontWeight: "700", cursor: "pointer", letterSpacing: "0.3px", boxShadow: "0 0 30px rgba(200, 169, 110, 0.3)" }}>
-              Commencer dès 29€ →
-            </button>
-            <button style={{ backgroundColor: "transparent", color: "#c8a96e", border: "1px solid rgba(200, 169, 110, 0.4)", borderRadius: "12px", padding: "16px 36px", fontSize: "16px", fontWeight: "600", cursor: "pointer", letterSpacing: "0.3px" }}>
-              Voir les spécialités
-            </button>
-          </div>
-
-          {/* Stats */}
-          <div style={{ display: "flex", gap: "48px", justifyContent: "center", flexWrap: "wrap" }}>
+          <div style={{ display: "flex", justifyContent: "center", gap: "2rem", flexWrap: "wrap" }}>
             {[
-              { value: "2 400+", label: "patients accompagnés" },
-              { value: "14", label: "spécialités thérapeutiques" },
-              { value: "98%", label: "taux de satisfaction" },
-              { value: "50+", label: "thérapeutes certifiés" },
-            ].map((stat, i) => (
-              <div key={i} style={{ textAlign: "center" }}>
-                <div style={{ fontSize: "28px", fontWeight: "800", color: "#c8a96e", letterSpacing: "-0.5px" }}>{stat.value}</div>
-                <div style={{ fontSize: "13px", color: "rgba(255,255,255,0.4)", marginTop: "4px", letterSpacing: "0.5px" }}>{stat.label}</div>
+              { value: "14", label: "Spécialités" },
+              { value: "98%", label: "Satisfaction" },
+              { value: "24/7", label: "Disponibilité" },
+              { value: "50K+", label: "Patients" },
+            ].map((stat) => (
+              <div key={stat.label} style={{ textAlign: "center" }}>
+                <div
+                  style={{
+                    fontSize: "1.8rem",
+                    fontWeight: "800",
+                    background: "linear-gradient(135deg, #c8a96e, #e8c97e)",
+                    WebkitBackgroundClip: "text",
+                    WebkitTextFillColor: "transparent",
+                    backgroundClip: "text",
+                  }}
+                >
+                  {stat.value}
+                </div>
+                <div style={{ fontSize: "0.8rem", color: "rgba(232, 232, 240, 0.45)", marginTop: "2px" }}>
+                  {stat.label}
+                </div>
               </div>
             ))}
           </div>
         </div>
-      </section>
 
-      {/* Specialites Section */}
-      <section id="specialites" style={{ padding: "100px 24px", position: "relative" }}>
-        
-        <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: "1px", background: "linear-gradient(90deg, transparent, rgba(200, 169, 110, 0.2), transparent)" }} />
-
-        <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
-          
-          <div style={{ textAlign: "center", marginBottom: "64px" }}>
-            <div style={{ display: "inline-flex", alignItems: "center", gap: "8px", backgroundColor: "rgba(200, 169, 110, 0.08)", border: "1px solid rgba(200, 169, 110, 0.2)", borderRadius: "50px", padding: "6px 16px", marginBottom: "20px" }}>
-              <span style={{ fontSize: "12px", color: "#c8a96e", letterSpacing: "1.5px", textTransform: "uppercase", fontWeight: "600" }}>Nos Spécialités</span>
-            </div>
-            <h2 style={{ fontSize: "clamp(28px, 4vw, 48px)", fontWeight: "800", color: "#ffffff", marginBottom: "16px", letterSpacing: "-0.5px" }}>
-              14 domaines d'expertise
+        <div style={{ padding: "2rem 2rem 5rem", maxWidth: "1400px", margin: "0 auto" }}>
+          <div style={{ textAlign: "center", marginBottom: "3rem" }}>
+            <h2
+              style={{
+                fontSize: "1.8rem",
+                fontWeight: "700",
+                color: "#e8e8f0",
+                marginBottom: "0.75rem",
+              }}
+            >
+              Nos Spécialités Thérapeutiques
             </h2>
-            <p style={{ fontSize: "16px", color: "rgba(255,255,255,0.45)", maxWidth: "520px", margin: "0 auto", lineHeight: "1.6" }}>
-              Chaque spécialité est portée par des praticiens certifiés avec des années d'expérience clinique
+            <p style={{ color: "rgba(232, 232, 240, 0.45)", fontSize: "0.95rem" }}>
+              Choisissez la spécialité qui correspond à vos besoins
             </p>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
+              gap
