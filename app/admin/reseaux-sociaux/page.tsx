@@ -1,292 +1,302 @@
-export default function SocialDashboard() {
-  const platforms = [
+export default async function ReseauxSociauxPage() {
+
+  const { createClient } = await import("@supabase/supabase-js");
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+  const supabase = createClient(supabaseUrl, supabaseKey);
+
+  const { data: platformsData } = await supabase
+    .from("social_platforms")
+    .select("*")
+    .order("ca_genere", { ascending: false });
+
+  const { data: tunnelsData } = await supabase
+    .from("conversion_tunnels")
+    .select("*")
+    .order("taux_conversion", { ascending: false });
+
+  const { data: globalKpis } = await supabase
+    .from("global_social_kpis")
+    .select("*")
+    .single();
+
+  const platforms = platformsData || [
     {
-      name: "LinkedIn",
-      color: "#0077B5",
-      icon: "in",
-      followers: 12450,
-      followerGrowth: 8.2,
-      engagement: 4.7,
-      leads: 234,
-      reach: 89000,
-      posts: 24,
-      conversionRate: 3.2,
-      revenue: 45600,
+      id: 1,
+      nom: "LinkedIn",
+      couleur: "#0077B5",
+      icone: "in",
+      followers: 12400,
+      followers_growth: 8.4,
+      engagement_rate: 4.2,
+      leads: 342,
+      ca_genere: 48600,
+      impressions: 284000,
+      clics: 8900,
+      partages: 1240,
+      commentaires: 890,
     },
     {
-      name: "Instagram",
-      color: "#E1306C",
-      icon: "IG",
-      followers: 28900,
-      followerGrowth: 12.5,
-      engagement: 6.3,
-      leads: 187,
-      reach: 145000,
-      posts: 38,
-      conversionRate: 2.1,
-      revenue: 28900,
+      id: 2,
+      nom: "Instagram",
+      couleur: "#E1306C",
+      icone: "ig",
+      followers: 28700,
+      followers_growth: 12.1,
+      engagement_rate: 6.8,
+      leads: 218,
+      ca_genere: 31200,
+      impressions: 520000,
+      clics: 14200,
+      partages: 3800,
+      commentaires: 2100,
     },
     {
-      name: "Facebook",
-      color: "#1877F2",
-      icon: "FB",
-      followers: 19200,
-      followerGrowth: 3.1,
-      engagement: 2.9,
+      id: 3,
+      nom: "Facebook",
+      couleur: "#1877F2",
+      icone: "fb",
+      followers: 19300,
+      followers_growth: 2.3,
+      engagement_rate: 2.9,
       leads: 156,
-      reach: 78000,
-      posts: 31,
-      conversionRate: 1.8,
-      revenue: 19800,
+      ca_genere: 22800,
+      impressions: 390000,
+      clics: 7600,
+      partages: 2100,
+      commentaires: 980,
     },
     {
-      name: "TikTok",
-      color: "#FF0050",
-      icon: "TT",
-      followers: 45600,
-      followerGrowth: 24.8,
-      engagement: 9.2,
-      leads: 312,
-      reach: 320000,
-      posts: 52,
-      conversionRate: 1.4,
-      revenue: 22400,
+      id: 4,
+      nom: "TikTok",
+      couleur: "#010101",
+      icone: "tt",
+      followers: 54200,
+      followers_growth: 31.7,
+      engagement_rate: 9.4,
+      leads: 189,
+      ca_genere: 27400,
+      impressions: 1200000,
+      clics: 32000,
+      partages: 18400,
+      commentaires: 8900,
     },
     {
-      name: "YouTube",
-      color: "#FF0000",
-      icon: "YT",
-      followers: 8750,
-      followerGrowth: 6.4,
-      engagement: 5.1,
-      leads: 98,
-      reach: 67000,
-      posts: 12,
-      conversionRate: 4.6,
-      revenue: 38200,
+      id: 5,
+      nom: "YouTube",
+      couleur: "#FF0000",
+      icone: "yt",
+      followers: 8900,
+      followers_growth: 5.6,
+      engagement_rate: 5.1,
+      leads: 124,
+      ca_genere: 19800,
+      impressions: 180000,
+      clics: 6200,
+      partages: 890,
+      commentaires: 1240,
     },
   ];
 
-  const totalFollowers = platforms.reduce((acc, p) => acc + p.followers, 0);
-  const totalPosts = platforms.reduce((acc, p) => acc + p.posts, 0);
-  const totalReach = platforms.reduce((acc, p) => acc + p.reach, 0);
-  const avgEngagement = (platforms.reduce((acc, p) => acc + p.engagement, 0) / platforms.length).toFixed(1);
-  const totalLeads = platforms.reduce((acc, p) => acc + p.leads, 0);
-  const totalRevenue = platforms.reduce((acc, p) => acc + p.revenue, 0);
-
-  const formatNumber = (n: number) =>
-    n >= 1000000
-      ? (n / 1000000).toFixed(1) + "M"
-      : n >= 1000
-      ? (n / 1000).toFixed(1) + "k"
-      : n.toString();
-
-  const formatCurrency = (n: number) =>
-    new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n);
-
-  const weeklyPosts = [
-    { day: "Lun", platform: "LinkedIn", time: "08h30", content: "Étude de cas client", status: "planifié" },
-    { day: "Mar", platform: "Instagram", time: "12h00", content: "Carousel conseils IA", status: "planifié" },
-    { day: "Mar", platform: "TikTok", time: "18h30", content: "Tendances 2025", status: "planifié" },
-    { day: "Mer", platform: "Facebook", time: "10h00", content: "Webinaire annonce", status: "planifié" },
-    { day: "Jeu", platform: "LinkedIn", time: "09h00", content: "Article thought leadership", status: "planifié" },
-    { day: "Jeu", platform: "YouTube", time: "16h00", content: "Tuto AcadémIA Pro", status: "planifié" },
-    { day: "Ven", platform: "Instagram", time: "11h30", content: "Témoignage étudiant", status: "planifié" },
-    { day: "Sam", platform: "TikTok", time: "14h00", content: "Behind the scenes", status: "planifié" },
+  const tunnels = tunnelsData || [
+    {
+      id: 1,
+      nom: "Découverte → Lead Magnet",
+      plateforme: "LinkedIn",
+      etape_1: 12400,
+      etape_2: 3720,
+      etape_3: 1116,
+      etape_4: 334,
+      taux_conversion: 2.69,
+      ca_genere: 16700,
+    },
+    {
+      id: 2,
+      nom: "Reel → Page de vente",
+      plateforme: "Instagram",
+      etape_1: 28700,
+      etape_2: 8610,
+      etape_3: 2583,
+      etape_4: 516,
+      taux_conversion: 1.8,
+      ca_genere: 12900,
+    },
+    {
+      id: 3,
+      nom: "Short → Webinaire",
+      plateforme: "YouTube",
+      etape_1: 8900,
+      etape_2: 3560,
+      etape_3: 1424,
+      etape_4: 284,
+      taux_conversion: 3.19,
+      ca_genere: 14200,
+    },
+    {
+      id: 4,
+      nom: "Viral → Offre Flash",
+      plateforme: "TikTok",
+      etape_1: 54200,
+      etape_2: 10840,
+      etape_3: 2168,
+      etape_4: 433,
+      taux_conversion: 0.8,
+      ca_genere: 10825,
+    },
   ];
 
-  const platformColor = (name: string) => {
-    const p = platforms.find((pl) => pl.name === name);
-    return p ? p.color : "#c8a96e";
+  const kpis = globalKpis || {
+    total_followers: 123500,
+    total_leads_mois: 1029,
+    ca_total_mois: 149800,
+    engagement_moyen: 5.68,
+    portee_totale: 2574000,
+    taux_conversion_global: 1.82,
   };
 
-  const kpiCards = [
-    { label: "Followers Total", value: formatNumber(totalFollowers), icon: "👥", sub: "+8.4% ce mois", positive: true },
-    { label: "Posts Publiés", value: totalPosts.toString(), icon: "📝", sub: "Ce mois", positive: true },
-    { label: "Reach Total", value: formatNumber(totalReach), icon: "📡", sub: "+15.2% vs mois dernier", positive: true },
-    { label: "Engagement Moyen", value: avgEngagement + "%", icon: "💬", sub: "+0.8pt vs mois dernier", positive: true },
-    { label: "Leads Générés", value: totalLeads.toString(), icon: "🎯", sub: "987 leads ce mois", positive: true },
-    { label: "CA Généré", value: formatCurrency(totalRevenue), icon: "💰", sub: "+22% vs mois dernier", positive: true },
-  ];
+  const formatNumber = (n: number): string => {
+    if (n >= 1000000) return (n / 1000000).toFixed(1) + "M";
+    if (n >= 1000) return (n / 1000).toFixed(1) + "K";
+    return n.toString();
+  };
+
+  const formatCurrency = (n: number): string => {
+    return new Intl.NumberFormat("fr-FR", {
+      style: "currency",
+      currency: "EUR",
+      maximumFractionDigits: 0,
+    }).format(n);
+  };
+
+  const getPlatformIcon = (icone: string): string => {
+    const icons: Record<string, string> = {
+      in: "💼",
+      ig: "📸",
+      fb: "👥",
+      tt: "🎵",
+      yt: "▶️",
+    };
+    return icons[icone] || "🌐";
+  };
+
+  const getTunnelColor = (index: number): string => {
+    const colors = ["#c8a96e", "#b8941e", "#d4b97e", "#e8c98e"];
+    return colors[index % colors.length];
+  };
 
   return (
     <div
       style={{
         minHeight: "100vh",
         backgroundColor: "#050508",
-        fontFamily: "'Segoe UI', system-ui, -apple-system, sans-serif",
-        color: "#e8e8f0",
+        color: "#ffffff",
+        fontFamily: "'Inter', 'Segoe UI', sans-serif",
         padding: "0",
         margin: "0",
       }}
     >
-      {/* HEADER */}
       <div
         style={{
-          background: "linear-gradient(135deg, #0a0a12 0%, #0d0d1a 50%, #050508 100%)",
-          borderBottom: "1px solid rgba(200, 169, 110, 0.2)",
-          padding: "0 32px",
+          background:
+            "linear-gradient(135deg, #0a0a12 0%, #050508 50%, #0d0a05 100%)",
+          borderBottom: "1px solid rgba(200,169,110,0.2)",
+          padding: "24px 40px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
           position: "sticky",
           top: 0,
           zIndex: 100,
           backdropFilter: "blur(20px)",
         }}
       >
-        <div
-          style={{
-            maxWidth: "1600px",
-            margin: "0 auto",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            height: "72px",
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-            <div
-              style={{
-                width: "44px",
-                height: "44px",
-                borderRadius: "12px",
-                background: "linear-gradient(135deg, #c8a96e, #a07840)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: "22px",
-                fontWeight: "900",
-                color: "#050508",
-                boxShadow: "0 4px 20px rgba(200, 169, 110, 0.4)",
-              }}
-            >
-              A
-            </div>
-            <div>
-              <div
-                style={{
-                  fontSize: "20px",
-                  fontWeight: "800",
-                  background: "linear-gradient(135deg, #c8a96e, #e8c88e)",
-                  WebkitBackgroundClip: "text",
-                  WebkitTextFillColor: "transparent",
-                  letterSpacing: "-0.3px",
-                }}
-              >
-                AcadémIA Pro
-              </div>
-              <div style={{ fontSize: "11px", color: "rgba(200, 169, 110, 0.6)", marginTop: "1px" }}>
-                Social Media Dashboard
-              </div>
-            </div>
+        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+          <div
+            style={{
+              width: "44px",
+              height: "44px",
+              borderRadius: "12px",
+              background: "linear-gradient(135deg, #c8a96e, #8b6914)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: "20px",
+              boxShadow: "0 4px 20px rgba(200,169,110,0.3)",
+            }}
+          >
+            📊
           </div>
-
-          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <div
+          <div>
+            <h1
               style={{
-                padding: "6px 14px",
-                borderRadius: "20px",
-                background: "rgba(200, 169, 110, 0.1)",
-                border: "1px solid rgba(200, 169, 110, 0.2)",
-                fontSize: "12px",
-                color: "#c8a96e",
+                margin: 0,
+                fontSize: "22px",
+                fontWeight: 700,
+                background: "linear-gradient(135deg, #c8a96e, #f0d898)",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                letterSpacing: "-0.5px",
               }}
             >
-              Janvier 2025
-            </div>
+              AcadémIA Pro
+            </h1>
+            <p
+              style={{
+                margin: 0,
+                fontSize: "12px",
+                color: "rgba(200,169,110,0.6)",
+                letterSpacing: "2px",
+                textTransform: "uppercase",
+              }}
+            >
+              Réseaux Sociaux Dashboard
+            </p>
+          </div>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              background: "rgba(200,169,110,0.1)",
+              border: "1px solid rgba(200,169,110,0.2)",
+              borderRadius: "20px",
+              padding: "6px 14px",
+            }}
+          >
             <div
               style={{
-                width: "8px",
-                height: "8px",
+                width: "7px",
+                height: "7px",
                 borderRadius: "50%",
-                backgroundColor: "#22c55e",
-                boxShadow: "0 0 8px #22c55e",
+                backgroundColor: "#4ade80",
+                boxShadow: "0 0 8px #4ade80",
                 animation: "pulse 2s infinite",
               }}
             />
-            <span style={{ fontSize: "12px", color: "rgba(200, 169, 110, 0.7)" }}>Live</span>
+            <span style={{ fontSize: "12px", color: "#c8a96e" }}>
+              Live • Mis à jour il y a 2 min
+            </span>
           </div>
-
-          <div style={{ display: "flex", gap: "12px" }}>
-            <button
-              style={{
-                padding: "10px 20px",
-                borderRadius: "10px",
-                border: "1px solid rgba(200, 169, 110, 0.3)",
-                background: "transparent",
-                color: "#c8a96e",
-                fontSize: "13px",
-                fontWeight: "600",
-                cursor: "pointer",
-                transition: "all 0.2s",
-              }}
-              onMouseEnter={(e) => {
-                (e.target as HTMLButtonElement).style.background = "rgba(200, 169, 110, 0.1)";
-              }}
-              onMouseLeave={(e) => {
-                (e.target as HTMLButtonElement).style.background = "transparent";
-              }}
-            >
-              📅 Calendrier
-            </button>
-            <button
-              style={{
-                padding: "10px 20px",
-                borderRadius: "10px",
-                border: "1px solid rgba(200, 169, 110, 0.3)",
-                background: "transparent",
-                color: "#c8a96e",
-                fontSize: "13px",
-                fontWeight: "600",
-                cursor: "pointer",
-              }}
-              onMouseEnter={(e) => {
-                (e.target as HTMLButtonElement).style.background = "rgba(200, 169, 110, 0.1)";
-              }}
-              onMouseLeave={(e) => {
-                (e.target as HTMLButtonElement).style.background = "transparent";
-              }}
-            >
-              📊 Rapport
-            </button>
-            <button
-              style={{
-                padding: "10px 24px",
-                borderRadius: "10px",
-                border: "none",
-                background: "linear-gradient(135deg, #c8a96e, #a07840)",
-                color: "#050508",
-                fontSize: "13px",
-                fontWeight: "700",
-                cursor: "pointer",
-                boxShadow: "0 4px 15px rgba(200, 169, 110, 0.3)",
-              }}
-            >
-              ✨ Générer Posts
-            </button>
+          <div
+            style={{
+              background: "rgba(200,169,110,0.1)",
+              border: "1px solid rgba(200,169,110,0.2)",
+              borderRadius: "10px",
+              padding: "8px 16px",
+              fontSize: "13px",
+              color: "#c8a96e",
+              cursor: "pointer",
+            }}
+          >
+            Exporter rapport
           </div>
         </div>
       </div>
 
-      <div style={{ maxWidth: "1600px", margin: "0 auto", padding: "32px" }}>
-
-        {/* SECTION TITRE */}
-        <div style={{ marginBottom: "32px" }}>
-          <h1
-            style={{
-              fontSize: "28px",
-              fontWeight: "800",
-              color: "#f0e8d8",
-              margin: "0 0 6px 0",
-              letterSpacing: "-0.5px",
-            }}
-          >
-            Vue d&apos;ensemble Réseaux Sociaux
-          </h1>
-          <p style={{ fontSize: "14px", color: "rgba(200, 169, 110, 0.6)", margin: 0 }}>
-            Performance consolidée de toutes vos plateformes · Mise à jour il y a 5 min
-          </p>
-        </div>
-
-        {/* KPI CARDS */}
+      <div style={{ padding: "32px 40px" }}>
         <div
           style={{
             display: "grid",
@@ -295,26 +305,61 @@ export default function SocialDashboard() {
             marginBottom: "32px",
           }}
         >
-          {kpiCards.map((kpi, i) => (
+          {[
+            {
+              label: "Followers Totaux",
+              value: formatNumber(kpis.total_followers),
+              icon: "👥",
+              sub: "+12.4% ce mois",
+              positive: true,
+            },
+            {
+              label: "Leads Générés",
+              value: formatNumber(kpis.total_leads_mois),
+              icon: "🎯",
+              sub: "+24.8% vs M-1",
+              positive: true,
+            },
+            {
+              label: "CA Généré",
+              value: formatCurrency(kpis.ca_total_mois),
+              icon: "💰",
+              sub: "+18.2% vs M-1",
+              positive: true,
+            },
+            {
+              label: "Engagement Moyen",
+              value: kpis.engagement_moyen.toFixed(2) + "%",
+              icon: "❤️",
+              sub: "+1.2pt vs M-1",
+              positive: true,
+            },
+            {
+              label: "Portée Totale",
+              value: formatNumber(kpis.portee_totale),
+              icon: "📡",
+              sub: "Impressions / mois",
+              positive: true,
+            },
+            {
+              label: "Taux Conversion",
+              value: kpis.taux_conversion_global.toFixed(2) + "%",
+              icon: "⚡",
+              sub: "+0.4pt vs M-1",
+              positive: true,
+            },
+          ].map((kpi, idx) => (
             <div
-              key={i}
+              key={idx}
               style={{
-                background: "linear-gradient(135deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.02) 100%)",
-                border: "1px solid rgba(200, 169, 110, 0.15)",
+                background:
+                  "linear-gradient(135deg, rgba(200,169,110,0.08) 0%, rgba(5,5,8,0.95) 100%)",
+                border: "1px solid rgba(200,169,110,0.2)",
                 borderRadius: "16px",
                 padding: "20px",
                 position: "relative",
                 overflow: "hidden",
-                transition: "transform 0.2s, box-shadow 0.2s",
-                cursor: "default",
-              }}
-              onMouseEnter={(e) => {
-                (e.currentTarget as HTMLDivElement).style.transform = "translateY(-2px)";
-                (e.currentTarget as HTMLDivElement).style.boxShadow = "0 8px 32px rgba(200, 169, 110, 0.15)";
-              }}
-              onMouseLeave={(e) => {
-                (e.currentTarget as HTMLDivElement).style.transform = "translateY(0)";
-                (e.currentTarget as HTMLDivElement).style.boxShadow = "none";
+                transition: "transform 0.2s, border-color 0.2s",
               }}
             >
               <div
@@ -324,54 +369,97 @@ export default function SocialDashboard() {
                   left: 0,
                   right: 0,
                   height: "2px",
-                  background: "linear-gradient(90deg, #c8a96e, transparent)",
+                  background:
+                    "linear-gradient(90deg, transparent, #c8a96e, transparent)",
                 }}
               />
-              <div style={{ fontSize: "24px", marginBottom: "10px" }}>{kpi.icon}</div>
               <div
                 style={{
-                  fontSize: "26px",
-                  fontWeight: "800",
-                  color: "#f0e8d8",
-                  marginBottom: "4px",
+                  fontSize: "28px",
+                  marginBottom: "8px",
+                  filter: "drop-shadow(0 2px 8px rgba(200,169,110,0.4))",
+                }}
+              >
+                {kpi.icon}
+              </div>
+              <div
+                style={{
+                  fontSize: "11px",
+                  color: "rgba(200,169,110,0.6)",
+                  textTransform: "uppercase",
+                  letterSpacing: "1px",
+                  marginBottom: "6px",
+                }}
+              >
+                {kpi.label}
+              </div>
+              <div
+                style={{
+                  fontSize: "22px",
+                  fontWeight: 700,
+                  color: "#ffffff",
+                  marginBottom: "6px",
                   letterSpacing: "-0.5px",
                 }}
               >
                 {kpi.value}
               </div>
-              <div style={{ fontSize: "11px", color: "rgba(200, 169, 110, 0.7)", marginBottom: "8px", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                {kpi.label}
-              </div>
               <div
                 style={{
                   fontSize: "11px",
-                  color: kpi.positive ? "#22c55e" : "#ef4444",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "4px",
+                  color: kpi.positive ? "#4ade80" : "#f87171",
+                  fontWeight: 500,
                 }}
               >
-                <span>{kpi.positive ? "↑" : "↓"}</span>
                 {kpi.sub}
               </div>
             </div>
           ))}
         </div>
 
-        {/* PAR PLATEFORME */}
-        <div style={{ marginBottom: "32px" }}>
-          <h2
+        <h2
+          style={{
+            fontSize: "18px",
+            fontWeight: 600,
+            color: "#c8a96e",
+            marginBottom: "20px",
+            letterSpacing: "-0.3px",
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+          }}
+        >
+          <span
             style={{
-              fontSize: "18px",
-              fontWeight: "700",
-              color: "#f0e8d8",
-              margin: "0 0 20px 0",
-              display: "flex",
-              alignItems: "center",
-              gap: "10px",
+              width: "4px",
+              height: "20px",
+              background: "linear-gradient(180deg, #c8a96e, #8b6914)",
+              borderRadius: "2px",
+              display: "inline-block",
             }}
-          >
-            <span
+          />
+          Performance par Plateforme
+        </h2>
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(5, 1fr)",
+            gap: "16px",
+            marginBottom: "32px",
+          }}
+        >
+          {platforms.map((platform: any) => (
+            <div
+              key={platform.id}
               style={{
-                width: "4px",
-                height: "20px",
+                background: "rgba(5,5,8,0.98)",
+                border: "1px solid rgba(200,169,110,0.15)",
+                borderRadius: "20px",
+                padding: "24px",
+                position: "relative",
+                overflow: "hidden",
+                transition: "all 0.3s ease",
+              }}
+            >
+              <div
