@@ -1,4 +1,3 @@
-```tsx
 // app/mentions-legales/page.tsx
 import type { Metadata } from 'next'
 
@@ -208,4 +207,3 @@ export default function MentionsLegalesPage() {
                 </strong>{' '}
                 et les conventions internationales relatives au droit d'auteur.
               </p>
-              
