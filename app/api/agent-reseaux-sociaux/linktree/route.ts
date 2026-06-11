@@ -1,14 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from "next/server";
 
-export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json();
-    return NextResponse.json({ success: true, data: body });
-  } catch (error) {
-    return NextResponse.json({ success: false }, { status: 500 });
-  }
+export async function GET(req: NextRequest) {
+  return NextResponse.json({ success: true, api: "linktree" });
 }
 
-export async function GET() {
-  return NextResponse.json({ success: true, statut: 'actif' });
+export async function POST(req: NextRequest) {
+  return NextResponse.json({ success: true, api: "linktree" });
 }
