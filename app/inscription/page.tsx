@@ -1,4 +1,3 @@
-```tsx
 // app/inscription/page.tsx
 "use client";
 
