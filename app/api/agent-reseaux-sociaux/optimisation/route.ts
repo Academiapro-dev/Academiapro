@@ -1,4 +1,3 @@
-```typescript
 // app/api/agent-reseaux-sociaux/optimisation/analyser/route.ts
 
 import { NextRequest, NextResponse } from "next/server";
@@ -519,4 +518,3 @@ class SocialMediaDataService {
         ],
       },
     ];
-  
