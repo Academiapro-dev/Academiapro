@@ -1,15 +1,67 @@
-import { Metadata } from "next";
+import React, { useState } from "react";
 
-export const metadata: Metadata = {
-  title: "Catalogue - AcadémIA Pro",
-  description: "Nos formations",
-};
-
-export default function CataloguePage() {
-  return (
-    <div style={{ backgroundColor: "#050508", minHeight: "100vh", color: "#fff", padding: "40px" }}>
-      <h1 style={{ color: "#c8a96e", fontFamily: "Georgia, serif" }}>Catalogue</h1>
-      <p>Découvrez nos 131 formations.</p>
-    </div>
-  );
-}
+const formations = [
+  { id: 1, code: "DEV001", titre: "Introduction à Python", domaine: "Développement", niveau: "Débutant", support: "Présentiel", prix: 490, duree: "2 jours" },
+  { id: 2, code: "DEV002", titre: "Python Avancé", domaine: "Développement", niveau: "Avancé", support: "Distanciel", prix: 790, duree: "3 jours" },
+  { id: 3, code: "DEV003", titre: "JavaScript Fondamentaux", domaine: "Développement", niveau: "Débutant", support: "Présentiel", prix: 590, duree: "3 jours" },
+  { id: 4, code: "DEV004", titre: "React.js Complet", domaine: "Développement", niveau: "Intermédiaire", support: "Présentiel", prix: 990, duree: "4 jours" },
+  { id: 5, code: "DEV005", titre: "Node.js et Express", domaine: "Développement", niveau: "Intermédiaire", support: "Distanciel", prix: 890, duree: "3 jours" },
+  { id: 6, code: "DEV006", titre: "TypeScript Maîtrise", domaine: "Développement", niveau: "Avancé", support: "Présentiel", prix: 790, duree: "2 jours" },
+  { id: 7, code: "DEV007", titre: "Vue.js de A à Z", domaine: "Développement", niveau: "Intermédiaire", support: "Mixte", prix: 890, duree: "3 jours" },
+  { id: 8, code: "DEV008", titre: "Angular Framework", domaine: "Développement", niveau: "Avancé", support: "Présentiel", prix: 1090, duree: "4 jours" },
+  { id: 9, code: "DEV009", titre: "PHP et Laravel", domaine: "Développement", niveau: "Intermédiaire", support: "Distanciel", prix: 790, duree: "3 jours" },
+  { id: 10, code: "DEV010", titre: "Java Fondamentaux", domaine: "Développement", niveau: "Débutant", support: "Présentiel", prix: 690, duree: "4 jours" },
+  { id: 11, code: "DEV011", titre: "Spring Boot", domaine: "Développement", niveau: "Avancé", support: "Présentiel", prix: 1190, duree: "4 jours" },
+  { id: 12, code: "DEV012", titre: "C# et .NET", domaine: "Développement", niveau: "Intermédiaire", support: "Distanciel", prix: 890, duree: "3 jours" },
+  { id: 13, code: "DEV013", titre: "Go Language", domaine: "Développement", niveau: "Intermédiaire", support: "Mixte", prix: 890, duree: "3 jours" },
+  { id: 14, code: "DEV014", titre: "Rust Programmation", domaine: "Développement", niveau: "Avancé", support: "Présentiel", prix: 1090, duree: "4 jours" },
+  { id: 15, code: "DEV015", titre: "Swift iOS Dev", domaine: "Développement", niveau: "Intermédiaire", support: "Présentiel", prix: 990, duree: "4 jours" },
+  { id: 16, code: "DEV016", titre: "Kotlin Android", domaine: "Développement", niveau: "Intermédiaire", support: "Distanciel", prix: 990, duree: "4 jours" },
+  { id: 17, code: "DEV017", titre: "Flutter Cross-Platform", domaine: "Développement", niveau: "Avancé", support: "Mixte", prix: 1090, duree: "4 jours" },
+  { id: 18, code: "DEV018", titre: "GraphQL API", domaine: "Développement", niveau: "Intermédiaire", support: "Distanciel", prix: 690, duree: "2 jours" },
+  { id: 19, code: "DEV019", titre: "REST API Design", domaine: "Développement", niveau: "Débutant", support: "Présentiel", prix: 590, duree: "2 jours" },
+  { id: 20, code: "DEV020", titre: "Microservices Architecture", domaine: "Développement", niveau: "Avancé", support: "Présentiel", prix: 1290, duree: "5 jours" },
+  { id: 21, code: "DATA001", titre: "SQL et Bases de Données", domaine: "Data", niveau: "Débutant", support: "Présentiel", prix: 590, duree: "3 jours" },
+  { id: 22, code: "DATA002", titre: "PostgreSQL Avancé", domaine: "Data", niveau: "Avancé", support: "Distanciel", prix: 890, duree: "3 jours" },
+  { id: 23, code: "DATA003", titre: "MongoDB NoSQL", domaine: "Data", niveau: "Intermédiaire", support: "Mixte", prix: 690, duree: "2 jours" },
+  { id: 24, code: "DATA004", titre: "Machine Learning Python", domaine: "Data", niveau: "Avancé", support: "Présentiel", prix: 1390, duree: "5 jours" },
+  { id: 25, code: "DATA005", titre: "Deep Learning TensorFlow", domaine: "Data", niveau: "Avancé", support: "Distanciel", prix: 1490, duree: "5 jours" },
+  { id: 26, code: "DATA006", titre: "Data Science Initiation", domaine: "Data", niveau: "Débutant", support: "Présentiel", prix: 790, duree: "3 jours" },
+  { id: 27, code: "DATA007", titre: "Power BI Expert", domaine: "Data", niveau: "Intermédiaire", support: "Présentiel", prix: 890, duree: "3 jours" },
+  { id: 28, code: "DATA008", titre: "Tableau Desktop", domaine: "Data", niveau: "Intermédiaire", support: "Distanciel", prix: 790, duree: "2 jours" },
+  { id: 29, code: "DATA009", titre: "Apache Spark", domaine: "Data", niveau: "Avancé", support: "Mixte", prix: 1290, duree: "4 jours" },
+  { id: 30, code: "DATA010", titre: "Hadoop Ecosystème", domaine: "Data", niveau: "Avancé", support: "Présentiel", prix: 1190, duree: "4 jours" },
+  { id: 31, code: "DATA011", titre: "Pandas et NumPy", domaine: "Data", niveau: "Intermédiaire", support: "Distanciel", prix: 690, duree: "2 jours" },
+  { id: 32, code: "DATA012", titre: "Statistiques Avancées", domaine: "Data", niveau: "Avancé", support: "Présentiel", prix: 990, duree: "4 jours" },
+  { id: 33, code: "DATA013", titre: "NLP Traitement Langage", domaine: "Data", niveau: "Avancé", support: "Distanciel", prix: 1390, duree: "5 jours" },
+  { id: 34, code: "DATA014", titre: "Computer Vision", domaine: "Data", niveau: "Avancé", support: "Mixte", prix: 1390, duree: "5 jours" },
+  { id: 35, code: "DATA015", titre: "Databricks Lakehouse", domaine: "Data", niveau: "Avancé", support: "Distanciel", prix: 1290, duree: "4 jours" },
+  { id: 36, code: "DATA016", titre: "dbt Data Transform", domaine: "Data", niveau: "Intermédiaire", support: "Présentiel", prix: 890, duree: "2 jours" },
+  { id: 37, code: "DATA017", titre: "Airflow Orchestration", domaine: "Data", niveau: "Intermédiaire", support: "Distanciel", prix: 990, duree: "3 jours" },
+  { id: 38, code: "DATA018", titre: "Elasticsearch Search", domaine: "Data", niveau: "Intermédiaire", support: "Mixte", prix: 890, duree: "3 jours" },
+  { id: 39, code: "DATA019", titre: "Kafka Streaming", domaine: "Data", niveau: "Avancé", support: "Présentiel", prix: 1190, duree: "3 jours" },
+  { id: 40, code: "DATA020", titre: "MLOps Pratiques", domaine: "Data", niveau: "Avancé", support: "Distanciel", prix: 1390, duree: "4 jours" },
+  { id: 41, code: "CLOUD001", titre: "AWS Fondamentaux", domaine: "Cloud", niveau: "Débutant", support: "Présentiel", prix: 890, duree: "3 jours" },
+  { id: 42, code: "CLOUD002", titre: "AWS Architecte", domaine: "Cloud", niveau: "Avancé", support: "Distanciel", prix: 1490, duree: "5 jours" },
+  { id: 43, code: "CLOUD003", titre: "Azure Initiation", domaine: "Cloud", niveau: "Débutant", support: "Mixte", prix: 890, duree: "3 jours" },
+  { id: 44, code: "CLOUD004", titre: "Azure DevOps", domaine: "Cloud", niveau: "Intermédiaire", support: "Présentiel", prix: 1090, duree: "4 jours" },
+  { id: 45, code: "CLOUD005", titre: "Google Cloud Platform", domaine: "Cloud", niveau: "Intermédiaire", support: "Distanciel", prix: 990, duree: "3 jours" },
+  { id: 46, code: "CLOUD006", titre: "Kubernetes Administration", domaine: "Cloud", niveau: "Avancé", support: "Présentiel", prix: 1390, duree: "4 jours" },
+  { id: 47, code: "CLOUD007", titre: "Docker Conteneurs", domaine: "Cloud", niveau: "Intermédiaire", support: "Mixte", prix: 890, duree: "2 jours" },
+  { id: 48, code: "CLOUD008", titre: "Terraform IaC", domaine: "Cloud", niveau: "Avancé", support: "Distanciel", prix: 1190, duree: "3 jours" },
+  { id: 49, code: "CLOUD009", titre: "Ansible Automatisation", domaine: "Cloud", niveau: "Intermédiaire", support: "Présentiel", prix: 990, duree: "3 jours" },
+  { id: 50, code: "CLOUD010", titre: "Jenkins CI/CD", domaine: "Cloud", niveau: "Intermédiaire", support: "Distanciel", prix: 890, duree: "2 jours" },
+  { id: 51, code: "CLOUD011", titre: "GitLab CI/CD", domaine: "Cloud", niveau: "Intermédiaire", support: "Mixte", prix: 890, duree: "2 jours" },
+  { id: 52, code: "CLOUD012", titre: "Prometheus Monitoring", domaine: "Cloud", niveau: "Avancé", support: "Présentiel", prix: 990, duree: "2 jours" },
+  { id: 53, code: "CLOUD013", titre: "Grafana Observabilité", domaine: "Cloud", niveau: "Intermédiaire", support: "Distanciel", prix: 890, duree: "2 jours" },
+  { id: 54, code: "CLOUD014", titre: "Istio Service Mesh", domaine: "Cloud", niveau: "Avancé", support: "Présentiel", prix: 1290, duree: "3 jours" },
+  { id: 55, code: "CLOUD015", titre: "Vault Secrets Mgmt", domaine: "Cloud", niveau: "Avancé", support: "Distanciel", prix: 990, duree: "2 jours" },
+  { id: 56, code: "SECU001", titre: "Cybersécurité Initiation", domaine: "Sécurité", niveau: "Débutant", support: "Présentiel", prix: 790, duree: "3 jours" },
+  { id: 57, code: "SECU002", titre: "Pentest Éthique", domaine: "Sécurité", niveau: "Avancé", support: "Présentiel", prix: 1590, duree: "5 jours" },
+  { id: 58, code: "SECU003", titre: "OWASP Top 10", domaine: "Sécurité", niveau: "Intermédiaire", support: "Mixte", prix: 890, duree: "2 jours" },
+  { id: 59, code: "SECU004", titre: "Sécurité des APIs", domaine: "Sécurité", niveau: "Intermédiaire", support: "Distanciel", prix: 890, duree: "2 jours" },
+  { id: 60, code: "SECU005", titre: "RGPD Conformité", domaine: "Sécurité", niveau: "Débutant", support: "Présentiel", prix: 690, duree: "2 jours" },
+  { id: 61, code: "SECU006", titre: "ISO 27001 Lead", domaine: "Sécurité", niveau: "Avancé", support: "Présentiel", prix: 1790, duree: "5 jours" },
+  { id: 62, code: "SECU007", titre: "Cryptographie Pratique", domaine: "Sécurité", niveau: "Avancé", support: "Distanciel", prix: 1090, duree: "3 jours" },
+  { id: 63, code: "SECU008", titre: "SOC Analyste", domaine: "Sécurité", niveau: "Intermédiaire", support: "Présentiel", prix: 1290, duree: "4 jours" },
+  { id: 64, code: "SECU009", titre: "Forensique Numérique", domaine: "Sécurité", niveau: "Avancé", support: "Mixte
