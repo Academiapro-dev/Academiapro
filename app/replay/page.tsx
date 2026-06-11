@@ -382,3 +382,4 @@ export default function ReplaysPage() {
   const playIconContainerStyle = (available: boolean): React.CSSProperties => ({
     width: "52px",
     height: "52
+}}
