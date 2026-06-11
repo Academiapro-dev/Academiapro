@@ -263,3 +263,4 @@ export default async function GamificationPage() {
                 WebkitBackgroundClip: 'text',
                 WebkitTextFillColor: 'transparent',
                 backgroundClip
+}}}
