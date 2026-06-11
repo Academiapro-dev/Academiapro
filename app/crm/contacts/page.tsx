@@ -1,353 +1,395 @@
-export default function ContactsPage() {
-  const [searchTerm, setSearchTerm] = React.useState("");
-  const [activeFilter, setActiveFilter] = React.useState("tous");
-  const [contacts, setContacts] = React.useState([
-    {
-      id: 1,
-      nom: "Sophie Marchand",
-      email: "sophie.marchand@email.com",
-      formations: ["Python Avancé", "Machine Learning"],
-      statut: "VIP",
-      score: 98,
-      derniereInteraction: "2024-01-15",
-    },
-    {
-      id: 2,
-      nom: "Thomas Dubois",
-      email: "thomas.dubois@email.com",
-      formations: ["JavaScript ES6"],
-      statut: "client",
-      score: 74,
-      derniereInteraction: "2024-01-12",
-    },
-    {
-      id: 3,
-      nom: "Amélie Laurent",
-      email: "amelie.laurent@email.com",
-      formations: [],
-      statut: "lead",
-      score: 32,
-      derniereInteraction: "2024-01-10",
-    },
-    {
-      id: 4,
-      nom: "Marc Fontaine",
-      email: "marc.fontaine@email.com",
-      formations: ["Data Science"],
-      statut: "prospect",
-      score: 55,
-      derniereInteraction: "2024-01-08",
-    },
-    {
-      id: 5,
-      nom: "Isabelle Renard",
-      email: "isabelle.renard@email.com",
-      formations: ["React", "Next.js", "TypeScript"],
-      statut: "VIP",
-      score: 95,
-      derniereInteraction: "2024-01-14",
-    },
-    {
-      id: 6,
-      nom: "Pierre Moreau",
-      email: "pierre.moreau@email.com",
-      formations: ["Python Avancé"],
-      statut: "client",
-      score: 68,
-      derniereInteraction: "2024-01-11",
-    },
-    {
-      id: 7,
-      nom: "Claire Petit",
-      email: "claire.petit@email.com",
-      formations: [],
-      statut: "lead",
-      score: 18,
-      derniereInteraction: "2024-01-06",
-    },
-    {
-      id: 8,
-      nom: "Antoine Bernard",
-      email: "antoine.bernard@email.com",
-      formations: ["Machine Learning"],
-      statut: "prospect",
-      score: 47,
-      derniereInteraction: "2024-01-09",
-    },
-  ]);
+export default async function ContactsPage() {
+  const { createClient } = await import("@supabase/supabase-js");
 
-  const [showModal, setShowModal] = React.useState(false);
-  const [newContact, setNewContact] = React.useState({
-    nom: "",
-    email: "",
-    formations: "",
-    statut: "lead",
-    score: 0,
-  });
-  const [hoveredRow, setHoveredRow] = React.useState<number | null>(null);
-  const [hoveredBtn, setHoveredBtn] = React.useState<string | null>(null);
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL as string,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string
+  );
 
-  const statutColors: Record<string, { bg: string; color: string; border: string }> = {
-    lead: { bg: "rgba(100, 116, 139, 0.2)", color: "#94a3b8", border: "rgba(100, 116, 139, 0.4)" },
-    prospect: { bg: "rgba(59, 130, 246, 0.15)", color: "#60a5fa", border: "rgba(59, 130, 246, 0.35)" },
-    client: { bg: "rgba(34, 197, 94, 0.15)", color: "#4ade80", border: "rgba(34, 197, 94, 0.35)" },
-    VIP: { bg: "rgba(200, 169, 110, 0.15)", color: "#c8a96e", border: "rgba(200, 169, 110, 0.4)" },
+  const { data: contacts, error } = await supabase
+    .from("contacts")
+    .select("id, nom, email, statut, score, derniere_interaction")
+    .order("score", { ascending: false });
+
+  const contactList = contacts || [];
+
+  const pageStyle: React.CSSProperties = {
+    minHeight: "100vh",
+    backgroundColor: "#050508",
+    fontFamily: "'Inter', 'Segoe UI', sans-serif",
+    color: "#e8e8f0",
+    padding: "0",
+    margin: "0",
   };
 
-  const getScoreColor = (score: number): string => {
-    if (score >= 80) return "#c8a96e";
-    if (score >= 60) return "#4ade80";
-    if (score >= 40) return "#60a5fa";
-    return "#94a3b8";
+  const headerStyle: React.CSSProperties = {
+    background: "linear-gradient(135deg, #0d0d1a 0%, #0a0a14 50%, #050508 100%)",
+    borderBottom: "1px solid rgba(200, 169, 110, 0.2)",
+    padding: "24px 40px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    position: "sticky",
+    top: "0",
+    zIndex: 100,
+    backdropFilter: "blur(20px)",
   };
 
-  const filteredContacts = contacts.filter((contact) => {
-    const matchSearch =
-      contact.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      contact.email.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchFilter = activeFilter === "tous" || contact.statut === activeFilter;
-    return matchSearch && matchFilter;
-  });
-
-  const exportCSV = () => {
-    const headers = ["Nom", "Email", "Formations", "Statut", "Score", "Dernière Interaction"];
-    const rows = filteredContacts.map((c) => [
-      c.nom,
-      c.email,
-      c.formations.join("; "),
-      c.statut,
-      c.score.toString(),
-      c.derniereInteraction,
-    ]);
-    const csvContent = [headers, ...rows].map((row) => row.join(",")).join("\n");
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "contacts_academia_pro.csv";
-    link.click();
-    URL.revokeObjectURL(url);
+  const logoContainerStyle: React.CSSProperties = {
+    display: "flex",
+    alignItems: "center",
+    gap: "14px",
   };
 
-  const addContact = () => {
-    if (!newContact.nom || !newContact.email) return;
-    const contact = {
-      id: contacts.length + 1,
-      nom: newContact.nom,
-      email: newContact.email,
-      formations: newContact.formations ? newContact.formations.split(",").map((f) => f.trim()) : [],
-      statut: newContact.statut,
-      score: Number(newContact.score),
-      derniereInteraction: new Date().toISOString().split("T")[0],
+  const logoIconStyle: React.CSSProperties = {
+    width: "42px",
+    height: "42px",
+    background: "linear-gradient(135deg, #c8a96e, #e8c97e, #a07840)",
+    borderRadius: "10px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: "20px",
+    fontWeight: "900",
+    color: "#050508",
+    boxShadow: "0 4px 20px rgba(200, 169, 110, 0.4)",
+  };
+
+  const logoTextStyle: React.CSSProperties = {
+    fontSize: "22px",
+    fontWeight: "700",
+    background: "linear-gradient(135deg, #c8a96e, #e8c97e)",
+    WebkitBackgroundClip: "text",
+    WebkitTextFillColor: "transparent",
+    letterSpacing: "-0.3px",
+  };
+
+  const logoSubStyle: React.CSSProperties = {
+    fontSize: "11px",
+    color: "rgba(200, 169, 110, 0.6)",
+    letterSpacing: "2px",
+    textTransform: "uppercase" as const,
+    marginTop: "2px",
+  };
+
+  const headerNavStyle: React.CSSProperties = {
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+  };
+
+  const navItemStyle: React.CSSProperties = {
+    padding: "8px 16px",
+    borderRadius: "8px",
+    fontSize: "13px",
+    color: "rgba(200, 169, 110, 0.7)",
+    cursor: "pointer",
+    transition: "all 0.2s",
+    border: "1px solid transparent",
+  };
+
+  const navItemActiveStyle: React.CSSProperties = {
+    ...navItemStyle,
+    backgroundColor: "rgba(200, 169, 110, 0.1)",
+    border: "1px solid rgba(200, 169, 110, 0.3)",
+    color: "#c8a96e",
+    fontWeight: "600",
+  };
+
+  const mainContentStyle: React.CSSProperties = {
+    padding: "40px",
+    maxWidth: "1400px",
+    margin: "0 auto",
+  };
+
+  const pageTitleSectionStyle: React.CSSProperties = {
+    marginBottom: "32px",
+    display: "flex",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+  };
+
+  const pageTitleStyle: React.CSSProperties = {
+    fontSize: "32px",
+    fontWeight: "800",
+    color: "#ffffff",
+    letterSpacing: "-0.5px",
+    lineHeight: "1.2",
+  };
+
+  const pageTitleAccentStyle: React.CSSProperties = {
+    background: "linear-gradient(135deg, #c8a96e, #e8c97e)",
+    WebkitBackgroundClip: "text",
+    WebkitTextFillColor: "transparent",
+  };
+
+  const pageSubtitleStyle: React.CSSProperties = {
+    fontSize: "14px",
+    color: "rgba(232, 232, 240, 0.5)",
+    marginTop: "6px",
+    fontWeight: "400",
+  };
+
+  const statsRowStyle: React.CSSProperties = {
+    display: "grid",
+    gridTemplateColumns: "repeat(4, 1fr)",
+    gap: "16px",
+    marginBottom: "32px",
+  };
+
+  const statCardStyle: React.CSSProperties = {
+    background: "linear-gradient(135deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%)",
+    border: "1px solid rgba(200, 169, 110, 0.15)",
+    borderRadius: "16px",
+    padding: "20px 24px",
+    position: "relative",
+    overflow: "hidden",
+  };
+
+  const statCardAccentStyle: React.CSSProperties = {
+    position: "absolute",
+    top: "0",
+    left: "0",
+    right: "0",
+    height: "2px",
+    background: "linear-gradient(90deg, #c8a96e, #e8c97e, transparent)",
+  };
+
+  const statLabelStyle: React.CSSProperties = {
+    fontSize: "11px",
+    color: "rgba(200, 169, 110, 0.6)",
+    textTransform: "uppercase" as const,
+    letterSpacing: "1.5px",
+    fontWeight: "600",
+    marginBottom: "8px",
+  };
+
+  const statValueStyle: React.CSSProperties = {
+    fontSize: "28px",
+    fontWeight: "800",
+    color: "#ffffff",
+    lineHeight: "1",
+  };
+
+  const statChangeStyle: React.CSSProperties = {
+    fontSize: "12px",
+    color: "#4ade80",
+    marginTop: "6px",
+    fontWeight: "500",
+  };
+
+  const toolbarStyle: React.CSSProperties = {
+    display: "flex",
+    alignItems: "center",
+    gap: "12px",
+    marginBottom: "24px",
+    flexWrap: "wrap" as const,
+  };
+
+  const searchContainerStyle: React.CSSProperties = {
+    flex: "1",
+    minWidth: "280px",
+    position: "relative",
+  };
+
+  const searchIconStyle: React.CSSProperties = {
+    position: "absolute",
+    left: "14px",
+    top: "50%",
+    transform: "translateY(-50%)",
+    color: "rgba(200, 169, 110, 0.5)",
+    fontSize: "16px",
+    pointerEvents: "none",
+  };
+
+  const searchInputStyle: React.CSSProperties = {
+    width: "100%",
+    padding: "11px 14px 11px 42px",
+    backgroundColor: "rgba(255,255,255,0.04)",
+    border: "1px solid rgba(200, 169, 110, 0.2)",
+    borderRadius: "10px",
+    color: "#e8e8f0",
+    fontSize: "14px",
+    outline: "none",
+    boxSizing: "border-box" as const,
+    transition: "border-color 0.2s",
+  };
+
+  const filterSelectStyle: React.CSSProperties = {
+    padding: "11px 16px",
+    backgroundColor: "rgba(255,255,255,0.04)",
+    border: "1px solid rgba(200, 169, 110, 0.2)",
+    borderRadius: "10px",
+    color: "#e8e8f0",
+    fontSize: "13px",
+    outline: "none",
+    cursor: "pointer",
+    minWidth: "140px",
+  };
+
+  const addButtonStyle: React.CSSProperties = {
+    padding: "11px 22px",
+    background: "linear-gradient(135deg, #c8a96e, #e8c97e)",
+    border: "none",
+    borderRadius: "10px",
+    color: "#050508",
+    fontSize: "13px",
+    fontWeight: "700",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    whiteSpace: "nowrap" as const,
+    boxShadow: "0 4px 20px rgba(200, 169, 110, 0.3)",
+    letterSpacing: "0.3px",
+  };
+
+  const tableContainerStyle: React.CSSProperties = {
+    background: "linear-gradient(135deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%)",
+    border: "1px solid rgba(200, 169, 110, 0.15)",
+    borderRadius: "20px",
+    overflow: "hidden",
+  };
+
+  const tableHeaderBarStyle: React.CSSProperties = {
+    padding: "20px 28px",
+    borderBottom: "1px solid rgba(200, 169, 110, 0.1)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    background: "rgba(200, 169, 110, 0.03)",
+  };
+
+  const tableHeaderTitleStyle: React.CSSProperties = {
+    fontSize: "15px",
+    fontWeight: "700",
+    color: "#ffffff",
+    display: "flex",
+    alignItems: "center",
+    gap: "10px",
+  };
+
+  const tableBadgeStyle: React.CSSProperties = {
+    fontSize: "11px",
+    padding: "3px 10px",
+    backgroundColor: "rgba(200, 169, 110, 0.15)",
+    border: "1px solid rgba(200, 169, 110, 0.3)",
+    borderRadius: "20px",
+    color: "#c8a96e",
+    fontWeight: "600",
+  };
+
+  const tableStyle: React.CSSProperties = {
+    width: "100%",
+    borderCollapse: "collapse" as const,
+  };
+
+  const theadStyle: React.CSSProperties = {
+    backgroundColor: "rgba(0,0,0,0.2)",
+  };
+
+  const thStyle: React.CSSProperties = {
+    padding: "14px 20px",
+    textAlign: "left" as const,
+    fontSize: "11px",
+    fontWeight: "700",
+    color: "rgba(200, 169, 110, 0.6)",
+    textTransform: "uppercase" as const,
+    letterSpacing: "1.5px",
+    borderBottom: "1px solid rgba(200, 169, 110, 0.08)",
+    whiteSpace: "nowrap" as const,
+  };
+
+  const tdStyle: React.CSSProperties = {
+    padding: "16px 20px",
+    fontSize: "13px",
+    borderBottom: "1px solid rgba(255,255,255,0.04)",
+    verticalAlign: "middle",
+  };
+
+  const tdLastStyle: React.CSSProperties = {
+    ...tdStyle,
+    borderBottom: "none",
+  };
+
+  const avatarStyle: React.CSSProperties = {
+    width: "36px",
+    height: "36px",
+    borderRadius: "10px",
+    background: "linear-gradient(135deg, #c8a96e33, #e8c97e22)",
+    border: "1px solid rgba(200, 169, 110, 0.3)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: "14px",
+    fontWeight: "700",
+    color: "#c8a96e",
+    flexShrink: 0,
+  };
+
+  const nameCellStyle: React.CSSProperties = {
+    display: "flex",
+    alignItems: "center",
+    gap: "12px",
+  };
+
+  const nameTextStyle: React.CSSProperties = {
+    fontSize: "14px",
+    fontWeight: "600",
+    color: "#ffffff",
+    lineHeight: "1.2",
+  };
+
+  const emailTextStyle: React.CSSProperties = {
+    fontSize: "12px",
+    color: "rgba(232, 232, 240, 0.4)",
+    marginTop: "2px",
+  };
+
+  const getStatutStyle = (statut: string): React.CSSProperties => {
+    const base: React.CSSProperties = {
+      display: "inline-flex",
+      alignItems: "center",
+      gap: "6px",
+      padding: "4px 12px",
+      borderRadius: "20px",
+      fontSize: "11px",
+      fontWeight: "700",
+      letterSpacing: "0.5px",
+      textTransform: "uppercase" as const,
     };
-    setContacts([...contacts, contact]);
-    setShowModal(false);
-    setNewContact({ nom: "", email: "", formations: "", statut: "lead", score: 0 });
+    if (statut === "client") {
+      return { ...base, backgroundColor: "rgba(74, 222, 128, 0.1)", border: "1px solid rgba(74, 222, 128, 0.3)", color: "#4ade80" };
+    }
+    if (statut === "prospect") {
+      return { ...base, backgroundColor: "rgba(200, 169, 110, 0.1)", border: "1px solid rgba(200, 169, 110, 0.3)", color: "#c8a96e" };
+    }
+    if (statut === "lead") {
+      return { ...base, backgroundColor: "rgba(96, 165, 250, 0.1)", border: "1px solid rgba(96, 165, 250, 0.3)", color: "#60a5fa" };
+    }
+    if (statut === "inactif") {
+      return { ...base, backgroundColor: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(232,232,240,0.4)" };
+    }
+    return { ...base, backgroundColor: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(232,232,240,0.5)" };
   };
 
-  const formatDate = (dateStr: string): string => {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" });
+  const getStatutDot = (statut: string): React.CSSProperties => {
+    const base: React.CSSProperties = {
+      width: "6px",
+      height: "6px",
+      borderRadius: "50%",
+      flexShrink: 0,
+    };
+    if (statut === "client") return { ...base, backgroundColor: "#4ade80" };
+    if (statut === "prospect") return { ...base, backgroundColor: "#c8a96e" };
+    if (statut === "lead") return { ...base, backgroundColor: "#60a5fa" };
+    return { ...base, backgroundColor: "rgba(232,232,240,0.3)" };
   };
 
-  const statsCounts = {
-    tous: contacts.length,
-    lead: contacts.filter((c) => c.statut === "lead").length,
-    prospect: contacts.filter((c) => c.statut === "prospect").length,
-    client: contacts.filter((c) => c.statut === "client").length,
-    VIP: contacts.filter((c) => c.statut === "VIP").length,
+  const scoreBarContainerStyle: React.CSSProperties = {
+    display: "flex",
+    alignItems: "center",
+    gap: "10px",
   };
 
-  return (
-    <div
-      style={{
-        minHeight: "100vh",
-        backgroundColor: "#050508",
-        fontFamily: "'Segoe UI', system-ui, -apple-system, sans-serif",
-        color: "#e2e8f0",
-        padding: "0",
-        margin: "0",
-      }}
-    >
-      <div
-        style={{
-          position: "fixed",
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background:
-            "radial-gradient(ellipse at 20% 20%, rgba(200, 169, 110, 0.04) 0%, transparent 50%), radial-gradient(ellipse at 80% 80%, rgba(200, 169, 110, 0.03) 0%, transparent 50%)",
-          pointerEvents: "none",
-          zIndex: 0,
-        }}
-      />
-
-      <div style={{ position: "relative", zIndex: 1, maxWidth: "1400px", margin: "0 auto", padding: "32px 24px" }}>
-
-        <div style={{ marginBottom: "40px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "8px" }}>
-            <div
-              style={{
-                width: "40px",
-                height: "40px",
-                background: "linear-gradient(135deg, #c8a96e, #a07840)",
-                borderRadius: "10px",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: "20px",
-              }}
-            >
-              ◈
-            </div>
-            <div>
-              <span
-                style={{
-                  fontSize: "11px",
-                  fontWeight: "600",
-                  letterSpacing: "3px",
-                  textTransform: "uppercase",
-                  color: "#c8a96e",
-                  opacity: 0.8,
-                }}
-              >
-                AcadémIA Pro · CRM
-              </span>
-            </div>
-          </div>
-          <h1
-            style={{
-              fontSize: "32px",
-              fontWeight: "700",
-              margin: "0 0 6px 0",
-              background: "linear-gradient(135deg, #ffffff 0%, #c8a96e 100%)",
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-              backgroundClip: "text",
-            }}
-          >
-            Gestion des Contacts
-          </h1>
-          <p style={{ margin: 0, color: "#64748b", fontSize: "14px" }}>
-            {contacts.length} contacts · {statsCounts.VIP} VIP · {statsCounts.client} clients actifs
-          </p>
-        </div>
-
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "16px", marginBottom: "32px" }}>
-          {[
-            { label: "Total Contacts", value: statsCounts.tous, icon: "👥", color: "#c8a96e" },
-            { label: "Clients Actifs", value: statsCounts.client, icon: "✅", color: "#4ade80" },
-            { label: "Prospects", value: statsCounts.prospect, icon: "🎯", color: "#60a5fa" },
-            { label: "Contacts VIP", value: statsCounts.VIP, icon: "⭐", color: "#c8a96e" },
-          ].map((stat, index) => (
-            <div
-              key={index}
-              style={{
-                background: "linear-gradient(135deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%)",
-                border: "1px solid rgba(255,255,255,0.06)",
-                borderRadius: "16px",
-                padding: "20px",
-                backdropFilter: "blur(10px)",
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
-                <span style={{ fontSize: "22px" }}>{stat.icon}</span>
-                <div
-                  style={{
-                    width: "8px",
-                    height: "8px",
-                    borderRadius: "50%",
-                    backgroundColor: stat.color,
-                    boxShadow: `0 0 8px ${stat.color}`,
-                  }}
-                />
-              </div>
-              <div style={{ fontSize: "28px", fontWeight: "700", color: stat.color, marginBottom: "4px" }}>
-                {stat.value}
-              </div>
-              <div style={{ fontSize: "12px", color: "#64748b", fontWeight: "500" }}>{stat.label}</div>
-            </div>
-          ))}
-        </div>
-
-        <div
-          style={{
-            background: "linear-gradient(135deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%)",
-            border: "1px solid rgba(255,255,255,0.06)",
-            borderRadius: "20px",
-            padding: "24px",
-            marginBottom: "24px",
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap" }}>
-            <div style={{ position: "relative", flex: "1", minWidth: "250px" }}>
-              <span
-                style={{
-                  position: "absolute",
-                  left: "14px",
-                  top: "50%",
-                  transform: "translateY(-50%)",
-                  color: "#64748b",
-                  fontSize: "16px",
-                  pointerEvents: "none",
-                }}
-              >
-                ⌕
-              </span>
-              <input
-                type="text"
-                placeholder="Rechercher un contact..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                style={{
-                  width: "100%",
-                  padding: "12px 16px 12px 42px",
-                  backgroundColor: "rgba(255,255,255,0.04)",
-                  border: "1px solid rgba(255,255,255,0.08)",
-                  borderRadius: "12px",
-                  color: "#e2e8f0",
-                  fontSize: "14px",
-                  outline: "none",
-                  boxSizing: "border-box",
-                  transition: "border-color 0.2s",
-                }}
-                onFocus={(e) => (e.target.style.borderColor = "rgba(200, 169, 110, 0.5)")}
-                onBlur={(e) => (e.target.style.borderColor = "rgba(255,255,255,0.08)")}
-              />
-            </div>
-
-            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-              {["tous", "lead", "prospect", "client", "VIP"].map((filter) => (
-                <button
-                  key={filter}
-                  onClick={() => setActiveFilter(filter)}
-                  style={{
-                    padding: "10px 18px",
-                    borderRadius: "10px",
-                    border: activeFilter === filter ? "1px solid rgba(200, 169, 110, 0.5)" : "1px solid rgba(255,255,255,0.08)",
-                    backgroundColor: activeFilter === filter ? "rgba(200, 169, 110, 0.15)" : "rgba(255,255,255,0.03)",
-                    color: activeFilter === filter ? "#c8a96e" : "#64748b",
-                    fontSize: "13px",
-                    fontWeight: "500",
-                    cursor: "pointer",
-                    transition: "all 0.2s",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "6px",
-                  }}
-                >
-                  <span style={{ textTransform: "capitalize" }}>{filter}</span>
-                  <span
-                    style={{
-                      backgroundColor: activeFilter === filter ? "rgba(200, 169, 110, 0.25)" : "rgba(255,255,255,0.08)",
-                      color: activeFilter === filter ? "#c8a96e" : "#64748b",
-                      borderRadius: "6px",
-                      padding: "1px 7px",
-                      fontSize: "11px",
-                      fontWeight: "600",
-                    }}
-                  >
-                    {statsCounts[filter as keyof typeof statsCounts]}
-                  </span>
-                </button>
+  const scoreBarBgStyle: React.
