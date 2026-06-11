@@ -1,3 +1,5 @@
+"use client";
+
 export default async function HoldingPage() {
   const containerStyle: React.CSSProperties = {
     minHeight: "100vh",
