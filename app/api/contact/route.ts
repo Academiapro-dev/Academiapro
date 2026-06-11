@@ -1,4 +1,3 @@
-```typescript
 // app/api/contact/route.ts
 
 import { NextRequest, NextResponse } from "next/server";
@@ -221,4 +220,4 @@ const emailConfirmationTemplate = (data: ContactFormData): string => `
     .header .emoji { font-size: 48px; margin-bottom: 16px; display: block; }
     .header h1 { color: #ffffff; font-size: 26px; font-weight: 700; margin-bottom: 8px; }
     .header p { color: rgba(255,255,255,0.85); font-size: 16px; }
-    .body { padding: 
+    .body { padding:
