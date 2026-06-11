@@ -1,146 +1,417 @@
-export default function ContactPage({ params }: { params: { id: string } }) {
-  const contact = {
-    id: params.id,
-    nom: "Sophie Marchand",
-    email: "sophie.marchand@email.com",
-    telephone: "+33 6 12 34 56 78",
-    avatar: "SM",
-    statut: "Client Premium",
-    score: 87,
-    dateCreation: "15 janvier 2024",
-    derniereActivite: "Il y a 2 heures",
-    formations: [
-      { id: 1, titre: "Marketing Digital Avancé", prix: 890, date: "12 Jan 2024", statut: "Terminé", progression: 100 },
-      { id: 2, titre: "Leadership & Management", prix: 1200, date: "03 Mar 2024", statut: "En cours", progression: 65 },
-      { id: 3, titre: "Intelligence Artificielle", prix: 1500, date: "20 Avr 2024", statut: "Inscrit", progression: 0 },
-    ],
-    seances: [
-      { id: 1, titre: "Coaching individuel - Stratégie", date: "18 Avr 2024", heure: "14h00", duree: "1h", coach: "Marc Dubois", statut: "Confirmé" },
-      { id: 2, titre: "Session groupe - IA", date: "22 Avr 2024", heure: "10h00", duree: "2h", coach: "Julie Martin", statut: "En attente" },
-      { id: 3, titre: "Coaching individuel - Leadership", date: "10 Avr 2024", heure: "16h00", duree: "1h", coach: "Marc Dubois", statut: "Terminé" },
-    ],
-    historique: [
-      { id: 1, type: "email", message: "Envoi devis formation IA", date: "20 Avr 2024", heure: "09:32", auteur: "Admin" },
-      { id: 2, type: "appel", message: "Appel de suivi - satisfaction formation Marketing", date: "18 Avr 2024", heure: "14:15", auteur: "Marc D." },
-      { id: 3, type: "achat", message: "Achat formation Intelligence Artificielle (1500€)", date: "15 Avr 2024", heure: "11:08", auteur: "Système" },
-      { id: 4, type: "note", message: "Contact très engagé, potentiel upsell formation Leadership+", date: "12 Avr 2024", heure: "16:45", auteur: "Julie M." },
-      { id: 5, type: "email", message: "Newsletter avril ouverte (3 clics)", date: "08 Avr 2024", heure: "08:21", auteur: "Système" },
-    ],
-    notes: "Sophie est une cliente très active et engagée. Intéressée par les certifications professionnelles. Budget annuel estimé autour de 5000€. Préfère les sessions en matinée. Travaille dans une PME tech à Lyon.",
-    tags: ["Premium", "Tech", "Lyon", "Certification"],
-    valeurTotale: 3590,
-  };
+export default async function ContactPage({ params }: { params: { id: string } }) {
 
-  const scoreColor = contact.score >= 80 ? "#4ade80" : contact.score >= 60 ? "#c8a96e" : "#f87171";
+  const { createClient } = await import("@supabase/supabase-js");
 
-  const statutColor = (s: string) => {
-    if (s === "Terminé") return "#4ade80";
-    if (s === "En cours") return "#c8a96e";
-    if (s === "Inscrit") return "#60a5fa";
-    if (s === "Confirmé") return "#4ade80";
-    if (s === "En attente") return "#c8a96e";
-    return "#94a3b8";
-  };
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL as string,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string
+  );
 
-  const typeIcon = (t: string) => {
-    if (t === "email") return "✉";
-    if (t === "appel") return "☎";
-    if (t === "achat") return "💳";
-    if (t === "note") return "📝";
-    return "•";
-  };
+  const { data: contact, error: contactError } = await supabase
+    .from("contacts")
+    .select("*")
+    .eq("id", params.id)
+    .single();
 
-  const typeColor = (t: string) => {
-    if (t === "email") return "#60a5fa";
-    if (t === "appel") return "#4ade80";
-    if (t === "achat") return "#c8a96e";
-    if (t === "note") return "#a78bfa";
-    return "#94a3b8";
-  };
+  const { data: formations } = await supabase
+    .from("formations")
+    .select("*")
+    .eq("contact_id", params.id);
 
-  return (
-    <div style={{ minHeight: "100vh", backgroundColor: "#050508", color: "#e2e8f0", fontFamily: "'Inter', -apple-system, sans-serif", padding: "0" }}>
+  const { data: seances } = await supabase
+    .from("seances")
+    .select("*")
+    .eq("contact_id", params.id)
+    .order("date", { ascending: false });
 
-      <div style={{ background: "linear-gradient(180deg, #0d0d14 0%, #050508 100%)", borderBottom: "1px solid #1a1a2e", padding: "16px 32px", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, zIndex: 100, backdropFilter: "blur(20px)" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-          <div style={{ width: "32px", height: "32px", background: "linear-gradient(135deg, #c8a96e, #a07840)", borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "14px", fontWeight: "800", color: "#050508" }}>A</div>
-          <span style={{ fontSize: "18px", fontWeight: "700", background: "linear-gradient(135deg, #c8a96e, #e8c98e)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>AcadémIA Pro</span>
-          <span style={{ color: "#334155", margin: "0 8px" }}>›</span>
-          <span style={{ color: "#64748b", fontSize: "14px" }}>CRM</span>
-          <span style={{ color: "#334155", margin: "0 8px" }}>›</span>
-          <span style={{ color: "#e2e8f0", fontSize: "14px" }}>{contact.nom}</span>
-        </div>
-        <div style={{ display: "flex", gap: "8px" }}>
-          <button style={{ padding: "8px 16px", backgroundColor: "transparent", border: "1px solid #1e293b", borderRadius: "8px", color: "#94a3b8", fontSize: "13px", cursor: "pointer" }}>← Retour</button>
-          <button style={{ padding: "8px 20px", background: "linear-gradient(135deg, #c8a96e, #a07840)", border: "none", borderRadius: "8px", color: "#050508", fontSize: "13px", fontWeight: "600", cursor: "pointer" }}>✏ Modifier</button>
+  const { data: historique } = await supabase
+    .from("historique")
+    .select("*")
+    .eq("contact_id", params.id)
+    .order("created_at", { ascending: false })
+    .limit(20);
+
+  const { data: notes } = await supabase
+    .from("notes")
+    .select("*")
+    .eq("contact_id", params.id)
+    .order("created_at", { ascending: false });
+
+  if (contactError || !contact) {
+    return (
+      <div style={{ minHeight: "100vh", backgroundColor: "#050508", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontSize: "48px", marginBottom: "16px" }}>404</div>
+          <p style={{ color: "#c8a96e", fontSize: "18px", fontFamily: "system-ui, sans-serif" }}>
+            Contact introuvable
+          </p>
         </div>
       </div>
+    );
+  }
 
-      <div style={{ maxWidth: "1400px", margin: "0 auto", padding: "32px 24px" }}>
+  const score: number = contact.score ?? 0;
 
-        <div style={{ background: "linear-gradient(135deg, #0d0d18 0%, #0a0a14 100%)", border: "1px solid #1a1a2e", borderRadius: "20px", padding: "32px", marginBottom: "24px", position: "relative", overflow: "hidden" }}>
-          <div style={{ position: "absolute", top: 0, right: 0, width: "300px", height: "300px", background: "radial-gradient(circle, rgba(200,169,110,0.06) 0%, transparent 70%)", borderRadius: "50%", transform: "translate(50px, -100px)" }}></div>
-          <div style={{ display: "flex", alignItems: "flex-start", gap: "24px", flexWrap: "wrap" }}>
-            <div style={{ width: "80px", height: "80px", background: "linear-gradient(135deg, #c8a96e, #a07840)", borderRadius: "20px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "28px", fontWeight: "800", color: "#050508", flexShrink: 0, boxShadow: "0 8px 32px rgba(200,169,110,0.3)" }}>{contact.avatar}</div>
-            <div style={{ flex: 1, minWidth: "200px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap", marginBottom: "8px" }}>
-                <h1 style={{ margin: 0, fontSize: "28px", fontWeight: "800", color: "#f1f5f9" }}>{contact.nom}</h1>
-                <span style={{ padding: "4px 12px", background: "rgba(200,169,110,0.15)", border: "1px solid rgba(200,169,110,0.3)", borderRadius: "20px", fontSize: "12px", color: "#c8a96e", fontWeight: "600" }}>{contact.statut}</span>
-              </div>
-              <div style={{ display: "flex", gap: "24px", flexWrap: "wrap", marginBottom: "16px" }}>
-                <span style={{ color: "#64748b", fontSize: "14px" }}>✉ {contact.email}</span>
-                <span style={{ color: "#64748b", fontSize: "14px" }}>☎ {contact.telephone}</span>
-                <span style={{ color: "#64748b", fontSize: "14px" }}>📅 Depuis le {contact.dateCreation}</span>
-                <span style={{ color: "#64748b", fontSize: "14px" }}>⏱ {contact.derniereActivite}</span>
-              </div>
-              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-                {contact.tags.map((tag, i) => (
-                  <span key={i} style={{ padding: "3px 10px", backgroundColor: "#0f172a", border: "1px solid #1e293b", borderRadius: "12px", fontSize: "11px", color: "#94a3b8" }}>{tag}</span>
-                ))}
-              </div>
-            </div>
-            <div style={{ display: "flex", gap: "16px", flexWrap: "wrap" }}>
-              <div style={{ textAlign: "center", padding: "20px 28px", background: "rgba(200,169,110,0.08)", border: "1px solid rgba(200,169,110,0.2)", borderRadius: "16px" }}>
-                <div style={{ fontSize: "32px", fontWeight: "800", color: "#c8a96e", lineHeight: 1 }}>{contact.valeurTotale.toLocaleString()}€</div>
-                <div style={{ fontSize: "12px", color: "#64748b", marginTop: "6px" }}>Valeur totale</div>
-              </div>
-              <div style={{ textAlign: "center", padding: "20px 28px", background: contact.score >= 80 ? "rgba(74,222,128,0.08)" : "rgba(200,169,110,0.08)", border: `1px solid ${scoreColor}33`, borderRadius: "16px" }}>
-                <div style={{ fontSize: "32px", fontWeight: "800", color: scoreColor, lineHeight: 1 }}>{contact.score}</div>
-                <div style={{ fontSize: "12px", color: "#64748b", marginTop: "6px" }}>Score CRM</div>
-                <div style={{ width: "80px", height: "4px", backgroundColor: "#1e293b", borderRadius: "2px", marginTop: "8px", overflow: "hidden" }}>
-                  <div style={{ width: `${contact.score}%`, height: "100%", backgroundColor: scoreColor, borderRadius: "2px", transition: "width 1s ease" }}></div>
-                </div>
-              </div>
-              <div style={{ textAlign: "center", padding: "20px 28px", background: "rgba(96,165,250,0.08)", border: "1px solid rgba(96,165,250,0.2)", borderRadius: "16px" }}>
-                <div style={{ fontSize: "32px", fontWeight: "800", color: "#60a5fa", lineHeight: 1 }}>{contact.formations.length}</div>
-                <div style={{ fontSize: "12px", color: "#64748b", marginTop: "6px" }}>Formations</div>
-              </div>
-            </div>
-          </div>
-        </div>
+  const scoreColor =
+    score >= 80
+      ? "#4ade80"
+      : score >= 50
+      ? "#c8a96e"
+      : "#f87171";
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px", marginBottom: "24px" }}>
+  const scoreLabel =
+    score >= 80
+      ? "Excellent"
+      : score >= 50
+      ? "Moyen"
+      : "Faible";
 
-          <div style={{ background: "linear-gradient(135deg, #0d0d18 0%, #0a0a14 100%)", border: "1px solid #1a1a2e", borderRadius: "20px", padding: "28px" }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
-              <h2 style={{ margin: 0, fontSize: "16px", fontWeight: "700", color: "#f1f5f9" }}>🎓 Formations achetées</h2>
-              <span style={{ padding: "4px 10px", backgroundColor: "#0f172a", border: "1px solid #1e293b", borderRadius: "8px", fontSize: "12px", color: "#64748b" }}>{contact.formations.length} formations</span>
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-              {contact.formations.map((f) => (
-                <div key={f.id} style={{ padding: "16px", backgroundColor: "#080810", border: "1px solid #1a1a2e", borderRadius: "12px", transition: "border-color 0.2s" }}>
-                  <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "10px" }}>
-                    <div>
-                      <div style={{ fontSize: "14px", fontWeight: "600", color: "#e2e8f0", marginBottom: "4px" }}>{f.titre}</div>
-                      <div style={{ fontSize: "12px", color: "#64748b" }}>📅 {f.date}</div>
-                    </div>
-                    <div style={{ textAlign: "right" }}>
-                      <div style={{ fontSize: "16px", fontWeight: "700", color: "#c8a96e" }}>{f.prix}€</div>
-                      <span style={{ padding: "2px 8px", backgroundColor: `${statutColor(f.statut)}22`, border: `1px solid ${statutColor(f.statut)}44`, borderRadius: "8px", fontSize: "11px", color: statutColor(f.statut) }}>{f.statut}</span>
-                    </div>
-                  </div>
-                  {f.progression > 0 && (
-                    <div>
-                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
-                        <span style={{ fontSize: "11px", color: "#64748b" }}>Progression</span>
-                        <span style={{ fontSize: "11px", color: "#94a3b8" }}>{f.progression}%
+  const initials: string = (contact.nom ?? "?")
+    .split(" ")
+    .map((n: string) => n[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
+
+  const formatDate = (dateString: string | null | undefined): string => {
+    if (!dateString) return "—";
+    return new Date(dateString).toLocaleDateString("fr-FR", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+  };
+
+  const containerStyle: React.CSSProperties = {
+    minHeight: "100vh",
+    backgroundColor: "#050508",
+    fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
+    color: "#e8e0d5",
+    padding: "0",
+  };
+
+  const headerStyle: React.CSSProperties = {
+    background: "linear-gradient(180deg, #0d0c14 0%, #050508 100%)",
+    borderBottom: "1px solid rgba(200, 169, 110, 0.15)",
+    padding: "16px 32px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+  };
+
+  const logoStyle: React.CSSProperties = {
+    fontSize: "20px",
+    fontWeight: "700",
+    background: "linear-gradient(135deg, #c8a96e, #f0d080)",
+    WebkitBackgroundClip: "text",
+    WebkitTextFillColor: "transparent",
+    letterSpacing: "0.5px",
+  };
+
+  const breadcrumbStyle: React.CSSProperties = {
+    fontSize: "13px",
+    color: "rgba(200, 169, 110, 0.6)",
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+  };
+
+  const mainStyle: React.CSSProperties = {
+    maxWidth: "1200px",
+    margin: "0 auto",
+    padding: "40px 24px",
+  };
+
+  const heroSectionStyle: React.CSSProperties = {
+    background: "linear-gradient(135deg, rgba(200, 169, 110, 0.06) 0%, rgba(13, 12, 20, 0.8) 100%)",
+    border: "1px solid rgba(200, 169, 110, 0.2)",
+    borderRadius: "20px",
+    padding: "40px",
+    marginBottom: "32px",
+    display: "flex",
+    alignItems: "flex-start",
+    gap: "32px",
+    position: "relative",
+    overflow: "hidden",
+  };
+
+  const heroGlowStyle: React.CSSProperties = {
+    position: "absolute",
+    top: "-60px",
+    right: "-60px",
+    width: "200px",
+    height: "200px",
+    background: "radial-gradient(circle, rgba(200, 169, 110, 0.12) 0%, transparent 70%)",
+    borderRadius: "50%",
+    pointerEvents: "none",
+  };
+
+  const avatarStyle: React.CSSProperties = {
+    width: "88px",
+    height: "88px",
+    borderRadius: "50%",
+    background: "linear-gradient(135deg, #c8a96e, #8a6a30)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: "28px",
+    fontWeight: "700",
+    color: "#050508",
+    flexShrink: "0" as const,
+    boxShadow: "0 0 0 3px rgba(200, 169, 110, 0.3), 0 8px 32px rgba(200, 169, 110, 0.2)",
+  };
+
+  const contactInfoStyle: React.CSSProperties = {
+    flex: "1",
+  };
+
+  const contactNameStyle: React.CSSProperties = {
+    fontSize: "32px",
+    fontWeight: "700",
+    color: "#f0e6d3",
+    marginBottom: "8px",
+    letterSpacing: "-0.5px",
+  };
+
+  const contactEmailStyle: React.CSSProperties = {
+    fontSize: "16px",
+    color: "#c8a96e",
+    marginBottom: "16px",
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+  };
+
+  const tagsContainerStyle: React.CSSProperties = {
+    display: "flex",
+    gap: "10px",
+    flexWrap: "wrap" as const,
+  };
+
+  const tagStyle = (bg: string, color: string): React.CSSProperties => ({
+    padding: "4px 14px",
+    borderRadius: "20px",
+    fontSize: "12px",
+    fontWeight: "600",
+    backgroundColor: bg,
+    color: color,
+    border: "1px solid rgba(200, 169, 110, 0.2)",
+    letterSpacing: "0.3px",
+  });
+
+  const scoreCardStyle: React.CSSProperties = {
+    background: "rgba(5, 5, 8, 0.6)",
+    border: "1px solid rgba(200, 169, 110, 0.15)",
+    borderRadius: "16px",
+    padding: "24px",
+    textAlign: "center",
+    minWidth: "140px",
+    flexShrink: "0" as const,
+  };
+
+  const scoreValueStyle: React.CSSProperties = {
+    fontSize: "48px",
+    fontWeight: "800",
+    color: scoreColor,
+    lineHeight: "1",
+    marginBottom: "4px",
+  };
+
+  const scoreLabelStyle: React.CSSProperties = {
+    fontSize: "12px",
+    color: scoreColor,
+    fontWeight: "600",
+    textTransform: "uppercase" as const,
+    letterSpacing: "1px",
+    marginBottom: "12px",
+  };
+
+  const scoreBarBgStyle: React.CSSProperties = {
+    width: "100%",
+    height: "6px",
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderRadius: "3px",
+    overflow: "hidden",
+  };
+
+  const scoreBarFillStyle: React.CSSProperties = {
+    height: "100%",
+    width: `${score}%`,
+    backgroundColor: scoreColor,
+    borderRadius: "3px",
+    transition: "width 0.5s ease",
+    boxShadow: `0 0 8px ${scoreColor}80`,
+  };
+
+  const gridStyle: React.CSSProperties = {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    gap: "24px",
+    marginBottom: "24px",
+  };
+
+  const sectionCardStyle: React.CSSProperties = {
+    background: "rgba(13, 12, 20, 0.7)",
+    border: "1px solid rgba(200, 169, 110, 0.12)",
+    borderRadius: "16px",
+    padding: "28px",
+    backdropFilter: "blur(10px)",
+  };
+
+  const sectionTitleStyle: React.CSSProperties = {
+    fontSize: "14px",
+    fontWeight: "700",
+    color: "#c8a96e",
+    textTransform: "uppercase" as const,
+    letterSpacing: "1.5px",
+    marginBottom: "20px",
+    display: "flex",
+    alignItems: "center",
+    gap: "10px",
+  };
+
+  const dividerStyle: React.CSSProperties = {
+    flex: "1",
+    height: "1px",
+    background: "linear-gradient(90deg, rgba(200, 169, 110, 0.3) 0%, transparent 100%)",
+  };
+
+  const formationItemStyle: React.CSSProperties = {
+    padding: "16px",
+    background: "rgba(200, 169, 110, 0.04)",
+    border: "1px solid rgba(200, 169, 110, 0.1)",
+    borderRadius: "12px",
+    marginBottom: "12px",
+    transition: "border-color 0.2s ease",
+  };
+
+  const formationTitleStyle: React.CSSProperties = {
+    fontSize: "15px",
+    fontWeight: "600",
+    color: "#f0e6d3",
+    marginBottom: "6px",
+  };
+
+  const formationMetaStyle: React.CSSProperties = {
+    display: "flex",
+    gap: "16px",
+    fontSize: "12px",
+    color: "rgba(200, 169, 110, 0.7)",
+  };
+
+  const seanceRowStyle: React.CSSProperties = {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: "12px 0",
+    borderBottom: "1px solid rgba(255,255,255,0.04)",
+  };
+
+  const seanceDateStyle: React.CSSProperties = {
+    fontSize: "13px",
+    color: "#c8a96e",
+    fontWeight: "600",
+    minWidth: "100px",
+  };
+
+  const seanceTitleStyle: React.CSSProperties = {
+    fontSize: "14px",
+    color: "#e8e0d5",
+    flex: "1",
+    padding: "0 16px",
+  };
+
+  const badgeStyle = (status: string): React.CSSProperties => {
+    const statusMap: Record<string, { bg: string; color: string }> = {
+      termine: { bg: "rgba(74, 222, 128, 0.1)", color: "#4ade80" },
+      "en-cours": { bg: "rgba(200, 169, 110, 0.1)", color: "#c8a96e" },
+      annule: { bg: "rgba(248, 113, 113, 0.1)", color: "#f87171" },
+      planifie: { bg: "rgba(96, 165, 250, 0.1)", color: "#60a5fa" },
+    };
+    const s = statusMap[status] ?? { bg: "rgba(200, 169, 110, 0.1)", color: "#c8a96e" };
+    return {
+      padding: "3px 12px",
+      borderRadius: "20px",
+      fontSize: "11px",
+      fontWeight: "600",
+      backgroundColor: s.bg,
+      color: s.color,
+      textTransform: "capitalize" as const,
+    };
+  };
+
+  const histItemStyle: React.CSSProperties = {
+    display: "flex",
+    gap: "16px",
+    padding: "14px 0",
+    borderBottom: "1px solid rgba(255,255,255,0.04)",
+    alignItems: "flex-start",
+  };
+
+  const histDotStyle = (type: string): React.CSSProperties => {
+    const colors: Record<string, string> = {
+      inscription: "#4ade80",
+      paiement: "#c8a96e",
+      message: "#60a5fa",
+      connexion: "#a78bfa",
+      default: "#6b7280",
+    };
+    return {
+      width: "8px",
+      height: "8px",
+      borderRadius: "50%",
+      backgroundColor: colors[type] ?? colors.default,
+      flexShrink: "0" as const,
+      marginTop: "6px",
+      boxShadow: `0 0 6px ${colors[type] ?? colors.default}80`,
+    };
+  };
+
+  const histContentStyle: React.CSSProperties = {
+    flex: "1",
+  };
+
+  const histActionStyle: React.CSSProperties = {
+    fontSize: "14px",
+    color: "#e8e0d5",
+    marginBottom: "2px",
+  };
+
+  const histDateStyle: React.CSSProperties = {
+    fontSize: "11px",
+    color: "rgba(200, 169, 110, 0.5)",
+  };
+
+  const noteCardStyle: React.CSSProperties = {
+    background: "rgba(200, 169, 110, 0.03)",
+    border: "1px solid rgba(200, 169, 110, 0.1)",
+    borderLeft: "3px solid #c8a96e",
+    borderRadius: "0 12px 12px 0",
+    padding: "16px",
+    marginBottom: "12px",
+  };
+
+  const noteTextStyle: React.CSSProperties = {
+    fontSize: "14px",
+    color: "#d4c9b8",
+    lineHeight: "1.6",
+    marginBottom: "8px",
+  };
+
+  const noteDateStyle: React.CSSProperties = {
+    fontSize: "11px",
+    color: "rgba(200, 169, 110, 0.5)",
+  };
+
+  const emptyStateStyle: React.CSSProperties = {
+    textAlign: "center",
+    padding: "32px 16px",
+    color: "rgba(200, 169, 110, 0.4)",
+    fontSize: "14px",
+  };
+
+  const infoRowStyle: React.CSSProperties = {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: "12px 0",
