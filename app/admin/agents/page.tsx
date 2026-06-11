@@ -1,400 +1,386 @@
-export default async function AgentsPage() {
-  const agents = [
-    {
-      id: 1,
-      name: "Mr Comptable",
-      role: "Comptabilité & Finance",
-      status: "active",
-      emoji: "📊",
-      kpis: {
-        tasksCompleted: 142,
-        successRate: 98.5,
-        avgResponseTime: "1.2s",
-        activeUsers: 34,
-      },
-      lastAction: "Génération bilan Q4 2024 pour client Dupont SARL",
-      lastActionTime: "Il y a 3 minutes",
-      color: "#4ade80",
-    },
-    {
-      id: 2,
-      name: "Mr Juridique",
-      role: "Droit & Conformité",
-      status: "active",
-      emoji: "⚖️",
-      kpis: {
-        tasksCompleted: 89,
-        successRate: 99.1,
-        avgResponseTime: "2.1s",
-        activeUsers: 21,
-      },
-      lastAction: "Rédaction contrat de prestation de services SAS TechVision",
-      lastActionTime: "Il y a 7 minutes",
-      color: "#60a5fa",
-    },
-    {
-      id: 3,
-      name: "Agent Marketing",
-      role: "Stratégie & Communication",
-      status: "active",
-      emoji: "📣",
-      kpis: {
-        tasksCompleted: 203,
-        successRate: 96.8,
-        avgResponseTime: "0.9s",
-        activeUsers: 58,
-      },
-      lastAction: "Création campagne LinkedIn pour lancement produit NovaTech",
-      lastActionTime: "Il y a 1 minute",
-      color: "#f472b6",
-    },
-    {
-      id: 4,
-      name: "Certificateur",
-      role: "Validation & Certification",
-      status: "idle",
-      emoji: "🏅",
-      kpis: {
-        tasksCompleted: 67,
-        successRate: 100,
-        avgResponseTime: "3.4s",
-        activeUsers: 12,
-      },
-      lastAction: "Validation certification ISO 9001 dossier entreprise Meridian",
-      lastActionTime: "Il y a 22 minutes",
-      color: "#c8a96e",
-    },
-    {
-      id: 5,
-      name: "INPI",
-      role: "Propriété Intellectuelle",
-      status: "processing",
-      emoji: "🔏",
-      kpis: {
-        tasksCompleted: 45,
-        successRate: 97.7,
-        avgResponseTime: "4.8s",
-        activeUsers: 9,
-      },
-      lastAction: "Dépôt marque en cours - Société Lumière Créative Paris",
-      lastActionTime: "En cours maintenant",
-      color: "#a78bfa",
-    },
-    {
-      id: 6,
-      name: "Tuteur",
-      role: "Formation & Pédagogie",
-      status: "active",
-      emoji: "🎓",
-      kpis: {
-        tasksCompleted: 318,
-        successRate: 95.2,
-        avgResponseTime: "1.5s",
-        activeUsers: 87,
-      },
-      lastAction: "Session formation comptabilité avancée - 12 apprenants actifs",
-      lastActionTime: "Il y a 2 minutes",
-      color: "#34d399",
-    },
-    {
-      id: 7,
-      name: "Commercial",
-      role: "Vente & Développement",
-      status: "active",
-      emoji: "💼",
-      kpis: {
-        tasksCompleted: 176,
-        successRate: 93.4,
-        avgResponseTime: "1.1s",
-        activeUsers: 43,
-      },
-      lastAction: "Proposition commerciale générée - Prospect GlobalEdge Consulting",
-      lastActionTime: "Il y a 5 minutes",
-      color: "#fb923c",
-    },
-  ];
+"use client";
+import React from "react";
+
+type Agent = {
+  id: number;
+  name: string;
+  role: string;
+  status: "active" | "idle" | "offline";
+  kpis: {
+    tasksCompleted: number;
+    successRate: number;
+    avgResponseTime: string;
+  };
+  lastAction: string;
+  lastActionTime: string;
+  icon: string;
+};
+
+const agents: Agent[] = [
+  {
+    id: 1,
+    name: "Mr Comptable",
+    role: "Gestion financière & comptabilité",
+    status: "active",
+    kpis: { tasksCompleted: 142, successRate: 98, avgResponseTime: "1.2s" },
+    lastAction: "Génération bilan mensuel Q4 2024",
+    lastActionTime: "il y a 3 min",
+    icon: "📊",
+  },
+  {
+    id: 2,
+    name: "Mr Juridique",
+    role: "Conseil juridique & conformité",
+    status: "active",
+    kpis: { tasksCompleted: 87, successRate: 96, avgResponseTime: "2.1s" },
+    lastAction: "Rédaction contrat prestation de services",
+    lastActionTime: "il y a 12 min",
+    icon: "⚖️",
+  },
+  {
+    id: 3,
+    name: "Agent Marketing",
+    role: "Stratégie marketing & communication",
+    status: "active",
+    kpis: { tasksCompleted: 203, successRate: 94, avgResponseTime: "0.9s" },
+    lastAction: "Création campagne LinkedIn automne 2024",
+    lastActionTime: "il y a 1 min",
+    icon: "📣",
+  },
+  {
+    id: 4,
+    name: "Certificateur",
+    role: "Certification & validation documents",
+    status: "idle",
+    kpis: { tasksCompleted: 56, successRate: 100, avgResponseTime: "3.4s" },
+    lastAction: "Validation certificat ISO 9001 dossier #4421",
+    lastActionTime: "il y a 45 min",
+    icon: "🏅",
+  },
+  {
+    id: 5,
+    name: "INPI",
+    role: "Propriété intellectuelle & dépôts",
+    status: "idle",
+    kpis: { tasksCompleted: 34, successRate: 99, avgResponseTime: "4.7s" },
+    lastAction: "Dépôt marque AcadémIA Pro – classe 41",
+    lastActionTime: "il y a 2h",
+    icon: "🔏",
+  },
+  {
+    id: 6,
+    name: "Tuteur",
+    role: "Formation & accompagnement pédagogique",
+    status: "active",
+    kpis: { tasksCompleted: 318, successRate: 97, avgResponseTime: "0.7s" },
+    lastAction: "Session formation module IA générative – 12 apprenants",
+    lastActionTime: "il y a 8 min",
+    icon: "🎓",
+  },
+  {
+    id: 7,
+    name: "Commercial",
+    role: "Prospection & gestion commerciale",
+    status: "offline",
+    kpis: { tasksCompleted: 91, successRate: 89, avgResponseTime: "1.8s" },
+    lastAction: "Envoi proposition commerciale client Nextera SAS",
+    lastActionTime: "il y a 6h",
+    icon: "💼",
+  },
+];
+
+const statusConfig = {
+  active: { label: "Actif", color: "#22c55e", bg: "rgba(34,197,94,0.12)", dot: "#22c55e" },
+  idle: { label: "En veille", color: "#c8a96e", bg: "rgba(200,169,110,0.12)", dot: "#c8a96e" },
+  offline: { label: "Hors ligne", color: "#6b7280", bg: "rgba(107,114,128,0.12)", dot: "#6b7280" },
+};
+
+export default function AdminAgentsPage() {
+  const [selected, setSelected] = React.useState<number | null>(null);
+  const [hoveredCard, setHoveredCard] = React.useState<number | null>(null);
+  const [hoveredBtn, setHoveredBtn] = React.useState<number | null>(null);
 
   const totalTasks = agents.reduce((sum, a) => sum + a.kpis.tasksCompleted, 0);
-  const activeAgents = agents.filter((a) => a.status === "active").length;
   const avgSuccess =
-    agents.reduce((sum, a) => sum + a.kpis.successRate, 0) / agents.length;
-  const totalUsers = agents.reduce((sum, a) => sum + a.kpis.activeUsers, 0);
-
-  const getStatusConfig = (status: string) => {
-    switch (status) {
-      case "active":
-        return { label: "Actif", bg: "rgba(74,222,128,0.15)", color: "#4ade80", dot: "#4ade80" };
-      case "idle":
-        return { label: "En veille", bg: "rgba(200,169,110,0.15)", color: "#c8a96e", dot: "#c8a96e" };
-      case "processing":
-        return { label: "En traitement", bg: "rgba(96,165,250,0.15)", color: "#60a5fa", dot: "#60a5fa" };
-      default:
-        return { label: "Inconnu", bg: "rgba(156,163,175,0.15)", color: "#9ca3af", dot: "#9ca3af" };
-    }
-  };
+    Math.round(agents.reduce((sum, a) => sum + a.kpis.successRate, 0) / agents.length);
+  const activeCount = agents.filter((a) => a.status === "active").length;
 
   return (
     <div
       style={{
         minHeight: "100vh",
         backgroundColor: "#050508",
-        fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
-        color: "#e8e0d0",
+        fontFamily: "'Segoe UI', system-ui, -apple-system, sans-serif",
+        color: "#e8e4dc",
         padding: "0",
         margin: "0",
       }}
     >
+      {/* Header */}
       <div
         style={{
-          position: "fixed",
-          top: "0",
-          left: "0",
-          right: "0",
-          bottom: "0",
-          backgroundImage:
-            "radial-gradient(ellipse 80% 50% at 50% -20%, rgba(200,169,110,0.08) 0%, transparent 70%), radial-gradient(ellipse 60% 40% at 80% 80%, rgba(200,169,110,0.04) 0%, transparent 60%)",
-          pointerEvents: "none",
-          zIndex: 0,
+          borderBottom: "1px solid rgba(200,169,110,0.2)",
+          background: "rgba(200,169,110,0.03)",
+          padding: "24px 40px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
         }}
-      />
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+          <div
+            style={{
+              width: "42px",
+              height: "42px",
+              borderRadius: "10px",
+              background: "linear-gradient(135deg, #c8a96e 0%, #a07840 100%)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: "20px",
+              boxShadow: "0 0 20px rgba(200,169,110,0.3)",
+            }}
+          >
+            🤖
+          </div>
+          <div>
+            <div
+              style={{
+                fontSize: "20px",
+                fontWeight: "700",
+                color: "#c8a96e",
+                letterSpacing: "0.5px",
+              }}
+            >
+              AcadémIA Pro
+            </div>
+            <div style={{ fontSize: "12px", color: "#6b7280", marginTop: "2px" }}>
+              Console Administration — Agents IA
+            </div>
+          </div>
+        </div>
 
-      <div style={{ position: "relative", zIndex: 1 }}>
-        <header
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <div
+            style={{
+              width: "8px",
+              height: "8px",
+              borderRadius: "50%",
+              backgroundColor: "#22c55e",
+              boxShadow: "0 0 8px #22c55e",
+            }}
+          />
+          <span style={{ fontSize: "13px", color: "#9ca3af" }}>Système opérationnel</span>
+        </div>
+      </div>
+
+      <div style={{ padding: "36px 40px" }}>
+        {/* Page title */}
+        <div style={{ marginBottom: "36px" }}>
+          <h1
+            style={{
+              fontSize: "28px",
+              fontWeight: "800",
+              color: "#f5f0e8",
+              margin: "0 0 8px 0",
+              letterSpacing: "-0.5px",
+            }}
+          >
+            Gestion des Agents
+          </h1>
+          <p style={{ fontSize: "14px", color: "#6b7280", margin: "0" }}>
+            Supervision en temps réel de vos 7 agents intelligents spécialisés
+          </p>
+        </div>
+
+        {/* Global KPIs */}
+        <div
           style={{
-            borderBottom: "1px solid rgba(200,169,110,0.15)",
-            padding: "20px 40px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            backdropFilter: "blur(10px)",
-            backgroundColor: "rgba(5,5,8,0.8)",
-            position: "sticky",
-            top: 0,
-            zIndex: 100,
+            display: "grid",
+            gridTemplateColumns: "repeat(4, 1fr)",
+            gap: "20px",
+            marginBottom: "40px",
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+          {[
+            { label: "Agents actifs", value: activeCount.toString(), suffix: "/ 7", icon: "⚡", color: "#22c55e" },
+            { label: "Tâches totales", value: totalTasks.toString(), suffix: "complétées", icon: "✅", color: "#c8a96e" },
+            { label: "Taux de succès", value: avgSuccess.toString(), suffix: "% moyen", icon: "📈", color: "#818cf8" },
+            { label: "Agents en veille", value: agents.filter((a) => a.status === "idle").length.toString(), suffix: "en attente", icon: "💤", color: "#f59e0b" },
+          ].map((stat, idx) => (
             <div
+              key={idx}
               style={{
-                width: "40px",
-                height: "40px",
-                borderRadius: "10px",
-                background: "linear-gradient(135deg, #c8a96e, #a07840)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: "20px",
-                boxShadow: "0 0 20px rgba(200,169,110,0.3)",
+                background: "rgba(255,255,255,0.03)",
+                border: "1px solid rgba(200,169,110,0.15)",
+                borderRadius: "14px",
+                padding: "22px 24px",
+                position: "relative",
+                overflow: "hidden",
               }}
             >
-              🤖
-            </div>
-            <div>
-              <h1
-                style={{
-                  margin: 0,
-                  fontSize: "20px",
-                  fontWeight: "700",
-                  background: "linear-gradient(135deg, #c8a96e, #e8d5a3)",
-                  WebkitBackgroundClip: "text",
-                  WebkitTextFillColor: "transparent",
-                  letterSpacing: "-0.3px",
-                }}
-              >
-                AcadémIA Pro
-              </h1>
-              <p
-                style={{
-                  margin: 0,
-                  fontSize: "12px",
-                  color: "rgba(200,169,110,0.6)",
-                  letterSpacing: "0.5px",
-                }}
-              >
-                PANNEAU ADMINISTRATION AGENTS IA
-              </p>
-            </div>
-          </div>
-
-          <div style={{ display: "flex", alignItems: "center", gap: "24px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <div
                 style={{
-                  width: "8px",
-                  height: "8px",
+                  position: "absolute",
+                  top: "0",
+                  right: "0",
+                  width: "80px",
+                  height: "80px",
                   borderRadius: "50%",
-                  backgroundColor: "#4ade80",
-                  boxShadow: "0 0 8px #4ade80",
-                  animation: "pulse 2s infinite",
+                  background: stat.color,
+                  opacity: "0.05",
+                  transform: "translate(20px, -20px)",
                 }}
               />
-              <span style={{ fontSize: "13px", color: "rgba(232,224,208,0.6)" }}>
-                Supabase connecté
-              </span>
-            </div>
-            <div
-              style={{
-                padding: "8px 16px",
-                borderRadius: "8px",
-                border: "1px solid rgba(200,169,110,0.3)",
-                backgroundColor: "rgba(200,169,110,0.08)",
-                fontSize: "13px",
-                color: "#c8a96e",
-                cursor: "pointer",
-              }}
-            >
-              Admin ▾
-            </div>
-          </div>
-        </header>
-
-        <main style={{ padding: "40px" }}>
-          <div style={{ marginBottom: "40px" }}>
-            <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: "8px" }}>
-              <div>
-                <h2
-                  style={{
-                    margin: "0 0 6px 0",
-                    fontSize: "28px",
-                    fontWeight: "800",
-                    color: "#e8e0d0",
-                    letterSpacing: "-0.5px",
-                  }}
-                >
-                  Vue d'ensemble des Agents
-                </h2>
-                <p style={{ margin: 0, fontSize: "14px", color: "rgba(232,224,208,0.45)" }}>
-                  Surveillance en temps réel · 7 agents intelligents déployés
-                </p>
+              <div style={{ fontSize: "22px", marginBottom: "12px" }}>{stat.icon}</div>
+              <div style={{ fontSize: "30px", fontWeight: "800", color: stat.color, lineHeight: "1" }}>
+                {stat.value}
               </div>
-              <div
-                style={{
-                  fontSize: "12px",
-                  color: "rgba(200,169,110,0.5)",
-                  letterSpacing: "0.5px",
-                }}
-              >
-                DERNIÈRE MAJ : {new Date().toLocaleTimeString("fr-FR")}
+              <div style={{ fontSize: "12px", color: "#6b7280", marginTop: "4px" }}>{stat.suffix}</div>
+              <div style={{ fontSize: "13px", color: "#9ca3af", marginTop: "8px", fontWeight: "500" }}>
+                {stat.label}
               </div>
             </div>
-          </div>
+          ))}
+        </div>
 
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(4, 1fr)",
-              gap: "16px",
-              marginBottom: "40px",
-            }}
-          >
-            {[
-              { label: "Tâches Complétées", value: totalTasks.toLocaleString(), icon: "✅", sub: "Total cumulé", change: "+12%" },
-              { label: "Agents Actifs", value: `${activeAgents}/7`, icon: "🟢", sub: "En ce moment", change: "Optimal" },
-              { label: "Taux de Succès", value: `${avgSuccess.toFixed(1)}%`, icon: "🎯", sub: "Moyenne globale", change: "+0.3%" },
-              { label: "Utilisateurs Actifs", value: totalUsers.toString(), icon: "👥", sub: "Sessions en cours", change: "+8%" },
-            ].map((stat, i) => (
+        {/* Agents Grid */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(380px, 1fr))",
+            gap: "24px",
+          }}
+        >
+          {agents.map((agent) => {
+            const sc = statusConfig[agent.status];
+            const isSelected = selected === agent.id;
+            const isHovered = hoveredCard === agent.id;
+
+            return (
               <div
-                key={i}
+                key={agent.id}
+                onClick={() => setSelected(isSelected ? null : agent.id)}
+                onMouseEnter={() => setHoveredCard(agent.id)}
+                onMouseLeave={() => setHoveredCard(null)}
                 style={{
-                  backgroundColor: "rgba(255,255,255,0.02)",
-                  border: "1px solid rgba(200,169,110,0.12)",
+                  background: isSelected
+                    ? "rgba(200,169,110,0.06)"
+                    : isHovered
+                    ? "rgba(255,255,255,0.04)"
+                    : "rgba(255,255,255,0.02)",
+                  border: isSelected
+                    ? "1px solid rgba(200,169,110,0.5)"
+                    : isHovered
+                    ? "1px solid rgba(200,169,110,0.3)"
+                    : "1px solid rgba(255,255,255,0.07)",
                   borderRadius: "16px",
-                  padding: "24px",
+                  padding: "26px",
+                  cursor: "pointer",
+                  transition: "all 0.25s ease",
                   position: "relative",
                   overflow: "hidden",
-                  transition: "all 0.3s ease",
+                  boxShadow: isSelected
+                    ? "0 0 30px rgba(200,169,110,0.1), inset 0 0 30px rgba(200,169,110,0.03)"
+                    : "none",
                 }}
               >
-                <div
-                  style={{
-                    position: "absolute",
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    height: "2px",
-                    background: "linear-gradient(90deg, transparent, #c8a96e, transparent)",
-                    opacity: 0.5,
-                  }}
-                />
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "16px" }}>
-                  <span style={{ fontSize: "24px" }}>{stat.icon}</span>
-                  <span
-                    style={{
-                      fontSize: "11px",
-                      padding: "3px 8px",
-                      borderRadius: "20px",
-                      backgroundColor: "rgba(74,222,128,0.1)",
-                      color: "#4ade80",
-                      fontWeight: "600",
-                    }}
-                  >
-                    {stat.change}
-                  </span>
-                </div>
-                <div
-                  style={{
-                    fontSize: "32px",
-                    fontWeight: "800",
-                    color: "#c8a96e",
-                    letterSpacing: "-1px",
-                    marginBottom: "4px",
-                  }}
-                >
-                  {stat.value}
-                </div>
-                <div style={{ fontSize: "13px", color: "rgba(232,224,208,0.7)", fontWeight: "600", marginBottom: "2px" }}>
-                  {stat.label}
-                </div>
-                <div style={{ fontSize: "11px", color: "rgba(232,224,208,0.35)" }}>{stat.sub}</div>
-              </div>
-            ))}
-          </div>
-
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(380px, 1fr))",
-              gap: "20px",
-            }}
-          >
-            {agents.map((agent) => {
-              const statusConfig = getStatusConfig(agent.status);
-              return (
-                <div
-                  key={agent.id}
-                  style={{
-                    backgroundColor: "rgba(255,255,255,0.025)",
-                    border: "1px solid rgba(200,169,110,0.1)",
-                    borderRadius: "20px",
-                    padding: "0",
-                    overflow: "hidden",
-                    position: "relative",
-                    transition: "all 0.3s ease",
-                  }}
-                >
+                {/* Accent top bar */}
+                {isSelected && (
                   <div
                     style={{
                       position: "absolute",
-                      top: 0,
-                      left: 0,
-                      right: 0,
-                      height: "3px",
-                      background: `linear-gradient(90deg, ${agent.color}60, ${agent.color}, ${agent.color}60)`,
+                      top: "0",
+                      left: "0",
+                      right: "0",
+                      height: "2px",
+                      background: "linear-gradient(90deg, transparent, #c8a96e, transparent)",
                     }}
                   />
+                )}
 
-                  <div
-                    style={{
-                      padding: "24px 24px 20px 24px",
-                      borderBottom: "1px solid rgba(200,169,110,0.06)",
-                      display: "flex",
-                      alignItems: "flex-start",
-                      justifyContent: "space-between",
-                    }}
-                  >
-                    <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
+                {/* Header Row */}
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "flex-start",
+                    justifyContent: "space-between",
+                    marginBottom: "20px",
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
+                    <div
+                      style={{
+                        width: "52px",
+                        height: "52px",
+                        borderRadius: "14px",
+                        background: "rgba(200,169,110,0.1)",
+                        border: "1px solid rgba(200,169,110,0.2)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: "26px",
+                        flexShrink: "0" as const,
+                      }}
+                    >
+                      {agent.icon}
+                    </div>
+                    <div>
                       <div
                         style={{
-                          width: "52px",
-                          height: "52px",
-                          borderRadius: "
+                          fontSize: "16px",
+                          fontWeight: "700",
+                          color: "#f5f0e8",
+                          marginBottom: "4px",
+                        }}
+                      >
+                        {agent.name}
+                      </div>
+                      <div style={{ fontSize: "12px", color: "#6b7280", lineHeight: "1.4" }}>
+                        {agent.role}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Status Badge */}
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      background: sc.bg,
+                      border: "1px solid",
+                      borderColor: sc.color + "30",
+                      borderRadius: "20px",
+                      padding: "5px 12px",
+                      flexShrink: "0" as const,
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: "6px",
+                        height: "6px",
+                        borderRadius: "50%",
+                        backgroundColor: sc.dot,
+                        boxShadow: agent.status === "active" ? "0 0 6px " + sc.dot : "none",
+                      }}
+                    />
+                    <span style={{ fontSize: "11px", fontWeight: "600", color: sc.color }}>
+                      {sc.label}
+                    </span>
+                  </div>
+                </div>
+
+                {/* KPIs Row */}
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(3, 1fr)",
+                    gap: "12px",
+                    marginBottom: "20px",
+                  }}
+                >
+                  {[
+                    { label: "Tâches", value: agent.kpis.tasksCompleted.toString(), unit: "" },
+                    { label: "Succès", value: agent.kpis.successRate.toString(), unit: "%" },
+                    { label: "Réponse", value: agent.
