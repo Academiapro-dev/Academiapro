@@ -1,438 +1,412 @@
-export default function PacksFormations() {
+export default function PacksPage() {
+  const styles = {
+    page: {
+      backgroundColor: '#050508',
+      minHeight: '100vh',
+      fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+      color: '#ffffff',
+      overflowX: 'hidden' as const,
+    },
+    header: {
+      textAlign: 'center' as const,
+      padding: '80px 20px 60px',
+      position: 'relative' as const,
+    },
+    badge: {
+      display: 'inline-block',
+      backgroundColor: 'rgba(200, 169, 110, 0.15)',
+      border: '1px solid rgba(200, 169, 110, 0.4)',
+      color: '#c8a96e',
+      padding: '8px 20px',
+      borderRadius: '50px',
+      fontSize: '13px',
+      fontWeight: '600' as const,
+      letterSpacing: '2px',
+      textTransform: 'uppercase' as const,
+      marginBottom: '28px',
+    },
+    mainTitle: {
+      fontSize: 'clamp(36px, 6vw, 72px)',
+      fontWeight: '800' as const,
+      lineHeight: '1.1',
+      marginBottom: '20px',
+      background: 'linear-gradient(135deg, #ffffff 0%, #c8a96e 50%, #ffffff 100%)',
+      WebkitBackgroundClip: 'text',
+      WebkitTextFillColor: 'transparent',
+      backgroundClip: 'text',
+    },
+    subtitle: {
+      fontSize: '18px',
+      color: 'rgba(255,255,255,0.6)',
+      maxWidth: '600px',
+      margin: '0 auto 48px',
+      lineHeight: '1.7',
+    },
+    guaranteeBanner: {
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: '10px',
+      backgroundColor: 'rgba(200, 169, 110, 0.1)',
+      border: '1px solid rgba(200, 169, 110, 0.3)',
+      padding: '12px 28px',
+      borderRadius: '50px',
+      fontSize: '14px',
+      color: '#c8a96e',
+      fontWeight: '500' as const,
+    },
+    container: {
+      maxWidth: '1400px',
+      margin: '0 auto',
+      padding: '0 20px 80px',
+    },
+    sectionTitle: {
+      textAlign: 'center' as const,
+      fontSize: '13px',
+      fontWeight: '700' as const,
+      letterSpacing: '3px',
+      textTransform: 'uppercase' as const,
+      color: '#c8a96e',
+      marginBottom: '48px',
+      paddingTop: '20px',
+    },
+    grid: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))',
+      gap: '24px',
+    },
+    card: {
+      backgroundColor: '#0d0d14',
+      border: '1px solid rgba(255,255,255,0.07)',
+      borderRadius: '20px',
+      padding: '36px 32px',
+      position: 'relative' as const,
+      transition: 'transform 0.3s ease, border-color 0.3s ease',
+      overflow: 'hidden' as const,
+    },
+    cardFeatured: {
+      backgroundColor: '#0f0f1a',
+      border: '1px solid rgba(200, 169, 110, 0.5)',
+      borderRadius: '20px',
+      padding: '36px 32px',
+      position: 'relative' as const,
+      overflow: 'hidden' as const,
+    },
+    cardGlow: {
+      position: 'absolute' as const,
+      top: '-60px',
+      right: '-60px',
+      width: '200px',
+      height: '200px',
+      background: 'radial-gradient(circle, rgba(200, 169, 110, 0.15) 0%, transparent 70%)',
+      borderRadius: '50%',
+      pointerEvents: 'none' as const,
+    },
+    popularBadge: {
+      position: 'absolute' as const,
+      top: '20px',
+      right: '20px',
+      backgroundColor: '#c8a96e',
+      color: '#050508',
+      padding: '5px 14px',
+      borderRadius: '50px',
+      fontSize: '11px',
+      fontWeight: '700' as const,
+      letterSpacing: '1px',
+      textTransform: 'uppercase' as const,
+    },
+    packIcon: {
+      width: '52px',
+      height: '52px',
+      borderRadius: '14px',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      fontSize: '24px',
+      marginBottom: '20px',
+      backgroundColor: 'rgba(200, 169, 110, 0.12)',
+      border: '1px solid rgba(200, 169, 110, 0.2)',
+    },
+    packName: {
+      fontSize: '20px',
+      fontWeight: '700' as const,
+      color: '#ffffff',
+      marginBottom: '6px',
+    },
+    packTagline: {
+      fontSize: '13px',
+      color: 'rgba(255,255,255,0.45)',
+      marginBottom: '24px',
+      lineHeight: '1.5',
+    },
+    priceRow: {
+      display: 'flex',
+      alignItems: 'flex-end',
+      gap: '12px',
+      marginBottom: '8px',
+    },
+    price: {
+      fontSize: '42px',
+      fontWeight: '800' as const,
+      color: '#c8a96e',
+      lineHeight: '1',
+    },
+    priceEur: {
+      fontSize: '22px',
+      fontWeight: '700' as const,
+      color: '#c8a96e',
+      lineHeight: '1.4',
+    },
+    savings: {
+      fontSize: '13px',
+      color: '#4ade80',
+      fontWeight: '600' as const,
+      marginBottom: '24px',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '6px',
+    },
+    divider: {
+      height: '1px',
+      backgroundColor: 'rgba(255,255,255,0.07)',
+      margin: '24px 0',
+    },
+    formationsTitle: {
+      fontSize: '12px',
+      fontWeight: '700' as const,
+      letterSpacing: '2px',
+      textTransform: 'uppercase' as const,
+      color: 'rgba(200,169,110,0.7)',
+      marginBottom: '14px',
+    },
+    formationItem: {
+      display: 'flex',
+      alignItems: 'flex-start',
+      gap: '10px',
+      marginBottom: '10px',
+    },
+    formationCheck: {
+      color: '#c8a96e',
+      fontSize: '14px',
+      marginTop: '1px',
+      flexShrink: 0,
+    },
+    formationText: {
+      fontSize: '13px',
+      color: 'rgba(255,255,255,0.7)',
+      lineHeight: '1.5',
+    },
+    ctaButton: {
+      width: '100%',
+      padding: '16px',
+      borderRadius: '12px',
+      border: 'none',
+      cursor: 'pointer',
+      fontSize: '15px',
+      fontWeight: '700' as const,
+      letterSpacing: '0.5px',
+      marginTop: '28px',
+      transition: 'opacity 0.2s',
+    },
+    ctaButtonPrimary: {
+      background: 'linear-gradient(135deg, #c8a96e 0%, #e8c88e 50%, #c8a96e 100%)',
+      color: '#050508',
+    },
+    ctaButtonSecondary: {
+      backgroundColor: 'rgba(200, 169, 110, 0.1)',
+      border: '1px solid rgba(200, 169, 110, 0.4)',
+      color: '#c8a96e',
+    },
+    certSection: {
+      backgroundColor: '#0a0a12',
+      border: '1px solid rgba(200, 169, 110, 0.2)',
+      borderRadius: '24px',
+      padding: '60px 40px',
+      textAlign: 'center' as const,
+      margin: '40px 0',
+      position: 'relative' as const,
+      overflow: 'hidden' as const,
+    },
+    certGlow: {
+      position: 'absolute' as const,
+      top: '50%',
+      left: '50%',
+      transform: 'translate(-50%, -50%)',
+      width: '600px',
+      height: '300px',
+      background: 'radial-gradient(ellipse, rgba(200, 169, 110, 0.08) 0%, transparent 70%)',
+      pointerEvents: 'none' as const,
+    },
+    certIcon: {
+      fontSize: '56px',
+      marginBottom: '20px',
+      display: 'block',
+    },
+    certTitle: {
+      fontSize: '28px',
+      fontWeight: '800' as const,
+      color: '#ffffff',
+      marginBottom: '12px',
+    },
+    certText: {
+      fontSize: '16px',
+      color: 'rgba(255,255,255,0.55)',
+      maxWidth: '500px',
+      margin: '0 auto 32px',
+      lineHeight: '1.7',
+    },
+    certBadgesRow: {
+      display: 'flex',
+      justifyContent: 'center',
+      gap: '16px',
+      flexWrap: 'wrap' as const,
+    },
+    certBadge: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '8px',
+      backgroundColor: 'rgba(200, 169, 110, 0.1)',
+      border: '1px solid rgba(200, 169, 110, 0.25)',
+      padding: '10px 20px',
+      borderRadius: '50px',
+      fontSize: '13px',
+      color: '#c8a96e',
+      fontWeight: '500' as const,
+    },
+    guaranteeSection: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+      gap: '20px',
+      marginTop: '40px',
+    },
+    guaranteeCard: {
+      backgroundColor: '#0d0d14',
+      border: '1px solid rgba(255,255,255,0.06)',
+      borderRadius: '16px',
+      padding: '28px 24px',
+      textAlign: 'center' as const,
+    },
+    guaranteeIcon: {
+      fontSize: '32px',
+      marginBottom: '12px',
+      display: 'block',
+    },
+    guaranteeTitle: {
+      fontSize: '15px',
+      fontWeight: '700' as const,
+      color: '#ffffff',
+      marginBottom: '8px',
+    },
+    guaranteeText: {
+      fontSize: '13px',
+      color: 'rgba(255,255,255,0.45)',
+      lineHeight: '1.6',
+    },
+    footer: {
+      textAlign: 'center' as const,
+      padding: '40px 20px',
+      borderTop: '1px solid rgba(255,255,255,0.06)',
+      color: 'rgba(255,255,255,0.3)',
+      fontSize: '13px',
+    },
+    orDivider: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '16px',
+      margin: '48px 0 32px',
+    },
+    orLine: {
+      flex: 1,
+      height: '1px',
+      backgroundColor: 'rgba(255,255,255,0.06)',
+    },
+    orText: {
+      fontSize: '12px',
+      color: 'rgba(255,255,255,0.3)',
+      letterSpacing: '2px',
+      fontWeight: '600' as const,
+      textTransform: 'uppercase' as const,
+    },
+  };
+
   const packs = [
     {
-      name: "Starter Pack IA",
+      id: 'starter',
+      icon: '🚀',
+      name: 'Starter',
+      tagline: 'Découvrez l\'IA sans risque',
       price: 47,
-      tag: "Découverte",
-      color: "#c8a96e",
+      savings: 'Accès immédiat · Résultats en 7 jours',
+      featured: false,
       popular: false,
-      features: [
-        "Accès aux modules fondamentaux IA",
-        "Vidéos de formation HD",
-        "Support par email",
-        "Accès 6 mois",
-        "Certificat de participation",
+      formations: [
+        'Introduction à l\'IA Générative',
+        'ChatGPT Fondamentaux',
+        'Prompts de base',
+        'Accès communauté Discord',
       ],
     },
     {
-      name: "Pack Starter Complet",
+      id: 'starter-complet',
+      icon: '⚡',
+      name: 'Pack Starter Complet',
+      tagline: 'Le kit complet pour bien démarrer',
       price: 97,
-      tag: "Essentiel",
-      color: "#c8a96e",
+      savings: 'Économisez 103€ vs achat séparé',
+      featured: false,
       popular: false,
-      features: [
-        "Tout le Starter Pack IA",
-        "Exercices pratiques guidés",
-        "Accès communauté privée",
-        "Accès 12 mois",
-        "Certification AcadémIA Pro",
-        "Ressources téléchargeables",
+      formations: [
+        'Tout le Pack Starter',
+        'Automatisation No-Code IA',
+        'ChatGPT Avancé & GPT-4',
+        'Templates & ressources premium',
+        'Support email prioritaire',
       ],
     },
     {
-      name: "Pack Skills IA",
+      id: 'skills-ia',
+      icon: '🧠',
+      name: 'Pack Skills IA',
+      tagline: 'Maîtrisez les compétences IA clés',
       price: 597,
-      tag: "Compétences",
-      color: "#c8a96e",
+      savings: 'Économisez 403€ · Valeur 1 000€',
+      featured: false,
       popular: false,
-      features: [
-        "Tout le Pack Starter Complet",
-        "Formation avancée ChatGPT & Midjourney",
-        "Automatisation & workflows IA",
-        "Projets réels encadrés",
-        "Accès à vie",
-        "Certification AcadémIA Pro",
-        "Mentorat en groupe mensuel",
+      formations: [
+        'Prompt Engineering Maîtrise',
+        'Image IA · Midjourney · DALL-E',
+        'Vidéo IA · RunwayML · Sora',
+        'Audio IA · Eleven Labs',
+        'IA pour la productivité pro',
+        'Certification IA Skills incluse',
       ],
     },
     {
-      name: "Pack Marketing Digital",
+      id: 'marketing',
+      icon: '📈',
+      name: 'Pack Marketing',
+      tagline: 'Dominez le marketing avec l\'IA',
       price: 1490,
-      tag: "Marketing",
-      color: "#d4af37",
-      popular: false,
-      features: [
-        "Tout le Pack Skills IA",
-        "Stratégie marketing digital complète",
-        "Copywriting IA & SEO",
-        "Publicité Facebook & Google Ads",
-        "Création de contenu automatisée",
-        "Accès à vie",
-        "Certification AcadémIA Pro",
-        "2 sessions mentorat individuel",
-      ],
-    },
-    {
-      name: "Pack IA Complet",
-      price: 2690,
-      tag: "Populaire",
-      color: "#c8a96e",
+      savings: 'Économisez 1 010€ · Valeur 2 500€',
+      featured: true,
       popular: true,
-      features: [
-        "Tout le Pack Marketing Digital",
-        "Formation complète toutes IAs",
-        "Création d'agents IA personnalisés",
-        "Monétisation par l'IA",
-        "Templates & prompts exclusifs",
-        "Accès à vie + mises à jour",
-        "Certification AcadémIA Pro",
-        "4 sessions mentorat individuel",
-        "Accès aux lives hebdomadaires",
+      formations: [
+        'Copywriting IA · Conversions x3',
+        'SEO & Contenu IA automatisé',
+        'Publicité Meta & Google IA',
+        'Funnel Marketing IA complet',
+        'Email Marketing intelligent',
+        'Social Media IA · Stratégie',
+        'Certification Marketing IA',
       ],
     },
     {
-      name: "Pack IA Skills",
-      price: 2990,
-      tag: "Expert",
-      color: "#d4af37",
+      id: 'ia-complet',
+      icon: '💎',
+      name: 'Pack IA Complet',
+      tagline: 'L\'arsenal IA complet du professionnel',
+      price: 2690,
+      savings: 'Économisez 1 810€ · Valeur 4 500€',
+      featured: true,
       popular: false,
-      features: [
-        "Tout le Pack IA Complet",
-        "Maîtrise experte de l'écosystème IA",
-        "Développement no-code & low-code",
-        "Intégrations API avancées",
-        "Formation vente de services IA",
-        "Accès à vie + mises à jour",
-        "Certification AcadémIA Pro Expert",
-        "6 sessions mentorat individuel",
-        "Accès prioritaire nouveaux modules",
-      ],
-    },
-    {
-      name: "Pack Entrepreneur Digital",
-      price: 3490,
-      tag: "Entrepreneur",
-      color: "#c8a96e",
-      popular: false,
-      features: [
-        "Tout le Pack IA Skills",
-        "Création & lancement business digital",
-        "Tunnel de vente automatisé",
-        "Formation recrutement & délégation",
-        "Stratégie de personal branding",
-        "Accès à vie + mises à jour",
-        "Certification AcadémIA Pro Business",
-        "8 sessions mentorat individuel",
-        "Accès au mastermind mensuel",
-        "Revue de votre business plan",
-      ],
-    },
-    {
-      name: "Pack Entrepreneur Elite",
-      price: 3990,
-      tag: "Elite",
-      color: "#d4af37",
-      popular: false,
-      features: [
-        "Tout le Pack Entrepreneur Digital",
-        "Programme Elite 12 semaines intensif",
-        "Accompagnement personnalisé complet",
-        "Accès direct au fondateur",
-        "Partenariat & opportunités business",
-        "Accès à vie + toutes mises à jour",
-        "Certification AcadémIA Pro Elite",
-        "Sessions mentorat illimitées",
-        "Accès VIP tous événements live",
-        "Réseau exclusif entrepreneurs Elite",
-        "Garantie résultats ou remboursé",
-      ],
-    },
-  ];
-
-  return (
-    <div
-      style={{
-        backgroundColor: "#050508",
-        minHeight: "100vh",
-        fontFamily: "'Segoe UI', system-ui, -apple-system, sans-serif",
-        color: "#ffffff",
-        overflowX: "hidden",
-      }}
-    >
-      {/* Header */}
-      <div
-        style={{
-          textAlign: "center",
-          padding: "80px 20px 60px",
-          position: "relative",
-        }}
-      >
-        <div
-          style={{
-            position: "absolute",
-            top: 0,
-            left: "50%",
-            transform: "translateX(-50%)",
-            width: "600px",
-            height: "300px",
-            background:
-              "radial-gradient(ellipse at center, rgba(200,169,110,0.15) 0%, transparent 70%)",
-            pointerEvents: "none",
-          }}
-        />
-        <div
-          style={{
-            display: "inline-block",
-            backgroundColor: "rgba(200,169,110,0.1)",
-            border: "1px solid rgba(200,169,110,0.3)",
-            borderRadius: "50px",
-            padding: "8px 24px",
-            marginBottom: "24px",
-            fontSize: "13px",
-            color: "#c8a96e",
-            letterSpacing: "2px",
-            textTransform: "uppercase" as const,
-          }}
-        >
-          Formations Premium
-        </div>
-        <h1
-          style={{
-            fontSize: "clamp(36px, 6vw, 64px)",
-            fontWeight: "800",
-            margin: "0 0 20px",
-            lineHeight: "1.1",
-            background: "linear-gradient(135deg, #ffffff 0%, #c8a96e 100%)",
-            WebkitBackgroundClip: "text",
-            WebkitTextFillColor: "transparent",
-            backgroundClip: "text",
-          }}
-        >
-          AcadémIA Pro
-        </h1>
-        <p
-          style={{
-            fontSize: "clamp(16px, 2.5vw, 20px)",
-            color: "rgba(255,255,255,0.6)",
-            maxWidth: "600px",
-            margin: "0 auto 40px",
-            lineHeight: "1.6",
-          }}
-        >
-          Maîtrisez l'intelligence artificielle et transformez votre carrière ou
-          votre business avec nos formations d'excellence.
-        </p>
-
-        {/* Badges */}
-        <div
-          style={{
-            display: "flex",
-            flexWrap: "wrap" as const,
-            gap: "16px",
-            justifyContent: "center",
-            marginBottom: "20px",
-          }}
-        >
-          {[
-            { icon: "🏆", text: "Certification AcadémIA Pro" },
-            { icon: "💳", text: "Paiement 3x sans frais" },
-            { icon: "🛡️", text: "Garantie 30 jours" },
-          ].map((badge, i) => (
-            <div
-              key={i}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
-                backgroundColor: "rgba(200,169,110,0.08)",
-                border: "1px solid rgba(200,169,110,0.25)",
-                borderRadius: "40px",
-                padding: "10px 20px",
-                fontSize: "14px",
-                color: "#c8a96e",
-                fontWeight: "500",
-              }}
-            >
-              <span style={{ fontSize: "16px" }}>{badge.icon}</span>
-              {badge.text}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Packs Grid */}
-      <div
-        style={{
-          maxWidth: "1400px",
-          margin: "0 auto",
-          padding: "0 20px 100px",
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
-          gap: "24px",
-        }}
-      >
-        {packs.map((pack, index) => (
-          <div
-            key={index}
-            style={{
-              position: "relative",
-              backgroundColor: pack.popular
-                ? "rgba(200,169,110,0.06)"
-                : "rgba(255,255,255,0.02)",
-              border: pack.popular
-                ? "1px solid rgba(200,169,110,0.5)"
-                : "1px solid rgba(255,255,255,0.07)",
-              borderRadius: "20px",
-              padding: "32px",
-              transition: "transform 0.3s ease, box-shadow 0.3s ease",
-              boxShadow: pack.popular
-                ? "0 0 40px rgba(200,169,110,0.12), inset 0 1px 0 rgba(200,169,110,0.2)"
-                : "0 4px 24px rgba(0,0,0,0.3)",
-              display: "flex",
-              flexDirection: "column" as const,
-              gap: "24px",
-            }}
-            onMouseEnter={(e) => {
-              const el = e.currentTarget as HTMLDivElement;
-              el.style.transform = "translateY(-6px)";
-              el.style.boxShadow = pack.popular
-                ? "0 20px 60px rgba(200,169,110,0.2), inset 0 1px 0 rgba(200,169,110,0.2)"
-                : "0 20px 60px rgba(200,169,110,0.1)";
-            }}
-            onMouseLeave={(e) => {
-              const el = e.currentTarget as HTMLDivElement;
-              el.style.transform = "translateY(0)";
-              el.style.boxShadow = pack.popular
-                ? "0 0 40px rgba(200,169,110,0.12), inset 0 1px 0 rgba(200,169,110,0.2)"
-                : "0 4px 24px rgba(0,0,0,0.3)";
-            }}
-          >
-            {/* Popular badge */}
-            {pack.popular && (
-              <div
-                style={{
-                  position: "absolute",
-                  top: "-14px",
-                  left: "50%",
-                  transform: "translateX(-50%)",
-                  background:
-                    "linear-gradient(135deg, #c8a96e 0%, #d4af37 100%)",
-                  color: "#050508",
-                  fontSize: "11px",
-                  fontWeight: "800",
-                  letterSpacing: "2px",
-                  textTransform: "uppercase" as const,
-                  padding: "6px 20px",
-                  borderRadius: "20px",
-                  whiteSpace: "nowrap" as const,
-                }}
-              >
-                ⭐ Le Plus Choisi
-              </div>
-            )}
-
-            {/* Header */}
-            <div>
-              <div
-                style={{
-                  display: "inline-block",
-                  backgroundColor: `rgba(200,169,110,0.12)`,
-                  border: `1px solid rgba(200,169,110,0.2)`,
-                  borderRadius: "20px",
-                  padding: "4px 14px",
-                  fontSize: "11px",
-                  color: pack.color,
-                  letterSpacing: "1.5px",
-                  textTransform: "uppercase" as const,
-                  fontWeight: "600",
-                  marginBottom: "12px",
-                }}
-              >
-                {pack.tag}
-              </div>
-              <h2
-                style={{
-                  fontSize: "22px",
-                  fontWeight: "700",
-                  margin: "0 0 8px",
-                  color: "#ffffff",
-                  lineHeight: "1.2",
-                }}
-              >
-                {pack.name}
-              </h2>
-            </div>
-
-            {/* Price */}
-            <div
-              style={{
-                borderTop: "1px solid rgba(255,255,255,0.06)",
-                borderBottom: "1px solid rgba(255,255,255,0.06)",
-                padding: "20px 0",
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "flex-end",
-                  gap: "4px",
-                  marginBottom: "8px",
-                }}
-              >
-                <span
-                  style={{
-                    fontSize: "44px",
-                    fontWeight: "800",
-                    lineHeight: "1",
-                    color: pack.color,
-                    letterSpacing: "-2px",
-                  }}
-                >
-                  {pack.price.toLocaleString("fr-FR")}€
-                </span>
-              </div>
-              <div
-                style={{
-                  fontSize: "13px",
-                  color: "rgba(255,255,255,0.4)",
-                }}
-              >
-                ou{" "}
-                <span style={{ color: pack.color, fontWeight: "600" }}>
-                  3x {Math.round(pack.price / 3).toLocaleString("fr-FR")}€
-                </span>{" "}
-                sans frais
-              </div>
-            </div>
-
-            {/* Features */}
-            <ul
-              style={{
-                listStyle: "none",
-                margin: 0,
-                padding: 0,
-                display: "flex",
-                flexDirection: "column" as const,
-                gap: "10px",
-                flex: 1,
-              }}
-            >
-              {pack.features.map((feature, fi) => (
-                <li
-                  key={fi}
-                  style={{
-                    display: "flex",
-                    alignItems: "flex-start",
-                    gap: "10px",
-                    fontSize: "14px",
-                    color: "rgba(255,255,255,0.75)",
-                    lineHeight: "1.4",
-                  }}
-                >
-                  <span
-                    style={{
-                      width: "18px",
-                      height: "18px",
-                      borderRadius: "50%",
-                      backgroundColor: "rgba(200,169,110,0.15)",
-                      border: "1px solid rgba(200,169,110,0.3)",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      flexShrink: 0,
-                      marginTop: "1px",
-                      fontSize: "10px",
-                      color: "#c8a96e",
-                    }}
-                  >
-                    ✓
+      formations: [
+        'Tous les
