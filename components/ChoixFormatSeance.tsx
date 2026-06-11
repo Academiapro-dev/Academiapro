@@ -1,4 +1,3 @@
-```tsx
 import React, { useState, useEffect } from "react";
 
 type Format = "visio" | "audio";
