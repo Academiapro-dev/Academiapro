@@ -1,11 +1,398 @@
-export default function MarketingDashboard() {
-  return (
-    <div style={{ minHeight: "100vh", background: "#050508", color: "#fff", fontFamily: "Georgia, serif", display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <div style={{ textAlign: "center" }}>
-        <p style={{ color: "#c8a96e", fontSize: "12px", letterSpacing: "3px", margin: "0 0 16px" }}>ACADEMIAPRO</p>
-        <h1 style={{ color: "#fff", fontSize: "28px", margin: "0 0 12px" }}>AcadémIA Pro</h1>
-        <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "14px" }}>Dashboard en cours de configuration</p>
-      </div>
-    </div>
-  )
-}
+export default function AcademiaDashboard() {
+  const styles: Record<string, React.CSSProperties> = {
+    page: {
+      backgroundColor: '#050508',
+      minHeight: '100vh',
+      fontFamily: "'Segoe UI', system-ui, -apple-system, sans-serif",
+      color: '#e8e0d0',
+      padding: '24px',
+    },
+    header: {
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: '32px',
+      paddingBottom: '20px',
+      borderBottom: '1px solid rgba(200, 169, 110, 0.2)',
+    },
+    logoZone: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '14px',
+    },
+    logoIcon: {
+      width: '44px',
+      height: '44px',
+      background: 'linear-gradient(135deg, #c8a96e, #a07840)',
+      borderRadius: '12px',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      fontSize: '22px',
+    },
+    logoText: {
+      fontSize: '22px',
+      fontWeight: '700',
+      color: '#c8a96e',
+      letterSpacing: '-0.3px',
+    },
+    logoSub: {
+      fontSize: '11px',
+      color: '#7a7060',
+      letterSpacing: '2px',
+      textTransform: 'uppercase' as const,
+      marginTop: '2px',
+    },
+    headerRight: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '16px',
+    },
+    badge: {
+      backgroundColor: 'rgba(200, 169, 110, 0.12)',
+      border: '1px solid rgba(200, 169, 110, 0.3)',
+      color: '#c8a96e',
+      padding: '6px 14px',
+      borderRadius: '20px',
+      fontSize: '12px',
+      fontWeight: '600',
+    },
+    dateText: {
+      color: '#5a5448',
+      fontSize: '13px',
+    },
+    sectionTitle: {
+      fontSize: '13px',
+      fontWeight: '700',
+      color: '#c8a96e',
+      letterSpacing: '2px',
+      textTransform: 'uppercase' as const,
+      marginBottom: '16px',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '8px',
+    },
+    kpiGrid: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(6, 1fr)',
+      gap: '14px',
+      marginBottom: '32px',
+    },
+    kpiCard: {
+      backgroundColor: '#0c0c12',
+      border: '1px solid rgba(200, 169, 110, 0.15)',
+      borderRadius: '16px',
+      padding: '20px 18px',
+      position: 'relative' as const,
+      overflow: 'hidden' as const,
+    },
+    kpiCardHighlight: {
+      backgroundColor: '#0c0c12',
+      border: '1px solid rgba(200, 169, 110, 0.4)',
+      borderRadius: '16px',
+      padding: '20px 18px',
+      position: 'relative' as const,
+      overflow: 'hidden' as const,
+      boxShadow: '0 0 20px rgba(200, 169, 110, 0.08)',
+    },
+    kpiGlow: {
+      position: 'absolute' as const,
+      top: '-20px',
+      right: '-20px',
+      width: '80px',
+      height: '80px',
+      background: 'radial-gradient(circle, rgba(200,169,110,0.08) 0%, transparent 70%)',
+      borderRadius: '50%',
+    },
+    kpiLabel: {
+      fontSize: '11px',
+      color: '#5a5448',
+      fontWeight: '600',
+      letterSpacing: '0.5px',
+      marginBottom: '10px',
+      textTransform: 'uppercase' as const,
+    },
+    kpiValue: {
+      fontSize: '26px',
+      fontWeight: '800',
+      color: '#f0e8d8',
+      lineHeight: '1',
+      marginBottom: '8px',
+    },
+    kpiValueGold: {
+      fontSize: '26px',
+      fontWeight: '800',
+      color: '#c8a96e',
+      lineHeight: '1',
+      marginBottom: '8px',
+    },
+    kpiTrend: {
+      fontSize: '11px',
+      color: '#4ade80',
+      fontWeight: '600',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '3px',
+    },
+    kpiTrendDown: {
+      fontSize: '11px',
+      color: '#f87171',
+      fontWeight: '600',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '3px',
+    },
+    mainGrid: {
+      display: 'grid',
+      gridTemplateColumns: '1.2fr 0.8fr',
+      gap: '20px',
+      marginBottom: '24px',
+    },
+    panel: {
+      backgroundColor: '#0c0c12',
+      border: '1px solid rgba(200, 169, 110, 0.12)',
+      borderRadius: '20px',
+      padding: '24px',
+    },
+    socialGrid: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(5, 1fr)',
+      gap: '10px',
+    },
+    socialCard: {
+      backgroundColor: '#101018',
+      border: '1px solid rgba(200, 169, 110, 0.1)',
+      borderRadius: '14px',
+      padding: '16px 12px',
+      textAlign: 'center' as const,
+      transition: 'border-color 0.2s',
+    },
+    socialIcon: {
+      fontSize: '22px',
+      marginBottom: '8px',
+    },
+    socialName: {
+      fontSize: '10px',
+      color: '#7a7060',
+      fontWeight: '700',
+      letterSpacing: '0.5px',
+      textTransform: 'uppercase' as const,
+      marginBottom: '6px',
+    },
+    socialFollowers: {
+      fontSize: '16px',
+      fontWeight: '800',
+      color: '#e8e0d0',
+      marginBottom: '6px',
+    },
+    statusDot: {
+      width: '6px',
+      height: '6px',
+      backgroundColor: '#4ade80',
+      borderRadius: '50%',
+      display: 'inline-block',
+      marginRight: '4px',
+    },
+    statusDotOrange: {
+      width: '6px',
+      height: '6px',
+      backgroundColor: '#fb923c',
+      borderRadius: '50%',
+      display: 'inline-block',
+      marginRight: '4px',
+    },
+    statusText: {
+      fontSize: '10px',
+      color: '#4ade80',
+    },
+    statusTextOrange: {
+      fontSize: '10px',
+      color: '#fb923c',
+    },
+    campaignTable: {
+      width: '100%',
+      borderCollapse: 'collapse' as const,
+    },
+    th: {
+      textAlign: 'left' as const,
+      fontSize: '10px',
+      fontWeight: '700',
+      color: '#5a5448',
+      letterSpacing: '1px',
+      textTransform: 'uppercase' as const,
+      paddingBottom: '12px',
+      borderBottom: '1px solid rgba(200,169,110,0.1)',
+    },
+    td: {
+      padding: '12px 0',
+      fontSize: '13px',
+      color: '#c8c0b0',
+      borderBottom: '1px solid rgba(255,255,255,0.04)',
+      verticalAlign: 'middle' as const,
+    },
+    campaignName: {
+      fontSize: '13px',
+      fontWeight: '600',
+      color: '#e8e0d0',
+    },
+    campaignBadge: {
+      display: 'inline-block',
+      padding: '2px 8px',
+      borderRadius: '6px',
+      fontSize: '10px',
+      fontWeight: '700',
+      marginLeft: '6px',
+    },
+    progressBar: {
+      height: '4px',
+      backgroundColor: 'rgba(200,169,110,0.1)',
+      borderRadius: '2px',
+      marginTop: '4px',
+      overflow: 'hidden' as const,
+    },
+    progressFill: {
+      height: '100%',
+      background: 'linear-gradient(90deg, #c8a96e, #a07840)',
+      borderRadius: '2px',
+    },
+    bottomGrid: {
+      display: 'grid',
+      gridTemplateColumns: '1fr 1fr 1fr',
+      gap: '20px',
+      marginBottom: '24px',
+    },
+    leadMagnetCard: {
+      backgroundColor: '#101018',
+      border: '1px solid rgba(200,169,110,0.1)',
+      borderRadius: '14px',
+      padding: '18px',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '14px',
+    },
+    leadIconBox: {
+      width: '46px',
+      height: '46px',
+      borderRadius: '12px',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      fontSize: '20px',
+      flexShrink: 0,
+    },
+    leadTitle: {
+      fontSize: '12px',
+      fontWeight: '700',
+      color: '#e8e0d0',
+      marginBottom: '4px',
+    },
+    leadSub: {
+      fontSize: '10px',
+      color: '#5a5448',
+      marginBottom: '8px',
+      textTransform: 'uppercase' as const,
+      letterSpacing: '0.5px',
+    },
+    leadCount: {
+      fontSize: '22px',
+      fontWeight: '800',
+      color: '#c8a96e',
+    },
+    leadTrend: {
+      fontSize: '10px',
+      color: '#4ade80',
+      fontWeight: '600',
+    },
+    activityPanel: {
+      backgroundColor: '#0c0c12',
+      border: '1px solid rgba(200,169,110,0.12)',
+      borderRadius: '20px',
+      padding: '24px',
+      marginBottom: '24px',
+    },
+    activityItem: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '12px',
+      padding: '10px 0',
+      borderBottom: '1px solid rgba(255,255,255,0.04)',
+    },
+    activityDot: {
+      width: '8px',
+      height: '8px',
+      borderRadius: '50%',
+      flexShrink: 0,
+    },
+    activityText: {
+      fontSize: '13px',
+      color: '#a09888',
+      flex: 1,
+    },
+    activityTime: {
+      fontSize: '11px',
+      color: '#403830',
+    },
+    footer: {
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingTop: '20px',
+      borderTop: '1px solid rgba(200,169,110,0.1)',
+    },
+    footerText: {
+      fontSize: '12px',
+      color: '#3a3428',
+    },
+    footerGold: {
+      color: '#c8a96e',
+      fontWeight: '600',
+    },
+    sparkline: {
+      display: 'flex',
+      alignItems: 'flex-end',
+      gap: '2px',
+      height: '24px',
+      marginTop: '8px',
+    },
+    sparkBar: {
+      width: '4px',
+      borderRadius: '2px',
+      backgroundColor: 'rgba(200,169,110,0.3)',
+    },
+    sparkBarActive: {
+      width: '4px',
+      borderRadius: '2px',
+      backgroundColor: '#c8a96e',
+    },
+  };
+
+  const kpis = [
+    { label: 'Posts Publiés', value: '247', trend: '+18%', up: true, icon: '📝', highlight: false },
+    { label: 'Leads Capturés', value: '1 843', trend: '+34%', up: true, icon: '🎯', highlight: false },
+    { label: 'Clics Google Ads', value: '12 590', trend: '+22%', up: true, icon: '🔍', highlight: false },
+    { label: 'Clics Meta Ads', value: '9 247', trend: '+15%', up: true, icon: '📘', highlight: false },
+    { label: 'CA Généré', value: '87 420 €', trend: '+41%', up: true, icon: '💰', highlight: true },
+    { label: 'ROAS', value: '4.8x', trend: '-0.3x', up: false, icon: '📈', highlight: true },
+  ];
+
+  const sparkData = [
+    [30, 45, 35, 60, 40, 55, 70],
+    [20, 55, 45, 70, 60, 80, 90],
+    [50, 40, 60, 55, 75, 65, 85],
+    [35, 50, 45, 65, 55, 70, 75],
+    [40, 60, 50, 80, 70, 90, 95],
+    [80, 70, 85, 75, 90, 80, 85],
+  ];
+
+  const socialNetworks = [
+    { name: 'LinkedIn', icon: '💼', followers: '14.2K', status: 'Actif', active: true, growth: '+342' },
+    { name: 'Instagram', icon: '📸', followers: '28.7K', status: 'Actif', active: true, growth: '+891' },
+    { name: 'Facebook', icon: '👥', followers: '9.1K', status: 'Actif', active: true, growth: '+124' },
+    { name: 'TikTok', icon: '🎵', followers: '41.3K', status: 'Actif', active: true, growth: '+2.1K' },
+    { name: 'YouTube', icon: '▶️', followers: '5.8K', status: 'Pause', active: false, growth: '+67' },
+  ];
+
+  const campaigns = [
+    { name: 'Formation IA Débutants', type: 'Google', budget: '2 400 €', spent: 78, clicks: '4 230', conversions: '89', cpa: '26.97 €', color: '#4285f4' },
+    { name: 'Masterclass Marketing', type: 'Meta', budget: '1 800 €', spent: 65, clicks: '3 120', conversions: '54', cpa: '33.33 €', color: '#1877f2' },
+    { name: 'Bootcamp Copywriting', type: 'Google', budget: '
