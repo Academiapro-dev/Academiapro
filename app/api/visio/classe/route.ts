@@ -1,4 +1,3 @@
-```typescript
 // app/api/visio/classe/route.ts - Main router
 // app/api/visio/classe/creer/route.ts
 // app/api/visio/classe/rejoindre/route.ts
