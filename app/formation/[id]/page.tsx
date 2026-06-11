@@ -430,3 +430,4 @@ export default async function FormationPage({ params }: { params: { id: string }
       borderBottom: "1px solid rgba(200,169,110,0.2)",
       padding: "24px",
       textAlign: "center" as const
+}}}
