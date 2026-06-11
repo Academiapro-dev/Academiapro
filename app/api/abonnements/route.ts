@@ -1,4 +1,3 @@
-```typescript
 // types/abonnement.ts
 export type FormulaType = "STARTER" | "STANDARD" | "PREMIUM" | "ELITE";
 export type AbonnementStatus =
