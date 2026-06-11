@@ -394,3 +394,4 @@ export default function MiniCours() {
                 style={inputStyle}
                 onFocus={(e) => {
                   e.target.style.borderColor = 'rgba(200, 169, 110,
+}}}
