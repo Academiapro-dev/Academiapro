@@ -1,320 +1,419 @@
-export default function ClasseVirtuelle({ params }: { params: { sessionId: string } }) {
-  const [messages, setMessages] = React.useState<Array<{ id: number; auteur: string; texte: string; temps: string; estIA: boolean }>>([
-    { id: 1, auteur: "AcadémIA Pro", texte: "Bienvenue dans cette session live. Aujourd'hui nous allons explorer les fondamentaux de l'algèbre linéaire.", temps: "14:02", estIA: true },
-    { id: 2, auteur: "Sophie M.", texte: "Bonjour ! Très enthousiaste pour cette session.", temps: "14:03", estIA: false },
-    { id: 3, auteur: "Thomas K.", texte: "Est-ce qu'on abordera les matrices de transformation ?", temps: "14:04", estIA: false },
-    { id: 4, auteur: "AcadémIA Pro", texte: "Absolument Thomas. Les matrices de transformation seront au cœur de notre deuxième partie. Excellente anticipation.", temps: "14:04", estIA: true },
+export default function VirtualClassPage({ params }: { params: { sessionId: string } }) {
+  const [messages, setMessages] = React.useState<Array<{ id: number; author: string; text: string; time: string; isAI: boolean }>>([
+    { id: 1, author: "AcadémIA", text: "Bienvenue dans votre classe virtuelle. La session commence maintenant.", time: "14:00", isAI: true },
+    { id: 2, author: "Sophie M.", text: "Bonjour tout le monde !", time: "14:01", isAI: false },
+    { id: 3, author: "AcadémIA", text: "Aujourd'hui nous allons explorer les fondamentaux de l'algèbre linéaire.", time: "14:02", isAI: true },
   ]);
-
-  const [messageInput, setMessageInput] = React.useState("");
-  const [statutSession] = React.useState<"en_cours" | "a_venir" | "terminee">("en_cours");
-  const [duree, setDuree] = React.useState(2847);
-  const [participants] = React.useState([
-    { id: 1, nom: "Sophie M.", actif: true, avatar: "SM" },
-    { id: 2, nom: "Thomas K.", actif: true, avatar: "TK" },
-    { id: 3, nom: "Léa R.", actif: true, avatar: "LR" },
-    { id: 4, nom: "Marc D.", actif: false, avatar: "MD" },
-    { id: 5, nom: "Inès B.", actif: true, avatar: "IB" },
-    { id: 6, nom: "Paul V.", actif: true, avatar: "PV" },
+  const [inputMessage, setInputMessage] = React.useState("");
+  const [duration, setDuration] = React.useState(0);
+  const [isConnected, setIsConnected] = React.useState(true);
+  const [participants, setParticipants] = React.useState([
+    { id: 1, name: "Sophie M.", role: "student", active: true },
+    { id: 2, name: "Thomas K.", role: "student", active: true },
+    { id: 3, name: "Leila R.", role: "student", active: false },
+    { id: 4, name: "Marc D.", role: "student", active: true },
   ]);
-  const [panneauActif, setPanneauActif] = React.useState<"chat" | "participants">("chat");
-  const [iaSpeaking, setIaSpeaking] = React.useState(true);
-  const [quitterConfirm, setQuitterConfirm] = React.useState(false);
-  const chatRef = React.useRef<HTMLDivElement>(null);
+  const chatEndRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
-    const interval = setInterval(() => {
-      if (statutSession === "en_cours") {
-        setDuree(d => d + 1);
-      }
+    const timer = setInterval(() => {
+      setDuration(prev => prev + 1);
     }, 1000);
-    return () => clearInterval(interval);
-  }, [statutSession]);
-
-  React.useEffect(() => {
-    const pulse = setInterval(() => {
-      setIaSpeaking(s => !s);
-    }, 1800);
-    return () => clearInterval(pulse);
+    return () => clearInterval(timer);
   }, []);
 
   React.useEffect(() => {
-    if (chatRef.current) {
-      chatRef.current.scrollTop = chatRef.current.scrollHeight;
-    }
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const formaterDuree = (secondes: number) => {
-    const h = Math.floor(secondes / 3600);
-    const m = Math.floor((secondes % 3600) / 60);
-    const s = secondes % 60;
-    if (h > 0) return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-    return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  const formatDuration = (seconds: number): string => {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = seconds % 60;
+    return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
   };
 
-  const envoyerMessage = () => {
-    if (!messageInput.trim()) return;
-    const nouveau = {
+  const handleSendMessage = () => {
+    if (!inputMessage.trim()) return;
+    const now = new Date();
+    const time = `${now.getHours().toString().padStart(2, "0")}:${now.getMinutes().toString().padStart(2, "0")}`;
+    const newMessage = {
       id: messages.length + 1,
-      auteur: "Vous",
-      texte: messageInput,
-      temps: new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }),
-      estIA: false,
+      author: "Vous",
+      text: inputMessage,
+      time,
+      isAI: false,
     };
-    setMessages(prev => [...prev, nouveau]);
-    setMessageInput("");
+    setMessages(prev => [...prev, newMessage]);
+    setInputMessage("");
     setTimeout(() => {
-      setMessages(prev => [...prev, {
-        id: prev.length + 1,
-        auteur: "AcadémIA Pro",
-        texte: "Très bonne question. Laissez-moi vous expliquer ce concept avec précision.",
-        temps: new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }),
-        estIA: true,
-      }]);
-    }, 1500);
+      setMessages(prev => [
+        ...prev,
+        {
+          id: prev.length + 1,
+          author: "AcadémIA",
+          text: "Excellente question. Permettez-moi d'élaborer sur ce point pour toute la classe.",
+          time,
+          isAI: true,
+        },
+      ]);
+    }, 1200);
   };
 
-  const statutConfig = {
-    en_cours: { label: "En cours", couleur: "#22c55e", bg: "rgba(34,197,94,0.15)" },
-    a_venir: { label: "À venir", couleur: "#c8a96e", bg: "rgba(200,169,110,0.15)" },
-    terminee: { label: "Terminée", couleur: "#6b7280", bg: "rgba(107,114,128,0.15)" },
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") handleSendMessage();
   };
 
-  const statut = statutConfig[statutSession];
+  const handleQuit = () => {
+    setIsConnected(false);
+    alert(`Session ${params.sessionId} terminée. Durée : ${formatDuration(duration)}`);
+  };
+
+  const avatarPulseStyle: React.CSSProperties = {
+    position: "absolute",
+    inset: 0,
+    borderRadius: "50%",
+    border: "2px solid #c8a96e",
+    animation: "pulse 2s infinite",
+  };
 
   return (
-    React.createElement("div", {
-      style: {
+    <div
+      style={{
         minHeight: "100vh",
         backgroundColor: "#050508",
         color: "#e8e0d0",
-        fontFamily: "'Inter', -apple-system, sans-serif",
+        fontFamily: "'Segoe UI', system-ui, sans-serif",
         display: "flex",
-        flexDirection: "column" as const,
+        flexDirection: "column",
         overflow: "hidden",
-      }
-    },
-      React.createElement("style", null, `
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-        * { box-sizing: border-box; margin: 0; padding: 0; }
+      }}
+    >
+      <style>{`
+        @keyframes pulse {
+          0% { transform: scale(1); opacity: 0.8; }
+          50% { transform: scale(1.15); opacity: 0.3; }
+          100% { transform: scale(1); opacity: 0.8; }
+        }
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(8px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes glow {
+          0% { box-shadow: 0 0 8px #c8a96e44; }
+          50% { box-shadow: 0 0 22px #c8a96e88; }
+          100% { box-shadow: 0 0 8px #c8a96e44; }
+        }
+        @keyframes blink {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.3; }
+        }
         ::-webkit-scrollbar { width: 4px; }
-        ::-webkit-scrollbar-track { background: #0a0a0f; }
-        ::-webkit-scrollbar-thumb { background: #c8a96e44; border-radius: 2px; }
-        input::placeholder { color: #4a4a5a !important; }
-        @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.6;transform:scale(0.95)} }
-        @keyframes wave1 { 0%,100%{height:8px} 50%{height:24px} }
-        @keyframes wave2 { 0%,100%{height:16px} 50%{height:8px} }
-        @keyframes wave3 { 0%,100%{height:12px} 50%{height:28px} }
-        @keyframes wave4 { 0%,100%{height:20px} 50%{height:10px} }
-        @keyframes wave5 { 0%,100%{height:8px} 50%{height:22px} }
-        @keyframes glow { 0%,100%{box-shadow:0 0 20px rgba(200,169,110,0.3)} 50%{box-shadow:0 0 40px rgba(200,169,110,0.6)} }
-        @keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
-        @keyframes orbitSlow { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
-        @keyframes ripple { 0%{transform:scale(1);opacity:0.6} 100%{transform:scale(2.5);opacity:0} }
-      `),
+        ::-webkit-scrollbar-track { background: #0d0d12; }
+        ::-webkit-scrollbar-thumb { background: #c8a96e55; border-radius: 2px; }
+      `}</style>
 
-      React.createElement("div", {
-        style: {
+      <header
+        style={{
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          padding: "0 24px",
-          height: "64px",
-          borderBottom: "1px solid rgba(200,169,110,0.15)",
-          backgroundColor: "rgba(5,5,8,0.95)",
-          backdropFilter: "blur(20px)",
-          position: "sticky" as const,
-          top: 0,
-          zIndex: 100,
+          padding: "14px 28px",
+          borderBottom: "1px solid #c8a96e22",
+          backgroundColor: "#07070b",
           flexShrink: 0,
-        }
-      },
-        React.createElement("div", { style: { display: "flex", alignItems: "center", gap: "16px" } },
-          React.createElement("div", {
-            style: {
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-            }
-          },
-            React.createElement("div", {
-              style: {
-                width: "32px",
-                height: "32px",
-                borderRadius: "8px",
-                background: "linear-gradient(135deg, #c8a96e, #8b6914)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: "16px",
-                fontWeight: "700",
-                color: "#050508",
-              }
-            }, "A"),
-            React.createElement("span", {
-              style: { fontSize: "16px", fontWeight: "700", letterSpacing: "-0.3px", color: "#c8a96e" }
-            }, "AcadémIA Pro"),
-          ),
-          React.createElement("div", { style: { width: "1px", height: "24px", backgroundColor: "rgba(200,169,110,0.2)" } }),
-          React.createElement("div", {
-            style: {
-              fontSize: "13px",
-              color: "#8a8090",
-              maxWidth: "200px",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap" as const,
-            }
-          }, `Session ${params.sessionId}`),
-        ),
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <div
+            style={{
+              fontSize: "20px",
+              fontWeight: 800,
+              background: "linear-gradient(135deg, #c8a96e, #e8d5a8)",
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+              letterSpacing: "-0.5px",
+            }}
+          >
+            AcadémIA Pro
+          </div>
+          <div
+            style={{
+              height: "16px",
+              width: "1px",
+              backgroundColor: "#c8a96e44",
+            }}
+          />
+          <div style={{ fontSize: "12px", color: "#9990a0" }}>
+            Session{" "}
+            <span style={{ color: "#c8a96e", fontFamily: "monospace" }}>
+              #{params.sessionId}
+            </span>
+          </div>
+        </div>
 
-        React.createElement("div", { style: { display: "flex", alignItems: "center", gap: "12px" } },
-          React.createElement("div", {
-            style: {
+        <div style={{ display: "flex", alignItems: "center", gap: "20px" }}>
+          <div
+            style={{
               display: "flex",
               alignItems: "center",
               gap: "8px",
-              padding: "6px 12px",
+              backgroundColor: "#0f0f16",
+              border: "1px solid #c8a96e33",
               borderRadius: "20px",
-              backgroundColor: statut.bg,
-              border: `1px solid ${statut.couleur}44`,
-            }
-          },
-            statutSession === "en_cours" && React.createElement("div", {
-              style: {
-                width: "7px",
-                height: "7px",
+              padding: "6px 14px",
+            }}
+          >
+            <div
+              style={{
+                width: "8px",
+                height: "8px",
                 borderRadius: "50%",
-                backgroundColor: statut.couleur,
-                animation: "pulse 1.5s ease-in-out infinite",
-              }
-            }),
-            React.createElement("span", {
-              style: { fontSize: "12px", fontWeight: "600", color: statut.couleur, letterSpacing: "0.5px" }
-            }, statut.label),
-          ),
+                backgroundColor: isConnected ? "#4ade80" : "#f87171",
+                animation: isConnected ? "blink 2s infinite" : "none",
+              }}
+            />
+            <span style={{ fontSize: "12px", color: "#a09898", fontVariantNumeric: "tabular-nums" }}>
+              {formatDuration(duration)}
+            </span>
+          </div>
 
-          statutSession === "en_cours" && React.createElement("div", {
-            style: {
-              display: "flex",
-              alignItems: "center",
-              gap: "6px",
-              padding: "6px 12px",
-              borderRadius: "20px",
-              backgroundColor: "rgba(200,169,110,0.08)",
-              border: "1px solid rgba(200,169,110,0.2)",
-            }
-          },
-            React.createElement("span", { style: { fontSize: "11px", color: "#8a8090" } }, "⏱"),
-            React.createElement("span", {
-              style: { fontSize: "13px", fontWeight: "600", color: "#c8a96e", fontVariantNumeric: "tabular-nums" }
-            }, formaterDuree(duree)),
-          ),
+          <button
+            onClick={handleQuit}
+            style={{
+              backgroundColor: "transparent",
+              border: "1px solid #ef444466",
+              color: "#ef4444",
+              padding: "7px 18px",
+              borderRadius: "8px",
+              fontSize: "13px",
+              fontWeight: 600,
+              cursor: "pointer",
+              transition: "all 0.2s",
+              letterSpacing: "0.3px",
+            }}
+            onMouseEnter={e => {
+              (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#ef444422";
+              (e.currentTarget as HTMLButtonElement).style.borderColor = "#ef4444";
+            }}
+            onMouseLeave={e => {
+              (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent";
+              (e.currentTarget as HTMLButtonElement).style.borderColor = "#ef444466";
+            }}
+          >
+            ✕ Quitter
+          </button>
+        </div>
+      </header>
 
-          React.createElement("div", {
-            style: {
-              display: "flex",
-              alignItems: "center",
-              gap: "6px",
-              padding: "6px 12px",
-              borderRadius: "20px",
-              backgroundColor: "rgba(200,169,110,0.06)",
-              border: "1px solid rgba(200,169,110,0.15)",
-            }
-          },
-            React.createElement("span", { style: { fontSize: "13px" } }, "👥"),
-            React.createElement("span", {
-              style: { fontSize: "13px", fontWeight: "500", color: "#b8a888" }
-            }, participants.filter(p => p.actif).length),
-          ),
-        ),
-
-        React.createElement("button", {
-          onClick: () => setQuitterConfirm(true),
-          style: {
-            padding: "8px 18px",
-            borderRadius: "10px",
-            border: "1px solid rgba(239,68,68,0.4)",
-            backgroundColor: "rgba(239,68,68,0.1)",
-            color: "#ef4444",
-            fontSize: "13px",
-            fontWeight: "600",
-            cursor: "pointer",
-            transition: "all 0.2s",
-            letterSpacing: "0.2px",
-          },
-          onMouseEnter: (e: React.MouseEvent<HTMLButtonElement>) => {
-            (e.currentTarget as HTMLButtonElement).style.backgroundColor = "rgba(239,68,68,0.2)";
-            (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(239,68,68,0.7)";
-          },
-          onMouseLeave: (e: React.MouseEvent<HTMLButtonElement>) => {
-            (e.currentTarget as HTMLButtonElement).style.backgroundColor = "rgba(239,68,68,0.1)";
-            (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(239,68,68,0.4)";
-          },
-        }, "Quitter"),
-      ),
-
-      React.createElement("div", {
-        style: {
+      <div
+        style={{
           flex: 1,
           display: "flex",
           overflow: "hidden",
-          height: "calc(100vh - 64px)",
-        }
-      },
-
-        React.createElement("div", {
-          style: {
+          gap: "0px",
+        }}
+      >
+        <div
+          style={{
             flex: 1,
             display: "flex",
-            flexDirection: "column" as const,
-            alignItems: "center",
-            justifyContent: "center",
-            padding: "32px",
-            position: "relative" as const,
+            flexDirection: "column",
             overflow: "hidden",
-            background: "radial-gradient(ellipse at center, #0d0d14 0%, #050508 70%)",
-          }
-        },
-          React.createElement("div", {
-            style: {
-              position: "absolute" as const,
-              inset: 0,
-              backgroundImage: "radial-gradient(rgba(200,169,110,0.03) 1px, transparent 1px)",
-              backgroundSize: "32px 32px",
-            }
-          }),
+          }}
+        >
+          <div
+            style={{
+              flex: 1,
+              backgroundColor: "#08080e",
+              margin: "20px 20px 20px 20px",
+              borderRadius: "16px",
+              border: "1px solid #c8a96e1a",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              position: "relative",
+              overflow: "hidden",
+              minHeight: "320px",
+            }}
+          >
+            <div
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                background: "radial-gradient(ellipse at center, #c8a96e08 0%, transparent 70%)",
+                pointerEvents: "none",
+              }}
+            />
 
-          React.createElement("div", {
-            style: {
-              position: "relative" as const,
-              width: "200px",
-              height: "200px",
-              marginBottom: "32px",
-            }
-          },
-            React.createElement("div", {
-              style: {
-                position: "absolute" as const,
-                inset: "-20px",
-                borderRadius: "50%",
-                border: "1px solid rgba(200,169,110,0.1)",
-                animation: "orbitSlow 12s linear infinite",
-              }
-            }),
-            React.createElement("div", {
-              style: {
-                position: "absolute" as const,
-                inset: "-40px",
-                borderRadius: "50%",
-                border: "1px solid rgba(200,169,110,0.06)",
-                animation: "orbitSlow 20s linear infinite reverse",
-              }
-            }),
+            <div
+              style={{
+                position: "absolute",
+                top: "16px",
+                left: "16px",
+                backgroundColor: "#c8a96e18",
+                border: "1px solid #c8a96e44",
+                borderRadius: "8px",
+                padding: "5px 12px",
+                fontSize: "11px",
+                color: "#c8a96e",
+                fontWeight: 600,
+                letterSpacing: "0.5px",
+                textTransform: "uppercase",
+              }}
+            >
+              ● Live
+            </div>
 
-            iaSpeaking && React.createElement("div", {
-              style: {
-                position: "absolute" as const,
-                inset: 0,
-                borderRadius: "50%",
-                border: "2px solid rgba(200,169,110,0.
+            <div
+              style={{
+                position: "absolute",
+                top: "16px",
+                right: "16px",
+                backgroundColor: "#0f0f18",
+                border: "1px solid #c8a96e22",
+                borderRadius: "8px",
+                padding: "5px 12px",
+                fontSize: "11px",
+                color: "#9990a0",
+              }}
+            >
+              Daily.co — Intégration à venir
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "24px" }}>
+              <div style={{ position: "relative", width: "120px", height: "120px" }}>
+                <div style={avatarPulseStyle} />
+                <div
+                  style={{
+                    position: "absolute",
+                    inset: "8px",
+                    borderRadius: "50%",
+                    border: "1px solid #c8a96e33",
+                    animation: "pulse 2s infinite 0.3s",
+                  }}
+                />
+                <div
+                  style={{
+                    width: "120px",
+                    height: "120px",
+                    borderRadius: "50%",
+                    background: "linear-gradient(135deg, #1a1520 0%, #0d0d18 100%)",
+                    border: "2px solid #c8a96e",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: "48px",
+                    animation: "glow 3s infinite",
+                    position: "relative",
+                    zIndex: 1,
+                  }}
+                >
+                  🎓
+                </div>
+              </div>
+
+              <div style={{ textAlign: "center" }}>
+                <div
+                  style={{
+                    fontSize: "22px",
+                    fontWeight: 700,
+                    background: "linear-gradient(135deg, #c8a96e, #e8d5a8)",
+                    WebkitBackgroundClip: "text",
+                    WebkitTextFillColor: "transparent",
+                    marginBottom: "6px",
+                  }}
+                >
+                  AcadémIA — Professeur Virtuel
+                </div>
+                <div style={{ fontSize: "13px", color: "#706880", maxWidth: "340px", lineHeight: "1.6" }}>
+                  Algèbre linéaire · Niveau Intermédiaire
+                </div>
+              </div>
+
+              <div
+                style={{
+                  display: "flex",
+                  gap: "10px",
+                  flexWrap: "wrap",
+                  justifyContent: "center",
+                }}
+              >
+                {["Micro", "Caméra", "Partage d'écran"].map(tool => (
+                  <button
+                    key={tool}
+                    style={{
+                      backgroundColor: "#0f0f18",
+                      border: "1px solid #c8a96e33",
+                      color: "#a09898",
+                      padding: "8px 16px",
+                      borderRadius: "8px",
+                      fontSize: "12px",
+                      cursor: "pointer",
+                      fontWeight: 500,
+                      transition: "all 0.2s",
+                    }}
+                    onMouseEnter={e => {
+                      (e.currentTarget as HTMLButtonElement).style.borderColor = "#c8a96e77";
+                      (e.currentTarget as HTMLButtonElement).style.color = "#c8a96e";
+                    }}
+                    onMouseLeave={e => {
+                      (e.currentTarget as HTMLButtonElement).style.borderColor = "#c8a96e33";
+                      (e.currentTarget as HTMLButtonElement).style.color = "#a09898";
+                    }}
+                  >
+                    {tool}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div
+          style={{
+            width: "340px",
+            display: "flex",
+            flexDirection: "column",
+            borderLeft: "1px solid #c8a96e11",
+            flexShrink: 0,
+          }}
+        >
+          <div
+            style={{
+              padding: "16px 20px",
+              borderBottom: "1px solid #c8a96e11",
+              backgroundColor: "#07070b",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                marginBottom: "12px",
+              }}
+            >
+              <span
+                style={{
+                  fontSize: "11px",
+                  fontWeight: 700,
+                  color: "#c8a96e",
+                  textTransform: "uppercase",
+                  letterSpacing: "1px",
+                }}
+              >
+                Participants
+              </span>
+              <span
+                style={{
+                  backgroundColor: "#c8a96e22",
+                  color: "#c8a96e",
+                  borderRadius: "10px",
+                  padding: "2px 8px",
+                  fontSize: "11px",
+                  fontWeight: 700,
