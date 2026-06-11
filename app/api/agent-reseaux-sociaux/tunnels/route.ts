@@ -1,4 +1,3 @@
-```typescript
 // app/api/agent-reseaux-sociaux/tunnels/route.ts
 // Routes principales - Stats et optimisation
 
@@ -379,4 +378,4 @@ const TUNNEL_CONFIGS: Record<Platform, TunnelConfig> = {
       },
       {
         stage: "pack_complet_2690",
-        name: "Pack IA Complet 
+        name: "Pack IA Complet
