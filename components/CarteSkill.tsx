@@ -1,4 +1,3 @@
-```tsx
 import React from "react";
 
 type Badge = "NOUVEAU" | "POPULAIRE" | "BEST-SELLER" | null;
