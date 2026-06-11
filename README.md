@@ -120,3 +120,5 @@ src/
 ---
 
 **Produit par le CAM — AcadémIA Pro · Juin 2026**
+
+<!-- Force redeploy -->
