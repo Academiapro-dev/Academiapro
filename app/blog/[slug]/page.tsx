@@ -424,3 +424,4 @@ export default async function BlogArticlePage({
               boxShadow: "0 8px 32px rgba(200, 169, 110, 0.3)",
             }}
           >
+}
