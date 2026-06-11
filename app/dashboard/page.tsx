@@ -357,3 +357,4 @@ export default async function DashboardPage() {
                 }}>
                   🏅 {rang}
                 </div
+}
