@@ -1,4 +1,3 @@
-```typescript
 // app/api/agent-reseaux-sociaux/contenu/generer/route.ts
 
 import Anthropic from "@anthropic-ai/sdk";
