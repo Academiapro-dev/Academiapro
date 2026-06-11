@@ -1,447 +1,391 @@
-export default function HoldingDashboard() {
-  const styles: Record<string, React.CSSProperties> = {
-    page: {
-      backgroundColor: "#050508",
-      minHeight: "100vh",
-      fontFamily: "'Segoe UI', system-ui, -apple-system, sans-serif",
-      color: "#e8e0d0",
-      padding: "32px 24px",
-    },
-    header: {
-      textAlign: "center",
-      marginBottom: "48px",
-    },
-    headerTitle: {
-      fontSize: "28px",
-      fontWeight: "700",
-      color: "#c8a96e",
-      letterSpacing: "2px",
-      textTransform: "uppercase" as const,
-      margin: "0 0 8px 0",
-    },
-    headerSubtitle: {
-      fontSize: "13px",
-      color: "#8a7a65",
-      letterSpacing: "3px",
-      textTransform: "uppercase" as const,
-      margin: "0",
-    },
-    headerLine: {
-      width: "120px",
-      height: "1px",
-      backgroundColor: "#c8a96e",
-      margin: "16px auto 0 auto",
-      opacity: 0.5,
-    },
-    grid2: {
-      display: "grid",
-      gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))",
-      gap: "24px",
-      marginBottom: "24px",
-    },
-    grid3: {
-      display: "grid",
-      gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-      gap: "24px",
-      marginBottom: "24px",
-    },
-    card: {
-      backgroundColor: "#0d0d14",
-      border: "1px solid #1e1e2e",
-      borderRadius: "12px",
-      padding: "28px",
-      position: "relative" as const,
-      overflow: "hidden" as const,
-    },
-    cardAccent: {
-      position: "absolute" as const,
-      top: "0",
-      left: "0",
-      right: "0",
-      height: "2px",
-      backgroundColor: "#c8a96e",
-    },
-    cardTitle: {
-      fontSize: "11px",
-      fontWeight: "600",
-      color: "#c8a96e",
-      letterSpacing: "2px",
-      textTransform: "uppercase" as const,
-      margin: "0 0 20px 0",
-    },
-    cardTitleSecondary: {
-      fontSize: "11px",
-      fontWeight: "600",
-      color: "#6a7a8a",
-      letterSpacing: "2px",
-      textTransform: "uppercase" as const,
-      margin: "0 0 20px 0",
-    },
-    entityName: {
-      fontSize: "20px",
-      fontWeight: "700",
-      color: "#ffffff",
-      margin: "0 0 4px 0",
-    },
-    entitySub: {
-      fontSize: "12px",
-      color: "#5a5a7a",
-      margin: "0 0 24px 0",
-    },
-    statusRow: {
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "space-between",
-      marginBottom: "12px",
-    },
-    statusLabel: {
-      fontSize: "13px",
-      color: "#8a8aaa",
-    },
-    statusValue: {
-      fontSize: "13px",
-      fontWeight: "600",
-      color: "#e8e0d0",
-    },
-    badgeGreen: {
-      backgroundColor: "rgba(34, 197, 94, 0.12)",
-      color: "#22c55e",
-      border: "1px solid rgba(34, 197, 94, 0.25)",
-      borderRadius: "20px",
-      padding: "3px 10px",
-      fontSize: "11px",
-      fontWeight: "600",
-      letterSpacing: "0.5px",
-    },
-    badgeGold: {
-      backgroundColor: "rgba(200, 169, 110, 0.12)",
-      color: "#c8a96e",
-      border: "1px solid rgba(200, 169, 110, 0.25)",
-      borderRadius: "20px",
-      padding: "3px 10px",
-      fontSize: "11px",
-      fontWeight: "600",
-    },
-    badgeBlue: {
-      backgroundColor: "rgba(99, 179, 237, 0.12)",
-      color: "#63b3ed",
-      border: "1px solid rgba(99, 179, 237, 0.25)",
-      borderRadius: "20px",
-      padding: "3px 10px",
-      fontSize: "11px",
-      fontWeight: "600",
-    },
-    bigNumber: {
-      fontSize: "36px",
-      fontWeight: "700",
-      color: "#c8a96e",
-      letterSpacing: "-1px",
-      lineHeight: "1",
-    },
-    bigNumberLabel: {
-      fontSize: "11px",
-      color: "#5a5a7a",
-      marginTop: "4px",
-      letterSpacing: "1px",
-      textTransform: "uppercase" as const,
-    },
-    divider: {
-      height: "1px",
-      backgroundColor: "#1e1e2e",
-      margin: "16px 0",
-    },
-    ownershipContainer: {
-      marginTop: "20px",
-    },
-    ownershipRow: {
-      display: "flex",
-      alignItems: "center",
-      marginBottom: "12px",
-      gap: "12px",
-    },
-    ownershipName: {
-      fontSize: "12px",
-      color: "#8a8aaa",
-      width: "120px",
-      flexShrink: 0,
-    },
-    ownershipBarBg: {
-      flex: 1,
-      height: "6px",
-      backgroundColor: "#1a1a2e",
-      borderRadius: "3px",
-      overflow: "hidden" as const,
-    },
-    ownershipBarFill95: {
-      height: "100%",
-      width: "95%",
-      backgroundColor: "#c8a96e",
-      borderRadius: "3px",
-    },
-    ownershipBarFill5: {
-      height: "100%",
-      width: "5%",
-      backgroundColor: "#4a6a8a",
-      borderRadius: "3px",
-    },
-    ownershipPct: {
-      fontSize: "12px",
-      fontWeight: "700",
-      color: "#c8a96e",
-      width: "36px",
-      textAlign: "right" as const,
-    },
-    ownershipPctBlue: {
-      fontSize: "12px",
-      fontWeight: "700",
-      color: "#63b3ed",
-      width: "36px",
-      textAlign: "right" as const,
-    },
-    fluxCard: {
-      backgroundColor: "#0d0d14",
-      border: "1px solid #1e1e2e",
-      borderRadius: "12px",
-      padding: "28px",
-      marginBottom: "24px",
-      position: "relative" as const,
-      overflow: "hidden" as const,
-    },
-    fluxRow: {
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "space-between",
-      padding: "14px 16px",
-      backgroundColor: "#080810",
-      borderRadius: "8px",
-      marginBottom: "10px",
-      border: "1px solid #16162a",
-    },
-    fluxLeft: {
-      display: "flex",
-      alignItems: "center",
-      gap: "12px",
-    },
-    fluxIcon: {
-      width: "36px",
-      height: "36px",
-      borderRadius: "8px",
-      backgroundColor: "rgba(200, 169, 110, 0.1)",
-      border: "1px solid rgba(200, 169, 110, 0.2)",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      fontSize: "16px",
-    },
-    fluxName: {
-      fontSize: "13px",
-      fontWeight: "600",
-      color: "#e8e0d0",
-      margin: "0 0 2px 0",
-    },
-    fluxDesc: {
-      fontSize: "11px",
-      color: "#5a5a7a",
-      margin: "0",
-    },
-    fluxRight: {
-      textAlign: "right" as const,
-    },
-    fluxPct: {
-      fontSize: "18px",
-      fontWeight: "700",
-      color: "#c8a96e",
-    },
-    fluxAmount: {
-      fontSize: "11px",
-      color: "#5a5a7a",
-    },
-    totalFlux: {
-      display: "flex",
-      justifyContent: "space-between",
-      alignItems: "center",
-      padding: "14px 16px",
-      backgroundColor: "rgba(200, 169, 110, 0.06)",
-      borderRadius: "8px",
-      border: "1px solid rgba(200, 169, 110, 0.2)",
-      marginTop: "16px",
-    },
-    totalFluxLabel: {
-      fontSize: "12px",
-      fontWeight: "600",
-      color: "#c8a96e",
-      letterSpacing: "1px",
-      textTransform: "uppercase" as const,
-    },
-    totalFluxValue: {
-      fontSize: "20px",
-      fontWeight: "700",
-      color: "#c8a96e",
-    },
-    optimCard: {
-      backgroundColor: "#0d0d14",
-      border: "1px solid #1e1e2e",
-      borderRadius: "12px",
-      padding: "28px",
-      marginBottom: "24px",
-      position: "relative" as const,
-      overflow: "hidden" as const,
-    },
-    optimGrid: {
-      display: "grid",
-      gridTemplateColumns: "1fr 1fr",
-      gap: "16px",
-      marginBottom: "20px",
-    },
-    optimBox: {
-      padding: "20px",
-      borderRadius: "8px",
-      backgroundColor: "#080810",
-      border: "1px solid #16162a",
-    },
-    optimBoxHighlight: {
-      padding: "20px",
-      borderRadius: "8px",
-      backgroundColor: "rgba(200, 169, 110, 0.04)",
-      border: "1px solid rgba(200, 169, 110, 0.2)",
-    },
-    optimBoxLabel: {
-      fontSize: "10px",
-      letterSpacing: "2px",
-      textTransform: "uppercase" as const,
-      color: "#5a5a7a",
-      marginBottom: "12px",
-    },
-    optimBoxLabelGold: {
-      fontSize: "10px",
-      letterSpacing: "2px",
-      textTransform: "uppercase" as const,
-      color: "#c8a96e",
-      marginBottom: "12px",
-    },
-    optimRow: {
-      display: "flex",
-      justifyContent: "space-between",
-      marginBottom: "8px",
-    },
-    optimRowLabel: {
-      fontSize: "12px",
-      color: "#6a6a8a",
-    },
-    optimRowValue: {
-      fontSize: "12px",
-      fontWeight: "600",
-      color: "#e8e0d0",
-    },
-    optimRowValueRed: {
-      fontSize: "12px",
-      fontWeight: "600",
-      color: "#f87171",
-    },
-    optimDivider: {
-      height: "1px",
-      backgroundColor: "#1e1e2e",
-      margin: "10px 0",
-    },
-    economieBox: {
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "space-between",
-      padding: "20px 24px",
-      backgroundColor: "rgba(34, 197, 94, 0.06)",
-      border: "1px solid rgba(34, 197, 94, 0.2)",
-      borderRadius: "10px",
-    },
-    economieLeft: {},
-    economieTitle: {
-      fontSize: "11px",
-      letterSpacing: "2px",
-      textTransform: "uppercase" as const,
-      color: "#22c55e",
-      marginBottom: "4px",
-    },
-    economieDesc: {
-      fontSize: "12px",
-      color: "#5a5a7a",
-    },
-    economieAmount: {
-      fontSize: "40px",
-      fontWeight: "700",
-      color: "#22c55e",
-      letterSpacing: "-1px",
-    },
-    footer: {
-      textAlign: "center",
-      marginTop: "48px",
-      paddingTop: "24px",
-      borderTop: "1px solid #1e1e2e",
-    },
-    footerText: {
-      fontSize: "11px",
-      color: "#3a3a5a",
-      letterSpacing: "1px",
-    },
-    structureArrow: {
-      display: "flex",
-      flexDirection: "column" as const,
-      alignItems: "center",
-      margin: "8px 0",
-    },
-    arrowLine: {
-      width: "1px",
-      height: "20px",
-      backgroundColor: "#c8a96e",
-      opacity: 0.4,
-    },
-    arrowHead: {
-      width: "0",
-      height: "0",
-      borderLeft: "4px solid transparent",
-      borderRight: "4px solid transparent",
-      borderTop: "6px solid #c8a96e",
-      opacity: 0.4,
-    },
-    metricRow: {
-      display: "flex",
-      gap: "16px",
-      marginBottom: "8px",
-    },
-    metricBox: {
-      flex: 1,
-      padding: "14px",
-      backgroundColor: "#080810",
-      borderRadius: "8px",
-      border: "1px solid #16162a",
-      textAlign: "center" as const,
-    },
-    metricValue: {
-      fontSize: "22px",
-      fontWeight: "700",
-      color: "#c8a96e",
-    },
-    metricLabel: {
-      fontSize: "10px",
-      color: "#5a5a7a",
-      letterSpacing: "1px",
-      textTransform: "uppercase" as const,
-      marginTop: "4px",
-    },
+export default async function HoldingPage() {
+  const containerStyle: React.CSSProperties = {
+    minHeight: "100vh",
+    backgroundColor: "#050508",
+    color: "#e8e0d0",
+    fontFamily: "'Segoe UI', system-ui, -apple-system, sans-serif",
+    padding: "0",
+    margin: "0",
   };
 
-  const caMonth = 148500;
-  const licenceFee = caMonth * 0.05;
-  const techFee = caMonth * 0.10;
-  const mgmtFee = caMonth * 0.03;
-  const totalFlux = licenceFee + techFee + mgmtFee;
-  const fluxAnnuel = totalFlux * 12;
+  const headerStyle: React.CSSProperties = {
+    background: "linear-gradient(135deg, #0a0a12 0%, #0f0f1a 50%, #050508 100%)",
+    borderBottom: "1px solid rgba(200, 169, 110, 0.3)",
+    padding: "24px 40px",
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+  };
 
-  const isSansMontage = caMonth * 12 * 0.25;
-  const chargesDeductibles = fluxAnnuel;
-  const baseImposableAvec = (caMonth * 12 - chargesDeductibles) * 0.15;
-  const economieAnnuelle = isSansMontage - baseImposableAvec;
+  const logoStyle: React.CSSProperties = {
+    fontSize: "24px",
+    fontWeight: "700",
+    color: "#c8a96e",
+    letterSpacing: "2px",
+    textTransform: "uppercase",
+  };
 
-  const formatEur = (n: number) =>
-    new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n);
+  const badgeStyle: React.CSSProperties = {
+    backgroundColor: "rgba(200, 169, 110, 0.15)",
+    border: "1px solid rgba(200, 169, 110, 0.4)",
+    color: "#c8a96e",
+    padding: "6px 16px",
+    borderRadius: "20px",
+    fontSize: "12px",
+    fontWeight: "600",
+    letterSpacing: "1px",
+  };
 
-  const formatPct = (n: number) =>
-    new Intl.NumberFormat("fr-FR", { style: "percent", minimumFractionDigits: 1 }).format(n
+  const mainStyle: React.CSSProperties = {
+    maxWidth: "1400px",
+    margin: "0 auto",
+    padding: "40px 40px",
+  };
+
+  const titleSectionStyle: React.CSSProperties = {
+    textAlign: "center",
+    marginBottom: "60px",
+  };
+
+  const mainTitleStyle: React.CSSProperties = {
+    fontSize: "48px",
+    fontWeight: "800",
+    background: "linear-gradient(135deg, #c8a96e 0%, #f0d898 50%, #c8a96e 100%)",
+    WebkitBackgroundClip: "text",
+    WebkitTextFillColor: "transparent",
+    backgroundClip: "text",
+    marginBottom: "12px",
+    letterSpacing: "-1px",
+  };
+
+  const subtitleStyle: React.CSSProperties = {
+    fontSize: "18px",
+    color: "rgba(232, 224, 208, 0.6)",
+    fontWeight: "300",
+    letterSpacing: "3px",
+    textTransform: "uppercase",
+  };
+
+  const gridThreeStyle: React.CSSProperties = {
+    display: "grid",
+    gridTemplateColumns: "repeat(3, 1fr)",
+    gap: "24px",
+    marginBottom: "40px",
+  };
+
+  const gridTwoStyle: React.CSSProperties = {
+    display: "grid",
+    gridTemplateColumns: "repeat(2, 1fr)",
+    gap: "24px",
+    marginBottom: "40px",
+  };
+
+  const cardStyle: React.CSSProperties = {
+    backgroundColor: "rgba(255, 255, 255, 0.03)",
+    border: "1px solid rgba(200, 169, 110, 0.2)",
+    borderRadius: "16px",
+    padding: "28px",
+    position: "relative",
+    overflow: "hidden",
+  };
+
+  const cardGlowStyle: React.CSSProperties = {
+    ...cardStyle,
+    background: "linear-gradient(135deg, rgba(200, 169, 110, 0.08) 0%, rgba(255, 255, 255, 0.02) 100%)",
+    border: "1px solid rgba(200, 169, 110, 0.35)",
+    boxShadow: "0 0 40px rgba(200, 169, 110, 0.08), inset 0 1px 0 rgba(200, 169, 110, 0.1)",
+  };
+
+  const cardTitleStyle: React.CSSProperties = {
+    fontSize: "11px",
+    fontWeight: "700",
+    color: "rgba(200, 169, 110, 0.7)",
+    letterSpacing: "2px",
+    textTransform: "uppercase",
+    marginBottom: "16px",
+  };
+
+  const cardValueStyle: React.CSSProperties = {
+    fontSize: "36px",
+    fontWeight: "800",
+    color: "#c8a96e",
+    marginBottom: "8px",
+    lineHeight: "1",
+  };
+
+  const cardSubStyle: React.CSSProperties = {
+    fontSize: "13px",
+    color: "rgba(232, 224, 208, 0.5)",
+    lineHeight: "1.5",
+  };
+
+  const sectionTitleStyle: React.CSSProperties = {
+    fontSize: "20px",
+    fontWeight: "700",
+    color: "#c8a96e",
+    marginBottom: "24px",
+    paddingBottom: "12px",
+    borderBottom: "1px solid rgba(200, 169, 110, 0.2)",
+    letterSpacing: "1px",
+    display: "flex",
+    alignItems: "center",
+    gap: "12px",
+  };
+
+  const structureCardStyle: React.CSSProperties = {
+    ...cardGlowStyle,
+    padding: "32px",
+  };
+
+  const entityRowStyle: React.CSSProperties = {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: "16px 0",
+    borderBottom: "1px solid rgba(200, 169, 110, 0.1)",
+  };
+
+  const entityNameStyle: React.CSSProperties = {
+    fontSize: "16px",
+    fontWeight: "600",
+    color: "#e8e0d0",
+  };
+
+  const entityTypeStyle: React.CSSProperties = {
+    fontSize: "11px",
+    color: "rgba(200, 169, 110, 0.6)",
+    letterSpacing: "1px",
+    marginTop: "4px",
+  };
+
+  const percentBadgeStyle: React.CSSProperties = {
+    backgroundColor: "rgba(200, 169, 110, 0.15)",
+    border: "1px solid rgba(200, 169, 110, 0.3)",
+    color: "#c8a96e",
+    padding: "8px 20px",
+    borderRadius: "30px",
+    fontSize: "18px",
+    fontWeight: "800",
+  };
+
+  const fluxCardStyle: React.CSSProperties = {
+    ...cardStyle,
+    padding: "32px",
+  };
+
+  const fluxRowStyle: React.CSSProperties = {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: "14px 0",
+    borderBottom: "1px solid rgba(255, 255, 255, 0.04)",
+  };
+
+  const fluxLabelStyle: React.CSSProperties = {
+    display: "flex",
+    alignItems: "center",
+    gap: "12px",
+    fontSize: "14px",
+    color: "rgba(232, 224, 208, 0.8)",
+  };
+
+  const fluxIconStyle: React.CSSProperties = {
+    width: "32px",
+    height: "32px",
+    borderRadius: "8px",
+    backgroundColor: "rgba(200, 169, 110, 0.15)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: "14px",
+  };
+
+  const fluxRateStyle: React.CSSProperties = {
+    fontSize: "20px",
+    fontWeight: "700",
+    color: "#c8a96e",
+  };
+
+  const taxCardStyle: React.CSSProperties = {
+    ...cardGlowStyle,
+    padding: "32px",
+    gridColumn: "1 / -1",
+  };
+
+  const savingsGridStyle: React.CSSProperties = {
+    display: "grid",
+    gridTemplateColumns: "repeat(4, 1fr)",
+    gap: "20px",
+    marginTop: "24px",
+  };
+
+  const savingItemStyle: React.CSSProperties = {
+    backgroundColor: "rgba(200, 169, 110, 0.08)",
+    border: "1px solid rgba(200, 169, 110, 0.2)",
+    borderRadius: "12px",
+    padding: "20px",
+    textAlign: "center",
+  };
+
+  const savingValueStyle: React.CSSProperties = {
+    fontSize: "28px",
+    fontWeight: "800",
+    color: "#c8a96e",
+    marginBottom: "8px",
+  };
+
+  const savingLabelStyle: React.CSSProperties = {
+    fontSize: "11px",
+    color: "rgba(232, 224, 208, 0.5)",
+    letterSpacing: "1px",
+    textTransform: "uppercase",
+    lineHeight: "1.4",
+  };
+
+  const progressBarContainerStyle: React.CSSProperties = {
+    backgroundColor: "rgba(255, 255, 255, 0.06)",
+    borderRadius: "4px",
+    height: "6px",
+    marginTop: "16px",
+    overflow: "hidden",
+  };
+
+  const progressFillStyle = (width: string): React.CSSProperties => ({
+    height: "100%",
+    background: "linear-gradient(90deg, #c8a96e, #f0d898)",
+    borderRadius: "4px",
+    width: width,
+  });
+
+  const statusDotStyle = (color: string): React.CSSProperties => ({
+    width: "8px",
+    height: "8px",
+    borderRadius: "50%",
+    backgroundColor: color,
+    display: "inline-block",
+    marginRight: "8px",
+    boxShadow: `0 0 6px ${color}`,
+  });
+
+  const dividerStyle: React.CSSProperties = {
+    borderColor: "rgba(200, 169, 110, 0.15)",
+    margin: "0 0 16px 0",
+  };
+
+  const tableStyle: React.CSSProperties = {
+    width: "100%",
+    borderCollapse: "collapse",
+  };
+
+  const thStyle: React.CSSProperties = {
+    textAlign: "left",
+    fontSize: "11px",
+    fontWeight: "700",
+    color: "rgba(200, 169, 110, 0.6)",
+    letterSpacing: "2px",
+    textTransform: "uppercase",
+    padding: "12px 16px",
+    borderBottom: "1px solid rgba(200, 169, 110, 0.15)",
+  };
+
+  const tdStyle: React.CSSProperties = {
+    padding: "14px 16px",
+    fontSize: "14px",
+    color: "rgba(232, 224, 208, 0.85)",
+    borderBottom: "1px solid rgba(255, 255, 255, 0.04)",
+  };
+
+  const tdGoldStyle: React.CSSProperties = {
+    ...tdStyle,
+    color: "#c8a96e",
+    fontWeight: "700",
+  };
+
+  const footerStyle: React.CSSProperties = {
+    borderTop: "1px solid rgba(200, 169, 110, 0.15)",
+    padding: "24px 40px",
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: "40px",
+  };
+
+  const footerTextStyle: React.CSSProperties = {
+    fontSize: "12px",
+    color: "rgba(232, 224, 208, 0.3)",
+    letterSpacing: "1px",
+  };
+
+  const connectedBadgeStyle: React.CSSProperties = {
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    backgroundColor: "rgba(34, 197, 94, 0.1)",
+    border: "1px solid rgba(34, 197, 94, 0.3)",
+    borderRadius: "20px",
+    padding: "6px 14px",
+    fontSize: "12px",
+    color: "rgba(34, 197, 94, 0.9)",
+    fontWeight: "600",
+  };
+
+  const arrowStyle: React.CSSProperties = {
+    textAlign: "center",
+    color: "rgba(200, 169, 110, 0.5)",
+    fontSize: "20px",
+    padding: "8px 0",
+  };
+
+  return (
+    <div style={containerStyle}>
+      <header style={headerStyle}>
+        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+          <div style={logoStyle}>AcadémIA Pro</div>
+          <div style={badgeStyle}>HOLDING DASHBOARD</div>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+          <div style={connectedBadgeStyle}>
+            <span style={statusDotStyle("#22c55e")}></span>
+            Supabase Connected
+          </div>
+          <div style={{ fontSize: "12px", color: "rgba(232, 224, 208, 0.4)", letterSpacing: "1px" }}>
+            Dernière sync: {new Date().toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" })}
+          </div>
+        </div>
+      </header>
+
+      <main style={mainStyle}>
+        <div style={titleSectionStyle}>
+          <h1 style={mainTitleStyle}>Structure Holding</h1>
+          <p style={subtitleStyle}>Optimisation Fiscale Internationale · Groupe AcadémIA</p>
+        </div>
+
+        <div style={gridThreeStyle}>
+          <div style={cardGlowStyle}>
+            <div style={cardTitleStyle}>Économie Fiscale Annuelle</div>
+            <div style={cardValueStyle}>€127,400</div>
+            <div style={cardSubStyle}>Estimée sur base revenus 2024</div>
+            <div style={progressBarContainerStyle}>
+              <div style={progressFillStyle("78%")}></div>
+            </div>
+            <div style={{ fontSize: "11px", color: "rgba(200, 169, 110, 0.5)", marginTop: "8px" }}>78% optimisation atteinte</div>
+          </div>
+
+          <div style={cardGlowStyle}>
+            <div style={cardTitleStyle}>Taux IS Effectif Groupe</div>
+            <div style={cardValueStyle}>12.4%</div>
+            <div style={cardSubStyle}>vs 25% IS France standard</div>
+            <div style={progressBarContainerStyle}>
+              <div style={progressFillStyle("50%")}></div>
+            </div>
+            <div style={{ fontSize: "11px", color: "rgba(200, 169, 110, 0.5)", marginTop: "8px" }}>Différentiel: -12.6 pts</div>
+          </div>
+
+          <div style={cardGlowStyle}>
+            <div style={cardTitleStyle}>Flux Inter-Entités / An</div>
+            <div style={cardValueStyle}>€842,000</div>
+            <div style={cardSubStyle}>Total transactions intragroupe</div>
+            <div style={progressBarContainerStyle}>
+              <div style={progressFillStyle("91%")}></div>
+            </div>
+            <div style={{ fontSize: "11px
