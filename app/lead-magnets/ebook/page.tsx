@@ -439,3 +439,4 @@ export default function EbookLandingPage() {
                   icon: "🔐",
                   title: "Éthique & bonnes pratiques",
                   desc: "Utiliser l'IA responsablement tout en maximisant votre avantage compétitif
+}}}
