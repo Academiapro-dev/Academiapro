@@ -1,322 +1,406 @@
-export default function AcademiaProLMS() {
-  const [activeTab, setActiveTab] = React.useState("formations");
-  const [chatMessage, setChatMessage] = React.useState("");
-  const [chatHistory, setChatHistory] = React.useState([
-    {
-      role: "assistant",
-      message: "Bonjour ! Je suis votre tuteur IA AcadémIA Pro. Comment puis-je vous aider aujourd'hui ?",
-      time: "10:30"
-    },
-    {
-      role: "user",
-      message: "Peux-tu m'expliquer les closures en JavaScript ?",
-      time: "10:32"
-    },
-    {
-      role: "assistant",
-      message: "Bien sûr ! Une closure est une fonction qui capture les variables de son environnement lexical. Même après que la fonction externe a terminé son exécution, la fonction interne garde accès à ces variables. C'est très utile pour créer des données privées et des fonctions d'usine.",
-      time: "10:32"
-    }
-  ]);
-  const [quizActive, setQuizActive] = React.useState(false);
-  const [quizAnswer, setQuizAnswer] = React.useState(null);
-  const [selectedModule, setSelectedModule] = React.useState(null);
+export default async function LmsPage() {
+  const { createClient } = await import("@supabase/supabase-js");
 
-  const formations = [
-    {
-      id: 1,
-      title: "Développement React Avancé",
-      category: "Frontend",
-      progress: 68,
-      totalModules: 12,
-      completedModules: 8,
-      score: 87,
-      color: "#c8a96e",
-      instructor: "Dr. Marie Laurent",
-      nextLesson: "Hooks Personnalisés",
-      timeLeft: "4h 20min",
-      modules: [
-        { id: 1, title: "Introduction à React 18", completed: true, score: 95, duration: "45min", type: "video" },
-        { id: 2, title: "useState et useEffect", completed: true, score: 88, duration: "60min", type: "video" },
-        { id: 3, title: "Context API", completed: true, score: 92, duration: "50min", type: "video" },
-        { id: 4, title: "useReducer avancé", completed: true, score: 78, duration: "55min", type: "video" },
-        { id: 5, title: "Mémoisation", completed: true, score: 85, duration: "40min", type: "quiz" },
-        { id: 6, title: "Portals et Refs", completed: true, score: 90, duration: "35min", type: "video" },
-        { id: 7, title: "Patterns avancés", completed: true, score: 82, duration: "70min", type: "video" },
-        { id: 8, title: "Performance", completed: true, score: 88, duration: "65min", type: "quiz" },
-        { id: 9, title: "Hooks Personnalisés", completed: false, score: null, duration: "55min", type: "video" },
-        { id: 10, title: "Testing avec React", completed: false, score: null, duration: "80min", type: "video" },
-        { id: 11, title: "Server Components", completed: false, score: null, duration: "60min", type: "video" },
-        { id: 12, title: "Projet Final", completed: false, score: null, duration: "120min", type: "project" }
-      ]
-    },
-    {
-      id: 2,
-      title: "Node.js & API REST",
-      category: "Backend",
-      progress: 42,
-      totalModules: 10,
-      completedModules: 4,
-      score: 74,
-      color: "#9b8fd4",
-      instructor: "Prof. Thomas Dubois",
-      nextLesson: "Middleware Express",
-      timeLeft: "8h 15min",
-      modules: [
-        { id: 1, title: "Fondamentaux Node.js", completed: true, score: 88, duration: "50min", type: "video" },
-        { id: 2, title: "Modules et NPM", completed: true, score: 75, duration: "45min", type: "video" },
-        { id: 3, title: "Express.js Setup", completed: true, score: 82, duration: "60min", type: "video" },
-        { id: 4, title: "Routes et Contrôleurs", completed: true, score: 70, duration: "55min", type: "quiz" },
-        { id: 5, title: "Middleware Express", completed: false, score: null, duration: "65min", type: "video" },
-        { id: 6, title: "Base de données", completed: false, score: null, duration: "90min", type: "video" },
-        { id: 7, title: "Authentification JWT", completed: false, score: null, duration: "75min", type: "video" },
-        { id: 8, title: "Validation", completed: false, score: null, duration: "50min", type: "quiz" },
-        { id: 9, title: "Déploiement", completed: false, score: null, duration: "60min", type: "video" },
-        { id: 10, title: "Projet API", completed: false, score: null, duration: "150min", type: "project" }
-      ]
-    },
-    {
-      id: 3,
-      title: "Python Data Science",
-      category: "Data",
-      progress: 91,
-      totalModules: 8,
-      completedModules: 7,
-      score: 94,
-      color: "#4da6ff",
-      instructor: "Dr. Sophie Chen",
-      nextLesson: "Déploiement ML",
-      timeLeft: "1h 30min",
-      modules: [
-        { id: 1, title: "Python Avancé", completed: true, score: 96, duration: "60min", type: "video" },
-        { id: 2, title: "NumPy & Pandas", completed: true, score: 94, duration: "75min", type: "video" },
-        { id: 3, title: "Matplotlib", completed: true, score: 91, duration: "50min", type: "video" },
-        { id: 4, title: "Scikit-learn", completed: true, score: 95, duration: "80min", type: "quiz" },
-        { id: 5, title: "Réseaux de Neurones", completed: true, score: 93, duration: "90min", type: "video" },
-        { id: 6, title: "NLP Basics", completed: true, score: 97, duration: "70min", type: "video" },
-        { id: 7, title: "Computer Vision", completed: true, score: 90, duration: "85min", type: "quiz" },
-        { id: 8, title: "Déploiement ML", completed: false, score: null, duration: "100min", type: "project" }
-      ]
-    }
-  ];
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+  const supabase = createClient(supabaseUrl, supabaseKey);
 
-  const quizQuestions = [
-    {
-      question: "Quel hook React est utilisé pour optimiser les fonctions coûteuses ?",
-      options: ["useMemo", "useCallback", "useEffect", "useRef"],
-      correct: 1,
-      explanation: "useCallback mémoïse une fonction callback, évitant sa recréation à chaque rendu."
-    },
-    {
-      question: "Quelle est la complexité temporelle d'une recherche dans un objet JavaScript ?",
-      options: ["O(n)", "O(log n)", "O(1)", "O(n²)"],
-      correct: 2,
-      explanation: "Les objets JavaScript utilisent des tables de hachage, offrant une complexité O(1) en moyenne."
-    },
-    {
-      question: "Qu'est-ce qu'une closure en JavaScript ?",
-      options: [
-        "Une fonction sans paramètres",
-        "Une fonction qui accède aux variables de sa portée externe",
-        "Une classe abstraite",
-        "Un type de promesse"
-      ],
-      correct: 1,
-      explanation: "Une closure permet à une fonction d'accéder aux variables de son environnement lexical."
-    }
-  ];
-
-  const [currentQuestion, setCurrentQuestion] = React.useState(0);
-  const [quizScore, setQuizScore] = React.useState(0);
-  const [quizCompleted, setQuizCompleted] = React.useState(false);
-
-  const certificates = [
-    {
-      id: 1,
-      title: "JavaScript Fondamentaux",
-      issueDate: "15 Janvier 2024",
-      grade: "Excellence",
-      score: 96,
-      verified: true,
-      color: "#c8a96e"
-    },
-    {
-      id: 2,
-      title: "TypeScript Avancé",
-      issueDate: "3 Mars 2024",
-      grade: "Distinction",
-      score: 89,
-      verified: true,
-      color: "#9b8fd4"
-    },
-    {
-      id: 3,
-      title: "CSS & Design Systems",
-      issueDate: "22 Avril 2024",
-      grade: "Mention Bien",
-      score: 82,
-      verified: true,
-      color: "#4da6ff"
-    }
-  ];
-
-  const liveSessions = [
-    {
-      id: 1,
-      title: "Workshop React Server Components",
-      instructor: "Dr. Marie Laurent",
-      date: "Aujourd'hui",
-      time: "18:00 - 19:30",
-      participants: 47,
-      maxParticipants: 50,
-      live: true,
-      topic: "React Avancé"
-    },
-    {
-      id: 2,
-      title: "Q&A Node.js Authentification",
-      instructor: "Prof. Thomas Dubois",
-      date: "Demain",
-      time: "14:00 - 15:00",
-      participants: 23,
-      maxParticipants: 40,
-      live: false,
-      topic: "Backend"
-    },
-    {
-      id: 3,
-      title: "Masterclass Machine Learning",
-      instructor: "Dr. Sophie Chen",
-      date: "Vendredi 24 Jan",
-      time: "10:00 - 12:00",
-      participants: 31,
-      maxParticipants: 60,
-      live: false,
-      topic: "Data Science"
-    }
-  ];
-
-  const replays = [
-    {
-      id: 1,
-      title: "Introduction aux Hooks React",
-      instructor: "Dr. Marie Laurent",
-      date: "12 Jan 2024",
-      duration: "1h 45min",
-      views: 1247,
-      rating: 4.9
-    },
-    {
-      id: 2,
-      title: "Architecture Microservices",
-      instructor: "Prof. Thomas Dubois",
-      date: "8 Jan 2024",
-      duration: "2h 10min",
-      views: 892,
-      rating: 4.7
-    },
-    {
-      id: 3,
-      title: "Deep Learning Pratique",
-      instructor: "Dr. Sophie Chen",
-      date: "5 Jan 2024",
-      duration: "2h 30min",
-      views: 2103,
-      rating: 4.8
-    }
-  ];
-
-  const sendMessage = () => {
-    if (!chatMessage.trim()) return;
-    const userMsg = {
-      role: "user",
-      message: chatMessage,
-      time: new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
-    };
-    const responses = [
-      "Excellente question ! En React, les hooks suivent des règles strictes : ils ne peuvent être appelés qu'au niveau supérieur d'un composant fonctionnel, jamais dans des conditions ou des boucles.",
-      "Voici un exemple concret : imagine une closure comme une sac à dos que la fonction emporte lors de sa création, contenant toutes les variables accessibles à ce moment-là.",
-      "C'est un concept fondamental ! Pour mieux comprendre, je vous suggère de pratiquer avec les exercices du module 5 de votre formation React.",
-      "Très bonne réflexion ! Cette approche est utilisée par des équipes comme celle de Facebook. Voulez-vous que je vous explique les cas d'usage pratiques ?",
-      "Je vois que vous progressez bien dans votre formation ! Votre score moyen de 87% est excellent. Continuez sur cette lancée !"
-    ];
-    const assistantMsg = {
-      role: "assistant",
-      message: responses[Math.floor(Math.random() * responses.length)],
-      time: new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
-    };
-    setChatHistory(prev => [...prev, userMsg, assistantMsg]);
-    setChatMessage("");
+  type Formation = {
+    id: string;
+    titre: string;
+    description: string;
+    progression: number;
+    modules_total: number;
+    modules_completes: number;
+    categorie: string;
+    niveau: string;
+    duree_heures: number;
+    certificat_disponible: boolean;
+    image_url: string | null;
   };
 
-  const handleQuizAnswer = (answerIndex) => {
-    setQuizAnswer(answerIndex);
-    if (answerIndex === quizQuestions[currentQuestion].correct) {
-      setQuizScore(prev => prev + 1);
-    }
-    setTimeout(() => {
-      if (currentQuestion < quizQuestions.length - 1) {
-        setCurrentQuestion(prev => prev + 1);
-        setQuizAnswer(null);
-      } else {
-        setQuizCompleted(true);
-      }
-    }, 1500);
+  type Module = {
+    id: string;
+    formation_id: string;
+    titre: string;
+    duree_minutes: number;
+    complete: boolean;
+    type: string;
+    ordre: number;
   };
 
-  const resetQuiz = () => {
-    setCurrentQuestion(0);
-    setQuizScore(0);
-    setQuizCompleted(false);
-    setQuizAnswer(null);
-    setQuizActive(false);
+  type Quiz = {
+    id: string;
+    formation_id: string;
+    titre: string;
+    score: number | null;
+    tentatives: number;
+    score_minimum: number;
   };
 
-  const overallProgress = Math.round(formations.reduce((acc, f) => acc + f.progress, 0) / formations.length);
-  const totalCertificates = certificates.length;
-  const averageScore = Math.round(formations.reduce((acc, f) => acc + f.score, 0) / formations.length);
+  type Certificat = {
+    id: string;
+    formation_titre: string;
+    date_obtention: string;
+    score_final: number;
+    code_verification: string;
+  };
 
-  return React.createElement("div", {
-    style: {
-      minHeight: "100vh",
-      backgroundColor: "#050508",
-      fontFamily: "'Segoe UI', system-ui, -apple-system, sans-serif",
-      color: "#e8e8f0"
+  let formations: Formation[] = [];
+  let modules: Module[] = [];
+  let quizzes: Quiz[] = [];
+  let certificats: Certificat[] = [];
+  let errorMessage = "";
+
+  try {
+    const { data: formationsData, error: formationsError } = await supabase
+      .from("formations")
+      .select("*")
+      .eq("statut", "en_cours")
+      .order("created_at", { ascending: false });
+
+    if (formationsError) {
+      errorMessage = formationsError.message;
+    } else {
+      formations = (formationsData as Formation[]) || [];
     }
-  },
-    React.createElement("nav", {
-      style: {
-        backgroundColor: "#080810",
-        borderBottom: "1px solid rgba(200,169,110,0.2)",
-        padding: "0 24px",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        height: "64px",
-        position: "sticky",
-        top: 0,
-        zIndex: 100,
-        backdropFilter: "blur(10px)"
-      }
-    },
-      React.createElement("div", {
-        style: { display: "flex", alignItems: "center", gap: "12px" }
+
+    const { data: modulesData } = await supabase
+      .from("modules")
+      .select("*")
+      .order("ordre", { ascending: true })
+      .limit(20);
+
+    modules = (modulesData as Module[]) || [];
+
+    const { data: quizzesData } = await supabase
+      .from("quizzes")
+      .select("*")
+      .limit(10);
+
+    quizzes = (quizzesData as Quiz[]) || [];
+
+    const { data: certificatsData } = await supabase
+      .from("certificats")
+      .select("*")
+      .order("date_obtention", { ascending: false })
+      .limit(10);
+
+    certificats = (certificatsData as Certificat[]) || [];
+  } catch (err) {
+    errorMessage = "Erreur de connexion à Supabase";
+    formations = [
+      {
+        id: "demo-1",
+        titre: "Intelligence Artificielle Avancée",
+        description: "Maîtrisez les algorithmes de machine learning et deep learning avec des projets concrets.",
+        progression: 67,
+        modules_total: 12,
+        modules_completes: 8,
+        categorie: "IA & ML",
+        niveau: "Avancé",
+        duree_heures: 48,
+        certificat_disponible: false,
+        image_url: null,
       },
-        React.createElement("div", {
-          style: {
-            width: "36px",
-            height: "36px",
-            background: "linear-gradient(135deg, #c8a96e, #a07840)",
-            borderRadius: "10px",
+      {
+        id: "demo-2",
+        titre: "Prompt Engineering Masterclass",
+        description: "Devenez expert en conception de prompts pour optimiser vos interactions avec les LLMs.",
+        progression: 35,
+        modules_total: 8,
+        modules_completes: 3,
+        categorie: "Prompt Design",
+        niveau: "Intermédiaire",
+        duree_heures: 24,
+        certificat_disponible: false,
+        image_url: null,
+      },
+      {
+        id: "demo-3",
+        titre: "Data Science avec Python",
+        description: "Analysez et visualisez des données massives grâce à pandas, numpy et matplotlib.",
+        progression: 90,
+        modules_total: 15,
+        modules_completes: 14,
+        categorie: "Data Science",
+        niveau: "Intermédiaire",
+        duree_heures: 60,
+        certificat_disponible: true,
+        image_url: null,
+      },
+    ];
+    modules = [
+      { id: "m1", formation_id: "demo-1", titre: "Introduction aux réseaux de neurones", duree_minutes: 45, complete: true, type: "video", ordre: 1 },
+      { id: "m2", formation_id: "demo-1", titre: "Rétropropagation du gradient", duree_minutes: 60, complete: true, type: "video", ordre: 2 },
+      { id: "m3", formation_id: "demo-1", titre: "Architectures CNN", duree_minutes: 90, complete: false, type: "cours", ordre: 3 },
+      { id: "m4", formation_id: "demo-1", titre: "Transfer Learning", duree_minutes: 75, complete: false, type: "atelier", ordre: 4 },
+      { id: "m5", formation_id: "demo-2", titre: "Fondamentaux du Prompt Engineering", duree_minutes: 30, complete: true, type: "video", ordre: 1 },
+      { id: "m6", formation_id: "demo-2", titre: "Chain-of-Thought Prompting", duree_minutes: 45, complete: false, type: "cours", ordre: 2 },
+    ];
+    quizzes = [
+      { id: "q1", formation_id: "demo-1", titre: "Quiz : Fondamentaux ML", score: 85, tentatives: 2, score_minimum: 70 },
+      { id: "q2", formation_id: "demo-1", titre: "Quiz : Deep Learning", score: null, tentatives: 0, score_minimum: 75 },
+      { id: "q3", formation_id: "demo-2", titre: "Quiz : Prompt Design", score: 92, tentatives: 1, score_minimum: 70 },
+    ];
+    certificats = [
+      { id: "cert1", formation_titre: "Python pour Data Scientists", date_obtention: "2024-11-15", score_final: 94, code_verification: "ACAD-2024-PY94" },
+      { id: "cert2", formation_titre: "Introduction au Machine Learning", date_obtention: "2024-09-03", score_final: 88, code_verification: "ACAD-2024-ML88" },
+    ];
+  }
+
+  const colors = {
+    bg: "#050508",
+    bgCard: "#0a0a12",
+    bgCardHover: "#0f0f1a",
+    bgSection: "#07070f",
+    accent: "#c8a96e",
+    accentLight: "#e8c98e",
+    accentDark: "#a8893e",
+    accentBg: "rgba(200,169,110,0.08)",
+    accentBorder: "rgba(200,169,110,0.2)",
+    accentBorderStrong: "rgba(200,169,110,0.4)",
+    text: "#f0f0f8",
+    textMuted: "#8888aa",
+    textLight: "#ccccdd",
+    success: "#4ade80",
+    successBg: "rgba(74,222,128,0.1)",
+    warning: "#fbbf24",
+    warningBg: "rgba(251,191,36,0.1)",
+    error: "#f87171",
+    errorBg: "rgba(248,113,113,0.1)",
+    blue: "#60a5fa",
+    blueBg: "rgba(96,165,250,0.1)",
+    purple: "#a78bfa",
+    purpleBg: "rgba(167,139,250,0.1)",
+    border: "rgba(255,255,255,0.06)",
+  };
+
+  const globalStats = {
+    formationsEnCours: formations.length,
+    progressionMoyenne: formations.length > 0
+      ? Math.round(formations.reduce((acc, f) => acc + f.progression, 0) / formations.length)
+      : 0,
+    modulesCompletes: modules.filter((m) => m.complete).length,
+    certificatsObtenus: certificats.length,
+  };
+
+  const getProgressColor = (progression: number): string => {
+    if (progression >= 80) return colors.success;
+    if (progression >= 50) return colors.accent;
+    return colors.blue;
+  };
+
+  const getNiveauColor = (niveau: string): string => {
+    if (niveau === "Avancé") return colors.error;
+    if (niveau === "Intermédiaire") return colors.warning;
+    return colors.success;
+  };
+
+  const getTypeIcon = (type: string): string => {
+    if (type === "video") return "▶";
+    if (type === "atelier") return "⚙";
+    if (type === "quiz") return "?";
+    return "📄";
+  };
+
+  return (
+    <div
+      style={{
+        minHeight: "100vh",
+        backgroundColor: colors.bg,
+        color: colors.text,
+        fontFamily: "'Inter', 'Segoe UI', system-ui, sans-serif",
+        lineHeight: "1.6",
+      }}
+    >
+      {/* TOPBAR */}
+      <div
+        style={{
+          position: "sticky",
+          top: 0,
+          zIndex: 100,
+          backgroundColor: "rgba(5,5,8,0.95)",
+          backdropFilter: "blur(20px)",
+          borderBottom: `1px solid ${colors.accentBorder}`,
+          padding: "0 32px",
+        }}
+      >
+        <div
+          style={{
+            maxWidth: 1400,
+            margin: "0 auto",
             display: "flex",
             alignItems: "center",
-            justifyContent: "center",
-            fontSize: "18px",
-            fontWeight: "bold",
-            color: "#050508"
-          }
-        }, "A"),
-        React.createElement("div", null,
-          React.createElement("span", {
-            style: { fontSize: "18px", fontWeight: "700", color: "#c8a96e" }
-          }, "Académ
+            justifyContent: "space-between",
+            height: 64,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 10,
+                background: `linear-gradient(135deg, ${colors.accent}, ${colors.accentDark})`,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 18,
+                fontWeight: 700,
+                color: "#050508",
+              }}
+            >
+              A
+            </div>
+            <div>
+              <span
+                style={{
+                  fontSize: 18,
+                  fontWeight: 800,
+                  background: `linear-gradient(90deg, ${colors.accent}, ${colors.accentLight})`,
+                  WebkitBackgroundClip: "text",
+                  WebkitTextFillColor: "transparent",
+                  letterSpacing: "-0.5px",
+                }}
+              >
+                AcadémIA Pro
+              </span>
+              <span
+                style={{
+                  marginLeft: 8,
+                  fontSize: 11,
+                  color: colors.textMuted,
+                  fontWeight: 500,
+                  letterSpacing: "0.05em",
+                  textTransform: "uppercase",
+                }}
+              >
+                LMS Intelligent
+              </span>
+            </div>
+          </div>
+
+          <nav style={{ display: "flex", gap: 4 }}>
+            {["Dashboard", "Formations", "Modules", "Quiz", "Certificats", "Agent IA"].map(
+              (item, idx) => (
+                <button
+                  key={item}
+                  style={{
+                    padding: "6px 14px",
+                    borderRadius: 8,
+                    border: "none",
+                    backgroundColor: idx === 0 ? colors.accentBg : "transparent",
+                    color: idx === 0 ? colors.accent : colors.textMuted,
+                    fontSize: 13,
+                    fontWeight: idx === 0 ? 600 : 400,
+                    cursor: "pointer",
+                    transition: "all 0.2s",
+                  }}
+                >
+                  {item}
+                </button>
+              )
+            )}
+          </nav>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: "50%",
+                backgroundColor: colors.success,
+                boxShadow: `0 0 8px ${colors.success}`,
+              }}
+            />
+            <div
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: "50%",
+                background: `linear-gradient(135deg, ${colors.accentBg}, ${colors.accentBorder})`,
+                border: `2px solid ${colors.accentBorder}`,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 14,
+                fontWeight: 700,
+                color: colors.accent,
+              }}
+            >
+              U
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* MAIN CONTENT */}
+      <div
+        style={{
+          maxWidth: 1400,
+          margin: "0 auto",
+          padding: "32px 32px 64px",
+        }}
+      >
+        {/* HERO HEADER */}
+        <div
+          style={{
+            marginBottom: 40,
+            padding: "40px 48px",
+            borderRadius: 20,
+            background: `linear-gradient(135deg, rgba(200,169,110,0.06) 0%, rgba(10,10,18,0.8) 60%, rgba(167,139,250,0.04) 100%)`,
+            border: `1px solid ${colors.accentBorder}`,
+            position: "relative",
+            overflow: "hidden",
+          }}
+        >
+          <div
+            style={{
+              position: "absolute",
+              top: -60,
+              right: -60,
+              width: 300,
+              height: 300,
+              borderRadius: "50%",
+              background: `radial-gradient(circle, rgba(200,169,110,0.08) 0%, transparent 70%)`,
+              pointerEvents: "none",
+            }}
+          />
+          <div
+            style={{
+              position: "absolute",
+              bottom: -40,
+              left: -40,
+              width: 200,
+              height: 200,
+              borderRadius: "50%",
+              background: `radial-gradient(circle, rgba(96,165,250,0.06) 0%, transparent 70%)`,
+              pointerEvents: "none",
+            }}
+          />
+
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "flex-start",
+              position: "relative",
+            }}
+          >
+            <div>
+              <div
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "4px 12px",
+                  borderRadius: 20,
+                  backgroundColor: colors.accentBg,
+                  border: `1px solid ${colors.accentBorder}`,
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: colors.accent,
+                  letterSpacing: "0.08em",
+                  textTransform: "uppercase",
+                  marginBottom: 16,
