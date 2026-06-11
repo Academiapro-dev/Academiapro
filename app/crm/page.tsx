@@ -1,148 +1,186 @@
-export default function AcademiaCRMDashboard() {
-  const kpiData = [
-    { label: "Total Contacts", value: "2,847", icon: "👥", color: "#c8a96e", change: "+12%" },
-    { label: "Leads", value: "342", icon: "🎯", color: "#e8c987", change: "+8%" },
-    { label: "Prospects", value: "189", icon: "🔍", color: "#c8a96e", change: "+15%" },
-    { label: "Clients", value: "94", icon: "🏆", color: "#d4af37", change: "+5%" },
-    { label: "CA Pipeline", value: "€847K", icon: "💰", color: "#c8a96e", change: "+23%" },
-  ];
+export default async function CrmPage() {
+  const { createClient } = await import("@supabase/supabase-js");
 
-  const pipelineStages = [
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
+
+  const { data: contacts, error } = await supabase
+    .from("contacts")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  const safeContacts = contacts || [];
+
+  const totalContacts = safeContacts.length;
+  const leads = safeContacts.filter((c) => c.status === "lead").length;
+  const prospects = safeContacts.filter((c) => c.status === "prospect").length;
+  const clients = safeContacts.filter((c) => c.status === "client").length;
+  const caPipeline = safeContacts.reduce(
+    (acc: number, c) => acc + (Number(c.deal_value) || 0),
+    0
+  );
+
+  const pipelineColumns = [
     {
-      stage: "Lead",
-      count: 45,
-      color: "#6e7fd4",
-      deals: [
-        { name: "Université Paris XI", value: "€12K", contact: "Marie Dupont" },
-        { name: "École Centrale Lyon", value: "€8K", contact: "Jean Martin" },
-        { name: "INSA Toulouse", value: "€15K", contact: "Sophie Bernard" },
-      ],
+      id: "lead",
+      label: "Leads",
+      color: "#6b7280",
+      accent: "#9ca3af",
+      items: safeContacts.filter((c) => c.status === "lead"),
     },
     {
-      stage: "Qualification",
-      count: 32,
-      color: "#7dd4c8",
-      deals: [
-        { name: "HEC Paris", value: "€45K", contact: "Pierre Leroy" },
-        { name: "Sciences Po", value: "€32K", contact: "Claire Moreau" },
-        { name: "ESSEC Business", value: "€28K", contact: "Antoine Petit" },
-      ],
+      id: "prospect",
+      label: "Prospects",
+      color: "#92400e",
+      accent: "#d97706",
+      items: safeContacts.filter((c) => c.status === "prospect"),
     },
     {
-      stage: "Proposition",
-      count: 28,
-      color: "#c8a96e",
-      deals: [
-        { name: "Polytechnique", value: "€78K", contact: "Lucas Dubois" },
-        { name: "CentraleSupélec", value: "€56K", contact: "Emma Rousseau" },
-        { name: "ENPC", value: "€34K", contact: "Hugo Blanc" },
-      ],
+      id: "negotiation",
+      label: "Négociation",
+      color: "#1e3a5f",
+      accent: "#3b82f6",
+      items: safeContacts.filter((c) => c.status === "negotiation"),
     },
     {
-      stage: "Négociation",
-      count: 15,
-      color: "#d4887a",
-      deals: [
-        { name: "Dauphine Paris", value: "€92K", contact: "Isabelle Garnier" },
-        { name: "Paris-Sorbonne", value: "€67K", contact: "Thomas Faure" },
-      ],
-    },
-    {
-      stage: "Gagné",
-      count: 8,
-      color: "#7dc87d",
-      deals: [
-        { name: "EPFL Lausanne", value: "€125K", contact: "Nathalie Simon" },
-        { name: "Grenoble INP", value: "€89K", contact: "Romain Laurent" },
-      ],
-    },
-    {
-      stage: "Perdu",
-      count: 12,
-      color: "#c87d7d",
-      deals: [
-        { name: "Université Bordeaux", value: "€23K", contact: "Céline Mercier" },
-        { name: "Université Nantes", value: "€18K", contact: "David Girard" },
-      ],
+      id: "client",
+      label: "Clients",
+      color: "#14532d",
+      accent: "#22c55e",
+      items: safeContacts.filter((c) => c.status === "client"),
     },
   ];
 
-  const recentActivities = [
-    { type: "email", icon: "📧", text: "Email envoyé à HEC Paris", time: "Il y a 5 min", contact: "Pierre Leroy", color: "#c8a96e" },
-    { type: "call", icon: "📞", text: "Appel avec Polytechnique", time: "Il y a 23 min", contact: "Lucas Dubois", color: "#7dd4c8" },
-    { type: "meeting", icon: "🤝", text: "RDV confirmé Sciences Po", time: "Il y a 1h", contact: "Claire Moreau", color: "#d4af37" },
-    { type: "proposal", icon: "📄", text: "Proposition envoyée CentraleSupélec", time: "Il y a 2h", contact: "Emma Rousseau", color: "#c8a96e" },
-    { type: "won", icon: "🏆", text: "Contrat signé EPFL Lausanne", time: "Il y a 3h", contact: "Nathalie Simon", color: "#7dc87d" },
-    { type: "note", icon: "📝", text: "Note ajoutée Dauphine Paris", time: "Il y a 4h", contact: "Isabelle Garnier", color: "#9d8fd4" },
-  ];
+  const recentActivity = safeContacts.slice(0, 8);
 
-  const tasks = [
-    { title: "Préparer démo pour Polytechnique", priority: "haute", due: "Aujourd'hui 14h00", done: false, tag: "Demo" },
-    { title: "Relire contrat EPFL", priority: "haute", due: "Aujourd'hui 16h00", done: false, tag: "Contrat" },
-    { title: "Appeler Pierre Leroy HEC", priority: "moyenne", due: "Demain 09h00", done: false, tag: "Appel" },
-    { title: "Envoyer plaquette INSA", priority: "basse", due: "Demain 11h00", done: true, tag: "Email" },
-    { title: "Suivre proposition Sciences Po", priority: "moyenne", due: "Jeu 15 Nov", done: false, tag: "Suivi" },
-    { title: "Réunion interne pipeline Q4", priority: "haute", due: "Ven 16 Nov", done: false, tag: "Réunion" },
-  ];
+  const formatCurrency = (value: number) =>
+    new Intl.NumberFormat("fr-FR", {
+      style: "currency",
+      currency: "EUR",
+      maximumFractionDigits: 0,
+    }).format(value);
 
-  const relances = [
-    { contact: "Jean Martin", company: "École Centrale Lyon", lastContact: "Il y a 7 jours", score: 85, action: "Email de suivi", urgent: true },
-    { contact: "Antoine Petit", company: "ESSEC Business", lastContact: "Il y a 5 jours", score: 72, action: "Appel téléphonique", urgent: true },
-    { contact: "Hugo Blanc", company: "ENPC", lastContact: "Il y a 4 jours", score: 68, action: "Envoyer proposition", urgent: false },
-    { contact: "Thomas Faure", company: "Paris-Sorbonne", lastContact: "Il y a 3 jours", score: 91, action: "Négociation finale", urgent: false },
-    { contact: "Romain Laurent", company: "Grenoble INP", lastContact: "Il y a 6 jours", score: 78, action: "Signature contrat", urgent: true },
-  ];
-
-  const priorityColors: Record<string, string> = {
-    haute: "#e8524a",
-    moyenne: "#c8a96e",
-    basse: "#7dc87d",
+  const formatDate = (dateStr: string) => {
+    if (!dateStr) return "—";
+    const date = new Date(dateStr);
+    return new Intl.DateTimeFormat("fr-FR", {
+      day: "2-digit",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(date);
   };
+
+  const getInitials = (name: string) => {
+    if (!name) return "?";
+    return name
+      .split(" ")
+      .map((n: string) => n[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2);
+  };
+
+  const getStatusBadge = (status: string) => {
+    const styles: Record<string, { bg: string; color: string; label: string }> =
+      {
+        lead: { bg: "#1f2937", color: "#9ca3af", label: "Lead" },
+        prospect: { bg: "#451a03", color: "#f59e0b", label: "Prospect" },
+        negotiation: { bg: "#1e3a5f", color: "#60a5fa", label: "Négociation" },
+        client: { bg: "#052e16", color: "#4ade80", label: "Client" },
+      };
+    return (
+      styles[status] || { bg: "#1f2937", color: "#6b7280", label: status }
+    );
+  };
+
+  const kpis = [
+    {
+      label: "Total Contacts",
+      value: totalContacts,
+      icon: "👥",
+      color: "#c8a96e",
+      subLabel: "dans la base",
+      trend: "+12%",
+    },
+    {
+      label: "Leads",
+      value: leads,
+      icon: "🎯",
+      color: "#9ca3af",
+      subLabel: "à qualifier",
+      trend: "+5%",
+    },
+    {
+      label: "Prospects",
+      value: prospects,
+      icon: "🔍",
+      color: "#f59e0b",
+      subLabel: "en cours",
+      trend: "+18%",
+    },
+    {
+      label: "Clients",
+      value: clients,
+      icon: "✅",
+      color: "#4ade80",
+      subLabel: "actifs",
+      trend: "+8%",
+    },
+    {
+      label: "CA Pipeline",
+      value: formatCurrency(caPipeline),
+      icon: "💰",
+      color: "#c8a96e",
+      subLabel: "potentiel",
+      trend: "+24%",
+      isLarge: true,
+    },
+  ];
 
   return (
     <div
       style={{
-        backgroundColor: "#050508",
         minHeight: "100vh",
-        fontFamily: "'Segoe UI', system-ui, -apple-system, sans-serif",
-        color: "#e8e8f0",
-        padding: "0",
-        margin: "0",
+        backgroundColor: "#050508",
+        fontFamily:
+          "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+        color: "#f0ede8",
       }}
     >
       <div
         style={{
-          background: "linear-gradient(135deg, #0a0a12 0%, #050508 50%, #080810 100%)",
-          borderBottom: "1px solid rgba(200, 169, 110, 0.2)",
+          background:
+            "linear-gradient(135deg, rgba(200,169,110,0.08) 0%, rgba(5,5,8,0) 60%)",
+          borderBottom: "1px solid rgba(200,169,110,0.15)",
           padding: "0 32px",
-          position: "sticky",
-          top: 0,
-          zIndex: 100,
-          backdropFilter: "blur(20px)",
         }}
       >
         <div
           style={{
+            maxWidth: "1600px",
+            margin: "0 auto",
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
-            height: "68px",
-            maxWidth: "1600px",
-            margin: "0 auto",
+            height: "72px",
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
             <div
               style={{
-                width: "40px",
-                height: "40px",
-                background: "linear-gradient(135deg, #c8a96e, #d4af37)",
+                width: "38px",
+                height: "38px",
                 borderRadius: "10px",
+                background:
+                  "linear-gradient(135deg, #c8a96e 0%, #a8834e 100%)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                fontSize: "20px",
-                boxShadow: "0 4px 20px rgba(200, 169, 110, 0.4)",
+                fontSize: "18px",
+                boxShadow: "0 4px 16px rgba(200,169,110,0.3)",
               }}
             >
               🎓
@@ -152,140 +190,113 @@ export default function AcademiaCRMDashboard() {
                 style={{
                   fontSize: "18px",
                   fontWeight: "700",
-                  background: "linear-gradient(90deg, #c8a96e, #e8d5a3)",
-                  WebkitBackgroundClip: "text",
-                  WebkitTextFillColor: "transparent",
                   letterSpacing: "-0.3px",
+                  color: "#f0ede8",
                 }}
               >
                 AcadémIA Pro
               </div>
-              <div style={{ fontSize: "11px", color: "#6b6b8a", marginTop: "-2px" }}>CRM Intelligence</div>
+              <div style={{ fontSize: "11px", color: "#c8a96e", opacity: 0.8 }}>
+                CRM Dashboard
+              </div>
             </div>
           </div>
 
-          <nav style={{ display: "flex", gap: "4px" }}>
-            {["Dashboard", "Contacts", "Pipeline", "Rapports", "Paramètres"].map((item, i) => (
-              <button
-                key={item}
-                style={{
-                  background: i === 0 ? "rgba(200, 169, 110, 0.15)" : "transparent",
-                  border: i === 0 ? "1px solid rgba(200, 169, 110, 0.3)" : "1px solid transparent",
-                  color: i === 0 ? "#c8a96e" : "#8888aa",
-                  padding: "8px 16px",
-                  borderRadius: "8px",
-                  cursor: "pointer",
-                  fontSize: "13px",
-                  fontWeight: i === 0 ? "600" : "400",
-                  transition: "all 0.2s",
-                }}
-              >
-                {item}
-              </button>
-            ))}
-          </nav>
-
-          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-            <div
-              style={{
-                position: "relative",
-                background: "rgba(255,255,255,0.04)",
-                border: "1px solid rgba(200, 169, 110, 0.15)",
-                borderRadius: "10px",
-                padding: "8px 14px",
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
-              }}
-            >
-              <span style={{ fontSize: "14px", color: "#6b6b8a" }}>🔍</span>
-              <span style={{ fontSize: "13px", color: "#44445a" }}>Rechercher...</span>
-            </div>
+          <div style={{ display: "flex", alignItems: "center", gap: "24px" }}>
+            <nav style={{ display: "flex", gap: "4px" }}>
+              {["Dashboard", "Contacts", "Pipeline", "Rapports"].map(
+                (item, i) => (
+                  <button
+                    key={item}
+                    style={{
+                      background: i === 0 ? "rgba(200,169,110,0.12)" : "none",
+                      border:
+                        i === 0
+                          ? "1px solid rgba(200,169,110,0.25)"
+                          : "1px solid transparent",
+                      color: i === 0 ? "#c8a96e" : "#9ca3af",
+                      padding: "6px 14px",
+                      borderRadius: "8px",
+                      fontSize: "13px",
+                      fontWeight: i === 0 ? "600" : "400",
+                      cursor: "pointer",
+                    }}
+                  >
+                    {item}
+                  </button>
+                )
+              )}
+            </nav>
             <div
               style={{
                 width: "36px",
                 height: "36px",
-                background: "rgba(255,255,255,0.06)",
-                borderRadius: "10px",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                cursor: "pointer",
-                border: "1px solid rgba(200, 169, 110, 0.15)",
-                position: "relative",
-              }}
-            >
-              🔔
-              <div
-                style={{
-                  position: "absolute",
-                  top: "6px",
-                  right: "6px",
-                  width: "8px",
-                  height: "8px",
-                  background: "#e8524a",
-                  borderRadius: "50%",
-                  border: "1.5px solid #050508",
-                }}
-              />
-            </div>
-            <div
-              style={{
-                width: "36px",
-                height: "36px",
-                background: "linear-gradient(135deg, #c8a96e, #d4af37)",
                 borderRadius: "50%",
+                background: "linear-gradient(135deg, #c8a96e, #a8834e)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
                 fontSize: "14px",
                 fontWeight: "700",
-                color: "#050508",
                 cursor: "pointer",
               }}
             >
-              AL
+              A
             </div>
           </div>
         </div>
       </div>
 
-      <div style={{ maxWidth: "1600px", margin: "0 auto", padding: "28px 32px" }}>
+      <div
+        style={{ maxWidth: "1600px", margin: "0 auto", padding: "32px 32px" }}
+      >
         <div
           style={{
             display: "flex",
-            alignItems: "center",
+            alignItems: "flex-end",
             justifyContent: "space-between",
-            marginBottom: "28px",
+            marginBottom: "32px",
           }}
         >
           <div>
-            <h1
+            <div
               style={{
-                fontSize: "26px",
-                fontWeight: "700",
-                margin: "0 0 4px 0",
-                background: "linear-gradient(90deg, #ffffff, #c8c8e0)",
-                WebkitBackgroundClip: "text",
-                WebkitTextFillColor: "transparent",
+                fontSize: "11px",
+                color: "#c8a96e",
+                letterSpacing: "2px",
+                textTransform: "uppercase",
+                marginBottom: "6px",
               }}
             >
-              Tableau de bord
+              Vue d'ensemble
+            </div>
+            <h1
+              style={{
+                fontSize: "28px",
+                fontWeight: "800",
+                letterSpacing: "-0.5px",
+                margin: 0,
+                color: "#f0ede8",
+              }}
+            >
+              CRM Pipeline
             </h1>
-            <p style={{ margin: 0, fontSize: "13px", color: "#6b6b8a" }}>
-              Lundi 13 Novembre 2024 · Période: Q4 2024
+            <p style={{ color: "#6b7280", fontSize: "14px", marginTop: "4px" }}>
+              {error
+                ? "⚠️ Erreur de connexion Supabase — données simulées"
+                : `Dernière sync : ${new Date().toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" })}`}
             </p>
           </div>
           <div style={{ display: "flex", gap: "10px" }}>
             <button
               style={{
                 background: "rgba(255,255,255,0.04)",
-                border: "1px solid rgba(200, 169, 110, 0.2)",
-                color: "#c8a96e",
-                padding: "9px 18px",
-                borderRadius: "9px",
-                cursor: "pointer",
+                border: "1px solid rgba(255,255,255,0.08)",
+                color: "#9ca3af",
+                padding: "9px 16px",
+                borderRadius: "10px",
                 fontSize: "13px",
+                cursor: "pointer",
                 display: "flex",
                 alignItems: "center",
                 gap: "6px",
@@ -295,20 +306,21 @@ export default function AcademiaCRMDashboard() {
             </button>
             <button
               style={{
-                background: "linear-gradient(135deg, #c8a96e, #d4af37)",
+                background: "linear-gradient(135deg, #c8a96e 0%, #a8834e 100%)",
                 border: "none",
                 color: "#050508",
                 padding: "9px 18px",
-                borderRadius: "9px",
-                cursor: "pointer",
+                borderRadius: "10px",
                 fontSize: "13px",
-                fontWeight: "600",
+                fontWeight: "700",
+                cursor: "pointer",
                 display: "flex",
                 alignItems: "center",
                 gap: "6px",
+                boxShadow: "0 4px 16px rgba(200,169,110,0.25)",
               }}
             >
-              ➕ Nouveau Contact
+              + Nouveau contact
             </button>
           </div>
         </div>
@@ -318,20 +330,20 @@ export default function AcademiaCRMDashboard() {
             display: "grid",
             gridTemplateColumns: "repeat(5, 1fr)",
             gap: "16px",
-            marginBottom: "28px",
+            marginBottom: "32px",
           }}
         >
-          {kpiData.map((kpi, index) => (
+          {kpis.map((kpi, index) => (
             <div
               key={index}
               style={{
-                background: "linear-gradient(135deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.02) 100%)",
-                border: "1px solid rgba(200, 169, 110, 0.12)",
-                borderRadius: "14px",
+                background: "rgba(255,255,255,0.03)",
+                border: "1px solid rgba(255,255,255,0.07)",
+                borderRadius: "16px",
                 padding: "20px",
                 position: "relative",
                 overflow: "hidden",
-                cursor: "pointer",
+                transition: "all 0.2s ease",
               }}
             >
               <div
@@ -340,4 +352,106 @@ export default function AcademiaCRMDashboard() {
                   top: 0,
                   left: 0,
                   right: 0,
-                  height: "2px
+                  height: "2px",
+                  background: `linear-gradient(90deg, ${kpi.color}, transparent)`,
+                }}
+              />
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "flex-start",
+                  marginBottom: "12px",
+                }}
+              >
+                <div
+                  style={{
+                    width: "40px",
+                    height: "40px",
+                    borderRadius: "10px",
+                    background: `rgba(${kpi.color === "#c8a96e" ? "200,169,110" : kpi.color === "#4ade80" ? "74,222,128" : kpi.color === "#f59e0b" ? "245,158,11" : "156,163,175"},0.1)`,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: "18px",
+                  }}
+                >
+                  {kpi.icon}
+                </div>
+                <span
+                  style={{
+                    fontSize: "11px",
+                    color: "#4ade80",
+                    background: "rgba(74,222,128,0.1)",
+                    padding: "2px 8px",
+                    borderRadius: "20px",
+                  }}
+                >
+                  {kpi.trend}
+                </span>
+              </div>
+              <div
+                style={{
+                  fontSize: kpi.isLarge ? "20px" : "26px",
+                  fontWeight: "800",
+                  color: kpi.color,
+                  letterSpacing: kpi.isLarge ? "-0.5px" : "-1px",
+                  marginBottom: "2px",
+                }}
+              >
+                {kpi.value}
+              </div>
+              <div style={{ fontSize: "13px", fontWeight: "600", color: "#d1cdc7" }}>
+                {kpi.label}
+              </div>
+              <div style={{ fontSize: "11px", color: "#6b7280", marginTop: "2px" }}>
+                {kpi.subLabel}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 340px",
+            gap: "24px",
+            marginBottom: "32px",
+          }}
+        >
+          <div
+            style={{
+              background: "rgba(255,255,255,0.03)",
+              border: "1px solid rgba(255,255,255,0.07)",
+              borderRadius: "16px",
+              padding: "24px",
+              overflow: "hidden",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                marginBottom: "24px",
+              }}
+            >
+              <div>
+                <h2
+                  style={{
+                    fontSize: "16px",
+                    fontWeight: "700",
+                    margin: 0,
+                    color: "#f0ede8",
+                  }}
+                >
+                  Pipeline Kanban
+                </h2>
+                <p
+                  style={{
+                    fontSize: "12px",
+                    color: "#6b7280",
+                    margin: "4px 0 0",
+                  }}
+                >
+                  {totalContacts} contacts répartis en {pipelineColumns.length}{" "}
