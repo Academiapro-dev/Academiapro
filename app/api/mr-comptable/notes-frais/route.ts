@@ -1,4 +1,3 @@
-```typescript
 // app/api/mr-comptable/notes-frais/email/route.ts
 
 import { NextRequest, NextResponse } from "next/server";
