@@ -346,3 +346,4 @@ export default function PolitiqueConfidentialite() {
     { donnee: 'Données de facturation', duree: '10 ans (obligation comptable française)' },
     { donnee: 'Logs de connexion et sécurité', duree: '12 mois' },
     { donnee: '
+}}
