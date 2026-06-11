@@ -1,471 +1,477 @@
-export default function MesSeances() {
-  const [activeFilter, setActiveFilter] = React.useState<string>("tous");
-  const [typeFilter, setTypeFilter] = React.useState<string>("tous");
-  const [specialiteFilter, setSpecialiteFilter] = React.useState<string>("toutes");
+export default async function MonEspaceSeancesPage() {
+  const { createClient } = await import("@supabase/supabase-js");
 
-  const seancesAVenir = [
-    {
-      id: 1,
-      titre: "Stratégie Marketing Digital",
-      expert: "Dr. Sophie Lemaire",
-      date: "15 Jan 2025",
-      heure: "14h00",
-      duree: "60 min",
-      type: "visio",
-      specialite: "Marketing",
-      statut: "confirmé",
-      avatar: "SL",
-    },
-    {
-      id: 2,
-      titre: "Optimisation SEO Avancée",
-      expert: "Marc Dupont",
-      date: "18 Jan 2025",
-      heure: "10h30",
-      duree: "45 min",
-      type: "audio",
-      specialite: "SEO",
-      statut: "en attente",
-      avatar: "MD",
-    },
-    {
-      id: 3,
-      titre: "Leadership & Management",
-      expert: "Claire Moreau",
-      date: "22 Jan 2025",
-      heure: "16h00",
-      duree: "90 min",
-      type: "visio",
-      specialite: "Management",
-      statut: "confirmé",
-      avatar: "CM",
-    },
-  ];
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL as string,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string
+  );
 
-  const seancesPassees = [
-    {
-      id: 4,
-      titre: "Introduction à l'IA Générative",
-      expert: "Thomas Bernard",
-      date: "08 Jan 2025",
-      heure: "11h00",
-      duree: "60 min",
-      type: "visio",
-      specialite: "IA",
-      note: 5,
-      replay: true,
-      avatar: "TB",
-    },
-    {
-      id: 5,
-      titre: "Comptabilité & Finance",
-      expert: "Isabelle Roux",
-      date: "03 Jan 2025",
-      heure: "09h00",
-      duree: "45 min",
-      type: "audio",
-      specialite: "Finance",
-      note: 4,
-      replay: false,
-      avatar: "IR",
-    },
-    {
-      id: 6,
-      titre: "Growth Hacking Strategies",
-      expert: "Nicolas Petit",
-      date: "28 Dec 2024",
-      heure: "15h30",
-      duree: "75 min",
-      type: "visio",
-      specialite: "Marketing",
-      note: 5,
-      replay: true,
-      avatar: "NP",
-    },
-    {
-      id: 7,
-      titre: "Négociation Commerciale",
-      expert: "Dr. Sophie Lemaire",
-      date: "20 Dec 2024",
-      heure: "14h00",
-      duree: "60 min",
-      type: "visio",
-      specialite: "Commercial",
-      note: 4,
-      replay: true,
-      avatar: "SL",
-    },
-  ];
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  const abonnements = [
-    {
-      id: 1,
-      nom: "AcadémIA Pro",
-      plan: "Annuel",
-      seancesRestantes: 8,
-      seancesTotal: 12,
-      renouvellement: "15 Mars 2025",
-      couleur: "#c8a96e",
-    },
-    {
-      id: 2,
-      nom: "Accès Replays",
-      plan: "Mensuel",
-      seancesRestantes: null,
-      seancesTotal: null,
-      renouvellement: "01 Fév 2025",
-      couleur: "#7c6aae",
-    },
-  ];
+  const userId = user?.id ?? null;
 
-  const specialites = ["toutes", "Marketing", "SEO", "Management", "IA", "Finance", "Commercial"];
+  const now = new Date().toISOString();
 
-  const filteredAVenir = seancesAVenir.filter((s) => {
-    const typeOk = typeFilter === "tous" || s.type === typeFilter;
-    const specOk = specialiteFilter === "toutes" || s.specialite === specialiteFilter;
-    return typeOk && specOk;
-  });
+  const { data: prochainesSeances } = await supabase
+    .from("seances")
+    .select("*")
+    .eq("user_id", userId)
+    .gte("date_heure", now)
+    .order("date_heure", { ascending: true });
 
-  const filteredPassees = seancesPassees.filter((s) => {
-    const typeOk = typeFilter === "tous" || s.type === typeFilter;
-    const specOk = specialiteFilter === "toutes" || s.specialite === specialiteFilter;
-    const replayOk = activeFilter !== "replays" || s.replay === true;
-    return typeOk && specOk && replayOk;
-  });
+  const { data: passeesSeances } = await supabase
+    .from("seances")
+    .select("*")
+    .eq("user_id", userId)
+    .lt("date_heure", now)
+    .is("replay_url", null)
+    .order("date_heure", { ascending: false });
 
-  const renderStars = (note: number) => {
-    return Array.from({ length: 5 }, (_, i) => (
-      React.createElement("span", {
-        key: i,
-        style: { color: i < note ? "#c8a96e" : "#2a2a3e", fontSize: "14px" }
-      }, "★")
-    ));
+  const { data: replaysSeances } = await supabase
+    .from("seances")
+    .select("*")
+    .eq("user_id", userId)
+    .lt("date_heure", now)
+    .not("replay_url", "is", null)
+    .order("date_heure", { ascending: false });
+
+  const prochaines = prochainesSeances ?? [];
+  const passees = passeesSeances ?? [];
+  const replays = replaysSeances ?? [];
+
+  const formatDate = (iso: string) => {
+    const d = new Date(iso);
+    return d.toLocaleDateString("fr-FR", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
   };
 
-  const getTypeIcon = (type: string) => {
-    if (type === "visio") return "🎥";
-    if (type === "audio") return "🎧";
-    return "📱";
-  };
-
-  const getStatutStyle = (statut: string) => {
-    if (statut === "confirmé") {
-      return {
-        background: "rgba(72, 199, 142, 0.15)",
-        color: "#48c78e",
-        border: "1px solid rgba(72, 199, 142, 0.3)",
-        padding: "3px 10px",
-        borderRadius: "20px",
-        fontSize: "11px",
-        fontWeight: "600",
-        letterSpacing: "0.5px",
-        textTransform: "uppercase" as const,
-      };
-    }
-    return {
-      background: "rgba(255, 183, 77, 0.15)",
-      color: "#ffb74d",
-      border: "1px solid rgba(255, 183, 77, 0.3)",
+  const getBadgeStyle = (statut: string) => {
+    const base = {
+      display: "inline-block",
       padding: "3px 10px",
       borderRadius: "20px",
       fontSize: "11px",
-      fontWeight: "600",
+      fontWeight: "700",
       letterSpacing: "0.5px",
       textTransform: "uppercase" as const,
     };
+    if (statut === "confirme")
+      return { ...base, background: "#0f3d2e", color: "#4ade80" };
+    if (statut === "en_attente")
+      return { ...base, background: "#3d2d0f", color: "#fbbf24" };
+    if (statut === "annule")
+      return { ...base, background: "#3d0f0f", color: "#f87171" };
+    return { ...base, background: "#1a1a2e", color: "#c8a96e" };
   };
 
-  return React.createElement(
-    "div",
-    {
-      style: {
+  const cardStyle = {
+    background: "linear-gradient(135deg, #0d0d16 0%, #111120 100%)",
+    border: "1px solid #1e1e35",
+    borderRadius: "16px",
+    padding: "20px 24px",
+    marginBottom: "14px",
+    position: "relative" as const,
+    transition: "border-color 0.2s ease",
+  };
+
+  const sectionTitleStyle = {
+    fontSize: "13px",
+    fontWeight: "700",
+    color: "#c8a96e",
+    textTransform: "uppercase" as const,
+    letterSpacing: "2px",
+    marginBottom: "16px",
+    display: "flex",
+    alignItems: "center",
+    gap: "10px",
+  };
+
+  const emptyStyle = {
+    color: "#3a3a55",
+    fontSize: "14px",
+    fontStyle: "italic",
+    padding: "20px 0",
+    textAlign: "center" as const,
+  };
+
+  return (
+    <div
+      style={{
         minHeight: "100vh",
         background: "#050508",
-        fontFamily: "'Segoe UI', system-ui, -apple-system, sans-serif",
+        fontFamily:
+          "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
         color: "#e8e8f0",
-      },
-    },
-    React.createElement(
-      "div",
-      {
-        style: {
-          background: "linear-gradient(180deg, #0d0d1a 0%, #050508 100%)",
-          borderBottom: "1px solid rgba(200, 169, 110, 0.15)",
-          padding: "0 40px",
-        },
-      },
-      React.createElement(
-        "div",
-        {
-          style: {
-            maxWidth: "1200px",
-            margin: "0 auto",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            height: "72px",
-          },
-        },
-        React.createElement(
-          "div",
-          { style: { display: "flex", alignItems: "center", gap: "12px" } },
-          React.createElement(
-            "div",
-            {
-              style: {
-                width: "36px",
-                height: "36px",
-                background: "linear-gradient(135deg, #c8a96e, #a07840)",
-                borderRadius: "10px",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: "18px",
-              },
-            },
-            "🎓"
-          ),
-          React.createElement(
-            "span",
-            {
-              style: {
-                fontSize: "20px",
-                fontWeight: "700",
-                background: "linear-gradient(135deg, #c8a96e, #e8d5a3)",
-                WebkitBackgroundClip: "text",
-                WebkitTextFillColor: "transparent",
-                letterSpacing: "-0.5px",
-              },
-            },
-            "AcadémIA Pro"
-          )
-        ),
-        React.createElement(
-          "div",
-          { style: { display: "flex", alignItems: "center", gap: "20px" } },
-          React.createElement(
-            "span",
-            { style: { color: "#888", fontSize: "13px" } },
-            "Tableau de bord"
-          ),
-          React.createElement(
-            "span",
-            { style: { color: "#c8a96e", fontSize: "13px", fontWeight: "600" } },
-            "Mes séances"
-          ),
-          React.createElement(
-            "span",
-            { style: { color: "#888", fontSize: "13px" } },
-            "Experts"
-          ),
-          React.createElement(
-            "div",
-            {
-              style: {
-                width: "36px",
-                height: "36px",
-                background: "linear-gradient(135deg, #c8a96e, #a07840)",
-                borderRadius: "50%",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: "14px",
-                fontWeight: "700",
-                color: "#050508",
-                cursor: "pointer",
-              },
-            },
-            "JD"
-          )
-        )
-      )
-    ),
-    React.createElement(
-      "div",
-      {
-        style: {
-          maxWidth: "1200px",
+        padding: "0",
+      }}
+    >
+      <div
+        style={{
+          maxWidth: "900px",
           margin: "0 auto",
-          padding: "40px 40px 80px",
-        },
-      },
-      React.createElement(
-        "div",
-        {
-          style: {
+          padding: "40px 20px 80px",
+        }}
+      >
+        <div
+          style={{
             display: "flex",
             alignItems: "flex-start",
             justifyContent: "space-between",
-            marginBottom: "40px",
+            marginBottom: "48px",
             flexWrap: "wrap" as const,
             gap: "20px",
-          },
-        },
-        React.createElement(
-          "div",
-          null,
-          React.createElement(
-            "h1",
-            {
-              style: {
+          }}
+        >
+          <div>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "12px",
+                marginBottom: "8px",
+              }}
+            >
+              <div
+                style={{
+                  width: "38px",
+                  height: "38px",
+                  background: "linear-gradient(135deg, #c8a96e, #a07840)",
+                  borderRadius: "10px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: "18px",
+                }}
+              >
+                🎓
+              </div>
+              <span
+                style={{
+                  fontSize: "12px",
+                  color: "#c8a96e",
+                  fontWeight: "700",
+                  letterSpacing: "3px",
+                  textTransform: "uppercase" as const,
+                }}
+              >
+                AcadémIA Pro
+              </span>
+            </div>
+            <h1
+              style={{
                 fontSize: "32px",
                 fontWeight: "800",
                 color: "#ffffff",
-                margin: "0 0 8px 0",
-                letterSpacing: "-1px",
-              },
-            },
-            "Mes Séances"
-          ),
-          React.createElement(
-            "p",
-            { style: { color: "#666", margin: 0, fontSize: "15px" } },
-            "Gérez vos formations personnalisées avec vos experts"
-          )
-        ),
-        React.createElement(
-          "button",
-          {
-            style: {
-              background: "linear-gradient(135deg, #c8a96e, #a07840)",
-              color: "#050508",
-              border: "none",
-              padding: "14px 28px",
-              borderRadius: "12px",
-              fontSize: "14px",
-              fontWeight: "700",
-              cursor: "pointer",
-              display: "flex",
+                margin: "0 0 6px 0",
+                letterSpacing: "-0.5px",
+              }}
+            >
+              Mes Séances
+            </h1>
+            <p
+              style={{
+                color: "#5a5a7a",
+                fontSize: "15px",
+                margin: "0",
+              }}
+            >
+              {user
+                ? `Connecté en tant que ${user.email}`
+                : "Espace personnel de formation"}
+            </p>
+          </div>
+
+          <a
+            href="/reserver"
+            style={{
+              display: "inline-flex",
               alignItems: "center",
               gap: "8px",
+              background: "linear-gradient(135deg, #c8a96e 0%, #a07840 100%)",
+              color: "#050508",
+              fontWeight: "800",
+              fontSize: "14px",
+              padding: "13px 24px",
+              borderRadius: "12px",
+              textDecoration: "none",
               letterSpacing: "0.3px",
-              boxShadow: "0 4px 20px rgba(200, 169, 110, 0.3)",
-            },
-          },
-          React.createElement("span", { style: { fontSize: "16px" } }, "+"),
-          "Réserver une séance"
-        )
-      ),
-      React.createElement(
-        "div",
-        {
-          style: {
+              boxShadow: "0 4px 24px rgba(200,169,110,0.25)",
+              whiteSpace: "nowrap" as const,
+            }}
+          >
+            <span style={{ fontSize: "16px" }}>+</span>
+            Réserver une séance
+          </a>
+        </div>
+
+        <div
+          style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+            gridTemplateColumns: "repeat(3, 1fr)",
             gap: "16px",
-            marginBottom: "40px",
-          },
-        },
-        abonnements.map((abo) =>
-          React.createElement(
-            "div",
+            marginBottom: "48px",
+          }}
+        >
+          {[
             {
-              key: abo.id,
-              style: {
-                background: "linear-gradient(135deg, #0d0d1a, #12121f)",
-                border: `1px solid ${abo.couleur}30`,
-                borderRadius: "16px",
-                padding: "24px",
-                position: "relative" as const,
-                overflow: "hidden",
-              },
+              label: "Prochaines",
+              count: prochaines.length,
+              icon: "📅",
+              color: "#4ade80",
             },
-            React.createElement("div", {
-              style: {
-                position: "absolute" as const,
-                top: 0,
-                left: 0,
-                right: 0,
-                height: "3px",
-                background: `linear-gradient(90deg, ${abo.couleur}, transparent)`,
-              },
-            }),
-            React.createElement(
-              "div",
-              {
-                style: {
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "flex-start",
-                  marginBottom: "16px",
-                },
-              },
-              React.createElement(
-                "div",
-                null,
-                React.createElement(
-                  "div",
-                  {
-                    style: {
-                      fontSize: "12px",
-                      color: "#555",
-                      textTransform: "uppercase" as const,
-                      letterSpacing: "1px",
-                      marginBottom: "4px",
-                    },
-                  },
-                  "Abonnement actif"
-                ),
-                React.createElement(
-                  "div",
-                  { style: { fontSize: "16px", fontWeight: "700", color: "#fff" } },
-                  abo.nom
-                )
-              ),
-              React.createElement(
-                "span",
-                {
-                  style: {
-                    background: `${abo.couleur}20`,
-                    color: abo.couleur,
-                    border: `1px solid ${abo.couleur}40`,
-                    padding: "4px 10px",
-                    borderRadius: "20px",
-                    fontSize: "11px",
+            {
+              label: "Passées",
+              count: passees.length,
+              icon: "✅",
+              color: "#94a3b8",
+            },
+            {
+              label: "Replays",
+              count: replays.length,
+              icon: "🎬",
+              color: "#c8a96e",
+            },
+          ].map((stat) => (
+            <div
+              key={stat.label}
+              style={{
+                background: "linear-gradient(135deg, #0a0a14 0%, #0f0f1e 100%)",
+                border: "1px solid #1a1a30",
+                borderRadius: "14px",
+                padding: "20px",
+                textAlign: "center" as const,
+              }}
+            >
+              <div style={{ fontSize: "24px", marginBottom: "8px" }}>
+                {stat.icon}
+              </div>
+              <div
+                style={{
+                  fontSize: "32px",
+                  fontWeight: "800",
+                  color: stat.color,
+                  lineHeight: "1",
+                  marginBottom: "4px",
+                }}
+              >
+                {stat.count}
+              </div>
+              <div
+                style={{
+                  fontSize: "12px",
+                  color: "#4a4a6a",
+                  fontWeight: "600",
+                  textTransform: "uppercase" as const,
+                  letterSpacing: "1px",
+                }}
+              >
+                {stat.label}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ marginBottom: "40px" }}>
+          <div style={sectionTitleStyle}>
+            <span
+              style={{
+                width: "3px",
+                height: "18px",
+                background: "#4ade80",
+                borderRadius: "2px",
+                display: "inline-block",
+              }}
+            />
+            📅 Prochaines séances
+            <span
+              style={{
+                background: "#0f3d2e",
+                color: "#4ade80",
+                borderRadius: "20px",
+                padding: "2px 8px",
+                fontSize: "11px",
+              }}
+            >
+              {prochaines.length}
+            </span>
+          </div>
+
+          {prochaines.length === 0 ? (
+            <div style={cardStyle}>
+              <p style={emptyStyle}>Aucune séance à venir pour le moment.</p>
+              <div style={{ textAlign: "center" as const, paddingBottom: "8px" }}>
+                <a
+                  href="/reserver"
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    color: "#c8a96e",
+                    fontSize: "13px",
                     fontWeight: "600",
-                  },
-                },
-                abo.plan
-              )
-            ),
-            abo.seancesRestantes !== null &&
-              React.createElement(
-                "div",
-                { style: { marginBottom: "12px" } },
-                React.createElement(
-                  "div",
-                  {
-                    style: {
+                    textDecoration: "none",
+                    border: "1px solid #2a2010",
+                    padding: "8px 16px",
+                    borderRadius: "8px",
+                    background: "#0d0a05",
+                  }}
+                >
+                  Réserver ma première séance →
+                </a>
+              </div>
+            </div>
+          ) : (
+            prochaines.map((seance: Record<string, string>) => (
+              <div key={seance.id} style={cardStyle}>
+                <div
+                  style={{
+                    position: "absolute",
+                    top: "0",
+                    left: "0",
+                    width: "4px",
+                    height: "100%",
+                    background: "linear-gradient(180deg, #4ade80, #22c55e)",
+                    borderRadius: "16px 0 0 16px",
+                  }}
+                />
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "flex-start",
+                    flexWrap: "wrap" as const,
+                    gap: "12px",
+                  }}
+                >
+                  <div style={{ flex: "1" }}>
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "10px",
+                        marginBottom: "8px",
+                      }}
+                    >
+                      <h3
+                        style={{
+                          fontSize: "16px",
+                          fontWeight: "700",
+                          color: "#ffffff",
+                          margin: "0",
+                        }}
+                      >
+                        {seance.titre ?? "Séance de formation"}
+                      </h3>
+                      <span style={getBadgeStyle(seance.statut ?? "confirme")}>
+                        {seance.statut ?? "confirmé"}
+                      </span>
+                    </div>
+                    <div
+                      style={{
+                        display: "flex",
+                        flexWrap: "wrap" as const,
+                        gap: "16px",
+                      }}
+                    >
+                      <span
+                        style={{
+                          fontSize: "13px",
+                          color: "#8888aa",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "5px",
+                        }}
+                      >
+                        🗓 {formatDate(seance.date_heure)}
+                      </span>
+                      {seance.duree && (
+                        <span
+                          style={{
+                            fontSize: "13px",
+                            color: "#8888aa",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "5px",
+                          }}
+                        >
+                          ⏱ {seance.duree} min
+                        </span>
+                      )}
+                      {seance.formateur && (
+                        <span
+                          style={{
+                            fontSize: "13px",
+                            color: "#8888aa",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "5px",
+                          }}
+                        >
+                          👤 {seance.formateur}
+                        </span>
+                      )}
+                    </div>
+                    {seance.description && (
+                      <p
+                        style={{
+                          fontSize: "13px",
+                          color: "#5a5a7a",
+                          margin: "10px 0 0 0",
+                          lineHeight: "1.5",
+                        }}
+                      >
+                        {seance.description}
+                      </p>
+                    )}
+                  </div>
+                  <div
+                    style={{
                       display: "flex",
-                      justifyContent: "space-between",
-                      marginBottom: "6px",
-                    },
-                  },
-                  React.createElement(
-                    "span",
-                    { style: { fontSize: "13px", color: "#888" } },
-                    "Séances restantes"
-                  ),
-                  React.createElement(
-                    "span",
-                    { style: { fontSize: "13px", color: "#fff", fontWeight: "600" } },
-                    `${abo.seancesRestantes}/${abo.seancesTotal}`
-                  )
-                ),
-                React.createElement(
-                  "div",
-                  {
-                    style: {
-                      height: "6px",
-                      background: "#1a1a2e",
-                      borderRadius: "3px",
-                      overflow: "hidden",
-                    },
-                  },
-                  React.createElement("div", {
-                    style: {
-                      height: "100%",
-                      width: `${((abo.seancesRestantes ?? 0) / (abo.seancesTotal ?? 1)) * 100}%`,
-                      background: `linear-gradient(90deg, ${abo.couleur}, ${abo.couleur}80)`,
-                      borderRadius: "3px",
-                    },
+                      flexDirection: "column" as const,
+                      gap: "8px",
+                      alignItems: "flex-end",
+                    }}
+                  >
+                    {seance.lien_visio && (
+                      <a
+                        href={seance.lien_visio}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "6px",
+                          background:
+                            "linear-gradient(135deg, #1a3a2a, #0f2a1a)",
+                          color: "#4ade80",
+                          border: "1px solid #1e4a2e",
+                          borderRadius: "8px",
+                          padding: "8px 14px",
+                          fontSize: "13px",
+                          fontWeight: "600",
+                          textDecoration: "none",
+                          whiteSpace: "nowrap" as const,
+                        }}
+                      >
+                        🎥 Rejoindre
+                      </a>
+                    )}
+                    <a
+                      href={"/seances/" + seance.id}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "6px",
+                        background: "transparent",
+                        color: "#5a5a7a",
+                        border: "1px solid #1a1a30",
+                        borderRadius: "8px",
+                        padding: "8px 14px",
