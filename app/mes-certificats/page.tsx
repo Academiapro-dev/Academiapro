@@ -464,3 +464,4 @@ export default async function MesCertificatsPage() {
                                   fontSize: "11px",
                                   fontWeight: "600",
                                   letterSpacing
+}}}}}}}
