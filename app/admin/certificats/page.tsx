@@ -1,386 +1,420 @@
-export default async function AdminCertificatsPage() {
+"use client";
+import React from "react";
+import { useState } from "react";
 
-  const { createClient } = await import('@supabase/supabase-js');
+interface Certificate {
+  id: string;
+  studentName: string;
+  course: string;
+  issueDate: string;
+  expiryDate: string;
+  status: "active" | "revoked" | "expired";
+  credentialId: string;
+  score: number;
+}
 
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-    process.env.SUPABASE_SERVICE_ROLE_KEY || ''
-  );
+const mockCertificates: Certificate[] = [
+  {
+    id: "1",
+    studentName: "Sophie Martin",
+    course: "Intelligence Artificielle Avancée",
+    issueDate: "2024-01-15",
+    expiryDate: "2026-01-15",
+    status: "active",
+    credentialId: "ACAD-2024-001",
+    score: 94,
+  },
+  {
+    id: "2",
+    studentName: "Thomas Dubois",
+    course: "Machine Learning Fondamentaux",
+    issueDate: "2024-02-20",
+    expiryDate: "2026-02-20",
+    status: "active",
+    credentialId: "ACAD-2024-002",
+    score: 87,
+  },
+  {
+    id: "3",
+    studentName: "Amelia Bernard",
+    course: "Deep Learning & Réseaux Neuronaux",
+    issueDate: "2023-11-10",
+    expiryDate: "2025-11-10",
+    status: "revoked",
+    credentialId: "ACAD-2023-089",
+    score: 78,
+  },
+  {
+    id: "4",
+    studentName: "Lucas Petit",
+    course: "NLP & Traitement du Langage",
+    issueDate: "2023-08-05",
+    expiryDate: "2024-08-05",
+    status: "expired",
+    credentialId: "ACAD-2023-045",
+    score: 91,
+  },
+  {
+    id: "5",
+    studentName: "Chloé Moreau",
+    course: "Computer Vision Appliquée",
+    issueDate: "2024-03-01",
+    expiryDate: "2026-03-01",
+    status: "active",
+    credentialId: "ACAD-2024-018",
+    score: 96,
+  },
+  {
+    id: "6",
+    studentName: "Nathan Leroy",
+    course: "IA Éthique & Gouvernance",
+    issueDate: "2024-03-15",
+    expiryDate: "2026-03-15",
+    status: "active",
+    credentialId: "ACAD-2024-022",
+    score: 83,
+  },
+];
 
-  const { data: certificats, error } = await supabase
-    .from('certificats')
-    .select('*')
-    .order('created_at', { ascending: false });
+export default function AdminCertificatsPage() {
+  const [certificates, setCertificates] = useState<Certificate[]>(mockCertificates);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [showGenerateModal, setShowGenerateModal] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [hoveredRow, setHoveredRow] = useState<string | null>(null);
+  const [hoveredBtn, setHoveredBtn] = useState<string | null>(null);
+  const [newCert, setNewCert] = useState({ studentName: "", course: "", score: "" });
+  const [notification, setNotification] = useState<string | null>(null);
 
-  const { data: stats } = await supabase
-    .from('certificats')
-    .select('statut');
+  const showNotification = (msg: string) => {
+    setNotification(msg);
+    setTimeout(() => setNotification(null), 3000);
+  };
 
-  const total = stats?.length || 0;
-  const actifs = stats?.filter((c: any) => c.statut === 'actif').length || 0;
-  const revoques = stats?.filter((c: any) => c.statut === 'revoque').length || 0;
-  const enAttente = stats?.filter((c: any) => c.statut === 'en_attente').length || 0;
+  const filteredCerts = certificates.filter((c) => {
+    const matchSearch =
+      c.studentName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      c.course.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      c.credentialId.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchFilter = filterStatus === "all" || c.status === filterStatus;
+    return matchSearch && matchFilter;
+  });
+
+  const stats = {
+    total: certificates.length,
+    active: certificates.filter((c) => c.status === "active").length,
+    revoked: certificates.filter((c) => c.status === "revoked").length,
+    expired: certificates.filter((c) => c.status === "expired").length,
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
+    );
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.length === filteredCerts.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(filteredCerts.map((c) => c.id));
+    }
+  };
+
+  const revokeSelected = () => {
+    setCertificates((prev) =>
+      prev.map((c) =>
+        selectedIds.includes(c.id) && c.status === "active"
+          ? { ...c, status: "revoked" as const }
+          : c
+      )
+    );
+    setSelectedIds([]);
+    showNotification("Certificats révoqués avec succès");
+  };
+
+  const revokeSingle = (id: string) => {
+    setCertificates((prev) =>
+      prev.map((c) =>
+        c.id === id && c.status === "active" ? { ...c, status: "revoked" as const } : c
+      )
+    );
+    showNotification("Certificat révoqué");
+  };
+
+  const generateCertificate = () => {
+    if (!newCert.studentName || !newCert.course) return;
+    const now = new Date();
+    const expiry = new Date();
+    expiry.setFullYear(expiry.getFullYear() + 2);
+    const newEntry: Certificate = {
+      id: String(certificates.length + 1),
+      studentName: newCert.studentName,
+      course: newCert.course,
+      issueDate: now.toISOString().split("T")[0],
+      expiryDate: expiry.toISOString().split("T")[0],
+      status: "active",
+      credentialId: "ACAD-2024-0" + String(certificates.length + 30),
+      score: parseInt(newCert.score) || 85,
+    };
+    setCertificates((prev) => [newEntry, ...prev]);
+    setNewCert({ studentName: "", course: "", score: "" });
+    setShowGenerateModal(false);
+    showNotification("Nouveau certificat généré avec succès");
+  };
+
+  const statusColor = (status: string) => {
+    if (status === "active") return "#4ade80";
+    if (status === "revoked") return "#f87171";
+    return "#facc15";
+  };
+
+  const statusLabel = (status: string) => {
+    if (status === "active") return "Actif";
+    if (status === "revoked") return "Révoqué";
+    return "Expiré";
+  };
 
   const pageStyle: React.CSSProperties = {
-    minHeight: '100vh',
-    backgroundColor: '#050508',
-    fontFamily: "'Segoe UI', system-ui, sans-serif",
-    color: '#e8e0d0',
-    padding: '0',
-    margin: '0',
+    minHeight: "100vh",
+    backgroundColor: "#050508",
+    fontFamily: "'Segoe UI', system-ui, -apple-system, sans-serif",
+    color: "#e8e0d0",
+    padding: "0",
+    margin: "0",
   };
 
   const headerStyle: React.CSSProperties = {
-    background: 'linear-gradient(135deg, #0a0a12 0%, #0d0d1a 50%, #080810 100%)',
-    borderBottom: '1px solid rgba(200, 169, 110, 0.3)',
-    padding: '24px 40px',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    position: 'sticky',
-    top: '0',
-    zIndex: 100,
-    backdropFilter: 'blur(20px)',
+    background: "linear-gradient(135deg, #0a0a12 0%, #0f0f1a 50%, #0a0a12 100%)",
+    borderBottom: "1px solid #c8a96e30",
+    padding: "24px 40px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
   };
 
   const logoStyle: React.CSSProperties = {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '12px',
+    display: "flex",
+    alignItems: "center",
+    gap: "12px",
   };
 
   const logoIconStyle: React.CSSProperties = {
-    width: '42px',
-    height: '42px',
-    background: 'linear-gradient(135deg, #c8a96e, #e8c98e)',
-    borderRadius: '10px',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    fontSize: '20px',
-    fontWeight: '700',
-    color: '#050508',
-    boxShadow: '0 4px 20px rgba(200, 169, 110, 0.4)',
+    width: "42px",
+    height: "42px",
+    background: "linear-gradient(135deg, #c8a96e, #a07840)",
+    borderRadius: "10px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: "20px",
   };
 
-  const brandStyle: React.CSSProperties = {
-    display: 'flex',
-    flexDirection: 'column',
+  const logoTextStyle: React.CSSProperties = {
+    fontSize: "22px",
+    fontWeight: "700",
+    background: "linear-gradient(135deg, #c8a96e, #e8c98e)",
+    WebkitBackgroundClip: "text",
+    WebkitTextFillColor: "transparent",
+    backgroundClip: "text",
   };
 
-  const brandNameStyle: React.CSSProperties = {
-    fontSize: '18px',
-    fontWeight: '700',
-    background: 'linear-gradient(135deg, #c8a96e, #e8c98e)',
-    WebkitBackgroundClip: 'text',
-    WebkitTextFillColor: 'transparent',
-    backgroundClip: 'text',
-    lineHeight: '1.2',
+  const subtitleStyle: React.CSSProperties = {
+    fontSize: "12px",
+    color: "#888",
+    marginTop: "2px",
   };
 
-  const brandSubStyle: React.CSSProperties = {
-    fontSize: '11px',
-    color: 'rgba(200, 169, 110, 0.6)',
-    letterSpacing: '2px',
-    textTransform: 'uppercase',
-  };
-
-  const headerActionsStyle: React.CSSProperties = {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '12px',
-  };
-
-  const adminBadgeStyle: React.CSSProperties = {
-    background: 'rgba(200, 169, 110, 0.1)',
-    border: '1px solid rgba(200, 169, 110, 0.3)',
-    borderRadius: '20px',
-    padding: '6px 16px',
-    fontSize: '12px',
-    color: '#c8a96e',
-    letterSpacing: '1px',
+  const headerBadgeStyle: React.CSSProperties = {
+    background: "#c8a96e15",
+    border: "1px solid #c8a96e40",
+    borderRadius: "20px",
+    padding: "6px 16px",
+    fontSize: "13px",
+    color: "#c8a96e",
+    fontWeight: "500",
   };
 
   const mainStyle: React.CSSProperties = {
-    padding: '40px',
-    maxWidth: '1400px',
-    margin: '0 auto',
+    padding: "32px 40px",
+    maxWidth: "1400px",
+    margin: "0 auto",
   };
 
   const pageTitleStyle: React.CSSProperties = {
-    fontSize: '32px',
-    fontWeight: '700',
-    color: '#fff',
-    marginBottom: '4px',
+    fontSize: "28px",
+    fontWeight: "700",
+    color: "#e8e0d0",
+    marginBottom: "8px",
   };
 
-  const pageTitleAccentStyle: React.CSSProperties = {
-    background: 'linear-gradient(135deg, #c8a96e, #e8c98e)',
-    WebkitBackgroundClip: 'text',
-    WebkitTextFillColor: 'transparent',
-    backgroundClip: 'text',
-  };
-
-  const pageSubtitleStyle: React.CSSProperties = {
-    fontSize: '14px',
-    color: 'rgba(232, 224, 208, 0.5)',
-    marginBottom: '40px',
+  const pageDescStyle: React.CSSProperties = {
+    fontSize: "14px",
+    color: "#666",
+    marginBottom: "32px",
   };
 
   const statsGridStyle: React.CSSProperties = {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(4, 1fr)',
-    gap: '20px',
-    marginBottom: '40px',
+    display: "grid",
+    gridTemplateColumns: "repeat(4, 1fr)",
+    gap: "20px",
+    marginBottom: "32px",
   };
 
-  const statCardStyle: React.CSSProperties = {
-    background: 'linear-gradient(135deg, rgba(255,255,255,0.03) 0%, rgba(200,169,110,0.03) 100%)',
-    border: '1px solid rgba(200, 169, 110, 0.15)',
-    borderRadius: '16px',
-    padding: '24px',
-    position: 'relative',
-    overflow: 'hidden',
-  };
+  const statCardStyle = (accent: string): React.CSSProperties => ({
+    background: "linear-gradient(135deg, #0d0d18, #111120)",
+    border: "1px solid #1a1a2e",
+    borderRadius: "16px",
+    padding: "24px",
+    position: "relative",
+    overflow: "hidden",
+  });
 
-  const statCardGlowStyle: React.CSSProperties = {
-    position: 'absolute',
-    top: '0',
-    left: '0',
-    right: '0',
-    height: '2px',
-    background: 'linear-gradient(90deg, transparent, #c8a96e, transparent)',
+  const statAccentLineStyle = (color: string): React.CSSProperties => ({
+    position: "absolute",
+    top: "0",
+    left: "0",
+    right: "0",
+    height: "2px",
+    background: color,
+  });
+
+  const statNumberStyle: React.CSSProperties = {
+    fontSize: "36px",
+    fontWeight: "800",
+    color: "#c8a96e",
+    lineHeight: "1",
+    marginBottom: "8px",
   };
 
   const statLabelStyle: React.CSSProperties = {
-    fontSize: '12px',
-    color: 'rgba(200, 169, 110, 0.7)',
-    letterSpacing: '1.5px',
-    textTransform: 'uppercase',
-    marginBottom: '12px',
+    fontSize: "13px",
+    color: "#888",
+    fontWeight: "500",
   };
 
-  const statValueStyle: React.CSSProperties = {
-    fontSize: '42px',
-    fontWeight: '700',
-    color: '#fff',
-    lineHeight: '1',
-    marginBottom: '8px',
+  const statIconStyle: React.CSSProperties = {
+    position: "absolute",
+    right: "20px",
+    top: "50%",
+    fontSize: "32px",
+    opacity: "0.15",
+    transform: "translateY(-50%)",
   };
 
-  const statTrendStyle: React.CSSProperties = {
-    fontSize: '12px',
-    color: 'rgba(232, 224, 208, 0.4)',
-  };
-
-  const actionsBarStyle: React.CSSProperties = {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '12px',
-    marginBottom: '32px',
-    flexWrap: 'wrap' as const,
-  };
-
-  const primaryBtnStyle: React.CSSProperties = {
-    background: 'linear-gradient(135deg, #c8a96e, #e8c98e)',
-    border: 'none',
-    borderRadius: '10px',
-    padding: '12px 24px',
-    fontSize: '14px',
-    fontWeight: '600',
-    color: '#050508',
-    cursor: 'pointer',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px',
-    transition: 'all 0.2s',
-    boxShadow: '0 4px 20px rgba(200, 169, 110, 0.3)',
-  };
-
-  const secondaryBtnStyle: React.CSSProperties = {
-    background: 'rgba(200, 169, 110, 0.08)',
-    border: '1px solid rgba(200, 169, 110, 0.25)',
-    borderRadius: '10px',
-    padding: '12px 24px',
-    fontSize: '14px',
-    fontWeight: '500',
-    color: '#c8a96e',
-    cursor: 'pointer',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px',
-    transition: 'all 0.2s',
+  const controlsStyle: React.CSSProperties = {
+    display: "flex",
+    gap: "16px",
+    marginBottom: "24px",
+    alignItems: "center",
+    flexWrap: "wrap",
   };
 
   const searchStyle: React.CSSProperties = {
-    background: 'rgba(255,255,255,0.04)',
-    border: '1px solid rgba(200, 169, 110, 0.2)',
-    borderRadius: '10px',
-    padding: '12px 16px',
-    fontSize: '14px',
-    color: '#e8e0d0',
-    outline: 'none',
-    width: '280px',
-    marginLeft: 'auto',
+    flex: "1",
+    minWidth: "240px",
+    background: "#0d0d18",
+    border: "1px solid #1e1e35",
+    borderRadius: "10px",
+    padding: "10px 16px",
+    color: "#e8e0d0",
+    fontSize: "14px",
+    outline: "none",
   };
+
+  const selectStyle: React.CSSProperties = {
+    background: "#0d0d18",
+    border: "1px solid #1e1e35",
+    borderRadius: "10px",
+    padding: "10px 16px",
+    color: "#e8e0d0",
+    fontSize: "14px",
+    outline: "none",
+    cursor: "pointer",
+  };
+
+  const btnPrimaryStyle = (hovered: boolean): React.CSSProperties => ({
+    background: hovered
+      ? "linear-gradient(135deg, #d4b87e, #c8a96e)"
+      : "linear-gradient(135deg, #c8a96e, #a07840)",
+    border: "none",
+    borderRadius: "10px",
+    padding: "10px 20px",
+    color: "#050508",
+    fontSize: "13px",
+    fontWeight: "700",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    transition: "all 0.2s ease",
+    transform: hovered ? "translateY(-1px)" : "translateY(0)",
+  });
+
+  const btnDangerStyle = (hovered: boolean): React.CSSProperties => ({
+    background: hovered ? "#ef4444" : "#dc262620",
+    border: "1px solid #dc2626",
+    borderRadius: "10px",
+    padding: "10px 20px",
+    color: hovered ? "#fff" : "#f87171",
+    fontSize: "13px",
+    fontWeight: "600",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    transition: "all 0.2s ease",
+  });
+
+  const btnSecondaryStyle = (hovered: boolean): React.CSSProperties => ({
+    background: hovered ? "#1e1e35" : "transparent",
+    border: "1px solid #2a2a45",
+    borderRadius: "10px",
+    padding: "10px 20px",
+    color: "#c8a96e",
+    fontSize: "13px",
+    fontWeight: "600",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    transition: "all 0.2s ease",
+  });
 
   const tableContainerStyle: React.CSSProperties = {
-    background: 'linear-gradient(135deg, rgba(255,255,255,0.02) 0%, rgba(200,169,110,0.02) 100%)',
-    border: '1px solid rgba(200, 169, 110, 0.12)',
-    borderRadius: '20px',
-    overflow: 'hidden',
-  };
-
-  const tableHeaderStyle: React.CSSProperties = {
-    padding: '20px 28px',
-    borderBottom: '1px solid rgba(200, 169, 110, 0.1)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    background: 'rgba(200, 169, 110, 0.03)',
-  };
-
-  const tableHeaderTitleStyle: React.CSSProperties = {
-    fontSize: '16px',
-    fontWeight: '600',
-    color: '#fff',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '10px',
+    background: "linear-gradient(135deg, #0d0d18, #0a0a14)",
+    border: "1px solid #1a1a2e",
+    borderRadius: "16px",
+    overflow: "hidden",
   };
 
   const tableStyle: React.CSSProperties = {
-    width: '100%',
-    borderCollapse: 'collapse' as const,
+    width: "100%",
+    borderCollapse: "collapse",
   };
 
   const thStyle: React.CSSProperties = {
-    padding: '14px 20px',
-    textAlign: 'left' as const,
-    fontSize: '11px',
-    fontWeight: '600',
-    color: 'rgba(200, 169, 110, 0.7)',
-    letterSpacing: '1.5px',
-    textTransform: 'uppercase' as const,
-    borderBottom: '1px solid rgba(200, 169, 110, 0.08)',
-    background: 'rgba(200, 169, 110, 0.02)',
+    background: "#0a0a12",
+    padding: "14px 18px",
+    textAlign: "left",
+    fontSize: "11px",
+    fontWeight: "700",
+    color: "#c8a96e",
+    textTransform: "uppercase",
+    letterSpacing: "1px",
+    borderBottom: "1px solid #1a1a2e",
   };
 
   const tdStyle: React.CSSProperties = {
-    padding: '16px 20px',
-    fontSize: '14px',
-    color: '#e8e0d0',
-    borderBottom: '1px solid rgba(255,255,255,0.04)',
-    verticalAlign: 'middle' as const,
+    padding: "16px 18px",
+    fontSize: "13px",
+    color: "#ccc",
+    borderBottom: "1px solid #12121f",
+    verticalAlign: "middle",
   };
 
-  const certIdStyle: React.CSSProperties = {
-    fontFamily: 'monospace',
-    fontSize: '12px',
-    color: '#c8a96e',
-    background: 'rgba(200, 169, 110, 0.1)',
-    padding: '4px 10px',
-    borderRadius: '6px',
-    display: 'inline-block',
-  };
-
-  const avatarStyle: React.CSSProperties = {
-    width: '36px',
-    height: '36px',
-    borderRadius: '50%',
-    background: 'linear-gradient(135deg, #c8a96e40, #c8a96e20)',
-    border: '1px solid rgba(200, 169, 110, 0.3)',
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    fontSize: '14px',
-    fontWeight: '600',
-    color: '#c8a96e',
-    marginRight: '10px',
-  };
-
-  const userCellStyle: React.CSSProperties = {
-    display: 'flex',
-    alignItems: 'center',
-  };
-
-  const userInfoStyle: React.CSSProperties = {
-    display: 'flex',
-    flexDirection: 'column',
-  };
-
-  const userNameStyle: React.CSSProperties = {
-    fontSize: '14px',
-    fontWeight: '500',
-    color: '#fff',
-  };
-
-  const userEmailStyle: React.CSSProperties = {
-    fontSize: '12px',
-    color: 'rgba(232, 224, 208, 0.4)',
-  };
-
-  const getStatusStyle = (statut: string): React.CSSProperties => {
-    const base: React.CSSProperties = {
-      display: 'inline-flex',
-      alignItems: 'center',
-      gap: '6px',
-      padding: '5px 12px',
-      borderRadius: '20px',
-      fontSize: '12px',
-      fontWeight: '500',
-      letterSpacing: '0.5px',
-    };
-    if (statut === 'actif') return { ...base, background: 'rgba(34, 197, 94, 0.1)', color: '#22c55e', border: '1px solid rgba(34, 197, 94, 0.2)' };
-    if (statut === 'revoque') return { ...base, background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.2)' };
-    return { ...base, background: 'rgba(200, 169, 110, 0.1)', color: '#c8a96e', border: '1px solid rgba(200, 169, 110, 0.2)' };
-  };
-
-  const getStatusDot = (statut: string): React.CSSProperties => ({
-    width: '6px',
-    height: '6px',
-    borderRadius: '50%',
-    backgroundColor: statut === 'actif' ? '#22c55e' : statut === 'revoque' ? '#ef4444' : '#c8a96e',
-    display: 'inline-block',
-  });
-
-  const actionGroupStyle: React.CSSProperties = {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px',
-  };
-
-  const iconBtnStyle: React.CSSProperties = {
-    width: '32px',
-    height: '32px',
-    borderRadius: '8px',
-    border: '1px solid rgba(200, 169, 110, 0.2)',
-    background: 'rgba(200, 169, 110, 0.06)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    cursor: 'pointer',
-    fontSize: '14px',
-    transition: 'all 0.2s',
-    color: '#c8a96e',
-  };
-
-  const iconBtnDangerStyle: React.CSSProperties = {
-    ...iconBtnStyle,
-    border: '1px solid rgba(239, 68, 68, 0.2)',
-    background: 'rgba(239, 68, 68, 0.06)',
-    color: '#ef4444',
-  };
-
-  const emptyStateStyle: React.CSSProperties = {
-    textAlign: 'center' as const,
-    padding: '80px 40px',
-    color: 'rgba(232, 224, 208, 0.4)',
-  };
-
-  const footerStyle: React.CSSProperties = {
-    borderTop: '1px solid rgba(200, 169, 110, 0.1)',
-    padding: '16px 28px',
-    display: 'flex',
-    alignItems: 'center',
-    just
+  const trStyle = (hovered: boolean): React.CSSProperties => ({
+    background: hovered ? "#0f0f1e" : "transparent",
+    transition: "background 0.15
