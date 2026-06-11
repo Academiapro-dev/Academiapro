@@ -1,173 +1,331 @@
-export default async function MrJuridiquePage() {
+"use client";
+import React from "react";
 
-  const { createClient } = await import('@supabase/supabase-js');
+const goldColor = "#c8a96e";
+const darkBg = "#050508";
+const cardBg = "#0d0d14";
+const cardBorder = "1px solid #c8a96e33";
+const textPrimary = "#ffffff";
+const textSecondary = "#a0a0b0";
+const successGreen = "#4caf7d";
+const warningOrange = "#e8a44a";
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-  const supabase = createClient(supabaseUrl, supabaseKey);
+interface StatCardProps {
+  title: string;
+  value: string;
+  subtitle: string;
+  icon: string;
+  trend?: string;
+  trendUp?: boolean;
+}
 
-  let documentsData: any[] = [];
-  let complianceData: any[] = [];
-  let fluxData: any[] = [];
-  let fiscalData: any[] = [];
-  let errorMessage = '';
-
-  try {
-    const [docsResult, complianceResult, fluxResult, fiscalResult] = await Promise.all([
-      supabase.from('juridique_documents').select('*').order('created_at', { ascending: false }).limit(10),
-      supabase.from('juridique_compliance').select('*').order('created_at', { ascending: false }).limit(10),
-      supabase.from('juridique_flux_intersocietes').select('*').order('created_at', { ascending: false }).limit(10),
-      supabase.from('juridique_economie_fiscale').select('*').order('created_at', { ascending: false }).limit(10),
-    ]);
-
-    if (docsResult.data) documentsData = docsResult.data;
-    if (complianceResult.data) complianceData = complianceResult.data;
-    if (fluxResult.data) fluxData = fluxResult.data;
-    if (fiscalResult.data) fiscalData = fiscalResult.data;
-  } catch (err: any) {
-    errorMessage = err?.message || 'Erreur de connexion Supabase';
-  }
-
-  const mockDocuments = documentsData.length > 0 ? documentsData : [
-    { id: 1, titre: 'Statuts SAS AcadémIA Holdings', type: 'Constitutif', statut: 'Validé', date: '2024-01-15', priorite: 'haute' },
-    { id: 2, titre: 'Pacte d\'associés SAS Opérationnelle', type: 'Gouvernance', statut: 'En révision', date: '2024-02-20', priorite: 'haute' },
-    { id: 3, titre: 'Contrat de services inter-groupe', type: 'Commercial', statut: 'Validé', date: '2024-03-10', priorite: 'moyenne' },
-    { id: 4, titre: 'Accord de confidentialité NDA', type: 'Protection', statut: 'Validé', date: '2024-03-25', priorite: 'basse' },
-    { id: 5, titre: 'Règlement intérieur assemblée', type: 'Gouvernance', statut: 'Brouillon', date: '2024-04-01', priorite: 'moyenne' },
-  ];
-
-  const mockCompliance = complianceData.length > 0 ? complianceData : [
-    { id: 1, entite: 'LLC Delaware', obligation: 'Annual Report', echeance: '2025-03-01', statut: 'Conforme', score: 98 },
-    { id: 2, entite: 'LLC Wyoming', obligation: 'Registered Agent', echeance: '2025-06-15', statut: 'Conforme', score: 100 },
-    { id: 3, entite: 'SAS France', obligation: 'Dépôt comptes annuels', echeance: '2025-04-30', statut: 'En attente', score: 75 },
-    { id: 4, entite: 'SAS Holdings', obligation: 'Rapport de gestion', echeance: '2025-05-15', statut: 'En cours', score: 60 },
-    { id: 5, entite: 'LLC Nevada', obligation: 'Business License', echeance: '2025-01-31', statut: 'Urgent', score: 30 },
-  ];
-
-  const mockFlux = fluxData.length > 0 ? fluxData : [
-    { id: 1, source: 'LLC Delaware', destination: 'SAS Holdings', montant: 125000, type: 'Dividendes', devise: 'EUR', statut: 'Exécuté' },
-    { id: 2, source: 'SAS Opérationnelle', destination: 'LLC Wyoming', montant: 45000, type: 'Royalties', devise: 'USD', statut: 'En cours' },
-    { id: 3, source: 'LLC Nevada', destination: 'SAS Holdings', montant: 78500, type: 'Management fees', devise: 'EUR', statut: 'Planifié' },
-    { id: 4, source: 'SAS Holdings', destination: 'SAS Filiale', montant: 200000, type: 'Prêt intra-groupe', devise: 'EUR', statut: 'Exécuté' },
-    { id: 5, source: 'LLC Delaware', destination: 'LLC Wyoming', montant: 15000, type: 'Remboursement', devise: 'USD', statut: 'En cours' },
-  ];
-
-  const mockFiscal = fiscalData.length > 0 ? fiscalData : [
-    { id: 1, strategie: 'Optimisation IS via convention fiscale FR/US', economie: 48500, statut: 'Actif', risque: 'Faible' },
-    { id: 2, strategie: 'Régime mère-fille dividendes', economie: 32000, statut: 'Actif', risque: 'Très faible' },
-    { id: 3, strategie: 'Prix de transfert documentation', economie: 0, statut: 'Conformité', risque: 'Moyen' },
-    { id: 4, strategie: 'Crédit d\'impôt R&D (CIR)', economie: 75000, statut: 'En cours', risque: 'Faible' },
-    { id: 5, strategie: 'Exonération participation bénéfices', economie: 18200, statut: 'Actif', risque: 'Très faible' },
-  ];
-
-  const totalEconomie = mockFiscal.reduce((acc: number, item: any) => acc + (item.economie || 0), 0);
-  const totalFlux = mockFlux.reduce((acc: number, item: any) => acc + (item.montant || 0), 0);
-  const documentsValides = mockDocuments.filter((d: any) => d.statut === 'Validé').length;
-  const entitesConformes = mockCompliance.filter((c: any) => c.statut === 'Conforme').length;
-
-  const getStatutColor = (statut: string): string => {
-    const map: Record<string, string> = {
-      'Validé': '#22c55e',
-      'Conforme': '#22c55e',
-      'Exécuté': '#22c55e',
-      'Actif': '#22c55e',
-      'En révision': '#f59e0b',
-      'En attente': '#f59e0b',
-      'En cours': '#3b82f6',
-      'Brouillon': '#6b7280',
-      'Planifié': '#8b5cf6',
-      'Conformité': '#06b6d4',
-      'Urgent': '#ef4444',
-    };
-    return map[statut] || '#6b7280';
-  };
-
-  const getPrioriteColor = (priorite: string): string => {
-    const map: Record<string, string> = {
-      'haute': '#ef4444',
-      'moyenne': '#f59e0b',
-      'basse': '#22c55e',
-    };
-    return map[priorite] || '#6b7280';
-  };
-
-  const getRisqueColor = (risque: string): string => {
-    const map: Record<string, string> = {
-      'Très faible': '#22c55e',
-      'Faible': '#84cc16',
-      'Moyen': '#f59e0b',
-      'Élevé': '#ef4444',
-    };
-    return map[risque] || '#6b7280';
-  };
-
-  const formatMontant = (montant: number): string => {
-    return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(montant);
-  };
+const StatCard: React.FC<StatCardProps> = ({ title, value, subtitle, icon, trend, trendUp }) => {
+  const [hovered, setHovered] = React.useState(false);
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#050508', fontFamily: "'Segoe UI', system-ui, sans-serif", color: '#e2e8f0' }}>
-
-      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100, backgroundColor: 'rgba(5,5,8,0.95)', backdropFilter: 'blur(20px)', borderBottom: '1px solid rgba(200,169,110,0.2)', padding: '0 32px', height: '72px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'linear-gradient(135deg, #c8a96e, #8b6914)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px' }}>
-            ⚖️
-          </div>
-          <div>
-            <div style={{ fontSize: '18px', fontWeight: 700, background: 'linear-gradient(135deg, #c8a96e, #e8d5a3)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-              Mr Juridique
-            </div>
-            <div style={{ fontSize: '11px', color: 'rgba(200,169,110,0.6)', letterSpacing: '1.5px', textTransform: 'uppercase' }}>
-              AcadémIA Pro · Intelligence Juridique
-            </div>
-          </div>
+    <div
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        backgroundColor: hovered ? "#12121e" : cardBg,
+        border: hovered ? "1px solid #c8a96e88" : cardBorder,
+        borderRadius: "12px",
+        padding: "24px",
+        flex: "1",
+        minWidth: "200px",
+        cursor: "default",
+        transition: "all 0.3s ease",
+        boxShadow: hovered ? "0 4px 30px #c8a96e18" : "0 2px 10px #00000040",
+      }}
+    >
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "16px" }}>
+        <div
+          style={{
+            backgroundColor: "#c8a96e18",
+            border: "1px solid #c8a96e44",
+            borderRadius: "10px",
+            width: "44px",
+            height: "44px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: "20px",
+          }}
+        >
+          {icon}
         </div>
+        {trend && (
+          <span
+            style={{
+              fontSize: "12px",
+              fontWeight: "600",
+              color: trendUp ? successGreen : warningOrange,
+              backgroundColor: trendUp ? "#4caf7d18" : "#e8a44a18",
+              padding: "4px 8px",
+              borderRadius: "20px",
+              border: trendUp ? "1px solid #4caf7d44" : "1px solid #e8a44a44",
+            }}
+          >
+            {trend}
+          </span>
+        )}
+      </div>
+      <div style={{ fontSize: "28px", fontWeight: "700", color: textPrimary, marginBottom: "4px", letterSpacing: "-0.5px" }}>
+        {value}
+      </div>
+      <div style={{ fontSize: "14px", fontWeight: "600", color: goldColor, marginBottom: "4px" }}>{title}</div>
+      <div style={{ fontSize: "12px", color: textSecondary }}>{subtitle}</div>
+    </div>
+  );
+};
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            {['Documents', 'Compliance', 'Flux', 'Fiscal'].map((item) => (
-              <button key={item} style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid rgba(200,169,110,0.2)', backgroundColor: 'transparent', color: 'rgba(200,169,110,0.8)', fontSize: '13px', cursor: 'pointer', transition: 'all 0.2s' }}>
-                {item}
-              </button>
-            ))}
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', borderRadius: '20px', backgroundColor: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)' }}>
-            <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#22c55e', boxShadow: '0 0 6px #22c55e' }}></div>
-            <span style={{ fontSize: '12px', color: '#22c55e' }}>Supabase connecté</span>
-          </div>
+interface DocumentRowProps {
+  name: string;
+  type: string;
+  entity: string;
+  status: string;
+  economy: string;
+  date: string;
+  index: number;
+}
+
+const DocumentRow: React.FC<DocumentRowProps> = ({ name, type, entity, status, economy, date, index }) => {
+  const [hovered, setHovered] = React.useState(false);
+
+  const getStatusStyle = (s: string) => {
+    if (s === "Validé") return { color: successGreen, bg: "#4caf7d18", border: "1px solid #4caf7d44" };
+    if (s === "En cours") return { color: goldColor, bg: "#c8a96e18", border: "1px solid #c8a96e44" };
+    return { color: warningOrange, bg: "#e8a44a18", border: "1px solid #e8a44a44" };
+  };
+
+  const st = getStatusStyle(status);
+
+  return (
+    <div
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        padding: "16px 20px",
+        backgroundColor: hovered ? "#12121e" : index % 2 === 0 ? "transparent" : "#0a0a12",
+        borderBottom: "1px solid #c8a96e18",
+        transition: "background-color 0.2s ease",
+        gap: "16px",
+        cursor: "pointer",
+      }}
+    >
+      <div
+        style={{
+          width: "36px",
+          height: "36px",
+          backgroundColor: "#c8a96e18",
+          border: "1px solid #c8a96e44",
+          borderRadius: "8px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontSize: "16px",
+          flexShrink: 0,
+        }}
+      >
+        📄
+      </div>
+      <div style={{ flex: "2", minWidth: "0" }}>
+        <div style={{ fontSize: "14px", fontWeight: "600", color: textPrimary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+          {name}
+        </div>
+        <div style={{ fontSize: "12px", color: textSecondary, marginTop: "2px" }}>{type}</div>
+      </div>
+      <div style={{ flex: "1", fontSize: "13px", color: textSecondary, minWidth: "100px" }}>{entity}</div>
+      <div style={{ flex: "1", minWidth: "90px" }}>
+        <span
+          style={{
+            fontSize: "12px",
+            fontWeight: "600",
+            color: st.color,
+            backgroundColor: st.bg,
+            border: st.border,
+            padding: "4px 10px",
+            borderRadius: "20px",
+          }}
+        >
+          {status}
+        </span>
+      </div>
+      <div style={{ flex: "1", fontSize: "13px", fontWeight: "700", color: successGreen, minWidth: "100px" }}>{economy}</div>
+      <div style={{ flex: "1", fontSize: "12px", color: textSecondary, minWidth: "90px" }}>{date}</div>
+      <div style={{ flexShrink: 0 }}>
+        <button
+          style={{
+            backgroundColor: "transparent",
+            border: "1px solid #c8a96e44",
+            borderRadius: "6px",
+            color: goldColor,
+            padding: "6px 12px",
+            fontSize: "12px",
+            cursor: "pointer",
+            fontWeight: "600",
+          }}
+        >
+          Voir
+        </button>
+      </div>
+    </div>
+  );
+};
+
+interface FluxCardProps {
+  from: string;
+  to: string;
+  amount: string;
+  type: string;
+  saving: string;
+}
+
+const FluxCard: React.FC<FluxCardProps> = ({ from, to, amount, type, saving }) => {
+  const [hovered, setHovered] = React.useState(false);
+
+  return (
+    <div
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        backgroundColor: hovered ? "#12121e" : cardBg,
+        border: hovered ? "1px solid #c8a96e66" : cardBorder,
+        borderRadius: "12px",
+        padding: "20px",
+        transition: "all 0.3s ease",
+        boxShadow: hovered ? "0 4px 20px #c8a96e12" : "none",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "14px" }}>
+        <div
+          style={{
+            backgroundColor: "#c8a96e18",
+            border: "1px solid #c8a96e44",
+            borderRadius: "8px",
+            padding: "6px 12px",
+            fontSize: "12px",
+            fontWeight: "700",
+            color: goldColor,
+          }}
+        >
+          {from}
+        </div>
+        <div style={{ color: goldColor, fontSize: "18px" }}>→</div>
+        <div
+          style={{
+            backgroundColor: "#4caf7d18",
+            border: "1px solid #4caf7d44",
+            borderRadius: "8px",
+            padding: "6px 12px",
+            fontSize: "12px",
+            fontWeight: "700",
+            color: successGreen,
+          }}
+        >
+          {to}
         </div>
       </div>
+      <div style={{ fontSize: "22px", fontWeight: "800", color: textPrimary, marginBottom: "6px" }}>{amount}</div>
+      <div style={{ fontSize: "12px", color: textSecondary, marginBottom: "10px" }}>{type}</div>
+      <div
+        style={{
+          borderTop: "1px solid #c8a96e22",
+          paddingTop: "10px",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}
+      >
+        <span style={{ fontSize: "12px", color: textSecondary }}>Économie fiscale</span>
+        <span style={{ fontSize: "14px", fontWeight: "700", color: successGreen }}>{saving}</span>
+      </div>
+    </div>
+  );
+};
 
-      <div style={{ paddingTop: '72px' }}>
+interface ComplianceItemProps {
+  label: string;
+  score: number;
+  entity: string;
+}
 
-        <div style={{ padding: '60px 32px 40px', background: 'linear-gradient(180deg, rgba(200,169,110,0.05) 0%, transparent 100%)', borderBottom: '1px solid rgba(200,169,110,0.1)' }}>
-          <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '40px' }}>
-              <div>
-                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '6px 14px', borderRadius: '20px', backgroundColor: 'rgba(200,169,110,0.1)', border: '1px solid rgba(200,169,110,0.3)', marginBottom: '16px' }}>
-                  <span style={{ fontSize: '12px', color: '#c8a96e', letterSpacing: '1px', textTransform: 'uppercase' }}>⚡ IA Juridique Active</span>
-                </div>
-                <h1 style={{ fontSize: '48px', fontWeight: 800, margin: '0 0 12px', lineHeight: 1.1 }}>
-                  <span style={{ background: 'linear-gradient(135deg, #ffffff, #e2e8f0)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Tableau de Bord</span>
-                  <br />
-                  <span style={{ background: 'linear-gradient(135deg, #c8a96e, #e8d5a3)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Juridique & Fiscal</span>
-                </h1>
-                <p style={{ color: 'rgba(226,232,240,0.6)', fontSize: '16px', margin: 0, maxWidth: '500px' }}>
-                  Gestion centralisée LLC · SAS · Flux inter-sociétés · Optimisation fiscale en temps réel
-                </p>
-              </div>
+const ComplianceItem: React.FC<ComplianceItemProps> = ({ label, score, entity }) => {
+  const barColor = score >= 90 ? successGreen : score >= 70 ? goldColor : warningOrange;
 
-              <div style={{ display: 'flex', gap: '12px' }}>
-                <button style={{ padding: '12px 24px', borderRadius: '10px', border: '1px solid rgba(200,169,110,0.4)', backgroundColor: 'rgba(200,169,110,0.1)', color: '#c8a96e', fontSize: '14px', cursor: 'pointer', fontWeight: 600 }}>
-                  📥 Exporter Rapport
-                </button>
-                <button style={{ padding: '12px 24px', borderRadius: '10px', border: 'none', background: 'linear-gradient(135deg, #c8a96e, #8b6914)', color: '#050508', fontSize: '14px', cursor: 'pointer', fontWeight: 700 }}>
-                  + Nouveau Document
-                </button>
-              </div>
-            </div>
+  return (
+    <div style={{ marginBottom: "18px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+        <div>
+          <div style={{ fontSize: "13px", fontWeight: "600", color: textPrimary }}>{label}</div>
+          <div style={{ fontSize: "11px", color: textSecondary, marginTop: "2px" }}>{entity}</div>
+        </div>
+        <span
+          style={{
+            fontSize: "14px",
+            fontWeight: "700",
+            color: barColor,
+            backgroundColor: score >= 90 ? "#4caf7d18" : score >= 70 ? "#c8a96e18" : "#e8a44a18",
+            padding: "3px 10px",
+            borderRadius: "20px",
+            border: score >= 90 ? "1px solid #4caf7d44" : score >= 70 ? "1px solid #c8a96e44" : "1px solid #e8a44a44",
+          }}
+        >
+          {score}%
+        </span>
+      </div>
+      <div style={{ backgroundColor: "#ffffff12", borderRadius: "4px", height: "6px", overflow: "hidden" }}>
+        <div
+          style={{
+            width: score + "%",
+            height: "100%",
+            backgroundColor: barColor,
+            borderRadius: "4px",
+            transition: "width 0.6s ease",
+            boxShadow: "0 0 8px " + barColor + "66",
+          }}
+        />
+      </div>
+    </div>
+  );
+};
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }}>
-              {[
-                { label: 'Documents Validés', value: `${documentsValides}/${mockDocuments.length}`, icon: '📄', color: '#22c55e', sub: 'Base documentaire', progress: (documentsValides / mockDocuments.length) * 100 },
-                { label: 'Entités Conformes', value: `${entitesConformes}/${mockCompliance.length}`, icon: '✅', color: '#c8a96e', sub: 'LLC & SAS
+const documents = [
+  { name: "Pacte d'associés SAS Holding Alpha", type: "Structuration juridique", entity: "SAS Alpha", status: "Validé", economy: "+42 000 €", date: "15 jan 2025" },
+  { name: "Convention de trésorerie groupe", type: "Flux inter-sociétés", entity: "Groupe Meridian", status: "En cours", economy: "+18 500 €", date: "18 jan 2025" },
+  { name: "Certificate of Formation LLC Delaware", type: "Compliance LLC", entity: "LLC Delaware US", status: "Validé", economy: "+95 000 €", date: "20 jan 2025" },
+  { name: "Accord de refacturation management fees", type: "Flux inter-sociétés", entity: "SAS Beta / LLC", status: "Révision", economy: "+31 200 €", date: "22 jan 2025" },
+  { name: "Statuts SAS à directoire", type: "Structuration SAS", entity: "SAS Gamma", status: "Validé", economy: "+27 800 €", date: "24 jan 2025" },
+  { name: "Operating Agreement LLC multi-membres", type: "Compliance LLC", entity: "LLC Nevada US", status: "En cours", economy: "+58 000 €", date: "25 jan 2025" },
+  { name: "Plan d'optimisation IS groupe", type: "Optimisation fiscale", entity: "Groupe Meridian", status: "Validé", economy: "+124 500 €", date: "27 jan 2025" },
+  { name: "Contrat de licence marque intra-groupe", type: "Flux inter-sociétés", entity: "Holding / Filiales", status: "En cours", economy: "+46 300 €", date: "29 jan 2025" },
+];
+
+const fluxData = [
+  { from: "SAS Holding", to: "LLC Delaware", amount: "250 000 €", type: "Management Fees annuels", saving: "+38 400 €" },
+  { from: "LLC Nevada", to: "SAS Alpha", amount: "180 000 €", type: "Redevance licence IP", saving: "+29 700 €" },
+  { from: "SAS Beta", to: "SAS Holding", amount: "95 000 €", type: "Convention de trésorerie", saving: "+14 250 €" },
+  { from: "LLC Delaware", to: "SAS Gamma", amount: "320 000 €", type: "Dividendes exonérés", saving: "+52 800 €" },
+];
+
+const complianceData = [
+  { label: "Compliance LLC Delaware", entity: "Structure US - Registre agents", score: 97 },
+  { label: "Conformité SAS Holding", entity: "SAS Alpha Group", score: 94 },
+  { label: "Reporting flux inter-sociétés", entity: "Groupe Meridian consolidé", score: 88 },
+  { label: "Documentation prix transfert", entity: "Entités transfrontalières", score: 76 },
+  { label: "KYC / AML conformité", entity: "Toutes entités groupe", score: 91 },
+  { label: "Obligations déclaratives IS", entity: "SAS Beta & Gamma", score: 83 },
+];
+
+export default function DashboardMrJuridique() {
+  const [activeNav, setActiveNav] = React.useState("Dashboard");
+  const [sidebarHovered, setSidebarHovered] = React.useState(false);
+
+  const navItems = [
+    { label: "Dashboard", icon: "⬡" },
+    { label: "Documents", icon: "📋" },
+    { label: "Compliance LLC", icon: "🏛" },
+    { label: "Structures SAS", icon: "🏗" },
+    { label: "
