@@ -1,4 +1,3 @@
-```typescript
 // app/api/reservations/route.ts
 
 import { createClient } from "@supabase/supabase-js";
