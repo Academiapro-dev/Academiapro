@@ -1,4 +1,3 @@
-```typescript
 // app/api/seo-agent/route.ts
 
 import Anthropic from "@anthropic-ai/sdk";
