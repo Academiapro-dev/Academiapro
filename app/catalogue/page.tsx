@@ -1,3 +1,4 @@
+// v2
 export default function CataloguePage() {
   const formations = [
     { code: "F128", titre: "Expert Claude et IA Generative", domaine: "IA", prix: 690, duree: "40h", niveau: "Expert" },
