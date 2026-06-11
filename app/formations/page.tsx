@@ -75,3 +75,4 @@ export default async function FormationsPage() {
     { id: 59, titre: "Azure Cloud Architecture", domaine: "DevOps & Cloud", duree: "60h", niveau: "Avancé", prix: 897, description: "Architecture cloud Microsoft Azure", certification: true },
     { id: 60, titre: "Google Cloud Platform", domaine: "DevOps & Cloud", duree: "55h", niveau: "Avancé", prix: 797, description: "Infrastructure GCP professionnelle", certification: true },
     { id: 61, titre: "Terraform Infrastructure as Code", domaine: "DevOps & Cloud",
+}}
