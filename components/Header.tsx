@@ -1,4 +1,3 @@
-```tsx
 import { useState, useEffect, useRef } from "react";
 
 const catalogCategories = [
@@ -281,4 +280,4 @@ export default function Header() {
                           setActivePage(link.href);
                           setIsCatalogOpen(!isCatalogOpen);
                         }}
-                        className={`relative flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-md nav-link-hover transition-colors duration-200 
+                        className={`relative flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-md nav-link-hover transition-colors duration-200
