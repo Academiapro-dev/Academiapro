@@ -1,10 +1,17 @@
-export default function Layout() {
+import type { Metadata } from 'next';
+import './globals.css';
+
+export const metadata: Metadata = {
+  title: 'AcadémIA Pro — 131 Formations Certifiantes',
+  description: 'La plateforme de formation propulsée par l IA. 131 formations certifiantes. Agent IA tuteur 24h/24.',
+};
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{ minHeight: '100vh', background: '#050508', color: '#fff', padding: '60px 20px' }}>
-      <div style={{ maxWidth: '900px', margin: '0 auto', textAlign: 'center' }}>
-        <h1 style={{ color: '#c8a96e', fontSize: '28px' }}>Layout</h1>
-        <p style={{ color: 'rgba(255,255,255,0.6)', marginTop: '16px' }}>Page disponible bientot</p>
-      </div>
-    </div>
-  )
+    <html lang='fr'>
+      <body style={{ margin: 0, background: '#050508', color: '#fff', fontFamily: 'Georgia, serif' }}>
+        {children}
+      </body>
+    </html>
+  );
 }
