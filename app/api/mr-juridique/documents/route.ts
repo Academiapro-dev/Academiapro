@@ -1,4 +1,3 @@
-```typescript
 // app/api/mr-juridique/documents/generer/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
