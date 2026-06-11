@@ -1,4 +1,3 @@
-```typescript
 // ============================================================
 // AcadémIA Pro — Supabase Certificats Service
 // ============================================================
@@ -536,4 +535,3 @@ export const progressionsCertificationService = {
           projet_valide: false,
           eligible_certificat: false,
           ...payload,
-        
