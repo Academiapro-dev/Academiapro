@@ -361,3 +361,4 @@ export default async function ClasseVirtuellePage() {
               background: "linear-gradient(135deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.02) 100%)",
               border: "1px solid rgba(200,169,110,0.12)",
               borderRadius: "16px",
+}}}}
