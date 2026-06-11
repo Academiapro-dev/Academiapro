@@ -417,3 +417,4 @@ export default async function CataloguePage({
       <section
         style={{
           position: "relative
+}}}
