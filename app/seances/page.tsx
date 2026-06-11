@@ -1,15 +1,386 @@
-import { Metadata } from "next";
+import React, { useState } from 'react';
 
-export const metadata: Metadata = {
-  title: "Séances - AcadémIA Pro",
-  description: "Nos séances",
-};
+const SeancesTherapeutiques: React.FC = () => {
+  const [hoveredSpecialty, setHoveredSpecialty] = useState<number | null>(null);
+  const [hoveredTarif, setHoveredTarif] = useState<number | null>(null);
+  const [hoveredPack, setHoveredPack] = useState<number | null>(null);
+  const [selectedSpecialty, setSelectedSpecialty] = useState<number | null>(null);
 
-export default function SeancesPage() {
-  return (
-    <div style={{ backgroundColor: "#050508", minHeight: "100vh", color: "#fff", padding: "40px" }}>
-      <h1 style={{ color: "#c8a96e", fontFamily: "Georgia, serif" }}>Séances</h1>
-      <p>Réservez une séance.</p>
-    </div>
-  );
-}
+  const gold = '#c8a96e';
+  const darkBg = '#050508';
+  const cardBg = '#0d0d14';
+  const cardBorder = '#1a1a2e';
+
+  const specialties = [
+    { id: 0, name: 'Hypnose', icon: '🌀', desc: 'Accédez aux ressources de votre inconscient pour transformer vos schémas limitants.' },
+    { id: 1, name: 'PNL', icon: '🧠', desc: 'Reprogrammez vos comportements et croyances grâce à la Programmation Neuro-Linguistique.' },
+    { id: 2, name: 'Sophrologie', icon: '🌿', desc: 'Harmonisez corps et esprit par des techniques de relaxation et de visualisation positive.' },
+    { id: 3, name: 'Coaching', icon: '🎯', desc: 'Atteignez vos objectifs personnels et professionnels avec un accompagnement structuré.' },
+    { id: 4, name: 'Méditation', icon: '☯️', desc: 'Développez la pleine conscience et une paix intérieure durable au quotidien.' },
+    { id: 5, name: 'Stress', icon: '💆', desc: 'Maîtrisez vos réponses au stress et retrouvez sérénité et clarté mentale.' },
+    { id: 6, name: 'Burn-out', icon: '🔥', desc: 'Reconstruisez votre énergie vitale et retrouvez sens et équilibre après l\'épuisement.' },
+    { id: 7, name: 'Sommeil', icon: '🌙', desc: 'Retrouvez un sommeil réparateur et libérez-vous des insomnies qui vous épuisent.' },
+    { id: 8, name: 'Confiance', icon: '⭐', desc: 'Renforcez votre estime de soi et exprimez pleinement votre potentiel unique.' },
+    { id: 9, name: 'Relations', icon: '💞', desc: 'Améliorez vos relations interpersonnelles et créez des liens authentiques et épanouis.' },
+    { id: 10, name: 'Procrastination', icon: '⏰', desc: 'Brisez le cycle de la procrastination et passez à l\'action avec confiance et clarté.' },
+    { id: 11, name: 'Anxiété', icon: '🕊️', desc: 'Apaisez les angoisses et les peurs qui freinent votre épanouissement au quotidien.' },
+    { id: 12, name: 'Développement', icon: '🌱', desc: 'Explorez votre plein potentiel et construisez la version la plus accomplie de vous-même.' },
+    { id: 13, name: 'Équilibre', icon: '⚖️', desc: 'Trouvez l\'harmonie parfaite entre vie professionnelle, personnelle et bien-être intérieur.' },
+  ];
+
+  const tarifs = [
+    {
+      id: 0,
+      name: 'Découverte',
+      price: 29,
+      duration: '45 min',
+      color: '#8a7a5a',
+      features: ['Bilan initial', 'Exploration des besoins', 'Orientation thérapeutique', 'Sans engagement'],
+    },
+    {
+      id: 1,
+      name: 'Standard',
+      price: 59,
+      duration: '60 min',
+      color: gold,
+      features: ['Séance complète', 'Techniques avancées', 'Suivi personnalisé', 'Exercices pratiques'],
+      recommended: true,
+    },
+    {
+      id: 2,
+      name: 'Expert',
+      price: 79,
+      duration: '90 min',
+      color: '#e8c98e',
+      features: ['Séance approfondie', 'Protocoles intensifs', 'Bilan détaillé', 'Support entre séances'],
+    },
+  ];
+
+  const packs = [
+    {
+      id: 0,
+      name: 'Pack Essentiel',
+      sessions: 5,
+      price: 249,
+      savings: 46,
+      color: '#8a7a5a',
+      desc: 'Idéal pour démarrer votre transformation',
+    },
+    {
+      id: 1,
+      name: 'Pack Transformation',
+      sessions: 10,
+      price: 449,
+      savings: 141,
+      color: gold,
+      desc: 'Le parcours complet pour des changements profonds',
+    },
+  ];
+
+  const styles: Record<string, React.CSSProperties> = {
+    page: {
+      backgroundColor: darkBg,
+      minHeight: '100vh',
+      fontFamily: "'Georgia', serif",
+      color: '#e8e8f0',
+      overflowX: 'hidden',
+    },
+    hero: {
+      textAlign: 'center',
+      padding: '80px 20px 60px',
+      position: 'relative',
+      borderBottom: '1px solid #1a1a2e',
+    },
+    heroOverlay: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      background: 'radial-gradient(ellipse at center top, rgba(200, 169, 110, 0.08) 0%, transparent 70%)',
+      pointerEvents: 'none',
+    },
+    badge: {
+      display: 'inline-block',
+      border: '1px solid rgba(200, 169, 110, 0.4)',
+      color: gold,
+      padding: '6px 20px',
+      borderRadius: '20px',
+      fontSize: '12px',
+      letterSpacing: '3px',
+      textTransform: 'uppercase' as const,
+      marginBottom: '30px',
+      background: 'rgba(200, 169, 110, 0.05)',
+    },
+    heroTitle: {
+      fontSize: '52px',
+      fontWeight: '300',
+      color: '#f0ece4',
+      lineHeight: '1.2',
+      marginBottom: '20px',
+      letterSpacing: '-1px',
+    },
+    heroTitleGold: {
+      color: gold,
+      fontStyle: 'italic',
+    },
+    heroSubtitle: {
+      fontSize: '18px',
+      color: '#8a8a9a',
+      maxWidth: '600px',
+      margin: '0 auto 40px',
+      lineHeight: '1.7',
+      fontWeight: '300',
+    },
+    goldLine: {
+      width: '60px',
+      height: '2px',
+      backgroundColor: gold,
+      margin: '0 auto',
+      opacity: 0.6,
+    },
+    section: {
+      maxWidth: '1200px',
+      margin: '0 auto',
+      padding: '80px 20px',
+    },
+    sectionTitle: {
+      textAlign: 'center',
+      fontSize: '36px',
+      fontWeight: '300',
+      color: '#f0ece4',
+      marginBottom: '12px',
+      letterSpacing: '-0.5px',
+    },
+    sectionSubtitle: {
+      textAlign: 'center',
+      color: '#6a6a7a',
+      fontSize: '16px',
+      marginBottom: '60px',
+      fontStyle: 'italic',
+    },
+    specialtiesGrid: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
+      gap: '20px',
+    },
+    specialtyCard: {
+      backgroundColor: cardBg,
+      border: '1px solid',
+      borderRadius: '12px',
+      padding: '28px 24px',
+      cursor: 'pointer',
+      transition: 'all 0.3s ease',
+    },
+    specialtyIcon: {
+      fontSize: '32px',
+      marginBottom: '14px',
+      display: 'block',
+    },
+    specialtyName: {
+      fontSize: '17px',
+      fontWeight: '500',
+      marginBottom: '10px',
+    },
+    specialtyDesc: {
+      fontSize: '13px',
+      lineHeight: '1.6',
+      color: '#7a7a8a',
+    },
+    tarifsGrid: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+      gap: '24px',
+      marginBottom: '20px',
+    },
+    tarifCard: {
+      backgroundColor: cardBg,
+      border: '1px solid',
+      borderRadius: '16px',
+      padding: '40px 32px',
+      textAlign: 'center',
+      cursor: 'pointer',
+      transition: 'all 0.3s ease',
+      position: 'relative',
+      overflow: 'hidden',
+    },
+    recommendedBadge: {
+      position: 'absolute',
+      top: '16px',
+      right: '16px',
+      backgroundColor: gold,
+      color: darkBg,
+      fontSize: '10px',
+      fontWeight: '700',
+      letterSpacing: '1.5px',
+      textTransform: 'uppercase' as const,
+      padding: '4px 12px',
+      borderRadius: '10px',
+    },
+    tarifName: {
+      fontSize: '14px',
+      letterSpacing: '2px',
+      textTransform: 'uppercase' as const,
+      marginBottom: '20px',
+      fontWeight: '400',
+    },
+    tarifPrice: {
+      fontSize: '56px',
+      fontWeight: '300',
+      lineHeight: '1',
+      marginBottom: '6px',
+    },
+    tarifEuro: {
+      fontSize: '24px',
+      verticalAlign: 'super',
+    },
+    tarifDuration: {
+      fontSize: '14px',
+      color: '#5a5a6a',
+      marginBottom: '32px',
+    },
+    tarifFeature: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '10px',
+      marginBottom: '12px',
+      fontSize: '14px',
+      color: '#9a9aaa',
+    },
+    featureDot: {
+      width: '6px',
+      height: '6px',
+      borderRadius: '50%',
+      flexShrink: 0,
+    },
+    tarifDivider: {
+      height: '1px',
+      backgroundColor: '#1a1a2e',
+      margin: '28px 0',
+    },
+    ctaButton: {
+      display: 'block',
+      width: '100%',
+      padding: '14px',
+      borderRadius: '8px',
+      border: '1px solid',
+      fontSize: '14px',
+      letterSpacing: '1.5px',
+      textTransform: 'uppercase' as const,
+      cursor: 'pointer',
+      fontFamily: 'inherit',
+      transition: 'all 0.3s ease',
+    },
+    packsSection: {
+      backgroundColor: '#080810',
+      borderTop: '1px solid #1a1a2e',
+      borderBottom: '1px solid #1a1a2e',
+    },
+    packsGrid: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+      gap: '28px',
+    },
+    packCard: {
+      backgroundColor: cardBg,
+      border: '1px solid',
+      borderRadius: '16px',
+      padding: '40px 36px',
+      cursor: 'pointer',
+      transition: 'all 0.3s ease',
+      position: 'relative',
+    },
+    packSessions: {
+      fontSize: '64px',
+      fontWeight: '200',
+      lineHeight: '1',
+      marginBottom: '4px',
+    },
+    packSessionsLabel: {
+      fontSize: '14px',
+      letterSpacing: '2px',
+      textTransform: 'uppercase' as const,
+      marginBottom: '20px',
+    },
+    packName: {
+      fontSize: '20px',
+      fontWeight: '400',
+      marginBottom: '10px',
+    },
+    packDesc: {
+      fontSize: '14px',
+      color: '#6a6a7a',
+      marginBottom: '30px',
+      lineHeight: '1.5',
+    },
+    packPriceRow: {
+      display: 'flex',
+      alignItems: 'baseline',
+      gap: '16px',
+      marginBottom: '10px',
+    },
+    packPrice: {
+      fontSize: '42px',
+      fontWeight: '300',
+    },
+    packSavings: {
+      fontSize: '13px',
+      color: '#4a8a4a',
+      backgroundColor: 'rgba(74, 138, 74, 0.1)',
+      padding: '4px 10px',
+      borderRadius: '6px',
+    },
+    packPerSession: {
+      fontSize: '13px',
+      color: '#5a5a6a',
+      marginBottom: '30px',
+    },
+    processSection: {
+      maxWidth: '900px',
+      margin: '0 auto',
+      padding: '80px 20px',
+      textAlign: 'center',
+    },
+    processSteps: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+      gap: '32px',
+      marginTop: '50px',
+    },
+    processStep: {
+      textAlign: 'center',
+    },
+    processNumber: {
+      width: '56px',
+      height: '56px',
+      borderRadius: '50%',
+      border: '1px solid rgba(200, 169, 110, 0.3)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      margin: '0 auto 20px',
+      fontSize: '20px',
+      fontWeight: '300',
+      color: gold,
+      backgroundColor: 'rgba(200, 169, 110, 0.05)',
+    },
+    processStepTitle: {
+      fontSize: '16px',
+      fontWeight: '500',
+      color: '#d0d0e0',
+      marginBottom: '10px',
+    },
+    processStepDesc: {
+      fontSize: '13px',
+      color: '#6a6a7a',
+      lineHeight: '1.6',
+    },
+    footer: {
+      textAlign: 'center',
+      padding: '60px 20px',
+      borderTop: '1px solid #1a1a2e',
+      color: '#4a4a5a',
+      fontSize: '13px',
+    },
+    footerGold: {
+      color: gold,
