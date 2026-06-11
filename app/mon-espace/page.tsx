@@ -1,4 +1,3 @@
-```tsx
 // app/espace-personnel/page.tsx
 'use client';
 
