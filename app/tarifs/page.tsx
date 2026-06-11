@@ -424,3 +424,4 @@ export default function TarifsPage() {
       padding: '30px 20px',
       textAlign: 'center' as const,
       fontSize: '13px',
+}}}
