@@ -1,384 +1,580 @@
-export default function VideoSessionPage({ params }: { params: { sessionId: string } }) {
-  const [sessionTime, setSessionTime] = React.useState(0);
-  const [isConnected, setIsConnected] = React.useState(false);
-  const [isMuted, setIsMuted] = React.useState(false);
-  const [isCameraOff, setIsCameraOff] = React.useState(false);
-  const [chatMessages, setChatMessages] = React.useState<Array<{ id: string; sender: string; text: string; time: string }>>([
-    { id: "1", sender: "IA", text: "Bonjour, je suis Dr. Aria. Comment vous sentez-vous aujourd'hui ?", time: "14:00" },
-  ]);
-  const [inputMessage, setInputMessage] = React.useState("");
-  const [sessionNotes, setSessionNotes] = React.useState("");
-  const [showReplay, setShowReplay] = React.useState(false);
-  const [sessionEnded, setSessionEnded] = React.useState(false);
-  const [isRecording, setIsRecording] = React.useState(false);
-  const timerRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
+export default async function SeanceLivePage({
+  params,
+}: {
+  params: { sessionId: string };
+}) {
+  const { createClient } = await import("@supabase/supabase-js");
 
-  React.useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsConnected(true);
-      setIsRecording(true);
-      timerRef.current = setInterval(() => {
-        setSessionTime((prev) => prev + 1);
-      }, 1000);
-    }, 2000);
-    return () => {
-      clearTimeout(timer);
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, []);
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL as string,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string
+  );
 
-  const formatTime = (seconds: number) => {
-    const h = Math.floor(seconds / 3600);
-    const m = Math.floor((seconds % 3600) / 60);
-    const s = seconds % 60;
-    return h > 0
-      ? `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`
-      : `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
-  };
+  const { data: session, error: sessionError } = await supabase
+    .from("live_sessions")
+    .select("*")
+    .eq("id", params.sessionId)
+    .single();
 
-  const handleSendMessage = () => {
-    if (!inputMessage.trim()) return;
-    const newMsg = {
-      id: Date.now().toString(),
-      sender: "Vous",
-      text: inputMessage,
-      time: new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }),
-    };
-    setChatMessages((prev) => [...prev, newMsg]);
-    setInputMessage("");
-    setTimeout(() => {
-      const responses = [
-        "Je comprends ce que vous ressentez. Pouvez-vous m'en dire plus ?",
-        "C'est une observation très pertinente. Comment cela vous affecte-t-il au quotidien ?",
-        "Nous allons explorer cela ensemble. Prenez votre temps.",
-        "Votre ressenti est tout à fait valide. Continuons sur cette voie.",
-      ];
-      const aiMsg = {
-        id: (Date.now() + 1).toString(),
-        sender: "IA",
-        text: responses[Math.floor(Math.random() * responses.length)],
-        time: new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }),
-      };
-      setChatMessages((prev) => [...prev, aiMsg]);
-    }, 1500);
-  };
-
-  const handleEndSession = () => {
-    if (timerRef.current) clearInterval(timerRef.current);
-    setSessionEnded(true);
-    setIsRecording(false);
-    setTimeout(() => setShowReplay(true), 1000);
-  };
-
-  if (sessionEnded) {
+  if (sessionError || !session) {
     return (
-      React.createElement("div", {
-        style: {
+      <div
+        style={{
           minHeight: "100vh",
           backgroundColor: "#050508",
-          color: "#ffffff",
-          fontFamily: "'Segoe UI', system-ui, sans-serif",
           display: "flex",
-          flexDirection: "column" as const,
           alignItems: "center",
           justifyContent: "center",
-          padding: "40px 20px",
-        }
-      },
-        React.createElement("div", {
-          style: {
-            width: "100%",
-            maxWidth: "900px",
-          }
-        },
-          React.createElement("div", {
-            style: {
-              textAlign: "center" as const,
-              marginBottom: "48px",
-            }
-          },
-            React.createElement("div", {
-              style: {
-                width: "80px",
-                height: "80px",
-                borderRadius: "50%",
-                background: "linear-gradient(135deg, #c8a96e, #e8c98e)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                margin: "0 auto 24px",
-                fontSize: "36px",
-              }
-            }, "✓"),
-            React.createElement("h1", {
-              style: {
-                fontSize: "32px",
-                fontWeight: "300",
-                color: "#c8a96e",
-                letterSpacing: "2px",
-                marginBottom: "8px",
-              }
-            }, "SÉANCE TERMINÉE"),
-            React.createElement("p", {
-              style: { color: "rgba(255,255,255,0.5)", fontSize: "14px" }
-            }, `Session ID: ${params.sessionId}`),
-            React.createElement("div", {
-              style: {
-                display: "inline-block",
-                marginTop: "16px",
-                padding: "8px 24px",
-                border: "1px solid rgba(200,169,110,0.3)",
-                borderRadius: "20px",
-                fontSize: "14px",
-                color: "#c8a96e",
-              }
-            }, `Durée totale : ${formatTime(sessionTime)}`)
-          ),
-
-          React.createElement("div", {
-            style: {
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr",
-              gap: "24px",
-              marginBottom: "32px",
-            }
-          },
-            React.createElement("div", {
-              style: {
-                background: "rgba(200,169,110,0.05)",
-                border: "1px solid rgba(200,169,110,0.15)",
-                borderRadius: "16px",
-                padding: "24px",
-              }
-            },
-              React.createElement("h3", {
-                style: {
-                  color: "#c8a96e",
-                  fontSize: "12px",
-                  letterSpacing: "2px",
-                  marginBottom: "16px",
-                  fontWeight: "600",
-                }
-              }, "INFORMATIONS SÉANCE"),
-              React.createElement("div", {
-                style: { display: "flex", flexDirection: "column" as const, gap: "12px" }
-              },
-                React.createElement("div", {
-                  style: { display: "flex", justifyContent: "space-between" }
-                },
-                  React.createElement("span", { style: { color: "rgba(255,255,255,0.5)", fontSize: "14px" } }, "Thérapeute IA"),
-                  React.createElement("span", { style: { color: "#ffffff", fontSize: "14px" } }, "Dr. Aria Luminos")
-                ),
-                React.createElement("div", {
-                  style: { display: "flex", justifyContent: "space-between" }
-                },
-                  React.createElement("span", { style: { color: "rgba(255,255,255,0.5)", fontSize: "14px" } }, "Spécialité"),
-                  React.createElement("span", { style: { color: "#ffffff", fontSize: "14px" } }, "Psychologie Cognitive")
-                ),
-                React.createElement("div", {
-                  style: { display: "flex", justifyContent: "space-between" }
-                },
-                  React.createElement("span", { style: { color: "rgba(255,255,255,0.5)", fontSize: "14px" } }, "Date"),
-                  React.createElement("span", { style: { color: "#ffffff", fontSize: "14px" } }, new Date().toLocaleDateString("fr-FR"))
-                ),
-                React.createElement("div", {
-                  style: { display: "flex", justifyContent: "space-between" }
-                },
-                  React.createElement("span", { style: { color: "rgba(255,255,255,0.5)", fontSize: "14px" } }, "Messages échangés"),
-                  React.createElement("span", { style: { color: "#ffffff", fontSize: "14px" } }, chatMessages.length)
-                )
-              )
-            ),
-
-            React.createElement("div", {
-              style: {
-                background: "rgba(200,169,110,0.05)",
-                border: "1px solid rgba(200,169,110,0.15)",
-                borderRadius: "16px",
-                padding: "24px",
-              }
-            },
-              React.createElement("h3", {
-                style: {
-                  color: "#c8a96e",
-                  fontSize: "12px",
-                  letterSpacing: "2px",
-                  marginBottom: "16px",
-                  fontWeight: "600",
-                }
-              }, "NOTES DE SÉANCE"),
-              sessionNotes ? (
-                React.createElement("p", {
-                  style: {
-                    color: "rgba(255,255,255,0.8)",
-                    fontSize: "14px",
-                    lineHeight: "1.6",
-                  }
-                }, sessionNotes)
-              ) : (
-                React.createElement("p", {
-                  style: { color: "rgba(255,255,255,0.3)", fontSize: "14px", fontStyle: "italic" }
-                }, "Aucune note prise durant la séance.")
-              )
-            )
-          ),
-
-          showReplay && (
-            React.createElement("div", {
-              style: {
-                background: "rgba(200,169,110,0.05)",
-                border: "1px solid rgba(200,169,110,0.15)",
-                borderRadius: "16px",
-                padding: "24px",
-                marginBottom: "32px",
-              }
-            },
-              React.createElement("h3", {
-                style: {
-                  color: "#c8a96e",
-                  fontSize: "12px",
-                  letterSpacing: "2px",
-                  marginBottom: "20px",
-                  fontWeight: "600",
-                }
-              }, "REPLAY DISPONIBLE"),
-              React.createElement("div", {
-                style: {
-                  background: "#0a0a10",
-                  borderRadius: "12px",
-                  aspectRatio: "16/9",
-                  display: "flex",
-                  flexDirection: "column" as const,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  border: "1px solid rgba(200,169,110,0.1)",
-                  cursor: "pointer",
-                  position: "relative" as const,
-                  overflow: "hidden",
-                }
-              },
-                React.createElement("div", {
-                  style: {
-                    position: "absolute" as const,
-                    inset: 0,
-                    background: "radial-gradient(circle at center, rgba(200,169,110,0.08) 0%, transparent 70%)",
-                  }
-                }),
-                React.createElement("div", {
-                  style: {
-                    width: "64px",
-                    height: "64px",
-                    borderRadius: "50%",
-                    background: "rgba(200,169,110,0.15)",
-                    border: "2px solid rgba(200,169,110,0.4)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: "24px",
-                    marginBottom: "16px",
-                    zIndex: 1,
-                  }
-                }, "▶"),
-                React.createElement("p", {
-                  style: {
-                    color: "rgba(255,255,255,0.6)",
-                    fontSize: "14px",
-                    zIndex: 1,
-                  }
-                }, "Cliquez pour visionner l'enregistrement"),
-                React.createElement("p", {
-                  style: {
-                    color: "rgba(200,169,110,0.5)",
-                    fontSize: "12px",
-                    marginTop: "8px",
-                    zIndex: 1,
-                  }
-                }, `Durée : ${formatTime(sessionTime)}`)
-              ),
-              React.createElement("div", {
-                style: {
-                  display: "flex",
-                  gap: "12px",
-                  marginTop: "16px",
-                }
-              },
-                React.createElement("button", {
-                  style: {
-                    flex: 1,
-                    padding: "12px",
-                    background: "rgba(200,169,110,0.1)",
-                    border: "1px solid rgba(200,169,110,0.3)",
-                    borderRadius: "8px",
-                    color: "#c8a96e",
-                    fontSize: "13px",
-                    cursor: "pointer",
-                    letterSpacing: "1px",
-                  }
-                }, "⬇ TÉLÉCHARGER"),
-                React.createElement("button", {
-                  style: {
-                    flex: 1,
-                    padding: "12px",
-                    background: "rgba(200,169,110,0.1)",
-                    border: "1px solid rgba(200,169,110,0.3)",
-                    borderRadius: "8px",
-                    color: "#c8a96e",
-                    fontSize: "13px",
-                    cursor: "pointer",
-                    letterSpacing: "1px",
-                  }
-                }, "📤 PARTAGER"),
-                React.createElement("button", {
-                  style: {
-                    flex: 1,
-                    padding: "12px",
-                    background: "rgba(200,169,110,0.1)",
-                    border: "1px solid rgba(200,169,110,0.3)",
-                    borderRadius: "8px",
-                    color: "#c8a96e",
-                    fontSize: "13px",
-                    cursor: "pointer",
-                    letterSpacing: "1px",
-                  }
-                }, "📋 TRANSCRIRE")
-              )
-            )
-          ),
-
-          React.createElement("div", {
-            style: { display: "flex", gap: "16px", justifyContent: "center" }
-          },
-            React.createElement("button", {
-              style: {
-                padding: "14px 32px",
-                background: "transparent",
-                border: "1px solid rgba(200,169,110,0.4)",
-                borderRadius: "8px",
-                color: "#c8a96e",
-                fontSize: "13px",
-                letterSpacing: "2px",
-                cursor: "pointer",
-              }
-            }, "NOUVELLE SÉANCE"),
-            React.createElement("button", {
-              style: {
-                padding: "14px 32px",
-                background: "linear-gradient(135deg, #c8a96e, #b8934e)",
-                border: "none",
-                borderRadius: "8px",
-                color: "#050508",
-                fontSize: "13px",
-                fontWeight: "700",
-                letterSpacing: "2px",
-                cursor: "pointer",
-              }
-            }, "TABLEAU DE BORD")
-          )
-        )
-      )
+          fontFamily: "'Inter', sans-serif",
+        }}
+      >
+        <div
+          style={{
+            backgroundColor: "#0d0d12",
+            border: "1px solid #c8a96e",
+            borderRadius: "16px",
+            padding: "48px",
+            textAlign: "center",
+            maxWidth: "480px",
+          }}
+        >
+          <div
+            style={{
+              fontSize: "48px",
+              marginBottom: "16px",
+            }}
+          >
+            ⚠️
+          </div>
+          <h2
+            style={{
+              color: "#c8a96e",
+              fontSize: "22px",
+              fontWeight: "700",
+              marginBottom: "12px",
+            }}
+          >
+            Session introuvable
+          </h2>
+          <p
+            style={{
+              color: "#6b6b80",
+              fontSize: "15px",
+              lineHeight: "1.6",
+            }}
+          >
+            La séance live demandée n&apos;existe pas ou a été supprimée. Veuillez
+            vérifier l&apos;identifiant de session.
+          </p>
+          <a
+            href="/dashboard"
+            style={{
+              display: "inline-block",
+              marginTop: "24px",
+              backgroundColor: "#c8a96e",
+              color: "#050508",
+              padding: "12px 28px",
+              borderRadius: "8px",
+              fontWeight: "700",
+              fontSize: "14px",
+              textDecoration: "none",
+            }}
+          >
+            Retour au tableau de bord
+          </a>
+        </div>
+      </div>
     );
   }
 
+  const { data: accessCheck, error: accessError } = await supabase
+    .from("session_enrollments")
+    .select("*")
+    .eq("session_id", params.sessionId)
+    .eq("learner_id", session.learner_id)
+    .single();
+
+  if (accessError || !accessCheck) {
+    return (
+      <div
+        style={{
+          minHeight: "100vh",
+          backgroundColor: "#050508",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontFamily: "'Inter', sans-serif",
+        }}
+      >
+        <div
+          style={{
+            backgroundColor: "#0d0d12",
+            border: "1px solid #c8a96e33",
+            borderRadius: "16px",
+            padding: "48px",
+            textAlign: "center",
+            maxWidth: "480px",
+          }}
+        >
+          <div
+            style={{
+              fontSize: "48px",
+              marginBottom: "16px",
+            }}
+          >
+            🔒
+          </div>
+          <h2
+            style={{
+              color: "#c8a96e",
+              fontSize: "22px",
+              fontWeight: "700",
+              marginBottom: "12px",
+            }}
+          >
+            Accès refusé
+          </h2>
+          <p
+            style={{
+              color: "#6b6b80",
+              fontSize: "15px",
+              lineHeight: "1.6",
+            }}
+          >
+            Vous n&apos;êtes pas autorisé à rejoindre cette séance live. Veuillez
+            contacter votre administrateur ou vous inscrire au programme.
+          </p>
+          <a
+            href="/dashboard"
+            style={{
+              display: "inline-block",
+              marginTop: "24px",
+              backgroundColor: "#c8a96e",
+              color: "#050508",
+              padding: "12px 28px",
+              borderRadius: "8px",
+              fontWeight: "700",
+              fontSize: "14px",
+              textDecoration: "none",
+            }}
+          >
+            Retour au tableau de bord
+          </a>
+        </div>
+      </div>
+    );
+  }
+
+  const { data: messages } = await supabase
+    .from("session_messages")
+    .select("*")
+    .eq("session_id", params.sessionId)
+    .order("created_at", { ascending: true })
+    .limit(50);
+
+  const chatMessages = messages || [];
+
+  const startedAt = new Date(session.started_at || Date.now());
+  const now = new Date();
+  const durationMinutes = Math.floor(
+    (now.getTime() - startedAt.getTime()) / 60000
+  );
+
   return (
-    React.createElement("div", {
-      style:
+    <div
+      style={{
+        minHeight: "100vh",
+        backgroundColor: "#050508",
+        fontFamily: "'Inter', sans-serif",
+        display: "flex",
+        flexDirection: "column",
+      }}
+    >
+      <header
+        style={{
+          backgroundColor: "#0a0a0f",
+          borderBottom: "1px solid #c8a96e22",
+          padding: "0 32px",
+          height: "68px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          position: "sticky",
+          top: 0,
+          zIndex: 100,
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "12px",
+          }}
+        >
+          <div
+            style={{
+              width: "36px",
+              height: "36px",
+              borderRadius: "10px",
+              background: "linear-gradient(135deg, #c8a96e, #e8c98e)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: "18px",
+            }}
+          >
+            🎓
+          </div>
+          <span
+            style={{
+              color: "#c8a96e",
+              fontWeight: "800",
+              fontSize: "18px",
+              letterSpacing: "-0.3px",
+            }}
+          >
+            AcadémIA Pro
+          </span>
+          <span
+            style={{
+              color: "#3a3a4a",
+              fontSize: "18px",
+            }}
+          >
+            /
+          </span>
+          <span
+            style={{
+              color: "#8888a0",
+              fontSize: "14px",
+            }}
+          >
+            Séance Live
+          </span>
+        </div>
+
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "20px",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              backgroundColor: "#0d0d12",
+              border: "1px solid #c8a96e33",
+              borderRadius: "8px",
+              padding: "8px 16px",
+            }}
+          >
+            <div
+              style={{
+                width: "8px",
+                height: "8px",
+                borderRadius: "50%",
+                backgroundColor: "#22c55e",
+                boxShadow: "0 0 8px #22c55e",
+              }}
+            />
+            <span
+              style={{
+                color: "#c8a96e",
+                fontSize: "13px",
+                fontWeight: "600",
+              }}
+            >
+              En direct
+            </span>
+          </div>
+
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              color: "#6b6b80",
+              fontSize: "13px",
+            }}
+          >
+            <span>⏱</span>
+            <span>{durationMinutes} min</span>
+          </div>
+        </div>
+      </header>
+
+      <div
+        style={{
+          flex: 1,
+          display: "flex",
+          maxWidth: "1400px",
+          width: "100%",
+          margin: "0 auto",
+          padding: "32px",
+          gap: "28px",
+        }}
+      >
+        <aside
+          style={{
+            width: "300px",
+            flexShrink: 0,
+            display: "flex",
+            flexDirection: "column",
+            gap: "20px",
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: "#0a0a0f",
+              border: "1px solid #c8a96e22",
+              borderRadius: "16px",
+              padding: "28px",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: "16px",
+            }}
+          >
+            <div
+              style={{
+                position: "relative",
+              }}
+            >
+              <div
+                style={{
+                  width: "100px",
+                  height: "100px",
+                  borderRadius: "50%",
+                  background:
+                    "linear-gradient(135deg, #c8a96e22, #c8a96e44)",
+                  border: "2px solid #c8a96e",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: "42px",
+                  boxShadow: "0 0 32px #c8a96e22",
+                }}
+              >
+                🤖
+              </div>
+              <div
+                style={{
+                  position: "absolute",
+                  bottom: "4px",
+                  right: "4px",
+                  width: "18px",
+                  height: "18px",
+                  borderRadius: "50%",
+                  backgroundColor: "#22c55e",
+                  border: "2px solid #0a0a0f",
+                  boxShadow: "0 0 8px #22c55e",
+                }}
+              />
+            </div>
+
+            <div
+              style={{
+                textAlign: "center",
+              }}
+            >
+              <h3
+                style={{
+                  color: "#e8e8f0",
+                  fontSize: "16px",
+                  fontWeight: "700",
+                  margin: "0 0 4px 0",
+                }}
+              >
+                ARIA
+              </h3>
+              <p
+                style={{
+                  color: "#c8a96e",
+                  fontSize: "12px",
+                  fontWeight: "600",
+                  margin: "0 0 8px 0",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.8px",
+                }}
+              >
+                IA Pédagogique
+              </p>
+              <p
+                style={{
+                  color: "#6b6b80",
+                  fontSize: "12px",
+                  margin: 0,
+                  lineHeight: "1.5",
+                }}
+              >
+                Votre tuteur personnel disponible 24h/24 pour vous accompagner
+              </p>
+            </div>
+
+            <div
+              style={{
+                width: "100%",
+                backgroundColor: "#050508",
+                borderRadius: "10px",
+                padding: "12px 16px",
+                display: "flex",
+                alignItems: "center",
+                gap: "10px",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  gap: "3px",
+                  alignItems: "center",
+                }}
+              >
+                <div
+                  style={{
+                    width: "3px",
+                    height: "12px",
+                    backgroundColor: "#c8a96e",
+                    borderRadius: "2px",
+                    opacity: 0.6,
+                  }}
+                />
+                <div
+                  style={{
+                    width: "3px",
+                    height: "20px",
+                    backgroundColor: "#c8a96e",
+                    borderRadius: "2px",
+                  }}
+                />
+                <div
+                  style={{
+                    width: "3px",
+                    height: "14px",
+                    backgroundColor: "#c8a96e",
+                    borderRadius: "2px",
+                    opacity: 0.8,
+                  }}
+                />
+                <div
+                  style={{
+                    width: "3px",
+                    height: "8px",
+                    backgroundColor: "#c8a96e",
+                    borderRadius: "2px",
+                    opacity: 0.5,
+                  }}
+                />
+                <div
+                  style={{
+                    width: "3px",
+                    height: "18px",
+                    backgroundColor: "#c8a96e",
+                    borderRadius: "2px",
+                    opacity: 0.9,
+                  }}
+                />
+              </div>
+              <span
+                style={{
+                  color: "#8888a0",
+                  fontSize: "12px",
+                }}
+              >
+                ARIA écoute...
+              </span>
+            </div>
+          </div>
+
+          <div
+            style={{
+              backgroundColor: "#0a0a0f",
+              border: "1px solid #c8a96e22",
+              borderRadius: "16px",
+              padding: "20px",
+            }}
+          >
+            <h4
+              style={{
+                color: "#c8a96e",
+                fontSize: "12px",
+                fontWeight: "700",
+                textTransform: "uppercase",
+                letterSpacing: "0.8px",
+                margin: "0 0 16px 0",
+              }}
+            >
+              Infos de session
+            </h4>
+
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "12px",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}
+              >
+                <span
+                  style={{
+                    color: "#6b6b80",
+                    fontSize: "13px",
+                  }}
+                >
+                  Sujet
+                </span>
+                <span
+                  style={{
+                    color: "#e8e8f0",
+                    fontSize: "13px",
+                    fontWeight: "600",
+                  }}
+                >
+                  {session.topic || "Général"}
+                </span>
+              </div>
+
+              <div
+                style={{
+                  height: "1px",
+                  backgroundColor: "#c8a96e11",
+                }}
+              />
+
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}
+              >
+                <span
+                  style={{
+                    color: "#6b6b80",
+                    fontSize: "13px",
+                  }}
+                >
+                  Niveau
+                </span>
+                <span
+                  style={{
+                    color: "#e8e8f0",
+                    fontSize: "13px",
+                    fontWeight: "600",
+                  }}
+                >
+                  {session.level || "Intermédiaire"}
+                </span>
+              </div>
+
+              <div
+                style={{
+                  height: "
