@@ -1,11 +1,447 @@
 export default function HoldingDashboard() {
-  return (
-    <div style={{ minHeight: "100vh", background: "#050508", color: "#fff", fontFamily: "Georgia, serif", display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <div style={{ textAlign: "center" }}>
-        <p style={{ color: "#c8a96e", fontSize: "12px", letterSpacing: "3px", margin: "0 0 16px" }}>ACADEMIAPRO</p>
-        <h1 style={{ color: "#fff", fontSize: "28px", margin: "0 0 12px" }}>AcadémIA Pro</h1>
-        <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "14px" }}>Dashboard en cours de configuration</p>
-      </div>
-    </div>
-  )
-}
+  const styles: Record<string, React.CSSProperties> = {
+    page: {
+      backgroundColor: "#050508",
+      minHeight: "100vh",
+      fontFamily: "'Segoe UI', system-ui, -apple-system, sans-serif",
+      color: "#e8e0d0",
+      padding: "32px 24px",
+    },
+    header: {
+      textAlign: "center",
+      marginBottom: "48px",
+    },
+    headerTitle: {
+      fontSize: "28px",
+      fontWeight: "700",
+      color: "#c8a96e",
+      letterSpacing: "2px",
+      textTransform: "uppercase" as const,
+      margin: "0 0 8px 0",
+    },
+    headerSubtitle: {
+      fontSize: "13px",
+      color: "#8a7a65",
+      letterSpacing: "3px",
+      textTransform: "uppercase" as const,
+      margin: "0",
+    },
+    headerLine: {
+      width: "120px",
+      height: "1px",
+      backgroundColor: "#c8a96e",
+      margin: "16px auto 0 auto",
+      opacity: 0.5,
+    },
+    grid2: {
+      display: "grid",
+      gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))",
+      gap: "24px",
+      marginBottom: "24px",
+    },
+    grid3: {
+      display: "grid",
+      gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+      gap: "24px",
+      marginBottom: "24px",
+    },
+    card: {
+      backgroundColor: "#0d0d14",
+      border: "1px solid #1e1e2e",
+      borderRadius: "12px",
+      padding: "28px",
+      position: "relative" as const,
+      overflow: "hidden" as const,
+    },
+    cardAccent: {
+      position: "absolute" as const,
+      top: "0",
+      left: "0",
+      right: "0",
+      height: "2px",
+      backgroundColor: "#c8a96e",
+    },
+    cardTitle: {
+      fontSize: "11px",
+      fontWeight: "600",
+      color: "#c8a96e",
+      letterSpacing: "2px",
+      textTransform: "uppercase" as const,
+      margin: "0 0 20px 0",
+    },
+    cardTitleSecondary: {
+      fontSize: "11px",
+      fontWeight: "600",
+      color: "#6a7a8a",
+      letterSpacing: "2px",
+      textTransform: "uppercase" as const,
+      margin: "0 0 20px 0",
+    },
+    entityName: {
+      fontSize: "20px",
+      fontWeight: "700",
+      color: "#ffffff",
+      margin: "0 0 4px 0",
+    },
+    entitySub: {
+      fontSize: "12px",
+      color: "#5a5a7a",
+      margin: "0 0 24px 0",
+    },
+    statusRow: {
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginBottom: "12px",
+    },
+    statusLabel: {
+      fontSize: "13px",
+      color: "#8a8aaa",
+    },
+    statusValue: {
+      fontSize: "13px",
+      fontWeight: "600",
+      color: "#e8e0d0",
+    },
+    badgeGreen: {
+      backgroundColor: "rgba(34, 197, 94, 0.12)",
+      color: "#22c55e",
+      border: "1px solid rgba(34, 197, 94, 0.25)",
+      borderRadius: "20px",
+      padding: "3px 10px",
+      fontSize: "11px",
+      fontWeight: "600",
+      letterSpacing: "0.5px",
+    },
+    badgeGold: {
+      backgroundColor: "rgba(200, 169, 110, 0.12)",
+      color: "#c8a96e",
+      border: "1px solid rgba(200, 169, 110, 0.25)",
+      borderRadius: "20px",
+      padding: "3px 10px",
+      fontSize: "11px",
+      fontWeight: "600",
+    },
+    badgeBlue: {
+      backgroundColor: "rgba(99, 179, 237, 0.12)",
+      color: "#63b3ed",
+      border: "1px solid rgba(99, 179, 237, 0.25)",
+      borderRadius: "20px",
+      padding: "3px 10px",
+      fontSize: "11px",
+      fontWeight: "600",
+    },
+    bigNumber: {
+      fontSize: "36px",
+      fontWeight: "700",
+      color: "#c8a96e",
+      letterSpacing: "-1px",
+      lineHeight: "1",
+    },
+    bigNumberLabel: {
+      fontSize: "11px",
+      color: "#5a5a7a",
+      marginTop: "4px",
+      letterSpacing: "1px",
+      textTransform: "uppercase" as const,
+    },
+    divider: {
+      height: "1px",
+      backgroundColor: "#1e1e2e",
+      margin: "16px 0",
+    },
+    ownershipContainer: {
+      marginTop: "20px",
+    },
+    ownershipRow: {
+      display: "flex",
+      alignItems: "center",
+      marginBottom: "12px",
+      gap: "12px",
+    },
+    ownershipName: {
+      fontSize: "12px",
+      color: "#8a8aaa",
+      width: "120px",
+      flexShrink: 0,
+    },
+    ownershipBarBg: {
+      flex: 1,
+      height: "6px",
+      backgroundColor: "#1a1a2e",
+      borderRadius: "3px",
+      overflow: "hidden" as const,
+    },
+    ownershipBarFill95: {
+      height: "100%",
+      width: "95%",
+      backgroundColor: "#c8a96e",
+      borderRadius: "3px",
+    },
+    ownershipBarFill5: {
+      height: "100%",
+      width: "5%",
+      backgroundColor: "#4a6a8a",
+      borderRadius: "3px",
+    },
+    ownershipPct: {
+      fontSize: "12px",
+      fontWeight: "700",
+      color: "#c8a96e",
+      width: "36px",
+      textAlign: "right" as const,
+    },
+    ownershipPctBlue: {
+      fontSize: "12px",
+      fontWeight: "700",
+      color: "#63b3ed",
+      width: "36px",
+      textAlign: "right" as const,
+    },
+    fluxCard: {
+      backgroundColor: "#0d0d14",
+      border: "1px solid #1e1e2e",
+      borderRadius: "12px",
+      padding: "28px",
+      marginBottom: "24px",
+      position: "relative" as const,
+      overflow: "hidden" as const,
+    },
+    fluxRow: {
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      padding: "14px 16px",
+      backgroundColor: "#080810",
+      borderRadius: "8px",
+      marginBottom: "10px",
+      border: "1px solid #16162a",
+    },
+    fluxLeft: {
+      display: "flex",
+      alignItems: "center",
+      gap: "12px",
+    },
+    fluxIcon: {
+      width: "36px",
+      height: "36px",
+      borderRadius: "8px",
+      backgroundColor: "rgba(200, 169, 110, 0.1)",
+      border: "1px solid rgba(200, 169, 110, 0.2)",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      fontSize: "16px",
+    },
+    fluxName: {
+      fontSize: "13px",
+      fontWeight: "600",
+      color: "#e8e0d0",
+      margin: "0 0 2px 0",
+    },
+    fluxDesc: {
+      fontSize: "11px",
+      color: "#5a5a7a",
+      margin: "0",
+    },
+    fluxRight: {
+      textAlign: "right" as const,
+    },
+    fluxPct: {
+      fontSize: "18px",
+      fontWeight: "700",
+      color: "#c8a96e",
+    },
+    fluxAmount: {
+      fontSize: "11px",
+      color: "#5a5a7a",
+    },
+    totalFlux: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      padding: "14px 16px",
+      backgroundColor: "rgba(200, 169, 110, 0.06)",
+      borderRadius: "8px",
+      border: "1px solid rgba(200, 169, 110, 0.2)",
+      marginTop: "16px",
+    },
+    totalFluxLabel: {
+      fontSize: "12px",
+      fontWeight: "600",
+      color: "#c8a96e",
+      letterSpacing: "1px",
+      textTransform: "uppercase" as const,
+    },
+    totalFluxValue: {
+      fontSize: "20px",
+      fontWeight: "700",
+      color: "#c8a96e",
+    },
+    optimCard: {
+      backgroundColor: "#0d0d14",
+      border: "1px solid #1e1e2e",
+      borderRadius: "12px",
+      padding: "28px",
+      marginBottom: "24px",
+      position: "relative" as const,
+      overflow: "hidden" as const,
+    },
+    optimGrid: {
+      display: "grid",
+      gridTemplateColumns: "1fr 1fr",
+      gap: "16px",
+      marginBottom: "20px",
+    },
+    optimBox: {
+      padding: "20px",
+      borderRadius: "8px",
+      backgroundColor: "#080810",
+      border: "1px solid #16162a",
+    },
+    optimBoxHighlight: {
+      padding: "20px",
+      borderRadius: "8px",
+      backgroundColor: "rgba(200, 169, 110, 0.04)",
+      border: "1px solid rgba(200, 169, 110, 0.2)",
+    },
+    optimBoxLabel: {
+      fontSize: "10px",
+      letterSpacing: "2px",
+      textTransform: "uppercase" as const,
+      color: "#5a5a7a",
+      marginBottom: "12px",
+    },
+    optimBoxLabelGold: {
+      fontSize: "10px",
+      letterSpacing: "2px",
+      textTransform: "uppercase" as const,
+      color: "#c8a96e",
+      marginBottom: "12px",
+    },
+    optimRow: {
+      display: "flex",
+      justifyContent: "space-between",
+      marginBottom: "8px",
+    },
+    optimRowLabel: {
+      fontSize: "12px",
+      color: "#6a6a8a",
+    },
+    optimRowValue: {
+      fontSize: "12px",
+      fontWeight: "600",
+      color: "#e8e0d0",
+    },
+    optimRowValueRed: {
+      fontSize: "12px",
+      fontWeight: "600",
+      color: "#f87171",
+    },
+    optimDivider: {
+      height: "1px",
+      backgroundColor: "#1e1e2e",
+      margin: "10px 0",
+    },
+    economieBox: {
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      padding: "20px 24px",
+      backgroundColor: "rgba(34, 197, 94, 0.06)",
+      border: "1px solid rgba(34, 197, 94, 0.2)",
+      borderRadius: "10px",
+    },
+    economieLeft: {},
+    economieTitle: {
+      fontSize: "11px",
+      letterSpacing: "2px",
+      textTransform: "uppercase" as const,
+      color: "#22c55e",
+      marginBottom: "4px",
+    },
+    economieDesc: {
+      fontSize: "12px",
+      color: "#5a5a7a",
+    },
+    economieAmount: {
+      fontSize: "40px",
+      fontWeight: "700",
+      color: "#22c55e",
+      letterSpacing: "-1px",
+    },
+    footer: {
+      textAlign: "center",
+      marginTop: "48px",
+      paddingTop: "24px",
+      borderTop: "1px solid #1e1e2e",
+    },
+    footerText: {
+      fontSize: "11px",
+      color: "#3a3a5a",
+      letterSpacing: "1px",
+    },
+    structureArrow: {
+      display: "flex",
+      flexDirection: "column" as const,
+      alignItems: "center",
+      margin: "8px 0",
+    },
+    arrowLine: {
+      width: "1px",
+      height: "20px",
+      backgroundColor: "#c8a96e",
+      opacity: 0.4,
+    },
+    arrowHead: {
+      width: "0",
+      height: "0",
+      borderLeft: "4px solid transparent",
+      borderRight: "4px solid transparent",
+      borderTop: "6px solid #c8a96e",
+      opacity: 0.4,
+    },
+    metricRow: {
+      display: "flex",
+      gap: "16px",
+      marginBottom: "8px",
+    },
+    metricBox: {
+      flex: 1,
+      padding: "14px",
+      backgroundColor: "#080810",
+      borderRadius: "8px",
+      border: "1px solid #16162a",
+      textAlign: "center" as const,
+    },
+    metricValue: {
+      fontSize: "22px",
+      fontWeight: "700",
+      color: "#c8a96e",
+    },
+    metricLabel: {
+      fontSize: "10px",
+      color: "#5a5a7a",
+      letterSpacing: "1px",
+      textTransform: "uppercase" as const,
+      marginTop: "4px",
+    },
+  };
+
+  const caMonth = 148500;
+  const licenceFee = caMonth * 0.05;
+  const techFee = caMonth * 0.10;
+  const mgmtFee = caMonth * 0.03;
+  const totalFlux = licenceFee + techFee + mgmtFee;
+  const fluxAnnuel = totalFlux * 12;
+
+  const isSansMontage = caMonth * 12 * 0.25;
+  const chargesDeductibles = fluxAnnuel;
+  const baseImposableAvec = (caMonth * 12 - chargesDeductibles) * 0.15;
+  const economieAnnuelle = isSansMontage - baseImposableAvec;
+
+  const formatEur = (n: number) =>
+    new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n);
+
+  const formatPct = (n: number) =>
+    new Intl.NumberFormat("fr-FR", { style: "percent", minimumFractionDigits: 1 }).format(n
