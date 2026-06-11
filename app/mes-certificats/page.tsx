@@ -1,375 +1,466 @@
-export default function CertificatsPage() {
-  const [selectedCert, setSelectedCert] = React.useState<number | null>(null);
-  const [showQR, setShowQR] = React.useState<number | null>(null);
-  const [copied, setCopied] = React.useState<number | null>(null);
+export default async function MesCertificatsPage() {
+  const { createClient } = await import("@supabase/supabase-js");
 
-  const certifications = [
-    {
-      id: 1,
-      level: "Master",
-      levelIndex: 4,
-      title: "Master IA Générative",
-      description: "Maîtrise avancée des modèles génératifs et architectures transformer",
-      date: "15 Mars 2024",
-      score: 98,
-      credentialId: "AIA-MST-2024-0047",
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL as string,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string
+  );
+
+  const { data: certificats, error } = await supabase
+    .from("certificats")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  const niveauConfig: Record<
+    string,
+    { label: string; color: string; bg: string; icon: string; rank: number }
+  > = {
+    attestation: {
+      label: "Attestation",
+      color: "#a0aec0",
+      bg: "rgba(160,174,192,0.1)",
+      icon: "◈",
+      rank: 1,
+    },
+    certificat: {
+      label: "Certificat",
       color: "#c8a96e",
-      badgeIcon: "◆",
-      skills: ["GPT Architecture", "Fine-tuning", "RLHF", "Deployment", "Ethics"],
-      verified: true,
+      bg: "rgba(200,169,110,0.1)",
+      icon: "◆",
+      rank: 2,
     },
-    {
-      id: 2,
-      level: "Expert",
-      levelIndex: 3,
-      title: "Expert Machine Learning",
-      description: "Expertise approfondie en algorithmes ML et pipelines de données",
-      date: "02 Janvier 2024",
-      score: 94,
-      credentialId: "AIA-EXP-2024-0128",
-      color: "#a78bfa",
-      badgeIcon: "★",
-      skills: ["Supervised Learning", "Neural Networks", "MLOps", "AutoML"],
-      verified: true,
+    expert: {
+      label: "Expert",
+      color: "#e8c87e",
+      bg: "rgba(232,200,126,0.12)",
+      icon: "❋",
+      rank: 3,
     },
-    {
-      id: 3,
-      level: "Certificat",
-      levelIndex: 2,
-      title: "Certificat Deep Learning",
-      description: "Conception et entraînement de réseaux de neurones profonds",
-      date: "18 Octobre 2023",
-      score: 91,
-      credentialId: "AIA-CERT-2023-0394",
-      color: "#34d399",
-      badgeIcon: "▲",
-      skills: ["CNN", "RNN", "Transformers", "PyTorch"],
-      verified: true,
+    master: {
+      label: "Master",
+      color: "#f0d090",
+      bg: "rgba(240,208,144,0.15)",
+      icon: "✦",
+      rank: 4,
     },
-    {
-      id: 4,
-      level: "Attestation",
-      levelIndex: 1,
-      title: "Attestation Python IA",
-      description: "Fondamentaux Python appliqués à l'intelligence artificielle",
-      date: "05 Juillet 2023",
-      score: 88,
-      credentialId: "AIA-ATT-2023-0891",
-      color: "#60a5fa",
-      badgeIcon: "●",
-      skills: ["NumPy", "Pandas", "Scikit-learn", "Matplotlib"],
-      verified: true,
-    },
-  ];
-
-  const nextCertification = {
-    title: "Master Vision par Ordinateur",
-    level: "Master",
-    progress: 73,
-    modulesCompleted: 11,
-    totalModules: 15,
-    estimatedDate: "Juin 2024",
-    remainingModules: [
-      { name: "Segmentation Sémantique", progress: 90 },
-      { name: "Détection d'Objets 3D", progress: 45 },
-      { name: "Video Understanding", progress: 20 },
-      { name: "Projet Final", progress: 0 },
-    ],
   };
 
-  const levels = [
-    { name: "Attestation", icon: "●", color: "#60a5fa", description: "Fondamentaux" },
-    { name: "Certificat", icon: "▲", color: "#34d399", description: "Intermédiaire" },
-    { name: "Expert", icon: "★", color: "#a78bfa", description: "Avancé" },
-    { name: "Master", icon: "◆", color: "#c8a96e", description: "Excellence" },
-  ];
-
-  const handleDownloadPDF = (cert: typeof certifications[0]) => {
-    const content = `ACADÉMIA PRO - CERTIFICAT OFFICIEL\n\n${cert.title}\nNiveau: ${cert.level}\nTitulaire: Alexandre Martin\nDate: ${cert.date}\nScore: ${cert.score}%\nID: ${cert.credentialId}\nVérification: https://academia.pro/verify/${cert.credentialId}`;
-    const blob = new Blob([content], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `Certificat_${cert.credentialId}.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
+  const mentionConfig: Record<
+    string,
+    { label: string; color: string; bg: string }
+  > = {
+    passable: {
+      label: "Passable",
+      color: "#a0aec0",
+      bg: "rgba(160,174,192,0.12)",
+    },
+    assez_bien: {
+      label: "Assez Bien",
+      color: "#68d391",
+      bg: "rgba(104,211,145,0.12)",
+    },
+    bien: { label: "Bien", color: "#4fd1c7", bg: "rgba(79,209,199,0.12)" },
+    tres_bien: {
+      label: "Très Bien",
+      color: "#c8a96e",
+      bg: "rgba(200,169,110,0.12)",
+    },
+    excellent: {
+      label: "Excellent",
+      color: "#f0d090",
+      bg: "rgba(240,208,144,0.15)",
+    },
+    felicitations: {
+      label: "Félicitations",
+      color: "#fbd38d",
+      bg: "rgba(251,211,141,0.18)",
+    },
   };
 
-  const handleLinkedIn = (cert: typeof certifications[0]) => {
-    const url = `https://www.linkedin.com/profile/add?startTask=CERTIFICATION_NAME&name=${encodeURIComponent(cert.title)}&organizationName=AcadémIA+Pro&issueYear=2024&certUrl=https://academia.pro/verify/${cert.credentialId}&certId=${cert.credentialId}`;
-    window.open(url, "_blank");
+  const formatDate = (dateStr: string) => {
+    if (!dateStr) return "—";
+    const d = new Date(dateStr);
+    return d.toLocaleDateString("fr-FR", {
+      day: "2-digit",
+      month: "long",
+      year: "numeric",
+    });
   };
 
-  const handleCopyId = (id: number, credentialId: string) => {
-    navigator.clipboard.writeText(`https://academia.pro/verify/${credentialId}`);
-    setCopied(id);
-    setTimeout(() => setCopied(null), 2000);
+  const getLinkedInUrl = (cert: {
+    formation?: string;
+    niveau?: string;
+    date_obtention?: string;
+    id?: string;
+  }) => {
+    const params = new URLSearchParams({
+      startTask: "CERTIFICATION_NAME",
+      name: cert.formation || "Formation AcadémIA Pro",
+      organizationName: "AcadémIA Pro",
+      issueYear: cert.date_obtention
+        ? new Date(cert.date_obtention).getFullYear().toString()
+        : new Date().getFullYear().toString(),
+      issueMonth: cert.date_obtention
+        ? (new Date(cert.date_obtention).getMonth() + 1).toString()
+        : "1",
+      certUrl: `https://academia.pro/certificats/${cert.id}`,
+      certId: cert.id || "",
+    });
+    return `https://www.linkedin.com/profile/add?${params.toString()}`;
   };
+
+  const statsParNiveau = Object.keys(niveauConfig).map((key) => ({
+    key,
+    count: certificats
+      ? certificats.filter(
+          (c: { niveau?: string }) =>
+            (c.niveau || "").toLowerCase() === key.toLowerCase()
+        ).length
+      : 0,
+    ...niveauConfig[key],
+  }));
 
   return (
-    <div style={{
-      minHeight: "100vh",
-      backgroundColor: "#050508",
-      fontFamily: "'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif",
-      color: "#ffffff",
-      padding: "0",
-      margin: "0",
-    }}>
-      <div style={{
-        maxWidth: "1200px",
-        margin: "0 auto",
-        padding: "40px 24px",
-      }}>
-
-        <div style={{
-          marginBottom: "48px",
-          position: "relative",
-        }}>
-          <div style={{
-            position: "absolute",
-            top: "-20px",
-            left: "-20px",
-            width: "200px",
-            height: "200px",
-            background: "radial-gradient(circle, rgba(200,169,110,0.08) 0%, transparent 70%)",
-            pointerEvents: "none",
-          }} />
-          <div style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "16px",
-            marginBottom: "8px",
-          }}>
-            <div style={{
-              width: "48px",
-              height: "48px",
-              background: "linear-gradient(135deg, #c8a96e, #e8c98e)",
-              borderRadius: "12px",
+    <div
+      style={{
+        minHeight: "100vh",
+        backgroundColor: "#050508",
+        fontFamily:
+          "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+        color: "#e2e8f0",
+        padding: "0",
+        margin: "0",
+      }}
+    >
+      <div
+        style={{
+          maxWidth: "1200px",
+          margin: "0 auto",
+          padding: "48px 24px 80px",
+        }}
+      >
+        <div
+          style={{
+            marginBottom: "56px",
+          }}
+        >
+          <div
+            style={{
               display: "flex",
               alignItems: "center",
-              justifyContent: "center",
-              fontSize: "24px",
-            }}>
-              🎓
+              gap: "16px",
+              marginBottom: "16px",
+            }}
+          >
+            <div
+              style={{
+                width: "52px",
+                height: "52px",
+                background:
+                  "linear-gradient(135deg, rgba(200,169,110,0.25) 0%, rgba(200,169,110,0.08) 100%)",
+                border: "1px solid rgba(200,169,110,0.4)",
+                borderRadius: "14px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: "24px",
+              }}
+            >
+              🏆
             </div>
             <div>
-              <h1 style={{
-                margin: "0",
-                fontSize: "32px",
-                fontWeight: "800",
-                background: "linear-gradient(135deg, #c8a96e 0%, #e8c98e 50%, #c8a96e 100%)",
-                WebkitBackgroundClip: "text",
-                WebkitTextFillColor: "transparent",
-                backgroundClip: "text",
-                letterSpacing: "-0.5px",
-              }}>
+              <div
+                style={{
+                  fontSize: "11px",
+                  fontWeight: "600",
+                  letterSpacing: "3px",
+                  textTransform: "uppercase" as const,
+                  color: "#c8a96e",
+                  marginBottom: "4px",
+                }}
+              >
+                AcadémIA Pro
+              </div>
+              <h1
+                style={{
+                  fontSize: "32px",
+                  fontWeight: "700",
+                  margin: "0",
+                  background: "linear-gradient(135deg, #f0d090 0%, #c8a96e 100%)",
+                  WebkitBackgroundClip: "text",
+                  WebkitTextFillColor: "transparent",
+                  backgroundClip: "text",
+                  lineHeight: "1.2",
+                }}
+              >
                 Mes Certificats
               </h1>
-              <p style={{
-                margin: "2px 0 0 0",
-                fontSize: "14px",
-                color: "#6b7280",
-                letterSpacing: "0.5px",
-              }}>
-                AcadémIA Pro · Parcours certifié
-              </p>
             </div>
           </div>
 
-          <div style={{
-            display: "flex",
-            gap: "24px",
-            marginTop: "32px",
-            flexWrap: "wrap",
-          }}>
-            {[
-              { label: "Certifications obtenues", value: "4", icon: "🏆" },
-              { label: "Score moyen", value: "92.8%", icon: "📊" },
-              { label: "Heures de formation", value: "847h", icon: "⏱️" },
-              { label: "Niveau maximum", value: "Master", icon: "◆" },
-            ].map((stat, i) => (
-              <div key={i} style={{
-                flex: "1",
-                minWidth: "140px",
-                background: "linear-gradient(135deg, rgba(200,169,110,0.06) 0%, rgba(200,169,110,0.02) 100%)",
-                border: "1px solid rgba(200,169,110,0.15)",
-                borderRadius: "16px",
-                padding: "20px",
-                backdropFilter: "blur(10px)",
-              }}>
-                <div style={{ fontSize: "20px", marginBottom: "8px" }}>{stat.icon}</div>
-                <div style={{
-                  fontSize: "26px",
-                  fontWeight: "800",
-                  color: "#c8a96e",
-                  lineHeight: "1",
-                  marginBottom: "4px",
-                }}>
-                  {stat.value}
-                </div>
-                <div style={{
-                  fontSize: "12px",
-                  color: "#6b7280",
-                  fontWeight: "500",
-                }}>
-                  {stat.label}
-                </div>
-              </div>
-            ))}
-          </div>
+          <p
+            style={{
+              fontSize: "15px",
+              color: "#718096",
+              margin: "0 0 0 68px",
+              lineHeight: "1.6",
+            }}
+          >
+            Retrouvez l&apos;ensemble de vos certifications, téléchargez vos PDFs
+            et partagez vos accomplissements.
+          </p>
+
+          <div
+            style={{
+              height: "1px",
+              background:
+                "linear-gradient(90deg, transparent 0%, rgba(200,169,110,0.3) 30%, rgba(200,169,110,0.3) 70%, transparent 100%)",
+              marginTop: "32px",
+            }}
+          />
         </div>
 
-        <div style={{
-          marginBottom: "48px",
-        }}>
-          <h2 style={{
-            margin: "0 0 24px 0",
-            fontSize: "13px",
-            fontWeight: "700",
-            color: "#c8a96e",
-            letterSpacing: "2px",
-            textTransform: "uppercase",
-          }}>
-            Échelle de certification
-          </h2>
-          <div style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "0",
-            position: "relative",
-          }}>
-            <div style={{
-              position: "absolute",
-              top: "24px",
-              left: "48px",
-              right: "48px",
-              height: "2px",
-              background: "linear-gradient(90deg, #60a5fa, #34d399, #a78bfa, #c8a96e)",
-              zIndex: 0,
-            }} />
-            {levels.map((level, i) => (
-              <div key={i} style={{
-                flex: "1",
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                gap: "12px",
-                position: "relative",
-                zIndex: 1,
-              }}>
-                <div style={{
-                  width: "48px",
-                  height: "48px",
-                  borderRadius: "50%",
-                  background: `linear-gradient(135deg, ${level.color}30, ${level.color}15)`,
-                  border: `2px solid ${level.color}`,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: "18px",
-                  color: level.color,
-                  fontWeight: "bold",
-                  boxShadow: `0 0 20px ${level.color}30`,
-                }}>
-                  {level.icon}
-                </div>
-                <div style={{ textAlign: "center" }}>
-                  <div style={{
-                    fontSize: "13px",
-                    fontWeight: "700",
-                    color: level.color,
-                    marginBottom: "2px",
-                  }}>
-                    {level.name}
-                  </div>
-                  <div style={{
-                    fontSize: "11px",
-                    color: "#6b7280",
-                  }}>
-                    {level.description}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div style={{ marginBottom: "48px" }}>
-          <h2 style={{
-            margin: "0 0 24px 0",
-            fontSize: "13px",
-            fontWeight: "700",
-            color: "#c8a96e",
-            letterSpacing: "2px",
-            textTransform: "uppercase",
-          }}>
-            Certifications obtenues
-          </h2>
-          <div style={{
+        <div
+          style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(520px, 1fr))",
-            gap: "20px",
-          }}>
-            {certifications.map((cert) => (
+            gridTemplateColumns: "repeat(4, 1fr)",
+            gap: "16px",
+            marginBottom: "48px",
+          }}
+        >
+          {statsParNiveau.map((stat) => (
+            <div
+              key={stat.key}
+              style={{
+                background: stat.bg,
+                border: `1px solid ${stat.color}30`,
+                borderRadius: "12px",
+                padding: "20px",
+                textAlign: "center" as const,
+                backdropFilter: "blur(8px)",
+              }}
+            >
               <div
-                key={cert.id}
                 style={{
-                  background: "linear-gradient(135deg, rgba(15,15,25,0.95) 0%, rgba(10,10,18,0.98) 100%)",
-                  border: `1px solid ${cert.color}25`,
-                  borderRadius: "20px",
-                  overflow: "hidden",
-                  transition: "transform 0.2s, box-shadow 0.2s",
-                  cursor: "pointer",
-                  boxShadow: selectedCert === cert.id ? `0 8px 40px ${cert.color}20` : "none",
-                }}
-                onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLDivElement).style.transform = "translateY(-2px)";
-                  (e.currentTarget as HTMLDivElement).style.boxShadow = `0 8px 40px ${cert.color}20`;
-                }}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLDivElement).style.transform = "translateY(0)";
-                  (e.currentTarget as HTMLDivElement).style.boxShadow = selectedCert === cert.id ? `0 8px 40px ${cert.color}20` : "none";
+                  fontSize: "22px",
+                  marginBottom: "6px",
                 }}
               >
-                <div style={{
-                  height: "4px",
-                  background: `linear-gradient(90deg, ${cert.color}, ${cert.color}60)`,
-                }} />
+                {stat.icon}
+              </div>
+              <div
+                style={{
+                  fontSize: "28px",
+                  fontWeight: "700",
+                  color: stat.color,
+                  lineHeight: "1",
+                  marginBottom: "4px",
+                }}
+              >
+                {stat.count}
+              </div>
+              <div
+                style={{
+                  fontSize: "11px",
+                  fontWeight: "600",
+                  letterSpacing: "1.5px",
+                  textTransform: "uppercase" as const,
+                  color: stat.color,
+                  opacity: 0.8,
+                }}
+              >
+                {stat.label}
+              </div>
+            </div>
+          ))}
+        </div>
 
-                <div style={{ padding: "24px" }}>
-                  <div style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "flex-start",
-                    marginBottom: "20px",
-                  }}>
-                    <div style={{ display: "flex", gap: "16px", alignItems: "flex-start" }}>
-                      <div style={{
-                        width: "56px",
-                        height: "56px",
-                        borderRadius: "14px",
-                        background: `linear-gradient(135deg, ${cert.color}25, ${cert.color}10)`,
-                        border: `1.5px solid ${cert.color}40`,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: "24px",
-                        color: cert.color,
-                        flexShrink: 0,
-                        boxShadow: `0 4px 20px ${cert.color}15`,
-                      }}>
-                        {cert.badgeIcon}
-                      </div>
-                      <div>
-                        <div style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: "6px",
-                          background: `${cert.color}15`,
-                          border: `1px solid ${cert.color}30`,
-                          borderRadius: "6px",
-                          padding: "3px 10px",
-                          marginBottom: "6px",
-                        }}>
-                          <span style={{
-                            fontSize: "11px",
+        {error && (
+          <div
+            style={{
+              background: "rgba(245,101,101,0.1)",
+              border: "1px solid rgba(245,101,101,0.3)",
+              borderRadius: "12px",
+              padding: "20px 24px",
+              marginBottom: "32px",
+              display: "flex",
+              alignItems: "center",
+              gap: "12px",
+            }}
+          >
+            <span style={{ fontSize: "20px" }}>⚠️</span>
+            <div>
+              <div
+                style={{
+                  fontSize: "14px",
+                  fontWeight: "600",
+                  color: "#fc8181",
+                  marginBottom: "2px",
+                }}
+              >
+                Erreur de chargement
+              </div>
+              <div style={{ fontSize: "13px", color: "#718096" }}>
+                {error.message ||
+                  "Impossible de charger vos certificats. Veuillez réessayer."}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {(!certificats || certificats.length === 0) && !error && (
+          <div
+            style={{
+              textAlign: "center" as const,
+              padding: "80px 40px",
+              background: "rgba(200,169,110,0.04)",
+              border: "1px dashed rgba(200,169,110,0.2)",
+              borderRadius: "20px",
+            }}
+          >
+            <div style={{ fontSize: "64px", marginBottom: "20px" }}>🎓</div>
+            <h3
+              style={{
+                fontSize: "20px",
+                fontWeight: "600",
+                color: "#c8a96e",
+                marginBottom: "10px",
+              }}
+            >
+              Aucun certificat pour le moment
+            </h3>
+            <p
+              style={{
+                fontSize: "14px",
+                color: "#4a5568",
+                maxWidth: "360px",
+                margin: "0 auto",
+                lineHeight: "1.6",
+              }}
+            >
+              Complétez vos premières formations pour obtenir vos certifications
+              et les afficher ici.
+            </p>
+          </div>
+        )}
+
+        {certificats && certificats.length > 0 && (
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(520px, 1fr))",
+              gap: "24px",
+            }}
+          >
+            {certificats.map(
+              (cert: {
+                id: string;
+                formation?: string;
+                niveau?: string;
+                mention?: string;
+                date_obtention?: string;
+                pdf_url?: string;
+                description?: string;
+                score?: number;
+                duree_heures?: number;
+              }) => {
+                const niveauKey = (cert.niveau || "certificat").toLowerCase();
+                const niveauInfo =
+                  niveauConfig[niveauKey] || niveauConfig["certificat"];
+                const mentionKey = (cert.mention || "").toLowerCase();
+                const mentionInfo = mentionConfig[mentionKey] || null;
+                const linkedInUrl = getLinkedInUrl(cert);
+
+                return (
+                  <div
+                    key={cert.id}
+                    style={{
+                      background:
+                        "linear-gradient(135deg, rgba(15,15,22,0.95) 0%, rgba(8,8,14,0.98) 100%)",
+                      border: `1px solid ${niveauInfo.color}25`,
+                      borderRadius: "20px",
+                      overflow: "hidden",
+                      position: "relative" as const,
+                      boxShadow: `0 4px 24px rgba(0,0,0,0.4), 0 0 0 1px ${niveauInfo.color}10`,
+                      transition: "transform 0.2s ease, box-shadow 0.2s ease",
+                    }}
+                  >
+                    <div
+                      style={{
+                        position: "absolute" as const,
+                        top: "0",
+                        left: "0",
+                        right: "0",
+                        height: "3px",
+                        background: `linear-gradient(90deg, transparent 0%, ${niveauInfo.color} 50%, transparent 100%)`,
+                      }}
+                    />
+
+                    <div
+                      style={{
+                        position: "absolute" as const,
+                        top: "0",
+                        right: "0",
+                        width: "180px",
+                        height: "180px",
+                        background: `radial-gradient(circle at top right, ${niveauInfo.color}08 0%, transparent 70%)`,
+                        pointerEvents: "none" as const,
+                      }}
+                    />
+
+                    <div
+                      style={{
+                        padding: "28px 28px 0",
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "flex-start",
+                          justifyContent: "space-between",
+                          gap: "16px",
+                          marginBottom: "20px",
+                        }}
+                      >
+                        <div style={{ flex: 1 }}>
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "8px",
+                              marginBottom: "10px",
+                              flexWrap: "wrap" as const,
+                            }}
+                          >
+                            <span
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "5px",
+                                padding: "4px 10px",
+                                background: niveauInfo.bg,
+                                border: `1px solid ${niveauInfo.color}40`,
+                                borderRadius: "20px",
+                                fontSize: "11px",
+                                fontWeight: "700",
+                                letterSpacing: "1px",
+                                textTransform: "uppercase" as const,
+                                color: niveauInfo.color,
+                              }}
+                            >
+                              <span>{niveauInfo.icon}</span>
+                              {niveauInfo.label}
+                            </span>
+
+                            {mentionInfo && (
+                              <span
+                                style={{
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  padding: "4px 10px",
+                                  background: mentionInfo.bg,
+                                  border: `1px solid ${mentionInfo.color}40`,
+                                  borderRadius: "20px",
+                                  fontSize: "11px",
+                                  fontWeight: "600",
+                                  letterSpacing
