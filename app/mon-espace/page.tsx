@@ -412,3 +412,4 @@ export default async function MonEspacePage() {
   const styleCertifCard: React.CSSProperties = {
     background: `linear-gradient(135deg, ${couleurSurface} 0%, #10101c 100%)`,
     border: `1px
+}}
