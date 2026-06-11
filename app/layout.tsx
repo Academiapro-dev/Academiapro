@@ -2,8 +2,8 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'AcadémIA Pro — 131 Formations Certifiantes',
-  description: 'La plateforme de formation propulsée par l IA. 131 formations certifiantes. Agent IA tuteur 24h/24.',
+  title: 'AcadémIA Pro',
+  description: '131 formations certifiantes propulsées par l IA',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
