@@ -417,3 +417,4 @@ export default function VirtualClassPage({ params }: { params: { sessionId: stri
                   padding: "2px 8px",
                   fontSize: "11px",
                   fontWeight: 700,
+}}}
