@@ -427,3 +427,4 @@ export default async function SeanceSpecialitePage({
     fontWeight: 700,
     cursor: "pointer",
     textAlign
+}}
