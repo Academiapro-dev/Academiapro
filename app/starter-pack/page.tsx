@@ -412,3 +412,4 @@ export default function StarterPackPage() {
           <span style={styles.logoBadge}>Starter Pack IA</span>
         </div>
         <div style={styles.
+}}
