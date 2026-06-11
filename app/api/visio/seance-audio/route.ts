@@ -1,4 +1,3 @@
-```typescript
 // app/api/visio/seance-audio/creer/route.ts
 
 import { NextRequest, NextResponse } from "next/server";
