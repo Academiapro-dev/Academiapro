@@ -1,372 +1,432 @@
-export default function FormationPage({ params }: { params: { id: string } }) {
-  const formations: Record<string, {
-    titre: string;
-    description: string;
-    programme: string[];
-    duree: string;
-    prix: number;
-    categorie: string;
-  }> = {
-    "marketing-ia": {
-      titre: "Marketing IA Avancé",
-      description: "Maîtrisez les outils d'intelligence artificielle pour révolutionner vos stratégies marketing. Apprenez à automatiser vos campagnes, analyser vos données en temps réel et créer du contenu personnalisé à grande échelle grâce aux dernières technologies IA.",
-      programme: [
-        "Introduction aux outils IA pour le marketing digital",
-        "Automatisation des campagnes publicitaires avec l'IA",
-        "Création de contenu assistée par IA (texte, image, vidéo)",
-        "Analyse prédictive et segmentation intelligente",
-        "Chatbots et personnalisation de l'expérience client",
-        "SEO augmenté par l'intelligence artificielle",
-        "Reporting automatisé et tableaux de bord IA",
-        "Cas pratiques et projets réels"
-      ],
-      duree: "12 semaines",
-      prix: 1490,
-      categorie: "Marketing"
-    },
-    "data-science": {
-      titre: "Data Science & Machine Learning",
-      description: "Devenez expert en science des données et apprentissage automatique. Maîtrisez Python, les algorithmes de ML et les frameworks modernes pour extraire de la valeur de vos données et construire des modèles prédictifs performants.",
-      programme: [
-        "Fondamentaux Python pour la Data Science",
-        "Statistiques et probabilités appliquées",
-        "Exploration et visualisation des données",
-        "Algorithmes de Machine Learning supervisé",
-        "Deep Learning et réseaux de neurones",
-        "Natural Language Processing (NLP)",
-        "Computer Vision et traitement d'images",
-        "Déploiement de modèles en production"
-      ],
-      duree: "16 semaines",
-      prix: 1990,
-      categorie: "Data Science"
-    },
-    "default": {
-      titre: "Formation IA Professionnelle",
-      description: "Une formation complète pour maîtriser l'intelligence artificielle dans votre domaine professionnel. Acquérez les compétences recherchées par les entreprises et transformez votre carrière grâce à notre programme certifiant.",
-      programme: [
-        "Fondamentaux de l'intelligence artificielle",
-        "Outils et plateformes IA essentiels",
-        "Applications pratiques en entreprise",
-        "Automatisation des processus métier",
-        "Éthique et responsabilité de l'IA",
-        "Projets pratiques guidés",
-        "Préparation à la certification",
-        "Accompagnement post-formation"
-      ],
-      duree: "8 semaines",
-      prix: 990,
-      categorie: "IA Générale"
-    }
+export default async function FormationPage({ params }: { params: { id: string } }) {
+  const { createClient } = await import("@supabase/supabase-js");
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+
+  const staticFormation = {
+    id: params.id,
+    titre: "Maîtrisez l'Intelligence Artificielle Générative",
+    description:
+      "Formation complète pour transformer votre expertise métier grâce à l'IA. De la compréhension des fondamentaux aux cas d'usage avancés, devenez un acteur incontournable de la révolution IA dans votre secteur. Cette formation intensive vous donne toutes les clés pour automatiser, créer et innover.",
+    prix_solo: 497,
+    prix_accompagne: 997,
+    prix_elite: 1997,
+    duree: "12 semaines",
+    niveau: "Intermédiaire à Avancé",
+    nb_apprenants: 2847,
+    note: 4.9,
+    chapitres: [
+      {
+        numero: 1,
+        titre: "Fondamentaux de l'IA Générative",
+        duree: "3h 20min",
+        lecons: 8,
+        description: "Comprendre les LLMs, diffusion models et architectures transformer",
+      },
+      {
+        numero: 2,
+        titre: "Prompt Engineering Avancé",
+        duree: "4h 15min",
+        lecons: 12,
+        description: "Techniques chain-of-thought, few-shot learning et optimisation des prompts",
+      },
+      {
+        numero: 3,
+        titre: "Automatisation avec l'IA",
+        duree: "5h 00min",
+        lecons: 14,
+        description: "Construire des workflows automatisés avec GPT-4, Claude et Gemini",
+      },
+      {
+        numero: 4,
+        titre: "Création de Contenu IA",
+        duree: "3h 45min",
+        lecons: 10,
+        description: "Images, vidéos, textes et audio générés par IA pour votre business",
+      },
+      {
+        numero: 5,
+        titre: "IA dans votre Métier",
+        duree: "4h 30min",
+        lecons: 11,
+        description: "Applications sectorielles : marketing, finance, RH, juridique, santé",
+      },
+      {
+        numero: 6,
+        titre: "Éthique et Gouvernance IA",
+        duree: "2h 10min",
+        lecons: 6,
+        description: "Cadre légal RGPD, biais algorithmiques et déploiement responsable",
+      },
+      {
+        numero: 7,
+        titre: "Projet Final Certifiant",
+        duree: "6h 00min",
+        lecons: 5,
+        description: "Réalisez un projet complet validé par notre jury d'experts AcadémIA",
+      },
+    ],
+    competences: [
+      "Maîtriser les outils IA du marché",
+      "Automatiser 80% de vos tâches répétitives",
+      "Créer du contenu haute qualité en 10x moins de temps",
+      "Construire des agents IA personnalisés",
+      "Analyser et interpréter des données complexes",
+      "Déployer des solutions IA en production",
+    ],
   };
 
-  const formation = formations[params.id] || formations["default"];
+  let formation = staticFormation;
+  let sourceData = "statique";
 
-  const niveaux = [
-    {
-      nom: "E-Learning",
-      prix: formation.prix,
-      couleur: "#1a1a2e",
-      bordure: "#333366",
-      badge: "ESSENTIEL",
-      badgeCouleur: "#4a4a8a",
-      icone: "🎓",
-      description: "Apprenez à votre rythme avec nos contenus premium",
-      avantages: [
-        "Accès illimité aux vidéos HD",
-        "Supports PDF téléchargeables",
-        "Exercices pratiques interactifs",
-        "Forum communautaire",
-        "Certification AcadémIA Pro",
-        "Mises à jour du contenu incluses",
-        "Accès mobile et desktop",
-        "Support par email"
-      ]
-    },
-    {
-      nom: "Premium Agent IA 24/7",
-      prix: Math.round(formation.prix * 1.8),
-      couleur: "#1a0f00",
-      bordure: "#c8a96e",
-      badge: "POPULAIRE",
-      badgeCouleur: "#c8a96e",
-      icone: "🤖",
-      description: "Un agent IA personnel disponible à toute heure",
-      avantages: [
-        "Tout le contenu E-Learning",
-        "Agent IA personnel disponible 24h/24",
-        "Réponses instantanées à vos questions",
-        "Corrections automatiques de vos travaux",
-        "Plan d'apprentissage personnalisé",
-        "Rappels et suivi de progression",
-        "Sessions de révision adaptatives",
-        "Accès prioritaire aux nouvelles formations"
-      ]
-    },
-    {
-      nom: "Live Avatar IA",
-      prix: Math.round(formation.prix * 2.8),
-      couleur: "#0a0a1a",
-      bordure: "#e8d4a0",
-      badge: "PREMIUM",
-      badgeCouleur: "#e8d4a0",
-      icone: "✨",
-      description: "L'expérience d'apprentissage la plus immersive",
-      avantages: [
-        "Tout le contenu Premium Agent IA",
-        "Sessions live avec Avatar IA interactif",
-        "Simulation de situations professionnelles",
-        "Coaching personnalisé en temps réel",
-        "Entretiens blancs avec évaluation IA",
-        "Networking avec experts du secteur",
-        "Certificat premium avec signature digitale",
-        "Accompagnement carrière 6 mois"
-      ]
+  try {
+    if (supabaseUrl && supabaseKey) {
+      const supabase = createClient(supabaseUrl, supabaseKey);
+      const { data, error } = await supabase
+        .from("formations")
+        .select("*")
+        .eq("id", params.id)
+        .single();
+
+      if (!error && data) {
+        formation = { ...staticFormation, ...data };
+        sourceData = "supabase";
+      }
     }
-  ];
+  } catch (err) {
+    sourceData = "statique";
+  }
 
-  return (
-    <div style={{
+  const styles = {
+    page: {
       backgroundColor: "#050508",
       minHeight: "100vh",
-      fontFamily: "'Segoe UI', system-ui, -apple-system, sans-serif",
-      color: "#ffffff"
-    }}>
+      fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
+      color: "#ffffff",
+    } as React.CSSProperties,
 
-      <div style={{
-        background: "linear-gradient(135deg, #0a0a15 0%, #050508 50%, #0f0a00 100%)",
-        borderBottom: "1px solid #c8a96e33",
-        padding: "0 24px"
-      }}>
-        <div style={{
-          maxWidth: "1200px",
-          margin: "0 auto",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          height: "72px"
-        }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-            <div style={{
-              width: "38px",
-              height: "38px",
-              background: "linear-gradient(135deg, #c8a96e, #e8d4a0)",
-              borderRadius: "10px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: "18px",
-              fontWeight: "900",
-              color: "#050508"
-            }}>A</div>
-            <span style={{
-              fontSize: "20px",
-              fontWeight: "800",
-              background: "linear-gradient(135deg, #c8a96e, #e8d4a0)",
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent"
-            }}>AcadémIA Pro</span>
-          </div>
-          <div style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "8px",
-            backgroundColor: "#c8a96e15",
-            border: "1px solid #c8a96e44",
-            borderRadius: "20px",
-            padding: "6px 14px"
-          }}>
-            <span style={{ fontSize: "12px", color: "#c8a96e" }}>●</span>
-            <span style={{ fontSize: "13px", color: "#c8a96ecc", fontWeight: "500" }}>{formation.categorie}</span>
-          </div>
-        </div>
-      </div>
+    container: {
+      maxWidth: "1200px",
+      margin: "0 auto",
+      padding: "0 24px",
+    } as React.CSSProperties,
 
-      <div style={{
-        background: "linear-gradient(180deg, #0a0a18 0%, #050508 100%)",
-        padding: "80px 24px 60px",
-        textAlign: "center",
-        position: "relative",
-        overflow: "hidden"
-      }}>
-        <div style={{
-          position: "absolute",
-          top: "50%",
-          left: "50%",
-          transform: "translate(-50%, -50%)",
-          width: "600px",
-          height: "300px",
-          background: "radial-gradient(ellipse, #c8a96e08 0%, transparent 70%)",
-          pointerEvents: "none"
-        }} />
-        <div style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: "8px",
-          backgroundColor: "#c8a96e12",
-          border: "1px solid #c8a96e40",
-          borderRadius: "100px",
-          padding: "8px 20px",
-          marginBottom: "28px"
-        }}>
-          <span style={{ fontSize: "14px" }}>🏆</span>
-          <span style={{ fontSize: "13px", color: "#c8a96e", fontWeight: "600", letterSpacing: "0.05em" }}>FORMATION CERTIFIANTE</span>
-        </div>
-        <h1 style={{
-          fontSize: "clamp(32px, 5vw, 58px)",
-          fontWeight: "900",
-          lineHeight: "1.1",
-          marginBottom: "24px",
-          background: "linear-gradient(135deg, #ffffff 0%, #c8a96e 100%)",
-          WebkitBackgroundClip: "text",
-          WebkitTextFillColor: "transparent",
-          maxWidth: "800px",
-          margin: "0 auto 24px"
-        }}>
-          {formation.titre}
-        </h1>
-        <p style={{
-          fontSize: "18px",
-          color: "#ffffffaa",
-          maxWidth: "700px",
-          margin: "0 auto 40px",
-          lineHeight: "1.7"
-        }}>
-          {formation.description}
-        </p>
-        <div style={{
-          display: "flex",
-          justifyContent: "center",
-          gap: "32px",
-          flexWrap: "wrap"
-        }}>
-          {[
-            { icone: "⏱️", label: "Durée", valeur: formation.duree },
-            { icone: "📚", label: "Modules", valeur: `${formation.programme.length} modules` },
-            { icone: "🎯", label: "Niveau", valeur: "Tous niveaux" },
-            { icone: "🌐", label: "Format", valeur: "100% en ligne" }
-          ].map((stat, i) => (
-            <div key={i} style={{
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              gap: "4px"
-            }}>
-              <span style={{ fontSize: "24px" }}>{stat.icone}</span>
-              <span style={{ fontSize: "13px", color: "#ffffff66", textTransform: "uppercase", letterSpacing: "0.08em" }}>{stat.label}</span>
-              <span style={{ fontSize: "16px", fontWeight: "700", color: "#c8a96e" }}>{stat.valeur}</span>
-            </div>
-          ))}
-        </div>
-      </div>
+    nav: {
+      borderBottom: "1px solid rgba(200,169,110,0.2)",
+      padding: "16px 0",
+      backgroundColor: "rgba(5,5,8,0.95)",
+      position: "sticky" as const,
+      top: 0,
+      zIndex: 100,
+      backdropFilter: "blur(20px)",
+    } as React.CSSProperties,
 
-      <div style={{
-        maxWidth: "1200px",
-        margin: "0 auto",
-        padding: "60px 24px"
-      }}>
+    navInner: {
+      maxWidth: "1200px",
+      margin: "0 auto",
+      padding: "0 24px",
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+    } as React.CSSProperties,
 
-        <div style={{
-          backgroundColor: "#0c0c18",
-          border: "1px solid #c8a96e22",
-          borderRadius: "20px",
-          padding: "48px",
-          marginBottom: "60px"
-        }}>
-          <div style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "12px",
-            marginBottom: "32px"
-          }}>
-            <div style={{
-              width: "4px",
-              height: "32px",
-              background: "linear-gradient(180deg, #c8a96e, #e8d4a0)",
-              borderRadius: "4px"
-            }} />
-            <h2 style={{
-              fontSize: "28px",
-              fontWeight: "800",
-              color: "#ffffff"
-            }}>Programme de la formation</h2>
-          </div>
-          <div style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))",
-            gap: "16px"
-          }}>
-            {formation.programme.map((module, index) => (
-              <div key={index} style={{
-                display: "flex",
-                alignItems: "flex-start",
-                gap: "16px",
-                backgroundColor: "#050508",
-                border: "1px solid #ffffff0a",
-                borderRadius: "12px",
-                padding: "20px",
-                transition: "border-color 0.2s"
-              }}>
-                <div style={{
-                  minWidth: "32px",
-                  height: "32px",
-                  background: "linear-gradient(135deg, #c8a96e22, #c8a96e11)",
-                  border: "1px solid #c8a96e44",
-                  borderRadius: "8px",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: "13px",
-                  fontWeight: "700",
-                  color: "#c8a96e"
-                }}>
-                  {String(index + 1).padStart(2, "0")}
-                </div>
-                <span style={{
-                  fontSize: "15px",
-                  color: "#ffffffcc",
-                  lineHeight: "1.5",
-                  fontWeight: "500"
-                }}>{module}</span>
-              </div>
-            ))}
-          </div>
-        </div>
+    logo: {
+      fontSize: "22px",
+      fontWeight: "800",
+      color: "#c8a96e",
+      letterSpacing: "-0.5px",
+    } as React.CSSProperties,
 
-        <div style={{ marginBottom: "60px" }}>
-          <div style={{ textAlign: "center", marginBottom: "48px" }}>
-            <h2 style={{
-              fontSize: "36px",
-              fontWeight: "900",
-              background: "linear-gradient(135deg, #ffffff, #c8a96e)",
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-              marginBottom: "12px"
-            }}>Choisissez votre niveau d'accompagnement</h2>
-            <p style={{ color: "#ffffff66", fontSize: "16px" }}>
-              Sélectionnez la formule qui correspond à vos ambitions et à votre rythme d'apprentissage
-            </p>
-          </div>
+    logoSpan: {
+      color: "#ffffff",
+      fontWeight: "400",
+    } as React.CSSProperties,
 
-          <div style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
-            gap: "24px",
-            alignItems: "stretch"
-          }}>
-            {niveaux.map((niveau, index) => (
-              <div key={index} style={{
-                backgroundColor: niveau.couleur,
-                border: `2px solid ${niveau.bordure}`,
-                borderRadius: "24px",
-                padding: "36px 28px",
-                display: "flex",
-                flexDirection: "column",
-                position: "relative",
-                overflow: "hidden"
-              }}>
-                <div style={{
-                  position: "absolute",
-                  top: 0,
-                  left: 0,
-                  right: 0,
+    navBadge: {
+      backgroundColor: "rgba(200,169,110,0.1)",
+      border: "1px solid rgba(200,169,110,0.3)",
+      borderRadius: "20px",
+      padding: "6px 16px",
+      fontSize: "12px",
+      color: "#c8a96e",
+      fontWeight: "600",
+    } as React.CSSProperties,
+
+    heroSection: {
+      padding: "80px 0 60px",
+      background:
+        "radial-gradient(ellipse at 50% 0%, rgba(200,169,110,0.08) 0%, transparent 70%)",
+    } as React.CSSProperties,
+
+    categoryBadge: {
+      display: "inline-flex",
+      alignItems: "center",
+      gap: "8px",
+      backgroundColor: "rgba(200,169,110,0.1)",
+      border: "1px solid rgba(200,169,110,0.4)",
+      borderRadius: "20px",
+      padding: "8px 18px",
+      fontSize: "13px",
+      color: "#c8a96e",
+      fontWeight: "600",
+      marginBottom: "24px",
+    } as React.CSSProperties,
+
+    heroTitle: {
+      fontSize: "clamp(32px, 5vw, 58px)",
+      fontWeight: "800",
+      lineHeight: "1.1",
+      marginBottom: "24px",
+      letterSpacing: "-1px",
+    } as React.CSSProperties,
+
+    titleGold: {
+      color: "#c8a96e",
+      display: "block",
+    } as React.CSSProperties,
+
+    heroDescription: {
+      fontSize: "18px",
+      color: "rgba(255,255,255,0.7)",
+      lineHeight: "1.7",
+      maxWidth: "700px",
+      marginBottom: "40px",
+    } as React.CSSProperties,
+
+    statsRow: {
+      display: "flex",
+      gap: "32px",
+      flexWrap: "wrap" as const,
+      marginBottom: "40px",
+    } as React.CSSProperties,
+
+    statItem: {
+      display: "flex",
+      alignItems: "center",
+      gap: "8px",
+      fontSize: "14px",
+      color: "rgba(255,255,255,0.7)",
+    } as React.CSSProperties,
+
+    statIcon: {
+      color: "#c8a96e",
+      fontSize: "16px",
+    } as React.CSSProperties,
+
+    statValue: {
+      color: "#ffffff",
+      fontWeight: "700",
+    } as React.CSSProperties,
+
+    starsRow: {
+      display: "flex",
+      gap: "4px",
+      marginBottom: "40px",
+      alignItems: "center",
+    } as React.CSSProperties,
+
+    star: {
+      color: "#c8a96e",
+      fontSize: "20px",
+    } as React.CSSProperties,
+
+    starText: {
+      marginLeft: "8px",
+      color: "rgba(255,255,255,0.6)",
+      fontSize: "14px",
+    } as React.CSSProperties,
+
+    mainGrid: {
+      display: "grid",
+      gridTemplateColumns: "1fr 400px",
+      gap: "60px",
+      alignItems: "start",
+      padding: "0 0 80px",
+    } as React.CSSProperties,
+
+    sectionTitle: {
+      fontSize: "24px",
+      fontWeight: "700",
+      color: "#ffffff",
+      marginBottom: "24px",
+      paddingBottom: "12px",
+      borderBottom: "2px solid rgba(200,169,110,0.3)",
+    } as React.CSSProperties,
+
+    programSection: {
+      marginBottom: "60px",
+    } as React.CSSProperties,
+
+    chapterCard: {
+      backgroundColor: "rgba(255,255,255,0.03)",
+      border: "1px solid rgba(255,255,255,0.08)",
+      borderRadius: "12px",
+      padding: "20px 24px",
+      marginBottom: "12px",
+      transition: "border-color 0.2s",
+      cursor: "pointer",
+    } as React.CSSProperties,
+
+    chapterHeader: {
+      display: "flex",
+      alignItems: "center",
+      gap: "16px",
+    } as React.CSSProperties,
+
+    chapterNumber: {
+      width: "40px",
+      height: "40px",
+      borderRadius: "10px",
+      backgroundColor: "rgba(200,169,110,0.1)",
+      border: "1px solid rgba(200,169,110,0.3)",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      fontSize: "14px",
+      fontWeight: "800",
+      color: "#c8a96e",
+      flexShrink: 0,
+    } as React.CSSProperties,
+
+    chapterInfo: {
+      flex: 1,
+    } as React.CSSProperties,
+
+    chapterTitle: {
+      fontSize: "16px",
+      fontWeight: "600",
+      color: "#ffffff",
+      marginBottom: "4px",
+    } as React.CSSProperties,
+
+    chapterDesc: {
+      fontSize: "13px",
+      color: "rgba(255,255,255,0.5)",
+      lineHeight: "1.4",
+    } as React.CSSProperties,
+
+    chapterMeta: {
+      display: "flex",
+      gap: "12px",
+      marginTop: "10px",
+    } as React.CSSProperties,
+
+    chapterTag: {
+      backgroundColor: "rgba(200,169,110,0.08)",
+      border: "1px solid rgba(200,169,110,0.2)",
+      borderRadius: "8px",
+      padding: "3px 10px",
+      fontSize: "11px",
+      color: "rgba(200,169,110,0.8)",
+      fontWeight: "600",
+    } as React.CSSProperties,
+
+    skillsSection: {
+      marginBottom: "60px",
+    } as React.CSSProperties,
+
+    skillsGrid: {
+      display: "grid",
+      gridTemplateColumns: "1fr 1fr",
+      gap: "12px",
+    } as React.CSSProperties,
+
+    skillItem: {
+      display: "flex",
+      alignItems: "center",
+      gap: "10px",
+      padding: "12px 16px",
+      backgroundColor: "rgba(255,255,255,0.03)",
+      border: "1px solid rgba(255,255,255,0.07)",
+      borderRadius: "10px",
+      fontSize: "14px",
+      color: "rgba(255,255,255,0.8)",
+    } as React.CSSProperties,
+
+    checkIcon: {
+      color: "#c8a96e",
+      fontSize: "16px",
+      fontWeight: "800",
+      flexShrink: 0,
+    } as React.CSSProperties,
+
+    certSection: {
+      background:
+        "linear-gradient(135deg, rgba(200,169,110,0.08) 0%, rgba(200,169,110,0.03) 100%)",
+      border: "1px solid rgba(200,169,110,0.3)",
+      borderRadius: "16px",
+      padding: "32px",
+      marginBottom: "60px",
+    } as React.CSSProperties,
+
+    certHeader: {
+      display: "flex",
+      alignItems: "center",
+      gap: "16px",
+      marginBottom: "16px",
+    } as React.CSSProperties,
+
+    certIcon: {
+      width: "56px",
+      height: "56px",
+      borderRadius: "14px",
+      background: "linear-gradient(135deg, #c8a96e, #8b6914)",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      fontSize: "28px",
+    } as React.CSSProperties,
+
+    certTitle: {
+      fontSize: "20px",
+      fontWeight: "700",
+      color: "#c8a96e",
+      marginBottom: "4px",
+    } as React.CSSProperties,
+
+    certSubtitle: {
+      fontSize: "13px",
+      color: "rgba(255,255,255,0.5)",
+    } as React.CSSProperties,
+
+    certText: {
+      fontSize: "15px",
+      color: "rgba(255,255,255,0.7)",
+      lineHeight: "1.6",
+      marginBottom: "20px",
+    } as React.CSSProperties,
+
+    certFeatures: {
+      display: "grid",
+      gridTemplateColumns: "1fr 1fr",
+      gap: "10px",
+    } as React.CSSProperties,
+
+    certFeature: {
+      display: "flex",
+      alignItems: "center",
+      gap: "8px",
+      fontSize: "13px",
+      color: "rgba(200,169,110,0.9)",
+      fontWeight: "500",
+    } as React.CSSProperties,
+
+    stickyCard: {
+      position: "sticky" as const,
+      top: "90px",
+    } as React.CSSProperties,
+
+    pricingCard: {
+      backgroundColor: "rgba(10,10,18,0.95)",
+      border: "1px solid rgba(200,169,110,0.3)",
+      borderRadius: "20px",
+      overflow: "hidden",
+      boxShadow: "0 40px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(200,169,110,0.1)",
+    } as React.CSSProperties,
+
+    pricingHeader: {
+      background: "linear-gradient(135deg, rgba(200,169,110,0.15), rgba(200,169,110,0.05))",
+      borderBottom: "1px solid rgba(200,169,110,0.2)",
+      padding: "24px",
+      textAlign: "center" as const
