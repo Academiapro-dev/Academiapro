@@ -414,3 +414,4 @@ export default function CommunautePage() {
                 {avantage.tag}
               </div>
               <h3
+}}
