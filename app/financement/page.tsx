@@ -423,3 +423,4 @@ export default function FinancementPage() {
       height: "36px",
       borderRadius: "10px",
       backgroundColor: "rgba(200,169,110,0
+}}}
