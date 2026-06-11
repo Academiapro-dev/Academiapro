@@ -1,374 +1,384 @@
-export default function LiveSession({ params }: { params: { sessionId: string } }) {
-  const [status, setStatus] = React.useState<'waiting' | 'active' | 'ended'>('active');
-  const [micOn, setMicOn] = React.useState(true);
-  const [cameraOn, setCameraOn] = React.useState(true);
-  const [chatOpen, setChatOpen] = React.useState(false);
-  const [duration, setDuration] = React.useState(0);
-  const [message, setMessage] = React.useState('');
-  const [messages, setMessages] = React.useState([
-    { id: 1, sender: 'IA', text: 'Bonjour ! Je suis votre assistant AcadémIA Pro. Comment puis-je vous aider aujourd\'hui ?', time: '14:32' },
-    { id: 2, sender: 'Vous', text: 'J\'aimerais comprendre les dérivées partielles.', time: '14:33' },
-    { id: 3, sender: 'IA', text: 'Parfait ! Commençons par les bases. Une dérivée partielle mesure la variation d\'une fonction par rapport à une seule variable, en maintenant les autres constantes.', time: '14:33' },
+export default function VideoSessionPage({ params }: { params: { sessionId: string } }) {
+  const [sessionTime, setSessionTime] = React.useState(0);
+  const [isConnected, setIsConnected] = React.useState(false);
+  const [isMuted, setIsMuted] = React.useState(false);
+  const [isCameraOff, setIsCameraOff] = React.useState(false);
+  const [chatMessages, setChatMessages] = React.useState<Array<{ id: string; sender: string; text: string; time: string }>>([
+    { id: "1", sender: "IA", text: "Bonjour, je suis Dr. Aria. Comment vous sentez-vous aujourd'hui ?", time: "14:00" },
   ]);
-  const [participants] = React.useState([
-    { id: 1, name: 'Vous', role: 'Étudiant', active: true },
-    { id: 2, name: 'AcadémIA', role: 'Tuteur IA', active: true },
-  ]);
-  const [avatarPulse, setAvatarPulse] = React.useState(false);
-  const [speaking, setSpeaking] = React.useState(false);
-  const chatEndRef = React.useRef<HTMLDivElement>(null);
+  const [inputMessage, setInputMessage] = React.useState("");
+  const [sessionNotes, setSessionNotes] = React.useState("");
+  const [showReplay, setShowReplay] = React.useState(false);
+  const [sessionEnded, setSessionEnded] = React.useState(false);
+  const [isRecording, setIsRecording] = React.useState(false);
+  const timerRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
 
   React.useEffect(() => {
-    const interval = setInterval(() => {
-      if (status === 'active') {
-        setDuration(prev => prev + 1);
-      }
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [status]);
-
-  React.useEffect(() => {
-    const pulse = setInterval(() => {
-      setAvatarPulse(prev => !prev);
-      setSpeaking(prev => !prev);
+    const timer = setTimeout(() => {
+      setIsConnected(true);
+      setIsRecording(true);
+      timerRef.current = setInterval(() => {
+        setSessionTime((prev) => prev + 1);
+      }, 1000);
     }, 2000);
-    return () => clearInterval(pulse);
+    return () => {
+      clearTimeout(timer);
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
   }, []);
 
-  React.useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
-
-  const formatDuration = (seconds: number) => {
+  const formatTime = (seconds: number) => {
     const h = Math.floor(seconds / 3600);
     const m = Math.floor((seconds % 3600) / 60);
     const s = seconds % 60;
-    if (h > 0) return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    return h > 0
+      ? `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`
+      : `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
   };
 
-  const sendMessage = () => {
-    if (!message.trim()) return;
+  const handleSendMessage = () => {
+    if (!inputMessage.trim()) return;
     const newMsg = {
-      id: messages.length + 1,
-      sender: 'Vous',
-      text: message,
-      time: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+      id: Date.now().toString(),
+      sender: "Vous",
+      text: inputMessage,
+      time: new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }),
     };
-    setMessages(prev => [...prev, newMsg]);
-    setMessage('');
+    setChatMessages((prev) => [...prev, newMsg]);
+    setInputMessage("");
     setTimeout(() => {
-      const aiResponse = {
-        id: messages.length + 2,
-        sender: 'IA',
-        text: 'Excellente question ! Je vais vous expliquer cela en détail avec des exemples concrets adaptés à votre niveau.',
-        time: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+      const responses = [
+        "Je comprends ce que vous ressentez. Pouvez-vous m'en dire plus ?",
+        "C'est une observation très pertinente. Comment cela vous affecte-t-il au quotidien ?",
+        "Nous allons explorer cela ensemble. Prenez votre temps.",
+        "Votre ressenti est tout à fait valide. Continuons sur cette voie.",
+      ];
+      const aiMsg = {
+        id: (Date.now() + 1).toString(),
+        sender: "IA",
+        text: responses[Math.floor(Math.random() * responses.length)],
+        time: new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }),
       };
-      setMessages(prev => [...prev, aiResponse]);
+      setChatMessages((prev) => [...prev, aiMsg]);
     }, 1500);
   };
 
   const handleEndSession = () => {
-    setStatus('ended');
+    if (timerRef.current) clearInterval(timerRef.current);
+    setSessionEnded(true);
+    setIsRecording(false);
+    setTimeout(() => setShowReplay(true), 1000);
   };
 
-  const statusConfig = {
-    waiting: { label: 'En attente', color: '#f59e0b', bg: 'rgba(245,158,11,0.15)' },
-    active: { label: 'En cours', color: '#10b981', bg: 'rgba(16,185,129,0.15)' },
-    ended: { label: 'Terminée', color: '#ef4444', bg: 'rgba(239,68,68,0.15)' },
-  };
-
-  const currentStatus = statusConfig[status];
-
-  if (status === 'ended') {
-    return React.createElement(
-      'div',
-      {
+  if (sessionEnded) {
+    return (
+      React.createElement("div", {
         style: {
-          minHeight: '100vh',
-          background: '#050508',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
+          minHeight: "100vh",
+          backgroundColor: "#050508",
+          color: "#ffffff",
           fontFamily: "'Segoe UI', system-ui, sans-serif",
+          display: "flex",
+          flexDirection: "column" as const,
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "40px 20px",
         }
       },
-      React.createElement(
-        'div',
-        {
+        React.createElement("div", {
           style: {
-            textAlign: 'center',
-            padding: '60px 40px',
-            background: 'linear-gradient(135deg, rgba(200,169,110,0.08), rgba(200,169,110,0.03))',
-            border: '1px solid rgba(200,169,110,0.2)',
-            borderRadius: '24px',
-            maxWidth: '480px',
-            width: '90%',
+            width: "100%",
+            maxWidth: "900px",
           }
         },
-        React.createElement(
-          'div',
-          {
+          React.createElement("div", {
             style: {
-              width: '80px',
-              height: '80px',
-              borderRadius: '50%',
-              background: 'linear-gradient(135deg, #c8a96e, #a07840)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              margin: '0 auto 24px',
-              fontSize: '36px',
+              textAlign: "center" as const,
+              marginBottom: "48px",
             }
           },
-          '✓'
-        ),
-        React.createElement('h2', {
-          style: { color: '#c8a96e', fontSize: '28px', fontWeight: '700', margin: '0 0 12px' }
-        }, 'Séance terminée'),
-        React.createElement('p', {
-          style: { color: 'rgba(255,255,255,0.6)', fontSize: '16px', margin: '0 0 8px' }
-        }, `Durée totale : ${formatDuration(duration)}`),
-        React.createElement('p', {
-          style: { color: 'rgba(255,255,255,0.4)', fontSize: '14px', margin: '0 0 32px' }
-        }, `Session ID : ${params.sessionId}`),
-        React.createElement(
-          'button',
-          {
-            onClick: () => setStatus('active'),
+            React.createElement("div", {
+              style: {
+                width: "80px",
+                height: "80px",
+                borderRadius: "50%",
+                background: "linear-gradient(135deg, #c8a96e, #e8c98e)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                margin: "0 auto 24px",
+                fontSize: "36px",
+              }
+            }, "✓"),
+            React.createElement("h1", {
+              style: {
+                fontSize: "32px",
+                fontWeight: "300",
+                color: "#c8a96e",
+                letterSpacing: "2px",
+                marginBottom: "8px",
+              }
+            }, "SÉANCE TERMINÉE"),
+            React.createElement("p", {
+              style: { color: "rgba(255,255,255,0.5)", fontSize: "14px" }
+            }, `Session ID: ${params.sessionId}`),
+            React.createElement("div", {
+              style: {
+                display: "inline-block",
+                marginTop: "16px",
+                padding: "8px 24px",
+                border: "1px solid rgba(200,169,110,0.3)",
+                borderRadius: "20px",
+                fontSize: "14px",
+                color: "#c8a96e",
+              }
+            }, `Durée totale : ${formatTime(sessionTime)}`)
+          ),
+
+          React.createElement("div", {
             style: {
-              background: 'linear-gradient(135deg, #c8a96e, #a07840)',
-              color: '#050508',
-              border: 'none',
-              borderRadius: '12px',
-              padding: '14px 32px',
-              fontSize: '16px',
-              fontWeight: '700',
-              cursor: 'pointer',
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: "24px",
+              marginBottom: "32px",
             }
           },
-          'Nouvelle séance'
+            React.createElement("div", {
+              style: {
+                background: "rgba(200,169,110,0.05)",
+                border: "1px solid rgba(200,169,110,0.15)",
+                borderRadius: "16px",
+                padding: "24px",
+              }
+            },
+              React.createElement("h3", {
+                style: {
+                  color: "#c8a96e",
+                  fontSize: "12px",
+                  letterSpacing: "2px",
+                  marginBottom: "16px",
+                  fontWeight: "600",
+                }
+              }, "INFORMATIONS SÉANCE"),
+              React.createElement("div", {
+                style: { display: "flex", flexDirection: "column" as const, gap: "12px" }
+              },
+                React.createElement("div", {
+                  style: { display: "flex", justifyContent: "space-between" }
+                },
+                  React.createElement("span", { style: { color: "rgba(255,255,255,0.5)", fontSize: "14px" } }, "Thérapeute IA"),
+                  React.createElement("span", { style: { color: "#ffffff", fontSize: "14px" } }, "Dr. Aria Luminos")
+                ),
+                React.createElement("div", {
+                  style: { display: "flex", justifyContent: "space-between" }
+                },
+                  React.createElement("span", { style: { color: "rgba(255,255,255,0.5)", fontSize: "14px" } }, "Spécialité"),
+                  React.createElement("span", { style: { color: "#ffffff", fontSize: "14px" } }, "Psychologie Cognitive")
+                ),
+                React.createElement("div", {
+                  style: { display: "flex", justifyContent: "space-between" }
+                },
+                  React.createElement("span", { style: { color: "rgba(255,255,255,0.5)", fontSize: "14px" } }, "Date"),
+                  React.createElement("span", { style: { color: "#ffffff", fontSize: "14px" } }, new Date().toLocaleDateString("fr-FR"))
+                ),
+                React.createElement("div", {
+                  style: { display: "flex", justifyContent: "space-between" }
+                },
+                  React.createElement("span", { style: { color: "rgba(255,255,255,0.5)", fontSize: "14px" } }, "Messages échangés"),
+                  React.createElement("span", { style: { color: "#ffffff", fontSize: "14px" } }, chatMessages.length)
+                )
+              )
+            ),
+
+            React.createElement("div", {
+              style: {
+                background: "rgba(200,169,110,0.05)",
+                border: "1px solid rgba(200,169,110,0.15)",
+                borderRadius: "16px",
+                padding: "24px",
+              }
+            },
+              React.createElement("h3", {
+                style: {
+                  color: "#c8a96e",
+                  fontSize: "12px",
+                  letterSpacing: "2px",
+                  marginBottom: "16px",
+                  fontWeight: "600",
+                }
+              }, "NOTES DE SÉANCE"),
+              sessionNotes ? (
+                React.createElement("p", {
+                  style: {
+                    color: "rgba(255,255,255,0.8)",
+                    fontSize: "14px",
+                    lineHeight: "1.6",
+                  }
+                }, sessionNotes)
+              ) : (
+                React.createElement("p", {
+                  style: { color: "rgba(255,255,255,0.3)", fontSize: "14px", fontStyle: "italic" }
+                }, "Aucune note prise durant la séance.")
+              )
+            )
+          ),
+
+          showReplay && (
+            React.createElement("div", {
+              style: {
+                background: "rgba(200,169,110,0.05)",
+                border: "1px solid rgba(200,169,110,0.15)",
+                borderRadius: "16px",
+                padding: "24px",
+                marginBottom: "32px",
+              }
+            },
+              React.createElement("h3", {
+                style: {
+                  color: "#c8a96e",
+                  fontSize: "12px",
+                  letterSpacing: "2px",
+                  marginBottom: "20px",
+                  fontWeight: "600",
+                }
+              }, "REPLAY DISPONIBLE"),
+              React.createElement("div", {
+                style: {
+                  background: "#0a0a10",
+                  borderRadius: "12px",
+                  aspectRatio: "16/9",
+                  display: "flex",
+                  flexDirection: "column" as const,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  border: "1px solid rgba(200,169,110,0.1)",
+                  cursor: "pointer",
+                  position: "relative" as const,
+                  overflow: "hidden",
+                }
+              },
+                React.createElement("div", {
+                  style: {
+                    position: "absolute" as const,
+                    inset: 0,
+                    background: "radial-gradient(circle at center, rgba(200,169,110,0.08) 0%, transparent 70%)",
+                  }
+                }),
+                React.createElement("div", {
+                  style: {
+                    width: "64px",
+                    height: "64px",
+                    borderRadius: "50%",
+                    background: "rgba(200,169,110,0.15)",
+                    border: "2px solid rgba(200,169,110,0.4)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: "24px",
+                    marginBottom: "16px",
+                    zIndex: 1,
+                  }
+                }, "▶"),
+                React.createElement("p", {
+                  style: {
+                    color: "rgba(255,255,255,0.6)",
+                    fontSize: "14px",
+                    zIndex: 1,
+                  }
+                }, "Cliquez pour visionner l'enregistrement"),
+                React.createElement("p", {
+                  style: {
+                    color: "rgba(200,169,110,0.5)",
+                    fontSize: "12px",
+                    marginTop: "8px",
+                    zIndex: 1,
+                  }
+                }, `Durée : ${formatTime(sessionTime)}`)
+              ),
+              React.createElement("div", {
+                style: {
+                  display: "flex",
+                  gap: "12px",
+                  marginTop: "16px",
+                }
+              },
+                React.createElement("button", {
+                  style: {
+                    flex: 1,
+                    padding: "12px",
+                    background: "rgba(200,169,110,0.1)",
+                    border: "1px solid rgba(200,169,110,0.3)",
+                    borderRadius: "8px",
+                    color: "#c8a96e",
+                    fontSize: "13px",
+                    cursor: "pointer",
+                    letterSpacing: "1px",
+                  }
+                }, "⬇ TÉLÉCHARGER"),
+                React.createElement("button", {
+                  style: {
+                    flex: 1,
+                    padding: "12px",
+                    background: "rgba(200,169,110,0.1)",
+                    border: "1px solid rgba(200,169,110,0.3)",
+                    borderRadius: "8px",
+                    color: "#c8a96e",
+                    fontSize: "13px",
+                    cursor: "pointer",
+                    letterSpacing: "1px",
+                  }
+                }, "📤 PARTAGER"),
+                React.createElement("button", {
+                  style: {
+                    flex: 1,
+                    padding: "12px",
+                    background: "rgba(200,169,110,0.1)",
+                    border: "1px solid rgba(200,169,110,0.3)",
+                    borderRadius: "8px",
+                    color: "#c8a96e",
+                    fontSize: "13px",
+                    cursor: "pointer",
+                    letterSpacing: "1px",
+                  }
+                }, "📋 TRANSCRIRE")
+              )
+            )
+          ),
+
+          React.createElement("div", {
+            style: { display: "flex", gap: "16px", justifyContent: "center" }
+          },
+            React.createElement("button", {
+              style: {
+                padding: "14px 32px",
+                background: "transparent",
+                border: "1px solid rgba(200,169,110,0.4)",
+                borderRadius: "8px",
+                color: "#c8a96e",
+                fontSize: "13px",
+                letterSpacing: "2px",
+                cursor: "pointer",
+              }
+            }, "NOUVELLE SÉANCE"),
+            React.createElement("button", {
+              style: {
+                padding: "14px 32px",
+                background: "linear-gradient(135deg, #c8a96e, #b8934e)",
+                border: "none",
+                borderRadius: "8px",
+                color: "#050508",
+                fontSize: "13px",
+                fontWeight: "700",
+                letterSpacing: "2px",
+                cursor: "pointer",
+              }
+            }, "TABLEAU DE BORD")
+          )
         )
       )
     );
   }
 
-  return React.createElement(
-    'div',
-    {
-      style: {
-        minHeight: '100vh',
-        background: '#050508',
-        fontFamily: "'Segoe UI', system-ui, sans-serif",
-        display: 'flex',
-        flexDirection: 'column',
-        overflow: 'hidden',
-      }
-    },
-
-    React.createElement(
-      'header',
-      {
-        style: {
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '16px 24px',
-          borderBottom: '1px solid rgba(200,169,110,0.15)',
-          background: 'rgba(5,5,8,0.95)',
-          backdropFilter: 'blur(20px)',
-          position: 'sticky',
-          top: 0,
-          zIndex: 100,
-        }
-      },
-      React.createElement(
-        'div',
-        { style: { display: 'flex', alignItems: 'center', gap: '12px' } },
-        React.createElement(
-          'div',
-          {
-            style: {
-              width: '36px',
-              height: '36px',
-              borderRadius: '10px',
-              background: 'linear-gradient(135deg, #c8a96e, #a07840)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '18px',
-              fontWeight: '800',
-              color: '#050508',
-            }
-          },
-          'A'
-        ),
-        React.createElement(
-          'div',
-          null,
-          React.createElement('span', {
-            style: { color: '#c8a96e', fontWeight: '700', fontSize: '18px', letterSpacing: '-0.3px' }
-          }, 'AcadémIA'),
-          React.createElement('span', {
-            style: { color: 'rgba(255,255,255,0.4)', fontWeight: '400', fontSize: '18px' }
-          }, ' Pro')
-        )
-      ),
-      React.createElement(
-        'div',
-        { style: { display: 'flex', alignItems: 'center', gap: '16px' } },
-        React.createElement(
-          'div',
-          {
-            style: {
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              padding: '6px 14px',
-              borderRadius: '20px',
-              background: currentStatus.bg,
-              border: `1px solid ${currentStatus.color}40`,
-            }
-          },
-          React.createElement('div', {
-            style: {
-              width: '8px',
-              height: '8px',
-              borderRadius: '50%',
-              background: currentStatus.color,
-              boxShadow: status === 'active' ? `0 0 8px ${currentStatus.color}` : 'none',
-              animation: status === 'active' ? 'pulse 2s infinite' : 'none',
-            }
-          }),
-          React.createElement('span', {
-            style: { color: currentStatus.color, fontSize: '13px', fontWeight: '600' }
-          }, currentStatus.label)
-        ),
-        React.createElement(
-          'div',
-          {
-            style: {
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '6px 14px',
-              borderRadius: '20px',
-              background: 'rgba(200,169,110,0.08)',
-              border: '1px solid rgba(200,169,110,0.2)',
-            }
-          },
-          React.createElement('span', { style: { fontSize: '14px' } }, '⏱'),
-          React.createElement('span', {
-            style: { color: '#c8a96e', fontSize: '14px', fontWeight: '700', fontVariantNumeric: 'tabular-nums' }
-          }, formatDuration(duration))
-        ),
-        React.createElement(
-          'div',
-          {
-            style: {
-              padding: '6px 12px',
-              borderRadius: '20px',
-              background: 'rgba(200,169,110,0.08)',
-              border: '1px solid rgba(200,169,110,0.2)',
-            }
-          },
-          React.createElement('span', {
-            style: { color: 'rgba(255,255,255,0.5)', fontSize: '12px' }
-          }, `#${params.sessionId}`)
-        )
-      )
-    ),
-
-    React.createElement(
-      'div',
-      {
-        style: {
-          display: 'flex',
-          flex: 1,
-          height: 'calc(100vh - 73px)',
-          overflow: 'hidden',
-        }
-      },
-
-      React.createElement(
-        'div',
-        {
-          style: {
-            flex: 1,
-            display: 'flex',
-            flexDirection: 'column',
-            padding: '24px',
-            gap: '20px',
-            overflow: 'auto',
-          }
-        },
-
-        React.createElement(
-          'div',
-          {
-            style: {
-              display: 'flex',
-              gap: '16px',
-              padding: '12px 16px',
-              background: 'rgba(200,169,110,0.06)',
-              border: '1px solid rgba(200,169,110,0.15)',
-              borderRadius: '16px',
-              alignItems: 'center',
-              flexWrap: 'wrap',
-            }
-          },
-          React.createElement(
-            'div',
-            { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
-            React.createElement('span', { style: { fontSize: '16px' } }, '📐'),
-            React.createElement('div', null,
-              React.createElement('div', {
-                style: { color: 'rgba(255,255,255,0.4)', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }
-              }, 'Spécialité'),
-              React.createElement('div', {
-                style: { color: '#c8a96e', fontSize: '14px', fontWeight: '600' }
-              }, 'Mathématiques · Analyse')
-            )
-          ),
-          React.createElement('div', { style: { width: '1px', height: '32px', background: 'rgba(200,169,110,0.2)' } }),
-          React.createElement(
-            'div',
-            { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
-            React.createElement('span', { style: { fontSize: '16px' } }, '🎓'),
-            React.createElement('div', null,
-              React.createElement('div', {
-                style: { color: 'rgba(255,255,255,0.4)', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }
-              }, 'Niveau'),
-              React.createElement('div', {
-                style: { color: 'rgba(255,255,255,0.8)', fontSize: '14px', fontWeight: '600' }
-              }, 'Licence 2 · Semestre 3')
-            )
-          ),
-          React.createElement('div', { style: { width: '1px', height: '32px', background: 'rgba(200,169,110,0.2)' } }),
-          React.createElement(
-            'div',
-            { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
-            React.createElement('span', { style: { fontSize: '16px' } }, '👥'),
-            React.createElement('div', null,
-              React.createElement('div', {
-                style: { color: 'rgba(255,255,255,0.4)', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }
-              }, 'Participants'),
-              React.createElement('div', {
-                style: { color: 'rgba(255,255,255,0.8)', fontSize: '14px', fontWeight: '600' }
-              }, `${participants.length} connectés`)
-            )
-          )
-        ),
-
-        React.createElement(
-          'div',
-          {
-            style: {
-              display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
-              gap: '16px',
-              flex: 1,
-            }
-          },
-
-          React.
+  return (
+    React.createElement("div", {
+      style:
