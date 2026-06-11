@@ -1,4 +1,3 @@
-```typescript
 // app/api/garantie/route.ts - Fichier principal avec handlers GET/POST
 
 import { NextRequest, NextResponse } from "next/server";
