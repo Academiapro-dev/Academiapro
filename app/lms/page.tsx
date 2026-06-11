@@ -404,3 +404,4 @@ export default async function LmsPage() {
                   letterSpacing: "0.08em",
                   textTransform: "uppercase",
                   marginBottom: 16,
+}}}
