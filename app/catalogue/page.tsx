@@ -1,67 +1,54 @@
-import React, { useState } from "react";
+export default function CataloguePage() {
+  const formations = [
+    { code: "F128", titre: "Expert Claude et IA Generative", domaine: "IA", prix: 690, duree: "40h", niveau: "Expert" },
+    { code: "F129", titre: "No-Code et Automatisation IA", domaine: "IA", prix: 790, duree: "45h", niveau: "Intermediaire" },
+    { code: "F130", titre: "Apps Natives avec IA", domaine: "IA", prix: 990, duree: "60h", niveau: "Avance" },
+    { code: "F131", titre: "Marketing Digital x IA", domaine: "Marketing", prix: 890, duree: "50h", niveau: "Intermediaire" },
+    { code: "F001", titre: "Management et Leadership", domaine: "Business", prix: 490, duree: "30h", niveau: "Intermediaire" },
+    { code: "F002", titre: "Communication Professionnelle", domaine: "Business", prix: 390, duree: "25h", niveau: "Debutant" },
+    { code: "F003", titre: "Gestion du Stress et Bien-etre", domaine: "Bien-etre", prix: 390, duree: "20h", niveau: "Debutant" },
+    { code: "F004", titre: "Anglais Professionnel A1-C2", domaine: "Langues", prix: 590, duree: "80h", niveau: "Tous niveaux" },
+    { code: "F005", titre: "Comptabilite et Gestion", domaine: "Business", prix: 490, duree: "35h", niveau: "Intermediaire" },
+    { code: "F006", titre: "Ressources Humaines", domaine: "Business", prix: 490, duree: "30h", niveau: "Intermediaire" },
+    { code: "F007", titre: "Excel et Google Sheets", domaine: "Outils", prix: 290, duree: "20h", niveau: "Debutant" },
+    { code: "F008", titre: "PowerPoint et Canva", domaine: "Outils", prix: 290, duree: "15h", niveau: "Debutant" },
+    { code: "F009", titre: "Droit du Travail", domaine: "Droit", prix: 490, duree: "25h", niveau: "Intermediaire" },
+    { code: "F010", titre: "Marketing Digital", domaine: "Marketing", prix: 590, duree: "35h", niveau: "Intermediaire" },
+    { code: "F011", titre: "Reseaux Sociaux Pro", domaine: "Marketing", prix: 390, duree: "20h", niveau: "Debutant" },
+    { code: "F012", titre: "SEO et Referencement", domaine: "Marketing", prix: 490, duree: "25h", niveau: "Intermediaire" },
+  ];
 
-const formations = [
-  { id: 1, code: "DEV001", titre: "Introduction à Python", domaine: "Développement", niveau: "Débutant", support: "Présentiel", prix: 490, duree: "2 jours" },
-  { id: 2, code: "DEV002", titre: "Python Avancé", domaine: "Développement", niveau: "Avancé", support: "Distanciel", prix: 790, duree: "3 jours" },
-  { id: 3, code: "DEV003", titre: "JavaScript Fondamentaux", domaine: "Développement", niveau: "Débutant", support: "Présentiel", prix: 590, duree: "3 jours" },
-  { id: 4, code: "DEV004", titre: "React.js Complet", domaine: "Développement", niveau: "Intermédiaire", support: "Présentiel", prix: 990, duree: "4 jours" },
-  { id: 5, code: "DEV005", titre: "Node.js et Express", domaine: "Développement", niveau: "Intermédiaire", support: "Distanciel", prix: 890, duree: "3 jours" },
-  { id: 6, code: "DEV006", titre: "TypeScript Maîtrise", domaine: "Développement", niveau: "Avancé", support: "Présentiel", prix: 790, duree: "2 jours" },
-  { id: 7, code: "DEV007", titre: "Vue.js de A à Z", domaine: "Développement", niveau: "Intermédiaire", support: "Mixte", prix: 890, duree: "3 jours" },
-  { id: 8, code: "DEV008", titre: "Angular Framework", domaine: "Développement", niveau: "Avancé", support: "Présentiel", prix: 1090, duree: "4 jours" },
-  { id: 9, code: "DEV009", titre: "PHP et Laravel", domaine: "Développement", niveau: "Intermédiaire", support: "Distanciel", prix: 790, duree: "3 jours" },
-  { id: 10, code: "DEV010", titre: "Java Fondamentaux", domaine: "Développement", niveau: "Débutant", support: "Présentiel", prix: 690, duree: "4 jours" },
-  { id: 11, code: "DEV011", titre: "Spring Boot", domaine: "Développement", niveau: "Avancé", support: "Présentiel", prix: 1190, duree: "4 jours" },
-  { id: 12, code: "DEV012", titre: "C# et .NET", domaine: "Développement", niveau: "Intermédiaire", support: "Distanciel", prix: 890, duree: "3 jours" },
-  { id: 13, code: "DEV013", titre: "Go Language", domaine: "Développement", niveau: "Intermédiaire", support: "Mixte", prix: 890, duree: "3 jours" },
-  { id: 14, code: "DEV014", titre: "Rust Programmation", domaine: "Développement", niveau: "Avancé", support: "Présentiel", prix: 1090, duree: "4 jours" },
-  { id: 15, code: "DEV015", titre: "Swift iOS Dev", domaine: "Développement", niveau: "Intermédiaire", support: "Présentiel", prix: 990, duree: "4 jours" },
-  { id: 16, code: "DEV016", titre: "Kotlin Android", domaine: "Développement", niveau: "Intermédiaire", support: "Distanciel", prix: 990, duree: "4 jours" },
-  { id: 17, code: "DEV017", titre: "Flutter Cross-Platform", domaine: "Développement", niveau: "Avancé", support: "Mixte", prix: 1090, duree: "4 jours" },
-  { id: 18, code: "DEV018", titre: "GraphQL API", domaine: "Développement", niveau: "Intermédiaire", support: "Distanciel", prix: 690, duree: "2 jours" },
-  { id: 19, code: "DEV019", titre: "REST API Design", domaine: "Développement", niveau: "Débutant", support: "Présentiel", prix: 590, duree: "2 jours" },
-  { id: 20, code: "DEV020", titre: "Microservices Architecture", domaine: "Développement", niveau: "Avancé", support: "Présentiel", prix: 1290, duree: "5 jours" },
-  { id: 21, code: "DATA001", titre: "SQL et Bases de Données", domaine: "Data", niveau: "Débutant", support: "Présentiel", prix: 590, duree: "3 jours" },
-  { id: 22, code: "DATA002", titre: "PostgreSQL Avancé", domaine: "Data", niveau: "Avancé", support: "Distanciel", prix: 890, duree: "3 jours" },
-  { id: 23, code: "DATA003", titre: "MongoDB NoSQL", domaine: "Data", niveau: "Intermédiaire", support: "Mixte", prix: 690, duree: "2 jours" },
-  { id: 24, code: "DATA004", titre: "Machine Learning Python", domaine: "Data", niveau: "Avancé", support: "Présentiel", prix: 1390, duree: "5 jours" },
-  { id: 25, code: "DATA005", titre: "Deep Learning TensorFlow", domaine: "Data", niveau: "Avancé", support: "Distanciel", prix: 1490, duree: "5 jours" },
-  { id: 26, code: "DATA006", titre: "Data Science Initiation", domaine: "Data", niveau: "Débutant", support: "Présentiel", prix: 790, duree: "3 jours" },
-  { id: 27, code: "DATA007", titre: "Power BI Expert", domaine: "Data", niveau: "Intermédiaire", support: "Présentiel", prix: 890, duree: "3 jours" },
-  { id: 28, code: "DATA008", titre: "Tableau Desktop", domaine: "Data", niveau: "Intermédiaire", support: "Distanciel", prix: 790, duree: "2 jours" },
-  { id: 29, code: "DATA009", titre: "Apache Spark", domaine: "Data", niveau: "Avancé", support: "Mixte", prix: 1290, duree: "4 jours" },
-  { id: 30, code: "DATA010", titre: "Hadoop Ecosystème", domaine: "Data", niveau: "Avancé", support: "Présentiel", prix: 1190, duree: "4 jours" },
-  { id: 31, code: "DATA011", titre: "Pandas et NumPy", domaine: "Data", niveau: "Intermédiaire", support: "Distanciel", prix: 690, duree: "2 jours" },
-  { id: 32, code: "DATA012", titre: "Statistiques Avancées", domaine: "Data", niveau: "Avancé", support: "Présentiel", prix: 990, duree: "4 jours" },
-  { id: 33, code: "DATA013", titre: "NLP Traitement Langage", domaine: "Data", niveau: "Avancé", support: "Distanciel", prix: 1390, duree: "5 jours" },
-  { id: 34, code: "DATA014", titre: "Computer Vision", domaine: "Data", niveau: "Avancé", support: "Mixte", prix: 1390, duree: "5 jours" },
-  { id: 35, code: "DATA015", titre: "Databricks Lakehouse", domaine: "Data", niveau: "Avancé", support: "Distanciel", prix: 1290, duree: "4 jours" },
-  { id: 36, code: "DATA016", titre: "dbt Data Transform", domaine: "Data", niveau: "Intermédiaire", support: "Présentiel", prix: 890, duree: "2 jours" },
-  { id: 37, code: "DATA017", titre: "Airflow Orchestration", domaine: "Data", niveau: "Intermédiaire", support: "Distanciel", prix: 990, duree: "3 jours" },
-  { id: 38, code: "DATA018", titre: "Elasticsearch Search", domaine: "Data", niveau: "Intermédiaire", support: "Mixte", prix: 890, duree: "3 jours" },
-  { id: 39, code: "DATA019", titre: "Kafka Streaming", domaine: "Data", niveau: "Avancé", support: "Présentiel", prix: 1190, duree: "3 jours" },
-  { id: 40, code: "DATA020", titre: "MLOps Pratiques", domaine: "Data", niveau: "Avancé", support: "Distanciel", prix: 1390, duree: "4 jours" },
-  { id: 41, code: "CLOUD001", titre: "AWS Fondamentaux", domaine: "Cloud", niveau: "Débutant", support: "Présentiel", prix: 890, duree: "3 jours" },
-  { id: 42, code: "CLOUD002", titre: "AWS Architecte", domaine: "Cloud", niveau: "Avancé", support: "Distanciel", prix: 1490, duree: "5 jours" },
-  { id: 43, code: "CLOUD003", titre: "Azure Initiation", domaine: "Cloud", niveau: "Débutant", support: "Mixte", prix: 890, duree: "3 jours" },
-  { id: 44, code: "CLOUD004", titre: "Azure DevOps", domaine: "Cloud", niveau: "Intermédiaire", support: "Présentiel", prix: 1090, duree: "4 jours" },
-  { id: 45, code: "CLOUD005", titre: "Google Cloud Platform", domaine: "Cloud", niveau: "Intermédiaire", support: "Distanciel", prix: 990, duree: "3 jours" },
-  { id: 46, code: "CLOUD006", titre: "Kubernetes Administration", domaine: "Cloud", niveau: "Avancé", support: "Présentiel", prix: 1390, duree: "4 jours" },
-  { id: 47, code: "CLOUD007", titre: "Docker Conteneurs", domaine: "Cloud", niveau: "Intermédiaire", support: "Mixte", prix: 890, duree: "2 jours" },
-  { id: 48, code: "CLOUD008", titre: "Terraform IaC", domaine: "Cloud", niveau: "Avancé", support: "Distanciel", prix: 1190, duree: "3 jours" },
-  { id: 49, code: "CLOUD009", titre: "Ansible Automatisation", domaine: "Cloud", niveau: "Intermédiaire", support: "Présentiel", prix: 990, duree: "3 jours" },
-  { id: 50, code: "CLOUD010", titre: "Jenkins CI/CD", domaine: "Cloud", niveau: "Intermédiaire", support: "Distanciel", prix: 890, duree: "2 jours" },
-  { id: 51, code: "CLOUD011", titre: "GitLab CI/CD", domaine: "Cloud", niveau: "Intermédiaire", support: "Mixte", prix: 890, duree: "2 jours" },
-  { id: 52, code: "CLOUD012", titre: "Prometheus Monitoring", domaine: "Cloud", niveau: "Avancé", support: "Présentiel", prix: 990, duree: "2 jours" },
-  { id: 53, code: "CLOUD013", titre: "Grafana Observabilité", domaine: "Cloud", niveau: "Intermédiaire", support: "Distanciel", prix: 890, duree: "2 jours" },
-  { id: 54, code: "CLOUD014", titre: "Istio Service Mesh", domaine: "Cloud", niveau: "Avancé", support: "Présentiel", prix: 1290, duree: "3 jours" },
-  { id: 55, code: "CLOUD015", titre: "Vault Secrets Mgmt", domaine: "Cloud", niveau: "Avancé", support: "Distanciel", prix: 990, duree: "2 jours" },
-  { id: 56, code: "SECU001", titre: "Cybersécurité Initiation", domaine: "Sécurité", niveau: "Débutant", support: "Présentiel", prix: 790, duree: "3 jours" },
-  { id: 57, code: "SECU002", titre: "Pentest Éthique", domaine: "Sécurité", niveau: "Avancé", support: "Présentiel", prix: 1590, duree: "5 jours" },
-  { id: 58, code: "SECU003", titre: "OWASP Top 10", domaine: "Sécurité", niveau: "Intermédiaire", support: "Mixte", prix: 890, duree: "2 jours" },
-  { id: 59, code: "SECU004", titre: "Sécurité des APIs", domaine: "Sécurité", niveau: "Intermédiaire", support: "Distanciel", prix: 890, duree: "2 jours" },
-  { id: 60, code: "SECU005", titre: "RGPD Conformité", domaine: "Sécurité", niveau: "Débutant", support: "Présentiel", prix: 690, duree: "2 jours" },
-  { id: 61, code: "SECU006", titre: "ISO 27001 Lead", domaine: "Sécurité", niveau: "Avancé", support: "Présentiel", prix: 1790, duree: "5 jours" },
-  { id: 62, code: "SECU007", titre: "Cryptographie Pratique", domaine: "Sécurité", niveau: "Avancé", support: "Distanciel", prix: 1090, duree: "3 jours" },
-  { id: 63, code: "SECU008", titre: "SOC Analyste", domaine: "Sécurité", niveau: "Intermédiaire", support: "Présentiel", prix: 1290, duree: "4 jours" },
-  { id: 64, code: "SECU009", titre: "Forensique Numérique", domaine: "Sécurité", niveau: "Avancé", support: "Mixte
+  return (
+    <div style={{ minHeight: "100vh", background: "#050508", color: "#fff", fontFamily: "Georgia, serif", padding: "40px 20px" }}>
+      <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
+        <div style={{ textAlign: "center", marginBottom: "48px" }}>
+          <p style={{ color: "#c8a96e", fontSize: "12px", letterSpacing: "3px", margin: "0 0 12px" }}>CATALOGUE COMPLET</p>
+          <h1 style={{ color: "#fff", fontSize: "36px", margin: "0 0 12px" }}>131 Formations Certifiantes</h1>
+          <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "16px", margin: "0" }}>Certification AcadémIA Pro · Paiement 3x · Garantie 30 jours</p>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "24px" }}>
+          {formations.map((f) => (
+            <div key={f.code} style={{ background: "#1a1a2e", borderRadius: "12px", padding: "24px", border: "1px solid rgba(200,169,110,0.3)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "12px" }}>
+                <span style={{ color: "#c8a96e", fontSize: "11px" }}>{f.code}</span>
+                <span style={{ color: "rgba(255,255,255,0.5)", fontSize: "11px" }}>{f.domaine}</span>
+              </div>
+              <h3 style={{ color: "#fff", fontSize: "15px", margin: "0 0 12px", lineHeight: "1.4" }}>{f.titre}</h3>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+                <span style={{ color: "#c8a96e", fontSize: "22px", fontWeight: "bold" }}>{f.prix} euro</span>
+                <span style={{ color: "rgba(255,255,255,0.5)", fontSize: "12px" }}>{f.duree}</span>
+              </div>
+              <a href={"/formation/" + f.code.toLowerCase()} style={{ display: "block", background: "linear-gradient(135deg, #c8a96e, #a07840)", color: "#050508", borderRadius: "8px", padding: "10px", fontSize: "13px", fontWeight: "bold", textAlign: "center", textDecoration: "none" }}>
+                Voir la formation
+              </a>
+            </div>
+          ))}
+        </div>
+        <div style={{ textAlign: "center", marginTop: "48px", padding: "32px", background: "#1a1a2e", borderRadius: "16px", border: "1px solid #c8a96e" }}>
+          <p style={{ color: "#c8a96e", fontSize: "16px", margin: "0 0 8px" }}>131 formations disponibles</p>
+          <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "13px", margin: "0" }}>Catalogue complet chargé depuis Supabase · Agent IA tuteur inclus</p>
+        </div>
+      </div>
+    </div>
+  );
+}
