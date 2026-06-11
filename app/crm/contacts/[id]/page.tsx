@@ -415,3 +415,4 @@ export default async function ContactPage({ params }: { params: { id: string } }
     justifyContent: "space-between",
     alignItems: "center",
     padding: "12px 0",
+}}
