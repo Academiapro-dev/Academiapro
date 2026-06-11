@@ -1,4 +1,3 @@
-```typescript
 // app/api/mr-juridique/veille/alertes/route.ts
 import { NextRequest, NextResponse } from "next/server";
 
