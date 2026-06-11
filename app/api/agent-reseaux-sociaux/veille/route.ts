@@ -1,4 +1,3 @@
-```typescript
 // app/api/agent-reseaux-sociaux/veille/tendances/route.ts
 
 import { NextRequest, NextResponse } from "next/server";
