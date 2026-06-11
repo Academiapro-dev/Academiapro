@@ -128,3 +128,4 @@ export default async function SkillsPage() {
               { value: "97€", label: "Accès à vie", icon: "∞" }
             ].map((stat) => (
               <div key={stat.label} style={{ backgroundColor: "rgba(200,169,110,0.06)", border: "1px solid rgba(200,169,110,0.15)", borderRadius: "
+}}}}
