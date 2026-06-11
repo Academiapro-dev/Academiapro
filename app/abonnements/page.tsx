@@ -471,3 +471,4 @@ export default function AbonnementsPage() {
             textAlign: "center",
             color: "#3a3a5a",
             fontSize: "
+}}}
