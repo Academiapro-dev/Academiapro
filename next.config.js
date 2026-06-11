@@ -6,6 +6,10 @@ const nextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+  swcMinify: false,
+  compiler: {
+    removeConsole: false,
+  },
 };
 
 module.exports = nextConfig;
