@@ -1,382 +1,265 @@
-export default function GamificationPage() {
-  const userData = {
-    name: "Alexandre Martin",
-    avatar: "AM",
-    level: 12,
-    currentXP: 3450,
-    nextLevelXP: 4000,
-    totalXP: 18450,
-    streak: 14,
-    rank: 3,
-    weeklyProgress: 680,
-    weeklyGoal: 1000,
+export default async function GamificationPage() {
+
+  const { createClient } = await import('@supabase/supabase-js');
+
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL as string,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string
+  );
+
+  const { data: leaderboardData } = await supabase
+    .from('user_profiles')
+    .select('id, username, avatar_url, xp_total, level, streak_days, badges_count')
+    .order('xp_total', { ascending: false })
+    .limit(10);
+
+  const { data: badgesData } = await supabase
+    .from('badges')
+    .select('id, name, description, icon_url, rarity, xp_reward, unlocked_at')
+    .order('rarity', { ascending: false })
+    .limit(12);
+
+  const { data: challengesData } = await supabase
+    .from('weekly_challenges')
+    .select('id, title, description, xp_reward, progress, target, deadline, category, difficulty')
+    .eq('is_active', true)
+    .order('xp_reward', { ascending: false });
+
+  const { data: rewardsData } = await supabase
+    .from('rewards')
+    .select('id, name, description, cost_xp, image_url, category, is_available')
+    .eq('is_available', true)
+    .order('cost_xp', { ascending: true })
+    .limit(8);
+
+  const { data: currentUserData } = await supabase
+    .from('user_profiles')
+    .select('id, username, avatar_url, xp_total, xp_this_week, level, streak_days, badges_count, rank_position')
+    .eq('is_current_session', true)
+    .single();
+
+  const leaderboard = leaderboardData || [
+    { id: '1', username: 'AlexDupont', avatar_url: null, xp_total: 15420, level: 28, streak_days: 45, badges_count: 23 },
+    { id: '2', username: 'MarieC', avatar_url: null, xp_total: 13890, level: 25, streak_days: 32, badges_count: 19 },
+    { id: '3', username: 'ThomasB', avatar_url: null, xp_total: 12340, level: 23, streak_days: 28, badges_count: 17 },
+    { id: '4', username: 'SophieL', avatar_url: null, xp_total: 11200, level: 21, streak_days: 19, badges_count: 14 },
+    { id: '5', username: 'NicolasP', avatar_url: null, xp_total: 9870, level: 19, streak_days: 15, badges_count: 12 },
+    { id: '6', username: 'LaurieM', avatar_url: null, xp_total: 8650, level: 17, streak_days: 22, badges_count: 10 },
+    { id: '7', username: 'JulienR', avatar_url: null, xp_total: 7430, level: 15, streak_days: 8, badges_count: 9 },
+    { id: '8', username: 'CamilleD', avatar_url: null, xp_total: 6210, level: 13, streak_days: 12, badges_count: 7 },
+  ];
+
+  const badges = badgesData || [
+    { id: '1', name: 'Premier Pas', description: 'Complétez votre première leçon', icon_url: null, rarity: 'common', xp_reward: 50, unlocked_at: '2024-01-15' },
+    { id: '2', name: 'Série de Feu', description: '7 jours consécutifs de pratique', icon_url: null, rarity: 'rare', xp_reward: 200, unlocked_at: '2024-01-22' },
+    { id: '3', name: 'Maître des Quiz', description: 'Score parfait 10 fois de suite', icon_url: null, rarity: 'epic', xp_reward: 500, unlocked_at: '2024-02-01' },
+    { id: '4', name: 'Explorateur', description: 'Découvrez 5 catégories différentes', icon_url: null, rarity: 'common', xp_reward: 100, unlocked_at: null },
+    { id: '5', name: 'Génie IA', description: 'Maîtrisez le module Intelligence Artificielle', icon_url: null, rarity: 'legendary', xp_reward: 1000, unlocked_at: null },
+    { id: '6', name: 'Nuit Blanche', description: 'Étudiez plus de 4h en une journée', icon_url: null, rarity: 'rare', xp_reward: 300, unlocked_at: '2024-01-28' },
+  ];
+
+  const challenges = challengesData || [
+    { id: '1', title: 'Sprint Mathématiques', description: 'Complétez 20 exercices de maths cette semaine', xp_reward: 450, progress: 13, target: 20, deadline: '2024-12-22', category: 'Mathématiques', difficulty: 'medium' },
+    { id: '2', title: 'Maître du Code', description: 'Résolvez 5 algorithmes complexes', xp_reward: 800, progress: 2, target: 5, deadline: '2024-12-22', category: 'Programmation', difficulty: 'hard' },
+    { id: '3', title: 'Polyglotte Express', description: 'Pratiquez 3 langues différentes', xp_reward: 350, progress: 1, target: 3, deadline: '2024-12-22', category: 'Langues', difficulty: 'easy' },
+    { id: '4', title: 'Série Parfaite', description: 'Maintenez une série de 7 jours', xp_reward: 600, progress: 5, target: 7, deadline: '2024-12-22', category: 'Régularité', difficulty: 'medium' },
+  ];
+
+  const rewards = rewardsData || [
+    { id: '1', name: 'Thème Sombre Pro', description: 'Débloquez le thème premium obsidienne', cost_xp: 2000, image_url: null, category: 'Personnalisation', is_available: true },
+    { id: '2', name: 'Cours Exclusif IA', description: 'Accès au module IA avancé', cost_xp: 5000, image_url: null, category: 'Contenu', is_available: true },
+    { id: '3', name: 'Mentor Personnel 1h', description: 'Session de mentorat dédiée', cost_xp: 8000, image_url: null, category: 'Service', is_available: true },
+    { id: '4', name: 'Avatar Légendaire', description: 'Cadre de profil exclusif or', cost_xp: 3500, image_url: null, category: 'Personnalisation', is_available: true },
+  ];
+
+  const currentUser = currentUserData || {
+    id: 'me',
+    username: 'Vous',
+    avatar_url: null,
+    xp_total: 9870,
+    xp_this_week: 1240,
+    level: 19,
+    streak_days: 15,
+    badges_count: 12,
+    rank_position: 5
   };
 
-  const badges = [
-    {
-      id: 1,
-      name: "Premier Module",
-      description: "Complété votre premier module",
-      icon: "🎯",
-      earned: true,
-      earnedDate: "15 Jan 2024",
-      xpReward: 100,
-      rarity: "Commun",
-    },
-    {
-      id: 2,
-      name: "Première Certification",
-      description: "Obtenu votre première certification",
-      icon: "🏆",
-      earned: true,
-      earnedDate: "28 Jan 2024",
-      xpReward: 500,
-      rarity: "Rare",
-    },
-    {
-      id: 3,
-      name: "Streak 7 Jours",
-      description: "7 jours consécutifs d'apprentissage",
-      icon: "🔥",
-      earned: true,
-      earnedDate: "02 Fév 2024",
-      xpReward: 250,
-      rarity: "Peu commun",
-    },
-    {
-      id: 4,
-      name: "Expert IA",
-      description: "Maîtrisé les fondamentaux de l'IA",
-      icon: "🤖",
-      earned: true,
-      earnedDate: "10 Fév 2024",
-      xpReward: 1000,
-      rarity: "Épique",
-    },
-    {
-      id: 5,
-      name: "Master",
-      description: "Atteint le niveau maximum dans une discipline",
-      icon: "👑",
-      earned: false,
-      earnedDate: null,
-      xpReward: 2500,
-      rarity: "Légendaire",
-    },
-    {
-      id: 6,
-      name: "Collaborateur",
-      description: "Participé à 10 projets en équipe",
-      icon: "🤝",
-      earned: false,
-      earnedDate: null,
-      xpReward: 300,
-      rarity: "Commun",
-    },
-  ];
+  const xpForCurrentLevel = currentUser.level * 500;
+  const xpForNextLevel = (currentUser.level + 1) * 500;
+  const xpProgress = ((currentUser.xp_total % 500) / 500) * 100;
 
-  const leaderboard = [
-    { rank: 1, name: "Sophie Chen", avatar: "SC", xp: 24500, level: 18, streak: 32, trend: "up" },
-    { rank: 2, name: "Marcus Dubois", avatar: "MD", xp: 21200, level: 16, streak: 21, trend: "up" },
-    { rank: 3, name: "Alexandre Martin", avatar: "AM", xp: 18450, level: 12, streak: 14, trend: "same", isUser: true },
-    { rank: 4, name: "Emma Lefebvre", avatar: "EL", xp: 17800, level: 11, streak: 8, trend: "down" },
-    { rank: 5, name: "Lucas Bernard", avatar: "LB", xp: 15600, level: 10, streak: 5, trend: "up" },
-    { rank: 6, name: "Jade Moreau", avatar: "JM", xp: 14200, level: 9, streak: 19, trend: "down" },
-    { rank: 7, name: "Noah Petit", avatar: "NP", xp: 12900, level: 8, streak: 3, trend: "up" },
-  ];
-
-  const weeklyDays = [
-    { day: "Lun", xp: 120, active: true },
-    { day: "Mar", xp: 180, active: true },
-    { day: "Mer", xp: 95, active: true },
-    { day: "Jeu", xp: 150, active: true },
-    { day: "Ven", xp: 135, active: true },
-    { day: "Sam", xp: 0, active: false },
-    { day: "Dim", xp: 0, active: false },
-  ];
-
-  const weeklyMaxXP = Math.max(...weeklyDays.map((d) => d.xp));
-
-  const challenges = [
-    {
-      id: 1,
-      title: "Sprint IA",
-      description: "Complétez 5 modules d'intelligence artificielle cette semaine",
-      xpReward: 500,
-      progress: 3,
-      total: 5,
-      deadline: "3 jours",
-      difficulty: "Intermédiaire",
-      icon: "⚡",
-      color: "#c8a96e",
-    },
-    {
-      id: 2,
-      title: "Défi Streak",
-      description: "Maintenez votre streak pendant 7 jours consécutifs",
-      xpReward: 300,
-      progress: 5,
-      total: 7,
-      deadline: "2 jours",
-      difficulty: "Facile",
-      icon: "🔥",
-      color: "#ff6b6b",
-    },
-    {
-      id: 3,
-      title: "Quiz Master",
-      description: "Obtenez 90% ou plus sur 3 quiz différents",
-      xpReward: 400,
-      progress: 1,
-      total: 3,
-      deadline: "5 jours",
-      difficulty: "Difficile",
-      icon: "🎓",
-      color: "#6bcb77",
-    },
-    {
-      id: 4,
-      title: "Explorateur",
-      description: "Visitez 4 nouvelles catégories de cours",
-      xpReward: 200,
-      progress: 4,
-      total: 4,
-      deadline: "1 jour",
-      difficulty: "Facile",
-      icon: "🗺️",
-      color: "#4d9de0",
-      completed: true,
-    },
-  ];
-
-  const rarityColors: Record<string, string> = {
-    Commun: "#9ca3af",
-    "Peu commun": "#6bcb77",
-    Rare: "#4d9de0",
-    Épique: "#a855f7",
-    Légendaire: "#c8a96e",
+  const getRarityColor = (rarity: string) => {
+    switch (rarity) {
+      case 'legendary': return '#ff9500';
+      case 'epic': return '#bf5af2';
+      case 'rare': return '#0a84ff';
+      case 'common': return '#30d158';
+      default: return '#8e8e93';
+    }
   };
 
-  const xpPercentage = Math.round((userData.currentXP / userData.nextLevelXP) * 100);
-  const weeklyPercentage = Math.round((userData.weeklyProgress / userData.weeklyGoal) * 100);
+  const getRarityLabel = (rarity: string) => {
+    switch (rarity) {
+      case 'legendary': return 'Légendaire';
+      case 'epic': return 'Épique';
+      case 'rare': return 'Rare';
+      case 'common': return 'Commun';
+      default: return 'Normal';
+    }
+  };
+
+  const getDifficultyColor = (difficulty: string) => {
+    switch (difficulty) {
+      case 'hard': return '#ff453a';
+      case 'medium': return '#ffd60a';
+      case 'easy': return '#30d158';
+      default: return '#8e8e93';
+    }
+  };
+
+  const getDifficultyLabel = (difficulty: string) => {
+    switch (difficulty) {
+      case 'hard': return 'Difficile';
+      case 'medium': return 'Moyen';
+      case 'easy': return 'Facile';
+      default: return 'Normal';
+    }
+  };
+
+  const getMedalEmoji = (index: number) => {
+    if (index === 0) return '🥇';
+    if (index === 1) return '🥈';
+    if (index === 2) return '🥉';
+    return `#${index + 1}`;
+  };
+
+  const getBadgeIcon = (name: string) => {
+    const icons: Record<string, string> = {
+      'Premier Pas': '👣',
+      'Série de Feu': '🔥',
+      'Maître des Quiz': '🎯',
+      'Explorateur': '🗺️',
+      'Génie IA': '🤖',
+      'Nuit Blanche': '🌙',
+    };
+    return icons[name] || '🏆';
+  };
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        backgroundColor: "#050508",
-        fontFamily: "'Segoe UI', system-ui, -apple-system, sans-serif",
-        color: "#ffffff",
-      }}
-    >
-      <div
-        style={{
-          position: "fixed",
-          top: 0,
-          left: 0,
-          right: 0,
-          zIndex: 50,
-          backgroundColor: "rgba(5, 5, 8, 0.95)",
-          backdropFilter: "blur(20px)",
-          borderBottom: "1px solid rgba(200, 169, 110, 0.2)",
-          padding: "0 24px",
-        }}
-      >
-        <div
-          style={{
-            maxWidth: "1400px",
-            margin: "0 auto",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            height: "70px",
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-            <div
-              style={{
-                width: "38px",
-                height: "38px",
-                background: "linear-gradient(135deg, #c8a96e, #a07840)",
-                borderRadius: "10px",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: "18px",
-                fontWeight: "900",
-                color: "#050508",
-              }}
-            >
-              A
-            </div>
+    <div style={{
+      backgroundColor: '#050508',
+      minHeight: '100vh',
+      fontFamily: "'Segoe UI', system-ui, -apple-system, sans-serif",
+      color: '#ffffff',
+      overflowX: 'hidden',
+    }}>
+
+      <div style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        zIndex: 50,
+        backgroundColor: 'rgba(5, 5, 8, 0.92)',
+        backdropFilter: 'blur(20px)',
+        borderBottom: '1px solid rgba(200, 169, 110, 0.15)',
+        padding: '0 2rem',
+      }}>
+        <div style={{
+          maxWidth: '1400px',
+          margin: '0 auto',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          height: '70px',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <div style={{
+              width: '36px',
+              height: '36px',
+              borderRadius: '10px',
+              background: 'linear-gradient(135deg, #c8a96e, #f0d080)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '18px',
+            }}>🎓</div>
             <div>
-              <div style={{ fontSize: "16px", fontWeight: "800", color: "#ffffff", letterSpacing: "-0.3px" }}>
-                AcadémIA
-                <span style={{ color: "#c8a96e", marginLeft: "2px" }}>Pro</span>
-              </div>
-              <div style={{ fontSize: "10px", color: "#c8a96e", letterSpacing: "2px", textTransform: "uppercase" }}>
-                Gamification
-              </div>
+              <span style={{ fontSize: '1.1rem', fontWeight: 700, color: '#c8a96e', letterSpacing: '-0.3px' }}>AcadémIA</span>
+              <span style={{ fontSize: '1.1rem', fontWeight: 700, color: '#ffffff', letterSpacing: '-0.3px' }}> Pro</span>
             </div>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: "20px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <span style={{ fontSize: "18px" }}>🔥</span>
-              <span style={{ fontSize: "14px", fontWeight: "700", color: "#ff6b6b" }}>{userData.streak} jours</span>
+
+          <nav style={{ display: 'flex', alignItems: 'center', gap: '2rem' }}>
+            {['Tableau de bord', 'Cours', 'Gamification', 'Communauté'].map((item, i) => (
+              <a key={i} href="#" style={{
+                color: i === 2 ? '#c8a96e' : 'rgba(255,255,255,0.6)',
+                textDecoration: 'none',
+                fontSize: '0.9rem',
+                fontWeight: i === 2 ? 600 : 400,
+                borderBottom: i === 2 ? '2px solid #c8a96e' : '2px solid transparent',
+                paddingBottom: '2px',
+                transition: 'color 0.2s',
+              }}>{item}</a>
+            ))}
+          </nav>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              backgroundColor: 'rgba(200, 169, 110, 0.1)',
+              border: '1px solid rgba(200, 169, 110, 0.3)',
+              borderRadius: '20px',
+              padding: '6px 14px',
+            }}>
+              <span style={{ fontSize: '14px' }}>⚡</span>
+              <span style={{ color: '#c8a96e', fontWeight: 700, fontSize: '0.9rem' }}>{currentUser.xp_total.toLocaleString()} XP</span>
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <span style={{ fontSize: "13px", color: "#c8a96e", fontWeight: "600" }}>
-                {userData.totalXP.toLocaleString()} XP
-              </span>
-            </div>
-            <div
-              style={{
-                width: "36px",
-                height: "36px",
-                borderRadius: "50%",
-                background: "linear-gradient(135deg, #c8a96e, #a07840)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: "13px",
-                fontWeight: "800",
-                color: "#050508",
-                cursor: "pointer",
-              }}
-            >
-              {userData.avatar}
+            <div style={{
+              width: '38px',
+              height: '38px',
+              borderRadius: '50%',
+              background: 'linear-gradient(135deg, #c8a96e, #f0d080)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '16px',
+              fontWeight: 700,
+              color: '#050508',
+            }}>
+              {currentUser.username.charAt(0).toUpperCase()}
             </div>
           </div>
         </div>
       </div>
 
-      <div style={{ maxWidth: "1400px", margin: "0 auto", padding: "90px 24px 40px" }}>
-        <div style={{ marginBottom: "40px" }}>
-          <div
-            style={{
-              background: "linear-gradient(135deg, rgba(200,169,110,0.08) 0%, rgba(5,5,8,0) 60%)",
-              border: "1px solid rgba(200,169,110,0.2)",
-              borderRadius: "24px",
-              padding: "32px",
-              position: "relative",
-              overflow: "hidden",
-            }}
-          >
-            <div
-              style={{
-                position: "absolute",
-                top: "-60px",
-                right: "-60px",
-                width: "200px",
-                height: "200px",
-                borderRadius: "50%",
-                background: "radial-gradient(circle, rgba(200,169,110,0.12) 0%, transparent 70%)",
-              }}
-            />
-            <div
-              style={{
-                display: "flex",
-                alignItems: "flex-start",
-                gap: "24px",
-                flexWrap: "wrap",
-              }}
-            >
-              <div style={{ position: "relative" }}>
-                <div
-                  style={{
-                    width: "80px",
-                    height: "80px",
-                    borderRadius: "50%",
-                    background: "linear-gradient(135deg, #c8a96e, #a07840)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: "28px",
-                    fontWeight: "900",
-                    color: "#050508",
-                    border: "3px solid rgba(200,169,110,0.4)",
-                  }}
-                >
-                  {userData.avatar}
-                </div>
-                <div
-                  style={{
-                    position: "absolute",
-                    bottom: "-4px",
-                    right: "-4px",
-                    backgroundColor: "#c8a96e",
-                    borderRadius: "12px",
-                    padding: "2px 8px",
-                    fontSize: "11px",
-                    fontWeight: "800",
-                    color: "#050508",
-                    border: "2px solid #050508",
-                  }}
-                >
-                  Niv.{userData.level}
-                </div>
-              </div>
-              <div style={{ flex: 1, minWidth: "200px" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "4px", flexWrap: "wrap" }}>
-                  <h1 style={{ margin: 0, fontSize: "26px", fontWeight: "800", color: "#ffffff" }}>
-                    {userData.name}
-                  </h1>
-                  <div
-                    style={{
-                      background: "linear-gradient(135deg, rgba(200,169,110,0.2), rgba(200,169,110,0.05))",
-                      border: "1px solid rgba(200,169,110,0.4)",
-                      borderRadius: "20px",
-                      padding: "4px 12px",
-                      fontSize: "12px",
-                      fontWeight: "700",
-                      color: "#c8a96e",
-                    }}
-                  >
-                    #{userData.rank} Classement
-                  </div>
-                </div>
-                <div style={{ fontSize: "14px", color: "#9ca3af", marginBottom: "16px" }}>
-                  Apprenant Expert · {userData.totalXP.toLocaleString()} XP total
-                </div>
-                <div>
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px" }}>
-                    <span style={{ fontSize: "13px", color: "#9ca3af" }}>
-                      Niveau {userData.level} → {userData.level + 1}
-                    </span>
-                    <span style={{ fontSize: "13px", fontWeight: "700", color: "#c8a96e" }}>
-                      {userData.currentXP.toLocaleString()} / {userData.nextLevelXP.toLocaleString()} XP
-                    </span>
-                  </div>
-                  <div
-                    style={{
-                      height: "10px",
-                      backgroundColor: "rgba(255,255,255,0.08)",
-                      borderRadius: "10px",
-                      overflow: "hidden",
-                    }}
-                  >
-                    <div
-                      style={{
-                        height: "100%",
-                        width: `${xpPercentage}%`,
-                        background: "linear-gradient(90deg, #c8a96e, #e8c98e)",
-                        borderRadius: "10px",
-                        transition: "width 1s ease",
-                        position: "relative",
-                      }}
-                    >
-                      <div
-                        style={{
-                          position: "absolute",
-                          top: 0,
-                          left: 0,
-                          right: 0,
-                          bottom: 0,
-                          background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent)",
-                          borderRadius: "10px",
-                        }}
-                      />
-                    </div>
-                  </div>
-                  <div style={{ fontSize: "11px", color: "#6b7280", marginTop: "6px" }}>
-                    {xpPercentage}% vers le niveau suivant · encore {userData.nextLevelXP -
+      <div style={{
+        maxWidth: '1400px',
+        margin: '0 auto',
+        padding: '90px 2rem 3rem',
+      }}>
+
+        <div style={{ marginBottom: '3rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.5rem' }}>
+            <div style={{
+              width: '48px',
+              height: '48px',
+              borderRadius: '14px',
+              background: 'linear-gradient(135deg, #c8a96e20, #c8a96e40)',
+              border: '1px solid rgba(200, 169, 110, 0.3)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '24px',
+            }}>🏆</div>
+            <div>
+              <h1 style={{
+                fontSize: '2rem',
+                fontWeight: 800,
+                margin: 0,
+                background: 'linear-gradient(135deg, #ffffff, #c8a96e)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip
