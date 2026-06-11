@@ -1,4 +1,3 @@
-```tsx
 // app/garantie/page.tsx
 "use client";
 
