@@ -407,3 +407,4 @@ export default function GarantieAcademiaPro() {
           <h1 style={styles.heroTitle}>
             Votre satisfaction,{" "}
             <span style={styles.gradientText}>notre engagement</span>
+}
