@@ -1,4 +1,3 @@
-```tsx
 import React from "react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -237,4 +236,3 @@ const SubscriptionCard: React.FC<SubscriptionCardProps> = ({
 
           {/* Séances incluses */}
           <div
-            
