@@ -1,92 +1,419 @@
-export default function CataloguePage() {
-  const formations = [
-    { code: "IA-001", titre: "Introduction à l'Intelligence Artificielle", domaine: "IA", prix: 297, duree: "8h" },
-    { code: "IA-002", titre: "Machine Learning avec Python", domaine: "IA", prix: 397, duree: "12h" },
-    { code: "IA-003", titre: "Deep Learning et Réseaux de Neurones", domaine: "IA", prix: 447, duree: "15h" },
-    { code: "IA-004", titre: "ChatGPT et LLMs pour Professionnels", domaine: "IA", prix: 197, duree: "6h" },
-    { code: "IA-005", titre: "Computer Vision avec TensorFlow", domaine: "IA", prix: 497, duree: "18h" },
-    { code: "IA-006", titre: "NLP et Traitement du Langage Naturel", domaine: "IA", prix: 447, duree: "14h" },
-    { code: "IA-007", titre: "IA Générative et Création de Contenu", domaine: "IA", prix: 297, duree: "9h" },
-    { code: "IA-008", titre: "Prompt Engineering Avancé", domaine: "IA", prix: 147, duree: "4h" },
-    { code: "IA-009", titre: "AutoML et No-Code IA", domaine: "IA", prix: 247, duree: "7h" },
-    { code: "IA-010", titre: "IA pour la Finance et Prédiction", domaine: "IA", prix: 547, duree: "16h" },
-    { code: "BE-001", titre: "Méditation de Pleine Conscience", domaine: "Bien-etre", prix: 147, duree: "5h" },
-    { code: "BE-002", titre: "Gestion du Stress par la Sophrologie", domaine: "Bien-etre", prix: 197, duree: "7h" },
-    { code: "BE-003", titre: "Yoga Fondamental pour Débutants", domaine: "Bien-etre", prix: 127, duree: "6h" },
-    { code: "BE-004", titre: "Nutrition et Alimentation Saine", domaine: "Bien-etre", prix: 167, duree: "8h" },
-    { code: "BE-005", titre: "Psychologie Positive au Quotidien", domaine: "Bien-etre", prix: 197, duree: "9h" },
-    { code: "BE-006", titre: "Sommeil et Récupération Optimale", domaine: "Bien-etre", prix: 147, duree: "4h" },
-    { code: "BE-007", titre: "Cohérence Cardiaque et Respiration", domaine: "Bien-etre", prix: 97, duree: "3h" },
-    { code: "BE-008", titre: "Développement Personnel Intensif", domaine: "Bien-etre", prix: 297, duree: "12h" },
-    { code: "BE-009", titre: "Gestion des Émotions et Intelligence Émotionnelle", domaine: "Bien-etre", prix: 247, duree: "10h" },
-    { code: "BE-010", titre: "Hypnose Ericksonienne Fondamentaux", domaine: "Bien-etre", prix: 347, duree: "14h" },
-    { code: "LG-001", titre: "Anglais Business Niveau B2", domaine: "Langues", prix: 297, duree: "20h" },
-    { code: "LG-002", titre: "Espagnol pour Voyageurs", domaine: "Langues", prix: 197, duree: "15h" },
-    { code: "LG-003", titre: "Mandarin Débutant Complet", domaine: "Langues", prix: 347, duree: "25h" },
-    { code: "LG-004", titre: "Allemand Professionnel", domaine: "Langues", prix: 297, duree: "22h" },
-    { code: "LG-005", titre: "Français Langue Étrangère FLE", domaine: "Langues", prix: 247, duree: "18h" },
-    { code: "LG-006", titre: "Italien Conversation Rapide", domaine: "Langues", prix: 197, duree: "12h" },
-    { code: "LG-007", titre: "Anglais Technique IT", domaine: "Langues", prix: 247, duree: "14h" },
-    { code: "LG-008", titre: "Japonais Hiragana et Katakana", domaine: "Langues", prix: 297, duree: "20h" },
-    { code: "LG-009", titre: "Portugais Brésilien Débutant", domaine: "Langues", prix: 197, duree: "16h" },
-    { code: "LG-010", titre: "Arabe Standard Moderne", domaine: "Langues", prix: 347, duree: "24h" },
-    { code: "BU-001", titre: "Création d'Entreprise de A à Z", domaine: "Business", prix: 447, duree: "16h" },
-    { code: "BU-002", titre: "Finance d'Entreprise pour Non-Financiers", domaine: "Business", prix: 347, duree: "12h" },
-    { code: "BU-003", titre: "Négociation Commerciale Avancée", domaine: "Business", prix: 397, duree: "14h" },
-    { code: "BU-004", titre: "Excel pour Business Intelligence", domaine: "Business", prix: 247, duree: "10h" },
-    { code: "BU-005", titre: "Stratégie d'Entreprise et Croissance", domaine: "Business", prix: 497, duree: "18h" },
-    { code: "BU-006", titre: "Comptabilité et Gestion PME", domaine: "Business", prix: 297, duree: "11h" },
-    { code: "BU-007", titre: "Droit des Affaires Essentiel", domaine: "Business", prix: 347, duree: "13h" },
-    { code: "BU-008", titre: "Fundraising et Levée de Fonds", domaine: "Business", prix: 447, duree: "15h" },
-    { code: "BU-009", titre: "Business Model Canvas Maîtrise", domaine: "Business", prix: 197, duree: "6h" },
-    { code: "BU-010", titre: "Gestion de Trésorerie et Cash Flow", domaine: "Business", prix: 297, duree: "9h" },
-    { code: "MG-001", titre: "Management d'Équipe Performante", domaine: "Management", prix: 397, duree: "14h" },
-    { code: "MG-002", titre: "Leadership Transformationnel", domaine: "Management", prix: 447, duree: "16h" },
-    { code: "MG-003", titre: "Gestion de Projet Agile Scrum", domaine: "Management", prix: 347, duree: "12h" },
-    { code: "MG-004", titre: "Communication Managériale", domaine: "Management", prix: 297, duree: "10h" },
-    { code: "MG-005", titre: "Recrutement et Onboarding", domaine: "Management", prix: 347, duree: "11h" },
-    { code: "MG-006", titre: "Conduite du Changement", domaine: "Management", prix: 397, duree: "13h" },
-    { code: "MG-007", titre: "Feedback et Évaluation de Performance", domaine: "Management", prix: 247, duree: "7h" },
-    { code: "MG-008", titre: "Gestion des Conflits en Entreprise", domaine: "Management", prix: 297, duree: "9h" },
-    { code: "MG-009", titre: "Management Hybride et Télétravail", domaine: "Management", prix: 247, duree: "8h" },
-    { code: "MG-010", titre: "OKR et Pilotage par Objectifs", domaine: "Management", prix: 347, duree: "11h" },
-    { code: "MK-001", titre: "Marketing Digital Complet", domaine: "Marketing", prix: 447, duree: "20h" },
-    { code: "MK-002", titre: "SEO et Référencement Naturel", domaine: "Marketing", prix: 297, duree: "12h" },
-    { code: "MK-003", titre: "Publicité Facebook et Meta Ads", domaine: "Marketing", prix: 347, duree: "14h" },
-    { code: "MK-004", titre: "Email Marketing et Automation", domaine: "Marketing", prix: 247, duree: "9h" },
-    { code: "MK-005", titre: "Content Marketing et Storytelling", domaine: "Marketing", prix: 297, duree: "11h" },
-    { code: "MK-006", titre: "Google Ads et SEA Avancé", domaine: "Marketing", prix: 347, duree: "13h" },
-    { code: "MK-007", titre: "Réseaux Sociaux et Community Management", domaine: "Marketing", prix: 247, duree: "10h" },
-    { code: "MK-008", titre: "Inbound Marketing et Lead Generation", domaine: "Marketing", prix: 397, duree: "16h" },
-    { code: "MK-009", titre: "Analytics et Data-Driven Marketing", domaine: "Marketing", prix: 347, duree: "13h" },
-    { code: "MK-010", titre: "Personal Branding et Influence", domaine: "Marketing", prix: 197, duree: "7h" },
-    { code: "IA-011", titre: "IA pour le Marketing Digital", domaine: "IA", prix: 347, duree: "11h" },
-    { code: "IA-012", titre: "Automatisation RPA et IA", domaine: "IA", prix: 397, duree: "13h" },
-    { code: "IA-013", titre: "Midjourney et DALL-E Maîtrise", domaine: "IA", prix: 197, duree: "6h" },
-    { code: "IA-014", titre: "Data Science avec Python", domaine: "IA", prix: 497, duree: "20h" },
-    { code: "IA-015", titre: "IA en Cybersécurité", domaine: "IA", prix: 447, duree: "15h" },
-    { code: "BE-011", titre: "Mindfulness et Pleine Conscience au Travail", domaine: "Bien-etre", prix: 167, duree: "6h" },
-    { code: "BE-012", titre: "Arrêter de Procrastiner", domaine: "Bien-etre", prix: 127, duree: "4h" },
-    { code: "BE-013", titre: "Confiance en Soi et Estime", domaine: "Bien-etre", prix: 197, duree: "8h" },
-    { code: "BE-014", titre: "Burn-out Prévention et Récupération", domaine: "Bien-etre", prix: 247, duree: "10h" },
-    { code: "BE-015", titre: "Sport et Performance Mentale", domaine: "Bien-etre", prix: 167, duree: "6h" },
-    { code: "LG-011", titre: "Néerlandais pour Professionnels", domaine: "Langues", prix: 247, duree: "18h" },
-    { code: "LG-012", titre: "Russe Débutant Alphabet et Bases", domaine: "Langues", prix: 297, duree: "20h" },
-    { code: "LG-013", titre: "Coréen Culture et Communication", domaine: "Langues", prix: 247, duree: "16h" },
-    { code: "LG-014", titre: "Anglais TOEIC Préparation", domaine: "Langues", prix: 297, duree: "22h" },
-    { code: "LG-015", titre: "Turc Débutant Complet", domaine: "Langues", prix: 197, duree: "14h" },
-    { code: "BU-011", titre: "E-commerce et Boutique en Ligne", domaine: "Business", prix: 347, duree: "13h" },
-    { code: "BU-012", titre: "Import-Export et Commerce International", domaine: "Business", prix: 397, duree: "15h" },
-    { code: "BU-013", titre: "Franchise et Développement Réseau", domaine: "Business", prix: 447, duree: "16h" },
-    { code: "BU-014", titre: "Dropshipping et Amazon FBA", domaine: "Business", prix: 297, duree: "11h" },
-    { code: "BU-015", titre: "Investissement Immobilier Stratégie", domaine: "Business", prix: 497, duree: "18h" },
-    { code: "MG-011", titre: "Cohésion d'Équipe et Team Building", domaine: "Management", prix: 247, duree: "7h" },
-    { code: "MG-012", titre: "Intelligence Collective et Innovation", domaine: "Management", prix: 347, duree: "12h" },
-    { code: "MG-013", titre: "Management Intergénérationnel", domaine: "Management", prix: 297, duree: "9h" },
-    { code: "MG-014", titre: "Gouvernance et Comité de Direction", domaine: "Management", prix: 447, duree: "15h" },
-    { code: "MG-015", titre: "Bien-être et QVT en Entreprise", domaine: "Management", prix: 297, duree: "10h" },
-    { code: "MK-011", titre: "TikTok Marketing et Vidéo Courte", domaine: "Marketing", prix: 247, duree: "9h" },
-    { code: "MK-012", titre: "LinkedIn Strategy B2B", domaine: "Marketing", prix: 297, duree: "11h" },
-    { code: "MK-013", titre: "Copywriting et Rédaction Persuasive", domaine: "Marketing", prix: 247, duree: "9h" },
-    { code: "MK-014", titre: "Growth Hacking et Acquisition Rapide", domaine: "Marketing", prix: 397, duree: "14h" },
-    { code: "MK-015", titre: "Marketing d'Influence et Collaboration", domaine: "Marketing", prix: 297, duree: "10h" },
+export default async function CataloguePage({
+  searchParams,
+}: {
+  searchParams: { domain?: string; level?: string; support?: string; page?: string };
+}) {
+  const { createClient } = await import("@supabase/supabase-js");
+
+  const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+  const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+
+  const ITEMS_PER_PAGE = 12;
+
+  const currentPage = parseInt(searchParams.page || "1", 10);
+  const selectedDomain = searchParams.domain || "";
+  const selectedLevel = searchParams.level || "";
+  const selectedSupport = searchParams.support || "";
+
+  const offset = (currentPage - 1) * ITEMS_PER_PAGE;
+
+  type Formation = {
+    id: string;
+    title: string;
+    description: string;
+    domain: string;
+    level: string;
+    support: string;
+    duration: string;
+    price: number;
+    image_url: string;
+    instructor: string;
+    rating: number;
+    students_count: number;
+  };
+
+  let formations: Formation[] = [];
+  let totalCount = 0;
+  let hasError = false;
+
+  const staticFallback: Formation[] = [
+    {
+      id: "1",
+      title: "Intelligence Artificielle Fondamentaux",
+      description: "Maîtrisez les bases de l'IA moderne avec des projets pratiques et des études de cas réels.",
+      domain: "Intelligence Artificielle",
+      level: "Débutant",
+      support: "Vidéo",
+      duration: "24h",
+      price: 299,
+      image_url: "",
+      instructor: "Dr. Sarah Chen",
+      rating: 4.8,
+      students_count: 1240,
+    },
+    {
+      id: "2",
+      title: "Machine Learning Avancé",
+      description: "Plongez dans les algorithmes avancés de ML et déployez vos propres modèles en production.",
+      domain: "Intelligence Artificielle",
+      level: "Avancé",
+      support: "Vidéo",
+      duration: "40h",
+      price: 499,
+      image_url: "",
+      instructor: "Prof. Marc Dubois",
+      rating: 4.9,
+      students_count: 876,
+    },
+    {
+      id: "3",
+      title: "Data Science avec Python",
+      description: "Analysez des données massives et créez des visualisations percutantes avec Python et Pandas.",
+      domain: "Data Science",
+      level: "Intermédiaire",
+      support: "Hybride",
+      duration: "32h",
+      price: 399,
+      image_url: "",
+      instructor: "Emma Leroy",
+      rating: 4.7,
+      students_count: 2100,
+    },
+    {
+      id: "4",
+      title: "Prompt Engineering Masterclass",
+      description: "Devenez expert en rédaction de prompts pour ChatGPT, Claude et tous les LLMs majeurs.",
+      domain: "IA Générative",
+      level: "Débutant",
+      support: "Texte",
+      duration: "12h",
+      price: 149,
+      image_url: "",
+      instructor: "Lucas Martin",
+      rating: 4.6,
+      students_count: 3500,
+    },
+    {
+      id: "5",
+      title: "Deep Learning avec TensorFlow",
+      description: "Construisez des réseaux de neurones complexes pour la vision par ordinateur et le NLP.",
+      domain: "Intelligence Artificielle",
+      level: "Avancé",
+      support: "Vidéo",
+      duration: "56h",
+      price: 599,
+      image_url: "",
+      instructor: "Dr. Aisha Patel",
+      rating: 4.9,
+      students_count: 654,
+    },
+    {
+      id: "6",
+      title: "Business Analytics & BI",
+      description: "Transformez vos données business en insights stratégiques avec Power BI et Tableau.",
+      domain: "Data Science",
+      level: "Intermédiaire",
+      support: "Hybride",
+      duration: "28h",
+      price: 349,
+      image_url: "",
+      instructor: "Pierre Fontaine",
+      rating: 4.5,
+      students_count: 1890,
+    },
+    {
+      id: "7",
+      title: "NLP et Traitement du Langage",
+      description: "Créez des chatbots intelligents et des systèmes d'analyse de sentiment de pointe.",
+      domain: "IA Générative",
+      level: "Avancé",
+      support: "Vidéo",
+      duration: "44h",
+      price: 549,
+      image_url: "",
+      instructor: "Dr. Marie Rousseau",
+      rating: 4.8,
+      students_count: 432,
+    },
+    {
+      id: "8",
+      title: "Cloud AI avec AWS & Azure",
+      description: "Déployez des solutions IA scalables sur les plateformes cloud leaders du marché.",
+      domain: "Cloud & IA",
+      level: "Intermédiaire",
+      support: "Vidéo",
+      duration: "36h",
+      price: 449,
+      image_url: "",
+      instructor: "Thomas Bernard",
+      rating: 4.7,
+      students_count: 987,
+    },
+    {
+      id: "9",
+      title: "Python pour la Data",
+      description: "Apprenez Python from scratch avec un focus complet sur la manipulation et l'analyse de données.",
+      domain: "Data Science",
+      level: "Débutant",
+      support: "Texte",
+      duration: "20h",
+      price: 199,
+      image_url: "",
+      instructor: "Camille Dupont",
+      rating: 4.6,
+      students_count: 4200,
+    },
+    {
+      id: "10",
+      title: "Éthique et IA Responsable",
+      description: "Naviguez les enjeux éthiques de l'IA et construisez des systèmes équitables et transparents.",
+      domain: "IA & Société",
+      level: "Intermédiaire",
+      support: "Hybride",
+      duration: "16h",
+      price: 249,
+      image_url: "",
+      instructor: "Prof. Julie Moreau",
+      rating: 4.8,
+      students_count: 1120,
+    },
+    {
+      id: "11",
+      title: "Computer Vision Pratique",
+      description: "Détection d'objets, reconnaissance faciale et analyse d'images avec OpenCV et PyTorch.",
+      domain: "Intelligence Artificielle",
+      level: "Avancé",
+      support: "Vidéo",
+      duration: "48h",
+      price: 579,
+      image_url: "",
+      instructor: "Dr. Nicolas Petit",
+      rating: 4.9,
+      students_count: 321,
+    },
+    {
+      id: "12",
+      title: "Automatisation avec l'IA",
+      description: "Automatisez vos workflows métier grâce à l'IA et gagnez des heures chaque semaine.",
+      domain: "IA Générative",
+      level: "Débutant",
+      support: "Texte",
+      duration: "10h",
+      price: 129,
+      image_url: "",
+      instructor: "Sophie Lambert",
+      rating: 4.5,
+      students_count: 5600,
+    },
+  ];
+
+  try {
+    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+      throw new Error("Missing Supabase credentials");
+    }
+
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    let countQuery = supabase
+      .from("formations")
+      .select("*", { count: "exact", head: true });
+
+    if (selectedDomain) countQuery = countQuery.eq("domain", selectedDomain);
+    if (selectedLevel) countQuery = countQuery.eq("level", selectedLevel);
+    if (selectedSupport) countQuery = countQuery.eq("support", selectedSupport);
+
+    const { count } = await countQuery;
+    totalCount = count || 0;
+
+    let dataQuery = supabase
+      .from("formations")
+      .select("*")
+      .range(offset, offset + ITEMS_PER_PAGE - 1)
+      .order("created_at", { ascending: false });
+
+    if (selectedDomain) dataQuery = dataQuery.eq("domain", selectedDomain);
+    if (selectedLevel) dataQuery = dataQuery.eq("level", selectedLevel);
+    if (selectedSupport) dataQuery = dataQuery.eq("support", selectedSupport);
+
+    const { data, error } = await dataQuery;
+
+    if (error) throw error;
+
+    formations = (data as Formation[]) || [];
+  } catch (err) {
+    hasError = true;
+    const filtered = staticFallback.filter((f) => {
+      const domainMatch = !selectedDomain || f.domain === selectedDomain;
+      const levelMatch = !selectedLevel || f.level === selectedLevel;
+      const supportMatch = !selectedSupport || f.support === selectedSupport;
+      return domainMatch && levelMatch && supportMatch;
+    });
+    totalCount = filtered.length;
+    formations = filtered.slice(offset, offset + ITEMS_PER_PAGE);
+  }
+
+  const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE);
+
+  const domains = [
+    "Intelligence Artificielle",
+    "Data Science",
+    "IA Générative",
+    "Cloud & IA",
+    "IA & Société",
+  ];
+
+  const levels = ["Débutant", "Intermédiaire", "Avancé"];
+  const supports = ["Vidéo", "Texte", "Hybride"];
+
+  const buildUrl = (params: Record<string, string>) => {
+    const base = new URLSearchParams();
+    if (selectedDomain) base.set("domain", selectedDomain);
+    if (selectedLevel) base.set("level", selectedLevel);
+    if (selectedSupport) base.set("support", selectedSupport);
+    if (currentPage > 1) base.set("page", String(currentPage));
+    Object.entries(params).forEach(([k, v]) => {
+      if (v) base.set(k, v);
+      else base.delete(k);
+    });
+    const str = base.toString();
+    return str ? "/catalogue?" + str : "/catalogue";
+  };
+
+  const getLevelColor = (level: string) => {
+    if (level === "Débutant") return "#4ade80";
+    if (level === "Intermédiaire") return "#fb923c";
+    if (level === "Avancé") return "#f87171";
+    return "#c8a96e";
+  };
+
+  const getSupportIcon = (support: string) => {
+    if (support === "Vidéo") return "▶";
+    if (support === "Texte") return "📄";
+    if (support === "Hybride") return "⚡";
+    return "◆";
+  };
+
+  const renderStars = (rating: number) => {
+    return "★".repeat(Math.floor(rating)) + (rating % 1 >= 0.5 ? "½" : "") + "☆".repeat(5 - Math.ceil(rating));
+  };
+
+  return (
+    <div
+      style={{
+        minHeight: "100vh",
+        backgroundColor: "#050508",
+        color: "#e8e8f0",
+        fontFamily: "'Segoe UI', system-ui, -apple-system, sans-serif",
+        overflowX: "hidden",
+      }}
+    >
+      {/* HEADER */}
+      <header
+        style={{
+          position: "sticky",
+          top: 0,
+          zIndex: 100,
+          backgroundColor: "rgba(5, 5, 8, 0.95)",
+          backdropFilter: "blur(20px)",
+          borderBottom: "1px solid rgba(200, 169, 110, 0.15)",
+          padding: "0 2rem",
+        }}
+      >
+        <div
+          style={{
+            maxWidth: "1400px",
+            margin: "0 auto",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            height: "72px",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <div
+              style={{
+                width: "40px",
+                height: "40px",
+                background: "linear-gradient(135deg, #c8a96e, #a07840)",
+                borderRadius: "10px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: "20px",
+                fontWeight: "bold",
+                color: "#050508",
+              }}
+            >
+              A
+            </div>
+            <span
+              style={{
+                fontSize: "1.4rem",
+                fontWeight: "700",
+                background: "linear-gradient(135deg, #c8a96e, #e8c882)",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                backgroundClip: "text",
+              }}
+            >
+              AcadémIA Pro
+            </span>
+          </div>
+
+          <nav style={{ display: "flex", gap: "2rem", alignItems: "center" }}>
+            {["Accueil", "Catalogue", "Parcours", "Instructeurs"].map((item) => (
+              <a
+                key={item}
+                href={item === "Catalogue" ? "/catalogue" : "#"}
+                style={{
+                  color: item === "Catalogue" ? "#c8a96e" : "rgba(232,232,240,0.7)",
+                  textDecoration: "none",
+                  fontSize: "0.9rem",
+                  fontWeight: item === "Catalogue" ? "600" : "400",
+                  borderBottom: item === "Catalogue" ? "2px solid #c8a96e" : "2px solid transparent",
+                  paddingBottom: "2px",
+                  transition: "color 0.2s",
+                }}
+              >
+                {item}
+              </a>
+            ))}
+          </nav>
+
+          <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+            <button
+              style={{
+                background: "transparent",
+                border: "1px solid rgba(200,169,110,0.4)",
+                color: "#c8a96e",
+                padding: "8px 20px",
+                borderRadius: "8px",
+                cursor: "pointer",
+                fontSize: "0.85rem",
+                fontWeight: "500",
+              }}
+            >
+              Connexion
+            </button>
+            <button
+              style={{
+                background: "linear-gradient(135deg, #c8a96e, #a07840)",
+                border: "none",
+                color: "#050508",
+                padding: "8px 20px",
+                borderRadius: "8px",
+                cursor: "pointer",
+                fontSize: "0.85rem",
+                fontWeight: "700",
+              }}
+            >
+              S'inscrire
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* HERO SECTION */}
+      <section
+        style={{
+          position: "relative
