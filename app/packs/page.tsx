@@ -410,3 +410,4 @@ export default function PacksPage() {
       popular: false,
       formations: [
         'Tous les
+}}
