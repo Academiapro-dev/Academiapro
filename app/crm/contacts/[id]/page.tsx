@@ -1,370 +1,146 @@
 export default function ContactPage({ params }: { params: { id: string } }) {
-  const [contact, setContact] = React.useState<{
-    id: string;
-    nom: string;
-    email: string;
-    telephone: string;
-    metier: string;
-    score: number;
-    statut: string;
-    historique: Array<{ date: string; type: string; description: string }>;
-    formations: Array<{ titre: string; date: string; montant: number }>;
-    notes: string;
-  }>({
+  const contact = {
     id: params.id,
     nom: "Sophie Marchand",
-    email: "sophie.marchand@exemple.fr",
+    email: "sophie.marchand@email.com",
     telephone: "+33 6 12 34 56 78",
-    metier: "Directrice Marketing",
+    avatar: "SM",
+    statut: "Client Premium",
     score: 87,
-    statut: "Prospect chaud",
-    historique: [
-      { date: "2024-01-15", type: "Email", description: "Envoi brochure formation IA" },
-      { date: "2024-01-20", type: "Appel", description: "Appel de découverte 25 min" },
-      { date: "2024-02-01", type: "Réunion", description: "Démonstration plateforme" },
-      { date: "2024-02-10", type: "Email", description: "Suivi proposition commerciale" },
-    ],
+    dateCreation: "15 janvier 2024",
+    derniereActivite: "Il y a 2 heures",
     formations: [
-      { titre: "IA Fondamentaux", date: "2023-11-01", montant: 490 },
-      { titre: "Prompt Engineering Pro", date: "2024-01-05", montant: 790 },
+      { id: 1, titre: "Marketing Digital Avancé", prix: 890, date: "12 Jan 2024", statut: "Terminé", progression: 100 },
+      { id: 2, titre: "Leadership & Management", prix: 1200, date: "03 Mar 2024", statut: "En cours", progression: 65 },
+      { id: 3, titre: "Intelligence Artificielle", prix: 1500, date: "20 Avr 2024", statut: "Inscrit", progression: 0 },
     ],
-    notes: "Cliente très intéressée par les formations avancées. Souhaite un devis groupe pour son équipe de 8 personnes. Rappeler en mars pour closing.",
-  });
-
-  const [noteInput, setNoteInput] = React.useState("");
-  const [showNoteModal, setShowNoteModal] = React.useState(false);
-  const [showEmailModal, setShowEmailModal] = React.useState(false);
-  const [showCallModal, setShowCallModal] = React.useState(false);
-  const [emailSubject, setEmailSubject] = React.useState("");
-  const [emailBody, setEmailBody] = React.useState("");
-  const [callNote, setCallNote] = React.useState("");
-  const [activeTab, setActiveTab] = React.useState("apercu");
-  const [notification, setNotification] = React.useState<string | null>(null);
-  const [statutDropdown, setStatutDropdown] = React.useState(false);
-
-  const statuts = ["Nouveau lead", "Prospect froid", "Prospect chaud", "Négociation", "Client actif", "Client inactif", "Perdu"];
-
-  const showNotif = (msg: string) => {
-    setNotification(msg);
-    setTimeout(() => setNotification(null), 3000);
+    seances: [
+      { id: 1, titre: "Coaching individuel - Stratégie", date: "18 Avr 2024", heure: "14h00", duree: "1h", coach: "Marc Dubois", statut: "Confirmé" },
+      { id: 2, titre: "Session groupe - IA", date: "22 Avr 2024", heure: "10h00", duree: "2h", coach: "Julie Martin", statut: "En attente" },
+      { id: 3, titre: "Coaching individuel - Leadership", date: "10 Avr 2024", heure: "16h00", duree: "1h", coach: "Marc Dubois", statut: "Terminé" },
+    ],
+    historique: [
+      { id: 1, type: "email", message: "Envoi devis formation IA", date: "20 Avr 2024", heure: "09:32", auteur: "Admin" },
+      { id: 2, type: "appel", message: "Appel de suivi - satisfaction formation Marketing", date: "18 Avr 2024", heure: "14:15", auteur: "Marc D." },
+      { id: 3, type: "achat", message: "Achat formation Intelligence Artificielle (1500€)", date: "15 Avr 2024", heure: "11:08", auteur: "Système" },
+      { id: 4, type: "note", message: "Contact très engagé, potentiel upsell formation Leadership+", date: "12 Avr 2024", heure: "16:45", auteur: "Julie M." },
+      { id: 5, type: "email", message: "Newsletter avril ouverte (3 clics)", date: "08 Avr 2024", heure: "08:21", auteur: "Système" },
+    ],
+    notes: "Sophie est une cliente très active et engagée. Intéressée par les certifications professionnelles. Budget annuel estimé autour de 5000€. Préfère les sessions en matinée. Travaille dans une PME tech à Lyon.",
+    tags: ["Premium", "Tech", "Lyon", "Certification"],
+    valeurTotale: 3590,
   };
 
-  const handleAddNote = () => {
-    if (!noteInput.trim()) return;
-    const today = new Date().toISOString().split("T")[0];
-    setContact(prev => ({
-      ...prev,
-      historique: [{ date: today, type: "Note", description: noteInput }, ...prev.historique],
-      notes: noteInput + "\n\n---\n\n" + prev.notes,
-    }));
-    setNoteInput("");
-    setShowNoteModal(false);
-    showNotif("Note ajoutée avec succès");
+  const scoreColor = contact.score >= 80 ? "#4ade80" : contact.score >= 60 ? "#c8a96e" : "#f87171";
+
+  const statutColor = (s: string) => {
+    if (s === "Terminé") return "#4ade80";
+    if (s === "En cours") return "#c8a96e";
+    if (s === "Inscrit") return "#60a5fa";
+    if (s === "Confirmé") return "#4ade80";
+    if (s === "En attente") return "#c8a96e";
+    return "#94a3b8";
   };
 
-  const handleSendEmail = () => {
-    if (!emailSubject.trim()) return;
-    const today = new Date().toISOString().split("T")[0];
-    setContact(prev => ({
-      ...prev,
-      historique: [{ date: today, type: "Email", description: emailSubject }, ...prev.historique],
-    }));
-    setEmailSubject("");
-    setEmailBody("");
-    setShowEmailModal(false);
-    showNotif("Email envoyé à " + contact.email);
+  const typeIcon = (t: string) => {
+    if (t === "email") return "✉";
+    if (t === "appel") return "☎";
+    if (t === "achat") return "💳";
+    if (t === "note") return "📝";
+    return "•";
   };
 
-  const handleLogCall = () => {
-    const today = new Date().toISOString().split("T")[0];
-    setContact(prev => ({
-      ...prev,
-      historique: [{ date: today, type: "Appel", description: callNote || "Appel téléphonique" }, ...prev.historique],
-    }));
-    setCallNote("");
-    setShowCallModal(false);
-    showNotif("Appel enregistré");
-  };
-
-  const handleChangeStatut = (newStatut: string) => {
-    setContact(prev => ({ ...prev, statut: newStatut }));
-    setStatutDropdown(false);
-    showNotif("Statut mis à jour : " + newStatut);
-  };
-
-  const getScoreColor = (score: number) => {
-    if (score >= 75) return "#4ade80";
-    if (score >= 50) return "#c8a96e";
-    return "#f87171";
-  };
-
-  const getTypeIcon = (type: string) => {
-    switch (type) {
-      case "Email": return "✉";
-      case "Appel": return "📞";
-      case "Réunion": return "🤝";
-      case "Note": return "📝";
-      default: return "•";
-    }
-  };
-
-  const totalFormations = contact.formations.reduce((acc, f) => acc + f.montant, 0);
-
-  const overlayStyle: React.CSSProperties = {
-    position: "fixed",
-    inset: 0,
-    backgroundColor: "rgba(0,0,0,0.75)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    zIndex: 1000,
-  };
-
-  const modalStyle: React.CSSProperties = {
-    backgroundColor: "#0d0d14",
-    border: "1px solid #c8a96e40",
-    borderRadius: "16px",
-    padding: "32px",
-    width: "100%",
-    maxWidth: "480px",
-    boxShadow: "0 25px 60px rgba(0,0,0,0.8)",
-  };
-
-  const inputStyle: React.CSSProperties = {
-    width: "100%",
-    backgroundColor: "#050508",
-    border: "1px solid #c8a96e30",
-    borderRadius: "8px",
-    color: "#f0e6d3",
-    padding: "10px 14px",
-    fontSize: "14px",
-    outline: "none",
-    boxSizing: "border-box",
-    fontFamily: "inherit",
-  };
-
-  const btnPrimaryStyle: React.CSSProperties = {
-    backgroundColor: "#c8a96e",
-    color: "#050508",
-    border: "none",
-    borderRadius: "8px",
-    padding: "10px 22px",
-    fontSize: "14px",
-    fontWeight: "700",
-    cursor: "pointer",
-    transition: "opacity 0.2s",
-  };
-
-  const btnSecondaryStyle: React.CSSProperties = {
-    backgroundColor: "transparent",
-    color: "#9ca3af",
-    border: "1px solid #ffffff15",
-    borderRadius: "8px",
-    padding: "10px 22px",
-    fontSize: "14px",
-    cursor: "pointer",
+  const typeColor = (t: string) => {
+    if (t === "email") return "#60a5fa";
+    if (t === "appel") return "#4ade80";
+    if (t === "achat") return "#c8a96e";
+    if (t === "note") return "#a78bfa";
+    return "#94a3b8";
   };
 
   return (
-    <div style={{ minHeight: "100vh", backgroundColor: "#050508", fontFamily: "'Inter', system-ui, sans-serif", color: "#f0e6d3" }}>
+    <div style={{ minHeight: "100vh", backgroundColor: "#050508", color: "#e2e8f0", fontFamily: "'Inter', -apple-system, sans-serif", padding: "0" }}>
 
-      {notification && (
-        <div style={{
-          position: "fixed",
-          top: "24px",
-          right: "24px",
-          backgroundColor: "#c8a96e",
-          color: "#050508",
-          padding: "12px 20px",
-          borderRadius: "10px",
-          fontWeight: "700",
-          fontSize: "14px",
-          zIndex: 2000,
-          boxShadow: "0 8px 24px rgba(200,169,110,0.4)",
-          animation: "fadeIn 0.3s ease",
-        }}>
-          ✓ {notification}
+      <div style={{ background: "linear-gradient(180deg, #0d0d14 0%, #050508 100%)", borderBottom: "1px solid #1a1a2e", padding: "16px 32px", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, zIndex: 100, backdropFilter: "blur(20px)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <div style={{ width: "32px", height: "32px", background: "linear-gradient(135deg, #c8a96e, #a07840)", borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "14px", fontWeight: "800", color: "#050508" }}>A</div>
+          <span style={{ fontSize: "18px", fontWeight: "700", background: "linear-gradient(135deg, #c8a96e, #e8c98e)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>AcadémIA Pro</span>
+          <span style={{ color: "#334155", margin: "0 8px" }}>›</span>
+          <span style={{ color: "#64748b", fontSize: "14px" }}>CRM</span>
+          <span style={{ color: "#334155", margin: "0 8px" }}>›</span>
+          <span style={{ color: "#e2e8f0", fontSize: "14px" }}>{contact.nom}</span>
         </div>
-      )}
-
-      <div style={{ maxWidth: "1200px", margin: "0 auto", padding: "32px 24px" }}>
-
-        <div style={{ marginBottom: "24px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "#6b7280", fontSize: "13px", marginBottom: "8px" }}>
-            <span style={{ cursor: "pointer", color: "#c8a96e" }}>CRM AcadémIA Pro</span>
-            <span>/</span>
-            <span style={{ cursor: "pointer", color: "#c8a96e" }}>Contacts</span>
-            <span>/</span>
-            <span>{contact.nom}</span>
-          </div>
+        <div style={{ display: "flex", gap: "8px" }}>
+          <button style={{ padding: "8px 16px", backgroundColor: "transparent", border: "1px solid #1e293b", borderRadius: "8px", color: "#94a3b8", fontSize: "13px", cursor: "pointer" }}>← Retour</button>
+          <button style={{ padding: "8px 20px", background: "linear-gradient(135deg, #c8a96e, #a07840)", border: "none", borderRadius: "8px", color: "#050508", fontSize: "13px", fontWeight: "600", cursor: "pointer" }}>✏ Modifier</button>
         </div>
+      </div>
 
-        <div style={{
-          background: "linear-gradient(135deg, #0d0d14 0%, #111118 100%)",
-          border: "1px solid #c8a96e25",
-          borderRadius: "20px",
-          padding: "32px",
-          marginBottom: "24px",
-          boxShadow: "0 4px 40px rgba(200,169,110,0.06)",
-        }}>
-          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: "20px" }}>
+      <div style={{ maxWidth: "1400px", margin: "0 auto", padding: "32px 24px" }}>
 
-            <div style={{ display: "flex", alignItems: "center", gap: "20px" }}>
-              <div style={{
-                width: "72px",
-                height: "72px",
-                borderRadius: "50%",
-                background: "linear-gradient(135deg, #c8a96e, #8b6914)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: "28px",
-                fontWeight: "800",
-                color: "#050508",
-                flexShrink: 0,
-                boxShadow: "0 4px 20px rgba(200,169,110,0.3)",
-              }}>
-                {contact.nom.charAt(0)}
+        <div style={{ background: "linear-gradient(135deg, #0d0d18 0%, #0a0a14 100%)", border: "1px solid #1a1a2e", borderRadius: "20px", padding: "32px", marginBottom: "24px", position: "relative", overflow: "hidden" }}>
+          <div style={{ position: "absolute", top: 0, right: 0, width: "300px", height: "300px", background: "radial-gradient(circle, rgba(200,169,110,0.06) 0%, transparent 70%)", borderRadius: "50%", transform: "translate(50px, -100px)" }}></div>
+          <div style={{ display: "flex", alignItems: "flex-start", gap: "24px", flexWrap: "wrap" }}>
+            <div style={{ width: "80px", height: "80px", background: "linear-gradient(135deg, #c8a96e, #a07840)", borderRadius: "20px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "28px", fontWeight: "800", color: "#050508", flexShrink: 0, boxShadow: "0 8px 32px rgba(200,169,110,0.3)" }}>{contact.avatar}</div>
+            <div style={{ flex: 1, minWidth: "200px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap", marginBottom: "8px" }}>
+                <h1 style={{ margin: 0, fontSize: "28px", fontWeight: "800", color: "#f1f5f9" }}>{contact.nom}</h1>
+                <span style={{ padding: "4px 12px", background: "rgba(200,169,110,0.15)", border: "1px solid rgba(200,169,110,0.3)", borderRadius: "20px", fontSize: "12px", color: "#c8a96e", fontWeight: "600" }}>{contact.statut}</span>
               </div>
-              <div>
-                <h1 style={{ fontSize: "26px", fontWeight: "800", color: "#f0e6d3", margin: "0 0 4px 0" }}>{contact.nom}</h1>
-                <p style={{ color: "#c8a96e", fontSize: "15px", margin: "0 0 6px 0", fontWeight: "500" }}>{contact.metier}</p>
-                <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
-                  <span style={{
-                    backgroundColor: "#c8a96e18",
-                    border: "1px solid #c8a96e40",
-                    color: "#c8a96e",
-                    padding: "3px 12px",
-                    borderRadius: "20px",
-                    fontSize: "12px",
-                    fontWeight: "600",
-                  }}>
-                    {contact.statut}
-                  </span>
-                  <span style={{ color: "#6b7280", fontSize: "13px" }}>ID: {params.id}</span>
+              <div style={{ display: "flex", gap: "24px", flexWrap: "wrap", marginBottom: "16px" }}>
+                <span style={{ color: "#64748b", fontSize: "14px" }}>✉ {contact.email}</span>
+                <span style={{ color: "#64748b", fontSize: "14px" }}>☎ {contact.telephone}</span>
+                <span style={{ color: "#64748b", fontSize: "14px" }}>📅 Depuis le {contact.dateCreation}</span>
+                <span style={{ color: "#64748b", fontSize: "14px" }}>⏱ {contact.derniereActivite}</span>
+              </div>
+              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                {contact.tags.map((tag, i) => (
+                  <span key={i} style={{ padding: "3px 10px", backgroundColor: "#0f172a", border: "1px solid #1e293b", borderRadius: "12px", fontSize: "11px", color: "#94a3b8" }}>{tag}</span>
+                ))}
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: "16px", flexWrap: "wrap" }}>
+              <div style={{ textAlign: "center", padding: "20px 28px", background: "rgba(200,169,110,0.08)", border: "1px solid rgba(200,169,110,0.2)", borderRadius: "16px" }}>
+                <div style={{ fontSize: "32px", fontWeight: "800", color: "#c8a96e", lineHeight: 1 }}>{contact.valeurTotale.toLocaleString()}€</div>
+                <div style={{ fontSize: "12px", color: "#64748b", marginTop: "6px" }}>Valeur totale</div>
+              </div>
+              <div style={{ textAlign: "center", padding: "20px 28px", background: contact.score >= 80 ? "rgba(74,222,128,0.08)" : "rgba(200,169,110,0.08)", border: `1px solid ${scoreColor}33`, borderRadius: "16px" }}>
+                <div style={{ fontSize: "32px", fontWeight: "800", color: scoreColor, lineHeight: 1 }}>{contact.score}</div>
+                <div style={{ fontSize: "12px", color: "#64748b", marginTop: "6px" }}>Score CRM</div>
+                <div style={{ width: "80px", height: "4px", backgroundColor: "#1e293b", borderRadius: "2px", marginTop: "8px", overflow: "hidden" }}>
+                  <div style={{ width: `${contact.score}%`, height: "100%", backgroundColor: scoreColor, borderRadius: "2px", transition: "width 1s ease" }}></div>
                 </div>
               </div>
-            </div>
-
-            <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
-
-              <button
-                onClick={() => setShowEmailModal(true)}
-                style={{
-                  ...btnPrimaryStyle,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "7px",
-                  padding: "10px 18px",
-                }}
-              >
-                <span>✉</span> Email
-              </button>
-
-              <button
-                onClick={() => setShowCallModal(true)}
-                style={{
-                  backgroundColor: "transparent",
-                  border: "1px solid #c8a96e50",
-                  color: "#c8a96e",
-                  borderRadius: "8px",
-                  padding: "10px 18px",
-                  fontSize: "14px",
-                  fontWeight: "600",
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "7px",
-                }}
-              >
-                <span>📞</span> Appeler
-              </button>
-
-              <button
-                onClick={() => setShowNoteModal(true)}
-                style={{
-                  backgroundColor: "transparent",
-                  border: "1px solid #ffffff15",
-                  color: "#9ca3af",
-                  borderRadius: "8px",
-                  padding: "10px 18px",
-                  fontSize: "14px",
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "7px",
-                }}
-              >
-                <span>📝</span> Note
-              </button>
-
-              <div style={{ position: "relative" }}>
-                <button
-                  onClick={() => setStatutDropdown(!statutDropdown)}
-                  style={{
-                    backgroundColor: "transparent",
-                    border: "1px solid #ffffff15",
-                    color: "#9ca3af",
-                    borderRadius: "8px",
-                    padding: "10px 18px",
-                    fontSize: "14px",
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "7px",
-                  }}
-                >
-                  ⚡ Statut ▾
-                </button>
-                {statutDropdown && (
-                  <div style={{
-                    position: "absolute",
-                    top: "calc(100% + 8px)",
-                    right: 0,
-                    backgroundColor: "#0d0d14",
-                    border: "1px solid #c8a96e30",
-                    borderRadius: "12px",
-                    padding: "8px",
-                    zIndex: 100,
-                    minWidth: "180px",
-                    boxShadow: "0 16px 40px rgba(0,0,0,0.6)",
-                  }}>
-                    {statuts.map(s => (
-                      <button
-                        key={s}
-                        onClick={() => handleChangeStatut(s)}
-                        style={{
-                          display: "block",
-                          width: "100%",
-                          textAlign: "left",
-                          backgroundColor: contact.statut === s ? "#c8a96e18" : "transparent",
-                          border: "none",
-                          color: contact.statut === s ? "#c8a96e" : "#d1d5db",
-                          padding: "9px 14px",
-                          borderRadius: "8px",
-                          cursor: "pointer",
-                          fontSize: "13px",
-                          fontWeight: contact.statut === s ? "700" : "400",
-                        }}
-                      >
-                        {contact.statut === s ? "✓ " : ""}{s}
-                      </button>
-                    ))}
-                  </div>
-                )}
+              <div style={{ textAlign: "center", padding: "20px 28px", background: "rgba(96,165,250,0.08)", border: "1px solid rgba(96,165,250,0.2)", borderRadius: "16px" }}>
+                <div style={{ fontSize: "32px", fontWeight: "800", color: "#60a5fa", lineHeight: 1 }}>{contact.formations.length}</div>
+                <div style={{ fontSize: "12px", color: "#64748b", marginTop: "6px" }}>Formations</div>
               </div>
             </div>
           </div>
+        </div>
 
-          <div style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-            gap: "16px",
-            marginTop: "28px",
-            paddingTop: "24px",
-            borderTop: "1px solid #ffffff08",
-          }}>
-            {[
-              { label: "Email", value: contact.email, icon: "✉" },
-              { label: "Téléphone", value: contact.telephone, icon: "📞" },
-              { label: "Métier", value: contact.metier, icon: "💼"
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px", marginBottom: "24px" }}>
+
+          <div style={{ background: "linear-gradient(135deg, #0d0d18 0%, #0a0a14 100%)", border: "1px solid #1a1a2e", borderRadius: "20px", padding: "28px" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
+              <h2 style={{ margin: 0, fontSize: "16px", fontWeight: "700", color: "#f1f5f9" }}>🎓 Formations achetées</h2>
+              <span style={{ padding: "4px 10px", backgroundColor: "#0f172a", border: "1px solid #1e293b", borderRadius: "8px", fontSize: "12px", color: "#64748b" }}>{contact.formations.length} formations</span>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+              {contact.formations.map((f) => (
+                <div key={f.id} style={{ padding: "16px", backgroundColor: "#080810", border: "1px solid #1a1a2e", borderRadius: "12px", transition: "border-color 0.2s" }}>
+                  <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "10px" }}>
+                    <div>
+                      <div style={{ fontSize: "14px", fontWeight: "600", color: "#e2e8f0", marginBottom: "4px" }}>{f.titre}</div>
+                      <div style={{ fontSize: "12px", color: "#64748b" }}>📅 {f.date}</div>
+                    </div>
+                    <div style={{ textAlign: "right" }}>
+                      <div style={{ fontSize: "16px", fontWeight: "700", color: "#c8a96e" }}>{f.prix}€</div>
+                      <span style={{ padding: "2px 8px", backgroundColor: `${statutColor(f.statut)}22`, border: `1px solid ${statutColor(f.statut)}44`, borderRadius: "8px", fontSize: "11px", color: statutColor(f.statut) }}>{f.statut}</span>
+                    </div>
+                  </div>
+                  {f.progression > 0 && (
+                    <div>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
+                        <span style={{ fontSize: "11px", color: "#64748b" }}>Progression</span>
+                        <span style={{ fontSize: "11px", color: "#94a3b8" }}>{f.progression}%
