@@ -1,416 +1,359 @@
-export default function DashboardApprenantAcademIA() {
-  const styles = {
-    page: {
-      backgroundColor: '#050508',
+export default async function DashboardPage() {
+
+  const { createClient } = await import('@supabase/supabase-js');
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+  const supabase = createClient(supabaseUrl, supabaseKey);
+
+  const { data: { session } } = await supabase.auth.getSession();
+
+  if (!session) {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        background: '#050508',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontFamily: "'Segoe UI', system-ui, sans-serif",
+      }}>
+        <div style={{
+          background: 'linear-gradient(135deg, #0d0d14 0%, #12121e 100%)',
+          border: '1px solid #c8a96e33',
+          borderRadius: '24px',
+          padding: '60px 50px',
+          textAlign: 'center',
+          maxWidth: '420px',
+          width: '90%',
+          boxShadow: '0 0 60px #c8a96e15',
+        }}>
+          <div style={{
+            width: '80px',
+            height: '80px',
+            background: 'linear-gradient(135deg, #c8a96e, #e8c98e)',
+            borderRadius: '50%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            margin: '0 auto 28px',
+            fontSize: '36px',
+            boxShadow: '0 0 30px #c8a96e40',
+          }}>
+            🎓
+          </div>
+          <h1 style={{
+            color: '#c8a96e',
+            fontSize: '28px',
+            fontWeight: '700',
+            margin: '0 0 12px',
+            letterSpacing: '-0.5px',
+          }}>
+            AcadémIA Pro
+          </h1>
+          <p style={{
+            color: '#8888aa',
+            fontSize: '15px',
+            margin: '0 0 36px',
+            lineHeight: '1.6',
+          }}>
+            Connectez-vous pour accéder à votre espace apprenant personnalisé et continuer votre parcours.
+          </p>
+          <a
+            href="/login"
+            style={{
+              display: 'inline-block',
+              background: 'linear-gradient(135deg, #c8a96e, #e8c98e)',
+              color: '#050508',
+              padding: '16px 40px',
+              borderRadius: '12px',
+              fontWeight: '700',
+              fontSize: '15px',
+              textDecoration: 'none',
+              letterSpacing: '0.3px',
+              boxShadow: '0 4px 20px #c8a96e40',
+              transition: 'all 0.2s',
+            }}
+          >
+            Se connecter →
+          </a>
+          <p style={{
+            color: '#555566',
+            fontSize: '13px',
+            marginTop: '24px',
+          }}>
+            Pas encore de compte ?{' '}
+            <a href="/register" style={{ color: '#c8a96e', textDecoration: 'none' }}>
+              S'inscrire gratuitement
+            </a>
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const userId = session.user.id;
+  const userEmail = session.user.email || '';
+  const userName = session.user.user_metadata?.full_name || userEmail.split('@')[0] || 'Apprenant';
+  const userAvatar = session.user.user_metadata?.avatar_url || null;
+
+  const [
+    { data: formations },
+    { data: progressions },
+    { data: certificats },
+    { data: seances },
+    { data: badges },
+    { data: profil },
+  ] = await Promise.all([
+    supabase
+      .from('formations_achetees')
+      .select('id, titre, description, categorie, duree_totale, thumbnail_url, slug, date_achat, statut')
+      .eq('user_id', userId)
+      .order('date_achat', { ascending: false }),
+    supabase
+      .from('progressions')
+      .select('formation_id, pourcentage, derniere_activite, modules_completes, total_modules, xp_gagne')
+      .eq('user_id', userId),
+    supabase
+      .from('certificats')
+      .select('id, titre, formation_id, date_obtention, code_verification, image_url')
+      .eq('user_id', userId)
+      .order('date_obtention', { ascending: false }),
+    supabase
+      .from('seances')
+      .select('id, titre, description, date_heure, duree_minutes, lien_reunion, formateur_nom, statut, formation_id')
+      .eq('user_id', userId)
+      .gte('date_heure', new Date().toISOString())
+      .order('date_heure', { ascending: true })
+      .limit(3),
+    supabase
+      .from('badges')
+      .select('id, nom, description, icone, couleur, date_obtention, categorie')
+      .eq('user_id', userId)
+      .order('date_obtention', { ascending: false }),
+    supabase
+      .from('profils')
+      .select('xp_total, niveau, streak_jours, objectif_hebdo, heures_apprises, rang')
+      .eq('user_id', userId)
+      .single(),
+  ]);
+
+  const xpTotal = profil?.xp_total || 0;
+  const niveau = profil?.niveau || 1;
+  const streak = profil?.streak_jours || 0;
+  const heuresApprises = profil?.heures_apprises || 0;
+  const rang = profil?.rang || 'Débutant';
+  const xpPourNiveauSuivant = niveau * 500;
+  const xpProgress = Math.min((xpTotal % 500) / 500 * 100, 100);
+
+  const formationsEnCours = (formations || []).filter((f: { id: string }) => {
+    const prog = (progressions || []).find((p: { formation_id: string }) => p.formation_id === f.id);
+    return prog && prog.pourcentage < 100;
+  });
+
+  const formationsTerminees = (formations || []).filter((f: { id: string }) => {
+    const prog = (progressions || []).find((p: { formation_id: string }) => p.formation_id === f.id);
+    return prog && prog.pourcentage >= 100;
+  });
+
+  const prochainSeance = seances && seances.length > 0 ? seances[0] : null;
+
+  const formatDate = (dateStr: string) => {
+    const d = new Date(dateStr);
+    return d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
+  };
+
+  const formatDateCourt = (dateStr: string) => {
+    const d = new Date(dateStr);
+    return d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' });
+  };
+
+  const getProgressColor = (pct: number) => {
+    if (pct >= 80) return '#4ade80';
+    if (pct >= 50) return '#c8a96e';
+    return '#6366f1';
+  };
+
+  const cardStyle: React.CSSProperties = {
+    background: 'linear-gradient(135deg, #0d0d14 0%, #10101a 100%)',
+    border: '1px solid #c8a96e22',
+    borderRadius: '20px',
+    padding: '28px',
+    boxShadow: '0 4px 24px #00000040',
+  };
+
+  const sectionTitleStyle: React.CSSProperties = {
+    color: '#c8a96e',
+    fontSize: '11px',
+    fontWeight: '700',
+    letterSpacing: '2px',
+    textTransform: 'uppercase',
+    marginBottom: '20px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+  };
+
+  return (
+    <div style={{
       minHeight: '100vh',
-      fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
-      color: '#e8e0d0',
-      padding: '0',
-      margin: '0',
-    } as React.CSSProperties,
+      background: '#050508',
+      fontFamily: "'Segoe UI', system-ui, -apple-system, sans-serif",
+      color: '#e8e8f0',
+    }}>
 
-    header: {
-      background: 'linear-gradient(135deg, #0a0a12 0%, #0f0f1a 50%, #050508 100%)',
-      borderBottom: '1px solid rgba(200, 169, 110, 0.2)',
-      padding: '20px 40px',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      position: 'sticky' as const,
-      top: 0,
-      zIndex: 100,
-      backdropFilter: 'blur(20px)',
-    } as React.CSSProperties,
+      <nav style={{
+        background: 'linear-gradient(180deg, #0a0a12 0%, #050508 100%)',
+        borderBottom: '1px solid #c8a96e18',
+        padding: '0 32px',
+        height: '72px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        position: 'sticky',
+        top: 0,
+        zIndex: 100,
+        backdropFilter: 'blur(20px)',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{
+            width: '42px',
+            height: '42px',
+            background: 'linear-gradient(135deg, #c8a96e, #e8c98e)',
+            borderRadius: '12px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '20px',
+            boxShadow: '0 0 20px #c8a96e30',
+          }}>
+            🎓
+          </div>
+          <div>
+            <div style={{ color: '#c8a96e', fontWeight: '800', fontSize: '16px', letterSpacing: '-0.3px' }}>
+              AcadémIA Pro
+            </div>
+            <div style={{ color: '#555566', fontSize: '11px' }}>Tableau de bord</div>
+          </div>
+        </div>
 
-    logo: {
-      fontSize: '24px',
-      fontWeight: '800',
-      background: 'linear-gradient(135deg, #c8a96e, #f0d898, #c8a96e)',
-      WebkitBackgroundClip: 'text',
-      WebkitTextFillColor: 'transparent',
-      letterSpacing: '-0.5px',
-    } as React.CSSProperties,
+        <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            {[
+              { label: 'Formations', href: '/formations', icon: '📚' },
+              { label: 'IA Agent', href: '/agent', icon: '🤖' },
+              { label: 'Certificats', href: '/certificats', icon: '🏆' },
+            ].map((item) => (
+              <a
+                key={item.href}
+                href={item.href}
+                style={{
+                  color: '#8888aa',
+                  textDecoration: 'none',
+                  fontSize: '13px',
+                  fontWeight: '500',
+                  padding: '8px 14px',
+                  borderRadius: '10px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  transition: 'all 0.2s',
+                }}
+              >
+                <span>{item.icon}</span>
+                <span>{item.label}</span>
+              </a>
+            ))}
+          </div>
 
-    headerRight: {
-      display: 'flex',
-      alignItems: 'center',
-      gap: '20px',
-    } as React.CSSProperties,
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{
+              background: '#c8a96e18',
+              border: '1px solid #c8a96e33',
+              borderRadius: '20px',
+              padding: '6px 14px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+            }}>
+              <span style={{ fontSize: '14px' }}>⚡</span>
+              <span style={{ color: '#c8a96e', fontWeight: '700', fontSize: '13px' }}>{xpTotal.toLocaleString()} XP</span>
+            </div>
+            <div style={{
+              width: '40px',
+              height: '40px',
+              borderRadius: '50%',
+              background: userAvatar ? `url(${userAvatar}) center/cover` : 'linear-gradient(135deg, #c8a96e, #8866aa)',
+              border: '2px solid #c8a96e44',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '16px',
+              fontWeight: '700',
+              color: '#050508',
+              overflow: 'hidden',
+            }}>
+              {!userAvatar && userName.charAt(0).toUpperCase()}
+            </div>
+          </div>
+        </div>
+      </nav>
 
-    avatar: {
-      width: '42px',
-      height: '42px',
-      borderRadius: '50%',
-      background: 'linear-gradient(135deg, #c8a96e, #8b6914)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      fontSize: '16px',
-      fontWeight: '700',
-      color: '#050508',
-      border: '2px solid rgba(200, 169, 110, 0.4)',
-      cursor: 'pointer',
-    } as React.CSSProperties,
+      <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '40px 32px' }}>
 
-    notifBell: {
-      width: '38px',
-      height: '38px',
-      borderRadius: '10px',
-      background: 'rgba(200, 169, 110, 0.08)',
-      border: '1px solid rgba(200, 169, 110, 0.2)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      cursor: 'pointer',
-      fontSize: '18px',
-    } as React.CSSProperties,
+        <div style={{
+          background: 'linear-gradient(135deg, #0f0f1a 0%, #14101e 50%, #0f0f1a 100%)',
+          border: '1px solid #c8a96e22',
+          borderRadius: '28px',
+          padding: '40px 44px',
+          marginBottom: '32px',
+          position: 'relative',
+          overflow: 'hidden',
+          boxShadow: '0 8px 40px #c8a96e08',
+        }}>
+          <div style={{
+            position: 'absolute',
+            top: '-60px',
+            right: '-60px',
+            width: '300px',
+            height: '300px',
+            background: 'radial-gradient(circle, #c8a96e12 0%, transparent 70%)',
+            borderRadius: '50%',
+          }} />
+          <div style={{
+            position: 'absolute',
+            bottom: '-40px',
+            left: '30%',
+            width: '200px',
+            height: '200px',
+            background: 'radial-gradient(circle, #6366f110 0%, transparent 70%)',
+            borderRadius: '50%',
+          }} />
 
-    mainContent: {
-      padding: '40px',
-      maxWidth: '1600px',
-      margin: '0 auto',
-    } as React.CSSProperties,
-
-    welcomeBanner: {
-      background: 'linear-gradient(135deg, rgba(200, 169, 110, 0.12) 0%, rgba(200, 169, 110, 0.04) 50%, rgba(10, 10, 20, 0.8) 100%)',
-      border: '1px solid rgba(200, 169, 110, 0.25)',
-      borderRadius: '20px',
-      padding: '32px 40px',
-      marginBottom: '32px',
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      position: 'relative' as const,
-      overflow: 'hidden',
-    } as React.CSSProperties,
-
-    welcomeGlow: {
-      position: 'absolute' as const,
-      top: '-50px',
-      right: '-50px',
-      width: '200px',
-      height: '200px',
-      borderRadius: '50%',
-      background: 'radial-gradient(circle, rgba(200, 169, 110, 0.15) 0%, transparent 70%)',
-      pointerEvents: 'none' as const,
-    } as React.CSSProperties,
-
-    welcomeTitle: {
-      fontSize: '28px',
-      fontWeight: '700',
-      color: '#f0e8d8',
-      marginBottom: '8px',
-    } as React.CSSProperties,
-
-    welcomeSubtitle: {
-      fontSize: '15px',
-      color: 'rgba(200, 169, 110, 0.7)',
-      marginBottom: '0',
-    } as React.CSSProperties,
-
-    xpBadge: {
-      background: 'linear-gradient(135deg, rgba(200, 169, 110, 0.2), rgba(200, 169, 110, 0.05))',
-      border: '1px solid rgba(200, 169, 110, 0.4)',
-      borderRadius: '16px',
-      padding: '16px 24px',
-      textAlign: 'center' as const,
-    } as React.CSSProperties,
-
-    xpNumber: {
-      fontSize: '36px',
-      fontWeight: '800',
-      background: 'linear-gradient(135deg, #c8a96e, #f0d898)',
-      WebkitBackgroundClip: 'text',
-      WebkitTextFillColor: 'transparent',
-      display: 'block',
-    } as React.CSSProperties,
-
-    xpLabel: {
-      fontSize: '12px',
-      color: 'rgba(200, 169, 110, 0.6)',
-      textTransform: 'uppercase' as const,
-      letterSpacing: '1px',
-      marginTop: '4px',
-    } as React.CSSProperties,
-
-    grid3: {
-      display: 'grid',
-      gridTemplateColumns: 'repeat(3, 1fr)',
-      gap: '24px',
-      marginBottom: '28px',
-    } as React.CSSProperties,
-
-    grid2: {
-      display: 'grid',
-      gridTemplateColumns: '1fr 1fr',
-      gap: '24px',
-      marginBottom: '28px',
-    } as React.CSSProperties,
-
-    grid21: {
-      display: 'grid',
-      gridTemplateColumns: '2fr 1fr',
-      gap: '24px',
-      marginBottom: '28px',
-    } as React.CSSProperties,
-
-    card: {
-      background: 'linear-gradient(145deg, #0d0d18, #080810)',
-      border: '1px solid rgba(200, 169, 110, 0.12)',
-      borderRadius: '18px',
-      padding: '28px',
-      position: 'relative' as const,
-      overflow: 'hidden',
-    } as React.CSSProperties,
-
-    cardTitle: {
-      fontSize: '16px',
-      fontWeight: '700',
-      color: '#c8a96e',
-      marginBottom: '20px',
-      display: 'flex',
-      alignItems: 'center',
-      gap: '10px',
-      textTransform: 'uppercase' as const,
-      letterSpacing: '0.5px',
-    } as React.CSSProperties,
-
-    cardTitleIcon: {
-      fontSize: '18px',
-    } as React.CSSProperties,
-
-    progressSection: {
-      marginBottom: '0',
-    } as React.CSSProperties,
-
-    progressItem: {
-      marginBottom: '18px',
-    } as React.CSSProperties,
-
-    progressHeader: {
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      marginBottom: '8px',
-    } as React.CSSProperties,
-
-    progressLabel: {
-      fontSize: '13px',
-      color: '#d0c8b8',
-      fontWeight: '500',
-    } as React.CSSProperties,
-
-    progressPercent: {
-      fontSize: '13px',
-      color: '#c8a96e',
-      fontWeight: '700',
-    } as React.CSSProperties,
-
-    progressBar: {
-      height: '6px',
-      backgroundColor: 'rgba(200, 169, 110, 0.1)',
-      borderRadius: '10px',
-      overflow: 'hidden',
-    } as React.CSSProperties,
-
-    progressFill: (percent: number, color: string) => ({
-      height: '100%',
-      width: `${percent}%`,
-      background: `linear-gradient(90deg, ${color}, ${color}cc)`,
-      borderRadius: '10px',
-      transition: 'width 1s ease',
-    } as React.CSSProperties),
-
-    certGrid: {
-      display: 'grid',
-      gridTemplateColumns: 'repeat(2, 1fr)',
-      gap: '14px',
-    } as React.CSSProperties,
-
-    certItem: {
-      background: 'rgba(200, 169, 110, 0.06)',
-      border: '1px solid rgba(200, 169, 110, 0.18)',
-      borderRadius: '14px',
-      padding: '16px',
-      display: 'flex',
-      flexDirection: 'column' as const,
-      gap: '8px',
-    } as React.CSSProperties,
-
-    certBadge: {
-      fontSize: '28px',
-      marginBottom: '4px',
-    } as React.CSSProperties,
-
-    certName: {
-      fontSize: '12px',
-      fontWeight: '700',
-      color: '#f0e8d8',
-      lineHeight: '1.3',
-    } as React.CSSProperties,
-
-    certDate: {
-      fontSize: '11px',
-      color: 'rgba(200, 169, 110, 0.6)',
-    } as React.CSSProperties,
-
-    certVerified: {
-      display: 'inline-flex',
-      alignItems: 'center',
-      gap: '4px',
-      background: 'rgba(72, 199, 142, 0.15)',
-      border: '1px solid rgba(72, 199, 142, 0.3)',
-      borderRadius: '20px',
-      padding: '2px 8px',
-      fontSize: '10px',
-      color: '#48c78e',
-      fontWeight: '600',
-      width: 'fit-content',
-    } as React.CSSProperties,
-
-    sessionCard: {
-      background: 'linear-gradient(135deg, rgba(200, 169, 110, 0.1), rgba(200, 169, 110, 0.02))',
-      border: '1px solid rgba(200, 169, 110, 0.25)',
-      borderRadius: '14px',
-      padding: '20px',
-      marginBottom: '16px',
-    } as React.CSSProperties,
-
-    sessionTitle: {
-      fontSize: '16px',
-      fontWeight: '700',
-      color: '#f0e8d8',
-      marginBottom: '8px',
-    } as React.CSSProperties,
-
-    sessionMeta: {
-      display: 'flex',
-      gap: '16px',
-      marginBottom: '14px',
-    } as React.CSSProperties,
-
-    sessionMetaItem: {
-      display: 'flex',
-      alignItems: 'center',
-      gap: '6px',
-      fontSize: '13px',
-      color: 'rgba(200, 169, 110, 0.7)',
-    } as React.CSSProperties,
-
-    btnPrimary: {
-      background: 'linear-gradient(135deg, #c8a96e, #a07840)',
-      border: 'none',
-      borderRadius: '10px',
-      padding: '10px 20px',
-      color: '#050508',
-      fontWeight: '700',
-      fontSize: '13px',
-      cursor: 'pointer',
-      display: 'inline-flex',
-      alignItems: 'center',
-      gap: '8px',
-    } as React.CSSProperties,
-
-    btnSecondary: {
-      background: 'rgba(200, 169, 110, 0.08)',
-      border: '1px solid rgba(200, 169, 110, 0.25)',
-      borderRadius: '10px',
-      padding: '10px 20px',
-      color: '#c8a96e',
-      fontWeight: '600',
-      fontSize: '13px',
-      cursor: 'pointer',
-      display: 'inline-flex',
-      alignItems: 'center',
-      gap: '8px',
-    } as React.CSSProperties,
-
-    chatContainer: {
-      display: 'flex',
-      flexDirection: 'column' as const,
-      height: '340px',
-    } as React.CSSProperties,
-
-    chatMessages: {
-      flex: 1,
-      overflowY: 'auto' as const,
-      display: 'flex',
-      flexDirection: 'column' as const,
-      gap: '12px',
-      marginBottom: '16px',
-      paddingRight: '4px',
-    } as React.CSSProperties,
-
-    chatBubbleAI: {
-      background: 'rgba(200, 169, 110, 0.08)',
-      border: '1px solid rgba(200, 169, 110, 0.15)',
-      borderRadius: '14px 14px 14px 4px',
-      padding: '12px 16px',
-      fontSize: '13px',
-      color: '#d0c8b8',
-      maxWidth: '85%',
-      lineHeight: '1.5',
-    } as React.CSSProperties,
-
-    chatBubbleUser: {
-      background: 'rgba(200, 169, 110, 0.15)',
-      border: '1px solid rgba(200, 169, 110, 0.3)',
-      borderRadius: '14px 14px 4px 14px',
-      padding: '12px 16px',
-      fontSize: '13px',
-      color: '#f0e8d8',
-      maxWidth: '85%',
-      lineHeight: '1.5',
-      alignSelf: 'flex-end' as const,
-    } as React.CSSProperties,
-
-    aiLabel: {
-      fontSize: '10px',
-      color: '#c8a96e',
-      fontWeight: '700',
-      marginBottom: '4px',
-      textTransform: 'uppercase' as const,
-      letterSpacing: '0.5px',
-    } as React.CSSProperties,
-
-    chatInput: {
-      display: 'flex',
-      gap: '10px',
-    } as React.CSSProperties,
-
-    chatField: {
-      flex: 1,
-      background: 'rgba(200, 169, 110, 0.06)',
-      border: '1px solid rgba(200, 169, 110, 0.2)',
-      borderRadius: '12px',
-      padding: '12px 16px',
-      color: '#e8e0d0',
-      fontSize: '13px',
-      outline: 'none',
-    } as React.CSSProperties,
-
-    sendBtn: {
-      background: 'linear-gradient(135deg, #c8a96e, #a07840)',
-      border: 'none',
-      borderRadius: '12px',
-      width: '44px',
-      height: '44px',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      cursor: 'pointer',
-      fontSize: '18px',
-      color: '#050508',
-      fontWeight: '700',
-    } as React.CSSProperties,
-
-    gamifRow: {
-      display: 'flex',
-      gap: '16px',
-      marginBottom: '20px',
-    } as React.CSSProperties,
-
-    gamifStat: {
-      flex: 1,
-      background: 'rgba(200, 169, 110, 0.06)',
-      border: '1px solid rgba(200,
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '24px', flexWrap: 'wrap' }}>
+            <div>
+              <div style={{ color: '#666677', fontSize: '13px', marginBottom: '8px', letterSpacing: '0.5px' }}>
+                Bonjour 👋
+              </div>
+              <h1 style={{
+                color: '#f0f0f8',
+                fontSize: '32px',
+                fontWeight: '800',
+                margin: '0 0 6px',
+                letterSpacing: '-0.8px',
+              }}>
+                {userName}
+              </h1>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                <div style={{
+                  background: '#c8a96e18',
+                  border: '1px solid #c8a96e33',
+                  borderRadius: '20px',
+                  padding: '5px 14px',
+                  color: '#c8a96e',
+                  fontSize: '12px',
+                  fontWeight: '600',
+                }}>
+                  🏅 {rang}
+                </div
