@@ -390,3 +390,4 @@ export default function CGV() {
                   <td style={styles.tdEven}>Prénom Nom, Président</td>
                 </tr>
                 <tr>
+}
