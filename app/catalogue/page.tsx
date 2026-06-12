@@ -1,93 +1,43 @@
-"use client";
-import { useState } from "react";
-
-export default function CatalogueFormations() {
-  const [domaineFiltré, setDomaineFiltré] = useState("Tous");
-
-  const formations = [
-    { id: 1, code: "DEV001", titre: "Introduction à Python", domaine: "Développement", prix: 490, duree: "3 jours" },
-    { id: 2, code: "DEV002", titre: "JavaScript Avancé", domaine: "Développement", prix: 690, duree: "4 jours" },
-    { id: 3, code: "DEV003", titre: "React & Next.js", domaine: "Développement", prix: 890, duree: "5 jours" },
-    { id: 4, code: "DEV004", titre: "Node.js Backend", domaine: "Développement", prix: 790, duree: "4 jours" },
-    { id: 5, code: "DEV005", titre: "TypeScript Fondamentaux", domaine: "Développement", prix: 590, duree: "3 jours" },
-    { id: 6, code: "DEV006", titre: "Vue.js Complet", domaine: "Développement", prix: 750, duree: "4 jours" },
-    { id: 7, code: "DEV007", titre: "Angular Enterprise", domaine: "Développement", prix: 850, duree: "5 jours" },
-    { id: 8, code: "DEV008", titre: "PHP & Symfony", domaine: "Développement", prix: 680, duree: "4 jours" },
-    { id: 9, code: "DEV009", titre: "Java Spring Boot", domaine: "Développement", prix: 920, duree: "5 jours" },
-    { id: 10, code: "DEV010", titre: "C# .NET Core", domaine: "Développement", prix: 880, duree: "5 jours" },
-    { id: 11, code: "DEV011", titre: "Ruby on Rails", domaine: "Développement", prix: 720, duree: "4 jours" },
-    { id: 12, code: "DEV012", titre: "Go Language", domaine: "Développement", prix: 760, duree: "4 jours" },
-    { id: 13, code: "DEV013", titre: "Rust Programming", domaine: "Développement", prix: 840, duree: "5 jours" },
-    { id: 14, code: "DEV014", titre: "Kotlin Android", domaine: "Développement", prix: 780, duree: "4 jours" },
-    { id: 15, code: "DEV015", titre: "Swift iOS", domaine: "Développement", prix: 810, duree: "5 jours" },
-    { id: 16, code: "DEV016", titre: "React Native Mobile", domaine: "Développement", prix: 870, duree: "5 jours" },
-    { id: 17, code: "DEV017", titre: "Flutter Dart", domaine: "Développement", prix: 830, duree: "5 jours" },
-    { id: 18, code: "DEV018", titre: "API REST Design", domaine: "Développement", prix: 550, duree: "3 jours" },
-    { id: 19, code: "DEV019", titre: "GraphQL Pratique", domaine: "Développement", prix: 620, duree: "3 jours" },
-    { id: 20, code: "DEV020", titre: "Microservices Architecture", domaine: "Développement", prix: 990, duree: "5 jours" },
-    { id: 21, code: "DATA001", titre: "Data Science avec Python", domaine: "Data", prix: 1090, duree: "5 jours" },
-    { id: 22, code: "DATA002", titre: "Machine Learning", domaine: "Data", prix: 1190, duree: "5 jours" },
-    { id: 23, code: "DATA003", titre: "Deep Learning", domaine: "Data", prix: 1290, duree: "5 jours" },
-    { id: 24, code: "DATA004", titre: "Power BI", domaine: "Data", prix: 590, duree: "3 jours" },
-    { id: 25, code: "DATA005", titre: "Tableau Desktop", domaine: "Data", prix: 650, duree: "3 jours" },
-    { id: 26, code: "DATA006", titre: "SQL Avancé", domaine: "Data", prix: 490, duree: "3 jours" },
-    { id: 27, code: "DATA007", titre: "Apache Spark", domaine: "Data", prix: 990, duree: "5 jours" },
-    { id: 28, code: "DATA008", titre: "Hadoop Big Data", domaine: "Data", prix: 920, duree: "5 jours" },
-    { id: 29, code: "DATA009", titre: "MongoDB NoSQL", domaine: "Data", prix: 580, duree: "3 jours" },
-    { id: 30, code: "DATA010", titre: "Elasticsearch", domaine: "Data", prix: 670, duree: "3 jours" },
-    { id: 31, code: "DATA011", titre: "NLP Traitement Langage", domaine: "Data", prix: 1150, duree: "5 jours" },
-    { id: 32, code: "DATA012", titre: "Computer Vision", domaine: "Data", prix: 1200, duree: "5 jours" },
-    { id: 33, code: "DATA013", titre: "DataViz avec D3.js", domaine: "Data", prix: 720, duree: "4 jours" },
-    { id: 34, code: "DATA014", titre: "Pandas & NumPy", domaine: "Data", prix: 560, duree: "3 jours" },
-    { id: 35, code: "DATA015", titre: "Kafka Streaming", domaine: "Data", prix: 850, duree: "4 jours" },
-    { id: 36, code: "DATA016", titre: "Snowflake Cloud DW", domaine: "Data", prix: 780, duree: "4 jours" },
-    { id: 37, code: "DATA017", titre: "dbt Data Build Tool", domaine: "Data", prix: 690, duree: "3 jours" },
-    { id: 38, code: "DATA018", titre: "Airflow Orchestration", domaine: "Data", prix: 740, duree: "4 jours" },
-    { id: 39, code: "DATA019", titre: "MLflow & MLOps", domaine: "Data", prix: 890, duree: "4 jours" },
-    { id: 40, code: "DATA020", titre: "LLM & ChatGPT API", domaine: "Data", prix: 960, duree: "4 jours" },
-    { id: 41, code: "CYBER001", titre: "Cybersécurité Fondamentaux", domaine: "Cybersécurité", prix: 890, duree: "5 jours" },
-    { id: 42, code: "CYBER002", titre: "Ethical Hacking", domaine: "Cybersécurité", prix: 1190, duree: "5 jours" },
-    { id: 43, code: "CYBER003", titre: "Pentest Web", domaine: "Cybersécurité", prix: 1090, duree: "5 jours" },
-    { id: 44, code: "CYBER004", titre: "OSCP Préparation", domaine: "Cybersécurité", prix: 1490, duree: "5 jours" },
-    { id: 45, code: "CYBER005", titre: "Sécurité Réseau", domaine: "Cybersécurité", prix: 790, duree: "4 jours" },
-    { id: 46, code: "CYBER006", titre: "SIEM & SOC", domaine: "Cybersécurité", prix: 950, duree: "5 jours" },
-    { id: 47, code: "CYBER007", titre: "Forensics Numérique", domaine: "Cybersécurité", prix: 1050, duree: "5 jours" },
-    { id: 48, code: "CYBER008", titre: "Cryptographie Appliquée", domaine: "Cybersécurité", prix: 820, duree: "4 jours" },
-    { id: 49, code: "CYBER009", titre: "RGPD & Conformité", domaine: "Cybersécurité", prix: 650, duree: "3 jours" },
-    { id: 50, code: "CYBER010", titre: "ISO 27001 Lead Auditor", domaine: "Cybersécurité", prix: 1350, duree: "5 jours" },
-    { id: 51, code: "CYBER011", titre: "Zero Trust Security", domaine: "Cybersécurité", prix: 880, duree: "4 jours" },
-    { id: 52, code: "CYBER012", titre: "Cloud Security AWS", domaine: "Cybersécurité", prix: 990, duree: "5 jours" },
-    { id: 53, code: "CLOUD001", titre: "AWS Solutions Architect", domaine: "Cloud", prix: 1290, duree: "5 jours" },
-    { id: 54, code: "CLOUD002", titre: "Azure Fondamentaux", domaine: "Cloud", prix: 790, duree: "4 jours" },
-    { id: 55, code: "CLOUD003", titre: "Google Cloud Platform", domaine: "Cloud", prix: 990, duree: "5 jours" },
-    { id: 56, code: "CLOUD004", titre: "Kubernetes Expert", domaine: "Cloud", prix: 1090, duree: "5 jours" },
-    { id: 57, code: "CLOUD005", titre: "Docker & Conteneurs", domaine: "Cloud", prix: 790, duree: "4 jours" },
-    { id: 58, code: "CLOUD006", titre: "Terraform IaC", domaine: "Cloud", prix: 890, duree: "4 jours" },
-    { id: 59, code: "CLOUD007", titre: "Ansible Automatisation", domaine: "Cloud", prix: 820, duree: "4 jours" },
-    { id: 60, code: "CLOUD008", titre: "Jenkins CI/CD", domaine: "Cloud", prix: 750, duree: "4 jours" },
-    { id: 61, code: "CLOUD009", titre: "GitLab DevOps", domaine: "Cloud", prix: 720, duree: "4 jours" },
-    { id: 62, code: "CLOUD010", titre: "Prometheus Grafana", domaine: "Cloud", prix: 680, duree: "3 jours" },
-    { id: 63, code: "CLOUD011", titre: "AWS Lambda Serverless", domaine: "Cloud", prix: 850, duree: "4 jours" },
-    { id: 64, code: "CLOUD012", titre: "Azure DevOps", domaine: "Cloud", prix: 880, duree: "4 jours" },
-    { id: 65, code: "CLOUD013", titre: "OpenShift Red Hat", domaine: "Cloud", prix: 960, duree: "5 jours" },
-    { id: 66, code: "CLOUD014", titre: "Istio Service Mesh", domaine: "Cloud", prix: 920, duree: "4 jours" },
-    { id: 67, code: "CLOUD015", titre: "Helm Charts", domaine: "Cloud", prix: 650, duree: "3 jours" },
-    { id: 68, code: "MGMT001", titre: "Scrum Master", domaine: "Management", prix: 1490, duree: "2 jours" },
-    { id: 69, code: "MGMT002", titre: "Product Owner", domaine: "Management", prix: 1390, duree: "2 jours" },
-    { id: 70, code: "MGMT003", titre: "SAFe Agilité Scalée", domaine: "Management", prix: 1690, duree: "2 jours" },
-    { id: 71, code: "MGMT004", titre: "PMP Préparation", domaine: "Management", prix: 1590, duree: "5 jours" },
-    { id: 72, code: "MGMT005", titre: "PRINCE2 Fondamental", domaine: "Management", prix: 1290, duree: "3 jours" },
-    { id: 73, code: "MGMT006", titre: "Leadership Tech", domaine: "Management", prix: 990, duree: "3 jours" },
-    { id: 74, code: "MGMT007", titre: "OKR & KPI", domaine: "Management", prix: 790, duree: "2 jours" },
-    { id: 75, code: "MGMT008", titre: "Design Thinking", domaine: "Management", prix: 890, duree: "2 jours" },
-    { id: 76, code: "MGMT009", titre: "Lean Management", domaine: "Management", prix: 850, duree: "3 jours" },
-    { id: 77, code: "MGMT010", titre: "Change Management", domaine: "Management", prix: 920, duree: "3 jours" },
-    { id: 78, code: "MGMT011", titre: "ITIL 4 Foundation", domaine: "Management", prix: 1250, duree: "3 jours" },
-    { id: 79, code: "MGMT012", titre: "Kanban System Design", domaine: "Management", prix: 980, duree: "2 jours" },
-    { id: 80, code: "UX001", titre: "UX Design Fondamentaux", domaine: "UX/UI", prix: 790, duree: "4 jours" },
-    { id: 81, code: "UX002", titre: "Figma Maîtrise", domaine: "UX/UI", prix: 690, duree: "3 jours" },
-    { id: 82, code: "UX003", titre: "User Research", domaine: "UX/UI", prix: 750, duree: "3 jours" },
-    { id: 83, code: "UX004", titre: "Prototypage Avancé", domaine: "UX/UI", prix: 720, duree: "3 jours" },
-    { id: 84, code: "UX005", titre: "Design System", domaine: "UX/UI", prix: 850, duree: "4 jours" },
-    { id: 85, code: "UX006", titre: "Accessibilité WCAG", domaine: "UX/UI", prix: 620, duree: "2 jours" },
-    { id: 86, code: "UX007
+export default function CataloguePage() {
+  const items = [
+    { code: "F128", titre: "Expert Claude et IA Generative", prix: "690euro", desc: "40h · IA" },
+    { code: "F129", titre: "No-Code et Automatisation IA", prix: "790euro", desc: "45h · IA" },
+    { code: "F130", titre: "Apps Natives avec IA", prix: "990euro", desc: "60h · IA" },
+    { code: "F131", titre: "Marketing Digital x IA", prix: "890euro", desc: "50h · Marketing" },
+    { code: "F001", titre: "Management et Leadership", prix: "490euro", desc: "30h · Business" },
+    { code: "F002", titre: "Communication Professionnelle", prix: "390euro", desc: "25h · Business" },
+    { code: "F003", titre: "Gestion du Stress", prix: "390euro", desc: "20h · Bien-etre" },
+    { code: "F004", titre: "Anglais Professionnel", prix: "590euro", desc: "80h · Langues" },
+    { code: "F005", titre: "Comptabilite et Gestion", prix: "490euro", desc: "35h · Business" },
+    { code: "F006", titre: "Ressources Humaines", prix: "490euro", desc: "30h · Business" },
+    { code: "F007", titre: "Excel Avance", prix: "290euro", desc: "20h · Outils" },
+    { code: "F008", titre: "Reseaux Sociaux Pro", prix: "390euro", desc: "25h · Marketing" },
+  ];
+  return (
+    <div style={{ minHeight: "100vh", background: "#050508", color: "#fff", fontFamily: "Georgia, serif", padding: "40px 20px" }}>
+      <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
+        <div style={{ textAlign: "center", marginBottom: "48px" }}>
+          <p style={{ color: "#c8a96e", fontSize: "12px", letterSpacing: "3px", margin: "0 0 12px" }}>ACADEMIAPRO</p>
+          <h1 style={{ color: "#fff", fontSize: "36px", margin: "0 0 12px" }}>Catalogue Complet</h1>
+          <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "15px", margin: "0" }}>131 formations · Certification AcadémIA Pro · Paiement 3x · Garantie 30 jours</p>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "24px" }}>
+          {items.map((item) => (
+            <div key={item.code} style={{ background: "#1a1a2e", borderRadius: "12px", padding: "24px", border: "1px solid rgba(200,169,110,0.3)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "12px" }}>
+                <span style={{ color: "#c8a96e", fontSize: "11px" }}>{item.code}</span>
+                <span style={{ background: "#c8a96e", color: "#050508", padding: "2px 8px", borderRadius: "10px", fontSize: "10px", fontWeight: "bold" }}>CERTIFIANT</span>
+              </div>
+              <h3 style={{ color: "#fff", fontSize: "15px", margin: "0 0 8px", lineHeight: "1.4" }}>{item.titre}</h3>
+              <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "12px", margin: "0 0 16px" }}>{item.desc}</p>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+                <span style={{ color: "#c8a96e", fontSize: "22px", fontWeight: "bold" }}>{item.prix}</span>
+              </div>
+              <a href="#" style={{ display: "block", background: "linear-gradient(135deg, #c8a96e, #a07840)", color: "#050508", borderRadius: "8px", padding: "10px", fontSize: "13px", fontWeight: "bold", textAlign: "center", textDecoration: "none" }}>Voir</a>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
