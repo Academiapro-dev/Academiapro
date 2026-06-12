@@ -1,341 +1,248 @@
-import React from "react";
 "use client";
-
 import { useState } from "react";
 
-interface FAQItem {
-  question: string;
-  answer: string;
-}
+export default function FAQPage() {
+  const [openItem, setOpenItem] = useState(null);
 
-interface FAQCategory {
-  name: string;
-  items: FAQItem[];
-}
+  const categories = [
+    {
+      id: "formations",
+      label: "Formations",
+      icon: "🎓",
+      questions: [
+        {
+          id: "f1",
+          question: "Quels types de formations proposez-vous ?",
+          answer: "Nous proposons des formations en coaching sportif, nutrition, préparation mentale et développement personnel. Chaque programme est conçu pour répondre à vos objectifs spécifiques, que vous soyez débutant ou athlète confirmé."
+        },
+        {
+          id: "f2",
+          question: "Quelle est la durée des formations ?",
+          answer: "Les formations varient de 4 semaines à 6 mois selon le programme choisi. Nos formations intensives durent généralement 8 semaines avec des sessions quotidiennes, tandis que nos programmes longue durée s'étalent sur 3 à 6 mois."
+        },
+        {
+          id: "f3",
+          question: "Les formations sont-elles certifiantes ?",
+          answer: "Oui, toutes nos formations délivrent une attestation de réussite reconnue par nos partenaires professionnels. Certains programmes donnent accès à des certifications officielles selon votre domaine de spécialisation."
+        }
+      ]
+    },
+    {
+      id: "seances",
+      label: "Séances",
+      icon: "⚡",
+      questions: [
+        {
+          id: "s1",
+          question: "Comment se déroule une séance individuelle ?",
+          answer: "Chaque séance individuelle commence par un bilan de votre état physique et mental du jour. Nous adaptons ensuite le programme en temps réel selon vos capacités. La séance dure entre 60 et 90 minutes et se termine par un débriefing personnalisé."
+        },
+        {
+          id: "s2",
+          question: "Peut-on faire des séances en groupe ?",
+          answer: "Absolument. Nous organisons des séances en petit groupe de 4 à 8 personnes pour maintenir un suivi personnalisé tout en bénéficiant de la dynamique collective. Les séances de groupe sont idéales pour booster la motivation et partager des expériences."
+        },
+        {
+          id: "s3",
+          question: "Les séances sont-elles disponibles en ligne ?",
+          answer: "Oui, nous proposons des séances 100% en ligne via visioconférence. Ces séances en ligne offrent la même qualité de suivi qu'en présentiel avec la flexibilité de vous entraîner depuis chez vous ou n'importe où dans le monde."
+        },
+        {
+          id: "s4",
+          question: "Combien de séances par semaine recommandez-vous ?",
+          answer: "Pour des résultats optimaux, nous recommandons 3 à 4 séances par semaine pour les débutants et 5 à 6 séances pour les profils avancés. Cependant, tout dépend de vos objectifs, de votre emploi du temps et de votre niveau de récupération."
+        }
+      ]
+    },
+    {
+      id: "packs",
+      label: "Packs",
+      icon: "🏆",
+      questions: [
+        {
+          id: "p1",
+          question: "Quels packs sont disponibles ?",
+          answer: "Nous proposons trois packs principaux : le Pack Découverte (5 séances), le Pack Essentiel (10 séances + bilan mensuel) et le Pack Premium (20 séances + suivi nutritionnel + accès illimité aux formations en ligne). Chaque pack peut être personnalisé selon vos besoins."
+        },
+        {
+          id: "p2",
+          question: "Les packs ont-ils une date d'expiration ?",
+          answer: "Oui, les packs ont une validité définie : 2 mois pour le Pack Découverte, 4 mois pour le Pack Essentiel et 6 mois pour le Pack Premium. En cas de blessure ou d'empêchement majeur, nous pouvons prolonger la validité sur présentation d'un justificatif."
+        },
+        {
+          id: "p3",
+          question: "Peut-on partager un pack avec quelqu'un d'autre ?",
+          answer: "Les packs individuels sont nominatifs et ne peuvent pas être partagés. Cependant, nous proposons des packs duo et familiaux spécialement conçus pour être utilisés à deux ou en famille avec des tarifs avantageux."
+        }
+      ]
+    },
+    {
+      id: "technique",
+      label: "Technique",
+      icon: "🔧",
+      questions: [
+        {
+          id: "t1",
+          question: "Quel équipement est nécessaire pour les séances en ligne ?",
+          answer: "Pour les séances en ligne, vous avez besoin d'une connexion internet stable, d'un ordinateur, tablette ou smartphone avec caméra et micro, et d'un espace suffisant pour vous exercer. Pour certaines séances, un tapis de sport, des haltères légers ou des élastiques de résistance peuvent être utiles."
+        },
+        {
+          id: "t2",
+          question: "Quelle plateforme utilisez-vous pour les séances virtuelles ?",
+          answer: "Nous utilisons Zoom et Google Meet pour les séances en visioconférence. Un lien de connexion vous est envoyé par email 24 heures avant chaque séance. Notre application mobile propriétaire est également disponible pour accéder à vos programmes et suivre vos progrès."
+        },
+        {
+          id: "t3",
+          question: "Comment accéder à mon espace personnel ?",
+          answer: "Votre espace personnel est accessible depuis notre site web ou notre application mobile. Vous y trouverez votre planning de séances, vos programmes d'entraînement, vos statistiques de progression, les ressources de vos formations et l'historique de vos paiements."
+        }
+      ]
+    },
+    {
+      id: "paiement",
+      label: "Paiement",
+      icon: "💳",
+      questions: [
+        {
+          id: "pay1",
+          question: "Quels modes de paiement acceptez-vous ?",
+          answer: "Nous acceptons les paiements par carte bancaire (Visa, Mastercard, American Express), virement bancaire, PayPal et Apple Pay / Google Pay. Tous les paiements en ligne sont sécurisés via un protocole SSL et traités par des prestataires certifiés PCI DSS."
+        },
+        {
+          id: "pay2",
+          question: "Le paiement en plusieurs fois est-il possible ?",
+          answer: "Oui, nous proposons le paiement en 3 ou 6 fois sans frais pour tous les packs et formations d'un montant supérieur à 200€. Il vous suffit de sélectionner cette option lors du paiement. Un accord de paiement échelonné sera établi et signé électroniquement."
+        },
+        {
+          id: "pay3",
+          question: "Quelle est votre politique de remboursement ?",
+          answer: "Nous offrons un remboursement intégral dans les 14 jours suivant l'achat si aucune séance n'a été utilisée. Au-delà, les séances non utilisées peuvent être remboursées au prorata. Les formations numériques sont remboursables dans les 7 jours si moins de 20% du contenu a été consulté."
+        },
+        {
+          id: "pay4",
+          question: "Puis-je bénéficier de financement ou d'aides ?",
+          answer: "Certaines de nos formations peuvent être éligibles au CPF (Compte Personnel de Formation) ou à des dispositifs de financement OPCO selon votre statut professionnel. Contactez-nous pour vérifier votre éligibilité et nous vous accompagnerons dans les démarches administratives."
+        }
+      ]
+    }
+  ];
 
-const faqData: FAQCategory[] = [
-  {
-    name: "Formations",
-    items: [
-      {
-        question: "Quels types de formations proposez-vous ?",
-        answer: "Nous proposons des formations en présentiel, en ligne et en format hybride. Nos programmes couvrent le développement personnel, le coaching sportif, la nutrition et le bien-être mental. Chaque formation est adaptée à votre niveau et vos objectifs."
-      },
-      {
-        question: "Quelle est la durée moyenne d'une formation ?",
-        answer: "La durée varie selon le programme choisi. Nos formations courtes durent entre 1 et 3 jours, tandis que nos programmes approfondis s'étendent sur 4 à 12 semaines. Vous pouvez consulter la durée exacte sur chaque fiche programme."
-      },
-      {
-        question: "Les formations sont-elles certifiantes ?",
-        answer: "Oui, la majorité de nos formations débouchent sur une certification reconnue. Un certificat de completion vous est délivré à l'issue de chaque programme validé. Certaines formations sont également éligibles au CPF."
-      },
-      {
-        question: "Puis-je suivre une formation à mon rythme ?",
-        answer: "Absolument. Nos formations en ligne sont disponibles 24h/24 et 7j/7. Vous accédez aux contenus à vie et pouvez progresser selon votre emploi du temps. Un suivi personnalisé est disponible en option."
-      }
-    ]
-  },
-  {
-    name: "Séances",
-    items: [
-      {
-        question: "Comment réserver une séance individuelle ?",
-        answer: "Vous pouvez réserver votre séance directement via notre plateforme en choisissant le coach, le créneau horaire et le type de séance. Une confirmation par email vous est envoyée immédiatement après la réservation."
-      },
-      {
-        question: "Quelle est la durée d'une séance standard ?",
-        answer: "Une séance individuelle dure en général 60 minutes. Nous proposons également des formats de 30 minutes pour les séances de suivi et de 90 minutes pour les bilans approfondis. La durée est précisée lors de la réservation."
-      },
-      {
-        question: "Puis-je annuler ou reporter une séance ?",
-        answer: "Oui, toute annulation effectuée au moins 24 heures avant la séance est sans frais. En dessous de ce délai, la séance est due intégralement. Le report est possible jusqu'à 12 heures avant le début de la séance."
-      },
-      {
-        question: "Les séances en ligne sont-elles aussi efficaces ?",
-        answer: "Nos coachs sont formés spécifiquement pour les séances en ligne. La qualité de l'accompagnement est identique. Vous avez besoin d'une connexion internet stable, d'une webcam et d'un espace calme pour profiter pleinement de la séance."
-      }
-    ]
-  },
-  {
-    name: "Packs",
-    items: [
-      {
-        question: "Quels packs sont disponibles ?",
-        answer: "Nous proposons trois gammes de packs : le Pack Découverte (3 séances), le Pack Essentiel (10 séances) et le Pack Premium (20 séances + formation incluse). Chaque pack offre une réduction significative par rapport aux séances à l'unité."
-      },
-      {
-        question: "Les packs ont-ils une date d'expiration ?",
-        answer: "Le Pack Découverte est valable 3 mois. Le Pack Essentiel est valable 6 mois. Le Pack Premium est valable 12 mois. Les séances non utilisées avant la date d'expiration sont perdues, sauf en cas de circonstances exceptionnelles."
-      },
-      {
-        question: "Peut-on partager un pack entre plusieurs personnes ?",
-        answer: "Les packs sont nominatifs et non cessibles. Ils sont strictement réservés à la personne qui en fait l'acquisition. Cependant, nous proposons des packs famille et entreprise spécifiques, veuillez nous contacter pour plus d'informations."
-      },
-      {
-        question: "Comment activer mon pack après l'achat ?",
-        answer: "Votre pack est automatiquement activé dès la confirmation de paiement. Vous recevez un email avec vos accès et votre espace personnel. La première séance peut être réservée immédiatement après réception de cet email."
-      }
-    ]
-  },
-  {
-    name: "Technique",
-    items: [
-      {
-        question: "Quels équipements sont nécessaires pour les séances en ligne ?",
-        answer: "Vous avez besoin d'un ordinateur, d'une tablette ou d'un smartphone avec caméra et microphone. Une connexion internet d'au moins 5 Mbps est recommandée. Nous utilisons Zoom ou Google Meet selon les préférences du coach."
-      },
-      {
-        question: "Comment accéder à mon espace personnel ?",
-        answer: "Votre espace personnel est accessible via notre site web ou notre application mobile. Connectez-vous avec l'email et le mot de passe créés lors de votre inscription. En cas de difficulté, utilisez la fonction mot de passe oublié."
-      },
-      {
-        question: "Les contenus de formation sont-ils téléchargeables ?",
-        answer: "Certains contenus comme les PDF, fiches pratiques et supports de cours sont téléchargeables. Les vidéos de formation sont en streaming uniquement afin de protéger les droits d'auteur. Vous y accédez à vie depuis votre espace."
-      },
-      {
-        question: "Que faire en cas de problème technique pendant une séance ?",
-        answer: "En cas de coupure ou problème technique, contactez immédiatement votre coach via le chat de la plateforme ou par SMS. La séance peut être reprise ou un nouveau créneau est proposé sans frais supplémentaires si le problème est d'origine technique."
-      }
-    ]
-  },
-  {
-    name: "Paiement",
-    items: [
-      {
-        question: "Quels modes de paiement acceptez-vous ?",
-        answer: "Nous acceptons les cartes bancaires Visa, Mastercard et American Express, ainsi que PayPal, les virements bancaires et le paiement en plusieurs fois sans frais pour les achats supérieurs à 300 euros."
-      },
-      {
-        question: "Le paiement en plusieurs fois est-il possible ?",
-        answer: "Oui, nous proposons le paiement en 3 ou 4 fois sans frais pour tout achat supérieur à 300 euros. Cette option est disponible lors du paiement par carte bancaire. La première échéance est prélevée immédiatement à la commande."
-      },
-      {
-        question: "Comment obtenir une facture pour mon entreprise ?",
-        answer: "Votre facture est générée automatiquement et disponible dans votre espace personnel sous la rubrique Mes Commandes. Pour une facture au nom de votre entreprise avec numéro de TVA, renseignez les informations lors de votre inscription ou contactez notre support."
-      },
-      {
-        question: "Quelle est votre politique de remboursement ?",
-        answer: "Vous bénéficiez d'un droit de rétractation de 14 jours pour tout achat en ligne. Les séances déjà consommées sont déduites du remboursement. Les formations dont vous avez accédé à plus de 20% du contenu ne sont pas remboursables. Contactez-nous pour toute demande."
-      }
-    ]
+  const [activeCategory, setActiveCategory] = useState("formations");
+
+  const currentCategory = categories.find(function(cat) { return cat.id === activeCategory; });
+
+  function handleToggle(id) {
+    setOpenItem(openItem === id ? null : id);
   }
-];
-
-export default function FAQ() {
-  const [activeCategory, setActiveCategory] = useState<string>("Formations");
-  const [openItem, setOpenItem] = useState<number | null>(null);
-
-  const gold = "#c8a96e";
-  const darkBg = "#050508";
-
-  const currentCategory = faqData.find(cat => cat.name === activeCategory);
-
-  const toggleItem = (index: number) => {
-    setOpenItem(openItem === index ? null : index);
-  };
 
   return (
-    <div style={{
-      minHeight: "100vh",
-      backgroundColor: darkBg,
-      fontFamily: "'Segoe UI', system-ui, sans-serif",
-      padding: "60px 20px"
-    }}>
-      <div style={{
-        maxWidth: "860px",
-        margin: "0 auto"
-      }}>
+    <div style={{ minHeight: "100vh", backgroundColor: "#050508", fontFamily: "'Segoe UI', sans-serif", color: "#f0e6d3", paddingBottom: "80px" }}>
 
-        <div style={{ textAlign: "center", marginBottom: "60px" }}>
-          <p style={{
-            color: gold,
-            fontSize: "13px",
-            letterSpacing: "4px",
-            textTransform: "uppercase",
-            marginBottom: "16px",
-            fontWeight: "500"
-          }}>
-            Aide & Support
-          </p>
-          <h1 style={{
-            color: "#ffffff",
-            fontSize: "clamp(32px, 5vw, 52px)",
-            fontWeight: "700",
-            margin: "0 0 20px 0",
-            lineHeight: "1.2"
-          }}>
-            Questions Fréquentes
-          </h1>
-          <div style={{
-            width: "60px",
-            height: "2px",
-            backgroundColor: gold,
-            margin: "0 auto 24px auto"
-          }} />
-          <p style={{
-            color: "rgba(255,255,255,0.5)",
-            fontSize: "16px",
-            maxWidth: "500px",
-            margin: "0 auto",
-            lineHeight: "1.7"
-          }}>
-            Retrouvez toutes les réponses à vos questions. Notre équipe reste disponible pour tout complément d information.
-          </p>
+      <div style={{ background: "linear-gradient(135deg, #0d0d14 0%, #1a1508 50%, #050508 100%)", borderBottom: "1px solid #c8a96e33", paddingTop: "80px", paddingBottom: "60px", textAlign: "center", position: "relative", overflow: "hidden" }}>
+        <div style={{ position: "absolute", top: "20px", left: "50%", transform: "translateX(-50%)", width: "300px", height: "300px", background: "radial-gradient(circle, #c8a96e15 0%, transparent 70%)", borderRadius: "50%", pointerEvents: "none" }}></div>
+        <div style={{ display: "inline-block", background: "linear-gradient(135deg, #c8a96e22, #c8a96e11)", border: "1px solid #c8a96e44", borderRadius: "30px", padding: "6px 20px", fontSize: "12px", letterSpacing: "3px", color: "#c8a96e", textTransform: "uppercase", marginBottom: "24px" }}>
+          Centre d'aide
         </div>
+        <h1 style={{ fontSize: "52px", fontWeight: "800", margin: "0 0 16px 0", background: "linear-gradient(135deg, #ffffff 0%, #c8a96e 50%, #e8c98e 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text", lineHeight: "1.1" }}>
+          Questions Fréquentes
+        </h1>
+        <p style={{ fontSize: "18px", color: "#9a8a7a", maxWidth: "540px", margin: "0 auto", lineHeight: "1.7" }}>
+          Retrouvez toutes les réponses à vos questions et commencez votre transformation en toute confiance
+        </p>
+      </div>
 
-        <div style={{
-          display: "flex",
-          flexWrap: "wrap",
-          gap: "10px",
-          justifyContent: "center",
-          marginBottom: "50px"
-        }}>
-          {faqData.map((cat) => (
-            <button
-              key={cat.name}
-              onClick={() => { setActiveCategory(cat.name); setOpenItem(null); }}
-              style={{
-                backgroundColor: activeCategory === cat.name ? gold : "transparent",
-                color: activeCategory === cat.name ? darkBg : gold,
-                border: "1px solid " + gold,
-                padding: "10px 24px",
-                borderRadius: "40px",
-                fontSize: "13px",
-                fontWeight: "600",
-                letterSpacing: "1px",
-                textTransform: "uppercase",
-                cursor: "pointer",
-                transition: "all 0.25s ease"
-              }}
-            >
-              {cat.name}
-            </button>
-          ))}
-        </div>
+      <div style={{ maxWidth: "900px", margin: "0 auto", padding: "0 24px" }}>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: "0px" }}>
-          {currentCategory && currentCategory.items.map((item, index) => (
-            <div
-              key={index}
-              style={{
-                borderBottom: "1px solid rgba(200,169,110,0.15)",
-                borderTop: index === 0 ? "1px solid rgba(200,169,110,0.15)" : "none"
-              }}
-            >
+        <div style={{ display: "flex", gap: "10px", marginTop: "48px", marginBottom: "40px", overflowX: "auto", paddingBottom: "8px" }}>
+          {categories.map(function(cat) {
+            const isActive = activeCategory === cat.id;
+            return (
               <button
-                onClick={() => toggleItem(index)}
+                key={cat.id}
+                onClick={function() { setActiveCategory(cat.id); setOpenItem(null); }}
                 style={{
-                  width: "100%",
                   display: "flex",
-                  justifyContent: "space-between",
                   alignItems: "center",
-                  padding: "26px 0",
-                  backgroundColor: "transparent",
-                  border: "none",
+                  gap: "8px",
+                  padding: "12px 22px",
+                  borderRadius: "50px",
+                  border: isActive ? "1px solid #c8a96e" : "1px solid #2a2520",
+                  background: isActive ? "linear-gradient(135deg, #c8a96e22, #c8a96e11)" : "#0d0d11",
+                  color: isActive ? "#c8a96e" : "#6a5a4a",
+                  fontSize: "14px",
+                  fontWeight: isActive ? "700" : "500",
                   cursor: "pointer",
-                  textAlign: "left",
-                  gap: "20px"
+                  whiteSpace: "nowrap",
+                  transition: "all 0.25s ease",
+                  letterSpacing: "0.5px"
                 }}
               >
-                <span style={{
-                  color: openItem === index ? gold : "#ffffff",
-                  fontSize: "16px",
-                  fontWeight: "500",
-                  lineHeight: "1.4",
-                  transition: "color 0.25s ease"
-                }}>
-                  {item.question}
-                </span>
-                <span style={{
-                  flexShrink: "0",
-                  width: "32px",
-                  height: "32px",
-                  borderRadius: "50%",
-                  border: "1px solid " + (openItem === index ? gold : "rgba(200,169,110,0.4)"),
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  backgroundColor: openItem === index ? gold : "transparent",
-                  transition: "all 0.25s ease"
-                }}>
-                  <span style={{
-                    color: openItem === index ? darkBg : gold,
-                    fontSize: "18px",
-                    lineHeight: "1",
-                    fontWeight: "300",
-                    transform: openItem === index ? "rotate(45deg)" : "rotate(0deg)",
-                    display: "inline-block",
-                    transition: "transform 0.25s ease"
-                  }}>
-                    +
-                  </span>
-                </span>
+                <span style={{ fontSize: "16px" }}>{cat.icon}</span>
+                {cat.label}
               </button>
-
-              <div style={{
-                maxHeight: openItem === index ? "400px" : "0",
-                overflow: "hidden",
-                transition: "max-height 0.4s ease"
-              }}>
-                <div style={{
-                  paddingBottom: "28px",
-                  paddingRight: "52px"
-                }}>
-                  <div style={{
-                    width: "32px",
-                    height: "2px",
-                    backgroundColor: gold,
-                    marginBottom: "16px",
-                    opacity: "0.6"
-                  }} />
-                  <p style={{
-                    color: "rgba(255,255,255,0.65)",
-                    fontSize: "15px",
-                    lineHeight: "1.8",
-                    margin: "0"
-                  }}>
-                    {item.answer}
-                  </p>
-                </div>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
-        <div style={{
-          marginTop: "70px",
-          padding: "40px",
-          border: "1px solid rgba(200,169,110,0.25)",
-          borderRadius: "12px",
-          backgroundColor: "rgba(200,169,110,0.04)",
-          textAlign: "center"
-        }}>
-          <p style={{
-            color: gold,
-            fontSize: "12px",
-            letterSpacing: "3px",
-            textTransform: "uppercase",
-            marginBottom: "12px"
-          }}>
-            Besoin d aide
-          </p>
-          <h3 style={{
-            color: "#ffffff",
-            fontSize: "22px",
-            fontWeight: "600",
-            margin: "0 0 12px 0"
-          }}>
-            Vous n avez pas trouvé votre réponse ?
-          </h3>
-          <p style={{
-            color: "rgba(255,255,255,0.5)",
-            fontSize: "14px",
-            margin: "0 0 28px 0",
-            lineHeight: "1.7"
-          }}>
-            Notre équipe est disponible du lundi au vendredi de 9h à 18h pour vous accompagner.
-          </p>
-          <button style={{
-            backgroundColor: gold,
-            color: darkBg,
-            border: "none",
+        <div style={{ marginBottom: "16px", display: "flex", alignItems: "center", gap: "12px" }}>
+          <span style={{ fontSize: "24px" }}>{currentCategory.icon}</span>
+          <div>
+            <h2 style={{ margin: "0", fontSize: "24px", fontWeight: "700", color: "#f0e6d3" }}>{currentCategory.label}</h2>
+            <p style={{ margin: "4px 0 0 0", fontSize: "13px", color: "#6a5a4a" }}>{currentCategory.questions.length} questions</p>
+          </div>
+        </div>
+
+        <div style={{ height: "1px", background: "linear-gradient(90deg, #c8a96e33, transparent)", marginBottom: "32px" }}></div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+          {currentCategory.questions.map(function(item, index) {
+            const isOpen = openItem === item.id;
+            return (
+              <div
+                key={item.id}
+                style={{
+                  border: isOpen ? "1px solid #c8a96e55" : "1px solid #1e1a16",
+                  borderRadius: "16px",
+                  background: isOpen ? "linear-gradient(135deg, #0f0e0a, #12100a)" : "#09090d",
+                  overflow: "hidden",
+                  transition: "all 0.3s ease",
+                  boxShadow: isOpen ? "0 8px 32px #c8a96e10" : "none"
+                }}
+              >
+                <button
+                  onClick={function() { handleToggle(item.id); }}
+                  style={{
+                    width: "100%",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    padding: "24px 28px",
+                    background: "transparent",
+                    border: "none",
+                    cursor: "pointer",
+                    textAlign: "left",
+                    gap: "16px"
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: "16px", flex: "1" }}>
+                    <div style={{
+                      minWidth: "32px",
+                      height: "32px",
+                      borderRadius: "8px",
+                      background: isOpen ? "linear-gradient(135deg, #c8a96e33, #c8a96e11)" : "#141418",
+                      border: isOpen ? "1px solid #c8a96e44" : "1px solid #2a2520",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: "11px",
+                      fontWeight: "700",
+                      color: isOpen ? "#c8a96e" : "#4a3a2a"
+                    }}>
+                      {String(index + 1).padStart(2, "0")}
+                    </div>
+                    <span style={{ fontSize: "16px", fontWeight: "600", color: isOpen ? "#f0e6d3" : "#b0a090", lineHeight: "1.4" }}>
+                      {item.question}
+                    </span>
+                  </div>
+                  <div style={{
+                    minWidth
