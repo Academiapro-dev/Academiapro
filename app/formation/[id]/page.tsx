@@ -1,392 +1,234 @@
-import React from "react";
+"use client";
+import { useState } from "react";
 
-interface FormationPageProps {
-  params: {
-    id: string;
-  };
-}
+export default function FormationPage({ params }) {
+  const id = params ? params.id : "1";
 
-const formations = {
-  "1": {
-    titre: "Maîtrise de l'Intelligence Artificielle",
-    description: "Devenez expert en IA et transformez votre carrière avec les technologies les plus avancées du marché. Une formation complète conçue par des experts de l'industrie pour vous amener du niveau débutant à expert.",
-    prix: 1997,
+  const [selectedLevel, setSelectedLevel] = useState(0);
+  const [hovered, setHovered] = useState(null);
+  const [btnHovered, setBtnHovered] = useState(null);
+
+  const formation = {
+    titre: "Maîtrisez le Leadership Stratégique",
+    description: "Une formation complète pour développer vos compétences en leadership, management d'équipe et prise de décision stratégique. Conçue pour les professionnels ambitieux qui souhaitent accélérer leur carrière et transformer leur organisation.",
     duree: "12 semaines",
-    certification: true,
+    certification: "Certificat Professionnel de Leadership Stratégique — reconnu par +200 entreprises partenaires",
     programme: [
-      "Introduction aux fondamentaux de l'IA",
-      "Machine Learning et Deep Learning",
-      "Traitement du langage naturel (NLP)",
-      "Vision par ordinateur",
-      "Déploiement de modèles en production",
-      "Projets pratiques et cas d'usage réels",
-      "Éthique et gouvernance de l'IA",
-      "Préparation à la certification officielle"
-    ]
-  },
-  "2": {
-    titre: "Prompt Engineering Avancé",
-    description: "Maîtrisez l'art de communiquer avec les LLMs et créez des applications IA révolutionnaires. Apprenez les techniques les plus avancées pour optimiser vos interactions avec ChatGPT, Claude et les autres modèles.",
-    prix: 997,
-    duree: "6 semaines",
-    certification: true,
-    programme: [
-      "Fondamentaux du Prompt Engineering",
-      "Techniques avancées de prompting",
-      "Chain of Thought et raisonnement",
-      "Agents IA et automatisation",
-      "Intégration API et développement",
-      "Optimisation et évaluation des prompts"
-    ]
-  },
-  "3": {
-    titre: "Automatisation Business avec l'IA",
-    description: "Automatisez vos processus métier et multipliez votre productivité par 10 grâce à l'intelligence artificielle. Formation orientée résultats concrets pour entrepreneurs et professionnels.",
-    prix: 1497,
-    duree: "8 semaines",
-    certification: true,
-    programme: [
-      "Audit et cartographie des processus",
-      "Outils d'automatisation no-code",
-      "Intégration des LLMs dans vos workflows",
-      "Création d'agents autonomes",
-      "ROI et métriques de performance",
-      "Déploiement et maintenance",
-      "Cas pratiques par secteur d'activité"
-    ]
-  }
-};
-
-const defaultFormation = {
-  titre: "Formation AcadémIA Pro",
-  description: "Une formation d'excellence pour maîtriser l'intelligence artificielle et propulser votre carrière vers de nouveaux sommets.",
-  prix: 1997,
-  duree: "10 semaines",
-  certification: true,
-  programme: [
-    "Module 1 : Fondamentaux",
-    "Module 2 : Pratique avancée",
-    "Module 3 : Projets réels",
-    "Module 4 : Certification"
-  ]
-};
-
-export default function FormationPage({ params }: FormationPageProps) {
-  const formation = formations[params.id as keyof typeof formations] || defaultFormation;
-  const prixMensuel = Math.ceil(formation.prix / 3);
+      "Fondamentaux du leadership moderne et intelligence émotionnelle",
+      "Communication persuasive et gestion des conflits",
+      "Prise de décision sous pression et gestion des risques",
+      "Construction et animation d'équipes haute performance",
+      "Vision stratégique et planification à long terme",
+      "Leadership en période de transformation et changement",
+      "Négociation avancée et influence organisationnelle",
+      "Projet final : plan de transformation leadership",
+    ],
+  };
 
   const niveaux = [
     {
       nom: "E-Learning",
-      prix: formation.prix,
+      emoji: "🎓",
+      prix: "490",
       couleur: "#c8a96e",
-      features: [
-        "Accès à vie aux contenus",
-        "Vidéos HD téléchargeables",
-        "Exercices pratiques",
-        "Forum communautaire",
-        formation.certification ? "Certificat de completion" : "Attestation de suivi"
+      description: "Accès illimité à vie aux vidéos, exercices interactifs et ressources PDF. Apprenez à votre rythme.",
+      inclus: [
+        "80+ heures de vidéos HD",
+        "Exercices et quiz interactifs",
+        "Ressources PDF téléchargeables",
+        "Accès communauté privée",
+        "Certificat de completion",
+        "Mises à jour gratuites à vie",
       ],
-      populaire: false
     },
     {
       nom: "Premium",
-      prix: Math.ceil(formation.prix * 1.8),
-      couleur: "#c8a96e",
-      features: [
-        "Tout E-Learning inclus",
-        "4 sessions de coaching 1-to-1",
-        "Accès au groupe privé Slack",
-        "Révision de vos projets",
-        "Certification officielle AcadémIA Pro",
-        "Support prioritaire 48h"
+      emoji: "⭐",
+      prix: "990",
+      couleur: "#e8c97e",
+      description: "Tout l'E-Learning plus un suivi personnalisé, des sessions de groupe et un coaching mensuel.",
+      inclus: [
+        "Tout le contenu E-Learning",
+        "4 sessions de groupe live/mois",
+        "1 coaching individuel/mois",
+        "Feedback personnalisé sur vos projets",
+        "Accès forum prioritaire",
+        "Certificat Premium signé",
+        "Réseau Alumni exclusif",
       ],
-      populaire: true
     },
     {
       nom: "Live",
-      prix: Math.ceil(formation.prix * 2.5),
-      couleur: "#c8a96e",
-      features: [
-        "Tout Premium inclus",
-        "Sessions live hebdomadaires",
-        "Coaching illimité 3 mois",
-        "Accès aux futures mises à jour",
-        "Placement en entreprise partenaire",
-        "Garantie résultats ou remboursé",
-        "Accès communauté VIP à vie"
+      emoji: "🚀",
+      prix: "2490",
+      couleur: "#f0d090",
+      description: "Expérience totale avec accompagnement intensif, sessions live quotidiennes et mentor dédié.",
+      inclus: [
+        "Tout le contenu Premium",
+        "Sessions live quotidiennes",
+        "Mentor dédié 5j/7",
+        "Plan de développement sur-mesure",
+        "Accès direct WhatsApp formateur",
+        "Garantie résultats 90 jours",
+        "Placement réseau partenaires",
+        "Certificat Excellence",
       ],
-      populaire: false
-    }
+    },
   ];
 
   return (
-    <div style={{
-      backgroundColor: "#050508",
-      minHeight: "100vh",
-      fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
-      color: "#ffffff",
-      overflowX: "hidden"
-    }}>
+    <div style={{ backgroundColor: "#050508", minHeight: "100vh", fontFamily: "'Segoe UI', system-ui, sans-serif", color: "#f0e8d8" }}>
 
-      {/* Header */}
-      <header style={{
-        borderBottom: "1px solid rgba(200, 169, 110, 0.2)",
-        padding: "20px 40px",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between"
-      }}>
-        <div style={{
-          fontSize: "22px",
-          fontWeight: "800",
-          color: "#c8a96e",
-          letterSpacing: "-0.5px"
-        }}>
-          Académ<span style={{ color: "#ffffff" }}>IA</span> Pro
+      <div style={{ background: "linear-gradient(135deg, #0a0a12 0%, #050508 50%, #0d0a06 100%)", borderBottom: "1px solid #2a2218", padding: "60px 20px 80px" }}>
+        <div style={{ maxWidth: "900px", margin: "0 auto", textAlign: "center" }}>
+
+          <div style={{ display: "inline-block", backgroundColor: "#1a1508", border: "1px solid #c8a96e", borderRadius: "20px", padding: "6px 18px", marginBottom: "28px" }}>
+            <span style={{ color: "#c8a96e", fontSize: "12px", fontWeight: "700", letterSpacing: "2px", textTransform: "uppercase" }}>Formation Individuelle — ID {id}</span>
+          </div>
+
+          <h1 style={{ fontSize: "clamp(28px, 5vw, 52px)", fontWeight: "800", lineHeight: "1.15", marginBottom: "24px", background: "linear-gradient(135deg, #f0e8d8 0%, #c8a96e 50%, #f0d090 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+            {formation.titre}
+          </h1>
+
+          <p style={{ fontSize: "clamp(15px, 2vw, 18px)", lineHeight: "1.8", color: "#b8a888", maxWidth: "700px", margin: "0 auto 36px" }}>
+            {formation.description}
+          </p>
+
+          <div style={{ display: "flex", justifyContent: "center", gap: "32px", flexWrap: "wrap" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <span style={{ fontSize: "22px" }}>⏱️</span>
+              <div style={{ textAlign: "left" }}>
+                <div style={{ fontSize: "11px", color: "#7a6a4a", textTransform: "uppercase", letterSpacing: "1px" }}>Durée</div>
+                <div style={{ fontSize: "15px", fontWeight: "700", color: "#c8a96e" }}>{formation.duree}</div>
+              </div>
+            </div>
+            <div style={{ width: "1px", backgroundColor: "#2a2218" }}></div>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <span style={{ fontSize: "22px" }}>🏅</span>
+              <div style={{ textAlign: "left" }}>
+                <div style={{ fontSize: "11px", color: "#7a6a4a", textTransform: "uppercase", letterSpacing: "1px" }}>Certification</div>
+                <div style={{ fontSize: "13px", fontWeight: "600", color: "#d4b87a", maxWidth: "280px" }}>{formation.certification}</div>
+              </div>
+            </div>
+          </div>
+
         </div>
-        <div style={{
-          fontSize: "13px",
-          color: "rgba(255,255,255,0.5)",
-          display: "flex",
-          alignItems: "center",
-          gap: "8px"
-        }}>
-          <span style={{
-            width: "8px",
-            height: "8px",
-            borderRadius: "50%",
-            backgroundColor: "#22c55e",
-            display: "inline-block",
-            boxShadow: "0 0 8px #22c55e"
-          }}></span>
-          Formation #{params.id}
-        </div>
-      </header>
+      </div>
 
-      {/* Hero Section */}
-      <section style={{
-        padding: "80px 40px 60px",
-        maxWidth: "1100px",
-        margin: "0 auto",
-        textAlign: "center",
-        position: "relative"
-      }}>
-        {/* Badge */}
-        <div style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: "8px",
-          backgroundColor: "rgba(200, 169, 110, 0.1)",
-          border: "1px solid rgba(200, 169, 110, 0.3)",
-          borderRadius: "100px",
-          padding: "8px 20px",
-          marginBottom: "32px"
-        }}>
-          <span style={{ fontSize: "14px", color: "#c8a96e", fontWeight: "600" }}>
-            ✦ Formation Certifiante AcadémIA Pro
-          </span>
-        </div>
+      <div style={{ maxWidth: "900px", margin: "0 auto", padding: "60px 20px" }}>
+        <h2 style={{ fontSize: "26px", fontWeight: "700", color: "#f0e8d8", marginBottom: "8px" }}>
+          Programme complet
+        </h2>
+        <p style={{ color: "#7a6a4a", marginBottom: "32px", fontSize: "14px" }}>8 modules intensifs — du fondamental à l'excellence</p>
 
-        <h1 style={{
-          fontSize: "clamp(32px, 5vw, 60px)",
-          fontWeight: "900",
-          lineHeight: "1.1",
-          marginBottom: "28px",
-          letterSpacing: "-2px",
-          background: "linear-gradient(135deg, #ffffff 0%, #c8a96e 100%)",
-          WebkitBackgroundClip: "text",
-          WebkitTextFillColor: "transparent"
-        }}>
-          {formation.titre}
-        </h1>
-
-        <p style={{
-          fontSize: "18px",
-          lineHeight: "1.7",
-          color: "rgba(255,255,255,0.65)",
-          maxWidth: "700px",
-          margin: "0 auto 48px"
-        }}>
-          {formation.description}
-        </p>
-
-        {/* Stats */}
-        <div style={{
-          display: "flex",
-          justifyContent: "center",
-          gap: "48px",
-          flexWrap: "wrap"
-        }}>
-          {[
-            { label: "Durée", valeur: formation.duree, icon: "⏱" },
-            { label: "Certification", valeur: "Officielle", icon: "🏆" },
-            { label: "Modules", valeur: formation.programme.length + " modules", icon: "📚" },
-            { label: "Satisfaction", valeur: "98%", icon: "⭐" }
-          ].map((stat, i) => (
-            <div key={i} style={{ textAlign: "center" }}>
-              <div style={{ fontSize: "24px", marginBottom: "4px" }}>{stat.icon}</div>
-              <div style={{ fontSize: "18px", fontWeight: "700", color: "#c8a96e" }}>{stat.valeur}</div>
-              <div style={{ fontSize: "12px", color: "rgba(255,255,255,0.4)", marginTop: "2px" }}>{stat.label}</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "12px" }}>
+          {formation.programme.map((module, i) => (
+            <div
+              key={i}
+              onMouseEnter={() => setHovered(i)}
+              onMouseLeave={() => setHovered(null)}
+              style={{ display: "flex", alignItems: "flex-start", gap: "14px", backgroundColor: hovered === i ? "#12100a" : "#0a0908", border: hovered === i ? "1px solid #c8a96e" : "1px solid #1e1a12", borderRadius: "10px", padding: "16px 18px", cursor: "default", transition: "all 0.2s ease" }}
+            >
+              <div style={{ minWidth: "28px", height: "28px", borderRadius: "50%", backgroundColor: "#1a1508", border: "1px solid #c8a96e", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "11px", fontWeight: "800", color: "#c8a96e" }}>
+                {i + 1}
+              </div>
+              <span style={{ fontSize: "14px", color: hovered === i ? "#f0e8d8" : "#b8a888", lineHeight: "1.5", transition: "color 0.2s ease" }}>
+                {module}
+              </span>
             </div>
           ))}
         </div>
-      </section>
+      </div>
 
-      {/* Programme Section */}
-      <section style={{
-        padding: "60px 40px",
-        maxWidth: "1100px",
-        margin: "0 auto"
-      }}>
-        <div style={{
-          background: "linear-gradient(135deg, rgba(200,169,110,0.06) 0%, rgba(200,169,110,0.02) 100%)",
-          border: "1px solid rgba(200, 169, 110, 0.15)",
-          borderRadius: "24px",
-          padding: "48px"
-        }}>
-          <h2 style={{
-            fontSize: "32px",
-            fontWeight: "800",
-            marginBottom: "8px",
-            letterSpacing: "-1px"
-          }}>
-            Programme de la formation
-          </h2>
-          <p style={{ color: "rgba(255,255,255,0.4)", marginBottom: "40px", fontSize: "15px" }}>
-            Un curriculum structuré pour des résultats concrets et mesurables
-          </p>
+      <div style={{ backgroundColor: "#070608", borderTop: "1px solid #1a1512", borderBottom: "1px solid #1a1512", padding: "70px 20px" }}>
+        <div style={{ maxWidth: "1100px", margin: "0 auto" }}>
 
-          <div style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-            gap: "16px"
-          }}>
-            {formation.programme.map((module, index) => (
-              <div key={index} style={{
-                display: "flex",
-                alignItems: "flex-start",
-                gap: "16px",
-                padding: "20px",
-                backgroundColor: "rgba(255,255,255,0.03)",
-                border: "1px solid rgba(255,255,255,0.06)",
-                borderRadius: "12px",
-                transition: "all 0.2s"
-              }}>
-                <div style={{
-                  minWidth: "32px",
-                  height: "32px",
-                  borderRadius: "8px",
-                  background: "linear-gradient(135deg, #c8a96e, #a07840)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: "13px",
-                  fontWeight: "700",
-                  color: "#050508"
-                }}>
-                  {String(index + 1).padStart(2, "0")}
+          <div style={{ textAlign: "center", marginBottom: "50px" }}>
+            <h2 style={{ fontSize: "clamp(22px, 4vw, 38px)", fontWeight: "800", color: "#f0e8d8", marginBottom: "12px" }}>
+              Choisissez votre niveau d'accès
+            </h2>
+            <p style={{ color: "#7a6a4a", fontSize: "15px" }}>Trois formules adaptées à vos objectifs et votre budget</p>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "20px" }}>
+            {niveaux.map((niveau, i) => (
+              <div
+                key={i}
+                onClick={() => setSelectedLevel(i)}
+                style={{ backgroundColor: selectedLevel === i ? "#100e08" : "#0a0908", border: selectedLevel === i ? "2px solid " + niveau.couleur : "2px solid #1e1a12", borderRadius: "16px", padding: "32px 28px", cursor: "pointer", transition: "all 0.25s ease", position: "relative", transform: selectedLevel === i ? "translateY(-4px)" : "translateY(0)", boxShadow: selectedLevel === i ? "0 20px 60px rgba(200, 169, 110, 0.15)" : "none" }}
+              >
+
+                {i === 1 && (
+                  <div style={{ position: "absolute", top: "-12px", left: "50%", transform: "translateX(-50%)", backgroundColor: "#c8a96e", borderRadius: "12px", padding: "4px 14px", fontSize: "11px", fontWeight: "800", color: "#050508", letterSpacing: "1px", whiteSpace: "nowrap" }}>
+                    POPULAIRE
+                  </div>
+                )}
+
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
+                  <div>
+                    <span style={{ fontSize: "28px" }}>{niveau.emoji}</span>
+                    <h3 style={{ fontSize: "20px", fontWeight: "800", color: niveau.couleur, margin: "6px 0 0" }}>{niveau.nom}</h3>
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    <div style={{ fontSize: "32px", fontWeight: "900", color: "#f0e8d8" }}>{niveau.prix}€</div>
+                    <div style={{ fontSize: "11px", color: "#5a4a2a" }}>paiement unique</div>
+                  </div>
                 </div>
-                <span style={{
-                  fontSize: "15px",
-                  color: "rgba(255,255,255,0.8)",
-                  lineHeight: "1.4",
-                  paddingTop: "4px"
-                }}>
-                  {module}
-                </span>
+
+                <p style={{ fontSize: "13px", color: "#8a7a5a", lineHeight: "1.6", marginBottom: "24px", minHeight: "52px" }}>
+                  {niveau.description}
+                </p>
+
+                <div style={{ marginBottom: "28px" }}>
+                  {niveau.inclus.map((item, j) => (
+                    <div key={j} style={{ display: "flex", alignItems: "flex-start", gap: "10px", marginBottom: "10px" }}>
+                      <span style={{ color: niveau.couleur, fontSize: "14px", marginTop: "1px" }}>✓</span>
+                      <span style={{ fontSize: "13px", color: "#c8b888", lineHeight: "1.4" }}>{item}</span>
+                    </div>
+                  ))}
+                </div>
+
+                <button
+                  onMouseEnter={() => setBtnHovered(i)}
+                  onMouseLeave={() => setBtnHovered(null)}
+                  style={{ width: "100%", padding: "14px 0", borderRadius: "10px", border: "none", backgroundColor: btnHovered === i ? niveau.couleur : selectedLevel === i ? niveau.couleur : "#1a1508", color: btnHovered === i ? "#050508" : selectedLevel === i ? "#050508" : niveau.couleur, fontSize: "14px", fontWeight: "800", cursor: "pointer", transition: "all 0.2s ease", letterSpacing: "0.5px", outline: selectedLevel === i ? "none" : "1px solid " + niveau.couleur }}
+                >
+                  Acheter — {niveau.prix}€
+                </button>
+
               </div>
             ))}
           </div>
-        </div>
-      </section>
 
-      {/* Niveaux Section */}
-      <section style={{
-        padding: "60px 40px",
-        maxWidth: "1100px",
-        margin: "0 auto"
-      }}>
-        <div style={{ textAlign: "center", marginBottom: "56px" }}>
-          <h2 style={{
-            fontSize: "38px",
-            fontWeight: "900",
-            marginBottom: "12px",
-            letterSpacing: "-1.5px"
-          }}>
-            Choisissez votre niveau
-          </h2>
-          <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "16px" }}>
-            3 formules adaptées à vos besoins et votre ambition
+        </div>
+      </div>
+
+      <div style={{ maxWidth: "800px", margin: "0 auto", padding: "60px 20px" }}>
+        <div style={{ backgroundColor: "#0a0908", border: "1px solid #2a2218", borderRadius: "16px", padding: "40px", textAlign: "center" }}>
+
+          <div style={{ fontSize: "40px", marginBottom: "16px" }}>🏅</div>
+          <h3 style={{ fontSize: "22px", fontWeight: "800", color: "#c8a96e", marginBottom: "12px" }}>
+            Votre certification vous attend
+          </h3>
+          <p style={{ color: "#8a7a5a", fontSize: "14px", lineHeight: "1.8", marginBottom: "28px" }}>
+            {formation.certification}
           </p>
+
+          <div style={{ display: "flex", justifyContent: "center", gap: "24px", flexWrap: "wrap" }}>
+            {["200+ Entreprises", "15 000+ Diplômés", "4.9/5 Satisfaction"].map((stat, i) => (
+              <div key={i} style={{ backgroundColor: "#12100a", border: "1px solid #2a2218", borderRadius: "10px", padding: "14px 22px" }}>
+                <div style={{ fontSize: "16px", fontWeight: "800", color: "#f0e8d8" }}>{stat.split(" ")[0]}</div>
+                <div style={{ fontSize: "11px", color: "#5a4a2a", textTransform: "uppercase", letterSpacing: "1px" }}>{stat.split(" ").slice(1).join(" ")}</div>
+              </div>
+            ))}
+          </div>
+
         </div>
+      </div>
 
-        <div style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
-          gap: "24px",
-          alignItems: "stretch"
-        }}>
-          {niveaux.map((niveau, index) => (
-            <div key={index} style={{
-              position: "relative",
-              background: niveau.populaire
-                ? "linear-gradient(135deg, rgba(200,169,110,0.12) 0%, rgba(200,169,110,0.04) 100%)"
-                : "rgba(255,255,255,0.02)",
-              border: niveau.populaire
-                ? "2px solid rgba(200, 169, 110, 0.6)"
-                : "1px solid rgba(255,255,255,0.08)",
-              borderRadius: "20px",
-              padding: "36px 32px",
-              display: "flex",
-              flexDirection: "column",
-              transform: niveau.populaire ? "scale(1.03)" : "scale(1)",
-              boxShadow: niveau.populaire ? "0 0 60px rgba(200,169,110,0.15)" : "none"
-            }}>
-              {niveau.populaire && (
-                <div style={{
-                  position: "absolute",
-                  top: "-14px",
-                  left: "50%",
-                  transform: "translateX(-50%)",
-                  backgroundColor: "#c8a96e",
-                  color: "#050508",
-                  fontSize: "11px",
-                  fontWeight: "800",
-                  padding: "6px 18px",
-                  borderRadius: "100px",
-                  letterSpacing: "1px",
-                  textTransform: "uppercase",
-                  whiteSpace: "nowrap"
-                }}>
-                  ✦ Le Plus Populaire
-                </div>
-              )}
-
-              <div style={{ marginBottom: "24px" }}>
-                <div style={{
-                  fontSize: "12px",
-                  fontWeight: "700",
-                  color: "#c8a96e",
-                  letterSpacing: "2px",
-                  textTransform: "uppercase",
-                  marginBottom: "8px"
-                }}>
-                  {niveau.nom}
-                </div>
-                <div style={{ display: "flex", alignItems: "baseline", gap: "4px", marginBottom: "4px" }}>
-                  <span style={{
-                    fontSize: "48px",
-                    fontWeight: "900",
-                    color: "#ffffff",
-                    letterSpacing: "-2px",
-                    lineHeight: "1"
-                  }}>
-                    {niveau.prix.toLocaleString("fr-FR")}€
-                  </span>
-                </div>
-                <div style={{
-                  fontSize: "13px",
-                  color: "rgba(255,255,255,0.4)"
-                }}>
-                  ou 3x {Math.ceil(niveau.prix
+      <div style={{ backgroundColor: "#0a0806", borderTop: "1px solid #1a1512", padding: "50px 20px", textAlign: "center" }}>
+        <div style={{ maxWidth: "600px", margin: "0 auto" }}>
+          <h3 style={{ fontSize: "28px", fontWeight: "800", color: "#f0e8d8", marginBottom: "12px" }}>
+            Prêt à transformer votre carrière ?
+          </h3>
+          <p style={{ color
