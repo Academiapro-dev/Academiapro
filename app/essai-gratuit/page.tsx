@@ -1,334 +1,172 @@
-import React from "react";
+"use client";
 import { useState } from "react";
 
-const App = () => {
+export default function EssaiGratuitPage() {
   const [email, setEmail] = useState("");
-  const [step, setStep] = useState<"trial" | "offer">("trial");
+  const [prenom, setPrenom] = useState("");
   const [submitted, setSubmitted] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  function handleSubmit(e) {
     e.preventDefault();
-    if (email.trim()) {
-      setStep("offer");
+    if (!email || !prenom) return;
+    setLoading(true);
+    setTimeout(() => {
+      setLoading(false);
       setSubmitted(true);
-    }
-  };
+    }, 1500);
+  }
 
-  const containerStyle: React.CSSProperties = {
-    minHeight: "100vh",
-    backgroundColor: "#050508",
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    justifyContent: "center",
-    fontFamily: "'Segoe UI', sans-serif",
-    padding: "20px",
-  };
-
-  const cardStyle: React.CSSProperties = {
-    backgroundColor: "#0d0d14",
-    border: "1px solid #c8a96e33",
-    borderRadius: "16px",
-    padding: "48px 40px",
-    maxWidth: "520px",
-    width: "100%",
-    boxShadow: "0 0 60px #c8a96e18",
-    textAlign: "center",
-  };
-
-  const goldStyle: React.CSSProperties = {
-    color: "#c8a96e",
-  };
-
-  const titleStyle: React.CSSProperties = {
-    fontSize: "32px",
-    fontWeight: "800",
-    color: "#ffffff",
-    marginBottom: "8px",
-    lineHeight: "1.2",
-  };
-
-  const subtitleStyle: React.CSSProperties = {
-    fontSize: "16px",
-    color: "#9999aa",
-    marginBottom: "32px",
-  };
-
-  const badgeStyle: React.CSSProperties = {
-    display: "inline-block",
-    backgroundColor: "#c8a96e22",
-    border: "1px solid #c8a96e55",
-    color: "#c8a96e",
-    borderRadius: "999px",
-    padding: "6px 16px",
-    fontSize: "13px",
-    fontWeight: "600",
-    marginBottom: "24px",
-    letterSpacing: "0.5px",
-  };
-
-  const inputStyle: React.CSSProperties = {
-    width: "100%",
-    padding: "14px 18px",
-    borderRadius: "10px",
-    border: "1px solid #c8a96e44",
-    backgroundColor: "#1a1a2e",
-    color: "#ffffff",
-    fontSize: "16px",
-    outline: "none",
-    boxSizing: "border-box",
-    marginBottom: "14px",
-  };
-
-  const buttonStyle: React.CSSProperties = {
-    width: "100%",
-    padding: "15px",
-    borderRadius: "10px",
-    border: "none",
-    background: "linear-gradient(135deg, #c8a96e, #e8c98e)",
-    color: "#050508",
-    fontSize: "16px",
-    fontWeight: "800",
-    cursor: "pointer",
-    letterSpacing: "0.5px",
-  };
-
-  const freeNoteStyle: React.CSSProperties = {
-    marginTop: "16px",
-    fontSize: "13px",
-    color: "#666677",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: "6px",
-  };
-
-  const moduleTagStyle: React.CSSProperties = {
-    backgroundColor: "#c8a96e11",
-    border: "1px solid #c8a96e33",
-    borderRadius: "8px",
-    padding: "10px 16px",
-    marginBottom: "24px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: "10px",
-  };
-
-  const moduleTextStyle: React.CSSProperties = {
-    color: "#ccccdd",
-    fontSize: "14px",
-  };
-
-  const dividerStyle: React.CSSProperties = {
-    height: "1px",
-    backgroundColor: "#c8a96e22",
-    margin: "32px 0",
-  };
-
-  const priceBigStyle: React.CSSProperties = {
-    fontSize: "56px",
-    fontWeight: "900",
-    color: "#c8a96e",
-    lineHeight: "1",
-  };
-
-  const priceSubStyle: React.CSSProperties = {
-    fontSize: "14px",
-    color: "#9999aa",
-    marginTop: "4px",
-    marginBottom: "28px",
-  };
-
-  const featureListStyle: React.CSSProperties = {
-    textAlign: "left",
-    marginBottom: "28px",
-  };
-
-  const featureItemStyle: React.CSSProperties = {
-    display: "flex",
-    alignItems: "flex-start",
-    gap: "12px",
-    marginBottom: "12px",
-    color: "#ccccdd",
-    fontSize: "15px",
-  };
-
-  const checkStyle: React.CSSProperties = {
-    color: "#c8a96e",
-    fontWeight: "bold",
-    fontSize: "16px",
-    flexShrink: 0,
-    marginTop: "1px",
-  };
-
-  const skipStyle: React.CSSProperties = {
-    marginTop: "14px",
-    fontSize: "13px",
-    color: "#555566",
-    cursor: "pointer",
-    textDecoration: "underline",
-  };
-
-  const successBadgeStyle: React.CSSProperties = {
-    backgroundColor: "#1a2e1a",
-    border: "1px solid #4caf5055",
-    borderRadius: "10px",
-    padding: "12px 20px",
-    marginBottom: "28px",
-    color: "#81c784",
-    fontSize: "14px",
-    display: "flex",
-    alignItems: "center",
-    gap: "8px",
-    justifyContent: "center",
-  };
-
-  if (step === "offer") {
+  if (submitted) {
     return (
-      <div style={containerStyle}>
-        <div style={cardStyle}>
-          <div style={successBadgeStyle}>
-            <span>{"✓"}</span>
-            <span>Accès essai activé pour {email}</span>
+      <div style={{ minHeight: "100vh", background: "#050508", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "Georgia, serif", padding: "24px" }}>
+        <div style={{ maxWidth: "560px", width: "100%", textAlign: "center" }}>
+          <div style={{ width: "72px", height: "72px", borderRadius: "50%", background: "linear-gradient(135deg, #c8a96e, #e8c98e)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 32px auto", fontSize: "32px" }}>
+            ✓
           </div>
-
-          <div style={badgeStyle}>{"🚀 Offre spéciale"}</div>
-
-          <h1 style={titleStyle}>
-            Passez au niveau{" "}
-            <span style={goldStyle}>supérieur</span>
+          <h1 style={{ color: "#c8a96e", fontSize: "28px", fontWeight: "700", marginBottom: "16px", letterSpacing: "0.5px" }}>
+            Accès envoyé, {prenom} !
           </h1>
-
-          <p style={subtitleStyle}>
-            Débloquez l'intégralité de la formation avec le Starter Pack
+          <p style={{ color: "#a89070", fontSize: "16px", lineHeight: "1.7", marginBottom: "12px" }}>
+            Votre accès gratuit au <strong style={{ color: "#c8a96e" }}>Module 1 — F128</strong> vient d'être envoyé à
           </p>
-
-          <div style={dividerStyle} />
-
-          <div style={priceBigStyle}>47€</div>
-          <p style={priceSubStyle}>paiement unique · accès à vie</p>
-
-          <div style={featureListStyle}>
-            {[
-              "Tous les modules F128 complets (1 à 8)",
-              "Fiches récapitulatives PDF téléchargeables",
-              "Accès aux mises à jour futures inclus",
-              "Communauté privée membres Starter",
-              "Session Q&A mensuelle en direct",
-              "Certificat de complétion officiel",
-            ].map((feature, index) => (
-              <div key={index} style={featureItemStyle}>
-                <span style={checkStyle}>{"✓"}</span>
-                <span>{feature}</span>
-              </div>
-            ))}
+          <p style={{ color: "#e8d8b8", fontSize: "17px", fontWeight: "600", marginBottom: "32px", background: "rgba(200,169,110,0.08)", padding: "12px 24px", borderRadius: "8px", border: "1px solid rgba(200,169,110,0.2)" }}>
+            {email}
+          </p>
+          <p style={{ color: "#706050", fontSize: "14px", lineHeight: "1.6", marginBottom: "40px" }}>
+            Consultez votre boîte mail (et vos spams) pour accéder immédiatement au module.
+          </p>
+          <div style={{ background: "linear-gradient(135deg, rgba(200,169,110,0.06), rgba(200,169,110,0.12))", border: "1px solid rgba(200,169,110,0.25)", borderRadius: "16px", padding: "32px" }}>
+            <p style={{ color: "#908060", fontSize: "12px", textTransform: "uppercase", letterSpacing: "2px", marginBottom: "12px" }}>
+              Après votre essai
+            </p>
+            <p style={{ color: "#c8a96e", fontSize: "22px", fontWeight: "700", marginBottom: "8px" }}>
+              Starter Pack complet
+            </p>
+            <p style={{ color: "#e8d8b8", fontSize: "36px", fontWeight: "800", marginBottom: "8px" }}>
+              47 €
+            </p>
+            <p style={{ color: "#706050", fontSize: "13px", marginBottom: "0" }}>
+              Accès à tous les modules • Paiement unique • Sans abonnement
+            </p>
           </div>
-
-          <button
-            style={buttonStyle}
-            onClick={() => alert("Redirection vers le paiement sécurisé...")}
-            onMouseEnter={(e) => {
-              (e.target as HTMLButtonElement).style.opacity = "0.9";
-              (e.target as HTMLButtonElement).style.transform = "scale(1.01)";
-            }}
-            onMouseLeave={(e) => {
-              (e.target as HTMLButtonElement).style.opacity = "1";
-              (e.target as HTMLButtonElement).style.transform = "scale(1)";
-            }}
-          >
-            {"Obtenir le Starter Pack — 47€"}
-          </button>
-
-          <p style={skipStyle} onClick={() => alert("Continuer avec l'essai gratuit...")}>
-            Non merci, continuer avec l'essai gratuit uniquement
-          </p>
-
-          <p style={{ ...freeNoteStyle, marginTop: "20px" }}>
-            <span>{"🔒"}</span>
-            Paiement sécurisé SSL · Remboursement 30 jours
-          </p>
         </div>
       </div>
     );
   }
 
   return (
-    <div style={containerStyle}>
-      <div style={cardStyle}>
-        <div style={badgeStyle}>{"✨ Essai Gratuit"}</div>
+    <div style={{ minHeight: "100vh", background: "#050508", fontFamily: "Georgia, serif", padding: "24px" }}>
 
-        <h1 style={titleStyle}>
-          Commencez <span style={goldStyle}>gratuitement</span>
-        </h1>
+      <div style={{ maxWidth: "640px", margin: "0 auto", paddingTop: "48px", paddingBottom: "80px" }}>
 
-        <p style={subtitleStyle}>
-          Accédez au Module 1 de la formation F128 sans engagement
-        </p>
-
-        <div style={moduleTagStyle}>
-          <span style={{ fontSize: "20px" }}>{"📚"}</span>
-          <span style={moduleTextStyle}>
-            <strong style={{ color: "#c8a96e" }}>Module 1 — F128</strong>
-            {" · Accès immédiat · 100% gratuit"}
-          </span>
+        <div style={{ textAlign: "center", marginBottom: "56px" }}>
+          <p style={{ color: "#c8a96e", fontSize: "11px", textTransform: "uppercase", letterSpacing: "3px", marginBottom: "20px", opacity: "0.8" }}>
+            Module 1 — F128
+          </p>
+          <h1 style={{ color: "#e8d8b8", fontSize: "38px", fontWeight: "700", lineHeight: "1.25", marginBottom: "20px", letterSpacing: "-0.5px" }}>
+            Essayez gratuitement
+          </h1>
+          <div style={{ width: "48px", height: "2px", background: "linear-gradient(90deg, transparent, #c8a96e, transparent)", margin: "0 auto 24px auto" }}></div>
+          <p style={{ color: "#908070", fontSize: "17px", lineHeight: "1.7", maxWidth: "480px", margin: "0 auto" }}>
+            Accédez au premier module sans engagement et sans carte bancaire. Découvrez la méthode F128 dès aujourd'hui.
+          </p>
         </div>
 
-        <form onSubmit={handleSubmit}>
-          <input
-            type="email"
-            placeholder="Votre adresse email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            style={inputStyle}
-            onFocus={(e) => {
-              (e.target as HTMLInputElement).style.borderColor = "#c8a96e";
-            }}
-            onBlur={(e) => {
-              (e.target as HTMLInputElement).style.borderColor = "#c8a96e44";
-            }}
-          />
-
-          <button
-            type="submit"
-            style={buttonStyle}
-            onMouseEnter={(e) => {
-              (e.target as HTMLButtonElement).style.opacity = "0.9";
-            }}
-            onMouseLeave={(e) => {
-              (e.target as HTMLButtonElement).style.opacity = "1";
-            }}
-          >
-            {"Commencer mon essai gratuit →"}
-          </button>
-        </form>
-
-        <div style={freeNoteStyle}>
-          <span>{"🔒"}</span>
-          <span>Sans carte bancaire · Aucun engagement</span>
+        <div style={{ display: "flex", gap: "12px", justifyContent: "center", marginBottom: "48px", flexWrap: "wrap" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", background: "rgba(200,169,110,0.06)", border: "1px solid rgba(200,169,110,0.15)", borderRadius: "40px", padding: "8px 16px" }}>
+            <span style={{ color: "#c8a96e", fontSize: "14px" }}>✓</span>
+            <span style={{ color: "#a09070", fontSize: "13px" }}>Sans carte bancaire</span>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", background: "rgba(200,169,110,0.06)", border: "1px solid rgba(200,169,110,0.15)", borderRadius: "40px", padding: "8px 16px" }}>
+            <span style={{ color: "#c8a96e", fontSize: "14px" }}>✓</span>
+            <span style={{ color: "#a09070", fontSize: "13px" }}>Accès immédiat</span>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", background: "rgba(200,169,110,0.06)", border: "1px solid rgba(200,169,110,0.15)", borderRadius: "40px", padding: "8px 16px" }}>
+            <span style={{ color: "#c8a96e", fontSize: "14px" }}>✓</span>
+            <span style={{ color: "#a09070", fontSize: "13px" }}>Zéro engagement</span>
+          </div>
         </div>
 
-        <div style={dividerStyle} />
+        <div style={{ background: "linear-gradient(160deg, rgba(200,169,110,0.05), rgba(200,169,110,0.02))", border: "1px solid rgba(200,169,110,0.18)", borderRadius: "20px", padding: "48px 40px", marginBottom: "40px" }}>
 
-        <div style={{ display: "flex", gap: "24px", justifyContent: "center" }}>
-          {[
-            { icon: "⚡", label: "Accès immédiat" },
-            { icon: "🎯", label: "Module 1 complet" },
-            { icon: "🆓", label: "100% gratuit" },
-          ].map((item, index) => (
-            <div
-              key={index}
-              style={{ textAlign: "center", color: "#9999aa", fontSize: "13px" }}
-            >
-              <div style={{ fontSize: "20px", marginBottom: "4px" }}>{item.icon}</div>
-              <div>{item.label}</div>
+          <h2 style={{ color: "#c8a96e", fontSize: "16px", fontWeight: "600", marginBottom: "32px", textAlign: "center", letterSpacing: "0.5px" }}>
+            Recevoir mon accès gratuit
+          </h2>
+
+          <form onSubmit={handleSubmit}>
+
+            <div style={{ marginBottom: "20px" }}>
+              <label style={{ display: "block", color: "#806040", fontSize: "12px", textTransform: "uppercase", letterSpacing: "1.5px", marginBottom: "10px" }}>
+                Prénom
+              </label>
+              <input
+                type="text"
+                value={prenom}
+                onChange={(e) => setPrenom(e.target.value)}
+                placeholder="Votre prénom"
+                required
+                style={{ width: "100%", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(200,169,110,0.2)", borderRadius: "10px", padding: "14px 18px", color: "#e8d8b8", fontSize: "16px", outline: "none", boxSizing: "border-box", fontFamily: "Georgia, serif" }}
+              />
             </div>
-          ))}
+
+            <div style={{ marginBottom: "32px" }}>
+              <label style={{ display: "block", color: "#806040", fontSize: "12px", textTransform: "uppercase", letterSpacing: "1.5px", marginBottom: "10px" }}>
+                Adresse e-mail
+              </label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="votre@email.com"
+                required
+                style={{ width: "100%", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(200,169,110,0.2)", borderRadius: "10px", padding: "14px 18px", color: "#e8d8b8", fontSize: "16px", outline: "none", boxSizing: "border-box", fontFamily: "Georgia, serif" }}
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              style={{ width: "100%", background: loading ? "rgba(200,169,110,0.4)" : "linear-gradient(135deg, #c8a96e, #b8954a)", border: "none", borderRadius: "12px", padding: "18px 24px", color: "#050508", fontSize: "16px", fontWeight: "700", cursor: loading ? "not-allowed" : "pointer", letterSpacing: "0.5px", fontFamily: "Georgia, serif", transition: "opacity 0.2s" }}
+            >
+              {loading ? "Envoi en cours..." : "Accéder gratuitement au Module 1"}
+            </button>
+
+          </form>
+
+          <p style={{ color: "#504030", fontSize: "12px", textAlign: "center", marginTop: "20px", lineHeight: "1.6" }}>
+            En continuant, vous acceptez de recevoir votre accès par e-mail. Aucun paiement requis.
+          </p>
+
         </div>
+
+        <div style={{ background: "rgba(200,169,110,0.04)", border: "1px solid rgba(200,169,110,0.12)", borderRadius: "16px", padding: "28px 32px", textAlign: "center" }}>
+          <p style={{ color: "#706050", fontSize: "11px", textTransform: "uppercase", letterSpacing: "2px", marginBottom: "10px" }}>
+            Envie d'aller plus loin ?
+          </p>
+          <p style={{ color: "#c8a96e", fontSize: "18px", fontWeight: "700", marginBottom: "6px" }}>
+            Starter Pack — Accès complet
+          </p>
+          <p style={{ color: "#e8d8b8", fontSize: "28px", fontWeight: "800", marginBottom: "8px" }}>
+            47 €
+          </p>
+          <p style={{ color: "#605040", fontSize: "13px", lineHeight: "1.6" }}>
+            Tous les modules débloqués • Paiement unique • Aucun abonnement
+          </p>
+        </div>
+
+        <div style={{ textAlign: "center", marginTop: "48px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px", justifyContent: "center", marginBottom: "16px" }}>
+            <div style={{ height: "1px", width: "60px", background: "rgba(200,169,110,0.15)" }}></div>
+            <span style={{ color: "#c8a96e", fontSize: "18px" }}>F128</span>
+            <div style={{ height: "1px", width: "60px", background: "rgba(200,169,110,0.15)" }}></div>
+          </div>
+          <p style={{ color: "#403020", fontSize: "12px" }}>
+            © 2024 — Tous droits réservés
+          </p>
+        </div>
+
       </div>
     </div>
   );
-};
-
-export default App;
+}
