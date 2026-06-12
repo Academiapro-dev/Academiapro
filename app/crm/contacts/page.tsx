@@ -1,267 +1,388 @@
-import React from "react";
+"use client";
 import { useState } from "react";
 
-const contacts = [
-  { id: 1, nom: "Sophie Martin", email: "sophie.martin@email.com", statut: "Client", score: 92, derniere: "2024-01-15" },
-  { id: 2, nom: "Thomas Dubois", email: "thomas.dubois@email.com", statut: "Prospect", score: 67, derniere: "2024-01-12" },
-  { id: 3, nom: "Marie Leroy", email: "marie.leroy@email.com", statut: "Lead", score: 45, derniere: "2024-01-10" },
-  { id: 4, nom: "Pierre Bernard", email: "pierre.bernard@email.com", statut: "Client", score: 88, derniere: "2024-01-14" },
-  { id: 5, nom: "Julie Moreau", email: "julie.moreau@email.com", statut: "Inactif", score: 23, derniere: "2023-12-20" },
-  { id: 6, nom: "Antoine Petit", email: "antoine.petit@email.com", statut: "Prospect", score: 71, derniere: "2024-01-13" },
-  { id: 7, nom: "Claire Rousseau", email: "claire.rousseau@email.com", statut: "Client", score: 95, derniere: "2024-01-16" },
-  { id: 8, nom: "Lucas Simon", email: "lucas.simon@email.com", statut: "Lead", score: 38, derniere: "2024-01-08" },
-];
-
-const statutColors: Record<string, { bg: string; color: string }> = {
-  Client: { bg: "rgba(200, 169, 110, 0.2)", color: "#c8a96e" },
-  Prospect: { bg: "rgba(100, 160, 255, 0.2)", color: "#64a0ff" },
-  Lead: { bg: "rgba(160, 100, 255, 0.2)", color: "#a064ff" },
-  Inactif: { bg: "rgba(120, 120, 140, 0.2)", color: "#78788c" },
-};
-
-function ScoreBadge({ score }: { score: number }) {
-  const color = score >= 80 ? "#c8a96e" : score >= 50 ? "#64a0ff" : "#78788c";
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-      <div style={{ width: "60px", height: "6px", borderRadius: "3px", background: "rgba(255,255,255,0.08)", overflow: "hidden" }}>
-        <div style={{ width: score + "%", height: "100%", borderRadius: "3px", background: color, transition: "width 0.3s" }} />
-      </div>
-      <span style={{ fontSize: "13px", fontWeight: 600, color: color, minWidth: "28px" }}>{score}</span>
-    </div>
-  );
-}
-
-export default function CRM() {
+export default function CRMContactsPage() {
   const [search, setSearch] = useState("");
-  const [filtreStatut, setFiltreStatut] = useState("Tous");
-  const [tri, setTri] = useState<{ col: string; asc: boolean }>({ col: "nom", asc: true });
-  const [hoverRow, setHoverRow] = useState<number | null>(null);
-  const [hoverBtn, setHoverBtn] = useState(false);
-  const [hoverAdd, setHoverAdd] = useState(false);
+  const [filterStatus, setFilterStatus] = useState("all");
+  const [contacts, setContacts] = useState([
+    { id: 1, name: "Alice Martin", email: "alice.martin@email.com", status: "actif", score: 92 },
+    { id: 2, name: "Bruno Leclerc", email: "bruno.leclerc@email.com", status: "inactif", score: 45 },
+    { id: 3, name: "Clara Dupont", email: "clara.dupont@email.com", status: "prospect", score: 67 },
+    { id: 4, name: "David Moreau", email: "david.moreau@email.com", status: "actif", score: 88 },
+    { id: 5, name: "Eva Rousseau", email: "eva.rousseau@email.com", status: "prospect", score: 54 },
+    { id: 6, name: "Franck Bernard", email: "franck.bernard@email.com", status: "actif", score: 76 },
+    { id: 7, name: "Grace Petit", email: "grace.petit@email.com", status: "inactif", score: 31 },
+    { id: 8, name: "Hugo Simon", email: "hugo.simon@email.com", status: "actif", score: 95 },
+  ]);
+  const [showModal, setShowModal] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newEmail, setNewEmail] = useState("");
+  const [newStatus, setNewStatus] = useState("prospect");
+  const [newScore, setNewScore] = useState("");
+  const [hoveredRow, setHoveredRow] = useState(null);
+  const [hoveredBtn, setHoveredBtn] = useState("");
 
-  const statuts = ["Tous", "Client", "Prospect", "Lead", "Inactif"];
-
-  const filtered = contacts
-    .filter((c) => {
-      const matchSearch =
-        c.nom.toLowerCase().includes(search.toLowerCase()) ||
-        c.email.toLowerCase().includes(search.toLowerCase());
-      const matchStatut = filtreStatut === "Tous" || c.statut === filtreStatut;
-      return matchSearch && matchStatut;
-    })
-    .sort((a, b) => {
-      const aVal = a[tri.col as keyof typeof a];
-      const bVal = b[tri.col as keyof typeof b];
-      if (typeof aVal === "string" && typeof bVal === "string") {
-        return tri.asc ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
-      }
-      return tri.asc ? (aVal as number) - (bVal as number) : (bVal as number) - (aVal as number);
-    });
-
-  function handleTri(col: string) {
-    setTri((prev) => ({ col, asc: prev.col === col ? !prev.asc : true }));
-  }
-
-  function SortIcon({ col }: { col: string }) {
-    if (tri.col !== col) return <span style={{ color: "rgba(200,169,110,0.3)", fontSize: "10px", marginLeft: "4px" }}>↕</span>;
-    return <span style={{ color: "#c8a96e", fontSize: "10px", marginLeft: "4px" }}>{tri.asc ? "↑" : "↓"}</span>;
-  }
-
-  const colStyle = (col: string): React.CSSProperties => ({
-    padding: "14px 16px",
-    textAlign: "left" as const,
-    fontSize: "11px",
-    fontWeight: 700,
-    letterSpacing: "0.08em",
-    textTransform: "uppercase" as const,
-    color: "rgba(200,169,110,0.7)",
-    cursor: "pointer",
-    whiteSpace: "nowrap" as const,
-    borderBottom: "1px solid rgba(200,169,110,0.15)",
-    background: "transparent",
-    userSelect: "none" as const,
+  const filtered = contacts.filter(function(c) {
+    const matchSearch =
+      c.name.toLowerCase().indexOf(search.toLowerCase()) !== -1 ||
+      c.email.toLowerCase().indexOf(search.toLowerCase()) !== -1;
+    const matchStatus = filterStatus === "all" || c.status === filterStatus;
+    return matchSearch && matchStatus;
   });
 
+  function handleAdd() {
+    if (!newName || !newEmail) return;
+    const scoreNum = parseInt(newScore, 10);
+    setContacts([
+      ...contacts,
+      {
+        id: Date.now(),
+        name: newName,
+        email: newEmail,
+        status: newStatus,
+        score: isNaN(scoreNum) ? 50 : Math.min(100, Math.max(0, scoreNum)),
+      },
+    ]);
+    setNewName("");
+    setNewEmail("");
+    setNewStatus("prospect");
+    setNewScore("");
+    setShowModal(false);
+  }
+
+  function getStatusColor(status) {
+    if (status === "actif") return "#4ade80";
+    if (status === "inactif") return "#f87171";
+    return "#c8a96e";
+  }
+
+  function getStatusBg(status) {
+    if (status === "actif") return "rgba(74,222,128,0.12)";
+    if (status === "inactif") return "rgba(248,113,113,0.12)";
+    return "rgba(200,169,110,0.12)";
+  }
+
+  function getScoreColor(score) {
+    if (score >= 80) return "#4ade80";
+    if (score >= 50) return "#c8a96e";
+    return "#f87171";
+  }
+
   return (
-    <div style={{ minHeight: "100vh", background: "#050508", fontFamily: "'Inter', -apple-system, sans-serif", padding: "40px 32px" }}>
-      
-      {/* Header */}
-      <div style={{ marginBottom: "32px" }}>
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: "16px" }}>
-          <div>
-            <h1 style={{ margin: 0, fontSize: "28px", fontWeight: 700, color: "#fff", letterSpacing: "-0.02em" }}>
-              Contacts
-              <span style={{ marginLeft: "12px", fontSize: "14px", fontWeight: 400, color: "rgba(200,169,110,0.6)" }}>CRM</span>
-            </h1>
-            <p style={{ margin: "6px 0 0", fontSize: "14px", color: "rgba(255,255,255,0.35)" }}>
-              {filtered.length} contact{filtered.length > 1 ? "s" : ""} trouvé{filtered.length > 1 ? "s" : ""}
-            </p>
-          </div>
-          <button
-            onMouseEnter={() => setHoverAdd(true)}
-            onMouseLeave={() => setHoverAdd(false)}
-            style={{
+    <div style={{
+      minHeight: "100vh",
+      background: "#050508",
+      fontFamily: "'Segoe UI', Arial, sans-serif",
+      padding: "0",
+      margin: "0",
+    }}>
+
+      <div style={{
+        background: "linear-gradient(135deg, rgba(200,169,110,0.08) 0%, rgba(5,5,8,0) 60%)",
+        borderBottom: "1px solid rgba(200,169,110,0.15)",
+        padding: "32px 48px 28px 48px",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+      }}>
+        <div>
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "14px",
+            marginBottom: "6px",
+          }}>
+            <div style={{
+              width: "38px",
+              height: "38px",
+              background: "linear-gradient(135deg, #c8a96e, #a07840)",
+              borderRadius: "10px",
               display: "flex",
               alignItems: "center",
-              gap: "8px",
-              padding: "11px 20px",
-              background: hoverAdd ? "#d4b87a" : "#c8a96e",
-              color: "#050508",
-              border: "none",
-              borderRadius: "10px",
-              fontSize: "14px",
-              fontWeight: 600,
-              cursor: "pointer",
-              transition: "background 0.2s",
-              letterSpacing: "0.01em",
-              boxShadow: hoverAdd ? "0 0 24px rgba(200,169,110,0.4)" : "0 0 16px rgba(200,169,110,0.2)",
-            }}
-          >
-            <span style={{ fontSize: "18px", lineHeight: 1 }}>+</span>
-            Ajouter contact
-          </button>
-        </div>
-      </div>
-
-      {/* Stats */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "16px", marginBottom: "28px" }}>
-        {[
-          { label: "Total", value: contacts.length, color: "#c8a96e" },
-          { label: "Clients", value: contacts.filter(c => c.statut === "Client").length, color: "#c8a96e" },
-          { label: "Prospects", value: contacts.filter(c => c.statut === "Prospect").length, color: "#64a0ff" },
-          { label: "Score moyen", value: Math.round(contacts.reduce((a, c) => a + c.score, 0) / contacts.length), color: "#a064ff" },
-        ].map((stat) => (
-          <div
-            key={stat.label}
-            style={{
-              background: "rgba(255,255,255,0.03)",
-              border: "1px solid rgba(200,169,110,0.1)",
-              borderRadius: "12px",
-              padding: "18px 20px",
-            }}
-          >
-            <div style={{ fontSize: "24px", fontWeight: 700, color: stat.color }}>{stat.value}</div>
-            <div style={{ fontSize: "12px", color: "rgba(255,255,255,0.4)", marginTop: "4px" }}>{stat.label}</div>
+              justifyContent: "center",
+              fontSize: "18px",
+            }}>
+              👥
+            </div>
+            <h1 style={{
+              color: "#c8a96e",
+              fontSize: "26px",
+              fontWeight: "700",
+              margin: "0",
+              letterSpacing: "0.5px",
+            }}>
+              CRM Contacts
+            </h1>
           </div>
-        ))}
+          <p style={{
+            color: "rgba(200,169,110,0.5)",
+            margin: "0",
+            fontSize: "14px",
+            paddingLeft: "52px",
+          }}>
+            {contacts.length} contacts enregistrés
+          </p>
+        </div>
+
+        <button
+          onClick={function() { setShowModal(true); }}
+          onMouseEnter={function() { setHoveredBtn("add"); }}
+          onMouseLeave={function() { setHoveredBtn(""); }}
+          style={{
+            background: hoveredBtn === "add"
+              ? "linear-gradient(135deg, #d4b87a, #b08840)"
+              : "linear-gradient(135deg, #c8a96e, #a07840)",
+            color: "#050508",
+            border: "none",
+            borderRadius: "10px",
+            padding: "12px 24px",
+            fontSize: "14px",
+            fontWeight: "700",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            transition: "all 0.2s",
+            boxShadow: hoveredBtn === "add"
+              ? "0 6px 24px rgba(200,169,110,0.35)"
+              : "0 4px 16px rgba(200,169,110,0.2)",
+            transform: hoveredBtn === "add" ? "translateY(-1px)" : "translateY(0)",
+          }}
+        >
+          <span style={{ fontSize: "18px", lineHeight: "1" }}>+</span>
+          Ajouter un contact
+        </button>
       </div>
 
-      {/* Filtres */}
-      <div style={{ display: "flex", gap: "12px", marginBottom: "20px", flexWrap: "wrap", alignItems: "center" }}>
-        
-        {/* Search */}
-        <div style={{ position: "relative", flex: "1", minWidth: "220px", maxWidth: "360px" }}>
-          <span style={{ position: "absolute", left: "14px", top: "50%", transform: "translateY(-50%)", color: "rgba(200,169,110,0.5)", fontSize: "15px", pointerEvents: "none" }}>⊙</span>
+      <div style={{
+        padding: "28px 48px",
+        display: "flex",
+        gap: "16px",
+        alignItems: "center",
+        flexWrap: "wrap",
+      }}>
+        <div style={{
+          position: "relative",
+          flex: "1",
+          minWidth: "220px",
+          maxWidth: "420px",
+        }}>
+          <span style={{
+            position: "absolute",
+            left: "14px",
+            top: "50%",
+            transform: "translateY(-50%)",
+            fontSize: "16px",
+            opacity: "0.5",
+          }}>🔍</span>
           <input
             type="text"
-            placeholder="Rechercher..."
+            placeholder="Rechercher un contact..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={function(e) { setSearch(e.target.value); }}
             style={{
               width: "100%",
-              padding: "11px 14px 11px 40px",
-              background: "rgba(255,255,255,0.04)",
-              border: "1px solid rgba(200,169,110,0.15)",
+              padding: "11px 14px 11px 42px",
+              background: "rgba(200,169,110,0.06)",
+              border: "1px solid rgba(200,169,110,0.2)",
               borderRadius: "10px",
-              color: "#fff",
+              color: "#f0e6d0",
               fontSize: "14px",
               outline: "none",
-              boxSizing: "border-box" as const,
+              boxSizing: "border-box",
               transition: "border-color 0.2s",
             }}
-            onFocus={(e) => { e.target.style.borderColor = "rgba(200,169,110,0.5)"; }}
-            onBlur={(e) => { e.target.style.borderColor = "rgba(200,169,110,0.15)"; }}
           />
         </div>
 
-        {/* Statut filters */}
         <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-          {statuts.map((s) => (
-            <button
-              key={s}
-              onClick={() => setFiltreStatut(s)}
-              style={{
-                padding: "9px 16px",
-                borderRadius: "8px",
-                border: filtreStatut === s ? "1px solid rgba(200,169,110,0.6)" : "1px solid rgba(255,255,255,0.08)",
-                background: filtreStatut === s ? "rgba(200,169,110,0.12)" : "rgba(255,255,255,0.03)",
-                color: filtreStatut === s ? "#c8a96e" : "rgba(255,255,255,0.5)",
-                fontSize: "13px",
-                fontWeight: filtreStatut === s ? 600 : 400,
-                cursor: "pointer",
-                transition: "all 0.2s",
-              }}
-            >
-              {s}
-            </button>
-          ))}
+          {["all", "actif", "inactif", "prospect"].map(function(s) {
+            const isActive = filterStatus === s;
+            const label = s === "all" ? "Tous" : s.charAt(0).toUpperCase() + s.slice(1);
+            return (
+              <button
+                key={s}
+                onClick={function() { setFilterStatus(s); }}
+                style={{
+                  padding: "9px 18px",
+                  borderRadius: "8px",
+                  border: isActive
+                    ? "1px solid rgba(200,169,110,0.6)"
+                    : "1px solid rgba(200,169,110,0.15)",
+                  background: isActive
+                    ? "rgba(200,169,110,0.15)"
+                    : "rgba(200,169,110,0.04)",
+                  color: isActive ? "#c8a96e" : "rgba(200,169,110,0.5)",
+                  fontSize: "13px",
+                  fontWeight: isActive ? "600" : "400",
+                  cursor: "pointer",
+                  transition: "all 0.2s",
+                }}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
+
+        <div style={{
+          marginLeft: "auto",
+          color: "rgba(200,169,110,0.4)",
+          fontSize: "13px",
+          whiteSpace: "nowrap",
+        }}>
+          {filtered.length} résultat{filtered.length !== 1 ? "s" : ""}
         </div>
       </div>
 
-      {/* Table */}
       <div style={{
-        background: "rgba(255,255,255,0.02)",
-        border: "1px solid rgba(200,169,110,0.12)",
-        borderRadius: "16px",
-        overflow: "hidden",
+        padding: "0 48px 48px 48px",
       }}>
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "700px" }}>
+        <div style={{
+          background: "rgba(200,169,110,0.03)",
+          border: "1px solid rgba(200,169,110,0.1)",
+          borderRadius: "16px",
+          overflow: "hidden",
+        }}>
+          <table style={{
+            width: "100%",
+            borderCollapse: "collapse",
+          }}>
             <thead>
-              <tr>
-                <th style={colStyle("nom")} onClick={() => handleTri("nom")}>
-                  Nom <SortIcon col="nom" />
+              <tr style={{
+                background: "rgba(200,169,110,0.07)",
+                borderBottom: "1px solid rgba(200,169,110,0.15)",
+              }}>
+                <th style={{
+                  padding: "14px 24px",
+                  textAlign: "left",
+                  color: "rgba(200,169,110,0.6)",
+                  fontSize: "11px",
+                  fontWeight: "600",
+                  letterSpacing: "1.2px",
+                  textTransform: "uppercase",
+                }}>
+                  Nom
                 </th>
-                <th style={colStyle("email")} onClick={() => handleTri("email")}>
-                  Email <SortIcon col="email" />
+                <th style={{
+                  padding: "14px 24px",
+                  textAlign: "left",
+                  color: "rgba(200,169,110,0.6)",
+                  fontSize: "11px",
+                  fontWeight: "600",
+                  letterSpacing: "1.2px",
+                  textTransform: "uppercase",
+                }}>
+                  Email
                 </th>
-                <th style={colStyle("statut")} onClick={() => handleTri("statut")}>
-                  Statut <SortIcon col="statut" />
+                <th style={{
+                  padding: "14px 24px",
+                  textAlign: "left",
+                  color: "rgba(200,169,110,0.6)",
+                  fontSize: "11px",
+                  fontWeight: "600",
+                  letterSpacing: "1.2px",
+                  textTransform: "uppercase",
+                }}>
+                  Statut
                 </th>
-                <th style={colStyle("score")} onClick={() => handleTri("score")}>
-                  Score <SortIcon col="score" />
+                <th style={{
+                  padding: "14px 24px",
+                  textAlign: "left",
+                  color: "rgba(200,169,110,0.6)",
+                  fontSize: "11px",
+                  fontWeight: "600",
+                  letterSpacing: "1.2px",
+                  textTransform: "uppercase",
+                }}>
+                  Score
                 </th>
-                <th style={colStyle("derniere")} onClick={() => handleTri("derniere")}>
-                  Dernière interaction <SortIcon col="derniere" />
+                <th style={{
+                  padding: "14px 24px",
+                  textAlign: "right",
+                  color: "rgba(200,169,110,0.6)",
+                  fontSize: "11px",
+                  fontWeight: "600",
+                  letterSpacing: "1.2px",
+                  textTransform: "uppercase",
+                }}>
+                  Actions
                 </th>
-                <th style={{ ...colStyle("actions"), cursor: "default" }}>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map((contact, index) => (
-                <tr
-                  key={contact.id}
-                  onMouseEnter={() => setHoverRow(contact.id)}
-                  onMouseLeave={() => setHoverRow(null)}
-                  style={{
-                    background: hoverRow === contact.id ? "rgba(200,169,110,0.05)" : index % 2 === 0 ? "transparent" : "rgba(255,255,255,0.01)",
-                    transition: "background 0.15s",
-                    borderBottom: "1px solid rgba(255,255,255,0.04)",
-                  }}
-                >
-                  {/* Nom */}
-                  <td style={{ padding: "14px 16px" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                      <div style={{
-                        width: "36px",
-                        height: "36px",
-                        borderRadius: "50%",
-                        background: "rgba(200,169,110,0.15)",
-                        border: "1px solid rgba(200,169,110,0.25)",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: "13px",
-                        fontWeight: 600,
-                        color: "#c8a96e",
-                        flexShrink: 0,
-                      }}>
-                        {contact.nom.split(" ").map(n => n[0]).join("").slice(0, 2)}
-                      </div>
-                      <span style={{ fontSize: "14px", fontWeight: 500, color: "#fff" }}>{contact.nom}</span>
-                    </div>
+              {filtered.length === 0 && (
+                <tr>
+                  <td colSpan={5} style={{
+                    padding: "60px 24px",
+                    textAlign: "center",
+                    color: "rgba(200,169,110,0.3)",
+                    fontSize: "15px",
+                  }}>
+                    Aucun contact trouvé
                   </td>
-
-                  {/* Email */}
-                  <td style={{ padding: "14px 16px" }}>
-                    <span style={{ fontSize:
+                </tr>
+              )}
+              {filtered.map(function(contact, idx) {
+                const isHovered = hoveredRow === contact.id;
+                return (
+                  <tr
+                    key={contact.id}
+                    onMouseEnter={function() { setHoveredRow(contact.id); }}
+                    onMouseLeave={function() { setHoveredRow(null); }}
+                    style={{
+                      borderBottom: idx < filtered.length - 1
+                        ? "1px solid rgba(200,169,110,0.07)"
+                        : "none",
+                      background: isHovered
+                        ? "rgba(200,169,110,0.05)"
+                        : "transparent",
+                      transition: "background 0.15s",
+                    }}
+                  >
+                    <td style={{ padding: "16px 24px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                        <div style={{
+                          width: "36px",
+                          height: "36px",
+                          borderRadius: "50%",
+                          background: "linear-gradient(135deg, rgba(200,169,110,0.25), rgba(200,169,110,0.1))",
+                          border: "1px solid rgba(200,169,110,0.2)",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          color: "#c8a96e",
+                          fontSize: "13px",
+                          fontWeight: "700",
+                          flexShrink: "0",
+                        }}>
+                          {contact.name.charAt(0)}
+                        </div>
+                        <span style={{
+                          color: "#f0e6d0",
+                          fontSize: "14px",
+                          fontWeight: "500",
+                        }}>
+                          {contact.name}
+                        </span>
+                      </div>
+                    </td>
+                    <td style={{ padding: "16px 24px" }}>
+                      <span style={{
+                        color: "rgba(240,230,208,0.6)",
+                        fontSize: "14px",
+                      }}>
+                        {contact.email}
+                      </span>
+                    </td>
+                    <td style={{ padding: "16px 24px" }}>
+                      <span style={{
+                        display: "inline-block",
+                        padding: "4px 12px",
+                        borderRadius: "20px",
+                        background: getStatusBg(contact.status),
+                        color: getStatusColor(contact.status),
+                        fontSize: "12px",
+                        fontWeight: "600",
+                        border: "1px solid",
+                        borderColor: getStatusColor(contact.status) + "33
