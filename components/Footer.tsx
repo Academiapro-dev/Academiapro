@@ -1,3 +1,4 @@
+import React from "react";
 export default function Footer() {
   return (
     <footer style={{ background: "#050508", borderTop: "1px solid rgba(200,169,110,0.2)", padding: "40px 24px", marginTop: "auto" }}>
