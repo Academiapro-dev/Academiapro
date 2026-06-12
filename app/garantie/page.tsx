@@ -1,409 +1,187 @@
-import React from "react";
+"use client";
 import { useState } from "react";
 
-const App = () => {
-  const [activeSection, setActiveSection] = useState("home");
-  const [formData, setFormData] = useState({
-    nom: "",
-    prenom: "",
-    email: "",
-    orderNumber: "",
-    reason: "",
-    description: "",
-  });
-  const [submitted, setSubmitted] = useState(false);
+export default function RemboursementPage() {
+  const [nom, setNom] = useState("");
+  const [email, setEmail] = useState("");
+  const [commande, setCommande] = useState("");
+  const [raison, setRaison] = useState("");
+  const [envoye, setEnvoye] = useState(false);
+  const [erreur, setErreur] = useState("");
 
-  const colors = {
-    bg: "#050508",
-    gold: "#c8a96e",
-    goldLight: "#e8c98e",
-    goldDark: "#a8894e",
-    text: "#f0e6d3",
-    textMuted: "#8a7a6a",
-    cardBg: "#0d0d12",
-    cardBorder: "#1a1a24",
-    inputBg: "#080810",
-  };
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
+  function handleSubmit(e) {
     e.preventDefault();
-    setSubmitted(true);
-  };
+    if (!nom || !email || !commande || !raison) {
+      setErreur("Veuillez remplir tous les champs obligatoires.");
+      return;
+    }
+    setErreur("");
+    setEnvoye(true);
+  }
 
-  const navStyle = {
-    position: "fixed" as const,
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 100,
-    background: "rgba(5, 5, 8, 0.95)",
-    borderBottom: "1px solid " + colors.cardBorder,
-    backdropFilter: "blur(10px)",
-    padding: "0 40px",
-    height: "70px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-  };
+  return (
+    <div style={{ backgroundColor: "#050508", minHeight: "100vh", fontFamily: "Georgia, serif", padding: "60px 20px" }}>
 
-  const logoStyle = {
-    fontSize: "22px",
-    fontWeight: "700" as const,
-    color: colors.gold,
-    fontFamily: "Georgia, serif",
-    letterSpacing: "2px",
-    cursor: "pointer",
-  };
+      <div style={{ maxWidth: "760px", margin: "0 auto" }}>
 
-  const navLinkStyle = (active: boolean) => ({
-    color: active ? colors.gold : colors.textMuted,
-    background: "none",
-    border: "none",
-    cursor: "pointer",
-    fontSize: "14px",
-    fontFamily: "Arial, sans-serif",
-    letterSpacing: "1px",
-    textTransform: "uppercase" as const,
-    padding: "8px 16px",
-    borderBottom: active ? "2px solid " + colors.gold : "2px solid transparent",
-    transition: "all 0.2s",
-  });
-
-  const pageStyle = {
-    background: colors.bg,
-    minHeight: "100vh",
-    fontFamily: "Arial, sans-serif",
-    paddingTop: "70px",
-  };
-
-  const heroStyle = {
-    background: "linear-gradient(135deg, #050508 0%, #0d0d18 50%, #050508 100%)",
-    padding: "80px 40px",
-    textAlign: "center" as const,
-    borderBottom: "1px solid " + colors.cardBorder,
-    position: "relative" as const,
-    overflow: "hidden",
-  };
-
-  const heroBadgeStyle = {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: "8px",
-    background: "rgba(200, 169, 110, 0.1)",
-    border: "1px solid rgba(200, 169, 110, 0.3)",
-    borderRadius: "50px",
-    padding: "8px 20px",
-    marginBottom: "30px",
-    color: colors.gold,
-    fontSize: "13px",
-    letterSpacing: "2px",
-    textTransform: "uppercase" as const,
-  };
-
-  const heroTitleStyle = {
-    fontSize: "52px",
-    fontWeight: "800" as const,
-    color: colors.text,
-    marginBottom: "20px",
-    lineHeight: "1.1",
-    fontFamily: "Georgia, serif",
-  };
-
-  const heroGoldStyle = {
-    color: colors.gold,
-    display: "block",
-  };
-
-  const heroSubStyle = {
-    fontSize: "18px",
-    color: colors.textMuted,
-    maxWidth: "600px",
-    margin: "0 auto 40px",
-    lineHeight: "1.8",
-  };
-
-  const btnPrimaryStyle = {
-    background: "linear-gradient(135deg, " + colors.gold + ", " + colors.goldDark + ")",
-    color: colors.bg,
-    border: "none",
-    borderRadius: "8px",
-    padding: "16px 36px",
-    fontSize: "15px",
-    fontWeight: "700" as const,
-    cursor: "pointer",
-    letterSpacing: "1px",
-    textTransform: "uppercase" as const,
-    marginRight: "16px",
-  };
-
-  const btnSecondaryStyle = {
-    background: "transparent",
-    color: colors.gold,
-    border: "2px solid " + colors.gold,
-    borderRadius: "8px",
-    padding: "14px 36px",
-    fontSize: "15px",
-    fontWeight: "600" as const,
-    cursor: "pointer",
-    letterSpacing: "1px",
-    textTransform: "uppercase" as const,
-  };
-
-  const sectionStyle = {
-    maxWidth: "1100px",
-    margin: "0 auto",
-    padding: "80px 40px",
-  };
-
-  const sectionTitleStyle = {
-    fontSize: "36px",
-    fontWeight: "700" as const,
-    color: colors.text,
-    textAlign: "center" as const,
-    marginBottom: "12px",
-    fontFamily: "Georgia, serif",
-  };
-
-  const sectionSubStyle = {
-    color: colors.textMuted,
-    textAlign: "center" as const,
-    fontSize: "16px",
-    marginBottom: "60px",
-    lineHeight: "1.8",
-  };
-
-  const goldDividerStyle = {
-    width: "60px",
-    height: "3px",
-    background: "linear-gradient(90deg, " + colors.gold + ", " + colors.goldDark + ")",
-    margin: "16px auto 20px",
-    borderRadius: "2px",
-  };
-
-  const cardStyle = {
-    background: colors.cardBg,
-    border: "1px solid " + colors.cardBorder,
-    borderRadius: "16px",
-    padding: "32px",
-    flex: "1",
-  };
-
-  const cardIconStyle = {
-    width: "60px",
-    height: "60px",
-    background: "rgba(200, 169, 110, 0.1)",
-    border: "1px solid rgba(200, 169, 110, 0.2)",
-    borderRadius: "16px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontSize: "28px",
-    marginBottom: "20px",
-  };
-
-  const cardTitleStyle = {
-    fontSize: "18px",
-    fontWeight: "700" as const,
-    color: colors.text,
-    marginBottom: "12px",
-  };
-
-  const cardTextStyle = {
-    color: colors.textMuted,
-    fontSize: "14px",
-    lineHeight: "1.8",
-  };
-
-  const stepStyle = (index: number) => ({
-    display: "flex",
-    gap: "24px",
-    alignItems: "flex-start",
-    padding: "32px",
-    background: colors.cardBg,
-    border: "1px solid " + colors.cardBorder,
-    borderRadius: "16px",
-    marginBottom: "16px",
-  });
-
-  const stepNumberStyle = {
-    width: "50px",
-    height: "50px",
-    minWidth: "50px",
-    background: "linear-gradient(135deg, " + colors.gold + ", " + colors.goldDark + ")",
-    borderRadius: "50%",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontSize: "20px",
-    fontWeight: "800" as const,
-    color: colors.bg,
-  };
-
-  const formStyle = {
-    background: colors.cardBg,
-    border: "1px solid " + colors.cardBorder,
-    borderRadius: "20px",
-    padding: "48px",
-    maxWidth: "700px",
-    margin: "0 auto",
-  };
-
-  const inputStyle = {
-    width: "100%",
-    background: colors.inputBg,
-    border: "1px solid " + colors.cardBorder,
-    borderRadius: "10px",
-    padding: "14px 18px",
-    color: colors.text,
-    fontSize: "15px",
-    outline: "none",
-    boxSizing: "border-box" as const,
-    fontFamily: "Arial, sans-serif",
-  };
-
-  const labelStyle = {
-    display: "block",
-    color: colors.gold,
-    fontSize: "13px",
-    fontWeight: "600" as const,
-    letterSpacing: "1px",
-    textTransform: "uppercase" as const,
-    marginBottom: "8px",
-  };
-
-  const fieldGroupStyle = {
-    marginBottom: "24px",
-  };
-
-  const rowStyle = {
-    display: "flex",
-    gap: "20px",
-  };
-
-  const successStyle = {
-    textAlign: "center" as const,
-    padding: "60px 40px",
-  };
-
-  const checkIconStyle = {
-    width: "80px",
-    height: "80px",
-    background: "rgba(200, 169, 110, 0.1)",
-    border: "2px solid " + colors.gold,
-    borderRadius: "50%",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontSize: "36px",
-    margin: "0 auto 24px",
-  };
-
-  const guaranteeBannerStyle = {
-    background: "linear-gradient(135deg, rgba(200, 169, 110, 0.08), rgba(200, 169, 110, 0.03))",
-    border: "1px solid rgba(200, 169, 110, 0.2)",
-    borderRadius: "20px",
-    padding: "48px",
-    display: "flex",
-    gap: "40px",
-    alignItems: "center",
-    maxWidth: "900px",
-    margin: "0 auto",
-  };
-
-  const bigNumberStyle = {
-    fontSize: "80px",
-    fontWeight: "900" as const,
-    color: colors.gold,
-    lineHeight: "1",
-    fontFamily: "Georgia, serif",
-  };
-
-  const renderHome = () => (
-    <div>
-      <div style={heroStyle}>
-        <div style={heroBadgeStyle}>
-          <span>★</span>
-          <span>Protection Acheteur Premium</span>
-        </div>
-        <h1 style={heroTitleStyle}>
-          Achetez en toute
-          <span style={heroGoldStyle}>Confiance Absolue</span>
-        </h1>
-        <p style={heroSubStyle}>
-          Nous croyons en nos produits. C'est pourquoi nous offrons une garantie satisfait ou remboursé de 30 jours, sans questions, sans conditions cachées.
-        </p>
-        <div>
-          <button style={btnPrimaryStyle} onClick={() => setActiveSection("guarantee")}>
-            Voir la garantie
-          </button>
-          <button style={btnSecondaryStyle} onClick={() => setActiveSection("comment")}>
-            Comment ça marche
-          </button>
-        </div>
-      </div>
-
-      <div style={sectionStyle}>
-        <h2 style={sectionTitleStyle}>Pourquoi nous faire confiance ?</h2>
-        <div style={goldDividerStyle} />
-        <p style={sectionSubStyle}>Trois piliers fondamentaux de notre engagement envers vous</p>
-
-        <div style={{ display: "flex", gap: "24px" }}>
-          <div style={cardStyle}>
-            <div style={cardIconStyle}>🛡️</div>
-            <h3 style={cardTitleStyle}>Garantie 30 jours</h3>
-            <p style={cardTextStyle}>
-              Profitez de 30 jours complets pour tester votre achat. Si vous n'êtes pas satisfait à 100%, nous vous remboursons intégralement.
-            </p>
+        <div style={{ textAlign: "center", marginBottom: "56px" }}>
+          <div style={{ display: "inline-block", border: "1px solid #c8a96e", padding: "6px 22px", marginBottom: "24px" }}>
+            <span style={{ color: "#c8a96e", fontSize: "11px", letterSpacing: "4px", textTransform: "uppercase" }}>Garantie Absolue</span>
           </div>
-          <div style={cardStyle}>
-            <div style={cardIconStyle}>⚡</div>
-            <h3 style={cardTitleStyle}>Remboursement rapide</h3>
-            <p style={cardTextStyle}>
-              Votre remboursement est traité en 3 à 5 jours ouvrables. Pas d'attente interminable, pas de procédures complexes.
-            </p>
-          </div>
-          <div style={cardStyle}>
-            <div style={cardIconStyle}>💬</div>
-            <h3 style={cardTitleStyle}>Support dédié</h3>
-            <p style={cardTextStyle}>
-              Notre équipe est disponible 7j/7 pour répondre à vos questions et vous accompagner dans votre démarche.
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-
-  const renderGuarantee = () => (
-    <div style={sectionStyle}>
-      <h2 style={sectionTitleStyle}>Garantie Satisfait ou Remboursé</h2>
-      <div style={goldDividerStyle} />
-      <p style={sectionSubStyle}>Notre promesse ferme et inconditionnelle</p>
-
-      <div style={guaranteeBannerStyle}>
-        <div style={{ textAlign: "center" as const, minWidth: "180px" }}>
-          <div style={bigNumberStyle}>30</div>
-          <div style={{ color: colors.gold, fontSize: "18px", fontWeight: "700" as const, letterSpacing: "3px", textTransform: "uppercase" as const }}>JOURS</div>
-          <div style={{ color: colors.textMuted, fontSize: "13px", marginTop: "8px" }}>de garantie complète</div>
-        </div>
-        <div>
-          <h3 style={{ fontSize: "24px", fontWeight: "700" as const, color: colors.text, marginBottom: "16px", fontFamily: "Georgia, serif" }}>
-            Zéro risque pour vous
-          </h3>
-          <p style={{ color: colors.textMuted, lineHeight: "1.9", fontSize: "15px", marginBottom: "16px" }}>
-            Nous sommes tellement confiants en la qualité de nos produits que nous vous offrons une garantie de remboursement total pendant 30 jours après votre achat. Aucune question gênante, aucune condition cachée.
-          </p>
-          <p style={{ color: colors.textMuted, lineHeight: "1.9", fontSize: "15px" }}>
-            Si pour quelque raison que ce soit vous n'êtes pas pleinement satisfait, contactez-nous et nous vous remboursons le montant total de votre commande, frais de port inclus.
+          <h1 style={{ color: "#f5f0e8", fontSize: "38px", fontWeight: "300", letterSpacing: "2px", margin: "0 0 16px 0", lineHeight: "1.2" }}>
+            Satisfait ou Remboursé
+          </h1>
+          <div style={{ width: "60px", height: "1px", backgroundColor: "#c8a96e", margin: "0 auto 24px auto" }}></div>
+          <p style={{ color: "#9a9080", fontSize: "16px", lineHeight: "1.8", maxWidth: "520px", margin: "0 auto" }}>
+            Nous offrons une garantie complète de <span style={{ color: "#c8a96e", fontWeight: "600" }}>30 jours</span> sur l'ensemble de nos produits. Si vous n'êtes pas entièrement satisfait, nous vous remboursons sans question.
           </p>
         </div>
-      </div>
 
-      <div style={{ marginTop: "60px" }}>
-        <h3 style={{ fontSize: "26px", fontWeight: "700" as const, color: colors.text, textAlign: "center" as const, marginBottom: "12px" }}>
-          Ce que couvre notre garantie
-        </h3>
+        <div style={{ display: "flex", gap: "20px", marginBottom: "56px", flexWrap: "wrap" }}>
+          <div style={{ flex: "1", minWidth: "200px", backgroundColor: "#0d0d12", border: "1px solid #1e1e28", padding: "28px 24px", textAlign: "center" }}>
+            <div style={{ color: "#c8a96e", fontSize: "28px", marginBottom: "10px" }}>30</div>
+            <div style={{ color: "#f5f0e8", fontSize: "13px", letterSpacing: "2px", textTransform: "uppercase", marginBottom: "8px" }}>Jours de Garantie</div>
+            <div style={{ color: "#6a6460", fontSize: "13px", lineHeight: "1.6" }}>À compter de la date de réception de votre commande</div>
+          </div>
+          <div style={{ flex: "1", minWidth: "200px", backgroundColor: "#0d0d12", border: "1px solid #1e1e28", padding: "28px 24px", textAlign: "center" }}>
+            <div style={{ color: "#c8a96e", fontSize: "28px", marginBottom: "10px" }}>100%</div>
+            <div style={{ color: "#f5f0e8", fontSize: "13px", letterSpacing: "2px", textTransform: "uppercase", marginBottom: "8px" }}>Remboursement</div>
+            <div style={{ color: "#6a6460", fontSize: "13px", lineHeight: "1.6" }}>Montant intégral remboursé sur votre moyen de paiement</div>
+          </div>
+          <div style={{ flex: "1", minWidth: "200px", backgroundColor: "#0d0d12", border: "1px solid #1e1e28", padding: "28px 24px", textAlign: "center" }}>
+            <div style={{ color: "#c8a96e", fontSize: "28px", marginBottom: "10px" }}>5j</div>
+            <div style={{ color: "#f5f0e8", fontSize: "13px", letterSpacing: "2px", textTransform: "uppercase", marginBottom: "8px" }}>Délai de Traitement</div>
+            <div style={{ color: "#6a6460", fontSize: "13px", lineHeight: "1.6" }}>Votre demande traitée en moins de 5 jours ouvrés</div>
+          </div>
+        </div>
+
+        {!envoye ? (
+          <div style={{ backgroundColor: "#0d0d12", border: "1px solid #1e1e28", padding: "48px 40px" }}>
+
+            <div style={{ marginBottom: "36px" }}>
+              <h2 style={{ color: "#f5f0e8", fontSize: "22px", fontWeight: "300", letterSpacing: "2px", margin: "0 0 8px 0", textTransform: "uppercase" }}>
+                Demande de Remboursement
+              </h2>
+              <div style={{ width: "40px", height: "1px", backgroundColor: "#c8a96e" }}></div>
+            </div>
+
+            {erreur && (
+              <div style={{ backgroundColor: "#1a0a0a", border: "1px solid #6b2020", padding: "14px 18px", marginBottom: "28px" }}>
+                <p style={{ color: "#e05555", fontSize: "13px", margin: "0", letterSpacing: "0.5px" }}>{erreur}</p>
+              </div>
+            )}
+
+            <form onSubmit={handleSubmit}>
+
+              <div style={{ display: "flex", gap: "20px", marginBottom: "24px", flexWrap: "wrap" }}>
+                <div style={{ flex: "1", minWidth: "220px" }}>
+                  <label style={{ display: "block", color: "#c8a96e", fontSize: "11px", letterSpacing: "3px", textTransform: "uppercase", marginBottom: "10px" }}>
+                    Nom complet *
+                  </label>
+                  <input
+                    type="text"
+                    value={nom}
+                    onChange={(e) => setNom(e.target.value)}
+                    placeholder="Jean Dupont"
+                    style={{ width: "100%", backgroundColor: "#050508", border: "1px solid #2a2a35", borderRadius: "0", padding: "14px 16px", color: "#f5f0e8", fontSize: "14px", outline: "none", boxSizing: "border-box", fontFamily: "Georgia, serif" }}
+                  />
+                </div>
+                <div style={{ flex: "1", minWidth: "220px" }}>
+                  <label style={{ display: "block", color: "#c8a96e", fontSize: "11px", letterSpacing: "3px", textTransform: "uppercase", marginBottom: "10px" }}>
+                    Adresse e-mail *
+                  </label>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="jean@exemple.com"
+                    style={{ width: "100%", backgroundColor: "#050508", border: "1px solid #2a2a35", borderRadius: "0", padding: "14px 16px", color: "#f5f0e8", fontSize: "14px", outline: "none", boxSizing: "border-box", fontFamily: "Georgia, serif" }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ marginBottom: "24px" }}>
+                <label style={{ display: "block", color: "#c8a96e", fontSize: "11px", letterSpacing: "3px", textTransform: "uppercase", marginBottom: "10px" }}>
+                  Numéro de commande *
+                </label>
+                <input
+                  type="text"
+                  value={commande}
+                  onChange={(e) => setCommande(e.target.value)}
+                  placeholder="Ex : CMD-2024-00182"
+                  style={{ width: "100%", backgroundColor: "#050508", border: "1px solid #2a2a35", borderRadius: "0", padding: "14px 16px", color: "#f5f0e8", fontSize: "14px", outline: "none", boxSizing: "border-box", fontFamily: "Georgia, serif" }}
+                />
+              </div>
+
+              <div style={{ marginBottom: "24px" }}>
+                <label style={{ display: "block", color: "#c8a96e", fontSize: "11px", letterSpacing: "3px", textTransform: "uppercase", marginBottom: "10px" }}>
+                  Motif de la demande *
+                </label>
+                <select
+                  value={raison}
+                  onChange={(e) => setRaison(e.target.value)}
+                  style={{ width: "100%", backgroundColor: "#050508", border: "1px solid #2a2a35", borderRadius: "0", padding: "14px 16px", color: raison ? "#f5f0e8" : "#6a6460", fontSize: "14px", outline: "none", boxSizing: "border-box", fontFamily: "Georgia, serif", appearance: "none", cursor: "pointer" }}
+                >
+                  <option value="" style={{ color: "#6a6460", backgroundColor: "#0d0d12" }}>Sélectionnez un motif</option>
+                  <option value="non-conforme" style={{ color: "#f5f0e8", backgroundColor: "#0d0d12" }}>Produit non conforme à la description</option>
+                  <option value="defectueux" style={{ color: "#f5f0e8", backgroundColor: "#0d0d12" }}>Produit défectueux ou endommagé</option>
+                  <option value="non-recu" style={{ color: "#f5f0e8", backgroundColor: "#0d0d12" }}>Commande non reçue</option>
+                  <option value="insatisfait" style={{ color: "#f5f0e8", backgroundColor: "#0d0d12" }}>Insatisfaction générale</option>
+                  <option value="erreur" style={{ color: "#f5f0e8", backgroundColor: "#0d0d12" }}>Erreur de commande</option>
+                  <option value="autre" style={{ color: "#f5f0e8", backgroundColor: "#0d0d12" }}>Autre raison</option>
+                </select>
+              </div>
+
+              <div style={{ marginBottom: "32px" }}>
+                <label style={{ display: "block", color: "#c8a96e", fontSize: "11px", letterSpacing: "3px", textTransform: "uppercase", marginBottom: "10px" }}>
+                  Message complémentaire
+                </label>
+                <textarea
+                  rows={5}
+                  placeholder="Décrivez votre situation en détail pour accélérer le traitement de votre demande..."
+                  style={{ width: "100%", backgroundColor: "#050508", border: "1px solid #2a2a35", borderRadius: "0", padding: "14px 16px", color: "#f5f0e8", fontSize: "14px", outline: "none", boxSizing: "border-box", fontFamily: "Georgia, serif", resize: "vertical", lineHeight: "1.7" }}
+                />
+              </div>
+
+              <div style={{ backgroundColor: "#050508", border: "1px solid #1e1e28", padding: "18px 20px", marginBottom: "32px" }}>
+                <p style={{ color: "#6a6460", fontSize: "12px", lineHeight: "1.8", margin: "0", letterSpacing: "0.3px" }}>
+                  En soumettant ce formulaire, vous confirmez que votre achat date de moins de 30 jours et que vous acceptez notre politique de remboursement. Notre équipe vous contactera sous 2 jours ouvrés pour confirmer votre demande.
+                </p>
+              </div>
+
+              <button
+                type="submit"
+                style={{ width: "100%", backgroundColor: "#c8a96e", color: "#050508", border: "none", padding: "18px 32px", fontSize: "12px", letterSpacing: "4px", textTransform: "uppercase", fontFamily: "Georgia, serif", fontWeight: "700", cursor: "pointer" }}
+              >
+                Soumettre ma Demande
+              </button>
+
+            </form>
+          </div>
+        ) : (
+          <div style={{ backgroundColor: "#0d0d12", border: "1px solid #c8a96e", padding: "56px 40px", textAlign: "center" }}>
+            <div style={{ width: "60px", height: "60px", border: "2px solid #c8a96e", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 28px auto" }}>
+              <div style={{ color: "#c8a96e", fontSize: "24px", lineHeight: "1" }}>✓</div>
+            </div>
+            <h2 style={{ color: "#f5f0e8", fontSize: "26px", fontWeight: "300", letterSpacing: "2px", margin: "0 0 16px 0" }}>
+              Demande Enregistrée
+            </h2>
+            <div style={{ width: "40px", height: "1px", backgroundColor: "#c8a96e", margin: "0 auto 24px auto" }}></div>
+            <p style={{ color: "#9a9080", fontSize: "15px", lineHeight: "1.8", maxWidth: "440px", margin: "0 auto 12px auto" }}>
+              Votre demande de remboursement a bien été transmise à notre équipe. Vous recevrez une confirmation par e-mail dans les plus brefs délais.
+            </p>
+            <p style={{ color: "#6a6460", fontSize: "13px", lineHeight: "1.8", maxWidth: "440px", margin: "0 auto 36px auto" }}>
+              Délai de traitement estimé : <span style={{ color: "#c8a96e" }}>2 à 5 jours ouvrés</span>
+            </p>
+            <button
+              onClick={() => { setEnvoye(false); setNom(""); setEmail(""); setCommande(""); setRaison(""); }}
+              style={{ backgroundColor: "transparent", color: "#c8a96e", border: "1px solid #c8a96e", padding: "14px 36px", fontSize: "11px", letterSpacing: "3px", textTransform: "uppercase", fontFamily: "Georgia, serif", cursor: "pointer" }}
+            >
+              Nouvelle Demande
+            </button>
+          </div>
+        )}
+
+        <div style={{ marginTop: "56px", borderTop: "1px solid #1e1e28", paddingTop: "40px", display: "flex", gap: "32px", flexWrap: "wrap", justifyContent: "center" }}>
+          <div style={{ textAlign: "center" }}>
+            <div style={{ color: "#c8a96e", fontSize: "11px", letterSpacing: "3
