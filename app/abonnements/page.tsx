@@ -1,396 +1,251 @@
-import React from "react";
-"use client"
-
-import { useState } from "react"
-
-const plans = {
-  visio: [
-    {
-      name: "Starter",
-      price: 35,
-      sessions: 1,
-      duration: "45 min",
-      features: ["1 séance vidéo / mois", "Suivi IA personnalisé", "Accès espace membre", "Support email"],
-      bestSeller: false,
-      color: "#c8a96e"
-    },
-    {
-      name: "Bien-être",
-      price: 79,
-      sessions: 3,
-      duration: "60 min",
-      features: ["3 séances vidéo / mois", "Suivi IA avancé", "Accès espace membre", "Support prioritaire", "Ressources exclusives"],
-      bestSeller: true,
-      color: "#c8a96e"
-    },
-    {
-      name: "Intensif",
-      price: 129,
-      sessions: 6,
-      duration: "60 min",
-      features: ["6 séances vidéo / mois", "Suivi IA premium", "Accès espace membre VIP", "Support 24/7", "Ressources exclusives", "Bilan mensuel détaillé"],
-      bestSeller: false,
-      color: "#c8a96e"
-    }
-  ],
-  audio: [
-    {
-      name: "Starter",
-      price: 25,
-      sessions: 1,
-      duration: "30 min",
-      features: ["1 séance audio / mois", "Suivi IA personnalisé", "Accès espace membre", "Support email"],
-      bestSeller: false,
-      color: "#c8a96e"
-    },
-    {
-      name: "Bien-être",
-      price: 55,
-      sessions: 3,
-      duration: "45 min",
-      features: ["3 séances audio / mois", "Suivi IA avancé", "Accès espace membre", "Support prioritaire", "Ressources exclusives"],
-      bestSeller: true,
-      color: "#c8a96e"
-    },
-    {
-      name: "Intensif",
-      price: 89,
-      sessions: 6,
-      duration: "45 min",
-      features: ["6 séances audio / mois", "Suivi IA premium", "Accès espace membre VIP", "Support 24/7", "Ressources exclusives", "Bilan mensuel détaillé"],
-      bestSeller: false,
-      color: "#c8a96e"
-    }
-  ]
-}
+"use client";
+import { useState } from "react";
 
 export default function AbonnementsPage() {
-  const [activeTab, setActiveTab] = useState("visio")
-  const [hoveredCard, setHoveredCard] = useState(null)
-  const [hoveredBtn, setHoveredBtn] = useState(null)
+  const [onglet, setOnglet] = useState("visio");
 
-  const currentPlans = plans[activeTab]
+  const plans = {
+    visio: [
+      {
+        nom: "Starter",
+        prix: "35",
+        couleur: "#1a1a2e",
+        bordure: "#c8a96e",
+        badge: null,
+        seances: "2 séances / mois",
+        description: "Idéal pour débuter en douceur",
+        inclus: ["2 séances vidéo HD", "Support par email", "Accès espace membre", "Annulation flexible"],
+      },
+      {
+        nom: "Bien-être",
+        prix: "79",
+        couleur: "#1a1a2e",
+        bordure: "#c8a96e",
+        badge: "BEST-SELLER",
+        seances: "5 séances / mois",
+        description: "Le choix le plus populaire",
+        inclus: ["5 séances vidéo HD", "Support prioritaire", "Accès espace membre", "Ressources exclusives", "Annulation flexible"],
+      },
+      {
+        nom: "Intensif",
+        prix: "129",
+        couleur: "#1a1a2e",
+        bordure: "#c8a96e",
+        badge: null,
+        seances: "10 séances / mois",
+        description: "Pour une transformation profonde",
+        inclus: ["10 séances vidéo HD", "Support 7j/7", "Accès espace membre", "Ressources exclusives", "Suivi personnalisé", "Annulation flexible"],
+      },
+    ],
+    audio: [
+      {
+        nom: "Starter",
+        prix: "25",
+        couleur: "#1a1a2e",
+        bordure: "#c8a96e",
+        badge: null,
+        seances: "2 séances / mois",
+        description: "Idéal pour débuter en douceur",
+        inclus: ["2 séances audio", "Support par email", "Accès espace membre", "Annulation flexible"],
+      },
+      {
+        nom: "Bien-être",
+        prix: "55",
+        couleur: "#1a1a2e",
+        bordure: "#c8a96e",
+        badge: "BEST-SELLER",
+        seances: "5 séances / mois",
+        description: "Le choix le plus populaire",
+        inclus: ["5 séances audio", "Support prioritaire", "Accès espace membre", "Ressources exclusives", "Annulation flexible"],
+      },
+      {
+        nom: "Intensif",
+        prix: "89",
+        couleur: "#1a1a2e",
+        bordure: "#c8a96e",
+        badge: null,
+        seances: "10 séances / mois",
+        description: "Pour une transformation profonde",
+        inclus: ["10 séances audio", "Support 7j/7", "Accès espace membre", "Ressources exclusives", "Suivi personnalisé", "Annulation flexible"],
+      },
+    ],
+  };
+
+  const planActuel = plans[onglet];
 
   return (
-    <div style={{
-      minHeight: "100vh",
-      backgroundColor: "#050508",
-      fontFamily: "'Segoe UI', system-ui, sans-serif",
-      padding: "60px 20px",
-      boxSizing: "border-box"
-    }}>
+    <div style={{ backgroundColor: "#050508", minHeight: "100vh", fontFamily: "'Segoe UI', sans-serif", padding: "60px 20px" }}>
 
       <div style={{ maxWidth: "1100px", margin: "0 auto" }}>
 
-        <div style={{ textAlign: "center", marginBottom: "16px" }}>
-          <span style={{
-            display: "inline-block",
-            fontSize: "11px",
-            letterSpacing: "3px",
-            textTransform: "uppercase",
-            color: "#c8a96e",
-            fontWeight: "600",
-            marginBottom: "20px"
-          }}>
-            AcadémIA Pro
+        <div style={{ textAlign: "center", marginBottom: "20px" }}>
+          <span style={{ color: "#c8a96e", fontSize: "13px", fontWeight: "600", letterSpacing: "4px", textTransform: "uppercase" }}>
+            Abonnements
           </span>
         </div>
 
-        <h1 style={{
-          textAlign: "center",
-          fontSize: "clamp(28px, 5vw, 48px)",
-          fontWeight: "700",
-          color: "#ffffff",
-          marginBottom: "16px",
-          lineHeight: "1.2",
-          letterSpacing: "-0.5px"
-        }}>
+        <h1 style={{ textAlign: "center", color: "#ffffff", fontSize: "42px", fontWeight: "700", margin: "0 0 16px 0", lineHeight: "1.2" }}>
           Choisissez votre formule
         </h1>
 
-        <p style={{
-          textAlign: "center",
-          color: "#8a8a9a",
-          fontSize: "16px",
-          marginBottom: "48px",
-          lineHeight: "1.6"
-        }}>
-          Des séances accompagnées par l'IA pour transformer votre quotidien
+        <p style={{ textAlign: "center", color: "#8888aa", fontSize: "17px", margin: "0 0 48px 0", lineHeight: "1.6" }}>
+          Sans engagement · Garantie satisfait ou remboursé 30 jours
         </p>
 
-        <div style={{
-          display: "flex",
-          justifyContent: "center",
-          gap: "0px",
-          marginBottom: "56px"
-        }}>
-          <div style={{
-            display: "flex",
-            backgroundColor: "#0e0e16",
-            border: "1px solid #1e1e2e",
-            borderRadius: "12px",
-            padding: "4px",
-            gap: "4px"
-          }}>
-            {["visio", "audio"].map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                style={{
-                  padding: "10px 32px",
-                  borderRadius: "8px",
-                  border: "none",
-                  cursor: "pointer",
-                  fontSize: "14px",
-                  fontWeight: "600",
-                  letterSpacing: "0.5px",
-                  transition: "all 0.25s ease",
-                  backgroundColor: activeTab === tab ? "#c8a96e" : "transparent",
-                  color: activeTab === tab ? "#050508" : "#6a6a7a",
-                  textTransform: "capitalize"
-                }}
-              >
-                {tab === "visio" ? "Visio" : "Audio"}
-              </button>
-            ))}
+        <div style={{ display: "flex", justifyContent: "center", marginBottom: "56px" }}>
+          <div style={{ backgroundColor: "#0e0e18", borderRadius: "50px", padding: "6px", display: "flex", border: "1px solid #1e1e30" }}>
+            <button
+              onClick={() => setOnglet("visio")}
+              style={{
+                backgroundColor: onglet === "visio" ? "#c8a96e" : "transparent",
+                color: onglet === "visio" ? "#050508" : "#8888aa",
+                border: "none",
+                borderRadius: "50px",
+                padding: "12px 36px",
+                fontSize: "15px",
+                fontWeight: "700",
+                cursor: "pointer",
+                transition: "all 0.3s ease",
+                letterSpacing: "0.5px",
+              }}
+            >
+              📹 Visio
+            </button>
+            <button
+              onClick={() => setOnglet("audio")}
+              style={{
+                backgroundColor: onglet === "audio" ? "#c8a96e" : "transparent",
+                color: onglet === "audio" ? "#050508" : "#8888aa",
+                border: "none",
+                borderRadius: "50px",
+                padding: "12px 36px",
+                fontSize: "15px",
+                fontWeight: "700",
+                cursor: "pointer",
+                transition: "all 0.3s ease",
+                letterSpacing: "0.5px",
+              }}
+            >
+              🎧 Audio
+            </button>
           </div>
         </div>
 
-        <div style={{
-          display: "flex",
-          gap: "24px",
-          justifyContent: "center",
-          flexWrap: "wrap",
-          alignItems: "flex-start"
-        }}>
-          {currentPlans.map((plan, index) => {
-            const isHovered = hoveredCard === index
-            const isBestSeller = plan.bestSeller
-
-            return (
-              <div
-                key={plan.name + activeTab}
-                onMouseEnter={() => setHoveredCard(index)}
-                onMouseLeave={() => setHoveredCard(null)}
-                style={{
-                  position: "relative",
-                  width: "100%",
-                  maxWidth: "320px",
-                  backgroundColor: isBestSeller ? "#0d0d18" : "#0a0a12",
-                  border: isBestSeller
-                    ? "1.5px solid #c8a96e"
-                    : isHovered
-                    ? "1.5px solid #2a2a3e"
-                    : "1.5px solid #16161f",
-                  borderRadius: "20px",
-                  padding: "32px 28px",
-                  boxSizing: "border-box",
-                  transform: isBestSeller
-                    ? "scale(1.04)"
-                    : isHovered
-                    ? "translateY(-4px)"
-                    : "translateY(0)",
-                  transition: "all 0.3s ease",
-                  boxShadow: isBestSeller
-                    ? "0 0 40px rgba(200,169,110,0.12), 0 20px 60px rgba(0,0,0,0.5)"
-                    : isHovered
-                    ? "0 20px 60px rgba(0,0,0,0.4)"
-                    : "0 8px 32px rgba(0,0,0,0.3)"
-                }}
-              >
-                {isBestSeller && (
-                  <div style={{
-                    position: "absolute",
-                    top: "-14px",
-                    left: "50%",
-                    transform: "translateX(-50%)",
-                    backgroundColor: "#c8a96e",
-                    color: "#050508",
-                    fontSize: "10px",
-                    fontWeight: "800",
-                    letterSpacing: "2px",
-                    textTransform: "uppercase",
-                    padding: "5px 16px",
-                    borderRadius: "20px",
-                    whiteSpace: "nowrap"
-                  }}>
-                    Best-seller
-                  </div>
-                )}
-
-                <div style={{ marginBottom: "24px" }}>
-                  <h2 style={{
-                    color: isBestSeller ? "#c8a96e" : "#ffffff",
-                    fontSize: "20px",
-                    fontWeight: "700",
-                    marginBottom: "6px",
-                    letterSpacing: "0.3px"
-                  }}>
-                    {plan.name}
-                  </h2>
-                  <p style={{
-                    color: "#5a5a6a",
-                    fontSize: "13px",
-                    margin: "0"
-                  }}>
-                    {plan.sessions} {plan.sessions > 1 ? "séances" : "séance"} / mois — {plan.duration}
-                  </p>
-                </div>
-
-                <div style={{ marginBottom: "28px" }}>
-                  <div style={{ display: "flex", alignItems: "baseline", gap: "4px" }}>
-                    <span style={{
-                      fontSize: "48px",
-                      fontWeight: "800",
-                      color: "#ffffff",
-                      lineHeight: "1",
-                      letterSpacing: "-2px"
-                    }}>
-                      {plan.price}
-                    </span>
-                    <span style={{
-                      fontSize: "22px",
-                      color: "#c8a96e",
-                      fontWeight: "600"
-                    }}>
-                      €
-                    </span>
-                    <span style={{
-                      fontSize: "13px",
-                      color: "#5a5a6a",
-                      marginLeft: "4px"
-                    }}>
-                      / mois
-                    </span>
-                  </div>
-                </div>
-
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "28px", alignItems: "start" }}>
+          {planActuel.map((plan, index) => (
+            <div
+              key={index}
+              style={{
+                backgroundColor: plan.badge ? "#0a0a14" : "#080810",
+                border: plan.badge ? "2px solid #c8a96e" : "1px solid #1e1e2e",
+                borderRadius: "24px",
+                padding: "40px 32px",
+                position: "relative",
+                transform: plan.badge ? "scale(1.04)" : "scale(1)",
+                boxShadow: plan.badge ? "0 0 60px rgba(200, 169, 110, 0.15)" : "none",
+              }}
+            >
+              {plan.badge && (
                 <div style={{
-                  width: "100%",
-                  height: "1px",
-                  backgroundColor: isBestSeller ? "rgba(200,169,110,0.2)" : "#16161f",
-                  marginBottom: "24px"
-                }} />
-
-                <ul style={{
-                  listStyle: "none",
-                  padding: "0",
-                  margin: "0 0 32px 0",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "12px"
+                  position: "absolute",
+                  top: "-14px",
+                  left: "50%",
+                  transform: "translateX(-50%)",
+                  backgroundColor: "#c8a96e",
+                  color: "#050508",
+                  fontSize: "11px",
+                  fontWeight: "800",
+                  letterSpacing: "2px",
+                  padding: "6px 20px",
+                  borderRadius: "50px",
+                  whiteSpace: "nowrap",
                 }}>
-                  {plan.features.map((feature, fi) => (
-                    <li key={fi} style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "10px",
-                      color: "#a0a0b0",
-                      fontSize: "14px",
-                      lineHeight: "1.4"
-                    }}>
-                      <span style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        width: "18px",
-                        height: "18px",
-                        borderRadius: "50%",
-                        backgroundColor: isBestSeller ? "rgba(200,169,110,0.15)" : "rgba(200,169,110,0.08)",
-                        flexShrink: "0"
-                      }}>
-                        <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
-                          <path d="M1 4L3.5 6.5L9 1" stroke="#c8a96e" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                        </svg>
-                      </span>
-                      {feature}
-                    </li>
-                  ))}
-                </ul>
+                  ★ {plan.badge}
+                </div>
+              )}
 
-                <button
-                  onMouseEnter={() => setHoveredBtn(index)}
-                  onMouseLeave={() => setHoveredBtn(null)}
-                  style={{
-                    width: "100%",
-                    padding: "14px",
-                    borderRadius: "10px",
-                    border: isBestSeller ? "none" : "1.5px solid #c8a96e",
-                    cursor: "pointer",
-                    fontSize: "14px",
-                    fontWeight: "700",
-                    letterSpacing: "0.5px",
-                    transition: "all 0.25s ease",
-                    backgroundColor: isBestSeller
-                      ? hoveredBtn === index ? "#d4b878" : "#c8a96e"
-                      : hoveredBtn === index ? "rgba(200,169,110,0.1)" : "transparent",
-                    color: isBestSeller ? "#050508" : "#c8a96e",
-                    transform: hoveredBtn === index ? "scale(0.98)" : "scale(1)"
-                  }}
-                >
-                  Commencer maintenant
-                </button>
+              <div style={{ marginBottom: "28px" }}>
+                <h2 style={{ color: "#c8a96e", fontSize: "13px", fontWeight: "700", letterSpacing: "3px", textTransform: "uppercase", margin: "0 0 10px 0" }}>
+                  {plan.nom}
+                </h2>
+                <p style={{ color: "#666688", fontSize: "14px", margin: "0 0 20px 0" }}>
+                  {plan.description}
+                </p>
+                <div style={{ display: "flex", alignItems: "flex-end", gap: "4px", marginBottom: "8px" }}>
+                  <span style={{ color: "#ffffff", fontSize: "52px", fontWeight: "800", lineHeight: "1" }}>
+                    {plan.prix}€
+                  </span>
+                  <span style={{ color: "#666688", fontSize: "15px", marginBottom: "8px" }}>/mois</span>
+                </div>
+                <div style={{ display: "inline-flex", alignItems: "center", gap: "6px", backgroundColor: "#12121e", borderRadius: "20px", padding: "6px 14px" }}>
+                  <span style={{ color: "#c8a96e", fontSize: "18px" }}>
+                    {onglet === "visio" ? "📹" : "🎧"}
+                  </span>
+                  <span style={{ color: "#aaaacc", fontSize: "13px", fontWeight: "600" }}>
+                    {plan.seances}
+                  </span>
+                </div>
               </div>
-            )
-          })}
+
+              <div style={{ borderTop: "1px solid #1a1a28", paddingTop: "28px", marginBottom: "32px" }}>
+                {plan.inclus.map((item, i) => (
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "14px" }}>
+                    <div style={{ width: "20px", height: "20px", borderRadius: "50%", backgroundColor: "#c8a96e22", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: "0" }}>
+                      <span style={{ color: "#c8a96e", fontSize: "11px", fontWeight: "800" }}>✓</span>
+                    </div>
+                    <span style={{ color: "#aaaacc", fontSize: "14px" }}>{item}</span>
+                  </div>
+                ))}
+              </div>
+
+              <button style={{
+                width: "100%",
+                backgroundColor: plan.badge ? "#c8a96e" : "transparent",
+                color: plan.badge ? "#050508" : "#c8a96e",
+                border: plan.badge ? "none" : "1.5px solid #c8a96e",
+                borderRadius: "14px",
+                padding: "16px",
+                fontSize: "15px",
+                fontWeight: "700",
+                cursor: "pointer",
+                letterSpacing: "0.5px",
+              }}>
+                Commencer maintenant →
+              </button>
+            </div>
+          ))}
         </div>
 
-        <div style={{
-          display: "flex",
-          justifyContent: "center",
-          gap: "40px",
-          marginTop: "64px",
-          flexWrap: "wrap"
-        }}>
-          <div style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "10px"
-          }}>
-            <div style={{
-              width: "36px",
-              height: "36px",
-              borderRadius: "50%",
-              backgroundColor: "rgba(200,169,110,0.1)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              flexShrink: "0"
-            }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" stroke="#c8a96e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-            </div>
-            <div>
-              <p style={{ color: "#ffffff", fontSize: "13px", fontWeight: "600", margin: "0 0 2px 0" }}>
-                Sans engagement
-              </p>
-              <p style={{ color: "#5a5a6a", fontSize: "12px", margin: "0" }}>
-                Résiliez quand vous voulez
-              </p>
-            </div>
+        <div style={{ marginTop: "64px", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "20px" }}>
+          <div style={{ backgroundColor: "#080810", border: "1px solid #1e1e2e", borderRadius: "16px", padding: "28px 24px", textAlign: "center" }}>
+            <div style={{ fontSize: "32px", marginBottom: "12px" }}>🔓</div>
+            <h3 style={{ color: "#ffffff", fontSize: "16px", fontWeight: "700", margin: "0 0 8px 0" }}>Sans engagement</h3>
+            <p style={{ color: "#666688", fontSize: "13px", margin: "0", lineHeight: "1.5" }}>Résiliez à tout moment, sans frais ni justification</p>
           </div>
+          <div style={{ backgroundColor: "#080810", border: "1px solid #1e1e2e", borderRadius: "16px", padding: "28px 24px", textAlign: "center" }}>
+            <div style={{ fontSize: "32px", marginBottom: "12px" }}>🛡️</div>
+            <h3 style={{ color: "#ffffff", fontSize: "16px", fontWeight: "700", margin: "0 0 8px 0" }}>Garantie 30 jours</h3>
+            <p style={{ color: "#666688", fontSize: "13px", margin: "0", lineHeight: "1.5" }}>Remboursement intégral si vous n'êtes pas satisfait</p>
+          </div>
+          <div style={{ backgroundColor: "#080810", border: "1px solid #1e1e2e", borderRadius: "16px", padding: "28px 24px", textAlign: "center" }}>
+            <div style={{ fontSize: "32px", marginBottom: "12px" }}>🔒</div>
+            <h3 style={{ color: "#ffffff", fontSize: "16px", fontWeight: "700", margin: "0 0 8px 0" }}>Paiement sécurisé</h3>
+            <p style={{ color: "#666688", fontSize: "13px", margin: "0", lineHeight: "1.5" }}>Transactions chiffrées SSL, données protégées</p>
+          </div>
+          <div style={{ backgroundColor: "#080810", border: "1px solid #1e1e2e", borderRadius: "16px", padding: "28px 24px", textAlign: "center" }}>
+            <div style={{ fontSize: "32px", marginBottom: "12px" }}>💬</div>
+            <h3 style={{ color: "#ffffff", fontSize: "16px", fontWeight: "700", margin: "0 0 8px 0" }}>Support dédié</h3>
+            <p style={{ color: "#666688", fontSize: "13px", margin: "0", lineHeight: "1.5" }}>Une équipe disponible pour vous accompagner</p>
+          </div>
+        </div>
 
-          <div style={{
-            width: "1px",
-            backgroundColor: "#1a1a28",
-            alignSelf: "stretch"
-          }} />
+        <div style={{ textAlign: "center", marginTop: "60px" }}>
+          <p style={{ color: "#444466", fontSize: "13px", margin: "0" }}>
+            Des questions ? <span style={{ color: "#c8a96e", cursor: "pointer" }}>Contactez-nous</span> · TVA incluse · Facturation mensuelle
+          </p>
+        </div>
 
-          <div style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "10px"
-          }}>
-            <div style={{
-              width: "36px",
-              height: "36px",
-              borderRadius: "50%",
-              backgroundColor: "rgba(200,169,110,0.1)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              flexShrink: "0"
-            }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="#c8a96e" strokeWidth="2"/>
+      </div>
+    </div>
+  );
+}
