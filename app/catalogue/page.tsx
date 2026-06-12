@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import FormationsClient from "./FormationsClient";
+import FormationsClient from "../formations/FormationsClient";
 
 export default async function CataloguePage() {
   let formations: any[] = [];
