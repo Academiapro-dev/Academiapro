@@ -1,55 +1,57 @@
-import React, { useState } from "react";
+"use client";
+import { useState } from "react";
 
-const ContactPage: React.FC = () => {
-  const [formData, setFormData] = useState({
-    nom: "",
-    prenom: "",
-    email: "",
-    sujet: "",
-    message: "",
-  });
+export default function ContactPage() {
+  const [nom, setNom] = useState("");
+  const [prenom, setPrenom] = useState("");
+  const [email, setEmail] = useState("");
+  const [sujet, setSujet] = useState("");
+  const [message, setMessage] = useState("");
+  const [envoye, setEnvoye] = useState(false);
+  const [focusField, setFocusField] = useState("");
 
-  const [focused, setFocused] = useState<string | null>(null);
-  const [sent, setSent] = useState(false);
-
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
-  ) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
+  function handleSubmit(e) {
     e.preventDefault();
-    setSent(true);
-  };
+    setEnvoye(true);
+  }
 
-  const inputStyle = (name: string): React.CSSProperties => ({
+  const inputStyle = {
     width: "100%",
     padding: "14px 18px",
-    backgroundColor: "rgba(200, 169, 110, 0.07)",
-    border: focused === name ? "1.5px solid #c8a96e" : "1.5px solid rgba(200, 169, 110, 0.25)",
+    backgroundColor: "#0d0d14",
+    border: "1px solid #2a2a3a",
     borderRadius: "8px",
-    color: "#f0e8d8",
+    color: "#f0e6d3",
     fontSize: "15px",
-    fontFamily: "'Georgia', serif",
     outline: "none",
-    transition: "border 0.3s ease, background-color 0.3s ease",
     boxSizing: "border-box",
-    boxShadow: focused === name ? "0 0 12px rgba(200, 169, 110, 0.15)" : "none",
-  });
-
-  const labelStyle: React.CSSProperties = {
-    display: "block",
-    marginBottom: "8px",
-    color: "#c8a96e",
-    fontSize: "13px",
-    fontFamily: "'Georgia', serif",
-    letterSpacing: "1.5px",
-    textTransform: "uppercase",
+    fontFamily: "Georgia, serif",
+    transition: "border-color 0.3s",
   };
 
-  const fieldGroup: React.CSSProperties = {
-    marginBottom: "24px",
+  const inputFocusStyle = {
+    width: "100%",
+    padding: "14px 18px",
+    backgroundColor: "#0d0d14",
+    border: "1px solid #c8a96e",
+    borderRadius: "8px",
+    color: "#f0e6d3",
+    fontSize: "15px",
+    outline: "none",
+    boxSizing: "border-box",
+    fontFamily: "Georgia, serif",
+    transition: "border-color 0.3s",
+  };
+
+  const labelStyle = {
+    display: "block",
+    color: "#c8a96e",
+    fontSize: "13px",
+    fontFamily: "Georgia, serif",
+    letterSpacing: "1.5px",
+    textTransform: "uppercase",
+    marginBottom: "8px",
+    fontWeight: "600",
   };
 
   return (
@@ -57,357 +59,424 @@ const ContactPage: React.FC = () => {
       style={{
         minHeight: "100vh",
         backgroundColor: "#050508",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "flex-start",
-        padding: "60px 20px 80px",
-        fontFamily: "'Georgia', serif",
+        fontFamily: "Georgia, serif",
+        padding: "0",
+        margin: "0",
       }}
     >
-      {/* Header */}
-      <div style={{ textAlign: "center", marginBottom: "60px", maxWidth: "640px" }}>
-        <div
-          style={{
-            display: "inline-block",
-            width: "50px",
-            height: "2px",
-            backgroundColor: "#c8a96e",
-            marginBottom: "24px",
-          }}
-        />
-        <h1
-          style={{
-            color: "#c8a96e",
-            fontSize: "36px",
-            fontWeight: "400",
-            letterSpacing: "4px",
-            textTransform: "uppercase",
-            margin: "0 0 16px 0",
-          }}
-        >
-          Contact
-        </h1>
-        <p
-          style={{
-            color: "rgba(240, 232, 216, 0.6)",
-            fontSize: "15px",
-            lineHeight: "1.8",
-            margin: "0 0 8px 0",
-          }}
-        >
-          Vous avez une question ou souhaitez en savoir plus ?
-        </p>
-        <p
-          style={{
-            color: "rgba(240, 232, 216, 0.5)",
-            fontSize: "14px",
-            margin: "0",
-            letterSpacing: "0.5px",
-          }}
-        >
-          Nous vous répondons sous{" "}
-          <span style={{ color: "#c8a96e", fontStyle: "italic" }}>24 heures</span>
-        </p>
-      </div>
-
-      {/* Card */}
       <div
         style={{
+          position: "relative",
           width: "100%",
-          maxWidth: "680px",
-          backgroundColor: "rgba(200, 169, 110, 0.04)",
-          border: "1px solid rgba(200, 169, 110, 0.18)",
-          borderRadius: "16px",
-          padding: "48px 48px",
-          boxSizing: "border-box",
-          boxShadow: "0 20px 60px rgba(0, 0, 0, 0.6)",
-        }}
-      >
-        {sent ? (
-          <div
-            style={{
-              textAlign: "center",
-              padding: "40px 0",
-            }}
-          >
-            <div
-              style={{
-                width: "64px",
-                height: "64px",
-                borderRadius: "50%",
-                border: "2px solid #c8a96e",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                margin: "0 auto 28px",
-              }}
-            >
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
-                <path
-                  d="M5 12l5 5L19 7"
-                  stroke="#c8a96e"
-                  strokeWidth="1.8"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </div>
-            <h2
-              style={{
-                color: "#c8a96e",
-                fontSize: "22px",
-                fontWeight: "400",
-                letterSpacing: "2px",
-                margin: "0 0 16px 0",
-              }}
-            >
-              Message envoyé
-            </h2>
-            <p
-              style={{
-                color: "rgba(240, 232, 216, 0.6)",
-                fontSize: "15px",
-                lineHeight: "1.8",
-                margin: "0 0 8px 0",
-              }}
-            >
-              Merci de nous avoir contactés.
-            </p>
-            <p
-              style={{
-                color: "rgba(240, 232, 216, 0.5)",
-                fontSize: "14px",
-                margin: "0",
-              }}
-            >
-              Notre équipe reviendra vers vous dans les{" "}
-              <span style={{ color: "#c8a96e" }}>24 heures</span>.
-            </p>
-          </div>
-        ) : (
-          <form onSubmit={handleSubmit}>
-            {/* Nom & Prénom */}
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr",
-                gap: "20px",
-                marginBottom: "24px",
-              }}
-            >
-              <div>
-                <label style={labelStyle} htmlFor="nom">
-                  Nom
-                </label>
-                <input
-                  id="nom"
-                  name="nom"
-                  type="text"
-                  placeholder="Votre nom"
-                  value={formData.nom}
-                  onChange={handleChange}
-                  onFocus={() => setFocused("nom")}
-                  onBlur={() => setFocused(null)}
-                  style={inputStyle("nom")}
-                  required
-                />
-              </div>
-              <div>
-                <label style={labelStyle} htmlFor="prenom">
-                  Prénom
-                </label>
-                <input
-                  id="prenom"
-                  name="prenom"
-                  type="text"
-                  placeholder="Votre prénom"
-                  value={formData.prenom}
-                  onChange={handleChange}
-                  onFocus={() => setFocused("prenom")}
-                  onBlur={() => setFocused(null)}
-                  style={inputStyle("prenom")}
-                  required
-                />
-              </div>
-            </div>
-
-            {/* Email */}
-            <div style={fieldGroup}>
-              <label style={labelStyle} htmlFor="email">
-                Adresse email
-              </label>
-              <input
-                id="email"
-                name="email"
-                type="email"
-                placeholder="votre@email.com"
-                value={formData.email}
-                onChange={handleChange}
-                onFocus={() => setFocused("email")}
-                onBlur={() => setFocused(null)}
-                style={inputStyle("email")}
-                required
-              />
-            </div>
-
-            {/* Sujet */}
-            <div style={fieldGroup}>
-              <label style={labelStyle} htmlFor="sujet">
-                Sujet
-              </label>
-              <input
-                id="sujet"
-                name="sujet"
-                type="text"
-                placeholder="Objet de votre message"
-                value={formData.sujet}
-                onChange={handleChange}
-                onFocus={() => setFocused("sujet")}
-                onBlur={() => setFocused(null)}
-                style={inputStyle("sujet")}
-                required
-              />
-            </div>
-
-            {/* Message */}
-            <div style={fieldGroup}>
-              <label style={labelStyle} htmlFor="message">
-                Message
-              </label>
-              <textarea
-                id="message"
-                name="message"
-                placeholder="Décrivez votre demande..."
-                value={formData.message}
-                onChange={handleChange}
-                onFocus={() => setFocused("message")}
-                onBlur={() => setFocused(null)}
-                style={{
-                  ...inputStyle("message"),
-                  minHeight: "140px",
-                  resize: "vertical",
-                  lineHeight: "1.7",
-                }}
-                required
-              />
-            </div>
-
-            {/* Bouton */}
-            <div style={{ textAlign: "center" }}>
-              <button
-                type="submit"
-                style={{
-                  padding: "16px 56px",
-                  backgroundColor: "transparent",
-                  border: "1.5px solid #c8a96e",
-                  borderRadius: "8px",
-                  color: "#c8a96e",
-                  fontSize: "13px",
-                  fontFamily: "'Georgia', serif",
-                  letterSpacing: "2.5px",
-                  textTransform: "uppercase",
-                  cursor: "pointer",
-                  transition: "all 0.3s ease",
-                  position: "relative",
-                  overflow: "hidden",
-                }}
-                onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#c8a96e";
-                  (e.currentTarget as HTMLButtonElement).style.color = "#050508";
-                }}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent";
-                  (e.currentTarget as HTMLButtonElement).style.color = "#c8a96e";
-                }}
-              >
-                Envoyer
-              </button>
-            </div>
-          </form>
-        )}
-      </div>
-
-      {/* Contact info */}
-      <div
-        style={{
-          marginTop: "48px",
-          textAlign: "center",
+          minHeight: "320px",
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
-          gap: "12px",
+          justifyContent: "center",
+          overflow: "hidden",
+          paddingTop: "80px",
+          paddingBottom: "80px",
         }}
       >
         <div
           style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "10px",
+            position: "absolute",
+            top: "0",
+            left: "0",
+            right: "0",
+            bottom: "0",
+            background: "radial-gradient(ellipse at center top, #1a1408 0%, #050508 70%)",
+            zIndex: "0",
           }}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-            <path
-              d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
-              stroke="#c8a96e"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-          <a
-            href="mailto:contact@academiapro.fr"
-            style={{
-              color: "#c8a96e",
-              fontSize: "14px",
-              textDecoration: "none",
-              letterSpacing: "0.5px",
-            }}
-          >
-            contact@academiapro.fr
-          </a>
-        </div>
+        />
         <div
           style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "10px",
+            position: "absolute",
+            top: "50%",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
+            width: "600px",
+            height: "600px",
+            background: "radial-gradient(ellipse, rgba(200,169,110,0.06) 0%, transparent 70%)",
+            zIndex: "0",
           }}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-            <circle cx="12" cy="12" r="10" stroke="#c8a96e" strokeWidth="1.5" />
-            <path
-              d="M12 6v6l4 2"
-              stroke="#c8a96e"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-          <span
+        />
+        <div style={{ position: "relative", zIndex: "1", textAlign: "center" }}>
+          <p
             style={{
-              color: "rgba(200, 169, 110, 0.6)",
-              fontSize: "13px",
-              letterSpacing: "0.5px",
+              color: "#c8a96e",
+              fontSize: "12px",
+              letterSpacing: "4px",
+              textTransform: "uppercase",
+              marginBottom: "20px",
+              margin: "0 0 20px 0",
             }}
           >
-            Réponse sous 24 heures
-          </span>
+            Nous sommes à votre écoute
+          </p>
+          <h1
+            style={{
+              color: "#f0e6d3",
+              fontSize: "56px",
+              fontWeight: "300",
+              margin: "0 0 24px 0",
+              letterSpacing: "2px",
+              lineHeight: "1.1",
+            }}
+          >
+            Contactez-nous
+          </h1>
+          <div
+            style={{
+              width: "60px",
+              height: "1px",
+              backgroundColor: "#c8a96e",
+              margin: "0 auto 28px auto",
+            }}
+          />
+          <p
+            style={{
+              color: "#8a7a6a",
+              fontSize: "17px",
+              lineHeight: "1.7",
+              maxWidth: "520px",
+              margin: "0 auto",
+              fontStyle: "italic",
+            }}
+          >
+            Notre équipe vous répondra dans les plus brefs délais.
+          </p>
         </div>
       </div>
 
-      {/* Séparateur bas */}
       <div
         style={{
-          marginTop: "48px",
-          display: "inline-block",
-          width: "50px",
-          height: "1px",
-          backgroundColor: "rgba(200, 169, 110, 0.3)",
+          maxWidth: "1100px",
+          margin: "0 auto",
+          padding: "60px 24px 100px 24px",
+          display: "grid",
+          gridTemplateColumns: "1fr 2fr",
+          gap: "60px",
+          alignItems: "start",
         }}
-      />
-    </div>
-  );
-};
+      >
+        <div>
+          <div
+            style={{
+              backgroundColor: "#0a0a0f",
+              border: "1px solid #1e1e2a",
+              borderRadius: "16px",
+              padding: "40px 32px",
+              marginBottom: "24px",
+            }}
+          >
+            <div
+              style={{
+                width: "44px",
+                height: "44px",
+                backgroundColor: "rgba(200,169,110,0.1)",
+                borderRadius: "50%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                marginBottom: "20px",
+              }}
+            >
+              <span style={{ color: "#c8a96e", fontSize: "20px" }}>✉</span>
+            </div>
+            <p
+              style={{
+                color: "#c8a96e",
+                fontSize: "11px",
+                letterSpacing: "3px",
+                textTransform: "uppercase",
+                margin: "0 0 10px 0",
+                fontWeight: "600",
+              }}
+            >
+              Email
+            </p>
+            <p
+              style={{
+                color: "#f0e6d3",
+                fontSize: "15px",
+                margin: "0",
+                lineHeight: "1.5",
+              }}
+            >
+              contact@academiapro.fr
+            </p>
+          </div>
 
-export default ContactPage;
+          <div
+            style={{
+              backgroundColor: "#0a0a0f",
+              border: "1px solid #1e1e2a",
+              borderRadius: "16px",
+              padding: "40px 32px",
+              marginBottom: "24px",
+            }}
+          >
+            <div
+              style={{
+                width: "44px",
+                height: "44px",
+                backgroundColor: "rgba(200,169,110,0.1)",
+                borderRadius: "50%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                marginBottom: "20px",
+              }}
+            >
+              <span style={{ color: "#c8a96e", fontSize: "20px" }}>⏱</span>
+            </div>
+            <p
+              style={{
+                color: "#c8a96e",
+                fontSize: "11px",
+                letterSpacing: "3px",
+                textTransform: "uppercase",
+                margin: "0 0 10px 0",
+                fontWeight: "600",
+              }}
+            >
+              Délai de réponse
+            </p>
+            <p
+              style={{
+                color: "#f0e6d3",
+                fontSize: "15px",
+                margin: "0",
+                lineHeight: "1.5",
+              }}
+            >
+              Réponse garantie sous 24h ouvrées
+            </p>
+          </div>
+
+          <div
+            style={{
+              backgroundColor: "#0a0a0f",
+              border: "1px solid #1e1e2a",
+              borderRadius: "16px",
+              padding: "40px 32px",
+            }}
+          >
+            <div
+              style={{
+                width: "44px",
+                height: "44px",
+                backgroundColor: "rgba(200,169,110,0.1)",
+                borderRadius: "50%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                marginBottom: "20px",
+              }}
+            >
+              <span style={{ color: "#c8a96e", fontSize: "20px" }}>◈</span>
+            </div>
+            <p
+              style={{
+                color: "#c8a96e",
+                fontSize: "11px",
+                letterSpacing: "3px",
+                textTransform: "uppercase",
+                margin: "0 0 10px 0",
+                fontWeight: "600",
+              }}
+            >
+              AcademiaPro
+            </p>
+            <p
+              style={{
+                color: "#8a7a6a",
+                fontSize: "14px",
+                margin: "0",
+                lineHeight: "1.7",
+                fontStyle: "italic",
+              }}
+            >
+              Excellence et accompagnement personnalisé pour chaque étudiant.
+            </p>
+          </div>
+        </div>
+
+        <div
+          style={{
+            backgroundColor: "#0a0a0f",
+            border: "1px solid #1e1e2a",
+            borderRadius: "16px",
+            padding: "52px 48px",
+          }}
+        >
+          {envoye ? (
+            <div style={{ textAlign: "center", padding: "60px 20px" }}>
+              <div
+                style={{
+                  width: "72px",
+                  height: "72px",
+                  backgroundColor: "rgba(200,169,110,0.1)",
+                  borderRadius: "50%",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  margin: "0 auto 28px auto",
+                  border: "1px solid rgba(200,169,110,0.3)",
+                }}
+              >
+                <span style={{ color: "#c8a96e", fontSize: "30px" }}>✓</span>
+              </div>
+              <h2
+                style={{
+                  color: "#f0e6d3",
+                  fontSize: "28px",
+                  fontWeight: "300",
+                  margin: "0 0 16px 0",
+                  letterSpacing: "1px",
+                }}
+              >
+                Message envoyé
+              </h2>
+              <p
+                style={{
+                  color: "#8a7a6a",
+                  fontSize: "16px",
+                  lineHeight: "1.7",
+                  margin: "0 0 32px 0",
+                  fontStyle: "italic",
+                }}
+              >
+                Merci de nous avoir contactés. Nous vous répondrons à l'adresse{" "}
+                <span style={{ color: "#c8a96e" }}>{email}</span> dans un délai de 24h ouvrées.
+              </p>
+              <button
+                onClick={() => {
+                  setEnvoye(false);
+                  setNom("");
+                  setPrenom("");
+                  setEmail("");
+                  setSujet("");
+                  setMessage("");
+                }}
+                style={{
+                  backgroundColor: "transparent",
+                  border: "1px solid #c8a96e",
+                  color: "#c8a96e",
+                  padding: "12px 32px",
+                  borderRadius: "8px",
+                  fontSize: "13px",
+                  letterSpacing: "2px",
+                  textTransform: "uppercase",
+                  cursor: "pointer",
+                  fontFamily: "Georgia, serif",
+                }}
+              >
+                Nouveau message
+              </button>
+            </div>
+          ) : (
+            <>
+              <div style={{ marginBottom: "40px" }}>
+                <h2
+                  style={{
+                    color: "#f0e6d3",
+                    fontSize: "28px",
+                    fontWeight: "300",
+                    margin: "0 0 10px 0",
+                    letterSpacing: "1px",
+                  }}
+                >
+                  Envoyez-nous un message
+                </h2>
+                <div
+                  style={{
+                    width: "40px",
+                    height: "1px",
+                    backgroundColor: "#c8a96e",
+                    margin: "0",
+                  }}
+                />
+              </div>
+
+              <form onSubmit={handleSubmit}>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr",
+                    gap: "24px",
+                    marginBottom: "24px",
+                  }}
+                >
+                  <div>
+                    <label style={labelStyle}>Nom</label>
+                    <input
+                      type="text"
+                      value={nom}
+                      onChange={(e) => setNom(e.target.value)}
+                      onFocus={() => setFocusField("nom")}
+                      onBlur={() => setFocusField("")}
+                      placeholder="Votre nom"
+                      required
+                      style={focusField === "nom" ? inputFocusStyle : inputStyle}
+                    />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Prénom</label>
+                    <input
+                      type="text"
+                      value={prenom}
+                      onChange={(e) => setPrenom(e.target.value)}
+                      onFocus={() => setFocusField("prenom")}
+                      onBlur={() => setFocusField("")}
+                      placeholder="Votre prénom"
+                      required
+                      style={focusField === "prenom" ? inputFocusStyle : inputStyle}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ marginBottom: "24px" }}>
+                  <label style={labelStyle}>Adresse email</label>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    onFocus={() => setFocusField("email")}
+                    onBlur={() => setFocusField("")}
+                    placeholder="votre@email.com"
+                    required
+                    style={focusField === "email" ? inputFocusStyle : inputStyle}
+                  />
+                </div>
+
+                <div style={{ marginBottom: "24px" }}>
+                  <label style={labelStyle}>Sujet</label>
+                  <input
+                    type="text"
+                    value={sujet}
+                    onChange={(e) => setSujet(e.target.value)}
+                    onFocus={() => setFocusField("sujet")}
+                    onBlur={() => setFocusField("")}
+                    placeholder="Objet de votre demande"
+                    required
+                    style={focusField === "sujet" ? inputFocusStyle : inputStyle}
+                  />
+                </div>
+
+                <div style={{ marginBottom: "36px" }}>
+                  <label style={labelStyle}>Message</label>
+                  <textarea
+                    value={message}
+                    onChange={(e) => setMessage(e.target.value)}
+                    onFocus={() => setFocusField("message")}
+                    onBlur={() => setFocusField("")}
+                    placeholder="Décrivez votre demande en détail..."
+                    required
+                    rows={6}
+                    style={
+                      focusField === "message"
+                        ? {
+                            width: "100%",
+                            padding: "14px 18px",
