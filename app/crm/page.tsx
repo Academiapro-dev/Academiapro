@@ -1,371 +1,194 @@
-import React, { useState } from "react";
+"use client";
+import { useState } from "react";
 
-const data = {
-  kpis: [
-    { label: "Contacts", value: "2 847", delta: "+12%", icon: "👥", color: "#c8a96e" },
-    { label: "Leads", value: "634", delta: "+8%", icon: "🎯", color: "#e8c98e" },
-    { label: "Prospects", value: "218", delta: "+23%", icon: "🔍", color: "#c8a96e" },
-    { label: "Clients", value: "89", delta: "+5%", icon: "⭐", color: "#e8c98e" },
-    { label: "CA Total", value: "1.24M€", delta: "+18%", icon: "💰", color: "#c8a96e" },
-    { label: "Pipeline", value: "487K€", delta: "+31%", icon: "📊", color: "#e8c98e" },
-  ],
-  pipeline: [
+export default function CRMDashboard() {
+  const [activeTab, setActiveTab] = useState("dashboard");
+  const [hoveredCard, setHoveredCard] = useState(null);
+  const [hoveredKanban, setHoveredKanban] = useState(null);
+
+  const kpis = [
+    { label: "Contacts", value: "4 821", delta: "+12%", icon: "👥", color: "#c8a96e" },
+    { label: "Leads", value: "1 247", delta: "+8%", icon: "🎯", color: "#e8c98e" },
+    { label: "Prospects", value: "389", delta: "+5%", icon: "🔍", color: "#c8a96e" },
+    { label: "Clients", value: "156", delta: "+3%", icon: "⭐", color: "#e8c98e" },
+    { label: "CA Pipeline", value: "2,4M €", delta: "+21%", icon: "💰", color: "#c8a96e" },
+    { label: "CA Réalisé", value: "847K €", delta: "+15%", icon: "📈", color: "#e8c98e" },
+  ];
+
+  const pipeline = [
     {
-      stage: "Nouveau",
+      stage: "Nouveaux Leads",
       color: "#1a1a2e",
       border: "#c8a96e",
+      count: 24,
+      value: "120K €",
       cards: [
-        { name: "Société Dupont", value: "12 000€", contact: "Marc D.", date: "Aujourd'hui" },
-        { name: "TechVision SARL", value: "45 000€", contact: "Sophie L.", date: "Hier" },
-        { name: "Groupe Mathieu", value: "8 500€", contact: "Pierre M.", date: "Il y a 2j" },
+        { name: "Groupe Nexus SA", contact: "Marie Dupont", value: "45K €", days: 2 },
+        { name: "TechFlow Industries", contact: "Paul Martin", value: "32K €", days: 1 },
+        { name: "Meridian Corp", contact: "Sophie Leroy", value: "43K €", days: 3 },
       ],
     },
     {
-      stage: "Qualifié",
+      stage: "Qualification",
       color: "#1a1a2e",
       border: "#d4a843",
+      count: 18,
+      value: "340K €",
       cards: [
-        { name: "InnovatePro", value: "67 000€", contact: "Alice R.", date: "Il y a 1j" },
-        { name: "Médiax Group", value: "23 400€", contact: "Jean-Paul B.", date: "Il y a 3j" },
+        { name: "Innovatech SARL", contact: "Jean Bernard", value: "85K €", days: 7 },
+        { name: "Apex Solutions", contact: "Clara Morin", value: "120K €", days: 5 },
+        { name: "DataSphere Ltd", contact: "Marc Petit", value: "135K €", days: 9 },
       ],
     },
     {
       stage: "Proposition",
       color: "#1a1a2e",
-      border: "#b8943e",
+      border: "#b8972a",
+      count: 11,
+      value: "680K €",
       cards: [
-        { name: "FinanceCore", value: "134 000€", contact: "Nathalie V.", date: "Il y a 2j" },
-        { name: "LogiSmart", value: "89 000€", contact: "Thomas G.", date: "Il y a 4j" },
-        { name: "RetailPlus", value: "15 600€", contact: "Emma S.", date: "Il y a 5j" },
+        { name: "Stratégis Group", contact: "Anne Rousseau", value: "210K €", days: 14 },
+        { name: "Fusion Dynamics", contact: "Luc Garnier", value: "470K €", days: 11 },
       ],
     },
     {
       stage: "Négociation",
       color: "#1a1a2e",
-      border: "#a07830",
+      border: "#a07820",
+      count: 7,
+      value: "890K €",
       cards: [
-        { name: "BuildCorp", value: "210 000€", contact: "Laurent F.", date: "Il y a 3j" },
-        { name: "HealthNet", value: "78 500€", contact: "Carole N.", date: "Il y a 6j" },
+        { name: "Quantum Ventures", contact: "Isabelle Noel", value: "390K €", days: 21 },
+        { name: "Pinnacle Holdings", contact: "Thomas Blanc", value: "500K €", days: 18 },
       ],
     },
     {
-      stage: "Conclu",
+      stage: "Closing",
       color: "#1a1a2e",
-      border: "#6db36d",
+      border: "#c8a96e",
+      count: 4,
+      value: "370K €",
       cards: [
-        { name: "DataSphere", value: "156 000€", contact: "Michel T.", date: "Aujourd'hui" },
-        { name: "CloudBase", value: "43 200€", contact: "Isabelle P.", date: "Hier" },
+        { name: "Elysian Partners", contact: "Camille Faure", value: "180K €", days: 30 },
+        { name: "Vortex Capital", contact: "Nicolas Roy", value: "190K €", days: 28 },
       ],
     },
-  ],
-  activites: [
-    { type: "📞", text: "Appel avec Marc Dupont - FinanceCore", time: "Il y a 10 min", tag: "Appel" },
-    { type: "✉️", text: "Email envoyé à Sophie Laurent - TechVision", time: "Il y a 32 min", tag: "Email" },
-    { type: "🤝", text: "Réunion conclue avec DataSphere", time: "Il y a 1h", tag: "Succès" },
-    { type: "📝", text: "Proposition envoyée à LogiSmart", time: "Il y a 2h", tag: "Devis" },
-    { type: "🔔", text: "Relance Thomas G. planifiée demain", time: "Il y a 3h", tag: "Relance" },
-    { type: "📞", text: "Appel entrant BuildCorp - Laurent F.", time: "Il y a 4h", tag: "Appel" },
-    { type: "✅", text: "Contrat signé CloudBase 43 200€", time: "Hier 16h30", tag: "Succès" },
-    { type: "📊", text: "Présentation Groupe Mathieu validée", time: "Hier 14h00", tag: "Réunion" },
-  ],
-};
+  ];
 
-const tagColors: Record<string, string> = {
-  Appel: "#1e3a5f",
-  Email: "#2d1b4e",
-  Succès: "#1a3d2b",
-  Devis: "#3d2b1a",
-  Relance: "#3d1a1a",
-  Réunion: "#1a2d3d",
-};
+  const activities = [
+    { type: "📞", text: "Appel avec Quantum Ventures", contact: "Isabelle Noel", time: "Il y a 12 min", status: "completed" },
+    { type: "📧", text: "Email envoyé — proposition commerciale", contact: "Stratégis Group", time: "Il y a 45 min", status: "sent" },
+    { type: "🤝", text: "Réunion closing planifiée", contact: "Elysian Partners", time: "Il y a 1h", status: "planned" },
+    { type: "📝", text: "Devis mis à jour", contact: "Fusion Dynamics", time: "Il y a 2h", status: "updated" },
+    { type: "⭐", text: "Nouveau client signé", contact: "Vortex Capital", time: "Il y a 3h", status: "signed" },
+    { type: "🎯", text: "Lead qualifié entrant", contact: "TechFlow Industries", time: "Il y a 4h", status: "new" },
+    { type: "📞", text: "Relance téléphonique", contact: "DataSphere Ltd", time: "Il y a 5h", status: "completed" },
+    { type: "📧", text: "Suivi proposition en attente", contact: "Apex Solutions", time: "Il y a 6h", status: "pending" },
+  ];
 
-const tagTextColors: Record<string, string> = {
-  Appel: "#7eb8f7",
-  Email: "#b07ef7",
-  Succès: "#6ddb8a",
-  Devis: "#f7b07e",
-  Relance: "#f77e7e",
-  Réunion: "#7ec8f7",
-};
-
-export default function CRMDashboard() {
-  const [activeNav, setActiveNav] = useState("Dashboard");
-
-  const navItems = ["Dashboard", "Contacts", "Leads", "Prospects", "Clients", "Rapports"];
+  const statusColor = {
+    completed: "#c8a96e",
+    sent: "#6ea8c8",
+    planned: "#8ec86e",
+    updated: "#c8a96e",
+    signed: "#6ec89a",
+    new: "#e8c98e",
+    pending: "#c86e6e",
+  };
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        backgroundColor: "#050508",
-        fontFamily: "'Segoe UI', system-ui, sans-serif",
-        color: "#e8e0d0",
-      }}
-    >
+    <div style={{ minHeight: "100vh", background: "#050508", fontFamily: "'Segoe UI', Arial, sans-serif", color: "#f0e6d0" }}>
+
       {/* Header */}
-      <div
-        style={{
-          borderBottom: "1px solid rgba(200,169,110,0.2)",
-          backgroundColor: "rgba(5,5,8,0.95)",
-          position: "sticky",
-          top: 0,
-          zIndex: 100,
-          backdropFilter: "blur(10px)",
-        }}
-      >
-        <div
-          style={{
-            maxWidth: "1600px",
-            margin: "0 auto",
-            padding: "0 24px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            height: "64px",
-          }}
-        >
-          {/* Logo */}
-          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-            <div
-              style={{
-                width: "36px",
-                height: "36px",
-                background: "linear-gradient(135deg, #c8a96e, #e8c98e)",
-                borderRadius: "8px",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: "18px",
-                fontWeight: "bold",
-                color: "#050508",
-              }}
+      <div style={{ background: "linear-gradient(135deg, #0d0d18 0%, #0a0a14 100%)", borderBottom: "1px solid #c8a96e33", padding: "0 32px", display: "flex", alignItems: "center", justifyContent: "space-between", height: "64px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <div style={{ width: "36px", height: "36px", background: "linear-gradient(135deg, #c8a96e, #a07820)", borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "18px" }}>⚡</div>
+          <span style={{ fontSize: "20px", fontWeight: "700", color: "#c8a96e", letterSpacing: "0.05em" }}>AURUM CRM</span>
+          <span style={{ fontSize: "11px", color: "#c8a96e66", marginLeft: "4px", letterSpacing: "0.1em" }}>ENTERPRISE</span>
+        </div>
+        <div style={{ display: "flex", gap: "8px" }}>
+          {["dashboard", "contacts", "pipeline", "rapports"].map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              style={{ background: activeTab === tab ? "linear-gradient(135deg, #c8a96e22, #c8a96e11)" : "transparent", border: activeTab === tab ? "1px solid #c8a96e55" : "1px solid transparent", color: activeTab === tab ? "#c8a96e" : "#888", padding: "6px 16px", borderRadius: "6px", cursor: "pointer", fontSize: "13px", fontWeight: activeTab === tab ? "600" : "400", textTransform: "capitalize", letterSpacing: "0.03em", transition: "all 0.2s" }}
             >
-              C
-            </div>
-            <span
-              style={{
-                fontSize: "20px",
-                fontWeight: "700",
-                background: "linear-gradient(135deg, #c8a96e, #e8c98e)",
-                WebkitBackgroundClip: "text",
-                WebkitTextFillColor: "transparent",
-                letterSpacing: "0.5px",
-              }}
-            >
-              CRM Pro
-            </span>
+              {tab.charAt(0).toUpperCase() + tab.slice(1)}
+            </button>
+          ))}
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+          <div style={{ position: "relative" }}>
+            <div style={{ width: "36px", height: "36px", borderRadius: "50%", background: "linear-gradient(135deg, #1a1a2e, #0d0d18)", border: "1px solid #c8a96e44", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "16px", cursor: "pointer" }}>🔔</div>
+            <div style={{ position: "absolute", top: "-2px", right: "-2px", width: "10px", height: "10px", background: "#c8a96e", borderRadius: "50%", border: "2px solid #050508" }}></div>
           </div>
-
-          {/* Nav */}
-          <nav style={{ display: "flex", gap: "4px" }}>
-            {navItems.map((item) => (
-              <button
-                key={item}
-                onClick={() => setActiveNav(item)}
-                style={{
-                  padding: "8px 16px",
-                  borderRadius: "8px",
-                  border: "none",
-                  cursor: "pointer",
-                  fontSize: "14px",
-                  fontWeight: activeNav === item ? "600" : "400",
-                  backgroundColor: activeNav === item ? "rgba(200,169,110,0.15)" : "transparent",
-                  color: activeNav === item ? "#c8a96e" : "#888",
-                  transition: "all 0.2s",
-                }}
-              >
-                {item}
-              </button>
-            ))}
-          </nav>
-
-          {/* User */}
-          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-            <div
-              style={{
-                width: "10px",
-                height: "10px",
-                borderRadius: "50%",
-                backgroundColor: "#6ddb8a",
-                boxShadow: "0 0 8px #6ddb8a",
-              }}
-            />
-            <div
-              style={{
-                width: "36px",
-                height: "36px",
-                borderRadius: "50%",
-                background: "linear-gradient(135deg, #c8a96e, #8a6430)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: "14px",
-                fontWeight: "600",
-                color: "#050508",
-                cursor: "pointer",
-              }}
-            >
-              AD
-            </div>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", background: "#0d0d18", border: "1px solid #c8a96e22", borderRadius: "8px", padding: "6px 12px", cursor: "pointer" }}>
+            <div style={{ width: "28px", height: "28px", borderRadius: "50%", background: "linear-gradient(135deg, #c8a96e, #a07820)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "13px", fontWeight: "700", color: "#050508" }}>AD</div>
+            <span style={{ fontSize: "13px", color: "#c8a96e" }}>Alexandre D.</span>
           </div>
         </div>
       </div>
 
-      {/* Main */}
-      <div
-        style={{
-          maxWidth: "1600px",
-          margin: "0 auto",
-          padding: "32px 24px",
-        }}
-      >
+      <div style={{ padding: "32px" }}>
+
         {/* Page Title */}
-        <div style={{ marginBottom: "32px" }}>
-          <h1
-            style={{
-              fontSize: "28px",
-              fontWeight: "700",
-              color: "#e8e0d0",
-              margin: "0 0 6px 0",
-            }}
-          >
-            Dashboard
-          </h1>
-          <p style={{ color: "#666", fontSize: "14px", margin: 0 }}>
-            Vue d'ensemble de votre pipeline commercial
-          </p>
+        <div style={{ marginBottom: "28px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div>
+            <h1 style={{ margin: "0 0 4px 0", fontSize: "28px", fontWeight: "700", color: "#c8a96e" }}>Tableau de Bord</h1>
+            <p style={{ margin: "0", fontSize: "13px", color: "#888", letterSpacing: "0.03em" }}>Vue globale de votre activité commerciale — Mis à jour il y a 3 min</p>
+          </div>
+          <div style={{ display: "flex", gap: "10px" }}>
+            <button style={{ background: "transparent", border: "1px solid #c8a96e44", color: "#c8a96e", padding: "8px 16px", borderRadius: "8px", cursor: "pointer", fontSize: "13px", display: "flex", alignItems: "center", gap: "6px" }}>
+              📅 Ce trimestre
+            </button>
+            <button style={{ background: "linear-gradient(135deg, #c8a96e, #a07820)", border: "none", color: "#050508", padding: "8px 20px", borderRadius: "8px", cursor: "pointer", fontSize: "13px", fontWeight: "700" }}>
+              + Nouveau Lead
+            </button>
+          </div>
         </div>
 
-        {/* KPIs */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(6, 1fr)",
-            gap: "16px",
-            marginBottom: "32px",
-          }}
-        >
-          {data.kpis.map((kpi, i) => (
+        {/* KPI Cards */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: "16px", marginBottom: "28px" }}>
+          {kpis.map((kpi, i) => (
             <div
               key={i}
-              style={{
-                backgroundColor: "#0d0d14",
-                border: "1px solid rgba(200,169,110,0.15)",
-                borderRadius: "16px",
-                padding: "20px",
-                position: "relative",
-                overflow: "hidden",
-                transition: "transform 0.2s, border-color 0.2s",
-                cursor: "default",
-              }}
-              onMouseEnter={(e) => {
-                (e.currentTarget as HTMLDivElement).style.borderColor = "rgba(200,169,110,0.4)";
-                (e.currentTarget as HTMLDivElement).style.transform = "translateY(-2px)";
-              }}
-              onMouseLeave={(e) => {
-                (e.currentTarget as HTMLDivElement).style.borderColor = "rgba(200,169,110,0.15)";
-                (e.currentTarget as HTMLDivElement).style.transform = "translateY(0)";
-              }}
+              onMouseEnter={() => setHoveredCard(i)}
+              onMouseLeave={() => setHoveredCard(null)}
+              style={{ background: hoveredCard === i ? "linear-gradient(135deg, #111124 0%, #0d0d1e 100%)" : "linear-gradient(135deg, #0d0d1e 0%, #080810 100%)", border: hoveredCard === i ? "1px solid #c8a96e88" : "1px solid #c8a96e22", borderRadius: "12px", padding: "20px", cursor: "pointer", transition: "all 0.3s", position: "relative", overflow: "hidden" }}
             >
-              <div
-                style={{
-                  position: "absolute",
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  height: "2px",
-                  background: "linear-gradient(90deg, #c8a96e, #e8c98e)",
-                  opacity: 0.6,
-                }}
-              />
-              <div style={{ fontSize: "24px", marginBottom: "12px" }}>{kpi.icon}</div>
-              <div style={{ fontSize: "22px", fontWeight: "700", color: "#e8e0d0", marginBottom: "4px" }}>
-                {kpi.value}
-              </div>
-              <div style={{ fontSize: "12px", color: "#888", marginBottom: "8px" }}>{kpi.label}</div>
-              <div
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "4px",
-                  backgroundColor: "rgba(109,219,138,0.1)",
-                  color: "#6ddb8a",
-                  fontSize: "11px",
-                  fontWeight: "600",
-                  padding: "3px 8px",
-                  borderRadius: "20px",
-                }}
-              >
-                ↑ {kpi.delta}
-              </div>
+              <div style={{ position: "absolute", top: "0", right: "0", width: "60px", height: "60px", background: "radial-gradient(circle, #c8a96e08 0%, transparent 70%)", borderRadius: "0 12px 0 0" }}></div>
+              <div style={{ fontSize: "24px", marginBottom: "10px" }}>{kpi.icon}</div>
+              <div style={{ fontSize: "22px", fontWeight: "700", color: "#f0e6d0", marginBottom: "4px" }}>{kpi.value}</div>
+              <div style={{ fontSize: "11px", color: "#888", marginBottom: "8px", letterSpacing: "0.05em", textTransform: "uppercase" }}>{kpi.label}</div>
+              <div style={{ display: "inline-block", fontSize: "11px", fontWeight: "600", color: "#6ec89a", background: "#6ec89a15", padding: "2px 8px", borderRadius: "20px" }}>{kpi.delta} vs trim. préc.</div>
             </div>
           ))}
         </div>
 
-        {/* Pipeline + Activités */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 360px", gap: "24px" }}>
-          {/* Pipeline Kanban */}
-          <div>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                marginBottom: "20px",
-              }}
-            >
-              <h2 style={{ fontSize: "18px", fontWeight: "600", color: "#e8e0d0", margin: 0 }}>
-                Pipeline Commercial
-              </h2>
-              <div style={{ display: "flex", gap: "8px" }}>
-                <button
-                  style={{
-                    padding: "8px 16px",
-                    borderRadius: "8px",
-                    border: "1px solid rgba(200,169,110,0.3)",
-                    backgroundColor: "transparent",
-                    color: "#c8a96e",
-                    fontSize: "13px",
-                    cursor: "pointer",
-                  }}
-                >
-                  + Nouvelle opportunité
-                </button>
+        {/* Main Content Grid */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: "24px", marginBottom: "28px" }}>
+
+          {/* Pipeline Chart Visual */}
+          <div style={{ background: "linear-gradient(135deg, #0d0d1e 0%, #080810 100%)", border: "1px solid #c8a96e22", borderRadius: "12px", padding: "24px" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "24px" }}>
+              <div>
+                <h2 style={{ margin: "0 0 4px 0", fontSize: "16px", fontWeight: "700", color: "#c8a96e" }}>Répartition du Pipeline</h2>
+                <p style={{ margin: "0", fontSize: "12px", color: "#666" }}>Valeur par étape de vente</p>
               </div>
+              <div style={{ fontSize: "13px", color: "#888" }}>Total : <span style={{ color: "#c8a96e", fontWeight: "700" }}>2,4M €</span></div>
             </div>
-
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: "12px" }}>
-              {data.pipeline.map((col, ci) => (
-                <div key={ci}>
-                  {/* Column Header */}
-                  <div
-                    style={{
-                      padding: "10px 12px",
-                      borderRadius: "10px 10px 0 0",
-                      backgroundColor: "#0d0d14",
-                      borderTop: "3px solid " + col.border,
-                      borderLeft: "1px solid rgba(200,169,110,0.1)",
-                      borderRight: "1px solid rgba(200,169,110,0.1)",
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      marginBottom: "2px",
-                    }}
-                  >
-                    <span style={{ fontSize: "12px", fontWeight: "600", color: col.border }}>
-                      {col.stage}
-                    </span>
-                    <span
-                      style={{
-                        fontSize: "11px",
-                        color: "#666",
-                        backgroundColor: "rgba(255,255,255,0.05)",
-                        borderRadius: "10px",
-                        padding: "2px 7px",
-                      }}
-                    >
-                      {col.cards.length}
-                    </span>
-                  </div>
-
-                  {/* Cards */}
+            <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+              {pipeline.map((stage, i) => {
+                const totalVal = 2400;
+                const vals = [120, 340, 680, 890, 370];
+                const pct = Math.round((vals[i] / totalVal) * 100);
+                return (
+                  <div key={i}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
+                      <span style={{ fontSize: "13px", color: "#ccc" }}>{stage.stage}</span>
+                      <div style={{ display: "flex", gap: "16px" }}>
+                        <span style={{ fontSize: "12px", color: "#888" }}>{stage.count} deals</span>
+                        <span style={{ fontSize: "13px", fontWeight: "600", color: "#c8a96e" }}>{stage.value}</span>
+                        <span style={{ fontSize: "12px", color: "#666" }}>{pct}%</span>
+                      </div>
+                    </div>
