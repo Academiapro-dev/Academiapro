@@ -1,407 +1,536 @@
-import React, { useState, useEffect } from "react";
+"use client";
+import { useState } from "react";
 
-interface CertificateData {
-  numero: string;
-  nomFormation: string;
-  date: string;
-  mention: string;
-  titulaire: string;
-  valide: boolean;
-}
+export default function CertificatPage() {
+  const [code, setCode] = useState("");
+  const [resultat, setResultat] = useState(null);
 
-interface Props {
-  params: {
-    numero: string;
-  };
-}
-
-const certificatesDatabase: Record<string, CertificateData> = {
-  "CERT-2024-001": {
-    numero: "CERT-2024-001",
-    nomFormation: "Développement Web Avancé",
-    date: "15 Mars 2024",
-    mention: "Très Bien",
-    titulaire: "Jean Dupont",
-    valide: true,
-  },
-  "CERT-2024-002": {
-    numero: "CERT-2024-002",
-    nomFormation: "Intelligence Artificielle Fondamentaux",
-    date: "22 Juin 2024",
-    mention: "Bien",
-    titulaire: "Marie Martin",
-    valide: true,
-  },
-  "CERT-2024-003": {
-    numero: "CERT-2024-003",
-    nomFormation: "Cybersécurité Professionnelle",
-    date: "10 Septembre 2024",
-    mention: "Excellent",
-    titulaire: "Pierre Bernard",
-    valide: true,
-  },
-};
-
-export default function VerificationCertificat({ params }: Props) {
-  const [certificate, setCertificate] = useState<CertificateData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [found, setFound] = useState(false);
-  const [animationStep, setAnimationStep] = useState(0);
-
-  const numero = params.numero;
-
-  useEffect(() => {
-    setLoading(true);
-    setAnimationStep(0);
-
-    const timer1 = setTimeout(() => {
-      setAnimationStep(1);
-    }, 500);
-
-    const timer2 = setTimeout(() => {
-      setAnimationStep(2);
-    }, 1200);
-
-    const timer3 = setTimeout(() => {
-      const cert = certificatesDatabase[numero];
-      if (cert) {
-        setCertificate(cert);
-        setFound(true);
-      } else {
-        setCertificate(null);
-        setFound(false);
-      }
-      setLoading(false);
-      setAnimationStep(3);
-    }, 2000);
-
-    return () => {
-      clearTimeout(timer1);
-      clearTimeout(timer2);
-      clearTimeout(timer3);
-    };
-  }, [numero]);
-
-  const containerStyle: React.CSSProperties = {
-    minHeight: "100vh",
-    background: "linear-gradient(135deg, #050508 0%, #0d0d1a 50%, #050508 100%)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontFamily: "'Segoe UI', system-ui, -apple-system, sans-serif",
-    padding: "20px",
-    position: "relative",
-    overflow: "hidden",
+  const certificats = {
+    "CERT-2024-001": {
+      nom: "Jean-Pierre Moreau",
+      formation: "Excellence en Leadership",
+      date: "15 Mars 2024",
+      organisme: "Institut Prestige",
+      mention: "Très Bien",
+      valide: true,
+    },
+    "CERT-2024-002": {
+      nom: "Sophie Durand",
+      formation: "Management Avancé",
+      date: "22 Avril 2024",
+      organisme: "Institut Prestige",
+      mention: "Excellent",
+      valide: true,
+    },
+    "CERT-2024-003": {
+      nom: "Marc Leblanc",
+      formation: "Digital Strategy",
+      date: "10 Mai 2024",
+      organisme: "Institut Prestige",
+      mention: "Bien",
+      valide: true,
+    },
   };
 
-  const backgroundOrbStyle1: React.CSSProperties = {
-    position: "absolute",
-    top: "-200px",
-    right: "-200px",
-    width: "500px",
-    height: "500px",
-    background: "radial-gradient(circle, rgba(200, 169, 110, 0.08) 0%, transparent 70%)",
-    borderRadius: "50%",
-    pointerEvents: "none",
-  };
-
-  const backgroundOrbStyle2: React.CSSProperties = {
-    position: "absolute",
-    bottom: "-200px",
-    left: "-200px",
-    width: "400px",
-    height: "400px",
-    background: "radial-gradient(circle, rgba(200, 169, 110, 0.05) 0%, transparent 70%)",
-    borderRadius: "50%",
-    pointerEvents: "none",
-  };
-
-  const cardStyle: React.CSSProperties = {
-    background: "linear-gradient(145deg, #0e0e1c 0%, #12121f 100%)",
-    border: "1px solid rgba(200, 169, 110, 0.2)",
-    borderRadius: "24px",
-    padding: "48px",
-    maxWidth: "600px",
-    width: "100%",
-    boxShadow: "0 25px 80px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(200, 169, 110, 0.05), inset 0 1px 0 rgba(200, 169, 110, 0.1)",
-    position: "relative",
-  };
-
-  const cardTopAccentStyle: React.CSSProperties = {
-    position: "absolute",
-    top: 0,
-    left: "50%",
-    transform: "translateX(-50%)",
-    width: "60%",
-    height: "1px",
-    background: "linear-gradient(90deg, transparent, #c8a96e, transparent)",
-  };
-
-  const logoContainerStyle: React.CSSProperties = {
-    textAlign: "center",
-    marginBottom: "32px",
-  };
-
-  const logoIconStyle: React.CSSProperties = {
-    width: "64px",
-    height: "64px",
-    background: "linear-gradient(135deg, #c8a96e, #a8894e)",
-    borderRadius: "16px",
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: "16px",
-    boxShadow: "0 8px 32px rgba(200, 169, 110, 0.3)",
-  };
-
-  const titleStyle: React.CSSProperties = {
-    color: "#c8a96e",
-    fontSize: "24px",
-    fontWeight: "700",
-    letterSpacing: "0.05em",
-    margin: "0 0 4px 0",
-    textTransform: "uppercase",
-  };
-
-  const subtitleStyle: React.CSSProperties = {
-    color: "rgba(200, 169, 110, 0.5)",
-    fontSize: "13px",
-    fontWeight: "400",
-    letterSpacing: "0.15em",
-    margin: 0,
-    textTransform: "uppercase",
-  };
-
-  const dividerStyle: React.CSSProperties = {
-    height: "1px",
-    background: "linear-gradient(90deg, transparent, rgba(200, 169, 110, 0.2), transparent)",
-    margin: "24px 0",
-  };
-
-  const numeroBadgeStyle: React.CSSProperties = {
-    background: "rgba(200, 169, 110, 0.08)",
-    border: "1px solid rgba(200, 169, 110, 0.2)",
-    borderRadius: "12px",
-    padding: "12px 20px",
-    display: "flex",
-    alignItems: "center",
-    gap: "12px",
-    marginBottom: "24px",
-  };
-
-  const numeroLabelStyle: React.CSSProperties = {
-    color: "rgba(200, 169, 110, 0.6)",
-    fontSize: "11px",
-    fontWeight: "600",
-    letterSpacing: "0.15em",
-    textTransform: "uppercase",
-  };
-
-  const numeroValueStyle: React.CSSProperties = {
-    color: "#c8a96e",
-    fontSize: "16px",
-    fontWeight: "700",
-    letterSpacing: "0.05em",
-    fontFamily: "'Courier New', monospace",
-  };
-
-  const loadingContainerStyle: React.CSSProperties = {
-    textAlign: "center",
-    padding: "24px 0",
-  };
-
-  const spinnerStyle: React.CSSProperties = {
-    width: "48px",
-    height: "48px",
-    border: "3px solid rgba(200, 169, 110, 0.1)",
-    borderTop: "3px solid #c8a96e",
-    borderRadius: "50%",
-    animation: "spin 1s linear infinite",
-    margin: "0 auto 20px",
-  };
-
-  const loadingStepStyle = (active: boolean): React.CSSProperties => ({
-    display: "flex",
-    alignItems: "center",
-    gap: "12px",
-    padding: "8px 0",
-    opacity: active ? 1 : 0.3,
-    transition: "opacity 0.5s ease",
-  });
-
-  const loadingDotStyle = (active: boolean): React.CSSProperties => ({
-    width: "8px",
-    height: "8px",
-    borderRadius: "50%",
-    background: active ? "#c8a96e" : "rgba(200, 169, 110, 0.3)",
-    transition: "background 0.5s ease",
-    flexShrink: 0,
-  });
-
-  const loadingTextStyle: React.CSSProperties = {
-    color: "rgba(200, 169, 110, 0.7)",
-    fontSize: "14px",
-    fontWeight: "500",
-  };
-
-  const resultContainerStyle: React.CSSProperties = {
-    opacity: animationStep === 3 ? 1 : 0,
-    transform: animationStep === 3 ? "translateY(0)" : "translateY(20px)",
-    transition: "all 0.6s cubic-bezier(0.34, 1.56, 0.64, 1)",
-  };
-
-  const statusBannerStyle = (isValid: boolean): React.CSSProperties => ({
-    background: isValid
-      ? "linear-gradient(135deg, rgba(34, 197, 94, 0.1) 0%, rgba(21, 128, 61, 0.05) 100%)"
-      : "linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(185, 28, 28, 0.05) 100%)",
-    border: isValid
-      ? "1px solid rgba(34, 197, 94, 0.3)"
-      : "1px solid rgba(239, 68, 68, 0.3)",
-    borderRadius: "16px",
-    padding: "20px 24px",
-    display: "flex",
-    alignItems: "center",
-    gap: "16px",
-    marginBottom: "24px",
-  });
-
-  const statusIconStyle = (isValid: boolean): React.CSSProperties => ({
-    width: "48px",
-    height: "48px",
-    borderRadius: "50%",
-    background: isValid
-      ? "rgba(34, 197, 94, 0.15)"
-      : "rgba(239, 68, 68, 0.15)",
-    border: isValid
-      ? "2px solid rgba(34, 197, 94, 0.4)"
-      : "2px solid rgba(239, 68, 68, 0.4)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
-    fontSize: "20px",
-  });
-
-  const statusTextContainerStyle: React.CSSProperties = {
-    flex: 1,
-  };
-
-  const statusTitleStyle = (isValid: boolean): React.CSSProperties => ({
-    color: isValid ? "#22c55e" : "#ef4444",
-    fontSize: "18px",
-    fontWeight: "700",
-    margin: "0 0 2px 0",
-    letterSpacing: "0.02em",
-  });
-
-  const statusDescStyle: React.CSSProperties = {
-    color: "rgba(255, 255, 255, 0.4)",
-    fontSize: "13px",
-    margin: 0,
-  };
-
-  const detailsGridStyle: React.CSSProperties = {
-    display: "grid",
-    gridTemplateColumns: "1fr 1fr",
-    gap: "12px",
-    marginBottom: "20px",
-  };
-
-  const detailCardStyle: React.CSSProperties = {
-    background: "rgba(255, 255, 255, 0.02)",
-    border: "1px solid rgba(200, 169, 110, 0.1)",
-    borderRadius: "12px",
-    padding: "16px",
-  };
-
-  const detailCardFullStyle: React.CSSProperties = {
-    background: "rgba(255, 255, 255, 0.02)",
-    border: "1px solid rgba(200, 169, 110, 0.1)",
-    borderRadius: "12px",
-    padding: "16px",
-    gridColumn: "1 / -1",
-  };
-
-  const detailLabelStyle: React.CSSProperties = {
-    color: "rgba(200, 169, 110, 0.5)",
-    fontSize: "10px",
-    fontWeight: "700",
-    letterSpacing: "0.2em",
-    textTransform: "uppercase",
-    marginBottom: "6px",
-  };
-
-  const detailValueStyle: React.CSSProperties = {
-    color: "#e8e8e8",
-    fontSize: "15px",
-    fontWeight: "600",
-    letterSpacing: "0.01em",
-  };
-
-  const mentionStyle = (mention: string): React.CSSProperties => {
-    let color = "#c8a96e";
-    if (mention === "Excellent" || mention === "Très Bien") {
-      color = "#22c55e";
-    } else if (mention === "Bien") {
-      color = "#3b82f6";
-    } else if (mention === "Assez Bien") {
-      color = "#a855f7";
+  function verifier() {
+    if (!code.trim()) return;
+    const trouve = certificats[code.trim().toUpperCase()];
+    if (trouve) {
+      setResultat({ ...trouve, code: code.trim().toUpperCase() });
+    } else {
+      setResultat({ valide: false, code: code.trim().toUpperCase() });
     }
-    return {
-      color: color,
-      fontSize: "15px",
-      fontWeight: "700",
-    };
-  };
+  }
 
-  const notFoundContainerStyle: React.CSSProperties = {
-    textAlign: "center",
-    padding: "16px 0",
-  };
+  function reset() {
+    setCode("");
+    setResultat(null);
+  }
 
-  const notFoundIconStyle: React.CSSProperties = {
-    width: "72px",
-    height: "72px",
-    borderRadius: "50%",
-    background: "rgba(239, 68, 68, 0.1)",
-    border: "2px solid rgba(239, 68, 68, 0.3)",
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: "16px",
-    fontSize: "28px",
-  };
+  return (
+    <div
+      style={{
+        minHeight: "100vh",
+        backgroundColor: "#050508",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        fontFamily: "Georgia, serif",
+        padding: "40px 20px",
+      }}
+    >
+      <div
+        style={{
+          width: "100%",
+          maxWidth: "680px",
+        }}
+      >
+        <div
+          style={{
+            textAlign: "center",
+            marginBottom: "50px",
+          }}
+        >
+          <div
+            style={{
+              width: "70px",
+              height: "70px",
+              borderRadius: "50%",
+              border: "2px solid #c8a96e",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              margin: "0 auto 24px auto",
+            }}
+          >
+            <svg
+              width="32"
+              height="32"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="#c8a96e"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <circle cx="12" cy="8" r="4" />
+              <path d="M9 12l-4 8 7-2 7 2-4-8" />
+            </svg>
+          </div>
 
-  const notFoundTitleStyle: React.CSSProperties = {
-    color: "#ef4444",
-    fontSize: "22px",
-    fontWeight: "700",
-    margin: "0 0 8px 0",
-  };
+          <div
+            style={{
+              fontSize: "11px",
+              letterSpacing: "4px",
+              color: "#c8a96e",
+              textTransform: "uppercase",
+              marginBottom: "14px",
+            }}
+          >
+            Institut Prestige
+          </div>
 
-  const notFoundTextStyle: React.CSSProperties = {
-    color: "rgba(255, 255, 255, 0.4)",
-    fontSize: "14px",
-    margin: "0 0 20px 0",
-    lineHeight: "1.6",
-  };
+          <h1
+            style={{
+              fontSize: "32px",
+              fontWeight: "300",
+              color: "#f5f0e8",
+              margin: "0 0 12px 0",
+              letterSpacing: "1px",
+            }}
+          >
+            Vérification de Certificat
+          </h1>
 
-  const warningBoxStyle: React.CSSProperties = {
-    background: "rgba(239, 68, 68, 0.05)",
-    border: "1px solid rgba(239, 68, 68, 0.15)",
-    borderRadius: "12px",
-    padding: "16px",
-    textAlign: "left",
-  };
+          <p
+            style={{
+              fontSize: "14px",
+              color: "#7a7060",
+              margin: "0",
+              lineHeight: "1.7",
+            }}
+          >
+            Entrez le numéro de certificat pour confirmer son authenticité
+          </p>
+        </div>
 
-  const warningTitleStyle: React.CSSProperties = {
-    color: "rgba(239, 68, 68, 0.8)",
-    fontSize: "12px",
-    fontWeight: "700",
-    letterSpacing: "0.1em",
-    textTransform: "uppercase",
-    marginBottom: "8px",
-  };
+        <div
+          style={{
+            backgroundColor: "#0d0d12",
+            border: "1px solid #1e1c26",
+            borderRadius: "12px",
+            padding: "40px",
+            marginBottom: "32px",
+          }}
+        >
+          <label
+            style={{
+              display: "block",
+              fontSize: "11px",
+              letterSpacing: "3px",
+              color: "#c8a96e",
+              textTransform: "uppercase",
+              marginBottom: "14px",
+            }}
+          >
+            Numéro de Certificat
+          </label>
 
-  const warningItemStyle: React.CSSProperties = {
-    color
+          <div
+            style={{
+              display: "flex",
+              gap: "12px",
+            }}
+          >
+            <input
+              type="text"
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && verifier()}
+              placeholder="Ex: CERT-2024-001"
+              style={{
+                flex: "1",
+                backgroundColor: "#08080e",
+                border: "1px solid #2a2630",
+                borderRadius: "8px",
+                padding: "14px 18px",
+                color: "#f5f0e8",
+                fontSize: "15px",
+                fontFamily: "Georgia, serif",
+                letterSpacing: "1px",
+                outline: "none",
+              }}
+            />
+
+            <button
+              onClick={verifier}
+              style={{
+                backgroundColor: "#c8a96e",
+                border: "none",
+                borderRadius: "8px",
+                padding: "14px 28px",
+                color: "#050508",
+                fontSize: "13px",
+                fontWeight: "bold",
+                letterSpacing: "2px",
+                textTransform: "uppercase",
+                cursor: "pointer",
+                fontFamily: "Georgia, serif",
+                whiteSpace: "nowrap",
+              }}
+            >
+              Vérifier
+            </button>
+          </div>
+
+          <div
+            style={{
+              marginTop: "20px",
+              display: "flex",
+              gap: "10px",
+              flexWrap: "wrap",
+            }}
+          >
+            <span
+              style={{
+                fontSize: "11px",
+                color: "#3a3640",
+                letterSpacing: "1px",
+              }}
+            >
+              Exemples :
+            </span>
+            {["CERT-2024-001", "CERT-2024-002", "CERT-2024-003"].map((ex) => (
+              <button
+                key={ex}
+                onClick={() => setCode(ex)}
+                style={{
+                  backgroundColor: "transparent",
+                  border: "1px solid #2a2630",
+                  borderRadius: "4px",
+                  padding: "3px 10px",
+                  color: "#5a5560",
+                  fontSize: "11px",
+                  cursor: "pointer",
+                  fontFamily: "Georgia, serif",
+                  letterSpacing: "1px",
+                }}
+              >
+                {ex}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {resultat && (
+          <div
+            style={{
+              backgroundColor: "#0d0d12",
+              border: resultat.valide ? "1px solid #1a3a1a" : "1px solid #3a1a1a",
+              borderRadius: "12px",
+              overflow: "hidden",
+            }}
+          >
+            <div
+              style={{
+                backgroundColor: resultat.valide ? "#0a1f0a" : "#1f0a0a",
+                padding: "20px 32px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "14px",
+                }}
+              >
+                <div
+                  style={{
+                    width: "40px",
+                    height: "40px",
+                    borderRadius: "50%",
+                    backgroundColor: resultat.valide ? "#0f2e0f" : "#2e0f0f",
+                    border: resultat.valide ? "1px solid #2a6a2a" : "1px solid #6a2a2a",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: "0",
+                  }}
+                >
+                  {resultat.valide ? (
+                    <svg
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="#4caf50"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  ) : (
+                    <svg
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="#ef5350"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <line x1="18" y1="6" x2="6" y2="18" />
+                      <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                  )}
+                </div>
+
+                <div>
+                  <div
+                    style={{
+                      fontSize: "16px",
+                      fontWeight: "bold",
+                      color: resultat.valide ? "#4caf50" : "#ef5350",
+                      letterSpacing: "1px",
+                    }}
+                  >
+                    {resultat.valide ? "Certificat Authentique" : "Non Reconnu"}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "12px",
+                      color: resultat.valide ? "#2e6e2e" : "#6e2e2e",
+                      marginTop: "2px",
+                      letterSpacing: "1px",
+                    }}
+                  >
+                    {resultat.code}
+                  </div>
+                </div>
+              </div>
+
+              <button
+                onClick={reset}
+                style={{
+                  backgroundColor: "transparent",
+                  border: "1px solid #2a2630",
+                  borderRadius: "6px",
+                  padding: "8px 16px",
+                  color: "#5a5560",
+                  fontSize: "11px",
+                  cursor: "pointer",
+                  fontFamily: "Georgia, serif",
+                  letterSpacing: "2px",
+                  textTransform: "uppercase",
+                }}
+              >
+                Nouveau
+              </button>
+            </div>
+
+            {resultat.valide && (
+              <div
+                style={{
+                  padding: "32px",
+                }}
+              >
+                <div
+                  style={{
+                    borderBottom: "1px solid #1e1c26",
+                    paddingBottom: "24px",
+                    marginBottom: "24px",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: "11px",
+                      letterSpacing: "3px",
+                      color: "#c8a96e",
+                      textTransform: "uppercase",
+                      marginBottom: "8px",
+                    }}
+                  >
+                    Titulaire
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "26px",
+                      color: "#f5f0e8",
+                      fontWeight: "300",
+                      letterSpacing: "1px",
+                    }}
+                  >
+                    {resultat.nom}
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr",
+                    gap: "24px",
+                  }}
+                >
+                  <div>
+                    <div
+                      style={{
+                        fontSize: "10px",
+                        letterSpacing: "3px",
+                        color: "#4a4650",
+                        textTransform: "uppercase",
+                        marginBottom: "6px",
+                      }}
+                    >
+                      Formation
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "15px",
+                        color: "#c8baa0",
+                      }}
+                    >
+                      {resultat.formation}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div
+                      style={{
+                        fontSize: "10px",
+                        letterSpacing: "3px",
+                        color: "#4a4650",
+                        textTransform: "uppercase",
+                        marginBottom: "6px",
+                      }}
+                    >
+                      Date de Délivrance
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "15px",
+                        color: "#c8baa0",
+                      }}
+                    >
+                      {resultat.date}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div
+                      style={{
+                        fontSize: "10px",
+                        letterSpacing: "3px",
+                        color: "#4a4650",
+                        textTransform: "uppercase",
+                        marginBottom: "6px",
+                      }}
+                    >
+                      Organisme
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "15px",
+                        color: "#c8baa0",
+                      }}
+                    >
+                      {resultat.organisme}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div
+                      style={{
+                        fontSize: "10px",
+                        letterSpacing: "3px",
+                        color: "#4a4650",
+                        textTransform: "uppercase",
+                        marginBottom: "6px",
+                      }}
+                    >
+                      Mention
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "15px",
+                        color: "#c8a96e",
+                        fontWeight: "bold",
+                      }}
+                    >
+                      {resultat.mention}
+                    </div>
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    marginTop: "28px",
+                    paddingTop: "24px",
+                    borderTop: "1px solid #1e1c26",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "10px",
+                  }}
+                >
+                  <div
+                    style={{
+                      width: "8px",
+                      height: "8px",
+                      borderRadius: "50%",
+                      backgroundColor: "#4caf50",
+                    }}
+                  />
+                  <span
+                    style={{
+                      fontSize: "12px",
+                      color: "#3a5a3a",
+                      letterSpacing: "2px",
+                    }}
+                  >
+                    Vérifié et validé par Institut Prestige
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {!resultat.valide && (
+              <div
+                style={{
+                  padding: "32px",
+                  textAlign: "center",
+                }}
+              >
+                <p
+                  style={{
+                    color: "#6a3a3a",
+                    fontSize: "14px",
+                    lineHeight: "1.8",
+                    margin: "0 0 16px 0",
+                  }}
+                >
+                  Le numéro <span style={{ color:
