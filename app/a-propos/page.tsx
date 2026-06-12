@@ -1,395 +1,139 @@
-import React from 'react';
+"use client";
+import { useState } from "react";
 
-const AboutPage: React.FC = () => {
-  const styles = {
-    page: {
-      backgroundColor: '#050508',
-      minHeight: '100vh',
-      fontFamily: "'Segoe UI', system-ui, sans-serif",
-      color: '#ffffff',
-      overflowX: 'hidden' as const,
-    },
-    heroSection: {
-      position: 'relative' as const,
-      padding: '100px 24px 80px',
-      textAlign: 'center' as const,
-      background: 'linear-gradient(180deg, #0d0d18 0%, #050508 100%)',
-    },
-    badge: {
-      display: 'inline-block',
-      backgroundColor: 'rgba(200, 169, 110, 0.12)',
-      border: '1px solid rgba(200, 169, 110, 0.4)',
-      color: '#c8a96e',
-      fontSize: '12px',
-      fontWeight: '600' as const,
-      letterSpacing: '3px',
-      textTransform: 'uppercase' as const,
-      padding: '8px 20px',
-      borderRadius: '50px',
-      marginBottom: '32px',
-    },
-    heroTitle: {
-      fontSize: 'clamp(36px, 6vw, 72px)',
-      fontWeight: '800' as const,
-      lineHeight: '1.1',
-      margin: '0 auto 24px',
-      maxWidth: '800px',
-    },
-    titleSpan: {
-      background: 'linear-gradient(135deg, #c8a96e 0%, #f0d5a0 50%, #c8a96e 100%)',
-      WebkitBackgroundClip: 'text' as const,
-      WebkitTextFillColor: 'transparent' as const,
-      backgroundClip: 'text' as const,
-    },
-    heroSubtitle: {
-      fontSize: '18px',
-      color: 'rgba(255,255,255,0.6)',
-      maxWidth: '600px',
-      margin: '0 auto',
-      lineHeight: '1.7',
-    },
-    decorLine: {
-      width: '60px',
-      height: '3px',
-      background: 'linear-gradient(90deg, #c8a96e, #f0d5a0)',
-      margin: '40px auto 0',
-      borderRadius: '2px',
-    },
-    section: {
-      padding: '80px 24px',
-      maxWidth: '1100px',
-      margin: '0 auto',
-    },
-    sectionLabel: {
-      display: 'flex',
-      alignItems: 'center',
-      gap: '12px',
-      marginBottom: '16px',
-    },
-    sectionLabelLine: {
-      width: '32px',
-      height: '2px',
-      backgroundColor: '#c8a96e',
-      borderRadius: '2px',
-    },
-    sectionLabelText: {
-      color: '#c8a96e',
-      fontSize: '12px',
-      fontWeight: '700' as const,
-      letterSpacing: '3px',
-      textTransform: 'uppercase' as const,
-    },
-    sectionTitle: {
-      fontSize: 'clamp(28px, 4vw, 44px)',
-      fontWeight: '700' as const,
-      lineHeight: '1.2',
-      marginBottom: '20px',
-      color: '#ffffff',
-    },
-    sectionText: {
-      fontSize: '16px',
-      color: 'rgba(255,255,255,0.6)',
-      lineHeight: '1.8',
-      maxWidth: '600px',
-    },
-    missionCard: {
-      background: 'linear-gradient(135deg, rgba(200,169,110,0.08) 0%, rgba(200,169,110,0.03) 100%)',
-      border: '1px solid rgba(200,169,110,0.2)',
-      borderRadius: '24px',
-      padding: '48px',
-      position: 'relative' as const,
-      overflow: 'hidden' as const,
-    },
-    missionGlow: {
-      position: 'absolute' as const,
-      top: '-80px',
-      right: '-80px',
-      width: '300px',
-      height: '300px',
-      background: 'radial-gradient(circle, rgba(200,169,110,0.08) 0%, transparent 70%)',
-      borderRadius: '50%',
-      pointerEvents: 'none' as const,
-    },
-    missionGrid: {
-      display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-      gap: '32px',
-      marginTop: '48px',
-    },
-    missionItem: {
-      display: 'flex',
-      flexDirection: 'column' as const,
-      gap: '12px',
-    },
-    missionIcon: {
-      width: '48px',
-      height: '48px',
-      borderRadius: '12px',
-      backgroundColor: 'rgba(200,169,110,0.1)',
-      border: '1px solid rgba(200,169,110,0.25)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      fontSize: '22px',
-    },
-    missionItemTitle: {
-      fontSize: '18px',
-      fontWeight: '700' as const,
-      color: '#ffffff',
-    },
-    missionItemText: {
-      fontSize: '15px',
-      color: 'rgba(255,255,255,0.55)',
-      lineHeight: '1.7',
-    },
-    divider: {
-      width: '100%',
-      height: '1px',
-      background: 'linear-gradient(90deg, transparent, rgba(200,169,110,0.2), transparent)',
-      margin: '0 24px',
-      maxWidth: '1100px',
-      marginLeft: 'auto',
-      marginRight: 'auto',
-    },
-    statsSection: {
-      padding: '80px 24px',
-      background: 'linear-gradient(180deg, rgba(200,169,110,0.03) 0%, transparent 100%)',
-    },
-    statsInner: {
-      maxWidth: '1100px',
-      margin: '0 auto',
-    },
-    statsGrid: {
-      display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-      gap: '24px',
-      marginTop: '48px',
-    },
-    statCard: {
-      background: 'rgba(255,255,255,0.02)',
-      border: '1px solid rgba(200,169,110,0.15)',
-      borderRadius: '20px',
-      padding: '36px 24px',
-      textAlign: 'center' as const,
-      position: 'relative' as const,
-      overflow: 'hidden' as const,
-      transition: 'border-color 0.3s',
-    },
-    statCardAccent: {
-      position: 'absolute' as const,
-      bottom: '0',
-      left: '0',
-      right: '0',
-      height: '2px',
-      background: 'linear-gradient(90deg, transparent, #c8a96e, transparent)',
-    },
-    statNumber: {
-      fontSize: '54px',
-      fontWeight: '800' as const,
-      background: 'linear-gradient(135deg, #c8a96e 0%, #f0d5a0 100%)',
-      WebkitBackgroundClip: 'text' as const,
-      WebkitTextFillColor: 'transparent' as const,
-      backgroundClip: 'text' as const,
-      lineHeight: '1',
-      marginBottom: '8px',
-    },
-    statLabel: {
-      fontSize: '13px',
-      color: 'rgba(255,255,255,0.5)',
-      fontWeight: '600' as const,
-      letterSpacing: '1.5px',
-      textTransform: 'uppercase' as const,
-    },
-    valuesSection: {
-      padding: '80px 24px',
-      maxWidth: '1100px',
-      margin: '0 auto',
-    },
-    valuesGrid: {
-      display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-      gap: '20px',
-      marginTop: '48px',
-    },
-    valueCard: {
-      background: 'rgba(255,255,255,0.02)',
-      border: '1px solid rgba(255,255,255,0.06)',
-      borderRadius: '20px',
-      padding: '36px 32px',
-      transition: 'border-color 0.3s',
-    },
-    valueNumber: {
-      fontSize: '48px',
-      fontWeight: '900' as const,
-      color: 'rgba(200,169,110,0.08)',
-      lineHeight: '1',
-      marginBottom: '16px',
-      fontFamily: 'Georgia, serif',
-    },
-    valueTitle: {
-      fontSize: '20px',
-      fontWeight: '700' as const,
-      color: '#ffffff',
-      marginBottom: '12px',
-      letterSpacing: '0.5px',
-    },
-    valueDash: {
-      width: '24px',
-      height: '2px',
-      backgroundColor: '#c8a96e',
-      borderRadius: '2px',
-      marginBottom: '16px',
-    },
-    valueText: {
-      fontSize: '15px',
-      color: 'rgba(255,255,255,0.55)',
-      lineHeight: '1.7',
-    },
-    visionSection: {
-      padding: '80px 24px',
-      background: 'linear-gradient(180deg, transparent, rgba(200,169,110,0.04) 50%, transparent 100%)',
-    },
-    visionInner: {
-      maxWidth: '1100px',
-      margin: '0 auto',
-    },
-    visionCard: {
-      background: 'linear-gradient(135deg, rgba(200,169,110,0.06) 0%, rgba(5,5,8,0.8) 100%)',
-      border: '1px solid rgba(200,169,110,0.25)',
-      borderRadius: '28px',
-      padding: '64px',
-      display: 'grid',
-      gridTemplateColumns: '1fr 1fr',
-      gap: '64px',
-      alignItems: 'center',
-      position: 'relative' as const,
-      overflow: 'hidden' as const,
-    },
-    visionGlow1: {
-      position: 'absolute' as const,
-      top: '-100px',
-      left: '-100px',
-      width: '400px',
-      height: '400px',
-      background: 'radial-gradient(circle, rgba(200,169,110,0.06) 0%, transparent 70%)',
-      borderRadius: '50%',
-      pointerEvents: 'none' as const,
-    },
-    visionGlow2: {
-      position: 'absolute' as const,
-      bottom: '-100px',
-      right: '-100px',
-      width: '400px',
-      height: '400px',
-      background: 'radial-gradient(circle, rgba(200,169,110,0.04) 0%, transparent 70%)',
-      borderRadius: '50%',
-      pointerEvents: 'none' as const,
-    },
-    visionTextBlock: {
-      position: 'relative' as const,
-      zIndex: 1,
-    },
-    visionBigText: {
-      fontSize: 'clamp(32px, 4vw, 48px)',
-      fontWeight: '800' as const,
-      lineHeight: '1.2',
-      marginBottom: '24px',
-    },
-    visionDesc: {
-      fontSize: '16px',
-      color: 'rgba(255,255,255,0.6)',
-      lineHeight: '1.8',
-    },
-    visionFeatures: {
-      position: 'relative' as const,
-      zIndex: 1,
-      display: 'flex',
-      flexDirection: 'column' as const,
-      gap: '20px',
-    },
-    visionFeatureItem: {
-      display: 'flex',
-      alignItems: 'flex-start',
-      gap: '16px',
-      padding: '20px',
-      background: 'rgba(255,255,255,0.03)',
-      border: '1px solid rgba(255,255,255,0.06)',
-      borderRadius: '14px',
-    },
-    visionFeatureIcon: {
-      width: '40px',
-      height: '40px',
-      minWidth: '40px',
-      borderRadius: '10px',
-      backgroundColor: 'rgba(200,169,110,0.1)',
-      border: '1px solid rgba(200,169,110,0.2)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      fontSize: '18px',
-    },
-    visionFeatureContent: {
-      flex: 1,
-    },
-    visionFeatureTitle: {
-      fontSize: '15px',
-      fontWeight: '700' as const,
-      color: '#ffffff',
-      marginBottom: '4px',
-    },
-    visionFeatureText: {
-      fontSize: '13px',
-      color: 'rgba(255,255,255,0.5)',
-      lineHeight: '1.6',
-    },
-    ctaSection: {
-      padding: '80px 24px 120px',
-      textAlign: 'center' as const,
-    },
-    ctaCard: {
-      maxWidth: '700px',
-      margin: '0 auto',
-      padding: '64px 48px',
-      background: 'rgba(200,169,110,0.04)',
-      border: '1px solid rgba(200,169,110,0.2)',
-      borderRadius: '28px',
-    },
-    ctaTitle: {
-      fontSize: 'clamp(28px, 4vw, 40px)',
-      fontWeight: '800' as const,
-      marginBottom: '16px',
-      lineHeight: '1.2',
-    },
-    ctaText: {
-      fontSize: '16px',
-      color: 'rgba(255,255,255,0.6)',
-      lineHeight: '1.7',
-      marginBottom: '36px',
-    },
-    ctaButton: {
-      display: 'inline-block',
-      background: 'linear-gradient(135deg, #c8a96e 0%, #f0d5a0 50%, #c8a96e 100%)',
-      color: '#050508',
-      fontSize: '15px',
-      fontWeight: '700' as const,
-      padding: '16px 40px',
-      borderRadius: '50px',
-      textDecoration: 'none',
-      letterSpacing: '0.5px',
-      cursor: 'pointer',
-      border: 'none',
-      backgroundSize: '200% auto',
-    },
-    footerText: {
-      textAlign: 'center' as const,
-      padding: '32px 24px',
-      borderTop: '1px solid rgba(255,255,255,0.05)',
-      color: 'rgba(255,255,255,0.25)',
-      fontSize: '13px',
-    },
-  };
+export default function AProposPage() {
+  const [activeTab, setActiveTab] = useState("mission");
 
-  const stats = [
-    { number: '131', label: 'Formations' },
-    { number: '20', label: 'Skills' },
-    { number: '14', label: 'Spécialités
+  return (
+    <div style={{ backgroundColor: "#050508", minHeight: "100vh", fontFamily: "Georgia, serif", color: "#f0e6d3" }}>
+
+      <div style={{ maxWidth: "1100px", margin: "0 auto", padding: "80px 24px" }}>
+
+        <div style={{ textAlign: "center", marginBottom: "72px" }}>
+          <div style={{ display: "inline-block", backgroundColor: "#c8a96e", color: "#050508", fontSize: "11px", fontWeight: "700", letterSpacing: "3px", textTransform: "uppercase", padding: "6px 18px", borderRadius: "2px", marginBottom: "28px" }}>
+            À PROPOS
+          </div>
+          <h1 style={{ fontSize: "52px", fontWeight: "300", letterSpacing: "2px", color: "#f0e6d3", margin: "0 0 24px 0", lineHeight: "1.2" }}>
+            Qui sommes-nous
+          </h1>
+          <div style={{ width: "60px", height: "2px", backgroundColor: "#c8a96e", margin: "0 auto 28px auto" }}></div>
+          <p style={{ fontSize: "18px", color: "#a09080", maxWidth: "620px", margin: "0 auto", lineHeight: "1.8", fontWeight: "300" }}>
+            Une école nouvelle génération dédiée à l'intelligence artificielle, pensée pour tous ceux qui veulent comprendre, maîtriser et anticiper le monde de demain.
+          </p>
+        </div>
+
+        <div style={{ display: "flex", justifyContent: "center", gap: "0px", marginBottom: "64px", borderBottom: "1px solid #1a1a2e" }}>
+          <button
+            onClick={() => setActiveTab("mission")}
+            style={{ backgroundColor: "transparent", border: "none", color: activeTab === "mission" ? "#c8a96e" : "#605040", fontSize: "13px", fontWeight: "600", letterSpacing: "2px", textTransform: "uppercase", padding: "16px 36px", cursor: "pointer", borderBottom: activeTab === "mission" ? "2px solid #c8a96e" : "2px solid transparent", transition: "color 0.3s" }}
+          >
+            Mission
+          </button>
+          <button
+            onClick={() => setActiveTab("vision")}
+            style={{ backgroundColor: "transparent", border: "none", color: activeTab === "vision" ? "#c8a96e" : "#605040", fontSize: "13px", fontWeight: "600", letterSpacing: "2px", textTransform: "uppercase", padding: "16px 36px", cursor: "pointer", borderBottom: activeTab === "vision" ? "2px solid #c8a96e" : "2px solid transparent", transition: "color 0.3s" }}
+          >
+            Vision
+          </button>
+          <button
+            onClick={() => setActiveTab("chiffres")}
+            style={{ backgroundColor: "transparent", border: "none", color: activeTab === "chiffres" ? "#c8a96e" : "#605040", fontSize: "13px", fontWeight: "600", letterSpacing: "2px", textTransform: "uppercase", padding: "16px 36px", cursor: "pointer", borderBottom: activeTab === "chiffres" ? "2px solid #c8a96e" : "2px solid transparent", transition: "color 0.3s" }}
+          >
+            Chiffres
+          </button>
+        </div>
+
+        {activeTab === "mission" && (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "48px", alignItems: "center" }}>
+            <div>
+              <div style={{ display: "inline-block", width: "4px", height: "40px", backgroundColor: "#c8a96e", verticalAlign: "middle", marginRight: "16px" }}></div>
+              <span style={{ fontSize: "13px", fontWeight: "600", letterSpacing: "3px", textTransform: "uppercase", color: "#c8a96e" }}>Notre Mission</span>
+              <h2 style={{ fontSize: "38px", fontWeight: "300", color: "#f0e6d3", margin: "24px 0 20px 0", lineHeight: "1.3", letterSpacing: "1px" }}>
+                Démocratiser la formation en intelligence artificielle
+              </h2>
+              <p style={{ fontSize: "16px", color: "#9080708", lineHeight: "1.9", marginBottom: "20px", color: "#a09080" }}>
+                Nous croyons que l'IA ne doit pas rester le privilège des ingénieurs et des chercheurs. Notre mission est de rendre cette connaissance accessible à tous — entrepreneurs, créatifs, professionnels, étudiants.
+              </p>
+              <p style={{ fontSize: "16px", color: "#a09080", lineHeight: "1.9" }}>
+                Chaque parcours est conçu pour transformer des concepts complexes en compétences concrètes, applicables immédiatement dans votre vie professionnelle.
+              </p>
+            </div>
+            <div style={{ backgroundColor: "#0d0d1a", border: "1px solid #1a1a2e", borderRadius: "4px", padding: "48px", position: "relative", overflow: "hidden" }}>
+              <div style={{ position: "absolute", top: "0", left: "0", width: "100%", height: "3px", background: "linear-gradient(90deg, #c8a96e, transparent)" }}></div>
+              <div style={{ fontSize: "64px", fontWeight: "100", color: "#c8a96e", opacity: "0.15", position: "absolute", top: "16px", right: "24px", lineHeight: "1" }}>IA</div>
+              <div style={{ marginBottom: "32px" }}>
+                <div style={{ fontSize: "13px", color: "#c8a96e", letterSpacing: "2px", textTransform: "uppercase", marginBottom: "8px" }}>Accessibilité</div>
+                <p style={{ fontSize: "15px", color: "#a09080", lineHeight: "1.8", margin: "0" }}>Des formations pensées pour tous les niveaux, du débutant à l'expert confirmé.</p>
+              </div>
+              <div style={{ width: "40px", height: "1px", backgroundColor: "#1a1a2e", marginBottom: "32px" }}></div>
+              <div style={{ marginBottom: "32px" }}>
+                <div style={{ fontSize: "13px", color: "#c8a96e", letterSpacing: "2px", textTransform: "uppercase", marginBottom: "8px" }}>Praticité</div>
+                <p style={{ fontSize: "15px", color: "#a09080", lineHeight: "1.8", margin: "0" }}>Chaque module est directement applicable à votre contexte professionnel réel.</p>
+              </div>
+              <div style={{ width: "40px", height: "1px", backgroundColor: "#1a1a2e", marginBottom: "32px" }}></div>
+              <div>
+                <div style={{ fontSize: "13px", color: "#c8a96e", letterSpacing: "2px", textTransform: "uppercase", marginBottom: "8px" }}>Progression</div>
+                <p style={{ fontSize: "15px", color: "#a09080", lineHeight: "1.8", margin: "0" }}>Un chemin structuré pour monter en compétences à votre propre rythme.</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === "vision" && (
+          <div>
+            <div style={{ textAlign: "center", marginBottom: "56px" }}>
+              <div style={{ display: "inline-block", width: "4px", height: "40px", backgroundColor: "#c8a96e", verticalAlign: "middle", marginRight: "16px" }}></div>
+              <span style={{ fontSize: "13px", fontWeight: "600", letterSpacing: "3px", textTransform: "uppercase", color: "#c8a96e" }}>Notre Vision</span>
+              <h2 style={{ fontSize: "38px", fontWeight: "300", color: "#f0e6d3", margin: "24px auto 20px auto", lineHeight: "1.3", letterSpacing: "1px", maxWidth: "680px" }}>
+                Un agent IA disponible 24h/24 pour chaque apprenant
+              </h2>
+              <p style={{ fontSize: "16px", color: "#a09080", maxWidth: "620px", margin: "0 auto", lineHeight: "1.9" }}>
+                Nous imaginons un futur où chaque apprenant dispose d'un assistant IA personnel, toujours disponible, capable de répondre à ses questions, de personnaliser son parcours et de l'accompagner à chaque étape de sa progression.
+              </p>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "24px" }}>
+              <div style={{ backgroundColor: "#0d0d1a", border: "1px solid #1a1a2e", borderRadius: "4px", padding: "36px", position: "relative", overflow: "hidden" }}>
+                <div style={{ position: "absolute", top: "0", left: "0", width: "3px", height: "100%", backgroundColor: "#c8a96e" }}></div>
+                <div style={{ fontSize: "32px", marginBottom: "16px" }}>🤖</div>
+                <h3 style={{ fontSize: "16px", fontWeight: "600", color: "#f0e6d3", margin: "0 0 12px 0", letterSpacing: "1px" }}>Agent IA Personnel</h3>
+                <p style={{ fontSize: "14px", color: "#a09080", lineHeight: "1.8", margin: "0" }}>Un compagnon d'apprentissage intelligent qui s'adapte à votre niveau et à vos objectifs.</p>
+              </div>
+              <div style={{ backgroundColor: "#0d0d1a", border: "1px solid #1a1a2e", borderRadius: "4px", padding: "36px", position: "relative", overflow: "hidden" }}>
+                <div style={{ position: "absolute", top: "0", left: "0", width: "3px", height: "100%", backgroundColor: "#c8a96e" }}></div>
+                <div style={{ fontSize: "32px", marginBottom: "16px" }}>⏰</div>
+                <h3 style={{ fontSize: "16px", fontWeight: "600", color: "#f0e6d3", margin: "0 0 12px 0", letterSpacing: "1px" }}>Disponible 24h/24</h3>
+                <p style={{ fontSize: "14px", color: "#a09080", lineHeight: "1.8", margin: "0" }}>Apprenez à votre rythme, quand vous voulez, où vous voulez, sans contrainte horaire.</p>
+              </div>
+              <div style={{ backgroundColor: "#0d0d1a", border: "1px solid #1a1a2e", borderRadius: "4px", padding: "36px", position: "relative", overflow: "hidden" }}>
+                <div style={{ position: "absolute", top: "0", left: "0", width: "3px", height: "100%", backgroundColor: "#c8a96e" }}></div>
+                <div style={{ fontSize: "32px", marginBottom: "16px" }}>🎯</div>
+                <h3 style={{ fontSize: "16px", fontWeight: "600", color: "#f0e6d3", margin: "0 0 12px 0", letterSpacing: "1px" }}>Parcours Sur-Mesure</h3>
+                <p style={{ fontSize: "14px", color: "#a09080", lineHeight: "1.8", margin: "0" }}>Des recommandations personnalisées basées sur vos progrès et vos ambitions.</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === "chiffres" && (
+          <div>
+            <div style={{ textAlign: "center", marginBottom: "56px" }}>
+              <div style={{ display: "inline-block", width: "4px", height: "40px", backgroundColor: "#c8a96e", verticalAlign: "middle", marginRight: "16px" }}></div>
+              <span style={{ fontSize: "13px", fontWeight: "600", letterSpacing: "3px", textTransform: "uppercase", color: "#c8a96e" }}>En Chiffres</span>
+              <h2 style={{ fontSize: "38px", fontWeight: "300", color: "#f0e6d3", margin: "24px auto 20px auto", lineHeight: "1.3", letterSpacing: "1px" }}>
+                L'école en données
+              </h2>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "24px", marginBottom: "48px" }}>
+              <div style={{ backgroundColor: "#0d0d1a", border: "1px solid #1a1a2e", borderRadius: "4px", padding: "48px 36px", textAlign: "center", position: "relative", overflow: "hidden" }}>
+                <div style={{ position: "absolute", top: "0", left: "0", width: "100%", height: "2px", background: "linear-gradient(90deg, transparent, #c8a96e, transparent)" }}></div>
+                <div style={{ fontSize: "72px", fontWeight: "100", color: "#c8a96e", lineHeight: "1", marginBottom: "8px" }}>131</div>
+                <div style={{ fontSize: "12px", fontWeight: "600", letterSpacing: "3px", textTransform: "uppercase", color: "#605040", marginBottom: "12px" }}>Formations</div>
+                <p style={{ fontSize: "14px", color: "#a09080", lineHeight: "1.7", margin: "0" }}>Un catalogue complet couvrant tous les aspects de l'intelligence artificielle</p>
+              </div>
+              <div style={{ backgroundColor: "#0d0d1a", border: "1px solid #1a1a2e", borderRadius: "4px", padding: "48px 36px", textAlign: "center", position: "relative", overflow: "hidden" }}>
+                <div style={{ position: "absolute", top: "0", left: "0", width: "100%", height: "2px", background: "linear-gradient(90deg, transparent, #c8a96e, transparent)" }}></div>
+                <div style={{ fontSize: "72px", fontWeight: "100", color: "#c8a96e", lineHeight: "1", marginBottom: "8px" }}>20</div>
+                <div style={{ fontSize: "12px", fontWeight: "600", letterSpacing: "3px", textTransform: "uppercase", color: "#605040", marginBottom: "12px" }}>Skills</div>
+                <p style={{ fontSize: "14px", color: "#a09080", lineHeight: "1.7", margin: "0" }}>Des compétences concrètes et mesurables pour progresser sur le marché du travail</p>
+              </div>
+              <div style={{ backgroundColor: "#0d0d1a", border: "1px solid
