@@ -1,268 +1,279 @@
-import React, { useState } from "react";
+"use client";
+import { useState } from "react";
 
-const packs = [
-  {
-    name: "Starter",
-    price: 47,
-    color: "#c8a96e",
-    features: ["Accès aux bases IA", "Support email", "1 module inclus"],
-    popular: false,
-  },
-  {
-    name: "Starter Complet",
-    price: 97,
-    color: "#c8a96e",
-    features: ["Accès complet Starter", "2 modules inclus", "Support prioritaire"],
-    popular: false,
-  },
-  {
-    name: "Skills IA",
-    price: 597,
-    color: "#c8a96e",
-    features: ["5 modules IA", "Projets pratiques", "Mentorat mensuel"],
-    popular: false,
-  },
-  {
-    name: "Marketing",
-    price: 1490,
-    color: "#c8a96e",
-    features: ["Marketing digital IA", "Stratégies avancées", "Coaching hebdo"],
-    popular: false,
-  },
-  {
-    name: "IA Complet",
-    price: 2690,
-    color: "#d4af70",
-    features: ["Formation complète IA", "Tous modules", "Certification incluse"],
-    popular: true,
-  },
-  {
-    name: "IA Skills",
-    price: 2990,
-    color: "#d4af70",
-    features: ["IA + Skills avancés", "Projets réels", "Certification Pro"],
-    popular: false,
-  },
-  {
-    name: "Entrepreneur",
-    price: 3490,
-    color: "#d4af70",
-    features: ["Formation entrepreneur", "Business model IA", "Suivi personnalisé"],
-    popular: false,
-  },
-  {
-    name: "Elite",
-    price: 3990,
-    color: "#f0c040",
-    features: ["Accès total lifetime", "VIP coaching", "Réseau exclusif Elite"],
-    popular: false,
-  },
-];
+export default function FormationsPage() {
+  const [hoveredCard, setHoveredCard] = useState(null);
+  const [hoveredBtn, setHoveredBtn] = useState(null);
 
-export default function FormationsPacks() {
-  const [hovered, setHovered] = useState<number | null>(null);
+  const packs = [
+    {
+      id: 1,
+      name: "Starter",
+      price: "47",
+      tag: "Débutant",
+      color: "#c8a96e",
+      desc: "Posez les bases solides de votre transformation digitale avec les fondamentaux essentiels.",
+      features: ["Accès aux modules intro", "Support email", "Certificat de completion"],
+    },
+    {
+      id: 2,
+      name: "Starter Complet",
+      price: "97",
+      tag: "Populaire",
+      color: "#c8a96e",
+      desc: "Le pack Starter enrichi avec des ressources complémentaires pour aller plus loin rapidement.",
+      features: ["Tout le pack Starter", "Ressources bonus", "Communauté privée", "Mises à jour incluses"],
+    },
+    {
+      id: 3,
+      name: "Skills IA",
+      price: "597",
+      tag: "Compétences",
+      color: "#d4b87e",
+      desc: "Maîtrisez les outils IA incontournables et développez des compétences concrètes et monétisables.",
+      features: ["Modules IA avancés", "Outils pratiques", "Projets guidés", "Support prioritaire", "Accès à vie"],
+    },
+    {
+      id: 4,
+      name: "Marketing",
+      price: "1 490",
+      tag: "Croissance",
+      color: "#d4b87e",
+      desc: "Stratégies marketing complètes pour attirer des clients, construire votre marque et scaler.",
+      features: ["Stratégies avancées", "Tunnels de vente", "Copywriting", "Publicité payante", "Templates exclusifs", "Coaching mensuel"],
+    },
+    {
+      id: 5,
+      name: "IA Complet",
+      price: "2 690",
+      tag: "Maîtrise",
+      color: "#e0c88e",
+      desc: "Le programme IA le plus complet du marché pour automatiser, créer et dominer votre secteur.",
+      features: ["Tout Skills IA", "Automatisation avancée", "IA generative", "Business IA", "Mentorat de groupe", "Accès communauté VIP"],
+    },
+    {
+      id: 6,
+      name: "IA Skills",
+      price: "2 990",
+      tag: "Expert",
+      color: "#e0c88e",
+      desc: "Combinez IA et compétences business pour devenir un expert reconnu et hautement employable.",
+      features: ["IA Complet inclus", "Skills business", "Personal branding", "LinkedIn strategy", "Sessions Q&A live", "Certification expert"],
+    },
+    {
+      id: 7,
+      name: "Entrepreneur",
+      price: "3 490",
+      tag: "Business",
+      color: "#ecd89e",
+      desc: "Tout ce qu'il faut pour lancer, structurer et faire croître votre business en ligne de A à Z.",
+      features: ["Tous les modules", "Stratégie business", "Mindset entrepreneur", "Coaching individuel", "Réseau partenaires", "Suivi 6 mois", "Accès illimité"],
+    },
+    {
+      id: 8,
+      name: "Elite",
+      price: "3 990",
+      tag: "Ultime",
+      color: "#f5e8b8",
+      desc: "L'expérience de formation la plus exclusive. Accompagnement total et résultats garantis.",
+      features: ["Accès TOUT le catalogue", "Coaching 1-on-1 mensuel", "Réseau élite", "Mastermind trimestriel", "Support 7j/7", "Garantie résultats", "Statut membre fondateur"],
+    },
+  ];
 
   return (
     <div
       style={{
         backgroundColor: "#050508",
         minHeight: "100vh",
-        fontFamily: "'Segoe UI', sans-serif",
-        padding: "60px 20px",
-        boxSizing: "border-box",
+        fontFamily: "'Segoe UI', system-ui, -apple-system, sans-serif",
+        padding: "0",
+        margin: "0",
       }}
     >
-      <div style={{ textAlign: "center", marginBottom: "60px" }}>
-        <div
-          style={{
-            display: "inline-block",
-            backgroundColor: "rgba(200,169,110,0.1)",
-            border: "1px solid rgba(200,169,110,0.3)",
-            borderRadius: "50px",
-            padding: "8px 24px",
-            marginBottom: "20px",
-          }}
-        >
-          <span style={{ color: "#c8a96e", fontSize: "13px", letterSpacing: "2px", textTransform: "uppercase" }}>
-            Nos Formations
-          </span>
-        </div>
-        <h1
-          style={{
-            color: "#ffffff",
-            fontSize: "clamp(28px, 4vw, 52px)",
-            fontWeight: "800",
-            margin: "0 0 16px 0",
-            lineHeight: "1.2",
-          }}
-        >
-          Choisissez votre{" "}
-          <span style={{ color: "#c8a96e" }}>Pack Formation</span>
-        </h1>
-        <p style={{ color: "#8888aa", fontSize: "16px", maxWidth: "520px", margin: "0 auto 8px auto" }}>
-          De débutant à expert, trouvez la formation qui correspond à votre ambition.
-        </p>
-        <div style={{ display: "flex", justifyContent: "center", gap: "32px", marginTop: "24px", flexWrap: "wrap" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <div
-              style={{
-                width: "32px",
-                height: "32px",
-                borderRadius: "50%",
-                backgroundColor: "rgba(200,169,110,0.15)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <span style={{ color: "#c8a96e", fontSize: "16px" }}>🏅</span>
-            </div>
-            <span style={{ color: "#c8a96e", fontSize: "14px", fontWeight: "600" }}>Certification AcadémIA Pro</span>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <div
-              style={{
-                width: "32px",
-                height: "32px",
-                borderRadius: "50%",
-                backgroundColor: "rgba(200,169,110,0.15)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <span style={{ color: "#c8a96e", fontSize: "16px" }}>🛡️</span>
-            </div>
-            <span style={{ color: "#c8a96e", fontSize: "14px", fontWeight: "600" }}>Garantie 30 jours satisfait</span>
-          </div>
-        </div>
-      </div>
-
       <div
         style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-          gap: "24px",
           maxWidth: "1280px",
           margin: "0 auto",
+          padding: "80px 24px 100px",
         }}
       >
-        {packs.map((pack, index) => {
-          const isHovered = hovered === index;
-          const isPopular = pack.popular;
+        <div style={{ textAlign: "center", marginBottom: "80px" }}>
+          <div
+            style={{
+              display: "inline-block",
+              backgroundColor: "rgba(200,169,110,0.1)",
+              border: "1px solid rgba(200,169,110,0.3)",
+              borderRadius: "50px",
+              padding: "8px 24px",
+              marginBottom: "24px",
+            }}
+          >
+            <span style={{ color: "#c8a96e", fontSize: "13px", fontWeight: "600", letterSpacing: "2px", textTransform: "uppercase" }}>
+              Nos Formations
+            </span>
+          </div>
 
-          return (
+          <h1
+            style={{
+              color: "#ffffff",
+              fontSize: "clamp(36px, 5vw, 64px)",
+              fontWeight: "800",
+              lineHeight: "1.1",
+              margin: "0 0 24px",
+              letterSpacing: "-1px",
+            }}
+          >
+            Choisissez votre
+            <br />
+            <span style={{ color: "#c8a96e" }}>niveau de transformation</span>
+          </h1>
+
+          <p
+            style={{
+              color: "rgba(255,255,255,0.5)",
+              fontSize: "18px",
+              maxWidth: "560px",
+              margin: "0 auto",
+              lineHeight: "1.7",
+            }}
+          >
+            8 programmes conçus pour chaque étape de votre parcours. De vos premiers pas à l'excellence entrepreneuriale.
+          </p>
+        </div>
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
+            gap: "24px",
+          }}
+        >
+          {packs.map((pack) => (
             <div
-              key={index}
-              onMouseEnter={() => setHovered(index)}
-              onMouseLeave={() => setHovered(null)}
+              key={pack.id}
+              onMouseEnter={() => setHoveredCard(pack.id)}
+              onMouseLeave={() => setHoveredCard(null)}
               style={{
-                position: "relative",
-                backgroundColor: isHovered
-                  ? "rgba(200,169,110,0.08)"
-                  : isPopular
-                  ? "rgba(200,169,110,0.06)"
-                  : "rgba(255,255,255,0.03)",
-                border: isPopular
-                  ? "2px solid rgba(200,169,110,0.7)"
-                  : isHovered
-                  ? "1px solid rgba(200,169,110,0.5)"
-                  : "1px solid rgba(255,255,255,0.08)",
+                backgroundColor: hoveredCard === pack.id ? "rgba(200,169,110,0.07)" : "rgba(255,255,255,0.03)",
+                border: hoveredCard === pack.id ? "1px solid rgba(200,169,110,0.5)" : "1px solid rgba(255,255,255,0.07)",
                 borderRadius: "20px",
-                padding: "32px 24px",
+                padding: "36px 32px",
                 cursor: "pointer",
-                transition: "all 0.3s ease",
-                transform: isHovered ? "translateY(-6px)" : "translateY(0)",
-                boxShadow: isPopular
-                  ? "0 0 40px rgba(200,169,110,0.15)"
-                  : isHovered
-                  ? "0 20px 40px rgba(0,0,0,0.4)"
-                  : "0 4px 20px rgba(0,0,0,0.2)",
+                transition: "all 0.35s ease",
+                position: "relative",
+                overflow: "hidden",
+                transform: hoveredCard === pack.id ? "translateY(-6px)" : "translateY(0)",
+                boxShadow: hoveredCard === pack.id ? "0 24px 60px rgba(200,169,110,0.12)" : "0 4px 20px rgba(0,0,0,0.3)",
               }}
             >
-              {isPopular && (
-                <div
-                  style={{
-                    position: "absolute",
-                    top: "-14px",
-                    left: "50%",
-                    transform: "translateX(-50%)",
-                    backgroundColor: "#c8a96e",
-                    color: "#050508",
-                    fontSize: "11px",
-                    fontWeight: "800",
-                    letterSpacing: "1.5px",
-                    textTransform: "uppercase",
-                    padding: "5px 18px",
-                    borderRadius: "50px",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  ⭐ Plus Populaire
-                </div>
-              )}
-
-              <div style={{ marginBottom: "20px" }}>
-                <div
-                  style={{
-                    width: "44px",
-                    height: "44px",
-                    borderRadius: "12px",
-                    backgroundColor: "rgba(200,169,110,0.12)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    marginBottom: "16px",
-                    fontSize: "22px",
-                  }}
-                >
-                  {index === 0 ? "🚀" : index === 1 ? "⚡" : index === 2 ? "🤖" : index === 3 ? "📈" : index === 4 ? "🧠" : index === 5 ? "💡" : index === 6 ? "🏢" : "👑"}
-                </div>
-                <h2
-                  style={{
-                    color: "#ffffff",
-                    fontSize: "20px",
-                    fontWeight: "700",
-                    margin: "0 0 8px 0",
-                  }}
-                >
-                  {pack.name}
-                </h2>
-                <div style={{ display: "flex", alignItems: "flex-end", gap: "4px" }}>
-                  <span
-                    style={{
-                      color: pack.color,
-                      fontSize: "38px",
-                      fontWeight: "800",
-                      lineHeight: "1",
-                    }}
-                  >
-                    {pack.price}
-                  </span>
-                  <span style={{ color: pack.color, fontSize: "20px", fontWeight: "600", paddingBottom: "4px" }}>€</span>
-                </div>
-                <span style={{ color: "#666688", fontSize: "12px" }}>paiement unique</span>
-              </div>
-
               <div
                 style={{
-                  height: "1px",
-                  backgroundColor: "rgba(255,255,255,0.06)",
-                  margin: "20px 0",
+                  position: "absolute",
+                  top: "0",
+                  left: "0",
+                  right: "0",
+                  height: "2px",
+                  background: hoveredCard === pack.id
+                    ? "linear-gradient(90deg, transparent, " + pack.color + ", transparent)"
+                    : "transparent",
+                  transition: "all 0.35s ease",
                 }}
               />
 
-              <ul style={{ listStyle: "none", padding: "0", margin: "0 0 24px 0" }}>
-                {pack.features.map((feature, fi) => (
+              <div
+                style={{
+                  position: "absolute",
+                  top: "-60px",
+                  right: "-60px",
+                  width: "160px",
+                  height: "160px",
+                  borderRadius: "50%",
+                  background: "radial-gradient(circle, rgba(200,169,110,0.06) 0%, transparent 70%)",
+                  pointerEvents: "none",
+                }}
+              />
+
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "20px" }}>
+                <span
+                  style={{
+                    backgroundColor: "rgba(200,169,110,0.12)",
+                    color: pack.color,
+                    fontSize: "11px",
+                    fontWeight: "700",
+                    letterSpacing: "1.5px",
+                    textTransform: "uppercase",
+                    padding: "5px 12px",
+                    borderRadius: "50px",
+                    border: "1px solid rgba(200,169,110,0.2)",
+                  }}
+                >
+                  {pack.tag}
+                </span>
+                <span
+                  style={{
+                    color: "rgba(255,255,255,0.15)",
+                    fontSize: "32px",
+                    fontWeight: "800",
+                    lineHeight: "1",
+                  }}
+                >
+                  0{pack.id}
+                </span>
+              </div>
+
+              <h2
+                style={{
+                  color: "#ffffff",
+                  fontSize: "24px",
+                  fontWeight: "700",
+                  margin: "0 0 8px",
+                  letterSpacing: "-0.5px",
+                }}
+              >
+                {pack.name}
+              </h2>
+
+              <div style={{ marginBottom: "20px" }}>
+                <span style={{ color: pack.color, fontSize: "42px", fontWeight: "800", lineHeight: "1", letterSpacing: "-1px" }}>
+                  {pack.price}
+                  <span style={{ fontSize: "22px", fontWeight: "600" }}>€</span>
+                </span>
+                <span style={{ color: "rgba(255,255,255,0.35)", fontSize: "13px", marginLeft: "8px" }}>
+                  paiement unique
+                </span>
+              </div>
+
+              <p
+                style={{
+                  color: "rgba(255,255,255,0.5)",
+                  fontSize: "14px",
+                  lineHeight: "1.65",
+                  margin: "0 0 24px",
+                }}
+              >
+                {pack.desc}
+              </p>
+
+              <div
+                style={{
+                  width: "100%",
+                  height: "1px",
+                  backgroundColor: "rgba(255,255,255,0.06)",
+                  marginBottom: "24px",
+                }}
+              />
+
+              <ul style={{ listStyle: "none", padding: "0", margin: "0 0 32px" }}>
+                {pack.features.map((feature, idx) => (
                   <li
-                    key={fi}
+                    key={idx}
                     style={{
                       display: "flex",
                       alignItems: "center",
                       gap: "10px",
-                      color: "#aaaacc",
+                      marginBottom: "10px",
+                      color: "rgba(255,255,255,0.65)",
                       fontSize: "14px",
-                      marginBottom: "12px",
                     }}
                   >
                     <span
@@ -270,13 +281,14 @@ export default function FormationsPacks() {
                         width: "18px",
                         height: "18px",
                         borderRadius: "50%",
-                        backgroundColor: "rgba(200,169,110,0.2)",
+                        backgroundColor: "rgba(200,169,110,0.15)",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
-                        flexShrink: "0" as any,
+                        flexShrink: "0",
+                        color: pack.color,
                         fontSize: "10px",
-                        color: "#c8a96e",
+                        fontWeight: "800",
                       }}
                     >
                       ✓
@@ -287,97 +299,50 @@ export default function FormationsPacks() {
               </ul>
 
               <button
+                onMouseEnter={() => setHoveredBtn(pack.id)}
+                onMouseLeave={() => setHoveredBtn(null)}
                 style={{
                   width: "100%",
-                  padding: "14px",
+                  padding: "15px 24px",
                   borderRadius: "12px",
-                  border: isPopular ? "none" : "1px solid rgba(200,169,110,0.4)",
-                  backgroundColor: isPopular
-                    ? "#c8a96e"
-                    : isHovered
-                    ? "rgba(200,169,110,0.15)"
+                  border: hoveredBtn === pack.id ? "1px solid transparent" : "1px solid rgba(200,169,110,0.4)",
+                  background: hoveredBtn === pack.id
+                    ? "linear-gradient(135deg, #c8a96e 0%, #e0c88e 100%)"
                     : "transparent",
-                  color: isPopular ? "#050508" : "#c8a96e",
-                  fontSize: "15px",
+                  color: hoveredBtn === pack.id ? "#050508" : "#c8a96e",
+                  fontSize: "14px",
                   fontWeight: "700",
-                  cursor: "pointer",
-                  transition: "all 0.2s ease",
                   letterSpacing: "0.5px",
+                  cursor: "pointer",
+                  transition: "all 0.3s ease",
+                  textTransform: "uppercase",
                 }}
               >
-                {isPopular ? "Commencer maintenant" : "Choisir ce pack"}
+                {hoveredBtn === pack.id ? "Je commence maintenant →" : "Découvrir ce pack"}
               </button>
             </div>
-          );
-        })}
-      </div>
+          ))}
+        </div>
 
-      <div
-        style={{
-          maxWidth: "900px",
-          margin: "64px auto 0 auto",
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-          gap: "20px",
-        }}
-      >
         <div
           style={{
-            backgroundColor: "rgba(200,169,110,0.06)",
-            border: "1px solid rgba(200,169,110,0.2)",
-            borderRadius: "16px",
-            padding: "28px",
+            marginTop: "80px",
             textAlign: "center",
+            padding: "48px 40px",
+            backgroundColor: "rgba(200,169,110,0.04)",
+            border: "1px solid rgba(200,169,110,0.15)",
+            borderRadius: "24px",
           }}
         >
-          <div style={{ fontSize: "36px", marginBottom: "12px" }}>🏅</div>
-          <h3 style={{ color: "#c8a96e", fontSize: "16px", fontWeight: "700", margin: "0 0 8px 0" }}>
-            Certification AcadémIA Pro
-          </h3>
-          <p style={{ color: "#8888aa", fontSize: "13px", margin: "0" }}>
-            Obtenez votre certification reconnue à la fin de votre formation et valorisez vos compétences IA.
+          <p style={{ color: "rgba(255,255,255,0.35)", fontSize: "14px", marginBottom: "16px", textTransform: "uppercase", letterSpacing: "2px" }}>
+            Garantie satisfaction
+          </p>
+          <p style={{ color: "rgba(255,255,255,0.65)", fontSize: "16px", maxWidth: "600px", margin: "0 auto", lineHeight: "1.7" }}>
+            Tous nos programmes incluent une{" "}
+            <span style={{ color: "#c8a96e", fontWeight: "600" }}>garantie satisfait ou remboursé 30 jours</span>
+            {". "}Vous prenez zéro risque. Résultats garantis ou remboursement intégral.
           </p>
         </div>
-        <div
-          style={{
-            backgroundColor: "rgba(200,169,110,0.06)",
-            border: "1px solid rgba(200,169,110,0.2)",
-            borderRadius: "16px",
-            padding: "28px",
-            textAlign: "center",
-          }}
-        >
-          <div style={{ fontSize: "36px", marginBottom: "12px" }}>🛡️</div>
-          <h3 style={{ color: "#c8a96e", fontSize: "16px", fontWeight: "700", margin: "0 0 8px 0" }}>
-            Garantie 30 jours
-          </h3>
-          <p style={{ color: "#8888aa", fontSize: "13px", margin: "0" }}>
-            Satisfait ou remboursé. Si dans les 30 jours vous n'êtes pas convaincu, nous vous remboursons intégralement.
-          </p>
-        </div>
-        <div
-          style={{
-            backgroundColor: "rgba(200,169,110,0.06)",
-            border: "1px solid rgba(200,169,110,0.2)",
-            borderRadius: "16px",
-            padding: "28px",
-            textAlign: "center",
-          }}
-        >
-          <div style={{ fontSize: "36px", marginBottom: "12px" }}>💬</div>
-          <h3 style={{ color: "#c8a96e", fontSize: "16px", fontWeight: "700", margin: "0 0 8px 0" }}>
-            Support dédié
-          </h3>
-          <p style={{ color: "#8888aa", fontSize: "13px", margin: "0" }}>
-            Une équipe disponible pour vous accompagner tout au long de votre parcours de formation.
-          </p>
-        </div>
-      </div>
-
-      <div style={{ textAlign: "center", marginTop: "48px" }}>
-        <p style={{ color: "#555577", fontSize: "12px" }}>
-          Paiement sécurisé • Accès immédiat • Formation 100% en ligne
-        </p>
       </div>
     </div>
   );
