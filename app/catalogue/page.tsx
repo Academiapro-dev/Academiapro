@@ -1,3 +1,4 @@
+import React from "react";
 // v2
 export default function CataloguePage() {
   const formations = [
