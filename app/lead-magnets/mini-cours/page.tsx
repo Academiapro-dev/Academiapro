@@ -1,504 +1,433 @@
-import React from "react";
+"use client";
 import { useState } from "react";
 
-const gold = "#c8a96e";
-const dark = "#050508";
-const darkCard = "#0d0d14";
-const darkBorder = "#1a1a2e";
+export default function MiniCoursPage() {
+  const [activeDay, setActiveDay] = useState(null);
 
-export default function MiniCours() {
-  const [prenom, setPrenom] = useState("");
-  const [email, setEmail] = useState("");
-  const [metier, setMetier] = useState("");
-  const [submitted, setSubmitted] = useState(false);
-  const [focused, setFocused] = useState("");
-
-  const jours = [
+  const days = [
     {
-      numero: "01",
-      titre: "Le Prompt Parfait",
-      description:
-        "Apprenez à formuler des prompts précis qui donnent des résultats professionnels dès la première tentative.",
-      icone: "✦",
+      number: "01",
+      title: "Le Prompt Parfait",
+      subtitle: "Jour 1",
+      description: "Découvrez la structure exacte d'un prompt qui obtient des résultats professionnels. Fini les réponses vagues et décevantes.",
+      points: [
+        "La formule en 4 parties qui change tout",
+        "Les mots déclencheurs qui activent le mode expert",
+        "Exercice pratique : réécrire 3 prompts ratés"
+      ],
+      icon: "✦"
     },
     {
-      numero: "02",
-      titre: "Automatiser vos Tâches",
-      description:
-        "Créez vos premiers flux automatisés et gagnez 2h par jour sur vos tâches répétitives.",
-      icone: "⟳",
+      number: "02",
+      title: "Automatiser Sans Coder",
+      subtitle: "Jour 2",
+      description: "Transformez vos tâches répétitives en workflows automatiques. Gagnez 2 heures par jour dès cette semaine.",
+      points: [
+        "Créer une chaîne de prompts enchaînés",
+        "Templates réutilisables pour votre métier",
+        "Cas réel : automatiser un rapport hebdomadaire"
+      ],
+      icon: "⟳"
     },
     {
-      numero: "03",
-      titre: "Votre Agent IA",
-      description:
-        "Construisez un agent IA qui travaille pour vous, même quand vous dormez.",
-      icone: "◈",
-    },
+      number: "03",
+      title: "Votre Premier Agent IA",
+      subtitle: "Jour 3",
+      description: "Construisez un agent qui travaille pour vous en autonomie. La frontière entre outil et collaborateur disparaît.",
+      points: [
+        "Donner une mission longue terme à l'IA",
+        "Créer des boucles de vérification automatiques",
+        "Déployer votre agent sur un cas concret"
+      ],
+      icon: "◈"
+    }
   ];
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (prenom && email && metier) {
-      setSubmitted(true);
-    }
-  };
-
-  const inputStyle = (name: string) => ({
-    width: "100%",
-    padding: "14px 18px",
-    background: focused === name ? "#0f0f1a" : "#080810",
-    border: focused === name ? "1px solid " + gold : "1px solid " + darkBorder,
-    borderRadius: "8px",
-    color: "#fff",
-    fontSize: "15px",
-    outline: "none",
-    transition: "all 0.2s ease",
-    boxSizing: "border-box" as const,
-    fontFamily: "inherit",
-  });
-
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        background: dark,
-        fontFamily:
-          "'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif",
-        color: "#fff",
-        overflowX: "hidden",
-      }}
-    >
-      {/* Header */}
-      <div
-        style={{
-          borderBottom: "1px solid " + darkBorder,
-          padding: "18px 24px",
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-        }}
-      >
-        <span
-          style={{
-            color: gold,
-            fontSize: "13px",
-            letterSpacing: "3px",
-            textTransform: "uppercase" as const,
-            fontWeight: 600,
-          }}
-        >
-          IA Maîtrise
-        </span>
-      </div>
+    <div style={{
+      minHeight: "100vh",
+      backgroundColor: "#050508",
+      fontFamily: "'Segoe UI', system-ui, sans-serif",
+      overflowX: "hidden"
+    }}>
 
-      {/* Hero */}
-      <div
-        style={{
-          maxWidth: "700px",
-          margin: "0 auto",
-          padding: "72px 24px 40px",
-          textAlign: "center" as const,
-        }}
-      >
-        <div
-          style={{
+      <div style={{
+        position: "fixed",
+        top: "0",
+        left: "0",
+        width: "100%",
+        height: "100%",
+        pointerEvents: "none",
+        zIndex: "0",
+        background: "radial-gradient(ellipse 60% 40% at 50% 0%, rgba(200,169,110,0.08) 0%, transparent 70%)"
+      }} />
+
+      <div style={{
+        position: "relative",
+        zIndex: "1",
+        maxWidth: "900px",
+        margin: "0 auto",
+        padding: "0 24px"
+      }}>
+
+        <div style={{
+          textAlign: "center",
+          paddingTop: "80px",
+          paddingBottom: "64px"
+        }}>
+          <div style={{
             display: "inline-block",
-            background: "rgba(200,169,110,0.08)",
-            border: "1px solid rgba(200,169,110,0.25)",
+            border: "1px solid rgba(200,169,110,0.35)",
             borderRadius: "100px",
-            padding: "6px 18px",
-            fontSize: "12px",
-            letterSpacing: "2px",
-            textTransform: "uppercase" as const,
-            color: gold,
-            marginBottom: "32px",
-            fontWeight: 600,
-          }}
-        >
-          100% Gratuit · 3 Jours · 15 min/jour
-        </div>
+            padding: "6px 20px",
+            marginBottom: "32px"
+          }}>
+            <span style={{
+              color: "#c8a96e",
+              fontSize: "11px",
+              letterSpacing: "3px",
+              textTransform: "uppercase",
+              fontWeight: "600"
+            }}>Formation Gratuite · 3 Jours</span>
+          </div>
 
-        <h1
-          style={{
-            fontSize: "clamp(32px, 6vw, 56px)",
-            fontWeight: 800,
-            lineHeight: 1.1,
-            margin: "0 0 24px",
-            letterSpacing: "-1px",
-          }}
-        >
-          Maîtrisez l{"'"}IA en
-          <br />
-          <span style={{ color: gold }}>3 jours chrono</span>
-        </h1>
+          <h1 style={{
+            color: "#f0e6d0",
+            fontSize: "clamp(36px, 6vw, 64px)",
+            fontWeight: "700",
+            lineHeight: "1.1",
+            margin: "0 0 8px 0",
+            letterSpacing: "-1px"
+          }}>
+            Maîtrisez l'IA
+          </h1>
+          <h1 style={{
+            color: "#c8a96e",
+            fontSize: "clamp(36px, 6vw, 64px)",
+            fontWeight: "700",
+            lineHeight: "1.1",
+            margin: "0 0 28px 0",
+            letterSpacing: "-1px"
+          }}>
+            en 15 min par jour
+          </h1>
 
-        <p
-          style={{
+          <p style={{
+            color: "rgba(240,230,208,0.55)",
             fontSize: "18px",
-            color: "rgba(255,255,255,0.55)",
-            lineHeight: 1.7,
-            margin: "0 0 48px",
+            lineHeight: "1.7",
             maxWidth: "520px",
-            marginLeft: "auto",
-            marginRight: "auto",
-          }}
-        >
-          Un mini-cours intensif pour passer de débutant à opérationnel.
-          Prompts, automatisation, agents — tout en 45 minutes.
-        </p>
+            margin: "0 auto 48px auto",
+            fontWeight: "400"
+          }}>
+            Trois leçons concrètes pour passer de débutant à utilisateur avancé.
+            Aucune connaissance technique requise.
+          </p>
 
-        {/* Stats */}
-        <div
-          style={{
+          <div style={{
             display: "flex",
+            alignItems: "center",
             justifyContent: "center",
-            gap: "48px",
-            marginBottom: "64px",
-            flexWrap: "wrap" as const,
-          }}
-        >
-          {[
-            { val: "3", label: "Jours" },
-            { val: "15min", label: "Par jour" },
-            { val: "0€", label: "Gratuit" },
-          ].map((s) => (
-            <div key={s.label} style={{ textAlign: "center" as const }}>
-              <div
-                style={{
-                  fontSize: "28px",
-                  fontWeight: 800,
-                  color: gold,
-                  lineHeight: 1,
-                }}
-              >
-                {s.val}
-              </div>
-              <div
-                style={{
+            gap: "32px",
+            flexWrap: "wrap"
+          }}>
+            {["3 leçons vidéo", "Exercices pratiques", "100% gratuit"].map((item, i) => (
+              <div key={i} style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "8px"
+              }}>
+                <div style={{
+                  width: "5px",
+                  height: "5px",
+                  borderRadius: "50%",
+                  backgroundColor: "#c8a96e"
+                }} />
+                <span style={{
+                  color: "rgba(240,230,208,0.5)",
                   fontSize: "13px",
-                  color: "rgba(255,255,255,0.4)",
-                  marginTop: "4px",
-                  letterSpacing: "1px",
-                  textTransform: "uppercase" as const,
-                }}
-              >
-                {s.label}
+                  letterSpacing: "0.5px"
+                }}>{item}</span>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
-      </div>
 
-      {/* Programme */}
-      <div
-        style={{
-          maxWidth: "900px",
-          margin: "0 auto",
-          padding: "0 24px 80px",
-        }}
-      >
-        <p
-          style={{
-            textAlign: "center" as const,
-            fontSize: "12px",
-            letterSpacing: "3px",
-            textTransform: "uppercase" as const,
-            color: "rgba(255,255,255,0.3)",
-            marginBottom: "40px",
-          }}
-        >
-          Le Programme
-        </p>
-
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-            gap: "16px",
-          }}
-        >
-          {jours.map((jour, i) => (
+        <div style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: "2px",
+          marginBottom: "80px"
+        }}>
+          {days.map((day, index) => (
             <div
-              key={i}
+              key={index}
+              onClick={() => setActiveDay(activeDay === index ? null : index)}
               style={{
-                background: darkCard,
-                border: "1px solid " + darkBorder,
+                backgroundColor: activeDay === index ? "rgba(200,169,110,0.06)" : "rgba(255,255,255,0.02)",
+                border: activeDay === index ? "1px solid rgba(200,169,110,0.3)" : "1px solid rgba(255,255,255,0.06)",
                 borderRadius: "16px",
-                padding: "32px 28px",
-                position: "relative" as const,
-                overflow: "hidden",
+                padding: "32px 36px",
+                cursor: "pointer",
+                transition: "all 0.3s ease",
+                marginBottom: "12px"
               }}
             >
-              <div
-                style={{
-                  position: "absolute" as const,
-                  top: "24px",
-                  right: "24px",
-                  fontSize: "28px",
-                  color: "rgba(200,169,110,0.15)",
-                  fontWeight: 800,
-                }}
-              >
-                {jour.numero}
-              </div>
+              <div style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: "24px"
+              }}>
+                <div style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "28px",
+                  flex: "1"
+                }}>
+                  <div style={{
+                    minWidth: "64px",
+                    height: "64px",
+                    borderRadius: "12px",
+                    backgroundColor: "rgba(200,169,110,0.08)",
+                    border: "1px solid rgba(200,169,110,0.2)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexDirection: "column",
+                    gap: "2px"
+                  }}>
+                    <span style={{
+                      color: "#c8a96e",
+                      fontSize: "20px",
+                      lineHeight: "1"
+                    }}>{day.icon}</span>
+                    <span style={{
+                      color: "rgba(200,169,110,0.5)",
+                      fontSize: "10px",
+                      fontWeight: "700",
+                      letterSpacing: "1px"
+                    }}>J{day.number}</span>
+                  </div>
 
-              <div
-                style={{
-                  width: "44px",
-                  height: "44px",
-                  background: "rgba(200,169,110,0.08)",
-                  border: "1px solid rgba(200,169,110,0.2)",
-                  borderRadius: "12px",
+                  <div>
+                    <div style={{
+                      color: "rgba(200,169,110,0.6)",
+                      fontSize: "11px",
+                      letterSpacing: "2px",
+                      textTransform: "uppercase",
+                      fontWeight: "600",
+                      marginBottom: "4px"
+                    }}>{day.subtitle}</div>
+                    <div style={{
+                      color: "#f0e6d0",
+                      fontSize: "22px",
+                      fontWeight: "600",
+                      letterSpacing: "-0.3px"
+                    }}>{day.title}</div>
+                  </div>
+                </div>
+
+                <div style={{
+                  width: "32px",
+                  height: "32px",
+                  borderRadius: "50%",
+                  border: "1px solid rgba(200,169,110,0.25)",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  fontSize: "20px",
-                  marginBottom: "20px",
-                  color: gold,
-                }}
-              >
-                {jour.icone}
+                  flexShrink: "0",
+                  transition: "all 0.3s ease",
+                  transform: activeDay === index ? "rotate(45deg)" : "rotate(0deg)"
+                }}>
+                  <span style={{
+                    color: "#c8a96e",
+                    fontSize: "18px",
+                    lineHeight: "1",
+                    marginTop: "-1px"
+                  }}>+</span>
+                </div>
               </div>
 
-              <div
-                style={{
-                  fontSize: "11px",
-                  letterSpacing: "2px",
-                  color: gold,
-                  textTransform: "uppercase" as const,
-                  marginBottom: "10px",
-                  fontWeight: 600,
-                }}
-              >
-                Jour {i + 1}
-              </div>
+              {activeDay === index && (
+                <div style={{
+                  marginTop: "28px",
+                  paddingTop: "28px",
+                  borderTop: "1px solid rgba(200,169,110,0.1)"
+                }}>
+                  <p style={{
+                    color: "rgba(240,230,208,0.65)",
+                    fontSize: "16px",
+                    lineHeight: "1.7",
+                    margin: "0 0 24px 0"
+                  }}>{day.description}</p>
 
-              <h3
-                style={{
-                  fontSize: "18px",
-                  fontWeight: 700,
-                  marginBottom: "12px",
-                  color: "#fff",
-                }}
-              >
-                {jour.titre}
-              </h3>
+                  <div style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "12px"
+                  }}>
+                    {day.points.map((point, pi) => (
+                      <div key={pi} style={{
+                        display: "flex",
+                        alignItems: "flex-start",
+                        gap: "14px"
+                      }}>
+                        <div style={{
+                          width: "20px",
+                          height: "20px",
+                          borderRadius: "50%",
+                          backgroundColor: "rgba(200,169,110,0.12)",
+                          border: "1px solid rgba(200,169,110,0.3)",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          flexShrink: "0",
+                          marginTop: "2px"
+                        }}>
+                          <span style={{
+                            color: "#c8a96e",
+                            fontSize: "9px",
+                            fontWeight: "700"
+                          }}>✓</span>
+                        </div>
+                        <span style={{
+                          color: "rgba(240,230,208,0.7)",
+                          fontSize: "15px",
+                          lineHeight: "1.5"
+                        }}>{point}</span>
+                      </div>
+                    ))}
+                  </div>
 
-              <p
-                style={{
-                  fontSize: "14px",
-                  color: "rgba(255,255,255,0.45)",
-                  lineHeight: 1.65,
-                  margin: 0,
-                }}
-              >
-                {jour.description}
-              </p>
-
-              <div
-                style={{
-                  marginTop: "24px",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "6px",
-                }}
-              >
-                <div
-                  style={{
-                    width: "6px",
-                    height: "6px",
-                    borderRadius: "50%",
-                    background: gold,
-                    opacity: 0.7,
-                  }}
-                />
-                <span
-                  style={{
-                    fontSize: "12px",
-                    color: "rgba(255,255,255,0.3)",
-                  }}
-                >
-                  15 minutes
-                </span>
-              </div>
+                  <div style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    marginTop: "24px",
+                    backgroundColor: "rgba(200,169,110,0.08)",
+                    border: "1px solid rgba(200,169,110,0.2)",
+                    borderRadius: "8px",
+                    padding: "8px 16px"
+                  }}>
+                    <span style={{ fontSize: "12px" }}>⏱</span>
+                    <span style={{
+                      color: "rgba(200,169,110,0.8)",
+                      fontSize: "12px",
+                      fontWeight: "500"
+                    }}>Durée estimée : 15 minutes</span>
+                  </div>
+                </div>
+              )}
             </div>
           ))}
         </div>
-      </div>
 
-      {/* Formulaire */}
-      <div
-        style={{
-          maxWidth: "480px",
-          margin: "0 auto",
-          padding: "0 24px 100px",
-        }}
-      >
-        <div
-          style={{
-            background: darkCard,
-            border: "1px solid " + darkBorder,
-            borderRadius: "20px",
-            padding: "40px 36px",
-          }}
-        >
-          {!submitted ? (
-            <>
-              <h2
-                style={{
-                  fontSize: "24px",
-                  fontWeight: 700,
-                  marginBottom: "8px",
-                  textAlign: "center" as const,
-                }}
-              >
-                Rejoindre le mini-cours
-              </h2>
+        <div style={{
+          backgroundColor: "rgba(200,169,110,0.05)",
+          border: "1px solid rgba(200,169,110,0.2)",
+          borderRadius: "20px",
+          padding: "56px 48px",
+          textAlign: "center",
+          marginBottom: "80px",
+          position: "relative",
+          overflow: "hidden"
+        }}>
+          <div style={{
+            position: "absolute",
+            top: "-60px",
+            left: "50%",
+            transform: "translateX(-50%)",
+            width: "200px",
+            height: "200px",
+            borderRadius: "50%",
+            background: "radial-gradient(circle, rgba(200,169,110,0.1) 0%, transparent 70%)",
+            pointerEvents: "none"
+          }} />
 
-              <p
-                style={{
-                  fontSize: "14px",
-                  color: "rgba(255,255,255,0.4)",
-                  textAlign: "center" as const,
-                  marginBottom: "32px",
-                }}
-              >
-                Accès immédiat. Gratuit. Sans CB.
-              </p>
+          <div style={{
+            fontSize: "32px",
+            marginBottom: "16px"
+          }}>✦</div>
 
-              <form onSubmit={handleSubmit}>
-                <div style={{ marginBottom: "16px" }}>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "12px",
-                      letterSpacing: "1px",
-                      color: "rgba(255,255,255,0.4)",
-                      textTransform: "uppercase" as const,
-                      marginBottom: "8px",
-                      fontWeight: 600,
-                    }}
-                  >
-                    Prénom
-                  </label>
-                  <input
-                    type="text"
-                    value={prenom}
-                    onChange={(e) => setPrenom(e.target.value)}
-                    onFocus={() => setFocused("prenom")}
-                    onBlur={() => setFocused("")}
-                    placeholder="Votre prénom"
-                    required
-                    style={inputStyle("prenom")}
-                  />
-                </div>
+          <h2 style={{
+            color: "#f0e6d0",
+            fontSize: "clamp(24px, 4vw, 36px)",
+            fontWeight: "700",
+            margin: "0 0 16px 0",
+            letterSpacing: "-0.5px"
+          }}>
+            Commencez Maintenant
+          </h2>
 
-                <div style={{ marginBottom: "16px" }}>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "12px",
-                      letterSpacing: "1px",
-                      color: "rgba(255,255,255,0.4)",
-                      textTransform: "uppercase" as const,
-                      marginBottom: "8px",
-                      fontWeight: 600,
-                    }}
-                  >
-                    Email
-                  </label>
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    onFocus={() => setFocused("email")}
-                    onBlur={() => setFocused("")}
-                    placeholder="votre@email.com"
-                    required
-                    style={inputStyle("email")}
-                  />
-                </div>
+          <p style={{
+            color: "rgba(240,230,208,0.5)",
+            fontSize: "16px",
+            lineHeight: "1.7",
+            maxWidth: "400px",
+            margin: "0 auto 36px auto"
+          }}>
+            Rejoignez les personnes qui utilisent déjà l'IA comme un vrai levier de productivité.
+          </p>
 
-                <div style={{ marginBottom: "28px" }}>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "12px",
-                      letterSpacing: "1px",
-                      color: "rgba(255,255,255,0.4)",
-                      textTransform: "uppercase" as const,
-                      marginBottom: "8px",
-                      fontWeight: 600,
-                    }}
-                  >
-                    Votre métier
-                  </label>
-                  <input
-                    type="text"
-                    value={metier}
-                    onChange={(e) => setMetier(e.target.value)}
-                    onFocus={() => setFocused("metier")}
-                    onBlur={() => setFocused("")}
-                    placeholder="Ex: Consultant, Designer, Coach..."
-                    required
-                    style={inputStyle("metier")}
-                  />
-                </div>
+          <div style={{
+            display: "flex",
+            gap: "12px",
+            maxWidth: "480px",
+            margin: "0 auto 16px auto",
+            flexWrap: "wrap",
+            justifyContent: "center"
+          }}>
+            <input
+              type="email"
+              placeholder="votre@email.com"
+              style={{
+                flex: "1",
+                minWidth: "220px",
+                backgroundColor: "rgba(255,255,255,0.04)",
+                border: "1px solid rgba(200,169,110,0.25)",
+                borderRadius: "10px",
+                padding: "14px 18px",
+                color: "#f0e6d0",
+                fontSize: "15px",
+                outline: "none"
+              }}
+            />
+            <button style={{
+              backgroundColor: "#c8a96e",
+              color: "#050508",
+              border: "none",
+              borderRadius: "10px",
+              padding: "14px 28px",
+              fontSize: "15px",
+              fontWeight: "700",
+              cursor: "pointer",
+              letterSpacing: "0.3px",
+              whiteSpace: "nowrap"
+            }}>
+              Démarrer →
+            </button>
+          </div>
 
-                <button
-                  type="submit"
-                  style={{
-                    width: "100%",
-                    padding: "16px",
-                    background: gold,
-                    color: dark,
-                    border: "none",
-                    borderRadius: "10px",
-                    fontSize: "15px",
-                    fontWeight: 800,
-                    cursor: "pointer",
-                    letterSpacing: "0.5px",
-                    transition: "all 0.2s ease",
-                    fontFamily: "inherit",
-                  }}
-                  onMouseEnter={(e) => {
-                    (e.target as HTMLButtonElement).style.background =
-                      "#d4b87a";
-                    (e.target as HTMLButtonElement).style.transform =
-                      "translateY(-1px)";
-                  }}
-                  onMouseLeave={(e) => {
-                    (e.target as HTMLButtonElement).style.background = gold;
-                    (e.target as HTMLButtonElement).style.transform =
-                      "translateY(0)";
-                  }}
-                >
-                  Démarrer le mini-cours →
-                </button>
+          <p style={{
+            color: "rgba(240,230,208,0.3)",
+            fontSize: "12px",
+            margin: "0"
+          }}>
+            Gratuit · Sans engagement · Premier email dans 5 minutes
+          </p>
+        </div>
 
-                <p
-                  style={{
-                    fontSize: "12px",
-                    color: "rgba(255,255,255,0.25)",
-                    textAlign: "center" as const,
-                    marginTop: "16px",
-                    marginBottom: 0,
-                  }}
-                >
-                  Pas de spam. Désabonnement en 1 clic.
-                </p>
-              </form>
-            </>
-          ) : (
-            <div style={{ textAlign: "center" as const, padding: "16px 0" }}>
-              <div
-                style={{
-                  width: "64px",
-                  height: "64px",
-                  background: "rgba(200,169,110,0.1)",
-                  border: "1px solid rgba(200,169,110,0.3)",
-                  borderRadius: "50%",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
+        <div style={{
+          borderTop: "1px solid rgba(255,255,255,0.06)",
+          paddingTop: "32px",
+          paddingBottom: "48px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          flexWrap: "wrap",
+          gap: "16px"
+        }}>
+          <span style={{
+            color: "rgba(240,230,208,0.25)",
+            fontSize:
