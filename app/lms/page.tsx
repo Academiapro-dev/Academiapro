@@ -1,424 +1,170 @@
-import React, { useState } from "react";
+"use client";
+import { useState } from "react";
 
-const gold = "#c8a96e";
-const dark = "#050508";
-const darkCard = "#0e0e14";
-const darkBorder = "#1a1a24";
-const darkHover = "#13131c";
-const goldLight = "#e8c98e";
-const goldDim = "#8a6a3e";
-const textPrimary = "#f0e8d8";
-const textSecondary = "#a09880";
-const textMuted = "#5a5848";
-const success = "#4caf7d";
-const warning = "#e8a040";
-const info = "#5b8dee";
+export default function LMSPage() {
+  const [activeTab, setActiveTab] = useState("dashboard");
+  const [expandedModule, setExpandedModule] = useState(null);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatMessage, setChatMessage] = useState("");
+  const [chatHistory, setChatHistory] = useState([
+    { role: "ai", text: "Bonjour ! Je suis votre tuteur IA. Comment puis-je vous aider aujourd'hui ?" }
+  ]);
 
-const modules = [
-  {
-    id: 1,
-    title: "Foundations of AI",
-    lessons: 12,
-    completed: 12,
-    duration: "4h 30m",
-    locked: false,
-    certified: true,
-  },
-  {
-    id: 2,
-    title: "Machine Learning Core",
-    lessons: 18,
-    completed: 14,
-    duration: "6h 15m",
-    locked: false,
-    certified: false,
-  },
-  {
-    id: 3,
-    title: "Neural Networks Deep Dive",
-    lessons: 24,
-    completed: 6,
-    duration: "9h 00m",
-    locked: false,
-    certified: false,
-  },
-  {
-    id: 4,
-    title: "Generative AI Mastery",
-    lessons: 20,
-    completed: 0,
-    duration: "7h 45m",
-    locked: true,
-    certified: false,
-  },
-  {
-    id: 5,
-    title: "AI Ethics & Deployment",
-    lessons: 10,
-    completed: 0,
-    duration: "3h 20m",
-    locked: true,
-    certified: false,
-  },
-];
+  const modules = [
+    { id: 1, title: "Introduction au Machine Learning", lessons: 12, completed: 12, quiz: true, quizScore: 94 },
+    { id: 2, title: "Réseaux de neurones profonds", lessons: 18, completed: 14, quiz: true, quizScore: 78 },
+    { id: 3, title: "Traitement du langage naturel", lessons: 15, completed: 6, quiz: false, quizScore: null },
+    { id: 4, title: "Vision par ordinateur", lessons: 20, completed: 0, quiz: false, quizScore: null },
+    { id: 5, title: "Reinforcement Learning", lessons: 16, completed: 0, quiz: false, quizScore: null },
+  ];
 
-const quizzes = [
-  { id: 1, title: "AI Foundations Quiz", score: 94, passed: true, attempts: 2 },
-  { id: 2, title: "ML Algorithms Test", score: 78, passed: true, attempts: 3 },
-  { id: 3, title: "Neural Net Assessment", score: null, passed: false, attempts: 0 },
-  { id: 4, title: "Final Certification Exam", score: null, passed: false, attempts: 0 },
-];
+  const certificates = [
+    { id: 1, title: "Machine Learning Fundamentals", date: "12 Jan 2025", badge: "🥇" },
+    { id: 2, title: "Deep Learning Practitioner", date: "En cours", badge: "🔄" },
+  ];
 
-const certificates = [
-  { id: 1, title: "AI Foundations", issued: "Jan 15, 2025", code: "CERT-AF-2025-0042" },
-  { id: 2, title: "ML Professional", issued: null, code: null },
-  { id: 3, title: "Deep Learning Expert", issued: null, code: null },
-];
+  const liveSessions = [
+    { id: 1, title: "Workshop: Fine-tuning LLMs", date: "Aujourd'hui 18h00", live: true, replay: false },
+    { id: 2, title: "Q&A: Computer Vision avancé", date: "Hier 18h00", live: false, replay: true },
+    { id: 3, title: "Masterclass: MLOps en production", date: "15 Jan 2025", live: false, replay: true },
+    { id: 4, title: "Atelier: Prompt Engineering", date: "10 Jan 2025", live: false, replay: true },
+  ];
 
-const replays = [
-  { id: 1, title: "Live Q&A: Neural Networks", date: "Feb 10, 2025", duration: "1h 23m", views: 342 },
-  { id: 2, title: "Workshop: Model Training", date: "Jan 28, 2025", duration: "2h 05m", views: 218 },
-  { id: 3, title: "Expert Panel: AI Trends", date: "Jan 14, 2025", duration: "58m", views: 501 },
-];
+  const quizQuestions = [
+    { q: "Qu'est-ce qu'un réseau de neurones convolutif ?", options: ["Un réseau pour le texte", "Un réseau pour les images", "Un réseau récurrent", "Un autoencoder"], correct: 1 },
+  ];
+  const [selectedAnswer, setSelectedAnswer] = useState(null);
+  const [quizSubmitted, setQuizSubmitted] = useState(false);
 
-const aiMessages = [
-  { role: "ai", text: "Hello! I'm your AI tutor. How can I help you today with your learning journey?" },
-  { role: "user", text: "Can you explain backpropagation in simple terms?" },
-  {
-    role: "ai",
-    text: "Of course! Backpropagation is how neural networks learn from mistakes. Think of it as a feedback loop — the network makes a prediction, calculates how wrong it was, then works backwards through each layer adjusting weights to reduce that error. Like tuning an instrument by ear!",
-  },
-];
-
-type Tab = "modules" | "quiz" | "certificates" | "sessions" | "ai";
-
-export default function LMSInterface() {
-  const [activeTab, setActiveTab] = useState<Tab>("modules");
-  const [aiInput, setAiInput] = useState("");
-  const [messages, setMessages] = useState(aiMessages);
-  const [aiTyping, setAiTyping] = useState(false);
-
-  const overallProgress = Math.round(
+  const totalProgress = Math.round(
     modules.reduce((acc, m) => acc + (m.completed / m.lessons) * 100, 0) / modules.length
   );
 
-  const handleSendMessage = () => {
-    if (!aiInput.trim()) return;
-    const newMessages = [...messages, { role: "user", text: aiInput }];
-    setMessages(newMessages);
-    setAiInput("");
-    setAiTyping(true);
+  function sendChat() {
+    if (!chatMessage.trim()) return;
+    const newHistory = [...chatHistory, { role: "user", text: chatMessage }];
+    setChatHistory(newHistory);
+    setChatMessage("");
     setTimeout(() => {
-      setMessages([
-        ...newMessages,
-        {
-          role: "ai",
-          text: "Great question! I am analyzing your learning history to give you a personalized explanation. Based on your progress in Module 3, let me connect this concept to what you already know about activation functions...",
-        },
-      ]);
-      setAiTyping(false);
-    }, 2000);
-  };
-
-  const tabs: { id: Tab; label: string; icon: string }[] = [
-    { id: "modules", label: "Modules", icon: "▦" },
-    { id: "quiz", label: "Quizzes", icon: "✎" },
-    { id: "certificates", label: "Certificates", icon: "◈" },
-    { id: "sessions", label: "Live Replays", icon: "▶" },
-    { id: "ai", label: "AI Tutor", icon: "◉" },
-  ];
+      setChatHistory([...newHistory, {
+        role: "ai",
+        text: "Excellente question ! Voici une explication détaillée de ce concept. Les réseaux de neurones apprennent par rétropropagation du gradient, ajustant leurs poids à chaque itération pour minimiser la fonction de perte."
+      }]);
+    }, 800);
+  }
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        backgroundColor: dark,
-        fontFamily: "'Inter', 'SF Pro Display', -apple-system, sans-serif",
-        color: textPrimary,
-      }}
-    >
-      {/* Top Nav */}
-      <div
-        style={{
-          borderBottom: "1px solid " + darkBorder,
-          backgroundColor: dark,
-          position: "sticky",
-          top: 0,
-          zIndex: 100,
-          backdropFilter: "blur(20px)",
-        }}
-      >
-        <div
-          style={{
-            maxWidth: 1400,
-            margin: "0 auto",
-            padding: "0 32px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            height: 64,
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <div
-              style={{
-                width: 32,
-                height: 32,
-                borderRadius: 8,
-                background: "linear-gradient(135deg, " + gold + ", " + goldDim + ")",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: 16,
-                fontWeight: 700,
-                color: dark,
-              }}
-            >
-              A
+    <div style={{ minHeight: "100vh", background: "#050508", fontFamily: "'Segoe UI', sans-serif", color: "#e8e0d0", display: "flex" }}>
+
+      <div style={{ width: "240px", background: "linear-gradient(180deg, #0d0d14 0%, #080810 100%)", borderRight: "1px solid #1a1a2e", display: "flex", flexDirection: "column", padding: "0", position: "fixed", height: "100vh", zIndex: 100 }}>
+        <div style={{ padding: "28px 24px 24px", borderBottom: "1px solid #1a1a2e" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <div style={{ width: "36px", height: "36px", background: "linear-gradient(135deg, #c8a96e, #e8c97e)", borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "18px" }}>⚡</div>
+            <div>
+              <div style={{ fontSize: "15px", fontWeight: "700", color: "#c8a96e", letterSpacing: "0.5px" }}>LearnAI</div>
+              <div style={{ fontSize: "10px", color: "#666", letterSpacing: "1px", textTransform: "uppercase" }}>Platform</div>
             </div>
-            <span
-              style={{
-                fontSize: 18,
-                fontWeight: 700,
-                background: "linear-gradient(135deg, " + goldLight + ", " + gold + ")",
-                WebkitBackgroundClip: "text",
-                WebkitTextFillColor: "transparent",
-                letterSpacing: "-0.3px",
-              }}
-            >
-              AcademyAI
-            </span>
           </div>
+        </div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            {/* Live badge */}
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-                backgroundColor: "rgba(220,50,50,0.1)",
-                border: "1px solid rgba(220,50,50,0.3)",
-                borderRadius: 20,
-                padding: "4px 12px",
-                cursor: "pointer",
-              }}
+        <nav style={{ padding: "16px 12px", flex: 1 }}>
+          {[
+            { id: "dashboard", icon: "◉", label: "Tableau de bord" },
+            { id: "modules", icon: "▦", label: "Modules" },
+            { id: "quiz", icon: "◈", label: "Quiz" },
+            { id: "certificates", icon: "✦", label: "Certificats" },
+            { id: "live", icon: "◎", label: "Sessions Live" },
+          ].map(item => (
+            <button
+              key={item.id}
+              onClick={() => setActiveTab(item.id)}
+              style={{ width: "100%", display: "flex", alignItems: "center", gap: "12px", padding: "11px 14px", borderRadius: "10px", border: "none", cursor: "pointer", marginBottom: "4px", background: activeTab === item.id ? "linear-gradient(135deg, rgba(200,169,110,0.15), rgba(200,169,110,0.08))" : "transparent", color: activeTab === item.id ? "#c8a96e" : "#888", fontSize: "13px", fontWeight: activeTab === item.id ? "600" : "400", transition: "all 0.2s", textAlign: "left", borderLeft: activeTab === item.id ? "2px solid #c8a96e" : "2px solid transparent" }}
             >
-              <div
-                style={{
-                  width: 6,
-                  height: 6,
-                  borderRadius: "50%",
-                  backgroundColor: "#e03c3c",
-                  animation: "pulse 2s infinite",
-                }}
-              />
-              <span style={{ fontSize: 12, color: "#e05050", fontWeight: 600 }}>LIVE NOW</span>
+              <span style={{ fontSize: "15px" }}>{item.icon}</span>
+              {item.label}
+            </button>
+          ))}
+        </nav>
+
+        <div style={{ padding: "16px 12px", borderTop: "1px solid #1a1a2e" }}>
+          <div style={{ background: "rgba(200,169,110,0.08)", borderRadius: "12px", padding: "14px", border: "1px solid rgba(200,169,110,0.15)" }}>
+            <div style={{ fontSize: "11px", color: "#c8a96e", fontWeight: "600", marginBottom: "8px", letterSpacing: "0.5px" }}>PROGRESSION GLOBALE</div>
+            <div style={{ fontSize: "28px", fontWeight: "800", color: "#c8a96e", lineHeight: "1" }}>{totalProgress}%</div>
+            <div style={{ marginTop: "8px", background: "#1a1a2e", borderRadius: "4px", height: "4px", overflow: "hidden" }}>
+              <div style={{ height: "100%", width: totalProgress + "%", background: "linear-gradient(90deg, #c8a96e, #e8c97e)", borderRadius: "4px", transition: "width 0.5s" }}></div>
             </div>
-
-            <div
-              style={{
-                width: 36,
-                height: 36,
-                borderRadius: "50%",
-                background: "linear-gradient(135deg, " + gold + ", " + goldDim + ")",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: 14,
-                fontWeight: 700,
-                color: dark,
-                cursor: "pointer",
-                marginLeft: 8,
-              }}
-            >
-              JD
+            <div style={{ fontSize: "10px", color: "#666", marginTop: "6px" }}>3 modules en cours</div>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "12px 8px 4px" }}>
+            <div style={{ width: "32px", height: "32px", background: "linear-gradient(135deg, #c8a96e, #a07840)", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "14px", fontWeight: "700", color: "#050508" }}>A</div>
+            <div>
+              <div style={{ fontSize: "13px", fontWeight: "600", color: "#e8e0d0" }}>Alex Martin</div>
+              <div style={{ fontSize: "11px", color: "#666" }}>Pro Member</div>
             </div>
           </div>
         </div>
       </div>
 
-      <div
-        style={{
-          maxWidth: 1400,
-          margin: "0 auto",
-          padding: "32px 32px",
-          display: "grid",
-          gridTemplateColumns: "280px 1fr",
-          gap: 24,
-        }}
-      >
-        {/* Sidebar */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          {/* Profile Card */}
-          <div
-            style={{
-              backgroundColor: darkCard,
-              border: "1px solid " + darkBorder,
-              borderRadius: 16,
-              padding: 20,
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
-              <div
-                style={{
-                  width: 48,
-                  height: 48,
-                  borderRadius: "50%",
-                  background: "linear-gradient(135deg, " + gold + ", " + goldDim + ")",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: 18,
-                  fontWeight: 700,
-                  color: dark,
-                  flexShrink: 0,
-                }}
-              >
-                JD
-              </div>
-              <div>
-                <div style={{ fontSize: 15, fontWeight: 600, color: textPrimary }}>Jordan Davis</div>
-                <div style={{ fontSize: 12, color: textSecondary }}>AI Practitioner Track</div>
-              </div>
+      <div style={{ marginLeft: "240px", flex: 1, padding: "32px", minHeight: "100vh" }}>
+
+        {activeTab === "dashboard" && (
+          <div>
+            <div style={{ marginBottom: "32px" }}>
+              <h1 style={{ fontSize: "28px", fontWeight: "800", color: "#e8e0d0", margin: "0 0 6px" }}>Bonjour, Alex 👋</h1>
+              <p style={{ color: "#666", fontSize: "14px", margin: 0 }}>Continuez votre apprentissage — vous êtes à {totalProgress}% de votre objectif.</p>
             </div>
 
-            {/* Overall Progress */}
-            <div style={{ marginBottom: 12 }}>
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  marginBottom: 8,
-                }}
-              >
-                <span style={{ fontSize: 12, color: textSecondary }}>Overall Progress</span>
-                <span style={{ fontSize: 14, fontWeight: 700, color: gold }}>{overallProgress}%</span>
-              </div>
-              <div
-                style={{
-                  height: 6,
-                  backgroundColor: darkBorder,
-                  borderRadius: 3,
-                  overflow: "hidden",
-                }}
-              >
-                <div
-                  style={{
-                    height: "100%",
-                    width: overallProgress + "%",
-                    background: "linear-gradient(90deg, " + gold + ", " + goldLight + ")",
-                    borderRadius: 3,
-                    transition: "width 1s ease",
-                  }}
-                />
-              </div>
-            </div>
-
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr 1fr",
-                gap: 8,
-                marginTop: 16,
-              }}
-            >
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "16px", marginBottom: "32px" }}>
               {[
-                { label: "Modules", value: "3/5" },
-                { label: "Quizzes", value: "2/4" },
-                { label: "Certs", value: "1/3" },
-              ].map((stat) => (
-                <div
-                  key={stat.label}
-                  style={{
-                    backgroundColor: dark,
-                    borderRadius: 8,
-                    padding: "10px 6px",
-                    textAlign: "center",
-                    border: "1px solid " + darkBorder,
-                  }}
-                >
-                  <div style={{ fontSize: 16, fontWeight: 700, color: gold }}>{stat.value}</div>
-                  <div style={{ fontSize: 10, color: textMuted, marginTop: 2 }}>{stat.label}</div>
+                { label: "Leçons complétées", value: "32", icon: "📚", color: "#c8a96e" },
+                { label: "Heures d'étude", value: "47h", icon: "⏱", color: "#7e9fe8" },
+                { label: "Score moyen quiz", value: "86%", icon: "🎯", color: "#7ee8a2" },
+                { label: "Certificats", value: "1", icon: "🏅", color: "#e87e7e" },
+              ].map((stat, i) => (
+                <div key={i} style={{ background: "linear-gradient(135deg, #0d0d14, #0a0a12)", border: "1px solid #1a1a2e", borderRadius: "16px", padding: "20px", position: "relative", overflow: "hidden" }}>
+                  <div style={{ position: "absolute", top: "12px", right: "14px", fontSize: "24px", opacity: "0.6" }}>{stat.icon}</div>
+                  <div style={{ fontSize: "11px", color: "#666", textTransform: "uppercase", letterSpacing: "1px", marginBottom: "8px" }}>{stat.label}</div>
+                  <div style={{ fontSize: "32px", fontWeight: "800", color: stat.color }}>{stat.value}</div>
                 </div>
               ))}
             </div>
-          </div>
 
-          {/* Navigation */}
-          <div
-            style={{
-              backgroundColor: darkCard,
-              border: "1px solid " + darkBorder,
-              borderRadius: 16,
-              padding: 8,
-            }}
-          >
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                style={{
-                  width: "100%",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 12,
-                  padding: "11px 14px",
-                  borderRadius: 10,
-                  border: "none",
-                  cursor: "pointer",
-                  backgroundColor: activeTab === tab.id ? "rgba(200,169,110,0.12)" : "transparent",
-                  color: activeTab === tab.id ? gold : textSecondary,
-                  fontSize: 14,
-                  fontWeight: activeTab === tab.id ? 600 : 400,
-                  textAlign: "left",
-                  marginBottom: 2,
-                  transition: "all 0.2s ease",
-                  borderLeft: activeTab === tab.id ? "2px solid " + gold : "2px solid transparent",
-                }}
-              >
-                <span style={{ fontSize: 16 }}>{tab.icon}</span>
-                {tab.label}
-                {tab.id === "ai" && (
-                  <span
-                    style={{
-                      marginLeft: "auto",
-                      backgroundColor: "rgba(200,169,110,0.2)",
-                      color: gold,
-                      fontSize: 10,
-                      fontWeight: 700,
-                      padding: "2px 6px",
-                      borderRadius: 4,
-                    }}
-                  >
-                    NEW
-                  </span>
-                )}
-              </button>
-            ))}
-          </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px", marginBottom: "20px" }}>
+              <div style={{ background: "linear-gradient(135deg, #0d0d14, #0a0a12)", border: "1px solid #1a1a2e", borderRadius: "16px", padding: "24px" }}>
+                <h3 style={{ fontSize: "14px", fontWeight: "700", color: "#c8a96e", margin: "0 0 20px", textTransform: "uppercase", letterSpacing: "1px" }}>Progression par module</h3>
+                {modules.map(m => (
+                  <div key={m.id} style={{ marginBottom: "16px" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
+                      <span style={{ fontSize: "12px", color: "#aaa", maxWidth: "70%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.title}</span>
+                      <span style={{ fontSize: "12px", color: "#c8a96e", fontWeight: "600" }}>{Math.round((m.completed / m.lessons) * 100)}%</span>
+                    </div>
+                    <div style={{ background: "#1a1a2e", borderRadius: "4px", height: "6px", overflow: "hidden" }}>
+                      <div style={{ height: "100%", width: Math.round((m.completed / m.lessons) * 100) + "%", background: m.completed === m.lessons ? "linear-gradient(90deg, #7ee8a2, #4ec87a)" : "linear-gradient(90deg, #c8a96e, #e8c97e)", borderRadius: "4px", transition: "width 0.5s" }}></div>
+                    </div>
+                  </div>
+                ))}
+              </div>
 
-          {/* Streak Card */}
-          <div
-            style={{
-              background: "linear-gradient(135deg, rgba(200,169,110,0.08), rgba(200,169,110,0.02))",
-              border: "1px solid rgba(200,169,110,0.2)",
-              borderRadius: 16,
-              padding: 20,
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-              <span style={{ fontSize: 20 }}>🔥</span>
-              <span style={{ fontSize: 14, fontWeight: 600, color: gold }}>12-Day Streak!</span>
+              <div style={{ background: "linear-gradient(135deg, #0d0d14, #0a0a12)", border: "1px solid #1a1a2e", borderRadius: "16px", padding: "24px" }}>
+                <h3 style={{ fontSize: "14px", fontWeight: "700", color: "#c8a96e", margin: "0 0 20px", textTransform: "uppercase", letterSpacing: "1px" }}>Sessions à venir & Replays</h3>
+                {liveSessions.slice(0, 4).map(s => (
+                  <div key={s.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0", borderBottom: "1px solid #0d0d14" }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: "12px", color: "#ddd", fontWeight: "500", marginBottom: "3px" }}>{s.title}</div>
+                      <div style={{ fontSize: "11px", color: "#555" }}>{s.date}</div>
+                    </div>
+                    {s.live && (
+                      <div style={{ display: "flex", alignItems: "center", gap: "5px", background: "rgba(231,76,60,0.15)", border: "1px solid rgba(231,76,60,0.3)", borderRadius: "20px", padding: "3px 10px" }}>
+                        <div style={{ width: "6px", height: "6px", background: "#e74c3c", borderRadius: "50%", animation: "pulse 1s infinite" }}></div>
+                        <span style={{ fontSize: "10px", color: "#e74c3c", fontWeight: "700" }}>LIVE</span>
+                      </div>
+                    )}
+                    {s.replay && (
+                      <button style={{ background: "rgba(200,169,110,0.1)", border: "1px solid rgba(200,169,110,0.2)", borderRadius: "20px", padding: "3px 10px", color: "#c8a96e", fontSize: "10px", cursor: "pointer", fontWeight: "600" }}>▶ Replay</button>
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
-            <p style={{ fontSize: 12, color: textSecondary, margin: 0, lineHeight: 1.5 }}>
-              Keep it up! Study at least 20 minutes today to extend your streak.
-            </p>
-            <div style={{ marginTop: 12, display: "flex", gap: 4 }}>
-              {Array.from({ length: 7 }).map((_, i) => (
-                <div
-                  key={i}
-                  style={{
-                    flex: 1,
-                    height: 6,
+
+            <div style={{ background: "linear-gradient(135deg, rgba(200,169,110,0.1), rgba(200,169,110,0.05))", border: "1px solid rgba(200,169,110,0.2)", borderRadius: "16px", padding: "20px", display: "flex", alignItems: "center", justifyContent: "space-between"
