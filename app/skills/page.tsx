@@ -1,339 +1,205 @@
-import React from "react";
+"use client";
 import { useState } from "react";
 
-const skills = [
-  { id: "SK01", name: "Machine Learning Fondamentaux", category: "IA", price: 97, desc: "Maîtrisez les bases du ML avec Python et scikit-learn" },
-  { id: "SK02", name: "Deep Learning & Réseaux de Neurones", category: "IA", price: 97, desc: "Construisez des architectures neuronales avancées" },
-  { id: "SK03", name: "NLP & Traitement du Langage", category: "IA", price: 97, desc: "Analysez et générez du texte avec l'IA" },
-  { id: "SK04", name: "Computer Vision", category: "IA", price: 97, desc: "Reconnaissance d'images et vidéos par l'IA" },
-  { id: "SK05", name: "LLMs & Prompt Engineering", category: "IA", price: 97, desc: "Optimisez vos interactions avec les grands modèles" },
-  { id: "SK06", name: "IA Générative & Diffusion", category: "IA", price: 97, desc: "Créez des contenus visuels et textuels par IA" },
-  { id: "SK07", name: "MLOps & Déploiement IA", category: "IA", price: 97, desc: "Industrialisez vos modèles en production" },
-  { id: "SK08", name: "Data Engineering", category: "IA", price: 97, desc: "Pipelines de données robustes et scalables" },
-  { id: "SK09", name: "IA & Automatisation", category: "IA", price: 97, desc: "Automatisez vos processus métier avec l'IA" },
-  { id: "SK10", name: "Éthique & IA Responsable", category: "IA", price: 97, desc: "Construisez une IA juste, transparente et sûre" },
-  { id: "SK11", name: "Stratégie d'Entreprise", category: "Business", price: 97, desc: "Définissez et exécutez votre vision stratégique" },
-  { id: "SK12", name: "Marketing Digital Avancé", category: "Business", price: 97, desc: "Acquisition, conversion et rétention clients" },
-  { id: "SK13", name: "Leadership & Management", category: "Business", price: 97, desc: "Dirigez des équipes performantes et motivées" },
-  { id: "SK14", name: "Finance & Investissement", category: "Business", price: 97, desc: "Maîtrisez la gestion financière et les marchés" },
-  { id: "SK15", name: "Entrepreneuriat & Startup", category: "Business", price: 97, desc: "Lancez et scalez votre entreprise avec méthode" },
-  { id: "SK16", name: "Méditation & Pleine Conscience", category: "Bien-être", price: 47, desc: "Cultivez la paix intérieure et la clarté mentale" },
-  { id: "SK17", name: "Nutrition & Alimentation Saine", category: "Bien-être", price: 47, desc: "Optimisez votre énergie par l'alimentation" },
-  { id: "SK18", name: "Gestion du Stress", category: "Bien-être", price: 47, desc: "Techniques pour un équilibre mental durable" },
-  { id: "SK19", name: "Sommeil & Récupération", category: "Bien-être", price: 47, desc: "Améliorez la qualité de votre sommeil profondément" },
-  { id: "SK20", name: "Mouvement & Performance Physique", category: "Bien-être", price: 47, desc: "Entraînement intelligent pour un corps optimal" },
-];
-
-const categories = ["Tous", "IA", "Business", "Bien-être"];
-
-const categoryColors: Record<string, string> = {
-  "IA": "#c8a96e",
-  "Business": "#8bb8e8",
-  "Bien-être": "#8be8b8",
-};
-
 export default function SkillsPage() {
-  const [activeFilter, setActiveFilter] = useState("Tous");
-  const [hoveredCard, setHoveredCard] = useState<string | null>(null);
-  const [hoveredFilter, setHoveredFilter] = useState<string | null>(null);
-  const [hoveredBtn, setHoveredBtn] = useState<string | null>(null);
+  const [activeFilter, setActiveFilter] = useState("all");
 
-  const filtered = activeFilter === "Tous" ? skills : skills.filter(s => s.category === activeFilter);
+  const skills = [
+    { id: "SK01", name: "Machine Learning Fondamentaux", category: "ia", price: 97, desc: "Algorithmes supervisés et non supervisés" },
+    { id: "SK02", name: "Deep Learning & Réseaux de Neurones", category: "ia", price: 97, desc: "CNN, RNN, Transformers" },
+    { id: "SK03", name: "Natural Language Processing", category: "ia", price: 97, desc: "Traitement du langage naturel avancé" },
+    { id: "SK04", name: "Computer Vision", category: "ia", price: 97, desc: "Détection et reconnaissance d'images" },
+    { id: "SK05", name: "Prompt Engineering", category: "ia", price: 97, desc: "Maîtrise des LLMs et GPT" },
+    { id: "SK06", name: "Data Science & Analyse", category: "ia", price: 97, desc: "Python, Pandas, visualisation" },
+    { id: "SK07", name: "MLOps & Déploiement", category: "ia", price: 97, desc: "Pipeline ML en production" },
+    { id: "SK08", name: "IA Générative", category: "ia", price: 97, desc: "DALL-E, Stable Diffusion, Midjourney" },
+    { id: "SK09", name: "Automatisation IA", category: "ia", price: 97, desc: "Workflows intelligents no-code" },
+    { id: "SK10", name: "Éthique & IA Responsable", category: "ia", price: 97, desc: "Biais, fairness, gouvernance IA" },
+    { id: "SK11", name: "Stratégie Digitale", category: "business", price: 97, desc: "Transformation numérique d'entreprise" },
+    { id: "SK12", name: "Marketing IA-Driven", category: "business", price: 97, desc: "Campagnes augmentées par l'IA" },
+    { id: "SK13", name: "Finance & Investissement", category: "business", price: 97, desc: "Analyse financière et ROI" },
+    { id: "SK14", name: "Leadership & Management", category: "business", price: 97, desc: "Diriger les équipes tech" },
+    { id: "SK15", name: "Entrepreneuriat Tech", category: "business", price: 97, desc: "Créer et scaler une startup IA" },
+    { id: "SK16", name: "Mindfulness & Focus", category: "bienetre", price: 47, desc: "Concentration et pleine conscience" },
+    { id: "SK17", name: "Gestion du Stress", category: "bienetre", price: 47, desc: "Techniques de régulation émotionnelle" },
+    { id: "SK18", name: "Sommeil & Performance", category: "bienetre", price: 47, desc: "Optimiser récupération et énergie" },
+    { id: "SK19", name: "Nutrition & Cognition", category: "bienetre", price: 47, desc: "Alimentation pour la performance mentale" },
+    { id: "SK20", name: "Sport & Biohacking", category: "bienetre", price: 47, desc: "Optimisation physique et mentale" },
+  ];
+
+  const filtered = activeFilter === "all" ? skills : skills.filter(function(s) { return s.category === activeFilter; });
+
+  const categoryColors = {
+    ia: { bg: "rgba(200,169,110,0.12)", border: "rgba(200,169,110,0.5)", badge: "#c8a96e", text: "IA" },
+    business: { bg: "rgba(120,160,255,0.10)", border: "rgba(120,160,255,0.4)", badge: "#78a0ff", text: "Business" },
+    bienetre: { bg: "rgba(100,220,160,0.10)", border: "rgba(100,220,160,0.4)", badge: "#64dcA0", text: "Bien-être" },
+  };
+
+  const filters = [
+    { key: "all", label: "Tous les Skills", count: 20 },
+    { key: "ia", label: "Intelligence Artificielle", count: 10 },
+    { key: "business", label: "Business", count: 5 },
+    { key: "bienetre", label: "Bien-être", count: 5 },
+  ];
 
   return (
-    <div style={{
-      minHeight: "100vh",
-      backgroundColor: "#050508",
-      fontFamily: "'Segoe UI', system-ui, sans-serif",
-      color: "#ffffff",
-      padding: "0",
-    }}>
+    <div style={{ background: "#050508", minHeight: "100vh", fontFamily: "'Segoe UI', sans-serif", padding: "0 0 80px 0" }}>
 
-      {/* Header */}
-      <div style={{
-        textAlign: "center",
-        padding: "80px 24px 48px",
-        position: "relative",
-      }}>
-        <div style={{
-          position: "absolute",
-          top: "0",
-          left: "50%",
-          transform: "translateX(-50%)",
-          width: "600px",
-          height: "300px",
-          background: "radial-gradient(ellipse, rgba(200,169,110,0.12) 0%, transparent 70%)",
-          pointerEvents: "none",
-        }} />
+      <div style={{ background: "linear-gradient(180deg, #0d0d12 0%, #050508 100%)", borderBottom: "1px solid rgba(200,169,110,0.15)", padding: "60px 20px 50px 20px", textAlign: "center" }}>
+        <div style={{ display: "inline-block", background: "rgba(200,169,110,0.1)", border: "1px solid rgba(200,169,110,0.3)", borderRadius: "20px", padding: "6px 18px", marginBottom: "20px" }}>
+          <span style={{ color: "#c8a96e", fontSize: "12px", fontWeight: "600", letterSpacing: "2px", textTransform: "uppercase" }}>Catalogue de Formation</span>
+        </div>
+        <h1 style={{ color: "#ffffff", fontSize: "clamp(32px, 5vw, 56px)", fontWeight: "800", margin: "0 0 16px 0", letterSpacing: "-1px", lineHeight: "1.1" }}>
+          Maîtrisez les <span style={{ color: "#c8a96e" }}>20 Skills</span>
+        </h1>
+        <h2 style={{ color: "#ffffff", fontSize: "clamp(32px, 5vw, 56px)", fontWeight: "800", margin: "0 0 24px 0", letterSpacing: "-1px", lineHeight: "1.1" }}>
+          du Futur
+        </h2>
+        <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "16px", maxWidth: "520px", margin: "0 auto", lineHeight: "1.7" }}>
+          IA, Business & Bien-être — Trois piliers pour performer dans un monde en mutation rapide
+        </p>
 
-        <div style={{
-          display: "inline-block",
-          border: "1px solid rgba(200,169,110,0.4)",
-          borderRadius: "20px",
-          padding: "6px 18px",
-          marginBottom: "24px",
-          fontSize: "12px",
-          letterSpacing: "3px",
-          color: "#c8a96e",
-          textTransform: "uppercase",
-        }}>
-          20 Compétences Premium
+        <div style={{ display: "flex", justifyContent: "center", gap: "24px", marginTop: "40px", flexWrap: "wrap" }}>
+          <div style={{ textAlign: "center" }}>
+            <div style={{ color: "#c8a96e", fontSize: "28px", fontWeight: "800" }}>10</div>
+            <div style={{ color: "rgba(255,255,255,0.4)", fontSize: "12px", letterSpacing: "1px" }}>Skills IA</div>
+          </div>
+          <div style={{ width: "1px", background: "rgba(255,255,255,0.1)", height: "50px" }}></div>
+          <div style={{ textAlign: "center" }}>
+            <div style={{ color: "#78a0ff", fontSize: "28px", fontWeight: "800" }}>5</div>
+            <div style={{ color: "rgba(255,255,255,0.4)", fontSize: "12px", letterSpacing: "1px" }}>Skills Business</div>
+          </div>
+          <div style={{ width: "1px", background: "rgba(255,255,255,0.1)", height: "50px" }}></div>
+          <div style={{ textAlign: "center" }}>
+            <div style={{ color: "#64dcA0", fontSize: "28px", fontWeight: "800" }}>5</div>
+            <div style={{ color: "rgba(255,255,255,0.4)", fontSize: "12px", letterSpacing: "1px" }}>Skills Bien-être</div>
+          </div>
+        </div>
+      </div>
+
+      <div style={{ maxWidth: "1200px", margin: "0 auto", padding: "0 20px" }}>
+
+        <div style={{ display: "flex", justifyContent: "center", gap: "12px", padding: "40px 0 48px 0", flexWrap: "wrap" }}>
+          {filters.map(function(f) {
+            const isActive = activeFilter === f.key;
+            return (
+              <button
+                key={f.key}
+                onClick={function() { setActiveFilter(f.key); }}
+                style={{
+                  background: isActive ? "#c8a96e" : "rgba(255,255,255,0.04)",
+                  border: isActive ? "1px solid #c8a96e" : "1px solid rgba(255,255,255,0.1)",
+                  borderRadius: "30px",
+                  color: isActive ? "#050508" : "rgba(255,255,255,0.6)",
+                  cursor: "pointer",
+                  fontSize: "14px",
+                  fontWeight: isActive ? "700" : "500",
+                  padding: "10px 22px",
+                  transition: "all 0.2s",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                }}
+              >
+                {f.label}
+                <span style={{
+                  background: isActive ? "rgba(5,5,8,0.2)" : "rgba(255,255,255,0.1)",
+                  borderRadius: "10px",
+                  fontSize: "11px",
+                  fontWeight: "700",
+                  padding: "2px 7px",
+                }}>
+                  {f.count}
+                </span>
+              </button>
+            );
+          })}
         </div>
 
-        <h1 style={{
-          fontSize: "clamp(36px, 6vw, 64px)",
-          fontWeight: "800",
-          margin: "0 0 20px",
-          lineHeight: "1.1",
-          letterSpacing: "-1px",
-        }}>
-          Maîtrisez les Skills
-          <br />
-          <span style={{
-            background: "linear-gradient(135deg, #c8a96e, #f0d89a, #c8a96e)",
-            WebkitBackgroundClip: "text",
-            WebkitTextFillColor: "transparent",
-            backgroundClip: "text",
-          }}>
-            qui transforment votre avenir
-          </span>
-        </h1>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))", gap: "20px" }}>
+          {filtered.map(function(skill) {
+            const cat = categoryColors[skill.category];
+            return (
+              <div
+                key={skill.id}
+                style={{
+                  background: "linear-gradient(135deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%)",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  borderRadius: "16px",
+                  padding: "28px",
+                  position: "relative",
+                  overflow: "hidden",
+                  transition: "transform 0.2s, border-color 0.2s",
+                  cursor: "pointer",
+                }}
+                onMouseEnter={function(e) {
+                  e.currentTarget.style.transform = "translateY(-4px)";
+                  e.currentTarget.style.borderColor = cat.border;
+                }}
+                onMouseLeave={function(e) {
+                  e.currentTarget.style.transform = "translateY(0)";
+                  e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)";
+                }}
+              >
+                <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: "2px", background: "linear-gradient(90deg, transparent, " + cat.badge + ", transparent)" }}></div>
 
-        <p style={{
-          fontSize: "18px",
-          color: "rgba(255,255,255,0.5)",
-          maxWidth: "560px",
-          margin: "0 auto",
-          lineHeight: "1.7",
-        }}>
-          Des formations ultra-ciblées pour progresser rapidement dans les domaines qui comptent vraiment.
-        </p>
-      </div>
-
-      {/* Filters */}
-      <div style={{
-        display: "flex",
-        justifyContent: "center",
-        gap: "12px",
-        padding: "0 24px 56px",
-        flexWrap: "wrap",
-      }}>
-        {categories.map(cat => {
-          const isActive = activeFilter === cat;
-          const isHov = hoveredFilter === cat;
-          const col = cat === "Tous" ? "#c8a96e" : categoryColors[cat];
-
-          return (
-            <button
-              key={cat}
-              onClick={() => setActiveFilter(cat)}
-              onMouseEnter={() => setHoveredFilter(cat)}
-              onMouseLeave={() => setHoveredFilter(null)}
-              style={{
-                padding: "10px 28px",
-                borderRadius: "100px",
-                border: isActive ? "1px solid " + col : "1px solid rgba(255,255,255,0.12)",
-                background: isActive ? col + "18" : isHov ? "rgba(255,255,255,0.04)" : "transparent",
-                color: isActive ? col : isHov ? "rgba(255,255,255,0.8)" : "rgba(255,255,255,0.45)",
-                fontSize: "14px",
-                fontWeight: isActive ? "600" : "400",
-                cursor: "pointer",
-                transition: "all 0.2s ease",
-                letterSpacing: "0.5px",
-              }}
-            >
-              {cat}
-              {cat !== "Tous" && (
-                <span style={{
-                  marginLeft: "8px",
-                  fontSize: "11px",
-                  opacity: 0.7,
-                }}>
-                  {cat === "IA" ? "10" : cat === "Business" ? "5" : "5"}
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Grid */}
-      <div style={{
-        maxWidth: "1400px",
-        margin: "0 auto",
-        padding: "0 24px 100px",
-        display: "grid",
-        gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
-        gap: "20px",
-      }}>
-        {filtered.map(skill => {
-          const isHov = hoveredCard === skill.id;
-          const catColor = categoryColors[skill.category];
-
-          return (
-            <div
-              key={skill.id}
-              onMouseEnter={() => setHoveredCard(skill.id)}
-              onMouseLeave={() => setHoveredCard(null)}
-              style={{
-                background: isHov
-                  ? "linear-gradient(145deg, rgba(200,169,110,0.06), rgba(255,255,255,0.02))"
-                  : "rgba(255,255,255,0.02)",
-                border: isHov
-                  ? "1px solid rgba(200,169,110,0.3)"
-                  : "1px solid rgba(255,255,255,0.06)",
-                borderRadius: "20px",
-                padding: "28px",
-                cursor: "pointer",
-                transition: "all 0.3s ease",
-                transform: isHov ? "translateY(-4px)" : "translateY(0)",
-                boxShadow: isHov
-                  ? "0 20px 60px rgba(200,169,110,0.08), 0 0 0 0 transparent"
-                  : "none",
-                position: "relative",
-                overflow: "hidden",
-              }}
-            >
-              {/* Glow background */}
-              {isHov && (
-                <div style={{
-                  position: "absolute",
-                  top: "-50%",
-                  right: "-50%",
-                  width: "200px",
-                  height: "200px",
-                  background: "radial-gradient(circle, " + catColor + "08 0%, transparent 70%)",
-                  pointerEvents: "none",
-                }} />
-              )}
-
-              {/* Top row */}
-              <div style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "flex-start",
-                marginBottom: "20px",
-              }}>
-                <div style={{
-                  padding: "4px 12px",
-                  borderRadius: "100px",
-                  background: catColor + "15",
-                  border: "1px solid " + catColor + "30",
-                  fontSize: "11px",
-                  fontWeight: "600",
-                  color: catColor,
-                  letterSpacing: "1px",
-                  textTransform: "uppercase",
-                }}>
-                  {skill.category}
-                </div>
-
-                <div style={{
-                  fontSize: "11px",
-                  color: "rgba(255,255,255,0.2)",
-                  fontWeight: "500",
-                  letterSpacing: "1px",
-                }}>
-                  {skill.id}
-                </div>
-              </div>
-
-              {/* Content */}
-              <div style={{ marginBottom: "24px" }}>
-                <h3 style={{
-                  fontSize: "17px",
-                  fontWeight: "700",
-                  color: isHov ? "#ffffff" : "rgba(255,255,255,0.88)",
-                  margin: "0 0 10px",
-                  lineHeight: "1.3",
-                  transition: "color 0.2s ease",
-                }}>
-                  {skill.name}
-                </h3>
-                <p style={{
-                  fontSize: "13px",
-                  color: "rgba(255,255,255,0.4)",
-                  margin: "0",
-                  lineHeight: "1.6",
-                }}>
-                  {skill.desc}
-                </p>
-              </div>
-
-              {/* Divider */}
-              <div style={{
-                height: "1px",
-                background: "rgba(255,255,255,0.06)",
-                marginBottom: "20px",
-              }} />
-
-              {/* Bottom row */}
-              <div style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-              }}>
-                <div>
-                  <span style={{
-                    fontSize: "26px",
-                    fontWeight: "800",
-                    color: "#c8a96e",
-                    lineHeight: "1",
-                  }}>
-                    {skill.price}
-                  </span>
-                  <span style={{
-                    fontSize: "14px",
-                    color: "rgba(200,169,110,0.6)",
-                    marginLeft: "2px",
-                    fontWeight: "500",
-                  }}>
-                    €
-                  </span>
-                  <div style={{
-                    fontSize: "11px",
-                    color: "rgba(255,255,255,0.25)",
-                    marginTop: "2px",
-                  }}>
-                    accès à vie
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "16px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                    <div style={{ background: cat.bg, border: "1px solid " + cat.border, borderRadius: "10px", padding: "8px 12px" }}>
+                      <span style={{ color: cat.badge, fontSize: "12px", fontWeight: "700", letterSpacing: "1px" }}>{skill.id}</span>
+                    </div>
+                    <span style={{ background: cat.bg, border: "1px solid " + cat.border, borderRadius: "20px", color: cat.badge, fontSize: "11px", fontWeight: "600", padding: "3px 10px", letterSpacing: "0.5px" }}>
+                      {cat.text}
+                    </span>
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    <div style={{ color: "#c8a96e", fontSize: "22px", fontWeight: "800" }}>{skill.price}€</div>
+                    <div style={{ color: "rgba(255,255,255,0.3)", fontSize: "10px", marginTop: "2px" }}>accès à vie</div>
                   </div>
                 </div>
 
+                <h3 style={{ color: "#ffffff", fontSize: "16px", fontWeight: "700", margin: "0 0 8px 0", lineHeight: "1.4" }}>
+                  {skill.name}
+                </h3>
+                <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "13px", margin: "0 0 20px 0", lineHeight: "1.6" }}>
+                  {skill.desc}
+                </p>
+
                 <button
-                  onMouseEnter={() => setHoveredBtn(skill.id)}
-                  onMouseLeave={() => setHoveredBtn(null)}
                   style={{
-                    padding: "10px 22px",
-                    borderRadius: "100px",
-                    border: "none",
-                    background: hoveredBtn === skill.id
-                      ? "linear-gradient(135deg, #d4b87a, #c8a96e)"
-                      : "linear-gradient(135deg, #c8a96e, #b89458)",
-                    color: "#050508",
-                    fontSize: "13px",
-                    fontWeight: "700",
+                    width: "100%",
+                    background: "transparent",
+                    border: "1px solid " + cat.border,
+                    borderRadius: "10px",
+                    color: cat.badge,
                     cursor: "pointer",
-                    transition: "all 0.2s ease",
-                    letterSpacing: "0.3px",
-                    transform: hoveredBtn === skill.id ? "scale(1.04)" : "scale(1)",
-                    boxShadow: hoveredBtn === skill.id
-                      ? "0 8px 24px rgba(200,169,110,0.35)"
-                      : "0 4px 12px rgba(200,169,110,0.15)",
+                    fontSize: "13px",
+                    fontWeight: "600",
+                    padding: "11px",
+                    transition: "all 0.2s",
+                    letterSpacing: "0.5px",
+                  }}
+                  onMouseEnter={function(e) {
+                    e.currentTarget.style.background = cat.bg;
+                    e.currentTarget.style.letterSpacing = "1px";
+                  }}
+                  onMouseLeave={function(e) {
+                    e.currentTarget.style.background = "transparent";
+                    e.currentTarget.style.letterSpacing = "0.5px";
                   }}
                 >
-                  Accéder
+                  Accéder au skill →
                 </button>
               </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
 
-      {/* Stats bar */}
-      <div style={{
-        borderTop: "1px solid rgba(255,255,255,0.06)",
-        padding: "40px 24px",
-        display: "flex",
-        justifyContent: "center",
-        gap: "60px",
-        flexWrap
+        <div style={{ marginTop: "64px", background: "linear-gradient(135deg, rgba(200,169,110,0.08) 0%, rgba(200,169,110,0.03) 100%)", border: "1px solid rgba(200,169,110,0.2)", borderRadius: "24px", padding: "48px 40px", textAlign: "center" }}>
+          <div style={{ display: "inline-block", background: "rgba(200,169,110,0.1)", border: "1px solid rgba(200,169,110,0.3)", borderRadius: "20px", padding: "6px 18px", marginBottom: "20px" }}>
+            <span style={{ color: "#c8a96e", fontSize: "11px", fontWeight: "700", letterSpacing: "2px", textTransform: "uppercase" }}>Offre Complète</span>
+          </div>
+          <h3 style={{ color: "#ffffff", fontSize: "clamp(24px, 4vw, 36px)", fontWeight: "800", margin: "0 0 12px 0" }}>
+            Pack des 20 Skills
+          </h3>
+          <p style={{
