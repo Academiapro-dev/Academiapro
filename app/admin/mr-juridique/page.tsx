@@ -117,6 +117,7 @@ export default function MrJuridiquePage() {
     { id: "generation", label: "📄 Générer Documents" },
     { id: "bibliotheque", label: "📚 Bibliothèque" },
     { id: "upload", label: "📎 Upload Documents" },
+    { id: "inpi", label: "🏛️ Protection Marque INPI" },
   ];
 
   return (
@@ -240,6 +241,106 @@ export default function MrJuridiquePage() {
               <button style={{ width: "100%", padding: "12px", background: "#c8a96e", color: "#050508", border: "none", borderRadius: "8px", fontWeight: "bold", cursor: "pointer" }}>
                 📤 Uploader
               </button>
+            </div>
+          </div>
+        )}
+
+
+        {onglet === "inpi" && (
+          <div>
+            <h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", marginBottom: "10px" }}>
+              🏛️ Protection Marque INPI
+            </h2>
+            <p style={{ color: "rgba(255,255,255,0.6)", marginBottom: "25px" }}>
+              Mr Juridique prépare votre dossier de dépôt de marque AcadémIA Pro
+            </p>
+
+            <div style={{ display: "grid", gap: "15px", marginBottom: "30px" }}>
+              {[
+                {
+                  titre: "Analyse et Classes INPI",
+                  description: "Identifier les bonnes classes pour AcadémIA Pro",
+                  prompt: "En tant que Mr Juridique expert en propriété intellectuelle, analyse la marque AcadémIA Pro et détermine les classes INPI à déposer. AcadémIA Pro est une plateforme de formation professionnelle 100% IA et de bien-être thérapeutique. Liste les classes pertinentes avec leur numéro, description et justification. Inclus le coût estimé du dépôt et les délais."
+                },
+                {
+                  titre: "Description de la Marque",
+                  description: "Rédiger la description officielle pour l INPI",
+                  prompt: "Rédige la description officielle de la marque AcadémIA Pro pour un dépôt INPI. La marque désigne une plateforme de formation professionnelle en ligne 100% intelligence artificielle et de séances thérapeutiques avec avatars IA. Inclus : dénomination · nature de la marque · liste précise des produits et services par classe · caractère distinctif."
+                },
+                {
+                  titre: "Guide Dépôt INPI Étape par Étape",
+                  description: "Procédure complète pour déposer sur inpi.fr",
+                  prompt: "Explique à Jacques Lalou fondateur d AcadémIA Pro comment déposer sa marque sur inpi.fr étape par étape. Inclus : création compte INPI · remplissage formulaire · choix classes · paiement · délais · que faire après le dépôt · comment surveiller les oppositions · renouvellement tous les 10 ans."
+                },
+                {
+                  titre: "NDA Protection Avant Dépôt",
+                  description: "Accord de confidentialité pour protéger avant le dépôt",
+                  prompt: "Génère un NDA spécifique pour protéger la marque et le concept AcadémIA Pro avant le dépôt INPI. Inclus : définition du concept protégé · obligations de confidentialité · durée · sanctions · droit applicable français."
+                },
+                {
+                  titre: "Surveillance et Défense de Marque",
+                  description: "Comment surveiller et défendre AcadémIA Pro",
+                  prompt: "Explique à Jacques Lalou comment surveiller sa marque AcadémIA Pro après le dépôt INPI et comment la défendre en cas de contrefaçon. Inclus : outils de surveillance · délai opposition 2 mois · mise en demeure · procédures judiciaires · dommages et intérêts · coûts estimés."
+                },
+              ].map((item, i) => (
+                <div key={i} style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(200,169,110,0.2)", borderRadius: "10px", padding: "20px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "15px" }}>
+                  <div>
+                    <h3 style={{ color: "#c8a96e", margin: "0 0 5px", fontFamily: "Georgia,serif" }}>{item.titre}</h3>
+                    <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "13px", margin: 0 }}>{item.description}</p>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      setOnglet("generation");
+                      setDocSelectionne({ label: item.titre });
+                      setGenerationLoading(true);
+                      setDocGenere("");
+                      const res = await fetch("/api/admin/agent", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          message: item.prompt,
+                          agent: { prompt: "Tu es Mr Juridique, juriste expert en propriété intellectuelle et droit des affaires français avec 20 ans d experience. Tu conseilles Jacques Lalou fondateur d AcadémIA Pro. Tu donnes des conseils précis et pratiques conformes au droit français en vigueur." },
+                          historique: []
+                        }),
+                      });
+                      const data = await res.json();
+                      setDocGenere(data.reply || "");
+                      await fetch(`${SUPABASE_URL}/rest/v1/documents_juridiques`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json", apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, Prefer: "return=minimal" },
+                        body: JSON.stringify({ type: "inpi", titre: item.titre, contenu: data.reply, statut: "genere" }),
+                      });
+                      chargerDocuments();
+                      setGenerationLoading(false);
+                    }}
+                    style={{ padding: "10px 18px", background: "#c8a96e", color: "#050508", border: "none", borderRadius: "8px", fontWeight: "bold", cursor: "pointer", whiteSpace: "nowrap", minWidth: "100px" }}
+                  >
+                    Générer
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ background: "rgba(200,169,110,0.1)", border: "1px solid rgba(200,169,110,0.3)", borderRadius: "12px", padding: "20px" }}>
+              <h3 style={{ color: "#c8a96e", marginTop: 0 }}>💡 Informations Clés INPI</h3>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "15px" }}>
+                {[
+                  { label: "Coût dépôt", valeur: "190€ / classe" },
+                  { label: "Durée protection", valeur: "10 ans renouvelable" },
+                  { label: "Délai traitement", valeur: "6 mois environ" },
+                  { label: "Classes recommandées", valeur: "41 · 42 · 44" },
+                  { label: "Délai opposition", valeur: "2 mois après publication" },
+                  { label: "Site officiel", valeur: "inpi.fr" },
+                ].map(item => (
+                  <div key={item.label} style={{ background: "rgba(255,255,255,0.05)", borderRadius: "8px", padding: "12px" }}>
+                    <div style={{ color: "rgba(255,255,255,0.5)", fontSize: "12px" }}>{item.label}</div>
+                    <div style={{ color: "#c8a96e", fontWeight: "bold", marginTop: "3px" }}>{item.valeur}</div>
+                  </div>
+                ))}
+              </div>
+              <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "12px", marginBottom: 0, marginTop: "15px" }}>
+                ⚠️ Le dépôt final se fait sur inpi.fr · Mr Juridique prépare votre dossier complet
+              </p>
             </div>
           </div>
         )}
