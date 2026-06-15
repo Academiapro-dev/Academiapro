@@ -12,11 +12,8 @@ function formatReponse(text: string): string {
     .replace(/# (.+)/g, "<h2 style=\"color:#c8a96e;margin:18px 0 10px;\">$1</h2>")
     .replace(/^- (.+)/gm, "<li style=\"margin:4px 0;\">$1</li>")
     .replace(/---/g, "<hr style=\"border-color:rgba(200,169,110,0.2);margin:10px 0;\">")
-    .replace(/
-
-/g, "<br/><br/>")
-    .replace(/
-/g, "<br/>");
+    .replace(/\n\n/g, "<br/><br/>")
+    .replace(/\n/g, "<br/>");
 }
 
 async function callAgent(message: string, systemPrompt: string, historique: any[] = []) {
