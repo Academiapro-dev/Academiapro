@@ -25,6 +25,49 @@ const DOCUMENTS_TYPES = [
   { id: "reglement", label: "Règlement Intérieur Formation", prompt: "Génère un règlement intérieur de centre de formation conforme au droit français pour AcadémIA Pro. Inclus : objet · accès formations · comportement · droits stagiaires · sanctions · réclamations." },
 ];
 
+
+function InpiDossierBouton() {
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState("");
+  const [email, setEmail] = useState("contact@academiapro.fr");
+
+  async function genererEtEnvoyer() {
+    setLoading(true);
+    setMessage("");
+    try {
+      const res = await fetch("/api/admin/inpi", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json();
+      setMessage(data.message || "Dossier envoyé ✅");
+    } catch (e) {
+      setMessage("Erreur — réessayez");
+    }
+    setLoading(false);
+  }
+
+  return (
+    <div>
+      <input
+        type="email"
+        value={email}
+        onChange={e => setEmail(e.target.value)}
+        style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "none", marginBottom: "10px", textAlign: "center", fontSize: "14px", boxSizing: "border-box" as any }}
+      />
+      <button
+        onClick={genererEtEnvoyer}
+        disabled={loading}
+        style={{ width: "100%", padding: "14px", background: "#050508", color: "#c8a96e", border: "none", borderRadius: "8px", fontWeight: "bold", fontSize: "16px", cursor: loading ? "not-allowed" : "pointer" }}
+      >
+        {loading ? "⏳ Génération en cours (2-3 min)..." : "📧 Générer et Envoyer par Email"}
+      </button>
+      {message && <p style={{ color: "#fff", marginTop: "10px", fontWeight: "bold" }}>{message}</p>}
+    </div>
+  );
+}
+
 export default function MrJuridiquePage() {
   const [onglet, setOnglet] = useState("conseil");
   const [documents, setDocuments] = useState<any[]>([]);
@@ -255,6 +298,16 @@ export default function MrJuridiquePage() {
               Mr Juridique prépare votre dossier de dépôt de marque AcadémIA Pro
             </p>
 
+
+            <div style={{ background: "linear-gradient(135deg,#c8a96e,#a07840)", borderRadius: "12px", padding: "25px", marginBottom: "25px", textAlign: "center" }}>
+              <h3 style={{ color: "#fff", margin: "0 0 10px", fontFamily: "Georgia,serif" }}>
+                🚀 Générer et Envoyer le Dossier Complet
+              </h3>
+              <p style={{ color: "rgba(255,255,255,0.8)", marginBottom: "15px", fontSize: "14px" }}>
+                Mr Juridique génère les 4 documents · les compile · les envoie par email
+              </p>
+              <InpiDossierBouton />
+            </div>
             <div style={{ display: "grid", gap: "15px", marginBottom: "30px" }}>
               {[
                 {
