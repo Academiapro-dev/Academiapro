@@ -1,22 +1,35 @@
 "use client";
 import { useState } from "react";
 
+function formatReponse(text: string): string {
+  let result = text
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/#{3} (.+)/g, "<h4 style=\"color:#c8a96e;margin:12px 0 6px;\">$1</h4>")
+    .replace(/#{2} (.+)/g, "<h3 style=\"color:#c8a96e;margin:15px 0 8px;\">$1</h3>")
+    .replace(/# (.+)/g, "<h2 style=\"color:#c8a96e;margin:18px 0 10px;\">$1</h2>")
+    .replace(/^- (.+)/gm, "<li style=\"margin:4px 0;\">$1</li>")
+    .replace(/---/g, "<hr style=\"border-color:rgba(200,169,110,0.2);margin:10px 0;\">")
+    .replace(/\n\n/g, "<br/><br/>")
+    .replace(/\n/g, "<br/>");
+  return result;
+}
+
 const AGENTS = [
   {
     id: "comptable",
     nom: "Mr Comptable",
     specialite: "Expert-Comptable Senior",
-    description: "Comptabilité · Fiscalité · Gestion financière · Micro-entreprise · TVA · Bilan",
+    description: "Comptabilite · Fiscalite · Micro-entreprise · TVA · URSSAF · Bilan",
     icon: "📊",
-    prompt: "Tu es Mr Comptable, expert-comptable senior avec 20 ans d expérience en France. Tu conseilles Jacques Lalou, fondateur d AcadémIA Pro, une plateforme de formation et bien-être 100% IA en micro-entreprise. Tu maîtrises parfaitement la comptabilité française, la fiscalité des entreprises, la TVA, les cotisations URSSAF, les déclarations de revenus, la gestion de trésorerie et la transition vers une SAS ou SARL. Tu donnes des conseils pratiques, précis et adaptés à la situation de Jacques. Tu parles en français de manière claire et professionnelle. Tu rappelles toujours de consulter un vrai expert-comptable pour les décisions importantes."
+    prompt: "Tu es Mr Comptable, expert-comptable senior avec 20 ans d experience en France. Tu conseilles Jacques Lalou, fondateur d AcadémIA Pro. Tu maitrises la comptabilite francaise, la fiscalite, la TVA, les cotisations URSSAF, les declarations de revenus et la gestion de tresorerie. Tu donnes des conseils pratiques et precis. Tu structures tes reponses avec des titres clairs. Tu utilises des listes numerotees et des points cles. Tu parles en francais de maniere professionnelle.",
   },
   {
     id: "juridique",
     nom: "Mr Juridique",
     specialite: "Juriste d Entreprise Senior",
-    description: "Droit des sociétés · Contrats · CGV · Mentions légales · RGPD · Protection marque",
+    description: "Droit des societes · Contrats · CGV · Mentions legales · RGPD · INPI",
     icon: "⚖️",
-    prompt: "Tu es Mr Juridique, juriste d entreprise senior avec 20 ans d expérience en droit français des affaires. Tu conseilles Jacques Lalou, fondateur d AcadémIA Pro, une plateforme de formation et bien-être 100% IA. Tu maîtrises le droit des sociétés, la création d entreprise, les contrats commerciaux, les CGV, les mentions légales, le RGPD, la protection de la marque INPI, le droit de la formation professionnelle et les aspects juridiques des plateformes IA. Tu donnes des conseils pratiques et précis adaptés à AcadémIA Pro. Tu rappelles toujours de consulter un avocat pour les décisions juridiques importantes."
+    prompt: "Tu es Mr Juridique, juriste d entreprise senior avec 20 ans d experience en droit francais des affaires. Tu conseilles Jacques Lalou, fondateur d AcadémIA Pro. Tu maitrises le droit des societes, les contrats commerciaux, les CGV, les mentions legales, le RGPD, la protection de marque INPI et le droit de la formation professionnelle. Tu donnes des conseils pratiques et precis. Tu structures tes reponses avec des titres clairs. Tu utilises des listes et des points cles. Tu parles en francais de maniere professionnelle.",
   },
 ];
 
@@ -54,42 +67,50 @@ export default function AdminAgentsPage() {
     return (
       <div style={{ backgroundColor: "#050508", minHeight: "100vh", color: "#fff", padding: "20px" }}>
         <div style={{ maxWidth: "800px", margin: "0 auto" }}>
-          <button onClick={() => { setSelected(null); setChat([]); }} style={{ background: "none", border: "1px solid rgba(200,169,110,0.3)", color: "#c8a96e", padding: "8px 16px", borderRadius: "8px", cursor: "pointer", marginBottom: "20px" }}>
-            ← Retour
+          <button
+            onClick={() => { setSelected(null); setChat([]); }}
+            style={{ background: "none", border: "1px solid rgba(200,169,110,0.3)", color: "#c8a96e", padding: "8px 16px", borderRadius: "8px", cursor: "pointer", marginBottom: "20px" }}
+          >
+            Retour
           </button>
-          <div style={{ textAlign: "center", marginBottom: "30px" }}>
-            <div style={{ fontSize: "50px", marginBottom: "10px" }}>{selected.icon}</div>
+          <div style={{ textAlign: "center", marginBottom: "20px" }}>
+            <div style={{ fontSize: "50px" }}>{selected.icon}</div>
             <h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif" }}>{selected.nom}</h2>
             <p style={{ color: "rgba(255,255,255,0.6)" }}>{selected.specialite}</p>
           </div>
-          <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(200,169,110,0.2)", borderRadius: "12px", padding: "20px", minHeight: "350px", maxHeight: "450px", overflowY: "auto", marginBottom: "15px" }}>
+          <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(200,169,110,0.2)", borderRadius: "12px", padding: "20px", minHeight: "350px", maxHeight: "500px", overflowY: "auto", marginBottom: "15px" }}>
             {chat.length === 0 && (
               <p style={{ color: "rgba(255,255,255,0.3)", textAlign: "center", marginTop: "120px" }}>
-                Bonjour Jacques · Je suis {selected.nom}. Comment puis-je vous aider ?
+                Bonjour Jacques. Je suis {selected.nom}. Comment puis-je vous aider ?
               </p>
             )}
             {chat.map((msg, i) => (
               <div key={i} style={{ marginBottom: "15px", display: "flex", justifyContent: msg.role === "user" ? "flex-end" : "flex-start" }}>
-                <div style={{
-                  background: msg.role === "user" ? "#c8a96e" : "rgba(255,255,255,0.08)",
-                  color: msg.role === "user" ? "#050508" : "#fff",
-                  padding: "12px 16px",
-                  borderRadius: "12px",
-                  maxWidth: "80%",
-                  lineHeight: "1.7"
-                }}>
-                  {msg.text}
+                <div
+                  style={{
+                    background: msg.role === "user" ? "#c8a96e" : "rgba(255,255,255,0.08)",
+                    color: msg.role === "user" ? "#050508" : "#fff",
+                    padding: "12px 16px",
+                    borderRadius: "12px",
+                    maxWidth: "80%",
+                    lineHeight: "1.7"
+                  }}
+                  dangerouslySetInnerHTML={msg.role === "agent" ? { __html: formatReponse(msg.text) } : undefined}
+                >
+                  {msg.role === "user" ? msg.text : undefined}
                 </div>
               </div>
             ))}
             {loading && (
-              <div style={{ color: "#c8a96e", textAlign: "center" }}>{selected.nom} analyse votre question...</div>
+              <div style={{ color: "#c8a96e", textAlign: "center" }}>
+                {selected.nom} analyse votre question...
+              </div>
             )}
           </div>
           <div style={{ display: "flex", gap: "10px" }}>
             <input
               type="text"
-              placeholder={`Posez votre question à ${selected.nom}...`}
+              placeholder={"Posez votre question a " + selected.nom + "..."}
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && envoyerMessage()}
@@ -114,9 +135,9 @@ export default function AdminAgentsPage() {
         Agents Back-Office
       </h1>
       <p style={{ textAlign: "center", color: "rgba(255,255,255,0.6)", marginBottom: "40px" }}>
-        Vos experts IA dédiés · Disponibles 24h/24
+        Vos experts IA dedies · Disponibles 24h/24
       </p>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "20px", maxWidth: "700px", margin: "0 auto" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "20px", maxWidth: "700px", margin: "0 auto" }}>
         {AGENTS.map((a) => (
           <div
             key={a.id}
