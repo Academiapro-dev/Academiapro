@@ -154,7 +154,19 @@ function FiscalChat() {
 
             <div style={{ background: "rgba(200,169,110,0.1)", border: "1px solid rgba(200,169,110,0.3)", borderRadius: "12px", padding: "20px" }}>
               <h3 style={{ color: "#c8a96e", marginTop: 0 }}>💡 Conseil Fiscal Rapide</h3>
-              <FiscalChat />
+              <div>
+              <div style={{ minHeight: "150px", maxHeight: "250px", overflowY: "auto", marginBottom: "10px" }}>
+                <p style={{ color: "rgba(255,255,255,0.3)", fontSize: "13px" }}>
+                  Utilisez l onglet Conseil IA pour poser vos questions fiscales.
+                </p>
+              </div>
+              <button
+                onClick={() => setOnglet("conseil")}
+                style={{ width: "100%", padding: "10px", background: "#c8a96e", color: "#050508", border: "none", borderRadius: "8px", fontWeight: "bold", cursor: "pointer" }}
+              >
+                Aller au Conseil IA
+              </button>
+            </div>
             </div>
           </div>
         )}
@@ -620,7 +632,19 @@ export default function MrJuridiquePage() {
 
             <div style={{ background: "rgba(200,169,110,0.1)", border: "1px solid rgba(200,169,110,0.3)", borderRadius: "12px", padding: "20px" }}>
               <h3 style={{ color: "#c8a96e", marginTop: 0 }}>💡 Conseil Fiscal Rapide</h3>
-              <FiscalChat />
+              <div>
+              <div style={{ minHeight: "150px", maxHeight: "250px", overflowY: "auto", marginBottom: "10px" }}>
+                <p style={{ color: "rgba(255,255,255,0.3)", fontSize: "13px" }}>
+                  Utilisez l onglet Conseil IA pour poser vos questions fiscales.
+                </p>
+              </div>
+              <button
+                onClick={() => setOnglet("conseil")}
+                style={{ width: "100%", padding: "10px", background: "#c8a96e", color: "#050508", border: "none", borderRadius: "8px", fontWeight: "bold", cursor: "pointer" }}
+              >
+                Aller au Conseil IA
+              </button>
+            </div>
             </div>
           </div>
         )}
