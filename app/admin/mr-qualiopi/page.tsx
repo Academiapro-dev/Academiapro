@@ -142,6 +142,7 @@ export default function MrQualiopi() {
     { id: "indicateurs", label: "📈 Indicateurs" },
     { id: "bibliotheque", label: "📚 Bibliotheque" },
     { id: "conseil", label: "💬 Conseil IA" },
+    { id: "auditeur", label: "🕵️ Preparation Auditeur" },
   ];
 
   const DOCS_QUALITE = [
@@ -467,6 +468,141 @@ export default function MrQualiopi() {
                 style={{ flex: 1, padding: "12px", borderRadius: "8px", border: "1px solid rgba(200,169,110,0.3)", background: "rgba(255,255,255,0.05)", color: "#fff" }} />
               <button onClick={envoyerMessage} disabled={loading} style={{ padding: "12px 24px", background: "#c8a96e", color: "#050508", border: "none", borderRadius: "8px", fontWeight: "bold", cursor: "pointer" }}>
                 Envoyer
+              </button>
+            </div>
+          </div>
+        )}
+
+
+        {onglet === "auditeur" && (
+          <div>
+            <div style={{ background: "linear-gradient(135deg,#1a1a2e,#050508)", border: "2px solid #c8a96e", borderRadius: "12px", padding: "25px", marginBottom: "25px", textAlign: "center" }}>
+              <h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", margin: "0 0 10px" }}>
+                🕵️ Simulation Audit Qualiopi
+              </h2>
+              <p style={{ color: "rgba(255,255,255,0.7)", margin: 0, fontSize: "14px" }}>
+                Mr Qualiopi joue le role de l auditeur officiel et evalue votre preparation
+              </p>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "15px", marginBottom: "30px" }}>
+              {[
+                { label: "Score Conformite", valeur: documents.length > 0 ? "En cours..." : "0%", icon: "🎯", color: "#c8a96e" },
+                { label: "Documents Prepares", valeur: documents.length.toString(), icon: "📄", color: "#22c55e" },
+                { label: "Indicateurs Saisis", valeur: indicateurs.length.toString(), icon: "📈", color: "#3b82f6" },
+                { label: "Statut Audit", valeur: documents.length >= 5 ? "Pret" : "En preparation", icon: "⚡", color: documents.length >= 5 ? "#22c55e" : "#f59e0b" },
+              ].map(item => (
+                <div key={item.label} style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(200,169,110,0.2)", borderRadius: "12px", padding: "20px", textAlign: "center" }}>
+                  <div style={{ fontSize: "28px", marginBottom: "8px" }}>{item.icon}</div>
+                  <div style={{ color: item.color, fontSize: "22px", fontWeight: "bold" }}>{item.valeur}</div>
+                  <div style={{ color: "rgba(255,255,255,0.5)", fontSize: "12px", marginTop: "5px" }}>{item.label}</div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ display: "grid", gap: "15px", marginBottom: "30px" }}>
+              {[
+                {
+                  titre: "Simulation Audit Complet — 7 Criteres",
+                  description: "Mr Qualiopi pose les vraies questions d un auditeur officiel",
+                  prompt: `Tu es un auditeur Qualiopi certifie mandaté par un organisme de certification officiel. Tu realises un audit de AcadémIA Pro, plateforme de formation 100% IA fondee par Jacques Lalou. 
+
+Conduire un audit complet sur les 7 criteres du Referentiel National Qualite. Pour chaque critere :
+1. Pose 3 questions precises comme un vrai auditeur
+2. Indique les preuves que tu demandes
+3. Evalue la conformite probable d AcadémIA Pro
+4. Donne un score de 0 a 10
+5. Identifie les points de vigilance
+
+Termine par un score global et un verdict : CONFORME / NON CONFORME / CONFORME AVEC RESERVES`,
+                },
+                {
+                  titre: "Questions Critere 1 — Information Stagiaires",
+                  description: "Simulation questions auditeur sur l information du public",
+                  prompt: "Tu es un auditeur Qualiopi officiel. Pose 10 questions precises sur le critere 1 du referentiel Qualiopi pour AcadémIA Pro : information des publics sur les prestations. Inclus les preuves demandees et le niveau d exigence. Evalue la conformite probable et donne des recommandations.",
+                },
+                {
+                  titre: "Questions Critere 2 — Identification Objectifs",
+                  description: "Simulation questions sur l identification des objectifs",
+                  prompt: "Tu es un auditeur Qualiopi officiel. Pose 10 questions precises sur le critere 2 pour AcadémIA Pro : identification et analyse des besoins des beneficiaires. Inclus preuves demandees et evaluation conformite.",
+                },
+                {
+                  titre: "Questions Critere 3 — Adaptation Formation",
+                  description: "Simulation questions sur l adaptation de la formation",
+                  prompt: "Tu es un auditeur Qualiopi officiel. Pose 10 questions precises sur le critere 3 pour AcadémIA Pro : adaptation aux publics beneficiaires. Evalue l agent tuteur IA 24h/24, le suivi progression, les evaluations intermediaires. Inclus preuves et conformite.",
+                },
+                {
+                  titre: "Questions Critere 6 — Veille et Innovation",
+                  description: "Simulation questions sur la veille pedagogique et sectorielle",
+                  prompt: "Tu es un auditeur Qualiopi officiel. Pose 10 questions precises sur le critere 6 pour AcadémIA Pro : investissement dans les evolutions pedagogiques et technologiques. Comment AcadémIA Pro fait sa veille IA, formation, reglementation ? Inclus preuves et conformite.",
+                },
+                {
+                  titre: "Questions Critere 7 — Recueil Satisfaction",
+                  description: "Simulation questions sur le recueil de satisfaction",
+                  prompt: "Tu es un auditeur Qualiopi officiel. Pose 10 questions precises sur le critere 7 pour AcadémIA Pro : recueil des appréciations et des réclamations, mesure de la satisfaction. Inclus : questionnaire satisfaction, indicateurs taux completion, analyse resultats, plan amelioration. Preuves et conformite.",
+                },
+                {
+                  titre: "Checklist Preuves par Critere",
+                  description: "Liste complete des preuves a avoir pour l auditeur",
+                  prompt: "Genere la checklist complete des preuves documentaires qu un auditeur Qualiopi demandera a AcadémIA Pro. Pour chacun des 7 criteres : liste precise des documents requis, format acceptable, frequence mise a jour, niveau de detail attendu. Indique le statut probable d AcadémIA Pro pour chaque preuve.",
+                },
+                {
+                  titre: "Rapport Preparation Audit Final",
+                  description: "Bilan complet de votre preparation avant le vrai audit",
+                  prompt: `Genere un rapport complet de preparation a l audit Qualiopi pour AcadémIA Pro de Jacques Lalou.
+
+Inclus :
+- Synthese preparation par critere avec score
+- Documents prepares vs documents manquants
+- Points forts d AcadémIA Pro face a Qualiopi
+- Risques de non-conformite a corriger en priorite
+- Plan d actions 30-60-90 jours avant audit
+- Estimation probabilite d obtention Qualiopi
+- Recommandations finales de Mr Qualiopi
+
+Indicateurs disponibles : ${indicateurs.length} periodes enregistrees
+Documents prepares : ${documents.length} documents generes`,
+                },
+              ].map((item, i) => (
+                <div key={i} style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(200,169,110,0.2)", borderRadius: "10px", padding: "20px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "15px" }}>
+                  <div>
+                    <h3 style={{ color: "#c8a96e", margin: "0 0 5px", fontFamily: "Georgia,serif", fontSize: "15px" }}>{item.titre}</h3>
+                    <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "13px", margin: 0 }}>{item.description}</p>
+                  </div>
+                  <button
+                    onClick={() => generer(item.titre, item.prompt, "audit_simulation", SYSTEM_QUALIOPI)}
+                    disabled={loading}
+                    style={{ padding: "10px 18px", background: "#c8a96e", color: "#050508", border: "none", borderRadius: "8px", fontWeight: "bold", cursor: "pointer", whiteSpace: "nowrap", minWidth: "110px" }}
+                  >
+                    {loading && docTitre === item.titre ? "Simulation..." : "Simuler"}
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ background: "rgba(200,169,110,0.1)", border: "1px solid rgba(200,169,110,0.3)", borderRadius: "12px", padding: "20px" }}>
+              <h3 style={{ color: "#c8a96e", marginTop: 0 }}>📋 Indicateurs Qualiopi Obligatoires</h3>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                {[
+                  { label: "Taux de satisfaction global", cible: "> 80%", valeur: indicateurs.length > 0 ? indicateurs[0].taux_satisfaction + "%" : "Non renseigne" },
+                  { label: "Taux de completion formations", cible: "> 70%", valeur: indicateurs.length > 0 ? indicateurs[0].taux_completion + "%" : "Non renseigne" },
+                  { label: "Taux d insertion pro (si applicable)", cible: "> 50%", valeur: "Non applicable" },
+                  { label: "Taux de rupture contrat", cible: "< 20%", valeur: "Non renseigne" },
+                  { label: "Nb reclamations traitees", cible: "100%", valeur: "Non renseigne" },
+                  { label: "Nb evaluations realisees", cible: "100%", valeur: indicateurs.length > 0 ? indicateurs.length + " periodes" : "Non renseigne" },
+                ].map(ind => (
+                  <div key={ind.label} style={{ background: "rgba(255,255,255,0.05)", borderRadius: "8px", padding: "12px" }}>
+                    <div style={{ color: "rgba(255,255,255,0.5)", fontSize: "11px", marginBottom: "3px" }}>{ind.label}</div>
+                    <div style={{ color: "#c8a96e", fontWeight: "bold", fontSize: "15px" }}>{ind.valeur}</div>
+                    <div style={{ color: "rgba(255,255,255,0.3)", fontSize: "11px" }}>Cible : {ind.cible}</div>
+                  </div>
+                ))}
+              </div>
+              <button
+                onClick={() => setOnglet("indicateurs")}
+                style={{ width: "100%", padding: "10px", background: "rgba(200,169,110,0.2)", color: "#c8a96e", border: "1px solid rgba(200,169,110,0.3)", borderRadius: "8px", cursor: "pointer", marginTop: "15px", fontWeight: "bold" }}
+              >
+                Mettre a jour les indicateurs
               </button>
             </div>
           </div>
