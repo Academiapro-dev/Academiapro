@@ -11,24 +11,16 @@ export default function LoginPage() {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/token?grant_type=password`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "",
-          },
-          body: JSON.stringify({ email, password }),
-        }
-      );
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
       const data = await res.json();
-      if (data.access_token) {
-        localStorage.setItem("sb_token", data.access_token);
-        localStorage.setItem("sb_user", JSON.stringify(data.user));
+      if (data.success) {
         window.location.href = "/dashboard";
       } else {
-        setError("Email ou mot de passe incorrect");
+        setError(data.message || "Email ou mot de passe incorrect");
       }
     } catch (e) {
       setError("Erreur de connexion");
