@@ -26,6 +26,144 @@ const DOCUMENTS_TYPES = [
 ];
 
 
+
+function FiscalChat() {
+  const [msg, setMsg] = useState("");
+  const [chat, setChat] = useState<{role: string, text: string}[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  async function envoyer() {
+    if (!msg.trim()) return;
+    const userMsg = msg;
+    setMsg("");
+    setChat(prev => [...prev, { role: "user", text: userMsg }]);
+    setLoading(true);
+    const res = await fetch("/api/admin/agent", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message: userMsg,
+        agent: { prompt: "Tu es un expert en optimisation fiscale française specialise dans les startups numeriques et plateformes IA. Tu conseilles Jacques Lalou fondateur d AcadémIA Pro. Tu donnes des conseils fiscaux precis et chiffres. Tu rappelles de consulter un expert-comptable pour les decisions importantes." },
+        historique: chat
+      }),
+    });
+    const data = await res.json();
+    setChat(prev => [...prev, { role: "agent", text: data.reply }]);
+    setLoading(false);
+  }
+
+  return (
+    <div>
+      <div style={{ minHeight: "150px", maxHeight: "250px", overflowY: "auto", marginBottom: "10px" }}>
+        {chat.length === 0 && <p style={{ color: "rgba(255,255,255,0.3)", fontSize: "13px" }}>Posez une question sur l optimisation fiscale...</p>}
+        {chat.map((m, i) => (
+          <div key={i} style={{ marginBottom: "10px", display: "flex", justifyContent: m.role === "user" ? "flex-end" : "flex-start" }}>
+            <div style={{ background: m.role === "user" ? "#c8a96e" : "rgba(255,255,255,0.08)", color: m.role === "user" ? "#050508" : "#fff", padding: "10px 14px", borderRadius: "10px", maxWidth: "85%", fontSize: "13px", lineHeight: "1.6" }}>
+              {m.text}
+            </div>
+          </div>
+        ))}
+        {loading && <p style={{ color: "#c8a96e", fontSize: "13px" }}>Analyse fiscale en cours...</p>}
+      </div>
+      <div style={{ display: "flex", gap: "8px" }}>
+        <input type="text" placeholder="Ex: Comment réduire mes charges ?" value={msg} onChange={e => setMsg(e.target.value)} onKeyDown={e => e.key === "Enter" && envoyer()}
+          style={{ flex: 1, padding: "10px", borderRadius: "8px", border: "1px solid rgba(200,169,110,0.3)", background: "rgba(255,255,255,0.05)", color: "#fff", fontSize: "13px" }} />
+        <button onClick={envoyer} disabled={loading} style={{ padding: "10px 16px", background: "#c8a96e", color: "#050508", border: "none", borderRadius: "8px", fontWeight: "bold", cursor: "pointer" }}>
+          Envoyer
+        </button>
+
+        {onglet === "fiscal" && (
+          <div>
+            <h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", marginBottom: "10px" }}>
+              💰 Agent Optimisation Fiscale
+            </h2>
+            <p style={{ color: "rgba(255,255,255,0.6)", marginBottom: "25px" }}>
+              Conseils personnalisés pour optimiser la fiscalité d AcadémIA Pro
+            </p>
+
+            <div style={{ display: "grid", gap: "15px", marginBottom: "30px" }}>
+              {[
+                {
+                  titre: "Micro-entreprise vs SASU — Quel régime choisir ?",
+                  description: "Analyse comparative selon votre CA prévisionnel",
+                  prompt: "En tant qu expert en optimisation fiscale française, analyse pour Jacques Lalou fondateur d AcadémIA Pro : quand passer de micro-entreprise à SASU ? Inclus les seuils de CA, avantages fiscaux de chaque structure, cotisations sociales, optimisation rémunération gérant, dividendes, charges déductibles. Donne des exemples chiffrés pour un CA de 50000€ · 100000€ · 200000€."
+                },
+                {
+                  titre: "Charges Déductibles AcadémIA Pro",
+                  description: "Toutes les charges déductibles pour votre activité",
+                  prompt: "Liste exhaustive des charges déductibles fiscalement pour AcadémIA Pro, plateforme IA de formation et bien-être. Inclus : abonnements API Claude · HeyGen · ElevenLabs · Daily.co · Vercel · Supabase · Resend · OVH · matériel iPad · domaines · formations · frais bancaires · honoraires · marketing. Précise les règles de déductibilité et les justificatifs nécessaires."
+                },
+                {
+                  titre: "Holding LLC + SAS — Optimisation Structurelle",
+                  description: "Stratégie holding pour maximiser les économies fiscales",
+                  prompt: "Explique à Jacques Lalou la stratégie optimale d une structure Holding LLC américaine + SAS française pour AcadémIA Pro. Inclus : avantages fiscaux · dividendes · optimisation IS · protection patrimoine · coûts de mise en place · délais · risques · quand mettre en place cette structure selon le CA."
+                },
+                {
+                  titre: "TVA — Stratégie et Anticipation",
+                  description: "Préparer le passage à la TVA au bon moment",
+                  prompt: "Conseille Jacques Lalou sur la gestion de la TVA pour AcadémIA Pro. Inclus : seuils de franchise 2026 · moment optimal pour opter volontairement · TVA sur formations exonérées · TVA sur thérapie · récupération TVA sur achats · impact sur les prix affichés · stratégie prix HT vs TTC."
+                },
+                {
+                  titre: "Plan d Épargne et Protection Sociale",
+                  description: "Optimiser sa protection sociale en tant que fondateur",
+                  prompt: "Conseille Jacques Lalou fondateur d AcadémIA Pro sur l optimisation de sa protection sociale et épargne. Inclus : PER · Madelin · complémentaire santé · prévoyance · retraite complémentaire · cotisations TNS · optimisation revenus · arbitrage salaire vs dividendes en SASU."
+                },
+                {
+                  titre: "Rapport Fiscal Annuel Personnalisé",
+                  description: "Bilan fiscal complet et recommandations",
+                  prompt: "Génère un rapport fiscal annuel personnalisé pour AcadémIA Pro de Jacques Lalou. Structure : situation fiscale actuelle · optimisations réalisées · optimisations à mettre en place · économies potentielles estimées · planning fiscal sur 3 ans · recommandations prioritaires. Adapte à une micro-entreprise en phase de lancement avec ambition de scaling."
+                },
+              ].map((item, i) => (
+                <div key={i} style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(200,169,110,0.2)", borderRadius: "10px", padding: "20px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "15px" }}>
+                  <div>
+                    <h3 style={{ color: "#c8a96e", margin: "0 0 5px", fontFamily: "Georgia,serif", fontSize: "15px" }}>{item.titre}</h3>
+                    <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "13px", margin: 0 }}>{item.description}</p>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      setOnglet("generation");
+                      setDocSelectionne({ label: item.titre });
+                      setGenerationLoading(true);
+                      setDocGenere("");
+                      const res = await fetch("/api/admin/agent", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          message: item.prompt,
+                          agent: { prompt: "Tu es un expert en optimisation fiscale française avec 20 ans d experience specialise dans les startups et plateformes numeriques. Tu conseilles Jacques Lalou fondateur d AcadémIA Pro. Tu donnes des conseils fiscaux precis chiffres et actionables conformes au droit fiscal francais en vigueur. Tu rappelles de consulter un expert-comptable pour les decisions importantes." },
+                          historique: []
+                        }),
+                      });
+                      const data = await res.json();
+                      setDocGenere(data.reply || "");
+                      await fetch(`${SUPABASE_URL}/rest/v1/documents_juridiques`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json", apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, Prefer: "return=minimal" },
+                        body: JSON.stringify({ type: "fiscal", titre: item.titre, contenu: data.reply, statut: "genere" }),
+                      });
+                      chargerDocuments();
+                      setGenerationLoading(false);
+                    }}
+                    style={{ padding: "10px 18px", background: "#c8a96e", color: "#050508", border: "none", borderRadius: "8px", fontWeight: "bold", cursor: "pointer", whiteSpace: "nowrap", minWidth: "100px" }}
+                  >
+                    Analyser
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ background: "rgba(200,169,110,0.1)", border: "1px solid rgba(200,169,110,0.3)", borderRadius: "12px", padding: "20px" }}>
+              <h3 style={{ color: "#c8a96e", marginTop: 0 }}>💡 Conseil Fiscal Rapide</h3>
+              <FiscalChat />
+            </div>
+          </div>
+        )}
+
+      </div>
+    </div>
+  );
+}
+
 function InpiDossierBouton() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
@@ -161,6 +299,7 @@ export default function MrJuridiquePage() {
     { id: "bibliotheque", label: "📚 Bibliothèque" },
     { id: "upload", label: "📎 Upload Documents" },
     { id: "inpi", label: "🏛️ Protection Marque INPI" },
+    { id: "fiscal", label: "💰 Optimisation Fiscale" },
   ];
 
   return (
@@ -394,6 +533,94 @@ export default function MrJuridiquePage() {
               <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "12px", marginBottom: 0, marginTop: "15px" }}>
                 ⚠️ Le dépôt final se fait sur inpi.fr · Mr Juridique prépare votre dossier complet
               </p>
+            </div>
+          </div>
+        )}
+
+
+        {onglet === "fiscal" && (
+          <div>
+            <h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", marginBottom: "10px" }}>
+              💰 Agent Optimisation Fiscale
+            </h2>
+            <p style={{ color: "rgba(255,255,255,0.6)", marginBottom: "25px" }}>
+              Conseils personnalisés pour optimiser la fiscalité d AcadémIA Pro
+            </p>
+
+            <div style={{ display: "grid", gap: "15px", marginBottom: "30px" }}>
+              {[
+                {
+                  titre: "Micro-entreprise vs SASU — Quel régime choisir ?",
+                  description: "Analyse comparative selon votre CA prévisionnel",
+                  prompt: "En tant qu expert en optimisation fiscale française, analyse pour Jacques Lalou fondateur d AcadémIA Pro : quand passer de micro-entreprise à SASU ? Inclus les seuils de CA, avantages fiscaux de chaque structure, cotisations sociales, optimisation rémunération gérant, dividendes, charges déductibles. Donne des exemples chiffrés pour un CA de 50000€ · 100000€ · 200000€."
+                },
+                {
+                  titre: "Charges Déductibles AcadémIA Pro",
+                  description: "Toutes les charges déductibles pour votre activité",
+                  prompt: "Liste exhaustive des charges déductibles fiscalement pour AcadémIA Pro, plateforme IA de formation et bien-être. Inclus : abonnements API Claude · HeyGen · ElevenLabs · Daily.co · Vercel · Supabase · Resend · OVH · matériel iPad · domaines · formations · frais bancaires · honoraires · marketing. Précise les règles de déductibilité et les justificatifs nécessaires."
+                },
+                {
+                  titre: "Holding LLC + SAS — Optimisation Structurelle",
+                  description: "Stratégie holding pour maximiser les économies fiscales",
+                  prompt: "Explique à Jacques Lalou la stratégie optimale d une structure Holding LLC américaine + SAS française pour AcadémIA Pro. Inclus : avantages fiscaux · dividendes · optimisation IS · protection patrimoine · coûts de mise en place · délais · risques · quand mettre en place cette structure selon le CA."
+                },
+                {
+                  titre: "TVA — Stratégie et Anticipation",
+                  description: "Préparer le passage à la TVA au bon moment",
+                  prompt: "Conseille Jacques Lalou sur la gestion de la TVA pour AcadémIA Pro. Inclus : seuils de franchise 2026 · moment optimal pour opter volontairement · TVA sur formations exonérées · TVA sur thérapie · récupération TVA sur achats · impact sur les prix affichés · stratégie prix HT vs TTC."
+                },
+                {
+                  titre: "Plan d Épargne et Protection Sociale",
+                  description: "Optimiser sa protection sociale en tant que fondateur",
+                  prompt: "Conseille Jacques Lalou fondateur d AcadémIA Pro sur l optimisation de sa protection sociale et épargne. Inclus : PER · Madelin · complémentaire santé · prévoyance · retraite complémentaire · cotisations TNS · optimisation revenus · arbitrage salaire vs dividendes en SASU."
+                },
+                {
+                  titre: "Rapport Fiscal Annuel Personnalisé",
+                  description: "Bilan fiscal complet et recommandations",
+                  prompt: "Génère un rapport fiscal annuel personnalisé pour AcadémIA Pro de Jacques Lalou. Structure : situation fiscale actuelle · optimisations réalisées · optimisations à mettre en place · économies potentielles estimées · planning fiscal sur 3 ans · recommandations prioritaires. Adapte à une micro-entreprise en phase de lancement avec ambition de scaling."
+                },
+              ].map((item, i) => (
+                <div key={i} style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(200,169,110,0.2)", borderRadius: "10px", padding: "20px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "15px" }}>
+                  <div>
+                    <h3 style={{ color: "#c8a96e", margin: "0 0 5px", fontFamily: "Georgia,serif", fontSize: "15px" }}>{item.titre}</h3>
+                    <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "13px", margin: 0 }}>{item.description}</p>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      setOnglet("generation");
+                      setDocSelectionne({ label: item.titre });
+                      setGenerationLoading(true);
+                      setDocGenere("");
+                      const res = await fetch("/api/admin/agent", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          message: item.prompt,
+                          agent: { prompt: "Tu es un expert en optimisation fiscale française avec 20 ans d experience specialise dans les startups et plateformes numeriques. Tu conseilles Jacques Lalou fondateur d AcadémIA Pro. Tu donnes des conseils fiscaux precis chiffres et actionables conformes au droit fiscal francais en vigueur. Tu rappelles de consulter un expert-comptable pour les decisions importantes." },
+                          historique: []
+                        }),
+                      });
+                      const data = await res.json();
+                      setDocGenere(data.reply || "");
+                      await fetch(`${SUPABASE_URL}/rest/v1/documents_juridiques`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json", apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, Prefer: "return=minimal" },
+                        body: JSON.stringify({ type: "fiscal", titre: item.titre, contenu: data.reply, statut: "genere" }),
+                      });
+                      chargerDocuments();
+                      setGenerationLoading(false);
+                    }}
+                    style={{ padding: "10px 18px", background: "#c8a96e", color: "#050508", border: "none", borderRadius: "8px", fontWeight: "bold", cursor: "pointer", whiteSpace: "nowrap", minWidth: "100px" }}
+                  >
+                    Analyser
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ background: "rgba(200,169,110,0.1)", border: "1px solid rgba(200,169,110,0.3)", borderRadius: "12px", padding: "20px" }}>
+              <h3 style={{ color: "#c8a96e", marginTop: 0 }}>💡 Conseil Fiscal Rapide</h3>
+              <FiscalChat />
             </div>
           </div>
         )}
