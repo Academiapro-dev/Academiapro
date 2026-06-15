@@ -21,6 +21,103 @@ function formatMontant(m: number) {
   return m.toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
 }
 
+
+function UploadDocument({ onSuccess }: { onSuccess: () => void }) {
+  const [file, setFile] = useState<File | null>(null);
+  const [form, setForm] = useState({ categorie: "", description: "", montant: "", date: "" });
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState("");
+  const [analyse, setAnalyse] = useState("");
+
+  const CATEGORIES = [
+    "Abonnements logiciels", "API et services cloud", "Marketing et publicité",
+    "Formation et documentation", "Matériel informatique", "Frais bancaires",
+    "Téléphone et internet", "Frais de déplacement", "Carburant",
+    "Repas et restaurants", "Honoraires experts", "Autres",
+  ];
+
+  async function uploadDocument() {
+    if (!file) { setMessage("Sélectionnez un fichier"); return; }
+    setLoading(true);
+    setMessage("");
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("categorie", form.categorie);
+    fd.append("description", form.description || file.name);
+    fd.append("montant", form.montant);
+    fd.append("date", form.date);
+    try {
+      const res = await fetch("/api/admin/upload", { method: "POST", body: fd });
+      const data = await res.json();
+      if (data.success) {
+        setMessage("✅ Document uploadé et enregistré !");
+        if (data.analyse) setAnalyse(data.analyse);
+        setFile(null);
+        setForm({ categorie: "", description: "", montant: "", date: "" });
+        onSuccess();
+      } else {
+        setMessage("❌ Erreur upload");
+      }
+    } catch (e) {
+      setMessage("❌ Erreur connexion");
+    }
+    setLoading(false);
+  }
+
+  return (
+    <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(200,169,110,0.2)", borderRadius: "12px", padding: "25px" }}>
+      <div style={{ marginBottom: "20px" }}>
+        <label style={{ color: "#c8a96e", fontSize: "13px", display: "block", marginBottom: "8px" }}>
+          📄 Sélectionner un document (photo · PDF · image)
+        </label>
+        <input
+          type="file"
+          accept="image/*,.pdf"
+          onChange={e => setFile(e.target.files?.[0] || null)}
+          style={{ color: "#fff", width: "100%" }}
+        />
+        {file && <p style={{ color: "#c8a96e", fontSize: "12px", marginTop: "5px" }}>✅ {file.name}</p>}
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "15px", marginBottom: "20px" }}>
+        <div>
+          <label style={{ color: "#c8a96e", fontSize: "12px", display: "block", marginBottom: "5px" }}>Catégorie</label>
+          <select value={form.categorie} onChange={e => setForm(p => ({ ...p, categorie: e.target.value }))}
+            style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid rgba(200,169,110,0.3)", background: "#1a1a2e", color: "#fff", boxSizing: "border-box" as any }}>
+            <option value="">Choisir...</option>
+            {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </div>
+        <div>
+          <label style={{ color: "#c8a96e", fontSize: "12px", display: "block", marginBottom: "5px" }}>Montant (€)</label>
+          <input type="number" placeholder="0.00" value={form.montant} onChange={e => setForm(p => ({ ...p, montant: e.target.value }))}
+            style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid rgba(200,169,110,0.3)", background: "rgba(255,255,255,0.05)", color: "#fff", boxSizing: "border-box" as any }} />
+        </div>
+        <div>
+          <label style={{ color: "#c8a96e", fontSize: "12px", display: "block", marginBottom: "5px" }}>Description</label>
+          <input type="text" placeholder="Ex: Frais carburant" value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))}
+            style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid rgba(200,169,110,0.3)", background: "rgba(255,255,255,0.05)", color: "#fff", boxSizing: "border-box" as any }} />
+        </div>
+        <div>
+          <label style={{ color: "#c8a96e", fontSize: "12px", display: "block", marginBottom: "5px" }}>Date</label>
+          <input type="date" value={form.date} onChange={e => setForm(p => ({ ...p, date: e.target.value }))}
+            style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid rgba(200,169,110,0.3)", background: "rgba(255,255,255,0.05)", color: "#fff", boxSizing: "border-box" as any }} />
+        </div>
+      </div>
+      <button onClick={uploadDocument} disabled={loading || !file}
+        style={{ width: "100%", padding: "12px", background: file ? "#c8a96e" : "rgba(200,169,110,0.3)", color: "#050508", border: "none", borderRadius: "8px", fontWeight: "bold", cursor: file ? "pointer" : "not-allowed" }}>
+        {loading ? "Upload en cours..." : "📤 Uploader et enregistrer"}
+      </button>
+      {message && <p style={{ color: message.includes("✅") ? "#22c55e" : "#ef4444", marginTop: "10px", textAlign: "center" }}>{message}</p>}
+      {analyse && (
+        <div style={{ background: "rgba(200,169,110,0.1)", border: "1px solid rgba(200,169,110,0.3)", borderRadius: "8px", padding: "15px", marginTop: "15px" }}>
+          <p style={{ color: "#c8a96e", fontWeight: "bold", marginTop: 0 }}>🤖 Analyse Mr Comptable :</p>
+          <p style={{ color: "rgba(255,255,255,0.8)", fontSize: "13px" }}>{analyse}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function MrComptablePage() {
   const [onglet, setOnglet] = useState("dashboard");
   const [factures, setFactures] = useState<any[]>([]);
@@ -148,6 +245,7 @@ Tu donnes des conseils précis basés sur ces chiffres réels.`
     { id: "rapprochement", label: "🏦 Rapprochement" },
     { id: "bilan", label: "📋 Bilan" },
     { id: "conseil", label: "💬 Conseil IA" },
+    { id: "documents", label: "📎 Documents" },
   ];
 
   return (
@@ -382,6 +480,19 @@ Tu donnes des conseils précis basés sur ces chiffres réels.`
                 Envoyer
               </button>
             </div>
+          </div>
+        )}
+
+
+        {onglet === "documents" && (
+          <div>
+            <h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", marginBottom: "20px" }}>
+              📎 Upload Documents Comptables
+            </h2>
+            <p style={{ color: "rgba(255,255,255,0.6)", marginBottom: "25px" }}>
+              Factures fournisseurs · Tickets · Frais · Justificatifs
+            </p>
+            <UploadDocument onSuccess={chargerDonnees} />
           </div>
         )}
 
