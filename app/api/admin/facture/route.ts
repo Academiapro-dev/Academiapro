@@ -33,9 +33,10 @@ export async function POST(req: NextRequest) {
   thead th { padding: 12px 15px; text-align: left; }
   tbody tr { border-bottom: 1px solid #eee; }
   tbody td { padding: 12px 15px; font-size: 14px; }
-  .total { text-align: right; margin-bottom: 20px; }
-  .total-line { display: flex; justify-content: flex-end; gap: 30px; padding: 6px 0; font-size: 15px; }
-  .total-final { font-size: 20px; font-weight: bold; color: #c8a96e; border-top: 2px solid #c8a96e; padding-top: 10px; }
+  .totaux { width: 300px; margin-left: auto; margin-bottom: 20px; }
+  .totaux table { margin-bottom: 0; }
+  .totaux td { padding: 8px 12px; font-size: 14px; }
+  .totaux tr:last-child td { font-size: 18px; font-weight: bold; color: #c8a96e; border-top: 2px solid #c8a96e; padding-top: 10px; }
   .mention { background: #fff8e7; border-left: 4px solid #c8a96e; padding: 10px 15px; font-size: 13px; margin: 15px 0; }
   .footer { border-top: 1px solid #ddd; padding-top: 15px; font-size: 12px; color: #666; margin-top: 20px; }
 </style>
@@ -55,26 +56,30 @@ export async function POST(req: NextRequest) {
       <p>Échéance : ${echeance}</p>
     </div>
   </div>
+
   <div class="parties">
     <div class="partie">
       <h3>Émetteur</h3>
       <p><strong>AcadémIA Pro</strong></p>
       <p>Jacques Lalou</p>
-      <p>SIRET : En cours</p>
+      <p>SIRET : En cours d obtention</p>
       <p>contact@academiapro.fr</p>
+      <p>academiapro.fr</p>
     </div>
     <div class="partie">
       <h3>Client</h3>
       <p><strong>${client}</strong></p>
+      <p>Adresse : À compléter</p>
     </div>
   </div>
+
   <table>
     <thead>
       <tr>
-        <th>Description</th>
-        <th>Qté</th>
-        <th>Prix HT</th>
-        <th>Total HT</th>
+        <th style="width:50%;">Description</th>
+        <th style="width:10%;">Qté</th>
+        <th style="width:20%;">Prix unitaire HT</th>
+        <th style="width:20%;">Total HT</th>
       </tr>
     </thead>
     <tbody>
@@ -86,18 +91,40 @@ export async function POST(req: NextRequest) {
       </tr>
     </tbody>
   </table>
-  <div class="total">
-    <div class="total-line"><span>Total HT :</span><span>${montant.toFixed(2)} €</span></div>
-    <div class="total-line"><span>TVA :</span><span>0,00 €</span></div>
-    <div class="total-line total-final"><span>TOTAL TTC :</span><span>${montant.toFixed(2)} €</span></div>
+
+  <div class="totaux">
+    <table>
+      <tbody>
+        <tr>
+          <td style="color:#666;">Total HT :</td>
+          <td style="text-align:right;">${montant.toFixed(2)} €</td>
+        </tr>
+        <tr>
+          <td style="color:#666;">TVA (0%) :</td>
+          <td style="text-align:right;">0,00 €</td>
+        </tr>
+        <tr>
+          <td>TOTAL TTC :</td>
+          <td style="text-align:right;">${montant.toFixed(2)} €</td>
+        </tr>
+      </tbody>
+    </table>
   </div>
-  <div class="mention">⚠️ TVA non applicable — article 293 B du CGI</div>
+
+  <div class="mention">
+    ⚠️ <strong>TVA non applicable</strong> — article 293 B du Code Général des Impôts
+  </div>
+
   <div class="mention" style="background:#f0f7ff;border-color:#3b82f6;">
-    💳 Paiement par virement ou Stripe<br/>
-    IBAN : FR XX XXXX XXXX XXXX XXXX XXXX XXX
+    💳 <strong>Coordonnées bancaires :</strong><br/>
+    Titulaire : Jacques Lalou — AcadémIA Pro<br/>
+    IBAN : FR XX XXXX XXXX XXXX XXXX XXXX XXX<br/>
+    Paiement accepté par virement bancaire ou Stripe
   </div>
+
   <div class="footer">
-    <p>Pénalités de retard : 3x le taux légal + 40€ forfaitaire (art. L441-10 du Code de Commerce)</p>
+    <p>Pénalités de retard : 3x le taux d intérêt légal + indemnité forfaitaire de 40€ (art. L441-10 du Code de Commerce)</p>
+    <p>Escompte pour paiement anticipé : aucun</p>
     <p>AcadémIA Pro · Micro-entrepreneur · contact@academiapro.fr · academiapro.fr</p>
   </div>
 </body>
