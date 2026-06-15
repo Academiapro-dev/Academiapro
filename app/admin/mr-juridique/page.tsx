@@ -17,12 +17,12 @@ function formatReponse(text: string): string {
 }
 
 const DOCUMENTS_TYPES = [
-  { id: "cgv", label: "CGV — Conditions Générales de Vente", prompt: "Génère des CGV complètes et conformes au droit français pour AcadémIA Pro, plateforme de formation professionnelle et bien-être 100% IA. Inclus : objet · prix · paiement · accès · propriété intellectuelle · garantie 30 jours · responsabilité · données personnelles · droit applicable." },
-  { id: "mentions", label: "Mentions Légales", prompt: "Génère des mentions légales complètes pour academiapro.fr. Inclus : éditeur · hébergeur Vercel · directeur publication Jacques Lalou · données personnelles RGPD · cookies · propriété intellectuelle." },
-  { id: "nda", label: "NDA — Accord de Confidentialité", prompt: "Génère un NDA professionnel en droit français pour AcadémIA Pro avec Jacques Lalou. Inclus : définition informations confidentielles · obligations · durée 5 ans · exceptions · sanctions." },
-  { id: "rgpd", label: "Politique de Confidentialité RGPD", prompt: "Génère une politique de confidentialité RGPD complète pour AcadémIA Pro. Inclus : données collectées · finalités · base légale · durée conservation · droits utilisateurs · DPO · cookies · transferts." },
-  { id: "contrat_prestataire", label: "Contrat Prestataire", prompt: "Génère un contrat de prestation de services en droit français pour AcadémIA Pro avec un prestataire externe. Inclus : objet · missions · tarifs · délais · propriété intellectuelle · confidentialité · résiliation." },
-  { id: "reglement", label: "Règlement Intérieur Formation", prompt: "Génère un règlement intérieur de centre de formation conforme au droit français pour AcadémIA Pro. Inclus : objet · accès formations · comportement · droits stagiaires · sanctions · réclamations." },
+  { id: "cgv", label: "CGV - Conditions Générales de Vente", prompt: "Génère des CGV complètes et conformes au droit français pour AcadémIA Pro, plateforme de formation professionnelle et bien-être 100% IA. Inclus : objet - prix - paiement - accès - propriété intellectuelle - garantie 30 jours - responsabilité - données personnelles - droit applicable." },
+  { id: "mentions", label: "Mentions Légales", prompt: "Génère des mentions légales complètes pour academiapro.fr. Inclus : éditeur - hébergeur Vercel - directeur publication Jacques Lalou - données personnelles RGPD - cookies - propriété intellectuelle." },
+  { id: "nda", label: "NDA - Accord de Confidentialité", prompt: "Génère un NDA professionnel en droit français pour AcadémIA Pro avec Jacques Lalou. Inclus : définition informations confidentielles - obligations - durée 5 ans - exceptions - sanctions." },
+  { id: "rgpd", label: "Politique de Confidentialité RGPD", prompt: "Génère une politique de confidentialité RGPD complète pour AcadémIA Pro. Inclus : données collectées - finalités - base légale - durée conservation - droits utilisateurs - DPO - cookies - transferts." },
+  { id: "contrat_prestataire", label: "Contrat Prestataire", prompt: "Génère un contrat de prestation de services en droit français pour AcadémIA Pro avec un prestataire externe. Inclus : objet - missions - tarifs - délais - propriété intellectuelle - confidentialité - résiliation." },
+  { id: "reglement", label: "Règlement Intérieur Formation", prompt: "Génère un règlement intérieur de centre de formation conforme au droit français pour AcadémIA Pro. Inclus : objet - accès formations - comportement - droits stagiaires - sanctions - réclamations." },
 ];
 
 
@@ -84,34 +84,34 @@ function FiscalChat() {
             <div style={{ display: "grid", gap: "15px", marginBottom: "30px" }}>
               {[
                 {
-                  titre: "Micro-entreprise vs SASU — Quel régime choisir ?",
+                  titre: "Micro-entreprise vs SASU - Quel régime choisir ?",
                   description: "Analyse comparative selon votre CA prévisionnel",
-                  prompt: "En tant qu expert en optimisation fiscale française, analyse pour Jacques Lalou fondateur d AcadémIA Pro : quand passer de micro-entreprise à SASU ? Inclus les seuils de CA, avantages fiscaux de chaque structure, cotisations sociales, optimisation rémunération gérant, dividendes, charges déductibles. Donne des exemples chiffrés pour un CA de 50000€ · 100000€ · 200000€."
+                  prompt: "En tant qu expert en optimisation fiscale française, analyse pour Jacques Lalou fondateur d AcadémIA Pro : quand passer de micro-entreprise à SASU ? Inclus les seuils de CA, avantages fiscaux de chaque structure, cotisations sociales, optimisation rémunération gérant, dividendes, charges déductibles. Donne des exemples chiffrés pour un CA de 50000€ - 100000€ - 200000€."
                 },
                 {
                   titre: "Charges Déductibles AcadémIA Pro",
                   description: "Toutes les charges déductibles pour votre activité",
-                  prompt: "Liste exhaustive des charges déductibles fiscalement pour AcadémIA Pro, plateforme IA de formation et bien-être. Inclus : abonnements API Claude · HeyGen · ElevenLabs · Daily.co · Vercel · Supabase · Resend · OVH · matériel iPad · domaines · formations · frais bancaires · honoraires · marketing. Précise les règles de déductibilité et les justificatifs nécessaires."
+                  prompt: "Liste exhaustive des charges déductibles fiscalement pour AcadémIA Pro, plateforme IA de formation et bien-être. Inclus : abonnements API Claude - HeyGen - ElevenLabs - Daily.co - Vercel - Supabase - Resend - OVH - matériel iPad - domaines - formations - frais bancaires - honoraires - marketing. Précise les règles de déductibilité et les justificatifs nécessaires."
                 },
                 {
-                  titre: "Holding LLC + SAS — Optimisation Structurelle",
+                  titre: "Holding LLC + SAS - Optimisation Structurelle",
                   description: "Stratégie holding pour maximiser les économies fiscales",
-                  prompt: "Explique à Jacques Lalou la stratégie optimale d une structure Holding LLC américaine + SAS française pour AcadémIA Pro. Inclus : avantages fiscaux · dividendes · optimisation IS · protection patrimoine · coûts de mise en place · délais · risques · quand mettre en place cette structure selon le CA."
+                  prompt: "Explique à Jacques Lalou la stratégie optimale d une structure Holding LLC américaine + SAS française pour AcadémIA Pro. Inclus : avantages fiscaux - dividendes - optimisation IS - protection patrimoine - coûts de mise en place - délais - risques - quand mettre en place cette structure selon le CA."
                 },
                 {
-                  titre: "TVA — Stratégie et Anticipation",
+                  titre: "TVA - Stratégie et Anticipation",
                   description: "Préparer le passage à la TVA au bon moment",
-                  prompt: "Conseille Jacques Lalou sur la gestion de la TVA pour AcadémIA Pro. Inclus : seuils de franchise 2026 · moment optimal pour opter volontairement · TVA sur formations exonérées · TVA sur thérapie · récupération TVA sur achats · impact sur les prix affichés · stratégie prix HT vs TTC."
+                  prompt: "Conseille Jacques Lalou sur la gestion de la TVA pour AcadémIA Pro. Inclus : seuils de franchise 2026 - moment optimal pour opter volontairement - TVA sur formations exonérées - TVA sur thérapie - récupération TVA sur achats - impact sur les prix affichés - stratégie prix HT vs TTC."
                 },
                 {
                   titre: "Plan d Épargne et Protection Sociale",
                   description: "Optimiser sa protection sociale en tant que fondateur",
-                  prompt: "Conseille Jacques Lalou fondateur d AcadémIA Pro sur l optimisation de sa protection sociale et épargne. Inclus : PER · Madelin · complémentaire santé · prévoyance · retraite complémentaire · cotisations TNS · optimisation revenus · arbitrage salaire vs dividendes en SASU."
+                  prompt: "Conseille Jacques Lalou fondateur d AcadémIA Pro sur l optimisation de sa protection sociale et épargne. Inclus : PER - Madelin - complémentaire santé - prévoyance - retraite complémentaire - cotisations TNS - optimisation revenus - arbitrage salaire vs dividendes en SASU."
                 },
                 {
                   titre: "Rapport Fiscal Annuel Personnalisé",
                   description: "Bilan fiscal complet et recommandations",
-                  prompt: "Génère un rapport fiscal annuel personnalisé pour AcadémIA Pro de Jacques Lalou. Structure : situation fiscale actuelle · optimisations réalisées · optimisations à mettre en place · économies potentielles estimées · planning fiscal sur 3 ans · recommandations prioritaires. Adapte à une micro-entreprise en phase de lancement avec ambition de scaling."
+                  prompt: "Génère un rapport fiscal annuel personnalisé pour AcadémIA Pro de Jacques Lalou. Structure : situation fiscale actuelle - optimisations réalisées - optimisations à mettre en place - économies potentielles estimées - planning fiscal sur 3 ans - recommandations prioritaires. Adapte à une micro-entreprise en phase de lancement avec ambition de scaling."
                 },
               ].map((item, i) => (
                 <div key={i} style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(200,169,110,0.2)", borderRadius: "10px", padding: "20px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "15px" }}>
@@ -193,7 +193,7 @@ function InpiDossierBouton() {
       const data = await res.json();
       setMessage(data.message || "Dossier envoyé ✅");
     } catch (e) {
-      setMessage("Erreur — réessayez");
+      setMessage("Erreur - réessayez");
     }
     setLoading(false);
   }
@@ -296,7 +296,7 @@ export default function MrJuridiquePage() {
       <style>body{font-family:Georgia,serif;max-width:800px;margin:0 auto;padding:40px;color:#1a1a1a;line-height:1.8;}
       h1,h2,h3{color:#c8a96e;} hr{border-color:#c8a96e;}</style></head><body>
       <h1>${docSelectionne?.label}</h1>
-      <p style="color:#666;">AcadémIA Pro · Jacques Lalou · ${new Date().toLocaleDateString("fr-FR")}</p>
+      <p style="color:#666;">AcadémIA Pro - Jacques Lalou - ${new Date().toLocaleDateString("fr-FR")}</p>
       <hr/>
       ${docGenere.replace(/\*\*(.+?)\*\*/g,"<strong>$1</strong>").replace(/# (.+)/g,"<h2>$1</h2>").replace(/\n/g,"<br/>")}
       </body></html>`);
@@ -318,7 +318,7 @@ export default function MrJuridiquePage() {
     <div style={{ backgroundColor: "#050508", minHeight: "100vh", color: "#fff" }}>
       <div style={{ background: "linear-gradient(135deg,#0a0a1a,#1a1a2e)", padding: "30px 40px" }}>
         <h1 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", margin: 0 }}>⚖️ Mr Juridique</h1>
-        <p style={{ color: "rgba(255,255,255,0.5)", margin: "5px 0 0" }}>Juriste d Entreprise Senior · AcadémIA Pro</p>
+        <p style={{ color: "rgba(255,255,255,0.5)", margin: "5px 0 0" }}>Juriste d Entreprise Senior - AcadémIA Pro</p>
       </div>
 
       <div style={{ display: "flex", gap: "5px", padding: "15px 20px", background: "rgba(255,255,255,0.03)", overflowX: "auto" }}>
@@ -373,7 +373,7 @@ export default function MrJuridiquePage() {
                 </div>
                 <div style={{ background: "#fff", borderRadius: "12px", padding: "30px", color: "#1a1a1a" }}>
                   <h2 style={{ color: "#c8a96e" }}>{docSelectionne?.label}</h2>
-                  <p style={{ color: "#666", fontSize: "13px" }}>AcadémIA Pro · Jacques Lalou · {new Date().toLocaleDateString("fr-FR")}</p>
+                  <p style={{ color: "#666", fontSize: "13px" }}>AcadémIA Pro - Jacques Lalou - {new Date().toLocaleDateString("fr-FR")}</p>
                   <hr style={{ borderColor: "#c8a96e" }} />
                   <div dangerouslySetInnerHTML={{ __html: formatReponse(docGenere) }} style={{ lineHeight: "1.8" }} />
                 </div>
@@ -428,7 +428,7 @@ export default function MrJuridiquePage() {
         {onglet === "upload" && (
           <div>
             <h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", marginBottom: "20px" }}>📎 Upload Documents Juridiques</h2>
-            <p style={{ color: "rgba(255,255,255,0.6)", marginBottom: "25px" }}>Contrats reçus · Statuts · Courriers officiels · Documents INPI</p>
+            <p style={{ color: "rgba(255,255,255,0.6)", marginBottom: "25px" }}>Contrats reçus - Statuts - Courriers officiels - Documents INPI</p>
             <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(200,169,110,0.2)", borderRadius: "12px", padding: "25px" }}>
               <input type="file" accept="image/*,.pdf" style={{ color: "#fff", width: "100%", marginBottom: "15px" }} />
               <input type="text" placeholder="Description du document" style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid rgba(200,169,110,0.3)", background: "rgba(255,255,255,0.05)", color: "#fff", marginBottom: "15px", boxSizing: "border-box" as any }} />
@@ -455,7 +455,7 @@ export default function MrJuridiquePage() {
                 🚀 Générer et Envoyer le Dossier Complet
               </h3>
               <p style={{ color: "rgba(255,255,255,0.8)", marginBottom: "15px", fontSize: "14px" }}>
-                Mr Juridique génère les 4 documents · les compile · les envoie par email
+                Mr Juridique génère les 4 documents - les compile - les envoie par email
               </p>
               <InpiDossierBouton />
             </div>
@@ -469,22 +469,22 @@ export default function MrJuridiquePage() {
                 {
                   titre: "Description de la Marque",
                   description: "Rédiger la description officielle pour l INPI",
-                  prompt: "Rédige la description officielle de la marque AcadémIA Pro pour un dépôt INPI. La marque désigne une plateforme de formation professionnelle en ligne 100% intelligence artificielle et de séances thérapeutiques avec avatars IA. Inclus : dénomination · nature de la marque · liste précise des produits et services par classe · caractère distinctif."
+                  prompt: "Rédige la description officielle de la marque AcadémIA Pro pour un dépôt INPI. La marque désigne une plateforme de formation professionnelle en ligne 100% intelligence artificielle et de séances thérapeutiques avec avatars IA. Inclus : dénomination - nature de la marque - liste précise des produits et services par classe - caractère distinctif."
                 },
                 {
                   titre: "Guide Dépôt INPI Étape par Étape",
                   description: "Procédure complète pour déposer sur inpi.fr",
-                  prompt: "Explique à Jacques Lalou fondateur d AcadémIA Pro comment déposer sa marque sur inpi.fr étape par étape. Inclus : création compte INPI · remplissage formulaire · choix classes · paiement · délais · que faire après le dépôt · comment surveiller les oppositions · renouvellement tous les 10 ans."
+                  prompt: "Explique à Jacques Lalou fondateur d AcadémIA Pro comment déposer sa marque sur inpi.fr étape par étape. Inclus : création compte INPI - remplissage formulaire - choix classes - paiement - délais - que faire après le dépôt - comment surveiller les oppositions - renouvellement tous les 10 ans."
                 },
                 {
                   titre: "NDA Protection Avant Dépôt",
                   description: "Accord de confidentialité pour protéger avant le dépôt",
-                  prompt: "Génère un NDA spécifique pour protéger la marque et le concept AcadémIA Pro avant le dépôt INPI. Inclus : définition du concept protégé · obligations de confidentialité · durée · sanctions · droit applicable français."
+                  prompt: "Génère un NDA spécifique pour protéger la marque et le concept AcadémIA Pro avant le dépôt INPI. Inclus : définition du concept protégé - obligations de confidentialité - durée - sanctions - droit applicable français."
                 },
                 {
                   titre: "Surveillance et Défense de Marque",
                   description: "Comment surveiller et défendre AcadémIA Pro",
-                  prompt: "Explique à Jacques Lalou comment surveiller sa marque AcadémIA Pro après le dépôt INPI et comment la défendre en cas de contrefaçon. Inclus : outils de surveillance · délai opposition 2 mois · mise en demeure · procédures judiciaires · dommages et intérêts · coûts estimés."
+                  prompt: "Explique à Jacques Lalou comment surveiller sa marque AcadémIA Pro après le dépôt INPI et comment la défendre en cas de contrefaçon. Inclus : outils de surveillance - délai opposition 2 mois - mise en demeure - procédures judiciaires - dommages et intérêts - coûts estimés."
                 },
               ].map((item, i) => (
                 <div key={i} style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(200,169,110,0.2)", borderRadius: "10px", padding: "20px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "15px" }}>
@@ -532,7 +532,7 @@ export default function MrJuridiquePage() {
                   { label: "Coût dépôt", valeur: "190€ / classe" },
                   { label: "Durée protection", valeur: "10 ans renouvelable" },
                   { label: "Délai traitement", valeur: "6 mois environ" },
-                  { label: "Classes recommandées", valeur: "41 · 42 · 44" },
+                  { label: "Classes recommandées", valeur: "41 - 42 - 44" },
                   { label: "Délai opposition", valeur: "2 mois après publication" },
                   { label: "Site officiel", valeur: "inpi.fr" },
                 ].map(item => (
@@ -543,7 +543,7 @@ export default function MrJuridiquePage() {
                 ))}
               </div>
               <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "12px", marginBottom: 0, marginTop: "15px" }}>
-                ⚠️ Le dépôt final se fait sur inpi.fr · Mr Juridique prépare votre dossier complet
+                ⚠️ Le dépôt final se fait sur inpi.fr - Mr Juridique prépare votre dossier complet
               </p>
             </div>
           </div>
@@ -562,34 +562,34 @@ export default function MrJuridiquePage() {
             <div style={{ display: "grid", gap: "15px", marginBottom: "30px" }}>
               {[
                 {
-                  titre: "Micro-entreprise vs SASU — Quel régime choisir ?",
+                  titre: "Micro-entreprise vs SASU - Quel régime choisir ?",
                   description: "Analyse comparative selon votre CA prévisionnel",
-                  prompt: "En tant qu expert en optimisation fiscale française, analyse pour Jacques Lalou fondateur d AcadémIA Pro : quand passer de micro-entreprise à SASU ? Inclus les seuils de CA, avantages fiscaux de chaque structure, cotisations sociales, optimisation rémunération gérant, dividendes, charges déductibles. Donne des exemples chiffrés pour un CA de 50000€ · 100000€ · 200000€."
+                  prompt: "En tant qu expert en optimisation fiscale française, analyse pour Jacques Lalou fondateur d AcadémIA Pro : quand passer de micro-entreprise à SASU ? Inclus les seuils de CA, avantages fiscaux de chaque structure, cotisations sociales, optimisation rémunération gérant, dividendes, charges déductibles. Donne des exemples chiffrés pour un CA de 50000€ - 100000€ - 200000€."
                 },
                 {
                   titre: "Charges Déductibles AcadémIA Pro",
                   description: "Toutes les charges déductibles pour votre activité",
-                  prompt: "Liste exhaustive des charges déductibles fiscalement pour AcadémIA Pro, plateforme IA de formation et bien-être. Inclus : abonnements API Claude · HeyGen · ElevenLabs · Daily.co · Vercel · Supabase · Resend · OVH · matériel iPad · domaines · formations · frais bancaires · honoraires · marketing. Précise les règles de déductibilité et les justificatifs nécessaires."
+                  prompt: "Liste exhaustive des charges déductibles fiscalement pour AcadémIA Pro, plateforme IA de formation et bien-être. Inclus : abonnements API Claude - HeyGen - ElevenLabs - Daily.co - Vercel - Supabase - Resend - OVH - matériel iPad - domaines - formations - frais bancaires - honoraires - marketing. Précise les règles de déductibilité et les justificatifs nécessaires."
                 },
                 {
-                  titre: "Holding LLC + SAS — Optimisation Structurelle",
+                  titre: "Holding LLC + SAS - Optimisation Structurelle",
                   description: "Stratégie holding pour maximiser les économies fiscales",
-                  prompt: "Explique à Jacques Lalou la stratégie optimale d une structure Holding LLC américaine + SAS française pour AcadémIA Pro. Inclus : avantages fiscaux · dividendes · optimisation IS · protection patrimoine · coûts de mise en place · délais · risques · quand mettre en place cette structure selon le CA."
+                  prompt: "Explique à Jacques Lalou la stratégie optimale d une structure Holding LLC américaine + SAS française pour AcadémIA Pro. Inclus : avantages fiscaux - dividendes - optimisation IS - protection patrimoine - coûts de mise en place - délais - risques - quand mettre en place cette structure selon le CA."
                 },
                 {
-                  titre: "TVA — Stratégie et Anticipation",
+                  titre: "TVA - Stratégie et Anticipation",
                   description: "Préparer le passage à la TVA au bon moment",
-                  prompt: "Conseille Jacques Lalou sur la gestion de la TVA pour AcadémIA Pro. Inclus : seuils de franchise 2026 · moment optimal pour opter volontairement · TVA sur formations exonérées · TVA sur thérapie · récupération TVA sur achats · impact sur les prix affichés · stratégie prix HT vs TTC."
+                  prompt: "Conseille Jacques Lalou sur la gestion de la TVA pour AcadémIA Pro. Inclus : seuils de franchise 2026 - moment optimal pour opter volontairement - TVA sur formations exonérées - TVA sur thérapie - récupération TVA sur achats - impact sur les prix affichés - stratégie prix HT vs TTC."
                 },
                 {
                   titre: "Plan d Épargne et Protection Sociale",
                   description: "Optimiser sa protection sociale en tant que fondateur",
-                  prompt: "Conseille Jacques Lalou fondateur d AcadémIA Pro sur l optimisation de sa protection sociale et épargne. Inclus : PER · Madelin · complémentaire santé · prévoyance · retraite complémentaire · cotisations TNS · optimisation revenus · arbitrage salaire vs dividendes en SASU."
+                  prompt: "Conseille Jacques Lalou fondateur d AcadémIA Pro sur l optimisation de sa protection sociale et épargne. Inclus : PER - Madelin - complémentaire santé - prévoyance - retraite complémentaire - cotisations TNS - optimisation revenus - arbitrage salaire vs dividendes en SASU."
                 },
                 {
                   titre: "Rapport Fiscal Annuel Personnalisé",
                   description: "Bilan fiscal complet et recommandations",
-                  prompt: "Génère un rapport fiscal annuel personnalisé pour AcadémIA Pro de Jacques Lalou. Structure : situation fiscale actuelle · optimisations réalisées · optimisations à mettre en place · économies potentielles estimées · planning fiscal sur 3 ans · recommandations prioritaires. Adapte à une micro-entreprise en phase de lancement avec ambition de scaling."
+                  prompt: "Génère un rapport fiscal annuel personnalisé pour AcadémIA Pro de Jacques Lalou. Structure : situation fiscale actuelle - optimisations réalisées - optimisations à mettre en place - économies potentielles estimées - planning fiscal sur 3 ans - recommandations prioritaires. Adapte à une micro-entreprise en phase de lancement avec ambition de scaling."
                 },
               ].map((item, i) => (
                 <div key={i} style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(200,169,110,0.2)", borderRadius: "10px", padding: "20px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "15px" }}>
