@@ -1,24 +1,79 @@
+"use client";
+import { useState } from "react";
+
 export default function LoginPage() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  async function handleLogin() {
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/token?grant_type=password`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "",
+          },
+          body: JSON.stringify({ email, password }),
+        }
+      );
+      const data = await res.json();
+      if (data.access_token) {
+        localStorage.setItem("sb_token", data.access_token);
+        localStorage.setItem("sb_user", JSON.stringify(data.user));
+        window.location.href = "/dashboard";
+      } else {
+        setError("Email ou mot de passe incorrect");
+      }
+    } catch (e) {
+      setError("Erreur de connexion");
+    }
+    setLoading(false);
+  }
+
   return (
-    <div style={{ minHeight: "100vh", background: "#050508", color: "#fff", fontFamily: "Georgia, serif", padding: "60px 20px" }}>
-      <div style={{ maxWidth: "600px", margin: "0 auto" }}>
-        <div style={{ textAlign: "center", marginBottom: "40px" }}>
-          <p style={{ color: "#c8a96e", fontSize: "12px", letterSpacing: "3px", margin: "0 0 12px" }}>ACADEMIAPRO</p>
-          <h1 style={{ color: "#fff", fontSize: "32px", margin: "0 0 12px" }}>Connexion</h1>
-          <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "15px", margin: "0" }}>Acces a votre espace AcadémIA Pro</p>
-        </div>
-        <div style={{ background: "#1a1a2e", borderRadius: "16px", padding: "40px", border: "1px solid rgba(200,169,110,0.3)" }}>
-          <div style={{ marginBottom: "20px" }}>
-            <label style={{ color: "#c8a96e", fontSize: "13px", display: "block", marginBottom: "8px" }}>Email</label>
-            <input type="text" style={{ width: "100%", background: "#050508", border: "1px solid rgba(200,169,110,0.3)", borderRadius: "8px", padding: "12px", color: "#fff", fontSize: "14px", boxSizing: "border-box" }} />
+    <div style={{ backgroundColor: "#050508", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(200,169,110,0.3)", borderRadius: "16px", padding: "40px", width: "100%", maxWidth: "400px" }}>
+        <h1 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", textAlign: "center", marginBottom: "30px" }}>
+          AcadémIA Pro
+        </h1>
+        <p style={{ color: "rgba(255,255,255,0.6)", textAlign: "center", marginBottom: "30px" }}>
+          Connectez-vous à votre espace
+        </p>
+        {error && (
+          <div style={{ background: "rgba(255,0,0,0.1)", border: "1px solid red", borderRadius: "8px", padding: "10px", marginBottom: "20px", color: "#ff6b6b", textAlign: "center" }}>
+            {error}
           </div>
-          <div style={{ marginBottom: "20px" }}>
-            <label style={{ color: "#c8a96e", fontSize: "13px", display: "block", marginBottom: "8px" }}>Mot de passe</label>
-            <input type="text" style={{ width: "100%", background: "#050508", border: "1px solid rgba(200,169,110,0.3)", borderRadius: "8px", padding: "12px", color: "#fff", fontSize: "14px", boxSizing: "border-box" }} />
-          </div>
-          <button style={{ width: "100%", background: "linear-gradient(135deg, #c8a96e, #a07840)", color: "#050508", border: "none", borderRadius: "8px", padding: "14px", fontSize: "15px", fontWeight: "bold", cursor: "pointer" }}>Se connecter</button>
-          <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "12px", textAlign: "center", marginTop: "16px" }}>Pas encore inscrit ? Creez votre compte gratuitement</p>
-        </div>
+        )}
+        <input
+          type="email"
+          placeholder="Votre email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          style={{ width: "100%", padding: "12px", borderRadius: "8px", border: "1px solid rgba(200,169,110,0.3)", background: "rgba(255,255,255,0.05)", color: "#fff", marginBottom: "15px", boxSizing: "border-box" }}
+        />
+        <input
+          type="password"
+          placeholder="Votre mot de passe"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          style={{ width: "100%", padding: "12px", borderRadius: "8px", border: "1px solid rgba(200,169,110,0.3)", background: "rgba(255,255,255,0.05)", color: "#fff", marginBottom: "20px", boxSizing: "border-box" }}
+        />
+        <button
+          onClick={handleLogin}
+          disabled={loading}
+          style={{ width: "100%", padding: "14px", background: "#c8a96e", color: "#050508", border: "none", borderRadius: "8px", fontWeight: "bold", fontSize: "16px", cursor: "pointer" }}
+        >
+          {loading ? "Connexion..." : "Se connecter"}
+        </button>
+        <p style={{ color: "rgba(255,255,255,0.4)", textAlign: "center", marginTop: "20px", fontSize: "13px" }}>
+          Pas encore de compte ? <a href="/inscription" style={{ color: "#c8a96e" }}>S'inscrire</a>
+        </p>
       </div>
     </div>
   );
