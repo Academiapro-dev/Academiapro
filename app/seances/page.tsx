@@ -44,7 +44,83 @@ const THERAPEUTES = [
   },
 ];
 
+
+const T: Record<string, Record<string, string>> = {
+  fr: {
+    titre: t("titre"),
+    sous_titre: t("sous_titre"),
+    commencer: t("commencer"),
+    quitter: "Quitter",
+    envoyer: t("envoyer"),
+    placeholder: "Parlez a",
+    disponible: t("disponible"),
+    bientot: t("bientot"),
+    avertissement: "Ces seances sont des simulations IA a des fins de bien-etre. En cas de crise, contactez le 15 ou le 3114.",
+    changer: "Changer de therapeute",
+    participants: "participants",
+  },
+  en: {
+    titre: "Therapeutic Sessions",
+    sous_titre: "Choose your therapist · Available now · 24/7",
+    commencer: "Start session",
+    quitter: "Leave",
+    envoyer: "Send",
+    placeholder: "Talk to",
+    disponible: "Live",
+    bientot: "HeyGen coming soon",
+    avertissement: "These sessions are AI simulations for wellness purposes. In case of crisis, contact emergency services.",
+    changer: "Change therapist",
+    participants: "participants",
+  },
+  es: {
+    titre: "Sesiones Terapeuticas",
+    sous_titre: "Elija su terapeuta · Disponible ahora · 24h/24",
+    commencer: "Iniciar sesion",
+    quitter: "Salir",
+    envoyer: "Enviar",
+    placeholder: "Hablar con",
+    disponible: "En directo",
+    bientot: "HeyGen proximamente",
+    avertissement: "Estas sesiones son simulaciones IA para el bienestar. En caso de crisis contacte servicios de emergencia.",
+    changer: "Cambiar terapeuta",
+    participants: "participantes",
+  },
+  ar: {
+    titre: "الجلسات العلاجية",
+    sous_titre: "اختر معالجك · متاح الان · 24/7",
+    commencer: "بدء الجلسة",
+    quitter: "مغادرة",
+    envoyer: "إرسال",
+    placeholder: "تحدث مع",
+    disponible: "مباشر",
+    bientot: "HeyGen قريبا",
+    avertissement: "هذه الجلسات محاكاة ذكاء اصطناعي لاغراض العافية. في حالة الازمة اتصل بخدمات الطوارئ.",
+    changer: "تغيير المعالج",
+    participants: "مشاركون",
+  },
+  he: {
+    titre: "פגישות טיפוליות",
+    sous_titre: "בחר את המטפל שלך · זמין עכשיו · 24/7",
+    commencer: "התחל פגישה",
+    quitter: "עזוב",
+    envoyer: "שלח",
+    placeholder: "דבר עם",
+    disponible: "חי",
+    bientot: "HeyGen בקרוב",
+    avertissement: "פגישות אלו הן סימולציות AI לצרכי רווחה. במקרה של משבר פנה לשירותי חירום.",
+    changer: "שנה מטפל",
+    participants: "משתתפים",
+  },
+};
+
 export default function SeancesPage() {
+  const [langue, setLangue] = useState(() => {
+    if (typeof window === "undefined") return "fr";
+    const p = new URLSearchParams(window.location.search);
+    return p.get("lang") || localStorage.getItem("langue") || "fr";
+  });
+  const t = (cle: string) => T[langue]?.[cle] || T["fr"][cle] || cle;
+
   const [selected, setSelected] = useState<any>(null);
   const [message, setMessage] = useState("");
   const [chat, setChat] = useState<{role: string, text: string}[]>([]);
