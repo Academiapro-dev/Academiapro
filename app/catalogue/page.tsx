@@ -88,13 +88,11 @@ export default function CataloguePage() {
   const [recherche, setRecherche] = useState("");
   const [domaine, setDomaine] = useState("Tous");
   const [loading, setLoading] = useState(true);
-  const [langue, setLangue] = useState("fr");
-  useEffect(() => {
+  const [langue, setLangue] = useState(() => {
+    if (typeof window === "undefined") return "fr";
     const params = new URLSearchParams(window.location.search);
-    const langUrl = params.get("lang");
-    const langStorage = localStorage.getItem("langue") || "fr";
-    setLangue(langUrl || langStorage);
-  }, []);
+    return params.get("lang") || localStorage.getItem("langue") || "fr";
+  });
 
   useEffect(() => {
 
