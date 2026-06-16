@@ -49,6 +49,39 @@ const T: Record<string, Record<string, string>> = {
   },
 };
 
+
+function TitreFormation({ titre, code, langue, style }: { titre: string; code: string; langue: string; style?: any }) {
+  const [titreAffiche, setTitreAffiche] = useState(titre);
+
+  useEffect(() => {
+    if (langue === "fr") {
+      setTitreAffiche(titre);
+      return;
+    }
+    const cacheKey = `${langue}:${code}`;
+    const cached = sessionStorage.getItem(cacheKey);
+    if (cached) {
+      setTitreAffiche(cached);
+      return;
+    }
+    fetch("/api/traduire", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ texte: titre, langue_cible: langue }),
+    })
+    .then(r => r.json())
+    .then(data => {
+      const t = data.traduction || titre;
+      sessionStorage.setItem(cacheKey, t);
+      setTitreAffiche(t);
+    })
+    .catch(() => setTitreAffiche(titre));
+  }, [titre, code, langue]);
+
+  if (style) return <span style={style}>{titreAffiche}</span>;
+  return <span style={{ color: "#fff", fontSize: "14px", flex: 1 }}>{titreAffiche}</span>;
+}
+
 export default function CataloguePage() {
   const [formations, setFormations] = useState<any[]>([]);
   const [vueGrille, setVueGrille] = useState(false);
@@ -67,6 +100,28 @@ export default function CataloguePage() {
       })
       .catch(() => setLoading(false));
   }, []);
+
+
+  const [titresCache, setTitresCache] = useState<Record<string, string>>({});
+
+  async function traduireTitre(titre: string, code: string): Promise<string> {
+    if (langue === "fr") return titre;
+    const cacheKey = `${langue}:${code}`;
+    if (titresCache[cacheKey]) return titresCache[cacheKey];
+    try {
+      const res = await fetch("/api/traduire", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ texte: titre, langue_cible: langue }),
+      });
+      const data = await res.json();
+      const traduction = data.traduction || titre;
+      setTitresCache(prev => ({ ...prev, [cacheKey]: traduction }));
+      return traduction;
+    } catch {
+      return titre;
+    }
+  }
 
   const t = (cle: string) => T[langue]?.[cle] || T["fr"][cle] || cle;
 
@@ -115,7 +170,7 @@ export default function CataloguePage() {
               <a key={f.code} href={`/formation/${f.code}`} style={{ textDecoration: "none" }}>
                 <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(200,169,110,0.2)", borderRadius: "12px", padding: "20px" }}>
                   <div style={{ color: "#c8a96e", fontSize: "11px", marginBottom: "8px" }}>{f.code} · {f.domaine}</div>
-                  <h3 style={{ color: "#fff", fontFamily: "Georgia,serif", fontSize: "15px", margin: "0 0 12px", lineHeight: "1.4" }}>{f.titre}</h3>
+                  <TitreFormation titre={f.titre} code={f.code} langue={langue} style={{ color: "#fff", fontFamily: "Georgia,serif", fontSize: "15px", margin: "0 0 12px", lineHeight: "1.4", display: "block" }} />
                   <div style={{ display: "flex", justifyContent: "space-between" }}>
                     <span style={{ color: "rgba(255,255,255,0.4)", fontSize: "12px" }}>{f.duree}</span>
                     {f.prix && <span style={{ background: "#c8a96e", color: "#050508", padding: "3px 10px", borderRadius: "12px", fontSize: "12px", fontWeight: "bold" }}>{f.prix}€</span>}
@@ -130,7 +185,7 @@ export default function CataloguePage() {
               <a key={f.code} href={`/formation/${f.code}`} style={{ textDecoration: "none" }}>
                 <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(200,169,110,0.1)", borderRadius: "8px", padding: "11px 18px", display: "flex", alignItems: "center", gap: "15px" }}>
                   <span style={{ color: "#c8a96e", fontSize: "11px", fontWeight: "bold", minWidth: "55px", fontFamily: "monospace" }}>{f.code}</span>
-                  <span style={{ color: "#fff", fontSize: "14px", flex: 1 }}>{f.titre}</span>
+                  <TitreFormation titre={f.titre} code={f.code} langue={langue} />
                   <span style={{ color: "rgba(255,255,255,0.3)", fontSize: "11px", minWidth: "80px", textAlign: "right" }}>{f.domaine}</span>
                   {f.duree && <span style={{ color: "rgba(255,255,255,0.3)", fontSize: "11px", minWidth: "35px", textAlign: "right" }}>{f.duree}</span>}
                   {f.prix && <span style={{ color: "#c8a96e", fontSize: "13px", fontWeight: "bold", minWidth: "55px", textAlign: "right" }}>{f.prix}€</span>}
