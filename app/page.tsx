@@ -1,93 +1,7 @@
 "use client";
 import { useState } from "react";
 
-const T: Record<string, Record<string, string>> = {
-  fr: {
-    hero_titre: {t("hero_titre")},
-    hero_sub: "235 formations certifiantes · Agent IA tuteur 24h/24 · Seances therapeutiques · Certification AcadémIA Pro",
-    btn_formations: {t("btn_formations")},
-    btn_ebook: {t("btn_ebook")},
-    stat1: {t("stat1")},
-    stat2: {t("stat2")},
-    stat3: {t("stat3")},
-    stat4: {t("stat4")},
-    nav_formations: "Formations",
-    nav_seances: "Seances",
-    nav_packs: "Packs",
-    nav_competences: "Competences",
-    nav_blog: "Blog",
-    nav_contact: "Contact",
-    btn_demarrer: {t("btn_demarrer")},
-  },
-  en: {
-    hero_titre: "Learn with your personal AI agent",
-    hero_sub: "235 certified courses · AI tutor 24/7 · Therapeutic sessions · AcadémIA Pro Certification",
-    btn_formations: "View courses",
-    btn_ebook: "Free e-book",
-    stat1: "Certified courses",
-    stat2: "Validated skills",
-    stat3: "AI Therapists",
-    stat4: "Satisfaction guarantee",
-    nav_formations: "Courses",
-    nav_seances: "Sessions",
-    nav_packs: "Packs",
-    nav_competences: "Skills",
-    nav_blog: "Blog",
-    nav_contact: "Contact",
-    btn_demarrer: "Get Started",
-  },
-  es: {
-    hero_titre: "Formese con su agente IA personal",
-    hero_sub: "235 cursos certificados · Tutor IA 24h · Sesiones terapeuticas · Certificacion AcadémIA Pro",
-    btn_formations: "Ver cursos",
-    btn_ebook: "E-book gratis",
-    stat1: "Cursos certificados",
-    stat2: "Habilidades validadas",
-    stat3: "Terapeutas IA",
-    stat4: "Garantia satisfaccion",
-    nav_formations: "Cursos",
-    nav_seances: "Sesiones",
-    nav_packs: "Packs",
-    nav_competences: "Habilidades",
-    nav_blog: "Blog",
-    nav_contact: "Contacto",
-    btn_demarrer: "Comenzar",
-  },
-  ar: {
-    hero_titre: "تدرب مع وكيل الذكاء الاصطناعي",
-    hero_sub: "235 دورة معتمدة · مدرس ذكاء اصطناعي · جلسات علاجية",
-    btn_formations: "عرض الدورات",
-    btn_ebook: "كتاب مجاني",
-    stat1: "دورات معتمدة",
-    stat2: "مهارات معتمدة",
-    stat3: "معالجون AI",
-    stat4: "ضمان الرضا",
-    nav_formations: "الدورات",
-    nav_seances: "الجلسات",
-    nav_packs: "الباقات",
-    nav_competences: "المهارات",
-    nav_blog: "المدونة",
-    nav_contact: "اتصل",
-    btn_demarrer: "ابدأ",
-  },
-  he: {
-    hero_titre: "התאמן עם סוכן הבינה המלאכותית",
-    hero_sub: "235 קורסים מוסמכים · מדריך AI 24/7 · פגישות טיפוליות",
-    btn_formations: "צפה בקורסים",
-    btn_ebook: "ספר חינמי",
-    stat1: "קורסים מוסמכים",
-    stat2: "כישורים מאומתים",
-    stat3: "מטפלים AI",
-    stat4: "ערובת שביעות רצון",
-    nav_formations: "קורסים",
-    nav_seances: "פגישות",
-    nav_packs: "חבילות",
-    nav_competences: "כישורים",
-    nav_blog: "בלוג",
-    nav_contact: "צור קשר",
-    btn_demarrer: "התחל",
-  },
-};
+
 
 export default function HomePage() {
   const [langue, setLangue] = useState("fr");
@@ -139,10 +53,10 @@ export default function HomePage() {
       <section style={{ background: "#1a1a2e", padding: "60px 40px" }}>
         <div style={{ maxWidth: "1000px", margin: "0 auto", display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "32px", textAlign: "center" }}>
           {[
-            { nb: "235", label: {t("stat1")} },
-            { nb: "100+", label: {t("stat2")} },
-            { nb: "5", label: {t("stat3")} },
-            { nb: "30j", label: {t("stat4")} },
+            { nb: "235", label: "Formations certifiantes" },
+            { nb: "100+", label: "Competences validees" },
+            { nb: "5", label: "Therapeutes IA" },
+            { nb: "30j", label: "Garantie satisfait" },
           ].map((s) => (
             <div key={s.label}>
               <p style={{ color: "#c8a96e", fontSize: "40px", fontWeight: "bold", margin: "0 0 8px" }}>{s.nb}</p>
