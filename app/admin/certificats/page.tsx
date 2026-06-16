@@ -1,46 +1,97 @@
 "use client";
-import React from "react";
+import { useState } from "react";
 
-export default function AdminPage() {
-  return (
-    <div style={{ minHeight: "100vh", background: "#050508", color: "#fff", fontFamily: "Georgia, serif", padding: "40px 20px" }}>
-      <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
-        <div style={{ textAlign: "center", marginBottom: "48px" }}>
-          <p style={{ color: "#c8a96e", fontSize: "12px", letterSpacing: "3px", margin: "0 0 12px" }}>ADMIN ACADEMIAPRO</p>
-          <h1 style={{ color: "#fff", fontSize: "32px", margin: "0 0 8px" }}>Certificats</h1>
-          <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "15px", margin: "0" }}>Gestion certifications · 4 niveaux · QR Code · LinkedIn</p>
+export default function CertificatsPage() {
+  const [form, setForm] = useState({
+    nom: "Jacques Lalou",
+    formation: "Expert Claude et IA Generative",
+    code: "F128",
+    niveau: "Expert",
+    date: new Date().toLocaleDateString("fr-FR"),
+  });
+  const [certifHtml, setCertifHtml] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  async function genererCertificat() {
+    setLoading(true);
+    const res = await fetch("/api/admin/certificat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(form),
+    });
+    const data = await res.json();
+    if (data.certif_html) {
+      setCertifHtml(data.certif_html);
+    }
+    setLoading(false);
+  }
+
+  function imprimer() {
+    const win = window.open("", "_blank");
+    if (win) {
+      win.document.write(certifHtml);
+      win.document.close();
+      win.print();
+    }
+  }
+
+  if (certifHtml) {
+    return (
+      <div style={{ backgroundColor: "#050508", minHeight: "100vh", padding: "20px" }}>
+        <div style={{ display: "flex", gap: "10px", marginBottom: "20px" }}>
+          <button onClick={() => setCertifHtml("")} style={{ background: "none", border: "1px solid rgba(200,169,110,0.3)", color: "#c8a96e", padding: "8px 16px", borderRadius: "8px", cursor: "pointer" }}>
+            Retour
+          </button>
+          <button onClick={imprimer} style={{ background: "#c8a96e", color: "#050508", border: "none", padding: "8px 20px", borderRadius: "8px", fontWeight: "bold", cursor: "pointer" }}>
+            Imprimer / Sauvegarder PDF
+          </button>
+          <button onClick={() => {
+            const link = document.createElement("a");
+            const blob = new Blob([certifHtml], { type: "text/html" });
+            link.href = URL.createObjectURL(blob);
+            link.download = "certificat_academiapro.html";
+            link.click();
+          }} style={{ background: "rgba(200,169,110,0.2)", color: "#c8a96e", border: "1px solid rgba(200,169,110,0.3)", padding: "8px 20px", borderRadius: "8px", fontWeight: "bold", cursor: "pointer" }}>
+            Telecharger HTML
+          </button>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "20px" }}>
-          <div style={{ background: "#1a1a2e", borderRadius: "12px", padding: "24px", border: "1px solid rgba(200,169,110,0.3)" }}>
-            <h3 style={{ color: "#c8a96e", fontSize: "16px", margin: "0 0 12px" }}>Total Certificats</h3>
-            <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "13px", margin: "0 0 16px" }}>Délivrés depuis lancement</p>
-            <p style={{ color: "#fff", fontSize: "24px", fontWeight: "bold", margin: "0" }}>0</p>
+        <div dangerouslySetInnerHTML={{ __html: certifHtml }} />
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ backgroundColor: "#050508", minHeight: "100vh", color: "#fff", padding: "40px 20px" }}>
+      <div style={{ maxWidth: "700px", margin: "0 auto" }}>
+        <h1 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", textAlign: "center", marginBottom: "10px" }}>
+          🏆 Certificats AcadémIA Pro
+        </h1>
+        <p style={{ color: "rgba(255,255,255,0.5)", textAlign: "center", marginBottom: "40px" }}>
+          Generez les certificats de reussite pour vos apprenants
+        </p>
+
+        <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(200,169,110,0.3)", borderRadius: "16px", padding: "35px" }}>
+          <h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", marginTop: 0 }}>Nouveau Certificat</h2>
+          <div style={{ display: "grid", gap: "20px" }}>
+            {[
+              { label: "Nom du stagiaire", key: "nom", placeholder: "Prenom Nom" },
+              { label: "Intitule de la formation", key: "formation", placeholder: "Expert Claude et IA Generative" },
+              { label: "Code formation", key: "code", placeholder: "F128" },
+              { label: "Niveau", key: "niveau", placeholder: "Debutant / Intermediaire / Expert" },
+              { label: "Date d obtention", key: "date", placeholder: "16/06/2026" },
+            ].map(f => (
+              <div key={f.key}>
+                <label style={{ color: "#c8a96e", fontSize: "13px", display: "block", marginBottom: "6px" }}>{f.label}</label>
+                <input type="text" placeholder={f.placeholder} value={(form as any)[f.key]}
+                  onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))}
+                  style={{ width: "100%", padding: "12px", borderRadius: "8px", border: "1px solid rgba(200,169,110,0.3)", background: "rgba(255,255,255,0.05)", color: "#fff", boxSizing: "border-box" as any }} />
+              </div>
+            ))}
           </div>
-          <div style={{ background: "#1a1a2e", borderRadius: "12px", padding: "24px", border: "1px solid rgba(200,169,110,0.3)" }}>
-            <h3 style={{ color: "#c8a96e", fontSize: "16px", margin: "0 0 12px" }}>Ce Mois</h3>
-            <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "13px", margin: "0 0 16px" }}>Certificats délivrés ce mois</p>
-            <p style={{ color: "#fff", fontSize: "24px", fontWeight: "bold", margin: "0" }}>0</p>
-          </div>
-          <div style={{ background: "#1a1a2e", borderRadius: "12px", padding: "24px", border: "1px solid rgba(200,169,110,0.3)" }}>
-            <h3 style={{ color: "#c8a96e", fontSize: "16px", margin: "0 0 12px" }}>Attestations</h3>
-            <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "13px", margin: "0 0 16px" }}>Niveau 1</p>
-            <p style={{ color: "#fff", fontSize: "24px", fontWeight: "bold", margin: "0" }}>0</p>
-          </div>
-          <div style={{ background: "#1a1a2e", borderRadius: "12px", padding: "24px", border: "1px solid rgba(200,169,110,0.3)" }}>
-            <h3 style={{ color: "#c8a96e", fontSize: "16px", margin: "0 0 12px" }}>Certifiés</h3>
-            <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "13px", margin: "0 0 16px" }}>Niveau 2 · score 70%+</p>
-            <p style={{ color: "#fff", fontSize: "24px", fontWeight: "bold", margin: "0" }}>0</p>
-          </div>
-          <div style={{ background: "#1a1a2e", borderRadius: "12px", padding: "24px", border: "1px solid rgba(200,169,110,0.3)" }}>
-            <h3 style={{ color: "#c8a96e", fontSize: "16px", margin: "0 0 12px" }}>Experts</h3>
-            <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "13px", margin: "0 0 16px" }}>Niveau 3 · score 85%+</p>
-            <p style={{ color: "#fff", fontSize: "24px", fontWeight: "bold", margin: "0" }}>0</p>
-          </div>
-          <div style={{ background: "#1a1a2e", borderRadius: "12px", padding: "24px", border: "1px solid rgba(200,169,110,0.3)" }}>
-            <h3 style={{ color: "#c8a96e", fontSize: "16px", margin: "0 0 12px" }}>Masters</h3>
-            <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "13px", margin: "0 0 16px" }}>Niveau 4 · pack complet</p>
-            <p style={{ color: "#fff", fontSize: "24px", fontWeight: "bold", margin: "0" }}>0</p>
-          </div>
+          <button onClick={genererCertificat} disabled={loading}
+            style={{ width: "100%", padding: "14px", background: "#c8a96e", color: "#050508", border: "none", borderRadius: "8px", fontWeight: "bold", fontSize: "16px", cursor: "pointer", marginTop: "25px" }}>
+            {loading ? "Generation..." : "Generer le Certificat"}
+          </button>
         </div>
       </div>
     </div>
