@@ -55,7 +55,7 @@ const T: Record<string, Record<string, string>> = {
     placeholder: "Parlez a",
     disponible: t("disponible"),
     bientot: t("bientot"),
-    avertissement: t("avertissement"),
+    avertissement: "Ces seances sont des simulations IA a des fins de bien-etre. En cas de crise, contactez le 15 ou le 3114.",
     changer: "Changer de therapeute",
     participants: "participants",
   },
@@ -189,7 +189,7 @@ export default function SeancesPage() {
           <div style={{ display: "flex", gap: "10px" }}>
             <input
               type="text"
-              placeholder={`{t("placeholder")} à ${selected.nom}...`}
+              placeholder={`${t("placeholder")} ${selected.nom}...`}
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && envoyerMessage()}
