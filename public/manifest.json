@@ -1,129 +1,42 @@
-```json
 {
-  "name": "AcadémIA Pro",
-  "short_name": "AcadémIA",
-  "description": "Plateforme formation professionnelle 100% IA",
-  "start_url": "/dashboard",
-  "scope": "/",
+  "name": "AcadémIA Pro",
+  "short_name": "AcadémIA",
+  "description": "Plateforme de formation professionnelle 100% IA",
+  "start_url": "/",
   "display": "standalone",
   "background_color": "#050508",
   "theme_color": "#c8a96e",
   "orientation": "portrait",
-  "lang": "fr",
-  "categories": [
-    "education",
-    "productivity"
-  ],
   "icons": [
     {
-      "src": "/icons/icon-72x72.png",
-      "sizes": "72x72",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/icons/icon-96x96.png",
-      "sizes": "96x96",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/icons/icon-128x128.png",
-      "sizes": "128x128",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/icons/icon-144x144.png",
-      "sizes": "144x144",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/icons/icon-152x152.png",
-      "sizes": "152x152",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/icons/icon-192x192.png",
+      "src": "/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "/icons/icon-384x384.png",
-      "sizes": "384x384",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/icons/icon-512x512.png",
+      "src": "/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
     }
   ],
-  "screenshots": [
-    {
-      "src": "/screenshots/desktop.png",
-      "sizes": "1280x720",
-      "type": "image/png",
-      "form_factor": "wide",
-      "label": "Tableau de bord AcadémIA Pro"
-    },
-    {
-      "src": "/screenshots/mobile.png",
-      "sizes": "390x844",
-      "type": "image/png",
-      "form_factor": "narrow",
-      "label": "Interface mobile AcadémIA Pro"
-    }
-  ],
+  "categories": ["education", "productivity"],
   "shortcuts": [
     {
-      "name": "Tableau de bord",
-      "short_name": "Dashboard",
-      "description": "Accéder au tableau de bord principal",
+      "name": "Catalogue",
+      "url": "/catalogue",
+      "description": "Voir les formations"
+    },
+    {
+      "name": "Mon Dashboard",
       "url": "/dashboard",
-      "icons": [
-        {
-          "src": "/icons/shortcut-dashboard.png",
-          "sizes": "96x96",
-          "type": "image/png"
-        }
-      ]
+      "description": "Mon espace apprenant"
     },
     {
-      "name": "Mes formations",
-      "short_name": "Formations",
-      "description": "Accéder à mes formations en cours",
-      "url": "/formations",
-      "icons": [
-        {
-          "src": "/icons/shortcut-formations.png",
-          "sizes": "96x96",
-          "type": "image/png"
-        }
-      ]
-    },
-    {
-      "name": "Assistant IA",
-      "short_name": "Assistant",
-      "description": "Lancer l'assistant IA personnel",
-      "url": "/assistant",
-      "icons": [
-        {
-          "src": "/icons/shortcut-assistant.png",
-          "sizes": "96x96",
-          "type": "image/png"
-        }
-      ]
+      "name": "Seances",
+      "url": "/seances",
+      "description": "Seances therapeutiques"
     }
-  ],
-  "prefer_related_applications": false,
-  "related_applications": [],
-  "id": "academia-pro-pwa",
-  "dir": "ltr"
+  ]
 }
-```
