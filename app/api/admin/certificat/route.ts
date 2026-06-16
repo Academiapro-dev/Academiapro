@@ -6,6 +6,7 @@ export const maxDuration = 30;
 export async function POST(req: NextRequest) {
   try {
     const { nom, formation, code, date, niveau } = await req.json();
+    const certifId = `ACAD-${code}-${Date.now().toString(36).toUpperCase()}`;
 
     const certifHtml = `<!DOCTYPE html>
 <html lang="fr">
@@ -13,76 +14,255 @@ export async function POST(req: NextRequest) {
 <meta charset="utf-8">
 <title>Certificat ${formation} - AcadémIA Pro</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Lato:wght@300;400&display=swap');
-  body { margin: 0; padding: 0; background: #050508; }
-  .certificat { width: 900px; min-height: 650px; margin: 0 auto; background: linear-gradient(135deg, #0a0a1a 0%, #1a1a2e 50%, #0a0a1a 100%); border: 3px solid #c8a96e; position: relative; padding: 60px; box-sizing: border-box; font-family: Georgia, serif; color: #fff; }
-  .corner { position: absolute; width: 80px; height: 80px; border-color: #c8a96e; border-style: solid; }
-  .tl { top: 20px; left: 20px; border-width: 3px 0 0 3px; }
-  .tr { top: 20px; right: 20px; border-width: 3px 3px 0 0; }
-  .bl { bottom: 20px; left: 20px; border-width: 0 0 3px 3px; }
-  .br { bottom: 20px; right: 20px; border-width: 0 3px 3px 0; }
-  .logo { text-align: center; margin-bottom: 30px; }
-  .logo-text { color: #c8a96e; font-size: 28px; font-weight: bold; letter-spacing: 4px; }
-  .titre { text-align: center; font-size: 14px; letter-spacing: 6px; color: rgba(200,169,110,0.7); margin-bottom: 30px; text-transform: uppercase; }
-  .certifie { text-align: center; font-size: 16px; color: rgba(255,255,255,0.6); margin-bottom: 15px; }
-  .nom { text-align: center; font-size: 42px; color: #c8a96e; margin-bottom: 20px; font-style: italic; border-bottom: 1px solid rgba(200,169,110,0.3); padding-bottom: 20px; }
-  .texte { text-align: center; color: rgba(255,255,255,0.7); font-size: 15px; line-height: 1.8; margin-bottom: 25px; }
-  .formation { text-align: center; font-size: 22px; color: #fff; font-weight: bold; margin-bottom: 10px; }
-  .niveau { text-align: center; color: #c8a96e; font-size: 14px; margin-bottom: 30px; }
-  .infos { display: flex; justify-content: space-between; margin-top: 40px; padding-top: 20px; border-top: 1px solid rgba(200,169,110,0.3); }
-  .info-item { text-align: center; }
-  .info-label { color: rgba(255,255,255,0.4); font-size: 11px; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 5px; }
-  .info-valeur { color: #c8a96e; font-size: 14px; font-weight: bold; }
-  .signature { text-align: center; margin-top: 10px; }
-  .qr-placeholder { width: 80px; height: 80px; border: 2px solid rgba(200,169,110,0.3); display: flex; align-items: center; justify-content: center; color: rgba(200,169,110,0.5); font-size: 10px; margin: 0 auto; }
-  .medaille { font-size: 50px; text-align: center; margin-bottom: 10px; }
+  body { margin: 0; padding: 20px; background: #000; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+  .page { width: 900px; }
+  .certificat {
+    width: 900px;
+    min-height: 680px;
+    background: linear-gradient(160deg, #0d0d2b 0%, #0a0a1a 40%, #12122a 70%, #0d0d2b 100%);
+    position: relative;
+    padding: 55px 65px;
+    box-sizing: border-box;
+    font-family: Georgia, serif;
+    color: #fff;
+    overflow: hidden;
+  }
+  .filigrane {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 120px;
+    font-weight: bold;
+    color: rgba(200,169,110,0.04);
+    letter-spacing: 10px;
+    white-space: nowrap;
+    pointer-events: none;
+    font-family: Georgia, serif;
+  }
+  .bordure-ext {
+    position: absolute;
+    top: 12px; left: 12px; right: 12px; bottom: 12px;
+    border: 2px solid #D4AF37;
+    pointer-events: none;
+  }
+  .bordure-int {
+    position: absolute;
+    top: 20px; left: 20px; right: 20px; bottom: 20px;
+    border: 1px solid rgba(212,175,55,0.4);
+    pointer-events: none;
+  }
+  .coin {
+    position: absolute;
+    width: 50px;
+    height: 50px;
+  }
+  .coin svg { width: 50px; height: 50px; }
+  .c-tl { top: 8px; left: 8px; }
+  .c-tr { top: 8px; right: 8px; transform: scaleX(-1); }
+  .c-bl { bottom: 8px; left: 8px; transform: scaleY(-1); }
+  .c-br { bottom: 8px; right: 8px; transform: scale(-1); }
+  .entete { text-align: center; margin-bottom: 25px; position: relative; }
+  .logo-text {
+    color: #D4AF37;
+    font-size: 26px;
+    font-weight: bold;
+    letter-spacing: 6px;
+    text-transform: uppercase;
+  }
+  .etoiles { color: #D4AF37; font-size: 14px; letter-spacing: 8px; margin: 6px 0; }
+  .titre-certif {
+    font-size: 12px;
+    letter-spacing: 8px;
+    color: rgba(212,175,55,0.7);
+    text-transform: uppercase;
+    margin: 15px 0 8px;
+  }
+  .separateur {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    margin: 12px auto;
+    max-width: 500px;
+  }
+  .sep-ligne { flex: 1; height: 1px; background: linear-gradient(90deg, transparent, #D4AF37, transparent); }
+  .sep-losange { color: #D4AF37; font-size: 10px; }
+  .decerne { text-align: center; font-size: 14px; color: rgba(255,255,255,0.55); margin: 10px 0 5px; font-style: italic; }
+  .nom {
+    text-align: center;
+    font-size: 52px;
+    color: #D4AF37;
+    margin: 8px 0 15px;
+    font-style: italic;
+    text-shadow: 0 0 30px rgba(212,175,55,0.3);
+  }
+  .texte-formation { text-align: center; color: rgba(255,255,255,0.55); font-size: 13px; margin-bottom: 8px; }
+  .formation-titre {
+    text-align: center;
+    font-size: 20px;
+    color: #fff;
+    font-weight: bold;
+    margin-bottom: 5px;
+    letter-spacing: 1px;
+  }
+  .niveau-badge {
+    display: inline-block;
+    background: linear-gradient(135deg, #D4AF37, #a07840);
+    color: #0a0a1a;
+    padding: 4px 18px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: bold;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+  .niveau-wrap { text-align: center; margin: 8px 0 18px; }
+  .texte-attestation {
+    text-align: center;
+    color: rgba(255,255,255,0.45);
+    font-size: 12px;
+    line-height: 1.8;
+    max-width: 600px;
+    margin: 0 auto 25px;
+    font-style: italic;
+  }
+  .pied {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    padding-top: 18px;
+    border-top: 1px solid rgba(212,175,55,0.25);
+    margin-top: 5px;
+  }
+  .pied-item { text-align: center; }
+  .pied-label { color: rgba(255,255,255,0.3); font-size: 9px; letter-spacing: 3px; text-transform: uppercase; margin-bottom: 5px; }
+  .pied-valeur { color: #D4AF37; font-size: 13px; font-weight: bold; }
+  .signature-nom { font-style: italic; font-size: 18px; color: #D4AF37; }
+  .signature-titre { color: rgba(255,255,255,0.35); font-size: 10px; letter-spacing: 1px; }
+  .qr-box {
+    width: 70px; height: 70px;
+    border: 1px solid rgba(212,175,55,0.4);
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 4px;
+    background: rgba(212,175,55,0.05);
+    font-size: 28px;
+  }
+  .certif-id { color: rgba(255,255,255,0.25); font-size: 9px; letter-spacing: 1px; text-align: center; margin-top: 10px; }
+  .sceau {
+    position: absolute;
+    bottom: 80px;
+    right: 80px;
+    width: 90px;
+    height: 90px;
+    border-radius: 50%;
+    border: 2px solid rgba(212,175,55,0.3);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: rgba(212,175,55,0.05);
+    font-size: 9px;
+    color: rgba(212,175,55,0.5);
+    letter-spacing: 1px;
+    text-align: center;
+    text-transform: uppercase;
+  }
 </style>
 </head>
 <body>
+<div class="page">
 <div class="certificat">
-  <div class="corner tl"></div>
-  <div class="corner tr"></div>
-  <div class="corner bl"></div>
-  <div class="corner br"></div>
 
-  <div class="medaille">🏆</div>
-  <div class="logo"><span class="logo-text">AcadémIA Pro</span></div>
-  <div class="titre">Certificat de Réussite</div>
+  <div class="filigrane">AcadémIA Pro</div>
 
-  <div class="certifie">Ce certificat est décerné à</div>
+  <div class="bordure-ext"></div>
+  <div class="bordure-int"></div>
+
+  <div class="coin c-tl">
+    <svg viewBox="0 0 50 50" fill="none">
+      <path d="M5 45 L5 5 L45 5" stroke="#D4AF37" stroke-width="2"/>
+      <path d="M5 35 L5 15 M15 5 L35 5" stroke="#D4AF37" stroke-width="0.8" opacity="0.5"/>
+      <circle cx="5" cy="5" r="3" fill="#D4AF37"/>
+    </svg>
+  </div>
+  <div class="coin c-tr">
+    <svg viewBox="0 0 50 50" fill="none">
+      <path d="M5 45 L5 5 L45 5" stroke="#D4AF37" stroke-width="2"/>
+      <path d="M5 35 L5 15 M15 5 L35 5" stroke="#D4AF37" stroke-width="0.8" opacity="0.5"/>
+      <circle cx="5" cy="5" r="3" fill="#D4AF37"/>
+    </svg>
+  </div>
+  <div class="coin c-bl">
+    <svg viewBox="0 0 50 50" fill="none">
+      <path d="M5 45 L5 5 L45 5" stroke="#D4AF37" stroke-width="2"/>
+      <path d="M5 35 L5 15 M15 5 L35 5" stroke="#D4AF37" stroke-width="0.8" opacity="0.5"/>
+      <circle cx="5" cy="5" r="3" fill="#D4AF37"/>
+    </svg>
+  </div>
+  <div class="coin c-br">
+    <svg viewBox="0 0 50 50" fill="none">
+      <path d="M5 45 L5 5 L45 5" stroke="#D4AF37" stroke-width="2"/>
+      <path d="M5 35 L5 15 M15 5 L35 5" stroke="#D4AF37" stroke-width="0.8" opacity="0.5"/>
+      <circle cx="5" cy="5" r="3" fill="#D4AF37"/>
+    </svg>
+  </div>
+
+  <div class="entete">
+    <div style="font-size:40px;margin-bottom:5px;">🏆</div>
+    <div class="logo-text">AcadémIA Pro</div>
+    <div class="etoiles">★ ★ ★ ★ ★</div>
+  </div>
+
+  <div class="titre-certif">Certificat de Réussite</div>
+
+  <div class="separateur">
+    <div class="sep-ligne"></div>
+    <div class="sep-losange">◆</div>
+    <div class="sep-ligne"></div>
+  </div>
+
+  <div class="decerne">Ce certificat est décerné à</div>
   <div class="nom">${nom}</div>
 
-  <div class="texte">
-    pour avoir complété avec succès la formation
-  </div>
-  <div class="formation">${formation}</div>
-  <div class="niveau">Niveau ${niveau || "Professionnel"}</div>
-
-  <div class="texte">
-    Cette certification atteste des compétences acquises et validées<br/>
-    par la plateforme de formation AcadémIA Pro.
+  <div class="separateur">
+    <div class="sep-ligne"></div>
+    <div class="sep-losange">◆</div>
+    <div class="sep-ligne"></div>
   </div>
 
-  <div class="infos">
-    <div class="info-item">
-      <div class="info-label">Code</div>
-      <div class="info-valeur">${code}</div>
+  <div class="texte-formation">pour avoir complété avec excellence la formation</div>
+  <div class="formation-titre">${formation}</div>
+  <div class="niveau-wrap"><span class="niveau-badge">${niveau || "Expert"}</span></div>
+
+  <div class="texte-attestation">
+    Cette certification officielle atteste des compétences acquises, validées et reconnues<br/>
+    par la plateforme d'excellence AcadémIA Pro — Formation Professionnelle par l'Intelligence Artificielle
+  </div>
+
+  <div class="pied">
+    <div class="pied-item">
+      <div class="pied-label">Code Formation</div>
+      <div class="pied-valeur">${code}</div>
     </div>
-    <div class="info-item signature">
-      <div class="info-label">Signature</div>
-      <div class="info-valeur" style="font-style:italic;">Jacques Lalou</div>
-      <div style="color:rgba(255,255,255,0.4);font-size:11px;">Fondateur AcadémIA Pro</div>
+    <div class="pied-item">
+      <div class="pied-label">Signature</div>
+      <div class="signature-nom">Jacques Lalou</div>
+      <div class="signature-titre">Fondateur · AcadémIA Pro</div>
     </div>
-    <div class="info-item">
-      <div class="info-label">Date</div>
-      <div class="info-valeur">${date}</div>
+    <div class="pied-item">
+      <div class="pied-label">Vérification</div>
+      <div class="qr-box">🔐</div>
+      <div style="color:rgba(212,175,55,0.5);font-size:9px;">academiapro.fr/verify</div>
+    </div>
+    <div class="pied-item">
+      <div class="pied-label">Date</div>
+      <div class="pied-valeur">${date}</div>
     </div>
   </div>
 
-  <div style="text-align:center;margin-top:20px;">
-    <div class="qr-placeholder">QR Code</div>
-    <div style="color:rgba(255,255,255,0.3);font-size:10px;margin-top:5px;">Verification : academiapro.fr/verify/${code}</div>
-  </div>
+  <div class="certif-id">Certificat N° ${certifId} — Document officiel AcadémIA Pro</div>
+
+</div>
 </div>
 </body>
 </html>`;
@@ -90,7 +270,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       certif_html: certifHtml,
-      code,
+      certif_id: certifId,
       nom,
       formation,
     });
