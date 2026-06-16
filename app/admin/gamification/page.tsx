@@ -37,23 +37,18 @@ export default function GamificationPage() {
   useEffect(() => { chargerProfil(); }, []);
 
   async function chargerProfil() {
-    const h = { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` };
-    const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/gamification?user_email=eq.${EMAIL_TEST}&select=*`,
-      { headers: h }
-    );
-    const data = await res.json();
-    if (Array.isArray(data) && data.length > 0) {
-      setProfil(data[0]);
-    } else {
-      await creerProfil();
+    try {
+      const res = await fetch(`/api/gamification?email=${EMAIL_TEST}`);
+      const data = await res.json();
+      if (data.profil) {
+        setProfil(data.profil);
+      }
+      if (data.classement) {
+        setClassement(data.classement);
+      }
+    } catch (e) {
+      console.error("Erreur chargement profil", e);
     }
-    const classRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/gamification?select=*&order=xp.desc&limit=10`,
-      { headers: h }
-    );
-    const classData = await classRes.json();
-    setClassement(Array.isArray(classData) ? classData : []);
     setLoading(false);
   }
 
