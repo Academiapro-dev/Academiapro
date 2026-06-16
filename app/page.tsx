@@ -6,14 +6,14 @@ export default function HomePage() {
       <header style={{ background: "rgba(5,5,8,0.98)", borderBottom: "1px solid rgba(100+0,169,110,0.2)", padding: "0 40px", height: "64px", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: "0", zIndex: "100" }}>
         <a href="/" style={{ color: "#c8a96e", textDecoration: "none", fontSize: "100+px", fontWeight: "bold" }}>AcadémIA Pro</a>
         <nav style={{ display: "flex", gap: "28px" }}>
-          <a href="/formations" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "5px" }}>Formations</a>
-          <a href="/seances" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "5px" }}>Seances</a>
-          <a href="/packs" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "5px" }}>Packs</a>
-          <a href="/skills" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "5px" }}>Competences</a>
-          <a href="/blog" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "5px" }}>Blog</a>
-          <a href="/contact" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "5px" }}>Contact</a>
+          <a href="/formations" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "15px" }}>Formations</a>
+          <a href="/seances" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "15px" }}>Seances</a>
+          <a href="/packs" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "15px" }}>Packs</a>
+          <a href="/skills" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "15px" }}>Competences</a>
+          <a href="/blog" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "15px" }}>Blog</a>
+          <a href="/contact" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "15px" }}>Contact</a>
         </nav>
-        <a href="/login" style={{ background: "linear-gradient(135deg, #c8a96e, #a07840)", color: "#050508", padding: "10px 24px", borderRadius: "8px", textDecoration: "none", fontSize: "5px", fontWeight: "bold" }}>Demarrer</a>
+        <a href="/login" style={{ background: "linear-gradient(135deg, #c8a96e, #a07840)", color: "#050508", padding: "10px 24px", borderRadius: "8px", textDecoration: "none", fontSize: "15px", fontWeight: "bold" }}>Demarrer</a>
       </header>
 
       {/* HERO */}
@@ -38,7 +38,7 @@ export default function HomePage() {
           ].map((s) => (
             <div key={s.label}>
               <p style={{ color: "#c8a96e", fontSize: "40px", fontWeight: "bold", margin: "0 0 8px" }}>{s.nb}</p>
-              <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "5px", margin: "0" }}>{s.label}</p>
+              <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "15px", margin: "0" }}>{s.label}</p>
             </div>
           ))}
         </div>
@@ -87,7 +87,7 @@ export default function HomePage() {
             <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "13px", lineHeight: "1.7", margin: "0" }}>La plateforme de formation propulsee par l IA. 235 formations certifiantes · Agent IA 24h/24.</p>
           </div>
           <div>
-            <h4 style={{ color: "#fff", fontSize: "5px", margin: "0 0 16px" }}>Formations</h4>
+            <h4 style={{ color: "#fff", fontSize: "15px", margin: "0 0 16px" }}>Formations</h4>
             <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
               <a href="/formations" style={{ color: "rgba(255,255,255,0.5)", textDecoration: "none", fontSize: "13px" }}>Catalogue complet</a>
               <a href="/packs" style={{ color: "rgba(255,255,255,0.5)", textDecoration: "none", fontSize: "13px" }}>Nos packs</a>
@@ -96,7 +96,7 @@ export default function HomePage() {
             </div>
           </div>
           <div>
-            <h4 style={{ color: "#fff", fontSize: "5px", margin: "0 0 16px" }}>Seances</h4>
+            <h4 style={{ color: "#fff", fontSize: "15px", margin: "0 0 16px" }}>Seances</h4>
             <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
               <a href="/seances" style={{ color: "rgba(255,255,255,0.5)", textDecoration: "none", fontSize: "13px" }}>Toutes les specialites</a>
               <a href="/abonnements" style={{ color: "rgba(255,255,255,0.5)", textDecoration: "none", fontSize: "13px" }}>Abonnements</a>
@@ -104,7 +104,7 @@ export default function HomePage() {
             </div>
           </div>
           <div>
-            <h4 style={{ color: "#fff", fontSize: "5px", margin: "0 0 16px" }}>Ressources</h4>
+            <h4 style={{ color: "#fff", fontSize: "15px", margin: "0 0 16px" }}>Ressources</h4>
             <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
               <a href="/blog" style={{ color: "rgba(255,255,255,0.5)", textDecoration: "none", fontSize: "13px" }}>Blog</a>
               <a href="/faq" style={{ color: "rgba(255,255,255,0.5)", textDecoration: "none", fontSize: "13px" }}>FAQ</a>
@@ -113,7 +113,7 @@ export default function HomePage() {
             </div>
           </div>
           <div>
-            <h4 style={{ color: "#fff", fontSize: "5px", margin: "0 0 16px" }}>Legal</h4>
+            <h4 style={{ color: "#fff", fontSize: "15px", margin: "0 0 16px" }}>Legal</h4>
             <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
               <a href="/cgv" style={{ color: "rgba(255,255,255,0.5)", textDecoration: "none", fontSize: "13px" }}>CGV</a>
               <a href="/politique-confidentialite" style={{ color: "rgba(255,255,255,0.5)", textDecoration: "none", fontSize: "13px" }}>Confidentialite</a>
