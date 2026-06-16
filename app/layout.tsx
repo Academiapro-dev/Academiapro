@@ -1,4 +1,5 @@
 import React from "react";
+import NavBar from "../components/NavBar";
 import type { Metadata } from "next";
 import "./globals.css";
 
@@ -36,7 +37,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name="theme-color" content="#c8a96e" />
       </head>
       <body style={{ margin: 0, background: "#050508", color: "#fff", fontFamily: "Georgia, serif" }}>
-        {children}
+        <NavBar />{children}
       </body>
     </html>
   );
