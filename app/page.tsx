@@ -1,5 +1,6 @@
 export default function HomePage() {
   return (
+    <LangueProvider>
     <div style={{ minHeight: "100vh", background: "#050508", color: "#fff", fontFamily: "Georgia, serif" }}>
 
       {/* HEADER */}
@@ -128,5 +129,6 @@ export default function HomePage() {
       </footer>
 
     </div>
+  </LangueProvider>
   );
 }
