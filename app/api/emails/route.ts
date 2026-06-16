@@ -14,7 +14,7 @@ async function envoyerEmail(to: string, subject: string, html: string) {
       Authorization: `Bearer ${RESEND_KEY}`,
     },
     body: JSON.stringify({
-      from: "AcadémIA Pro <onboarding@resend.dev>",
+      from: "AcadémIA Pro <contact@academiapro.fr>",
       to: [to],
       subject,
       html,
