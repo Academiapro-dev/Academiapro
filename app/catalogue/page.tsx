@@ -1,20 +1,8 @@
 "use client";
 import { useState, useEffect } from "react";
 
-async function getFormations() {
-  const res = await fetch(
-    `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/formations?select=*&order=code&limit=1000`,
-    {
-      headers: {
-        apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "",
-        Authorization: `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`,
-      },
-      cache: "no-store",
-    }
-  );
-  if (!res.ok) return [];
-  return res.json();
-}
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 
 export default function CataloguePage() {
   const [formations, setFormations] = useState<any[]>([]);
@@ -24,16 +12,27 @@ export default function CataloguePage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    getFormations().then(data => {
+    fetch(
+      `${SUPABASE_URL}/rest/v1/formations?select=*&order=code&limit=1000`,
+      {
+        headers: {
+          apikey: SUPABASE_KEY,
+          Authorization: `Bearer ${SUPABASE_KEY}`,
+        },
+      }
+    )
+    .then(r => r.json())
+    .then(data => {
       setFormations(Array.isArray(data) ? data : []);
       setLoading(false);
-    });
+    })
+    .catch(() => setLoading(false));
   }, []);
 
-  const domaines = ["Tous", ...Array.from(new Set(formations.map((f: any) => f.domaine).filter(Boolean)))];
+  const domaines = ["Tous", ...Array.from(new Set(formations.map((f: any) => f.domaine).filter(Boolean))) as string[]];
 
   const formationsFiltrees = formations.filter((f: any) => {
-    const matchRecherche = f.titre?.toLowerCase().includes(recherche.toLowerCase()) || f.code?.toLowerCase().includes(recherche.toLowerCase());
+    const matchRecherche = !recherche || f.titre?.toLowerCase().includes(recherche.toLowerCase()) || f.code?.toLowerCase().includes(recherche.toLowerCase());
     const matchDomaine = domaine === "Tous" || f.domaine === domaine;
     return matchRecherche && matchDomaine;
   });
@@ -44,8 +43,8 @@ export default function CataloguePage() {
         <h1 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", fontSize: "2.2rem", marginBottom: "10px" }}>
           Catalogue AcadémIA Pro
         </h1>
-        <p style={{ color: "rgba(255,255,255,0.6)", marginBottom: "0" }}>
-          {formations.length} formations disponibles
+        <p style={{ color: "rgba(255,255,255,0.6)" }}>
+          {loading ? "Chargement..." : `${formations.length} formations disponibles`}
         </p>
       </div>
 
@@ -78,12 +77,14 @@ export default function CataloguePage() {
         </div>
 
         {loading ? (
-          <div style={{ textAlign: "center", padding: "60px", color: "#c8a96e" }}>Chargement...</div>
+          <div style={{ textAlign: "center", padding: "60px", color: "#c8a96e", fontSize: "18px" }}>
+            Chargement des formations...
+          </div>
         ) : vueGrille ? (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "20px" }}>
             {formationsFiltrees.map((f: any) => (
               <a key={f.code} href={`/formation/${f.code}`} style={{ textDecoration: "none" }}>
-                <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(200,169,110,0.2)", borderRadius: "12px", padding: "20px", height: "100%", boxSizing: "border-box" as any }}>
+                <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(200,169,110,0.2)", borderRadius: "12px", padding: "20px" }}>
                   <div style={{ color: "#c8a96e", fontSize: "11px", marginBottom: "8px", fontWeight: "bold" }}>{f.code} · {f.domaine}</div>
                   <h3 style={{ color: "#fff", fontFamily: "Georgia,serif", fontSize: "15px", margin: "0 0 12px", lineHeight: "1.4" }}>{f.titre}</h3>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -95,16 +96,16 @@ export default function CataloguePage() {
             ))}
           </div>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
             {formationsFiltrees.map((f: any) => (
               <a key={f.code} href={`/formation/${f.code}`} style={{ textDecoration: "none" }}>
-                <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(200,169,110,0.15)", borderRadius: "8px", padding: "12px 18px", display: "flex", alignItems: "center", gap: "15px", transition: "background 0.15s" }}>
-                  <span style={{ color: "#c8a96e", fontSize: "11px", fontWeight: "bold", minWidth: "50px", fontFamily: "monospace" }}>{f.code}</span>
+                <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(200,169,110,0.1)", borderRadius: "8px", padding: "11px 18px", display: "flex", alignItems: "center", gap: "15px" }}>
+                  <span style={{ color: "#c8a96e", fontSize: "11px", fontWeight: "bold", minWidth: "55px", fontFamily: "monospace" }}>{f.code}</span>
                   <span style={{ color: "#fff", fontSize: "14px", flex: 1, lineHeight: "1.3" }}>{f.titre}</span>
-                  <span style={{ color: "rgba(255,255,255,0.3)", fontSize: "12px", minWidth: "60px", textAlign: "right" }}>{f.domaine}</span>
-                  {f.duree && <span style={{ color: "rgba(255,255,255,0.3)", fontSize: "12px", minWidth: "40px", textAlign: "right" }}>{f.duree}</span>}
+                  <span style={{ color: "rgba(255,255,255,0.3)", fontSize: "11px", minWidth: "80px", textAlign: "right" }}>{f.domaine}</span>
+                  {f.duree && <span style={{ color: "rgba(255,255,255,0.3)", fontSize: "11px", minWidth: "35px", textAlign: "right" }}>{f.duree}</span>}
                   {f.prix && <span style={{ color: "#c8a96e", fontSize: "13px", fontWeight: "bold", minWidth: "55px", textAlign: "right" }}>{f.prix}€</span>}
-                  <span style={{ color: "rgba(200,169,110,0.5)", fontSize: "14px" }}>→</span>
+                  <span style={{ color: "rgba(200,169,110,0.5)" }}>→</span>
                 </div>
               </a>
             ))}
