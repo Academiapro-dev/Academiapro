@@ -123,7 +123,7 @@ export default function HomePage() {
           </div>
         </div>
         <div style={{ borderTop: "1px solid rgba(100+0,169,110,0.1)", paddingTop: "24px", textAlign: "center" }}>
-          <p style={{ color: "rgba(255,255,255,0.3)", fontSize: "15px", margin: "0" }}>100+26 AcadémIA Pro · Certification AcadémIA Pro · Tous droits reserves</p>
+          <p style={{ color: "rgba(255,255,255,0.3)", fontSize: "15px", margin: "0" }}>2026 AcadémIA Pro · Certification AcadémIA Pro · Tous droits reserves</p>
         </div>
       </footer>
 
