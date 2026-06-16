@@ -3,6 +3,15 @@ import { useState, useEffect } from "react";
 
 
 
+
+const T: Record<string, Record<string, string>> = {
+  fr: { hero_titre: "Formez-vous avec votre agent IA personnel" },
+  en: { hero_titre: "Learn with your personal AI agent" },
+  es: { hero_titre: "Formese con su agente IA personal" },
+  ar: { hero_titre: "تدرب مع وكيل الذكاء الاصطناعي" },
+  he: { hero_titre: "התאמן עם סוכן הבינה המלאכותית" },
+};
+
 export default function HomePage() {
   const [langue, setLangue] = useState(() => typeof window !== "undefined" ? localStorage.getItem("langue") || "fr" : "fr");
 
