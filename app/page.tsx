@@ -6,10 +6,10 @@ export default function HomePage() {
       <header style={{ background: "rgba(5,5,8,0.98)", borderBottom: "1px solid rgba(200,169,110,0.2)", padding: "0 40px", height: "64px", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: "0", zIndex: "100" }}>
         <a href="/" style={{ color: "#c8a96e", textDecoration: "none", fontSize: "100+px", fontWeight: "bold" }}>AcadémIA Pro</a>
         <nav style={{ display: "flex", gap: "28px" }}>
-          <a href="/formations" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "15px" }}>Formations</a>
+          <a href="/catalogue" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "15px" }}>Formations</a>
           <a href="/seances" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "15px" }}>Seances</a>
-          <a href="/packs" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "15px" }}>Packs</a>
-          <a href="/skills" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "15px" }}>Competences</a>
+          <a href="/catalogue" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "15px" }}>Packs</a>
+          <a href="/catalogue" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "15px" }}>Competences</a>
           <a href="/blog" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "15px" }}>Blog</a>
           <a href="/contact" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "15px" }}>Contact</a>
         </nav>
@@ -22,7 +22,7 @@ export default function HomePage() {
         <h1 style={{ fontSize: "52px", fontWeight: "bold", margin: "0 0 24px", lineHeight: "1.2" }}>Formez-vous avec votre agent IA personnel</h1>
         <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "18px", margin: "0 0 40px", lineHeight: "1.7" }}>235 formations certifiantes · Agent IA tuteur 24h/24 · Seances therapeutiques · Certification AcadémIA Pro</p>
         <div style={{ display: "flex", gap: "16px", justifyContent: "center", flexWrap: "wrap" }}>
-          <a href="/formations" style={{ background: "linear-gradient(135deg, #c8a96e, #a07840)", color: "#050508", padding: "16px 36px", borderRadius: "10px", textDecoration: "none", fontSize: "16px", fontWeight: "bold" }}>Voir les formations</a>
+          <a href="/catalogue" style={{ background: "linear-gradient(135deg, #c8a96e, #a07840)", color: "#050508", padding: "16px 36px", borderRadius: "10px", textDecoration: "none", fontSize: "16px", fontWeight: "bold" }}>Voir les formations</a>
           <a href="/lead-magnets/ebook" style={{ background: "transparent", color: "#c8a96e", padding: "16px 36px", borderRadius: "10px", textDecoration: "none", fontSize: "16px", border: "1px solid #c8a96e" }}>E-book gratuit</a>
         </div>
       </section>
@@ -75,7 +75,7 @@ export default function HomePage() {
           ))}
         </div>
         <div style={{ textAlign: "center", marginTop: "40px" }}>
-          <a href="/formations" style={{ color: "#c8a96e", textDecoration: "none", fontSize: "15px", border: "1px solid #c8a96e", padding: "12px 32px", borderRadius: "8px" }}>Voir les 235 formations</a>
+          <a href="/catalogue" style={{ color: "#c8a96e", textDecoration: "none", fontSize: "15px", border: "1px solid #c8a96e", padding: "12px 32px", borderRadius: "8px" }}>Voir les 235 formations</a>
         </div>
       </section>
 
@@ -89,9 +89,9 @@ export default function HomePage() {
           <div>
             <h4 style={{ color: "#fff", fontSize: "15px", margin: "0 0 16px" }}>Formations</h4>
             <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-              <a href="/formations" style={{ color: "rgba(255,255,255,0.5)", textDecoration: "none", fontSize: "13px" }}>Catalogue complet</a>
-              <a href="/packs" style={{ color: "rgba(255,255,255,0.5)", textDecoration: "none", fontSize: "13px" }}>Nos packs</a>
-              <a href="/skills" style={{ color: "rgba(255,255,255,0.5)", textDecoration: "none", fontSize: "13px" }}>Competences</a>
+              <a href="/catalogue" style={{ color: "rgba(255,255,255,0.5)", textDecoration: "none", fontSize: "13px" }}>Catalogue complet</a>
+              <a href="/catalogue" style={{ color: "rgba(255,255,255,0.5)", textDecoration: "none", fontSize: "13px" }}>Nos packs</a>
+              <a href="/catalogue" style={{ color: "rgba(255,255,255,0.5)", textDecoration: "none", fontSize: "13px" }}>Competences</a>
               <a href="/tarifs" style={{ color: "rgba(255,255,255,0.5)", textDecoration: "none", fontSize: "13px" }}>Tarifs</a>
             </div>
           </div>
