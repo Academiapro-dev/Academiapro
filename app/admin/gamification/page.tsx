@@ -1,18 +1,15 @@
 "use client";
 import { useState, useEffect } from "react";
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
-
 const BADGES_LISTE = [
   { id: "pioneer", icon: "🚀", nom: "Pionnier", desc: "Premier inscrit AcadémIA Pro", xp: 100, color: "#D4AF37" },
   { id: "first_formation", icon: "🎓", nom: "Premiere Formation", desc: "Premiere formation completee", xp: 200, color: "#22c55e" },
-  { id: "streak_7", icon: "🔥", nom: "Semaine de Feu", desc: "7 jours de connexion consecutive", xp: 150, color: "#ef4444" },
-  { id: "streak_30", icon: "⚡", nom: "Mois Eclair", desc: "30 jours de connexion consecutive", xp: 500, color: "#f59e0b" },
+  { id: "streak_7", icon: "🔥", nom: "Semaine de Feu", desc: "7 jours consecutifs", xp: 150, color: "#ef4444" },
+  { id: "streak_30", icon: "⚡", nom: "Mois Eclair", desc: "30 jours consecutifs", xp: 500, color: "#f59e0b" },
   { id: "expert_ia", icon: "🤖", nom: "Expert IA", desc: "Pack IA complet termine", xp: 1000, color: "#8b5cf6" },
   { id: "therapeute", icon: "💆", nom: "Bien-Etre", desc: "5 seances therapeutiques", xp: 300, color: "#3b82f6" },
   { id: "certifie", icon: "🏆", nom: "Certifie", desc: "Premier certificat obtenu", xp: 400, color: "#c8a96e" },
-  { id: "polyglotte", icon: "🌍", nom: "Polyglotte", desc: "3 formations langues completees", xp: 600, color: "#22c55e" },
+  { id: "polyglotte", icon: "🌍", nom: "Polyglotte", desc: "3 formations langues", xp: 600, color: "#22c55e" },
   { id: "assidu", icon: "📚", nom: "Assidu", desc: "10 formations completees", xp: 800, color: "#D4AF37" },
   { id: "master", icon: "👑", nom: "Master AcadémIA", desc: "20 formations completees", xp: 2000, color: "#D4AF37" },
 ];
@@ -26,120 +23,107 @@ const NIVEAUX = [
   { niveau: 6, nom: "Grand Master", xp_min: 10000, xp_max: 999999, color: "#ef4444" },
 ];
 
+const EMAIL = "contact@academiapro.fr";
+
 export default function GamificationPage() {
   const [profil, setProfil] = useState<any>(null);
+  const [classement, setClassement] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [onglet, setOnglet] = useState("profil");
-  const [classement, setClassement] = useState<any[]>([]);
+  const [message, setMessage] = useState("");
 
-  const EMAIL_TEST = "contact@academiapro.fr";
+  useEffect(() => { charger(); }, []);
 
-  useEffect(() => { chargerProfil(); }, []);
-
-  async function chargerProfil() {
+  async function charger() {
+    setLoading(true);
     try {
-      const res = await fetch(`/api/gamification?email=${EMAIL_TEST}`);
+      const res = await fetch(`/api/gamification?email=${EMAIL}`);
       const data = await res.json();
-      if (data.profil) {
-        setProfil(data.profil);
-      }
-      if (data.classement) {
-        setClassement(data.classement);
-      }
+      if (data.profil) setProfil(data.profil);
+      if (data.classement) setClassement(data.classement);
     } catch (e) {
-      console.error("Erreur chargement profil", e);
+      console.error(e);
     }
     setLoading(false);
   }
 
-  async function creerProfil() {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/gamification`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        apikey: SUPABASE_KEY,
-        Authorization: `Bearer ${SUPABASE_KEY}`,
-        Prefer: "return=representation"
-      },
-      body: JSON.stringify({
-        user_email: EMAIL_TEST,
-        xp: 250,
-        niveau: 1,
-        badges: ["pioneer", "certifie"],
-        streak: 3,
-        derniere_connexion: new Date().toISOString().split("T")[0],
-        formations_completees: ["F128"],
-      }),
-    });
-    const data = await res.json();
-    if (Array.isArray(data) && data.length > 0) setProfil(data[0]);
-  }
-
   async function gagnerXP(montant: number, raison: string) {
-    if (!profil) return;
+    setMessage("");
     try {
       const res = await fetch("/api/gamification", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: EMAIL_TEST,
-          xp_gagner: montant,
-          action: raison
-        }),
+        body: JSON.stringify({ email: EMAIL, xp_gagner: montant, action: raison }),
       });
       const data = await res.json();
       if (data.success) {
-        alert(`+${montant} XP pour : ${raison} - Total : ${data.xp_apres} XP`);
-        chargerProfil();
+        setMessage(`+${montant} XP - Total : ${data.xp_apres} XP`);
+        await charger();
       } else {
-        alert("Erreur : " + data.message);
+        setMessage("Erreur : " + data.message);
       }
     } catch (e) {
-      alert("Erreur de connexion");
+      setMessage("Erreur connexion");
     }
   }
 
-  const niveauActuel = profil ? (NIVEAUX.find(n => profil.xp >= n.xp_min && profil.xp < n.xp_max) || NIVEAUX[0]) : NIVEAUX[0];
+  const niveauActuel = profil
+    ? (NIVEAUX.find(n => profil.xp >= n.xp_min && profil.xp < n.xp_max) || NIVEAUX[0])
+    : NIVEAUX[0];
   const prochainNiveau = NIVEAUX[niveauActuel.niveau] || niveauActuel;
-  const progressPct = profil ? Math.min(100, ((profil.xp - niveauActuel.xp_min) / (prochainNiveau.xp_min - niveauActuel.xp_min)) * 100) : 0;
-  const badgesDebloques = profil ? (Array.isArray(profil.badges) ? profil.badges : []) : [];
+  const progressPct = profil
+    ? Math.min(100, ((profil.xp - niveauActuel.xp_min) / (prochainNiveau.xp_min - niveauActuel.xp_min)) * 100)
+    : 0;
+  const badgesDebloques: string[] = profil && Array.isArray(profil.badges) ? profil.badges : [];
 
   const onglets = [
-    { id: "profil", label: "👤 Mon Profil" },
-    { id: "badges", label: "🏅 Badges" },
-    { id: "classement", label: "🏆 Classement" },
-    { id: "actions", label: "⚡ Gagner XP" },
+    { id: "profil", label: "Profil" },
+    { id: "badges", label: "Badges" },
+    { id: "classement", label: "Classement" },
+    { id: "actions", label: "Gagner XP" },
   ];
 
   if (loading) return (
     <div style={{ backgroundColor: "#050508", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <div style={{ color: "#c8a96e", fontSize: "18px" }}>Chargement...</div>
+      <div style={{ color: "#c8a96e", fontSize: "18px" }}>Chargement profil...</div>
+    </div>
+  );
+
+  if (!profil) return (
+    <div style={{ backgroundColor: "#050508", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ color: "#ef4444", fontSize: "18px" }}>Profil non trouve — lancez init_gamification.py</div>
     </div>
   );
 
   return (
     <div style={{ backgroundColor: "#050508", minHeight: "100vh", color: "#fff" }}>
       <div style={{ background: "linear-gradient(135deg,#0a0a1a,#1a1a2e)", padding: "30px 40px" }}>
-        <h1 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", margin: 0 }}>⚡ Gamification AcadémIA Pro</h1>
+        <h1 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", margin: 0 }}>Gamification AcadémIA Pro</h1>
         <p style={{ color: "rgba(255,255,255,0.5)", margin: "5px 0 0" }}>XP · Badges · Niveaux · Classement</p>
       </div>
 
       <div style={{ display: "flex", gap: "5px", padding: "15px 20px", background: "rgba(255,255,255,0.03)", overflowX: "auto" }}>
         {onglets.map(o => (
           <button key={o.id} onClick={() => setOnglet(o.id)}
-            style={{ padding: "8px 16px", borderRadius: "8px", border: "none", background: onglet === o.id ? "#c8a96e" : "rgba(255,255,255,0.08)", color: onglet === o.id ? "#050508" : "#fff", cursor: "pointer", whiteSpace: "nowrap", fontWeight: onglet === o.id ? "bold" : "normal" }}>
+            style={{ padding: "8px 16px", borderRadius: "8px", border: "none", background: onglet === o.id ? "#c8a96e" : "rgba(255,255,255,0.08)", color: onglet === o.id ? "#050508" : "#fff", cursor: "pointer", fontWeight: onglet === o.id ? "bold" : "normal" }}>
             {o.label}
           </button>
         ))}
       </div>
 
+      {message && (
+        <div style={{ background: "rgba(34,197,94,0.2)", border: "1px solid #22c55e", color: "#22c55e", padding: "12px 20px", textAlign: "center", fontWeight: "bold" }}>
+          {message}
+        </div>
+      )}
+
       <div style={{ padding: "30px 20px", maxWidth: "900px", margin: "0 auto" }}>
 
-        {onglet === "profil" && profil && (
+        {onglet === "profil" && (
           <div>
             <div style={{ background: "linear-gradient(135deg,#1a1a2e,#0d0d25)", border: "2px solid #c8a96e", borderRadius: "16px", padding: "30px", marginBottom: "25px", textAlign: "center" }}>
               <div style={{ fontSize: "60px", marginBottom: "10px" }}>
-                {niveauActuel.niveau === 6 ? "👑" : niveauActuel.niveau === 5 ? "⭐" : niveauActuel.niveau === 4 ? "🔥" : niveauActuel.niveau === 3 ? "💎" : niveauActuel.niveau === 2 ? "🌟" : "🎯"}
+                {niveauActuel.niveau >= 5 ? "👑" : niveauActuel.niveau >= 4 ? "🔥" : niveauActuel.niveau >= 3 ? "💎" : niveauActuel.niveau >= 2 ? "🌟" : "🎯"}
               </div>
               <h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", margin: "0 0 5px" }}>{profil.user_email}</h2>
               <div style={{ color: niveauActuel.color, fontSize: "16px", fontWeight: "bold", marginBottom: "20px" }}>
@@ -148,7 +132,7 @@ export default function GamificationPage() {
               <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: "15px", marginBottom: "25px" }}>
                 {[
                   { label: "XP Total", valeur: profil.xp?.toLocaleString(), color: "#c8a96e" },
-                  { label: "Streak", valeur: `${profil.streak} jours 🔥`, color: "#ef4444" },
+                  { label: "Streak", valeur: `${profil.streak} jours`, color: "#ef4444" },
                   { label: "Badges", valeur: badgesDebloques.length, color: "#D4AF37" },
                 ].map(item => (
                   <div key={item.label} style={{ background: "rgba(255,255,255,0.05)", borderRadius: "10px", padding: "15px" }}>
@@ -157,28 +141,24 @@ export default function GamificationPage() {
                   </div>
                 ))}
               </div>
-              <div style={{ marginBottom: "10px" }}>
+              <div style={{ marginBottom: "5px" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
-                  <span style={{ color: "rgba(255,255,255,0.5)", fontSize: "12px" }}>{niveauActuel.nom}</span>
-                  <span style={{ color: "rgba(255,255,255,0.5)", fontSize: "12px" }}>{prochainNiveau.nom}</span>
+                  <span style={{ color: "rgba(255,255,255,0.5)", fontSize: "12px" }}>{niveauActuel.nom} ({profil.xp} XP)</span>
+                  <span style={{ color: "rgba(255,255,255,0.5)", fontSize: "12px" }}>{prochainNiveau.nom} ({prochainNiveau.xp_min} XP)</span>
                 </div>
                 <div style={{ height: "10px", background: "rgba(255,255,255,0.1)", borderRadius: "5px" }}>
-                  <div style={{ height: "100%", background: `linear-gradient(90deg, ${niveauActuel.color}, #c8a96e)`, borderRadius: "5px", width: `${progressPct}%`, transition: "width 0.5s" }} />
-                </div>
-                <div style={{ color: "rgba(255,255,255,0.4)", fontSize: "11px", marginTop: "5px", textAlign: "right" }}>
-                  {profil.xp} / {prochainNiveau.xp_min} XP
+                  <div style={{ height: "100%", background: `linear-gradient(90deg, ${niveauActuel.color}, #c8a96e)`, borderRadius: "5px", width: `${progressPct}%` }} />
                 </div>
               </div>
             </div>
-
-            <h3 style={{ color: "#c8a96e", marginBottom: "15px" }}>Badges Débloqués</h3>
+            <h3 style={{ color: "#c8a96e", marginBottom: "15px" }}>Badges Debloques ({badgesDebloques.length})</h3>
             <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
               {badgesDebloques.map((badgeId: string) => {
                 const badge = BADGES_LISTE.find(b => b.id === badgeId);
                 if (!badge) return null;
                 return (
-                  <div key={badgeId} style={{ background: "rgba(255,255,255,0.05)", border: `1px solid ${badge.color}40`, borderRadius: "10px", padding: "12px 16px", textAlign: "center", minWidth: "80px" }}>
-                    <div style={{ fontSize: "28px" }}>{badge.icon}</div>
+                  <div key={badgeId} style={{ background: "rgba(255,255,255,0.05)", border: `1px solid ${badge.color}40`, borderRadius: "10px", padding: "15px", textAlign: "center", minWidth: "90px" }}>
+                    <div style={{ fontSize: "30px" }}>{badge.icon}</div>
                     <div style={{ color: badge.color, fontSize: "11px", fontWeight: "bold", marginTop: "5px" }}>{badge.nom}</div>
                   </div>
                 );
@@ -189,13 +169,13 @@ export default function GamificationPage() {
 
         {onglet === "badges" && (
           <div>
-            <h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", marginBottom: "20px" }}>🏅 Tous les Badges</h2>
+            <h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", marginBottom: "20px" }}>Tous les Badges</h2>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))", gap: "15px" }}>
               {BADGES_LISTE.map(badge => {
                 const debloque = badgesDebloques.includes(badge.id);
                 return (
                   <div key={badge.id} style={{ background: debloque ? "rgba(255,255,255,0.07)" : "rgba(255,255,255,0.02)", border: `1px solid ${debloque ? badge.color : "rgba(255,255,255,0.1)"}`, borderRadius: "12px", padding: "20px", display: "flex", gap: "15px", alignItems: "center", opacity: debloque ? 1 : 0.5 }}>
-                    <div style={{ fontSize: "40px", filter: debloque ? "none" : "grayscale(100%)" }}>{badge.icon}</div>
+                    <div style={{ fontSize: "35px", filter: debloque ? "none" : "grayscale(100%)" }}>{badge.icon}</div>
                     <div>
                       <div style={{ color: debloque ? badge.color : "rgba(255,255,255,0.4)", fontWeight: "bold", fontSize: "14px" }}>{badge.nom}</div>
                       <div style={{ color: "rgba(255,255,255,0.5)", fontSize: "12px", margin: "3px 0" }}>{badge.desc}</div>
@@ -211,15 +191,15 @@ export default function GamificationPage() {
 
         {onglet === "classement" && (
           <div>
-            <h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", marginBottom: "20px" }}>🏆 Classement Global</h2>
+            <h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", marginBottom: "20px" }}>Classement Global</h2>
             {classement.length === 0 ? (
-              <p style={{ color: "rgba(255,255,255,0.4)", textAlign: "center", marginTop: "50px" }}>Aucun apprenant pour le moment</p>
+              <p style={{ color: "rgba(255,255,255,0.4)", textAlign: "center" }}>Aucun apprenant</p>
             ) : (
               classement.map((user, i) => {
                 const niv = NIVEAUX.find(n => user.xp >= n.xp_min && user.xp < n.xp_max) || NIVEAUX[0];
                 return (
                   <div key={user.id} style={{ background: i === 0 ? "rgba(212,175,55,0.1)" : "rgba(255,255,255,0.03)", border: `1px solid ${i === 0 ? "#D4AF37" : "rgba(200,169,110,0.2)"}`, borderRadius: "10px", padding: "15px 20px", marginBottom: "10px", display: "flex", alignItems: "center", gap: "15px" }}>
-                    <div style={{ color: i === 0 ? "#D4AF37" : i === 1 ? "#C0C0C0" : i === 2 ? "#CD7F32" : "rgba(255,255,255,0.4)", fontSize: "20px", fontWeight: "bold", minWidth: "30px" }}>
+                    <div style={{ fontSize: "20px", minWidth: "30px" }}>
                       {i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `#${i + 1}`}
                     </div>
                     <div style={{ flex: 1 }}>
@@ -239,17 +219,17 @@ export default function GamificationPage() {
 
         {onglet === "actions" && (
           <div>
-            <h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", marginBottom: "10px" }}>⚡ Gagner des XP</h2>
-            <p style={{ color: "rgba(255,255,255,0.5)", marginBottom: "25px" }}>Actions qui rapportent des points</p>
+            <h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", marginBottom: "10px" }}>Gagner des XP</h2>
+            <p style={{ color: "rgba(255,255,255,0.5)", marginBottom: "25px" }}>XP actuel : <strong style={{ color: "#c8a96e" }}>{profil.xp}</strong></p>
             <div style={{ display: "grid", gap: "12px" }}>
               {[
-                { action: "Completer un module de formation", xp: 50, icon: "📚" },
-                { action: "Completer une formation entiere", xp: 200, icon: "🎓" },
+                { action: "Completer un module", xp: 50, icon: "📚" },
+                { action: "Completer une formation", xp: 200, icon: "🎓" },
                 { action: "Obtenir un certificat", xp: 400, icon: "🏆" },
-                { action: "Participer a une classe virtuelle", xp: 100, icon: "🎥" },
-                { action: "Realiser une seance therapeutique", xp: 75, icon: "💆" },
+                { action: "Classe virtuelle", xp: 100, icon: "🎥" },
+                { action: "Seance therapeutique", xp: 75, icon: "💆" },
                 { action: "Connexion quotidienne", xp: 10, icon: "📅" },
-                { action: "Partager un certificat LinkedIn", xp: 150, icon: "💼" },
+                { action: "Partager LinkedIn", xp: 150, icon: "💼" },
                 { action: "Recommander AcadémIA Pro", xp: 300, icon: "🤝" },
               ].map((item, i) => (
                 <div key={i} style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(200,169,110,0.2)", borderRadius: "10px", padding: "15px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
