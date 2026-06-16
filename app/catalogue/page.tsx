@@ -55,11 +55,10 @@ export default function CataloguePage() {
   const [recherche, setRecherche] = useState("");
   const [domaine, setDomaine] = useState("Tous");
   const [loading, setLoading] = useState(true);
-  const [langue, setLangue] = useState("fr");
+  const [langue, setLangue] = useState(() => typeof window !== "undefined" ? localStorage.getItem("langue") || "fr" : "fr");
 
   useEffect(() => {
-    const saved = localStorage.getItem("langue") || "fr";
-    setLangue(saved);
+
     fetch("/api/catalogue")
       .then(r => r.json())
       .then(data => {
