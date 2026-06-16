@@ -119,12 +119,12 @@ export default function HomePage() {
       <header style={{ background: "rgba(5,5,8,0.98)", borderBottom: "1px solid rgba(200,169,110,0.2)", padding: "0 40px", height: "64px", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: "0", zIndex: "100" }}>
         <a href="/" style={{ color: "#c8a96e", textDecoration: "none", fontSize: "100+px", fontWeight: "bold" }}>AcadémIA Pro</a>
         <nav style={{ display: "flex", gap: "28px" }}>
-          <a href="/catalogue" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "15px" }}>Formations</a>
-          <a href="/seances" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "15px" }}>Seances</a>
-          <a href="/catalogue" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "15px" }}>Packs</a>
-          <a href="/catalogue" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "15px" }}>Competences</a>
-          <a href="/blog" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "15px" }}>Blog</a>
-          <a href="/contact" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "15px" }}>Contact</a>
+          <a href="/catalogue" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "15px" }}>{t('nav_formations')}</a>
+          <a href="/seances" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "15px" }}>{t('nav_seances')}</a>
+          <a href="/catalogue" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "15px" }}>{t('nav_packs')}</a>
+          <a href="/catalogue" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "15px" }}>{t('nav_competences')}</a>
+          <a href="/blog" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "15px" }}>{t('nav_blog')}</a>
+          <a href="/contact" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "15px" }}>{t('nav_contact')}</a>
         </nav>
         <select
           value={langue} onChange={e => { localStorage.setItem("langue", e.target.value); setLangue(e.target.value); window.location.reload(); }}
@@ -214,7 +214,7 @@ export default function HomePage() {
             <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
               <a href="/catalogue" style={{ color: "rgba(255,255,255,0.5)", textDecoration: "none", fontSize: "13px" }}>Catalogue complet</a>
               <a href="/catalogue" style={{ color: "rgba(255,255,255,0.5)", textDecoration: "none", fontSize: "13px" }}>Nos packs</a>
-              <a href="/catalogue" style={{ color: "rgba(255,255,255,0.5)", textDecoration: "none", fontSize: "13px" }}>Competences</a>
+              <a href="/catalogue" style={{ color: "rgba(255,255,255,0.5)", textDecoration: "none", fontSize: "13px" }}>{t('nav_competences')}</a>
               <a href="/tarifs" style={{ color: "rgba(255,255,255,0.5)", textDecoration: "none", fontSize: "13px" }}>Tarifs</a>
             </div>
           </div>
@@ -229,7 +229,7 @@ export default function HomePage() {
           <div>
             <h4 style={{ color: "#fff", fontSize: "15px", margin: "0 0 16px" }}>Ressources</h4>
             <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-              <a href="/blog" style={{ color: "rgba(255,255,255,0.5)", textDecoration: "none", fontSize: "13px" }}>Blog</a>
+              <a href="/blog" style={{ color: "rgba(255,255,255,0.5)", textDecoration: "none", fontSize: "13px" }}>{t('nav_blog')}</a>
               <a href="/faq" style={{ color: "rgba(255,255,255,0.5)", textDecoration: "none", fontSize: "13px" }}>FAQ</a>
               <a href="/communaute" style={{ color: "rgba(255,255,255,0.5)", textDecoration: "none", fontSize: "13px" }}>Communaute</a>
               <a href="/a-propos" style={{ color: "rgba(255,255,255,0.5)", textDecoration: "none", fontSize: "13px" }}>A propos</a>
