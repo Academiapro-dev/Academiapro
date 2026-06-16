@@ -1,3 +1,5 @@
+"use client";
+import { useState } from "react";
 export default function HomePage() {
   return (
     <div style={{ minHeight: "100vh", background: "#050508", color: "#fff", fontFamily: "Georgia, serif" }}>
