@@ -26,7 +26,7 @@ export default function HomePage() {
           <a href="/contact" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "15px" }}>Contact</a>
         </nav>
         <select
-          value={langue} onChange={e => { localStorage.setItem("langue", e.target.value); setLangue(e.target.value); }}
+          value={langue} onChange={e => { localStorage.setItem("langue", e.target.value); setLangue(e.target.value); window.location.reload(); }}
           style={{ background: "rgba(200,169,110,0.15)", border: "1px solid rgba(200,169,110,0.4)", color: "#c8a96e", padding: "6px 10px", borderRadius: "8px", cursor: "pointer", fontSize: "13px", fontWeight: "bold" }}
         >
           <option value="fr">🇫🇷 FR</option>
