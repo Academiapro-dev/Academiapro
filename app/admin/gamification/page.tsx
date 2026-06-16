@@ -82,20 +82,26 @@ export default function GamificationPage() {
 
   async function gagnerXP(montant: number, raison: string) {
     if (!profil) return;
-    const nouvelXP = (profil.xp || 0) + montant;
-    const nouveauNiveau = NIVEAUX.find(n => nouvelXP >= n.xp_min && nouvelXP < n.xp_max)?.niveau || 1;
-    await fetch(`${SUPABASE_URL}/rest/v1/gamification?id=eq.${profil.id}`, {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-        apikey: SUPABASE_KEY,
-        Authorization: `Bearer ${SUPABASE_KEY}`,
-        Prefer: "return=minimal"
-      },
-      body: JSON.stringify({ xp: nouvelXP, niveau: nouveauNiveau }),
-    });
-    alert(`+${montant} XP pour : ${raison}`);
-    chargerProfil();
+    try {
+      const res = await fetch("/api/gamification", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: EMAIL_TEST,
+          xp_gagner: montant,
+          action: raison
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert(`+${montant} XP pour : ${raison} - Total : ${data.xp_apres} XP`);
+        chargerProfil();
+      } else {
+        alert("Erreur : " + data.message);
+      }
+    } catch (e) {
+      alert("Erreur de connexion");
+    }
   }
 
   const niveauActuel = profil ? (NIVEAUX.find(n => profil.xp >= n.xp_min && profil.xp < n.xp_max) || NIVEAUX[0]) : NIVEAUX[0];
