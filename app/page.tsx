@@ -4,11 +4,8 @@ import { useState, useEffect } from "react";
 
 
 export default function HomePage() {
-  const [langue, setLangue] = useState("fr");
-  useEffect(() => {
-    const saved = localStorage.getItem("langue") || "fr";
-    setLangue(saved);
-  }, []);
+  const [langue, setLangue] = useState(() => typeof window !== "undefined" ? localStorage.getItem("langue") || "fr" : "fr");
+
   const t = (cle: string) => T[langue]?.[cle] || T["fr"][cle] || cle;
 
     return (
