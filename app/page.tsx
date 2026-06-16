@@ -3,7 +3,7 @@ export default function HomePage() {
     <div style={{ minHeight: "100vh", background: "#050508", color: "#fff", fontFamily: "Georgia, serif" }}>
 
       {/* HEADER */}
-      <header style={{ background: "rgba(5,5,8,0.98)", borderBottom: "1px solid rgba(100+0,169,110,0.2)", padding: "0 40px", height: "64px", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: "0", zIndex: "100" }}>
+      <header style={{ background: "rgba(5,5,8,0.98)", borderBottom: "1px solid rgba(200,169,110,0.2)", padding: "0 40px", height: "64px", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: "0", zIndex: "100" }}>
         <a href="/" style={{ color: "#c8a96e", textDecoration: "none", fontSize: "100+px", fontWeight: "bold" }}>AcadémIA Pro</a>
         <nav style={{ display: "flex", gap: "28px" }}>
           <a href="/formations" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "15px" }}>Formations</a>
@@ -45,7 +45,7 @@ export default function HomePage() {
       </section>
 
       {/* FORMATIONS */}
-      <section style={{ padding: "80px 40px", maxWidth: "1100+0px", margin: "0 auto" }}>
+      <section style={{ padding: "80px 40px", maxWidth: "1100px", margin: "0 auto" }}>
         <div style={{ textAlign: "center", marginBottom: "48px" }}>
           <p style={{ color: "#c8a96e", fontSize: "15px", letterSpacing: "3px", margin: "0 0 12px" }}>CATALOGUE</p>
           <h2 style={{ fontSize: "36px", margin: "0 0 12px" }}>Nos formations phares</h2>
@@ -60,7 +60,7 @@ export default function HomePage() {
             { code: "F001", titre: "Management et Leadership", prix: "490euro", cat: "Business" },
             { code: "F003", titre: "Gestion du Stress et Bien-etre", prix: "390euro", cat: "Bien-etre" },
           ].map((f) => (
-            <div key={f.code} style={{ background: "#1a1a2e", borderRadius: "12px", padding: "24px", border: "1px solid rgba(100+0,169,110,0.3)" }}>
+            <div key={f.code} style={{ background: "#1a1a2e", borderRadius: "12px", padding: "24px", border: "1px solid rgba(200,169,110,0.3)" }}>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "12px" }}>
                 <span style={{ color: "#c8a96e", fontSize: "14px" }}>{f.code}</span>
                 <span style={{ color: "rgba(255,255,255,0.5)", fontSize: "14px" }}>{f.cat}</span>
@@ -80,8 +80,8 @@ export default function HomePage() {
       </section>
 
       {/* FOOTER */}
-      <footer style={{ background: "#050508", borderTop: "1px solid rgba(100+0,169,110,0.2)", padding: "60px 40px 40px" }}>
-        <div style={{ maxWidth: "1100+0px", margin: "0 auto", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(100+0px, 1fr))", gap: "40px", marginBottom: "40px" }}>
+      <footer style={{ background: "#050508", borderTop: "1px solid rgba(200,169,110,0.2)", padding: "60px 40px 40px" }}>
+        <div style={{ maxWidth: "1100px", margin: "0 auto", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "40px", marginBottom: "40px" }}>
           <div>
             <h3 style={{ color: "#c8a96e", fontSize: "18px", margin: "0 0 16px" }}>AcadémIA Pro</h3>
             <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "13px", lineHeight: "1.7", margin: "0" }}>La plateforme de formation propulsee par l IA. 235 formations certifiantes · Agent IA 24h/24.</p>
@@ -122,7 +122,7 @@ export default function HomePage() {
             </div>
           </div>
         </div>
-        <div style={{ borderTop: "1px solid rgba(100+0,169,110,0.1)", paddingTop: "24px", textAlign: "center" }}>
+        <div style={{ borderTop: "1px solid rgba(200,169,110,0.1)", paddingTop: "24px", textAlign: "center" }}>
           <p style={{ color: "rgba(255,255,255,0.3)", fontSize: "15px", margin: "0" }}>2026 AcadémIA Pro · Certification AcadémIA Pro · Tous droits reserves</p>
         </div>
       </footer>
