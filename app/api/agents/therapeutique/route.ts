@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
     body: JSON.stringify({
       model: "claude-sonnet-4-6",
       max_tokens: 1000,
-      system: therapeute.prompt,
+      system: therapeute.prompt + " Tu detectes automatiquement la langue du patient et tu reponds TOUJOURS dans sa langue.",
       messages: messages,
     }),
   });
