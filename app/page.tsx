@@ -15,6 +15,16 @@ export default function HomePage() {
           <a href="/blog" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "15px" }}>Blog</a>
           <a href="/contact" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "15px" }}>Contact</a>
         </nav>
+        <select
+          onChange={e => { localStorage.setItem("langue", e.target.value); }}
+          style={{ background: "rgba(200,169,110,0.15)", border: "1px solid rgba(200,169,110,0.4)", color: "#c8a96e", padding: "6px 10px", borderRadius: "8px", cursor: "pointer", fontSize: "13px", fontWeight: "bold" }}
+        >
+          <option value="fr">🇫🇷 FR</option>
+          <option value="en">🇬🇧 EN</option>
+          <option value="es">🇪🇸 ES</option>
+          <option value="ar">🇸🇦 AR</option>
+          <option value="he">🇮🇱 HE</option>
+        </select>
         <a href="/login" style={{ background: "linear-gradient(135deg, #c8a96e, #a07840)", color: "#050508", padding: "10px 24px", borderRadius: "8px", textDecoration: "none", fontSize: "15px", fontWeight: "bold" }}>Demarrer</a>
       </header>
 
