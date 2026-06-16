@@ -154,10 +154,10 @@ export default function HomePage() {
       <section style={{ background: "#1a1a2e", padding: "60px 40px" }}>
         <div style={{ maxWidth: "1000px", margin: "0 auto", display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "32px", textAlign: "center" }}>
           {[
-            { nb: "235", label: "Formations certifiantes" },
-            { nb: "100+", label: "Competences validees" },
-            { nb: "5", label: "Therapeutes IA" },
-            { nb: "30j", label: "Garantie satisfait" },
+            { nb: "235", label: t("stat1") },
+            { nb: "100+", label: t("stat2") },
+            { nb: "5", label: t("stat3") },
+            { nb: "30j", label: t("stat4") },
           ].map((s) => (
             <div key={s.label}>
               <p style={{ color: "#c8a96e", fontSize: "40px", fontWeight: "bold", margin: "0 0 8px" }}>{s.nb}</p>
