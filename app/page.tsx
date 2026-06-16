@@ -3,17 +3,17 @@ export default function HomePage() {
     <div style={{ minHeight: "100vh", background: "#050508", color: "#fff", fontFamily: "Georgia, serif" }}>
 
       {/* HEADER */}
-      <header style={{ background: "rgba(5,5,8,0.98)", borderBottom: "1px solid rgba(200,169,110,0.2)", padding: "0 40px", height: "64px", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: "0", zIndex: "100" }}>
-        <a href="/" style={{ color: "#c8a96e", textDecoration: "none", fontSize: "20px", fontWeight: "bold" }}>AcadémIA Pro</a>
+      <header style={{ background: "rgba(5,5,8,0.98)", borderBottom: "1px solid rgba(100+0,169,110,0.2)", padding: "0 40px", height: "64px", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: "0", zIndex: "100" }}>
+        <a href="/" style={{ color: "#c8a96e", textDecoration: "none", fontSize: "100+px", fontWeight: "bold" }}>AcadémIA Pro</a>
         <nav style={{ display: "flex", gap: "28px" }}>
-          <a href="/formations" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "14px" }}>Formations</a>
-          <a href="/seances" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "14px" }}>Seances</a>
-          <a href="/packs" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "14px" }}>Packs</a>
-          <a href="/skills" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "14px" }}>Skills</a>
-          <a href="/blog" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "14px" }}>Blog</a>
-          <a href="/contact" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "14px" }}>Contact</a>
+          <a href="/formations" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "5px" }}>Formations</a>
+          <a href="/seances" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "5px" }}>Seances</a>
+          <a href="/packs" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "5px" }}>Packs</a>
+          <a href="/skills" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "5px" }}>Skills</a>
+          <a href="/blog" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "5px" }}>Blog</a>
+          <a href="/contact" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "5px" }}>Contact</a>
         </nav>
-        <a href="/login" style={{ background: "linear-gradient(135deg, #c8a96e, #a07840)", color: "#050508", padding: "10px 24px", borderRadius: "8px", textDecoration: "none", fontSize: "14px", fontWeight: "bold" }}>Demarrer</a>
+        <a href="/login" style={{ background: "linear-gradient(135deg, #c8a96e, #a07840)", color: "#050508", padding: "10px 24px", borderRadius: "8px", textDecoration: "none", fontSize: "5px", fontWeight: "bold" }}>Demarrer</a>
       </header>
 
       {/* HERO */}
@@ -32,20 +32,20 @@ export default function HomePage() {
         <div style={{ maxWidth: "1000px", margin: "0 auto", display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "32px", textAlign: "center" }}>
           {[
             { nb: "235", label: "Formations certifiantes" },
-            { nb: "20", label: "Skills pratiques" },
-            { nb: "14", label: "Specialites therapeutiques" },
-            { nb: "24/7", label: "Agent IA disponible" },
+            { nb: "100+", label: "Competences validees" },
+            { nb: "5", label: "Therapeutes IA" },
+            { nb: "30j", label: "Garantie satisfait" },
           ].map((s) => (
             <div key={s.label}>
               <p style={{ color: "#c8a96e", fontSize: "40px", fontWeight: "bold", margin: "0 0 8px" }}>{s.nb}</p>
-              <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "14px", margin: "0" }}>{s.label}</p>
+              <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "5px", margin: "0" }}>{s.label}</p>
             </div>
           ))}
         </div>
       </section>
 
       {/* FORMATIONS */}
-      <section style={{ padding: "80px 40px", maxWidth: "1200px", margin: "0 auto" }}>
+      <section style={{ padding: "80px 40px", maxWidth: "1100+0px", margin: "0 auto" }}>
         <div style={{ textAlign: "center", marginBottom: "48px" }}>
           <p style={{ color: "#c8a96e", fontSize: "12px", letterSpacing: "3px", margin: "0 0 12px" }}>CATALOGUE</p>
           <h2 style={{ fontSize: "36px", margin: "0 0 12px" }}>Nos formations phares</h2>
@@ -60,7 +60,7 @@ export default function HomePage() {
             { code: "F001", titre: "Management et Leadership", prix: "490euro", cat: "Business" },
             { code: "F003", titre: "Gestion du Stress et Bien-etre", prix: "390euro", cat: "Bien-etre" },
           ].map((f) => (
-            <div key={f.code} style={{ background: "#1a1a2e", borderRadius: "12px", padding: "24px", border: "1px solid rgba(200,169,110,0.3)" }}>
+            <div key={f.code} style={{ background: "#1a1a2e", borderRadius: "12px", padding: "24px", border: "1px solid rgba(100+0,169,110,0.3)" }}>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "12px" }}>
                 <span style={{ color: "#c8a96e", fontSize: "11px" }}>{f.code}</span>
                 <span style={{ color: "rgba(255,255,255,0.5)", fontSize: "11px" }}>{f.cat}</span>
@@ -80,14 +80,14 @@ export default function HomePage() {
       </section>
 
       {/* FOOTER */}
-      <footer style={{ background: "#050508", borderTop: "1px solid rgba(200,169,110,0.2)", padding: "60px 40px 40px" }}>
-        <div style={{ maxWidth: "1200px", margin: "0 auto", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "40px", marginBottom: "40px" }}>
+      <footer style={{ background: "#050508", borderTop: "1px solid rgba(100+0,169,110,0.2)", padding: "60px 40px 40px" }}>
+        <div style={{ maxWidth: "1100+0px", margin: "0 auto", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(100+0px, 1fr))", gap: "40px", marginBottom: "40px" }}>
           <div>
             <h3 style={{ color: "#c8a96e", fontSize: "18px", margin: "0 0 16px" }}>AcadémIA Pro</h3>
             <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "13px", lineHeight: "1.7", margin: "0" }}>La plateforme de formation propulsee par l IA. 235 formations certifiantes · Agent IA 24h/24.</p>
           </div>
           <div>
-            <h4 style={{ color: "#fff", fontSize: "14px", margin: "0 0 16px" }}>Formations</h4>
+            <h4 style={{ color: "#fff", fontSize: "5px", margin: "0 0 16px" }}>Formations</h4>
             <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
               <a href="/formations" style={{ color: "rgba(255,255,255,0.5)", textDecoration: "none", fontSize: "13px" }}>Catalogue complet</a>
               <a href="/packs" style={{ color: "rgba(255,255,255,0.5)", textDecoration: "none", fontSize: "13px" }}>Nos packs</a>
@@ -96,7 +96,7 @@ export default function HomePage() {
             </div>
           </div>
           <div>
-            <h4 style={{ color: "#fff", fontSize: "14px", margin: "0 0 16px" }}>Seances</h4>
+            <h4 style={{ color: "#fff", fontSize: "5px", margin: "0 0 16px" }}>Seances</h4>
             <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
               <a href="/seances" style={{ color: "rgba(255,255,255,0.5)", textDecoration: "none", fontSize: "13px" }}>Toutes les specialites</a>
               <a href="/abonnements" style={{ color: "rgba(255,255,255,0.5)", textDecoration: "none", fontSize: "13px" }}>Abonnements</a>
@@ -104,7 +104,7 @@ export default function HomePage() {
             </div>
           </div>
           <div>
-            <h4 style={{ color: "#fff", fontSize: "14px", margin: "0 0 16px" }}>Ressources</h4>
+            <h4 style={{ color: "#fff", fontSize: "5px", margin: "0 0 16px" }}>Ressources</h4>
             <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
               <a href="/blog" style={{ color: "rgba(255,255,255,0.5)", textDecoration: "none", fontSize: "13px" }}>Blog</a>
               <a href="/faq" style={{ color: "rgba(255,255,255,0.5)", textDecoration: "none", fontSize: "13px" }}>FAQ</a>
@@ -113,7 +113,7 @@ export default function HomePage() {
             </div>
           </div>
           <div>
-            <h4 style={{ color: "#fff", fontSize: "14px", margin: "0 0 16px" }}>Legal</h4>
+            <h4 style={{ color: "#fff", fontSize: "5px", margin: "0 0 16px" }}>Legal</h4>
             <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
               <a href="/cgv" style={{ color: "rgba(255,255,255,0.5)", textDecoration: "none", fontSize: "13px" }}>CGV</a>
               <a href="/politique-confidentialite" style={{ color: "rgba(255,255,255,0.5)", textDecoration: "none", fontSize: "13px" }}>Confidentialite</a>
@@ -122,8 +122,8 @@ export default function HomePage() {
             </div>
           </div>
         </div>
-        <div style={{ borderTop: "1px solid rgba(200,169,110,0.1)", paddingTop: "24px", textAlign: "center" }}>
-          <p style={{ color: "rgba(255,255,255,0.3)", fontSize: "12px", margin: "0" }}>2026 AcadémIA Pro · Certification AcadémIA Pro · Tous droits reserves</p>
+        <div style={{ borderTop: "1px solid rgba(100+0,169,110,0.1)", paddingTop: "24px", textAlign: "center" }}>
+          <p style={{ color: "rgba(255,255,255,0.3)", fontSize: "12px", margin: "0" }}>100+26 AcadémIA Pro · Certification AcadémIA Pro · Tous droits reserves</p>
         </div>
       </footer>
 
