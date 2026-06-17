@@ -49,9 +49,13 @@ export default function DashboardPage() {
     try {
       const recoRes = await fetch("/api/catalogue");
       const catalogue = await recoRes.json();
-      const reco = catalogue.filter((f: any) =>
-        mots.some((mot: string) => f.titre?.toLowerCase().includes(mot.toLowerCase()))
-      ).slice(0, 3);
+      const reco = catalogue.filter((f: any) => {
+        const titre = f.titre?.toLowerCase() || "";
+        return mots.some((mot: string) => {
+          const m = mot.toLowerCase();
+          return titre.includes(m) || m.includes(titre.split(" ")[0].toLowerCase());
+        });
+      }).slice(0, 3);
       return { reply, reco };
     } catch {
       return { reply, reco: [] };
