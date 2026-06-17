@@ -116,12 +116,12 @@ export default function FormationPage({ params }: { params: { id: string } }) {
         {pdfUrl && (
           <div style={{ background: "rgba(200,169,110,0.08)", border: "1px solid rgba(200,169,110,0.2)", borderRadius: "10px", padding: "20px", marginBottom: "30px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div>
-              <div style={{ color: "#c8a96e", fontWeight: "bold", marginBottom: "3px" }}>📄 Support de cours PDF</div>
-              <div style={{ color: "rgba(255,255,255,0.4)", fontSize: "12px" }}>Document complet · Français · Téléchargeable</div>
+              <div style={{ color: "#c8a96e", fontWeight: "bold", marginBottom: "3px" }}>📄 Support de cours</div>
+              <div style={{ color: "rgba(255,255,255,0.4)", fontSize: "12px" }}>Document complet · Français · 300+ pages</div>
             </div>
             <a href={pdfUrl} target="_blank"
               style={{ background: "#c8a96e", color: "#050508", padding: "10px 20px", borderRadius: "8px", textDecoration: "none", fontWeight: "bold", fontSize: "13px" }}>
-              Télécharger PDF
+              Voir le support
             </a>
           </div>
         )}
