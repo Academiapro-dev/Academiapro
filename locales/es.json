@@ -1,0 +1,98 @@
+{
+  "nav": {
+    "formations": "Cursos",
+    "seances": "Sesiones",
+    "packs": "Packs",
+    "competences": "Habilidades",
+    "blog": "Blog",
+    "contact": "Contacto",
+    "demarrer": "Comenzar"
+  },
+  "home": {
+    "hero_titre": "Fórmese con su agente IA personal",
+    "hero_sub": "235 cursos certificados · Tutor IA 24h · Sesiones terapéuticas",
+    "btn_formations": "Ver cursos",
+    "btn_ebook": "E-book gratis",
+    "stat1": "Cursos certificados",
+    "stat2": "Habilidades validadas",
+    "stat3": "Terapeutas IA",
+    "stat4": "Garantía satisfacción"
+  },
+  "catalogue": {
+    "titre": "Catálogo AcadémIA Pro",
+    "rechercher": "Buscar un curso...",
+    "resultats": "resultados",
+    "chargement": "Cargando...",
+    "aucune": "No se encontró ningún curso",
+    "formations": "cursos disponibles",
+    "tous": "Todos"
+  },
+  "seances": {
+    "titre": "Sesiones Terapéuticas",
+    "sous_titre": "Elija su terapeuta · Disponible ahora · 24h/24",
+    "commencer": "Iniciar sesión",
+    "changer": "Cambiar terapeuta",
+    "envoyer": "Enviar",
+    "placeholder": "Hablar con",
+    "disponible": "En directo",
+    "avertissement": "Estas sesiones son simulaciones IA para el bienestar. En caso de crisis contacte servicios de emergencia."
+  },
+  "formation": {
+    "elearning": "E-Learning",
+    "elearning_sub": "Asíncrono · A su ritmo",
+    "coach": "Coach IA 24h/24",
+    "coach_sub": "Preguntas por chat · Inmediato",
+    "classe": "Clase Virtual",
+    "classe_sub": "En vivo · Martes y Jueves 20h",
+    "objectifs": "Objetivos",
+    "prerequis": "Requisitos",
+    "public_cible": "Público objetivo",
+    "programme": "Programa completo",
+    "acheter": "Comprar",
+    "pret": "¿Listo para empezar?",
+    "acces": "Acceso inmediato · Agente IA 24/7 · Garantía 30 días",
+    "coach_btn": "Acceder al Coach IA",
+    "classe_btn": "Unirse a una Clase",
+    "niveau": "Nivel"
+  },
+  "inscription": {
+    "titre": "Únase a la Lista Prioritaria",
+    "sous_titre": "Sea de los primeros en acceder a AcadémIA Pro",
+    "nom": "Su nombre",
+    "email": "Su email",
+    "btn": "Unirse a la lista",
+    "merci": "¡Gracias! Está en la lista."
+  },
+  "blog": {
+    "titre": "Blog AcadémIA Pro",
+    "sous_titre": "Artículos sobre IA, formación y bienestar",
+    "lire": "Leer →",
+    "bientot": "Próximamente"
+  },
+  "footer": {
+    "desc": "La plataforma de formación impulsada por IA. 235 cursos certificados.",
+    "formations": "Cursos",
+    "catalogue": "Catálogo completo",
+    "packs": "Nuestros packs",
+    "tarifs": "Precios",
+    "ressources": "Recursos",
+    "faq": "FAQ",
+    "communaute": "Comunidad",
+    "apropos": "Acerca de",
+    "legal": "Legal",
+    "cgv": "Términos",
+    "confidentialite": "Privacidad",
+    "mentions": "Aviso legal",
+    "garantie": "Garantía 30 días",
+    "copyright": "© 2026 AcadémIA Pro · Certificación AcadémIA Pro · Todos los derechos reservados"
+  },
+  "dashboard": {
+    "titre": "Mi Espacio de Aprendizaje",
+    "bienvenue": "Bienvenido",
+    "mes_formations": "Mis cursos",
+    "progression": "Mi progreso",
+    "certificats": "Mis certificados",
+    "coach": "Coach IA",
+    "deconnexion": "Cerrar sesión"
+  }
+}
