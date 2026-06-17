@@ -47,9 +47,9 @@ const THERAPEUTES = [
 
 const T: Record<string, Record<string, string>> = {
   fr: {
-    titre: t("titre"),
-    sous_titre: t("sous_titre"),
-    commencer: t("commencer"),
+    titre: "Seances Therapeutiques",
+    sous_titre: "Choisissez votre therapeute · Disponible maintenant · 24h/24",
+    commencer: "Commencer la seance",
     quitter: "Quitter",
     envoyer: t("envoyer"),
     placeholder: "Parlez a",
