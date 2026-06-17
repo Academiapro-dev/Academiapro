@@ -57,8 +57,7 @@ export default function DashboardPage() {
       let replyTexte = data.reply || "";
 
       // Extraire FORMATIONS_RECOMMANDEES
-      const lignes = replyTexte.split("
-");
+      const lignes = replyTexte.split("\n");
       const recoLigne = lignes.find((l: string) => l.includes("FORMATIONS_RECOMMANDEES:"));
       if (recoLigne) {
         const mots = recoLigne
