@@ -76,7 +76,7 @@ export default function DashboardPage() {
         body: JSON.stringify({ message: userMsg, formation_titre: "Formation AcadeMIA Pro", historique: chat }),
       });
       const data = await res.json();
-      const { reply, reco } = await extraireRecos(data.reply || "");
+      const { reply, reco } = await extraireRecos(data.reply || "", userMsg);
       if (reco.length > 0) setFormationsReco(reco);
       setChat(prev => [...prev, { role: "agent", text: reply }]);
     } catch {
