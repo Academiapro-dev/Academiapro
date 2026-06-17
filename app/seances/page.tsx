@@ -155,7 +155,7 @@ export default function SeancesPage() {
       <div style={{ backgroundColor: "#050508", minHeight: "100vh", color: "#fff", padding: "20px" }}>
         <div style={{ maxWidth: "800px", margin: "0 auto" }}>
           <button onClick={() => { setSelected(null); setChat([]); }} style={{ background: "none", border: "1px solid rgba(200,169,110,0.3)", color: "#c8a96e", padding: "8px 16px", borderRadius: "8px", cursor: "pointer", marginBottom: "20px" }}>
-            ← Changer de thérapeute
+            {t('changer')}
           </button>
           <div style={{ textAlign: "center", marginBottom: "30px" }}>
             <div style={{ fontSize: "50px", marginBottom: "10px" }}>{selected.icon}</div>
@@ -183,7 +183,7 @@ export default function SeancesPage() {
               </div>
             ))}
             {loading && (
-              <div style={{ color: "#c8a96e", textAlign: "center" }}>{selected.nom} est en train de répondre...</div>
+              <div style={{ color: "#c8a96e", textAlign: "center" }}>{selected.nom} ...</div>
             )}
           </div>
           <div style={{ display: "flex", gap: "10px" }}>
