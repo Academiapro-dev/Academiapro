@@ -214,10 +214,10 @@ export default function SeancesPage() {
   return (
     <div style={{ backgroundColor: "#050508", minHeight: "100vh", color: "#fff", padding: "40px" }}>
       <h1 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", textAlign: "center", marginBottom: "10px" }}>
-        Séances Thérapeutiques
+        {t('titre')}
       </h1>
       <p style={{ textAlign: "center", color: "rgba(255,255,255,0.6)", marginBottom: "40px" }}>
-        Choisissez votre thérapeute · Disponible maintenant · 24h/24
+        {t('sous_titre')}4
       </p>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "20px", maxWidth: "1000px", margin: "0 auto" }}>
         {THERAPEUTES.map((t) => (
@@ -231,7 +231,7 @@ export default function SeancesPage() {
             <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "12px", marginBottom: "10px" }}>{t.specialite}</p>
             <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "13px", lineHeight: "1.6" }}>{t.description}</p>
             <button style={{ marginTop: "15px", width: "100%", padding: "10px", background: "#c8a96e", color: "#050508", border: "none", borderRadius: "8px", fontWeight: "bold", cursor: "pointer" }}>
-              Commencer la séance
+              {t('commencer')}
             </button>
           </div>
         ))}
