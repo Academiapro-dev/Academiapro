@@ -23,21 +23,21 @@ export default function DashboardPage() {
         }),
       });
       const data = await res.json();
-      // Extraire formations recommandees
       let replyTexte = data.reply || "";
-      const recoMatch = replyTexte.match(/FORMATIONS_RECOMMANDEES:\s*(.+)/);
-      if (recoMatch) {
-        const mots = recoMatch[1].split(",").map((m: string) => m.trim());
-        replyTexte = replyTexte.replace(/FORMATIONS_RECOMMANDEES:.+/, "").trim();
-        // Chercher les formations correspondantes
+      // Extraire FORMATIONS_RECOMMANDEES
+      const lignes = replyTexte.split("\n");
+      const recoLigne = lignes.find((l: string) => l.includes("FORMATIONS_RECOMMANDEES:"));
+      if (recoLigne) {
+        const mots = recoLigne.replace("FORMATIONS_RECOMMANDEES:", "").split(",").map((m: string) => m.trim()).filter(Boolean);
+        replyTexte = lignes.filter((l: string) => !l.includes("FORMATIONS_RECOMMANDEES:")).join("\n").trim();
         try {
           const recoRes = await fetch("/api/catalogue");
           const catalogue = await recoRes.json();
           const reco = catalogue.filter((f: any) =>
             mots.some((mot: string) => f.titre?.toLowerCase().includes(mot.toLowerCase()))
           ).slice(0, 3);
-          setFormationsReco(reco);
-        } catch {}
+          if (reco.length > 0) setFormationsReco(reco);
+        } catch (e) { console.error(e); }
       }
       data.reply = replyTexte;
       setChat(prev => [...prev, { role: "agent", text: data.reply }]);
