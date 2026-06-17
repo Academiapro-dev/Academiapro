@@ -5,6 +5,7 @@ export default function DashboardPage() {
   const [message, setMessage] = useState("");
   const [chat, setChat] = useState<{role: string, text: string}[]>([]);
   const [loading, setLoading] = useState(false);
+  const [formationsReco, setFormationsReco] = useState<any[]>([]);
 
   async function envoyerMessage() {
     if (!message.trim()) return;
@@ -22,6 +23,23 @@ export default function DashboardPage() {
         }),
       });
       const data = await res.json();
+      // Extraire formations recommandees
+      let replyTexte = data.reply || "";
+      const recoMatch = replyTexte.match(/FORMATIONS_RECOMMANDEES:\s*(.+)/);
+      if (recoMatch) {
+        const mots = recoMatch[1].split(",").map((m: string) => m.trim());
+        replyTexte = replyTexte.replace(/FORMATIONS_RECOMMANDEES:.+/, "").trim();
+        // Chercher les formations correspondantes
+        try {
+          const recoRes = await fetch("/api/catalogue");
+          const catalogue = await recoRes.json();
+          const reco = catalogue.filter((f: any) =>
+            mots.some((mot: string) => f.titre?.toLowerCase().includes(mot.toLowerCase()))
+          ).slice(0, 3);
+          setFormationsReco(reco);
+        } catch {}
+      }
+      data.reply = replyTexte;
       setChat(prev => [...prev, { role: "agent", text: data.reply }]);
     } catch (e) {
       setChat(prev => [...prev, { role: "agent", text: "Erreur de connexion avec l agent." }]);
