@@ -1,8 +1,10 @@
+
 "use client";
 import { useState, useEffect } from "react";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+const SEP = "FORMATIONS_RECOMMANDEES:";
 
 export default function DashboardPage() {
   const [message, setMessage] = useState("");
@@ -36,6 +38,26 @@ export default function DashboardPage() {
     } catch {}
   }
 
+  async function extraireRecos(texte: string): Promise<{reply: string, reco: any[]}> {
+    const idx = texte.indexOf(SEP);
+    if (idx === -1) return { reply: texte, reco: [] };
+    const apres = texte.slice(idx + SEP.length);
+    const finLigne = apres.indexOf(SEP.slice(0,1) === "F" ? "\n" : "\n");
+    const ligne = finLigne > -1 ? apres.slice(0, finLigne) : apres;
+    const mots = ligne.split(",").map((m: string) => m.trim()).filter(Boolean);
+    const reply = texte.slice(0, idx).trim();
+    try {
+      const recoRes = await fetch("/api/catalogue");
+      const catalogue = await recoRes.json();
+      const reco = catalogue.filter((f: any) =>
+        mots.some((mot: string) => f.titre?.toLowerCase().includes(mot.toLowerCase()))
+      ).slice(0, 3);
+      return { reply, reco };
+    } catch {
+      return { reply, reco: [] };
+    }
+  }
+
   async function envoyerMessage() {
     if (!message.trim()) return;
     const userMsg = message;
@@ -47,27 +69,12 @@ export default function DashboardPage() {
       const res = await fetch("/api/agent-tuteur", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: userMsg, formation_titre: "Formation AcadémIA Pro", historique: chat }),
+        body: JSON.stringify({ message: userMsg, formation_titre: "Formation AcadeMIA Pro", historique: chat }),
       });
       const data = await res.json();
-      let replyTexte = data.reply || "";
-      const SEP = "FORMATIONS_RECOMMANDEES:";
-      const idx = replyTexte.indexOf(SEP);
-      if (idx > -1) {
-        const ligne = replyTexte.slice(idx + SEP.length).split("
-")[0];
-        const mots = ligne.split(",").map((m: string) => m.trim()).filter(Boolean);
-        replyTexte = replyTexte.slice(0, idx).trim();
-        try {
-          const recoRes = await fetch("/api/catalogue");
-          const catalogue = await recoRes.json();
-          const reco = catalogue.filter((f: any) =>
-            mots.some((mot: string) => f.titre?.toLowerCase().includes(mot.toLowerCase()))
-          ).slice(0, 3);
-          if (reco.length > 0) setFormationsReco(reco);
-        } catch {}
-      }
-      setChat(prev => [...prev, { role: "agent", text: replyTexte }]);
+      const { reply, reco } = await extraireRecos(data.reply || "");
+      if (reco.length > 0) setFormationsReco(reco);
+      setChat(prev => [...prev, { role: "agent", text: reply }]);
     } catch {
       setChat(prev => [...prev, { role: "agent", text: "Erreur de connexion." }]);
     }
@@ -77,11 +84,7 @@ export default function DashboardPage() {
   return (
     <div style={{ backgroundColor: "#050508", minHeight: "100vh", color: "#fff", padding: "30px 20px" }}>
       <div style={{ maxWidth: "900px", margin: "0 auto" }}>
-
-        <h1 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", marginBottom: "25px" }}>
-          Mon Espace Apprenant
-        </h1>
-
+        <h1 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", marginBottom: "25px" }}>Mon Espace Apprenant</h1>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: "15px", marginBottom: "35px" }}>
           {[
             { titre: "Formations", valeur: mesFormations.length.toString(), icon: "🎓" },
@@ -96,16 +99,10 @@ export default function DashboardPage() {
             </div>
           ))}
         </div>
-
-        <h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", marginBottom: "15px" }}>
-          🤖 Mon Agent IA Tuteur
-        </h2>
-
+        <h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", marginBottom: "15px" }}>🤖 Mon Agent IA Tuteur</h2>
         <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(200,169,110,0.2)", borderRadius: "12px", padding: "20px", minHeight: "280px", marginBottom: "15px", maxHeight: "400px", overflowY: "auto" }}>
           {chat.length === 0 && (
-            <p style={{ color: "rgba(255,255,255,0.3)", textAlign: "center", marginTop: "100px" }}>
-              Posez une question a votre agent tuteur IA...
-            </p>
+            <p style={{ color: "rgba(255,255,255,0.3)", textAlign: "center", marginTop: "100px" }}>Posez une question a votre agent tuteur IA...</p>
           )}
           {chat.map((msg, i) => (
             <div key={i} style={{ marginBottom: "15px", display: "flex", justifyContent: msg.role === "user" ? "flex-end" : "flex-start" }}>
@@ -114,30 +111,21 @@ export default function DashboardPage() {
               </div>
             </div>
           ))}
-          {loading && (
-            <div style={{ color: "#c8a96e", textAlign: "center", padding: "10px" }}>...</div>
-          )}
+          {loading && <div style={{ color: "#c8a96e", textAlign: "center", padding: "10px" }}>...</div>}
         </div>
-
         <div style={{ display: "flex", gap: "10px", marginBottom: "25px" }}>
-          <input type="text"
-            placeholder="Posez votre question a l agent tuteur..."
-            value={message}
-            onChange={e => setMessage(e.target.value)}
+          <input type="text" placeholder="Posez votre question a l agent tuteur..."
+            value={message} onChange={e => setMessage(e.target.value)}
             onKeyDown={e => e.key === "Enter" && envoyerMessage()}
-            style={{ flex: 1, padding: "12px", borderRadius: "8px", border: "1px solid rgba(200,169,110,0.3)", background: "rgba(255,255,255,0.05)", color: "#fff" }}
-          />
+            style={{ flex: 1, padding: "12px", borderRadius: "8px", border: "1px solid rgba(200,169,110,0.3)", background: "rgba(255,255,255,0.05)", color: "#fff" }} />
           <button onClick={envoyerMessage} disabled={loading}
             style={{ padding: "12px 24px", background: "#c8a96e", color: "#050508", border: "none", borderRadius: "8px", fontWeight: "bold", cursor: "pointer" }}>
             Envoyer
           </button>
         </div>
-
         {formationsReco.length > 0 && (
           <div style={{ marginBottom: "30px" }}>
-            <h3 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", marginBottom: "12px", fontSize: "16px" }}>
-              Formations recommandees pour vous
-            </h3>
+            <h3 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", marginBottom: "12px", fontSize: "16px" }}>Formations recommandees pour vous</h3>
             <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
               {formationsReco.map((f: any) => (
                 <a key={f.code} href={"/formation/" + f.code}
@@ -149,24 +137,19 @@ export default function DashboardPage() {
             </div>
           </div>
         )}
-
         <div style={{ marginTop: "10px" }}>
-          <h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", marginBottom: "15px" }}>
-            🎓 Mes Formations
-          </h2>
+          <h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", marginBottom: "15px" }}>🎓 Mes Formations</h2>
           <div style={{ display: "grid", gap: "12px" }}>
             {mesFormations.map((f: any) => (
               <div key={f.code} style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(200,169,110,0.2)", borderRadius: "10px", padding: "16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <span style={{ color: "rgba(255,255,255,0.8)", fontSize: "14px" }}>{f.code} — {f.titre}</span>
-                <a href={"/formation/" + f.code}
-                  style={{ background: "#c8a96e", color: "#050508", padding: "8px 16px", borderRadius: "6px", textDecoration: "none", fontSize: "13px", fontWeight: "bold" }}>
+                <a href={"/formation/" + f.code} style={{ background: "#c8a96e", color: "#050508", padding: "8px 16px", borderRadius: "6px", textDecoration: "none", fontSize: "13px", fontWeight: "bold" }}>
                   Acceder
                 </a>
               </div>
             ))}
           </div>
         </div>
-
       </div>
     </div>
   );
