@@ -1,0 +1,98 @@
+{
+  "nav": {
+    "formations": "Courses",
+    "seances": "Sessions",
+    "packs": "Packs",
+    "competences": "Skills",
+    "blog": "Blog",
+    "contact": "Contact",
+    "demarrer": "Get Started"
+  },
+  "home": {
+    "hero_titre": "Learn with your personal AI agent",
+    "hero_sub": "235 certified courses · AI tutor 24/7 · Therapeutic sessions",
+    "btn_formations": "View courses",
+    "btn_ebook": "Free e-book",
+    "stat1": "Certified courses",
+    "stat2": "Validated skills",
+    "stat3": "AI Therapists",
+    "stat4": "Satisfaction guarantee"
+  },
+  "catalogue": {
+    "titre": "AcadémIA Pro Catalog",
+    "rechercher": "Search for a course...",
+    "resultats": "results",
+    "chargement": "Loading...",
+    "aucune": "No course found",
+    "formations": "courses available",
+    "tous": "All"
+  },
+  "seances": {
+    "titre": "Therapeutic Sessions",
+    "sous_titre": "Choose your therapist · Available now · 24/7",
+    "commencer": "Start session",
+    "changer": "Change therapist",
+    "envoyer": "Send",
+    "placeholder": "Talk to",
+    "disponible": "Live",
+    "avertissement": "These sessions are AI simulations for wellness purposes. In case of crisis, contact emergency services."
+  },
+  "formation": {
+    "elearning": "E-Learning",
+    "elearning_sub": "Asynchronous · At your own pace",
+    "coach": "AI Coach 24/7",
+    "coach_sub": "Chat questions · Instant",
+    "classe": "Virtual Class",
+    "classe_sub": "Live · Tuesdays and Thursdays 8pm",
+    "objectifs": "Objectives",
+    "prerequis": "Prerequisites",
+    "public_cible": "Target audience",
+    "programme": "Full program",
+    "acheter": "Buy now",
+    "pret": "Ready to start?",
+    "acces": "Immediate access · AI Agent 24/7 · 30-day guarantee",
+    "coach_btn": "Access AI Coach",
+    "classe_btn": "Join a Live Class",
+    "niveau": "Level"
+  },
+  "inscription": {
+    "titre": "Join the Priority List",
+    "sous_titre": "Be among the first to access AcadémIA Pro",
+    "nom": "Your name",
+    "email": "Your email",
+    "btn": "Join the list",
+    "merci": "Thank you! You are on the list."
+  },
+  "blog": {
+    "titre": "AcadémIA Pro Blog",
+    "sous_titre": "Articles on AI, training and wellness",
+    "lire": "Read →",
+    "bientot": "Coming soon"
+  },
+  "footer": {
+    "desc": "The AI-powered training platform. 235 certified courses.",
+    "formations": "Courses",
+    "catalogue": "Full catalog",
+    "packs": "Our packs",
+    "tarifs": "Pricing",
+    "ressources": "Resources",
+    "faq": "FAQ",
+    "communaute": "Community",
+    "apropos": "About",
+    "legal": "Legal",
+    "cgv": "Terms",
+    "confidentialite": "Privacy",
+    "mentions": "Legal notice",
+    "garantie": "30-day guarantee",
+    "copyright": "© 2026 AcadémIA Pro · AcadémIA Pro Certification · All rights reserved"
+  },
+  "dashboard": {
+    "titre": "My Learning Space",
+    "bienvenue": "Welcome",
+    "mes_formations": "My courses",
+    "progression": "My progress",
+    "certificats": "My certificates",
+    "coach": "AI Coach",
+    "deconnexion": "Sign out"
+  }
+}
