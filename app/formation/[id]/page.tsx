@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useTranslation } from "../../../hooks/useTranslation";
+import LMSSection from "../../../components/LMSSection";
 
 export default function FormationPage({ params }: { params: { id: string } }) {
   const { t, langue } = useTranslation("formation");
@@ -27,7 +28,7 @@ export default function FormationPage({ params }: { params: { id: string } }) {
 
   if (!formation || formation.error) return (
     <div style={{ backgroundColor: "#050508", minHeight: "100vh", color: "#fff", padding: "40px", textAlign: "center" }}>
-      <h1 style={{ color: "#c8a96e" }}>Formation non trouvée</h1>
+      <h1 style={{ color: "#c8a96e" }}>Formation non trouvée</h1>
       <a href="/catalogue" style={{ color: "#c8a96e" }}>Retour au catalogue</a>
     </div>
   );
@@ -117,7 +118,7 @@ export default function FormationPage({ params }: { params: { id: string } }) {
           <div style={{ background: "rgba(200,169,110,0.08)", border: "1px solid rgba(200,169,110,0.2)", borderRadius: "10px", padding: "20px", marginBottom: "30px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div>
               <div style={{ color: "#c8a96e", fontWeight: "bold", marginBottom: "3px" }}>📄 Support de cours</div>
-              <div style={{ color: "rgba(255,255,255,0.4)", fontSize: "12px" }}>Document complet · Français · 300+ pages</div>
+              <div style={{ color: "rgba(255,255,255,0.4)", fontSize: "12px" }}>Document complet · Français · 300+ pages</div>
             </div>
             <a href={pdfUrl} target="_blank"
               style={{ background: "#c8a96e", color: "#050508", padding: "10px 20px", borderRadius: "8px", textDecoration: "none", fontWeight: "bold", fontSize: "13px" }}>
@@ -135,13 +136,7 @@ export default function FormationPage({ params }: { params: { id: string } }) {
           </a>
         </div>
 
-        <div style={{ textAlign: "center", padding: "40px", background: "rgba(255,255,255,0.03)", borderRadius: "12px" }}>
-          <h2 style={{ color: "#fff", fontFamily: "Georgia,serif", marginBottom: "10px" }}>{t("pret")}</h2>
-          <p style={{ color: "rgba(255,255,255,0.6)", marginBottom: "20px" }}>{t("acces")}</p>
-          <a href="/inscription" style={{ display: "inline-block", background: "#c8a96e", color: "#050508", padding: "16px 40px", borderRadius: "8px", textDecoration: "none", fontWeight: "bold", fontSize: "18px" }}>
-            {t("acheter")} — {formation.prix}€
-          </a>
-        </div>
+        <LMSSection code={params.id.toUpperCase()} />
 
       </div>
     </div>
