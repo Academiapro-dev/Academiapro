@@ -30,7 +30,7 @@ useEffect(() => {
       setChargement(true);
       let query = supabase
         .from("classes_virtuelles")
-        .select("*")_
+        .select("*")
   
         .gte("date_session", "2026-01-01")
         .order("date_session", { ascending: true });
