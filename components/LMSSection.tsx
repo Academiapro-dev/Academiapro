@@ -75,4 +75,3 @@ export default function LMSSection({ code }: { code: string }) {
     </div>
   );
 }
-
