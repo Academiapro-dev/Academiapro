@@ -28,7 +28,7 @@ export default function ClasseVirtuellePage() {
         .from("classes_virtuelles")
         .select("*")
         .eq("statut", "planifie")
-        .gte("date_session", new Date().toISOString())
+        .gte("date_session", "2026-01-01")
         .order("date_session", { ascending: true });
 
       if (categorie) {
