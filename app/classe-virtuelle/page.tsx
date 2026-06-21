@@ -17,9 +17,13 @@ export default function ClasseVirtuellePage() {
   const [participants] = useState(Math.floor(Math.random() * 8) + 3);
 
   // Récupère la catégorie depuis l'URL si présente
-  const categorie = typeof window !== "undefined"
-    ? new URLSearchParams(window.location.search).get("categorie")
-    : null;
+  const [categorie, setCategorie] = useState<string | null>(null);
+
+useEffect(() => {
+  const params = new URLSearchParams(window.location.search);
+  setCategorie(params.get("categorie"));
+}, []);
+
 
   useEffect(() => {
     async function chargerSessions() {
