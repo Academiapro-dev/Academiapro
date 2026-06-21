@@ -28,19 +28,12 @@ useEffect(() => {
   useEffect(() => {
     async function chargerSessions() {
       setChargement(true);
-      let query = supabase
-        .from("classes_virtuelles")
-        .select("*")
-  
-        .gte("date_session", "2026-01-01")
-        .order("date_session", { ascending: true });
-
-      if (categorie) {
-        query = query.eq("categorie", categorie);
-      }
-
-      const { data, error } = await query;
-      if (!error && data) setSessions(data);
+      const url = categorie
+        ? `/api/classes-virtuelles?categorie=${categorie}`
+        : `/api/classes-virtuelles`;
+      const res = await fetch(url);
+      const data = await res.json();
+      if (Array.isArray(data)) setSessions(data);
       setChargement(false);
     }
     chargerSessions();
