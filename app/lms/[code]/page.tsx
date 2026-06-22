@@ -56,7 +56,7 @@ export default function LMSPage({ params }) {
 
   function extraireQCM(contenu) {
     const questions = [];
-    const lignes = contenu.split("\n");
+    const lignes = (contenu || "").split("\n");
     let qActuelle = null;
     for (const ligne of lignes) {
       const l = ligne.trim();
@@ -120,7 +120,14 @@ export default function LMSPage({ params }) {
     </div>
   );
 
-  const chapitres = lmsData.contenu || [];
+  // Support v6 (contenu.chapitres) et ancien format (contenu = array)
+  const contenuLMS = lmsData.contenu;
+  const chapitres = Array.isArray(contenuLMS) ? contenuLMS : (contenuLMS?.chapitres || []);
+  const examenBlanc = lmsData.examen_blanc || contenuLMS?.examen_blanc || "";
+  const formateur = contenuLMS?.formateur || "";
+  const coach = contenuLMS?.coach || "";
+  const coaching = contenuLMS?.coaching || "";
+
   const chapitreActifData = chapitres[moduleActif.ch];
   const moduleActifData = chapitreActifData?.modules?.[moduleActif.mod];
   const contenuModule = moduleActifData?.contenu || "";
@@ -138,6 +145,7 @@ export default function LMSPage({ params }) {
           <div>
             <p style={{ color: "#c8a96e", fontSize: "12px", margin: "0 0 4px" }}>AcadeMIA Pro · LMS</p>
             <h1 style={{ color: "#fff", fontFamily: "Georgia,serif", fontSize: "20px", margin: 0 }}>{formation?.titre || code}</h1>
+            {formateur && <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "12px", margin: "4px 0 0" }}>Formateur : {formateur}</p>}
           </div>
           <div style={{ textAlign: "right" }}>
             <p style={{ color: "#c8a96e", fontSize: "12px", margin: "0 0 4px" }}>Progression globale</p>
@@ -169,7 +177,7 @@ export default function LMSPage({ params }) {
               })}
             </div>
           ))}
-          {lmsData.examen_blanc && (
+          {examenBlanc && (
             <div onClick={() => setOnglet("examen")} style={{ padding: "10px", marginTop: "10px", borderRadius: "6px", cursor: "pointer", background: onglet === "examen" ? "rgba(200,169,110,0.2)" : "transparent", border: "1px solid rgba(200,169,110,0.3)", textAlign: "center" }}>
               <span style={{ color: "#c8a96e", fontSize: "12px", fontWeight: "bold" }}>🎯 Examen Blanc Final</span>
             </div>
@@ -196,10 +204,10 @@ export default function LMSPage({ params }) {
 
           {onglet === "cours" && (
             <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(200,169,110,0.2)", borderRadius: "12px", padding: "25px", maxHeight: "600px", overflowY: "auto" }}>
-              {contenuModule.split("\n").map((ligne, i) => {
+              {(contenuModule || "").split("\n").map((ligne, i) => {
                 const l = ligne.trim();
                 if (!l) return <br key={i} />;
-                const isTitle = ["INTRODUCTION","CONTEXTE","THEORIE","PROTOCOLE","EXERCICES","ETUDES","CONTRE","RESSOURCES","POINTS CLES","PARTIE","OBJECTIFS","SYNTHESE"].some(x => l.toUpperCase().startsWith(x));
+                const isTitle = ["INTRODUCTION","CONTEXTE","THEORIE","PROTOCOLE","EXERCICES","ETUDES","RESSOURCES","POINTS CLES","PARTIE","OBJECTIFS","SYNTHESE"].some(x => l.toUpperCase().startsWith(x));
                 return isTitle ? <h3 key={i} style={{ color: "#c8a96e", fontFamily: "Georgia,serif", margin: "20px 0 8px", fontSize: "14px" }}>{l}</h3> : <p key={i} style={{ color: "rgba(255,255,255,0.8)", lineHeight: "1.8", margin: "0 0 6px", fontSize: "13px" }}>{l}</p>;
               })}
               <div style={{ marginTop: "20px", textAlign: "center" }}>
@@ -217,7 +225,7 @@ export default function LMSPage({ params }) {
               {questions.length === 0 ? <p style={{ color: "rgba(255,255,255,0.5)" }}>QCM non disponible pour ce module.</p> : (
                 <>
                   {questions.map((q, i) => (
-                    <div key={i} style={{ marginBottom: "20px", padding: "15px", background: "rgba(255,255,255,0.03)", borderRadius: "8px", border: "1px solid rgba(200,169,110,0.1)" }}>
+                    <div key={i} style={{ marginBottom: "20px", padding: "15px", background: "rgba(255,255,255,0.03)", borderRadius: "8px" }}>
                       <p style={{ color: "#fff", fontWeight: "bold", margin: "0 0 10px", fontSize: "13px" }}>Q{i + 1}. {q.question}</p>
                       {q.options.map((opt, oi) => {
                         const lettre = opt[0];
@@ -244,10 +252,7 @@ export default function LMSPage({ params }) {
                       <p style={{ color: qcmScore >= 70 ? "#00c800" : "#ff4444", fontSize: "24px", fontWeight: "bold", margin: "0 0 10px" }}>{qcmScore}%</p>
                       <p style={{ color: "#fff", margin: "0 0 15px", fontSize: "14px" }}>{messageValidateur}</p>
                       <div style={{ display: "flex", gap: "10px", justifyContent: "center" }}>
-                        <button onClick={() => { setQcmScore(null); setQcmReponses({}); setMessageValidateur(""); }}
-                          style={{ background: "rgba(200,169,110,0.2)", color: "#c8a96e", padding: "10px 20px", borderRadius: "8px", border: "1px solid #c8a96e", cursor: "pointer" }}>
-                          Recommencer
-                        </button>
+                        <button onClick={() => { setQcmScore(null); setQcmReponses({}); setMessageValidateur(""); }} style={{ background: "rgba(200,169,110,0.2)", color: "#c8a96e", padding: "10px 20px", borderRadius: "8px", border: "1px solid #c8a96e", cursor: "pointer" }}>Recommencer</button>
                         {qcmScore >= 50 && (
                           <button onClick={() => {
                             const newMod = moduleActif.mod + 1;
@@ -270,6 +275,7 @@ export default function LMSPage({ params }) {
           {onglet === "chat" && (
             <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(200,169,110,0.2)", borderRadius: "12px", padding: "25px" }}>
               <h3 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", margin: "0 0 15px" }}>Coach IA — Disponible 24h/24</h3>
+              {coaching && <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "13px", fontStyle: "italic", marginBottom: "15px" }}>"{coaching}"</p>}
               <div style={{ minHeight: "300px", maxHeight: "400px", overflowY: "auto", marginBottom: "15px" }}>
                 {chatHistory.length === 0 && <p style={{ color: "rgba(255,255,255,0.3)", textAlign: "center", marginTop: "80px" }}>Posez une question sur votre formation...</p>}
                 {chatHistory.map((msg, i) => (
@@ -293,7 +299,7 @@ export default function LMSPage({ params }) {
               {progressionPct < 70 ? (
                 <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "14px", textAlign: "center" }}>Completez au moins 70% des modules. Progression : {progressionPct}%</p>
               ) : (
-                lmsData.examen_blanc?.split("\n").map((ligne, i) => {
+                (examenBlanc || "").split("\n").map((ligne, i) => {
                   const l = ligne.trim();
                   if (!l) return <br key={i} />;
                   const isTitle = ["PARTIE","QCM","QUESTIONS","CAS","CORRIGE","BAREME","EXAMEN","INSTRUCTIONS"].some(x => l.toUpperCase().startsWith(x));
