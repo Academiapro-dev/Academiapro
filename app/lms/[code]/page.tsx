@@ -1,4 +1,16 @@
 "use client";
+
+function nettoyer(texte) {
+  if (!texte) return "";
+  return texte
+    .replace(/#{1,6}\s/g, "")
+    .replace(/\*\*(.+?)\*\*/g, "$1")
+    .replace(/\*(.+?)\*/g, "$1")
+    .replace(/---/g, "")
+    .replace(/^>\s/gm, "")
+    .trim();
+}
+
 import { useState, useEffect } from "react";
 
 export default function LMSPage({ params }) {
@@ -200,7 +212,7 @@ export default function LMSPage({ params }) {
                 const l = ligne.trim();
                 if (!l) return <br key={i} />;
                 const isTitle = ["INTRODUCTION","CONTEXTE","THEORIE","PROTOCOLE","EXERCICES","ETUDES","RESSOURCES","POINTS CLES","PARTIE","OBJECTIFS","SYNTHESE"].some(x => l.toUpperCase().startsWith(x));
-                return isTitle ? <h3 key={i} style={{ color: "#c8a96e", fontFamily: "Georgia,serif", margin: "20px 0 8px", fontSize: "14px" }}>{l}</h3> : <p key={i} style={{ color: "rgba(255,255,255,0.8)", lineHeight: "1.8", margin: "0 0 6px", fontSize: "13px" }}>{l}</p>;
+                return isTitle ? <h3 key={i} style={{ color: "#c8a96e", fontFamily: "Georgia,serif", margin: "20px 0 8px", fontSize: "14px" }}>{nettoyer(l)}</h3> : <p key={i} style={{ color: "rgba(255,255,255,0.8)", lineHeight: "1.8", margin: "0 0 6px", fontSize: "13px" }}>{nettoyer(l)}</p>;
               })}
               <div style={{ marginTop: "20px", textAlign: "center" }}>
                 <button onClick={() => { setOnglet("qcm"); setQcmScore(null); setQcmReponses({}); setMessageValidateur(""); }}
