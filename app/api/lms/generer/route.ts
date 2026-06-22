@@ -48,67 +48,47 @@ const CHAPITRES = [
   ]},
 ];
 
-async function generer(formation, chapitre, module, langue) {
-  const langue_nom = LANGUES[langue] || "francais";
-
-  const type_instructions = {
-    theorie: `STRUCTURE OBLIGATOIRE DU CONTENU THEORIQUE:
-1. INTRODUCTION GENERALE (3 paragraphes denses - contexte historique et scientifique)
-2. FONDEMENTS THEORIQUES (5 paragraphes - bases conceptuelles approfondies avec citations d auteurs)
-3. MECANISMES ET PROCESSUS (4 paragraphes - comment ca fonctionne scientifiquement)
-4. RECHERCHES ET ETUDES SCIENTIFIQUES (3 paragraphes - etudes cliniques et resultats)
-5. APPLICATIONS THEORIQUES (3 paragraphes - comment appliquer cette theorie)
-6. ENCADRE POINTS CLES (liste de 10 points essentiels a retenir)
-7. CONCEPTS AVANCES (4 paragraphes - approfondissement pour praticiens)
-8. LIENS AVEC LES AUTRES MODULES (2 paragraphes)
-9. GLOSSAIRE DU MODULE (15 termes cles avec definitions)
-10. BIBLIOGRAPHIE SELECTIVE (8 references)
-TOTAL MINIMUM: 30 paragraphes denses + glossaire + bibliographie`,
-
-    pratique: `STRUCTURE OBLIGATOIRE DU CONTENU PRATIQUE:
-1. INTRODUCTION ET OBJECTIFS PRATIQUES (2 paragraphes)
-2. PREPARATION ET CADRE DE PRATIQUE (3 paragraphes - environnement, materiel, posture)
-3. EXERCICE 1 COMPLET (objectif + preparation + protocole detaille etape par etape + variantes + contre-indications)
-4. EXERCICE 2 COMPLET (meme structure)
-5. EXERCICE 3 COMPLET (meme structure)
-6. EXERCICE 4 COMPLET (meme structure)
-7. EXERCICE 5 COMPLET (meme structure)
-8. SCRIPT COMPLET DE SEANCE (guide verbal mot a mot pour une seance de 45 minutes)
-9. FICHE DE SUIVI APPRENANT (grille d evaluation et d auto-evaluation)
-10. ADAPTATION POUR DIFFERENTS PUBLICS (enfants, seniors, sportifs, personnes en difficulte)
-11. ERREURS COURANTES ET CORRECTIONS
-12. PROGRESSION ET NIVEAUX D AVANCEMENT
-TOTAL MINIMUM: 25 paragraphes denses + scripts + fiches`,
-
-    evaluation: `STRUCTURE OBLIGATOIRE DU CONTENU EVALUATION:
-1. INTRODUCTION ET OBJECTIFS DE L EVALUATION (1 paragraphe)
-2. QCM PARTIE 1 - 10 QUESTIONS (chaque question avec 4 options A B C D + reponse correcte + explication detaillee de 3-4 lignes)
-3. QCM PARTIE 2 - 10 QUESTIONS AVANCEES (meme structure)
-4. QUESTIONS DE CAS PRATIQUE - 5 SCENARIOS (description complete du cas + questions + reponses attendues detaillees)
-5. QUESTIONS DE REFLEXION PROFESSIONNELLE - 3 QUESTIONS (avec reponses type)
-6. GRILLE D AUTO-EVALUATION (20 criteres avec indicateurs de maitrise)
-7. CORRIGE COMPLET ET JUSTIFICATIONS SCIENTIFIQUES
-8. RESSOURCES COMPLEMENTAIRES (10 references livres articles sites)
-9. CONSEILS POUR PROGRESSER
-TOTAL MINIMUM: 30 questions evaluatives + explications completes`,
-  };
-
-  const prompt = "Tu es Claire Beaumont, formatrice experte en sophrologie caycedienne certifiee au niveau doctoral pour AcadeMIA Pro. Tu rediges un MANUEL DE FORMATION PROFESSIONNEL COMPLET equivalent a 15 pages d un livre universitaire. FORMATION: " + formation.titre + ". CHAPITRE " + chapitre.numero + ": " + chapitre.titre + ". MODULE " + module.numero + ": " + module.titre + ". LANGUE: " + langue_nom + ". " + (type_instructions[module.type] || type_instructions.theorie) + ". REGLES ABSOLUES: Chaque paragraphe doit faire minimum 8 lignes. Utilise un vocabulaire professionnel et academique. Cite des auteurs reels (Caycedo, Benson, Kabat-Zinn etc). Inclus des exemples concrets tires de la pratique clinique. N abrege JAMAIS. Redige ENTIEREMENT en " + langue_nom + ". Le contenu doit etre immediatement utilisable par un sophrologue professionnel.";
-
+async function appel_claude(prompt, langue_nom) {
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: { "x-api-key": CLAUDE_API_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json" },
     body: JSON.stringify({
       model: "claude-sonnet-4-6",
-      max_tokens: 8000,
-      system: "Tu es un auteur de manuels universitaires de formation professionnelle. Chaque module que tu rediges est equivalent a un chapitre complet d un livre de 300 pages. Tu ne fais jamais de contenu court ou superficiel. Tu developpes chaque point en profondeur avec des exemples concrets des citations scientifiques et des applications pratiques detaillees. Tu rediges toujours entierement dans la langue demandee sans jamais melanger les langues.",
+      max_tokens: 4000,
+      system: "Tu es Claire Beaumont, auteure de manuels universitaires de sophrologie caycedienne de niveau doctoral. Tu rediges des contenus denses professionnels et academiques. Chaque paragraphe fait minimum 8 lignes. Tu n abreges jamais. Tu rediges entierement en " + langue_nom + ".",
       messages: [{ role: "user", content: prompt }],
     }),
   });
-
-  if (!res.ok) return "Erreur generation contenu";
+  if (!res.ok) return "";
   const data = await res.json();
   return data.content[0].text || "";
+}
+
+async function generer(formation, chapitre, module, langue) {
+  const langue_nom = LANGUES[langue] || "francais";
+  const contexte = "Formation: " + formation.titre + ". Chapitre " + chapitre.numero + ": " + chapitre.titre + ". Module " + module.numero + ": " + module.titre + ".";
+
+  const prompts = {
+    theorie: [
+      contexte + " PARTIE 1 SUR 3 - INTRODUCTION ET FONDEMENTS HISTORIQUES. Redige: (1) Introduction generale 3 paragraphes denses sur le contexte historique et scientifique. (2) Biographie detaillee du fondateur et genese de la discipline 4 paragraphes. (3) Contexte philosophique et scientifique de l epoque 3 paragraphes. (4) Premiers travaux et decouvertes fondamentales 3 paragraphes. Langue: " + langue_nom,
+      contexte + " PARTIE 2 SUR 3 - BASES THEORIQUES ET SCIENTIFIQUES. Redige: (1) Mecanismes neurobiologiques et physiologiques detailles 4 paragraphes avec citations scientifiques. (2) Etudes cliniques et recherches publiees 3 paragraphes. (3) Concepts fondamentaux et definitions 4 paragraphes. (4) Comparaison avec autres approches therapeutiques 3 paragraphes. (5) Applications theoriques en pratique clinique 3 paragraphes. Langue: " + langue_nom,
+      contexte + " PARTIE 3 SUR 3 - APPROFONDISSEMENT ET RESSOURCES. Redige: (1) Concepts avances pour praticiens experimentes 4 paragraphes. (2) Cas cliniques illustratifs detailles 3 paragraphes. (3) Points cles essentiels liste de 10 items developpes. (4) Glossaire de 15 termes cles avec definitions completes. (5) Bibliographie selective de 8 references commentees. Langue: " + langue_nom,
+    ],
+    pratique: [
+      contexte + " PARTIE 1 SUR 3 - PREPARATION ET EXERCICES 1 ET 2. Redige: (1) Introduction aux objectifs pratiques 2 paragraphes. (2) Preparation cadre et environnement de pratique 3 paragraphes. (3) EXERCICE 1 COMPLET: objectif preparation protocole detaille etape par etape variantes contre-indications. (4) EXERCICE 2 COMPLET: meme structure complete. Langue: " + langue_nom,
+      contexte + " PARTIE 2 SUR 3 - EXERCICES 3 4 ET 5. Redige: (1) EXERCICE 3 COMPLET avec protocole detaille. (2) EXERCICE 4 COMPLET avec protocole detaille. (3) EXERCICE 5 COMPLET avec protocole detaille. (4) Script complet de seance guidee mot a mot pour 30 minutes. Langue: " + langue_nom,
+      contexte + " PARTIE 3 SUR 3 - ADAPTATION ET SUIVI. Redige: (1) Adaptation pour differents publics enfants seniors sportifs personnes en difficulte 4 paragraphes par public. (2) Erreurs courantes et corrections detaillees. (3) Fiche de suivi apprenant avec grille d evaluation 20 criteres. (4) Progression et niveaux d avancement. (5) Ressources complementaires 8 references. Langue: " + langue_nom,
+    ],
+    evaluation: [
+      contexte + " PARTIE 1 SUR 3 - QCM 1 A 10. Redige 10 questions QCM. Chaque question: enonce detaille + 4 options A B C D + reponse correcte + explication de 5 lignes minimum. Langue: " + langue_nom,
+      contexte + " PARTIE 2 SUR 3 - QCM 11 A 20. Redige 10 questions QCM avancees. Chaque question: enonce detaille + 4 options A B C D + reponse correcte + explication de 5 lignes minimum. Langue: " + langue_nom,
+      contexte + " PARTIE 3 SUR 3 - CAS PRATIQUES ET BILAN. Redige: (1) 5 scenarios de cas pratiques complets avec questions et reponses attendues detaillees. (2) 3 questions de reflexion professionnelle avec reponses type. (3) Grille d auto-evaluation 20 criteres avec indicateurs. (4) Conseils pour progresser. (5) Ressources complementaires 10 references. Langue: " + langue_nom,
+    ],
+  };
+
+  const type_prompts = prompts[module.type] || prompts.theorie;
+  const parties = await Promise.all(type_prompts.map(p => appel_claude(p, langue_nom)));
+  return parties.join("\n\n---\n\n");
 }
 
 export async function POST(req) {
