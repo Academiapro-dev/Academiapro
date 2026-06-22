@@ -4,15 +4,9 @@ import { useTranslation } from "../../../hooks/useTranslation";
 import LMSSection from "../../../components/LMSSection";
 import LMSSophrologie from "../../../components/LMSSophrologie";
 
-function nettoyer_markdown(texte) {
+function nettoyer(texte) {
   if (!texte) return "";
-  return texte
-    .replace(/#{1,6}\s/g, "")
-    .replace(/\*\*(.+?)\*\*/g, "$1")
-    .replace(/\*(.+?)\*/g, "$1")
-    .replace(/---/g, "")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
+  return texte.replace(/#{1,6}\s/g, "").replace(/\*\*(.+?)\*\*/g, "$1").replace(/\*(.+?)\*/g, "$1").replace(/---/g, "").trim();
 }
 
 export default function FormationPage({ params }) {
@@ -64,11 +58,7 @@ export default function FormationPage({ params }) {
       </div>
       <div style={{ maxWidth: "900px", margin: "0 auto", padding: "40px 20px" }}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "15px", marginBottom: "40px" }}>
-          {[
-            { icon: "📚", label: t("elearning"), desc: t("elearning_sub") },
-            { icon: "🤖", label: t("coach"), desc: t("coach_sub") },
-            { icon: "🎥", label: t("classe"), desc: t("classe_sub") },
-          ].map(item => (
+          {[{ icon: "📚", label: t("elearning"), desc: t("elearning_sub") }, { icon: "🤖", label: t("coach"), desc: t("coach_sub") }, { icon: "🎥", label: t("classe"), desc: t("classe_sub") }].map(item => (
             <div key={item.label} style={{ background: "rgba(200,169,110,0.1)", border: "1px solid rgba(200,169,110,0.3)", borderRadius: "10px", padding: "15px", textAlign: "center" }}>
               <div style={{ fontSize: "28px", marginBottom: "8px" }}>{item.icon}</div>
               <div style={{ color: "#c8a96e", fontWeight: "bold", fontSize: "14px" }}>{item.label}</div>
@@ -76,30 +66,10 @@ export default function FormationPage({ params }) {
             </div>
           ))}
         </div>
-        {formation.description && (
-          <div style={{ marginBottom: "35px" }}>
-            <h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", marginBottom: "15px" }}>Description</h2>
-            <p style={{ color: "rgba(255,255,255,0.8)", lineHeight: "1.8" }}>{nettoyer_markdown(formation.description)}</p>
-          </div>
-        )}
-        {formation.objectifs && (
-          <div style={{ marginBottom: "35px" }}>
-            <h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", marginBottom: "15px" }}>{t("objectifs")}</h2>
-            <p style={{ color: "rgba(255,255,255,0.8)", lineHeight: "1.8" }}>{nettoyer_markdown(formation.objectifs)}</p>
-          </div>
-        )}
-        {formation.prerequis && (
-          <div style={{ marginBottom: "35px" }}>
-            <h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", marginBottom: "15px" }}>{t("prerequis")}</h2>
-            <p style={{ color: "rgba(255,255,255,0.8)", lineHeight: "1.8" }}>{nettoyer_markdown(formation.prerequis)}</p>
-          </div>
-        )}
-        {formation.public_cible && (
-          <div style={{ marginBottom: "35px" }}>
-            <h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", marginBottom: "15px" }}>{t("public_cible")}</h2>
-            <p style={{ color: "rgba(255,255,255,0.8)", lineHeight: "1.8" }}>{nettoyer_markdown(formation.public_cible)}</p>
-          </div>
-        )}
+        {formation.description && <div style={{ marginBottom: "35px" }}><h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", marginBottom: "15px" }}>Description</h2><p style={{ color: "rgba(255,255,255,0.8)", lineHeight: "1.8" }}>{nettoyer(formation.description)}</p></div>}
+        {formation.objectifs && <div style={{ marginBottom: "35px" }}><h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", marginBottom: "15px" }}>{t("objectifs")}</h2><p style={{ color: "rgba(255,255,255,0.8)", lineHeight: "1.8" }}>{nettoyer(formation.objectifs)}</p></div>}
+        {formation.prerequis && <div style={{ marginBottom: "35px" }}><h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", marginBottom: "15px" }}>{t("prerequis")}</h2><p style={{ color: "rgba(255,255,255,0.8)", lineHeight: "1.8" }}>{nettoyer(formation.prerequis)}</p></div>}
+        {formation.public_cible && <div style={{ marginBottom: "35px" }}><h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", marginBottom: "15px" }}>{t("public_cible")}</h2><p style={{ color: "rgba(255,255,255,0.8)", lineHeight: "1.8" }}>{nettoyer(formation.public_cible)}</p></div>}
         {pdfUrl && (
           <div style={{ background: "rgba(200,169,110,0.08)", border: "1px solid rgba(200,169,110,0.2)", borderRadius: "10px", padding: "20px", marginBottom: "30px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div>
@@ -113,10 +83,7 @@ export default function FormationPage({ params }) {
           <a href="/dashboard" style={{ flex: 1, display: "block", background: "#c8a96e", color: "#050508", padding: "14px 20px", borderRadius: "8px", fontWeight: "bold", textDecoration: "none", textAlign: "center" }}>{t("coach_btn")}</a>
           <a href="/classe-virtuelle" style={{ flex: 1, display: "block", background: "rgba(200,169,110,0.2)", color: "#c8a96e", padding: "14px 20px", borderRadius: "8px", fontWeight: "bold", textDecoration: "none", textAlign: "center", border: "1px solid rgba(200,169,110,0.3)" }}>{t("classe_btn")}</a>
         </div>
-        {params.id.toUpperCase() === "F030"
-          ? <LMSSophrologie langue={langue} />
-          : <LMSSection code={params.id.toUpperCase()} langue={langue} />
-        }
+        {params.id.toUpperCase() === "F030" ? <LMSSophrologie langue={langue} /> : <LMSSection code={params.id.toUpperCase()} langue={langue} />}
       </div>
     </div>
   );
