@@ -1,11 +1,13 @@
 "use client";
 import { useState, useEffect } from "react";
 
-const T: Record<string, Record<string, string>> = {
+const T = {
   fr: { formations: "Formations", seances: "Seances", blog: "Blog", contact: "Contact", demarrer: "Demarrer" },
   en: { formations: "Courses", seances: "Sessions", blog: "Blog", contact: "Contact", demarrer: "Get Started" },
   es: { formations: "Cursos", seances: "Sesiones", blog: "Blog", contact: "Contacto", demarrer: "Comenzar" },
-  ar: { formations: "الدورات", seances: "الجلسات", blog: "المدونة", contact: "اتصل", demarrer: "ابدأ" },
+  pt: { formations: "Cursos", seances: "Sessoes", blog: "Blog", contact: "Contato", demarrer: "Comecar" },
+  de: { formations: "Kurse", seances: "Sitzungen", blog: "Blog", contact: "Kontakt", demarrer: "Loslegen" },
+  ar: { formations: "الدورات", seances: "الجلسات", blog: "المدونة", contact: "اتصل", demarrer: "ابدأ" },
   he: { formations: "קורסים", seances: "פגישות", blog: "בלוג", contact: "צור קשר", demarrer: "התחל" },
 };
 
@@ -17,7 +19,7 @@ export default function NavBar() {
     setLangue(saved);
   }, []);
 
-  function changerLangue(l: string) {
+  function changerLangue(l) {
     localStorage.setItem("langue", l);
     setLangue(l);
     const url = new URL(window.location.href);
@@ -25,16 +27,16 @@ export default function NavBar() {
     window.location.href = url.toString();
   }
 
-  const t = (cle: string) => T[langue]?.[cle] || T["fr"][cle] || cle;
+  const t = (cle) => T[langue]?.[cle] || T["fr"][cle] || cle;
 
   return (
     <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "15px 40px", background: "rgba(5,5,8,0.95)", backdropFilter: "blur(10px)", borderBottom: "1px solid rgba(200,169,110,0.15)", position: "sticky", top: 0, zIndex: 1000 }}>
       <a href="/" style={{ color: "#c8a96e", fontFamily: "Georgia,serif", fontSize: "20px", fontWeight: "bold", textDecoration: "none" }}>
-        AcadémIA Pro
+        AcadémIA Pro
       </a>
       <nav style={{ display: "flex", gap: "25px" }}>
-        <a href={`/catalogue?lang=${langue}`} style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "14px" }}>{t("formations")}</a>
-        <a href={`/seances?lang=${langue}`} style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "14px" }}>{t("seances")}</a>
+        <a href={"/catalogue?lang=" + langue} style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "14px" }}>{t("formations")}</a>
+        <a href={"/seances?lang=" + langue} style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "14px" }}>{t("seances")}</a>
         <a href="/blog" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "14px" }}>{t("blog")}</a>
         <a href="/contact" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "14px" }}>{t("contact")}</a>
       </nav>
@@ -47,6 +49,8 @@ export default function NavBar() {
           <option value="fr">🇫🇷 FR</option>
           <option value="en">🇬🇧 EN</option>
           <option value="es">🇪🇸 ES</option>
+          <option value="pt">🇧🇷 PT</option>
+          <option value="de">🇩🇪 DE</option>
           <option value="ar">🇸🇦 AR</option>
           <option value="he">🇮🇱 HE</option>
         </select>
