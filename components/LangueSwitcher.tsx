@@ -1,9 +1,9 @@
 "use client";
 import { useState, useEffect, createContext, useContext } from "react";
 
-export const LangueContext = createContext<any>({ langue: "fr", setLangue: () => {} });
+export const LangueContext = createContext({ langue: "fr", setLangue: (l) => {} });
 
-export function LangueProvider({ children }: { children: React.ReactNode }) {
+export function LangueProvider({ children }) {
   const [langue, setLangue] = useState("fr");
 
   useEffect(() => {
@@ -11,7 +11,7 @@ export function LangueProvider({ children }: { children: React.ReactNode }) {
     setLangue(saved);
   }, []);
 
-  function changerLangue(l: string) {
+  function changerLangue(l) {
     setLangue(l);
     localStorage.setItem("langue", l);
   }
@@ -32,11 +32,10 @@ const LANGUES = [
   { code: "en", label: "EN", drapeau: "🇬🇧", nom: "English" },
   { code: "es", label: "ES", drapeau: "🇪🇸", nom: "Español" },
   { code: "pt", label: "PT", drapeau: "🇧🇷", nom: "Português" },
-  { code: "de", label: "DE", drapeau: "🇩", nom: "Deutsch" },
+  { code: "de", label: "DE", drapeau: "🇩🇪", nom: "Deutsch" },
   { code: "ar", label: "AR", drapeau: "🇸🇦", nom: "العربية" },
   { code: "he", label: "HE", drapeau: "🇮🇱", nom: "עברית" },
 ];
-
 
 export default function LangueSwitcher() {
   const { langue, setLangue } = useLangue();
@@ -54,7 +53,7 @@ export default function LangueSwitcher() {
       </button>
 
       {ouvert && (
-        <div style={{ position: "absolute", top: "40px", right: 0, background: "#1a1a2e", border: "1px solid rgba(200,169,110,0.3)", borderRadius: "10px", overflow: "hidden", zIndex: 1000, minWidth: "150px", boxShadow: "0 10px 30px rgba(0,0,0,0.5)" }}>
+        <div style={{ position: "absolute", top: "40px", right: 0, background: "#1a1a2e", border: "1px solid rgba(200,169,110,0.3)", borderRadius: "10px", zIndex: 1000, minWidth: "170px", boxShadow: "0 10px 30px rgba(0,0,0,0.5)", maxHeight: "320px", overflowY: "auto" }}>
           {LANGUES.map(l => (
             <button
               key={l.code}
