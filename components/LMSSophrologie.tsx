@@ -26,6 +26,54 @@ const LABELS = {
 function getTitre(ch, langue) { return ch["titre_" + langue] || ch.titre_fr; }
 function getTypeIcon(type) { if (type === "theorie") return "📖"; if (type === "pratique") return "🛠️"; return "📝"; }
 
+function formaterContenu(texte) {
+  if (!texte) return [];
+  const lignes = texte.split("\n");
+  const elements = [];
+  let i = 0;
+  while (i < lignes.length) {
+    const ligne = lignes[i].trim();
+    if (!ligne) { i++; continue; }
+    if (ligne.startsWith("### ")) {
+      elements.push({ type: "h3", texte: ligne.replace(/^### /, "") });
+    } else if (ligne.startsWith("## ")) {
+      elements.push({ type: "h2", texte: ligne.replace(/^## /, "") });
+    } else if (ligne.startsWith("# ")) {
+      elements.push({ type: "h1", texte: ligne.replace(/^# /, "") });
+    } else if (ligne === "---") {
+      elements.push({ type: "separateur" });
+    } else if (ligne.startsWith("**") && ligne.endsWith("**")) {
+      elements.push({ type: "gras", texte: ligne.replace(/\*\*/g, "") });
+    } else if (ligne.startsWith("> ")) {
+      elements.push({ type: "citation", texte: ligne.replace(/^> /, "") });
+    } else {
+      const texte_propre = ligne
+        .replace(/\*\*(.+?)\*\*/g, "$1")
+        .replace(/\*(.+?)\*/g, "$1");
+      elements.push({ type: "paragraphe", texte: texte_propre });
+    }
+    i++;
+  }
+  return elements;
+}
+
+function AfficherContenu({ contenu }) {
+  const elements = formaterContenu(contenu);
+  return (
+    <div>
+      {elements.map((el, i) => {
+        if (el.type === "h1") return <h2 key={i} style={{ color: "#c8a96e", fontFamily: "Georgia,serif", fontSize: "20px", marginTop: "30px", marginBottom: "12px", borderBottom: "1px solid rgba(200,169,110,0.3)", paddingBottom: "8px" }}>{el.texte}</h2>;
+        if (el.type === "h2") return <h3 key={i} style={{ color: "#c8a96e", fontFamily: "Georgia,serif", fontSize: "18px", marginTop: "25px", marginBottom: "10px" }}>{el.texte}</h3>;
+        if (el.type === "h3") return <h4 key={i} style={{ color: "rgba(200,169,110,0.8)", fontSize: "16px", marginTop: "20px", marginBottom: "8px", fontWeight: "bold" }}>{el.texte}</h4>;
+        if (el.type === "separateur") return <hr key={i} style={{ border: "none", borderTop: "1px solid rgba(200,169,110,0.2)", margin: "20px 0" }} />;
+        if (el.type === "gras") return <p key={i} style={{ color: "#fff", fontSize: "16px", fontWeight: "bold", lineHeight: "1.8", marginBottom: "12px" }}>{el.texte}</p>;
+        if (el.type === "citation") return <blockquote key={i} style={{ borderLeft: "3px solid #c8a96e", paddingLeft: "16px", margin: "16px 0", color: "rgba(255,255,255,0.75)", fontStyle: "italic", fontSize: "16px", lineHeight: "1.8" }}>{el.texte}</blockquote>;
+        return <p key={i} style={{ color: "rgba(255,255,255,0.85)", fontSize: "16px", lineHeight: "1.9", marginBottom: "16px", textAlign: "justify" }}>{el.texte}</p>;
+      })}
+    </div>
+  );
+}
+
 export default function LMSSophrologie({ langue = "fr" }) {
   const [chapitreActif, setChapitreActif] = useState(1);
   const [moduleActif, setModuleActif] = useState(1);
@@ -41,7 +89,11 @@ export default function LMSSophrologie({ langue = "fr" }) {
   async function charger(ch_num, mod_num) {
     setLoading(true); setContenu(""); setStatut(lb.chargement);
     try {
-      const r = await fetch("/api/lms/generer", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ formation_code: "F030", chapitre_num: ch_num, module_num: mod_num, langue }) });
+      const r = await fetch("/api/lms/generer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ formation_code: "F030", chapitre_num: ch_num, module_num: mod_num, langue }),
+      });
       const data = await r.json();
       if (data.succes) { setContenu(data.contenu); setStatut(data.depuis_cache ? lb.depuis_cache : lb.genere); }
       else { setStatut("Erreur: " + (data.erreur || "inconnue")); }
@@ -54,18 +106,18 @@ export default function LMSSophrologie({ langue = "fr" }) {
       <div style={{ background: "linear-gradient(135deg,rgba(200,169,110,0.15),rgba(200,169,110,0.05))", border: "1px solid rgba(200,169,110,0.3)", borderRadius: "12px", padding: "24px", marginBottom: "25px", display: "flex", alignItems: "center", gap: "20px" }}>
         <div style={{ width: "56px", height: "56px", borderRadius: "50%", background: "linear-gradient(135deg,#c8a96e,#a07840)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "24px", flexShrink: 0 }}>🧘</div>
         <div>
-          <div style={{ color: "#c8a96e", fontWeight: "bold", fontSize: "16px", marginBottom: "4px" }}>Claire Beaumont</div>
-          <div style={{ color: "rgba(255,255,255,0.7)", fontSize: "13px" }}>Formatrice Expert Sophrologie Caycedienne AcadeMIA Pro</div>
+          <div style={{ color: "#c8a96e", fontWeight: "bold", fontSize: "17px", marginBottom: "4px" }}>Claire Beaumont</div>
+          <div style={{ color: "rgba(255,255,255,0.7)", fontSize: "15px" }}>Formatrice Expert Sophrologie Caycedienne AcadeMIA Pro</div>
         </div>
       </div>
       <div style={{ marginBottom: "20px" }}>
-        <h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", fontSize: "16px", marginBottom: "12px" }}>{lb.programme}</h2>
+        <h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", fontSize: "17px", marginBottom: "12px" }}>{lb.programme}</h2>
         <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
           {CHAPITRES.map((ch) => (
             <button key={ch.numero} onClick={() => { setChapitreActif(ch.numero); setModuleActif(1); }}
-              style={{ textAlign: "left", padding: "14px 18px", borderRadius: "10px", border: "1px solid " + (chapitreActif === ch.numero ? "#c8a96e" : "rgba(200,169,110,0.2)"), background: chapitreActif === ch.numero ? "rgba(200,169,110,0.15)" : "#1a1a2e", color: chapitreActif === ch.numero ? "#c8a96e" : "rgba(255,255,255,0.7)", cursor: "pointer" }}>
+              style={{ textAlign: "left", padding: "14px 18px", borderRadius: "10px", border: "1px solid " + (chapitreActif === ch.numero ? "#c8a96e" : "rgba(200,169,110,0.2)"), background: chapitreActif === ch.numero ? "rgba(200,169,110,0.15)" : "#1a1a2e", color: chapitreActif === ch.numero ? "#c8a96e" : "rgba(255,255,255,0.7)", cursor: "pointer", fontSize: "15px" }}>
               <span style={{ fontWeight: "bold", marginRight: "10px" }}>{lb.chapitre} {ch.numero}</span>{getTitre(ch, langue)}
-              <span style={{ float: "right", fontSize: "11px", color: "rgba(255,255,255,0.4)" }}>{ch.modules.length} modules</span>
+              <span style={{ float: "right", fontSize: "13px", color: "rgba(255,255,255,0.4)" }}>{ch.modules.length} modules</span>
             </button>
           ))}
         </div>
@@ -75,37 +127,37 @@ export default function LMSSophrologie({ langue = "fr" }) {
           <div style={{ display: "flex", gap: "8px", marginBottom: "15px", flexWrap: "wrap" }}>
             {chapitre.modules.map((mod) => (
               <button key={mod.numero} onClick={() => setModuleActif(mod.numero)}
-                style={{ padding: "8px 16px", borderRadius: "8px", border: "1px solid " + (moduleActif === mod.numero ? "#c8a96e" : "rgba(255,255,255,0.15)"), background: moduleActif === mod.numero ? "rgba(200,169,110,0.2)" : "rgba(255,255,255,0.05)", color: moduleActif === mod.numero ? "#c8a96e" : "rgba(255,255,255,0.6)", cursor: "pointer", fontSize: "13px" }}>
+                style={{ padding: "10px 18px", borderRadius: "8px", border: "1px solid " + (moduleActif === mod.numero ? "#c8a96e" : "rgba(255,255,255,0.15)"), background: moduleActif === mod.numero ? "rgba(200,169,110,0.2)" : "rgba(255,255,255,0.05)", color: moduleActif === mod.numero ? "#c8a96e" : "rgba(255,255,255,0.6)", cursor: "pointer", fontSize: "14px" }}>
                 {getTypeIcon(mod.type)} {lb[mod.type]} {mod.numero}
               </button>
             ))}
           </div>
-          <div style={{ background: "#1a1a2e", borderRadius: "12px", padding: "25px", border: "1px solid rgba(200,169,110,0.2)", minHeight: "300px" }}>
+          <div style={{ background: "#1a1a2e", borderRadius: "12px", padding: "30px", border: "1px solid rgba(200,169,110,0.2)", minHeight: "300px" }}>
             {loading ? (
               <div style={{ textAlign: "center", padding: "60px 0" }}>
                 <div style={{ fontSize: "32px", marginBottom: "15px" }}>⚡</div>
-                <div style={{ color: "#c8a96e", fontSize: "15px", marginBottom: "8px" }}>{statut}</div>
-                <div style={{ color: "rgba(255,255,255,0.4)", fontSize: "12px" }}>Claude genere le contenu professionnel complet...</div>
+                <div style={{ color: "#c8a96e", fontSize: "16px", marginBottom: "8px" }}>{statut}</div>
+                <div style={{ color: "rgba(255,255,255,0.4)", fontSize: "14px" }}>Claude genere le contenu professionnel complet 15 pages...</div>
               </div>
             ) : contenu ? (
               <div>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "20px", paddingBottom: "15px", borderBottom: "1px solid rgba(200,169,110,0.2)" }}>
-                  <div style={{ color: "#c8a96e", fontSize: "13px", fontWeight: "bold" }}>{getTypeIcon(module?.type || "")} {lb.chapitre} {chapitreActif} Module {moduleActif}</div>
-                  <div style={{ color: "#00e676", fontSize: "11px" }}>{statut}</div>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "25px", paddingBottom: "15px", borderBottom: "1px solid rgba(200,169,110,0.2)" }}>
+                  <div style={{ color: "#c8a96e", fontSize: "14px", fontWeight: "bold" }}>{getTypeIcon(module?.type || "")} {lb.chapitre} {chapitreActif} · Module {moduleActif}</div>
+                  <div style={{ color: "#00e676", fontSize: "13px" }}>{statut}</div>
                 </div>
-                <div style={{ color: "rgba(255,255,255,0.85)", fontSize: "14px", lineHeight: "1.9", whiteSpace: "pre-wrap" }}>{contenu}</div>
+                <AfficherContenu contenu={contenu} />
               </div>
             ) : (
-              <div style={{ textAlign: "center", padding: "60px 0", color: "rgba(255,255,255,0.4)" }}>Selectionnez un module</div>
+              <div style={{ textAlign: "center", padding: "60px 0", color: "rgba(255,255,255,0.4)", fontSize: "16px" }}>Selectionnez un module</div>
             )}
           </div>
         </div>
       )}
       <div style={{ background: "linear-gradient(135deg,#1a1a2e,#0d0d1a)", border: "1px solid rgba(200,169,110,0.3)", borderRadius: "16px", padding: "30px", textAlign: "center", marginTop: "30px" }}>
         <div style={{ fontSize: "32px", marginBottom: "12px" }}>⚡</div>
-        <h3 style={{ color: "#fff", fontFamily: "Georgia,serif", fontSize: "20px", marginBottom: "8px" }}>{lb.pret}</h3>
-        <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "14px", marginBottom: "20px" }}>{lb.acces}</p>
-        <a href="/inscription" style={{ display: "inline-block", background: "#c8a96e", color: "#050508", padding: "14px 40px", borderRadius: "8px", textDecoration: "none", fontWeight: "bold", fontSize: "16px" }}>{lb.inscrire}</a>
+        <h3 style={{ color: "#fff", fontFamily: "Georgia,serif", fontSize: "22px", marginBottom: "8px" }}>{lb.pret}</h3>
+        <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "16px", marginBottom: "20px" }}>{lb.acces}</p>
+        <a href="/inscription" style={{ display: "inline-block", background: "#c8a96e", color: "#050508", padding: "16px 44px", borderRadius: "8px", textDecoration: "none", fontWeight: "bold", fontSize: "17px" }}>{lb.inscrire}</a>
       </div>
     </div>
   );
