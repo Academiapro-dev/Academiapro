@@ -1,7 +1,9 @@
 "use client";
 import { useState, useEffect } from "react";
+import { useTranslation } from "../../../hooks/useTranslation";
+import LMSSection from "../../../components/LMSSection";
 
-function nettoyer(texte: string): string {
+function nettoyer_markdown(texte: string): string {
   if (!texte) return "";
   return texte
     .replace(/#{1,6}\s/g, "")
@@ -12,168 +14,147 @@ function nettoyer(texte: string): string {
     .trim();
 }
 
-export default function LMSSection({ code, langue = "fr" }: { code: string; langue?: string }) {
-  const [lms, setLms] = useState<any>(null);
+export default function FormationPage({ params }: { params: { id: string } }) {
+  const { t, langue } = useTranslation("formation");
+  const [formation, setFormation] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [chapitreActif, setChapitreActif] = useState(0);
-  const [moduleActif, setModuleActif] = useState(0);
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch(`/api/lms/${code}`)
+    fetch(`/api/formation/${params.id}?lang=${langue}`)
       .then(r => r.json())
-      .then(data => { setLms(data); setLoading(false); })
+      .then(data => { setFormation(data); setPdfUrl(data.pdf_url || null); setLoading(false); })
       .catch(() => setLoading(false));
-  }, [code]);
+  }, [params.id, langue]);
 
   if (loading) return (
-    <div style={{ padding: "40px", textAlign: "center", color: "#c8a96e" }}>
-      Chargement de la formation...
+    <div style={{ backgroundColor: "#050508", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ color: "#c8a96e", fontSize: "18px" }}>Chargement...</div>
     </div>
   );
 
-  if (!lms || lms.error) return null;
-
-  const c = lms.contenu;
-  const isV6 = c?.v === "6";
+  if (!formation || formation.error) return (
+    <div style={{ backgroundColor: "#050508", minHeight: "100vh", color: "#fff", padding: "40px", textAlign: "center" }}>
+      <h1 style={{ color: "#c8a96e" }}>Formation non trouvée</h1>
+      <a href="/catalogue" style={{ color: "#c8a96e" }}>Retour au catalogue</a>
+    </div>
+  );
 
   const labels: Record<string, Record<string, string>> = {
-    fr: { programme: "PROGRAMME", competences: "Compétences acquises", examen: "EXAMEN BLANC", biblio: "BIBLIOGRAPHIE", coach_label: "Coach Personnel", cta_titre: "Prêt à commencer ?", cta_sub: "Accès immédiat · Formateur IA 24h/24 · Certification incluse", cta_btn: "S'inscrire maintenant", chargement: "Chargement de la formation..." },
-    en: { programme: "CURRICULUM", competences: "Skills acquired", examen: "MOCK EXAM", biblio: "BIBLIOGRAPHY", coach_label: "Personal Coach", cta_titre: "Ready to start?", cta_sub: "Immediate access · AI Trainer 24/7 · Certification included", cta_btn: "Enroll now", chargement: "Loading..." },
-    ar: { programme: "البرنامج", competences: "المهارات المكتسبة", examen: "امتحان تجريبي", biblio: "المراجع", coach_label: "المدرب الشخصي", cta_titre: "هل أنت مستعد للبدء؟", cta_sub: "وصول فوري · مدرب ذكاء اصطناعي 24/7", cta_btn: "سجل الآن", chargement: "جار التحميل..." },
-    es: { programme: "PROGRAMA", competences: "Competencias adquiridas", examen: "EXAMEN DE PRÁCTICA", biblio: "BIBLIOGRAFÍA", coach_label: "Coach Personal", cta_titre: "¿Listo para empezar?", cta_sub: "Acceso inmediato · Formador IA 24/7 · Certificación incluida", cta_btn: "Inscribirse ahora", chargement: "Cargando..." },
-    pt: { programme: "PROGRAMA", competences: "Competências adquiridas", examen: "EXAME PRÁTICO", biblio: "BIBLIOGRAFIA", coach_label: "Coach Pessoal", cta_titre: "Pronto para começar?", cta_sub: "Acesso imediato · Formador IA 24/7 · Certificação incluída", cta_btn: "Inscrever-se agora", chargement: "Carregando..." },
-    de: { programme: "LEHRPLAN", competences: "Erworbene Kompetenzen", examen: "PROBEPRÜFUNG", biblio: "BIBLIOGRAFIE", coach_label: "Persönlicher Coach", cta_titre: "Bereit anzufangen?", cta_sub: "Sofortiger Zugang · KI-Trainer 24/7 · Zertifizierung inklusive", cta_btn: "Jetzt einschreiben", chargement: "Wird geladen..." },
+    fr: { support: "Support de cours", support_sub: "Document complet · 300+ pages", voir: "Voir le support" },
+    en: { support: "Course Materials", support_sub: "Complete document · 300+ pages", voir: "View materials" },
+    ar: { support: "مواد الدورة", support_sub: "وثيقة كاملة · 300+ صفحة", voir: "عرض المواد" },
+    es: { support: "Material del curso", support_sub: "Documento completo · 300+ páginas", voir: "Ver material" },
+    pt: { support: "Material do curso", support_sub: "Documento completo · 300+ páginas", voir: "Ver material" },
+    de: { support: "Kursmaterial", support_sub: "Vollständiges Dokument · 300+ Seiten", voir: "Material ansehen" },
   };
   const lb = labels[langue] || labels.fr;
 
-  if (!isV6) return (
-    <div style={{ maxWidth: "900px", margin: "0 auto", padding: "0 20px 60px" }}>
-      <div style={{ background: "rgba(200,169,110,0.1)", border: "1px solid rgba(200,169,110,0.3)", borderRadius: "12px", padding: "20px", marginBottom: "25px" }}>
-        <div style={{ color: "#c8a96e", fontWeight: "bold", fontSize: "15px", marginBottom: "8px" }}>🎓 {c.formateur}</div>
-        <div style={{ color: "rgba(255,255,255,0.7)", fontSize: "14px", lineHeight: "1.7" }}>{nettoyer(c.intro || c.introduction)}</div>
-      </div>
-      <div style={{ background: "#1a1a2e", borderRadius: "12px", padding: "20px", marginBottom: "20px" }}>
-        <h3 style={{ color: "#c8a96e", marginTop: 0, fontSize: "15px" }}>{lb.competences}</h3>
-        {nettoyer(c.points || "").split("\n").filter((p: string) => p.trim()).map((point: string, i: number) => (
-          <div key={i} style={{ display: "flex", gap: "10px", padding: "6px 0", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
-            <span style={{ color: "#c8a96e" }}>✓</span>
-            <span style={{ color: "rgba(255,255,255,0.8)", fontSize: "13px" }}>{point.replace(/^[-•*\d.]\s*/, "")}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-
-  const chapitres = c.chapitres || [];
-  const chapitre = chapitres[chapitreActif];
-  const module = chapitre?.modules?.[moduleActif];
-
   return (
-    <div style={{ maxWidth: "900px", margin: "0 auto", padding: "0 20px 60px" }}>
-
-      <div style={{ background: "linear-gradient(135deg,rgba(200,169,110,0.15),rgba(200,169,110,0.05))", border: "1px solid rgba(200,169,110,0.3)", borderRadius: "12px", padding: "24px", marginBottom: "25px", display: "flex", alignItems: "center", gap: "20px" }}>
-        <div style={{ width: "56px", height: "56px", borderRadius: "50%", background: "linear-gradient(135deg,#c8a96e,#a07840)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "24px", flexShrink: 0 }}>🎓</div>
-        <div>
-          <div style={{ color: "#c8a96e", fontWeight: "bold", fontSize: "16px", marginBottom: "4px" }}>{c.formateur}</div>
-          <div style={{ color: "rgba(255,255,255,0.7)", fontSize: "13px", lineHeight: "1.6" }}>{nettoyer(c.introduction)}</div>
+    <div style={{ backgroundColor: "#050508", minHeight: "100vh", color: "#fff" }}>
+      <div style={{ background: "linear-gradient(135deg,#0a0a1a,#1a1a2e)", padding: "60px 40px", textAlign: "center" }}>
+        <div style={{ color: "#c8a96e", fontSize: "13px", marginBottom: "10px" }}>{formation.code} · {formation.domaine}</div>
+        <h1 style={{ color: "#fff", fontFamily: "Georgia,serif", fontSize: "2rem", marginBottom: "20px" }}>{formation.titre}</h1>
+        <div style={{ display: "flex", gap: "15px", justifyContent: "center", flexWrap: "wrap" }}>
+          {formation.duree && <span style={{ background: "rgba(200,169,110,0.2)", color: "#c8a96e", padding: "6px 16px", borderRadius: "20px" }}>{formation.duree}</span>}
+          {formation.niveau && <span style={{ background: "rgba(200,169,110,0.2)", color: "#c8a96e", padding: "6px 16px", borderRadius: "20px" }}>{t("niveau")} {formation.niveau}</span>}
+          {formation.prix && <span style={{ background: "#c8a96e", color: "#050508", padding: "6px 16px", borderRadius: "20px", fontWeight: "bold" }}>{formation.prix}€</span>}
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "10px", marginBottom: "25px" }}>
-        {[
-          { label: lb.programme.toLowerCase(), value: chapitres.length, icon: "📚" },
-          { label: "modules", value: chapitres.reduce((s: number, ch: any) => s + (ch.modules?.length || 0), 0), icon: "📋" },
-          { label: c.niveau || "Pro", value: "⭐", icon: "⭐" },
-        ].map(item => (
-          <div key={item.label} style={{ background: "#1a1a2e", borderRadius: "10px", padding: "15px", textAlign: "center", border: "1px solid rgba(200,169,110,0.2)" }}>
-            <div style={{ fontSize: "20px", marginBottom: "4px" }}>{item.icon}</div>
-            <div style={{ color: "#c8a96e", fontWeight: "bold", fontSize: "18px" }}>{item.value}</div>
-            <div style={{ color: "rgba(255,255,255,0.5)", fontSize: "11px" }}>{item.label}</div>
-          </div>
-        ))}
-      </div>
+      <div style={{ maxWidth: "900px", margin: "0 auto", padding: "40px 20px" }}>
 
-      <div style={{ marginBottom: "20px" }}>
-        <h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", fontSize: "16px", marginBottom: "12px", letterSpacing: "1px" }}>{lb.programme}</h2>
-        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-          {chapitres.map((ch: any, i: number) => (
-            <button key={i} onClick={() => { setChapitreActif(i); setModuleActif(0); }}
-              style={{ textAlign: "left", padding: "14px 18px", borderRadius: "10px", border: `1px solid ${chapitreActif === i ? "#c8a96e" : "rgba(200,169,110,0.2)"}`, background: chapitreActif === i ? "rgba(200,169,110,0.15)" : "#1a1a2e", color: chapitreActif === i ? "#c8a96e" : "rgba(255,255,255,0.7)", cursor: "pointer" }}>
-              <span style={{ fontWeight: "bold", marginRight: "10px" }}>Ch.{ch.numero}</span>
-              {nettoyer(ch.titre)}
-              <span style={{ float: "right", fontSize: "11px", color: "rgba(255,255,255,0.4)" }}>{ch.modules?.length || 0} modules</span>
-            </button>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "15px", marginBottom: "40px" }}>
+          {[
+            { icon: "📚", label: t("elearning"), desc: t("elearning_sub") },
+            { icon: "🤖", label: t("coach"), desc: t("coach_sub") },
+            { icon: "🎥", label: t("classe"), desc: t("classe_sub") },
+          ].map(item => (
+            <div key={item.label} style={{ background: "rgba(200,169,110,0.1)", border: "1px solid rgba(200,169,110,0.3)", borderRadius: "10px", padding: "15px", textAlign: "center" }}>
+              <div style={{ fontSize: "28px", marginBottom: "8px" }}>{item.icon}</div>
+              <div style={{ color: "#c8a96e", fontWeight: "bold", fontSize: "14px" }}>{item.label}</div>
+              <div style={{ color: "rgba(255,255,255,0.5)", fontSize: "12px", marginTop: "3px" }}>{item.desc}</div>
+            </div>
           ))}
         </div>
-      </div>
 
-      {chapitre && (
-        <div style={{ marginBottom: "25px" }}>
-          <h3 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", fontSize: "15px", marginBottom: "12px" }}>
-            Ch.{chapitre.numero} — {nettoyer(chapitre.titre)}
-          </h3>
-          <div style={{ display: "flex", gap: "8px", marginBottom: "15px", flexWrap: "wrap" }}>
-            {chapitre.modules?.map((mod: any, i: number) => (
-              <button key={i} onClick={() => setModuleActif(i)}
-                style={{ padding: "8px 16px", borderRadius: "8px", border: `1px solid ${moduleActif === i ? "#c8a96e" : "rgba(255,255,255,0.15)"}`, background: moduleActif === i ? "rgba(200,169,110,0.2)" : "rgba(255,255,255,0.05)", color: moduleActif === i ? "#c8a96e" : "rgba(255,255,255,0.6)", cursor: "pointer", fontSize: "13px" }}>
-                {mod.type === "theorie" ? "📖" : mod.type === "pratique" ? "🛠️" : "📝"} {nettoyer(mod.titre)}
-              </button>
+        {formation.description && (
+          <div style={{ marginBottom: "35px" }}>
+            <h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", marginBottom: "15px" }}>Description</h2>
+            <p style={{ color: "rgba(255,255,255,0.8)", lineHeight: "1.8" }}>{nettoyer_markdown(formation.description)}</p>
+          </div>
+        )}
+
+        {formation.objectifs && (
+          <div style={{ marginBottom: "35px" }}>
+            <h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", marginBottom: "15px" }}>{t("objectifs")}</h2>
+            <p style={{ color: "rgba(255,255,255,0.8)", lineHeight: "1.8" }}>{nettoyer_markdown(formation.objectifs)}</p>
+          </div>
+        )}
+
+        {formation.prerequis && (
+          <div style={{ marginBottom: "35px" }}>
+            <h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", marginBottom: "15px" }}>{t("prerequis")}</h2>
+            <p style={{ color: "rgba(255,255,255,0.8)", lineHeight: "1.8" }}>{nettoyer_markdown(formation.prerequis)}</p>
+          </div>
+        )}
+
+        {formation.public_cible && (
+          <div style={{ marginBottom: "35px" }}>
+            <h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", marginBottom: "15px" }}>{t("public_cible")}</h2>
+            <p style={{ color: "rgba(255,255,255,0.8)", lineHeight: "1.8" }}>{nettoyer_markdown(formation.public_cible)}</p>
+          </div>
+        )}
+
+        {formation.programme && Array.isArray(formation.programme) && (
+          <div style={{ marginBottom: "40px" }}>
+            <h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", marginBottom: "20px" }}>{t("programme")}</h2>
+            {formation.programme.map((ch: any, i: number) => (
+              <div key={i} style={{ marginBottom: "15px", border: "1px solid rgba(200,169,110,0.3)", borderRadius: "10px", overflow: "hidden" }}>
+                <div style={{ background: "linear-gradient(135deg,#c8a96e,#a07840)", padding: "12px 20px" }}>
+                  <h3 style={{ color: "#fff", margin: 0, fontFamily: "Georgia,serif", fontSize: "15px" }}>
+                    {ch.chapitre} — {ch.titre}
+                  </h3>
+                </div>
+                {ch.modules && (
+                  <div style={{ padding: "10px 20px" }}>
+                    {ch.modules.map((mod: any, j: number) => (
+                      <div key={j} style={{ padding: "7px 0", borderBottom: "1px solid rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.7)", fontSize: "13px", display: "flex", justifyContent: "space-between" }}>
+                        <span>{mod.module} — {mod.titre}</span>
+                        {mod.duree && <span style={{ color: "#c8a96e" }}>{mod.duree}</span>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             ))}
           </div>
+        )}
 
-          {module && (
-            <div style={{ background: "#1a1a2e", borderRadius: "12px", padding: "25px", border: "1px solid rgba(200,169,110,0.2)" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "15px" }}>
-                <h4 style={{ color: "#c8a96e", margin: 0, fontSize: "15px" }}>
-                  {module.type === "theorie" ? "📖" : module.type === "pratique" ? "🛠️" : "📝"} {nettoyer(module.titre)}
-                </h4>
-                {module.duree && <span style={{ color: "rgba(255,255,255,0.4)", fontSize: "12px" }}>{module.duree}</span>}
-              </div>
-              <div style={{ color: "rgba(255,255,255,0.8)", fontSize: "14px", lineHeight: "1.8", whiteSpace: "pre-wrap" }}>
-                {nettoyer(module.contenu)}
-              </div>
+        {pdfUrl && (
+          <div style={{ background: "rgba(200,169,110,0.08)", border: "1px solid rgba(200,169,110,0.2)", borderRadius: "10px", padding: "20px", marginBottom: "30px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div>
+              <div style={{ color: "#c8a96e", fontWeight: "bold", marginBottom: "3px" }}>📄 {lb.support}</div>
+              <div style={{ color: "rgba(255,255,255,0.4)", fontSize: "12px" }}>{lb.support_sub}</div>
             </div>
-          )}
-        </div>
-      )}
-
-      {c.coaching && (
-        <div style={{ background: "rgba(14,196,176,0.08)", border: "1px solid rgba(14,196,176,0.3)", borderRadius: "12px", padding: "20px", marginBottom: "25px", display: "flex", gap: "15px" }}>
-          <div style={{ fontSize: "28px", flexShrink: 0 }}>💆</div>
-          <div>
-            <div style={{ color: "#0ec4b0", fontWeight: "bold", fontSize: "14px", marginBottom: "6px" }}>{c.coach} — {lb.coach_label}</div>
-            <div style={{ color: "rgba(255,255,255,0.75)", fontSize: "13px", lineHeight: "1.7", fontStyle: "italic" }}>"{nettoyer(c.coaching)}"</div>
+            <a href={pdfUrl} target="_blank" style={{ background: "#c8a96e", color: "#050508", padding: "10px 20px", borderRadius: "8px", textDecoration: "none", fontWeight: "bold", fontSize: "13px" }}>
+              {lb.voir}
+            </a>
           </div>
-        </div>
-      )}
+        )}
 
-      {c.examen_blanc && (
-        <div style={{ marginBottom: "25px" }}>
-          <h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", fontSize: "16px", marginBottom: "12px", letterSpacing: "1px" }}>{lb.examen}</h2>
-          <div style={{ background: "#1a1a2e", borderRadius: "12px", padding: "20px", border: "1px solid rgba(200,169,110,0.2)" }}>
-            <div style={{ color: "rgba(255,255,255,0.8)", fontSize: "13px", lineHeight: "1.8", whiteSpace: "pre-wrap" }}>{nettoyer(c.examen_blanc)}</div>
-          </div>
+        <div style={{ display: "flex", gap: "12px", marginBottom: "40px", flexWrap: "wrap" }}>
+          <a href="/dashboard" style={{ flex: 1, display: "block", background: "#c8a96e", color: "#050508", padding: "14px 20px", borderRadius: "8px", fontWeight: "bold", textDecoration: "none", textAlign: "center" }}>
+            {t("coach_btn")}
+          </a>
+          <a href="/classe-virtuelle" style={{ flex: 1, display: "block", background: "rgba(200,169,110,0.2)", color: "#c8a96e", padding: "14px 20px", borderRadius: "8px", fontWeight: "bold", textDecoration: "none", textAlign: "center", border: "1px solid rgba(200,169,110,0.3)" }}>
+            {t("classe_btn")}
+          </a>
         </div>
-      )}
 
-      {c.bibliographie && (
-        <div style={{ marginBottom: "25px" }}>
-          <h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", fontSize: "16px", marginBottom: "12px", letterSpacing: "1px" }}>{lb.biblio}</h2>
-          <div style={{ background: "#1a1a2e", borderRadius: "12px", padding: "20px", border: "1px solid rgba(200,169,110,0.2)" }}>
-            <div style={{ color: "rgba(255,255,255,0.7)", fontSize: "13px", lineHeight: "1.8", whiteSpace: "pre-wrap" }}>{nettoyer(c.bibliographie)}</div>
-          </div>
-        </div>
-      )}
+        <LMSSection code={params.id.toUpperCase()} langue={langue} />
 
-      <div style={{ background: "linear-gradient(135deg,#1a1a2e,#0d0d1a)", border: "1px solid rgba(200,169,110,0.3)", borderRadius: "16px", padding: "30px", textAlign: "center" }}>
-        <div style={{ fontSize: "32px", marginBottom: "12px" }}>⚡</div>
-        <h3 style={{ color: "#fff", fontFamily: "Georgia,serif", fontSize: "20px", marginBottom: "8px" }}>{lb.cta_titre}</h3>
-        <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "14px", marginBottom: "20px" }}>{lb.cta_sub}</p>
-        <a href="/inscription" style={{ display: "inline-block", background: "#c8a96e", color: "#050508", padding: "14px 40px", borderRadius: "8px", textDecoration: "none", fontWeight: "bold", fontSize: "16px" }}>
-          {lb.cta_btn}
-        </a>
       </div>
-
     </div>
   );
 }
