@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect } from "react"; 
 
 const CHAPITRES = [
   { numero: 1, titre_fr: "Fondements Theoriques et Scientifiques", titre_en: "Theoretical and Scientific Foundations", titre_ar: "الأسس النظرية والعلمية", titre_es: "Fundamentos Teoricos y Cientificos", titre_pt: "Fundamentos Teoricos e Cientificos", titre_de: "Theoretische und Wissenschaftliche Grundlagen", modules: [
