@@ -78,26 +78,25 @@ function PageContenu({ lignes }) {
 function jouerSon() {
   try {
     const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-    const duration = 0.18;
-    const buf = ctx.createBuffer(1, ctx.sampleRate * duration, ctx.sampleRate);
-    const data = buf.getChannelData(0);
-    for (let i = 0; i < data.length; i++) {
-      const t = i / ctx.sampleRate;
-      const env = Math.exp(-t / 0.04) * (1 - Math.exp(-t / 0.002));
-      data[i] = (Math.random() * 2 - 1) * env * 0.4;
+    for (let s = 0; s < 3; s++) {
+      const delay = s * 0.04;
+      const buf = ctx.createBuffer(1, ctx.sampleRate * 0.15, ctx.sampleRate);
+      const data = buf.getChannelData(0);
+      for (let i = 0; i < data.length; i++) {
+        const t = i / ctx.sampleRate;
+        data[i] = (Math.random() * 2 - 1) * Math.exp(-t / 0.025) * 0.3;
+      }
+      const f = ctx.createBiquadFilter();
+      f.type = "bandpass";
+      f.frequency.value = 1500 + s * 500;
+      f.Q.value = 1;
+      const g = ctx.createGain();
+      g.gain.value = 0.4;
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+      src.connect(f); f.connect(g); g.connect(ctx.destination);
+      src.start(ctx.currentTime + delay);
     }
-    const filter = ctx.createBiquadFilter();
-    filter.type = "bandpass";
-    filter.frequency.value = 2000;
-    filter.Q.value = 0.5;
-    const gain = ctx.createGain();
-    gain.gain.value = 0.6;
-    const src = ctx.createBufferSource();
-    src.buffer = buf;
-    src.connect(filter);
-    filter.connect(gain);
-    gain.connect(ctx.destination);
-    src.start();
   } catch {}
 }
 
@@ -107,10 +106,12 @@ export default function LMSSophrologie({ langue = "fr" }) {
   const [contenu, setContenu] = useState("");
   const [loading, setLoading] = useState(false);
   const [pageActuelle, setPageActuelle] = useState(0);
-  const [pageAnim, setPageAnim] = useState<"idle"|"flip-out"|"flip-in">("idle");
-  const [prochainePageIdx, setProchainePageIdx] = useState(0);
+  const [flipping, setFlipping] = useState(false);
+  const [flipDir, setFlipDir] = useState("next");
+  const [curlProgress, setCurlProgress] = useState(0);
   const touchStartX = useRef(0);
   const touchStartY = useRef(0);
+  const animRef = useRef<number | null>(null);
 
   const lb = LABELS[langue] || LABELS.fr;
   const chapitre = CHAPITRES[chapitreActif - 1];
@@ -134,16 +135,27 @@ export default function LMSSophrologie({ langue = "fr" }) {
     setLoading(false);
   }
 
-  function allerPage(idx) {
-    if (idx === pageActuelle || idx < 0 || idx >= totalPages) return;
+  function allerPage(direction) {
+    if (flipping) return;
+    const next = direction === "next" ? pageActuelle + 1 : pageActuelle - 1;
+    if (next < 0 || next >= totalPages) return;
     jouerSon();
-    setProchainePageIdx(idx);
-    setPageAnim("flip-out");
-    setTimeout(() => {
-      setPageActuelle(idx);
-      setPageAnim("flip-in");
-      setTimeout(() => setPageAnim("idle"), 250);
-    }, 250);
+    setFlipDir(direction);
+    setFlipping(true);
+    setCurlProgress(0);
+    let progress = 0;
+    const animate = () => {
+      progress += 0.08;
+      setCurlProgress(Math.min(progress, 1));
+      if (progress < 1) {
+        animRef.current = requestAnimationFrame(animate);
+      } else {
+        setPageActuelle(next);
+        setFlipping(false);
+        setCurlProgress(0);
+      }
+    };
+    animRef.current = requestAnimationFrame(animate);
   }
 
   function onTouchStart(e) {
@@ -154,46 +166,27 @@ export default function LMSSophrologie({ langue = "fr" }) {
   function onTouchEnd(e) {
     const dx = e.changedTouches[0].clientX - touchStartX.current;
     const dy = Math.abs(e.changedTouches[0].clientY - touchStartY.current);
-    if (Math.abs(dx) > 60 && dy < 80) {
-      if (dx < 0) allerPage(pageActuelle + 1);
-      else allerPage(pageActuelle - 1);
+    if (Math.abs(dx) > 60 && dy < 100) {
+      allerPage(dx < 0 ? "next" : "prev");
     }
   }
 
-  const getPageStyle = () => {
-    if (pageAnim === "flip-out") return {
-      transformOrigin: "left center",
-      transform: "perspective(1500px) rotateY(-90deg)",
-      opacity: 0,
-      transition: "transform 0.25s ease-in, opacity 0.25s ease-in",
-    };
-    if (pageAnim === "flip-in") return {
-      transformOrigin: "left center",
-      transform: "perspective(1500px) rotateY(0deg)",
-      opacity: 1,
-      transition: "transform 0.25s ease-out, opacity 0.25s ease-out",
-    };
-    return {
-      transformOrigin: "left center",
-      transform: "perspective(1500px) rotateY(0deg)",
-      opacity: 1,
-      transition: "none",
-    };
+  const curlAngle = flipping ? curlProgress * 180 : 0;
+  const pageStyle = flipping && flipDir === "next" ? {
+    transformOrigin: "right center",
+    transform: `perspective(2000px) rotateY(${-curlAngle}deg)`,
+    transition: "none",
+  } : flipping && flipDir === "prev" ? {
+    transformOrigin: "left center",
+    transform: `perspective(2000px) rotateY(${curlAngle - 180}deg)`,
+    transition: "none",
+  } : {
+    transformOrigin: "right center",
+    transform: "perspective(2000px) rotateY(0deg)",
   };
 
   return (
     <div style={{ maxWidth: "900px", margin: "0 auto", padding: "0 20px 60px" }}>
-
-      <style>{`
-        @keyframes pageFlipOut {
-          0% { transform: perspective(1500px) rotateY(0deg); opacity: 1; }
-          100% { transform: perspective(1500px) rotateY(-90deg); opacity: 0; }
-        }
-        @keyframes pageFlipIn {
-          0% { transform: perspective(1500px) rotateY(90deg); opacity: 0; }
-          100% { transform: perspective(1500px) rotateY(0deg); opacity: 1; }
-        }
-      `}</style>
 
       <div style={{ background: "linear-gradient(135deg,rgba(200,169,110,0.15),rgba(200,169,110,0.05))", border: "1px solid rgba(200,169,110,0.3)", borderRadius: "12px", padding: "20px", marginBottom: "20px", display: "flex", alignItems: "center", gap: "15px" }}>
         <div style={{ width: "50px", height: "50px", borderRadius: "50%", background: "linear-gradient(135deg,#c8a96e,#a07840)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "22px", flexShrink: 0 }}>🧘</div>
@@ -229,70 +222,71 @@ export default function LMSSophrologie({ langue = "fr" }) {
           </div>
 
           {loading ? (
-            <div style={{ background: "#fff", borderRadius: "2px", padding: "60px 40px", textAlign: "center", boxShadow: "2px 2px 20px rgba(0,0,0,0.5), 8px 0 30px rgba(0,0,0,0.3)", minHeight: "400px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+            <div style={{ background: "#fff", borderRadius: "3px", padding: "60px 40px", textAlign: "center", boxShadow: "4px 4px 20px rgba(0,0,0,0.4)", minHeight: "400px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
               <div style={{ fontSize: "40px", marginBottom: "20px" }}>⚡</div>
               <div style={{ color: "#c8a96e", fontSize: "18px", marginBottom: "10px" }}>{lb.chargement}</div>
               <div style={{ color: "#666", fontSize: "15px" }}>Claire Beaumont redige votre manuel...</div>
             </div>
           ) : contenu && pages.length > 0 ? (
             <div>
-              <div style={{ position: "relative", perspective: "1500px" }}>
+              <div style={{ position: "relative", perspective: "2000px" }}>
                 <div
                   style={{
-                    ...getPageStyle(),
-                    background: "linear-gradient(to right, #f5f0e8 0%, #fff 3%, #fff 97%, #f0ebe0 100%)",
-                    borderRadius: "2px",
-                    padding: "50px 50px 40px 55px",
-                    boxShadow: "2px 0 5px rgba(0,0,0,0.1), 8px 0 20px rgba(0,0,0,0.2), inset -3px 0 10px rgba(0,0,0,0.05)",
+                    ...pageStyle,
+                    background: "linear-gradient(105deg, #faf6ee 0%, #fff 4%, #fff 96%, #f5f0e4 100%)",
+                    borderRadius: "3px",
+                    padding: "45px 50px 35px 55px",
+                    boxShadow: flipping
+                      ? "none"
+                      : "3px 3px 15px rgba(0,0,0,0.3), 8px 5px 30px rgba(0,0,0,0.2), inset -2px 0 8px rgba(0,0,0,0.04)",
                     minHeight: "520px",
-                    cursor: "pointer",
-                    borderLeft: "4px solid #d4c5a0",
-                    position: "relative",
+                    cursor: "grab",
+                    borderLeft: "5px solid #c8b89a",
+                    backfaceVisibility: "hidden",
                   }}
                   onTouchStart={onTouchStart}
                   onTouchEnd={onTouchEnd}
-                  onClick={(e) => {
-                    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                    const x = e.clientX - rect.left;
-                    if (x > rect.width * 0.6) allerPage(pageActuelle + 1);
-                    else if (x < rect.width * 0.4) allerPage(pageActuelle - 1);
-                  }}
                 >
-                  <div style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, background: "repeating-linear-gradient(transparent, transparent 39px, rgba(200,180,150,0.15) 39px, rgba(200,180,150,0.15) 40px)", pointerEvents: "none", borderRadius: "2px" }} />
+                  <div style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, background: "repeating-linear-gradient(transparent, transparent 41px, rgba(180,160,120,0.1) 41px, rgba(180,160,120,0.1) 42px)", pointerEvents: "none", borderRadius: "3px" }} />
 
-                  <div style={{ borderBottom: "1px solid #d4c5a0", marginBottom: "25px", paddingBottom: "12px", position: "relative" }}>
+                  <div style={{ borderBottom: "1px solid #d4c5a0", marginBottom: "25px", paddingBottom: "12px" }}>
                     <div style={{ color: "#c8a96e", fontSize: "11px", fontWeight: "bold", letterSpacing: "2px" }}>
                       ACADEMIAPRO · SOPHROLOGIE · {lb.chapitre.toUpperCase()} {chapitreActif} · {lb.module.toUpperCase()} {moduleActif}
                     </div>
                   </div>
 
-                  <div style={{ position: "relative" }}>
-                    <PageContenu lignes={pages[pageActuelle] || []} />
-                  </div>
+                  <PageContenu lignes={pages[pageActuelle] || []} />
 
-                  <div style={{ borderTop: "1px solid #d4c5a0", marginTop: "25px", paddingTop: "12px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <span style={{ color: "#aaa", fontSize: "12px", fontStyle: "italic" }}>← Glisser ou cliquer bord →</span>
+                  <div style={{ borderTop: "1px solid #d4c5a0", marginTop: "25px", paddingTop: "12px", display: "flex", justifyContent: "space-between" }}>
+                    <span style={{ color: "#bbb", fontSize: "12px", fontStyle: "italic" }}>← Glisser pour tourner →</span>
                     <span style={{ color: "#999", fontSize: "13px", fontFamily: "Georgia,serif", fontStyle: "italic" }}>{lb.page} {pageActuelle + 1} {lb.sur} {totalPages}</span>
                   </div>
 
                   {pageActuelle < totalPages - 1 && (
-                    <div style={{ position: "absolute", bottom: "20px", right: "15px", width: "20px", height: "20px", borderBottom: "2px solid #c8a96e", borderRight: "2px solid #c8a96e", opacity: 0.4 }} />
+                    <div style={{
+                      position: "absolute", bottom: 0, right: 0,
+                      width: 0, height: 0,
+                      borderStyle: "solid",
+                      borderWidth: "0 0 30px 30px",
+                      borderColor: "transparent transparent #d4c5a0 transparent",
+                      cursor: "pointer",
+                    }} onClick={() => allerPage("next")} />
                   )}
                 </div>
               </div>
 
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "16px" }}>
-                <button onClick={() => allerPage(pageActuelle - 1)} disabled={pageActuelle === 0}
+                <button onClick={() => allerPage("prev")} disabled={pageActuelle === 0}
                   style={{ padding: "12px 24px", borderRadius: "8px", border: "1px solid rgba(200,169,110,0.3)", background: pageActuelle === 0 ? "rgba(255,255,255,0.03)" : "rgba(200,169,110,0.15)", color: pageActuelle === 0 ? "rgba(255,255,255,0.15)" : "#c8a96e", cursor: pageActuelle === 0 ? "not-allowed" : "pointer", fontSize: "20px" }}>
                   ←
                 </button>
                 <div style={{ display: "flex", gap: "5px" }}>
                   {Array.from({ length: Math.min(totalPages, 9) }, (_, i) => {
                     const idx = totalPages <= 9 ? i : Math.max(0, Math.min(pageActuelle - 4, totalPages - 9)) + i;
-                    return <button key={idx} onClick={() => allerPage(idx)} style={{ width: idx === pageActuelle ? "14px" : "9px", height: idx === pageActuelle ? "14px" : "9px", borderRadius: "50%", border: "none", background: idx === pageActuelle ? "#c8a96e" : "rgba(200,169,110,0.3)", cursor: "pointer", padding: 0, transition: "all 0.2s" }} />;
+                    return <button key={idx} onClick={() => { jouerSon(); setPageActuelle(idx); }} style={{ width: idx === pageActuelle ? "14px" : "9px", height: idx === pageActuelle ? "14px" : "9px", borderRadius: "50%", border: "none", background: idx === pageActuelle ? "#c8a96e" : "rgba(200,169,110,0.3)", cursor: "pointer", padding: 0, transition: "all 0.2s" }} />;
                   })}
                 </div>
-                <button onClick={() => allerPage(pageActuelle + 1)} disabled={pageActuelle === totalPages - 1}
+                <button onClick={() => allerPage("next")} disabled={pageActuelle === totalPages - 1}
                   style={{ padding: "12px 24px", borderRadius: "8px", border: "1px solid rgba(200,169,110,0.3)", background: pageActuelle === totalPages - 1 ? "rgba(255,255,255,0.03)" : "rgba(200,169,110,0.15)", color: pageActuelle === totalPages - 1 ? "rgba(255,255,255,0.15)" : "#c8a96e", cursor: pageActuelle === totalPages - 1 ? "not-allowed" : "pointer", fontSize: "20px" }}>
                   →
                 </button>
