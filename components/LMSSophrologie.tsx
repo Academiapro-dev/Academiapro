@@ -15,60 +15,61 @@ const CHAPITRES = [
 ];
 
 const LABELS = {
-  fr: { programme: "PROGRAMME", chargement: "Generation du contenu complet en cours...", depuis_cache: "Contenu charge", genere: "Contenu genere", theorie: "Theorie", pratique: "Pratique", evaluation: "Evaluation", chapitre: "Chapitre", inscrire: "S inscrire maintenant", pret: "Pret a devenir sophrologue certifie ?", acces: "Acces immediat Claire Beaumont 24h/24 Certification incluse" },
-  en: { programme: "CURRICULUM", chargement: "Generating complete content...", depuis_cache: "Content loaded", genere: "Content generated", theorie: "Theory", pratique: "Practice", evaluation: "Assessment", chapitre: "Chapter", inscrire: "Enroll now", pret: "Ready to become a certified sophrologist?", acces: "Immediate access Claire Beaumont 24/7 Certification included" },
-  ar: { programme: "البرنامج", chargement: "جاري توليد المحتوى", depuis_cache: "تم التحميل", genere: "تم التوليد", theorie: "نظري", pratique: "تطبيقي", evaluation: "تقييم", chapitre: "الفصل", inscrire: "سجل الان", pret: "هل انت مستعد؟", acces: "وصول فوري كلير بومون 24/7" },
-  es: { programme: "PROGRAMA", chargement: "Generando contenido...", depuis_cache: "Contenido cargado", genere: "Contenido generado", theorie: "Teoria", pratique: "Practica", evaluation: "Evaluacion", chapitre: "Capitulo", inscrire: "Inscribirse ahora", pret: "Listo para certificarte?", acces: "Acceso inmediato Claire Beaumont 24/7" },
-  pt: { programme: "PROGRAMA", chargement: "Gerando conteudo...", depuis_cache: "Conteudo carregado", genere: "Conteudo gerado", theorie: "Teoria", pratique: "Pratica", evaluation: "Avaliacao", chapitre: "Capitulo", inscrire: "Inscrever-se agora", pret: "Pronto para se certificar?", acces: "Acesso imediato Claire Beaumont 24/7" },
-  de: { programme: "LEHRPLAN", chargement: "Inhalt wird generiert...", depuis_cache: "Inhalt geladen", genere: "Inhalt generiert", theorie: "Theorie", pratique: "Praxis", evaluation: "Bewertung", chapitre: "Kapitel", inscrire: "Jetzt einschreiben", pret: "Bereit fur die Zertifizierung?", acces: "Sofortiger Zugang Claire Beaumont 24/7" },
+  fr: { programme: "PROGRAMME", chargement: "Generation du contenu en cours...", theorie: "Theorie", pratique: "Pratique", evaluation: "Evaluation", chapitre: "Chapitre", inscrire: "S inscrire maintenant", pret: "Pret a devenir sophrologue certifie ?", acces: "Acces immediat Claire Beaumont 24h/24", page: "Page", sur: "sur" },
+  en: { programme: "CURRICULUM", chargement: "Generating content...", theorie: "Theory", pratique: "Practice", evaluation: "Assessment", chapitre: "Chapter", inscrire: "Enroll now", pret: "Ready to become certified?", acces: "Immediate access Claire Beaumont 24/7", page: "Page", sur: "of" },
+  ar: { programme: "البرنامج", chargement: "جاري التوليد...", theorie: "نظري", pratique: "تطبيقي", evaluation: "تقييم", chapitre: "الفصل", inscrire: "سجل الان", pret: "هل انت مستعد؟", acces: "وصول فوري", page: "صفحة", sur: "من" },
+  es: { programme: "PROGRAMA", chargement: "Generando...", theorie: "Teoria", pratique: "Practica", evaluation: "Evaluacion", chapitre: "Capitulo", inscrire: "Inscribirse", pret: "Listo para certificarte?", acces: "Acceso inmediato", page: "Pagina", sur: "de" },
+  pt: { programme: "PROGRAMA", chargement: "Gerando...", theorie: "Teoria", pratique: "Pratica", evaluation: "Avaliacao", chapitre: "Capitulo", inscrire: "Inscrever-se", pret: "Pronto para se certificar?", acces: "Acesso imediato", page: "Pagina", sur: "de" },
+  de: { programme: "LEHRPLAN", chargement: "Wird generiert...", theorie: "Theorie", pratique: "Praxis", evaluation: "Bewertung", chapitre: "Kapitel", inscrire: "Einschreiben", pret: "Bereit?", acces: "Sofortiger Zugang", page: "Seite", sur: "von" },
 };
+
+const MOTS_PAR_PAGE = 300;
 
 function getTitre(ch, langue) { return ch["titre_" + langue] || ch.titre_fr; }
 function getTypeIcon(type) { if (type === "theorie") return "📖"; if (type === "pratique") return "🛠️"; return "📝"; }
 
-function formaterContenu(texte) {
+function preparerPages(texte) {
   if (!texte) return [];
-  const lignes = texte.split("\n");
-  const elements = [];
-  let i = 0;
-  while (i < lignes.length) {
-    const ligne = lignes[i].trim();
-    if (!ligne) { i++; continue; }
-    if (ligne.startsWith("### ")) {
-      elements.push({ type: "h3", texte: ligne.replace(/^### /, "") });
-    } else if (ligne.startsWith("## ")) {
-      elements.push({ type: "h2", texte: ligne.replace(/^## /, "") });
-    } else if (ligne.startsWith("# ")) {
-      elements.push({ type: "h1", texte: ligne.replace(/^# /, "") });
-    } else if (ligne === "---") {
-      elements.push({ type: "separateur" });
-    } else if (ligne.startsWith("**") && ligne.endsWith("**")) {
-      elements.push({ type: "gras", texte: ligne.replace(/\*\*/g, "") });
-    } else if (ligne.startsWith("> ")) {
-      elements.push({ type: "citation", texte: ligne.replace(/^> /, "") });
+  const paragraphes = texte.split("\n").filter(l => l.trim());
+  const pages = [];
+  let pageCourante = [];
+  let motsCourants = 0;
+
+  for (const para of paragraphes) {
+    const mots = para.split(" ").length;
+    if (motsCourants + mots > MOTS_PAR_PAGE && pageCourante.length > 0) {
+      pages.push(pageCourante);
+      pageCourante = [para];
+      motsCourants = mots;
     } else {
-      const texte_propre = ligne
-        .replace(/\*\*(.+?)\*\*/g, "$1")
-        .replace(/\*(.+?)\*/g, "$1");
-      elements.push({ type: "paragraphe", texte: texte_propre });
+      pageCourante.push(para);
+      motsCourants += mots;
     }
-    i++;
   }
-  return elements;
+  if (pageCourante.length > 0) pages.push(pageCourante);
+  return pages;
 }
 
-function AfficherContenu({ contenu }) {
-  const elements = formaterContenu(contenu);
+function formaterLigne(ligne) {
+  if (ligne.startsWith("### ")) return { type: "h3", texte: ligne.replace(/^### /, "") };
+  if (ligne.startsWith("## ")) return { type: "h2", texte: ligne.replace(/^## /, "") };
+  if (ligne.startsWith("# ")) return { type: "h1", texte: ligne.replace(/^# /, "") };
+  if (ligne === "---") return { type: "separateur" };
+  if (ligne.startsWith("> ")) return { type: "citation", texte: ligne.replace(/^> /, "").replace(/\*\*(.+?)\*\*/g, "$1") };
+  return { type: "para", texte: ligne.replace(/\*\*(.+?)\*\*/g, "$1").replace(/\*(.+?)\*/g, "$1") };
+}
+
+function PageContenu({ lignes }) {
   return (
     <div>
-      {elements.map((el, i) => {
-        if (el.type === "h1") return <h2 key={i} style={{ color: "#c8a96e", fontFamily: "Georgia,serif", fontSize: "20px", marginTop: "30px", marginBottom: "12px", borderBottom: "1px solid rgba(200,169,110,0.3)", paddingBottom: "8px" }}>{el.texte}</h2>;
-        if (el.type === "h2") return <h3 key={i} style={{ color: "#c8a96e", fontFamily: "Georgia,serif", fontSize: "18px", marginTop: "25px", marginBottom: "10px" }}>{el.texte}</h3>;
-        if (el.type === "h3") return <h4 key={i} style={{ color: "rgba(200,169,110,0.8)", fontSize: "16px", marginTop: "20px", marginBottom: "8px", fontWeight: "bold" }}>{el.texte}</h4>;
-        if (el.type === "separateur") return <hr key={i} style={{ border: "none", borderTop: "1px solid rgba(200,169,110,0.2)", margin: "20px 0" }} />;
-        if (el.type === "gras") return <p key={i} style={{ color: "#fff", fontSize: "16px", fontWeight: "bold", lineHeight: "1.8", marginBottom: "12px" }}>{el.texte}</p>;
-        if (el.type === "citation") return <blockquote key={i} style={{ borderLeft: "3px solid #c8a96e", paddingLeft: "16px", margin: "16px 0", color: "rgba(255,255,255,0.75)", fontStyle: "italic", fontSize: "16px", lineHeight: "1.8" }}>{el.texte}</blockquote>;
-        return <p key={i} style={{ color: "rgba(255,255,255,0.85)", fontSize: "16px", lineHeight: "1.9", marginBottom: "16px", textAlign: "justify" }}>{el.texte}</p>;
+      {lignes.map((ligne, i) => {
+        const el = formaterLigne(ligne);
+        if (el.type === "h1") return <h2 key={i} style={{ color: "#1a1a2e", fontFamily: "Georgia,serif", fontSize: "24px", marginTop: "20px", marginBottom: "12px", borderBottom: "2px solid #c8a96e", paddingBottom: "8px" }}>{el.texte}</h2>;
+        if (el.type === "h2") return <h3 key={i} style={{ color: "#1a1a2e", fontFamily: "Georgia,serif", fontSize: "22px", marginTop: "18px", marginBottom: "10px", color: "#c8a96e" }}>{el.texte}</h3>;
+        if (el.type === "h3") return <h4 key={i} style={{ color: "#333", fontSize: "20px", marginTop: "15px", marginBottom: "8px", fontWeight: "bold" }}>{el.texte}</h4>;
+        if (el.type === "separateur") return <hr key={i} style={{ border: "none", borderTop: "1px solid #ddd", margin: "16px 0" }} />;
+        if (el.type === "citation") return <blockquote key={i} style={{ borderLeft: "4px solid #c8a96e", paddingLeft: "16px", margin: "16px 0", color: "#555", fontStyle: "italic", fontSize: "22px", lineHeight: "1.8" }}>{el.texte}</blockquote>;
+        return <p key={i} style={{ color: "#1a1a1a", fontSize: "22px", lineHeight: "2.0", marginBottom: "18px", textAlign: "justify" }}>{el.texte}</p>;
       })}
     </div>
   );
@@ -80,14 +81,19 @@ export default function LMSSophrologie({ langue = "fr" }) {
   const [contenu, setContenu] = useState("");
   const [loading, setLoading] = useState(false);
   const [statut, setStatut] = useState("");
+  const [pageActuelle, setPageActuelle] = useState(0);
+  const [animDirection, setAnimDirection] = useState("");
+
   const lb = LABELS[langue] || LABELS.fr;
   const chapitre = CHAPITRES[chapitreActif - 1];
   const module = chapitre?.modules[moduleActif - 1];
+  const pages = preparerPages(contenu);
+  const totalPages = pages.length;
 
   useEffect(() => { charger(chapitreActif, moduleActif); }, [chapitreActif, moduleActif, langue]);
 
   async function charger(ch_num, mod_num) {
-    setLoading(true); setContenu(""); setStatut(lb.chargement);
+    setLoading(true); setContenu(""); setPageActuelle(0); setStatut(lb.chargement);
     try {
       const r = await fetch("/api/lms/generer", {
         method: "POST",
@@ -95,64 +101,118 @@ export default function LMSSophrologie({ langue = "fr" }) {
         body: JSON.stringify({ formation_code: "F030", chapitre_num: ch_num, module_num: mod_num, langue }),
       });
       const data = await r.json();
-      if (data.succes) { setContenu(data.contenu); setStatut(data.depuis_cache ? lb.depuis_cache : lb.genere); }
+      if (data.succes) { setContenu(data.contenu); setStatut(""); }
       else { setStatut("Erreur: " + (data.erreur || "inconnue")); }
     } catch { setStatut("Erreur reseau"); }
     setLoading(false);
   }
 
+  function pageSuivante() {
+    if (pageActuelle < totalPages - 1) {
+      setAnimDirection("gauche");
+      setTimeout(() => { setPageActuelle(p => p + 1); setAnimDirection(""); }, 150);
+    }
+  }
+
+  function pagePrecedente() {
+    if (pageActuelle > 0) {
+      setAnimDirection("droite");
+      setTimeout(() => { setPageActuelle(p => p - 1); setAnimDirection(""); }, 150);
+    }
+  }
+
   return (
     <div style={{ maxWidth: "900px", margin: "0 auto", padding: "0 20px 60px" }}>
-      <div style={{ background: "linear-gradient(135deg,rgba(200,169,110,0.15),rgba(200,169,110,0.05))", border: "1px solid rgba(200,169,110,0.3)", borderRadius: "12px", padding: "24px", marginBottom: "25px", display: "flex", alignItems: "center", gap: "20px" }}>
-        <div style={{ width: "56px", height: "56px", borderRadius: "50%", background: "linear-gradient(135deg,#c8a96e,#a07840)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "24px", flexShrink: 0 }}>🧘</div>
+
+      <div style={{ background: "linear-gradient(135deg,rgba(200,169,110,0.15),rgba(200,169,110,0.05))", border: "1px solid rgba(200,169,110,0.3)", borderRadius: "12px", padding: "20px", marginBottom: "20px", display: "flex", alignItems: "center", gap: "15px" }}>
+        <div style={{ width: "50px", height: "50px", borderRadius: "50%", background: "linear-gradient(135deg,#c8a96e,#a07840)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "22px", flexShrink: 0 }}>🧘</div>
         <div>
-          <div style={{ color: "#c8a96e", fontWeight: "bold", fontSize: "17px", marginBottom: "4px" }}>Claire Beaumont</div>
-          <div style={{ color: "rgba(255,255,255,0.7)", fontSize: "15px" }}>Formatrice Expert Sophrologie Caycedienne AcadeMIA Pro</div>
+          <div style={{ color: "#c8a96e", fontWeight: "bold", fontSize: "17px" }}>Claire Beaumont</div>
+          <div style={{ color: "rgba(255,255,255,0.7)", fontSize: "14px" }}>Formatrice Expert Sophrologie Caycedienne</div>
         </div>
       </div>
+
       <div style={{ marginBottom: "20px" }}>
-        <h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", fontSize: "17px", marginBottom: "12px" }}>{lb.programme}</h2>
-        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+        <h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", fontSize: "16px", marginBottom: "10px" }}>{lb.programme}</h2>
+        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
           {CHAPITRES.map((ch) => (
-            <button key={ch.numero} onClick={() => { setChapitreActif(ch.numero); setModuleActif(1); }}
-              style={{ textAlign: "left", padding: "14px 18px", borderRadius: "10px", border: "1px solid " + (chapitreActif === ch.numero ? "#c8a96e" : "rgba(200,169,110,0.2)"), background: chapitreActif === ch.numero ? "rgba(200,169,110,0.15)" : "#1a1a2e", color: chapitreActif === ch.numero ? "#c8a96e" : "rgba(255,255,255,0.7)", cursor: "pointer", fontSize: "15px" }}>
-              <span style={{ fontWeight: "bold", marginRight: "10px" }}>{lb.chapitre} {ch.numero}</span>{getTitre(ch, langue)}
-              <span style={{ float: "right", fontSize: "13px", color: "rgba(255,255,255,0.4)" }}>{ch.modules.length} modules</span>
+            <button key={ch.numero} onClick={() => { setChapitreActif(ch.numero); setModuleActif(1); setPageActuelle(0); }}
+              style={{ textAlign: "left", padding: "12px 16px", borderRadius: "8px", border: "1px solid " + (chapitreActif === ch.numero ? "#c8a96e" : "rgba(200,169,110,0.2)"), background: chapitreActif === ch.numero ? "rgba(200,169,110,0.15)" : "#1a1a2e", color: chapitreActif === ch.numero ? "#c8a96e" : "rgba(255,255,255,0.7)", cursor: "pointer", fontSize: "15px" }}>
+              <span style={{ fontWeight: "bold", marginRight: "8px" }}>{lb.chapitre} {ch.numero}</span>{getTitre(ch, langue)}
+              <span style={{ float: "right", fontSize: "12px", color: "rgba(255,255,255,0.4)" }}>{ch.modules.length} mod.</span>
             </button>
           ))}
         </div>
       </div>
+
       {chapitre && (
-        <div style={{ marginBottom: "20px" }}>
+        <div>
           <div style={{ display: "flex", gap: "8px", marginBottom: "15px", flexWrap: "wrap" }}>
             {chapitre.modules.map((mod) => (
-              <button key={mod.numero} onClick={() => setModuleActif(mod.numero)}
-                style={{ padding: "10px 18px", borderRadius: "8px", border: "1px solid " + (moduleActif === mod.numero ? "#c8a96e" : "rgba(255,255,255,0.15)"), background: moduleActif === mod.numero ? "rgba(200,169,110,0.2)" : "rgba(255,255,255,0.05)", color: moduleActif === mod.numero ? "#c8a96e" : "rgba(255,255,255,0.6)", cursor: "pointer", fontSize: "14px" }}>
+              <button key={mod.numero} onClick={() => { setModuleActif(mod.numero); setPageActuelle(0); }}
+                style={{ padding: "10px 16px", borderRadius: "8px", border: "1px solid " + (moduleActif === mod.numero ? "#c8a96e" : "rgba(255,255,255,0.15)"), background: moduleActif === mod.numero ? "rgba(200,169,110,0.2)" : "rgba(255,255,255,0.05)", color: moduleActif === mod.numero ? "#c8a96e" : "rgba(255,255,255,0.6)", cursor: "pointer", fontSize: "14px" }}>
                 {getTypeIcon(mod.type)} {lb[mod.type]} {mod.numero}
               </button>
             ))}
           </div>
-          <div style={{ background: "#1a1a2e", borderRadius: "12px", padding: "30px", border: "1px solid rgba(200,169,110,0.2)", minHeight: "300px" }}>
-            {loading ? (
-              <div style={{ textAlign: "center", padding: "60px 0" }}>
-                <div style={{ fontSize: "32px", marginBottom: "15px" }}>⚡</div>
-                <div style={{ color: "#c8a96e", fontSize: "16px", marginBottom: "8px" }}>{statut}</div>
-                <div style={{ color: "rgba(255,255,255,0.4)", fontSize: "14px" }}>Claude genere le contenu professionnel complet 15 pages...</div>
-              </div>
-            ) : contenu ? (
-              <div>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "25px", paddingBottom: "15px", borderBottom: "1px solid rgba(200,169,110,0.2)" }}>
-                  <div style={{ color: "#c8a96e", fontSize: "14px", fontWeight: "bold" }}>{getTypeIcon(module?.type || "")} {lb.chapitre} {chapitreActif} · Module {moduleActif}</div>
-                  <div style={{ color: "#00e676", fontSize: "13px" }}>{statut}</div>
+
+          {loading ? (
+            <div style={{ background: "#fff", borderRadius: "12px", padding: "60px 40px", textAlign: "center", boxShadow: "0 4px 20px rgba(0,0,0,0.3)", minHeight: "400px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+              <div style={{ fontSize: "40px", marginBottom: "20px" }}>⚡</div>
+              <div style={{ color: "#c8a96e", fontSize: "18px", marginBottom: "10px" }}>{statut}</div>
+              <div style={{ color: "#666", fontSize: "15px" }}>Claire Beaumont redige votre manuel...</div>
+            </div>
+          ) : contenu && pages.length > 0 ? (
+            <div>
+              <div style={{
+                background: "#fff",
+                borderRadius: "12px",
+                padding: "50px 45px",
+                boxShadow: "0 4px 30px rgba(0,0,0,0.4), 0 1px 8px rgba(0,0,0,0.2)",
+                minHeight: "500px",
+                position: "relative",
+                opacity: animDirection ? 0.3 : 1,
+                transition: "opacity 0.15s ease",
+              }}>
+                <div style={{ borderBottom: "2px solid #c8a96e", marginBottom: "30px", paddingBottom: "15px" }}>
+                  <div style={{ color: "#c8a96e", fontSize: "13px", fontWeight: "bold", letterSpacing: "1px" }}>
+                    ACADEMIAPRO · SOPHROLOGIE CAYCEDIENNE · {lb.chapitre.toUpperCase()} {chapitreActif} · MODULE {moduleActif}
+                  </div>
                 </div>
-                <AfficherContenu contenu={contenu} />
+
+                <PageContenu lignes={pages[pageActuelle] || []} />
+
+                <div style={{ borderTop: "1px solid #ddd", marginTop: "30px", paddingTop: "15px", display: "flex", justifyContent: "center" }}>
+                  <span style={{ color: "#999", fontSize: "14px" }}>{lb.page} {pageActuelle + 1} {lb.sur} {totalPages}</span>
+                </div>
               </div>
-            ) : (
-              <div style={{ textAlign: "center", padding: "60px 0", color: "rgba(255,255,255,0.4)", fontSize: "16px" }}>Selectionnez un module</div>
-            )}
-          </div>
+
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "20px" }}>
+                <button onClick={pagePrecedente} disabled={pageActuelle === 0}
+                  style={{ padding: "14px 28px", borderRadius: "8px", border: "1px solid rgba(200,169,110,0.3)", background: pageActuelle === 0 ? "rgba(255,255,255,0.05)" : "rgba(200,169,110,0.15)", color: pageActuelle === 0 ? "rgba(255,255,255,0.2)" : "#c8a96e", cursor: pageActuelle === 0 ? "not-allowed" : "pointer", fontSize: "20px", fontWeight: "bold" }}>
+                  ← 
+                </button>
+
+                <div style={{ display: "flex", gap: "6px" }}>
+                  {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
+                    const idx = totalPages <= 7 ? i : Math.max(0, Math.min(pageActuelle - 3, totalPages - 7)) + i;
+                    return (
+                      <button key={idx} onClick={() => setPageActuelle(idx)}
+                        style={{ width: "12px", height: "12px", borderRadius: "50%", border: "none", background: idx === pageActuelle ? "#c8a96e" : "rgba(200,169,110,0.3)", cursor: "pointer", padding: 0 }} />
+                    );
+                  })}
+                </div>
+
+                <button onClick={pageSuivante} disabled={pageActuelle === totalPages - 1}
+                  style={{ padding: "14px 28px", borderRadius: "8px", border: "1px solid rgba(200,169,110,0.3)", background: pageActuelle === totalPages - 1 ? "rgba(255,255,255,0.05)" : "rgba(200,169,110,0.15)", color: pageActuelle === totalPages - 1 ? "rgba(255,255,255,0.2)" : "#c8a96e", cursor: pageActuelle === totalPages - 1 ? "not-allowed" : "pointer", fontSize: "20px", fontWeight: "bold" }}>
+                  →
+                </button>
+              </div>
+            </div>
+          ) : null}
         </div>
       )}
+
       <div style={{ background: "linear-gradient(135deg,#1a1a2e,#0d0d1a)", border: "1px solid rgba(200,169,110,0.3)", borderRadius: "16px", padding: "30px", textAlign: "center", marginTop: "30px" }}>
         <div style={{ fontSize: "32px", marginBottom: "12px" }}>⚡</div>
         <h3 style={{ color: "#fff", fontFamily: "Georgia,serif", fontSize: "22px", marginBottom: "8px" }}>{lb.pret}</h3>
