@@ -1,11 +1,8 @@
 "use client";
 import { useState, useEffect } from "react";
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
-
 export default function LMSPage({ params }) {
-  const code = params.code;
+  const code = params.code?.toUpperCase();
   const [formation, setFormation] = useState(null);
   const [lmsData, setLmsData] = useState(null);
   const [moduleActif, setModuleActif] = useState({ch: 0, mod: 0});
@@ -20,29 +17,26 @@ export default function LMSPage({ params }) {
   const [onglet, setOnglet] = useState("cours");
 
   useEffect(() => {
-    chargerFormation();
-    chargerLMS();
+    chargerDonnees();
     chargerProgression();
   }, [code]);
 
-  async function chargerFormation() {
+  async function chargerDonnees() {
     try {
-      const res = await fetch(SUPABASE_URL + "/rest/v1/formations?code=eq." + code + "&select=*", { headers: { apikey: SUPABASE_KEY, Authorization: "Bearer " + SUPABASE_KEY } });
-      const data = await res.json();
-      if (data[0]) setFormation(data[0]);
-    } catch {}
-  }
+      // Charger formation
+      const r1 = await fetch("/api/formation/" + code);
+      const f = await r1.json();
+      if (f && !f.error) setFormation(f);
 
-  async function chargerLMS() {
-    try {
-      const res = await fetch(SUPABASE_URL + "/rest/v1/formations_lms?formation_code=eq." + code + "&select=*", { headers: { apikey: SUPABASE_KEY, Authorization: "Bearer " + SUPABASE_KEY } });
-      const data = await res.json();
-      if (data[0]) setLmsData(data[0]);
+      // Charger LMS via API
+      const r2 = await fetch("/api/lms/" + code);
+      const lms = await r2.json();
+      if (lms && !lms.error) setLmsData(lms);
     } catch {}
     setLoading(false);
   }
 
-  async function chargerProgression() {
+  function chargerProgression() {
     try {
       const prog = localStorage.getItem("progression_" + code);
       if (prog) setProgression(JSON.parse(prog));
@@ -65,8 +59,8 @@ export default function LMSPage({ params }) {
         qActuelle = { question: l.replace(/^Q[0-9]+\./, "").trim(), options: [], bonneReponse: "", explication: "" };
       } else if (qActuelle && l.match(/^[A-D]\)/)) {
         qActuelle.options.push(l);
-      } else if (qActuelle && l.startsWith("Bonne reponse :")) {
-        qActuelle.bonneReponse = l.replace("Bonne reponse :", "").split("-")[0].trim();
+      } else if (qActuelle && l.startsWith("Reponse :")) {
+        qActuelle.bonneReponse = l.replace("Reponse :", "").split("-")[0].trim();
         qActuelle.explication = l.includes("-") ? l.split("-").slice(1).join("-").trim() : "";
       }
     }
@@ -120,12 +114,10 @@ export default function LMSPage({ params }) {
     </div>
   );
 
-  // Support v6 (contenu.chapitres) et ancien format (contenu = array)
   const contenuLMS = lmsData.contenu;
   const chapitres = Array.isArray(contenuLMS) ? contenuLMS : (contenuLMS?.chapitres || []);
   const examenBlanc = lmsData.examen_blanc || contenuLMS?.examen_blanc || "";
   const formateur = contenuLMS?.formateur || "";
-  const coach = contenuLMS?.coach || "";
   const coaching = contenuLMS?.coaching || "";
 
   const chapitreActifData = chapitres[moduleActif.ch];
@@ -170,7 +162,7 @@ export default function LMSPage({ params }) {
                 return (
                   <div key={mi} onClick={() => { setModuleActif({ch: ci, mod: mi}); setOnglet("cours"); setQcmScore(null); setQcmReponses({}); setMessageValidateur(""); }}
                     style={{ padding: "8px 10px", marginBottom: "4px", borderRadius: "6px", cursor: "pointer", background: actif ? "rgba(200,169,110,0.2)" : "transparent", border: actif ? "1px solid rgba(200,169,110,0.4)" : "1px solid transparent", display: "flex", alignItems: "center", gap: "8px" }}>
-                    <span style={{ fontSize: "14px" }}>{valide ? "✅" : "⭕"}</span>
+                    <span>{valide ? "✅" : "⭕"}</span>
                     <span style={{ color: actif ? "#c8a96e" : "rgba(255,255,255,0.6)", fontSize: "11px" }}>{ci + 1}.{mi + 1} {mod.titre}</span>
                   </div>
                 );
@@ -213,7 +205,7 @@ export default function LMSPage({ params }) {
               <div style={{ marginTop: "20px", textAlign: "center" }}>
                 <button onClick={() => { setOnglet("qcm"); setQcmScore(null); setQcmReponses({}); setMessageValidateur(""); }}
                   style={{ background: "#c8a96e", color: "#050508", padding: "12px 30px", borderRadius: "8px", border: "none", cursor: "pointer", fontWeight: "bold" }}>
-                  Passer au QCM de validation →
+                  Passer au QCM →
                 </button>
               </div>
             </div>
@@ -249,16 +241,16 @@ export default function LMSPage({ params }) {
                     </button>
                   ) : (
                     <div style={{ textAlign: "center", padding: "20px", background: qcmScore >= 70 ? "rgba(0,200,0,0.1)" : "rgba(200,0,0,0.1)", borderRadius: "10px" }}>
-                      <p style={{ color: qcmScore >= 70 ? "#00c800" : "#ff4444", fontSize: "24px", fontWeight: "bold", margin: "0 0 10px" }}>{qcmScore}%</p>
-                      <p style={{ color: "#fff", margin: "0 0 15px", fontSize: "14px" }}>{messageValidateur}</p>
+                      <p style={{ color: qcmScore >= 70 ? "#00c800" : "#ff4444", fontSize: "24px", fontWeight: "bold" }}>{qcmScore}%</p>
+                      <p style={{ color: "#fff", margin: "0 0 15px" }}>{messageValidateur}</p>
                       <div style={{ display: "flex", gap: "10px", justifyContent: "center" }}>
                         <button onClick={() => { setQcmScore(null); setQcmReponses({}); setMessageValidateur(""); }} style={{ background: "rgba(200,169,110,0.2)", color: "#c8a96e", padding: "10px 20px", borderRadius: "8px", border: "1px solid #c8a96e", cursor: "pointer" }}>Recommencer</button>
                         {qcmScore >= 50 && (
                           <button onClick={() => {
-                            const newMod = moduleActif.mod + 1;
-                            const newCh = moduleActif.ch;
-                            if (newMod < chapitres[newCh]?.modules?.length) { setModuleActif({ch: newCh, mod: newMod}); }
-                            else if (newCh + 1 < chapitres.length) { setModuleActif({ch: newCh + 1, mod: 0}); }
+                            const nm = moduleActif.mod + 1;
+                            const nc = moduleActif.ch;
+                            if (nm < chapitres[nc]?.modules?.length) setModuleActif({ch: nc, mod: nm});
+                            else if (nc + 1 < chapitres.length) setModuleActif({ch: nc + 1, mod: 0});
                             setOnglet("cours"); setQcmScore(null); setQcmReponses({}); setMessageValidateur("");
                           }} style={{ background: "#c8a96e", color: "#050508", padding: "10px 20px", borderRadius: "8px", border: "none", cursor: "pointer", fontWeight: "bold" }}>
                             Module suivant →
@@ -297,13 +289,13 @@ export default function LMSPage({ params }) {
             <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(200,169,110,0.2)", borderRadius: "12px", padding: "25px", maxHeight: "600px", overflowY: "auto" }}>
               <h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", margin: "0 0 20px" }}>Examen Blanc Final</h2>
               {progressionPct < 70 ? (
-                <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "14px", textAlign: "center" }}>Completez au moins 70% des modules. Progression : {progressionPct}%</p>
+                <p style={{ color: "rgba(255,255,255,0.6)", textAlign: "center" }}>Completez au moins 70% des modules. Progression : {progressionPct}%</p>
               ) : (
                 (examenBlanc || "").split("\n").map((ligne, i) => {
                   const l = ligne.trim();
                   if (!l) return <br key={i} />;
-                  const isTitle = ["PARTIE","QCM","QUESTIONS","CAS","CORRIGE","BAREME","EXAMEN","INSTRUCTIONS"].some(x => l.toUpperCase().startsWith(x));
-                  return isTitle ? <h3 key={i} style={{ color: "#c8a96e", fontFamily: "Georgia,serif", margin: "20px 0 8px" }}>{l}</h3> : <p key={i} style={{ color: "rgba(255,255,255,0.8)", lineHeight: "1.8", margin: "0 0 6px", fontSize: "13px" }}>{l}</p>;
+                  const isTitle = ["PARTIE","QCM","QUESTIONS","CAS","CORRIGE","EXAMEN"].some(x => l.toUpperCase().startsWith(x));
+                  return isTitle ? <h3 key={i} style={{ color: "#c8a96e", fontFamily: "Georgia,serif", margin: "20px 0 8px" }}>{l}</h3> : <p key={i} style={{ color: "rgba(255,255,255,0.8)", lineHeight: "1.8", fontSize: "13px" }}>{l}</p>;
                 })
               )}
             </div>
