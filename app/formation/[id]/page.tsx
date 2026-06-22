@@ -1,8 +1,8 @@
-
 "use client";
 import { useState, useEffect } from "react";
 import { useTranslation } from "../../../hooks/useTranslation";
 import LMSSection from "../../../components/LMSSection";
+import LMSSophrologie from "../../../components/LMSSophrologie";
 
 function nettoyer_markdown(texte) {
   if (!texte) return "";
@@ -42,8 +42,8 @@ export default function FormationPage({ params }) {
   );
 
   const labels = {
-    fr: { support: "Support de cours", support_sub: "Document complet · 300+ pages", voir: "Voir le support" },
-    en: { support: "Course Materials", support_sub: "Complete document · 300+ pages", voir: "View materials" },
+    fr: { support: "Support de cours", support_sub: "Document complet 300+ pages", voir: "Voir le support" },
+    en: { support: "Course Materials", support_sub: "Complete document 300+ pages", voir: "View materials" },
     ar: { support: "مواد الدورة", support_sub: "300+ صفحة", voir: "عرض المواد" },
     es: { support: "Material del curso", support_sub: "300+ paginas", voir: "Ver material" },
     pt: { support: "Material do curso", support_sub: "300+ paginas", voir: "Ver material" },
@@ -54,7 +54,7 @@ export default function FormationPage({ params }) {
   return (
     <div style={{ backgroundColor: "#050508", minHeight: "100vh", color: "#fff" }}>
       <div style={{ background: "linear-gradient(135deg,#0a0a1a,#1a1a2e)", padding: "60px 40px", textAlign: "center" }}>
-        <div style={{ color: "#c8a96e", fontSize: "13px", marginBottom: "10px" }}>{formation.code} · {formation.domaine}</div>
+        <div style={{ color: "#c8a96e", fontSize: "13px", marginBottom: "10px" }}>{formation.code} - {formation.domaine}</div>
         <h1 style={{ color: "#fff", fontFamily: "Georgia,serif", fontSize: "2rem", marginBottom: "20px" }}>{formation.titre}</h1>
         <div style={{ display: "flex", gap: "15px", justifyContent: "center", flexWrap: "wrap" }}>
           {formation.duree && <span style={{ background: "rgba(200,169,110,0.2)", color: "#c8a96e", padding: "6px 16px", borderRadius: "20px" }}>{formation.duree}</span>}
@@ -106,16 +106,17 @@ export default function FormationPage({ params }) {
               <div style={{ color: "#c8a96e", fontWeight: "bold", marginBottom: "3px" }}>📄 {lb.support}</div>
               <div style={{ color: "rgba(255,255,255,0.4)", fontSize: "12px" }}>{lb.support_sub}</div>
             </div>
-            <a href={pdfUrl} target="_blank" style={{ background: "#c8a96e", color: "#050508", padding: "10px 20px", borderRadius: "8px", textDecoration: "none", fontWeight: "bold", fontSize: "13px" }}>
-              {lb.voir}
-            </a>
+            <a href={pdfUrl} target="_blank" style={{ background: "#c8a96e", color: "#050508", padding: "10px 20px", borderRadius: "8px", textDecoration: "none", fontWeight: "bold", fontSize: "13px" }}>{lb.voir}</a>
           </div>
         )}
         <div style={{ display: "flex", gap: "12px", marginBottom: "40px", flexWrap: "wrap" }}>
           <a href="/dashboard" style={{ flex: 1, display: "block", background: "#c8a96e", color: "#050508", padding: "14px 20px", borderRadius: "8px", fontWeight: "bold", textDecoration: "none", textAlign: "center" }}>{t("coach_btn")}</a>
           <a href="/classe-virtuelle" style={{ flex: 1, display: "block", background: "rgba(200,169,110,0.2)", color: "#c8a96e", padding: "14px 20px", borderRadius: "8px", fontWeight: "bold", textDecoration: "none", textAlign: "center", border: "1px solid rgba(200,169,110,0.3)" }}>{t("classe_btn")}</a>
         </div>
-        <LMSSection code={params.id.toUpperCase()} langue={langue} />
+        {params.id.toUpperCase() === "F030"
+          ? <LMSSophrologie langue={langue} />
+          : <LMSSection code={params.id.toUpperCase()} langue={langue} />
+        }
       </div>
     </div>
   );
