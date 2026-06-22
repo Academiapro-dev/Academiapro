@@ -1,0 +1,131 @@
+import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
+
+export const runtime = "nodejs";
+export const maxDuration = 300;
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
+
+const CLAUDE_API_KEY = process.env.ANTHROPIC_API_KEY;
+
+const LANGUES = {
+  fr: "francais", en: "English", ar: "العربية", es: "espanol", pt: "portugues", de: "Deutsch",
+};
+
+const CHAPITRES = [
+  { numero: 1, titre: "Fondements Theoriques et Scientifiques", modules: [
+    { numero: 1, titre: "Histoire et origines de la sophrologie caycedienne", type: "theorie" },
+    { numero: 2, titre: "Neurobiologie et mecanismes physiologiques", type: "theorie" },
+    { numero: 3, titre: "Protocoles d induction et sophronisation de base", type: "pratique" },
+    { numero: 4, titre: "Evaluation et QCM Chapitre 1", type: "evaluation" },
+  ]},
+  { numero: 2, titre: "Les 12 Degres Caycediens RD1 a RD4", modules: [
+    { numero: 1, titre: "RD1 Decontraction Musculaire Progressive", type: "theorie" },
+    { numero: 2, titre: "RD2 Sophro-Activation Positive", type: "theorie" },
+    { numero: 3, titre: "RD3 Sophro-Contemplation du Corps", type: "theorie" },
+    { numero: 4, titre: "Pratique guidee RD1-RD4 et QCM", type: "pratique" },
+  ]},
+  { numero: 3, titre: "Les Degres Superieurs RD5 a RD12", modules: [
+    { numero: 1, titre: "RD5 a RD8 Approfondissement et presence totale", type: "theorie" },
+    { numero: 2, titre: "RD9 a RD12 Contemplation de la conscience", type: "theorie" },
+    { numero: 3, titre: "Applications cliniques et protocoles specialises", type: "pratique" },
+    { numero: 4, titre: "Cas cliniques et QCM", type: "evaluation" },
+  ]},
+  { numero: 4, titre: "Applications Professionnelles", modules: [
+    { numero: 1, titre: "Sophrologie perinatale et accompagnement naissance", type: "pratique" },
+    { numero: 2, titre: "Sophrologie du sport de haut niveau", type: "pratique" },
+    { numero: 3, titre: "Sophrologie oncologique et gestion douleur chronique", type: "pratique" },
+    { numero: 4, titre: "Creation de protocoles personnalises et QCM", type: "evaluation" },
+  ]},
+  { numero: 5, titre: "Pratique Professionnelle et Certification", modules: [
+    { numero: 1, titre: "Construction et gestion d un cabinet de sophrologie", type: "pratique" },
+    { numero: 2, titre: "Ethique deontologie et cadre legal du sophrologue", type: "theorie" },
+    { numero: 3, titre: "Supervision memoire professionnel et soutenance", type: "pratique" },
+    { numero: 4, titre: "Examen blanc final 20 questions", type: "evaluation" },
+  ]},
+];
+
+async function appel_claude(prompt, langue_nom) {
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: { "x-api-key": CLAUDE_API_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+    body: JSON.stringify({
+      model: "claude-sonnet-4-6",
+      max_tokens: 4000,
+      system: "Tu es Claire Beaumont, auteure de manuels universitaires de sophrologie caycedienne de niveau doctoral. Tu rediges des contenus denses professionnels et academiques. Chaque paragraphe fait minimum 8 lignes. Tu n abreges jamais. Tu rediges entierement en " + langue_nom + ".",
+      messages: [{ role: "user", content: prompt }],
+    }),
+  });
+  if (!res.ok) return "";
+  const data = await res.json();
+  return data.content[0].text || "";
+}
+
+async function generer(formation, chapitre, module, langue) {
+  const langue_nom = LANGUES[langue] || "francais";
+  const contexte = "Formation: " + formation.titre + ". Chapitre " + chapitre.numero + ": " + chapitre.titre + ". Module " + module.numero + ": " + module.titre + ".";
+
+  const prompts = {
+    theorie: [
+      contexte + " PARTIE 1 SUR 3 - INTRODUCTION ET FONDEMENTS HISTORIQUES. Redige: (1) Introduction generale 3 paragraphes denses sur le contexte historique et scientifique. (2) Biographie detaillee du fondateur et genese de la discipline 4 paragraphes. (3) Contexte philosophique et scientifique de l epoque 3 paragraphes. (4) Premiers travaux et decouvertes fondamentales 3 paragraphes. Langue: " + langue_nom,
+      contexte + " PARTIE 2 SUR 3 - BASES THEORIQUES ET SCIENTIFIQUES. Redige: (1) Mecanismes neurobiologiques et physiologiques detailles 4 paragraphes avec citations scientifiques. (2) Etudes cliniques et recherches publiees 3 paragraphes. (3) Concepts fondamentaux et definitions 4 paragraphes. (4) Comparaison avec autres approches therapeutiques 3 paragraphes. (5) Applications theoriques en pratique clinique 3 paragraphes. Langue: " + langue_nom,
+      contexte + " PARTIE 3 SUR 3 - APPROFONDISSEMENT ET RESSOURCES. Redige: (1) Concepts avances pour praticiens experimentes 4 paragraphes. (2) Cas cliniques illustratifs detailles 3 paragraphes. (3) Points cles essentiels liste de 10 items developpes. (4) Glossaire de 15 termes cles avec definitions completes. (5) Bibliographie selective de 8 references commentees. Langue: " + langue_nom,
+    ],
+    pratique: [
+      contexte + " PARTIE 1 SUR 3 - PREPARATION ET EXERCICES 1 ET 2. Redige: (1) Introduction aux objectifs pratiques 2 paragraphes. (2) Preparation cadre et environnement de pratique 3 paragraphes. (3) EXERCICE 1 COMPLET: objectif preparation protocole detaille etape par etape variantes contre-indications. (4) EXERCICE 2 COMPLET: meme structure complete. Langue: " + langue_nom,
+      contexte + " PARTIE 2 SUR 3 - EXERCICES 3 4 ET 5. Redige: (1) EXERCICE 3 COMPLET avec protocole detaille. (2) EXERCICE 4 COMPLET avec protocole detaille. (3) EXERCICE 5 COMPLET avec protocole detaille. (4) Script complet de seance guidee mot a mot pour 30 minutes. Langue: " + langue_nom,
+      contexte + " PARTIE 3 SUR 3 - ADAPTATION ET SUIVI. Redige: (1) Adaptation pour differents publics enfants seniors sportifs personnes en difficulte 4 paragraphes par public. (2) Erreurs courantes et corrections detaillees. (3) Fiche de suivi apprenant avec grille d evaluation 20 criteres. (4) Progression et niveaux d avancement. (5) Ressources complementaires 8 references. Langue: " + langue_nom,
+    ],
+    evaluation: [
+      contexte + " PARTIE 1 SUR 3 - QCM 1 A 10. Redige 10 questions QCM. Chaque question: enonce detaille + 4 options A B C D + reponse correcte + explication de 5 lignes minimum. Langue: " + langue_nom,
+      contexte + " PARTIE 2 SUR 3 - QCM 11 A 20. Redige 10 questions QCM avancees. Chaque question: enonce detaille + 4 options A B C D + reponse correcte + explication de 5 lignes minimum. Langue: " + langue_nom,
+      contexte + " PARTIE 3 SUR 3 - CAS PRATIQUES ET BILAN. Redige: (1) 5 scenarios de cas pratiques complets avec questions et reponses attendues detaillees. (2) 3 questions de reflexion professionnelle avec reponses type. (3) Grille d auto-evaluation 20 criteres avec indicateurs. (4) Conseils pour progresser. (5) Ressources complementaires 10 references. Langue: " + langue_nom,
+    ],
+  };
+
+  const type_prompts = prompts[module.type] || prompts.theorie;
+  const parties = await Promise.all(type_prompts.map(p => appel_claude(p, langue_nom)));
+  return parties.join("\n\n---\n\n");
+}
+
+export async function POST(req) {
+  try {
+    const { formation_code, chapitre_num, module_num, langue = "fr" } = await req.json();
+
+    const { data: formations } = await supabase.from("formations").select("*").eq("code", formation_code).limit(1);
+    if (!formations || formations.length === 0) return NextResponse.json({ erreur: "Formation introuvable" }, { status: 404 });
+
+    const formation = formations[0];
+    const chapitre = CHAPITRES[chapitre_num - 1];
+    if (!chapitre) return NextResponse.json({ erreur: "Chapitre introuvable" }, { status: 404 });
+
+    const module = chapitre.modules[module_num - 1];
+    if (!module) return NextResponse.json({ erreur: "Module introuvable" }, { status: 404 });
+
+    const cache_key = formation_code + "_ch" + chapitre_num + "_mod" + module_num + "_" + langue;
+    const { data: cache } = await supabase.from("lms_cache").select("contenu").eq("cache_key", cache_key).limit(1);
+
+    if (cache && cache.length > 0) {
+      return NextResponse.json({ succes: true, depuis_cache: true, chapitre, module, contenu: cache[0].contenu });
+    }
+
+    const contenu = await generer(formation, chapitre, module, langue);
+
+    await supabase.from("lms_cache").insert({
+      cache_key, formation_code, chapitre_num, module_num, langue, contenu,
+      created_at: new Date().toISOString(),
+    });
+
+    return NextResponse.json({ succes: true, depuis_cache: false, chapitre, module, contenu });
+
+  } catch (err) {
+    return NextResponse.json({ erreur: err.message }, { status: 500 });
+  }
+}
+
+export async function GET() {
+  return NextResponse.json({ chapitres: CHAPITRES, status: "ok" });
+}
