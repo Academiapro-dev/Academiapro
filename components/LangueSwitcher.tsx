@@ -28,12 +28,15 @@ export function useLangue() {
 }
 
 const LANGUES = [
-  { code: "fr", label: "FR", drapeau: "🇫🇷", nom: "Français" },
+  { code: "fr", label: "FR", drapeau: "🇫🇷", nom: "Français" },
   { code: "en", label: "EN", drapeau: "🇬🇧", nom: "English" },
-  { code: "es", label: "ES", drapeau: "🇪🇸", nom: "Español" },
+  { code: "es", label: "ES", drapeau: "🇪🇸", nom: "Español" },
+  { code: "pt", label: "PT", drapeau: "🇧🇷", nom: "Português" },
+  { code: "de", label: "DE", drapeau: "🇩", nom: "Deutsch" },
   { code: "ar", label: "AR", drapeau: "🇸🇦", nom: "العربية" },
   { code: "he", label: "HE", drapeau: "🇮🇱", nom: "עברית" },
 ];
+
 
 export default function LangueSwitcher() {
   const { langue, setLangue } = useLangue();
