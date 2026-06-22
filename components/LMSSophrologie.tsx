@@ -1,42 +1,30 @@
 "use client";
-import { useState, useEffect } from "react"; 
+import { useState, useEffect } from "react";
 
 const CHAPITRES = [
-  { numero: 1, titre_fr: "Fondements Theoriques et Scientifiques", titre_en: "Theoretical and Scientific Foundations", titre_ar: "الأسس النظرية والعلمية", titre_es: "Fundamentos Teoricos y Cientificos", titre_pt: "Fundamentos Teoricos e Cientificos", titre_de: "Theoretische und Wissenschaftliche Grundlagen", modules: [
-    { numero: 1, type: "theorie" }, { numero: 2, type: "theorie" }, { numero: 3, type: "pratique" }, { numero: 4, type: "evaluation" }
-  ]},
+  { numero: 1, titre_fr: "Fondements Theoriques et Scientifiques", titre_en: "Theoretical and Scientific Foundations", titre_ar: "الاسس النظرية والعلمية", titre_es: "Fundamentos Teoricos", titre_pt: "Fundamentos Teoricos", titre_de: "Theoretische Grundlagen", modules: [
+    { numero: 1, type: "theorie" }, { numero: 2, type: "theorie" }, { numero: 3, type: "pratique" }, { numero: 4, type: "evaluation" }]},
   { numero: 2, titre_fr: "Les 12 Degres Caycediens RD1 a RD4", titre_en: "The 12 Caycedian Degrees RD1 to RD4", titre_ar: "الدرجات الكايسيدية", titre_es: "Los 12 Grados Caycedianos", titre_pt: "Os 12 Graus Caycedianos", titre_de: "Die 12 Caycedischen Grade", modules: [
-    { numero: 1, type: "theorie" }, { numero: 2, type: "theorie" }, { numero: 3, type: "theorie" }, { numero: 4, type: "pratique" }
-  ]},
-  { numero: 3, titre_fr: "Les Degres Superieurs RD5 a RD12", titre_en: "Advanced Degrees RD5 to RD12", titre_ar: "الدرجات المتقدمة", titre_es: "Grados Superiores RD5 a RD12", titre_pt: "Graus Superiores RD5 a RD12", titre_de: "Hoehere Grade RD5 bis RD12", modules: [
-    { numero: 1, type: "theorie" }, { numero: 2, type: "theorie" }, { numero: 3, type: "pratique" }, { numero: 4, type: "evaluation" }
-  ]},
+    { numero: 1, type: "theorie" }, { numero: 2, type: "theorie" }, { numero: 3, type: "theorie" }, { numero: 4, type: "pratique" }]},
+  { numero: 3, titre_fr: "Les Degres Superieurs RD5 a RD12", titre_en: "Advanced Degrees RD5 to RD12", titre_ar: "الدرجات المتقدمة", titre_es: "Grados Superiores", titre_pt: "Graus Superiores", titre_de: "Hoehere Grade", modules: [
+    { numero: 1, type: "theorie" }, { numero: 2, type: "theorie" }, { numero: 3, type: "pratique" }, { numero: 4, type: "evaluation" }]},
   { numero: 4, titre_fr: "Applications Professionnelles", titre_en: "Professional Applications", titre_ar: "التطبيقات المهنية", titre_es: "Aplicaciones Profesionales", titre_pt: "Aplicacoes Profissionais", titre_de: "Professionelle Anwendungen", modules: [
-    { numero: 1, type: "pratique" }, { numero: 2, type: "pratique" }, { numero: 3, type: "pratique" }, { numero: 4, type: "evaluation" }
-  ]},
-  { numero: 5, titre_fr: "Pratique Professionnelle et Certification", titre_en: "Professional Practice and Certification", titre_ar: "الممارسة المهنية والشهادة", titre_es: "Practica Profesional y Certificacion", titre_pt: "Pratica Profissional e Certificacao", titre_de: "Professionelle Praxis und Zertifizierung", modules: [
-    { numero: 1, type: "pratique" }, { numero: 2, type: "theorie" }, { numero: 3, type: "pratique" }, { numero: 4, type: "evaluation" }
-  ]},
+    { numero: 1, type: "pratique" }, { numero: 2, type: "pratique" }, { numero: 3, type: "pratique" }, { numero: 4, type: "evaluation" }]},
+  { numero: 5, titre_fr: "Pratique Professionnelle et Certification", titre_en: "Professional Practice and Certification", titre_ar: "الممارسة المهنية", titre_es: "Practica Profesional", titre_pt: "Pratica Profissional", titre_de: "Professionelle Praxis", modules: [
+    { numero: 1, type: "pratique" }, { numero: 2, type: "theorie" }, { numero: 3, type: "pratique" }, { numero: 4, type: "evaluation" }]},
 ];
 
 const LABELS = {
-  fr: { programme: "PROGRAMME", chargement: "Generation du contenu complet en cours...", depuis_cache: "Contenu charge", genere: "Contenu genere", theorie: "Theorie", pratique: "Pratique", evaluation: "Evaluation", chapitre: "Chapitre", inscrire: "S inscrire maintenant", pret: "Pret a devenir sophrologue certifie ?", acces: "Acces immediat · Claire Beaumont 24h/24 · Certification incluse" },
-  en: { programme: "CURRICULUM", chargement: "Generating complete content...", depuis_cache: "Content loaded", genere: "Content generated", theorie: "Theory", pratique: "Practice", evaluation: "Assessment", chapitre: "Chapter", inscrire: "Enroll now", pret: "Ready to become a certified sophrologist?", acces: "Immediate access · Claire Beaumont 24/7 · Certification included" },
-  ar: { programme: "البرنامج", chargement: "جاري توليد المحتوى...", depuis_cache: "تم تحميل المحتوى", genere: "تم توليد المحتوى", theorie: "نظري", pratique: "تطبيقي", evaluation: "تقييم", chapitre: "الفصل", inscrire: "سجل الآن", pret: "هل انت مستعد؟", acces: "وصول فوري · كلير بومون 24/7" },
-  es: { programme: "PROGRAMA", chargement: "Generando contenido completo...", depuis_cache: "Contenido cargado", genere: "Contenido generado", theorie: "Teoria", pratique: "Practica", evaluation: "Evaluacion", chapitre: "Capitulo", inscrire: "Inscribirse ahora", pret: "Listo para certificarte?", acces: "Acceso inmediato · Claire Beaumont 24/7 · Certificacion incluida" },
-  pt: { programme: "PROGRAMA", chargement: "Gerando conteudo completo...", depuis_cache: "Conteudo carregado", genere: "Conteudo gerado", theorie: "Teoria", pratique: "Pratica", evaluation: "Avaliacao", chapitre: "Capitulo", inscrire: "Inscrever-se agora", pret: "Pronto para se certificar?", acces: "Acesso imediato · Claire Beaumont 24/7 · Certificacao incluida" },
-  de: { programme: "LEHRPLAN", chargement: "Vollstandiger Inhalt wird generiert...", depuis_cache: "Inhalt geladen", genere: "Inhalt generiert", theorie: "Theorie", pratique: "Praxis", evaluation: "Bewertung", chapitre: "Kapitel", inscrire: "Jetzt einschreiben", pret: "Bereit fur die Zertifizierung?", acces: "Sofortiger Zugang · Claire Beaumont 24/7 · Zertifizierung inklusive" },
+  fr: { programme: "PROGRAMME", chargement: "Generation du contenu complet en cours...", depuis_cache: "Contenu charge", genere: "Contenu genere", theorie: "Theorie", pratique: "Pratique", evaluation: "Evaluation", chapitre: "Chapitre", inscrire: "S inscrire maintenant", pret: "Pret a devenir sophrologue certifie ?", acces: "Acces immediat Claire Beaumont 24h/24 Certification incluse" },
+  en: { programme: "CURRICULUM", chargement: "Generating complete content...", depuis_cache: "Content loaded", genere: "Content generated", theorie: "Theory", pratique: "Practice", evaluation: "Assessment", chapitre: "Chapter", inscrire: "Enroll now", pret: "Ready to become a certified sophrologist?", acces: "Immediate access Claire Beaumont 24/7 Certification included" },
+  ar: { programme: "البرنامج", chargement: "جاري توليد المحتوى", depuis_cache: "تم التحميل", genere: "تم التوليد", theorie: "نظري", pratique: "تطبيقي", evaluation: "تقييم", chapitre: "الفصل", inscrire: "سجل الان", pret: "هل انت مستعد؟", acces: "وصول فوري كلير بومون 24/7" },
+  es: { programme: "PROGRAMA", chargement: "Generando contenido...", depuis_cache: "Contenido cargado", genere: "Contenido generado", theorie: "Teoria", pratique: "Practica", evaluation: "Evaluacion", chapitre: "Capitulo", inscrire: "Inscribirse ahora", pret: "Listo para certificarte?", acces: "Acceso inmediato Claire Beaumont 24/7" },
+  pt: { programme: "PROGRAMA", chargement: "Gerando conteudo...", depuis_cache: "Conteudo carregado", genere: "Conteudo gerado", theorie: "Teoria", pratique: "Pratica", evaluation: "Avaliacao", chapitre: "Capitulo", inscrire: "Inscrever-se agora", pret: "Pronto para se certificar?", acces: "Acesso imediato Claire Beaumont 24/7" },
+  de: { programme: "LEHRPLAN", chargement: "Inhalt wird generiert...", depuis_cache: "Inhalt geladen", genere: "Inhalt generiert", theorie: "Theorie", pratique: "Praxis", evaluation: "Bewertung", chapitre: "Kapitel", inscrire: "Jetzt einschreiben", pret: "Bereit fur die Zertifizierung?", acces: "Sofortiger Zugang Claire Beaumont 24/7" },
 };
 
-function getTitre(ch, langue) {
-  return ch["titre_" + langue] || ch.titre_fr;
-}
-
-function getTypeIcon(type) {
-  if (type === "theorie") return "📖";
-  if (type === "pratique") return "🛠️";
-  return "📝";
-}
+function getTitre(ch, langue) { return ch["titre_" + langue] || ch.titre_fr; }
+function getTypeIcon(type) { if (type === "theorie") return "📖"; if (type === "pratique") return "🛠️"; return "📝"; }
 
 export default function LMSSophrologie({ langue = "fr" }) {
   const [chapitreActif, setChapitreActif] = useState(1);
@@ -44,35 +32,20 @@ export default function LMSSophrologie({ langue = "fr" }) {
   const [contenu, setContenu] = useState("");
   const [loading, setLoading] = useState(false);
   const [statut, setStatut] = useState("");
-
   const lb = LABELS[langue] || LABELS.fr;
   const chapitre = CHAPITRES[chapitreActif - 1];
   const module = chapitre?.modules[moduleActif - 1];
 
-  useEffect(() => {
-    charger(chapitreActif, moduleActif);
-  }, [chapitreActif, moduleActif, langue]);
+  useEffect(() => { charger(chapitreActif, moduleActif); }, [chapitreActif, moduleActif, langue]);
 
   async function charger(ch_num, mod_num) {
-    setLoading(true);
-    setContenu("");
-    setStatut(lb.chargement);
+    setLoading(true); setContenu(""); setStatut(lb.chargement);
     try {
-      const r = await fetch("/api/lms/generer", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ formation_code: "F030", chapitre_num: ch_num, module_num: mod_num, langue }),
-      });
+      const r = await fetch("/api/lms/generer", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ formation_code: "F030", chapitre_num: ch_num, module_num: mod_num, langue }) });
       const data = await r.json();
-      if (data.succes) {
-        setContenu(data.contenu);
-        setStatut(data.depuis_cache ? lb.depuis_cache : lb.genere);
-      } else {
-        setStatut("Erreur: " + (data.erreur || "inconnue"));
-      }
-    } catch {
-      setStatut("Erreur reseau");
-    }
+      if (data.succes) { setContenu(data.contenu); setStatut(data.depuis_cache ? lb.depuis_cache : lb.genere); }
+      else { setStatut("Erreur: " + (data.erreur || "inconnue")); }
+    } catch { setStatut("Erreur reseau"); }
     setLoading(false);
   }
 
@@ -82,26 +55,16 @@ export default function LMSSophrologie({ langue = "fr" }) {
         <div style={{ width: "56px", height: "56px", borderRadius: "50%", background: "linear-gradient(135deg,#c8a96e,#a07840)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "24px", flexShrink: 0 }}>🧘</div>
         <div>
           <div style={{ color: "#c8a96e", fontWeight: "bold", fontSize: "16px", marginBottom: "4px" }}>Claire Beaumont</div>
-          <div style={{ color: "rgba(255,255,255,0.7)", fontSize: "13px" }}>Formatrice Expert · Sophrologie Caycedienne · AcadeMIA Pro</div>
+          <div style={{ color: "rgba(255,255,255,0.7)", fontSize: "13px" }}>Formatrice Expert Sophrologie Caycedienne AcadeMIA Pro</div>
         </div>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "10px", marginBottom: "25px" }}>
-        {[{ label: "Chapitres", value: "5", icon: "📚" }, { label: "Modules", value: "20", icon: "📋" }, { label: "400h", value: "Pro", icon: "⭐" }].map(item => (
-          <div key={item.label} style={{ background: "#1a1a2e", borderRadius: "10px", padding: "15px", textAlign: "center", border: "1px solid rgba(200,169,110,0.2)" }}>
-            <div style={{ fontSize: "20px", marginBottom: "4px" }}>{item.icon}</div>
-            <div style={{ color: "#c8a96e", fontWeight: "bold", fontSize: "18px" }}>{item.value}</div>
-            <div style={{ color: "rgba(255,255,255,0.5)", fontSize: "11px" }}>{item.label}</div>
-          </div>
-        ))}
-      </div>
       <div style={{ marginBottom: "20px" }}>
-        <h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", fontSize: "16px", marginBottom: "12px", letterSpacing: "1px" }}>{lb.programme}</h2>
+        <h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", fontSize: "16px", marginBottom: "12px" }}>{lb.programme}</h2>
         <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
           {CHAPITRES.map((ch) => (
             <button key={ch.numero} onClick={() => { setChapitreActif(ch.numero); setModuleActif(1); }}
               style={{ textAlign: "left", padding: "14px 18px", borderRadius: "10px", border: "1px solid " + (chapitreActif === ch.numero ? "#c8a96e" : "rgba(200,169,110,0.2)"), background: chapitreActif === ch.numero ? "rgba(200,169,110,0.15)" : "#1a1a2e", color: chapitreActif === ch.numero ? "#c8a96e" : "rgba(255,255,255,0.7)", cursor: "pointer" }}>
-              <span style={{ fontWeight: "bold", marginRight: "10px" }}>{lb.chapitre} {ch.numero}</span>
-              {getTitre(ch, langue)}
+              <span style={{ fontWeight: "bold", marginRight: "10px" }}>{lb.chapitre} {ch.numero}</span>{getTitre(ch, langue)}
               <span style={{ float: "right", fontSize: "11px", color: "rgba(255,255,255,0.4)" }}>{ch.modules.length} modules</span>
             </button>
           ))}
@@ -126,10 +89,8 @@ export default function LMSSophrologie({ langue = "fr" }) {
               </div>
             ) : contenu ? (
               <div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", paddingBottom: "15px", borderBottom: "1px solid rgba(200,169,110,0.2)" }}>
-                  <div style={{ color: "#c8a96e", fontSize: "13px", fontWeight: "bold" }}>
-                    {getTypeIcon(module?.type || "")} {lb.chapitre} {chapitreActif} · Module {moduleActif}
-                  </div>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "20px", paddingBottom: "15px", borderBottom: "1px solid rgba(200,169,110,0.2)" }}>
+                  <div style={{ color: "#c8a96e", fontSize: "13px", fontWeight: "bold" }}>{getTypeIcon(module?.type || "")} {lb.chapitre} {chapitreActif} Module {moduleActif}</div>
                   <div style={{ color: "#00e676", fontSize: "11px" }}>{statut}</div>
                 </div>
                 <div style={{ color: "rgba(255,255,255,0.85)", fontSize: "14px", lineHeight: "1.9", whiteSpace: "pre-wrap" }}>{contenu}</div>
