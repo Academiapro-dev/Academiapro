@@ -80,9 +80,9 @@ async function generer(formation, chapitre, module, langue) {
       contexte + " PARTIE 3 SUR 3 - ADAPTATION ET SUIVI. Redige: (1) Adaptation pour differents publics enfants seniors sportifs personnes en difficulte 4 paragraphes par public. (2) Erreurs courantes et corrections detaillees. (3) Fiche de suivi apprenant avec grille d evaluation 20 criteres. (4) Progression et niveaux d avancement. (5) Ressources complementaires 8 references. Langue: " + langue_nom,
     ],
     evaluation: [
-      contexte + " PARTIE 1 SUR 3 - QCM 1 A 10. Redige 10 questions QCM. Chaque question: enonce detaille + 4 options A B C D + reponse correcte + explication de 5 lignes minimum. Langue: " + langue_nom,
-      contexte + " PARTIE 2 SUR 3 - QCM 11 A 20. Redige 10 questions QCM avancees. Chaque question: enonce detaille + 4 options A B C D + reponse correcte + explication de 5 lignes minimum. Langue: " + langue_nom,
-      contexte + " PARTIE 3 SUR 3 - CAS PRATIQUES ET BILAN. Redige: (1) 5 scenarios de cas pratiques complets avec questions et reponses attendues detaillees. (2) 3 questions de reflexion professionnelle avec reponses type. (3) Grille d auto-evaluation 20 criteres avec indicateurs. (4) Conseils pour progresser. (5) Ressources complementaires 10 references. Langue: " + langue_nom,
+      contexte + " PARTIE 1 SUR 3 - QCM OBLIGATOIRE FORMAT STRICT. Redige exactement 10 questions QCM. CHAQUE QUESTION DOIT ETRE AU FORMAT EXACT SUIVANT SANS EXCEPTION:\nQ1. [Enonce de la question detaille]\nA) [Option A]\nB) [Option B]\nC) [Option C]\nD) [Option D]\nReponse : A - [Explication detaillee de 3 lignes minimum]\n\nRespect absolu du format. Commence directement par Q1. Langue: " + langue_nom,
+      contexte + " PARTIE 2 SUR 3 - QCM AVANCE FORMAT STRICT. Redige exactement 10 questions QCM avancees niveau expert. CHAQUE QUESTION AU FORMAT EXACT:\nQ11. [Enonce]\nA) [Option]\nB) [Option]\nC) [Option]\nD) [Option]\nReponse : B - [Explication detaillee]\n\nCommence par Q11. Langue: " + langue_nom,
+      contexte + " PARTIE 3 SUR 3 - CAS PRATIQUES ET EXAMEN BLANC. Redige: (1) EXAMEN BLANC - 5 questions de synthese au format QCM:\nEB1. [Question]\nA) B) C) D)\nReponse : [lettre] - [explication]\n(2) 3 cas cliniques detailles avec questions et corrections. (3) Grille d auto-evaluation 20 criteres. (4) Conseils de progression. Langue: " + langue_nom,
     ],
   };
 
