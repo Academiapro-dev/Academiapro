@@ -87,30 +87,7 @@ export default function HomePage() {
 
   return (
     <div style={{ minHeight: "100vh", background: "#050508", color: "#fff", fontFamily: "Georgia, serif", direction: langue === "he" || langue === "ar" ? "rtl" : "ltr" }}>
-
-      <header style={{ background: "rgba(5,5,8,0.98)", borderBottom: "1px solid rgba(200,169,110,0.2)", padding: "0 40px", height: "64px", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: "0", zIndex: "100" }}>
-        <a href="/" style={{ color: "#c8a96e", textDecoration: "none", fontSize: "20px", fontWeight: "bold" }}>AcadémIA Pro</a>
-        <nav style={{ display: "flex", gap: "28px" }}>
-          <a href="/catalogue" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "15px" }}>{t("nav_formations")}</a>
-          <a href="/seances" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "15px" }}>{t("nav_seances")}</a>
-          <a href="/catalogue" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "15px" }}>{t("nav_packs")}</a>
-          <a href="/catalogue" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "15px" }}>{t("nav_competences")}</a>
-          <a href="/blog" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "15px" }}>{t("nav_blog")}</a>
-          <a href="/contact" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "15px" }}>{t("nav_contact")}</a>
-        </nav>
-        <select value={langue} onChange={e => changerLangue(e.target.value)}
-          style={{ background: "rgba(200,169,110,0.15)", border: "1px solid rgba(200,169,110,0.4)", color: "#c8a96e", padding: "6px 10px", borderRadius: "8px", cursor: "pointer", fontSize: "13px", fontWeight: "bold" }}>
-          <option value="fr">🇫🇷 FR</option>
-          <option value="en">🇬🇧 EN</option>
-          <option value="es">🇪🇸 ES</option>
-          <option value="pt">🇧🇷 PT</option>
-          <option value="de">🇩🇪 DE</option>
-          <option value="ar">🇸🇦 AR</option>
-        </select>
-        <a href="/login" style={{ background: "linear-gradient(135deg, #c8a96e, #a07840)", color: "#050508", padding: "10px 24px", borderRadius: "8px", textDecoration: "none", fontSize: "15px", fontWeight: "bold" }}>{t("btn_demarrer")}</a>
-      </header>
-
-      <section style={{ padding: "100px 40px", textAlign: "center", maxWidth: "900px", margin: "0 auto" }}>
+<section style={{ padding: "100px 40px", textAlign: "center", maxWidth: "900px", margin: "0 auto" }}>
         <p style={{ color: "#c8a96e", fontSize: "15px", letterSpacing: "4px", margin: "0 0 24px" }}>LA PLATEFORME DE FORMATION IA</p>
         <h1 style={{ fontSize: "52px", fontWeight: "bold", margin: "0 0 24px", lineHeight: "1.2" }}>{t("hero_titre")}</h1>
         <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "18px", margin: "0 0 40px", lineHeight: "1.7" }}>{t("hero_sub")}</p>
