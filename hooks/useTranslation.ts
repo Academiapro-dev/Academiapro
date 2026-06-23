@@ -1,39 +1,48 @@
 "use client";
 import { useState, useEffect } from "react";
 
-const cache = {};
+const cache: Record<string, any> = {};
 
-export function useTranslation() {
-  const [langue, setLangue] = useState("fr");
-  const [t, setT] = useState({});
+export function getLangue(): string {
+  if (typeof window === "undefined") return "fr";
+  const p = new URLSearchParams(window.location.search);
+  return p.get("lang") || localStorage.getItem("langue") || "fr";
+}
+
+export function useTranslation(section?: string) {
+  const [langue, setLangue] = useState<string>("fr");
+  const [data, setData] = useState<any>({});
 
   useEffect(() => {
-    const saved = localStorage.getItem("langue") || "fr";
-    setLangue(saved);
-    charger(saved);
+    const lang = getLangue();
+    setLangue(lang);
+    charger(lang);
   }, []);
 
-  async function charger(lang) {
-    if (cache[lang]) { setT(cache[lang]); return; }
+  async function charger(lang: string) {
+    if (cache[lang]) { setData(cache[lang]); return; }
     try {
       const r = await fetch("/locales/" + lang + ".json");
-      const data = await r.json();
-      cache[lang] = data;
-      setT(data);
+      if (!r.ok) throw new Error("not found");
+      const json = await r.json();
+      cache[lang] = json;
+      setData(json);
     } catch {
-      if (lang !== "fr") charger("fr");
+      if (lang !== "fr") {
+        const r = await fetch("/locales/fr.json");
+        const json = await r.json();
+        cache["fr"] = json;
+        setData(json);
+      }
     }
   }
 
-  function changerLangue(lang) {
-    localStorage.setItem("langue", lang);
-    setLangue(lang);
-    charger(lang);
-  }
-
-  function get(cle) {
+  function t(cle: string): string {
     const parts = cle.split(".");
-    let val = t;
+    if (parts.length === 1 && section) {
+      return data?.[section]?.[cle] || cle;
+    }
+    let val: any = data;
     for (const p of parts) {
       if (!val) return cle;
       val = val[p];
@@ -41,5 +50,7 @@ export function useTranslation() {
     return val || cle;
   }
 
-  return { langue, changerLangue, t: get };
+  return { t, langue, setLangue };
 }
+
+export default useTranslation;
