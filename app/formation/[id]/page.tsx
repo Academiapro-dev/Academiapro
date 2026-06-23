@@ -180,17 +180,17 @@ export default function FormationPage({ params }) {
               </button>
             ) : (
               <div style={{ maxWidth: "400px", margin: "0 auto", textAlign: "left", display: "flex", flexDirection: "column", gap: "12px" }}>
-                <input type="text" placeholder="Votre prenom *" value={leadForm.prenom} onChange={e => setLeadForm(p => ({ ...p, prenom: e.target.value }))}
+                <input type="text" placeholder={langue === "en" ? "Your first name *" : langue === "de" ? "Ihr Vorname *" : langue === "he" ? "שם פרטי *" : langue === "ar" ? "الاسم الأول *" : "Votre prenom *"} value={leadForm.prenom} onChange={e => setLeadForm(p => ({ ...p, prenom: e.target.value }))}
                   style={{ padding: "12px", borderRadius: "8px", border: "1px solid rgba(200,169,110,0.4)", background: "rgba(255,255,255,0.05)", color: "#fff", fontSize: "15px" }} />
-                <input type="email" placeholder="Votre email *" value={leadForm.email} onChange={e => setLeadForm(p => ({ ...p, email: e.target.value }))}
+                <input type="email" placeholder={langue === "en" ? "Your email *" : langue === "de" ? "Ihre E-Mail *" : langue === "he" ? "אימייל *" : langue === "ar" ? "البريد الإلكتروني *" : "Votre email *"} value={leadForm.email} onChange={e => setLeadForm(p => ({ ...p, email: e.target.value }))}
                   style={{ padding: "12px", borderRadius: "8px", border: "1px solid rgba(200,169,110,0.4)", background: "rgba(255,255,255,0.05)", color: "#fff", fontSize: "15px" }} />
-                <input type="tel" placeholder="Telephone mobile" value={leadForm.tel_mobile} onChange={e => setLeadForm(p => ({ ...p, tel_mobile: e.target.value }))}
+                <input type="tel" placeholder={langue === "en" ? "Mobile phone" : langue === "de" ? "Handynummer" : langue === "he" ? "טלפון נייד" : langue === "ar" ? "هاتف محمول" : "Telephone mobile"} value={leadForm.tel_mobile} onChange={e => setLeadForm(p => ({ ...p, tel_mobile: e.target.value }))}
                   style={{ padding: "12px", borderRadius: "8px", border: "1px solid rgba(200,169,110,0.3)", background: "rgba(255,255,255,0.05)", color: "#fff", fontSize: "15px" }} />
-                <input type="tel" placeholder="Telephone fixe / bureau" value={leadForm.tel_fixe} onChange={e => setLeadForm(p => ({ ...p, tel_fixe: e.target.value }))}
+                <input type="tel" placeholder={langue === "en" ? "Home / office phone" : langue === "de" ? "Festnetz / Büro" : langue === "he" ? "טלפון קווי / משרד" : langue === "ar" ? "هاتف ثابت / مكتب" : "Telephone fixe / bureau"} value={leadForm.tel_fixe} onChange={e => setLeadForm(p => ({ ...p, tel_fixe: e.target.value }))}
                   style={{ padding: "12px", borderRadius: "8px", border: "1px solid rgba(200,169,110,0.3)", background: "rgba(255,255,255,0.05)", color: "#fff", fontSize: "15px" }} />
                 <button onClick={soumettreProspect} disabled={leadLoading || !leadForm.email || !leadForm.prenom}
                   style={{ background: leadForm.email && leadForm.prenom ? "#c8a96e" : "rgba(200,169,110,0.3)", color: "#050508", border: "none", borderRadius: "8px", padding: "14px", fontWeight: "bold", fontSize: "15px", cursor: leadForm.email && leadForm.prenom ? "pointer" : "not-allowed" }}>
-                  {leadLoading ? "Enregistrement..." : "Acceder maintenant →"}
+                  {leadLoading ? "Enregistrement..." : {langue === "en" ? "Access now →" : langue === "de" ? "Jetzt zugreifen →" : langue === "he" ? "גישה עכשיו →" : langue === "ar" ? "الوصول الآن →" : "Acceder maintenant →"}}
                 </button>
               </div>
             )}
