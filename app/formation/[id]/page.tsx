@@ -45,6 +45,47 @@ export default function FormationPage({ params }) {
   };
   const lb = labels[langue] || labels.fr;
 
+
+  async function soumettreProspect() {
+    if (!leadForm.email || !leadForm.prenom) return;
+    setLeadLoading(true);
+    try {
+      await fetch("/api/crm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "upsert",
+          data: {
+            nom: leadForm.prenom,
+            email: leadForm.email,
+            telephone: leadForm.tel_mobile || leadForm.tel_fixe,
+            source: "page_formation",
+            statut: "prospect",
+            formation_interesse: formation?.titre || "",
+            domaine: formation?.domaine || "",
+            notes: "Tel mobile: " + (leadForm.tel_mobile || "non renseigne") + " | Tel fixe: " + (leadForm.tel_fixe || "non renseigne"),
+          }
+        }),
+      });
+      // Envoyer email de bienvenue
+      await fetch("/api/emailing", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "generer",
+          type: "bienvenue",
+          contexte: { prenom: leadForm.prenom, email: leadForm.email, formation: formation?.titre || "" },
+          envoyer: true,
+        }),
+      });
+      setLeadSoumis(true);
+      setShowLeadForm(false);
+      localStorage.setItem("apprenant_email", leadForm.email);
+      localStorage.setItem("apprenant_prenom", leadForm.prenom);
+    } catch {}
+    setLeadLoading(false);
+  }
+
   return (
     <div style={{ backgroundColor: "#050508", minHeight: "100vh", color: "#fff" }}>
       <div style={{ background: "linear-gradient(135deg,#0a0a1a,#1a1a2e)", padding: "60px 40px", textAlign: "center" }}>
