@@ -108,7 +108,7 @@ export async function POST(req) {
     const cache_key = formation_code + "_ch" + chapitre_num + "_mod" + module_num + "_" + langue;
     const { data: cache } = await supabase.from("lms_cache").select("contenu").eq("cache_key", cache_key).limit(1);
 
-    if (cache && cache.length > 0) {
+    if (cache && cache.length > 0 && cache[0].contenu && cache[0].contenu.length > 100) {
       return NextResponse.json({ succes: true, depuis_cache: true, chapitre, module, contenu: cache[0].contenu });
     }
 
