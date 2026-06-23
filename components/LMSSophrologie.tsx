@@ -100,7 +100,13 @@ function jouerSon() {
   } catch {}
 }
 
-export default function LMSSophrologie({ langue = "fr" }) {
+export default function LMSSophrologie({ langue: langueProp = "fr" }) {
+  const [langue, setLangue] = useState(langueProp);
+  
+  useEffect(() => {
+    const saved = localStorage.getItem("langue") || langueProp || "fr";
+    setLangue(saved);
+  }, [langueProp]);
   const [chapitreActif, setChapitreActif] = useState(1);
   const [moduleActif, setModuleActif] = useState(1);
   const [contenu, setContenu] = useState("");
