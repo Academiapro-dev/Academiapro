@@ -160,6 +160,72 @@ async function stats_crm() {
   return { total, prospects, chauds, clients, score_moyen, par_domaine, par_source };
 }
 
+
+async function lms_update(email: string, data: any) {
+  if (!email) return { erreur: "Email requis" };
+
+  const { data: existant } = await supabase
+    .from("crm").select("id,modules_valides,progression").eq("email", email).limit(1);
+
+  const payload = {
+    email,
+    statut: "client",
+    formation_active: data.formation_code,
+    modules_valides: data.modules_valides || 0,
+    progression: data.progression_pct || 0,
+    derniere_connexion: new Date().toISOString(),
+    derniere_interaction: new Date().toISOString(),
+    notes: data.notes || "",
+  };
+
+  let err;
+  if (existant && existant.length > 0) {
+    const r = await supabase.from("crm").update(payload).eq("email", email);
+    err = r.error;
+  } else {
+    const r = await supabase.from("crm").insert({ ...payload, score: 80 });
+    err = r.error;
+  }
+
+  // Notifier CAM
+  await supabase.from("analytics").insert({
+    formation_code: data.formation_code || "CRM",
+    agent: "CRM ↔ LMS",
+    action: "progression_mise_a_jour",
+    resultat: email + " — " + data.progression_pct + "% — " + data.modules_valides + " modules",
+    timestamp: new Date().toISOString(),
+  });
+
+  // Si progression >= 100% → déclencher email certification
+  if (data.progression_pct >= 100) {
+    await fetch(process.env.NEXT_PUBLIC_SITE_URL + "/api/emailing", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "generer",
+        type: "certification",
+        contexte: { email, prenom: data.prenom || "", formation: data.formation_code },
+        envoyer: true,
+      }),
+    });
+  }
+
+  // Si inactif depuis 7 jours → déclencher remotivation (géré par Agent Remotivation)
+  if (data.jours_inactif && data.jours_inactif >= 7) {
+    await fetch(process.env.NEXT_PUBLIC_SITE_URL + "/api/remotivation", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "generer",
+        contexte: { email, prenom: data.prenom || "", formation: data.formation_code, jours_inactif: data.jours_inactif },
+      }),
+    });
+  }
+
+  if (err) return { erreur: err.message };
+  return { succes: true, email, progression: data.progression_pct };
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -169,6 +235,7 @@ export async function POST(req: NextRequest) {
     if (action === "prospects") return NextResponse.json(await get_prospects(body.statut, body.domaine));
     if (action === "analyser") return NextResponse.json(await analyser_prospect(body.email));
     if (action === "relance") return NextResponse.json(await generer_relance(body.email));
+    if (action === "lms_update") return NextResponse.json(await lms_update(body.email, body.data || {}));
     if (action === "stats") return NextResponse.json(await stats_crm());
 
     return NextResponse.json({ erreur: "Action invalide" }, { status: 400 });
