@@ -67,8 +67,10 @@ export default function FormationPage({ params }) {
     </div>
   );
 
+  const isRTL = langue === "he" || langue === "ar";
+
   return (
-    <div style={{ backgroundColor: "#050508", minHeight: "100vh", color: "#fff" }}>
+    <div dir={isRTL ? "rtl" : "ltr"} style={{ backgroundColor: "#050508", minHeight: "100vh", color: "#fff" }}>
       <div style={{ background: "linear-gradient(135deg,#0a0a1a,#1a1a2e)", padding: "60px 40px", textAlign: "center" }}>
         <div style={{ color: "#c8a96e", fontSize: "13px", marginBottom: "10px" }}>{formation.code} · {formation.domaine}</div>
         <h1 style={{ color: "#fff", fontFamily: "Georgia,serif", fontSize: "2rem", marginBottom: "20px" }}>{formation.titre}</h1>
