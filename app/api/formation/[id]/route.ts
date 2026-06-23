@@ -1,57 +1,53 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 
-export const runtime = "nodejs";
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
-  const { id } = params;
-  const langue = req.nextUrl.searchParams.get("lang") || "fr";
+  const code = params.id.toUpperCase();
+  const lang = req.nextUrl.searchParams.get("lang") || "fr";
 
-  const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-  const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+  // 1 — Recuperer la formation de base
+  const { data: formations, error } = await supabase
+    .from("formations")
+    .select("*")
+    .eq("code", code)
+    .limit(1);
 
-  const h = {
-    apikey: SUPABASE_KEY,
-    Authorization: `Bearer ${SUPABASE_KEY}`,
-  };
+  if (error || !formations || formations.length === 0) {
+    return NextResponse.json({ error: "Formation introuvable" }, { status: 404 });
+  }
 
-  // Chercher la formation originale
-  const resF = await fetch(
-    `${SUPABASE_URL}/rest/v1/formations?code=eq.${id}&select=*`,
-    { headers: h }
-  );
-  const formations = await resF.json();
   const formation = formations[0];
 
-  if (!formation) {
-    return NextResponse.json({ error: "Formation non trouvee" }, { status: 404 });
+  // 2 — Si langue != fr, chercher la traduction
+  if (lang !== "fr") {
+    const { data: traductions } = await supabase
+      .from("formations_traductions")
+      .select("titre, description, objectifs, prerequis, public_cible, programme, contenu_html")
+      .eq("code", code)
+      .eq("langue", lang)
+      .limit(1);
+
+    if (traductions && traductions.length > 0) {
+      const t = traductions[0];
+      // Fusionner — les champs traduits remplacent les champs francais
+      return NextResponse.json({
+        ...formation,
+        titre: t.titre || formation.titre,
+        description: t.description || formation.description,
+        objectifs: t.objectifs || formation.objectifs,
+        prerequis: t.prerequis || formation.prerequis,
+        public_cible: t.public_cible || formation.public_cible,
+        programme: t.programme || formation.programme,
+        langue: lang,
+      });
+    }
   }
 
-  // Si langue FR retourner directement
-  if (langue === "fr") {
-    return NextResponse.json({ ...formation, langue: "fr", traduit: false });
-  }
-
-  // Chercher la traduction
-  const resT = await fetch(
-    `${SUPABASE_URL}/rest/v1/formations_traductions?code=eq.${id}&langue=eq.${langue}&select=*`,
-    { headers: h }
-  );
-  const traductions = await resT.json();
-  const traduction = traductions[0];
-
-  if (traduction) {
-    return NextResponse.json({
-      ...formation,
-      titre: traduction.titre || formation.titre,
-      description: traduction.description || formation.description,
-      objectifs: traduction.objectifs || formation.objectifs,
-      prerequis: traduction.prerequis || formation.prerequis,
-      public_cible: traduction.public_cible || formation.public_cible,
-      langue,
-      traduit: true,
-    });
-  }
-
-  // Pas de traduction — retourner original
-  return NextResponse.json({ ...formation, langue: "fr", traduit: false });
+  // 3 — Retourner le francais par defaut
+  return NextResponse.json({ ...formation, langue: "fr" });
 }
