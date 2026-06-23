@@ -230,10 +230,11 @@ export default function LMSPage({ params }) {
 
         <div>
           <div style={{ display: "flex", gap: "10px", marginBottom: "20px" }}>
-            {[{ id: "cours", label: "📖 Cours" }, { id: "qcm", label: "✅ QCM" }, { id: "chat", label: "🤖 Coach IA" }].map(o => (
+            {[{ id: "cours", label: "📖 Cours" }, { id: "qcm", label: "✅ QCM" }, { id: "chat", label: "🤖 Coach IA" }]
+              .filter(o => !(o.id === "cours" && module?.type === "evaluation"))
+              .map(o => (
               <button key={o.id} onClick={() => {
                 if (o.id === "qcm" && module?.type !== "evaluation") {
-                  // Aller vers le module evaluation du chapitre actif (module 4)
                   const modEval = chapitre?.modules.find(m => m.type === "evaluation");
                   if (modEval) {
                     setModuleActif(modEval.numero);
