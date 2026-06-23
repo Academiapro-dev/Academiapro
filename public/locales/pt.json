@@ -53,7 +53,12 @@
     "acces": "Acesso imediato · Agente IA 24h/24 · Garantia 30 dias",
     "coach_btn": "Acessar Coach IA",
     "classe_btn": "Entrar em uma Aula ao Vivo",
-    "nivel": "Nível"
+    "nivel": "Nível",
+    "description": "Descrição",
+    "support": "Material do curso",
+    "support_sub": "Documento completo · 300+ páginas",
+    "voir": "Ver materiais",
+    "chargement": "Carregando..."
   },
   "inscription": {
     "titre": "Junte-se à Lista Prioritária",
