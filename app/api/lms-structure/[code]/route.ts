@@ -60,5 +60,9 @@ export async function GET(req, { params }) {
     }
   }
 
-  return NextResponse.json({ chapitres, code, langue: lang });
+  const formateur = contenu?.formateur || contenu?.meta?.expert || null;
+  const coach = contenu?.coach || null;
+  const expert_titre = contenu?.meta?.expert_titre || null;
+
+  return NextResponse.json({ chapitres, code, langue: lang, formateur, coach, expert_titre });
 }
