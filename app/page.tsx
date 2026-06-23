@@ -96,7 +96,7 @@ export default function HomePage() {
   }
 
   return (
-    <div dir={langue === "he" || langue === "ar" ? "rtl" : "ltr"} style={{ minHeight: "100vh", background: "#050508", color: "#fff", fontFamily: "Georgia, serif" }}>
+    <div style={{ minHeight: "100vh", background: "#050508", color: "#fff", fontFamily: "Georgia, serif", direction: langue === "he" || langue === "ar" ? "rtl" : "ltr" }}>
 
       <header style={{ background: "rgba(5,5,8,0.98)", borderBottom: "1px solid rgba(200,169,110,0.2)", padding: "0 40px", height: "64px", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: "0", zIndex: "100" }}>
         <a href="/" style={{ color: "#c8a96e", textDecoration: "none", fontSize: "20px", fontWeight: "bold" }}>AcadémIA Pro</a>
