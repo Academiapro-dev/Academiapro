@@ -73,6 +73,7 @@ export default function LMSPage({ params }) {
   const [chatHistory, setChatHistory] = useState([]);
   const [chatLoading, setChatLoading] = useState(false);
   const [langue, setLangue] = useState("fr");
+  const [isAdmin, setIsAdmin] = useState(false);
 
   const chapitres = code === "F030" ? CHAPITRES_F030 : [];
   const chapitre = chapitres[chapitreActif - 1];
@@ -89,6 +90,13 @@ export default function LMSPage({ params }) {
     setLangue(lang);
     chargerFormation(lang);
     chargerProgression();
+    try {
+      const sbUser = document.cookie.split("; ").find(r => r.startsWith("sb_user="));
+      if (sbUser) {
+        const user = JSON.parse(decodeURIComponent(sbUser.split("=")[1]));
+        if (user.email === "contact@academiapro.fr") setIsAdmin(true);
+      }
+    } catch {}
   }, [code]);
 
   useEffect(() => {
@@ -232,6 +240,7 @@ export default function LMSPage({ params }) {
           <div style={{ display: "flex", gap: "10px", marginBottom: "20px" }}>
             {[{ id: "cours", label: "📖 Cours" }, { id: "qcm", label: "✅ QCM" }, { id: "chat", label: "🤖 Coach IA" }]
               .filter(o => !(o.id === "cours" && module?.type === "evaluation"))
+              .filter(o => !(o.id === "qcm" && module?.type !== "evaluation" && !isAdmin))
               .map(o => (
               <button key={o.id} onClick={() => {
                 if (o.id === "qcm" && module?.type !== "evaluation") {
