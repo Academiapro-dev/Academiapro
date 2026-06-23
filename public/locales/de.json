@@ -53,7 +53,12 @@
     "acces": "Sofortiger Zugang · KI-Agent 24h/24 · 30-Tage-Garantie",
     "coach_btn": "KI-Coach aufrufen",
     "classe_btn": "Einer Live-Klasse beitreten",
-    "niveau": "Niveau"
+    "niveau": "Niveau",
+    "description": "Beschreibung",
+    "support": "Kursmaterialien",
+    "support_sub": "Vollständiges Dokument · 300+ Seiten",
+    "voir": "Materialien ansehen",
+    "chargement": "Wird geladen..."
   },
   "inscription": {
     "titre": "Treten Sie der Prioritätsliste bei",
