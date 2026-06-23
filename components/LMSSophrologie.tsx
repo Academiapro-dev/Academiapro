@@ -192,7 +192,7 @@ export default function LMSSophrologie({ langue: langueProp = "fr" }) {
   };
 
   return (
-    <div dir={langue === "he" || langue === "ar" ? "rtl" : "ltr"} style={{ maxWidth: "900px", margin: "0 auto", padding: "0 20px 60px" }}>
+    <div style={{ maxWidth: "900px", margin: "0 auto", padding: "0 20px 60px", direction: langue === "he" || langue === "ar" ? "rtl" : "ltr" }}>
 
       <div style={{ background: "linear-gradient(135deg,rgba(200,169,110,0.15),rgba(200,169,110,0.05))", border: "1px solid rgba(200,169,110,0.3)", borderRadius: "12px", padding: "20px", marginBottom: "20px", display: "flex", alignItems: "center", gap: "15px" }}>
         <div style={{ width: "50px", height: "50px", borderRadius: "50%", background: "linear-gradient(135deg,#c8a96e,#a07840)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "22px", flexShrink: 0 }}>🧘</div>
