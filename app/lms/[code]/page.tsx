@@ -231,7 +231,16 @@ export default function LMSPage({ params }) {
         <div>
           <div style={{ display: "flex", gap: "10px", marginBottom: "20px" }}>
             {[{ id: "cours", label: "📖 Cours" }, { id: "qcm", label: "✅ QCM" }, { id: "chat", label: "🤖 Coach IA" }].map(o => (
-              <button key={o.id} onClick={() => setOnglet(o.id)}
+              <button key={o.id} onClick={() => {
+                if (o.id === "qcm" && module?.type !== "evaluation") {
+                  // Aller vers le module evaluation du chapitre actif (module 4)
+                  const modEval = chapitre?.modules.find(m => m.type === "evaluation");
+                  if (modEval) { setModuleActif(modEval.numero); }
+                  setOnglet("qcm");
+                } else {
+                  setOnglet(o.id);
+                }
+              }}
                 style={{ padding: "10px 20px", borderRadius: "8px", border: "none", cursor: "pointer", background: onglet === o.id ? "#c8a96e" : "rgba(255,255,255,0.05)", color: onglet === o.id ? "#050508" : "rgba(255,255,255,0.6)", fontWeight: onglet === o.id ? "bold" : "normal" }}>
                 {o.label}
               </button>
