@@ -1,5 +1,28 @@
 "use client";
 
+async function notifierCRM(email, formationCode, modulesValides, totalModules, prenom) {
+  if (!email) return;
+  const progressionPct = totalModules > 0 ? Math.round((modulesValides / totalModules) * 100) : 0;
+  try {
+    await fetch("/api/crm", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "lms_update",
+        email,
+        data: {
+          formation_code: formationCode,
+          modules_valides: modulesValides,
+          progression_pct: progressionPct,
+          prenom,
+          notes: "Progression LMS mise a jour automatiquement",
+        },
+      }),
+    });
+  } catch {}
+}
+
+
 function nettoyer(texte) {
   if (!texte) return "";
   return texte
@@ -27,6 +50,9 @@ export default function LMSPage({ params }) {
   const [chatHistory, setChatHistory] = useState([]);
   const [chatLoading, setChatLoading] = useState(false);
   const [onglet, setOnglet] = useState("cours");
+  const [emailApprenant, setEmailApprenant] = useState("");
+  const [prenomApprenant, setPrenomApprenant] = useState("");
+  const [showEmailForm, setShowEmailForm] = useState(false);
 
   useEffect(() => {
     chargerDonnees();
@@ -52,6 +78,11 @@ export default function LMSPage({ params }) {
     try {
       const prog = localStorage.getItem("progression_" + code);
       if (prog) setProgression(JSON.parse(prog));
+      const email = localStorage.getItem("apprenant_email") || "";
+      const prenom = localStorage.getItem("apprenant_prenom") || "";
+      setEmailApprenant(email);
+      setPrenomApprenant(prenom);
+      if (!email) setShowEmailForm(true);
     } catch {}
   }
 
@@ -88,7 +119,10 @@ export default function LMSPage({ params }) {
     const cle = moduleActif.ch + "_" + moduleActif.mod;
     if (pct >= 70) {
       setMessageValidateur("MODULE VALIDE ! Score " + pct + "%. Module suivant debloque.");
-      sauvegarderProgression({ ...progression, [cle]: "valide" });
+      const newProg = { ...progression, [cle]: "valide" };
+      sauvegarderProgression(newProg);
+      const modulesVal = Object.values(newProg).filter(v => v === "valide").length;
+      notifierCRM(emailApprenant, code, modulesVal, totalModules, prenomApprenant);
     } else if (pct >= 50) {
       setMessageValidateur("Revisions recommandees. Score " + pct + "%.");
     } else {
@@ -141,6 +175,31 @@ export default function LMSPage({ params }) {
   const totalModules = chapitres.reduce((acc, ch) => acc + (ch.modules?.length || 0), 0);
   const modulesValides = Object.values(progression).filter(v => v === "valide").length;
   const progressionPct = totalModules > 0 ? Math.round((modulesValides / totalModules) * 100) : 0;
+
+  if (showEmailForm) return (
+    <div style={{ background: "#050508", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ background: "#1a1a2e", borderRadius: "16px", padding: "40px", maxWidth: "400px", width: "100%", border: "1px solid rgba(200,169,110,0.3)", textAlign: "center" }}>
+        <div style={{ fontSize: "40px", marginBottom: "15px" }}>🎓</div>
+        <h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", marginBottom: "10px" }}>Bienvenue dans votre formation</h2>
+        <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "14px", marginBottom: "25px" }}>Entrez vos coordonnées pour que votre progression soit sauvegardée</p>
+        <input type="text" placeholder="Votre prénom" value={prenomApprenant} onChange={e => setPrenomApprenant(e.target.value)}
+          style={{ width: "100%", padding: "12px", borderRadius: "8px", border: "1px solid rgba(200,169,110,0.3)", background: "rgba(255,255,255,0.05)", color: "#fff", marginBottom: "12px", fontSize: "15px", boxSizing: "border-box" }} />
+        <input type="email" placeholder="Votre email" value={emailApprenant} onChange={e => setEmailApprenant(e.target.value)}
+          style={{ width: "100%", padding: "12px", borderRadius: "8px", border: "1px solid rgba(200,169,110,0.3)", background: "rgba(255,255,255,0.05)", color: "#fff", marginBottom: "20px", fontSize: "15px", boxSizing: "border-box" }} />
+        <button onClick={() => {
+          localStorage.setItem("apprenant_email", emailApprenant);
+          localStorage.setItem("apprenant_prenom", prenomApprenant);
+          setShowEmailForm(false);
+        }} disabled={!emailApprenant}
+          style={{ width: "100%", background: emailApprenant ? "#c8a96e" : "rgba(200,169,110,0.3)", color: "#050508", border: "none", borderRadius: "8px", padding: "14px", fontWeight: "bold", cursor: emailApprenant ? "pointer" : "not-allowed", fontSize: "16px" }}>
+          Commencer ma formation →
+        </button>
+        <button onClick={() => setShowEmailForm(false)} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.4)", cursor: "pointer", marginTop: "12px", fontSize: "13px" }}>
+          Continuer sans enregistrement
+        </button>
+      </div>
+    </div>
+  );
 
   return (
     <div style={{ background: "#050508", minHeight: "100vh", color: "#fff" }}>
