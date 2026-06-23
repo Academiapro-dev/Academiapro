@@ -5,12 +5,12 @@ import LMSSophrologie from "../../../components/LMSSophrologie";
 import LMSSection from "../../../components/LMSSection";
 
 const LM = {
-  fr: { titre: "Accedez aux 2 premiers modules gratuitement", sub: "Laissez vos coordonnees et decouvrez la formation", btn: "Je veux acceder gratuitement", prenom: "Votre prenom *", email: "Votre email *", mobile: "Telephone mobile", fixe: "Telephone fixe / bureau", acceder: "Acceder maintenant", merci: "Bienvenue ! Vos coordonnees ont ete enregistrees.", support: "Support de cours", support_sub: "Document complet · 300+ pages", voir: "Voir le support" },
-  en: { titre: "Access the first 2 modules for free", sub: "Leave your details and discover the training", btn: "I want free access", prenom: "Your first name *", email: "Your email *", mobile: "Mobile phone", fixe: "Home / office phone", acceder: "Access now", merci: "Welcome! Your details have been saved.", support: "Course materials", support_sub: "Complete document · 300+ pages", voir: "View materials" },
-  es: { titre: "Accede a los 2 primeros modulos gratis", sub: "Deja tus datos y descubre la formacion", btn: "Quiero acceso gratuito", prenom: "Tu nombre *", email: "Tu email *", mobile: "Telefono movil", fixe: "Telefono fijo / oficina", acceder: "Acceder ahora", merci: "Bienvenido! Tus datos han sido guardados.", support: "Material del curso", support_sub: "Documento completo · 300+ paginas", voir: "Ver material" },
-  pt: { titre: "Acesse os 2 primeiros modulos gratuitamente", sub: "Deixe seus dados e descubra a formacao", btn: "Quero acesso gratuito", prenom: "Seu nome *", email: "Seu email *", mobile: "Telefone celular", fixe: "Telefone fixo / escritorio", acceder: "Acessar agora", merci: "Bem-vindo! Seus dados foram salvos.", support: "Material do curso", support_sub: "Documento completo · 300+ paginas", voir: "Ver material" },
-  de: { titre: "Zugang zu den ersten 2 Modulen kostenlos", sub: "Hinterlassen Sie Ihre Daten und entdecken Sie den Kurs", btn: "Ich mochte kostenlosen Zugang", prenom: "Ihr Vorname *", email: "Ihre E-Mail *", mobile: "Handynummer", fixe: "Festnetz / Buro", acceder: "Jetzt zugreifen", merci: "Willkommen! Ihre Daten wurden gespeichert.", support: "Kursmaterialien", support_sub: "Vollstandiges Dokument · 300+ Seiten", voir: "Materialien ansehen" },
-  ar: { titre: "احصل على الوحدتين الاوليين مجانا", sub: "اترك بياناتك واكتشف التدريب", btn: "اريد الوصول المجاني", prenom: "الاسم الاول *", email: "البريد الالكتروني *", mobile: "هاتف محمول", fixe: "هاتف ثابت / مكتب", acceder: "الوصول الان", merci: "مرحبا! تم حفظ بياناتك.", support: "مواد الدورة", support_sub: "وثيقة كاملة · 300+ صفحة", voir: "عرض المواد" },
+  fr: { coach_btn: "Acceder au Coach IA", classe_btn: "Rejoindre une Classe Live", objectifs: "Objectifs", prerequis: "Prerequis", public_cible: "Public cible", programme: "Programme complet", pret: "Pret a commencer ?", acces: "Acces immediat · Agent IA 24h/24 · Garantie 30 jours", acheter: "Acheter", niveau: "Niveau", elearning: "E-Learning", elearning_sub: "Asynchrone · A votre rythme", coach: "Coach IA 24h/24", coach_sub: "Questions par chat · Immediat", classe: "Classe Virtuelle", classe_sub: "Live · Mardis et Jeudis 20h", titre: "Accedez aux 2 premiers modules gratuitement", sub: "Laissez vos coordonnees et decouvrez la formation", btn: "Je veux acceder gratuitement", prenom: "Votre prenom *", email: "Votre email *", mobile: "Telephone mobile", fixe: "Telephone fixe / bureau", acceder: "Acceder maintenant", merci: "Bienvenue ! Vos coordonnees ont ete enregistrees.", support: "Support de cours", support_sub: "Document complet · 300+ pages", voir: "Voir le support" },
+  en: { coach_btn: "Access AI Coach", classe_btn: "Join a Live Class", objectifs: "Objectives", prerequis: "Prerequisites", public_cible: "Target audience", programme: "Full program", pret: "Ready to start?", acces: "Immediate access · AI Agent 24/7 · 30-day guarantee", acheter: "Buy now", niveau: "Level", elearning: "E-Learning", elearning_sub: "Asynchronous · At your own pace", coach: "AI Coach 24/7", coach_sub: "Chat questions · Instant", classe: "Virtual Class", classe_sub: "Live · Tuesdays and Thursdays 8pm", titre: "Access the first 2 modules for free", sub: "Leave your details and discover the training", btn: "I want free access", prenom: "Your first name *", email: "Your email *", mobile: "Mobile phone", fixe: "Home / office phone", acceder: "Access now", merci: "Welcome! Your details have been saved.", support: "Course materials", support_sub: "Complete document · 300+ pages", voir: "View materials" },
+  es: { coach_btn: "Acceder al Coach IA", classe_btn: "Unirse a una Clase", objectifs: "Objetivos", prerequis: "Requisitos", public_cible: "Publico objetivo", programme: "Programa completo", pret: "Listo para empezar?", acces: "Acceso inmediato · Agente IA 24/7 · Garantia 30 dias", acheter: "Comprar", niveau: "Nivel", elearning: "E-Learning", elearning_sub: "Asincrono · A su ritmo", coach: "Coach IA 24/7", coach_sub: "Preguntas por chat", classe: "Clase Virtual", classe_sub: "En vivo · Martes y Jueves 20h", titre: "Accede a los 2 primeros modulos gratis", sub: "Deja tus datos y descubre la formacion", btn: "Quiero acceso gratuito", prenom: "Tu nombre *", email: "Tu email *", mobile: "Telefono movil", fixe: "Telefono fijo / oficina", acceder: "Acceder ahora", merci: "Bienvenido! Tus datos han sido guardados.", support: "Material del curso", support_sub: "Documento completo · 300+ paginas", voir: "Ver material" },
+  pt: { coach_btn: "Acessar Coach IA", classe_btn: "Entrar em Aula ao Vivo", objectifs: "Objetivos", prerequis: "Pre-requisitos", public_cible: "Publico-alvo", programme: "Programa completo", pret: "Pronto para comecar?", acces: "Acesso imediato · Agente IA 24/7 · Garantia 30 dias", acheter: "Comprar", niveau: "Nivel", elearning: "E-Learning", elearning_sub: "Assincrono · No seu ritmo", coach: "Coach IA 24/7", coach_sub: "Perguntas por chat", classe: "Aula Virtual", classe_sub: "Ao vivo · Tercas e quintas 20h", titre: "Acesse os 2 primeiros modulos gratuitamente", sub: "Deixe seus dados e descubra a formacao", btn: "Quero acesso gratuito", prenom: "Seu nome *", email: "Seu email *", mobile: "Telefone celular", fixe: "Telefone fixo / escritorio", acceder: "Acessar agora", merci: "Bem-vindo! Seus dados foram salvos.", support: "Material do curso", support_sub: "Documento completo · 300+ paginas", voir: "Ver material" },
+  de: { coach_btn: "KI-Coach aufrufen", classe_btn: "Live-Klasse beitreten", objectifs: "Ziele", prerequis: "Voraussetzungen", public_cible: "Zielgruppe", programme: "Vollstandiges Programm", pret: "Bereit anzufangen?", acces: "Sofortiger Zugang · KI-Agent 24/7 · 30-Tage-Garantie", acheter: "Kaufen", niveau: "Niveau", elearning: "E-Learning", elearning_sub: "Asynchron · In Ihrem Tempo", coach: "KI-Coach 24/7", coach_sub: "Chat-Fragen · Sofort", classe: "Virtueller Kurs", classe_sub: "Live · Di und Do 20 Uhr", titre: "Zugang zu den ersten 2 Modulen kostenlos", sub: "Hinterlassen Sie Ihre Daten und entdecken Sie den Kurs", btn: "Ich mochte kostenlosen Zugang", prenom: "Ihr Vorname *", email: "Ihre E-Mail *", mobile: "Handynummer", fixe: "Festnetz / Buro", acceder: "Jetzt zugreifen", merci: "Willkommen! Ihre Daten wurden gespeichert.", support: "Kursmaterialien", support_sub: "Vollstandiges Dokument · 300+ Seiten", voir: "Materialien ansehen" },
+  ar: { coach_btn: "الوصول الى المدرب", classe_btn: "الانضمام الى فصل مباشر", objectifs: "الاهداف", prerequis: "المتطلبات", public_cible: "الجمهور المستهدف", programme: "البرنامج الكامل", pret: "مستعد للبدء؟", acces: "وصول فوري · وكيل ذكاء اصطناعي 24/7 · ضمان 30 يوم", acheter: "شراء", niveau: "المستوى", elearning: "التعلم الالكتروني", elearning_sub: "غير متزامن", coach: "مدرب ذكاء اصطناعي", coach_sub: "اسئلة عبر الدردشة", classe: "الفصل الافتراضي", classe_sub: "مباشر · الثلاثاء والخميس", titre: "احصل على الوحدتين الاوليين مجانا", sub: "اترك بياناتك واكتشف التدريب", btn: "اريد الوصول المجاني", prenom: "الاسم الاول *", email: "البريد الالكتروني *", mobile: "هاتف محمول", fixe: "هاتف ثابت / مكتب", acceder: "الوصول الان", merci: "مرحبا! تم حفظ بياناتك.", support: "مواد الدورة", support_sub: "وثيقة كاملة · 300+ صفحة", voir: "عرض المواد" },
   he: { titre: "קבל גישה ל-2 המודולים הראשונים בחינם", sub: "השאר פרטים וגלה את הקורס", btn: "אני רוצה גישה חינמית", prenom: "שם פרטי *", email: "אימייל *", mobile: "טלפון נייד", fixe: "טלפון קווי / משרד", acceder: "גישה עכשיו", merci: "ברוך הבא! הפרטים שלך נשמרו.", support: "חומרי הקורס", support_sub: "מסמך מלא · 300+ עמודים", voir: "צפה בחומרים" },
 };
 
@@ -74,7 +74,7 @@ export default function FormationPage({ params }) {
         <h1 style={{ color: "#fff", fontFamily: "Georgia,serif", fontSize: "2rem", marginBottom: "20px" }}>{formation.titre}</h1>
         <div style={{ display: "flex", gap: "15px", justifyContent: "center", flexWrap: "wrap" }}>
           {formation.duree && <span style={{ background: "rgba(200,169,110,0.2)", color: "#c8a96e", padding: "6px 16px", borderRadius: "20px" }}>{formation.duree}</span>}
-          {formation.niveau && <span style={{ background: "rgba(200,169,110,0.2)", color: "#c8a96e", padding: "6px 16px", borderRadius: "20px" }}>{t("formation.niveau")} {formation.niveau}</span>}
+          {formation.niveau && <span style={{ background: "rgba(200,169,110,0.2)", color: "#c8a96e", padding: "6px 16px", borderRadius: "20px" }}>{lm.niveau} {formation.niveau}</span>}
           {formation.prix && <span style={{ background: "#c8a96e", color: "#050508", padding: "6px 16px", borderRadius: "20px", fontWeight: "bold" }}>{formation.prix}€</span>}
         </div>
       </div>
@@ -104,28 +104,28 @@ export default function FormationPage({ params }) {
 
         {formation.objectifs && (
           <div style={{ marginBottom: "35px" }}>
-            <h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", marginBottom: "15px" }}>{t("formation.objectifs")}</h2>
+            <h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", marginBottom: "15px" }}>{lm.objectifs}</h2>
             <p style={{ color: "rgba(255,255,255,0.8)", lineHeight: "1.8" }}>{formation.objectifs}</p>
           </div>
         )}
 
         {formation.prerequis && (
           <div style={{ marginBottom: "35px" }}>
-            <h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", marginBottom: "15px" }}>{t("formation.prerequis")}</h2>
+            <h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", marginBottom: "15px" }}>{lm.prerequis}</h2>
             <p style={{ color: "rgba(255,255,255,0.8)", lineHeight: "1.8" }}>{formation.prerequis}</p>
           </div>
         )}
 
         {formation.public_cible && (
           <div style={{ marginBottom: "35px" }}>
-            <h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", marginBottom: "15px" }}>{t("formation.public_cible")}</h2>
+            <h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", marginBottom: "15px" }}>{lm.public_cible}</h2>
             <p style={{ color: "rgba(255,255,255,0.8)", lineHeight: "1.8" }}>{formation.public_cible}</p>
           </div>
         )}
 
         {formation.programme && Array.isArray(formation.programme) && (
           <div style={{ marginBottom: "40px" }}>
-            <h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", marginBottom: "20px" }}>{t("formation.programme")}</h2>
+            <h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", marginBottom: "20px" }}>{lm.programme}</h2>
             {formation.programme.map((ch, i) => (
               <div key={i} style={{ marginBottom: "15px", border: "1px solid rgba(200,169,110,0.3)", borderRadius: "10px", overflow: "hidden" }}>
                 <div style={{ background: "linear-gradient(135deg,#c8a96e,#a07840)", padding: "12px 20px" }}>
@@ -158,10 +158,10 @@ export default function FormationPage({ params }) {
 
         <div style={{ display: "flex", gap: "12px", marginBottom: "40px", flexWrap: "wrap" }}>
           <a href={"/lms/" + params.id.toUpperCase()} style={{ flex: 1, display: "block", background: "#c8a96e", color: "#050508", padding: "14px 20px", borderRadius: "8px", fontWeight: "bold", textDecoration: "none", textAlign: "center" }}>
-            {t("formation.coach_btn")}
+            {lm.coach_btn}
           </a>
           <a href="/classe-virtuelle" style={{ flex: 1, display: "block", background: "rgba(200,169,110,0.2)", color: "#c8a96e", padding: "14px 20px", borderRadius: "8px", fontWeight: "bold", textDecoration: "none", textAlign: "center", border: "1px solid rgba(200,169,110,0.3)" }}>
-            {t("formation.classe_btn")}
+            {lm.classe_btn}
           </a>
         </div>
 
@@ -199,10 +199,10 @@ export default function FormationPage({ params }) {
         }
 
         <div style={{ textAlign: "center", padding: "40px", background: "rgba(255,255,255,0.03)", borderRadius: "12px", marginTop: "30px" }}>
-          <h2 style={{ color: "#fff", fontFamily: "Georgia,serif", marginBottom: "10px" }}>{t("formation.pret")}</h2>
-          <p style={{ color: "rgba(255,255,255,0.6)", marginBottom: "20px" }}>{t("formation.acces")}</p>
+          <h2 style={{ color: "#fff", fontFamily: "Georgia,serif", marginBottom: "10px" }}>{lm.pret}</h2>
+          <p style={{ color: "rgba(255,255,255,0.6)", marginBottom: "20px" }}>{lm.acces}</p>
           <a href="/inscription" style={{ display: "inline-block", background: "#c8a96e", color: "#050508", padding: "16px 40px", borderRadius: "8px", textDecoration: "none", fontWeight: "bold", fontSize: "18px" }}>
-            {t("formation.acheter")} — {formation.prix}€
+            {lm.acheter} — {formation.prix}€
           </a>
         </div>
 
