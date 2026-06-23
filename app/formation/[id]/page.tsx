@@ -41,7 +41,7 @@ export default function FormationPage({ params }) {
   );
 
   const labels = {
-    fr: { support: {t("formation.support")}, support_sub: "Document complet 300+ pages", voir: {t("formation.voir")} },
+    fr: { support: "Support de cours", support_sub: "Document complet 300+ pages", voir: "Voir le support" },
     en: { support: "Course Materials", support_sub: "Complete document 300+ pages", voir: "View materials" },
     ar: { support: "مواد الدورة", support_sub: "300+ صفحة", voir: "عرض المواد" },
     es: { support: "Material del curso", support_sub: "300+ paginas", voir: "Ver material" },
