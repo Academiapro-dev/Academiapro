@@ -164,7 +164,7 @@ export default function FormationPage({ params }) {
           </div>
         )}
         <div style={{ display: "flex", gap: "12px", marginBottom: "40px", flexWrap: "wrap" }}>
-          <a href="/dashboard" style={{ flex: 1, display: "block", background: "#c8a96e", color: "#050508", padding: "14px 20px", borderRadius: "8px", fontWeight: "bold", textDecoration: "none", textAlign: "center" }}>{t("coach_btn")}</a>
+          <a href={"/lms/" + params.id.toUpperCase()} style={{ flex: 1, display: "block", background: "#c8a96e", color: "#050508", padding: "14px 20px", borderRadius: "8px", fontWeight: "bold", textDecoration: "none", textAlign: "center" }}>{t("coach_btn")}</a>
           <a href="/classe-virtuelle" style={{ flex: 1, display: "block", background: "rgba(200,169,110,0.2)", color: "#c8a96e", padding: "14px 20px", borderRadius: "8px", fontWeight: "bold", textDecoration: "none", textAlign: "center", border: "1px solid rgba(200,169,110,0.3)" }}>{t("classe_btn")}</a>
         </div>
         {!leadSoumis ? (
