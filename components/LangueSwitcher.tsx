@@ -34,7 +34,6 @@ const LANGUES = [
   { code: "pt", label: "PT", drapeau: "🇧🇷", nom: "Português" },
   { code: "de", label: "DE", drapeau: "🇩🇪", nom: "Deutsch" },
   { code: "ar", label: "AR", drapeau: "🇸🇦", nom: "العربية" },
-  { code: "he", label: "HE", drapeau: "🇮🇱", nom: "עברית" },
 ];
 
 export default function LangueSwitcher() {
