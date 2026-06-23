@@ -8,7 +8,6 @@ const T = {
   pt: { formations: "Cursos", seances: "Sessoes", blog: "Blog", contact: "Contato", demarrer: "Comecar" },
   de: { formations: "Kurse", seances: "Sitzungen", blog: "Blog", contact: "Kontakt", demarrer: "Loslegen" },
   ar: { formations: "الدورات", seances: "الجلسات", blog: "المدونة", contact: "اتصل", demarrer: "ابدأ" },
-  he: { formations: "קורסים", seances: "פגישות", blog: "בלוג", contact: "צור קשר", demarrer: "התחל" },
 };
 
 export default function NavBar() {
@@ -52,8 +51,7 @@ export default function NavBar() {
           <option value="pt">🇧🇷 PT</option>
           <option value="de">🇩🇪 DE</option>
           <option value="ar">🇸🇦 AR</option>
-          <option value="he">🇮🇱 HE</option>
-        </select>
+          </select>
         <a href="/login" style={{ background: "linear-gradient(135deg,#c8a96e,#a07840)", color: "#050508", padding: "8px 20px", borderRadius: "8px", textDecoration: "none", fontWeight: "bold", fontSize: "14px" }}>
           {t("demarrer")}
         </a>
