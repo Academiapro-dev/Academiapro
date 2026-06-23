@@ -277,7 +277,26 @@ export default function LMSPage({ params }) {
               ) : contenu ? (
                 <div>
                   {(() => {
-                    const pages = contenu.split("\n---\n").filter(p => p.trim());
+                    const PARAS_PAR_PAGE = 4;
+                    const toutesLignes = contenu.split("\n").filter(l => l.trim());
+                    const blocs = [];
+                    let bloc = [];
+                    let comptePara = 0;
+                    for (const ligne of toutesLignes) {
+                      const l = ligne.trim();
+                      if (l === "---") continue;
+                      bloc.push(ligne);
+                      if (!l.startsWith("#") && !l.startsWith(">") && l.length > 30) {
+                        comptePara++;
+                        if (comptePara >= PARAS_PAR_PAGE) {
+                          blocs.push(bloc.join("\n"));
+                          bloc = [];
+                          comptePara = 0;
+                        }
+                      }
+                    }
+                    if (bloc.length > 0) blocs.push(bloc.join("\n"));
+                    const pages = blocs.length > 0 ? blocs : [contenu];
                     const page = pages[pageModule] || pages[0] || "";
                     const totalPages = pages.length;
                     return (
