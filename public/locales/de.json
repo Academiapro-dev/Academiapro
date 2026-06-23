@@ -1,0 +1,98 @@
+{
+  "nav": {
+    "formations": "Kurse",
+    "seances": "Sitzungen",
+    "packs": "Pakete",
+    "competences": "Kompetenzen",
+    "blog": "Blog",
+    "contact": "Kontakt",
+    "demarrer": "Loslegen"
+  },
+  "home": {
+    "hero_titre": "Weiterbilden mit Ihrem persönlichen KI-Agenten",
+    "hero_sub": "235 zertifizierte Kurse · KI-Agent 24h/24 · Therapeutische Sitzungen",
+    "btn_formations": "Kurse ansehen",
+    "btn_ebook": "Kostenloses E-Book",
+    "stat1": "Zertifizierte Kurse",
+    "stat2": "Validierte Kompetenzen",
+    "stat3": "KI-Therapeuten",
+    "stat4": "Zufriedenheitsgarantie"
+  },
+  "catalogue": {
+    "titre": "AcadémIA Pro Katalog",
+    "rechercher": "Kurs suchen...",
+    "resultats": "Ergebnisse",
+    "chargement": "Wird geladen...",
+    "aucune": "Kein Kurs gefunden",
+    "formations": "verfügbare Kurse",
+    "tous": "Alle"
+  },
+  "seances": {
+    "titre": "Therapeutische Sitzungen",
+    "sous_titre": "Wählen Sie Ihren Therapeuten · Jetzt verfügbar · 24h/24",
+    "commencer": "Sitzung starten",
+    "changer": "Therapeuten wechseln",
+    "envoyer": "Senden",
+    "placeholder": "Sprechen Sie mit",
+    "disponible": "Live",
+    "avertissement": "Diese Sitzungen sind KI-Simulationen für Wellnesszwecke. Im Krisenfall wenden Sie sich an den Notdienst."
+  },
+  "formation": {
+    "elearning": "E-Learning",
+    "elearning_sub": "Asynchron · In Ihrem Tempo",
+    "coach": "KI-Coach 24h/24",
+    "coach_sub": "Chat-Fragen · Sofort",
+    "classe": "Virtueller Kurs",
+    "classe_sub": "Live · Dienstags und donnerstags 20 Uhr",
+    "objectifs": "Ziele",
+    "prerequis": "Voraussetzungen",
+    "public_cible": "Zielgruppe",
+    "programme": "Vollständiges Programm",
+    "acheter": "Kaufen",
+    "pret": "Bereit anzufangen?",
+    "acces": "Sofortiger Zugang · KI-Agent 24h/24 · 30-Tage-Garantie",
+    "coach_btn": "KI-Coach aufrufen",
+    "classe_btn": "Einer Live-Klasse beitreten",
+    "niveau": "Niveau"
+  },
+  "inscription": {
+    "titre": "Treten Sie der Prioritätsliste bei",
+    "sous_titre": "Seien Sie unter den Ersten, die auf AcadémIA Pro zugreifen",
+    "nom": "Ihr Name",
+    "email": "Ihre E-Mail",
+    "btn": "Der Liste beitreten",
+    "merci": "Danke! Sie stehen auf der Liste."
+  },
+  "blog": {
+    "titre": "AcadémIA Pro Blog",
+    "sous_titre": "Artikel über KI, Weiterbildung und Wellness",
+    "lire": "Lesen →",
+    "bientot": "Demnächst"
+  },
+  "footer": {
+    "desc": "Die KI-gestützte Weiterbildungsplattform. 235 zertifizierte Kurse.",
+    "formations": "Kurse",
+    "catalogue": "Vollständiger Katalog",
+    "packs": "Unsere Pakete",
+    "tarifs": "Preise",
+    "ressources": "Ressourcen",
+    "faq": "FAQ",
+    "communaute": "Gemeinschaft",
+    "apropos": "Über uns",
+    "legal": "Rechtliches",
+    "cgv": "AGB",
+    "confidentialite": "Datenschutz",
+    "mentions": "Impressum",
+    "garantie": "30-Tage-Garantie",
+    "copyright": "© 2026 AcadémIA Pro · Alle Rechte vorbehalten"
+  },
+  "dashboard": {
+    "titre": "Mein Lernbereich",
+    "bienvenue": "Willkommen",
+    "mes_formations": "Meine Kurse",
+    "progression": "Mein Fortschritt",
+    "certificats": "Meine Zertifikate",
+    "coach": "KI-Coach",
+    "deconnexion": "Abmelden"
+  }
+}
