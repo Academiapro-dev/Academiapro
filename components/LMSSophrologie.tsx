@@ -143,7 +143,7 @@ export default function LMSSophrologie({ langue: langueProp = "fr" }) {
   async function charger(ch_num, mod_num) {
     setLoading(true); setContenu(""); setPageActuelle(0);
     try {
-      const r = await fetch("/api/lms-sophrologie", {
+      const r = await fetch("/api/lms-generer", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ formation_code: "F030", chapitre_num: ch_num, module_num: mod_num, langue }),
