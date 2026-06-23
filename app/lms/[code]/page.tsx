@@ -75,7 +75,31 @@ export default function LMSPage({ params }) {
   const [langue, setLangue] = useState("fr");
   const [isAdmin, setIsAdmin] = useState(false);
 
-  const chapitres = code === "F030" ? CHAPITRES_F030 : [];
+  const [chapitres, setChapitres] = useState([]);
+  const [expert, setExpert] = useState("Claire Beaumont");
+  const [expertTitre, setExpertTitre] = useState("Formatrice Expert");
+
+  useEffect(() => {
+    chargerStructure();
+  }, [code]);
+
+  async function chargerStructure() {
+    // Essayer de charger depuis formations_structure
+    try {
+      const r = await fetch("/api/formation-structure/" + code);
+      const data = await r.json();
+      if (data.chapitres && data.chapitres.length > 0) {
+        setChapitres(data.chapitres);
+        setExpert(data.expert || "Claire Beaumont");
+        setExpertTitre(data.expert_titre || "Formatrice Expert");
+        return;
+      }
+    } catch {}
+    // Fallback F030
+    if (code === "F030") {
+      setChapitres(CHAPITRES_F030);
+    }
+  }
   const chapitre = chapitres[chapitreActif - 1];
   const module = chapitre?.modules[moduleActif - 1];
   const totalModules = chapitres.reduce((acc, ch) => acc + ch.modules.length, 0);
@@ -203,8 +227,9 @@ export default function LMSPage({ params }) {
       <div style={{ background: "linear-gradient(135deg,#0a0a1a,#1a1a2e)", padding: "20px 30px", borderBottom: "2px solid rgba(200,169,110,0.3)" }}>
         <div style={{ maxWidth: "1200px", margin: "0 auto", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div>
-            <p style={{ color: "#c8a96e", fontSize: "12px", margin: "0 0 4px" }}>AcadeMIA Pro · LMS</p>
+            <p style={{ color: "#c8a96e", fontSize: "12px", margin: "0 0 4px" }}>AcadeMIA Pro · LMS · {expertTitre}</p>
             <h1 style={{ color: "#fff", fontFamily: "Georgia,serif", fontSize: "20px", margin: 0 }}>{formation?.titre || code}</h1>
+            <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "12px", margin: "4px 0 0" }}>Formateur : {expert}</p>
           </div>
           <div style={{ textAlign: "right" }}>
             <p style={{ color: "#c8a96e", fontSize: "12px", margin: "0 0 4px" }}>Progression</p>
