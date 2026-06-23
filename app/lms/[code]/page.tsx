@@ -55,6 +55,7 @@ export default function LMSPage({ params }) {
   const [chatLoading, setChatLoading] = useState(false);
   const [langue, setLangue] = useState("fr");
   const [isAdmin, setIsAdmin] = useState(false);
+  const [pageModule, setPageModule] = useState(0);
 
   const chapitre = chapitres[chapitreActif - 1];
   const module = chapitre?.modules[moduleActif - 1];
@@ -123,6 +124,7 @@ export default function LMSPage({ params }) {
     setQcmScore(null);
     setQcmReponses({});
     setMessageValidateur("");
+    setPageModule(0);
     try {
       const r = await fetch("/api/lms-sophrologie", {
         method: "POST",
@@ -274,7 +276,26 @@ export default function LMSPage({ params }) {
                 </div>
               ) : contenu ? (
                 <div>
-                  {contenu.split("\n").filter(l => l.trim()).map((ligne, i) => {
+                  {(() => {
+                    const pages = contenu.split("\n---\n").filter(p => p.trim());
+                    const page = pages[pageModule] || pages[0] || "";
+                    const totalPages = pages.length;
+                    return (
+                      <div>
+                        {totalPages > 1 && (
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", padding: "8px 0", borderBottom: "1px solid #eee" }}>
+                            <button onClick={() => setPageModule(p => Math.max(0, p - 1))} disabled={pageModule === 0}
+                              style={{ background: pageModule === 0 ? "#eee" : "#c8a96e", color: pageModule === 0 ? "#999" : "#050508", border: "none", borderRadius: "6px", padding: "6px 16px", cursor: pageModule === 0 ? "default" : "pointer", fontWeight: "bold" }}>
+                              ← Précédent
+                            </button>
+                            <span style={{ color: "#c8a96e", fontWeight: "bold", fontSize: "13px" }}>Page {pageModule + 1} / {totalPages}</span>
+                            <button onClick={() => setPageModule(p => Math.min(totalPages - 1, p + 1))} disabled={pageModule === totalPages - 1}
+                              style={{ background: pageModule === totalPages - 1 ? "#eee" : "#c8a96e", color: pageModule === totalPages - 1 ? "#999" : "#050508", border: "none", borderRadius: "6px", padding: "6px 16px", cursor: pageModule === totalPages - 1 ? "default" : "pointer", fontWeight: "bold" }}>
+                              Suivant →
+                            </button>
+                          </div>
+                        )}
+                        {page.split("\n").filter(l => l.trim()).map((ligne, i) => {
                     const l = ligne.trim();
                     if (/^#{1,6}\s/.test(l)) {
                       const texte = l.replace(/^#{1,6}\s+/, "");
@@ -287,11 +308,36 @@ export default function LMSPage({ params }) {
                     const texte = l.replace(/\*\*(.+?)\*\*/g, "$1").replace(/\*(.+?)\*/g, "$1");
                     return <p key={i} style={{ color: "#1a1a1a", fontSize: "20px", lineHeight: "2.0", marginBottom: "16px", textAlign: "justify" }}>{texte}</p>;
                   })}
-                  <div style={{ marginTop: "30px", textAlign: "center" }}>
-                    <button onClick={() => setOnglet("qcm")} style={{ background: "#c8a96e", color: "#050508", border: "none", borderRadius: "8px", padding: "14px 30px", fontWeight: "bold", fontSize: "16px", cursor: "pointer" }}>
-                      Passer au QCM →
-                    </button>
-                  </div>
+                        {totalPages > 1 && (
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "30px", padding: "15px 0", borderTop: "1px solid #eee" }}>
+                            <button onClick={() => setPageModule(p => Math.max(0, p - 1))} disabled={pageModule === 0}
+                              style={{ background: pageModule === 0 ? "#eee" : "#c8a96e", color: pageModule === 0 ? "#999" : "#050508", border: "none", borderRadius: "6px", padding: "8px 20px", cursor: pageModule === 0 ? "default" : "pointer", fontWeight: "bold" }}>
+                              ← Précédent
+                            </button>
+                            <span style={{ color: "#999", fontSize: "13px" }}>Page {pageModule + 1} / {totalPages}</span>
+                            {pageModule < totalPages - 1 ? (
+                              <button onClick={() => setPageModule(p => p + 1)}
+                                style={{ background: "#c8a96e", color: "#050508", border: "none", borderRadius: "6px", padding: "8px 20px", cursor: "pointer", fontWeight: "bold" }}>
+                                Suivant →
+                              </button>
+                            ) : (
+                              <button onClick={() => setOnglet("qcm")}
+                                style={{ background: "#c8a96e", color: "#050508", border: "none", borderRadius: "8px", padding: "8px 20px", fontWeight: "bold", cursor: "pointer" }}>
+                                Passer au QCM →
+                              </button>
+                            )}
+                          </div>
+                        )}
+                        {totalPages <= 1 && (
+                          <div style={{ marginTop: "30px", textAlign: "center" }}>
+                            <button onClick={() => setOnglet("qcm")} style={{ background: "#c8a96e", color: "#050508", border: "none", borderRadius: "8px", padding: "14px 30px", fontWeight: "bold", fontSize: "16px", cursor: "pointer" }}>
+                              Passer au QCM →
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
               ) : (
                 <div style={{ textAlign: "center", padding: "60px 0", color: "#999" }}>Selectionnez un module</div>
