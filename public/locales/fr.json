@@ -53,7 +53,12 @@
     "acces": "Accès immédiat · Agent IA 24h/24 · Garantie 30 jours",
     "coach_btn": "Accéder au Coach IA",
     "classe_btn": "Rejoindre une Classe Live",
-    "niveau": "Niveau"
+    "niveau": "Niveau",
+    "description": "Description",
+    "support": "Support de cours",
+    "support_sub": "Document complet · 300+ pages",
+    "voir": "Voir le support",
+    "chargement": "Chargement..."
   },
   "inscription": {
     "titre": "Rejoignez la Liste Prioritaire",
