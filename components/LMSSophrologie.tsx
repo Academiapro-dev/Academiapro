@@ -51,12 +51,25 @@ function preparerPages(texte) {
 }
 
 function formaterLigne(ligne) {
-  if (ligne.startsWith("### ")) return { type: "h3", texte: ligne.replace(/^### /, "") };
-  if (ligne.startsWith("## ")) return { type: "h2", texte: ligne.replace(/^## /, "") };
-  if (ligne.startsWith("# ")) return { type: "h1", texte: ligne.replace(/^# /, "") };
-  if (ligne === "---") return { type: "sep" };
-  if (ligne.startsWith("> ")) return { type: "cit", texte: ligne.replace(/^> /, "").replace(/\*\*(.+?)\*\*/g, "$1") };
-  return { type: "p", texte: ligne.replace(/\*\*(.+?)\*\*/g, "$1").replace(/\*(.+?)\*/g, "$1") };
+  // Supprimer tous les marqueurs markdown
+  if (/^#{1,6}\s/.test(ligne)) {
+    const niveau = (ligne.match(/^(#{1,6})/) || ["",""])[1].length;
+    const texte = ligne.replace(/^#{1,6}\s+/, "").replace(/\*\*(.+?)\*\*/g, "$1");
+    if (niveau === 1) return { type: "h1", texte };
+    if (niveau === 2) return { type: "h2", texte };
+    return { type: "h3", texte };
+  }
+  if (ligne === "---" || ligne === "***" || ligne === "___") return { type: "sep" };
+  if (ligne.startsWith("> ")) return { type: "cit", texte: ligne.replace(/^>+\s*/, "").replace(/\*\*(.+?)\*\*/g, "$1") };
+  // Nettoyer le texte
+  const texte = ligne
+    .replace(/\*\*(.+?)\*\*/g, "$1")
+    .replace(/\*(.+?)\*/g, "$1")
+    .replace(/^[-*+]\s+/, "")
+    .replace(/^\d+\.\s+/, "")
+    .trim();
+  if (!texte) return { type: "sep" };
+  return { type: "p", texte };
 }
 
 function PageContenu({ lignes }) {
