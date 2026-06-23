@@ -116,10 +116,10 @@ export default function LMSPage({ params }) {
     try { localStorage.setItem("progression_" + code, JSON.stringify(newProg)); } catch {}
   }
 
-  async function chargerModule(ch_num, mod_num) {
+  async function chargerModule(ch_num, mod_num, garderOnglet = false) {
     setLoading(true);
     setContenu("");
-    setOnglet("cours");
+    if (!garderOnglet) setOnglet("cours");
     setQcmScore(null);
     setQcmReponses({});
     setMessageValidateur("");
@@ -289,7 +289,7 @@ export default function LMSPage({ params }) {
               ) : questions.length === 0 ? (
                 <div>
                   <p style={{ color: "rgba(255,255,255,0.5)", marginBottom: "15px" }}>Le QCM sera disponible apres generation du module evaluation.</p>
-                  <button onClick={() => chargerModule(chapitreActif, moduleActif)} style={{ background: "#c8a96e", color: "#050508", border: "none", borderRadius: "8px", padding: "12px 24px", cursor: "pointer", fontWeight: "bold" }}>
+                  <button onClick={() => chargerModule(chapitreActif, moduleActif, true)} style={{ background: "#c8a96e", color: "#050508", border: "none", borderRadius: "8px", padding: "12px 24px", cursor: "pointer", fontWeight: "bold" }}>
                     Generer le QCM
                   </button>
                 </div>
