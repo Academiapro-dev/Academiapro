@@ -1,88 +1,113 @@
 "use client";
+import { useState, useEffect, useRef } from "react";
 
-async function notifierCRM(email, formationCode, modulesValides, totalModules, prenom) {
-  if (!email) return;
-  const progressionPct = totalModules > 0 ? Math.round((modulesValides / totalModules) * 100) : 0;
-  try {
-    await fetch("/api/crm", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: "lms_update",
-        email,
-        data: {
-          formation_code: formationCode,
-          modules_valides: modulesValides,
-          progression_pct: progressionPct,
-          prenom,
-          notes: "Progression LMS mise a jour automatiquement",
-        },
-      }),
-    });
-  } catch {}
+const CHAPITRES_F030 = [
+  { numero: 1, titre: "Fondements Theoriques et Scientifiques", modules: [
+    { numero: 1, titre: "Histoire et origines", type: "theorie" },
+    { numero: 2, titre: "Neurobiologie et mecanismes", type: "theorie" },
+    { numero: 3, titre: "Protocoles d induction", type: "pratique" },
+    { numero: 4, titre: "Evaluation et QCM Chapitre 1", type: "evaluation" },
+  ]},
+  { numero: 2, titre: "Les 12 Degres Caycediens RD1 a RD4", modules: [
+    { numero: 1, titre: "RD1 Decontraction Musculaire", type: "theorie" },
+    { numero: 2, titre: "RD2 Sophro-Activation Positive", type: "theorie" },
+    { numero: 3, titre: "RD3 Sophro-Contemplation", type: "theorie" },
+    { numero: 4, titre: "Pratique guidee et QCM RD1-RD4", type: "evaluation" },
+  ]},
+  { numero: 3, titre: "Les Degres Superieurs RD5 a RD12", modules: [
+    { numero: 1, titre: "RD5 a RD8 Approfondissement", type: "theorie" },
+    { numero: 2, titre: "RD9 a RD12 Contemplation", type: "theorie" },
+    { numero: 3, titre: "Applications cliniques", type: "pratique" },
+    { numero: 4, titre: "Cas cliniques et QCM", type: "evaluation" },
+  ]},
+  { numero: 4, titre: "Applications Professionnelles", modules: [
+    { numero: 1, titre: "Sophrologie perinatale", type: "pratique" },
+    { numero: 2, titre: "Sophrologie du sport", type: "pratique" },
+    { numero: 3, titre: "Sophrologie oncologique", type: "pratique" },
+    { numero: 4, titre: "Protocoles personnalises et QCM", type: "evaluation" },
+  ]},
+  { numero: 5, titre: "Pratique Professionnelle et Certification", modules: [
+    { numero: 1, titre: "Construction cabinet sophrologie", type: "pratique" },
+    { numero: 2, titre: "Ethique et cadre legal", type: "theorie" },
+    { numero: 3, titre: "Supervision et memoire", type: "pratique" },
+    { numero: 4, titre: "Examen blanc final 20 questions", type: "evaluation" },
+  ]},
+];
+
+function extraireQCM(contenu) {
+  if (!contenu) return [];
+  const questions = [];
+  const lignes = contenu.split("\n");
+  let qActuelle = null;
+  for (const ligne of lignes) {
+    const l = ligne.trim();
+    if (l.match(/^Q\d+\./)) {
+      if (qActuelle) questions.push(qActuelle);
+      qActuelle = { question: l.replace(/^Q\d+\./, "").trim(), options: [], bonneReponse: "", explication: "" };
+    } else if (qActuelle && l.match(/^[A-D]\)/)) {
+      qActuelle.options.push(l);
+    } else if (qActuelle && l.startsWith("Reponse :")) {
+      const parts = l.replace("Reponse :", "").trim().split(" - ");
+      qActuelle.bonneReponse = parts[0]?.trim().replace(")", "");
+      qActuelle.explication = parts.slice(1).join(" - ").trim();
+    }
+  }
+  if (qActuelle) questions.push(qActuelle);
+  return questions;
 }
-
-
-function nettoyer(texte) {
-  if (!texte) return "";
-  return texte
-    .replace(/#{1,6}\s/g, "")
-    .replace(/\*\*(.+?)\*\*/g, "$1")
-    .replace(/\*(.+?)\*/g, "$1")
-    .replace(/---/g, "")
-    .replace(/^>\s/gm, "")
-    .trim();
-}
-
-import { useState, useEffect } from "react";
 
 export default function LMSPage({ params }) {
   const code = params.code?.toUpperCase();
   const [formation, setFormation] = useState(null);
-  const [lmsData, setLmsData] = useState(null);
-  const [moduleActif, setModuleActif] = useState({ch: 0, mod: 0});
+  const [chapitreActif, setChapitreActif] = useState(1);
+  const [moduleActif, setModuleActif] = useState(1);
+  const [contenu, setContenu] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [loadingFormation, setLoadingFormation] = useState(true);
+  const [onglet, setOnglet] = useState("cours");
   const [progression, setProgression] = useState({});
   const [qcmReponses, setQcmReponses] = useState({});
   const [qcmScore, setQcmScore] = useState(null);
   const [messageValidateur, setMessageValidateur] = useState("");
-  const [loading, setLoading] = useState(true);
   const [chatMessage, setChatMessage] = useState("");
   const [chatHistory, setChatHistory] = useState([]);
   const [chatLoading, setChatLoading] = useState(false);
-  const [onglet, setOnglet] = useState("cours");
-  const [emailApprenant, setEmailApprenant] = useState("");
-  const [prenomApprenant, setPrenomApprenant] = useState("");
-  const [showEmailForm, setShowEmailForm] = useState(false);
+  const [langue, setLangue] = useState("fr");
+
+  const chapitres = code === "F030" ? CHAPITRES_F030 : [];
+  const chapitre = chapitres[chapitreActif - 1];
+  const module = chapitre?.modules[moduleActif - 1];
+  const totalModules = chapitres.reduce((acc, ch) => acc + ch.modules.length, 0);
+  const modulesValides = Object.values(progression).filter(v => v === "valide").length;
+  const progressionPct = totalModules > 0 ? Math.round((modulesValides / totalModules) * 100) : 0;
+  const cle = chapitreActif + "_" + moduleActif;
+  const moduleValide = progression[cle] === "valide";
+  const questions = extraireQCM(contenu);
 
   useEffect(() => {
-    chargerDonnees();
+    const lang = localStorage.getItem("langue") || "fr";
+    setLangue(lang);
+    chargerFormation(lang);
     chargerProgression();
   }, [code]);
 
-  async function chargerDonnees() {
-    try {
-      // Charger formation
-      const r1 = await fetch("/api/formation/" + code);
-      const f = await r1.json();
-      if (f && !f.error) setFormation(f);
+  useEffect(() => {
+    if (chapitres.length > 0) chargerModule(chapitreActif, moduleActif);
+  }, [chapitreActif, moduleActif, langue]);
 
-      // Charger LMS via API
-      const r2 = await fetch("/api/lms/" + code);
-      const lms = await r2.json();
-      if (lms && !lms.error) setLmsData(lms);
+  async function chargerFormation(lang) {
+    try {
+      const r = await fetch("/api/formation/" + code + "?lang=" + lang);
+      const data = await r.json();
+      if (!data.error) setFormation(data);
     } catch {}
-    setLoading(false);
+    setLoadingFormation(false);
   }
 
   function chargerProgression() {
     try {
       const prog = localStorage.getItem("progression_" + code);
       if (prog) setProgression(JSON.parse(prog));
-      const email = localStorage.getItem("apprenant_email") || "";
-      const prenom = localStorage.getItem("apprenant_prenom") || "";
-      setEmailApprenant(email);
-      setPrenomApprenant(prenom);
-      if (!email) setShowEmailForm(true);
     } catch {}
   }
 
@@ -91,42 +116,43 @@ export default function LMSPage({ params }) {
     try { localStorage.setItem("progression_" + code, JSON.stringify(newProg)); } catch {}
   }
 
-  function extraireQCM(contenu) {
-    const questions = [];
-    const lignes = (contenu || "").split("\n");
-    let qActuelle = null;
-    for (const ligne of lignes) {
-      const l = ligne.trim();
-      if (l.match(/^Q[0-9]+\./)) {
-        if (qActuelle) questions.push(qActuelle);
-        qActuelle = { question: l.replace(/^Q[0-9]+\./, "").trim(), options: [], bonneReponse: "", explication: "" };
-      } else if (qActuelle && l.match(/^[A-D]\)/)) {
-        qActuelle.options.push(l);
-      } else if (qActuelle && l.startsWith("Reponse :")) {
-        qActuelle.bonneReponse = l.replace("Reponse :", "").split("-")[0].trim();
-        qActuelle.explication = l.includes("-") ? l.split("-").slice(1).join("-").trim() : "";
-      }
-    }
-    if (qActuelle) questions.push(qActuelle);
-    return questions.slice(0, 8);
+  async function chargerModule(ch_num, mod_num) {
+    setLoading(true);
+    setContenu("");
+    setOnglet("cours");
+    setQcmScore(null);
+    setQcmReponses({});
+    setMessageValidateur("");
+    try {
+      const r = await fetch("/api/lms-sophrologie", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ formation_code: code, chapitre_num: ch_num, module_num: mod_num, langue }),
+      });
+      const data = await r.json();
+      if (data.succes) setContenu(data.contenu);
+    } catch {}
+    setLoading(false);
   }
 
-  function validerQCM(questions) {
+  function validerQCM() {
+    if (questions.length === 0) return;
     let score = 0;
     questions.forEach((q, i) => { if (qcmReponses[i] === q.bonneReponse) score++; });
     const pct = Math.round((score / questions.length) * 100);
     setQcmScore(pct);
-    const cle = moduleActif.ch + "_" + moduleActif.mod;
     if (pct >= 70) {
-      setMessageValidateur("MODULE VALIDE ! Score " + pct + "%. Module suivant debloque.");
+      setMessageValidateur("MODULE VALIDE ! Score " + pct + "%");
       const newProg = { ...progression, [cle]: "valide" };
       sauvegarderProgression(newProg);
       const modulesVal = Object.values(newProg).filter(v => v === "valide").length;
-      notifierCRM(emailApprenant, code, modulesVal, totalModules, prenomApprenant);
-    } else if (pct >= 50) {
-      setMessageValidateur("Revisions recommandees. Score " + pct + "%.");
+      const email = localStorage.getItem("apprenant_email") || "";
+      if (email) {
+        fetch("/api/crm", { method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "lms_update", email, data: { formation_code: code, modules_valides: modulesVal, progression_pct: Math.round((modulesVal / totalModules) * 100) } }) });
+      }
     } else {
-      setMessageValidateur("Module a refaire. Score " + pct + "%.");
+      setMessageValidateur("Score " + pct + "% — Recommencez pour valider (70% requis)");
     }
   }
 
@@ -137,8 +163,9 @@ export default function LMSPage({ params }) {
     setChatHistory(prev => [...prev, { role: "user", text: msg }]);
     setChatLoading(true);
     try {
-      const res = await fetch("/api/agent-tuteur", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message: msg, formation_titre: formation?.titre || code, historique: chatHistory }) });
-      const data = await res.json();
+      const r = await fetch("/api/agent-tuteur", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: msg, formation_titre: formation?.titre || code, historique: chatHistory }) });
+      const data = await r.json();
       setChatHistory(prev => [...prev, { role: "agent", text: data.reply || "" }]);
     } catch {
       setChatHistory(prev => [...prev, { role: "agent", text: "Erreur de connexion." }]);
@@ -146,58 +173,17 @@ export default function LMSPage({ params }) {
     setChatLoading(false);
   }
 
-  if (loading) return (
+  if (loadingFormation) return (
     <div style={{ background: "#050508", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <p style={{ color: "#c8a96e", fontFamily: "Georgia,serif", fontSize: "18px" }}>Chargement de votre formation...</p>
+      <p style={{ color: "#c8a96e", fontSize: "18px" }}>Chargement...</p>
     </div>
   );
 
-  if (!lmsData) return (
+  if (chapitres.length === 0) return (
     <div style={{ background: "#050508", minHeight: "100vh", color: "#fff", padding: "40px", textAlign: "center" }}>
-      <h1 style={{ color: "#c8a96e", fontFamily: "Georgia,serif" }}>Formation en preparation</h1>
+      <h1 style={{ color: "#c8a96e" }}>Formation en preparation</h1>
       <p style={{ color: "rgba(255,255,255,0.6)" }}>Le contenu de cette formation est en cours de generation.</p>
       <a href="/catalogue" style={{ color: "#c8a96e" }}>Retour au catalogue</a>
-    </div>
-  );
-
-  const contenuLMS = lmsData.contenu;
-  const chapitres = Array.isArray(contenuLMS) ? contenuLMS : (contenuLMS?.chapitres || []);
-  const examenBlanc = lmsData.examen_blanc || contenuLMS?.examen_blanc || "";
-  const formateur = contenuLMS?.formateur || "";
-  const coaching = contenuLMS?.coaching || "";
-
-  const chapitreActifData = chapitres[moduleActif.ch];
-  const moduleActifData = chapitreActifData?.modules?.[moduleActif.mod];
-  const contenuModule = moduleActifData?.contenu || "";
-  const questions = extraireQCM(contenuModule);
-  const cle = moduleActif.ch + "_" + moduleActif.mod;
-  const moduleValide = progression[cle] === "valide";
-  const totalModules = chapitres.reduce((acc, ch) => acc + (ch.modules?.length || 0), 0);
-  const modulesValides = Object.values(progression).filter(v => v === "valide").length;
-  const progressionPct = totalModules > 0 ? Math.round((modulesValides / totalModules) * 100) : 0;
-
-  if (showEmailForm) return (
-    <div style={{ background: "#050508", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <div style={{ background: "#1a1a2e", borderRadius: "16px", padding: "40px", maxWidth: "400px", width: "100%", border: "1px solid rgba(200,169,110,0.3)", textAlign: "center" }}>
-        <div style={{ fontSize: "40px", marginBottom: "15px" }}>🎓</div>
-        <h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", marginBottom: "10px" }}>Bienvenue dans votre formation</h2>
-        <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "14px", marginBottom: "25px" }}>Entrez vos coordonnées pour que votre progression soit sauvegardée</p>
-        <input type="text" placeholder="Votre prénom" value={prenomApprenant} onChange={e => setPrenomApprenant(e.target.value)}
-          style={{ width: "100%", padding: "12px", borderRadius: "8px", border: "1px solid rgba(200,169,110,0.3)", background: "rgba(255,255,255,0.05)", color: "#fff", marginBottom: "12px", fontSize: "15px", boxSizing: "border-box" }} />
-        <input type="email" placeholder="Votre email" value={emailApprenant} onChange={e => setEmailApprenant(e.target.value)}
-          style={{ width: "100%", padding: "12px", borderRadius: "8px", border: "1px solid rgba(200,169,110,0.3)", background: "rgba(255,255,255,0.05)", color: "#fff", marginBottom: "20px", fontSize: "15px", boxSizing: "border-box" }} />
-        <button onClick={() => {
-          localStorage.setItem("apprenant_email", emailApprenant);
-          localStorage.setItem("apprenant_prenom", prenomApprenant);
-          setShowEmailForm(false);
-        }} disabled={!emailApprenant}
-          style={{ width: "100%", background: emailApprenant ? "#c8a96e" : "rgba(200,169,110,0.3)", color: "#050508", border: "none", borderRadius: "8px", padding: "14px", fontWeight: "bold", cursor: emailApprenant ? "pointer" : "not-allowed", fontSize: "16px" }}>
-          Commencer ma formation →
-        </button>
-        <button onClick={() => setShowEmailForm(false)} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.4)", cursor: "pointer", marginTop: "12px", fontSize: "13px" }}>
-          Continuer sans enregistrement
-        </button>
-      </div>
     </div>
   );
 
@@ -208,10 +194,9 @@ export default function LMSPage({ params }) {
           <div>
             <p style={{ color: "#c8a96e", fontSize: "12px", margin: "0 0 4px" }}>AcadeMIA Pro · LMS</p>
             <h1 style={{ color: "#fff", fontFamily: "Georgia,serif", fontSize: "20px", margin: 0 }}>{formation?.titre || code}</h1>
-            {formateur && <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "12px", margin: "4px 0 0" }}>Formateur : {formateur}</p>}
           </div>
           <div style={{ textAlign: "right" }}>
-            <p style={{ color: "#c8a96e", fontSize: "12px", margin: "0 0 4px" }}>Progression globale</p>
+            <p style={{ color: "#c8a96e", fontSize: "12px", margin: "0 0 4px" }}>Progression</p>
             <div style={{ background: "rgba(255,255,255,0.1)", borderRadius: "10px", height: "8px", width: "200px" }}>
               <div style={{ background: "#c8a96e", borderRadius: "10px", height: "8px", width: progressionPct + "%" }} />
             </div>
@@ -223,28 +208,24 @@ export default function LMSPage({ params }) {
       <div style={{ maxWidth: "1200px", margin: "0 auto", padding: "20px", display: "grid", gridTemplateColumns: "280px 1fr", gap: "20px" }}>
         <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(200,169,110,0.2)", borderRadius: "12px", padding: "15px", height: "fit-content" }}>
           <h3 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", margin: "0 0 15px", fontSize: "14px" }}>Programme</h3>
-          {chapitres.map((ch, ci) => (
-            <div key={ci} style={{ marginBottom: "10px" }}>
-              <p style={{ color: "#c8a96e", fontSize: "12px", fontWeight: "bold", margin: "0 0 5px" }}>Ch.{ci + 1} {ch.titre}</p>
-              {ch.modules?.map((mod, mi) => {
-                const k = ci + "_" + mi;
+          {chapitres.map((ch) => (
+            <div key={ch.numero} style={{ marginBottom: "10px" }}>
+              <p style={{ color: "#c8a96e", fontSize: "12px", fontWeight: "bold", margin: "0 0 5px" }}>Ch.{ch.numero} {ch.titre}</p>
+              {ch.modules.map((mod) => {
+                const k = ch.numero + "_" + mod.numero;
                 const valide = progression[k] === "valide";
-                const actif = moduleActif.ch === ci && moduleActif.mod === mi;
+                const actif = chapitreActif === ch.numero && moduleActif === mod.numero;
+                const typeIcon = mod.type === "theorie" ? "📖" : mod.type === "pratique" ? "🛠️" : "📝";
                 return (
-                  <div key={mi} onClick={() => { setModuleActif({ch: ci, mod: mi}); setOnglet("cours"); setQcmScore(null); setQcmReponses({}); setMessageValidateur(""); }}
+                  <div key={mod.numero} onClick={() => { setChapitreActif(ch.numero); setModuleActif(mod.numero); }}
                     style={{ padding: "8px 10px", marginBottom: "4px", borderRadius: "6px", cursor: "pointer", background: actif ? "rgba(200,169,110,0.2)" : "transparent", border: actif ? "1px solid rgba(200,169,110,0.4)" : "1px solid transparent", display: "flex", alignItems: "center", gap: "8px" }}>
                     <span>{valide ? "✅" : "⭕"}</span>
-                    <span style={{ color: actif ? "#c8a96e" : "rgba(255,255,255,0.6)", fontSize: "11px" }}>{ci + 1}.{mi + 1} {mod.titre}</span>
+                    <span style={{ color: actif ? "#c8a96e" : "rgba(255,255,255,0.6)", fontSize: "11px" }}>{typeIcon} {ch.numero}.{mod.numero} {mod.titre}</span>
                   </div>
                 );
               })}
             </div>
           ))}
-          {examenBlanc && (
-            <div onClick={() => setOnglet("examen")} style={{ padding: "10px", marginTop: "10px", borderRadius: "6px", cursor: "pointer", background: onglet === "examen" ? "rgba(200,169,110,0.2)" : "transparent", border: "1px solid rgba(200,169,110,0.3)", textAlign: "center" }}>
-              <span style={{ color: "#c8a96e", fontSize: "12px", fontWeight: "bold" }}>🎯 Examen Blanc Final</span>
-            </div>
-          )}
         </div>
 
         <div>
@@ -257,39 +238,66 @@ export default function LMSPage({ params }) {
             ))}
           </div>
 
-          {onglet !== "examen" && moduleActifData && (
+          {module && (
             <div style={{ marginBottom: "15px" }}>
-              <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "12px", margin: "0 0 4px" }}>Chapitre {moduleActif.ch + 1} · Module {moduleActif.mod + 1}</p>
-              <h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", margin: 0, fontSize: "18px" }}>{moduleActifData.titre}</h2>
+              <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "12px", margin: "0 0 4px" }}>Chapitre {chapitreActif} · Module {moduleActif}</p>
+              <h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", margin: 0, fontSize: "18px" }}>{module.titre}</h2>
               {moduleValide && <span style={{ background: "rgba(0,200,0,0.2)", color: "#00c800", padding: "3px 10px", borderRadius: "20px", fontSize: "11px" }}>✅ Module valide</span>}
             </div>
           )}
 
           {onglet === "cours" && (
-            <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(200,169,110,0.2)", borderRadius: "12px", padding: "25px", maxHeight: "600px", overflowY: "auto" }}>
-              {(contenuModule || "").split("\n").map((ligne, i) => {
-                const l = ligne.trim();
-                if (!l) return <br key={i} />;
-                const isTitle = ["INTRODUCTION","CONTEXTE","THEORIE","PROTOCOLE","EXERCICES","ETUDES","RESSOURCES","POINTS CLES","PARTIE","OBJECTIFS","SYNTHESE"].some(x => l.toUpperCase().startsWith(x));
-                return isTitle ? <h3 key={i} style={{ color: "#c8a96e", fontFamily: "Georgia,serif", margin: "20px 0 8px", fontSize: "14px" }}>{nettoyer(l)}</h3> : <p key={i} style={{ color: "rgba(255,255,255,0.8)", lineHeight: "1.8", margin: "0 0 6px", fontSize: "13px" }}>{nettoyer(l)}</p>;
-              })}
-              <div style={{ marginTop: "20px", textAlign: "center" }}>
-                <button onClick={() => { setOnglet("qcm"); setQcmScore(null); setQcmReponses({}); setMessageValidateur(""); }}
-                  style={{ background: "#c8a96e", color: "#050508", padding: "12px 30px", borderRadius: "8px", border: "none", cursor: "pointer", fontWeight: "bold" }}>
-                  Passer au QCM →
-                </button>
-              </div>
+            <div style={{ background: "#fff", borderRadius: "12px", padding: "40px 45px", boxShadow: "0 4px 30px rgba(0,0,0,0.4)", minHeight: "400px" }}>
+              {loading ? (
+                <div style={{ textAlign: "center", padding: "60px 0" }}>
+                  <div style={{ fontSize: "32px", marginBottom: "15px" }}>⚡</div>
+                  <div style={{ color: "#c8a96e", fontSize: "16px" }}>Generation du contenu en cours...</div>
+                  <div style={{ color: "#666", fontSize: "14px" }}>Claire Beaumont redige votre module...</div>
+                </div>
+              ) : contenu ? (
+                <div>
+                  {contenu.split("\n").filter(l => l.trim()).map((ligne, i) => {
+                    const l = ligne.trim();
+                    if (/^#{1,6}\s/.test(l)) {
+                      const texte = l.replace(/^#{1,6}\s+/, "");
+                      const niveau = (l.match(/^(#{1,6})/)||["",""])[1].length;
+                      if (niveau <= 2) return <h2 key={i} style={{ color: "#c8a96e", fontFamily: "Georgia,serif", fontSize: "22px", margin: "20px 0 10px", borderBottom: niveau === 1 ? "2px solid #c8a96e" : "none", paddingBottom: nivel === 1 ? "8px" : "0" }}>{texte}</h2>;
+                      return <h3 key={i} style={{ color: "#333", fontSize: "18px", margin: "15px 0 8px", fontWeight: "bold" }}>{texte}</h3>;
+                    }
+                    if (l === "---") return <hr key={i} style={{ border: "none", borderTop: "1px solid #ddd", margin: "16px 0" }} />;
+                    if (l.startsWith("> ")) return <blockquote key={i} style={{ borderLeft: "4px solid #c8a96e", paddingLeft: "16px", margin: "16px 0", color: "#555", fontStyle: "italic", fontSize: "20px" }}>{l.replace(/^> /, "").replace(/\*\*(.+?)\*\*/g, "$1")}</blockquote>;
+                    const texte = l.replace(/\*\*(.+?)\*\*/g, "$1").replace(/\*(.+?)\*/g, "$1");
+                    return <p key={i} style={{ color: "#1a1a1a", fontSize: "20px", lineHeight: "2.0", marginBottom: "16px", textAlign: "justify" }}>{texte}</p>;
+                  })}
+                  <div style={{ marginTop: "30px", textAlign: "center" }}>
+                    <button onClick={() => setOnglet("qcm")} style={{ background: "#c8a96e", color: "#050508", border: "none", borderRadius: "8px", padding: "14px 30px", fontWeight: "bold", fontSize: "16px", cursor: "pointer" }}>
+                      Passer au QCM →
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ textAlign: "center", padding: "60px 0", color: "#999" }}>Selectionnez un module</div>
+              )}
             </div>
           )}
 
           {onglet === "qcm" && (
             <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(200,169,110,0.2)", borderRadius: "12px", padding: "25px" }}>
               <h3 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", margin: "0 0 20px" }}>QCM de Validation</h3>
-              {questions.length === 0 ? <p style={{ color: "rgba(255,255,255,0.5)" }}>QCM non disponible pour ce module.</p> : (
+              {loading ? (
+                <p style={{ color: "#c8a96e" }}>Generation du QCM en cours...</p>
+              ) : questions.length === 0 ? (
+                <div>
+                  <p style={{ color: "rgba(255,255,255,0.5)", marginBottom: "15px" }}>Le QCM sera disponible apres generation du module evaluation.</p>
+                  <button onClick={() => chargerModule(chapitreActif, moduleActif)} style={{ background: "#c8a96e", color: "#050508", border: "none", borderRadius: "8px", padding: "12px 24px", cursor: "pointer", fontWeight: "bold" }}>
+                    Generer le QCM
+                  </button>
+                </div>
+              ) : (
                 <>
                   {questions.map((q, i) => (
                     <div key={i} style={{ marginBottom: "20px", padding: "15px", background: "rgba(255,255,255,0.03)", borderRadius: "8px" }}>
-                      <p style={{ color: "#fff", fontWeight: "bold", margin: "0 0 10px", fontSize: "13px" }}>Q{i + 1}. {q.question}</p>
+                      <p style={{ color: "#fff", fontWeight: "bold", margin: "0 0 10px", fontSize: "14px" }}>Q{i + 1}. {q.question}</p>
                       {q.options.map((opt, oi) => {
                         const lettre = opt[0];
                         const selectionne = qcmReponses[i] === lettre;
@@ -302,27 +310,25 @@ export default function LMSPage({ params }) {
                           </div>
                         );
                       })}
-                      {qcmScore !== null && <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "11px", margin: "8px 0 0", fontStyle: "italic" }}>{q.explication}</p>}
+                      {qcmScore !== null && q.explication && <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "12px", margin: "8px 0 0", fontStyle: "italic" }}>{q.explication}</p>}
                     </div>
                   ))}
                   {qcmScore === null ? (
-                    <button onClick={() => validerQCM(questions)} disabled={Object.keys(qcmReponses).length < questions.length}
+                    <button onClick={validerQCM} disabled={Object.keys(qcmReponses).length < questions.length}
                       style={{ background: Object.keys(qcmReponses).length < questions.length ? "rgba(200,169,110,0.3)" : "#c8a96e", color: "#050508", padding: "12px 30px", borderRadius: "8px", border: "none", cursor: "pointer", fontWeight: "bold", width: "100%" }}>
                       Valider mes reponses
                     </button>
                   ) : (
                     <div style={{ textAlign: "center", padding: "20px", background: qcmScore >= 70 ? "rgba(0,200,0,0.1)" : "rgba(200,0,0,0.1)", borderRadius: "10px" }}>
                       <p style={{ color: qcmScore >= 70 ? "#00c800" : "#ff4444", fontSize: "24px", fontWeight: "bold" }}>{qcmScore}%</p>
-                      <p style={{ color: "#fff", margin: "0 0 15px" }}>{messageValidateur}</p>
+                      <p style={{ color: "#fff", marginBottom: "15px" }}>{messageValidateur}</p>
                       <div style={{ display: "flex", gap: "10px", justifyContent: "center" }}>
                         <button onClick={() => { setQcmScore(null); setQcmReponses({}); setMessageValidateur(""); }} style={{ background: "rgba(200,169,110,0.2)", color: "#c8a96e", padding: "10px 20px", borderRadius: "8px", border: "1px solid #c8a96e", cursor: "pointer" }}>Recommencer</button>
                         {qcmScore >= 50 && (
                           <button onClick={() => {
-                            const nm = moduleActif.mod + 1;
-                            const nc = moduleActif.ch;
-                            if (nm < chapitres[nc]?.modules?.length) setModuleActif({ch: nc, mod: nm});
-                            else if (nc + 1 < chapitres.length) setModuleActif({ch: nc + 1, mod: 0});
-                            setOnglet("cours"); setQcmScore(null); setQcmReponses({}); setMessageValidateur("");
+                            const nm = moduleActif + 1;
+                            if (nm <= (chapitre?.modules.length || 0)) setModuleActif(nm);
+                            else if (chapitreActif < chapitres.length) { setChapitreActif(c => c + 1); setModuleActif(1); }
                           }} style={{ background: "#c8a96e", color: "#050508", padding: "10px 20px", borderRadius: "8px", border: "none", cursor: "pointer", fontWeight: "bold" }}>
                             Module suivant →
                           </button>
@@ -337,13 +343,12 @@ export default function LMSPage({ params }) {
 
           {onglet === "chat" && (
             <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(200,169,110,0.2)", borderRadius: "12px", padding: "25px" }}>
-              <h3 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", margin: "0 0 15px" }}>Coach IA — Disponible 24h/24</h3>
-              {coaching && <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "13px", fontStyle: "italic", marginBottom: "15px" }}>"{coaching}"</p>}
+              <h3 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", margin: "0 0 15px" }}>Coach IA — Claire Beaumont</h3>
               <div style={{ minHeight: "300px", maxHeight: "400px", overflowY: "auto", marginBottom: "15px" }}>
                 {chatHistory.length === 0 && <p style={{ color: "rgba(255,255,255,0.3)", textAlign: "center", marginTop: "80px" }}>Posez une question sur votre formation...</p>}
                 {chatHistory.map((msg, i) => (
                   <div key={i} style={{ marginBottom: "12px", display: "flex", justifyContent: msg.role === "user" ? "flex-end" : "flex-start" }}>
-                    <div style={{ background: msg.role === "user" ? "#c8a96e" : "rgba(255,255,255,0.08)", color: msg.role === "user" ? "#050508" : "#fff", padding: "10px 14px", borderRadius: "10px", maxWidth: "80%", fontSize: "13px", lineHeight: "1.6" }}>{msg.text}</div>
+                    <div style={{ background: msg.role === "user" ? "#c8a96e" : "rgba(255,255,255,0.08)", color: msg.role === "user" ? "#050508" : "#fff", padding: "10px 14px", borderRadius: "10px", maxWidth: "80%", fontSize: "14px", lineHeight: "1.6" }}>{msg.text}</div>
                   </div>
                 ))}
                 {chatLoading && <p style={{ color: "#c8a96e", textAlign: "center" }}>...</p>}
@@ -353,22 +358,6 @@ export default function LMSPage({ params }) {
                   style={{ flex: 1, padding: "10px", borderRadius: "8px", border: "1px solid rgba(200,169,110,0.3)", background: "rgba(255,255,255,0.05)", color: "#fff" }} />
                 <button onClick={envoyerChat} disabled={chatLoading} style={{ padding: "10px 20px", background: "#c8a96e", color: "#050508", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "bold" }}>Envoyer</button>
               </div>
-            </div>
-          )}
-
-          {onglet === "examen" && (
-            <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(200,169,110,0.2)", borderRadius: "12px", padding: "25px", maxHeight: "600px", overflowY: "auto" }}>
-              <h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", margin: "0 0 20px" }}>Examen Blanc Final</h2>
-              {progressionPct < 70 ? (
-                <p style={{ color: "rgba(255,255,255,0.6)", textAlign: "center" }}>Completez au moins 70% des modules. Progression : {progressionPct}%</p>
-              ) : (
-                (examenBlanc || "").split("\n").map((ligne, i) => {
-                  const l = ligne.trim();
-                  if (!l) return <br key={i} />;
-                  const isTitle = ["PARTIE","QCM","QUESTIONS","CAS","CORRIGE","EXAMEN"].some(x => l.toUpperCase().startsWith(x));
-                  return isTitle ? <h3 key={i} style={{ color: "#c8a96e", fontFamily: "Georgia,serif", margin: "20px 0 8px" }}>{l}</h3> : <p key={i} style={{ color: "rgba(255,255,255,0.8)", lineHeight: "1.8", fontSize: "13px" }}>{l}</p>;
-                })
-              )}
             </div>
           )}
         </div>
