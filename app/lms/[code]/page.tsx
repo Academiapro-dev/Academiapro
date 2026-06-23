@@ -127,7 +127,10 @@ export default function LMSPage({ params }) {
   async function chargerModule(ch_num, mod_num, garderOnglet = false) {
     setLoading(true);
     setContenu("");
-    if (!garderOnglet) setOnglet("cours");
+    if (!garderOnglet) {
+      const mod = chapitres[ch_num - 1]?.modules[mod_num - 1];
+      setOnglet(mod?.type === "evaluation" ? "qcm" : "cours");
+    }
     setQcmScore(null);
     setQcmReponses({});
     setMessageValidateur("");
