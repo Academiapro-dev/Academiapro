@@ -135,7 +135,7 @@ export default function LMSPage({ params }) {
     setQcmReponses({});
     setMessageValidateur("");
     try {
-      const r = await fetch("/api/lms-sophrologie", {
+      const r = await fetch("/api/lms-generer", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ formation_code: code, chapitre_num: ch_num, module_num: mod_num, langue }),
