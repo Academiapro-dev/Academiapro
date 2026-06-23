@@ -261,7 +261,7 @@ export default function LMSPage({ params }) {
                     if (/^#{1,6}\s/.test(l)) {
                       const texte = l.replace(/^#{1,6}\s+/, "");
                       const niveau = (l.match(/^(#{1,6})/)||["",""])[1].length;
-                      if (niveau <= 2) return <h2 key={i} style={{ color: "#c8a96e", fontFamily: "Georgia,serif", fontSize: "22px", margin: "20px 0 10px", borderBottom: niveau === 1 ? "2px solid #c8a96e" : "none", paddingBottom: nivel === 1 ? "8px" : "0" }}>{texte}</h2>;
+                      if (niveau <= 2) return <h2 key={i} style={{ color: "#c8a96e", fontFamily: "Georgia,serif", fontSize: "22px", margin: "20px 0 10px", borderBottom: niveau === 1 ? "2px solid #c8a96e" : "none", paddingBottom: niveau === 1 ? "8px" : "0" }}>{texte}</h2>;
                       return <h3 key={i} style={{ color: "#333", fontSize: "18px", margin: "15px 0 8px", fontWeight: "bold" }}>{texte}</h3>;
                     }
                     if (l === "---") return <hr key={i} style={{ border: "none", borderTop: "1px solid #ddd", margin: "16px 0" }} />;
