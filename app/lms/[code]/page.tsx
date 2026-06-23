@@ -277,7 +277,7 @@ export default function LMSPage({ params }) {
               ) : contenu ? (
                 <div>
                   {(() => {
-                    const PARAS_PAR_PAGE = 2;
+                    const PARAS_PAR_PAGE = 1;
                     const toutesLignes = contenu.split("\n").filter(l => l.trim());
                     const blocs = [];
                     let bloc = [];
