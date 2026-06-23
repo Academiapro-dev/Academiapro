@@ -57,44 +57,41 @@ async function appel_claude(system: string, user: string, max_tokens = 800): Pro
   }
 }
 
-async function generer_chapitre(formation: any, num: number, formateur: string): Promise<any> {
-  const titres_chapitres: Record<number, string> = {
-    1: "Fondements theoriques et scientifiques",
-    2: "Pratique guidee et protocoles",
-    3: "Applications cliniques et cas pratiques",
-    4: "Approfondissement et specialisation",
-    5: "Integration et certification",
+async function appel_agent_architecte(formation: any): Promise<any[]> {
+  try {
+    const base_url = process.env.NEXT_PUBLIC_SITE_URL || "https://academiapro.fr";
+    const r = await fetch(base_url + "/api/agent-architecte", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        formation_code: formation.code,
+        formation_titre: formation.titre,
+        domaine: formation.domaine || "Business",
+        niveau: formation.niveau || "Intermediaire",
+        duree: formation.duree || "200h",
+      }),
+    });
+    if (!r.ok) return [];
+    const data = await r.json();
+    if (!data.succes || !data.structure?.chapitres) return [];
+    return data.structure.chapitres;
+  } catch {
+    return [];
+  }
+}
+
+async function generer_contenu_module(formation: any, chapitre: any, module: any, formateur: string): Promise<string> {
+  const type_map: Record<string, string> = {
+    "theorie": "Redige 4 paragraphes de theorie scientifique et conceptuelle denses et professionnels.",
+    "pratique": "Redige 3 exercices pratiques complets etape par etape avec objectifs et protocoles.",
+    "evaluation": "Redige 5 questions QCM format strict: Q1. [question] A) B) C) D) Reponse : X - [explication]",
   };
-
-  const titre_chapitre = titres_chapitres[num] || `Chapitre ${num}`;
-
-  const [theorie, pratique, evaluation] = await Promise.all([
-    appel_claude(
-      `Tu es ${formateur}, expert en ${formation.domaine}. Redige un contenu theorique dense et professionnel. Pas de guillemets doubles.`,
-      `Chapitre ${num} - ${titre_chapitre} pour: ${formation.titre}. Redige 4 paragraphes de theorie scientifique et conceptuelle.`,
-      600
-    ),
-    appel_claude(
-      `Tu es ${formateur}, expert en ${formation.domaine}. Decris des exercices pratiques concrets. Pas de guillemets doubles.`,
-      `Chapitre ${num} - Exercices pratiques pour: ${formation.titre}. Redige 3 exercices etape par etape.`,
-      600
-    ),
-    appel_claude(
-      `Tu es un evaluateur Qualiopi expert. Redige des questions d evaluation. Pas de guillemets doubles.`,
-      `Chapitre ${num} pour: ${formation.titre}. Redige 5 questions QCM format: Q: / A: / B: / C: / D: / Reponse: / Explication:`,
-      500
-    ),
-  ]);
-
-  return {
-    numero: num,
-    titre: titre_chapitre,
-    modules: [
-      { numero: 1, titre: "Fondements theoriques", type: "theorie", contenu: theorie || `Theorie chapitre ${num}.`, duree: "2h" },
-      { numero: 2, titre: "Exercices pratiques", type: "pratique", contenu: pratique || `Pratique chapitre ${num}.`, duree: "2h" },
-      { numero: 3, titre: "Auto-evaluation", type: "evaluation", contenu: evaluation || `Evaluation chapitre ${num}.`, duree: "1h" },
-    ],
-  };
+  const instruction = type_map[module.type] || type_map["theorie"];
+  return await appel_claude(
+    `Tu es ${formateur}, expert en ${formation.domaine}. Redige du contenu professionnel dense. Pas de guillemets doubles.`,
+    `Formation: ${formation.titre}. Chapitre ${chapitre.numero}: ${chapitre.titre}. Module ${module.numero}: ${module.titre}. ${instruction}`,
+    800
+  );
 }
 
 async function cam_generer_lms_complet(code_formation: string) {
@@ -121,10 +118,36 @@ async function cam_generer_lms_complet(code_formation: string) {
     ),
   ]);
 
+  // Agent Architecte genere la structure chapitres/modules
+  let chapitres_structure = await appel_agent_architecte(f);
+
+  // Fallback si Agent Architecte echoue
+  if (!chapitres_structure || chapitres_structure.length === 0) {
+    chapitres_structure = [1,2,3,4,5].map(num => ({
+      numero: num,
+      titre: ["Fondements theoriques", "Pratique et protocoles", "Applications cliniques", "Approfondissement", "Integration et certification"][num-1],
+      modules: [
+        { numero: 1, titre: "Theorie fondamentale", type: "theorie" },
+        { numero: 2, titre: "Theorie approfondie", type: "theorie" },
+        { numero: 3, titre: "Pratique et exercices", type: "pratique" },
+        { numero: 4, titre: "Evaluation et QCM", type: "evaluation" },
+      ],
+    }));
+  }
+
+  // Generer le contenu de chaque module
   const chapitres = [];
-  for (let i = 1; i <= 5; i++) {
-    const chapitre = await generer_chapitre(f, i, agents.formateur);
-    chapitres.push(chapitre);
+  for (const ch of chapitres_structure) {
+    const modules_avec_contenu = [];
+    for (const mod of (ch.modules || [])) {
+      const contenu_mod = await generer_contenu_module(f, ch, mod, agents.formateur);
+      modules_avec_contenu.push({
+        ...mod,
+        contenu: contenu_mod || `Contenu ${mod.titre}.`,
+        duree: mod.type === "evaluation" ? "1h" : "2h",
+      });
+    }
+    chapitres.push({ ...ch, modules: modules_avec_contenu });
   }
 
   const [examen_blanc, bibliographie] = await Promise.all([
