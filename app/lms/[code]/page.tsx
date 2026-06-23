@@ -72,7 +72,10 @@ export default function LMSPage({ params }) {
   const [chatMessage, setChatMessage] = useState("");
   const [chatHistory, setChatHistory] = useState([]);
   const [chatLoading, setChatLoading] = useState(false);
-  const [langue, setLangue] = useState("fr");
+  const [langue, setLangue] = useState(() => {
+    if (typeof window === "undefined") return "fr";
+    return localStorage.getItem("langue") || "fr";
+  });
   const [isAdmin, setIsAdmin] = useState(false);
 
   const [chapitres, setChapitres] = useState([]);
