@@ -15,12 +15,7 @@ const LM = {
 };
 
 export default function FormationPage({ params }) {
-  const [langueInit] = useState(() => {
-    if (typeof window === "undefined") return "fr";
-    return localStorage.getItem("langue") || "fr";
-  });
   const { t, langue } = useTranslation();
-  const langueActive = langue || langueInit;
   const [formation, setFormation] = useState(null);
   const [loading, setLoading] = useState(true);
   const [pdfUrl, setPdfUrl] = useState(null);
@@ -29,10 +24,10 @@ export default function FormationPage({ params }) {
   const [leadForm, setLeadForm] = useState({ prenom: "", email: "", tel_mobile: "", tel_fixe: "" });
   const [leadLoading, setLeadLoading] = useState(false);
 
-  const lm = LM[langueActive] || LM.fr;
+  const lm = LM[langue] || LM.fr;
 
   useEffect(() => {
-    const lang = langueInit;
+    const lang = localStorage.getItem("langue") || "fr";
     fetch("/api/formation/" + params.id + "?lang=" + lang)
       .then(r => r.json())
       .then(data => { setFormation(data); setPdfUrl(data.pdf_url || null); setLoading(false); })
@@ -72,10 +67,8 @@ export default function FormationPage({ params }) {
     </div>
   );
 
-  const isRTL = langueActive === "he" || langueActive === "ar";
-
   return (
-    <div style={{ backgroundColor: "#050508", minHeight: "100vh", color: "#fff", direction: isRTL ? "rtl" : "ltr" }}>
+    <div style={{ backgroundColor: "#050508", minHeight: "100vh", color: "#fff" }}>
       <div style={{ background: "linear-gradient(135deg,#0a0a1a,#1a1a2e)", padding: "60px 40px", textAlign: "center" }}>
         <div style={{ color: "#c8a96e", fontSize: "13px", marginBottom: "10px" }}>{formation.code} · {formation.domaine}</div>
         <h1 style={{ color: "#fff", fontFamily: "Georgia,serif", fontSize: "2rem", marginBottom: "20px" }}>{formation.titre}</h1>
@@ -201,8 +194,8 @@ export default function FormationPage({ params }) {
         )}
 
         {params.id.toUpperCase() === "F030"
-          ? <LMSSophrologie langue={langueActive} />
-          : <LMSSection code={params.id.toUpperCase()} langue={langueActive} />
+          ? <LMSSophrologie langue={langue} />
+          : <LMSSection code={params.id.toUpperCase()} langue={langue} />
         }
 
         <div style={{ textAlign: "center", padding: "40px", background: "rgba(255,255,255,0.03)", borderRadius: "12px", marginTop: "30px" }}>
