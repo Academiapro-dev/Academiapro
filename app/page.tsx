@@ -67,16 +67,6 @@ const T = {
     voir_formation: "عرض الدورة", voir_tout: "عرض جميع الدورات 265", nos_formations: "دوراتنا المميزة",
     nos_formations_sub: "شهادة AcadeMIA Pro · دفع 3x · ضمان 30 يوماً",
   },
-  he: {
-    hero_titre: "התאמן עם סוכן הבינה המלאכותית האישי שלך",
-    hero_sub: "265 קורסים מוסמכים · סוכן AI 24/7 · מפגשים טיפוליים",
-    btn_formations: "צפה בקורסים", btn_ebook: "ספר חינמי", btn_demarrer: "התחל",
-    stat1: "קורסים מוסמכים", stat2: "כישורים מאומתים", stat3: "מטפלים AI", stat4: "ערובת שביעות רצון",
-    nav_formations: "קורסים", nav_seances: "פגישות", nav_packs: "חבילות", nav_competences: "כישורים", nav_blog: "בלוג", nav_contact: "צור קשר",
-    footer_desc: "פלטפורמת ההכשרה המופעלת על ידי AI. 265 קורסים מוסמכים.",
-    voir_formation: "צפה בקורס", voir_tout: "צפה בכל 265 הקורסים", nos_formations: "הקורסים המובילים שלנו",
-    nos_formations_sub: "הסמכת AcadeMIA Pro · תשלום 3x · ערבות 30 יום",
-  },
 };
 
 export default function HomePage() {
@@ -116,7 +106,6 @@ export default function HomePage() {
           <option value="pt">🇧🇷 PT</option>
           <option value="de">🇩🇪 DE</option>
           <option value="ar">🇸🇦 AR</option>
-          <option value="he">🇮🇱 HE</option>
         </select>
         <a href="/login" style={{ background: "linear-gradient(135deg, #c8a96e, #a07840)", color: "#050508", padding: "10px 24px", borderRadius: "8px", textDecoration: "none", fontSize: "15px", fontWeight: "bold" }}>{t("btn_demarrer")}</a>
       </header>
