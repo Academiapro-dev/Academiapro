@@ -1,38 +1,18 @@
 "use client";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 
-const CHAPITRES_F030 = [
-  { numero: 1, titre: "Fondements Theoriques et Scientifiques", modules: [
-    { numero: 1, titre: "Histoire et origines", type: "theorie" },
-    { numero: 2, titre: "Neurobiologie et mecanismes", type: "theorie" },
-    { numero: 3, titre: "Protocoles d induction", type: "pratique" },
-    { numero: 4, titre: "Evaluation et QCM Chapitre 1", type: "evaluation" },
-  ]},
-  { numero: 2, titre: "Les 12 Degres Caycediens RD1 a RD4", modules: [
-    { numero: 1, titre: "RD1 Decontraction Musculaire", type: "theorie" },
-    { numero: 2, titre: "RD2 Sophro-Activation Positive", type: "theorie" },
-    { numero: 3, titre: "RD3 Sophro-Contemplation", type: "theorie" },
-    { numero: 4, titre: "Pratique guidee et QCM RD1-RD4", type: "evaluation" },
-  ]},
-  { numero: 3, titre: "Les Degres Superieurs RD5 a RD12", modules: [
-    { numero: 1, titre: "RD5 a RD8 Approfondissement", type: "theorie" },
-    { numero: 2, titre: "RD9 a RD12 Contemplation", type: "theorie" },
-    { numero: 3, titre: "Applications cliniques", type: "pratique" },
-    { numero: 4, titre: "Cas cliniques et QCM", type: "evaluation" },
-  ]},
-  { numero: 4, titre: "Applications Professionnelles", modules: [
-    { numero: 1, titre: "Sophrologie perinatale", type: "pratique" },
-    { numero: 2, titre: "Sophrologie du sport", type: "pratique" },
-    { numero: 3, titre: "Sophrologie oncologique", type: "pratique" },
-    { numero: 4, titre: "Protocoles personnalises et QCM", type: "evaluation" },
-  ]},
-  { numero: 5, titre: "Pratique Professionnelle et Certification", modules: [
-    { numero: 1, titre: "Construction cabinet sophrologie", type: "pratique" },
-    { numero: 2, titre: "Ethique et cadre legal", type: "theorie" },
-    { numero: 3, titre: "Supervision et memoire", type: "pratique" },
-    { numero: 4, titre: "Examen blanc final 20 questions", type: "evaluation" },
-  ]},
-];
+const AGENTS_DOMAINE = {
+  "IA": { formateur: "Alex Bernard", coach: "Isabelle Moreau" },
+  "Business": { formateur: "Thomas Martin", coach: "Isabelle Moreau" },
+  "Marketing": { formateur: "Nina Castillo", coach: "Isabelle Moreau" },
+  "Langues": { formateur: "Sofia Durand", coach: "Isabelle Moreau" },
+  "Bien-etre": { formateur: "Claire Beaumont", coach: "Maya" },
+  "Tech": { formateur: "Karim Benzara", coach: "Isabelle Moreau" },
+  "Design": { formateur: "Lucas Petit", coach: "Isabelle Moreau" },
+  "Finance": { formateur: "Emma Lefebvre", coach: "Isabelle Moreau" },
+  "Droit": { formateur: "Antoine Moreau", coach: "Isabelle Moreau" },
+  "Outils": { formateur: "Thomas Martin", coach: "Isabelle Moreau" },
+};
 
 function extraireQCM(contenu) {
   if (!contenu) return [];
@@ -59,6 +39,7 @@ function extraireQCM(contenu) {
 export default function LMSPage({ params }) {
   const code = params.code?.toUpperCase();
   const [formation, setFormation] = useState(null);
+  const [chapitres, setChapitres] = useState([]);
   const [chapitreActif, setChapitreActif] = useState(1);
   const [moduleActif, setModuleActif] = useState(1);
   const [contenu, setContenu] = useState("");
@@ -72,40 +53,12 @@ export default function LMSPage({ params }) {
   const [chatMessage, setChatMessage] = useState("");
   const [chatHistory, setChatHistory] = useState([]);
   const [chatLoading, setChatLoading] = useState(false);
-  const [langue, setLangue] = useState(() => {
-    if (typeof window === "undefined") return "fr";
-    return localStorage.getItem("langue") || "fr";
-  });
+  const [langue, setLangue] = useState("fr");
   const [isAdmin, setIsAdmin] = useState(false);
 
-  const [chapitres, setChapitres] = useState([]);
-  const [expert, setExpert] = useState("Claire Beaumont");
-  const [expertTitre, setExpertTitre] = useState("Formatrice Expert");
-
-  useEffect(() => {
-    chargerStructure();
-  }, [code]);
-
-  async function chargerStructure() {
-    // Essayer de charger depuis formations_structure
-    try {
-      const r = await fetch("/api/formation-structure/" + code);
-      const data = await r.json();
-      if (data.chapitres && data.chapitres.length > 0) {
-        setChapitres(data.chapitres);
-        setExpert(data.expert || "Claire Beaumont");
-        setExpertTitre(data.expert_titre || "Formatrice Expert");
-        return;
-      }
-    } catch {}
-    // Fallback F030
-    if (code === "F030") {
-      setChapitres(CHAPITRES_F030);
-    }
-  }
   const chapitre = chapitres[chapitreActif - 1];
   const module = chapitre?.modules[moduleActif - 1];
-  const totalModules = chapitres.reduce((acc, ch) => acc + ch.modules.length, 0);
+  const totalModules = chapitres.reduce((acc, ch) => acc + (ch.modules?.length || 0), 0);
   const modulesValides = Object.values(progression).filter(v => v === "valide").length;
   const progressionPct = totalModules > 0 ? Math.round((modulesValides / totalModules) * 100) : 0;
   const cle = chapitreActif + "_" + moduleActif;
@@ -128,13 +81,21 @@ export default function LMSPage({ params }) {
 
   useEffect(() => {
     if (chapitres.length > 0) chargerModule(chapitreActif, moduleActif);
-  }, [chapitreActif, moduleActif, langue]);
+  }, [chapitreActif, moduleActif, langue, chapitres.length]);
 
   async function chargerFormation(lang) {
     try {
+      // Charger la formation traduite
       const r = await fetch("/api/formation/" + code + "?lang=" + lang);
       const data = await r.json();
       if (!data.error) setFormation(data);
+
+      // Charger la structure chapitres depuis formations_lms
+      const r2 = await fetch("/api/lms-structure/" + code + "?lang=" + lang);
+      const data2 = await r2.json();
+      if (data2.chapitres && data2.chapitres.length > 0) {
+        setChapitres(data2.chapitres);
+      }
     } catch {}
     setLoadingFormation(false);
   }
@@ -152,6 +113,7 @@ export default function LMSPage({ params }) {
   }
 
   async function chargerModule(ch_num, mod_num, garderOnglet = false) {
+    if (chapitres.length === 0) return;
     setLoading(true);
     setContenu("");
     if (!garderOnglet) {
@@ -162,7 +124,7 @@ export default function LMSPage({ params }) {
     setQcmReponses({});
     setMessageValidateur("");
     try {
-      const r = await fetch("/api/lms-generer", {
+      const r = await fetch("/api/lms-sophrologie", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ formation_code: code, chapitre_num: ch_num, module_num: mod_num, langue }),
@@ -211,6 +173,9 @@ export default function LMSPage({ params }) {
     setChatLoading(false);
   }
 
+  const domaine = formation?.domaine || "Business";
+  const agents = AGENTS_DOMAINE[domaine] || AGENTS_DOMAINE["Business"];
+
   if (loadingFormation) return (
     <div style={{ background: "#050508", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
       <p style={{ color: "#c8a96e", fontSize: "18px" }}>Chargement...</p>
@@ -230,9 +195,9 @@ export default function LMSPage({ params }) {
       <div style={{ background: "linear-gradient(135deg,#0a0a1a,#1a1a2e)", padding: "20px 30px", borderBottom: "2px solid rgba(200,169,110,0.3)" }}>
         <div style={{ maxWidth: "1200px", margin: "0 auto", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div>
-            <p style={{ color: "#c8a96e", fontSize: "12px", margin: "0 0 4px" }}>AcadeMIA Pro · LMS · {expertTitre}</p>
-            <h1 style={{ color: "#fff", fontFamily: "Georgia,serif", fontSize: "20px", margin: 0 }}>{formation?.titre || code}</h1>
-            <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "12px", margin: "4px 0 0" }}>Formateur : {expert}</p>
+            <p style={{ color: "#c8a96e", fontSize: "12px", margin: "0 0 2px" }}>AcadeMIA Pro · LMS · {domaine}</p>
+            <h1 style={{ color: "#fff", fontFamily: "Georgia,serif", fontSize: "20px", margin: "0 0 2px" }}>{formation?.titre || code}</h1>
+            <p style={{ color: "rgba(200,169,110,0.7)", fontSize: "11px", margin: 0 }}>Formateur : {agents.formateur}</p>
           </div>
           <div style={{ textAlign: "right" }}>
             <p style={{ color: "#c8a96e", fontSize: "12px", margin: "0 0 4px" }}>Progression</p>
@@ -250,7 +215,7 @@ export default function LMSPage({ params }) {
           {chapitres.map((ch) => (
             <div key={ch.numero} style={{ marginBottom: "10px" }}>
               <p style={{ color: "#c8a96e", fontSize: "12px", fontWeight: "bold", margin: "0 0 5px" }}>Ch.{ch.numero} {ch.titre}</p>
-              {ch.modules.map((mod) => {
+              {(ch.modules || []).map((mod) => {
                 const k = ch.numero + "_" + mod.numero;
                 const valide = progression[k] === "valide";
                 const actif = chapitreActif === ch.numero && moduleActif === mod.numero;
@@ -305,7 +270,7 @@ export default function LMSPage({ params }) {
                 <div style={{ textAlign: "center", padding: "60px 0" }}>
                   <div style={{ fontSize: "32px", marginBottom: "15px" }}>⚡</div>
                   <div style={{ color: "#c8a96e", fontSize: "16px" }}>Generation du contenu en cours...</div>
-                  <div style={{ color: "#666", fontSize: "14px" }}>Claire Beaumont redige votre module...</div>
+                  <div style={{ color: "#666", fontSize: "14px" }}>{agents.formateur} redige votre module...</div>
                 </div>
               ) : contenu ? (
                 <div>
@@ -396,7 +361,7 @@ export default function LMSPage({ params }) {
 
           {onglet === "chat" && (
             <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(200,169,110,0.2)", borderRadius: "12px", padding: "25px" }}>
-              <h3 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", margin: "0 0 15px" }}>Coach IA — Claire Beaumont</h3>
+              <h3 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", margin: "0 0 15px" }}>Coach IA — {agents.coach}</h3>
               <div style={{ minHeight: "300px", maxHeight: "400px", overflowY: "auto", marginBottom: "15px" }}>
                 {chatHistory.length === 0 && <p style={{ color: "rgba(255,255,255,0.3)", textAlign: "center", marginTop: "80px" }}>Posez une question sur votre formation...</p>}
                 {chatHistory.map((msg, i) => (
