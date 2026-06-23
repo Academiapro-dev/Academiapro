@@ -235,7 +235,10 @@ export default function LMSPage({ params }) {
                 if (o.id === "qcm" && module?.type !== "evaluation") {
                   // Aller vers le module evaluation du chapitre actif (module 4)
                   const modEval = chapitre?.modules.find(m => m.type === "evaluation");
-                  if (modEval) { setModuleActif(modEval.numero); }
+                  if (modEval) {
+                    setModuleActif(modEval.numero);
+                    chargerModule(chapitreActif, modEval.numero, true);
+                  }
                   setOnglet("qcm");
                 } else {
                   setOnglet(o.id);
