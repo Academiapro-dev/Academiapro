@@ -55,6 +55,8 @@ export default function LMSPage({ params }) {
   const [chatLoading, setChatLoading] = useState(false);
   const [langue, setLangue] = useState("fr");
   const [isAdmin, setIsAdmin] = useState(false);
+  const [formateurDyn, setFormateurDyn] = useState("");
+  const [coachDyn, setCoachDyn] = useState("");
   const [pageModule, setPageModule] = useState(0);
 
   const chapitre = chapitres[chapitreActif - 1];
@@ -97,6 +99,8 @@ export default function LMSPage({ params }) {
       if (data2.chapitres && data2.chapitres.length > 0) {
         setChapitres(data2.chapitres);
       }
+      if (data2.formateur) setFormateurDyn(data2.formateur);
+      if (data2.coach) setCoachDyn(data2.coach);
     } catch {}
     setLoadingFormation(false);
   }
@@ -199,7 +203,7 @@ export default function LMSPage({ params }) {
           <div>
             <p style={{ color: "#c8a96e", fontSize: "12px", margin: "0 0 2px" }}>AcadeMIA Pro · LMS · {domaine}</p>
             <h1 style={{ color: "#fff", fontFamily: "Georgia,serif", fontSize: "20px", margin: "0 0 2px" }}>{formation?.titre || code}</h1>
-            <p style={{ color: "rgba(200,169,110,0.7)", fontSize: "11px", margin: 0 }}>Formateur : {agents.formateur}</p>
+            <p style={{ color: "rgba(200,169,110,0.7)", fontSize: "11px", margin: 0 }}>Formateur : {formateurDyn || agents.formateur}</p>
           </div>
           <div style={{ textAlign: "right" }}>
             <p style={{ color: "#c8a96e", fontSize: "12px", margin: "0 0 4px" }}>Progression</p>
@@ -272,7 +276,7 @@ export default function LMSPage({ params }) {
                 <div style={{ textAlign: "center", padding: "60px 0" }}>
                   <div style={{ fontSize: "32px", marginBottom: "15px" }}>⚡</div>
                   <div style={{ color: "#c8a96e", fontSize: "16px" }}>Generation du contenu en cours...</div>
-                  <div style={{ color: "#666", fontSize: "14px" }}>{agents.formateur} redige votre module...</div>
+                  <div style={{ color: "#666", fontSize: "14px" }}>{formateurDyn || agents.formateur} redige votre module...</div>
                 </div>
               ) : contenu ? (
                 <div>
@@ -426,7 +430,7 @@ export default function LMSPage({ params }) {
 
           {onglet === "chat" && (
             <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(200,169,110,0.2)", borderRadius: "12px", padding: "25px" }}>
-              <h3 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", margin: "0 0 15px" }}>Coach IA — {agents.coach}</h3>
+              <h3 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", margin: "0 0 15px" }}>Coach IA — {coachDyn || agents.coach}</h3>
               <div style={{ minHeight: "300px", maxHeight: "400px", overflowY: "auto", marginBottom: "15px" }}>
                 {chatHistory.length === 0 && <p style={{ color: "rgba(255,255,255,0.3)", textAlign: "center", marginTop: "80px" }}>Posez une question sur votre formation...</p>}
                 {chatHistory.map((msg, i) => (
