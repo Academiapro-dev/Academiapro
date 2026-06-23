@@ -53,7 +53,12 @@
     "acces": "Immediate access · AI Agent 24/7 · 30-day guarantee",
     "coach_btn": "Access AI Coach",
     "classe_btn": "Join a Live Class",
-    "niveau": "Level"
+    "niveau": "Level",
+    "description": "Description",
+    "support": "Course materials",
+    "support_sub": "Complete document · 300+ pages",
+    "voir": "View materials",
+    "chargement": "Loading..."
   },
   "inscription": {
     "titre": "Join the Priority List",
