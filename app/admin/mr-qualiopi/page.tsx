@@ -103,36 +103,40 @@ export default function MrQualiopi() {
   }
 
   async function analyserFichier(e: any) {
-    const file = e.target.files[0];
-    if (!file) return;
+    const files = Array.from(e.target.files) as any[];
+    if (!files.length) return;
     setFichierLoading(true);
-    const ext = file.name.split(".").pop().toLowerCase();
-    const reader = new FileReader();
-    reader.onload = async (ev: any) => {
+    const fichiersB64 = await Promise.all(files.map((file: any) => new Promise((resolve) => {
+      const ext = file.name.split(".").pop().toLowerCase();
+      const reader = new FileReader();
+      reader.onload = async (ev: any) => {
       const b64 = ev.target.result.split(",")[1];
       const mediaType = ext === "pdf" ? "application/pdf" : ext === "png" ? "image/png" : "image/jpeg";
-      setChat(prev => [...prev, { role: "user", text: "📎 Document joint : " + file.name }]);
-      try {
-        const systeme = agentActif === "qualiopi" ? SYSTEM_QUALIOPI : SYSTEM_CERTIFICATEUR;
-        const res = await fetch("/api/admin/agent", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            message: "Analyse ce document dans le cadre de la certification Qualiopi / RS France Competences. Identifie les indicateurs cles, evalue la conformite aux seuils Qualiopi (satisfaction >80%, completion >70%), et genere un rapport d audit avec points conformes, non conformes, et recommandations.",
-            agent: { prompt: systeme },
-            historique: chat,
-            fichier: { base64: b64, mediaType, nom: file.name }
-          }),
-        });
-        const data = await res.json();
-        setChat(prev => [...prev, { role: "agent", text: data.reply || "Erreur." }]);
-      } catch {
-        setChat(prev => [...prev, { role: "agent", text: "Erreur analyse document." }]);
-      }
-      setFichierLoading(false);
+      resolve({ base64: b64, mediaType, nom: file.name });
     };
     reader.readAsDataURL(file);
-    e.target.value = "";
+  })));
+  const noms = files.map((f: any) => f.name).join(", ");
+  setChat(prev => [...prev, { role: "user", text: "📎 " + files.length + " document(s) : " + noms }]);
+  try {
+    const systeme = agentActif === "qualiopi" ? SYSTEM_QUALIOPI : SYSTEM_CERTIFICATEUR;
+    const res = await fetch("/api/admin/agent", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message: "Analyse ces " + files.length + " document(s) dans le cadre Qualiopi / RS France Competences. Identifie les indicateurs, evalue la conformite aux seuils (satisfaction >80%, completion >70%), genere un rapport d audit complet.",
+        agent: { prompt: systeme },
+        historique: chat,
+        fichiers: fichiersB64
+      }),
+    });
+    const data = await res.json();
+    setChat(prev => [...prev, { role: "agent", text: data.reply || "Erreur." }]);
+  } catch {
+    setChat(prev => [...prev, { role: "agent", text: "Erreur analyse documents." }]);
+  }
+  setFichierLoading(false);
+  e.target.value = "";
   }
 
   async function analyserIndicateurs() {
@@ -543,7 +547,7 @@ ANALYSE DEMANDEE :
               </div>}
             </div>
             <div style={{ display: "flex", gap: "10px", alignItems: "center", marginBottom: "8px" }}>
-              <input ref={fileInputRef} type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={analyserFichier} style={{ display: "none" }} />
+              <input ref={fileInputRef} type="file" accept=".pdf,.jpg,.jpeg,.png" multiple onChange={analyserFichier} style={{ display: "none" }} />
               <button onClick={() => fileInputRef.current?.click()} disabled={loading || fichierLoading}
                 title="Joindre PDF, JPEG ou PNG"
                 style={{ padding: "12px", background: "rgba(200,169,110,0.15)", color: "#c8a96e", border: "1px solid rgba(200,169,110,0.3)", borderRadius: "8px", cursor: "pointer", fontSize: "18px", flexShrink: 0 }}>
