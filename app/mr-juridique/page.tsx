@@ -178,35 +178,35 @@ export default function MrJuridiquePage() {
   }, []);
 
   async function analyserFichier(e) {
-    const file = e.target.files[0];
-    if (!file) return;
+    const files = Array.from(e.target.files);
+    if (!files.length) return;
     setFichierLoading(true);
-    const ext = file.name.split(".").pop().toLowerCase();
-    const reader = new FileReader();
-    reader.onload = async (ev) => {
-      const base64 = ev.target.result.split(",")[1];
-      const mediaType = ext === "pdf" ? "application/pdf" : ext === "png" ? "image/png" : "image/jpeg";
-      const nomFichier = file.name;
-      setHistorique(prev => [...prev, { role: "user", text: "📎 Document joint : " + nomFichier }]);
-      try {
-        const r = await fetch("/api/mr-juridique", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            message: "Analyse ce document juridique et donne moi ton analyse experte en tant que Maitre Pierre Duval, avocat specialiste LLC Wyoming, droit francais, israelien et international.",
-            contexte,
-            historique,
-            fichier: { base64, mediaType, nom: nomFichier }
-          }),
-        });
-        const data = await r.json();
-        setHistorique(prev => [...prev, { role: "agent", text: data.reply || "Erreur d analyse." }]);
-      } catch {
-        setHistorique(prev => [...prev, { role: "agent", text: "Erreur lors de l analyse du document." }]);
-      }
-      setFichierLoading(false);
-    };
-    reader.readAsDataURL(file);
+    const noms = files.map((f) => f.name).join(", ");
+    setHistorique(prev => [...prev, { role: "user", text: "📎 " + files.length + " document(s) joint(s) : " + noms }]);
+    try {
+      const fichiersB64 = await Promise.all(files.map((file) => new Promise((resolve) => {
+        const ext = file.name.split(".").pop().toLowerCase();
+        const mediaType = ext === "pdf" ? "application/pdf" : ext === "png" ? "image/png" : "image/jpeg";
+        const reader = new FileReader();
+        reader.onload = (ev) => resolve({ base64: ev.target.result.split(",")[1], mediaType, nom: file.name });
+        reader.readAsDataURL(file);
+      })));
+      const r = await fetch("/api/mr-juridique", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: "Analyse ces " + files.length + " document(s) et donne moi une analyse juridique experte complete en tant que Maitre Pierre Duval.",
+          contexte,
+          historique,
+          fichiers: fichiersB64
+        }),
+      });
+      const data = await r.json();
+      setHistorique(prev => [...prev, { role: "agent", text: data.reply || "Erreur d analyse." }]);
+    } catch {
+      setHistorique(prev => [...prev, { role: "agent", text: "Erreur lors de l analyse des documents." }]);
+    }
+    setFichierLoading(false);
     e.target.value = "";
   }
 
