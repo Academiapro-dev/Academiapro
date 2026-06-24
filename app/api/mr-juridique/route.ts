@@ -22,7 +22,6 @@ Reponds toujours en francais. Sois precis, concret, avec des etapes numerotees q
 
     const messages: any[] = [];
 
-    // Historique
     for (const h of historique) {
       if (h.role === "user") {
         messages.push({ role: "user", content: h.text });
@@ -31,7 +30,6 @@ Reponds toujours en francais. Sois precis, concret, avec des etapes numerotees q
       }
     }
 
-    // Message actuel avec fichier eventuel
     const fichiersList = fichiers || (fichier ? [fichier] : []);
     if (fichiersList.length > 0) {
       const content: any[] = fichiersList.map((f: any) => {
@@ -46,7 +44,6 @@ Reponds toujours en francais. Sois precis, concret, avec des etapes numerotees q
     } else {
       messages.push({ role: "user", content: message + (contexte ? " [Contexte : " + contexte + "]" : "") });
     }
-    }
 
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -56,7 +53,7 @@ Reponds toujours en francais. Sois precis, concret, avec des etapes numerotees q
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "claude-opus-4-6",
+        model: "claude-sonnet-4-6",
         max_tokens: 4000,
         system: systemPrompt,
         messages,
