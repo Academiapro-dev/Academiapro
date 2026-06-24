@@ -11,12 +11,15 @@ export default function ResetPasswordPage() {
   const [token, setToken] = useState("");
 
   useEffect(() => {
-    // Récupérer le token depuis l URL (#access_token=...)
-    const hash = window.location.hash;
-    const params = new URLSearchParams(hash.replace("#", "?"));
-    const accessToken = params.get("access_token");
-    if (accessToken) setToken(accessToken);
-    else setError("Lien invalide ou expiré. Demandez un nouveau lien.");
+    // Chercher le token dans ? ET dans #
+    const searchParams = new URLSearchParams(window.location.search);
+    const hashParams = new URLSearchParams(window.location.hash.replace("#", ""));
+    const accessToken = searchParams.get("access_token") || hashParams.get("access_token");
+    if (accessToken) {
+      setToken(accessToken);
+    } else {
+      setError("Lien invalide ou expiré. Demandez un nouveau lien.");
+    }
   }, []);
 
   async function handleReset() {
@@ -40,7 +43,7 @@ export default function ResetPasswordPage() {
       if (data.success) {
         setSuccess(true);
       } else {
-        setError(data.message || "Erreur lors de la mise à jour.");
+        setError(data.message || "Lien expiré. Demandez un nouveau lien.");
       }
     } catch {
       setError("Erreur de connexion.");
@@ -67,6 +70,13 @@ export default function ResetPasswordPage() {
             {error && (
               <div style={{ background: "rgba(255,0,0,0.1)", border: "1px solid red", borderRadius: "8px", padding: "10px", marginBottom: "20px", color: "#ff6b6b", textAlign: "center" }}>
                 {error}
+                {error.includes("expiré") && (
+                  <div style={{ marginTop: "10px" }}>
+                    <a href="/login" style={{ color: "#c8a96e", textDecoration: "underline" }}>
+                      Demander un nouveau lien
+                    </a>
+                  </div>
+                )}
               </div>
             )}
             <div style={{ position: "relative", marginBottom: "15px" }}>
@@ -91,9 +101,14 @@ export default function ResetPasswordPage() {
               style={{ width: "100%", padding: "12px", borderRadius: "8px", border: "1px solid rgba(200,169,110,0.3)", background: "rgba(255,255,255,0.05)", color: "#fff", marginBottom: "20px", boxSizing: "border-box" }}
             />
             <button onClick={handleReset} disabled={loading || !token}
-              style={{ width: "100%", padding: "14px", background: "#c8a96e", color: "#050508", border: "none", borderRadius: "8px", fontWeight: "bold", fontSize: "16px", cursor: "pointer" }}>
+              style={{ width: "100%", padding: "14px", background: token ? "#c8a96e" : "rgba(200,169,110,0.3)", color: "#050508", border: "none", borderRadius: "8px", fontWeight: "bold", fontSize: "16px", cursor: token ? "pointer" : "not-allowed" }}>
               {loading ? "Mise à jour..." : "Changer le mot de passe"}
             </button>
+            <div style={{ textAlign: "center", marginTop: "15px" }}>
+              <a href="/login" style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px", textDecoration: "none" }}>
+                Retour à la connexion
+              </a>
+            </div>
           </>
         )}
       </div>
