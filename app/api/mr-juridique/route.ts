@@ -5,7 +5,7 @@ export const maxDuration = 60;
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { message, contexte, historique = [], fichier } = body;
+    const { message, contexte, historique = [], fichier, fichiers } = body;
 
     const systemPrompt = `Tu es Maitre Pierre Duval, avocat et juriste expert en :
 - Droit des societes francais (SASU, SAS, EURL)
@@ -32,33 +32,20 @@ Reponds toujours en francais. Sois precis, concret, avec des etapes numerotees q
     }
 
     // Message actuel avec fichier eventuel
-    if (fichier) {
-      const { base64, mediaType, nom } = fichier;
-      if (mediaType === "application/pdf") {
-        messages.push({
-          role: "user",
-          content: [
-            {
-              type: "document",
-              source: { type: "base64", media_type: "application/pdf", data: base64 }
-            },
-            { type: "text", text: message + "\n\nDocument joint : " + nom }
-          ]
-        });
-      } else {
-        messages.push({
-          role: "user",
-          content: [
-            {
-              type: "image",
-              source: { type: "base64", media_type: mediaType, data: base64 }
-            },
-            { type: "text", text: message + "\n\nDocument joint : " + nom }
-          ]
-        });
-      }
+    const fichiersList = fichiers || (fichier ? [fichier] : []);
+    if (fichiersList.length > 0) {
+      const content: any[] = fichiersList.map((f: any) => {
+        if (f.mediaType === "application/pdf") {
+          return { type: "document", source: { type: "base64", media_type: "application/pdf", data: f.base64 } };
+        } else {
+          return { type: "image", source: { type: "base64", media_type: f.mediaType, data: f.base64 } };
+        }
+      });
+      content.push({ type: "text", text: message + (contexte ? " [Contexte : " + contexte + "]" : "") });
+      messages.push({ role: "user", content });
     } else {
       messages.push({ role: "user", content: message + (contexte ? " [Contexte : " + contexte + "]" : "") });
+    }
     }
 
     const response = await fetch("https://api.anthropic.com/v1/messages", {
