@@ -115,6 +115,43 @@ const DOCUMENTS = [
   },
 ];
 
+
+  const ACTIONS_PRIORITAIRES = [
+    {
+      id: "llc",
+      titre: "Creer ma LLC Wyoming",
+      sous_titre: "Via Northwest Registered Agent",
+      flag: "🇺🇸",
+      cout: "~140 USD tout compris",
+      delai: "24-48h",
+      lien: "https://www.northwestregisteredagent.com/llc/wyoming",
+      couleur: "#c8a96e",
+      guide: "Guide creation LLC Wyoming via Northwest Registered Agent pour mon profil exact : non-resident US, single-member LLC, activite plateforme formation en ligne AcademiA Pro, objectif Holding internationale. Donne moi : 1) Les informations exactes a entrer sur le formulaire Northwest 2) Le nom recommande pour la LLC 3) L adresse a utiliser 4) Les options a cocher ou decocher 5) Ce qui se passe apres la creation 6) Cout exact et ce qui est inclus"
+    },
+    {
+      id: "wise",
+      titre: "Ouvrir mon compte Wise Business",
+      sous_titre: "Compte multi-devises EUR USD ILS",
+      flag: "💳",
+      cout: "Gratuit a l ouverture",
+      delai: "1-3 jours",
+      lien: "https://wise.com/fr/business",
+      couleur: "#00b9ff",
+      guide: "Guide ouverture compte Wise Business pour ma LLC Wyoming : documents requis pour non-resident US avec LLC Wyoming, devises a activer EUR USD ILS, IBAN europeen, comment recevoir les paiements Stripe et les virements clients internationaux, frais de change, carte Wise Business, limites et avantages pour un entrepreneur franco-israelien."
+    },
+    {
+      id: "stripe",
+      titre: "Configurer Stripe",
+      sous_titre: "Paiements en ligne AcademiA Pro",
+      flag: "💳",
+      cout: "Gratuit + 1.4% par transaction EU",
+      delai: "1-2 jours",
+      lien: "https://dashboard.stripe.com/register",
+      couleur: "#635bff",
+      guide: "Guide configuration Stripe pour ma LLC Wyoming : documents requis pour ouvrir un compte Stripe en tant que LLC Wyoming non-resident US, comment connecter Wise Business comme compte bancaire, configuration pour AcademiA Pro plateforme de formation en ligne, webhooks pour generation automatique LMS a l achat, tarifs exacts pour clients europeens et internationaux, conformite PCI DSS."
+    },
+  ];
+
 export default function MrJuridiquePage() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [checking, setChecking] = useState(true);
@@ -126,6 +163,7 @@ export default function MrJuridiquePage() {
   const [docActif, setDocActif] = useState(null);
   const [envoyant, setEnvoyant] = useState(false);
   const [envoiOk, setEnvoiOk] = useState(false);
+  const [actionLoading, setActionLoading] = useState("");
 
   useEffect(() => {
     try {
@@ -137,6 +175,25 @@ export default function MrJuridiquePage() {
     } catch {}
     setChecking(false);
   }, []);
+
+  async function lancerAction(action) {
+    setActionLoading(action.id);
+    setOnglet("chat");
+    setHistorique(prev => [...prev, { role: "user", text: action.guide }]);
+    try {
+      const r = await fetch("/api/mr-juridique", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: action.guide, contexte: "international", historique: [] }),
+      });
+      const data = await r.json();
+      setHistorique(prev => [...prev, { role: "agent", text: data.reply || "Erreur." }]);
+    } catch {
+      setHistorique(prev => [...prev, { role: "agent", text: "Erreur de connexion." }]);
+    }
+    setActionLoading("");
+    window.open(action.lien, "_blank");
+  }
 
   async function envoyer(msg) {
     const m = msg || message;
@@ -323,6 +380,38 @@ export default function MrJuridiquePage() {
 
         {onglet === "documents" && (
           <div>
+            <div style={{ marginBottom: "25px" }}>
+              <h3 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", marginBottom: "15px", fontSize: "16px" }}>🚀 Actions prioritaires — Lancer votre structure</h3>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "12px" }}>
+                {ACTIONS_PRIORITAIRES.map(a => (
+                  <div key={a.id} style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(200,169,110,0.2)", borderRadius: "12px", padding: "20px" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "10px" }}>
+                      <div>
+                        <div style={{ color: "#fff", fontWeight: "bold", fontSize: "14px" }}>{a.flag} {a.titre}</div>
+                        <div style={{ color: "rgba(255,255,255,0.4)", fontSize: "12px" }}>{a.sous_titre}</div>
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", gap: "15px", marginBottom: "12px" }}>
+                      <div style={{ background: "rgba(0,200,0,0.1)", padding: "4px 10px", borderRadius: "4px" }}>
+                        <span style={{ color: "#00c800", fontSize: "11px" }}>💰 {a.cout}</span>
+                      </div>
+                      <div style={{ background: "rgba(255,165,0,0.1)", padding: "4px 10px", borderRadius: "4px" }}>
+                        <span style={{ color: "#ffa500", fontSize: "11px" }}>⏱ {a.delai}</span>
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", gap: "8px" }}>
+                      <button onClick={() => lancerAction(a)} disabled={actionLoading === a.id}
+                        style={{ flex: 1, background: "#c8a96e", color: "#050508", border: "none", borderRadius: "8px", padding: "10px", fontWeight: "bold", fontSize: "12px", cursor: "pointer" }}>
+                        {actionLoading === a.id ? "⏳ Guide en cours..." : "⚖️ Guide + Ouvrir"}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div style={{ borderTop: "1px solid rgba(200,169,110,0.2)", marginTop: "20px", paddingTop: "20px" }}>
+                <h3 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", marginBottom: "15px", fontSize: "16px" }}>📁 Documents juridiques officiels</h3>
+              </div>
+            </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: "10px", marginBottom: "20px" }}>
               {DOCUMENTS.map(d => (
                 <div key={d.id} onClick={() => setDocActif(docActif?.id === d.id ? null : d)}
