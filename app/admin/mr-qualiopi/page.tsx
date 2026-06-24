@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
@@ -62,6 +62,8 @@ export default function MrQualiopi() {
     periode: "", taux_satisfaction: "", taux_completion: "",
     nb_stagiaires: "", nb_formations: "", observations: ""
   });
+  const [fichierLoading, setFichierLoading] = useState(false);
+  const fileInputRef = useRef<any>(null);
 
   useEffect(() => { chargerDonnees(); }, []);
 
@@ -97,6 +99,84 @@ export default function MrQualiopi() {
     const systeme = agentActif === "qualiopi" ? SYSTEM_QUALIOPI : SYSTEM_CERTIFICATEUR;
     const reponse = await callAgent(userMsg, systeme, chat);
     setChat(prev => [...prev, { role: "agent", text: reponse }]);
+    setLoading(false);
+  }
+
+  async function analyserFichier(e: any) {
+    const file = e.target.files[0];
+    if (!file) return;
+    setFichierLoading(true);
+    const ext = file.name.split(".").pop().toLowerCase();
+    const reader = new FileReader();
+    reader.onload = async (ev: any) => {
+      const b64 = ev.target.result.split(",")[1];
+      const mediaType = ext === "pdf" ? "application/pdf" : ext === "png" ? "image/png" : "image/jpeg";
+      setChat(prev => [...prev, { role: "user", text: "📎 Document joint : " + file.name }]);
+      try {
+        const systeme = agentActif === "qualiopi" ? SYSTEM_QUALIOPI : SYSTEM_CERTIFICATEUR;
+        const res = await fetch("/api/admin/agent", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            message: "Analyse ce document dans le cadre de la certification Qualiopi / RS France Competences. Identifie les indicateurs cles, evalue la conformite aux seuils Qualiopi (satisfaction >80%, completion >70%), et genere un rapport d audit avec points conformes, non conformes, et recommandations.",
+            agent: { prompt: systeme },
+            historique: chat,
+            fichier: { base64: b64, mediaType, nom: file.name }
+          }),
+        });
+        const data = await res.json();
+        setChat(prev => [...prev, { role: "agent", text: data.reply || "Erreur." }]);
+      } catch {
+        setChat(prev => [...prev, { role: "agent", text: "Erreur analyse document." }]);
+      }
+      setFichierLoading(false);
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  }
+
+  async function analyserIndicateurs() {
+    if (indicateurs.length === 0) {
+      alert("Aucun indicateur enregistre. Ajoutez d abord des indicateurs.");
+      return;
+    }
+    setOnglet("conseil");
+    setAgentActif("qualiopi");
+    const derniere = indicateurs[0];
+    const moy_satisfaction = (indicateurs.reduce((s: number, i: any) => s + (i.taux_satisfaction || 0), 0) / indicateurs.length).toFixed(1);
+    const moy_completion = (indicateurs.reduce((s: number, i: any) => s + (i.taux_completion || 0), 0) / indicateurs.length).toFixed(1);
+    const total_stagiaires = indicateurs.reduce((s: number, i: any) => s + (i.nb_stagiaires || 0), 0);
+    const prompt = `Tu es un auditeur Qualiopi expert. Analyse les indicateurs suivants d AcadémIA Pro :
+
+INDICATEURS (${indicateurs.length} periodes) :
+- Taux satisfaction moyen : ${moy_satisfaction}% (seuil Qualiopi : >80%)
+- Taux completion moyen : ${moy_completion}% (seuil Qualiopi : >70%)
+- Total stagiaires : ${total_stagiaires}
+- Derniere periode : ${derniere.periode} — Satisfaction : ${derniere.taux_satisfaction}% — Completion : ${derniere.taux_completion}%
+${derniere.observations ? "- Observations : " + derniere.observations : ""}
+
+ANALYSE DEMANDEE :
+1. VERDICT PAR INDICATEUR : Conforme / Non conforme / Vigilance (avec seuil Qualiopi exact)
+2. COMPARAISON AUX SEUILS : Ecart positif ou negatif en points de pourcentage
+3. TENDANCE : Evolution sur les ${indicateurs.length} periodes
+4. POINTS FORTS : Ce qui est au-dessus des exigences
+5. POINTS D ALERTE : Ce qui necessite une action corrective
+6. PLAN D ACTIONS : 3 actions prioritaires avec delais
+7. SCORE GLOBAL : Note /10 et verdict CONFORME / NON CONFORME / CONFORME AVEC RESERVES`;
+
+    setChat(prev => [...prev, { role: "user", text: "🔍 Audit indicateurs Qualiopi — " + indicateurs.length + " periodes analysees" }]);
+    setLoading(true);
+    try {
+      const res = await fetch("/api/admin/agent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: prompt, agent: { prompt: SYSTEM_QUALIOPI }, historique: [] }),
+      });
+      const data = await res.json();
+      setChat(prev => [...prev, { role: "agent", text: data.reply || "Erreur." }]);
+    } catch {
+      setChat(prev => [...prev, { role: "agent", text: "Erreur analyse." }]);
+    }
     setLoading(false);
   }
 
@@ -370,6 +450,10 @@ export default function MrQualiopi() {
                 Enregistrer les Indicateurs
               </button>
             </div>
+            <button onClick={analyserIndicateurs} disabled={loading || indicateurs.length === 0}
+              style={{ width: "100%", padding: "14px", background: indicateurs.length > 0 ? "linear-gradient(135deg,#c8a96e,#a07840)" : "rgba(200,169,110,0.2)", color: indicateurs.length > 0 ? "#050508" : "#c8a96e", border: "none", borderRadius: "10px", fontWeight: "bold", fontSize: "14px", cursor: indicateurs.length > 0 ? "pointer" : "default", marginBottom: "20px" }}>
+              {loading ? "⏳ Analyse en cours..." : "🔍 Audit Auditeur — Analyser mes indicateurs Qualiopi"}
+            </button>
             <h3 style={{ color: "#c8a96e" }}>Historique ({indicateurs.length} periodes)</h3>
             {indicateurs.map(ind => (
               <div key={ind.id} style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(200,169,110,0.2)", borderRadius: "8px", padding: "15px", marginBottom: "10px" }}>
@@ -458,7 +542,13 @@ export default function MrQualiopi() {
                 {agentActif === "qualiopi" ? "Mr Qualiopi" : "Mr Certificateur"} analyse...
               </div>}
             </div>
-            <div style={{ display: "flex", gap: "10px" }}>
+            <div style={{ display: "flex", gap: "10px", alignItems: "center", marginBottom: "8px" }}>
+              <input ref={fileInputRef} type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={analyserFichier} style={{ display: "none" }} />
+              <button onClick={() => fileInputRef.current?.click()} disabled={loading || fichierLoading}
+                title="Joindre PDF, JPEG ou PNG"
+                style={{ padding: "12px", background: "rgba(200,169,110,0.15)", color: "#c8a96e", border: "1px solid rgba(200,169,110,0.3)", borderRadius: "8px", cursor: "pointer", fontSize: "18px", flexShrink: 0 }}>
+                📎
+              </button>
               <input type="text" placeholder="Posez votre question..." value={message}
                 onChange={e => setMessage(e.target.value)}
                 onKeyDown={e => e.key === "Enter" && envoyerMessage()}
@@ -466,6 +556,15 @@ export default function MrQualiopi() {
               <button onClick={envoyerMessage} disabled={loading} style={{ padding: "12px 24px", background: "#c8a96e", color: "#050508", border: "none", borderRadius: "8px", fontWeight: "bold", cursor: "pointer" }}>
                 Envoyer
               </button>
+            </div>
+            <div style={{ display: "flex", gap: "10px" }}>
+              <button onClick={analyserIndicateurs} disabled={loading || indicateurs.length === 0}
+                style={{ flex: 1, padding: "10px", background: "rgba(59,130,246,0.15)", color: "#3b82f6", border: "1px solid rgba(59,130,246,0.3)", borderRadius: "8px", fontWeight: "bold", fontSize: "12px", cursor: "pointer" }}>
+                📈 Auditer mes indicateurs ({indicateurs.length} periodes)
+              </button>
+              <p style={{ color: "rgba(255,255,255,0.2)", fontSize: "11px", margin: "auto 0" }}>
+                📎 PDF · JPEG · PNG acceptes
+              </p>
             </div>
           </div>
         )}
