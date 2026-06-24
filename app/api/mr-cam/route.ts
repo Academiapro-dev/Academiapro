@@ -60,7 +60,6 @@ REGLES :
     } else {
       messages.push({ role: "user", content: message + (domaine !== "general" ? " [Domaine : " + domaine + "]" : "") });
     }
-    }
 
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
