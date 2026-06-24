@@ -30,34 +30,35 @@ export default function MrCamPage() {
   }, [historique, loading]);
 
   async function analyserFichier(e) {
-    const file = e.target.files[0];
-    if (!file) return;
+    const files = Array.from(e.target.files);
+    if (!files.length) return;
     setFichierLoading(true);
-    const ext = file.name.split(".").pop().toLowerCase();
-    const reader = new FileReader();
-    reader.onload = async (ev) => {
-      const base64 = ev.target.result.split(",")[1];
-      const mediaType = ext === "pdf" ? "application/pdf" : ext === "png" ? "image/png" : "image/jpeg";
-      setHistorique(prev => [...prev, { role: "user", text: "📎 Document joint : " + file.name }]);
-      try {
-        const r = await fetch("/api/mr-cam", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            message: "Analyse ce document et donne moi ton analyse complete selon ta expertise.",
-            domaine,
-            historique,
-            fichier: { base64, mediaType, nom: file.name }
-          }),
-        });
-        const data = await r.json();
-        setHistorique(prev => [...prev, { role: "agent", text: data.reply || "Erreur." }]);
-      } catch {
-        setHistorique(prev => [...prev, { role: "agent", text: "Erreur lors de l analyse." }]);
-      }
-      setFichierLoading(false);
-    };
-    reader.readAsDataURL(file);
+    const noms = files.map((f) => f.name).join(", ");
+    setHistorique(prev => [...prev, { role: "user", text: "📎 " + files.length + " document(s) joint(s) : " + noms }]);
+    try {
+      const fichiersB64 = await Promise.all(files.map((file) => new Promise((resolve) => {
+        const ext = file.name.split(".").pop().toLowerCase();
+        const mediaType = ext === "pdf" ? "application/pdf" : ext === "png" ? "image/png" : "image/jpeg";
+        const reader = new FileReader();
+        reader.onload = (ev) => resolve({ base64: ev.target.result.split(",")[1], mediaType, nom: file.name });
+        reader.readAsDataURL(file);
+      })));
+      const r = await fetch("/api/mr-cam", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: "Analyse ces " + files.length + " document(s) et donne moi une analyse complete selon ton expertise.",
+          domaine,
+          historique,
+          fichiers: fichiersB64
+        }),
+      });
+      const data = await r.json();
+      setHistorique(prev => [...prev, { role: "agent", text: data.reply || "Erreur." }]);
+    } catch {
+      setHistorique(prev => [...prev, { role: "agent", text: "Erreur lors de l analyse." }]);
+    }
+    setFichierLoading(false);
     e.target.value = "";
   }
 
@@ -182,7 +183,7 @@ export default function MrCamPage() {
           </div>
 
           <div style={{ display: "flex", gap: "10px", alignItems: "center", marginBottom: "8px" }}>
-            <input ref={fileInputRef} type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={analyserFichier} style={{ display: "none" }} />
+            <input ref={fileInputRef} type="file" accept=".pdf,.jpg,.jpeg,.png" multiple onChange={analyserFichier} style={{ display: "none" }} />
             <button onClick={() => fileInputRef.current.click()} disabled={loading || fichierLoading}
               title="Joindre PDF, JPEG ou PNG"
               style={{ padding: "12px", background: "rgba(200,169,110,0.15)", color: "#c8a96e", border: "1px solid rgba(200,169,110,0.3)", borderRadius: "8px", cursor: "pointer", fontSize: "18px", flexShrink: 0 }}>
