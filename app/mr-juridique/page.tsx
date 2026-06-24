@@ -124,7 +124,7 @@ const DOCUMENTS = [
       flag: "🇺🇸",
       cout: "~297 USD tout compris",
       delai: "24-48h",
-      lien: "https://www.doola.com/wyoming-llc",
+      lien: "https://www.doola.com/llc/wyoming/",
       couleur: "#c8a96e",
       guide: "Guide creation LLC Wyoming via Doola pour mon profil exact : non-resident US sans SSN, single-member LLC, activite plateforme formation en ligne AcademiA Pro, objectif Holding internationale France-Israel-USA. Doola inclut : LLC Wyoming + EIN pour non-resident + compte bancaire Mercury + Operating Agreement + support dedie non-residents. Donne moi : 1) Les informations exactes a entrer sur le formulaire Doola 2) Le nom recommande pour la LLC : AcademiA Pro LLC ou Academic Pro International LLC 3) Les documents a preparer passeport + adresse 4) Comment Doola obtient l EIN pour moi sans SSN 5) Comment ouvrir le compte Mercury via Doola 6) Delais et suivi du dossier 7) Cout exact et ce qui est inclus vs ce qui est en supplement"
     },
