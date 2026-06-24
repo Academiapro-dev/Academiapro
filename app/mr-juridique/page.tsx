@@ -120,35 +120,35 @@ const DOCUMENTS = [
     {
       id: "llc",
       titre: "Creer ma LLC Wyoming",
-      sous_titre: "Via Northwest Registered Agent",
+      sous_titre: "Via Doola — Tout inclus non-resident",
       flag: "🇺🇸",
-      cout: "~140 USD tout compris",
+      cout: "~297 USD tout compris",
       delai: "24-48h",
-      lien: "https://www.northwestregisteredagent.com/llc/wyoming",
+      lien: "https://www.doola.com/wyoming-llc",
       couleur: "#c8a96e",
-      guide: "Guide creation LLC Wyoming via Northwest Registered Agent pour mon profil exact : non-resident US, single-member LLC, activite plateforme formation en ligne AcademiA Pro, objectif Holding internationale. Donne moi : 1) Les informations exactes a entrer sur le formulaire Northwest 2) Le nom recommande pour la LLC 3) L adresse a utiliser 4) Les options a cocher ou decocher 5) Ce qui se passe apres la creation 6) Cout exact et ce qui est inclus"
+      guide: "Guide creation LLC Wyoming via Doola pour mon profil exact : non-resident US sans SSN, single-member LLC, activite plateforme formation en ligne AcademiA Pro, objectif Holding internationale France-Israel-USA. Doola inclut : LLC Wyoming + EIN pour non-resident + compte bancaire Mercury + Operating Agreement + support dedie non-residents. Donne moi : 1) Les informations exactes a entrer sur le formulaire Doola 2) Le nom recommande pour la LLC : AcademiA Pro LLC ou Academic Pro International LLC 3) Les documents a preparer passeport + adresse 4) Comment Doola obtient l EIN pour moi sans SSN 5) Comment ouvrir le compte Mercury via Doola 6) Delais et suivi du dossier 7) Cout exact et ce qui est inclus vs ce qui est en supplement"
     },
     {
       id: "wise",
       titre: "Ouvrir mon compte Wise Business",
-      sous_titre: "Compte multi-devises EUR USD ILS",
+      sous_titre: "Compte principal multi-devises EUR USD ILS",
       flag: "💳",
       cout: "Gratuit a l ouverture",
       delai: "1-3 jours",
       lien: "https://wise.com/fr/business",
       couleur: "#00b9ff",
-      guide: "Guide ouverture compte Wise Business pour ma LLC Wyoming : documents requis pour non-resident US avec LLC Wyoming, devises a activer EUR USD ILS, IBAN europeen, comment recevoir les paiements Stripe et les virements clients internationaux, frais de change, carte Wise Business, limites et avantages pour un entrepreneur franco-israelien."
+      guide: "Guide ouverture compte Wise Business pour ma LLC Wyoming : documents requis (Articles of Organization + lettre EIN + Operating Agreement + passeport), devises a activer EUR USD ILS, IBAN europeen pour clients France et Europe, compte USD pour recevoir paiements Stripe, compte ILS pour activite israelienne future, frais de change 0.4%, carte Wise Business pour depenses LLC, virement vers compte personnel, avantages pour entrepreneur franco-israelien avec LLC Wyoming."
     },
     {
       id: "stripe",
       titre: "Configurer Stripe",
-      sous_titre: "Paiements en ligne AcademiA Pro",
-      flag: "💳",
+      sous_titre: "Connecte a Wise Business — Paiements AcademiA Pro",
+      flag: "💜",
       cout: "Gratuit + 1.4% par transaction EU",
       delai: "1-2 jours",
       lien: "https://dashboard.stripe.com/register",
       couleur: "#635bff",
-      guide: "Guide configuration Stripe pour ma LLC Wyoming : documents requis pour ouvrir un compte Stripe en tant que LLC Wyoming non-resident US, comment connecter Wise Business comme compte bancaire, configuration pour AcademiA Pro plateforme de formation en ligne, webhooks pour generation automatique LMS a l achat, tarifs exacts pour clients europeens et internationaux, conformite PCI DSS."
+      guide: "Guide configuration Stripe pour ma LLC Wyoming connecte a Wise Business : flux complet client paie sur AcademiA Pro vers Stripe vers Wise Business LLC Wyoming vers virement personnel. Documents requis : Articles of Organization + EIN + Operating Agreement + passeport + IBAN Wise Business. Configuration webhooks pour generation automatique LMS a l achat de formation. Tarifs : 1.4% + 0.25 EUR par transaction europeenne. Conformite PCI DSS. Comment connecter Wise Business comme compte bancaire de reception dans Stripe."
     },
   ];
 
