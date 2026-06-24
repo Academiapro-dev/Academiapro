@@ -170,9 +170,7 @@ Inclus obligations France exit tax et Israel arrivee Olim.`;
   async function envoyerExpert() {
     setEnvoyant(true);
     try {
-      const resume = historique.map(h => (h.role === "user" ? "QUESTION: " : "RÉPONSE Prof. Mercier: ") + h.text).join("
-
-");
+      const resume = historique.map(h => (h.role === "user" ? "QUESTION: " : "REPONSE Prof. Mercier: ") + h.text).join(" | ");
       await fetch("/api/emailing", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
