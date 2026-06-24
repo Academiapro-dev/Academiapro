@@ -34,15 +34,38 @@ export default function MrCamPage() {
     if (!files.length) return;
     setFichierLoading(true);
     const noms = files.map((f) => f.name).join(", ");
+
+    async function compresser(file) {
+      return new Promise((resolve) => {
+        const ext = file.name.split(".").pop().toLowerCase();
+        if (ext === "pdf") {
+          const reader = new FileReader();
+          reader.onload = (ev) => resolve({ base64: ev.target.result.split(",")[1], mediaType: "application/pdf", nom: file.name });
+          reader.readAsDataURL(file);
+          return;
+        }
+        const img = new Image();
+        const url = URL.createObjectURL(file);
+        img.onload = () => {
+          const MAX = 1024;
+          let w = img.width, h = img.height;
+          if (w > MAX || h > MAX) {
+            if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
+            else { w = Math.round(w * MAX / h); h = MAX; }
+          }
+          const canvas = document.createElement("canvas");
+          canvas.width = w; canvas.height = h;
+          canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+          const b64 = canvas.toDataURL("image/jpeg", 0.7).split(",")[1];
+          URL.revokeObjectURL(url);
+          resolve({ base64: b64, mediaType: "image/jpeg", nom: file.name });
+        };
+        img.src = url;
+      });
+    }
     setHistorique(prev => [...prev, { role: "user", text: "📎 " + files.length + " document(s) joint(s) : " + noms }]);
     try {
-      const fichiersB64 = await Promise.all(files.map((file) => new Promise((resolve) => {
-        const ext = file.name.split(".").pop().toLowerCase();
-        const mediaType = ext === "pdf" ? "application/pdf" : ext === "png" ? "image/png" : "image/jpeg";
-        const reader = new FileReader();
-        reader.onload = (ev) => resolve({ base64: ev.target.result.split(",")[1], mediaType, nom: file.name });
-        reader.readAsDataURL(file);
-      })));
+      const fichiersB64 = await Promise.all(files.map(compresser));
       const r = await fetch("/api/mr-cam", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
