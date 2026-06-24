@@ -399,10 +399,14 @@ export default function MrJuridiquePage() {
                         <span style={{ color: "#ffa500", fontSize: "11px" }}>⏱ {a.delai}</span>
                       </div>
                     </div>
-                    <div style={{ display: "flex", gap: "8px" }}>
+                    <div style={{ display: "flex", gap: "8px", flexDirection: "column" }}>
+                      <a href={a.lien} target="_blank"
+                        style={{ display: "block", textAlign: "center", background: "#c8a96e", color: "#050508", borderRadius: "8px", padding: "10px", fontWeight: "bold", fontSize: "12px", textDecoration: "none" }}>
+                        🚀 Ouvrir {a.titre}
+                      </a>
                       <button onClick={() => lancerAction(a)} disabled={actionLoading === a.id}
-                        style={{ flex: 1, background: "#c8a96e", color: "#050508", border: "none", borderRadius: "8px", padding: "10px", fontWeight: "bold", fontSize: "12px", cursor: "pointer" }}>
-                        {actionLoading === a.id ? "⏳ Guide en cours..." : "⚖️ Guide + Ouvrir"}
+                        style={{ background: "rgba(200,169,110,0.15)", color: "#c8a96e", border: "1px solid rgba(200,169,110,0.3)", borderRadius: "8px", padding: "8px", fontWeight: "bold", fontSize: "11px", cursor: "pointer" }}>
+                        {actionLoading === a.id ? "⏳ Preparation..." : "📋 Documents a preparer"}
                       </button>
                     </div>
                   </div>
