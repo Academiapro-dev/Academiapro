@@ -1,14 +1,111 @@
 "use client";
 import { useState, useEffect } from "react";
 
+const FORMULAIRES = [
+  {
+    id: "form5472",
+    nom: "Form 5472",
+    titre: "Information Return of a 25% Foreign-Owned U.S. Corporation",
+    flag: "🇺🇸",
+    obligatoire: true,
+    delai: "15 avril (ou 15 octobre avec extension)",
+    sanction: "25 000 $ par formulaire manquant",
+    lien: "https://www.irs.gov/forms-pubs/about-form-5472",
+    cases: [
+      { case: "Ligne 1a", en: "Name of reporting corporation", fr: "Nom de votre LLC Wyoming" },
+      { case: "Ligne 1b", en: "EIN", fr: "Votre numéro fiscal fédéral (obtenu auprès IRS)" },
+      { case: "Ligne 1c", en: "Address", fr: "Adresse de votre Registered Agent Wyoming" },
+      { case: "Ligne 2a", en: "Name of foreign related party", fr: "Votre nom complet (vous êtes l associé étranger)" },
+      { case: "Ligne 2b", en: "Country of incorporation", fr: "France (FR)" },
+      { case: "Ligne 3", en: "Principal business activity", fr: "Online education platform - Formation en ligne" },
+      { case: "Partie IV", en: "Reportable transactions", fr: "Transactions entre vous et la LLC : apports capital, retraits, prêts" },
+      { case: "Signature", en: "Signature of officer", fr: "Votre signature + date + titre : Managing Member" },
+    ]
+  },
+  {
+    id: "form1120",
+    nom: "Form 1120",
+    titre: "U.S. Corporation Income Tax Return",
+    flag: "🇺🇸",
+    obligatoire: true,
+    delai: "15 avril (ou 15 octobre avec extension Form 7004)",
+    sanction: "Pénalités de retard + intérêts",
+    lien: "https://www.irs.gov/forms-pubs/about-form-1120",
+    cases: [
+      { case: "Case A", en: "Consolidated return", fr: "Laisser vide - pas de groupe consolidé" },
+      { case: "Case B", en: "Personal holding company", fr: "Laisser vide" },
+      { case: "Ligne 1", en: "Gross receipts or sales", fr: "Vos revenus totaux - si clients hors USA : inscrire 0 ou montant réel" },
+      { case: "Ligne 11", en: "Total income", fr: "Total de vos revenus" },
+      { case: "Ligne 30", en: "Taxable income", fr: "Si No ECI (revenus hors USA) : position 0" },
+      { case: "Schedule K", en: "Other information", fr: "Cocher case 4b : Non-US shareholders" },
+      { case: "Signature", en: "Signature", fr: "Votre signature + Managing Member + date" },
+    ]
+  },
+  {
+    id: "annualreport",
+    nom: "Annual Report Wyoming",
+    titre: "Wyoming Annual Report - Secretary of State",
+    flag: "🏔️",
+    obligatoire: true,
+    delai: "1er anniversaire de création puis chaque année",
+    sanction: "Dissolution administrative de la LLC",
+    lien: "https://sos.wyo.gov/Forms/Business/LLC/LLCAnnualReport.pdf",
+    cases: [
+      { case: "LLC Name", en: "Name of LLC", fr: "Nom exact de votre LLC tel qu enregistré" },
+      { case: "Registered Agent", en: "Registered Agent name and address", fr: "Nom et adresse de votre agent enregistré Wyoming" },
+      { case: "Principal Office", en: "Principal office address", fr: "Adresse principale - peut être celle de l agent enregistré" },
+      { case: "Members/Managers", en: "List of members or managers", fr: "Votre nom complet + adresse + Managing Member" },
+      { case: "Payment", en: "Filing fee", fr: "60 $ par carte ou chèque à l ordre de Wyoming Secretary of State" },
+    ]
+  },
+  {
+    id: "fbar",
+    nom: "FBAR FinCEN 114",
+    titre: "Report of Foreign Bank and Financial Accounts",
+    flag: "🇺🇸",
+    obligatoire: true,
+    delai: "15 avril - extension automatique jusqu au 15 octobre",
+    sanction: "10 000 $ par violation non intentionnelle",
+    lien: "https://bsaefiling.fincen.treas.gov/NoRegFBARFiler.html",
+    cases: [
+      { case: "Part I", en: "Filer information", fr: "Vos informations personnelles : nom, adresse, SSN ou ITIN" },
+      { case: "Part II", en: "Foreign financial accounts", fr: "Vos comptes étrangers si solde total dépasse 10 000 $ à un moment dans l année" },
+      { case: "Account number", en: "Account number", fr: "Numéro de compte bancaire étranger (France, Israël)" },
+      { case: "Maximum value", en: "Maximum account value", fr: "Valeur maximale du compte pendant l année en USD" },
+      { case: "Financial institution", en: "Name and address", fr: "Nom et adresse de votre banque étrangère" },
+    ]
+  },
+  {
+    id: "exittax",
+    nom: "Form 2074-ETD",
+    titre: "Exit Tax France - Déclaration Plus-Values Latentes",
+    flag: "🇫🇷",
+    obligatoire: true,
+    delai: "Année du départ fiscal de France",
+    sanction: "Redressement fiscal + pénalités 40%",
+    lien: "https://www.impots.gouv.fr/formulaire/2074-etd/declaration-des-plus-values-et-moins-values-de-cession-de-titres",
+    cases: [
+      { case: "Cadre 1", en: "N/A", fr: "Votre identité et adresse en France" },
+      { case: "Cadre 2", en: "N/A", fr: "Date de transfert de domicile fiscal hors de France" },
+      { case: "Cadre 3", en: "N/A", fr: "Pays d accueil : Israël" },
+      { case: "Cadre 4", en: "N/A", fr: "Valeur des titres détenus au jour du départ : actions, parts de société" },
+      { case: "Cadre 5", en: "N/A", fr: "Plus-values latentes calculées : valeur actuelle moins prix d acquisition" },
+      { case: "Option", en: "N/A", fr: "Possibilité de sursis de paiement si départ vers pays UE ou Israël (convention)" },
+    ]
+  },
+];
+
 export default function MrComptablePage() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [checking, setChecking] = useState(true);
   const [message, setMessage] = useState("");
   const [historique, setHistorique] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [contexte, setContexte] = useState("france");
-  const [checklistLoading, setChecklistLoading] = useState(false);
+  const [contexte, setContexte] = useState("international");
+  const [onglet, setOnglet] = useState("chat");
+  const [formulaireActif, setFormulaireActif] = useState(null);
+  const [envoyant, setEnvoyant] = useState(false);
+  const [envoiOk, setEnvoiOk] = useState(false);
 
   useEffect(() => {
     try {
@@ -34,7 +131,7 @@ export default function MrComptablePage() {
         body: JSON.stringify({ message: msg, contexte, historique }),
       });
       const data = await r.json();
-      setHistorique(prev => [...prev, { role: "agent", text: data.reply || "Erreur de connexion." }]);
+      setHistorique(prev => [...prev, { role: "agent", text: data.reply || "Erreur." }]);
     } catch {
       setHistorique(prev => [...prev, { role: "agent", text: "Erreur de connexion." }]);
     }
@@ -42,26 +139,19 @@ export default function MrComptablePage() {
   }
 
   async function genererChecklist() {
-    setChecklistLoading(true);
+    setOnglet("chat");
     setContexte("international");
     const question = `Genere ma checklist annuelle complete LLC Wyoming pour mon profil exact :
 - Resident France actuellement, depart Israel dans 6 mois
-- LLC Wyoming single-member (associe unique non-resident US)
+- LLC Wyoming single-member associe unique non-resident US
 - Activite : plateforme formation en ligne AcademiA Pro
 - Clients internationaux, revenus hors USA uniquement
-- Pas encore de revenus, lancement imminent
+- Objectif : transition France vers LLC Wyoming vers Israel
 
-Pour chaque obligation donne moi :
-1. Le nom exact du formulaire
-2. La date limite precise
-3. Les cases exactes a remplir pour mon profil
-4. Le cout estime
-5. Si je peux le faire seul ou si CPA obligatoire
-6. Le lien ou portail officiel pour soumettre
+Fournis pour chaque obligation : formulaire exact, date limite, cases a remplir, cout, CPA obligatoire ou non, lien officiel.
+Inclus obligations France exit tax et Israel arrivee Olim.`;
 
-Inclus aussi les obligations cote France (exit tax, declarations depart) et cote Israel (arrivee, statut Olim, premiere declaration).`;
-    
-    setHistorique(prev => [...prev, { role: "user", text: "Genere ma checklist annuelle complete LLC Wyoming pour mon profil (France → LLC Wyoming → Israel dans 6 mois, AcademiA Pro, clients internationaux)" }]);
+    setHistorique(prev => [...prev, { role: "user", text: "📋 Checklist complète LLC Wyoming → Israël pour mon profil AcadémIA Pro" }]);
     setLoading(true);
     try {
       const r = await fetch("/api/mr-comptable", {
@@ -72,98 +162,191 @@ Inclus aussi les obligations cote France (exit tax, declarations depart) et cote
       const data = await r.json();
       setHistorique(prev => [...prev, { role: "agent", text: data.reply || "Erreur." }]);
     } catch {
-      setHistorique(prev => [...prev, { role: "agent", text: "Erreur de connexion." }]);
+      setHistorique(prev => [...prev, { role: "agent", text: "Erreur." }]);
     }
     setLoading(false);
-    setChecklistLoading(false);
   }
 
-  if (checking) return (
-    <div style={{ background: "#050508", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <p style={{ color: "#c8a96e" }}>Vérification...</p>
-    </div>
-  );
+  async function envoyerExpert() {
+    setEnvoyant(true);
+    try {
+      const resume = historique.map(h => (h.role === "user" ? "QUESTION: " : "RÉPONSE Prof. Mercier: ") + h.text).join("
 
-  if (!isAdmin) return (
-    <div style={{ background: "#050508", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <div style={{ textAlign: "center" }}>
-        <p style={{ color: "#ff4444", fontSize: "18px" }}>Accès restreint</p>
-        <a href="/login" style={{ color: "#c8a96e" }}>Se connecter</a>
-      </div>
-    </div>
-  );
+");
+      await fetch("/api/emailing", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "envoyer_direct",
+          to: "contact@academiapro.fr",
+          subject: "Dossier fiscal LLC Wyoming → Israël — Jacques Lalou — AcadémIA Pro",
+          html: `<h2>Dossier Fiscal International — Jacques Lalou</h2>
+<p><strong>Profil :</strong> Résident France, départ Israël dans 6 mois, LLC Wyoming, AcadémIA Pro</p>
+<hr/>
+<h3>Analyse Prof. Henri Mercier</h3>
+<pre style="white-space:pre-wrap;font-family:Arial;font-size:13px">${resume}</pre>
+<hr/>
+<p style="color:#666;font-size:12px">Généré par AcadémIA Pro — Prof. Henri Mercier — ${new Date().toLocaleDateString("fr-FR")}</p>`,
+        }),
+      });
+      setEnvoiOk(true);
+      setTimeout(() => setEnvoiOk(false), 4000);
+    } catch {}
+    setEnvoyant(false);
+  }
+
+  if (checking) return <div style={{ background: "#050508", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}><p style={{ color: "#c8a96e" }}>Vérification...</p></div>;
+  if (!isAdmin) return <div style={{ background: "#050508", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}><div style={{ textAlign: "center" }}><p style={{ color: "#ff4444" }}>Accès restreint</p><a href="/login" style={{ color: "#c8a96e" }}>Se connecter</a></div></div>;
 
   return (
     <div style={{ background: "#050508", minHeight: "100vh", color: "#fff" }}>
       <div style={{ background: "linear-gradient(135deg,#0a0a1a,#1a1a2e)", padding: "30px", borderBottom: "2px solid rgba(200,169,110,0.3)" }}>
-        <div style={{ maxWidth: "900px", margin: "0 auto" }}>
+        <div style={{ maxWidth: "1000px", margin: "0 auto" }}>
           <p style={{ color: "#c8a96e", fontSize: "12px", margin: "0 0 4px" }}>AcadémIA Pro · Admin</p>
           <h1 style={{ color: "#fff", fontFamily: "Georgia,serif", fontSize: "24px", margin: "0 0 6px" }}>📊 Prof. Henri Mercier</h1>
           <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "14px", margin: 0 }}>Expert Comptable & Fiscaliste — France · Israël · USA · LLC Wyoming</p>
         </div>
       </div>
 
-      <div style={{ maxWidth: "900px", margin: "0 auto", padding: "30px" }}>
-        
-        <div style={{ background: "rgba(200,169,110,0.1)", border: "1px solid rgba(200,169,110,0.3)", borderRadius: "12px", padding: "20px", marginBottom: "20px" }}>
-          <h3 style={{ color: "#c8a96e", margin: "0 0 10px", fontSize: "16px" }}>🚀 Action rapide</h3>
-          <button
-            onClick={genererChecklist}
-            disabled={checklistLoading || loading}
-            style={{ background: checklistLoading ? "rgba(200,169,110,0.3)" : "#c8a96e", color: "#050508", border: "none", borderRadius: "8px", padding: "12px 24px", fontWeight: "bold", fontSize: "14px", cursor: "pointer", width: "100%" }}>
-            {checklistLoading ? "⏳ Génération en cours..." : "📋 Générer ma checklist complète LLC Wyoming → Israël"}
-          </button>
-          <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "12px", margin: "8px 0 0", textAlign: "center" }}>
-            Formulaires · Dates limites · Cases à remplir · Coûts · France + USA + Israël
-          </p>
-        </div>
+      <div style={{ maxWidth: "1000px", margin: "0 auto", padding: "20px" }}>
 
-        <div style={{ display: "flex", gap: "10px", marginBottom: "20px" }}>
-          {["france", "israel", "international"].map(c => (
-            <button key={c} onClick={() => setContexte(c)}
-              style={{ padding: "8px 20px", borderRadius: "8px", border: "none", cursor: "pointer", background: contexte === c ? "#c8a96e" : "rgba(255,255,255,0.05)", color: contexte === c ? "#050508" : "rgba(255,255,255,0.6)", fontWeight: contexte === c ? "bold" : "normal" }}>
-              {c === "france" ? "🇫🇷 France" : c === "israel" ? "🇮🇱 Israël" : "🌍 International"}
+        <div style={{ display: "flex", gap: "10px", marginBottom: "20px", flexWrap: "wrap" }}>
+          {[
+            { id: "chat", label: "💬 Consultation" },
+            { id: "formulaires", label: "📋 Formulaires officiels" },
+          ].map(o => (
+            <button key={o.id} onClick={() => setOnglet(o.id)}
+              style={{ padding: "10px 20px", borderRadius: "8px", border: "none", cursor: "pointer", background: onglet === o.id ? "#c8a96e" : "rgba(255,255,255,0.05)", color: onglet === o.id ? "#050508" : "rgba(255,255,255,0.6)", fontWeight: onglet === o.id ? "bold" : "normal" }}>
+              {o.label}
             </button>
           ))}
         </div>
 
-        <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(200,169,110,0.2)", borderRadius: "12px", padding: "25px", minHeight: "400px", display: "flex", flexDirection: "column" }}>
-          <div style={{ flex: 1, overflowY: "auto", marginBottom: "15px", maxHeight: "500px" }}>
-            {historique.length === 0 && (
-              <div style={{ textAlign: "center", paddingTop: "60px" }}>
-                <p style={{ color: "rgba(255,255,255,0.3)", fontSize: "16px" }}>Bonjour. Je suis le Professeur Henri Mercier.</p>
-                <p style={{ color: "rgba(255,255,255,0.2)", fontSize: "14px" }}>Utilisez le bouton ci-dessus pour votre checklist complète,</p>
-                <p style={{ color: "rgba(255,255,255,0.2)", fontSize: "14px" }}>ou posez directement votre question comptable.</p>
+        {onglet === "chat" && (
+          <>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "20px" }}>
+              <button onClick={genererChecklist} disabled={loading}
+                style={{ background: "#c8a96e", color: "#050508", border: "none", borderRadius: "8px", padding: "12px", fontWeight: "bold", fontSize: "13px", cursor: "pointer" }}>
+                📋 Checklist complète LLC Wyoming → Israël
+              </button>
+              <button onClick={envoyerExpert} disabled={envoyant || historique.length === 0}
+                style={{ background: envoiOk ? "#00c800" : historique.length === 0 ? "rgba(200,169,110,0.2)" : "rgba(200,169,110,0.3)", color: envoiOk ? "#fff" : "#c8a96e", border: "1px solid rgba(200,169,110,0.4)", borderRadius: "8px", padding: "12px", fontWeight: "bold", fontSize: "13px", cursor: "pointer" }}>
+                {envoiOk ? "✅ Envoyé !" : envoyant ? "⏳ Envoi..." : "📧 Envoyer à mon expert-comptable"}
+              </button>
+            </div>
+
+            <div style={{ display: "flex", gap: "10px", marginBottom: "15px" }}>
+              {["france", "israel", "international"].map(c => (
+                <button key={c} onClick={() => setContexte(c)}
+                  style={{ padding: "8px 16px", borderRadius: "8px", border: "none", cursor: "pointer", background: contexte === c ? "#c8a96e" : "rgba(255,255,255,0.05)", color: contexte === c ? "#050508" : "rgba(255,255,255,0.6)", fontWeight: contexte === c ? "bold" : "normal", fontSize: "13px" }}>
+                  {c === "france" ? "🇫🇷 France" : c === "israel" ? "🇮🇱 Israël" : "🌍 International"}
+                </button>
+              ))}
+            </div>
+
+            <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(200,169,110,0.2)", borderRadius: "12px", padding: "20px", minHeight: "400px", display: "flex", flexDirection: "column" }}>
+              <div style={{ flex: 1, overflowY: "auto", marginBottom: "15px", maxHeight: "500px" }}>
+                {historique.length === 0 && (
+                  <div style={{ textAlign: "center", paddingTop: "60px" }}>
+                    <p style={{ color: "rgba(255,255,255,0.3)" }}>Bonjour. Je suis le Professeur Henri Mercier.</p>
+                    <p style={{ color: "rgba(255,255,255,0.2)", fontSize: "13px" }}>Cliquez sur Checklist ou posez votre question directement.</p>
+                  </div>
+                )}
+                {historique.map((msg, i) => (
+                  <div key={i} style={{ marginBottom: "15px", display: "flex", justifyContent: msg.role === "user" ? "flex-end" : "flex-start" }}>
+                    <div style={{ background: msg.role === "user" ? "#c8a96e" : "rgba(255,255,255,0.08)", color: msg.role === "user" ? "#050508" : "#fff", padding: "12px 16px", borderRadius: "10px", maxWidth: "90%", fontSize: "13px", lineHeight: "1.7", whiteSpace: "pre-wrap" }}>
+                      {msg.role === "agent" && <div style={{ color: "#c8a96e", fontSize: "11px", marginBottom: "6px", fontWeight: "bold" }}>📊 Prof. Henri Mercier</div>}
+                      {msg.text}
+                    </div>
+                  </div>
+                ))}
+                {loading && <div style={{ display: "flex" }}><div style={{ background: "rgba(255,255,255,0.08)", padding: "12px 16px", borderRadius: "10px", color: "#c8a96e", fontSize: "13px" }}>📊 Analyse en cours...</div></div>}
               </div>
-            )}
-            {historique.map((msg, i) => (
-              <div key={i} style={{ marginBottom: "15px", display: "flex", justifyContent: msg.role === "user" ? "flex-end" : "flex-start" }}>
-                <div style={{ background: msg.role === "user" ? "#c8a96e" : "rgba(255,255,255,0.08)", color: msg.role === "user" ? "#050508" : "#fff", padding: "12px 16px", borderRadius: "10px", maxWidth: "90%", fontSize: "13px", lineHeight: "1.7", whiteSpace: "pre-wrap" }}>
-                  {msg.role === "agent" && <div style={{ color: "#c8a96e", fontSize: "11px", marginBottom: "6px", fontWeight: "bold" }}>📊 Prof. Henri Mercier</div>}
-                  {msg.text}
+              <div style={{ display: "flex", gap: "10px" }}>
+                <input type="text" value={message} onChange={e => setMessage(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && envoyer()}
+                  placeholder="Posez votre question comptable..."
+                  style={{ flex: 1, padding: "12px", borderRadius: "8px", border: "1px solid rgba(200,169,110,0.3)", background: "rgba(255,255,255,0.05)", color: "#fff", fontSize: "14px" }} />
+                <button onClick={() => envoyer()} disabled={loading}
+                  style={{ padding: "12px 24px", background: "#c8a96e", color: "#050508", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "bold" }}>
+                  Envoyer
+                </button>
+              </div>
+            </div>
+          </>
+        )}
+
+        {onglet === "formulaires" && (
+          <div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "10px", marginBottom: "20px" }}>
+              {FORMULAIRES.map(f => (
+                <div key={f.id} onClick={() => setFormulaireActif(formulaireActif?.id === f.id ? null : f)}
+                  style={{ background: formulaireActif?.id === f.id ? "rgba(200,169,110,0.2)" : "rgba(255,255,255,0.03)", border: `1px solid ${formulaireActif?.id === f.id ? "#c8a96e" : "rgba(200,169,110,0.2)"}`, borderRadius: "10px", padding: "15px", cursor: "pointer", textAlign: "center" }}>
+                  <div style={{ fontSize: "24px", marginBottom: "8px" }}>{f.flag}</div>
+                  <div style={{ color: "#c8a96e", fontWeight: "bold", fontSize: "14px" }}>{f.nom}</div>
+                  <div style={{ color: "rgba(255,255,255,0.4)", fontSize: "11px", marginTop: "4px" }}>{f.obligatoire ? "✅ Obligatoire" : "⚠️ Conditionnel"}</div>
                 </div>
-              </div>
-            ))}
-            {loading && (
-              <div style={{ display: "flex", justifyContent: "flex-start" }}>
-                <div style={{ background: "rgba(255,255,255,0.08)", padding: "12px 16px", borderRadius: "10px", color: "#c8a96e" }}>
-                  <div style={{ fontSize: "11px", marginBottom: "4px" }}>📊 Prof. Henri Mercier</div>
-                  Analyse en cours...
+              ))}
+            </div>
+
+            {formulaireActif && (
+              <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(200,169,110,0.3)", borderRadius: "12px", padding: "25px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "20px", flexWrap: "wrap", gap: "10px" }}>
+                  <div>
+                    <h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", margin: "0 0 4px" }}>{formulaireActif.flag} {formulaireActif.nom}</h2>
+                    <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "13px", margin: 0 }}>{formulaireActif.titre}</p>
+                  </div>
+                  <a href={formulaireActif.lien} target="_blank"
+                    style={{ background: "#c8a96e", color: "#050508", padding: "10px 20px", borderRadius: "8px", textDecoration: "none", fontWeight: "bold", fontSize: "13px" }}>
+                    📥 Télécharger le formulaire officiel
+                  </a>
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "15px", marginBottom: "20px" }}>
+                  <div style={{ background: "rgba(255,0,0,0.08)", border: "1px solid rgba(255,0,0,0.2)", borderRadius: "8px", padding: "12px" }}>
+                    <div style={{ color: "#ff6b6b", fontSize: "12px", fontWeight: "bold", marginBottom: "4px" }}>⚠️ Date limite</div>
+                    <div style={{ color: "#fff", fontSize: "13px" }}>{formulaireActif.delai}</div>
+                  </div>
+                  <div style={{ background: "rgba(255,0,0,0.08)", border: "1px solid rgba(255,0,0,0.2)", borderRadius: "8px", padding: "12px" }}>
+                    <div style={{ color: "#ff6b6b", fontSize: "12px", fontWeight: "bold", marginBottom: "4px" }}>💥 Sanction</div>
+                    <div style={{ color: "#fff", fontSize: "13px" }}>{formulaireActif.sanction}</div>
+                  </div>
+                </div>
+
+                <h3 style={{ color: "#c8a96e", marginBottom: "15px", fontSize: "16px" }}>📝 Guide de remplissage en français</h3>
+                <div style={{ overflowX: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                    <thead>
+                      <tr style={{ background: "rgba(200,169,110,0.15)" }}>
+                        <th style={{ padding: "10px 12px", textAlign: "left", color: "#c8a96e", fontSize: "12px", border: "1px solid rgba(200,169,110,0.2)", whiteSpace: "nowrap" }}>Case</th>
+                        <th style={{ padding: "10px 12px", textAlign: "left", color: "#c8a96e", fontSize: "12px", border: "1px solid rgba(200,169,110,0.2)" }}>🇬🇧 Intitulé officiel</th>
+                        <th style={{ padding: "10px 12px", textAlign: "left", color: "#c8a96e", fontSize: "12px", border: "1px solid rgba(200,169,110,0.2)" }}>🇫 Que remplir pour votre profil</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {formulaireActif.cases.map((c, i) => (
+                        <tr key={i} style={{ background: i % 2 === 0 ? "rgba(255,255,255,0.02)" : "transparent" }}>
+                          <td style={{ padding: "10px 12px", color: "#c8a96e", fontSize: "12px", fontWeight: "bold", border: "1px solid rgba(255,255,255,0.05)", whiteSpace: "nowrap" }}>{c.case}</td>
+                          <td style={{ padding: "10px 12px", color: "rgba(255,255,255,0.5)", fontSize: "12px", border: "1px solid rgba(255,255,255,0.05)" }}>{c.en}</td>
+                          <td style={{ padding: "10px 12px", color: "#fff", fontSize: "13px", border: "1px solid rgba(255,255,255,0.05)" }}>{c.fr}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div style={{ marginTop: "20px", display: "flex", gap: "10px", flexWrap: "wrap" }}>
+                  <button onClick={() => envoyer("Explique-moi le " + formulaireActif.nom + " en detail pour mon profil : LLC Wyoming single-member, non-resident US, revenus hors USA, plateforme formation en ligne AcademiA Pro. Donne moi les instructions case par case avec les valeurs exactes a inscrire.")}
+                    style={{ background: "rgba(200,169,110,0.2)", color: "#c8a96e", border: "1px solid rgba(200,169,110,0.3)", borderRadius: "8px", padding: "10px 20px", cursor: "pointer", fontWeight: "bold", fontSize: "13px" }}
+                    onClick={() => { envoyer("Explique-moi le " + formulaireActif.nom + " en detail pour mon profil : LLC Wyoming single-member, non-resident US, revenus hors USA, plateforme formation en ligne AcademiA Pro. Donne moi les instructions case par case avec les valeurs exactes a inscrire."); setOnglet("chat"); }}>
+                    🤖 Demander une analyse détaillée à Prof. Mercier
+                  </button>
                 </div>
               </div>
             )}
           </div>
-          <div style={{ display: "flex", gap: "10px" }}>
-            <input type="text" value={message} onChange={e => setMessage(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && envoyer()}
-              placeholder="Posez votre question comptable ou financière..."
-              style={{ flex: 1, padding: "12px", borderRadius: "8px", border: "1px solid rgba(200,169,110,0.3)", background: "rgba(255,255,255,0.05)", color: "#fff", fontSize: "14px" }} />
-            <button onClick={() => envoyer()} disabled={loading}
-              style={{ padding: "12px 24px", background: "#c8a96e", color: "#050508", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "bold" }}>
-              Envoyer
-            </button>
-          </div>
-        </div>
+        )}
+
       </div>
     </div>
   );
