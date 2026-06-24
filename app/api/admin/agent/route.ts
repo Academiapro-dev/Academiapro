@@ -91,13 +91,36 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const messages = [
+    const { fichier } = body;
+    const messages: any[] = [
       ...(historique || []).map((msg: any) => ({
         role: msg.role === "user" ? "user" : "assistant",
         content: msg.text
       })),
-      { role: "user", content: message }
     ];
+
+    if (fichier) {
+      const { base64: b64, mediaType, nom } = fichier;
+      if (mediaType === "application/pdf") {
+        messages.push({
+          role: "user",
+          content: [
+            { type: "document", source: { type: "base64", media_type: "application/pdf", data: b64 } },
+            { type: "text", text: (message || "Analyse ce document.") + "\n\nDocument : " + nom }
+          ]
+        });
+      } else {
+        messages.push({
+          role: "user",
+          content: [
+            { type: "image", source: { type: "base64", media_type: mediaType, data: b64 } },
+            { type: "text", text: (message || "Analyse ce document.") + "\n\nDocument : " + nom }
+          ]
+        });
+      }
+    } else {
+      messages.push({ role: "user", content: message });
+    }
 
     const systemPrompt = agent?.prompt || 
       (agent?.type === "juridique" ? SYSTEM_JURIDIQUE_DEFAULT : SYSTEM_COMPTABLE_DEFAULT);
@@ -111,7 +134,7 @@ export async function POST(req: NextRequest) {
       },
       body: JSON.stringify({
         model: "claude-sonnet-4-6",
-        max_tokens: 1500,
+        max_tokens: 4000,
         system: systemPrompt,
         messages,
       }),
