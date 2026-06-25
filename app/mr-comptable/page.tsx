@@ -372,7 +372,6 @@ export default function MrComptablePage() {
           </div>
         )}
       </div>
-    </div>
       <MemoryButton
         agentId="comptable"
         onRestore={restoreSession}
@@ -380,6 +379,7 @@ export default function MrComptablePage() {
         lastSaved={lastSaved}
         isSaving={isSaving}
       />
+    </div>
 
   );
 }
