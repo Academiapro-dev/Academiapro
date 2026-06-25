@@ -154,11 +154,11 @@ const ACTIONS_PRIORITAIRES = [
 ];
 
 export default function MrJuridiquePage() {
-  const [isAdmin, setIsAdmin] = useState(false);
-  const { conversation, addMessage, saveMemory, loadMemories, restoreSession, lastSaved, isSaving } = useAgentMemory({
+  const { saveMemory, restoreSession, lastSaved, isSaving } = useAgentMemory({
     agentId: "juridique",
     sessionLabel: "Session juridique"
   });
+  const [isAdmin, setIsAdmin] = useState(false);
   const [checking, setChecking] = useState(true);
   const [message, setMessage] = useState("");
   const [historique, setHistorique] = useState([]);
@@ -547,12 +547,3 @@ export default function MrJuridiquePage() {
       </div>
     </div>
   );
-  <MemoryButton
-      agentId="juridique"
-      onRestore={restoreSession}
-      onSaveNow={saveMemory}
-      lastSaved={lastSaved}
-      isSaving={isSaving}
-    />
-  );
-}
