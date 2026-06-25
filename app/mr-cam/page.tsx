@@ -216,7 +216,6 @@ export default function MrCamPage() {
           </div>
         </div>
       </div>
-    </div>
       <MemoryButton
         agentId="cam"
         onRestore={restoreSession}
@@ -224,6 +223,7 @@ export default function MrCamPage() {
         lastSaved={lastSaved}
         isSaving={isSaving}
       />
+    </div>
 
   );
 }
