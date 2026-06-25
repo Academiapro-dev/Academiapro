@@ -547,3 +547,12 @@ export default function MrJuridiquePage() {
       </div>
     </div>
   );
+      <MemoryButton
+        agentId="juridique"
+        onRestore={restoreSession}
+        onSaveNow={saveMemory}
+        lastSaved={lastSaved}
+        isSaving={isSaving}
+      />
+    );
+}
