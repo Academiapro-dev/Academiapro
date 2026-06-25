@@ -221,7 +221,8 @@ export default function MrCamPage() {
         onRestore={(messages) => {
           const normalises = messages.map(m => ({
             role: m.role === 'assistant' ? 'agent' : m.role,
-            text: m.text || m.content || ''
+            text: m.content || m.text || '',
+            content: m.content || m.text || ''
           }));
           setHistorique(normalises);
         }}
