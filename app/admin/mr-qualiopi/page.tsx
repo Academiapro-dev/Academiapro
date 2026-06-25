@@ -1,4 +1,6 @@
 "use client";
+import MemoryButton from "@/components/MemoryButton";
+import { useAgentMemory } from "@/hooks/useAgentMemory";
 import { useState, useEffect, useRef } from "react";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
@@ -49,6 +51,10 @@ const SYSTEM_CERTIFICATEUR = "Tu es Mr Certificateur, expert en creation et depo
 
 export default function MrQualiopi() {
   const [onglet, setOnglet] = useState("dashboard");
+  const { conversation, addMessage, saveMemory, loadMemories, restoreSession, lastSaved, isSaving } = useAgentMemory({
+    agentId: "qualiopi",
+    sessionLabel: "Session qualiopi"
+  });
   const [documents, setDocuments] = useState<any[]>([]);
   const [indicateurs, setIndicateurs] = useState<any[]>([]);
   const [dossierCert, setDossierCert] = useState<any[]>([]);
@@ -731,5 +737,13 @@ Documents prepares : ${documents.length} documents generes`,
 
       </div>
     </div>
+  );
+  <MemoryButton
+      agentId="qualiopi"
+      onRestore={restoreSession}
+      onSaveNow={saveMemory}
+      lastSaved={lastSaved}
+      isSaving={isSaving}
+    />
   );
 }
