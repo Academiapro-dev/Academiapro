@@ -715,7 +715,6 @@ Documents prepares : ${documents.length} documents generes`,
         )}
 
       </div>
-    </div>
       <MemoryButton
         agentId="qualiopi"
         onRestore={restoreSession}
@@ -723,6 +722,7 @@ Documents prepares : ${documents.length} documents generes`,
         lastSaved={lastSaved}
         isSaving={isSaving}
       />
+    </div>
 
   );
 }
