@@ -98,11 +98,11 @@ const FORMULAIRES = [
 ];
 
 export default function MrComptablePage() {
-  const [isAdmin, setIsAdmin] = useState(false);
-  const { conversation, addMessage, saveMemory, loadMemories, restoreSession, lastSaved, isSaving } = useAgentMemory({
+  const { saveMemory, restoreSession, lastSaved, isSaving } = useAgentMemory({
     agentId: "comptable",
     sessionLabel: "Session comptable"
   });
+  const [isAdmin, setIsAdmin] = useState(false);
   const [checking, setChecking] = useState(true);
   const [message, setMessage] = useState("");
   const [historique, setHistorique] = useState([]);
@@ -397,12 +397,3 @@ export default function MrComptablePage() {
       </div>
     </div>
   );
-  <MemoryButton
-      agentId="comptable"
-      onRestore={restoreSession}
-      onSaveNow={saveMemory}
-      lastSaved={lastSaved}
-      isSaving={isSaving}
-    />
-  );
-}
