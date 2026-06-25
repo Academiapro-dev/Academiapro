@@ -3,9 +3,10 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 
 interface Message {
-  role: 'user' | 'assistant'
-  content: string
-  timestamp: number
+  role: 'user' | 'assistant' | 'agent'
+  content?: string
+  text?: string
+  timestamp?: number
 }
 
 interface UseAgentMemoryOptions {
@@ -19,6 +20,7 @@ export function useAgentMemory({
   sessionLabel,
   autoSaveInterval = 5 * 60 * 1000
 }: UseAgentMemoryOptions) {
+
   const [sessionId] = useState(() => `${agentId}_${Date.now()}`)
   const [conversation, setConversation] = useState<Message[]>([])
   const [lastSaved, setLastSaved] = useState<string | null>(null)
@@ -65,13 +67,19 @@ export function useAgentMemory({
     }
   }, [agentId])
 
-  const addMessage = useCallback((role: 'user' | 'assistant', content: string) => {
-    const message: Message = { role, content, timestamp: Date.now() }
+  const addMessage = useCallback((role: string, content: string) => {
+    const message: Message = { role: role as any, content, text: content, timestamp: Date.now() }
     setConversation(prev => [...prev, message])
   }, [])
 
   const restoreSession = useCallback((messages: Message[]) => {
-    setConversation(messages)
+    // Normalise les messages — accepte text ET content
+    const normalises = messages.map(m => ({
+      ...m,
+      text: m.text || m.content || '',
+      content: m.content || m.text || ''
+    }))
+    setConversation(normalises)
   }, [])
 
   useEffect(() => {
