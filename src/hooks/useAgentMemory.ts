@@ -1,49 +1,35 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
-
-interface Message {
-  role: 'user' | 'assistant' | 'agent'
-  content?: string
-  text?: string
-  timestamp?: number
-}
+import { useState, useCallback } from 'react'
 
 interface UseAgentMemoryOptions {
   agentId: string
   sessionLabel?: string
-  autoSaveInterval?: number
 }
 
-export function useAgentMemory({
-  agentId,
-  sessionLabel,
-  autoSaveInterval = 5 * 60 * 1000
-}: UseAgentMemoryOptions) {
-
+export function useAgentMemory({ agentId, sessionLabel }: UseAgentMemoryOptions) {
   const [sessionId] = useState(() => `${agentId}_${Date.now()}`)
-  const [conversation, setConversation] = useState<Message[]>([])
   const [lastSaved, setLastSaved] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
-  const conversationRef = useRef(conversation)
 
-  useEffect(() => {
-    conversationRef.current = conversation
-  }, [conversation])
-
-  const saveMemory = useCallback(async (label?: string) => {
-    if (conversationRef.current.length === 0) return
+  const saveMemory = useCallback(async (historique: any[]) => {
+    if (!historique || historique.length === 0) return
     setIsSaving(true)
     try {
+      const conversation = historique.map(m => ({
+        role: m.role,
+        content: m.text || m.content || "",
+        text: m.text || m.content || ""
+      }))
       const res = await fetch('/api/memory/save', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           agent_id: agentId,
           session_id: sessionId,
-          session_label: label || sessionLabel || `Session ${new Date().toLocaleDateString('fr-FR')}`,
-          conversation: conversationRef.current,
-          context_summary: `${conversationRef.current.length} messages`,
+          session_label: sessionLabel || `Session ${new Date().toLocaleDateString('fr-FR')}`,
+          conversation,
+          context_summary: `${historique.length} messages`,
           key_decisions: []
         })
       })
@@ -52,7 +38,7 @@ export function useAgentMemory({
         setLastSaved(new Date().toLocaleTimeString('fr-FR'))
       }
     } catch (e) {
-      console.error('Erreur save memory:', e)
+      console.error('Erreur save:', e)
     }
     setIsSaving(false)
   }, [agentId, sessionId, sessionLabel])
@@ -67,34 +53,5 @@ export function useAgentMemory({
     }
   }, [agentId])
 
-  const addMessage = useCallback((role: string, content: string) => {
-    const message: Message = { role: role as any, content, text: content, timestamp: Date.now() }
-    setConversation(prev => [...prev, message])
-  }, [])
-
-  const restoreSession = useCallback((messages: Message[]) => {
-    // Normalise les messages — accepte text ET content
-    const normalises = messages.map(m => ({
-      ...m,
-      text: m.text || m.content || '',
-      content: m.content || m.text || ''
-    }))
-    setConversation(normalises)
-  }, [])
-
-  useEffect(() => {
-    const timer = setInterval(() => saveMemory(), autoSaveInterval)
-    return () => clearInterval(timer)
-  }, [saveMemory, autoSaveInterval])
-
-  return {
-    conversation,
-    addMessage,
-    saveMemory,
-    loadMemories,
-    restoreSession,
-    lastSaved,
-    isSaving,
-    sessionId
-  }
+  return { saveMemory, loadMemories, lastSaved, isSaving }
 }
