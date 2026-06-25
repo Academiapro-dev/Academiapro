@@ -149,20 +149,6 @@ export default function MrArchitectePage() {
       />
     </div>
   
-      <MemoryButton
-        agentId="architecte"
-        onRestore={restoreSession}
-        onSaveNow={saveMemory}
-        lastSaved={lastSaved}
-        isSaving={isSaving}
-      />
-      <MemoryButton
-        agentId="architecte"
-        onRestore={restoreSession}
-        onSaveNow={saveMemory}
-        lastSaved={lastSaved}
-        isSaving={isSaving}
-      />
 
     );
 }
