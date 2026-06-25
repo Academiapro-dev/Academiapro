@@ -225,7 +225,13 @@ export default function MrCamPage() {
           }));
           setHistorique(normalises);
         }}
-        onSaveNow={saveMemory}
+        onSaveNow={() => {
+          const hNormalise = historique.map(m => ({
+            ...m,
+            content: m.text || m.content || ""
+          }));
+          saveMemory(hNormalise);
+        }}
         lastSaved={lastSaved}
         isSaving={isSaving}
       />
