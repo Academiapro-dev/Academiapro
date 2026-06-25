@@ -1,9 +1,11 @@
 'use client';
 import { useState, useEffect, useRef } from "react";
-import MemoryButton from "@/components/MemoryButton";
-import { useAgentMemory } from "@/hooks/useAgentMemory";
 
 export default function MrArchitectePage() {
+  const { saveMemory, restoreSession, lastSaved, isSaving } = useAgentMemory({
+    agentId: "architecte",
+    sessionLabel: "Session Architecte"
+  });
   const [isAdmin, setIsAdmin] = useState(false);
   const [checking, setChecking] = useState(true);
   const [message, setMessage] = useState("");
@@ -142,5 +144,13 @@ export default function MrArchitectePage() {
         isSaving={isSaving}
       />
     </div>
-  );
+  
+      <MemoryButton
+        agentId="architecte"
+        onRestore={restoreSession}
+        onSaveNow={saveMemory}
+        lastSaved={lastSaved}
+        isSaving={isSaving}
+      />
+    );
 }
