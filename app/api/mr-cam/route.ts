@@ -48,14 +48,16 @@ REGLES :
 
     const fichiersList = fichiers || (fichier ? [fichier] : []);
     if (fichiersList.length > 0) {
-      const content: any[] = fichiersList.map((f: any) => {
-        if (f.mediaType === "application/pdf") {
-          return { type: "document", source: { type: "base64", media_type: "application/pdf", data: f.base64 } };
-        } else {
-          return { type: "image", source: { type: "base64", media_type: f.mediaType, data: f.base64 } };
-        }
-      });
-      content.push({ type: "text", text: message + (domaine !== "general" ? " [Domaine : " + domaine + "]" : "") });
+      const content: any[] = [
+        { type: "text", text: message + (domaine !== "general" ? " [Domaine : " + domaine + "]" : "") },
+        ...fichiersList.map((f: any) => {
+          if (f.mediaType === "application/pdf") {
+            return { type: "document", source: { type: "base64", media_type: "application/pdf", data: f.base64 } };
+          } else {
+            return { type: "image", source: { type: "base64", media_type: f.mediaType, data: f.base64 } };
+          }
+        })
+      ];
       messages.push({ role: "user", content });
     } else {
       messages.push({ role: "user", content: message + (domaine !== "general" ? " [Domaine : " + domaine + "]" : "") });
