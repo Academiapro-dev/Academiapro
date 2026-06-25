@@ -4,7 +4,7 @@ import { useAgentMemory } from "@/hooks/useAgentMemory";
 import { useState, useEffect, useRef } from "react";
 
 export default function MrCamPage() {
-  const { saveMemory, restoreSession, lastSaved, isSaving } = useAgentMemory({
+  const { saveMemory, loadMemories, lastSaved, isSaving } = useAgentMemory({
     agentId: "cam",
     sessionLabel: "Session cam"
   });
