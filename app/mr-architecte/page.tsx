@@ -17,7 +17,7 @@ export default function MrArchitectePage() {
   const [loading, setLoading] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  const { saveMemory, loadMemories, restoreSession, lastSaved, isSaving } = useAgentMemory({
+  const { saveMemory, loadMemories, restoreSession, lastSaved } = useAgentMemory({
     agentId: "architecte",
     sessionLabel: "Session Architecte"
   });
