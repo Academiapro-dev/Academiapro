@@ -4,6 +4,10 @@ import { useState, useEffect, useRef } from "react";
 export default function MrArchitectePage() {
   const { saveMemory, restoreSession, lastSaved, isSaving } = useAgentMemory({
     agentId: "architecte",
+    sessionLabel: "Session architecte"
+  });
+  const { saveMemory, restoreSession, lastSaved, isSaving } = useAgentMemory({
+    agentId: "architecte",
     sessionLabel: "Session Architecte"
   });
   const [isAdmin, setIsAdmin] = useState(false);
@@ -152,5 +156,13 @@ export default function MrArchitectePage() {
         lastSaved={lastSaved}
         isSaving={isSaving}
       />
+      <MemoryButton
+        agentId="architecte"
+        onRestore={restoreSession}
+        onSaveNow={saveMemory}
+        lastSaved={lastSaved}
+        isSaving={isSaving}
+      />
+
     );
 }
