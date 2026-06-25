@@ -156,7 +156,7 @@ const ACTIONS_PRIORITAIRES = [
 export default function MrJuridiquePage() {
   const { saveMemory, restoreSession, lastSaved, isSaving } = useAgentMemory({
     agentId: "juridique",
-    sessionLabel: "Session juridique"
+    sessionLabel: "Session Juridique"
   });
   const [isAdmin, setIsAdmin] = useState(false);
   const [checking, setChecking] = useState(true);
@@ -546,7 +546,7 @@ export default function MrJuridiquePage() {
         )}
       </div>
     </div>
-  );
+  
       <MemoryButton
         agentId="juridique"
         onRestore={restoreSession}
