@@ -156,7 +156,7 @@ const ACTIONS_PRIORITAIRES = [
 export default function MrJuridiquePage() {
   const { saveMemory, restoreSession, lastSaved, isSaving } = useAgentMemory({
     agentId: "juridique",
-    sessionLabel: "Session Juridique"
+    sessionLabel: "Session juridique"
   });
   const [isAdmin, setIsAdmin] = useState(false);
   const [checking, setChecking] = useState(true);
@@ -553,5 +553,6 @@ export default function MrJuridiquePage() {
         lastSaved={lastSaved}
         isSaving={isSaving}
       />
+
   );
 }
