@@ -1,4 +1,6 @@
 "use client";
+import MemoryButton from "@/components/MemoryButton";
+import { useAgentMemory } from "@/hooks/useAgentMemory";
 import { useState, useEffect, useRef } from "react";
 
 const FORMULAIRES = [
@@ -97,6 +99,10 @@ const FORMULAIRES = [
 
 export default function MrComptablePage() {
   const [isAdmin, setIsAdmin] = useState(false);
+  const { conversation, addMessage, saveMemory, loadMemories, restoreSession, lastSaved, isSaving } = useAgentMemory({
+    agentId: "comptable",
+    sessionLabel: "Session comptable"
+  });
   const [checking, setChecking] = useState(true);
   const [message, setMessage] = useState("");
   const [historique, setHistorique] = useState([]);
@@ -390,5 +396,13 @@ export default function MrComptablePage() {
         )}
       </div>
     </div>
+  );
+  <MemoryButton
+      agentId="comptable"
+      onRestore={restoreSession}
+      onSaveNow={saveMemory}
+      lastSaved={lastSaved}
+      isSaving={isSaving}
+    />
   );
 }
