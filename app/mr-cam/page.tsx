@@ -17,7 +17,6 @@ export default function MrCamPage() {
   const [domaine, setDomaine] = useState("general");
   const [envoiOk, setEnvoiOk] = useState(false);
   const [envoyant, setEnvoyant] = useState(false);
-  const [fichiersEnAttente, setFichiersEnAttente] = useState([]);
   const fileInputRef = useRef(null);
   const chatEndRef = useRef(null);
 
@@ -36,70 +35,37 @@ export default function MrCamPage() {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [historique, loading]);
 
-  async function ajouterFichiers(e) {
+  async function analyserFichier(e) {
     const files = Array.from(e.target.files);
     if (!files.length) return;
     setFichierLoading(true);
-
-    async function compresser(file) {
-      return new Promise((resolve) => {
-        const ext = file.name.split(".").pop().toLowerCase();
-        if (ext === "pdf") {
-          const reader = new FileReader();
-          reader.onload = (ev) => resolve({ base64: ev.target.result.split(",")[1], mediaType: "application/pdf", nom: file.name, preview: null });
-          reader.readAsDataURL(file);
-          return;
-        }
-        const img = new Image();
-        const objUrl = URL.createObjectURL(file);
-        img.onload = () => {
-          const MAX = 1024;
-          let w = img.width, h = img.height;
-          if (w > MAX || h > MAX) {
-            if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
-            else { w = Math.round(w * MAX / h); h = MAX; }
-          }
-          const canvas = document.createElement("canvas");
-          canvas.width = w; canvas.height = h;
-          canvas.getContext("2d").drawImage(img, 0, 0, w, h);
-          const b64 = canvas.toDataURL("image/jpeg", 0.7).split(",")[1];
-          URL.revokeObjectURL(objUrl);
-          resolve({ base64: b64, mediaType: "image/jpeg", nom: file.name, preview: "data:image/jpeg;base64," + b64 });
-        };
-        img.src = objUrl;
-      });
-    }
-
-    const nouveaux = await Promise.all(files.map(compresser));
-    setFichiersEnAttente(prev => [...prev, ...nouveaux]);
-    setFichierLoading(false);
-    e.target.value = "";
-  }
-
-  async function envoyerAvecFichiers() {
-    if (fichiersEnAttente.length === 0) return;
-    const noms = fichiersEnAttente.map((f) => f.nom).join(", ");
-    setHistorique(prev => [...prev, { role: "user", text: "📎 " + fichiersEnAttente.length + " document(s) : " + noms }]);
-    setFichiersEnAttente([]);
-    setFichierLoading(true);
+    const noms = files.map((f) => f.name).join(", ");
+    setHistorique(prev => [...prev, { role: "user", text: "📎 " + files.length + " document(s) joint(s) : " + noms }]);
     try {
+      const fichiersB64 = await Promise.all(files.map((file) => new Promise((resolve) => {
+        const ext = file.name.split(".").pop().toLowerCase();
+        const mediaType = ext === "pdf" ? "application/pdf" : ext === "png" ? "image/png" : "image/jpeg";
+        const reader = new FileReader();
+        reader.onload = (ev) => resolve({ base64: ev.target.result.split(",")[1], mediaType, nom: file.name });
+        reader.readAsDataURL(file);
+      })));
       const r = await fetch("/api/mr-cam", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          message: message.trim() || "Analyse ces " + fichiersEnAttente.length + " document(s) et donne moi une analyse complete.",
+          message: "Analyse ces " + files.length + " document(s) et donne moi une analyse complete selon ton expertise.",
           domaine,
           historique,
-          fichiers: fichiersEnAttente
+          fichiers: fichiersB64
         }),
       });
-      setMessage("");
       const data = await r.json();
       setHistorique(prev => [...prev, { role: "agent", text: data.reply || "Erreur." }]);
     } catch {
       setHistorique(prev => [...prev, { role: "agent", text: "Erreur lors de l analyse." }]);
     }
     setFichierLoading(false);
+    e.target.value = "";
   }
 
   async function envoyer(msg) {
@@ -222,39 +188,20 @@ export default function MrCamPage() {
             <div ref={chatEndRef} />
           </div>
 
-          {fichiersEnAttente.length > 0 && (
-            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "10px", padding: "10px", background: "rgba(200,169,110,0.08)", borderRadius: "8px", border: "1px solid rgba(200,169,110,0.2)" }}>
-              {fichiersEnAttente.map((f, i) => (
-                <div key={i} style={{ position: "relative", display: "inline-block" }}>
-                  {f.preview
-                    ? <img src={f.preview} style={{ width: "60px", height: "60px", objectFit: "cover", borderRadius: "6px", border: "1px solid rgba(200,169,110,0.4)" }} />
-                    : <div style={{ width: "60px", height: "60px", background: "rgba(200,169,110,0.2)", borderRadius: "6px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "20px" }}>📄</div>
-                  }
-                  <button onClick={() => setFichiersEnAttente(prev => prev.filter((_, j) => j !== i))}
-                    style={{ position: "absolute", top: "-6px", right: "-6px", background: "#ff4444", color: "#fff", border: "none", borderRadius: "50%", width: "18px", height: "18px", cursor: "pointer", fontSize: "10px", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}>
-                    ×
-                  </button>
-                </div>
-              ))}
-              <div style={{ color: "#c8a96e", fontSize: "11px", alignSelf: "center" }}>{fichiersEnAttente.length} fichier(s) en attente</div>
-            </div>
-          )}
           <div style={{ display: "flex", gap: "10px", alignItems: "center", marginBottom: "8px" }}>
-            <input ref={fileInputRef} type="file" accept=".pdf,.jpg,.jpeg,.png" multiple onChange={ajouterFichiers} style={{ display: "none" }} />
+            <input ref={fileInputRef} type="file" accept=".pdf,.jpg,.jpeg,.png" multiple onChange={analyserFichier} style={{ display: "none" }} />
             <button onClick={() => fileInputRef.current.click()} disabled={loading || fichierLoading}
               title="Joindre PDF, JPEG ou PNG"
               style={{ padding: "12px", background: "rgba(200,169,110,0.15)", color: "#c8a96e", border: "1px solid rgba(200,169,110,0.3)", borderRadius: "8px", cursor: "pointer", fontSize: "18px", flexShrink: 0 }}>
               📎
             </button>
             <input type="text" value={message} onChange={e => setMessage(e.target.value)}
-              onKeyDown={e => { if (e.key === "Enter") { fichiersEnAttente.length > 0 ? envoyerAvecFichiers() : envoyer(); } }}
+              onKeyDown={e => e.key === "Enter" && envoyer()}
               placeholder="Posez votre question a Dr. Mercier..."
               style={{ flex: 1, padding: "12px", borderRadius: "8px", border: "1px solid rgba(200,169,110,0.3)", background: "rgba(255,255,255,0.05)", color: "#fff", fontSize: "14px" }} />
-            <button
-              onClick={() => fichiersEnAttente.length > 0 ? envoyerAvecFichiers() : envoyer()}
-              disabled={loading || fichierLoading}
-              style={{ padding: "12px 24px", background: fichiersEnAttente.length > 0 ? "#c8a96e" : "#c8a96e", color: "#050508", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "bold", whiteSpace: "nowrap" }}>
-              {fichiersEnAttente.length > 0 ? "Envoyer " + fichiersEnAttente.length + " 📎" : "Envoyer"}
+            <button onClick={() => envoyer()} disabled={loading}
+              style={{ padding: "12px 24px", background: "#c8a96e", color: "#050508", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "bold" }}>
+              Envoyer
             </button>
           </div>
 
@@ -270,4 +217,13 @@ export default function MrCamPage() {
         </div>
       </div>
     </div>
+      <MemoryButton
+        agentId="cam"
+        onRestore={restoreSession}
+        onSaveNow={saveMemory}
+        lastSaved={lastSaved}
+        isSaving={isSaving}
+      />
+
   );
+}
