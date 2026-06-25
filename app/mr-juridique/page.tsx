@@ -545,7 +545,6 @@ export default function MrJuridiquePage() {
           </div>
         )}
       </div>
-    </div>
       <MemoryButton
         agentId="juridique"
         onRestore={restoreSession}
@@ -553,6 +552,7 @@ export default function MrJuridiquePage() {
         lastSaved={lastSaved}
         isSaving={isSaving}
       />
+    </div>
 
   );
 }
