@@ -4,11 +4,11 @@ import { useAgentMemory } from "@/hooks/useAgentMemory";
 import { useState, useEffect, useRef } from "react";
 
 export default function MrCamPage() {
-  const [isAdmin, setIsAdmin] = useState(false);
-  const { conversation, addMessage, saveMemory, loadMemories, restoreSession, lastSaved, isSaving } = useAgentMemory({
+  const { saveMemory, restoreSession, lastSaved, isSaving } = useAgentMemory({
     agentId: "cam",
     sessionLabel: "Session cam"
   });
+  const [isAdmin, setIsAdmin] = useState(false);
   const [checking, setChecking] = useState(true);
   const [message, setMessage] = useState("");
   const [historique, setHistorique] = useState([]);
@@ -271,12 +271,3 @@ export default function MrCamPage() {
       </div>
     </div>
   );
-  <MemoryButton
-      agentId="cam"
-      onRestore={restoreSession}
-      onSaveNow={saveMemory}
-      lastSaved={lastSaved}
-      isSaving={isSaving}
-    />
-  );
-}
