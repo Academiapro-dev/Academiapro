@@ -117,7 +117,7 @@ export default function MrQualiopi() {
           return;
         }
         const img = new Image();
-        const url = URL.createObjectURL(file);
+        const objUrl = URL.createObjectURL(file);
         img.onload = () => {
           const MAX = 1024;
           let w = img.width, h = img.height;
@@ -129,45 +129,35 @@ export default function MrQualiopi() {
           canvas.width = w; canvas.height = h;
           (canvas.getContext("2d") as any).drawImage(img, 0, 0, w, h);
           const b64 = canvas.toDataURL("image/jpeg", 0.7).split(",")[1];
-          URL.revokeObjectURL(url);
+          URL.revokeObjectURL(objUrl);
           resolve({ base64: b64, mediaType: "image/jpeg", nom: file.name });
         };
-        img.src = url;
+        img.src = objUrl;
       });
     }
 
     const fichiersB64 = await Promise.all(files.map(compresser));
     const noms = files.map((f: any) => f.name).join(", ");
-    {
-      const reader = new FileReader();
-      reader.onload = async (ev: any) => {
-      const b64 = ev.target.result.split(",")[1];
-      const mediaType = ext === "pdf" ? "application/pdf" : ext === "png" ? "image/png" : "image/jpeg";
-      resolve({ base64: b64, mediaType, nom: file.name });
-    };
-    reader.readAsDataURL(file);
-  })));
-  const noms = files.map((f: any) => f.name).join(", ");
-  setChat(prev => [...prev, { role: "user", text: "📎 " + files.length + " document(s) : " + noms }]);
-  try {
-    const systeme = agentActif === "qualiopi" ? SYSTEM_QUALIOPI : SYSTEM_CERTIFICATEUR;
-    const res = await fetch("/api/admin/agent", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        message: "Analyse ces " + files.length + " document(s) dans le cadre Qualiopi / RS France Competences. Identifie les indicateurs, evalue la conformite aux seuils (satisfaction >80%, completion >70%), genere un rapport d audit complet.",
-        agent: { prompt: systeme },
-        historique: chat,
-        fichiers: fichiersB64
-      }),
-    });
-    const data = await res.json();
-    setChat(prev => [...prev, { role: "agent", text: data.reply || "Erreur." }]);
-  } catch {
-    setChat(prev => [...prev, { role: "agent", text: "Erreur analyse documents." }]);
-  }
-  setFichierLoading(false);
-  e.target.value = "";
+    setChat(prev => [...prev, { role: "user", text: "📎 " + files.length + " document(s) : " + noms }]);
+    try {
+      const systeme = agentActif === "qualiopi" ? SYSTEM_QUALIOPI : SYSTEM_CERTIFICATEUR;
+      const res = await fetch("/api/admin/agent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: "Analyse ces " + files.length + " document(s) dans le cadre Qualiopi / RS France Competences.",
+          agent: { prompt: systeme },
+          historique: chat,
+          fichiers: fichiersB64
+        }),
+      });
+      const data = await res.json();
+      setChat(prev => [...prev, { role: "agent", text: data.reply || "Erreur." }]);
+    } catch {
+      setChat(prev => [...prev, { role: "agent", text: "Erreur analyse documents." }]);
+    }
+    setFichierLoading(false);
+    e.target.value = "";
   }
 
   async function analyserIndicateurs() {
