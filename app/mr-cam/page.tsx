@@ -40,7 +40,7 @@ export default function MrCamPage() {
     if (!files.length) return;
     setFichierLoading(true);
     const noms = files.map((f) => f.name).join(", ");
-    setHistorique(prev => [...prev, { role: "user", text: "📎 " + files.length + " document(s) joint(s) : " + noms }]);
+    setHistorique(prev => [...prev, { role: "user", text: "📎 " + files.length + " document(s) joint(s) : " + noms, content: "📎 " + files.length + " document(s) joint(s) : " + noms }]);
     try {
       const fichiersB64 = await Promise.all(files.map((file) => new Promise((resolve) => {
         const ext = file.name.split(".").pop().toLowerCase();
@@ -60,9 +60,9 @@ export default function MrCamPage() {
         }),
       });
       const data = await r.json();
-      setHistorique(prev => [...prev, { role: "agent", text: data.reply || "Erreur." }]);
+      setHistorique(prev => [...prev, { role: "agent", text: data.reply || "Erreur.", content: data.reply || "Erreur." }]);
     } catch {
-      setHistorique(prev => [...prev, { role: "agent", text: "Erreur lors de l analyse." }]);
+      setHistorique(prev => [...prev, { role: "agent", text: "Erreur lors de l analyse.", content: "Erreur lors de l analyse." }]);
     }
     setFichierLoading(false);
     e.target.value = "";
@@ -72,7 +72,7 @@ export default function MrCamPage() {
     const m = msg || message;
     if (!m || !m.trim()) return;
     if (!msg) setMessage("");
-    setHistorique(prev => [...prev, { role: "user", text: m }]);
+    setHistorique(prev => [...prev, { role: "user", text: m, content: m }]);
     setLoading(true);
     try {
       const r = await fetch("/api/mr-cam", {
@@ -81,9 +81,9 @@ export default function MrCamPage() {
         body: JSON.stringify({ message: m, domaine, historique }),
       });
       const data = await r.json();
-      setHistorique(prev => [...prev, { role: "agent", text: data.reply || "Erreur." }]);
+      setHistorique(prev => [...prev, { role: "agent", text: data.reply || "Erreur.", content: data.reply || "Erreur." }]);
     } catch {
-      setHistorique(prev => [...prev, { role: "agent", text: "Erreur de connexion." }]);
+      setHistorique(prev => [...prev, { role: "agent", text: "Erreur de connexion.", content: "Erreur de connexion." }]);
     }
     setLoading(false);
   }
