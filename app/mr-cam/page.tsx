@@ -218,7 +218,13 @@ export default function MrCamPage() {
       </div>
       <MemoryButton
         agentId="cam"
-        onRestore={restoreSession}
+        onRestore={(messages) => {
+          const normalises = messages.map(m => ({
+            role: m.role === 'assistant' ? 'agent' : m.role,
+            text: m.text || m.content || ''
+          }));
+          setHistorique(normalises);
+        }}
         onSaveNow={saveMemory}
         lastSaved={lastSaved}
         isSaving={isSaving}
