@@ -1,5 +1,6 @@
 "use client";
 import MemoryButton from "@/components/MemoryButton";
+import FileUpload from "@/components/FileUpload";
 import { useAgentMemory } from "@/hooks/useAgentMemory";
 import { useState, useEffect, useRef } from "react";
 
@@ -205,7 +206,8 @@ const fichiersB64 = await Promise.all(files.map((file) => new Promise((resolve) 
             </button>
           </div>
 
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div style={{ marginBottom: "8px" }}><FileUpload agentId="cam" /></div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <p style={{ color: "rgba(255,255,255,0.2)", fontSize: "11px", margin: 0 }}>
               📎 PDF · JPEG · PNG — Analyse directe par Dr. Mercier
             </p>
