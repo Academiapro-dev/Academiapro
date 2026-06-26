@@ -44,7 +44,31 @@ export default function MrCamPage() {
     const noms = files.map((f) => f.name).join(", ");
     setHistorique(prev => [...prev, { role: "user", text: "📎 " + files.length + " document(s) joint(s) : " + noms, content: "📎 " + files.length + " document(s) joint(s) : " + noms }]);
     try {
-const fichiersB64 = await Promise.all(files.map((file) => new Promise((resolve) => {
+      // Stockage Supabase
+      for (const file of files) {
+        const ts = Date.now()
+        const nom = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+        const storagePath = `cam/${ts}_${nom}`
+        const { error: upErr } = await supaStorage.storage
+          .from('agent_documents')
+          .upload(storagePath, file, { contentType: file.type })
+        if (!upErr) {
+          const { data: urlData } = await supaStorage.storage
+            .from('agent_documents')
+            .createSignedUrl(storagePath, 31536000)
+          if (urlData?.signedUrl) {
+            await supaStorage.from('agent_documents').insert({
+              agent_id: 'cam',
+              file_name: file.name,
+              file_type: file.type,
+              file_url: urlData.signedUrl,
+              storage_path: storagePath,
+              description: file.name
+            })
+          }
+        }
+      }
+      const fichiersB64 = await Promise.all(files.map((file) => new Promise((resolve) => {
         const ext = file.name.split(".").pop().toLowerCase();
         const mediaType = ext === "pdf" ? "application/pdf" : ext === "png" ? "image/png" : "image/jpeg";
         const reader = new FileReader();
