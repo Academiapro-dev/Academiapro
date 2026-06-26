@@ -717,8 +717,14 @@ Documents prepares : ${documents.length} documents generes`,
       </div>
       <MemoryButton
         agentId="qualiopi"
-        onRestore={restoreSession}
-        onSaveNow={saveMemory}
+        onRestore={(messages) => {
+          setHistorique(messages.map(m => ({
+            role: m.role === 'assistant' ? 'agent' : m.role,
+            text: m.content || m.text || '',
+            content: m.content || m.text || ''
+          })));
+        }}
+        onSaveNow={() => saveMemory(historique)}
         lastSaved={lastSaved}
         isSaving={isSaving}
       />
