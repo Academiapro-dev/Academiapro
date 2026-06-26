@@ -80,6 +80,30 @@ REGLES :
 
     const data = await response.json();
     const reply = data.content?.[0]?.text || "Erreur.";
+
+    // Upload fichiers dans Supabase Storage en arriere-plan
+    if (fichiersList.length > 0) {
+      Promise.all(fichiersList.map(async (f: any) => {
+        try {
+          const ext = f.mediaType === "application/pdf" ? "pdf" : "jpg";
+          const nomFichier = "cam_" + Date.now() + "_" + Math.random().toString(36).slice(2,7) + "." + ext;
+          const bytes = Buffer.from(f.base64, "base64");
+          await fetch("https://kpxrbwsbhmggoajtxzqn.supabase.co/storage/v1/object/agent_documents/" + nomFichier, {
+            method: "POST",
+            headers: {
+              "apikey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtweHJid3NiaG1nZ29hanR4enFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA3NzM0NjIsImV4cCI6MjA5NjM0OTQ2Mn0.J45gFfkK7PHhpCFJ5ahRDbRSeGdG9YO1aa0rRZP_lks",
+              "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtweHJid3NiaG1nZ29hanR4enFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA3NzM0NjIsImV4cCI6MjA5NjM0OTQ2Mn0.J45gFfkK7PHhpCFJ5ahRDbRSeGdG9YO1aa0rRZP_lks",
+              "Content-Type": f.mediaType,
+              "x-upsert": "true"
+            },
+            body: bytes
+          });
+        } catch (err) {
+          console.error("Storage upload error:", err);
+        }
+      })).catch(() => {});
+    }
+
     return NextResponse.json({ reply });
 
   } catch (error) {
