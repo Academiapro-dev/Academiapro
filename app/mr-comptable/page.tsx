@@ -374,8 +374,14 @@ export default function MrComptablePage() {
       </div>
       <MemoryButton
         agentId="comptable"
-        onRestore={restoreSession}
-        onSaveNow={saveMemory}
+        onRestore={(messages) => {
+          setHistorique(messages.map(m => ({
+            role: m.role === 'assistant' ? 'agent' : m.role,
+            text: m.content || m.text || '',
+            content: m.content || m.text || ''
+          })));
+        }}
+        onSaveNow={() => saveMemory(historique)}
         lastSaved={lastSaved}
         isSaving={isSaving}
       />
