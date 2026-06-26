@@ -140,6 +140,28 @@ export default function MrComptablePage() {
         reader.onload = (ev) => resolve({ base64: ev.target.result.split(",")[1], mediaType, nom: file.name });
         reader.readAsDataURL(file);
       })));
+      
+      // Upload fichiers Supabase Storage
+      const urlsFichiers = [];
+      for (const f of fichiersB64) {
+        try {
+          const ext = f.mediaType === "application/pdf" ? "pdf" : "jpg";
+          const nomFichier = "cam_" + Date.now() + "_" + Math.random().toString(36).slice(2,7) + "." + ext;
+          const bytes = Uint8Array.from(atob(f.base64), c => c.charCodeAt(0));
+          await fetch("https://kpxrbwsbhmggoajtxzqn.supabase.co/storage/v1/object/agent_documents/" + nomFichier, {
+            method: "POST",
+            headers: {
+              "apikey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtweHJid3NiaG1nZ29hanR4enFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA3NzM0NjIsImV4cCI6MjA5NjM0OTQ2Mn0.J45gFfkK7PHhpCFJ5ahRDbRSeGdG9YO1aa0rRZP_lks",
+              "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtweHJid3NiaG1nZ29hanR4enFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA3NzM0NjIsImV4cCI6MjA5NjM0OTQ2Mn0.J45gFfkK7PHhpCFJ5ahRDbRSeGdG9YO1aa0rRZP_lks",
+              "Content-Type": f.mediaType,
+              "x-upsert": "true"
+            },
+            body: bytes
+          });
+          urlsFichiers.push("https://kpxrbwsbhmggoajtxzqn.supabase.co/storage/v1/object/public/agent_documents/" + nomFichier);
+        } catch {}
+      }
+
       const r = await fetch("/api/mr-comptable", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -166,6 +188,28 @@ export default function MrComptablePage() {
     setHistorique(prev => [...prev, { role: "user", text: m }]);
     setLoading(true);
     try {
+      
+      // Upload fichiers Supabase Storage
+      const urlsFichiers = [];
+      for (const f of fichiersB64) {
+        try {
+          const ext = f.mediaType === "application/pdf" ? "pdf" : "jpg";
+          const nomFichier = "cam_" + Date.now() + "_" + Math.random().toString(36).slice(2,7) + "." + ext;
+          const bytes = Uint8Array.from(atob(f.base64), c => c.charCodeAt(0));
+          await fetch("https://kpxrbwsbhmggoajtxzqn.supabase.co/storage/v1/object/agent_documents/" + nomFichier, {
+            method: "POST",
+            headers: {
+              "apikey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtweHJid3NiaG1nZ29hanR4enFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA3NzM0NjIsImV4cCI6MjA5NjM0OTQ2Mn0.J45gFfkK7PHhpCFJ5ahRDbRSeGdG9YO1aa0rRZP_lks",
+              "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtweHJid3NiaG1nZ29hanR4enFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA3NzM0NjIsImV4cCI6MjA5NjM0OTQ2Mn0.J45gFfkK7PHhpCFJ5ahRDbRSeGdG9YO1aa0rRZP_lks",
+              "Content-Type": f.mediaType,
+              "x-upsert": "true"
+            },
+            body: bytes
+          });
+          urlsFichiers.push("https://kpxrbwsbhmggoajtxzqn.supabase.co/storage/v1/object/public/agent_documents/" + nomFichier);
+        } catch {}
+      }
+
       const r = await fetch("/api/mr-comptable", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -186,6 +230,28 @@ export default function MrComptablePage() {
     setHistorique(prev => [...prev, { role: "user", text: "Checklist complete LLC Wyoming Israel pour mon profil AcademiA Pro" }]);
     setLoading(true);
     try {
+      
+      // Upload fichiers Supabase Storage
+      const urlsFichiers = [];
+      for (const f of fichiersB64) {
+        try {
+          const ext = f.mediaType === "application/pdf" ? "pdf" : "jpg";
+          const nomFichier = "cam_" + Date.now() + "_" + Math.random().toString(36).slice(2,7) + "." + ext;
+          const bytes = Uint8Array.from(atob(f.base64), c => c.charCodeAt(0));
+          await fetch("https://kpxrbwsbhmggoajtxzqn.supabase.co/storage/v1/object/agent_documents/" + nomFichier, {
+            method: "POST",
+            headers: {
+              "apikey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtweHJid3NiaG1nZ29hanR4enFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA3NzM0NjIsImV4cCI6MjA5NjM0OTQ2Mn0.J45gFfkK7PHhpCFJ5ahRDbRSeGdG9YO1aa0rRZP_lks",
+              "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtweHJid3NiaG1nZ29hanR4enFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA3NzM0NjIsImV4cCI6MjA5NjM0OTQ2Mn0.J45gFfkK7PHhpCFJ5ahRDbRSeGdG9YO1aa0rRZP_lks",
+              "Content-Type": f.mediaType,
+              "x-upsert": "true"
+            },
+            body: bytes
+          });
+          urlsFichiers.push("https://kpxrbwsbhmggoajtxzqn.supabase.co/storage/v1/object/public/agent_documents/" + nomFichier);
+        } catch {}
+      }
+
       const r = await fetch("/api/mr-comptable", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message: question, contexte: "international", historique: [] }) });
       const data = await r.json();
       setHistorique(prev => [...prev, { role: "agent", text: data.reply || "Erreur." }]);
