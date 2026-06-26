@@ -1,19 +1,22 @@
 'use client'
 
 import { useState, useRef, useCallback } from 'react'
-import { uploadManager, UploadedDocument } from '@/lib/uploadManager'
+import { createClient } from '@supabase/supabase-js'
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://kpxrbwsbhmggoajtxzqn.supabase.co',
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
+)
 
 interface FileUploadProps {
   agentId: string
-  onUploadComplete?: (doc: UploadedDocument) => void
+  onUploadComplete?: (fileName: string) => void
 }
 
 export default function FileUpload({ agentId, onUploadComplete }: FileUploadProps) {
-  const [isDragging, setIsDragging] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null)
   const [uploadError, setUploadError] = useState<string | null>(null)
-  const [description, setDescription] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleFile = useCallback(async (file: File) => {
@@ -32,86 +35,77 @@ export default function FileUpload({ agentId, onUploadComplete }: FileUploadProp
     setUploadError(null)
     setUploadSuccess(null)
 
-    const doc = await uploadManager.uploadFile(
-      file,
-      agentId,
-      description || file.name
-    )
+    try {
+      const timestamp = Date.now()
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+      const storagePath = `${agentId}/${timestamp}_${safeName}`
 
-    setIsUploading(false)
+      const { error: uploadError } = await supabase.storage
+        .from('agent_documents')
+        .upload(storagePath, file, { contentType: file.type })
 
-    if (doc) {
-      setUploadSuccess('Sauvegarde reussie : ' + file.name)
-      setDescription('')
-      onUploadComplete?.(doc)
+      if (uploadError) throw uploadError
+
+      const { data: urlData } = await supabase.storage
+        .from('agent_documents')
+        .createSignedUrl(storagePath, 365 * 24 * 60 * 60)
+
+      if (urlData?.signedUrl) {
+        await supabase.from('agent_documents').insert({
+          agent_id: agentId,
+          file_name: file.name,
+          file_type: file.type,
+          file_url: urlData.signedUrl,
+          storage_path: storagePath,
+          description: file.name
+        })
+      }
+
+      setUploadSuccess(file.name + ' sauvegarde !')
+      onUploadComplete?.(file.name)
       setTimeout(() => setUploadSuccess(null), 3000)
-    } else {
+
+    } catch (err) {
       setUploadError('Erreur upload — reessayez')
     }
-  }, [agentId, description, onUploadComplete])
 
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault()
-    setIsDragging(false)
-    const file = e.dataTransfer.files[0]
-    if (file) handleFile(file)
-  }, [handleFile])
+    setIsUploading(false)
+  }, [agentId, onUploadComplete])
 
   return (
-    <div className="w-full space-y-3">
+    <div className="w-full space-y-2">
       <input
-        type="text"
-        value={description}
-        onChange={e => setDescription(e.target.value)}
-        placeholder="Description du document (optionnel)"
-        className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-violet-500"
+        ref={fileInputRef}
+        type="file"
+        accept=".pdf,.jpg,.jpeg,.png"
+        className="hidden"
+        onChange={e => {
+          const file = e.target.files?.[0]
+          if (file) handleFile(file)
+        }}
       />
 
-      <div
-        onDragOver={e => { e.preventDefault(); setIsDragging(true) }}
-        onDragLeave={() => setIsDragging(false)}
-        onDrop={handleDrop}
+      <button
         onClick={() => fileInputRef.current?.click()}
-        className={[
-          'border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all duration-200',
-          isDragging ? 'border-violet-500 bg-violet-900/20' : 'border-gray-600 hover:border-violet-500 hover:bg-gray-800/50',
-          isUploading ? 'opacity-50 pointer-events-none' : ''
-        ].join(' ')}
+        disabled={isUploading}
+        style={{
+          padding: '8px 14px',
+          background: 'rgba(200,169,110,0.15)',
+          color: '#c8a96e',
+          border: '1px solid rgba(200,169,110,0.3)',
+          borderRadius: '8px',
+          cursor: 'pointer',
+          fontSize: '13px'
+        }}
       >
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".pdf,.jpg,.jpeg,.png"
-          className="hidden"
-          onChange={e => {
-            const file = e.target.files?.[0]
-            if (file) handleFile(file)
-          }}
-        />
-
-        {isUploading ? (
-          <div className="space-y-2">
-            <div className="text-2xl">⏳</div>
-            <p className="text-gray-400 text-sm">Upload en cours...</p>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            <div className="text-3xl">📎</div>
-            <p className="text-white text-sm font-medium">Deposez votre document ici</p>
-            <p className="text-gray-500 text-xs">PDF, JPEG, PNG — 10MB max</p>
-          </div>
-        )}
-      </div>
+        {isUploading ? '⏳ Sauvegarde...' : '💾 Sauvegarder document'}
+      </button>
 
       {uploadSuccess && (
-        <div className="bg-green-900/50 border border-green-600 rounded-lg px-4 py-2">
-          <p className="text-green-400 text-sm">{uploadSuccess}</p>
-        </div>
+        <p style={{ color: '#00c800', fontSize: '12px' }}>✅ {uploadSuccess}</p>
       )}
       {uploadError && (
-        <div className="bg-red-900/50 border border-red-600 rounded-lg px-4 py-2">
-          <p className="text-red-400 text-sm">{uploadError}</p>
-        </div>
+        <p style={{ color: '#ff4444', fontSize: '12px' }}>❌ {uploadError}</p>
       )}
     </div>
   )
