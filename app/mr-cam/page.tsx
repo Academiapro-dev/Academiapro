@@ -1,6 +1,7 @@
 "use client";
 import MemoryButton from "@/components/MemoryButton";
 import { useAgentMemory } from "@/hooks/useAgentMemory";
+import { uploadManager } from "@/lib/uploadManager";
 import { useState, useEffect, useRef } from "react";
 
 export default function MrCamPage() {
@@ -42,6 +43,10 @@ export default function MrCamPage() {
     const noms = files.map((f) => f.name).join(", ");
     setHistorique(prev => [...prev, { role: "user", text: "📎 " + files.length + " document(s) joint(s) : " + noms, content: "📎 " + files.length + " document(s) joint(s) : " + noms }]);
     try {
+      // Stockage Supabase
+      for (const file of files) {
+        await uploadManager.uploadFile(file, "cam", file.name)
+      }
       const fichiersB64 = await Promise.all(files.map((file) => new Promise((resolve) => {
         const ext = file.name.split(".").pop().toLowerCase();
         const mediaType = ext === "pdf" ? "application/pdf" : ext === "png" ? "image/png" : "image/jpeg";
