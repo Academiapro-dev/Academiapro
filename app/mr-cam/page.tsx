@@ -118,6 +118,25 @@ export default function MrCamPage() {
     setEnvoyant(true);
     try {
       const resume = historique.map(h => (h.role === "user" ? "JACQUES: " : "DR. MERCIER: ") + h.text).join("\n\n");
+
+      // Sauvegarde Supabase
+      await fetch("https://kpxrbwsbhmggoajtxzqn.supabase.co/rest/v1/sessions_cam", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "apikey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtweHJid3NiaG1nZ29hanR4enFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA3NzM0NjIsImV4cCI6MjA5NjM0OTQ2Mn0.J45gFfkK7PHhpCFJ5ahRDbRSeGdG9YO1aa0rRZP_lks",
+          "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtweHJid3NiaG1nZ29hanR4enFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA3NzM0NjIsImV4cCI6MjA5NjM0OTQ2Mn0.J45gFfkK7PHhpCFJ5ahRDbRSeGdG9YO1aa0rRZP_lks",
+          "Prefer": "return=minimal"
+        },
+        body: JSON.stringify({
+          nom: "Session cam",
+          agent: "cam",
+          messages: historique,
+          nb_messages: historique.length,
+        }),
+      });
+
+      // Email
       await fetch("/api/emailing", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -128,6 +147,7 @@ export default function MrCamPage() {
           html: "<h2>Session Dr. Alexandre Mercier — CAM</h2><pre style=\"white-space:pre-wrap;font-family:Arial;font-size:13px\">" + resume + "</pre>",
         }),
       });
+
       setEnvoiOk(true);
       setTimeout(() => setEnvoiOk(false), 4000);
     } catch {}
