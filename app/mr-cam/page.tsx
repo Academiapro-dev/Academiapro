@@ -94,7 +94,15 @@ export default function MrCamPage() {
             body: bytes
           });
           urlsFichiers.push("https://kpxrbwsbhmggoajtxzqn.supabase.co/storage/v1/object/public/agent_documents/" + nomFichier);
-        } catch {}
+        } catch (err) {
+          console.error("UPLOAD ERROR:", err);
+        }
+      }
+      console.log("URLs uploadees:", urlsFichiers);
+      if (urlsFichiers.length > 0) {
+        setHistorique(prev => [...prev, { role: "agent", text: "✅ " + urlsFichiers.length + " fichier(s) stocke(s) dans Supabase.", content: "" }]);
+      } else {
+        setHistorique(prev => [...prev, { role: "agent", text: "⚠️ Upload Supabase echoue — fichiers envoyes a l agent uniquement.", content: "" }]);
       }
 
       const r = await fetch("/api/mr-cam", {
