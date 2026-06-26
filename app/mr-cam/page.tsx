@@ -1,6 +1,8 @@
 "use client";
 import MemoryButton from "@/components/MemoryButton";
 import { useAgentMemory } from "@/hooks/useAgentMemory";
+import { createClient } from "@supabase/supabase-js";
+const supaStorage = createClient("https://kpxrbwsbhmggoajtxzqn.supabase.co", process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 import { useState, useEffect, useRef } from "react";
 
 export default function MrCamPage() {
