@@ -1,4 +1,9 @@
-import { createClient } from '@/lib/supabase/client'
+import { createClient } from '@supabase/supabase-js'
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://kpxrbwsbhmggoajtxzqn.supabase.co',
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
+)
 
 export interface UploadedDocument {
   id: string
@@ -19,30 +24,28 @@ export const uploadManager = {
     agentId: string,
     description?: string
   ): Promise<UploadedDocument | null> {
-    const supabase = createClient()
-    
     const timestamp = Date.now()
     const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
     const storagePath = `${agentId}/${timestamp}_${safeName}`
-    
+
     const { error: uploadError } = await supabase.storage
       .from('agent_documents')
       .upload(storagePath, file, {
         contentType: file.type,
         upsert: false
       })
-    
+
     if (uploadError) {
       console.error('Erreur upload Storage:', uploadError)
       return null
     }
-    
+
     const { data: urlData } = await supabase.storage
       .from('agent_documents')
       .createSignedUrl(storagePath, 365 * 24 * 60 * 60)
-    
+
     if (!urlData?.signedUrl) return null
-    
+
     const { data, error: dbError } = await supabase
       .from('agent_documents')
       .insert({
@@ -55,51 +58,45 @@ export const uploadManager = {
       })
       .select()
       .single()
-    
+
     if (dbError) return null
     return data
   },
 
   async getDocuments(agentId?: string): Promise<UploadedDocument[]> {
-    const supabase = createClient()
-    
     let query = supabase
       .from('agent_documents')
       .select('*')
       .order('created_at', { ascending: false })
-    
+
     if (agentId) query = query.eq('agent_id', agentId)
-    
+
     const { data, error } = await query
     if (error) return []
     return data || []
   },
 
   async searchDocuments(searchTerm: string): Promise<UploadedDocument[]> {
-    const supabase = createClient()
-    
     const { data, error } = await supabase
       .from('agent_documents')
       .select('*')
       .or(`file_name.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%`)
       .order('created_at', { ascending: false })
-    
+
     if (error) return []
     return data || []
   },
 
   async deleteDocument(id: string, storagePath: string): Promise<boolean> {
-    const supabase = createClient()
-    
     await supabase.storage
       .from('agent_documents')
       .remove([storagePath])
-    
+
     const { error } = await supabase
       .from('agent_documents')
       .delete()
       .eq('id', id)
-    
+
     return !error
   },
 
