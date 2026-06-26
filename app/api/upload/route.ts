@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
+import { cookies } from 'next/headers'
 
 export async function GET(request: NextRequest) {
-  const supabase = createClient()
+  const supabase = createRouteHandlerClient({ cookies })
   const { searchParams } = new URL(request.url)
   const agentId = searchParams.get('agent_id')
   const search = searchParams.get('search')
@@ -32,7 +33,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  const supabase = createClient()
+  const supabase = createRouteHandlerClient({ cookies })
   const { id, storage_path } = await request.json()
 
   if (!id || !storage_path) {
