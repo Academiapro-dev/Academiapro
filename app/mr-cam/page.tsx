@@ -82,7 +82,8 @@ export default function MrCamPage() {
         try {
           const ext = f.mediaType === "application/pdf" ? "pdf" : "jpg";
           const nomFichier = "cam_" + Date.now() + "_" + Math.random().toString(36).slice(2,7) + "." + ext;
-          const bytes = Uint8Array.from(atob(f.base64), c => c.charCodeAt(0));
+          const b64clean = f.base64.includes(",") ? f.base64.split(",")[1] : f.base64;
+          const bytes = Uint8Array.from(atob(b64clean), c => c.charCodeAt(0));
           await fetch("https://kpxrbwsbhmggoajtxzqn.supabase.co/storage/v1/object/agent_documents/" + nomFichier, {
             method: "POST",
             headers: {
