@@ -72,7 +72,7 @@ export default function MemoirePage() {
             ))}
           </div>
           <input type="text" placeholder="Rechercher..." value={recherche} onChange={e => setRecherche(e.target.value)}
-            style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid rgba(200,169,110,0.3)", background: "rgba(255,255,255,0.05)", color: "#fff", marginBottom: "12px", boxSizing: "border-box" }} />
+            style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid rgba(200,169,110,0.3)", background: "rgba(255,255,255,0.05)", color: "#fff", marginBottom: "12px", boxSizing: "border-box" as any }} />
 
           {loading ? <p style={{ color: "rgba(255,255,255,0.4)", textAlign: "center" }}>Chargement...</p> :
             sessionsFiltrees.map(s => (
