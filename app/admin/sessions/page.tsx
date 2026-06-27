@@ -1,4 +1,5 @@
 "use client";
+// v2
 import { useState, useEffect } from "react";
 
 const SUPABASE_URL = "https://kpxrbwsbhmggoajtxzqn.supabase.co";
