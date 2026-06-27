@@ -1,16 +1,18 @@
 "use client";
-// v2
+// v3
 import { useState, useEffect } from "react";
 
 const SUPABASE_URL = "https://kpxrbwsbhmggoajtxzqn.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtweHJid3NiaG1nZ29hanR4enFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA3NzM0NjIsImV4cCI6MjA5NjM0OTQ2Mn0.J45gFfkK7PHhpCFJ5ahRDbRSeGdG9YO1aa0rRZP_lks";
 
-export default function MemoirePage() {
+export default function SessionsPage() {
   const [sessions, setSessions] = useState([]);
   const [sessionActive, setSessionActive] = useState(null);
+  const [fichiers, setFichiers] = useState([]);
   const [filtreAgent, setFiltreAgent] = useState("tous");
   const [recherche, setRecherche] = useState("");
   const [loading, setLoading] = useState(true);
+  const [loadingFichiers, setLoadingFichiers] = useState(false);
 
   useEffect(() => { charger(); }, []);
 
@@ -24,12 +26,48 @@ export default function MemoirePage() {
     setLoading(false);
   }
 
-  async function ouvrirSession(id) {
-    const r = await fetch(SUPABASE_URL + "/rest/v1/agent_memories?id=eq." + id + "&select=*", {
+  async function ouvrirSession(session) {
+    setSessionActive(null);
+    setFichiers([]);
+    const r = await fetch(SUPABASE_URL + "/rest/v1/agent_memories?id=eq." + session.id + "&select=*", {
       headers: { "apikey": SUPABASE_KEY, "Authorization": "Bearer " + SUPABASE_KEY }
     });
     const data = await r.json();
-    if (data[0]) setSessionActive(data[0]);
+    if (data[0]) {
+      setSessionActive(data[0]);
+      chargerFichiers(session.agent_id, session.created_at);
+    }
+  }
+
+  async function chargerFichiers(agentId, sessionDate) {
+    setLoadingFichiers(true);
+    try {
+      const r = await fetch(SUPABASE_URL + "/storage/v1/object/list/agent_documents", {
+        method: "POST",
+        headers: {
+          "apikey": SUPABASE_KEY,
+          "Authorization": "Bearer " + SUPABASE_KEY,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ prefix: agentId + "_", limit: 100, sortBy: { column: "created_at", order: "desc" } })
+      });
+      const data = await r.json();
+      if (Array.isArray(data)) {
+        const sessionTs = new Date(sessionDate).getTime();
+        const filtres = data.filter(f => {
+          const parts = f.name.split("_");
+          if (parts.length < 2) return false;
+          const ts = parseInt(parts[1]);
+          return Math.abs(ts - sessionTs) < 3600000;
+        });
+        setFichiers(filtres.map(f => ({
+          nom: f.name,
+          url: SUPABASE_URL + "/storage/v1/object/public/agent_documents/" + f.name,
+          type: f.name.endsWith(".pdf") ? "pdf" : "image"
+        })));
+      }
+    } catch {}
+    setLoadingFichiers(false);
   }
 
   async function supprimerSession(id) {
@@ -38,7 +76,7 @@ export default function MemoirePage() {
       method: "DELETE",
       headers: { "apikey": SUPABASE_KEY, "Authorization": "Bearer " + SUPABASE_KEY }
     });
-    if (sessionActive?.id === id) setSessionActive(null);
+    if (sessionActive?.id === id) { setSessionActive(null); setFichiers([]); }
     charger();
   }
 
@@ -61,7 +99,7 @@ export default function MemoirePage() {
         </div>
       </div>
 
-      <div style={{ maxWidth: "1200px", margin: "0 auto", padding: "20px", display: "grid", gridTemplateColumns: "340px 1fr", gap: "20px" }}>
+      <div style={{ maxWidth: "1200px", margin: "0 auto", padding: "20px", display: "grid", gridTemplateColumns: "320px 1fr", gap: "20px" }}>
 
         <div>
           <div style={{ display: "flex", gap: "8px", marginBottom: "15px", flexWrap: "wrap" }}>
@@ -74,11 +112,9 @@ export default function MemoirePage() {
           </div>
           <input type="text" placeholder="Rechercher..." value={recherche} onChange={e => setRecherche(e.target.value)}
             style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid rgba(200,169,110,0.3)", background: "rgba(255,255,255,0.05)", color: "#fff", marginBottom: "12px", boxSizing: "border-box" as any }} />
-
           {loading ? <p style={{ color: "rgba(255,255,255,0.4)", textAlign: "center" }}>Chargement...</p> :
             sessionsFiltrees.map(s => (
-              <div key={s.id}
-                onClick={() => ouvrirSession(s.id)}
+              <div key={s.id} onClick={() => ouvrirSession(s)}
                 style={{ background: sessionActive?.id === s.id ? "rgba(200,169,110,0.15)" : "rgba(255,255,255,0.03)", border: "1px solid " + (sessionActive?.id === s.id ? "#c8a96e" : "rgba(255,255,255,0.08)"), borderRadius: "10px", padding: "14px", marginBottom: "8px", cursor: "pointer" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                   <div>
@@ -101,7 +137,7 @@ export default function MemoirePage() {
           {!sessionActive ? (
             <div style={{ textAlign: "center", paddingTop: "100px" }}>
               <p style={{ color: "rgba(255,255,255,0.3)", fontSize: "16px" }}>Sélectionne une session</p>
-              <p style={{ color: "rgba(255,255,255,0.2)", fontSize: "13px" }}>pour lire la conversation</p>
+              <p style={{ color: "rgba(255,255,255,0.2)", fontSize: "13px" }}>pour lire la conversation et accéder aux fichiers</p>
             </div>
           ) : (
             <>
@@ -111,6 +147,32 @@ export default function MemoirePage() {
                   Agent : {sessionActive.agent_id} · {Array.isArray(sessionActive.conversation) ? sessionActive.conversation.length : 0} messages · {new Date(sessionActive.created_at).toLocaleString("fr-FR")}
                 </p>
               </div>
+
+              {fichiers.length > 0 && (
+                <div style={{ marginBottom: "20px", padding: "15px", background: "rgba(200,169,110,0.08)", border: "1px solid rgba(200,169,110,0.2)", borderRadius: "10px" }}>
+                  <h3 style={{ color: "#c8a96e", fontSize: "13px", margin: "0 0 12px", fontWeight: "bold" }}>📎 Fichiers de cette session ({fichiers.length})</h3>
+                  <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+                    {fichiers.map((f, i) => (
+                      <a key={i} href={f.url} target="_blank" rel="noopener noreferrer"
+                        style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "6px", textDecoration: "none" }}>
+                        {f.type === "image" ? (
+                          <img src={f.url} style={{ width: "80px", height: "80px", objectFit: "cover", borderRadius: "8px", border: "1px solid rgba(200,169,110,0.3)" }} />
+                        ) : (
+                          <div style={{ width: "80px", height: "80px", background: "rgba(200,169,110,0.15)", borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "28px", border: "1px solid rgba(200,169,110,0.3)" }}>📄</div>
+                        )}
+                        <span style={{ color: "#c8a96e", fontSize: "10px", textAlign: "center", maxWidth: "80px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {f.nom.split("_").slice(2).join("_") || f.nom}
+                        </span>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {loadingFichiers && (
+                <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "12px", marginBottom: "15px" }}>⏳ Chargement des fichiers...</p>
+              )}
+
               {Array.isArray(sessionActive.conversation) && sessionActive.conversation.map((msg, i) => (
                 <div key={i} style={{ marginBottom: "12px", display: "flex", justifyContent: msg.role === "user" ? "flex-end" : "flex-start" }}>
                   <div style={{ background: msg.role === "user" ? "rgba(200,169,110,0.2)" : "rgba(255,255,255,0.06)", border: "1px solid " + (msg.role === "user" ? "rgba(200,169,110,0.3)" : "rgba(255,255,255,0.08)"), padding: "10px 14px", borderRadius: "10px", maxWidth: "85%", fontSize: "13px", lineHeight: "1.6", whiteSpace: "pre-wrap" }}>
