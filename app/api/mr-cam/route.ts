@@ -81,6 +81,32 @@ REGLES :
     const data = await response.json();
     const reply = data.content?.[0]?.text || "Erreur.";
 
+    // Upload fichiers dans Supabase Storage
+    if (fichiersList.length > 0) {
+      const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+      await Promise.all(fichiersList.map(async (f: any) => {
+        try {
+          const ext = f.mediaType === "application/pdf" ? "pdf" : f.mediaType === "image/png" ? "png" : "jpg";
+          const nomFichier = "cam_" + Date.now() + "_" + Math.random().toString(36).slice(2,7) + "." + ext;
+          const bytes = Buffer.from(f.base64, "base64");
+          const res = await fetch("https://kpxrbwsbhmggoajtxzqn.supabase.co/storage/v1/object/agent_documents/" + nomFichier, {
+            method: "POST",
+            headers: {
+              "apikey": serviceKey,
+              "Authorization": "Bearer " + serviceKey,
+              "Content-Type": f.mediaType,
+              "x-upsert": "true"
+            },
+            body: bytes
+          });
+          console.log("Upload result:", res.status, nomFichier);
+        } catch (err) {
+          console.error("Upload error:", err);
+        }
+      }));
+    }
+
+
     // Upload fichiers dans Supabase Storage avant de repondre
     if (fichiersList.length > 0) {
       await Promise.all(fichiersList.map(async (f: any) => {
