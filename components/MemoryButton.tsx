@@ -30,10 +30,13 @@ export default function MemoryButton({
   const [memories, setMemories] = useState<Memory[]>([])
   const [loading, setLoading] = useState(false)
   const [restored, setRestored] = useState<string | null>(null)
+  const [voirTout, setVoirTout] = useState(false)
+  const [saveOk, setSaveOk] = useState(false)
 
   const openPanel = useCallback(async () => {
     setIsOpen(true)
     setLoading(true)
+    setVoirTout(false)
     try {
       const res = await fetch(`/api/memory/load?agent_id=${agentId}`)
       const result = await res.json()
@@ -43,6 +46,12 @@ export default function MemoryButton({
     }
     setLoading(false)
   }, [agentId])
+
+  const handleSave = useCallback(() => {
+    onSaveNow()
+    setSaveOk(true)
+    setTimeout(() => setSaveOk(false), 2000)
+  }, [onSaveNow])
 
   const handleRestore = useCallback((memory: Memory) => {
     onRestore(memory.conversation)
@@ -60,72 +69,100 @@ export default function MemoryButton({
     })
   }
 
+  const memoriesAffichees = voirTout ? memories : memories.slice(0, 5)
+
   return (
     <>
-      <button
-        onClick={openPanel}
-        className="fixed bottom-6 right-6 z-50 flex items-center gap-2 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white font-semibold px-4 py-3 rounded-full shadow-lg transition-all duration-200"
-      >
-        <span className="text-lg">🧠</span>
-        <span className="text-sm">Mémoire</span>
-        {isSaving && <span className="text-xs opacity-70">💾</span>}
-      </button>
-
-      {lastSaved && (
-        <div className="fixed bottom-20 right-6 z-40 text-xs text-gray-400">
-          Sauvegardé à {lastSaved}
-        </div>
-      )}
+      <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+        <button
+          onClick={handleSave}
+          style={{
+            padding: "6px 14px",
+            background: saveOk ? "#00c800" : "rgba(139,92,246,0.2)",
+            color: saveOk ? "#fff" : "#a78bfa",
+            border: "1px solid " + (saveOk ? "#00c800" : "rgba(139,92,246,0.4)"),
+            borderRadius: "6px",
+            cursor: "pointer",
+            fontSize: "12px",
+            fontWeight: "bold",
+            transition: "all 0.2s"
+          }}
+        >
+          {saveOk ? "✅ Sauvegardé !" : isSaving ? "⏳ Sauvegarde..." : "💾 Sauvegarder"}
+        </button>
+        <button
+          onClick={openPanel}
+          style={{
+            padding: "6px 14px",
+            background: "rgba(139,92,246,0.2)",
+            color: "#a78bfa",
+            border: "1px solid rgba(139,92,246,0.4)",
+            borderRadius: "6px",
+            cursor: "pointer",
+            fontSize: "12px",
+            fontWeight: "bold"
+          }}
+        >
+          📂 Restaurer
+        </button>
+        {lastSaved && (
+          <span style={{ color: "rgba(255,255,255,0.3)", fontSize: "10px" }}>
+            {lastSaved}
+          </span>
+        )}
+      </div>
 
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setIsOpen(false)} />
-          <div className="relative bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-lg max-h-[80vh] overflow-hidden shadow-2xl flex flex-col">
-            <div className="flex items-center justify-between p-5 border-b border-gray-700">
+        <div style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
+          <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)" }} onClick={() => setIsOpen(false)} />
+          <div style={{ position: "relative", background: "#111827", border: "1px solid #374151", borderRadius: "16px", width: "100%", maxWidth: "500px", maxHeight: "80vh", overflow: "hidden", display: "flex", flexDirection: "column", boxShadow: "0 25px 50px rgba(0,0,0,0.5)" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px", borderBottom: "1px solid #374151" }}>
               <div>
-                <h2 className="text-white font-bold text-lg">🧠 Mémoire — {agentId}</h2>
-                <p className="text-gray-400 text-sm mt-0.5">{memories.length} session(s) sauvegardée(s)</p>
+                <h2 style={{ color: "#fff", fontWeight: "bold", fontSize: "18px", margin: 0 }}>🧠 Mémoire — {agentId}</h2>
+                <p style={{ color: "#9ca3af", fontSize: "13px", margin: "4px 0 0" }}>{memories.length} session(s) sauvegardée(s)</p>
               </div>
-              <button onClick={() => setIsOpen(false)} className="text-gray-400 hover:text-white text-2xl">×</button>
+              <button onClick={() => setIsOpen(false)} style={{ color: "#9ca3af", background: "none", border: "none", fontSize: "24px", cursor: "pointer" }}>×</button>
             </div>
-            <div className="flex gap-2 p-4 border-b border-gray-700">
-              <button
-                onClick={() => { onSaveNow(); setTimeout(openPanel, 500) }}
-                className="flex-1 bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium py-2 px-3 rounded-lg transition-colors"
-              >
-                💾 Sauvegarder maintenant
-              </button>
-            </div>
-            <div className="overflow-y-auto flex-1 p-4 space-y-2">
+            <div style={{ overflowY: "auto", flex: 1, padding: "16px", display: "flex", flexDirection: "column", gap: "8px" }}>
               {loading ? (
-                <div className="text-center text-gray-400 py-8">Chargement...</div>
+                <div style={{ textAlign: "center", color: "#9ca3af", padding: "32px" }}>Chargement...</div>
               ) : memories.length === 0 ? (
-                <div className="text-center text-gray-500 py-8">
-                  <p className="text-4xl mb-3">📭</p>
+                <div style={{ textAlign: "center", color: "#6b7280", padding: "32px" }}>
+                  <p style={{ fontSize: "40px", margin: "0 0 12px" }}>📭</p>
                   <p>Aucune session sauvegardée</p>
                 </div>
               ) : (
-                memories.map((memory, index) => (
-                  <div key={memory.id} className={`flex items-center justify-between p-3 rounded-xl border transition-all ${restored === memory.id ? 'bg-green-900/50 border-green-500' : index === 0 ? 'bg-violet-900/30 border-violet-600/50' : 'bg-gray-800/50 border-gray-700'}`}>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        {index === 0 && <span className="text-xs bg-violet-600 text-white px-2 py-0.5 rounded-full">Dernière</span>}
-                        <span className="text-white text-sm font-medium truncate">{memory.session_label}</span>
+                <>
+                  {memoriesAffichees.map((memory, index) => (
+                    <div key={memory.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px", borderRadius: "12px", border: "1px solid " + (restored === memory.id ? "#22c55e" : index === 0 ? "rgba(139,92,246,0.5)" : "#374151"), background: restored === memory.id ? "rgba(34,197,94,0.1)" : index === 0 ? "rgba(139,92,246,0.15)" : "rgba(31,41,55,0.5)" }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                          {index === 0 && <span style={{ fontSize: "10px", background: "#7c3aed", color: "#fff", padding: "2px 8px", borderRadius: "20px" }}>Dernière</span>}
+                          <span style={{ color: "#fff", fontSize: "14px", fontWeight: "500" }}>{memory.session_label}</span>
+                        </div>
+                        <p style={{ color: "#9ca3af", fontSize: "11px", margin: "4px 0 0" }}>🕐 {formatDate(memory.updated_at)} · {memory.conversation?.length || 0} messages</p>
                       </div>
-                      <p className="text-gray-400 text-xs mt-0.5">🕐 {formatDate(memory.updated_at)} • {memory.conversation?.length || 0} messages</p>
+                      <button
+                        onClick={() => handleRestore(memory)}
+                        style={{ marginLeft: "12px", padding: "6px 12px", borderRadius: "8px", fontSize: "13px", fontWeight: "500", border: "none", cursor: "pointer", background: restored === memory.id ? "#22c55e" : "#374151", color: restored === memory.id ? "#fff" : "#d1d5db" }}
+                      >
+                        {restored === memory.id ? "✅" : "↩️ Restaurer"}
+                      </button>
                     </div>
+                  ))}
+                  {memories.length > 5 && !voirTout && (
                     <button
-                      onClick={() => handleRestore(memory)}
-                      className={`ml-3 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${restored === memory.id ? 'bg-green-500 text-white' : 'bg-gray-700 hover:bg-violet-600 text-gray-300 hover:text-white'}`}
+                      onClick={() => setVoirTout(true)}
+                      style={{ width: "100%", padding: "10px", background: "rgba(139,92,246,0.1)", color: "#a78bfa", border: "1px solid rgba(139,92,246,0.3)", borderRadius: "8px", cursor: "pointer", fontSize: "13px" }}
                     >
-                      {restored === memory.id ? '✅' : '↩️ Restaurer'}
+                      Voir les {memories.length - 5} sessions précédentes
                     </button>
-                  </div>
-                ))
+                  )}
+                </>
               )}
             </div>
-            <div className="p-4 border-t border-gray-700">
-              <p className="text-gray-500 text-xs text-center">⏱️ Sauvegarde auto toutes les 5 min</p>
+            <div style={{ padding: "16px", borderTop: "1px solid #374151" }}>
+              <p style={{ color: "#6b7280", fontSize: "11px", textAlign: "center", margin: 0 }}>⏱️ Sauvegarde auto toutes les 5 min</p>
             </div>
           </div>
         </div>
