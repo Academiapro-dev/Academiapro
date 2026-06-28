@@ -230,27 +230,72 @@ export default function MrJuridiquePage() {
     if (!files.length) return;
     setFichierLoading(true);
     const noms = files.map((f) => f.name).join(", ");
+
+    async function compresser(file) {
+      return new Promise((resolve) => {
+        const ext = file.name.split(".").pop().toLowerCase();
+        if (ext === "pdf") {
+          const reader = new FileReader();
+          reader.onload = (ev) => resolve({ base64: ev.target.result.split(",")[1], mediaType: "application/pdf", nom: file.name });
+          reader.readAsDataURL(file);
+          return;
+        }
+        const img = new Image();
+        const url = URL.createObjectURL(file);
+        img.onload = () => {
+          const MAX = 1024;
+          let w = img.width, h = img.height;
+          if (w > MAX || h > MAX) {
+            if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
+            else { w = Math.round(w * MAX / h); h = MAX; }
+          }
+          const canvas = document.createElement("canvas");
+          canvas.width = w; canvas.height = h;
+          canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+          const b64 = canvas.toDataURL("image/jpeg", 0.7).split(",")[1];
+          URL.revokeObjectURL(url);
+          resolve({ base64: b64, mediaType: "image/jpeg", nom: file.name });
+        };
+        img.src = url;
+      });
+    }
     setHistorique(prev => [...prev, { role: "user", text: "📎 " + files.length + " document(s) joint(s) : " + noms }]);
     try {
-      const fichiersB64 = await Promise.all(files.map((file) => new Promise((resolve) => {
-        const ext = file.name.split(".").pop().toLowerCase();
-        const mediaType = ext === "pdf" ? "application/pdf" : ext === "png" ? "image/png" : "image/jpeg";
-        const reader = new FileReader();
-        reader.onload = (ev) => resolve({ base64: ev.target.result.split(",")[1], mediaType, nom: file.name });
-        reader.readAsDataURL(file);
-      })));
+      const fichiersB64 = await Promise.all(files.map(compresser));
+      
+      // Upload fichiers Supabase Storage
+      const urlsFichiers = [];
+      for (const f of fichiersB64) {
+        try {
+          const ext = f.mediaType === "application/pdf" ? "pdf" : "jpg";
+          const nomFichier = "cam_" + Date.now() + "_" + Math.random().toString(36).slice(2,7) + "." + ext;
+          const bytes = Uint8Array.from(atob(f.base64), c => c.charCodeAt(0));
+          await fetch("https://kpxrbwsbhmggoajtxzqn.supabase.co/storage/v1/object/agent_documents/" + nomFichier, {
+            method: "POST",
+            headers: {
+              "apikey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtweHJid3NiaG1nZ29hanR4enFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA3NzM0NjIsImV4cCI6MjA5NjM0OTQ2Mn0.J45gFfkK7PHhpCFJ5ahRDbRSeGdG9YO1aa0rRZP_lks",
+              "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtweHJid3NiaG1nZ29hanR4enFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA3NzM0NjIsImV4cCI6MjA5NjM0OTQ2Mn0.J45gFfkK7PHhpCFJ5ahRDbRSeGdG9YO1aa0rRZP_lks",
+              "Content-Type": f.mediaType,
+              "x-upsert": "true"
+            },
+            body: bytes
+          });
+          urlsFichiers.push("https://kpxrbwsbhmggoajtxzqn.supabase.co/storage/v1/object/public/agent_documents/" + nomFichier);
+        } catch {}
+      }
+
       const r = await fetch("/api/mr-juridique", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          message: "Analyse ces " + files.length + " document(s) et donne moi une analyse juridique complete.",
+          message: "Analyse ces " + files.length + " document(s) et donne moi une analyse juridique experte complete en tant que Maitre Pierre Duval.",
           contexte,
           historique,
           fichiers: fichiersB64
         }),
       });
       const data = await r.json();
-      setHistorique(prev => [...prev, { role: "agent", text: data.reply || "Erreur." }]);
+      setHistorique(prev => [...prev, { role: "agent", text: data.reply || "Erreur d analyse." }]);
     } catch {
       setHistorique(prev => [...prev, { role: "agent", text: "Erreur lors de l analyse des documents." }]);
     }
@@ -263,6 +308,28 @@ export default function MrJuridiquePage() {
     setOnglet("chat");
     setHistorique(prev => [...prev, { role: "user", text: action.guide }]);
     try {
+      
+      // Upload fichiers Supabase Storage
+      const urlsFichiers = [];
+      for (const f of fichiersB64) {
+        try {
+          const ext = f.mediaType === "application/pdf" ? "pdf" : "jpg";
+          const nomFichier = "cam_" + Date.now() + "_" + Math.random().toString(36).slice(2,7) + "." + ext;
+          const bytes = Uint8Array.from(atob(f.base64), c => c.charCodeAt(0));
+          await fetch("https://kpxrbwsbhmggoajtxzqn.supabase.co/storage/v1/object/agent_documents/" + nomFichier, {
+            method: "POST",
+            headers: {
+              "apikey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtweHJid3NiaG1nZ29hanR4enFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA3NzM0NjIsImV4cCI6MjA5NjM0OTQ2Mn0.J45gFfkK7PHhpCFJ5ahRDbRSeGdG9YO1aa0rRZP_lks",
+              "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtweHJid3NiaG1nZ29hanR4enFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA3NzM0NjIsImV4cCI6MjA5NjM0OTQ2Mn0.J45gFfkK7PHhpCFJ5ahRDbRSeGdG9YO1aa0rRZP_lks",
+              "Content-Type": f.mediaType,
+              "x-upsert": "true"
+            },
+            body: bytes
+          });
+          urlsFichiers.push("https://kpxrbwsbhmggoajtxzqn.supabase.co/storage/v1/object/public/agent_documents/" + nomFichier);
+        } catch {}
+      }
+
       const r = await fetch("/api/mr-juridique", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -284,6 +351,28 @@ export default function MrJuridiquePage() {
     setHistorique(prev => [...prev, { role: "user", text: m }]);
     setLoading(true);
     try {
+      
+      // Upload fichiers Supabase Storage
+      const urlsFichiers = [];
+      for (const f of fichiersB64) {
+        try {
+          const ext = f.mediaType === "application/pdf" ? "pdf" : "jpg";
+          const nomFichier = "cam_" + Date.now() + "_" + Math.random().toString(36).slice(2,7) + "." + ext;
+          const bytes = Uint8Array.from(atob(f.base64), c => c.charCodeAt(0));
+          await fetch("https://kpxrbwsbhmggoajtxzqn.supabase.co/storage/v1/object/agent_documents/" + nomFichier, {
+            method: "POST",
+            headers: {
+              "apikey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtweHJid3NiaG1nZ29hanR4enFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA3NzM0NjIsImV4cCI6MjA5NjM0OTQ2Mn0.J45gFfkK7PHhpCFJ5ahRDbRSeGdG9YO1aa0rRZP_lks",
+              "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtweHJid3NiaG1nZ29hanR4enFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA3NzM0NjIsImV4cCI6MjA5NjM0OTQ2Mn0.J45gFfkK7PHhpCFJ5ahRDbRSeGdG9YO1aa0rRZP_lks",
+              "Content-Type": f.mediaType,
+              "x-upsert": "true"
+            },
+            body: bytes
+          });
+          urlsFichiers.push("https://kpxrbwsbhmggoajtxzqn.supabase.co/storage/v1/object/public/agent_documents/" + nomFichier);
+        } catch {}
+      }
+
       const r = await fetch("/api/mr-juridique", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -303,6 +392,28 @@ export default function MrJuridiquePage() {
     setHistorique(prev => [...prev, { role: "user", text: "Checklist juridique complete LLC Wyoming + INPI + Exit France + Israel" }]);
     setLoading(true);
     try {
+      
+      // Upload fichiers Supabase Storage
+      const urlsFichiers = [];
+      for (const f of fichiersB64) {
+        try {
+          const ext = f.mediaType === "application/pdf" ? "pdf" : "jpg";
+          const nomFichier = "cam_" + Date.now() + "_" + Math.random().toString(36).slice(2,7) + "." + ext;
+          const bytes = Uint8Array.from(atob(f.base64), c => c.charCodeAt(0));
+          await fetch("https://kpxrbwsbhmggoajtxzqn.supabase.co/storage/v1/object/agent_documents/" + nomFichier, {
+            method: "POST",
+            headers: {
+              "apikey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtweHJid3NiaG1nZ29hanR4enFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA3NzM0NjIsImV4cCI6MjA5NjM0OTQ2Mn0.J45gFfkK7PHhpCFJ5ahRDbRSeGdG9YO1aa0rRZP_lks",
+              "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtweHJid3NiaG1nZ29hanR4enFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA3NzM0NjIsImV4cCI6MjA5NjM0OTQ2Mn0.J45gFfkK7PHhpCFJ5ahRDbRSeGdG9YO1aa0rRZP_lks",
+              "Content-Type": f.mediaType,
+              "x-upsert": "true"
+            },
+            body: bytes
+          });
+          urlsFichiers.push("https://kpxrbwsbhmggoajtxzqn.supabase.co/storage/v1/object/public/agent_documents/" + nomFichier);
+        } catch {}
+      }
+
       const r = await fetch("/api/mr-juridique", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message: q, contexte: "international", historique: [] }) });
       const data = await r.json();
       setHistorique(prev => [...prev, { role: "agent", text: data.reply || "Erreur." }]);
@@ -316,6 +427,28 @@ export default function MrJuridiquePage() {
     setHistorique(prev => [...prev, { role: "user", text: "Guide depot marque INPI France + extension internationale" }]);
     setLoading(true);
     try {
+      
+      // Upload fichiers Supabase Storage
+      const urlsFichiers = [];
+      for (const f of fichiersB64) {
+        try {
+          const ext = f.mediaType === "application/pdf" ? "pdf" : "jpg";
+          const nomFichier = "cam_" + Date.now() + "_" + Math.random().toString(36).slice(2,7) + "." + ext;
+          const bytes = Uint8Array.from(atob(f.base64), c => c.charCodeAt(0));
+          await fetch("https://kpxrbwsbhmggoajtxzqn.supabase.co/storage/v1/object/agent_documents/" + nomFichier, {
+            method: "POST",
+            headers: {
+              "apikey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtweHJid3NiaG1nZ29hanR4enFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA3NzM0NjIsImV4cCI6MjA5NjM0OTQ2Mn0.J45gFfkK7PHhpCFJ5ahRDbRSeGdG9YO1aa0rRZP_lks",
+              "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtweHJid3NiaG1nZ29hanR4enFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA3NzM0NjIsImV4cCI6MjA5NjM0OTQ2Mn0.J45gFfkK7PHhpCFJ5ahRDbRSeGdG9YO1aa0rRZP_lks",
+              "Content-Type": f.mediaType,
+              "x-upsert": "true"
+            },
+            body: bytes
+          });
+          urlsFichiers.push("https://kpxrbwsbhmggoajtxzqn.supabase.co/storage/v1/object/public/agent_documents/" + nomFichier);
+        } catch {}
+      }
+
       const r = await fetch("/api/mr-juridique", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message: q, contexte: "france", historique: [] }) });
       const data = await r.json();
       setHistorique(prev => [...prev, { role: "agent", text: data.reply || "Erreur." }]);
@@ -329,6 +462,28 @@ export default function MrJuridiquePage() {
     setHistorique(prev => [...prev, { role: "user", text: "Guide protection marque internationale : USPTO + Israel + Madrid OMPI" }]);
     setLoading(true);
     try {
+      
+      // Upload fichiers Supabase Storage
+      const urlsFichiers = [];
+      for (const f of fichiersB64) {
+        try {
+          const ext = f.mediaType === "application/pdf" ? "pdf" : "jpg";
+          const nomFichier = "cam_" + Date.now() + "_" + Math.random().toString(36).slice(2,7) + "." + ext;
+          const bytes = Uint8Array.from(atob(f.base64), c => c.charCodeAt(0));
+          await fetch("https://kpxrbwsbhmggoajtxzqn.supabase.co/storage/v1/object/agent_documents/" + nomFichier, {
+            method: "POST",
+            headers: {
+              "apikey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtweHJid3NiaG1nZ29hanR4enFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA3NzM0NjIsImV4cCI6MjA5NjM0OTQ2Mn0.J45gFfkK7PHhpCFJ5ahRDbRSeGdG9YO1aa0rRZP_lks",
+              "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtweHJid3NiaG1nZ29hanR4enFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA3NzM0NjIsImV4cCI6MjA5NjM0OTQ2Mn0.J45gFfkK7PHhpCFJ5ahRDbRSeGdG9YO1aa0rRZP_lks",
+              "Content-Type": f.mediaType,
+              "x-upsert": "true"
+            },
+            body: bytes
+          });
+          urlsFichiers.push("https://kpxrbwsbhmggoajtxzqn.supabase.co/storage/v1/object/public/agent_documents/" + nomFichier);
+        } catch {}
+      }
+
       const r = await fetch("/api/mr-juridique", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message: q, contexte: "international", historique: [] }) });
       const data = await r.json();
       setHistorique(prev => [...prev, { role: "agent", text: data.reply || "Erreur." }]);
@@ -440,7 +595,7 @@ export default function MrJuridiquePage() {
                   accept=".pdf,.jpg,.jpeg,.png"
                   onChange={analyserFichier}
                   style={{ display: "none" }}
-                 multiple/>
+                />
                 <button
                   onClick={() => fileInputRef.current.click()}
                   disabled={loading || fichierLoading}
