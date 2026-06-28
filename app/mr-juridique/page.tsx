@@ -233,10 +233,10 @@ export default function MrJuridiquePage() {
 
     async function compresser(file) {
       return new Promise((resolve) => {
-        const ext = files.map(f => f.name).join(", ").split(".").pop().toLowerCase();
+        const ext = file.name.split(".").pop().toLowerCase();
         if (ext === "pdf") {
           const reader = new FileReader();
-          reader.onload = (ev) => resolve({ base64: ev.target.result.split(",")[1], mediaType: "application/pdf", nom: files.map(f => f.name).join(", ") });
+          reader.onload = (ev) => resolve({ base64: ev.target.result.split(",")[1], mediaType: "application/pdf", nom: file.name });
           reader.readAsDataURL(file);
           return;
         }
@@ -254,7 +254,7 @@ export default function MrJuridiquePage() {
           canvas.getContext("2d").drawImage(img, 0, 0, w, h);
           const b64 = canvas.toDataURL("image/jpeg", 0.7).split(",")[1];
           URL.revokeObjectURL(url);
-          resolve({ base64: b64, mediaType: "image/jpeg", nom: files.map(f => f.name).join(", ") });
+          resolve({ base64: b64, mediaType: "image/jpeg", nom: file.name });
         };
         img.src = url;
       });
@@ -573,7 +573,7 @@ export default function MrJuridiquePage() {
                   accept=".pdf,.jpg,.jpeg,.png"
                   onChange={analyserFichier}
                   style={{ display: "none" }}
-                 multiple/>
+                />
                 <button
                   onClick={() => fileInputRef.current.click()}
                   disabled={loading || fichierLoading}
