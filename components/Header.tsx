@@ -13,7 +13,8 @@ export default function Header() {
         <Link href="/seances" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "14px" }}>Séances</Link>
         <Link href="/packs" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "14px" }}>Packs</Link>
         <Link href="/blog" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "14px" }}>Blog</Link>
-        <Link href="/contact" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "14px" }}>Contact</Link>
+        <Link href="/contact" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "14px" }}>Contact<\/Link>
+          <Link href="/tarifs" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "14px" }}>Tarifs</Link>
       </nav>
       <Link href="/dashboard" style={{ background: "linear-gradient(135deg, #c8a96e, #a07840)", color: "#050508", padding: "8px 20px", borderRadius: "8px", textDecoration: "none", fontSize: "14px", fontWeight: "bold" }}>
         Mon espace
