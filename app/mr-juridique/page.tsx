@@ -182,29 +182,55 @@ export default function MrJuridiquePage() {
     if (!files.length) return;
     setFichierLoading(true);
     const noms = files.map((f) => f.name).join(", ");
-    setHistorique(prev => [...prev, { role: "user", text: "📎 " + files.length + " document(s) joint(s) : " + noms }]);
+    setHistorique(prev => [...prev, { role: "user", text: "📎 " + files.length + " document(s) joint(s) : " + noms, content: "📎 " + files.length + " document(s) joint(s) : " + noms }]);
     try {
+      // Stockage Supabase
+      for (const file of files) {
+        const ts = Date.now()
+        const nom = files.map(f => f.name).join(", ").replace(/[^a-zA-Z0-9._-]/g, '_')
+        const storagePath = `cam/${ts}_${nom}`
+        const { error: upErr } = await supaStorage.storage
+          .from('agent_documents')
+          .upload(storagePath, file, { contentType: file.type })
+        if (!upErr) {
+          const { data: urlData } = await supaStorage.storage
+            .from('agent_documents')
+            .createSignedUrl(storagePath, 31536000)
+          if (urlData?.signedUrl) {
+            await supaStorage.from('agent_documents').insert({
+              agent_id: 'cam',
+              file_name: files.map(f => f.name).join(", "),
+              file_type: file.type,
+              file_url: urlData.signedUrl,
+              storage_path: storagePath,
+              description: files.map(f => f.name).join(", ")
+            })
+          }
+        }
+      }
       const fichiersB64 = await Promise.all(files.map((file) => new Promise((resolve) => {
-        const ext = file.name.split(".").pop().toLowerCase();
+        const ext = files.map(f => f.name).join(", ").split(".").pop().toLowerCase();
         const mediaType = ext === "pdf" ? "application/pdf" : ext === "png" ? "image/png" : "image/jpeg";
         const reader = new FileReader();
-        reader.onload = (ev) => resolve({ base64: ev.target.result.split(",")[1], mediaType, nom: file.name });
+        reader.onload = (ev) => resolve({ base64: ev.target.result.split(",")[1], mediaType, nom: files.map(f => f.name).join(", ") });
         reader.readAsDataURL(file);
       })));
+      
       const r = await fetch("/api/mr-juridique", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          message: "Analyse ces " + files.length + " document(s) et donne moi une analyse juridique experte complete en tant que Maitre Pierre Duval.",
-          contexte,
+          message: "Analyse ces " + files.length + " document(s) et donne moi une analyse complete selon ton expertise.",
+          domaine,
           historique,
-          fichiers: fichiersB64
+          fichiers: fichiersB64,
+          contexte,
         }),
       });
       const data = await r.json();
-      setHistorique(prev => [...prev, { role: "agent", text: data.reply || "Erreur d analyse." }]);
+      setHistorique(prev => [...prev, { role: "agent", text: data.reply || "Erreur.", content: data.reply || "Erreur." }]);
     } catch {
-      setHistorique(prev => [...prev, { role: "agent", text: "Erreur lors de l analyse des documents." }]);
+      setHistorique(prev => [...prev, { role: "agent", text: "Erreur lors de l analyse.", content: "Erreur lors de l analyse." }]);
     }
     setFichierLoading(false);
     e.target.value = "";
