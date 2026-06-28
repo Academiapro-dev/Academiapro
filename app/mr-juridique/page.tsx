@@ -233,10 +233,10 @@ export default function MrJuridiquePage() {
 
     async function compresser(file) {
       return new Promise((resolve) => {
-        const ext = file.name.split(".").pop().toLowerCase();
+        const ext = files.map(f => f.name).join(", ").split(".").pop().toLowerCase();
         if (ext === "pdf") {
           const reader = new FileReader();
-          reader.onload = (ev) => resolve({ base64: ev.target.result.split(",")[1], mediaType: "application/pdf", nom: file.name });
+          reader.onload = (ev) => resolve({ base64: ev.target.result.split(",")[1], mediaType: "application/pdf", nom: files.map(f => f.name).join(", ") });
           reader.readAsDataURL(file);
           return;
         }
@@ -254,7 +254,7 @@ export default function MrJuridiquePage() {
           canvas.getContext("2d").drawImage(img, 0, 0, w, h);
           const b64 = canvas.toDataURL("image/jpeg", 0.7).split(",")[1];
           URL.revokeObjectURL(url);
-          resolve({ base64: b64, mediaType: "image/jpeg", nom: file.name });
+          resolve({ base64: b64, mediaType: "image/jpeg", nom: files.map(f => f.name).join(", ") });
         };
         img.src = url;
       });
@@ -262,28 +262,6 @@ export default function MrJuridiquePage() {
     setHistorique(prev => [...prev, { role: "user", text: "📎 " + files.length + " document(s) joint(s) : " + noms }]);
     try {
       const fichiersB64 = await Promise.all(files.map(compresser));
-      
-      // Upload fichiers Supabase Storage
-      const urlsFichiers = [];
-      for (const f of fichiersB64) {
-        try {
-          const ext = f.mediaType === "application/pdf" ? "pdf" : "jpg";
-          const nomFichier = "cam_" + Date.now() + "_" + Math.random().toString(36).slice(2,7) + "." + ext;
-          const bytes = Uint8Array.from(atob(f.base64), c => c.charCodeAt(0));
-          await fetch("https://kpxrbwsbhmggoajtxzqn.supabase.co/storage/v1/object/agent_documents/" + nomFichier, {
-            method: "POST",
-            headers: {
-              "apikey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtweHJid3NiaG1nZ29hanR4enFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA3NzM0NjIsImV4cCI6MjA5NjM0OTQ2Mn0.J45gFfkK7PHhpCFJ5ahRDbRSeGdG9YO1aa0rRZP_lks",
-              "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtweHJid3NiaG1nZ29hanR4enFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA3NzM0NjIsImV4cCI6MjA5NjM0OTQ2Mn0.J45gFfkK7PHhpCFJ5ahRDbRSeGdG9YO1aa0rRZP_lks",
-              "Content-Type": f.mediaType,
-              "x-upsert": "true"
-            },
-            body: bytes
-          });
-          urlsFichiers.push("https://kpxrbwsbhmggoajtxzqn.supabase.co/storage/v1/object/public/agent_documents/" + nomFichier);
-        } catch {}
-      }
-
       const r = await fetch("/api/mr-juridique", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -591,11 +569,11 @@ export default function MrJuridiquePage() {
               <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
                 <input
                   ref={fileInputRef}
-                  type="file" multiple
+                  type="file"
                   accept=".pdf,.jpg,.jpeg,.png"
                   onChange={analyserFichier}
                   style={{ display: "none" }}
-                />
+                 multiple/>
                 <button
                   onClick={() => fileInputRef.current.click()}
                   disabled={loading || fichierLoading}
