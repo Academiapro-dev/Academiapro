@@ -1,6 +1,4 @@
 "use client";
-import MemoryButton from "@/components/MemoryButton";
-import { useAgentMemory } from "@/hooks/useAgentMemory";
 import { useState, useEffect, useRef } from "react";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
@@ -72,15 +70,16 @@ const SYSTEM_QUALIOPI = "Tu es Mr Qualiopi, expert en certification professionne
 const SYSTEM_CERTIFICATEUR = "Tu es Mr Certificateur, expert en creation et depot de certifications professionnelles aupres de France Competences avec 20 ans d experience. Tu maitrises le Repertoire Specifique RS, le RNCP, les referentiels de certification, les blocs de competences, les modalites d evaluation, les jurys. Tu aides Jacques Lalou a faire d AcadémIA Pro un organisme certificateur reconnu par l Etat. Tu donnes des conseils precis et des documents complets prets a soumettre.";
 
 export default function MrQualiopi() {
-  const { saveMemory, restoreSession, lastSaved, isSaving } = useAgentMemory({
-    agentId: "qualiopi",
-    sessionLabel: "Session qualiopi"
-  });
   const [onglet, setOnglet] = useState("dashboard");
   const [documents, setDocuments] = useState<any[]>([]);
   const [indicateurs, setIndicateurs] = useState<any[]>([]);
   const [dossierCert, setDossierCert] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [memoireOk, setMemoireOk] = useState(false);
+  const [memoireLoading, setMemoireLoading] = useState(false);
+  const [panelOuvert, setPanelOuvert] = useState(false);
+  const [sessionsMem, setSessionsMem] = useState([]);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
   const [docGenere, setDocGenere] = useState("");
   const [docTitre, setDocTitre] = useState("");
   const [chat, setChat] = useState<{role: string, text: string}[]>([]);
@@ -94,6 +93,49 @@ export default function MrQualiopi() {
   const fileInputRef = useRef<any>(null);
 
   useEffect(() => { chargerDonnees(); }, []);
+
+  async function sauvegarderMemoire() {
+    setMemoireLoading(true);
+    try {
+      await fetch("/api/memory/save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          agent_id: "qualiopi",
+          session_id: "qualiopi_" + Date.now(),
+          session_label: "Session qualiopi",
+          conversation: historique.map(m => ({ ...m, content: m.text || m.content || "" })),
+          context_summary: "",
+          key_decisions: []
+        }),
+      });
+      setMemoireOk(true);
+      setTimeout(() => setMemoireOk(false), 2000);
+    } catch {}
+    setMemoireLoading(false);
+  }
+
+  async function ouvrirRestauration() {
+    setPanelOuvert(true);
+    setSessionsLoading(true);
+    try {
+      const res = await fetch("/api/memory/load?agent_id=qualiopi");
+      const data = await res.json();
+      setSessionsMem(data.success ? data.data : []);
+    } catch { setSessionsMem([]); }
+    setSessionsLoading(false);
+  }
+
+  function restaurerSession(conv) {
+    const normalises = conv.map(m => ({
+      role: m.role === "assistant" ? "agent" : m.role,
+      text: m.content || m.text || "",
+      content: m.content || m.text || ""
+    }));
+    setHistorique(normalises);
+    setPanelOuvert(false);
+  }
+
 
   async function chargerDonnees() {
     const h = { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` };
@@ -781,19 +823,36 @@ Documents prepares : ${documents.length} documents generes`,
         )}
 
       </div>
-      <MemoryButton
-        agentId="qualiopi"
-        onRestore={(messages) => {
-          setHistorique(messages.map(m => ({
-            role: m.role === 'assistant' ? 'agent' : m.role,
-            text: m.content || m.text || '',
-            content: m.content || m.text || ''
-          })));
-        }}
-        onSaveNow={() => saveMemory(historique)}
-        lastSaved={lastSaved}
-        isSaving={isSaving}
-      />
+      {panelOuvert && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
+          <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.6)" }} onClick={() => setPanelOuvert(false)} />
+          <div style={{ position: "relative", background: "#111827", border: "1px solid #374151", borderRadius: "16px", width: "100%", maxWidth: "500px", maxHeight: "80vh", overflow: "hidden", display: "flex", flexDirection: "column" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "20px", borderBottom: "1px solid #374151" }}>
+              <h2 style={{ color: "#fff", margin: 0, fontSize: "18px" }}>🧠 Restaurer une session</h2>
+              <button onClick={() => setPanelOuvert(false)} style={{ background: "none", border: "none", color: "#9ca3af", fontSize: "24px", cursor: "pointer" }}>×</button>
+            </div>
+            <div style={{ overflowY: "auto", flex: 1, padding: "16px" }}>
+              {sessionsLoading ? (
+                <p style={{ color: "#9ca3af", textAlign: "center" }}>Chargement...</p>
+              ) : sessionsMem.length === 0 ? (
+                <p style={{ color: "#6b7280", textAlign: "center" }}>Aucune session sauvegardée</p>
+              ) : sessionsMem.slice(0, 10).map((s, i) => (
+                <div key={s.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px", borderRadius: "10px", border: "1px solid " + (i === 0 ? "rgba(139,92,246,0.5)" : "#374151"), background: i === 0 ? "rgba(139,92,246,0.1)" : "rgba(31,41,55,0.5)", marginBottom: "8px" }}>
+                  <div>
+                    {i === 0 && <span style={{ fontSize: "10px", background: "#7c3aed", color: "#fff", padding: "2px 8px", borderRadius: "20px", marginRight: "8px" }}>Dernière</span>}
+                    <span style={{ color: "#fff", fontSize: "13px" }}>{s.session_label}</span>
+                    <p style={{ color: "#9ca3af", fontSize: "11px", margin: "4px 0 0" }}>🕐 {new Date(s.updated_at).toLocaleString("fr-FR")} · {s.conversation?.length || 0} messages</p>
+                  </div>
+                  <button onClick={() => restaurerSession(s.conversation || [])}
+                    style={{ padding: "6px 12px", background: "#374151", color: "#d1d5db", border: "none", borderRadius: "8px", cursor: "pointer", fontSize: "13px" }}>
+                    ↩️ Restaurer
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
 
   );
