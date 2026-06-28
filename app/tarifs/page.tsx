@@ -94,11 +94,11 @@ export default function TarifsPage() {
       {/* Toggle Solo / Avatar */}
       <div style={{ display: "flex", justifyContent: "center", padding: "40px 20px 20px", gap: "12px" }}>
         <button onClick={() => setOnglet("solo")}
-          style={{ padding: "14px 32px", borderRadius: "10px", border: "2px solid " + (onglet === "solo" ? "#c8a96e" : "rgba(255,255,255,0.1)"), background: onglet === "solo" ? "#c8a96e" : "transparent", color: onglet === "solo" ? "#050508" : "#fff", fontWeight: "bold", fontSize: "15px", cursor: "pointer" }}>
+          style={{ padding: "12px 20px", borderRadius: "10px", border: "2px solid " + (onglet === "solo" ? "#c8a96e" : "rgba(255,255,255,0.1)"), background: onglet === "solo" ? "#c8a96e" : "transparent", color: onglet === "solo" ? "#050508" : "#fff", fontWeight: "bold", fontSize: "13px", cursor: "pointer", whiteSpace: "nowrap" }}>
           💬 Solo — Chat IA inclus
         </button>
         <button onClick={() => setOnglet("avatar")}
-          style={{ padding: "14px 32px", borderRadius: "10px", border: "2px solid " + (onglet === "avatar" ? "#c8a96e" : "rgba(255,255,255,0.1)"), background: onglet === "avatar" ? "#c8a96e" : "transparent", color: onglet === "avatar" ? "#050508" : "#fff", fontWeight: "bold", fontSize: "15px", cursor: "pointer" }}>
+          style={{ padding: "12px 20px", borderRadius: "10px", border: "2px solid " + (onglet === "avatar" ? "#c8a96e" : "rgba(255,255,255,0.1)"), background: onglet === "avatar" ? "#c8a96e" : "transparent", color: onglet === "avatar" ? "#050508" : "#fff", fontWeight: "bold", fontSize: "13px", cursor: "pointer", whiteSpace: "nowrap" }}>
           🤖 Avec Avatar IA — 2h/semaine live
         </button>
       </div>
@@ -130,7 +130,7 @@ export default function TarifsPage() {
                       {(onglet === "solo" ? f.solo : f.avatar).toLocaleString("fr-FR")}€
                     </div>
                     <div style={{ color: "rgba(255,255,255,0.3)", fontSize: "11px", textDecoration: "line-through" }}>
-                      Offre fondateur : {Math.round((onglet === "solo" ? f.solo : f.avatar) / 2).toLocaleString("fr-FR")}€
+                      Valeur réelle : {Math.round((onglet === "solo" ? f.solo : f.avatar) * 2).toLocaleString("fr-FR")}€
                     </div>
                   </div>
                 </div>
