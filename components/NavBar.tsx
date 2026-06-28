@@ -2,11 +2,11 @@
 import { useState, useEffect } from "react";
 
 const T = {
-  fr: { formations: "Formations", seances: "Seances", blog: "Blog", contact: "Contact", demarrer: "Demarrer" },
-  en: { formations: "Courses", seances: "Sessions", blog: "Blog", contact: "Contact", demarrer: "Get Started" },
-  es: { formations: "Cursos", seances: "Sesiones", blog: "Blog", contact: "Contacto", demarrer: "Comenzar" },
-  pt: { formations: "Cursos", seances: "Sessoes", blog: "Blog", contact: "Contato", demarrer: "Comecar" },
-  de: { formations: "Kurse", seances: "Sitzungen", blog: "Blog", contact: "Kontakt", demarrer: "Loslegen" },
+  fr: { formations: "Formations", seances: "Séances", blog: "Blog", tarifs: "Tarifs", contact: "Contact", demarrer: "Démarrer" },
+  en: { formations: "Courses", seances: "Sessions", blog: "Blog", tarifs: "Pricing", contact: "Contact", demarrer: "Get Started" },
+  es: { formations: "Cursos", seances: "Sesiones", blog: "Blog", tarifs: "Precios", contact: "Contacto", demarrer: "Comenzar" },
+  pt: { formations: "Cursos", seances: "Sessoes", blog: "Blog", tarifs: "Preços", contact: "Contato", demarrer: "Comecar" },
+  de: { formations: "Kurse", seances: "Sitzungen", blog: "Blog", tarifs: "Preise", contact: "Kontakt", demarrer: "Loslegen" },
   ar: { formations: "الدورات", seances: "الجلسات", blog: "المدونة", contact: "اتصل", demarrer: "ابدأ" },
 };
 
@@ -37,6 +37,7 @@ export default function NavBar() {
         <a href={"/catalogue?lang=" + langue} style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "14px" }}>{t("formations")}</a>
         <a href={"/seances?lang=" + langue} style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "14px" }}>{t("seances")}</a>
         <a href="/blog" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "14px" }}>{t("blog")}</a>
+        <a href="/tarifs" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "14px" }}>{t("tarifs")}</a>
         <a href="/contact" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "14px" }}>{t("contact")}</a>
       </nav>
       <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
