@@ -1,15 +1,8 @@
 "use client";
-import MemoryButton from "@/components/MemoryButton";
-import { useAgentMemory } from "@/hooks/useAgentMemory";
-import { createClient } from "@supabase/supabase-js";
-const supaStorage = createClient("https://kpxrbwsbhmggoajtxzqn.supabase.co", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtweHJid3NiaG1nZ29hanR4enFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA3NzM0NjIsImV4cCI6MjA5NjM0OTQ2Mn0.J45gFfkK7PHhpCFJ5ahRDbRSeGdG9YO1aa0rRZP_lks");
 import { useState, useEffect, useRef } from "react";
 
 export default function MrCamPage() {
-  const { saveMemory, loadMemories, lastSaved, isSaving } = useAgentMemory({
-    agentId: "cam",
-    sessionLabel: "Session cam"
-  });
+
   const [isAdmin, setIsAdmin] = useState(false);
   const [checking, setChecking] = useState(true);
   const [message, setMessage] = useState("");
@@ -19,6 +12,11 @@ export default function MrCamPage() {
   const [domaine, setDomaine] = useState("general");
   const [envoiOk, setEnvoiOk] = useState(false);
   const [envoyant, setEnvoyant] = useState(false);
+  const [memoireOk, setMemoireOk] = useState(false);
+  const [memoireLoading, setMemoireLoading] = useState(false);
+  const [panelOuvert, setPanelOuvert] = useState(false);
+  const [sessions, setSessions] = useState([]);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
   const fileInputRef = useRef(null);
   const chatEndRef = useRef(null);
 
@@ -113,6 +111,51 @@ export default function MrCamPage() {
       setHistorique(prev => [...prev, { role: "agent", text: "Erreur de connexion.", content: "Erreur de connexion." }]);
     }
     setLoading(false);
+  }
+
+  async function sauvegarderMemoire() {
+    if (historique.length === 0) return;
+    setMemoireLoading(true);
+    try {
+      const sessionId = "cam_" + Date.now();
+      const messages = historique.map(m => ({ ...m, content: m.text || m.content || "" }));
+      await fetch("/api/memory/save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          agent_id: "cam",
+          session_id: sessionId,
+          session_label: "Session cam",
+          conversation: messages,
+          context_summary: "",
+          key_decisions: []
+        }),
+      });
+      setMemoireOk(true);
+      setTimeout(() => setMemoireOk(false), 2000);
+    } catch {}
+    setMemoireLoading(false);
+  }
+
+  async function ouvrirRestauration() {
+    setPanelOuvert(true);
+    setSessionsLoading(true);
+    try {
+      const res = await fetch("/api/memory/load?agent_id=cam");
+      const data = await res.json();
+      setSessions(data.success ? data.data : []);
+    } catch { setSessions([]); }
+    setSessionsLoading(false);
+  }
+
+  function restaurerSession(conv) {
+    const normalises = conv.map(m => ({
+      role: m.role === "assistant" ? "agent" : m.role,
+      text: m.content || m.text || "",
+      content: m.content || m.text || ""
+    }));
+    setHistorique(normalises);
+    setPanelOuvert(false);
   }
 
   async function envoyerEmail() {
@@ -258,31 +301,49 @@ export default function MrCamPage() {
             </p>
             <button onClick={envoyerEmail} disabled={envoyant || historique.length === 0}
               style={{ background: envoiOk ? "#00c800" : "rgba(255,255,255,0.05)", color: envoiOk ? "#fff" : "rgba(255,255,255,0.4)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "6px", padding: "6px 14px", fontSize: "11px", cursor: "pointer" }}>
-              {envoiOk ? "✅ Envoye !" : envoyant ? "⏳..." : "📧 Sauvegarder session"}
+              {envoiOk ? "✅ Envoye !" : envoyant ? "⏳..." : "📧 Email"}
+            </button>
+            <button onClick={sauvegarderMemoire} disabled={memoireLoading || historique.length === 0}
+              style={{ background: memoireOk ? "#22c55e" : "rgba(139,92,246,0.2)", color: memoireOk ? "#fff" : "#a78bfa", border: "1px solid " + (memoireOk ? "#22c55e" : "rgba(139,92,246,0.4)"), borderRadius: "6px", padding: "6px 14px", fontSize: "11px", cursor: "pointer", fontWeight: "bold" }}>
+              {memoireOk ? "✅ Sauvegardé !" : memoireLoading ? "⏳..." : "💾 Sauvegarder"}
+            </button>
+            <button onClick={ouvrirRestauration} disabled={historique.length === 0 && sessions.length === 0}
+              style={{ background: "rgba(139,92,246,0.2)", color: "#a78bfa", border: "1px solid rgba(139,92,246,0.4)", borderRadius: "6px", padding: "6px 14px", fontSize: "11px", cursor: "pointer", fontWeight: "bold" }}>
+              📂 Restaurer
             </button>
           </div>
         </div>
       </div>
-      <MemoryButton
-        agentId="cam"
-        onRestore={(messages) => {
-          const normalises = messages.map(m => ({
-            role: m.role === 'assistant' ? 'agent' : m.role,
-            text: m.content || m.text || '',
-            content: m.content || m.text || ''
-          }));
-          setHistorique(normalises);
-        }}
-        onSaveNow={() => {
-          const hNormalise = historique.map(m => ({
-            ...m,
-            content: m.text || m.content || ""
-          }));
-          saveMemory(hNormalise);
-        }}
-        lastSaved={lastSaved}
-        isSaving={isSaving}
-      />
+      {panelOuvert && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
+          <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.6)" }} onClick={() => setPanelOuvert(false)} />
+          <div style={{ position: "relative", background: "#111827", border: "1px solid #374151", borderRadius: "16px", width: "100%", maxWidth: "500px", maxHeight: "80vh", overflow: "hidden", display: "flex", flexDirection: "column" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "20px", borderBottom: "1px solid #374151" }}>
+              <h2 style={{ color: "#fff", margin: 0, fontSize: "18px" }}>🧠 Restaurer une session</h2>
+              <button onClick={() => setPanelOuvert(false)} style={{ background: "none", border: "none", color: "#9ca3af", fontSize: "24px", cursor: "pointer" }}>×</button>
+            </div>
+            <div style={{ overflowY: "auto", flex: 1, padding: "16px" }}>
+              {sessionsLoading ? (
+                <p style={{ color: "#9ca3af", textAlign: "center" }}>Chargement...</p>
+              ) : sessions.length === 0 ? (
+                <p style={{ color: "#6b7280", textAlign: "center" }}>Aucune session sauvegardée</p>
+              ) : sessions.slice(0, 10).map((s, i) => (
+                <div key={s.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px", borderRadius: "10px", border: "1px solid " + (i === 0 ? "rgba(139,92,246,0.5)" : "#374151"), background: i === 0 ? "rgba(139,92,246,0.1)" : "rgba(31,41,55,0.5)", marginBottom: "8px" }}>
+                  <div>
+                    {i === 0 && <span style={{ fontSize: "10px", background: "#7c3aed", color: "#fff", padding: "2px 8px", borderRadius: "20px", marginRight: "8px" }}>Dernière</span>}
+                    <span style={{ color: "#fff", fontSize: "13px" }}>{s.session_label}</span>
+                    <p style={{ color: "#9ca3af", fontSize: "11px", margin: "4px 0 0" }}>🕐 {new Date(s.updated_at).toLocaleString("fr-FR")} · {s.conversation?.length || 0} messages</p>
+                  </div>
+                  <button onClick={() => restaurerSession(s.conversation || [])}
+                    style={{ padding: "6px 12px", background: "#374151", color: "#d1d5db", border: "none", borderRadius: "8px", cursor: "pointer", fontSize: "13px" }}>
+                    ↩️ Restaurer
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
 
   );
