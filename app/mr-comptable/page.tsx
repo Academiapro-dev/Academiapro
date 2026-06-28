@@ -176,10 +176,10 @@ export default function MrComptablePage() {
     setHistorique(prev => [...prev, { role: "user", text: "📎 " + files.length + " document(s) joint(s) : " + noms }]);
     try {
       const fichiersB64 = await Promise.all(files.map((file) => new Promise((resolve) => {
-        const ext = files.map(f => f.name).join(", ").split(".").pop().toLowerCase();
+        const ext = file.name.split(".").pop().toLowerCase();
         const mediaType = ext === "pdf" ? "application/pdf" : ext === "png" ? "image/png" : "image/jpeg";
         const reader = new FileReader();
-        reader.onload = (ev) => resolve({ base64: ev.target.result.split(",")[1], mediaType, nom: files.map(f => f.name).join(", ") });
+        reader.onload = (ev) => resolve({ base64: ev.target.result.split(",")[1], mediaType, nom: file.name });
         reader.readAsDataURL(file);
       })));
       const r = await fetch("/api/mr-comptable", {
@@ -254,9 +254,7 @@ export default function MrComptablePage() {
     } catch {}
     setEnvoyant(false);
   }
-}
 
-export default function MrComptablePage() {
   if (checking) return <div style={{ background: "#050508", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}><p style={{ color: "#c8a96e" }}>Verification...</p></div>;
   if (!isAdmin) return <div style={{ background: "#050508", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}><div style={{ textAlign: "center" }}><p style={{ color: "#ff4444" }}>Acces restreint</p><a href="/login" style={{ color: "#c8a96e" }}>Se connecter</a></div></div>;
 
@@ -327,7 +325,7 @@ export default function MrComptablePage() {
                 )}
               </div>
               <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
-                <input ref={fileInputRef} type="file" accept=".pdf,.jpg,.jpeg,.png" multiple onChange={analyserFichier} style={{ display: "none" }}  multiple/ multiple>
+                <input ref={fileInputRef} type="file" accept=".pdf,.jpg,.jpeg,.png" multiple onChange={analyserFichier} style={{ display: "none" }} />
                 <button onClick={() => fileInputRef.current.click()} disabled={loading || fichierLoading}
                   title="Joindre PDF, JPEG ou PNG"
                   style={{ padding: "12px", background: "rgba(200,169,110,0.15)", color: "#c8a96e", border: "1px solid rgba(200,169,110,0.3)", borderRadius: "8px", cursor: "pointer", fontSize: "18px", flexShrink: 0 }}>
