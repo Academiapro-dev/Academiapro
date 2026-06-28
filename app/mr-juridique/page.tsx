@@ -69,7 +69,7 @@ export default function AgentPage() {
       const r = await fetch("/api/mr-juridique", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: "Analyse ces " + files.length + " document(s).", historique: historique.slice(-20), fichiers: fichiersB64 }),
+        body: JSON.stringify({ message: "Analyse ces " + files.length + " document(s).", contexte: "international", historique: historique.slice(-20), fichiers: fichiersB64 }),
       });
       const data = await r.json();
       setHistorique(prev => [...prev, { role: "agent", text: data.reply || "Erreur." }]);
