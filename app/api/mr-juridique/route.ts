@@ -33,15 +33,14 @@ Reponds toujours en francais. Sois precis, concret, avec des etapes numerotees q
     const fichiersList = fichiers || (fichier ? [fichier] : []);
     if (fichiersList.length > 0) {
       const content: any[] = [
-        { type: "text", text: message },
+        { type: "text", text: message + (contexte ? " [Contexte : " + contexte + "]" : "") },
         ...fichiersList.map((f: any) => {
-        if (f.mediaType === "application/pdf") {
-          return { type: "document", source: { type: "base64", media_type: "application/pdf", data: f.base64 } };
-        } else {
-          return { type: "image", source: { type: "base64", media_type: f.mediaType, data: f.base64 } };
-        }
-      });
-      content.push({ type: "text", text: message + (contexte ? " [Contexte : " + contexte + "]" : "") });
+          if (f.mediaType === "application/pdf") {
+            return { type: "document", source: { type: "base64", media_type: "application/pdf", data: f.base64 } };
+          } else {
+            return { type: "image", source: { type: "base64", media_type: f.mediaType, data: f.base64 } };
+          }
+        })
       ];
       messages.push({ role: "user", content });
     } else {
