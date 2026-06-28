@@ -9,7 +9,8 @@ export default function CgvPage() {
         </div>
         <div style={{ background: "#1a1a2e", borderRadius: "16px", padding: "32px", border: "1px solid rgba(200,169,110,0.3)", marginBottom: "24px" }}>
           <h2 style={{ color: "#c8a96e", fontSize: "20px", margin: "0 0 16px" }}>Identification du Vendeur</h2>
-          <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "14px", lineHeight: "1.8", margin: "0" }}>AcadémIA Pro · contact@academiapro.fr · Forme juridique en cours d immatriculation · France.</p>
+          <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "14px", lineHeight: "1.8", margin: "0" }}>AcadémIA Pro · contact@academiapro.fr
+AcadémIA Pro LLC — 30 N Gould St STE R, Sheridan WY 82801 USA · Forme juridique en cours d immatriculation · France.</p>
         </div>
         <div style={{ background: "#1a1a2e", borderRadius: "16px", padding: "32px", border: "1px solid rgba(200,169,110,0.3)", marginBottom: "24px" }}>
           <h2 style={{ color: "#c8a96e", fontSize: "20px", margin: "0 0 16px" }}>Objet et Champ d Application</h2>
@@ -37,7 +38,8 @@ export default function CgvPage() {
         </div>
         <div style={{ background: "#1a1a2e", borderRadius: "16px", padding: "32px", border: "1px solid rgba(200,169,110,0.3)", marginBottom: "24px" }}>
           <h2 style={{ color: "#c8a96e", fontSize: "20px", margin: "0 0 16px" }}>Contact</h2>
-          <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "14px", lineHeight: "1.8", margin: "0" }}>Pour toute question · contactez-nous a contact@academiapro.fr · reponse sous 24h ouvrables.</p>
+          <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "14px", lineHeight: "1.8", margin: "0" }}>Pour toute question · contactez-nous a contact@academiapro.fr
+AcadémIA Pro LLC — 30 N Gould St STE R, Sheridan WY 82801 USA · reponse sous 24h ouvrables.</p>
         </div>
       </div>
     </div>
