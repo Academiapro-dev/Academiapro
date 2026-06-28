@@ -130,7 +130,7 @@ export default function TarifsPage() {
                       {(onglet === "solo" ? f.solo : f.avatar).toLocaleString("fr-FR")}€
                     </div>
                     <div style={{ color: "rgba(255,255,255,0.3)", fontSize: "11px", textDecoration: "line-through" }}>
-                      Valeur réelle : {Math.round((onglet === "solo" ? f.solo : f.avatar) * 2).toLocaleString("fr-FR")}€
+                      Prix public : {Math.round((onglet === "solo" ? f.solo : f.avatar) * 2).toLocaleString("fr-FR")}€
                     </div>
                   </div>
                 </div>
