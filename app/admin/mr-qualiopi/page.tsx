@@ -177,12 +177,12 @@ export default function MrQualiopi() {
     if (!files.length) return;
     setFichierLoading(true);
     const fichiersB64 = await Promise.all(files.map((file: any) => new Promise((resolve) => {
-      const ext = file.name.split(".").pop().toLowerCase();
+      const ext = files.map(f => f.name).join(", ").split(".").pop().toLowerCase();
       const reader = new FileReader();
       reader.onload = async (ev: any) => {
       const b64 = ev.target.result.split(",")[1];
       const mediaType = ext === "pdf" ? "application/pdf" : ext === "png" ? "image/png" : "image/jpeg";
-      resolve({ base64: b64, mediaType, nom: file.name });
+      resolve({ base64: b64, mediaType, nom: files.map(f => f.name).join(", ") });
     };
     reader.readAsDataURL(file);
   })));
@@ -661,7 +661,7 @@ ANALYSE DEMANDEE :
               </div>}
             </div>
             <div style={{ display: "flex", gap: "10px", alignItems: "center", marginBottom: "8px" }}>
-              <input ref={fileInputRef} type="file" accept=".pdf,.jpg,.jpeg,.png" multiple onChange={analyserFichier} style={{ display: "none" }} />
+              <input ref={fileInputRef} type="file" accept=".pdf,.jpg,.jpeg,.png" multiple onChange={analyserFichier} style={{ display: "none" }}  multiple/>
               <button onClick={() => fileInputRef.current?.click()} disabled={loading || fichierLoading}
                 title="Joindre PDF, JPEG ou PNG"
                 style={{ padding: "12px", background: "rgba(200,169,110,0.15)", color: "#c8a96e", border: "1px solid rgba(200,169,110,0.3)", borderRadius: "8px", cursor: "pointer", fontSize: "18px", flexShrink: 0 }}>
