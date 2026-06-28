@@ -45,7 +45,7 @@ export default function MrCamPage() {
       // Stockage Supabase
       for (const file of files) {
         const ts = Date.now()
-        const nom = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+        const nom = files.map(f => f.name).join(", ").replace(/[^a-zA-Z0-9._-]/g, '_')
         const storagePath = `cam/${ts}_${nom}`
         const { error: upErr } = await supaStorage.storage
           .from('agent_documents')
@@ -57,20 +57,20 @@ export default function MrCamPage() {
           if (urlData?.signedUrl) {
             await supaStorage.from('agent_documents').insert({
               agent_id: 'cam',
-              file_name: file.name,
+              file_name: files.map(f => f.name).join(", "),
               file_type: file.type,
               file_url: urlData.signedUrl,
               storage_path: storagePath,
-              description: file.name
+              description: files.map(f => f.name).join(", ")
             })
           }
         }
       }
       const fichiersB64 = await Promise.all(files.map((file) => new Promise((resolve) => {
-        const ext = file.name.split(".").pop().toLowerCase();
+        const ext = files.map(f => f.name).join(", ").split(".").pop().toLowerCase();
         const mediaType = ext === "pdf" ? "application/pdf" : ext === "png" ? "image/png" : "image/jpeg";
         const reader = new FileReader();
-        reader.onload = (ev) => resolve({ base64: ev.target.result.split(",")[1], mediaType, nom: file.name });
+        reader.onload = (ev) => resolve({ base64: ev.target.result.split(",")[1], mediaType, nom: files.map(f => f.name).join(", ") });
         reader.readAsDataURL(file);
       })));
       
@@ -279,7 +279,7 @@ export default function MrCamPage() {
           </div>
 
           <div style={{ display: "flex", gap: "10px", alignItems: "center", marginBottom: "8px" }}>
-            <input ref={fileInputRef} type="file" accept=".pdf,.jpg,.jpeg,.png" multiple onChange={analyserFichier} style={{ display: "none" }} />
+            <input ref={fileInputRef} type="file" accept=".pdf,.jpg,.jpeg,.png" multiple onChange={analyserFichier} style={{ display: "none" }}  multiple/>
             <button onClick={() => fileInputRef.current.click()} disabled={loading || fichierLoading}
               title="Joindre PDF, JPEG ou PNG"
               style={{ padding: "12px", background: "rgba(200,169,110,0.15)", color: "#c8a96e", border: "1px solid rgba(200,169,110,0.3)", borderRadius: "8px", cursor: "pointer", fontSize: "18px", flexShrink: 0 }}>
