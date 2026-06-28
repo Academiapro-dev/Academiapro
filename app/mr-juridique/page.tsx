@@ -1,6 +1,4 @@
 "use client";
-import MemoryButton from "@/components/MemoryButton";
-import { useAgentMemory } from "@/hooks/useAgentMemory";
 import { useState, useEffect, useRef } from "react";
 
 const DOCUMENTS = [
@@ -154,10 +152,6 @@ const ACTIONS_PRIORITAIRES = [
 ];
 
 export default function MrJuridiquePage() {
-  const { saveMemory, restoreSession, lastSaved, isSaving } = useAgentMemory({
-    agentId: "juridique",
-    sessionLabel: "Session juridique"
-  });
   const [isAdmin, setIsAdmin] = useState(false);
   const [checking, setChecking] = useState(true);
   const [message, setMessage] = useState("");
@@ -167,6 +161,11 @@ export default function MrJuridiquePage() {
   const [onglet, setOnglet] = useState("chat");
   const [docActif, setDocActif] = useState(null);
   const [envoyant, setEnvoyant] = useState(false);
+  const [memoireOk, setMemoireOk] = useState(false);
+  const [memoireLoading, setMemoireLoading] = useState(false);
+  const [panelOuvert, setPanelOuvert] = useState(false);
+  const [sessionsMem, setSessionsMem] = useState([]);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
   const [envoiOk, setEnvoiOk] = useState(false);
   const [actionLoading, setActionLoading] = useState("");
   const [fichierLoading, setFichierLoading] = useState(false);
@@ -182,6 +181,49 @@ export default function MrJuridiquePage() {
     } catch {}
     setChecking(false);
   }, []);
+
+  async function sauvegarderMemoire() {
+    setMemoireLoading(true);
+    try {
+      await fetch("/api/memory/save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          agent_id: "juridique",
+          session_id: "juridique_" + Date.now(),
+          session_label: "Session juridique",
+          conversation: historique.map(m => ({ ...m, content: m.text || m.content || "" })),
+          context_summary: "",
+          key_decisions: []
+        }),
+      });
+      setMemoireOk(true);
+      setTimeout(() => setMemoireOk(false), 2000);
+    } catch {}
+    setMemoireLoading(false);
+  }
+
+  async function ouvrirRestauration() {
+    setPanelOuvert(true);
+    setSessionsLoading(true);
+    try {
+      const res = await fetch("/api/memory/load?agent_id=juridique");
+      const data = await res.json();
+      setSessionsMem(data.success ? data.data : []);
+    } catch { setSessionsMem([]); }
+    setSessionsLoading(false);
+  }
+
+  function restaurerSession(conv) {
+    const normalises = conv.map(m => ({
+      role: m.role === "assistant" ? "agent" : m.role,
+      text: m.content || m.text || "",
+      content: m.content || m.text || ""
+    }));
+    setHistorique(normalises);
+    setPanelOuvert(false);
+  }
+
 
   async function analyserFichier(e) {
     const files = Array.from(e.target.files);
@@ -569,6 +611,14 @@ export default function MrJuridiquePage() {
                   style={{ padding: "12px 24px", background: "#c8a96e", color: "#050508", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "bold" }}>
                   Envoyer
                 </button>
+            <button onClick={sauvegarderMemoire} disabled={memoireLoading}
+              style={{ background: memoireOk ? "#22c55e" : "rgba(139,92,246,0.2)", color: memoireOk ? "#fff" : "#a78bfa", border: "1px solid " + (memoireOk ? "#22c55e" : "rgba(139,92,246,0.4)"), borderRadius: "6px", padding: "6px 14px", fontSize: "11px", cursor: "pointer", fontWeight: "bold" }}>
+              {memoireOk ? "✅ Sauvegardé !" : memoireLoading ? "⏳..." : "💾 Sauvegarder"}
+            </button>
+            <button onClick={ouvrirRestauration}
+              style={{ background: "rgba(139,92,246,0.2)", color: "#a78bfa", border: "1px solid rgba(139,92,246,0.4)", borderRadius: "6px", padding: "6px 14px", fontSize: "11px", cursor: "pointer", fontWeight: "bold" }}>
+              📂 Restaurer
+            </button>
               </div>
               <p style={{ color: "rgba(255,255,255,0.2)", fontSize: "11px", margin: "8px 0 0", textAlign: "center" }}>
                 📎 Formats acceptes : PDF · JPEG · PNG — Analyse directe par Maitre Duval
@@ -677,19 +727,36 @@ export default function MrJuridiquePage() {
           </div>
         )}
       </div>
-      <MemoryButton
-        agentId="juridique"
-        onRestore={(messages) => {
-          setHistorique(messages.map(m => ({
-            role: m.role === 'assistant' ? 'agent' : m.role,
-            text: m.content || m.text || '',
-            content: m.content || m.text || ''
-          })));
-        }}
-        onSaveNow={() => saveMemory(historique)}
-        lastSaved={lastSaved}
-        isSaving={isSaving}
-      />
+      {panelOuvert && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
+          <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.6)" }} onClick={() => setPanelOuvert(false)} />
+          <div style={{ position: "relative", background: "#111827", border: "1px solid #374151", borderRadius: "16px", width: "100%", maxWidth: "500px", maxHeight: "80vh", overflow: "hidden", display: "flex", flexDirection: "column" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "20px", borderBottom: "1px solid #374151" }}>
+              <h2 style={{ color: "#fff", margin: 0, fontSize: "18px" }}>🧠 Restaurer une session</h2>
+              <button onClick={() => setPanelOuvert(false)} style={{ background: "none", border: "none", color: "#9ca3af", fontSize: "24px", cursor: "pointer" }}>×</button>
+            </div>
+            <div style={{ overflowY: "auto", flex: 1, padding: "16px" }}>
+              {sessionsLoading ? (
+                <p style={{ color: "#9ca3af", textAlign: "center" }}>Chargement...</p>
+              ) : sessionsMem.length === 0 ? (
+                <p style={{ color: "#6b7280", textAlign: "center" }}>Aucune session sauvegardée</p>
+              ) : sessionsMem.slice(0, 10).map((s, i) => (
+                <div key={s.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px", borderRadius: "10px", border: "1px solid " + (i === 0 ? "rgba(139,92,246,0.5)" : "#374151"), background: i === 0 ? "rgba(139,92,246,0.1)" : "rgba(31,41,55,0.5)", marginBottom: "8px" }}>
+                  <div>
+                    {i === 0 && <span style={{ fontSize: "10px", background: "#7c3aed", color: "#fff", padding: "2px 8px", borderRadius: "20px", marginRight: "8px" }}>Dernière</span>}
+                    <span style={{ color: "#fff", fontSize: "13px" }}>{s.session_label}</span>
+                    <p style={{ color: "#9ca3af", fontSize: "11px", margin: "4px 0 0" }}>🕐 {new Date(s.updated_at).toLocaleString("fr-FR")} · {s.conversation?.length || 0} messages</p>
+                  </div>
+                  <button onClick={() => restaurerSession(s.conversation || [])}
+                    style={{ padding: "6px 12px", background: "#374151", color: "#d1d5db", border: "none", borderRadius: "8px", cursor: "pointer", fontSize: "13px" }}>
+                    ↩️ Restaurer
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
 
   );
