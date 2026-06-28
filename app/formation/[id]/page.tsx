@@ -83,9 +83,9 @@ export default function FormationPage({ params }) {
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "15px", marginBottom: "40px" }}>
           {[
-            { icon: "📚", label: t("formation.elearning"), desc: t("formation.elearning_sub") },
-            { icon: "🤖", label: t("formation.coach"), desc: t("formation.coach_sub") },
-            { icon: "🎥", label: t("formation.classe"), desc: t("formation.classe_sub") },
+            { icon: "📚", label: lm.elearning, desc: lm.elearning_sub },
+            { icon: "🤖", label: lm.coach, desc: lm.coach_sub },
+            { icon: "🎥", label: lm.classe, desc: lm.classe_sub },
           ].map(item => (
             <div key={item.label} style={{ background: "rgba(200,169,110,0.1)", border: "1px solid rgba(200,169,110,0.3)", borderRadius: "10px", padding: "15px", textAlign: "center" }}>
               <div style={{ fontSize: "28px", marginBottom: "8px" }}>{item.icon}</div>
