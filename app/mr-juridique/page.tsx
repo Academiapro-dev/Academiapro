@@ -161,11 +161,6 @@ export default function MrJuridiquePage() {
   const [onglet, setOnglet] = useState("chat");
   const [docActif, setDocActif] = useState(null);
   const [envoyant, setEnvoyant] = useState(false);
-  const [memoireOk, setMemoireOk] = useState(false);
-  const [memoireLoading, setMemoireLoading] = useState(false);
-  const [panelOuvert, setPanelOuvert] = useState(false);
-  const [sessionsMem, setSessionsMem] = useState([]);
-  const [sessionsLoading, setSessionsLoading] = useState(false);
   const [envoiOk, setEnvoiOk] = useState(false);
   const [actionLoading, setActionLoading] = useState("");
   const [fichierLoading, setFichierLoading] = useState(false);
@@ -182,108 +177,20 @@ export default function MrJuridiquePage() {
     setChecking(false);
   }, []);
 
-  async function sauvegarderMemoire() {
-    setMemoireLoading(true);
-    try {
-      await fetch("/api/memory/save", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          agent_id: "juridique",
-          session_id: "juridique_" + Date.now(),
-          session_label: "Session juridique",
-          conversation: historique.map(m => ({ ...m, content: m.text || m.content || "" })),
-          context_summary: "",
-          key_decisions: []
-        }),
-      });
-      setMemoireOk(true);
-      setTimeout(() => setMemoireOk(false), 2000);
-    } catch {}
-    setMemoireLoading(false);
-  }
-
-  async function ouvrirRestauration() {
-    setPanelOuvert(true);
-    setSessionsLoading(true);
-    try {
-      const res = await fetch("/api/memory/load?agent_id=juridique");
-      const data = await res.json();
-      setSessionsMem(data.success ? data.data : []);
-    } catch { setSessionsMem([]); }
-    setSessionsLoading(false);
-  }
-
-  function restaurerSession(conv) {
-    const normalises = conv.map(m => ({
-      role: m.role === "assistant" ? "agent" : m.role,
-      text: m.content || m.text || "",
-      content: m.content || m.text || ""
-    }));
-    setHistorique(normalises);
-    setPanelOuvert(false);
-  }
-
-
   async function analyserFichier(e) {
     const files = Array.from(e.target.files);
     if (!files.length) return;
     setFichierLoading(true);
     const noms = files.map((f) => f.name).join(", ");
-
-    async function compresser(file) {
-      return new Promise((resolve) => {
-        const ext = file.name.split(".").pop().toLowerCase();
-        if (ext === "pdf") {
-          const reader = new FileReader();
-          reader.onload = (ev) => resolve({ base64: ev.target.result.split(",")[1], mediaType: "application/pdf", nom: file.name });
-          reader.readAsDataURL(file);
-          return;
-        }
-        const img = new Image();
-        const url = URL.createObjectURL(file);
-        img.onload = () => {
-          const MAX = 1024;
-          let w = img.width, h = img.height;
-          if (w > MAX || h > MAX) {
-            if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
-            else { w = Math.round(w * MAX / h); h = MAX; }
-          }
-          const canvas = document.createElement("canvas");
-          canvas.width = w; canvas.height = h;
-          canvas.getContext("2d").drawImage(img, 0, 0, w, h);
-          const b64 = canvas.toDataURL("image/jpeg", 0.7).split(",")[1];
-          URL.revokeObjectURL(url);
-          resolve({ base64: b64, mediaType: "image/jpeg", nom: file.name });
-        };
-        img.src = url;
-      });
-    }
     setHistorique(prev => [...prev, { role: "user", text: "📎 " + files.length + " document(s) joint(s) : " + noms }]);
     try {
-      const fichiersB64 = await Promise.all(files.map(compresser));
-      
-      // Upload fichiers Supabase Storage
-      const urlsFichiers = [];
-      for (const f of fichiersB64) {
-        try {
-          const ext = f.mediaType === "application/pdf" ? "pdf" : "jpg";
-          const nomFichier = "cam_" + Date.now() + "_" + Math.random().toString(36).slice(2,7) + "." + ext;
-          const bytes = Uint8Array.from(atob(f.base64), c => c.charCodeAt(0));
-          await fetch("https://kpxrbwsbhmggoajtxzqn.supabase.co/storage/v1/object/agent_documents/" + nomFichier, {
-            method: "POST",
-            headers: {
-              "apikey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtweHJid3NiaG1nZ29hanR4enFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA3NzM0NjIsImV4cCI6MjA5NjM0OTQ2Mn0.J45gFfkK7PHhpCFJ5ahRDbRSeGdG9YO1aa0rRZP_lks",
-              "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtweHJid3NiaG1nZ29hanR4enFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA3NzM0NjIsImV4cCI6MjA5NjM0OTQ2Mn0.J45gFfkK7PHhpCFJ5ahRDbRSeGdG9YO1aa0rRZP_lks",
-              "Content-Type": f.mediaType,
-              "x-upsert": "true"
-            },
-            body: bytes
-          });
-          urlsFichiers.push("https://kpxrbwsbhmggoajtxzqn.supabase.co/storage/v1/object/public/agent_documents/" + nomFichier);
-        } catch {}
-      }
-
+      const fichiersB64 = await Promise.all(files.map((file) => new Promise((resolve) => {
+        const ext = file.name.split(".").pop().toLowerCase();
+        const mediaType = ext === "pdf" ? "application/pdf" : ext === "png" ? "image/png" : "image/jpeg";
+        const reader = new FileReader();
+        reader.onload = (ev) => resolve({ base64: ev.target.result.split(",")[1], mediaType, nom: file.name });
+        reader.readAsDataURL(file);
+      })));
       const r = await fetch("/api/mr-juridique", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -308,28 +215,6 @@ export default function MrJuridiquePage() {
     setOnglet("chat");
     setHistorique(prev => [...prev, { role: "user", text: action.guide }]);
     try {
-      
-      // Upload fichiers Supabase Storage
-      const urlsFichiers = [];
-      for (const f of fichiersB64) {
-        try {
-          const ext = f.mediaType === "application/pdf" ? "pdf" : "jpg";
-          const nomFichier = "cam_" + Date.now() + "_" + Math.random().toString(36).slice(2,7) + "." + ext;
-          const bytes = Uint8Array.from(atob(f.base64), c => c.charCodeAt(0));
-          await fetch("https://kpxrbwsbhmggoajtxzqn.supabase.co/storage/v1/object/agent_documents/" + nomFichier, {
-            method: "POST",
-            headers: {
-              "apikey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtweHJid3NiaG1nZ29hanR4enFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA3NzM0NjIsImV4cCI6MjA5NjM0OTQ2Mn0.J45gFfkK7PHhpCFJ5ahRDbRSeGdG9YO1aa0rRZP_lks",
-              "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtweHJid3NiaG1nZ29hanR4enFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA3NzM0NjIsImV4cCI6MjA5NjM0OTQ2Mn0.J45gFfkK7PHhpCFJ5ahRDbRSeGdG9YO1aa0rRZP_lks",
-              "Content-Type": f.mediaType,
-              "x-upsert": "true"
-            },
-            body: bytes
-          });
-          urlsFichiers.push("https://kpxrbwsbhmggoajtxzqn.supabase.co/storage/v1/object/public/agent_documents/" + nomFichier);
-        } catch {}
-      }
-
       const r = await fetch("/api/mr-juridique", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -351,28 +236,6 @@ export default function MrJuridiquePage() {
     setHistorique(prev => [...prev, { role: "user", text: m }]);
     setLoading(true);
     try {
-      
-      // Upload fichiers Supabase Storage
-      const urlsFichiers = [];
-      for (const f of fichiersB64) {
-        try {
-          const ext = f.mediaType === "application/pdf" ? "pdf" : "jpg";
-          const nomFichier = "cam_" + Date.now() + "_" + Math.random().toString(36).slice(2,7) + "." + ext;
-          const bytes = Uint8Array.from(atob(f.base64), c => c.charCodeAt(0));
-          await fetch("https://kpxrbwsbhmggoajtxzqn.supabase.co/storage/v1/object/agent_documents/" + nomFichier, {
-            method: "POST",
-            headers: {
-              "apikey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtweHJid3NiaG1nZ29hanR4enFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA3NzM0NjIsImV4cCI6MjA5NjM0OTQ2Mn0.J45gFfkK7PHhpCFJ5ahRDbRSeGdG9YO1aa0rRZP_lks",
-              "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtweHJid3NiaG1nZ29hanR4enFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA3NzM0NjIsImV4cCI6MjA5NjM0OTQ2Mn0.J45gFfkK7PHhpCFJ5ahRDbRSeGdG9YO1aa0rRZP_lks",
-              "Content-Type": f.mediaType,
-              "x-upsert": "true"
-            },
-            body: bytes
-          });
-          urlsFichiers.push("https://kpxrbwsbhmggoajtxzqn.supabase.co/storage/v1/object/public/agent_documents/" + nomFichier);
-        } catch {}
-      }
-
       const r = await fetch("/api/mr-juridique", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -392,28 +255,6 @@ export default function MrJuridiquePage() {
     setHistorique(prev => [...prev, { role: "user", text: "Checklist juridique complete LLC Wyoming + INPI + Exit France + Israel" }]);
     setLoading(true);
     try {
-      
-      // Upload fichiers Supabase Storage
-      const urlsFichiers = [];
-      for (const f of fichiersB64) {
-        try {
-          const ext = f.mediaType === "application/pdf" ? "pdf" : "jpg";
-          const nomFichier = "cam_" + Date.now() + "_" + Math.random().toString(36).slice(2,7) + "." + ext;
-          const bytes = Uint8Array.from(atob(f.base64), c => c.charCodeAt(0));
-          await fetch("https://kpxrbwsbhmggoajtxzqn.supabase.co/storage/v1/object/agent_documents/" + nomFichier, {
-            method: "POST",
-            headers: {
-              "apikey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtweHJid3NiaG1nZ29hanR4enFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA3NzM0NjIsImV4cCI6MjA5NjM0OTQ2Mn0.J45gFfkK7PHhpCFJ5ahRDbRSeGdG9YO1aa0rRZP_lks",
-              "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtweHJid3NiaG1nZ29hanR4enFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA3NzM0NjIsImV4cCI6MjA5NjM0OTQ2Mn0.J45gFfkK7PHhpCFJ5ahRDbRSeGdG9YO1aa0rRZP_lks",
-              "Content-Type": f.mediaType,
-              "x-upsert": "true"
-            },
-            body: bytes
-          });
-          urlsFichiers.push("https://kpxrbwsbhmggoajtxzqn.supabase.co/storage/v1/object/public/agent_documents/" + nomFichier);
-        } catch {}
-      }
-
       const r = await fetch("/api/mr-juridique", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message: q, contexte: "international", historique: [] }) });
       const data = await r.json();
       setHistorique(prev => [...prev, { role: "agent", text: data.reply || "Erreur." }]);
@@ -427,28 +268,6 @@ export default function MrJuridiquePage() {
     setHistorique(prev => [...prev, { role: "user", text: "Guide depot marque INPI France + extension internationale" }]);
     setLoading(true);
     try {
-      
-      // Upload fichiers Supabase Storage
-      const urlsFichiers = [];
-      for (const f of fichiersB64) {
-        try {
-          const ext = f.mediaType === "application/pdf" ? "pdf" : "jpg";
-          const nomFichier = "cam_" + Date.now() + "_" + Math.random().toString(36).slice(2,7) + "." + ext;
-          const bytes = Uint8Array.from(atob(f.base64), c => c.charCodeAt(0));
-          await fetch("https://kpxrbwsbhmggoajtxzqn.supabase.co/storage/v1/object/agent_documents/" + nomFichier, {
-            method: "POST",
-            headers: {
-              "apikey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtweHJid3NiaG1nZ29hanR4enFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA3NzM0NjIsImV4cCI6MjA5NjM0OTQ2Mn0.J45gFfkK7PHhpCFJ5ahRDbRSeGdG9YO1aa0rRZP_lks",
-              "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtweHJid3NiaG1nZ29hanR4enFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA3NzM0NjIsImV4cCI6MjA5NjM0OTQ2Mn0.J45gFfkK7PHhpCFJ5ahRDbRSeGdG9YO1aa0rRZP_lks",
-              "Content-Type": f.mediaType,
-              "x-upsert": "true"
-            },
-            body: bytes
-          });
-          urlsFichiers.push("https://kpxrbwsbhmggoajtxzqn.supabase.co/storage/v1/object/public/agent_documents/" + nomFichier);
-        } catch {}
-      }
-
       const r = await fetch("/api/mr-juridique", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message: q, contexte: "france", historique: [] }) });
       const data = await r.json();
       setHistorique(prev => [...prev, { role: "agent", text: data.reply || "Erreur." }]);
@@ -462,28 +281,6 @@ export default function MrJuridiquePage() {
     setHistorique(prev => [...prev, { role: "user", text: "Guide protection marque internationale : USPTO + Israel + Madrid OMPI" }]);
     setLoading(true);
     try {
-      
-      // Upload fichiers Supabase Storage
-      const urlsFichiers = [];
-      for (const f of fichiersB64) {
-        try {
-          const ext = f.mediaType === "application/pdf" ? "pdf" : "jpg";
-          const nomFichier = "cam_" + Date.now() + "_" + Math.random().toString(36).slice(2,7) + "." + ext;
-          const bytes = Uint8Array.from(atob(f.base64), c => c.charCodeAt(0));
-          await fetch("https://kpxrbwsbhmggoajtxzqn.supabase.co/storage/v1/object/agent_documents/" + nomFichier, {
-            method: "POST",
-            headers: {
-              "apikey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtweHJid3NiaG1nZ29hanR4enFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA3NzM0NjIsImV4cCI6MjA5NjM0OTQ2Mn0.J45gFfkK7PHhpCFJ5ahRDbRSeGdG9YO1aa0rRZP_lks",
-              "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtweHJid3NiaG1nZ29hanR4enFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA3NzM0NjIsImV4cCI6MjA5NjM0OTQ2Mn0.J45gFfkK7PHhpCFJ5ahRDbRSeGdG9YO1aa0rRZP_lks",
-              "Content-Type": f.mediaType,
-              "x-upsert": "true"
-            },
-            body: bytes
-          });
-          urlsFichiers.push("https://kpxrbwsbhmggoajtxzqn.supabase.co/storage/v1/object/public/agent_documents/" + nomFichier);
-        } catch {}
-      }
-
       const r = await fetch("/api/mr-juridique", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message: q, contexte: "international", historique: [] }) });
       const data = await r.json();
       setHistorique(prev => [...prev, { role: "agent", text: data.reply || "Erreur." }]);
@@ -591,7 +388,7 @@ export default function MrJuridiquePage() {
               <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
                 <input
                   ref={fileInputRef}
-                  type="file" multiple
+                  type="file"
                   accept=".pdf,.jpg,.jpeg,.png"
                   onChange={analyserFichier}
                   style={{ display: "none" }}
@@ -611,14 +408,6 @@ export default function MrJuridiquePage() {
                   style={{ padding: "12px 24px", background: "#c8a96e", color: "#050508", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "bold" }}>
                   Envoyer
                 </button>
-            <button onClick={sauvegarderMemoire} disabled={memoireLoading}
-              style={{ background: memoireOk ? "#22c55e" : "rgba(139,92,246,0.2)", color: memoireOk ? "#fff" : "#a78bfa", border: "1px solid " + (memoireOk ? "#22c55e" : "rgba(139,92,246,0.4)"), borderRadius: "6px", padding: "6px 14px", fontSize: "11px", cursor: "pointer", fontWeight: "bold" }}>
-              {memoireOk ? "✅ Sauvegardé !" : memoireLoading ? "⏳..." : "💾 Sauvegarder"}
-            </button>
-            <button onClick={ouvrirRestauration}
-              style={{ background: "rgba(139,92,246,0.2)", color: "#a78bfa", border: "1px solid rgba(139,92,246,0.4)", borderRadius: "6px", padding: "6px 14px", fontSize: "11px", cursor: "pointer", fontWeight: "bold" }}>
-              📂 Restaurer
-            </button>
               </div>
               <p style={{ color: "rgba(255,255,255,0.2)", fontSize: "11px", margin: "8px 0 0", textAlign: "center" }}>
                 📎 Formats acceptes : PDF · JPEG · PNG — Analyse directe par Maitre Duval
@@ -727,37 +516,6 @@ export default function MrJuridiquePage() {
           </div>
         )}
       </div>
-      {panelOuvert && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
-          <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.6)" }} onClick={() => setPanelOuvert(false)} />
-          <div style={{ position: "relative", background: "#111827", border: "1px solid #374151", borderRadius: "16px", width: "100%", maxWidth: "500px", maxHeight: "80vh", overflow: "hidden", display: "flex", flexDirection: "column" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "20px", borderBottom: "1px solid #374151" }}>
-              <h2 style={{ color: "#fff", margin: 0, fontSize: "18px" }}>🧠 Restaurer une session</h2>
-              <button onClick={() => setPanelOuvert(false)} style={{ background: "none", border: "none", color: "#9ca3af", fontSize: "24px", cursor: "pointer" }}>×</button>
-            </div>
-            <div style={{ overflowY: "auto", flex: 1, padding: "16px" }}>
-              {sessionsLoading ? (
-                <p style={{ color: "#9ca3af", textAlign: "center" }}>Chargement...</p>
-              ) : sessionsMem.length === 0 ? (
-                <p style={{ color: "#6b7280", textAlign: "center" }}>Aucune session sauvegardée</p>
-              ) : sessionsMem.slice(0, 10).map((s, i) => (
-                <div key={s.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px", borderRadius: "10px", border: "1px solid " + (i === 0 ? "rgba(139,92,246,0.5)" : "#374151"), background: i === 0 ? "rgba(139,92,246,0.1)" : "rgba(31,41,55,0.5)", marginBottom: "8px" }}>
-                  <div>
-                    {i === 0 && <span style={{ fontSize: "10px", background: "#7c3aed", color: "#fff", padding: "2px 8px", borderRadius: "20px", marginRight: "8px" }}>Dernière</span>}
-                    <span style={{ color: "#fff", fontSize: "13px" }}>{s.session_label}</span>
-                    <p style={{ color: "#9ca3af", fontSize: "11px", margin: "4px 0 0" }}>🕐 {new Date(s.updated_at).toLocaleString("fr-FR")} · {s.conversation?.length || 0} messages</p>
-                  </div>
-                  <button onClick={() => restaurerSession(s.conversation || [])}
-                    style={{ padding: "6px 12px", background: "#374151", color: "#d1d5db", border: "none", borderRadius: "8px", cursor: "pointer", fontSize: "13px" }}>
-                    ↩️ Restaurer
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
-
   );
 }
