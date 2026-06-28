@@ -32,7 +32,9 @@ Reponds toujours en francais. Sois precis, concret, avec des etapes numerotees q
 
     const fichiersList = fichiers || (fichier ? [fichier] : []);
     if (fichiersList.length > 0) {
-      const content: any[] = fichiersList.map((f: any) => {
+      const content: any[] = [
+        { type: "text", text: message },
+        ...fichiersList.map((f: any) => {
         if (f.mediaType === "application/pdf") {
           return { type: "document", source: { type: "base64", media_type: "application/pdf", data: f.base64 } };
         } else {
@@ -40,6 +42,7 @@ Reponds toujours en francais. Sois precis, concret, avec des etapes numerotees q
         }
       });
       content.push({ type: "text", text: message + (contexte ? " [Contexte : " + contexte + "]" : "") });
+      ];
       messages.push({ role: "user", content });
     } else {
       messages.push({ role: "user", content: message + (contexte ? " [Contexte : " + contexte + "]" : "") });
