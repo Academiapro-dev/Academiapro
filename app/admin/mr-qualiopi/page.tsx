@@ -383,10 +383,6 @@ ANALYSE DEMANDEE :
     );
   }
 
-
-}
-export default function MrQualiopiPage() {
-
   return (
     <div style={{ backgroundColor: "#050508", minHeight: "100vh", color: "#fff" }}>
       <div style={{ background: "linear-gradient(135deg,#0a0a1a,#1a1a2e)", padding: "30px 40px" }}>
