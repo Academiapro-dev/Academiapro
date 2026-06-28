@@ -661,7 +661,7 @@ ANALYSE DEMANDEE :
               </div>}
             </div>
             <div style={{ display: "flex", gap: "10px", alignItems: "center", marginBottom: "8px" }}>
-              <input ref={fileInputRef} type="file" accept=".pdf,.jpg,.jpeg,.png" multiple onChange={analyserFichier} style={{ display: "none" }}  multiple/>
+              <input ref={fileInputRef} type="file" accept=".pdf,.jpg,.jpeg,.png" multiple onChange={analyserFichier} style={{ display: "none" }}  multiple/ multiple>
               <button onClick={() => fileInputRef.current?.click()} disabled={loading || fichierLoading}
                 title="Joindre PDF, JPEG ou PNG"
                 style={{ padding: "12px", background: "rgba(200,169,110,0.15)", color: "#c8a96e", border: "1px solid rgba(200,169,110,0.3)", borderRadius: "8px", cursor: "pointer", fontSize: "18px", flexShrink: 0 }}>
