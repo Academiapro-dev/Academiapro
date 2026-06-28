@@ -307,7 +307,7 @@ export default function MrCamPage() {
               style={{ background: memoireOk ? "#22c55e" : "rgba(139,92,246,0.2)", color: memoireOk ? "#fff" : "#a78bfa", border: "1px solid " + (memoireOk ? "#22c55e" : "rgba(139,92,246,0.4)"), borderRadius: "6px", padding: "6px 14px", fontSize: "11px", cursor: "pointer", fontWeight: "bold" }}>
               {memoireOk ? "✅ Sauvegardé !" : memoireLoading ? "⏳..." : "💾 Sauvegarder"}
             </button>
-            <button onClick={ouvrirRestauration} disabled={historique.length === 0 && sessions.length === 0}
+            <button onClick={ouvrirRestauration} disabled={false}
               style={{ background: "rgba(139,92,246,0.2)", color: "#a78bfa", border: "1px solid rgba(139,92,246,0.4)", borderRadius: "6px", padding: "6px 14px", fontSize: "11px", cursor: "pointer", fontWeight: "bold" }}>
               📂 Restaurer
             </button>
