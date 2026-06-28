@@ -591,7 +591,7 @@ export default function MrJuridiquePage() {
               <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
                 <input
                   ref={fileInputRef}
-                  type="file"
+                  type="file" multiple
                   accept=".pdf,.jpg,.jpeg,.png"
                   onChange={analyserFichier}
                   style={{ display: "none" }}
