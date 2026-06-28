@@ -13,10 +13,23 @@ export default function AgentPage() {
   const [sessionsLoading, setSessionsLoading] = useState(false);
   const fileInputRef = useRef(null);
   const chatEndRef = useRef(null);
+  const chatContainerRef = useRef(null);
+  const [enBas, setEnBas] = useState(true);
 
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (enBas) chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [historique, loading]);
+
+  function handleScroll(e) {
+    const el = e.target;
+    const enBasDePage = el.scrollHeight - el.scrollTop - el.clientHeight < 50;
+    setEnBas(enBasDePage);
+  }
+
+  function scrollerEnBas() {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    setEnBas(true);
+  }
 
   useEffect(() => {
     async function chargerDerniereSession() {
@@ -171,7 +184,7 @@ export default function AgentPage() {
       <div style={{ maxWidth: "1000px", margin: "0 auto", padding: "20px" }}>
         
 
-        <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(200,169,110,0.2)", borderRadius: "12px", minHeight: "400px", maxHeight: "60vh", overflowY: "auto", padding: "20px", marginBottom: "20px" }}>
+        <div ref={chatContainerRef} onScroll={handleScroll} style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(200,169,110,0.2)", borderRadius: "12px", minHeight: "400px", maxHeight: "60vh", overflowY: "auto", padding: "20px", marginBottom: "20px", position: "relative" }}>
           {historique.length === 0 && (
             <div style={{ textAlign: "center", paddingTop: "80px" }}>
               <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "16px" }}>Posez votre question Qualiopi...</p>
@@ -193,6 +206,12 @@ export default function AgentPage() {
           )}
           <div ref={chatEndRef} />
         </div>
+        {!enBas && (
+          <button onClick={scrollerEnBas}
+            style={{ position: "absolute", bottom: "80px", right: "30px", background: "rgba(200,169,110,0.9)", border: "none", borderRadius: "50%", width: "36px", height: "36px", cursor: "pointer", fontSize: "18px", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 2px 8px rgba(0,0,0,0.4)", zIndex: 10 }}>
+            ↓
+          </button>
+        )}
 
         <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
           <input ref={fileInputRef} type="file" multiple accept=".pdf,.jpg,.jpeg,.png" style={{ display: "none" }} onChange={analyserFichier} />
