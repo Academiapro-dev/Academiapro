@@ -18,6 +18,27 @@ export default function AgentPage() {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [historique, loading]);
 
+  useEffect(() => {
+    async function chargerDerniereSession() {
+      try {
+        const res = await fetch("/api/memory/load?agent_id=comptable");
+        const data = await res.json();
+        if (data.success && data.data && data.data.length > 0) {
+          const derniere = data.data[0];
+          if (derniere.conversation && derniere.conversation.length > 0) {
+            const normalises = derniere.conversation.map(m => ({
+              role: m.role === "assistant" ? "agent" : m.role,
+              text: m.content || m.text || "",
+              content: m.content || m.text || ""
+            }));
+            setHistorique(normalises);
+          }
+        }
+      } catch {}
+    }
+    chargerDerniereSession();
+  }, []);
+
   async function analyserFichier(e) {
     const files = Array.from(e.target.files);
     if (!files.length) return;
@@ -35,7 +56,7 @@ export default function AgentPage() {
       const r = await fetch("/api/mr-comptable", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: "Analyse ces " + files.length + " document(s).", historique, fichiers: fichiersB64 }),
+        body: JSON.stringify({ message: "Analyse ces " + files.length + " document(s).", historique: historique.slice(-20), fichiers: fichiersB64 }),
       });
       const data = await r.json();
       setHistorique(prev => [...prev, { role: "agent", text: data.reply || "Erreur." }]);
@@ -56,7 +77,7 @@ export default function AgentPage() {
       const r = await fetch("/api/mr-comptable", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: m, historique }),
+        body: JSON.stringify({ message: m, historique: historique.slice(-20) }),
       });
       const data = await r.json();
       setHistorique(prev => [...prev, { role: "agent", text: data.reply || "Erreur." }]);
