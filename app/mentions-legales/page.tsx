@@ -1,32 +1,25 @@
+"use client";
 export default function MentionsLegalesPage() {
   return (
     <div style={{ minHeight: "100vh", background: "#050508", color: "#fff", fontFamily: "Georgia, serif", padding: "40px 20px" }}>
-      <div style={{ maxWidth: "1100px", margin: "0 auto" }}>
-        <div style={{ textAlign: "center", marginBottom: "48px" }}>
-          <p style={{ color: "#c8a96e", fontSize: "12px", letterSpacing: "3px", margin: "0 0 12px" }}>ACADEMIAPRO</p>
-          <h1 style={{ color: "#fff", fontSize: "36px", margin: "0 0 12px" }}>Mentions Legales</h1>
-          <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "16px", margin: "0" }}>Conformement a la loi n 2004-575 du 21 juin 2004</p>
-        </div>
-        <div style={{ background: "#1a1a2e", borderRadius: "16px", padding: "32px", border: "1px solid rgba(200,169,110,0.3)", marginBottom: "24px" }}>
-          <h2 style={{ color: "#c8a96e", fontSize: "20px", margin: "0 0 16px" }}>Editeur du Site</h2>
-          <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "14px", lineHeight: "1.8", margin: "0" }}>AcadémIA Pro · Directeur de la publication : Jacques Zenou · contact@academiapro.fr</p>
-        </div>
-        <div style={{ background: "#1a1a2e", borderRadius: "16px", padding: "32px", border: "1px solid rgba(200,169,110,0.3)", marginBottom: "24px" }}>
-          <h2 style={{ color: "#c8a96e", fontSize: "20px", margin: "0 0 16px" }}>Hebergement</h2>
-          <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "14px", lineHeight: "1.8", margin: "0" }}>Vercel Inc · 340 Pine Street Suite 500 · San Francisco CA 94104 · Etats-Unis · vercel.com</p>
-        </div>
-        <div style={{ background: "#1a1a2e", borderRadius: "16px", padding: "32px", border: "1px solid rgba(200,169,110,0.3)", marginBottom: "24px" }}>
-          <h2 style={{ color: "#c8a96e", fontSize: "20px", margin: "0 0 16px" }}>Propriete Intellectuelle</h2>
-          <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "14px", lineHeight: "1.8", margin: "0" }}>L ensemble du contenu du site academiapro.fr est protege par le droit d auteur. Toute reproduction interdite sans accord ecrit.</p>
-        </div>
-        <div style={{ background: "#1a1a2e", borderRadius: "16px", padding: "32px", border: "1px solid rgba(200,169,110,0.3)", marginBottom: "24px" }}>
-          <h2 style={{ color: "#c8a96e", fontSize: "20px", margin: "0 0 16px" }}>Droit Applicable</h2>
-          <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "14px", lineHeight: "1.8", margin: "0" }}>Le present site est soumis au droit francais. Tout litige sera de la competence exclusive des tribunaux de Paris.</p>
-        </div>
-        <div style={{ background: "#1a1a2e", borderRadius: "16px", padding: "32px", border: "1px solid rgba(200,169,110,0.3)", marginBottom: "24px" }}>
-          <h2 style={{ color: "#c8a96e", fontSize: "20px", margin: "0 0 16px" }}>Contact</h2>
-          <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "14px", lineHeight: "1.8", margin: "0" }}>Pour toute question relative aux mentions legales : contact@academiapro.fr</p>
-        </div>
+      <div style={{ maxWidth: "800px", margin: "0 auto" }}>
+        <h1 style={{ color: "#c8a96e", fontSize: "32px", marginBottom: "40px" }}>Mentions Légales</h1>
+        
+        <h2 style={{ color: "#c8a96e", fontSize: "20px", marginTop: "32px" }}>Éditeur du site</h2>
+        <p>AcadémIA Pro LLC<br/>30 N Gould St, STE R<br/>Sheridan, WY 82801<br/>Wyoming — USA</p>
+        <p>Dirigeant : Jacques Lalou<br/>Email : contact@academiapro.fr<br/>Site : www.academiapro.fr<br/>EIN : En cours d'attribution (SS-4 déposé le 25/06/2026)</p>
+
+        <h2 style={{ color: "#c8a96e", fontSize: "20px", marginTop: "32px" }}>Hébergeur</h2>
+        <p>Vercel Inc.<br/>440 N Barranca Ave #4133<br/>Covina, CA 91723 — USA<br/>www.vercel.com</p>
+
+        <h2 style={{ color: "#c8a96e", fontSize: "20px", marginTop: "32px" }}>Propriété intellectuelle</h2>
+        <p>L'ensemble du contenu de ce site (textes, formations, agents IA, code, visuels) est la propriété exclusive d'AcadémIA Pro LLC. Toute reproduction est interdite sans autorisation écrite préalable.</p>
+
+        <h2 style={{ color: "#c8a96e", fontSize: "20px", marginTop: "32px" }}>Données personnelles</h2>
+        <p>Conformément au RGPD, vous disposez d'un droit d'accès, de rectification et de suppression de vos données. Contact : contact@academiapro.fr</p>
+
+        <h2 style={{ color: "#c8a96e", fontSize: "20px", marginTop: "32px" }}>Droit applicable</h2>
+        <p>Les présentes mentions légales sont soumises au droit de l'État du Wyoming (USA). Tout litige relève de la compétence exclusive des tribunaux compétents.</p>
       </div>
     </div>
   );
