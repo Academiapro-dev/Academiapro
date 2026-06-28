@@ -32,14 +32,16 @@ Reponds toujours en francais. Sois precis avec les formulaires exacts, dates lim
 
     const fichiersList = fichiers || (fichier ? [fichier] : []);
     if (fichiersList.length > 0) {
-      const content: any[] = fichiersList.map((f: any) => {
-        if (f.mediaType === "application/pdf") {
-          return { type: "document", source: { type: "base64", media_type: "application/pdf", data: f.base64 } };
-        } else {
-          return { type: "image", source: { type: "base64", media_type: f.mediaType, data: f.base64 } };
-        }
-      });
-      content.push({ type: "text", text: message + (contexte ? " [Contexte : " + contexte + "]" : "") });
+      const content: any[] = [
+        { type: "text", text: message + (contexte ? " [Contexte : " + contexte + "]" : "") },
+        ...fichiersList.map((f: any) => {
+          if (f.mediaType === "application/pdf") {
+            return { type: "document", source: { type: "base64", media_type: "application/pdf", data: f.base64 } };
+          } else {
+            return { type: "image", source: { type: "base64", media_type: f.mediaType, data: f.base64 } };
+          }
+        })
+      ];
       messages.push({ role: "user", content });
     } else {
       messages.push({ role: "user", content: message + (contexte ? " [Contexte : " + contexte + "]" : "") });
@@ -53,15 +55,15 @@ Reponds toujours en francais. Sois precis avec les formulaires exacts, dates lim
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "claude-opus-4-6",
-        max_tokens: 4000,
+        model: "claude-sonnet-4-6",
+        max_tokens: 8000,
         system: systemPrompt,
         messages,
       }),
     });
 
     const data = await response.json();
-    const reply = data.content?.[0]?.text || "Erreur de reponse.";
+    const reply = data.content?.[0]?.text || "Erreur.";
 
     // Upload fichiers dans Supabase Storage
     if (fichiersList.length > 0) {
@@ -84,6 +86,31 @@ Reponds toujours en francais. Sois precis avec les formulaires exacts, dates lim
           console.log("Upload result:", res.status, nomFichier);
         } catch (err) {
           console.error("Upload error:", err);
+        }
+      }));
+    }
+
+
+    // Upload fichiers dans Supabase Storage avant de repondre
+    if (fichiersList.length > 0) {
+      await Promise.all(fichiersList.map(async (f: any) => {
+        try {
+          const ext = f.mediaType === "application/pdf" ? "pdf" : "jpg";
+          const nomFichier = "comptable_" + Date.now() + "_" + Math.random().toString(36).slice(2,7) + "." + ext;
+          const bytes = Buffer.from(f.base64, "base64");
+          const uploadRes = await fetch("https://kpxrbwsbhmggoajtxzqn.supabase.co/storage/v1/object/agent_documents/" + nomFichier, {
+            method: "POST",
+            headers: {
+              "apikey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtweHJid3NiaG1nZ29hanR4enFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA3NzM0NjIsImV4cCI6MjA5NjM0OTQ2Mn0.J45gFfkK7PHhpCFJ5ahRDbRSeGdG9YO1aa0rRZP_lks",
+              "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtweHJid3NiaG1nZ29hanR4enFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA3NzM0NjIsImV4cCI6MjA5NjM0OTQ2Mn0.J45gFfkK7PHhpCFJ5ahRDbRSeGdG9YO1aa0rRZP_lks",
+              "Content-Type": f.mediaType,
+              "x-upsert": "true"
+            },
+            body: bytes
+          });
+          console.log("Upload result:", uploadRes.status, nomFichier);
+        } catch (err) {
+          console.error("Storage upload error:", err);
         }
       }));
     }
