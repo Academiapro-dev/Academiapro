@@ -4,23 +4,6 @@ import { useState, useEffect, useRef } from "react";
 export default function AgentPage() {
   const [message, setMessage] = useState("");
 
-  const [showFleche, setShowFleche] = useState(false);
-
-  useEffect(() => {
-    const container = document.getElementById("chat-container");
-    if (!container) return;
-    const handleScroll = () => {
-      setShowFleche(container.scrollHeight - container.scrollTop - container.clientHeight > 100);
-    };
-    container.addEventListener("scroll", handleScroll);
-    return () => container.removeEventListener("scroll", handleScroll);
-  }, []);
-
-  function scrollEnBas() {
-    const container = document.getElementById("chat-container");
-    if (container) container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
-  }
-
   const [historique, setHistorique] = useState([]);
   const [loading, setLoading] = useState(false);
   const [fichierLoading, setFichierLoading] = useState(false);
@@ -225,7 +208,7 @@ export default function AgentPage() {
           <div ref={chatEndRef} />
         </div>
         {!enBas && (
-          <button onClick={scrollerEnBas}
+          <button onClick={scrollerEnBas} style={{ position: "fixed", bottom: "100px", right: "20px", zIndex: 1000, background: "rgba(200,169,110,0.9)", border: "none", borderRadius: "50%", width: "44px", height: "44px", cursor: "pointer", fontSize: "20px", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 2px 12px rgba(0,0,0,0.3)" }}
             style={{ position: "absolute", bottom: "80px", right: "30px", background: "rgba(200,169,110,0.9)", border: "none", borderRadius: "50%", width: "36px", height: "36px", cursor: "pointer", fontSize: "18px", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 2px 8px rgba(0,0,0,0.4)", zIndex: 10 }}>
             ↓
           </button>
@@ -260,16 +243,6 @@ export default function AgentPage() {
         </div>
         <p style={{ color: "rgba(255,255,255,0.2)", fontSize: "11px", margin: "8px 0 0" }}>📎 PDF · JPEG · PNG — Analyse directe</p>
       </div>
-    
-      {showFleche && (
-        <button onClick={scrollEnBas} style={{
-          position: "fixed", bottom: "100px", right: "20px", zIndex: 1000,
-          background: "rgba(200,169,110,0.9)", border: "none", borderRadius: "50%",
-          width: "44px", height: "44px", cursor: "pointer", fontSize: "20px",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          boxShadow: "0 2px 12px rgba(0,0,0,0.3)"
-        }}>↓</button>
-      )}
-</div>
+    </div>
   );
 }
