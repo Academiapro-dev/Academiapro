@@ -19,7 +19,7 @@ export default function AbonnementsPage() {
       <div style={{ maxWidth: "1100px", margin: "0 auto" }}>
         <div style={{ textAlign: "center", marginBottom: "40px" }}>
           <p style={{ color: "#c8a96e", fontSize: "12px", letterSpacing: "3px", margin: "0 0 12px" }}>ACADEMIAPRO</p>
-          <h1 style={{ color: "#fff", fontSize: "36px", margin: "0 0 12px" }}>Abonnements Seances Therapeutiques</h1>
+          <h1 style={{ color: "#fff", fontSize: "36px", margin: "0 0 12px" }}>Abonnements Séances Thérapeutiques</h1>
         </div>
         <div style={{ display: "flex", justifyContent: "center", gap: "12px", marginBottom: "40px" }}>
           <button onClick={() => setTab("visio")} style={{ background: tab === "visio" ? "#c8a96e" : "#1a1a2e", color: tab === "visio" ? "#050508" : "#fff", border: "1px solid #c8a96e", borderRadius: "8px", padding: "10px 24px", cursor: "pointer", fontWeight: "bold" }}>Visio</button>
