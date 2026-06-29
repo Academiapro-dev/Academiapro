@@ -249,7 +249,7 @@ export default function B2BPage() {
               <div style={{ display: "grid", gap: "18px" }}>
                 {[
                   { label: "Nom de l entreprise", key: "nom_entreprise", placeholder: "Acme Corp" },
-                  { label: "Votre nom", key: "contact_nom", placeholder: "Prenom Nom" },
+                  { label: "Votre nom", key: "contact_nom", placeholder: "Prénom Nom" },
                   { label: "Email professionnel", key: "contact_email", placeholder: "vous@entreprise.fr" },
                 ].map(f => (
                   <div key={f.key}>
