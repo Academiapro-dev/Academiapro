@@ -191,7 +191,7 @@ export default function AffiliationPage() {
               )}
               <div style={{ marginBottom: "20px" }}>
                 <label style={{ color: "#c8a96e", fontSize: "13px", display: "block", marginBottom: "6px" }}>Votre nom complet</label>
-                <input type="text" placeholder="Prenom Nom" value={form.nom}
+                <input type="text" placeholder="Prénom Nom" value={form.nom}
                   onChange={e => setForm(p => ({ ...p, nom: e.target.value }))}
                   style={{ width: "100%", padding: "12px", borderRadius: "8px", border: "1px solid rgba(200,169,110,0.3)", background: "rgba(255,255,255,0.05)", color: "#fff", boxSizing: "border-box" as any }} />
               </div>
