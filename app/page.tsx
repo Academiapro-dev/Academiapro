@@ -4,15 +4,15 @@ import { useState, useEffect } from "react";
 const T = {
   fr: {
     hero_titre: "Formez-vous avec votre agent IA personnel",
-    hero_sub: "265 formations certifiantes · Agent IA 24h/24 · Seances therapeutiques",
+    hero_sub: "265 formations certifiantes · Agent IA 24h/24 · Séances thérapeutiques",
     btn_formations: "Voir les formations",
     btn_ebook: "E-book gratuit",
     btn_demarrer: "Demarrer",
     stat1: "Formations certifiantes",
-    stat2: "Competences validees",
-    stat3: "Therapeutes IA",
-    stat4: "Garantie satisfait",
-    nav_formations: "Formations", nav_seances: "Seances", nav_packs: "Packs", nav_competences: "Competences", nav_blog: "Blog", nav_contact: "Contact",
+    stat2: "Compétences validées",
+    stat3: "Thérapeutes IA",
+    stat4: "Garantie satisfait ✓",
+    nav_formations: "Formations", nav_séances: "Séances", nav_packs: "Packs", nav_competences: "Compétences", nav_blog: "Blog", nav_contact: "Contact",
     footer_desc: "La plateforme de formation propulsee par l IA. 265 formations certifiantes.",
     voir_formation: "Voir la formation", voir_tout: "Voir les 265 formations", nos_formations: "Nos formations phares",
     nos_formations_sub: "Certification AcadeMIA Pro · Paiement 3x sans frais · Garantie 30 jours",
@@ -22,7 +22,7 @@ const T = {
     hero_sub: "265 certified courses · AI Agent 24/7 · Therapeutic sessions",
     btn_formations: "View courses", btn_ebook: "Free e-book", btn_demarrer: "Get Started",
     stat1: "Certified courses", stat2: "Validated skills", stat3: "AI Therapists", stat4: "Satisfaction guarantee",
-    nav_formations: "Courses", nav_seances: "Sessions", nav_packs: "Packs", nav_competences: "Skills", nav_blog: "Blog", nav_contact: "Contact",
+    nav_formations: "Courses", nav_séances: "Sessions", nav_packs: "Packs", nav_competences: "Skills", nav_blog: "Blog", nav_contact: "Contact",
     footer_desc: "The AI-powered training platform. 265 certified courses.",
     voir_formation: "View course", voir_tout: "View all 265 courses", nos_formations: "Our featured courses",
     nos_formations_sub: "AcadeMIA Pro Certification · 3x payment · 30-day guarantee",
@@ -32,7 +32,7 @@ const T = {
     hero_sub: "265 cursos certificados · Agente IA 24h · Sesiones terapeuticas",
     btn_formations: "Ver cursos", btn_ebook: "E-book gratis", btn_demarrer: "Comenzar",
     stat1: "Cursos certificados", stat2: "Habilidades validadas", stat3: "Terapeutas IA", stat4: "Garantia satisfaccion",
-    nav_formations: "Cursos", nav_seances: "Sesiones", nav_packs: "Packs", nav_competences: "Habilidades", nav_blog: "Blog", nav_contact: "Contacto",
+    nav_formations: "Cursos", nav_séances: "Sesiones", nav_packs: "Packs", nav_competences: "Habilidades", nav_blog: "Blog", nav_contact: "Contacto",
     footer_desc: "La plataforma de formacion impulsada por IA. 265 cursos certificados.",
     voir_formation: "Ver curso", voir_tout: "Ver los 265 cursos", nos_formations: "Nuestros cursos destacados",
     nos_formations_sub: "Certificacion AcadeMIA Pro · Pago 3x · Garantia 30 dias",
@@ -42,7 +42,7 @@ const T = {
     hero_sub: "265 cursos certificados · Agente IA 24h · Sessoes terapeuticas",
     btn_formations: "Ver cursos", btn_ebook: "E-book gratuito", btn_demarrer: "Comecar",
     stat1: "Cursos certificados", stat2: "Competencias validadas", stat3: "Terapeutas IA", stat4: "Garantia de satisfacao",
-    nav_formations: "Cursos", nav_seances: "Sessoes", nav_packs: "Packs", nav_competences: "Competencias", nav_blog: "Blog", nav_contact: "Contato",
+    nav_formations: "Cursos", nav_séances: "Sessoes", nav_packs: "Packs", nav_competences: "Competencias", nav_blog: "Blog", nav_contact: "Contato",
     footer_desc: "A plataforma de formacao impulsionada por IA. 265 cursos certificados.",
     voir_formation: "Ver curso", voir_tout: "Ver os 265 cursos", nos_formations: "Nossos cursos em destaque",
     nos_formations_sub: "Certificacao AcadeMIA Pro · Pagamento 3x · Garantia 30 dias",
@@ -52,7 +52,7 @@ const T = {
     hero_sub: "265 zertifizierte Kurse · KI-Agent 24h · Therapeutische Sitzungen",
     btn_formations: "Kurse ansehen", btn_ebook: "Kostenloses E-Book", btn_demarrer: "Loslegen",
     stat1: "Zertifizierte Kurse", stat2: "Validierte Kompetenzen", stat3: "KI-Therapeuten", stat4: "Zufriedenheitsgarantie",
-    nav_formations: "Kurse", nav_seances: "Sitzungen", nav_packs: "Pakete", nav_competences: "Kompetenzen", nav_blog: "Blog", nav_contact: "Kontakt",
+    nav_formations: "Kurse", nav_séances: "Sitzungen", nav_packs: "Pakete", nav_competences: "Kompetenzen", nav_blog: "Blog", nav_contact: "Kontakt",
     footer_desc: "Die KI-gestutzte Weiterbildungsplattform. 265 zertifizierte Kurse.",
     voir_formation: "Kurs ansehen", voir_tout: "Alle 265 Kurse ansehen", nos_formations: "Unsere Top-Kurse",
     nos_formations_sub: "AcadeMIA Pro Zertifizierung · 3x Zahlung · 30-Tage-Garantie",
@@ -62,7 +62,7 @@ const T = {
     hero_sub: "265 دورة معتمدة · وكيل ذكاء اصطناعي 24/24 · جلسات علاجية",
     btn_formations: "عرض الدورات", btn_ebook: "كتاب مجاني", btn_demarrer: "ابدأ",
     stat1: "دورات معتمدة", stat2: "مهارات معتمدة", stat3: "معالجون AI", stat4: "ضمان الرضا",
-    nav_formations: "الدورات", nav_seances: "الجلسات", nav_packs: "الباقات", nav_competences: "المهارات", nav_blog: "المدونة", nav_contact: "اتصل",
+    nav_formations: "الدورات", nav_séances: "الجلسات", nav_packs: "الباقات", nav_competences: "المهارات", nav_blog: "المدونة", nav_contact: "اتصل",
     footer_desc: "منصة التدريب المدعومة بالذكاء الاصطناعي. 265 دورة معتمدة.",
     voir_formation: "عرض الدورة", voir_tout: "عرض جميع الدورات 265", nos_formations: "دوراتنا المميزة",
     nos_formations_sub: "شهادة AcadeMIA Pro · دفع 3x · ضمان 30 يوماً",
@@ -157,7 +157,7 @@ export default function HomePage() {
             </div>
           </div>
           <div>
-            <h4 style={{ color: "#fff", fontSize: "15px", margin: "0 0 16px" }}>{t("nav_seances")}</h4>
+            <h4 style={{ color: "#fff", fontSize: "15px", margin: "0 0 16px" }}>{t("nav_séances")}</h4>
             <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
               <a href="/seances" style={{ color: "rgba(255,255,255,0.5)", textDecoration: "none", fontSize: "13px" }}>Toutes les specialites</a>
               <a href="/abonnements" style={{ color: "rgba(255,255,255,0.5)", textDecoration: "none", fontSize: "13px" }}>Abonnements</a>
