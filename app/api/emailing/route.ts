@@ -60,7 +60,7 @@ async function generer_campagne(type: string, contexte: any): Promise<{ sujet: s
 
   const prompts: Record<string, string> = {
     bienvenue: `Redige un email de bienvenue pour un nouvel inscrit sur AcadémIA Pro.
-Prenom: ${contexte.prenom || "cher apprenant"}
+Prénom: ${contexte.prenom || "cher apprenant"}
 Formation: ${contexte.formation || "votre formation"}
 Inclus: accueil chaleureux, acces plateforme, formateur assigne, prochaines etapes, contact support.
 Format: SUJET: xxx\n\nCORPS: xxx`,
@@ -72,14 +72,14 @@ Inclus: rappel valeur formation, offre speciale, urgence douce, CTA vers academi
 Format: SUJET: xxx\n\nCORPS: xxx`,
 
     remotivation: `Redige un email de remotivation pour un apprenant inactif depuis ${contexte.jours || 7} jours.
-Prenom: ${contexte.prenom || "cher apprenant"}
+Prénom: ${contexte.prenom || "cher apprenant"}
 Formation: ${contexte.formation || "votre formation"}
 Progression: ${contexte.progression || "en cours"}
 Inclus: encouragement, rappel objectifs, offre aide formateur, CTA reprendre formation.
 Format: SUJET: xxx\n\nCORPS: xxx`,
 
     certification: `Redige un email de felicitations pour un apprenant qui vient d obtenir sa certification.
-Prenom: ${contexte.prenom || "cher apprenant"}
+Prénom: ${contexte.prenom || "cher apprenant"}
 Formation: ${contexte.formation || "votre formation"}
 Inclus: felicitations chaleureuses, valeur du certificat, prochaine formation recommandee, partage LinkedIn.
 Format: SUJET: xxx\n\nCORPS: xxx`,
@@ -91,7 +91,7 @@ Inclus: actualites plateforme, formation du mois, conseil pratique IA, CTA catal
 Format: SUJET: xxx\n\nCORPS: xxx`,
 
     rappel_classe: `Redige un email de rappel pour une classe virtuelle.
-Prenom: ${contexte.prenom || "cher apprenant"}
+Prénom: ${contexte.prenom || "cher apprenant"}
 Formation: ${contexte.formation || "votre formation"}
 Date: ${contexte.date || "demain"}
 Heure: ${contexte.heure || "14h00"}
