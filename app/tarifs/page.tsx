@@ -95,11 +95,11 @@ export default function TarifsPage() {
       <div style={{ display: "flex", justifyContent: "center", padding: "40px 20px 20px", gap: "12px", flexWrap: "wrap" }}>
         <button onClick={() => setOnglet("solo")}
           style={{ padding: "12px 20px", borderRadius: "10px", border: "2px solid " + (onglet === "solo" ? "#c8a96e" : "rgba(255,255,255,0.1)"), background: onglet === "solo" ? "#c8a96e" : "transparent", color: onglet === "solo" ? "#050508" : "#fff", fontWeight: "bold", fontSize: "13px", cursor: "pointer", whiteSpace: "nowrap" }}>
-          💬 Solo
+          💬 Formation + Chat IA
         </button>
         <button onClick={() => setOnglet("avatar")}
           style={{ padding: "12px 20px", borderRadius: "10px", border: "2px solid " + (onglet === "avatar" ? "#c8a96e" : "rgba(255,255,255,0.1)"), background: onglet === "avatar" ? "#c8a96e" : "transparent", color: onglet === "avatar" ? "#050508" : "#fff", fontWeight: "bold", fontSize: "13px", cursor: "pointer", whiteSpace: "nowrap" }}>
-          🤖 Avatar IA Live
+          🎥 Formation + Classe Virtuelle
         </button>
       </div>
 
