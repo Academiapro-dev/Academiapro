@@ -5,7 +5,7 @@ import NavBar from "../components/NavBar";
 
 export const metadata: Metadata = {
   title: "AcadémIA Pro — Formation Professionnelle par l IA",
-  description: "265 formations certifiantes propulsees par l IA · Agent IA tuteur 24h/24 · Seances therapeutiques · Classes virtuelles live",
+  description: "265 formations certifiantes propulsées par l'IA · Agent IA tuteur 24h/24 · Séances thérapeutiques · Classes virtuelles live",
   manifest: "/manifest.json",
   appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "AcadémIA Pro" },
   openGraph: { title: "AcadémIA Pro", description: "Plateforme de formation professionnelle 100% IA", type: "website", locale: "fr_FR" },
