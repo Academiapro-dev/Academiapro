@@ -10,7 +10,7 @@ export default function ReplayPage() {
       <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
         <div style={{ textAlign: "center", marginBottom: "48px" }}>
           <p style={{ color: "#c8a96e", fontSize: "12px", letterSpacing: "3px", margin: "0 0 12px" }}>ACADEMIAPRO</p>
-          <h1 style={{ color: "#fff", fontSize: "36px", margin: "0 0 12px" }}>Replays Seances</h1>
+          <h1 style={{ color: "#fff", fontSize: "36px", margin: "0 0 12px" }}>Replays Séances</h1>
           <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "15px", margin: "0" }}>Disponible 48h apres chaque seance · Telechargement possible</p>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "24px" }}>
