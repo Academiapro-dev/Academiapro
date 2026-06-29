@@ -4,7 +4,7 @@ import { useState } from "react";
 const INTERETS = [
   "Formations professionnelles",
   "Pack IA Expert",
-  "Seances therapeutiques",
+  "Séances thérapeutiques",
   "Classe virtuelle Live",
   "Tout AcadémIA Pro",
 ];
