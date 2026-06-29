@@ -39,7 +39,7 @@ async function generer_message(contexte: any): Promise<string> {
   return await appel_claude(
     SYSTEM_REMOTIVATION,
     `Genere un message de remotivation personnalise pour un apprenant inactif.
-Prenom: ${contexte.prenom || "cher apprenant"}
+Prénom: ${contexte.prenom || "cher apprenant"}
 Formation: ${contexte.formation || "votre formation"}
 Jours inactif: ${jours}
 Progression: ${contexte.progression || "en cours"}
