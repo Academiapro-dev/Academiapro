@@ -12,7 +12,7 @@ export default function MonEspacePage() {
           <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "14px", lineHeight: "1.8", margin: "0" }}>Toutes les formations achetees · progression · acces direct aux modules · certifications.</p>
         </div>
         <div style={{ background: "#1a1a2e", borderRadius: "16px", padding: "32px", border: "1px solid rgba(200,169,110,0.3)", marginBottom: "24px" }}>
-          <h2 style={{ color: "#c8a96e", fontSize: "20px", margin: "0 0 16px" }}>Mes Seances</h2>
+          <h2 style={{ color: "#c8a96e", fontSize: "20px", margin: "0 0 16px" }}>Mes Séances</h2>
           <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "14px", lineHeight: "1.8", margin: "0" }}>Prochaines seances reservees · historique · replays disponibles · reserver une nouvelle seance.</p>
         </div>
         <div style={{ background: "#1a1a2e", borderRadius: "16px", padding: "32px", border: "1px solid rgba(200,169,110,0.3)", marginBottom: "24px" }}>
