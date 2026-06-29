@@ -4,7 +4,7 @@ import { useLangue } from "./LangueSwitcher";
 const TRADUCTIONS: Record<string, Record<string, string>> = {
   fr: {
     nav_formations: "Formations",
-    nav_seances: "Séances",
+    nav_séances: "Séances",
     nav_blog: "Blog",
     nav_contact: "Contact",
     hero_titre: "Formez-vous avec votre agent IA personnel",
@@ -14,13 +14,13 @@ const TRADUCTIONS: Record<string, Record<string, string>> = {
     stat_formations: "Formations certifiantes",
     stat_competences: "Compétences validées",
     stat_therapeutes: "Thérapeutes IA",
-    stat_garantie: "Garantie satisfait",
+    stat_garantie: "Garantie satisfait ✓",
     catalogue_titre: "Catalogue AcadémIA Pro",
     inscription_titre: "Rejoignez la Liste Prioritaire",
   },
   en: {
     nav_formations: "Courses",
-    nav_seances: "Sessions",
+    nav_séances: "Sessions",
     nav_blog: "Blog",
     nav_contact: "Contact",
     hero_titre: "Learn with your personal AI agent",
@@ -36,7 +36,7 @@ const TRADUCTIONS: Record<string, Record<string, string>> = {
   },
   es: {
     nav_formations: "Cursos",
-    nav_seances: "Sesiones",
+    nav_séances: "Sesiones",
     nav_blog: "Blog",
     nav_contact: "Contacto",
     hero_titre: "Formese con su agente IA personal",
@@ -52,7 +52,7 @@ const TRADUCTIONS: Record<string, Record<string, string>> = {
   },
   ar: {
     nav_formations: "الدورات",
-    nav_seances: "الجلسات",
+    nav_séances: "الجلسات",
     nav_blog: "المدونة",
     nav_contact: "اتصل بنا",
     hero_titre: "تدرب مع وكيل الذكاء الاصطناعي الشخصي",
@@ -68,7 +68,7 @@ const TRADUCTIONS: Record<string, Record<string, string>> = {
   },
   he: {
     nav_formations: "קורסים",
-    nav_seances: "פגישות",
+    nav_séances: "פגישות",
     nav_blog: "בלוג",
     nav_contact: "צור קשר",
     hero_titre: "התאמן עם סוכן הבינה המלאכותית האישי שלך",
