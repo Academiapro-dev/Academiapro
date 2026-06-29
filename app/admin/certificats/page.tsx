@@ -74,7 +74,7 @@ export default function CertificatsPage() {
           <h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", marginTop: 0 }}>Nouveau Certificat</h2>
           <div style={{ display: "grid", gap: "20px" }}>
             {[
-              { label: "Nom du stagiaire", key: "nom", placeholder: "Prenom Nom" },
+              { label: "Nom du stagiaire", key: "nom", placeholder: "Prénom Nom" },
               { label: "Intitule de la formation", key: "formation", placeholder: "Expert Claude et IA Generative" },
               { label: "Code formation", key: "code", placeholder: "F128" },
               { label: "Niveau", key: "niveau", placeholder: "Debutant / Intermediaire / Expert" },
