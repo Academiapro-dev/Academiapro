@@ -8,7 +8,7 @@ export default function VerifierPage({ params }: { params: { numero: string } })
           <div style={{ background: "rgba(34,197,94,0.1)", border: "2px solid rgba(34,197,94,0.5)", borderRadius: "16px", padding: "40px" }}>
             <div style={{ fontSize: "48px", marginBottom: "16px" }}>✅</div>
             <h1 style={{ color: "#22c55e", fontSize: "28px", margin: "0 0 12px" }}>Certificat Authentique</h1>
-            <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "15px", margin: "0 0 8px" }}>Numero : {params.numero}</p>
+            <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "15px", margin: "0 0 8px" }}>Numéro : {params.numero}</p>
             <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "14px", margin: "0" }}>Ce certificat a ete delivre par AcadémIA Pro et est authentique.</p>
           </div>
         ) : (
