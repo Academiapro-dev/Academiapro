@@ -11,9 +11,8 @@ export default function SpecialitePage({ params }: { params: { specialite: strin
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: "20px", marginBottom: "40px" }}>
           {[
-            { type: "Decouverte", prix: "29euro", duree: "30 min", desc: "Premiere seance de decouverte" },
-            { type: "Standard", prix: "59euro", duree: "50 min", desc: "Seance therapeutique complete" },
-            { type: "Expert", prix: "79euro", duree: "60 min", desc: "Seance approfondie avec suivi" },
+            { type: "Audio", prix: "20€", duree: "20 min", desc: "Seance audio avec votre therapeute IA" },
+            { type: "Visio", prix: "30€", duree: "20 min", desc: "Bientot disponible — seance en visio interactive" },
           ].map((s) => (
             <div key={s.type} style={{ background: "#1a1a2e", borderRadius: "16px", padding: "28px", border: "1px solid rgba(200,169,110,0.3)", textAlign: "center" }}>
               <h3 style={{ color: "#c8a96e", fontSize: "18px", margin: "0 0 8px" }}>{s.type}</h3>
@@ -25,7 +24,7 @@ export default function SpecialitePage({ params }: { params: { specialite: strin
         </div>
         <div style={{ background: "#1a1a2e", borderRadius: "16px", padding: "32px", border: "1px solid rgba(200,169,110,0.3)", textAlign: "center" }}>
           <p style={{ color: "#c8a96e", fontSize: "15px", margin: "0 0 8px" }}>Pack Seances</p>
-          <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "13px", margin: "0 0 16px" }}>5 seances 249euro · 10 seances 449euro · Abonnement mensuel disponible</p>
+          <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "13px", margin: "0 0 16px" }}>Rechargez autant de seances de 20 min que vous le souhaitez · Abonnement mensuel disponible</p>
           <a href="/abonnements" style={{ display: "inline-block", color: "#c8a96e", border: "1px solid #c8a96e", borderRadius: "8px", padding: "10px 24px", textDecoration: "none", fontSize: "14px" }}>Voir les abonnements</a>
         </div>
       </div>
