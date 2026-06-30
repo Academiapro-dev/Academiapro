@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL || "",
+  process.env.SUPABASE_SERVICE_ROLE_KEY || ""
+);
 
 const VOIX_ELEVENLABS: Record<string, string> = {
   "isabelle-morin": "EXAVITQu4vr4xnSDxMaL",
@@ -92,14 +98,38 @@ async function genererAudio(texteOriginal: string, therapeute: string) {
 
 export async function POST(req: NextRequest) {
   try {
-    const { message, therapeute, historique = [] } = await req.json();
+    const { message, therapeute, historique = [], userEmail } = await req.json();
 
     if (!message) {
       return NextResponse.json({ error: "Message manquant" }, { status: 400 });
     }
 
+    if (userEmail) {
+      const { data: credit } = await supabase
+        .from("credits_seances")
+        .select("secondes_restantes")
+        .eq("user_email", userEmail)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .single();
+
+      if (!credit || credit.secondes_restantes <= 0) {
+        return NextResponse.json(
+          { success: false, error: "Credit epuise" },
+          { status: 402 }
+        );
+      }
+    }
+
     const reponseTexte = await genererReponseClaude(message, therapeute, historique);
     const audioUrl = await genererAudio(reponseTexte, therapeute);
+
+    if (userEmail) {
+      await supabase.rpc("decrementer_credit", {
+        p_user_email: userEmail,
+        p_secondes: 15,
+      }).then(() => {}).catch(() => {});
+    }
 
     return NextResponse.json({
       success: true,
