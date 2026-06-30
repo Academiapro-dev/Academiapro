@@ -2,9 +2,22 @@ import { NextRequest, NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 
+const THERAPEUTES: Record<string, { avatar_id: string; context_id: string }> = {
+  "isabelle-morin": {
+    avatar_id: "513fd1b7-7ef9-466d-9af2-344e51eeb833",
+    context_id: "3d9908e3-6eb3-442e-bc25-ffbff5ba125d",
+  },
+  "default": {
+    avatar_id: "513fd1b7-7ef9-466d-9af2-344e51eeb833",
+    context_id: "3d9908e3-6eb3-442e-bc25-ffbff5ba125d",
+  },
+};
+
 export async function POST(req: NextRequest) {
   try {
-    const { avatarId } = await req.json().catch(() => ({}));
+    const { therapeute } = await req.json().catch(() => ({}));
+
+    const config = THERAPEUTES[therapeute] || THERAPEUTES["default"];
 
     const response = await fetch("https://api.liveavatar.com/v2/embeddings", {
       method: "POST",
@@ -14,8 +27,8 @@ export async function POST(req: NextRequest) {
         "Accept": "application/json",
       },
       body: JSON.stringify({
-        avatar_id: avatarId || "65f9e3c9-d48b-4118-b73a-4ae2e3cbb8f0",
-        context_id: "158f5d55-2d4f-11f1-8d28-066a7fa2e369",
+        avatar_id: config.avatar_id,
+        context_id: config.context_id,
         is_sandbox: false,
       }),
     });
@@ -26,7 +39,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: data }, { status: response.status });
     }
 
-    return NextResponse.json({ success: true, url: data.data?.url, script: data.data?.script });
+    return NextResponse.json({ success: true, url: data.data?.url });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
