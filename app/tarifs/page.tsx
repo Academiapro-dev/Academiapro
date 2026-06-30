@@ -1,77 +1,74 @@
 "use client";
-import { useState } from "react";
 import Link from "next/link";
 
 export default function TarifsPage() {
-  const [onglet, setOnglet] = useState("solo");
-
   const DOMAINES = [
     {
       nom: "🧠 Intelligence Artificielle",
       formations: [
-        { titre: "Bootcamp IA Builder — Maîtrisez l'IA de A à Z", niveau: "Tous niveaux", solo: 3500, avatar: 4900 },
-        { titre: "Bootcamp Product Builder No-Code et IA", niveau: "Expert", solo: 3500, avatar: 4900 },
-        { titre: "Bootcamp Développeur Full Stack IA", niveau: "Avancé", solo: 3500, avatar: 4900 },
-        { titre: "Bootcamp Data Scientist", niveau: "Avancé", solo: 3500, avatar: 4900 },
-        { titre: "Formations IA", niveau: "Débutant → Expert", solo: 290, avatar: 490 },
+        { titre: "Bootcamp IA Builder — Maîtrisez l'IA de A à Z", niveau: "Tous niveaux", prix: 4200 },
+        { titre: "Bootcamp Product Builder No-Code et IA", niveau: "Expert", prix: 4200 },
+        { titre: "Bootcamp Développeur Full Stack IA", niveau: "Avancé", prix: 4200 },
+        { titre: "Bootcamp Data Scientist", niveau: "Avancé", prix: 4200 },
+        { titre: "Formations IA", niveau: "Débutant → Expert", prix: 990 },
       ]
     },
     {
       nom: "🌍 Langues",
       formations: [
-        { titre: "Niveau Débutant (A1-A2)", niveau: "Débutant", solo: 390, avatar: 590 },
-        { titre: "Niveau Intermédiaire (B1-B2)", niveau: "Intermédiaire", solo: 490, avatar: 690 },
-        { titre: "Niveau Avancé (C1-C2)", niveau: "Avancé", solo: 590, avatar: 790 },
-        { titre: "Certifications pro (TOEIC, DALF...)", niveau: "Expert", solo: 697, avatar: 997 },
-        { titre: "Pack complet A1→C2", niveau: "Tous niveaux", solo: 1490, avatar: 1990 },
+        { titre: "Niveau Débutant (A1-A2)", niveau: "Débutant", prix: 1090 },
+        { titre: "Niveau Intermédiaire (B1-B2)", niveau: "Intermédiaire", prix: 1190 },
+        { titre: "Niveau Avancé (C1-C2)", niveau: "Avancé", prix: 1290 },
+        { titre: "Certifications pro (TOEIC, DALF...)", niveau: "Expert", prix: 1397 },
+        { titre: "Pack complet A1→C2", niveau: "Tous niveaux", prix: 2190 },
       ]
     },
     {
       nom: "🧘 Bien-être & Thérapeutiques",
       formations: [
-        { titre: "Sophrologie Caycédienne Professionnelle", niveau: "Expert", solo: 997, avatar: 1497 },
-        { titre: "Hypnose Ericksonienne Praticien", niveau: "Avancé", solo: 997, avatar: 1497 },
-        { titre: "PNL Praticien et Maître", niveau: "Expert", solo: 997, avatar: 1497 },
-        { titre: "Coaching de Vie ICF ACC", niveau: "Expert", solo: 997, avatar: 1497 },
-        { titre: "EMDR, TCC, Art-thérapie...", niveau: "Expert", solo: 997, avatar: 1497 },
+        { titre: "Sophrologie Caycédienne Professionnelle", niveau: "Expert", prix: 1697 },
+        { titre: "Hypnose Ericksonienne Praticien", niveau: "Avancé", prix: 1697 },
+        { titre: "PNL Praticien et Maître", niveau: "Expert", prix: 1697 },
+        { titre: "Coaching de Vie ICF ACC", niveau: "Expert", prix: 1697 },
+        { titre: "EMDR, TCC, Art-thérapie...", niveau: "Expert", prix: 1697 },
       ]
     },
     {
       nom: "💼 Business & Management",
       formations: [
-        { titre: "Bootcamp Entrepreneur Digital", niveau: "Intermédiaire", solo: 3500, avatar: 4900 },
-        { titre: "Management et Leadership PMP", niveau: "Avancé", solo: 997, avatar: 1497 },
-        { titre: "Négociation Avancée Harvard", niveau: "Avancé", solo: 997, avatar: 1497 },
-        { titre: "Formations Business", niveau: "Débutant → Avancé", solo: 390, avatar: 590 },
+        { titre: "Bootcamp Entrepreneur Digital", niveau: "Intermédiaire", prix: 4200 },
+        { titre: "Management et Leadership PMP", niveau: "Avancé", prix: 1697 },
+        { titre: "Négociation Avancée Harvard", niveau: "Avancé", prix: 1697 },
+        { titre: "Formations Business", niveau: "Débutant → Avancé", prix: 1090 },
       ]
     },
     {
       nom: "💻 Tech & Développement",
       formations: [
-        { titre: "Data Science et Dev Full Stack", niveau: "Expert", solo: 1997, avatar: 2997 },
-        { titre: "Cybersécurité Red Team / CompTIA", niveau: "Avancé", solo: 1497, avatar: 2247 },
-        { titre: "Blockchain et Smart Contracts", niveau: "Expert", solo: 997, avatar: 1497 },
-        { titre: "Swift iOS / Kotlin Android", niveau: "Avancé", solo: 697, avatar: 997 },
-        { titre: "Formations Tech", niveau: "Débutant → Expert", solo: 390, avatar: 590 },
+        { titre: "Data Science et Dev Full Stack", niveau: "Expert", prix: 2697 },
+        { titre: "Cybersécurité Red Team / CompTIA", niveau: "Avancé", prix: 2197 },
+        { titre: "Blockchain et Smart Contracts", niveau: "Expert", prix: 1697 },
+        { titre: "Swift iOS / Kotlin Android", niveau: "Avancé", prix: 1397 },
+        { titre: "Formations Tech", niveau: "Débutant → Expert", prix: 1090 },
       ]
     },
     {
       nom: "📊 Finance",
       formations: [
-        { titre: "Finance et Comptabilité DCG", niveau: "Avancé", solo: 997, avatar: 1497 },
-        { titre: "Private Equity et Capital Risque", niveau: "Expert", solo: 997, avatar: 1497 },
-        { titre: "Trading Options et Produits Dérivés", niveau: "Expert", solo: 997, avatar: 1497 },
-        { titre: "Immobilier Professionnel Carte T", niveau: "Intermédiaire", solo: 797, avatar: 1197 },
-        { titre: "Formations Finance", niveau: "Débutant → Expert", solo: 390, avatar: 590 },
+        { titre: "Finance et Comptabilité DCG", niveau: "Avancé", prix: 1697 },
+        { titre: "Private Equity et Capital Risque", niveau: "Expert", prix: 1697 },
+        { titre: "Trading Options et Produits Dérivés", niveau: "Expert", prix: 1697 },
+        { titre: "Immobilier Professionnel Carte T", niveau: "Intermédiaire", prix: 1497 },
+        { titre: "Formations Finance", niveau: "Débutant → Expert", prix: 1090 },
       ]
     },
     {
       nom: "📣 Marketing",
       formations: [
-        { titre: "Bootcamp Growth Marketer IA", niveau: "Expert", solo: 3500, avatar: 4900 },
-        { titre: "Marketing Digital Certifié", niveau: "Intermédiaire", solo: 697, avatar: 997 },
-        { titre: "Growth Hacking et Acquisition Virale", niveau: "Avancé", solo: 697, avatar: 997 },
-        { titre: "Formations Marketing", niveau: "Débutant → Avancé", solo: 290, avatar: 490 },
+        { titre: "Bootcamp Growth Marketer IA", niveau: "Expert", prix: 4200 },
+        { titre: "Marketing Digital Certifié", niveau: "Intermédiaire", prix: 1397 },
+        { titre: "Growth Hacking et Acquisition Virale", niveau: "Avancé", prix: 1397 },
+        { titre: "Formations Marketing", niveau: "Débutant → Avancé", prix: 990 },
       ]
     },
   ];
@@ -83,36 +80,19 @@ export default function TarifsPage() {
       <div style={{ background: "linear-gradient(135deg,#0a0a1a,#1a1a2e)", padding: "60px 30px", textAlign: "center", borderBottom: "2px solid rgba(200,169,110,0.3)" }}>
         <p style={{ color: "#c8a96e", fontSize: "13px", letterSpacing: "3px", margin: "0 0 12px" }}>TARIFS</p>
         <h1 style={{ color: "#fff", fontFamily: "Georgia,serif", fontSize: "36px", margin: "0 0 16px" }}>Des formations premium<br/>à prix accessible</h1>
-        <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "16px", margin: "0 0 30px", maxWidth: "600px", marginLeft: "auto", marginRight: "auto" }}>
+        <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "16px", margin: "0 0 16px", maxWidth: "600px", marginLeft: "auto", marginRight: "auto" }}>
           265 formations disponibles · Agent IA 24h/24 · Manuel PDF inclus
         </p>
+        <p style={{ color: "rgba(200,169,110,0.8)", fontSize: "14px", margin: "0 0 30px", maxWidth: "650px", marginLeft: "auto", marginRight: "auto" }}>
+          🎥 LMS interactif 24h/24 + 3 sessions de Classe Virtuelle de 30 min/semaine incluses
+        </p>
         <div style={{ display: "inline-block", background: "rgba(200,169,110,0.15)", border: "1px solid rgba(200,169,110,0.4)", borderRadius: "30px", padding: "10px 24px" }}>
-          <span style={{ color: "#c8a96e", fontSize: "14px", fontWeight: "bold" }}>🎯 Offre Fondateur — 500 premiers clients : -10% à vie (cumulable avec parrainage)</span>
+          <span style={{ color: "#c8a96e", fontSize: "14px", fontWeight: "bold" }}>🎯 Offre Fondateur — 100 premiers clients : -10% à vie</span>
         </div>
       </div>
-
-      {/* Toggle Solo / Avatar */}
-      <div style={{ display: "flex", justifyContent: "center", padding: "40px 20px 20px", gap: "12px", flexWrap: "wrap" }}>
-        <button onClick={() => setOnglet("solo")}
-          style={{ padding: "12px 20px", borderRadius: "10px", border: "2px solid " + (onglet === "solo" ? "#c8a96e" : "rgba(255,255,255,0.1)"), background: onglet === "solo" ? "#c8a96e" : "transparent", color: onglet === "solo" ? "#050508" : "#fff", fontWeight: "bold", fontSize: "13px", cursor: "pointer", whiteSpace: "nowrap" }}>
-          💬 Formation + Chat IA
-        </button>
-        <button onClick={() => setOnglet("avatar")}
-          style={{ padding: "12px 20px", borderRadius: "10px", border: "2px solid " + (onglet === "avatar" ? "#c8a96e" : "rgba(255,255,255,0.1)"), background: onglet === "avatar" ? "#c8a96e" : "transparent", color: onglet === "avatar" ? "#050508" : "#fff", fontWeight: "bold", fontSize: "13px", cursor: "pointer", whiteSpace: "nowrap" }}>
-          🎥 Formation + Classe Virtuelle
-        </button>
-      </div>
-
-      {onglet === "avatar" && (
-        <div style={{ textAlign: "center", marginBottom: "20px" }}>
-          <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "13px" }}>
-            2 sessions live d'1h/semaine avec avatar IA · Chat interactif 24h/24 7j/7 inclus
-          </p>
-        </div>
-      )}
 
       {/* Grille formations */}
-      <div style={{ maxWidth: "1100px", margin: "0 auto", padding: "20px 20px 60px" }}>
+      <div style={{ maxWidth: "1100px", margin: "0 auto", padding: "40px 20px 60px" }}>
         {DOMAINES.map((domaine, di) => (
           <div key={di} style={{ marginBottom: "40px" }}>
             <h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", fontSize: "20px", margin: "0 0 16px", paddingBottom: "10px", borderBottom: "1px solid rgba(200,169,110,0.2)" }}>
@@ -127,10 +107,10 @@ export default function TarifsPage() {
                   </div>
                   <div style={{ textAlign: "right", marginLeft: "16px" }}>
                     <div style={{ color: "#c8a96e", fontSize: "20px", fontWeight: "bold" }}>
-                      {Math.round((onglet === "solo" ? f.solo : f.avatar) * 0.9).toLocaleString("fr-FR")}€
+                      {Math.round(f.prix * 0.9).toLocaleString("fr-FR")}€
                     </div>
                     <div style={{ color: "rgba(255,255,255,0.3)", fontSize: "11px", textDecoration: "line-through" }}>
-                      Prix normal : {(onglet === "solo" ? f.solo : f.avatar).toLocaleString("fr-FR")}€
+                      Prix normal : {f.prix.toLocaleString("fr-FR")}€
                     </div>
                   </div>
                 </div>
@@ -142,7 +122,7 @@ export default function TarifsPage() {
         {/* CTA */}
         <div style={{ textAlign: "center", marginTop: "40px", padding: "40px", background: "rgba(200,169,110,0.08)", border: "1px solid rgba(200,169,110,0.3)", borderRadius: "16px" }}>
           <h3 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", fontSize: "24px", margin: "0 0 12px" }}>Prêt à commencer ?</h3>
-          <p style={{ color: "rgba(255,255,255,0.6)", margin: "0 0 24px" }}>Rejoignez les 100 premiers fondateurs et bénéficiez de -50% à vie</p>
+          <p style={{ color: "rgba(255,255,255,0.6)", margin: "0 0 24px" }}>Rejoignez les 100 premiers fondateurs et bénéficiez de -10% à vie</p>
           <Link href="/formations" style={{ display: "inline-block", background: "#c8a96e", color: "#050508", padding: "16px 40px", borderRadius: "10px", textDecoration: "none", fontWeight: "bold", fontSize: "16px" }}>
             Voir les formations →
           </Link>
