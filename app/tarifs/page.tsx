@@ -87,7 +87,7 @@ export default function TarifsPage() {
           265 formations disponibles · Agent IA 24h/24 · Manuel PDF inclus
         </p>
         <div style={{ display: "inline-block", background: "rgba(200,169,110,0.15)", border: "1px solid rgba(200,169,110,0.4)", borderRadius: "30px", padding: "10px 24px" }}>
-          <span style={{ color: "#c8a96e", fontSize: "14px", fontWeight: "bold" }}>🎯 Offre Fondateur — 100 premiers clients : -50% sur tout</span>
+          <span style={{ color: "#c8a96e", fontSize: "14px", fontWeight: "bold" }}>🎯 Offre Fondateur — 500 premiers clients : -10% à vie (cumulable avec parrainage)</span>
         </div>
       </div>
 
@@ -127,10 +127,10 @@ export default function TarifsPage() {
                   </div>
                   <div style={{ textAlign: "right", marginLeft: "16px" }}>
                     <div style={{ color: "#c8a96e", fontSize: "20px", fontWeight: "bold" }}>
-                      {(onglet === "solo" ? f.solo : f.avatar).toLocaleString("fr-FR")}€
+                      {Math.round((onglet === "solo" ? f.solo : f.avatar) * 0.9).toLocaleString("fr-FR")}€
                     </div>
                     <div style={{ color: "rgba(255,255,255,0.3)", fontSize: "11px", textDecoration: "line-through" }}>
-                      Prix public : {Math.round((onglet === "solo" ? f.solo : f.avatar) * 2).toLocaleString("fr-FR")}€
+                      Prix normal : {(onglet === "solo" ? f.solo : f.avatar).toLocaleString("fr-FR")}€
                     </div>
                   </div>
                 </div>
