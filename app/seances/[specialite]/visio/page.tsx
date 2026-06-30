@@ -10,10 +10,20 @@ export default function SessionVisioPage({ params }: { params: { specialite: str
   useEffect(() => {
     async function chargerSession() {
       try {
+        const therapeute = params.specialite
+          .replace(/sophrologie/i, "isabelle-morin")
+          .replace(/hypnose/i, "sophie-laurent")
+          .replace(/emdr/i, "marc-fontaine")
+          .replace(/pnl/i, "pierre-renaud")
+          .replace(/psychologie/i, "sarah-mizrahi")
+          .replace(/constellation/i, "claire-fontaine")
+          .replace(/psychanalyse/i, "laurent-benamou")
+          .replace(/coaching/i, "alexandre-noir");
+
         const res = await fetch("/api/visio/token", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({}),
+          body: JSON.stringify({ therapeute }),
         });
         const data = await res.json();
         if (data.success && data.url) {
