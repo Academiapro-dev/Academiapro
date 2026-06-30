@@ -160,7 +160,7 @@ export default function FormationPage({ params }) {
           <a href={"/lms/" + params.id.toUpperCase()} style={{ flex: 1, display: "block", background: "#c8a96e", color: "#050508", padding: "14px 20px", borderRadius: "8px", fontWeight: "bold", textDecoration: "none", textAlign: "center" }}>
             {lm.coach_btn}
           </a>
-          <a href="/classe-virtuelle" style={{ flex: 1, display: "block", background: "rgba(200,169,110,0.2)", color: "#c8a96e", padding: "14px 20px", borderRadius: "8px", fontWeight: "bold", textDecoration: "none", textAlign: "center", border: "1px solid rgba(200,169,110,0.3)" }}>
+          <a href={"/formation/" + params.id + "/visio"} style={{ flex: 1, display: "block", background: "linear-gradient(135deg, #6e8dc8, #4060a0)", color: "#fff", padding: "14px 20px", borderRadius: "8px", fontWeight: "bold", textDecoration: "none", textAlign: "center", border: "1px solid rgba(110,141,200,0.3)" }}>
             {lm.classe_btn}
           </a>
         </div>
