@@ -21,7 +21,7 @@ export default function SpecialitePage({ params }: { params: { specialite: strin
               {s.type === "Audio" ? (
                 <a href={"/seances/" + params.specialite + "/session"} style={{ display: "block", width: "100%", background: "linear-gradient(135deg, #c8a96e, #a07840)", color: "#050508", border: "none", borderRadius: "8px", padding: "12px", fontSize: "14px", fontWeight: "bold", cursor: "pointer", textDecoration: "none", boxSizing: "border-box" }}>Reserver</a>
               ) : (
-                <button disabled style={{ width: "100%", background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.3)", border: "none", borderRadius: "8px", padding: "12px", fontSize: "14px", fontWeight: "bold", cursor: "not-allowed" }}>Bientot disponible</button>
+                <a href={"/seances/" + params.specialite + "/visio"} style={{ display: "block", width: "100%", background: "linear-gradient(135deg, #6e8dc8, #4060a0)", color: "#fff", border: "none", borderRadius: "8px", padding: "12px", fontSize: "14px", fontWeight: "bold", cursor: "pointer", textDecoration: "none", boxSizing: "border-box", textAlign: "center" }}>Reserver</a>
               )}
             </div>
           ))}
