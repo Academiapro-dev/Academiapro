@@ -129,6 +129,11 @@ export async function POST(req: NextRequest) {
         p_user_email: userEmail,
         p_secondes: 15,
       }).then(() => {}).catch(() => {});
+
+      await supabase.from("historique_seances").insert([
+        { user_email: userEmail, therapeute: therapeute, role: "user", contenu: message },
+        { user_email: userEmail, therapeute: therapeute, role: "assistant", contenu: reponseTexte },
+      ]);
     }
 
     return NextResponse.json({
@@ -145,5 +150,21 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET(req: NextRequest) {
-  return NextResponse.json({ success: true, api: "seance-audio" });
+  const { searchParams } = new URL(req.url);
+  const userEmail = searchParams.get("userEmail");
+  const therapeute = searchParams.get("therapeute");
+
+  if (!userEmail || !therapeute) {
+    return NextResponse.json({ success: true, api: "seance-audio" });
+  }
+
+  const { data } = await supabase
+    .from("historique_seances")
+    .select("role, contenu, created_at")
+    .eq("user_email", userEmail)
+    .eq("therapeute", therapeute)
+    .order("created_at", { ascending: true })
+    .limit(50);
+
+  return NextResponse.json({ success: true, historique: data || [] });
 }
