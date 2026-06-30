@@ -8,6 +8,7 @@ const T = {
   pt: { formations: "Cursos", seances: "Sessoes", blog: "Blog", tarifs: "Preços", contact: "Contato", demarrer: "Comecar" },
   de: { formations: "Kurse", seances: "Sitzungen", blog: "Blog", tarifs: "Preise", contact: "Kontakt", demarrer: "Loslegen" },
   ar: { formations: "الدورات", seances: "الجلسات", blog: "المدونة", tarifs: "الأسعار", contact: "اتصل", demarrer: "ابدأ" },
+  he: { formations: "קורסים", seances: "פגישות", blog: "בלוג", tarifs: "מחירים", contact: "צור קשר", demarrer: "התחל" },
 };
 
 export default function NavBar() {
