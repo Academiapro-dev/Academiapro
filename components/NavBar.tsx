@@ -52,6 +52,7 @@ export default function NavBar() {
           <option value="pt">🇧🇷 PT</option>
           <option value="de">🇩🇪 DE</option>
           <option value="ar">🇸🇦 AR</option>
+          <option value="he">🇮🇱 HE</option>
           </select>
         <a href="/login" style={{ background: "linear-gradient(135deg,#c8a96e,#a07840)", color: "#050508", padding: "8px 20px", borderRadius: "8px", textDecoration: "none", fontWeight: "bold", fontSize: "14px" }}>
           {t("demarrer")}
