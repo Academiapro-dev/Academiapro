@@ -4,12 +4,18 @@ export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
   try {
-    const response = await fetch("https://api.liveavatar.com/v1/streaming.create_token", {
+    const { avatarId } = await req.json();
+
+    const response = await fetch("https://api.liveavatar.com/v2/embeddings", {
       method: "POST",
       headers: {
+        "X-API-KEY": process.env.LIVEAVATAR_API_KEY || "",
         "Content-Type": "application/json",
-        "x-api-key": process.env.LIVEAVATAR_API_KEY || "",
       },
+      body: JSON.stringify({
+        avatar_id: avatarId || "65f9e3c9-d48b-4118-b73a-4ae2e3cbb8f0",
+        is_sandbox: true,
+      }),
     });
 
     const data = await response.json();
@@ -18,7 +24,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: data }, { status: response.status });
     }
 
-    return NextResponse.json({ success: true, token: data.data?.token || data.token });
+    return NextResponse.json({ success: true, url: data.data?.url });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
