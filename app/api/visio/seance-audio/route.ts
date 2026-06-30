@@ -50,7 +50,19 @@ async function genererReponseClaude(message: string, therapeute: string, histori
   return data.content[0].text;
 }
 
-async function genererAudio(texte: string, therapeute: string) {
+function nettoyerTextePourAudio(texte: string): string {
+  return texte
+    .replace(/\*\*(.*?)\*\*/g, "$1")
+    .replace(/\*(.*?)\*/g, "$1")
+    .replace(/#{1,6}\s/g, "")
+    .replace(/[\u{1F300}-\u{1FAFF}]|[\u{2600}-\u{27BF}]/gu, "")
+    .replace(/\n{2,}/g, ". ")
+    .replace(/\n/g, " ")
+    .trim();
+}
+
+async function genererAudio(texteOriginal: string, therapeute: string) {
+  const texte = nettoyerTextePourAudio(texteOriginal);
   const voiceId = VOIX_ELEVENLABS[therapeute] || VOIX_ELEVENLABS["default"];
 
   const response = await fetch(
