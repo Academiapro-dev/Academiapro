@@ -18,7 +18,11 @@ export default function SpecialitePage({ params }: { params: { specialite: strin
               <h3 style={{ color: "#c8a96e", fontSize: "18px", margin: "0 0 8px" }}>{s.type}</h3>
               <p style={{ color: "#fff", fontSize: "32px", fontWeight: "bold", margin: "0 0 4px" }}>{s.prix}</p>
               <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "13px", margin: "0 0 20px" }}>{s.duree} · {s.desc}</p>
-              <button style={{ width: "100%", background: "linear-gradient(135deg, #c8a96e, #a07840)", color: "#050508", border: "none", borderRadius: "8px", padding: "12px", fontSize: "14px", fontWeight: "bold", cursor: "pointer" }}>Reserver</button>
+              {s.type === "Audio" ? (
+                <a href={"/seances/" + params.specialite + "/session"} style={{ display: "block", width: "100%", background: "linear-gradient(135deg, #c8a96e, #a07840)", color: "#050508", border: "none", borderRadius: "8px", padding: "12px", fontSize: "14px", fontWeight: "bold", cursor: "pointer", textDecoration: "none", boxSizing: "border-box" }}>Reserver</a>
+              ) : (
+                <button disabled style={{ width: "100%", background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.3)", border: "none", borderRadius: "8px", padding: "12px", fontSize: "14px", fontWeight: "bold", cursor: "not-allowed" }}>Bientot disponible</button>
+              )}
             </div>
           ))}
         </div>
