@@ -84,7 +84,7 @@ export default function TarifsPage() {
           267 formations disponibles · Agent IA 24h/24 · Manuel PDF inclus
         </p>
         <p style={{ color: "rgba(200,169,110,0.8)", fontSize: "14px", margin: "0 0 10px", maxWidth: "650px", marginLeft: "auto", marginRight: "auto" }}>
-          ✦ Accompagnement 100% individuel — LMS interactif 24h/24 + 45 min audio hebdomadaires dediees
+          ✦ Accompagnement 100% individuel — LMS interactif 24h/24 + 2 seances hebdomadaires dediees
         </p>
         <p style={{ color: "rgba(139,164,217,0.8)", fontSize: "12px", margin: "0 0 30px", maxWidth: "650px", marginLeft: "auto", marginRight: "auto" }}>
           🎥 2 seances hebdomadaires incluses (45min + 20min). Nos tarifs couvrent les infrastructures necessaires : des 5 stagiaires inscrits, la seance de 20min evolue en Visio interactive, sans supplement
