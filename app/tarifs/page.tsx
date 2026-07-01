@@ -83,8 +83,11 @@ export default function TarifsPage() {
         <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "16px", margin: "0 0 16px", maxWidth: "600px", marginLeft: "auto", marginRight: "auto" }}>
           265 formations disponibles · Agent IA 24h/24 · Manuel PDF inclus
         </p>
-        <p style={{ color: "rgba(200,169,110,0.8)", fontSize: "14px", margin: "0 0 30px", maxWidth: "650px", marginLeft: "auto", marginRight: "auto" }}>
-          🎥 LMS interactif 24h/24 + 3 sessions de Classe Virtuelle de 30 min/semaine incluses
+        <p style={{ color: "rgba(200,169,110,0.8)", fontSize: "14px", margin: "0 0 10px", maxWidth: "650px", marginLeft: "auto", marginRight: "auto" }}>
+          ✦ Accompagnement 100% individuel — LMS interactif 24h/24 + session audio hebdomadaire dediee
+        </p>
+        <p style={{ color: "rgba(139,164,217,0.8)", fontSize: "12px", margin: "0 0 30px", maxWidth: "650px", marginLeft: "auto", marginRight: "auto" }}>
+          🎥 La Visio interactive se debloque automatiquement des que 20 stagiaires actifs sont atteints sur une formation, sans supplement
         </p>
         <div style={{ display: "inline-block", background: "rgba(200,169,110,0.15)", border: "1px solid rgba(200,169,110,0.4)", borderRadius: "30px", padding: "10px 24px" }}>
           <span style={{ color: "#c8a96e", fontSize: "14px", fontWeight: "bold" }}>🎯 Offre Fondateur — 100 premiers clients : -10% à vie</span>
