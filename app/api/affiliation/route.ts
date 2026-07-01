@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
     const res = await fetch(`${SUPABASE_URL}/rest/v1/affilies`, {
       method: "POST",
       headers: { ...h, Prefer: "return=minimal" },
-      body: JSON.stringify({ nom, email, code_affiliation, commission_pct: 20, statut: "actif" }),
+      body: JSON.stringify({ nom, email, code_affiliation, commission_pct: 15, statut: "actif" }),
     });
 
     if (res.ok) {
@@ -40,9 +40,9 @@ export async function POST(req: NextRequest) {
   <div style="background:#f8f4ee;padding:15px;border-radius:8px;margin:20px 0;">
     <strong>Lien :</strong> academiapro.vercel.app/?ref=${code_affiliation}<br/>
     <strong>Code :</strong> ${code_affiliation}<br/>
-    <strong>Commission :</strong> 20% sur chaque vente
+    <strong>Commission :</strong> 15% sur chaque vente
   </div>
-  <p>Partagez votre lien et gagnez 20% sur chaque formation vendue.</p>
+  <p>Partagez votre lien et gagnez 15% sur chaque formation vendue.</p>
   <p>Bonne chance !<br/><strong>Jacques Lalou — AcadémIA Pro</strong></p>
 </div>`,
         }),
