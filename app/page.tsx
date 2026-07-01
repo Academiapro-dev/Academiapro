@@ -91,6 +91,9 @@ export default function HomePage() {
         <p style={{ color: "#c8a96e", fontSize: "15px", letterSpacing: "4px", margin: "0 0 24px" }}>LA PLATEFORME DE FORMATION IA</p>
         <h1 style={{ fontSize: "52px", fontWeight: "bold", margin: "0 0 24px", lineHeight: "1.2" }}>{t("hero_titre")}</h1>
         <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "18px", margin: "0 0 40px", lineHeight: "1.7" }}>{t("hero_sub")}</p>
+              <video controls autoPlay muted loop playsInline style={{ width: "100%", maxWidth: "480px", borderRadius: "16px", border: "1px solid rgba(200,169,110,0.3)", marginBottom: "32px" }}>
+                <source src="https://kpxrbwsbhmggoajtxzqn.supabase.co/storage/v1/object/public/videos_marketing/camille_moreau_video1.mp4" type="video/mp4" />
+              </video>
         <div style={{ display: "flex", gap: "16px", justifyContent: "center", flexWrap: "wrap" }}>
           <a href="/catalogue" style={{ background: "linear-gradient(135deg, #c8a96e, #a07840)", color: "#050508", padding: "16px 36px", borderRadius: "10px", textDecoration: "none", fontSize: "16px", fontWeight: "bold" }}>{t("btn_formations")}</a>
           <a href="/lead-magnets/ebook" style={{ background: "transparent", color: "#c8a96e", padding: "16px 36px", borderRadius: "10px", textDecoration: "none", fontSize: "16px", border: "1px solid #c8a96e" }}>{t("btn_ebook")}</a>
