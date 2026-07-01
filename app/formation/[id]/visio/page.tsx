@@ -91,6 +91,11 @@ export default function SessionVisioFormationPage({ params }: { params: { id: st
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px" }}>
           <div>
             <p style={{ color: "#c8a96e", fontSize: "12px", letterSpacing: "2px", margin: "0 0 4px" }}>SESSION FORMATEUR EN COURS</p>
+            <p style={{ marginTop: "12px" }}>
+              <a href="https://kpxrbwsbhmggoajtxzqn.supabase.co/storage/v1/object/public/videos_marketing/lucas_martin_video1.mp4" target="_blank" style={{ color: "#c8a96e", fontSize: "12px", textDecoration: "underline" }}>
+                Voir la video de presentation
+              </a>
+            </p>
             <h1 style={{ fontSize: "22px", margin: "0" }}>Votre formateur IA</h1>
           </div>
           <a href={"/formation/" + params.id} style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px", textDecoration: "none" }}>← Retour</a>
