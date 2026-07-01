@@ -87,7 +87,7 @@ export default function TarifsPage() {
           ✦ Accompagnement 100% individuel — LMS interactif 24h/24 + 45 min audio hebdomadaires dediees
         </p>
         <p style={{ color: "rgba(139,164,217,0.8)", fontSize: "12px", margin: "0 0 30px", maxWidth: "650px", marginLeft: "auto", marginRight: "auto" }}>
-          🎥 Nos tarifs couvrent les infrastructures necessaires a votre accompagnement de qualite. Des 5 stagiaires inscrits sur une formation, 20 min de Visio hebdomadaire s ajoutent automatiquement, sans supplement
+          🎥 2 seances hebdomadaires incluses (45min + 20min). Nos tarifs couvrent les infrastructures necessaires : des 5 stagiaires inscrits, la seance de 20min evolue en Visio interactive, sans supplement
         </p>
         <div style={{ display: "inline-block", background: "rgba(200,169,110,0.15)", border: "1px solid rgba(200,169,110,0.4)", borderRadius: "30px", padding: "10px 24px" }}>
           <span style={{ color: "#c8a96e", fontSize: "14px", fontWeight: "bold" }}>🎯 Offre Fondateur — 100 premiers clients : -10% à vie</span>
