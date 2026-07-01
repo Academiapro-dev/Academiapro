@@ -161,11 +161,59 @@ async function stats_crm() {
 }
 
 
+async function declencher_certificat_auto(email: string, formationCode: string) {
+  try {
+    const { data: existant } = await supabase
+      .from("certificats_delivres")
+      .select("id")
+      .eq("user_email", email)
+      .eq("formation_code", formationCode)
+      .limit(1);
+
+    if (existant && existant.length > 0) return;
+
+    const { data: formationsData } = await supabase
+      .from("formations")
+      .select("titre")
+      .eq("code", formationCode)
+      .limit(1);
+
+    const { data: crmData } = await supabase
+      .from("crm")
+      .select("nom, prenom")
+      .eq("email", email)
+      .limit(1);
+
+    const nomComplet = crmData && crmData[0] ? ((crmData[0].prenom || "") + " " + (crmData[0].nom || "")).trim() : email;
+    const formationTitre = formationsData && formationsData[0] ? formationsData[0].titre : formationCode;
+
+    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://academiapro.fr";
+    await fetch(baseUrl + "/api/admin/certificat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        nom: nomComplet || email,
+        formation: formationTitre,
+        code: formationCode,
+        niveau: "Expert",
+        date: new Date().toLocaleDateString("fr-FR"),
+        userEmail: email,
+      }),
+    });
+  } catch (e) {
+    console.error("Erreur declenchement certificat auto:", e);
+  }
+}
+
 async function lms_update(email: string, data: any) {
   if (!email) return { erreur: "Email requis" };
 
   const { data: existant } = await supabase
     .from("crm").select("id,modules_valides,progression").eq("email", email).limit(1);
+
+  if ((data.progression_pct || 0) >= 100 && data.formation_code) {
+    await declencher_certificat_auto(email, data.formation_code);
+  }
 
   const payload = {
     email,
