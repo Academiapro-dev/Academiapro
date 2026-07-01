@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 const T = {
   fr: {
     hero_titre: "Formez-vous avec votre agent IA personnel",
-    hero_sub: "265 formations certifiantes · Agent IA 24h/24 · Séances thérapeutiques",
+    hero_sub: "267 formations certifiantes · Agent IA 24h/24 · Séances thérapeutiques",
     btn_formations: "Voir les formations",
     btn_ebook: "E-book gratuit",
     btn_demarrer: "Demarrer",
@@ -13,8 +13,8 @@ const T = {
     stat3: "Thérapeutes IA",
     stat4: "Garantie satisfait ✓",
     nav_formations: "Formations", nav_séances: "Séances", nav_packs: "Packs", nav_competences: "Compétences", nav_blog: "Blog", nav_contact: "Contact",
-    footer_desc: "La plateforme de formation propulsee par l IA. 265 formations certifiantes.",
-    voir_formation: "Voir la formation", voir_tout: "Voir les 265 formations", nos_formations: "Nos formations phares",
+    footer_desc: "La plateforme de formation propulsee par l IA. 267 formations certifiantes.",
+    voir_formation: "Voir la formation", voir_tout: "Voir les 267 formations", nos_formations: "Nos formations phares",
     nos_formations_sub: "Certification AcadeMIA Pro · Paiement 3x sans frais · Garantie 30 jours",
   },
   en: {
