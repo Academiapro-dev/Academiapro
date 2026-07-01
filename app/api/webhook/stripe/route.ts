@@ -37,3 +37,44 @@ async function envoyerEmailBienvenue(email: string, nom: string, formationTitre:
     console.error("Erreur envoi email bienvenue:", e);
   }
 }
+async function genererPdfManuel(formationCode: string, formationTitre: string) {
+  try {
+    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://academiapro.fr";
+    const res = await fetch(baseUrl + "/api/generate-pdf", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: formationCode, titre: formationTitre }),
+    });
+    const data = await res.json();
+    return data.pdf_url || null;
+  } catch (e) {
+    console.error("Erreur generation PDF:", e);
+    return null;
+  }
+}
+
+async function activerAccesLMS(email: string, formationCode: string, formationTitre: string) {
+  try {
+    await supabase.from("formations_lms").insert({
+      email,
+      formation_code: formationCode,
+      formation_titre: formationTitre,
+      date_achat: new Date().toISOString(),
+      statut: "actif",
+    });
+  } catch (e) {
+    console.error("Erreur activation LMS:", e);
+  }
+}
+
+async function crediterSeancesAudio(email: string, secondes: number) {
+  try {
+    await supabase.from("credits_seances").insert({
+      user_email: email,
+      secondes_restantes: secondes,
+      type_seance: "audio",
+    });
+  } catch (e) {
+    console.error("Erreur credit seances:", e);
+  }
+}
