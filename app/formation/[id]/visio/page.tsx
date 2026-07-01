@@ -52,6 +52,29 @@ const FORMATEUR_MAP: Record<string, string> = {
   "talmud": "rav-isaac-goldstein",
 };
 
+const VIDEO_MAP: Record<string, string> = {
+  "isabelle-morin": "https://kpxrbwsbhmggoajtxzqn.supabase.co/storage/v1/object/public/videos_marketing/isabelle_morin_video1.mp4",
+  "sophie-laurent": "https://kpxrbwsbhmggoajtxzqn.supabase.co/storage/v1/object/public/videos_marketing/sophie_laurent_video1.mp4",
+  "marc-fontaine": "https://kpxrbwsbhmggoajtxzqn.supabase.co/storage/v1/object/public/videos_marketing/marc_fontaine_video1.mp4",
+  "pierre-renaud": "https://kpxrbwsbhmggoajtxzqn.supabase.co/storage/v1/object/public/videos_marketing/pierre_renaud_video1.mp4",
+  "sarah-mizrahi": "https://kpxrbwsbhmggoajtxzqn.supabase.co/storage/v1/object/public/videos_marketing/sarah_mizrahi_video1.mp4",
+  "claire-fontaine": "https://kpxrbwsbhmggoajtxzqn.supabase.co/storage/v1/object/public/videos_marketing/claire_fontaine_video1.mp4",
+  "laurent-benamou": "https://kpxrbwsbhmggoajtxzqn.supabase.co/storage/v1/object/public/videos_marketing/laurent_benamou_video1.mp4",
+  "alexandre-noir": "https://kpxrbwsbhmggoajtxzqn.supabase.co/storage/v1/object/public/videos_marketing/alexandre_noir_video1.mp4",
+  "lucas-martin": "https://kpxrbwsbhmggoajtxzqn.supabase.co/storage/v1/object/public/videos_marketing/lucas_martin_video1.mp4",
+  "henri-mercier": "https://kpxrbwsbhmggoajtxzqn.supabase.co/storage/v1/object/public/videos_marketing/henri_mercier_video1.mp4",
+  "sophie-leblanc": "https://kpxrbwsbhmggoajtxzqn.supabase.co/storage/v1/object/public/videos_marketing/sophie_leblanc_video1.mp4",
+  "sophie-marchand": "https://kpxrbwsbhmggoajtxzqn.supabase.co/storage/v1/object/public/videos_marketing/sophie_marchand_video1.mp4",
+  "clara-vidal": "https://kpxrbwsbhmggoajtxzqn.supabase.co/storage/v1/object/public/videos_marketing/clara_vidal_video1.mp4",
+  "alain-rousseau": "https://kpxrbwsbhmggoajtxzqn.supabase.co/storage/v1/object/public/videos_marketing/alain_rousseau_video1.mp4",
+  "thomas-berger": "https://kpxrbwsbhmggoajtxzqn.supabase.co/storage/v1/object/public/videos_marketing/thomas_berger_video1.mp4",
+  "eleonore-petit": "https://kpxrbwsbhmggoajtxzqn.supabase.co/storage/v1/object/public/videos_marketing/eleonore_petit_video1.mp4",
+  "nadia-benali": "https://kpxrbwsbhmggoajtxzqn.supabase.co/storage/v1/object/public/videos_marketing/nadia_benali_video1.mp4",
+  "julien-castex": "https://kpxrbwsbhmggoajtxzqn.supabase.co/storage/v1/object/public/videos_marketing/julien_castex_video1.mp4",
+  "nathalie-ledoux": "https://kpxrbwsbhmggoajtxzqn.supabase.co/storage/v1/object/public/videos_marketing/nathalie_ledoux_video1.mp4",
+  "rav-isaac-goldstein": "https://kpxrbwsbhmggoajtxzqn.supabase.co/storage/v1/object/public/videos_marketing/isaac_goldstein_video1.mp4",
+};
+
 export default function SessionVisioFormationPage({ params }: { params: { id: string } }) {
   const [embedUrl, setEmbedUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -92,7 +115,7 @@ export default function SessionVisioFormationPage({ params }: { params: { id: st
           <div>
             <p style={{ color: "#c8a96e", fontSize: "12px", letterSpacing: "2px", margin: "0 0 4px" }}>SESSION FORMATEUR EN COURS</p>
             <p style={{ marginTop: "12px" }}>
-              <a href="https://kpxrbwsbhmggoajtxzqn.supabase.co/storage/v1/object/public/videos_marketing/lucas_martin_video1.mp4" target="_blank" style={{ color: "#c8a96e", fontSize: "12px", textDecoration: "underline" }}>
+              <a href={VIDEO_MAP[formateur] || VIDEO_MAP["lucas-martin"]} target="_blank" style={{ color: "#c8a96e", fontSize: "12px", textDecoration: "underline" }}>
                 Voir la video de presentation
               </a>
             </p>
