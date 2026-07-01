@@ -1,3 +1,14 @@
+const VIDEO_MAP: Record<string, string> = {
+  "isabelle-morin": "https://kpxrbwsbhmggoajtxzqn.supabase.co/storage/v1/object/public/videos_marketing/isabelle_morin_video1.mp4",
+  "sophie-laurent": "https://kpxrbwsbhmggoajtxzqn.supabase.co/storage/v1/object/public/videos_marketing/sophie_laurent_video1.mp4",
+  "marc-fontaine": "https://kpxrbwsbhmggoajtxzqn.supabase.co/storage/v1/object/public/videos_marketing/marc_fontaine_video1.mp4",
+  "pierre-renaud": "https://kpxrbwsbhmggoajtxzqn.supabase.co/storage/v1/object/public/videos_marketing/pierre_renaud_video1.mp4",
+  "sarah-mizrahi": "https://kpxrbwsbhmggoajtxzqn.supabase.co/storage/v1/object/public/videos_marketing/sarah_mizrahi_video1.mp4",
+  "claire-fontaine": "https://kpxrbwsbhmggoajtxzqn.supabase.co/storage/v1/object/public/videos_marketing/claire_fontaine_video1.mp4",
+  "laurent-benamou": "https://kpxrbwsbhmggoajtxzqn.supabase.co/storage/v1/object/public/videos_marketing/laurent_benamou_video1.mp4",
+  "alexandre-noir": "https://kpxrbwsbhmggoajtxzqn.supabase.co/storage/v1/object/public/videos_marketing/alexandre_noir_video1.mp4",
+};
+
 export default function SpecialitePage({ params }: { params: { specialite: string } }) {
   const specialite = params.specialite.replace(/-/g, " ");
   return (
@@ -7,7 +18,12 @@ export default function SpecialitePage({ params }: { params: { specialite: strin
         <div style={{ marginTop: "32px", marginBottom: "48px", textAlign: "center" }}>
           <p style={{ color: "#c8a96e", fontSize: "12px", letterSpacing: "3px", margin: "0 0 12px" }}>SEANCE THERAPEUTIQUE</p>
           <h1 style={{ color: "#fff", fontSize: "36px", margin: "0 0 16px", textTransform: "capitalize" }}>{specialite}</h1>
-          <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "16px", margin: "0" }}>Seance avec Agent IA therapeute · Disponible 24h/24</p>
+          <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "16px", margin: "0 0 32px" }}>Seance avec Agent IA therapeute · Disponible 24h/24</p>
+          {VIDEO_MAP[params.specialite] && (
+            <video controls style={{ width: "100%", maxWidth: "500px", borderRadius: "16px", border: "1px solid rgba(200,169,110,0.3)" }}>
+              <source src={VIDEO_MAP[params.specialite]} type="video/mp4" />
+            </video>
+          )}
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: "20px", marginBottom: "40px" }}>
           {[
