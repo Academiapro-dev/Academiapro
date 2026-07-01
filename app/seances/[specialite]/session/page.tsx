@@ -9,7 +9,7 @@ export default function SessionAudioPage({ params }: { params: { specialite: str
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [enregistrement, setEnregistrement] = useState(false);
-  const [tempsRestant, setTempsRestant] = useState(1200);
+  const [tempsRestant, setTempsRestant] = useState(2700);
   const audioRef = useRef<HTMLAudioElement>(null);
   const recognitionRef = useRef<any>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
