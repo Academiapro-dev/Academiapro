@@ -1,11 +1,38 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
 
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL || "",
+  process.env.SUPABASE_SERVICE_ROLE_KEY || ""
+);
+
+async function envoyerEmailCertificat(email: string, nom: string, formation: string, certifId: string) {
+  if (!email) return;
+  try {
+    await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "Authorization": "Bearer " + process.env.RESEND_API_KEY,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from: "AcademIA Pro <certificats@academiapro.fr>",
+        to: email,
+        subject: "Felicitations ! Votre certificat AcademIA Pro",
+        html: "<p>Bonjour " + nom + ",</p><p>Felicitations pour avoir complete avec succes la formation <strong>" + formation + "</strong> !</p><p>Votre certificat officiel est pret. Vous pouvez le verifier a tout moment sur : academiapro.fr/verifier/" + certifId + "</p><p>L equipe AcademIA Pro</p>",
+      }),
+    });
+  } catch (e) {
+    console.error("Erreur envoi email certificat:", e);
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
-    const { nom, formation, code, date, niveau } = await req.json();
+    const { nom, formation, code, date, niveau, userEmail } = await req.json();
     const certifId = `ACAD-${code}-${Date.now().toString(36).toUpperCase()}`;
 
     const certifHtml = `<!DOCTYPE html>
@@ -216,6 +243,20 @@ export async function POST(req: NextRequest) {
 </div>
 </body>
 </html>`;
+
+    await supabase.from("certificats_delivres").insert({
+      certif_id: certifId,
+      user_email: userEmail || null,
+      nom,
+      formation_code: code,
+      formation_titre: formation,
+      niveau: niveau || "Expert",
+      certif_html: certifHtml,
+    });
+
+    if (userEmail) {
+      await envoyerEmailCertificat(userEmail, nom, formation, certifId);
+    }
 
     return NextResponse.json({
       success: true,
