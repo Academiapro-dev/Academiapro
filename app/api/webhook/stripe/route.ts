@@ -110,6 +110,20 @@ export async function POST(req: NextRequest) {
         formation_active: formationCode,
         derniere_interaction: new Date().toISOString(),
       }, { onConflict: "email" });
+
+      const codeAffiliation = session.metadata?.code_affiliation || "";
+      if (codeAffiliation) {
+        const montantVente = (session.amount_total || 0) / 100;
+        const commission = Math.round(montantVente * 0.15 * 100) / 100;
+        await supabase.from("ventes_affiliation").insert({
+          code_affiliation: codeAffiliation,
+          email_acheteur: email,
+          formation_code: formationCode,
+          montant_vente: montantVente,
+          commission_montant: commission,
+          statut: "en_attente",
+        });
+      }
     }
   }
 
