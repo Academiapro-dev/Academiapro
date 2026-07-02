@@ -23,6 +23,7 @@ export default function LoginPage() {
       });
       const data = await res.json();
       if (data.success) {
+        localStorage.setItem("apprenant_email", email);
         window.location.href = "/dashboard";
       } else {
         setError(data.message || "Email ou mot de passe incorrect");
