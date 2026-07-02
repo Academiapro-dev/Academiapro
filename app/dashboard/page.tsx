@@ -13,6 +13,7 @@ export default function DashboardPage() {
   const [profil, setProfil] = useState<any>(null);
 
   useEffect(() => {
+    fetch("/api/recommandation?email=contact@academiapro.fr").then(r=>r.json()).then(d=>{ if(d.success && d.recommandations) setReco(d.recommandations); });
     fetch("/api/gamification?email=contact@academiapro.fr").then(r=>r.json()).then(d=>{ if(d.profil) setProfil(d.profil); }).catch(()=>{});
     fetch(SB_URL+"/rest/v1/formations?select=code,titre,prix&order=code&limit=4",{headers:{apikey:SB_KEY,Authorization:"Bearer "+SB_KEY}}).then(r=>r.json()).then(d=>{ if(Array.isArray(d)) setFormations(d); }).catch(()=>{});
   }, []);
