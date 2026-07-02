@@ -1,7 +1,14 @@
 "use client";
 import Link from "next/link";
+import { useState, useEffect } from "react";
 
 export default function TarifsPage() {
+  const [nbFormations, setNbFormations] = useState(263);
+
+  useEffect(() => {
+    fetch("/api/nombre-formations").then(r => r.json()).then(d => { if (d.success) setNbFormations(d.total); });
+  }, []);
+
   const DOMAINES = [
     {
       nom: "🧠 Intelligence Artificielle",
@@ -81,7 +88,7 @@ export default function TarifsPage() {
         <p style={{ color: "#c8a96e", fontSize: "13px", letterSpacing: "3px", margin: "0 0 12px" }}>TARIFS</p>
         <h1 style={{ color: "#fff", fontFamily: "Georgia,serif", fontSize: "36px", margin: "0 0 16px" }}>Des formations premium<br/>à prix accessible</h1>
         <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "16px", margin: "0 0 16px", maxWidth: "600px", marginLeft: "auto", marginRight: "auto" }}>
-          263 formations disponibles · Agent IA 24h/24 · Manuel PDF inclus
+          {nbFormations} formations disponibles · Agent IA 24h/24 · Manuel PDF inclus
         </p>
         <p style={{ color: "rgba(200,169,110,0.8)", fontSize: "14px", margin: "0 0 10px", maxWidth: "650px", marginLeft: "auto", marginRight: "auto" }}>
           ✦ Accompagnement 100% individuel — LMS interactif 24h/24 + 2 seances hebdomadaires dediees
