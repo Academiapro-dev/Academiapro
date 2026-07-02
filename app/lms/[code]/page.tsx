@@ -156,6 +156,9 @@ export default function LMSPage({ params }) {
       if (email) {
         fetch("/api/crm", { method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ action: "lms_update", email, data: { formation_code: code, modules_valides: modulesVal, progression_pct: Math.round((modulesVal / totalModules) * 100) } }) });
+
+        fetch("/api/progression", { method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, formation_code: code, module_cle: cle, score: pct }) });
       }
     } else {
       setMessageValidateur("Score " + pct + "% — Recommencez pour valider (70% requis)");
