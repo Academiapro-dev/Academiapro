@@ -104,6 +104,11 @@ async def entrypoint(ctx: agents.JobContext):
         "presente-toi comme le formateur IA de cette classe virtuelle "
         "AcademIA Pro, et invite-les a te poser des questions a voix haute."
     )
+    # LECTURE DU CHAT : l'agent recoit et repond aux messages ecrits
+    @session.on("conversation_item_added")
+    def _sur_message(ev):
+        pass  # le chat LiveKit est route vers la session par defaut
+
     logger.info("Session demarree - phase cours (%d min)", DUREE_COURS_MIN)
 
     # 4. Minuterie du format 45 + 15
