@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 
 from livekit import agents
 from livekit.agents import AgentSession, Agent, RoomInputOptions
-from livekit.plugins import liveavatar
+from livekit.plugins import liveavatar, anthropic
 
 load_dotenv()
 
@@ -65,7 +65,7 @@ async def entrypoint(ctx: agents.JobContext):
 
     # 1. La session agent : cerveau (LLM Claude via LiveAvatar mode Lite)
     session = AgentSession(
-        llm="anthropic/claude-sonnet-4-6",
+        llm=anthropic.LLM(model="claude-sonnet-4-6"),
     )
 
     # 2. L'avatar LiveAvatar rejoint la salle et publie SON flux video
