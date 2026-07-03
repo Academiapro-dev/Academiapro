@@ -9,6 +9,25 @@ import {
 } from "@livekit/components-react";
 import "@livekit/components-styles";
 
+const styleSalle = `
+  /* Masquer la tuile du cerveau (agent sans video) */
+  .lk-participant-tile[data-lk-local-participant="false"]:has(
+    .lk-participant-name[title^="agent-"]) {
+    display: none;
+  }
+  /* Nom convivial sur la tuile de l'avatar */
+  .lk-participant-name[title^="liveavatar"] {
+    visibility: hidden;
+    position: relative;
+  }
+  .lk-participant-name[title^="liveavatar"]::after {
+    content: "Formateur AcadémIA";
+    visibility: visible;
+    position: absolute;
+    left: 0;
+  }
+`;
+
 export default function ClasseVirtuellePage() {
   const params = useParams();
   const searchParams = useSearchParams();
@@ -105,6 +124,7 @@ export default function ClasseVirtuellePage() {
       data-lk-theme="default"
       style={{ height: "100vh", background: "#111" }}
     >
+      <style>{styleSalle}</style>
       <VideoConference chatMessageFormatter={formatChatMessageLinks} />
     </LiveKitRoom>
   );
