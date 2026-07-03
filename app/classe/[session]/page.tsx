@@ -100,7 +100,7 @@ export default function ClasseVirtuellePage() {
       serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL}
       token={token}
       connect={true}
-      audio={false}
+      audio={true}
       video={false}
       data-lk-theme="default"
       style={{ height: "100vh", background: "#111" }}
