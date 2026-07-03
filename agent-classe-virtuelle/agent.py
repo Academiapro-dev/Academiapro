@@ -65,6 +65,7 @@ async def entrypoint(ctx: agents.JobContext):
 
     # 1. La session agent : cerveau (LLM Claude via LiveAvatar mode Lite)
     session = AgentSession(
+        stt="deepgram/nova-3:fr",
         llm=anthropic.LLM(model="claude-sonnet-4-6"),
     )
 
@@ -81,6 +82,11 @@ async def entrypoint(ctx: agents.JobContext):
         room_input_options=RoomInputOptions(),
     )
 
+    session.generate_reply(
+        instructions="Salue chaleureusement les participants qui arrivent, "
+        "presente-toi comme le formateur IA de cette classe virtuelle "
+        "AcademIA Pro, et invite-les a te poser des questions a voix haute."
+    )
     logger.info("Session demarree - phase cours (%d min)", DUREE_COURS_MIN)
 
     # 4. Minuterie du format 45 + 15
