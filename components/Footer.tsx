@@ -6,7 +6,7 @@ export default function Footer() {
         <div>
           <h3 style={{ color: "#c8a96e", fontSize: "16px", marginBottom: "12px" }}>AcadémIA Pro</h3>
           <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "13px", lineHeight: "1.6" }}>
-            La plateforme de formation propulsée par l IA. 131 formations certifiantes.
+            La plateforme de formation propulsée par l IA. 263 formations certifiantes.
           </p>
         </div>
         <div>
