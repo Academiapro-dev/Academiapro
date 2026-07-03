@@ -1,0 +1,12 @@
+{
+  "$schema": "https://railway.app/railway.schema.json",
+  "build": {
+    "builder": "NIXPACKS",
+    "buildCommand": "pip install -r agent-classe-virtuelle/requirements.txt"
+  },
+  "deploy": {
+    "startCommand": "python agent-classe-virtuelle/agent.py start",
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 3
+  }
+}
