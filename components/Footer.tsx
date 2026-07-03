@@ -23,6 +23,7 @@ export default function Footer() {
             <a href="/cgv" style={{ color: "rgba(255,255,255,0.5)", fontSize: "13px", textDecoration: "none" }}>CGV</a>
             <a href="/politique-confidentialite" style={{ color: "rgba(255,255,255,0.5)", fontSize: "13px", textDecoration: "none" }}>Confidentialité</a>
             <a href="/mentions-legales" style={{ color: "rgba(255,255,255,0.5)", fontSize: "13px", textDecoration: "none" }}>Mentions légales</a>
+            <a href="/politique-cookies" style={{ color: "rgba(255,255,255,0.5)", fontSize: "13px", textDecoration: "none" }}>Cookies</a>
           </div>
         </div>
       </div>
