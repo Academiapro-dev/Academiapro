@@ -1,10 +1,6 @@
 "use client";
 
-export default function CGVPage() {
-  return (
-    <div style={{ backgroundColor: "#050508", minHeight: "100vh", color: "#fff", padding: "60px 20px" }}>
-      <div style={{ maxWidth: "900px", margin: "0 auto" }} className="cgv-content"
-        dangerouslySetInnerHTML={{ __html: `<h1>CONDITIONS GÉNÉRALES DE VENTE ET D'UTILISATION</h1>
+const CGV_HTML = `<h1>CONDITIONS GÉNÉRALES DE VENTE ET D'UTILISATION</h1>
 <h2>ACADÉMIA PRO</h2>
 <hr />
 <p><strong>Document version 1.0 — Applicable à compter du <strong><em>/</em></strong>/2025</strong></p>
@@ -584,22 +580,26 @@ Sheridan, WY 82801
 <hr />
 <p><em>Document rédigé à titre de modèle juridique par Maître Pierre Duval, juriste expert en droit des sociétés franco-américano-israélien et droit numérique. Ce document constitue une base contractuelle complète mais ne remplace pas une consultation juridique personnalisée. Il est recommandé de le faire valider par un avocat admis au barreau compétent avant mise en ligne, notamment pour vérifier la conformité aux évolutions législatives les plus récentes.</em></p>
 <p><em>Version 1.0 — © AcadémIA Pro LLC — Tous droits réservés</em></p>
-<p><em>Dernière mise à jour : <strong><em>/</em></strong>/2025</em></p>` }}
-      />
-      <style jsx global>{{`
-        .cgv-content h1 {{ color: #c8a96e; font-family: Georgia, serif; font-size: 28px; margin: 30px 0 16px; }}
-        .cgv-content h2 {{ color: #c8a96e; font-family: Georgia, serif; font-size: 22px; margin: 28px 0 14px; }}
-        .cgv-content h3 {{ color: #e8d4a8; font-size: 18px; margin: 20px 0 10px; }}
-        .cgv-content p {{ color: rgba(255,255,255,0.8); line-height: 1.8; font-size: 14px; margin: 10px 0; }}
-        .cgv-content strong {{ color: #fff; }}
-        .cgv-content li {{ color: rgba(255,255,255,0.8); line-height: 1.7; font-size: 14px; margin: 6px 0; }}
-        .cgv-content table {{ border-collapse: collapse; width: 100%; margin: 16px 0; }}
-        .cgv-content th, .cgv-content td {{ border: 1px solid rgba(200,169,110,0.3); padding: 8px 12px; color: rgba(255,255,255,0.8); font-size: 13px; }}
-        .cgv-content th {{ background: rgba(200,169,110,0.15); color: #c8a96e; }}
-        .cgv-content hr {{ border: none; border-top: 1px solid rgba(200,169,110,0.2); margin: 24px 0; }}
-        .cgv-content a {{ color: #c8a96e; }}
-        .cgv-content blockquote {{ border-left: 3px solid #ffc107; padding-left: 16px; margin: 16px 0; background: rgba(255,193,7,0.08); border-radius: 4px; padding: 12px 16px; }}
-      `}}</style>
+<p><em>Dernière mise à jour : <strong><em>/</em></strong>/2025</em></p>`;
+
+export default function CGVPage() {
+  return (
+    <div style={{ backgroundColor: "#050508", minHeight: "100vh", color: "#fff", padding: "60px 20px" }}>
+      <div style={{ maxWidth: "900px", margin: "0 auto" }} className="cgv-content" dangerouslySetInnerHTML={{ __html: CGV_HTML }} />
+      <style jsx global>{`
+        .cgv-content h1 { color: #c8a96e; font-family: Georgia, serif; font-size: 28px; margin: 30px 0 16px; }
+        .cgv-content h2 { color: #c8a96e; font-family: Georgia, serif; font-size: 22px; margin: 28px 0 14px; }
+        .cgv-content h3 { color: #e8d4a8; font-size: 18px; margin: 20px 0 10px; }
+        .cgv-content p { color: rgba(255,255,255,0.8); line-height: 1.8; font-size: 14px; margin: 10px 0; }
+        .cgv-content strong { color: #fff; }
+        .cgv-content li { color: rgba(255,255,255,0.8); line-height: 1.7; font-size: 14px; margin: 6px 0; }
+        .cgv-content table { border-collapse: collapse; width: 100%; margin: 16px 0; }
+        .cgv-content th, .cgv-content td { border: 1px solid rgba(200,169,110,0.3); padding: 8px 12px; color: rgba(255,255,255,0.8); font-size: 13px; }
+        .cgv-content th { background: rgba(200,169,110,0.15); color: #c8a96e; }
+        .cgv-content hr { border: none; border-top: 1px solid rgba(200,169,110,0.2); margin: 24px 0; }
+        .cgv-content a { color: #c8a96e; }
+        .cgv-content blockquote { border-left: 3px solid #ffc107; padding-left: 16px; margin: 16px 0; background: rgba(255,193,7,0.08); border-radius: 4px; padding: 12px 16px; }
+      `}</style>
     </div>
   );
 }
