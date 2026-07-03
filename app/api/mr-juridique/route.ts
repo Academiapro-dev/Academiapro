@@ -57,7 +57,7 @@ Reponds toujours en francais. Sois precis, concret, avec des etapes numerotees q
       },
       body: JSON.stringify({
         model: "claude-sonnet-4-6",
-        max_tokens: 8000,
+        max_tokens: 16000,
         system: systemPrompt,
         messages,
       }),
