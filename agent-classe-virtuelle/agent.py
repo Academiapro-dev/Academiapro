@@ -60,6 +60,22 @@ async def entrypoint(ctx: agents.JobContext):
     await ctx.connect()
     logger.info("Connecte a la salle : %s", ctx.room.name)
 
+    # ECONOMIE CREDITS : fermeture quand le dernier humain part
+    def _humains_presents():
+        return [
+            p for p in ctx.room.remote_participants.values()
+            if not p.identity.startswith("agent")
+            and "avatar" not in p.identity
+        ]
+
+    @ctx.room.on("participant_disconnected")
+    def _sur_depart(participant):
+        if not _humains_presents():
+            logger.info("Dernier humain parti - fermeture %s",
+                        ctx.room.name)
+            import asyncio as _aio
+            _aio.create_task(ctx.room.disconnect())
+
     # Le contenu du cours est passe via les metadata de la salle
     contenu_du_jour = ctx.room.metadata or "Cours general."
 
