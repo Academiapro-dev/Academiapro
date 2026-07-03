@@ -73,6 +73,7 @@ async def entrypoint(ctx: agents.JobContext):
     # 2. L'avatar LiveAvatar rejoint la salle et publie SON flux video
     avatar = liveavatar.AvatarSession(
         avatar_id=os.environ["LIVEAVATAR_AVATAR_ID"],
+        avatar_voice_id=os.environ.get("LIVEAVATAR_VOICE_ID"),
     )
     await avatar.start(session, room=ctx.room)
 
