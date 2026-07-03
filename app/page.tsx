@@ -63,9 +63,19 @@ const T = {
     btn_formations: "عرض الدورات", btn_ebook: "كتاب مجاني", btn_demarrer: "ابدأ",
     stat1: "دورات معتمدة", stat2: "مهارات معتمدة", stat3: "معالجون AI", stat4: "ضمان الرضا",
     nav_formations: "الدورات", nav_séances: "الجلسات", nav_packs: "الباقات", nav_competences: "المهارات", nav_blog: "المدونة", nav_contact: "اتصل",
-    footer_desc: "منصة التدريب المدعومة بالذكاء الاصطناعي. 265 دورة معتمدة.",
-    voir_formation: "عرض الدورة", voir_tout: "عرض جميع الدورات 265", nos_formations: "دوراتنا المميزة",
+    footer_desc: "منصة التدريب المدعومة بالذكاء الاصطناعي. {NB} دورة معتمدة.",
+    voir_formation: "عرض الدورة", voir_tout: "عرض جميع الدورات {NB}", nos_formations: "دوراتنا المميزة",
     nos_formations_sub: "شهادة AcadeMIA Pro · دفع 3x · ضمان 30 يوماً",
+  },
+  he: {
+    hero_titre: "התאמנו עם סוכן הבינה המלאכותית האישי שלכם",
+    hero_sub: "{NB} קורסים מוסמכים · סוכן AI 24/7 · מפגשים טיפוליים",
+    btn_formations: "צפה בקורסים", btn_ebook: "ספר אלקטרוני חינם", btn_demarrer: "התחל",
+    stat1: "קורסים מוסמכים", stat2: "מיומנויות מאושרות", stat3: "מטפלי AI", stat4: "ערבות שביעות רצון",
+    nav_formations: "קורסים", nav_séances: "מפגשים", nav_packs: "חבילות", nav_competences: "מיומנויות", nav_blog: "בלוג", nav_contact: "צור קשר",
+    footer_desc: "פלטפורמת הכשרה מופעלת בינה מלאכותית. {NB} קורסים מוסמכים.",
+    voir_formation: "צפה בקורס", voir_tout: "צפה בכל {NB} הקורסים", nos_formations: "הקורסים המובילים שלנו",
+    nos_formations_sub: "תעודת AcadémIA Pro · תשלום ב-3x · ערבות 30 יום",
   },
 };
 
