@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 const T = {
   fr: {
     hero_titre: "Formez-vous avec votre agent IA personnel",
-    hero_sub: "263 formations certifiantes · Agent IA 24h/24 · Séances thérapeutiques",
+    hero_sub: "{NB} formations certifiantes · Agent IA 24h/24 · Séances thérapeutiques",
     btn_formations: "Voir les formations",
     btn_ebook: "E-book gratuit",
     btn_demarrer: "Demarrer",
@@ -19,7 +19,7 @@ const T = {
   },
   en: {
     hero_titre: "Train with your personal AI agent",
-    hero_sub: "265 certified courses · AI Agent 24/7 · Therapeutic sessions",
+    hero_sub: "{NB} certified courses · AI Agent 24/7 · Therapeutic sessions",
     btn_formations: "View courses", btn_ebook: "Free e-book", btn_demarrer: "Get Started",
     stat1: "Certified courses", stat2: "Validated skills", stat3: "AI Therapists", stat4: "Satisfaction guarantee",
     nav_formations: "Courses", nav_séances: "Sessions", nav_packs: "Packs", nav_competences: "Skills", nav_blog: "Blog", nav_contact: "Contact",
@@ -29,7 +29,7 @@ const T = {
   },
   es: {
     hero_titre: "Formese con su agente IA personal",
-    hero_sub: "265 cursos certificados · Agente IA 24h · Sesiones terapeuticas",
+    hero_sub: "{NB} cursos certificados · Agente IA 24h · Sesiones terapeuticas",
     btn_formations: "Ver cursos", btn_ebook: "E-book gratis", btn_demarrer: "Comenzar",
     stat1: "Cursos certificados", stat2: "Habilidades validadas", stat3: "Terapeutas IA", stat4: "Garantia satisfaccion",
     nav_formations: "Cursos", nav_séances: "Sesiones", nav_packs: "Packs", nav_competences: "Habilidades", nav_blog: "Blog", nav_contact: "Contacto",
@@ -39,7 +39,7 @@ const T = {
   },
   pt: {
     hero_titre: "Forme-se com seu agente IA pessoal",
-    hero_sub: "265 cursos certificados · Agente IA 24h · Sessoes terapeuticas",
+    hero_sub: "{NB} cursos certificados · Agente IA 24h · Sessoes terapeuticas",
     btn_formations: "Ver cursos", btn_ebook: "E-book gratuito", btn_demarrer: "Comecar",
     stat1: "Cursos certificados", stat2: "Competencias validadas", stat3: "Terapeutas IA", stat4: "Garantia de satisfacao",
     nav_formations: "Cursos", nav_séances: "Sessoes", nav_packs: "Packs", nav_competences: "Competencias", nav_blog: "Blog", nav_contact: "Contato",
@@ -49,7 +49,7 @@ const T = {
   },
   de: {
     hero_titre: "Weiterbilden mit Ihrem personlichen KI-Agenten",
-    hero_sub: "265 zertifizierte Kurse · KI-Agent 24h · Therapeutische Sitzungen",
+    hero_sub: "{NB} zertifizierte Kurse · KI-Agent 24h · Therapeutische Sitzungen",
     btn_formations: "Kurse ansehen", btn_ebook: "Kostenloses E-Book", btn_demarrer: "Loslegen",
     stat1: "Zertifizierte Kurse", stat2: "Validierte Kompetenzen", stat3: "KI-Therapeuten", stat4: "Zufriedenheitsgarantie",
     nav_formations: "Kurse", nav_séances: "Sitzungen", nav_packs: "Pakete", nav_competences: "Kompetenzen", nav_blog: "Blog", nav_contact: "Kontakt",
@@ -59,7 +59,7 @@ const T = {
   },
   ar: {
     hero_titre: "تدرب مع وكيل الذكاء الاصطناعي الشخصي",
-    hero_sub: "265 دورة معتمدة · وكيل ذكاء اصطناعي 24/24 · جلسات علاجية",
+    hero_sub: "{NB} دورة معتمدة · وكيل ذكاء اصطناعي 24/24 · جلسات علاجية",
     btn_formations: "عرض الدورات", btn_ebook: "كتاب مجاني", btn_demarrer: "ابدأ",
     stat1: "دورات معتمدة", stat2: "مهارات معتمدة", stat3: "معالجون AI", stat4: "ضمان الرضا",
     nav_formations: "الدورات", nav_séances: "الجلسات", nav_packs: "الباقات", nav_competences: "المهارات", nav_blog: "المدونة", nav_contact: "اتصل",
@@ -70,6 +70,12 @@ const T = {
 };
 
 export default function HomePage() {
+  const [nbFormations, setNbFormations] = useState(263);
+
+  useEffect(() => {
+    fetch("/api/nombre-formations").then(r => r.json()).then(d => { if (d.success) setNbFormations(d.total); });
+  }, []);
+
   const [langue, setLangue] = useState("fr");
 
   useEffect(() => {
@@ -90,7 +96,7 @@ export default function HomePage() {
 <section style={{ padding: "100px 40px", textAlign: "center", maxWidth: "900px", margin: "0 auto" }}>
         <p style={{ color: "#c8a96e", fontSize: "15px", letterSpacing: "4px", margin: "0 0 24px" }}>LA PLATEFORME DE FORMATION IA</p>
         <h1 style={{ fontSize: "52px", fontWeight: "bold", margin: "0 0 24px", lineHeight: "1.2" }}>{t("hero_titre")}</h1>
-        <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "18px", margin: "0 0 40px", lineHeight: "1.7" }}>{t("hero_sub")}</p>
+        <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "18px", margin: "0 0 40px", lineHeight: "1.7" }}>{t("hero_sub").replace("{NB}", String(nbFormations))}</p>
               <video controls autoPlay muted loop playsInline style={{ width: "100%", maxWidth: "480px", borderRadius: "16px", border: "1px solid rgba(200,169,110,0.3)", marginBottom: "32px" }}>
                 <source src="https://kpxrbwsbhmggoajtxzqn.supabase.co/storage/v1/object/public/videos_marketing/camille_moreau_video1.mp4" type="video/mp4" />
               </video>
