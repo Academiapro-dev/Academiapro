@@ -55,6 +55,47 @@ class FormateurClasseVirtuelle(Agent):
         )
 
 
+def charger_programme(nom_salle: str) -> str:
+    """Si la salle commence par un code formation (ex: F030-session1),
+    charge le programme depuis Supabase. Sinon, cours general."""
+    import re
+    import urllib.request
+    import json as _json
+
+    m = re.match(r"^(F\d{3})", nom_salle.upper())
+    if not m:
+        return "Cours general de decouverte AcademIA Pro."
+
+    code = m.group(1)
+    supabase_url = os.environ.get("SUPABASE_URL", "")
+    supabase_key = os.environ.get("SUPABASE_ANON_KEY", "")
+    if not supabase_url or not supabase_key:
+        return "Cours general (Supabase non configure)."
+
+    try:
+        req = urllib.request.Request(
+            supabase_url + "/rest/v1/formations"
+            + "?code=eq." + code
+            + "&select=titre,description,programme,objectifs",
+            headers={
+                "apikey": supabase_key,
+                "Authorization": "Bearer " + supabase_key,
+            })
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            rows = _json.loads(resp.read().decode())
+        if rows:
+            f = rows[0]
+            return (
+                "FORMATION DU JOUR : " + str(f.get("titre", code))
+                + "\n\nDESCRIPTION : " + str(f.get("description", ""))[:500]
+                + "\n\nOBJECTIFS : " + str(f.get("objectifs", ""))[:500]
+                + "\n\nPROGRAMME : " + str(f.get("programme", ""))[:1500]
+            )
+    except Exception as e:
+        logger.warning("Chargement formation %s impossible : %s", code, e)
+    return "Cours general AcademIA Pro (formation " + code + ")."
+
+
 async def entrypoint(ctx: agents.JobContext):
     """Point d'entree : appele quand une salle demande l'agent."""
     await ctx.connect()
@@ -77,7 +118,7 @@ async def entrypoint(ctx: agents.JobContext):
             _aio.create_task(ctx.room.disconnect())
 
     # Le contenu du cours est passe via les metadata de la salle
-    contenu_du_jour = ctx.room.metadata or "Cours general."
+    contenu_du_jour = ctx.room.metadata or charger_programme(ctx.room.name)
 
     # 1. La session agent : cerveau (LLM Claude via LiveAvatar mode Lite)
     session = AgentSession(
