@@ -67,6 +67,7 @@ async def entrypoint(ctx: agents.JobContext):
     session = AgentSession(
         stt="deepgram/nova-3:fr",
         llm=anthropic.LLM(model="claude-sonnet-4-6"),
+        tts="cartesia/sonic-3:a0e99841-438c-4a64-b679-ae501e7d6091",
     )
 
     # 2. L'avatar LiveAvatar rejoint la salle et publie SON flux video
