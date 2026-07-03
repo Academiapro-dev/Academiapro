@@ -1,0 +1,4 @@
+livekit-agents>=1.0
+livekit-plugins-liveavatar
+anthropic
+python-dotenv
