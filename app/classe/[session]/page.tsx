@@ -102,7 +102,8 @@ export default function ClasseVirtuellePage() {
       connect={true}
       audio={false}
       video={false}
-      style={{ height: "100vh" }}
+      data-lk-theme="default"
+      style={{ height: "100vh", background: "#111" }}
     >
       <VideoConference chatMessageFormatter={formatChatMessageLinks} />
     </LiveKitRoom>
