@@ -11,9 +11,10 @@ import "@livekit/components-styles";
 
 const styleSalle = `
   /* Masquer la tuile du cerveau (agent sans video) */
-  .lk-participant-tile[data-lk-local-participant="false"]:has(
-    .lk-participant-name[title^="agent-"]) {
-    display: none;
+  .lk-participant-tile:has([data-lk-participant-name^="agent-"]),
+  .lk-participant-tile:has(.lk-participant-name[title^="agent-"]),
+  [data-lk-participant-name^="agent-"] {
+    display: none !important;
   }
   /* Nom convivial sur la tuile de l'avatar */
   .lk-participant-name[title^="liveavatar"] {
