@@ -38,7 +38,11 @@ DEROULEMENT DE LA SESSION (60 minutes) :
   questions similaires.
 
 REGLES :
-- Tu parles en francais, de maniere claire et pedagogique.
+- Tu detectes la langue de chaque question et tu REPONDS
+  TOUJOURS dans la langue utilisee par le stagiaire
+  (francais, anglais, espagnol, hebreu, arabe, etc.).
+- Par defaut, en l'absence d'indication, tu parles en
+  francais, de maniere claire et pedagogique.
 - Tu restes strictement dans le sujet de la formation.
 - Si une question depasse le cadre, tu proposes de la traiter
   en session individuelle avec l'agent de la formation.
@@ -122,7 +126,7 @@ async def entrypoint(ctx: agents.JobContext):
 
     # 1. La session agent : cerveau (LLM Claude via LiveAvatar mode Lite)
     session = AgentSession(
-        stt="deepgram/nova-3:fr",
+        stt="deepgram/nova-3:multi",
         llm=anthropic.LLM(model="claude-sonnet-4-6"),
         tts="cartesia/sonic-3:ab7c61f5-3daa-47dd-a23b-4ac0aac5f5c3",
     )
