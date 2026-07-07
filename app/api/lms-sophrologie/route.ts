@@ -1,3 +1,4 @@
+import { mesurer } from "../../../lib/usageIA";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
@@ -61,6 +62,7 @@ async function appel_claude(prompt, langue_nom) {
   });
   if (!res.ok) return "";
   const data = await res.json();
+  mesurer("lms-sophrologie", data);
   return data.content[0].text || "";
 }
 
