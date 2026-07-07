@@ -1,3 +1,4 @@
+import { mesurer } from "../../../lib/usageIA";
 // app/api/emailing/route.ts — Agent Emailing connecté à CAM
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
@@ -27,6 +28,7 @@ async function appel_claude(system: string, user: string): Promise<string> {
   });
   if (!res.ok) return "";
   const data = await res.json();
+  mesurer("emailing", data);
   return data.content[0].text || "";
 }
 
