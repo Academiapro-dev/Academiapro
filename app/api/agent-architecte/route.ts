@@ -1,3 +1,4 @@
+import { mesurer } from "../../../lib/usageIA";
 import { NextRequest, NextResponse } from "next/server";
 
 export const runtime = "nodejs";
@@ -31,6 +32,7 @@ async function appel_claude(prompt: string): Promise<string> {
     }),
   });
   const data = await r.json();
+  mesurer("agent-architecte", data);
   return data.content[0].text || "";
 }
 
