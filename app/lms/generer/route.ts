@@ -1,3 +1,4 @@
+import { mesurer } from "../../../lib/usageIA";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
@@ -99,6 +100,7 @@ EXIGENCES: 10 questions QCM avec 4 options reponse correcte et explication detai
 
   if (!res.ok) return "Erreur generation contenu";
   const data = await res.json();
+  mesurer("lms-generer", data);
   return data.content[0].text || "";
 }
 
