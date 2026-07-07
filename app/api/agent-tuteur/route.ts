@@ -1,3 +1,4 @@
+import { mesurer } from "../../../lib/usageIA";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(req: NextRequest) {
@@ -49,6 +50,7 @@ REGLES ABSOLUES :
   });
 
   const data = await res.json();
+  mesurer("agent-tuteur", data);
   const reply = data.content?.[0]?.text || "Je suis là pour vous aider. Posez-moi votre question.";
 
   return NextResponse.json({ reply });
