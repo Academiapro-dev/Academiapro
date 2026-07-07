@@ -277,6 +277,23 @@ async function lms_update(email: string, data: any) {
 }
 
 export async function POST(req: NextRequest) {
+  // Garde-fou : n accepter que les appels du site
+  const origineApp = req.headers.get("origin") || "";
+  const referentApp = req.headers.get("referer") || "";
+  const appelLegitime =
+    origineApp.includes("academiapro.fr")
+    || referentApp.includes("academiapro.fr")
+    || origineApp.includes("vercel.app")
+    || referentApp.includes("vercel.app")
+    || origineApp.includes("localhost")
+    || referentApp.includes("localhost");
+  if (!appelLegitime) {
+    return NextResponse.json(
+      { error: "Acces refuse" },
+      { status: 403 },
+    );
+  }
+
   try {
     const body = await req.json();
     const { action } = body;
