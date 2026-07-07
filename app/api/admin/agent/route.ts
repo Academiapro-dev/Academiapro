@@ -33,6 +33,18 @@ Tu aides les organismes de formation a obtenir et maintenir la certification Qua
       }
     }
 
+    // Cache conversationnel : marquer le dernier message
+    // de l historique met tout le prefixe (system +
+    // conversation) en cache pour les echanges suivants.
+    if (messages.length > 0) {
+      const dernier = messages[messages.length - 1];
+      dernier.content = [{
+        type: "text",
+        text: dernier.content,
+        cache_control: { type: "ephemeral" },
+      }];
+    }
+
     const fichiersList = fichiers || (fichier ? [fichier] : []);
     if (fichiersList.length > 0) {
       const content: any[] = [
