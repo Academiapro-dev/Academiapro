@@ -1,3 +1,4 @@
+import { mesurer } from "../../../lib/usageIA";
 import { NextRequest, NextResponse } from "next/server";
 
 export const runtime = "nodejs";
@@ -43,6 +44,7 @@ export async function POST(req: NextRequest) {
     });
 
     const data = await res.json();
+    mesurer("traduire", data);
     const traduction = data?.content?.[0]?.text || texte;
     cache[cacheKey] = traduction;
 
