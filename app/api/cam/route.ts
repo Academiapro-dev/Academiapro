@@ -1,3 +1,4 @@
+import { mesurer } from "../../../lib/usageIA";
 // app/api/cam/route.ts — v6 LMS COMPLET
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
@@ -51,6 +52,7 @@ async function appel_claude(system: string, user: string, max_tokens = 800): Pro
     });
     if (!res.ok) return "";
     const data = await res.json();
+    mesurer("cam", data);
     return nettoyer(data.content[0].text || "");
   } catch {
     return "";
