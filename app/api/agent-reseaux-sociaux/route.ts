@@ -1,3 +1,4 @@
+import { mesurer } from "../../../lib/usageIA";
 // app/api/agent-reseaux-sociaux/route.ts — Agent Réseaux Sociaux connecté à CAM
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
@@ -27,6 +28,7 @@ async function appel_claude(system: string, user: string): Promise<string> {
   });
   if (!res.ok) return "";
   const data = await res.json();
+  mesurer("agent-reseaux-sociaux", data);
   return data.content[0].text || "";
 }
 
