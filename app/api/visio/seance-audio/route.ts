@@ -1,3 +1,4 @@
+import { mesurer } from "../../../../lib/usageIA";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
@@ -53,6 +54,7 @@ async function genererReponseClaude(message: string, therapeute: string, histori
     }),
   });
   const data = await response.json();
+  mesurer("visio-seance-audio", data);
   return data.content[0].text;
 }
 
