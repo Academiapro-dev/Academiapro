@@ -1,3 +1,4 @@
+import { mesurer } from "../../../../lib/usageIA";
 import { NextRequest, NextResponse } from "next/server";
 
 export const runtime = "nodejs";
@@ -52,6 +53,7 @@ ${"=".repeat(60)}
         }),
       });
       const data = await res.json();
+      mesurer("admin-inpi", data);
       const contenu = data?.content?.[0]?.text || "";
       dossierComplet += `${p.titre}
 ${"─".repeat(40)}
