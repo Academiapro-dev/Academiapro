@@ -1,3 +1,4 @@
+import { mesurer } from "../../../lib/usageIA";
 import { NextRequest, NextResponse } from "next/server";
 
 export const runtime = "nodejs";
@@ -25,6 +26,7 @@ async function generateManuel(formation: string, nom: string): Promise<string> {
     }),
   });
   const data = await response.json();
+  mesurer("inscription", data);
   return data.content[0].text;
 }
 
