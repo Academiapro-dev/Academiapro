@@ -1,3 +1,4 @@
+import { mesurer } from "../../../lib/usageIA";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
@@ -94,6 +95,7 @@ async function appel_claude(prompt: string, expert_nom: string, langue_nom: stri
     }),
   });
   const data = await r.json();
+  mesurer("lms-generer", data);
   return data.content[0].text || "";
 }
 
