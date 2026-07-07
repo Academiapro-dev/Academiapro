@@ -1,3 +1,4 @@
+import { mesurer } from "../../../../lib/usageIA";
 import { NextRequest, NextResponse } from "next/server";
 
 export const runtime = "nodejs";
@@ -66,6 +67,7 @@ export async function POST(req: NextRequest) {
         }),
       });
       const claudeData = await claudeRes.json();
+      mesurer("admin-upload", claudeData);
       analyse = claudeData?.content?.[0]?.text || "";
     }
 
