@@ -1,3 +1,4 @@
+import { mesurer } from "../../../lib/usageIA";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
@@ -55,6 +56,7 @@ async function genererReponseClaude(message: string, formateur: string, historiq
     }),
   });
   const data = await response.json();
+  mesurer("formation-audio", data);
   return data.content[0].text;
 }
 
