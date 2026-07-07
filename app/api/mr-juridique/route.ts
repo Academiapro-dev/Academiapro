@@ -25,10 +25,13 @@ Reponds toujours en francais. Sois precis, concret, avec des etapes numerotees q
     const messages: any[] = [];
 
     for (const h of historique) {
+      // Format bloc sur TOUS les tours : le prefixe reste
+      // identique d un appel a l autre (condition du cache)
+      const bloc = [{ type: "text", text: h.text }];
       if (h.role === "user") {
-        messages.push({ role: "user", content: h.text });
+        messages.push({ role: "user", content: bloc });
       } else {
-        messages.push({ role: "assistant", content: h.text });
+        messages.push({ role: "assistant", content: bloc });
       }
     }
 
@@ -37,11 +40,9 @@ Reponds toujours en francais. Sois precis, concret, avec des etapes numerotees q
     // conversation) en cache pour les echanges suivants.
     if (messages.length > 0) {
       const dernier = messages[messages.length - 1];
-      dernier.content = [{
-        type: "text",
-        text: dernier.content,
-        cache_control: { type: "ephemeral" },
-      }];
+      dernier.content[0].cache_control = {
+        type: "ephemeral",
+      };
     }
 
     const fichiersList = fichiers || (fichier ? [fichier] : []);
