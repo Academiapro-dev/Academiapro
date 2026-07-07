@@ -1,3 +1,4 @@
+import { mesurer } from "../../../../lib/usageIA";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(req: NextRequest) {
@@ -27,6 +28,7 @@ export async function POST(req: NextRequest) {
   });
 
   const data = await res.json();
+  mesurer("agents-therapeutique", data);
   const reply = data.content?.[0]?.text || "Je suis là pour vous écouter. Continuez...";
 
   return NextResponse.json({ reply });
