@@ -1,5 +1,6 @@
 export const runtime = 'nodejs';
 import { NextRequest, NextResponse } from "next/server";
+import { mesurer } from "../../../../lib/usageIA";
 
 export const maxDuration = 300;
 
@@ -59,12 +60,14 @@ Tu aides les organismes de formation a obtenir et maintenir la certification Qua
       body: JSON.stringify({
         model: "claude-sonnet-4-6",
         max_tokens: 8000,
-        system: systemPrompt,
+        system: [{ type: "text", text: systemPrompt,
+          cache_control: { type: "ephemeral" } }],
         messages,
       }),
     });
 
     const data = await response.json();
+    mesurer("admin-agent", data);
     const reply = data.content?.[0]?.text || "Erreur.";
 
     // Upload fichiers dans Supabase Storage
@@ -92,30 +95,6 @@ Tu aides les organismes de formation a obtenir et maintenir la certification Qua
       }));
     }
 
-
-    // Upload fichiers dans Supabase Storage avant de repondre
-    if (fichiersList.length > 0) {
-      await Promise.all(fichiersList.map(async (f: any) => {
-        try {
-          const ext = f.mediaType === "application/pdf" ? "pdf" : "jpg";
-          const nomFichier = "qualiopi_" + Date.now() + "_" + Math.random().toString(36).slice(2,7) + "." + ext;
-          const bytes = Buffer.from(f.base64, "base64");
-          const uploadRes = await fetch("https://kpxrbwsbhmggoajtxzqn.supabase.co/storage/v1/object/agent_documents/" + nomFichier, {
-            method: "POST",
-            headers: {
-              "apikey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtweHJid3NiaG1nZ29hanR4enFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA3NzM0NjIsImV4cCI6MjA5NjM0OTQ2Mn0.J45gFfkK7PHhpCFJ5ahRDbRSeGdG9YO1aa0rRZP_lks",
-              "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtweHJid3NiaG1nZ29hanR4enFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA3NzM0NjIsImV4cCI6MjA5NjM0OTQ2Mn0.J45gFfkK7PHhpCFJ5ahRDbRSeGdG9YO1aa0rRZP_lks",
-              "Content-Type": f.mediaType,
-              "x-upsert": "true"
-            },
-            body: bytes
-          });
-          console.log("Upload result:", uploadRes.status, nomFichier);
-        } catch (err) {
-          console.error("Storage upload error:", err);
-        }
-      }));
-    }
 
     return NextResponse.json({ reply });
 
