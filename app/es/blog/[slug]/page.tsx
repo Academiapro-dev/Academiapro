@@ -31,6 +31,11 @@ export async function generateMetadata(
       || article.extrait || "",
     alternates: {
       canonical: "https://academiapro.fr/es/blog/" + slug,
+      languages: {
+        es: "https://academiapro.fr/es/blog/" + slug,
+        fr: "https://academiapro.fr/blog",
+        en: "https://academiapro.fr/en/blog",
+      },
     },
   };
 }
@@ -67,7 +72,7 @@ export default async function ArticlePage(
         background: "#050508", color: "#fff",
         display: "flex", alignItems: "center",
         justifyContent: "center" }}>
-        <p>Article not found.</p>
+        <p>Articulo no encontrado.</p>
       </div>
     );
   }
