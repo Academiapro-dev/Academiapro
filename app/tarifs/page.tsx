@@ -9,7 +9,8 @@ const FRT = {
   mois: "/mois", populaire: "POPULAIRE",
   choisir: "Choisir cette formule",
   chargement: "Chargement des formules...",
-  faqTitre: "Questions frequentes" };
+  faqTitre: "Questions frequentes",
+  garantie: "Garantie 30 jours satisfait ou rembourse sur toutes nos formations" };
 
 export default function TarifsPage() {
   const { txt: txtT } = useTraductionAuto(FRT);
