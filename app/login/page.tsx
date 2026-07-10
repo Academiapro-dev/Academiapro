@@ -3,13 +3,13 @@ import { useState } from "react";
 import { useTraductionAuto } from "../../hooks/useTraductionAuto";
 const FRT = {
   surTitre: "ACADEMIAPRO",
-  titre: "Connexion",
-  email: "Email", motDePasse: "Mot de passe",
+  titre: "Bon retour parmi nous",
+  email: "Adresse e-mail", motDePasse: "Mot de passe",
   bouton: "Se connecter",
   pasDeCompte: "Pas encore de compte ?",
-  sInscrire: "S inscrire",
+  sInscrire: "Creer un compte gratuitement",
   motDePasseOublie: "Mot de passe oublie ?",
-  sousTitre: "Accedez a votre espace apprenant" };
+  sousTitre: "Accedez a vos formations et suivez votre progression" };
 
 export default function LoginPage() {
   const { txt: txtT } = useTraductionAuto(FRT);
