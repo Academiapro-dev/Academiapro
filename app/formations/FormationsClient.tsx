@@ -1,5 +1,14 @@
 "use client";
 import { useState, useMemo } from "react";
+import { useTraductionAuto } from "../../hooks/useTraductionAuto";
+const FRT = {
+  surTitre: "ACADEMIAPRO",
+  formationsDisponibles: "formations disponibles",
+  recherche: "Rechercher une formation...",
+  reinitialiser: "Reinitialiser",
+  aucun: "Aucune formation trouvee",
+  precedent: "Precedent", suivant: "Suivant",
+  voir: "Voir la formation" };
 
 const DOMAINES = ["Tous", "IA", "Business", "Marketing", "Langues", "Bien-etre", "Tech", "Design", "Finance", "Droit", "Outils"];
 const NIVEAUX = ["Tous", "Debutant", "Intermediaire", "Avance", "Expert", "Tous niveaux"];
@@ -12,6 +21,7 @@ const COULEURS: Record<string, string> = {
 };
 
 export default function FormationsClient({ formations }: { formations: any[] }) {
+  const { txt: txtT } = useTraductionAuto(FRT);
   const [recherche, setRecherche] = useState("");
   const [domaine, setDomaine] = useState("Tous");
   const [niveau, setNiveau] = useState("Tous");
