@@ -4,9 +4,9 @@ import { useState, useEffect } from "react";
 import { useTraductionAuto } from "../../hooks/useTraductionAuto";
 const FRT = {
   surTitre: "ACADEMIAPRO",
-  titre: "Nos Formules",
-  sousTitre: "Choisissez la formule adaptee a vos objectifs",
-  mois: "/mois", populaire: "POPULAIRE",
+  titre: "Tarifs et Formules",
+  sousTitre: "Choisissez la formule qui correspond a votre ambition",
+  mois: "/mois", populaire: "Recommande",
   choisir: "Choisir cette formule",
   chargement: "Chargement des formules...",
   faqTitre: "Questions frequentes",
