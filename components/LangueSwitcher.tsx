@@ -14,6 +14,26 @@ export function LangueProvider({ children }) {
   function changerLangue(l) {
     setLangue(l);
     localStorage.setItem("langue", l);
+    // Espace blog : chaque langue majeure a sa propre URL
+    // (SEO). On navigue au lieu de traduire a la volee.
+    if (typeof window !== "undefined") {
+      const chemin = window.location.pathname;
+      const estBlog = chemin === "/blog"
+        || chemin.startsWith("/blog/")
+        || chemin === "/en/blog"
+        || chemin.startsWith("/en/blog/")
+        || chemin === "/es/blog"
+        || chemin.startsWith("/es/blog/");
+      if (estBlog) {
+        if (l === "en") {
+          window.location.href = "/en/blog";
+        } else if (l === "es") {
+          window.location.href = "/es/blog";
+        } else {
+          window.location.href = "/blog";
+        }
+      }
+    }
   }
 
   return (
