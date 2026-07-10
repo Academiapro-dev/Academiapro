@@ -1,7 +1,17 @@
 "use client";
 import { useState } from "react";
+import { useTraductionAuto } from "../../hooks/useTraductionAuto";
+const FRT = {
+  surTitre: "ACADEMIAPRO",
+  titre: "Connexion",
+  email: "Email", motDePasse: "Mot de passe",
+  bouton: "Se connecter",
+  pasDeCompte: "Pas encore de compte ?",
+  sInscrire: "S inscrire",
+  motDePasseOublie: "Mot de passe oublie ?" };
 
 export default function LoginPage() {
+  const { txt: txtT } = useTraductionAuto(FRT);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
