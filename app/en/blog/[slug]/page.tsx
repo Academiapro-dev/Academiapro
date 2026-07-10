@@ -31,6 +31,11 @@ export async function generateMetadata(
       || article.extrait || "",
     alternates: {
       canonical: "https://academiapro.fr/en/blog/" + slug,
+      languages: {
+        en: "https://academiapro.fr/en/blog/" + slug,
+        fr: "https://academiapro.fr/blog",
+        es: "https://academiapro.fr/es/blog",
+      },
     },
   };
 }
