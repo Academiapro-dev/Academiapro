@@ -1,5 +1,14 @@
 "use client";
 import { useState } from "react";
+import { useTraductionAuto } from "../../hooks/useTraductionAuto";
+const FRT = {
+  surTitre: "ACADEMIAPRO",
+  titre: "Creer un compte",
+  prenom: "Prenom", nom: "Nom", email: "Email",
+  motDePasse: "Mot de passe",
+  bouton: "Creer mon compte",
+  dejaCompte: "Deja un compte ?",
+  seConnecter: "Se connecter" };
 
 const INTERETS = [
   "Formations professionnelles",
@@ -10,6 +19,7 @@ const INTERETS = [
 ];
 
 export default function InscriptionPage() {
+  const { txt: txtT } = useTraductionAuto(FRT);
   const [form, setForm] = useState({ nom: "", email: "", interet: "" });
   const [loading, setLoading] = useState(false);
   const [succes, setSucces] = useState(false);
