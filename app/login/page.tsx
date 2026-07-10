@@ -8,7 +8,8 @@ const FRT = {
   bouton: "Se connecter",
   pasDeCompte: "Pas encore de compte ?",
   sInscrire: "S inscrire",
-  motDePasseOublie: "Mot de passe oublie ?" };
+  motDePasseOublie: "Mot de passe oublie ?",
+  sousTitre: "Accedez a votre espace apprenant" };
 
 export default function LoginPage() {
   const { txt: txtT } = useTraductionAuto(FRT);
