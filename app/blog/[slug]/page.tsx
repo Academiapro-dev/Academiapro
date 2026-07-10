@@ -1,4 +1,4 @@
-import { Metadata } from "next";
+import AiguillageLangueBlog from "../../../components/AiguillageLangueBlog";
 
 async function getArticle(slug: string) {
   try {
@@ -18,44 +18,95 @@ async function getArticle(slug: string) {
   } catch { return null; }
 }
 
-export default async function ArticlePage({ params }: { params: { slug: string } }) {
+export async function generateMetadata(
+  { params }: { params: { slug: string } }) {
+  const article = await getArticle(params.slug);
+  if (!article) return { title: "AcademIA Pro" };
+  return {
+    title: article.titre + " - AcademIA Pro",
+    description: article.extrait || "",
+    alternates: {
+      canonical:
+        "https://academiapro.fr/blog/" + params.slug,
+      languages: {
+        fr: "https://academiapro.fr/blog/" + params.slug,
+        en: "https://academiapro.fr/en/blog",
+        es: "https://academiapro.fr/es/blog",
+      },
+    },
+  };
+}
+
+function formaterContenu(contenu: string) {
+  const lignes = (contenu || "").split("\n");
+  let html = "";
+  for (const ligne of lignes) {
+    const l = ligne.trim();
+    if (!l || l === "---") continue;
+    if (l.startsWith("# ")) continue;
+    if (l.startsWith("## ")) {
+      html += "<h2 style=\"color:#c8a96e;font-size:22px;"
+        + "margin:32px 0 14px\">" + l.slice(3) + "</h2>";
+    } else {
+      let p = l.replace(
+        /\*\*([^*]+)\*\*/g,
+        "<strong style=\"color:#fff\">$1</strong>");
+      p = p.replace(/\*([^*]+)\*/g, "<em>$1</em>");
+      html += "<p style=\"color:rgba(255,255,255,0.75);"
+        + "font-size:15px;line-height:1.9;"
+        + "margin:0 0 16px\">" + p + "</p>";
+    }
+  }
+  return html;
+}
+
+export default async function ArticlePage(
+  { params }: { params: { slug: string } }) {
   const article = await getArticle(params.slug);
 
   if (!article) {
     return (
-      <div style={{ backgroundColor: "#050508", minHeight: "100vh", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ backgroundColor: "#050508",
+        minHeight: "100vh", color: "#fff",
+        display: "flex", alignItems: "center",
+        justifyContent: "center" }}>
         <div style={{ textAlign: "center" }}>
-          <h1 style={{ color: "#c8a96e" }}>Article non trouve</h1>
-          <a href="/blog" style={{ color: "#c8a96e" }}>Retour au blog</a>
+          <h1 style={{ color: "#c8a96e" }}>
+            Article non trouve
+          </h1>
+          <a href="/blog" style={{ color: "#c8a96e" }}>
+            Retour au blog
+          </a>
         </div>
       </div>
     );
   }
 
+  const corps = formaterContenu(article.contenu);
+
   return (
-    <div style={{ backgroundColor: "#050508", minHeight: "100vh", color: "#fff" }}>
-      <div style={{ background: "linear-gradient(135deg,#0a0a1a,#1a1a2e)", padding: "60px 40px", textAlign: "center" }}>
-        <a href="/blog" style={{ color: "#c8a96e", textDecoration: "none", fontSize: "13px" }}>← Retour au blog</a>
-        <span style={{ background: "rgba(200,169,110,0.2)", color: "#c8a96e", padding: "4px 12px", borderRadius: "20px", fontSize: "12px", display: "block", width: "fit-content", margin: "15px auto" }}>{article.categorie}</span>
-        <h1 style={{ color: "#fff", fontFamily: "Georgia,serif", fontSize: "2.2rem", maxWidth: "800px", margin: "0 auto 20px", lineHeight: "1.3" }}>{article.titre}</h1>
-        <div style={{ color: "rgba(255,255,255,0.5)", fontSize: "13px" }}>
-          {article.auteur} · {new Date(article.created_at).toLocaleDateString("fr-FR")} · {article.vues} vues
-        </div>
-      </div>
-
-      <div style={{ maxWidth: "800px", margin: "0 auto", padding: "50px 20px" }}>
-        <div style={{ color: "rgba(255,255,255,0.8)", lineHeight: "1.9", fontSize: "16px", whiteSpace: "pre-wrap" }}>
-          {article.contenu}
-        </div>
-
-        <div style={{ marginTop: "60px", background: "rgba(200,169,110,0.1)", border: "1px solid rgba(200,169,110,0.3)", borderRadius: "12px", padding: "30px", textAlign: "center" }}>
-          <h3 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", marginTop: 0 }}>Pret a vous former avec l IA ?</h3>
-          <p style={{ color: "rgba(255,255,255,0.6)", marginBottom: "20px" }}>235 formations certifiantes · Agent IA 24h/24 · Garantie 30 jours</p>
-          <a href="/catalogue" style={{ display: "inline-block", background: "#c8a96e", color: "#050508", padding: "12px 30px", borderRadius: "8px", textDecoration: "none", fontWeight: "bold" }}>
-            Voir le catalogue
-          </a>
-        </div>
+    <>
+    <AiguillageLangueBlog languePage="fr" />
+    <div style={{ backgroundColor: "#050508",
+      minHeight: "100vh", color: "#fff",
+      fontFamily: "Georgia, serif",
+      padding: "60px 20px" }}>
+      <div style={{ maxWidth: "760px", margin: "0 auto" }}>
+        <a href="/blog" style={{ color: "#c8a96e",
+          fontSize: "13px", textDecoration: "none" }}>
+          &larr; Retour au blog
+        </a>
+        <h1 style={{ color: "#fff", fontSize: "34px",
+          margin: "20px 0 12px", lineHeight: "1.3" }}>
+          {article.titre}
+        </h1>
+        <p style={{ color: "rgba(255,255,255,0.5)",
+          fontSize: "14px", margin: "0 0 32px" }}>
+          {article.extrait}
+        </p>
+        <div dangerouslySetInnerHTML={{ __html: corps }} />
       </div>
     </div>
+    </>
   );
 }
