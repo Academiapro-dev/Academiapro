@@ -3,7 +3,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useTraductionAuto } from "../../hooks/useTraductionAuto";
-const FR = { titre: "Catalogue des Formations",
+const FR = { titre: "Catalogue Complet",
   recherche: "Rechercher une formation...",
   toutes: "Toutes", voir: "Voir la formation",
   chargement: "Chargement du catalogue...",
