@@ -1,3 +1,4 @@
+import AiguillageLangueBlog from "../../../components/AiguillageLangueBlog";
 import { createClient } from "@supabase/supabase-js";
 import Link from "next/link";
 
@@ -33,6 +34,8 @@ export default async function BlogListe() {
   const articles = traductions || [];
 
   return (
+    <>
+    <AiguillageLangueBlog languePage="es" />
     <div style={{ minHeight: "100vh", background: "#050508",
       color: "#fff", fontFamily: "Georgia, serif",
       padding: "60px 20px" }}>
@@ -80,5 +83,6 @@ export default async function BlogListe() {
         ))}
       </div>
     </div>
+    </>
   );
 }
