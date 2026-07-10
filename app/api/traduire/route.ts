@@ -18,6 +18,27 @@ export const maxDuration = 30;
 
 const cache: Record<string, string> = {};
 
+// Retire des guillemets englobants ajoutes par le modele,
+// sauf si le texte d origine en avait lui-meme.
+function retirerGuillemets(
+  traduction: string, original: string): string {
+  const t = traduction.trim();
+  if (t.length < 2) return t;
+  const o = (original || "").trim();
+  const origineEntoure = o.length > 1
+    && (o[0] === '"' || o[0] === "\u00AB")
+    && (o[o.length - 1] === '"'
+      || o[o.length - 1] === "\u00BB");
+  if (origineEntoure) return t;
+  const d = t[0];
+  const f = t[t.length - 1];
+  const paires = (d === '"' && f === '"')
+    || (d === "\u00AB" && f === "\u00BB")
+    || (d === "\u201C" && f === "\u201D");
+  if (paires) return t.slice(1, -1).trim();
+  return t;
+}
+
 export async function POST(req: NextRequest) {
   // Garde-fou : n accepter que les appels du site
   const origineApp = req.headers.get("origin") || "";
@@ -90,14 +111,15 @@ export async function POST(req: NextRequest) {
         max_tokens: 200,
         messages: [{
           role: "user",
-          content: `Translate this French text to ${LANGUES[langue_cible]}. Reply ONLY with the translation, nothing else: "${texte}"`
+          content: `Translate the French text below to ${LANGUES[langue_cible]}. Do not add quotation marks around your answer. Reply ONLY with the translation, nothing else.\n\n${texte}`
         }],
       }),
     });
 
     const data = await res.json();
     mesurer("traduire", data);
-    const traduction = data?.content?.[0]?.text || texte;
+    const brut = data?.content?.[0]?.text || texte;
+    const traduction = retirerGuillemets(brut, texte);
     cache[cacheKey] = traduction;
     if (supa && traduction && traduction !== texte) {
       try {
