@@ -1,5 +1,17 @@
 import { mesurer } from "../../../lib/usageIA";
 import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
+
+// Client admin local (service_role) : la table
+// traductions_interface est verrouillee par RLS, la cle
+// anon publique ne peut ni la lire ni y ecrire.
+function clientAdminTraductions() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+    || "https://kpxrbwsbhmggoajtxzqn.supabase.co";
+  const cle = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+  if (!cle) return null;
+  return createClient(url, cle);
+}
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -36,6 +48,29 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ traduction: cache[cacheKey] });
     }
 
+    // Memoire persistante : lire la base avant tout appel
+    // Claude. En cas d absence ou de panne, on continue
+    // comme avant - jamais pire qu avant.
+    let supa = null;
+    try {
+      supa = clientAdminTraductions();
+      if (supa) {
+        const { data: memo } = await supa
+          .from("traductions_interface")
+          .select("traduction")
+          .eq("langue", langue_cible)
+          .eq("texte_source", texte)
+          .maybeSingle();
+        if (memo && memo.traduction) {
+          cache[cacheKey] = memo.traduction;
+          return NextResponse.json(
+            { traduction: memo.traduction });
+        }
+      }
+    } catch {
+      supa = null;
+    }
+
     const LANGUES: Record<string, string> = {
       en: "English",
       es: "Spanish",
@@ -64,6 +99,18 @@ export async function POST(req: NextRequest) {
     mesurer("traduire", data);
     const traduction = data?.content?.[0]?.text || texte;
     cache[cacheKey] = traduction;
+    if (supa && traduction && traduction !== texte) {
+      try {
+        await supa.from("traductions_interface").insert({
+          langue: langue_cible,
+          texte_source: texte,
+          traduction: traduction,
+        });
+      } catch {
+        // Doublon ou panne : sans gravite, la traduction
+        // est deja rendue.
+      }
+    }
 
     return NextResponse.json({ traduction });
   } catch {
