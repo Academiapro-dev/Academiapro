@@ -3,11 +3,11 @@ import { useState } from "react";
 import { useTraductionAuto } from "../../hooks/useTraductionAuto";
 const FRT = {
   surTitre: "ACADEMIAPRO",
-  titre: "Creer un compte",
+  titre: "Creer mon espace",
   prenom: "Prenom", nom: "Nom", email: "Email",
-  motDePasse: "Mot de passe",
-  bouton: "Creer mon compte",
-  dejaCompte: "Deja un compte ?",
+  motDePasse: "Mot de passe (6 caracteres minimum)",
+  bouton: "Creer mon compte gratuit",
+  dejaCompte: "Deja inscrit ?",
   seConnecter: "Se connecter" };
 
 const INTERETS = [
