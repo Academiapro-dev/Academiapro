@@ -3,9 +3,9 @@ import { useTraductionAuto } from "../../hooks/useTraductionAuto";
 
 const FR = {
   titre: "AcadémIA Pro",
-  sousTitre: "131 formations certifiantes · Agent IA 24h/24",
+  sousTitre: "263 formations certifiantes · Agent IA 24h/24",
   liens: [
-    { titre: "Voir les 131 formations", url: "/formations", badge: "CATALOGUE" },
+    { titre: "Voir les 263 formations", url: "/formations", badge: "CATALOGUE" },
     { titre: "Reserver une seance", url: "/seances", badge: "SEANCE" },
     { titre: "E-book gratuit", url: "/lead-magnets/ebook", badge: "GRATUIT" },
     { titre: "Starter Pack 47euro", url: "/starter-pack", badge: "OFFRE" },
