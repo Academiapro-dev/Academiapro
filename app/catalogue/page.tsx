@@ -2,6 +2,11 @@
 // v2
 "use client";
 import { useState, useEffect } from "react";
+import { useTraductionAuto } from "../../hooks/useTraductionAuto";
+const FR = { titre: "Catalogue des Formations",
+  recherche: "Rechercher une formation...",
+  toutes: "Toutes", voir: "Voir la formation",
+  chargement: "Chargement du catalogue..." };
 
 const T: Record<string, Record<string, string>> = {
   fr: {
@@ -85,6 +90,7 @@ function TitreFormation({ titre, code, langue, style }: { titre: string; code: s
 }
 
 export default function CataloguePage() {
+  const { txt } = useTraductionAuto(FR);
   const [formations, setFormations] = useState<any[]>([]);
   const [vueGrille, setVueGrille] = useState(false);
   const [recherche, setRecherche] = useState("");
