@@ -117,8 +117,7 @@ export default function LoginPage() {
               style={{ width: "100%", padding: "14px", background: "#c8a96e", color: "#050508", border: "none", borderRadius: "8px", fontWeight: "bold", fontSize: "16px", cursor: "pointer" }}>
               {loading ? "Connexion..." : "Se connecter"}
             </button>
-            <p style={{ color: "rgba(255,255,255,0.4)", textAlign: "center", marginTop: "20px", fontSize: "13px" }}>
-              Pas encore de compte ? <a href="/inscription" style={{ color: "#c8a96e" }}>S inscription</a>
+            <p style={{ color: "rgba(255,255,255,0.4)", textAlign: "center", marginTop: "20px", fontSize: "13px" }}>{txtT.pasDeCompte}<a href="/inscription" style={{ color: "#c8a96e" }}>S inscription</a>
             </p>
           </>
         ) : (
