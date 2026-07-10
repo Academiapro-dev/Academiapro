@@ -1,40 +1,67 @@
+"use client";
+import { useTraductionAuto } from "../../hooks/useTraductionAuto";
+
+const FR = {
+  surTitre: "ACADEMIAPRO",
+  titre: "Politique de Confidentialite",
+  sousTitre: "Derniere mise a jour : juillet 2026",
+  sections: [
+    { titre: "Responsable du traitement",
+      corps: "AcadémIA Pro LLC · 30 N Gould St STE R · Sheridan WY 82801 · Etats-Unis." },
+    { titre: "Donnees collectees",
+      corps: "Nous collectons : prenom · nom · email · metier · progression de formation · historique d achat. Aucune donnee sensible n est collectee." },
+    { titre: "Finalites du traitement",
+      corps: "Vos donnees servent a : gerer votre compte et vos formations · emettre vos certificats · vous envoyer les communications liees a votre apprentissage · ameliorer nos services." },
+    { titre: "Base legale",
+      corps: "Le traitement repose sur l execution du contrat de formation et votre consentement pour les communications marketing." },
+    { titre: "Duree de conservation",
+      corps: "Vos donnees sont conservees pendant la duree de votre compte · puis 3 ans apres la derniere activite. Les certificats sont conserves 10 ans." },
+    { titre: "Vos droits",
+      corps: "Vous disposez des droits d acces · rectification · suppression · portabilite et opposition. Contactez contact@academiapro.fr pour les exercer." },
+    { titre: "Sous-traitants",
+      corps: "Nos prestataires : Vercel (hebergement) · Supabase (base de donnees) · Anthropic (IA) · Resend (emails) · Stripe (paiements). Tous conformes RGPD." },
+    { titre: "Securite",
+      corps: "Vos donnees sont chiffrees en transit et au repos. L acces est strictement limite et journalise." },
+  ],
+};
+
+const carte = {
+  background: "#1a1a2e", borderRadius: "16px",
+  padding: "32px",
+  border: "1px solid rgba(200,169,110,0.3)",
+  marginBottom: "24px",
+};
+
 export default function PolitiqueConfidentialitePage() {
+  const { txt } = useTraductionAuto(FR);
   return (
-    <div style={{ minHeight: "100vh", background: "#050508", color: "#fff", fontFamily: "Georgia, serif", padding: "40px 20px" }}>
-      <div style={{ maxWidth: "1100px", margin: "0 auto" }}>
-        <div style={{ textAlign: "center", marginBottom: "48px" }}>
-          <p style={{ color: "#c8a96e", fontSize: "12px", letterSpacing: "3px", margin: "0 0 12px" }}>ACADEMIAPRO</p>
-          <h1 style={{ color: "#fff", fontSize: "36px", margin: "0 0 12px" }}>Politique de Confidentialite</h1>
-          <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "16px", margin: "0" }}>RGPD · Protection de vos donnees personnelles</p>
+    <div style={{ minHeight: "100vh", background: "#050508",
+      color: "#fff", fontFamily: "Georgia, serif",
+      padding: "40px 20px" }}>
+      <div style={{ maxWidth: "900px", margin: "0 auto" }}>
+        <div style={{ textAlign: "center",
+          marginBottom: "48px" }}>
+          <p style={{ color: "#c8a96e", fontSize: "12px",
+            letterSpacing: "3px", margin: "0 0 12px" }}>
+            {txt.surTitre}
+          </p>
+          <h1 style={{ color: "#fff", fontSize: "32px",
+            margin: "0 0 12px" }}>{txt.titre}</h1>
+          <p style={{ color: "rgba(255,255,255,0.5)",
+            fontSize: "13px", margin: "0" }}>
+            {txt.sousTitre}
+          </p>
         </div>
-        <div style={{ background: "#1a1a2e", borderRadius: "16px", padding: "32px", border: "1px solid rgba(200,169,110,0.3)", marginBottom: "24px" }}>
-          <h2 style={{ color: "#c8a96e", fontSize: "20px", margin: "0 0 16px" }}>Responsable du Traitement</h2>
-          <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "14px", lineHeight: "1.8", margin: "0" }}>AcadémIA Pro est responsable du traitement de vos donnees personnelles. Contact : privacy@academiapro.fr</p>
-        </div>
-        <div style={{ background: "#1a1a2e", borderRadius: "16px", padding: "32px", border: "1px solid rgba(200,169,110,0.3)", marginBottom: "24px" }}>
-          <h2 style={{ color: "#c8a96e", fontSize: "20px", margin: "0 0 16px" }}>Donnees Collectees</h2>
-          <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "14px", lineHeight: "1.8", margin: "0" }}>Nom · prenom · email · metier · progression formations · historique seances · donnees de paiement via Stripe.</p>
-        </div>
-        <div style={{ background: "#1a1a2e", borderRadius: "16px", padding: "32px", border: "1px solid rgba(200,169,110,0.3)", marginBottom: "24px" }}>
-          <h2 style={{ color: "#c8a96e", fontSize: "20px", margin: "0 0 16px" }}>Finalites du Traitement</h2>
-          <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "14px", lineHeight: "1.8", margin: "0" }}>Gestion des acces formations · personnalisation par agent IA · facturation · communication commerciale avec consentement.</p>
-        </div>
-        <div style={{ background: "#1a1a2e", borderRadius: "16px", padding: "32px", border: "1px solid rgba(200,169,110,0.3)", marginBottom: "24px" }}>
-          <h2 style={{ color: "#c8a96e", fontSize: "20px", margin: "0 0 16px" }}>Base Legale</h2>
-          <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "14px", lineHeight: "1.8", margin: "0" }}>Execution du contrat · interet legitime pour ameliorer nos services · consentement pour les communications marketing.</p>
-        </div>
-        <div style={{ background: "#1a1a2e", borderRadius: "16px", padding: "32px", border: "1px solid rgba(200,169,110,0.3)", marginBottom: "24px" }}>
-          <h2 style={{ color: "#c8a96e", fontSize: "20px", margin: "0 0 16px" }}>Duree de Conservation</h2>
-          <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "14px", lineHeight: "1.8", margin: "0" }}>Donnees clients : duree du contrat + 3 ans. Donnees comptables : 10 ans. Cookies : 13 mois maximum.</p>
-        </div>
-        <div style={{ background: "#1a1a2e", borderRadius: "16px", padding: "32px", border: "1px solid rgba(200,169,110,0.3)", marginBottom: "24px" }}>
-          <h2 style={{ color: "#c8a96e", fontSize: "20px", margin: "0 0 16px" }}>Vos Droits</h2>
-          <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "14px", lineHeight: "1.8", margin: "0" }}>Acces · rectification · suppression · portabilite · opposition. Exercez vos droits a privacy@academiapro.fr ou aupres de la CNIL.</p>
-        </div>
-        <div style={{ background: "#1a1a2e", borderRadius: "16px", padding: "32px", border: "1px solid rgba(200,169,110,0.3)", marginBottom: "24px" }}>
-          <h2 style={{ color: "#c8a96e", fontSize: "20px", margin: "0 0 16px" }}>Destinataires</h2>
-          <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "14px", lineHeight: "1.8", margin: "0" }}>Supabase (hebergement donnees · Europe) · Stripe (paiement) · Resend (emails) · Vercel (hebergement site).</p>
-        </div>
+        {txt.sections.map((section, i) => (
+          <div key={i} style={carte}>
+            <h2 style={{ color: "#c8a96e", fontSize: "18px",
+              margin: "0 0 14px" }}>{section.titre}</h2>
+            <p style={{ color: "rgba(255,255,255,0.7)",
+              fontSize: "14px", lineHeight: "1.8",
+              margin: "0", whiteSpace: "pre-line" }}>
+              {section.corps}</p>
+          </div>
+        ))}
       </div>
     </div>
   );
