@@ -3,10 +3,9 @@ import { useState, useEffect } from "react";
 
 // Mecanisme unique de traduction a la volee d AcademIA Pro.
 // Le francais est la seule source de verite ; chaque texte
-// part vers /api/traduire (dotee de la memoire Supabase :
-// traduit une fois, servi instantanement ensuite).
-// Pendant le chargement, le francais s affiche - jamais de
-// page vide, jamais d erreur visible.
+// part vers /api/traduire (memoire Supabase incluse).
+// AFFICHAGE PROGRESSIF : chaque texte apparait des que sa
+// traduction arrive - jamais de tout-ou-rien.
 
 export function lireLangue(): string {
   if (typeof window === "undefined") return "fr";
@@ -30,65 +29,50 @@ async function traduireTexte(
   }
 }
 
-async function parGroupes(
-  taches: Array<() => Promise<void>>, taille: number) {
-  for (let i = 0; i < taches.length; i += taille) {
-    const groupe = taches.slice(i, i + taille);
-    await Promise.all(groupe.map((t) => t()));
-  }
-}
-
-function planifier(
-  valeur: any, langue: string,
-  taches: Array<() => Promise<void>>): any {
-  if (typeof valeur === "string") {
-    const conteneur = { v: valeur };
-    taches.push(() => traduireTexte(valeur, langue)
-      .then((t) => { conteneur.v = t; }));
-    return conteneur;
-  }
-  if (Array.isArray(valeur)) {
-    return valeur.map((v) => planifier(v, langue, taches));
-  }
+// Copie profonde simple (objets/tableaux/chaines).
+function copier(valeur: any): any {
+  if (Array.isArray(valeur)) return valeur.map(copier);
   if (valeur && typeof valeur === "object") {
-    const resultat: any = {};
-    for (const cle of Object.keys(valeur)) {
-      resultat[cle] = planifier(valeur[cle], langue, taches);
-    }
-    return resultat;
+    const r: any = {};
+    for (const c of Object.keys(valeur)) r[c] = copier(valeur[c]);
+    return r;
   }
   return valeur;
 }
 
-function recolter(structure: any): any {
-  if (Array.isArray(structure)) {
-    return structure.map(recolter);
+// Liste les chemins de toutes les chaines de l objet.
+function listerChemins(
+  valeur: any, prefixe: Array<string | number>,
+  sortie: Array<Array<string | number>>) {
+  if (typeof valeur === "string") {
+    sortie.push(prefixe);
+    return;
   }
-  if (structure && typeof structure === "object") {
-    if ("v" in structure
-        && Object.keys(structure).length === 1) {
-      return structure.v;
-    }
-    const resultat: any = {};
-    for (const cle of Object.keys(structure)) {
-      resultat[cle] = recolter(structure[cle]);
-    }
-    return resultat;
+  if (Array.isArray(valeur)) {
+    valeur.forEach((v, i) =>
+      listerChemins(v, [...prefixe, i], sortie));
+    return;
   }
-  return structure;
+  if (valeur && typeof valeur === "object") {
+    for (const c of Object.keys(valeur)) {
+      listerChemins(valeur[c], [...prefixe, c], sortie);
+    }
+  }
 }
 
-export async function traduireObjet(
-  objet: any, langue: string): Promise<any> {
-  if (!langue || langue === "fr") return objet;
-  const taches: Array<() => Promise<void>> = [];
-  const squelette = planifier(objet, langue, taches);
-  await parGroupes(taches, 3);
-  return recolter(squelette);
+function lireChemin(objet: any, chemin: Array<string | number>) {
+  let v = objet;
+  for (const p of chemin) v = v[p];
+  return v;
 }
 
-// Hook de page : txt contient d abord le francais (affichage
-// immediat), puis la traduction des qu elle est prete.
+function ecrireChemin(
+  objet: any, chemin: Array<string | number>, valeur: string) {
+  let v = objet;
+  for (let i = 0; i < chemin.length - 1; i++) v = v[chemin[i]];
+  v[chemin[chemin.length - 1]] = valeur;
+}
+
 export function useTraductionAuto<T>(textesFr: T): {
   txt: T; langue: string;
 } {
@@ -100,9 +84,26 @@ export function useTraductionAuto<T>(textesFr: T): {
     setLangue(l);
     if (l === "fr") return;
     let actif = true;
-    traduireObjet(textesFr, l).then((resultat) => {
-      if (actif) setTxt(resultat);
-    });
+    const chemins: Array<Array<string | number>> = [];
+    listerChemins(textesFr, [], chemins);
+    let travail = copier(textesFr);
+
+    // Groupes de 3 avec rendu apres CHAQUE groupe : la page
+    // se remplit au fil de l eau.
+    (async () => {
+      for (let i = 0; i < chemins.length; i += 3) {
+        const groupe = chemins.slice(i, i + 3);
+        await Promise.all(groupe.map(async (chemin) => {
+          const source = lireChemin(textesFr, chemin);
+          const traduit = await traduireTexte(source, l);
+          ecrireChemin(travail, chemin, traduit);
+        }));
+        if (!actif) return;
+        travail = copier(travail); // nouvelle reference
+        setTxt(travail);
+      }
+    })();
+
     return () => { actif = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
