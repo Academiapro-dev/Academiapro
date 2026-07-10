@@ -6,7 +6,9 @@ import { useTraductionAuto } from "../../hooks/useTraductionAuto";
 const FR = { titre: "Catalogue des Formations",
   recherche: "Rechercher une formation...",
   toutes: "Toutes", voir: "Voir la formation",
-  chargement: "Chargement du catalogue..." };
+  chargement: "Chargement du catalogue...",
+  aucun: "Aucune formation trouvee",
+  aideAgent: "Notre agent IA vous aide a trouver la formation ideale" };
 
 const T: Record<string, Record<string, string>> = {
   fr: {
