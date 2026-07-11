@@ -1,6 +1,18 @@
 "use client";
 import { useState } from "react";
-import { useTranslation } from "../../hooks/useTranslation";
+import { useTraductionAuto } from "../../hooks/useTraductionAuto";
+
+const FR = {
+  titre: "Seances Therapeutiques IA",
+  sousTitre: "5 therapeutes IA specialises, disponibles 24h/24",
+  disponible: "Disponible",
+  commencer: "Commencer la seance",
+  changer: "Changer de therapeute",
+  placeholder: "Ecrivez a",
+  envoyer: "Envoyer",
+  erreur: "Erreur de connexion.",
+  avertissement: "Ces seances IA ne remplacent pas un suivi medical ou psychologique professionnel.",
+};
 
 const THERAPEUTES = [
   { id: 1, nom: "Dr. Sophie Martin", specialite: "Psychologue Clinicienne — TCC", icon: "🧠", color: "#c8a96e",
@@ -16,7 +28,7 @@ const THERAPEUTES = [
 ];
 
 export default function SeancesPage() {
-  const { t, langue } = useTranslation("seances");
+  const { txt } = useTraductionAuto(FR);
   const [selected, setSelected] = useState<any>(null);
   const [message, setMessage] = useState("");
   const [chat, setChat] = useState<{role: string, text: string}[]>([]);
@@ -37,7 +49,7 @@ export default function SeancesPage() {
       const data = await res.json();
       setChat(prev => [...prev, { role: "agent", text: data.reply }]);
     } catch (e) {
-      setChat(prev => [...prev, { role: "agent", text: "Erreur de connexion." }]);
+      setChat(prev => [...prev, { role: "agent", text: txt.erreur }]);
     }
     setLoading(false);
   }
@@ -48,7 +60,7 @@ export default function SeancesPage() {
         <div style={{ maxWidth: "800px", margin: "0 auto" }}>
           <button onClick={() => { setSelected(null); setChat([]); }}
             style={{ background: "none", border: "1px solid rgba(200,169,110,0.3)", color: "#c8a96e", padding: "8px 16px", borderRadius: "8px", cursor: "pointer", marginBottom: "20px" }}>
-            ← {t("changer")}
+            ← {txt.changer}
           </button>
           <div style={{ textAlign: "center", marginBottom: "30px" }}>
             <div style={{ fontSize: "50px", marginBottom: "10px" }}>{selected.icon}</div>
@@ -58,7 +70,7 @@ export default function SeancesPage() {
           <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(200,169,110,0.2)", borderRadius: "12px", padding: "20px", minHeight: "350px", maxHeight: "450px", overflowY: "auto", marginBottom: "15px" }}>
             {chat.length === 0 && (
               <p style={{ color: "rgba(255,255,255,0.3)", textAlign: "center", marginTop: "120px" }}>
-                {t("placeholder")} {selected.nom}...
+                {txt.placeholder} {selected.nom}...
               </p>
             )}
             {chat.map((msg, i) => (
@@ -72,7 +84,7 @@ export default function SeancesPage() {
           </div>
           <div style={{ display: "flex", gap: "10px" }}>
             <input type="text"
-              placeholder={`${t("placeholder")} ${selected.nom}...`}
+              placeholder={`${txt.placeholder} ${selected.nom}...`}
               value={message}
               onChange={e => setMessage(e.target.value)}
               onKeyDown={e => e.key === "Enter" && envoyerMessage()}
@@ -80,11 +92,11 @@ export default function SeancesPage() {
             />
             <button onClick={envoyerMessage} disabled={loading}
               style={{ padding: "12px 20px", background: "#c8a96e", color: "#050508", border: "none", borderRadius: "8px", fontWeight: "bold", cursor: "pointer" }}>
-              {t("envoyer")}
+              {txt.envoyer}
             </button>
           </div>
           <p style={{ color: "rgba(255,255,255,0.3)", fontSize: "11px", textAlign: "center", marginTop: "10px" }}>
-            ⚠️ {t("avertissement")}
+            ⚠️ {txt.avertissement}
           </p>
         </div>
       </div>
@@ -95,9 +107,9 @@ export default function SeancesPage() {
     <div style={{ backgroundColor: "#050508", minHeight: "100vh", color: "#fff" }}>
       <div style={{ background: "linear-gradient(135deg,#0a0a1a,#1a1a2e)", padding: "60px 40px", textAlign: "center" }}>
         <h1 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", fontSize: "2.2rem", marginBottom: "10px" }}>
-          {t("titre")}
+          {txt.titre}
         </h1>
-        <p style={{ color: "rgba(255,255,255,0.6)" }}>{t("sous_titre")}</p>
+        <p style={{ color: "rgba(255,255,255,0.6)" }}>{txt.sousTitre}</p>
       </div>
       <div style={{ maxWidth: "1000px", margin: "0 auto", padding: "40px 20px" }}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "20px" }}>
@@ -108,11 +120,11 @@ export default function SeancesPage() {
               <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "13px", marginBottom: "15px" }}>{th.specialite}</p>
               <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "15px" }}>
                 <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#22c55e", display: "inline-block" }}></span>
-                <span style={{ color: "#22c55e", fontSize: "12px" }}>{t("disponible")}</span>
+                <span style={{ color: "#22c55e", fontSize: "12px" }}>{txt.disponible}</span>
               </div>
               <button onClick={() => { setSelected(th); setChat([]); }}
                 style={{ width: "100%", padding: "12px", background: th.color, color: "#050508", border: "none", borderRadius: "8px", fontWeight: "bold", cursor: "pointer" }}>
-                {t("commencer")}
+                {txt.commencer}
               </button>
             </div>
           ))}
