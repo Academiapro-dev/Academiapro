@@ -6,6 +6,7 @@ export default function AdminBlogPage() {
   const [connecte, setConnecte] = useState(false);
   const [verifEnCours, setVerifEnCours] = useState(false);
   const [verifMessage, setVerifMessage] = useState("");
+  const [voirCode, setVoirCode] = useState(false);
 
   async function verifierCode() {
     setVerifEnCours(true);
@@ -110,11 +111,17 @@ export default function AdminBlogPage() {
         <div style={{ maxWidth: "380px", width: "100%", textAlign: "center" }}>
           <h1 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", marginBottom: "8px" }}>Blog Admin</h1>
           <p style={{ opacity: 0.6, fontSize: "14px", marginBottom: "24px" }}>Entrez votre code d acces</p>
-          <input type="password" value={secret}
-            onChange={(e) => setSecret(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && verifierCode()}
-            placeholder="Code d acces"
-            style={{ width: "100%", padding: "12px", borderRadius: "8px", border: "1px solid rgba(200,169,110,0.4)", background: "rgba(255,255,255,0.05)", color: "#fff", boxSizing: "border-box", marginBottom: "14px" }} />
+          <div style={{ position: "relative", marginBottom: "14px" }}>
+            <input type={voirCode ? "text" : "password"} value={secret}
+              onChange={(e) => setSecret(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && verifierCode()}
+              placeholder="Code d acces"
+              style={{ width: "100%", padding: "12px", borderRadius: "8px", border: "1px solid rgba(200,169,110,0.4)", background: "rgba(255,255,255,0.05)", color: "#fff", boxSizing: "border-box", paddingRight: "44px" }} />
+            <button onClick={() => setVoirCode(!voirCode)}
+              style={{ position: "absolute", right: "10px", top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", fontSize: "16px" }}>
+              {voirCode ? "🙈" : "👁️"}
+            </button>
+          </div>
           <button onClick={verifierCode} disabled={verifEnCours}
             style={{ width: "100%", padding: "13px", background: "#c8a96e", color: "#050508", border: "none", borderRadius: "8px", fontWeight: "bold", cursor: "pointer" }}>
             {verifEnCours ? "..." : "Entrer"}
