@@ -2,6 +2,24 @@
 import { useState, useEffect } from "react";
 
 export default function AdminBlogPage() {
+  const [secret, setSecret] = useState("");
+  const [connecte, setConnecte] = useState(false);
+  const [verifEnCours, setVerifEnCours] = useState(false);
+  const [verifMessage, setVerifMessage] = useState("");
+
+  async function verifierCode() {
+    setVerifEnCours(true);
+    setVerifMessage("");
+    try {
+      const r = await fetch(
+        "/api/admin-articles?secret="
+        + encodeURIComponent(secret));
+      const d = await r.json();
+      if (d.erreur) { setVerifMessage("Code refuse."); }
+      else { setConnecte(true); }
+    } catch (e) { setVerifMessage("Erreur reseau."); }
+    setVerifEnCours(false);
+  }
   const [articles, setArticles] = useState<any[]>([]);
   const [form, setForm] = useState({ titre: "", slug: "", extrait: "", contenu: "", categorie: "Intelligence Artificielle", publie: false });
   const [loading, setLoading] = useState(false);
@@ -84,6 +102,27 @@ export default function AdminBlogPage() {
       body: JSON.stringify({ id, publie: !publie }),
     });
     charger();
+  }
+
+  if (!connecte) {
+    return (
+      <div style={{ backgroundColor: "#050508", minHeight: "100vh", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}>
+        <div style={{ maxWidth: "380px", width: "100%", textAlign: "center" }}>
+          <h1 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", marginBottom: "8px" }}>Blog Admin</h1>
+          <p style={{ opacity: 0.6, fontSize: "14px", marginBottom: "24px" }}>Entrez votre code d acces</p>
+          <input type="password" value={secret}
+            onChange={(e) => setSecret(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && verifierCode()}
+            placeholder="Code d acces"
+            style={{ width: "100%", padding: "12px", borderRadius: "8px", border: "1px solid rgba(200,169,110,0.4)", background: "rgba(255,255,255,0.05)", color: "#fff", boxSizing: "border-box", marginBottom: "14px" }} />
+          <button onClick={verifierCode} disabled={verifEnCours}
+            style={{ width: "100%", padding: "13px", background: "#c8a96e", color: "#050508", border: "none", borderRadius: "8px", fontWeight: "bold", cursor: "pointer" }}>
+            {verifEnCours ? "..." : "Entrer"}
+          </button>
+          {verifMessage && <p style={{ color: "#ff6b6b", marginTop: "14px", fontSize: "13px" }}>{verifMessage}</p>}
+        </div>
+      </div>
+    );
   }
 
   return (
