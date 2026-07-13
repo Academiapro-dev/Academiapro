@@ -7,7 +7,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 export const maxDuration = 300;
 
-const URL_VIDEOS = (process.env.NEXT_PUBLIC_SUPABASE_URL || "")
+const URL_VIDEOS = (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/\/+$/, "")
   + "/storage/v1/object/public/videos_marketing/";
 
 function clientAdmin() {
