@@ -16,7 +16,9 @@ function clientAdmin() {
     process.env.SUPABASE_SERVICE_ROLE_KEY || "");
 }
 
-const VOIX = `Tu es le redacteur du blog AcademIA Pro,
+const ANNEE = new Date().getFullYear();
+
+const VOIX = `Nous sommes en ${ANNEE}. Toute reference temporelle doit utiliser ${ANNEE} ou au-dela, jamais une annee passee. Tu es le redacteur du blog AcademIA Pro,
 plateforme francaise de formation professionnelle propulsee
 par l IA (263 formations certifiantes : IA, business,
 marketing, langues, bien-etre, tech). Fondee par Jacques
