@@ -19,26 +19,17 @@ async function publierSurFacebook(
   const token = process.env.FB_PAGE_TOKEN_ACADEMIA || "";
   const base = "https://graph.facebook.com/v25.0/";
 
-  if (urlMedia && urlMedia.endsWith(".mp4")) {
-    const r = await fetch(base + PAGE_ID_ACADEMIA + "/videos", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        file_url: urlMedia,
-        description: contenu,
-        access_token: token
-      })
-    });
-    return r.json();
+  const corps: Record<string, string> = {
+    message: contenu,
+    access_token: token
+  };
+  if (urlMedia) {
+    corps.link = urlMedia;
   }
-
   const r = await fetch(base + PAGE_ID_ACADEMIA + "/feed", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      message: contenu,
-      access_token: token
-    })
+    body: JSON.stringify(corps)
   });
   return r.json();
 }
