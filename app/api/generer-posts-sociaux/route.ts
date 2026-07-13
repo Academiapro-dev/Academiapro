@@ -78,7 +78,7 @@ export async function GET(req: NextRequest) {
     .from("blog")
     .select("id, titre, contenu")
     .eq("publie", true)
-    .order("cree_le", { ascending: false })
+    .order("created_at", { ascending: false })
     .limit(10);
 
   if (!articles || articles.length === 0) {
