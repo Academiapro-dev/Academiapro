@@ -136,7 +136,7 @@ export async function GET(req: NextRequest) {
     contenu: article.contenu,
     categorie: article.categorie || "Formation Pro",
     auteur: "Jacques Lalou",
-    publie: false,
+    publie: true,
   });
   if (errInsert) {
     return NextResponse.json(
