@@ -17,7 +17,8 @@ function clientAdmin() {
 }
 
 async function genererPosts(titre: string, contenu: string) {
-  const prompt = "Tu es le community manager d AcademIA Pro, "
+  const annee = new Date().getFullYear();
+  const prompt = "Nous sommes en " + annee + ". Toute reference temporelle doit utiliser " + annee + " ou au-dela. N invente JAMAIS de chiffres sur AcademIA Pro (nombre de clients, de transitions accompagnees, etc.) : seul le chiffre de 263 formations est autorise. Tu es le community manager d AcademIA Pro, "
     + "plateforme francaise de formation professionnelle par IA "
     + "(263 formations). Voici un article de blog publie :\n\n"
     + "TITRE : " + titre + "\n\n"
