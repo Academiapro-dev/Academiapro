@@ -11,6 +11,10 @@
     {
       "path": "/api/generer-posts-sociaux",
       "schedule": "0 7 * * 2,4,6"
+    },
+    {
+      "path": "/api/publier-facebook",
+      "schedule": "30 7 * * 2,4,6"
     }
   ]
 }
