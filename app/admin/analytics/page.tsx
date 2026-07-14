@@ -21,9 +21,9 @@ export default function AnalyticsPage() {
     const h = { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` };
     try {
       const [inscrits, formations, certificats] = await Promise.all([
-        fetch(`${SUPABASE_URL}/rest/v1/liste_attente?select=*&order=created_at.desc`, { headers: h }).then(r => r.json()),
-        fetch(`${SUPABASE_URL}/rest/v1/formations?select=code,titre,prix&limit=10&order=created_at.desc`, { headers: h }).then(r => r.json()),
-        fetch(`${SUPABASE_URL}/rest/v1/analytics?select=*&order=created_at.desc&limit=50`, { headers: h }).then(r => r.json()),
+        fetch(`${SUPABASE_URL}/rest/v1/liste_attente?select=*&order=created_at.desc`, { cache: "no-store",  headers: h }).then(r => r.json()),
+        fetch(`${SUPABASE_URL}/rest/v1/formations?select=code,titre,prix&limit=10&order=created_at.desc`, { cache: "no-store",  headers: h }).then(r => r.json()),
+        fetch(`${SUPABASE_URL}/rest/v1/analytics?select=*&order=created_at.desc&limit=50`, { cache: "no-store",  headers: h }).then(r => r.json()),
       ]);
       setListeAttente(Array.isArray(inscrits) ? inscrits : []);
       setStats({
