@@ -29,6 +29,14 @@ export default function FaqPage() {
 
   return (
     <div style={{ minHeight: "100vh", background: "#050508", color: "#fff", fontFamily: "Georgia, serif", padding: "60px 20px" }}>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify({
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": FR.questions.map(function(item) {
+          return { "@type": "Question", "name": item.q,
+                   "acceptedAnswer": { "@type": "Answer", "text": item.r } };
+        })
+      }) }} />
       <div style={{ maxWidth: "800px", margin: "0 auto" }}>
         <div style={{ textAlign: "center", marginBottom: "48px" }}>
           <p style={{ color: "#c8a96e", fontSize: "12px", letterSpacing: "3px", margin: "0 0 12px" }}>{txt.surTitre}</p>
