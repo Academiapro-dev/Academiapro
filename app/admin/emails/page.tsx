@@ -22,9 +22,7 @@ export default function EmailsAutoPage() {
   useEffect(() => { chargerHistorique(); }, []);
 
   async function chargerHistorique() {
-    const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/emails_automatiques?select=*&order=created_at.desc&limit=50`,
-      { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } }
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/emails_automatiques?select=*&order=created_at.desc&limit=50`, { cache: "no-store",  headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } }
     );
     const data = await res.json();
     setHistorique(Array.isArray(data) ? data : []);
