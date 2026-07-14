@@ -60,6 +60,15 @@ export default function FormationPage({ params }: { params: { id: string } }) {
 
   return (
     <div style={{ backgroundColor: "#050508", minHeight: "100vh", color: "#fff" }}>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify({
+        "@context": "https://schema.org",
+        "@type": "Course",
+        "name": formation.titre,
+        "description": formation.description || formation.titre,
+        "provider": { "@type": "Organization", "name": "Acad\u00e9mIA Pro", "url": "https://www.academiapro.fr" },
+        ...(formation.prix ? { "offers": { "@type": "Offer", "price": String(formation.prix), "priceCurrency": "EUR", "availability": "https://schema.org/InStock", "url": "https://www.academiapro.fr/formation/" + params.id } } : {}),
+        "hasCourseInstance": { "@type": "CourseInstance", "courseMode": "online" }
+      }) }} />
       <div style={{ background: "linear-gradient(135deg,#0a0a1a,#1a1a2e)", padding: "60px 40px", textAlign: "center" }}>
         <div style={{ color: "#c8a96e", fontSize: "13px", marginBottom: "10px" }}>{formation.code} · {formation.domaine}</div>
         <h1 style={{ color: "#fff", fontFamily: "Georgia,serif", fontSize: "2rem", marginBottom: "20px" }}>{formation.titre}</h1>
