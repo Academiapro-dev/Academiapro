@@ -45,7 +45,19 @@ REGLES :
 - Mentionner naturellement (sans forcer) qu AcademIA Pro
   propose des formations sur le sujet quand c est pertinent
 - Contenu original et utile : le lecteur doit repartir
-  avec de la valeur meme s il n achete rien`;
+  avec de la valeur meme s il n achete rien
+
+MAILLAGE INTERNE OBLIGATOIRE :
+- Integre naturellement 2 a 3 liens internes au format
+  markdown [texte du lien](/chemin) dans le corps de
+  l article, la ou c est pertinent pour le lecteur
+- Chemins autorises UNIQUEMENT : /formations (catalogue),
+  /seances (seances therapeutiques IA), /tarifs,
+  /classe-virtuelle, /faq, /essai-gratuit
+- N invente JAMAIS d autre chemin ni d URL externe
+- Le texte du lien decrit la destination (ex : [decouvre
+  nos 263 formations](/formations)), jamais de
+  "clique ici"`;
 
 async function claude(prompt: string): Promise<string> {
   const r = await fetch("https://api.anthropic.com/v1/messages", {
