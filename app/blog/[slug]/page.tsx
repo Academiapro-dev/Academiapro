@@ -52,6 +52,9 @@ function formaterContenu(contenu: string) {
         /\*\*([^*]+)\*\*/g,
         "<strong style=\"color:#fff\">$1</strong>");
       p = p.replace(/\*([^*]+)\*/g, "<em>$1</em>");
+      p = p.replace(/\[([^\]]+)\]\((\/[^)\s]*)\)/g,
+        "<a href=\"$2\" style=\"color:#c8a96e;"
+        + "text-decoration:underline\">$1</a>");
       html += "<p style=\"color:rgba(255,255,255,0.75);"
         + "font-size:15px;line-height:1.9;"
         + "margin:0 0 16px\">" + p + "</p>";
