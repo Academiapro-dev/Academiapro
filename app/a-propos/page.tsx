@@ -14,8 +14,8 @@ const FR = {
       corps: "Excellence · Innovation · Accessibilite · Certification. Nous croyons que la formation de qualite doit etre accessible a tous." },
     { titre: "Notre Plateforme",
       corps: "263 formations certifiantes · 20 Skills pratiques · 14 specialites therapeutiques · Agent IA tuteur 24h/24 · Certification AcadémIA Pro reconnue." },
-    { titre: "Notre Equipe",
-      corps: "Une equipe de formateurs experts · coaches certifies et ingenieurs IA passionnes par la transmission du savoir et l innovation pedagogique." },
+    { titre: "Le Fondateur",
+      corps: "AcadémIA Pro a été fondée par Jacques Lalou, auteur et praticien expert en PNL, hypnose et psychanalyse. Chaque formation et chaque praticien IA de la plateforme naît de cette expertise de terrain, avec une conviction : la technologie n a de valeur que si elle transmet un savoir authentique et transforme réellement celui qui apprend." }
   ],
 };
 
