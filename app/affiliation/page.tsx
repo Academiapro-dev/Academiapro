@@ -17,9 +17,7 @@ export default function AffiliationPage() {
   }, [onglet]);
 
   async function chargerAffilies() {
-    const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/affilies?select=*&order=created_at.desc`,
-      { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } }
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/affilies?select=*&order=created_at.desc`, { cache: "no-store",  headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } }
     );
     const data = await res.json();
     setAffilies(Array.isArray(data) ? data : []);
