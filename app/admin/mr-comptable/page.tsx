@@ -139,8 +139,8 @@ export default function MrComptablePage() {
   async function chargerDonnees() {
     const headers = { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` };
     const [f, d] = await Promise.all([
-      fetch(`${SUPABASE_URL}/rest/v1/factures?select=*&order=created_at.desc`, { headers }).then(r => r.json()),
-      fetch(`${SUPABASE_URL}/rest/v1/depenses?select=*&order=created_at.desc`, { headers }).then(r => r.json()),
+      fetch(`${SUPABASE_URL}/rest/v1/factures?select=*&order=created_at.desc`, { cache: "no-store",  headers }).then(r => r.json()),
+      fetch(`${SUPABASE_URL}/rest/v1/depenses?select=*&order=created_at.desc`, { cache: "no-store",  headers }).then(r => r.json()),
     ]);
     setFactures(Array.isArray(f) ? f : []);
     setDepenses(Array.isArray(d) ? d : []);
@@ -152,7 +152,7 @@ export default function MrComptablePage() {
   const cotisationsURSSAF = totalFactures * 0.214;
 
   async function ajouterDepense() {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/depenses`, {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/depenses`, { cache: "no-store", 
       method: "POST",
       headers: { "Content-Type": "application/json", apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, Prefer: "return=minimal" },
       body: JSON.stringify(nouvelleDepense),
@@ -173,7 +173,7 @@ export default function MrComptablePage() {
     const data = await res.json();
     if (data.facture_html) {
       // Sauvegarder dans Supabase
-      await fetch(`${SUPABASE_URL}/rest/v1/factures`, {
+      await fetch(`${SUPABASE_URL}/rest/v1/factures`, { cache: "no-store", 
         method: "POST",
         headers: { "Content-Type": "application/json", apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, Prefer: "return=minimal" },
         body: JSON.stringify({ ...nouvelleFacture, montant: parseFloat(nouvelleFacture.montant), statut: "emise", html: data.facture_html, date: new Date().toLocaleDateString("fr-FR") }),
@@ -186,7 +186,7 @@ export default function MrComptablePage() {
   async function genererRapprochement() {
     const ecart = parseFloat(rapprochement.solde_banque) - resultatNet;
     const details = `Période : ${rapprochement.periode}\nSolde bancaire : ${rapprochement.solde_banque}€\nSolde comptable : ${resultatNet.toFixed(2)}€\nÉcart : ${ecart.toFixed(2)}€`;
-    await fetch(`${SUPABASE_URL}/rest/v1/rapprochements`, {
+    await fetch(`${SUPABASE_URL}/rest/v1/rapprochements`, { cache: "no-store", 
       method: "POST",
       headers: { "Content-Type": "application/json", apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, Prefer: "return=minimal" },
       body: JSON.stringify({ ...rapprochement, solde_comptable: resultatNet, ecart, statut: ecart === 0 ? "equilibre" : "ecart", details }),
