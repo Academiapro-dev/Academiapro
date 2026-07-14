@@ -23,6 +23,18 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="fr">
       <head>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "Organization",
+            "name": "Acad\u00e9mIA Pro",
+            "url": "https://www.academiapro.fr",
+            "logo": "https://www.academiapro.fr/icon-192.png",
+            "description": "Plateforme de formation professionnelle propuls\u00e9e par l'IA \u2014 263 formations certifiantes.",
+            "sameAs": ["https://www.linkedin.com/company/academiapro-fr"]
+          }) }}
+        />
         <link rel="manifest" href="/manifest.json" />
         <link rel="apple-touch-icon" href="/icon-192.png" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
