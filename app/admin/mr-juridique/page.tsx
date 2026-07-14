@@ -136,7 +136,7 @@ function FiscalChat() {
                       });
                       const data = await res.json();
                       setDocGenere(data.reply || "");
-                      await fetch(`${SUPABASE_URL}/rest/v1/documents_juridiques`, {
+                      await fetch(`${SUPABASE_URL}/rest/v1/documents_juridiques`, { cache: "no-store", 
                         method: "POST",
                         headers: { "Content-Type": "application/json", apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, Prefer: "return=minimal" },
                         body: JSON.stringify({ type: "fiscal", titre: item.titre, contenu: data.reply, statut: "genere" }),
@@ -231,9 +231,7 @@ export default function MrJuridiquePage() {
   useEffect(() => { chargerDocuments(); }, []);
 
   async function chargerDocuments() {
-    const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/documents_juridiques?select=*&order=created_at.desc`,
-      { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } }
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/documents_juridiques?select=*&order=created_at.desc`, { cache: "no-store",  headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } }
     );
     const data = await res.json();
     setDocuments(Array.isArray(data) ? data : []);
@@ -258,7 +256,7 @@ export default function MrJuridiquePage() {
     setDocGenere(contenu);
 
     // Sauvegarder dans Supabase
-    await fetch(`${SUPABASE_URL}/rest/v1/documents_juridiques`, {
+    await fetch(`${SUPABASE_URL}/rest/v1/documents_juridiques`, { cache: "no-store", 
       method: "POST",
       headers: { "Content-Type": "application/json", apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, Prefer: "return=minimal" },
       body: JSON.stringify({ type: doc.id, titre: doc.label, contenu, statut: "genere" }),
@@ -509,7 +507,7 @@ export default function MrJuridiquePage() {
                       });
                       const data = await res.json();
                       setDocGenere(data.reply || "");
-                      await fetch(`${SUPABASE_URL}/rest/v1/documents_juridiques`, {
+                      await fetch(`${SUPABASE_URL}/rest/v1/documents_juridiques`, { cache: "no-store", 
                         method: "POST",
                         headers: { "Content-Type": "application/json", apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, Prefer: "return=minimal" },
                         body: JSON.stringify({ type: "inpi", titre: item.titre, contenu: data.reply, statut: "genere" }),
@@ -614,7 +612,7 @@ export default function MrJuridiquePage() {
                       });
                       const data = await res.json();
                       setDocGenere(data.reply || "");
-                      await fetch(`${SUPABASE_URL}/rest/v1/documents_juridiques`, {
+                      await fetch(`${SUPABASE_URL}/rest/v1/documents_juridiques`, { cache: "no-store", 
                         method: "POST",
                         headers: { "Content-Type": "application/json", apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, Prefer: "return=minimal" },
                         body: JSON.stringify({ type: "fiscal", titre: item.titre, contenu: data.reply, statut: "genere" }),
