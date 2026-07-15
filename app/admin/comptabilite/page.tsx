@@ -27,6 +27,23 @@ export default function ComptabilitePage() {
   const [depenses, setDepenses] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
+  async function ouvrirPDF(chemin: string) {
+    try {
+      const r = await fetch(SUPABASE_URL + "/storage/v1/object/sign/documents-comptables/" + chemin, {
+        method: "POST",
+        headers: { ...SB, "Content-Type": "application/json" },
+        body: JSON.stringify({ expiresIn: 300 })
+      });
+      const data = await r.json();
+      if (data.signedURL) {
+        window.open(SUPABASE_URL + "/storage/v1" + data.signedURL, "_blank");
+      } else {
+        alert("PDF indisponible");
+      }
+    } catch(e) { alert("Erreur ouverture PDF"); }
+  }
+
+
   useEffect(() => {
     if (autorise) { charger(); }
   }, [autorise, trimestre]);
@@ -148,7 +165,7 @@ export default function ComptabilitePage() {
                   <tr key={i}>
                     <td style={td}>{f.numero}</td><td style={td}>{f.client_nom}</td><td style={td}>{f.client_pays}</td>
                     <td style={td}>{Number(f.montant_ttc).toFixed(2)}</td><td style={td}>{Number(f.montant_tva).toFixed(2)}</td>
-                    <td style={td}>{f.pdf_url ? <a href={SUPABASE_URL + "/storage/v1/object/documents-comptables/" + f.pdf_url} target="_blank" style={{ color: "#c8a96e" }}>PDF</a> : "-"}</td>
+                    <td style={td}>{f.pdf_url ? <span onClick={() => ouvrirPDF(f.pdf_url)} style={{ color: "#c8a96e", cursor: "pointer", textDecoration: "underline" }}>PDF</span> : "-"}</td>
                   </tr>
                 ))}
               </tbody>
@@ -196,7 +213,7 @@ export default function ComptabilitePage() {
                   <tr key={i}>
                     <td style={td}>{f.numero}</td><td style={td}>{f.client_nom}</td><td style={td}>{f.client_pays}</td>
                     <td style={td}>{Number(f.montant_ht).toFixed(2)}</td><td style={td}>{Number(f.montant_tva).toFixed(2)}</td><td style={td}>{Number(f.montant_ttc).toFixed(2)}</td>
-                    <td style={td}>{f.pdf_url ? <a href={SUPABASE_URL + "/storage/v1/object/documents-comptables/" + f.pdf_url} target="_blank" style={{ color: "#c8a96e" }}>PDF</a> : "-"}</td>
+                    <td style={td}>{f.pdf_url ? <span onClick={() => ouvrirPDF(f.pdf_url)} style={{ color: "#c8a96e", cursor: "pointer", textDecoration: "underline" }}>PDF</span> : "-"}</td>
                   </tr>
                 ))}
               </tbody>
