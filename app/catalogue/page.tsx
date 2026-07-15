@@ -2,6 +2,7 @@
 // v2
 // v2
 // v2
+// v2
 "use client";
 import { useState, useEffect } from "react";
 import { useTraductionAuto } from "../../hooks/useTraductionAuto";
