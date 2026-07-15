@@ -64,6 +64,11 @@ export default function ComptabilitePage() {
     URL.revokeObjectURL(url);
   }
 
+  
+  function exportZIP() {
+    window.open("/api/admin/export-zip?trimestre=" + trimestre, "_blank");
+  }
+
   async function marquerPayee(f: any) {
     if (!confirm("Marquer la facture "+f.numero+" comme payee ?")) return;
     await fetch(SUPABASE_URL+"/rest/v1/factures?id=eq."+f.id, {
@@ -242,7 +247,7 @@ export default function ComptabilitePage() {
 
         {onglet==="export" && (
           <div style={card}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:"10px"}}><h3 style={{color:"#c8a96e",margin:0}}>Export {trimestre}</h3><button onClick={exportCSV} style={{padding:"8px 16px",background:"#c8a96e",color:"#050508",border:"none",borderRadius:"8px",fontWeight:"bold",cursor:"pointer"}}>Export CSV</button></div>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:"10px"}}><h3 style={{color:"#c8a96e",margin:0}}>Export {trimestre}</h3><button onClick={exportCSV} style={{padding:"8px 16px",background:"#c8a96e",color:"#050508",border:"none",borderRadius:"8px",fontWeight:"bold",cursor:"pointer"}}>Export CSV</button><button onClick={exportZIP} style={{padding:"8px 16px",marginLeft:"8px",background:"#8b5cf6",color:"#fff",border:"none",borderRadius:"8px",fontWeight:"bold",cursor:"pointer"}}>Export ZIP</button></div>
             <p style={{color:"rgba(255,255,255,0.6)"}}>{facturesTrim.length} factures. TVA UE : {totalTvaADeclarer.toFixed(2)} EUR.</p>
             <table style={{width:"100%",borderCollapse:"collapse",marginTop:"10px"}}>
               <thead><tr><th style={th}>Numero</th><th style={th}>Client</th><th style={th}>HT</th><th style={th}>TVA</th><th style={th}>TTC</th><th style={th}>PDF</th></tr></thead>
