@@ -48,6 +48,22 @@ export default function ComptabilitePage() {
     } catch(e){ alert("Erreur PDF"); }
   }
 
+  
+  function exportCSV() {
+    const lignes = facturesTrim.map(f => [
+      f.numero, f.date_emission, '"'+(f.client_nom||"")+'"', f.client_pays, f.type_client,
+      Number(f.montant_ht).toFixed(2), f.taux_tva, Number(f.montant_tva).toFixed(2),
+      Number(f.montant_ttc).toFixed(2), f.statut_paiement||"", f.est_avoir?"AVOIR":"FACTURE"
+    ].join(";"));
+    const entete = "Numero;Date;Client;Pays;Type;HT;TauxTVA;TVA;TTC;Paiement;Nature";
+    const csv = entete + "\n" + lignes.join("\n");
+    const blob = new Blob(["\ufeff"+csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "compta_" + trimestre + ".csv"; a.click();
+    URL.revokeObjectURL(url);
+  }
+
   async function marquerPayee(f: any) {
     if (!confirm("Marquer la facture "+f.numero+" comme payee ?")) return;
     await fetch(SUPABASE_URL+"/rest/v1/factures?id=eq."+f.id, {
@@ -226,7 +242,7 @@ export default function ComptabilitePage() {
 
         {onglet==="export" && (
           <div style={card}>
-            <h3 style={{color:"#c8a96e"}}>Export {trimestre}</h3>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:"10px"}}><h3 style={{color:"#c8a96e",margin:0}}>Export {trimestre}</h3><button onClick={exportCSV} style={{padding:"8px 16px",background:"#c8a96e",color:"#050508",border:"none",borderRadius:"8px",fontWeight:"bold",cursor:"pointer"}}>Export CSV</button></div>
             <p style={{color:"rgba(255,255,255,0.6)"}}>{facturesTrim.length} factures. TVA UE : {totalTvaADeclarer.toFixed(2)} EUR.</p>
             <table style={{width:"100%",borderCollapse:"collapse",marginTop:"10px"}}>
               <thead><tr><th style={th}>Numero</th><th style={th}>Client</th><th style={th}>HT</th><th style={th}>TVA</th><th style={th}>TTC</th><th style={th}>PDF</th></tr></thead>
