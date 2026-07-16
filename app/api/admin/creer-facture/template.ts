@@ -10,6 +10,11 @@ const ENTITE = {
   stripe_link: "[LIEN STRIPE - A COMPLETER]",
 };
 
+const LOGOS: Record<string, string> = {
+  academia: "https://kpxrbwsbhmggoajtxzqn.supabase.co/storage/v1/object/public/formations-pdf/IMG_2595.png",
+  hebrewpro: "https://kpxrbwsbhmggoajtxzqn.supabase.co/storage/v1/object/public/formations-pdf/IMG_2675.png",
+};
+
 type FactureData = {
   numero: string;
   projet: string;
@@ -37,6 +42,7 @@ export function genererFactureHTML(d: FactureData): string {
   const devise = d.devise || "EUR";
   const symbole = devise === "USD" ? "$" : devise === "EUR" ? "€" : devise;
   const projetNom = d.projet_nom || (d.projet === "hebrewpro" ? "HebrewPro AI" : "AcademIA Pro");
+  const logoUrl = LOGOS[d.projet] || LOGOS.academia;
   const fmt = (n: number) => n.toFixed(2) + " " + symbole;
 
   let blocTVA = "";
@@ -64,8 +70,8 @@ export function genererFactureHTML(d: FactureData): string {
 <title>Facture / Invoice ${d.numero} - ${projetNom}</title>
 <style>
   body { font-family: Georgia, serif; max-width: 820px; margin: 0 auto; padding: 40px; color: #1a1a1a; }
-  .header { display: flex; justify-content: space-between; margin-bottom: 36px; border-bottom: 3px solid #c8a96e; padding-bottom: 20px; }
-  .logo { color: #c8a96e; font-size: 26px; font-weight: bold; }
+  .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 36px; border-bottom: 3px solid #c8a96e; padding-bottom: 20px; }
+  .logo-img { max-height: 90px; max-width: 220px; margin-bottom: 8px; }
   .sub { color:#666; font-size:13px; margin:3px 0; }
   .facture-title h1 { color: #050508; font-size: 30px; margin: 0; text-align: right; }
   .facture-title p { color: #666; margin: 4px 0; text-align: right; font-size: 14px; }
@@ -87,7 +93,7 @@ export function genererFactureHTML(d: FactureData): string {
 <body>
   <div class="header">
     <div>
-      <div class="logo">${projetNom}</div>
+      <img class="logo-img" src="${logoUrl}" alt="${projetNom}" />
       <p class="sub">${ENTITE.nom}</p>
       <p class="sub">${ENTITE.email}</p>
       <p class="sub">${ENTITE.site}</p>
