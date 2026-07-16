@@ -4,8 +4,8 @@ const ENTITE = {
   adresse2: "Sheridan, WY 82801",
   pays: "United States / Etats-Unis",
   ein: "[EIN - A COMPLETER]",
-  numero_oss: "[NUMERO OSS - A COMPLETER]",
-  email: "[EMAIL - A CLARIFIER .com / .fr]",
+  numero_oss: "[NUMERO OSS non-Union - A COMPLETER]",
+  email: "contact@academiapro.fr",
   site: "academiapro.fr",
   stripe_link: "[LIEN STRIPE - A COMPLETER]",
 };
@@ -58,9 +58,9 @@ export function genererFactureHTML(d: FactureData): string {
   if (d.autoliquidation) {
     mentionTVA = `TVA autoliquidee par le preneur (art. 196 Directive 2006/112/CE) — VAT reverse charge. N° TVA client : ${d.numero_tva_client || "-"}`;
   } else if (d.taux_tva > 0) {
-    mentionTVA = `TVA collectee au titre du guichet OSS UE — VAT collected under EU OSS scheme. N° OSS : ${ENTITE.numero_oss}`;
+    mentionTVA = `TVA collectee au titre du regime OSS non-Union — VAT collected under EU Non-Union OSS scheme. N° OSS : ${ENTITE.numero_oss}`;
   } else {
-    mentionTVA = `TVA non applicable / VAT not applicable.`;
+    mentionTVA = `TVA non applicable / VAT not applicable (hors champ / out of scope).`;
   }
 
   return `<!DOCTYPE html>
