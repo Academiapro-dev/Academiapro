@@ -121,7 +121,7 @@ export default function CAMDashboard() {
         <h2 style={{ color: "#c8a96e", fontSize: "14px", marginBottom: "12px", letterSpacing: "2px" }}>AUTO-BATCH CAM v6</h2>
         {!autoBatch ? (
           <button onClick={demarrerAutoBatch} disabled={loading} style={{ width: "100%", background: "linear-gradient(135deg,#c8a96e,#a07840)", color: "#050508", border: "none", borderRadius: "10px", padding: "18px", fontSize: "16px", fontWeight: "bold", cursor: "pointer", marginBottom: "10px" }}>
-            🚀 Lancer la génération automatique des 265 formations
+            🚀 Lancer la génération automatique des 263 formations
           </button>
         ) : (
           <button onClick={arreterAutoBatch} style={{ width: "100%", background: "#ff5252", color: "#fff", border: "none", borderRadius: "10px", padding: "18px", fontSize: "16px", fontWeight: "bold", cursor: "pointer", marginBottom: "10px" }}>
