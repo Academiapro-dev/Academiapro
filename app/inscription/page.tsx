@@ -36,7 +36,7 @@ const FRT = {
     "Accompagnement personnalise",
   ],
   retourAccueil: "Retour a l accueil",
-  stat1Label: "235 formations", stat1Desc: "Certifiantes",
+  stat1Label: "263 formations", stat1Desc: "Certifiantes",
   stat2Label: "Agent IA", stat2Desc: "24h/24",
   stat3Label: "5 therapeutes", stat3Desc: "IA specialises",
 };
