@@ -1,7 +1,6 @@
 // ============================================================
 // Template facture bilingue FR/EN - AcademiA Pro LLC (Wyoming)
 // Les valeurs [A COMPLETER] dependent de l'EIN / fiscaliste.
-// A changer en haut du fichier le jour venu, sans toucher au reste.
 // ============================================================
 
 const ENTITE = {
@@ -13,7 +12,6 @@ const ENTITE = {
   numero_oss: "[NUMERO OSS - A COMPLETER]",
   email: "[EMAIL - A CLARIFIER .com / .fr]",
   site: "academiapro.fr",
-  dirigeant: "Jacques Lalou",
   stripe_link: "[LIEN STRIPE - A COMPLETER]",
 };
 
@@ -49,7 +47,6 @@ export function genererFactureHTML(d: FactureData): string {
 
   const fmt = (n: number) => n.toFixed(2) + " " + symbole;
 
-  // --- Bloc TVA dynamique (FR/EN) ---
   let blocTVA = "";
   if (d.autoliquidation) {
     blocTVA = `
@@ -65,7 +62,6 @@ export function genererFactureHTML(d: FactureData): string {
       <td style="text-align:right;">0.00 ${symbole}</td></tr>`;
   }
 
-  // --- Mention legale TVA (FR/EN) selon le cas ---
   let mentionTVA = "";
   if (d.autoliquidation) {
     mentionTVA = `TVA autoliquidee par le preneur (art. 196 Directive 2006/112/CE) — VAT reverse charge, to be accounted for by the recipient. N° TVA client : ${d.numero_tva_client || "-"}`;
@@ -176,9 +172,8 @@ export function genererFactureHTML(d: FactureData): string {
     <p>Acompte / Deposit : les sommes versees a l'inscription constituent un acompte imputable sur le prix total (non des arrhes). / Amounts paid at registration are a deposit credited against the total price.</p>
     <p>Penalites de retard / Late penalties : 3x taux legal + indemnite forfaitaire 40€ (art. L441-10 C. commerce).</p>
     <p>Droit applicable / Governing law : droit francais pour consommateurs UE (Reglement Rome I) ; droit du Wyoming (USA) a titre suppletif hors UE.</p>
-    <p>${ENTITE.nom} · ${ENTITE.dirigeant} · ${ENTITE.email} · ${ENTITE.site}</p>
+    <p>${ENTITE.nom} · ${ENTITE.email} · ${ENTITE.site}</p>
   </div>
 </body>
 </html>`;
 }
-
