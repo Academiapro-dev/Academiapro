@@ -40,5 +40,8 @@ export default function PageCGV() {
           <li><a href="/mentions-legales" style={{ color: "#c9a227" }}>Mentions Legales</a></li>
         </ul>
       </div>
-    </main>
+        </main>
+  );
+}
+
 
