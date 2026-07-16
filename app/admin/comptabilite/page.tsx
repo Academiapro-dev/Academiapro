@@ -17,6 +17,7 @@ export default function ComptabilitePage() {
   const [mdp, setMdp] = useState("");
   const [onglet, setOnglet] = useState("apercu");
   const [trimestre, setTrimestre] = useState(trimestreActuel());
+  const [projet, setProjet] = useState("tous");
   const [factures, setFactures] = useState<any[]>([]);
   const [tva, setTva] = useState<any[]>([]);
   const [depenses, setDepenses] = useState<any[]>([]);
@@ -146,19 +147,21 @@ export default function ComptabilitePage() {
   }
 
   // Calculs
-  const facturesTrim = factures.filter(f => f.trimestre === trimestre);
-  const caTotal = factures.reduce((s,f)=>s+Number(f.montant_ttc||0),0);
-  const caHT = factures.reduce((s,f)=>s+Number(f.montant_ht||0),0);
+  const facturesP = projet === "tous" ? factures : factures.filter(f => f.projet === projet);
+  const depensesP = projet === "tous" ? depenses : depenses.filter(d => d.projet === projet);
+  const facturesTrim = facturesP.filter(f => f.trimestre === trimestre);
+  const caTotal = facturesP.reduce((s,f)=>s+Number(f.montant_ttc||0),0);
+  const caHT = facturesP.reduce((s,f)=>s+Number(f.montant_ht||0),0);
   const tvaCollectee = tva.reduce((s,t)=>s+Number(t.total_tva||0),0);
   const tvaUE = tva.filter(t=>t.zone==="UE");
   const totalTvaADeclarer = tvaUE.reduce((s,t)=>s+Number(t.total_tva||0),0);
-  const totalDepenses = depenses.reduce((s,d)=>s+Number(d.montant_ttc||0),0);
+  const totalDepenses = depensesP.reduce((s,d)=>s+Number(d.montant_ttc||0),0);
   const resultatNet = caHT - totalDepenses;
-  const nbImpayees = factures.filter(f=>f.statut_paiement!=="payee" && !f.est_avoir).length;
+  const nbImpayees = facturesP.filter(f=>f.statut_paiement!=="payee" && !f.est_avoir).length;
 
   const seuils: any = { GB:85000, CA:22000, AU:50000, US:100000 };
   const parPaysHorsUE: any = {};
-  factures.filter(f=>f.zone!=="UE").forEach(f=>{ parPaysHorsUE[f.client_pays]=(parPaysHorsUE[f.client_pays]||0)+Number(f.montant_ttc||0); });
+  facturesP.filter(f=>f.zone!=="UE").forEach(f=>{ parPaysHorsUE[f.client_pays]=(parPaysHorsUE[f.client_pays]||0)+Number(f.montant_ttc||0); });
   const alertes = Object.keys(parPaysHorsUE).filter(p=>seuils[p]&&parPaysHorsUE[p]>seuils[p]*0.7);
 
   if (!autorise) {
@@ -191,6 +194,12 @@ export default function ComptabilitePage() {
       <div style={{maxWidth:"1100px",margin:"0 auto"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"20px",flexWrap:"wrap",gap:"10px"}}>
           <h1 style={{color:"#c8a96e",fontFamily:"Georgia,serif",margin:0}}>Comptabilite LLC</h1>
+          <select value={projet} onChange={e=>setProjet(e.target.value)}
+            style={{padding:"8px 12px",borderRadius:"8px",background:"rgba(255,255,255,0.05)",color:"#fff",border:"1px solid #c8a96e",marginRight:"8px"}}>
+            <option value="tous">Tous les projets</option>
+            <option value="academia">AcademIA Pro</option>
+            <option value="hebrewpro">HebrewPro AI</option>
+          </select>
           <select value={trimestre} onChange={e=>setTrimestre(e.target.value)}
             style={{padding:"8px 12px",borderRadius:"8px",background:"rgba(255,255,255,0.05)",color:"#fff",border:"1px solid #c8a96e"}}>
             {["2026-T1","2026-T2","2026-T3","2026-T4"].map(t=><option key={t} value={t}>{t}</option>)}
@@ -236,7 +245,7 @@ export default function ComptabilitePage() {
             <h3 style={{color:"#c8a96e"}}>Factures</h3>
             <table style={{width:"100%",borderCollapse:"collapse"}}>
               <thead><tr><th style={th}>Numero</th><th style={th}>Client</th><th style={th}>TTC</th><th style={th}>Paiement</th><th style={th}>PDF</th><th style={th}>Actions</th></tr></thead>
-              <tbody>{factures.map((f,i)=>(
+              <tbody>{facturesP.map((f,i)=>(
                 <tr key={i}>
                   <td style={td}>{f.numero}</td><td style={td}>{f.client_nom}</td>
                   <td style={{...td,color:Number(f.montant_ttc)<0?"#ef4444":"#fff"}}>{Number(f.montant_ttc).toFixed(2)}</td>
@@ -256,10 +265,10 @@ export default function ComptabilitePage() {
         {onglet==="depenses" && (
           <div style={card}>
             <h3 style={{color:"#c8a96e"}}>Depenses</h3>
-            {depenses.length===0?<p style={{color:"rgba(255,255,255,0.5)"}}>Aucune depense.</p>:
+            {depensesP.length===0?<p style={{color:"rgba(255,255,255,0.5)"}}>Aucune depense.</p>:
             <table style={{width:"100%",borderCollapse:"collapse"}}>
               <thead><tr><th style={th}>Fournisseur</th><th style={th}>Categorie</th><th style={th}>TTC</th><th style={th}>Date</th></tr></thead>
-              <tbody>{depenses.map((d,i)=>(<tr key={i}><td style={td}>{d.fournisseur}</td><td style={td}>{d.categorie}</td><td style={td}>{Number(d.montant_ttc).toFixed(2)}</td><td style={td}>{d.date_depense}</td></tr>))}</tbody>
+              <tbody>{depensesP.map((d,i)=>(<tr key={i}><td style={td}>{d.fournisseur}</td><td style={td}>{d.categorie}</td><td style={td}>{Number(d.montant_ttc).toFixed(2)}</td><td style={td}>{d.date_depense}</td></tr>))}</tbody>
             </table>}
           </div>
         )}
