@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import crypto from "crypto";
+import { genererFactureHTML } from "./template";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -10,7 +11,6 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-// Cle secrete partagee : les projets (AcademIA, HebrewPro...) doivent l'envoyer
 const CLE_API_FACTURE = process.env.CLE_API_FACTURE || "";
 
 export async function POST(req: NextRequest) {
@@ -28,13 +28,14 @@ export async function POST(req: NextRequest) {
     const client_nom = body.client_nom || "";
     const client_email = body.client_email || null;
     const client_pays = body.client_pays || null;
-    const type_client = body.type_client || "B2C";     // B2C ou B2B
+    const type_client = body.type_client || "B2C";
     const numero_tva_client = body.numero_tva_client || null;
     const montant_ht = parseFloat(body.montant_ht) || 0;
     const taux_tva = parseFloat(body.taux_tva) || 0;
-    const zone = body.zone || null;                     // UE / USA / MONDE
+    const zone = body.zone || null;
     const autoliquidation = body.autoliquidation === true;
     const description = body.description || "";
+    const devise = body.devise || "EUR";
 
     // 3) Verifier que le projet existe dans le referentiel
     const { data: projetRow, error: projetErr } = await supabase
@@ -80,7 +81,7 @@ export async function POST(req: NextRequest) {
         taux_tva,
         montant_tva,
         montant_ttc,
-        devise: body.devise || "EUR",
+        devise,
         zone,
         autoliquidation,
         description,
@@ -96,7 +97,25 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Erreur insertion: " + insErr.message }, { status: 500 });
     }
 
-    // 8) Reponse
+    // 8) Generer le HTML bilingue de la facture
+    const facture_html = genererFactureHTML({
+      numero,
+      projet,
+      client_nom,
+      client_pays,
+      type_client,
+      numero_tva_client,
+      montant_ht,
+      taux_tva,
+      montant_tva,
+      montant_ttc,
+      devise,
+      autoliquidation,
+      description,
+      date_emission: facture.date_emission,
+    });
+
+    // 9) Reponse
     return NextResponse.json({
       success: true,
       numero,
@@ -106,10 +125,10 @@ export async function POST(req: NextRequest) {
       montant_ttc,
       hash_sha256,
       facture_id: facture.id,
+      facture_html,
     });
 
   } catch (error: any) {
     return NextResponse.json({ error: "Erreur serveur: " + (error?.message || "") }, { status: 500 });
   }
 }
-
