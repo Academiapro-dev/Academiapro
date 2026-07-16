@@ -30,7 +30,15 @@ export default function PageCGV() {
         .cgv li { margin: .3em 0; }
         .cgv a { color: #c9a227; }
       `}</style>
-      <div className="cgv" dangerouslySetInnerHTML={{ __html: CGV_HTML }} />
+            <div className="cgv" dangerouslySetInnerHTML={{ __html: CGV_HTML }} />
+      <div style={{ marginTop: 40, paddingTop: 24, borderTop: "1px solid rgba(128,128,128,.35)", fontSize: 14 }}>
+        <p style={{ fontWeight: "bold", marginBottom: 8 }}>Documents complementaires :</p>
+        <ul style={{ paddingLeft: "1.4em", lineHeight: 1.9 }}>
+          <li><a href="/cgv-prevente" style={{ color: "#c9a227" }}>Avenant &mdash; Conditions Speciales Prevente</a></li>
+          <li><a href="/cgv-annexe" style={{ color: "#c9a227" }}>Annexe &mdash; Marques, Propriete Intellectuelle et TVA</a></li>
+          <li><a href="/politique-confidentialite" style={{ color: "#c9a227" }}>Politique de Confidentialite</a></li>
+          <li><a href="/mentions-legales" style={{ color: "#c9a227" }}>Mentions Legales</a></li>
+        </ul>
+      </div>
     </main>
-  );
-}
+
