@@ -28,7 +28,7 @@ export default function AnalyticsPage() {
       setListeAttente(Array.isArray(inscrits) ? inscrits : []);
       setStats({
         inscrits: Array.isArray(inscrits) ? inscrits.length : 0,
-        formations: 235,
+        formations: 263,
         seances: 0,
         certificats: 0,
         visites: Array.isArray(certificats) ? certificats.length : 0,
