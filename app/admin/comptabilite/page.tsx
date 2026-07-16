@@ -155,8 +155,15 @@ export default function ComptabilitePage() {
   const tvaCollectee = tva.reduce((s,t)=>s+Number(t.total_tva||0),0);
   const tvaUE = tva.filter(t=>t.zone==="UE");
   const totalTvaADeclarer = tvaUE.reduce((s,t)=>s+Number(t.total_tva||0),0);
-  const totalDepenses = depensesP.reduce((s,d)=>s+Number(d.montant_ttc||0),0);
-  const resultatNet = caHT - totalDepenses;
+  const depensesParDevise: any = {};
+  depensesP.forEach(d=>{ const dev=d.devise||"EUR"; depensesParDevise[dev]=(depensesParDevise[dev]||0)+Number(d.montant_ttc||0); });
+  const texteDepenses = Object.keys(depensesParDevise).map(dev=>depensesParDevise[dev].toFixed(2)+" "+dev).join(" + ")||"0.00 EUR";
+  const avancesNonRemb = depensesP.filter(d=>d.avance_perso && !d.rembourse);
+  const avancesParDevise: any = {};
+  avancesNonRemb.forEach(d=>{ const dev=d.devise||"EUR"; avancesParDevise[dev]=(avancesParDevise[dev]||0)+Number(d.montant_ttc||0); });
+  const texteAvances = Object.keys(avancesParDevise).map(dev=>avancesParDevise[dev].toFixed(2)+" "+dev).join(" + ")||"0.00 EUR";
+  const depensesEUR = depensesParDevise["EUR"]||0;
+  const resultatNet = caHT - depensesEUR;
   const nbImpayees = facturesP.filter(f=>f.statut_paiement!=="payee" && !f.est_avoir).length;
 
   const seuils: any = { GB:85000, CA:22000, AU:50000, US:100000 };
@@ -218,8 +225,9 @@ export default function ComptabilitePage() {
         {onglet==="apercu" && (
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:"15px"}}>
             <div style={card}><p style={{color:"rgba(255,255,255,0.5)",margin:0}}>CA total (TTC)</p><h2 style={{color:"#c8a96e",margin:"8px 0 0"}}>{caTotal.toFixed(2)} EUR</h2></div>
-            <div style={card}><p style={{color:"rgba(255,255,255,0.5)",margin:0}}>Depenses</p><h2 style={{color:"#c8a96e",margin:"8px 0 0"}}>{totalDepenses.toFixed(2)} EUR</h2></div>
-            <div style={{...card,border:"1px solid "+(resultatNet>=0?"#22c55e":"#ef4444")}}><p style={{color:"rgba(255,255,255,0.5)",margin:0}}>Resultat net (HT - depenses)</p><h2 style={{color:resultatNet>=0?"#22c55e":"#ef4444",margin:"8px 0 0"}}>{resultatNet.toFixed(2)} EUR</h2></div>
+            <div style={card}><p style={{color:"rgba(255,255,255,0.5)",margin:0}}>Depenses</p><h2 style={{color:"#c8a96e",margin:"8px 0 0",fontSize:"20px"}}>{texteDepenses}</h2></div>
+            <div style={{...card,border:"1px solid "+(resultatNet>=0?"#22c55e":"#ef4444")}}><p style={{color:"rgba(255,255,255,0.5)",margin:0}}>Resultat net EUR (HT - depenses EUR)</p><h2 style={{color:resultatNet>=0?"#22c55e":"#ef4444",margin:"8px 0 0"}}>{resultatNet.toFixed(2)} EUR</h2></div>
+            <div style={{...card,border:"1px solid #8b5cf6"}}><p style={{color:"rgba(255,255,255,0.5)",margin:0}}>Compte courant associe ({avancesNonRemb.length} avances a rembourser)</p><h2 style={{color:"#8b5cf6",margin:"8px 0 0",fontSize:"20px"}}>{texteAvances}</h2></div>
             <div style={card}><p style={{color:"rgba(255,255,255,0.5)",margin:0}}>TVA collectee ({trimestre})</p><h2 style={{color:"#c8a96e",margin:"8px 0 0"}}>{tvaCollectee.toFixed(2)} EUR</h2></div>
             <div style={{...card,border:nbImpayees>0?"1px solid #f59e0b":card.border}}><p style={{color:"rgba(255,255,255,0.5)",margin:0}}>Factures impayees</p><h2 style={{color:nbImpayees>0?"#f59e0b":"#c8a96e",margin:"8px 0 0"}}>{nbImpayees}</h2></div>
           </div>
@@ -267,8 +275,8 @@ export default function ComptabilitePage() {
             <h3 style={{color:"#c8a96e"}}>Depenses</h3>
             {depensesP.length===0?<p style={{color:"rgba(255,255,255,0.5)"}}>Aucune depense.</p>:
             <table style={{width:"100%",borderCollapse:"collapse"}}>
-              <thead><tr><th style={th}>Fournisseur</th><th style={th}>Categorie</th><th style={th}>TTC</th><th style={th}>Date</th></tr></thead>
-              <tbody>{depensesP.map((d,i)=>(<tr key={i}><td style={td}>{d.fournisseur}</td><td style={td}>{d.categorie}</td><td style={td}>{Number(d.montant_ttc).toFixed(2)}</td><td style={td}>{d.date_depense}</td></tr>))}</tbody>
+              <thead><tr><th style={th}>Fournisseur</th><th style={th}>Categorie</th><th style={th}>TTC</th><th style={th}>Devise</th><th style={th}>Avance</th><th style={th}>Date</th></tr></thead>
+              <tbody>{depensesP.map((d,i)=>(<tr key={i}><td style={td}>{d.fournisseur}</td><td style={td}>{d.categorie}</td><td style={td}>{Number(d.montant_ttc).toFixed(2)}</td><td style={td}>{d.devise||"EUR"}</td><td style={td}>{d.avance_perso?(d.rembourse?<span style={{color:"#22c55e"}}>Remboursee</span>:<span style={{color:"#8b5cf6"}}>Avance perso</span>):"-"}</td><td style={td}>{d.date_depense}</td></tr>))}</tbody>
             </table>}
           </div>
         )}
