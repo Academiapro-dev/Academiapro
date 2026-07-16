@@ -192,5 +192,5 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET() {
-  return NextResponse.json({ status: "LMS Generer universel operationnel — 265 formations — 11 experts" });
+  return NextResponse.json({ status: "LMS Generer universel operationnel — 263 formations — 11 experts" });
 }
