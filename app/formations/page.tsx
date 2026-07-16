@@ -18,3 +18,5 @@ export default async function FormationsPage() {
 
   return <FormationsClient formations={formations} />;
 }
+
+export const dynamic = "force-dynamic";
