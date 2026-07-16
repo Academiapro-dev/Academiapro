@@ -47,7 +47,7 @@ const TEMPLATES: Record<string, (data: any) => { subject: string; html: string }
   </p>
   <div style="background:rgba(200,169,110,0.1);border:1px solid rgba(200,169,110,0.3);border-radius:8px;padding:20px;margin:20px 0;">
     <ul style="color:rgba(255,255,255,0.8);line-height:2;">
-      <li>235 formations certifiantes</li>
+      <li>263 formations certifiantes</li>
       <li>Agent IA tuteur 24h/24</li>
       <li>5 thérapeutes IA spécialisés</li>
       <li>Classes virtuelles live (mardis et jeudis 20h)</li>
