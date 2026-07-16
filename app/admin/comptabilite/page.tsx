@@ -22,6 +22,9 @@ export default function ComptabilitePage() {
   const [tva, setTva] = useState<any[]>([]);
   const [depenses, setDepenses] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [fd, setFd] = useState<any>({fournisseur:"",categorie:"Logiciels",description:"",pays_fournisseur:"US",projet:"academia",montant_ttc:"",devise:"USD",avance_perso:true,date_depense:new Date().toISOString().slice(0,10)});
+  const [fichier, setFichier] = useState<File|null>(null);
+  const [envoi, setEnvoi] = useState(false);
 
   useEffect(() => { if (autorise) charger(); }, [autorise, trimestre]);
 
@@ -95,6 +98,25 @@ export default function ComptabilitePage() {
         alert("ALERTE - Facture " + f.numero + " : ALTEREE\n\nLe hash ne correspond pas !\nAttendu : " + f.hash_sha256.slice(0,16) + "...\nObtenu : " + hashHex.slice(0,16) + "...");
       }
     } catch(e) { alert("Erreur verification : " + e); }
+  }
+
+  async function ajouterDepense() {
+    if (!fd.fournisseur || !fd.montant_ttc) { alert("Fournisseur et montant obligatoires"); return; }
+    setEnvoi(true);
+    try {
+      const data = new FormData();
+      Object.keys(fd).forEach(k => data.append(k, String(fd[k])));
+      if (fichier) data.append("fichier", fichier);
+      const r = await fetch("/api/admin/ajouter-depense", { method: "POST", headers: { "x-mdp-compta": MOT_DE_PASSE }, body: data });
+      const res = await r.json();
+      if (res.success) {
+        alert("Depense enregistree" + (res.pdf_url ? " avec justificatif" : ""));
+        setFd({ ...fd, fournisseur: "", description: "", montant_ttc: "" });
+        setFichier(null);
+        charger();
+      } else alert("Erreur : " + (res.error || "inconnue"));
+    } catch (e) { alert("Erreur reseau"); }
+    setEnvoi(false);
   }
 
   async function marquerPayee(f: any) {
@@ -185,7 +207,7 @@ export default function ComptabilitePage() {
     );
   }
 
-  const onglets = [["apercu","Vue d'ensemble"],["tva","TVA a declarer"],["factures","Factures"],["depenses","Depenses"],["seuils","Alertes seuils"],["export","Export trimestre"]];
+  const onglets = [["apercu","Vue d'ensemble"],["tva","TVA a declarer"],["factures","Factures"],["depenses","Depenses"],["seuils","Alertes seuils"],["export","Export trimestre"],["ajouter","+ Depense"]];
   const card = {background:"rgba(255,255,255,0.03)",border:"1px solid rgba(200,169,110,0.2)",borderRadius:"12px",padding:"20px"};
   const th = {textAlign:"left" as const,padding:"8px",color:"#c8a96e",borderBottom:"1px solid rgba(200,169,110,0.2)"};
   const td = {padding:"8px",borderBottom:"1px solid rgba(255,255,255,0.05)"};
@@ -278,6 +300,38 @@ export default function ComptabilitePage() {
               <thead><tr><th style={th}>Fournisseur</th><th style={th}>Categorie</th><th style={th}>TTC</th><th style={th}>Devise</th><th style={th}>Avance</th><th style={th}>Date</th></tr></thead>
               <tbody>{depensesP.map((d,i)=>(<tr key={i}><td style={td}>{d.fournisseur}</td><td style={td}>{d.categorie}</td><td style={td}>{Number(d.montant_ttc).toFixed(2)}</td><td style={td}>{d.devise||"EUR"}</td><td style={td}>{d.avance_perso?(d.rembourse?<span style={{color:"#22c55e"}}>Remboursee</span>:<span style={{color:"#8b5cf6"}}>Avance perso</span>):"-"}</td><td style={td}>{d.date_depense}</td></tr>))}</tbody>
             </table>}
+          </div>
+        )}
+
+        {onglet==="ajouter" && (
+          <div style={card}>
+            <h3 style={{color:"#c8a96e"}}>Nouvelle depense</h3>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:"12px"}}>
+              <div><p style={{color:"rgba(255,255,255,0.5)",fontSize:"12px",margin:"0 0 4px"}}>Fournisseur *</p>
+                <input value={fd.fournisseur} onChange={e=>setFd({...fd,fournisseur:e.target.value})} placeholder="Anthropic, Vercel..." style={{width:"100%",padding:"10px",borderRadius:"8px",border:"1px solid #c8a96e",background:"rgba(255,255,255,0.05)",color:"#fff",boxSizing:"border-box"}}/></div>
+              <div><p style={{color:"rgba(255,255,255,0.5)",fontSize:"12px",margin:"0 0 4px"}}>Montant TTC *</p>
+                <input type="number" step="0.01" value={fd.montant_ttc} onChange={e=>setFd({...fd,montant_ttc:e.target.value})} placeholder="20.00" style={{width:"100%",padding:"10px",borderRadius:"8px",border:"1px solid #c8a96e",background:"rgba(255,255,255,0.05)",color:"#fff",boxSizing:"border-box"}}/></div>
+              <div><p style={{color:"rgba(255,255,255,0.5)",fontSize:"12px",margin:"0 0 4px"}}>Devise</p>
+                <select value={fd.devise} onChange={e=>setFd({...fd,devise:e.target.value})} style={{width:"100%",padding:"10px",borderRadius:"8px",border:"1px solid #c8a96e",background:"rgba(255,255,255,0.05)",color:"#fff"}}><option value="USD">USD</option><option value="EUR">EUR</option></select></div>
+              <div><p style={{color:"rgba(255,255,255,0.5)",fontSize:"12px",margin:"0 0 4px"}}>Categorie</p>
+                <select value={fd.categorie} onChange={e=>setFd({...fd,categorie:e.target.value})} style={{width:"100%",padding:"10px",borderRadius:"8px",border:"1px solid #c8a96e",background:"rgba(255,255,255,0.05)",color:"#fff"}}>{["Logiciels","IA / API","Hebergement","Domaines","Services juridiques","Marketing","Autres"].map(c=><option key={c} value={c}>{c}</option>)}</select></div>
+              <div><p style={{color:"rgba(255,255,255,0.5)",fontSize:"12px",margin:"0 0 4px"}}>Projet</p>
+                <select value={fd.projet} onChange={e=>setFd({...fd,projet:e.target.value})} style={{width:"100%",padding:"10px",borderRadius:"8px",border:"1px solid #c8a96e",background:"rgba(255,255,255,0.05)",color:"#fff"}}><option value="academia">AcademIA Pro</option><option value="hebrewpro">HebrewPro AI</option></select></div>
+              <div><p style={{color:"rgba(255,255,255,0.5)",fontSize:"12px",margin:"0 0 4px"}}>Pays fournisseur</p>
+                <input value={fd.pays_fournisseur} onChange={e=>setFd({...fd,pays_fournisseur:e.target.value})} placeholder="US, FR..." style={{width:"100%",padding:"10px",borderRadius:"8px",border:"1px solid #c8a96e",background:"rgba(255,255,255,0.05)",color:"#fff",boxSizing:"border-box"}}/></div>
+              <div><p style={{color:"rgba(255,255,255,0.5)",fontSize:"12px",margin:"0 0 4px"}}>Date</p>
+                <input type="date" value={fd.date_depense} onChange={e=>setFd({...fd,date_depense:e.target.value})} style={{width:"100%",padding:"10px",borderRadius:"8px",border:"1px solid #c8a96e",background:"rgba(255,255,255,0.05)",color:"#fff",boxSizing:"border-box"}}/></div>
+              <div><p style={{color:"rgba(255,255,255,0.5)",fontSize:"12px",margin:"0 0 4px"}}>Justificatif (PDF/image)</p>
+                <input type="file" accept=".pdf,image/*" onChange={e=>setFichier(e.target.files?.[0]||null)} style={{width:"100%",color:"#fff",fontSize:"13px"}}/></div>
+            </div>
+            <div style={{marginTop:"12px"}}><p style={{color:"rgba(255,255,255,0.5)",fontSize:"12px",margin:"0 0 4px"}}>Description</p>
+              <input value={fd.description} onChange={e=>setFd({...fd,description:e.target.value})} placeholder="Abonnement API mensuel..." style={{width:"100%",padding:"10px",borderRadius:"8px",border:"1px solid #c8a96e",background:"rgba(255,255,255,0.05)",color:"#fff",boxSizing:"border-box"}}/></div>
+            <label style={{display:"flex",alignItems:"center",gap:"8px",marginTop:"12px",color:"#8b5cf6",cursor:"pointer"}}>
+              <input type="checkbox" checked={fd.avance_perso} onChange={e=>setFd({...fd,avance_perso:e.target.checked})}/> Avance personnelle (compte courant d associe)
+            </label>
+            <button onClick={ajouterDepense} disabled={envoi}
+              style={{marginTop:"16px",padding:"12px 30px",background:envoi?"rgba(200,169,110,0.4)":"#c8a96e",color:"#050508",border:"none",borderRadius:"8px",fontWeight:"bold",cursor:envoi?"default":"pointer"}}>
+              {envoi ? "Enregistrement..." : "Enregistrer la depense"}</button>
           </div>
         )}
 
