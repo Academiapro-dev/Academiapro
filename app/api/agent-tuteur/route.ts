@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
     body: JSON.stringify({
       model: "claude-sonnet-4-6",
       max_tokens: 1000,
-      system: `Tu es l agent tuteur IA d AcadémIA Pro, plateforme de 235 formations certifiantes dans tous les domaines.
+      system: `Tu es l agent tuteur IA d AcadémIA Pro, plateforme de 263 formations certifiantes dans tous les domaines.
 
 Tu connais TOUT le catalogue AcadémIA Pro :
 - Bien-etre : Hypnose Ericksonienne, PNL, Sophrologie, Meditation, TCC, EMDR, Art-therapie, Naturopathie, Coaching
