@@ -69,6 +69,33 @@ export default function ComptabilitePage() {
     window.open("/api/admin/export-zip?trimestre=" + trimestre, "_blank");
   }
 
+  
+  async function verifierIntegrite(f: any) {
+    if (!f.hash_sha256) { alert("Pas de hash enregistre pour cette facture"); return; }
+    if (!f.pdf_url) { alert("Pas de PDF associe"); return; }
+    try {
+      // 1) obtenir URL signee
+      const rs = await fetch(SUPABASE_URL+"/storage/v1/object/sign/documents-comptables/"+f.pdf_url, {
+        method:"POST", headers:{...SB,"Content-Type":"application/json"}, body: JSON.stringify({expiresIn:60})
+      });
+      const ds = await rs.json();
+      if (!ds.signedURL) { alert("PDF inaccessible"); return; }
+      // 2) telecharger le PDF
+      const rp = await fetch(SUPABASE_URL+"/storage/v1"+ds.signedURL);
+      const buf = await rp.arrayBuffer();
+      // 3) recalculer le hash SHA-256
+      const hashBuffer = await crypto.subtle.digest("SHA-256", buf);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      const hashHex = hashArray.map(b => b.toString(16).padStart(2,"0")).join("");
+      // 4) comparer
+      if (hashHex === f.hash_sha256) {
+        alert("Facture " + f.numero + " : INTEGRE\n\nLe document n'a pas ete modifie depuis son emission.\nHash verifie : " + hashHex.slice(0,16) + "...");
+      } else {
+        alert("ALERTE - Facture " + f.numero + " : ALTEREE\n\nLe hash ne correspond pas !\nAttendu : " + f.hash_sha256.slice(0,16) + "...\nObtenu : " + hashHex.slice(0,16) + "...");
+      }
+    } catch(e) { alert("Erreur verification : " + e); }
+  }
+
   async function marquerPayee(f: any) {
     if (!confirm("Marquer la facture "+f.numero+" comme payee ?")) return;
     await fetch(SUPABASE_URL+"/rest/v1/factures?id=eq."+f.id, {
@@ -218,6 +245,7 @@ export default function ComptabilitePage() {
                   <td style={td}>
                     {!f.est_avoir && f.statut_paiement!=="payee" && <button onClick={()=>marquerPayee(f)} style={{marginRight:"6px",padding:"4px 8px",fontSize:"11px",background:"#22c55e",color:"#050508",border:"none",borderRadius:"6px",cursor:"pointer"}}>Payee</button>}
                     {!f.est_avoir && <button onClick={()=>creerAvoir(f)} style={{padding:"4px 8px",fontSize:"11px",background:"#8b5cf6",color:"#fff",border:"none",borderRadius:"6px",cursor:"pointer"}}>Avoir</button>}
+                    {f.hash_sha256 && <button onClick={()=>verifierIntegrite(f)} style={{marginLeft:"6px",padding:"4px 8px",fontSize:"11px",background:"#3b82f6",color:"#fff",border:"none",borderRadius:"6px",cursor:"pointer"}}>Verifier</button>}
                   </td>
                 </tr>
               ))}</tbody>
