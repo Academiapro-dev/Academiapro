@@ -75,7 +75,7 @@ export default function B2BPage() {
       prix: "7 900€/an",
       desc: "Jusqu a 50 collaborateurs",
       features: [
-        "Acces 235 formations completes",
+        "Acces 263 formations completes",
         "Agent IA tuteur dedie par equipe",
         "Tableau de bord RH avance",
         "Classes virtuelles prioritaires",
@@ -155,7 +155,7 @@ export default function B2BPage() {
           Formez vos collaborateurs avec l IA · Tableaux de bord RH · Certifications reconnues · Support dedie
         </p>
         <div style={{ display: "inline-flex", gap: "15px", flexWrap: "wrap", justifyContent: "center" }}>
-          <span style={{ background: "rgba(200,169,110,0.2)", color: "#c8a96e", padding: "6px 16px", borderRadius: "20px", fontSize: "13px" }}>235 formations</span>
+          <span style={{ background: "rgba(200,169,110,0.2)", color: "#c8a96e", padding: "6px 16px", borderRadius: "20px", fontSize: "13px" }}>263 formations</span>
           <span style={{ background: "rgba(34,197,94,0.2)", color: "#22c55e", padding: "6px 16px", borderRadius: "20px", fontSize: "13px" }}>Dashboard RH</span>
           <span style={{ background: "rgba(59,130,246,0.2)", color: "#3b82f6", padding: "6px 16px", borderRadius: "20px", fontSize: "13px" }}>RGPD conforme</span>
         </div>
