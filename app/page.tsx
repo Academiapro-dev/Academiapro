@@ -13,8 +13,8 @@ const T = {
     stat3: "Thérapeutes IA",
     stat4: "Garantie satisfait ✓",
     nav_formations: "Formations", nav_séances: "Séances", nav_packs: "Packs", nav_competences: "Compétences", nav_blog: "Blog", nav_contact: "Contact",
-    footer_desc: "La plateforme de formation propulsee par l IA. 263 formations certifiantes.",
-    voir_formation: "Voir la formation", voir_tout: "Voir les 263 formations", nos_formations: "Nos formations phares",
+    footer_desc: "La plateforme de formation propulsee par l IA. {NB} formations certifiantes.",
+    voir_formation: "Voir la formation", voir_tout: "Voir les {NB} formations", nos_formations: "Nos formations phares",
     nos_formations_sub: "Certification AcadeMIA Pro · Paiement 3x sans frais · Garantie 30 jours",
   },
   en: {
@@ -23,8 +23,8 @@ const T = {
     btn_formations: "View courses", btn_ebook: "Free e-book", btn_demarrer: "Get Started",
     stat1: "Certified courses", stat2: "Validated skills", stat3: "AI Therapists", stat4: "Satisfaction guarantee",
     nav_formations: "Courses", nav_séances: "Sessions", nav_packs: "Packs", nav_competences: "Skills", nav_blog: "Blog", nav_contact: "Contact",
-    footer_desc: "The AI-powered training platform. 263 certified courses.",
-    voir_formation: "View course", voir_tout: "View all 263 courses", nos_formations: "Our featured courses",
+    footer_desc: "The AI-powered training platform. {NB} certified courses.",
+    voir_formation: "View course", voir_tout: "View all {NB} courses", nos_formations: "Our featured courses",
     nos_formations_sub: "AcadeMIA Pro Certification · 3x payment · 30-day guarantee",
   },
   es: {
@@ -33,8 +33,8 @@ const T = {
     btn_formations: "Ver cursos", btn_ebook: "E-book gratis", btn_demarrer: "Comenzar",
     stat1: "Cursos certificados", stat2: "Habilidades validadas", stat3: "Terapeutas IA", stat4: "Garantia satisfaccion",
     nav_formations: "Cursos", nav_séances: "Sesiones", nav_packs: "Packs", nav_competences: "Habilidades", nav_blog: "Blog", nav_contact: "Contacto",
-    footer_desc: "La plataforma de formacion impulsada por IA. 263 cursos certificados.",
-    voir_formation: "Ver curso", voir_tout: "Ver los 263 cursos", nos_formations: "Nuestros cursos destacados",
+    footer_desc: "La plataforma de formacion impulsada por IA. {NB} cursos certificados.",
+    voir_formation: "Ver curso", voir_tout: "Ver los {NB} cursos", nos_formations: "Nuestros cursos destacados",
     nos_formations_sub: "Certificacion AcadeMIA Pro · Pago 3x · Garantia 30 dias",
   },
   pt: {
@@ -43,8 +43,8 @@ const T = {
     btn_formations: "Ver cursos", btn_ebook: "E-book gratuito", btn_demarrer: "Comecar",
     stat1: "Cursos certificados", stat2: "Competencias validadas", stat3: "Terapeutas IA", stat4: "Garantia de satisfacao",
     nav_formations: "Cursos", nav_séances: "Sessoes", nav_packs: "Packs", nav_competences: "Competencias", nav_blog: "Blog", nav_contact: "Contato",
-    footer_desc: "A plataforma de formacao impulsionada por IA. 263 cursos certificados.",
-    voir_formation: "Ver curso", voir_tout: "Ver os 263 cursos", nos_formations: "Nossos cursos em destaque",
+    footer_desc: "A plataforma de formacao impulsionada por IA. {NB} cursos certificados.",
+    voir_formation: "Ver curso", voir_tout: "Ver os {NB} cursos", nos_formations: "Nossos cursos em destaque",
     nos_formations_sub: "Certificacao AcadeMIA Pro · Pagamento 3x · Garantia 30 dias",
   },
   de: {
@@ -53,8 +53,8 @@ const T = {
     btn_formations: "Kurse ansehen", btn_ebook: "Kostenloses E-Book", btn_demarrer: "Loslegen",
     stat1: "Zertifizierte Kurse", stat2: "Validierte Kompetenzen", stat3: "KI-Therapeuten", stat4: "Zufriedenheitsgarantie",
     nav_formations: "Kurse", nav_séances: "Sitzungen", nav_packs: "Pakete", nav_competences: "Kompetenzen", nav_blog: "Blog", nav_contact: "Kontakt",
-    footer_desc: "Die KI-gestutzte Weiterbildungsplattform. 263 zertifizierte Kurse.",
-    voir_formation: "Kurs ansehen", voir_tout: "Alle 263 Kurse ansehen", nos_formations: "Unsere Top-Kurse",
+    footer_desc: "Die KI-gestutzte Weiterbildungsplattform. {NB} zertifizierte Kurse.",
+    voir_formation: "Kurs ansehen", voir_tout: "Alle {NB} Kurse ansehen", nos_formations: "Unsere Top-Kurse",
     nos_formations_sub: "AcadeMIA Pro Zertifizierung · 3x Zahlung · 30-Tage-Garantie",
   },
   ar: {
@@ -93,7 +93,7 @@ export default function HomePage() {
     setLangue(saved);
   }, []);
 
-  const t = (cle) => T[langue]?.[cle] || T["fr"][cle] || cle;
+  const t = (cle) => (T[langue]?.[cle] || T["fr"][cle] || cle).replace("{NB}", String(nbFormations));
 
   function changerLangue(l) {
     localStorage.setItem("langue", l);
@@ -118,7 +118,7 @@ export default function HomePage() {
 
       <section style={{ background: "#1a1a2e", padding: "60px 40px" }}>
         <div style={{ maxWidth: "1000px", margin: "0 auto", display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "32px", textAlign: "center" }}>
-          {[{ nb: "263", label: t("stat1") }, { nb: "100+", label: t("stat2") }, { nb: "5", label: t("stat3") }, { nb: "30j", label: t("stat4") }].map((s) => (
+          {[{ nb: String(nbFormations), label: t("stat1") }, { nb: "100+", label: t("stat2") }, { nb: "5", label: t("stat3") }, { nb: "30j", label: t("stat4") }].map((s) => (
             <div key={s.label}>
               <p style={{ color: "#c8a96e", fontSize: "40px", fontWeight: "bold", margin: "0 0 8px" }}>{s.nb}</p>
               <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "15px", margin: "0" }}>{s.label}</p>
