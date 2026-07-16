@@ -1,8 +1,3 @@
-// ============================================================
-// Template facture bilingue FR/EN - AcademiA Pro LLC (Wyoming)
-// Les valeurs [A COMPLETER] dependent de l'EIN / fiscaliste.
-// ============================================================
-
 const ENTITE = {
   nom: "AcademiA Pro LLC",
   adresse1: "30 N Gould St, STE R",
@@ -34,9 +29,7 @@ type FactureData = {
 };
 
 export function genererFactureHTML(d: FactureData): string {
-  const dateEmission = d.date_emission
-    ? new Date(d.date_emission)
-    : new Date();
+  const dateEmission = d.date_emission ? new Date(d.date_emission) : new Date();
   const dateStr = dateEmission.toLocaleDateString("fr-FR");
   const dateStrEn = dateEmission.toLocaleDateString("en-US");
   const echeance = new Date(dateEmission.getTime() + 14 * 24 * 60 * 60 * 1000);
@@ -44,27 +37,20 @@ export function genererFactureHTML(d: FactureData): string {
   const devise = d.devise || "EUR";
   const symbole = devise === "USD" ? "$" : devise === "EUR" ? "€" : devise;
   const projetNom = d.projet_nom || (d.projet === "hebrewpro" ? "HebrewPro AI" : "AcademIA Pro");
-
   const fmt = (n: number) => n.toFixed(2) + " " + symbole;
 
   let blocTVA = "";
   if (d.autoliquidation) {
-    blocTVA = `
-      <tr><td style="color:#666;">TVA / VAT (autoliquidation) :</td>
-      <td style="text-align:right;">0.00 ${symbole}</td></tr>`;
+    blocTVA = `<tr><td style="color:#666;">TVA / VAT (autoliquidation) :</td><td style="text-align:right;">0.00 ${symbole}</td></tr>`;
   } else if (d.taux_tva > 0) {
-    blocTVA = `
-      <tr><td style="color:#666;">TVA / VAT (${d.taux_tva}%) :</td>
-      <td style="text-align:right;">${fmt(d.montant_tva)}</td></tr>`;
+    blocTVA = `<tr><td style="color:#666;">TVA / VAT (${d.taux_tva}%) :</td><td style="text-align:right;">${fmt(d.montant_tva)}</td></tr>`;
   } else {
-    blocTVA = `
-      <tr><td style="color:#666;">TVA / VAT :</td>
-      <td style="text-align:right;">0.00 ${symbole}</td></tr>`;
+    blocTVA = `<tr><td style="color:#666;">TVA / VAT :</td><td style="text-align:right;">0.00 ${symbole}</td></tr>`;
   }
 
   let mentionTVA = "";
   if (d.autoliquidation) {
-    mentionTVA = `TVA autoliquidee par le preneur (art. 196 Directive 2006/112/CE) — VAT reverse charge, to be accounted for by the recipient. N° TVA client : ${d.numero_tva_client || "-"}`;
+    mentionTVA = `TVA autoliquidee par le preneur (art. 196 Directive 2006/112/CE) — VAT reverse charge. N° TVA client : ${d.numero_tva_client || "-"}`;
   } else if (d.taux_tva > 0) {
     mentionTVA = `TVA collectee au titre du guichet OSS UE — VAT collected under EU OSS scheme. N° OSS : ${ENTITE.numero_oss}`;
   } else {
@@ -113,7 +99,6 @@ export function genererFactureHTML(d: FactureData): string {
       <p>Echeance / Due : ${echeanceStr}</p>
     </div>
   </div>
-
   <div class="parties">
     <div class="partie">
       <h3>Emetteur / From</h3>
@@ -131,7 +116,6 @@ export function genererFactureHTML(d: FactureData): string {
       <p>Type : ${d.type_client || "B2C"}</p>
     </div>
   </div>
-
   <table class="items">
     <thead>
       <tr>
@@ -148,28 +132,22 @@ export function genererFactureHTML(d: FactureData): string {
       </tr>
     </tbody>
   </table>
-
   <div class="totaux">
     <table>
       <tbody>
-        <tr><td style="color:#666;">Total HT / Subtotal :</td>
-          <td style="text-align:right;">${fmt(d.montant_ht)}</td></tr>
+        <tr><td style="color:#666;">Total HT / Subtotal :</td><td style="text-align:right;">${fmt(d.montant_ht)}</td></tr>
         ${blocTVA}
-        <tr><td>TOTAL TTC / Total :</td>
-          <td style="text-align:right;">${fmt(d.montant_ttc)}</td></tr>
+        <tr><td>TOTAL TTC / Total :</td><td style="text-align:right;">${fmt(d.montant_ttc)}</td></tr>
       </tbody>
     </table>
   </div>
-
   <div class="mention">${mentionTVA}</div>
-
   <div class="mention" style="background:#f0f7ff;border-color:#3b82f6;">
     <strong>Paiement / Payment :</strong> ${ENTITE.stripe_link}<br/>
     Paiement securise par Stripe / Secure payment via Stripe
   </div>
-
   <div class="footer">
-    <p>Acompte / Deposit : les sommes versees a l'inscription constituent un acompte imputable sur le prix total (non des arrhes). / Amounts paid at registration are a deposit credited against the total price.</p>
+    <p>Acompte / Deposit : les sommes versees a l'inscription constituent un acompte imputable sur le prix total (non des arrhes).</p>
     <p>Penalites de retard / Late penalties : 3x taux legal + indemnite forfaitaire 40€ (art. L441-10 C. commerce).</p>
     <p>Droit applicable / Governing law : droit francais pour consommateurs UE (Reglement Rome I) ; droit du Wyoming (USA) a titre suppletif hors UE.</p>
     <p>${ENTITE.nom} · ${ENTITE.email} · ${ENTITE.site}</p>
