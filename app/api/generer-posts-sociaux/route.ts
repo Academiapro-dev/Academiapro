@@ -127,13 +127,13 @@ export async function GET(req: NextRequest) {
     {
       article_id: cible.id,
       plateforme: "linkedin",
-      contenu: posts.linkedin,
+      contenu: posts.linkedin + "\n\nOffre Fondateur : -10% a vie pour les 100 premiers - https://academiapro.fr/lancement",
       url_media: urlMedia
     },
     {
       article_id: cible.id,
       plateforme: "facebook",
-      contenu: posts.facebook,
+      contenu: posts.facebook + "\n\nOffre Fondateur : -10% a vie pour les 100 premiers - https://academiapro.fr/lancement",
       url_media: urlMedia
     }
   ];
