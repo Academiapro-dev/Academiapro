@@ -102,6 +102,7 @@ export async function GET(req: NextRequest) {
       sante.push("Liste d attente : AcademIA " + (nA ?? 0) + " | HebrewPro " + (nH ?? 0));
       const moisC = new Date().toISOString().slice(0, 7);
       const deps: any[] = Array.isArray(academia["depenses"]) ? academia["depenses"] : [];
+      sante.push("DEBUG deps=" + deps.length + " avecRec=" + deps.filter((d: any) => d.recurrente === true).length + " cles=" + (deps[0] ? Object.keys(deps[0]).slice(0, 5).join(",") : "vide"));
       const recs = Array.from(new Set(deps.filter((d: any) => d.recurrente).map((d: any) => d.fournisseur)));
       const saisis = recs.filter(f => deps.some((d: any) => d.fournisseur === f && (d.date_depense || "").startsWith(moisC)));
       const jour = new Date().getDate();
