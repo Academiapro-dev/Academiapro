@@ -1,10 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 
-const SUPABASE_URL = "https://kpxrbwsbhmggoajtxzqn.supabase.co";
-const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtweHJid3NiaG1nZ29hanR4enFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA3NzM0NjIsImV4cCI6MjA5NjM0OTQ2Mn0.J45gFfkK7PHhpCFJ5ahRDbRSeGdG9YO1aa0rRZP_lks";
-const MOT_DE_PASSE = "COMPTA2026";
-const SB = { apikey: SUPABASE_KEY, Authorization: "Bearer " + SUPABASE_KEY };
+const API = "/api/admin/compta";
 
 function trimestreActuel() {
   const d = new Date(); const t = Math.floor(d.getMonth()/3)+1;
@@ -28,26 +25,32 @@ export default function ComptabilitePage() {
 
   useEffect(() => { if (autorise) charger(); }, [autorise, trimestre]);
 
+  async function appel(corps: any) {
+    const r = await fetch(API, { method: "POST", headers: { "Content-Type": "application/json", "x-mdp-compta": mdp }, body: JSON.stringify(corps) });
+    return r.json();
+  }
+
+  async function tenterConnexion() {
+    const d = await appel({ action: "lister", trimestre });
+    if (d && d.factures) { setFactures(d.factures); setTva(d.tva || []); setDepenses(d.depenses || []); setAutorise(true); }
+    else alert("Mot de passe incorrect");
+  }
+
   async function charger() {
     setLoading(true);
     try {
-      const rf = await fetch(SUPABASE_URL+"/rest/v1/factures?select=*&order=numero.desc", { headers: SB });
-      setFactures(await rf.json());
-      const rt = await fetch(SUPABASE_URL+"/rest/v1/tva_par_periode?trimestre=eq."+trimestre+"&select=*&order=pays", { headers: SB });
-      setTva(await rt.json());
-      const rd = await fetch(SUPABASE_URL+"/rest/v1/depenses?select=*&order=date_depense.desc", { headers: SB });
-      setDepenses(await rd.json());
+      const d = await appel({ action: "lister", trimestre });
+      setFactures(d.factures || []);
+      setTva(d.tva || []);
+      setDepenses(d.depenses || []);
     } catch(e){ console.error(e); }
     setLoading(false);
   }
 
   async function ouvrirPDF(chemin: string) {
     try {
-      const r = await fetch(SUPABASE_URL+"/storage/v1/object/sign/documents-comptables/"+chemin, {
-        method:"POST", headers:{...SB,"Content-Type":"application/json"}, body: JSON.stringify({expiresIn:300})
-      });
-      const data = await r.json();
-      if (data.signedURL) window.open(SUPABASE_URL+"/storage/v1"+data.signedURL,"_blank");
+      const data = await appel({ action: "signer_pdf", chemin });
+      if (data.url) window.open(data.url, "_blank");
       else alert("PDF indisponible");
     } catch(e){ alert("Erreur PDF"); }
   }
@@ -78,14 +81,11 @@ export default function ComptabilitePage() {
     if (!f.hash_sha256) { alert("Pas de hash enregistre pour cette facture"); return; }
     if (!f.pdf_url) { alert("Pas de PDF associe"); return; }
     try {
-      // 1) obtenir URL signee
-      const rs = await fetch(SUPABASE_URL+"/storage/v1/object/sign/documents-comptables/"+f.pdf_url, {
-        method:"POST", headers:{...SB,"Content-Type":"application/json"}, body: JSON.stringify({expiresIn:60})
-      });
-      const ds = await rs.json();
-      if (!ds.signedURL) { alert("PDF inaccessible"); return; }
+      // 1) obtenir URL signee via la route serveur
+      const ds = await appel({ action: "signer_pdf", chemin: f.pdf_url });
+      if (!ds.url) { alert("PDF inaccessible"); return; }
       // 2) telecharger le PDF
-      const rp = await fetch(SUPABASE_URL+"/storage/v1"+ds.signedURL);
+      const rp = await fetch(ds.url);
       const buf = await rp.arrayBuffer();
       // 3) recalculer le hash SHA-256
       const hashBuffer = await crypto.subtle.digest("SHA-256", buf);
@@ -107,7 +107,7 @@ export default function ComptabilitePage() {
       const data = new FormData();
       Object.keys(fd).forEach(k => data.append(k, String(fd[k])));
       if (fichier) data.append("fichier", fichier);
-      const r = await fetch("/api/admin/ajouter-depense", { method: "POST", headers: { "x-mdp-compta": MOT_DE_PASSE }, body: data });
+      const r = await fetch("/api/admin/ajouter-depense", { method: "POST", headers: { "x-mdp-compta": mdp }, body: data });
       const res = await r.json();
       if (res.success) {
         alert("Depense enregistree" + (res.pdf_url ? " avec justificatif" : ""));
@@ -121,50 +121,16 @@ export default function ComptabilitePage() {
 
   async function marquerPayee(f: any) {
     if (!confirm("Marquer la facture "+f.numero+" comme payee ?")) return;
-    await fetch(SUPABASE_URL+"/rest/v1/factures?id=eq."+f.id, {
-      method:"PATCH", headers:{...SB,"Content-Type":"application/json","Prefer":"return=minimal"},
-      body: JSON.stringify({ statut_paiement:"payee", date_paiement: new Date().toISOString().slice(0,10) })
-    });
+    await appel({ action: "marquer_payee", id: f.id });
     charger();
   }
 
   async function creerAvoir(f: any) {
     if (f.est_avoir) { alert("C'est deja un avoir"); return; }
     if (!confirm("Creer un AVOIR (annulation) pour la facture "+f.numero+" ?\\nMontant negatif de -"+f.montant_ttc+" EUR")) return;
-    // numero d'avoir
-    const ra = await fetch(SUPABASE_URL+"/rest/v1/factures?numero=like.A2026-*&select=numero&order=numero.desc&limit=1", { headers: SB });
-    const av = await ra.json();
-    let n = 1;
-    if (av && av.length) n = parseInt(av[0].numero.split("-")[1])+1;
-    const numeroAvoir = "A2026-"+String(n).padStart(4,"0");
-    const avoir = {
-      numero: numeroAvoir, projet: f.projet, client_nom: f.client_nom, client_email: f.client_email,
-      client_pays: f.client_pays, type_client: f.type_client, numero_tva_client: f.numero_tva_client,
-      montant_ht: -Math.abs(f.montant_ht), taux_tva: f.taux_tva, montant_tva: -Math.abs(f.montant_tva),
-      montant_ttc: -Math.abs(f.montant_ttc), devise: f.devise, zone: f.zone, trimestre: f.trimestre,
-      autoliquidation: f.autoliquidation, description: "AVOIR sur facture "+f.numero,
-      statut:"emise", statut_paiement:"payee", est_avoir:true, facture_origine:f.numero,
-      date_emission: new Date().toISOString().slice(0,10)
-    };
-    await fetch(SUPABASE_URL+"/rest/v1/factures", {
-      method:"POST", headers:{...SB,"Content-Type":"application/json","Prefer":"return=minimal"},
-      body: JSON.stringify(avoir)
-    });
-    // maj agregation TVA (soustraction)
-    const rt = await fetch(SUPABASE_URL+"/rest/v1/tva_par_periode?trimestre=eq."+f.trimestre+"&pays=eq."+f.client_pays+"&select=*", { headers: SB });
-    const tt = await rt.json();
-    if (tt && tt.length) {
-      const l = tt[0];
-      await fetch(SUPABASE_URL+"/rest/v1/tva_par_periode?id=eq."+l.id, {
-        method:"PATCH", headers:{...SB,"Content-Type":"application/json","Prefer":"return=minimal"},
-        body: JSON.stringify({
-          total_ht: Number(l.total_ht)-Math.abs(f.montant_ht),
-          total_tva: Number(l.total_tva)-Math.abs(f.montant_tva),
-          nb_factures: l.nb_factures+1
-        })
-      });
-    }
-    alert("Avoir "+numeroAvoir+" cree");
+    const res = await appel({ action: "creer_avoir", id: f.id });
+    if (res.success) alert("Avoir " + res.numero + " cree");
+    else alert("Erreur : " + (res.error || "inconnue"));
     charger();
   }
 
@@ -199,9 +165,9 @@ export default function ComptabilitePage() {
         <h1 style={{color:"#c8a96e",fontFamily:"Georgia,serif"}}>Comptabilite</h1>
         <input type="password" placeholder="Mot de passe" value={mdp}
           onChange={e=>setMdp(e.target.value)}
-          onKeyDown={e=>e.key==="Enter"&&mdp===MOT_DE_PASSE&&setAutorise(true)}
+          onKeyDown={e=>e.key==="Enter"&&tenterConnexion()}
           style={{padding:"12px",borderRadius:"8px",border:"1px solid #c8a96e",background:"rgba(255,255,255,0.05)",color:"#fff",width:"250px"}}/>
-        <button onClick={()=>mdp===MOT_DE_PASSE&&setAutorise(true)}
+        <button onClick={()=>tenterConnexion()}
           style={{padding:"12px 30px",background:"#c8a96e",color:"#050508",border:"none",borderRadius:"8px",fontWeight:"bold",cursor:"pointer"}}>Acceder</button>
       </div>
     );
