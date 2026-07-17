@@ -263,8 +263,8 @@ export default function ComptabilitePage() {
             <h3 style={{color:"#c8a96e"}}>Depenses</h3>
             {depensesP.length===0?<p style={{color:"rgba(255,255,255,0.5)"}}>Aucune depense.</p>:
             <table style={{width:"100%",borderCollapse:"collapse"}}>
-              <thead><tr><th style={th}>Fournisseur</th><th style={th}>Categorie</th><th style={th}>TTC</th><th style={th}>Devise</th><th style={th}>Avance</th><th style={th}>Date</th></tr></thead>
-              <tbody>{depensesP.map((d,i)=>(<tr key={i}><td style={td}>{d.fournisseur}</td><td style={td}>{d.categorie}</td><td style={td}>{Number(d.montant_ttc).toFixed(2)}</td><td style={td}>{d.devise||"EUR"}</td><td style={td}>{d.avance_perso?(d.rembourse?<span style={{color:"#22c55e"}}>Remboursee</span>:<span style={{color:"#8b5cf6"}}>Avance perso</span>):"-"}</td><td style={td}>{d.date_depense}</td></tr>))}</tbody>
+              <thead><tr><th style={th}>Fournisseur</th><th style={th}>Categorie</th><th style={th}>TTC</th><th style={th}>Devise</th><th style={th}>Avance</th><th style={th}>Date</th><th style={th}>PDF</th></tr></thead>
+              <tbody>{depensesP.map((d,i)=>(<tr key={i}><td style={td}>{d.fournisseur}</td><td style={td}>{d.categorie}</td><td style={td}>{Number(d.montant_ttc).toFixed(2)}</td><td style={td}>{d.devise||"EUR"}</td><td style={td}>{d.avance_perso?(d.rembourse?<span style={{color:"#22c55e"}}>Remboursee</span>:<span style={{color:"#8b5cf6"}}>Avance perso</span>):"-"}</td><td style={td}>{d.date_depense}</td><td style={td}>{d.pdf_url?<span onClick={()=>ouvrirPDF(d.pdf_url)} style={{color:"#c8a96e",cursor:"pointer",textDecoration:"underline"}}>PDF</span>:"-"}</td></tr>))}</tbody>
             </table>}
           </div>
         )}
