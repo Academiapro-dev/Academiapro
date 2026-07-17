@@ -100,6 +100,14 @@ export async function GET(req: NextRequest) {
       const { count: nA } = await sbA.from("liste_attente").select("*", { count: "exact", head: true }).eq("projet", "academia");
       const { count: nH } = await sbA.from("liste_attente").select("*", { count: "exact", head: true }).eq("projet", "hebrewpro");
       sante.push("Liste d attente : AcademIA " + (nA ?? 0) + " | HebrewPro " + (nH ?? 0));
+      const moisC = new Date().toISOString().slice(0, 7);
+      const deps: any[] = Array.isArray(academia["depenses"]) ? academia["depenses"] : [];
+      const recs = Array.from(new Set(deps.filter((d: any) => d.recurrente).map((d: any) => d.fournisseur)));
+      const saisis = recs.filter(f => deps.some((d: any) => d.fournisseur === f && (d.date_depense || "").startsWith(moisC)));
+      const jour = new Date().getDate();
+      const manque = recs.length - saisis.length;
+      if (jour >= 25 && manque > 0) sante.push("Recurrents : " + saisis.length + "/" + recs.length + " saisis ce mois - PENSER A SAISIR");
+      else sante.push("Recurrents : " + saisis.length + "/" + recs.length + " saisis ce mois");
     } catch { sante.push("Liste d attente : lecture impossible"); }
 
     const probleme = sante.some(s => s.includes("PROBLEME") || s.includes("INJOIGNABLE") || s.includes("PAS DE PRODUCTION"));
