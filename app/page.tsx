@@ -103,6 +103,7 @@ export default function HomePage() {
 
   return (
     <div style={{ minHeight: "100vh", background: "#050508", color: "#fff", fontFamily: "Georgia, serif", direction: langue === "he" || langue === "ar" ? "rtl" : "ltr" }}>
+      <a href="/lancement" data-bandeau-fondateur style={{display:"block",textAlign:"center",padding:"10px 16px",background:"linear-gradient(90deg,#a07840,#c8a96e,#a07840)",color:"#050508",fontWeight:"bold",fontSize:"14px",textDecoration:"none"}}>Offre Fondateur : -10% a vie pour les 100 premiers inscrits — Reserver ma place</a>
 <section style={{ padding: "100px 40px", textAlign: "center", maxWidth: "900px", margin: "0 auto" }}>
         <p style={{ color: "#c8a96e", fontSize: "15px", letterSpacing: "4px", margin: "0 0 24px" }}>LA PLATEFORME DE FORMATION IA</p>
         <h1 style={{ fontSize: "52px", fontWeight: "bold", margin: "0 0 24px", lineHeight: "1.2" }}>{t("hero_titre")}</h1>
