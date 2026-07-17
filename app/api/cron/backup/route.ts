@@ -10,8 +10,10 @@ const TABLES_ACADEMIA = [
   "formations", "blog_sujets", "posts_sociaux", "videos_marketing_index",
 ];
 const TABLES_HEBREWPRO = [
-  "parametres", "compagnons", "parcours", "posts_sociaux",
-  "parrainages", "utilisateurs", "blog", "blog_traductions", "dedicaces",
+  "parametres", "compagnons", "modules", "planning_etude", "textes",
+  "posts_sociaux", "parrainages", "utilisateurs", "blog",
+  "blog_traductions", "dedicaces", "notes_etude", "memoire_havruta",
+  "dons_etude", "salles_etude",
 ];
 
 async function exporter(url: string, cle: string, tables: string[]) {
