@@ -28,7 +28,7 @@ export default function Lancement() {
       <div style={{ maxWidth: "520px", width: "100%", textAlign: "center" }}>
         <p style={{ color: "#c8a96e", fontSize: "14px", letterSpacing: "4px", margin: "0 0 20px" }}>OUVERTURE IMMINENTE</p>
         <h1 style={{ fontSize: "38px", margin: "0 0 16px", lineHeight: 1.25 }}>263 formations propulsees par l IA.<br/>Soyez parmi les premiers.</h1>
-        <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "17px", margin: "0 0 12px", lineHeight: 1.7 }}>Inscrivez-vous a la liste de lancement et beneficiez de l <b style={{color:"#c8a96e"}}>offre Founders : -50%</b> sur votre premiere formation, reservee aux membres fondateurs.</p>
+        <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "17px", margin: "0 0 12px", lineHeight: 1.7 }}>Inscrivez-vous a la liste de lancement et beneficiez de l <b style={{color:"#c8a96e"}}>Offre Fondateur : -10% a vie</b>, reservee aux 100 premiers clients.</p>
         <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "14px", margin: "0 0 32px" }}>Agent IA tuteur 24h/24 - Certification AcademIA Pro - Garantie 30 jours</p>
 
         {etat === "ok" || etat === "deja" ? (
@@ -43,7 +43,7 @@ export default function Lancement() {
             <input placeholder="Votre email" type="email" value={email} onChange={e=>setEmail(e.target.value)} onKeyDown={e=>e.key==="Enter"&&inscrire()} style={input} />
             <button onClick={inscrire} disabled={etat==="envoi"}
               style={{ width: "100%", padding: "16px", background: etat==="envoi" ? "rgba(200,169,110,0.4)" : "linear-gradient(135deg, #c8a96e, #a07840)", color: "#050508", border: "none", borderRadius: "10px", fontSize: "17px", fontWeight: "bold", cursor: etat==="envoi" ? "default" : "pointer" }}>
-              {etat === "envoi" ? "Inscription..." : "Reserver ma place a -50%"}
+              {etat === "envoi" ? "Inscription..." : "Devenir membre fondateur (-10% a vie)"}
             </button>
             {etat === "email_invalide" && <p style={{ color: "#f59e0b", marginTop: "10px" }}>Merci d indiquer un email valide.</p>}
             {etat === "erreur" && <p style={{ color: "#ef4444", marginTop: "10px" }}>Une erreur est survenue, reessayez.</p>}
