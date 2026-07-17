@@ -94,6 +94,14 @@ export async function GET(req: NextRequest) {
     sante.push(verifierProduction(hebrewpro, "posts_sociaux", "cree_le", 4));
     sante.push(verifierProduction(hebrewpro, "blog", "created_at", 8));
 
+    // Compteur liste d attente (la metrique qui compte)
+    try {
+      const sbA = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
+      const { count: nA } = await sbA.from("liste_attente").select("*", { count: "exact", head: true }).eq("projet", "academia");
+      const { count: nH } = await sbA.from("liste_attente").select("*", { count: "exact", head: true }).eq("projet", "hebrewpro");
+      sante.push("Liste d attente : AcademIA " + (nA ?? 0) + " | HebrewPro " + (nH ?? 0));
+    } catch { sante.push("Liste d attente : lecture impossible"); }
+
     const probleme = sante.some(s => s.includes("PROBLEME") || s.includes("INJOIGNABLE") || s.includes("PAS DE PRODUCTION"));
     const sujet = (probleme ? "ALERTE - " : "") + "Backup quotidien " + date + " - AcademIA + HebrewPro";
     const blocSante = "<p><b>Sante:</b><br>" + sante.join("<br>") + "</p>";
