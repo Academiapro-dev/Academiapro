@@ -30,6 +30,30 @@ async function exporter(url: string, cle: string, tables: string[]) {
   return resultat;
 }
 
+async function pingSite(url: string): Promise<string> {
+  try {
+    const debut = Date.now();
+    const r = await fetch(url, { method: "GET", cache: "no-store" });
+    const ms = Date.now() - debut;
+    return r.ok ? "OK (" + ms + " ms)" : "PROBLEME (HTTP " + r.status + ")";
+  } catch {
+    return "INJOIGNABLE";
+  }
+}
+
+function verifierProduction(exp: any, table: string, champDate: string, joursMax: number): string {
+  const lignes = exp[table];
+  if (!Array.isArray(lignes) || lignes.length === 0) return table + ": aucune donnee";
+  let plusRecent = 0;
+  for (const l of lignes) {
+    const t = new Date(l[champDate] || 0).getTime();
+    if (t > plusRecent) plusRecent = t;
+  }
+  const jours = (Date.now() - plusRecent) / 86400000;
+  if (jours > joursMax) return table + ": PAS DE PRODUCTION depuis " + Math.floor(jours) + " j";
+  return table + ": OK (dernier il y a " + Math.floor(jours) + " j)";
+}
+
 export async function GET(req: NextRequest) {
   const secret = req.nextUrl.searchParams.get("secret") || (req.headers.get("authorization") || "").replace("Bearer ", "");
   if (secret !== process.env.CRON_SECRET) {
@@ -62,6 +86,18 @@ export async function GET(req: NextRequest) {
       content: Buffer.from(JSON.stringify(objet, null, 1)).toString("base64"),
     });
 
+    // --- MONITORING ---
+    const sante: string[] = [];
+    sante.push("academiapro.fr : " + (await pingSite("https://academiapro.fr")));
+    sante.push("hebrewproai.com : " + (await pingSite("https://www.hebrewproai.com")));
+    sante.push(verifierProduction(academia, "posts_sociaux", "created_at", 4));
+    sante.push(verifierProduction(hebrewpro, "posts_sociaux", "cree_le", 4));
+    sante.push(verifierProduction(hebrewpro, "blog", "created_at", 8));
+
+    const probleme = sante.some(s => s.includes("PROBLEME") || s.includes("INJOIGNABLE") || s.includes("PAS DE PRODUCTION"));
+    const sujet = (probleme ? "ALERTE - " : "") + "Backup quotidien " + date + " - AcademIA + HebrewPro";
+    const blocSante = "<p><b>Sante:</b><br>" + sante.join("<br>") + "</p>";
+
     const r = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
@@ -71,8 +107,9 @@ export async function GET(req: NextRequest) {
       body: JSON.stringify({
         from: "AcademIA Backup <contact@hebrewproai.com>",
         to: ["contact@academiapro.fr"],
-        subject: "Backup quotidien " + date + " - AcademIA + HebrewPro",
-        html: "<h3>Backup du " + date + "</h3><p><b>AcademIA:</b><br>" + compter(academia)
+        subject: sujet,
+        html: "<h3>Backup du " + date + "</h3>" + blocSante
+          + "<p><b>AcademIA:</b><br>" + compter(academia)
           + "</p><p><b>HebrewPro:</b><br>" + compter(hebrewpro) + "</p>",
         attachments: [
           pj("backup_academia_" + date + ".json", academia),
