@@ -169,6 +169,21 @@ export default function ComptabilitePage() {
   const avancesParDevise: any = {};
   avancesNonRemb.forEach(d=>{ const dev=d.devise||"EUR"; avancesParDevise[dev]=(avancesParDevise[dev]||0)+Number(d.montant_ttc||0); });
   const texteAvances = Object.keys(avancesParDevise).map(dev=>avancesParDevise[dev].toFixed(2)+" "+dev).join(" + ")||"0.00 EUR";
+  const moisCourant = new Date().toISOString().slice(0,7);
+  const fournisseursRec = Array.from(new Set(depenses.filter((d:any)=>d.recurrente).map((d:any)=>d.fournisseur)));
+  const echeancier = fournisseursRec.map((f:any)=>{
+    const historiques = depenses.filter((d:any)=>d.fournisseur===f).sort((a:any,b:any)=>(b.date_depense||"").localeCompare(a.date_depense||""));
+    const duMois = historiques.find((d:any)=>(d.date_depense||"").startsWith(moisCourant));
+    const dernier = historiques.find((d:any)=>!(d.date_depense||"").startsWith(moisCourant)) || historiques[0];
+    const montantRef = dernier ? Number(dernier.montant_ttc) : 0;
+    let statut = "attendu";
+    if (duMois) {
+      const ecart = montantRef>0 ? Math.abs(Number(duMois.montant_ttc)-montantRef)/montantRef : 0;
+      statut = ecart>0.2 ? "inhabituel" : "saisi";
+    }
+    return { fournisseur:f, statut, montant: duMois?Number(duMois.montant_ttc):montantRef, devise:(duMois||dernier||{}).devise||"EUR" };
+  });
+  const nbSaisis = echeancier.filter((e:any)=>e.statut!=="attendu").length;
   const depensesEUR = depensesParDevise["EUR"]||0;
   const resultatNet = caHT - depensesEUR;
   const nbImpayees = facturesP.filter(f=>f.statut_paiement!=="payee" && !f.est_avoir).length;
@@ -235,6 +250,12 @@ export default function ComptabilitePage() {
             <div style={card}><p style={{color:"rgba(255,255,255,0.5)",margin:0}}>CA total (TTC)</p><h2 style={{color:"#c8a96e",margin:"8px 0 0"}}>{caTotal.toFixed(2)} EUR</h2></div>
             <div style={card}><p style={{color:"rgba(255,255,255,0.5)",margin:0}}>Depenses</p><h2 style={{color:"#c8a96e",margin:"8px 0 0",fontSize:"20px"}}>{texteDepenses}</h2></div>
             <div style={{...card,border:"1px solid "+(resultatNet>=0?"#22c55e":"#ef4444")}}><p style={{color:"rgba(255,255,255,0.5)",margin:0}}>Resultat net EUR (HT - depenses EUR)</p><h2 style={{color:resultatNet>=0?"#22c55e":"#ef4444",margin:"8px 0 0"}}>{resultatNet.toFixed(2)} EUR</h2></div>
+            <div style={{...card,border:"1px solid #38bdf8"}}><p style={{color:"rgba(255,255,255,0.5)",margin:"0 0 8px"}}>Prelevements attendus ce mois ({nbSaisis}/{echeancier.length} saisis)</p>
+              {echeancier.map((e:any)=>(<p key={e.fournisseur} style={{margin:"4px 0",fontSize:"14px"}}>
+                <span style={{color:e.statut==="saisi"?"#22c55e":e.statut==="inhabituel"?"#f59e0b":"rgba(255,255,255,0.5)"}}>{e.statut==="saisi"?"OK":e.statut==="inhabituel"?"!! ":".."}</span>
+                {" "}{e.fournisseur} — {e.montant.toFixed(2)} {e.devise}{e.statut==="inhabituel"?" (montant inhabituel)":e.statut==="attendu"?" (pas encore saisi)":""}
+              </p>))}
+            </div>
             <div style={{...card,border:"1px solid #8b5cf6"}}><p style={{color:"rgba(255,255,255,0.5)",margin:0}}>Compte courant associe ({avancesNonRemb.length} avances a rembourser)</p><h2 style={{color:"#8b5cf6",margin:"8px 0 0",fontSize:"20px"}}>{texteAvances}</h2></div>
             <div style={card}><p style={{color:"rgba(255,255,255,0.5)",margin:0}}>TVA collectee ({trimestre})</p><h2 style={{color:"#c8a96e",margin:"8px 0 0"}}>{tvaCollectee.toFixed(2)} EUR</h2></div>
             <div style={{...card,border:nbImpayees>0?"1px solid #f59e0b":card.border}}><p style={{color:"rgba(255,255,255,0.5)",margin:0}}>Factures impayees</p><h2 style={{color:nbImpayees>0?"#f59e0b":"#c8a96e",margin:"8px 0 0"}}>{nbImpayees}</h2></div>
@@ -332,6 +353,9 @@ export default function ComptabilitePage() {
               <input value={fd.description} onChange={e=>setFd({...fd,description:e.target.value})} placeholder="Abonnement API mensuel..." style={{width:"100%",padding:"10px",borderRadius:"8px",border:"1px solid #c8a96e",background:"rgba(255,255,255,0.05)",color:"#fff",boxSizing:"border-box"}}/></div>
             <label style={{display:"flex",alignItems:"center",gap:"8px",marginTop:"12px",color:"#8b5cf6",cursor:"pointer"}}>
               <input type="checkbox" checked={fd.avance_perso} onChange={e=>setFd({...fd,avance_perso:e.target.checked})}/> Avance personnelle (compte courant d associe)
+            </label>
+            <label style={{display:"flex",alignItems:"center",gap:"8px",marginTop:"8px",color:"#38bdf8",cursor:"pointer"}}>
+              <input type="checkbox" checked={fd.recurrente||false} onChange={e=>setFd({...fd,recurrente:e.target.checked})}/> Depense recurrente (abonnement mensuel)
             </label>
             <button onClick={ajouterDepense} disabled={envoi}
               style={{marginTop:"16px",padding:"12px 30px",background:envoi?"rgba(200,169,110,0.4)":"#c8a96e",color:"#050508",border:"none",borderRadius:"8px",fontWeight:"bold",cursor:envoi?"default":"pointer"}}>
