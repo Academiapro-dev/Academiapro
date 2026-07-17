@@ -82,7 +82,7 @@ export default function SessionsPage() {
           onChange={(e) => setMdp(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && tenterConnexion()}
           style={{ padding: "12px", borderRadius: "8px", border: "1px solid #c8a96e", background: "rgba(255,255,255,0.05)", color: "#fff", width: "250px" }} />
-        <button onClick={()=>setVoirLogin(!voirLogin)} style={{background:"transparent",border:"1px solid rgba(200,169,110,0.4)",color:"#c8a96e",borderRadius:"6px",padding:"6px 14px",cursor:"pointer",fontSize:"12px"}}>{voirLogin?"Masquer":"Afficher"}</button>
+        <span onClick={()=>setVoirLogin(!voirLogin)} title="oeil-v3" style={{cursor:"pointer",fontSize:"18px",marginTop:"-6px",userSelect:"none"}}>{voirLogin?"\u{1F648}":"\u{1F441}\uFE0F"}</span>
         <button onClick={tenterConnexion}
           style={{ padding: "12px 30px", background: "#c8a96e", color: "#050508", border: "none", borderRadius: "8px", fontWeight: "bold", cursor: "pointer" }}>
           {loading ? "Verification..." : "Acceder"}
