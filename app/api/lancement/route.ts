@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { limiter, ipDe } from "../../../lib/limiteur";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -10,6 +11,7 @@ const supabase = createClient(
 );
 
 export async function POST(req: NextRequest) {
+  if (!limiter(ipDe(req), "lancement", 5, 600000)) { return NextResponse.json({ error: "Trop de tentatives, reessayez dans quelques minutes" }, { status: 429 }); }
   try {
     const o = (req.headers.get("origin") || "") + (req.headers.get("referer") || "");
     if (!o.includes("academiapro.fr") && !o.includes("hebrewproai.com") && !o.includes("vercel.app") && !o.includes("localhost")) {
