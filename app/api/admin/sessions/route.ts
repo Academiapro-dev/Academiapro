@@ -8,16 +8,16 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
-const MDP = process.env.MDP_COMPTA || "COMPTA2026";
+import { verifierMdp } from "../securite/route";
 
-function autorise(req: NextRequest): boolean {
-  if ((req.headers.get("x-mdp-compta") || "") !== MDP) return false;
+async function autorise(req: NextRequest): Promise<boolean> {
+  if (!(await verifierMdp(req.headers.get("x-mdp-compta") || ""))) return false;
   const o = (req.headers.get("origin") || "") + (req.headers.get("referer") || "");
   return o.includes("academiapro.fr") || o.includes("vercel.app") || o.includes("localhost");
 }
 
 export async function POST(req: NextRequest) {
-  if (!autorise(req)) return NextResponse.json({ error: "Non autorise" }, { status: 401 });
+  if (!(await autorise(req))) return NextResponse.json({ error: "Non autorise" }, { status: 401 });
   try {
     const body = await req.json();
     const action = body.action || "";
