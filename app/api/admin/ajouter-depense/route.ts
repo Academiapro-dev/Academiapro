@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { limiter, ipDe } from "../../../../lib/limiteur";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -10,6 +11,7 @@ const supabase = createClient(
 );
 
 export async function POST(req: NextRequest) {
+  if (!limiter(ipDe(req), "depense", 10, 600000)) { return NextResponse.json({ error: "Trop de tentatives, reessayez dans quelques minutes" }, { status: 429 }); }
   try {
     // Securite : mot de passe compta + origine du site
     const mdp = req.headers.get("x-mdp-compta") || "";
