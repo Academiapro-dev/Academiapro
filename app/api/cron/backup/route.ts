@@ -17,7 +17,7 @@ const TABLES_HEBREWPRO = [
 ];
 
 async function exporter(url: string, cle: string, tables: string[]) {
-  const sb = createClient(url, cle);
+  const sb = createClient(url, cle, { db: { schema: "public" }, auth: { persistSession: false } });
   const resultat: any = {};
   for (const t of tables) {
     try {
