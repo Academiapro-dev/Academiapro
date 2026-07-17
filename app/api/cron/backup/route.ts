@@ -90,7 +90,7 @@ export async function GET(req: NextRequest) {
     const sante: string[] = [];
     sante.push("academiapro.fr : " + (await pingSite("https://academiapro.fr")));
     sante.push("hebrewproai.com : " + (await pingSite("https://www.hebrewproai.com")));
-    sante.push(verifierProduction(academia, "posts_sociaux", "created_at", 4));
+    sante.push(verifierProduction(academia, "posts_sociaux", "cree_le", 4));
     sante.push(verifierProduction(hebrewpro, "posts_sociaux", "cree_le", 4));
     sante.push(verifierProduction(hebrewpro, "blog", "created_at", 8));
 
