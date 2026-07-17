@@ -24,6 +24,7 @@ export default function ComptabilitePage() {
   const [envoi, setEnvoi] = useState(false);
   const [mdpForm, setMdpForm] = useState({ ancien: "", nouveau: "", confirme: "" });
   const [mdpEtat, setMdpEtat] = useState("");
+  const [voirMdp, setVoirMdp] = useState(false);
 
   async function changerMdp() {
     if (mdpForm.nouveau.length < 8) { setMdpEtat("court"); return; }
@@ -290,9 +291,12 @@ export default function ComptabilitePage() {
           <div style={{...card, maxWidth:"440px"}}>
             <h3 style={{color:"#c8a96e"}}>Changer le mot de passe</h3>
             <p style={{color:"rgba(255,255,255,0.5)",fontSize:"13px"}}>8 caracteres minimum. Apres le changement, vous serez deconnecte pour vous reconnecter avec le nouveau mot de passe.</p>
-            <input type="password" placeholder="Mot de passe actuel" value={mdpForm.ancien} onChange={e=>setMdpForm({...mdpForm,ancien:e.target.value})} style={{width:"100%",padding:"12px",borderRadius:"8px",border:"1px solid #c8a96e",background:"rgba(255,255,255,0.05)",color:"#fff",marginBottom:"10px",boxSizing:"border-box"}}/>
-            <input type="password" placeholder="Nouveau mot de passe" value={mdpForm.nouveau} onChange={e=>setMdpForm({...mdpForm,nouveau:e.target.value})} style={{width:"100%",padding:"12px",borderRadius:"8px",border:"1px solid #c8a96e",background:"rgba(255,255,255,0.05)",color:"#fff",marginBottom:"10px",boxSizing:"border-box"}}/>
-            <input type="password" placeholder="Confirmer le nouveau" value={mdpForm.confirme} onChange={e=>setMdpForm({...mdpForm,confirme:e.target.value})} style={{width:"100%",padding:"12px",borderRadius:"8px",border:"1px solid #c8a96e",background:"rgba(255,255,255,0.05)",color:"#fff",marginBottom:"14px",boxSizing:"border-box"}}/>
+            <div style={{display:"flex",justifyContent:"flex-end",marginBottom:"8px"}}>
+              <button onClick={()=>setVoirMdp(!voirMdp)} style={{background:"transparent",border:"1px solid rgba(200,169,110,0.4)",color:"#c8a96e",borderRadius:"6px",padding:"6px 12px",cursor:"pointer",fontSize:"12px"}}>{voirMdp?"🙈 Masquer":"👁 Afficher"}</button>
+            </div>
+            <input type={voirMdp?"text":"password"} placeholder="Mot de passe actuel" value={mdpForm.ancien} onChange={e=>setMdpForm({...mdpForm,ancien:e.target.value})} style={{width:"100%",padding:"12px",borderRadius:"8px",border:"1px solid #c8a96e",background:"rgba(255,255,255,0.05)",color:"#fff",marginBottom:"10px",boxSizing:"border-box"}}/>
+            <input type={voirMdp?"text":"password"} placeholder="Nouveau mot de passe" value={mdpForm.nouveau} onChange={e=>setMdpForm({...mdpForm,nouveau:e.target.value})} style={{width:"100%",padding:"12px",borderRadius:"8px",border:"1px solid #c8a96e",background:"rgba(255,255,255,0.05)",color:"#fff",marginBottom:"10px",boxSizing:"border-box"}}/>
+            <input type={voirMdp?"text":"password"} placeholder="Confirmer le nouveau" value={mdpForm.confirme} onChange={e=>setMdpForm({...mdpForm,confirme:e.target.value})} style={{width:"100%",padding:"12px",borderRadius:"8px",border:"1px solid #c8a96e",background:"rgba(255,255,255,0.05)",color:"#fff",marginBottom:"14px",boxSizing:"border-box"}}/>
             <button onClick={changerMdp} disabled={mdpEtat==="envoi"} style={{padding:"12px 28px",background:"#c8a96e",color:"#050508",border:"none",borderRadius:"8px",fontWeight:"bold",cursor:"pointer"}}>{mdpEtat==="envoi"?"Modification...":"Changer le mot de passe"}</button>
             {mdpEtat==="ok" && <p style={{color:"#22c55e",marginTop:"12px"}}>Mot de passe modifie. Reconnexion...</p>}
             {mdpEtat==="court" && <p style={{color:"#f59e0b",marginTop:"12px"}}>8 caracteres minimum.</p>}
