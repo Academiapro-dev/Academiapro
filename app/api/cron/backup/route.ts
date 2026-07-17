@@ -67,7 +67,7 @@ export async function GET(req: NextRequest) {
         Authorization: "Bearer " + process.env.RESEND_API_KEY,
       },
       body: JSON.stringify({
-        from: "AcademIA Backup <contact@academiapro.fr>",
+        from: "AcademIA Backup <contact@hebrewproai.com>",
         to: ["contact@academiapro.fr"],
         subject: "Backup quotidien " + date + " - AcademIA + HebrewPro",
         html: "<h3>Backup du " + date + "</h3><p><b>AcademIA:</b><br>" + compter(academia)
