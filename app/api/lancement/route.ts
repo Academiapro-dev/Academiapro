@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
           subject: "Votre place est reservee - " + nomMarque,
           html: "<p>" + bonjour + "</p>"
             + "<p>Votre inscription a la liste de lancement de <b>" + nomMarque + "</b> est confirmee.</p>"
-            + "<p>En tant que membre fondateur, vous beneficierez de <b>l offre Founders : -50%</b> sur votre premiere commande, reservee aux inscrits de cette liste.</p>"
+            + "<p>En tant que membre fondateur, vous beneficierez de <b>l Offre Fondateur : -10% a vie</b>, reservee aux 100 premiers clients.</p>"
             + "<p>Vous serez averti(e) en priorite des l ouverture.</p>"
             + "<p>A tres vite,<br>L equipe " + nomMarque + "</p>",
         }),
