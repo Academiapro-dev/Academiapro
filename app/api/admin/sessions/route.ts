@@ -9,6 +9,7 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 import { verifierMdp } from "../securite/route";
+import { limiter, ipDe } from "../../../../lib/limiteur";
 
 async function autorise(req: NextRequest): Promise<boolean> {
   if (!(await verifierMdp(req.headers.get("x-mdp-compta") || ""))) return false;
@@ -17,6 +18,7 @@ async function autorise(req: NextRequest): Promise<boolean> {
 }
 
 export async function POST(req: NextRequest) {
+  if (!limiter(ipDe(req), "sessions", 15, 600000)) { return NextResponse.json({ error: "Trop de tentatives, reessayez dans quelques minutes" }, { status: 429 }); }
   if (!(await autorise(req))) return NextResponse.json({ error: "Non autorise" }, { status: 401 });
   try {
     const body = await req.json();
