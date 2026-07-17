@@ -12,6 +12,7 @@ const ECHEANCES: any = { "T1":"30 avril","T2":"31 juillet","T3":"31 octobre","T4
 export default function ComptabilitePage() {
   const [autorise, setAutorise] = useState(false);
   const [mdp, setMdp] = useState("");
+  const [voirLogin, setVoirLogin] = useState(false);
   const [onglet, setOnglet] = useState("apercu");
   const [trimestre, setTrimestre] = useState(trimestreActuel());
   const [projet, setProjet] = useState("tous");
@@ -181,10 +182,11 @@ export default function ComptabilitePage() {
     return (
       <div style={{minHeight:"100vh",background:"#050508",color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:"20px"}}>
         <h1 style={{color:"#c8a96e",fontFamily:"Georgia,serif"}}>Comptabilite</h1>
-        <input type="password" placeholder="Mot de passe" value={mdp}
+        <input type={voirLogin?"text":"password"} placeholder="Mot de passe" value={mdp}
           onChange={e=>setMdp(e.target.value)}
           onKeyDown={e=>e.key==="Enter"&&tenterConnexion()}
           style={{padding:"12px",borderRadius:"8px",border:"1px solid #c8a96e",background:"rgba(255,255,255,0.05)",color:"#fff",width:"250px"}}/>
+        <button onClick={()=>setVoirLogin(!voirLogin)} style={{background:"transparent",border:"1px solid rgba(200,169,110,0.4)",color:"#c8a96e",borderRadius:"6px",padding:"6px 14px",cursor:"pointer",fontSize:"12px"}}>{voirLogin?"Masquer":"Afficher"}</button>
         <button onClick={()=>tenterConnexion()}
           style={{padding:"12px 30px",background:"#c8a96e",color:"#050508",border:"none",borderRadius:"8px",fontWeight:"bold",cursor:"pointer"}}>Acceder</button>
       </div>
