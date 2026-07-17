@@ -40,8 +40,12 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === "signer_pdf") {
-      const chemin = body.chemin || "";
+      let chemin = body.chemin || "";
       if (!chemin) return NextResponse.json({ error: "Chemin manquant" }, { status: 400 });
+      // Tolerance : certains pdf_url historiques incluent le nom du bucket
+      if (chemin.startsWith("documents-comptables/")) {
+        chemin = chemin.slice("documents-comptables/".length);
+      }
       const { data, error } = await supabase.storage
         .from("documents-comptables").createSignedUrl(chemin, 300);
       if (error || !data) return NextResponse.json({ error: "PDF indisponible" }, { status: 404 });
