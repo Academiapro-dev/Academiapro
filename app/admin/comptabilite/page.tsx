@@ -22,6 +22,23 @@ export default function ComptabilitePage() {
   const [fd, setFd] = useState<any>({fournisseur:"",categorie:"Logiciels",description:"",pays_fournisseur:"US",projet:"academia",montant_ttc:"",devise:"USD",avance_perso:true,date_depense:new Date().toISOString().slice(0,10)});
   const [fichier, setFichier] = useState<File|null>(null);
   const [envoi, setEnvoi] = useState(false);
+  const [mdpForm, setMdpForm] = useState({ ancien: "", nouveau: "", confirme: "" });
+  const [mdpEtat, setMdpEtat] = useState("");
+
+  async function changerMdp() {
+    if (mdpForm.nouveau.length < 8) { setMdpEtat("court"); return; }
+    if (mdpForm.nouveau !== mdpForm.confirme) { setMdpEtat("differents"); return; }
+    setMdpEtat("envoi");
+    try {
+      const r = await fetch("/api/admin/securite", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "changer_mdp", ancien: mdpForm.ancien, nouveau: mdpForm.nouveau }) });
+      const d = await r.json();
+      if (d.success) {
+        setMdpEtat("ok");
+        setMdpForm({ ancien: "", nouveau: "", confirme: "" });
+        setTimeout(() => { setAutorise(false); setMdp(""); }, 2500);
+      } else setMdpEtat(d.error || "erreur");
+    } catch { setMdpEtat("erreur reseau"); }
+  }
 
   useEffect(() => { if (autorise) charger(); }, [autorise, trimestre]);
 
@@ -173,7 +190,7 @@ export default function ComptabilitePage() {
     );
   }
 
-  const onglets = [["apercu","Vue d'ensemble"],["tva","TVA a declarer"],["factures","Factures"],["depenses","Depenses"],["seuils","Alertes seuils"],["export","Export trimestre"],["ajouter","+ Depense"]];
+  const onglets = [["apercu","Vue d'ensemble"],["tva","TVA a declarer"],["factures","Factures"],["depenses","Depenses"],["seuils","Alertes seuils"],["export","Export trimestre"],["ajouter","+ Depense"],["mdp","🔑 Mot de passe"]];
   const card = {background:"rgba(255,255,255,0.03)",border:"1px solid rgba(200,169,110,0.2)",borderRadius:"12px",padding:"20px"};
   const th = {textAlign:"left" as const,padding:"8px",color:"#c8a96e",borderBottom:"1px solid rgba(200,169,110,0.2)"};
   const td = {padding:"8px",borderBottom:"1px solid rgba(255,255,255,0.05)"};
@@ -266,6 +283,21 @@ export default function ComptabilitePage() {
               <thead><tr><th style={th}>Fournisseur</th><th style={th}>Categorie</th><th style={th}>TTC</th><th style={th}>Devise</th><th style={th}>Avance</th><th style={th}>Date</th><th style={th}>PDF</th></tr></thead>
               <tbody>{depensesP.map((d,i)=>(<tr key={i}><td style={td}>{d.fournisseur}</td><td style={td}>{d.categorie}</td><td style={td}>{Number(d.montant_ttc).toFixed(2)}</td><td style={td}>{d.devise||"EUR"}</td><td style={td}>{d.avance_perso?(d.rembourse?<span style={{color:"#22c55e"}}>Remboursee</span>:<span style={{color:"#8b5cf6"}}>Avance perso</span>):"-"}</td><td style={td}>{d.date_depense}</td><td style={td}>{d.pdf_url?<span onClick={()=>ouvrirPDF(d.pdf_url)} style={{color:"#c8a96e",cursor:"pointer",textDecoration:"underline"}}>PDF</span>:"-"}</td></tr>))}</tbody>
             </table>}
+          </div>
+        )}
+
+        {onglet==="mdp" && (
+          <div style={{...card, maxWidth:"440px"}}>
+            <h3 style={{color:"#c8a96e"}}>Changer le mot de passe</h3>
+            <p style={{color:"rgba(255,255,255,0.5)",fontSize:"13px"}}>8 caracteres minimum. Apres le changement, vous serez deconnecte pour vous reconnecter avec le nouveau mot de passe.</p>
+            <input type="password" placeholder="Mot de passe actuel" value={mdpForm.ancien} onChange={e=>setMdpForm({...mdpForm,ancien:e.target.value})} style={{width:"100%",padding:"12px",borderRadius:"8px",border:"1px solid #c8a96e",background:"rgba(255,255,255,0.05)",color:"#fff",marginBottom:"10px",boxSizing:"border-box"}}/>
+            <input type="password" placeholder="Nouveau mot de passe" value={mdpForm.nouveau} onChange={e=>setMdpForm({...mdpForm,nouveau:e.target.value})} style={{width:"100%",padding:"12px",borderRadius:"8px",border:"1px solid #c8a96e",background:"rgba(255,255,255,0.05)",color:"#fff",marginBottom:"10px",boxSizing:"border-box"}}/>
+            <input type="password" placeholder="Confirmer le nouveau" value={mdpForm.confirme} onChange={e=>setMdpForm({...mdpForm,confirme:e.target.value})} style={{width:"100%",padding:"12px",borderRadius:"8px",border:"1px solid #c8a96e",background:"rgba(255,255,255,0.05)",color:"#fff",marginBottom:"14px",boxSizing:"border-box"}}/>
+            <button onClick={changerMdp} disabled={mdpEtat==="envoi"} style={{padding:"12px 28px",background:"#c8a96e",color:"#050508",border:"none",borderRadius:"8px",fontWeight:"bold",cursor:"pointer"}}>{mdpEtat==="envoi"?"Modification...":"Changer le mot de passe"}</button>
+            {mdpEtat==="ok" && <p style={{color:"#22c55e",marginTop:"12px"}}>Mot de passe modifie. Reconnexion...</p>}
+            {mdpEtat==="court" && <p style={{color:"#f59e0b",marginTop:"12px"}}>8 caracteres minimum.</p>}
+            {mdpEtat==="differents" && <p style={{color:"#f59e0b",marginTop:"12px"}}>Les deux saisies ne correspondent pas.</p>}
+            {mdpEtat && !["ok","court","differents","envoi"].includes(mdpEtat) && <p style={{color:"#ef4444",marginTop:"12px"}}>{mdpEtat}</p>}
           </div>
         )}
 
