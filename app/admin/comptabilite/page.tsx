@@ -23,6 +23,32 @@ export default function ComptabilitePage() {
   const [fd, setFd] = useState<any>({fournisseur:"",categorie:"Logiciels",description:"",pays_fournisseur:"US",projet:"academia",montant_ttc:"",devise:"USD",avance_perso:true,date_depense:new Date().toISOString().slice(0,10)});
   const [fichier, setFichier] = useState<File|null>(null);
   const [envoi, setEnvoi] = useState(false);
+  const [analyse, setAnalyse] = useState("");
+
+  async function analyserJustificatif() {
+    if (!fichier) { alert("Choisis d abord un fichier justificatif"); return; }
+    setAnalyse("encours");
+    try {
+      const data = new FormData();
+      data.append("fichier", fichier);
+      const r = await fetch("/api/admin/analyser-justificatif", { method: "POST", headers: { "x-mdp-compta": mdp }, body: data });
+      const res = await r.json();
+      if (res.success && res.extrait) {
+        const e = res.extrait;
+        setFd({
+          ...fd,
+          fournisseur: e.fournisseur || fd.fournisseur,
+          montant_ttc: e.montant_ttc != null ? String(e.montant_ttc) : fd.montant_ttc,
+          devise: e.devise === "EUR" || e.devise === "USD" ? e.devise : fd.devise,
+          date_depense: e.date_depense || fd.date_depense,
+          pays_fournisseur: e.pays_fournisseur || fd.pays_fournisseur,
+          categorie: e.categorie || fd.categorie,
+          description: e.description || fd.description,
+        });
+        setAnalyse("ok");
+      } else setAnalyse(res.error || "echec");
+    } catch { setAnalyse("erreur reseau"); }
+  }
   const [mdpForm, setMdpForm] = useState({ ancien: "", nouveau: "", confirme: "" });
   const [mdpEtat, setMdpEtat] = useState("");
   const [voirMdp, setVoirMdp] = useState(false);
@@ -347,7 +373,12 @@ export default function ComptabilitePage() {
               <div><p style={{color:"rgba(255,255,255,0.5)",fontSize:"12px",margin:"0 0 4px"}}>Date</p>
                 <input type="date" value={fd.date_depense} onChange={e=>setFd({...fd,date_depense:e.target.value})} style={{width:"100%",padding:"10px",borderRadius:"8px",border:"1px solid #c8a96e",background:"rgba(255,255,255,0.05)",color:"#fff",boxSizing:"border-box"}}/></div>
               <div><p style={{color:"rgba(255,255,255,0.5)",fontSize:"12px",margin:"0 0 4px"}}>Justificatif (PDF/image)</p>
-                <input type="file" accept=".pdf,image/*" onChange={e=>setFichier(e.target.files?.[0]||null)} style={{width:"100%",color:"#fff",fontSize:"13px"}}/></div>
+                <input type="file" accept=".pdf,image/*" onChange={e=>{setFichier(e.target.files?.[0]||null);setAnalyse("");}} style={{width:"100%",color:"#fff",fontSize:"13px"}}/>
+                {fichier && <button onClick={analyserJustificatif} disabled={analyse==="encours"}
+                  style={{marginTop:"8px",padding:"10px 18px",background:analyse==="encours"?"rgba(56,189,248,0.4)":"#38bdf8",color:"#050508",border:"none",borderRadius:"8px",fontWeight:"bold",cursor:analyse==="encours"?"default":"pointer",fontSize:"13px"}}>
+                  {analyse==="encours" ? "Analyse en cours..." : "Analyser avec IA"}</button>}
+                {analyse==="ok" && <p style={{color:"#22c55e",fontSize:"12px",marginTop:"6px"}}>Champs remplis - verifie et complete si besoin</p>}
+                {analyse && analyse!=="ok" && analyse!=="encours" && <p style={{color:"#f59e0b",fontSize:"12px",marginTop:"6px"}}>{analyse} - saisie manuelle</p>}</div>
             </div>
             <div style={{marginTop:"12px"}}><p style={{color:"rgba(255,255,255,0.5)",fontSize:"12px",margin:"0 0 4px"}}>Description</p>
               <input value={fd.description} onChange={e=>setFd({...fd,description:e.target.value})} placeholder="Abonnement API mensuel..." style={{width:"100%",padding:"10px",borderRadius:"8px",border:"1px solid #c8a96e",background:"rgba(255,255,255,0.05)",color:"#fff",boxSizing:"border-box"}}/></div>
