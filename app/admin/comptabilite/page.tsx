@@ -25,12 +25,46 @@ export default function ComptabilitePage() {
   const [envoi, setEnvoi] = useState(false);
   const [analyse, setAnalyse] = useState("");
 
+  async function compresserImage(f: File): Promise<Blob> {
+    return new Promise((resolve) => {
+      const img = new Image();
+      const url = URL.createObjectURL(f);
+      img.onload = () => {
+        const maxDim = 1600;
+        let w = img.width, h = img.height;
+        if (w > maxDim || h > maxDim) {
+          const ratio = Math.min(maxDim / w, maxDim / h);
+          w = Math.round(w * ratio); h = Math.round(h * ratio);
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) { resolve(f); return; }
+        ctx.drawImage(img, 0, 0, w, h);
+        canvas.toBlob((b) => resolve(b || f), "image/jpeg", 0.85);
+        URL.revokeObjectURL(url);
+      };
+      img.onerror = () => resolve(f);
+      img.src = url;
+    });
+  }
+
   async function analyserJustificatif() {
     if (!fichier) { alert("Choisis d abord un fichier justificatif"); return; }
     setAnalyse("encours");
     try {
+      let envoi_fichier: Blob = fichier;
+      let nom = fichier.name;
+      if (fichier.type.startsWith("image/")) {
+        envoi_fichier = await compresserImage(fichier);
+        nom = "justificatif.jpg";
+      }
+      if (envoi_fichier.size > 4 * 1024 * 1024) {
+        setAnalyse("fichier trop lourd meme compresse");
+        return;
+      }
       const data = new FormData();
-      data.append("fichier", fichier);
+      data.append("fichier", envoi_fichier, nom);
       const r = await fetch("/api/admin/analyser-justificatif", { method: "POST", headers: { "x-mdp-compta": mdp }, body: data });
       const res = await r.json();
       if (res.success && res.extrait) {
