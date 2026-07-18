@@ -66,7 +66,9 @@ export default function ComptabilitePage() {
       const data = new FormData();
       data.append("fichier", envoi_fichier, nom);
       const r = await fetch("/api/admin/analyser-justificatif", { method: "POST", headers: { "x-mdp-compta": mdp }, body: data });
-      const res = await r.json();
+      let res: any = null;
+      try { res = await r.json(); }
+      catch { setAnalyse("HTTP " + r.status + " (reponse non JSON)"); return; }
       if (res.success && res.extrait) {
         const e = res.extrait;
         setFd({
@@ -81,7 +83,7 @@ export default function ComptabilitePage() {
         });
         setAnalyse("ok");
       } else setAnalyse(res.error || "echec");
-    } catch { setAnalyse("erreur reseau"); }
+    } catch (err: any) { setAnalyse("fetch: " + String(err && err.message ? err.message : err).slice(0, 80)); }
   }
   const [mdpForm, setMdpForm] = useState({ ancien: "", nouveau: "", confirme: "" });
   const [mdpEtat, setMdpEtat] = useState("");
