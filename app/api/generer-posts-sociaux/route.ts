@@ -128,14 +128,14 @@ export async function GET(req: NextRequest) {
       article_id: cible.id,
       plateforme: "linkedin",
       statut: "a_publis",
-      contenu: posts.linkedin + "\n\nOffre Fondateur : -10% a vie pour les 100 premiers - https://academiapro.fr/lancement",
+      contenu: posts.linkedin + "\n\nOffre Fondateur : -10% a vie pour les 100 premiers - https://academiapro.fr/lancement\n\nRecevez le catalogue complet : https://academiapro.fr/interet",
       url_media: urlMedia
     },
     {
       article_id: cible.id,
       plateforme: "facebook",
       statut: "a_publier",
-      contenu: posts.facebook + "\n\nOffre Fondateur : -10% a vie pour les 100 premiers - https://academiapro.fr/lancement",
+      contenu: posts.facebook + "\n\nOffre Fondateur : -10% a vie pour les 100 premiers - https://academiapro.fr/lancement\n\nRecevez le catalogue complet : https://academiapro.fr/interet",
       url_media: urlMedia
     }
   ];
