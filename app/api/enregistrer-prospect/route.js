@@ -37,10 +37,16 @@ export async function POST(req) {
 
   if (error) {
     if (error.code === "23505") {
-      return NextResponse.json({ ok: true, info: "deja inscrit" });
+      return NextResponse.json({ ok: true, info: "deja inscrit", debug_doublon: true });
     }
-    return NextResponse.json({ erreur: "enregistrement impossible" }, { status: 500 });
+    return NextResponse.json({ erreur: "enregistrement impossible", debug_code: error.code, debug_msg: error.message }, { status: 500 });
   }
+
+  const urlBase = (process.env.NEXT_PUBLIC_SUPABASE_URL || "absente").slice(8, 28);
+  return NextResponse.json({ ok: true, debug_base: urlBase });
+}
+/* ancien return ci-dessous neutralise */
+async function _ancienne_fin() {
 
   try {
     const resend = new Resend(process.env.RESEND_API_KEY);
