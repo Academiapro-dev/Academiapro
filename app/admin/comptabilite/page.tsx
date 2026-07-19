@@ -232,6 +232,12 @@ export default function ComptabilitePage() {
   avancesNonRemb.forEach(d=>{ const dev=d.devise||"EUR"; avancesParDevise[dev]=(avancesParDevise[dev]||0)+Number(d.montant_ttc||0); });
   const texteAvances = Object.keys(avancesParDevise).map(dev=>avancesParDevise[dev].toFixed(2)+" "+dev).join(" + ")||"0.00 EUR";
   const moisCourant = new Date().toISOString().slice(0,7);
+  async function supprimerDepense(d:any){
+    if(!confirm("Supprimer la depense " + d.fournisseur + " du " + d.date_depense + " ?")) return;
+    const r = await fetch("/api/admin/compta", { method:"POST", headers:{ "Content-Type":"application/json", "x-mdp-compta": mdp }, body: JSON.stringify({ action:"supprimer_depense", id: d.id }) });
+    if(r.ok){ window.location.reload(); } else { alert("Suppression impossible"); }
+  }
+
   const fournisseursRec = Array.from(new Set(depenses.filter((d:any)=>d.recurrente).map((d:any)=>d.fournisseur)));
   const echeancier = fournisseursRec.map((f:any)=>{
     const historiques = depenses.filter((d:any)=>d.fournisseur===f).sort((a:any,b:any)=>(b.date_depense||"").localeCompare(a.date_depense||""));
@@ -366,8 +372,8 @@ export default function ComptabilitePage() {
             <h3 style={{color:"#c8a96e"}}>Depenses</h3>
             {depensesP.length===0?<p style={{color:"rgba(255,255,255,0.5)"}}>Aucune depense.</p>:
             <table style={{width:"100%",borderCollapse:"collapse"}}>
-              <thead><tr><th style={th}>Fournisseur</th><th style={th}>Categorie</th><th style={th}>TTC</th><th style={th}>Devise</th><th style={th}>Avance</th><th style={th}>Date</th><th style={th}>PDF</th></tr></thead>
-              <tbody>{depensesP.map((d,i)=>(<tr key={i}><td style={td}>{d.fournisseur}</td><td style={td}>{d.categorie}</td><td style={td}>{Number(d.montant_ttc).toFixed(2)}</td><td style={td}>{d.devise||"EUR"}</td><td style={td}>{d.avance_perso?(d.rembourse?<span style={{color:"#22c55e"}}>Remboursee</span>:<span style={{color:"#8b5cf6"}}>Avance perso</span>):"-"}</td><td style={td}>{d.date_depense}</td><td style={td}>{d.pdf_url?<span onClick={()=>ouvrirPDF(d.pdf_url)} style={{color:"#c8a96e",cursor:"pointer",textDecoration:"underline"}}>PDF</span>:"-"}</td></tr>))}</tbody>
+              <thead><tr><th style={th}>Fournisseur</th><th style={th}>Categorie</th><th style={th}>TTC</th><th style={th}>Devise</th><th style={th}>Avance</th><th style={th}>Date</th><th style={th}>PDF</th><th style={th}>Suppr</th></tr></thead>
+              <tbody>{depensesP.map((d,i)=>(<tr key={i}><td style={td}>{d.fournisseur}</td><td style={td}>{d.categorie}</td><td style={td}>{Number(d.montant_ttc).toFixed(2)}</td><td style={td}>{d.devise||"EUR"}</td><td style={td}>{d.avance_perso?(d.rembourse?<span style={{color:"#22c55e"}}>Remboursee</span>:<span style={{color:"#8b5cf6"}}>Avance perso</span>):"-"}</td><td style={td}>{d.date_depense}</td><td style={td}>{d.pdf_url?<span onClick={()=>ouvrirPDF(d.pdf_url)} style={{color:"#c8a96e",cursor:"pointer",textDecoration:"underline"}}>PDF</span>:"-"}</td><td style={td}><span onClick={()=>supprimerDepense(d)} style={{color:"#ef4444",cursor:"pointer",fontWeight:"bold"}}>X</span></td></tr>))}</tbody>
             </table>}
           </div>
         )}
