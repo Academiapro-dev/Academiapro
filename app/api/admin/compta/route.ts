@@ -41,6 +41,14 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    if (action === "supprimer_depense") {
+      const id = body.id;
+      if (!id) return NextResponse.json({ error: "Id manquant" }, { status: 400 });
+      const { error } = await supabase.from("depenses").delete().eq("id", id);
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ ok: true });
+    }
+
     if (action === "signer_pdf") {
       let chemin = body.chemin || "";
       if (!chemin) return NextResponse.json({ error: "Chemin manquant" }, { status: 400 });
