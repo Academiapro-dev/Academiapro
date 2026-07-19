@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { limiter, ipDe } from "../../../../lib/limiteur";
+import crypto from "crypto";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -15,7 +16,10 @@ export async function POST(req: NextRequest) {
   try {
     // Securite : mot de passe compta + origine du site
     const mdp = req.headers.get("x-mdp-compta") || "";
-    if (mdp !== "COMPTA2026") {
+    const { data: sec } = await supabase.from("parametres_securite")
+      .select("hash, sel").eq("cle", "mdp_admin").single();
+    const hashOk = sec ? crypto.createHash("sha256").update(mdp + sec.sel).digest("hex") === sec.hash : false;
+    if (!hashOk) {
       return NextResponse.json({ error: "Non autorise" }, { status: 401 });
     }
     const origine = (req.headers.get("origin") || "") + (req.headers.get("referer") || "");
