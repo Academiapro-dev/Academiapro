@@ -5,6 +5,7 @@ export default function PageInteret() {
   const [prenom, setPrenom] = useState('');
   const [email, setEmail] = useState('');
   const [interet, setInteret] = useState('');
+  const [message, setMessage] = useState('');
   const [consent, setConsent] = useState(false);
   const [etat, setEtat] = useState('formulaire');
   const [erreur, setErreur] = useState('');
@@ -24,7 +25,7 @@ export default function PageInteret() {
       const r = await fetch('/api/enregistrer-prospect', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prenom, email, interet, consentement: consent })
+        body: JSON.stringify({ prenom, email, interet, message, consentement: consent })
       });
       const d = await r.json();
       if (r.ok) { setEtat('merci'); } else { setEtat('formulaire'); setErreur(d.erreur || 'Une erreur est survenue.'); }
@@ -65,6 +66,10 @@ export default function PageInteret() {
         <option value="">-- Choisir --</option>
         {domaines.map((d) => <option key={d} value={d}>{d}</option>)}
       </select>
+      <label style={{ display: 'block', marginBottom: 6, fontWeight: 'bold' }}>Votre message (optionnel)</label>
+      <textarea value={message} onChange={(e) => setMessage(e.target.value)} rows={4}
+        placeholder="Dites-nous ce que vous cherchez"
+        style={{ width: '100%', padding: '10px 12px', marginBottom: 18, borderRadius: 8, border: '1px solid #ccc', fontFamily: 'inherit' }} />
       <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 22, fontSize: '0.9rem', lineHeight: 1.5 }}>
         <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} style={{ marginTop: 3 }} />
         <span>J&apos;accepte de recevoir par email les informations et offres d&apos;AcademIA Pro.
