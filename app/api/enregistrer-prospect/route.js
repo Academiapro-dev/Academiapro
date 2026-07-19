@@ -13,6 +13,7 @@ export async function POST(req) {
   const email = (corps.email || "").trim().toLowerCase();
   const prenom = (corps.prenom || "").trim().slice(0, 80);
   const interet = (corps.interet || "").trim().slice(0, 120);
+  const message = (corps.message || "").trim().slice(0, 1000);
   const consentement = corps.consentement === true;
 
   if (!email || !email.includes("@") || email.length > 200) {
@@ -28,7 +29,7 @@ export async function POST(req) {
   );
 
   const { error } = await supabase.from("prospects").insert({
-    email, prenom, interet,
+    email, prenom, interet, message,
     source: "formulaire",
     consentement_marketing: true,
     date_consentement: new Date().toISOString()
@@ -53,6 +54,7 @@ export async function POST(req) {
         "<p>AcademIA Pro, c'est 263 formations professionnelles avec IA integree" +
         (interet ? ", dont plusieurs dans le domaine qui vous interesse : <strong>" + interet + "</strong>" : "") +
         ".</p>" +
+        (message ? "<p>Nous avons bien note votre message et vous repondrons personnellement.</p>" : "") +
         "<p>Decouvrez le catalogue : <a href=\"https://academiapro.fr\">academiapro.fr</a></p>" +
         "<p>Au lancement, l'Offre Fondateur reservera un avantage exclusif aux 100 premiers inscrits &mdash; vous serez prevenu en priorite.</p>" +
         "<p>A tres vite,<br/>Jacques, fondateur<br/>AcademIA Pro</p>" +
