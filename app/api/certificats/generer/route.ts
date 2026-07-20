@@ -19,7 +19,7 @@ async function delivrer(email: string, nom: string, formation: string, score: an
     const ri = await fetch(SB_URL + "/rest/v1/certificats_delivres", {
       method: "POST",
       headers: { ...HD, Prefer: "return=minimal" },
-      body: JSON.stringify({ certif_id, user_email: email, nom })
+      body: JSON.stringify({ certif_id, user_email: email, nom, formation_code: formation })
     });
     if (ri.ok) { insertion = true; } else { erreur_insertion = (await ri.text()).slice(0, 300); }
   } catch (e: any) { erreur_insertion = String(e).slice(0, 300); }
@@ -47,7 +47,7 @@ async function delivrer(email: string, nom: string, formation: string, score: an
       if (re.ok) { email_envoye = true; } else { erreur_email = rtxt.slice(0, 300); }
     } catch (e: any) { erreur_email = String(e).slice(0, 300); }
   }
-  return { ok: insertion && email_envoye, certif_id, insertion, erreur_insertion, email_envoye, erreur_email, cle_resend_presente: !!rk, url_supabase_presente: !!SB_URL };
+  return { ok: insertion && email_envoye, certif_id, insertion, erreur_insertion, email_envoye, erreur_email };
 }
 
 export async function GET(req: Request) {
