@@ -81,7 +81,7 @@ export async function POST(req: NextRequest) {
       <li>Onboarding de vos equipes</li>
     </ol>
   </div>
-  <p>A tres bientot,<br/><strong>Jacques Lalou — AcadémIA Pro</strong></p>
+  <p>A tres bientot,<br/><strong>Jacques, fondateur — AcadémIA Pro</strong></p>
 </div>`,
         }),
       });
