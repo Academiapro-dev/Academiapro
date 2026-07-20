@@ -110,7 +110,7 @@ export default async function PageBlog() {
                 alignItems: "center" }}>
                 <span style={{ color: "rgba(255,255,255,0.4)",
                   fontSize: 13 }}>
-                  Jacques Lalou
+                  AcadémIA Pro
                 </span>
                 <span style={{ color: "#c8a96e", fontSize: 14,
                   fontWeight: 700 }}>
