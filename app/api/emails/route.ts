@@ -58,7 +58,7 @@ const TEMPLATES: Record<string, (data: any) => { subject: string; html: string }
     Accéder à mon espace
   </a>
   <p style="color:rgba(255,255,255,0.5);font-size:13px;margin-top:30px;">
-    Jacques Lalou · Fondateur AcadémIA Pro
+    Jacques · Fondateur AcadémIA Pro
   </p>
 </div>`,
   }),
