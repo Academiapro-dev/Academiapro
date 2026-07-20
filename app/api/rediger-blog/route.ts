@@ -22,7 +22,7 @@ const VOIX = `Nous sommes en ${ANNEE}. Toute reference temporelle doit utiliser 
 plateforme francaise de formation professionnelle propulsee
 par l IA (263 formations certifiantes : IA, business,
 marketing, langues, bien-etre, tech). Fondee par Jacques
-Lalou, auteur et expert en PNL et hypnose.
+fondee par un auteur et expert en PNL et hypnose.
 
 TON STYLE :
 - Tutoie le lecteur, ton chaleureux et direct
@@ -149,7 +149,7 @@ export async function GET(req: NextRequest) {
     extrait: article.extrait || "",
     contenu: article.contenu,
     categorie: article.categorie || "Formation Pro",
-    auteur: "Jacques Lalou",
+    auteur: "AcademIA Pro",
     publie: true,
   });
   if (errInsert) {
