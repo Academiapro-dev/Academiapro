@@ -42,7 +42,7 @@ async function sendEmailFelicitations(email: string, nom: string, formation: str
       from: "AcadémiA Pro <contact@academiapro.fr>",
       to: [email],
       subject: "Félicitations " + prenom + ", votre manuel est prêt !",
-      html: "<div style='font-family:Georgia,serif;background:#0a0a0a;color:#f5f5f5;padding:40px;'><h1 style='color:#c8a96e;'>Félicitations " + prenom + " !</h1><div style='background:#ffffff;color:#1a1a1a;padding:32px;border-left:3px solid #c8a96e;border-radius:8px;'>" + contenuManuel + "</div><a href='https://academiapro.fr/espace-apprenant' style='display:block;background:#c8a96e;color:#0a0a0a;text-align:center;padding:15px;border-radius:8px;text-decoration:none;font-weight:bold;margin-top:20px;'>Accéder à mon Espace Apprenant</a><p style='color:#888;margin-top:20px;'>Jacques Lalou<br/>Fondateur AcadémiA Pro</p></div>",
+      html: "<div style='font-family:Georgia,serif;background:#0a0a0a;color:#f5f5f5;padding:40px;'><h1 style='color:#c8a96e;'>Félicitations " + prenom + " !</h1><div style='background:#ffffff;color:#1a1a1a;padding:32px;border-left:3px solid #c8a96e;border-radius:8px;'>" + contenuManuel + "</div><a href='https://academiapro.fr/espace-apprenant' style='display:block;background:#c8a96e;color:#0a0a0a;text-align:center;padding:15px;border-radius:8px;text-decoration:none;font-weight:bold;margin-top:20px;'>Accéder à mon Espace Apprenant</a><p style='color:#888;margin-top:20px;'>Jacques, fondateur<br/>Fondateur AcadémiA Pro</p></div>",
     }),
   });
 }
