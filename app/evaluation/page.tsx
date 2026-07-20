@@ -20,29 +20,41 @@ function Evaluation() {
       .then(r => r.json()).then(d => setQuestions(d.questions || []));
   }, [formation, type]);
 
+  const imprimer = () => {
+    if (!certif || !certif.certif_html) return;
+    const win = window.open("", "_blank");
+    if (win) { win.document.write(certif.certif_html); win.document.close(); win.print(); }
+  };
+
   const envoyer = async () => {
     setEnvoi(true);
-    const r = await fetch("/api/evaluations", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, formation, type, reponses }) });
-    const d = await r.json();
-    setResultat(d);
-    if (type === "finale" && d.total > 0 && d.score / d.total >= 0.6) {
-      const rc = await fetch("/api/certificats/generer", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, nom: nom || email, formation, score: d.score, total: d.total }) });
-      setCertif(await rc.json());
-    }
+    try {
+      const r = await fetch("/api/evaluations", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, formation, type, reponses }) });
+      const d = await r.json();
+      setResultat(d);
+      if (type === "finale" && d.total > 0 && d.score / d.total >= 0.6) {
+        const rc = await fetch("/api/admin/certificat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nom: nom || email, formation: formation, code: formation, niveau: "Certifi&eacute;", date: new Date().toLocaleDateString("fr-FR"), userEmail: email }) });
+        setCertif(await rc.json());
+      }
+    } catch (e) { setResultat({ score: 0, total: 0, erreur: String(e) }); }
     setEnvoi(false);
   };
 
   if (resultat) return (
-    <div style={{ maxWidth: 640, margin: "40px auto", padding: 24, fontFamily: "system-ui" }}>
+    <div style={{ maxWidth: 760, margin: "40px auto", padding: 24, fontFamily: "system-ui" }}>
       <h1>{type === "finale" ? "Evaluation finale" : "Positionnement"} : r&eacute;sultat</h1>
       <p style={{ fontSize: 22 }}>Score : <b>{resultat.score} / {resultat.total}</b></p>
-      {certif && certif.certif_id && (
-        <div style={{ padding: 14, border: "1px solid #16a34a", borderRadius: 8, margin: "12px 0" }}>
-          <p><b>Certificat {certif.certif_id}</b></p>
-          <p>Enregistrement : {certif.insertion ? "OK" : "ECHEC - " + certif.erreur_insertion}</p>
-          <p>Email : {certif.email_envoye ? "envoy&eacute; &agrave; " + email : "ECHEC - " + certif.erreur_email}</p>
-          <a href={"/attestation?nom=" + encodeURIComponent(nom || email) + "&formation=" + encodeURIComponent(formation) + "&score=" + resultat.score + "&total=" + resultat.total} style={{ color: "#1d4ed8" }}>Voir mon certificat de r&eacute;alisation</a>
+      {certif && certif.success && (
+        <div style={{ padding: 14, border: "1px solid #D4AF37", borderRadius: 8, margin: "12px 0" }}>
+          <p><b>Certificat officiel {certif.certif_id}</b> &mdash; un email de confirmation vous a &eacute;t&eacute; envoy&eacute;.</p>
+          <iframe srcDoc={certif.certif_html} style={{ width: "100%", height: 430, border: 0, borderRadius: 8, background: "#000", marginTop: 10 }} />
+          <div style={{ marginTop: 10 }}>
+            <button onClick={imprimer} style={{ padding: "10px 24px", background: "#D4AF37", color: "#0a0a1a", border: 0, borderRadius: 8, fontWeight: 700 }}>Imprimer / Enregistrer en PDF</button>
+          </div>
         </div>
+      )}
+      {certif && !certif.success && (
+        <p style={{ color: "#b91c1c" }}>La g&eacute;n&eacute;ration du certificat officiel a rencontr&eacute; un probl&egrave;me &mdash; votre r&eacute;ussite est bien enregistr&eacute;e, le certificat pourra &ecirc;tre r&eacute;&eacute;mis.</p>
       )}
       {type === "finale" && resultat.total > 0 && resultat.score / resultat.total < 0.6 && (
         <p>Score inf&eacute;rieur au seuil de r&eacute;ussite (60%). Vous pouvez repasser l &eacute;valuation.</p>
