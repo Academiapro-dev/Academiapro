@@ -68,14 +68,5 @@ export async function GET(req) {
     }
   }
 
-  return NextResponse.json({
-    marque: "academia",
-    envoyes: envoyes,
-    debug_nb_etapes: (etapes || []).length,
-    debug_nb_prospects: (prospects || []).length,
-    debug_prospects: (prospects || []).map(function (p) {
-      return { email: p.email, etape: p.derniere_etape_envoyee,
-               jours: Math.round((maintenant - new Date(p.cree_le).getTime()) / 8640000) / 10 };
-    })
-  });
+  return NextResponse.json({ marque: "academia", envoyes: envoyes });
 }
