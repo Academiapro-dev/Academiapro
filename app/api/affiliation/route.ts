@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
     <strong>Commission :</strong> 15% sur chaque vente
   </div>
   <p>Partagez votre lien et gagnez 15% sur chaque formation vendue.</p>
-  <p>Bonne chance !<br/><strong>Jacques Lalou — AcadémIA Pro</strong></p>
+  <p>Bonne chance !<br/><strong>Jacques, fondateur — AcadémIA Pro</strong></p>
 </div>`,
         }),
       });
