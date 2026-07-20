@@ -14,7 +14,8 @@ export async function GET(req) {
 
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY
+    process.env.SUPABASE_SERVICE_ROLE_KEY,
+    { global: { fetch: (u, o) => fetch(u, { ...o, cache: "no-store" }) } }
   );
   const resend = new Resend(process.env.RESEND_API_KEY);
 
