@@ -10,9 +10,8 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-// Renvoie 1..4 a partir d'une date ISO (T1=jan-mar, etc.)
 function trimestreDe(dateStr: string): number {
-  const m = new Date(dateStr).getMonth(); // 0..11
+  const m = new Date(dateStr).getMonth();
   return Math.floor(m / 3) + 1;
 }
 
@@ -35,17 +34,22 @@ export async function GET(req: NextRequest) {
     // ---- CHARGES : depenses de l'annee ----
     const { data: depenses, error: eDep } = await supabase
       .from("depenses")
-      .select("montant_ttc, devise, categorie, date_depense")
+      .select("montant_ttc, devise, categorie, date_depense, projet")
       .gte("date_depense", debut)
       .lte("date_depense", fin);
     if (eDep) {
       return NextResponse.json({ error: "Lecture depenses: " + eDep.message }, { status: 500 });
     }
 
-    // Agregation charges par devise, avec ventilation par categorie
     const charges: Record<string, { total: number; parCategorie: Record<string, number> }> = {};
-    // Ventilation trimestrielle : trimestres[devise][t] = { produits, charges }
     const trimestres: Record<string, Record<number, { produits: number; charges: number }>> = {};
+
+    // Ventilation par projet : parProjet[projet][devise] = { produits, charges }
+    const parProjet: Record<string, Record<string, { produits: number; charges: number }>> = {};
+    function ensureProjet(proj: string, dev: string) {
+      if (!parProjet[proj]) parProjet[proj] = {};
+      if (!parProjet[proj][dev]) parProjet[proj][dev] = { produits: 0, charges: 0 };
+    }
 
     function ensureTrim(dev: string) {
       if (!trimestres[dev]) {
@@ -60,17 +64,20 @@ export async function GET(req: NextRequest) {
       charges[dev].total += montant;
       const cat = d.categorie || "Sans categorie";
       charges[dev].parCategorie[cat] = (charges[dev].parCategorie[cat] || 0) + montant;
-      // trimestre
       ensureTrim(dev);
       const t = trimestreDe(d.date_depense);
       trimestres[dev][t].charges += montant;
+      // projet
+      const proj = d.projet || "non_affecte";
+      ensureProjet(proj, dev);
+      parProjet[proj][dev].charges += montant;
     }
 
     // ---- PRODUITS : factures encaissees de l'annee ----
     const produits: Record<string, number> = {};
     const { data: factures } = await supabase
       .from("factures")
-      .select("montant_ttc, devise, date_emission, statut_paiement, est_avoir")
+      .select("montant_ttc, devise, date_emission, statut_paiement, est_avoir, projet")
       .gte("date_emission", debut)
       .lte("date_emission", fin)
       .eq("statut_paiement", "payee")
@@ -82,6 +89,10 @@ export async function GET(req: NextRequest) {
       ensureTrim(dev);
       const t = trimestreDe(f.date_emission);
       trimestres[dev][t].produits += montant;
+      // projet
+      const proj = f.projet || "non_affecte";
+      ensureProjet(proj, dev);
+      parProjet[proj][dev].produits += montant;
     }
 
     // ---- RESULTAT par devise ----
@@ -106,6 +117,16 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // ---- Resultat net par projet (calcule) ----
+    const parProjetNet: Record<string, Record<string, { produits: number; charges: number; net: number }>> = {};
+    for (const proj of Object.keys(parProjet)) {
+      parProjetNet[proj] = {};
+      for (const dev of Object.keys(parProjet[proj])) {
+        const bloc = parProjet[proj][dev];
+        parProjetNet[proj][dev] = { produits: bloc.produits, charges: bloc.charges, net: bloc.produits - bloc.charges };
+      }
+    }
+
     return NextResponse.json({
       success: true,
       year,
@@ -113,6 +134,7 @@ export async function GET(req: NextRequest) {
       charges,
       produits,
       trimestres: trimestresNet,
+      parProjet: parProjetNet,
     });
   } catch (e: any) {
     return NextResponse.json({ error: String(e && e.message ? e.message : e) }, { status: 500 });
