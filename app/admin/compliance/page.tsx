@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 const TENANT_ID = "048da817-b4d1-40d8-9107-88fe87e600ee";
+const PNL_YEAR = 2026;
 
 type Deadline = {
   id: string;
@@ -51,6 +52,7 @@ export default function ComplianceDashboard() {
   const [tenant, setTenant] = useState<any>(null);
   const [deadlines, setDeadlines] = useState<Deadline[]>([]);
   const [documents, setDocuments] = useState<Doc[]>([]);
+  const [pnl, setPnl] = useState<any>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [genLoading, setGenLoading] = useState(false);
   const [genMsg, setGenMsg] = useState<string | null>(null);
@@ -68,6 +70,10 @@ export default function ComplianceDashboard() {
         setDeadlines(data.deadlines || []);
         setDocuments(data.documents || []);
       }
+      // P&L
+      const rp = await fetch("/api/compliance/pnl?year=" + PNL_YEAR);
+      const dp = await rp.json();
+      if (dp.success) setPnl(dp);
     } catch (e: any) {
       setErreur(String(e));
     }
@@ -127,6 +133,46 @@ export default function ComplianceDashboard() {
         {genLoading ? "Generation..." : "Generer la fiche Annual Report 2027"}
       </button>
       {genMsg && <p style={{ marginTop: 10, color: "#0a3d2e" }}>{genMsg}</p>}
+
+      <h2 style={{ color: "#0a3d2e", fontSize: 20, marginTop: 32 }}>
+        Compte de resultat {PNL_YEAR} (par devise)
+      </h2>
+      {!pnl && <p>Chargement du P&L...</p>}
+      {pnl && Object.keys(pnl.resultat || {}).length === 0 && (
+        <p>Aucune donnee financiere pour {PNL_YEAR}.</p>
+      )}
+      {pnl && Object.keys(pnl.resultat || {}).map((dev: string) => {
+        const res = pnl.resultat[dev];
+        const cats = pnl.charges[dev]?.parCategorie || {};
+        return (
+          <div key={dev} style={{ border: "1px solid #ddd", borderRadius: 8, padding: 16, marginBottom: 16 }}>
+            <h3 style={{ color: "#0a3d2e", marginTop: 0 }}>Devise : {dev}</h3>
+            <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 12 }}>
+              <tbody>
+                <tr><td style={{ padding: 6 }}>Produits (factures encaissees)</td>
+                  <td style={{ padding: 6, textAlign: "right" }}>{res.produits.toFixed(2)} {dev}</td></tr>
+                <tr><td style={{ padding: 6 }}>Charges (depenses)</td>
+                  <td style={{ padding: 6, textAlign: "right" }}>- {res.charges.toFixed(2)} {dev}</td></tr>
+                <tr style={{ borderTop: "2px solid #0a3d2e", fontWeight: "bold" }}>
+                  <td style={{ padding: 6 }}>Resultat net</td>
+                  <td style={{ padding: 6, textAlign: "right", color: res.net >= 0 ? "#2e7d32" : "#c62828" }}>
+                    {res.net.toFixed(2)} {dev}
+                  </td></tr>
+              </tbody>
+            </table>
+            {Object.keys(cats).length > 0 && (
+              <details>
+                <summary style={{ cursor: "pointer", color: "#0a3d2e" }}>Detail des charges par categorie</summary>
+                <ul>
+                  {Object.keys(cats).map((c) => (
+                    <li key={c}>{c} : {cats[c].toFixed(2)} {dev}</li>
+                  ))}
+                </ul>
+              </details>
+            )}
+          </div>
+        );
+      })}
 
       <h2 style={{ color: "#0a3d2e", fontSize: 20, marginTop: 32 }}>Calendrier des echeances</h2>
       <table style={{ width: "100%", borderCollapse: "collapse" }}>
