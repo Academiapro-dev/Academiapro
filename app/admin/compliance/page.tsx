@@ -70,7 +70,6 @@ export default function ComplianceDashboard() {
         setDeadlines(data.deadlines || []);
         setDocuments(data.documents || []);
       }
-      // P&L
       const rp = await fetch("/api/compliance/pnl?year=" + PNL_YEAR);
       const dp = await rp.json();
       if (dp.success) setPnl(dp);
@@ -173,6 +172,44 @@ export default function ComplianceDashboard() {
           </div>
         );
       })}
+
+      {pnl && pnl.trimestres && Object.keys(pnl.trimestres).length > 0 && (
+        <>
+          <h2 style={{ color: "#0a3d2e", fontSize: 20, marginTop: 32 }}>
+            Ventilation trimestrielle {PNL_YEAR} (pour l'OSS)
+          </h2>
+          {Object.keys(pnl.trimestres).map((dev: string) => (
+            <div key={dev} style={{ border: "1px solid #ddd", borderRadius: 8, padding: 16, marginBottom: 16 }}>
+              <h3 style={{ color: "#0a3d2e", marginTop: 0 }}>Devise : {dev}</h3>
+              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                <thead>
+                  <tr style={{ background: "#0a3d2e", color: "#fff" }}>
+                    <th style={{ padding: 8, textAlign: "left" }}>Trimestre</th>
+                    <th style={{ padding: 8, textAlign: "right" }}>Produits</th>
+                    <th style={{ padding: 8, textAlign: "right" }}>Charges</th>
+                    <th style={{ padding: 8, textAlign: "right" }}>Resultat net</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[1, 2, 3, 4].map((t) => {
+                    const b = pnl.trimestres[dev][t] || { produits: 0, charges: 0, net: 0 };
+                    return (
+                      <tr key={t} style={{ borderBottom: "1px solid #eee" }}>
+                        <td style={{ padding: 8 }}>T{t}</td>
+                        <td style={{ padding: 8, textAlign: "right" }}>{b.produits.toFixed(2)}</td>
+                        <td style={{ padding: 8, textAlign: "right" }}>{b.charges.toFixed(2)}</td>
+                        <td style={{ padding: 8, textAlign: "right", color: b.net >= 0 ? "#2e7d32" : "#c62828" }}>
+                          {b.net.toFixed(2)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ))}
+        </>
+      )}
 
       <h2 style={{ color: "#0a3d2e", fontSize: 20, marginTop: 32 }}>Calendrier des echeances</h2>
       <table style={{ width: "100%", borderCollapse: "collapse" }}>
