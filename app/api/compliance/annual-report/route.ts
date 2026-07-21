@@ -82,7 +82,6 @@ export async function POST(req: NextRequest) {
     const { tenant_id, year } = await req.json();
     const annee = year || new Date().getFullYear() + 1;
 
-    // Charger le profil du tenant
     const { data: tenant, error: e1 } = await supabase
       .from("compliance_tenants")
       .select("*")
@@ -95,33 +94,25 @@ export async function POST(req: NextRequest) {
     const tax = licenseTax(Number(tenant.wy_assets_value ?? 0));
     const html = ficheHTML(tenant, annee, tax);
 
-    // Version suivante dans le coffre
     const { data: ver } = await supabase.rpc("compliance_next_doc_version", {
       p_tenant_id: tenant_id,
       p_doc_type: "fiche_annual_report",
     });
     const version = ver || 1;
 
-    // Ranger dans le bucket compliance-docs
     const path = tenant_id + "/annual_report_" + annee + "_v" + version + ".html";
-    const up = await fetch(
-      process.env.NEXT_PUBLIC_SUPABASE_URL + "/storage/v1/object/compliance-docs/" + path,
-      {
-        method: "POST",
-        headers: {
-          Authorization: "Bearer " + process.env.SUPABASE_SERVICE_ROLE_KEY,
-          "Content-Type": "text/html",
-          "x-upsert": "true",
-        },
-        body: html,
-      }
-    );
-    if (!up.ok) {
-      const t = await up.text();
-      return NextResponse.json({ error: "Upload coffre echoue: " + t }, { status: 500 });
+
+    // Upload via le client Supabase natif (gere l'auth service_role)
+    const { error: upErr } = await supabase.storage
+      .from("compliance-docs")
+      .upload(path, html, {
+        contentType: "text/html",
+        upsert: true,
+      });
+    if (upErr) {
+      return NextResponse.json({ error: "Upload coffre echoue: " + upErr.message }, { status: 500 });
     }
 
-    // Indexer dans compliance_documents
     await supabase.from("compliance_documents").insert({
       tenant_id: tenant_id,
       rule_code: "WY_ANNUAL_REPORT",
@@ -132,7 +123,6 @@ export async function POST(req: NextRequest) {
       mime_type: "text/html",
     });
 
-    // Envoyer par email
     await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
