@@ -53,6 +53,7 @@ export default function ComplianceDashboard() {
   const [deadlines, setDeadlines] = useState<Deadline[]>([]);
   const [documents, setDocuments] = useState<Doc[]>([]);
   const [pnl, setPnl] = useState<any>(null);
+  const [bilan, setBilan] = useState<any>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [genLoading, setGenLoading] = useState(false);
   const [genMsg, setGenMsg] = useState<string | null>(null);
@@ -73,6 +74,9 @@ export default function ComplianceDashboard() {
       const rp = await fetch("/api/compliance/pnl?year=" + PNL_YEAR);
       const dp = await rp.json();
       if (dp.success) setPnl(dp);
+      const rb = await fetch("/api/compliance/bilan");
+      const db = await rb.json();
+      if (db.success) setBilan(db);
     } catch (e: any) {
       setErreur(String(e));
     }
@@ -208,6 +212,42 @@ export default function ComplianceDashboard() {
               </table>
             </div>
           ))}
+        </>
+      )}
+
+      {bilan && bilan.bilan && (
+        <>
+          <h2 style={{ color: "#0a3d2e", fontSize: 20, marginTop: 32 }}>
+            Bilan de gestion
+          </h2>
+          {Object.keys(bilan.bilan).length === 0 && (
+            <p>Aucune creance ni dette en cours.</p>
+          )}
+          {Object.keys(bilan.bilan).map((dev: string) => {
+            const b = bilan.bilan[dev];
+            return (
+              <div key={dev} style={{ border: "1px solid #ddd", borderRadius: 8, padding: 16, marginBottom: 16 }}>
+                <h3 style={{ color: "#0a3d2e", marginTop: 0 }}>Devise : {dev}</h3>
+                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <tbody>
+                    <tr style={{ fontWeight: "bold", color: "#0a3d2e" }}>
+                      <td style={{ padding: 6 }}>ACTIF</td><td></td>
+                    </tr>
+                    <tr><td style={{ padding: 6, paddingLeft: 20 }}>Creances (factures non payees)</td>
+                      <td style={{ padding: 6, textAlign: "right" }}>{b.actif.creances.toFixed(2)} {dev}</td></tr>
+                    <tr><td style={{ padding: 6, paddingLeft: 20, color: "#888" }}>Tresorerie</td>
+                      <td style={{ padding: 6, textAlign: "right", color: "#888" }}>via Wise (a venir)</td></tr>
+                    <tr style={{ fontWeight: "bold", color: "#0a3d2e" }}>
+                      <td style={{ padding: 6, paddingTop: 12 }}>PASSIF</td><td></td>
+                    </tr>
+                    <tr><td style={{ padding: 6, paddingLeft: 20 }}>Dettes envers le membre (avances perso)</td>
+                      <td style={{ padding: 6, textAlign: "right" }}>{b.passif.dettes_membre.toFixed(2)} {dev}</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            );
+          })}
+          <p style={{ fontSize: 13, color: "#888", fontStyle: "italic" }}>{bilan.note}</p>
         </>
       )}
 
