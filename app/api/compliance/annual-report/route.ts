@@ -10,6 +10,27 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+function origineLegitime(req: NextRequest): boolean {
+  const origine = req.headers.get("origin") || "";
+  const referent = req.headers.get("referer") || "";
+  return (
+    origine.includes("academiapro.fr") || referent.includes("academiapro.fr") ||
+    origine.includes("vercel.app") || referent.includes("vercel.app") ||
+    origine.includes("localhost") || referent.includes("localhost")
+  );
+}
+
+function tenantDeLaSession(req: NextRequest): string | null {
+  try {
+    const brut = req.cookies.get("sb_user")?.value;
+    if (!brut) return null;
+    const donnees = JSON.parse(decodeURIComponent(brut));
+    return donnees?.tenant_id || null;
+  } catch {
+    return null;
+  }
+}
+
 // License tax Wyoming : max(60, 0.0002 * valeur des actifs WY)
 function licenseTax(assets: number): number {
   const calc = assets * 0.0002;
@@ -68,24 +89,26 @@ function ficheHTML(t: any, year: number, tax: number): string {
 }
 
 export async function POST(req: NextRequest) {
-  const origine = req.headers.get("origin") || "";
-  const referent = req.headers.get("referer") || "";
-  const legitime =
-    origine.includes("academiapro.fr") || referent.includes("academiapro.fr")
-    || origine.includes("vercel.app") || referent.includes("vercel.app")
-    || origine.includes("localhost") || referent.includes("localhost");
-  if (!legitime) {
+  if (!origineLegitime(req)) {
     return NextResponse.json({ error: "Acces refuse" }, { status: 403 });
   }
 
+  const tenantId = tenantDeLaSession(req);
+  if (!tenantId) {
+    return NextResponse.json(
+      { error: "Session sans societe rattachee. Reconnectez-vous." },
+      { status: 401 }
+    );
+  }
+
   try {
-    const { tenant_id, year } = await req.json();
+    const { year } = await req.json();
     const annee = year || new Date().getFullYear() + 1;
 
     const { data: tenant, error: e1 } = await supabase
       .from("compliance_tenants")
       .select("*")
-      .eq("tenant_id", tenant_id)
+      .eq("tenant_id", tenantId)
       .single();
     if (e1 || !tenant) {
       return NextResponse.json({ error: "Tenant introuvable" }, { status: 404 });
@@ -95,14 +118,13 @@ export async function POST(req: NextRequest) {
     const html = ficheHTML(tenant, annee, tax);
 
     const { data: ver } = await supabase.rpc("compliance_next_doc_version", {
-      p_tenant_id: tenant_id,
+      p_tenant_id: tenantId,
       p_doc_type: "fiche_annual_report",
     });
     const version = ver || 1;
 
-    const path = tenant_id + "/annual_report_" + annee + "_v" + version + ".html";
+    const path = tenantId + "/annual_report_" + annee + "_v" + version + ".html";
 
-    // Upload via le client Supabase natif (gere l'auth service_role)
     const { error: upErr } = await supabase.storage
       .from("compliance-docs")
       .upload(path, html, {
@@ -114,7 +136,7 @@ export async function POST(req: NextRequest) {
     }
 
     await supabase.from("compliance_documents").insert({
-      tenant_id: tenant_id,
+      tenant_id: tenantId,
       rule_code: "WY_ANNUAL_REPORT",
       doc_type: "fiche_annual_report",
       title: "Fiche Annual Report Wyoming " + annee,
@@ -123,7 +145,6 @@ export async function POST(req: NextRequest) {
       mime_type: "text/html",
     });
 
-    // ---- ENVOI EMAIL : le resultat est desormais VERIFIE et remonte ----
     const email: Record<string, unknown> = { tente: true };
 
     if (!process.env.RESEND_API_KEY) {
@@ -163,7 +184,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    return NextResponse.json({ success: true, version, tax, path, email });
+    return NextResponse.json({ success: true, tenant_id: tenantId, version, tax, path, email });
   } catch (e: any) {
     return NextResponse.json({ error: String(e && e.message ? e.message : e) }, { status: 500 });
   }
