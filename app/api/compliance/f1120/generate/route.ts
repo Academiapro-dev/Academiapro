@@ -12,6 +12,7 @@ const supabase = createClient(
 );
 
 const P = "topmostSubform[0].";
+const NF = "Page1[0].NameFieldsReadOrder[0].";
 
 function money(n: number | null | undefined): string {
   if (n === null || n === undefined) return "";
@@ -51,7 +52,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Aucun mapping pour cet exercice" }, { status: 404 });
     }
 
-    // ---- RECALCUL A LA VOLEE (meme logique que le 5472) ----
     const { data: dep, error: eDep } = await supabase
       .from("depenses")
       .select("montant_ttc, devise, date_depense")
@@ -105,14 +105,16 @@ export async function POST(req: Request) {
       }
     };
 
-    // ---- PAGE 1 ----
-    setText("Page1[0].f1_4[0]", m.ri_name);
-    setText("Page1[0].f1_5[0]", m.adr_rue);
-    setText("Page1[0].f1_6[0]", m.adr_suite);
-    setText("Page1[0].f1_7[0]", m.adr_ville);
-    setText("Page1[0].f1_8[0]", m.adr_etat);
-    setText("Page1[0].f1_9[0]", m.adr_pays);
-    setText("Page1[0].f1_10[0]", m.adr_zip);
+    // ---- PAGE 1 : nom et adresse sous NameFieldsReadOrder ----
+    setText(NF + "f1_4[0]", m.ri_name);
+    setText(NF + "f1_5[0]", m.adr_rue);
+    setText(NF + "f1_6[0]", m.adr_suite);
+    setText(NF + "f1_7[0]", m.adr_ville);
+    setText(NF + "f1_8[0]", m.adr_etat);
+    setText(NF + "f1_9[0]", m.adr_pays);
+    setText(NF + "f1_10[0]", m.adr_zip);
+
+    // ---- PAGE 1 : B, C, D directement sous Page1 ----
     setText("Page1[0].f1_11[0]", m.ri_ein);
     setText("Page1[0].f1_12[0]", dateIRS(m.ri_date_incorp));
     setText("Page1[0].f1_13[0]", money(totalUsd));
