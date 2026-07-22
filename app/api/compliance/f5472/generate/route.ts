@@ -18,6 +18,26 @@ function money(n: number | null | undefined): string {
   return Number(n).toFixed(2);
 }
 
+// Convertit une date ISO AAAA-MM-JJ au format IRS MM/JJ/AAAA
+function dateIRS(v: unknown): string {
+  if (!v) return "";
+  const s = String(v).slice(0, 10);
+  const p = s.split("-");
+  if (p.length !== 3) return s;
+  return p[1] + "/" + p[2] + "/" + p[0];
+}
+
+// Coupe l'adresse a la premiere virgule : rue / ville-etat-zip
+function coupeAdresse(v: unknown): { rue: string; villeEtatZip: string } {
+  const s = String(v ?? "").trim();
+  const i = s.indexOf(",");
+  if (i === -1) return { rue: s, villeEtatZip: "" };
+  return {
+    rue: s.slice(0, i).trim(),
+    villeEtatZip: s.slice(i + 1).trim(),
+  };
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => ({}));
@@ -70,6 +90,7 @@ export async function POST(req: Request) {
 
     const totalUsd = Math.round((totalUsdNatif + totalEurNatif * taux) * 100) / 100;
     const nbAvances = (dep ?? []).length;
+    const adr = coupeAdresse(m.ri_address);
 
     const res = await fetch("https://academiapro.fr/forms/f5472.pdf");
     if (!res.ok) {
@@ -98,7 +119,8 @@ export async function POST(req: Request) {
 
     // ---- PAGE 1 : Part I ----
     setText("Page1[0].Line1a[0].f1_5[0]", m.ri_name);
-    setText("Page1[0].Line1a[0].f1_6[0]", m.ri_address);
+    setText("Page1[0].Line1a[0].f1_6[0]", adr.rue);
+    setText("Page1[0].Line1a[0].f1_7[0]", adr.villeEtatZip);
     setText("Page1[0].f1_8[0]", m.ri_ein);
     setText("Page1[0].f1_9[0]", money(totalUsd));
     setText("Page1[0].f1_10[0]", m.ri_business_activity);
@@ -108,7 +130,7 @@ export async function POST(req: Request) {
     setText("Page1[0].f1_14[0]", money(totalUsd));
     setText("Page1[0].f1_15[0]", m.ri_nb_partsviii);
     setText("Page1[0].f1_16[0]", m.ri_country_incorp);
-    setText("Page1[0].f1_17[0]", m.ri_date_incorp);
+    setText("Page1[0].f1_17[0]", dateIRS(m.ri_date_incorp));
     setText("Page1[0].f1_18[0]", m.ri_country_resident);
     setText("Page1[0].f1_19[0]", m.ri_country_business);
 
@@ -178,6 +200,11 @@ export async function POST(req: Request) {
         taux_eur_usd: taux,
         taux_valide: m.taux_valide,
         total_usd: totalUsd,
+      },
+      controle: {
+        rue: adr.rue,
+        ville_etat_zip: adr.villeEtatZip,
+        date_incorp_irs: dateIRS(m.ri_date_incorp),
       },
       note: "PDF fictif - taux provisoire, qualification non validee par fiscaliste",
     });
