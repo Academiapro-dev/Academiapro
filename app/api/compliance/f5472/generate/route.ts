@@ -41,6 +41,36 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Aucun mapping pour cet exercice" }, { status: 404 });
     }
 
+    // ---- RECALCUL A LA VOLEE DES AVANCES DU MEMBRE ----
+    const { data: dep, error: eDep } = await supabase
+      .from("depenses")
+      .select("montant_ttc, devise, date_depense")
+      .eq("avance_perso", true)
+      .eq("rembourse", false)
+      .gte("date_depense", year + "-01-01")
+      .lte("date_depense", year + "-12-31");
+
+    if (eDep) {
+      return NextResponse.json({ error: "Lecture depenses: " + eDep.message }, { status: 500 });
+    }
+
+    const taux = Number(m.taux_eur_usd) || 1;
+    let totalUsdNatif = 0;
+    let totalEurNatif = 0;
+
+    for (const d of dep ?? []) {
+      const montant = Number(d.montant_ttc) || 0;
+      const devise = String(d.devise || "").toUpperCase();
+      if (devise === "EUR") {
+        totalEurNatif += montant;
+      } else {
+        totalUsdNatif += montant;
+      }
+    }
+
+    const totalUsd = Math.round((totalUsdNatif + totalEurNatif * taux) * 100) / 100;
+    const nbAvances = (dep ?? []).length;
+
     const res = await fetch("https://academiapro.fr/forms/f5472.pdf");
     if (!res.ok) {
       return NextResponse.json({ error: "PDF source introuvable" }, { status: 500 });
@@ -70,12 +100,12 @@ export async function POST(req: Request) {
     setText("Page1[0].Line1a[0].f1_5[0]", m.ri_name);
     setText("Page1[0].Line1a[0].f1_6[0]", m.ri_address);
     setText("Page1[0].f1_8[0]", m.ri_ein);
-    setText("Page1[0].f1_9[0]", money(m.ri_total_assets_usd));
+    setText("Page1[0].f1_9[0]", money(totalUsd));
     setText("Page1[0].f1_10[0]", m.ri_business_activity);
     setText("Page1[0].f1_11[0]", m.ri_naics);
-    setText("Page1[0].Line1f_ReadOrder[0].f1_12[0]", money(m.ri_total_gross_payments_usd));
+    setText("Page1[0].Line1f_ReadOrder[0].f1_12[0]", money(totalUsd));
     setText("Page1[0].f1_13[0]", m.ri_nb_5472);
-    setText("Page1[0].f1_14[0]", money(m.ri_total_gross_payments_usd));
+    setText("Page1[0].f1_14[0]", money(totalUsd));
     setText("Page1[0].f1_15[0]", m.ri_nb_partsviii);
     setText("Page1[0].f1_16[0]", m.ri_country_incorp);
     setText("Page1[0].f1_17[0]", m.ri_date_incorp);
@@ -106,8 +136,8 @@ export async function POST(req: Request) {
 
     // ---- PAGE 2 : Part IV (transactions) ----
     setText("Page2[0].f2_18[0]", money(m.p4_l17a_beginning_balance_usd));
-    setText("Page2[0].f2_19[0]", money(m.p4_l17b_ending_balance_usd));
-    setText("Page2[0].f2_24[0]", money(m.p4_l22_total_usd));
+    setText("Page2[0].f2_19[0]", money(totalUsd));
+    setText("Page2[0].f2_24[0]", money(totalUsd));
 
     // ---- PAGE 3 : Part VII (tout No = index [1]) ----
     for (let i = 1; i <= 12; i++) {
@@ -141,6 +171,14 @@ export async function POST(req: Request) {
       year,
       path,
       url: signed?.signedUrl ?? null,
+      calcul: {
+        nb_avances: nbAvances,
+        total_usd_natif: Math.round(totalUsdNatif * 100) / 100,
+        total_eur_natif: Math.round(totalEurNatif * 100) / 100,
+        taux_eur_usd: taux,
+        taux_valide: m.taux_valide,
+        total_usd: totalUsd,
+      },
       note: "PDF fictif - taux provisoire, qualification non validee par fiscaliste",
     });
   } catch (e: unknown) {
