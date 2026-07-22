@@ -57,6 +57,7 @@ export default function ComplianceDashboard() {
   const [erreur, setErreur] = useState<string | null>(null);
   const [genLoading, setGenLoading] = useState(false);
   const [genMsg, setGenMsg] = useState<string | null>(null);
+  const [genDetail, setGenDetail] = useState<string | null>(null);
 
   const [irsLoading, setIrsLoading] = useState<string | null>(null);
   const [irsMsg, setIrsMsg] = useState<string | null>(null);
@@ -94,6 +95,7 @@ export default function ComplianceDashboard() {
   async function genererAnnualReport() {
     setGenLoading(true);
     setGenMsg(null);
+    setGenDetail(null);
     try {
       const r = await fetch("/api/compliance/annual-report", {
         method: "POST",
@@ -102,7 +104,19 @@ export default function ComplianceDashboard() {
       });
       const data = await r.json();
       if (data.success) {
-        setGenMsg("Fiche generee (version " + data.version + ", license tax " + data.tax + " USD). Envoyee par email et archivee.");
+        let msg = "Fiche generee (version " + data.version + ", license tax " + data.tax + " USD) et archivee au coffre.";
+        const em = data.email || {};
+        if (em.envoye === true) {
+          msg += " Email envoye a contact@academiapro.fr.";
+        } else {
+          msg += " ATTENTION : l'email n'est PAS parti.";
+          setGenDetail(
+            "Cause : " + (em.raison || "inconnue") +
+            (em.statut_http ? " (code HTTP " + em.statut_http + ")" : "") +
+            (em.reponse ? " - Reponse du service : " + em.reponse : "")
+          );
+        }
+        setGenMsg(msg);
         charger();
       } else {
         setGenMsg("Erreur : " + (data.error || "inconnue"));
@@ -199,7 +213,27 @@ export default function ComplianceDashboard() {
         <button onClick={genererAnnualReport} disabled={genLoading} style={styleBouton}>
           {genLoading ? "Generation..." : "Generer la fiche Annual Report 2027"}
         </button>
-        {genMsg && <p style={{ marginTop: 10, color: "#0a3d2e" }}>{genMsg}</p>}
+        {genMsg && (
+          <p style={{ marginTop: 10, color: genMsg.indexOf("ATTENTION") !== -1 ? "#c62828" : "#0a3d2e" }}>
+            {genMsg}
+          </p>
+        )}
+        {genDetail && (
+          <pre
+            style={{
+              background: "#fff4f4",
+              border: "1px solid #f0c0c0",
+              color: "#8a1c1c",
+              padding: 12,
+              borderRadius: 6,
+              fontSize: 13,
+              whiteSpace: "pre-wrap",
+              wordBreak: "break-word",
+            }}
+          >
+            {genDetail}
+          </pre>
+        )}
 
         <h2 style={{ color: "#0a3d2e", fontSize: 20, marginTop: 32 }}>
           Formulaires IRS {PNL_YEAR}
