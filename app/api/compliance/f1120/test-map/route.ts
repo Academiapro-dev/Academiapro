@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { PDFDocument, StandardFonts } from "pdf-lib";
+import { PDFDocument } from "pdf-lib";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -13,37 +13,28 @@ export async function GET() {
     }
 
     const doc = await PDFDocument.load(await res.arrayBuffer(), { updateMetadata: false });
-    const font = await doc.embedFont(StandardFonts.Helvetica);
     const form = doc.getForm();
 
-    let remplis = 0;
-    const noms: string[] = [];
+    const pages: Record<string, number> = {};
+    const cases: string[] = [];
 
     for (const f of form.getFields()) {
       const nom = f.getName();
-      if (nom.indexOf("Page1[0]") === -1) continue;
 
-      noms.push(nom);
+      const m = nom.match(/(Page\d+\[0\])/);
+      const cle = m ? m[1] : "AUTRE";
+      pages[cle] = (pages[cle] || 0) + 1;
 
-      const court = nom.split(".").pop() || nom;
-      try {
-        form.getTextField(nom).setText(court.replace("[0]", ""));
-        remplis++;
-      } catch {
-        // pas un champ texte : on ignore
+      if (f.constructor.name.indexOf("CheckBox") !== -1) {
+        cases.push(nom);
       }
     }
 
-    form.updateFieldAppearances(font);
-    const bytes = await doc.save();
-
-    return new NextResponse(Buffer.from(bytes), {
-      headers: {
-        "Content-Type": "application/pdf",
-        "Content-Disposition": "inline; filename=f1120-testmap.pdf",
-        "X-Champs-Page1": String(noms.length),
-        "X-Champs-Remplis": String(remplis),
-      },
+    return NextResponse.json({
+      total: form.getFields().length,
+      pages,
+      nb_cases_a_cocher: cases.length,
+      cases_a_cocher: cases,
     });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
