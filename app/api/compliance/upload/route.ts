@@ -11,7 +11,7 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-function autorise(req: NextRequest): boolean {
+function origineLegitime(req: NextRequest): boolean {
   const origine = req.headers.get("origin") || "";
   const referent = req.headers.get("referer") || "";
   return (
@@ -21,7 +21,17 @@ function autorise(req: NextRequest): boolean {
   );
 }
 
-// Nettoie un nom de fichier pour en faire un chemin sur
+function tenantDeLaSession(req: NextRequest): string | null {
+  try {
+    const brut = req.cookies.get("sb_user")?.value;
+    if (!brut) return null;
+    const donnees = JSON.parse(decodeURIComponent(brut));
+    return donnees?.tenant_id || null;
+  } catch {
+    return null;
+  }
+}
+
 function nomSur(nom: string): string {
   return nom
     .normalize("NFD")
@@ -31,15 +41,22 @@ function nomSur(nom: string): string {
 }
 
 export async function POST(req: NextRequest) {
-  if (!autorise(req)) {
+  if (!origineLegitime(req)) {
     return NextResponse.json({ error: "Acces refuse" }, { status: 403 });
+  }
+
+  const tenantId = tenantDeLaSession(req);
+  if (!tenantId) {
+    return NextResponse.json(
+      { error: "Session sans societe rattachee. Reconnectez-vous." },
+      { status: 401 }
+    );
   }
 
   try {
     const form = await req.formData();
 
     const fichier = form.get("fichier") as File | null;
-    const tenantId = String(form.get("tenant_id") || "");
     const titre = String(form.get("titre") || "");
     const docType = String(form.get("doc_type") || "piece_justificative");
     const ruleCode = String(form.get("rule_code") || "");
@@ -47,9 +64,6 @@ export async function POST(req: NextRequest) {
 
     if (!fichier) {
       return NextResponse.json({ error: "Aucun fichier recu" }, { status: 400 });
-    }
-    if (!tenantId) {
-      return NextResponse.json({ error: "tenant_id requis" }, { status: 400 });
     }
     if (!titre) {
       return NextResponse.json({ error: "Le titre est obligatoire" }, { status: 400 });
@@ -69,7 +83,6 @@ export async function POST(req: NextRequest) {
 
     const hash = createHash("sha256").update(octets).digest("hex");
 
-    // Version suivante pour ce type de document
     const { data: ver } = await supabase.rpc("compliance_next_doc_version", {
       p_tenant_id: tenantId,
       p_doc_type: docType,
@@ -116,6 +129,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
+      tenant_id: tenantId,
       titre,
       doc_type: docType,
       version,
