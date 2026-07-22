@@ -58,6 +58,10 @@ export default function ComplianceDashboard() {
   const [genLoading, setGenLoading] = useState(false);
   const [genMsg, setGenMsg] = useState<string | null>(null);
 
+  const [irsLoading, setIrsLoading] = useState<string | null>(null);
+  const [irsMsg, setIrsMsg] = useState<string | null>(null);
+  const [irsUrl, setIrsUrl] = useState<string | null>(null);
+
   async function charger() {
     setLoading(true);
     setErreur(null);
@@ -109,6 +113,52 @@ export default function ComplianceDashboard() {
     setGenLoading(false);
   }
 
+  async function genererIRS(formulaire: "f5472" | "f1120") {
+    setIrsLoading(formulaire);
+    setIrsMsg(null);
+    setIrsUrl(null);
+    try {
+      const r = await fetch("/api/compliance/" + formulaire + "/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tenant_id: TENANT_ID, year: PNL_YEAR }),
+      });
+      const data = await r.json();
+      if (data.success) {
+        const c = data.calcul || {};
+        let msg =
+          (formulaire === "f5472" ? "Form 5472" : "Form 1120 pro forma") +
+          " genere pour " + data.year +
+          " - " + c.nb_avances + " avances, total " + c.total_usd + " USD";
+        if (c.taux_valide === false) {
+          msg += " (taux de change PROVISOIRE, non valide par l'IRS)";
+        }
+        if (data.nb_avertissements > 0) {
+          msg += " - " + data.nb_avertissements + " champ(s) non trouve(s)";
+        }
+        setIrsMsg(msg);
+        setIrsUrl(data.url || null);
+      } else {
+        setIrsMsg("Erreur : " + (data.error || "inconnue"));
+      }
+    } catch (e: any) {
+      setIrsMsg("Erreur : " + String(e));
+    }
+    setIrsLoading(null);
+  }
+
+  const styleBouton = {
+    background: "#0a3d2e",
+    color: "#fff",
+    border: "none",
+    padding: "12px 20px",
+    borderRadius: 6,
+    cursor: "pointer",
+    fontSize: 15,
+    marginRight: 10,
+    marginBottom: 10,
+  };
+
   return (
     <div style={{ fontFamily: "Georgia, serif", maxWidth: 1000, margin: "0 auto", padding: 32, color: "#1a1a1a" }}>
       <h1 style={{ color: "#0a3d2e", borderBottom: "3px solid #0a3d2e", paddingBottom: 10 }}>
@@ -127,15 +177,48 @@ export default function ComplianceDashboard() {
         </div>
       )}
 
-      <h2 style={{ color: "#0a3d2e", fontSize: 20 }}>Actions</h2>
-      <button
-        onClick={genererAnnualReport}
-        disabled={genLoading}
-        style={{ background: "#0a3d2e", color: "#fff", border: "none", padding: "12px 20px", borderRadius: 6, cursor: "pointer", fontSize: 15 }}
-      >
+      <h2 style={{ color: "#0a3d2e", fontSize: 20 }}>Wyoming</h2>
+      <button onClick={genererAnnualReport} disabled={genLoading} style={styleBouton}>
         {genLoading ? "Generation..." : "Generer la fiche Annual Report 2027"}
       </button>
       {genMsg && <p style={{ marginTop: 10, color: "#0a3d2e" }}>{genMsg}</p>}
+
+      <h2 style={{ color: "#0a3d2e", fontSize: 20, marginTop: 32 }}>
+        Formulaires IRS {PNL_YEAR}
+      </h2>
+      <p style={{ fontSize: 14, color: "#666", marginTop: 0 }}>
+        Documents fictifs tant que la qualification du compte courant n'a pas ete
+        validee par un CPA americain et que le taux de change officiel de l'IRS
+        n'est pas publie. Les montants se recalculent automatiquement depuis les
+        depenses marquees comme avances personnelles.
+      </p>
+      <button
+        onClick={() => genererIRS("f5472")}
+        disabled={irsLoading !== null}
+        style={styleBouton}
+      >
+        {irsLoading === "f5472" ? "Generation..." : "Generer le Form 5472"}
+      </button>
+      <button
+        onClick={() => genererIRS("f1120")}
+        disabled={irsLoading !== null}
+        style={styleBouton}
+      >
+        {irsLoading === "f1120" ? "Generation..." : "Generer le Form 1120 pro forma"}
+      </button>
+      {irsMsg && (
+        <p style={{ marginTop: 10, color: irsMsg.indexOf("Erreur") === 0 ? "#c62828" : "#0a3d2e" }}>
+          {irsMsg}
+        </p>
+      )}
+      {irsUrl && (
+        <p style={{ marginTop: 6 }}>
+          <a href={irsUrl} target="_blank" rel="noreferrer" style={{ color: "#0a3d2e", fontWeight: "bold" }}>
+            Ouvrir le PDF genere
+          </a>
+          <span style={{ color: "#888", fontSize: 13 }}> (lien valable 1 heure)</span>
+        </p>
+      )}
 
       <h2 style={{ color: "#0a3d2e", fontSize: 20, marginTop: 32 }}>
         Compte de resultat {PNL_YEAR} (par devise)
