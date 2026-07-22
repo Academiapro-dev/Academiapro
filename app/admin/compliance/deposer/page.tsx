@@ -13,6 +13,24 @@ const TYPES = [
   { valeur: "piece_justificative", libelle: "Autre piece justificative" },
 ];
 
+const STYLE_CHAMP = {
+  width: "100%",
+  padding: 10,
+  fontSize: 15,
+  marginTop: 4,
+  marginBottom: 16,
+  border: "1px solid #ccc",
+  borderRadius: 4,
+  background: "#ffffff",
+  color: "#1a1a1a",
+};
+
+const STYLE_LIBELLE = {
+  display: "block",
+  fontWeight: 600,
+  fontSize: 14,
+};
+
 export default function DeposerPiece() {
   const [fichier, setFichier] = useState<File | null>(null);
   const [titre, setTitre] = useState("");
@@ -57,8 +75,8 @@ export default function DeposerPiece() {
         setFichier(null);
         setTitre("");
         setNotes("");
-        const champ = document.getElementById("champ-fichier") as HTMLInputElement | null;
-        if (champ) champ.value = "";
+        const champFichier = document.getElementById("champ-fichier") as HTMLInputElement | null;
+        if (champFichier) champFichier.value = "";
       } else {
         setMsg("Erreur : " + (d.error || "inconnue"));
       }
@@ -68,20 +86,6 @@ export default function DeposerPiece() {
 
     setEnCours(false);
   }
-
-  const champ = {
-    width: "100%",
-    padding: 10,
-    fontSize: 15,
-    marginTop: 4,
-    marginBottom: 16,
-    border: "1px solid #ccc",
-    borderRadius: 4,
-    background: "#ffffff",
-    color: "#1a1a1a",
-  };
-
-  const label = { display: "block", fontWeight: 600, fontSize: 14 };
 
   return (
     <div
@@ -98,6 +102,89 @@ export default function DeposerPiece() {
           Deposer une piece au coffre
         </h1>
 
-        <div style={{ background: "#f0f5f2", borderLeft: "4px solid #0a3d2e", padding: 16, marginBottom: 24 }}>
+        <div
+          style={{
+            background: "#f0f5f2",
+            borderLeft: "4px solid #0a3d2e",
+            padding: 16,
+            marginBottom: 24,
+          }}
+        >
           Le coffre conserve les pieces justificatives de maniere versionnee et horodatee,
-          avec une empreinte SHA-256 qui prouve que le fichier n'a pas ete mod
+          avec une empreinte SHA-256 qui prouve que le fichier n'a pas ete modifie apres
+          son depot. Rien n'est jamais ecrase : chaque depot cree une nouvelle version.
+        </div>
+
+        <span style={STYLE_LIBELLE}>Type de piece</span>
+        <select value={docType} onChange={(e) => setDocType(e.target.value)} style={STYLE_CHAMP}>
+          {TYPES.map((t) => (
+            <option key={t.valeur} value={t.valeur}>{t.libelle}</option>
+          ))}
+        </select>
+
+        <span style={STYLE_LIBELLE}>Titre du document (obligatoire)</span>
+        <input
+          value={titre}
+          onChange={(e) => setTitre(e.target.value)}
+          placeholder="Convention de compte courant d'associe signee - juillet 2026"
+          style={STYLE_CHAMP}
+        />
+
+        <span style={STYLE_LIBELLE}>Fichier (PDF, image, maximum 20 Mo)</span>
+        <input
+          id="champ-fichier"
+          type="file"
+          onChange={(e) => setFichier(e.target.files ? e.target.files[0] : null)}
+          style={STYLE_CHAMP}
+        />
+
+        {fichier && (
+          <p style={{ marginTop: -8, marginBottom: 16, fontSize: 14, color: "#555" }}>
+            Selectionne : {fichier.name} ({Math.round(fichier.size / 1024)} Ko)
+          </p>
+        )}
+
+        <span style={STYLE_LIBELLE}>Notes (facultatif)</span>
+        <textarea
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          rows={3}
+          style={STYLE_CHAMP}
+        />
+
+        <button
+          onClick={deposer}
+          disabled={enCours}
+          style={{
+            background: "#0a3d2e",
+            color: "#ffffff",
+            border: "none",
+            padding: "14px 22px",
+            borderRadius: 6,
+            cursor: "pointer",
+            fontSize: 16,
+            fontWeight: 600,
+          }}
+        >
+          {enCours ? "Depot en cours..." : "Deposer au coffre"}
+        </button>
+
+        {msg && (
+          <p style={{ marginTop: 16, color: msg.indexOf("Erreur") === 0 ? "#c62828" : "#0a3d2e" }}>
+            {msg}
+          </p>
+        )}
+
+        {detail && (
+          <p style={{ fontSize: 12, color: "#666", wordBreak: "break-all" }}>{detail}</p>
+        )}
+
+        <p style={{ marginTop: 32 }}>
+          <a href="/admin/compliance" style={{ color: "#0a3d2e" }}>
+            Retour au tableau de bord
+          </a>
+        </p>
+      </div>
+    </div>
+  );
+}
