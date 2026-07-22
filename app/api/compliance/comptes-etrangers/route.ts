@@ -9,7 +9,7 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-function autorise(req: NextRequest): boolean {
+function origineLegitime(req: NextRequest): boolean {
   const origine = req.headers.get("origin") || "";
   const referent = req.headers.get("referer") || "";
   return (
@@ -19,33 +19,48 @@ function autorise(req: NextRequest): boolean {
   );
 }
 
+function tenantDeLaSession(req: NextRequest): string | null {
+  try {
+    const brut = req.cookies.get("sb_user")?.value;
+    if (!brut) return null;
+    const donnees = JSON.parse(decodeURIComponent(brut));
+    return donnees?.tenant_id || null;
+  } catch {
+    return null;
+  }
+}
+
 // Liste des comptes d'un exercice
 export async function GET(req: NextRequest) {
-  if (!autorise(req)) {
+  if (!origineLegitime(req)) {
     return NextResponse.json({ error: "Acces refuse" }, { status: 403 });
+  }
+
+  const tenantId = tenantDeLaSession(req);
+  if (!tenantId) {
+    return NextResponse.json(
+      { error: "Session sans societe rattachee. Reconnectez-vous." },
+      { status: 401 }
+    );
   }
 
   try {
     const { searchParams } = new URL(req.url);
-    const tenantId = searchParams.get("tenant_id");
     const annee = Number(searchParams.get("year")) || new Date().getFullYear();
-
-    if (!tenantId) {
-      return NextResponse.json({ error: "tenant_id requis" }, { status: 400 });
-    }
 
     const { data, error } = await supabase
       .from("compliance_comptes_etrangers")
       .select("*")
       .eq("tenant_id", tenantId)
       .eq("exercice", annee)
-      .order("date_ouverture", { ascending: true });
+      .order("date_ouverture", { ascending: true })
+      .limit(500);
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true, annee, comptes: data ?? [] });
+    return NextResponse.json({ success: true, annee, tenant_id: tenantId, comptes: data ?? [] });
   } catch (e: unknown) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : String(e) },
@@ -56,16 +71,21 @@ export async function GET(req: NextRequest) {
 
 // Ajout d'un compte
 export async function POST(req: NextRequest) {
-  if (!autorise(req)) {
+  if (!origineLegitime(req)) {
     return NextResponse.json({ error: "Acces refuse" }, { status: 403 });
+  }
+
+  const tenantId = tenantDeLaSession(req);
+  if (!tenantId) {
+    return NextResponse.json(
+      { error: "Session sans societe rattachee. Reconnectez-vous." },
+      { status: 401 }
+    );
   }
 
   try {
     const body = await req.json();
 
-    if (!body.tenant_id) {
-      return NextResponse.json({ error: "tenant_id requis" }, { status: 400 });
-    }
     if (!body.designation) {
       return NextResponse.json({ error: "La designation est obligatoire" }, { status: 400 });
     }
@@ -74,7 +94,7 @@ export async function POST(req: NextRequest) {
     }
 
     const ligne = {
-      tenant_id: body.tenant_id,
+      tenant_id: tenantId,
       designation: body.designation,
       type_compte: body.type_compte || null,
       caractere: body.caractere || null,
@@ -113,8 +133,16 @@ export async function POST(req: NextRequest) {
 
 // Suppression d'un compte
 export async function DELETE(req: NextRequest) {
-  if (!autorise(req)) {
+  if (!origineLegitime(req)) {
     return NextResponse.json({ error: "Acces refuse" }, { status: 403 });
+  }
+
+  const tenantId = tenantDeLaSession(req);
+  if (!tenantId) {
+    return NextResponse.json(
+      { error: "Session sans societe rattachee. Reconnectez-vous." },
+      { status: 401 }
+    );
   }
 
   try {
@@ -125,10 +153,12 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: "id requis" }, { status: 400 });
     }
 
+    // Le filtre tenant_id empeche de supprimer le compte d'un autre client
     const { error } = await supabase
       .from("compliance_comptes_etrangers")
       .delete()
-      .eq("id", id);
+      .eq("id", id)
+      .eq("tenant_id", tenantId);
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
