@@ -15,26 +15,11 @@ export async function GET() {
     const doc = await PDFDocument.load(await res.arrayBuffer(), { updateMetadata: false });
     const form = doc.getForm();
 
-    const pages: Record<string, number> = {};
-    const cases: string[] = [];
-
-    for (const f of form.getFields()) {
-      const nom = f.getName();
-
-      const m = nom.match(/(Page\d+\[0\])/);
-      const cle = m ? m[1] : "AUTRE";
-      pages[cle] = (pages[cle] || 0) + 1;
-
-      if (f.constructor.name.indexOf("CheckBox") !== -1) {
-        cases.push(nom);
-      }
-    }
+    const noms = form.getFields().map((f) => f.getName());
 
     return NextResponse.json({
-      total: form.getFields().length,
-      pages,
-      nb_cases_a_cocher: cases.length,
-      cases_a_cocher: cases,
+      total: noms.length,
+      page4: noms.filter((n) => n.indexOf("Page4[0]") !== -1),
     });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
