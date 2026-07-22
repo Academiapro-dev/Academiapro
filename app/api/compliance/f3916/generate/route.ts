@@ -10,6 +10,27 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+function origineLegitime(req: NextRequest): boolean {
+  const origine = req.headers.get("origin") || "";
+  const referent = req.headers.get("referer") || "";
+  return (
+    origine.includes("academiapro.fr") || referent.includes("academiapro.fr") ||
+    origine.includes("vercel.app") || referent.includes("vercel.app") ||
+    origine.includes("localhost") || referent.includes("localhost")
+  );
+}
+
+function tenantDeLaSession(req: NextRequest): string | null {
+  try {
+    const brut = req.cookies.get("sb_user")?.value;
+    if (!brut) return null;
+    const donnees = JSON.parse(decodeURIComponent(brut));
+    return donnees?.tenant_id || null;
+  } catch {
+    return null;
+  }
+}
+
 function fr(v: unknown): string {
   if (v === null || v === undefined || v === "") return "-";
   return String(v);
@@ -107,30 +128,29 @@ ${avertissement}
 }
 
 export async function POST(req: NextRequest) {
-  const origine = req.headers.get("origin") || "";
-  const referent = req.headers.get("referer") || "";
-  const legitime =
-    origine.includes("academiapro.fr") || referent.includes("academiapro.fr")
-    || origine.includes("vercel.app") || referent.includes("vercel.app")
-    || origine.includes("localhost") || referent.includes("localhost");
-  if (!legitime) {
+  if (!origineLegitime(req)) {
     return NextResponse.json({ error: "Acces refuse" }, { status: 403 });
   }
 
-  try {
-    const { tenant_id, year } = await req.json();
-    const annee = Number(year) || new Date().getFullYear();
+  const tenantId = tenantDeLaSession(req);
+  if (!tenantId) {
+    return NextResponse.json(
+      { error: "Session sans societe rattachee. Reconnectez-vous." },
+      { status: 401 }
+    );
+  }
 
-    if (!tenant_id) {
-      return NextResponse.json({ error: "tenant_id requis" }, { status: 400 });
-    }
+  try {
+    const { year } = await req.json();
+    const annee = Number(year) || new Date().getFullYear();
 
     const { data: comptes, error: eLect } = await supabase
       .from("compliance_comptes_etrangers")
       .select("*")
-      .eq("tenant_id", tenant_id)
+      .eq("tenant_id", tenantId)
       .eq("exercice", annee)
-      .order("date_ouverture", { ascending: true });
+      .order("date_ouverture", { ascending: true })
+      .limit(500);
 
     if (eLect) {
       return NextResponse.json({ error: "Lecture comptes: " + eLect.message }, { status: 500 });
@@ -141,12 +161,12 @@ export async function POST(req: NextRequest) {
     const html = ficheHTML(liste, annee, tousValides);
 
     const { data: ver } = await supabase.rpc("compliance_next_doc_version", {
-      p_tenant_id: tenant_id,
+      p_tenant_id: tenantId,
       p_doc_type: "fiche_3916",
     });
     const version = ver || 1;
 
-    const chemin = tenant_id + "/3916_" + annee + "_v" + version + ".html";
+    const chemin = tenantId + "/3916_" + annee + "_v" + version + ".html";
 
     const { error: upErr } = await supabase.storage
       .from("compliance-docs")
@@ -157,7 +177,7 @@ export async function POST(req: NextRequest) {
     }
 
     await supabase.from("compliance_documents").insert({
-      tenant_id: tenant_id,
+      tenant_id: tenantId,
       rule_code: "FR_3916",
       doc_type: "fiche_3916",
       title: "Fiche 3916 comptes etrangers " + annee,
@@ -204,6 +224,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
+      tenant_id: tenantId,
       annee,
       version,
       nb_comptes: liste.length,
