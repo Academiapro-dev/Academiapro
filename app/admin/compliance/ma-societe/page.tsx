@@ -20,6 +20,32 @@ const STYLE_LIBELLE = {
   fontSize: 14,
 };
 
+// Codes officiels a deux lettres. Le catalogue de regles s'appuie dessus :
+// une saisie libre ("WYOMING" au lieu de "WY") ferait echouer la generation
+// des echeances propres a l'Etat.
+const ETATS = [
+  { code: "", libelle: "-- Choisir --" },
+  { code: "WY", libelle: "Wyoming (WY)" },
+  { code: "DE", libelle: "Delaware (DE)" },
+  { code: "FL", libelle: "Floride (FL)" },
+  { code: "TX", libelle: "Texas (TX)" },
+  { code: "NM", libelle: "Nouveau-Mexique (NM)" },
+  { code: "NV", libelle: "Nevada (NV)" },
+  { code: "CA", libelle: "Californie (CA)" },
+  { code: "NY", libelle: "New York (NY)" },
+  { code: "GB", libelle: "Royaume-Uni (GB)" },
+  { code: "AUTRE", libelle: "Autre - a preciser en notes" },
+];
+
+const RESIDENCES = [
+  { code: "FR", libelle: "France (FR)" },
+  { code: "BE", libelle: "Belgique (BE)" },
+  { code: "CH", libelle: "Suisse (CH)" },
+  { code: "LU", libelle: "Luxembourg (LU)" },
+  { code: "CA", libelle: "Canada (CA)" },
+  { code: "AUTRE", libelle: "Autre" },
+];
+
 export default function MaSociete() {
   const [chargement, setChargement] = useState(true);
   const [societe, setSociete] = useState<any>(null);
@@ -58,6 +84,11 @@ export default function MaSociete() {
   }, []);
 
   async function enregistrer() {
+    if (!formationState) {
+      setMsg("Erreur : choisissez l'Etat ou pays de constitution.");
+      return;
+    }
+
     setEnCours(true);
     setMsg(null);
     try {
@@ -67,7 +98,7 @@ export default function MaSociete() {
         body: JSON.stringify({
           label: label.trim(),
           legal_name: legalName.trim(),
-          formation_state: formationState.trim(),
+          formation_state: formationState,
           formation_date: formationDate || null,
           wy_filing_id: wyFilingId.trim() || null,
           registered_agent_name: registeredAgent.trim() || null,
@@ -179,12 +210,19 @@ export default function MaSociete() {
             </p>
 
             <span style={STYLE_LIBELLE}>Etat ou pays de constitution (obligatoire)</span>
-            <input
+            <select
               value={formationState}
               onChange={(e) => setFormationState(e.target.value)}
-              placeholder="WY"
               style={STYLE_CHAMP}
-            />
+            >
+              {ETATS.map((e) => (
+                <option key={e.code} value={e.code}>{e.libelle}</option>
+              ))}
+            </select>
+            <p style={{ marginTop: -12, marginBottom: 16, fontSize: 13, color: "#666" }}>
+              Vos echeances declaratives dependent de ce choix. Si votre Etat
+              n'apparait pas, choisissez "Autre" et precisez-le en notes.
+            </p>
 
             <span style={STYLE_LIBELLE}>Date de constitution</span>
             <input
@@ -223,11 +261,15 @@ export default function MaSociete() {
             />
 
             <span style={STYLE_LIBELLE}>Residence fiscale du fondateur</span>
-            <input
+            <select
               value={memberResidence}
               onChange={(e) => setMemberResidence(e.target.value)}
               style={STYLE_CHAMP}
-            />
+            >
+              {RESIDENCES.map((r) => (
+                <option key={r.code} value={r.code}>{r.libelle}</option>
+              ))}
+            </select>
 
             <span style={STYLE_LIBELLE}>Notes</span>
             <textarea
