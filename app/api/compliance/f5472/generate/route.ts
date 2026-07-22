@@ -31,7 +31,7 @@ export async function POST(req: Request) {
       .from("compliance_5472_mapping")
       .select("*")
       .eq("tenant_id", tenantId)
-      .eq("exercice", year)
+      .eq("tax_year", year)
       .maybeSingle();
 
     if (eMap) {
@@ -68,42 +68,41 @@ export async function POST(req: Request) {
 
     // ---- PAGE 1 : Part I ----
     setText("Page1[0].Line1a[0].f1_5[0]", m.ri_name);
-    setText("Page1[0].Line1a[0].f1_6[0]", m.ri_street);
-    setText("Page1[0].Line1a[0].f1_7[0]", m.ri_city_state_zip);
+    setText("Page1[0].Line1a[0].f1_6[0]", m.ri_address);
     setText("Page1[0].f1_8[0]", m.ri_ein);
     setText("Page1[0].f1_9[0]", money(m.ri_total_assets_usd));
     setText("Page1[0].f1_10[0]", m.ri_business_activity);
-    setText("Page1[0].f1_11[0]", m.ri_business_code);
+    setText("Page1[0].f1_11[0]", m.ri_naics);
     setText("Page1[0].Line1f_ReadOrder[0].f1_12[0]", money(m.ri_total_gross_payments_usd));
-    setText("Page1[0].f1_13[0]", m.ri_nb_forms_5472);
+    setText("Page1[0].f1_13[0]", m.ri_nb_5472);
     setText("Page1[0].f1_14[0]", money(m.ri_total_gross_payments_usd));
-    setText("Page1[0].f1_15[0]", m.ri_nb_parts_viii);
-    setText("Page1[0].f1_16[0]", m.ri_country_incorporation);
-    setText("Page1[0].f1_17[0]", m.ri_date_incorporation);
-    setText("Page1[0].f1_18[0]", m.ri_country_tax_resident);
+    setText("Page1[0].f1_15[0]", m.ri_nb_partsviii);
+    setText("Page1[0].f1_16[0]", m.ri_country_incorp);
+    setText("Page1[0].f1_17[0]", m.ri_date_incorp);
+    setText("Page1[0].f1_18[0]", m.ri_country_resident);
     setText("Page1[0].f1_19[0]", m.ri_country_business);
 
     if (m.ri_initial_year) check("Page1[0].Line1j_ReadOrder[0].c1_2[0]");
-    if (m.ri_foreign_owned_de) check("Page1[0].c1_4[0]");
-    if (m.ri_fifty_percent_foreign) check("Page1[0].c1_3[0]");
+    if (m.ri_is_foreign_owned_de) check("Page1[0].c1_4[0]");
 
     // ---- PAGE 1 : Part II (25% foreign shareholder) ----
     setText("Page1[0].f1_20[0]", m.fs_name_address);
+    setText("Page1[0].f1_22[0]", m.fs_us_id);
     setText("Page1[0].f1_23[0]", m.fs_ftin);
     setText("Page1[0].f1_24[0]", m.fs_country_business);
     setText("Page1[0].f1_25[0]", m.fs_country_citizenship);
-    setText("Page1[0].f1_26[0]", m.fs_country_tax_resident);
+    setText("Page1[0].f1_26[0]", m.fs_country_resident);
 
     // ---- PAGE 2 : Part III (related party) ----
-    check("Page2[0].c2_1[0]"); // foreign person
+    if (m.rp_is_foreign) check("Page2[0].c2_1[0]");
     setText("Page2[0].f2_1[0]", m.rp_name_address);
     setText("Page2[0].f2_4[0]", m.rp_ftin);
     setText("Page2[0].f2_5[0]", m.rp_business_activity);
-    setText("Page2[0].f2_6[0]", m.rp_business_code);
+    setText("Page2[0].f2_6[0]", m.rp_naics);
     setText("Page2[0].f2_7[0]", m.rp_country_business);
-    setText("Page2[0].f2_8[0]", m.rp_country_tax_resident);
-    check("Page2[0].c2_2[0]"); // related to reporting corporation
-    check("Page2[0].c2_4[0]"); // 25% foreign shareholder
+    setText("Page2[0].f2_8[0]", m.rp_country_resident);
+    if (m.rp_related_to_reporting) check("Page2[0].c2_2[0]");
+    if (m.rp_is_25pct_shareholder) check("Page2[0].c2_4[0]");
 
     // ---- PAGE 2 : Part IV (transactions) ----
     setText("Page2[0].f2_18[0]", money(m.p4_l17a_beginning_balance_usd));
