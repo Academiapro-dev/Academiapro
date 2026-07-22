@@ -2,18 +2,25 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 // Pages reservees a un utilisateur connecte disposant d'une societe.
-// Tout ce qui commence par ces chemins est protege.
 const CHEMINS_PROTEGES = ['/admin'];
+
+// Exceptions : accessibles a un utilisateur connecte MEME sans societe.
+// C'est par la que passe un nouveau client pour enregistrer la sienne.
+const EXCEPTIONS = ['/admin/compliance/ma-societe'];
 
 function estProtege(chemin: string): boolean {
   return CHEMINS_PROTEGES.some((p) => chemin === p || chemin.startsWith(p + '/'));
 }
 
-// Lit le cookie de session et en extrait le tenant_id.
-function tenantDuCookie(request: NextRequest): string | null {
+function estException(chemin: string): boolean {
+  return EXCEPTIONS.some((p) => chemin === p || chemin.startsWith(p + '/'));
+}
+
+// Lit le cookie de session : identifiant du compte et societe rattachee.
+function sessionDuCookie(request: NextRequest): { id: string | null; tenantId: string | null } {
   try {
     const brut = request.cookies.get('sb_user')?.value;
-    if (!brut) return null;
+    if (!brut) return { id: null, tenantId: null };
     let texte = brut;
     try {
       texte = decodeURIComponent(brut);
@@ -21,9 +28,9 @@ function tenantDuCookie(request: NextRequest): string | null {
       texte = brut;
     }
     const donnees = JSON.parse(texte);
-    return donnees?.tenant_id || null;
+    return { id: donnees?.id || null, tenantId: donnees?.tenant_id || null };
   } catch {
-    return null;
+    return { id: null, tenantId: null };
   }
 }
 
@@ -34,13 +41,23 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const tenantId = tenantDuCookie(request);
+  const { id, tenantId } = sessionDuCookie(request);
 
-  if (!tenantId) {
-    // Redirection vers la connexion, en memorisant la page demandee
+  // Aucun compte connecte : direction la connexion, quelle que soit la page
+  if (!id) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';
     url.searchParams.set('retour', chemin);
+    return NextResponse.redirect(url);
+  }
+
+  // Connecte mais sans societe : seule la page d'enregistrement est ouverte
+  if (!tenantId) {
+    if (estException(chemin)) {
+      return NextResponse.next();
+    }
+    const url = request.nextUrl.clone();
+    url.pathname = '/admin/compliance/ma-societe';
     return NextResponse.redirect(url);
   }
 
