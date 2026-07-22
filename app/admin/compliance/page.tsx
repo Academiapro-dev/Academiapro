@@ -216,6 +216,15 @@ export default function ComplianceDashboard() {
     marginBottom: 10,
   };
 
+  const styleLien = {
+    ...styleBouton,
+    display: "inline-block",
+    textDecoration: "none",
+    background: "#ffffff",
+    color: "#0a3d2e",
+    border: "1px solid #0a3d2e",
+  };
+
   const styleCarte = {
     border: "1px solid #ddd",
     borderRadius: 8,
@@ -331,17 +340,7 @@ export default function ComplianceDashboard() {
             <span style={{ color: "#c62828" }}> - rien a declarer pour l'instant</span>
           )}
         </p>
-        <a
-          href="/admin/compliance/comptes-etrangers"
-          style={{
-            ...styleBouton,
-            display: "inline-block",
-            textDecoration: "none",
-            background: "#ffffff",
-            color: "#0a3d2e",
-            border: "1px solid #0a3d2e",
-          }}
-        >
+        <a href="/admin/compliance/comptes-etrangers" style={styleLien}>
           Gerer les comptes etrangers
         </a>
         <button onClick={generer3916} disabled={f3916Loading} style={styleBouton}>
@@ -501,6 +500,13 @@ export default function ComplianceDashboard() {
         </table>
 
         <h2 style={{ color: "#0a3d2e", fontSize: 20, marginTop: 32 }}>Coffre documentaire</h2>
+        <p style={{ fontSize: 14, color: "#555", marginTop: 0 }}>
+          Documents generes par le systeme et pieces justificatives deposees.
+          Chaque depot est versionne, horodate et scelle par une empreinte SHA-256.
+        </p>
+        <a href="/admin/compliance/deposer" style={styleLien}>
+          Deposer une piece au coffre
+        </a>
         {documents.length === 0 && <p>Aucun document archive.</p>}
         <ul>
           {documents.map((doc) => (
