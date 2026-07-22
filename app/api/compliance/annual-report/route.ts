@@ -123,21 +123,47 @@ export async function POST(req: NextRequest) {
       mime_type: "text/html",
     });
 
-    await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: "Bearer " + process.env.RESEND_API_KEY,
-      },
-      body: JSON.stringify({
-        from: "AcademIA Pro <contact@hebrewproai.com>",
-        to: ["contact@academiapro.fr"],
-        subject: "Fiche Annual Report Wyoming " + annee + " - license tax " + tax.toFixed(2) + " USD",
-        html: html,
-      }),
-    });
+    // ---- ENVOI EMAIL : le resultat est desormais VERIFIE et remonte ----
+    const email: Record<string, unknown> = { tente: true };
 
-    return NextResponse.json({ success: true, version, tax, path });
+    if (!process.env.RESEND_API_KEY) {
+      email.envoye = false;
+      email.raison = "RESEND_API_KEY absente des variables d'environnement Vercel";
+    } else {
+      try {
+        const rMail = await fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: "Bearer " + process.env.RESEND_API_KEY,
+          },
+          body: JSON.stringify({
+            from: "AcademIA Pro <contact@hebrewproai.com>",
+            to: ["contact@academiapro.fr"],
+            subject: "Fiche Annual Report Wyoming " + annee + " - license tax " + tax.toFixed(2) + " USD",
+            html: html,
+          }),
+        });
+
+        const corps = await rMail.text();
+        email.statut_http = rMail.status;
+
+        if (rMail.ok) {
+          email.envoye = true;
+          email.reponse = corps.slice(0, 300);
+        } else {
+          email.envoye = false;
+          email.raison = "Resend a refuse l'envoi";
+          email.reponse = corps.slice(0, 500);
+        }
+      } catch (e: unknown) {
+        email.envoye = false;
+        email.raison = "Appel a Resend impossible";
+        email.reponse = e instanceof Error ? e.message : String(e);
+      }
+    }
+
+    return NextResponse.json({ success: true, version, tax, path, email });
   } catch (e: any) {
     return NextResponse.json({ error: String(e && e.message ? e.message : e) }, { status: 500 });
   }
