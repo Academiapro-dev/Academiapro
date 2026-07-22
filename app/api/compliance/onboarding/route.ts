@@ -20,7 +20,6 @@ function origineLegitime(req: NextRequest): boolean {
   );
 }
 
-// Lit l'identifiant du compte connecte dans le cookie sb_user.
 function utilisateurDeLaSession(req: NextRequest): { id: string | null; tenantId: string | null } {
   try {
     const brut = req.cookies.get("sb_user")?.value;
@@ -95,7 +94,6 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
 
-    // Les trois champs obligatoires de compliance_tenants
     const label = String(body.label || "").trim();
     const legalName = String(body.legal_name || "").trim();
     const formationState = String(body.formation_state || "").trim();
@@ -127,7 +125,6 @@ export async function POST(req: NextRequest) {
     if (body.principal_office_address) ligne.principal_office_address = body.principal_office_address;
     if (body.notes) ligne.notes = body.notes;
 
-    // Le mois anniversaire sert au calcul des echeances Wyoming
     if (body.formation_date) {
       const mois = Number(String(body.formation_date).slice(5, 7));
       if (mois >= 1 && mois <= 12) ligne.anniversary_month = mois;
@@ -146,7 +143,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Rattachement du compte connecte a cette societe
     const { error: eMembre } = await supabase.from("compliance_membres").insert({
       user_id: userId,
       tenant_id: societe.tenant_id,
@@ -164,11 +160,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Generation des echeances a partir du catalogue de regles
-    const echeances: Record<string, unknown> = { tente: true };
+    // Generation des echeances.
+    // Signature reelle verifiee : compliance_generate_deadlines(p_tenant_id uuid, p_year integer)
+    const anneeCible = new Date().getFullYear() + 1;
+    const echeances: Record<string, unknown> = { tente: true, annee: anneeCible };
     try {
       const { error: eGen } = await supabase.rpc("compliance_generate_deadlines", {
         p_tenant_id: societe.tenant_id,
+        p_year: anneeCible,
       });
       if (eGen) {
         echeances.generees = false;
