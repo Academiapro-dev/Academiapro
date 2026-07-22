@@ -63,6 +63,10 @@ export default function ComplianceDashboard() {
   const [irsMsg, setIrsMsg] = useState<string | null>(null);
   const [irsUrl, setIrsUrl] = useState<string | null>(null);
 
+  const [nbComptes, setNbComptes] = useState<number | null>(null);
+  const [f3916Loading, setF3916Loading] = useState(false);
+  const [f3916Msg, setF3916Msg] = useState<string | null>(null);
+
   async function charger() {
     setLoading(true);
     setErreur(null);
@@ -82,6 +86,9 @@ export default function ComplianceDashboard() {
       const rb = await fetch("/api/compliance/bilan");
       const db = await rb.json();
       if (db.success) setBilan(db);
+      const rc = await fetch("/api/compliance/comptes-etrangers?tenant_id=" + TENANT_ID + "&year=" + PNL_YEAR);
+      const dc = await rc.json();
+      if (dc.success) setNbComptes((dc.comptes || []).length);
     } catch (e: any) {
       setErreur(String(e));
     }
@@ -159,6 +166,42 @@ export default function ComplianceDashboard() {
       setIrsMsg("Erreur : " + String(e));
     }
     setIrsLoading(null);
+  }
+
+  async function generer3916() {
+    setF3916Loading(true);
+    setF3916Msg(null);
+    try {
+      const r = await fetch("/api/compliance/f3916/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tenant_id: TENANT_ID, year: PNL_YEAR }),
+      });
+      const data = await r.json();
+      if (data.success) {
+        let msg =
+          "Fiche 3916 generee (version " + data.version + ") pour " + data.annee +
+          " - " + data.nb_comptes + " compte(s) etranger(s), archivee au coffre.";
+        if (data.nb_comptes === 0) {
+          msg += " ATTENTION : aucun compte enregistre, la fiche est vide.";
+        } else if (!data.tous_valides) {
+          msg += " Au moins un compte n'est pas encore valide par un fiscaliste.";
+        }
+        const em = data.email || {};
+        if (em.envoye === true) {
+          msg += " Email envoye.";
+        } else {
+          msg += " L'email n'est PAS parti (" + (em.raison || "cause inconnue") + ").";
+        }
+        setF3916Msg(msg);
+        charger();
+      } else {
+        setF3916Msg("Erreur : " + (data.error || "inconnue"));
+      }
+    } catch (e: any) {
+      setF3916Msg("Erreur : " + String(e));
+    }
+    setF3916Loading(false);
   }
 
   const styleBouton = {
@@ -269,6 +312,44 @@ export default function ComplianceDashboard() {
               Ouvrir le PDF genere
             </a>
             <span style={{ color: "#666", fontSize: 13 }}> (lien valable 1 heure)</span>
+          </p>
+        )}
+
+        <h2 style={{ color: "#0a3d2e", fontSize: 20, marginTop: 32 }}>
+          Comptes etrangers - formulaire 3916 ({PNL_YEAR})
+        </h2>
+        <p style={{ fontSize: 14, color: "#555", marginTop: 0 }}>
+          Article 1649 A du CGI : tout compte ouvert, detenu, utilise ou sous procuration
+          a l'etranger doit etre declare. Penalite d'omission : 1 500 EUR par compte et par an.
+        </p>
+        <p style={{ fontSize: 15, marginTop: 0 }}>
+          Comptes enregistres pour {PNL_YEAR} :{" "}
+          <strong style={{ color: nbComptes === 0 ? "#c62828" : "#0a3d2e" }}>
+            {nbComptes === null ? "..." : nbComptes}
+          </strong>
+          {nbComptes === 0 && (
+            <span style={{ color: "#c62828" }}> - rien a declarer pour l'instant</span>
+          )}
+        </p>
+        <a
+          href="/admin/compliance/comptes-etrangers"
+          style={{
+            ...styleBouton,
+            display: "inline-block",
+            textDecoration: "none",
+            background: "#ffffff",
+            color: "#0a3d2e",
+            border: "1px solid #0a3d2e",
+          }}
+        >
+          Gerer les comptes etrangers
+        </a>
+        <button onClick={generer3916} disabled={f3916Loading} style={styleBouton}>
+          {f3916Loading ? "Generation..." : "Generer la fiche 3916"}
+        </button>
+        {f3916Msg && (
+          <p style={{ marginTop: 10, color: f3916Msg.indexOf("Erreur") === 0 || f3916Msg.indexOf("ATTENTION") !== -1 ? "#c62828" : "#0a3d2e" }}>
+            {f3916Msg}
           </p>
         )}
 
