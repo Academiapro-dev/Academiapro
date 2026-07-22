@@ -18,14 +18,20 @@ export async function GET() {
     const font = await doc.embedFont(StandardFonts.Helvetica);
     const form = doc.getForm();
 
-    // Page 5 : les cases PAIRES uniquement, colonne Yes
-    for (let i = 2; i <= 24; i += 2) {
-      const nom = "topmostSubform[0].Page5[0].c5_" + i + "[0]";
+    // Encadrement : c5_14 et c5_16 en colonne Yes, c5_18 en colonne No
+    // Les trois marques seront distinguables par leur position
+    const cibles = [
+      "topmostSubform[0].Page5[0].c5_14[0]",
+      "topmostSubform[0].Page5[0].c5_16[0]",
+      "topmostSubform[0].Page5[0].c5_18[1]",
+    ];
+
+    for (const nom of cibles) {
       try {
         form.getCheckBox(nom).check();
-        journal.push("COCHE c5_" + i);
+        journal.push("COCHE " + nom);
       } catch (e: unknown) {
-        journal.push("ECHEC c5_" + i + " : " + (e instanceof Error ? e.message : String(e)));
+        journal.push("ECHEC " + nom + " : " + (e instanceof Error ? e.message : String(e)));
       }
     }
 
@@ -35,7 +41,7 @@ export async function GET() {
     return new NextResponse(Buffer.from(bytes), {
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": "inline; filename=f1120-pairs.pdf",
+        "Content-Disposition": "inline; filename=f1120-q27.pdf",
         "X-Journal": journal.join(" | "),
       },
     });
