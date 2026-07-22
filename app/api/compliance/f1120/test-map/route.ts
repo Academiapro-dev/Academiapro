@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { PDFDocument } from "pdf-lib";
+import { PDFDocument, StandardFonts } from "pdf-lib";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -13,13 +13,31 @@ export async function GET() {
     }
 
     const doc = await PDFDocument.load(await res.arrayBuffer(), { updateMetadata: false });
+    const font = await doc.embedFont(StandardFonts.Helvetica);
     const form = doc.getForm();
 
-    const noms = form.getFields().map((f) => f.getName());
+    for (const f of form.getFields()) {
+      const nom = f.getName();
+      if (nom.indexOf("Page4[0]") === -1 && nom.indexOf("Page5[0]") === -1) continue;
 
-    return NextResponse.json({
-      total: noms.length,
-      page4: noms.filter((n) => n.indexOf("Page4[0]") !== -1),
+      const court = (nom.split(".").pop() || nom).replace(/\[0\]$/, "");
+      try {
+        const champ = form.getTextField(nom);
+        champ.setFontSize(5);
+        champ.setText(court);
+      } catch {
+        // ignore
+      }
+    }
+
+    form.updateFieldAppearances(font);
+    const bytes = await doc.save();
+
+    return new NextResponse(Buffer.from(bytes), {
+      headers: {
+        "Content-Type": "application/pdf",
+        "Content-Disposition": "inline; filename=f1120-p45.pdf",
+      },
     });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
