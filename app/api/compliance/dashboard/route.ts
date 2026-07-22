@@ -10,20 +10,38 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-export async function GET(req: NextRequest) {
+function origineLegitime(req: NextRequest): boolean {
   const origine = req.headers.get("origin") || "";
   const referent = req.headers.get("referer") || "";
-  const legitime =
-    origine.includes("academiapro.fr") || referent.includes("academiapro.fr")
-    || origine.includes("vercel.app") || referent.includes("vercel.app")
-    || origine.includes("localhost") || referent.includes("localhost");
-  if (!legitime) {
+  return (
+    origine.includes("academiapro.fr") || referent.includes("academiapro.fr") ||
+    origine.includes("vercel.app") || referent.includes("vercel.app") ||
+    origine.includes("localhost") || referent.includes("localhost")
+  );
+}
+
+function tenantDeLaSession(req: NextRequest): string | null {
+  try {
+    const brut = req.cookies.get("sb_user")?.value;
+    if (!brut) return null;
+    const donnees = JSON.parse(decodeURIComponent(brut));
+    return donnees?.tenant_id || null;
+  } catch {
+    return null;
+  }
+}
+
+export async function GET(req: NextRequest) {
+  if (!origineLegitime(req)) {
     return NextResponse.json({ error: "Acces refuse" }, { status: 403 });
   }
 
-  const tenant_id = req.nextUrl.searchParams.get("tenant_id") || "";
-  if (!tenant_id) {
-    return NextResponse.json({ error: "tenant_id manquant" }, { status: 400 });
+  const tenantId = tenantDeLaSession(req);
+  if (!tenantId) {
+    return NextResponse.json(
+      { error: "Session sans societe rattachee. Reconnectez-vous." },
+      { status: 401 }
+    );
   }
 
   const journal: string[] = [];
@@ -33,20 +51,22 @@ export async function GET(req: NextRequest) {
     const { data: tenant } = await supabase
       .from("compliance_tenants")
       .select("legal_name, wy_filing_id, member_residence, has_us_source_income")
-      .eq("tenant_id", tenant_id)
+      .eq("tenant_id", tenantId)
       .single();
 
-    // Echeances a venir
+    // Echeances
     const { data: deadlinesRaw } = await supabase
       .from("compliance_deadlines")
       .select("id, rule_code, period_label, due_date, status, amount_due, currency")
-      .eq("tenant_id", tenant_id)
-      .order("due_date", { ascending: true });
+      .eq("tenant_id", tenantId)
+      .order("due_date", { ascending: true })
+      .limit(500);
 
-    // Titres des regles (jointure manuelle)
+    // Titres des regles (catalogue commun a tous les tenants)
     const { data: rules } = await supabase
       .from("compliance_rules")
-      .select("code, title, jurisdiction, channel");
+      .select("code, title, jurisdiction, channel")
+      .limit(500);
     const titreMap: Record<string, any> = {};
     for (const r of rules || []) {
       titreMap[r.code] = r;
@@ -62,7 +82,7 @@ export async function GET(req: NextRequest) {
     const { data: docsRaw, error: eDocs } = await supabase
       .from("compliance_documents")
       .select("id, doc_type, title, version, storage_path, uploaded_at")
-      .eq("tenant_id", tenant_id)
+      .eq("tenant_id", tenantId)
       .order("uploaded_at", { ascending: false })
       .limit(200);
 
@@ -95,6 +115,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
+      tenant_id: tenantId,
       tenant,
       deadlines,
       documents: docs,
