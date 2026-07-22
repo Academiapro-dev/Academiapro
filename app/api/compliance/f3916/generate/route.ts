@@ -20,14 +20,20 @@ function origineLegitime(req: NextRequest): boolean {
   );
 }
 
-function tenantDeLaSession(req: NextRequest): string | null {
+function sessionDuCookie(req: NextRequest): { tenantId: string | null; email: string | null } {
   try {
     const brut = req.cookies.get("sb_user")?.value;
-    if (!brut) return null;
-    const donnees = JSON.parse(decodeURIComponent(brut));
-    return donnees?.tenant_id || null;
+    if (!brut) return { tenantId: null, email: null };
+    let texte = brut;
+    try {
+      texte = decodeURIComponent(brut);
+    } catch {
+      texte = brut;
+    }
+    const donnees = JSON.parse(texte);
+    return { tenantId: donnees?.tenant_id || null, email: donnees?.email || null };
   } catch {
-    return null;
+    return { tenantId: null, email: null };
   }
 }
 
@@ -72,7 +78,7 @@ function ficheHTML(comptes: any[], annee: number, tousValides: boolean): string 
   fiscaliste. Point de forme a confirmer : le formulaire distingue le compte
   <em>detenu</em> du compte <em>detenu par une entite dont vous etes beneficiaire</em>.
   Pour une Single-Member LLC transparente, l'administration accepte generalement le
-  titulaire personne physique, mais faites confirmer par un CPA franco-US avant depot.
+  titulaire personne physique, mais faites confirmer avant depot.
 </div>`;
 
   return `<!DOCTYPE html>
@@ -121,7 +127,7 @@ ${comptes.length === 0 ? "<p>Aucun compte enregistre pour cet exercice.</p>" : b
 ${avertissement}
 
 <div class="footer">
-  AcademIA Pro - Module Compliance - Fiche de preparation 3916 ${annee} - ${date}<br/>
+  Module Compliance - Fiche de preparation 3916 ${annee} - ${date}<br/>
   Ce document est une aide a la saisie et ne constitue pas un depot officiel.
 </div>
 </body></html>`;
@@ -132,7 +138,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Acces refuse" }, { status: 403 });
   }
 
-  const tenantId = tenantDeLaSession(req);
+  const { tenantId, email: emailSession } = sessionDuCookie(req);
   if (!tenantId) {
     return NextResponse.json(
       { error: "Session sans societe rattachee. Reconnectez-vous." },
@@ -186,9 +192,13 @@ export async function POST(req: NextRequest) {
       mime_type: "text/html",
     });
 
-    const email: Record<string, unknown> = { tente: true };
+    // ---- ENVOI EMAIL vers l'adresse du COMPTE CONNECTE ----
+    const email: Record<string, unknown> = { tente: true, destinataire: emailSession };
 
-    if (!process.env.RESEND_API_KEY) {
+    if (!emailSession) {
+      email.envoye = false;
+      email.raison = "Aucune adresse email dans la session";
+    } else if (!process.env.RESEND_API_KEY) {
       email.envoye = false;
       email.raison = "RESEND_API_KEY absente des variables d'environnement Vercel";
     } else {
@@ -200,8 +210,8 @@ export async function POST(req: NextRequest) {
             Authorization: "Bearer " + process.env.RESEND_API_KEY,
           },
           body: JSON.stringify({
-            from: "AcademIA Pro <contact@hebrewproai.com>",
-            to: ["contact@academiapro.fr"],
+            from: "Mr. Compliance <contact@hebrewproai.com>",
+            to: [emailSession],
             subject: "Fiche 3916 comptes etrangers " + annee + " - " + liste.length + " compte(s)",
             html: html,
           }),
