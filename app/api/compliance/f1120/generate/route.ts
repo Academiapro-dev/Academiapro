@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { PDFDocument, StandardFonts } from "pdf-lib";
 import { createClient } from "@supabase/supabase-js";
 
@@ -14,6 +14,27 @@ const supabase = createClient(
 const P = "topmostSubform[0].";
 const NF = "Page1[0].NameFieldsReadOrder[0].";
 
+function origineLegitime(req: NextRequest): boolean {
+  const origine = req.headers.get("origin") || "";
+  const referent = req.headers.get("referer") || "";
+  return (
+    origine.includes("academiapro.fr") || referent.includes("academiapro.fr") ||
+    origine.includes("vercel.app") || referent.includes("vercel.app") ||
+    origine.includes("localhost") || referent.includes("localhost")
+  );
+}
+
+function tenantDeLaSession(req: NextRequest): string | null {
+  try {
+    const brut = req.cookies.get("sb_user")?.value;
+    if (!brut) return null;
+    const donnees = JSON.parse(decodeURIComponent(brut));
+    return donnees?.tenant_id || null;
+  } catch {
+    return null;
+  }
+}
+
 function money(n: number | null | undefined): string {
   if (n === null || n === undefined) return "";
   return Number(n).toFixed(2);
@@ -27,16 +48,24 @@ function dateIRS(v: unknown): string {
   return p[1] + "/" + p[2] + "/" + p[0];
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   const journal: string[] = [];
+
+  if (!origineLegitime(req)) {
+    return NextResponse.json({ error: "Acces refuse" }, { status: 403 });
+  }
+
+  const tenantId = tenantDeLaSession(req);
+  if (!tenantId) {
+    return NextResponse.json(
+      { error: "Session sans societe rattachee. Reconnectez-vous." },
+      { status: 401 }
+    );
+  }
 
   try {
     const body = await req.json().catch(() => ({}));
-    const tenantId = body.tenant_id as string | undefined;
     const year = Number(body.year) || new Date().getFullYear();
-    if (!tenantId) {
-      return NextResponse.json({ error: "tenant_id requis" }, { status: 400 });
-    }
 
     const { data: m, error: eMap } = await supabase
       .from("compliance_5472_mapping")
@@ -52,13 +81,16 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Aucun mapping pour cet exercice" }, { status: 404 });
     }
 
+    // ---- RECALCUL A LA VOLEE (filtre par tenant) ----
     const { data: dep, error: eDep } = await supabase
       .from("depenses")
       .select("montant_ttc, devise, date_depense")
+      .eq("tenant_id", tenantId)
       .eq("avance_perso", true)
       .eq("rembourse", false)
       .gte("date_depense", year + "-01-01")
-      .lte("date_depense", year + "-12-31");
+      .lte("date_depense", year + "-12-31")
+      .limit(5000);
 
     if (eDep) {
       return NextResponse.json({ error: "Lecture depenses: " + eDep.message }, { status: 500 });
@@ -153,6 +185,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       success: true,
+      tenant_id: tenantId,
       year,
       path: chemin,
       url: signed?.signedUrl ?? null,
