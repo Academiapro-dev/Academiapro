@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { PDFDocument, StandardFonts } from "pdf-lib";
+import { PDFDocument, StandardFonts, PDFName } from "pdf-lib";
 import fs from "fs/promises";
 import path from "path";
 
@@ -144,13 +144,43 @@ export async function POST(req: NextRequest) {
       }
     };
 
-    const poserRadio = (nom: string, option: string) => {
-      if (!option) return;
+    const poserCase = (nom: string, etat: string) => {
+      if (!etat) return;
       try {
-        form.getRadioGroup(nom).select(option);
-        controle[nom] = option;
+        const champ = form.getField(nom);
+        const acro = (champ as any).acroField;
+        const widgets = acro.getWidgets();
+        const cible = PDFName.of(etat);
+
+        acro.dict.set(PDFName.of("V"), cible);
+
+        let trouve = false;
+        for (const w of widgets) {
+          const ap = w.getAppearances();
+          const normal = ap && ap.normal;
+          let etatsDispo: string[] = [];
+          try {
+            etatsDispo = normal ? Object.keys(normal.dict.dict).map((k) => String(k)) : [];
+          } catch (e) {
+            etatsDispo = [];
+          }
+          const possede = etatsDispo.some((k) => k === "/" + etat || k === etat);
+          if (possede) {
+            w.dict.set(PDFName.of("AS"), cible);
+            trouve = true;
+          } else {
+            w.dict.set(PDFName.of("AS"), PDFName.of("Off"));
+          }
+        }
+
+        controle[nom] = etat + (trouve ? "" : " (widget correspondant NON trouve)");
+        if (!trouve) {
+          avertissements.push(
+            "Case " + nom + " : aucun widget ne porte l'etat /" + etat
+          );
+        }
       } catch (e: any) {
-        avertissements.push("Groupe radio " + nom + " : " + e.message);
+        avertissements.push("Case " + nom + " : " + e.message);
       }
     };
 
@@ -173,7 +203,7 @@ export async function POST(req: NextRequest) {
       contrat_capitalisation: "c",
     };
     const optCac2 = typeVersCac2[c.type_compte];
-    if (optCac2) poserRadio("CAC2", optCac2);
+    if (optCac2) poserCase("CAC2", optCac2);
     else avertissements.push("type_compte inconnu : " + c.type_compte);
 
     poserTexte("a13", c.numero_compte);
@@ -201,15 +231,14 @@ export async function POST(req: NextRequest) {
     };
     const optCac4 =
       d.modalite_detention || titulaireVersCac4[c.titulaire] || "a";
-    poserRadio("CAC4", optCac4);
+    poserCase("CAC4", optCac4);
 
     const caractereVersCac6: Record<string, string> = {
       personnel: "a",
       professionnel: "b",
     };
-    const optCac6 =
-      caractereVersCac6[c.caractere] || d.usage_compte || "b";
-    poserRadio("CAC6", optCac6);
+    const optCac6 = caractereVersCac6[c.caractere] || d.usage_compte || "b";
+    poserCase("CAC6", optCac6);
 
     poserTexte("a37", d.entreprise_raison_sociale);
     poserTexte("a38", d.entreprise_forme_juridique || "02");
@@ -239,9 +268,6 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (e: any) {
-    return NextResponse.json(
-      { ok: false, erreur: e.message, avertissements },
-      { status: 500 }
-    );
+    return NextResponse.json({ ok: false, erreur: e.message, avertissements }, { status: 500 });
   }
 }
