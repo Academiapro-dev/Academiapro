@@ -1,8 +1,10 @@
- import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
+
+const VOIX_CARTESIA = "faa75703-00e3-4a57-9955-0703001e3231";
 
 function nettoyerPourVoix(texte: string): string {
   return texte
@@ -18,10 +20,10 @@ function nettoyerPourVoix(texte: string): string {
 
 export async function POST(req: NextRequest) {
   try {
-    const cle = process.env.DEEPGRAM_API_KEY;
+    const cle = process.env.CARTESIA_API_KEY;
     if (!cle) {
       return NextResponse.json(
-        { ok: false, erreur: "Cle DEEPGRAM_API_KEY absente" },
+        { ok: false, erreur: "Cle CARTESIA_API_KEY absente des variables Vercel" },
         { status: 500 }
       );
     }
@@ -46,31 +48,49 @@ export async function POST(req: NextRequest) {
 
     const texte = nettoyerPourVoix(String(brut)).slice(0, 1800);
 
-    const reponse = await fetch(
-      "https://api.deepgram.com/v1/speak?model=aura-2-hector-fr",
-      {
-        method: "POST",
-        headers: {
-          Authorization: "Token " + cle,
-          "Content-Type": "application/json",
+    const reponse = await fetch("https://api.cartesia.ai/tts/bytes", {
+      method: "POST",
+      headers: {
+        "X-API-Key": cle,
+        "Cartesia-Version": "2024-06-10",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model_id: "sonic-multilingual",
+        transcript: texte,
+        voice: {
+          mode: "id",
+          id: VOIX_CARTESIA,
         },
-        body: JSON.stringify({ text: texte }),
-      }
-    );
+        language: "fr",
+        output_format: {
+          container: "mp3",
+          encoding: "mp3",
+          sample_rate: 44100,
+        },
+      }),
+    });
 
     if (!reponse.ok) {
       const detail = await reponse.text();
       return NextResponse.json(
         {
           ok: false,
-          erreur: "Synthese vocale : code " + reponse.status,
-          detail: detail.slice(0, 300),
+          erreur: "Cartesia : code " + reponse.status,
+          detail: detail.slice(0, 400),
         },
         { status: 500 }
       );
     }
 
     const audio = await reponse.arrayBuffer();
+
+    if (!audio || audio.byteLength < 100) {
+      return NextResponse.json(
+        { ok: false, erreur: "Audio vide renvoye par Cartesia" },
+        { status: 500 }
+      );
+    }
 
     return new NextResponse(Buffer.from(audio), {
       status: 200,
