@@ -131,11 +131,14 @@ export async function POST(req: NextRequest) {
     const form = pdfDoc.getForm();
     const police = await pdfDoc.embedFont(StandardFonts.Helvetica);
 
+    const controle: Record<string, string> = {};
+
     const poserTexte = (nom: string, valeur: any) => {
       const v = sansAccent(valeur);
       if (!v) return;
       try {
         form.getTextField(nom).setText(v);
+        controle[nom] = v;
       } catch (e: any) {
         avertissements.push("Champ texte " + nom + " : " + e.message);
       }
@@ -145,6 +148,7 @@ export async function POST(req: NextRequest) {
       if (!option) return;
       try {
         form.getRadioGroup(nom).select(option);
+        controle[nom] = option;
       } catch (e: any) {
         avertissements.push("Groupe radio " + nom + " : " + e.message);
       }
@@ -163,15 +167,20 @@ export async function POST(req: NextRequest) {
     );
     poserTexte("a5", d.adresse_pays || "France");
 
-    poserRadio("CAC2", "a");
+    const typeVersCac2: Record<string, string> = {
+      bancaire: "a",
+      actifs_numeriques: "b",
+      contrat_capitalisation: "c",
+    };
+    const optCac2 = typeVersCac2[c.type_compte];
+    if (optCac2) poserRadio("CAC2", optCac2);
+    else avertissements.push("type_compte inconnu : " + c.type_compte);
 
     poserTexte("a13", c.numero_compte);
 
-    const carac = (c.caractere || "").toLowerCase();
-    if (carac.indexOf("courant") >= 0) poserRadio("CAC3", "a");
-    else if (carac.indexOf("epargne") >= 0 || carac.indexOf("épargne") >= 0)
-      poserRadio("CAC3", "b");
-    else poserRadio("CAC3", "c");
+    avertissements.push(
+      "CAC3 (compte courant / epargne / autres) non renseigne : aucune colonne de la table ne porte cette information."
+    );
 
     poserTexte("a15", jour(c.date_ouverture));
     poserTexte("a16", mois(c.date_ouverture));
@@ -186,9 +195,22 @@ export async function POST(req: NextRequest) {
       [c.organisme_adresse, c.organisme_pays].filter(Boolean).join(", ")
     );
 
-    poserRadio("CAC4", d.modalite_detention || "a");
+    const titulaireVersCac4: Record<string, string> = {
+      personne_physique: "a",
+      entite: "b",
+    };
+    const optCac4 =
+      d.modalite_detention || titulaireVersCac4[c.titulaire] || "a";
+    poserRadio("CAC4", optCac4);
 
-    poserRadio("CAC6", d.usage_compte || "b");
+    const caractereVersCac6: Record<string, string> = {
+      personnel: "a",
+      professionnel: "b",
+    };
+    const optCac6 =
+      caractereVersCac6[c.caractere] || d.usage_compte || "b";
+    poserRadio("CAC6", optCac6);
+
     poserTexte("a37", d.entreprise_raison_sociale);
     poserTexte("a38", d.entreprise_forme_juridique || "02");
     poserTexte("a39", d.entreprise_siret);
@@ -197,6 +219,15 @@ export async function POST(req: NextRequest) {
     form.updateFieldAppearances(police);
 
     const sortie = await pdfDoc.save();
+
+    if (body.controle === true) {
+      return NextResponse.json({
+        ok: true,
+        compte: c.designation,
+        champs_remplis: controle,
+        avertissements,
+      });
+    }
 
     return new NextResponse(Buffer.from(sortie), {
       status: 200,
