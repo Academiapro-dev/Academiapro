@@ -91,11 +91,12 @@ function ficheHTML(comptes: any[], annee: number, tousValides: boolean): string 
   td.label { background:#f4f4f0; font-weight:bold; width:38%; }
   .alerte { background:#fff8e1; border-left:4px solid #c8a96e; padding:12px 16px; margin:16px 0; }
   .fondement { background:#f0f5f2; border-left:4px solid #0a3d2e; padding:12px 16px; margin:16px 0; }
+  .etape { background:#f4f4f0; border-left:4px solid #0a3d2e; padding:12px 16px; margin:16px 0; }
   ol { line-height:1.8; }
   .footer { margin-top:40px; font-size:12px; color:#666; border-top:1px solid #eee; padding-top:12px; }
 </style></head><body>
 
-<h1>Fiche de preparation - Formulaire 3916 (comptes etrangers) - ${annee}</h1>
+<h1>Fiche de preparation - Declaration 2042 et formulaire 3916 - ${annee}</h1>
 <p>Document de preparation genere le ${date}. Recopiez ces informations dans votre
 declaration de revenus sur impots.gouv.fr.</p>
 
@@ -111,12 +112,28 @@ declaration de revenus sur impots.gouv.fr.</p>
   effective. Penalite en cas d'omission : 1 500 EUR par compte et par an.
 </div>
 
-<h2>Comment declarer</h2>
+<h2>Declaration 2042 - ce qui change</h2>
+
+<div class="etape">
+  <strong>Une seule case a cocher.</strong> Votre declaration de revenus reste
+  celle d'un particulier. Le seul ajout lie a la societe est la case
+  <strong>8UU</strong> de la 2042, qui ouvre l'annexe 3916.
+</div>
+
+<table>
+  <tr><td class="label">Formulaire</td><td>2042 - declaration de revenus (particulier)</td></tr>
+  <tr><td class="label">Case a cocher</td><td><strong>8UU</strong> - Comptes ouverts, utilises ou clos a l'etranger</td></tr>
+  <tr><td class="label">Annexe declenchee</td><td>3916 / 3916-bis (detaillee ci-dessous)</td></tr>
+  <tr><td class="label">Echeance</td><td>Mai ${annee + 1}</td></tr>
+</table>
+
+<h2>Comment declarer, etape par etape</h2>
 <ol>
+  <li>Ouvrir votre declaration de revenus sur impots.gouv.fr.</li>
   <li>Cocher la case <strong>8UU</strong> de la declaration principale 2042
       (&laquo; Comptes ouverts, utilises ou clos a l'etranger &raquo;).</li>
   <li>Remplir l'annexe <strong>n&deg; 3916 / 3916-bis</strong> pour chaque compte
-      etranger concerne.</li>
+      etranger, avec les informations du tableau ci-dessous.</li>
   <li>Indiquer que vous agissez au titre de representant legal / beneficiaire effectif
       ou titulaire d'un droit d'utilisation pour le compte de la societe.</li>
 </ol>
@@ -127,7 +144,7 @@ ${comptes.length === 0 ? "<p>Aucun compte enregistre pour cet exercice.</p>" : b
 ${avertissement}
 
 <div class="footer">
-  Module Compliance - Fiche de preparation 3916 ${annee} - ${date}<br/>
+  Module Compliance - Fiche de preparation 2042 + 3916 ${annee} - ${date}<br/>
   Ce document est une aide a la saisie et ne constitue pas un depot officiel.
 </div>
 </body></html>`;
@@ -186,13 +203,12 @@ export async function POST(req: NextRequest) {
       tenant_id: tenantId,
       rule_code: "FR_3916",
       doc_type: "fiche_3916",
-      title: "Fiche 3916 comptes etrangers " + annee,
+      title: "Fiche 2042 + 3916 comptes etrangers " + annee,
       version: version,
       storage_path: "compliance-docs/" + chemin,
       mime_type: "text/html",
     });
 
-    // ---- ENVOI EMAIL vers l'adresse du COMPTE CONNECTE ----
     const email: Record<string, unknown> = { tente: true, destinataire: emailSession };
 
     if (!emailSession) {
@@ -212,7 +228,7 @@ export async function POST(req: NextRequest) {
           body: JSON.stringify({
             from: "Mr. Compliance <contact@hebrewproai.com>",
             to: [emailSession],
-            subject: "Fiche 3916 comptes etrangers " + annee + " - " + liste.length + " compte(s)",
+            subject: "Fiche 2042 + 3916 " + annee + " - " + liste.length + " compte(s)",
             html: html,
           }),
         });
