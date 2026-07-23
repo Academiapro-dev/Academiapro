@@ -111,6 +111,7 @@ export default function PageIndicateur({ params }: { params: { id: string } }) {
   const [ouvertureEnCours, setOuvertureEnCours] = useState(false);
   const [chatVisible, setChatVisible] = useState(false);
   const [voixEnCours, setVoixEnCours] = useState<string | null>(null);
+  const [erreurVoix, setErreurVoix] = useState<string | null>(null);
 
   async function charger() {
     setChargement(true);
@@ -174,6 +175,8 @@ export default function PageIndicateur({ params }: { params: { id: string } }) {
   }, [conversation, chatVisible]);
 
   async function ecouter(texte: string, cle: string) {
+    setErreurVoix(null);
+
     if (lecteur.current) {
       lecteur.current.pause();
       lecteur.current = null;
@@ -182,27 +185,65 @@ export default function PageIndicateur({ params }: { params: { id: string } }) {
       setVoixEnCours(null);
       return;
     }
+
     setVoixEnCours(cle);
+
     try {
       const r = await fetch("/api/qualiopi/voix", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ texte: texte }),
       });
+
       if (!r.ok) {
+        let detail = "";
+        try {
+          const err = await r.json();
+          detail =
+            (err.erreur || "code " + r.status) +
+            (err.detail ? " — " + err.detail : "");
+        } catch (e) {
+          detail = "code " + r.status;
+        }
+        setErreurVoix("Audio indisponible : " + detail);
         setVoixEnCours(null);
         return;
       }
+
       const blob = await r.blob();
+
+      if (!blob || blob.size < 100) {
+        setErreurVoix(
+          "Audio indisponible : fichier vide (" + (blob ? blob.size : 0) + " octets)"
+        );
+        setVoixEnCours(null);
+        return;
+      }
+
       const url = window.URL.createObjectURL(blob);
       const audio = new Audio(url);
       lecteur.current = audio;
+
       audio.onended = () => {
         setVoixEnCours(null);
         window.URL.revokeObjectURL(url);
       };
-      audio.play();
-    } catch (e) {
+
+      audio.onerror = () => {
+        setErreurVoix("Audio indisponible : le navigateur ne peut pas lire ce fichier.");
+        setVoixEnCours(null);
+      };
+
+      try {
+        await audio.play();
+      } catch (e: any) {
+        setErreurVoix(
+          "Lecture bloquee par le navigateur. Touchez a nouveau Ecouter."
+        );
+        setVoixEnCours(null);
+      }
+    } catch (e: any) {
+      setErreurVoix("Audio indisponible : " + String(e));
       setVoixEnCours(null);
     }
   }
@@ -222,15 +263,9 @@ export default function PageIndicateur({ params }: { params: { id: string } }) {
       });
       const data = await r.json();
       if (data.ok) {
-        const msgs = data.messages || [];
-        setConversation(msgs);
+        setConversation(data.messages || []);
         if (data.restants !== undefined) setMessagesRestants(data.restants);
         setChatVisible(true);
-        const agents = msgs.filter((m: any) => m.role === "agent");
-        const dernierAgent = agents[agents.length - 1];
-        if (dernierAgent) {
-          ecouter(dernierAgent.message, dernierAgent.id);
-        }
       } else {
         setErreur(data.erreur || "Erreur d'ouverture");
       }
@@ -401,6 +436,24 @@ export default function PageIndicateur({ params }: { params: { id: string } }) {
         >
           Preparation de l'indicateur
         </h1>
+
+        {erreurVoix && (
+          <div
+            style={{
+              background: "#fff4f4",
+              border: "1px solid #f0c0c0",
+              color: "#8a1c1c",
+              padding: 14,
+              borderRadius: 6,
+              marginBottom: 20,
+              fontSize: 16,
+              whiteSpace: "pre-wrap",
+              wordBreak: "break-word",
+            }}
+          >
+            {erreurVoix}
+          </div>
+        )}
 
         <div style={STYLE_CARTE}>
           <h2 style={{ color: "#0a3d2e", fontSize: 21, marginTop: 0 }}>
