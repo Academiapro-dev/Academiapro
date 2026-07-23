@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 
 const STYLE_CARTE = {
   border: "1px solid #dddddd",
@@ -65,6 +65,7 @@ function taille(octets: number): string {
 
 export default function PageIndicateur({ params }: { params: { id: string } }) {
   const indicateurId = params.id;
+  const finChat = useRef<HTMLDivElement | null>(null);
 
   const [chargement, setChargement] = useState(true);
   const [erreur, setErreur] = useState<string | null>(null);
@@ -83,6 +84,12 @@ export default function PageIndicateur({ params }: { params: { id: string } }) {
   const [examens, setExamens] = useState<any[]>([]);
   const [restants, setRestants] = useState<number>(5);
   const [examenEnCours, setExamenEnCours] = useState(false);
+
+  const [conversation, setConversation] = useState<any[]>([]);
+  const [messagesRestants, setMessagesRestants] = useState<number>(50);
+  const [saisie, setSaisie] = useState("");
+  const [chatEnCours, setChatEnCours] = useState(false);
+  const [ouvertureEnCours, setOuvertureEnCours] = useState(false);
 
   async function charger() {
     setChargement(true);
@@ -121,6 +128,13 @@ export default function PageIndicateur({ params }: { params: { id: string } }) {
         setExamens(de.examens || []);
         setRestants(de.restants);
       }
+
+      const rc = await fetch("/api/qualiopi/chat?indicateur_id=" + indicateurId);
+      const dc = await rc.json();
+      if (dc.ok) {
+        setConversation(dc.messages || []);
+        setMessagesRestants(dc.restants);
+      }
     } catch (e: any) {
       setErreur(String(e));
     }
@@ -130,6 +144,64 @@ export default function PageIndicateur({ params }: { params: { id: string } }) {
   useEffect(() => {
     charger();
   }, []);
+
+  useEffect(() => {
+    if (finChat.current) {
+      finChat.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [conversation]);
+
+  async function ouvrirChat() {
+    setOuvertureEnCours(true);
+    setErreur(null);
+    try {
+      const r = await fetch("/api/qualiopi/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ indicateur_id: indicateurId, ouverture: true }),
+      });
+      const data = await r.json();
+      if (data.ok) {
+        setConversation(data.messages || []);
+        if (data.restants !== undefined) setMessagesRestants(data.restants);
+      } else {
+        setErreur(data.erreur || "Erreur d'ouverture");
+      }
+    } catch (e: any) {
+      setErreur(String(e));
+    }
+    setOuvertureEnCours(false);
+  }
+
+  async function envoyerMessage() {
+    if (!saisie.trim()) return;
+    const texte = saisie;
+    setSaisie("");
+    setChatEnCours(true);
+    setErreur(null);
+    try {
+      const r = await fetch("/api/qualiopi/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          indicateur_id: indicateurId,
+          message: texte,
+        }),
+      });
+      const data = await r.json();
+      if (data.ok) {
+        setConversation(data.messages || []);
+        setMessagesRestants(data.restants);
+      } else {
+        setErreur(data.erreur || "Erreur d'envoi");
+        setSaisie(texte);
+      }
+    } catch (e: any) {
+      setErreur(String(e));
+      setSaisie(texte);
+    }
+    setChatEnCours(false);
+  }
 
   async function lancerExamen() {
     setExamenEnCours(true);
@@ -263,13 +335,109 @@ export default function PageIndicateur({ params }: { params: { id: string } }) {
 
         <div style={STYLE_CARTE}>
           <h2 style={{ color: "#0a3d2e", fontSize: 18, marginTop: 0 }}>
+            Mon assistant
+          </h2>
+
+          {conversation.length === 0 && (
+            <div>
+              <p style={{ fontSize: 15, color: "#555555", marginTop: 0 }}>
+                Votre assistant connait le niveau attendu par le guide de
+                lecture. Il vous explique ce qui est demande, repond a vos
+                questions et vous dit ce qu'il manque. Il ne delivre aucune
+                certification et ne prejuge pas de la decision de l'auditeur.
+              </p>
+              <button
+                onClick={ouvrirChat}
+                disabled={ouvertureEnCours}
+                style={STYLE_BOUTON}
+              >
+                {ouvertureEnCours
+                  ? "Ouverture..."
+                  : "Commencer cet indicateur"}
+              </button>
+            </div>
+          )}
+
+          {conversation.length > 0 && (
+            <div>
+              <div
+                style={{
+                  maxHeight: 460,
+                  overflowY: "auto",
+                  border: "1px solid #eeeeee",
+                  borderRadius: 6,
+                  padding: 14,
+                  marginBottom: 14,
+                  background: "#fbfbf9",
+                }}
+              >
+                {conversation.map((m: any) => (
+                  <div
+                    key={m.id}
+                    style={{
+                      marginBottom: 14,
+                      textAlign: m.role === "utilisateur" ? "right" : "left",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "inline-block",
+                        maxWidth: "85%",
+                        textAlign: "left",
+                        background:
+                          m.role === "utilisateur" ? "#0a3d2e" : "#ffffff",
+                        color: m.role === "utilisateur" ? "#ffffff" : "#1a1a1a",
+                        border:
+                          m.role === "utilisateur"
+                            ? "none"
+                            : "1px solid #dddddd",
+                        borderRadius: 10,
+                        padding: "10px 14px",
+                        fontSize: 15,
+                        lineHeight: 1.5,
+                        whiteSpace: "pre-wrap",
+                      }}
+                    >
+                      {m.message}
+                    </div>
+                  </div>
+                ))}
+                <div ref={finChat} />
+              </div>
+
+              <textarea
+                value={saisie}
+                onChange={(e) => setSaisie(e.target.value)}
+                rows={3}
+                placeholder="Posez votre question a l'assistant"
+                disabled={chatEnCours || messagesRestants <= 0}
+                style={STYLE_CHAMP}
+              />
+
+              <button
+                onClick={envoyerMessage}
+                disabled={chatEnCours || messagesRestants <= 0 || !saisie.trim()}
+                style={STYLE_BOUTON}
+              >
+                {chatEnCours ? "L'assistant reflechit..." : "Envoyer"}
+              </button>
+
+              <p style={{ fontSize: 13, color: "#666666", marginTop: 12 }}>
+                {messagesRestants > 0
+                  ? messagesRestants + " message(s) restant(s) sur 50."
+                  : "Vous avez utilise vos 50 messages pour cet indicateur."}
+              </p>
+            </div>
+          )}
+        </div>
+
+        <div style={STYLE_CARTE}>
+          <h2 style={{ color: "#0a3d2e", fontSize: 18, marginTop: 0 }}>
             Faire examiner mon dossier
           </h2>
           <p style={{ fontSize: 14, color: "#666666", marginTop: 0 }}>
             L'assistant lit vos preuves et votre note, les compare au niveau
-            attendu par le guide de lecture, et vous dit ce qui manque. Il ne
-            delivre aucune certification et ne prejuge pas de la decision de
-            l'auditeur.
+            attendu par le guide de lecture, et vous dit ce qui manque.
           </p>
 
           {dernier && (
@@ -306,7 +474,9 @@ export default function PageIndicateur({ params }: { params: { id: string } }) {
 
               {dernier.points_forts && (
                 <div style={{ marginBottom: 10 }}>
-                  <strong style={{ color: "#2e7d32" }}>Ce qui est solide</strong>
+                  <strong style={{ color: "#2e7d32" }}>
+                    Ce qui est solide
+                  </strong>
                   <div style={{ fontSize: 14 }}>{dernier.points_forts}</div>
                 </div>
               )}
