@@ -241,17 +241,16 @@ export default function GrilleQualiopi() {
                         Indicateur {i.numero}
                       </strong>
                       <span style={{ marginLeft: 8 }}>{i.intitule}</span>
-                      {i.nb_preuves > 0 && (
-                        <span
-                          style={{
-                            marginLeft: 8,
-                            fontSize: 13,
-                            color: "#2e7d32",
-                          }}
-                        >
-                          {i.nb_preuves} preuve(s)
-                        </span>
-                      )}
+                    </div>
+
+                    <div style={{ marginBottom: 8 }}>
+                      <a
+                        href={"/admin/qualiopi/indicateur/" + i.id}
+                        style={{ color: "#0a3d2e", fontSize: 14 }}
+                      >
+                        Gerer les preuves
+                        {i.nb_preuves > 0 ? " (" + i.nb_preuves + ")" : ""}
+                      </a>
                     </div>
 
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
