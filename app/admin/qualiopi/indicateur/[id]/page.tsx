@@ -90,6 +90,7 @@ export default function PageIndicateur({ params }: { params: { id: string } }) {
   const [saisie, setSaisie] = useState("");
   const [chatEnCours, setChatEnCours] = useState(false);
   const [ouvertureEnCours, setOuvertureEnCours] = useState(false);
+  const [chatVisible, setChatVisible] = useState(false);
 
   async function charger() {
     setChargement(true);
@@ -134,6 +135,7 @@ export default function PageIndicateur({ params }: { params: { id: string } }) {
       if (dc.ok) {
         setConversation(dc.messages || []);
         setMessagesRestants(dc.restants);
+        if ((dc.messages || []).length > 0) setChatVisible(true);
       }
     } catch (e: any) {
       setErreur(String(e));
@@ -146,12 +148,16 @@ export default function PageIndicateur({ params }: { params: { id: string } }) {
   }, []);
 
   useEffect(() => {
-    if (finChat.current) {
+    if (chatVisible && finChat.current) {
       finChat.current.scrollIntoView({ behavior: "smooth" });
     }
-  }, [conversation]);
+  }, [conversation, chatVisible]);
 
   async function ouvrirChat() {
+    if (conversation.length > 0) {
+      setChatVisible(true);
+      return;
+    }
     setOuvertureEnCours(true);
     setErreur(null);
     try {
@@ -164,6 +170,7 @@ export default function PageIndicateur({ params }: { params: { id: string } }) {
       if (data.ok) {
         setConversation(data.messages || []);
         if (data.restants !== undefined) setMessagesRestants(data.restants);
+        setChatVisible(true);
       } else {
         setErreur(data.erreur || "Erreur d'ouverture");
       }
@@ -338,28 +345,27 @@ export default function PageIndicateur({ params }: { params: { id: string } }) {
             Mon assistant
           </h2>
 
-          {conversation.length === 0 && (
-            <div>
-              <p style={{ fontSize: 15, color: "#555555", marginTop: 0 }}>
-                Votre assistant connait le niveau attendu par le guide de
-                lecture. Il vous explique ce qui est demande, repond a vos
-                questions et vous dit ce qu'il manque. Il ne delivre aucune
-                certification et ne prejuge pas de la decision de l'auditeur.
-              </p>
-              <button
-                onClick={ouvrirChat}
-                disabled={ouvertureEnCours}
-                style={STYLE_BOUTON}
-              >
-                {ouvertureEnCours
-                  ? "Ouverture..."
-                  : "Commencer cet indicateur"}
-              </button>
-            </div>
-          )}
+          <p style={{ fontSize: 15, color: "#555555", marginTop: 0 }}>
+            Votre assistant connait le niveau attendu par le guide de lecture.
+            Il vous explique ce qui est demande, repond a vos questions et vous
+            dit ce qu'il manque. Il ne delivre aucune certification et ne
+            prejuge pas de la decision de l'auditeur.
+          </p>
 
-          {conversation.length > 0 && (
-            <div>
+          <button
+            onClick={ouvrirChat}
+            disabled={ouvertureEnCours}
+            style={STYLE_BOUTON}
+          >
+            {ouvertureEnCours
+              ? "Ouverture..."
+              : conversation.length > 0
+              ? "Reprendre avec l'assistant"
+              : "Commencer cet indicateur"}
+          </button>
+
+          {chatVisible && conversation.length > 0 && (
+            <div style={{ marginTop: 20 }}>
               <div
                 style={{
                   maxHeight: 460,
