@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { PDFDocument, StandardFonts, PDFName } from "pdf-lib";
+import { PDFDocument, StandardFonts, PDFName, PDFDict } from "pdf-lib";
 import fs from "fs/promises";
 import path from "path";
 
@@ -151,33 +151,32 @@ export async function POST(req: NextRequest) {
         const acro = (champ as any).acroField;
         const widgets = acro.getWidgets();
         const cible = PDFName.of(etat);
-
-        acro.dict.set(PDFName.of("V"), cible);
+        const off = PDFName.of("Off");
 
         let trouve = false;
+
         for (const w of widgets) {
-          const ap = w.getAppearances();
-          const normal = ap && ap.normal;
-          let etatsDispo: string[] = [];
-          try {
-            etatsDispo = normal ? Object.keys(normal.dict.dict).map((k) => String(k)) : [];
-          } catch (e) {
-            etatsDispo = [];
+          let etats: string[] = [];
+          const ap = w.dict.get(PDFName.of("AP"));
+          if (ap instanceof PDFDict) {
+            const n = ap.get(PDFName.of("N"));
+            if (n instanceof PDFDict) {
+              etats = n.keys().map((k: any) => String(k));
+            }
           }
-          const possede = etatsDispo.some((k) => k === "/" + etat || k === etat);
-          if (possede) {
+          if (etats.indexOf("/" + etat) >= 0) {
             w.dict.set(PDFName.of("AS"), cible);
             trouve = true;
           } else {
-            w.dict.set(PDFName.of("AS"), PDFName.of("Off"));
+            w.dict.set(PDFName.of("AS"), off);
           }
         }
 
-        controle[nom] = etat + (trouve ? "" : " (widget correspondant NON trouve)");
+        acro.dict.set(PDFName.of("V"), trouve ? cible : off);
+
+        controle[nom] = etat + (trouve ? " (coche)" : " (ETAT INTROUVABLE)");
         if (!trouve) {
-          avertissements.push(
-            "Case " + nom + " : aucun widget ne porte l'etat /" + etat
-          );
+          avertissements.push("Case " + nom + " : aucun widget ne porte l'etat /" + etat);
         }
       } catch (e: any) {
         avertissements.push("Case " + nom + " : " + e.message);
@@ -220,17 +219,13 @@ export async function POST(req: NextRequest) {
     poserTexte("a20", annee(c.date_cloture));
 
     poserTexte("a21", c.organisme_nom);
-    poserTexte(
-      "a23",
-      [c.organisme_adresse, c.organisme_pays].filter(Boolean).join(", ")
-    );
+    poserTexte("a23", [c.organisme_adresse, c.organisme_pays].filter(Boolean).join(", "));
 
     const titulaireVersCac4: Record<string, string> = {
       personne_physique: "a",
       entite: "b",
     };
-    const optCac4 =
-      d.modalite_detention || titulaireVersCac4[c.titulaire] || "a";
+    const optCac4 = d.modalite_detention || titulaireVersCac4[c.titulaire] || "a";
     poserCase("CAC4", optCac4);
 
     const caractereVersCac6: Record<string, string> = {
