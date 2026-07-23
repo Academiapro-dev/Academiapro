@@ -28,6 +28,18 @@ const STYLE_LIEN = {
   textDecoration: "none",
   fontSize: 15,
   marginBottom: 20,
+  marginRight: 10,
+};
+
+const STYLE_BOUTON = {
+  background: "#0a3d2e",
+  color: "#ffffff",
+  border: "none",
+  padding: "10px 18px",
+  borderRadius: 6,
+  cursor: "pointer",
+  fontSize: 15,
+  marginBottom: 20,
 };
 
 export default function GrilleQualiopi() {
@@ -38,6 +50,8 @@ export default function GrilleQualiopi() {
   const [compte, setCompte] = useState<any>(null);
   const [groupes, setGroupes] = useState<any[]>([]);
   const [enCours, setEnCours] = useState<string | null>(null);
+  const [exportEnCours, setExportEnCours] = useState(false);
+  const [messageExport, setMessageExport] = useState<string | null>(null);
 
   async function charger() {
     setChargement(true);
@@ -104,6 +118,34 @@ export default function GrilleQualiopi() {
       setErreur(String(e));
     }
     setEnCours(null);
+  }
+
+  async function exporterPdf() {
+    setExportEnCours(true);
+    setMessageExport(null);
+    setErreur(null);
+    try {
+      const r = await fetch("/api/qualiopi/export", { method: "POST" });
+      if (!r.ok) {
+        const data = await r.json();
+        setErreur(data.erreur || "Erreur de generation");
+        setExportEnCours(false);
+        return;
+      }
+      const blob = await r.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "dossier_qualiopi.pdf";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      setMessageExport("Dossier telecharge.");
+    } catch (e: any) {
+      setErreur(String(e));
+    }
+    setExportEnCours(false);
   }
 
   const pourcentage =
@@ -207,9 +249,26 @@ export default function GrilleQualiopi() {
               </div>
             </div>
 
-            <a href="/admin/qualiopi/mon-organisme" style={STYLE_LIEN}>
-              Modifier le profil de mon organisme
-            </a>
+            <div>
+              <a href="/admin/qualiopi/mon-organisme" style={STYLE_LIEN}>
+                Modifier le profil de mon organisme
+              </a>
+              <button
+                onClick={exporterPdf}
+                disabled={exportEnCours}
+                style={STYLE_BOUTON}
+              >
+                {exportEnCours
+                  ? "Generation en cours..."
+                  : "Telecharger le dossier PDF"}
+              </button>
+            </div>
+
+            {messageExport && (
+              <p style={{ color: "#0a3d2e", fontWeight: "bold" }}>
+                {messageExport}
+              </p>
+            )}
 
             {groupes.map((g: any) => (
               <div key={g.numero} style={STYLE_CARTE}>
