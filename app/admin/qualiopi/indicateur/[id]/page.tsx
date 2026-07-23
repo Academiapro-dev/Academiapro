@@ -5,17 +5,17 @@ import { useEffect, useState, useRef } from "react";
 const STYLE_CARTE = {
   border: "1px solid #dddddd",
   borderRadius: 8,
-  padding: 20,
-  marginBottom: 20,
+  padding: 24,
+  marginBottom: 22,
   background: "#ffffff",
 };
 
 const STYLE_CHAMP = {
   width: "100%",
-  padding: "10px 12px",
+  padding: "12px 14px",
   border: "1px solid #cccccc",
   borderRadius: 6,
-  fontSize: 15,
+  fontSize: 17,
   background: "#ffffff",
   color: "#1a1a1a",
   marginBottom: 14,
@@ -25,10 +25,10 @@ const STYLE_BOUTON = {
   background: "#0a3d2e",
   color: "#ffffff",
   border: "none",
-  padding: "12px 24px",
+  padding: "14px 26px",
   borderRadius: 6,
   cursor: "pointer",
-  fontSize: 15,
+  fontSize: 17,
 };
 
 const STYLE_LIEN = {
@@ -36,18 +36,29 @@ const STYLE_LIEN = {
   background: "#ffffff",
   color: "#0a3d2e",
   border: "1px solid #0a3d2e",
-  padding: "10px 18px",
+  padding: "12px 20px",
   borderRadius: 6,
   textDecoration: "none",
-  fontSize: 15,
-  marginBottom: 20,
+  fontSize: 16,
+  marginBottom: 22,
 };
 
 const STYLE_LIBELLE = {
   display: "block",
   fontWeight: "bold" as const,
-  marginBottom: 6,
+  marginBottom: 8,
   color: "#0a3d2e",
+  fontSize: 17,
+};
+
+const STYLE_ECOUTER = {
+  background: "none",
+  border: "none",
+  color: "#0a3d2e",
+  cursor: "pointer",
+  fontSize: 15,
+  padding: 0,
+  textDecoration: "underline",
 };
 
 const VERDICTS: Record<string, { label: string; couleur: string }> = {
@@ -63,9 +74,17 @@ function taille(octets: number): string {
   return (octets / (1024 * 1024)).toFixed(1) + " Mo";
 }
 
+function sansMarkdown(texte: string): string {
+  return String(texte || "")
+    .replace(/\*\*/g, "")
+    .replace(/^#{1,6}\s/gm, "")
+    .replace(/`/g, "");
+}
+
 export default function PageIndicateur({ params }: { params: { id: string } }) {
   const indicateurId = params.id;
   const finChat = useRef<HTMLDivElement | null>(null);
+  const lecteur = useRef<HTMLAudioElement | null>(null);
 
   const [chargement, setChargement] = useState(true);
   const [erreur, setErreur] = useState<string | null>(null);
@@ -91,6 +110,7 @@ export default function PageIndicateur({ params }: { params: { id: string } }) {
   const [chatEnCours, setChatEnCours] = useState(false);
   const [ouvertureEnCours, setOuvertureEnCours] = useState(false);
   const [chatVisible, setChatVisible] = useState(false);
+  const [voixEnCours, setVoixEnCours] = useState<string | null>(null);
 
   async function charger() {
     setChargement(true);
@@ -153,6 +173,40 @@ export default function PageIndicateur({ params }: { params: { id: string } }) {
     }
   }, [conversation, chatVisible]);
 
+  async function ecouter(texte: string, cle: string) {
+    if (lecteur.current) {
+      lecteur.current.pause();
+      lecteur.current = null;
+    }
+    if (voixEnCours === cle) {
+      setVoixEnCours(null);
+      return;
+    }
+    setVoixEnCours(cle);
+    try {
+      const r = await fetch("/api/qualiopi/voix", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ texte: texte }),
+      });
+      if (!r.ok) {
+        setVoixEnCours(null);
+        return;
+      }
+      const blob = await r.blob();
+      const url = window.URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      lecteur.current = audio;
+      audio.onended = () => {
+        setVoixEnCours(null);
+        window.URL.revokeObjectURL(url);
+      };
+      audio.play();
+    } catch (e) {
+      setVoixEnCours(null);
+    }
+  }
+
   async function ouvrirChat() {
     if (conversation.length > 0) {
       setChatVisible(true);
@@ -168,9 +222,15 @@ export default function PageIndicateur({ params }: { params: { id: string } }) {
       });
       const data = await r.json();
       if (data.ok) {
-        setConversation(data.messages || []);
+        const msgs = data.messages || [];
+        setConversation(msgs);
         if (data.restants !== undefined) setMessagesRestants(data.restants);
         setChatVisible(true);
+        const agents = msgs.filter((m: any) => m.role === "agent");
+        const dernierAgent = agents[agents.length - 1];
+        if (dernierAgent) {
+          ecouter(dernierAgent.message, dernierAgent.id);
+        }
       } else {
         setErreur(data.erreur || "Erreur d'ouverture");
       }
@@ -323,9 +383,10 @@ export default function PageIndicateur({ params }: { params: { id: string } }) {
         color: "#1a1a1a",
         minHeight: "100vh",
         colorScheme: "light",
+        fontSize: 17,
       }}
     >
-      <div style={{ maxWidth: 800, margin: "0 auto", padding: 32 }}>
+      <div style={{ maxWidth: 860, margin: "0 auto", padding: 32 }}>
         <a href="/admin/qualiopi" style={STYLE_LIEN}>
           Retour a la grille
         </a>
@@ -335,17 +396,25 @@ export default function PageIndicateur({ params }: { params: { id: string } }) {
             color: "#0a3d2e",
             borderBottom: "3px solid #0a3d2e",
             paddingBottom: 10,
+            fontSize: 32,
           }}
         >
           Preparation de l'indicateur
         </h1>
 
         <div style={STYLE_CARTE}>
-          <h2 style={{ color: "#0a3d2e", fontSize: 18, marginTop: 0 }}>
+          <h2 style={{ color: "#0a3d2e", fontSize: 21, marginTop: 0 }}>
             Mon assistant
           </h2>
 
-          <p style={{ fontSize: 15, color: "#555555", marginTop: 0 }}>
+          <p
+            style={{
+              fontSize: 17,
+              color: "#444444",
+              marginTop: 0,
+              lineHeight: 1.6,
+            }}
+          >
             Votre assistant connait le niveau attendu par le guide de lecture.
             Il vous explique ce qui est demande, repond a vos questions et vous
             dit ce qu'il manque. Il ne delivre aucune certification et ne
@@ -365,15 +434,15 @@ export default function PageIndicateur({ params }: { params: { id: string } }) {
           </button>
 
           {chatVisible && conversation.length > 0 && (
-            <div style={{ marginTop: 20 }}>
+            <div style={{ marginTop: 22 }}>
               <div
                 style={{
-                  maxHeight: 460,
+                  maxHeight: 500,
                   overflowY: "auto",
                   border: "1px solid #eeeeee",
                   borderRadius: 6,
-                  padding: 14,
-                  marginBottom: 14,
+                  padding: 16,
+                  marginBottom: 16,
                   background: "#fbfbf9",
                 }}
               >
@@ -381,14 +450,14 @@ export default function PageIndicateur({ params }: { params: { id: string } }) {
                   <div
                     key={m.id}
                     style={{
-                      marginBottom: 14,
+                      marginBottom: 16,
                       textAlign: m.role === "utilisateur" ? "right" : "left",
                     }}
                   >
                     <div
                       style={{
                         display: "inline-block",
-                        maxWidth: "85%",
+                        maxWidth: "88%",
                         textAlign: "left",
                         background:
                           m.role === "utilisateur" ? "#0a3d2e" : "#ffffff",
@@ -398,14 +467,25 @@ export default function PageIndicateur({ params }: { params: { id: string } }) {
                             ? "none"
                             : "1px solid #dddddd",
                         borderRadius: 10,
-                        padding: "10px 14px",
-                        fontSize: 15,
-                        lineHeight: 1.5,
+                        padding: "12px 16px",
+                        fontSize: 17,
+                        lineHeight: 1.65,
                         whiteSpace: "pre-wrap",
                       }}
                     >
-                      {m.message}
+                      {sansMarkdown(m.message)}
                     </div>
+
+                    {m.role === "agent" && (
+                      <div style={{ marginTop: 6 }}>
+                        <button
+                          onClick={() => ecouter(m.message, m.id)}
+                          style={STYLE_ECOUTER}
+                        >
+                          {voixEnCours === m.id ? "Arreter" : "Ecouter"}
+                        </button>
+                      </div>
+                    )}
                   </div>
                 ))}
                 <div ref={finChat} />
@@ -428,7 +508,7 @@ export default function PageIndicateur({ params }: { params: { id: string } }) {
                 {chatEnCours ? "L'assistant reflechit..." : "Envoyer"}
               </button>
 
-              <p style={{ fontSize: 13, color: "#666666", marginTop: 12 }}>
+              <p style={{ fontSize: 15, color: "#666666", marginTop: 14 }}>
                 {messagesRestants > 0
                   ? messagesRestants + " message(s) restant(s) sur 50."
                   : "Vous avez utilise vos 50 messages pour cet indicateur."}
@@ -438,10 +518,17 @@ export default function PageIndicateur({ params }: { params: { id: string } }) {
         </div>
 
         <div style={STYLE_CARTE}>
-          <h2 style={{ color: "#0a3d2e", fontSize: 18, marginTop: 0 }}>
+          <h2 style={{ color: "#0a3d2e", fontSize: 21, marginTop: 0 }}>
             Faire examiner mon dossier
           </h2>
-          <p style={{ fontSize: 14, color: "#666666", marginTop: 0 }}>
+          <p
+            style={{
+              fontSize: 16,
+              color: "#555555",
+              marginTop: 0,
+              lineHeight: 1.6,
+            }}
+          >
             L'assistant lit vos preuves et votre note, les compare au niveau
             attendu par le guide de lecture, et vous dit ce qui manque.
           </p>
@@ -455,8 +542,8 @@ export default function PageIndicateur({ params }: { params: { id: string } }) {
                     ? VERDICTS[dernier.verdict].couleur
                     : "#999999"),
                 borderRadius: 6,
-                padding: 16,
-                marginBottom: 16,
+                padding: 18,
+                marginBottom: 18,
               }}
             >
               <div
@@ -465,8 +552,8 @@ export default function PageIndicateur({ params }: { params: { id: string } }) {
                     ? VERDICTS[dernier.verdict].couleur
                     : "#999999",
                   fontWeight: "bold",
-                  fontSize: 16,
-                  marginBottom: 10,
+                  fontSize: 19,
+                  marginBottom: 12,
                 }}
               >
                 {VERDICTS[dernier.verdict]
@@ -475,26 +562,34 @@ export default function PageIndicateur({ params }: { params: { id: string } }) {
               </div>
 
               {dernier.synthese && (
-                <p style={{ marginTop: 0 }}>{dernier.synthese}</p>
+                <p style={{ marginTop: 0, fontSize: 17, lineHeight: 1.6 }}>
+                  {sansMarkdown(dernier.synthese)}
+                </p>
               )}
 
               {dernier.points_forts && (
-                <div style={{ marginBottom: 10 }}>
-                  <strong style={{ color: "#2e7d32" }}>
+                <div style={{ marginBottom: 12 }}>
+                  <strong style={{ color: "#2e7d32", fontSize: 17 }}>
                     Ce qui est solide
                   </strong>
-                  <div style={{ fontSize: 14 }}>{dernier.points_forts}</div>
+                  <div style={{ fontSize: 16, lineHeight: 1.6 }}>
+                    {sansMarkdown(dernier.points_forts)}
+                  </div>
                 </div>
               )}
 
               {dernier.points_manquants && (
-                <div style={{ marginBottom: 10 }}>
-                  <strong style={{ color: "#c62828" }}>Ce qui manque</strong>
-                  <div style={{ fontSize: 14 }}>{dernier.points_manquants}</div>
+                <div style={{ marginBottom: 12 }}>
+                  <strong style={{ color: "#c62828", fontSize: 17 }}>
+                    Ce qui manque
+                  </strong>
+                  <div style={{ fontSize: 16, lineHeight: 1.6 }}>
+                    {sansMarkdown(dernier.points_manquants)}
+                  </div>
                 </div>
               )}
 
-              <div style={{ fontSize: 13, color: "#888888" }}>
+              <div style={{ fontSize: 15, color: "#888888" }}>
                 {dernier.documents_lus} document(s) lu(s)
                 {dernier.documents_illisibles > 0
                   ? ", " +
@@ -503,6 +598,24 @@ export default function PageIndicateur({ params }: { params: { id: string } }) {
                   : ""}
                 {" — " +
                   new Date(dernier.created_at).toLocaleDateString("fr-FR")}
+              </div>
+
+              <div style={{ marginTop: 10 }}>
+                <button
+                  onClick={() =>
+                    ecouter(
+                      (dernier.synthese || "") +
+                        " " +
+                        (dernier.points_manquants || ""),
+                      "examen-" + dernier.id
+                    )
+                  }
+                  style={STYLE_ECOUTER}
+                >
+                  {voixEnCours === "examen-" + dernier.id
+                    ? "Arreter"
+                    : "Ecouter ce retour"}
+                </button>
               </div>
             </div>
           )}
@@ -519,7 +632,7 @@ export default function PageIndicateur({ params }: { params: { id: string } }) {
               : "Faire examiner cet indicateur"}
           </button>
 
-          <p style={{ fontSize: 13, color: "#666666", marginTop: 12 }}>
+          <p style={{ fontSize: 15, color: "#666666", marginTop: 14 }}>
             {restants > 0
               ? restants + " examen(s) restant(s) sur 5 pour cet indicateur."
               : "Vous avez utilise vos 5 examens pour cet indicateur."}
@@ -527,10 +640,17 @@ export default function PageIndicateur({ params }: { params: { id: string } }) {
         </div>
 
         <div style={STYLE_CARTE}>
-          <h2 style={{ color: "#0a3d2e", fontSize: 18, marginTop: 0 }}>
+          <h2 style={{ color: "#0a3d2e", fontSize: 21, marginTop: 0 }}>
             Ma note sur cet indicateur
           </h2>
-          <p style={{ fontSize: 14, color: "#666666", marginTop: 0 }}>
+          <p
+            style={{
+              fontSize: 16,
+              color: "#555555",
+              marginTop: 0,
+              lineHeight: 1.6,
+            }}
+          >
             Ce que vous avez mis en place, ce qui reste a faire, ou ce que vous
             direz a l'auditeur.
           </p>
@@ -560,14 +680,21 @@ export default function PageIndicateur({ params }: { params: { id: string } }) {
           </button>
 
           {messageNote && (
-            <p style={{ color: "#0a3d2e", fontWeight: "bold", marginTop: 12 }}>
+            <p
+              style={{
+                color: "#0a3d2e",
+                fontWeight: "bold",
+                marginTop: 14,
+                fontSize: 17,
+              }}
+            >
               {messageNote}
             </p>
           )}
         </div>
 
         <div style={STYLE_CARTE}>
-          <h2 style={{ color: "#0a3d2e", fontSize: 18, marginTop: 0 }}>
+          <h2 style={{ color: "#0a3d2e", fontSize: 21, marginTop: 0 }}>
             Deposer une preuve
           </h2>
 
@@ -604,19 +731,23 @@ export default function PageIndicateur({ params }: { params: { id: string } }) {
             {envoi ? "Depot en cours..." : "Deposer la preuve"}
           </button>
 
-          <p style={{ fontSize: 13, color: "#666666", marginTop: 12 }}>
+          <p style={{ fontSize: 15, color: "#666666", marginTop: 14 }}>
             20 Mo maximum par fichier. Chaque depot est horodate et scelle par
             une empreinte SHA-256.
           </p>
         </div>
 
         {message && (
-          <p style={{ color: "#0a3d2e", fontWeight: "bold" }}>{message}</p>
+          <p style={{ color: "#0a3d2e", fontWeight: "bold", fontSize: 17 }}>
+            {message}
+          </p>
         )}
-        {erreur && <p style={{ color: "#c62828" }}>Erreur : {erreur}</p>}
+        {erreur && (
+          <p style={{ color: "#c62828", fontSize: 17 }}>Erreur : {erreur}</p>
+        )}
 
         <div style={STYLE_CARTE}>
-          <h2 style={{ color: "#0a3d2e", fontSize: 18, marginTop: 0 }}>
+          <h2 style={{ color: "#0a3d2e", fontSize: 21, marginTop: 0 }}>
             Preuves deposees
             <span style={{ color: "#999999", fontWeight: "normal" }}>
               {" (" + preuves.length + ")"}
@@ -626,7 +757,7 @@ export default function PageIndicateur({ params }: { params: { id: string } }) {
           {chargement && <p>Chargement...</p>}
 
           {!chargement && preuves.length === 0 && (
-            <p style={{ color: "#666666" }}>
+            <p style={{ color: "#666666", fontSize: 16 }}>
               Aucune preuve deposee pour cet indicateur.
             </p>
           )}
@@ -635,26 +766,31 @@ export default function PageIndicateur({ params }: { params: { id: string } }) {
             <div
               key={p.id}
               style={{
-                padding: "14px 0",
+                padding: "16px 0",
                 borderBottom: "1px solid #f0f0f0",
               }}
             >
               <div style={{ marginBottom: 6 }}>
-                <strong>{p.titre}</strong>
-                <span style={{ color: "#666666", fontSize: 13 }}>
+                <strong style={{ fontSize: 17 }}>{p.titre}</strong>
+                <span style={{ color: "#666666", fontSize: 15 }}>
                   {" " + taille(p.size_bytes)}
                 </span>
               </div>
 
               {p.notes && (
                 <div
-                  style={{ fontSize: 14, color: "#555555", marginBottom: 6 }}
+                  style={{
+                    fontSize: 16,
+                    color: "#555555",
+                    marginBottom: 6,
+                    lineHeight: 1.6,
+                  }}
                 >
                   {p.notes}
                 </div>
               )}
 
-              <div style={{ fontSize: 13, color: "#888888", marginBottom: 8 }}>
+              <div style={{ fontSize: 15, color: "#888888", marginBottom: 8 }}>
                 Depose le {new Date(p.uploaded_at).toLocaleDateString("fr-FR")}
               </div>
 
@@ -667,7 +803,8 @@ export default function PageIndicateur({ params }: { params: { id: string } }) {
                     style={{
                       color: "#0a3d2e",
                       fontWeight: "bold",
-                      marginRight: 16,
+                      marginRight: 18,
+                      fontSize: 16,
                     }}
                   >
                     Telecharger
@@ -680,7 +817,7 @@ export default function PageIndicateur({ params }: { params: { id: string } }) {
                     border: "none",
                     color: "#c62828",
                     cursor: "pointer",
-                    fontSize: 14,
+                    fontSize: 16,
                     padding: 0,
                   }}
                 >
