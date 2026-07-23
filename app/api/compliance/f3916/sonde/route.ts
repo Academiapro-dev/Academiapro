@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { PDFDocument } from "pdf-lib";
+import { PDFDocument, PDFName, PDFDict } from "pdf-lib";
 import fs from "fs/promises";
 import path from "path";
 
@@ -15,75 +15,77 @@ export async function GET() {
 
     const resultat: any[] = [];
 
-    for (const nom of ["CAC1", "CAC2", "CAC3", "CAC4", "CAC5", "CAC6", "CAC7"]) {
-      const ligne: any = { nom: nom };
-
+    for (const nom of ["CAC2", "CAC4", "CAC6"]) {
+      const ligne: any = { nom: nom, widgets: [] };
       try {
-        const rg = form.getRadioGroup(nom);
-        ligne.radioGroup = "OUI";
-        ligne.options = rg.getOptions();
-      } catch (e: any) {
-        ligne.radioGroup = "NON (" + e.message + ")";
-      }
+        const champ = form.getField(nom);
+        const acro = (champ as any).acroField;
 
-      try {
-        const cb = form.getCheckBox(nom);
-        ligne.checkBox = "OUI";
-        ligne.coche = cb.isChecked();
-      } catch (e: any) {
-        ligne.checkBox = "NON";
-      }
+        try {
+          ligne.valeur_V = String(acro.dict.get(PDFName.of("V")));
+        } catch (e) {
+          ligne.valeur_V = "(absente)";
+        }
+        try {
+          ligne.flags_Ff = String(acro.dict.get(PDFName.of("Ff")));
+        } catch (e) {
+          ligne.flags_Ff = "(absent)";
+        }
 
-      try {
-        const dd = form.getDropdown(nom);
-        ligne.dropdown = "OUI";
-        ligne.optionsDropdown = dd.getOptions();
-      } catch (e: any) {
-        ligne.dropdown = "NON";
-      }
+        const widgets = acro.getWidgets();
+        ligne.nb_widgets = widgets.length;
 
-      try {
-        const tf = form.getTextField(nom);
-        ligne.textField = "OUI";
-      } catch (e: any) {
-        ligne.textField = "NON";
-      }
+        for (let i = 0; i < widgets.length; i++) {
+          const w = widgets[i];
+          const info: any = { index: i };
 
+          try {
+            const apDict = w.dict.get(PDFName.of("AP"));
+            if (apDict instanceof PDFDict) {
+              const n = apDict.get(PDFName.of("N"));
+              if (n instanceof PDFDict) {
+                info.etats_N = n.keys().map((k: any) => String(k));
+              } else {
+                info.etats_N = "(N n'est pas un dictionnaire)";
+              }
+              const dd = apDict.get(PDFName.of("D"));
+              if (dd instanceof PDFDict) {
+                info.etats_D = dd.keys().map((k: any) => String(k));
+              }
+            } else {
+              info.etats_N = "(pas de AP)";
+            }
+          } catch (e: any) {
+            info.etats_N = "erreur: " + e.message;
+          }
+
+          try {
+            info.AS = String(w.dict.get(PDFName.of("AS")));
+          } catch (e) {
+            info.AS = "(absent)";
+          }
+
+          try {
+            const r = w.getRectangle();
+            info.rect = [
+              Math.round(r.x),
+              Math.round(r.y),
+              Math.round(r.width),
+              Math.round(r.height),
+            ];
+          } catch (e) {
+            info.rect = "(inconnu)";
+          }
+
+          ligne.widgets.push(info);
+        }
+      } catch (e: any) {
+        ligne.erreur = e.message;
+      }
       resultat.push(ligne);
     }
 
-    const tous = form.getFields().map((f) => {
-      let type = "inconnu";
-      try {
-        form.getRadioGroup(f.getName());
-        type = "RadioGroup";
-      } catch (e) {
-        try {
-          form.getCheckBox(f.getName());
-          type = "CheckBox";
-        } catch (e2) {
-          try {
-            form.getTextField(f.getName());
-            type = "TextField";
-          } catch (e3) {
-            type = "autre";
-          }
-        }
-      }
-      return { nom: f.getName(), type: type };
-    });
-
-    const parType: Record<string, number> = {};
-    tous.forEach((t) => {
-      parType[t.type] = (parType[t.type] || 0) + 1;
-    });
-
-    return NextResponse.json({
-      ok: true,
-      cac: resultat,
-      repartition_par_type: parType,
-      champs_non_texte: tous.filter((t) => t.type !== "TextField"),
-    });
+    return NextResponse.json({ ok: true, details: resultat });
   } catch (e: any) {
     return NextResponse.json({ ok: false, erreur: e.message }, { status: 500 });
   }
