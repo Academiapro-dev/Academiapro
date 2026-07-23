@@ -207,9 +207,14 @@ export async function POST(req: NextRequest) {
 
     poserTexte("a13", c.numero_compte);
 
-    avertissements.push(
-      "CAC3 (compte courant / epargne / autres) non renseigne : aucune colonne de la table ne porte cette information."
-    );
+    const caractereCompteVersCac3: Record<string, string> = {
+      courant: "a",
+      epargne: "b",
+      autres: "c",
+    };
+    const optCac3 = caractereCompteVersCac3[c.caractere_compte || "courant"];
+    if (optCac3) poserCase("CAC3", optCac3);
+    else avertissements.push("caractere_compte inconnu : " + c.caractere_compte);
 
     poserTexte("a15", jour(c.date_ouverture));
     poserTexte("a16", mois(c.date_ouverture));
