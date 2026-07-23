@@ -5,6 +5,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 const VOIX_CARTESIA = "faa75703-00e3-4a57-9955-0703001e3231";
+const MODELE_CARTESIA = "sonic-2";
 
 function nettoyerPourVoix(texte: string): string {
   return texte
@@ -56,7 +57,7 @@ export async function POST(req: NextRequest) {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model_id: "sonic-multilingual",
+        model_id: MODELE_CARTESIA,
         transcript: texte,
         voice: {
           mode: "id",
