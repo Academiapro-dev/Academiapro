@@ -43,6 +43,13 @@ const STYLE_LIEN = {
   marginBottom: 20,
 };
 
+const STYLE_LIBELLE = {
+  display: "block",
+  fontWeight: "bold" as const,
+  marginBottom: 6,
+  color: "#0a3d2e",
+};
+
 function taille(octets: number): string {
   if (!octets) return "";
   if (octets < 1024) return octets + " o";
@@ -62,6 +69,11 @@ export default function PageIndicateur({ params }: { params: { id: string } }) {
   const [notes, setNotes] = useState("");
   const [fichier, setFichier] = useState<File | null>(null);
 
+  const [commentaire, setCommentaire] = useState("");
+  const [dateRevue, setDateRevue] = useState("");
+  const [sauvegardeNote, setSauvegardeNote] = useState(false);
+  const [messageNote, setMessageNote] = useState<string | null>(null);
+
   async function charger() {
     setChargement(true);
     setErreur(null);
@@ -75,6 +87,21 @@ export default function PageIndicateur({ params }: { params: { id: string } }) {
       } else {
         setErreur(data.erreur || "Erreur de chargement");
       }
+
+      const rg = await fetch("/api/qualiopi/grille");
+      const dg = await rg.json();
+      if (dg.ok) {
+        let trouve: any = null;
+        (dg.groupes || []).forEach((g: any) => {
+          (g.indicateurs || []).forEach((i: any) => {
+            if (i.id === indicateurId) trouve = i;
+          });
+        });
+        if (trouve) {
+          setCommentaire(trouve.commentaire || "");
+          setDateRevue(trouve.date_revue || "");
+        }
+      }
     } catch (e: any) {
       setErreur(String(e));
     }
@@ -84,6 +111,32 @@ export default function PageIndicateur({ params }: { params: { id: string } }) {
   useEffect(() => {
     charger();
   }, []);
+
+  async function enregistrerNote() {
+    setSauvegardeNote(true);
+    setMessageNote(null);
+    setErreur(null);
+    try {
+      const r = await fetch("/api/qualiopi/grille", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          indicateur_id: indicateurId,
+          commentaire: commentaire,
+          date_revue: dateRevue || null,
+        }),
+      });
+      const data = await r.json();
+      if (data.ok) {
+        setMessageNote("Note enregistree.");
+      } else {
+        setErreur(data.erreur || "Erreur d'enregistrement");
+      }
+    } catch (e: any) {
+      setErreur(String(e));
+    }
+    setSauvegardeNote(false);
+  }
 
   async function deposer() {
     if (!fichier) {
@@ -166,37 +219,61 @@ export default function PageIndicateur({ params }: { params: { id: string } }) {
 
         <div style={STYLE_CARTE}>
           <h2 style={{ color: "#0a3d2e", fontSize: 18, marginTop: 0 }}>
+            Ma note sur cet indicateur
+          </h2>
+          <p style={{ fontSize: 14, color: "#666666", marginTop: 0 }}>
+            Ce que vous avez mis en place, ce qui reste a faire, ou ce que vous
+            direz a l'auditeur.
+          </p>
+
+          <span style={STYLE_LIBELLE}>Commentaire</span>
+          <textarea
+            value={commentaire}
+            onChange={(e) => setCommentaire(e.target.value)}
+            rows={5}
+            style={STYLE_CHAMP}
+          />
+
+          <span style={STYLE_LIBELLE}>Date de revue (facultatif)</span>
+          <input
+            type="date"
+            value={dateRevue}
+            onChange={(e) => setDateRevue(e.target.value)}
+            style={STYLE_CHAMP}
+          />
+
+          <button
+            onClick={enregistrerNote}
+            disabled={sauvegardeNote}
+            style={STYLE_BOUTON}
+          >
+            {sauvegardeNote ? "Enregistrement..." : "Enregistrer ma note"}
+          </button>
+
+          {messageNote && (
+            <p style={{ color: "#0a3d2e", fontWeight: "bold", marginTop: 12 }}>
+              {messageNote}
+            </p>
+          )}
+        </div>
+
+        <div style={STYLE_CARTE}>
+          <h2 style={{ color: "#0a3d2e", fontSize: 18, marginTop: 0 }}>
             Deposer une preuve
           </h2>
 
-          <span
-            style={{
-              display: "block",
-              fontWeight: "bold",
-              marginBottom: 6,
-              color: "#0a3d2e",
-            }}
-          >
-            Fichier
-          </span>
+          <span style={STYLE_LIBELLE}>Fichier</span>
           <input
             type="file"
             onChange={(e) =>
-              setFichier(e.target.files && e.target.files[0] ? e.target.files[0] : null)
+              setFichier(
+                e.target.files && e.target.files[0] ? e.target.files[0] : null
+              )
             }
             style={STYLE_CHAMP}
           />
 
-          <span
-            style={{
-              display: "block",
-              fontWeight: "bold",
-              marginBottom: 6,
-              color: "#0a3d2e",
-            }}
-          >
-            Titre (facultatif)
-          </span>
+          <span style={STYLE_LIBELLE}>Titre (facultatif)</span>
           <input
             type="text"
             value={titre}
@@ -205,16 +282,7 @@ export default function PageIndicateur({ params }: { params: { id: string } }) {
             style={STYLE_CHAMP}
           />
 
-          <span
-            style={{
-              display: "block",
-              fontWeight: "bold",
-              marginBottom: 6,
-              color: "#0a3d2e",
-            }}
-          >
-            Notes (facultatif)
-          </span>
+          <span style={STYLE_LIBELLE}>Notes (facultatif)</span>
           <textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
@@ -265,8 +333,7 @@ export default function PageIndicateur({ params }: { params: { id: string } }) {
               <div style={{ marginBottom: 6 }}>
                 <strong>{p.titre}</strong>
                 <span style={{ color: "#666666", fontSize: 13 }}>
-                  {" "}
-                  {taille(p.size_bytes)}
+                  {" " + taille(p.size_bytes)}
                 </span>
               </div>
 
@@ -279,8 +346,7 @@ export default function PageIndicateur({ params }: { params: { id: string } }) {
               )}
 
               <div style={{ fontSize: 13, color: "#888888", marginBottom: 8 }}>
-                Depose le{" "}
-                {new Date(p.uploaded_at).toLocaleDateString("fr-FR")}
+                Depose le {new Date(p.uploaded_at).toLocaleDateString("fr-FR")}
               </div>
 
               <div>
