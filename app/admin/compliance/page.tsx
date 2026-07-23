@@ -67,6 +67,10 @@ export default function ComplianceDashboard() {
   const [f3916Loading, setF3916Loading] = useState(false);
   const [f3916Msg, setF3916Msg] = useState<string | null>(null);
 
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const [pdfMsg, setPdfMsg] = useState<string | null>(null);
+  const [pdfControle, setPdfControle] = useState<string | null>(null);
+
   async function charger() {
     setLoading(true);
     setErreur(null);
@@ -202,6 +206,73 @@ export default function ComplianceDashboard() {
       setF3916Msg("Erreur : " + String(e));
     }
     setF3916Loading(false);
+  }
+
+  async function verifier3916Pdf() {
+    setPdfLoading(true);
+    setPdfMsg(null);
+    setPdfControle(null);
+    try {
+      const r = await fetch("/api/compliance/f3916/generate-pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tenant_id: TENANT_ID, controle: true }),
+      });
+      const data = await r.json();
+      if (data.ok) {
+        setPdfMsg("Controle effectue sur le compte : " + data.compte);
+        let txt = "CHAMPS REMPLIS\n";
+        Object.keys(data.champs_remplis || {}).forEach((k) => {
+          txt += k + " = " + data.champs_remplis[k] + "\n";
+        });
+        if ((data.avertissements || []).length > 0) {
+          txt += "\nAVERTISSEMENTS\n";
+          (data.avertissements || []).forEach((a: string) => {
+            txt += "- " + a + "\n";
+          });
+        }
+        setPdfControle(txt);
+      } else {
+        setPdfMsg("Erreur : " + (data.erreur || "inconnue"));
+        if ((data.avertissements || []).length > 0) {
+          setPdfControle((data.avertissements || []).join("\n"));
+        }
+      }
+    } catch (e: any) {
+      setPdfMsg("Erreur : " + String(e));
+    }
+    setPdfLoading(false);
+  }
+
+  async function telecharger3916Pdf() {
+    setPdfLoading(true);
+    setPdfMsg(null);
+    try {
+      const r = await fetch("/api/compliance/f3916/generate-pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tenant_id: TENANT_ID }),
+      });
+      if (!r.ok) {
+        const data = await r.json();
+        setPdfMsg("Erreur : " + (data.erreur || "inconnue"));
+        setPdfLoading(false);
+        return;
+      }
+      const blob = await r.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "3916_prerempli.pdf";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      setPdfMsg("PDF telecharge. Verifiez le rendu page par page.");
+    } catch (e: any) {
+      setPdfMsg("Erreur : " + String(e));
+    }
+    setPdfLoading(false);
   }
 
   const styleBouton = {
@@ -351,6 +422,44 @@ export default function ComplianceDashboard() {
             {f3916Msg}
           </p>
         )}
+
+        <div style={{ ...styleCarte, marginTop: 16, background: "#f8f8f4" }}>
+          <h3 style={{ color: "#0a3d2e", marginTop: 0, fontSize: 17 }}>
+            CERFA 3916 pre-rempli (PDF officiel)
+          </h3>
+          <p style={{ fontSize: 14, color: "#555", marginTop: 0 }}>
+            Remplit le CERFA officiel n° 11916*13 a partir de la fiche declarant et
+            du compte selectionne. Aide-memoire a recopier : la declaration reelle se
+            saisit en ligne sur impots.gouv.fr.
+          </p>
+          <button onClick={verifier3916Pdf} disabled={pdfLoading} style={styleLien}>
+            {pdfLoading ? "..." : "Verifier le mapping"}
+          </button>
+          <button onClick={telecharger3916Pdf} disabled={pdfLoading} style={styleBouton}>
+            {pdfLoading ? "..." : "Telecharger le PDF pre-rempli"}
+          </button>
+          {pdfMsg && (
+            <p style={{ marginTop: 10, color: pdfMsg.indexOf("Erreur") === 0 ? "#c62828" : "#0a3d2e" }}>
+              {pdfMsg}
+            </p>
+          )}
+          {pdfControle && (
+            <pre
+              style={{
+                background: "#ffffff",
+                border: "1px solid #ddd",
+                color: "#1a1a1a",
+                padding: 12,
+                borderRadius: 6,
+                fontSize: 13,
+                whiteSpace: "pre-wrap",
+                wordBreak: "break-word",
+              }}
+            >
+              {pdfControle}
+            </pre>
+          )}
+        </div>
 
         <h2 style={{ color: "#0a3d2e", fontSize: 20, marginTop: 32 }}>
           Compte de resultat {PNL_YEAR} (par devise)
