@@ -50,6 +50,12 @@ const STYLE_LIBELLE = {
   color: "#0a3d2e",
 };
 
+const VERDICTS: Record<string, { label: string; couleur: string }> = {
+  a_retravailler: { label: "A retravailler", couleur: "#c62828" },
+  en_bonne_voie: { label: "En bonne voie", couleur: "#8a6d2f" },
+  pret_pour_audit: { label: "Pret pour l'audit", couleur: "#2e7d32" },
+};
+
 function taille(octets: number): string {
   if (!octets) return "";
   if (octets < 1024) return octets + " o";
@@ -73,6 +79,10 @@ export default function PageIndicateur({ params }: { params: { id: string } }) {
   const [dateRevue, setDateRevue] = useState("");
   const [sauvegardeNote, setSauvegardeNote] = useState(false);
   const [messageNote, setMessageNote] = useState<string | null>(null);
+
+  const [examens, setExamens] = useState<any[]>([]);
+  const [restants, setRestants] = useState<number>(5);
+  const [examenEnCours, setExamenEnCours] = useState(false);
 
   async function charger() {
     setChargement(true);
@@ -102,6 +112,15 @@ export default function PageIndicateur({ params }: { params: { id: string } }) {
           setDateRevue(trouve.date_revue || "");
         }
       }
+
+      const re = await fetch(
+        "/api/qualiopi/examen?indicateur_id=" + indicateurId
+      );
+      const de = await re.json();
+      if (de.ok) {
+        setExamens(de.examens || []);
+        setRestants(de.restants);
+      }
     } catch (e: any) {
       setErreur(String(e));
     }
@@ -111,6 +130,29 @@ export default function PageIndicateur({ params }: { params: { id: string } }) {
   useEffect(() => {
     charger();
   }, []);
+
+  async function lancerExamen() {
+    setExamenEnCours(true);
+    setErreur(null);
+    setMessage(null);
+    try {
+      const r = await fetch("/api/qualiopi/examen", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ indicateur_id: indicateurId }),
+      });
+      const data = await r.json();
+      if (data.ok) {
+        setMessage("Examen termine.");
+        charger();
+      } else {
+        setErreur(data.erreur || "Erreur d'examen");
+      }
+    } catch (e: any) {
+      setErreur(String(e));
+    }
+    setExamenEnCours(false);
+  }
 
   async function enregistrerNote() {
     setSauvegardeNote(true);
@@ -192,6 +234,8 @@ export default function PageIndicateur({ params }: { params: { id: string } }) {
     }
   }
 
+  const dernier = examens.length > 0 ? examens[0] : null;
+
   return (
     <div
       style={{
@@ -214,8 +258,97 @@ export default function PageIndicateur({ params }: { params: { id: string } }) {
             paddingBottom: 10,
           }}
         >
-          Preuves de l'indicateur
+          Preparation de l'indicateur
         </h1>
+
+        <div style={STYLE_CARTE}>
+          <h2 style={{ color: "#0a3d2e", fontSize: 18, marginTop: 0 }}>
+            Faire examiner mon dossier
+          </h2>
+          <p style={{ fontSize: 14, color: "#666666", marginTop: 0 }}>
+            L'assistant lit vos preuves et votre note, les compare au niveau
+            attendu par le guide de lecture, et vous dit ce qui manque. Il ne
+            delivre aucune certification et ne prejuge pas de la decision de
+            l'auditeur.
+          </p>
+
+          {dernier && (
+            <div
+              style={{
+                border:
+                  "2px solid " +
+                  (VERDICTS[dernier.verdict]
+                    ? VERDICTS[dernier.verdict].couleur
+                    : "#999999"),
+                borderRadius: 6,
+                padding: 16,
+                marginBottom: 16,
+              }}
+            >
+              <div
+                style={{
+                  color: VERDICTS[dernier.verdict]
+                    ? VERDICTS[dernier.verdict].couleur
+                    : "#999999",
+                  fontWeight: "bold",
+                  fontSize: 16,
+                  marginBottom: 10,
+                }}
+              >
+                {VERDICTS[dernier.verdict]
+                  ? VERDICTS[dernier.verdict].label
+                  : dernier.verdict}
+              </div>
+
+              {dernier.synthese && (
+                <p style={{ marginTop: 0 }}>{dernier.synthese}</p>
+              )}
+
+              {dernier.points_forts && (
+                <div style={{ marginBottom: 10 }}>
+                  <strong style={{ color: "#2e7d32" }}>Ce qui est solide</strong>
+                  <div style={{ fontSize: 14 }}>{dernier.points_forts}</div>
+                </div>
+              )}
+
+              {dernier.points_manquants && (
+                <div style={{ marginBottom: 10 }}>
+                  <strong style={{ color: "#c62828" }}>Ce qui manque</strong>
+                  <div style={{ fontSize: 14 }}>{dernier.points_manquants}</div>
+                </div>
+              )}
+
+              <div style={{ fontSize: 13, color: "#888888" }}>
+                {dernier.documents_lus} document(s) lu(s)
+                {dernier.documents_illisibles > 0
+                  ? ", " +
+                    dernier.documents_illisibles +
+                    " non lisible(s) par l'assistant"
+                  : ""}
+                {" — " +
+                  new Date(dernier.created_at).toLocaleDateString("fr-FR")}
+              </div>
+            </div>
+          )}
+
+          <button
+            onClick={lancerExamen}
+            disabled={examenEnCours || restants <= 0}
+            style={STYLE_BOUTON}
+          >
+            {examenEnCours
+              ? "Examen en cours..."
+              : dernier
+              ? "Refaire examiner"
+              : "Faire examiner cet indicateur"}
+          </button>
+
+          <p style={{ fontSize: 13, color: "#666666", marginTop: 12 }}>
+            {restants > 0
+              ? restants + " examen(s) restant(s) sur 5 pour cet indicateur."
+              : "Vous avez utilise vos 5 examens pour cet indicateur."}
+          </p>
+        </div>
 
         <div style={STYLE_CARTE}>
           <h2 style={{ color: "#0a3d2e", fontSize: 18, marginTop: 0 }}>
