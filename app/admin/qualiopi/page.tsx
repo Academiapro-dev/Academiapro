@@ -2,13 +2,13 @@
 
 import { useEffect, useState } from "react";
 
-const STATUTS = [
-  { code: "non_commence", label: "Non commence", couleur: "#999999" },
-  { code: "en_cours", label: "En cours", couleur: "#8a6d2f" },
-  { code: "a_verifier", label: "A verifier", couleur: "#1565c0" },
-  { code: "conforme", label: "Conforme", couleur: "#2e7d32" },
-  { code: "non_applicable", label: "Non applicable", couleur: "#666666" },
-];
+const VERDICTS: Record<string, { label: string; couleur: string }> = {
+  non_commence: { label: "Non commence", couleur: "#999999" },
+  a_retravailler: { label: "A retravailler", couleur: "#c62828" },
+  en_bonne_voie: { label: "En bonne voie", couleur: "#8a6d2f" },
+  pret_pour_audit: { label: "Pret pour l'audit", couleur: "#2e7d32" },
+  non_applicable: { label: "Non applicable", couleur: "#666666" },
+};
 
 const STYLE_CARTE = {
   border: "1px solid #dddddd",
@@ -42,6 +42,18 @@ const STYLE_BOUTON = {
   marginBottom: 20,
 };
 
+const STYLE_BOUTON_INDICATEUR = {
+  display: "inline-block",
+  background: "#0a3d2e",
+  color: "#ffffff",
+  border: "none",
+  padding: "10px 20px",
+  borderRadius: 6,
+  textDecoration: "none",
+  fontSize: 15,
+  fontWeight: "bold" as const,
+};
+
 export default function GrilleQualiopi() {
   const [chargement, setChargement] = useState(true);
   const [erreur, setErreur] = useState<string | null>(null);
@@ -49,7 +61,6 @@ export default function GrilleQualiopi() {
   const [organisme, setOrganisme] = useState<any>(null);
   const [compte, setCompte] = useState<any>(null);
   const [groupes, setGroupes] = useState<any[]>([]);
-  const [enCours, setEnCours] = useState<string | null>(null);
   const [exportEnCours, setExportEnCours] = useState(false);
   const [messageExport, setMessageExport] = useState<string | null>(null);
 
@@ -77,48 +88,6 @@ export default function GrilleQualiopi() {
   useEffect(() => {
     charger();
   }, []);
-
-  function recalculer(nouveaux: any[]) {
-    const tous: any[] = [];
-    nouveaux.forEach((g) => g.indicateurs.forEach((i: any) => tous.push(i)));
-    setCompte({
-      total: tous.length,
-      conforme: tous.filter((i) => i.statut === "conforme").length,
-      a_verifier: tous.filter((i) => i.statut === "a_verifier").length,
-      en_cours: tous.filter((i) => i.statut === "en_cours").length,
-      non_commence: tous.filter((i) => i.statut === "non_commence").length,
-      non_applicable: tous.filter((i) => i.statut === "non_applicable").length,
-    });
-  }
-
-  async function changerStatut(indicateurId: string, statut: string) {
-    setEnCours(indicateurId);
-    setErreur(null);
-    try {
-      const r = await fetch("/api/qualiopi/grille", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ indicateur_id: indicateurId, statut: statut }),
-      });
-      const data = await r.json();
-      if (data.ok) {
-        const nouveaux = groupes.map((g) => ({
-          numero: g.numero,
-          intitule: g.intitule,
-          indicateurs: g.indicateurs.map((i: any) =>
-            i.id === indicateurId ? { ...i, statut: statut } : i
-          ),
-        }));
-        setGroupes(nouveaux);
-        recalculer(nouveaux);
-      } else {
-        setErreur(data.erreur || "Erreur d'enregistrement");
-      }
-    } catch (e: any) {
-      setErreur(String(e));
-    }
-    setEnCours(null);
-  }
 
   async function exporterPdf() {
     setExportEnCours(true);
@@ -148,9 +117,12 @@ export default function GrilleQualiopi() {
     setExportEnCours(false);
   }
 
+  const prets = compte
+    ? (compte.pret_pour_audit || 0)
+    : 0;
   const pourcentage =
     compte && compte.total > 0
-      ? Math.round((compte.conforme / compte.total) * 100)
+      ? Math.round((prets / compte.total) * 100)
       : 0;
 
   return (
@@ -238,13 +210,9 @@ export default function GrilleQualiopi() {
                 </div>
                 <div style={{ marginTop: 8, fontSize: 15 }}>
                   <strong>
-                    {compte.conforme} sur {compte.total} indicateurs conformes
+                    {prets} sur {compte.total} indicateurs prets pour l'audit
                   </strong>
                   {" (" + pourcentage + " %)"}
-                </div>
-                <div style={{ marginTop: 6, fontSize: 14, color: "#555555" }}>
-                  {compte.en_cours} en cours, {compte.a_verifier} a verifier,{" "}
-                  {compte.non_commence} non commences
                 </div>
               </div>
             </div>
@@ -287,57 +255,55 @@ export default function GrilleQualiopi() {
                   </span>
                 </h2>
 
-                {g.indicateurs.map((i: any) => (
-                  <div
-                    key={i.id}
-                    style={{
-                      padding: "14px 0",
-                      borderBottom: "1px solid #f0f0f0",
-                    }}
-                  >
-                    <div style={{ marginBottom: 8 }}>
-                      <strong style={{ color: "#0a3d2e" }}>
-                        Indicateur {i.numero}
-                      </strong>
-                      <span style={{ marginLeft: 8 }}>{i.intitule}</span>
-                    </div>
+                {g.indicateurs.map((i: any) => {
+                  const v = VERDICTS[i.statut] || VERDICTS.non_commence;
+                  return (
+                    <div
+                      key={i.id}
+                      style={{
+                        padding: "18px 0",
+                        borderBottom: "1px solid #f0f0f0",
+                      }}
+                    >
+                      <div style={{ marginBottom: 8 }}>
+                        <strong style={{ color: "#0a3d2e" }}>
+                          Indicateur {i.numero}
+                        </strong>
+                        <span style={{ marginLeft: 8 }}>{i.intitule}</span>
+                      </div>
 
-                    <div style={{ marginBottom: 8 }}>
-                      <a
-                        href={"/admin/qualiopi/indicateur/" + i.id}
-                        style={{ color: "#0a3d2e", fontSize: 14 }}
-                      >
-                        Gerer les preuves
-                        {i.nb_preuves > 0 ? " (" + i.nb_preuves + ")" : ""}
-                      </a>
-                    </div>
-
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                      {STATUTS.map((s) => (
-                        <button
-                          key={s.code}
-                          onClick={() => changerStatut(i.id, s.code)}
-                          disabled={enCours === i.id}
+                      <div style={{ marginBottom: 12 }}>
+                        <span
                           style={{
-                            border:
-                              i.statut === s.code
-                                ? "2px solid " + s.couleur
-                                : "1px solid #cccccc",
-                            background:
-                              i.statut === s.code ? s.couleur : "#ffffff",
-                            color: i.statut === s.code ? "#ffffff" : "#555555",
-                            padding: "6px 12px",
-                            borderRadius: 14,
+                            display: "inline-block",
+                            background: v.couleur,
+                            color: "#ffffff",
+                            padding: "4px 12px",
+                            borderRadius: 12,
                             fontSize: 13,
-                            cursor: "pointer",
+                            marginRight: 10,
                           }}
                         >
-                          {s.label}
-                        </button>
-                      ))}
+                          {v.label}
+                        </span>
+                        {i.nb_preuves > 0 && (
+                          <span style={{ fontSize: 13, color: "#666666" }}>
+                            {i.nb_preuves} preuve(s)
+                          </span>
+                        )}
+                      </div>
+
+                      <a
+                        href={"/admin/qualiopi/indicateur/" + i.id}
+                        style={STYLE_BOUTON_INDICATEUR}
+                      >
+                        {i.statut === "non_commence"
+                          ? "Commencer cet indicateur"
+                          : "Continuer cet indicateur"}
+                      </a>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ))}
           </div>
