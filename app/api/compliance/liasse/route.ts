@@ -1,0 +1,184 @@
+import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
+
+export const runtime = "nodejs";
+export const maxDuration = 60;
+export const dynamic = "force-dynamic";
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
+
+function tenantDeLaSession(req: NextRequest): string | null {
+  try {
+    const brut = req.cookies.get("sb_user")?.value;
+    if (!brut) return null;
+    const donnees = JSON.parse(decodeURIComponent(brut));
+    return donnees?.tenant_id || null;
+  } catch {
+    return null;
+  }
+}
+
+function r2(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
+// Bareme IS (hypothese PME : taux reduit 15 % jusqu'a 42 500, puis 25 %)
+function calculIS(base: number): { is_15: number; is_25: number; total: number } {
+  if (base <= 0) return { is_15: 0, is_25: 0, total: 0 };
+  const tranche15 = Math.min(base, 42500);
+  const tranche25 = Math.max(base - 42500, 0);
+  const is_15 = r2(tranche15 * 0.15);
+  const is_25 = r2(tranche25 * 0.25);
+  return { is_15, is_25, total: r2(is_15 + is_25) };
+}
+
+export async function GET(req: NextRequest) {
+  const tenantId = tenantDeLaSession(req);
+  if (!tenantId) {
+    return NextResponse.json(
+      { error: "Session sans societe rattachee. Reconnectez-vous." },
+      { status: 401 }
+    );
+  }
+
+  const year =
+    parseInt(req.nextUrl.searchParams.get("year") || "", 10) ||
+    new Date().getFullYear();
+  const debut = year + "-01-01";
+  const fin = year + "-12-31";
+
+  try {
+    const { data: lignes, error } = await supabase
+      .from("compta_ecritures")
+      .select("compte_num, compte_lib, debit, credit")
+      .eq("tenant_id", tenantId)
+      .gte("ecriture_date", debut)
+      .lte("ecriture_date", fin)
+      .limit(50000);
+
+    if (error) {
+      return NextResponse.json(
+        { error: "Lecture ecritures: " + error.message },
+        { status: 500 }
+      );
+    }
+    if (!lignes || lignes.length === 0) {
+      return NextResponse.json(
+        { error: "Aucune ecriture pour l'exercice " + year },
+        { status: 404 }
+      );
+    }
+
+    // ---- Soldes par compte ----
+    const comptes: Record<string, { lib: string; debit: number; credit: number }> = {};
+    for (const l of lignes) {
+      const num = l.compte_num;
+      if (!comptes[num]) comptes[num] = { lib: l.compte_lib, debit: 0, credit: 0 };
+      comptes[num].debit += Number(l.debit || 0);
+      comptes[num].credit += Number(l.credit || 0);
+    }
+
+    // ---- Compte de resultat (type 2033-B) ----
+    let produits = 0;
+    let charges = 0;
+    const detail_charges: Record<string, number> = {};
+    const detail_produits: Record<string, number> = {};
+
+    // ---- Bilan (type 2033-A) ----
+    let immobilisations = 0; // classe 2
+    let stocks = 0;          // classe 3
+    let creances = 0;        // classe 4, solde debiteur
+    let dettes = 0;          // classe 4, solde crediteur
+    let treso_active = 0;    // classe 5, solde debiteur
+    let treso_passive = 0;   // classe 5, solde crediteur
+    let capitaux_hors_resultat = 0; // classe 1, credit - debit
+
+    for (const num of Object.keys(comptes)) {
+      const c = comptes[num];
+      const solde = r2(c.debit - c.credit); // positif = debiteur
+      const classe = num.charAt(0);
+      if (classe === "7") {
+        const montant = r2(c.credit - c.debit);
+        produits = r2(produits + montant);
+        detail_produits[num + " " + c.lib] = montant;
+      } else if (classe === "6") {
+        const montant = r2(c.debit - c.credit);
+        charges = r2(charges + montant);
+        detail_charges[num + " " + c.lib] = montant;
+      } else if (classe === "2") {
+        immobilisations = r2(immobilisations + solde);
+      } else if (classe === "3") {
+        stocks = r2(stocks + solde);
+      } else if (classe === "4") {
+        if (solde >= 0) creances = r2(creances + solde);
+        else dettes = r2(dettes - solde);
+      } else if (classe === "5") {
+        if (solde >= 0) treso_active = r2(treso_active + solde);
+        else treso_passive = r2(treso_passive - solde);
+      } else if (classe === "1") {
+        capitaux_hors_resultat = r2(capitaux_hors_resultat + (c.credit - c.debit));
+      }
+    }
+
+    const resultat = r2(produits - charges);
+    const impot = calculIS(resultat);
+    const deficit_reportable = resultat < 0 ? r2(-resultat) : 0;
+
+    const total_actif = r2(immobilisations + stocks + creances + treso_active);
+    const capitaux_propres = r2(capitaux_hors_resultat + resultat);
+    const total_passif = r2(capitaux_propres + dettes + treso_passive);
+    const ecart = r2(total_actif - total_passif);
+
+    return NextResponse.json({
+      success: true,
+      year,
+      hypothese: "LLC imposee a l'IS en France - HYPOTHESE NON VALIDEE PAR LE FISCALISTE",
+      avertissement:
+        "Document de travail. La liasse reelle (2065 + 2033) se teletransmet en EDI-TDFC. Taux reduit 15 % suppose (conditions PME).",
+      compte_resultat: {
+        produits,
+        charges,
+        detail_produits,
+        detail_charges,
+        resultat_comptable: resultat,
+      },
+      impot_societes: {
+        base_imposable: resultat > 0 ? resultat : 0,
+        tranche_15_pct: impot.is_15,
+        tranche_25_pct: impot.is_25,
+        is_total: impot.total,
+        deficit_reportable,
+      },
+      bilan: {
+        actif: {
+          immobilisations,
+          stocks,
+          creances,
+          tresorerie: treso_active,
+          total: total_actif,
+        },
+        passif: {
+          capitaux_propres_hors_resultat: capitaux_hors_resultat,
+          resultat_exercice: resultat,
+          capitaux_propres: capitaux_propres,
+          dettes,
+          tresorerie_passive: treso_passive,
+          total: total_passif,
+        },
+      },
+      controle: {
+        equilibre: ecart === 0,
+        ecart,
+        nb_lignes_lues: lignes.length,
+      },
+    });
+  } catch (e: any) {
+    return NextResponse.json(
+      { error: String(e && e.message ? e.message : e) },
+      { status: 500 }
+    );
+  }
+}
