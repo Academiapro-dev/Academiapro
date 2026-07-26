@@ -121,6 +121,12 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
+      questions: (questions || []).map((q) => ({
+        code: q.code,
+        ordre: q.ordre,
+        question: q.question,
+        options: q.options,
+      })),
       reponses,
       questions_manquantes: manquantes,
       nb_obligations: obligations.length,
