@@ -35,20 +35,34 @@ async function lsGet(path: string) {
     },
     cache: "no-store",
   });
-  return r.json();
+  const j = await r.json().catch(() => null);
+  return { status: r.status, j };
 }
 
 async function trouverProduit() {
   if (cacheStoreId && cacheVariantId) return;
-  const prods = await lsGet("/products?page[size]=100");
-  const prod = (prods.data || []).find((p: any) =>
+  const res = await lsGet("/products?page[size]=100");
+  if (res.status !== 200) {
+    throw new Error(
+      "Lemon Squeezy repond " + res.status +
+      " (cle presente: " + (KEY ? "oui, " + KEY.length + " caracteres" : "NON") + ") — " +
+      JSON.stringify((res.j && res.j.errors) || res.j).slice(0, 300)
+    );
+  }
+  const noms = ((res.j && res.j.data) || []).map((p: any) => p.attributes.name);
+  const prod = ((res.j && res.j.data) || []).find((p: any) =>
     sansAccents(String(p.attributes.name || "")).includes("academia")
   );
-  if (!prod) throw new Error("Produit AcademIA introuvable dans Lemon Squeezy");
+  if (!prod) {
+    throw new Error(
+      "Produit introuvable. Produits visibles par la cle : [" + noms.join(" | ") +
+      "]. Si la liste est vide ou incomplete : verifier le mode Test/Live (cle et produit doivent etre dans le meme mode)."
+    );
+  }
   cacheStoreId = String(prod.attributes.store_id);
   const vars = await lsGet("/variants?filter[product_id]=" + prod.id);
-  if (!vars.data || !vars.data.length) throw new Error("Variante introuvable");
-  cacheVariantId = String(vars.data[0].id);
+  if (!vars.j || !vars.j.data || !vars.j.data.length) throw new Error("Variante introuvable");
+  cacheVariantId = String(vars.j.data[0].id);
 }
 
 export async function GET(req: Request) {
