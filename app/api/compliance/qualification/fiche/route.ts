@@ -10,6 +10,21 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+const TITRES: Record<string, { titre: string; pourquoi: string }> = {
+  US: {
+    titre: "Obligations americaines",
+    pourquoi: "Dues par toute LLC americaine, quel que soit le pays de residence du dirigeant.",
+  },
+  FR: {
+    titre: "Obligations francaises",
+    pourquoi: "Dues parce que le dirigeant est resident fiscal en France (rattachement francais de la structure et de son dirigeant).",
+  },
+  EU: {
+    titre: "Obligations europeennes",
+    pourquoi: "Liees aux ventes B2C a des particuliers de l'Union europeenne.",
+  },
+};
+
 function tenantDeLaSession(req: NextRequest): string | null {
   try {
     const brut = req.cookies.get("sb_user")?.value;
@@ -43,8 +58,8 @@ function libelle(opt: string): string {
     remboursement_compte_courant: "Remboursement de compte courant",
     distributions: "Distributions", direct: "Oui, en direct",
     merchant_of_record: "Oui, via merchant of record",
-    transparente: "Transparente", opaque_siege_france: "Opaque (siège en France)",
-    non_tranchee: "Non tranchée",
+    transparente: "Transparente", opaque_siege_france: "Opaque (siege en France)",
+    non_tranchee: "Non tranchee",
   };
   return table[opt] || opt.replace(/_/g, " ");
 }
@@ -69,7 +84,7 @@ export async function GET(req: NextRequest) {
   try {
     const { data: tenant } = await supabase
       .from("compliance_tenants")
-      .select("label, legal_name, formation_state, formation_date")
+      .select("label, legal_name, formation_state")
       .eq("tenant_id", tenantId)
       .limit(1)
       .maybeSingle();
@@ -92,7 +107,7 @@ export async function GET(req: NextRequest) {
 
     const { data: regles, error: eG } = await supabase
       .from("compliance_qualif_regles")
-      .select("document_code, document_lib, juridiction, condition, consequence, source")
+      .select("document_code, document_lib, juridiction, condition, consequence, source, echeance_rule_code")
       .eq("actif", true)
       .order("juridiction");
     if (eG) return NextResponse.json({ error: eG.message }, { status: 500 });
@@ -104,32 +119,56 @@ export async function GET(req: NextRequest) {
       else ecartes.push(r);
     }
 
-    const { data: echeances } = await supabase
-      .from("compliance_deadlines")
-      .select("rule_code, period_label, due_date")
-      .eq("tenant_id", tenantId)
-      .gte("due_date", new Date().toISOString().slice(0, 10))
-      .order("due_date")
-      .limit(12);
+    const codesEcheance = obligations.map((o) => o.echeance_rule_code).filter((c) => !!c);
+
+    let echeances: any[] = [];
+    if (codesEcheance.length > 0) {
+      const { data: ech } = await supabase
+        .from("compliance_deadlines")
+        .select("rule_code, period_label, due_date")
+        .eq("tenant_id", tenantId)
+        .in("rule_code", codesEcheance)
+        .gte("due_date", new Date().toISOString().slice(0, 10))
+        .order("due_date")
+        .limit(12);
+      echeances = ech || [];
+    }
 
     const nom = tenant?.legal_name || tenant?.label || "Client";
+
     const lignesQ = (questions || [])
       .map((q) => "<tr><td>" + q.question + "</td><td class='r'>" +
-        (reponses[q.code] ? libelle(reponses[q.code]) : "<em>sans réponse</em>") + "</td></tr>")
+        (reponses[q.code] ? libelle(reponses[q.code]) : "<em>sans reponse</em>") + "</td></tr>")
       .join("");
-    const lignesOb = obligations
-      .map((o) => "<div class='ob'><div class='t'>" + o.document_lib + " <span class='j'>(" + o.juridiction + ")</span>" +
-        (aConfirmer(o.consequence) ? " <span class='badge'>à confirmer</span>" : "") + "</div>" +
-        "<div>" + nettoyer(o.consequence) + "</div>" +
-        "<div class='src'>Source : " + o.source + "</div></div>")
+
+    const blocs = ["US", "FR", "EU"]
+      .map((jur) => {
+        const liste = obligations.filter((o) => o.juridiction === jur);
+        if (liste.length === 0) return "";
+        const t = TITRES[jur];
+        const cartes = liste
+          .map((o) => "<div class='ob'><div class='t'>" + o.document_lib +
+            (aConfirmer(o.consequence) ? " <span class='badge'>a confirmer</span>" : "") + "</div>" +
+            "<div>" + nettoyer(o.consequence) + "</div>" +
+            "<div class='src'>Source : " + o.source + "</div></div>")
+          .join("");
+        return "<h2>" + t.titre + " (" + liste.length + ")</h2>" +
+          "<p class='pourquoi'>" + t.pourquoi + "</p>" + cartes;
+      })
       .join("");
+
     const lignesEc = ecartes
       .map((e) => "<div class='ec'><strong>" + e.document_lib + "</strong> — ne s'applique pas (condition : " +
         decrireCondition(e.condition) + ")</div>")
       .join("");
-    const lignesEch = (echeances || [])
-      .map((d) => "<tr><td>" + d.rule_code + "</td><td>" + d.period_label + "</td><td class='r'>" +
-        new Date(d.due_date).toLocaleDateString("fr-FR") + "</td></tr>")
+
+    const nomsDocs: Record<string, string> = {};
+    for (const r of regles || []) {
+      if (r.echeance_rule_code) nomsDocs[r.echeance_rule_code] = r.document_lib;
+    }
+    const lignesEch = echeances
+      .map((d) => "<tr><td>" + (nomsDocs[d.rule_code] || d.rule_code) + "</td><td>" + d.period_label +
+        "</td><td class='r'>" + new Date(d.due_date).toLocaleDateString("fr-FR") + "</td></tr>")
       .join("");
 
     const html = `<!DOCTYPE html>
@@ -142,14 +181,14 @@ export async function GET(req: NextRequest) {
   :root { color-scheme: light; }
   body { background:#fff; color:#1a1a1a; font-family: Georgia, 'Times New Roman', serif; margin:0; padding:32px 24px; max-width:820px; margin-left:auto; margin-right:auto; font-size:16px; line-height:1.55; }
   h1 { font-size:24px; margin:0 0 4px 0; }
-  h2 { font-size:19px; margin:28px 0 8px 0; border-bottom:2px solid #1a1a1a; padding-bottom:4px; }
+  h2 { font-size:19px; margin:28px 0 4px 0; border-bottom:2px solid #1a1a1a; padding-bottom:4px; }
   .sous { color:#444; margin:0 0 16px 0; }
+  .pourquoi { color:#555; font-style:italic; margin:4px 0 10px 0; }
   table { width:100%; border-collapse:collapse; margin:8px 0 14px 0; }
   td, th { border:1px solid #999; padding:7px 10px; text-align:left; vertical-align:top; }
   .r { text-align:right; white-space:nowrap; }
   .ob { border-left:4px solid #b8860b; padding:8px 12px; margin:8px 0; background:#faf8f2; }
   .ob .t { font-weight:bold; }
-  .ob .j { color:#666; font-weight:normal; }
   .ob .src { font-size:13px; color:#666; margin-top:2px; }
   .badge { font-size:12px; background:#b8860b; color:#fff; padding:1px 8px; border-radius:10px; vertical-align:middle; }
   .ec { color:#555; margin:6px 0; }
@@ -158,25 +197,24 @@ export async function GET(req: NextRequest) {
 </style>
 </head>
 <body>
-<h1>Carte d'obligations déclaratives</h1>
-<p class="sous">${nom}${tenant?.formation_state ? " — structure " + tenant.formation_state + " (USA)" : ""} — établie le ${new Date().toLocaleDateString("fr-FR")}</p>
+<h1>Carte d'obligations declaratives</h1>
+<p class="sous">${nom}${tenant?.formation_state ? " — structure " + tenant.formation_state + " (USA)" : ""} — etablie le ${new Date().toLocaleDateString("fr-FR")}</p>
 
-<h2>Votre situation déclarée</h2>
+<h2>Votre situation declaree</h2>
 <table>${lignesQ}</table>
 
-<h2>Vos obligations (${obligations.length})</h2>
-${lignesOb}
+${blocs}
 
-<h2>Prochaines échéances</h2>
+<h2>Prochaines echeances</h2>
 <table>
-<tr><th>Obligation</th><th>Période</th><th class="r">Date limite</th></tr>
-${lignesEch || "<tr><td colspan='3'>Aucune échéance générée</td></tr>"}
+<tr><th>Obligation</th><th>Periode</th><th class="r">Date limite</th></tr>
+${lignesEch || "<tr><td colspan='3'>Aucune echeance a venir</td></tr>"}
 </table>
 
 <h2>Ce qui ne vous concerne pas (${ecartes.length})</h2>
 ${lignesEc}
 
-<p class="pied">Carte établie automatiquement à partir de vos réponses, par règles documentées non validées par un professionnel. Ce document ne constitue pas un avis fiscal ni juridique. Les règles marquées « à confirmer » signalent une incertitude connue.</p>
+<p class="pied">Carte etablie automatiquement a partir de vos reponses, par regles documentees non validees par un professionnel. Ce document ne constitue pas un avis fiscal ni juridique. Les regles marquees « a confirmer » signalent une incertitude connue.</p>
 </body>
 </html>`;
 
