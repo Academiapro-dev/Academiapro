@@ -216,7 +216,7 @@ export default function FormationPage({ params }: { params: { id: string } }) {
               {txt.prixNormal} {prixFormule.toLocaleString("fr-FR")}€
             </p>
           )}
-          <a href={`/inscription?formation=${params.id}&formule=${estBootcamp ? "bootcamp" : palier}`} style={{ display: "inline-block", background: "#c8a96e", color: "#050508", padding: "16px 40px", borderRadius: "8px", textDecoration: "none", fontWeight: "bold", fontSize: "18px" }}>
+          <a href={`/api/checkout?formation=${params.id}&formule=${estBootcamp ? "bootcamp" : palier}`} style={{ display: "inline-block", background: "#c8a96e", color: "#050508", padding: "16px 40px", borderRadius: "8px", textDecoration: "none", fontWeight: "bold", fontSize: "18px" }}>
             {txt.acheter} — {prixPromo.toLocaleString("fr-FR")}€
           </a>
         </div>
