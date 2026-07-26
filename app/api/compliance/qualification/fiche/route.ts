@@ -25,6 +25,19 @@ const TITRES: Record<string, { titre: string; pourquoi: string }> = {
   },
 };
 
+const ETIQUETTES: Record<string, string> = {
+  Q1: "residence fiscale",
+  Q2: "pays de la structure",
+  Q3: "forme de la structure",
+  Q4: "impot paye aux USA",
+  Q5: "sommes percues personnellement",
+  Q6: "comptes a l'etranger",
+  Q7: "detention d'au moins 10 %",
+  Q8: "ventes B2C dans l'UE",
+  Q9: "qualification francaise",
+  Q10: "salaries ou remuneration",
+};
+
 function tenantDeLaSession(req: NextRequest): string | null {
   try {
     const brut = req.cookies.get("sb_user")?.value;
@@ -34,20 +47,6 @@ function tenantDeLaSession(req: NextRequest): string | null {
   } catch {
     return null;
   }
-}
-
-function evalCondition(cond: any, reponses: Record<string, string>): boolean {
-  if (!cond || typeof cond !== "object") return false;
-  if (Array.isArray(cond.ou)) return cond.ou.some((c: any) => evalCondition(c, reponses));
-  if (Array.isArray(cond.et)) return cond.et.every((c: any) => evalCondition(c, reponses));
-  return Object.entries(cond).every(([q, v]) => reponses[q] === v);
-}
-
-function decrireCondition(cond: any): string {
-  if (!cond || typeof cond !== "object") return "";
-  if (Array.isArray(cond.ou)) return cond.ou.map(decrireCondition).join(" OU ");
-  if (Array.isArray(cond.et)) return cond.et.map(decrireCondition).join(" ET ");
-  return Object.entries(cond).map(([q, v]) => q + "=" + v).join(" ET ");
 }
 
 function libelle(opt: string): string {
@@ -62,6 +61,22 @@ function libelle(opt: string): string {
     non_tranchee: "Non tranchee",
   };
   return table[opt] || opt.replace(/_/g, " ");
+}
+
+function evalCondition(cond: any, reponses: Record<string, string>): boolean {
+  if (!cond || typeof cond !== "object") return false;
+  if (Array.isArray(cond.ou)) return cond.ou.some((c: any) => evalCondition(c, reponses));
+  if (Array.isArray(cond.et)) return cond.et.every((c: any) => evalCondition(c, reponses));
+  return Object.entries(cond).every(([q, v]) => reponses[q] === v);
+}
+
+function decrireCondition(cond: any): string {
+  if (!cond || typeof cond !== "object") return "";
+  if (Array.isArray(cond.ou)) return cond.ou.map(decrireCondition).join(", OU ");
+  if (Array.isArray(cond.et)) return cond.et.map(decrireCondition).join(", ET ");
+  return Object.entries(cond)
+    .map(([q, v]) => (ETIQUETTES[q] || q) + " = " + libelle(String(v)))
+    .join(", ET ");
 }
 
 function aConfirmer(consequence: string): boolean {
@@ -158,8 +173,8 @@ export async function GET(req: NextRequest) {
       .join("");
 
     const lignesEc = ecartes
-      .map((e) => "<div class='ec'><strong>" + e.document_lib + "</strong> — ne s'applique pas (condition : " +
-        decrireCondition(e.condition) + ")</div>")
+      .map((e) => "<div class='ec'><strong>" + e.document_lib + "</strong> — ne vous concerne pas. S'appliquerait si : " +
+        decrireCondition(e.condition) + ".</div>")
       .join("");
 
     const nomsDocs: Record<string, string> = {};
