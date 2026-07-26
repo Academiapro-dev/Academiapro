@@ -23,6 +23,10 @@ function prixPalier(base: number, palier: string): number {
   return base;
 }
 
+function sansAccents(s: string): string {
+  return s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
 async function lsGet(path: string) {
   const r = await fetch(LS_API + path, {
     headers: {
@@ -38,7 +42,7 @@ async function trouverProduit() {
   if (cacheStoreId && cacheVariantId) return;
   const prods = await lsGet("/products?page[size]=100");
   const prod = (prods.data || []).find((p: any) =>
-    String(p.attributes.name || "").toLowerCase().includes("academia")
+    sansAccents(String(p.attributes.name || "")).includes("academia")
   );
   if (!prod) throw new Error("Produit AcademIA introuvable dans Lemon Squeezy");
   cacheStoreId = String(prod.attributes.store_id);
