@@ -23,6 +23,14 @@ function libelle(opt: string): string {
   return table[opt] || opt.replace(/_/g, " ");
 }
 
+function estAConfirmer(consequence: string): boolean {
+  return /A CONFIRMER/i.test(consequence || "");
+}
+
+function nettoyerConsequence(consequence: string): string {
+  return (consequence || "").replace(/\s*(â€”|—|–|-)?\s*A CONFIRMER\s*$/i, "").trim();
+}
+
 export default function QualificationPage() {
   const [donnees, setDonnees] = useState<any>(null);
   const [chargement, setChargement] = useState(true);
@@ -112,13 +120,13 @@ export default function QualificationPage() {
               <div key={o.code} style={{ background: "#143122", borderLeft: "4px solid #d4af37", borderRadius: 8, padding: "12px 14px", marginBottom: 10 }}>
                 <div style={{ fontWeight: "bold" }}>
                   {o.document} <span style={{ color: "#bdb8a8", fontWeight: "normal" }}>({o.juridiction})</span>
-                  {!o.validee_par_fiscaliste && (
-                    <span style={{ marginLeft: 8, fontSize: 12, background: "#3c5a48", padding: "2px 8px", borderRadius: 10, color: "#f2efe6", fontWeight: "normal" }}>
-                      regle non validee
+                  {estAConfirmer(o.consequence) && (
+                    <span style={{ marginLeft: 8, fontSize: 12, background: "#7a5c1e", padding: "2px 8px", borderRadius: 10, color: "#f2efe6", fontWeight: "normal" }}>
+                      a confirmer
                     </span>
                   )}
                 </div>
-                <div style={{ marginTop: 4 }}>{o.consequence}</div>
+                <div style={{ marginTop: 4 }}>{nettoyerConsequence(o.consequence)}</div>
                 <div style={{ marginTop: 4, fontSize: 13, color: "#bdb8a8" }}>Source : {o.source}</div>
               </div>
             ))}
