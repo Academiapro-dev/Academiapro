@@ -7,12 +7,9 @@ const FR = {
   nonTrouvee: "Formation non trouvee",
   retourCatalogue: "Retour au catalogue",
   niveau: "Niveau",
-  elearning: "E-learning",
-  elearningSub: "Modules a votre rythme",
-  coach: "Coach IA",
-  coachSub: "Disponible 24h/24",
-  classe: "Classe virtuelle",
-  classeSub: "Sessions live avec avatar IA",
+  formuleTitre: "Choisissez votre formule",
+  prixNormal: "Prix normal :",
+  bootcampNote: "Programme intensif complet — 3 classes virtuelles et plus par semaine, prix unique",
   description: "Description",
   objectifs: "Objectifs",
   prerequis: "Prerequis",
@@ -26,13 +23,29 @@ const FR = {
   pret: "Pret a demarrer ?",
   acces: "Acces immediat apres inscription",
   acheter: "Acheter",
+  paliers: [
+    { id: "elearning", nom: "E-learning", detail: "Formation complete a votre rythme, manuel PDF inclus" },
+    { id: "plus", nom: "E-learning Plus", detail: "+ chat virtuel 24h/24 qui repond a toutes vos questions" },
+    { id: "cv1", nom: "Classe virtuelle 1x/sem", detail: "+ 1 seance live par semaine" },
+    { id: "cv2", nom: "Classe virtuelle 2x/sem", detail: "+ 2 seances live par semaine" },
+    { id: "cv3", nom: "Intensif 3x/sem", detail: "+ 3 seances live par semaine" },
+  ],
 };
+
+function prixPalier(base: number, palier: string): number {
+  if (palier === "elearning") return Math.round(base * 0.5);
+  if (palier === "plus") return Math.round(base * 0.7);
+  if (palier === "cv2") return base + 800;
+  if (palier === "cv3") return base + 1800;
+  return base;
+}
 
 export default function FormationPage({ params }: { params: { id: string } }) {
   const { txt, langue } = useTraductionAuto(FR);
   const [formation, setFormation] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [palier, setPalier] = useState("cv1");
 
   useEffect(() => {
     fetch(`/api/formation/${params.id}?lang=${langue}`)
@@ -58,6 +71,12 @@ export default function FormationPage({ params }: { params: { id: string } }) {
     </div>
   );
 
+  const estBootcamp = typeof formation.titre === "string" && formation.titre.startsWith("Bootcamp");
+  const prixBase = formation.prix || 0;
+  const prixFormule = estBootcamp ? prixBase : prixPalier(prixBase, palier);
+  const prixPromo = Math.round(prixFormule * 0.9);
+  const detailPalier = (txt.paliers.find((p: { id: string }) => p.id === palier) || txt.paliers[0]).detail;
+
   return (
     <div style={{ backgroundColor: "#050508", minHeight: "100vh", color: "#fff" }}>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify({
@@ -75,25 +94,44 @@ export default function FormationPage({ params }: { params: { id: string } }) {
         <div style={{ display: "flex", gap: "15px", justifyContent: "center", flexWrap: "wrap" }}>
           {formation.duree && <span style={{ background: "rgba(200,169,110,0.2)", color: "#c8a96e", padding: "6px 16px", borderRadius: "20px" }}>{formation.duree}</span>}
           {formation.niveau && <span style={{ background: "rgba(200,169,110,0.2)", color: "#c8a96e", padding: "6px 16px", borderRadius: "20px" }}>{txt.niveau} {formation.niveau}</span>}
-          {formation.prix && <span style={{ background: "#c8a96e", color: "#050508", padding: "6px 16px", borderRadius: "20px", fontWeight: "bold" }}>{formation.prix}€</span>}
+          {prixBase > 0 && <span style={{ background: "#c8a96e", color: "#050508", padding: "6px 16px", borderRadius: "20px", fontWeight: "bold" }}>{prixPromo.toLocaleString("fr-FR")}€</span>}
         </div>
       </div>
 
       <div style={{ maxWidth: "900px", margin: "0 auto", padding: "40px 20px" }}>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "15px", marginBottom: "40px" }}>
-          {[
-            { icon: "📚", label: txt.elearning, desc: txt.elearningSub },
-            { icon: "🤖", label: txt.coach, desc: txt.coachSub },
-            { icon: "🎥", label: txt.classe, desc: txt.classeSub },
-          ].map(item => (
-            <div key={item.label} style={{ background: "rgba(200,169,110,0.1)", border: "1px solid rgba(200,169,110,0.3)", borderRadius: "10px", padding: "15px", textAlign: "center" }}>
-              <div style={{ fontSize: "28px", marginBottom: "8px" }}>{item.icon}</div>
-              <div style={{ color: "#c8a96e", fontWeight: "bold", fontSize: "14px" }}>{item.label}</div>
-              <div style={{ color: "rgba(255,255,255,0.5)", fontSize: "12px", marginTop: "3px" }}>{item.desc}</div>
+        {prixBase > 0 && !estBootcamp && (
+          <div style={{ marginBottom: "40px" }}>
+            <h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", fontSize: "18px", textAlign: "center", marginBottom: "14px" }}>{txt.formuleTitre}</h2>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "10px", justifyContent: "center", marginBottom: "10px" }}>
+              {txt.paliers.map((p: { id: string; nom: string }) => (
+                <button
+                  key={p.id}
+                  onClick={() => setPalier(p.id)}
+                  style={{
+                    background: palier === p.id ? "#c8a96e" : "rgba(255,255,255,0.05)",
+                    color: palier === p.id ? "#050508" : "rgba(255,255,255,0.7)",
+                    border: "1px solid rgba(200,169,110,0.4)",
+                    borderRadius: "24px",
+                    padding: "10px 18px",
+                    fontSize: "13px",
+                    fontWeight: "bold",
+                    cursor: "pointer",
+                  }}
+                >
+                  {p.nom}
+                </button>
+              ))}
             </div>
-          ))}
-        </div>
+            <p style={{ color: "rgba(200,169,110,0.8)", fontSize: "13px", textAlign: "center", margin: 0 }}>{detailPalier}</p>
+          </div>
+        )}
+
+        {prixBase > 0 && estBootcamp && (
+          <div style={{ marginBottom: "40px", padding: "16px 20px", background: "rgba(200,169,110,0.08)", border: "1px solid rgba(200,169,110,0.3)", borderRadius: "12px", textAlign: "center" }}>
+            <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "14px", margin: 0 }}>🚀 {txt.bootcampNote}</p>
+          </div>
+        )}
 
         {formation.description && (
           <div style={{ marginBottom: "35px" }}>
@@ -173,8 +211,13 @@ export default function FormationPage({ params }: { params: { id: string } }) {
         <div style={{ textAlign: "center", padding: "40px", background: "rgba(255,255,255,0.03)", borderRadius: "12px" }}>
           <h2 style={{ color: "#fff", fontFamily: "Georgia,serif", marginBottom: "10px" }}>{txt.pret}</h2>
           <p style={{ color: "rgba(255,255,255,0.6)", marginBottom: "20px" }}>{txt.acces}</p>
-          <a href="/inscription" style={{ display: "inline-block", background: "#c8a96e", color: "#050508", padding: "16px 40px", borderRadius: "8px", textDecoration: "none", fontWeight: "bold", fontSize: "18px" }}>
-            {txt.acheter} — {formation.prix}€
+          {prixBase > 0 && (
+            <p style={{ color: "rgba(255,255,255,0.35)", fontSize: "13px", marginBottom: "14px", textDecoration: "line-through" }}>
+              {txt.prixNormal} {prixFormule.toLocaleString("fr-FR")}€
+            </p>
+          )}
+          <a href={`/inscription?formation=${params.id}&formule=${estBootcamp ? "bootcamp" : palier}`} style={{ display: "inline-block", background: "#c8a96e", color: "#050508", padding: "16px 40px", borderRadius: "8px", textDecoration: "none", fontWeight: "bold", fontSize: "18px" }}>
+            {txt.acheter} — {prixPromo.toLocaleString("fr-FR")}€
           </a>
         </div>
 
