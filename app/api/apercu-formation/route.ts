@@ -11,52 +11,32 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || ""
 );
 
-// Reparation du double encodage, ecrite en codes numeriques pour ne pas
-// dependre de l'encodage de ce fichier source. Sequences longues d'abord.
-const CORRECTIONS: [string, string][] = [
-  ["\u00E2\u0080\u0099", "\u2019"],
-  ["\u00E2\u0080\u009C", "\u201C"],
-  ["\u00E2\u0080\u009D", "\u201D"],
-  ["\u00E2\u0080\u0093", "\u2013"],
-  ["\u00E2\u0080\u0094", "\u2014"],
-  ["\u00E2\u0080\u00A6", "\u2026"],
-  ["\u00C3\u00A9", "\u00E9"],
-  ["\u00C3\u00A8", "\u00E8"],
-  ["\u00C3\u00AA", "\u00EA"],
-  ["\u00C3\u00AB", "\u00EB"],
-  ["\u00C3\u00A0", "\u00E0"],
-  ["\u00C3\u00A2", "\u00E2"],
-  ["\u00C3\u00A4", "\u00E4"],
-  ["\u00C3\u00AE", "\u00EE"],
-  ["\u00C3\u00AF", "\u00EF"],
-  ["\u00C3\u00B4", "\u00F4"],
-  ["\u00C3\u00B6", "\u00F6"],
-  ["\u00C3\u00B9", "\u00F9"],
-  ["\u00C3\u00BB", "\u00FB"],
-  ["\u00C3\u00BC", "\u00FC"],
-  ["\u00C3\u00A7", "\u00E7"],
-  ["\u00C3\u0089", "\u00C9"],
-  ["\u00C3\u0088", "\u00C8"],
-  ["\u00C3\u0080", "\u00C0"],
-  ["\u00C3\u0087", "\u00C7"],
-  ["\u00C5\u0093", "oe"],
-  ["\u00C2\u00B7", "\u00B7"],
-  ["\u00C2\u00AB", "\u00AB"],
-  ["\u00C2\u00BB", "\u00BB"],
-  ["\u00C2\u00B0", "\u00B0"],
-  ["\u00C2\u00A0", " "],
-  ["\u00C2", " "],
-];
-
-function reparerEncodage(t: string): string {
-  let s = String(t || "");
-  for (const paire of CORRECTIONS) {
-    s = s.split(paire[0]).join(paire[1]);
+// Certains fichiers sont doublement encodes : leurs octets UTF-8 ont ete
+// relus comme du latin-1 puis re-encodes. On refait le chemin inverse.
+function reparerEncodage(s: string): string {
+  let t = String(s || "");
+  let tours = 0;
+  while (tours < 3 && /[\u00C3\u00C2\u00E2]/.test(t)) {
+    let possible = true;
+    const octets = new Uint8Array(t.length);
+    for (let i = 0; i < t.length; i++) {
+      const c = t.charCodeAt(i);
+      if (c > 255) { possible = false; break; }
+      octets[i] = c;
+    }
+    if (!possible) break;
+    let decode = "";
+    try {
+      decode = new TextDecoder("utf-8").decode(octets);
+    } catch (e) {
+      break;
+    }
+    if (!decode || decode === t) break;
+    t = decode;
+    tours++;
   }
-  s = s.replace(/[\uD800-\uDFFF]/g, "");
-  s = s.replace(/\u00F0[\u0080-\u00FF]{0,3}/g, "");
-  try { s = s.normalize("NFC"); } catch (e) {}
-  return s;
+  try { t = t.normalize("NFC"); } catch (e) {}
+  return t;
 }
 
 function texteBrut(html: string): string {
@@ -66,6 +46,7 @@ function texteBrut(html: string): string {
     .replace(/<[^>]+>/g, " ")
     .replace(/&nbsp;/gi, " ")
     .replace(/&amp;/gi, "&")
+    .replace(/[\uD800-\uDFFF]/g, "")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -98,7 +79,7 @@ export async function GET(req: Request) {
   try {
     const code = (new URL(req.url).searchParams.get("code") || "").trim().toUpperCase();
     if (!code) {
-      return NextResponse.json({ ok: false, erreur: "code manquant" }, { status: 400 });
+      return NextResponse.json({ ok: false, version: 3, erreur: "code manquant" }, { status: 400 });
     }
 
     const { data } = await supabase.storage
@@ -106,7 +87,7 @@ export async function GET(req: Request) {
       .download(code + "_support_cours.html");
 
     if (!data) {
-      return NextResponse.json({ ok: true, code: code, disponible: false });
+      return NextResponse.json({ ok: true, version: 3, code: code, disponible: false });
     }
 
     const brut = sansPrix(texteBrut(reparerEncodage((await data.text()).slice(0, 150000))));
@@ -123,12 +104,13 @@ export async function GET(req: Request) {
 
     return NextResponse.json({
       ok: true,
+      version: 3,
       code: code,
       disponible: true,
       apercu: apercu,
       modules: modules,
     });
   } catch (e: any) {
-    return NextResponse.json({ ok: false, erreur: String(e) }, { status: 500 });
+    return NextResponse.json({ ok: false, version: 3, erreur: String(e) }, { status: 500 });
   }
 }
