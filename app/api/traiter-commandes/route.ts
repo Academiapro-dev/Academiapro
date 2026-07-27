@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { emailDeSession } from "../../../lib/session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -53,9 +54,11 @@ export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
     const secret = url.searchParams.get("secret") || "";
-    if (!process.env.CRON_SECRET || secret !== process.env.CRON_SECRET) {
-     return NextResponse.json({ ok: false, erreur: "acces refuse", attendu: (process.env.CRON_SECRET || "").length, recu: secret.length }, { status: 403 });
+    const admin = emailDeSession() === "contact@academiapro.fr";
+    const parSecret = process.env.CRON_SECRET ? secret === process.env.CRON_SECRET : false;
 
+    if (!admin && !parSecret) {
+      return NextResponse.json({ ok: false, erreur: "acces refuse" }, { status: 403 });
     }
 
     const cle = process.env.ANTHROPIC_API_KEY || "";
@@ -103,7 +106,6 @@ export async function GET(req: Request) {
       return t === undefined || t.length < 30000;
     });
 
-    // Il reste des modules : on en produit un et on s arrete la.
     if (manquants.length > 0) {
       const l = manquants[0];
       const base =
@@ -144,7 +146,6 @@ export async function GET(req: Request) {
       });
     }
 
-    // Tous les modules sont la : on assemble et on livre.
     let corps = "";
     let chapitreCourant = -1;
     for (const l of plan) {
