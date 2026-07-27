@@ -23,23 +23,23 @@ function simplifier(t: string): string {
     .trim();
 }
 
-function titreDuFichier(html: string): string {
-  const h1 = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
-  if (h1) return h1[1].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-  const t = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
-  if (t) return t[1].replace(/\s+/g, " ").trim();
-  return "";
+function texteBrut(html: string): string {
+  return String(html || "")
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
-// Concordance : au moins la moitie des mots significatifs du titre de base
-// se retrouvent dans le titre du fichier.
-function concorde(titreBase: string, titreFichier: string): boolean {
-  const a = simplifier(titreBase).split(" ").filter(m => m.length > 3);
-  const b = simplifier(titreFichier);
-  if (a.length === 0 || !b) return false;
+// Le titre de la formation doit se retrouver dans le debut du document.
+function concorde(titreBase: string, debutTexte: string): boolean {
+  const mots = simplifier(titreBase).split(" ").filter(m => m.length > 3);
+  const cible = simplifier(debutTexte);
+  if (mots.length === 0 || !cible) return false;
   let trouves = 0;
-  for (const mot of a) if (b.indexOf(mot) >= 0) trouves++;
-  return trouves >= Math.ceil(a.length / 2);
+  for (const mot of mots) if (cible.indexOf(mot) >= 0) trouves++;
+  return trouves >= Math.ceil(mots.length / 2);
 }
 
 export async function GET(req: Request) {
@@ -74,23 +74,23 @@ export async function GET(req: Request) {
 
     const discordances: any[] = [];
     const sansFiche: string[] = [];
-    let verifies = 0;
+    let conformes = 0;
 
     for (const nom of lot) {
       const code = nom.split("_")[0];
       const titreBase = titres[code];
-      if (!titreBase) { sansFiche.push(code); continue; }
+      if (!titreBase) { sansFiche.push(nom); continue; }
       try {
         const { data } = await supabase.storage.from("formations-pdf").download(nom);
         if (!data) continue;
-        const html = (await data.text()).slice(0, 20000);
-        const titreFichier = titreDuFichier(html);
-        verifies++;
-        if (!concorde(titreBase, titreFichier)) {
-          discordances.push({ code, titre_base: titreBase, titre_fichier: titreFichier });
+        const brut = texteBrut((await data.text()).slice(0, 30000)).slice(0, 4000);
+        if (concorde(titreBase, brut)) {
+          conformes++;
+        } else {
+          discordances.push({ code, titre_base: titreBase, extrait: brut.slice(0, 220) });
         }
       } catch (e) {
-        discordances.push({ code, titre_base: titreBase, titre_fichier: "LECTURE IMPOSSIBLE" });
+        discordances.push({ code, titre_base: titreBase, extrait: "LECTURE IMPOSSIBLE" });
       }
     }
 
@@ -99,10 +99,10 @@ export async function GET(req: Request) {
       ok: true,
       total_supports: supports.length,
       lot: debut + " a " + Math.min(suivant, supports.length),
-      verifies: verifies,
+      conformes: conformes,
       nb_discordances: discordances.length,
       discordances: discordances,
-      codes_sans_fiche: sansFiche,
+      fichiers_sans_fiche: sansFiche,
       suite: suivant < supports.length ? "/api/admin/audit-supports?debut=" + suivant : null,
     });
   } catch (e: any) {
