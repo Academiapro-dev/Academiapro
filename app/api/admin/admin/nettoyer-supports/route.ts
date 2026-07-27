@@ -16,7 +16,7 @@ const supabase = createClient(
 
 function reparerEncodage(s: string): string {
   let t = String(s || "");
-  if (!/\u00C3[\u0080-\u00BF]/.test(t)) return t;
+  if (!/[\u00C3\u00CC\u00C2][\u0080-\u00BF]/.test(t)) return t;
   const propre = t.replace(/[^\u0000-\u00FF]/g, "");
   const octets = new Uint8Array(propre.length);
   for (let i = 0; i < propre.length; i++) {
