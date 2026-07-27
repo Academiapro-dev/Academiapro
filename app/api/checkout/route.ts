@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { emailDeSession } from "../../../lib/session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -69,11 +70,17 @@ export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
     const code = url.searchParams.get("formation") || "";
-    const formule = url.searchParams.get("formule") || "cv1";
-    const valides = ["elearning", "plus", "cv1", "cv2", "cv3", "bootcamp"];
+    let formule = url.searchParams.get("formule") || "cv1";
+
+    // Les ateliers (codes SK) ont un prix fixe : ni palier, ni remise.
+    const estAtelier = code.toUpperCase().indexOf("SK") === 0;
+    if (estAtelier) formule = "atelier";
+
+    const valides = ["elearning", "plus", "cv1", "cv2", "cv3", "bootcamp", "atelier"];
     if (!valides.includes(formule)) {
       return NextResponse.json({ error: "formule invalide" }, { status: 400 });
     }
+
     const { data: f, error } = await supabase
       .from("formations")
       .select("code, titre, prix")
@@ -82,23 +89,38 @@ export async function GET(req: Request) {
     if (error || !f) {
       return NextResponse.json({ error: "formation introuvable: " + code }, { status: 404 });
     }
-    const estBootcamp = String(f.titre || "").startsWith("Bootcamp") || formule === "bootcamp";
-    const prixFormule = estBootcamp ? f.prix : prixPalier(f.prix, formule);
-    const prixPromo = Math.round(prixFormule * 0.9);
+
+    let prixFinal: number;
+    if (estAtelier) {
+      prixFinal = f.prix;
+    } else {
+      const estBootcamp = String(f.titre || "").startsWith("Bootcamp") || formule === "bootcamp";
+      const prixFormule = estBootcamp ? f.prix : prixPalier(f.prix, formule);
+      prixFinal = Math.round(prixFormule * 0.9);
+    }
+
     await trouverProduit();
+
+    // Si l'acheteur est connecte, on preremplit son email de session :
+    // l'acces est indexe sur cette adresse, autant qu'il paie avec.
+    const emailConnecte = emailDeSession();
+
+    const donneesCheckout: any = {
+      custom: { formation: f.code, formule: formule },
+    };
+    if (emailConnecte) donneesCheckout.email = emailConnecte;
+
     const corps = {
       data: {
         type: "checkouts",
         attributes: {
-          custom_price: prixPromo * 100,
+          custom_price: prixFinal * 100,
           product_options: {
             name: f.titre,
-            description: "Formation " + f.code + " - formule " + formule,
+            description: (estAtelier ? "Atelier " : "Formation ") + f.code + " - formule " + formule,
             redirect_url: "https://academiapro.fr/dashboard",
           },
-          checkout_data: {
-            custom: { formation: f.code, formule: formule },
-          },
+          checkout_data: donneesCheckout,
         },
         relationships: {
           store: { data: { type: "stores", id: cacheStoreId } },
@@ -106,6 +128,7 @@ export async function GET(req: Request) {
         },
       },
     };
+
     const r = await fetch(LS_API + "/checkouts", {
       method: "POST",
       headers: {
