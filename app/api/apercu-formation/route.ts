@@ -11,15 +11,41 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || ""
 );
 
-// Table de correspondance du double encodage constate dans les fichiers.
+// Reparation du double encodage, ecrite en codes numeriques pour ne pas
+// dependre de l'encodage de ce fichier source. Sequences longues d'abord.
 const CORRECTIONS: [string, string][] = [
-  ["â€™", "'"], ["â€œ", "\""], ["â€\u009d", "\""], ["â€“", "-"], ["â€”", "-"],
-  ["â€¦", "..."], ["Ã©", "é"], ["Ã¨", "è"], ["Ãª", "ê"], ["Ã«", "ë"],
-  ["Ã ", "à"], ["Ã¢", "â"], ["Ã¤", "ä"], ["Ã®", "î"], ["Ã¯", "ï"],
-  ["Ã´", "ô"], ["Ã¶", "ö"], ["Ã¹", "ù"], ["Ã»", "û"], ["Ã¼", "ü"],
-  ["Ã§", "ç"], ["Ã‰", "É"], ["Ãˆ", "È"], ["Ã€", "À"], ["Ã‡", "Ç"],
-  ["Å“", "oe"], ["Â·", "·"], ["Â»", "»"], ["Â«", "«"], ["Â°", "°"],
-  ["Â", " "],
+  ["\u00E2\u0080\u0099", "\u2019"],
+  ["\u00E2\u0080\u009C", "\u201C"],
+  ["\u00E2\u0080\u009D", "\u201D"],
+  ["\u00E2\u0080\u0093", "\u2013"],
+  ["\u00E2\u0080\u0094", "\u2014"],
+  ["\u00E2\u0080\u00A6", "\u2026"],
+  ["\u00C3\u00A9", "\u00E9"],
+  ["\u00C3\u00A8", "\u00E8"],
+  ["\u00C3\u00AA", "\u00EA"],
+  ["\u00C3\u00AB", "\u00EB"],
+  ["\u00C3\u00A0", "\u00E0"],
+  ["\u00C3\u00A2", "\u00E2"],
+  ["\u00C3\u00A4", "\u00E4"],
+  ["\u00C3\u00AE", "\u00EE"],
+  ["\u00C3\u00AF", "\u00EF"],
+  ["\u00C3\u00B4", "\u00F4"],
+  ["\u00C3\u00B6", "\u00F6"],
+  ["\u00C3\u00B9", "\u00F9"],
+  ["\u00C3\u00BB", "\u00FB"],
+  ["\u00C3\u00BC", "\u00FC"],
+  ["\u00C3\u00A7", "\u00E7"],
+  ["\u00C3\u0089", "\u00C9"],
+  ["\u00C3\u0088", "\u00C8"],
+  ["\u00C3\u0080", "\u00C0"],
+  ["\u00C3\u0087", "\u00C7"],
+  ["\u00C5\u0093", "oe"],
+  ["\u00C2\u00B7", "\u00B7"],
+  ["\u00C2\u00AB", "\u00AB"],
+  ["\u00C2\u00BB", "\u00BB"],
+  ["\u00C2\u00B0", "\u00B0"],
+  ["\u00C2\u00A0", " "],
+  ["\u00C2", " "],
 ];
 
 function reparerEncodage(t: string): string {
@@ -27,8 +53,8 @@ function reparerEncodage(t: string): string {
   for (const paire of CORRECTIONS) {
     s = s.split(paire[0]).join(paire[1]);
   }
-  // Emojis et symboles residuels issus du mauvais encodage.
-  s = s.replace(/[\uD800-\uDFFF]/g, "").replace(/ð[\u0080-\u00FF]{0,3}/g, "");
+  s = s.replace(/[\uD800-\uDFFF]/g, "");
+  s = s.replace(/\u00F0[\u0080-\u00FF]{0,3}/g, "");
   try { s = s.normalize("NFC"); } catch (e) {}
   return s;
 }
@@ -46,18 +72,17 @@ function texteBrut(html: string): string {
 
 function sansPrix(t: string): string {
   return String(t || "")
-    .replace(/(Tarif|Prix)\s*:?\s*[^|.]{0,40}(euros?|EUR|€)/gi, " ")
-    .replace(/\d[\d\s]{2,}(euros?|EUR|€)/gi, " ")
+    .replace(/(Tarif|Prix)\s*:?\s*[^|.]{0,40}(euros?|EUR|\u20AC)/gi, " ")
+    .replace(/\d[\d\s]{2,}(euros?|EUR|\u20AC)/gi, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
 
-// On s'arrete des que le document entre dans le contenu.
 function couperAvantLeCours(t: string): string {
   const bornes = [
     "Programme complet",
     "Programme detaille",
-    "Programme détaillé",
+    "Programme d\u00E9taill\u00E9",
     "Chapitre 1",
     "Module 1",
   ];
@@ -85,12 +110,10 @@ export async function GET(req: Request) {
     }
 
     const brut = sansPrix(texteBrut(reparerEncodage((await data.text()).slice(0, 150000))));
-
     const apercu = couperAvantLeCours(brut);
 
-    // Uniquement les intitules ancres sur « Module N » et suivis d'une duree.
     const modules: string[] = [];
-    const motif = /Module\s*(\d{1,2})\s*[:\-–—]?\s*([^()·|]{3,70}?)\s*\((\d{1,3})\s*h\)/g;
+    const motif = /Module\s*(\d{1,2})\s*[:\-\u2013\u2014]?\s*([^()\u00B7|]{3,70}?)\s*\((\d{1,3})\s*h\)/g;
     let m;
     while ((m = motif.exec(brut)) !== null) {
       const ligne = m[2].replace(/\s+/g, " ").trim() + " (" + m[3] + " h)";
