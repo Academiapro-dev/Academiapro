@@ -53,7 +53,7 @@ export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
     const secret = url.searchParams.get("secret") || "";
-    if (!process.env.SESSION_SECRET || secret !== process.env.SESSION_SECRET) {
+    if (!process.env.CRON_SECRET || secret !== process.env.CRON_SECRET) {
       return NextResponse.json({ ok: false, erreur: "acces refuse" }, { status: 403 });
     }
 
