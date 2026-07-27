@@ -23,7 +23,13 @@ export async function GET() {
       );
     }
 
-    return NextResponse.json({ success: true, formations: data || [] });
+    // Les ateliers (codes SK) ont leur propre page et un prix fixe :
+    // la grille des cinq paliers de la page Tarifs ne s'applique pas a eux.
+    const formations = (data || []).filter(
+      (f: any) => String(f.code || "").toUpperCase().indexOf("SK") !== 0
+    );
+
+    return NextResponse.json({ success: true, formations: formations });
   } catch (error: any) {
     return NextResponse.json(
       { success: false, formations: [], error: String(error) },
