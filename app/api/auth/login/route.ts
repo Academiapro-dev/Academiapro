@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { fabriquerJetonSession, NOM_COOKIE_SESSION, DUREE_COOKIE_SECONDES } from "../../../../lib/session";
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -69,6 +70,20 @@ export async function POST(req: NextRequest) {
       maxAge: 60 * 60 * 24 * 7,
       path: "/",
     });
+
+    // Cookie de session signe : c'est lui qui ouvre l'acces au contenu payant.
+    const emailReel = String(data.user?.email || email || "").toLowerCase().trim();
+    if (emailReel) {
+      response.cookies.set({
+        name: NOM_COOKIE_SESSION,
+        value: fabriquerJetonSession(emailReel),
+        httpOnly: true,
+        secure: true,
+        sameSite: "lax",
+        path: "/",
+        maxAge: DUREE_COOKIE_SECONDES,
+      });
+    }
 
     return response;
   }
