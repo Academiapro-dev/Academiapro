@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { emailDeSession } from "../../../lib/session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -9,12 +10,14 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || ""
 );
 
-export async function GET(req: Request) {
+export async function GET() {
   try {
-    const url = new URL(req.url);
-    const email = String(url.searchParams.get("email") || "").toLowerCase().trim();
+    const email = emailDeSession();
     if (!email) {
-      return NextResponse.json({ success: false, formations: [], error: "email manquant" }, { status: 400 });
+      return NextResponse.json(
+        { success: false, formations: [], error: "non connecte" },
+        { status: 401 }
+      );
     }
     const { data: acces, error } = await supabase
       .from("acces_formations")
@@ -25,7 +28,7 @@ export async function GET(req: Request) {
       return NextResponse.json({ success: false, formations: [], error: error.message }, { status: 500 });
     }
     if (!acces || acces.length === 0) {
-      return NextResponse.json({ success: true, formations: [] });
+      return NextResponse.json({ success: true, email: email, formations: [] });
     }
     const codes = acces.map((a) => a.formation);
     const { data: fiches } = await supabase
@@ -39,7 +42,7 @@ export async function GET(req: Request) {
       titre: titres[a.formation] || a.formation,
       formule: a.formule,
     }));
-    return NextResponse.json({ success: true, formations: liste });
+    return NextResponse.json({ success: true, email: email, formations: liste });
   } catch (e: any) {
     return NextResponse.json({ success: false, formations: [], error: String(e) }, { status: 500 });
   }
