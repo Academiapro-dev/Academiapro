@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { emailDeSession } from "../../../../lib/session";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
+
+// Comptes autorises a emettre un certificat pour quelqu'un d'autre
+// (generateur manuel de l'admin). Ajouter une adresse ici si besoin.
+const ADMINS = ["contact@academiapro.fr"];
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
@@ -33,13 +38,41 @@ async function envoyerEmailCertificat(email: string, nom: string, formation: str
 export async function POST(req: NextRequest) {
   try {
     const { nom, formation, code, date, niveau, userEmail } = await req.json();
+
+    // ---- Verrou : personne n'emet un certificat sans session ----
+    const emailSession = emailDeSession();
+    if (!emailSession) {
+      return NextResponse.json({ success: false, error: "non connecte" }, { status: 401 });
+    }
+
+    const estAdmin = ADMINS.indexOf(emailSession) >= 0;
+    // Un eleve ne peut emettre que pour lui-meme ; l'admin garde son generateur manuel.
+    const emailCible = estAdmin ? (userEmail || emailSession) : emailSession;
+
+    if (!estAdmin) {
+      const { data: acces } = await supabase
+        .from("acces_formations")
+        .select("formation")
+        .ilike("email", emailSession)
+        .eq("formation", code)
+        .maybeSingle();
+
+      if (!acces) {
+        return NextResponse.json(
+          { success: false, error: "formation non acquise" },
+          { status: 403 }
+        );
+      }
+    }
+    // ---- Fin du verrou ----
+
     const certifId = `ACAD-${code}-${Date.now().toString(36).toUpperCase()}`;
 
     const certifHtml = `<!DOCTYPE html>
 <html lang="fr">
 <head>
 <meta charset="utf-8">
-<title>Certificat ${formation} - AcadémIA Pro</title>
+<title>Certificat ${formation} - AcadémIA Pro</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { background: #000; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 20px; }
@@ -180,7 +213,7 @@ export async function POST(req: NextRequest) {
 </head>
 <body>
 <div class="certificat">
-  <div class="filigrane">AcadémIA</div>
+  <div class="filigrane">AcadémIA</div>
   <div class="bordure-ext"></div>
   <div class="bordure-int"></div>
   <div class="ligne-horiz lh-top"></div>
@@ -192,7 +225,7 @@ export async function POST(req: NextRequest) {
 
   <div class="entete">
     <div class="logo-zone">
-      <div class="logo-text">ACADÉMIA PRO</div>
+      <div class="logo-text">ACADÉMIA PRO</div>
       <div class="logo-sub">Formation Professionnelle par l'IA</div>
     </div>
     <div class="trophee">🏆</div>
@@ -203,19 +236,19 @@ export async function POST(req: NextRequest) {
   </div>
 
   <div class="corps">
-    <div class="certifie-text">Ce certificat est décerné à</div>
+    <div class="certifie-text">Ce certificat est décerné à</div>
     <div class="nom">${nom}</div>
     <div class="sep">
       <div class="sep-line"></div>
       <div class="sep-star">★ ★ ★</div>
       <div class="sep-line"></div>
     </div>
-    <div class="pour-avoir">pour avoir complété avec excellence la formation</div>
+    <div class="pour-avoir">pour avoir complété avec excellence la formation</div>
     <div class="formation-nom">${formation}</div>
     <div><span class="badge-niveau">${niveau || "Expert"}</span></div>
     <div class="attestation">
-      Cette certification officielle atteste des compétences acquises, validées et reconnues<br/>
-      par la plateforme d'excellence AcadémIA Pro
+      Cette certification officielle atteste des compétences acquises, validées et reconnues<br/>
+      par la plateforme d'excellence AcadémIA Pro
     </div>
   </div>
 
@@ -228,10 +261,10 @@ export async function POST(req: NextRequest) {
     <div class="pied-col">
       <div class="pied-label">Signature Officielle</div>
       <div class="sig-nom">Jacques Lalou</div>
-      <div class="sig-titre">Fondateur · AcadémIA Pro</div>
+      <div class="sig-titre">Fondateur · AcadémIA Pro</div>
     </div>
     <div class="pied-col">
-      <div class="pied-label">Vérification</div>
+      <div class="pied-label">Vérification</div>
       <div class="qr">🔐</div>
       <div class="qr-text">academiapro.fr/verify</div>
     </div>
@@ -246,7 +279,7 @@ export async function POST(req: NextRequest) {
 
     await supabase.from("certificats_delivres").insert({
       certif_id: certifId,
-      user_email: userEmail || null,
+      user_email: emailCible || null,
       nom,
       formation_code: code,
       formation_titre: formation,
@@ -254,8 +287,8 @@ export async function POST(req: NextRequest) {
       certif_html: certifHtml,
     });
 
-    if (userEmail) {
-      await envoyerEmailCertificat(userEmail, nom, formation, certifId);
+    if (emailCible) {
+      await envoyerEmailCertificat(emailCible, nom, formation, certifId);
     }
 
     return NextResponse.json({
