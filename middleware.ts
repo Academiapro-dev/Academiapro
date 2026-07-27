@@ -20,6 +20,16 @@ const CHEMINS_ELEVE = [
   '/dashboard',
 ];
 
+// Routes API qui consomment les credits Claude et n'ont AUCUNE raison
+// d'etre appelees par un inconnu. Ne jamais ajouter ici une route
+// declenchee par un cron Vercel : un cron n'a pas de cookie de session.
+const API_SESSION_REQUISE = [
+  '/api/agent-tuteur',
+  '/api/mr-cam',
+  '/api/mr-comptable',
+  '/api/mr-juridique',
+];
+
 const NOM_COOKIE_SESSION = 'session_academia';
 
 function correspond(chemin: string, liste: string[]): boolean {
@@ -36,6 +46,10 @@ function estException(chemin: string): boolean {
 
 function estEspaceEleve(chemin: string): boolean {
   return correspond(chemin, CHEMINS_ELEVE);
+}
+
+function estApiSessionRequise(chemin: string): boolean {
+  return correspond(chemin, API_SESSION_REQUISE);
 }
 
 // Lit le cookie de session : identifiant du compte et societe rattachee.
@@ -58,6 +72,15 @@ function sessionDuCookie(request: NextRequest): { id: string | null; tenantId: s
 
 export function middleware(request: NextRequest) {
   const chemin = request.nextUrl.pathname;
+
+  // Agents IA : refus net, sans redirection (c'est une API, pas une page).
+  if (estApiSessionRequise(chemin)) {
+    const session = request.cookies.get(NOM_COOKIE_SESSION)?.value;
+    if (!session) {
+      return NextResponse.json({ success: false, error: 'non connecte' }, { status: 401 });
+    }
+    return NextResponse.next();
+  }
 
   // Espace eleve : il faut un cookie de session. La verification de sa
   // signature et du droit sur la formation se fait dans les pages elles-memes.
@@ -100,5 +123,15 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!api|_next/static|_next/image|favicon.ico).*)'],
+  matcher: [
+    '/((?!api|_next/static|_next/image|favicon.ico).*)',
+    '/api/agent-tuteur/:path*',
+    '/api/agent-tuteur',
+    '/api/mr-cam/:path*',
+    '/api/mr-cam',
+    '/api/mr-comptable/:path*',
+    '/api/mr-comptable',
+    '/api/mr-juridique/:path*',
+    '/api/mr-juridique',
+  ],
 };
