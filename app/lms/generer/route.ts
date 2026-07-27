@@ -13,41 +13,44 @@ const supabase = createClient(
 const CLAUDE_API_KEY = process.env.ANTHROPIC_API_KEY!;
 
 const LANGUES: Record<string, string> = {
-  fr: "français",
+  fr: "francais",
   en: "English",
-  ar: "العربية",
-  es: "español",
-  pt: "português",
+  ar: "arabe",
+  es: "espanol",
+  pt: "portugues",
   de: "Deutsch",
 };
 
 async function generer_module(formation: any, chapitre: any, module: any, langue: string): Promise<string> {
-  const langue_nom = LANGUES[langue] || "français";
+  const langue_nom = LANGUES[langue] || "francais";
 
   const prompts: Record<string, string> = {
-    theorie: `Tu es formateur expert pour AcadeMIA Pro.
-Redige un contenu theorique COMPLET et DETAILLE de niveau professionnel.
-Formation: ${formation.titre}
-Chapitre ${chapitre.numero}: ${chapitre.titre}
-Module ${module.numero}: ${module.titre}
-Langue: ${langue_nom}
-EXIGENCES: minimum 15 paragraphes denses - niveau academique - cite auteurs et recherches - inclus encadres Points cles et Applications pratiques - sous-titres clairs - equivalent 15 pages manuel professionnel - redige ENTIEREMENT en ${langue_nom}`,
+    theorie:
+      "Tu es formateur expert pour AcadeMIA Pro.\n" +
+      "Redige un contenu theorique COMPLET et DETAILLE de niveau professionnel.\n" +
+      "Formation: " + formation.titre + "\n" +
+      "Chapitre " + chapitre.numero + ": " + chapitre.titre + "\n" +
+      "Module " + module.numero + ": " + module.titre + "\n" +
+      "Langue: " + langue_nom + "\n" +
+      "EXIGENCES: minimum 15 paragraphes denses - niveau academique - cite auteurs et recherches - inclus encadres Points cles et Applications pratiques - sous-titres clairs - equivalent 15 pages manuel professionnel - redige ENTIEREMENT en " + langue_nom,
 
-    pratique: `Tu es formateur expert pour AcadeMIA Pro.
-Redige un guide pratique COMPLET et DETAILLE.
-Formation: ${formation.titre}
-Chapitre ${chapitre.numero}: ${chapitre.titre}
-Module ${module.numero}: ${module.titre}
-Langue: ${langue_nom}
-EXIGENCES: minimum 10 exercices pratiques etape par etape - scripts complets pour guider les seances - fiches de suivi - cas pratiques situations reelles - protocoles adaptation differents publics - equivalent 15 pages manuel pratique - redige ENTIEREMENT en ${langue_nom}`,
+    pratique:
+      "Tu es formateur expert pour AcadeMIA Pro.\n" +
+      "Redige un guide pratique COMPLET et DETAILLE.\n" +
+      "Formation: " + formation.titre + "\n" +
+      "Chapitre " + chapitre.numero + ": " + chapitre.titre + "\n" +
+      "Module " + module.numero + ": " + module.titre + "\n" +
+      "Langue: " + langue_nom + "\n" +
+      "EXIGENCES: minimum 10 exercices pratiques etape par etape - scripts complets pour guider les seances - fiches de suivi - cas pratiques situations reelles - protocoles adaptation differents publics - equivalent 15 pages manuel pratique - redige ENTIEREMENT en " + langue_nom,
 
-    evaluation: `Tu es formateur expert pour AcadeMIA Pro.
-Redige une evaluation COMPLETE et RIGOUREUSE.
-Formation: ${formation.titre}
-Chapitre ${chapitre.numero}: ${chapitre.titre}
-Module ${module.numero}: ${module.titre}
-Langue: ${langue_nom}
-EXIGENCES: 10 questions QCM avec 4 options reponse correcte et explication detaillee - 3 questions cas pratique avec reponse complete - 2 questions reflexion professionnelle - corrige complet avec justifications - ressources complementaires - redige ENTIEREMENT en ${langue_nom}`,
+    evaluation:
+      "Tu es formateur expert pour AcadeMIA Pro.\n" +
+      "Redige une evaluation COMPLETE et RIGOUREUSE.\n" +
+      "Formation: " + formation.titre + "\n" +
+      "Chapitre " + chapitre.numero + ": " + chapitre.titre + "\n" +
+      "Module " + module.numero + ": " + module.titre + "\n" +
+      "Langue: " + langue_nom + "\n" +
+      "EXIGENCES: 10 questions QCM avec 4 options reponse correcte et explication detaillee - 3 questions cas pratique avec reponse complete - 2 questions reflexion professionnelle - corrige complet avec justifications - ressources complementaires - redige ENTIEREMENT en " + langue_nom,
   };
 
   const res = await fetch("https://api.anthropic.com/v1/messages", {
@@ -71,7 +74,6 @@ EXIGENCES: 10 questions QCM avec 4 options reponse correcte et explication detai
   return data.content[0].text || "";
 }
 
-// Le plan vient desormais de la table lms_plans, plus du code.
 async function lirePlan(formation_code: string) {
   const { data } = await supabase
     .from("lms_plans")
@@ -107,13 +109,22 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { formation_code, chapitre_num, module_num, langue = "fr" } = await req.json();
+    const corps = await req.json();
+    const formation_code = corps.formation_code;
+    const chapitre_num = corps.chapitre_num;
+    const module_num = corps.module_num;
+    const langue = corps.langue || "fr";
 
     if (!formation_code) {
       return NextResponse.json({ erreur: "formation_code manquant" }, { status: 400 });
     }
 
-    const { data: formations } = await supabase.from("formations").select("*").eq("code", formation_code).limit(1);
+    const { data: formations } = await supabase
+      .from("formations")
+      .select("*")
+      .eq("code", formation_code)
+      .limit(1);
+
     if (!formations || formations.length === 0) {
       return NextResponse.json({ erreur: "Formation introuvable" }, { status: 404 });
     }
@@ -122,20 +133,26 @@ export async function POST(req: NextRequest) {
     const plan = await lirePlan(formation_code);
 
     if (plan.length === 0) {
-      return NextResponse.json(
-        { erreur: "Aucun plan enregistre pour " + formation_code },
-        { status: 404 }
-      );
+      return NextResponse.json({ erreur: "Aucun plan enregistre pour " + formation_code }, { status: 404 });
     }
 
     const chapitre = plan[chapitre_num - 1];
-    if (!chapitre) return NextResponse.json({ erreur: "Chapitre introuvable" }, { status: 404 });
+    if (!chapitre) {
+      return NextResponse.json({ erreur: "Chapitre introuvable" }, { status: 404 });
+    }
 
     const module = chapitre.modules[module_num - 1];
-    if (!module) return NextResponse.json({ erreur: "Module introuvable" }, { status: 404 });
+    if (!module) {
+      return NextResponse.json({ erreur: "Module introuvable" }, { status: 404 });
+    }
 
-    const cache_key = `${formation_code}_ch${chapitre_num}_mod${module_num}_${langue}`;
-    const { data: cache } = await supabase.from("lms_cache").select("contenu").eq("cache_key", cache_key).limit(1);
+    const cache_key = formation_code + "_ch" + chapitre_num + "_mod" + module_num + "_" + langue;
+
+    const { data: cache } = await supabase
+      .from("lms_cache")
+      .select("contenu")
+      .eq("cache_key", cache_key)
+      .limit(1);
 
     if (cache && cache.length > 0) {
       return NextResponse.json({ succes: true, depuis_cache: true, chapitre, module, contenu: cache[0].contenu });
@@ -144,16 +161,23 @@ export async function POST(req: NextRequest) {
     const contenu = await generer_module(formation, chapitre, module, langue);
 
     await supabase.from("lms_cache").insert({
-      cache_key, formation_code, chapitre_num, module_num, langue, contenu,
+      cache_key: cache_key,
+      formation_code: formation_code,
+      chapitre_num: chapitre_num,
+      module_num: module_num,
+      langue: langue,
+      contenu: contenu,
       created_at: new Date().toISOString(),
     });
 
     return NextResponse.json({ succes: true, depuis_cache: false, chapitre, module, contenu });
-
   } catch (err: any) {
     return NextResponse.json({ erreur: err.message }, { status: 500 });
   }
 }
 
 export async function GET(req: NextRequest) {
-  const code = (new URL(req.url).searchParams.get("code") || "F030").toU
+  const code = (new URL(req.url).searchParams.get("code") || "F030").toUpperCase();
+  const chapitres = await lirePlan(code);
+  return NextResponse.json({ formation_code: code, chapitres: chapitres });
+}
