@@ -13,6 +13,27 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || ""
 );
 
+const RISQUES: Record<string, string[]> = {
+  "marque ou accreditation": [
+    "emdr", "mbti", "mbsr", "mbct", "process com", "caycedien", "caycedienne",
+    "feldenkrais", "montessori", "tomatis", "methode disc",
+  ],
+  "titre protege": [
+    "psychotherapeute", "psychotherapie", "psychologue", "osteopathe", "osteopathie",
+    "dieteticien", "infirmier", "kinesitherapeute", "sage femme", "orthophoniste",
+    "veterinaire", "chiropracteur", "podologue",
+  ],
+  "diplome d etat": [
+    "deas", "aide soignant", "aepe", "petite enfance", "atsem",
+    "auxiliaire de puericulture", "caces", "carte t", "ssiap", "ambulancier",
+  ],
+  "certification tierce": [
+    "comptia", "pmp", "prince2", "itil", "scrum", "psm ", "safe agiliste",
+    "cisco", "ccna", "aws certified", "azure", "icf ", "ryt", "yoga alliance",
+    "toeic", "toefl", "ielts", "cambridge", "tosa", "icdl", "pcie", "six sigma",
+  ],
+};
+
 function simplifier(t: string): string {
   return String(t || "")
     .normalize("NFD")
@@ -42,7 +63,6 @@ function concorde(titreBase: string, debutTexte: string): boolean {
   return trouves >= Math.ceil(mots.length / 2);
 }
 
-// Le titre du catalogue B precede la marque : "Permaculture ... - AcademIA Pro".
 function titreInterne(texte: string): string {
   const debut = texte.slice(0, 400);
   const coupe = debut.search(/Acad[eé]|AcadeÌ|AcadÃ©/);
@@ -66,14 +86,26 @@ function compterSections(texte: string): number {
 function detecteBavardage(texte: string): boolean {
   const cible = simplifier(texte.slice(0, 3000));
   const signaux = [
-    "je vais generer",
-    "note preliminaire",
-    "formation non identifiable",
-    "je vais construire",
-    "j applique le protocole",
+    "je vais generer", "note preliminaire", "formation non identifiable",
+    "je vais construire", "j applique le protocole",
   ];
   for (const s of signaux) if (cible.indexOf(s) >= 0) return true;
   return false;
+}
+
+// Depistage applique au seul catalogue B, sur le titre et le debut du texte.
+function detecteRisque(titre: string, texte: string): string {
+  const cible = simplifier(titre + " " + texte.slice(0, 2500));
+  const trouves: string[] = [];
+  for (const famille of Object.keys(RISQUES)) {
+    for (const mot of RISQUES[famille]) {
+      if (cible.indexOf(mot.trim()) >= 0) {
+        trouves.push(famille + " : " + mot.trim());
+        break;
+      }
+    }
+  }
+  return trouves.join(" | ");
 }
 
 export async function GET(req: Request) {
@@ -108,6 +140,7 @@ export async function GET(req: Request) {
 
     const lignes: any[] = [];
     const compte: Record<string, number> = { conforme: 0, catalogue_b: 0, sans_fiche: 0, illisible: 0 };
+    let avecRisque = 0;
 
     for (const nom of lot) {
       const codeFichier = nom.split("_")[0];
@@ -117,21 +150,28 @@ export async function GET(req: Request) {
         if (!data) continue;
         const html = await data.text();
         const brut = texteBrut(html.slice(0, 60000));
+
         let statut = "";
         if (!titreFiche) statut = "sans_fiche";
         else if (concorde(titreFiche, brut.slice(0, 4000))) statut = "conforme";
         else statut = "catalogue_b";
         compte[statut] = (compte[statut] || 0) + 1;
+
+        const titreB = titreInterne(brut);
+        const risque = statut === "conforme" ? "" : detecteRisque(titreB, brut);
+        if (risque) avecRisque++;
+
         lignes.push({
           fichier: nom,
           code_fichier: codeFichier,
           code_interne: codeInterne(brut),
-          titre_interne: titreInterne(brut),
+          titre_interne: titreB,
           titre_fiche: titreFiche,
           statut: statut,
           taille: html.length,
           bavardage: detecteBavardage(brut),
           sections: compterSections(brut),
+          risque: risque,
           extrait: brut.slice(0, 300),
           vu_le: new Date().toISOString(),
         });
@@ -145,6 +185,7 @@ export async function GET(req: Request) {
           taille: 0,
           bavardage: false,
           sections: 0,
+          risque: "",
           extrait: "LECTURE IMPOSSIBLE",
           vu_le: new Date().toISOString(),
         });
@@ -167,6 +208,7 @@ export async function GET(req: Request) {
       lot: debut + " a " + Math.min(suivant, supports.length),
       enregistres: lignes.length,
       compte: compte,
+      signales_risque: avecRisque,
       suite: suivant < supports.length ? "/api/admin/audit-supports?debut=" + suivant : "TERMINE",
     });
   } catch (e: any) {
