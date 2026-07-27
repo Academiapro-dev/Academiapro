@@ -14,12 +14,11 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || ""
 );
 
-function nouveauNom(codeInterne: string, codeFichier: string): string {
-  const source = (codeInterne || codeFichier || "").replace(/[^0-9]/g, "");
-  if (!source) return "";
-  const num = parseInt(source, 10);
-  if (!(num > 0)) return "";
-  return "B" + String(num).padStart(3, "0") + "_support_cours.html";
+// On prefixe le nom d'origine : unique par construction, donc sans conflit,
+// et l'operation reste entierement reversible.
+function nouveauNom(ancien: string): string {
+  if (!ancien) return "";
+  return "B_" + ancien;
 }
 
 export async function GET(req: Request) {
@@ -50,22 +49,17 @@ export async function GET(req: Request) {
 
     const aFaire: any[] = [];
     const conflits: any[] = [];
-    const cibles = new Set<string>();
 
     for (const l of lignes || []) {
-      if (String(l.fichier || "").indexOf("B") === 0) continue;
-      if (String(l.fichier || "").indexOf("SK") === 0) continue;
-      const cible = nouveauNom(l.code_interne || "", l.code_fichier || "");
-      if (!cible) {
-        conflits.push({ fichier: l.fichier, motif: "code illisible", titre: l.titre_interne });
+      const nom = String(l.fichier || "");
+      if (nom.indexOf("B_") === 0) continue;
+      if (nom.indexOf("SK") === 0) continue;
+      const cible = nouveauNom(nom);
+      if (!cible || existants.has(cible)) {
+        conflits.push({ fichier: nom, cible: cible, motif: "cible deja prise", titre: l.titre_interne });
         continue;
       }
-      if (existants.has(cible) || cibles.has(cible)) {
-        conflits.push({ fichier: l.fichier, cible: cible, motif: "cible deja prise", titre: l.titre_interne });
-        continue;
-      }
-      cibles.add(cible);
-      aFaire.push({ de: l.fichier, vers: cible, titre: l.titre_interne });
+      aFaire.push({ de: nom, vers: cible, titre: l.titre_interne });
     }
 
     if (!executer) {
@@ -74,8 +68,8 @@ export async function GET(req: Request) {
         mode: "SIMULATION - aucun fichier touche",
         a_renommer: aFaire.length,
         conflits: conflits.length,
-        apercu: aFaire.slice(0, 15),
-        liste_conflits: conflits.slice(0, 20),
+        apercu: aFaire.slice(0, 10),
+        liste_conflits: conflits.slice(0, 10),
         pour_executer: "/api/admin/renommer-supports?executer=oui",
       });
     }
@@ -92,7 +86,7 @@ export async function GET(req: Request) {
       }
       await supabase
         .from("supports_inventaire")
-        .update({ fichier: op.vers, code_fichier: op.vers.split("_")[0], statut: "catalogue_b_range" })
+        .update({ fichier: op.vers, statut: "catalogue_b_range" })
         .eq("fichier", op.de);
       faits.push(op.de + " -> " + op.vers);
     }
