@@ -43,7 +43,8 @@ export default function MaintenancePage() {
         const echecs = (d.echecs || []).length;
 
         ajouter(
-          "Lot " + d.lot + " : " + (d.a_modifier !== undefined ? d.a_modifier + " modifies" : traites + " traites") +
+          "Lot " + d.lot + " : " +
+          (d.a_modifier !== undefined ? d.a_modifier + " modifies" : traites + " traites") +
           (echecs ? " - " + echecs + " ECHECS" : ""),
           echecs ? "erreur" : "ok"
         );
@@ -57,6 +58,46 @@ export default function MaintenancePage() {
         tours++;
         if (total && debut >= total) {
           ajouter("TERMINE - " + total + " fichiers parcourus.", "fin");
+          break;
+        }
+      }
+    } catch (e: any) {
+      ajouter("Interruption : " + String(e), "erreur");
+    }
+
+    setEnCours("");
+  }
+
+  async function genererSupports() {
+    if (enCours) return;
+    setEnCours("Generation des supports");
+    setJournal([]);
+    ajouter("Generation des supports manquants", "titre");
+
+    let tours = 0;
+    try {
+      while (tours < 300) {
+        const r = await fetch("/api/admin/generer-support");
+        const d = await r.json();
+
+        if (!d || d.ok !== true) {
+          ajouter("Arret : " + ((d && d.erreur) || "reponse illisible"), "erreur");
+          break;
+        }
+
+        if (d.termine) {
+          ajouter("TERMINE - plus aucune formation sans support.", "fin");
+          break;
+        }
+
+        ajouter(
+          d.code + " - " + (d.titre || "") + " (" + (d.taille || 0) + " caracteres) - reste " + d.restants,
+          "ok"
+        );
+
+        tours++;
+        if (d.restants === 0) {
+          ajouter("TERMINE - toutes les formations ont un support.", "fin");
           break;
         }
       }
@@ -96,7 +137,13 @@ export default function MaintenancePage() {
           Chaque bouton enchaine les lots tout seul. Les simulations ne modifient rien.
         </p>
 
-        <h2 style={{ color: "#fff", fontSize: "16px", marginBottom: "12px" }}>Supports de cours</h2>
+        <h2 style={{ color: "#fff", fontSize: "16px", marginBottom: "12px" }}>Contenu</h2>
+
+        <button style={bouton(libre)} disabled={!libre} onClick={genererSupports}>
+          Generer les supports manquants
+        </button>
+
+        <h2 style={{ color: "#fff", fontSize: "16px", margin: "26px 0 12px" }}>Supports de cours</h2>
 
         <button
           style={bouton(libre)}
