@@ -4,6 +4,7 @@ import { useState } from "react";
 export default function MaintenancePage() {
   const [lignes, setLignes] = useState<string[]>([]);
   const [occupe, setOccupe] = useState(false);
+  const [code, setCode] = useState("F030");
 
   const dire = (t: string) => setLignes((l) => [...l, t]);
 
@@ -53,6 +54,30 @@ export default function MaintenancePage() {
     setOccupe(false);
   }
 
+  async function completer() {
+    if (occupe) return;
+    const c = code.trim().toUpperCase();
+    if (!c) return;
+    setOccupe(true);
+    setLignes(["Modules manquants de " + c]);
+    try {
+      for (let i = 0; i < 40; i++) {
+        const r = await fetch("/api/admin/completer-manuel?code=" + c + "&combien=1");
+        const brut = await r.text();
+        let d: any = null;
+        try { d = JSON.parse(brut); } catch (e) { d = null; }
+        if (!d || d.ok !== true) { dire("Arret : " + ((d && d.erreur) || "reponse illisible")); break; }
+        if (d.termine) { dire("TERMINE - tous les modules sont produits."); break; }
+        dire((d.produits || []).join(", ") + " - reste " + d.restants);
+        if (d.restants === 0) { dire("TERMINE - manuel complet."); break; }
+      }
+      const a = await fetch("/api/admin/assembler-manuel?code=" + c);
+      const da = await a.json();
+      if (da && da.ok) dire("Assemble : " + da.modules_presents + "/" + da.total_modules + " modules, " + da.taille + " caracteres.");
+    } catch (e: any) { dire("Interruption : " + String(e)); }
+    setOccupe(false);
+  }
+
   const st: any = {
     display: "block", width: "100%", padding: "14px", marginBottom: "10px",
     background: occupe ? "#3a3a4a" : "#c8a96e", color: occupe ? "#888" : "#050508",
@@ -71,6 +96,17 @@ export default function MaintenancePage() {
         <button style={st} disabled={occupe} onClick={() => boucle("Generation des supports", "/api/admin/generer-support", 300)}>4 - Generer les supports manquants</button>
         <button style={st} disabled={occupe} onClick={() => boucle("Construction des plans", "/api/admin/construire-plans", 300)}>5 - Construire les plans</button>
         <button style={st} disabled={occupe} onClick={() => boucle("Plans par IA", "/api/admin/generer-plans", 200)}>6 - Generer les plans manquants</button>
+
+        <div style={{ display: "flex", gap: "10px", alignItems: "center", marginBottom: "10px" }}>
+          <input
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            placeholder="F030"
+            style={{ width: "120px", padding: "13px", borderRadius: "8px", border: "1px solid #c8a96e", background: "#12121e", color: "#fff", fontSize: "15px" }}
+          />
+          <button style={{ ...st, marginBottom: 0 }} disabled={occupe} onClick={completer}>7 - Completer et assembler le manuel</button>
+        </div>
+
         <button style={st} disabled={occupe} onClick={() => lots("Audit", "/api/admin/audit-supports", 40, false)}>Relancer l inventaire</button>
 
         {lignes.length > 0 && (
