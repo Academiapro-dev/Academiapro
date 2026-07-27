@@ -54,12 +54,14 @@ export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
     const secret = url.searchParams.get("secret") || "";
+    const entete = req.headers.get("authorization") || "";
     const admin = emailDeSession() === "contact@academiapro.fr";
-    const parSecret = process.env.CRON_SECRET ? secret === process.env.CRON_SECRET : false;
+    const parSecret = process.env.CRON_SECRET
+      ? (secret === process.env.CRON_SECRET || entete === "Bearer " + process.env.CRON_SECRET)
+      : false;
 
     if (!admin && !parSecret) {
-     return NextResponse.json({ ok: false, erreur: "acces refuse", vu: String(emailDeSession()) }, { status: 403 });
-
+      return NextResponse.json({ ok: false, erreur: "acces refuse" }, { status: 403 });
     }
 
     const cle = process.env.ANTHROPIC_API_KEY || "";
