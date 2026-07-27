@@ -24,6 +24,27 @@ function nettoyerJson(brut: string): string {
   return t;
 }
 
+function simplifier(t: string): string {
+  return String(t || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+// Le support doit parler de la formation demandee : au moins la moitie
+// des mots significatifs du titre doit apparaitre dans son debut.
+function supportConcorde(titre: string, texte: string): boolean {
+  const mots = simplifier(titre).split(" ").filter(m => m.length > 3);
+  const cible = simplifier(texte.slice(0, 4000));
+  if (mots.length === 0 || !cible) return false;
+  let trouves = 0;
+  for (const mot of mots) if (cible.indexOf(mot) >= 0) trouves++;
+  return trouves >= Math.ceil(mots.length / 2);
+}
+
 async function lireSupport(code: string): Promise<string> {
   try {
     const { data } = await supabase.storage
@@ -31,7 +52,6 @@ async function lireSupport(code: string): Promise<string> {
       .download(code + "_support_cours.html");
     if (!data) return "";
     const texte = await data.text();
-    // On retire les balises pour ne garder que le contenu pedagogique.
     const propre = texte
       .replace(/<script[\s\S]*?<\/script>/gi, " ")
       .replace(/<style[\s\S]*?<\/style>/gi, " ")
@@ -63,7 +83,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, erreur: "formation manquante" }, { status: 400 });
     }
 
-    // L'apprenant ne peut declencher une generation que sur une formation acquise.
     if (ADMINS.indexOf(email) < 0) {
       const { data: acces } = await supabase
         .from("acces_formations")
@@ -76,7 +95,6 @@ export async function POST(req: Request) {
       }
     }
 
-    // Deja generees ? On ne depense pas deux fois.
     const { data: existantes } = await supabase
       .from("evaluations_questions")
       .select("id")
@@ -92,14 +110,18 @@ export async function POST(req: Request) {
       .eq("code", code)
       .maybeSingle();
 
-    const titre = (fiche && fiche.titre) || code;
-    const support = await lireSupport(code);
+    if (!fiche) {
+      return NextResponse.json({ ok: false, erreur: "fiche formation introuvable pour " + code }, { status: 404 });
+    }
 
-    if (!support && !fiche) {
-      return NextResponse.json(
-        { ok: false, erreur: "ni support de cours ni fiche formation trouves pour " + code },
-        { status: 404 }
-      );
+    const titre = fiche.titre || code;
+
+    // GARDE-FOU : un support qui ne parle pas de cette formation est ignore.
+    let support = await lireSupport(code);
+    let supportIgnore = false;
+    if (support && !supportConcorde(titre, support)) {
+      supportIgnore = true;
+      support = "";
     }
 
     const consigneType =
@@ -109,17 +131,17 @@ export async function POST(req: Request) {
 
     const source = support
       ? "Voici le support de cours reel de la formation, sur lequel tu dois TE BASER EXCLUSIVEMENT :\n\n" + support
-      : "Aucun support de cours n est disponible. Base-toi sur le titre, le domaine et le niveau de la formation, et reste sur des notions incontestables du domaine.";
+      : "Aucun support de cours utilisable n est disponible. Base-toi sur le titre, le domaine et le niveau de la formation, et reste sur des notions incontestables du domaine.";
 
     const invite =
       "Tu construis l evaluation officielle d un organisme de formation. La rigueur prime sur la quantite : une seule bonne reponse fausse invalide un certificat.\n\n" +
       "Formation : " + titre + "\n" +
       "Code : " + code + "\n" +
-      "Domaine : " + ((fiche && fiche.domaine) || "non precise") + "\n" +
-      "Niveau : " + ((fiche && fiche.niveau) || "non precise") + "\n\n" +
+      "Domaine : " + (fiche.domaine || "non precise") + "\n" +
+      "Niveau : " + (fiche.niveau || "non precise") + "\n\n" +
       consigneType + "\n\n" +
       source + "\n\n" +
-      "Redige exactement " + NB_QUESTIONS + " questions a choix multiple en francais.\n" +
+      "Redige exactement " + NB_QUESTIONS + " questions a choix multiple en francais, PORTANT UNIQUEMENT SUR LE SUJET DE CETTE FORMATION.\n" +
       "Regles imperatives :\n" +
       "- 4 options par question, une seule est correcte, et elle doit etre INDISCUTABLE.\n" +
       "- Les 3 mauvaises options doivent etre plausibles mais clairement fausses pour qui a suivi la formation.\n" +
@@ -189,7 +211,6 @@ export async function POST(req: Request) {
       );
     }
 
-    // On repart d une base propre pour ce couple formation/type.
     await supabase.from("evaluations_questions").delete().eq("formation_slug", code).eq("type", type);
 
     const { error: erreurInsert } = await supabase.from("evaluations_questions").insert(lignes);
@@ -197,7 +218,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, erreur: erreurInsert.message }, { status: 500 });
     }
 
-    return NextResponse.json({ ok: true, nb: lignes.length, support_utilise: support.length > 0 });
+    return NextResponse.json({
+      ok: true,
+      nb: lignes.length,
+      support_utilise: support.length > 0,
+      support_ignore_car_hors_sujet: supportIgnore,
+    });
   } catch (e: any) {
     return NextResponse.json({ ok: false, erreur: String(e) }, { status: 500 });
   }
