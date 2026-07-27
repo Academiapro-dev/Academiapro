@@ -4,7 +4,7 @@ import { emailDeSession } from "../../../../lib/session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 const ADMINS = ["contact@academiapro.fr"];
 const BUCKET = "formations-pdf";
