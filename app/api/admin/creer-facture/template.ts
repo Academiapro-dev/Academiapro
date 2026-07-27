@@ -11,9 +11,10 @@ const ENTITE = {
 };
 
 const LOGOS: Record<string, string> = {
-  academia: "https://kpxrbwsbhmggoajtxzqn.supabase.co/storage/v1/object/public/formations-pdf/IMG_2595.png",
-  hebrewpro: "https://kpxrbwsbhmggoajtxzqn.supabase.co/storage/v1/object/public/formations-pdf/IMG_2675.png",
+  academia: "https://kpxrbwsbhmggoajtxzqn.supabase.co/storage/v1/object/public/assets-publics/IMG_2595.png",
+  hebrewpro: "https://kpxrbwsbhmggoajtxzqn.supabase.co/storage/v1/object/public/assets-publics/IMG_2675.png",
 };
+
 
 type FactureData = {
   numero: string;
