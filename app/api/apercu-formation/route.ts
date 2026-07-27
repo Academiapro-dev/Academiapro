@@ -5,12 +5,29 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const BUCKET = "formations-pdf";
-const LIMITE = 3500;
+const LIMITE = 2000;
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
   process.env.SUPABASE_SERVICE_ROLE_KEY || ""
 );
+
+// Les fichiers ont ete generes avec des reglages d'encodage differents :
+// certains sont doublement encodes, d'autres portent des accents combines.
+function reparerEncodage(t: string): string {
+  let s = String(t || "");
+  if (s.indexOf("Ã") >= 0 || s.indexOf("â€") >= 0) {
+    try {
+      const octets = new Uint8Array(s.length);
+      for (let i = 0; i < s.length; i++) octets[i] = s.charCodeAt(i) & 0xff;
+      s = new TextDecoder("utf-8").decode(octets);
+    } catch (e) {}
+  }
+  try {
+    s = s.normalize("NFC");
+  } catch (e) {}
+  return s;
+}
 
 function texteBrut(html: string): string {
   return String(html || "")
@@ -32,10 +49,6 @@ function sansPrix(t: string): string {
     .trim();
 }
 
-function sansAccents(t: string): string {
-  return String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-}
-
 export async function GET(req: Request) {
   try {
     const code = (new URL(req.url).searchParams.get("code") || "").trim().toUpperCase();
@@ -51,23 +64,23 @@ export async function GET(req: Request) {
       return NextResponse.json({ ok: true, code: code, disponible: false });
     }
 
-    const brut = sansPrix(texteBrut((await data.text()).slice(0, 120000)));
-    const repere = sansAccents(brut);
+    const brut = sansPrix(texteBrut(reparerEncodage((await data.text()).slice(0, 150000))));
 
-    // On demarre a la premiere mention des objectifs, sinon au debut du document.
-    let depart = repere.indexOf("objectif");
-    if (depart < 0) depart = 0;
+    // L'en-tete du document porte objectifs, prerequis et public cible.
+    // On ne va JAMAIS chercher plus loin : au-dela commence le cours.
+    const apercu = brut.slice(0, LIMITE);
 
-    const apercu = brut.slice(depart, depart + LIMITE);
-
-    // Plan des modules : on ne donne que les intitules, jamais le contenu.
+    // Plan : uniquement les intitules suivis d'une duree, qui figurent
+    // dans le sommaire. Les titres du corps du cours n'en portent pas.
     const modules: string[] = [];
-    const motif = /Module\s+\d+\s*[:\-–—]?\s*([^.;|]{4,90})/gi;
+    const motif = /([A-ZÀ-ÖØ-Þ][^·|()]{4,70}?)\s*\((\d{1,3})\s*h\)/g;
     let m;
     while ((m = motif.exec(brut)) !== null) {
-      const titre = m[1].trim();
-      if (titre && modules.indexOf(titre) < 0) modules.push(titre);
-      if (modules.length >= 25) break;
+      const titre = m[1].replace(/\s+/g, " ").trim();
+      const heures = m[2];
+      const ligne = titre + " (" + heures + " h)";
+      if (modules.indexOf(ligne) < 0) modules.push(ligne);
+      if (modules.length >= 20) break;
     }
 
     return NextResponse.json({
