@@ -44,7 +44,7 @@ export default function MaintenancePage() {
 
         ajouter(
           "Lot " + d.lot + " : " +
-          (d.a_modifier !== undefined ? d.a_modifier + " modifies" : traites + " traites") +
+          (d.a_modifier !== undefined ? d.a_modifier + " traites" : traites + " traites") +
           (echecs ? " - " + echecs + " ECHECS" : ""),
           echecs ? "erreur" : "ok"
         );
@@ -143,14 +143,25 @@ export default function MaintenancePage() {
           Generer les supports manquants
         </button>
 
-        <h2 style={{ color: "#fff", fontSize: "16px", margin: "26px 0 12px" }}>Supports de cours</h2>
+        <h2 style={{ color: "#fff", fontSize: "16px", margin: "26px 0 12px" }}>Reparation des accents</h2>
+        <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "13px", marginTop: 0, marginBottom: "12px" }}>
+          Restaurer d abord, nettoyer ensuite. L ordre inverse abime a nouveau les accents.
+        </p>
 
         <button
           style={bouton(libre)}
           disabled={!libre}
-          onClick={() => lancerLots("Nettoyage des supports", "/api/admin/admin/nettoyer-supports", 15, false)}
+          onClick={() => lancerLots("Restauration des originaux", "/api/admin/restaurer-supports", 15, false)}
         >
-          Simuler le nettoyage
+          1 - Simuler la restauration
+        </button>
+
+        <button
+          style={bouton(libre)}
+          disabled={!libre}
+          onClick={() => lancerLots("Restauration des originaux", "/api/admin/restaurer-supports", 15, true)}
+        >
+          2 - Restaurer les originaux
         </button>
 
         <button
@@ -158,7 +169,17 @@ export default function MaintenancePage() {
           disabled={!libre}
           onClick={() => lancerLots("Nettoyage des supports", "/api/admin/admin/nettoyer-supports", 15, true)}
         >
-          Executer le nettoyage
+          3 - Executer le nettoyage
+        </button>
+
+        <h2 style={{ color: "#fff", fontSize: "16px", margin: "26px 0 12px" }}>Verifications</h2>
+
+        <button
+          style={bouton(libre)}
+          disabled={!libre}
+          onClick={() => lancerLots("Nettoyage des supports", "/api/admin/admin/nettoyer-supports", 15, false)}
+        >
+          Simuler le nettoyage
         </button>
 
         <button
@@ -176,15 +197,4 @@ export default function MaintenancePage() {
         )}
 
         {journal.length > 0 && (
-          <div style={{ marginTop: "24px", background: "#12121e", border: "1px solid rgba(200,169,110,0.25)", borderRadius: "10px", padding: "18px", fontFamily: "monospace", fontSize: "13px", maxHeight: "440px", overflowY: "auto" }}>
-            {journal.map((l, i) => (
-              <div key={i} style={{ color: couleur(l.type), marginBottom: "4px" }}>
-                {l.texte}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
+          
