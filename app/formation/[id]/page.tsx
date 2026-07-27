@@ -15,6 +15,8 @@ const FR = {
   prerequis: "Prerequis",
   publicCible: "Public cible",
   programme: "Programme",
+  programmeDetail: "Programme detaille",
+  heuresTotal: "heures de formation",
   support: "Support de cours",
   supportSub: "Document complet · Francais · 300+ pages",
   voirSupport: "Voir le support",
@@ -46,6 +48,7 @@ export default function FormationPage({ params }: { params: { id: string } }) {
   const [loading, setLoading] = useState(true);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [palier, setPalier] = useState("cv1");
+  const [apercu, setApercu] = useState<any>(null);
 
   useEffect(() => {
     fetch(`/api/formation/${params.id}?lang=${langue}`)
@@ -57,6 +60,13 @@ export default function FormationPage({ params }: { params: { id: string } }) {
       })
       .catch(() => setLoading(false));
   }, [params.id, langue]);
+
+  useEffect(() => {
+    fetch(`/api/apercu-formation?code=${params.id}`)
+      .then(r => r.json())
+      .then(d => { if (d && d.ok) setApercu(d); })
+      .catch(() => {});
+  }, [params.id]);
 
   if (loading) return (
     <div style={{ backgroundColor: "#050508", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -76,6 +86,8 @@ export default function FormationPage({ params }: { params: { id: string } }) {
   const prixFormule = estBootcamp ? prixBase : prixPalier(prixBase, palier);
   const prixPromo = Math.round(prixFormule * 0.9);
   const detailPalier = (txt.paliers.find((p: { id: string }) => p.id === palier) || txt.paliers[0]).detail;
+  const aProgrammeBase = formation.programme && Array.isArray(formation.programme) && formation.programme.length > 0;
+  const aApercu = apercu && apercu.modules && apercu.modules.length > 0;
 
   return (
     <div style={{ backgroundColor: "#050508", minHeight: "100vh", color: "#fff" }}>
@@ -161,7 +173,7 @@ export default function FormationPage({ params }: { params: { id: string } }) {
           </div>
         )}
 
-        {formation.programme && Array.isArray(formation.programme) && (
+        {aProgrammeBase && (
           <div style={{ marginBottom: "40px" }}>
             <h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", marginBottom: "20px" }}>{txt.programme}</h2>
             {formation.programme.map((ch: any, i: number) => (
@@ -183,6 +195,25 @@ export default function FormationPage({ params }: { params: { id: string } }) {
                 )}
               </div>
             ))}
+          </div>
+        )}
+
+        {!aProgrammeBase && aApercu && (
+          <div style={{ marginBottom: "40px" }}>
+            <h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", marginBottom: "6px" }}>{txt.programmeDetail}</h2>
+            {apercu.heures_programme > 0 && (
+              <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "13px", marginTop: 0, marginBottom: "18px" }}>
+                {apercu.nb_modules} modules · {apercu.heures_programme} {txt.heuresTotal}
+              </p>
+            )}
+            <div style={{ border: "1px solid rgba(200,169,110,0.3)", borderRadius: "10px", overflow: "hidden" }}>
+              {apercu.modules.map((mod: string, j: number) => (
+                <div key={j} style={{ padding: "12px 20px", borderBottom: j < apercu.modules.length - 1 ? "1px solid rgba(255,255,255,0.06)" : "none", color: "rgba(255,255,255,0.75)", fontSize: "14px" }}>
+                  <span style={{ color: "#c8a96e", marginRight: "10px" }}>{j + 1}.</span>
+                  {mod}
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
