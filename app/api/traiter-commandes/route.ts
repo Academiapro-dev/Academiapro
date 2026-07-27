@@ -58,7 +58,8 @@ export async function GET(req: Request) {
     const parSecret = process.env.CRON_SECRET ? secret === process.env.CRON_SECRET : false;
 
     if (!admin && !parSecret) {
-      return NextResponse.json({ ok: false, erreur: "acces refuse" }, { status: 403 });
+     return NextResponse.json({ ok: false, erreur: "acces refuse", vu: String(emailDeSession()) }, { status: 403 });
+
     }
 
     const cle = process.env.ANTHROPIC_API_KEY || "";
