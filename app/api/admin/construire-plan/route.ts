@@ -14,6 +14,21 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || ""
 );
 
+function reparerEncodage(s: string): string {
+  let t = String(s || "");
+  if (!/[\u00C3\u00CC\u00C2][\u0080-\u00BF]/.test(t)) return t;
+  const propre = t.replace(/[^\u0000-\u00FF]/g, "");
+  const octets = new Uint8Array(propre.length);
+  for (let i = 0; i < propre.length; i++) {
+    octets[i] = propre.charCodeAt(i) & 0xff;
+  }
+  try {
+    return new TextDecoder("utf-8").decode(octets).normalize("NFC");
+  } catch (e) {
+    return t;
+  }
+}
+
 function texteBrut(html: string): string {
   return String(html || "")
     .replace(/<script[\s\S]*?<\/script>/gi, " ")
@@ -68,7 +83,7 @@ export async function GET(req: Request) {
       return NextResponse.json({ ok: false, code: code, erreur: "aucun support pour cette formation" }, { status: 404 });
     }
 
-    const brut = texteBrut((await fichier.text()).slice(0, 150000));
+    const brut = texteBrut(reparerEncodage((await fichier.text()).slice(0, 150000)));
 
     const titres: string[] = [];
     const motif = /Module\s*(\d{1,2})\s*[:\-\u2013\u2014]?\s*([^()\u00B7|]{3,70}?)\s*\((\d{1,3})\s*h\)/g;
@@ -86,6 +101,8 @@ export async function GET(req: Request) {
       );
     }
 
+    const titreFiche = reparerEncodage(String(fiche.titre || ""));
+
     const lignes: any[] = [];
     for (let i = 0; i < titres.length; i++) {
       const chapitre = Math.floor(i / 4) + 1;
@@ -94,7 +111,7 @@ export async function GET(req: Request) {
       lignes.push({
         formation_code: code,
         chapitre_num: chapitre,
-        chapitre_titre: fiche.titre + " — Partie " + chapitre,
+        chapitre_titre: titreFiche + " - Partie " + chapitre,
         module_num: position,
         module_titre: titres[i],
         type: dernier ? "evaluation" : (position === 3 ? "pratique" : "theorie"),
