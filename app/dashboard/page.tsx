@@ -1,9 +1,12 @@
 "use client";
 import { useState, useEffect } from "react";
+import { createClient } from "@supabase/supabase-js";
 import { useTraductionAuto } from "../../hooks/useTraductionAuto";
 
 const SB_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const SB_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+const sb = createClient(SB_URL, SB_KEY);
+const EMAIL_REPLI = "contact@academiapro.fr";
 
 const FR = {
   titre: "Mon Espace Apprenant",
@@ -19,6 +22,8 @@ const FR = {
   recoTitre: "Formations recommandees pour vous",
   mesFormations: "Mes Formations",
   acceder: "Acceder",
+  aucuneFormation: "Vous n'avez pas encore de formation. Decouvrez le catalogue :",
+  voirCatalogue: "Voir les formations",
 };
 
 export default function DashboardPage() {
@@ -27,13 +32,27 @@ export default function DashboardPage() {
   const [chat, setChat] = useState<{role: string, text: string}[]>([]);
   const [loading, setLoading] = useState(false);
   const [reco, setReco] = useState<any[]>([]);
-  const [formations, setFormations] = useState<any[]>([]);
+  const [mesFormations, setMesFormations] = useState<any[]>([]);
   const [profil, setProfil] = useState<any>(null);
 
   useEffect(() => {
-    fetch("/api/recommandation?email=contact@academiapro.fr").then(r=>r.json()).then(d=>{ if(d.success && d.recommandations) setReco(d.recommandations); });
-    fetch("/api/gamification?email=contact@academiapro.fr").then(r=>r.json()).then(d=>{ if(d.profil) setProfil(d.profil); }).catch(()=>{});
-    fetch(SB_URL+"/rest/v1/formations?select=code,titre,prix&order=code&limit=4",{headers:{apikey:SB_KEY,Authorization:"Bearer "+SB_KEY}}).then(r=>r.json()).then(d=>{ if(Array.isArray(d)) setFormations(d); }).catch(()=>{});
+    sb.auth.getUser()
+      .then(({ data }) => (data && data.user && data.user.email) || EMAIL_REPLI)
+      .catch(() => EMAIL_REPLI)
+      .then((email) => {
+        fetch("/api/mes-formations?email=" + encodeURIComponent(email))
+          .then(r => r.json())
+          .then(d => { if (d.success && Array.isArray(d.formations)) setMesFormations(d.formations); })
+          .catch(() => {});
+        fetch("/api/recommandation?email=" + encodeURIComponent(email))
+          .then(r => r.json())
+          .then(d => { if (d.success && d.recommandations) setReco(d.recommandations); })
+          .catch(() => {});
+        fetch("/api/gamification?email=" + encodeURIComponent(email))
+          .then(r => r.json())
+          .then(d => { if (d.profil) setProfil(d.profil); })
+          .catch(() => {});
+      });
   }, []);
 
   async function chercher(question: string, mots: string[]) {
@@ -80,7 +99,7 @@ export default function DashboardPage() {
         <h1 style={{color:"#c8a96e",fontFamily:"Georgia,serif",marginBottom:"25px"}}>{txt.titre}</h1>
         <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:"15px",marginBottom:"35px"}}>
           {[
-            {titre:txt.formations,valeur:formations.length.toString(),icon:"🎓"},
+            {titre:txt.formations,valeur:mesFormations.length.toString(),icon:"🎓"},
             {titre:txt.pointsXp,valeur:profil?.xp?.toLocaleString()||"0",icon:"⭐"},
             {titre:txt.streak,valeur:(profil?.streak||0)+"j",icon:"🔥"},
             {titre:txt.badges,valeur:(profil?.badges?.length||0).toString(),icon:"🏆"},
@@ -121,10 +140,16 @@ export default function DashboardPage() {
         )}
         <div style={{marginTop:"10px"}}>
           <h2 style={{color:"#c8a96e",fontFamily:"Georgia,serif",marginBottom:"15px"}}>🎓 {txt.mesFormations}</h2>
+          {mesFormations.length===0&&(
+            <div style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(200,169,110,0.2)",borderRadius:"10px",padding:"20px",textAlign:"center"}}>
+              <p style={{color:"rgba(255,255,255,0.6)",fontSize:"14px",marginBottom:"14px"}}>{txt.aucuneFormation}</p>
+              <a href="/formations" style={{background:"#c8a96e",color:"#050508",padding:"10px 20px",borderRadius:"8px",textDecoration:"none",fontSize:"13px",fontWeight:"bold"}}>{txt.voirCatalogue}</a>
+            </div>
+          )}
           <div style={{display:"grid",gap:"12px"}}>
-            {formations.map((f:any)=>(
+            {mesFormations.map((f:any)=>(
               <div key={f.code} style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(200,169,110,0.2)",borderRadius:"10px",padding:"16px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                <span style={{color:"rgba(255,255,255,0.8)",fontSize:"14px"}}>{f.code} — {f.titre}</span>
+                <span style={{color:"rgba(255,255,255,0.8)",fontSize:"14px"}}>{f.code} — {f.titre}{f.formule ? " · " + f.formule : ""}</span>
                 <a href={"/formation/"+f.code} style={{background:"#c8a96e",color:"#050508",padding:"8px 16px",borderRadius:"6px",textDecoration:"none",fontSize:"13px",fontWeight:"bold"}}>{txt.acceder}</a>
               </div>
             ))}
