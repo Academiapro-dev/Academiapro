@@ -5,27 +5,31 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const BUCKET = "formations-pdf";
-const LIMITE = 2000;
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
   process.env.SUPABASE_SERVICE_ROLE_KEY || ""
 );
 
-// Les fichiers ont ete generes avec des reglages d'encodage differents :
-// certains sont doublement encodes, d'autres portent des accents combines.
+// Table de correspondance du double encodage constate dans les fichiers.
+const CORRECTIONS: [string, string][] = [
+  ["â€™", "'"], ["â€œ", "\""], ["â€\u009d", "\""], ["â€“", "-"], ["â€”", "-"],
+  ["â€¦", "..."], ["Ã©", "é"], ["Ã¨", "è"], ["Ãª", "ê"], ["Ã«", "ë"],
+  ["Ã ", "à"], ["Ã¢", "â"], ["Ã¤", "ä"], ["Ã®", "î"], ["Ã¯", "ï"],
+  ["Ã´", "ô"], ["Ã¶", "ö"], ["Ã¹", "ù"], ["Ã»", "û"], ["Ã¼", "ü"],
+  ["Ã§", "ç"], ["Ã‰", "É"], ["Ãˆ", "È"], ["Ã€", "À"], ["Ã‡", "Ç"],
+  ["Å“", "oe"], ["Â·", "·"], ["Â»", "»"], ["Â«", "«"], ["Â°", "°"],
+  ["Â", " "],
+];
+
 function reparerEncodage(t: string): string {
   let s = String(t || "");
-  if (s.indexOf("Ã") >= 0 || s.indexOf("â€") >= 0) {
-    try {
-      const octets = new Uint8Array(s.length);
-      for (let i = 0; i < s.length; i++) octets[i] = s.charCodeAt(i) & 0xff;
-      s = new TextDecoder("utf-8").decode(octets);
-    } catch (e) {}
+  for (const paire of CORRECTIONS) {
+    s = s.split(paire[0]).join(paire[1]);
   }
-  try {
-    s = s.normalize("NFC");
-  } catch (e) {}
+  // Emojis et symboles residuels issus du mauvais encodage.
+  s = s.replace(/[\uD800-\uDFFF]/g, "").replace(/ð[\u0080-\u00FF]{0,3}/g, "");
+  try { s = s.normalize("NFC"); } catch (e) {}
   return s;
 }
 
@@ -40,13 +44,29 @@ function texteBrut(html: string): string {
     .trim();
 }
 
-// Les supports portent des tarifs perimes : on les retire systematiquement.
 function sansPrix(t: string): string {
   return String(t || "")
     .replace(/(Tarif|Prix)\s*:?\s*[^|.]{0,40}(euros?|EUR|€)/gi, " ")
     .replace(/\d[\d\s]{2,}(euros?|EUR|€)/gi, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+// On s'arrete des que le document entre dans le contenu.
+function couperAvantLeCours(t: string): string {
+  const bornes = [
+    "Programme complet",
+    "Programme detaille",
+    "Programme détaillé",
+    "Chapitre 1",
+    "Module 1",
+  ];
+  let fin = t.length;
+  for (const b of bornes) {
+    const i = t.indexOf(b);
+    if (i > 60 && i < fin) fin = i;
+  }
+  return t.slice(0, Math.min(fin, 1200)).trim();
 }
 
 export async function GET(req: Request) {
@@ -66,19 +86,14 @@ export async function GET(req: Request) {
 
     const brut = sansPrix(texteBrut(reparerEncodage((await data.text()).slice(0, 150000))));
 
-    // L'en-tete du document porte objectifs, prerequis et public cible.
-    // On ne va JAMAIS chercher plus loin : au-dela commence le cours.
-    const apercu = brut.slice(0, LIMITE);
+    const apercu = couperAvantLeCours(brut);
 
-    // Plan : uniquement les intitules suivis d'une duree, qui figurent
-    // dans le sommaire. Les titres du corps du cours n'en portent pas.
+    // Uniquement les intitules ancres sur « Module N » et suivis d'une duree.
     const modules: string[] = [];
-    const motif = /([A-ZÀ-ÖØ-Þ][^·|()]{4,70}?)\s*\((\d{1,3})\s*h\)/g;
+    const motif = /Module\s*(\d{1,2})\s*[:\-–—]?\s*([^()·|]{3,70}?)\s*\((\d{1,3})\s*h\)/g;
     let m;
     while ((m = motif.exec(brut)) !== null) {
-      const titre = m[1].replace(/\s+/g, " ").trim();
-      const heures = m[2];
-      const ligne = titre + " (" + heures + " h)";
+      const ligne = m[2].replace(/\s+/g, " ").trim() + " (" + m[3] + " h)";
       if (modules.indexOf(ligne) < 0) modules.push(ligne);
       if (modules.length >= 20) break;
     }
