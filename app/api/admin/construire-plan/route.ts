@@ -14,19 +14,22 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || ""
 );
 
-function reparerEncodage(s: string): string {
+// "lettre + U+00CC + octet" est un accent decompose mal relu.
+// L octet indique lequel : 81 aigu, 80 grave, 82 circonflexe, A7 cedille.
+function reparerAccents(s: string): string {
   let t = String(s || "");
-  if (!/[\u00C3\u00CC\u00C2][\u0080-\u00BF]/.test(t)) return t;
-  const propre = t.replace(/[^\u0000-\u00FF]/g, "");
-  const octets = new Uint8Array(propre.length);
-  for (let i = 0; i < propre.length; i++) {
-    octets[i] = propre.charCodeAt(i) & 0xff;
-  }
-  try {
-    return new TextDecoder("utf-8").decode(octets).normalize("NFC");
-  } catch (e) {
-    return t;
-  }
+  t = t.replace(/([A-Za-z])\u00CC([\u0080-\u00BF])/g, function (tout, lettre, marque) {
+    try {
+      const combinant = String.fromCharCode(0x0300 + (marque.charCodeAt(0) - 0x80));
+      return (lettre + combinant).normalize("NFC");
+    } catch (e) {
+      return lettre;
+    }
+  });
+  t = t.replace(/\u00E2\u0080\u0094/g, "-").replace(/\u00E2\u0080\u0099/g, "'");
+  t = t.replace(/[\u0080-\u009F]/g, "");
+  try { t = t.normalize("NFC"); } catch (e) {}
+  return t;
 }
 
 function texteBrut(html: string): string {
@@ -83,7 +86,7 @@ export async function GET(req: Request) {
       return NextResponse.json({ ok: false, code: code, erreur: "aucun support pour cette formation" }, { status: 404 });
     }
 
-    const brut = texteBrut(reparerEncodage((await fichier.text()).slice(0, 150000)));
+    const brut = reparerAccents(texteBrut((await fichier.text()).slice(0, 150000)));
 
     const titres: string[] = [];
     const motif = /Module\s*(\d{1,2})\s*[:\-\u2013\u2014]?\s*([^()\u00B7|]{3,70}?)\s*\((\d{1,3})\s*h\)/g;
@@ -101,7 +104,7 @@ export async function GET(req: Request) {
       );
     }
 
-    const titreFiche = reparerEncodage(String(fiche.titre || ""));
+    const titreFiche = reparerAccents(String(fiche.titre || ""));
 
     const lignes: any[] = [];
     for (let i = 0; i < titres.length; i++) {
