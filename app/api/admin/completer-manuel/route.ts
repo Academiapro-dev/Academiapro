@@ -114,7 +114,7 @@ export async function GET(req: Request) {
         },
         body: JSON.stringify({
           model: MODELE,
-          max_tokens: 8000,
+          max_tokens: 4000,
           system: "Tu es un formateur expert de niveau universitaire. Tu rediges des manuels denses, complets et de haute qualite academique, entierement dans la langue demandee.",
           messages: [{ role: "user", content: invitePour(fiche.titre, chapitre, module, langue) }],
         }),
