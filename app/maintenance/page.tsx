@@ -70,6 +70,7 @@ export default function MaintenancePage() {
         <button style={st} disabled={occupe} onClick={() => lots("Nettoyage", "/api/admin/admin/nettoyer-supports", 10, true)}>3 - Executer le nettoyage</button>
         <button style={st} disabled={occupe} onClick={() => boucle("Generation des supports", "/api/admin/generer-support", 300)}>4 - Generer les supports manquants</button>
         <button style={st} disabled={occupe} onClick={() => boucle("Construction des plans", "/api/admin/construire-plans", 300)}>5 - Construire les plans</button>
+        <button style={st} disabled={occupe} onClick={() => boucle("Plans par IA", "/api/admin/generer-plans", 200)}>6 - Generer les plans manquants</button>
         <button style={st} disabled={occupe} onClick={() => lots("Audit", "/api/admin/audit-supports", 40, false)}>Relancer l inventaire</button>
 
         {lignes.length > 0 && (
