@@ -1,0 +1,127 @@
+"use client";
+import { useState, useEffect } from "react";
+
+const MESSAGES: Record<string, string> = {
+  lien_expire: "Ce lien a expire. Demandez-en un nouveau ci-dessous.",
+  lien_deja_utilise: "Ce lien a deja servi. Demandez-en un nouveau ci-dessous.",
+  lien_inconnu: "Ce lien n est pas valide. Demandez-en un nouveau ci-dessous.",
+  lien_incomplet: "Le lien semble incomplet. Demandez-en un nouveau ci-dessous.",
+  configuration: "Probleme de configuration du serveur. Reessayez plus tard.",
+  technique: "Un probleme technique est survenu. Reessayez.",
+};
+
+export default function ConnexionPage() {
+  const [email, setEmail] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [envoye, setEnvoye] = useState(false);
+  const [erreur, setErreur] = useState("");
+
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const code = params.get("erreur");
+      if (code) setErreur(MESSAGES[code] || MESSAGES.technique);
+    } catch (e) {}
+  }, []);
+
+  async function demander() {
+    const propre = email.toLowerCase().trim();
+    if (!propre || propre.indexOf("@") < 1) {
+      setErreur("Veuillez saisir votre adresse email.");
+      return;
+    }
+    setLoading(true);
+    setErreur("");
+    try {
+      const res = await fetch("/api/auth/demander", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: propre }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setEnvoye(true);
+      } else {
+        setErreur(data.error || "Une erreur est survenue.");
+      }
+    } catch (e) {
+      setErreur("Erreur de connexion au serveur.");
+    }
+    setLoading(false);
+  }
+
+  const cadre = {
+    background: "rgba(255,255,255,0.03)",
+    border: "1px solid rgba(200,169,110,0.3)",
+    borderRadius: "16px",
+    padding: "40px",
+  } as any;
+
+  if (envoye) {
+    return (
+      <div style={{ backgroundColor: "#050508", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}>
+        <div style={{ maxWidth: "520px", textAlign: "center" }}>
+          <div style={{ fontSize: "54px", marginBottom: "20px" }}>📩</div>
+          <h1 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", marginBottom: "15px" }}>
+            Verifiez votre boite mail
+          </h1>
+          <p style={{ color: "rgba(255,255,255,0.7)", lineHeight: "1.8", marginBottom: "10px" }}>
+            Un lien de connexion vient d etre envoye a <strong style={{ color: "#fff" }}>{email.toLowerCase().trim()}</strong>.
+          </p>
+          <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px", lineHeight: "1.7" }}>
+            Il est valable 20 minutes et ne peut servir qu une fois. Pensez a regarder dans les indesirables.
+          </p>
+          <button
+            onClick={() => { setEnvoye(false); setErreur(""); }}
+            style={{ marginTop: "25px", background: "transparent", color: "#c8a96e", border: "1px solid rgba(200,169,110,0.4)", padding: "10px 24px", borderRadius: "8px", cursor: "pointer" }}
+          >
+            Utiliser une autre adresse
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ backgroundColor: "#050508", minHeight: "100vh", color: "#fff" }}>
+      <div style={{ background: "linear-gradient(135deg,#0a0a1a,#1a1a2e)", padding: "60px 20px", textAlign: "center" }}>
+        <p style={{ color: "#c8a96e", fontSize: "12px", letterSpacing: "3px", marginBottom: "15px" }}>ESPACE ELEVE</p>
+        <h1 style={{ color: "#fff", fontFamily: "Georgia,serif", fontSize: "2.4rem", marginBottom: "15px" }}>
+          Connexion
+        </h1>
+        <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "15px", maxWidth: "560px", margin: "0 auto" }}>
+          Saisissez l adresse email utilisee lors de votre achat. Vous recevrez un lien de connexion, sans mot de passe a retenir.
+        </p>
+      </div>
+
+      <div style={{ maxWidth: "560px", margin: "0 auto", padding: "50px 20px" }}>
+        <div style={cadre}>
+          {erreur && (
+            <div style={{ background: "rgba(255,0,0,0.1)", border: "1px solid red", borderRadius: "8px", padding: "12px", marginBottom: "20px", color: "#ff6b6b", textAlign: "center", fontSize: "14px" }}>
+              {erreur}
+            </div>
+          )}
+          <label style={{ color: "#c8a96e", fontSize: "13px", display: "block", marginBottom: "6px" }}>Votre email</label>
+          <input
+            type="email"
+            placeholder="vous@exemple.fr"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") demander(); }}
+            style={{ width: "100%", padding: "12px", borderRadius: "8px", border: "1px solid rgba(200,169,110,0.3)", background: "rgba(255,255,255,0.05)", color: "#fff", boxSizing: "border-box" as any, marginBottom: "20px" }}
+          />
+          <button
+            onClick={demander}
+            disabled={loading}
+            style={{ width: "100%", padding: "14px", background: "#c8a96e", color: "#050508", border: "none", borderRadius: "8px", fontWeight: "bold", fontSize: "16px", cursor: loading ? "not-allowed" : "pointer" }}
+          >
+            {loading ? "Envoi en cours..." : "Recevoir mon lien de connexion"}
+          </button>
+          <p style={{ color: "rgba(255,255,255,0.3)", fontSize: "12px", textAlign: "center", marginTop: "15px" }}>
+            Pas encore d achat ? <a href="/catalogue" style={{ color: "#c8a96e" }}>Decouvrir les formations</a>
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
