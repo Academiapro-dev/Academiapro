@@ -15,7 +15,7 @@ const FR = {
   prerequis: "Prerequis",
   publicCible: "Public cible",
   programme: "Programme",
-  programmeDetail: "Programme detaille",
+  modulesMot: "modules",
   heuresTotal: "heures de formation",
   support: "Support de cours",
   supportSub: "Document complet · Francais · 300+ pages",
@@ -88,6 +88,14 @@ export default function FormationPage({ params }: { params: { id: string } }) {
   const detailPalier = (txt.paliers.find((p: { id: string }) => p.id === palier) || txt.paliers[0]).detail;
   const aProgrammeBase = formation.programme && Array.isArray(formation.programme) && formation.programme.length > 0;
   const aApercu = apercu && apercu.modules && apercu.modules.length > 0;
+  const heures = (apercu && apercu.heures_programme) || 0;
+  const nbModules = (apercu && apercu.nb_modules) || 0;
+
+  const ligneTotal = heures > 0 ? (
+    <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "13px", marginTop: 0, marginBottom: "18px" }}>
+      {nbModules} {txt.modulesMot} · {heures} {txt.heuresTotal}
+    </p>
+  ) : null;
 
   return (
     <div style={{ backgroundColor: "#050508", minHeight: "100vh", color: "#fff" }}>
@@ -104,7 +112,7 @@ export default function FormationPage({ params }: { params: { id: string } }) {
         <div style={{ color: "#c8a96e", fontSize: "13px", marginBottom: "10px" }}>{formation.code} · {formation.domaine}</div>
         <h1 style={{ color: "#fff", fontFamily: "Georgia,serif", fontSize: "2rem", marginBottom: "20px" }}>{formation.titre}</h1>
         <div style={{ display: "flex", gap: "15px", justifyContent: "center", flexWrap: "wrap" }}>
-          {formation.duree && <span style={{ background: "rgba(200,169,110,0.2)", color: "#c8a96e", padding: "6px 16px", borderRadius: "20px" }}>{formation.duree}</span>}
+          {heures > 0 && <span style={{ background: "rgba(200,169,110,0.2)", color: "#c8a96e", padding: "6px 16px", borderRadius: "20px" }}>{heures} h</span>}
           {formation.niveau && <span style={{ background: "rgba(200,169,110,0.2)", color: "#c8a96e", padding: "6px 16px", borderRadius: "20px" }}>{txt.niveau} {formation.niveau}</span>}
           {prixBase > 0 && <span style={{ background: "#c8a96e", color: "#050508", padding: "6px 16px", borderRadius: "20px", fontWeight: "bold" }}>{prixPromo.toLocaleString("fr-FR")}€</span>}
         </div>
@@ -175,7 +183,8 @@ export default function FormationPage({ params }: { params: { id: string } }) {
 
         {aProgrammeBase && (
           <div style={{ marginBottom: "40px" }}>
-            <h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", marginBottom: "20px" }}>{txt.programme}</h2>
+            <h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", marginBottom: "6px" }}>{txt.programme}</h2>
+            {ligneTotal}
             {formation.programme.map((ch: any, i: number) => (
               <div key={i} style={{ marginBottom: "15px", border: "1px solid rgba(200,169,110,0.3)", borderRadius: "10px", overflow: "hidden" }}>
                 <div style={{ background: "linear-gradient(135deg,#c8a96e,#a07840)", padding: "12px 20px" }}>
@@ -200,12 +209,8 @@ export default function FormationPage({ params }: { params: { id: string } }) {
 
         {!aProgrammeBase && aApercu && (
           <div style={{ marginBottom: "40px" }}>
-            <h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", marginBottom: "6px" }}>{txt.programmeDetail}</h2>
-            {apercu.heures_programme > 0 && (
-              <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "13px", marginTop: 0, marginBottom: "18px" }}>
-                {apercu.nb_modules} modules · {apercu.heures_programme} {txt.heuresTotal}
-              </p>
-            )}
+            <h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", marginBottom: "6px" }}>{txt.programme}</h2>
+            {ligneTotal}
             <div style={{ border: "1px solid rgba(200,169,110,0.3)", borderRadius: "10px", overflow: "hidden" }}>
               {apercu.modules.map((mod: string, j: number) => (
                 <div key={j} style={{ padding: "12px 20px", borderBottom: j < apercu.modules.length - 1 ? "1px solid rgba(255,255,255,0.06)" : "none", color: "rgba(255,255,255,0.75)", fontSize: "14px" }}>
