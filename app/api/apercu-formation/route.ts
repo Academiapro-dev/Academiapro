@@ -11,29 +11,47 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || ""
 );
 
-// Certains fichiers sont doublement encodes : leurs octets UTF-8 ont ete
-// relus comme du latin-1 puis re-encodes. On refait le chemin inverse.
+// Remplacement direct des sequences abimees. Les plus longues d'abord,
+// sinon "\u00C2" mangerait le premier octet des paires.
+const CORRECTIONS: string[][] = [
+  ["\u00E2\u0080\u0099", "\u2019"],
+  ["\u00E2\u0080\u009C", "\u201C"],
+  ["\u00E2\u0080\u009D", "\u201D"],
+  ["\u00E2\u0080\u0093", "\u2013"],
+  ["\u00E2\u0080\u0094", "\u2014"],
+  ["\u00E2\u0080\u00A6", "\u2026"],
+  ["\u00C3\u00A9", "\u00E9"],
+  ["\u00C3\u00A8", "\u00E8"],
+  ["\u00C3\u00AA", "\u00EA"],
+  ["\u00C3\u00AB", "\u00EB"],
+  ["\u00C3\u00A0", "\u00E0"],
+  ["\u00C3\u00A2", "\u00E2"],
+  ["\u00C3\u00A4", "\u00E4"],
+  ["\u00C3\u00AE", "\u00EE"],
+  ["\u00C3\u00AF", "\u00EF"],
+  ["\u00C3\u00B4", "\u00F4"],
+  ["\u00C3\u00B6", "\u00F6"],
+  ["\u00C3\u00B9", "\u00F9"],
+  ["\u00C3\u00BB", "\u00FB"],
+  ["\u00C3\u00BC", "\u00FC"],
+  ["\u00C3\u00A7", "\u00E7"],
+  ["\u00C3\u0089", "\u00C9"],
+  ["\u00C3\u0088", "\u00C8"],
+  ["\u00C3\u0080", "\u00C0"],
+  ["\u00C3\u0087", "\u00C7"],
+  ["\u00C5\u0093", "oe"],
+  ["\u00C2\u00B7", "\u00B7"],
+  ["\u00C2\u00AB", "\u00AB"],
+  ["\u00C2\u00BB", "\u00BB"],
+  ["\u00C2\u00B0", "\u00B0"],
+  ["\u00C2\u00A0", " "],
+  ["\u00C2", ""],
+];
+
 function reparerEncodage(s: string): string {
   let t = String(s || "");
-  let tours = 0;
-  while (tours < 3 && /[\u00C3\u00C2\u00E2]/.test(t)) {
-    let possible = true;
-    const octets = new Uint8Array(t.length);
-    for (let i = 0; i < t.length; i++) {
-      const c = t.charCodeAt(i);
-      if (c > 255) { possible = false; break; }
-      octets[i] = c;
-    }
-    if (!possible) break;
-    let decode = "";
-    try {
-      decode = new TextDecoder("utf-8").decode(octets);
-    } catch (e) {
-      break;
-    }
-    if (!decode || decode === t) break;
-    t = decode;
-    tours++;
+  for (let i = 0; i < CORRECTIONS.length; i++) {
+    t = t.split(CORRECTIONS[i][0]).join(CORRECTIONS[i][1]);
   }
   try { t = t.normalize("NFC"); } catch (e) {}
   return t;
@@ -68,9 +86,9 @@ function couperAvantLeCours(t: string): string {
     "Module 1",
   ];
   let fin = t.length;
-  for (const b of bornes) {
-    const i = t.indexOf(b);
-    if (i > 60 && i < fin) fin = i;
+  for (let i = 0; i < bornes.length; i++) {
+    const p = t.indexOf(bornes[i]);
+    if (p > 60 && p < fin) fin = p;
   }
   return t.slice(0, Math.min(fin, 1200)).trim();
 }
@@ -79,7 +97,7 @@ export async function GET(req: Request) {
   try {
     const code = (new URL(req.url).searchParams.get("code") || "").trim().toUpperCase();
     if (!code) {
-      return NextResponse.json({ ok: false, version: 3, erreur: "code manquant" }, { status: 400 });
+      return NextResponse.json({ ok: false, version: 4, erreur: "code manquant" }, { status: 400 });
     }
 
     const { data } = await supabase.storage
@@ -87,7 +105,7 @@ export async function GET(req: Request) {
       .download(code + "_support_cours.html");
 
     if (!data) {
-      return NextResponse.json({ ok: true, version: 3, code: code, disponible: false });
+      return NextResponse.json({ ok: true, version: 4, code: code, disponible: false });
     }
 
     const brut = sansPrix(texteBrut(reparerEncodage((await data.text()).slice(0, 150000))));
@@ -104,13 +122,13 @@ export async function GET(req: Request) {
 
     return NextResponse.json({
       ok: true,
-      version: 3,
+      version: 4,
       code: code,
       disponible: true,
       apercu: apercu,
       modules: modules,
     });
   } catch (e: any) {
-    return NextResponse.json({ ok: false, version: 3, erreur: String(e) }, { status: 500 });
+    return NextResponse.json({ ok: false, version: 4, erreur: String(e) }, { status: 500 });
   }
 }
