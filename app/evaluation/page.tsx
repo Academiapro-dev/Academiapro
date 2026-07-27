@@ -6,7 +6,8 @@ function Evaluation() {
   const sp = useSearchParams();
   const formation = sp.get("formation") || "";
   const type = sp.get("type") || "positionnement";
-  const [email, setEmail] = useState(sp.get("email") || "");
+  const [email, setEmail] = useState("");
+  const [autorise, setAutorise] = useState<boolean | null>(null);
   const [nom, setNom] = useState("");
   const [questions, setQuestions] = useState<any[]>([]);
   const [reponses, setReponses] = useState<number[]>([]);
@@ -14,11 +15,24 @@ function Evaluation() {
   const [certif, setCertif] = useState<any>(null);
   const [envoi, setEnvoi] = useState(false);
 
+  // L'identite vient de la session, jamais d'un champ ni de l'URL.
   useEffect(() => {
-    if (!formation) return;
+    fetch("/api/mes-formations")
+      .then(r => r.json())
+      .then(d => {
+        if (!d || !d.success) { setAutorise(false); return; }
+        setEmail(d.email || "");
+        const liste = d.formations || [];
+        setAutorise(liste.some((f: any) => String(f.code) === String(formation)));
+      })
+      .catch(() => setAutorise(false));
+  }, [formation]);
+
+  useEffect(() => {
+    if (!formation || autorise !== true) return;
     fetch("/api/evaluations?formation=" + encodeURIComponent(formation) + "&type=" + type)
       .then(r => r.json()).then(d => setQuestions(d.questions || []));
-  }, [formation, type]);
+  }, [formation, type, autorise]);
 
   const imprimer = () => {
     if (!certif || !certif.certif_html) return;
@@ -39,6 +53,16 @@ function Evaluation() {
     } catch (e) { setResultat({ score: 0, total: 0, erreur: String(e) }); }
     setEnvoi(false);
   };
+
+  if (autorise === null) return <p style={{ padding: 24, fontFamily: "system-ui" }}>Verification de vos acces...</p>;
+
+  if (autorise === false) return (
+    <div style={{ maxWidth: 640, margin: "40px auto", padding: 24, fontFamily: "system-ui" }}>
+      <h1>Acc&egrave;s non autoris&eacute;</h1>
+      <p>Cette &eacute;valuation est r&eacute;serv&eacute;e aux personnes inscrites &agrave; la formation <b>{formation}</b>.</p>
+      <p><a href="/catalogue" style={{ color: "#1d4ed8" }}>Voir le catalogue des formations</a> &mdash; <a href="/dashboard" style={{ color: "#1d4ed8" }}>Mon espace</a></p>
+    </div>
+  );
 
   if (resultat) return (
     <div style={{ maxWidth: 760, margin: "40px auto", padding: 24, fontFamily: "system-ui" }}>
@@ -67,7 +91,7 @@ function Evaluation() {
     <div style={{ maxWidth: 640, margin: "40px auto", padding: 24, fontFamily: "system-ui" }}>
       <h1>{type === "finale" ? "Evaluation finale des acquis" : "Questionnaire de positionnement"}</h1>
       <p>Formation : <b>{formation}</b></p>
-      <label>Votre email<br /><input value={email} onChange={e => setEmail(e.target.value)} style={{ width: "100%", padding: 8, border: "1px solid #ccc", borderRadius: 6 }} /></label>
+      <p style={{ color: "#4b5563" }}>Connect&eacute; en tant que <b>{email}</b></p>
       {type === "finale" && (
         <label>Votre nom complet (pour le certificat)<br /><input value={nom} onChange={e => setNom(e.target.value)} style={{ width: "100%", padding: 8, border: "1px solid #ccc", borderRadius: 6 }} /></label>
       )}
