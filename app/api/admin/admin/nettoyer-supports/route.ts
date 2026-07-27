@@ -2,8 +2,6 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { emailDeSession } from "../../../../../lib/session";
 
-
-
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -33,11 +31,25 @@ function reparerEncodage(s: string): string {
 
 function nettoyer(html: string): string {
   let t = String(html || "");
-  t = t.replace(/Certification\s*:\s*[^<|]{0,60}(?=(&nbsp;)*\s*(\||<))/gi, " ");
-  t = t.replace(/(Tarif|Prix)\s*:\s*[^<|]{0,40}(?=(&nbsp;)*\s*(\||<))/gi, " ");
+
+  // Bloc complet : libelle en gras + valeur, jusqu'au separateur ou a la fin.
+  t = t.replace(
+    /<strong>\s*(Certification|Tarif|Prix)\s*:?\s*<\/strong>[\s\S]{0,80}?(?=(<strong>|<\/div>|<br))/gi,
+    ""
+  );
+  // Meme chose sans balise autour du libelle.
+  t = t.replace(/(Certification|Tarif|Prix)\s*:\s*[^<|]{0,60}(?=(&nbsp;)*\s*(\||<))/gi, " ");
+  // Restes de libelles vides laisses par un passage precedent.
+  t = t.replace(/<strong>\s*(&nbsp;)*\s*<\/strong>\s*[^<|]{0,40}(?=(&nbsp;)*\s*(\||<))/gi, "");
+  // Formules de certification dans le texte courant.
   t = t.replace(/\bcertifi\u00E9e?\s+RS\b/gi, "professionnel");
   t = t.replace(/\bRS\s+([A-Z\u00C0-\u00DC][\w\u00C0-\u00FF-]{2,30})/g, "$1");
+  // Montants residuels.
+  t = t.replace(/\d[\d\s]{2,}\s*(euros?|EUR|\u20AC)/gi, " ");
+  // Separateurs devenus vides.
   t = t.replace(/(&nbsp;)*\s*\|\s*(&nbsp;)*\s*\|/g, " | ");
+  t = t.replace(/(&nbsp;\s*)+\|\s*(?=<\/div>)/g, "");
+
   return t;
 }
 
@@ -106,7 +118,10 @@ export async function GET(req: Request) {
 
         const ecriture = await supabase.storage
           .from(BUCKET)
-          .upload(nom, new Blob([corrige], { type: "text/html" }), { upsert: true });
+          .upload(nom, new Blob([corrige], { type: "text/html" }), {
+            upsert: true,
+            cacheControl: "60",
+          });
 
         if (ecriture.error) {
           echecs.push({ nom: nom, erreur: ecriture.error.message });
@@ -129,9 +144,6 @@ export async function GET(req: Request) {
       deja_propres: inchanges.length,
       echecs: echecs,
       exemples: modifies.slice(0, 10),
-      suite: suivant < supports.length
-        ? "/api/admin/nettoyer-supports?debut=" + suivant + (executer ? "&executer=oui" : "")
-        : "TERMINE",
     });
   } catch (e: any) {
     return NextResponse.json({ ok: false, erreur: String(e) }, { status: 500 });
