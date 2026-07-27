@@ -54,7 +54,8 @@ export async function GET(req: Request) {
     const url = new URL(req.url);
     const secret = url.searchParams.get("secret") || "";
     if (!process.env.CRON_SECRET || secret !== process.env.CRON_SECRET) {
-      return NextResponse.json({ ok: false, erreur: "acces refuse" }, { status: 403 });
+     return NextResponse.json({ ok: false, erreur: "acces refuse", attendu: (process.env.CRON_SECRET || "").length, recu: secret.length }, { status: 403 });
+
     }
 
     const cle = process.env.ANTHROPIC_API_KEY || "";
