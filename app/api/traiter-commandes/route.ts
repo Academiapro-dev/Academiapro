@@ -79,6 +79,9 @@ function extraireBlocs(html: string): any[] {
     .replace(/<style[\s\S]*?<\/style>/gi, " ")
     .replace(/<head[\s\S]*?<\/head>/gi, " ");
 
+  t = t.replace(/Support de cours officiel/gi, "Manuel de formation");
+  t = t.replace(/Document confidentiel/gi, "Document reserve a l apprenant");
+
   t = t.replace(/<h1[^>]*>([\s\S]*?)<\/h1>/gi, "\n@@H1@@$1\n");
   t = t.replace(/<h2[^>]*>([\s\S]*?)<\/h2>/gi, "\n@@H2@@$1\n");
   t = t.replace(/<h3[^>]*>([\s\S]*?)<\/h3>/gi, "\n@@H3@@$1\n");
@@ -118,7 +121,7 @@ function couper(texte: string, police: any, taille: number, largeur: number): st
   return lignes;
 }
 
-async function composerPdf(html: string): Promise<Uint8Array> {
+async function composerPdf(html: string, titre: string): Promise<Uint8Array> {
   const blocs = extraireBlocs(html);
   const doc = await PDFDocument.create();
   const normal = await doc.embedFont("Times-Roman");
@@ -132,6 +135,24 @@ async function composerPdf(html: string): Promise<Uint8Array> {
 
   const or = rgb(0.63, 0.51, 0.31);
   const encre = rgb(0.1, 0.1, 0.1);
+  const gris = rgb(0.45, 0.45, 0.45);
+
+  const titrePropre = latin1(String(titre || ""));
+  const date = new Date().toLocaleDateString("fr-FR", { year: "numeric", month: "long", day: "numeric" });
+
+  // Page de couverture
+  const couverture = doc.addPage([LARGEUR, HAUTEUR]);
+  couverture.drawText("AcademIA Pro", { x: MARGE, y: HAUTEUR - 200, size: 30, font: gras, color: or });
+  couverture.drawText("Manuel de formation", { x: MARGE, y: HAUTEUR - 250, size: 15, font: normal, color: gris });
+
+  let yc = HAUTEUR - 340;
+  for (const l of couper(titrePropre, gras, 24, UTILE)) {
+    couverture.drawText(l, { x: MARGE, y: yc, size: 24, font: gras, color: encre });
+    yc = yc - 32;
+  }
+
+  couverture.drawText("Edition du " + latin1(date), { x: MARGE, y: yc - 20, size: 11, font: normal, color: gris });
+  couverture.drawText("Document reserve a l apprenant", { x: MARGE, y: 90, size: 10, font: normal, color: gris });
 
   let page = doc.addPage([LARGEUR, HAUTEUR]);
   let y = HAUTEUR - MARGE;
@@ -178,7 +199,7 @@ async function composerPdf(html: string): Promise<Uint8Array> {
 }
 
 async function livrer(code: string, titre: string, html: string, email: string, identifiant: string) {
-  const octets = await composerPdf(html);
+  const octets = await composerPdf(html, titre);
   const chemin = "manuels/" + code + "_manuel.pdf";
 
   await supabase.storage
@@ -353,7 +374,7 @@ export async function GET(req: Request) {
       }).join("\n") + "\n";
     }
 
-    const html = "<html><body><h1>" + echapper(fiche.titre) + "</h1>\n" + corps + "</body></html>";
+    const html = "<html><body>" + corps + "</body></html>";
     const poids = await livrer(code, fiche.titre, html, cmd.email, cmd.identifiant_ls);
 
     return NextResponse.json({ ok: true, code: code, voie: "assemblage", octets: poids, livre: true });
