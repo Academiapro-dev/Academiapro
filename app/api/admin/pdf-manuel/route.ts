@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { emailDeSession } from "../../../../lib/session";
-import chromium from "@sparticuz/chromium";
-import puppeteer from "puppeteer-core";
+import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,8 +15,65 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || ""
 );
 
+// Les polices standard ne connaissent que le latin-1 : on remplace
+// ce qui sort de cette table plutot que de laisser echouer l ecriture.
+function latin1(t: string): string {
+  return String(t || "")
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[\u201C\u201D]/g, '"')
+    .replace(/[\u2013\u2014]/g, "-")
+    .replace(/\u2026/g, "...")
+    .replace(/\u00A0/g, " ")
+    .replace(/[^\u0000-\u00FF]/g, "");
+}
+
+function decoderEntites(t: string): string {
+  return String(t || "")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'");
+}
+
+type Bloc = { type: string; texte: string };
+
+function extraireBlocs(html: string): Bloc[] {
+  const blocs: Bloc[] = [];
+  const motif = /<(h1|h2|h3|p)[^>]*>([\s\S]*?)<\/\1>/gi;
+  let m;
+  while ((m = motif.exec(html)) !== null) {
+    const texte = latin1(
+      decoderEntites(String(m[2]).replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, ""))
+    ).replace(/[ \t]+/g, " ").trim();
+    if (texte) blocs.push({ type: m[1].toLowerCase(), texte: texte });
+  }
+  return blocs;
+}
+
+function couper(texte: string, police: any, taille: number, largeur: number): string[] {
+  const lignes: string[] = [];
+  for (const paragraphe of texte.split("\n")) {
+    const mots = paragraphe.split(/\s+/).filter(Boolean);
+    let ligne = "";
+    for (const mot of mots) {
+      const essai = ligne ? ligne + " " + mot : mot;
+      let l = 0;
+      try { l = police.widthOfTextAtSize(essai, taille); } catch (e) { l = essai.length * taille * 0.5; }
+      if (l > largeur && ligne) {
+        lignes.push(ligne);
+        ligne = mot;
+      } else {
+        ligne = essai;
+      }
+    }
+    lignes.push(ligne);
+  }
+  return lignes;
+}
+
 export async function GET(req: Request) {
-  let navigateur: any = null;
   try {
     const email = emailDeSession();
     if (!email || ADMINS.indexOf(email) < 0) {
@@ -38,35 +94,78 @@ export async function GET(req: Request) {
     }
 
     const html = await fichier.text();
+    const blocs = extraireBlocs(html);
 
-    navigateur = await puppeteer.launch({
-      args: chromium.args,
-      executablePath: await chromium.executablePath("https://github.com/Sparticuz/chromium/releases/download/v123.0.0/chromium-v123.0.0-pack.tar"),
+    if (blocs.length === 0) {
+      return NextResponse.json({ ok: false, code: code, erreur: "aucun contenu lisible" }, { status: 422 });
+    }
 
-      headless: true,
-    });
+    const doc = await PDFDocument.create();
+    const normal = await doc.embedFont(StandardFonts.TimesRoman);
+    const gras = await doc.embedFont(StandardFonts.TimesBold);
 
-    const page = await navigateur.newPage();
-    await page.setContent(html, { waitUntil: "load", timeout: 120000 });
+    const LARGEUR = 595.28;
+    const HAUTEUR = 841.89;
+    const MARGE = 56;
+    const UTILE = LARGEUR - MARGE * 2;
+    const BAS = 60;
 
-    const pdf = await page.pdf({
-      format: "A4",
-      printBackground: true,
-      margin: { top: "20mm", bottom: "20mm", left: "18mm", right: "18mm" },
-      displayHeaderFooter: true,
-      headerTemplate: "<div></div>",
-      footerTemplate:
-        '<div style="font-size:9px;width:100%;text-align:center;color:#888;">' +
-        '<span class="pageNumber"></span> / <span class="totalPages"></span></div>',
-    });
+    let page = doc.addPage([LARGEUR, HAUTEUR]);
+    let y = HAUTEUR - MARGE;
+    let numero = 1;
 
-    await navigateur.close();
-    navigateur = null;
+    const or = rgb(0.63, 0.51, 0.31);
+    const encre = rgb(0.1, 0.1, 0.1);
 
+    const pieds: any[] = [page];
+
+    function nouvellePage() {
+      page = doc.addPage([LARGEUR, HAUTEUR]);
+      pieds.push(page);
+      y = HAUTEUR - MARGE;
+      numero++;
+    }
+
+    function ecrire(lignes: string[], police: any, taille: number, interligne: number, couleur: any, avant: number) {
+      y = y - avant;
+      for (const l of lignes) {
+        if (y < BAS + interligne) nouvellePage();
+        page.drawText(l, { x: MARGE, y: y, size: taille, font: police, color: couleur });
+        y = y - interligne;
+      }
+    }
+
+    for (const b of blocs) {
+      if (b.type === "h1") {
+        if (y < HAUTEUR - MARGE - 10) nouvellePage();
+        ecrire(couper(b.texte, gras, 18, UTILE), gras, 18, 24, or, 0);
+        y = y - 10;
+      } else if (b.type === "h2") {
+        ecrire(couper(b.texte, gras, 14, UTILE), gras, 14, 19, encre, 14);
+        y = y - 4;
+      } else if (b.type === "h3") {
+        ecrire(couper(b.texte, gras, 12, UTILE), gras, 12, 17, or, 10);
+      } else {
+        ecrire(couper(b.texte, normal, 11, UTILE), normal, 11, 16, encre, 6);
+      }
+    }
+
+    for (let i = 0; i < pieds.length; i++) {
+      pieds[i].drawText(String(i + 1) + " / " + pieds.length, {
+        x: LARGEUR / 2 - 20,
+        y: 30,
+        size: 9,
+        font: normal,
+        color: rgb(0.55, 0.55, 0.55),
+      });
+    }
+
+    const octets = await doc.save();
     const chemin = "manuels/" + code + "_manuel.pdf";
+
     const ecriture = await supabase.storage
       .from(BUCKET)
-      .upload(chemin, new Blob([pdf], { type: "application/pdf" }), {
+      .upload(chemin, new Blob([octets], { type: "application/pdf" }), {
         upsert: true,
         cacheControl: "60",
       });
@@ -83,11 +182,6 @@ export async function GET(req: Request) {
       ok: true,
       code: code,
       chemin: chemin,
-      octets: pdf.length,
-      apercu: (lien && lien.signedUrl) || null,
-    });
-  } catch (e: any) {
-    try { if (navigateur) await navigateur.close(); } catch (x) {}
-    return NextResponse.json({ ok: false, erreur: String(e.message || e) }, { status: 500 });
-  }
-}
+      pages: pieds.length,
+      octets: octets.length,
+      apercu: (lien && lien.signedUr
