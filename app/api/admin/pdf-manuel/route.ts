@@ -102,8 +102,9 @@ export async function GET(req: Request) {
     }
 
     const doc = await PDFDocument.create();
-    const normal = await doc.embedFont(StandardFonts.TimesRoman);
-    const gras = await doc.embedFont(StandardFonts.TimesBold);
+    const normal = await doc.embedFont("Times-Roman");
+    const gras = await doc.embedFont("Times-Bold");
+
 
     const LARGEUR = 595.28;
     const HAUTEUR = 841.89;
