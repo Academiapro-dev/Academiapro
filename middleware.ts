@@ -52,8 +52,9 @@ function estApiSessionRequise(chemin: string): boolean {
   return correspond(chemin, API_SESSION_REQUISE);
 }
 
-// Lit le cookie de session : identifiant du compte et societe rattachee.
-function sessionDuCookie(request: NextRequest): { id: string | null; tenantId: string | null } {
+// Lit le cookie sb_user : il renseigne la societe rattachee au compte.
+// Il n'est PAS signe, donc il ne prouve rien : il ne sert plus a authentifier.
+function societeDuCookie(request: NextRequest): { id: string | null; tenantId: string | null } {
   try {
     const brut = request.cookies.get('sb_user')?.value;
     if (!brut) return { id: null, tenantId: null };
@@ -99,9 +100,19 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const { id, tenantId } = sessionDuCookie(request);
+  // ADMINISTRATION : le cookie signe est desormais exige. Sans lui,
+  // un sb_user fabrique a la main ne donne plus aucun acces.
+  const session = request.cookies.get(NOM_COOKIE_SESSION)?.value;
+  if (!session) {
+    const url = request.nextUrl.clone();
+    url.pathname = '/connexion';
+    url.search = '';
+    return NextResponse.redirect(url);
+  }
 
-  // Aucun compte connecte : direction la connexion, quelle que soit la page
+  const { id, tenantId } = societeDuCookie(request);
+
+  // Aucune societe connue : direction la connexion classique
   if (!id) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';
