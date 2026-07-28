@@ -1,15 +1,16 @@
 "use client";
+import { useState, useEffect } from "react";
 import { useTraductionAuto } from "../../hooks/useTraductionAuto";
 
 const FR = {
   titre: "AcadémIA Pro",
-  sousTitre: "263 formations certifiantes · Agent IA 24h/24",
+  sousTitre: "{NB} formations avec certificat AcadémIA Pro · Agent IA 24h/24",
   liens: [
-    { titre: "Voir les 263 formations", url: "/formations", badge: "CATALOGUE" },
+    { titre: "Voir les formations", url: "/formations", badge: "CATALOGUE" },
     { titre: "Reserver une seance", url: "/seances", badge: "SEANCE" },
     { titre: "E-book gratuit", url: "/lead-magnets/ebook", badge: "GRATUIT" },
-    { titre: "Starter Pack 47euro", url: "/starter-pack", badge: "OFFRE" },
-    { titre: "Pack IA Complet 2690euro", url: "/packs", badge: "BEST-SELLER" },
+    { titre: "Starter Pack 47 €", url: "/starter-pack", badge: "OFFRE" },
+    { titre: "Pack IA Complet 2 690 €", url: "/packs", badge: "BEST-SELLER" },
     { titre: "Rejoindre la communaute", url: "/communaute", badge: "GRATUIT" },
     { titre: "Webinaire gratuit", url: "/lead-magnets/webinaire", badge: "LIVE" },
     { titre: "Mini-cours 3 jours", url: "/lead-magnets/mini-cours", badge: "GRATUIT" },
@@ -18,6 +19,16 @@ const FR = {
 
 export default function LinksPage() {
   const { txt } = useTraductionAuto(FR);
+  const [nb, setNb] = useState(266);
+  const [dyn, setDyn] = useState<any>({});
+
+  useEffect(() => {
+    fetch("/api/nombre-formations").then((r) => r.json()).then((d) => { if (d && d.success) setNb(d.total); }).catch(() => {});
+    fetch("/api/textes").then((r) => r.json()).then((d) => { if (d && d.ok && d.textes) setDyn(d.textes); }).catch(() => {});
+  }, []);
+
+  const sousTitre = String(dyn.links_soustitre || txt.sousTitre).replace("{NB}", String(nb));
+
   return (
     <div style={{ minHeight: "100vh", background: "#050508",
       color: "#fff", fontFamily: "Georgia, serif",
@@ -37,12 +48,12 @@ export default function LinksPage() {
             margin: "0 0 8px" }}>{txt.titre}</h1>
           <p style={{ color: "rgba(255,255,255,0.6)",
             fontSize: "14px", margin: "0" }}>
-            {txt.sousTitre}
+            {sousTitre}
           </p>
         </div>
         <div style={{ display: "flex",
           flexDirection: "column", gap: "12px" }}>
-          {txt.liens.map((lien) => (
+          {txt.liens.map((lien: any) => (
             <a key={lien.url} href={lien.url}
               style={{ display: "flex",
                 justifyContent: "space-between",
