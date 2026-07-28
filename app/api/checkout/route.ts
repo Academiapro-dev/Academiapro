@@ -13,6 +13,16 @@ const supabase = createClient(
 const LS_API = "https://api.lemonsqueezy.com/v1";
 const KEY = process.env.LEMONSQUEEZY_API_KEY || "";
 
+// Produit 1252488 "Formation AcademIA Pro - paiement echelonne"
+const VARIANTE_4X = "1957887";
+const VARIANTE_12M = "1957917";
+
+// La formule 12 mois est un accompagnement sur un an : majoration de 20 %.
+const MAJORATION_12M = 1.2;
+
+// En dessous de ce montant, l'echelonnement n'est pas propose.
+const MINIMUM_ECHELONNE = 300;
+
 let cacheStoreId: string | null = null;
 let cacheVariantId: string | null = null;
 
@@ -46,14 +56,16 @@ async function trouverProduit() {
   if (res.status !== 200) {
     throw new Error(
       "Lemon Squeezy repond " + res.status +
-      " (cle presente: " + (KEY ? "oui, " + KEY.length + " caracteres" : "NON") + ") — " +
+      " (cle presente: " + (KEY ? "oui, " + KEY.length + " caracteres" : "NON") + ") - " +
       JSON.stringify((res.j && res.j.errors) || res.j).slice(0, 300)
     );
   }
   const noms = ((res.j && res.j.data) || []).map((p: any) => p.attributes.name);
-  const prod = ((res.j && res.j.data) || []).find((p: any) =>
-    sansAccents(String(p.attributes.name || "")).includes("academia")
-  );
+  // On exclut le produit de paiement echelonne, qui contient lui aussi "academia".
+  const prod = ((res.j && res.j.data) || []).find((p: any) => {
+    const n = sansAccents(String(p.attributes.name || ""));
+    return n.includes("academia") && !n.includes("echelonne");
+  });
   if (!prod) {
     throw new Error(
       "Produit introuvable. Produits visibles par la cle : [" + noms.join(" | ") +
@@ -71,6 +83,11 @@ export async function GET(req: Request) {
     const url = new URL(req.url);
     const code = url.searchParams.get("formation") || "";
     let formule = url.searchParams.get("formule") || "cv1";
+    const paiement = url.searchParams.get("paiement") || "comptant";
+
+    if (["comptant", "4x", "12m"].indexOf(paiement) === -1) {
+      return NextResponse.json({ error: "mode de paiement invalide" }, { status: 400 });
+    }
 
     // Les ateliers (codes SK) ont un prix fixe : ni palier, ni remise.
     const estAtelier = code.toUpperCase().indexOf("SK") === 0;
@@ -79,6 +96,13 @@ export async function GET(req: Request) {
     const valides = ["elearning", "plus", "cv1", "cv2", "cv3", "bootcamp", "atelier"];
     if (!valides.includes(formule)) {
       return NextResponse.json({ error: "formule invalide" }, { status: 400 });
+    }
+
+    if (estAtelier && paiement !== "comptant") {
+      return NextResponse.json(
+        { error: "les ateliers se reglent comptant" },
+        { status: 400 }
+      );
     }
 
     const { data: f, error } = await supabase
@@ -99,32 +123,73 @@ export async function GET(req: Request) {
       prixFinal = Math.round(prixFormule * 0.9);
     }
 
+    if (paiement !== "comptant" && prixFinal < MINIMUM_ECHELONNE) {
+      return NextResponse.json(
+        { error: "echelonnement non disponible en dessous de " + MINIMUM_ECHELONNE + " euros" },
+        { status: 400 }
+      );
+    }
+
     await trouverProduit();
+
+    let varianteChoisie = String(cacheVariantId);
+    let echeances = 1;
+    let prixTotal = prixFinal;
+    let montantEcheance = prixFinal;
+
+    if (paiement === "4x") {
+      varianteChoisie = VARIANTE_4X;
+      echeances = 4;
+      prixTotal = prixFinal;
+      montantEcheance = Math.round((prixTotal * 100) / 4) / 100;
+    } else if (paiement === "12m") {
+      varianteChoisie = VARIANTE_12M;
+      echeances = 12;
+      prixTotal = Math.round(prixFinal * MAJORATION_12M);
+      montantEcheance = Math.round((prixTotal * 100) / 12) / 100;
+    }
 
     // Si l'acheteur est connecte, on preremplit son email de session :
     // l'acces est indexe sur cette adresse, autant qu'il paie avec.
     const emailConnecte = emailDeSession();
 
     const donneesCheckout: any = {
-      custom: { formation: f.code, formule: formule },
+      custom: {
+        formation: f.code,
+        formule: formule,
+        paiement: paiement,
+        echeances: String(echeances),
+        prix_total: String(prixTotal),
+      },
     };
     if (emailConnecte) donneesCheckout.email = emailConnecte;
+
+    let libelle: string;
+    if (paiement === "4x") {
+      libelle = "Formation " + f.code + " - formule " + formule +
+        " - reglement en 4 mensualites de " + montantEcheance.toFixed(2) + " EUR";
+    } else if (paiement === "12m") {
+      libelle = "Formation " + f.code + " - formule " + formule +
+        " - parcours en 12 mois, " + montantEcheance.toFixed(2) + " EUR par mois";
+    } else {
+      libelle = (estAtelier ? "Atelier " : "Formation ") + f.code + " - formule " + formule;
+    }
 
     const corps = {
       data: {
         type: "checkouts",
         attributes: {
-          custom_price: prixFinal * 100,
+          custom_price: Math.round(montantEcheance * 100),
           product_options: {
             name: f.titre,
-            description: (estAtelier ? "Atelier " : "Formation ") + f.code + " - formule " + formule,
+            description: libelle,
             redirect_url: "https://academiapro.fr/dashboard",
           },
           checkout_data: donneesCheckout,
         },
         relationships: {
           store: { data: { type: "stores", id: cacheStoreId } },
-          variant: { data: { type: "variants", id: cacheVariantId } },
+          variant: { data: { type: "variants", id: varianteChoisie } },
         },
       },
     };
