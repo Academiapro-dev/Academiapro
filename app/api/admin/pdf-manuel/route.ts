@@ -15,8 +15,6 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || ""
 );
 
-// Les polices standard ne connaissent que le latin-1 : on remplace
-// ce qui sort de cette table plutot que de laisser echouer l ecriture.
 function latin1(t: string): string {
   return String(t || "")
     .replace(/[\u2018\u2019]/g, "'")
@@ -37,16 +35,13 @@ function decoderEntites(t: string): string {
     .replace(/&#39;/gi, "'");
 }
 
-type Bloc = { type: string; texte: string };
-
-function extraireBlocs(html: string): Bloc[] {
-  const blocs: Bloc[] = [];
+function extraireBlocs(html: string): any[] {
+  const blocs: any[] = [];
   const motif = /<(h1|h2|h3|p)[^>]*>([\s\S]*?)<\/\1>/gi;
   let m;
   while ((m = motif.exec(html)) !== null) {
-    const texte = latin1(
-      decoderEntites(String(m[2]).replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, ""))
-    ).replace(/[ \t]+/g, " ").trim();
+    const brut = String(m[2]).replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, "");
+    const texte = latin1(decoderEntites(brut)).replace(/[ \t]+/g, " ").trim();
     if (texte) blocs.push({ type: m[1].toLowerCase(), texte: texte });
   }
   return blocs;
@@ -54,13 +49,18 @@ function extraireBlocs(html: string): Bloc[] {
 
 function couper(texte: string, police: any, taille: number, largeur: number): string[] {
   const lignes: string[] = [];
-  for (const paragraphe of texte.split("\n")) {
+  const paragraphes = texte.split("\n");
+  for (const paragraphe of paragraphes) {
     const mots = paragraphe.split(/\s+/).filter(Boolean);
     let ligne = "";
     for (const mot of mots) {
       const essai = ligne ? ligne + " " + mot : mot;
       let l = 0;
-      try { l = police.widthOfTextAtSize(essai, taille); } catch (e) { l = essai.length * taille * 0.5; }
+      try {
+        l = police.widthOfTextAtSize(essai, taille);
+      } catch (e) {
+        l = essai.length * taille * 0.5;
+      }
       if (l > largeur && ligne) {
         lignes.push(ligne);
         ligne = mot;
@@ -110,20 +110,17 @@ export async function GET(req: Request) {
     const UTILE = LARGEUR - MARGE * 2;
     const BAS = 60;
 
-    let page = doc.addPage([LARGEUR, HAUTEUR]);
-    let y = HAUTEUR - MARGE;
-    let numero = 1;
-
     const or = rgb(0.63, 0.51, 0.31);
     const encre = rgb(0.1, 0.1, 0.1);
 
-    const pieds: any[] = [page];
+    let page = doc.addPage([LARGEUR, HAUTEUR]);
+    let y = HAUTEUR - MARGE;
+    const pages: any[] = [page];
 
     function nouvellePage() {
       page = doc.addPage([LARGEUR, HAUTEUR]);
-      pieds.push(page);
+      pages.push(page);
       y = HAUTEUR - MARGE;
-      numero++;
     }
 
     function ecrire(lignes: string[], police: any, taille: number, interligne: number, couleur: any, avant: number) {
@@ -150,8 +147,8 @@ export async function GET(req: Request) {
       }
     }
 
-    for (let i = 0; i < pieds.length; i++) {
-      pieds[i].drawText(String(i + 1) + " / " + pieds.length, {
+    for (let i = 0; i < pages.length; i++) {
+      pages[i].drawText(String(i + 1) + " / " + pages.length, {
         x: LARGEUR / 2 - 20,
         y: 30,
         size: 9,
@@ -178,10 +175,17 @@ export async function GET(req: Request) {
       .from(BUCKET)
       .createSignedUrl(chemin, 60 * 60 * 24 * 7);
 
+    const adresse = lien ? lien.signedUrl : null;
+
     return NextResponse.json({
       ok: true,
       code: code,
       chemin: chemin,
-      pages: pieds.length,
+      pages: pages.length,
       octets: octets.length,
-      apercu: (lien && lien.signedUr
+      apercu: adresse,
+    });
+  } catch (e: any) {
+    return NextResponse.json({ ok: false, erreur: String(e.message || e) }, { status: 500 });
+  }
+}
