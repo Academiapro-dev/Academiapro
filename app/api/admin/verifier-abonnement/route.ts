@@ -4,7 +4,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const LS_API = "https://api.lemonsqueezy.com/v1";
-const KEY = process.env.LEMONSQUEEZY_API_KEY || "";
+const KEY = process.env.LEMONSQUEEZY_API_KEY || ""; 
 
 async function lsGet(path: string) {
   const r = await fetch(LS_API + path, {
