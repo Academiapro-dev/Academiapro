@@ -25,6 +25,14 @@ const FR = {
   pret: "Pret a demarrer ?",
   acces: "Acces immediat apres inscription",
   acheter: "Acheter",
+  paiementTitre: "Comment souhaitez-vous regler ?",
+  comptant: "En une fois",
+  comptantDetail: "Reglement unique, acces immediat",
+  quatreFois: "En 4 fois sans frais",
+  quatreFoisDetail: "4 prelevements mensuels, acces immediat des le premier",
+  parMois: "par mois",
+  soitTotal: "soit",
+  auTotal: "au total",
   paliers: [
     { id: "elearning", nom: "E-learning", detail: "Formation complete a votre rythme, manuel PDF inclus" },
     { id: "plus", nom: "E-learning Plus", detail: "+ chat virtuel 24h/24 qui repond a toutes vos questions" },
@@ -33,6 +41,9 @@ const FR = {
     { id: "cv3", nom: "Intensif 3x/sem", detail: "+ 3 seances live par semaine" },
   ],
 };
+
+// En dessous de ce montant, l echelonnement n est pas propose.
+const MINIMUM_ECHELONNE = 300;
 
 function prixPalier(base: number, palier: string): number {
   if (palier === "elearning") return Math.round(base * 0.5);
@@ -48,6 +59,7 @@ export default function FormationPage({ params }: { params: { id: string } }) {
   const [loading, setLoading] = useState(true);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [palier, setPalier] = useState("cv1");
+  const [paiement, setPaiement] = useState("comptant");
   const [apercu, setApercu] = useState<any>(null);
 
   useEffect(() => {
@@ -82,6 +94,7 @@ export default function FormationPage({ params }: { params: { id: string } }) {
   );
 
   const estBootcamp = typeof formation.titre === "string" && formation.titre.startsWith("Bootcamp");
+  const estAtelier = String(params.id).toUpperCase().indexOf("SK") === 0;
   const prixBase = formation.prix || 0;
   const prixFormule = estBootcamp ? prixBase : prixPalier(prixBase, palier);
   const prixPromo = Math.round(prixFormule * 0.9);
@@ -91,11 +104,28 @@ export default function FormationPage({ params }: { params: { id: string } }) {
   const heures = (apercu && apercu.heures_programme) || 0;
   const nbModules = (apercu && apercu.nb_modules) || 0;
 
+  // Le 4 fois n est propose qu au dessus du seuil, et jamais sur un atelier.
+  const echelonnable = !estAtelier && prixPromo >= MINIMUM_ECHELONNE;
+  const paiementActif = echelonnable ? paiement : "comptant";
+  const mensualite = Math.ceil(prixPromo / 4);
+  const totalEchelonne = mensualite * 4;
+
   const ligneTotal = heures > 0 ? (
     <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "13px", marginTop: 0, marginBottom: "18px" }}>
       {nbModules} {txt.modulesMot} · {heures} {txt.heuresTotal}
     </p>
   ) : null;
+
+  const styleChoix = (actif: boolean) => ({
+    flex: "1 1 240px",
+    background: actif ? "rgba(200,169,110,0.15)" : "rgba(255,255,255,0.04)",
+    border: actif ? "2px solid #c8a96e" : "1px solid rgba(200,169,110,0.25)",
+    borderRadius: "12px",
+    padding: "16px 18px",
+    cursor: "pointer",
+    textAlign: "left" as const,
+    color: "#fff",
+  });
 
   return (
     <div style={{ backgroundColor: "#050508", minHeight: "100vh", color: "#fff" }}>
@@ -252,8 +282,39 @@ export default function FormationPage({ params }: { params: { id: string } }) {
               {txt.prixNormal} {prixFormule.toLocaleString("fr-FR")}€
             </p>
           )}
-          <a href={`/api/checkout?formation=${params.id}&formule=${estBootcamp ? "bootcamp" : palier}`} style={{ display: "inline-block", background: "#c8a96e", color: "#050508", padding: "16px 40px", borderRadius: "8px", textDecoration: "none", fontWeight: "bold", fontSize: "18px" }}>
-            {txt.acheter} — {prixPromo.toLocaleString("fr-FR")}€
+
+          {echelonnable && (
+            <div style={{ marginBottom: "24px" }}>
+              <p style={{ color: "#c8a96e", fontSize: "14px", marginBottom: "12px" }}>{txt.paiementTitre}</p>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", justifyContent: "center" }}>
+                <button onClick={() => setPaiement("comptant")} style={styleChoix(paiementActif === "comptant")}>
+                  <div style={{ fontWeight: "bold", fontSize: "15px", marginBottom: "4px" }}>{txt.comptant}</div>
+                  <div style={{ color: "#c8a96e", fontSize: "20px", fontWeight: "bold", marginBottom: "4px" }}>
+                    {prixPromo.toLocaleString("fr-FR")}€
+                  </div>
+                  <div style={{ color: "rgba(255,255,255,0.5)", fontSize: "12px" }}>{txt.comptantDetail}</div>
+                </button>
+
+                <button onClick={() => setPaiement("4x")} style={styleChoix(paiementActif === "4x")}>
+                  <div style={{ fontWeight: "bold", fontSize: "15px", marginBottom: "4px" }}>{txt.quatreFois}</div>
+                  <div style={{ color: "#c8a96e", fontSize: "20px", fontWeight: "bold", marginBottom: "4px" }}>
+                    {mensualite.toLocaleString("fr-FR")}€ <span style={{ fontSize: "13px", fontWeight: "normal" }}>{txt.parMois}</span>
+                  </div>
+                  <div style={{ color: "rgba(255,255,255,0.5)", fontSize: "12px" }}>
+                    {txt.quatreFoisDetail} · {txt.soitTotal} {totalEchelonne.toLocaleString("fr-FR")}€ {txt.auTotal}
+                  </div>
+                </button>
+              </div>
+            </div>
+          )}
+
+          <a
+            href={`/api/checkout?formation=${params.id}&formule=${estBootcamp ? "bootcamp" : palier}&paiement=${paiementActif}`}
+            style={{ display: "inline-block", background: "#c8a96e", color: "#050508", padding: "16px 40px", borderRadius: "8px", textDecoration: "none", fontWeight: "bold", fontSize: "18px" }}
+          >
+            {paiementActif === "4x"
+              ? `${txt.acheter} — 4 × ${mensualite.toLocaleString("fr-FR")}€`
+              : `${txt.acheter} — ${prixPromo.toLocaleString("fr-FR")}€`}
           </a>
         </div>
 
