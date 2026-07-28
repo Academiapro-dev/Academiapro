@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { emailDeSession } from "../../../../lib/session";
-import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
+import { PDFDocument, rgb } from "pdf-lib";
+
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
