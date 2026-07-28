@@ -9,12 +9,21 @@ export const maxDuration = 300;
 
 const MODELE = "claude-sonnet-4-6";
 const BUCKET = "formations-pdf";
-const SEUIL_MANUEL = 100000;
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
   process.env.SUPABASE_SERVICE_ROLE_KEY || ""
 );
+
+const LARGEUR = 595.28;
+const HAUTEUR = 841.89;
+const MARGE = 62;
+const UTILE = LARGEUR - MARGE * 2;
+const BAS = 70;
+
+const OR = rgb(0.706, 0.612, 0.365);
+const ENCRE = rgb(0.13, 0.13, 0.13);
+const GRIS = rgb(0.45, 0.45, 0.45);
 
 const SYSTEME =
   "Tu es un formateur expert de niveau universitaire. Tu rediges des manuels de formation professionnelle denses, " +
@@ -48,10 +57,6 @@ async function appeler(cle: string, invite: string): Promise<string> {
   return (rep.content || []).map(function (b: any) { return b && b.type === "text" ? b.text : ""; }).join("").trim();
 }
 
-function echapper(t: string): string {
-  return String(t || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
-
 function latin1(t: string): string {
   return String(t || "")
     .replace(/[\u2018\u2019]/g, "'")
@@ -59,55 +64,12 @@ function latin1(t: string): string {
     .replace(/[\u2013\u2014]/g, "-")
     .replace(/\u2026/g, "...")
     .replace(/\u00A0/g, " ")
-    .replace(/([A-Za-z])\u00CC([\u0080-\u00BF])/g, "$1")
     .replace(/[^\u0000-\u00FF]/g, "");
-}
-
-function decoderEntites(t: string): string {
-  return String(t || "")
-    .replace(/&nbsp;/gi, " ")
-    .replace(/&amp;/gi, "&")
-    .replace(/&lt;/gi, "<")
-    .replace(/&gt;/gi, ">")
-    .replace(/&quot;/gi, '"')
-    .replace(/&#39;/gi, "'");
-}
-
-function extraireBlocs(html: string): any[] {
-  let t = String(html || "")
-    .replace(/<script[\s\S]*?<\/script>/gi, " ")
-    .replace(/<style[\s\S]*?<\/style>/gi, " ")
-    .replace(/<head[\s\S]*?<\/head>/gi, " ");
-
-  t = t.replace(/Support de cours officiel/gi, "Manuel de formation");
-  t = t.replace(/Document confidentiel/gi, "Document reserve a l apprenant");
-
-  t = t.replace(/<h1[^>]*>([\s\S]*?)<\/h1>/gi, "\n@@H1@@$1\n");
-  t = t.replace(/<h2[^>]*>([\s\S]*?)<\/h2>/gi, "\n@@H2@@$1\n");
-  t = t.replace(/<h3[^>]*>([\s\S]*?)<\/h3>/gi, "\n@@H3@@$1\n");
-  t = t.replace(/<h4[^>]*>([\s\S]*?)<\/h4>/gi, "\n@@H3@@$1\n");
-  t = t.replace(/<li[^>]*>/gi, "\n@@LI@@");
-
-  t = t.replace(/<br\s*\/?>/gi, "\n");
-  t = t.replace(/<\/(p|div|tr|td|li|section|article|blockquote)>/gi, "\n");
-  t = t.replace(/<[^>]+>/g, " ");
-
-  const blocs: any[] = [];
-  for (const ligne of t.split("\n")) {
-    const brut = latin1(decoderEntites(ligne)).replace(/[ \t]+/g, " ").trim();
-    if (!brut) continue;
-    if (brut.indexOf("@@H1@@") === 0) blocs.push({ type: "h1", texte: brut.slice(6).trim() });
-    else if (brut.indexOf("@@H2@@") === 0) blocs.push({ type: "h2", texte: brut.slice(6).trim() });
-    else if (brut.indexOf("@@H3@@") === 0) blocs.push({ type: "h3", texte: brut.slice(6).trim() });
-    else if (brut.indexOf("@@LI@@") === 0) blocs.push({ type: "li", texte: brut.slice(6).trim() });
-    else blocs.push({ type: "p", texte: brut });
-  }
-  return blocs.filter(function (b: any) { return b.texte.length > 0; });
 }
 
 function couper(texte: string, police: any, taille: number, largeur: number): string[] {
   const lignes: string[] = [];
-  for (const paragraphe of texte.split("\n")) {
+  for (const paragraphe of String(texte).split("\n")) {
     const mots = paragraphe.split(/\s+/).filter(Boolean);
     let ligne = "";
     for (const mot of mots) {
@@ -116,91 +78,172 @@ function couper(texte: string, police: any, taille: number, largeur: number): st
       try { l = police.widthOfTextAtSize(essai, taille); } catch (e) { l = essai.length * taille * 0.5; }
       if (l > largeur && ligne) { lignes.push(ligne); ligne = mot; } else { ligne = essai; }
     }
-    lignes.push(ligne);
+    if (ligne) lignes.push(ligne);
   }
   return lignes;
 }
 
-async function composerPdf(html: string, titre: string): Promise<Uint8Array> {
-  const blocs = extraireBlocs(html);
-  const doc = await PDFDocument.create();
-  const normal = await doc.embedFont("Times-Roman");
-  const gras = await doc.embedFont("Times-Bold");
+function centrer(page: any, texte: string, y: number, police: any, taille: number, couleur: any) {
+  let l = 0;
+  try { l = police.widthOfTextAtSize(texte, taille); } catch (e) { l = texte.length * taille * 0.5; }
+  page.drawText(texte, { x: (LARGEUR - l) / 2, y: y, size: taille, font: police, color: couleur });
+}
 
-  const LARGEUR = 595.28;
-  const HAUTEUR = 841.89;
-  const MARGE = 56;
-  const UTILE = LARGEUR - MARGE * 2;
-  const BAS = 60;
+async function composerManuel(fiche: any, plan: any[], contenus: any): Promise<Uint8Array> {
+  const titre = latin1(fiche.titre || fiche.code);
 
-  const or = rgb(0.63, 0.51, 0.31);
-  const encre = rgb(0.1, 0.1, 0.1);
-  const gris = rgb(0.45, 0.45, 0.45);
+  const livre = await PDFDocument.create();
+  const normal = await livre.embedFont("Times-Roman");
+  const gras = await livre.embedFont("Times-Bold");
 
-  const titrePropre = latin1(String(titre || ""));
-  const date = new Date().toLocaleDateString("fr-FR", { year: "numeric", month: "long", day: "numeric" });
-
-  // Page de couverture
-  const couverture = doc.addPage([LARGEUR, HAUTEUR]);
-  couverture.drawText("AcademIA Pro", { x: MARGE, y: HAUTEUR - 200, size: 30, font: gras, color: or });
-  couverture.drawText("Manuel de formation", { x: MARGE, y: HAUTEUR - 250, size: 15, font: normal, color: gris });
-
-  let yc = HAUTEUR - 340;
-  for (const l of couper(titrePropre, gras, 24, UTILE)) {
-    couverture.drawText(l, { x: MARGE, y: yc, size: 24, font: gras, color: encre });
-    yc = yc - 32;
-  }
-
-  couverture.drawText("Edition du " + latin1(date), { x: MARGE, y: yc - 20, size: 11, font: normal, color: gris });
-  couverture.drawText("Document reserve a l apprenant", { x: MARGE, y: 90, size: 10, font: normal, color: gris });
-
-  let page = doc.addPage([LARGEUR, HAUTEUR]);
-  let y = HAUTEUR - MARGE;
+  let page = livre.addPage([LARGEUR, HAUTEUR]);
+  let y = HAUTEUR - MARGE - 26;
   const pages: any[] = [page];
+  const sommaire: any[] = [];
+  let chapitreCourant = -1;
 
   function nouvellePage() {
-    page = doc.addPage([LARGEUR, HAUTEUR]);
+    page = livre.addPage([LARGEUR, HAUTEUR]);
     pages.push(page);
-    y = HAUTEUR - MARGE;
+    y = HAUTEUR - MARGE - 26;
   }
 
-  function ecrire(lignes: string[], police: any, taille: number, interligne: number, couleur: any, avant: number) {
+  function ecrire(lignes: string[], police: any, taille: number, interligne: number, couleur: any, avant: number, retrait: number) {
     y = y - avant;
     for (const l of lignes) {
       if (y < BAS + interligne) nouvellePage();
-      page.drawText(l, { x: MARGE, y: y, size: taille, font: police, color: couleur });
+      page.drawText(l, { x: MARGE + retrait, y: y, size: taille, font: police, color: couleur });
       y = y - interligne;
     }
   }
 
-  for (const b of blocs) {
-    if (b.type === "h1") {
-      ecrire(couper(b.texte, gras, 17, UTILE), gras, 17, 23, or, 18);
-      y = y - 6;
-    } else if (b.type === "h2") {
-      ecrire(couper(b.texte, gras, 14, UTILE), gras, 14, 19, encre, 14);
-      y = y - 4;
-    } else if (b.type === "h3") {
-      ecrire(couper(b.texte, gras, 12, UTILE), gras, 12, 17, or, 10);
-    } else if (b.type === "li") {
-      ecrire(couper("- " + b.texte, normal, 11, UTILE), normal, 11, 16, encre, 2);
-    } else {
-      ecrire(couper(b.texte, normal, 11, UTILE), normal, 11, 16, encre, 6);
+  for (const l of plan) {
+    if (l.chapitre_num !== chapitreCourant) {
+      chapitreCourant = l.chapitre_num;
+      nouvellePage();
+      const etiquette = "Chapitre " + l.chapitre_num + " - " + latin1(l.chapitre_titre);
+      page.drawRectangle({ x: MARGE, y: HAUTEUR - 132, width: UTILE, height: 1.5, color: OR });
+      let yt = HAUTEUR - 118;
+      for (const ligne of couper(etiquette, gras, 19, UTILE)) {
+        page.drawText(ligne, { x: MARGE, y: yt, size: 19, font: gras, color: OR });
+        yt = yt - 25;
+      }
+      sommaire.push({ niveau: 1, numero: String(l.chapitre_num), titre: latin1(l.chapitre_titre), page: pages.length });
+      y = HAUTEUR - 180;
+    }
+
+    if (y < BAS + 80) nouvellePage();
+    const num = String(l.chapitre_num) + "." + String(l.module_num);
+    y = y - 18;
+    page.drawText(num, { x: MARGE, y: y, size: 13, font: gras, color: OR });
+    let ys = y;
+    for (const ligne of couper(latin1(l.module_titre), gras, 13, UTILE - 40)) {
+      page.drawText(ligne, { x: MARGE + 36, y: ys, size: 13, font: gras, color: ENCRE });
+      ys = ys - 18;
+    }
+    y = ys - 8;
+    sommaire.push({ niveau: 2, numero: num, titre: latin1(l.module_titre), page: pages.length });
+
+    const texte = contenus[fiche.code + "_ch" + l.chapitre_num + "_mod" + l.module_num + "_fr"] || "";
+    for (const bloc of String(texte).split(/\n{2,}/)) {
+      const x = latin1(bloc).replace(/[ \t]+/g, " ").trim();
+      if (!x) continue;
+      if (x.indexOf("## ") === 0 || x.indexOf("# ") === 0) {
+        const t = x.replace(/^#+\s*/, "");
+        ecrire(couper(t, gras, 11.5, UTILE), gras, 11.5, 16, OR, 12, 0);
+      } else if (x.indexOf("- ") === 0 || x.indexOf("* ") === 0) {
+        ecrire(couper("- " + x.slice(2), normal, 11, UTILE - 16), normal, 11, 16, ENCRE, 2, 16);
+      } else {
+        ecrire(couper(x, normal, 11, UTILE), normal, 11, 16.5, ENCRE, 7, 0);
+      }
     }
   }
 
-  for (let i = 0; i < pages.length; i++) {
-    pages[i].drawText(String(i + 1) + " / " + pages.length, {
-      x: LARGEUR / 2 - 20, y: 30, size: 9, font: normal, color: rgb(0.55, 0.55, 0.55),
-    });
+  const doc = await PDFDocument.create();
+  const n2 = await doc.embedFont("Times-Roman");
+  const g2 = await doc.embedFont("Times-Bold");
+
+  const cv = doc.addPage([LARGEUR, HAUTEUR]);
+  cv.drawText("AcadeMIA Pro", { x: MARGE, y: HAUTEUR - 232, size: 12, font: n2, color: GRIS });
+  cv.drawRectangle({ x: MARGE, y: HAUTEUR - 244, width: UTILE, height: 2, color: OR });
+
+  centrer(cv, "Manuel Professionnel de Formation", HAUTEUR - 330, n2, 17, ENCRE);
+
+  let yt2 = HAUTEUR - 390;
+  for (const l of couper(titre, g2, 30, UTILE)) {
+    centrer(cv, l, yt2, g2, 30, OR);
+    yt2 = yt2 - 38;
+  }
+
+  if (fiche.niveau) {
+    centrer(cv, latin1(String(fiche.niveau)), yt2 - 6, n2, 14, ENCRE);
+    yt2 = yt2 - 30;
+  }
+
+  cv.drawRectangle({ x: MARGE, y: yt2 - 40, width: UTILE, height: 2, color: OR });
+
+  const infos: string[] = ["Formation " + latin1(fiche.code), "AcadeMIA Pro"];
+  if (fiche.duree) infos.push(latin1(String(fiche.duree)));
+  if (fiche.domaine) infos.push(latin1(String(fiche.domaine)));
+
+  let yi = yt2 - 76;
+  cv.drawText(infos.join(" - "), { x: MARGE, y: yi, size: 11, font: n2, color: ENCRE });
+  yi = yi - 18;
+  const nbCh = sommaire.filter(function (s: any) { return s.niveau === 1; }).length;
+  const nbMo = sommaire.filter(function (s: any) { return s.niveau === 2; }).length;
+  cv.drawText(String(nbCh) + " chapitres - " + String(nbMo) + " modules", { x: MARGE, y: yi, size: 11, font: n2, color: ENCRE });
+  yi = yi - 18;
+  cv.drawText("DOCUMENT RESERVE AUX STAGIAIRES INSCRITS", { x: MARGE, y: yi, size: 10, font: n2, color: GRIS });
+
+  const date = latin1(new Date().toLocaleDateString("fr-FR", { year: "numeric", month: "long", day: "numeric" }));
+  cv.drawText("Edition du " + date, { x: MARGE, y: 90, size: 10, font: n2, color: GRIS });
+
+  const parPage = 32;
+  const nbSommaire = Math.max(1, Math.ceil(sommaire.length / parPage));
+  const pagesSommaire: any[] = [];
+  for (let i = 0; i < nbSommaire; i++) pagesSommaire.push(doc.addPage([LARGEUR, HAUTEUR]));
+  const decalage = 1 + nbSommaire;
+
+  for (let i = 0; i < nbSommaire; i++) {
+    const p = pagesSommaire[i];
+    let ys = HAUTEUR - 130;
+    if (i === 0) {
+      centrer(p, "Table des Matieres", HAUTEUR - 110, g2, 26, OR);
+      p.drawRectangle({ x: MARGE, y: HAUTEUR - 126, width: UTILE, height: 1.5, color: OR });
+      ys = HAUTEUR - 180;
+    }
+    for (const s of sommaire.slice(i * parPage, i * parPage + parPage)) {
+      const numero = String(s.page + decalage);
+      if (s.niveau === 1) {
+        const t = couper(s.numero + ". " + s.titre, g2, 13, UTILE - 50)[0] || s.titre;
+        p.drawText(t, { x: MARGE, y: ys, size: 13, font: g2, color: OR });
+        p.drawText("p." + numero, { x: LARGEUR - MARGE - 34, y: ys, size: 12, font: g2, color: OR });
+        ys = ys - 21;
+      } else {
+        const t = couper(s.numero + " " + s.titre, n2, 11, UTILE - 80)[0] || s.titre;
+        p.drawText(t, { x: MARGE + 26, y: ys, size: 11, font: n2, color: ENCRE });
+        p.drawText("p." + numero, { x: LARGEUR - MARGE - 34, y: ys, size: 10, font: n2, color: GRIS });
+        ys = ys - 18;
+      }
+    }
+  }
+
+  const copiees = await doc.copyPages(livre, livre.getPageIndices());
+  for (const p of copiees) doc.addPage(p);
+
+  const toutes = doc.getPages();
+  for (let i = decalage; i < toutes.length; i++) {
+    toutes[i].drawText(titre.slice(0, 68), { x: MARGE, y: HAUTEUR - 44, size: 8, font: n2, color: GRIS });
+    toutes[i].drawRectangle({ x: MARGE, y: HAUTEUR - 52, width: UTILE, height: 0.5, color: rgb(0.87, 0.87, 0.87) });
+    centrer(toutes[i], String(i + 1), 40, n2, 9, GRIS);
   }
 
   return await doc.save();
 }
 
-async function livrer(code: string, titre: string, html: string, email: string, identifiant: string) {
-  const octets = await composerPdf(html, titre);
-  const chemin = "manuels/" + code + "_manuel.pdf";
+async function livrer(fiche: any, plan: any[], contenus: any, email: string, identifiant: string) {
+  const octets = await composerManuel(fiche, plan, contenus);
+  const chemin = "manuels/" + fiche.code + "_manuel.pdf";
 
   await supabase.storage
     .from(BUCKET)
@@ -219,11 +262,11 @@ async function livrer(code: string, titre: string, html: string, email: string, 
       body: JSON.stringify({
         from: "AcademIA Pro <bienvenue@academiapro.fr>",
         to: email,
-        subject: "Votre manuel " + titre + " est pret",
+        subject: "Votre manuel " + fiche.titre + " est pret",
         html:
           '<div style="font-family:Georgia,serif;line-height:1.7">' +
           '<h1 style="color:#c8a96e">Votre manuel est pret</h1>' +
-          "<p>Le manuel complet de votre formation <strong>" + echapper(titre) + "</strong> vous attend au format PDF.</p>" +
+          "<p>Le manuel complet de votre formation vous attend au format PDF.</p>" +
           '<p><a href="' + adresse + '">Telecharger mon manuel</a></p>' +
           '<p><a href="https://academiapro.fr/dashboard">Acceder a mon espace de formation</a></p>' +
           "<p>L equipe AcademIA Pro</p></div>",
@@ -270,22 +313,15 @@ export async function GET(req: Request) {
     const cmd = commandes[0];
     const code = String(cmd.formation || "").toUpperCase();
 
-    const { data: fiche } = await supabase.from("formations").select("code, titre").eq("code", code).maybeSingle();
+    const { data: fiche } = await supabase
+      .from("formations")
+      .select("code, titre, domaine, niveau, duree")
+      .eq("code", code)
+      .maybeSingle();
+
     if (!fiche) {
       await supabase.from("commandes_lemonsqueezy").update({ manuel_statut: "sans_fiche" }).eq("identifiant_ls", cmd.identifiant_ls);
       return NextResponse.json({ ok: false, code: code, erreur: "formation introuvable" });
-    }
-
-    const { data: existant } = await supabase.storage
-      .from(BUCKET)
-      .download(code + "_support_cours.html");
-
-    if (existant) {
-      const html = await existant.text();
-      if (html.length >= SEUIL_MANUEL) {
-        const poids = await livrer(code, fiche.titre, html, cmd.email, cmd.identifiant_ls);
-        return NextResponse.json({ ok: true, code: code, voie: "manuel existant", source: html.length, octets: poids, livre: true });
-      }
     }
 
     const { data: plan } = await supabase
@@ -349,35 +385,14 @@ export async function GET(req: Request) {
       return NextResponse.json({
         ok: true,
         code: code,
-        voie: "generation",
         produit: "ch" + l.chapitre_num + "/mod" + l.module_num,
         taille: complet.length,
         restants: manquants.length - 1,
       });
     }
 
-    let corps = "";
-    let chapitreCourant = -1;
-    for (const l of plan) {
-      if (l.chapitre_num !== chapitreCourant) {
-        chapitreCourant = l.chapitre_num;
-        corps += "<h1>Chapitre " + l.chapitre_num + " - " + echapper(l.chapitre_titre) + "</h1>\n";
-      }
-      corps += "<h2>Module " + l.module_num + " - " + echapper(l.module_titre) + "</h2>\n";
-      const texte = contenus[code + "_ch" + l.chapitre_num + "_mod" + l.module_num + "_fr"] || "";
-      corps += texte.split(/\n{2,}/).map(function (b: string) {
-        const x = b.trim();
-        if (!x) return "";
-        if (x.indexOf("## ") === 0) return "<h3>" + echapper(x.slice(3)) + "</h3>";
-        if (x.indexOf("# ") === 0) return "<h3>" + echapper(x.slice(2)) + "</h3>";
-        return "<p>" + echapper(x).replace(/\n/g, "<br>") + "</p>";
-      }).join("\n") + "\n";
-    }
-
-    const html = "<html><body>" + corps + "</body></html>";
-    const poids = await livrer(code, fiche.titre, html, cmd.email, cmd.identifiant_ls);
-
-    return NextResponse.json({ ok: true, code: code, voie: "assemblage", octets: poids, livre: true });
+    const poids = await livrer(fiche, plan, contenus, cmd.email, cmd.identifiant_ls);
+    return NextResponse.json({ ok: true, code: code, livre: true, octets: poids });
   } catch (e: any) {
     return NextResponse.json({ ok: false, erreur: String(e.message || e) }, { status: 500 });
   }
