@@ -1,9 +1,9 @@
 import { createClient } from "@supabase/supabase-js";
 
-// Sitemap dynamique : pages publiques + blog en 3 langues.
-// Genere a la demande, mis en cache 1h. Chaque nouvel
-// article (y compris du futur redacteur automatique)
-// apparait automatiquement.
+// Sitemap dynamique : pages publiques + fiches de formation
+// + blog en 3 langues. Genere a la demande, mis en cache 1h.
+// Chaque nouvelle formation et chaque nouvel article
+// apparaissent automatiquement.
 
 export const revalidate = 3600;
 
@@ -36,6 +36,21 @@ export default async function sitemap() {
 
   try {
     const supabase = clientLecture();
+
+    // Fiches de formation : les pages produit du site.
+    const { data: formations } = await supabase
+      .from("formations")
+      .select("code")
+      .order("code", { ascending: true });
+
+    for (const f of (formations || [])) {
+      if (!f.code) continue;
+      entrees.push({
+        url: SITE + "/formation/" + f.code,
+        changeFrequency: "weekly",
+        priority: 0.9,
+      });
+    }
 
     const { data: articlesFr } = await supabase
       .from("blog")
