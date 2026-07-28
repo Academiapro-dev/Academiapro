@@ -17,15 +17,13 @@ const supabase = createClient(
 
 const LARGEUR = 595.28;
 const HAUTEUR = 841.89;
-const MARGE = 60;
+const MARGE = 62;
 const UTILE = LARGEUR - MARGE * 2;
 const BAS = 70;
 
-const OR = rgb(0.784, 0.663, 0.431);
-const NUIT = rgb(0.02, 0.02, 0.031);
-const ENCRE = rgb(0.11, 0.11, 0.11);
+const OR = rgb(0.706, 0.612, 0.365);
+const ENCRE = rgb(0.13, 0.13, 0.13);
 const GRIS = rgb(0.45, 0.45, 0.45);
-const CREME = rgb(0.98, 0.97, 0.94);
 
 function latin1(t: string): string {
   return String(t || "")
@@ -48,6 +46,12 @@ function decoderEntites(t: string): string {
     .replace(/&#39;/gi, "'");
 }
 
+function sansPrix(t: string): string {
+  return String(t || "")
+    .replace(/\d[\d\s]{1,6}\s*(EUR|euros?|\u20AC)/gi, " ")
+    .replace(/(Tarif|Prix)\s*:?\s*[^|.]{0,30}/gi, " ");
+}
+
 function extraireBlocs(html: string): any[] {
   let t = String(html || "")
     .replace(/<script[\s\S]*?<\/script>/gi, " ")
@@ -55,7 +59,6 @@ function extraireBlocs(html: string): any[] {
     .replace(/<head[\s\S]*?<\/head>/gi, " ");
 
   t = t.replace(/Support de cours officiel/gi, "Manuel de formation");
-  t = t.replace(/Document confidentiel/gi, "Document reserve a l apprenant");
 
   t = t.replace(/<h1[^>]*>([\s\S]*?)<\/h1>/gi, "\n@@H1@@$1\n");
   t = t.replace(/<h2[^>]*>([\s\S]*?)<\/h2>/gi, "\n@@H2@@$1\n");
@@ -68,7 +71,7 @@ function extraireBlocs(html: string): any[] {
 
   const blocs: any[] = [];
   for (const ligne of t.split("\n")) {
-    const brut = latin1(decoderEntites(ligne)).replace(/[ \t]+/g, " ").trim();
+    const brut = sansPrix(latin1(decoderEntites(ligne))).replace(/[ \t]+/g, " ").trim();
     if (!brut) continue;
     if (brut.indexOf("@@H1@@") === 0) blocs.push({ type: "h1", texte: brut.slice(6).trim() });
     else if (brut.indexOf("@@H2@@") === 0) blocs.push({ type: "h2", texte: brut.slice(6).trim() });
@@ -95,6 +98,12 @@ function couper(texte: string, police: any, taille: number, largeur: number): st
   return lignes;
 }
 
+function centrer(page: any, texte: string, y: number, police: any, taille: number, couleur: any) {
+  let l = 0;
+  try { l = police.widthOfTextAtSize(texte, taille); } catch (e) { l = texte.length * taille * 0.5; }
+  page.drawText(texte, { x: (LARGEUR - l) / 2, y: y, size: taille, font: police, color: couleur });
+}
+
 export async function GET(req: Request) {
   try {
     const email = emailDeSession();
@@ -102,8 +111,7 @@ export async function GET(req: Request) {
       return NextResponse.json({ ok: false, erreur: "reserve a l administrateur" }, { status: 403 });
     }
 
-    const url = new URL(req.url);
-    const code = (url.searchParams.get("code") || "").trim().toUpperCase();
+    const code = (new URL(req.url).searchParams.get("code") || "").trim().toUpperCase();
     if (!code) return NextResponse.json({ ok: false, erreur: "code manquant" }, { status: 400 });
 
     const { data: fiche } = await supabase
@@ -123,21 +131,21 @@ export async function GET(req: Request) {
     const blocs = extraireBlocs(await fichier.text());
     const titre = latin1((fiche && fiche.titre) || code);
 
-    // --- Corps du document, dans un premier livre ---
     const livre = await PDFDocument.create();
     const normal = await livre.embedFont("Times-Roman");
     const gras = await livre.embedFont("Times-Bold");
-    const italique = await livre.embedFont("Times-Italic");
 
     let page = livre.addPage([LARGEUR, HAUTEUR]);
-    let y = HAUTEUR - MARGE - 24;
+    let y = HAUTEUR - MARGE - 26;
     const pages: any[] = [page];
     const sommaire: any[] = [];
+    let numChapitre = 0;
+    let numSection = 0;
 
     function nouvellePage() {
       page = livre.addPage([LARGEUR, HAUTEUR]);
       pages.push(page);
-      y = HAUTEUR - MARGE - 24;
+      y = HAUTEUR - MARGE - 26;
     }
 
     function ecrire(lignes: string[], police: any, taille: number, interligne: number, couleur: any, avant: number, retrait: number) {
@@ -151,24 +159,34 @@ export async function GET(req: Request) {
 
     for (const b of blocs) {
       if (b.type === "h1") {
-        if (pages.length > 1 || y < HAUTEUR - MARGE - 40) nouvellePage();
-        page.drawRectangle({ x: 0, y: HAUTEUR - 150, width: LARGEUR, height: 90, color: NUIT });
-        const lignes = couper(b.texte, gras, 20, UTILE);
-        let yt = HAUTEUR - 100;
-        for (const l of lignes) {
-          page.drawText(l, { x: MARGE, y: yt, size: 20, font: gras, color: OR });
-          yt = yt - 26;
+        nouvellePage();
+        numChapitre++;
+        numSection = 0;
+        const etiquette = String(numChapitre) + ". " + b.texte;
+        page.drawRectangle({ x: MARGE, y: HAUTEUR - 132, width: UTILE, height: 1.5, color: OR });
+        let yt = HAUTEUR - 118;
+        for (const l of couper(etiquette, gras, 19, UTILE)) {
+          page.drawText(l, { x: MARGE, y: yt, size: 19, font: gras, color: OR });
+          yt = yt - 25;
         }
-        sommaire.push({ titre: b.texte, page: pages.length });
-        y = HAUTEUR - 190;
+        sommaire.push({ niveau: 1, numero: String(numChapitre), titre: b.texte, page: pages.length });
+        y = HAUTEUR - 180;
       } else if (b.type === "h2") {
-        if (y < BAS + 70) nouvellePage();
-        y = y - 16;
-        page.drawRectangle({ x: MARGE - 8, y: y - 6, width: 4, height: 20, color: OR });
-        ecrire(couper(b.texte, gras, 14, UTILE - 10), gras, 14, 19, ENCRE, 0, 6);
-        y = y - 4;
+        if (y < BAS + 80) nouvellePage();
+        numSection++;
+        const num = String(numChapitre || 1) + "." + String(numSection);
+        y = y - 18;
+        page.drawText(num, { x: MARGE, y: y, size: 13, font: gras, color: OR });
+        const lignes = couper(b.texte, gras, 13, UTILE - 36);
+        let ys = y;
+        for (const l of lignes) {
+          page.drawText(l, { x: MARGE + 34, y: ys, size: 13, font: gras, color: ENCRE });
+          ys = ys - 18;
+        }
+        y = ys - 6;
+        sommaire.push({ niveau: 2, numero: num, titre: b.texte, page: pages.length });
       } else if (b.type === "h3") {
-        ecrire(couper(b.texte, gras, 12, UTILE), gras, 12, 17, OR, 12, 0);
+        ecrire(couper(b.texte, gras, 11.5, UTILE), gras, 11.5, 16, OR, 12, 0);
       } else if (b.type === "li") {
         ecrire(couper("- " + b.texte, normal, 11, UTILE - 16), normal, 11, 16, ENCRE, 2, 16);
       } else {
@@ -176,56 +194,78 @@ export async function GET(req: Request) {
       }
     }
 
-    // --- Assemblage final : couverture + sommaire + corps ---
     const doc = await PDFDocument.create();
     const n2 = await doc.embedFont("Times-Roman");
     const g2 = await doc.embedFont("Times-Bold");
-    const i2 = await doc.embedFont("Times-Italic");
 
-    const couverture = doc.addPage([LARGEUR, HAUTEUR]);
-    couverture.drawRectangle({ x: 0, y: 0, width: LARGEUR, height: HAUTEUR, color: NUIT });
-    couverture.drawRectangle({ x: 0, y: HAUTEUR - 260, width: LARGEUR, height: 6, color: OR });
-    couverture.drawText("AcademIA Pro", { x: MARGE, y: HAUTEUR - 220, size: 30, font: g2, color: OR });
-    couverture.drawText("Manuel de formation", { x: MARGE, y: HAUTEUR - 300, size: 13, font: n2, color: CREME });
+    // Couverture, fond blanc
+    const cv = doc.addPage([LARGEUR, HAUTEUR]);
+    cv.drawText("AcadeMIA Pro", { x: MARGE, y: HAUTEUR - 232, size: 12, font: n2, color: GRIS });
+    cv.drawRectangle({ x: MARGE, y: HAUTEUR - 244, width: UTILE, height: 2, color: OR });
 
-    let yc = HAUTEUR - 380;
-    for (const l of couper(titre, g2, 26, UTILE)) {
-      couverture.drawText(l, { x: MARGE, y: yc, size: 26, font: g2, color: CREME });
-      yc = yc - 34;
+    centrer(cv, "Manuel Professionnel de Formation", HAUTEUR - 330, n2, 17, ENCRE);
+
+    let yt2 = HAUTEUR - 390;
+    for (const l of couper(titre, g2, 30, UTILE)) {
+      centrer(cv, l, yt2, g2, 30, OR);
+      yt2 = yt2 - 38;
     }
+
+    if (fiche && fiche.niveau) {
+      centrer(cv, latin1(String(fiche.niveau)), yt2 - 6, n2, 14, ENCRE);
+      yt2 = yt2 - 30;
+    }
+
+    cv.drawRectangle({ x: MARGE, y: yt2 - 40, width: UTILE, height: 2, color: OR });
 
     const infos: string[] = [];
-    if (fiche && fiche.code) infos.push("Code " + latin1(fiche.code));
+    if (fiche && fiche.code) infos.push("Formation " + latin1(fiche.code));
+    infos.push("AcadeMIA Pro");
     if (fiche && fiche.duree) infos.push(latin1(String(fiche.duree)));
-    if (fiche && fiche.niveau) infos.push("Niveau " + latin1(String(fiche.niveau)));
-    if (infos.length > 0) {
-      couverture.drawText(infos.join("   -   "), { x: MARGE, y: yc - 24, size: 11, font: n2, color: OR });
-    }
+    if (fiche && fiche.domaine) infos.push(latin1(String(fiche.domaine)));
+
+    let yi = yt2 - 76;
+    cv.drawText(infos.join(" - "), { x: MARGE, y: yi, size: 11, font: n2, color: ENCRE });
+    yi = yi - 18;
+    cv.drawText(
+      String(sommaire.filter(function (s: any) { return s.niveau === 1; }).length) + " chapitres - " +
+      String(sommaire.filter(function (s: any) { return s.niveau === 2; }).length) + " sections",
+      { x: MARGE, y: yi, size: 11, font: n2, color: ENCRE }
+    );
+    yi = yi - 18;
+    cv.drawText("DOCUMENT RESERVE AUX STAGIAIRES INSCRITS", { x: MARGE, y: yi, size: 10, font: n2, color: GRIS });
 
     const date = latin1(new Date().toLocaleDateString("fr-FR", { year: "numeric", month: "long", day: "numeric" }));
-    couverture.drawText("Edition du " + date, { x: MARGE, y: 130, size: 10, font: i2, color: GRIS });
-    couverture.drawText("Document reserve a l apprenant", { x: MARGE, y: 108, size: 10, font: n2, color: GRIS });
+    cv.drawText("Edition du " + date, { x: MARGE, y: 90, size: 10, font: n2, color: GRIS });
 
-    const parPage = 34;
-    const nbSommaire = sommaire.length > 0 ? Math.ceil(sommaire.length / parPage) : 0;
-    const decalage = 1 + nbSommaire;
-
+    // Table des matieres
+    const parPage = 32;
+    const nbSommaire = Math.max(1, Math.ceil(sommaire.length / parPage));
     const pagesSommaire: any[] = [];
     for (let i = 0; i < nbSommaire; i++) pagesSommaire.push(doc.addPage([LARGEUR, HAUTEUR]));
+    const decalage = 1 + nbSommaire;
 
     for (let i = 0; i < nbSommaire; i++) {
       const p = pagesSommaire[i];
+      let ys = HAUTEUR - 130;
       if (i === 0) {
-        p.drawText("Table des matieres", { x: MARGE, y: HAUTEUR - 100, size: 20, font: g2, color: OR });
-        p.drawRectangle({ x: MARGE, y: HAUTEUR - 116, width: 60, height: 2, color: OR });
+        centrer(p, "Table des Matieres", HAUTEUR - 110, g2, 26, OR);
+        p.drawRectangle({ x: MARGE, y: HAUTEUR - 126, width: UTILE, height: 1.5, color: OR });
+        ys = HAUTEUR - 180;
       }
-      let ys = HAUTEUR - (i === 0 ? 160 : 100);
-      const debut = i * parPage;
-      for (const s of sommaire.slice(debut, debut + parPage)) {
-        const t = couper(s.titre, n2, 11, UTILE - 40)[0] || s.titre;
-        p.drawText(t, { x: MARGE, y: ys, size: 11, font: n2, color: ENCRE });
-        p.drawText(String(s.page + decalage), { x: LARGEUR - MARGE - 24, y: ys, size: 11, font: n2, color: GRIS });
-        ys = ys - 19;
+      for (const s of sommaire.slice(i * parPage, i * parPage + parPage)) {
+        const numero = String(s.page + decalage);
+        if (s.niveau === 1) {
+          const t = couper(s.numero + ". " + s.titre, g2, 13, UTILE - 50)[0] || s.titre;
+          p.drawText(t, { x: MARGE, y: ys, size: 13, font: g2, color: OR });
+          p.drawText("p." + numero, { x: LARGEUR - MARGE - 34, y: ys, size: 12, font: g2, color: OR });
+          ys = ys - 21;
+        } else {
+          const t = couper(s.numero + " " + s.titre, n2, 11, UTILE - 80)[0] || s.titre;
+          p.drawText(t, { x: MARGE + 26, y: ys, size: 11, font: n2, color: ENCRE });
+          p.drawText("p." + numero, { x: LARGEUR - MARGE - 34, y: ys, size: 10, font: n2, color: GRIS });
+          ys = ys - 18;
+        }
       }
     }
 
@@ -233,10 +273,10 @@ export async function GET(req: Request) {
     for (const p of copiees) doc.addPage(p);
 
     const toutes = doc.getPages();
-    for (let i = 1; i < toutes.length; i++) {
-      toutes[i].drawText(latin1(titre).slice(0, 70), { x: MARGE, y: HAUTEUR - 40, size: 8, font: i2, color: GRIS });
-      toutes[i].drawRectangle({ x: MARGE, y: HAUTEUR - 48, width: UTILE, height: 0.5, color: rgb(0.85, 0.85, 0.85) });
-      toutes[i].drawText(String(i + 1), { x: LARGEUR / 2 - 6, y: 36, size: 9, font: n2, color: GRIS });
+    for (let i = decalage; i < toutes.length; i++) {
+      toutes[i].drawText(titre.slice(0, 68), { x: MARGE, y: HAUTEUR - 44, size: 8, font: n2, color: GRIS });
+      toutes[i].drawRectangle({ x: MARGE, y: HAUTEUR - 52, width: UTILE, height: 0.5, color: rgb(0.87, 0.87, 0.87) });
+      centrer(toutes[i], String(i + 1), 40, n2, 9, GRIS);
     }
 
     const octets = await doc.save();
@@ -253,9 +293,9 @@ export async function GET(req: Request) {
     return NextResponse.json({
       ok: true,
       code: code,
-      chemin: chemin,
       pages: toutes.length,
-      chapitres: sommaire.length,
+      chapitres: sommaire.filter(function (s: any) { return s.niveau === 1; }).length,
+      sections: sommaire.filter(function (s: any) { return s.niveau === 2; }).length,
       octets: octets.length,
     });
   } catch (e: any) {
