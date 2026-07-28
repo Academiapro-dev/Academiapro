@@ -13,18 +13,19 @@ const supabase = createClient(
 const LS_API = "https://api.lemonsqueezy.com/v1";
 const KEY = process.env.LEMONSQUEEZY_API_KEY || "";
 
-// Produit 1252488 "Formation AcademIA Pro - paiement echelonne"
-const VARIANTE_4X = "1957887";
-const VARIANTE_12M = "1957917";
+// Noms exacts des trois produits Lemon Squeezy, une fois normalises.
+const NOM_COMPTANT = "formation academia pro";
+const NOM_4X = "formation academia pro - 4 fois";
+const NOM_12M = "formation academia pro - 12 mois";
 
 // La formule 12 mois est un accompagnement sur un an : majoration de 20 %.
 const MAJORATION_12M = 1.2;
 
-// En dessous de ce montant, l'echelonnement n'est pas propose.
+// En dessous de ce montant, l echelonnement n est pas propose.
 const MINIMUM_ECHELONNE = 300;
 
 let cacheStoreId: string | null = null;
-let cacheVariantId: string | null = null;
+const cacheVariantes: { [nom: string]: string } = {};
 
 function prixPalier(base: number, palier: string): number {
   if (palier === "elearning") return Math.round(base * 0.5);
@@ -34,8 +35,15 @@ function prixPalier(base: number, palier: string): number {
   return base;
 }
 
-function sansAccents(s: string): string {
-  return s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+// Minuscules, sans accents, tirets uniformises, espaces reduits.
+function normaliser(s: string): string {
+  return String(s)
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[\u2010-\u2015]/g, "-")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 async function lsGet(path: string) {
@@ -50,8 +58,10 @@ async function lsGet(path: string) {
   return { status: r.status, j };
 }
 
-async function trouverProduit() {
-  if (cacheStoreId && cacheVariantId) return;
+// Retrouve un produit par son nom exact et renvoie sa premiere variante.
+async function trouverVariante(nomCible: string): Promise<string> {
+  if (cacheVariantes[nomCible]) return cacheVariantes[nomCible];
+
   const res = await lsGet("/products?page[size]=100");
   if (res.status !== 200) {
     throw new Error(
@@ -60,22 +70,28 @@ async function trouverProduit() {
       JSON.stringify((res.j && res.j.errors) || res.j).slice(0, 300)
     );
   }
-  const noms = ((res.j && res.j.data) || []).map((p: any) => p.attributes.name);
-  // On exclut le produit de paiement echelonne, qui contient lui aussi "academia".
-  const prod = ((res.j && res.j.data) || []).find((p: any) => {
-    const n = sansAccents(String(p.attributes.name || ""));
-    return n.includes("academia") && !n.includes("echelonne");
-  });
+
+  const liste = (res.j && res.j.data) || [];
+  const noms = liste.map((p: any) => p.attributes.name);
+  const prod = liste.find((p: any) => normaliser(p.attributes.name || "") === nomCible);
+
   if (!prod) {
     throw new Error(
-      "Produit introuvable. Produits visibles par la cle : [" + noms.join(" | ") +
-      "]. Si la liste est vide ou incomplete : verifier le mode Test/Live (cle et produit doivent etre dans le meme mode)."
+      "Produit introuvable : \"" + nomCible + "\". Produits visibles par la cle : [" +
+      noms.join(" | ") +
+      "]. Verifier le nom exact et le mode Test/Live (cle et produit doivent etre dans le meme mode)."
     );
   }
+
   cacheStoreId = String(prod.attributes.store_id);
+
   const vars = await lsGet("/variants?filter[product_id]=" + prod.id);
-  if (!vars.j || !vars.j.data || !vars.j.data.length) throw new Error("Variante introuvable");
-  cacheVariantId = String(vars.j.data[0].id);
+  if (!vars.j || !vars.j.data || !vars.j.data.length) {
+    throw new Error("Aucune variante pour le produit \"" + nomCible + "\"");
+  }
+
+  cacheVariantes[nomCible] = String(vars.j.data[0].id);
+  return cacheVariantes[nomCible];
 }
 
 export async function GET(req: Request) {
@@ -130,27 +146,27 @@ export async function GET(req: Request) {
       );
     }
 
-    await trouverProduit();
-
-    let varianteChoisie = String(cacheVariantId);
+    let nomProduit = NOM_COMPTANT;
     let echeances = 1;
     let prixTotal = prixFinal;
     let montantEcheance = prixFinal;
 
     if (paiement === "4x") {
-      varianteChoisie = VARIANTE_4X;
+      nomProduit = NOM_4X;
       echeances = 4;
       prixTotal = prixFinal;
       montantEcheance = Math.round((prixTotal * 100) / 4) / 100;
     } else if (paiement === "12m") {
-      varianteChoisie = VARIANTE_12M;
+      nomProduit = NOM_12M;
       echeances = 12;
       prixTotal = Math.round(prixFinal * MAJORATION_12M);
       montantEcheance = Math.round((prixTotal * 100) / 12) / 100;
     }
 
-    // Si l'acheteur est connecte, on preremplit son email de session :
-    // l'acces est indexe sur cette adresse, autant qu'il paie avec.
+    const varianteChoisie = await trouverVariante(nomProduit);
+
+    // Si l acheteur est connecte, on preremplit son email de session :
+    // l acces est indexe sur cette adresse, autant qu il paie avec.
     const emailConnecte = emailDeSession();
 
     const donneesCheckout: any = {
