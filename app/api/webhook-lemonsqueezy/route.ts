@@ -13,6 +13,10 @@ const supabase = createClient(
 
 const SECRET = process.env.LEMONSQUEEZY_WEBHOOK_SECRET || "";
 
+// Evenements qui retirent l acces. Attention : un abonnement "cancelled"
+// reste actif jusqu a la fin de la periode payee, on ne retire donc rien.
+const RETRAITS = ["subscription_expired", "order_refunded"];
+
 function sansAccents(s: string): string {
   return String(s).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 }
@@ -48,6 +52,19 @@ async function envoyerEmailBienvenue(email: string, nom: string, titre: string, 
   } catch (e) {
     console.error("Erreur envoi email bienvenue:", e);
   }
+}
+
+// Retrouve la formation concernee quand l evenement ne la porte pas :
+// on reprend la derniere commande de cet acheteur.
+async function formationDeLAcheteur(email: string): Promise<string | null> {
+  const { data } = await supabase
+    .from("commandes_lemonsqueezy")
+    .select("formation")
+    .eq("email", email)
+    .not("formation", "is", null)
+    .order("id", { ascending: false })
+    .limit(1);
+  return data && data.length > 0 ? data[0].formation : null;
 }
 
 export async function POST(req: Request) {
@@ -104,8 +121,51 @@ export async function POST(req: Request) {
 
     const nouvel = inseres && inseres.length > 0;
     let active = false;
+    let retire = false;
     let livraison = "aucune";
 
+    // ---- RETRAIT D ACCES ----
+    if (nouvel && RETRAITS.indexOf(evenement) >= 0 && email) {
+      const cible = formation || (await formationDeLAcheteur(email));
+
+      if (cible) {
+        await supabase
+          .from("acces_formations")
+          .delete()
+          .eq("email", email)
+          .eq("formation", cible);
+
+        try {
+          await supabase
+            .from("formations_lms")
+            .update({ statut: "inactif" })
+            .eq("email", email)
+            .eq("formation_code", cible);
+        } catch (e) {
+          console.error("formations_lms retrait:", e);
+        }
+
+        try {
+          await supabase
+            .from("crm")
+            .update({ statut: "ancien client", derniere_interaction: new Date().toISOString() })
+            .eq("email", email);
+        } catch (e) {
+          console.error("crm retrait:", e);
+        }
+
+        retire = true;
+      }
+
+      await supabase
+        .from("commandes_lemonsqueezy")
+        .update({ traite: true })
+        .eq("identifiant_ls", identifiant);
+
+      return NextResponse.json({ ok: true, retire: retire, formation: cible });
+    }
+
+    // ---- OUVERTURE D ACCES ----
     if (nouvel && evenement === "order_created" && formation && email) {
       const { error: erreurAcces } = await supabase
         .from("acces_formations")
@@ -126,7 +186,6 @@ export async function POST(req: Request) {
         const titre = (fiche && fiche.titre) || String(formation);
         const estAtelier = String(formation).toUpperCase().indexOf("SK") === 0;
 
-        // Acces LMS historique, conserve pour les pages qui le lisent encore.
         try {
           await supabase.from("formations_lms").insert({
             email: email,
@@ -139,7 +198,6 @@ export async function POST(req: Request) {
           console.error("formations_lms:", e);
         }
 
-        // Credit de seances audio, uniquement pour les formations completes.
         if (!estAtelier) {
           try {
             await supabase.from("credits_seances").insert({
@@ -169,8 +227,6 @@ export async function POST(req: Request) {
 
         await envoyerEmailBienvenue(email, nom || email, titre, estAtelier);
 
-        // Le manuel demande environ 40 minutes : il ne peut pas etre produit
-        // ici. On marque la commande, une route dediee s en charge ensuite.
         livraison = estAtelier ? "atelier - pas de manuel" : "manuel a generer";
         await supabase
           .from("commandes_lemonsqueezy")
