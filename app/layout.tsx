@@ -6,7 +6,7 @@ import CookieBanner from "../components/CookieBanner";
 
 export const metadata: Metadata = {
   title: "AcadémIA Pro — Formation Professionnelle par l IA",
-  description: "263 formations certifiantes propulsées par l'IA · Agent IA tuteur 24h/24 · Séances thérapeutiques · Classes virtuelles live",
+  description: "266 formations professionnelles avec certificat AcadémIA Pro · Agent IA tuteur 24h/24 · Séances d'accompagnement · Classes virtuelles live",
   manifest: "/manifest.json",
   appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "AcadémIA Pro" },
   openGraph: { title: "AcadémIA Pro", description: "Plateforme de formation professionnelle 100% IA", type: "website", locale: "fr_FR" },
@@ -29,9 +29,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             "@context": "https://schema.org",
             "@type": "Organization",
             "name": "Acad\u00e9mIA Pro",
-            "url": "https://www.academiapro.fr",
-            "logo": "https://www.academiapro.fr/icon-192.png",
-            "description": "Plateforme de formation professionnelle propuls\u00e9e par l'IA \u2014 263 formations certifiantes.",
+            "url": "https://academiapro.fr",
+            "logo": "https://academiapro.fr/icon-192.png",
+            "description": "Plateforme de formation professionnelle propuls\u00e9e par l'IA \u2014 266 formations avec certificat Acad\u00e9mIA Pro.",
             "sameAs": ["https://www.linkedin.com/company/academiapro-fr"]
           }) }}
         />
