@@ -45,8 +45,8 @@ export default function FormationsClient({ formations }: { formations: any[] }) 
       <div style={{ background: "#0d0d14", borderBottom: "1px solid rgba(200,169,110,0.2)", padding: "40px 20px" }}>
         <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
           <p style={{ color: "#c8a96e", fontSize: "12px", letterSpacing: "3px", margin: "0 0 8px" }}>CATALOGUE COMPLET</p>
-          <h1 style={{ color: "#fff", fontSize: "32px", margin: "0 0 8px" }}>{filtrees.length} Formations Certifiantes</h1>
-          <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "14px", margin: "0" }}>Certification AcadémIA Pro · Paiement 3x sans frais · Garantie 30 jours</p>
+          <h1 style={{ color: "#fff", fontSize: "32px", margin: "0 0 8px" }}>{filtrees.length} Formations</h1>
+          <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "14px", margin: "0" }}>Certificat AcadémIA Pro · Garantie 30 jours</p>
         </div>
       </div>
       <div style={{ maxWidth: "1200px", margin: "0 auto", padding: "32px 20px" }}>
@@ -84,7 +84,7 @@ export default function FormationsClient({ formations }: { formations: any[] }) 
               <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
                 <span style={{ background: (COULEURS[f.domaine] || "#c8a96e") + "22", color: COULEURS[f.domaine] || "#c8a96e", padding: "3px 10px", borderRadius: "10px", fontSize: "11px", fontWeight: "bold" }}>{f.domaine}</span>
                 <span style={{ color: "rgba(255,255,255,0.4)", fontSize: "12px", minWidth: "60px", textAlign: "right" }}>{f.duree}</span>
-                <span style={{ color: "#c8a96e", fontSize: "16px", fontWeight: "bold", minWidth: "70px", textAlign: "right" }}>{f.prix}euro</span>
+                <span style={{ color: "#c8a96e", fontSize: "16px", fontWeight: "bold", minWidth: "70px", textAlign: "right" }}>{f.prix} €</span>
                 <span style={{ color: "#c8a96e", fontSize: "18px" }}>›</span>
               </div>
             </a>
@@ -102,10 +102,4 @@ export default function FormationsClient({ formations }: { formations: any[] }) 
         {filtrees.length === 0 && (
           <div style={{ textAlign: "center", padding: "60px 20px" }}>
             <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "16px" }}>Aucune formation trouvee.</p>
-            <button onClick={reset} style={{ marginTop: "16px", background: "#c8a96e", color: "#050508", border: "none", borderRadius: "8px", padding: "10px 24px", cursor: "pointer", fontWeight: "bold" }}>Voir toutes les formations</button>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
+            
