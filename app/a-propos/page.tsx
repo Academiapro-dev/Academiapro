@@ -11,11 +11,11 @@ const FR = {
     { titre: "Notre Vision",
       corps: "Un monde ou chaque professionnel dispose de son agent IA personnel pour apprendre · progresser et s epanouir a son propre rythme." },
     { titre: "Nos Valeurs",
-      corps: "Excellence · Innovation · Accessibilite · Certification. Nous croyons que la formation de qualite doit etre accessible a tous." },
+      corps: "Excellence · Innovation · Accessibilite · Exigence. Nous croyons que la formation de qualite doit etre accessible a tous, et qu un certificat se merite." },
     { titre: "Notre Plateforme",
-      corps: "263 formations certifiantes · 20 Skills pratiques · 14 specialites therapeutiques · Agent IA tuteur 24h/24 · Certification AcadémIA Pro reconnue." },
+      corps: "266 formations avec certificat AcadémIA Pro · 20 ateliers pratiques · 14 specialites d accompagnement · Agent IA tuteur 24h/24 · Evaluation exigeante avant toute delivrance de certificat." },
     { titre: "Le Fondateur",
-      corps: "AcadémIA Pro a été fondée par Jacques Lalou, auteur et praticien expert en PNL, hypnose et psychanalyse. Chaque formation et chaque praticien IA de la plateforme naît de cette expertise de terrain, avec une conviction : la technologie n a de valeur que si elle transmet un savoir authentique et transforme réellement celui qui apprend." }
+      corps: "AcadémIA Pro a été fondée par Jacques Lalou, auteur et praticien expert en PNL, hypnose et psychanalyse, certifié enseignant en PNL et en hypnose. Chaque formation et chaque praticien IA de la plateforme naît de cette expertise de terrain, avec une conviction : la technologie n a de valeur que si elle transmet un savoir authentique et transforme réellement celui qui apprend." }
   ],
 };
 
