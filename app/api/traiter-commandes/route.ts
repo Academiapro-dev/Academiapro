@@ -59,6 +59,7 @@ function latin1(t: string): string {
     .replace(/[\u2013\u2014]/g, "-")
     .replace(/\u2026/g, "...")
     .replace(/\u00A0/g, " ")
+    .replace(/([A-Za-z])\u00CC([\u0080-\u00BF])/g, "$1")
     .replace(/[^\u0000-\u00FF]/g, "");
 }
 
@@ -73,15 +74,32 @@ function decoderEntites(t: string): string {
 }
 
 function extraireBlocs(html: string): any[] {
+  let t = String(html || "")
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<head[\s\S]*?<\/head>/gi, " ");
+
+  t = t.replace(/<h1[^>]*>([\s\S]*?)<\/h1>/gi, "\n@@H1@@$1\n");
+  t = t.replace(/<h2[^>]*>([\s\S]*?)<\/h2>/gi, "\n@@H2@@$1\n");
+  t = t.replace(/<h3[^>]*>([\s\S]*?)<\/h3>/gi, "\n@@H3@@$1\n");
+  t = t.replace(/<h4[^>]*>([\s\S]*?)<\/h4>/gi, "\n@@H3@@$1\n");
+  t = t.replace(/<li[^>]*>/gi, "\n@@LI@@");
+
+  t = t.replace(/<br\s*\/?>/gi, "\n");
+  t = t.replace(/<\/(p|div|tr|td|li|section|article|blockquote)>/gi, "\n");
+  t = t.replace(/<[^>]+>/g, " ");
+
   const blocs: any[] = [];
-  const motif = /<(h1|h2|h3|p|li)[^>]*>([\s\S]*?)<\/\1>/gi;
-  let m;
-  while ((m = motif.exec(html)) !== null) {
-    const brut = String(m[2]).replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, "");
-    const texte = latin1(decoderEntites(brut)).replace(/[ \t]+/g, " ").trim();
-    if (texte) blocs.push({ type: m[1].toLowerCase(), texte: texte });
+  for (const ligne of t.split("\n")) {
+    const brut = latin1(decoderEntites(ligne)).replace(/[ \t]+/g, " ").trim();
+    if (!brut) continue;
+    if (brut.indexOf("@@H1@@") === 0) blocs.push({ type: "h1", texte: brut.slice(6).trim() });
+    else if (brut.indexOf("@@H2@@") === 0) blocs.push({ type: "h2", texte: brut.slice(6).trim() });
+    else if (brut.indexOf("@@H3@@") === 0) blocs.push({ type: "h3", texte: brut.slice(6).trim() });
+    else if (brut.indexOf("@@LI@@") === 0) blocs.push({ type: "li", texte: brut.slice(6).trim() });
+    else blocs.push({ type: "p", texte: brut });
   }
-  return blocs;
+  return blocs.filter(function (b: any) { return b.texte.length > 0; });
 }
 
 function couper(texte: string, police: any, taille: number, largeur: number): string[] {
@@ -136,9 +154,8 @@ async function composerPdf(html: string): Promise<Uint8Array> {
 
   for (const b of blocs) {
     if (b.type === "h1") {
-      if (y < HAUTEUR - MARGE - 10) nouvellePage();
-      ecrire(couper(b.texte, gras, 18, UTILE), gras, 18, 24, or, 0);
-      y = y - 10;
+      ecrire(couper(b.texte, gras, 17, UTILE), gras, 17, 23, or, 18);
+      y = y - 6;
     } else if (b.type === "h2") {
       ecrire(couper(b.texte, gras, 14, UTILE), gras, 14, 19, encre, 14);
       y = y - 4;
@@ -238,7 +255,6 @@ export async function GET(req: Request) {
       return NextResponse.json({ ok: false, code: code, erreur: "formation introuvable" });
     }
 
-    // VOIE COURTE : la formation possede deja un manuel complet de juin.
     const { data: existant } = await supabase.storage
       .from(BUCKET)
       .download(code + "_support_cours.html");
@@ -247,11 +263,10 @@ export async function GET(req: Request) {
       const html = await existant.text();
       if (html.length >= SEUIL_MANUEL) {
         const poids = await livrer(code, fiche.titre, html, cmd.email, cmd.identifiant_ls);
-        return NextResponse.json({ ok: true, code: code, voie: "manuel existant", octets: poids, livre: true });
+        return NextResponse.json({ ok: true, code: code, voie: "manuel existant", source: html.length, octets: poids, livre: true });
       }
     }
 
-    // VOIE LONGUE : on produit le manuel module par module.
     const { data: plan } = await supabase
       .from("lms_plans")
       .select("chapitre_num, chapitre_titre, module_num, module_titre, type")
@@ -338,9 +353,7 @@ export async function GET(req: Request) {
       }).join("\n") + "\n";
     }
 
-    const html =
-      "<html><body><h1>" + echapper(fiche.titre) + "</h1>\n" + corps + "</body></html>";
-
+    const html = "<html><body><h1>" + echapper(fiche.titre) + "</h1>\n" + corps + "</body></html>";
     const poids = await livrer(code, fiche.titre, html, cmd.email, cmd.identifiant_ls);
 
     return NextResponse.json({ ok: true, code: code, voie: "assemblage", octets: poids, livre: true });
