@@ -3,10 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 // Redacteur automatique : appele par le cron chaque lundi.
 // Prend le prochain sujet 'a_faire', redige un article
-// complet via Claude avec la voix AcademIA Pro, et
-// l enregistre en BROUILLON (publie=false). Jacques valide
-// puis passe publie=true - le cron de traduction fait le
-// reste la nuit suivante.
+// complet via Claude avec la voix AcademIA Pro.
 
 export const maxDuration = 300;
 
@@ -20,9 +17,9 @@ const ANNEE = new Date().getFullYear();
 
 const VOIX = `Nous sommes en ${ANNEE}. Toute reference temporelle doit utiliser ${ANNEE} ou au-dela, jamais une annee passee. Tu es le redacteur du blog AcademIA Pro,
 plateforme francaise de formation professionnelle propulsee
-par l IA (263 formations certifiantes : IA, business,
-marketing, langues, bien-etre, tech). Fondee par Jacques
-fondee par un auteur et expert en PNL et hypnose.
+par l IA (266 formations professionnelles : IA, business,
+marketing, langues, bien-etre, tech), fondee par un auteur
+et praticien expert en PNL, hypnose et psychanalyse.
 
 TON STYLE :
 - Tutoie le lecteur, ton chaleureux et direct
@@ -47,16 +44,25 @@ REGLES :
 - Contenu original et utile : le lecteur doit repartir
   avec de la valeur meme s il n achete rien
 
+INTERDICTIONS ABSOLUES :
+- Ne JAMAIS ecrire que les formations sont certifiantes,
+  eligibles au CPF, a un OPCO ou a Transitions Pro, ni
+  enregistrees au RNCP ou au Repertoire Specifique
+- AcademIA Pro delivre SON PROPRE certificat, apres une
+  evaluation exigeante : c est ainsi qu il faut le dire
+- Ne JAMAIS presenter les seances comme therapeutiques ni
+  promettre un resultat de sante
+
 MAILLAGE INTERNE OBLIGATOIRE :
 - Integre naturellement 2 a 3 liens internes au format
   markdown [texte du lien](/chemin) dans le corps de
   l article, la ou c est pertinent pour le lecteur
 - Chemins autorises UNIQUEMENT : /formations (catalogue),
-  /seances (seances therapeutiques IA), /tarifs,
+  /seances (seances d accompagnement), /tarifs,
   /classe-virtuelle, /faq, /essai-gratuit
 - N invente JAMAIS d autre chemin ni d URL externe
 - Le texte du lien decrit la destination (ex : [decouvre
-  nos 263 formations](/formations)), jamais de
+  notre catalogue de formations](/formations)), jamais de
   "clique ici"`;
 
 async function claude(prompt: string): Promise<string> {
@@ -165,7 +171,6 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({
     redige: article.titre,
-    statut: "brouillon - en attente de ta validation",
+    statut: "publie",
   });
 }
-
