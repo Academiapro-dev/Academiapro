@@ -8,7 +8,7 @@ export default function Footer() {
         <div>
           <h3 style={{ color: "#c8a96e", fontSize: "16px", marginBottom: "12px" }}>AcadémIA Pro</h3>
           <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "13px", lineHeight: "1.6" }}>
-            La plateforme de formation propulsée par l IA. 263 formations certifiantes.
+            La plateforme de formation propulsée par l IA. 266 formations avec certificat AcadémIA Pro.
           </p>
         </div>
         <div>
@@ -16,7 +16,7 @@ export default function Footer() {
           <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
             <a href="/formations" style={lien}>Catalogue complet</a>
             <a href="/packs" style={lien}>Nos packs</a>
-            <a href="/skills" style={lien}>Skills</a>
+            <a href="/skills" style={lien}>Ateliers</a>
           </div>
         </div>
         <div>
@@ -32,7 +32,7 @@ export default function Footer() {
         </div>
       </div>
       <div style={{ textAlign: "center", marginTop: "32px", paddingTop: "24px", borderTop: "1px solid rgba(200,169,110,0.1)" }}>
-        <p style={{ color: "rgba(255,255,255,0.3)", fontSize: "12px" }}>© AcadémIA Pro 2026 — Certification AcadémIA Pro — Tous droits réservés</p>
+        <p style={{ color: "rgba(255,255,255,0.3)", fontSize: "12px" }}>© AcadémIA Pro 2026 — Certificat AcadémIA Pro — Tous droits réservés</p>
       </div>
     </footer>
   );
