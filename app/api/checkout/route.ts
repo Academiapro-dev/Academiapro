@@ -79,7 +79,7 @@ async function trouverVariante(nomCible: string): Promise<string> {
     throw new Error(
       "Produit introuvable : \"" + nomCible + "\". Produits visibles par la cle : [" +
       noms.join(" | ") +
-      "]. Verifier le nom exact et le mode Test/Live (cle et produit doivent etre dans le meme mode)."
+      "]. Verifier le nom exact et le mode Test/Live."
     );
   }
 
@@ -151,16 +151,19 @@ export async function GET(req: Request) {
     let prixTotal = prixFinal;
     let montantEcheance = prixFinal;
 
+    // Pour les formules echelonnees, la mensualite est un nombre ENTIER d euros :
+    // Lemon Squeezy ne retient que la QUANTITE d un abonnement, pas un prix
+    // personnalise, et l unite vaut 1,00 EUR. On arrondit donc a l euro superieur.
     if (paiement === "4x") {
       nomProduit = NOM_4X;
       echeances = 4;
-      prixTotal = prixFinal;
-      montantEcheance = Math.round((prixTotal * 100) / 4) / 100;
+      montantEcheance = Math.ceil(prixFinal / 4);
+      prixTotal = montantEcheance * 4;
     } else if (paiement === "12m") {
       nomProduit = NOM_12M;
       echeances = 12;
-      prixTotal = Math.round(prixFinal * MAJORATION_12M);
-      montantEcheance = Math.round((prixTotal * 100) / 12) / 100;
+      montantEcheance = Math.ceil((prixFinal * MAJORATION_12M) / 12);
+      prixTotal = montantEcheance * 12;
     }
 
     const varianteChoisie = await trouverVariante(nomProduit);
@@ -183,26 +186,40 @@ export async function GET(req: Request) {
     let libelle: string;
     if (paiement === "4x") {
       libelle = "Formation " + f.code + " - formule " + formule +
-        " - reglement en 4 mensualites de " + montantEcheance.toFixed(2) + " EUR";
+        " - 4 mensualites de " + montantEcheance + " EUR (total " + prixTotal + " EUR)";
+      donneesCheckout.variant_quantities = [
+        { variant_id: Number(varianteChoisie), quantity: montantEcheance },
+      ];
     } else if (paiement === "12m") {
       libelle = "Formation " + f.code + " - formule " + formule +
-        " - parcours en 12 mois, " + montantEcheance.toFixed(2) + " EUR par mois";
+        " - parcours en 12 mois, " + montantEcheance + " EUR par mois (total " +
+        prixTotal + " EUR)";
+      donneesCheckout.variant_quantities = [
+        { variant_id: Number(varianteChoisie), quantity: montantEcheance },
+      ];
     } else {
       libelle = (estAtelier ? "Atelier " : "Formation ") + f.code + " - formule " + formule;
+    }
+
+    const attributs: any = {
+      product_options: {
+        name: f.titre,
+        description: libelle,
+        redirect_url: "https://academiapro.fr/dashboard",
+      },
+      checkout_data: donneesCheckout,
+    };
+
+    // Le prix personnalise ne vaut que pour le paiement unique : Lemon Squeezy
+    // ne le conserve pas d une echeance a l autre.
+    if (paiement === "comptant") {
+      attributs.custom_price = Math.round(montantEcheance * 100);
     }
 
     const corps = {
       data: {
         type: "checkouts",
-        attributes: {
-          custom_price: Math.round(montantEcheance * 100),
-          product_options: {
-            name: f.titre,
-            description: libelle,
-            redirect_url: "https://academiapro.fr/dashboard",
-          },
-          checkout_data: donneesCheckout,
-        },
+        attributes: attributs,
         relationships: {
           store: { data: { type: "stores", id: cacheStoreId } },
           variant: { data: { type: "variants", id: varianteChoisie } },
