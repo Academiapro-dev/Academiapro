@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { emailDeSession } from "../../../lib/session";
+import { PDFDocument, rgb } from "pdf-lib";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -8,6 +9,7 @@ export const maxDuration = 300;
 
 const MODELE = "claude-sonnet-4-6";
 const BUCKET = "formations-pdf";
+const SEUIL_MANUEL = 100000;
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
@@ -50,6 +52,155 @@ function echapper(t: string): string {
   return String(t || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
+function latin1(t: string): string {
+  return String(t || "")
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[\u201C\u201D]/g, '"')
+    .replace(/[\u2013\u2014]/g, "-")
+    .replace(/\u2026/g, "...")
+    .replace(/\u00A0/g, " ")
+    .replace(/[^\u0000-\u00FF]/g, "");
+}
+
+function decoderEntites(t: string): string {
+  return String(t || "")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'");
+}
+
+function extraireBlocs(html: string): any[] {
+  const blocs: any[] = [];
+  const motif = /<(h1|h2|h3|p|li)[^>]*>([\s\S]*?)<\/\1>/gi;
+  let m;
+  while ((m = motif.exec(html)) !== null) {
+    const brut = String(m[2]).replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, "");
+    const texte = latin1(decoderEntites(brut)).replace(/[ \t]+/g, " ").trim();
+    if (texte) blocs.push({ type: m[1].toLowerCase(), texte: texte });
+  }
+  return blocs;
+}
+
+function couper(texte: string, police: any, taille: number, largeur: number): string[] {
+  const lignes: string[] = [];
+  for (const paragraphe of texte.split("\n")) {
+    const mots = paragraphe.split(/\s+/).filter(Boolean);
+    let ligne = "";
+    for (const mot of mots) {
+      const essai = ligne ? ligne + " " + mot : mot;
+      let l = 0;
+      try { l = police.widthOfTextAtSize(essai, taille); } catch (e) { l = essai.length * taille * 0.5; }
+      if (l > largeur && ligne) { lignes.push(ligne); ligne = mot; } else { ligne = essai; }
+    }
+    lignes.push(ligne);
+  }
+  return lignes;
+}
+
+async function composerPdf(html: string): Promise<Uint8Array> {
+  const blocs = extraireBlocs(html);
+  const doc = await PDFDocument.create();
+  const normal = await doc.embedFont("Times-Roman");
+  const gras = await doc.embedFont("Times-Bold");
+
+  const LARGEUR = 595.28;
+  const HAUTEUR = 841.89;
+  const MARGE = 56;
+  const UTILE = LARGEUR - MARGE * 2;
+  const BAS = 60;
+
+  const or = rgb(0.63, 0.51, 0.31);
+  const encre = rgb(0.1, 0.1, 0.1);
+
+  let page = doc.addPage([LARGEUR, HAUTEUR]);
+  let y = HAUTEUR - MARGE;
+  const pages: any[] = [page];
+
+  function nouvellePage() {
+    page = doc.addPage([LARGEUR, HAUTEUR]);
+    pages.push(page);
+    y = HAUTEUR - MARGE;
+  }
+
+  function ecrire(lignes: string[], police: any, taille: number, interligne: number, couleur: any, avant: number) {
+    y = y - avant;
+    for (const l of lignes) {
+      if (y < BAS + interligne) nouvellePage();
+      page.drawText(l, { x: MARGE, y: y, size: taille, font: police, color: couleur });
+      y = y - interligne;
+    }
+  }
+
+  for (const b of blocs) {
+    if (b.type === "h1") {
+      if (y < HAUTEUR - MARGE - 10) nouvellePage();
+      ecrire(couper(b.texte, gras, 18, UTILE), gras, 18, 24, or, 0);
+      y = y - 10;
+    } else if (b.type === "h2") {
+      ecrire(couper(b.texte, gras, 14, UTILE), gras, 14, 19, encre, 14);
+      y = y - 4;
+    } else if (b.type === "h3") {
+      ecrire(couper(b.texte, gras, 12, UTILE), gras, 12, 17, or, 10);
+    } else if (b.type === "li") {
+      ecrire(couper("- " + b.texte, normal, 11, UTILE), normal, 11, 16, encre, 2);
+    } else {
+      ecrire(couper(b.texte, normal, 11, UTILE), normal, 11, 16, encre, 6);
+    }
+  }
+
+  for (let i = 0; i < pages.length; i++) {
+    pages[i].drawText(String(i + 1) + " / " + pages.length, {
+      x: LARGEUR / 2 - 20, y: 30, size: 9, font: normal, color: rgb(0.55, 0.55, 0.55),
+    });
+  }
+
+  return await doc.save();
+}
+
+async function livrer(code: string, titre: string, html: string, email: string, identifiant: string) {
+  const octets = await composerPdf(html);
+  const chemin = "manuels/" + code + "_manuel.pdf";
+
+  await supabase.storage
+    .from(BUCKET)
+    .upload(chemin, new Blob([octets], { type: "application/pdf" }), { upsert: true, cacheControl: "60" });
+
+  const { data: lien } = await supabase.storage
+    .from(BUCKET)
+    .createSignedUrl(chemin, 60 * 60 * 24 * 365);
+
+  const adresse = (lien && lien.signedUrl) || "https://academiapro.fr/dashboard";
+
+  if (email && process.env.RESEND_API_KEY) {
+    await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { Authorization: "Bearer " + process.env.RESEND_API_KEY, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        from: "AcademIA Pro <bienvenue@academiapro.fr>",
+        to: email,
+        subject: "Votre manuel " + titre + " est pret",
+        html:
+          '<div style="font-family:Georgia,serif;line-height:1.7">' +
+          '<h1 style="color:#c8a96e">Votre manuel est pret</h1>' +
+          "<p>Le manuel complet de votre formation <strong>" + echapper(titre) + "</strong> vous attend au format PDF.</p>" +
+          '<p><a href="' + adresse + '">Telecharger mon manuel</a></p>' +
+          '<p><a href="https://academiapro.fr/dashboard">Acceder a mon espace de formation</a></p>' +
+          "<p>L equipe AcademIA Pro</p></div>",
+      }),
+    });
+  }
+
+  await supabase
+    .from("commandes_lemonsqueezy")
+    .update({ manuel_statut: "pret", manuel_url: chemin })
+    .eq("identifiant_ls", identifiant);
+
+  return octets.length;
+}
+
 export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
@@ -82,6 +233,25 @@ export async function GET(req: Request) {
     const code = String(cmd.formation || "").toUpperCase();
 
     const { data: fiche } = await supabase.from("formations").select("code, titre").eq("code", code).maybeSingle();
+    if (!fiche) {
+      await supabase.from("commandes_lemonsqueezy").update({ manuel_statut: "sans_fiche" }).eq("identifiant_ls", cmd.identifiant_ls);
+      return NextResponse.json({ ok: false, code: code, erreur: "formation introuvable" });
+    }
+
+    // VOIE COURTE : la formation possede deja un manuel complet de juin.
+    const { data: existant } = await supabase.storage
+      .from(BUCKET)
+      .download(code + "_support_cours.html");
+
+    if (existant) {
+      const html = await existant.text();
+      if (html.length >= SEUIL_MANUEL) {
+        const poids = await livrer(code, fiche.titre, html, cmd.email, cmd.identifiant_ls);
+        return NextResponse.json({ ok: true, code: code, voie: "manuel existant", octets: poids, livre: true });
+      }
+    }
+
+    // VOIE LONGUE : on produit le manuel module par module.
     const { data: plan } = await supabase
       .from("lms_plans")
       .select("chapitre_num, chapitre_titre, module_num, module_titre, type")
@@ -90,7 +260,7 @@ export async function GET(req: Request) {
       .order("chapitre_num", { ascending: true })
       .order("module_num", { ascending: true });
 
-    if (!fiche || !plan || plan.length === 0) {
+    if (!plan || plan.length === 0) {
       await supabase.from("commandes_lemonsqueezy").update({ manuel_statut: "sans_plan" }).eq("identifiant_ls", cmd.identifiant_ls);
       return NextResponse.json({ ok: false, code: code, erreur: "aucun plan pour cette formation" });
     }
@@ -143,6 +313,7 @@ export async function GET(req: Request) {
       return NextResponse.json({
         ok: true,
         code: code,
+        voie: "generation",
         produit: "ch" + l.chapitre_num + "/mod" + l.module_num,
         taille: complet.length,
         restants: manquants.length - 1,
@@ -154,7 +325,7 @@ export async function GET(req: Request) {
     for (const l of plan) {
       if (l.chapitre_num !== chapitreCourant) {
         chapitreCourant = l.chapitre_num;
-        corps += '<h1 class="chapitre">Chapitre ' + l.chapitre_num + " - " + echapper(l.chapitre_titre) + "</h1>\n";
+        corps += "<h1>Chapitre " + l.chapitre_num + " - " + echapper(l.chapitre_titre) + "</h1>\n";
       }
       corps += "<h2>Module " + l.module_num + " - " + echapper(l.module_titre) + "</h2>\n";
       const texte = contenus[code + "_ch" + l.chapitre_num + "_mod" + l.module_num + "_fr"] || "";
@@ -167,50 +338,12 @@ export async function GET(req: Request) {
       }).join("\n") + "\n";
     }
 
-    const date = new Date().toLocaleDateString("fr-FR", { year: "numeric", month: "long", day: "numeric" });
     const html =
-      '<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><title>' + echapper(fiche.titre) + "</title>\n" +
-      "<style>body{font-family:Georgia,serif;max-width:900px;margin:0 auto;padding:40px;line-height:1.8;color:#1a1a1a}" +
-      ".couverture{background:#0a0a0a;color:#fff;padding:60px 40px;text-align:center;margin:-40px -40px 40px}" +
-      ".marque{color:#c8a96e;font-size:26px;font-weight:bold;letter-spacing:2px}" +
-      "h1.chapitre{color:#c8a96e;border-bottom:2px solid #c8a96e;padding-bottom:8px;margin-top:50px}" +
-      "h2{margin-top:32px}h3{color:#a07840}p{text-align:justify;margin:0 0 14px}" +
-      "</style></head><body>\n" +
-      '<div class="couverture"><div class="marque">AcademIA Pro</div><p>Manuel de formation</p><h1>' +
-      echapper(fiche.titre) + "</h1><p>Edition du " + date + "</p></div>\n" +
-      corps + "</body></html>";
+      "<html><body><h1>" + echapper(fiche.titre) + "</h1>\n" + corps + "</body></html>";
 
-    const chemin = "manuels/" + code + "_manuel.html";
-    await supabase.storage.from(BUCKET).upload(chemin, new Blob([html], { type: "text/html" }), { upsert: true, cacheControl: "60" });
+    const poids = await livrer(code, fiche.titre, html, cmd.email, cmd.identifiant_ls);
 
-    const { data: lien } = await supabase.storage.from(BUCKET).createSignedUrl(chemin, 60 * 60 * 24 * 365);
-    const adresse = (lien && lien.signedUrl) || "https://academiapro.fr/dashboard";
-
-    if (cmd.email && process.env.RESEND_API_KEY) {
-      await fetch("https://api.resend.com/emails", {
-        method: "POST",
-        headers: { Authorization: "Bearer " + process.env.RESEND_API_KEY, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          from: "AcademIA Pro <bienvenue@academiapro.fr>",
-          to: cmd.email,
-          subject: "Votre manuel " + fiche.titre + " est pret",
-          html:
-            '<div style="font-family:Georgia,serif;line-height:1.7">' +
-            '<h1 style="color:#c8a96e">Votre manuel est pret</h1>' +
-            "<p>Le manuel complet de votre formation <strong>" + echapper(fiche.titre) + "</strong> vous attend.</p>" +
-            '<p><a href="' + adresse + '">Telecharger mon manuel</a></p>' +
-            '<p><a href="https://academiapro.fr/dashboard">Acceder a mon espace de formation</a></p>' +
-            "<p>L equipe AcademIA Pro</p></div>",
-        }),
-      });
-    }
-
-    await supabase
-      .from("commandes_lemonsqueezy")
-      .update({ manuel_statut: "pret", manuel_url: chemin })
-      .eq("identifiant_ls", cmd.identifiant_ls);
-
-    return NextResponse.json({ ok: true, code: code, livre: true, taille: html.length, email: cmd.email });
+    return NextResponse.json({ ok: true, code: code, voie: "assemblage", octets: poids, livre: true });
   } catch (e: any) {
     return NextResponse.json({ ok: false, erreur: String(e.message || e) }, { status: 500 });
   }
