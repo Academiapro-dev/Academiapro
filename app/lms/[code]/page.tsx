@@ -12,6 +12,7 @@ const AGENTS_DOMAINE = {
   "Finance": { formateur: "Emma Lefebvre", coach: "Isabelle Moreau" },
   "Droit": { formateur: "Antoine Moreau", coach: "Isabelle Moreau" },
   "Outils": { formateur: "Thomas Martin", coach: "Isabelle Moreau" },
+  "Psychologie": { formateur: "Claire Beaumont", coach: "Maya" },
 };
 
 function extraireQCM(contenu) {
@@ -47,6 +48,7 @@ export default function LMSPage({ params }) {
   const [loadingFormation, setLoadingFormation] = useState(true);
   const [onglet, setOnglet] = useState("cours");
   const [progression, setProgression] = useState({});
+  const [avertissement, setAvertissement] = useState("");
   const [qcmReponses, setQcmReponses] = useState({});
   const [qcmScore, setQcmScore] = useState(null);
   const [messageValidateur, setMessageValidateur] = useState("");
@@ -88,12 +90,10 @@ export default function LMSPage({ params }) {
 
   async function chargerFormation(lang) {
     try {
-      // Charger la formation traduite
       const r = await fetch("/api/formation/" + code + "?lang=" + lang);
       const data = await r.json();
       if (!data.error) setFormation(data);
 
-      // Charger la structure chapitres depuis formations_lms
       const r2 = await fetch("/api/lms-structure/" + code + "?lang=" + lang);
       const data2 = await r2.json();
       if (data2.chapitres && data2.chapitres.length > 0) {
@@ -105,16 +105,22 @@ export default function LMSPage({ params }) {
     setLoadingFormation(false);
   }
 
-  function chargerProgression() {
+  // La progression vient de la BASE, plus du navigateur : elle suit donc
+  // le stagiaire d un appareil a l autre.
+  async function chargerProgression() {
     try {
-      const prog = localStorage.getItem("progression_" + code);
-      if (prog) setProgression(JSON.parse(prog));
-    } catch {}
-  }
-
-  function sauvegarderProgression(newProg) {
-    setProgression(newProg);
-    try { localStorage.setItem("progression_" + code, JSON.stringify(newProg)); } catch {}
+      const r = await fetch("/api/progression?formation_code=" + code);
+      const data = await r.json();
+      if (data.success) {
+        setProgression(data.progression || {});
+        setAvertissement("");
+      } else if (r.status === 401) {
+        setProgression({});
+        setAvertissement("Connectez-vous pour que votre progression soit enregistree.");
+      }
+    } catch {
+      setAvertissement("Progression indisponible pour le moment.");
+    }
   }
 
   async function chargerModule(ch_num, mod_num, garderOnglet = false) {
@@ -141,27 +147,60 @@ export default function LMSPage({ params }) {
     setLoading(false);
   }
 
-  function validerQCM() {
+  async function validerQCM() {
     if (questions.length === 0) return;
     let score = 0;
     questions.forEach((q, i) => { if (qcmReponses[i] === q.bonneReponse) score++; });
     const pct = Math.round((score / questions.length) * 100);
     setQcmScore(pct);
-    if (pct >= 70) {
-      setMessageValidateur("MODULE VALIDE ! Score " + pct + "%");
-      const newProg = { ...progression, [cle]: "valide" };
-      sauvegarderProgression(newProg);
-      const modulesVal = Object.values(newProg).filter(v => v === "valide").length;
-      const email = localStorage.getItem("apprenant_email") || "";
-      if (email) {
-        fetch("/api/crm", { method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "lms_update", email, data: { formation_code: code, modules_valides: modulesVal, progression_pct: Math.round((modulesVal / totalModules) * 100) } }) });
 
-        fetch("/api/progression", { method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, formation_code: code, module_cle: cle, score: pct }) });
-      }
-    } else {
+    if (pct < 70) {
       setMessageValidateur("Score " + pct + "% — Recommencez pour valider (70% requis)");
+      return;
+    }
+
+    setMessageValidateur("MODULE VALIDE ! Score " + pct + "%");
+
+    // On enregistre en base, puis on relit : la base est la source de verite.
+    try {
+      const r = await fetch("/api/progression", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ formation_code: code, module_cle: cle, score: pct }),
+      });
+      const data = await r.json();
+
+      if (!data.success) {
+        setAvertissement(
+          r.status === 401
+            ? "Connectez-vous pour que cette validation soit conservee."
+            : "Validation non enregistree : " + (data.error || "erreur inconnue")
+        );
+        setProgression(prev => ({ ...prev, [cle]: "valide" }));
+        return;
+      }
+
+      await chargerProgression();
+
+      if (data.email) {
+        const valides = Object.values({ ...progression, [cle]: "valide" }).filter(v => v === "valide").length;
+        fetch("/api/crm", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "lms_update",
+            email: data.email,
+            data: {
+              formation_code: code,
+              modules_valides: valides,
+              progression_pct: totalModules > 0 ? Math.round((valides / totalModules) * 100) : 0,
+            },
+          }),
+        }).catch(() => {});
+      }
+    } catch (e) {
+      setAvertissement("Validation non enregistree : " + String(e));
+      setProgression(prev => ({ ...prev, [cle]: "valide" }));
     }
   }
 
@@ -217,6 +256,12 @@ export default function LMSPage({ params }) {
           </div>
         </div>
       </div>
+
+      {avertissement && (
+        <div style={{ maxWidth: "1200px", margin: "16px auto 0", padding: "12px 18px", background: "rgba(200,120,0,0.12)", border: "1px solid rgba(200,169,110,0.4)", borderRadius: "8px", color: "#e8c887", fontSize: "13px" }}>
+          {avertissement}
+        </div>
+      )}
 
       <div style={{ maxWidth: "1200px", margin: "0 auto", padding: "20px", display: "grid", gridTemplateColumns: "280px 1fr", gap: "20px" }}>
         <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(200,169,110,0.2)", borderRadius: "12px", padding: "15px", height: "fit-content" }}>
@@ -312,7 +357,7 @@ export default function LMSPage({ params }) {
                           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", padding: "8px 0", borderBottom: "1px solid #eee" }}>
                             <button onClick={() => setPageModule(p => Math.max(0, p - 1))} disabled={pageModule === 0}
                               style={{ background: pageModule === 0 ? "#eee" : "#c8a96e", color: pageModule === 0 ? "#999" : "#050508", border: "none", borderRadius: "6px", padding: "6px 16px", cursor: pageModule === 0 ? "default" : "pointer", fontWeight: "bold" }}>
-                              ← Précédent
+                              ← Précédent
                             </button>
                             <span style={{ color: "#c8a96e", fontWeight: "bold", fontSize: "13px" }}>Page {pageModule + 1} / {totalPages}</span>
                             <button onClick={() => setPageModule(p => Math.min(totalPages - 1, p + 1))} disabled={pageModule === totalPages - 1}
@@ -338,7 +383,7 @@ export default function LMSPage({ params }) {
                           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "30px", padding: "15px 0", borderTop: "1px solid #eee" }}>
                             <button onClick={() => setPageModule(p => Math.max(0, p - 1))} disabled={pageModule === 0}
                               style={{ background: pageModule === 0 ? "#eee" : "#c8a96e", color: pageModule === 0 ? "#999" : "#050508", border: "none", borderRadius: "6px", padding: "8px 20px", cursor: pageModule === 0 ? "default" : "pointer", fontWeight: "bold" }}>
-                              ← Précédent
+                              ← Précédent
                             </button>
                             <span style={{ color: "#999", fontSize: "13px" }}>Page {pageModule + 1} / {totalPages}</span>
                             {pageModule < totalPages - 1 ? (
