@@ -172,7 +172,7 @@ export default function PageIndicateur({ params }: { params: { id: string } }) {
     if (chatVisible && finChat.current) {
       finChat.current.scrollIntoView({ behavior: "smooth" });
     }
-  }, [conversation, chatVisible]);
+  }, [conversation, chatVisible, chatEnCours]);
 
   async function ecouter(texte: string, cle: string) {
     setErreurVoix(null);
@@ -278,9 +278,20 @@ export default function PageIndicateur({ params }: { params: { id: string } }) {
   async function envoyerMessage() {
     if (!saisie.trim()) return;
     const texte = saisie;
+    const provisoire = {
+      id: "provisoire-" + Date.now(),
+      role: "utilisateur",
+      message: texte,
+      provisoire: true,
+    };
+
+    // AFFICHAGE IMMEDIAT : le message apparait dans le fil des l envoi,
+    // sinon il semble perdu pendant les dix a quinze secondes d attente.
+    setConversation((actuelle) => [...actuelle, provisoire]);
     setSaisie("");
     setChatEnCours(true);
     setErreur(null);
+
     try {
       const r = await fetch("/api/qualiopi/chat", {
         method: "POST",
@@ -295,10 +306,16 @@ export default function PageIndicateur({ params }: { params: { id: string } }) {
         setConversation(data.messages || []);
         setMessagesRestants(data.restants);
       } else {
+        setConversation((actuelle) =>
+          actuelle.filter((m: any) => m.id !== provisoire.id)
+        );
         setErreur(data.erreur || "Erreur d'envoi");
         setSaisie(texte);
       }
     } catch (e: any) {
+      setConversation((actuelle) =>
+        actuelle.filter((m: any) => m.id !== provisoire.id)
+      );
       setErreur(String(e));
       setSaisie(texte);
     }
@@ -524,6 +541,7 @@ export default function PageIndicateur({ params }: { params: { id: string } }) {
                         fontSize: 17,
                         lineHeight: 1.65,
                         whiteSpace: "pre-wrap",
+                        opacity: m.provisoire ? 0.75 : 1,
                       }}
                     >
                       {sansMarkdown(m.message)}
@@ -541,6 +559,26 @@ export default function PageIndicateur({ params }: { params: { id: string } }) {
                     )}
                   </div>
                 ))}
+
+                {chatEnCours && (
+                  <div style={{ marginBottom: 16, textAlign: "left" }}>
+                    <div
+                      style={{
+                        display: "inline-block",
+                        background: "#ffffff",
+                        border: "1px dashed #cccccc",
+                        borderRadius: 10,
+                        padding: "12px 16px",
+                        fontSize: 17,
+                        color: "#777777",
+                        fontStyle: "italic",
+                      }}
+                    >
+                      L'assistant reflechit...
+                    </div>
+                  </div>
+                )}
+
                 <div ref={finChat} />
               </div>
 
