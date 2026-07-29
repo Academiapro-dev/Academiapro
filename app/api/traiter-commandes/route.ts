@@ -10,6 +10,15 @@ export const maxDuration = 300;
 const MODELE = "claude-sonnet-4-6";
 const BUCKET = "formations-pdf";
 
+const CARACTERES_PAR_PAGE = 3200;
+const CARACTERES_PAR_PASSE = 14000;
+const PAGES_MIN = 30;
+const PAGES_MAX = 300;
+const QUESTIONS_PAR_QCM = 10;
+const QUESTIONS_PAR_MODULE_EXAMEN = 2;
+const MODULES_PAR_LOT_EXAMEN = 5;
+const SEUIL_REUSSITE = 70;
+
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
   process.env.SUPABASE_SERVICE_ROLE_KEY || ""
@@ -27,23 +36,76 @@ const GRIS = rgb(0.45, 0.45, 0.45);
 
 const SYSTEME =
   "Tu es un formateur expert de niveau universitaire. Tu rediges des manuels de formation professionnelle denses, " +
-  "complets et de haute qualite academique, en francais. Tu n inventes aucune certification, aucun titre officiel " +
-  "et aucun prix. Tu ne resumes jamais : tu developpes, tu illustres, tu approfondis.";
+  "complets et de haute qualite academique, en francais. Tu ne delayes jamais : chaque paragraphe apporte une " +
+  "information nouvelle. Tu n inventes aucun titre officiel et aucun prix.";
 
-function consigne(partie: number, type: string): string {
-  if (type === "evaluation") {
-    if (partie === 1) return "PARTIE 1 sur 3 : 10 questions QCM, 4 options chacune, reponse correcte et explication detaillee d au moins 8 lignes.";
-    if (partie === 2) return "PARTIE 2 sur 3 : 5 questions de cas pratique, enonce circonstancie et corrige complet d au moins 15 lignes.";
-    return "PARTIE 3 sur 3 : 3 questions de reflexion professionnelle avec corrige argumente, grille d auto-evaluation, synthese des competences et ressources complementaires.";
-  }
-  if (type === "pratique") {
-    if (partie === 1) return "PARTIE 1 sur 3 : au moins 6 exercices pratiques detailles, avec objectif, materiel, deroule minute par minute et points de vigilance.";
-    if (partie === 2) return "PARTIE 2 sur 3 : au moins 6 exercices supplementaires et les scripts complets a lire pour guider une seance, mot a mot.";
-    return "PARTIE 3 sur 3 : cas pratiques en situation reelle, protocoles adaptes a differents publics, fiches de suivi, erreurs frequentes et remedes.";
-  }
-  if (partie === 1) return "PARTIE 1 sur 3 : fondements du sujet, definitions, origines, cadre theorique, auteurs et recherches de reference, au moins 15 paragraphes denses.";
-  if (partie === 2) return "PARTIE 2 sur 3 : mecanismes, modeles et distinctions fines, au moins 15 paragraphes denses avec encadres Points cles.";
-  return "PARTIE 3 sur 3 : applications professionnelles, etudes de cas, limites et controverses, puis synthese, au moins 15 paragraphes denses.";
+const REGLE_EVALUATION =
+  "REGLE ABSOLUE POUR LES QUESTIONS : n interroge JAMAIS sur des dates, des noms propres, " +
+  "des filiations d ecoles ou des anecdotes historiques. Ces elements figurent dans le cours pour la culture " +
+  "du stagiaire, pas pour le pieger. Les questions portent exclusivement sur ce qu un praticien doit savoir FAIRE : " +
+  "la methode, le protocole, le choix de la technique selon la situation, les applications concretes, " +
+  "les precautions et la securite. Gradue la difficulte : commence par la comprehension, termine par l application.";
+
+const COURS = [
+  {
+    titre: "Fondements et cadre conceptuel",
+    consigne: "Expose les fondements theoriques : origines, auteurs de reference, concepts cles, cadre conceptuel. Cite des travaux et des recherches.",
+  },
+  {
+    titre: "Methode et protocole",
+    consigne: "Decris la methode operatoire etape par etape : preparation, deroulement, criteres de reussite, variantes selon les publics. Sois concret et sequentiel.",
+  },
+  {
+    titre: "Etudes de cas",
+    consigne: "Presente au moins quatre situations reelles et detaillees : contexte, difficulte rencontree, demarche suivie, resultat, enseignement a en tirer. Des recits, pas des generalites.",
+  },
+  {
+    titre: "Erreurs frequentes et remediation",
+    consigne: "Recense les erreurs les plus courantes, leurs causes, leurs consequences et la maniere de les corriger. Un tableau erreur / remede est bienvenu.",
+  },
+  {
+    titre: "Applications professionnelles",
+    consigne: "Montre comment transposer ce module dans la pratique professionnelle : publics concernes, adaptations, cadre d intervention, indicateurs de suivi.",
+  },
+  {
+    titre: "Approfondissement et ressources",
+    consigne: "Approfondis les points delicats non couverts jusqu ici, ouvre sur les debats du domaine, et termine par une bibliographie commentee et un glossaire.",
+  },
+];
+
+const EXERCICES = {
+  titre: "Exercices pratiques et corriges",
+  consigne: "Propose au moins huit exercices progressifs et concrets, chacun suivi de son corrige commente. Consignes precises, duree indicative, materiel necessaire, critere de reussite. Pas d invitation vague a reflechir.",
+};
+
+const QCM = {
+  titre: "QCM du module",
+  consigne:
+    "Commence par une phrase adressee au stagiaire lui rappelant que ce questionnaire sert a consolider ses acquis, " +
+    "qu il dispose du corrige et qu il peut le refaire autant de fois qu il le souhaite. " +
+    "Redige ensuite exactement " + QUESTIONS_PAR_QCM + " questions a choix multiple portant sur ce seul module. " +
+    "Quatre propositions par question, une seule correcte. Apres les questions, donne le corrige avec, pour chacune, " +
+    "la bonne reponse ET l explication de pourquoi les autres sont fausses.\n\n" + REGLE_EVALUATION,
+};
+
+const SYNTHESE = { titre: "Votre synthese personnelle", local: true };
+
+function gabaritSynthese(titreModule: string, code: string, cible: string): string {
+  const lien = "https://academiapro.fr/synthese?code=" + code + "&cible=" + cible;
+
+  return "Vous venez de terminer ce module. Avant de passer au suivant, redigez VOTRE PROPRE SYNTHESE de " +
+    titreModule + ".\n\n" +
+    "Ce qui est attendu :\n\n" +
+    "- de 300 a 500 mots, avec vos mots, sans recopier le cours ;\n" +
+    "- les notions cles du module, telles que vous les avez comprises ;\n" +
+    "- la methode ou le protocole, decrit comme si vous l expliquiez a un confrere ;\n" +
+    "- deux situations concretes dans lesquelles vous comptez l appliquer ;\n" +
+    "- ce qui reste flou pour vous, s il y a lieu.\n\n" +
+    "DEPOSEZ VOTRE SYNTHESE ICI :\n" + lien + "\n\n" +
+    "Vous pouvez la modifier tant qu elle n a pas ete corrigee. Une fois evaluee, vous recevrez par email " +
+    "une note et un retour ecrit signalant les points essentiels que vous auriez omis.\n\n" +
+    "Ce travail compte davantage que le QCM. Le QCM verifie que vous reconnaissez une bonne reponse ; " +
+    "la synthese verifie que vous avez reellement integre le module et que vous savez le transmettre.";
 }
 
 async function appeler(cle: string, invite: string): Promise<string> {
@@ -55,6 +117,31 @@ async function appeler(cle: string, invite: string): Promise<string> {
   if (!r.ok) throw new Error("Claude a repondu " + r.status);
   const rep = await r.json();
   return (rep.content || []).map(function (b: any) { return b && b.type === "text" ? b.text : ""; }).join("").trim();
+}
+
+function invitePour(titreFormation: string, l: any, mission: any, dejaEcrites: string[]): string {
+  let texte =
+    "Formation: " + titreFormation + "\n" +
+    "Chapitre " + l.chapitre_num + ": " + l.chapitre_titre + "\n" +
+    "Module " + l.module_num + ": " + l.module_titre + "\n\n" +
+    "SECTION A REDIGER : " + mission.titre + "\n" +
+    mission.consigne + "\n\n";
+
+  if (dejaEcrites.length > 0) {
+    texte += "SECTIONS DEJA REDIGEES DANS CE MODULE, A NE PAS REPRENDRE :\n- " +
+      dejaEcrites.join("\n- ") + "\n" +
+      "N y reviens pas, meme brievement. Apporte uniquement du contenu nouveau.\n\n";
+  }
+
+  if (l.type === "pratique") {
+    texte += "Ce module est de nature PRATIQUE : privilegie les scripts complets, les fiches de suivi et les protocoles.\n";
+  }
+  if (l.type === "evaluation") {
+    texte += "Ce module est de nature EVALUATIVE : privilegie les questions, les corriges commentes et les criteres de notation.\n";
+  }
+
+  texte += "Redige directement le contenu de la section, sans introduction sur ce que tu vas faire, sans conclusion sur ce que tu viens de faire.";
+  return texte;
 }
 
 function latin1(t: string): string {
@@ -89,7 +176,7 @@ function centrer(page: any, texte: string, y: number, police: any, taille: numbe
   page.drawText(texte, { x: (LARGEUR - l) / 2, y: y, size: taille, font: police, color: couleur });
 }
 
-async function composerManuel(fiche: any, plan: any[], contenus: any): Promise<Uint8Array> {
+async function composerManuel(fiche: any, plan: any[], contenus: any, examen: string): Promise<Uint8Array> {
   const titre = latin1(fiche.titre || fiche.code);
 
   const livre = await PDFDocument.create();
@@ -114,6 +201,21 @@ async function composerManuel(fiche: any, plan: any[], contenus: any): Promise<U
       if (y < BAS + interligne) nouvellePage();
       page.drawText(l, { x: MARGE + retrait, y: y, size: taille, font: police, color: couleur });
       y = y - interligne;
+    }
+  }
+
+  function corps(texte: string) {
+    for (const bloc of String(texte).split(/\n{2,}/)) {
+      const x = latin1(bloc).replace(/[ \t]+/g, " ").trim();
+      if (!x) continue;
+      if (x.indexOf("## ") === 0 || x.indexOf("# ") === 0) {
+        const t = x.replace(/^#+\s*/, "");
+        ecrire(couper(t, gras, 11.5, UTILE), gras, 11.5, 16, OR, 12, 0);
+      } else if (x.indexOf("- ") === 0 || x.indexOf("* ") === 0) {
+        ecrire(couper("- " + x.slice(2), normal, 11, UTILE - 16), normal, 11, 16, ENCRE, 2, 16);
+      } else {
+        ecrire(couper(x, normal, 11, UTILE), normal, 11, 16.5, ENCRE, 7, 0);
+      }
     }
   }
 
@@ -144,19 +246,17 @@ async function composerManuel(fiche: any, plan: any[], contenus: any): Promise<U
     y = ys - 8;
     sommaire.push({ niveau: 2, numero: num, titre: latin1(l.module_titre), page: pages.length });
 
-    const texte = contenus[fiche.code + "_ch" + l.chapitre_num + "_mod" + l.module_num + "_fr"] || "";
-    for (const bloc of String(texte).split(/\n{2,}/)) {
-      const x = latin1(bloc).replace(/[ \t]+/g, " ").trim();
-      if (!x) continue;
-      if (x.indexOf("## ") === 0 || x.indexOf("# ") === 0) {
-        const t = x.replace(/^#+\s*/, "");
-        ecrire(couper(t, gras, 11.5, UTILE), gras, 11.5, 16, OR, 12, 0);
-      } else if (x.indexOf("- ") === 0 || x.indexOf("* ") === 0) {
-        ecrire(couper("- " + x.slice(2), normal, 11, UTILE - 16), normal, 11, 16, ENCRE, 2, 16);
-      } else {
-        ecrire(couper(x, normal, 11, UTILE), normal, 11, 16.5, ENCRE, 7, 0);
-      }
-    }
+    corps(contenus[fiche.code + "_ch" + l.chapitre_num + "_mod" + l.module_num + "_fr"] || "");
+  }
+
+  // L examen final ferme le manuel, comme un chapitre a part entiere.
+  if (examen) {
+    nouvellePage();
+    page.drawRectangle({ x: MARGE, y: HAUTEUR - 132, width: UTILE, height: 1.5, color: OR });
+    page.drawText("Examen final", { x: MARGE, y: HAUTEUR - 118, size: 19, font: gras, color: OR });
+    sommaire.push({ niveau: 1, numero: "", titre: "Examen final", page: pages.length });
+    y = HAUTEUR - 180;
+    corps(examen);
   }
 
   const doc = await PDFDocument.create();
@@ -215,7 +315,8 @@ async function composerManuel(fiche: any, plan: any[], contenus: any): Promise<U
     for (const s of sommaire.slice(i * parPage, i * parPage + parPage)) {
       const numero = String(s.page + decalage);
       if (s.niveau === 1) {
-        const t = couper(s.numero + ". " + s.titre, g2, 13, UTILE - 50)[0] || s.titre;
+        const etiquette = s.numero ? s.numero + ". " + s.titre : s.titre;
+        const t = couper(etiquette, g2, 13, UTILE - 50)[0] || s.titre;
         p.drawText(t, { x: MARGE, y: ys, size: 13, font: g2, color: OR });
         p.drawText("p." + numero, { x: LARGEUR - MARGE - 34, y: ys, size: 12, font: g2, color: OR });
         ys = ys - 21;
@@ -241,8 +342,8 @@ async function composerManuel(fiche: any, plan: any[], contenus: any): Promise<U
   return await doc.save();
 }
 
-async function livrer(fiche: any, plan: any[], contenus: any, email: string, identifiant: string) {
-  const octets = await composerManuel(fiche, plan, contenus);
+async function livrer(fiche: any, plan: any[], contenus: any, examen: string, email: string, identifiant: string) {
+  const octets = await composerManuel(fiche, plan, contenus, examen);
   const chemin = "manuels/" + fiche.code + "_manuel.pdf";
 
   await supabase.storage
@@ -266,7 +367,8 @@ async function livrer(fiche: any, plan: any[], contenus: any, email: string, ide
         html:
           '<div style="font-family:Georgia,serif;line-height:1.7">' +
           '<h1 style="color:#c8a96e">Votre manuel est pret</h1>' +
-          "<p>Le manuel complet de votre formation vous attend au format PDF.</p>" +
+          "<p>Le manuel complet de votre formation vous attend au format PDF : cours, exercices corriges, " +
+          "questionnaires de validation et examen final.</p>" +
           '<p><a href="' + adresse + '">Telecharger mon manuel</a></p>' +
           '<p><a href="https://academiapro.fr/dashboard">Acceder a mon espace de formation</a></p>' +
           "<p>L equipe AcademIA Pro</p></div>",
@@ -346,52 +448,144 @@ export async function GET(req: Request) {
     const contenus: any = {};
     for (const c of cache || []) contenus[c.cache_key] = c.contenu || "";
 
-    const manquants = plan.filter(function (l: any) {
-      const t = contenus[code + "_ch" + l.chapitre_num + "_mod" + l.module_num + "_fr"];
-      return t === undefined || t.length < 30000;
-    });
+    // La duree annoncee en base fixe le volume du cours : une page par heure.
+    const trouve = String(fiche.duree || "").match(/(\d{1,4})/);
+    const heures = trouve ? parseInt(trouve[1], 10) : 0;
+    const pagesCours = Math.min(PAGES_MAX, Math.max(PAGES_MIN, heures));
+    const cibleParModule = Math.round((pagesCours * CARACTERES_PAR_PAGE) / plan.length);
+    const passesCours = Math.max(1, Math.min(COURS.length, Math.ceil(cibleParModule / CARACTERES_PAR_PASSE)));
+    const missions: any[] = COURS.slice(0, passesCours).concat([EXERCICES, QCM, SYNTHESE]);
 
-    if (manquants.length > 0) {
-      const l = manquants[0];
-      const base =
-        "Formation: " + fiche.titre + "\n" +
-        "Chapitre " + l.chapitre_num + ": " + l.chapitre_titre + "\n" +
-        "Module " + l.module_num + ": " + l.module_titre + "\n" +
-        "Type de module: " + l.type + "\n";
+    // ---- 1. UNE section de module par passage ----
+    for (const l of plan) {
+      const identifiant = "ch" + l.chapitre_num + "_mod" + l.module_num;
+      const cleCache = code + "_" + identifiant + "_fr";
+      const actuel = String(contenus[cleCache] || "");
 
-      let complet = "";
-      for (let partie = 1; partie <= 3; partie++) {
-        const fin = complet.length > 2500 ? complet.slice(complet.length - 2500) : complet;
-        const invite =
-          base + "\n" + consigne(partie, l.type) + "\n\n" +
-          (partie > 1 ? "Voici la fin de ce qui precede, enchaine sans repeter :\n---\n" + fin + "\n---\n" : "") +
-          "Ecris uniquement le contenu du manuel, sans preambule.";
-        const morceau = await appeler(cle, invite);
-        complet = complet ? complet + "\n\n" + morceau : morceau;
+      const faites = missions
+        .map(function (m: any) { return m.titre; })
+        .filter(function (t: string) { return actuel.indexOf("## " + t) >= 0; });
+
+      const suivante = missions.filter(function (m: any) {
+        return faites.indexOf(m.titre) < 0;
+      })[0];
+
+      if (!suivante) continue;
+
+      let texte = "";
+      if (suivante.local) {
+        texte = gabaritSynthese(l.module_titre, code, identifiant);
+      } else {
+        texte = await appeler(cle, invitePour(fiche.titre, l, suivante, faites));
+        if (texte.length < 400) {
+          return NextResponse.json({ ok: false, code: code, erreur: "section trop courte : " + suivante.titre }, { status: 500 });
+        }
       }
 
-      const cleCache = code + "_ch" + l.chapitre_num + "_mod" + l.module_num + "_fr";
-      await supabase.from("lms_cache").delete().eq("cache_key", cleCache);
-      await supabase.from("lms_cache").insert({
-        cache_key: cleCache,
-        formation_code: code,
-        chapitre_num: l.chapitre_num,
-        module_num: l.module_num,
-        langue: "fr",
-        contenu: complet,
-        created_at: new Date().toISOString(),
-      });
+      const nouveau = (actuel ? actuel + "\n\n" : "") + "## " + suivante.titre + "\n\n" + texte;
+
+      if (contenus[cleCache] !== undefined) {
+        await supabase.from("lms_cache").update({ contenu: nouveau }).eq("cache_key", cleCache);
+      } else {
+        await supabase.from("lms_cache").insert({
+          cache_key: cleCache,
+          formation_code: code,
+          chapitre_num: l.chapitre_num,
+          module_num: l.module_num,
+          langue: "fr",
+          contenu: nouveau,
+          created_at: new Date().toISOString(),
+        });
+      }
 
       return NextResponse.json({
         ok: true,
         code: code,
-        produit: "ch" + l.chapitre_num + "/mod" + l.module_num,
-        taille: complet.length,
-        restants: manquants.length - 1,
+        module: identifiant,
+        section: suivante.titre,
+        sections_faites: faites.length + 1,
+        sections_totales: missions.length,
+        taille: nouveau.length,
       });
     }
 
-    const poids = await livrer(fiche, plan, contenus, cmd.email, cmd.identifiant_ls);
+    // ---- 2. L examen final, un lot de cinq modules par passage ----
+    const cleExamen = code + "_ch99_mod1_fr";
+    const examenActuel = String(contenus[cleExamen] || "");
+    const lotsTotal = Math.ceil(plan.length / MODULES_PAR_LOT_EXAMEN);
+    const lotsFaits = examenActuel ? (examenActuel.match(/\n\n/g) || []).length >= 0 ? examenActuel.split("\u2014LOT\u2014").length - 1 : 0 : 0;
+
+    if (lotsFaits < lotsTotal) {
+      const debut = lotsFaits * MODULES_PAR_LOT_EXAMEN;
+      const groupe = plan.slice(debut, debut + MODULES_PAR_LOT_EXAMEN);
+      const sommaire = groupe
+        .map(function (m: any) { return "Module " + m.module_num + " : " + m.module_titre; })
+        .join("\n");
+      const combien = groupe.length * QUESTIONS_PAR_MODULE_EXAMEN;
+      const premier = debut * QUESTIONS_PAR_MODULE_EXAMEN + 1;
+      const total = plan.length * QUESTIONS_PAR_MODULE_EXAMEN;
+
+      const invite =
+        "Formation: " + fiche.titre + "\n\n" +
+        "SECTION A REDIGER : partie d un examen final\n" +
+        "Redige " + combien + " questions a choix multiple, soit EXACTEMENT " +
+        QUESTIONS_PAR_MODULE_EXAMEN + " questions par module, dans l ordre des modules ci-dessous. " +
+        "Numerote-les a partir de " + premier + ". " +
+        "Quatre propositions par question, une seule correcte. Les deux questions d un meme module doivent porter sur des aspects DIFFERENTS de ce module. " +
+        "Apres les questions, donne le corrige avec la bonne reponse et son explication.\n\n" +
+        REGLE_EVALUATION + "\n\n" +
+        "MODULES CONCERNES :\n" + sommaire;
+
+      const morceau = await appeler(cle, invite);
+
+      let contenuExamen = "";
+      if (lotsFaits === 0) {
+        contenuExamen =
+          "Cet examen porte sur l ensemble des " + plan.length + " modules de la formation, a raison de " +
+          QUESTIONS_PAR_MODULE_EXAMEN + " questions par module, soit " + total + " questions.\n\n" +
+          "\u2014LOT\u2014\n" + morceau;
+      } else {
+        contenuExamen = examenActuel + "\n\n\u2014LOT\u2014\n" + morceau;
+      }
+
+      if (debut + MODULES_PAR_LOT_EXAMEN >= plan.length) {
+        contenuExamen +=
+          "\n\n## Obtenir votre Certification AcademIA Pro\n\n" +
+          "Comptez vos points : chaque bonne reponse vaut un point, sur " + total + " au total.\n\n" +
+          "A partir de " + SEUIL_REUSSITE + " % de bonnes reponses, soit " +
+          Math.ceil((total * SEUIL_REUSSITE) / 100) + " points, la Certification AcademIA Pro de la formation " +
+          fiche.titre + " vous est delivree. Vous la recevez par email et la telechargez depuis votre espace personnel sur academiapro.fr.\n\n" +
+          "En dessous de ce seuil, reprenez les modules ou vos reponses etaient fausses, puis repassez l examen. " +
+          "Le nombre de tentatives n est pas limite : l objectif est votre maitrise, pas votre classement.\n";
+      }
+
+      if (contenus[cleExamen] !== undefined) {
+        await supabase.from("lms_cache").update({ contenu: contenuExamen }).eq("cache_key", cleExamen);
+      } else {
+        await supabase.from("lms_cache").insert({
+          cache_key: cleExamen,
+          formation_code: code,
+          chapitre_num: 99,
+          module_num: 1,
+          langue: "fr",
+          contenu: contenuExamen,
+          created_at: new Date().toISOString(),
+        });
+      }
+
+      return NextResponse.json({
+        ok: true,
+        code: code,
+        examen: true,
+        lot: lotsFaits + 1,
+        lots: lotsTotal,
+        taille: contenuExamen.length,
+      });
+    }
+
+    // ---- 3. Tout est produit : on compose et on livre ----
+    const examenPropre = examenActuel.split("\u2014LOT\u2014").join("").trim();
+    const poids = await livrer(fiche, plan, contenus, examenPropre, cmd.email, cmd.identifiant_ls);
     return NextResponse.json({ ok: true, code: code, livre: true, octets: poids });
   } catch (e: any) {
     return NextResponse.json({ ok: false, erreur: String(e.message || e) }, { status: 500 });
