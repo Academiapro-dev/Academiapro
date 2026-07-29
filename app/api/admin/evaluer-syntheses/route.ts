@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { emailDeSession } from "../../../../lib/session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 const MODELE = "claude-sonnet-4-6";
+const ADMINS = ["contact@academiapro.fr"];
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
@@ -42,8 +44,21 @@ function emailHtml(titreModule: string, note: number, retour: string): string {
   );
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
+    // Reservee a l administrateur, ou au robot muni du secret.
+    const url = new URL(req.url);
+    const secret = url.searchParams.get("secret") || "";
+    const entete = req.headers.get("authorization") || "";
+    const admin = ADMINS.indexOf(String(emailDeSession() || "")) >= 0;
+    const parSecret = process.env.CRON_SECRET
+      ? (secret === process.env.CRON_SECRET || entete === "Bearer " + process.env.CRON_SECRET)
+      : false;
+
+    if (!admin && !parSecret) {
+      return NextResponse.json({ ok: false, erreur: "acces refuse" }, { status: 403 });
+    }
+
     const cle = process.env.ANTHROPIC_API_KEY || "";
     if (!cle) {
       return NextResponse.json({ ok: false, erreur: "ANTHROPIC_API_KEY absente" }, { status: 500 });
