@@ -18,7 +18,6 @@ const QUESTIONS_PAR_MODULE_EXAMEN = 2;
 const MODULES_PAR_LOT_EXAMEN = 5;
 const SEUIL_REUSSITE = 70;
 
-// Regle d evaluation : on enseigne richement, on evalue sur l essentiel.
 const REGLE_EVALUATION =
   "REGLE ABSOLUE POUR LES QUESTIONS : n interroge JAMAIS sur des dates, des noms propres, " +
   "des filiations d ecoles ou des anecdotes historiques. Ces elements figurent dans le cours pour la culture " +
@@ -75,10 +74,11 @@ const QCM = {
     "la bonne reponse ET l explication de pourquoi les autres sont fausses.\n\n" + REGLE_EVALUATION,
 };
 
-// Derniere section : une CONSIGNE adressee au stagiaire, pas un resume.
 const SYNTHESE = { titre: "Votre synthese personnelle", local: true };
 
-function gabaritSynthese(titreModule: string): string {
+function gabaritSynthese(titreModule: string, code: string, cible: string): string {
+  const lien = "https://academiapro.fr/synthese?code=" + code + "&cible=" + cible;
+
   return "Vous venez de terminer ce module. Avant de passer au suivant, redigez VOTRE PROPRE SYNTHESE de " +
     titreModule + ".\n\n" +
     "Ce qui est attendu :\n\n" +
@@ -87,8 +87,9 @@ function gabaritSynthese(titreModule: string): string {
     "- la methode ou le protocole, decrit comme si vous l expliquiez a un confrere ;\n" +
     "- deux situations concretes dans lesquelles vous comptez l appliquer ;\n" +
     "- ce qui reste flou pour vous, s il y a lieu.\n\n" +
-    "Deposez votre synthese dans votre espace personnel sur academiapro.fr. " +
-    "Elle sera evaluee et vous recevrez un retour ecrit signalant les points essentiels que vous auriez omis.\n\n" +
+    "DEPOSEZ VOTRE SYNTHESE ICI :\n" + lien + "\n\n" +
+    "Vous pouvez la modifier tant qu elle n a pas ete corrigee. Une fois evaluee, vous recevrez par email " +
+    "une note et un retour ecrit signalant les points essentiels que vous auriez omis.\n\n" +
     "Ce travail compte davantage que le QCM. Le QCM verifie que vous reconnaissez une bonne reponse ; " +
     "la synthese verifie que vous avez reellement integre le module et que vous savez le transmettre.";
 }
@@ -342,7 +343,8 @@ export async function GET(req: Request) {
     const l = aFaire[0];
     const chapitre = { numero: l.chapitre_num, titre: l.chapitre_titre };
     const module = { numero: l.module_num, titre: l.module_titre, type: l.type };
-    const cacheKey = code + "_ch" + l.chapitre_num + "_mod" + l.module_num + "_" + langue;
+    const identifiant = "ch" + l.chapitre_num + "_mod" + l.module_num;
+    const cacheKey = code + "_" + identifiant + "_" + langue;
 
     const { data: ligne } = await supabase
       .from("lms_cache")
@@ -365,7 +367,7 @@ export async function GET(req: Request) {
       return NextResponse.json({
         ok: true,
         code: code,
-        module: "ch" + l.chapitre_num + "/mod" + l.module_num,
+        module: identifiant,
         module_termine: true,
         sections: dejaEcrites,
         caracteres: contenuActuel.length,
@@ -377,7 +379,7 @@ export async function GET(req: Request) {
     let texte = "";
 
     if (suivante.local) {
-      texte = gabaritSynthese(module.titre);
+      texte = gabaritSynthese(module.titre, code, identifiant);
     } else {
       texte = await appeler(
         cle,
@@ -417,7 +419,7 @@ export async function GET(req: Request) {
       pages_cours: pagesCours,
       modules_du_plan: plan.length,
       passes_cours: passesCours,
-      module: "ch" + l.chapitre_num + "/mod" + l.module_num,
+      module: identifiant,
       section_produite: suivante.titre,
       sans_ia: suivante.local === true,
       sections_faites: dejaEcrites.length + 1,
