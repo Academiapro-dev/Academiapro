@@ -18,6 +18,14 @@ const QUESTIONS_PAR_MODULE_EXAMEN = 2;
 const MODULES_PAR_LOT_EXAMEN = 5;
 const SEUIL_REUSSITE = 70;
 
+// Regle d evaluation : on enseigne richement, on evalue sur l essentiel.
+const REGLE_EVALUATION =
+  "REGLE ABSOLUE POUR LES QUESTIONS : n interroge JAMAIS sur des dates, des noms propres, " +
+  "des filiations d ecoles ou des anecdotes historiques. Ces elements figurent dans le cours pour la culture " +
+  "du stagiaire, pas pour le pieger. Les questions portent exclusivement sur ce qu un praticien doit savoir FAIRE : " +
+  "la methode, le protocole, le choix de la technique selon la situation, les applications concretes, " +
+  "les precautions et la securite. Gradue la difficulte : commence par la comprehension, termine par l application.";
+
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
   process.env.SUPABASE_SERVICE_ROLE_KEY || ""
@@ -52,7 +60,6 @@ const COURS = [
   },
 ];
 
-// Ces deux sections closent le contenu enseigne, dans cet ordre.
 const EXERCICES = {
   titre: "Exercices pratiques et corriges",
   consigne: "Propose au moins huit exercices progressifs et concrets, chacun suivi de son corrige commente. Consignes precises, duree indicative, materiel necessaire, critere de reussite. Pas d invitation vague a reflechir.",
@@ -60,12 +67,15 @@ const EXERCICES = {
 
 const QCM = {
   titre: "QCM du module",
-  consigne: "Redige exactement " + QUESTIONS_PAR_QCM + " questions a choix multiple portant sur ce seul module. Quatre propositions par question, une seule correcte. Apres les questions, donne le corrige avec, pour chacune, la bonne reponse ET l explication de pourquoi les autres sont fausses.",
+  consigne:
+    "Commence par une phrase adressee au stagiaire lui rappelant que ce questionnaire sert a consolider ses acquis, " +
+    "qu il dispose du corrige et qu il peut le refaire autant de fois qu il le souhaite. " +
+    "Redige ensuite exactement " + QUESTIONS_PAR_QCM + " questions a choix multiple portant sur ce seul module. " +
+    "Quatre propositions par question, une seule correcte. Apres les questions, donne le corrige avec, pour chacune, " +
+    "la bonne reponse ET l explication de pourquoi les autres sont fausses.\n\n" + REGLE_EVALUATION,
 };
 
 // Derniere section : une CONSIGNE adressee au stagiaire, pas un resume.
-// Elle est ecrite localement, sans appel a l IA, et ne donne aucun memento
-// pour que le stagiaire reformule au lieu de recopier.
 const SYNTHESE = { titre: "Votre synthese personnelle", local: true };
 
 function gabaritSynthese(titreModule: string): string {
@@ -231,6 +241,7 @@ export async function GET(req: Request) {
         "Numerote-les a partir de " + premier + ". " +
         "Quatre propositions par question, une seule correcte. Les deux questions d un meme module doivent porter sur des aspects DIFFERENTS de ce module. " +
         "Apres les questions, donne le corrige avec la bonne reponse et son explication.\n\n" +
+        REGLE_EVALUATION + "\n\n" +
         "MODULES CONCERNES :\n" + sommaire;
 
       const texte = await appeler(cle, langue, invite);
