@@ -17,9 +17,9 @@ const FR = {
   programme: "Programme",
   modulesMot: "modules",
   heuresTotal: "heures de formation",
-  support: "Support de cours",
-  supportSub: "Document complet · Francais · 300+ pages",
-  voirSupport: "Voir le support",
+  support: "Apercu du manuel",
+  supportSub: "Lisez les premieres pages avant de vous inscrire",
+  voirSupport: "Feuilleter",
   coachBtn: "Mon coach IA",
   classeBtn: "Classe virtuelle",
   pret: "Pret a demarrer ?",
@@ -57,7 +57,6 @@ export default function FormationPage({ params }: { params: { id: string } }) {
   const { txt, langue } = useTraductionAuto(FR);
   const [formation, setFormation] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [palier, setPalier] = useState("cv1");
   const [paiement, setPaiement] = useState("comptant");
   const [apercu, setApercu] = useState<any>(null);
@@ -67,7 +66,6 @@ export default function FormationPage({ params }: { params: { id: string } }) {
       .then(r => r.json())
       .then(data => {
         setFormation(data);
-        setPdfUrl(data.pdf_url || null);
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -104,7 +102,6 @@ export default function FormationPage({ params }: { params: { id: string } }) {
   const heures = (apercu && apercu.heures_programme) || 0;
   const nbModules = (apercu && apercu.nb_modules) || 0;
 
-  // Le 4 fois n est propose qu au dessus du seuil, et jamais sur un atelier.
   const echelonnable = !estAtelier && prixPromo >= MINIMUM_ECHELONNE;
   const paiementActif = echelonnable ? paiement : "comptant";
   const mensualite = Math.ceil(prixPromo / 4);
@@ -252,13 +249,13 @@ export default function FormationPage({ params }: { params: { id: string } }) {
           </div>
         )}
 
-        {pdfUrl && (
-          <div style={{ background: "rgba(200,169,110,0.08)", border: "1px solid rgba(200,169,110,0.2)", borderRadius: "10px", padding: "20px", marginBottom: "30px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        {aApercu && (
+          <div style={{ background: "rgba(200,169,110,0.08)", border: "1px solid rgba(200,169,110,0.2)", borderRadius: "10px", padding: "20px", marginBottom: "30px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px" }}>
             <div>
-              <div style={{ color: "#c8a96e", fontWeight: "bold", marginBottom: "3px" }}>📄 {txt.support}</div>
+              <div style={{ color: "#c8a96e", fontWeight: "bold", marginBottom: "3px" }}>📖 {txt.support}</div>
               <div style={{ color: "rgba(255,255,255,0.4)", fontSize: "12px" }}>{txt.supportSub}</div>
             </div>
-            <a href={pdfUrl} target="_blank"
+            <a href={"/apercu/" + String(params.id).toUpperCase()}
               style={{ background: "#c8a96e", color: "#050508", padding: "10px 20px", borderRadius: "8px", textDecoration: "none", fontWeight: "bold", fontSize: "13px" }}>
               {txt.voirSupport}
             </a>
