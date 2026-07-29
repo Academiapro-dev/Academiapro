@@ -42,22 +42,28 @@ function texteBrut(html: string): string {
     .trim();
 }
 
+// La duree est stockee en base sous forme de texte : "130h", "100 h".
+function heuresDeLaBase(duree: any): number {
+  const m = String(duree || "").match(/(\d{1,4})/);
+  return m ? parseInt(m[1], 10) : 0;
+}
+
 export async function GET(req: Request) {
   try {
     const code = (new URL(req.url).searchParams.get("code") || "").trim().toUpperCase();
     if (!code) {
-      return NextResponse.json({ ok: false, version: 6, erreur: "code manquant" }, { status: 400 });
+      return NextResponse.json({ ok: false, version: 7, erreur: "code manquant" }, { status: 400 });
     }
 
-    // L'accroche vient de la base, seule source de verite du commercial.
+    // La base est la seule source de verite du commercial : titre, prix ET duree.
     const { data: fiche } = await supabase
       .from("formations")
-      .select("code, titre, domaine, niveau, prix")
+      .select("code, titre, domaine, niveau, prix, duree")
       .eq("code", code)
       .maybeSingle();
 
     if (!fiche) {
-      return NextResponse.json({ ok: false, version: 6, erreur: "formation introuvable" }, { status: 404 });
+      return NextResponse.json({ ok: false, version: 7, erreur: "formation introuvable" }, { status: 404 });
     }
 
     const { data } = await supabase.storage
@@ -65,26 +71,23 @@ export async function GET(req: Request) {
       .download(code + "_support_cours.html");
 
     let modules: string[] = [];
-    let heures = 0;
 
     if (data) {
       const brut = texteBrut(reparerEncodage((await data.text()).slice(0, 150000)));
+      // On ne retient que l'intitule : les durees du document d'origine ne font
+      // pas foi, seule la duree totale de la base est annoncee au client.
       const motif = /Module\s*(\d{1,2})\s*[:\-\u2013\u2014]?\s*([^()\u00B7|]{3,70}?)\s*\((\d{1,3})\s*h\)/g;
       let m;
       while ((m = motif.exec(brut)) !== null) {
-        const duree = parseInt(m[3], 10);
-        const ligne = m[2].replace(/\s+/g, " ").trim() + " (" + duree + " h)";
-        if (modules.indexOf(ligne) < 0) {
-          modules.push(ligne);
-          heures = heures + duree;
-        }
+        const ligne = m[2].replace(/\s+/g, " ").trim();
+        if (ligne && modules.indexOf(ligne) < 0) modules.push(ligne);
         if (modules.length >= 25) break;
       }
     }
 
     return NextResponse.json({
       ok: true,
-      version: 6,
+      version: 7,
       code: fiche.code,
       titre: fiche.titre,
       domaine: fiche.domaine,
@@ -92,11 +95,10 @@ export async function GET(req: Request) {
       prix: fiche.prix,
       support_disponible: data ? true : false,
       nb_modules: modules.length,
-      heures_programme: heures,
+      heures_programme: heuresDeLaBase(fiche.duree),
       modules: modules,
     });
   } catch (e: any) {
-    return NextResponse.json({ ok: false, version: 6, erreur: String(e) }, { status: 500 });
+    return NextResponse.json({ ok: false, version: 7, erreur: String(e) }, { status: 500 });
   }
 }
-
