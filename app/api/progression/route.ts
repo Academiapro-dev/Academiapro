@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { emailDeSession } from "../../../lib/session";
+import { sessionCourante } from "../../../lib/session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -76,25 +76,24 @@ async function declencherCertificatSiComplet(email: string, formationCode: strin
   }
 }
 
-// LECTURE de la progression. L email vient de la SESSION, jamais de l adresse :
-// sinon n importe qui lirait la progression d un autre en devinant son email.
+// LECTURE. L email vient de la session, jamais de l adresse. Et si la session
+// porte un organisme, la lecture est CLOISONNEE a cet organisme.
 export async function GET(req: NextRequest) {
   try {
-    const url = new URL(req.url);
-    const formationCode = (url.searchParams.get("formation_code") || "").trim().toUpperCase();
-
-    const emailSession = emailDeSession();
-    if (!emailSession) {
+    const session = sessionCourante();
+    if (!session) {
       return NextResponse.json(
         { success: false, error: "Connectez-vous pour retrouver votre progression." },
         { status: 401 }
       );
     }
 
-    // Seul l administrateur peut consulter la progression d un autre apprenant.
+    const url = new URL(req.url);
+    const formationCode = (url.searchParams.get("formation_code") || "").trim().toUpperCase();
+
     const demande = (url.searchParams.get("email") || "").trim().toLowerCase();
-    const estAdmin = ADMINS.indexOf(emailSession) >= 0;
-    const email = demande && estAdmin ? demande : emailSession;
+    const estAdmin = ADMINS.indexOf(session.email) >= 0;
+    const email = demande && estAdmin ? demande : session.email;
 
     let requete = supabase
       .from("progression_apprenants")
@@ -102,6 +101,7 @@ export async function GET(req: NextRequest) {
       .eq("user_email", email);
 
     if (formationCode) requete = requete.eq("formation_code", formationCode);
+    if (session.tenantId) requete = requete.eq("tenant_id", session.tenantId);
 
     const { data, error } = await requete;
 
@@ -109,7 +109,6 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
 
-    // Forme attendue par la page LMS : { "1_1": "valide", "1_2": "valide" }
     const progression: any = {};
     const scores: any = {};
     for (const ligne of data || []) {
@@ -122,6 +121,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       success: true,
       email: email,
+      tenant_id: session.tenantId,
       formation_code: formationCode || null,
       modules_valides: (data || []).filter(function (l: any) { return l.statut === "valide"; }).length,
       progression: progression,
@@ -134,35 +134,33 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const corps = await req.json();
-    const formation_code = String(corps.formation_code || "").trim().toUpperCase();
-    const module_cle = String(corps.module_cle || "").trim();
-    const score = corps.score;
-
-    // L email vient de la session ; celui du corps n est qu un secours
-    // pour l administrateur qui teste.
-    const emailSession = emailDeSession();
-    const estAdmin = emailSession ? ADMINS.indexOf(emailSession) >= 0 : false;
-    const email = emailSession || (estAdmin ? String(corps.email || "").trim().toLowerCase() : "");
-
-    if (!email) {
+    const session = sessionCourante();
+    if (!session) {
       return NextResponse.json(
         { success: false, error: "Connectez-vous pour enregistrer votre progression." },
         { status: 401 }
       );
     }
 
+    const corps = await req.json();
+    const formation_code = String(corps.formation_code || "").trim().toUpperCase();
+    const module_cle = String(corps.module_cle || "").trim();
+    const score = corps.score;
+
     if (!formation_code || !module_cle) {
       return NextResponse.json({ success: false, error: "Parametres manquants" }, { status: 400 });
     }
 
+    // Chaque ligne porte l organisme de son auteur : c est ce qui permettra
+    // a un organisme client de suivre SES stagiaires, et eux seuls.
     const { error } = await supabase.from("progression_apprenants").upsert(
       {
-        user_email: email,
+        user_email: session.email,
         formation_code: formation_code,
         module_cle: module_cle,
         statut: "valide",
         score: score || null,
+        tenant_id: session.tenantId,
       },
       { onConflict: "user_email,formation_code,module_cle" }
     );
@@ -171,9 +169,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
 
-    await declencherCertificatSiComplet(email, formation_code);
+    await declencherCertificatSiComplet(session.email, formation_code);
 
-    return NextResponse.json({ success: true, email: email });
+    return NextResponse.json({ success: true, email: session.email, tenant_id: session.tenantId });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
