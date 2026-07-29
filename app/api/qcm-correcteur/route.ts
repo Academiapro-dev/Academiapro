@@ -193,4 +193,20 @@ export async function POST(req: NextRequest) {
           formation_code: code,
           module_cle: moduleCle,
           statut: "valide",
-          score: Math.round((note / 20) * 100
+          score: Math.round((note / 20) * 100),
+        },
+        { onConflict: "user_email,formation_code,module_cle" }
+      );
+    }
+
+    return NextResponse.json({
+      ok: true,
+      note: note,
+      seuil: SEUIL_VALIDATION,
+      valide: valide,
+      retour: retour,
+    });
+  } catch (e: any) {
+    return NextResponse.json({ ok: false, erreur: String(e) }, { status: 500 });
+  }
+}
