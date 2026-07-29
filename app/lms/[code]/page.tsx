@@ -1,6 +1,8 @@
 "use client";
 import { useState, useEffect } from "react";
 
+const CARACTERES_PAR_PAGE = 2500;
+
 const AGENTS_DOMAINE = {
   "IA": { formateur: "Alex Bernard", coach: "Isabelle Moreau" },
   "Business": { formateur: "Thomas Martin", coach: "Isabelle Moreau" },
@@ -14,6 +16,31 @@ const AGENTS_DOMAINE = {
   "Outils": { formateur: "Thomas Martin", coach: "Isabelle Moreau" },
   "Psychologie": { formateur: "Claire Beaumont", coach: "Maya" },
 };
+
+// Decoupage par VOLUME et non par nombre de paragraphes : une page de lecture
+// vaut environ 2 500 caracteres, quelle que soit la longueur des paragraphes.
+function decouperEnPages(contenu) {
+  const lignes = String(contenu || "").split("\n").filter(l => l.trim() && l.trim() !== "---");
+  const pages = [];
+  let bloc = [];
+  let taille = 0;
+
+  for (const ligne of lignes) {
+    bloc.push(ligne);
+    taille = taille + ligne.length;
+
+    // On ne coupe jamais juste apres un titre : il resterait seul en bas de page.
+    const estTitre = /^#{1,6}\s/.test(ligne.trim());
+    if (taille >= CARACTERES_PAR_PAGE && !estTitre) {
+      pages.push(bloc.join("\n"));
+      bloc = [];
+      taille = 0;
+    }
+  }
+
+  if (bloc.length > 0) pages.push(bloc.join("\n"));
+  return pages.length > 0 ? pages : [String(contenu || "")];
+}
 
 function extraireQCM(contenu) {
   if (!contenu) return [];
@@ -69,6 +96,9 @@ export default function LMSPage({ params }) {
   const cle = chapitreActif + "_" + moduleActif;
   const moduleValide = progression[cle] === "valide";
   const questions = extraireQCM(contenu);
+  const pages = decouperEnPages(contenu);
+  const totalPages = pages.length;
+  const pageCourante = pages[pageModule] || pages[0] || "";
 
   useEffect(() => {
     const lang = localStorage.getItem("langue") || "fr";
@@ -161,7 +191,6 @@ export default function LMSPage({ params }) {
 
     setMessageValidateur("MODULE VALIDE ! Score " + pct + "%");
 
-    // On enregistre en base, puis on relit : la base est la source de verite.
     try {
       const r = await fetch("/api/progression", {
         method: "POST",
@@ -237,6 +266,16 @@ export default function LMSPage({ params }) {
       <a href="/catalogue" style={{ color: "#c8a96e" }}>Retour au catalogue</a>
     </div>
   );
+
+  const styleNav = (actif) => ({
+    background: actif ? "#c8a96e" : "#eee",
+    color: actif ? "#050508" : "#999",
+    border: "none",
+    borderRadius: "6px",
+    padding: "8px 20px",
+    cursor: actif ? "pointer" : "default",
+    fontWeight: "bold",
+  });
 
   return (
     <div style={{ background: "#050508", minHeight: "100vh", color: "#fff" }}>
@@ -328,87 +367,51 @@ export default function LMSPage({ params }) {
                 </div>
               ) : contenu ? (
                 <div>
-                  {(() => {
-                    const PARAS_PAR_PAGE = 1;
-                    const toutesLignes = contenu.split("\n").filter(l => l.trim());
-                    const blocs = [];
-                    let bloc = [];
-                    let comptePara = 0;
-                    for (const ligne of toutesLignes) {
-                      const l = ligne.trim();
-                      if (l === "---") continue;
-                      bloc.push(ligne);
-                      if (!l.startsWith("#") && !l.startsWith(">") && l.length > 30) {
-                        comptePara++;
-                        if (comptePara >= PARAS_PAR_PAGE) {
-                          blocs.push(bloc.join("\n"));
-                          bloc = [];
-                          comptePara = 0;
-                        }
-                      }
-                    }
-                    if (bloc.length > 0) blocs.push(bloc.join("\n"));
-                    const pages = blocs.length > 0 ? blocs : [contenu];
-                    const page = pages[pageModule] || pages[0] || "";
-                    const totalPages = pages.length;
-                    return (
-                      <div>
-                        {totalPages > 1 && (
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", padding: "8px 0", borderBottom: "1px solid #eee" }}>
-                            <button onClick={() => setPageModule(p => Math.max(0, p - 1))} disabled={pageModule === 0}
-                              style={{ background: pageModule === 0 ? "#eee" : "#c8a96e", color: pageModule === 0 ? "#999" : "#050508", border: "none", borderRadius: "6px", padding: "6px 16px", cursor: pageModule === 0 ? "default" : "pointer", fontWeight: "bold" }}>
-                              ← Précédent
-                            </button>
-                            <span style={{ color: "#c8a96e", fontWeight: "bold", fontSize: "13px" }}>Page {pageModule + 1} / {totalPages}</span>
-                            <button onClick={() => setPageModule(p => Math.min(totalPages - 1, p + 1))} disabled={pageModule === totalPages - 1}
-                              style={{ background: pageModule === totalPages - 1 ? "#eee" : "#c8a96e", color: pageModule === totalPages - 1 ? "#999" : "#050508", border: "none", borderRadius: "6px", padding: "6px 16px", cursor: pageModule === totalPages - 1 ? "default" : "pointer", fontWeight: "bold" }}>
-                              Suivant →
-                            </button>
-                          </div>
-                        )}
-                        {page.split("\n").filter(l => l.trim()).map((ligne, i) => {
+                  {totalPages > 1 && (
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", padding: "8px 0", borderBottom: "1px solid #eee" }}>
+                      <button onClick={() => setPageModule(p => Math.max(0, p - 1))} disabled={pageModule === 0} style={styleNav(pageModule > 0)}>
+                        ← Précédent
+                      </button>
+                      <span style={{ color: "#c8a96e", fontWeight: "bold", fontSize: "13px" }}>Page {pageModule + 1} / {totalPages}</span>
+                      <button onClick={() => setPageModule(p => Math.min(totalPages - 1, p + 1))} disabled={pageModule === totalPages - 1} style={styleNav(pageModule < totalPages - 1)}>
+                        Suivant →
+                      </button>
+                    </div>
+                  )}
+
+                  {pageCourante.split("\n").filter(l => l.trim()).map((ligne, i) => {
                     const l = ligne.trim();
                     if (/^#{1,6}\s/.test(l)) {
                       const texte = l.replace(/^#{1,6}\s+/, "");
-                      const niveau = (l.match(/^(#{1,6})/)||["",""])[1].length;
+                      const niveau = (l.match(/^(#{1,6})/) || ["", ""])[1].length;
                       if (niveau <= 2) return <h2 key={i} style={{ color: "#c8a96e", fontFamily: "Georgia,serif", fontSize: "22px", margin: "20px 0 10px", borderBottom: niveau === 1 ? "2px solid #c8a96e" : "none", paddingBottom: niveau === 1 ? "8px" : "0" }}>{texte}</h2>;
                       return <h3 key={i} style={{ color: "#333", fontSize: "18px", margin: "15px 0 8px", fontWeight: "bold" }}>{texte}</h3>;
                     }
                     if (l === "---") return <hr key={i} style={{ border: "none", borderTop: "1px solid #ddd", margin: "16px 0" }} />;
-                    if (l.startsWith("> ")) return <blockquote key={i} style={{ borderLeft: "4px solid #c8a96e", paddingLeft: "16px", margin: "16px 0", color: "#555", fontStyle: "italic", fontSize: "20px" }}>{l.replace(/^> /, "").replace(/\*\*(.+?)\*\*/g, "$1")}</blockquote>;
+                    if (l.startsWith("> ")) return <blockquote key={i} style={{ borderLeft: "4px solid #c8a96e", paddingLeft: "16px", margin: "16px 0", color: "#555", fontStyle: "italic", fontSize: "18px" }}>{l.replace(/^> /, "").replace(/\*\*(.+?)\*\*/g, "$1")}</blockquote>;
+                    if (/^[-*]\s+/.test(l)) {
+                      const texte = l.replace(/^[-*]\s+/, "").replace(/\*\*(.+?)\*\*/g, "$1");
+                      return <p key={i} style={{ color: "#1a1a1a", fontSize: "18px", lineHeight: "1.8", margin: "0 0 10px 22px" }}>• {texte}</p>;
+                    }
                     const texte = l.replace(/\*\*(.+?)\*\*/g, "$1").replace(/\*(.+?)\*/g, "$1");
-                    return <p key={i} style={{ color: "#1a1a1a", fontSize: "20px", lineHeight: "2.0", marginBottom: "16px", textAlign: "justify" }}>{texte}</p>;
+                    return <p key={i} style={{ color: "#1a1a1a", fontSize: "18px", lineHeight: "1.85", marginBottom: "16px", textAlign: "justify" }}>{texte}</p>;
                   })}
-                        {totalPages > 1 && (
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "30px", padding: "15px 0", borderTop: "1px solid #eee" }}>
-                            <button onClick={() => setPageModule(p => Math.max(0, p - 1))} disabled={pageModule === 0}
-                              style={{ background: pageModule === 0 ? "#eee" : "#c8a96e", color: pageModule === 0 ? "#999" : "#050508", border: "none", borderRadius: "6px", padding: "8px 20px", cursor: pageModule === 0 ? "default" : "pointer", fontWeight: "bold" }}>
-                              ← Précédent
-                            </button>
-                            <span style={{ color: "#999", fontSize: "13px" }}>Page {pageModule + 1} / {totalPages}</span>
-                            {pageModule < totalPages - 1 ? (
-                              <button onClick={() => setPageModule(p => p + 1)}
-                                style={{ background: "#c8a96e", color: "#050508", border: "none", borderRadius: "6px", padding: "8px 20px", cursor: "pointer", fontWeight: "bold" }}>
-                                Suivant →
-                              </button>
-                            ) : (
-                              <button onClick={() => setOnglet("qcm")}
-                                style={{ background: "#c8a96e", color: "#050508", border: "none", borderRadius: "8px", padding: "8px 20px", fontWeight: "bold", cursor: "pointer" }}>
-                                Passer au QCM →
-                              </button>
-                            )}
-                          </div>
-                        )}
-                        {totalPages <= 1 && (
-                          <div style={{ marginTop: "30px", textAlign: "center" }}>
-                            <button onClick={() => setOnglet("qcm")} style={{ background: "#c8a96e", color: "#050508", border: "none", borderRadius: "8px", padding: "14px 30px", fontWeight: "bold", fontSize: "16px", cursor: "pointer" }}>
-                              Passer au QCM →
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })()}
+
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "30px", padding: "15px 0", borderTop: "1px solid #eee" }}>
+                    <button onClick={() => setPageModule(p => Math.max(0, p - 1))} disabled={pageModule === 0} style={styleNav(pageModule > 0)}>
+                      ← Précédent
+                    </button>
+                    <span style={{ color: "#999", fontSize: "13px" }}>Page {pageModule + 1} / {totalPages}</span>
+                    {pageModule < totalPages - 1 ? (
+                      <button onClick={() => setPageModule(p => p + 1)} style={styleNav(true)}>
+                        Suivant →
+                      </button>
+                    ) : (
+                      <button onClick={() => setOnglet("qcm")} style={styleNav(true)}>
+                        Passer au QCM →
+                      </button>
+                    )}
+                  </div>
                 </div>
               ) : (
                 <div style={{ textAlign: "center", padding: "60px 0", color: "#999" }}>Selectionnez un module</div>
