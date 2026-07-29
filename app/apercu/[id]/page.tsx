@@ -3,18 +3,33 @@ import { createClient } from "@supabase/supabase-js";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+const CARACTERES_APERCU = 6000;
+
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
   process.env.SUPABASE_SERVICE_ROLE_KEY || ""
 );
 
-// On ne montre que la premiere section du premier module.
-function premiereSection(contenu: string): string {
-  const t = String(contenu || "");
-  const debut = t.indexOf("## ");
-  if (debut < 0) return t.slice(0, 6000);
-  const suite = t.indexOf("\n## ", debut + 3);
-  return suite > 0 ? t.slice(debut, suite).trim() : t.slice(debut).trim();
+// On prend le debut du premier module, coupe proprement a la fin d une phrase,
+// et on retire les marques de mise en forme du texte source.
+function extraitLisible(contenu: string): string {
+  let t = String(contenu || "");
+  if (!t) return "";
+
+  t = t
+    .split("\n")
+    .map(function (l: string) {
+      return l.replace(/^\s*#{1,6}\s*/, "").replace(/\*\*/g, "").replace(/^\s*[-*]\s+/, "\u2022 ");
+    })
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+
+  if (t.length <= CARACTERES_APERCU) return t;
+
+  const coupe = t.slice(0, CARACTERES_APERCU);
+  const point = coupe.lastIndexOf(". ");
+  return (point > 2000 ? coupe.slice(0, point + 1) : coupe) + "\n\n[...]";
 }
 
 export default async function Apercu({ params }: { params: { id: string } }) {
@@ -40,7 +55,7 @@ export default async function Apercu({ params }: { params: { id: string } }) {
     .eq("cache_key", code + "_ch1_mod1_fr")
     .maybeSingle();
 
-  const extrait = premiereSection(String((ligne && ligne.contenu) || ""));
+  const extrait = extraitLisible(String((ligne && ligne.contenu) || ""));
 
   const cadre: any = {
     minHeight: "100vh",
@@ -61,6 +76,8 @@ export default async function Apercu({ params }: { params: { id: string } }) {
     );
   }
 
+  const premierModule = modules && modules.length > 0 ? modules[0].module_titre : "";
+
   return (
     <div style={cadre}>
       <div style={{ maxWidth: "820px", margin: "0 auto" }}>
@@ -70,7 +87,7 @@ export default async function Apercu({ params }: { params: { id: string } }) {
         <h1 style={{ color: "#fff", fontSize: "28px", margin: "0 0 6px" }}>{fiche.titre}</h1>
         <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "14px", marginTop: 0 }}>
           {fiche.duree ? fiche.duree + " de formation" : ""}
-          {modules && modules.length ? " · " + modules.length + " modules" : ""}
+          {modules && modules.length ? " \u00B7 " + modules.length + " modules" : ""}
         </p>
 
         {extrait ? (
@@ -83,19 +100,22 @@ export default async function Apercu({ params }: { params: { id: string } }) {
               marginTop: "24px",
             }}
           >
-            <pre
+            {premierModule && (
+              <p style={{ color: "#c8a96e", fontSize: "13px", letterSpacing: "2px", margin: "0 0 18px" }}>
+                MODULE 1 &mdash; {premierModule.toUpperCase()}
+              </p>
+            )}
+            <div
               style={{
                 whiteSpace: "pre-wrap",
                 wordWrap: "break-word",
-                lineHeight: "1.8",
-                fontFamily: "Georgia, serif",
+                lineHeight: "1.85",
                 fontSize: "16px",
                 color: "rgba(255,255,255,0.88)",
-                margin: 0,
               }}
             >
               {extrait}
-            </pre>
+            </div>
           </div>
         ) : (
           <p style={{ color: "rgba(255,255,255,0.6)", marginTop: "24px" }}>
