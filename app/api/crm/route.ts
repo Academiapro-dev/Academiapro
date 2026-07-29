@@ -1,7 +1,8 @@
 import { mesurer } from "../../../lib/usageIA";
-// app/api/crm/route.ts — Agent CRM connecté à CAM
+// app/api/crm/route.ts — Agent CRM, cloisonne par organisme
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { sessionCourante } from "../../../lib/session";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -54,38 +55,49 @@ async function scorer_prospect(prospect: any): Promise<number> {
   return Math.min(score, 100);
 }
 
-// Ajouter ou mettre à jour un prospect
-async function upsert_prospect(data: any) {
-  const score = await scorer_prospect(data);
-  const payload = { ...data, score, derniere_interaction: new Date().toISOString() };
+// Chaque prospect appartient a un organisme : celui de la session.
+function filtreTenant(requete: any, tenantId: string | null) {
+  return tenantId ? requete.eq("tenant_id", tenantId) : requete.is("tenant_id", null);
+}
 
-  const { data: existant } = await supabase
-    .from("crm").select("id").eq("email", data.email).limit(1);
+async function upsert_prospect(data: any, tenantId: string | null) {
+  const score = await scorer_prospect(data);
+  const payload = { ...data, score, tenant_id: tenantId, derniere_interaction: new Date().toISOString() };
+
+  const { data: existant } = await filtreTenant(
+    supabase.from("crm").select("id").eq("email", data.email),
+    tenantId
+  ).limit(1);
 
   let result;
   if (existant && existant.length > 0) {
-    result = await supabase.from("crm").update(payload).eq("email", data.email);
+    result = await supabase.from("crm").update(payload).eq("id", existant[0].id);
   } else {
     result = await supabase.from("crm").insert(payload);
   }
 
   await notifier_cam("prospect_upsert", { ...data, score });
-  return { succes: !result.error, score };
+  return { succes: !result.error, score, erreur: result.error ? result.error.message : null };
 }
 
-// Récupérer tous les prospects avec filtres
-async function get_prospects(statut?: string, domaine?: string) {
-  let query = supabase.from("crm").select("*").order("score", { ascending: false });
+async function get_prospects(statut: string | undefined, domaine: string | undefined, tenantId: string | null) {
+  let query = filtreTenant(
+    supabase.from("crm").select("*").order("score", { ascending: false }),
+    tenantId
+  );
   if (statut) query = query.eq("statut", statut);
   if (domaine) query = query.eq("domaine", domaine);
-  const { data } = await query;
+  const { data } = await query.limit(1000);
   return data || [];
 }
 
-// Analyse IA d'un prospect
-async function analyser_prospect(email: string) {
-  const { data } = await supabase.from("crm").select("*").eq("email", email).limit(1);
-  if (!data || data.length === 0) return { erreur: "Prospect non trouvé" };
+async function analyser_prospect(email: string, tenantId: string | null) {
+  const { data } = await filtreTenant(
+    supabase.from("crm").select("*").eq("email", email),
+    tenantId
+  ).limit(1);
+
+  if (!data || data.length === 0) return { erreur: "Prospect non trouve" };
 
   const p = data[0];
   const analyse = await appel_claude(
@@ -106,10 +118,13 @@ Derniere interaction: ${p.derniere_interaction}`
   return { prospect: p, analyse };
 }
 
-// Relance automatique
-async function generer_relance(email: string) {
-  const { data } = await supabase.from("crm").select("*").eq("email", email).limit(1);
-  if (!data || data.length === 0) return { erreur: "Prospect non trouvé" };
+async function generer_relance(email: string, tenantId: string | null) {
+  const { data } = await filtreTenant(
+    supabase.from("crm").select("*").eq("email", email),
+    tenantId
+  ).limit(1);
+
+  if (!data || data.length === 0) return { erreur: "Prospect non trouve" };
 
   const p = data[0];
   const email_relance = await appel_claude(
@@ -132,20 +147,23 @@ L email doit:
   await supabase.from("crm").update({
     derniere_interaction: new Date().toISOString(),
     notes: (p.notes || "") + ` | Relance envoyee ${new Date().toLocaleDateString("fr-FR")}`
-  }).eq("email", email);
+  }).eq("id", p.id);
 
   await notifier_cam("relance_generee", { email, formation: p.formation_interesse });
   return { email_relance, prospect: p };
 }
 
-// Statistiques CRM
-async function stats_crm() {
-  const { data: tous } = await supabase.from("crm").select("statut,score,domaine,source");
+async function stats_crm(tenantId: string | null) {
+  const { data: tous } = await filtreTenant(
+    supabase.from("crm").select("statut,score,domaine,source"),
+    tenantId
+  ).limit(5000);
+
   if (!tous) return {};
 
   const total = tous.length;
   const prospects = tous.filter(p => p.statut === "prospect").length;
-  const chauds = tous.filter(p => p.score >= 60).length;
+  const chauds = tous.filter(p => (p.score || 0) >= 60).length;
   const clients = tous.filter(p => p.statut === "client").length;
   const score_moyen = total > 0 ? Math.round(tous.reduce((s, p) => s + (p.score || 0), 0) / total) : 0;
 
@@ -161,7 +179,6 @@ async function stats_crm() {
 
   return { total, prospects, chauds, clients, score_moyen, par_domaine, par_source };
 }
-
 
 async function declencher_certificat_auto(email: string, formationCode: string) {
   try {
@@ -207,11 +224,13 @@ async function declencher_certificat_auto(email: string, formationCode: string) 
   }
 }
 
-async function lms_update(email: string, data: any) {
+async function lms_update(email: string, data: any, tenantId: string | null) {
   if (!email) return { erreur: "Email requis" };
 
-  const { data: existant } = await supabase
-    .from("crm").select("id,modules_valides,progression").eq("email", email).limit(1);
+  const { data: existant } = await filtreTenant(
+    supabase.from("crm").select("id").eq("email", email),
+    tenantId
+  ).limit(1);
 
   if ((data.progression_pct || 0) >= 100 && data.formation_code) {
     await declencher_certificat_auto(email, data.formation_code);
@@ -219,6 +238,7 @@ async function lms_update(email: string, data: any) {
 
   const payload = {
     email,
+    tenant_id: tenantId,
     statut: "client",
     formation_active: data.formation_code,
     modules_valides: data.modules_valides || 0,
@@ -230,14 +250,13 @@ async function lms_update(email: string, data: any) {
 
   let err;
   if (existant && existant.length > 0) {
-    const r = await supabase.from("crm").update(payload).eq("email", email);
+    const r = await supabase.from("crm").update(payload).eq("id", existant[0].id);
     err = r.error;
   } else {
     const r = await supabase.from("crm").insert({ ...payload, score: 80 });
     err = r.error;
   }
 
-  // Notifier CAM
   await supabase.from("analytics").insert({
     formation_code: data.formation_code || "CRM",
     agent: "CRM ↔ LMS",
@@ -246,7 +265,6 @@ async function lms_update(email: string, data: any) {
     timestamp: new Date().toISOString(),
   });
 
-  // Si progression >= 100% → déclencher email certification
   if (data.progression_pct >= 100) {
     await fetch(process.env.NEXT_PUBLIC_SITE_URL + "/api/emailing", {
       method: "POST",
@@ -260,7 +278,6 @@ async function lms_update(email: string, data: any) {
     });
   }
 
-  // Si inactif depuis 7 jours → déclencher remotivation (géré par Agent Remotivation)
   if (data.jours_inactif && data.jours_inactif >= 7) {
     await fetch(process.env.NEXT_PUBLIC_SITE_URL + "/api/remotivation", {
       method: "POST",
@@ -277,33 +294,24 @@ async function lms_update(email: string, data: any) {
 }
 
 export async function POST(req: NextRequest) {
-  // Garde-fou : n accepter que les appels du site
-  const origineApp = req.headers.get("origin") || "";
-  const referentApp = req.headers.get("referer") || "";
-  const appelLegitime =
-    origineApp.includes("academiapro.fr")
-    || referentApp.includes("academiapro.fr")
-    || origineApp.includes("vercel.app")
-    || referentApp.includes("vercel.app")
-    || origineApp.includes("localhost")
-    || referentApp.includes("localhost");
-  if (!appelLegitime) {
-    return NextResponse.json(
-      { error: "Acces refuse" },
-      { status: 403 },
-    );
+  // Une SESSION SIGNEE est desormais exigee : l en-tete de provenance ne
+  // prouvait rien, et c est la session qui porte l organisme.
+  const session = sessionCourante();
+  if (!session) {
+    return NextResponse.json({ erreur: "Connectez-vous" }, { status: 401 });
   }
 
   try {
     const body = await req.json();
     const { action } = body;
+    const t = session.tenantId;
 
-    if (action === "upsert") return NextResponse.json(await upsert_prospect(body.data));
-    if (action === "prospects") return NextResponse.json(await get_prospects(body.statut, body.domaine));
-    if (action === "analyser") return NextResponse.json(await analyser_prospect(body.email));
-    if (action === "relance") return NextResponse.json(await generer_relance(body.email));
-    if (action === "lms_update") return NextResponse.json(await lms_update(body.email, body.data || {}));
-    if (action === "stats") return NextResponse.json(await stats_crm());
+    if (action === "upsert") return NextResponse.json(await upsert_prospect(body.data, t));
+    if (action === "prospects") return NextResponse.json(await get_prospects(body.statut, body.domaine, t));
+    if (action === "analyser") return NextResponse.json(await analyser_prospect(body.email, t));
+    if (action === "relance") return NextResponse.json(await generer_relance(body.email, t));
+    if (action === "lms_update") return NextResponse.json(await lms_update(session.email, body.data || {}, t));
+    if (action === "stats") return NextResponse.json(await stats_crm(t));
 
     return NextResponse.json({ erreur: "Action invalide" }, { status: 400 });
   } catch (err: any) {
@@ -312,5 +320,9 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET() {
-  return NextResponse.json(await stats_crm());
+  const session = sessionCourante();
+  if (!session) {
+    return NextResponse.json({ erreur: "Connectez-vous" }, { status: 401 });
+  }
+  return NextResponse.json(await stats_crm(session.tenantId));
 }
