@@ -7,12 +7,16 @@ export const dynamic = "force-dynamic";
 const BUCKET = "formations-pdf";
 
 const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || "", 
+  process.env.NEXT_PUBLIC_SUPABASE_URL || "",
   process.env.SUPABASE_SERVICE_ROLE_KEY || ""
 );
 
 // Table de correspondance directe : aucune logique d encodage, aucun echec possible.
 const REMPLACEMENTS: [string, string][] = [
+  // Accents COMBINANTS mal decodes : l accent est separe de sa lettre.
+  ["\u00CC\u0081", "\u0301"], ["\u00CC\u0080", "\u0300"], ["\u00CC\u0082", "\u0302"],
+  ["\u00CC\u0083", "\u0303"], ["\u00CC\u0088", "\u0308"], ["\u00CC\u00A7", "\u0327"],
+  // Accents COMPOSES mal decodes, au cas ou les deux formes coexistent.
   ["\u00C3\u00A9", "\u00E9"], ["\u00C3\u00A8", "\u00E8"], ["\u00C3\u00AA", "\u00EA"],
   ["\u00C3\u00AB", "\u00EB"], ["\u00C3\u00A0", "\u00E0"], ["\u00C3\u00A2", "\u00E2"],
   ["\u00C3\u00A4", "\u00E4"], ["\u00C3\u00AE", "\u00EE"], ["\u00C3\u00AF", "\u00EF"],
@@ -21,6 +25,7 @@ const REMPLACEMENTS: [string, string][] = [
   ["\u00C3\u0089", "\u00C9"], ["\u00C3\u0088", "\u00C8"], ["\u00C3\u008A", "\u00CA"],
   ["\u00C3\u0080", "\u00C0"], ["\u00C3\u0082", "\u00C2"], ["\u00C3\u0087", "\u00C7"],
   ["\u00C3\u0094", "\u00D4"], ["\u00C3\u008E", "\u00CE"], ["\u00C3\u00B1", "\u00F1"],
+  // Ponctuation typographique et residus.
   ["\u00E2\u0080\u0099", "'"], ["\u00E2\u0080\u0098", "'"],
   ["\u00E2\u0080\u009C", "\""], ["\u00E2\u0080\u009D", "\""],
   ["\u00E2\u0080\u0093", "-"], ["\u00E2\u0080\u0094", "-"],
@@ -32,7 +37,9 @@ function reparer(s: string): string {
   for (const [abime, correct] of REMPLACEMENTS) {
     t = t.split(abime).join(correct);
   }
-  return t.trim();
+  // On recolle les accents combinants a leur lettre.
+  try { t = t.normalize("NFC"); } catch (e) {}
+  return t.replace(/[\u0080-\u009F]/g, "").trim();
 }
 
 function texteBrut(html: string): string {
@@ -79,6 +86,8 @@ export async function GET(req: Request) {
 
     if (data) {
       const brut = texteBrut((await data.text()).slice(0, 150000));
+      // On ne retient que l intitule : les durees du document d origine ne font
+      // pas foi, seule la duree totale de la base est annoncee au client.
       const motif = /Module\s*(\d{1,2})\s*[:\-\u2013\u2014]?\s*([^()\u00B7|]{3,70}?)\s*\((\d{1,3})\s*h\)/g;
       let m;
       while ((m = motif.exec(brut)) !== null) {
