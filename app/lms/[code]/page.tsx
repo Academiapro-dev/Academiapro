@@ -42,8 +42,9 @@ function decouperEnPages(contenu) {
   return pages.length > 0 ? pages : [String(contenu || "")];
 }
 
-// Les QUESTIONS SEULES : on coupe avant le corrige, qui figure juste apres
-// dans le module. Sinon le stagiaire lit les reponses avant de repondre.
+// Les QUESTIONS SEULES. On coupe avant le corrige, mais uniquement sur une
+// LIGNE qui commence par Corrige : le mot apparait aussi dans la phrase
+// d introduction (« vous disposez du corrige »), et couper la supprimait tout.
 function questionsSeules(contenu) {
   const t = String(contenu || "");
   const debut = t.search(/^#{1,6}\s*QCM/im);
@@ -53,8 +54,15 @@ function questionsSeules(contenu) {
   const suite = zone.slice(20).search(/^#{1,6}\s+/m);
   if (suite > 0) zone = zone.slice(0, suite + 20);
 
-  const corrige = zone.search(/corrig[eé]/i);
-  return corrige > 40 ? zone.slice(0, corrige).trim() : zone.trim();
+  const lignes = zone.split("\n");
+  const gardees = [];
+  for (const ligne of lignes) {
+    const l = ligne.trim().replace(/^#{1,6}\s*/, "").replace(/\*\*/g, "");
+    if (/^corrig[eé]\b/i.test(l) || /^r[eé]ponses?\s+(correctes?|attendues?)\b/i.test(l)) break;
+    gardees.push(ligne);
+  }
+
+  return gardees.join("\n").trim();
 }
 
 export default function LMSPage({ params }) {
@@ -246,6 +254,14 @@ export default function LMSPage({ params }) {
     fontWeight: "bold",
   });
 
+  const CARTE_BLANCHE = {
+    background: "#ffffff",
+    borderRadius: "12px",
+    padding: "36px 40px",
+    boxShadow: "0 4px 30px rgba(0,0,0,0.4)",
+    marginBottom: "20px",
+  };
+
   return (
     <div style={{ background: "#050508", minHeight: "100vh", color: "#fff" }}>
       <div style={{ background: "linear-gradient(135deg,#0a0a1a,#1a1a2e)", padding: "20px 30px", borderBottom: "2px solid rgba(200,169,110,0.3)" }}>
@@ -313,7 +329,7 @@ export default function LMSPage({ params }) {
           )}
 
           {onglet === "cours" && (
-            <div style={{ background: "#fff", borderRadius: "12px", padding: "40px 45px", boxShadow: "0 4px 30px rgba(0,0,0,0.4)", minHeight: "400px" }}>
+            <div style={{ ...CARTE_BLANCHE, padding: "40px 45px", minHeight: "400px" }}>
               {loading ? (
                 <div style={{ textAlign: "center", padding: "60px 0" }}>
                   <div style={{ fontSize: "32px", marginBottom: "15px" }}>⚡</div>
@@ -361,26 +377,32 @@ export default function LMSPage({ params }) {
 
           {onglet === "qcm" && (
             <div>
-              {!texteQCM ? (
-                <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(200,169,110,0.2)", borderRadius: "12px", padding: "25px" }}>
-                  <p style={{ color: "rgba(255,255,255,0.6)", margin: 0 }}>
+              {loading ? (
+                <div style={CARTE_BLANCHE}>
+                  <p style={{ color: "#666", margin: 0 }}>Chargement du module...</p>
+                </div>
+              ) : !texteQCM ? (
+                <div style={CARTE_BLANCHE}>
+                  <p style={{ color: "#666", margin: 0, fontSize: "17px" }}>
                     Ce module n a pas encore de questionnaire. Il apparaitra une fois le module produit.
                   </p>
                 </div>
               ) : (
                 <>
-                  <div style={{ background: "#fff", borderRadius: "12px", padding: "36px 40px", boxShadow: "0 4px 30px rgba(0,0,0,0.4)", marginBottom: "20px" }}>
+                  <div style={CARTE_BLANCHE}>
                     {texteQCM.split("\n").filter(l => l.trim()).map((ligne, i) => {
                       const l = ligne.trim();
                       if (/^#{1,6}\s/.test(l)) return <h2 key={i} style={{ color: "#c8a96e", fontFamily: "Georgia,serif", fontSize: "21px", margin: "0 0 16px" }}>{l.replace(/^#{1,6}\s+/, "")}</h2>;
+                      if (/^[A-D]\s*[).\-–:]/.test(l)) return <p key={i} style={{ color: "#1a1a1a", fontSize: "17px", lineHeight: "1.6", margin: "0 0 6px 26px" }}>{propre(l)}</p>;
                       if (/^[-*]\s+/.test(l)) return <p key={i} style={{ color: "#1a1a1a", fontSize: "17px", lineHeight: "1.7", margin: "0 0 8px 22px" }}>• {propre(l.replace(/^[-*]\s+/, ""))}</p>;
+                      if (/^(?:Question\s*)?Q?\s*\d{1,2}\s*[.)\-–:]/.test(l)) return <p key={i} style={{ color: "#1a1a1a", fontSize: "17px", lineHeight: "1.7", margin: "20px 0 10px", fontWeight: "bold" }}>{propre(l)}</p>;
                       return <p key={i} style={{ color: "#1a1a1a", fontSize: "17px", lineHeight: "1.75", marginBottom: "12px" }}>{propre(l)}</p>;
                     })}
                   </div>
 
-                  <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(200,169,110,0.25)", borderRadius: "12px", padding: "25px" }}>
-                    <h3 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", margin: "0 0 10px", fontSize: "18px" }}>Vos reponses</h3>
-                    <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "14px", marginTop: 0, lineHeight: "1.6" }}>
+                  <div style={CARTE_BLANCHE}>
+                    <h3 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", margin: "0 0 8px", fontSize: "19px" }}>Vos reponses</h3>
+                    <p style={{ color: "#555", fontSize: "15px", marginTop: 0, lineHeight: "1.6" }}>
                       Ecrivez vos reponses comme vous le souhaitez, par exemple « 1 : B, 2 : C ». Vous pouvez
                       justifier une reponse si vous le voulez : le correcteur en tiendra compte.
                     </p>
@@ -388,27 +410,27 @@ export default function LMSPage({ params }) {
                     <textarea
                       value={mesReponses}
                       onChange={(e) => setMesReponses(e.target.value)}
-                      rows={8}
-                      placeholder="1 : B&#10;2 : C&#10;3 : A, parce que..."
+                      rows={9}
+                      placeholder={"1 : B\n2 : C\n3 : A, parce que..."}
                       disabled={correctionEnCours}
-                      style={{ width: "100%", padding: "14px", borderRadius: "8px", border: "1px solid rgba(200,169,110,0.3)", background: "rgba(255,255,255,0.05)", color: "#fff", fontSize: "16px", lineHeight: "1.7", fontFamily: "Georgia,serif", boxSizing: "border-box", marginBottom: "14px" }}
+                      style={{ width: "100%", padding: "16px", borderRadius: "8px", border: "1px solid #ccc", background: "#fff", color: "#1a1a1a", fontSize: "17px", lineHeight: "1.7", fontFamily: "Georgia,serif", boxSizing: "border-box", marginBottom: "16px" }}
                     />
 
                     <button
                       onClick={faireCorriger}
                       disabled={correctionEnCours || mesReponses.trim().length < 10}
-                      style={{ background: correctionEnCours || mesReponses.trim().length < 10 ? "rgba(200,169,110,0.3)" : "#c8a96e", color: "#050508", padding: "14px 30px", borderRadius: "8px", border: "none", cursor: correctionEnCours ? "default" : "pointer", fontWeight: "bold", fontSize: "16px", width: "100%" }}
+                      style={{ background: correctionEnCours || mesReponses.trim().length < 10 ? "#e3d9c2" : "#c8a96e", color: correctionEnCours || mesReponses.trim().length < 10 ? "#8a8a8a" : "#050508", padding: "14px 30px", borderRadius: "8px", border: "none", cursor: correctionEnCours ? "default" : "pointer", fontWeight: "bold", fontSize: "16px", width: "100%", fontFamily: "Georgia,serif" }}
                     >
                       {correctionEnCours ? "Le correcteur lit vos reponses..." : correction ? "Faire corriger a nouveau" : "Faire corriger mes reponses"}
                     </button>
 
-                    <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px", marginTop: "12px", marginBottom: 0 }}>
+                    <p style={{ color: "#888", fontSize: "14px", marginTop: "12px", marginBottom: 0 }}>
                       Il faut {seuil} sur 20 pour valider ce module. Vous pouvez recommencer autant de fois que necessaire.
                     </p>
                   </div>
 
                   {correction && (
-                    <div style={{ marginTop: "20px", background: "#fff", borderRadius: "12px", padding: "30px 36px", boxShadow: "0 4px 30px rgba(0,0,0,0.4)" }}>
+                    <div style={{ ...CARTE_BLANCHE, padding: "30px 36px" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: "16px", marginBottom: "18px", paddingBottom: "16px", borderBottom: "1px solid #eee" }}>
                         <span style={{ fontSize: "34px", fontWeight: "bold", color: correction.valide ? "#2e7d32" : "#c62828", fontFamily: "Georgia,serif" }}>
                           {correction.note}/20
@@ -423,7 +445,7 @@ export default function LMSPage({ params }) {
                       </div>
 
                       {correction.valide && (
-                        <button onClick={moduleSuivant} style={{ marginTop: "24px", background: "#c8a96e", color: "#050508", padding: "14px 30px", borderRadius: "8px", border: "none", cursor: "pointer", fontWeight: "bold", fontSize: "16px" }}>
+                        <button onClick={moduleSuivant} style={{ marginTop: "24px", background: "#c8a96e", color: "#050508", padding: "14px 30px", borderRadius: "8px", border: "none", cursor: "pointer", fontWeight: "bold", fontSize: "16px", fontFamily: "Georgia,serif" }}>
                           Module suivant →
                         </button>
                       )}
