@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 
 const CARACTERES_PAR_PAGE = 2500;
+const MOTS_MIN_SYNTHESE = 80;
 
 const AGENTS_DOMAINE = {
   "IA": { formateur: "Alex Bernard", coach: "Isabelle Moreau" },
@@ -21,48 +22,66 @@ function propre(t) {
   return String(t || "").replace(/\*\*/g, "").replace(/`/g, "").trim();
 }
 
-function decouperEnPages(contenu) {
-  const lignes = String(contenu || "").split("\n").filter(l => l.trim() && l.trim() !== "---");
-  const pages = [];
-  let bloc = [];
-  let taille = 0;
+function sections(contenu) {
+  return String(contenu || "").split(/\n(?=#{1,6}\s)/);
+}
 
-  for (const ligne of lignes) {
-    bloc.push(ligne);
-    taille = taille + ligne.length;
-    const estTitre = /^#{1,6}\s/.test(ligne.trim());
-    if (taille >= CARACTERES_PAR_PAGE && !estTitre) {
-      pages.push(bloc.join("\n"));
-      bloc = [];
-      taille = 0;
+// LE COURS SANS LE QCM : le stagiaire ne doit pas pouvoir lire le corrige
+// avant de repondre. C est l agent qui donnera les reponses, apres la note.
+function coursSansQCM(contenu) {
+  return sections(contenu)
+    .filter(function (s) {
+      const premiere = propre(s.split("\n")[0]).replace(/^#{1,6}\s*/, "");
+      return !/^QCM\b/i.test(premiere);
+    })
+    .join("\n");
+}
+
+function zoneQCM(contenu) {
+  const trouvee = sections(contenu).find(function (s) {
+    const premiere = propre(s.split("\n")[0]).replace(/^#{1,6}\s*/, "");
+    return /^QCM\b/i.test(premiere);
+  });
+  return trouvee || "";
+}
+
+// On n analyse QUE les questions et leurs options. Les bonnes reponses
+// restent cote serveur, entre les mains de l agent correcteur.
+function analyserQuestions(zone) {
+  const questions = [];
+  let courante = null;
+  let dansCorrige = false;
+
+  for (const brute of String(zone || "").split("\n")) {
+    const l = propre(brute).replace(/^#{1,6}\s*/, "");
+    if (!l || l === "---") continue;
+
+    if (/^corrig[eé]\b/i.test(l) || /^r[eé]ponses?\s+(correctes?|attendues?)\b/i.test(l)) {
+      dansCorrige = true;
+    }
+    if (dansCorrige) continue;
+
+    const titre = l.match(/^(?:Question|Q)\s*(\d{1,2})\s*[.):\-–]?\s*(.*)$/i);
+    const option = l.match(/^([A-D])\s*[).\-–:]\s*(.+)$/);
+
+    if (option && courante) {
+      courante.options.push({ lettre: option[1], texte: option[2] });
+      continue;
+    }
+
+    if (titre) {
+      if (courante && courante.options.length >= 2) questions.push(courante);
+      courante = { numero: parseInt(titre[1], 10), enonce: titre[2] || "", options: [] };
+      continue;
+    }
+
+    if (courante && courante.options.length === 0) {
+      courante.enonce = courante.enonce ? courante.enonce + " " + l : l;
     }
   }
 
-  if (bloc.length > 0) pages.push(bloc.join("\n"));
-  return pages.length > 0 ? pages : [String(contenu || "")];
-}
-
-// Les QUESTIONS SEULES. On coupe avant le corrige, mais uniquement sur une
-// LIGNE qui commence par Corrige : le mot apparait aussi dans la phrase
-// d introduction (« vous disposez du corrige »), et couper la supprimait tout.
-function questionsSeules(contenu) {
-  const t = String(contenu || "");
-  const debut = t.search(/^#{1,6}\s*QCM/im);
-  if (debut < 0) return "";
-
-  let zone = t.slice(debut);
-  const suite = zone.slice(20).search(/^#{1,6}\s+/m);
-  if (suite > 0) zone = zone.slice(0, suite + 20);
-
-  const lignes = zone.split("\n");
-  const gardees = [];
-  for (const ligne of lignes) {
-    const l = ligne.trim().replace(/^#{1,6}\s*/, "").replace(/\*\*/g, "");
-    if (/^corrig[eé]\b/i.test(l) || /^r[eé]ponses?\s+(correctes?|attendues?)\b/i.test(l)) break;
-    gardees.push(ligne);
-  }
-
-  return gardees.join("\n").trim();
+  if (courante && courante.options.length >= 2) questions.push(courante);
+  return questions;
 }
 
 export default function LMSPage({ params }) {
@@ -85,7 +104,8 @@ export default function LMSPage({ params }) {
   const [coachDyn, setCoachDyn] = useState("");
   const [pageModule, setPageModule] = useState(0);
 
-  const [mesReponses, setMesReponses] = useState("");
+  const [choix, setChoix] = useState({});
+  const [synthese, setSynthese] = useState("");
   const [correction, setCorrection] = useState(null);
   const [correctionEnCours, setCorrectionEnCours] = useState(false);
   const [seuil, setSeuil] = useState(14);
@@ -97,10 +117,33 @@ export default function LMSPage({ params }) {
   const progressionPct = totalModules > 0 ? Math.round((modulesValides / totalModules) * 100) : 0;
   const cle = chapitreActif + "_" + moduleActif;
   const moduleValide = progression[cle] === "valide";
-  const pages = decouperEnPages(contenu);
+
+  const texteCours = coursSansQCM(contenu);
+  const pages = (function () {
+    const lignes = texteCours.split("\n").filter(l => l.trim() && l.trim() !== "---");
+    const resultat = [];
+    let bloc = [];
+    let taille = 0;
+    for (const ligne of lignes) {
+      bloc.push(ligne);
+      taille = taille + ligne.length;
+      if (taille >= CARACTERES_PAR_PAGE && !/^#{1,6}\s/.test(ligne.trim())) {
+        resultat.push(bloc.join("\n"));
+        bloc = [];
+        taille = 0;
+      }
+    }
+    if (bloc.length > 0) resultat.push(bloc.join("\n"));
+    return resultat.length > 0 ? resultat : [texteCours];
+  })();
   const totalPages = pages.length;
   const pageCourante = pages[pageModule] || pages[0] || "";
-  const texteQCM = questionsSeules(contenu);
+
+  const questions = analyserQuestions(zoneQCM(contenu));
+  const repondues = questions.filter(q => choix[q.numero]).length;
+  const motsSynthese = synthese.split(/\s+/).filter(Boolean).length;
+  const pretAcorriger =
+    questions.length > 0 && repondues === questions.length && motsSynthese >= MOTS_MIN_SYNTHESE;
 
   useEffect(() => {
     const lang = localStorage.getItem("langue") || "fr";
@@ -146,17 +189,19 @@ export default function LMSPage({ params }) {
 
   async function chargerCopie(ch_num, mod_num) {
     setCorrection(null);
-    setMesReponses("");
+    setChoix({});
+    setSynthese("");
     try {
       const r = await fetch("/api/qcm-correcteur?formation_code=" + code + "&module_cle=" + ch_num + "_" + mod_num);
       const data = await r.json();
       if (data.ok) {
         if (data.seuil) setSeuil(data.seuil);
-        if (data.copie) {
-          setMesReponses(data.copie.reponses || "");
-          if (data.copie.statut === "corrigee") {
-            setCorrection({ note: data.copie.note, retour: data.copie.retour, valide: data.copie.note >= (data.seuil || 14) });
-          }
+        if (data.copie && data.copie.statut === "corrigee") {
+          setCorrection({
+            note: data.copie.note,
+            retour: data.copie.retour,
+            valide: data.copie.note >= (data.seuil || 14),
+          });
         }
       }
     } catch {}
@@ -181,14 +226,23 @@ export default function LMSPage({ params }) {
   }
 
   async function faireCorriger() {
-    if (mesReponses.trim().length < 10) return;
+    if (!pretAcorriger) return;
     setCorrectionEnCours(true);
     setAvertissement("");
+
+    const lignes = questions.map(function (q) {
+      return "Question " + q.numero + " : " + (choix[q.numero] || "sans reponse");
+    });
+
+    const copie =
+      "REPONSES COCHEES\n" + lignes.join("\n") +
+      "\n\nNOTE DE SYNTHESE DU STAGIAIRE\n" + synthese.trim();
+
     try {
       const r = await fetch("/api/qcm-correcteur", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ formation_code: code, module_cle: cle, reponses: mesReponses, langue }),
+        body: JSON.stringify({ formation_code: code, module_cle: cle, reponses: copie, langue }),
       });
       const data = await r.json();
       if (data.ok) {
@@ -254,7 +308,7 @@ export default function LMSPage({ params }) {
     fontWeight: "bold",
   });
 
-  const CARTE_BLANCHE = {
+  const CARTE = {
     background: "#ffffff",
     borderRadius: "12px",
     padding: "36px 40px",
@@ -329,13 +383,13 @@ export default function LMSPage({ params }) {
           )}
 
           {onglet === "cours" && (
-            <div style={{ ...CARTE_BLANCHE, padding: "40px 45px", minHeight: "400px" }}>
+            <div style={{ ...CARTE, padding: "40px 45px", minHeight: "400px" }}>
               {loading ? (
                 <div style={{ textAlign: "center", padding: "60px 0" }}>
                   <div style={{ fontSize: "32px", marginBottom: "15px" }}>⚡</div>
                   <div style={{ color: "#c8a96e", fontSize: "16px" }}>Chargement du module...</div>
                 </div>
-              ) : contenu ? (
+              ) : texteCours ? (
                 <div>
                   {totalPages > 1 && (
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", padding: "8px 0", borderBottom: "1px solid #eee" }}>
@@ -378,50 +432,102 @@ export default function LMSPage({ params }) {
           {onglet === "qcm" && (
             <div>
               {loading ? (
-                <div style={CARTE_BLANCHE}>
-                  <p style={{ color: "#666", margin: 0 }}>Chargement du module...</p>
-                </div>
-              ) : !texteQCM ? (
-                <div style={CARTE_BLANCHE}>
+                <div style={CARTE}><p style={{ color: "#666", margin: 0 }}>Chargement du module...</p></div>
+              ) : questions.length === 0 ? (
+                <div style={CARTE}>
                   <p style={{ color: "#666", margin: 0, fontSize: "17px" }}>
-                    Ce module n a pas encore de questionnaire. Il apparaitra une fois le module produit.
+                    Ce module n a pas encore de questionnaire.
                   </p>
                 </div>
               ) : (
                 <>
-                  <div style={CARTE_BLANCHE}>
-                    {texteQCM.split("\n").filter(l => l.trim()).map((ligne, i) => {
-                      const l = ligne.trim();
-                      if (/^#{1,6}\s/.test(l)) return <h2 key={i} style={{ color: "#c8a96e", fontFamily: "Georgia,serif", fontSize: "21px", margin: "0 0 16px" }}>{l.replace(/^#{1,6}\s+/, "")}</h2>;
-                      if (/^[A-D]\s*[).\-–:]/.test(l)) return <p key={i} style={{ color: "#1a1a1a", fontSize: "17px", lineHeight: "1.6", margin: "0 0 6px 26px" }}>{propre(l)}</p>;
-                      if (/^[-*]\s+/.test(l)) return <p key={i} style={{ color: "#1a1a1a", fontSize: "17px", lineHeight: "1.7", margin: "0 0 8px 22px" }}>• {propre(l.replace(/^[-*]\s+/, ""))}</p>;
-                      if (/^(?:Question\s*)?Q?\s*\d{1,2}\s*[.)\-–:]/.test(l)) return <p key={i} style={{ color: "#1a1a1a", fontSize: "17px", lineHeight: "1.7", margin: "20px 0 10px", fontWeight: "bold" }}>{propre(l)}</p>;
-                      return <p key={i} style={{ color: "#1a1a1a", fontSize: "17px", lineHeight: "1.75", marginBottom: "12px" }}>{propre(l)}</p>;
+                  <div style={CARTE}>
+                    <h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", fontSize: "21px", margin: "0 0 8px" }}>Questionnaire du module</h2>
+                    <p style={{ color: "#555", fontSize: "15px", marginTop: 0, lineHeight: "1.6" }}>
+                      Cochez une reponse par question. Les bonnes reponses vous seront donnees et
+                      expliquees par votre correcteur, apres votre note.
+                    </p>
+
+                    {questions.map(function (q) {
+                      return (
+                        <div key={q.numero} style={{ marginTop: "26px", paddingTop: "20px", borderTop: "1px solid #eee" }}>
+                          <p style={{ color: "#1a1a1a", fontSize: "17px", lineHeight: "1.7", fontWeight: "bold", margin: "0 0 12px" }}>
+                            {q.numero}. {q.enonce}
+                          </p>
+                          {q.options.map(function (o) {
+                            const coche = choix[q.numero] === o.lettre;
+                            return (
+                              <div
+                                key={o.lettre}
+                                onClick={() => setChoix({ ...choix, [q.numero]: o.lettre })}
+                                style={{
+                                  display: "flex",
+                                  alignItems: "flex-start",
+                                  gap: "12px",
+                                  padding: "12px 14px",
+                                  margin: "0 0 8px",
+                                  borderRadius: "8px",
+                                  cursor: "pointer",
+                                  background: coche ? "rgba(200,169,110,0.16)" : "#fafafa",
+                                  border: coche ? "2px solid #c8a96e" : "1px solid #e2e2e2",
+                                }}
+                              >
+                                <span style={{
+                                  flexShrink: 0,
+                                  width: "26px",
+                                  height: "26px",
+                                  borderRadius: "50%",
+                                  border: coche ? "2px solid #c8a96e" : "2px solid #bbb",
+                                  background: coche ? "#c8a96e" : "#fff",
+                                  color: coche ? "#050508" : "#888",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  fontWeight: "bold",
+                                  fontSize: "14px",
+                                }}>
+                                  {o.lettre}
+                                </span>
+                                <span style={{ color: "#1a1a1a", fontSize: "16px", lineHeight: "1.6" }}>{o.texte}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
                     })}
+
+                    <p style={{ color: repondues === questions.length ? "#2e7d32" : "#a06a2c", fontSize: "15px", marginTop: "22px", marginBottom: 0, fontWeight: "bold" }}>
+                      {repondues} reponse(s) sur {questions.length}
+                    </p>
                   </div>
 
-                  <div style={CARTE_BLANCHE}>
-                    <h3 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", margin: "0 0 8px", fontSize: "19px" }}>Vos reponses</h3>
+                  <div style={CARTE}>
+                    <h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", fontSize: "21px", margin: "0 0 8px" }}>Votre note de synthese</h2>
                     <p style={{ color: "#555", fontSize: "15px", marginTop: 0, lineHeight: "1.6" }}>
-                      Ecrivez vos reponses comme vous le souhaitez, par exemple « 1 : B, 2 : C ». Vous pouvez
-                      justifier une reponse si vous le voulez : le correcteur en tiendra compte.
+                      Avec vos mots, sans recopier le cours : les notions cles de ce module, la methode
+                      retenue, et une situation ou vous comptez l appliquer. Votre correcteur en tient
+                      compte dans la note, autant que vos reponses.
                     </p>
 
                     <textarea
-                      value={mesReponses}
-                      onChange={(e) => setMesReponses(e.target.value)}
+                      value={synthese}
+                      onChange={(e) => setSynthese(e.target.value)}
                       rows={9}
-                      placeholder={"1 : B\n2 : C\n3 : A, parce que..."}
+                      placeholder="Ce que j ai retenu de ce module..."
                       disabled={correctionEnCours}
-                      style={{ width: "100%", padding: "16px", borderRadius: "8px", border: "1px solid #ccc", background: "#fff", color: "#1a1a1a", fontSize: "17px", lineHeight: "1.7", fontFamily: "Georgia,serif", boxSizing: "border-box", marginBottom: "16px" }}
+                      style={{ width: "100%", padding: "16px", borderRadius: "8px", border: "1px solid #ccc", background: "#fff", color: "#1a1a1a", fontSize: "17px", lineHeight: "1.7", fontFamily: "Georgia,serif", boxSizing: "border-box", marginBottom: "12px" }}
                     />
+
+                    <p style={{ color: motsSynthese >= MOTS_MIN_SYNTHESE ? "#2e7d32" : "#a06a2c", fontSize: "14px", margin: "0 0 16px" }}>
+                      {motsSynthese} mots {motsSynthese >= MOTS_MIN_SYNTHESE ? "" : "— minimum " + MOTS_MIN_SYNTHESE}
+                    </p>
 
                     <button
                       onClick={faireCorriger}
-                      disabled={correctionEnCours || mesReponses.trim().length < 10}
-                      style={{ background: correctionEnCours || mesReponses.trim().length < 10 ? "#e3d9c2" : "#c8a96e", color: correctionEnCours || mesReponses.trim().length < 10 ? "#8a8a8a" : "#050508", padding: "14px 30px", borderRadius: "8px", border: "none", cursor: correctionEnCours ? "default" : "pointer", fontWeight: "bold", fontSize: "16px", width: "100%", fontFamily: "Georgia,serif" }}
+                      disabled={correctionEnCours || !pretAcorriger}
+                      style={{ background: correctionEnCours || !pretAcorriger ? "#e3d9c2" : "#c8a96e", color: correctionEnCours || !pretAcorriger ? "#8a8a8a" : "#050508", padding: "16px 30px", borderRadius: "8px", border: "none", cursor: correctionEnCours || !pretAcorriger ? "default" : "pointer", fontWeight: "bold", fontSize: "17px", width: "100%", fontFamily: "Georgia,serif" }}
                     >
-                      {correctionEnCours ? "Le correcteur lit vos reponses..." : correction ? "Faire corriger a nouveau" : "Faire corriger mes reponses"}
+                      {correctionEnCours ? "Votre correcteur lit votre copie..." : correction ? "Faire corriger a nouveau" : "Faire corriger ma copie"}
                     </button>
 
                     <p style={{ color: "#888", fontSize: "14px", marginTop: "12px", marginBottom: 0 }}>
@@ -430,9 +536,9 @@ export default function LMSPage({ params }) {
                   </div>
 
                   {correction && (
-                    <div style={{ ...CARTE_BLANCHE, padding: "30px 36px" }}>
+                    <div style={{ ...CARTE, padding: "30px 36px" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: "16px", marginBottom: "18px", paddingBottom: "16px", borderBottom: "1px solid #eee" }}>
-                        <span style={{ fontSize: "34px", fontWeight: "bold", color: correction.valide ? "#2e7d32" : "#c62828", fontFamily: "Georgia,serif" }}>
+                        <span style={{ fontSize: "36px", fontWeight: "bold", color: correction.valide ? "#2e7d32" : "#c62828", fontFamily: "Georgia,serif" }}>
                           {correction.note}/20
                         </span>
                         <span style={{ color: correction.valide ? "#2e7d32" : "#a06a2c", fontSize: "16px", fontWeight: "bold" }}>
