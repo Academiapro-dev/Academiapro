@@ -97,4 +97,11 @@ export async function GET(req: Request) {
       niveau: fiche.niveau,
       prix: fiche.prix,
       support_disponible: data ? true : false,
-      nb_modules: modules.
+      nb_modules: modules.length,
+      heures_programme: heuresDeLaBase(fiche.duree),
+      modules: modules,
+    });
+  } catch (e: any) {
+    return NextResponse.json({ ok: false, version: 9, erreur: String(e) }, { status: 500 });
+  }
+}
