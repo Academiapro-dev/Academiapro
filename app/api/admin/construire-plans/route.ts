@@ -53,51 +53,44 @@ export async function GET(req: Request) {
       .list("", { limit: 1000, sortBy: { column: "name", order: "asc" } });
     const supports = new Set((fichiers || []).map((f) => f.name));
 
-    // LIMITE EXPLICITE INDISPENSABLE : sans elle, Supabase plafonne a 1 000 lignes
-    // et la route croit a tort que des formations deja traitees n ont pas de plan.
-    const { data: plans } = await supabase
-      .from("lms_plans")
-      .select("formation_code")
-      .limit(50000);
-    const dejaPlan = new Set((plans || []).map((p: any) => p.formation_code));
-
-    // Seules les formations ACTIVES : inutile de produire un plan pour une fiche retiree.
     const { data: formations } = await supabase
       .from("formations")
       .select("code, titre")
       .eq("actif", true)
       .order("code", { ascending: true });
 
-    const candidates = (formations || []).filter(
+    const eligibles = (formations || []).filter(
       (f: any) =>
         String(f.code || "").indexOf("SK") !== 0 &&
-        supports.has(f.code + "_support_cours.html") &&
-        !dejaPlan.has(f.code)
+        supports.has(f.code + "_support_cours.html")
     );
 
-    if (candidates.length === 0) {
-      return NextResponse.json({ ok: true, termine: true, restants: 0 });
+    // On NE CHARGE PAS la table des plans : Supabase la tronque cote serveur.
+    // On interroge formation par formation jusqu a en trouver une sans plan.
+    let fiche: any = null;
+    let dejaFaites = 0;
+
+    for (const f of eligibles) {
+      const { data: existant } = await supabase
+        .from("lms_plans")
+        .select("formation_code")
+        .eq("formation_code", f.code)
+        .limit(1);
+
+      if (existant && existant.length > 0) {
+        dejaFaites = dejaFaites + 1;
+        continue;
+      }
+
+      fiche = f;
+      break;
     }
 
-    const fiche = candidates[0];
-
-    // Garde-fou : on verifie une derniere fois, pour cette formation precise,
-    // qu aucun plan n existe deja. Empeche toute boucle sur la meme fiche.
-    const { data: dejaCelle } = await supabase
-      .from("lms_plans")
-      .select("formation_code")
-      .eq("formation_code", fiche.code)
-      .limit(1);
-
-    if (dejaCelle && dejaCelle.length > 0) {
-      return NextResponse.json({
-        ok: true,
-        code: fiche.code,
-        ignore: true,
-        nb_modules: 0,
-        restants: candidates.length - 1,
-      });
+    if (!fiche) {
+      return NextResponse.json({ ok: true, termine: true, restants: 0, deja_faites: dejaFaites });
     }
+
+    const restants = eligibles.length - dejaFaites - 1;
 
     const { data: fichier } = await supabase.storage
       .from(BUCKET)
@@ -135,7 +128,7 @@ export async function GET(req: Request) {
         code: fiche.code,
         ignore: true,
         nb_modules: 0,
-        restants: candidates.length - 1,
+        restants: restants,
       });
     }
 
@@ -169,7 +162,7 @@ export async function GET(req: Request) {
       code: fiche.code,
       titre: titreFiche,
       nb_modules: lignes.length,
-      restants: candidates.length - 1,
+      restants: restants,
     });
   } catch (e: any) {
     return NextResponse.json({ ok: false, erreur: String(e) }, { status: 500 });
