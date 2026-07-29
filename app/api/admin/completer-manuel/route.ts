@@ -9,8 +9,6 @@ export const maxDuration = 300;
 const ADMINS = ["contact@academiapro.fr"];
 const MODELE = "claude-sonnet-4-6";
 
-// Le COURS suit la duree annoncee : une page par heure de formation.
-// Les exercices et le QCM s ajoutent par-dessus, dans chaque module.
 const CARACTERES_PAR_PAGE = 3200;
 const CARACTERES_PAR_PASSE = 14000;
 const PAGES_MIN = 30;
@@ -27,8 +25,6 @@ const supabase = createClient(
 
 const LANGUES: any = { fr: "francais", en: "English", es: "espanol", pt: "portugues", de: "Deutsch" };
 
-// Missions du COURS. Chacune apporte une matiere differente : la repetition
-// devient structurellement impossible.
 const COURS = [
   {
     titre: "Fondements et cadre conceptuel",
@@ -56,7 +52,6 @@ const COURS = [
   },
 ];
 
-// Ces deux sections sont produites dans TOUS les modules, sans exception.
 const EXERCICES = {
   titre: "Exercices pratiques et corriges",
   consigne: "Propose au moins huit exercices progressifs et concrets, chacun suivi de son corrige commente. Consignes precises, duree indicative, materiel necessaire, critere de reussite. Pas d invitation vague a reflechir.",
@@ -151,8 +146,10 @@ export async function GET(req: Request) {
     const code = (url.searchParams.get("code") || "").trim().toUpperCase();
     const langue = (url.searchParams.get("langue") || "fr").trim();
     const refaire = url.searchParams.get("refaire") === "oui";
+    const reset = url.searchParams.get("reset") === "oui";
     const cible = url.searchParams.get("cible") || "";
     const examen = url.searchParams.get("examen") === "oui";
+    const lot = Number(url.searchParams.get("lot") || 0);
 
     if (!code) {
       return NextResponse.json({ ok: false, erreur: "code manquant" }, { status: 400 });
@@ -180,69 +177,76 @@ export async function GET(req: Request) {
       return NextResponse.json({ ok: false, code: code, erreur: "aucun plan" }, { status: 404 });
     }
 
-    // La duree annoncee en base est la seule source de verite.
     const trouve = String(fiche.duree || "").match(/(\d{1,4})/);
     const heuresTotal = trouve ? parseInt(trouve[1], 10) : 0;
     const pagesCours = Math.min(PAGES_MAX, Math.max(PAGES_MIN, heuresTotal));
     const cibleCoursParModule = Math.round((pagesCours * CARACTERES_PAR_PAGE) / plan.length);
     const passesCours = Math.max(1, Math.min(COURS.length, Math.ceil(cibleCoursParModule / CARACTERES_PAR_PASSE)));
 
-    // ---- EXAMEN FINAL : deux questions par module, produit par lots ----
+    const cleExamen = code + "_ch99_mod1_" + langue;
+
+    // ---- EXAMEN FINAL : un lot de cinq modules par appel ----
     if (examen) {
-      const total = plan.length * QUESTIONS_PAR_MODULE_EXAMEN;
-      const blocs: string[] = [];
-      let numero = 1;
+      const debut = lot * MODULES_PAR_LOT_EXAMEN;
+      const lots = Math.ceil(plan.length / MODULES_PAR_LOT_EXAMEN);
 
-      for (let d = 0; d < plan.length; d += MODULES_PAR_LOT_EXAMEN) {
-        const lot = plan.slice(d, d + MODULES_PAR_LOT_EXAMEN);
-        const sommaire = lot
-          .map(function (m: any) { return "Module " + m.module_num + " : " + m.module_titre; })
-          .join("\n");
-        const combien = lot.length * QUESTIONS_PAR_MODULE_EXAMEN;
-
-        const invite =
-          "Formation: " + fiche.titre + "\n" +
-          "Langue: " + (LANGUES[langue] || "francais") + "\n\n" +
-          "SECTION A REDIGER : partie d un examen final\n" +
-          "Redige " + combien + " questions a choix multiple, soit EXACTEMENT " +
-          QUESTIONS_PAR_MODULE_EXAMEN + " questions par module, dans l ordre des modules ci-dessous. " +
-          "Numerote-les a partir de " + numero + ". " +
-          "Quatre propositions par question, une seule correcte. Les deux questions d un meme module doivent porter sur des aspects DIFFERENTS de ce module. " +
-          "Apres les questions, donne le corrige avec la bonne reponse et son explication.\n\n" +
-          "MODULES CONCERNES :\n" + sommaire;
-
-        const texte = await appeler(cle, langue, invite);
-        if (texte.length > 400) blocs.push(texte);
-        numero += combien;
+      if (debut >= plan.length) {
+        return NextResponse.json({ ok: true, code: code, examen: true, termine: true, lots: lots });
       }
 
-      if (blocs.length === 0) {
-        return NextResponse.json({ ok: false, code: code, erreur: "examen non produit" }, { status: 500 });
-      }
+      const groupe = plan.slice(debut, debut + MODULES_PAR_LOT_EXAMEN);
+      const sommaire = groupe
+        .map(function (m: any) { return "Module " + m.module_num + " : " + m.module_titre; })
+        .join("\n");
+      const combien = groupe.length * QUESTIONS_PAR_MODULE_EXAMEN;
+      const premier = debut * QUESTIONS_PAR_MODULE_EXAMEN + 1;
 
-      const contenuExamen =
-        "## Examen final\n\n" +
-        "Cet examen porte sur l ensemble des " + plan.length + " modules de la formation, a raison de " +
-        QUESTIONS_PAR_MODULE_EXAMEN + " questions par module, soit " + total + " questions.\n\n" +
-        blocs.join("\n\n") +
-        "\n\n## Obtenir votre Certification AcademIA Pro\n\n" +
-        "Corrigez vos reponses a l aide des corriges ci-dessus et comptez vos points : chaque bonne reponse vaut un point, sur " +
-        total + " au total.\n\n" +
-        "A partir de " + SEUIL_REUSSITE + " % de bonnes reponses, soit " +
-        Math.ceil((total * SEUIL_REUSSITE) / 100) + " points, la Certification AcademIA Pro de la formation " +
-        fiche.titre + " vous est delivree. Vous la telechargez depuis votre espace personnel sur academiapro.fr.\n\n" +
-        "En dessous de ce seuil, reprenez les modules ou vos reponses etaient fausses, puis repassez l examen. " +
-        "Le nombre de tentatives n est pas limite : l objectif est votre maitrise, pas votre classement.\n";
+      const invite =
+        "Formation: " + fiche.titre + "\n" +
+        "Langue: " + (LANGUES[langue] || "francais") + "\n\n" +
+        "SECTION A REDIGER : partie d un examen final\n" +
+        "Redige " + combien + " questions a choix multiple, soit EXACTEMENT " +
+        QUESTIONS_PAR_MODULE_EXAMEN + " questions par module, dans l ordre des modules ci-dessous. " +
+        "Numerote-les a partir de " + premier + ". " +
+        "Quatre propositions par question, une seule correcte. Les deux questions d un meme module doivent porter sur des aspects DIFFERENTS de ce module. " +
+        "Apres les questions, donne le corrige avec la bonne reponse et son explication.\n\n" +
+        "MODULES CONCERNES :\n" + sommaire;
 
-      const cleExamen = code + "_ch99_mod1_" + langue;
+      const texte = await appeler(cle, langue, invite);
 
-      const { data: dejaExamen } = await supabase
+      const { data: existant } = await supabase
         .from("lms_cache")
-        .select("cache_key")
+        .select("contenu")
         .eq("cache_key", cleExamen)
         .maybeSingle();
 
-      if (dejaExamen) {
+      let contenuExamen = "";
+
+      if (lot === 0) {
+        const total = plan.length * QUESTIONS_PAR_MODULE_EXAMEN;
+        contenuExamen =
+          "## Examen final\n\n" +
+          "Cet examen porte sur l ensemble des " + plan.length + " modules de la formation, a raison de " +
+          QUESTIONS_PAR_MODULE_EXAMEN + " questions par module, soit " + total + " questions.\n\n" +
+          texte;
+      } else {
+        contenuExamen = String((existant && existant.contenu) || "") + "\n\n" + texte;
+      }
+
+      // Au dernier lot, on ajoute la marche a suivre.
+      if (debut + MODULES_PAR_LOT_EXAMEN >= plan.length) {
+        const total = plan.length * QUESTIONS_PAR_MODULE_EXAMEN;
+        contenuExamen +=
+          "\n\n## Obtenir votre Certification AcademIA Pro\n\n" +
+          "Comptez vos points : chaque bonne reponse vaut un point, sur " + total + " au total.\n\n" +
+          "A partir de " + SEUIL_REUSSITE + " % de bonnes reponses, soit " +
+          Math.ceil((total * SEUIL_REUSSITE) / 100) + " points, la Certification AcademIA Pro de la formation " +
+          fiche.titre + " vous est delivree. Vous la recevez par email et la telechargez depuis votre espace personnel sur academiapro.fr.\n\n" +
+          "En dessous de ce seuil, reprenez les modules ou vos reponses etaient fausses, puis repassez l examen. " +
+          "Le nombre de tentatives n est pas limite : l objectif est votre maitrise, pas votre classement.\n";
+      }
+
+      if (existant) {
         await supabase.from("lms_cache").update({ contenu: contenuExamen }).eq("cache_key", cleExamen);
       } else {
         await supabase.from("lms_cache").insert({
@@ -260,14 +264,15 @@ export async function GET(req: Request) {
         ok: true,
         code: code,
         examen: true,
-        modules: plan.length,
-        questions: total,
-        lots: blocs.length,
+        lot: lot,
+        lots: lots,
+        lot_suivant: debut + MODULES_PAR_LOT_EXAMEN < plan.length ? lot + 1 : null,
+        modules_traites: groupe.length,
         caracteres: contenuExamen.length,
-        pages_estimees: Math.round(contenuExamen.length / CARACTERES_PAR_PAGE),
       });
     }
 
+    // ---- MODULES : une seule section par appel ----
     const { data: cache } = await supabase
       .from("lms_cache")
       .select("cache_key")
@@ -306,37 +311,55 @@ export async function GET(req: Request) {
     const l = aFaire[0];
     const chapitre = { numero: l.chapitre_num, titre: l.chapitre_titre };
     const module = { numero: l.module_num, titre: l.module_titre, type: l.type };
+    const cacheKey = code + "_ch" + l.chapitre_num + "_mod" + l.module_num + "_" + langue;
+
+    const { data: ligne } = await supabase
+      .from("lms_cache")
+      .select("contenu")
+      .eq("cache_key", cacheKey)
+      .maybeSingle();
+
+    let contenuActuel = reset ? "" : String((ligne && ligne.contenu) || "");
 
     const missions = COURS.slice(0, passesCours).concat([EXERCICES, QCM]);
-    const morceaux: string[] = [];
-    const dejaEcrites: string[] = [];
+    const dejaEcrites = missions
+      .map(function (m: any) { return m.titre; })
+      .filter(function (t: string) { return contenuActuel.indexOf("## " + t) >= 0; });
 
-    for (const mission of missions) {
-      const texte = await appeler(
-        cle,
-        langue,
-        invitePour(fiche.titre, chapitre, module, langue, mission, dejaEcrites)
-      );
+    const suivante = missions.filter(function (m: any) {
+      return dejaEcrites.indexOf(m.titre) < 0;
+    })[0];
 
-      if (texte.length > 400) {
-        morceaux.push("## " + mission.titre + "\n\n" + texte);
-        dejaEcrites.push(mission.titre);
-      }
+    if (!suivante) {
+      return NextResponse.json({
+        ok: true,
+        code: code,
+        module: "ch" + l.chapitre_num + "/mod" + l.module_num,
+        module_termine: true,
+        sections: dejaEcrites,
+        caracteres: contenuActuel.length,
+        pages_estimees: Math.round(contenuActuel.length / CARACTERES_PAR_PAGE),
+        restants: refaire ? 0 : aFaire.length - 1,
+      });
     }
 
-    const contenu = morceaux.join("\n\n");
+    const texte = await appeler(
+      cle,
+      langue,
+      invitePour(fiche.titre, chapitre, module, langue, suivante, dejaEcrites)
+    );
 
-    if (contenu.length < 800) {
+    if (texte.length < 400) {
       return NextResponse.json(
-        { ok: false, code: code, erreur: "contenu trop court sur ch" + l.chapitre_num + "/mod" + l.module_num },
+        { ok: false, code: code, erreur: "section trop courte : " + suivante.titre },
         { status: 500 }
       );
     }
 
-    const cacheKey = code + "_ch" + l.chapitre_num + "_mod" + l.module_num + "_" + langue;
+    const nouveau = (contenuActuel ? contenuActuel + "\n\n" : "") + "## " + suivante.titre + "\n\n" + texte;
 
-    if (dejaLa.has(cacheKey)) {
-      await supabase.from("lms_cache").update({ contenu: contenu }).eq("cache_key", cacheKey);
+    if (ligne) {
+      await supabase.from("lms_cache").update({ contenu: nouveau }).eq("cache_key", cacheKey);
     } else {
       await supabase.from("lms_cache").insert({
         cache_key: cacheKey,
@@ -344,7 +367,7 @@ export async function GET(req: Request) {
         chapitre_num: l.chapitre_num,
         module_num: l.module_num,
         langue: langue,
-        contenu: contenu,
+        contenu: nouveau,
         created_at: new Date().toISOString(),
       });
     }
@@ -356,14 +379,13 @@ export async function GET(req: Request) {
       heures: heuresTotal,
       pages_cours: pagesCours,
       modules_du_plan: plan.length,
-      cible_cours_par_module: cibleCoursParModule,
       passes_cours: passesCours,
-      sections: dejaEcrites,
-      produit: "ch" + l.chapitre_num + "/mod" + l.module_num,
-      caracteres: contenu.length,
-      pages_estimees: Math.round(contenu.length / CARACTERES_PAR_PAGE),
-      restants: refaire ? 0 : aFaire.length - 1,
-      total: plan.length,
+      module: "ch" + l.chapitre_num + "/mod" + l.module_num,
+      section_produite: suivante.titre,
+      sections_faites: dejaEcrites.length + 1,
+      sections_totales: missions.length,
+      caracteres: nouveau.length,
+      pages_estimees: Math.round(nouveau.length / CARACTERES_PAR_PAGE),
     });
   } catch (e: any) {
     return NextResponse.json({ ok: false, erreur: String(e) }, { status: 500 });
