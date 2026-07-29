@@ -52,6 +52,7 @@ const COURS = [
   },
 ];
 
+// Ces trois sections closent TOUS les modules, dans cet ordre.
 const EXERCICES = {
   titre: "Exercices pratiques et corriges",
   consigne: "Propose au moins huit exercices progressifs et concrets, chacun suivi de son corrige commente. Consignes precises, duree indicative, materiel necessaire, critere de reussite. Pas d invitation vague a reflechir.",
@@ -60,6 +61,11 @@ const EXERCICES = {
 const QCM = {
   titre: "QCM du module",
   consigne: "Redige exactement " + QUESTIONS_PAR_QCM + " questions a choix multiple portant sur ce seul module. Quatre propositions par question, une seule correcte. Apres les questions, donne le corrige avec, pour chacune, la bonne reponse ET l explication de pourquoi les autres sont fausses.",
+};
+
+const SYNTHESE = {
+  titre: "Synthese du module",
+  consigne: "Redige la synthese de ce module : les points cles a retenir, un memento d une page, une grille d auto-evaluation et une checklist de mise en oeuvre. Aucune notion nouvelle, uniquement ce que le stagiaire doit avoir retenu avant de passer au module suivant.",
 };
 
 function systemePour(langue: string): string {
@@ -233,7 +239,6 @@ export async function GET(req: Request) {
         contenuExamen = String((existant && existant.contenu) || "") + "\n\n" + texte;
       }
 
-      // Au dernier lot, on ajoute la marche a suivre.
       if (debut + MODULES_PAR_LOT_EXAMEN >= plan.length) {
         const total = plan.length * QUESTIONS_PAR_MODULE_EXAMEN;
         contenuExamen +=
@@ -321,7 +326,7 @@ export async function GET(req: Request) {
 
     let contenuActuel = reset ? "" : String((ligne && ligne.contenu) || "");
 
-    const missions = COURS.slice(0, passesCours).concat([EXERCICES, QCM]);
+    const missions = COURS.slice(0, passesCours).concat([EXERCICES, QCM, SYNTHESE]);
     const dejaEcrites = missions
       .map(function (m: any) { return m.titre; })
       .filter(function (t: string) { return contenuActuel.indexOf("## " + t) >= 0; });
