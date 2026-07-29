@@ -52,7 +52,7 @@ const COURS = [
   },
 ];
 
-// Ces trois sections closent TOUS les modules, dans cet ordre.
+// Ces deux sections closent le contenu enseigne, dans cet ordre.
 const EXERCICES = {
   titre: "Exercices pratiques et corriges",
   consigne: "Propose au moins huit exercices progressifs et concrets, chacun suivi de son corrige commente. Consignes precises, duree indicative, materiel necessaire, critere de reussite. Pas d invitation vague a reflechir.",
@@ -63,10 +63,25 @@ const QCM = {
   consigne: "Redige exactement " + QUESTIONS_PAR_QCM + " questions a choix multiple portant sur ce seul module. Quatre propositions par question, une seule correcte. Apres les questions, donne le corrige avec, pour chacune, la bonne reponse ET l explication de pourquoi les autres sont fausses.",
 };
 
-const SYNTHESE = {
-  titre: "Synthese du module",
-  consigne: "Redige la synthese de ce module : les points cles a retenir, un memento d une page, une grille d auto-evaluation et une checklist de mise en oeuvre. Aucune notion nouvelle, uniquement ce que le stagiaire doit avoir retenu avant de passer au module suivant.",
-};
+// Derniere section : une CONSIGNE adressee au stagiaire, pas un resume.
+// Elle est ecrite localement, sans appel a l IA, et ne donne aucun memento
+// pour que le stagiaire reformule au lieu de recopier.
+const SYNTHESE = { titre: "Votre synthese personnelle", local: true };
+
+function gabaritSynthese(titreModule: string): string {
+  return "Vous venez de terminer ce module. Avant de passer au suivant, redigez VOTRE PROPRE SYNTHESE de " +
+    titreModule + ".\n\n" +
+    "Ce qui est attendu :\n\n" +
+    "- de 300 a 500 mots, avec vos mots, sans recopier le cours ;\n" +
+    "- les notions cles du module, telles que vous les avez comprises ;\n" +
+    "- la methode ou le protocole, decrit comme si vous l expliquiez a un confrere ;\n" +
+    "- deux situations concretes dans lesquelles vous comptez l appliquer ;\n" +
+    "- ce qui reste flou pour vous, s il y a lieu.\n\n" +
+    "Deposez votre synthese dans votre espace personnel sur academiapro.fr. " +
+    "Elle sera evaluee et vous recevrez un retour ecrit signalant les points essentiels que vous auriez omis.\n\n" +
+    "Ce travail compte davantage que le QCM. Le QCM verifie que vous reconnaissez une bonne reponse ; " +
+    "la synthese verifie que vous avez reellement integre le module et que vous savez le transmettre.";
+}
 
 function systemePour(langue: string): string {
   const n = LANGUES[langue] || "francais";
@@ -326,7 +341,7 @@ export async function GET(req: Request) {
 
     let contenuActuel = reset ? "" : String((ligne && ligne.contenu) || "");
 
-    const missions = COURS.slice(0, passesCours).concat([EXERCICES, QCM, SYNTHESE]);
+    const missions: any[] = COURS.slice(0, passesCours).concat([EXERCICES, QCM, SYNTHESE]);
     const dejaEcrites = missions
       .map(function (m: any) { return m.titre; })
       .filter(function (t: string) { return contenuActuel.indexOf("## " + t) >= 0; });
@@ -348,17 +363,23 @@ export async function GET(req: Request) {
       });
     }
 
-    const texte = await appeler(
-      cle,
-      langue,
-      invitePour(fiche.titre, chapitre, module, langue, suivante, dejaEcrites)
-    );
+    let texte = "";
 
-    if (texte.length < 400) {
-      return NextResponse.json(
-        { ok: false, code: code, erreur: "section trop courte : " + suivante.titre },
-        { status: 500 }
+    if (suivante.local) {
+      texte = gabaritSynthese(module.titre);
+    } else {
+      texte = await appeler(
+        cle,
+        langue,
+        invitePour(fiche.titre, chapitre, module, langue, suivante, dejaEcrites)
       );
+
+      if (texte.length < 400) {
+        return NextResponse.json(
+          { ok: false, code: code, erreur: "section trop courte : " + suivante.titre },
+          { status: 500 }
+        );
+      }
     }
 
     const nouveau = (contenuActuel ? contenuActuel + "\n\n" : "") + "## " + suivante.titre + "\n\n" + texte;
@@ -387,6 +408,7 @@ export async function GET(req: Request) {
       passes_cours: passesCours,
       module: "ch" + l.chapitre_num + "/mod" + l.module_num,
       section_produite: suivante.titre,
+      sans_ia: suivante.local === true,
       sections_faites: dejaEcrites.length + 1,
       sections_totales: missions.length,
       caracteres: nouveau.length,
