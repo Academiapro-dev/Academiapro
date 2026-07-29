@@ -53,7 +53,12 @@ export async function GET(req: Request) {
       .list("", { limit: 1000, sortBy: { column: "name", order: "asc" } });
     const supports = new Set((fichiers || []).map((f) => f.name));
 
-    const { data: plans } = await supabase.from("lms_plans").select("formation_code");
+    // LIMITE EXPLICITE INDISPENSABLE : sans elle, Supabase plafonne a 1 000 lignes
+    // et la route croit a tort que des formations deja traitees n ont pas de plan.
+    const { data: plans } = await supabase
+      .from("lms_plans")
+      .select("formation_code")
+      .limit(50000);
     const dejaPlan = new Set((plans || []).map((p: any) => p.formation_code));
 
     // Seules les formations ACTIVES : inutile de produire un plan pour une fiche retiree.
@@ -76,6 +81,24 @@ export async function GET(req: Request) {
 
     const fiche = candidates[0];
 
+    // Garde-fou : on verifie une derniere fois, pour cette formation precise,
+    // qu aucun plan n existe deja. Empeche toute boucle sur la meme fiche.
+    const { data: dejaCelle } = await supabase
+      .from("lms_plans")
+      .select("formation_code")
+      .eq("formation_code", fiche.code)
+      .limit(1);
+
+    if (dejaCelle && dejaCelle.length > 0) {
+      return NextResponse.json({
+        ok: true,
+        code: fiche.code,
+        ignore: true,
+        nb_modules: 0,
+        restants: candidates.length - 1,
+      });
+    }
+
     const { data: fichier } = await supabase.storage
       .from(BUCKET)
       .download(fiche.code + "_support_cours.html");
@@ -96,7 +119,6 @@ export async function GET(req: Request) {
     }
 
     if (titres.length < 4) {
-      // Marqueur de plan illisible, pose sans risque de doublon.
       await supabase.from("lms_plans").upsert(
         {
           formation_code: fiche.code,
@@ -134,7 +156,6 @@ export async function GET(req: Request) {
       });
     }
 
-    // Insertion idempotente : deux passages simultanes ne peuvent plus se heurter.
     const { error } = await supabase
       .from("lms_plans")
       .upsert(lignes, { onConflict: "formation_code,chapitre_num,module_num", ignoreDuplicates: true });
