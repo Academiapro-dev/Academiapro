@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { emailDeSession } from "../../../lib/session";
+import { sessionCourante } from "../../../lib/session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -28,7 +28,8 @@ function cleDeCache(code: string, moduleCle: string, langue: string): string {
   return code + "_ch" + m[1] + "_mod" + m[2] + "_" + langue;
 }
 
-// On n envoie a l IA que la section QCM : plus focalise, moins couteux.
+// On envoie a l IA la section QCM ENTIERE, corrige compris : c est elle
+// qui detient les bonnes reponses, jamais le navigateur.
 function sectionQCM(contenu: string): string {
   const t = String(contenu || "");
   const debut = t.search(/^#{1,6}\s*QCM/im);
@@ -40,8 +41,8 @@ function sectionQCM(contenu: string): string {
 
 export async function GET(req: NextRequest) {
   try {
-    const email = emailDeSession();
-    if (!email) {
+    const session = sessionCourante();
+    if (!session) {
       return NextResponse.json({ ok: false, erreur: "Connectez-vous pour retrouver votre correction." }, { status: 401 });
     }
 
@@ -53,13 +54,16 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: false, erreur: "Parametres manquants" }, { status: 400 });
     }
 
-    const { data } = await supabase
+    let requete = supabase
       .from("qcm_reponses")
       .select("reponses, note, retour, statut, updated_at")
-      .eq("email", email)
+      .eq("email", session.email)
       .eq("formation_code", code)
-      .eq("module_cle", moduleCle)
-      .maybeSingle();
+      .eq("module_cle", moduleCle);
+
+    if (session.tenantId) requete = requete.eq("tenant_id", session.tenantId);
+
+    const { data } = await requete.maybeSingle();
 
     return NextResponse.json({ ok: true, seuil: SEUIL_VALIDATION, copie: data || null });
   } catch (e: any) {
@@ -69,9 +73,9 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const email = emailDeSession();
-    if (!email) {
-      return NextResponse.json({ ok: false, erreur: "Connectez-vous pour faire corriger votre QCM." }, { status: 401 });
+    const session = sessionCourante();
+    if (!session) {
+      return NextResponse.json({ ok: false, erreur: "Connectez-vous pour faire corriger votre copie." }, { status: 401 });
     }
 
     const cle = process.env.ANTHROPIC_API_KEY || "";
@@ -94,7 +98,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (reponses.length < 10) {
-      return NextResponse.json({ ok: false, erreur: "Ecrivez vos reponses avant de faire corriger." }, { status: 400 });
+      return NextResponse.json({ ok: false, erreur: "Repondez avant de faire corriger." }, { status: 400 });
     }
 
     const { data: ligne } = await supabase
@@ -116,25 +120,25 @@ export async function POST(req: NextRequest) {
       .maybeSingle();
 
     const invite =
-      "Tu corriges le questionnaire d un stagiaire sur un module de formation.\n\n" +
+      "Tu corriges la copie d un stagiaire sur un module de formation.\n\n" +
       "FORMATION : " + ((fiche && fiche.titre) || code) + "\n" +
       "MODULE : " + moduleCle + "\n\n" +
       "LE QUESTIONNAIRE ET SON CORRIGE, tels qu ils figurent dans le module :\n" + qcm + "\n\n" +
-      "LES REPONSES DU STAGIAIRE, telles qu il les a ecrites :\n" + reponses + "\n\n" +
+      "LA COPIE DU STAGIAIRE — ses reponses cochees, puis sa note de synthese :\n" + reponses + "\n\n" +
       "Ta reponse comporte deux parties, dans cet ordre exact :\n" +
       "1) Une premiere ligne contenant UNIQUEMENT la note sur 20, sous la forme NOTE: 14\n" +
       "2) Puis un retour adresse au stagiaire, en le vouvoyant, qui comporte obligatoirement :\n" +
       "   - une explication de la note : ce qui a ete compte juste, ce qui a ete compte faux, et pourquoi ;\n" +
       "   - POUR CHAQUE QUESTION MAL REPONDUE OU SANS REPONSE : la bonne reponse ET son explication, " +
       "de facon qu il comprenne le raisonnement et pas seulement la lettre attendue ;\n" +
+      "   - une appreciation de sa NOTE DE SYNTHESE : ce qu il a bien saisi, et les notions essentielles du module qu il a omises ;\n" +
       "   - une derniere phrase qui transforme sa principale faiblesse en point de progres concret.\n\n" +
-      "REGLES DE CORRECTION :\n" +
-      "Le stagiaire ecrit librement. Une reponse formulee autrement que par une lettre, mais juste sur le fond, " +
-      "est comptee juste ; une lettre juste accompagnee d une justification fausse merite une remarque. " +
-      "Une reponse absente est comptee fausse, sans reproche.\n" +
+      "COMMENT TU NOTES :\n" +
+      "La note tient compte DES DEUX : l exactitude des reponses cochees ET la qualite de la note de synthese. " +
+      "Une synthese qui reformule avec justesse, avec ses propres mots, vaut davantage qu une case cochee au hasard.\n" +
       "Ce questionnaire sert a APPRENDRE, pas a sanctionner : tu es exigeant sur le fond et bienveillant sur la forme. " +
       "N evalue jamais sur des dates ni sur des noms propres.\n" +
-      "Entre 300 et 600 mots.";
+      "Entre 350 et 700 mots.";
 
     const r = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -145,9 +149,9 @@ export async function POST(req: NextRequest) {
       },
       body: JSON.stringify({
         model: MODELE,
-        max_tokens: 2000,
+        max_tokens: 2500,
         system:
-          "Tu es un formateur experimente qui corrige les questionnaires de ses stagiaires. " +
+          "Tu es un formateur experimente qui corrige les copies de ses stagiaires. " +
           "Ton but n est pas de noter mais de faire progresser : chaque erreur expliquee devient un acquis. " +
           "Tu ecris en francais, avec exigence et bienveillance.",
         messages: [{ role: "user", content: invite }],
@@ -170,13 +174,14 @@ export async function POST(req: NextRequest) {
 
     await supabase.from("qcm_reponses").upsert(
       {
-        email: email,
+        email: session.email,
         formation_code: code,
         module_cle: moduleCle,
         reponses: reponses,
         note: note,
         retour: retour,
         statut: "corrigee",
+        tenant_id: session.tenantId,
         updated_at: new Date().toISOString(),
       },
       { onConflict: "email,formation_code,module_cle" }
@@ -189,11 +194,12 @@ export async function POST(req: NextRequest) {
     if (valide) {
       await supabase.from("progression_apprenants").upsert(
         {
-          user_email: email,
+          user_email: session.email,
           formation_code: code,
           module_cle: moduleCle,
           statut: "valide",
           score: Math.round((note / 20) * 100),
+          tenant_id: session.tenantId,
         },
         { onConflict: "user_email,formation_code,module_cle" }
       );
