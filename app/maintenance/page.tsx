@@ -5,6 +5,7 @@ export default function MaintenancePage() {
   const [lignes, setLignes] = useState<string[]>([]);
   const [occupe, setOccupe] = useState(false);
   const [code, setCode] = useState("F030");
+  const [module, setModule] = useState("ch1_mod1");
 
   const dire = (t: string) => setLignes((l) => [...l, t]);
 
@@ -61,15 +62,14 @@ export default function MaintenancePage() {
     setOccupe(true);
     setLignes(["Modules manquants de " + c]);
     try {
-      for (let i = 0; i < 40; i++) {
-        const r = await fetch("/api/admin/completer-manuel?code=" + c + "&combien=1");
+      for (let i = 0; i < 60; i++) {
+        const r = await fetch("/api/admin/completer-manuel?code=" + c);
         const brut = await r.text();
         let d: any = null;
         try { d = JSON.parse(brut); } catch (e) { d = null; }
         if (!d || d.ok !== true) { dire("Arret : " + ((d && d.erreur) || "reponse illisible")); break; }
         if (d.termine) { dire("TERMINE - tous les modules sont produits."); break; }
-        dire((d.produits || []).join(", ") + " - reste " + d.restants);
-        if (d.restants === 0) { dire("TERMINE - manuel complet."); break; }
+        dire(d.module + " - " + d.section_produite + " (" + d.sections_faites + "/" + d.sections_totales + ") - " + d.caracteres + " car.");
       }
       const a = await fetch("/api/admin/assembler-manuel?code=" + c);
       const da = await a.json();
@@ -78,10 +78,65 @@ export default function MaintenancePage() {
     setOccupe(false);
   }
 
+  // Refait UN module a la nouvelle norme, section par section.
+  async function refaireModule() {
+    if (occupe) return;
+    const c = code.trim().toUpperCase();
+    const m = module.trim().toLowerCase();
+    if (!c || !m) return;
+    setOccupe(true);
+    setLignes(["Refonte de " + c + " / " + m]);
+    try {
+      for (let i = 0; i < 10; i++) {
+        const suffixe = i === 0 ? "&reset=oui" : "";
+        const debut = Date.now();
+        const r = await fetch("/api/admin/completer-manuel?code=" + c + "&refaire=oui&cible=" + m + suffixe);
+        const secondes = Math.round((Date.now() - debut) / 1000);
+        const brut = await r.text();
+        let d: any = null;
+        try { d = JSON.parse(brut); } catch (e) { d = null; }
+        if (!d || d.ok !== true) { dire("Arret : " + ((d && d.erreur) || "reponse illisible") + " (" + secondes + " s)"); break; }
+        if (d.module_termine) {
+          dire("TERMINE - " + d.caracteres + " caracteres, environ " + d.pages_estimees + " pages.");
+          break;
+        }
+        dire(d.section_produite + " (" + d.sections_faites + "/" + d.sections_totales + ") - " + d.caracteres + " car. - " + secondes + " s");
+      }
+    } catch (e: any) { dire("Interruption : " + String(e)); }
+    setOccupe(false);
+  }
+
+  // Produit l examen final, lot de cinq modules par appel.
+  async function examen() {
+    if (occupe) return;
+    const c = code.trim().toUpperCase();
+    if (!c) return;
+    setOccupe(true);
+    setLignes(["Examen final de " + c]);
+    try {
+      for (let i = 0; i < 20; i++) {
+        const r = await fetch("/api/admin/completer-manuel?code=" + c + "&examen=oui&lot=" + i);
+        const brut = await r.text();
+        let d: any = null;
+        try { d = JSON.parse(brut); } catch (e) { d = null; }
+        if (!d || d.ok !== true) { dire("Arret : " + ((d && d.erreur) || "reponse illisible")); break; }
+        if (d.termine) { dire("TERMINE."); break; }
+        dire("Lot " + (d.lot + 1) + "/" + d.lots + " - " + d.modules_traites + " modules - " + d.caracteres + " car.");
+        if (d.lot_suivant === null) { dire("TERMINE - examen complet."); break; }
+      }
+    } catch (e: any) { dire("Interruption : " + String(e)); }
+    setOccupe(false);
+  }
+
   const st: any = {
     display: "block", width: "100%", padding: "14px", marginBottom: "10px",
     background: occupe ? "#3a3a4a" : "#c8a96e", color: occupe ? "#888" : "#050508",
     border: 0, borderRadius: "8px", fontSize: "15px", fontWeight: "bold", textAlign: "left",
+  };
+
+  const champ: any = {
+    padding: "13px", borderRadius: "8px", border: "1px solid #c8a96e",
+    background: "#12121e", color: "#fff", fontSize: "15px",
   };
 
   return (
@@ -98,15 +153,16 @@ export default function MaintenancePage() {
         <button style={st} disabled={occupe} onClick={() => boucle("Plans par IA", "/api/admin/generer-plans", 200)}>6 - Generer les plans manquants</button>
 
         <div style={{ display: "flex", gap: "10px", alignItems: "center", marginBottom: "10px" }}>
-          <input
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-            placeholder="F030"
-            style={{ width: "120px", padding: "13px", borderRadius: "8px", border: "1px solid #c8a96e", background: "#12121e", color: "#fff", fontSize: "15px" }}
-          />
+          <input value={code} onChange={(e) => setCode(e.target.value)} placeholder="F030" style={{ ...champ, width: "120px" }} />
           <button style={{ ...st, marginBottom: 0 }} disabled={occupe} onClick={completer}>7 - Completer et assembler le manuel</button>
         </div>
 
+        <div style={{ display: "flex", gap: "10px", alignItems: "center", marginBottom: "10px" }}>
+          <input value={module} onChange={(e) => setModule(e.target.value)} placeholder="ch1_mod1" style={{ ...champ, width: "120px" }} />
+          <button style={{ ...st, marginBottom: 0 }} disabled={occupe} onClick={refaireModule}>8 - Refaire ce module a la nouvelle norme</button>
+        </div>
+
+        <button style={st} disabled={occupe} onClick={examen}>9 - Produire l examen final</button>
         <button style={st} disabled={occupe} onClick={() => lots("Audit", "/api/admin/audit-supports", 40, false)}>Relancer l inventaire</button>
 
         {lignes.length > 0 && (
