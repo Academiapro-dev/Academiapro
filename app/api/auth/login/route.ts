@@ -72,11 +72,12 @@ export async function POST(req: NextRequest) {
     });
 
     // Cookie de session signe : c'est lui qui ouvre l'acces au contenu payant.
+    // Il porte desormais AUSSI l organisme et le role, donc infalsifiables.
     const emailReel = String(data.user?.email || email || "").toLowerCase().trim();
     if (emailReel) {
       response.cookies.set({
         name: NOM_COOKIE_SESSION,
-        value: fabriquerJetonSession(emailReel),
+        value: fabriquerJetonSession(emailReel, tenantId, role),
         httpOnly: true,
         secure: true,
         sameSite: "lax",
