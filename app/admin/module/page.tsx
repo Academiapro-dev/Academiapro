@@ -2,10 +2,20 @@ import { createClient } from "@supabase/supabase-js";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
+// Next.js met en cache les appels reseau des pages serveur : on le lui interdit,
+// sinon la page continue d afficher une version perimee du module.
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
-  process.env.SUPABASE_SERVICE_ROLE_KEY || ""
+  process.env.SUPABASE_SERVICE_ROLE_KEY || "",
+  {
+    global: {
+      fetch: function (url: any, options: any) {
+        return fetch(url, { ...(options || {}), cache: "no-store" });
+      },
+    },
+  }
 );
 
 function sections(contenu: string): { titre: string; texte: string }[] {
@@ -88,7 +98,7 @@ export default async function LireModule({
         {parties.length > 0 && (
           <div style={{ margin: "20px 0 24px" }}>
             {parties.map(function (s: any, i: number) {
-              const actif = i === choisie || (!searchParams.section && i === 0);
+              const actif = i === choisie;
               return (
                 <a
                   key={i}
