@@ -17,8 +17,11 @@ const AGENTS_DOMAINE = {
   "Psychologie": { formateur: "Claire Beaumont", coach: "Maya" },
 };
 
-// Decoupage par VOLUME et non par nombre de paragraphes : une page de lecture
-// vaut environ 2 500 caracteres, quelle que soit la longueur des paragraphes.
+function propre(t) {
+  return String(t || "").replace(/\*\*/g, "").replace(/`/g, "").trim();
+}
+
+// Decoupage par VOLUME : une page vaut environ 2 500 caracteres.
 function decouperEnPages(contenu) {
   const lignes = String(contenu || "").split("\n").filter(l => l.trim() && l.trim() !== "---");
   const pages = [];
@@ -28,8 +31,6 @@ function decouperEnPages(contenu) {
   for (const ligne of lignes) {
     bloc.push(ligne);
     taille = taille + ligne.length;
-
-    // On ne coupe jamais juste apres un titre : il resterait seul en bas de page.
     const estTitre = /^#{1,6}\s/.test(ligne.trim());
     if (taille >= CARACTERES_PAR_PAGE && !estTitre) {
       pages.push(bloc.join("\n"));
@@ -42,26 +43,71 @@ function decouperEnPages(contenu) {
   return pages.length > 0 ? pages : [String(contenu || "")];
 }
 
+// Extraction TOLERANTE : les modules ne redigent pas tous leur QCM
+// de la meme facon. On accepte plusieurs numerotations et on cherche
+// les bonnes reponses aussi bien en ligne que dans un bloc de corrige.
 function extraireQCM(contenu) {
-  if (!contenu) return [];
+  const texte = String(contenu || "");
+  if (!texte) return [];
+
+  // On ne garde que la section QCM si elle est identifiee, pour ne pas
+  // confondre les exercices avec des questions.
+  let zone = texte;
+  const debut = texte.search(/^#{1,6}\s*QCM/im);
+  if (debut >= 0) {
+    zone = texte.slice(debut);
+    const suite = zone.slice(20).search(/^#{1,6}\s+/m);
+    if (suite > 0) zone = zone.slice(0, suite + 20);
+  }
+
+  const lignes = zone.split("\n");
   const questions = [];
-  const lignes = contenu.split("\n");
-  let qActuelle = null;
-  for (const ligne of lignes) {
-    const l = ligne.trim();
-    if (l.match(/^Q\d+\./)) {
-      if (qActuelle) questions.push(qActuelle);
-      qActuelle = { question: l.replace(/^Q\d+\./, "").trim(), options: [], bonneReponse: "", explication: "" };
-    } else if (qActuelle && l.match(/^[A-D]\)/)) {
-      qActuelle.options.push(l);
-    } else if (qActuelle && l.startsWith("Reponse :")) {
-      const parts = l.replace("Reponse :", "").trim().split(" - ");
-      qActuelle.bonneReponse = parts[0]?.trim().replace(")", "");
-      qActuelle.explication = parts.slice(1).join(" - ").trim();
+  let q = null;
+
+  for (const brute of lignes) {
+    const l = propre(brute);
+    if (!l) continue;
+
+    const debutQuestion = l.match(/^(?:Question\s*)?Q?\s*(\d{1,2})\s*[.)\-–:]\s*(.+)$/i);
+    const option = l.match(/^([A-D])\s*[).\-–:]\s*(.+)$/);
+    const reponse = l.match(/r[eé]ponse\s*(?:correcte)?\s*[:=]?\s*([A-D])\b/i);
+
+    if (option && q) {
+      q.options.push(option[1] + ") " + option[2]);
+      continue;
+    }
+
+    if (reponse) {
+      if (q && !q.bonneReponse) {
+        q.bonneReponse = reponse[1];
+        const reste = l.split(reponse[1]).slice(1).join(reponse[1]).replace(/^[\s\-–—.:]*/, "");
+        if (reste) q.explication = reste;
+      }
+      continue;
+    }
+
+    if (debutQuestion && debutQuestion[2].length > 8) {
+      if (q && q.options.length >= 2) questions.push(q);
+      q = { numero: parseInt(debutQuestion[1], 10), question: debutQuestion[2], options: [], bonneReponse: "", explication: "" };
+      continue;
+    }
+
+    // Ligne de corrige du type "3 : B" ou "3 - B" dans un bloc dedie.
+    const corrige = l.match(/^(\d{1,2})\s*[).\-–:]\s*([A-D])\b\s*[-–—:]?\s*(.*)$/);
+    if (corrige) {
+      const cible = questions.find(x => x.numero === parseInt(corrige[1], 10));
+      if (cible && !cible.bonneReponse) {
+        cible.bonneReponse = corrige[2];
+        if (corrige[3]) cible.explication = corrige[3];
+      }
+      continue;
     }
   }
-  if (qActuelle) questions.push(qActuelle);
-  return questions;
+
+  if (q && q.options.length >= 2) questions.push(q);
+
+  // On ne garde que les questions reellement exploitables.
+  return questions.filter(x => x.options.length >= 2 && x.bonneReponse);
 }
 
 export default function LMSPage({ params }) {
@@ -135,8 +181,6 @@ export default function LMSPage({ params }) {
     setLoadingFormation(false);
   }
 
-  // La progression vient de la BASE, plus du navigateur : elle suit donc
-  // le stagiaire d un appareil a l autre.
   async function chargerProgression() {
     try {
       const r = await fetch("/api/progression?formation_code=" + code);
@@ -153,14 +197,10 @@ export default function LMSPage({ params }) {
     }
   }
 
-  async function chargerModule(ch_num, mod_num, garderOnglet = false) {
+  async function chargerModule(ch_num, mod_num) {
     if (chapitres.length === 0) return;
     setLoading(true);
     setContenu("");
-    if (!garderOnglet) {
-      const mod = chapitres[ch_num - 1]?.modules[mod_num - 1];
-      setOnglet(mod?.type === "evaluation" ? "qcm" : "cours");
-    }
     setQcmScore(null);
     setQcmReponses({});
     setMessageValidateur("");
@@ -314,7 +354,7 @@ export default function LMSPage({ params }) {
                 const actif = chapitreActif === ch.numero && moduleActif === mod.numero;
                 const typeIcon = mod.type === "theorie" ? "📖" : mod.type === "pratique" ? "🛠️" : "📝";
                 return (
-                  <div key={mod.numero} onClick={() => { setChapitreActif(ch.numero); setModuleActif(mod.numero); }}
+                  <div key={mod.numero} onClick={() => { setChapitreActif(ch.numero); setModuleActif(mod.numero); setOnglet("cours"); }}
                     style={{ padding: "8px 10px", marginBottom: "4px", borderRadius: "6px", cursor: "pointer", background: actif ? "rgba(200,169,110,0.2)" : "transparent", border: actif ? "1px solid rgba(200,169,110,0.4)" : "1px solid transparent", display: "flex", alignItems: "center", gap: "8px" }}>
                     <span>{valide ? "✅" : "⭕"}</span>
                     <span style={{ color: actif ? "#c8a96e" : "rgba(255,255,255,0.6)", fontSize: "11px" }}>{typeIcon} {ch.numero}.{mod.numero} {mod.titre}</span>
@@ -327,22 +367,8 @@ export default function LMSPage({ params }) {
 
         <div>
           <div style={{ display: "flex", gap: "10px", marginBottom: "20px" }}>
-            {[{ id: "cours", label: "📖 Cours" }, { id: "qcm", label: "✅ QCM" }, { id: "chat", label: "🤖 Coach IA" }]
-              .filter(o => !(o.id === "cours" && module?.type === "evaluation"))
-              .filter(o => !(o.id === "qcm" && module?.type !== "evaluation" && !isAdmin))
-              .map(o => (
-              <button key={o.id} onClick={() => {
-                if (o.id === "qcm" && module?.type !== "evaluation") {
-                  const modEval = chapitre?.modules.find(m => m.type === "evaluation");
-                  if (modEval) {
-                    setModuleActif(modEval.numero);
-                    chargerModule(chapitreActif, modEval.numero, true);
-                  }
-                  setOnglet("qcm");
-                } else {
-                  setOnglet(o.id);
-                }
-              }}
+            {[{ id: "cours", label: "📖 Cours" }, { id: "qcm", label: "✅ QCM" }, { id: "chat", label: "🤖 Coach IA" }].map(o => (
+              <button key={o.id} onClick={() => setOnglet(o.id)}
                 style={{ padding: "10px 20px", borderRadius: "8px", border: "none", cursor: "pointer", background: onglet === o.id ? "#c8a96e" : "rgba(255,255,255,0.05)", color: onglet === o.id ? "#050508" : "rgba(255,255,255,0.6)", fontWeight: onglet === o.id ? "bold" : "normal" }}>
                 {o.label}
               </button>
@@ -388,13 +414,11 @@ export default function LMSPage({ params }) {
                       return <h3 key={i} style={{ color: "#333", fontSize: "18px", margin: "15px 0 8px", fontWeight: "bold" }}>{texte}</h3>;
                     }
                     if (l === "---") return <hr key={i} style={{ border: "none", borderTop: "1px solid #ddd", margin: "16px 0" }} />;
-                    if (l.startsWith("> ")) return <blockquote key={i} style={{ borderLeft: "4px solid #c8a96e", paddingLeft: "16px", margin: "16px 0", color: "#555", fontStyle: "italic", fontSize: "18px" }}>{l.replace(/^> /, "").replace(/\*\*(.+?)\*\*/g, "$1")}</blockquote>;
+                    if (l.startsWith("> ")) return <blockquote key={i} style={{ borderLeft: "4px solid #c8a96e", paddingLeft: "16px", margin: "16px 0", color: "#555", fontStyle: "italic", fontSize: "18px" }}>{propre(l.replace(/^> /, ""))}</blockquote>;
                     if (/^[-*]\s+/.test(l)) {
-                      const texte = l.replace(/^[-*]\s+/, "").replace(/\*\*(.+?)\*\*/g, "$1");
-                      return <p key={i} style={{ color: "#1a1a1a", fontSize: "18px", lineHeight: "1.8", margin: "0 0 10px 22px" }}>• {texte}</p>;
+                      return <p key={i} style={{ color: "#1a1a1a", fontSize: "18px", lineHeight: "1.8", margin: "0 0 10px 22px" }}>• {propre(l.replace(/^[-*]\s+/, ""))}</p>;
                     }
-                    const texte = l.replace(/\*\*(.+?)\*\*/g, "$1").replace(/\*(.+?)\*/g, "$1");
-                    return <p key={i} style={{ color: "#1a1a1a", fontSize: "18px", lineHeight: "1.85", marginBottom: "16px", textAlign: "justify" }}>{texte}</p>;
+                    return <p key={i} style={{ color: "#1a1a1a", fontSize: "18px", lineHeight: "1.85", marginBottom: "16px", textAlign: "justify" }}>{propre(l)}</p>;
                   })}
 
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "30px", padding: "15px 0", borderTop: "1px solid #eee" }}>
@@ -421,21 +445,23 @@ export default function LMSPage({ params }) {
 
           {onglet === "qcm" && (
             <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(200,169,110,0.2)", borderRadius: "12px", padding: "25px" }}>
-              <h3 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", margin: "0 0 20px" }}>QCM de Validation</h3>
+              <h3 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", margin: "0 0 20px" }}>QCM de ce module</h3>
               {loading ? (
-                <p style={{ color: "#c8a96e" }}>Generation du QCM en cours...</p>
+                <p style={{ color: "#c8a96e" }}>Chargement du module...</p>
               ) : questions.length === 0 ? (
                 <div>
-                  <p style={{ color: "rgba(255,255,255,0.5)", marginBottom: "15px" }}>Le QCM sera disponible apres generation du module evaluation.</p>
-                  <button onClick={() => chargerModule(chapitreActif, moduleActif, true)} style={{ background: "#c8a96e", color: "#050508", border: "none", borderRadius: "8px", padding: "12px 24px", cursor: "pointer", fontWeight: "bold" }}>
-                    Generer le QCM
+                  <p style={{ color: "rgba(255,255,255,0.5)", marginBottom: "15px" }}>
+                    Aucun QCM trouve dans ce module. Il sera disponible une fois le module produit a la nouvelle norme.
+                  </p>
+                  <button onClick={() => chargerModule(chapitreActif, moduleActif)} style={{ background: "#c8a96e", color: "#050508", border: "none", borderRadius: "8px", padding: "12px 24px", cursor: "pointer", fontWeight: "bold" }}>
+                    Recharger le module
                   </button>
                 </div>
               ) : (
                 <>
                   {questions.map((q, i) => (
                     <div key={i} style={{ marginBottom: "20px", padding: "15px", background: "rgba(255,255,255,0.03)", borderRadius: "8px" }}>
-                      <p style={{ color: "#fff", fontWeight: "bold", margin: "0 0 10px", fontSize: "14px" }}>Q{i + 1}. {q.question}</p>
+                      <p style={{ color: "#fff", fontWeight: "bold", margin: "0 0 10px", fontSize: "15px" }}>Q{i + 1}. {q.question}</p>
                       {q.options.map((opt, oi) => {
                         const lettre = opt[0];
                         const selectionne = qcmReponses[i] === lettre;
@@ -443,12 +469,12 @@ export default function LMSPage({ params }) {
                         const incorrect = qcmScore !== null && selectionne && lettre !== q.bonneReponse;
                         return (
                           <div key={oi} onClick={() => { if (qcmScore === null) setQcmReponses({ ...qcmReponses, [i]: lettre }); }}
-                            style={{ padding: "8px 12px", margin: "4px 0", borderRadius: "6px", cursor: qcmScore === null ? "pointer" : "default", background: correct ? "rgba(0,200,0,0.2)" : incorrect ? "rgba(200,0,0,0.2)" : selectionne ? "rgba(200,169,110,0.2)" : "rgba(255,255,255,0.03)", border: selectionne ? "1px solid #c8a96e" : "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.8)", fontSize: "13px" }}>
+                            style={{ padding: "10px 12px", margin: "4px 0", borderRadius: "6px", cursor: qcmScore === null ? "pointer" : "default", background: correct ? "rgba(0,200,0,0.2)" : incorrect ? "rgba(200,0,0,0.2)" : selectionne ? "rgba(200,169,110,0.2)" : "rgba(255,255,255,0.03)", border: selectionne ? "1px solid #c8a96e" : "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.85)", fontSize: "14px" }}>
                             {opt}
                           </div>
                         );
                       })}
-                      {qcmScore !== null && q.explication && <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "12px", margin: "8px 0 0", fontStyle: "italic" }}>{q.explication}</p>}
+                      {qcmScore !== null && q.explication && <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", margin: "8px 0 0", fontStyle: "italic" }}>{q.explication}</p>}
                     </div>
                   ))}
                   {qcmScore === null ? (
@@ -462,11 +488,11 @@ export default function LMSPage({ params }) {
                       <p style={{ color: "#fff", marginBottom: "15px" }}>{messageValidateur}</p>
                       <div style={{ display: "flex", gap: "10px", justifyContent: "center" }}>
                         <button onClick={() => { setQcmScore(null); setQcmReponses({}); setMessageValidateur(""); }} style={{ background: "rgba(200,169,110,0.2)", color: "#c8a96e", padding: "10px 20px", borderRadius: "8px", border: "1px solid #c8a96e", cursor: "pointer" }}>Recommencer</button>
-                        {qcmScore >= 50 && (
+                        {qcmScore >= 70 && (
                           <button onClick={() => {
                             const nm = moduleActif + 1;
-                            if (nm <= (chapitre?.modules.length || 0)) setModuleActif(nm);
-                            else if (chapitreActif < chapitres.length) { setChapitreActif(c => c + 1); setModuleActif(1); }
+                            if (nm <= (chapitre?.modules.length || 0)) { setModuleActif(nm); setOnglet("cours"); }
+                            else if (chapitreActif < chapitres.length) { setChapitreActif(c => c + 1); setModuleActif(1); setOnglet("cours"); }
                           }} style={{ background: "#c8a96e", color: "#050508", padding: "10px 20px", borderRadius: "8px", border: "none", cursor: "pointer", fontWeight: "bold" }}>
                             Module suivant →
                           </button>
