@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { emailDeSession } from "../../../../lib/session";
- 
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -56,9 +56,11 @@ export async function GET(req: Request) {
     const { data: plans } = await supabase.from("lms_plans").select("formation_code");
     const dejaPlan = new Set((plans || []).map((p: any) => p.formation_code));
 
+    // Seules les formations ACTIVES : inutile de produire un plan pour une fiche retiree.
     const { data: formations } = await supabase
       .from("formations")
       .select("code, titre")
+      .eq("actif", true)
       .order("code", { ascending: true });
 
     const candidates = (formations || []).filter(
@@ -94,14 +96,18 @@ export async function GET(req: Request) {
     }
 
     if (titres.length < 4) {
-      await supabase.from("lms_plans").insert({
-        formation_code: fiche.code,
-        chapitre_num: 0,
-        chapitre_titre: "PLAN ILLISIBLE",
-        module_num: 0,
-        module_titre: "seulement " + titres.length + " modules lisibles",
-        type: "theorie",
-      });
+      // Marqueur de plan illisible, pose sans risque de doublon.
+      await supabase.from("lms_plans").upsert(
+        {
+          formation_code: fiche.code,
+          chapitre_num: 0,
+          chapitre_titre: "PLAN ILLISIBLE",
+          module_num: 0,
+          module_titre: "seulement " + titres.length + " modules lisibles",
+          type: "theorie",
+        },
+        { onConflict: "formation_code,chapitre_num,module_num", ignoreDuplicates: true }
+      );
       return NextResponse.json({
         ok: true,
         code: fiche.code,
@@ -128,7 +134,11 @@ export async function GET(req: Request) {
       });
     }
 
-    const { error } = await supabase.from("lms_plans").insert(lignes);
+    // Insertion idempotente : deux passages simultanes ne peuvent plus se heurter.
+    const { error } = await supabase
+      .from("lms_plans")
+      .upsert(lignes, { onConflict: "formation_code,chapitre_num,module_num", ignoreDuplicates: true });
+
     if (error) {
       return NextResponse.json({ ok: false, code: fiche.code, erreur: error.message }, { status: 500 });
     }
