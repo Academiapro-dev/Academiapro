@@ -5,6 +5,7 @@ export default function PageDocuments() {
   const [types, setTypes] = useState<any>({});
   const [documents, setDocuments] = useState<any[]>([]);
   const [stagiaires, setStagiaires] = useState<any[]>([]);
+  const [signees, setSignees] = useState<any>({});
   const [chargement, setChargement] = useState(true);
   const [occupe, setOccupe] = useState("");
   const [message, setMessage] = useState("");
@@ -40,6 +41,16 @@ export default function PageDocuments() {
       const r2 = await fetch("/api/organisme/stagiaires" + suffixe());
       const d2 = await r2.json();
       if (d2.ok) setStagiaires(d2.apprenants || []);
+
+      const r3 = await fetch("/api/organisme/signature" + suffixe());
+      const d3 = await r3.json();
+      if (d3.ok) {
+        const s: any = {};
+        for (const sig of d3.signatures || []) {
+          if (!sig.annulee) s[sig.document_reference] = sig;
+        }
+        setSignees(s);
+      }
     } catch (e: any) {
       setErreur("Lecture impossible : " + String(e));
     }
@@ -90,6 +101,28 @@ export default function PageDocuments() {
     setOccupe("");
   }
 
+  async function faireSigner(reference: string, email: string) {
+    setOccupe("signer-" + reference);
+    setMessage("");
+    setErreur("");
+    try {
+      const r = await fetch("/api/organisme/faire-signer" + suffixe(), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ document_reference: reference, email: email }),
+      });
+      const data = await r.json();
+      if (data.ok) {
+        setMessage("Demande de signature envoyee a " + data.destinataire + ".");
+      } else {
+        setErreur(data.erreur || "Envoi impossible.");
+      }
+    } catch (e: any) {
+      setErreur("Envoi impossible : " + String(e));
+    }
+    setOccupe("");
+  }
+
   const CADRE: any = {
     minHeight: "100vh",
     background: "#050508",
@@ -102,8 +135,8 @@ export default function PageDocuments() {
     background: "rgba(255,255,255,0.03)",
     border: "1px solid rgba(200,169,110,0.25)",
     borderRadius: "12px",
-    padding: "22px 26px",
-    marginBottom: "18px",
+    padding: "20px 24px",
+    marginBottom: "16px",
   };
 
   const CHAMP: any = {
@@ -118,6 +151,17 @@ export default function PageDocuments() {
     boxSizing: "border-box",
   };
 
+  const BOUTON: any = {
+    background: "none",
+    border: "1px solid rgba(200,169,110,0.45)",
+    color: "#c8a96e",
+    padding: "7px 15px",
+    borderRadius: "20px",
+    cursor: "pointer",
+    fontSize: "13px",
+    fontFamily: "Georgia,serif",
+  };
+
   const AIDE: any = {
     convention: "A signer avant le debut de la formation. Indicateurs 4 et 9.",
     devis: "Proposition chiffree, valable trente jours. Indicateur 1.",
@@ -128,7 +172,11 @@ export default function PageDocuments() {
     livret: "Reglement, referent handicap, voie de reclamation. Indicateurs 9, 26 et 31.",
   };
 
+  const A_SIGNER = ["convention", "devis"];
+
   const ordre = ["programme", "devis", "convention", "convocation", "livret", "emargement", "attestation"];
+
+  const nbSignes = Object.keys(signees).length;
 
   return (
     <div style={CADRE}>
@@ -142,7 +190,7 @@ export default function PageDocuments() {
         </p>
         <h1 style={{ color: "#fff", fontSize: "30px", margin: "0 0 6px" }}>Mes documents</h1>
         <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "14px", marginTop: 0 }}>
-          {documents.length} document(s) emis · chaque emission est horodatee et conservee
+          {documents.length} emis · {nbSignes} signe(s) electroniquement
         </p>
 
         <div style={{ ...CARTE, marginTop: "26px" }}>
@@ -200,27 +248,51 @@ export default function PageDocuments() {
             </p>
           </div>
         ) : (
-          <div style={{ border: "1px solid rgba(200,169,110,0.25)", borderRadius: "12px", overflow: "hidden" }}>
-            <div style={{ display: "grid", gridTemplateColumns: "2fr 2fr 1fr 1fr", background: "rgba(200,169,110,0.12)", padding: "13px 18px", fontSize: "13px", color: "#c8a96e", fontWeight: "bold" }}>
-              <span>Document</span>
-              <span>Stagiaire</span>
-              <span>Reference</span>
-              <span>Emis le</span>
-            </div>
+          documents.map(function (d) {
+            const signature = signees[d.reference];
+            const signable = A_SIGNER.indexOf(d.type) >= 0;
+            return (
+              <div key={d.id} style={{ ...CARTE, border: signature ? "1px solid rgba(76,175,80,0.4)" : CARTE.border }}>
+                <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "10px" }}>
+                  <div style={{ flex: "1 1 260px" }}>
+                    <h3 style={{ color: "#fff", fontSize: "16px", margin: "0 0 3px" }}>
+                      {types[d.type] || d.type}
+                    </h3>
+                    <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "13px", margin: 0, wordBreak: "break-all" }}>
+                      {d.reference} · {d.stagiaire_email}
+                      {" · emis le " + new Date(d.emis_le).toLocaleDateString("fr-FR")}
+                    </p>
+                  </div>
 
-            {documents.map(function (d) {
-              return (
-                <div key={d.id} style={{ display: "grid", gridTemplateColumns: "2fr 2fr 1fr 1fr", padding: "13px 18px", borderTop: "1px solid rgba(255,255,255,0.06)", fontSize: "14px", color: "rgba(255,255,255,0.8)", alignItems: "center" }}>
-                  <span>{types[d.type] || d.type}</span>
-                  <span style={{ wordBreak: "break-all", color: "rgba(255,255,255,0.6)" }}>{d.stagiaire_email}</span>
-                  <span style={{ color: "rgba(255,255,255,0.45)", fontSize: "12px" }}>{d.reference}</span>
-                  <span style={{ color: "rgba(255,255,255,0.5)", fontSize: "13px" }}>
-                    {new Date(d.emis_le).toLocaleDateString("fr-FR")}
-                  </span>
+                  {signature && (
+                    <span style={{ color: "#4caf50", fontSize: "13px", fontWeight: "bold" }}>
+                      Signe le {new Date(signature.signe_le).toLocaleDateString("fr-FR")}
+                    </span>
+                  )}
                 </div>
-              );
-            })}
-          </div>
+
+                {signature ? (
+                  <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "12px", margin: "10px 0 0", fontFamily: "monospace", wordBreak: "break-all" }}>
+                    {signature.empreinte_sha256}
+                    {signature.intacte === false ? " — SCEAU ALTERE" : ""}
+                  </p>
+                ) : signable ? (
+                  <div style={{ marginTop: "12px" }}>
+                    <button
+                      onClick={() => faireSigner(d.reference, d.stagiaire_email)}
+                      disabled={occupe !== ""}
+                      style={{ ...BOUTON, background: "#c8a96e", color: "#050508", border: "none", fontWeight: "bold" }}
+                    >
+                      {occupe === "signer-" + d.reference ? "Envoi..." : "Faire signer"}
+                    </button>
+                    <span style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px", marginLeft: "10px" }}>
+                      un lien de signature sera envoye au stagiaire
+                    </span>
+                  </div>
+                ) : null}
+              </div>
+            );
+          })
         )}
       </div>
     </div>
