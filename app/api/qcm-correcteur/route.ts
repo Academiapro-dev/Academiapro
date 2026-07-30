@@ -21,15 +21,12 @@ const supabase = createClient(
   }
 );
 
-// La page LMS designe un module par "1_1" ; lms_cache l indexe par "ch1_mod1".
 function cleDeCache(code: string, moduleCle: string, langue: string): string {
   const m = String(moduleCle).match(/(\d{1,2})\D+(\d{1,2})/);
   if (!m) return code + "_" + moduleCle + "_" + langue;
   return code + "_ch" + m[1] + "_mod" + m[2] + "_" + langue;
 }
 
-// On envoie a l IA la section QCM ENTIERE, corrige compris : c est elle
-// qui detient les bonnes reponses, jamais le navigateur.
 function sectionQCM(contenu: string): string {
   const t = String(contenu || "");
   const debut = t.search(/^#{1,6}\s*QCM/im);
@@ -37,6 +34,50 @@ function sectionQCM(contenu: string): string {
   const reste = t.slice(debut);
   const suite = reste.slice(20).search(/^#{1,6}\s+/m);
   return suite > 0 ? reste.slice(0, suite + 20) : reste;
+}
+
+// Le contenu du module vient de DEUX SOURCES POSSIBLES : le cache d AcadeMIA
+// pour son catalogue, et organisme_modules pour les cours propres du client.
+// Sans cette seconde source, un stagiaire suivant une formation de son
+// organisme ne pourrait jamais faire corriger son questionnaire.
+async function contenuDuModule(code: string, moduleCle: string, langue: string, tenantId: string | null) {
+  const { data: cache } = await supabase
+    .from("lms_cache")
+    .select("contenu")
+    .eq("cache_key", cleDeCache(code, moduleCle, langue))
+    .maybeSingle();
+
+  if (cache && cache.contenu) {
+    return { contenu: String(cache.contenu), titre: null, propre: false };
+  }
+
+  if (!tenantId) return { contenu: "", titre: null, propre: false };
+
+  const { data: cours } = await supabase
+    .from("organisme_cours")
+    .select("id, titre")
+    .eq("code", code)
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
+
+  if (!cours) return { contenu: "", titre: null, propre: false };
+
+  const m = String(moduleCle).match(/(\d{1,2})\D+(\d{1,2})/);
+  const chapitre = m ? parseInt(m[1], 10) : 1;
+  const numero = m ? parseInt(m[2], 10) : 1;
+
+  const { data: module } = await supabase
+    .from("organisme_modules")
+    .select("contenu, titre")
+    .eq("cours_id", cours.id)
+    .eq("tenant_id", tenantId)
+    .eq("chapitre", chapitre)
+    .eq("numero", numero)
+    .maybeSingle();
+
+  if (!module || !module.contenu) return { contenu: "", titre: cours.titre, propre: true };
+
+  return { contenu: String(module.contenu), titre: cours.titre, propre: true };
 }
 
 export async function GET(req: NextRequest) {
@@ -101,27 +142,27 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, erreur: "Repondez avant de faire corriger." }, { status: 400 });
     }
 
-    const { data: ligne } = await supabase
-      .from("lms_cache")
-      .select("contenu")
-      .eq("cache_key", cleDeCache(code, moduleCle, langue))
-      .maybeSingle();
-
-    const qcm = sectionQCM(String((ligne && ligne.contenu) || ""));
+    const source = await contenuDuModule(code, moduleCle, langue, session.tenantId);
+    const qcm = sectionQCM(source.contenu);
 
     if (!qcm) {
       return NextResponse.json({ ok: false, erreur: "QCM introuvable pour ce module." }, { status: 404 });
     }
 
-    const { data: fiche } = await supabase
-      .from("formations")
-      .select("titre")
-      .eq("code", code)
-      .maybeSingle();
+    let titreFormation = source.titre;
+
+    if (!titreFormation) {
+      const { data: fiche } = await supabase
+        .from("formations")
+        .select("titre")
+        .eq("code", code)
+        .maybeSingle();
+      titreFormation = fiche ? fiche.titre : code;
+    }
 
     const invite =
       "Tu corriges la copie d un stagiaire sur un module de formation.\n\n" +
-      "FORMATION : " + ((fiche && fiche.titre) || code) + "\n" +
+      "FORMATION : " + titreFormation + "\n" +
       "MODULE : " + moduleCle + "\n\n" +
       "LE QUESTIONNAIRE ET SON CORRIGE, tels qu ils figurent dans le module :\n" + qcm + "\n\n" +
       "LA COPIE DU STAGIAIRE — ses reponses cochees, puis sa note de synthese :\n" + reponses + "\n\n" +
@@ -187,8 +228,6 @@ export async function POST(req: NextRequest) {
       { onConflict: "email,formation_code,module_cle" }
     );
 
-    // La note de l agent VALIDE le module : sans cela, la correction
-    // ne serait qu un avis sans effet sur la progression.
     const valide = note >= SEUIL_VALIDATION;
 
     if (valide) {
@@ -210,6 +249,7 @@ export async function POST(req: NextRequest) {
       note: note,
       seuil: SEUIL_VALIDATION,
       valide: valide,
+      cours_propre: source.propre,
       retour: retour,
     });
   } catch (e: any) {
