@@ -7,6 +7,16 @@ export const dynamic = "force-dynamic";
 
 const ADMINS = ["contact@academiapro.fr"];
 
+const PAYEURS = [
+  "entreprise",
+  "opco",
+  "cpf",
+  "pouvoirs_publics",
+  "particulier",
+  "organisme_formation",
+  "fonds_propres",
+];
+
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
   process.env.SUPABASE_SERVICE_ROLE_KEY || "",
@@ -19,8 +29,6 @@ const supabase = createClient(
   }
 );
 
-// L organisme vient de la SESSION SIGNEE. L administrateur peut en designer
-// un explicitement, uniquement pour les essais.
 function organismeDeLaDemande(req: NextRequest, session: any): string | null {
   if (session.tenantId) return session.tenantId;
   if (ADMINS.indexOf(session.email) >= 0) {
@@ -47,7 +55,7 @@ export async function GET(req: NextRequest) {
 
     const { data: registre, error } = await supabase
       .from("organisme_apprenants")
-      .select("id, email, nom, statut, created_at")
+      .select("id, email, nom, statut, payeur, formation_code, prix_vente, created_at")
       .eq("tenant_id", tenant)
       .order("created_at", { ascending: false })
       .limit(2000);
@@ -56,8 +64,6 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: false, erreur: error.message }, { status: 500 });
     }
 
-    // Nombre de modules valides pour chacun, pour que l organisme voie
-    // immediatement qui a commence et qui n a rien fait.
     const { data: valides } = await supabase
       .from("progression_apprenants")
       .select("user_email")
@@ -74,7 +80,24 @@ export async function GET(req: NextRequest) {
       return { ...a, modules_valides: compte[a.email] || 0 };
     });
 
-    return NextResponse.json({ ok: true, tenant_id: tenant, nombre: liste.length, apprenants: liste });
+    // Ventilation par payeur : c est la base du bilan pedagogique et financier.
+    const parPayeur: any = {};
+    let chiffre = 0;
+    for (const a of liste) {
+      const p = a.payeur || "non_renseigne";
+      parPayeur[p] = (parPayeur[p] || 0) + 1;
+      chiffre = chiffre + (Number(a.prix_vente) || 0);
+    }
+
+    return NextResponse.json({
+      ok: true,
+      tenant_id: tenant,
+      nombre: liste.length,
+      payeurs: PAYEURS,
+      par_payeur: parPayeur,
+      chiffre_declare: chiffre,
+      apprenants: liste,
+    });
   } catch (e: any) {
     return NextResponse.json({ ok: false, erreur: String(e) }, { status: 500 });
   }
@@ -100,8 +123,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, erreur: "Requete illisible" }, { status: 400 });
     }
 
-    // On accepte une liste collee : emails separes par virgules, points-virgules,
-    // espaces ou retours a la ligne. L organisme colle son fichier et c est fait.
     const brut = String(corps.emails || corps.email || "");
     const trouves = brut
       .split(/[\s,;]+/)
@@ -114,12 +135,29 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, erreur: "Aucune adresse valable dans votre saisie." }, { status: 400 });
     }
 
+    const payeur = String(corps.payeur || "").trim().toLowerCase();
+    if (payeur && PAYEURS.indexOf(payeur) < 0) {
+      return NextResponse.json({ ok: false, erreur: "Payeur inconnu." }, { status: 400 });
+    }
+
+    const formation = String(corps.formation_code || "").trim().toUpperCase();
+    const prix = corps.prix_vente !== undefined && corps.prix_vente !== null && corps.prix_vente !== ""
+      ? Number(corps.prix_vente)
+      : null;
+
+    if (prix !== null && (isNaN(prix) || prix < 0)) {
+      return NextResponse.json({ ok: false, erreur: "Prix de vente invalide." }, { status: 400 });
+    }
+
     const lignes = uniques.map(function (email) {
       return {
         tenant_id: tenant,
         email: email,
         nom: uniques.length === 1 && corps.nom ? String(corps.nom).trim() : null,
         statut: "invite",
+        payeur: payeur || null,
+        formation_code: formation || null,
+        prix_vente: prix,
       };
     });
 
@@ -132,6 +170,72 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({ ok: true, ajoutes: uniques.length, emails: uniques });
+  } catch (e: any) {
+    return NextResponse.json({ ok: false, erreur: String(e) }, { status: 500 });
+  }
+}
+
+export async function PATCH(req: NextRequest) {
+  try {
+    const session = sessionCourante();
+    if (!session) {
+      return NextResponse.json({ ok: false, erreur: "Connectez-vous." }, { status: 401 });
+    }
+
+    const tenant = organismeDeLaDemande(req, session);
+    if (!tenant) {
+      return NextResponse.json(
+        { ok: false, erreur: "Aucun organisme rattache a votre compte." },
+        { status: 403 }
+      );
+    }
+
+    const corps = await req.json().catch(function () { return null; });
+    if (!corps || !corps.id) {
+      return NextResponse.json({ ok: false, erreur: "Identifiant manquant" }, { status: 400 });
+    }
+
+    const modifications: any = {};
+
+    if (corps.payeur !== undefined) {
+      const p = String(corps.payeur || "").trim().toLowerCase();
+      if (p && PAYEURS.indexOf(p) < 0) {
+        return NextResponse.json({ ok: false, erreur: "Payeur inconnu." }, { status: 400 });
+      }
+      modifications.payeur = p || null;
+    }
+
+    if (corps.formation_code !== undefined) {
+      modifications.formation_code = corps.formation_code
+        ? String(corps.formation_code).trim().toUpperCase()
+        : null;
+    }
+
+    if (corps.prix_vente !== undefined) {
+      const prix = corps.prix_vente === null || corps.prix_vente === ""
+        ? null
+        : Number(corps.prix_vente);
+      if (prix !== null && (isNaN(prix) || prix < 0)) {
+        return NextResponse.json({ ok: false, erreur: "Prix de vente invalide." }, { status: 400 });
+      }
+      modifications.prix_vente = prix;
+    }
+
+    if (Object.keys(modifications).length === 0) {
+      return NextResponse.json({ ok: false, erreur: "Rien a modifier." }, { status: 400 });
+    }
+
+    const { error } = await supabase
+      .from("organisme_apprenants")
+      .update(modifications)
+      .eq("id", corps.id)
+      .eq("tenant_id", tenant);
+
+    if (error) {
+      return NextResponse.json({ ok: false, erreur: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ ok: true, modifie: corps.id });
   } catch (e: any) {
     return NextResponse.json({ ok: false, erreur: String(e) }, { status: 500 });
   }
@@ -157,8 +261,6 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ ok: false, erreur: "Identifiant manquant" }, { status: 400 });
     }
 
-    // Le filtre sur l organisme est indispensable : sans lui, un client
-    // pourrait retirer le stagiaire d un autre en devinant un identifiant.
     const { error } = await supabase
       .from("organisme_apprenants")
       .delete()
