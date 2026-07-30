@@ -8,6 +8,8 @@ export default function PageOrganismes() {
   const [message, setMessage] = useState("");
   const [erreur, setErreur] = useState("");
   const [formulaire, setFormulaire] = useState(false);
+  const [ouvert, setOuvert] = useState<any>({});
+  const [fiche, setFiche] = useState<any>({});
 
   const [raison, setRaison] = useState("");
   const [emailContact, setEmailContact] = useState("");
@@ -27,8 +29,26 @@ export default function PageOrganismes() {
     try {
       const r = await fetch("/api/admin/organismes");
       const data = await r.json();
-      if (data.ok) setOrganismes(data.organismes || []);
-      else setErreur(data.erreur || "Lecture impossible.");
+      if (data.ok) {
+        setOrganismes(data.organismes || []);
+        const f: any = {};
+        for (const o of data.organismes || []) {
+          f[o.id] = {
+            abonnement: o.abonnement_mensuel !== null && o.abonnement_mensuel !== undefined ? String(o.abonnement_mensuel) : "",
+            taux: o.taux_prelevement !== null && o.taux_prelevement !== undefined ? String(o.taux_prelevement) : "",
+            lancement: o.lancement_jusqu_au || "",
+            telephone: o.telephone || "",
+            siret: o.siret || "",
+            numero_da: o.numero_da || "",
+            adresse: o.adresse || "",
+            certificateur: o.certificateur || "",
+            notes: o.notes || "",
+          };
+        }
+        setFiche(f);
+      } else {
+        setErreur(data.erreur || "Lecture impossible.");
+      }
     } catch (e: any) {
       setErreur("Lecture impossible : " + String(e));
     }
@@ -70,18 +90,18 @@ export default function PageOrganismes() {
     setOccupe(false);
   }
 
-  async function changerStatut(id: string, statut: string) {
+  async function modifier(id: string, corps: any) {
     setMessage("");
     setErreur("");
     try {
       const r = await fetch("/api/admin/organismes", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: id, statut: statut }),
+        body: JSON.stringify({ id: id, ...corps }),
       });
       const data = await r.json();
       if (data.ok) {
-        setMessage("Statut mis a jour.");
+        setMessage("Fiche enregistree.");
         await charger();
       } else {
         setErreur(data.erreur || "Modification impossible.");
@@ -109,12 +129,12 @@ export default function PageOrganismes() {
 
   const CHAMP: any = {
     width: "100%",
-    padding: "12px 14px",
+    padding: "11px 13px",
     borderRadius: "8px",
     border: "1px solid rgba(200,169,110,0.3)",
     background: "rgba(255,255,255,0.05)",
     color: "#fff",
-    fontSize: "16px",
+    fontSize: "15px",
     fontFamily: "Georgia,serif",
     boxSizing: "border-box",
     marginBottom: "12px",
@@ -123,8 +143,8 @@ export default function PageOrganismes() {
   const LIBELLE: any = {
     display: "block",
     color: "#c8a96e",
-    fontSize: "14px",
-    marginBottom: "6px",
+    fontSize: "13px",
+    marginBottom: "5px",
   };
 
   const LIEN: any = {
@@ -135,6 +155,14 @@ export default function PageOrganismes() {
     padding: "6px 14px",
     borderRadius: "20px",
   };
+
+  function champ(id: string, cle: string) {
+    return (fiche[id] && fiche[id][cle]) || "";
+  }
+
+  function poser(id: string, cle: string, valeur: string) {
+    setFiche({ ...fiche, [id]: { ...(fiche[id] || {}), [cle]: valeur } });
+  }
 
   const actifs = organismes.filter(function (o) { return o.statut === "actif"; }).length;
   const totalStagiaires = organismes.reduce(function (s: number, o: any) { return s + (o.stagiaires || 0); }, 0);
@@ -147,7 +175,7 @@ export default function PageOrganismes() {
         </p>
         <h1 style={{ color: "#fff", fontSize: "30px", margin: "0 0 6px" }}>Organismes de formation</h1>
         <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "14px", marginTop: 0 }}>
-          {organismes.length} organisme(s) · {actifs} actif(s) · {totalStagiaires} stagiaire(s) au total
+          {organismes.length} organisme(s) · {actifs} actif(s) · {totalStagiaires} stagiaire(s)
         </p>
 
         <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", margin: "24px 0" }}>
@@ -178,7 +206,7 @@ export default function PageOrganismes() {
                 <input value={siret} onChange={(e) => setSiret(e.target.value)} style={CHAMP} />
               </div>
               <div style={{ flex: "1 1 200px" }}>
-                <span style={LIBELLE}>Numero de declaration d activite</span>
+                <span style={LIBELLE}>Numero de declaration</span>
                 <input value={numeroDa} onChange={(e) => setNumeroDa(e.target.value)} style={CHAMP} />
               </div>
             </div>
@@ -226,19 +254,25 @@ export default function PageOrganismes() {
           </div>
         ) : (
           organismes.map(function (o) {
+            const estOuvert = ouvert[o.id] === true;
+            const sansContrat = o.abonnement_mensuel === null || o.abonnement_mensuel === undefined;
             return (
-              <div key={o.id} style={CARTE}>
+              <div key={o.id} style={{ ...CARTE, border: sansContrat ? "1px solid rgba(232,163,61,0.45)" : CARTE.border }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "12px" }}>
                   <div>
                     <h3 style={{ color: "#fff", fontSize: "18px", margin: "0 0 4px" }}>{o.raison_sociale}</h3>
                     <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "14px", margin: "0 0 4px" }}>{o.email_contact}</p>
-                    <p style={{ color: "rgba(255,255,255,0.3)", fontSize: "12px", margin: 0, wordBreak: "break-all" }}>
-                      {o.tenant_id}
+                    <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "13px", margin: 0 }}>
+                      {o.abonnement_mensuel ? o.abonnement_mensuel + " EUR/mois" : "abonnement non fixe"}
+                      {" · prelevement " + (o.taux_prelevement !== null && o.taux_prelevement !== undefined ? o.taux_prelevement : 20) + " %"}
+                      {o.lancement_jusqu_au ? " · lancement jusqu au " + new Date(o.lancement_jusqu_au).toLocaleDateString("fr-FR") : ""}
                     </p>
                   </div>
                   <div style={{ textAlign: "right" }}>
                     <p style={{ color: "#c8a96e", fontSize: "24px", fontWeight: "bold", margin: "0 0 2px" }}>{o.stagiaires}</p>
-                    <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "13px", margin: 0 }}>stagiaire(s)</p>
+                    <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "13px", margin: 0 }}>
+                      stagiaire(s) · {o.formations_ouvertes} formation(s)
+                    </p>
                   </div>
                 </div>
 
@@ -253,17 +287,97 @@ export default function PageOrganismes() {
                     </span>
                   )}
 
+                  <button
+                    onClick={() => setOuvert({ ...ouvert, [o.id]: !estOuvert })}
+                    style={{ ...LIEN, background: "none", cursor: "pointer", fontFamily: "Georgia,serif" }}
+                  >
+                    {estOuvert ? "Fermer la fiche" : "Sa fiche"}
+                  </button>
+
                   <a href={"/organisme/catalogue?tenant=" + o.tenant_id} style={LIEN}>Son catalogue</a>
                   <a href={"/organisme/stagiaires?tenant=" + o.tenant_id} style={LIEN}>Ses stagiaires</a>
                   <a href={"/organisme/bilan?tenant=" + o.tenant_id} style={LIEN}>Son bilan</a>
 
                   <button
-                    onClick={() => changerStatut(o.id, o.statut === "actif" ? "suspendu" : "actif")}
+                    onClick={() => modifier(o.id, { statut: o.statut === "actif" ? "suspendu" : "actif" })}
                     style={{ background: "none", border: "none", color: "#e8836a", cursor: "pointer", fontSize: "13px", padding: "0 6px" }}
                   >
                     {o.statut === "actif" ? "Suspendre" : "Reactiver"}
                   </button>
                 </div>
+
+                {estOuvert && (
+                  <div style={{ marginTop: "18px", paddingTop: "16px", borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+                    <h4 style={{ color: "#c8a96e", fontSize: "15px", margin: "0 0 14px" }}>
+                      Termes du contrat
+                    </h4>
+
+                    <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+                      <div style={{ flex: "1 1 150px" }}>
+                        <span style={LIBELLE}>Abonnement mensuel (EUR)</span>
+                        <input value={champ(o.id, "abonnement")} onChange={(e) => poser(o.id, "abonnement", e.target.value)} placeholder="500" style={CHAMP} />
+                      </div>
+                      <div style={{ flex: "1 1 120px" }}>
+                        <span style={LIBELLE}>Prelevement (%)</span>
+                        <input value={champ(o.id, "taux")} onChange={(e) => poser(o.id, "taux", e.target.value)} placeholder="20" style={CHAMP} />
+                      </div>
+                      <div style={{ flex: "1 1 160px" }}>
+                        <span style={LIBELLE}>Tarif de lancement jusqu au</span>
+                        <input type="date" value={champ(o.id, "lancement")} onChange={(e) => poser(o.id, "lancement", e.target.value)} style={CHAMP} />
+                      </div>
+                    </div>
+
+                    <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px", margin: "-4px 0 14px", lineHeight: "1.6" }}>
+                      Tant que cette date n est pas passee, l abonnement est facture de moitie.
+                      Au-dela, le montant plein s applique de plein droit.
+                    </p>
+
+                    <h4 style={{ color: "#c8a96e", fontSize: "15px", margin: "18px 0 14px" }}>
+                      Coordonnees
+                    </h4>
+
+                    <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+                      <div style={{ flex: "1 1 180px" }}>
+                        <span style={LIBELLE}>SIRET</span>
+                        <input value={champ(o.id, "siret")} onChange={(e) => poser(o.id, "siret", e.target.value)} style={CHAMP} />
+                      </div>
+                      <div style={{ flex: "1 1 180px" }}>
+                        <span style={LIBELLE}>Numero de declaration</span>
+                        <input value={champ(o.id, "numero_da")} onChange={(e) => poser(o.id, "numero_da", e.target.value)} style={CHAMP} />
+                      </div>
+                      <div style={{ flex: "1 1 180px" }}>
+                        <span style={LIBELLE}>Telephone</span>
+                        <input value={champ(o.id, "telephone")} onChange={(e) => poser(o.id, "telephone", e.target.value)} style={CHAMP} />
+                      </div>
+                    </div>
+
+                    <span style={LIBELLE}>Adresse</span>
+                    <input value={champ(o.id, "adresse")} onChange={(e) => poser(o.id, "adresse", e.target.value)} style={CHAMP} />
+
+                    <span style={LIBELLE}>Certificateur</span>
+                    <input value={champ(o.id, "certificateur")} onChange={(e) => poser(o.id, "certificateur", e.target.value)} placeholder="AFNOR, ICPF..." style={CHAMP} />
+
+                    <span style={LIBELLE}>Notes internes</span>
+                    <textarea value={champ(o.id, "notes")} onChange={(e) => poser(o.id, "notes", e.target.value)} rows={3} style={CHAMP} />
+
+                    <button
+                      onClick={() => modifier(o.id, {
+                        abonnement_mensuel: champ(o.id, "abonnement"),
+                        taux_prelevement: champ(o.id, "taux"),
+                        lancement_jusqu_au: champ(o.id, "lancement") || null,
+                        siret: champ(o.id, "siret"),
+                        numero_da: champ(o.id, "numero_da"),
+                        telephone: champ(o.id, "telephone"),
+                        adresse: champ(o.id, "adresse"),
+                        certificateur: champ(o.id, "certificateur"),
+                        notes: champ(o.id, "notes"),
+                      })}
+                      style={{ background: "#c8a96e", color: "#050508", padding: "13px 26px", borderRadius: "8px", border: "none", cursor: "pointer", fontWeight: "bold", fontSize: "15px", fontFamily: "Georgia,serif" }}
+                    >
+                      Enregistrer la fiche
+                    </button>
+                  </div>
+                )}
               </div>
             );
           })
