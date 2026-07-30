@@ -25,11 +25,15 @@ export async function POST(req: NextRequest) {
   const data = await res.json();
 
   if (data.access_token) {
-    // Recherche du tenant rattache a ce compte (module compliance).
-    // Un echec ici ne doit JAMAIS empecher la connexion : les utilisateurs
-    // des plateformes B2C n'ont pas de tenant et doivent pouvoir se connecter.
+    // Recherche de l organisme rattache a ce compte, en deux temps :
+    // d abord le PERSONNEL de l organisme (compliance_membres, par user_id),
+    // puis SES STAGIAIRES (organisme_apprenants, par email).
+    // Un echec ici ne doit JAMAIS empecher la connexion : les apprenants
+    // d AcademIA n ont pas d organisme et doivent pouvoir se connecter.
     let tenantId: string | null = null;
     let role: string | null = null;
+
+    const emailReel = String(data.user?.email || email || "").toLowerCase().trim();
 
     try {
       if (data.user?.id) {
@@ -46,8 +50,22 @@ export async function POST(req: NextRequest) {
           role = membre.role;
         }
       }
+
+      if (!tenantId && emailReel) {
+        const { data: apprenant } = await supabaseAdmin
+          .from("organisme_apprenants")
+          .select("tenant_id")
+          .eq("email", emailReel)
+          .limit(1)
+          .maybeSingle();
+
+        if (apprenant) {
+          tenantId = apprenant.tenant_id;
+          role = "stagiaire";
+        }
+      }
     } catch (e) {
-      // silencieux par choix : l'absence de tenant est un cas normal
+      // silencieux par choix : l'absence d organisme est un cas normal
       tenantId = null;
       role = null;
     }
@@ -72,8 +90,7 @@ export async function POST(req: NextRequest) {
     });
 
     // Cookie de session signe : c'est lui qui ouvre l'acces au contenu payant.
-    // Il porte desormais AUSSI l organisme et le role, donc infalsifiables.
-    const emailReel = String(data.user?.email || email || "").toLowerCase().trim();
+    // Il porte aussi l organisme et le role, donc infalsifiables.
     if (emailReel) {
       response.cookies.set({
         name: NOM_COOKIE_SESSION,
