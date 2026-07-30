@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { cookies } from "next/headers";
+import { sessionCourante } from "../../../../lib/session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -9,23 +9,26 @@ export const maxDuration = 60;
 const MAX_MESSAGES = 50;
 const MODELE = "claude-sonnet-4-6";
 
-function sessionDuCookie() {
-  try {
-    const brut = cookies().get("sb_user")?.value;
-    if (!brut) return null;
-    const u = JSON.parse(decodeURIComponent(brut));
-    if (!u || !u.tenant_id) return null;
-    return { tenantId: u.tenant_id, email: u.email || null };
-  } catch (e) {
-    return null;
-  }
+// L organisme vient du JETON SIGNE. Avec l ancien cookie sb_user, on lisait
+// l historique de conversation d un autre organisme, ou l on ecrivait dedans
+// en consommant son quota de messages.
+function societeDeSession() {
+  const session = sessionCourante();
+  if (!session || !session.tenantId) return null;
+  return { tenantId: session.tenantId, email: session.email };
 }
 
 function client() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) return null;
-  return createClient(url, key);
+  return createClient(url, key, {
+    global: {
+      fetch: function (u: any, o: any) {
+        return fetch(u, { ...(o || {}), cache: "no-store" });
+      },
+    },
+  });
 }
 
 function construireSysteme(
@@ -97,7 +100,7 @@ function construireSysteme(
 }
 
 export async function GET(req: NextRequest) {
-  const session = sessionDuCookie();
+  const session = societeDeSession();
   if (!session) {
     return NextResponse.json(
       { ok: false, erreur: "Session sans societe rattachee. Reconnectez-vous." },
@@ -151,7 +154,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const session = sessionDuCookie();
+    const session = societeDeSession();
     if (!session) {
       return NextResponse.json(
         {
