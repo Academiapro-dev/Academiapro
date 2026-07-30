@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
-import { sessionCourante } from "../../../../lib/session"; 
+import { sessionCourante } from "../../../../lib/session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -35,10 +35,10 @@ function ascii(t: any): string {
   return String(t === null || t === undefined ? "" : t)
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[’‘]/g, "'")
-    .replace(/[“”]/g, '"')
-    .replace(/[–—]/g, "-")
-    .replace(/€/g, "EUR")
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[\u201C\u201D]/g, '"')
+    .replace(/[\u2013\u2014]/g, "-")
+    .replace(/\u20AC/g, "EUR")
     .replace(/[^\x20-\x7E]/g, " ");
 }
 
@@ -50,7 +50,29 @@ function euros(n: any): string {
   return (Number(n) || 0).toLocaleString("fr-FR") + " EUR";
 }
 
-// Chaque type renvoie des sections : un titre, puis des paragraphes.
+// La formation peut venir du catalogue de l editeur OU des cours propres du
+// client. Sans ce repli, une attestation portait le code au lieu du titre.
+async function ficheFormation(code: string, tenant: string) {
+  if (!code) return null;
+
+  const { data: f } = await supabase
+    .from("formations")
+    .select("code, titre, duree, objectifs, prerequis, public_cible, domaine")
+    .eq("code", code)
+    .maybeSingle();
+
+  if (f) return f;
+
+  const { data: c } = await supabase
+    .from("organisme_cours")
+    .select("code, titre, duree, objectifs, prerequis, public_cible, domaine")
+    .eq("code", code)
+    .eq("tenant_id", tenant)
+    .maybeSingle();
+
+  return c || null;
+}
+
 function corps(type: string, o: any, a: any, f: any, prix: number, modules: any[]) {
   const nom = a && a.nom ? a.nom : a && a.email ? a.email : "le stagiaire";
   const of = (o && o.raison_sociale) || "l organisme";
@@ -97,10 +119,7 @@ function corps(type: string, o: any, a: any, f: any, prix: number, modules: any[
   if (type === "devis") {
     return [
       ["Beneficiaire", [nom + " (" + a.email + ")"]],
-      ["Prestation", [
-        titre,
-        "Formation professionnelle a distance, " + duree + " heures.",
-      ]],
+      ["Prestation", [titre, "Formation professionnelle a distance, " + duree + " heures."]],
       ["Prix", [
         euros(prix) + " par beneficiaire.",
         "Ce devis est valable trente jours a compter de sa date d emission.",
@@ -112,17 +131,13 @@ function corps(type: string, o: any, a: any, f: any, prix: number, modules: any[
         "L assistance pedagogique par messagerie.",
         "L attestation de fin de formation.",
       ]],
-      ["Pour accepter", [
-        "Retournez ce devis date et signe, avec la mention Bon pour accord.",
-      ]],
+      ["Pour accepter", ["Retournez ce devis date et signe, avec la mention Bon pour accord."]],
     ];
   }
 
   if (type === "convocation") {
     return [
-      ["Madame, Monsieur", [
-        "Nous avons le plaisir de vous confirmer votre inscription a la formation suivante.",
-      ]],
+      ["Madame, Monsieur", ["Nous avons le plaisir de vous confirmer votre inscription a la formation suivante."]],
       ["Votre formation", [
         titre,
         "Duree : " + duree + " heures.",
@@ -146,12 +161,15 @@ function corps(type: string, o: any, a: any, f: any, prix: number, modules: any[
     return [
       ["Intitule", [titre]],
       ["Prerequis", [
+        (f && f.prerequis) ||
         "Aucun prerequis academique. Une pratique courante de l outil informatique et une connexion internet sont necessaires.",
       ]],
       ["Objectifs pedagogiques", [
+        (f && f.objectifs) ||
         "A l issue de la formation, le beneficiaire maitrise les notions, les methodes et les protocoles exposes dans le parcours, et sait les appliquer a des situations professionnelles.",
       ]],
       ["Public concerne", [
+        (f && f.public_cible) ||
         "Toute personne souhaitant acquerir ou approfondir les competences visees, dans un cadre professionnel ou de reconversion.",
       ]],
       ["Duree et rythme", [
@@ -179,18 +197,19 @@ function corps(type: string, o: any, a: any, f: any, prix: number, modules: any[
 
   if (type === "attestation") {
     const valides = modules.length;
+    const heures = duree > 0 ? duree : null;
     return [
       ["", [
-        of + (o && o.numero_da ? ", declare sous le numero d activite " + o.numero_da : "") +
-        ", atteste que :",
+        of + (o && o.numero_da ? ", declare sous le numero d activite " + o.numero_da : "") + ", atteste que :",
       ]],
       ["", [nom + " (" + a.email + ")"]],
       ["a suivi la formation", [
         titre,
-        "Duree : " + duree + " heures.",
+        heures ? "Duree : " + heures + " heures." : "",
         "Modalite : formation a distance en autoformation accompagnee.",
       ]],
       ["Objectifs de la formation", [
+        (f && f.objectifs) ||
         "Acquerir et savoir appliquer les notions, methodes et protocoles exposes dans le parcours.",
       ]],
       ["Resultats de l evaluation des acquis", [
@@ -213,7 +232,7 @@ function corps(type: string, o: any, a: any, f: any, prix: number, modules: any[
       : ["Aucun module valide a ce jour."];
     return [
       ["Beneficiaire", [nom + " (" + a.email + ")"]],
-      ["Formation", [titre + " - " + duree + " heures"]],
+      ["Formation", [titre + (duree ? " - " + duree + " heures" : "")]],
       ["Traces d assiduite enregistrees par la plateforme", lignes],
       ["Attestation", [
         of + " atteste que les validations ci-dessus resultent de l activite reelle du beneficiaire sur la plateforme, horodatee et conservee.",
@@ -262,14 +281,19 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: false, erreur: "Connectez-vous." }, { status: 401 });
     }
 
+    const url = new URL(req.url);
     const admin = ADMINS.indexOf(session.email) >= 0;
     let tenant = session.tenantId;
-    if (!tenant && admin) tenant = new URL(req.url).searchParams.get("tenant");
+    if (!tenant && admin) tenant = url.searchParams.get("tenant");
+
     if (!tenant) {
-      return NextResponse.json({ ok: false, erreur: "Aucun organisme rattache." }, { status: 403 });
+      return NextResponse.json(
+        { ok: false, erreur: "Aucun organisme rattache a votre compte." },
+        { status: 403 }
+      );
     }
 
-    const email = new URL(req.url).searchParams.get("email");
+    const email = url.searchParams.get("email");
 
     let requete = supabase
       .from("organisme_documents")
@@ -333,9 +357,7 @@ export async function POST(req: NextRequest) {
 
     const code = String(b.formation_code || a.formation_code || "").trim().toUpperCase();
 
-    const { data: f } = code
-      ? await supabase.from("formations").select("code, titre, duree").eq("code", code).maybeSingle()
-      : { data: null };
+    const f = await ficheFormation(code, tenant);
 
     const { data: o } = await supabase
       .from("organismes_formation")
@@ -354,6 +376,7 @@ export async function POST(req: NextRequest) {
 
     let prix = Number(a.prix_vente);
     if (!prix || isNaN(prix)) prix = Number(cat && cat.prix_vente_public) || 0;
+    if (!prix && f && f.prix) prix = Number(f.prix) || 0;
 
     const { data: modules } = await supabase
       .from("progression_apprenants")
@@ -405,7 +428,6 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // En-tete
     paragraphe(((o && o.raison_sociale) || "Organisme de formation").toUpperCase(), 11, gras, vert);
     if (o && o.numero_da) paragraphe("Declaration d activite n " + o.numero_da, 8.5, normal, gris);
     if (o && o.adresse) paragraphe(o.adresse, 8.5, normal, gris);
@@ -431,7 +453,6 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Signatures, sauf pour les documents purement informatifs.
     if (type === "convention" || type === "devis" || type === "attestation" || type === "emargement") {
       y = y - 26;
       saut(90);
