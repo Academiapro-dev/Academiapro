@@ -48,8 +48,22 @@ export async function GET() {
       compte[a.tenant_id] = (compte[a.tenant_id] || 0) + 1;
     }
 
+    const { data: catalogue } = await supabase
+      .from("organisme_catalogue")
+      .select("tenant_id")
+      .limit(10000);
+
+    const formations: any = {};
+    for (const c of catalogue || []) {
+      formations[c.tenant_id] = (formations[c.tenant_id] || 0) + 1;
+    }
+
     const liste = (organismes || []).map(function (o: any) {
-      return { ...o, stagiaires: compte[o.tenant_id] || 0 };
+      return {
+        ...o,
+        stagiaires: compte[o.tenant_id] || 0,
+        formations_ouvertes: formations[o.tenant_id] || 0,
+      };
     });
 
     return NextResponse.json({ ok: true, nombre: liste.length, organismes: liste });
@@ -108,6 +122,8 @@ export async function POST(req: NextRequest) {
   }
 }
 
+// La fiche complete du client : c est ici que se posent les termes du contrat.
+// Sans ces trois champs, la facturation appliquait le tarif par defaut a tous.
 export async function PATCH(req: NextRequest) {
   try {
     const session = sessionCourante();
@@ -118,14 +134,50 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ ok: false, erreur: "Identifiant manquant" }, { status: 400 });
     }
 
-    const modifications: any = { updated_at: new Date().toISOString() };
-    if (corps.statut) modifications.statut = String(corps.statut).trim();
-    if (corps.formule) modifications.formule = String(corps.formule).trim();
-    if (corps.notes !== undefined) modifications.notes = corps.notes ? String(corps.notes).trim() : null;
+    const m: any = { updated_at: new Date().toISOString() };
+
+    const textes = [
+      "raison_sociale", "siret", "numero_da", "email_contact",
+      "telephone", "adresse", "certificateur", "formule", "notes", "statut",
+    ];
+
+    for (const c of textes) {
+      if (corps[c] !== undefined) {
+        m[c] = corps[c] ? String(corps[c]).trim() : null;
+      }
+    }
+
+    if (m.email_contact) m.email_contact = String(m.email_contact).toLowerCase();
+
+    if (corps.qualiopi !== undefined) m.qualiopi = corps.qualiopi === true;
+
+    if (corps.abonnement_mensuel !== undefined) {
+      const a = corps.abonnement_mensuel === null || corps.abonnement_mensuel === ""
+        ? null
+        : Number(corps.abonnement_mensuel);
+      if (a !== null && (isNaN(a) || a < 0)) {
+        return NextResponse.json({ ok: false, erreur: "Abonnement invalide." }, { status: 400 });
+      }
+      m.abonnement_mensuel = a;
+    }
+
+    if (corps.taux_prelevement !== undefined) {
+      const t = corps.taux_prelevement === null || corps.taux_prelevement === ""
+        ? null
+        : Number(corps.taux_prelevement);
+      if (t !== null && (isNaN(t) || t < 0 || t > 100)) {
+        return NextResponse.json({ ok: false, erreur: "Taux invalide." }, { status: 400 });
+      }
+      m.taux_prelevement = t;
+    }
+
+    if (corps.lancement_jusqu_au !== undefined) {
+      m.lancement_jusqu_au = corps.lancement_jusqu_au || null;
+    }
 
     const { error } = await supabase
       .from("organismes_formation")
-      .update(modifications)
+      .update(m)
       .eq("id", corps.id);
 
     if (error) {
