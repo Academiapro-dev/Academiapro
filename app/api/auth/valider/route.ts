@@ -16,9 +16,23 @@ function echec(motif: string) {
   return NextResponse.redirect(SITE + "/connexion?erreur=" + encodeURIComponent(motif));
 }
 
-// Recherche l organisme rattache a cet email, en deux temps : le PERSONNEL
-// de l organisme, puis SES STAGIAIRES. Silencieuse par choix : UN LIEN MAGIQUE
-// NE DOIT JAMAIS ECHOUER parce qu un utilisateur n a pas d organisme.
+// Seuls les chemins RELATIFS sont acceptes. Sans ce controle, un lien forge
+// pourrait renvoyer le signataire vers un site etranger apres l avoir connecte :
+// c est une redirection ouverte, et cela sert au hameconnage.
+function destination(brut: string | null): string {
+  if (!brut) return "/dashboard";
+  let chemin = brut;
+  try {
+    chemin = decodeURIComponent(brut);
+  } catch (e) {
+    return "/dashboard";
+  }
+  if (chemin.charAt(0) !== "/") return "/dashboard";
+  if (chemin.indexOf("//") === 0) return "/dashboard";
+  if (chemin.indexOf("\\") >= 0) return "/dashboard";
+  return chemin;
+}
+
 async function organismeDe(email: string): Promise<{ tenantId: string | null; role: string | null }> {
   const vide = { tenantId: null, role: null };
 
@@ -27,7 +41,6 @@ async function organismeDe(email: string): Promise<{ tenantId: string | null; ro
     const cle = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
     if (!base || !cle) return vide;
 
-    // 1. Le personnel de l organisme, retrouve par son identifiant de compte.
     const r = await fetch(base + "/auth/v1/admin/users?email=" + encodeURIComponent(email), {
       headers: { apikey: cle, Authorization: "Bearer " + cle },
       cache: "no-store",
@@ -55,7 +68,6 @@ async function organismeDe(email: string): Promise<{ tenantId: string | null; ro
       }
     }
 
-    // 2. Les stagiaires de l organisme, retrouves par leur email.
     const { data: apprenant } = await supabase
       .from("organisme_apprenants")
       .select("tenant_id")
@@ -84,6 +96,8 @@ export async function GET(req: Request) {
     if (!jeton) {
       return echec("lien_incomplet");
     }
+
+    const ou = destination(url.searchParams.get("retour"));
 
     const { data: ligne, error } = await supabase
       .from("liens_magiques")
@@ -117,7 +131,7 @@ export async function GET(req: Request) {
     const email = String(ligne.email || "").toLowerCase().trim();
     const organisme = await organismeDe(email);
 
-    const reponse = NextResponse.redirect(SITE + "/dashboard");
+    const reponse = NextResponse.redirect(SITE + ou);
     reponse.cookies.set({
       name: NOM_COOKIE_SESSION,
       value: fabriquerJetonSession(email, organisme.tenantId, organisme.role),
