@@ -18,6 +18,7 @@ export default function LecteurCoursPropre({ params }: { params: { code: string 
   const [pageModule, setPageModule] = useState(0);
   const [chargement, setChargement] = useState(true);
   const [chargementModule, setChargementModule] = useState(false);
+  const [manuel, setManuel] = useState(false);
   const [erreur, setErreur] = useState("");
 
   useEffect(function () {
@@ -60,6 +61,38 @@ export default function LecteurCoursPropre({ params }: { params: { code: string 
     setChapitreActif(ch);
     setModuleActif(mo);
     charger(ch, mo);
+  }
+
+  async function telechargerManuel() {
+    setManuel(true);
+    setErreur("");
+    try {
+      const r = await fetch("/api/organisme/manuel?code=" + code + suffixe());
+
+      if (!r.ok) {
+        let detail = "code " + r.status;
+        try {
+          const err = await r.json();
+          detail = err.erreur || detail;
+        } catch (e) {}
+        setErreur(detail);
+        setManuel(false);
+        return;
+      }
+
+      const blob = await r.blob();
+      const url = window.URL.createObjectURL(blob);
+      const lien = document.createElement("a");
+      lien.href = url;
+      lien.download = code + ".pdf";
+      document.body.appendChild(lien);
+      lien.click();
+      document.body.removeChild(lien);
+      window.URL.revokeObjectURL(url);
+    } catch (e: any) {
+      setErreur("Telechargement impossible : " + String(e));
+    }
+    setManuel(false);
   }
 
   const pages = (function () {
@@ -116,7 +149,7 @@ export default function LecteurCoursPropre({ params }: { params: { code: string 
         <div style={{ maxWidth: "700px", margin: "0 auto" }}>
           <h1 style={{ color: "#c8a96e", fontSize: "24px" }}>Formation indisponible</h1>
           <p style={{ color: "rgba(255,255,255,0.65)", fontSize: "16px", lineHeight: "1.7" }}>{erreur}</p>
-          <a href="/organisme" style={{ color: "#c8a96e" }}>Retour au tableau de bord</a>
+          <a href="/stagiaire" style={{ color: "#c8a96e" }}>Retour a mon espace</a>
         </div>
       </div>
     );
@@ -125,18 +158,34 @@ export default function LecteurCoursPropre({ params }: { params: { code: string 
   return (
     <div style={CADRE}>
       <div style={{ background: "linear-gradient(135deg,#0a0a1a,#1a1a2e)", padding: "20px 30px", borderBottom: "2px solid rgba(200,169,110,0.3)" }}>
-        <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
-          <p style={{ color: "#c8a96e", fontSize: "12px", margin: "0 0 2px" }}>
-            {cours ? cours.code : ""}{cours && cours.domaine ? " · " + cours.domaine : ""}
-            {cours && cours.duree ? " · " + cours.duree + " h" : ""}
-          </p>
-          <h1 style={{ color: "#fff", fontSize: "21px", margin: 0 }}>{cours ? cours.titre : code}</h1>
+        <div style={{ maxWidth: "1200px", margin: "0 auto", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px" }}>
+          <div>
+            <p style={{ color: "#c8a96e", fontSize: "12px", margin: "0 0 2px" }}>
+              {cours ? cours.code : ""}{cours && cours.domaine ? " · " + cours.domaine : ""}
+              {cours && cours.duree ? " · " + cours.duree + " h" : ""}
+            </p>
+            <h1 style={{ color: "#fff", fontSize: "21px", margin: 0 }}>{cours ? cours.titre : code}</h1>
+          </div>
+
+          <button
+            onClick={telechargerManuel}
+            disabled={manuel}
+            style={{ background: manuel ? "rgba(200,169,110,0.3)" : "none", border: "1px solid rgba(200,169,110,0.5)", color: "#c8a96e", padding: "10px 20px", borderRadius: "20px", cursor: manuel ? "default" : "pointer", fontSize: "14px", fontFamily: "Georgia,serif" }}
+          >
+            {manuel ? "Preparation..." : "Telecharger le manuel"}
+          </button>
         </div>
       </div>
 
       {cours && !cours.publie && (
         <div style={{ maxWidth: "1200px", margin: "16px auto 0", padding: "12px 18px", background: "rgba(232,163,61,0.12)", border: "1px solid rgba(232,163,61,0.4)", borderRadius: "8px", color: "#e8c887", fontSize: "13px" }}>
           Cette formation est encore un brouillon. Vos stagiaires ne la voient pas.
+        </div>
+      )}
+
+      {erreur && cours && (
+        <div style={{ maxWidth: "1200px", margin: "16px auto 0", padding: "12px 18px", background: "rgba(232,131,106,0.12)", border: "1px solid rgba(232,131,106,0.4)", borderRadius: "8px", color: "#e8836a", fontSize: "13px" }}>
+          {erreur}
         </div>
       )}
 
