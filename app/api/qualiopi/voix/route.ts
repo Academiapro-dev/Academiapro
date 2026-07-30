@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { sessionCourante } from "../../../../lib/session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -6,6 +7,7 @@ export const maxDuration = 60;
 
 const VOIX_CARTESIA = "faa75703-00e3-4a57-9955-0703001e3231";
 const MODELE_CARTESIA = "sonic-2";
+const MAX_CARACTERES = 1800;
 
 function nettoyerPourVoix(texte: string): string {
   return texte
@@ -21,6 +23,17 @@ function nettoyerPourVoix(texte: string): string {
 
 export async function POST(req: NextRequest) {
   try {
+    // CETTE ROUTE COUTE DE L ARGENT A CHAQUE APPEL. Sans session exigee,
+    // n importe qui sur internet pouvait faire payer la synthese vocale a
+    // l editeur, autant de fois qu il le voulait.
+    const session = sessionCourante();
+    if (!session) {
+      return NextResponse.json(
+        { ok: false, erreur: "Connectez-vous pour utiliser la lecture vocale." },
+        { status: 401 }
+      );
+    }
+
     const cle = process.env.CARTESIA_API_KEY;
     if (!cle) {
       return NextResponse.json(
@@ -47,7 +60,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const texte = nettoyerPourVoix(String(brut)).slice(0, 1800);
+    const texte = nettoyerPourVoix(String(brut)).slice(0, MAX_CARACTERES);
+
+    if (texte.length < 2) {
+      return NextResponse.json(
+        { ok: false, erreur: "Texte trop court a lire." },
+        { status: 400 }
+      );
+    }
 
     const reponse = await fetch("https://api.cartesia.ai/tts/bytes", {
       method: "POST",
@@ -98,6 +118,8 @@ export async function POST(req: NextRequest) {
       headers: {
         "Content-Type": "audio/mpeg",
         "Cache-Control": "no-store",
+        // Utile pour surveiller ce que la voix coute reellement.
+        "X-Caracteres-Lus": String(texte.length),
       },
     });
   } catch (e: any) {
