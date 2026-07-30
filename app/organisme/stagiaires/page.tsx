@@ -2,21 +2,48 @@
 import { useState, useEffect } from "react";
 
 const LIBELLE_PAYEUR: any = {
-  entreprise: "Entreprise (pour ses salaries)",
+  entreprise: "Entreprise (salaries)",
   opco: "OPCO",
   cpf: "CPF",
   pouvoirs_publics: "Pouvoirs publics",
   particulier: "Particulier (a ses frais)",
   organisme_formation: "Autre organisme de formation",
-  fonds_propres: "Fonds propres de l organisme",
+  fonds_propres: "Fonds propres",
   non_renseigne: "Non renseigne",
+};
+
+const LIBELLE_STATUT: any = {
+  salarie_prive: "Salarie d employeur prive",
+  apprenti: "Apprenti",
+  recherche_emploi: "En recherche d emploi",
+  particulier: "Particulier a ses frais",
+  autre: "Autre stagiaire",
+};
+
+const LIBELLE_DISPOSITIF: any = {
+  apprentissage: "Contrat d apprentissage",
+  professionnalisation: "Contrat de professionnalisation",
+  reconversion_alternance: "Reconversion par alternance",
+  transition_pro: "Projet de transition professionnelle",
+  cpf: "Compte personnel de formation",
+  demandeur_emploi: "Dispositif demandeurs d emploi",
+  travailleur_non_salarie: "Dispositif travailleurs non salaries",
+  plan_developpement: "Plan de developpement des competences",
+  public_europe: "Instances europeennes",
+  public_etat: "Etat",
+  public_region: "Conseil regional",
+  public_france_travail: "France Travail",
+  public_autre: "Autres ressources publiques",
 };
 
 export default function PageStagiaires() {
   const [apprenants, setApprenants] = useState<any[]>([]);
   const [payeurs, setPayeurs] = useState<string[]>([]);
+  const [statuts, setStatuts] = useState<string[]>([]);
+  const [dispositifs, setDispositifs] = useState<string[]>([]);
   const [parPayeur, setParPayeur] = useState<any>({});
   const [chiffre, setChiffre] = useState(0);
+  const [incomplets, setIncomplets] = useState(0);
   const [chargement, setChargement] = useState(true);
   const [occupe, setOccupe] = useState(false);
   const [invitationEnCours, setInvitationEnCours] = useState("");
@@ -25,6 +52,8 @@ export default function PageStagiaires() {
 
   const [saisie, setSaisie] = useState("");
   const [payeur, setPayeur] = useState("");
+  const [statutStagiaire, setStatutStagiaire] = useState("");
+  const [dispositif, setDispositif] = useState("");
   const [formation, setFormation] = useState("");
   const [prix, setPrix] = useState("");
 
@@ -32,7 +61,7 @@ export default function PageStagiaires() {
     charger();
   }, []);
 
-  function tenantDeUrl() {
+  function suffixe() {
     try {
       const t = new URLSearchParams(window.location.search).get("tenant");
       return t ? "?tenant=" + t : "";
@@ -45,13 +74,16 @@ export default function PageStagiaires() {
     setChargement(true);
     setErreur("");
     try {
-      const r = await fetch("/api/organisme/stagiaires" + tenantDeUrl());
+      const r = await fetch("/api/organisme/stagiaires" + suffixe());
       const data = await r.json();
       if (data.ok) {
         setApprenants(data.apprenants || []);
         setPayeurs(data.payeurs || []);
+        setStatuts(data.statuts || []);
+        setDispositifs(data.dispositifs || []);
         setParPayeur(data.par_payeur || {});
         setChiffre(data.chiffre_declare || 0);
+        setIncomplets(data.incomplets || 0);
       } else {
         setErreur(data.erreur || "Lecture impossible.");
       }
@@ -67,12 +99,14 @@ export default function PageStagiaires() {
     setMessage("");
     setErreur("");
     try {
-      const r = await fetch("/api/organisme/stagiaires" + tenantDeUrl(), {
+      const r = await fetch("/api/organisme/stagiaires" + suffixe(), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           emails: saisie,
           payeur: payeur,
+          statut_stagiaire: statutStagiaire,
+          dispositif: dispositif,
           formation_code: formation,
           prix_vente: prix,
         }),
@@ -91,22 +125,19 @@ export default function PageStagiaires() {
     setOccupe(false);
   }
 
-  async function inviter(id: string, libelle: string) {
+  async function inviter(id: string) {
     setInvitationEnCours(id || "tous");
     setMessage("");
     setErreur("");
     try {
-      const r = await fetch("/api/organisme/inviter" + tenantDeUrl(), {
+      const r = await fetch("/api/organisme/inviter" + suffixe(), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(id ? { id: id } : {}),
       });
       const data = await r.json();
       if (data.ok) {
-        setMessage(
-          data.envoyes + " invitation(s) envoyee(s)" +
-          (data.echecs && data.echecs.length > 0 ? " — " + data.echecs.length + " echec(s)" : "")
-        );
+        setMessage(data.envoyes + " invitation(s) envoyee(s)");
         await charger();
       } else {
         setErreur(data.erreur || "Envoi impossible.");
@@ -117,14 +148,16 @@ export default function PageStagiaires() {
     setInvitationEnCours("");
   }
 
-  async function changerPayeur(id: string, valeur: string) {
+  async function modifier(id: string, champ: string, valeur: string) {
     setMessage("");
     setErreur("");
+    const corps: any = { id: id };
+    corps[champ] = valeur;
     try {
-      const r = await fetch("/api/organisme/stagiaires" + tenantDeUrl(), {
+      const r = await fetch("/api/organisme/stagiaires" + suffixe(), {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: id, payeur: valeur }),
+        body: JSON.stringify(corps),
       });
       const data = await r.json();
       if (data.ok) await charger();
@@ -138,7 +171,7 @@ export default function PageStagiaires() {
     setMessage("");
     setErreur("");
     try {
-      const sep = tenantDeUrl() ? tenantDeUrl() + "&" : "?";
+      const sep = suffixe() ? suffixe() + "&" : "?";
       const r = await fetch("/api/organisme/stagiaires" + sep + "id=" + id, { method: "DELETE" });
       const data = await r.json();
       if (data.ok) {
@@ -164,8 +197,8 @@ export default function PageStagiaires() {
     background: "rgba(255,255,255,0.03)",
     border: "1px solid rgba(200,169,110,0.25)",
     borderRadius: "12px",
-    padding: "24px 28px",
-    marginBottom: "22px",
+    padding: "22px 26px",
+    marginBottom: "18px",
   };
 
   const CHAMP: any = {
@@ -179,6 +212,15 @@ export default function PageStagiaires() {
     fontFamily: "Georgia,serif",
     boxSizing: "border-box",
     marginBottom: "12px",
+  };
+
+  const PETIT: any = {
+    padding: "7px 11px",
+    borderRadius: "8px",
+    background: "rgba(255,255,255,0.05)",
+    color: "#fff",
+    fontSize: "13px",
+    fontFamily: "Georgia,serif",
   };
 
   const LIBELLE: any = {
@@ -204,6 +246,7 @@ export default function PageStagiaires() {
         <h1 style={{ color: "#fff", fontSize: "30px", margin: "0 0 6px" }}>Mes stagiaires</h1>
         <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "14px", marginTop: 0 }}>
           {apprenants.length} inscrit(s) · {commences} ont commence · {chiffre.toLocaleString("fr-FR")} EUR declares
+          {incomplets > 0 ? " · " + incomplets + " fiche(s) incomplete(s) pour le bilan" : ""}
         </p>
 
         {aInviter > 0 && (
@@ -212,7 +255,7 @@ export default function PageStagiaires() {
               {aInviter} stagiaire(s) n ont pas encore recu leur acces.
             </p>
             <button
-              onClick={() => inviter("", "tous")}
+              onClick={() => inviter("")}
               disabled={invitationEnCours !== ""}
               style={{ background: invitationEnCours !== "" ? "rgba(200,169,110,0.3)" : "#c8a96e", color: invitationEnCours !== "" ? "#8a8a8a" : "#050508", padding: "13px 26px", borderRadius: "8px", border: "none", cursor: invitationEnCours !== "" ? "default" : "pointer", fontWeight: "bold", fontSize: "16px", fontFamily: "Georgia,serif" }}
             >
@@ -224,26 +267,41 @@ export default function PageStagiaires() {
         <div style={{ ...CARTE, marginTop: "22px" }}>
           <h2 style={{ color: "#c8a96e", fontSize: "19px", margin: "0 0 8px" }}>Inscrire des stagiaires</h2>
           <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "14px", marginTop: 0, lineHeight: "1.6" }}>
-            Collez leurs adresses email, separees par des virgules, des espaces ou des
-            retours a la ligne. Le financeur et le prix servent a votre bilan pedagogique
-            et financier : renseignez-les des maintenant, vous ne les retrouverez pas dans un an.
+            Le statut et le dispositif remplissent les cadres C et F-1 de votre bilan
+            pedagogique. Renseignez-les maintenant : dans un an, personne ne s en souviendra.
           </p>
 
           <span style={LIBELLE}>Adresses email</span>
           <textarea
             value={saisie}
             onChange={(e) => setSaisie(e.target.value)}
-            rows={5}
+            rows={4}
             placeholder={"marie.dupont@exemple.fr\npaul.martin@exemple.fr"}
             disabled={occupe}
             style={CHAMP}
           />
 
-          <span style={LIBELLE}>Qui finance ces stagiaires ?</span>
+          <span style={LIBELLE}>Statut du stagiaire (cadre F-1)</span>
+          <select value={statutStagiaire} onChange={(e) => setStatutStagiaire(e.target.value)} style={CHAMP}>
+            <option value="">— a preciser —</option>
+            {statuts.map(function (s) {
+              return <option key={s} value={s}>{LIBELLE_STATUT[s] || s}</option>;
+            })}
+          </select>
+
+          <span style={LIBELLE}>Qui finance ?</span>
           <select value={payeur} onChange={(e) => setPayeur(e.target.value)} style={CHAMP}>
-            <option value="">— a preciser plus tard —</option>
+            <option value="">— a preciser —</option>
             {payeurs.map(function (p) {
               return <option key={p} value={p}>{LIBELLE_PAYEUR[p] || p}</option>;
+            })}
+          </select>
+
+          <span style={LIBELLE}>Dispositif de financement (cadre C)</span>
+          <select value={dispositif} onChange={(e) => setDispositif(e.target.value)} style={CHAMP}>
+            <option value="">— sans dispositif —</option>
+            {dispositifs.map(function (dd) {
+              return <option key={dd} value={dd}>{LIBELLE_DISPOSITIF[dd] || dd}</option>;
             })}
           </select>
 
@@ -253,7 +311,7 @@ export default function PageStagiaires() {
               <input value={formation} onChange={(e) => setFormation(e.target.value)} placeholder="F028" style={CHAMP} />
             </div>
             <div style={{ flex: "1 1 200px" }}>
-              <span style={LIBELLE}>Prix de vente par stagiaire (EUR)</span>
+              <span style={LIBELLE}>Prix de vente (EUR)</span>
               <input value={prix} onChange={(e) => setPrix(e.target.value)} placeholder="1500" style={CHAMP} />
             </div>
           </div>
@@ -282,6 +340,9 @@ export default function PageStagiaires() {
                 );
               })}
             </div>
+            <a href="/organisme/bilan" style={{ color: "#c8a96e", fontSize: "14px", display: "inline-block", marginTop: "14px" }}>
+              Voir mon bilan pedagogique et financier →
+            </a>
           </div>
         )}
 
@@ -298,8 +359,9 @@ export default function PageStagiaires() {
         ) : (
           apprenants.map(function (a) {
             const invite = a.statut === "invitation_envoyee";
+            const complet = a.statut_stagiaire && a.payeur;
             return (
-              <div key={a.id} style={{ ...CARTE, padding: "18px 22px", marginBottom: "12px" }}>
+              <div key={a.id} style={{ ...CARTE, padding: "18px 22px", marginBottom: "12px", border: complet ? "1px solid rgba(200,169,110,0.25)" : "1px solid rgba(232,131,106,0.4)" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "10px" }}>
                   <div style={{ flex: "1 1 260px" }}>
                     <p style={{ color: "#fff", fontSize: "16px", margin: "0 0 4px", wordBreak: "break-all" }}>
@@ -309,7 +371,7 @@ export default function PageStagiaires() {
                     <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px", margin: 0 }}>
                       {a.formation_code || "aucune formation"}
                       {a.prix_vente ? " · " + Number(a.prix_vente).toLocaleString("fr-FR") + " EUR" : ""}
-                      {" · inscrit le " + (a.created_at ? new Date(a.created_at).toLocaleDateString("fr-FR") : "—")}
+                      {a.dispositif ? " · " + (LIBELLE_DISPOSITIF[a.dispositif] || a.dispositif) : ""}
                     </p>
                   </div>
                   <div style={{ textAlign: "right" }}>
@@ -320,33 +382,51 @@ export default function PageStagiaires() {
                   </div>
                 </div>
 
-                <div style={{ display: "flex", gap: "10px", alignItems: "center", marginTop: "14px", flexWrap: "wrap" }}>
+                <div style={{ display: "flex", gap: "8px", alignItems: "center", marginTop: "14px", flexWrap: "wrap" }}>
+                  <select
+                    value={a.statut_stagiaire || ""}
+                    onChange={(e) => modifier(a.id, "statut_stagiaire", e.target.value)}
+                    style={{ ...PETIT, border: a.statut_stagiaire ? "1px solid rgba(200,169,110,0.35)" : "1px solid rgba(232,131,106,0.5)" }}
+                  >
+                    <option value="">Statut F-1</option>
+                    {statuts.map(function (s) {
+                      return <option key={s} value={s}>{LIBELLE_STATUT[s] || s}</option>;
+                    })}
+                  </select>
+
                   <select
                     value={a.payeur || ""}
-                    onChange={(e) => changerPayeur(a.id, e.target.value)}
-                    style={{ padding: "8px 12px", borderRadius: "8px", border: a.payeur ? "1px solid rgba(200,169,110,0.35)" : "1px solid rgba(232,131,106,0.5)", background: "rgba(255,255,255,0.05)", color: "#fff", fontSize: "14px", fontFamily: "Georgia,serif" }}
+                    onChange={(e) => modifier(a.id, "payeur", e.target.value)}
+                    style={{ ...PETIT, border: a.payeur ? "1px solid rgba(200,169,110,0.35)" : "1px solid rgba(232,131,106,0.5)" }}
                   >
-                    <option value="">Financeur a preciser</option>
+                    <option value="">Financeur</option>
                     {payeurs.map(function (p) {
                       return <option key={p} value={p}>{LIBELLE_PAYEUR[p] || p}</option>;
                     })}
                   </select>
 
+                  <select
+                    value={a.dispositif || ""}
+                    onChange={(e) => modifier(a.id, "dispositif", e.target.value)}
+                    style={{ ...PETIT, border: "1px solid rgba(200,169,110,0.2)" }}
+                  >
+                    <option value="">Dispositif C</option>
+                    {dispositifs.map(function (dd) {
+                      return <option key={dd} value={dd}>{LIBELLE_DISPOSITIF[dd] || dd}</option>;
+                    })}
+                  </select>
+
                   <button
-                    onClick={() => inviter(a.id, a.email)}
+                    onClick={() => inviter(a.id)}
                     disabled={invitationEnCours !== ""}
                     style={{ background: "none", border: "1px solid rgba(200,169,110,0.45)", color: "#c8a96e", padding: "7px 16px", borderRadius: "20px", cursor: invitationEnCours !== "" ? "default" : "pointer", fontSize: "13px", fontFamily: "Georgia,serif" }}
                   >
-                    {invitationEnCours === a.id ? "Envoi..." : invite ? "Renvoyer l acces" : "Envoyer l acces"}
+                    {invitationEnCours === a.id ? "Envoi..." : invite ? "Renvoyer" : "Envoyer l acces"}
                   </button>
-
-                  {invite && (
-                    <span style={{ color: "#4caf50", fontSize: "13px" }}>acces envoye</span>
-                  )}
 
                   <button
                     onClick={() => retirer(a.id, a.email)}
-                    style={{ background: "none", border: "none", color: "#e8836a", cursor: "pointer", fontSize: "14px", padding: 0 }}
+                    style={{ background: "none", border: "none", color: "#e8836a", cursor: "pointer", fontSize: "13px", padding: 0 }}
                   >
                     Retirer
                   </button>
