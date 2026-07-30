@@ -67,13 +67,15 @@ export default async function TableauDeBordOrganisme() {
       .eq("statut", "corrigee")
   ).limit(5000);
 
+  const vide: any = { data: [] };
+
   const { data: registre } = session.tenantId
     ? await supabase
         .from("organisme_apprenants")
         .select("email, statut, statut_stagiaire, payeur")
         .eq("tenant_id", session.tenantId)
         .limit(5000)
-    : { data: [] };
+    : vide;
 
   const { data: catalogue } = session.tenantId
     ? await supabase
@@ -82,7 +84,31 @@ export default async function TableauDeBordOrganisme() {
         .eq("tenant_id", session.tenantId)
         .eq("actif", true)
         .limit(1000)
-    : { data: [] };
+    : vide;
+
+  const { data: documents } = session.tenantId
+    ? await supabase
+        .from("organisme_documents")
+        .select("id")
+        .eq("tenant_id", session.tenantId)
+        .limit(2000)
+    : vide;
+
+  const { data: evaluations } = session.tenantId
+    ? await supabase
+        .from("organisme_evaluations")
+        .select("note_globale, moment")
+        .eq("tenant_id", session.tenantId)
+        .limit(2000)
+    : vide;
+
+  const { data: reclamations } = session.tenantId
+    ? await supabase
+        .from("organisme_reclamations")
+        .select("statut")
+        .eq("tenant_id", session.tenantId)
+        .limit(1000)
+    : vide;
 
   const { data: fiches } = await supabase
     .from("formations")
@@ -128,19 +154,61 @@ export default async function TableauDeBordOrganisme() {
   const inscrits = (registre || []).length;
   const aInviter = (registre || []).filter(function (a: any) { return a.statut === "invite"; }).length;
   const incomplets = (registre || []).filter(function (a: any) { return !a.statut_stagiaire || !a.payeur; }).length;
-  const formationsOuvertes = (catalogue || []).length;
+  const ouvertes = (reclamations || []).filter(function (r: any) {
+    return r.statut === "ouverte" || r.statut === "en_cours";
+  }).length;
 
-  const liens = [
-    { href: "/organisme/stagiaires", titre: "Mes stagiaires", detail: inscrits + " inscrit(s)" + (aInviter > 0 ? " · " + aInviter + " sans acces" : "") },
-    { href: "/organisme/catalogue", titre: "Mon catalogue", detail: formationsOuvertes + " formation(s) ouverte(s)" },
-    { href: "/organisme/bilan", titre: "Bilan pedagogique et financier", detail: incomplets > 0 ? incomplets + " fiche(s) a completer" : "pret a declarer" },
+  const notesEval = (evaluations || [])
+    .map(function (e: any) { return e.note_globale; })
+    .filter(function (n: any) { return typeof n === "number"; });
+  const satisfaction = notesEval.length > 0
+    ? Math.round((notesEval.reduce(function (a: number, b: number) { return a + b; }, 0) / notesEval.length) * 10) / 10
+    : null;
+
+  const portes = [
+    {
+      href: "/organisme/stagiaires",
+      titre: "Mes stagiaires",
+      detail: inscrits + " inscrit(s)",
+      alerte: aInviter > 0 ? aInviter + " sans acces" : "",
+    },
+    {
+      href: "/organisme/catalogue",
+      titre: "Mon catalogue",
+      detail: (catalogue || []).length + " formation(s) ouverte(s)",
+      alerte: "",
+    },
+    {
+      href: "/organisme/documents",
+      titre: "Mes documents",
+      detail: (documents || []).length + " document(s) emis",
+      alerte: "",
+    },
+    {
+      href: "/organisme/evaluations",
+      titre: "Evaluations",
+      detail: satisfaction !== null ? satisfaction + "/5 sur " + notesEval.length + " reponse(s)" : "aucune reponse",
+      alerte: "",
+    },
+    {
+      href: "/organisme/reclamations",
+      titre: "Reclamations",
+      detail: (reclamations || []).length + " au registre",
+      alerte: ouvertes > 0 ? ouvertes + " en attente" : "",
+    },
+    {
+      href: "/organisme/bilan",
+      titre: "Bilan pedagogique",
+      detail: "Cerfa 10443",
+      alerte: incomplets > 0 ? incomplets + " fiche(s) a completer" : "",
+    },
   ];
 
   return (
     <div style={CADRE}>
       <div style={{ maxWidth: "1100px", margin: "0 auto" }}>
         <p style={{ color: "#c8a96e", fontSize: "12px", letterSpacing: "3px", margin: "0 0 8px" }}>
-          SUIVI DES STAGIAIRES
+          ESPACE ORGANISME
         </p>
         <h1 style={{ color: "#fff", fontSize: "30px", margin: "0 0 6px" }}>Tableau de bord</h1>
         <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "14px", marginTop: 0 }}>
@@ -148,11 +216,16 @@ export default async function TableauDeBordOrganisme() {
         </p>
 
         <div style={{ display: "flex", gap: "14px", flexWrap: "wrap", margin: "26px 0" }}>
-          {liens.map(function (l) {
+          {portes.map(function (p) {
             return (
-              <a key={l.href} href={l.href} style={{ ...CARTE, flex: "1 1 240px", textDecoration: "none" }}>
-                <p style={{ color: "#c8a96e", fontSize: "17px", margin: "0 0 6px" }}>{l.titre} →</p>
-                <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "13px", margin: 0 }}>{l.detail}</p>
+              <a key={p.href} href={p.href} style={{ ...CARTE, flex: "1 1 230px", textDecoration: "none", border: p.alerte ? "1px solid rgba(232,131,106,0.45)" : CARTE.border }}>
+                <p style={{ color: "#c8a96e", fontSize: "16px", margin: "0 0 6px" }}>{p.titre} →</p>
+                <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "13px", margin: 0 }}>{p.detail}</p>
+                {p.alerte && (
+                  <p style={{ color: "#e8836a", fontSize: "13px", margin: "6px 0 0", fontWeight: "bold" }}>
+                    {p.alerte}
+                  </p>
+                )}
               </a>
             );
           })}
@@ -171,7 +244,7 @@ export default async function TableauDeBordOrganisme() {
             <p style={{ color: "#c8a96e", fontSize: "30px", fontWeight: "bold", margin: "0 0 4px" }}>
               {moyenne !== null ? moyenne + "/20" : "—"}
             </p>
-            <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "14px", margin: 0 }}>Note moyenne</p>
+            <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "14px", margin: 0 }}>Note moyenne aux QCM</p>
           </div>
         </div>
 
