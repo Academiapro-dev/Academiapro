@@ -1,6 +1,31 @@
 "use client";
 import { useState, useEffect } from "react";
 
+const SPECIALITES = [
+  { code: "", nom: "— choisir la specialite —" },
+  { code: "326", nom: "Informatique, numerique, intelligence artificielle" },
+  { code: "320", nom: "Communication, image, multimedia" },
+  { code: "312", nom: "Commerce, vente, marketing" },
+  { code: "310", nom: "Gestion, management, entreprise" },
+  { code: "313", nom: "Finance, banque, assurance" },
+  { code: "314", nom: "Comptabilite, gestion financiere" },
+  { code: "315", nom: "Ressources humaines" },
+  { code: "128", nom: "Droit, sciences politiques" },
+  { code: "331", nom: "Sante, soins" },
+  { code: "332", nom: "Travail social, accompagnement" },
+  { code: "333", nom: "Enseignement, formation" },
+  { code: "334", nom: "Accueil, hotellerie, tourisme, restauration" },
+  { code: "336", nom: "Coiffure, esthetique, bien-etre corporel" },
+  { code: "136", nom: "Langues vivantes" },
+  { code: "135", nom: "Langues et civilisations anciennes" },
+  { code: "413", nom: "Developpement personnel, relationnel, gestion du stress" },
+  { code: "414", nom: "Organisation, gestion du temps, methodes de travail" },
+  { code: "411", nom: "Pratiques sportives" },
+  { code: "343", nom: "Nettoyage, securite, services aux personnes" },
+  { code: "230", nom: "Batiment, travaux publics" },
+  { code: "200", nom: "Technologies industrielles" },
+];
+
 export default function PageCours() {
   const [d, setD] = useState<any>(null);
   const [chargement, setChargement] = useState(true);
@@ -18,6 +43,7 @@ export default function PageCours() {
   const [prerequis, setPrerequis] = useState("");
   const [publicCible, setPublicCible] = useState("");
   const [objectif, setObjectif] = useState("autre_formation");
+  const [nsf, setNsf] = useState("");
 
   useEffect(function () {
     charger();
@@ -68,13 +94,14 @@ export default function PageCours() {
           prerequis: prerequis,
           public_cible: publicCible,
           objectif: objectif,
+          code_nsf: nsf,
         }),
       });
       const data = await r.json();
       if (data.ok) {
         setMessage("Formation " + (data.cours ? data.cours.code : "") + " creee. Ajoutez-lui des modules.");
         setTitre(""); setDomaine(""); setDuree(""); setPrix("");
-        setDescription(""); setObjectifs(""); setPrerequis(""); setPublicCible("");
+        setDescription(""); setObjectifs(""); setPrerequis(""); setPublicCible(""); setNsf("");
         setFormulaire(false);
         await charger();
       } else {
@@ -107,6 +134,23 @@ export default function PageCours() {
       setErreur("Modification impossible : " + String(e));
     }
     setOccupe("");
+  }
+
+  async function poserNsf(id: string, code: string) {
+    setMessage("");
+    setErreur("");
+    try {
+      const r = await fetch("/api/organisme/cours" + suffixe(), {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: id, code_nsf: code }),
+      });
+      const data = await r.json();
+      if (data.ok) await charger();
+      else setErreur(data.erreur || "Modification impossible.");
+    } catch (e: any) {
+      setErreur("Modification impossible : " + String(e));
+    }
   }
 
   async function supprimer(id: string, t: string) {
@@ -176,6 +220,13 @@ export default function PageCours() {
     textDecoration: "none",
   };
 
+  function nomSpecialite(code: any) {
+    const t = SPECIALITES.find(function (s) { return s.code === String(code || ""); });
+    return t ? t.nom : null;
+  }
+
+  const sansNsf = d ? d.cours.filter(function (c: any) { return !c.code_nsf; }).length : 0;
+
   return (
     <div style={CADRE}>
       <div style={{ maxWidth: "1000px", margin: "0 auto" }}>
@@ -218,7 +269,14 @@ export default function PageCours() {
               </div>
             </div>
 
-            <span style={LIBELLE}>Objectif de la prestation · cadre F-3 du bilan</span>
+            <span style={LIBELLE}>Specialite · remplit le cadre F-4 de votre bilan</span>
+            <select value={nsf} onChange={(e) => setNsf(e.target.value)} style={CHAMP}>
+              {SPECIALITES.map(function (s) {
+                return <option key={s.code} value={s.code}>{s.nom}</option>;
+              })}
+            </select>
+
+            <span style={LIBELLE}>Objectif de la prestation · cadre F-3</span>
             <select value={objectif} onChange={(e) => setObjectif(e.target.value)} style={CHAMP}>
               {Object.keys(d && d.objectifs ? d.objectifs : { autre_formation: "Autre formation professionnelle" }).map(function (k) {
                 return <option key={k} value={k}>{d.objectifs[k]}</option>;
@@ -255,6 +313,15 @@ export default function PageCours() {
         {message && <p style={{ color: "#4caf50", fontSize: "15px", fontWeight: "bold" }}>{message}</p>}
         {erreur && <p style={{ color: "#e8836a", fontSize: "15px" }}>{erreur}</p>}
 
+        {sansNsf > 0 && (
+          <div style={{ ...CARTE, border: "1px solid rgba(232,163,61,0.45)" }}>
+            <p style={{ color: "#e8a33d", fontSize: "15px", margin: 0, lineHeight: "1.75" }}>
+              {sansNsf} formation(s) sans specialite. Sans elle, elles n apparaitront pas dans le
+              cadre F-4 de votre bilan pedagogique. Choisissez-la sur chaque fiche ci-dessous.
+            </p>
+          </div>
+        )}
+
         {chargement ? (
           <div style={CARTE}>
             <p style={{ color: "rgba(255,255,255,0.6)", margin: 0 }}>Chargement...</p>
@@ -263,7 +330,7 @@ export default function PageCours() {
           <div style={CARTE}>
             <p style={{ color: "rgba(255,255,255,0.6)", margin: 0, fontSize: "15px", lineHeight: "1.7" }}>
               Aucune formation propre. Celles du catalogue AcadeMIA restent disponibles
-              separement, dans « Mon catalogue ».
+              separement, dans « Catalogue AcadeMIA ».
             </p>
           </div>
         ) : (
@@ -280,6 +347,7 @@ export default function PageCours() {
                     <h3 style={{ color: "#fff", fontSize: "17px", margin: "0 0 4px" }}>{c.titre}</h3>
                     <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "13px", margin: 0 }}>
                       {c.modules} module(s) · {c.modules_rediges} redige(s)
+                      {c.code_nsf ? " · " + (nomSpecialite(c.code_nsf) || "specialite " + c.code_nsf) : ""}
                     </p>
                   </div>
 
@@ -287,6 +355,21 @@ export default function PageCours() {
                     {c.publie ? "Publiee" : "Brouillon"}
                   </span>
                 </div>
+
+                {!c.code_nsf && (
+                  <div style={{ marginTop: "12px" }}>
+                    <span style={{ ...LIBELLE, color: "#e8a33d" }}>Specialite a choisir</span>
+                    <select
+                      value=""
+                      onChange={(e) => poserNsf(c.id, e.target.value)}
+                      style={{ ...CHAMP, marginBottom: 0, border: "1px solid rgba(232,163,61,0.5)" }}
+                    >
+                      {SPECIALITES.map(function (s) {
+                        return <option key={s.code} value={s.code}>{s.nom}</option>;
+                      })}
+                    </select>
+                  </div>
+                )}
 
                 <div style={{ display: "flex", gap: "8px", alignItems: "center", marginTop: "14px", flexWrap: "wrap" }}>
                   <a href={"/organisme/cours/" + c.id + suffixe()} style={{ ...BOUTON, background: "#c8a96e", color: "#050508", border: "none", fontWeight: "bold" }}>
@@ -300,6 +383,12 @@ export default function PageCours() {
                   >
                     {occupe === "publier-" + c.id ? "..." : c.publie ? "Depublier" : "Publier"}
                   </button>
+
+                  {c.publie && (
+                    <a href={"/organisme/formation/" + c.code + suffixe()} style={BOUTON}>
+                      La lire
+                    </a>
+                  )}
 
                   <button
                     onClick={() => supprimer(c.id, c.titre)}
