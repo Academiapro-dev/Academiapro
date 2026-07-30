@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { cookies } from "next/headers";
+import { sessionCourante } from "../../../../lib/session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -10,29 +10,42 @@ const BUCKET = "qualiopi-preuves";
 const MAX_EXAMENS = 5;
 const MODELE = "claude-sonnet-4-6";
 
-function sessionDuCookie() {
-  try {
-    const brut = cookies().get("sb_user")?.value;
-    if (!brut) return null;
-    const u = JSON.parse(decodeURIComponent(brut));
-    if (!u || !u.tenant_id) return null;
-    return { tenantId: u.tenant_id, email: u.email || null };
-  } catch (e) {
-    return null;
-  }
+// L organisme vient du JETON SIGNE. Cette route telecharge les preuves du
+// client et les envoie a l agent : avec l ancien cookie forge, on exfiltrait
+// les documents d un autre organisme.
+function societeDeSession() {
+  const session = sessionCourante();
+  if (!session || !session.tenantId) return null;
+  return { tenantId: session.tenantId, email: session.email };
 }
 
 function client() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) return null;
-  return createClient(url, key);
+  return createClient(url, key, {
+    global: {
+      fetch: function (u: any, o: any) {
+        return fetch(u, { ...(o || {}), cache: "no-store" });
+      },
+    },
+  });
 }
+
+// Le verdict de l agent n est PAS un statut de la grille. Sans cette
+// traduction, l avancement recevait une valeur que la grille ne comptait
+// dans aucune colonne. Et « conforme » n est jamais pose automatiquement :
+// une IA ne declare pas la conformite, c est l organisme qui tranche.
+const STATUT_DEPUIS_VERDICT: Record<string, string> = {
+  a_retravailler: "en_cours",
+  en_bonne_voie: "en_cours",
+  pret_pour_audit: "a_verifier",
+};
 
 const TYPES_IMAGE = ["image/png", "image/jpeg", "image/gif", "image/webp"];
 
 export async function GET(req: NextRequest) {
-  const session = sessionDuCookie();
+  const session = societeDeSession();
   if (!session) {
     return NextResponse.json(
       { ok: false, erreur: "Session sans societe rattachee. Reconnectez-vous." },
@@ -81,7 +94,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const session = sessionDuCookie();
+    const session = societeDeSession();
     if (!session) {
       return NextResponse.json(
         { ok: false, erreur: "Session sans societe rattachee. Reconnectez-vous." },
@@ -373,12 +386,14 @@ export async function POST(req: NextRequest) {
       ((usage.input_tokens || 0) / 1000000) * 3 +
       ((usage.output_tokens || 0) / 1000000) * 15;
 
+    const verdictRetenu = verdict.verdict || "a_retravailler";
+
     const { data: enregistre, error: errIns } = await supabase
       .from("qualiopi_examens")
       .insert({
         tenant_id: session.tenantId,
         indicateur_id: indicateurId,
-        verdict: verdict.verdict || "a_retravailler",
+        verdict: verdictRetenu,
         synthese: verdict.synthese || null,
         points_forts: verdict.points_forts || null,
         points_manquants: verdict.points_manquants || null,
@@ -396,17 +411,23 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    await supabase
-      .from("qualiopi_avancement")
-      .upsert(
-        {
-          tenant_id: session.tenantId,
-          indicateur_id: indicateurId,
-          statut: verdict.verdict || "a_retravailler",
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "tenant_id,indicateur_id" }
-      );
+    // On n ecrase JAMAIS un indicateur que l organisme a lui-meme declare
+    // conforme : son jugement prime sur celui de l agent.
+    const statutActuel = (avs || [])[0] ? (avs || [])[0].statut : null;
+
+    if (statutActuel !== "conforme" && statutActuel !== "non_applicable") {
+      await supabase
+        .from("qualiopi_avancement")
+        .upsert(
+          {
+            tenant_id: session.tenantId,
+            indicateur_id: indicateurId,
+            statut: STATUT_DEPUIS_VERDICT[verdictRetenu] || "en_cours",
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "tenant_id,indicateur_id" }
+        );
+    }
 
     return NextResponse.json({
       ok: true,
