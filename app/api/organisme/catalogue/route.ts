@@ -45,7 +45,7 @@ export async function GET(req: NextRequest) {
 
     const { data: ouvertes, error } = await supabase
       .from("organisme_catalogue")
-      .select("id, formation_code, prix_vente_public, actif, created_at")
+      .select("id, formation_code, prix_vente_public, prix_contractuel, actif, created_at")
       .eq("tenant_id", tenant)
       .order("formation_code", { ascending: true })
       .limit(1000);
@@ -54,7 +54,6 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: false, erreur: error.message }, { status: 500 });
     }
 
-    // Titres, duree et prix public d AcademIA, pour un affichage lisible.
     const { data: fiches } = await supabase
       .from("formations")
       .select("code, titre, domaine, duree, prix")
@@ -64,18 +63,6 @@ export async function GET(req: NextRequest) {
     const parCode: any = {};
     for (const f of fiches || []) parCode[f.code] = f;
 
-    const liste = (ouvertes || []).map(function (o: any) {
-      const f = parCode[o.formation_code] || {};
-      return {
-        ...o,
-        titre: f.titre || o.formation_code,
-        domaine: f.domaine || null,
-        duree: f.duree || null,
-        prix_academia: f.prix || null,
-      };
-    });
-
-    // Nombre de stagiaires inscrits par formation, pour cet organisme.
     const { data: inscrits } = await supabase
       .from("organisme_apprenants")
       .select("formation_code")
@@ -87,17 +74,26 @@ export async function GET(req: NextRequest) {
       if (i.formation_code) compte[i.formation_code] = (compte[i.formation_code] || 0) + 1;
     }
 
-    const avecCompte = liste.map(function (o: any) {
-      return { ...o, stagiaires: compte[o.formation_code] || 0 };
+    const liste = (ouvertes || []).map(function (o: any) {
+      const f = parCode[o.formation_code] || {};
+      return {
+        ...o,
+        titre: f.titre || o.formation_code,
+        domaine: f.domaine || null,
+        duree: f.duree || null,
+        prix_academia: f.prix || null,
+        stagiaires: compte[o.formation_code] || 0,
+        // Le prix contractuel n est visible que de l editeur : c est l assiette
+        // du prelevement, elle n a pas a etre discutee par le client.
+        prix_contractuel: admin ? o.prix_contractuel : undefined,
+      };
     });
 
-    // L administrateur recoit aussi le catalogue complet, pour choisir
-    // ce qu il ouvre a ce client.
     let disponibles: any[] = [];
     if (admin) {
-      const dejaOuvertes = new Set((ouvertes || []).map(function (o: any) { return o.formation_code; }));
+      const deja = new Set((ouvertes || []).map(function (o: any) { return o.formation_code; }));
       disponibles = (fiches || [])
-        .filter(function (f: any) { return !dejaOuvertes.has(f.code); })
+        .filter(function (f: any) { return !deja.has(f.code); })
         .map(function (f: any) {
           return { code: f.code, titre: f.titre, domaine: f.domaine, prix: f.prix };
         });
@@ -107,8 +103,8 @@ export async function GET(req: NextRequest) {
       ok: true,
       tenant_id: tenant,
       admin: admin,
-      nombre: avecCompte.length,
-      formations: avecCompte,
+      nombre: liste.length,
+      formations: liste,
       disponibles: disponibles,
     });
   } catch (e: any) {
@@ -116,8 +112,6 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// Ouvrir des formations a un organisme : reserve a l administrateur,
-// c est un acte contractuel.
 export async function POST(req: NextRequest) {
   try {
     const { session, tenant, admin } = contexte(req);
@@ -162,11 +156,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, erreur: "Aucun code de formation valable." }, { status: 400 });
     }
 
+    const contractuel = corps.prix_contractuel ? Number(corps.prix_contractuel) : null;
+
     const lignes = codes.map(function (code) {
       return {
         tenant_id: tenant,
         formation_code: code,
-        prix_vente_public: corps.prix_vente_public ? Number(corps.prix_vente_public) : null,
+        prix_contractuel: contractuel,
+        prix_vente_public: contractuel,
         actif: true,
       };
     });
@@ -185,8 +182,9 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// Le prix de vente est modifiable par l organisme lui-meme : c est SON prix.
-// L activation ou la desactivation reste a l editeur.
+// Deux prix, deux droits. L organisme fixe SON prix de vente : c est le sien.
+// L EDITEUR SEUL fixe le prix contractuel, qui sert d assiette au prelevement :
+// sans cette separation, le client controlerait la recette de l editeur.
 export async function PATCH(req: NextRequest) {
   try {
     const { session, tenant, admin } = contexte(req);
@@ -215,6 +213,22 @@ export async function PATCH(req: NextRequest) {
         return NextResponse.json({ ok: false, erreur: "Prix invalide." }, { status: 400 });
       }
       modifications.prix_vente_public = prix;
+    }
+
+    if (corps.prix_contractuel !== undefined) {
+      if (!admin) {
+        return NextResponse.json(
+          { ok: false, erreur: "Le prix contractuel est fixe par l editeur." },
+          { status: 403 }
+        );
+      }
+      const prix = corps.prix_contractuel === null || corps.prix_contractuel === ""
+        ? null
+        : Number(corps.prix_contractuel);
+      if (prix !== null && (isNaN(prix) || prix < 0)) {
+        return NextResponse.json({ ok: false, erreur: "Prix invalide." }, { status: 400 });
+      }
+      modifications.prix_contractuel = prix;
     }
 
     if (corps.actif !== undefined) {
