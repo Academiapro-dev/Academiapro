@@ -25,6 +25,13 @@ const CADRE: any = {
   padding: "40px 20px",
 };
 
+const CARTE: any = {
+  background: "rgba(255,255,255,0.03)",
+  border: "1px solid rgba(200,169,110,0.25)",
+  borderRadius: "12px",
+  padding: "20px 24px",
+};
+
 export default async function TableauDeBordOrganisme() {
   const session = sessionCourante();
 
@@ -42,29 +49,40 @@ export default async function TableauDeBordOrganisme() {
     );
   }
 
-  // Cloisonnement : un organisme ne voit que SES stagiaires. Une session sans
-  // organisme (AcademIA Pro) voit les apprenants qui n en ont pas non plus.
-  let requete = supabase
-    .from("progression_apprenants")
-    .select("user_email, formation_code, module_cle, statut, score")
-    .eq("statut", "valide");
+  const filtre = function (r: any) {
+    return session.tenantId ? r.eq("tenant_id", session.tenantId) : r.is("tenant_id", null);
+  };
 
-  requete = session.tenantId
-    ? requete.eq("tenant_id", session.tenantId)
-    : requete.is("tenant_id", null);
+  const { data: lignes } = await filtre(
+    supabase
+      .from("progression_apprenants")
+      .select("user_email, formation_code, module_cle, statut, score")
+      .eq("statut", "valide")
+  ).limit(5000);
 
-  const { data: lignes } = await requete.limit(5000);
+  const { data: notes } = await filtre(
+    supabase
+      .from("qcm_reponses")
+      .select("email, formation_code, note, updated_at")
+      .eq("statut", "corrigee")
+  ).limit(5000);
 
-  let requeteNotes = supabase
-    .from("qcm_reponses")
-    .select("email, formation_code, note, updated_at")
-    .eq("statut", "corrigee");
+  const { data: registre } = session.tenantId
+    ? await supabase
+        .from("organisme_apprenants")
+        .select("email, statut, statut_stagiaire, payeur")
+        .eq("tenant_id", session.tenantId)
+        .limit(5000)
+    : { data: [] };
 
-  requeteNotes = session.tenantId
-    ? requeteNotes.eq("tenant_id", session.tenantId)
-    : requeteNotes.is("tenant_id", null);
-
-  const { data: notes } = await requeteNotes.limit(5000);
+  const { data: catalogue } = session.tenantId
+    ? await supabase
+        .from("organisme_catalogue")
+        .select("formation_code")
+        .eq("tenant_id", session.tenantId)
+        .eq("actif", true)
+        .limit(1000)
+    : { data: [] };
 
   const { data: fiches } = await supabase
     .from("formations")
@@ -74,19 +92,12 @@ export default async function TableauDeBordOrganisme() {
   const titreDe: any = {};
   for (const f of fiches || []) titreDe[f.code] = f.titre;
 
-  // Regroupement par stagiaire puis par formation.
   const parStagiaire: any = {};
 
   for (const l of lignes || []) {
     const cle = l.user_email + "|" + l.formation_code;
     if (!parStagiaire[cle]) {
-      parStagiaire[cle] = {
-        email: l.user_email,
-        code: l.formation_code,
-        modules: 0,
-        notes: [],
-        derniere: null,
-      };
+      parStagiaire[cle] = { email: l.user_email, code: l.formation_code, modules: 0, notes: [], derniere: null };
     }
     parStagiaire[cle].modules = parStagiaire[cle].modules + 1;
   }
@@ -94,13 +105,7 @@ export default async function TableauDeBordOrganisme() {
   for (const n of notes || []) {
     const cle = n.email + "|" + n.formation_code;
     if (!parStagiaire[cle]) {
-      parStagiaire[cle] = {
-        email: n.email,
-        code: n.formation_code,
-        modules: 0,
-        notes: [],
-        derniere: null,
-      };
+      parStagiaire[cle] = { email: n.email, code: n.formation_code, modules: 0, notes: [], derniere: null };
     }
     if (typeof n.note === "number") parStagiaire[cle].notes.push(n.note);
     const d = n.updated_at ? new Date(n.updated_at).getTime() : 0;
@@ -113,20 +118,23 @@ export default async function TableauDeBordOrganisme() {
     return (b.derniere || 0) - (a.derniere || 0);
   });
 
-  const apprenants = new Set(rangees.map(function (r: any) { return r.email; })).size;
+  const actifs = new Set(rangees.map(function (r: any) { return r.email; })).size;
   const modulesTotal = rangees.reduce(function (s: number, r: any) { return s + r.modules; }, 0);
   const toutesNotes = rangees.reduce(function (acc: number[], r: any) { return acc.concat(r.notes); }, []);
   const moyenne = toutesNotes.length > 0
     ? Math.round((toutesNotes.reduce(function (s: number, n: number) { return s + n; }, 0) / toutesNotes.length) * 10) / 10
     : null;
 
-  const CARTE: any = {
-    background: "rgba(255,255,255,0.03)",
-    border: "1px solid rgba(200,169,110,0.25)",
-    borderRadius: "12px",
-    padding: "20px 24px",
-    flex: "1 1 200px",
-  };
+  const inscrits = (registre || []).length;
+  const aInviter = (registre || []).filter(function (a: any) { return a.statut === "invite"; }).length;
+  const incomplets = (registre || []).filter(function (a: any) { return !a.statut_stagiaire || !a.payeur; }).length;
+  const formationsOuvertes = (catalogue || []).length;
+
+  const liens = [
+    { href: "/organisme/stagiaires", titre: "Mes stagiaires", detail: inscrits + " inscrit(s)" + (aInviter > 0 ? " · " + aInviter + " sans acces" : "") },
+    { href: "/organisme/catalogue", titre: "Mon catalogue", detail: formationsOuvertes + " formation(s) ouverte(s)" },
+    { href: "/organisme/bilan", titre: "Bilan pedagogique et financier", detail: incomplets > 0 ? incomplets + " fiche(s) a completer" : "pret a declarer" },
+  ];
 
   return (
     <div style={CADRE}>
@@ -139,17 +147,28 @@ export default async function TableauDeBordOrganisme() {
           {session.tenantId ? "Votre organisme" : "AcadeMIA Pro"} · {session.email}
         </p>
 
-        <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", margin: "28px 0" }}>
-          <div style={CARTE}>
-            <p style={{ color: "#c8a96e", fontSize: "32px", fontWeight: "bold", margin: "0 0 4px" }}>{apprenants}</p>
+        <div style={{ display: "flex", gap: "14px", flexWrap: "wrap", margin: "26px 0" }}>
+          {liens.map(function (l) {
+            return (
+              <a key={l.href} href={l.href} style={{ ...CARTE, flex: "1 1 240px", textDecoration: "none" }}>
+                <p style={{ color: "#c8a96e", fontSize: "17px", margin: "0 0 6px" }}>{l.titre} →</p>
+                <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "13px", margin: 0 }}>{l.detail}</p>
+              </a>
+            );
+          })}
+        </div>
+
+        <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", marginBottom: "28px" }}>
+          <div style={{ ...CARTE, flex: "1 1 200px" }}>
+            <p style={{ color: "#c8a96e", fontSize: "30px", fontWeight: "bold", margin: "0 0 4px" }}>{actifs}</p>
             <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "14px", margin: 0 }}>Stagiaire(s) actif(s)</p>
           </div>
-          <div style={CARTE}>
-            <p style={{ color: "#c8a96e", fontSize: "32px", fontWeight: "bold", margin: "0 0 4px" }}>{modulesTotal}</p>
+          <div style={{ ...CARTE, flex: "1 1 200px" }}>
+            <p style={{ color: "#c8a96e", fontSize: "30px", fontWeight: "bold", margin: "0 0 4px" }}>{modulesTotal}</p>
             <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "14px", margin: 0 }}>Module(s) valide(s)</p>
           </div>
-          <div style={CARTE}>
-            <p style={{ color: "#c8a96e", fontSize: "32px", fontWeight: "bold", margin: "0 0 4px" }}>
+          <div style={{ ...CARTE, flex: "1 1 200px" }}>
+            <p style={{ color: "#c8a96e", fontSize: "30px", fontWeight: "bold", margin: "0 0 4px" }}>
               {moyenne !== null ? moyenne + "/20" : "—"}
             </p>
             <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "14px", margin: 0 }}>Note moyenne</p>
@@ -157,7 +176,7 @@ export default async function TableauDeBordOrganisme() {
         </div>
 
         {rangees.length === 0 ? (
-          <div style={{ ...CARTE, flex: "1 1 100%" }}>
+          <div style={CARTE}>
             <p style={{ color: "rgba(255,255,255,0.6)", margin: 0, fontSize: "15px" }}>
               Aucun stagiaire n a encore valide de module. Le suivi apparaitra des la premiere validation.
             </p>
@@ -192,10 +211,6 @@ export default async function TableauDeBordOrganisme() {
             })}
           </div>
         )}
-
-        <p style={{ color: "rgba(255,255,255,0.35)", fontSize: "13px", marginTop: "24px" }}>
-          Ce tableau ne montre que les stagiaires rattaches a votre organisme.
-        </p>
       </div>
     </div>
   );
