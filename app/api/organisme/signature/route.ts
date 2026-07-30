@@ -247,4 +247,9 @@ export async function POST(req: NextRequest) {
       empreinte: empreinte,
       archive: chemin,
       avertissement:
-        "Signature electronique simple au sens du reglement eIDAS. Elle n est 
+        "Signature electronique simple au sens du reglement eIDAS. Elle n est ni avancee ni qualifiee.",
+    });
+  } catch (e: any) {
+    return NextResponse.json({ ok: false, erreur: String(e) }, { status: 500 });
+  }
+}
