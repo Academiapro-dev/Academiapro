@@ -1,11 +1,14 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-// Pages reservees a un utilisateur connecte disposant d'une societe.
+// Pages reservees a un utilisateur connecte.
 const CHEMINS_PROTEGES = ['/admin'];
 
-// Exceptions : accessibles a un utilisateur connecte MEME sans societe.
-// C'est par la que passe un nouveau client pour enregistrer la sienne.
+// Pages qui exigent EN PLUS une societe rattachee au compte.
+// Ailleurs dans /admin, une societe n'est pas necessaire.
+const EXIGENT_SOCIETE = ['/admin/compliance', '/admin/qualiopi'];
+
+// Exception : c'est par la qu'un nouveau client enregistre sa societe.
 const EXCEPTIONS = ['/admin/compliance/ma-societe'];
 
 // Pages de contenu reservees aux eleves connectes (verrou 1, couche 1).
@@ -18,6 +21,7 @@ const CHEMINS_ELEVE = [
   '/mes-certificats',
   '/replay',
   '/dashboard',
+  '/organisme',
 ];
 
 // Routes API qui consomment les credits Claude et n'ont AUCUNE raison
@@ -36,47 +40,28 @@ function correspond(chemin: string, liste: string[]): boolean {
   return liste.some((p) => chemin === p || chemin.startsWith(p + '/'));
 }
 
-function estProtege(chemin: string): boolean {
-  return correspond(chemin, CHEMINS_PROTEGES);
-}
-
-function estException(chemin: string): boolean {
-  return correspond(chemin, EXCEPTIONS);
-}
-
-function estEspaceEleve(chemin: string): boolean {
-  return correspond(chemin, CHEMINS_ELEVE);
-}
-
-function estApiSessionRequise(chemin: string): boolean {
-  return correspond(chemin, API_SESSION_REQUISE);
-}
-
-// Lit le cookie sb_user : il renseigne la societe rattachee au compte.
-// Il n'est PAS signe, donc il ne prouve rien : il ne sert plus a authentifier.
-function societeDuCookie(request: NextRequest): { id: string | null; tenantId: string | null } {
+// Le jeton de session porte desormais la societe, et il est SIGNE.
+// Le middleware ne verifie pas la signature (elle l'est dans les pages et
+// les routes) mais il peut lire la charge pour savoir s'il y a une societe.
+function societeDuJeton(jeton: string | undefined): string | null {
+  if (!jeton) return null;
   try {
-    const brut = request.cookies.get('sb_user')?.value;
-    if (!brut) return { id: null, tenantId: null };
-    let texte = brut;
-    try {
-      texte = decodeURIComponent(brut);
-    } catch {
-      texte = brut;
-    }
-    const donnees = JSON.parse(texte);
-    return { id: donnees?.id || null, tenantId: donnees?.tenant_id || null };
+    const corps = jeton.split('.')[0];
+    if (!corps) return null;
+    const texte = Buffer.from(corps, 'base64url').toString('utf8');
+    const charge = JSON.parse(texte);
+    return charge && charge.tid ? String(charge.tid) : null;
   } catch {
-    return { id: null, tenantId: null };
+    return null;
   }
 }
 
 export function middleware(request: NextRequest) {
   const chemin = request.nextUrl.pathname;
+  const session = request.cookies.get(NOM_COOKIE_SESSION)?.value;
 
   // Agents IA : refus net, sans redirection (c'est une API, pas une page).
-  if (estApiSessionRequise(chemin)) {
-    const session = request.cookies.get(NOM_COOKIE_SESSION)?.value;
+  if (correspond(chemin, API_SESSION_REQUISE)) {
     if (!session) {
       return NextResponse.json({ success: false, error: 'non connecte' }, { status: 401 });
     }
@@ -85,8 +70,7 @@ export function middleware(request: NextRequest) {
 
   // Espace eleve : il faut un cookie de session. La verification de sa
   // signature et du droit sur la formation se fait dans les pages elles-memes.
-  if (estEspaceEleve(chemin)) {
-    const session = request.cookies.get(NOM_COOKIE_SESSION)?.value;
+  if (correspond(chemin, CHEMINS_ELEVE)) {
     if (!session) {
       const url = request.nextUrl.clone();
       url.pathname = '/connexion';
@@ -96,13 +80,12 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  if (!estProtege(chemin)) {
+  if (!correspond(chemin, CHEMINS_PROTEGES)) {
     return NextResponse.next();
   }
 
-  // ADMINISTRATION : le cookie signe est desormais exige. Sans lui,
-  // un sb_user fabrique a la main ne donne plus aucun acces.
-  const session = request.cookies.get(NOM_COOKIE_SESSION)?.value;
+  // ADMINISTRATION : le cookie signe est exige. Sans lui, direction la
+  // page de connexion — celle qui existe reellement.
   if (!session) {
     const url = request.nextUrl.clone();
     url.pathname = '/connexion';
@@ -110,24 +93,15 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  const { id, tenantId } = societeDuCookie(request);
-
-  // Aucune societe connue : direction la connexion classique
-  if (!id) {
-    const url = request.nextUrl.clone();
-    url.pathname = '/login';
-    url.searchParams.set('retour', chemin);
-    return NextResponse.redirect(url);
-  }
-
-  // Connecte mais sans societe : seule la page d'enregistrement est ouverte
-  if (!tenantId) {
-    if (estException(chemin)) {
-      return NextResponse.next();
+  // Seuls Compliance et Qualiopi exigent une societe rattachee.
+  if (correspond(chemin, EXIGENT_SOCIETE) && !correspond(chemin, EXCEPTIONS)) {
+    const societe = societeDuJeton(session);
+    if (!societe) {
+      const url = request.nextUrl.clone();
+      url.pathname = '/admin/compliance/ma-societe';
+      url.search = '';
+      return NextResponse.redirect(url);
     }
-    const url = request.nextUrl.clone();
-    url.pathname = '/admin/compliance/ma-societe';
-    return NextResponse.redirect(url);
   }
 
   return NextResponse.next();
