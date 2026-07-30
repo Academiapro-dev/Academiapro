@@ -7,6 +7,21 @@ const LIBELLE_TYPE: any = {
   evaluation: "Evaluation",
 };
 
+const MODELE_QCM =
+  "\n\n## QCM\n\n" +
+  "Q1. Enoncez ici votre premiere question.\n" +
+  "A) Premiere proposition\n" +
+  "B) Deuxieme proposition\n" +
+  "C) Troisieme proposition\n" +
+  "D) Quatrieme proposition\n" +
+  "Reponse : A - Expliquez ici pourquoi cette reponse est la bonne, en deux ou trois lignes.\n\n" +
+  "Q2. Votre deuxieme question.\n" +
+  "A) Premiere proposition\n" +
+  "B) Deuxieme proposition\n" +
+  "C) Troisieme proposition\n" +
+  "D) Quatrieme proposition\n" +
+  "Reponse : C - Explication de la bonne reponse.\n";
+
 export default function PageEditeurCours({ params }: { params: { id: string } }) {
   const coursId = params.id;
 
@@ -214,6 +229,22 @@ export default function PageEditeurCours({ params }: { params: { id: string } })
     setBrouillon({ ...brouillon, [id]: { ...(brouillon[id] || {}), [cle]: v } });
   }
 
+  function insererQCM(id: string) {
+    const actuel = String(champ(id, "contenu") || "");
+    poser(id, "contenu", actuel + MODELE_QCM);
+    setMessage("Modele insere en bas du module. Remplacez les enonces par les votres.");
+  }
+
+  // Verification en direct : c est elle qui evite le « QCM introuvable » cote
+  // stagiaire, decouvert trois jours trop tard.
+  function analyserQCM(texte: string) {
+    const t = String(texte || "");
+    const aSection = /^#{1,6}\s*QCM/im.test(t);
+    const questions = (t.match(/^Q\s*\d{1,2}\s*[.):\-]/gim) || []).length;
+    const reponses = (t.match(/^R[eé]ponse\s*:/gim) || []).length;
+    return { aSection: aSection, questions: questions, reponses: reponses };
+  }
+
   return (
     <div style={CADRE}>
       <div style={{ maxWidth: "1000px", margin: "0 auto" }}>
@@ -297,8 +328,13 @@ export default function PageEditeurCours({ params }: { params: { id: string } })
 
                 {ch.modules.map(function (m: any) {
                   const estOuvert = ouvert[m.id] === true;
+                  const texte = estOuvert ? champ(m.id, "contenu") : m.contenu || "";
+                  const qcm = analyserQCM(texte);
+                  const attenduQCM = m.type === "evaluation";
+                  const qcmValable = qcm.aSection && qcm.questions > 0 && qcm.reponses > 0;
+
                   return (
-                    <div key={m.id} style={{ ...CARTE, border: "1px solid " + (m.redige ? "rgba(76,175,80,0.35)" : "rgba(232,163,61,0.4)") }}>
+                    <div key={m.id} style={{ ...CARTE, border: "1px solid " + (m.redige ? (attenduQCM && !qcmValable ? "rgba(232,163,61,0.55)" : "rgba(76,175,80,0.35)") : "rgba(232,163,61,0.4)") }}>
                       <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "10px" }}>
                         <div style={{ flex: "1 1 240px" }}>
                           <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "12px", margin: "0 0 3px" }}>
@@ -310,6 +346,20 @@ export default function PageEditeurCours({ params }: { params: { id: string } })
                           {m.redige ? m.signes.toLocaleString("fr-FR") + " signes" : "a rediger"}
                         </span>
                       </div>
+
+                      {qcm.aSection && (
+                        <p style={{ color: qcmValable ? "#4caf50" : "#e8a33d", fontSize: "13px", margin: "8px 0 0" }}>
+                          QCM detecte · {qcm.questions} question(s), {qcm.reponses} reponse(s)
+                          {qcm.questions !== qcm.reponses ? " — chaque question doit avoir sa ligne Reponse" : ""}
+                        </p>
+                      )}
+
+                      {attenduQCM && !qcm.aSection && (
+                        <p style={{ color: "#e8a33d", fontSize: "13px", margin: "8px 0 0", lineHeight: "1.7" }}>
+                          Ce module est une evaluation mais ne contient aucun QCM. Vos stagiaires
+                          verront « QCM introuvable ».
+                        </p>
+                      )}
 
                       <div style={{ display: "flex", gap: "8px", alignItems: "center", marginTop: "12px", flexWrap: "wrap" }}>
                         <button
@@ -346,12 +396,18 @@ export default function PageEditeurCours({ params }: { params: { id: string } })
                             style={CHAMP}
                           />
 
-                          <span style={LIBELLE}>Contenu du module</span>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px", marginBottom: "6px" }}>
+                            <span style={{ ...LIBELLE, marginBottom: 0 }}>Contenu du module</span>
+                            <button onClick={() => insererQCM(m.id)} style={BOUTON}>
+                              Inserer un modele de QCM
+                            </button>
+                          </div>
+
                           <textarea
                             value={champ(m.id, "contenu")}
                             onChange={(e) => poser(m.id, "contenu", e.target.value)}
-                            rows={18}
-                            placeholder={"Ecrivez votre cours ici.\n\nUn titre commence par ## et un sous-titre par ###.\nUne puce commence par un tiret.\n\nLe lecteur du LMS paginera automatiquement."}
+                            rows={20}
+                            placeholder={"Ecrivez votre cours ici.\n\nUn titre commence par ## et un sous-titre par ###.\nUne puce commence par un tiret.\n\nPour le questionnaire, cliquez sur « Inserer un modele de QCM » : le format\nsera correct, vous n aurez qu a remplacer les enonces."}
                             style={{ ...CHAMP, fontSize: "15px", lineHeight: "1.8" }}
                           />
 
@@ -376,6 +432,23 @@ export default function PageEditeurCours({ params }: { params: { id: string } })
             );
           })
         )}
+
+        <div style={{ ...CARTE, background: "rgba(200,169,110,0.05)", marginTop: "24px" }}>
+          <h2 style={{ color: "#c8a96e", fontSize: "16px", margin: "0 0 10px" }}>
+            Comment ecrire un questionnaire
+          </h2>
+          <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "14px", margin: "0 0 10px", lineHeight: "1.8" }}>
+            Le correcteur cherche une section intitulee <span style={{ color: "#c8a96e" }}>## QCM</span>,
+            puis des questions numerotees <span style={{ color: "#c8a96e" }}>Q1.</span> avec quatre
+            propositions de A a D, chacune suivie d une ligne
+            <span style={{ color: "#c8a96e" }}> Reponse : A - explication</span>.
+          </p>
+          <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13.5px", margin: 0, lineHeight: "1.8" }}>
+            Le bouton « Inserer un modele » place ce format pour vous. Vos stagiaires ne voient
+            jamais les bonnes reponses : elles restent au serveur et ne leur sont donnees qu apres
+            leur note, avec votre explication.
+          </p>
+        </div>
       </div>
     </div>
   );
