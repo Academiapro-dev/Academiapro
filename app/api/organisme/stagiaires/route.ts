@@ -17,6 +17,26 @@ const PAYEURS = [
   "fonds_propres",
 ];
 
+// Cadre F-1 du Cerfa 10443*17.
+const STATUTS = ["salarie_prive", "apprenti", "recherche_emploi", "particulier", "autre"];
+
+// Cadre C du Cerfa : lignes 2a a 2h, puis 4 a 8.
+const DISPOSITIFS = [
+  "apprentissage",
+  "professionnalisation",
+  "reconversion_alternance",
+  "transition_pro",
+  "cpf",
+  "demandeur_emploi",
+  "travailleur_non_salarie",
+  "plan_developpement",
+  "public_europe",
+  "public_etat",
+  "public_region",
+  "public_france_travail",
+  "public_autre",
+];
+
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
   process.env.SUPABASE_SERVICE_ROLE_KEY || "",
@@ -55,7 +75,7 @@ export async function GET(req: NextRequest) {
 
     const { data: registre, error } = await supabase
       .from("organisme_apprenants")
-      .select("id, email, nom, statut, payeur, formation_code, prix_vente, created_at")
+      .select("id, email, nom, statut, payeur, dispositif, statut_stagiaire, formation_code, prix_vente, created_at")
       .eq("tenant_id", tenant)
       .order("created_at", { ascending: false })
       .limit(2000);
@@ -80,13 +100,14 @@ export async function GET(req: NextRequest) {
       return { ...a, modules_valides: compte[a.email] || 0 };
     });
 
-    // Ventilation par payeur : c est la base du bilan pedagogique et financier.
     const parPayeur: any = {};
     let chiffre = 0;
+    let incomplets = 0;
     for (const a of liste) {
       const p = a.payeur || "non_renseigne";
       parPayeur[p] = (parPayeur[p] || 0) + 1;
       chiffre = chiffre + (Number(a.prix_vente) || 0);
+      if (!a.statut_stagiaire || !a.payeur) incomplets = incomplets + 1;
     }
 
     return NextResponse.json({
@@ -94,8 +115,11 @@ export async function GET(req: NextRequest) {
       tenant_id: tenant,
       nombre: liste.length,
       payeurs: PAYEURS,
+      statuts: STATUTS,
+      dispositifs: DISPOSITIFS,
       par_payeur: parPayeur,
       chiffre_declare: chiffre,
+      incomplets: incomplets,
       apprenants: liste,
     });
   } catch (e: any) {
@@ -140,6 +164,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, erreur: "Payeur inconnu." }, { status: 400 });
     }
 
+    const dispositif = String(corps.dispositif || "").trim().toLowerCase();
+    if (dispositif && DISPOSITIFS.indexOf(dispositif) < 0) {
+      return NextResponse.json({ ok: false, erreur: "Dispositif inconnu." }, { status: 400 });
+    }
+
+    const statutStagiaire = String(corps.statut_stagiaire || "").trim().toLowerCase();
+    if (statutStagiaire && STATUTS.indexOf(statutStagiaire) < 0) {
+      return NextResponse.json({ ok: false, erreur: "Statut de stagiaire inconnu." }, { status: 400 });
+    }
+
     const formation = String(corps.formation_code || "").trim().toUpperCase();
     const prix = corps.prix_vente !== undefined && corps.prix_vente !== null && corps.prix_vente !== ""
       ? Number(corps.prix_vente)
@@ -156,6 +190,8 @@ export async function POST(req: NextRequest) {
         nom: uniques.length === 1 && corps.nom ? String(corps.nom).trim() : null,
         statut: "invite",
         payeur: payeur || null,
+        dispositif: dispositif || null,
+        statut_stagiaire: statutStagiaire || null,
         formation_code: formation || null,
         prix_vente: prix,
       };
@@ -203,6 +239,22 @@ export async function PATCH(req: NextRequest) {
         return NextResponse.json({ ok: false, erreur: "Payeur inconnu." }, { status: 400 });
       }
       modifications.payeur = p || null;
+    }
+
+    if (corps.dispositif !== undefined) {
+      const dd = String(corps.dispositif || "").trim().toLowerCase();
+      if (dd && DISPOSITIFS.indexOf(dd) < 0) {
+        return NextResponse.json({ ok: false, erreur: "Dispositif inconnu." }, { status: 400 });
+      }
+      modifications.dispositif = dd || null;
+    }
+
+    if (corps.statut_stagiaire !== undefined) {
+      const s = String(corps.statut_stagiaire || "").trim().toLowerCase();
+      if (s && STATUTS.indexOf(s) < 0) {
+        return NextResponse.json({ ok: false, erreur: "Statut de stagiaire inconnu." }, { status: 400 });
+      }
+      modifications.statut_stagiaire = s || null;
     }
 
     if (corps.formation_code !== undefined) {
