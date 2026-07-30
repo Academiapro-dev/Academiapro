@@ -56,19 +56,22 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: false, erreur: error.message }, { status: 500 });
     }
 
-    // Prix contractuels par formation et par organisme : c est la base
-    // du prelevement, et c est ce qui le rend calculable sans declaration.
+    // L ASSIETTE DU PRELEVEMENT EST LE PRIX CONTRACTUEL, fixe par l editeur.
+    // Le prix affiche par l organisme n entre pas dans le calcul : sinon le
+    // client controlerait la recette de l editeur.
     const { data: catalogue } = await supabase
       .from("organisme_catalogue")
-      .select("tenant_id, formation_code, prix_vente_public")
+      .select("tenant_id, formation_code, prix_contractuel, prix_vente_public")
       .limit(5000);
 
-    const prixDe: any = {};
+    const contractuelDe: any = {};
+    const afficheDe: any = {};
     for (const c of catalogue || []) {
-      prixDe[c.tenant_id + "|" + c.formation_code] = Number(c.prix_vente_public) || 0;
+      const cle = c.tenant_id + "|" + c.formation_code;
+      contractuelDe[cle] = Number(c.prix_contractuel) || 0;
+      afficheDe[cle] = Number(c.prix_vente_public) || 0;
     }
 
-    // Inscriptions du mois : chacune declenche le prelevement.
     const { data: inscriptions } = await supabase
       .from("organisme_apprenants")
       .select("tenant_id, email, formation_code, prix_vente, payeur, created_at")
@@ -89,27 +92,30 @@ export async function GET(req: NextRequest) {
 
       let assiette = 0;
       const details: any[] = [];
-      let sansPrix = 0;
+      let sansAssiette = 0;
 
       for (const i of inscrits) {
-        // Le prix de la ligne l emporte ; sinon le prix contractuel du catalogue.
-        let prix = Number(i.prix_vente);
-        if (!prix || isNaN(prix)) {
-          prix = prixDe[o.tenant_id + "|" + (i.formation_code || "")] || 0;
-        }
-        if (!prix) sansPrix = sansPrix + 1;
-        assiette = assiette + prix;
+        const cle = o.tenant_id + "|" + (i.formation_code || "");
+
+        // Priorite : le prix contractuel, puis le prix saisi a l inscription,
+        // puis le prix affiche. Le premier connu l emporte.
+        let base = contractuelDe[cle] || 0;
+        if (!base) base = Number(i.prix_vente) || 0;
+        if (!base) base = afficheDe[cle] || 0;
+        if (!base) sansAssiette = sansAssiette + 1;
+
+        assiette = assiette + base;
         details.push({
           email: i.email,
           formation_code: i.formation_code,
           payeur: i.payeur,
-          prix: prix,
+          prix: base,
+          contractuel: contractuelDe[cle] || null,
         });
       }
 
       const prelevement = Math.round(assiette * tauxApplique) / 100;
 
-      // Le tarif de lancement divise l abonnement par deux jusqu a sa date de fin.
       const abonnementPlein = Number(o.abonnement_mensuel) || 0;
       const enLancement = o.lancement_jusqu_au
         ? new Date(o.lancement_jusqu_au).getTime() >= new Date(debut).getTime()
@@ -128,7 +134,7 @@ export async function GET(req: NextRequest) {
         abonnement: abonnement,
         taux: tauxApplique,
         inscriptions: inscrits.length,
-        sans_prix: sansPrix,
+        sans_prix: sansAssiette,
         assiette: assiette,
         prelevement: prelevement,
         total: abonnement + prelevement,
