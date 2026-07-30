@@ -217,4 +217,12 @@ export default function PageDocuments() {
                   <span style={{ color: "rgba(255,255,255,0.5)", fontSize: "13px" }}>
                     {new Date(d.emis_le).toLocaleDateString("fr-FR")}
                   </span>
-                
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
