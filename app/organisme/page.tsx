@@ -78,8 +78,20 @@ export default async function TableauDeBordOrganisme() {
     ? await supabase.from("organisme_catalogue").select("formation_code").eq("tenant_id", t).eq("actif", true).limit(1000)
     : vide;
 
+  const { data: coursPropres } = t
+    ? await supabase.from("organisme_cours").select("id, publie").eq("tenant_id", t).limit(500)
+    : vide;
+
+  const { data: seances } = t
+    ? await supabase.from("organisme_seances").select("id, debut, duree_minutes").eq("tenant_id", t).limit(300)
+    : vide;
+
   const { data: documents } = t
     ? await supabase.from("organisme_documents").select("id").eq("tenant_id", t).limit(2000)
+    : vide;
+
+  const { data: signatures } = t
+    ? await supabase.from("organisme_signatures").select("id, annulee").eq("tenant_id", t).limit(2000)
     : vide;
 
   const { data: evaluations } = t
@@ -88,10 +100,6 @@ export default async function TableauDeBordOrganisme() {
 
   const { data: reclamations } = t
     ? await supabase.from("organisme_reclamations").select("statut").eq("tenant_id", t).limit(1000)
-    : vide;
-
-  const { data: signatures } = t
-    ? await supabase.from("organisme_signatures").select("id, annulee").eq("tenant_id", t).limit(2000)
     : vide;
 
   const { data: fiches } = await supabase.from("formations").select("code, titre").limit(1000);
@@ -139,6 +147,13 @@ export default async function TableauDeBordOrganisme() {
     return r.statut === "ouverte" || r.statut === "en_cours";
   }).length;
   const signees = (signatures || []).filter(function (s: any) { return !s.annulee; }).length;
+  const publiees = (coursPropres || []).filter(function (c: any) { return c.publie; }).length;
+
+  const maintenant = Date.now();
+  const seancesAvenir = (seances || []).filter(function (s: any) {
+    const fin = new Date(s.debut).getTime() + (Number(s.duree_minutes) || 90) * 60000;
+    return fin > maintenant;
+  }).length;
 
   const notesEval = (evaluations || [])
     .map(function (e: any) { return e.note_globale; })
@@ -149,9 +164,11 @@ export default async function TableauDeBordOrganisme() {
 
   const portes = [
     { href: "/organisme/stagiaires", titre: "Mes stagiaires", detail: inscrits + " inscrit(s)", alerte: aInviter > 0 ? aInviter + " sans acces" : "" },
-    { href: "/organisme/catalogue", titre: "Mon catalogue", detail: (catalogue || []).length + " formation(s)", alerte: "" },
+    { href: "/organisme/cours", titre: "Mes formations", detail: (coursPropres || []).length + " creee(s) · " + publiees + " publiee(s)", alerte: "" },
+    { href: "/organisme/catalogue", titre: "Catalogue AcadeMIA", detail: (catalogue || []).length + " formation(s)", alerte: "" },
+    { href: "/organisme/seances", titre: "Classes virtuelles", detail: seancesAvenir > 0 ? seancesAvenir + " a venir" : (seances || []).length + " seance(s)", alerte: "" },
     { href: "/organisme/documents", titre: "Mes documents", detail: (documents || []).length + " emis", alerte: "" },
-    { href: "/organisme/signatures", titre: "Signatures", detail: signees + " document(s) signe(s)", alerte: "" },
+    { href: "/organisme/signatures", titre: "Signatures", detail: signees + " signe(s)", alerte: "" },
     { href: "/organisme/evaluations", titre: "Evaluations", detail: satisfaction !== null ? satisfaction + "/5 sur " + notesEval.length : "aucune reponse", alerte: "" },
     { href: "/organisme/reclamations", titre: "Reclamations", detail: (reclamations || []).length + " au registre", alerte: ouvertes > 0 ? ouvertes + " en attente" : "" },
     { href: "/organisme/bilan", titre: "Bilan pedagogique", detail: "Cerfa 10443", alerte: incomplets > 0 ? incomplets + " a completer" : "" },
@@ -171,7 +188,7 @@ export default async function TableauDeBordOrganisme() {
         <div style={{ display: "flex", gap: "14px", flexWrap: "wrap", margin: "26px 0" }}>
           {portes.map(function (p) {
             return (
-              <a key={p.href} href={p.href} style={{ ...CARTE, flex: "1 1 220px", textDecoration: "none", border: p.alerte ? "1px solid rgba(232,131,106,0.45)" : CARTE.border }}>
+              <a key={p.href} href={p.href} style={{ ...CARTE, flex: "1 1 210px", textDecoration: "none", border: p.alerte ? "1px solid rgba(232,131,106,0.45)" : CARTE.border }}>
                 <p style={{ color: "#c8a96e", fontSize: "16px", margin: "0 0 6px" }}>{p.titre} →</p>
                 <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "13px", margin: 0 }}>{p.detail}</p>
                 {p.alerte && (
