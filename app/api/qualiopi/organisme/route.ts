@@ -1,31 +1,34 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { cookies } from "next/headers";
+import { sessionCourante } from "../../../../lib/session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-function sessionDuCookie() {
-  try {
-    const brut = cookies().get("sb_user")?.value;
-    if (!brut) return null;
-    const u = JSON.parse(decodeURIComponent(brut));
-    if (!u || !u.tenant_id) return null;
-    return { tenantId: u.tenant_id, email: u.email || null };
-  } catch (e) {
-    return null;
-  }
+// L organisme vient desormais du JETON SIGNE, et non plus du cookie sb_user
+// qui n etait qu un objet JSON encode : n importe qui pouvait le forger et
+// lire les donnees Qualiopi d un autre organisme.
+function societeDeSession() {
+  const session = sessionCourante();
+  if (!session || !session.tenantId) return null;
+  return { tenantId: session.tenantId, email: session.email };
 }
 
 function client() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) return null;
-  return createClient(url, key);
+  return createClient(url, key, {
+    global: {
+      fetch: function (u: any, o: any) {
+        return fetch(u, { ...(o || {}), cache: "no-store" });
+      },
+    },
+  });
 }
 
 export async function GET() {
-  const session = sessionDuCookie();
+  const session = societeDeSession();
   if (!session) {
     return NextResponse.json(
       { ok: false, erreur: "Session sans societe rattachee. Reconnectez-vous." },
@@ -62,7 +65,7 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const session = sessionDuCookie();
+  const session = societeDeSession();
   if (!session) {
     return NextResponse.json(
       { ok: false, erreur: "Session sans societe rattachee. Reconnectez-vous." },
