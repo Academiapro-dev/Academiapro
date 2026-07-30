@@ -19,6 +19,7 @@ export default function PageStagiaires() {
   const [chiffre, setChiffre] = useState(0);
   const [chargement, setChargement] = useState(true);
   const [occupe, setOccupe] = useState(false);
+  const [invitationEnCours, setInvitationEnCours] = useState("");
   const [message, setMessage] = useState("");
   const [erreur, setErreur] = useState("");
 
@@ -78,7 +79,7 @@ export default function PageStagiaires() {
       });
       const data = await r.json();
       if (data.ok) {
-        setMessage(data.ajoutes + " stagiaire(s) inscrit(s).");
+        setMessage(data.ajoutes + " stagiaire(s) inscrit(s). Ils n ont pas encore recu leur acces.");
         setSaisie("");
         await charger();
       } else {
@@ -88,6 +89,32 @@ export default function PageStagiaires() {
       setErreur("Inscription impossible : " + String(e));
     }
     setOccupe(false);
+  }
+
+  async function inviter(id: string, libelle: string) {
+    setInvitationEnCours(id || "tous");
+    setMessage("");
+    setErreur("");
+    try {
+      const r = await fetch("/api/organisme/inviter" + tenantDeUrl(), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(id ? { id: id } : {}),
+      });
+      const data = await r.json();
+      if (data.ok) {
+        setMessage(
+          data.envoyes + " invitation(s) envoyee(s)" +
+          (data.echecs && data.echecs.length > 0 ? " — " + data.echecs.length + " echec(s)" : "")
+        );
+        await charger();
+      } else {
+        setErreur(data.erreur || "Envoi impossible.");
+      }
+    } catch (e: any) {
+      setErreur("Envoi impossible : " + String(e));
+    }
+    setInvitationEnCours("");
   }
 
   async function changerPayeur(id: string, valeur: string) {
@@ -162,6 +189,7 @@ export default function PageStagiaires() {
   };
 
   const commences = apprenants.filter(function (a) { return (a.modules_valides || 0) > 0; }).length;
+  const aInviter = apprenants.filter(function (a) { return a.statut === "invite"; }).length;
 
   return (
     <div style={CADRE}>
@@ -178,7 +206,22 @@ export default function PageStagiaires() {
           {apprenants.length} inscrit(s) · {commences} ont commence · {chiffre.toLocaleString("fr-FR")} EUR declares
         </p>
 
-        <div style={{ ...CARTE, marginTop: "28px" }}>
+        {aInviter > 0 && (
+          <div style={{ ...CARTE, marginTop: "24px", border: "1px solid rgba(200,169,110,0.5)" }}>
+            <p style={{ color: "#fff", fontSize: "16px", margin: "0 0 12px" }}>
+              {aInviter} stagiaire(s) n ont pas encore recu leur acces.
+            </p>
+            <button
+              onClick={() => inviter("", "tous")}
+              disabled={invitationEnCours !== ""}
+              style={{ background: invitationEnCours !== "" ? "rgba(200,169,110,0.3)" : "#c8a96e", color: invitationEnCours !== "" ? "#8a8a8a" : "#050508", padding: "13px 26px", borderRadius: "8px", border: "none", cursor: invitationEnCours !== "" ? "default" : "pointer", fontWeight: "bold", fontSize: "16px", fontFamily: "Georgia,serif" }}
+            >
+              {invitationEnCours === "tous" ? "Envoi en cours..." : "Envoyer les invitations"}
+            </button>
+          </div>
+        )}
+
+        <div style={{ ...CARTE, marginTop: "22px" }}>
           <h2 style={{ color: "#c8a96e", fontSize: "19px", margin: "0 0 8px" }}>Inscrire des stagiaires</h2>
           <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "14px", marginTop: 0, lineHeight: "1.6" }}>
             Collez leurs adresses email, separees par des virgules, des espaces ou des
@@ -254,6 +297,7 @@ export default function PageStagiaires() {
           </div>
         ) : (
           apprenants.map(function (a) {
+            const invite = a.statut === "invitation_envoyee";
             return (
               <div key={a.id} style={{ ...CARTE, padding: "18px 22px", marginBottom: "12px" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "10px" }}>
@@ -287,6 +331,18 @@ export default function PageStagiaires() {
                       return <option key={p} value={p}>{LIBELLE_PAYEUR[p] || p}</option>;
                     })}
                   </select>
+
+                  <button
+                    onClick={() => inviter(a.id, a.email)}
+                    disabled={invitationEnCours !== ""}
+                    style={{ background: "none", border: "1px solid rgba(200,169,110,0.45)", color: "#c8a96e", padding: "7px 16px", borderRadius: "20px", cursor: invitationEnCours !== "" ? "default" : "pointer", fontSize: "13px", fontFamily: "Georgia,serif" }}
+                  >
+                    {invitationEnCours === a.id ? "Envoi..." : invite ? "Renvoyer l acces" : "Envoyer l acces"}
+                  </button>
+
+                  {invite && (
+                    <span style={{ color: "#4caf50", fontSize: "13px" }}>acces envoye</span>
+                  )}
 
                   <button
                     onClick={() => retirer(a.id, a.email)}
