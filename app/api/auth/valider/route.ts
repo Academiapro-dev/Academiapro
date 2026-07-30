@@ -16,9 +16,9 @@ function echec(motif: string) {
   return NextResponse.redirect(SITE + "/connexion?erreur=" + encodeURIComponent(motif));
 }
 
-// Recherche l organisme rattache a cet email. Silencieuse par choix :
-// UN LIEN MAGIQUE NE DOIT JAMAIS ECHOUER parce qu un utilisateur
-// n appartient a aucun organisme, ce qui est le cas de tous les stagiaires.
+// Recherche l organisme rattache a cet email, en deux temps : le PERSONNEL
+// de l organisme, puis SES STAGIAIRES. Silencieuse par choix : UN LIEN MAGIQUE
+// NE DOIT JAMAIS ECHOUER parce qu un utilisateur n a pas d organisme.
 async function organismeDe(email: string): Promise<{ tenantId: string | null; role: string | null }> {
   const vide = { tenantId: null, role: null };
 
@@ -27,32 +27,47 @@ async function organismeDe(email: string): Promise<{ tenantId: string | null; ro
     const cle = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
     if (!base || !cle) return vide;
 
+    // 1. Le personnel de l organisme, retrouve par son identifiant de compte.
     const r = await fetch(base + "/auth/v1/admin/users?email=" + encodeURIComponent(email), {
       headers: { apikey: cle, Authorization: "Bearer " + cle },
       cache: "no-store",
     });
 
-    if (!r.ok) return vide;
+    if (r.ok) {
+      const data = await r.json();
+      const liste = Array.isArray(data) ? data : (data.users || []);
+      const utilisateur = liste.find(function (u: any) {
+        return String(u.email || "").toLowerCase() === email;
+      });
 
-    const data = await r.json();
-    const liste = Array.isArray(data) ? data : (data.users || []);
-    const utilisateur = liste.find(function (u: any) {
-      return String(u.email || "").toLowerCase() === email;
-    });
+      if (utilisateur && utilisateur.id) {
+        const { data: membre } = await supabase
+          .from("compliance_membres")
+          .select("tenant_id, role")
+          .eq("user_id", utilisateur.id)
+          .eq("actif", true)
+          .limit(1)
+          .maybeSingle();
 
-    if (!utilisateur || !utilisateur.id) return vide;
+        if (membre && membre.tenant_id) {
+          return { tenantId: membre.tenant_id, role: membre.role || null };
+        }
+      }
+    }
 
-    const { data: membre } = await supabase
-      .from("compliance_membres")
-      .select("tenant_id, role")
-      .eq("user_id", utilisateur.id)
-      .eq("actif", true)
+    // 2. Les stagiaires de l organisme, retrouves par leur email.
+    const { data: apprenant } = await supabase
+      .from("organisme_apprenants")
+      .select("tenant_id")
+      .eq("email", email)
       .limit(1)
       .maybeSingle();
 
-    if (!membre) return vide;
+    if (apprenant && apprenant.tenant_id) {
+      return { tenantId: apprenant.tenant_id, role: "stagiaire" };
+    }
 
-    return { tenantId: membre.tenant_id || null, role: membre.role || null };
+    return vide;
   } catch (e) {
     return vide;
   }
@@ -114,10 +129,6 @@ export async function GET(req: Request) {
     });
     return reponse;
   } catch (e: any) {
-    return reponse_echec();
+    return echec("technique");
   }
-}
-
-function reponse_echec() {
-  return NextResponse.redirect(SITE + "/connexion?erreur=technique");
 }
