@@ -72,7 +72,7 @@ export default function PageSeances() {
       });
       const data = await r.json();
       if (data.ok) {
-        setMessage("Seance programmee.");
+        setMessage("Seance programmee. Pensez a prevenir vos stagiaires.");
         setTitre(""); setFormation(""); setDebut(""); setFormateur(""); setDescription("");
         setFormulaire(false);
         await charger();
@@ -81,6 +81,28 @@ export default function PageSeances() {
       }
     } catch (e: any) {
       setErreur("Creation impossible : " + String(e));
+    }
+    setOccupe("");
+  }
+
+  async function annoncer(id: string) {
+    setOccupe("annonce-" + id);
+    setMessage("");
+    setErreur("");
+    try {
+      const r = await fetch("/api/organisme/annoncer-seance" + suffixe("?"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ seance_id: id }),
+      });
+      const data = await r.json();
+      if (data.ok) {
+        setMessage(data.envoyes + " stagiaire(s) prevenu(s).");
+      } else {
+        setErreur(data.erreur || "Annonce impossible.");
+      }
+    } catch (e: any) {
+      setErreur("Annonce impossible : " + String(e));
     }
     setOccupe("");
   }
@@ -215,9 +237,9 @@ export default function PageSeances() {
             </button>
 
             <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px", margin: "12px 0 0", lineHeight: "1.6" }}>
-              La salle s ouvre un quart d heure avant l heure prevue et se ferme un quart
-              d heure apres la fin. Les entrees et sorties sont horodatees : elles tiennent
-              lieu de feuille d emargement.
+              Si vous indiquez une formation, seuls ses stagiaires seront prevenus. Sans elle,
+              tout votre registre le sera. La salle s ouvre un quart d heure avant et les entrees
+              sont horodatees : elles tiennent lieu de feuille d emargement.
             </p>
           </div>
         )}
@@ -245,7 +267,7 @@ export default function PageSeances() {
                   <div style={{ flex: "1 1 260px" }}>
                     <p style={{ color: "#c8a96e", fontSize: "12px", margin: "0 0 3px" }}>
                       {new Date(s.debut).toLocaleString("fr-FR")} · {s.duree_minutes} min
-                      {s.formation_code ? " · " + s.formation_code : ""}
+                      {s.formation_code ? " · " + s.formation_code : " · tous les stagiaires"}
                     </p>
                     <h3 style={{ color: "#fff", fontSize: "17px", margin: "0 0 4px" }}>{s.titre}</h3>
                     <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "13px", margin: 0 }}>
@@ -282,6 +304,22 @@ export default function PageSeances() {
                     <span style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px" }}>
                       la salle ouvrira un quart d heure avant
                     </span>
+                  )}
+
+                  {d.membre && !s.passee && (
+                    <button
+                      onClick={() => annoncer(s.id)}
+                      disabled={occupe !== ""}
+                      style={BOUTON}
+                    >
+                      {occupe === "annonce-" + s.id ? "Envoi..." : "Prevenir les stagiaires"}
+                    </button>
+                  )}
+
+                  {d.membre && s.passee && (
+                    <a href={"/organisme/seances/" + s.id + suffixe("?")} style={BOUTON}>
+                      Emargement
+                    </a>
                   )}
 
                   {d.membre && !s.passee && s.statut !== "terminee" && (
