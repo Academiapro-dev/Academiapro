@@ -132,7 +132,10 @@ export async function POST(req: NextRequest) {
         continue;
       }
 
-      const lien = SITE + "/api/auth/valider?jeton=" + jeton;
+      // Le stagiaire arrive DANS SON ESPACE, ou l attendent ses formations, ses
+      // classes en direct et ses documents a signer — et non sur le tableau de
+      // bord grand public, qui ne le concerne pas.
+      const lien = SITE + "/api/auth/valider?jeton=" + jeton + "&retour=" + encodeURIComponent("/stagiaire");
 
       const html =
         '<div style="font-family:Georgia,serif;max-width:560px;margin:0 auto;color:#1a1a1a;line-height:1.7">' +
