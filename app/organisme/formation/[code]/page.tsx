@@ -16,10 +16,15 @@ export default function LecteurCoursPropre({ params }: { params: { code: string 
   const [moduleActif, setModuleActif] = useState(1);
   const [contenu, setContenu] = useState("");
   const [pageModule, setPageModule] = useState(0);
+  const [onglet, setOnglet] = useState("cours");
   const [chargement, setChargement] = useState(true);
   const [chargementModule, setChargementModule] = useState(false);
   const [manuel, setManuel] = useState(false);
   const [erreur, setErreur] = useState("");
+
+  const [question, setQuestion] = useState("");
+  const [echange, setEchange] = useState<any[]>([]);
+  const [reflexion, setReflexion] = useState(false);
 
   useEffect(function () {
     charger(1, 1);
@@ -60,7 +65,40 @@ export default function LecteurCoursPropre({ params }: { params: { code: string 
   function ouvrir(ch: number, mo: number) {
     setChapitreActif(ch);
     setModuleActif(mo);
+    setOnglet("cours");
     charger(ch, mo);
+  }
+
+  async function demander() {
+    const q = question.trim();
+    if (q.length < 2) return;
+
+    setQuestion("");
+    setEchange(function (e) { return e.concat([{ role: "moi", text: q }]); });
+    setReflexion(true);
+
+    try {
+      const r = await fetch("/api/organisme/tuteur", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code: code,
+          chapitre: chapitreActif,
+          module: moduleActif,
+          message: q,
+          historique: echange,
+        }),
+      });
+      const data = await r.json();
+      setEchange(function (e) {
+        return e.concat([{ role: "agent", text: data.ok ? data.reponse : (data.erreur || "Reponse impossible.") }]);
+      });
+    } catch (e: any) {
+      setEchange(function (x) {
+        return x.concat([{ role: "agent", text: "Connexion impossible." }]);
+      });
+    }
+    setReflexion(false);
   }
 
   async function telechargerManuel() {
@@ -220,52 +258,127 @@ export default function LecteurCoursPropre({ params }: { params: { code: string 
           })}
         </div>
 
-        <div style={{ background: "#ffffff", borderRadius: "12px", padding: "40px 45px", boxShadow: "0 4px 30px rgba(0,0,0,0.4)", minHeight: "420px" }}>
-          {chargementModule ? (
-            <div style={{ textAlign: "center", padding: "60px 0" }}>
-              <p style={{ color: "#c8a96e", fontSize: "16px" }}>Chargement du module...</p>
-            </div>
-          ) : !contenu ? (
-            <div style={{ textAlign: "center", padding: "60px 0", color: "#999", fontSize: "16px", lineHeight: "1.7" }}>
-              Ce module n a pas encore ete redige.
+        <div>
+          <div style={{ display: "flex", gap: "10px", marginBottom: "16px" }}>
+            {[["cours", "📖 Cours"], ["assistant", "🤖 Assistant"]].map(function (o) {
+              const actif = onglet === o[0];
+              return (
+                <button
+                  key={o[0]}
+                  onClick={() => setOnglet(o[0])}
+                  style={{ padding: "10px 20px", borderRadius: "8px", border: "none", cursor: "pointer", background: actif ? "#c8a96e" : "rgba(255,255,255,0.05)", color: actif ? "#050508" : "rgba(255,255,255,0.6)", fontWeight: actif ? "bold" : "normal", fontFamily: "Georgia,serif", fontSize: "14px" }}
+                >
+                  {o[1]}
+                </button>
+              );
+            })}
+          </div>
+
+          {onglet === "cours" ? (
+            <div style={{ background: "#ffffff", borderRadius: "12px", padding: "40px 45px", boxShadow: "0 4px 30px rgba(0,0,0,0.4)", minHeight: "420px" }}>
+              {chargementModule ? (
+                <div style={{ textAlign: "center", padding: "60px 0" }}>
+                  <p style={{ color: "#c8a96e", fontSize: "16px" }}>Chargement du module...</p>
+                </div>
+              ) : !contenu ? (
+                <div style={{ textAlign: "center", padding: "60px 0", color: "#999", fontSize: "16px", lineHeight: "1.7" }}>
+                  Ce module n a pas encore ete redige.
+                </div>
+              ) : (
+                <div>
+                  {totalPages > 1 && (
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", padding: "8px 0", borderBottom: "1px solid #eee" }}>
+                      <button onClick={() => setPageModule(function (p) { return Math.max(0, p - 1); })} disabled={pageModule === 0} style={styleNav(pageModule > 0)}>← Précédent</button>
+                      <span style={{ color: "#c8a96e", fontWeight: "bold", fontSize: "13px" }}>Page {pageModule + 1} / {totalPages}</span>
+                      <button onClick={() => setPageModule(function (p) { return Math.min(totalPages - 1, p + 1); })} disabled={pageModule === totalPages - 1} style={styleNav(pageModule < totalPages - 1)}>Suivant →</button>
+                    </div>
+                  )}
+
+                  {pageCourante.split("\n").filter(function (l) { return l.trim(); }).map(function (ligne, i) {
+                    const l = ligne.trim();
+                    if (/^#{1,6}\s/.test(l)) {
+                      const texte = l.replace(/^#{1,6}\s+/, "");
+                      const niveau = (l.match(/^(#{1,6})/) || ["", ""])[1].length;
+                      if (niveau <= 2) {
+                        return <h2 key={i} style={{ color: "#c8a96e", fontSize: "22px", margin: "20px 0 10px" }}>{texte}</h2>;
+                      }
+                      return <h3 key={i} style={{ color: "#333", fontSize: "18px", margin: "15px 0 8px", fontWeight: "bold" }}>{texte}</h3>;
+                    }
+                    if (l === "---") return <hr key={i} style={{ border: "none", borderTop: "1px solid #ddd", margin: "16px 0" }} />;
+                    if (l.startsWith("> ")) {
+                      return <blockquote key={i} style={{ borderLeft: "4px solid #c8a96e", paddingLeft: "16px", margin: "16px 0", color: "#555", fontStyle: "italic", fontSize: "18px" }}>{propre(l.replace(/^> /, ""))}</blockquote>;
+                    }
+                    if (/^[-*]\s+/.test(l)) {
+                      return <p key={i} style={{ color: "#1a1a1a", fontSize: "18px", lineHeight: "1.8", margin: "0 0 10px 22px" }}>• {propre(l.replace(/^[-*]\s+/, ""))}</p>;
+                    }
+                    return <p key={i} style={{ color: "#1a1a1a", fontSize: "18px", lineHeight: "1.85", marginBottom: "16px", textAlign: "justify" }}>{propre(l)}</p>;
+                  })}
+
+                  {totalPages > 1 && (
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "30px", padding: "15px 0", borderTop: "1px solid #eee" }}>
+                      <button onClick={() => setPageModule(function (p) { return Math.max(0, p - 1); })} disabled={pageModule === 0} style={styleNav(pageModule > 0)}>← Précédent</button>
+                      <span style={{ color: "#999", fontSize: "13px" }}>Page {pageModule + 1} / {totalPages}</span>
+                      <button onClick={() => setPageModule(function (p) { return Math.min(totalPages - 1, p + 1); })} disabled={pageModule === totalPages - 1} style={styleNav(pageModule < totalPages - 1)}>Suivant →</button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           ) : (
-            <div>
-              {totalPages > 1 && (
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", padding: "8px 0", borderBottom: "1px solid #eee" }}>
-                  <button onClick={() => setPageModule(function (p) { return Math.max(0, p - 1); })} disabled={pageModule === 0} style={styleNav(pageModule > 0)}>← Précédent</button>
-                  <span style={{ color: "#c8a96e", fontWeight: "bold", fontSize: "13px" }}>Page {pageModule + 1} / {totalPages}</span>
-                  <button onClick={() => setPageModule(function (p) { return Math.min(totalPages - 1, p + 1); })} disabled={pageModule === totalPages - 1} style={styleNav(pageModule < totalPages - 1)}>Suivant →</button>
-                </div>
-              )}
+            <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(200,169,110,0.2)", borderRadius: "12px", padding: "24px" }}>
+              <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "13.5px", margin: "0 0 16px", lineHeight: "1.75" }}>
+                Posez vos questions sur le module {chapitreActif}.{moduleActif} que vous lisez.
+                L assistant s appuie sur son contenu — il vous dira franchement si votre reponse
+                se trouve ailleurs dans la formation.
+              </p>
 
-              {pageCourante.split("\n").filter(function (l) { return l.trim(); }).map(function (ligne, i) {
-                const l = ligne.trim();
-                if (/^#{1,6}\s/.test(l)) {
-                  const texte = l.replace(/^#{1,6}\s+/, "");
-                  const niveau = (l.match(/^(#{1,6})/) || ["", ""])[1].length;
-                  if (niveau <= 2) {
-                    return <h2 key={i} style={{ color: "#c8a96e", fontSize: "22px", margin: "20px 0 10px" }}>{texte}</h2>;
-                  }
-                  return <h3 key={i} style={{ color: "#333", fontSize: "18px", margin: "15px 0 8px", fontWeight: "bold" }}>{texte}</h3>;
-                }
-                if (l === "---") return <hr key={i} style={{ border: "none", borderTop: "1px solid #ddd", margin: "16px 0" }} />;
-                if (l.startsWith("> ")) {
-                  return <blockquote key={i} style={{ borderLeft: "4px solid #c8a96e", paddingLeft: "16px", margin: "16px 0", color: "#555", fontStyle: "italic", fontSize: "18px" }}>{propre(l.replace(/^> /, ""))}</blockquote>;
-                }
-                if (/^[-*]\s+/.test(l)) {
-                  return <p key={i} style={{ color: "#1a1a1a", fontSize: "18px", lineHeight: "1.8", margin: "0 0 10px 22px" }}>• {propre(l.replace(/^[-*]\s+/, ""))}</p>;
-                }
-                return <p key={i} style={{ color: "#1a1a1a", fontSize: "18px", lineHeight: "1.85", marginBottom: "16px", textAlign: "justify" }}>{propre(l)}</p>;
-              })}
+              <div style={{ minHeight: "300px", maxHeight: "440px", overflowY: "auto", marginBottom: "16px" }}>
+                {echange.length === 0 && !reflexion && (
+                  <p style={{ color: "rgba(255,255,255,0.3)", textAlign: "center", marginTop: "90px", fontSize: "15px" }}>
+                    Une notion vous echappe ? Demandez.
+                  </p>
+                )}
 
-              {totalPages > 1 && (
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "30px", padding: "15px 0", borderTop: "1px solid #eee" }}>
-                  <button onClick={() => setPageModule(function (p) { return Math.max(0, p - 1); })} disabled={pageModule === 0} style={styleNav(pageModule > 0)}>← Précédent</button>
-                  <span style={{ color: "#999", fontSize: "13px" }}>Page {pageModule + 1} / {totalPages}</span>
-                  <button onClick={() => setPageModule(function (p) { return Math.min(totalPages - 1, p + 1); })} disabled={pageModule === totalPages - 1} style={styleNav(pageModule < totalPages - 1)}>Suivant →</button>
-                </div>
-              )}
+                {echange.map(function (m: any, i: number) {
+                  const moi = m.role === "moi";
+                  return (
+                    <div key={i} style={{ marginBottom: "14px", display: "flex", justifyContent: moi ? "flex-end" : "flex-start" }}>
+                      <div style={{ background: moi ? "#c8a96e" : "rgba(255,255,255,0.07)", color: moi ? "#050508" : "rgba(255,255,255,0.88)", padding: "12px 16px", borderRadius: "12px", maxWidth: "82%", fontSize: "15px", lineHeight: "1.75", whiteSpace: "pre-wrap" }}>
+                        {propre(m.text)}
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {reflexion && (
+                  <p style={{ color: "#c8a96e", fontSize: "14px", marginLeft: "6px" }}>
+                    L assistant relit votre module...
+                  </p>
+                )}
+              </div>
+
+              <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+                <input
+                  value={question}
+                  onChange={(e) => setQuestion(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter" && !reflexion) demander(); }}
+                  placeholder="Votre question sur ce module..."
+                  disabled={reflexion}
+                  style={{ flex: "1 1 240px", padding: "13px 15px", borderRadius: "8px", border: "1px solid rgba(200,169,110,0.3)", background: "rgba(255,255,255,0.05)", color: "#fff", fontSize: "15px", fontFamily: "Georgia,serif" }}
+                />
+                <button
+                  onClick={demander}
+                  disabled={reflexion || question.trim().length < 2}
+                  style={{ background: reflexion || question.trim().length < 2 ? "rgba(200,169,110,0.3)" : "#c8a96e", color: reflexion || question.trim().length < 2 ? "#8a8a8a" : "#050508", padding: "13px 26px", borderRadius: "8px", border: "none", cursor: reflexion ? "default" : "pointer", fontWeight: "bold", fontSize: "15px", fontFamily: "Georgia,serif" }}
+                >
+                  Envoyer
+                </button>
+              </div>
+
+              <p style={{ color: "rgba(255,255,255,0.35)", fontSize: "12.5px", margin: "14px 0 0", lineHeight: "1.7" }}>
+                L assistant ne donne pas les reponses du questionnaire : il vous aide a comprendre,
+                vous repondez vous-meme.
+              </p>
             </div>
           )}
         </div>
