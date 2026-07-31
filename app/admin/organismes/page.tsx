@@ -35,6 +35,8 @@ export default function PageOrganismes() {
           f[o.id] = {
             abonnement: o.abonnement_mensuel !== null && o.abonnement_mensuel !== undefined ? String(o.abonnement_mensuel) : "",
             taux: o.taux_prelevement !== null && o.taux_prelevement !== undefined ? String(o.taux_prelevement) : "",
+            plancher: o.plancher_stagiaire !== null && o.plancher_stagiaire !== undefined ? String(o.plancher_stagiaire) : "",
+            apport: o.taux_apport !== null && o.taux_apport !== undefined ? String(o.taux_apport) : "",
             lancement: o.lancement_jusqu_au || "",
             telephone: o.telephone || "",
             siret: o.siret || "",
@@ -260,7 +262,8 @@ export default function PageOrganismes() {
                     <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "14px", margin: "0 0 4px" }}>{o.email_contact}</p>
                     <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "13px", margin: 0 }}>
                       {o.abonnement_mensuel ? o.abonnement_mensuel + " EUR/mois" : "abonnement non fixe"}
-                      {" · prelevement " + (o.taux_prelevement !== null && o.taux_prelevement !== undefined ? o.taux_prelevement : 20) + " %"}
+                      {" · " + (o.taux_prelevement !== null && o.taux_prelevement !== undefined ? o.taux_prelevement : 35) + " %"}
+                      {" · plancher " + (o.plancher_stagiaire !== null && o.plancher_stagiaire !== undefined ? o.plancher_stagiaire : 30) + " EUR"}
                       {o.lancement_jusqu_au ? " · lancement jusqu au " + new Date(o.lancement_jusqu_au).toLocaleDateString("fr-FR") : ""}
                       {o.numero_tva ? "" : " · TVA manquante"}
                     </p>
@@ -304,17 +307,38 @@ export default function PageOrganismes() {
                     <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
                       <div style={{ flex: "1 1 150px" }}>
                         <span style={LIBELLE}>Abonnement mensuel (EUR)</span>
-                        <input value={champ(o.id, "abonnement")} onChange={(e) => poser(o.id, "abonnement", e.target.value)} placeholder="500" style={CHAMP} />
+                        <input value={champ(o.id, "abonnement")} onChange={(e) => poser(o.id, "abonnement", e.target.value)} placeholder="150" style={CHAMP} />
                       </div>
-                      <div style={{ flex: "1 1 120px" }}>
-                        <span style={LIBELLE}>Prelevement (%)</span>
-                        <input value={champ(o.id, "taux")} onChange={(e) => poser(o.id, "taux", e.target.value)} placeholder="20" style={CHAMP} />
+                      <div style={{ flex: "1 1 130px" }}>
+                        <span style={LIBELLE}>Part catalogue (%)</span>
+                        <input value={champ(o.id, "taux")} onChange={(e) => poser(o.id, "taux", e.target.value)} placeholder="35" style={CHAMP} />
                       </div>
-                      <div style={{ flex: "1 1 160px" }}>
+                      <div style={{ flex: "1 1 150px" }}>
+                        <span style={LIBELLE}>Minimum par stagiaire (EUR)</span>
+                        <input value={champ(o.id, "plancher")} onChange={(e) => poser(o.id, "plancher", e.target.value)} placeholder="30" style={CHAMP} />
+                      </div>
+                    </div>
+
+                    <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px", margin: "-6px 0 14px", lineHeight: "1.6" }}>
+                      Le minimum est du pour chaque stagiaire inscrit sur une formation de votre
+                      catalogue, vendue ou non. C est lui qui rend l illimite sans risque.
+                    </p>
+
+                    <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+                      <div style={{ flex: "1 1 150px" }}>
+                        <span style={LIBELLE}>Apport d affaires (%)</span>
+                        <input value={champ(o.id, "apport")} onChange={(e) => poser(o.id, "apport", e.target.value)} placeholder="50" style={CHAMP} />
+                      </div>
+                      <div style={{ flex: "1 1 180px" }}>
                         <span style={LIBELLE}>Lancement jusqu au</span>
                         <input type="date" value={champ(o.id, "lancement")} onChange={(e) => poser(o.id, "lancement", e.target.value)} style={CHAMP} />
                       </div>
                     </div>
+
+                    <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px", margin: "-6px 0 14px", lineHeight: "1.6" }}>
+                      L apport d affaires s applique aux demandes que VOUS lui orientez, notamment
+                      pour un financement OPCO. Il est distinct de la part sur son catalogue.
+                    </p>
 
                     <h4 style={{ color: "#c8a96e", fontSize: "15px", margin: "14px 0" }}>Identification</h4>
 
@@ -360,6 +384,8 @@ export default function PageOrganismes() {
                         onClick={() => modifier(o.id, {
                           abonnement_mensuel: champ(o.id, "abonnement"),
                           taux_prelevement: champ(o.id, "taux"),
+                          plancher_stagiaire: champ(o.id, "plancher"),
+                          taux_apport: champ(o.id, "apport"),
                           lancement_jusqu_au: champ(o.id, "lancement") || null,
                           siret: champ(o.id, "siret"),
                           numero_da: champ(o.id, "numero_da"),
@@ -374,10 +400,7 @@ export default function PageOrganismes() {
                         Enregistrer la fiche
                       </button>
 
-                      <a
-                        href="/admin/bon-commande"
-                        style={{ ...LIEN, padding: "13px 26px", fontSize: "15px" }}
-                      >
+                      <a href="/admin/bon-commande" style={{ ...LIEN, padding: "13px 26px", fontSize: "15px" }}>
                         Editer son bon de commande →
                       </a>
                     </div>
