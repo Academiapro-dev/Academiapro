@@ -30,6 +30,7 @@ const NOMBRES: any = {
   taux_prelevement: { max: 100, libelle: "Taux invalide." },
   plancher_stagiaire: { max: 10000, libelle: "Minimum par stagiaire invalide." },
   taux_apport: { max: 100, libelle: "Taux d apport invalide." },
+  frais_installation: { max: 100000, libelle: "Frais de mise en service invalides." },
 };
 
 export async function GET() {
@@ -131,7 +132,6 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// La fiche complete du client : c est ici que se posent les termes du contrat.
 export async function PATCH(req: NextRequest) {
   try {
     const session = sessionCourante();
@@ -165,7 +165,6 @@ export async function PATCH(req: NextRequest) {
 
     if (corps.qualiopi !== undefined) m.qualiopi = corps.qualiopi === true;
 
-    // Les quatre valeurs chiffrees, validees de la meme facon.
     for (const cle of Object.keys(NOMBRES)) {
       if (corps[cle] === undefined) continue;
 
