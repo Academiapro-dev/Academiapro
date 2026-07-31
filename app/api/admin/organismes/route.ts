@@ -23,8 +23,6 @@ function refuse() {
   return NextResponse.json({ ok: false, erreur: "reserve a l administrateur" }, { status: 403 });
 }
 
-// Les valeurs chiffrees de la fiche : un nom, une borne haute, et le message
-// a rendre si la saisie est aberrante.
 const NOMBRES: any = {
   abonnement_mensuel: { max: 100000, libelle: "Abonnement invalide." },
   taux_prelevement: { max: 100, libelle: "Taux invalide." },
@@ -32,6 +30,18 @@ const NOMBRES: any = {
   taux_apport: { max: 100, libelle: "Taux d apport invalide." },
   frais_installation: { max: 100000, libelle: "Frais de mise en service invalides." },
 };
+
+// On accepte que l adresse soit collee avec le protocole ou le www : on la
+// nettoie plutot que de la refuser.
+function nettoyerDomaine(brut: string): string {
+  return String(brut || "")
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\//, "")
+    .replace(/^www\./, "")
+    .replace(/\/.*$/, "")
+    .replace(/\s/g, "");
+}
 
 export async function GET() {
   try {
@@ -164,6 +174,36 @@ export async function PATCH(req: NextRequest) {
     }
 
     if (corps.qualiopi !== undefined) m.qualiopi = corps.qualiopi === true;
+
+    // Le domaine propre du client. Il doit ressembler a une adresse, sinon
+    // le filtre ne le reconnaitra jamais.
+    if (corps.domaine !== undefined) {
+      const domaine = nettoyerDomaine(corps.domaine);
+
+      if (domaine) {
+        if (domaine.indexOf(".") < 1 || domaine.length < 4 || /[^a-z0-9.-]/.test(domaine)) {
+          return NextResponse.json(
+            { ok: false, erreur: "Domaine invalide. Exemple : formation.exemple.fr" },
+            { status: 400 }
+          );
+        }
+
+        const { data: pris } = await supabase
+          .from("organismes_formation")
+          .select("id")
+          .eq("domaine", domaine)
+          .maybeSingle();
+
+        if (pris && pris.id !== corps.id) {
+          return NextResponse.json(
+            { ok: false, erreur: "Ce domaine est deja rattache a un autre client." },
+            { status: 409 }
+          );
+        }
+      }
+
+      m.domaine = domaine || null;
+    }
 
     for (const cle of Object.keys(NOMBRES)) {
       if (corps[cle] === undefined) continue;
