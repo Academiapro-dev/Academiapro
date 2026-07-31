@@ -258,6 +258,8 @@ export default function LMSPage({ params }) {
     setCorrectionEnCours(false);
   }
 
+  // L assistant lit LE MODULE EN COURS et repond en s appuyant dessus, au lieu
+  // de repondre de culture generale sur le seul titre de la formation.
   async function envoyerChat() {
     if (!chatMessage.trim()) return;
     const msg = chatMessage;
@@ -265,10 +267,23 @@ export default function LMSPage({ params }) {
     setChatHistory(prev => [...prev, { role: "user", text: msg }]);
     setChatLoading(true);
     try {
-      const r = await fetch("/api/agent-tuteur", { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: msg, formation_titre: formation?.titre || code, historique: chatHistory }) });
+      const r = await fetch("/api/organisme/tuteur", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code: code,
+          chapitre: chapitreActif,
+          module: moduleActif,
+          langue: langue,
+          message: msg,
+          historique: chatHistory,
+        }),
+      });
       const data = await r.json();
-      setChatHistory(prev => [...prev, { role: "agent", text: data.reply || "" }]);
+      setChatHistory(prev => [
+        ...prev,
+        { role: "agent", text: data.ok ? data.reponse : (data.erreur || "Reponse impossible.") },
+      ]);
     } catch {
       setChatHistory(prev => [...prev, { role: "agent", text: "Erreur de connexion." }]);
     }
@@ -564,18 +579,23 @@ export default function LMSPage({ params }) {
 
           {onglet === "chat" && (
             <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(200,169,110,0.2)", borderRadius: "12px", padding: "25px" }}>
-              <h3 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", margin: "0 0 15px" }}>Coach IA — {coachDyn || agents.coach}</h3>
+              <h3 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", margin: "0 0 6px" }}>Coach IA — {coachDyn || agents.coach}</h3>
+              <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "13px", margin: "0 0 16px", lineHeight: "1.7" }}>
+                Vos questions sur le module {chapitreActif}.{moduleActif} que vous lisez. Le coach
+                s appuie sur son contenu, et vous dira si la reponse se trouve ailleurs dans la
+                formation. Il ne donne jamais les reponses du questionnaire.
+              </p>
               <div style={{ minHeight: "300px", maxHeight: "400px", overflowY: "auto", marginBottom: "15px" }}>
-                {chatHistory.length === 0 && <p style={{ color: "rgba(255,255,255,0.3)", textAlign: "center", marginTop: "80px" }}>Posez une question sur votre formation...</p>}
+                {chatHistory.length === 0 && <p style={{ color: "rgba(255,255,255,0.3)", textAlign: "center", marginTop: "80px" }}>Une notion vous echappe ? Demandez.</p>}
                 {chatHistory.map((msg, i) => (
                   <div key={i} style={{ marginBottom: "12px", display: "flex", justifyContent: msg.role === "user" ? "flex-end" : "flex-start" }}>
-                    <div style={{ background: msg.role === "user" ? "#c8a96e" : "rgba(255,255,255,0.08)", color: msg.role === "user" ? "#050508" : "#fff", padding: "10px 14px", borderRadius: "10px", maxWidth: "80%", fontSize: "14px", lineHeight: "1.6" }}>{msg.text}</div>
+                    <div style={{ background: msg.role === "user" ? "#c8a96e" : "rgba(255,255,255,0.08)", color: msg.role === "user" ? "#050508" : "#fff", padding: "12px 15px", borderRadius: "10px", maxWidth: "82%", fontSize: "14.5px", lineHeight: "1.7", whiteSpace: "pre-wrap" }}>{propre(msg.text)}</div>
                   </div>
                 ))}
-                {chatLoading && <p style={{ color: "#c8a96e", textAlign: "center" }}>...</p>}
+                {chatLoading && <p style={{ color: "#c8a96e", textAlign: "center" }}>Le coach relit votre module...</p>}
               </div>
               <div style={{ display: "flex", gap: "10px" }}>
-                <input type="text" value={chatMessage} onChange={e => setChatMessage(e.target.value)} onKeyDown={e => e.key === "Enter" && envoyerChat()} placeholder="Posez votre question..."
+                <input type="text" value={chatMessage} onChange={e => setChatMessage(e.target.value)} onKeyDown={e => e.key === "Enter" && !chatLoading && envoyerChat()} placeholder="Posez votre question..."
                   style={{ flex: 1, padding: "10px", borderRadius: "8px", border: "1px solid rgba(200,169,110,0.3)", background: "rgba(255,255,255,0.05)", color: "#fff" }} />
                 <button onClick={envoyerChat} disabled={chatLoading} style={{ padding: "10px 20px", background: "#c8a96e", color: "#050508", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "bold" }}>Envoyer</button>
               </div>
