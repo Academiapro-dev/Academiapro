@@ -2,11 +2,11 @@
 import { useState, useEffect } from "react";
 
 export default function PageFacturation() {
-  const [donnees, setDonnees] = useState<any>(null);
+  const [d, setD] = useState<any>(null);
   const [mois, setMois] = useState("");
-  const [ouvert, setOuvert] = useState<any>({});
   const [chargement, setChargement] = useState(true);
   const [erreur, setErreur] = useState("");
+  const [ouvert, setOuvert] = useState<any>({});
 
   useEffect(function () {
     charger("");
@@ -19,7 +19,7 @@ export default function PageFacturation() {
       const r = await fetch("/api/admin/facturation" + (m ? "?mois=" + m : ""));
       const data = await r.json();
       if (data.ok) {
-        setDonnees(data);
+        setD(data);
         setMois(data.mois);
       } else {
         setErreur(data.erreur || "Lecture impossible.");
@@ -30,23 +30,15 @@ export default function PageFacturation() {
     setChargement(false);
   }
 
-  function moisPrecedent() {
+  function decaler(pas: number) {
     if (!mois) return;
-    const a = parseInt(mois.slice(0, 4), 10);
+    const annee = parseInt(mois.slice(0, 4), 10);
     const m = parseInt(mois.slice(5, 7), 10);
-    const d = new Date(Date.UTC(a, m - 2, 1));
-    charger(d.getUTCFullYear() + "-" + String(d.getUTCMonth() + 1).padStart(2, "0"));
+    const d2 = new Date(Date.UTC(annee, m - 1 + pas, 1));
+    charger(d2.getUTCFullYear() + "-" + String(d2.getUTCMonth() + 1).padStart(2, "0"));
   }
 
-  function moisSuivant() {
-    if (!mois) return;
-    const a = parseInt(mois.slice(0, 4), 10);
-    const m = parseInt(mois.slice(5, 7), 10);
-    const d = new Date(Date.UTC(a, m, 1));
-    charger(d.getUTCFullYear() + "-" + String(d.getUTCMonth() + 1).padStart(2, "0"));
-  }
-
-  function euros(n: number) {
+  function euros(n: any) {
     return (Number(n) || 0).toLocaleString("fr-FR") + " EUR";
   }
 
@@ -62,18 +54,18 @@ export default function PageFacturation() {
     background: "rgba(255,255,255,0.03)",
     border: "1px solid rgba(200,169,110,0.25)",
     borderRadius: "12px",
-    padding: "22px 26px",
-    marginBottom: "18px",
+    padding: "20px 24px",
+    marginBottom: "16px",
   };
 
   const BOUTON: any = {
     background: "none",
     border: "1px solid rgba(200,169,110,0.45)",
     color: "#c8a96e",
-    padding: "9px 20px",
+    padding: "8px 18px",
     borderRadius: "20px",
     cursor: "pointer",
-    fontSize: "14px",
+    fontSize: "13px",
     fontFamily: "Georgia,serif",
   };
 
@@ -85,14 +77,14 @@ export default function PageFacturation() {
         </a>
 
         <p style={{ color: "#c8a96e", fontSize: "12px", letterSpacing: "3px", margin: "22px 0 8px" }}>
-          CE QUE VOS CLIENTS VOUS DOIVENT
+          CE QUE VOUS FACTUREZ
         </p>
-        <h1 style={{ color: "#fff", fontSize: "30px", margin: "0 0 18px" }}>Facturation</h1>
+        <h1 style={{ color: "#fff", fontSize: "29px", margin: "0 0 16px" }}>Facturation</h1>
 
-        <div style={{ display: "flex", gap: "12px", alignItems: "center", marginBottom: "26px", flexWrap: "wrap" }}>
-          <button onClick={moisPrecedent} style={BOUTON}>← Mois precedent</button>
-          <span style={{ color: "#c8a96e", fontSize: "17px", fontWeight: "bold" }}>{mois}</span>
-          <button onClick={moisSuivant} style={BOUTON}>Mois suivant →</button>
+        <div style={{ display: "flex", gap: "12px", alignItems: "center", marginBottom: "22px", flexWrap: "wrap" }}>
+          <button onClick={() => decaler(-1)} style={BOUTON}>← mois precedent</button>
+          <span style={{ color: "#c8a96e", fontSize: "18px", fontWeight: "bold" }}>{mois}</span>
+          <button onClick={() => decaler(1)} style={BOUTON}>mois suivant →</button>
         </div>
 
         {erreur && <p style={{ color: "#e8836a", fontSize: "15px" }}>{erreur}</p>}
@@ -101,106 +93,105 @@ export default function PageFacturation() {
           <div style={CARTE}>
             <p style={{ color: "rgba(255,255,255,0.6)", margin: 0 }}>Calcul en cours...</p>
           </div>
-        ) : !donnees ? null : (
+        ) : !d ? null : (
           <>
-            <div style={{ display: "flex", gap: "14px", flexWrap: "wrap", marginBottom: "26px" }}>
-              <div style={{ ...CARTE, flex: "1 1 180px", marginBottom: 0 }}>
-                <p style={{ color: "#c8a96e", fontSize: "26px", fontWeight: "bold", margin: "0 0 4px" }}>
-                  {euros(donnees.total)}
-                </p>
-                <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", margin: 0 }}>Total du mois</p>
-              </div>
-              <div style={{ ...CARTE, flex: "1 1 180px", marginBottom: 0 }}>
-                <p style={{ color: "#fff", fontSize: "22px", fontWeight: "bold", margin: "0 0 4px" }}>
-                  {euros(donnees.total_abonnements)}
+            <div style={{ display: "flex", gap: "14px", flexWrap: "wrap", marginBottom: "20px" }}>
+              <div style={{ ...CARTE, flex: "1 1 160px", marginBottom: 0 }}>
+                <p style={{ color: "#c8a96e", fontSize: "24px", fontWeight: "bold", margin: "0 0 4px" }}>
+                  {euros(d.total_abonnements)}
                 </p>
                 <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", margin: 0 }}>Abonnements</p>
               </div>
-              <div style={{ ...CARTE, flex: "1 1 180px", marginBottom: 0 }}>
-                <p style={{ color: "#fff", fontSize: "22px", fontWeight: "bold", margin: "0 0 4px" }}>
-                  {euros(donnees.total_prelevements)}
+              <div style={{ ...CARTE, flex: "1 1 160px", marginBottom: 0 }}>
+                <p style={{ color: "#c8a96e", fontSize: "24px", fontWeight: "bold", margin: "0 0 4px" }}>
+                  {euros(d.total_prelevements)}
                 </p>
                 <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", margin: 0 }}>
-                  Prelevements · {donnees.total_inscriptions} inscription(s)
+                  Prelevements · {d.total_inscriptions} inscription(s)
+                </p>
+              </div>
+              <div style={{ ...CARTE, flex: "1 1 160px", marginBottom: 0, border: "1px solid rgba(200,169,110,0.5)" }}>
+                <p style={{ color: "#4caf50", fontSize: "26px", fontWeight: "bold", margin: "0 0 4px" }}>
+                  {euros(d.total)}
+                </p>
+                <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", margin: 0 }}>Total du mois</p>
+              </div>
+              <div style={{ ...CARTE, flex: "1 1 160px", marginBottom: 0 }}>
+                <p style={{ color: d.total_au_plancher > 0 ? "#e8a33d" : "rgba(255,255,255,0.4)", fontSize: "24px", fontWeight: "bold", margin: "0 0 4px" }}>
+                  {d.total_au_plancher}
+                </p>
+                <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", margin: 0 }}>
+                  Inscription(s) au plancher
                 </p>
               </div>
             </div>
 
-            {donnees.lignes.length === 0 ? (
+            {d.lignes.length === 0 ? (
               <div style={CARTE}>
                 <p style={{ color: "rgba(255,255,255,0.6)", margin: 0, fontSize: "15px" }}>
-                  Aucun organisme client pour le moment.
+                  Aucun client pour le moment.
                 </p>
               </div>
             ) : (
-              donnees.lignes.map(function (l: any) {
+              d.lignes.map(function (l: any) {
                 const estOuvert = ouvert[l.id] === true;
+                const beaucoupDePlancher = l.au_plancher > 0 && l.au_plancher >= l.au_taux;
                 return (
-                  <div key={l.id} style={CARTE}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "12px" }}>
-                      <div style={{ flex: "1 1 280px" }}>
-                        <h3 style={{ color: "#fff", fontSize: "18px", margin: "0 0 4px" }}>{l.raison_sociale}</h3>
+                  <div key={l.id} style={{ ...CARTE, border: beaucoupDePlancher ? "1px solid rgba(232,163,61,0.5)" : CARTE.border, opacity: l.statut === "actif" ? 1 : 0.6 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "10px" }}>
+                      <div style={{ flex: "1 1 260px" }}>
+                        <h3 style={{ color: "#fff", fontSize: "17px", margin: "0 0 3px" }}>
+                          {l.raison_sociale}
+                        </h3>
                         <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "13px", margin: 0 }}>
-                          {l.email_contact}
+                          {euros(l.abonnement)} d abonnement
+                          {l.en_lancement ? " (lancement, plein " + euros(l.abonnement_plein) + ")" : ""}
+                          {" · " + l.taux + " % · plancher " + euros(l.plancher)}
                         </p>
-                        <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px", margin: "6px 0 0" }}>
-                          Abonnement {euros(l.abonnement)}
-                          {l.en_lancement ? " (lancement, plein tarif " + euros(l.abonnement_plein) + ")" : ""}
-                          {" · prelevement " + l.taux + " % sur " + euros(l.assiette)}
+                        <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "13px", margin: "4px 0 0" }}>
+                          {l.inscriptions} inscription(s) · {l.au_taux} au taux · {l.au_plancher} au plancher
+                          {l.hors_catalogue > 0 ? " · " + l.hors_catalogue + " sur ses propres formations" : ""}
                         </p>
                       </div>
 
                       <div style={{ textAlign: "right" }}>
-                        <p style={{ color: "#c8a96e", fontSize: "24px", fontWeight: "bold", margin: "0 0 2px" }}>
+                        <p style={{ color: "#c8a96e", fontSize: "22px", fontWeight: "bold", margin: "0 0 2px" }}>
                           {euros(l.total)}
                         </p>
-                        <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "13px", margin: 0 }}>
-                          {l.inscriptions} inscription(s)
+                        <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "12px", margin: 0 }}>
+                          dont {euros(l.prelevement)} de prelevement
                         </p>
                       </div>
                     </div>
 
-                    <div style={{ display: "flex", gap: "10px", alignItems: "center", marginTop: "14px", flexWrap: "wrap" }}>
-                      <span style={{ background: l.statut === "actif" ? "rgba(76,175,80,0.18)" : "rgba(232,131,106,0.18)", color: l.statut === "actif" ? "#4caf50" : "#e8836a", padding: "5px 14px", borderRadius: "20px", fontSize: "13px" }}>
-                        {l.statut}
-                      </span>
+                    {beaucoupDePlancher && (
+                      <p style={{ color: "#e8a33d", fontSize: "13px", margin: "12px 0 0", lineHeight: "1.7" }}>
+                        La majorite de ses inscriptions tombent au plancher : il inscrit beaucoup et
+                        vend peu, ou vend a bas prix. C est la conversation a avoir avec lui.
+                      </p>
+                    )}
 
-                      {l.en_lancement && (
-                        <span style={{ background: "rgba(200,169,110,0.18)", color: "#c8a96e", padding: "5px 14px", borderRadius: "20px", fontSize: "13px" }}>
-                          lancement jusqu au {new Date(l.lancement_jusqu_au).toLocaleDateString("fr-FR")}
-                        </span>
-                      )}
-
-                      {l.sans_prix > 0 && (
-                        <span style={{ background: "rgba(232,131,106,0.18)", color: "#e8836a", padding: "5px 14px", borderRadius: "20px", fontSize: "13px" }}>
-                          {l.sans_prix} inscription(s) sans prix
-                        </span>
-                      )}
-
-                      {l.inscriptions > 0 && (
-                        <button
-                          onClick={() => setOuvert({ ...ouvert, [l.id]: !estOuvert })}
-                          style={BOUTON}
-                        >
-                          {estOuvert ? "Masquer le detail" : "Voir le detail"}
-                        </button>
-                      )}
-                    </div>
+                    {l.inscriptions > 0 && (
+                      <button
+                        onClick={() => setOuvert({ ...ouvert, [l.id]: !estOuvert })}
+                        style={{ ...BOUTON, marginTop: "14px" }}
+                      >
+                        {estOuvert ? "Fermer le detail" : "Detail des inscriptions"}
+                      </button>
+                    )}
 
                     {estOuvert && (
-                      <div style={{ marginTop: "16px", borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: "14px" }}>
-                        {l.details.map(function (d: any, i: number) {
+                      <div style={{ marginTop: "14px", paddingTop: "12px", borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+                        {l.details.map(function (x: any, i: number) {
                           return (
-                            <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.05)", fontSize: "14px", flexWrap: "wrap", gap: "8px" }}>
-                              <span style={{ color: "rgba(255,255,255,0.75)", wordBreak: "break-all" }}>
-                                {d.email}
+                            <div key={i} style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "10px", padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                              <span style={{ color: "rgba(255,255,255,0.7)", fontSize: "13px", wordBreak: "break-all" }}>
+                                {x.email}
+                                {x.formation_code ? " · " + x.formation_code : ""}
+                                <span style={{ color: "rgba(255,255,255,0.35)" }}> · {x.motif}</span>
                               </span>
-                              <span style={{ color: "rgba(255,255,255,0.5)" }}>
-                                {d.formation_code || "—"}
-                                {d.payeur ? " · " + d.payeur : ""}
-                              </span>
-                              <span style={{ color: d.prix ? "#c8a96e" : "#e8836a", fontWeight: "bold" }}>
-                                {d.prix ? euros(d.prix) : "prix manquant"}
+                              <span style={{ color: x.du > 0 ? "#c8a96e" : "rgba(255,255,255,0.3)", fontSize: "13px", fontWeight: "bold" }}>
+                                {x.prix !== null ? euros(x.prix) + " → " : ""}{euros(x.du)}
                               </span>
                             </div>
                           );
