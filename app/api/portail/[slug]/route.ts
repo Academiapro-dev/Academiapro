@@ -17,8 +17,7 @@ const supabase = createClient(
 );
 
 // ROUTE PUBLIQUE, sans session. Elle n expose QUE ce qui doit etre public :
-// jamais le prix contractuel, le taux de prelevement ni l abonnement, qui sont
-// les termes entre l editeur et son client.
+// jamais le prix contractuel, le taux de prelevement ni l abonnement.
 export async function GET(req: NextRequest, { params }: { params: { slug: string } }) {
   try {
     const slug = String(params.slug || "").trim().toLowerCase();
@@ -28,7 +27,7 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
 
     const { data: org } = await supabase
       .from("organismes_formation")
-      .select("tenant_id, raison_sociale, numero_da, email_contact, telephone, adresse, qualiopi, certificateur, portail_actif, portail_presentation")
+      .select("tenant_id, raison_sociale, numero_da, email_contact, telephone, adresse, qualiopi, certificateur, portail_actif, portail_presentation, logo_url, couleur")
       .eq("slug", slug)
       .maybeSingle();
 
@@ -36,7 +35,6 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
       return NextResponse.json({ ok: false, erreur: "Page introuvable." }, { status: 404 });
     }
 
-    // Les formations propres, publiees seulement.
     const { data: propres } = await supabase
       .from("organisme_cours")
       .select("code, titre, description, objectifs, prerequis, public_cible, duree, prix, domaine")
@@ -45,7 +43,6 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
       .order("titre", { ascending: true })
       .limit(200);
 
-    // Le catalogue souscrit, avec le prix AFFICHE par l organisme.
     const { data: souscrites } = await supabase
       .from("organisme_catalogue")
       .select("formation_code, prix_vente_public")
@@ -112,6 +109,8 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
         qualiopi: org.qualiopi === true,
         certificateur: org.certificateur,
         presentation: org.portail_presentation,
+        logo_url: org.logo_url || null,
+        couleur: org.couleur || "#0a3d2e",
       },
       total: miennes.length + catalogue.length,
       domaines: domaines,
