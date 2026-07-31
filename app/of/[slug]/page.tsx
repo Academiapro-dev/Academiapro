@@ -67,7 +67,9 @@ export default function PortailOrganisme({ params }: { params: { slug: string } 
   }
 
   const FOND = "#faf9f6";
-  const VERT = "#0a3d2e";
+  const o = d ? d.organisme : null;
+  // La couleur du client habille toute la page : titres, boutons, bandeau.
+  const TEINTE = (o && o.couleur) || "#0a3d2e";
 
   const CADRE: any = {
     minHeight: "100vh",
@@ -100,7 +102,7 @@ export default function PortailOrganisme({ params }: { params: { slug: string } 
 
   const LIBELLE: any = {
     display: "block",
-    color: VERT,
+    color: TEINTE,
     fontSize: "14px",
     fontWeight: "bold",
     marginBottom: "6px",
@@ -109,16 +111,16 @@ export default function PortailOrganisme({ params }: { params: { slug: string } 
   if (chargement) {
     return (
       <div style={{ ...CADRE, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <p style={{ color: VERT, fontSize: "17px" }}>Chargement...</p>
+        <p style={{ color: "#666", fontSize: "17px" }}>Chargement...</p>
       </div>
     );
   }
 
-  if (introuvable || !d) {
+  if (introuvable || !d || !o) {
     return (
       <div style={{ ...CADRE, padding: "60px 20px" }}>
         <div style={{ maxWidth: "620px", margin: "0 auto", textAlign: "center" }}>
-          <h1 style={{ color: VERT, fontSize: "25px", margin: "0 0 12px" }}>Page introuvable</h1>
+          <h1 style={{ color: "#0a3d2e", fontSize: "25px", margin: "0 0 12px" }}>Page introuvable</h1>
           <p style={{ color: "#666", fontSize: "16px", lineHeight: "1.75" }}>
             Cette adresse ne correspond a aucun organisme, ou sa page n est pas encore ouverte.
           </p>
@@ -127,23 +129,31 @@ export default function PortailOrganisme({ params }: { params: { slug: string } 
     );
   }
 
-  const o = d.organisme;
   const affichees = domaine
     ? d.formations.filter(function (f: any) { return f.domaine === domaine; })
     : d.formations;
 
   return (
     <div style={CADRE}>
-      <div style={{ background: VERT, color: "#fff", padding: "44px 20px" }}>
-        <div style={{ maxWidth: "860px", margin: "0 auto" }}>
-          <h1 style={{ fontSize: "31px", margin: "0 0 10px", lineHeight: "1.3" }}>
-            {o.raison_sociale}
-          </h1>
-          <p style={{ color: "rgba(255,255,255,0.75)", fontSize: "15px", margin: 0, lineHeight: "1.7" }}>
-            Organisme de formation
-            {o.numero_da ? " · declaration d activite n " + o.numero_da : ""}
-            {o.qualiopi ? " · certifie Qualiopi" + (o.certificateur ? " par " + o.certificateur : "") : ""}
-          </p>
+      <div style={{ background: TEINTE, color: "#fff", padding: "40px 20px" }}>
+        <div style={{ maxWidth: "860px", margin: "0 auto", display: "flex", alignItems: "center", gap: "22px", flexWrap: "wrap" }}>
+          {o.logo_url && (
+            <img
+              src={o.logo_url}
+              alt={o.raison_sociale}
+              style={{ height: "72px", maxWidth: "220px", objectFit: "contain", background: "#fff", borderRadius: "8px", padding: "10px" }}
+            />
+          )}
+          <div style={{ flex: "1 1 320px" }}>
+            <h1 style={{ fontSize: "30px", margin: "0 0 10px", lineHeight: "1.3" }}>
+              {o.raison_sociale}
+            </h1>
+            <p style={{ color: "rgba(255,255,255,0.78)", fontSize: "15px", margin: 0, lineHeight: "1.7" }}>
+              Organisme de formation
+              {o.numero_da ? " · declaration d activite n " + o.numero_da : ""}
+              {o.qualiopi ? " · certifie Qualiopi" + (o.certificateur ? " par " + o.certificateur : "") : ""}
+            </p>
+          </div>
         </div>
       </div>
 
@@ -156,7 +166,7 @@ export default function PortailOrganisme({ params }: { params: { slug: string } 
           </div>
         )}
 
-        <h2 style={{ color: VERT, fontSize: "22px", margin: "30px 0 6px" }}>
+        <h2 style={{ color: TEINTE, fontSize: "22px", margin: "30px 0 6px" }}>
           Nos formations
         </h2>
         <p style={{ color: "#777", fontSize: "15px", margin: "0 0 18px" }}>
@@ -167,7 +177,7 @@ export default function PortailOrganisme({ params }: { params: { slug: string } 
           <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "20px" }}>
             <button
               onClick={() => setDomaine("")}
-              style={{ padding: "8px 16px", borderRadius: "20px", border: domaine ? "1px solid #ccc" : "none", background: domaine ? "#fff" : VERT, color: domaine ? "#666" : "#fff", cursor: "pointer", fontSize: "14px", fontFamily: "Georgia,serif" }}
+              style={{ padding: "8px 16px", borderRadius: "20px", border: domaine ? "1px solid #ccc" : "none", background: domaine ? "#fff" : TEINTE, color: domaine ? "#666" : "#fff", cursor: "pointer", fontSize: "14px", fontFamily: "Georgia,serif" }}
             >
               Toutes
             </button>
@@ -177,7 +187,7 @@ export default function PortailOrganisme({ params }: { params: { slug: string } 
                 <button
                   key={dd}
                   onClick={() => setDomaine(dd)}
-                  style={{ padding: "8px 16px", borderRadius: "20px", border: actif ? "none" : "1px solid #ccc", background: actif ? VERT : "#fff", color: actif ? "#fff" : "#666", cursor: "pointer", fontSize: "14px", fontFamily: "Georgia,serif" }}
+                  style={{ padding: "8px 16px", borderRadius: "20px", border: actif ? "none" : "1px solid #ccc", background: actif ? TEINTE : "#fff", color: actif ? "#fff" : "#666", cursor: "pointer", fontSize: "14px", fontFamily: "Georgia,serif" }}
                 >
                   {dd}
                 </button>
@@ -201,7 +211,7 @@ export default function PortailOrganisme({ params }: { params: { slug: string } 
                     <p style={{ color: "#999", fontSize: "13px", margin: "0 0 4px" }}>
                       {f.domaine || ""}{f.duree ? " · " + f.duree + " heures" : ""}
                     </p>
-                    <h3 style={{ color: VERT, fontSize: "19px", margin: "0 0 8px" }}>{f.titre}</h3>
+                    <h3 style={{ color: TEINTE, fontSize: "19px", margin: "0 0 8px" }}>{f.titre}</h3>
                     {f.description && (
                       <p style={{ color: "#444", fontSize: "15px", margin: "0 0 8px", lineHeight: "1.75" }}>
                         {String(f.description).slice(0, 320)}
@@ -216,13 +226,11 @@ export default function PortailOrganisme({ params }: { params: { slug: string } 
 
                   <div style={{ textAlign: "right" }}>
                     {f.prix ? (
-                      <p style={{ color: VERT, fontSize: "21px", fontWeight: "bold", margin: "0 0 8px" }}>
+                      <p style={{ color: TEINTE, fontSize: "21px", fontWeight: "bold", margin: "0 0 8px" }}>
                         {Number(f.prix).toLocaleString("fr-FR")} EUR
                       </p>
                     ) : (
-                      <p style={{ color: "#777", fontSize: "15px", margin: "0 0 8px" }}>
-                        sur devis
-                      </p>
+                      <p style={{ color: "#777", fontSize: "15px", margin: "0 0 8px" }}>sur devis</p>
                     )}
                     <button
                       onClick={() => {
@@ -230,7 +238,7 @@ export default function PortailOrganisme({ params }: { params: { slug: string } 
                         const zone = document.getElementById("demande");
                         if (zone) zone.scrollIntoView({ behavior: "smooth" });
                       }}
-                      style={{ background: VERT, color: "#fff", border: "none", padding: "10px 20px", borderRadius: "8px", cursor: "pointer", fontSize: "14px", fontFamily: "Georgia,serif", fontWeight: "bold" }}
+                      style={{ background: TEINTE, color: "#fff", border: "none", padding: "10px 20px", borderRadius: "8px", cursor: "pointer", fontSize: "14px", fontFamily: "Georgia,serif", fontWeight: "bold" }}
                     >
                       Cette formation
                     </button>
@@ -241,8 +249,8 @@ export default function PortailOrganisme({ params }: { params: { slug: string } 
           })
         )}
 
-        <div id="demande" style={{ ...CARTE, marginTop: "34px", border: "2px solid " + VERT }}>
-          <h2 style={{ color: VERT, fontSize: "21px", margin: "0 0 8px" }}>
+        <div id="demande" style={{ ...CARTE, marginTop: "34px", border: "2px solid " + TEINTE }}>
+          <h2 style={{ color: TEINTE, fontSize: "21px", margin: "0 0 8px" }}>
             Demander des informations
           </h2>
           <p style={{ color: "#666", fontSize: "15px", margin: "0 0 20px", lineHeight: "1.75" }}>
@@ -289,7 +297,7 @@ export default function PortailOrganisme({ params }: { params: { slug: string } 
               <button
                 onClick={demander}
                 disabled={occupe || email.indexOf("@") < 1}
-                style={{ background: occupe || email.indexOf("@") < 1 ? "#dfe5e1" : VERT, color: occupe || email.indexOf("@") < 1 ? "#8a8a8a" : "#fff", padding: "16px 30px", borderRadius: "8px", border: "none", cursor: occupe || email.indexOf("@") < 1 ? "default" : "pointer", fontWeight: "bold", fontSize: "17px", fontFamily: "Georgia,serif", width: "100%" }}
+                style={{ background: occupe || email.indexOf("@") < 1 ? "#dfe5e1" : TEINTE, color: occupe || email.indexOf("@") < 1 ? "#8a8a8a" : "#fff", padding: "16px 30px", borderRadius: "8px", border: "none", cursor: occupe || email.indexOf("@") < 1 ? "default" : "pointer", fontWeight: "bold", fontSize: "17px", fontFamily: "Georgia,serif", width: "100%" }}
               >
                 {occupe ? "Envoi..." : "Envoyer ma demande"}
               </button>
@@ -298,7 +306,7 @@ export default function PortailOrganisme({ params }: { params: { slug: string } 
         </div>
 
         <div style={{ ...CARTE, background: "#f4f2ed" }}>
-          <h2 style={{ color: VERT, fontSize: "17px", margin: "0 0 10px" }}>Nous contacter</h2>
+          <h2 style={{ color: TEINTE, fontSize: "17px", margin: "0 0 10px" }}>Nous contacter</h2>
           <p style={{ color: "#555", fontSize: "15px", margin: 0, lineHeight: "1.85" }}>
             {o.raison_sociale}
             {o.adresse ? <><br />{o.adresse}</> : null}
