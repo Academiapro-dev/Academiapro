@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
 
     const { data: organismes, error } = await supabase
       .from("organismes_formation")
-      .select("id, tenant_id, raison_sociale, email_contact, statut, abonnement_mensuel, taux_prelevement, lancement_jusqu_au")
+      .select("id, tenant_id, raison_sociale, email_contact, statut, abonnement_mensuel, taux_prelevement, plancher_stagiaire, lancement_jusqu_au")
       .order("raison_sociale", { ascending: true })
       .limit(500);
 
@@ -56,20 +56,17 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: false, erreur: error.message }, { status: 500 });
     }
 
-    // L ASSIETTE DU PRELEVEMENT EST LE PRIX CONTRACTUEL, fixe par l editeur.
-    // Le prix affiche par l organisme n entre pas dans le calcul : sinon le
-    // client controlerait la recette de l editeur.
     const { data: catalogue } = await supabase
       .from("organisme_catalogue")
-      .select("tenant_id, formation_code, prix_contractuel, prix_vente_public")
+      .select("tenant_id, formation_code, prix_vente_public, prix_contractuel")
       .limit(5000);
 
-    const contractuelDe: any = {};
-    const afficheDe: any = {};
+    const prixDe: any = {};
+    const duCatalogue = new Set<string>();
     for (const c of catalogue || []) {
       const cle = c.tenant_id + "|" + c.formation_code;
-      contractuelDe[cle] = Number(c.prix_contractuel) || 0;
-      afficheDe[cle] = Number(c.prix_vente_public) || 0;
+      prixDe[cle] = Number(c.prix_vente_public) || Number(c.prix_contractuel) || 0;
+      duCatalogue.add(cle);
     }
 
     const { data: inscriptions } = await supabase
@@ -87,34 +84,63 @@ export async function GET(req: NextRequest) {
 
     const lignes = (organismes || []).map(function (o: any) {
       const inscrits = parTenant[o.tenant_id] || [];
-      const taux = Number(o.taux_prelevement);
-      const tauxApplique = isNaN(taux) ? 20 : taux;
 
-      let assiette = 0;
+      const taux = o.taux_prelevement !== null && o.taux_prelevement !== undefined
+        ? Number(o.taux_prelevement)
+        : 35;
+      const plancher = o.plancher_stagiaire !== null && o.plancher_stagiaire !== undefined
+        ? Number(o.plancher_stagiaire)
+        : 30;
+
+      let du = 0;
+      let auPlancher = 0;
+      let auTaux = 0;
+      let horsCatalogue = 0;
       const details: any[] = [];
-      let sansAssiette = 0;
 
       for (const i of inscrits) {
         const cle = o.tenant_id + "|" + (i.formation_code || "");
 
-        // Priorite : le prix contractuel, puis le prix saisi a l inscription,
-        // puis le prix affiche. Le premier connu l emporte.
-        let base = contractuelDe[cle] || 0;
-        if (!base) base = Number(i.prix_vente) || 0;
-        if (!base) base = afficheDe[cle] || 0;
-        if (!base) sansAssiette = sansAssiette + 1;
+        // Rien n est du sur les formations propres du client : seules celles
+        // de son catalogue souscrit entrent dans le calcul.
+        if (!i.formation_code || !duCatalogue.has(cle)) {
+          horsCatalogue = horsCatalogue + 1;
+          details.push({
+            email: i.email,
+            formation_code: i.formation_code,
+            payeur: i.payeur,
+            prix: null,
+            du: 0,
+            motif: "formation propre du client",
+          });
+          continue;
+        }
 
-        assiette = assiette + base;
+        let prix = Number(i.prix_vente) || 0;
+        if (!prix) prix = prixDe[cle] || 0;
+
+        const part = Math.round(prix * taux) / 100;
+        // On retient le plus eleve des deux : la part, ou le minimum par
+        // stagiaire. C est ce qui rend l illimite sans risque.
+        const retenu = Math.max(part, plancher);
+
+        if (retenu === plancher && part < plancher) auPlancher = auPlancher + 1;
+        else auTaux = auTaux + 1;
+
+        du = du + retenu;
+
         details.push({
           email: i.email,
           formation_code: i.formation_code,
           payeur: i.payeur,
-          prix: base,
-          contractuel: contractuelDe[cle] || null,
+          prix: prix,
+          part: part,
+          du: retenu,
+          motif: part < plancher ? "minimum par stagiaire" : "part au taux",
         });
       }
 
-      const prelevement = Math.round(assiette * tauxApplique) / 100;
+      du = Math.round(du * 100) / 100;
 
       const abonnementPlein = Number(o.abonnement_mensuel) || 0;
       const enLancement = o.lancement_jusqu_au
@@ -132,12 +158,14 @@ export async function GET(req: NextRequest) {
         lancement_jusqu_au: o.lancement_jusqu_au,
         abonnement_plein: abonnementPlein,
         abonnement: abonnement,
-        taux: tauxApplique,
+        taux: taux,
+        plancher: plancher,
         inscriptions: inscrits.length,
-        sans_prix: sansAssiette,
-        assiette: assiette,
-        prelevement: prelevement,
-        total: abonnement + prelevement,
+        au_taux: auTaux,
+        au_plancher: auPlancher,
+        hors_catalogue: horsCatalogue,
+        prelevement: du,
+        total: Math.round((abonnement + du) * 100) / 100,
         details: details,
       };
     });
@@ -145,15 +173,17 @@ export async function GET(req: NextRequest) {
     const totalAbonnements = lignes.reduce(function (s: number, l: any) { return s + l.abonnement; }, 0);
     const totalPrelevements = lignes.reduce(function (s: number, l: any) { return s + l.prelevement; }, 0);
     const totalInscriptions = lignes.reduce(function (s: number, l: any) { return s + l.inscriptions; }, 0);
+    const totalPlancher = lignes.reduce(function (s: number, l: any) { return s + l.au_plancher; }, 0);
 
     return NextResponse.json({
       ok: true,
       mois: libelle,
       organismes: lignes.length,
-      total_abonnements: totalAbonnements,
-      total_prelevements: totalPrelevements,
+      total_abonnements: Math.round(totalAbonnements * 100) / 100,
+      total_prelevements: Math.round(totalPrelevements * 100) / 100,
       total_inscriptions: totalInscriptions,
-      total: totalAbonnements + totalPrelevements,
+      total_au_plancher: totalPlancher,
+      total: Math.round((totalAbonnements + totalPrelevements) * 100) / 100,
       lignes: lignes,
     });
   } catch (e: any) {
