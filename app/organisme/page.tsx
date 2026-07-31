@@ -91,7 +91,7 @@ export default async function TableauDeBordOrganisme() {
     : vide;
 
   const { data: org } = t
-    ? await supabase.from("organismes_formation").select("slug, portail_actif").eq("tenant_id", t).maybeSingle()
+    ? await supabase.from("organismes_formation").select("slug, portail_actif, abonnement_mensuel, lancement_jusqu_au").eq("tenant_id", t).maybeSingle()
     : { data: null };
 
   const { data: documents } = t
@@ -181,6 +181,11 @@ export default async function TableauDeBordOrganisme() {
     ? Math.round((notesEval.reduce(function (a: number, b: number) { return a + b; }, 0) / notesEval.length) * 10) / 10
     : null;
 
+  const abonnement = org ? Number(org.abonnement_mensuel) || 0 : 0;
+  const enLancement = org && org.lancement_jusqu_au
+    ? new Date(org.lancement_jusqu_au).getTime() >= maintenant
+    : false;
+
   const familles = [
     {
       titre: "Former",
@@ -198,6 +203,7 @@ export default async function TableauDeBordOrganisme() {
         { href: "/organisme/prospects", nom: "Mes prospects", detail: (prospects || []).length + " fiche(s)", alerte: aTraiter > 0 ? aTraiter + " a traiter" : "" },
         { href: "/organisme/portail", nom: "Ma page publique", detail: org && org.portail_actif ? "en ligne · /of/" + org.slug : "fermee", alerte: org && !org.portail_actif ? "a ouvrir" : "" },
         { href: "/organisme/importer", nom: "Importer une liste", detail: "jusqu a 500 stagiaires", alerte: "" },
+        { href: "/organisme/facturation", nom: "Ma facturation", detail: abonnement > 0 ? (enLancement ? Math.round(abonnement / 2) : abonnement) + " EUR/mois + inscriptions" : "en cours", alerte: "" },
       ],
     },
     {
