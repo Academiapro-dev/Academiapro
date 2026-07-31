@@ -40,46 +40,6 @@ const PUCE: any = {
 };
 
 export default function PagePack() {
-  const formules = [
-    {
-      nom: "Outil seul",
-      prix: "100",
-      detail: "La plateforme et le suivi, avec vos propres formations.",
-      inclus: [
-        "Creation illimitee de vos formations",
-        "Classes virtuelles avec tableau blanc",
-        "Correction des questionnaires par IA",
-        "Les 21 documents administratifs",
-        "Signature electronique",
-        "Bilan pedagogique prepare",
-      ],
-    },
-    {
-      nom: "Outil et catalogue",
-      prix: "500",
-      detail: "Tout ce qui precede, plus 300 formations pretes a vendre.",
-      inclus: [
-        "Tout de la formule precedente",
-        "300 formations redigees et corrigees",
-        "Vous fixez vos propres prix de vente",
-        "Aucun contenu a produire",
-        "Mise a jour du catalogue incluse",
-      ],
-      phare: true,
-    },
-    {
-      nom: "Mr. Qualiopi",
-      prix: "1 190",
-      detail: "Forfait unique, en sus. Preparation a la certification.",
-      inclus: [
-        "Les 32 indicateurs expliques",
-        "Un assistant qui repond a vos questions",
-        "Vos preuves rassemblees et horodatees",
-        "Dossier d audit exportable en PDF",
-      ],
-    },
-  ];
-
   return (
     <div style={CADRE}>
       <div style={{ maxWidth: "900px", margin: "0 auto" }}>
@@ -87,56 +47,69 @@ export default function PagePack() {
           POUR LES ORGANISMES DE FORMATION
         </p>
         <h1 style={{ color: "#fff", fontSize: "34px", lineHeight: "1.3", margin: "0 0 16px" }}>
-          Votre plateforme de formation,<br />et tout l administratif qui va avec
+          300 formations pretes a vendre,<br />et tout l administratif qui va avec
         </h1>
         <p style={{ ...P, fontSize: "18px" }}>
-          Vous formez, nous nous occupons du reste : la plateforme, les documents obligatoires,
-          les evaluations, le registre des reclamations, le bilan pedagogique. Et si vous manquez
-          de contenu, trois cents formations vous attendent.
+          Les logiciels de gestion vous donnent un outil. Nous vous donnons le contenu : trois
+          cents formations a distance, redigees et corrigees, que vous proposez a vos stagiaires
+          des demain sous votre nom. Avec la plateforme, les documents obligatoires et votre bilan
+          pedagogique prepare.
         </p>
 
-        <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", margin: "40px 0" }}>
-          {formules.map(function (f) {
-            return (
-              <div
-                key={f.nom}
-                style={{
-                  ...CARTE,
-                  flex: "1 1 260px",
-                  marginBottom: 0,
-                  border: f.phare ? "2px solid " + OR : CARTE.border,
-                  background: f.phare ? "rgba(200,169,110,0.06)" : CARTE.background,
-                }}
-              >
-                <h2 style={{ ...H2, fontSize: "18px", margin: "0 0 8px" }}>{f.nom}</h2>
-                <p style={{ color: "#fff", fontSize: "30px", fontWeight: "bold", margin: "0 0 2px" }}>
-                  {f.prix} EUR
-                </p>
-                <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "13px", margin: "0 0 14px" }}>
-                  {f.nom === "Mr. Qualiopi" ? "hors taxes, une fois" : "hors taxes par mois"}
-                </p>
-                <p style={{ ...P, fontSize: "14px", margin: "0 0 14px" }}>{f.detail}</p>
-                {f.inclus.map(function (i) {
-                  return (
-                    <p key={i} style={{ ...PUCE, fontSize: "14px" }}>
-                      <span style={{ color: OR }}>·</span> {i}
-                    </p>
-                  );
-                })}
-              </div>
-            );
-          })}
+        <div style={{ ...CARTE, border: "2px solid " + OR, marginTop: "36px" }}>
+          <h2 style={{ ...H2, fontSize: "18px", margin: "0 0 8px" }}>La formule</h2>
+          <p style={{ color: "#fff", fontSize: "34px", fontWeight: "bold", margin: "0 0 2px" }}>
+            150 EUR
+          </p>
+          <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "14px", margin: "0 0 18px" }}>
+            hors taxes par mois, sans engagement de duree
+          </p>
+
+          <p style={PUCE}><span style={{ color: OR }}>·</span> Les 300 formations du catalogue, a vos prix</p>
+          <p style={PUCE}><span style={{ color: OR }}>·</span> Vos propres formations, creees et publiees sans limite</p>
+          <p style={PUCE}><span style={{ color: OR }}>·</span> Stagiaires illimites</p>
+          <p style={PUCE}><span style={{ color: OR }}>·</span> Correction des questionnaires par IA, erreur par erreur</p>
+          <p style={PUCE}><span style={{ color: OR }}>·</span> Classes virtuelles avec tableau blanc</p>
+          <p style={PUCE}><span style={{ color: OR }}>·</span> Les 21 documents administratifs, a votre en-tete</p>
+          <p style={PUCE}><span style={{ color: OR }}>·</span> Signature electronique et archivage</p>
+          <p style={PUCE}><span style={{ color: OR }}>·</span> Suivi commercial et page publique</p>
+          <p style={PUCE}><span style={{ color: OR }}>·</span> Bilan pedagogique et financier prepare, cadre par cadre</p>
+
+          <div style={{ borderTop: "1px solid rgba(200,169,110,0.25)", marginTop: "18px", paddingTop: "16px" }}>
+            <p style={{ ...P, fontSize: "15px", margin: "0 0 8px" }}>
+              S y ajoutent <strong style={{ color: "#fff" }}>35 % du prix de vente</strong> de chaque
+              formation <em>de notre catalogue</em> que vous vendez, avec un minimum de{" "}
+              <strong style={{ color: "#fff" }}>30 EUR par stagiaire inscrit</strong>.
+            </p>
+            <p style={{ ...P, fontSize: "15px", margin: 0, color: "rgba(255,255,255,0.55)" }}>
+              Rien sur les formations que vous creez : elles sont a vous. Le comptage est
+              automatique, vous n avez aucune declaration a faire.
+            </p>
+          </div>
         </div>
 
-        <div style={{ ...CARTE, border: "2px solid " + OR }}>
-          <h2 style={H2}>Tarif de lancement</h2>
+        <div style={{ ...CARTE, border: "1px solid rgba(200,169,110,0.45)" }}>
+          <h2 style={{ ...H2, fontSize: "18px" }}>Tarif de lancement</h2>
           <p style={P}>
-            Les premiers organismes beneficient de <strong style={{ color: "#fff" }}>moitie prix
-            pendant douze mois</strong>. La date de fin et le montant plein sont inscrits a votre
-            contrat des la signature : aucune surprise, aucune renegociation.
+            Les premiers organismes beneficient de{" "}
+            <strong style={{ color: "#fff" }}>moitie prix pendant douze mois</strong>. La date de
+            fin et le montant plein sont inscrits a votre bon de commande des la signature :
+            aucune surprise, aucune renegociation.
           </p>
           <p style={{ ...P, margin: 0, fontSize: "15px", color: "rgba(255,255,255,0.55)" }}>
             En echange, nous vous demandons un temoignage et le droit de citer votre nom.
+          </p>
+        </div>
+
+        <div style={CARTE}>
+          <h2 style={H2}>Ce qu il vous manque, nous le produisons</h2>
+          <p style={P}>
+            Une formation absente du catalogue ? Dites-nous laquelle : nous la redigeons sur mesure
+            et vous l avez dans le mois, a votre en-tete, avec ses questionnaires et son manuel.
+            Deux formations par an sont comprises dans l abonnement.
+          </p>
+          <p style={{ ...P, margin: 0, fontSize: "15px", color: "rgba(255,255,255,0.55)" }}>
+            Aucun logiciel de gestion ne fait cela, parce qu aucun ne produit de contenu.
           </p>
         </div>
 
@@ -178,13 +151,20 @@ export default function PagePack() {
         </div>
 
         <div style={CARTE}>
-          <h2 style={H2}>Ce que nous prelevons</h2>
+          <h2 style={H2}>Mr. Qualiopi</h2>
+          <p style={{ color: "#fff", fontSize: "26px", fontWeight: "bold", margin: "0 0 2px" }}>
+            1 190 EUR
+          </p>
+          <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "14px", margin: "0 0 14px" }}>
+            hors taxes, une fois, en sus de l abonnement
+          </p>
           <p style={P}>
-            Outre l abonnement, vingt pour cent du prix contractuel de chaque formation de notre
-            catalogue que vous vendez. Rien sur vos propres formations : elles sont a vous.
+            Les 32 indicateurs expliques un par un, un assistant qui repond a vos questions sur
+            votre situation reelle, vos preuves rassemblees et horodatees, et votre dossier d audit
+            exportable en PDF.
           </p>
           <p style={{ ...P, margin: 0, fontSize: "15px", color: "rgba(255,255,255,0.55)" }}>
-            Le comptage est automatique. Vous n avez aucune declaration a faire.
+            Il vous prepare a l audit. Il ne le remplace pas et n emet aucun avis de conformite.
           </p>
         </div>
 
@@ -197,12 +177,13 @@ export default function PagePack() {
             reconnue par l Etat.
           </p>
           <p style={{ ...P, fontSize: "15px" }}>
-            Mr. Qualiopi vous prepare a l audit, il ne le remplace pas et n emet aucun avis de
-            conformite. Le bilan pedagogique est prepare, mais la declaration reste la votre.
+            Nous ne dispensons aucune formation en presence. Pour les actions reglementees, nous
+            fournissons les supports theoriques et l acces a distance ; l evaluation pratique et le
+            formateur habilite restent de votre cote.
           </p>
           <p style={{ ...P, fontSize: "15px", margin: 0 }}>
-            La signature electronique est une signature simple au sens du reglement europeen
-            eIDAS. Elle est recevable, mais elle n est ni avancee ni qualifiee.
+            Vous demeurez l organisme de formation : votre certification, votre numero de
+            declaration, vos attestations, votre responsabilite.
           </p>
         </div>
 
