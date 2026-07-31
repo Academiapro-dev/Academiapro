@@ -5,13 +5,12 @@ import type { NextRequest } from 'next/server';
 const CHEMINS_PROTEGES = ['/admin'];
 
 // Pages qui exigent EN PLUS une societe rattachee au compte.
-// Ailleurs dans /admin, une societe n'est pas necessaire.
 const EXIGENT_SOCIETE = ['/admin/compliance', '/admin/qualiopi'];
 
 // Exception : c'est par la qu'un nouveau client enregistre sa societe.
 const EXCEPTIONS = ['/admin/compliance/ma-societe'];
 
-// Pages de contenu reservees aux eleves connectes (verrou 1, couche 1).
+// Pages de contenu reservees aux eleves connectes.
 const CHEMINS_ELEVE = [
   '/lms',
   '/classe',
@@ -25,13 +24,20 @@ const CHEMINS_ELEVE = [
 ];
 
 // Routes API qui consomment les credits Claude et n'ont AUCUNE raison
-// d'etre appelees par un inconnu. Ne jamais ajouter ici une route
-// declenchee par un cron Vercel : un cron n'a pas de cookie de session.
+// d'etre appelees par un inconnu.
 const API_SESSION_REQUISE = [
   '/api/agent-tuteur',
   '/api/mr-cam',
   '/api/mr-comptable',
   '/api/mr-juridique',
+];
+
+// Nos propres adresses. Tout autre hote est le domaine d'un organisme
+// client, et sa racine mene a sa vitrine.
+const HOTES_CONNUS = [
+  'academiapro.fr',
+  'www.academiapro.fr',
+  'localhost',
 ];
 
 const NOM_COOKIE_SESSION = 'session_academia';
@@ -40,9 +46,13 @@ function correspond(chemin: string, liste: string[]): boolean {
   return liste.some((p) => chemin === p || chemin.startsWith(p + '/'));
 }
 
-// Le jeton de session porte desormais la societe, et il est SIGNE.
-// Le middleware ne verifie pas la signature (elle l'est dans les pages et
-// les routes) mais il peut lire la charge pour savoir s'il y a une societe.
+function estNotre(hote: string): boolean {
+  const h = hote.split(':')[0].toLowerCase();
+  if (HOTES_CONNUS.indexOf(h) >= 0) return true;
+  if (h.endsWith('.vercel.app')) return true;
+  return false;
+}
+
 function societeDuJeton(jeton: string | undefined): string | null {
   if (!jeton) return null;
   try {
@@ -59,8 +69,18 @@ function societeDuJeton(jeton: string | undefined): string | null {
 export function middleware(request: NextRequest) {
   const chemin = request.nextUrl.pathname;
   const session = request.cookies.get(NOM_COOKIE_SESSION)?.value;
+  const hote = request.headers.get('host') || '';
 
-  // Agents IA : refus net, sans redirection (c'est une API, pas une page).
+  // DOMAINE PROPRE D'UN ORGANISME. On ne consulte PAS la base ici : ce serait
+  // une requete a chaque page chargee. On se contente de reecrire vers la
+  // vitrine, et c'est la route du portail qui reconnaitra l'hote.
+  if (hote && !estNotre(hote) && chemin === '/') {
+    const url = request.nextUrl.clone();
+    url.pathname = '/of/@' + hote.split(':')[0].toLowerCase();
+    return NextResponse.rewrite(url);
+  }
+
+  // Agents IA : refus net, sans redirection.
   if (correspond(chemin, API_SESSION_REQUISE)) {
     if (!session) {
       return NextResponse.json({ success: false, error: 'non connecte' }, { status: 401 });
@@ -68,8 +88,7 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Espace eleve : il faut un cookie de session. La verification de sa
-  // signature et du droit sur la formation se fait dans les pages elles-memes.
+  // Espace eleve : il faut un cookie de session.
   if (correspond(chemin, CHEMINS_ELEVE)) {
     if (!session) {
       const url = request.nextUrl.clone();
@@ -84,8 +103,7 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // ADMINISTRATION : le cookie signe est exige. Sans lui, direction la
-  // page de connexion — celle qui existe reellement.
+  // ADMINISTRATION : le cookie signe est exige.
   if (!session) {
     const url = request.nextUrl.clone();
     url.pathname = '/connexion';
