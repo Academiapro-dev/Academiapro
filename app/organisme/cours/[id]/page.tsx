@@ -111,6 +111,30 @@ export default function PageEditeurCours({ params }: { params: { id: string } })
     setOccupe("");
   }
 
+  async function rediger(id: string, remplacer: boolean) {
+    setOccupe("ia-" + id);
+    setMessage("");
+    setErreur("");
+    try {
+      const r = await fetch("/api/organisme/rediger-module" + suffixe("?"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ module_id: id, remplacer: remplacer }),
+      });
+      const data = await r.json();
+      if (data.ok) {
+        setMessage(data.message);
+        setOuvert({ ...ouvert, [id]: false });
+        await charger();
+      } else {
+        setErreur(data.erreur || "Redaction impossible.");
+      }
+    } catch (e: any) {
+      setErreur("Redaction impossible : " + String(e));
+    }
+    setOccupe("");
+  }
+
   async function enregistrer(id: string) {
     setOccupe("enr-" + id);
     setMessage("");
@@ -235,8 +259,6 @@ export default function PageEditeurCours({ params }: { params: { id: string } })
     setMessage("Modele insere en bas du module. Remplacez les enonces par les votres.");
   }
 
-  // Verification en direct : c est elle qui evite le « QCM introuvable » cote
-  // stagiaire, decouvert trois jours trop tard.
   function analyserQCM(texte: string) {
     const t = String(texte || "");
     const aSection = /^#{1,6}\s*QCM/im.test(t);
@@ -244,6 +266,12 @@ export default function PageEditeurCours({ params }: { params: { id: string } })
     const reponses = (t.match(/^R[eé]ponse\s*:/gim) || []).length;
     return { aSection: aSection, questions: questions, reponses: reponses };
   }
+
+  const aRediger = d
+    ? d.chapitres.reduce(function (s: number, ch: any) {
+        return s + ch.modules.filter(function (m: any) { return !m.redige; }).length;
+      }, 0)
+    : 0;
 
   return (
     <div style={CADRE}>
@@ -260,6 +288,7 @@ export default function PageEditeurCours({ params }: { params: { id: string } })
         </h1>
         <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "14px", marginTop: 0 }}>
           {d ? d.total : 0} module(s) · {d ? d.rediges : 0} redige(s)
+          {aRediger > 0 ? " · " + aRediger + " a rediger" : ""}
           {d && d.cours && d.cours.publie ? " · publiee" : " · brouillon"}
         </p>
 
@@ -314,8 +343,7 @@ export default function PageEditeurCours({ params }: { params: { id: string } })
         ) : !d || d.chapitres.length === 0 ? (
           <div style={CARTE}>
             <p style={{ color: "rgba(255,255,255,0.6)", margin: 0, fontSize: "15px", lineHeight: "1.7" }}>
-              Aucun module. Ajoutez-en un pour commencer a rediger. Un module est considere
-              comme redige au-dela de deux cents signes.
+              Aucun module. Ajoutez-en un pour commencer a rediger.
             </p>
           </div>
         ) : (
@@ -332,6 +360,7 @@ export default function PageEditeurCours({ params }: { params: { id: string } })
                   const qcm = analyserQCM(texte);
                   const attenduQCM = m.type === "evaluation";
                   const qcmValable = qcm.aSection && qcm.questions > 0 && qcm.reponses > 0;
+                  const enCours = occupe === "ia-" + m.id;
 
                   return (
                     <div key={m.id} style={{ ...CARTE, border: "1px solid " + (m.redige ? (attenduQCM && !qcmValable ? "rgba(232,163,61,0.55)" : "rgba(76,175,80,0.35)") : "rgba(232,163,61,0.4)") }}>
@@ -354,20 +383,47 @@ export default function PageEditeurCours({ params }: { params: { id: string } })
                         </p>
                       )}
 
-                      {attenduQCM && !qcm.aSection && (
+                      {attenduQCM && !qcm.aSection && m.redige && (
                         <p style={{ color: "#e8a33d", fontSize: "13px", margin: "8px 0 0", lineHeight: "1.7" }}>
                           Ce module est une evaluation mais ne contient aucun QCM. Vos stagiaires
                           verront « QCM introuvable ».
                         </p>
                       )}
 
+                      {enCours && (
+                        <p style={{ color: "#c8a96e", fontSize: "13.5px", margin: "10px 0 0", lineHeight: "1.7" }}>
+                          Redaction en cours... comptez une a deux minutes. Ne fermez pas la page.
+                        </p>
+                      )}
+
                       <div style={{ display: "flex", gap: "8px", alignItems: "center", marginTop: "12px", flexWrap: "wrap" }}>
+                        {!m.redige && (
+                          <button
+                            onClick={() => rediger(m.id, false)}
+                            disabled={occupe !== ""}
+                            style={{ ...BOUTON, background: "#c8a96e", color: "#050508", border: "none", fontWeight: "bold" }}
+                          >
+                            {enCours ? "Redaction..." : "Faire rediger"}
+                          </button>
+                        )}
+
                         <button
                           onClick={() => setOuvert({ ...ouvert, [m.id]: !estOuvert })}
-                          style={{ ...BOUTON, background: estOuvert ? "none" : "#c8a96e", color: estOuvert ? "#c8a96e" : "#050508", border: estOuvert ? "1px solid rgba(200,169,110,0.45)" : "none", fontWeight: estOuvert ? "normal" : "bold" }}
+                          disabled={occupe !== ""}
+                          style={m.redige ? { ...BOUTON, background: "#c8a96e", color: "#050508", border: "none", fontWeight: "bold" } : BOUTON}
                         >
-                          {estOuvert ? "Fermer" : m.redige ? "Modifier" : "Rediger"}
+                          {estOuvert ? "Fermer" : m.redige ? "Modifier" : "Ecrire moi-meme"}
                         </button>
+
+                        {m.redige && (
+                          <button
+                            onClick={() => rediger(m.id, true)}
+                            disabled={occupe !== ""}
+                            style={BOUTON}
+                          >
+                            {enCours ? "..." : "Reecrire"}
+                          </button>
+                        )}
 
                         <select
                           value={m.type}
@@ -407,7 +463,7 @@ export default function PageEditeurCours({ params }: { params: { id: string } })
                             value={champ(m.id, "contenu")}
                             onChange={(e) => poser(m.id, "contenu", e.target.value)}
                             rows={20}
-                            placeholder={"Ecrivez votre cours ici.\n\nUn titre commence par ## et un sous-titre par ###.\nUne puce commence par un tiret.\n\nPour le questionnaire, cliquez sur « Inserer un modele de QCM » : le format\nsera correct, vous n aurez qu a remplacer les enonces."}
+                            placeholder={"Ecrivez votre cours ici, ou cliquez sur « Faire rediger ».\n\nUn titre commence par ## et un sous-titre par ###.\nUne puce commence par un tiret."}
                             style={{ ...CHAMP, fontSize: "15px", lineHeight: "1.8" }}
                           />
 
@@ -435,18 +491,16 @@ export default function PageEditeurCours({ params }: { params: { id: string } })
 
         <div style={{ ...CARTE, background: "rgba(200,169,110,0.05)", marginTop: "24px" }}>
           <h2 style={{ color: "#c8a96e", fontSize: "16px", margin: "0 0 10px" }}>
-            Comment ecrire un questionnaire
+            Faire rediger, ou ecrire soi-meme
           </h2>
           <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "14px", margin: "0 0 10px", lineHeight: "1.8" }}>
-            Le correcteur cherche une section intitulee <span style={{ color: "#c8a96e" }}>## QCM</span>,
-            puis des questions numerotees <span style={{ color: "#c8a96e" }}>Q1.</span> avec quatre
-            propositions de A a D, chacune suivie d une ligne
-            <span style={{ color: "#c8a96e" }}> Reponse : A - explication</span>.
+            « Faire rediger » produit le module a partir du plan complet, en evitant les redites
+            avec les autres modules. Un module d evaluation recoit son questionnaire au bon format.
+            Comptez une a deux minutes par module.
           </p>
           <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13.5px", margin: 0, lineHeight: "1.8" }}>
-            Le bouton « Inserer un modele » place ce format pour vous. Vos stagiaires ne voient
-            jamais les bonnes reponses : elles restent au serveur et ne leur sont donnees qu apres
-            leur note, avec votre explication.
+            Relisez toujours ce qui est produit : c est vous qui repondez du contenu devant vos
+            stagiaires et devant l auditeur. Tout reste modifiable.
           </p>
         </div>
       </div>
