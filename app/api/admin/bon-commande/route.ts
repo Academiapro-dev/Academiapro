@@ -80,6 +80,24 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Les frais de mise en service sont decides en negociant : ils arrivent
+    // avec la demande, et sont enregistres a la fiche pour memoire.
+    let frais = org.frais_installation !== null && org.frais_installation !== undefined
+      ? Number(org.frais_installation)
+      : 0;
+
+    if (b.frais_installation !== undefined && b.frais_installation !== null && b.frais_installation !== "") {
+      const saisi = Number(String(b.frais_installation).replace(",", "."));
+      if (isNaN(saisi) || saisi < 0 || saisi > 100000) {
+        return NextResponse.json({ ok: false, erreur: "Frais de mise en service invalides." }, { status: 400 });
+      }
+      frais = saisi;
+      await supabase
+        .from("organismes_formation")
+        .update({ frais_installation: frais, updated_at: new Date().toISOString() })
+        .eq("tenant_id", b.tenant_id);
+    }
+
     const plein = Number(org.abonnement_mensuel) || 0;
     const enLancement = b.lancement !== false && !!org.lancement_jusqu_au;
     const mensuel = enLancement ? Math.round(plein / 2) : plein;
@@ -184,6 +202,18 @@ export async function POST(req: NextRequest) {
     paire("Email", org.email_contact || "-");
     paire("Telephone", org.telephone || "-");
     paire("N de TVA intracommunautaire", org.numero_tva || "A COMPLETER");
+
+    if (frais > 0) {
+      titreBloc("MISE EN SERVICE");
+      paire("Frais uniques a la signature", euros(frais));
+      y = y - 4;
+      ligne(
+        "Couvrent l ouverture du compte, la configuration du catalogue et des prix, la mise aux " +
+        "couleurs du Client, la reprise de ses donnees et l accompagnement au demarrage. Factures " +
+        "une seule fois, a la signature.",
+        9, normal, gris, 5
+      );
+    }
 
     titreBloc("ABONNEMENT");
     ligne(
@@ -334,6 +364,7 @@ export async function POST(req: NextRequest) {
       formation_code: null,
       reference: reference,
       donnees: {
+        frais: frais,
         mensuel: mensuel,
         plein: plein,
         taux: taux,
