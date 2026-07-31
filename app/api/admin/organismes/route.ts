@@ -29,10 +29,9 @@ const NOMBRES: any = {
   plancher_stagiaire: { max: 10000, libelle: "Minimum par stagiaire invalide." },
   taux_apport: { max: 100, libelle: "Taux d apport invalide." },
   frais_installation: { max: 100000, libelle: "Frais de mise en service invalides." },
+  quota_ia_mensuel: { max: 5000, libelle: "Quota de redaction invalide." },
 };
 
-// On accepte que l adresse soit collee avec le protocole ou le www : on la
-// nettoie plutot que de la refuser.
 function nettoyerDomaine(brut: string): string {
   return String(brut || "")
     .trim()
@@ -175,8 +174,6 @@ export async function PATCH(req: NextRequest) {
 
     if (corps.qualiopi !== undefined) m.qualiopi = corps.qualiopi === true;
 
-    // Le domaine propre du client. Il doit ressembler a une adresse, sinon
-    // le filtre ne le reconnaitra jamais.
     if (corps.domaine !== undefined) {
       const domaine = nettoyerDomaine(corps.domaine);
 
