@@ -242,12 +242,25 @@ export default function PageCours() {
           {d ? d.total : 0} formation(s) · {d ? d.publies : 0} publiee(s)
         </p>
 
-        <button
-          onClick={() => setFormulaire(!formulaire)}
-          style={{ background: formulaire ? "none" : "#c8a96e", color: formulaire ? "#c8a96e" : "#050508", border: formulaire ? "1px solid rgba(200,169,110,0.45)" : "none", padding: "12px 24px", borderRadius: "20px", cursor: "pointer", fontSize: "15px", fontFamily: "Georgia,serif", fontWeight: "bold", margin: "22px 0" }}
-        >
-          {formulaire ? "Annuler" : "Creer une formation"}
-        </button>
+        <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", margin: "22px 0" }}>
+          <a
+            href={"/organisme/cours/creer" + suffixe()}
+            style={{ background: "#c8a96e", color: "#050508", padding: "13px 26px", borderRadius: "20px", textDecoration: "none", fontSize: "15px", fontWeight: "bold" }}
+          >
+            Construire avec l assistant →
+          </a>
+          <button
+            onClick={() => setFormulaire(!formulaire)}
+            style={{ background: "none", color: "#c8a96e", border: "1px solid rgba(200,169,110,0.45)", padding: "13px 26px", borderRadius: "20px", cursor: "pointer", fontSize: "15px", fontFamily: "Georgia,serif" }}
+          >
+            {formulaire ? "Annuler" : "Creer a la main"}
+          </button>
+        </div>
+
+        <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px", margin: "-8px 0 20px", lineHeight: "1.7" }}>
+          L assistant construit le plan complet a partir de votre description, puis redige les
+          modules a la demande. La creation manuelle vous laisse tout ecrire vous-meme.
+        </p>
 
         {formulaire && (
           <div style={{ ...CARTE, border: "1px solid rgba(200,169,110,0.5)" }}>
@@ -302,11 +315,6 @@ export default function PageCours() {
             >
               {occupe === "creation" ? "Creation..." : "Creer"}
             </button>
-
-            <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px", margin: "12px 0 0", lineHeight: "1.6" }}>
-              Ces champs remplissent le programme exige par l indicateur 1. Le code de la
-              formation se fabrique tout seul.
-            </p>
           </div>
         )}
 
@@ -317,7 +325,7 @@ export default function PageCours() {
           <div style={{ ...CARTE, border: "1px solid rgba(232,163,61,0.45)" }}>
             <p style={{ color: "#e8a33d", fontSize: "15px", margin: 0, lineHeight: "1.75" }}>
               {sansNsf} formation(s) sans specialite. Sans elle, elles n apparaitront pas dans le
-              cadre F-4 de votre bilan pedagogique. Choisissez-la sur chaque fiche ci-dessous.
+              cadre F-4 de votre bilan pedagogique.
             </p>
           </div>
         )}
@@ -329,8 +337,8 @@ export default function PageCours() {
         ) : !d || d.cours.length === 0 ? (
           <div style={CARTE}>
             <p style={{ color: "rgba(255,255,255,0.6)", margin: 0, fontSize: "15px", lineHeight: "1.7" }}>
-              Aucune formation propre. Celles du catalogue AcadeMIA restent disponibles
-              separement, dans « Catalogue AcadeMIA ».
+              Aucune formation propre. Commencez par l assistant : decrivez ce que vous voulez
+              enseigner, le plan se construit tout seul.
             </p>
           </div>
         ) : (
@@ -373,7 +381,7 @@ export default function PageCours() {
 
                 <div style={{ display: "flex", gap: "8px", alignItems: "center", marginTop: "14px", flexWrap: "wrap" }}>
                   <a href={"/organisme/cours/" + c.id + suffixe()} style={{ ...BOUTON, background: "#c8a96e", color: "#050508", border: "none", fontWeight: "bold" }}>
-                    Ecrire ses modules
+                    {c.modules_rediges < c.modules ? "Rediger ses modules" : "Ecrire ses modules"}
                   </a>
 
                   <button
