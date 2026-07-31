@@ -9,6 +9,11 @@ export const maxDuration = 300;
 const ADMINS = ["contact@academiapro.fr"];
 const MODELE = "claude-sonnet-4-6";
 
+// Tarifs indicatifs par million de jetons, pour estimer ce que chaque module
+// coute reellement. A ajuster si la grille change.
+const PRIX_ENTREE = 3;
+const PRIX_SORTIE = 15;
+
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
   process.env.SUPABASE_SERVICE_ROLE_KEY || "",
@@ -45,13 +50,20 @@ async function appeler(cle: string, systeme: string, invite: string, jetons: num
     }),
   });
 
-  if (!r.ok) return "";
+  if (!r.ok) return { texte: "", entree: 0, sortie: 0 };
 
   const data = await r.json();
-  return (data.content || [])
+  const texte = (data.content || [])
     .map(function (x: any) { return x && x.type === "text" ? x.text : ""; })
     .join("")
     .trim();
+
+  const usage = data.usage || {};
+  return {
+    texte: texte,
+    entree: Number(usage.input_tokens) || 0,
+    sortie: Number(usage.output_tokens) || 0,
+  };
 }
 
 export async function POST(req: NextRequest) {
@@ -86,6 +98,45 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, erreur: "Module non precise." }, { status: 400 });
     }
 
+    // QUOTA MENSUEL. La redaction a un cout reel : sans plafond, un client
+    // pourrait engendrer des dizaines de formations pour un abonnement fixe.
+    const { data: org } = await supabase
+      .from("organismes_formation")
+      .select("quota_ia_mensuel, raison_sociale")
+      .eq("tenant_id", tenant)
+      .maybeSingle();
+
+    const quota = org && org.quota_ia_mensuel !== null && org.quota_ia_mensuel !== undefined
+      ? Number(org.quota_ia_mensuel)
+      : 40;
+
+    const maintenant = new Date();
+    const debutMois = new Date(Date.UTC(maintenant.getUTCFullYear(), maintenant.getUTCMonth(), 1));
+
+    const { count } = await supabase
+      .from("organisme_usage_ia")
+      .select("*", { count: "exact", head: true })
+      .eq("tenant_id", tenant)
+      .eq("type", "redaction_module")
+      .gte("created_at", debutMois.toISOString());
+
+    const consommes = typeof count === "number" ? count : 0;
+
+    if (quota > 0 && consommes >= quota) {
+      return NextResponse.json(
+        {
+          ok: false,
+          erreur:
+            "Vous avez atteint votre quota de " + quota + " modules rediges ce mois-ci. " +
+            "Vous pouvez continuer a ecrire vos modules vous-meme, ou nous contacter pour " +
+            "relever ce plafond.",
+          quota: quota,
+          consommes: consommes,
+        },
+        { status: 429 }
+      );
+    }
+
     const { data: module } = await supabase
       .from("organisme_modules")
       .select("id, cours_id, chapitre, chapitre_titre, numero, titre, type, contenu")
@@ -115,8 +166,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, erreur: "Formation introuvable." }, { status: 404 });
     }
 
-    // Le plan complet est fourni a l agent : c est ce qui evite qu il repete
-    // au module 3 ce qu il a deja dit au module 1.
     const { data: freres } = await supabase
       .from("organisme_modules")
       .select("chapitre, chapitre_titre, numero, titre, type")
@@ -152,6 +201,8 @@ export async function POST(req: NextRequest) {
       "Tu ne traites QUE le module demande : ce qui releve des autres modules du plan est laisse aux autres modules.";
 
     let contenu = "";
+    let entree = 0;
+    let sortie = 0;
 
     if (module.type === "evaluation") {
       const invite =
@@ -168,7 +219,10 @@ export async function POST(req: NextRequest) {
         "N evalue JAMAIS sur des dates ni sur des noms propres : uniquement la methode, " +
         "le protocole, l application et la securite.";
 
-      contenu = await appeler(cle, systeme, invite, 8000);
+      const r1 = await appeler(cle, systeme, invite, 8000);
+      contenu = r1.texte;
+      entree = r1.entree;
+      sortie = r1.sortie;
     } else {
       const orientation = module.type === "pratique"
         ? "Ce module est PRATIQUE : construis-le autour de procedures et d exercices reellement " +
@@ -177,7 +231,7 @@ export async function POST(req: NextRequest) {
         : "Ce module est THEORIQUE : expose les notions, leurs fondements, leurs limites et leurs " +
           "applications professionnelles, avec des exemples concrets tires du terrain.";
 
-      const partie1 = await appeler(
+      const r1 = await appeler(
         cle, systeme,
         contexte + "\n" + orientation +
         "\n\nRedige LA PREMIERE MOITIE du module : introduction, fondements, notions centrales. " +
@@ -185,17 +239,19 @@ export async function POST(req: NextRequest) {
         5000
       );
 
-      const partie2 = await appeler(
+      const r2 = await appeler(
         cle, systeme,
         contexte + "\n" + orientation +
-        "\n\nVoici la premiere moitie deja redigee :\n\n" + partie1.slice(0, 6000) +
+        "\n\nVoici la premiere moitie deja redigee :\n\n" + r1.texte.slice(0, 6000) +
         "\n\nRedige LA SUITE ET LA FIN du module, sans rien repeter : approfondissement, " +
         "application professionnelle, erreurs frequentes, points cles a retenir sous forme de " +
         "liste, et un glossaire de huit termes. Vise 900 a 1200 mots.",
         5000
       );
 
-      contenu = (partie1 + "\n\n" + partie2).trim();
+      contenu = (r1.texte + "\n\n" + r2.texte).trim();
+      entree = r1.entree + r2.entree;
+      sortie = r1.sortie + r2.sortie;
     }
 
     if (!contenu || contenu.length < 300) {
@@ -215,12 +271,33 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, erreur: error.message }, { status: 500 });
     }
 
+    // On ne compte qu apres coup, et seulement si le module a bien ete ecrit :
+    // un echec ne doit pas entamer le quota du client.
+    const cout = Math.round(
+      ((entree / 1000000) * PRIX_ENTREE + (sortie / 1000000) * PRIX_SORTIE) * 10000
+    ) / 10000;
+
+    await supabase.from("organisme_usage_ia").insert({
+      tenant_id: tenant,
+      email: session.email,
+      type: "redaction_module",
+      reference: module.chapitre + "." + module.numero + " " + module.titre,
+      jetons_entree: entree,
+      jetons_sortie: sortie,
+      cout_estime: cout,
+    });
+
+    const restants = quota > 0 ? Math.max(0, quota - consommes - 1) : null;
+
     return NextResponse.json({
       ok: true,
       module: module.chapitre + "." + module.numero,
       titre: module.titre,
       signes: contenu.length,
-      message: "Module redige : " + contenu.length.toLocaleString("fr-FR") + " signes.",
+      restants: restants,
+      message:
+        "Module redige : " + contenu.length.toLocaleString("fr-FR") + " signes." +
+        (restants !== null ? " Il vous reste " + restants + " module(s) ce mois-ci." : ""),
     });
   } catch (e: any) {
     return NextResponse.json({ ok: false, erreur: String(e) }, { status: 500 });
