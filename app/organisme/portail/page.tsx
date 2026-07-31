@@ -1,10 +1,22 @@
 "use client";
 import { useState, useEffect } from "react";
 
+const COULEURS = [
+  { code: "#0a3d2e", nom: "Vert profond" },
+  { code: "#1a3a5c", nom: "Bleu nuit" },
+  { code: "#7a2e2e", nom: "Bordeaux" },
+  { code: "#2c2c2c", nom: "Anthracite" },
+  { code: "#5b3a7a", nom: "Prune" },
+  { code: "#1f5f5b", nom: "Sarcelle" },
+  { code: "#8a5a1e", nom: "Ambre" },
+  { code: "#3d5a2c", nom: "Olive" },
+];
+
 export default function PagePortail() {
   const [d, setD] = useState<any>(null);
   const [slug, setSlug] = useState("");
   const [presentation, setPresentation] = useState("");
+  const [couleur, setCouleur] = useState("#0a3d2e");
   const [chargement, setChargement] = useState(true);
   const [occupe, setOccupe] = useState("");
   const [message, setMessage] = useState("");
@@ -33,6 +45,7 @@ export default function PagePortail() {
         setD(data);
         setSlug(data.organisme.slug || data.suggestion || "");
         setPresentation(data.organisme.portail_presentation || "");
+        setCouleur(data.organisme.couleur || "#0a3d2e");
       } else {
         setErreur(data.erreur || "Lecture impossible.");
       }
@@ -47,7 +60,7 @@ export default function PagePortail() {
     setMessage("");
     setErreur("");
     try {
-      const corps: any = { slug: slug, portail_presentation: presentation };
+      const corps: any = { slug: slug, portail_presentation: presentation, couleur: couleur };
       if (actif !== undefined) corps.portail_actif = actif;
 
       const r = await fetch("/api/organisme/portail" + suffixe("?"), {
@@ -68,6 +81,57 @@ export default function PagePortail() {
       }
     } catch (e: any) {
       setErreur("Modification impossible : " + String(e));
+    }
+    setOccupe("");
+  }
+
+  async function deposerLogo(e: any) {
+    const f = e.target.files && e.target.files[0];
+    if (!f) return;
+
+    setOccupe("logo");
+    setMessage("");
+    setErreur("");
+    try {
+      const donnees = new FormData();
+      donnees.append("logo", f);
+
+      const r = await fetch("/api/organisme/portail" + suffixe("?"), {
+        method: "POST",
+        body: donnees,
+      });
+      const data = await r.json();
+      if (data.ok) {
+        setMessage("Logo depose.");
+        await charger();
+      } else {
+        setErreur(data.erreur || "Depot impossible.");
+      }
+    } catch (e2: any) {
+      setErreur("Depot impossible : " + String(e2));
+    }
+    setOccupe("");
+  }
+
+  async function retirerLogo() {
+    setOccupe("logo");
+    setMessage("");
+    setErreur("");
+    try {
+      const r = await fetch("/api/organisme/portail" + suffixe("?"), {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ retirer_logo: true }),
+      });
+      const data = await r.json();
+      if (data.ok) {
+        setMessage("Logo retire.");
+        await charger();
+      } else {
+        setErreur(data.erreur || "Retrait impossible.");
+      }
+    } catch (e: any) {
+      setErreur("Retrait impossible : " + String(e));
     }
     setOccupe("");
   }
@@ -110,6 +174,7 @@ export default function PagePortail() {
   };
 
   const actif = d && d.organisme && d.organisme.portail_actif;
+  const logo = d && d.organisme ? d.organisme.logo_url : null;
   const adresse = "academiapro.fr/of/" + (slug || "...");
 
   return (
@@ -124,7 +189,7 @@ export default function PagePortail() {
         </p>
         <h1 style={{ color: "#fff", fontSize: "29px", margin: "0 0 6px" }}>Ma page publique</h1>
         <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "14px", marginTop: 0 }}>
-          Vos formations, visibles de tous, avec un formulaire qui alimente votre suivi commercial
+          A vos couleurs, avec un formulaire qui alimente votre suivi commercial
         </p>
 
         {message && <p style={{ color: "#4caf50", fontSize: "15px", fontWeight: "bold" }}>{message}</p>}
@@ -168,17 +233,90 @@ export default function PagePortail() {
               )}
             </div>
 
-            {d.sans_prix > 0 && (
-              <div style={{ ...CARTE, border: "1px solid rgba(232,163,61,0.5)" }}>
-                <p style={{ color: "#e8a33d", fontSize: "15px", margin: 0, lineHeight: "1.75" }}>
-                  {d.sans_prix} formation(s) n ont pas de prix de vente : elles s afficheront
-                  « sur devis ». Renseignez-les dans votre catalogue si vous preferez afficher
-                  un tarif.
-                </p>
+            <div style={CARTE}>
+              <h2 style={{ color: "#c8a96e", fontSize: "17px", margin: "0 0 16px" }}>Votre identite visuelle</h2>
+
+              <span style={LIBELLE}>Votre logo</span>
+
+              {logo ? (
+                <div style={{ display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap", marginBottom: "16px" }}>
+                  <img
+                    src={logo}
+                    alt="logo"
+                    style={{ height: "64px", maxWidth: "200px", objectFit: "contain", background: "#fff", borderRadius: "8px", padding: "8px" }}
+                  />
+                  <button
+                    onClick={retirerLogo}
+                    disabled={occupe !== ""}
+                    style={{ background: "none", border: "none", color: "#e8836a", cursor: "pointer", fontSize: "13px" }}
+                  >
+                    Retirer
+                  </button>
+                </div>
+              ) : null}
+
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                onChange={deposerLogo}
+                disabled={occupe !== ""}
+                style={{ ...CHAMP, fontSize: "14px" }}
+              />
+              <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px", margin: "-8px 0 18px", lineHeight: "1.6" }}>
+                PNG, JPEG, WEBP ou SVG, deux megaoctets au maximum. Un logo sur fond transparent
+                rend le mieux.
+              </p>
+
+              <span style={LIBELLE}>Votre couleur</span>
+              <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginBottom: "14px" }}>
+                {COULEURS.map(function (c) {
+                  const choisie = couleur.toLowerCase() === c.code;
+                  return (
+                    <div
+                      key={c.code}
+                      onClick={() => setCouleur(c.code)}
+                      title={c.nom}
+                      style={{ width: "52px", height: "52px", borderRadius: "10px", background: c.code, cursor: "pointer", border: choisie ? "3px solid #c8a96e" : "1px solid rgba(255,255,255,0.15)" }}
+                    />
+                  );
+                })}
               </div>
-            )}
+
+              <input
+                value={couleur}
+                onChange={(e) => setCouleur(e.target.value)}
+                placeholder="#0a3d2e"
+                style={{ ...CHAMP, width: "160px", fontFamily: "monospace" }}
+              />
+
+              <div style={{ borderRadius: "10px", overflow: "hidden", marginBottom: "16px" }}>
+                <div style={{ background: couleur, padding: "22px 24px", display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap" }}>
+                  {logo && (
+                    <img src={logo} alt="" style={{ height: "44px", maxWidth: "130px", objectFit: "contain", background: "#fff", borderRadius: "6px", padding: "6px" }} />
+                  )}
+                  <div>
+                    <p style={{ color: "#fff", fontSize: "19px", margin: "0 0 3px", fontWeight: "bold" }}>
+                      {d.organisme.raison_sociale}
+                    </p>
+                    <p style={{ color: "rgba(255,255,255,0.75)", fontSize: "13px", margin: 0 }}>
+                      Apercu de votre bandeau
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <button
+                onClick={() => enregistrer()}
+                disabled={occupe !== ""}
+                style={{ background: occupe !== "" ? "rgba(200,169,110,0.3)" : "#c8a96e", color: occupe !== "" ? "#8a8a8a" : "#050508", padding: "13px 26px", borderRadius: "8px", border: "none", cursor: "pointer", fontWeight: "bold", fontSize: "15px", fontFamily: "Georgia,serif" }}
+              >
+                {occupe === "enr" ? "Enregistrement..." : "Enregistrer"}
+              </button>
+            </div>
 
             <div style={CARTE}>
+              <h2 style={{ color: "#c8a96e", fontSize: "17px", margin: "0 0 16px" }}>Adresse et presentation</h2>
+
               <span style={LIBELLE}>Adresse de votre page</span>
               <input
                 value={slug}
@@ -206,11 +344,21 @@ export default function PagePortail() {
               <button
                 onClick={() => enregistrer()}
                 disabled={occupe !== ""}
-                style={{ background: occupe !== "" ? "rgba(200,169,110,0.3)" : "#c8a96e", color: occupe !== "" ? "#8a8a8a" : "#050508", padding: "14px 28px", borderRadius: "8px", border: "none", cursor: occupe !== "" ? "default" : "pointer", fontWeight: "bold", fontSize: "15px", fontFamily: "Georgia,serif", width: "100%" }}
+                style={{ background: occupe !== "" ? "rgba(200,169,110,0.3)" : "#c8a96e", color: occupe !== "" ? "#8a8a8a" : "#050508", padding: "14px 28px", borderRadius: "8px", border: "none", cursor: "pointer", fontWeight: "bold", fontSize: "15px", fontFamily: "Georgia,serif", width: "100%" }}
               >
                 {occupe === "enr" ? "Enregistrement..." : "Enregistrer"}
               </button>
             </div>
+
+            {d.sans_prix > 0 && (
+              <div style={{ ...CARTE, border: "1px solid rgba(232,163,61,0.5)" }}>
+                <p style={{ color: "#e8a33d", fontSize: "15px", margin: 0, lineHeight: "1.75" }}>
+                  {d.sans_prix} formation(s) n ont pas de prix de vente : elles s afficheront
+                  « sur devis ». Renseignez-les dans votre catalogue si vous preferez afficher
+                  un tarif.
+                </p>
+              </div>
+            )}
 
             <div style={{ ...CARTE, background: "rgba(200,169,110,0.05)" }}>
               <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "14px", margin: "0 0 10px", lineHeight: "1.75" }}>
@@ -218,9 +366,8 @@ export default function PagePortail() {
                 creees et publiees, et celles de votre catalogue.
               </p>
               <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", margin: 0, lineHeight: "1.75" }}>
-                Chaque demande d information deposee par un visiteur arrive directement dans vos
-                prospects, avec un score selon les coordonnees laissees. Votre numero de
-                declaration d activite et la mention d accessibilite y figurent automatiquement.
+                Rien n y rappelle AcadeMIA Pro : c est votre vitrine. Chaque demande deposee par un
+                visiteur arrive dans vos prospects, avec un score selon les coordonnees laissees.
               </p>
             </div>
           </>
