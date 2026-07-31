@@ -179,16 +179,25 @@ export default function PageOrganismes() {
           {organismes.length} organisme(s) · {actifs} actif(s) · {totalStagiaires} stagiaire(s)
         </p>
 
-        <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", margin: "24px 0" }}>
-          <a href="/admin/facturation" style={{ ...LIEN, fontSize: "15px", padding: "12px 24px" }}>
+        <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", margin: "24px 0" }}>
+          <a href="/admin/facturation" style={{ ...LIEN, fontSize: "14px", padding: "11px 20px" }}>
             Facturation du mois →
           </a>
-          <a href="/admin/bon-commande" style={{ ...LIEN, fontSize: "15px", padding: "12px 24px" }}>
-            Editer un bon de commande →
+          <a href="/admin/bon-commande" style={{ ...LIEN, fontSize: "14px", padding: "11px 20px" }}>
+            Bon de commande →
+          </a>
+          <a href="/admin/domaines" style={{ ...LIEN, fontSize: "14px", padding: "11px 20px" }}>
+            Domaines →
+          </a>
+          <a href="/admin/telechargements" style={{ ...LIEN, fontSize: "14px", padding: "11px 20px" }}>
+            Telechargements →
+          </a>
+          <a href="/admin/diagnostic" style={{ ...LIEN, fontSize: "14px", padding: "11px 20px" }}>
+            Diagnostic →
           </a>
           <button
             onClick={() => setFormulaire(!formulaire)}
-            style={{ background: formulaire ? "none" : "#c8a96e", color: formulaire ? "#c8a96e" : "#050508", border: formulaire ? "1px solid rgba(200,169,110,0.45)" : "none", padding: "12px 24px", borderRadius: "20px", cursor: "pointer", fontSize: "15px", fontFamily: "Georgia,serif", fontWeight: "bold" }}
+            style={{ background: formulaire ? "none" : "#c8a96e", color: formulaire ? "#c8a96e" : "#050508", border: formulaire ? "1px solid rgba(200,169,110,0.45)" : "none", padding: "11px 22px", borderRadius: "20px", cursor: "pointer", fontSize: "14px", fontFamily: "Georgia,serif", fontWeight: "bold" }}
           >
             {formulaire ? "Annuler" : "Ouvrir un compte client"}
           </button>
@@ -266,6 +275,7 @@ export default function PageOrganismes() {
                       {" · plancher " + (o.plancher_stagiaire !== null && o.plancher_stagiaire !== undefined ? o.plancher_stagiaire : 30) + " EUR"}
                       {o.lancement_jusqu_au ? " · lancement jusqu au " + new Date(o.lancement_jusqu_au).toLocaleDateString("fr-FR") : ""}
                       {o.numero_tva ? "" : " · TVA manquante"}
+                      {o.domaine ? " · " + o.domaine : ""}
                     </p>
                   </div>
                   <div style={{ textAlign: "right" }}>
@@ -317,14 +327,6 @@ export default function PageOrganismes() {
                         <span style={LIBELLE}>Minimum par stagiaire (EUR)</span>
                         <input value={champ(o.id, "plancher")} onChange={(e) => poser(o.id, "plancher", e.target.value)} placeholder="30" style={CHAMP} />
                       </div>
-                    </div>
-
-                    <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px", margin: "-6px 0 14px", lineHeight: "1.6" }}>
-                      Le minimum est du pour chaque stagiaire inscrit sur une formation de votre
-                      catalogue, vendue ou non. C est lui qui rend l illimite sans risque.
-                    </p>
-
-                    <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
                       <div style={{ flex: "1 1 150px" }}>
                         <span style={LIBELLE}>Apport d affaires (%)</span>
                         <input value={champ(o.id, "apport")} onChange={(e) => poser(o.id, "apport", e.target.value)} placeholder="50" style={CHAMP} />
@@ -336,8 +338,9 @@ export default function PageOrganismes() {
                     </div>
 
                     <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px", margin: "-6px 0 14px", lineHeight: "1.6" }}>
-                      L apport d affaires s applique aux demandes que VOUS lui orientez, notamment
-                      pour un financement OPCO. Il est distinct de la part sur son catalogue.
+                      Le minimum est du pour chaque stagiaire inscrit sur une formation de votre
+                      catalogue, vendue ou non. L apport d affaires s applique aux demandes que
+                      VOUS lui orientez.
                     </p>
 
                     <h4 style={{ color: "#c8a96e", fontSize: "15px", margin: "14px 0" }}>Identification</h4>
@@ -401,7 +404,7 @@ export default function PageOrganismes() {
                       </button>
 
                       <a href="/admin/bon-commande" style={{ ...LIEN, padding: "13px 26px", fontSize: "15px" }}>
-                        Editer son bon de commande →
+                        Son bon de commande →
                       </a>
                     </div>
                   </div>
