@@ -9,12 +9,6 @@ export const maxDuration = 60;
 
 const ADMINS = ["contact@academiapro.fr"];
 
-const LIBELLE_FORMULE: any = {
-  outil: "Outil seul - plateforme et suivi",
-  pack_lms_crm: "Outil et catalogue - 300 formations incluses",
-  qualiopi: "Mr. Qualiopi - preparation a la certification",
-};
-
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
   process.env.SUPABASE_SERVICE_ROLE_KEY || "",
@@ -69,9 +63,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, erreur: "Client introuvable." }, { status: 404 });
     }
 
-    // Les trois mentions qui protegent l editeur. Sans elles, le client pourra
-    // pretendre que la remise etait definitive, ou l administration reclamer
-    // la taxe non facturee.
     const manques: string[] = [];
     if (!org.abonnement_mensuel) manques.push("l abonnement mensuel");
     if (!org.lancement_jusqu_au && b.lancement !== false) {
@@ -92,9 +83,16 @@ export async function POST(req: NextRequest) {
     const plein = Number(org.abonnement_mensuel) || 0;
     const enLancement = b.lancement !== false && !!org.lancement_jusqu_au;
     const mensuel = enLancement ? Math.round(plein / 2) : plein;
+
     const taux = org.taux_prelevement !== null && org.taux_prelevement !== undefined
       ? Number(org.taux_prelevement)
-      : 20;
+      : 35;
+    const plancher = org.plancher_stagiaire !== null && org.plancher_stagiaire !== undefined
+      ? Number(org.plancher_stagiaire)
+      : 30;
+    const apport = org.taux_apport !== null && org.taux_apport !== undefined
+      ? Number(org.taux_apport)
+      : 50;
 
     const { data: catalogue } = await supabase
       .from("organisme_catalogue")
@@ -157,7 +155,7 @@ export async function POST(req: NextRequest) {
     function paire(gauche: string, droite: string) {
       saut(18);
       page.drawText(ascii(gauche), { x: 55, y: y, size: 10, font: normal, color: gris });
-      page.drawText(ascii(droite), { x: 240, y: y, size: 10, font: gras, color: noir });
+      page.drawText(ascii(droite), { x: 265, y: y, size: 10, font: gras, color: noir });
       y = y - 16;
     }
 
@@ -187,9 +185,14 @@ export async function POST(req: NextRequest) {
     paire("Telephone", org.telephone || "-");
     paire("N de TVA intracommunautaire", org.numero_tva || "A COMPLETER");
 
-    titreBloc("FORMULE SOUSCRITE");
-    ligne(LIBELLE_FORMULE[org.formule] || org.formule || "Outil et catalogue", 12, gras, noir, 5);
-    y = y - 4;
+    titreBloc("ABONNEMENT");
+    ligne(
+      "Plateforme complete, catalogue de formations ouvert au Client, creation de ses propres " +
+      "formations, classes virtuelles, documents administratifs, signature electronique et bilan " +
+      "pedagogique prepare. Stagiaires illimites.",
+      10, normal, noir, 5
+    );
+    y = y - 6;
 
     if (enLancement) {
       paire("Tarif de lancement", euros(mensuel) + " par mois");
@@ -206,29 +209,68 @@ export async function POST(req: NextRequest) {
       paire("Abonnement mensuel", euros(plein) + " par mois");
     }
 
-    titreBloc("PART SUR LES FORMATIONS DU CATALOGUE");
-    paire("Taux", taux + " % du prix contractuel");
+    titreBloc("PART SUR LES FORMATIONS DU CATALOGUE DE L EDITEUR");
+    paire("Taux", taux + " % du prix de vente hors taxes");
+    paire("Minimum par stagiaire inscrit", euros(plancher));
     y = y - 4;
     ligne(
-      "Cette part est due sur chaque formation du catalogue de l Editeur vendue par le Client. " +
-      "Elle ne s applique PAS aux formations creees par le Client, qui lui appartiennent. " +
-      "Le nombre d inscriptions enregistre par la plateforme fait foi : le Client n a aucune " +
-      "declaration de chiffre d affaires a fournir.",
+      "Le minimum par stagiaire est du pour chaque inscription sur une formation du catalogue de " +
+      "l Editeur, QUE LA FORMATION AIT ETE VENDUE OU NON. Lorsque la part calculee au taux " +
+      "ci-dessus lui est superieure, seule cette part est due.",
+      9, normal, noir, 5
+    );
+    y = y - 4;
+    ligne(
+      "AUCUNE PART N EST DUE SUR LES FORMATIONS CREEES PAR LE CLIENT : elles lui appartiennent " +
+      "en propre. Le nombre d inscriptions enregistre par la plateforme fait foi ; le Client n a " +
+      "aucune declaration de chiffre d affaires a fournir.",
       9, normal, gris, 5
     );
 
+    titreBloc("AFFAIRES ORIENTEES PAR L EDITEUR");
+    paire("Partage du produit HT", apport + " % pour l Editeur");
+    y = y - 4;
+    ligne(
+      "S applique aux demandes que l Editeur oriente vers le Client, notamment lorsqu un " +
+      "financement par un operateur de competences est sollicite et que seul le Client detient " +
+      "la certification exigee. Ce partage est distinct de la part ci-dessus.",
+      9, normal, noir, 5
+    );
+    y = y - 4;
+    ligne(
+      "Les formations du catalogue ne sont enregistrees ni au RNCP ni au repertoire specifique : " +
+      "elles ne sont eligibles a aucun financement au titre du compte personnel de formation.",
+      9, normal, gris, 5
+    );
+
+    titreBloc("REPARTITION DES ROLES");
+    ligne(
+      "Le Client demeure seul prestataire de formation : sa certification, son numero de " +
+      "declaration, ses attestations, sa responsabilite. L Editeur fournit le contenu, la " +
+      "plateforme, la correction des evaluations et les documents.",
+      9, normal, noir, 5
+    );
+    y = y - 4;
+    ligne(
+      "Toute intervention en presence, l evaluation pratique, le recrutement des formateurs, leur " +
+      "remuneration et la verification de leurs habilitations relevent exclusivement du Client. " +
+      "Pour les actions reglementees, l Editeur fournit les supports theoriques et l acces a " +
+      "distance ; il ne delivre aucune habilitation ni certification.",
+      9, normal, noir, 5
+    );
+
     if ((catalogue || []).length > 0) {
-      titreBloc("ANNEXE - FORMATIONS OUVERTES ET PRIX CONTRACTUELS");
+      titreBloc("ANNEXE - FORMATIONS OUVERTES");
 
       saut(20);
       page.drawText(ascii("Code"), { x: 55, y: y, size: 9, font: gras, color: vert });
       page.drawText(ascii("Formation"), { x: 110, y: y, size: 9, font: gras, color: vert });
-      page.drawText(ascii("Prix contractuel"), { x: 430, y: y, size: 9, font: gras, color: vert });
+      page.drawText(ascii("Prix de vente"), { x: 450, y: y, size: 9, font: gras, color: vert });
       y = y - 14;
 
       for (const c of catalogue || []) {
         saut(14);
-        const prix = Number(c.prix_contractuel) || Number(c.prix_vente_public) || 0;
+        const prix = Number(c.prix_vente_public) || Number(c.prix_contractuel) || 0;
         const titre = ascii(titreDe[c.formation_code] || c.formation_code).slice(0, 52);
         page.drawText(ascii(c.formation_code), { x: 55, y: y, size: 8.5, font: normal, color: noir });
         page.drawText(titre, { x: 110, y: y, size: 8.5, font: normal, color: noir });
@@ -240,8 +282,8 @@ export async function POST(req: NextRequest) {
 
       y = y - 6;
       ligne(
-        "Le prix contractuel sert d assiette a la part due a l Editeur. Le Client demeure libre " +
-        "de fixer le prix auquel il vend a ses propres stagiaires.",
+        "Le Client fixe librement le prix auquel il vend a ses stagiaires. La part due a l Editeur " +
+        "se calcule sur ce prix.",
         9, normal, gris, 5
       );
     }
@@ -259,9 +301,9 @@ export async function POST(req: NextRequest) {
 
     titreBloc("ACCEPTATION");
     ligne(
-      "Le Client declare avoir pris connaissance des conditions generales de vente accessibles " +
-      "a academiapro.fr/pack/cgv et les accepter sans reserve. Les presentes mentions prevalent " +
-      "sur toute indication tarifaire publiee par ailleurs.",
+      "Le Client declare avoir pris connaissance des conditions generales de vente accessibles a " +
+      "academiapro.fr/pack/cgv et les accepter sans reserve. Les presentes mentions prevalent sur " +
+      "toute indication tarifaire publiee par ailleurs.",
       10, normal, noir, 5
     );
 
@@ -285,9 +327,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Enregistre comme un document de l organisme, avec son contact pour
-    // signataire : les routes de signature et d envoi fonctionnent alors
-    // sans aucune modification.
     await supabase.from("organisme_documents").insert({
       tenant_id: b.tenant_id,
       type: "bon_commande",
@@ -295,10 +334,11 @@ export async function POST(req: NextRequest) {
       formation_code: null,
       reference: reference,
       donnees: {
-        formule: org.formule,
         mensuel: mensuel,
         plein: plein,
         taux: taux,
+        plancher: plancher,
+        apport: apport,
         lancement_jusqu_au: org.lancement_jusqu_au,
         formations: (catalogue || []).length,
       },
