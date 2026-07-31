@@ -4,8 +4,13 @@ import { sessionCourante } from "../../../../lib/session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 const ADMINS = ["contact@academiapro.fr"];
+const BUCKET = "logos-organismes";
+const TAILLE_MAX = 2 * 1024 * 1024;
+const IMAGES = ["image/png", "image/jpeg", "image/webp", "image/svg+xml"];
+
 const RESERVES = ["admin", "api", "organisme", "stagiaire", "lms", "of", "pack", "connexion", "dashboard", "catalogue", "signature", "seance", "evaluation", "positionnement"];
 
 const supabase = createClient(
@@ -28,8 +33,6 @@ function tenantDe(req: NextRequest, session: any): string | null {
   return null;
 }
 
-// Une adresse de page doit etre lisible, stable et sans surprise : lettres,
-// chiffres et tirets uniquement.
 function fabriquerSlug(brut: string): string {
   return String(brut || "")
     .toLowerCase()
@@ -57,7 +60,7 @@ export async function GET(req: NextRequest) {
 
     const { data: org } = await supabase
       .from("organismes_formation")
-      .select("raison_sociale, slug, portail_actif, portail_presentation, numero_da, qualiopi")
+      .select("raison_sociale, slug, portail_actif, portail_presentation, numero_da, qualiopi, logo_url, couleur")
       .eq("tenant_id", tenant)
       .maybeSingle();
 
@@ -90,6 +93,98 @@ export async function GET(req: NextRequest) {
       formations_publiables: (propres || []).length + (souscrites || []).length,
       sans_prix: sansPrix,
     });
+  } catch (e: any) {
+    return NextResponse.json({ ok: false, erreur: String(e) }, { status: 500 });
+  }
+}
+
+// DEPOT DU LOGO. Le bucket est public : un logo doit s afficher sur une page
+// publique sans authentification.
+export async function POST(req: NextRequest) {
+  try {
+    const session = sessionCourante();
+    if (!session) {
+      return NextResponse.json({ ok: false, erreur: "Connectez-vous." }, { status: 401 });
+    }
+
+    if (session.role === "stagiaire") {
+      return NextResponse.json(
+        { ok: false, erreur: "Seul votre organisme peut modifier sa page." },
+        { status: 403 }
+      );
+    }
+
+    const tenant = tenantDe(req, session);
+    if (!tenant) {
+      return NextResponse.json(
+        { ok: false, erreur: "Aucun organisme rattache a votre compte." },
+        { status: 403 }
+      );
+    }
+
+    let form: FormData;
+    try {
+      form = await req.formData();
+    } catch (e: any) {
+      return NextResponse.json({ ok: false, erreur: "Formulaire illisible." }, { status: 400 });
+    }
+
+    const fichier = form.get("logo") as File | null;
+    if (!fichier || typeof fichier.arrayBuffer !== "function") {
+      return NextResponse.json({ ok: false, erreur: "Aucun fichier recu." }, { status: 400 });
+    }
+
+    if (IMAGES.indexOf(fichier.type) < 0) {
+      return NextResponse.json(
+        { ok: false, erreur: "Formats acceptes : PNG, JPEG, WEBP ou SVG." },
+        { status: 400 }
+      );
+    }
+
+    if (fichier.size > TAILLE_MAX) {
+      return NextResponse.json(
+        { ok: false, erreur: "Fichier trop volumineux : 2 Mo maximum." },
+        { status: 400 }
+      );
+    }
+
+    const extension = fichier.type === "image/png" ? "png"
+      : fichier.type === "image/webp" ? "webp"
+      : fichier.type === "image/svg+xml" ? "svg"
+      : "jpg";
+
+    // Le nom change a chaque depot, sinon le navigateur garde l ancien logo.
+    const chemin = String(tenant) + "/logo-" + Date.now() + "." + extension;
+    const octets = Buffer.from(await fichier.arrayBuffer());
+
+    const { error: erreurDepot } = await supabase.storage
+      .from(BUCKET)
+      .upload(chemin, octets, { contentType: fichier.type, upsert: true });
+
+    if (erreurDepot) {
+      return NextResponse.json(
+        { ok: false, erreur: "Depot impossible : " + erreurDepot.message },
+        { status: 500 }
+      );
+    }
+
+    const { data: publique } = supabase.storage.from(BUCKET).getPublicUrl(chemin);
+    const url = publique ? publique.publicUrl : null;
+
+    if (!url) {
+      return NextResponse.json({ ok: false, erreur: "Adresse du logo introuvable." }, { status: 500 });
+    }
+
+    const { error } = await supabase
+      .from("organismes_formation")
+      .update({ logo_url: url, updated_at: new Date().toISOString() })
+      .eq("tenant_id", tenant);
+
+    if (error) {
+      return NextResponse.json({ ok: false, erreur: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ ok: true, logo_url: url });
   } catch (e: any) {
     return NextResponse.json({ ok: false, erreur: String(e) }, { status: 500 });
   }
@@ -163,7 +258,23 @@ export async function PATCH(req: NextRequest) {
         : null;
     }
 
-    // On n ouvre pas une page sans adresse : le visiteur tomberait sur rien.
+    // Une couleur mal formee casserait toute la page : on n accepte que
+    // l ecriture hexadecimale.
+    if (b.couleur !== undefined) {
+      const c = String(b.couleur || "").trim();
+      if (c && !/^#[0-9a-fA-F]{6}$/.test(c)) {
+        return NextResponse.json(
+          { ok: false, erreur: "Couleur invalide. Utilisez le format #0a3d2e." },
+          { status: 400 }
+        );
+      }
+      m.couleur = c || "#0a3d2e";
+    }
+
+    if (b.retirer_logo === true) {
+      m.logo_url = null;
+    }
+
     if (b.portail_actif !== undefined) {
       if (b.portail_actif === true) {
         const { data: org } = await supabase
