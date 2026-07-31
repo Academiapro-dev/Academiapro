@@ -23,6 +23,15 @@ function refuse() {
   return NextResponse.json({ ok: false, erreur: "reserve a l administrateur" }, { status: 403 });
 }
 
+// Les valeurs chiffrees de la fiche : un nom, une borne haute, et le message
+// a rendre si la saisie est aberrante.
+const NOMBRES: any = {
+  abonnement_mensuel: { max: 100000, libelle: "Abonnement invalide." },
+  taux_prelevement: { max: 100, libelle: "Taux invalide." },
+  plancher_stagiaire: { max: 10000, libelle: "Minimum par stagiaire invalide." },
+  taux_apport: { max: 100, libelle: "Taux d apport invalide." },
+};
+
 export async function GET() {
   try {
     const session = sessionCourante();
@@ -96,12 +105,12 @@ export async function POST(req: NextRequest) {
       raison_sociale: raison,
       siret: corps.siret ? String(corps.siret).trim() : null,
       numero_da: corps.numero_da ? String(corps.numero_da).trim() : null,
+      numero_tva: corps.numero_tva ? String(corps.numero_tva).trim().toUpperCase() : null,
       email_contact: email,
       telephone: corps.telephone ? String(corps.telephone).trim() : null,
       adresse: corps.adresse ? String(corps.adresse).trim() : null,
       qualiopi: corps.qualiopi === true,
       certificateur: corps.certificateur ? String(corps.certificateur).trim() : null,
-      formule: corps.formule ? String(corps.formule).trim() : "pack_lms_crm",
       statut: "actif",
       notes: corps.notes ? String(corps.notes).trim() : null,
     };
@@ -123,7 +132,6 @@ export async function POST(req: NextRequest) {
 }
 
 // La fiche complete du client : c est ici que se posent les termes du contrat.
-// Sans ces trois champs, la facturation appliquait le tarif par defaut a tous.
 export async function PATCH(req: NextRequest) {
   try {
     const session = sessionCourante();
@@ -149,26 +157,29 @@ export async function PATCH(req: NextRequest) {
 
     if (m.email_contact) m.email_contact = String(m.email_contact).toLowerCase();
 
-    if (corps.qualiopi !== undefined) m.qualiopi = corps.qualiopi === true;
-
-    if (corps.abonnement_mensuel !== undefined) {
-      const a = corps.abonnement_mensuel === null || corps.abonnement_mensuel === ""
-        ? null
-        : Number(corps.abonnement_mensuel);
-      if (a !== null && (isNaN(a) || a < 0)) {
-        return NextResponse.json({ ok: false, erreur: "Abonnement invalide." }, { status: 400 });
-      }
-      m.abonnement_mensuel = a;
+    if (corps.numero_tva !== undefined) {
+      m.numero_tva = corps.numero_tva
+        ? String(corps.numero_tva).trim().toUpperCase().replace(/\s/g, "")
+        : null;
     }
 
-    if (corps.taux_prelevement !== undefined) {
-      const t = corps.taux_prelevement === null || corps.taux_prelevement === ""
-        ? null
-        : Number(corps.taux_prelevement);
-      if (t !== null && (isNaN(t) || t < 0 || t > 100)) {
-        return NextResponse.json({ ok: false, erreur: "Taux invalide." }, { status: 400 });
+    if (corps.qualiopi !== undefined) m.qualiopi = corps.qualiopi === true;
+
+    // Les quatre valeurs chiffrees, validees de la meme facon.
+    for (const cle of Object.keys(NOMBRES)) {
+      if (corps[cle] === undefined) continue;
+
+      const brut = corps[cle];
+      if (brut === null || brut === "") {
+        m[cle] = null;
+        continue;
       }
-      m.taux_prelevement = t;
+
+      const valeur = Number(String(brut).replace(",", "."));
+      if (isNaN(valeur) || valeur < 0 || valeur > NOMBRES[cle].max) {
+        return NextResponse.json({ ok: false, erreur: NOMBRES[cle].libelle }, { status: 400 });
+      }
+      m[cle] = valeur;
     }
 
     if (corps.lancement_jusqu_au !== undefined) {
