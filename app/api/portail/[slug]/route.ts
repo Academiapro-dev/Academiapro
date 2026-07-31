@@ -16,20 +16,39 @@ const supabase = createClient(
   }
 );
 
-// ROUTE PUBLIQUE, sans session. Elle n expose QUE ce qui doit etre public :
-// jamais le prix contractuel, le taux de prelevement ni l abonnement.
+const CHAMPS = "tenant_id, raison_sociale, numero_da, email_contact, telephone, adresse, qualiopi, certificateur, portail_actif, portail_presentation, logo_url, couleur";
+
+// L identifiant peut etre une adresse de page (formation-conseil) ou, quand il
+// commence par une arobase, LE DOMAINE PROPRE du client, reecrit par le filtre.
+async function trouverOrganisme(brut: string) {
+  const valeur = String(brut || "").trim().toLowerCase();
+  if (!valeur || valeur.length < 3) return null;
+
+  if (valeur.charAt(0) === "@") {
+    const domaine = valeur.slice(1);
+    if (domaine.length < 4 || domaine.indexOf(".") < 1) return null;
+
+    const { data } = await supabase
+      .from("organismes_formation")
+      .select(CHAMPS)
+      .eq("domaine", domaine)
+      .maybeSingle();
+
+    return data || null;
+  }
+
+  const { data } = await supabase
+    .from("organismes_formation")
+    .select(CHAMPS)
+    .eq("slug", valeur)
+    .maybeSingle();
+
+  return data || null;
+}
+
 export async function GET(req: NextRequest, { params }: { params: { slug: string } }) {
   try {
-    const slug = String(params.slug || "").trim().toLowerCase();
-    if (!slug || slug.length < 2) {
-      return NextResponse.json({ ok: false, erreur: "Adresse incomplete." }, { status: 400 });
-    }
-
-    const { data: org } = await supabase
-      .from("organismes_formation")
-      .select("tenant_id, raison_sociale, numero_da, email_contact, telephone, adresse, qualiopi, certificateur, portail_actif, portail_presentation, logo_url, couleur")
-      .eq("slug", slug)
-      .maybeSingle();
+    const org = await trouverOrganisme(params.slug);
 
     if (!org || !org.portail_actif) {
       return NextResponse.json({ ok: false, erreur: "Page introuvable." }, { status: 404 });
@@ -121,17 +140,10 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
   }
 }
 
-// Une demande d information depuis le portail cree un prospect DANS LE CRM DE
-// L ORGANISME, cloisonne par son identifiant. Aucune lecture n est exposee ici.
+// Une demande d information cree un prospect DANS LE CRM DE L ORGANISME.
 export async function POST(req: NextRequest, { params }: { params: { slug: string } }) {
   try {
-    const slug = String(params.slug || "").trim().toLowerCase();
-
-    const { data: org } = await supabase
-      .from("organismes_formation")
-      .select("tenant_id, portail_actif")
-      .eq("slug", slug)
-      .maybeSingle();
+    const org = await trouverOrganisme(params.slug);
 
     if (!org || !org.portail_actif) {
       return NextResponse.json({ ok: false, erreur: "Page introuvable." }, { status: 404 });
