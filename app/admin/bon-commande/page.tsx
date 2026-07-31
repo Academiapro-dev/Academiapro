@@ -5,6 +5,7 @@ export default function PageBonCommande() {
   const [organismes, setOrganismes] = useState<any[]>([]);
   const [tenant, setTenant] = useState("");
   const [lancement, setLancement] = useState(true);
+  const [frais, setFrais] = useState("");
   const [occupe, setOccupe] = useState(false);
   const [message, setMessage] = useState("");
   const [erreur, setErreur] = useState("");
@@ -33,7 +34,11 @@ export default function PageBonCommande() {
       const r = await fetch("/api/admin/bon-commande", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tenant_id: tenant.trim(), lancement: lancement }),
+        body: JSON.stringify({
+          tenant_id: tenant.trim(),
+          lancement: lancement,
+          frais_installation: frais,
+        }),
       });
 
       if (!r.ok) {
@@ -58,6 +63,7 @@ export default function PageBonCommande() {
       window.URL.revokeObjectURL(url);
 
       setMessage("Bon de commande edite. Il est enregistre au registre : vous pouvez le faire signer depuis les documents de ce client.");
+      await charger();
     } catch (e: any) {
       setErreur("Edition impossible : " + String(e));
     }
@@ -143,16 +149,32 @@ export default function PageBonCommande() {
             </span>
           </div>
 
+          <span style={LIBELLE}>Frais de mise en service (EUR)</span>
+          <input
+            value={frais}
+            onChange={(e) => setFrais(e.target.value)}
+            placeholder="1500"
+            style={CHAMP}
+          />
+          <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px", margin: "-8px 0 16px", lineHeight: "1.7" }}>
+            Factures une seule fois a la signature. Ils couvrent l ouverture du compte, la
+            configuration du catalogue et des prix, la mise a ses couleurs et la reprise de ses
+            donnees. Comptez de 1 500 a 3 000 EUR selon le travail. Laissez vide pour ne rien
+            facturer : le bloc n apparaitra pas sur le bon.
+          </p>
+
           {choisi && (
             <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: "8px", padding: "14px 16px", marginBottom: "16px" }}>
               <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "14px", margin: "0 0 4px", lineHeight: "1.7" }}>
                 {choisi.raison_sociale}
                 {choisi.siret ? " · SIRET " + choisi.siret : " · SIRET manquant"}
-                {choisi.numero_da ? " · DA " + choisi.numero_da : " · DA manquant"}
+                {choisi.numero_tva ? " · TVA " + choisi.numero_tva : " · TVA manquante"}
               </p>
-              <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "13px", margin: 0 }}>
+              <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "13px", margin: 0, lineHeight: "1.7" }}>
                 {choisi.abonnement_mensuel ? choisi.abonnement_mensuel + " EUR/mois" : "abonnement non fixe"}
-                {" · prelevement " + (choisi.taux_prelevement !== null && choisi.taux_prelevement !== undefined ? choisi.taux_prelevement : 20) + " %"}
+                {" · " + (choisi.taux_prelevement !== null && choisi.taux_prelevement !== undefined ? choisi.taux_prelevement : 35) + " % sur le catalogue"}
+                {" · plancher " + (choisi.plancher_stagiaire !== null && choisi.plancher_stagiaire !== undefined ? choisi.plancher_stagiaire : 30) + " EUR"}
+                {" · apport " + (choisi.taux_apport !== null && choisi.taux_apport !== undefined ? choisi.taux_apport : 50) + " %"}
                 {choisi.lancement_jusqu_au ? " · lancement jusqu au " + new Date(choisi.lancement_jusqu_au).toLocaleDateString("fr-FR") : " · pas de date de lancement"}
                 {" · " + (choisi.formations_ouvertes || 0) + " formation(s) ouverte(s)"}
               </p>
@@ -183,7 +205,7 @@ export default function PageBonCommande() {
         <div style={{ ...CARTE, background: "rgba(200,169,110,0.05)" }}>
           <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "14px", margin: "0 0 10px", lineHeight: "1.75" }}>
             Le bon reprend automatiquement la fiche du client, ses termes contractuels et la liste
-            des formations qui lui sont ouvertes avec leur prix contractuel.
+            des formations qui lui sont ouvertes avec leur prix.
           </p>
           <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", margin: 0, lineHeight: "1.75" }}>
             Il refuse de s editer si l abonnement, la date de fin du tarif de lancement ou l email
