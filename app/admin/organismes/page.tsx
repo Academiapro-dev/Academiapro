@@ -37,6 +37,7 @@ export default function PageOrganismes() {
             taux: o.taux_prelevement !== null && o.taux_prelevement !== undefined ? String(o.taux_prelevement) : "",
             plancher: o.plancher_stagiaire !== null && o.plancher_stagiaire !== undefined ? String(o.plancher_stagiaire) : "",
             apport: o.taux_apport !== null && o.taux_apport !== undefined ? String(o.taux_apport) : "",
+            quota: o.quota_ia_mensuel !== null && o.quota_ia_mensuel !== undefined ? String(o.quota_ia_mensuel) : "",
             lancement: o.lancement_jusqu_au || "",
             telephone: o.telephone || "",
             siret: o.siret || "",
@@ -181,10 +182,13 @@ export default function PageOrganismes() {
 
         <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", margin: "24px 0" }}>
           <a href="/admin/facturation" style={{ ...LIEN, fontSize: "14px", padding: "11px 20px" }}>
-            Facturation du mois →
+            Facturation →
           </a>
           <a href="/admin/bon-commande" style={{ ...LIEN, fontSize: "14px", padding: "11px 20px" }}>
             Bon de commande →
+          </a>
+          <a href="/admin/usage-ia" style={{ ...LIEN, fontSize: "14px", padding: "11px 20px" }}>
+            Ce que l IA coute →
           </a>
           <a href="/admin/domaines" style={{ ...LIEN, fontSize: "14px", padding: "11px 20px" }}>
             Domaines →
@@ -273,6 +277,7 @@ export default function PageOrganismes() {
                       {o.abonnement_mensuel ? o.abonnement_mensuel + " EUR/mois" : "abonnement non fixe"}
                       {" · " + (o.taux_prelevement !== null && o.taux_prelevement !== undefined ? o.taux_prelevement : 35) + " %"}
                       {" · plancher " + (o.plancher_stagiaire !== null && o.plancher_stagiaire !== undefined ? o.plancher_stagiaire : 30) + " EUR"}
+                      {" · quota " + (o.quota_ia_mensuel !== null && o.quota_ia_mensuel !== undefined ? o.quota_ia_mensuel : 40)}
                       {o.lancement_jusqu_au ? " · lancement jusqu au " + new Date(o.lancement_jusqu_au).toLocaleDateString("fr-FR") : ""}
                       {o.numero_tva ? "" : " · TVA manquante"}
                       {o.domaine ? " · " + o.domaine : ""}
@@ -337,10 +342,17 @@ export default function PageOrganismes() {
                       </div>
                     </div>
 
+                    <h4 style={{ color: "#c8a96e", fontSize: "15px", margin: "14px 0" }}>Redaction assistee</h4>
+
+                    <div style={{ flex: "1 1 200px", maxWidth: "260px" }}>
+                      <span style={LIBELLE}>Modules rediges par mois</span>
+                      <input value={champ(o.id, "quota")} onChange={(e) => poser(o.id, "quota", e.target.value)} placeholder="40" style={CHAMP} />
+                    </div>
+
                     <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px", margin: "-6px 0 14px", lineHeight: "1.6" }}>
-                      Le minimum est du pour chaque stagiaire inscrit sur une formation de votre
-                      catalogue, vendue ou non. L apport d affaires s applique aux demandes que
-                      VOUS lui orientez.
+                      Chaque module redige par l assistant vous coute environ quinze centimes.
+                      Quarante par mois, c est trois ou quatre formations completes pour moins de
+                      dix euros. Zero supprime toute limite — a vos risques.
                     </p>
 
                     <h4 style={{ color: "#c8a96e", fontSize: "15px", margin: "14px 0" }}>Identification</h4>
@@ -361,8 +373,7 @@ export default function PageOrganismes() {
                     </div>
 
                     <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px", margin: "-6px 0 14px", lineHeight: "1.6" }}>
-                      Sans numero de TVA, l autoliquidation ne tient pas : l administration pourrait
-                      vous reclamer la taxe non facturee.
+                      Sans numero de TVA, l autoliquidation ne tient pas.
                     </p>
 
                     <span style={LIBELLE}>Adresse</span>
@@ -389,6 +400,7 @@ export default function PageOrganismes() {
                           taux_prelevement: champ(o.id, "taux"),
                           plancher_stagiaire: champ(o.id, "plancher"),
                           taux_apport: champ(o.id, "apport"),
+                          quota_ia_mensuel: champ(o.id, "quota"),
                           lancement_jusqu_au: champ(o.id, "lancement") || null,
                           siret: champ(o.id, "siret"),
                           numero_da: champ(o.id, "numero_da"),
