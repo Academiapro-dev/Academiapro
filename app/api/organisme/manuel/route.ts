@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
+import { PDFDocument, StandardFonts, rgb, degrees } from "pdf-lib";
 import { sessionCourante } from "../../../../lib/session";
 
 export const runtime = "nodejs";
@@ -8,6 +8,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
 const ADMINS = ["contact@academiapro.fr"];
+const MAX_PAR_JOUR = 10;
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
@@ -32,8 +33,6 @@ function ascii(t: any): string {
     .replace(/[^\x20-\x7E]/g, " ");
 }
 
-// LE CORRIGE NE FIGURE PAS DANS LE MANUEL. Un support remis au stagiaire ne
-// doit pas contenir les reponses du questionnaire.
 function sansQCM(contenu: string): string {
   const t = String(contenu || "");
   const debut = t.search(/^#{1,6}\s*QCM/im);
@@ -65,6 +64,29 @@ export async function GET(req: NextRequest) {
       );
     }
 
+    // LIMITE DE RYTHME. Un catalogue entier ne se telecharge pas en une nuit :
+    // au-dela de dix manuels par jour, on suspend et on regarde qui c est.
+    if (!estAdmin) {
+      const veille = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      const { count } = await supabase
+        .from("organisme_telechargements")
+        .select("*", { count: "exact", head: true })
+        .eq("email", session.email)
+        .gte("telecharge_le", veille);
+
+      if (typeof count === "number" && count >= MAX_PAR_JOUR) {
+        return NextResponse.json(
+          {
+            ok: false,
+            erreur:
+              "Vous avez telecharge " + MAX_PAR_JOUR +
+              " manuels au cours des dernieres vingt-quatre heures. Reessayez demain.",
+          },
+          { status: 429 }
+        );
+      }
+    }
+
     const { data: cours } = await supabase
       .from("organisme_cours")
       .select("id, code, titre, duree, objectifs, prerequis, public_cible, publie")
@@ -76,7 +98,6 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: false, erreur: "Formation introuvable." }, { status: 404 });
     }
 
-    // Un stagiaire ne telecharge que le manuel d une formation publiee.
     if (!cours.publie && session.role === "stagiaire") {
       return NextResponse.json(
         { ok: false, erreur: "Cette formation n est pas encore ouverte." },
@@ -155,7 +176,6 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Couverture
     y = 600;
     ecrire(nomOrganisme.toUpperCase(), 12, gras, vert, 6);
     y = y - 20;
@@ -168,8 +188,9 @@ export async function GET(req: NextRequest) {
     if (org && org.numero_da) {
       ecrire("Declaration d activite n " + org.numero_da, 9, normal, gris, 5);
     }
+    y = y - 20;
+    ecrire("Exemplaire personnel remis a " + session.email, 10, gras, vert, 6);
 
-    // Sommaire
     nouvelle();
     ecrire("SOMMAIRE", 17, gras, vert, 10);
     y = y - 12;
@@ -184,7 +205,6 @@ export async function GET(req: NextRequest) {
       ecrire("   " + m.chapitre + "." + m.numero + "  " + m.titre, 10, normal, noir, 5);
     }
 
-    // Presentation
     if (cours.objectifs || cours.prerequis || cours.public_cible) {
       nouvelle();
       ecrire("PRESENTATION", 17, gras, vert, 10);
@@ -206,7 +226,6 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Les modules
     chapitreCourant = -1;
 
     for (const m of utiles) {
@@ -232,7 +251,6 @@ export async function GET(req: NextRequest) {
           y = y - 6;
           continue;
         }
-
         if (/^#{1,2}\s/.test(l)) {
           y = y - 8;
           ecrire(l.replace(/^#{1,6}\s+/, "").replace(/\*\*/g, ""), 14, gras, vert, 8);
@@ -251,19 +269,53 @@ export async function GET(req: NextRequest) {
           ecrire(l.replace(/^>\s*/, "").replace(/\*\*/g, ""), 10.5, italique, gris, 6);
           continue;
         }
-
         ecrire(l.replace(/\*\*/g, "").replace(/`/g, ""), 10.5, normal, noir, 6);
         y = y - 3;
       }
     }
 
+    // FILIGRANE ET PIED DE PAGE NOMINATIFS. Un exemplaire qui circule designe
+    // celui qui l a sorti : c est la seule protection qui dissuade vraiment.
+    const marque = ascii(session.email);
+    const quand = new Date().toLocaleDateString("fr-FR");
     const pages = pdf.getPages();
-    for (let i = 1; i < pages.length; i = i + 1) {
-      pages[i].drawText(
-        ascii(cours.titre + " - " + nomOrganisme + " - page " + i),
-        { x: 55, y: 36, size: 7.5, font: normal, color: gris }
+
+    for (let i = 0; i < pages.length; i = i + 1) {
+      const p = pages[i];
+
+      p.drawText(marque, {
+        x: 90,
+        y: 250,
+        size: 26,
+        font: gras,
+        color: rgb(0.86, 0.86, 0.86),
+        rotate: degrees(38),
+        opacity: 0.35,
+      });
+
+      if (i > 0) {
+        p.drawText(
+          ascii(cours.titre + " - " + nomOrganisme + " - page " + i),
+          { x: 55, y: 36, size: 7.5, font: normal, color: gris }
+        );
+      }
+
+      p.drawText(
+        ascii("Exemplaire remis a " + session.email + " le " + quand + " - usage personnel, diffusion interdite"),
+        { x: 55, y: 24, size: 7, font: normal, color: rgb(0.6, 0.6, 0.6) }
       );
     }
+
+    const ip = req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || null;
+
+    await supabase.from("organisme_telechargements").insert({
+      tenant_id: tenant,
+      email: session.email,
+      type: "manuel",
+      code: cours.code,
+      adresse_ip: ip ? String(ip).split(",")[0].trim() : null,
+      navigateur: req.headers.get("user-agent") || null,
+    });
 
     const octets = await pdf.save();
     const nomFichier = ascii(cours.code + "-" + cours.titre)
