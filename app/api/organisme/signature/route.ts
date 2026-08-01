@@ -89,8 +89,6 @@ export async function GET(req: NextRequest) {
 
     // Verification en deux temps : le sceau de chaque signature prise
     // isolement, PUIS le chainage qui relie chaque preuve a la precedente.
-    // Une ligne supprimee ou reordonnee casse la chaine meme si son propre
-    // sceau reste valide.
     let precedente = "";
     const liste = (data || []).map(function (s: any) {
       const charge = [
@@ -126,7 +124,7 @@ export async function GET(req: NextRequest) {
 async function documentDe(reference: string) {
   const { data } = await supabase
     .from("organisme_documents")
-    .select("id, tenant_id, type, reference, stagiaire_email, formation_code, pdf_chemin, pdf_sha256, donnees")
+    .select("id, tenant_id, type, reference, stagiaire_email, formation_code, pdf_chemin, pdf_sha256, donnees, groupe")
     .eq("reference", reference)
     .maybeSingle();
   return data || null;
@@ -137,6 +135,34 @@ function autorise(doc: any, session: any) {
   const estLOrganisme = session.tenantId === doc.tenant_id;
   const estAdmin = ADMINS.indexOf(session.email) >= 0;
   return estLeStagiaire || estLOrganisme || estAdmin;
+}
+
+// Une variante de negociation deja abandonnee ne doit plus etre signable :
+// on refuse avant meme d envoyer un code.
+async function variantePerimee(doc: any) {
+  if (!doc.groupe) return null;
+
+  const { data: soeurs } = await supabase
+    .from("organisme_documents")
+    .select("reference")
+    .eq("groupe", doc.groupe)
+    .limit(20);
+
+  const references = (soeurs || []).map(function (s: any) { return s.reference; });
+  if (references.length === 0) return null;
+
+  const { data: signees } = await supabase
+    .from("organisme_signatures")
+    .select("document_reference")
+    .in("document_reference", references)
+    .eq("annulee", false)
+    .limit(20);
+
+  const retenue = (signees || [])[0];
+  if (retenue && retenue.document_reference !== doc.reference) {
+    return retenue.document_reference;
+  }
+  return null;
 }
 
 // ENVOI DU CODE. C est ce qui fait passer la preuve de « quelqu un a clique »
@@ -246,6 +272,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const perimee = await variantePerimee(doc);
+    if (perimee) {
+      return NextResponse.json(
+        {
+          ok: false,
+          erreur: "Cette version a ete remplacee : une autre version de cet accord a deja"
+            + " ete signee (" + perimee + "). Ce lien n est plus valable.",
+        },
+        { status: 409 }
+      );
+    }
+
     if (b.action === "code") {
       return await envoyerCode(req, doc, session);
     }
@@ -272,9 +310,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // VERIFICATION DU CODE. Sans elle, la signature reste possible mais sera
-    // marquee comme non verifiee : sa force probante est moindre, et l ecran
-    // des contrats le signale.
     const donnees = doc.donnees && typeof doc.donnees === "object" ? doc.donnees : {};
     const codes = donnees.codes_signature && typeof donnees.codes_signature === "object"
       ? donnees.codes_signature
@@ -284,7 +319,7 @@ export async function POST(req: NextRequest) {
     const codeSaisi = String(b.code || "").trim();
     let codeEnvoyeLe = null;
     let codeVerifieLe = null;
-    let tentatives = attendu ? Number(attendu.tentatives) || 0 : 0;
+    const tentatives = attendu ? Number(attendu.tentatives) || 0 : 0;
 
     if (!attendu) {
       return NextResponse.json(
@@ -385,9 +420,7 @@ export async function POST(req: NextRequest) {
       session.email, CONSENTEMENT, signeLe,
     ].join("|");
 
-    // CHAINAGE : chaque preuve porte l empreinte de la precedente. Retirer ou
-    // modifier une signature ancienne romprait la chaine de toutes celles qui
-    // la suivent, et cela se verrait.
+    // CHAINAGE : chaque preuve porte l empreinte de la precedente.
     const { data: derniere } = await supabase
       .from("organisme_signatures")
       .select("empreinte_chaine")
@@ -436,18 +469,44 @@ export async function POST(req: NextRequest) {
       .update({ donnees: { ...donnees, codes_signature: codes } })
       .eq("id", doc.id);
 
+    // ANNULATION DES VARIANTES SOEURS. Une negociation n aboutit qu a un seul
+    // accord : les autres versions cessent d etre signables a l instant meme.
+    let annulees = 0;
+    if (doc.groupe) {
+      const { data: soeurs } = await supabase
+        .from("organisme_documents")
+        .select("reference")
+        .eq("groupe", doc.groupe)
+        .neq("reference", reference)
+        .limit(20);
+
+      for (const s of soeurs || []) {
+        await supabase
+          .from("coffre_documents")
+          .update({ notes: "Variante abandonnee - la version " + reference + " a ete signee" })
+          .eq("reference", s.reference);
+        annulees = annulees + 1;
+      }
+    }
+
     // Le coffre garde la trace du contrat signe, cote editeur.
+    await supabase
+      .from("coffre_documents")
+      .update({ signe: true, signe_le: signeLe })
+      .eq("reference", reference);
+
     await supabase.from("coffre_documents").insert({
       tenant_id: doc.tenant_id,
       categorie: doc.type,
-      titre: "Document " + reference,
+      titre: "Preuve de signature - " + reference,
       contrepartie: session.email,
-      reference: reference,
+      reference: reference + "-PREUVE",
       chemin: chemin,
       empreinte_sha256: empreinte,
       signe: true,
       signe_le: signeLe,
       depose_par: "signature",
+      notes: "Signature verifiee par code. Chaine : " + chaine.slice(0, 24),
     });
 
     return NextResponse.json({
@@ -456,6 +515,7 @@ export async function POST(req: NextRequest) {
       empreinte: empreinte,
       archive: chemin,
       verifie_par_code: true,
+      variantes_annulees: annulees,
       avertissement:
         "Signature electronique simple au sens du reglement eIDAS. Elle n est ni avancee ni qualifiee.",
     });
