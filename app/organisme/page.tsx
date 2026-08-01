@@ -200,7 +200,7 @@ export default async function TableauDeBordOrganisme() {
     {
       titre: "Vendre",
       portes: [
-        { href: "/organisme/prospects", nom: "Mes prospects", detail: (prospects || []).length + " fiche(s)", alerte: aTraiter > 0 ? aTraiter + " a traiter" : "" },
+        { href: "/organisme/crm", nom: "Mes prospects", detail: (prospects || []).length + " fiche(s)", alerte: aTraiter > 0 ? aTraiter + " a traiter" : "" },
         { href: "/organisme/portail", nom: "Ma page publique", detail: org && org.portail_actif ? "en ligne · /of/" + org.slug : "fermee", alerte: org && !org.portail_actif ? "a ouvrir" : "" },
         { href: "/organisme/importer", nom: "Importer une liste", detail: "jusqu a 500 stagiaires", alerte: "" },
         { href: "/organisme/facturation", nom: "Ma facturation", detail: abonnement > 0 ? (enLancement ? Math.round(abonnement / 2) : abonnement) + " EUR/mois + inscriptions" : "en cours", alerte: "" },
