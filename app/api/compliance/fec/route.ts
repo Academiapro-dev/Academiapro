@@ -4,10 +4,22 @@ import { createClient } from "@supabase/supabase-js";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
+export const fetchCache = "force-no-store";
 
+// Sans cette option, Next met en cache le resultat des requetes et la route
+// travaille sur des donnees perimees — un dossier cree a l instant reste
+// introuvable.
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  {
+    global: {
+      fetch: function (url: any, options: any) {
+        return fetch(url, { ...(options || {}), cache: "no-store" });
+      },
+    },
+  }
 );
 
 // Siren de remplacement, utilise uniquement pour un dossier qui n'en a pas
@@ -16,8 +28,7 @@ const SIREN_PLACEHOLDER = "000000000";
 
 function sessionPresente(req: NextRequest): boolean {
   try {
-    const brut = req.cookies.get("sb_user")?.value;
-    return !!brut;
+    return !!req.cookies.get("sb_user")?.value;
   } catch {
     return false;
   }
@@ -57,8 +68,7 @@ export async function GET(req: NextRequest) {
 
     const { data: dossiers, error: erreurDossiers } = await supabase
       .from("compta_societes")
-      .select("id, code, raison_sociale, siren, exercice_debut, exercice_fin")
-      .eq("actif", true)
+      .select("id, code, raison_sociale, siren, exercice_debut, exercice_fin, actif")
       .limit(500);
 
     if (erreurDossiers) {
@@ -68,7 +78,7 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const liste = dossiers || [];
+    const liste = (dossiers || []).filter(function (s: any) { return s.actif !== false; });
 
     if (liste.length === 0) {
       return NextResponse.json(
@@ -82,7 +92,9 @@ export async function GET(req: NextRequest) {
     if (idDemande) {
       dossier = liste.find(function (s: any) { return s.id === idDemande; }) || null;
     } else if (codeDemande) {
-      dossier = liste.find(function (s: any) { return s.code === codeDemande; }) || null;
+      dossier = liste.find(function (s: any) {
+        return String(s.code || "").trim().toUpperCase() === codeDemande;
+      }) || null;
     } else if (liste.length === 1) {
       dossier = liste[0];
     }
@@ -99,7 +111,16 @@ export async function GET(req: NextRequest) {
           { status: 400 }
         );
       }
-      return NextResponse.json({ error: "Dossier introuvable." }, { status: 404 });
+      return NextResponse.json(
+        {
+          error: "Dossier introuvable.",
+          demande: codeDemande || idDemande,
+          dossiers_connus: liste.map(function (s: any) {
+            return { code: s.code, raison_sociale: s.raison_sociale };
+          }),
+        },
+        { status: 404 }
+      );
     }
 
     // PERIODE. L annee demandee prime ; a defaut on prend l exercice inscrit
@@ -146,13 +167,13 @@ export async function GET(req: NextRequest) {
         {
           error: "Aucune ecriture pour " + dossier.raison_sociale
             + " entre le " + debut + " et le " + fin + ".",
+          dossier: dossier.code,
         },
         { status: 404 }
       );
     }
 
-    // CONTROLE D EQUILIBRE. Un FEC desequilibre est rejete par l administration :
-    // mieux vaut le refuser ici que le decouvrir lors d un controle.
+    // CONTROLE D EQUILIBRE. Un FEC desequilibre est rejete par l administration.
     let totalDebit = 0;
     let totalCredit = 0;
     for (const l of lignes) {
@@ -208,9 +229,7 @@ export async function GET(req: NextRequest) {
 
     const contenu = [entete, ...corps].join("\r\n") + "\r\n";
 
-    // NOM DU FICHIER : SIREN du dossier suivi de la date de cloture, comme
-    // l exige l administration. Le placeholder ne sert qu aux societes sans
-    // SIREN — la LLC americaine.
+    // NOM DU FICHIER : SIREN du dossier suivi de la date de cloture.
     const siren = dossier.siren
       ? String(dossier.siren).replace(/\D/g, "").padStart(9, "0").slice(0, 9)
       : SIREN_PLACEHOLDER;
@@ -221,6 +240,7 @@ export async function GET(req: NextRequest) {
       headers: {
         "Content-Type": "text/plain; charset=utf-8",
         "Content-Disposition": 'attachment; filename="' + nomFichier + '"',
+        "Cache-Control": "no-store",
         "X-Nb-Lignes": String(lignes.length),
         "X-Dossier": champ(dossier.code),
         "X-Equilibre": Math.abs(ecart) <= 0.01 ? "oui" : "non",
