@@ -9,11 +9,15 @@ export const maxDuration = 60;
 
 const ADMINS = ["contact@academiapro.fr"];
 const BUCKET = "documents-signes";
+const VALIDITE_CODE_MIN = 15;
+const MAX_TENTATIVES = 5;
 
 const CONSENTEMENT =
   "En cochant cette case et en validant, je reconnais avoir lu le document, " +
   "j en accepte les termes, et j appose ma signature electronique. Je reconnais " +
-  "que cette signature a la meme valeur que ma signature manuscrite entre les parties.";
+  "que cette signature a la meme valeur que ma signature manuscrite entre les parties. " +
+  "Je confirme etre le titulaire de l adresse electronique a laquelle le code de " +
+  "verification a ete adresse.";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
@@ -32,6 +36,10 @@ function sceau(charge: string): string {
   return crypto.createHmac("sha256", secret).update(charge).digest("hex");
 }
 
+function empreinteTexte(t: string): string {
+  return crypto.createHash("sha256").update(t).digest("hex");
+}
+
 export async function GET(req: NextRequest) {
   try {
     const session = sessionCourante();
@@ -44,12 +52,17 @@ export async function GET(req: NextRequest) {
     if (url.searchParams.get("vue") === "miennes") {
       const { data } = await supabase
         .from("organisme_signatures")
-        .select("document_type, document_reference, signe_le, empreinte_sha256, annulee")
+        .select("document_type, document_reference, signe_le, empreinte_sha256, annulee, code_verifie_le")
         .eq("signataire_email", session.email)
         .order("signe_le", { ascending: false })
         .limit(200);
 
-      return NextResponse.json({ ok: true, consentement: CONSENTEMENT, signatures: data || [] });
+      return NextResponse.json({
+        ok: true,
+        consentement: CONSENTEMENT,
+        email: session.email,
+        signatures: data || [],
+      });
     }
 
     let tenant = session.tenantId;
@@ -67,31 +80,137 @@ export async function GET(req: NextRequest) {
       .from("organisme_signatures")
       .select("*")
       .eq("tenant_id", tenant)
-      .order("signe_le", { ascending: false })
+      .order("signe_le", { ascending: true })
       .limit(1000);
 
     if (error) {
       return NextResponse.json({ ok: false, erreur: error.message }, { status: 500 });
     }
 
+    // Verification en deux temps : le sceau de chaque signature prise
+    // isolement, PUIS le chainage qui relie chaque preuve a la precedente.
+    // Une ligne supprimee ou reordonnee casse la chaine meme si son propre
+    // sceau reste valide.
+    let precedente = "";
     const liste = (data || []).map(function (s: any) {
       const charge = [
         s.tenant_id, s.document_type, s.document_reference, s.empreinte_sha256,
         s.signataire_email, s.consentement, new Date(s.signe_le).toISOString(),
       ].join("|");
-      return { ...s, intacte: sceau(charge) === s.jeton_preuve };
+
+      const intacte = sceau(charge) === s.jeton_preuve;
+      const attendue = empreinteTexte(precedente + "|" + charge);
+      const chaineIntacte = !s.empreinte_chaine || s.empreinte_chaine === attendue;
+
+      precedente = s.empreinte_chaine || attendue;
+
+      return { ...s, intacte: intacte, chaine_intacte: chaineIntacte };
     });
+
+    liste.reverse();
 
     return NextResponse.json({
       ok: true,
       consentement: CONSENTEMENT,
       total: liste.length,
       alterees: liste.filter(function (s: any) { return !s.intacte; }).length,
+      chaine_rompue: liste.filter(function (s: any) { return !s.chaine_intacte; }).length,
+      verifiees_par_code: liste.filter(function (s: any) { return !!s.code_verifie_le; }).length,
       signatures: liste,
     });
   } catch (e: any) {
     return NextResponse.json({ ok: false, erreur: String(e) }, { status: 500 });
   }
+}
+
+async function documentDe(reference: string) {
+  const { data } = await supabase
+    .from("organisme_documents")
+    .select("id, tenant_id, type, reference, stagiaire_email, formation_code, pdf_chemin, pdf_sha256, donnees")
+    .eq("reference", reference)
+    .maybeSingle();
+  return data || null;
+}
+
+function autorise(doc: any, session: any) {
+  const estLeStagiaire = doc.stagiaire_email === session.email;
+  const estLOrganisme = session.tenantId === doc.tenant_id;
+  const estAdmin = ADMINS.indexOf(session.email) >= 0;
+  return estLeStagiaire || estLOrganisme || estAdmin;
+}
+
+// ENVOI DU CODE. C est ce qui fait passer la preuve de « quelqu un a clique »
+// a « le titulaire de cette adresse a clique ». On ne conserve que l empreinte
+// du code, jamais le code lui-meme.
+async function envoyerCode(req: NextRequest, doc: any, session: any) {
+  const cle = process.env.RESEND_API_KEY || "";
+  if (!cle) {
+    return NextResponse.json({ ok: false, erreur: "RESEND_API_KEY absente" }, { status: 500 });
+  }
+
+  const code = String(Math.floor(100000 + Math.random() * 900000));
+  const expire = new Date(Date.now() + VALIDITE_CODE_MIN * 60000).toISOString();
+
+  const donnees = doc.donnees && typeof doc.donnees === "object" ? doc.donnees : {};
+  const codes = donnees.codes_signature && typeof donnees.codes_signature === "object"
+    ? donnees.codes_signature
+    : {};
+
+  codes[session.email] = {
+    empreinte: empreinteTexte(code + "|" + session.email),
+    envoye_le: new Date().toISOString(),
+    expire_le: expire,
+    tentatives: 0,
+  };
+
+  const { error } = await supabase
+    .from("organisme_documents")
+    .update({ donnees: { ...donnees, codes_signature: codes } })
+    .eq("id", doc.id);
+
+  if (error) {
+    return NextResponse.json({ ok: false, erreur: error.message }, { status: 500 });
+  }
+
+  const html =
+    '<div style="font-family:Georgia,serif;max-width:520px;margin:0 auto;color:#1a1a1a;line-height:1.7">' +
+    '<p style="color:#0a3d2e;font-size:13px;letter-spacing:2px;margin:0 0 6px">SIGNATURE ELECTRONIQUE</p>' +
+    '<h1 style="color:#0a3d2e;font-size:22px;margin:0 0 16px">Votre code de verification</h1>' +
+    "<p>Vous vous appretez a signer le document <strong>" + doc.reference +
+    "</strong>. Saisissez ce code sur la page de signature :</p>" +
+    '<p style="font-size:34px;letter-spacing:10px;font-weight:bold;color:#0a3d2e;' +
+    'background:#f5f1e8;padding:18px 24px;border-radius:8px;text-align:center;margin:24px 0">' +
+    code + "</p>" +
+    "<p>Ce code est valable " + VALIDITE_CODE_MIN + " minutes et ne sert qu une fois.</p>" +
+    '<p style="font-size:14px;color:#666">Si vous n etes pas a l origine de cette demande, ' +
+    "ignorez ce message : aucune signature ne sera enregistree sans ce code.</p>" +
+    "</div>";
+
+  const r = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: { Authorization: "Bearer " + cle, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      from: "AcadeMIA Pro <contact@academiapro.fr>",
+      to: [session.email],
+      subject: "Code de verification - signature du document " + doc.reference,
+      html: html,
+    }),
+  });
+
+  if (!r.ok) {
+    return NextResponse.json(
+      { ok: false, erreur: "L envoi du code a echoue. Reessayez." },
+      { status: 500 }
+    );
+  }
+
+  return NextResponse.json({
+    ok: true,
+    envoye: true,
+    email: session.email,
+    validite_minutes: VALIDITE_CODE_MIN,
+    message: "Un code a six chiffres vient d etre envoye a " + session.email + ".",
+  });
 }
 
 export async function POST(req: NextRequest) {
@@ -110,36 +229,31 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, erreur: "Requete illisible" }, { status: 400 });
     }
 
-    if (b.accepte !== true) {
-      return NextResponse.json(
-        { ok: false, erreur: "Vous devez accepter les termes pour signer." },
-        { status: 400 }
-      );
-    }
-
     const reference = String(b.document_reference || "").trim();
     if (!reference) {
       return NextResponse.json({ ok: false, erreur: "Document non precise." }, { status: 400 });
     }
 
-    const { data: doc } = await supabase
-      .from("organisme_documents")
-      .select("id, tenant_id, type, reference, stagiaire_email, formation_code, pdf_chemin, pdf_sha256")
-      .eq("reference", reference)
-      .maybeSingle();
-
+    const doc = await documentDe(reference);
     if (!doc) {
       return NextResponse.json({ ok: false, erreur: "Document introuvable." }, { status: 404 });
     }
 
-    const estLeStagiaire = doc.stagiaire_email === session.email;
-    const estLOrganisme = session.tenantId === doc.tenant_id;
-    const estAdmin = ADMINS.indexOf(session.email) >= 0;
-
-    if (!estLeStagiaire && !estLOrganisme && !estAdmin) {
+    if (!autorise(doc, session)) {
       return NextResponse.json(
         { ok: false, erreur: "Ce document ne vous concerne pas." },
         { status: 403 }
+      );
+    }
+
+    if (b.action === "code") {
+      return await envoyerCode(req, doc, session);
+    }
+
+    if (b.accepte !== true) {
+      return NextResponse.json(
+        { ok: false, erreur: "Vous devez accepter les termes pour signer." },
+        { status: 400 }
       );
     }
 
@@ -158,10 +272,63 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // ARCHIVAGE A VALEUR PROBANTE. Si le PDF n a pas encore ete archive, on le
-    // redemande a la route qui le produit, on l archive, et on retient
-    // l empreinte DE SES OCTETS. C est ce fichier-la qui sera montre en cas de
-    // contestation : sans lui, on prouverait un accord sans pouvoir montrer
+    // VERIFICATION DU CODE. Sans elle, la signature reste possible mais sera
+    // marquee comme non verifiee : sa force probante est moindre, et l ecran
+    // des contrats le signale.
+    const donnees = doc.donnees && typeof doc.donnees === "object" ? doc.donnees : {};
+    const codes = donnees.codes_signature && typeof donnees.codes_signature === "object"
+      ? donnees.codes_signature
+      : {};
+    const attendu = codes[session.email] || null;
+
+    const codeSaisi = String(b.code || "").trim();
+    let codeEnvoyeLe = null;
+    let codeVerifieLe = null;
+    let tentatives = attendu ? Number(attendu.tentatives) || 0 : 0;
+
+    if (!attendu) {
+      return NextResponse.json(
+        { ok: false, erreur: "Demandez d abord votre code de verification." },
+        { status: 400 }
+      );
+    }
+
+    if (tentatives >= MAX_TENTATIVES) {
+      return NextResponse.json(
+        { ok: false, erreur: "Trop de tentatives. Demandez un nouveau code." },
+        { status: 429 }
+      );
+    }
+
+    if (new Date(attendu.expire_le).getTime() < Date.now()) {
+      return NextResponse.json(
+        { ok: false, erreur: "Ce code a expire. Demandez-en un nouveau." },
+        { status: 400 }
+      );
+    }
+
+    if (empreinteTexte(codeSaisi + "|" + session.email) !== attendu.empreinte) {
+      codes[session.email] = { ...attendu, tentatives: tentatives + 1 };
+      await supabase
+        .from("organisme_documents")
+        .update({ donnees: { ...donnees, codes_signature: codes } })
+        .eq("id", doc.id);
+
+      return NextResponse.json(
+        {
+          ok: false,
+          erreur: "Code incorrect. Il vous reste "
+            + (MAX_TENTATIVES - tentatives - 1) + " tentative(s).",
+        },
+        { status: 400 }
+      );
+    }
+
+    codeEnvoyeLe = attendu.envoye_le;
+    codeVerifieLe = new Date().toISOString();
+
+    // ARCHIVAGE A VALEUR PROBANTE : c est ce fichier-la qui sera montre en cas
+    // de contestation. Sans lui, on prouverait un accord sans pouvoir montrer
     // sur quel texte il portait.
     let empreinte = doc.pdf_sha256 || "";
     let chemin = doc.pdf_chemin || "";
@@ -218,6 +385,20 @@ export async function POST(req: NextRequest) {
       session.email, CONSENTEMENT, signeLe,
     ].join("|");
 
+    // CHAINAGE : chaque preuve porte l empreinte de la precedente. Retirer ou
+    // modifier une signature ancienne romprait la chaine de toutes celles qui
+    // la suivent, et cela se verrait.
+    const { data: derniere } = await supabase
+      .from("organisme_signatures")
+      .select("empreinte_chaine")
+      .eq("tenant_id", doc.tenant_id)
+      .order("signe_le", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const precedente = (derniere && derniere.empreinte_chaine) || "";
+    const chaine = empreinteTexte(precedente + "|" + charge);
+
     const { data, error } = await supabase
       .from("organisme_signatures")
       .insert({
@@ -229,23 +410,52 @@ export async function POST(req: NextRequest) {
         signataire_nom: b.signataire_nom ? String(b.signataire_nom).trim() : null,
         signataire_qualite: b.signataire_qualite ? String(b.signataire_qualite).trim() : null,
         consentement: CONSENTEMENT,
+        texte_accepte: CONSENTEMENT,
         signe_le: signeLe,
         adresse_ip: ip ? String(ip).split(",")[0].trim() : null,
         navigateur: navigateur,
         jeton_preuve: sceau(charge),
+        code_envoye_le: codeEnvoyeLe,
+        code_verifie_le: codeVerifieLe,
+        tentatives: tentatives,
+        empreinte_precedente: precedente || null,
+        empreinte_chaine: chaine,
+        ouvert_le: b.ouvert_le || null,
       })
-      .select("id, empreinte_sha256, signe_le")
+      .select("id, empreinte_sha256, signe_le, empreinte_chaine")
       .limit(1);
 
     if (error) {
       return NextResponse.json({ ok: false, erreur: error.message }, { status: 500 });
     }
 
+    // Le code est consomme : il ne doit plus jamais resservir.
+    delete codes[session.email];
+    await supabase
+      .from("organisme_documents")
+      .update({ donnees: { ...donnees, codes_signature: codes } })
+      .eq("id", doc.id);
+
+    // Le coffre garde la trace du contrat signe, cote editeur.
+    await supabase.from("coffre_documents").insert({
+      tenant_id: doc.tenant_id,
+      categorie: doc.type,
+      titre: "Document " + reference,
+      contrepartie: session.email,
+      reference: reference,
+      chemin: chemin,
+      empreinte_sha256: empreinte,
+      signe: true,
+      signe_le: signeLe,
+      depose_par: "signature",
+    });
+
     return NextResponse.json({
       ok: true,
       signature: (data || [])[0] || null,
       empreinte: empreinte,
       archive: chemin,
+      verifie_par_code: true,
       avertissement:
         "Signature electronique simple au sens du reglement eIDAS. Elle n est ni avancee ni qualifiee.",
     });
