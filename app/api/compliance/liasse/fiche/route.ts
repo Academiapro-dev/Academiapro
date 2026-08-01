@@ -10,17 +10,11 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-const SOCIETE = "ACADEMIA PRO LLC";
-const ADRESSE = "30 N Gould St STE R, Sheridan, WY 82801, USA";
-
-function tenantDeLaSession(req: NextRequest): string | null {
+function sessionPresente(req: NextRequest): boolean {
   try {
-    const brut = req.cookies.get("sb_user")?.value;
-    if (!brut) return null;
-    const donnees = JSON.parse(decodeURIComponent(brut));
-    return donnees?.tenant_id || null;
+    return !!req.cookies.get("sb_user")?.value;
   } catch {
-    return null;
+    return false;
   }
 }
 
@@ -30,6 +24,20 @@ function r2(n: number): number {
 
 function eur(n: number): string {
   return n.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " \u20AC";
+}
+
+function jour(d: string): string {
+  if (!d) return "";
+  const p = String(d).slice(0, 10).split("-");
+  if (p.length !== 3) return d;
+  return p[2] + "/" + p[1] + "/" + p[0];
+}
+
+function echapper(s: any): string {
+  return String(s === null || s === undefined ? "" : s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
 }
 
 function calculIS(base: number): { is_15: number; is_25: number; total: number } {
@@ -42,24 +50,85 @@ function calculIS(base: number): { is_15: number; is_25: number; total: number }
 }
 
 export async function GET(req: NextRequest) {
-  const tenantId = tenantDeLaSession(req);
-  if (!tenantId) {
+  if (!sessionPresente(req)) {
     return NextResponse.json(
-      { error: "Session sans societe rattachee. Reconnectez-vous." },
+      { error: "Connectez-vous pour produire une fiche." },
       { status: 401 }
     );
   }
 
-  const year =
-    parseInt(req.nextUrl.searchParams.get("year") || "", 10) ||
-    new Date().getFullYear();
-  const debut = year + "-01-01";
-  const fin = year + "-12-31";
+  // CHOIX DU DOSSIER : jamais devine des qu il y en a plusieurs.
+  const codeDemande = (req.nextUrl.searchParams.get("societe") || "").trim().toUpperCase();
+  const idDemande = (req.nextUrl.searchParams.get("societe_id") || "").trim();
+
+  const { data: dossiers, error: erreurDossiers } = await supabase
+    .from("compta_societes")
+    .select("id, code, raison_sociale, siren, forme, adresse, regime_fiscal, exercice_debut, exercice_fin")
+    .eq("actif", true)
+    .limit(500);
+
+  if (erreurDossiers) {
+    return NextResponse.json(
+      { error: "Lecture des dossiers: " + erreurDossiers.message },
+      { status: 500 }
+    );
+  }
+
+  const liste = dossiers || [];
+
+  if (liste.length === 0) {
+    return NextResponse.json(
+      { error: "Aucun dossier comptable. Ouvrez-en un avant de produire une fiche." },
+      { status: 404 }
+    );
+  }
+
+  let dossier: any = null;
+
+  if (idDemande) {
+    dossier = liste.find(function (s: any) { return s.id === idDemande; }) || null;
+  } else if (codeDemande) {
+    dossier = liste.find(function (s: any) { return s.code === codeDemande; }) || null;
+  } else if (liste.length === 1) {
+    dossier = liste[0];
+  }
+
+  if (!dossier) {
+    if (!codeDemande && !idDemande) {
+      return NextResponse.json(
+        {
+          error: "Precisez le dossier : ?societe=CODE",
+          dossiers: liste.map(function (s: any) {
+            return { code: s.code, raison_sociale: s.raison_sociale };
+          }),
+        },
+        { status: 400 }
+      );
+    }
+    return NextResponse.json({ error: "Dossier introuvable." }, { status: 404 });
+  }
+
+  const anneeDemandee = parseInt(req.nextUrl.searchParams.get("year") || "", 10);
+
+  let debut: string;
+  let fin: string;
+
+  if (anneeDemandee) {
+    debut = anneeDemandee + "-01-01";
+    fin = anneeDemandee + "-12-31";
+  } else if (dossier.exercice_debut && dossier.exercice_fin) {
+    debut = String(dossier.exercice_debut).slice(0, 10);
+    fin = String(dossier.exercice_fin).slice(0, 10);
+  } else {
+    const annee = new Date().getFullYear();
+    debut = annee + "-01-01";
+    fin = annee + "-12-31";
+  }
 
   const { data: lignes, error } = await supabase
     .from("compta_ecritures")
     .select("compte_num, compte_lib, debit, credit")
-    .eq("tenant_id", tenantId)
+    .eq("societe_id", dossier.id)
     .gte("ecriture_date", debut)
     .lte("ecriture_date", fin)
     .limit(50000);
@@ -68,7 +137,13 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Lecture ecritures: " + error.message }, { status: 500 });
   }
   if (!lignes || lignes.length === 0) {
-    return NextResponse.json({ error: "Aucune ecriture pour l'exercice " + year }, { status: 404 });
+    return NextResponse.json(
+      {
+        error: "Aucune ecriture pour " + dossier.raison_sociale
+          + " entre le " + debut + " et le " + fin + ".",
+      },
+      { status: 404 }
+    );
   }
 
   const comptes: Record<string, { lib: string; debit: number; credit: number }> = {};
@@ -103,25 +178,59 @@ export async function GET(req: NextRequest) {
   }
 
   const resultat = r2(produits - charges);
-  const impot = calculIS(resultat);
+  const regime = String(dossier.regime_fiscal || "a_determiner");
+  const soumisIS = regime === "is";
+  const impot = soumisIS ? calculIS(resultat) : { is_15: 0, is_25: 0, total: 0 };
   const deficit = resultat < 0 ? r2(-resultat) : 0;
   const totalActif = r2(immo + stocks + creances + tresoA);
   const capitaux = r2(capHors + resultat);
   const totalPassif = r2(capitaux + dettes + tresoP);
 
   const lignesCharges = detCharges
-    .map(([lib, m]) => "<tr><td>" + lib + "</td><td class='m'>" + eur(m) + "</td></tr>")
+    .map(([lib, m]) => "<tr><td>" + echapper(lib) + "</td><td class='m'>" + eur(m) + "</td></tr>")
     .join("");
   const lignesProduits = detProduits.length
-    ? detProduits.map(([lib, m]) => "<tr><td>" + lib + "</td><td class='m'>" + eur(m) + "</td></tr>").join("")
+    ? detProduits.map(([lib, m]) => "<tr><td>" + echapper(lib) + "</td><td class='m'>" + eur(m) + "</td></tr>").join("")
     : "<tr><td>Aucun produit sur l'exercice</td><td class='m'>" + eur(0) + "</td></tr>";
+
+  // Le bandeau d hypothese ne s affiche que si le regime n est pas tranche.
+  const bandeau = regime === "a_determiner"
+    ? "<div class='bandeau'>RÉGIME FISCAL NON TRANCHÉ pour ce dossier : aucun impôt n'est calculé. "
+      + "Renseignez le régime sur la fiche du dossier. Document interne, ne vaut pas déclaration.</div>"
+    : soumisIS
+      ? "<div class='bandeau'>Document de travail. La liasse réelle (2065 + 2033) se télétransmet en EDI-TDFC. "
+        + "Taux réduit 15 % supposé, conditions PME à vérifier.</div>"
+      : "<div class='bandeau'>Société non soumise à l'impôt sur les sociétés : le résultat est imposé "
+        + "entre les mains des associés. La liasse 2065/2033 ne s'applique pas en l'état.</div>";
+
+  // Le bloc IS n a de sens que pour une societe a l IS.
+  const blocIS = soumisIS
+    ? `<h2>Impôt sur les sociétés (structure 2065)</h2>
+<table>
+<tr><td>Résultat fiscal (= résultat comptable, aucune réintégration à ce stade)</td><td class="m ${resultat < 0 ? "negatif" : ""}">${eur(resultat)}</td></tr>
+<tr><td>Base imposable</td><td class="m">${eur(resultat > 0 ? resultat : 0)}</td></tr>
+<tr><td>IS à 15 % (jusqu'à 42 500 &euro;, conditions PME supposées)</td><td class="m">${eur(impot.is_15)}</td></tr>
+<tr><td>IS à 25 %</td><td class="m">${eur(impot.is_25)}</td></tr>
+<tr class="total"><td>IS TOTAL DÛ</td><td class="m">${eur(impot.total)}</td></tr>
+<tr><td>Déficit reportable sur les exercices suivants</td><td class="m">${eur(deficit)}</td></tr>
+</table>`
+    : `<h2>Imposition</h2>
+<table>
+<tr><td>Résultat de l'exercice</td><td class="m ${resultat < 0 ? "negatif" : ""}">${eur(resultat)}</td></tr>
+<tr><td>Impôt sur les sociétés</td><td class="m">non applicable a ce dossier</td></tr>
+<tr><td>Déficit reportable</td><td class="m">${eur(deficit)}</td></tr>
+</table>`;
+
+  const identite = echapper(dossier.raison_sociale)
+    + (dossier.forme ? " — " + echapper(dossier.forme) : "")
+    + (dossier.siren ? " — SIREN " + echapper(dossier.siren) : "");
 
   const html = `<!DOCTYPE html>
 <html lang="fr">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Liasse de travail ${year} - ${SOCIETE}</title>
+<title>Liasse de travail - ${echapper(dossier.raison_sociale)}</title>
 <style>
   :root { color-scheme: light; }
   body { background:#ffffff; color:#1a1a1a; font-family: Georgia, 'Times New Roman', serif; margin:0; padding:32px 24px; max-width:820px; margin-left:auto; margin-right:auto; font-size:17px; line-height:1.6; }
@@ -132,7 +241,7 @@ export async function GET(req: NextRequest) {
   table { width:100%; border-collapse:collapse; margin:8px 0 16px 0; }
   td, th { border:1px solid #999; padding:8px 10px; text-align:left; vertical-align:top; }
   th { background:#f0ede4; }
-  .m { text-align:right; white-space:nowrap; width:160px; }
+  .m { text-align:right; white-space:nowrap; width:180px; }
   .total td { font-weight:bold; background:#f7f5ef; }
   .negatif { color:#8b0000; }
   .pied { margin-top:30px; font-size:14px; color:#555; border-top:1px solid #999; padding-top:10px; }
@@ -141,9 +250,9 @@ export async function GET(req: NextRequest) {
 </head>
 <body>
 <h1>Liasse fiscale — document de travail</h1>
-<p class="sous">${SOCIETE} — ${ADRESSE}<br>Exercice du 01/01/${year} au 31/12/${year} — établi le ${new Date().toLocaleDateString("fr-FR")}</p>
+<p class="sous">${identite}${dossier.adresse ? "<br>" + echapper(dossier.adresse) : ""}<br>Exercice du ${jour(debut)} au ${jour(fin)} — établi le ${new Date().toLocaleDateString("fr-FR")}</p>
 
-<div class="bandeau">HYPOTHÈSE DE TRAVAIL : LLC imposée à l'IS en France — qualification NON VALIDÉE par le fiscaliste. Document interne, ne vaut pas déclaration. La liasse réelle se télétransmet (EDI-TDFC).</div>
+${bandeau}
 
 <h2>Compte de résultat simplifié (structure 2033-B)</h2>
 <table>
@@ -178,17 +287,9 @@ ${lignesCharges}
 <tr class="total"><td>TOTAL PASSIF</td><td class="m">${eur(totalPassif)}</td></tr>
 </table>
 
-<h2>Impôt sur les sociétés (structure 2065)</h2>
-<table>
-<tr><td>Résultat fiscal (= résultat comptable, aucune réintégration à ce stade)</td><td class="m ${resultat < 0 ? "negatif" : ""}">${eur(resultat)}</td></tr>
-<tr><td>Base imposable</td><td class="m">${eur(resultat > 0 ? resultat : 0)}</td></tr>
-<tr><td>IS à 15 % (jusqu'à 42 500 &euro;, conditions PME supposées)</td><td class="m">${eur(impot.is_15)}</td></tr>
-<tr><td>IS à 25 %</td><td class="m">${eur(impot.is_25)}</td></tr>
-<tr class="total"><td>IS TOTAL DÛ</td><td class="m">${eur(impot.total)}</td></tr>
-<tr><td>Déficit reportable sur les exercices suivants</td><td class="m">${eur(deficit)}</td></tr>
-</table>
+${blocIS}
 
-<p class="pied">Établi automatiquement depuis les écritures comptables (${lignes.length} lignes, journal AC). Taux de conversion USD provisoire noté dans les écritures, à remplacer par le taux officiel. Contrôle d'équilibre : total actif ${eur(totalActif)} / total passif ${eur(totalPassif)}. Ce document ne préjuge pas de la qualification fiscale de la société.</p>
+<p class="pied">Établi automatiquement depuis les écritures du dossier ${echapper(dossier.code)} (${lignes.length} lignes). Contrôle d'équilibre : total actif ${eur(totalActif)} / total passif ${eur(totalPassif)}. Ce document ne préjuge pas de la qualification fiscale de la société.</p>
 </body>
 </html>`;
 
