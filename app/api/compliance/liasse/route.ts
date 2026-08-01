@@ -10,14 +10,11 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-function tenantDeLaSession(req: NextRequest): string | null {
+function sessionPresente(req: NextRequest): boolean {
   try {
-    const brut = req.cookies.get("sb_user")?.value;
-    if (!brut) return null;
-    const donnees = JSON.parse(decodeURIComponent(brut));
-    return donnees?.tenant_id || null;
+    return !!req.cookies.get("sb_user")?.value;
   } catch {
-    return null;
+    return false;
   }
 }
 
@@ -36,25 +33,86 @@ function calculIS(base: number): { is_15: number; is_25: number; total: number }
 }
 
 export async function GET(req: NextRequest) {
-  const tenantId = tenantDeLaSession(req);
-  if (!tenantId) {
+  if (!sessionPresente(req)) {
     return NextResponse.json(
-      { error: "Session sans societe rattachee. Reconnectez-vous." },
+      { error: "Connectez-vous pour produire une liasse." },
       { status: 401 }
     );
   }
 
-  const year =
-    parseInt(req.nextUrl.searchParams.get("year") || "", 10) ||
-    new Date().getFullYear();
-  const debut = year + "-01-01";
-  const fin = year + "-12-31";
-
   try {
+    // CHOIX DU DOSSIER : jamais devine des qu il y en a plusieurs.
+    const codeDemande = (req.nextUrl.searchParams.get("societe") || "").trim().toUpperCase();
+    const idDemande = (req.nextUrl.searchParams.get("societe_id") || "").trim();
+
+    const { data: dossiers, error: erreurDossiers } = await supabase
+      .from("compta_societes")
+      .select("id, code, raison_sociale, siren, forme, regime_fiscal, exercice_debut, exercice_fin")
+      .eq("actif", true)
+      .limit(500);
+
+    if (erreurDossiers) {
+      return NextResponse.json(
+        { error: "Lecture des dossiers: " + erreurDossiers.message },
+        { status: 500 }
+      );
+    }
+
+    const liste = dossiers || [];
+
+    if (liste.length === 0) {
+      return NextResponse.json(
+        { error: "Aucun dossier comptable. Ouvrez-en un avant de produire une liasse." },
+        { status: 404 }
+      );
+    }
+
+    let dossier: any = null;
+
+    if (idDemande) {
+      dossier = liste.find(function (s: any) { return s.id === idDemande; }) || null;
+    } else if (codeDemande) {
+      dossier = liste.find(function (s: any) { return s.code === codeDemande; }) || null;
+    } else if (liste.length === 1) {
+      dossier = liste[0];
+    }
+
+    if (!dossier) {
+      if (!codeDemande && !idDemande) {
+        return NextResponse.json(
+          {
+            error: "Precisez le dossier : ?societe=CODE",
+            dossiers: liste.map(function (s: any) {
+              return { code: s.code, raison_sociale: s.raison_sociale };
+            }),
+          },
+          { status: 400 }
+        );
+      }
+      return NextResponse.json({ error: "Dossier introuvable." }, { status: 404 });
+    }
+
+    const anneeDemandee = parseInt(req.nextUrl.searchParams.get("year") || "", 10);
+
+    let debut: string;
+    let fin: string;
+
+    if (anneeDemandee) {
+      debut = anneeDemandee + "-01-01";
+      fin = anneeDemandee + "-12-31";
+    } else if (dossier.exercice_debut && dossier.exercice_fin) {
+      debut = String(dossier.exercice_debut).slice(0, 10);
+      fin = String(dossier.exercice_fin).slice(0, 10);
+    } else {
+      const annee = new Date().getFullYear();
+      debut = annee + "-01-01";
+      fin = annee + "-12-31";
+    }
+
     const { data: lignes, error } = await supabase
       .from("compta_ecritures")
       .select("compte_num, compte_lib, debit, credit")
-      .eq("tenant_id", tenantId)
+      .eq("societe_id", dossier.id)
       .gte("ecriture_date", debut)
       .lte("ecriture_date", fin)
       .limit(50000);
@@ -67,7 +125,10 @@ export async function GET(req: NextRequest) {
     }
     if (!lignes || lignes.length === 0) {
       return NextResponse.json(
-        { error: "Aucune ecriture pour l'exercice " + year },
+        {
+          error: "Aucune ecriture pour " + dossier.raison_sociale
+            + " entre le " + debut + " et le " + fin + ".",
+        },
         { status: 404 }
       );
     }
@@ -124,20 +185,45 @@ export async function GET(req: NextRequest) {
     }
 
     const resultat = r2(produits - charges);
-    const impot = calculIS(resultat);
     const deficit_reportable = resultat < 0 ? r2(-resultat) : 0;
+
+    // L IMPOT SUIT LE REGIME INSCRIT AU DOSSIER. Hors IS, on ne calcule rien :
+    // presenter un impot sur une societe transparente serait faux, et un
+    // chiffre faux vaut moins que pas de chiffre.
+    const regime = String(dossier.regime_fiscal || "a_determiner");
+    const soumisIS = regime === "is";
+    const impot = soumisIS ? calculIS(resultat) : { is_15: 0, is_25: 0, total: 0 };
 
     const total_actif = r2(immobilisations + stocks + creances + treso_active);
     const capitaux_propres = r2(capitaux_hors_resultat + resultat);
     const total_passif = r2(capitaux_propres + dettes + treso_passive);
     const ecart = r2(total_actif - total_passif);
 
+    let noteRegime = "";
+    if (regime === "is") {
+      noteRegime = "Societe a l impot sur les societes. Taux reduit 15 % suppose (conditions PME a verifier).";
+    } else if (regime === "a_determiner") {
+      noteRegime = "REGIME FISCAL NON TRANCHE pour ce dossier : aucun impot n est calcule. Renseignez le regime sur la fiche du dossier.";
+    } else if (regime === "transparent" || regime === "ir") {
+      noteRegime = "Societe non soumise a l IS : le resultat est impose entre les mains des associes. La liasse 2065/2033 ne s applique pas en l etat.";
+    } else {
+      noteRegime = "Regime " + regime + " : aucun impot calcule.";
+    }
+
     return NextResponse.json({
       success: true,
-      year,
-      hypothese: "LLC imposee a l'IS en France - HYPOTHESE NON VALIDEE PAR LE FISCALISTE",
+      dossier: {
+        code: dossier.code,
+        raison_sociale: dossier.raison_sociale,
+        siren: dossier.siren,
+        forme: dossier.forme,
+        regime_fiscal: regime,
+      },
+      periode: { debut: debut, fin: fin },
+      soumis_is: soumisIS,
+      note_regime: noteRegime,
       avertissement:
-        "Document de travail. La liasse reelle (2065 + 2033) se teletransmet en EDI-TDFC. Taux reduit 15 % suppose (conditions PME).",
+        "Document de travail. La liasse reelle (2065 + 2033) se teletransmet en EDI-TDFC.",
       compte_resultat: {
         produits,
         charges,
@@ -146,7 +232,8 @@ export async function GET(req: NextRequest) {
         resultat_comptable: resultat,
       },
       impot_societes: {
-        base_imposable: resultat > 0 ? resultat : 0,
+        applicable: soumisIS,
+        base_imposable: soumisIS && resultat > 0 ? resultat : 0,
         tranche_15_pct: impot.is_15,
         tranche_25_pct: impot.is_25,
         is_total: impot.total,
