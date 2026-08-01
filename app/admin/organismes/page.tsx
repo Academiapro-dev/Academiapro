@@ -169,6 +169,18 @@ export default function PageOrganismes() {
   const actifs = organismes.filter(function (o) { return o.statut === "actif"; }).length;
   const totalStagiaires = organismes.reduce(function (s: number, o: any) { return s + (o.stagiaires || 0); }, 0);
 
+  const PORTES = [
+    ["/admin/facturation", "Facturation"],
+    ["/admin/bon-commande", "Bon de commande"],
+    ["/admin/contrats", "Contrats"],
+    ["/admin/modeles", "Modeles"],
+    ["/admin/coffre", "Coffre"],
+    ["/admin/usage-ia", "Ce que l IA coute"],
+    ["/admin/domaines", "Domaines"],
+    ["/admin/telechargements", "Telechargements"],
+    ["/admin/diagnostic", "Diagnostic"],
+  ];
+
   return (
     <div style={CADRE}>
       <div style={{ maxWidth: "1000px", margin: "0 auto" }}>
@@ -181,24 +193,13 @@ export default function PageOrganismes() {
         </p>
 
         <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", margin: "24px 0" }}>
-          <a href="/admin/facturation" style={{ ...LIEN, fontSize: "14px", padding: "11px 20px" }}>
-            Facturation →
-          </a>
-          <a href="/admin/bon-commande" style={{ ...LIEN, fontSize: "14px", padding: "11px 20px" }}>
-            Bon de commande →
-          </a>
-          <a href="/admin/usage-ia" style={{ ...LIEN, fontSize: "14px", padding: "11px 20px" }}>
-            Ce que l IA coute →
-          </a>
-          <a href="/admin/domaines" style={{ ...LIEN, fontSize: "14px", padding: "11px 20px" }}>
-            Domaines →
-          </a>
-          <a href="/admin/telechargements" style={{ ...LIEN, fontSize: "14px", padding: "11px 20px" }}>
-            Telechargements →
-          </a>
-          <a href="/admin/diagnostic" style={{ ...LIEN, fontSize: "14px", padding: "11px 20px" }}>
-            Diagnostic →
-          </a>
+          {PORTES.map(function (p: any) {
+            return (
+              <a key={p[0]} href={p[0]} style={{ ...LIEN, fontSize: "14px", padding: "11px 20px" }}>
+                {p[1]} →
+              </a>
+            );
+          })}
           <button
             onClick={() => setFormulaire(!formulaire)}
             style={{ background: formulaire ? "none" : "#c8a96e", color: formulaire ? "#c8a96e" : "#050508", border: formulaire ? "1px solid rgba(200,169,110,0.45)" : "none", padding: "11px 22px", borderRadius: "20px", cursor: "pointer", fontSize: "14px", fontFamily: "Georgia,serif", fontWeight: "bold" }}
@@ -351,8 +352,7 @@ export default function PageOrganismes() {
 
                     <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px", margin: "-6px 0 14px", lineHeight: "1.6" }}>
                       Chaque module redige par l assistant vous coute environ quinze centimes.
-                      Quarante par mois, c est trois ou quatre formations completes pour moins de
-                      dix euros. Zero supprime toute limite — a vos risques.
+                      Zero supprime toute limite — a vos risques.
                     </p>
 
                     <h4 style={{ color: "#c8a96e", fontSize: "15px", margin: "14px 0" }}>Identification</h4>
