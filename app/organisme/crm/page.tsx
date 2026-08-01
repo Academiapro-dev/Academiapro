@@ -1,6 +1,14 @@
 "use client";
 import { useState, useEffect } from "react";
 
+const ETAPES = [
+  { cle: "prospect", nom: "Prospects", couleur: "rgba(255,255,255,0.55)" },
+  { cle: "contacte", nom: "Contactes", couleur: "#e8a33d" },
+  { cle: "interesse", nom: "Interesses", couleur: "#c8a96e" },
+  { cle: "client", nom: "Clients", couleur: "#4caf50" },
+  { cle: "perdu", nom: "Perdus", couleur: "rgba(255,255,255,0.35)" },
+];
+
 const LIBELLE_STATUT: any = {
   prospect: "Prospect",
   contacte: "Contacte",
@@ -17,8 +25,11 @@ export default function PageCRM() {
   const [message, setMessage] = useState("");
   const [erreur, setErreur] = useState("");
   const [formulaire, setFormulaire] = useState(false);
+  const [importOuvert, setImportOuvert] = useState(false);
   const [ouvert, setOuvert] = useState<any>({});
   const [filtre, setFiltre] = useState("");
+  const [prix, setPrix] = useState<any>({});
+  const [inscrire, setInscrire] = useState<any>({});
 
   const [nom, setNom] = useState("");
   const [email, setEmail] = useState("");
@@ -27,9 +38,21 @@ export default function PageCRM() {
   const [source, setSource] = useState("formulaire");
   const [notes, setNotes] = useState("");
 
+  const [contenu, setContenu] = useState("");
+  const [rejets, setRejets] = useState<any[]>([]);
+
   useEffect(function () {
     charger();
   }, []);
+
+  function suffixe(sep: string) {
+    try {
+      const t = new URLSearchParams(window.location.search).get("tenant");
+      return t ? sep + "tenant=" + t : "";
+    } catch {
+      return "";
+    }
+  }
 
   async function appeler(corps: any) {
     const r = await fetch("/api/crm", {
@@ -87,6 +110,87 @@ export default function PageCRM() {
       }
     } catch (e: any) {
       setErreur("Enregistrement impossible : " + String(e));
+    }
+    setOccupe("");
+  }
+
+  async function importer() {
+    if (contenu.trim().length < 6) {
+      setErreur("Collez votre liste.");
+      return;
+    }
+    setOccupe("import");
+    setMessage("");
+    setErreur("");
+    setRejets([]);
+    try {
+      const r = await fetch("/api/organisme/importer-prospects" + suffixe("?"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contenu: contenu }),
+      });
+      const data = await r.json();
+      if (data.ok) {
+        setMessage(data.message);
+        setContenu("");
+        setImportOuvert(false);
+        if (data.rejets) setRejets(data.rejets);
+        await charger();
+      } else {
+        setErreur(data.erreur || "Import impossible.");
+        if (data.rejets) setRejets(data.rejets);
+      }
+    } catch (e: any) {
+      setErreur("Import impossible : " + String(e));
+    }
+    setOccupe("");
+  }
+
+  async function changerStatut(p: any, statut: string) {
+    setOccupe("statut-" + p.email);
+    setMessage("");
+    setErreur("");
+    try {
+      const data = await appeler({
+        action: "upsert",
+        data: { email: p.email, nom: p.nom, statut: statut },
+      });
+      if (data.succes) {
+        setMessage("Etape mise a jour.");
+        await charger();
+      } else {
+        setErreur(data.erreur || "Modification impossible.");
+      }
+    } catch (e: any) {
+      setErreur("Modification impossible : " + String(e));
+    }
+    setOccupe("");
+  }
+
+  async function convertir(p: any) {
+    setOccupe("convertir-" + p.email);
+    setMessage("");
+    setErreur("");
+    try {
+      const r = await fetch("/api/organisme/convertir" + suffixe("?"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: p.email,
+          formation_code: p.formation_interesse,
+          prix_vente: prix[p.email] || null,
+        }),
+      });
+      const data = await r.json();
+      if (data.ok) {
+        setMessage(data.message);
+        setInscrire({ ...inscrire, [p.email]: false });
+        await charger();
+      } else {
+        setErreur(data.erreur || "Inscription impossible.");
+      }
+    } catch (e: any) {
+      setErreur("Inscription impossible : " + String(e));
     }
     setOccupe("");
   }
@@ -178,8 +282,20 @@ export default function PageCRM() {
     return "rgba(255,255,255,0.5)";
   }
 
+  const compte: any = {};
+  for (const e of ETAPES) {
+    compte[e.cle] = prospects.filter(function (p) {
+      return (p.statut || "prospect") === e.cle;
+    }).length;
+  }
+
+  const clients = compte["client"] || 0;
+  const conversion = prospects.length > 0
+    ? Math.round((clients / prospects.length) * 100)
+    : 0;
+
   const affiches = filtre
-    ? prospects.filter(function (p) { return p.statut === filtre; })
+    ? prospects.filter(function (p) { return (p.statut || "prospect") === filtre; })
     : prospects;
 
   return (
@@ -194,7 +310,7 @@ export default function PageCRM() {
         </p>
         <h1 style={{ color: "#fff", fontSize: "30px", margin: "0 0 6px" }}>Mes prospects</h1>
         <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "14px", marginTop: 0 }}>
-          {prospects.length} fiche(s) · classees par score
+          {prospects.length} fiche(s) · {clients} devenu(s) client(s) · {conversion} % de conversion
         </p>
 
         {stats && (
@@ -219,24 +335,38 @@ export default function PageCRM() {
         )}
 
         <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "18px" }}>
-          {["", "prospect", "interesse", "client", "perdu"].map(function (s) {
-            const actif = filtre === s;
+          <button
+            onClick={() => setFiltre("")}
+            style={{ padding: "9px 16px", borderRadius: "20px", border: "none", cursor: "pointer", background: filtre === "" ? "#c8a96e" : "rgba(255,255,255,0.06)", color: filtre === "" ? "#050508" : "rgba(255,255,255,0.6)", fontSize: "13.5px", fontFamily: "Georgia,serif", fontWeight: filtre === "" ? "bold" : "normal" }}
+          >
+            Tous · {prospects.length}
+          </button>
+          {ETAPES.map(function (e) {
+            const actif = filtre === e.cle;
             return (
               <button
-                key={s || "tous"}
-                onClick={() => setFiltre(s)}
-                style={{ padding: "8px 16px", borderRadius: "20px", border: "none", cursor: "pointer", background: actif ? "#c8a96e" : "rgba(255,255,255,0.06)", color: actif ? "#050508" : "rgba(255,255,255,0.6)", fontSize: "13px", fontFamily: "Georgia,serif", fontWeight: actif ? "bold" : "normal" }}
+                key={e.cle}
+                onClick={() => setFiltre(e.cle)}
+                style={{ padding: "9px 16px", borderRadius: "20px", border: "none", cursor: "pointer", background: actif ? "#c8a96e" : "rgba(255,255,255,0.06)", color: actif ? "#050508" : "rgba(255,255,255,0.6)", fontSize: "13.5px", fontFamily: "Georgia,serif", fontWeight: actif ? "bold" : "normal" }}
               >
-                {s ? LIBELLE_STATUT[s] : "Tous"}
+                {e.nom} · {compte[e.cle]}
               </button>
             );
           })}
+        </div>
 
+        <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginBottom: "18px" }}>
           <button
-            onClick={() => setFormulaire(!formulaire)}
-            style={{ ...BOUTON, background: formulaire ? "none" : "#c8a96e", color: formulaire ? "#c8a96e" : "#050508", border: formulaire ? "1px solid rgba(200,169,110,0.45)" : "none", fontWeight: "bold" }}
+            onClick={() => { setFormulaire(!formulaire); setImportOuvert(false); }}
+            style={{ ...BOUTON, background: formulaire ? "none" : "#c8a96e", color: formulaire ? "#c8a96e" : "#050508", border: formulaire ? "1px solid rgba(200,169,110,0.45)" : "none", fontWeight: "bold", padding: "10px 20px" }}
           >
             {formulaire ? "Annuler" : "Ajouter un prospect"}
+          </button>
+          <button
+            onClick={() => { setImportOuvert(!importOuvert); setFormulaire(false); }}
+            style={{ ...BOUTON, padding: "10px 20px" }}
+          >
+            {importOuvert ? "Fermer l import" : "Importer une liste"}
           </button>
         </div>
 
@@ -292,8 +422,61 @@ export default function PageCRM() {
           </div>
         )}
 
+        {importOuvert && (
+          <div style={{ ...CARTE, border: "1px solid rgba(200,169,110,0.5)" }}>
+            <span style={LIBELLE}>Ordre des colonnes</span>
+            <p style={{ color: "rgba(255,255,255,0.75)", fontSize: "13px", margin: "0 0 6px", fontFamily: "monospace", lineHeight: "1.7" }}>
+              email ; nom ; telephone ; formation ; origine ; notes
+            </p>
+            <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "13px", margin: "0 0 14px", lineHeight: "1.7" }}>
+              Seule la premiere colonne est obligatoire. Point-virgule, virgule ou tabulation :
+              les trois fonctionnent, et une ligne d en-tete est ignoree.
+            </p>
+
+            <textarea
+              value={contenu}
+              onChange={(e) => setContenu(e.target.value)}
+              rows={8}
+              placeholder={"marie.dupont@exemple.fr ; Marie Dupont ; 0612345678 ; F028 ; salon\njean.martin@exemple.fr ; Jean Martin ; ; ; recommandation"}
+              style={{ ...CHAMP, fontFamily: "monospace", fontSize: "14px", lineHeight: "1.7" }}
+            />
+
+            <button
+              onClick={importer}
+              disabled={occupe === "import" || contenu.trim().length < 6}
+              style={{ background: occupe === "import" || contenu.trim().length < 6 ? "rgba(200,169,110,0.3)" : "#c8a96e", color: occupe === "import" || contenu.trim().length < 6 ? "#8a8a8a" : "#050508", padding: "13px 26px", borderRadius: "8px", border: "none", cursor: "pointer", fontWeight: "bold", fontSize: "15px", fontFamily: "Georgia,serif", width: "100%" }}
+            >
+              {occupe === "import" ? "Import en cours..." : "Importer"}
+            </button>
+
+            <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px", margin: "12px 0 0", lineHeight: "1.7" }}>
+              Un prospect deja connu est mis a jour, sans que son etape ni ses notes soient
+              effacees.
+            </p>
+          </div>
+        )}
+
         {message && <p style={{ color: "#4caf50", fontSize: "15px", fontWeight: "bold" }}>{message}</p>}
         {erreur && <p style={{ color: "#e8836a", fontSize: "15px" }}>{erreur}</p>}
+
+        {rejets.length > 0 && (
+          <div style={CARTE}>
+            <h2 style={{ color: "#e8a33d", fontSize: "16px", margin: "0 0 12px" }}>
+              {rejets.length} ligne(s) ecartee(s)
+            </h2>
+            {rejets.map(function (r: any, i: number) {
+              return (
+                <div key={i} style={{ padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+                  <p style={{ color: "rgba(255,255,255,0.75)", fontSize: "13px", margin: 0, wordBreak: "break-all" }}>
+                    <span style={{ color: "rgba(255,255,255,0.4)" }}>Ligne {r.ligne} · </span>
+                    {r.valeur}
+                  </p>
+                  <p style={{ color: "#e8a33d", fontSize: "12.5px", margin: "3px 0 0" }}>{r.motif}</p>
+                </div>
+              );
+            })}
+          </div>
+        )}
 
         {chargement ? (
           <div style={CARTE}>
@@ -301,13 +484,16 @@ export default function PageCRM() {
           </div>
         ) : affiches.length === 0 ? (
           <div style={CARTE}>
-            <p style={{ color: "rgba(255,255,255,0.6)", margin: 0, fontSize: "15px" }}>
-              Aucun prospect {filtre ? "dans cette categorie" : "pour le moment"}.
+            <p style={{ color: "rgba(255,255,255,0.6)", margin: 0, fontSize: "15px", lineHeight: "1.75" }}>
+              Aucun prospect {filtre ? "a cette etape" : "pour le moment"}. Les demandes venues
+              de votre page publique arrivent directement ici.
             </p>
           </div>
         ) : (
           affiches.map(function (p) {
             const panneau = ouvert[p.email];
+            const etape = p.statut || "prospect";
+            const enInscription = inscrire[p.email] === true;
             return (
               <div key={p.email} style={CARTE}>
                 <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "10px" }}>
@@ -333,18 +519,33 @@ export default function PageCRM() {
                       {p.score || 0}
                     </p>
                     <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "12px", margin: 0 }}>
-                      {LIBELLE_STATUT[p.statut] || p.statut}
+                      {LIBELLE_STATUT[etape] || etape}
                     </p>
                   </div>
                 </div>
 
                 {p.notes && (
-                  <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "13px", margin: "10px 0 0", lineHeight: "1.6" }}>
+                  <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "13px", margin: "10px 0 0", lineHeight: "1.6", whiteSpace: "pre-wrap" }}>
                     {p.notes}
                   </p>
                 )}
 
-                <div style={{ display: "flex", gap: "8px", marginTop: "14px", flexWrap: "wrap" }}>
+                <div style={{ display: "flex", gap: "7px", marginTop: "14px", flexWrap: "wrap", alignItems: "center" }}>
+                  {ETAPES.filter(function (e) { return e.cle !== etape; }).map(function (e) {
+                    return (
+                      <button
+                        key={e.cle}
+                        onClick={() => changerStatut(p, e.cle)}
+                        disabled={occupe !== ""}
+                        style={{ ...BOUTON, color: e.couleur, borderColor: "rgba(255,255,255,0.18)", fontSize: "12.5px", padding: "6px 13px" }}
+                      >
+                        → {e.nom}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div style={{ display: "flex", gap: "8px", marginTop: "10px", flexWrap: "wrap", alignItems: "center" }}>
                   <button
                     onClick={() => analyser(p.email)}
                     disabled={occupe !== ""}
@@ -361,6 +562,15 @@ export default function PageCRM() {
                     {occupe === "relance-" + p.email ? "Redaction..." : "Rediger une relance"}
                   </button>
 
+                  {etape !== "client" && (
+                    <button
+                      onClick={() => setInscrire({ ...inscrire, [p.email]: !enInscription })}
+                      style={{ ...BOUTON, background: "#c8a96e", color: "#050508", border: "none", fontWeight: "bold" }}
+                    >
+                      {enInscription ? "Annuler" : "Inscrire au registre"}
+                    </button>
+                  )}
+
                   {panneau && (
                     <button
                       onClick={() => setOuvert({ ...ouvert, [p.email]: null })}
@@ -376,6 +586,28 @@ export default function PageCRM() {
                     </span>
                   )}
                 </div>
+
+                {enInscription && (
+                  <div style={{ marginTop: "14px", paddingTop: "12px", borderTop: "1px solid rgba(255,255,255,0.08)", display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
+                    <span style={{ color: "#c8a96e", fontSize: "13px" }}>Prix de vente</span>
+                    <input
+                      value={prix[p.email] || ""}
+                      onChange={(e) => setPrix({ ...prix, [p.email]: e.target.value })}
+                      placeholder="1500"
+                      style={{ ...CHAMP, width: "130px", marginBottom: 0 }}
+                    />
+                    <button
+                      onClick={() => convertir(p)}
+                      disabled={occupe !== ""}
+                      style={{ background: "#c8a96e", color: "#050508", border: "none", padding: "11px 22px", borderRadius: "8px", cursor: "pointer", fontSize: "14px", fontFamily: "Georgia,serif", fontWeight: "bold" }}
+                    >
+                      {occupe === "convertir-" + p.email ? "Inscription..." : "Confirmer l inscription"}
+                    </button>
+                    <span style={{ color: "rgba(255,255,255,0.4)", fontSize: "12.5px" }}>
+                      {p.formation_interesse ? "sur " + p.formation_interesse : "sans formation precisee"}
+                    </span>
+                  </div>
+                )}
 
                 {panneau && panneau.texte && (
                   <div style={{ marginTop: "14px", background: "#ffffff", borderRadius: "10px", padding: "20px 22px", color: "#1a1a1a" }}>
