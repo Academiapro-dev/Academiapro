@@ -4,10 +4,22 @@ import { createClient } from "@supabase/supabase-js";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
+export const fetchCache = "force-no-store";
 
+// Sans cette option, Next met en cache le resultat des requetes et la route
+// travaille sur des donnees perimees — un dossier cree a l instant reste
+// introuvable.
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  {
+    global: {
+      fetch: function (url: any, options: any) {
+        return fetch(url, { ...(options || {}), cache: "no-store" });
+      },
+    },
+  }
 );
 
 function sessionPresente(req: NextRequest): boolean {
@@ -63,8 +75,7 @@ export async function GET(req: NextRequest) {
 
   const { data: dossiers, error: erreurDossiers } = await supabase
     .from("compta_societes")
-    .select("id, code, raison_sociale, siren, forme, adresse, regime_fiscal, exercice_debut, exercice_fin")
-    .eq("actif", true)
+    .select("id, code, raison_sociale, siren, forme, adresse, regime_fiscal, exercice_debut, exercice_fin, actif")
     .limit(500);
 
   if (erreurDossiers) {
@@ -74,7 +85,7 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  const liste = dossiers || [];
+  const liste = (dossiers || []).filter(function (s: any) { return s.actif !== false; });
 
   if (liste.length === 0) {
     return NextResponse.json(
@@ -88,7 +99,9 @@ export async function GET(req: NextRequest) {
   if (idDemande) {
     dossier = liste.find(function (s: any) { return s.id === idDemande; }) || null;
   } else if (codeDemande) {
-    dossier = liste.find(function (s: any) { return s.code === codeDemande; }) || null;
+    dossier = liste.find(function (s: any) {
+      return String(s.code || "").trim().toUpperCase() === codeDemande;
+    }) || null;
   } else if (liste.length === 1) {
     dossier = liste[0];
   }
@@ -105,7 +118,16 @@ export async function GET(req: NextRequest) {
         { status: 400 }
       );
     }
-    return NextResponse.json({ error: "Dossier introuvable." }, { status: 404 });
+    return NextResponse.json(
+      {
+        error: "Dossier introuvable.",
+        demande: codeDemande || idDemande,
+        dossiers_connus: liste.map(function (s: any) {
+          return { code: s.code, raison_sociale: s.raison_sociale };
+        }),
+      },
+      { status: 404 }
+    );
   }
 
   const anneeDemandee = parseInt(req.nextUrl.searchParams.get("year") || "", 10);
@@ -141,6 +163,7 @@ export async function GET(req: NextRequest) {
       {
         error: "Aucune ecriture pour " + dossier.raison_sociale
           + " entre le " + debut + " et le " + fin + ".",
+        dossier: dossier.code,
       },
       { status: 404 }
     );
@@ -295,6 +318,9 @@ ${blocIS}
 
   return new NextResponse(html, {
     status: 200,
-    headers: { "Content-Type": "text/html; charset=utf-8" },
+    headers: {
+      "Content-Type": "text/html; charset=utf-8",
+      "Cache-Control": "no-store",
+    },
   });
 }
