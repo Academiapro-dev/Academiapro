@@ -7,8 +7,12 @@ const CHEMINS_PROTEGES = ['/admin'];
 // Pages qui exigent EN PLUS une societe rattachee au compte.
 const EXIGENT_SOCIETE = ['/admin/compliance', '/admin/qualiopi'];
 
-// Exception : c'est par la qu'un nouveau client enregistre sa societe.
-const EXCEPTIONS = ['/admin/compliance/ma-societe'];
+// Exceptions : c'est par la qu'on enregistre ou qu'on gere les societes.
+// Les exiger rattachees a une societe rendrait ces pages inatteignables.
+const EXCEPTIONS = [
+  '/admin/compliance/ma-societe',
+  '/admin/compliance/societes',
+];
 
 // Pages de contenu reservees aux eleves connectes.
 const CHEMINS_ELEVE = [
