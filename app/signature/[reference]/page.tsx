@@ -1,9 +1,10 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 const LIBELLE_TYPE: any = {
   convention: "Convention de formation professionnelle",
   devis: "Devis",
+  bon_commande: "Bon de commande",
   convocation: "Convocation",
   programme: "Programme de formation",
   attestation: "Attestation de fin de formation",
@@ -15,13 +16,21 @@ export default function PageSignature({ params }: { params: { reference: string 
   const reference = params.reference || "";
 
   const [consentement, setConsentement] = useState("");
+  const [email, setEmail] = useState("");
   const [deja, setDeja] = useState<any>(null);
   const [nom, setNom] = useState("");
   const [qualite, setQualite] = useState("");
+  const [code, setCode] = useState("");
   const [accepte, setAccepte] = useState(false);
+  const [codeEnvoye, setCodeEnvoye] = useState(false);
   const [resultat, setResultat] = useState<any>(null);
-  const [occupe, setOccupe] = useState(false);
+  const [occupe, setOccupe] = useState("");
+  const [message, setMessage] = useState("");
   const [erreur, setErreur] = useState("");
+
+  // L heure d ouverture de la page est relevee : elle documente le temps
+  // ecoule entre la mise a disposition du document et son acceptation.
+  const ouvertLe = useRef(new Date().toISOString());
 
   useEffect(function () {
     charger();
@@ -34,6 +43,7 @@ export default function PageSignature({ params }: { params: { reference: string 
       const data = await r.json();
       if (data.ok) {
         setConsentement(data.consentement || "");
+        setEmail(data.email || "");
         const trouvee = (data.signatures || []).find(function (s: any) {
           return s.document_reference === reference && !s.annulee;
         });
@@ -46,12 +56,35 @@ export default function PageSignature({ params }: { params: { reference: string 
     }
   }
 
+  async function demanderCode() {
+    setOccupe("code");
+    setErreur("");
+    setMessage("");
+    try {
+      const r = await fetch("/api/organisme/signature", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ document_reference: reference, action: "code" }),
+      });
+      const data = await r.json();
+      if (data.ok) {
+        setCodeEnvoye(true);
+        setMessage(data.message || "Code envoye.");
+      } else {
+        setErreur(data.erreur || "Envoi impossible.");
+      }
+    } catch (e: any) {
+      setErreur("Envoi impossible : " + String(e));
+    }
+    setOccupe("");
+  }
+
   async function signer() {
     if (!accepte) {
       setErreur("Cochez la case pour signer.");
       return;
     }
-    setOccupe(true);
+    setOccupe("signature");
     setErreur("");
     try {
       const r = await fetch("/api/organisme/signature", {
@@ -60,8 +93,10 @@ export default function PageSignature({ params }: { params: { reference: string 
         body: JSON.stringify({
           document_reference: reference,
           accepte: true,
+          code: code.trim(),
           signataire_nom: nom,
           signataire_qualite: qualite,
+          ouvert_le: ouvertLe.current,
         }),
       });
       const data = await r.json();
@@ -74,7 +109,7 @@ export default function PageSignature({ params }: { params: { reference: string 
     } catch (e: any) {
       setErreur("Signature impossible : " + String(e));
     }
-    setOccupe(false);
+    setOccupe("");
   }
 
   const CADRE: any = {
@@ -116,6 +151,7 @@ export default function PageSignature({ params }: { params: { reference: string 
   };
 
   const signature = resultat || deja;
+  const pretASigner = accepte && nom.trim().length >= 2 && code.trim().length === 6;
 
   return (
     <div style={CADRE}>
@@ -148,6 +184,12 @@ export default function PageSignature({ params }: { params: { reference: string 
               {new Date(signature.signe_le).toLocaleString("fr-FR")}
             </p>
 
+            {(signature.code_verifie_le || signature.verifie_par_code) && (
+              <p style={{ color: "#2e7d32", fontSize: "14px", margin: "10px 0 0", lineHeight: "1.7" }}>
+                Votre identite a ete verifiee par un code envoye a votre adresse electronique.
+              </p>
+            )}
+
             <p style={{ color: "#5a7a5d", fontSize: "13px", margin: "14px 0 0", lineHeight: "1.7", wordBreak: "break-all" }}>
               Empreinte du document signe :<br />
               <span style={{ fontFamily: "monospace", fontSize: "12px" }}>
@@ -162,81 +204,132 @@ export default function PageSignature({ params }: { params: { reference: string 
           </div>
         ) : (
           <div style={CARTE}>
-            <span style={LIBELLE}>Votre nom et prenom</span>
-            <input value={nom} onChange={(e) => setNom(e.target.value)} style={CHAMP} />
+            {!codeEnvoye ? (
+              <div>
+                <h2 style={{ color: "#0a3d2e", fontSize: "19px", margin: "0 0 10px" }}>
+                  Verification de votre identite
+                </h2>
+                <p style={{ color: "#555", fontSize: "15px", margin: "0 0 20px", lineHeight: "1.75" }}>
+                  Avant de signer, nous verifions que vous etes bien le titulaire de
+                  l adresse <strong>{email || "a laquelle ce lien a ete envoye"}</strong>.
+                  Un code a six chiffres va vous y etre adresse.
+                </p>
 
-            <span style={LIBELLE}>Votre qualite (facultatif)</span>
-            <input
-              value={qualite}
-              onChange={(e) => setQualite(e.target.value)}
-              placeholder="Stagiaire, gerant, responsable de formation..."
-              style={CHAMP}
-            />
+                <button
+                  onClick={demanderCode}
+                  disabled={occupe !== ""}
+                  style={{ background: occupe !== "" ? "#dfe5e1" : "#0a3d2e", color: occupe !== "" ? "#8a8a8a" : "#ffffff", padding: "17px 30px", borderRadius: "8px", border: "none", cursor: occupe !== "" ? "default" : "pointer", fontWeight: "bold", fontSize: "17px", fontFamily: "Georgia,serif", width: "100%" }}
+                >
+                  {occupe === "code" ? "Envoi du code..." : "Recevoir mon code"}
+                </button>
 
-            <div
-              onClick={() => setAccepte(!accepte)}
-              style={{
-                display: "flex",
-                alignItems: "flex-start",
-                gap: "14px",
-                padding: "18px 20px",
-                borderRadius: "8px",
-                cursor: "pointer",
-                background: accepte ? "rgba(10,61,46,0.06)" : "#fafafa",
-                border: accepte ? "2px solid #0a3d2e" : "1px solid #ddd",
-                marginBottom: "20px",
-              }}
-            >
-              <span style={{
-                flexShrink: 0,
-                width: "26px",
-                height: "26px",
-                borderRadius: "6px",
-                background: accepte ? "#0a3d2e" : "#fff",
-                border: accepte ? "2px solid #0a3d2e" : "2px solid #bbb",
-                color: "#fff",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontWeight: "bold",
-                fontSize: "15px",
-              }}>
-                {accepte ? "✓" : ""}
-              </span>
-              <span style={{ color: "#1a1a1a", fontSize: "15px", lineHeight: "1.75" }}>
-                {consentement || "Chargement du texte de consentement..."}
-              </span>
-            </div>
+                <p style={{ color: "#777", fontSize: "13px", margin: "16px 0 0", lineHeight: "1.7" }}>
+                  Cette verification renforce la valeur de votre signature : elle etablit que
+                  la personne qui signe controle bien cette adresse.
+                </p>
+              </div>
+            ) : (
+              <div>
+                {message && (
+                  <p style={{ color: "#2e7d32", fontSize: "15px", margin: "0 0 20px", lineHeight: "1.7" }}>
+                    {message}
+                  </p>
+                )}
 
-            <button
-              onClick={signer}
-              disabled={occupe || !accepte || nom.trim().length < 2}
-              style={{
-                background: occupe || !accepte || nom.trim().length < 2 ? "#dfe5e1" : "#0a3d2e",
-                color: occupe || !accepte || nom.trim().length < 2 ? "#8a8a8a" : "#ffffff",
-                padding: "17px 30px",
-                borderRadius: "8px",
-                border: "none",
-                cursor: occupe || !accepte || nom.trim().length < 2 ? "default" : "pointer",
-                fontWeight: "bold",
-                fontSize: "17px",
-                fontFamily: "Georgia,serif",
-                width: "100%",
-              }}
-            >
-              {occupe ? "Signature en cours..." : "Signer ce document"}
-            </button>
+                <span style={LIBELLE}>Le code recu par email</span>
+                <input
+                  value={code}
+                  onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  inputMode="numeric"
+                  placeholder="000000"
+                  style={{ ...CHAMP, fontSize: "26px", letterSpacing: "10px", textAlign: "center", fontFamily: "monospace" }}
+                />
 
-            <p style={{ color: "#777", fontSize: "13px", margin: "16px 0 0", lineHeight: "1.7" }}>
-              Au moment de votre signature, le document est archive tel quel et son empreinte
-              numerique est calculee. La date, votre adresse de connexion et le texte que vous
-              acceptez sont enregistres avec elle.
-            </p>
+                <button
+                  onClick={demanderCode}
+                  disabled={occupe !== ""}
+                  style={{ background: "none", border: "none", color: "#0a3d2e", cursor: "pointer", fontSize: "14px", textDecoration: "underline", padding: 0, marginBottom: "22px" }}
+                >
+                  Je n ai rien recu — renvoyer un code
+                </button>
 
-            <p style={{ color: "#999", fontSize: "12px", margin: "12px 0 0", lineHeight: "1.6" }}>
-              Signature electronique simple au sens du reglement europeen eIDAS. Elle n est
-              ni avancee ni qualifiee.
-            </p>
+                <span style={LIBELLE}>Votre nom et prenom</span>
+                <input value={nom} onChange={(e) => setNom(e.target.value)} style={CHAMP} />
+
+                <span style={LIBELLE}>Votre qualite (facultatif)</span>
+                <input
+                  value={qualite}
+                  onChange={(e) => setQualite(e.target.value)}
+                  placeholder="Stagiaire, gerant, responsable de formation..."
+                  style={CHAMP}
+                />
+
+                <div
+                  onClick={() => setAccepte(!accepte)}
+                  style={{
+                    display: "flex",
+                    alignItems: "flex-start",
+                    gap: "14px",
+                    padding: "18px 20px",
+                    borderRadius: "8px",
+                    cursor: "pointer",
+                    background: accepte ? "rgba(10,61,46,0.06)" : "#fafafa",
+                    border: accepte ? "2px solid #0a3d2e" : "1px solid #ddd",
+                    marginBottom: "20px",
+                  }}
+                >
+                  <span style={{
+                    flexShrink: 0,
+                    width: "26px",
+                    height: "26px",
+                    borderRadius: "6px",
+                    background: accepte ? "#0a3d2e" : "#fff",
+                    border: accepte ? "2px solid #0a3d2e" : "2px solid #bbb",
+                    color: "#fff",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontWeight: "bold",
+                    fontSize: "15px",
+                  }}>
+                    {accepte ? "✓" : ""}
+                  </span>
+                  <span style={{ color: "#1a1a1a", fontSize: "15px", lineHeight: "1.75" }}>
+                    {consentement || "Chargement du texte de consentement..."}
+                  </span>
+                </div>
+
+                <button
+                  onClick={signer}
+                  disabled={occupe !== "" || !pretASigner}
+                  style={{
+                    background: occupe !== "" || !pretASigner ? "#dfe5e1" : "#0a3d2e",
+                    color: occupe !== "" || !pretASigner ? "#8a8a8a" : "#ffffff",
+                    padding: "17px 30px",
+                    borderRadius: "8px",
+                    border: "none",
+                    cursor: occupe !== "" || !pretASigner ? "default" : "pointer",
+                    fontWeight: "bold",
+                    fontSize: "17px",
+                    fontFamily: "Georgia,serif",
+                    width: "100%",
+                  }}
+                >
+                  {occupe === "signature" ? "Signature en cours..." : "Signer ce document"}
+                </button>
+
+                <p style={{ color: "#777", fontSize: "13px", margin: "16px 0 0", lineHeight: "1.7" }}>
+                  Au moment de votre signature, le document est archive tel quel et son empreinte
+                  numerique est calculee. La date, l heure de verification de votre code, votre
+                  adresse de connexion et le texte que vous acceptez sont enregistres avec elle.
+                </p>
+
+                <p style={{ color: "#999", fontSize: "12px", margin: "12px 0 0", lineHeight: "1.6" }}>
+                  Signature electronique simple au sens du reglement europeen eIDAS. Elle n est
+                  ni avancee ni qualifiee.
+                </p>
+              </div>
+            )}
           </div>
         )}
       </div>
