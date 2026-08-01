@@ -9,6 +9,7 @@ export default function PageModeles() {
   const [erreur, setErreur] = useState("");
   const [ouvert, setOuvert] = useState<any>({});
   const [valeurs, setValeurs] = useState<any>({});
+  const [variantes, setVariantes] = useState<any>({});
   const [resultat, setResultat] = useState<any>(null);
   const [organismes, setOrganismes] = useState<any[]>([]);
   const [tenant, setTenant] = useState("");
@@ -69,12 +70,17 @@ export default function PageModeles() {
     setErreur("");
     setResultat(null);
     try {
+      const liste = (variantes[m.id] || []).filter(function (v: any) {
+        return v && String(v.libelle || "").trim();
+      });
+
       const r = await fetch("/api/admin/contrat-generer", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           modele_id: m.id,
           valeurs: valeurs[m.id] || {},
+          variantes: liste.length > 0 ? liste : undefined,
           tenant_id: tenant || null,
           forcer: forcer,
         }),
@@ -147,6 +153,27 @@ export default function PageModeles() {
     return (valeurs[id] && valeurs[id][cle]) || "";
   }
 
+  function ajouterVariante(id: string) {
+    const liste = (variantes[id] || []).slice();
+    if (liste.length >= 5) return;
+    liste.push({ libelle: "", valeurs: {} });
+    setVariantes({ ...variantes, [id]: liste });
+  }
+
+  function poserVariante(id: string, i: number, cle: string, v: string) {
+    const liste = (variantes[id] || []).slice();
+    if (!liste[i]) return;
+    if (cle === "libelle") liste[i] = { ...liste[i], libelle: v };
+    else liste[i] = { ...liste[i], valeurs: { ...(liste[i].valeurs || {}), [cle]: v } };
+    setVariantes({ ...variantes, [id]: liste });
+  }
+
+  function retirerVariante(id: string, i: number) {
+    const liste = (variantes[id] || []).slice();
+    liste.splice(i, 1);
+    setVariantes({ ...variantes, [id]: liste });
+  }
+
   return (
     <div style={CADRE}>
       <div style={{ maxWidth: "900px", margin: "0 auto" }}>
@@ -168,18 +195,36 @@ export default function PageModeles() {
         {resultat && (
           <div style={{ ...CARTE, border: "2px solid rgba(76,175,80,0.5)", marginTop: "18px" }}>
             <p style={{ color: "#4caf50", fontSize: "17px", fontWeight: "bold", margin: "0 0 10px" }}>
-              Contrat {resultat.reference} genere
+              {resultat.contrats.length > 1
+                ? resultat.contrats.length + " versions preparees"
+                : "Contrat " + resultat.contrats[0].reference + " genere"}
             </p>
-            <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "14px", margin: "0 0 12px", lineHeight: "1.75" }}>
-              Envoyez ce lien a {resultat.signataire}. Un code de verification lui sera demande
-              avant signature.
+            <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "14px", margin: "0 0 14px", lineHeight: "1.75" }}>
+              {resultat.contrats.length > 1
+                ? "Envoyez a " + resultat.signataire + " le lien de la version retenue. Des que"
+                  + " l une est signee, les autres cessent d etre signables."
+                : "Envoyez ce lien a " + resultat.signataire + ". Un code de verification lui"
+                  + " sera demande avant signature."}
             </p>
-            <div style={{ background: "rgba(255,255,255,0.06)", borderRadius: "8px", padding: "12px 14px", marginBottom: "12px" }}>
-              <p style={{ color: "#c8a96e", fontSize: "13.5px", margin: 0, fontFamily: "monospace", wordBreak: "break-all" }}>
-                {resultat.lien_signature}
-              </p>
-            </div>
-            <a href="/admin/coffre" style={BOUTON}>Voir au coffre →</a>
+
+            {resultat.contrats.map(function (c: any) {
+              return (
+                <div key={c.reference} style={{ background: "rgba(255,255,255,0.06)", borderRadius: "8px", padding: "12px 14px", marginBottom: "10px" }}>
+                  {c.libelle && (
+                    <p style={{ color: "#c8a96e", fontSize: "13px", margin: "0 0 5px", fontWeight: "bold" }}>
+                      {c.libelle}
+                    </p>
+                  )}
+                  <p style={{ color: "rgba(255,255,255,0.8)", fontSize: "13px", margin: 0, fontFamily: "monospace", wordBreak: "break-all" }}>
+                    {c.lien_signature}
+                  </p>
+                </div>
+              );
+            })}
+
+            <a href="/admin/coffre" style={{ ...BOUTON, display: "inline-block", textDecoration: "none", marginTop: "6px" }}>
+              Voir au coffre →
+            </a>
           </div>
         )}
 
@@ -192,9 +237,7 @@ export default function PageModeles() {
             {d.a_installer > 0 && (
               <div style={{ ...CARTE, marginTop: "24px", border: "1px solid rgba(200,169,110,0.5)" }}>
                 <p style={{ color: "rgba(255,255,255,0.75)", fontSize: "15px", margin: "0 0 14px", lineHeight: "1.75" }}>
-                  {d.a_installer} modele(s) sont disponibles et pas encore installes : partenariat
-                  de distribution, accord de confidentialite, sous-traitance de formation,
-                  prestation avec cession des droits.
+                  {d.a_installer} modele(s) disponibles et pas encore installes.
                 </p>
                 <button
                   onClick={installer}
@@ -232,6 +275,7 @@ export default function PageModeles() {
               d.modeles.map(function (m: any) {
                 const estOuvert = ouvert[m.id] === true;
                 const apercu = ouvert["texte-" + m.id] === true;
+                const mesVariantes = variantes[m.id] || [];
                 return (
                   <div key={m.id} style={CARTE}>
                     <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "10px" }}>
@@ -289,13 +333,78 @@ export default function PageModeles() {
                           );
                         })}
 
+                        <div style={{ background: "rgba(200,169,110,0.06)", borderRadius: "10px", padding: "16px 18px", marginBottom: "16px" }}>
+                          <p style={{ color: "#c8a96e", fontSize: "14px", fontWeight: "bold", margin: "0 0 6px" }}>
+                            Preparer plusieurs versions de negociation
+                          </p>
+                          <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", margin: "0 0 14px", lineHeight: "1.75" }}>
+                            Facultatif. Donnez un nom a chaque version et ne changez que ce qui
+                            differe — le reste est repris des champs ci-dessus. Des que l une est
+                            signee, les autres cessent d etre signables.
+                          </p>
+
+                          {mesVariantes.map(function (v: any, i: number) {
+                            return (
+                              <div key={i} style={{ background: "rgba(255,255,255,0.04)", borderRadius: "8px", padding: "12px 14px", marginBottom: "10px" }}>
+                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "8px" }}>
+                                  <span style={{ color: "#c8a96e", fontSize: "13px" }}>
+                                    Version {i + 1}
+                                  </span>
+                                  <button
+                                    onClick={() => retirerVariante(m.id, i)}
+                                    style={{ background: "none", border: "none", color: "#e8836a", cursor: "pointer", fontSize: "13px" }}
+                                  >
+                                    Retirer
+                                  </button>
+                                </div>
+
+                                <input
+                                  value={v.libelle || ""}
+                                  onChange={(e) => poserVariante(m.id, i, "libelle", e.target.value)}
+                                  placeholder="Nom de la version — par exemple : 50 pour cent"
+                                  style={CHAMP}
+                                />
+
+                                {(m.champs || []).map(function (c: any) {
+                                  return (
+                                    <div key={c.cle}>
+                                      <span style={{ ...LIBELLE, fontSize: "12px" }}>
+                                        {c.libelle || c.cle} — laisser vide pour reprendre la valeur commune
+                                      </span>
+                                      <input
+                                        value={(v.valeurs && v.valeurs[c.cle]) || ""}
+                                        onChange={(e) => poserVariante(m.id, i, c.cle, e.target.value)}
+                                        style={{ ...CHAMP, marginBottom: "8px" }}
+                                      />
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            );
+                          })}
+
+                          <button
+                            onClick={() => ajouterVariante(m.id)}
+                            disabled={mesVariantes.length >= 5}
+                            style={BOUTON}
+                          >
+                            {mesVariantes.length === 0
+                              ? "Ajouter une version"
+                              : "Ajouter une autre version"}
+                          </button>
+                        </div>
+
                         <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
                           <button
                             onClick={() => generer(m, false)}
                             disabled={occupe !== ""}
                             style={{ background: "#c8a96e", color: "#050508", padding: "13px 26px", borderRadius: "8px", border: "none", cursor: "pointer", fontWeight: "bold", fontSize: "15px", fontFamily: "Georgia,serif" }}
                           >
-                            {occupe === "generer-" + m.id ? "Generation..." : "Generer le contrat"}
+                            {occupe === "generer-" + m.id
+                              ? "Generation..."
+                              : mesVariantes.length > 0
+                                ? "Generer les " + mesVariantes.length + " version(s)"
+                                : "Generer le contrat"}
                           </button>
                           <button
                             onClick={() => generer(m, true)}
@@ -307,8 +416,8 @@ export default function PageModeles() {
                         </div>
 
                         <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px", margin: "12px 0 0", lineHeight: "1.7" }}>
-                          Le contrat est archive au coffre des sa generation, avec son empreinte.
-                          Vous recevrez un lien de signature a transmettre.
+                          Chaque contrat est archive au coffre des sa generation, avec son
+                          empreinte. Vous recevrez un lien de signature par version.
                         </p>
                       </div>
                     )}
