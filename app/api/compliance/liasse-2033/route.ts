@@ -10,9 +10,6 @@ export const maxDuration = 60;
 
 const ADMINS = ["contact@academiapro.fr"];
 
-// Cases du 2033-A (bilan simplifie). Chaque case porte son code officiel et
-// les racines de comptes qui l alimentent. « sens » dit si l on retient le
-// solde debiteur ou crediteur.
 const BILAN_ACTIF = [
   { code: "010", libelle: "Fonds commercial", racines: ["206", "207"], sens: "debit" },
   { code: "014", libelle: "Autres immobilisations incorporelles", racines: ["201", "203", "205", "208"], sens: "debit" },
@@ -22,7 +19,7 @@ const BILAN_ACTIF = [
   { code: "050", libelle: "Stocks de matieres premieres", racines: ["31", "32"], sens: "debit" },
   { code: "060", libelle: "Stocks de marchandises", racines: ["37"], sens: "debit" },
   { code: "068", libelle: "Creances clients et comptes rattaches", racines: ["411", "413", "416", "418"], sens: "debit" },
-  { code: "072", libelle: "Autres creances", racines: ["409", "425", "43", "44", "45", "46", "486"], sens: "debit" },
+  { code: "072", libelle: "Autres creances", racines: ["409", "425", "43", "44", "45", "46"], sens: "debit" },
   { code: "084", libelle: "Disponibilites", racines: ["51", "53", "58"], sens: "debit" },
   { code: "092", libelle: "Charges constatees d avance", racines: ["486"], sens: "debit" },
 ];
@@ -35,11 +32,10 @@ const BILAN_PASSIF = [
   { code: "154", libelle: "Provisions pour risques et charges", racines: ["15"], sens: "credit" },
   { code: "156", libelle: "Emprunts et dettes assimilees", racines: ["16", "17"], sens: "credit" },
   { code: "166", libelle: "Fournisseurs et comptes rattaches", racines: ["401", "403", "404", "408"], sens: "credit" },
-  { code: "172", libelle: "Autres dettes", racines: ["419", "42", "43", "44", "45", "46", "487"], sens: "credit" },
+  { code: "172", libelle: "Autres dettes", racines: ["419", "42", "43", "44", "45", "46"], sens: "credit" },
   { code: "174", libelle: "Produits constates d avance", racines: ["487"], sens: "credit" },
 ];
 
-// Cases du 2033-B (compte de resultat simplifie).
 const RESULTAT = [
   { code: "210", libelle: "Ventes de marchandises", racines: ["707"], sens: "credit" },
   { code: "214", libelle: "Production vendue - biens", racines: ["701", "702", "703"], sens: "credit" },
@@ -47,7 +43,7 @@ const RESULTAT = [
   { code: "222", libelle: "Production stockee et immobilisee", racines: ["71", "72"], sens: "credit" },
   { code: "224", libelle: "Subventions d exploitation", racines: ["74"], sens: "credit" },
   { code: "226", libelle: "Autres produits", racines: ["75", "78", "79"], sens: "credit" },
-  { code: "234", libelle: "Achats de marchandises", racines: ["607", "6097"], sens: "debit" },
+  { code: "234", libelle: "Achats de marchandises", racines: ["607"], sens: "debit" },
   { code: "238", libelle: "Achats de matieres premieres", racines: ["601", "602"], sens: "debit" },
   { code: "242", libelle: "Autres charges externes", racines: ["604", "605", "606", "61", "62"], sens: "debit" },
   { code: "244", libelle: "Impots, taxes et versements assimiles", racines: ["63"], sens: "debit" },
@@ -76,6 +72,76 @@ function refuse() {
 
 function r2(n: number): number {
   return Math.round(n * 100) / 100;
+}
+
+// Ventile une periode dans les cases, et rend aussi les comptes orphelins.
+function ventiler(lignes: any[]) {
+  const comptes: any = {};
+  for (const l of lignes || []) {
+    const n = String(l.compte_num || "");
+    if (!comptes[n]) comptes[n] = { numero: n, libelle: l.compte_lib, debit: 0, credit: 0 };
+    comptes[n].debit = r2(comptes[n].debit + (Number(l.debit) || 0));
+    comptes[n].credit = r2(comptes[n].credit + (Number(l.credit) || 0));
+  }
+
+  const utilises: any = {};
+
+  function remplir(bloc: any[]) {
+    return bloc.map(function (c: any) {
+      let montant = 0;
+      const detail: any[] = [];
+
+      for (const num of Object.keys(comptes)) {
+        let racine = "";
+        for (const r of c.racines) {
+          if (num.startsWith(r) && r.length > racine.length) racine = r;
+        }
+        if (!racine) continue;
+        if (utilises[num] && utilises[num].length >= racine.length) continue;
+
+        const cp = comptes[num];
+        const solde = c.sens === "credit" ? r2(cp.credit - cp.debit) : r2(cp.debit - cp.credit);
+        if (Math.abs(solde) < 0.005) continue;
+
+        utilises[num] = racine;
+        montant = r2(montant + solde);
+        detail.push({ compte: num, libelle: cp.libelle, montant: solde });
+      }
+
+      return { ...c, montant: montant, comptes: detail };
+    });
+  }
+
+  const actif = remplir(BILAN_ACTIF);
+  const passif = remplir(BILAN_PASSIF);
+  const resultat = remplir(RESULTAT);
+
+  const orphelins = Object.keys(comptes)
+    .filter(function (n) {
+      if (utilises[n]) return false;
+      const c = comptes[n];
+      return Math.abs(r2(c.debit - c.credit)) > 0.005;
+    })
+    .map(function (n) {
+      return { compte: n, libelle: comptes[n].libelle, solde: r2(comptes[n].debit - comptes[n].credit) };
+    });
+
+  const amort = r2((actif.find(function (c: any) { return c.code === "044"; }) || { montant: 0 }).montant);
+  const brut = r2(actif.filter(function (c: any) { return c.code !== "044"; })
+    .reduce(function (s: number, c: any) { return s + c.montant; }, 0));
+
+  const produits = r2(resultat.filter(function (c: any) { return c.sens === "credit"; })
+    .reduce(function (s: number, c: any) { return s + c.montant; }, 0));
+  const charges = r2(resultat.filter(function (c: any) { return c.sens === "debit"; })
+    .reduce(function (s: number, c: any) { return s + c.montant; }, 0));
+
+  return {
+    actif: actif, passif: passif, resultat: resultat, orphelins: orphelins,
+    total_actif: r2(brut - amort),
+    total_passif: r2(passif.reduce(function (s: number, c: any) { return s + c.montant; }, 0)),
+    produits: produits, charges: charges, resultat_exercice: r2(produits - charges),
+    lignes: (lignes || []).length,
+  };
 }
 
 export async function GET(req: NextRequest) {
@@ -114,7 +180,11 @@ export async function GET(req: NextRequest) {
       fin = a + "-12-31";
     }
 
-    const { data: lignes } = await supabase
+    // L exercice precedent : meme duree, decalee d un an.
+    const debutN1 = String(parseInt(debut.slice(0, 4), 10) - 1) + debut.slice(4);
+    const finN1 = String(parseInt(fin.slice(0, 4), 10) - 1) + fin.slice(4);
+
+    const { data: lignesN } = await supabase
       .from("compta_ecritures")
       .select("compte_num, compte_lib, debit, credit")
       .eq("societe_id", id)
@@ -122,96 +192,46 @@ export async function GET(req: NextRequest) {
       .lte("ecriture_date", fin)
       .limit(50000);
 
-    const comptes: any = {};
-    for (const l of lignes || []) {
-      const n = String(l.compte_num || "");
-      if (!comptes[n]) comptes[n] = { numero: n, libelle: l.compte_lib, debit: 0, credit: 0 };
-      comptes[n].debit = r2(comptes[n].debit + (Number(l.debit) || 0));
-      comptes[n].credit = r2(comptes[n].credit + (Number(l.credit) || 0));
-    }
+    const { data: lignesN1 } = await supabase
+      .from("compta_ecritures")
+      .select("compte_num, compte_lib, debit, credit")
+      .eq("societe_id", id)
+      .gte("ecriture_date", debutN1)
+      .lte("ecriture_date", finN1)
+      .limit(50000);
 
-    const utilises: any = {};
+    const n = ventiler(lignesN || []);
+    const n1 = ventiler(lignesN1 || []);
+    const aN1 = n1.lignes > 0;
 
-    // Chaque case retient les comptes dont le numero commence par une de ses
-    // racines. La racine la plus longue gagne, pour eviter qu un compte
-    // tombe dans deux cases.
-    function remplir(bloc: any[]) {
-      return bloc.map(function (c: any) {
-        let montant = 0;
-        const detail: any[] = [];
-
-        for (const num of Object.keys(comptes)) {
-          let racineRetenue = "";
-          for (const r of c.racines) {
-            if (num.startsWith(r) && r.length > racineRetenue.length) racineRetenue = r;
-          }
-          if (!racineRetenue) continue;
-
-          // Un compte deja pris par une case a racine plus precise n est
-          // pas compte deux fois.
-          if (utilises[num] && utilises[num].length >= racineRetenue.length) continue;
-
-          const cp = comptes[num];
-          const solde = c.sens === "credit"
-            ? r2(cp.credit - cp.debit)
-            : r2(cp.debit - cp.credit);
-
-          if (Math.abs(solde) < 0.005) continue;
-
-          utilises[num] = racineRetenue;
-          montant = r2(montant + solde);
-          detail.push({ compte: num, libelle: cp.libelle, montant: solde });
-        }
-
-        return { ...c, montant: montant, comptes: detail };
+    // On accole la colonne precedente a chaque case, avec sa variation.
+    function accoler(blocN: any[], blocN1: any[]) {
+      return blocN.map(function (c: any) {
+        const p = blocN1.find(function (x: any) { return x.code === c.code; });
+        const precedent = aN1 && p ? p.montant : null;
+        const variation = precedent !== null ? r2(c.montant - precedent) : null;
+        const pourcentage = precedent !== null && Math.abs(precedent) > 0.005
+          ? Math.round((variation / Math.abs(precedent)) * 1000) / 10
+          : null;
+        return { ...c, precedent: precedent, variation: variation, pourcentage: pourcentage };
       });
     }
-
-    const actif = remplir(BILAN_ACTIF);
-    const passif = remplir(BILAN_PASSIF);
-    const resultat = remplir(RESULTAT);
-
-    const totalActifBrut = r2(actif.filter(function (c: any) { return c.code !== "044"; })
-      .reduce(function (s: number, c: any) { return s + c.montant; }, 0));
-    const amortissements = r2((actif.find(function (c: any) { return c.code === "044"; }) || { montant: 0 }).montant);
-    const totalActif = r2(totalActifBrut - amortissements);
-    const totalPassif = r2(passif.reduce(function (s: number, c: any) { return s + c.montant; }, 0));
-
-    const produits = r2(resultat.filter(function (c: any) { return c.sens === "credit"; })
-      .reduce(function (s: number, c: any) { return s + c.montant; }, 0));
-    const charges = r2(resultat.filter(function (c: any) { return c.sens === "debit"; })
-      .reduce(function (s: number, c: any) { return s + c.montant; }, 0));
-    const resultatExercice = r2(produits - charges);
-
-    const resultatBilan = r2((passif.find(function (c: any) { return c.code === "136"; }) || { montant: 0 }).montant);
-
-    // Comptes qu aucune case ne reprend : ils fausseraient la liasse en
-    // silence si on ne les signalait pas.
-    const orphelins = Object.keys(comptes)
-      .filter(function (n) {
-        if (utilises[n]) return false;
-        const c = comptes[n];
-        return Math.abs(r2(c.debit - c.credit)) > 0.005;
-      })
-      .map(function (n) {
-        return { compte: n, libelle: comptes[n].libelle, solde: r2(comptes[n].debit - comptes[n].credit) };
-      });
 
     const controles = [
       {
         nom: "Total actif egale total passif",
-        ok: Math.abs(r2(totalActif - totalPassif)) < 0.01,
-        detail: "Actif " + totalActif.toFixed(2) + " · Passif " + totalPassif.toFixed(2),
+        ok: Math.abs(r2(n.total_actif - n.total_passif)) < 0.01,
+        detail: "Actif " + n.total_actif.toFixed(2) + " · Passif " + n.total_passif.toFixed(2),
       },
       {
         nom: "Le resultat du compte de resultat se retrouve au bilan",
-        ok: Math.abs(r2(resultatExercice - resultatBilan)) < 0.01,
-        detail: "Calcule " + resultatExercice.toFixed(2) + " · au bilan " + resultatBilan.toFixed(2),
+        ok: Math.abs(r2(n.resultat_exercice - (n.passif.find(function (c: any) { return c.code === "136"; }) || { montant: 0 }).montant)) < 0.01,
+        detail: "Calcule " + n.resultat_exercice.toFixed(2),
       },
       {
         nom: "Tous les comptes sont ventiles",
-        ok: orphelins.length === 0,
-        detail: orphelins.length === 0 ? "Aucun compte orphelin" : orphelins.length + " compte(s) hors liasse",
+        ok: n.orphelins.length === 0,
+        detail: n.orphelins.length === 0 ? "Aucun compte orphelin" : n.orphelins.length + " compte(s) hors liasse",
       },
     ];
 
@@ -222,9 +242,22 @@ export async function GET(req: NextRequest) {
         siren: dossier.siren, regime_fiscal: dossier.regime_fiscal,
       },
       periode: { debut: debut, fin: fin },
-      formulaire_2033_a: { actif: actif, passif: passif, total_actif: totalActif, total_passif: totalPassif },
-      formulaire_2033_b: { lignes: resultat, produits: produits, charges: charges, resultat: resultatExercice },
-      orphelins: orphelins,
+      periode_precedente: aN1 ? { debut: debutN1, fin: finN1 } : null,
+      exercice_precedent_disponible: aN1,
+      formulaire_2033_a: {
+        actif: accoler(n.actif, n1.actif),
+        passif: accoler(n.passif, n1.passif),
+        total_actif: n.total_actif,
+        total_passif: n.total_passif,
+        total_actif_precedent: aN1 ? n1.total_actif : null,
+        total_passif_precedent: aN1 ? n1.total_passif : null,
+      },
+      formulaire_2033_b: {
+        lignes: accoler(n.resultat, n1.resultat),
+        produits: n.produits, charges: n.charges, resultat: n.resultat_exercice,
+        resultat_precedent: aN1 ? n1.resultat_exercice : null,
+      },
+      orphelins: n.orphelins,
       controles: controles,
       pret_pour_edi: controles.every(function (c: any) { return c.ok; }),
       avertissement:
