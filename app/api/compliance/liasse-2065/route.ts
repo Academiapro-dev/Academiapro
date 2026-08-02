@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { sessionCourante } from "../../../../lib/session";
+import { barrage, lecture } from "../../../../lib/droits";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -43,23 +44,19 @@ const supabase = createClient(
   }
 );
 
-function refuse() {
-  return NextResponse.json({ ok: false, erreur: "reserve a l administrateur" }, { status: 403 });
-}
-
 function r2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
 export async function GET(req: NextRequest) {
   try {
-    const session = sessionCourante();
-    if (!session || ADMINS.indexOf(session.email) < 0) return refuse();
-
     const id = (req.nextUrl.searchParams.get("societe_id") || "").trim();
     if (!id) {
       return NextResponse.json({ ok: false, erreur: "Dossier non precise." }, { status: 400 });
     }
+
+    const refus = await lecture(id);
+    if (refus) return refus;
 
     const { data: dossier } = await supabase
       .from("compta_societes").select("*").eq("id", id).maybeSingle();
@@ -175,13 +172,14 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const session = sessionCourante();
-    if (!session || ADMINS.indexOf(session.email) < 0) return refuse();
-
     const b = await req.json().catch(function () { return null; });
     if (!b) {
       return NextResponse.json({ ok: false, erreur: "Requete illisible" }, { status: 400 });
     }
+
+    // LE BARRAGE : ce calcul produit le chiffre qui sera depose.
+    const refus = await barrage("declarer", b.societe_id ? String(b.societe_id) : null);
+    if (refus) return refus;
 
     function nombre(v: any): number {
       const n = Number(String(v || "0").replace(",", ".").replace(/\s/g, ""));
