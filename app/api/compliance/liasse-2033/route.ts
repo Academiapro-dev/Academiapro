@@ -222,21 +222,28 @@ export async function GET(req: NextRequest) {
     }
 
     // AVANT LA CLOTURE, les comptes 120 et 129 sont vides : le resultat ne
-    // peut pas encore figurer au bilan. Ce n est pas une anomalie, et le
-    // controle doit le dire au lieu d echouer.
+    // figure pas encore au bilan. Ce n est pas une anomalie.
     const exerciceOuvert = n.gestion_ouverte && Math.abs(n.resultat_bilan) < 0.005;
 
+    // LA RELATION FONDAMENTALE : ACTIF = PASSIF + RESULTAT. L ecart entre
+    // actif et passif doit donc EGALER le resultat, et non s y ajouter.
     const ecartBilan = r2(n.total_actif - n.total_passif);
+    const ecartResiduel = exerciceOuvert
+      ? r2(ecartBilan - n.resultat_exercice)
+      : ecartBilan;
 
     const controles = [
       {
-        nom: "Total actif egale total passif",
-        ok: exerciceOuvert
-          ? Math.abs(r2(ecartBilan + n.resultat_exercice)) < 0.01
-          : Math.abs(ecartBilan) < 0.01,
+        nom: exerciceOuvert
+          ? "Actif egale passif plus resultat"
+          : "Total actif egale total passif",
+        ok: Math.abs(ecartResiduel) < 0.01,
         detail: exerciceOuvert
           ? "Actif " + n.total_actif.toFixed(2) + " · Passif " + n.total_passif.toFixed(2)
-            + " · ecart egal au resultat non encore affecte (" + n.resultat_exercice.toFixed(2) + ")"
+            + " · Resultat " + n.resultat_exercice.toFixed(2)
+            + (Math.abs(ecartResiduel) < 0.01
+              ? " — l ecart correspond exactement au resultat de l exercice"
+              : " — il reste " + ecartResiduel.toFixed(2) + " d ecart inexplique")
           : "Actif " + n.total_actif.toFixed(2) + " · Passif " + n.total_passif.toFixed(2),
       },
       {
