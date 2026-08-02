@@ -93,6 +93,14 @@ export default function PageTableauDeBord() {
             {d.dossiers.map(function (s: any) {
               const q = "?societe_id=" + s.id;
               const grave = !s.equilibre && s.lignes > 0;
+
+              // Le pays vient de la fiche du dossier. Un SIREN ne se reclame
+              // qu a une societe francaise, et l en-tete doit dire la meme
+              // chose que la liste des motifs juste en dessous.
+              const francais = s.francais !== undefined
+                ? s.francais === true
+                : String(s.pays || "FR").toUpperCase() === "FR";
+
               const bordure = grave
                 ? "1px solid rgba(232,131,106,0.55)"
                 : s.priorite >= 20
@@ -107,14 +115,17 @@ export default function PageTableauDeBord() {
                     <div style={{ flex: "1 1 280px" }}>
                       <p style={{ color: "#c8a96e", fontSize: "12px", margin: "0 0 3px" }}>
                         {s.code}
-                        {s.siren ? " · SIREN " + s.siren : " · SIREN manquant"}
+                        {!francais ? " · " + String(s.pays || "").toUpperCase() : ""}
+                        {s.siren
+                          ? " · SIREN " + s.siren
+                          : (francais ? " · SIREN manquant" : "")}
                         {s.derniere_ecriture
                           ? " · derniere ecriture le " + new Date(s.derniere_ecriture).toLocaleDateString("fr-FR")
                           : " · aucune ecriture"}
                       </p>
                       <h3 style={{ color: "#fff", fontSize: "17px", margin: "0 0 4px" }}>{s.raison_sociale}</h3>
                       <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "13px", margin: 0 }}>
-                        {s.lignes} ecriture(s)
+                        {s.lignes} ligne(s) d ecriture
                         {s.provisions > 0 ? " · " + euros(s.provisions) + " provisionnes" : ""}
                         {s.tva_due > 0 ? " · TVA du mois " + euros(s.tva_due) : ""}
                       </p>
