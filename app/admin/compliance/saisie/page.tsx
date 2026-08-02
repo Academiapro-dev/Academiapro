@@ -10,6 +10,14 @@ const JOURNAUX_DEFAUT: any = {
   AN: "A nouveaux",
 };
 
+// Minuscules, sans accents : « Tresorerie » se trouve en tapant tresorerie.
+function sansAccent(s: any): string {
+  return String(s || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
 export default function PageSaisie() {
   const [societes, setSocietes] = useState<any[]>([]);
   const [dossier, setDossier] = useState("");
@@ -28,6 +36,10 @@ export default function PageSaisie() {
     { compte: "", libelle: "", debit: "", credit: "" },
     { compte: "", libelle: "", debit: "", credit: "" },
   ]);
+
+  // La recherche vit A COTE des lignes, pas dedans : elle ne doit jamais
+  // partir au serveur avec l ecriture.
+  const [recherches, setRecherches] = useState<string[]>(["", ""]);
 
   useEffect(function () {
     (async function () {
@@ -83,8 +95,15 @@ export default function PageSaisie() {
     setLignes(l);
   }
 
+  function poserRecherche(i: number, v: string) {
+    const r = recherches.slice();
+    r[i] = v;
+    setRecherches(r);
+  }
+
   function ajouterLigne() {
     setLignes(lignes.concat([{ compte: "", libelle: "", debit: "", credit: "" }]));
+    setRecherches(recherches.concat([""]));
   }
 
   function retirerLigne(i: number) {
@@ -92,6 +111,27 @@ export default function PageSaisie() {
     const l = lignes.slice();
     l.splice(i, 1);
     setLignes(l);
+    const r = recherches.slice();
+    r.splice(i, 1);
+    setRecherches(r);
+  }
+
+  // LA RECHERCHE DE COMPTE : un numero, un debut de numero, ou un mot du
+  // libelle. Taper 6 ne laisse que les charges. Le compte deja choisi reste
+  // toujours propose, sans quoi une ligne en cours se viderait toute seule.
+  function comptesProposes(q: string, courant: string) {
+    const t = sansAccent(q).trim();
+    if (!t) return comptes;
+
+    const trouves = comptes.filter(function (c: any) {
+      return sansAccent(c.numero + " " + (c.libelle || "")).indexOf(t) >= 0;
+    });
+
+    if (courant && !trouves.some(function (c: any) { return c.numero === courant; })) {
+      const garde = comptes.find(function (c: any) { return c.numero === courant; });
+      if (garde) return [garde].concat(trouves);
+    }
+    return trouves;
   }
 
   function nombre(v: any) {
@@ -141,6 +181,7 @@ export default function PageSaisie() {
           { compte: "", libelle: "", debit: "", credit: "" },
           { compte: "", libelle: "", debit: "", credit: "" },
         ]);
+        setRecherches(["", ""]);
         await chargerEcritures();
       } else {
         setErreur(data.erreur || "Enregistrement impossible.");
@@ -220,6 +261,8 @@ export default function PageSaisie() {
 
             <div style={{ marginTop: "8px", marginBottom: "12px" }}>
               {lignes.map(function (l: any, i: number) {
+                const q = recherches[i] || "";
+                const proposes = comptesProposes(q, l.compte);
                 return (
                   <div key={i} style={{ background: "rgba(255,255,255,0.03)", borderRadius: "10px", padding: "12px 14px", marginBottom: "10px" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "8px" }}>
@@ -234,13 +277,25 @@ export default function PageSaisie() {
                       )}
                     </div>
 
+                    <input
+                      value={q}
+                      onChange={(e) => poserRecherche(i, e.target.value)}
+                      placeholder="Chercher un compte : 512, 6, banque..."
+                      style={{ ...CHAMP, marginBottom: "6px" }}
+                    />
+                    <p style={{ color: "rgba(255,255,255,0.35)", fontSize: "12px", margin: "0 0 8px" }}>
+                      {q
+                        ? proposes.length + " compte(s) sur " + comptes.length
+                        : comptes.length + " compte(s) — tapez un chiffre pour n avoir qu une classe"}
+                    </p>
+
                     <select
                       value={l.compte}
                       onChange={(e) => poser(i, "compte", e.target.value)}
                       style={CHAMP}
                     >
                       <option value="">— choisir un compte —</option>
-                      {comptes.map(function (c: any) {
+                      {proposes.map(function (c: any) {
                         return (
                           <option key={c.numero} value={c.numero}>
                             {c.numero} — {c.libelle}
