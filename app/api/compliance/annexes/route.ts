@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { sessionCourante } from "../../../../lib/session";
 import { lecture } from "../../../../lib/droits";
 
 export const runtime = "nodejs";
@@ -8,8 +7,6 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 export const fetchCache = "force-no-store";
 export const maxDuration = 90;
-
-const ADMINS = ["contact@academiapro.fr"];
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
@@ -217,7 +214,11 @@ export async function GET(req: NextRequest) {
           ...t,
           anciennete_jours: jours,
           a_un_an_au_plus: jours <= 365,
-          nature: n.startsWith("41") ? "creance" : "dette",
+          // LA NATURE SE LIT AU SOLDE, PAS AU NUMERO. Un compte de TVA
+          // deductible est debiteur : c est une creance, pas une dette
+          // negative. Le bilan applique deja cette regle ; l annexe doit
+          // dire la meme chose que lui, sinon les deux se contredisent.
+          nature: t.solde > 0 ? "creance" : "dette",
         };
       })
       .filter(function (t: any) { return Math.abs(t.solde) > 0.005; })
