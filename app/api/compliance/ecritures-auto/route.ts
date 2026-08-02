@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { sessionCourante } from "../../../../lib/session";
+import { barrage } from "../../../../lib/droits";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -46,9 +47,6 @@ async function existeDeja(societeId: string, numero: string): Promise<boolean> {
 
 export async function POST(req: NextRequest) {
   try {
-    const session = sessionCourante();
-    if (!session || ADMINS.indexOf(session.email) < 0) return refuse();
-
     const b = await req.json().catch(function () { return null; });
     if (!b || !b.societe_id || !b.type) {
       return NextResponse.json(
@@ -57,6 +55,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // LE BARRAGE, selon la nature du geste : la dotation est une ecriture
+    // d inventaire, la liquidation de TVA releve de la declaration.
+    const droit = b.type === "tva" ? "declarer" : "valider";
+    const refusDroit = await barrage(droit, String(b.societe_id));
+    if (refusDroit) return refusDroit;
+
+    const session = sessionCourante();
     const cookie = req.headers.get("cookie") || "";
     const aujourdhui = new Date().toISOString().slice(0, 10);
 
@@ -97,8 +102,6 @@ export async function POST(req: NextRequest) {
       const lignes: any[] = [];
       let total = 0;
 
-      // Une ligne de dotation par bien au credit du compte d amortissement,
-      // et une seule contrepartie au debit : c est la presentation attendue.
       for (const x of biens) {
         lignes.push({
           societe_id: b.societe_id,
@@ -113,6 +116,7 @@ export async function POST(req: NextRequest) {
           credit: x.dotation_exercice,
           devise: "EUR",
           valid_date: aujourdhui,
+          saisi_par: session ? session.email : null,
         });
         total = r2(total + x.dotation_exercice);
       }
@@ -130,6 +134,7 @@ export async function POST(req: NextRequest) {
         credit: 0,
         devise: "EUR",
         valid_date: aujourdhui,
+        saisi_par: session ? session.email : null,
       });
 
       const { error } = await supabase.from("compta_ecritures").insert(lignes);
@@ -188,10 +193,9 @@ export async function POST(req: NextRequest) {
         ecriture_lib: "Liquidation de TVA - " + data.periode.libelle,
         devise: "EUR",
         valid_date: aujourdhui,
+        saisi_par: session ? session.email : null,
       };
 
-      // On solde la collectee au debit, les deductibles au credit, et le
-      // reliquat part soit en TVA a decaisser, soit en credit a reporter.
       if (t.collectee > 0) {
         lignes.push({ ...commun, compte_num: "445710", compte_lib: "TVA collectee", debit: t.collectee, credit: 0 });
       }
