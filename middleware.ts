@@ -25,6 +25,7 @@ const EXCEPTIONS = [
   '/admin/compliance/verrouillage',
   '/admin/compliance/revision',
   '/admin/compliance/liasse-2033',
+  '/admin/compliance/liasse-2050',
   '/admin/compliance/pieces',
   '/admin/compliance/collaborateurs',
 ];
