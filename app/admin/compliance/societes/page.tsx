@@ -38,6 +38,7 @@ const FAMILLES = [
     portes: [
       ["/admin/compliance/tva", "TVA"],
       ["/admin/compliance/liasse-2065", "Impot sur les societes"],
+      ["/admin/compliance/das2", "DAS2"],
     ],
   },
   {
@@ -49,6 +50,13 @@ const FAMILLES = [
 const TOUTES = FAMILLES.reduce(function (a: any[], f: any) {
   return a.concat(f.portes);
 }, []);
+
+const EXPORTS = [
+  ["balance", "Balance"],
+  ["grand-livre", "Grand livre"],
+  ["journal", "Journal"],
+  ["plan", "Plan comptable"],
+];
 
 export default function PageSocietes() {
   const [d, setD] = useState<any>(null);
@@ -304,6 +312,17 @@ export default function PageSocietes() {
                       </button>
                       {TOUTES.map(function (p: any) {
                         return <a key={p[0]} href={p[0] + q} style={LIEN}>{p[1]}</a>;
+                      })}
+                    </div>
+
+                    <div style={{ display: "flex", gap: "7px", alignItems: "center", marginTop: "10px", flexWrap: "wrap" }}>
+                      <span style={{ color: "rgba(255,255,255,0.4)", fontSize: "12px" }}>Exporter :</span>
+                      {EXPORTS.map(function (x: any) {
+                        return (
+                          <a key={x[0]} href={"/api/compliance/export?societe_id=" + s.id + "&quoi=" + x[0]} style={LIEN}>
+                            {x[1]}
+                          </a>
+                        );
                       })}
                       <a href={"/api/compliance/fec?societe=" + s.code} style={LIEN}>FEC</a>
                     </div>
