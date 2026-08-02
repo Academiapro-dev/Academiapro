@@ -1,15 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { sessionCourante } from "../../../../lib/session";
-import { barrage } from "../../../../lib/droits";
+import { barrage, lecture } from "../../../../lib/droits";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 export const fetchCache = "force-no-store";
 export const maxDuration = 90;
-
-const ADMINS = ["contact@academiapro.fr"];
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
@@ -22,10 +20,6 @@ const supabase = createClient(
     },
   }
 );
-
-function refuse() {
-  return NextResponse.json({ ok: false, erreur: "reserve a l administrateur" }, { status: 403 });
-}
 
 function r2(n: number): number {
   return Math.round(n * 100) / 100;
@@ -47,13 +41,15 @@ async function tracer(req: NextRequest, societeId: string, email: string, action
 
 export async function GET(req: NextRequest) {
   try {
-    const session = sessionCourante();
-    if (!session || ADMINS.indexOf(session.email) < 0) return refuse();
-
     const id = (req.nextUrl.searchParams.get("societe_id") || "").trim();
     if (!id) {
       return NextResponse.json({ ok: false, erreur: "Dossier non precise." }, { status: 400 });
     }
+
+    // LECTURE : consulter les exercices et la piste d audit d un dossier confie
+    // n exige aucun droit particulier, seulement l acces a ce dossier.
+    const refus = await lecture(id);
+    if (refus) return refus;
 
     const { data: lignes } = await supabase
       .from("compta_ecritures")
@@ -112,6 +108,11 @@ export async function POST(req: NextRequest) {
     const session = sessionCourante();
     const email = session ? session.email : "inconnu";
 
+    // Le motif est ce qui distingue une correction assumee d une comptabilite
+    // refaite apres coup. Il s exige ICI, et pas seulement dans l ecran : une
+    // protection posee dans le navigateur ne protege de rien.
+    const motif = String(b.motif || "").trim().slice(0, 300);
+
     if (b.action === "verrouiller" || b.action === "deverrouiller") {
       const annee = String(b.annee || "").slice(0, 4);
       if (!/^\d{4}$/.test(annee)) {
@@ -119,6 +120,13 @@ export async function POST(req: NextRequest) {
       }
 
       const verrou = b.action === "verrouiller";
+
+      if (!verrou && motif.length < 3) {
+        return NextResponse.json(
+          { ok: false, erreur: "Le motif du deverrouillage est obligatoire : il sera consigne dans la piste d audit." },
+          { status: 400 }
+        );
+      }
 
       const { data, error } = await supabase
         .from("compta_ecritures")
@@ -141,13 +149,13 @@ export async function POST(req: NextRequest) {
         req, b.societe_id, email,
         verrou ? "verrouillage" : "deverrouillage",
         "exercice", annee,
-        null, { lignes: nb, motif: b.motif || null }
+        null, { lignes: nb, motif: motif || null }
       );
 
       return NextResponse.json({
         ok: true,
         lignes: nb,
-        message: nb + " ecriture(s) de " + annee + (verrou ? " verrouillees." : " deverrouillees."),
+        message: nb + " ligne(s) d ecriture de " + annee + (verrou ? " verrouillees." : " deverrouillees."),
       });
     }
 
@@ -155,6 +163,13 @@ export async function POST(req: NextRequest) {
       const numero = String(b.ecriture_num || "").trim();
       if (!numero) {
         return NextResponse.json({ ok: false, erreur: "Ecriture non precisee." }, { status: 400 });
+      }
+
+      if (motif.length < 3) {
+        return NextResponse.json(
+          { ok: false, erreur: "Le motif de la contrepassation est obligatoire : il sera consigne dans la piste d audit." },
+          { status: 400 }
+        );
       }
 
       const { data: originales } = await supabase
@@ -218,8 +233,7 @@ export async function POST(req: NextRequest) {
           comp_aux_lib: l.comp_aux_lib,
           piece_ref: "CONTREPASSATION " + numero,
           piece_date: date,
-          ecriture_lib: "Contrepassation de " + numero
-            + (b.motif ? " - " + String(b.motif).slice(0, 120) : ""),
+          ecriture_lib: "Contrepassation de " + numero + " - " + motif.slice(0, 120),
           debit: r2(Number(l.credit) || 0),
           credit: r2(Number(l.debit) || 0),
           devise: l.devise || "EUR",
@@ -247,7 +261,7 @@ export async function POST(req: NextRequest) {
         req, b.societe_id, email, "contrepassation",
         "ecriture", numero,
         { ecriture_num: numero, lignes: lignes.length, debit: debit },
-        { ecriture_num: nouveau, motif: b.motif || null }
+        { ecriture_num: nouveau, motif: motif }
       );
 
       return NextResponse.json({
