@@ -17,6 +17,7 @@ const EXCEPTIONS = [
   '/admin/compliance/rapprochement',
   '/admin/compliance/lettrage',
   '/admin/compliance/immobilisations',
+  '/admin/compliance/provisions',
   '/admin/compliance/cloture',
   '/admin/compliance/revision',
   '/admin/compliance/pieces',
