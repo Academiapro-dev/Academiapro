@@ -1,22 +1,47 @@
 "use client";
 import { useState, useEffect } from "react";
 
-const PORTES = [
-  ["/admin/compliance/revision", "Revision"],
-  ["/admin/compliance/saisie", "Saisie"],
-  ["/admin/compliance/comptes", "Plan comptable"],
-  ["/admin/compliance/balance", "Balance"],
-  ["/admin/compliance/lettrage", "Lettrage"],
-  ["/admin/compliance/releve", "Releves"],
-  ["/admin/compliance/rapprochement", "Rapprochement"],
-  ["/admin/compliance/tva", "TVA"],
-  ["/admin/compliance/immobilisations", "Immobilisations"],
-  ["/admin/compliance/provisions", "Provisions"],
-  ["/admin/compliance/paie", "Paie"],
-  ["/admin/compliance/pieces", "Pieces"],
-  ["/admin/compliance/cloture", "Cloture"],
-  ["/admin/compliance/collaborateurs", "Collaborateurs"],
+const FAMILLES = [
+  {
+    titre: "Tenir",
+    portes: [
+      ["/admin/compliance/saisie", "Saisie"],
+      ["/admin/compliance/comptes", "Plan comptable"],
+      ["/admin/compliance/releve", "Releves"],
+      ["/admin/compliance/rapprochement", "Rapprochement"],
+      ["/admin/compliance/lettrage", "Lettrage"],
+      ["/admin/compliance/pieces", "Pieces"],
+      ["/admin/compliance/paie", "Paie"],
+    ],
+  },
+  {
+    titre: "Controler",
+    portes: [
+      ["/admin/compliance/revision", "Revision"],
+      ["/admin/compliance/balance", "Balance et journal"],
+    ],
+  },
+  {
+    titre: "Arreter",
+    portes: [
+      ["/admin/compliance/immobilisations", "Immobilisations"],
+      ["/admin/compliance/provisions", "Provisions"],
+      ["/admin/compliance/cloture", "Cloture"],
+    ],
+  },
+  {
+    titre: "Declarer",
+    portes: [["/admin/compliance/tva", "TVA"]],
+  },
+  {
+    titre: "Administrer",
+    portes: [["/admin/compliance/collaborateurs", "Collaborateurs"]],
+  },
 ];
+
+const TOUTES = FAMILLES.reduce(function (a: any[], f: any) {
+  return a.concat(f.portes);
+}, []);
 
 export default function PageSocietes() {
   const [d, setD] = useState<any>(null);
@@ -123,13 +148,25 @@ export default function PageSocietes() {
           Une societe, un dossier, des ecritures cloisonnees
         </p>
 
-        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", margin: "22px 0" }}>
-          {PORTES.map(function (p: any) {
-            return <a key={p[0]} href={p[0]} style={{ ...LIEN, fontSize: "13.5px", padding: "10px 18px" }}>{p[1]} →</a>;
+        <div style={{ margin: "24px 0" }}>
+          {FAMILLES.map(function (f: any) {
+            return (
+              <div key={f.titre} style={{ marginBottom: "16px" }}>
+                <p style={{ color: "#c8a96e", fontSize: "11.5px", letterSpacing: "2px", margin: "0 0 8px", textTransform: "uppercase" }}>
+                  {f.titre}
+                </p>
+                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                  {f.portes.map(function (p: any) {
+                    return <a key={p[0]} href={p[0]} style={{ ...LIEN, fontSize: "13.5px", padding: "10px 18px" }}>{p[1]} →</a>;
+                  })}
+                </div>
+              </div>
+            );
           })}
+
           <button
             onClick={() => setFormulaire(!formulaire)}
-            style={{ background: formulaire ? "none" : "#c8a96e", color: formulaire ? "#c8a96e" : "#050508", border: formulaire ? "1px solid rgba(200,169,110,0.45)" : "none", padding: "10px 20px", borderRadius: "20px", cursor: "pointer", fontSize: "13.5px", fontFamily: "Georgia,serif", fontWeight: "bold" }}
+            style={{ background: formulaire ? "none" : "#c8a96e", color: formulaire ? "#c8a96e" : "#050508", border: formulaire ? "1px solid rgba(200,169,110,0.45)" : "none", padding: "10px 20px", borderRadius: "20px", cursor: "pointer", fontSize: "13.5px", fontFamily: "Georgia,serif", fontWeight: "bold", marginTop: "6px" }}
           >
             {formulaire ? "Annuler" : "Ouvrir un dossier"}
           </button>
@@ -251,7 +288,7 @@ export default function PageSocietes() {
                       <button onClick={() => setOuvert({ ...ouvert, [s.id]: !estOuvert })} style={{ ...LIEN, background: "none", cursor: "pointer", fontFamily: "Georgia,serif" }}>
                         {estOuvert ? "Fermer" : "Sa fiche"}
                       </button>
-                      {PORTES.map(function (p: any) {
+                      {TOUTES.map(function (p: any) {
                         return <a key={p[0]} href={p[0] + q} style={LIEN}>{p[1]}</a>;
                       })}
                       <a href={"/api/compliance/fec?societe=" + s.code} style={LIEN}>FEC</a>
