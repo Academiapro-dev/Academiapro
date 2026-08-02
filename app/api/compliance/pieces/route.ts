@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import crypto from "crypto";
 import { sessionCourante } from "../../../../lib/session";
+import { barrage, lecture } from "../../../../lib/droits";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -36,10 +37,6 @@ const supabase = createClient(
   }
 );
 
-function refuse() {
-  return NextResponse.json({ ok: false, erreur: "reserve a l administrateur" }, { status: 403 });
-}
-
 function propre(v: any, max: number): string | null {
   if (v === null || v === undefined) return null;
   const t = String(v).replace(/[\u0000-\u001F\u007F]/g, "").trim();
@@ -48,9 +45,6 @@ function propre(v: any, max: number): string | null {
 
 export async function GET(req: NextRequest) {
   try {
-    const session = sessionCourante();
-    if (!session || ADMINS.indexOf(session.email) < 0) return refuse();
-
     const url = new URL(req.url);
 
     // Telechargement : lien signe, valable une heure.
@@ -58,13 +52,17 @@ export async function GET(req: NextRequest) {
     if (piece) {
       const { data: ligne } = await supabase
         .from("compta_pieces")
-        .select("chemin, nom")
+        .select("chemin, nom, societe_id")
         .eq("id", piece)
         .maybeSingle();
 
       if (!ligne) {
         return NextResponse.json({ ok: false, erreur: "Piece introuvable." }, { status: 404 });
       }
+
+      // Un lien signe donne acces au justificatif lui-meme.
+      const refus = await lecture(ligne.societe_id);
+      if (refus) return refus;
 
       const { data: signe, error } = await supabase.storage
         .from(BUCKET)
@@ -82,6 +80,9 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: false, erreur: "Dossier non precise." }, { status: 400 });
     }
 
+    const refus = await lecture(id);
+    if (refus) return refus;
+
     const { data: pieces } = await supabase
       .from("compta_pieces")
       .select("*")
@@ -89,7 +90,6 @@ export async function GET(req: NextRequest) {
       .order("created_at", { ascending: false })
       .limit(2000);
 
-    // Les ecritures sans piece rattachee : c est la liste de ce qui manque.
     const { data: ecritures } = await supabase
       .from("compta_ecritures")
       .select("ecriture_num, ecriture_date, ecriture_lib, journal_code, debit, credit")
@@ -140,9 +140,6 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const session = sessionCourante();
-    if (!session || ADMINS.indexOf(session.email) < 0) return refuse();
-
     const type = req.headers.get("content-type") || "";
 
     // Rattachement d une piece deja deposee a une ecriture.
@@ -151,6 +148,19 @@ export async function POST(req: NextRequest) {
       if (!b || !b.id) {
         return NextResponse.json({ ok: false, erreur: "Piece non precisee." }, { status: 400 });
       }
+
+      const { data: piece } = await supabase
+        .from("compta_pieces")
+        .select("societe_id")
+        .eq("id", b.id)
+        .maybeSingle();
+
+      if (!piece) {
+        return NextResponse.json({ ok: false, erreur: "Piece introuvable." }, { status: 404 });
+      }
+
+      const refus = await barrage("deposer_pieces", piece.societe_id);
+      if (refus) return refus;
 
       const { error } = await supabase
         .from("compta_pieces")
@@ -178,6 +188,11 @@ export async function POST(req: NextRequest) {
     if (!societeId) {
       return NextResponse.json({ ok: false, erreur: "Dossier non precise." }, { status: 400 });
     }
+
+    const refus = await barrage("deposer_pieces", societeId);
+    if (refus) return refus;
+
+    const session = sessionCourante();
 
     const fichier = form.get("fichier") as File | null;
     if (!fichier || typeof fichier.arrayBuffer !== "function") {
@@ -235,7 +250,7 @@ export async function POST(req: NextRequest) {
         fournisseur: propre(form.get("fournisseur"), 200),
         reference: propre(form.get("reference"), 80),
         notes: propre(form.get("notes"), 1000),
-        depose_par: session.email,
+        depose_par: session ? session.email : null,
       })
       .select("id, nom")
       .limit(1);
@@ -257,9 +272,6 @@ export async function POST(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
-    const session = sessionCourante();
-    if (!session || ADMINS.indexOf(session.email) < 0) return refuse();
-
     const id = new URL(req.url).searchParams.get("id");
     if (!id) {
       return NextResponse.json({ ok: false, erreur: "Piece non precisee." }, { status: 400 });
@@ -267,13 +279,16 @@ export async function DELETE(req: NextRequest) {
 
     const { data: piece } = await supabase
       .from("compta_pieces")
-      .select("chemin, ecriture_num")
+      .select("chemin, ecriture_num, societe_id")
       .eq("id", id)
       .maybeSingle();
 
     if (!piece) {
       return NextResponse.json({ ok: false, erreur: "Piece introuvable." }, { status: 404 });
     }
+
+    const refus = await barrage("deposer_pieces", piece.societe_id);
+    if (refus) return refus;
 
     if (piece.ecriture_num) {
       return NextResponse.json(
