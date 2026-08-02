@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { sessionCourante } from "../../../../lib/session";
 import { lecture } from "../../../../lib/droits";
 
 export const runtime = "nodejs";
@@ -8,8 +7,6 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 export const fetchCache = "force-no-store";
 export const maxDuration = 90;
-
-const ADMINS = ["contact@academiapro.fr"];
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
@@ -214,7 +211,22 @@ export async function GET(req: NextRequest) {
     const totalDebit = r2(Object.keys(comptes).reduce(function (s, n) { return s + comptes[n].debit; }, 0));
     const totalCredit = r2(Object.keys(comptes).reduce(function (s, n) { return s + comptes[n].credit; }, 0));
 
-    lignes.push(["", "TOTAUX", "", nombre(totalDebit), nombre(totalCredit), "", ""]);
+    // UNE BALANCE TOTALISE SES QUATRE COLONNES. Les soldes debiteurs doivent
+    // egaler les soldes crediteurs, exactement comme les mouvements : c est le
+    // second controle qu un comptable fait des qu il ouvre le document.
+    let totalSoldeDebiteur = 0;
+    let totalSoldeCrediteur = 0;
+    for (const n of Object.keys(comptes)) {
+      const solde = r2(comptes[n].debit - comptes[n].credit);
+      if (solde > 0) totalSoldeDebiteur = r2(totalSoldeDebiteur + solde);
+      else if (solde < 0) totalSoldeCrediteur = r2(totalSoldeCrediteur - solde);
+    }
+
+    lignes.push([
+      "", "TOTAUX", "",
+      nombre(totalDebit), nombre(totalCredit),
+      nombre(totalSoldeDebiteur), nombre(totalSoldeCrediteur),
+    ]);
 
     return fabriquer(
       ["Compte", "Libelle", "Mouvements", "Total debit", "Total credit",
