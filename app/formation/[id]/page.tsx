@@ -8,7 +8,7 @@ const FR = {
   retourCatalogue: "Retour au catalogue",
   niveau: "Niveau",
   formuleTitre: "Choisissez votre formule",
-  fondateur: "Code FONDATEURS : -10 % pour les 100 premiers clients, a saisir au moment du paiement.",
+  fondateur: "Code {CODE} : -{PCT} % pour les {PLACES} premiers clients, a saisir au moment du paiement.",
   bootcampNote: "Programme intensif complet — 3 classes virtuelles et plus par semaine, prix unique",
   description: "Description",
   objectifs: "Objectifs",
@@ -45,6 +45,10 @@ const FR = {
 // En dessous de ce montant, l echelonnement n est pas propose.
 const MINIMUM_ECHELONNE = 300;
 
+// Valeurs de repli : si la table ne repond pas, la page annonce quand meme
+// quelque chose de vrai plutot qu un trou.
+const REMISE_DEFAUT = { pct: "10", places: "100", code: "FONDATEURS" };
+
 function prixPalier(base: number, palier: string): number {
   if (palier === "elearning") return Math.round(base * 0.5);
   if (palier === "plus") return Math.round(base * 0.7);
@@ -60,6 +64,7 @@ export default function FormationPage({ params }: { params: { id: string } }) {
   const [palier, setPalier] = useState("cv1");
   const [paiement, setPaiement] = useState("comptant");
   const [apercu, setApercu] = useState<any>(null);
+  const [remise, setRemise] = useState(REMISE_DEFAUT);
 
   useEffect(() => {
     fetch(`/api/formation/${params.id}?lang=${langue}`)
@@ -77,6 +82,29 @@ export default function FormationPage({ params }: { params: { id: string } }) {
       .then(d => { if (d && d.ok) setApercu(d); })
       .catch(() => {});
   }, [params.id]);
+
+  // Le pourcentage, le nombre de places et le code viennent de textes_site :
+  // les changer ne demande plus de toucher au code.
+  useEffect(() => {
+    fetch("/api/textes")
+      .then(r => r.json())
+      .then(d => {
+        const t = (d && d.textes) || {};
+        setRemise({
+          pct: t.remise_fondateurs_pct || REMISE_DEFAUT.pct,
+          places: t.remise_fondateurs_places || REMISE_DEFAUT.places,
+          code: t.remise_fondateurs_code || REMISE_DEFAUT.code,
+        });
+      })
+      .catch(() => {});
+  }, []);
+
+  function remplir(s: string): string {
+    return String(s)
+      .replace(/\{CODE\}/g, remise.code)
+      .replace(/\{PCT\}/g, remise.pct)
+      .replace(/\{PLACES\}/g, remise.places);
+  }
 
   if (loading) return (
     <div style={{ backgroundColor: "#050508", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -96,7 +124,7 @@ export default function FormationPage({ params }: { params: { id: string } }) {
   const prixBase = formation.prix || 0;
 
   // LE PRIX AFFICHE EST LE PRIX PAYE. La remise Fondateur s obtient avec le
-  // code, au moment du paiement, et seulement pour les 100 premiers clients.
+  // code, au moment du paiement, et seulement pour les premiers clients.
   const prixFormule = estBootcamp ? prixBase : prixPalier(prixBase, palier);
 
   const detailPalier = (txt.paliers.find((p: { id: string }) => p.id === palier) || txt.paliers[0]).detail;
@@ -314,7 +342,7 @@ export default function FormationPage({ params }: { params: { id: string } }) {
 
           {prixBase > 0 && (
             <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "12.5px", margin: "16px auto 0", maxWidth: "460px", lineHeight: "1.7" }}>
-              {txt.fondateur}
+              {remplir(txt.fondateur)}
             </p>
           )}
         </div>
