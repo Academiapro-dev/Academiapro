@@ -5,6 +5,7 @@ const FAMILLES = [
   {
     titre: "Tenir",
     portes: [
+      ["/admin/compliance/reprise", "Reprise de dossier"],
       ["/admin/compliance/saisie", "Saisie"],
       ["/admin/compliance/comptes", "Plan comptable"],
       ["/admin/compliance/releve", "Releves"],
