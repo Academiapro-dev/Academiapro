@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { sessionCourante } from "../../../../lib/session";
+import { barrage } from "../../../../lib/droits";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -60,7 +61,6 @@ export async function GET(req: NextRequest) {
       .eq("societe_id", id)
       .limit(50000);
 
-    // Etat de verrouillage par annee : c est ainsi qu un comptable raisonne.
     const exercices: any = {};
     for (const l of lignes || []) {
       const a = String(l.ecriture_date || "").slice(0, 4);
@@ -99,15 +99,19 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const session = sessionCourante();
-    if (!session || ADMINS.indexOf(session.email) < 0) return refuse();
-
     const b = await req.json().catch(function () { return null; });
     if (!b || !b.societe_id) {
       return NextResponse.json({ ok: false, erreur: "Dossier non precise." }, { status: 400 });
     }
 
-    // ---- VERROUILLAGE OU DEVERROUILLAGE D UN EXERCICE ----
+    // LE BARRAGE : verrouiller, liberer ou contrepasser touche des ecritures
+    // arretees. C est le meme droit que la cloture.
+    const refusDroit = await barrage("cloturer", String(b.societe_id));
+    if (refusDroit) return refusDroit;
+
+    const session = sessionCourante();
+    const email = session ? session.email : "inconnu";
+
     if (b.action === "verrouiller" || b.action === "deverrouiller") {
       const annee = String(b.annee || "").slice(0, 4);
       if (!/^\d{4}$/.test(annee)) {
@@ -134,7 +138,7 @@ export async function POST(req: NextRequest) {
       const nb = (data || []).length;
 
       await tracer(
-        req, b.societe_id, session.email,
+        req, b.societe_id, email,
         verrou ? "verrouillage" : "deverrouillage",
         "exercice", annee,
         null, { lignes: nb, motif: b.motif || null }
@@ -147,7 +151,6 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // ---- CONTREPASSATION ----
     if (b.action === "contrepasser") {
       const numero = String(b.ecriture_num || "").trim();
       if (!numero) {
@@ -166,7 +169,6 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ ok: false, erreur: "Ecriture introuvable." }, { status: 404 });
       }
 
-      // Une ecriture deja contrepassee ne se contrepasse pas deux fois.
       const { data: deja } = await supabase
         .from("compta_ecritures")
         .select("ecriture_num")
@@ -222,7 +224,7 @@ export async function POST(req: NextRequest) {
           credit: r2(Number(l.debit) || 0),
           devise: l.devise || "EUR",
           valid_date: new Date().toISOString().slice(0, 10),
-          saisi_par: session.email,
+          saisi_par: email,
         };
       });
 
@@ -242,7 +244,7 @@ export async function POST(req: NextRequest) {
       }
 
       await tracer(
-        req, b.societe_id, session.email, "contrepassation",
+        req, b.societe_id, email, "contrepassation",
         "ecriture", numero,
         { ecriture_num: numero, lignes: lignes.length, debit: debit },
         { ecriture_num: nouveau, motif: b.motif || null }
