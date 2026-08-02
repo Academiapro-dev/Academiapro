@@ -7,16 +7,16 @@ const FRT = {
   surTitre: "TARIFS",
   titre1: "Des formations premium",
   titre2: "a prix accessible",
-  dispo: "formations disponibles · Agent IA 24h/24 · Manuel PDF inclus",
-  fondateur: "🎯 Offre Fondateur — 100 premiers clients : -10% a vie",
+  dispo: "Formations disponibles · Agent IA 24h/24 · Manuel PDF inclus",
+  fondateur: "🎯 Offre Fondateur — code FONDATEURS : -10 % pour les 100 premiers clients",
+  fondateurDetail: "Le code se saisit au moment du paiement. Il cesse de fonctionner apres la centieme utilisation.",
   choisissez: "Choisissez votre formule — le prix s ajuste pour chaque formation :",
-  prixNormal: "Prix normal :",
   bootcampsTitre: "🚀 Bootcamps — la gamme premium",
   bootcampsTexte: "Programmes intensifs complets vers un metier, 3 classes virtuelles et plus par semaine, prix unique.",
   chargement: "Chargement des formations...",
   erreur: "Chargement impossible pour le moment. Reessayez dans un instant.",
   pretTitre: "Pret a commencer ?",
-  pretTexte: "Rejoignez les 100 premiers fondateurs et beneficiez de -10% a vie",
+  pretTexte: "Les 100 premiers clients beneficient de -10 % avec le code FONDATEURS.",
   voirFormations: "Voir les formations",
   paliers: [
     { id: "elearning", nom: "E-learning", detail: "Formation complete a votre rythme, manuel PDF inclus" },
@@ -76,6 +76,8 @@ export default function TarifsPage() {
     }
   }
 
+  // LE PRIX AFFICHE EST LE PRIX PAYE. La remise Fondateur ne se calcule plus
+  // ici : elle s obtient avec le code, et seulement pour les 100 premiers.
   const carte = (titre: string, niveau: string, prixBase: number, fixe: boolean) => {
     const p = fixe ? prixBase : prixPalier(prixBase, palier);
     return (
@@ -86,10 +88,7 @@ export default function TarifsPage() {
         </div>
         <div style={{ textAlign: "right", marginLeft: "16px" }}>
           <div style={{ color: "#c8a96e", fontSize: "20px", fontWeight: "bold" }}>
-            {Math.round(p * 0.9).toLocaleString("fr-FR")}€
-          </div>
-          <div style={{ color: "rgba(255,255,255,0.3)", fontSize: "11px", textDecoration: "line-through" }}>
-            {txtT.prixNormal} {p.toLocaleString("fr-FR")}€
+            {p.toLocaleString("fr-FR")}€
           </div>
         </div>
       </div>
@@ -103,11 +102,14 @@ export default function TarifsPage() {
         <p style={{ color: "#c8a96e", fontSize: "13px", letterSpacing: "3px", margin: "0 0 12px" }}>{txtT.surTitre}</p>
         <h1 style={{ color: "#fff", fontFamily: "Georgia,serif", fontSize: "36px", margin: "0 0 16px" }}>{txtT.titre1}<br/>{txtT.titre2}</h1>
         <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "16px", margin: "0 0 16px", maxWidth: "600px", marginLeft: "auto", marginRight: "auto" }}>
-          {formations.length > 0 ? formations.length : 263} {txtT.dispo}
+          {formations.length > 0 ? formations.length + " " : ""}{txtT.dispo}
         </p>
         <div style={{ display: "inline-block", background: "rgba(200,169,110,0.15)", border: "1px solid rgba(200,169,110,0.4)", borderRadius: "30px", padding: "10px 24px" }}>
           <span style={{ color: "#c8a96e", fontSize: "14px", fontWeight: "bold" }}>{txtT.fondateur}</span>
         </div>
+        <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "12.5px", margin: "12px auto 0", maxWidth: "520px", lineHeight: "1.7" }}>
+          {txtT.fondateurDetail}
+        </p>
       </div>
 
       <div style={{ maxWidth: "1100px", margin: "0 auto", padding: "40px 20px 60px" }}>
