@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import crypto from "crypto";
 import { sessionCourante } from "../../../../lib/session";
+import { barrage, lecture } from "../../../../lib/droits";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -23,10 +24,6 @@ const supabase = createClient(
     },
   }
 );
-
-function refuse() {
-  return NextResponse.json({ ok: false, erreur: "reserve a l administrateur" }, { status: 403 });
-}
 
 function decouper(ligne: string): string[] {
   let sep = ";";
@@ -64,13 +61,14 @@ function montant(v: string): number | null {
 
 export async function GET(req: NextRequest) {
   try {
-    const session = sessionCourante();
-    if (!session || ADMINS.indexOf(session.email) < 0) return refuse();
-
     const id = (req.nextUrl.searchParams.get("societe_id") || "").trim();
     if (!id) {
       return NextResponse.json({ ok: false, erreur: "Dossier non precise." }, { status: 400 });
     }
+
+    // Un releve montre toute la vie d un client : meme cloisonnement.
+    const refus = await lecture(id);
+    if (refus) return refus;
 
     const { data, error } = await supabase
       .from("compta_releves")
@@ -102,9 +100,6 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const session = sessionCourante();
-    if (!session || ADMINS.indexOf(session.email) < 0) return refuse();
-
     const b = await req.json().catch(function () { return null; });
     if (!b || !b.societe_id || !b.contenu) {
       return NextResponse.json(
@@ -112,6 +107,9 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
+
+    const refusDroit = await barrage("saisir", String(b.societe_id));
+    if (refusDroit) return refusDroit;
 
     const compte = String(b.compte || "512000").replace(/\D/g, "").slice(0, 12) || "512000";
 
@@ -121,7 +119,7 @@ export async function POST(req: NextRequest) {
       .filter(function (l) { return l.length > 0; });
 
     if (brutes.length === 0) {
-      return NextResponse.json({ ok: false, erreur: "Relevé vide." }, { status: 400 });
+      return NextResponse.json({ ok: false, erreur: "Releve vide." }, { status: 400 });
     }
     if (brutes.length > MAX_LIGNES) {
       return NextResponse.json(
