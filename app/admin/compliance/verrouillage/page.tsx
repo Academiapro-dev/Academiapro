@@ -7,6 +7,10 @@ const ACTIONS: any = {
   contrepassation: { texte: "Contrepassation", couleur: "#e8a33d" },
 };
 
+// Seuls ces gestes exigent une raison. Reclamer un motif a un verrouillage
+// afficherait un manque la ou il n y en a pas.
+const EXIGENT_UN_MOTIF = ["deverrouillage", "contrepassation"];
+
 export default function PageVerrouillage() {
   const [societes, setSocietes] = useState<any[]>([]);
   const [dossier, setDossier] = useState("");
@@ -218,6 +222,8 @@ export default function PageVerrouillage() {
               <div style={{ border: "1px solid rgba(200,169,110,0.25)", borderRadius: "12px", overflow: "hidden" }}>
                 {d.audit.map(function (a: any) {
                   const act = ACTIONS[a.action] || { texte: a.action, couleur: "rgba(255,255,255,0.6)" };
+                  const leMotif = a.apres && a.apres.motif ? a.apres.motif : "";
+                  const exigeUnMotif = EXIGENT_UN_MOTIF.indexOf(a.action) >= 0;
                   return (
                     <div key={a.id} style={{ padding: "12px 16px", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
                       <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "8px" }}>
@@ -233,7 +239,9 @@ export default function PageVerrouillage() {
                       </div>
                       <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", margin: "4px 0 0", wordBreak: "break-all" }}>
                         {a.email}
-                        {a.apres && a.apres.motif ? " · motif : " + a.apres.motif : " · motif non renseigne"}
+                        {leMotif
+                          ? " · motif : " + leMotif
+                          : (exigeUnMotif ? " · motif non renseigne" : "")}
                         {a.apres && a.apres.lignes ? " · " + a.apres.lignes + " ligne(s)" : ""}
                         {a.apres && a.apres.ecriture_num ? " · devient " + a.apres.ecriture_num : ""}
                       </p>
