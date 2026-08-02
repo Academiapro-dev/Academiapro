@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect } from "react"; 
 
 export default function PageLiasse2065() {
   const [societes, setSocietes] = useState<any[]>([]);
