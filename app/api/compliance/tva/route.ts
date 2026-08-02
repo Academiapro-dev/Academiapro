@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { sessionCourante } from "../../../../lib/session";
+import { lecture } from "../../../../lib/droits";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -30,19 +31,12 @@ const supabase = createClient(
   }
 );
 
-function refuse() {
-  return NextResponse.json({ ok: false, erreur: "reserve a l administrateur" }, { status: 403 });
-}
-
 function r2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
 export async function GET(req: NextRequest) {
   try {
-    const session = sessionCourante();
-    if (!session || ADMINS.indexOf(session.email) < 0) return refuse();
-
     const code = (req.nextUrl.searchParams.get("societe") || "").trim().toUpperCase();
     const id = (req.nextUrl.searchParams.get("societe_id") || "").trim();
 
@@ -77,6 +71,9 @@ export async function GET(req: NextRequest) {
         { status: 400 }
       );
     }
+
+    const refus = await lecture(dossier.id);
+    if (refus) return refus;
 
     const regime = String(dossier.regime_tva || "reel_normal");
 
