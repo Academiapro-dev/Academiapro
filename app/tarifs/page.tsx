@@ -8,15 +8,15 @@ const FRT = {
   titre1: "Des formations premium",
   titre2: "a prix accessible",
   dispo: "Formations disponibles · Agent IA 24h/24 · Manuel PDF inclus",
-  fondateur: "🎯 Offre Fondateur — code FONDATEURS : -10 % pour les 100 premiers clients",
-  fondateurDetail: "Le code se saisit au moment du paiement. Il cesse de fonctionner apres la centieme utilisation.",
+  fondateur: "🎯 Offre Fondateur — code {CODE} : -{PCT} % pour les {PLACES} premiers clients",
+  fondateurDetail: "Le code se saisit au moment du paiement. Il cesse de fonctionner apres la {PLACES}e utilisation.",
   choisissez: "Choisissez votre formule — le prix s ajuste pour chaque formation :",
   bootcampsTitre: "🚀 Bootcamps — la gamme premium",
   bootcampsTexte: "Programmes intensifs complets vers un metier, 3 classes virtuelles et plus par semaine, prix unique.",
   chargement: "Chargement des formations...",
   erreur: "Chargement impossible pour le moment. Reessayez dans un instant.",
   pretTitre: "Pret a commencer ?",
-  pretTexte: "Les 100 premiers clients beneficient de -10 % avec le code FONDATEURS.",
+  pretTexte: "Les {PLACES} premiers clients beneficient de -{PCT} % avec le code {CODE}.",
   voirFormations: "Voir les formations",
   paliers: [
     { id: "elearning", nom: "E-learning", detail: "Formation complete a votre rythme, manuel PDF inclus" },
@@ -26,6 +26,10 @@ const FRT = {
     { id: "cv3", nom: "Intensif 3x/sem", detail: "+ 3 seances live par semaine" },
   ],
 };
+
+// Valeurs de repli : si la table ne repond pas, la page annonce quand meme
+// quelque chose de vrai plutot qu un trou.
+const REMISE_DEFAUT = { pct: "10", places: "100", code: "FONDATEURS" };
 
 type Formation = {
   code: string;
@@ -48,6 +52,7 @@ export default function TarifsPage() {
   const [formations, setFormations] = useState<Formation[]>([]);
   const [etat, setEtat] = useState<"chargement" | "ok" | "erreur">("chargement");
   const [palier, setPalier] = useState("cv1");
+  const [remise, setRemise] = useState(REMISE_DEFAUT);
 
   useEffect(() => {
     fetch("/api/tarifs-formations")
@@ -63,6 +68,29 @@ export default function TarifsPage() {
       .catch(() => setEtat("erreur"));
   }, []);
 
+  // Le pourcentage, le nombre de places et le code viennent de textes_site :
+  // les changer ne demande plus de toucher au code.
+  useEffect(() => {
+    fetch("/api/textes")
+      .then((r) => r.json())
+      .then((d) => {
+        const t = (d && d.textes) || {};
+        setRemise({
+          pct: t.remise_fondateurs_pct || REMISE_DEFAUT.pct,
+          places: t.remise_fondateurs_places || REMISE_DEFAUT.places,
+          code: t.remise_fondateurs_code || REMISE_DEFAUT.code,
+        });
+      })
+      .catch(() => {});
+  }, []);
+
+  function remplir(s: string): string {
+    return String(s)
+      .replace(/\{CODE\}/g, remise.code)
+      .replace(/\{PCT\}/g, remise.pct)
+      .replace(/\{PLACES\}/g, remise.places);
+  }
+
   const bootcamps = formations.filter((f) => f.titre.startsWith("Bootcamp"));
   const classiques = formations.filter((f) => !f.titre.startsWith("Bootcamp"));
 
@@ -77,7 +105,7 @@ export default function TarifsPage() {
   }
 
   // LE PRIX AFFICHE EST LE PRIX PAYE. La remise Fondateur ne se calcule plus
-  // ici : elle s obtient avec le code, et seulement pour les 100 premiers.
+  // ici : elle s obtient avec le code, et seulement pour les premiers clients.
   const carte = (titre: string, niveau: string, prixBase: number, fixe: boolean) => {
     const p = fixe ? prixBase : prixPalier(prixBase, palier);
     return (
@@ -105,10 +133,10 @@ export default function TarifsPage() {
           {formations.length > 0 ? formations.length + " " : ""}{txtT.dispo}
         </p>
         <div style={{ display: "inline-block", background: "rgba(200,169,110,0.15)", border: "1px solid rgba(200,169,110,0.4)", borderRadius: "30px", padding: "10px 24px" }}>
-          <span style={{ color: "#c8a96e", fontSize: "14px", fontWeight: "bold" }}>{txtT.fondateur}</span>
+          <span style={{ color: "#c8a96e", fontSize: "14px", fontWeight: "bold" }}>{remplir(txtT.fondateur)}</span>
         </div>
         <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "12.5px", margin: "12px auto 0", maxWidth: "520px", lineHeight: "1.7" }}>
-          {txtT.fondateurDetail}
+          {remplir(txtT.fondateurDetail)}
         </p>
       </div>
 
@@ -175,7 +203,7 @@ export default function TarifsPage() {
 
         <div style={{ textAlign: "center", marginTop: "40px", padding: "40px", background: "rgba(200,169,110,0.08)", border: "1px solid rgba(200,169,110,0.3)", borderRadius: "16px" }}>
           <h3 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", fontSize: "24px", margin: "0 0 12px" }}>{txtT.pretTitre}</h3>
-          <p style={{ color: "rgba(255,255,255,0.6)", margin: "0 0 24px" }}>{txtT.pretTexte}</p>
+          <p style={{ color: "rgba(255,255,255,0.6)", margin: "0 0 24px" }}>{remplir(txtT.pretTexte)}</p>
           <Link href="/formations" style={{ display: "inline-block", background: "#c8a96e", color: "#050508", padding: "16px 40px", borderRadius: "10px", textDecoration: "none", fontWeight: "bold", fontSize: "16px" }}>
             {txtT.voirFormations} →
           </Link>
