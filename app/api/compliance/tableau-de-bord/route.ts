@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { sessionCourante } from "../../../../lib/session";
+import { dossiersAutorises } from "../../../../lib/droits";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,10 +23,6 @@ const supabase = createClient(
   }
 );
 
-function refuse() {
-  return NextResponse.json({ ok: false, erreur: "reserve a l administrateur" }, { status: 403 });
-}
-
 function r2(n: number): number {
   return Math.round(n * 100) / 100;
 }
@@ -33,13 +30,25 @@ function r2(n: number): number {
 export async function GET(req: NextRequest) {
   try {
     const session = sessionCourante();
-    if (!session || ADMINS.indexOf(session.email) < 0) return refuse();
+    if (!session) {
+      return NextResponse.json({ ok: false, erreur: "Connectez-vous." }, { status: 401 });
+    }
 
-    const { data: dossiers } = await supabase
+    // LE FILTRE : null signifie « tous les dossiers », un tableau vide
+    // signifie « aucun ». Un collaborateur ne voit que les siens.
+    const autorises = await dossiersAutorises();
+    if (autorises !== null && autorises.length === 0) {
+      return NextResponse.json({ ok: true, total: 0, dossiers: [], alertes: 0 });
+    }
+
+    let requete = supabase
       .from("compta_societes")
       .select("*")
-      .eq("actif", true)
-      .limit(500);
+      .eq("actif", true);
+
+    if (autorises !== null) requete = requete.in("id", autorises);
+
+    const { data: dossiers } = await requete.limit(500);
 
     const liste = dossiers || [];
     if (liste.length === 0) {
@@ -181,6 +190,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       ok: true,
+      restreint: autorises !== null,
       total: resultat.length,
       alertes: resultat.filter(function (s: any) { return s.priorite > 0; }).length,
       desequilibres: resultat.filter(function (s: any) { return !s.equilibre && s.lignes > 0; }).length,
