@@ -1,6 +1,16 @@
 "use client";
 import { useState, useEffect } from "react";
 
+// Un exercice deja cloture n est pas une anomalie : c est un etat. Le dire en
+// rouge apres une cloture reussie fait croire a une panne.
+function parleDesANouveaux(texte: string): boolean {
+  return String(texte || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .indexOf("a-nouveaux") >= 0;
+}
+
 export default function PageCloture() {
   const [societes, setSocietes] = useState<any[]>([]);
   const [dossier, setDossier] = useState("");
@@ -93,6 +103,12 @@ export default function PageCloture() {
     return (Number(n) || 0).toLocaleString("fr-FR", { minimumFractionDigits: 2 }) + " EUR";
   }
 
+  const anomalies = d && d.anomalies ? d.anomalies : [];
+
+  // Le report a-nouveaux existe et c est la SEULE reserve : l exercice est
+  // simplement deja cloture. On le dit comme un fait, pas comme un echec.
+  const dejaCloture = anomalies.length === 1 && parleDesANouveaux(anomalies[0]);
+
   return (
     <div style={CADRE}>
       <div style={{ maxWidth: "900px", margin: "0 auto" }}>
@@ -147,7 +163,7 @@ export default function PageCloture() {
             <div style={{ display: "flex", gap: "14px", flexWrap: "wrap", marginBottom: "16px" }}>
               <div style={{ ...CARTE, flex: "1 1 150px", marginBottom: 0 }}>
                 <p style={{ color: "#c8a96e", fontSize: "22px", fontWeight: "bold", margin: "0 0 4px" }}>{d.nb_lignes}</p>
-                <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", margin: 0 }}>Ecriture(s)</p>
+                <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", margin: 0 }}>Ligne(s) d ecriture</p>
               </div>
               <div style={{ ...CARTE, flex: "1 1 150px", marginBottom: 0 }}>
                 <p style={{ color: "#c8a96e", fontSize: "22px", fontWeight: "bold", margin: "0 0 4px" }}>{d.comptes_gestion}</p>
@@ -159,12 +175,26 @@ export default function PageCloture() {
               </div>
             </div>
 
-            {d.anomalies.length > 0 ? (
+            {dejaCloture ? (
+              <div style={{ ...CARTE, border: "1px solid rgba(76,175,80,0.45)" }}>
+                <p style={{ color: "#4caf50", fontSize: "15.5px", fontWeight: "bold", margin: "0 0 10px" }}>
+                  Exercice deja cloture
+                </p>
+                <p style={{ color: "rgba(255,255,255,0.75)", fontSize: "14px", margin: "0 0 6px", lineHeight: "1.8" }}>
+                  Les comptes de gestion ont ete soldes et les soldes de bilan reportes a
+                  l exercice suivant. Il n y a plus rien a cloturer ici.
+                </p>
+                <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "13px", margin: "10px 0 0", lineHeight: "1.7" }}>
+                  Pour cloturer une seconde fois, il faudrait d abord supprimer le report
+                  a-nouveaux — ce qui ne se fait pas a la legere.
+                </p>
+              </div>
+            ) : anomalies.length > 0 ? (
               <div style={{ ...CARTE, border: "1px solid rgba(232,131,106,0.55)" }}>
                 <p style={{ color: "#e8836a", fontSize: "15.5px", fontWeight: "bold", margin: "0 0 10px" }}>
                   La cloture n est pas possible en l etat
                 </p>
-                {d.anomalies.map(function (a: string, i: number) {
+                {anomalies.map(function (a: string, i: number) {
                   return (
                     <p key={i} style={{ color: "rgba(255,255,255,0.75)", fontSize: "14px", margin: "0 0 6px", lineHeight: "1.7" }}>
                       · {a}
@@ -221,7 +251,7 @@ export default function PageCloture() {
             {d.bilan && d.bilan.length > 0 && (
               <>
                 <h2 style={{ color: "#c8a96e", fontSize: "17px", margin: "24px 0 12px" }}>
-                  Soldes qui seront reportes
+                  {dejaCloture ? "Soldes reportes" : "Soldes qui seront reportes"}
                 </h2>
                 <div style={{ border: "1px solid rgba(200,169,110,0.25)", borderRadius: "12px", overflow: "hidden" }}>
                   <div style={{ display: "grid", gridTemplateColumns: "0.9fr 2.4fr 1fr", background: "rgba(200,169,110,0.12)", padding: "12px 14px", fontSize: "12px", color: "#c8a96e", fontWeight: "bold" }}>
