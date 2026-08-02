@@ -9,8 +9,11 @@ export const revalidate = 0;
 export const fetchCache = "force-no-store";
 export const maxDuration = 60;
 
-const ADMINS = ["contact@academiapro.fr"];
 const JOURS_TOLERANCE = 10;
+
+// Au-dela de cet ecart, une correspondance n est plus tenue pour sure, meme
+// si elle reste proposee.
+const JOURS_CERTITUDE = 3;
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
@@ -109,9 +112,13 @@ export async function GET(req: NextRequest) {
           );
           if (jours > JOURS_TOLERANCE) return null;
 
+          // LE LIBELLE N AJOUTE QUE DE LA CONFIANCE, IL N EN RETIRE PLUS.
+          // Un libelle bancaire ne ressemble presque jamais a un libelle
+          // comptable : lui donner du poids condamnait toute correspondance,
+          // meme parfaite, a rester sous le seuil.
           const proximite = 1 - jours / (JOURS_TOLERANCE + 1);
           const texte = ressemblance(l.libelle, (e.ecriture_lib || "") + " " + (e.piece_ref || ""));
-          const note = Math.round((0.55 + proximite * 0.2 + texte * 0.25) * 100);
+          const note = Math.round((0.55 + proximite * 0.35 + texte * 0.1) * 100);
 
           return {
             ecriture_num: e.ecriture_num,
@@ -127,13 +134,19 @@ export async function GET(req: NextRequest) {
         .sort(function (a: any, b: any) { return b.note - a.note; })
         .slice(0, 4);
 
+      // UNE CORRESPONDANCE EST SURE SUR DES FAITS, PAS SUR DES MOTS : un seul
+      // candidat possible, un montant identique au centime (deja garanti
+      // plus haut) et une date qui ne s ecarte que de quelques jours.
+      const certaine =
+        candidats.length === 1 && candidats[0].ecart_jours <= JOURS_CERTITUDE;
+
       return {
         id: l.id,
         operation_date: l.operation_date,
         libelle: l.libelle,
         montant: m,
         candidats: candidats,
-        certaine: candidats.length === 1 && candidats[0].note >= 80,
+        certaine: certaine,
       };
     });
 
