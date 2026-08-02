@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { sessionCourante } from "../../../../lib/session";
 import { lecture } from "../../../../lib/droits";
 
 export const runtime = "nodejs";
@@ -9,10 +8,10 @@ export const revalidate = 0;
 export const fetchCache = "force-no-store";
 export const maxDuration = 60;
 
-const ADMINS = ["contact@academiapro.fr"];
-
 // 2050 — actif. Le reel normal presente brut, amortissements et net :
 // « amort » designe les comptes 28 et 29 qui viennent en deduction.
+// « tiers » designe un poste dont les comptes changent de cote selon leur
+// solde : un client crediteur n est pas une creance, il est une dette.
 const ACTIF = [
   { code: "AB", libelle: "Frais d etablissement", brut: ["201"], amort: ["2801"] },
   { code: "AF", libelle: "Concessions, brevets, licences, logiciels", brut: ["205", "203"], amort: ["2805", "2803"] },
@@ -25,8 +24,8 @@ const ACTIF = [
   { code: "BL", libelle: "Matieres premieres et approvisionnements", brut: ["31", "32"], amort: ["391", "392"] },
   { code: "BT", libelle: "Marchandises", brut: ["37"], amort: ["397"] },
   { code: "BV", libelle: "Avances et acomptes verses", brut: ["409"], amort: [] },
-  { code: "BX", libelle: "Clients et comptes rattaches", brut: ["411", "413", "416", "418"], amort: ["491"] },
-  { code: "BZ", libelle: "Autres creances", brut: ["425", "43", "44", "45", "46"], amort: [] },
+  { code: "BX", libelle: "Clients et comptes rattaches", brut: ["411", "413", "416", "418"], amort: ["491"], tiers: true },
+  { code: "BZ", libelle: "Autres creances", brut: ["425", "43", "44", "45", "46"], amort: [], tiers: true },
   { code: "CF", libelle: "Disponibilites", brut: ["51", "53", "58"], amort: [] },
   { code: "CH", libelle: "Charges constatees d avance", brut: ["486"], amort: [] },
 ];
@@ -42,11 +41,11 @@ const PASSIF = [
   { code: "DK", libelle: "Subventions d investissement", racines: ["13"] },
   { code: "DP", libelle: "Provisions pour risques et charges", racines: ["15"] },
   { code: "DU", libelle: "Emprunts et dettes aupres des etablissements de credit", racines: ["16"] },
-  { code: "DV", libelle: "Emprunts et dettes financieres divers", racines: ["17", "455"] },
+  { code: "DV", libelle: "Emprunts et dettes financieres divers", racines: ["17", "455"], tiers: true },
   { code: "DW", libelle: "Avances et acomptes recus", racines: ["419"] },
-  { code: "DX", libelle: "Fournisseurs et comptes rattaches", racines: ["401", "403", "404", "408"] },
-  { code: "DY", libelle: "Dettes fiscales et sociales", racines: ["42", "43", "44"] },
-  { code: "EA", libelle: "Autres dettes", racines: ["46", "45"] },
+  { code: "DX", libelle: "Fournisseurs et comptes rattaches", racines: ["401", "403", "404", "408"], tiers: true },
+  { code: "DY", libelle: "Dettes fiscales et sociales", racines: ["42", "43", "44"], tiers: true },
+  { code: "EA", libelle: "Autres dettes", racines: ["46", "45"], tiers: true },
   { code: "EB", libelle: "Produits constates d avance", racines: ["487"] },
 ];
 
@@ -145,7 +144,7 @@ export async function GET(req: NextRequest) {
 
     const pris: any = {};
 
-    function cumuler(racines: string[], sens: string, marquer: boolean) {
+    function cumuler(racines: string[], sens: string, marquer: boolean, tiers: boolean) {
       let total = 0;
       const detail: any[] = [];
       for (const num of Object.keys(comptes)) {
@@ -160,6 +159,11 @@ export async function GET(req: NextRequest) {
         const solde = sens === "credit" ? r2(c.credit - c.debit) : r2(c.debit - c.credit);
         if (Math.abs(solde) < 0.005) continue;
 
+        // UN COMPTE DE TIERS CHANGE DE COTE SELON SON SOLDE. Une dette sociale
+        // n est pas une creance negative : elle appartient au passif. On laisse
+        // donc le compte au poste de l autre cote plutot que de le retenir ici.
+        if (tiers && solde < 0) continue;
+
         if (marquer) pris[num] = racine;
         total = r2(total + solde);
         detail.push({ compte: num, libelle: c.libelle, montant: solde });
@@ -169,8 +173,8 @@ export async function GET(req: NextRequest) {
 
     // L actif en trois colonnes : c est la difference avec le simplifie.
     const actif = ACTIF.map(function (c: any) {
-      const b = cumuler(c.brut, "debit", true);
-      const a = c.amort.length > 0 ? cumuler(c.amort, "credit", true) : { total: 0, detail: [] };
+      const b = cumuler(c.brut, "debit", true, c.tiers === true);
+      const a = c.amort.length > 0 ? cumuler(c.amort, "credit", true, false) : { total: 0, detail: [] };
       return {
         code: c.code, libelle: c.libelle,
         brut: b.total, amortissements: a.total, net: r2(b.total - a.total),
@@ -179,12 +183,12 @@ export async function GET(req: NextRequest) {
     });
 
     const passif = PASSIF.map(function (c: any) {
-      const p = cumuler(c.racines, "credit", true);
+      const p = cumuler(c.racines, "credit", true, c.tiers === true);
       return { code: c.code, libelle: c.libelle, montant: p.total, comptes: p.detail };
     });
 
     const resultat = RESULTAT.map(function (c: any) {
-      const p = cumuler(c.racines, c.sens, true);
+      const p = cumuler(c.racines, c.sens, true, false);
       return { code: c.code, libelle: c.libelle, sens: c.sens, montant: p.total, comptes: p.detail };
     });
 
