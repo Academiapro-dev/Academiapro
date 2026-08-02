@@ -20,7 +20,7 @@ const BILAN_ACTIF = [
   { code: "050", libelle: "Stocks de matieres premieres", racines: ["31", "32"], sens: "debit" },
   { code: "060", libelle: "Stocks de marchandises", racines: ["37"], sens: "debit" },
   { code: "068", libelle: "Creances clients et comptes rattaches", racines: ["411", "413", "416", "418"], sens: "debit" },
-  { code: "072", libelle: "Autres creances", racines: ["409", "425", "43", "44", "45", "46"], sens: "debit" },
+  { code: "072", libelle: "Autres creances", racines: ["40", "409", "425", "43", "44", "45", "46"], sens: "debit" },
   { code: "084", libelle: "Disponibilites", racines: ["51", "53", "58"], sens: "debit" },
   { code: "092", libelle: "Charges constatees d avance", racines: ["486"], sens: "debit" },
 ];
@@ -33,7 +33,7 @@ const BILAN_PASSIF = [
   { code: "154", libelle: "Provisions pour risques et charges", racines: ["15"], sens: "credit" },
   { code: "156", libelle: "Emprunts et dettes assimilees", racines: ["16", "17"], sens: "credit" },
   { code: "166", libelle: "Fournisseurs et comptes rattaches", racines: ["401", "403", "404", "408"], sens: "credit" },
-  { code: "172", libelle: "Autres dettes", racines: ["419", "42", "43", "44", "45", "46"], sens: "credit" },
+  { code: "172", libelle: "Autres dettes", racines: ["41", "419", "42", "43", "44", "45", "46"], sens: "credit" },
   { code: "174", libelle: "Produits constates d avance", racines: ["487"], sens: "credit" },
 ];
 
@@ -71,7 +71,6 @@ function r2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
-// Ventile une periode dans les cases, et rend aussi les comptes orphelins.
 function ventiler(lignes: any[]) {
   const comptes: any = {};
   for (const l of lignes || []) {
@@ -99,6 +98,12 @@ function ventiler(lignes: any[]) {
         const cp = comptes[num];
         const solde = c.sens === "credit" ? r2(cp.credit - cp.debit) : r2(cp.debit - cp.credit);
         if (Math.abs(solde) < 0.005) continue;
+
+        // UN COMPTE DE TIERS CHANGE DE COTE SELON SON SOLDE : un compte
+        // courant d associe crediteur est une dette, debiteur une creance.
+        // La regle ne vaut que pour la classe 4 : l appliquer au compte 129,
+        // debiteur mais inscrit au passif, le ferait disparaitre.
+        if (num.charAt(0) === "4" && solde < 0) continue;
 
         utilises[num] = racine;
         montant = r2(montant + solde);
@@ -132,11 +137,15 @@ function ventiler(lignes: any[]) {
   const charges = r2(resultat.filter(function (c: any) { return c.sens === "debit"; })
     .reduce(function (s: number, c: any) { return s + c.montant; }, 0));
 
+  const resultatBilan = r2((passif.find(function (c: any) { return c.code === "136"; }) || { montant: 0 }).montant);
+
   return {
     actif: actif, passif: passif, resultat: resultat, orphelins: orphelins,
     total_actif: r2(brut - amort),
     total_passif: r2(passif.reduce(function (s: number, c: any) { return s + c.montant; }, 0)),
     produits: produits, charges: charges, resultat_exercice: r2(produits - charges),
+    resultat_bilan: resultatBilan,
+    gestion_ouverte: Math.abs(produits) > 0.005 || Math.abs(charges) > 0.005,
     lignes: (lignes || []).length,
   };
 }
@@ -177,7 +186,6 @@ export async function GET(req: NextRequest) {
       fin = a + "-12-31";
     }
 
-    // L exercice precedent : meme duree, decalee d un an.
     const debutN1 = String(parseInt(debut.slice(0, 4), 10) - 1) + debut.slice(4);
     const finN1 = String(parseInt(fin.slice(0, 4), 10) - 1) + fin.slice(4);
 
@@ -201,7 +209,6 @@ export async function GET(req: NextRequest) {
     const n1 = ventiler(lignesN1 || []);
     const aN1 = n1.lignes > 0;
 
-    // On accole la colonne precedente a chaque case, avec sa variation.
     function accoler(blocN: any[], blocN1: any[]) {
       return blocN.map(function (c: any) {
         const p = blocN1.find(function (x: any) { return x.code === c.code; });
@@ -214,16 +221,36 @@ export async function GET(req: NextRequest) {
       });
     }
 
+    // AVANT LA CLOTURE, les comptes 120 et 129 sont vides : le resultat ne
+    // peut pas encore figurer au bilan. Ce n est pas une anomalie, et le
+    // controle doit le dire au lieu d echouer.
+    const exerciceOuvert = n.gestion_ouverte && Math.abs(n.resultat_bilan) < 0.005;
+
+    const ecartBilan = r2(n.total_actif - n.total_passif);
+
     const controles = [
       {
         nom: "Total actif egale total passif",
-        ok: Math.abs(r2(n.total_actif - n.total_passif)) < 0.01,
-        detail: "Actif " + n.total_actif.toFixed(2) + " · Passif " + n.total_passif.toFixed(2),
+        ok: exerciceOuvert
+          ? Math.abs(r2(ecartBilan + n.resultat_exercice)) < 0.01
+          : Math.abs(ecartBilan) < 0.01,
+        detail: exerciceOuvert
+          ? "Actif " + n.total_actif.toFixed(2) + " · Passif " + n.total_passif.toFixed(2)
+            + " · ecart egal au resultat non encore affecte (" + n.resultat_exercice.toFixed(2) + ")"
+          : "Actif " + n.total_actif.toFixed(2) + " · Passif " + n.total_passif.toFixed(2),
       },
       {
-        nom: "Le resultat du compte de resultat se retrouve au bilan",
-        ok: Math.abs(r2(n.resultat_exercice - (n.passif.find(function (c: any) { return c.code === "136"; }) || { montant: 0 }).montant)) < 0.01,
-        detail: "Calcule " + n.resultat_exercice.toFixed(2),
+        nom: exerciceOuvert
+          ? "Le resultat sera porte au bilan a la cloture"
+          : "Le resultat du compte de resultat se retrouve au bilan",
+        ok: exerciceOuvert
+          ? true
+          : Math.abs(r2(n.resultat_exercice - n.resultat_bilan)) < 0.01,
+        detail: exerciceOuvert
+          ? "Exercice ouvert : resultat calcule " + n.resultat_exercice.toFixed(2)
+            + ", pas encore affecte aux comptes 120 ou 129"
+          : "Calcule " + n.resultat_exercice.toFixed(2)
+            + " · au bilan " + n.resultat_bilan.toFixed(2),
       },
       {
         nom: "Tous les comptes sont ventiles",
@@ -241,6 +268,7 @@ export async function GET(req: NextRequest) {
       periode: { debut: debut, fin: fin },
       periode_precedente: aN1 ? { debut: debutN1, fin: finN1 } : null,
       exercice_precedent_disponible: aN1,
+      exercice_ouvert: exerciceOuvert,
       formulaire_2033_a: {
         actif: accoler(n.actif, n1.actif),
         passif: accoler(n.passif, n1.passif),
