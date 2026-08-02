@@ -1,15 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { sessionCourante } from "../../../../lib/session";
-import { barrage } from "../../../../lib/droits";
+import { barrage, lecture } from "../../../../lib/droits";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 export const fetchCache = "force-no-store";
 export const maxDuration = 60;
-
-const ADMINS = ["contact@academiapro.fr"];
 
 const CLASSES: any = {
   1: "Capitaux",
@@ -32,10 +29,6 @@ const supabase = createClient(
     },
   }
 );
-
-function refuse() {
-  return NextResponse.json({ ok: false, erreur: "reserve a l administrateur" }, { status: 403 });
-}
 
 function propre(v: any, max: number): string | null {
   if (v === null || v === undefined) return null;
@@ -62,10 +55,15 @@ async function dossierDemande(req: NextRequest) {
 
 export async function GET(req: NextRequest) {
   try {
-    const session = sessionCourante();
-    if (!session || ADMINS.indexOf(session.email) < 0) return refuse();
-
+    // Le dossier se determine AVANT le barrage : c est lui qui decide si le
+    // collaborateur a le droit de lire ce plan-la.
     const dossier = await dossierDemande(req);
+
+    // LECTURE : cette route alimente la liste des comptes de l ecran de saisie.
+    // La reserver aux administrateurs rendrait la saisie inutilisable pour un
+    // collaborateur. Le rattachement au cabinet et l acces au dossier suffisent.
+    const refus = await lecture(dossier ? dossier.id : null);
+    if (refus) return refus;
 
     // Le plan commun sert de socle ; les comptes propres au dossier le
     // completent, et PRIMENT sur un compte commun de meme numero.
