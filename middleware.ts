@@ -18,6 +18,7 @@ const EXCEPTIONS = [
   '/admin/compliance/lettrage',
   '/admin/compliance/immobilisations',
   '/admin/compliance/cloture',
+  '/admin/compliance/revision',
 ];
 
 const CHEMINS_ELEVE = [
