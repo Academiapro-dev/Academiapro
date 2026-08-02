@@ -9,7 +9,24 @@ export const revalidate = 0;
 export const fetchCache = "force-no-store";
 export const maxDuration = 90;
 
-const ADMINS = ["contact@academiapro.fr"];
+// Formes juridiques qui ne relevent pas du registre francais : leur reclamer
+// un SIREN n a pas de sens. Faute d un champ « pays » sur la fiche du dossier,
+// c est la forme qui nous renseigne — a remplacer par un vrai pays le jour ou
+// la fiche en portera un.
+const FORMES_ETRANGERES = [
+  "llc", "inc", "ltd", "limited", "corp", "corporation",
+  "gmbh", "ag", "bv", "nv", "plc", "oy", "ab", "aps", "sl", "sagl",
+];
+
+function formeEtrangere(forme: any): boolean {
+  const t = String(forme || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+  if (!t) return false;
+  const mots = t.split(/[^a-z]+/).filter(function (m) { return m.length > 0; });
+  return mots.some(function (m) { return FORMES_ETRANGERES.indexOf(m) >= 0; });
+}
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
@@ -154,6 +171,8 @@ export async function GET(req: NextRequest) {
       const tvaAtraiter = tvaDue > 0.005 && !p.liquidationPassee;
       const dormant = p.derniere ? (maintenant - p.derniere) > 40 * 86400000 : p.lignes === 0;
 
+      const etrangere = formeEtrangere(s.forme);
+
       // L ordre de priorite : ce qui bloque d abord, ce qui traine ensuite.
       let priorite = 0;
       const raisons: string[] = [];
@@ -162,13 +181,18 @@ export async function GET(req: NextRequest) {
       if (p.relevesOuverts > 0) { priorite = priorite + 20; raisons.push(p.relevesOuverts + " ligne(s) de releve a rapprocher"); }
       if (sansPiece > 0) { priorite = priorite + 5; raisons.push(sansPiece + " ecriture(s) sans piece"); }
       if (dormant && p.lignes > 0) { priorite = priorite + 10; raisons.push("aucune ecriture depuis plus de 40 jours"); }
-      if (!s.siren) { priorite = priorite + 3; raisons.push("SIREN manquant"); }
+
+      // On ne reclame un SIREN qu a une societe qui en a un : une LLC
+      // americaine n est pas immatriculee au registre francais.
+      if (!s.siren && !etrangere) { priorite = priorite + 3; raisons.push("SIREN manquant"); }
 
       return {
         id: s.id,
         code: s.code,
         raison_sociale: s.raison_sociale,
         siren: s.siren,
+        forme: s.forme,
+        forme_etrangere: etrangere,
         regime_tva: s.regime_tva,
         lignes: p.lignes,
         debit: p.debit,
