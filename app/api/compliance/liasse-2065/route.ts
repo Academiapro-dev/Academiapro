@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { sessionCourante } from "../../../../lib/session";
 import { barrage, lecture } from "../../../../lib/droits";
 
 export const runtime = "nodejs";
@@ -8,8 +7,6 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 export const fetchCache = "force-no-store";
 export const maxDuration = 60;
-
-const ADMINS = ["contact@academiapro.fr"];
 
 const SEUIL_TAUX_REDUIT = 42500;
 
@@ -91,6 +88,7 @@ export async function GET(req: NextRequest) {
 
     let produits = 0;
     let charges = 0;
+    let resultatAuBilan = 0;
     const comptes: any = {};
 
     for (const l of lignes || []) {
@@ -104,9 +102,22 @@ export async function GET(req: NextRequest) {
 
       if (n.charAt(0) === "7") produits = r2(produits + c - d);
       if (n.charAt(0) === "6") charges = r2(charges + d - c);
+
+      // Le resultat loge au bilan par la cloture : benefice en 120,
+      // perte en 129. Un solde crediteur est un benefice.
+      if (n.startsWith("120") || n.startsWith("129")) {
+        resultatAuBilan = r2(resultatAuBilan + c - d);
+      }
     }
 
-    const resultatComptable = r2(produits - charges);
+    // UN EXERCICE CLOTURE N A PLUS DE COMPTE DE GESTION : la cloture les a
+    // soldes par le resultat. Recalculer produits moins charges donnerait
+    // zero, et l impot serait calcule sur un resultat nul. On lit donc le
+    // resultat la ou il se trouve reellement : au bilan.
+    const gestionSoldee = Math.abs(produits) < 0.005 && Math.abs(charges) < 0.005;
+    const exerciceCloture = gestionSoldee && Math.abs(resultatAuBilan) > 0.005;
+
+    const resultatComptable = exerciceCloture ? resultatAuBilan : r2(produits - charges);
 
     function propose(racines: string[]): number {
       if (racines.length === 0) return 0;
@@ -149,6 +160,7 @@ export async function GET(req: NextRequest) {
       },
       periode: { debut: debut, fin: fin },
       soumis_is: dossier.regime_fiscal === "is",
+      exercice_cloture: exerciceCloture,
       resultat_comptable: resultatComptable,
       produits: produits,
       charges: charges,
