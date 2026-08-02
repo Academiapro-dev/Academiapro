@@ -15,6 +15,7 @@ const PORTES = [
   ["/admin/compliance/paie", "Paie"],
   ["/admin/compliance/pieces", "Pieces"],
   ["/admin/compliance/cloture", "Cloture"],
+  ["/admin/compliance/collaborateurs", "Collaborateurs"],
 ];
 
 export default function PageSocietes() {
