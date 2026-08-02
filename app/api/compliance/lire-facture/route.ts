@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { sessionCourante } from "../../../../lib/session";
+import { barrage } from "../../../../lib/droits";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -23,10 +24,6 @@ const supabase = createClient(
   }
 );
 
-function refuse() {
-  return NextResponse.json({ ok: false, erreur: "reserve a l administrateur" }, { status: 403 });
-}
-
 function r2(n: number): number {
   return Math.round(n * 100) / 100;
 }
@@ -42,9 +39,6 @@ function mots(t: string): string[] {
 
 export async function POST(req: NextRequest) {
   try {
-    const session = sessionCourante();
-    if (!session || ADMINS.indexOf(session.email) < 0) return refuse();
-
     const cle = process.env.ANTHROPIC_API_KEY || "";
     if (!cle) {
       return NextResponse.json({ ok: false, erreur: "ANTHROPIC_API_KEY absente." }, { status: 500 });
@@ -64,6 +58,10 @@ export async function POST(req: NextRequest) {
     if (!piece) {
       return NextResponse.json({ ok: false, erreur: "Piece introuvable." }, { status: 404 });
     }
+
+    // LE BARRAGE : le dossier vient de la piece, jamais du navigateur.
+    const refus = await barrage("deposer_pieces", piece.societe_id);
+    if (refus) return refus;
 
     // On telecharge le fichier depuis le coffre prive.
     const { data: fichier, error: erreurFichier } = await supabase.storage
@@ -170,11 +168,11 @@ export async function POST(req: NextRequest) {
     let compte = NATURES[String(lu.nature || "").toLowerCase()] || "606300";
     let origine = "nature lue";
 
-    if (b.societe_id && lu.fournisseur) {
+    if (lu.fournisseur) {
       const { data: passees } = await supabase
         .from("compta_ecritures")
         .select("compte_num, compte_lib, ecriture_lib")
-        .eq("societe_id", b.societe_id)
+        .eq("societe_id", piece.societe_id)
         .limit(10000);
 
       const ma = mots(lu.fournisseur);
