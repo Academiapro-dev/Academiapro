@@ -7,11 +7,15 @@ const CHEMINS_PROTEGES = ['/admin'];
 // Pages qui exigent EN PLUS une societe rattachee au compte.
 const EXIGENT_SOCIETE = ['/admin/compliance', '/admin/qualiopi'];
 
-// Exceptions : c'est par la qu'on enregistre ou qu'on gere les societes.
-// Les exiger rattachees a une societe rendrait ces pages inatteignables.
+// Exceptions : ecrans de gestion des dossiers comptables. Les exiger
+// rattaches a une societe les rendrait inatteignables — c'est justement
+// la qu'on ouvre et qu'on tient les dossiers.
 const EXCEPTIONS = [
   '/admin/compliance/ma-societe',
   '/admin/compliance/societes',
+  '/admin/compliance/comptes',
+  '/admin/compliance/saisie',
+  '/admin/compliance/tva',
 ];
 
 // Pages de contenu reservees aux eleves connectes.
@@ -138,7 +142,4 @@ export const config = {
     '/api/mr-cam',
     '/api/mr-comptable/:path*',
     '/api/mr-comptable',
-    '/api/mr-juridique/:path*',
-    '/api/mr-juridique',
-  ],
-};
+    '/api/mr-juridique
