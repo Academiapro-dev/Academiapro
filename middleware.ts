@@ -117,4 +117,8 @@ export const config = {
     '/api/mr-cam/:path*',
     '/api/mr-cam',
     '/api/mr-comptable/:path*',
-    '/api/mr
+    '/api/mr-comptable',
+    '/api/mr-juridique/:path*',
+    '/api/mr-juridique',
+  ],
+};
