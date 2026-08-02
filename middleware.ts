@@ -4,14 +4,19 @@ import type { NextRequest } from 'next/server';
 const CHEMINS_PROTEGES = ['/admin'];
 const EXIGENT_SOCIETE = ['/admin/compliance', '/admin/qualiopi'];
 
-// Ecrans de gestion des dossiers comptables : les exiger rattaches a une
-// societe les rendrait inatteignables.
+// Tous les ecrans comptables, y compris ceux a venir : les exiger rattaches
+// a une societe les rendrait inatteignables.
 const EXCEPTIONS = [
   '/admin/compliance/ma-societe',
   '/admin/compliance/societes',
   '/admin/compliance/comptes',
   '/admin/compliance/saisie',
   '/admin/compliance/tva',
+  '/admin/compliance/balance',
+  '/admin/compliance/releve',
+  '/admin/compliance/rapprochement',
+  '/admin/compliance/immobilisations',
+  '/admin/compliance/cloture',
 ];
 
 const CHEMINS_ELEVE = [
@@ -54,8 +59,6 @@ export function middleware(request: NextRequest) {
   const session = request.cookies.get(NOM_COOKIE_SESSION)?.value;
   const hote = request.headers.get('host') || '';
 
-  // Domaine propre d'un organisme : on reecrit vers sa vitrine sans consulter
-  // la base, ce qui couterait une requete a chaque page.
   if (hote && !estNotre(hote) && chemin === '/') {
     const url = request.nextUrl.clone();
     url.pathname = '/of/@' + hote.split(':')[0].toLowerCase();
