@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { sessionCourante } from "../../../../lib/session";
+import { barrage, lecture } from "../../../../lib/droits";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,10 +22,6 @@ const supabase = createClient(
     },
   }
 );
-
-function refuse() {
-  return NextResponse.json({ ok: false, erreur: "reserve a l administrateur" }, { status: 403 });
-}
 
 function r2(n: number): number {
   return Math.round(n * 100) / 100;
@@ -64,14 +61,10 @@ function planAmortissement(immo: any) {
       // On bascule au lineaire des qu il devient plus favorable.
       const tauxRetenu = tauxLineaire > taux ? tauxLineaire : taux;
       dotation = r2(reste * tauxRetenu);
-      // Premiere annee : prorata en mois entiers, mois d acquisition compris.
       if (i === 0) dotation = r2(dotation * ((13 - moisDepart) / 12));
     } else {
       dotation = r2(base / duree);
-      if (i === 0) {
-        // Lineaire : prorata au jour, arrondi au mois pour rester lisible.
-        dotation = r2(dotation * ((12 - moisDepart + 1) / 12));
-      }
+      if (i === 0) dotation = r2(dotation * ((12 - moisDepart + 1) / 12));
     }
 
     if (dotation > reste) dotation = reste;
@@ -91,13 +84,13 @@ function planAmortissement(immo: any) {
 
 export async function GET(req: NextRequest) {
   try {
-    const session = sessionCourante();
-    if (!session || ADMINS.indexOf(session.email) < 0) return refuse();
-
     const id = (req.nextUrl.searchParams.get("societe_id") || "").trim();
     if (!id) {
       return NextResponse.json({ ok: false, erreur: "Dossier non precise." }, { status: 400 });
     }
+
+    const refus = await lecture(id);
+    if (refus) return refus;
 
     const annee = parseInt(req.nextUrl.searchParams.get("year") || "", 10)
       || new Date().getFullYear();
@@ -170,13 +163,14 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const session = sessionCourante();
-    if (!session || ADMINS.indexOf(session.email) < 0) return refuse();
-
     const b = await req.json().catch(function () { return null; });
     if (!b || !b.societe_id) {
       return NextResponse.json({ ok: false, erreur: "Dossier non precise." }, { status: 400 });
     }
+
+    // LE BARRAGE : modifier une duree d amortissement change le resultat.
+    const refusDroit = await barrage("valider", String(b.societe_id));
+    if (refusDroit) return refusDroit;
 
     const designation = String(b.designation || "").trim();
     if (designation.length < 2) {
