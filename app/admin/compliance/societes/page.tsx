@@ -22,6 +22,7 @@ const FAMILLES = [
       ["/admin/compliance/balance", "Balance et journal"],
       ["/admin/compliance/liasse-2033", "Liasse 2033"],
       ["/admin/compliance/liasse-2050", "Liasse 2050"],
+      ["/admin/compliance/annexes", "Annexes"],
     ],
   },
   {
