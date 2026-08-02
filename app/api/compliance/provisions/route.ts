@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { sessionCourante } from "../../../../lib/session";
+import { barrage, lecture } from "../../../../lib/droits";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -37,10 +38,6 @@ const supabase = createClient(
   }
 );
 
-function refuse() {
-  return NextResponse.json({ ok: false, erreur: "reserve a l administrateur" }, { status: 403 });
-}
-
 function r2(n: number): number {
   return Math.round(n * 100) / 100;
 }
@@ -72,13 +69,13 @@ async function numeroSuivant(societeId: string, annee: string): Promise<string> 
 
 export async function GET(req: NextRequest) {
   try {
-    const session = sessionCourante();
-    if (!session || ADMINS.indexOf(session.email) < 0) return refuse();
-
     const id = (req.nextUrl.searchParams.get("societe_id") || "").trim();
     if (!id) {
       return NextResponse.json({ ok: false, erreur: "Dossier non precise." }, { status: 400 });
     }
+
+    const refus = await lecture(id);
+    if (refus) return refus;
 
     const { data, error } = await supabase
       .from("compta_provisions")
@@ -121,13 +118,17 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const session = sessionCourante();
-    if (!session || ADMINS.indexOf(session.email) < 0) return refuse();
-
     const b = await req.json().catch(function () { return null; });
     if (!b || !b.societe_id) {
       return NextResponse.json({ ok: false, erreur: "Dossier non precise." }, { status: 400 });
     }
+
+    // LE BARRAGE : une reprise de provision augmente le resultat imposable.
+    const refusDroit = await barrage("valider", String(b.societe_id));
+    if (refusDroit) return refusDroit;
+
+    const session = sessionCourante();
+    const email = session ? session.email : null;
 
     // ---- REPRISE : la provision devient sans objet, en tout ou partie. ----
     if (b.action === "reprendre") {
@@ -166,6 +167,7 @@ export async function POST(req: NextRequest) {
         ecriture_lib: "Reprise de provision - " + (prov.tiers || prov.reference || prov.type),
         devise: "EUR",
         valid_date: new Date().toISOString().slice(0, 10),
+        saisi_par: email,
       };
 
       const lignes = [
@@ -225,6 +227,7 @@ export async function POST(req: NextRequest) {
       ecriture_lib: "Dotation - " + (propre(b.tiers, 80) || config.nom),
       devise: "EUR",
       valid_date: new Date().toISOString().slice(0, 10),
+      saisi_par: email,
     };
 
     const lignes = [
