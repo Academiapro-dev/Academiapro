@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { sessionCourante } from "../../../../lib/session";
+import { barrage, lecture } from "../../../../lib/droits";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,10 +22,6 @@ const supabase = createClient(
     },
   }
 );
-
-function refuse() {
-  return NextResponse.json({ ok: false, erreur: "reserve a l administrateur" }, { status: 403 });
-}
 
 function r2(n: number): number {
   return Math.round(n * 100) / 100;
@@ -73,13 +70,13 @@ function proposer(libelle: string, historique: any[]): any {
 
 export async function GET(req: NextRequest) {
   try {
-    const session = sessionCourante();
-    if (!session || ADMINS.indexOf(session.email) < 0) return refuse();
-
     const id = (req.nextUrl.searchParams.get("societe_id") || "").trim();
     if (!id) {
       return NextResponse.json({ ok: false, erreur: "Dossier non precise." }, { status: 400 });
     }
+
+    const refus = await lecture(id);
+    if (refus) return refus;
 
     const { data: releves } = await supabase
       .from("compta_releves")
@@ -120,9 +117,6 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const session = sessionCourante();
-    if (!session || ADMINS.indexOf(session.email) < 0) return refuse();
-
     const b = await req.json().catch(function () { return null; });
     if (!b || !b.releve_id || !b.compte) {
       return NextResponse.json(
@@ -140,6 +134,13 @@ export async function POST(req: NextRequest) {
     if (!ligne) {
       return NextResponse.json({ ok: false, erreur: "Ligne de releve introuvable." }, { status: 404 });
     }
+
+    // LE BARRAGE : le dossier vient de la ligne, jamais du navigateur.
+    const refusDroit = await barrage("saisir", ligne.societe_id);
+    if (refusDroit) return refusDroit;
+
+    const session = sessionCourante();
+
     if (ligne.ecriture_num) {
       return NextResponse.json(
         { ok: false, erreur: "Cette ligne est deja rapprochee a " + ligne.ecriture_num + "." },
@@ -150,12 +151,13 @@ export async function POST(req: NextRequest) {
     const compte = String(b.compte).replace(/\D/g, "").slice(0, 12);
 
     // Le compte doit exister au plan : socle commun ou propre au dossier.
-    const requete = supabase
+    const { data: propre } = await supabase
       .from("compta_comptes")
       .select("numero, libelle, taux_tva")
-      .eq("numero", compte);
+      .eq("numero", compte)
+      .eq("societe_id", ligne.societe_id)
+      .maybeSingle();
 
-    const { data: propre } = await requete.eq("societe_id", ligne.societe_id).maybeSingle();
     let fiche: any = propre;
 
     if (!fiche) {
@@ -180,7 +182,7 @@ export async function POST(req: NextRequest) {
     const absolu = Math.abs(montant);
     const date = String(ligne.operation_date).slice(0, 10);
     const annee = date.slice(0, 4);
-    const journal = entree ? "BQ" : "BQ";
+    const journal = "BQ";
 
     // Numerotation sans trou, par journal et par annee.
     const prefixe = journal + annee + "-";
@@ -212,6 +214,7 @@ export async function POST(req: NextRequest) {
       ecriture_lib: libelle,
       devise: "EUR",
       valid_date: new Date().toISOString().slice(0, 10),
+      saisi_par: session ? session.email : null,
     };
 
     // TVA : si le compte porte un taux au plan, on ventile automatiquement.
