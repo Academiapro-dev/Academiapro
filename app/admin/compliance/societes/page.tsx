@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 
 const PORTES = [
+  ["/admin/compliance/revision", "Revision"],
   ["/admin/compliance/saisie", "Saisie"],
   ["/admin/compliance/comptes", "Plan comptable"],
   ["/admin/compliance/balance", "Balance"],
