@@ -38,7 +38,7 @@ const FAMILLES = [
     titre: "Declarer",
     portes: [
       ["/admin/compliance/tva", "TVA"],
-      ["/admin/compliance/liasse-2065", "Impot sur les societes"],
+      ["/admin/compliance/liasse-2065", "Impot sur les societes (2065)"],
       ["/admin/compliance/das2", "DAS2"],
     ],
   },
@@ -64,6 +64,7 @@ const EXPORTS = [
 // cela, l ecran casse des qu on l ouvre trop tot.
 const FISCAUX_DEFAUT: any = { is: "IS" };
 const TVA_DEFAUT: any = { reel_normal: "Reel normal" };
+const PAYS_DEFAUT: any = { FR: "France" };
 
 export default function PageSocietes() {
   const [d, setD] = useState<any>(null);
@@ -76,7 +77,7 @@ export default function PageSocietes() {
   const [fiche, setFiche] = useState<any>({});
 
   const [neuf, setNeuf] = useState<any>({
-    code: "", raison_sociale: "", siren: "", forme: "",
+    code: "", raison_sociale: "", siren: "", forme: "", pays: "FR",
     regime_fiscal: "is", regime_tva: "reel_normal",
     exercice_debut: "", exercice_fin: "", expert_responsable: "",
   });
@@ -95,6 +96,7 @@ export default function PageSocietes() {
       for (const s of data.societes || []) {
         f[s.id] = {
           raison_sociale: s.raison_sociale || "", siren: s.siren || "", forme: s.forme || "",
+          pays: s.pays || "FR",
           regime_fiscal: s.regime_fiscal || "a_determiner", regime_tva: s.regime_tva || "reel_normal",
           exercice_debut: s.exercice_debut || "", exercice_fin: s.exercice_fin || "",
           adresse: s.adresse || "", email_contact: s.email_contact || "",
@@ -122,7 +124,7 @@ export default function PageSocietes() {
       if (data.ok) {
         setMessage(data.message || "Dossier enregistre.");
         if (!corps.id) {
-          setNeuf({ code: "", raison_sociale: "", siren: "", forme: "", regime_fiscal: "is", regime_tva: "reel_normal", exercice_debut: "", exercice_fin: "", expert_responsable: "" });
+          setNeuf({ code: "", raison_sociale: "", siren: "", forme: "", pays: "FR", regime_fiscal: "is", regime_tva: "reel_normal", exercice_debut: "", exercice_fin: "", expert_responsable: "" });
           setFormulaire(false);
         }
         await charger();
@@ -139,6 +141,7 @@ export default function PageSocietes() {
   // deroulantes ne lisent plus jamais d directement.
   const FISCAUX: any = (d && d.regimes_fiscaux) ? d.regimes_fiscaux : FISCAUX_DEFAUT;
   const TVA: any = (d && d.regimes_tva) ? d.regimes_tva : TVA_DEFAUT;
+  const PAYS: any = (d && d.pays) ? d.pays : PAYS_DEFAUT;
 
   const CADRE: any = { minHeight: "100vh", background: "#050508", color: "#fff", fontFamily: "Georgia, serif", padding: "40px 20px" };
   const CARTE: any = { background: "rgba(255,255,255,0.03)", border: "1px solid rgba(200,169,110,0.25)", borderRadius: "12px", padding: "20px 24px", marginBottom: "16px" };
@@ -217,6 +220,14 @@ export default function PageSocietes() {
                 <span style={LIBELLE}>Code du dossier</span>
                 <input value={neuf.code} onChange={(e) => setNeuf({ ...neuf, code: e.target.value })} placeholder="DUPONT" style={CHAMP} />
               </div>
+              <div style={{ flex: "1 1 150px" }}>
+                <span style={LIBELLE}>Pays</span>
+                <select value={neuf.pays} onChange={(e) => setNeuf({ ...neuf, pays: e.target.value })} style={CHAMP}>
+                  {Object.keys(PAYS).map(function (k) {
+                    return <option key={k} value={k}>{PAYS[k]}</option>;
+                  })}
+                </select>
+              </div>
               <div style={{ flex: "1 1 140px" }}>
                 <span style={LIBELLE}>SIREN</span>
                 <input value={neuf.siren} onChange={(e) => setNeuf({ ...neuf, siren: e.target.value })} style={CHAMP} />
@@ -291,12 +302,18 @@ export default function PageSocietes() {
                 const estOuvert = ouvert[s.id] === true;
                 const alerte = s.lignes > 0 && !s.equilibre;
                 const q = "?societe_id=" + s.id;
+                const pays = s.pays || "FR";
+                const francais = pays === "FR";
                 return (
                   <div key={s.id} style={{ ...CARTE, border: alerte ? "1px solid rgba(232,131,106,0.5)" : CARTE.border, opacity: s.actif ? 1 : 0.6 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "12px" }}>
                       <div style={{ flex: "1 1 280px" }}>
                         <p style={{ color: "#c8a96e", fontSize: "12px", margin: "0 0 3px" }}>
-                          {s.code}{s.siren ? " · SIREN " + s.siren : " · SIREN manquant"}
+                          {s.code}
+                          {!francais ? " · " + (s.pays_nom || pays) : ""}
+                          {/* UN SIREN NE SE RECLAME QU A UNE SOCIETE FRANCAISE :
+                              une LLC americaine n est pas au registre francais. */}
+                          {s.siren ? " · SIREN " + s.siren : (francais ? " · SIREN manquant" : "")}
                           {s.forme ? " · " + s.forme : ""}
                         </p>
                         <h3 style={{ color: "#fff", fontSize: "17px", margin: "0 0 4px" }}>{s.raison_sociale}</h3>
@@ -351,6 +368,14 @@ export default function PageSocietes() {
                         })}
 
                         <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+                          <div style={{ flex: "1 1 180px" }}>
+                            <span style={LIBELLE}>Pays</span>
+                            <select value={ch(s.id, "pays") || "FR"} onChange={(e) => poser(s.id, "pays", e.target.value)} style={CHAMP}>
+                              {Object.keys(PAYS).map(function (k) {
+                                return <option key={k} value={k}>{PAYS[k]}</option>;
+                              })}
+                            </select>
+                          </div>
                           <div style={{ flex: "1 1 200px" }}>
                             <span style={LIBELLE}>Regime fiscal</span>
                             <select value={ch(s.id, "regime_fiscal")} onChange={(e) => poser(s.id, "regime_fiscal", e.target.value)} style={CHAMP}>
