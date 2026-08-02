@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { sessionCourante } from "../../../../lib/session";
+import { lecture, dossiersAutorises } from "../../../../lib/droits";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -26,14 +28,6 @@ const supabase = createClient(
 // (la LLC americaine). Toute societe francaise porte le sien.
 const SIREN_PLACEHOLDER = "000000000";
 
-function sessionPresente(req: NextRequest): boolean {
-  try {
-    return !!req.cookies.get("sb_user")?.value;
-  } catch {
-    return false;
-  }
-}
-
 // Format de date FEC : AAAAMMJJ
 function dateFec(d: string | null): string {
   if (!d) return "";
@@ -52,24 +46,43 @@ function champ(s: string | null): string {
 }
 
 export async function GET(req: NextRequest) {
-  if (!sessionPresente(req)) {
-    return NextResponse.json(
-      { error: "Connectez-vous pour produire un FEC." },
-      { status: 401 }
-    );
-  }
-
   try {
+    // LA VRAIE SESSION, PAS UN COOKIE. Se contenter de constater la presence
+    // d un cookie ne dit ni qui demande, ni ce qu il a le droit de lire.
+    const session = sessionCourante();
+    if (!session) {
+      return NextResponse.json(
+        { error: "Connectez-vous pour produire un FEC." },
+        { status: 401 }
+      );
+    }
+
     // CHOIX DU DOSSIER. On ne devine jamais : avec plusieurs dossiers et
     // aucun precise, on refuse. Melanger les ecritures de deux societes
     // dans un meme FEC serait une faute grave.
     const codeDemande = (req.nextUrl.searchParams.get("societe") || "").trim().toUpperCase();
     const idDemande = (req.nextUrl.searchParams.get("societe_id") || "").trim();
 
-    const { data: dossiers, error: erreurDossiers } = await supabase
+    // Un collaborateur ne voit que les dossiers qui lui sont confies. Un
+    // dossier hors de sa portee doit lui repondre « introuvable » : lui dire
+    // qu il existe mais lui est interdit serait deja un renseignement.
+    const autorises = await dossiersAutorises();
+
+    let requete = supabase
       .from("compta_societes")
-      .select("id, code, raison_sociale, siren, exercice_debut, exercice_fin, actif")
-      .limit(500);
+      .select("id, code, raison_sociale, siren, exercice_debut, exercice_fin, actif");
+
+    if (autorises !== null) {
+      if (autorises.length === 0) {
+        return NextResponse.json(
+          { error: "Aucun dossier ne vous est confie." },
+          { status: 403 }
+        );
+      }
+      requete = requete.in("id", autorises);
+    }
+
+    const { data: dossiers, error: erreurDossiers } = await requete.limit(500);
 
     if (erreurDossiers) {
       return NextResponse.json(
@@ -122,6 +135,11 @@ export async function GET(req: NextRequest) {
         { status: 404 }
       );
     }
+
+    // LE BARRAGE DE LECTURE, en second rideau : meme si le dossier a ete
+    // trouve, on verifie qu il est bien ouvert a cette session.
+    const refus = await lecture(dossier.id);
+    if (refus) return refus;
 
     // PERIODE. L annee demandee prime ; a defaut on prend l exercice inscrit
     // au dossier ; en dernier recours l annee civile en cours.
