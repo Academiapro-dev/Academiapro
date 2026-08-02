@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { sessionCourante } from "../../../../lib/session";
+import { lecture } from "../../../../lib/droits";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,10 +23,6 @@ const supabase = createClient(
   }
 );
 
-function refuse() {
-  return NextResponse.json({ ok: false, erreur: "reserve a l administrateur" }, { status: 403 });
-}
-
 function r2(n: number): number {
   return Math.round(n * 100) / 100;
 }
@@ -36,13 +33,14 @@ function euros(n: number): string {
 
 export async function GET(req: NextRequest) {
   try {
-    const session = sessionCourante();
-    if (!session || ADMINS.indexOf(session.email) < 0) return refuse();
-
     const id = (req.nextUrl.searchParams.get("societe_id") || "").trim();
     if (!id) {
       return NextResponse.json({ ok: false, erreur: "Dossier non precise." }, { status: 400 });
     }
+
+    // LE BARRAGE : la revision expose toutes les faiblesses d un dossier.
+    const refus = await lecture(id);
+    if (refus) return refus;
 
     const { data: dossier } = await supabase
       .from("compta_societes")
@@ -67,7 +65,6 @@ export async function GET(req: NextRequest) {
 
     const mouvements = lignes || [];
 
-    // Plan du dossier, pour reperer les comptes hors plan.
     const { data: communs } = await supabase
       .from("compta_comptes").select("numero, lettrable").is("societe_id", null).limit(2000);
     const { data: propres } = await supabase
@@ -108,7 +105,6 @@ export async function GET(req: NextRequest) {
       anomalies.push({ gravite: gravite, titre: titre, detail: detail, geste: geste });
     }
 
-    // 1. Balance equilibree — le controle fondamental.
     const ecart = r2(debitTotal - creditTotal);
     if (Math.abs(ecart) > 0.01) {
       signaler("grave", "Balance desequilibree",
@@ -116,7 +112,6 @@ export async function GET(req: NextRequest) {
         "Cherchez l ecriture fautive dans le journal avant toute autre chose.");
     }
 
-    // 2. Comptes d attente : ils ne doivent jamais subsister a la cloture.
     for (const num of Object.keys(comptes)) {
       if (num.startsWith("471") || num.startsWith("472") || num.startsWith("467")) {
         const s = solde(num);
@@ -128,7 +123,6 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // 3. Caisse creditrice : physiquement impossible.
     const caisse = solde("530000");
     if (caisse < -0.005) {
       signaler("grave", "Caisse creditrice",
@@ -136,7 +130,6 @@ export async function GET(req: NextRequest) {
         "Une depense a ete enregistree sans son alimentation, ou un encaissement manque.");
     }
 
-    // 4. Comptes de tiers au sens anormal.
     const clients = solde("411000");
     if (clients < -0.005) {
       signaler("moyen", "Clients crediteurs",
@@ -150,7 +143,6 @@ export async function GET(req: NextRequest) {
         "Acomptes verses ou double reglement : verifiez le lettrage.");
     }
 
-    // 5. Coherence de la TVA.
     const aDecaisser = r2(-solde("445510"));
     const collectee = r2(-solde("445710"));
     const deductible = r2(solde("445660") + solde("445620"));
@@ -162,7 +154,6 @@ export async function GET(req: NextRequest) {
         "Passez ou corrigez l ecriture de liquidation depuis l ecran TVA.");
     }
 
-    // 6. Lettrage en souffrance.
     for (const num of Object.keys(comptes)) {
       const c = comptes[num];
       if (c.ouvertes >= 10) {
@@ -172,7 +163,6 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // 7. Releves non rapproches.
     const { data: releves } = await supabase
       .from("compta_releves")
       .select("id")
@@ -187,7 +177,6 @@ export async function GET(req: NextRequest) {
         "Passez par le rapprochement bancaire avant de cloturer.");
     }
 
-    // 8. Immobilisations sans dotation passee.
     const { data: immos } = await supabase
       .from("compta_immobilisations")
       .select("id")
@@ -205,7 +194,6 @@ export async function GET(req: NextRequest) {
         "Passez la dotation depuis l ecran des immobilisations.");
     }
 
-    // 9. Ecritures sans piece justificative.
     const uniques = Array.from(new Set(sansPiece));
     if (uniques.length > 0) {
       signaler("faible", "Ecritures sans reference de piece",
@@ -213,14 +201,12 @@ export async function GET(req: NextRequest) {
         "Une piece manquante est le premier reproche d un controleur.");
     }
 
-    // 10. Comptes utilises hors du plan.
     if (horsPlan.length > 0) {
       signaler("faible", "Comptes absents du plan",
         horsPlan.length + " compte(s) mouvementes ne figurent pas au plan : " + horsPlan.slice(0, 8).join(", ") + ".",
         "Ajoutez-les au plan comptable pour qu ils portent un libelle stable.");
     }
 
-    // 11. Resultat non affecte.
     const resultatBenefice = r2(-solde("120000"));
     const resultatPerte = solde("129000");
     if (Math.abs(resultatBenefice) < 0.005 && Math.abs(resultatPerte) < 0.005) {
