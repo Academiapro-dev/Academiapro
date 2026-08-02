@@ -4,8 +4,8 @@ import type { NextRequest } from 'next/server';
 const CHEMINS_PROTEGES = ['/admin'];
 const EXIGENT_SOCIETE = ['/admin/compliance', '/admin/qualiopi'];
 
-// Tous les ecrans comptables, y compris ceux a venir : les exiger rattaches
-// a une societe les rendrait inatteignables.
+// Tous les ecrans comptables : les exiger rattaches a une societe les
+// rendrait inatteignables.
 const EXCEPTIONS = [
   '/admin/compliance/ma-societe',
   '/admin/compliance/societes',
@@ -15,6 +15,7 @@ const EXCEPTIONS = [
   '/admin/compliance/balance',
   '/admin/compliance/releve',
   '/admin/compliance/rapprochement',
+  '/admin/compliance/lettrage',
   '/admin/compliance/immobilisations',
   '/admin/compliance/cloture',
 ];
