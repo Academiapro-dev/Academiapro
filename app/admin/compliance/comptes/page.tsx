@@ -20,6 +20,7 @@ export default function PageComptes() {
   const [lettrable, setLettrable] = useState(false);
   const [tauxTva, setTauxTva] = useState("");
   const [pourDossier, setPourDossier] = useState(false);
+  const [modifie, setModifie] = useState("");
 
   useEffect(function () {
     chargerSocietes();
@@ -55,6 +56,38 @@ export default function PageComptes() {
     setChargement(false);
   }
 
+  function viderFormulaire() {
+    setNumero(""); setLibelle(""); setType(""); setTauxTva("");
+    setLettrable(false); setPourDossier(false); setModifie("");
+  }
+
+  // MODIFIER : le formulaire est rempli avec les valeurs DEJA en base.
+  // Sans cela, un enregistrement effacerait le type et le taux de TVA,
+  // puisque la route remplace la fiche entiere.
+  function modifier(c: any) {
+    setModifie(c.numero);
+    setNumero(c.numero);
+    setLibelle(c.libelle || "");
+    setType(c.type || "");
+    setTauxTva(c.taux_tva === null || c.taux_tva === undefined ? "" : String(c.taux_tva));
+    setLettrable(c.lettrable === true);
+    setPourDossier(c.origine === "dossier");
+    setFormulaire(true);
+    setMessage("");
+    setErreur("");
+    if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function basculerFormulaire() {
+    if (formulaire) {
+      setFormulaire(false);
+      viderFormulaire();
+    } else {
+      viderFormulaire();
+      setFormulaire(true);
+    }
+  }
+
   async function enregistrer() {
     if (numero.trim().length < 3 || libelle.trim().length < 2) {
       setErreur("Un numero d au moins trois chiffres et un libelle sont necessaires.");
@@ -79,8 +112,7 @@ export default function PageComptes() {
       const data = await r.json();
       if (data.ok) {
         setMessage(data.message);
-        setNumero(""); setLibelle(""); setType(""); setTauxTva("");
-        setLettrable(false);
+        viderFormulaire();
         setFormulaire(false);
         await charger();
       } else {
@@ -260,7 +292,7 @@ export default function PageComptes() {
                 );
               })}
               <button
-                onClick={() => setFormulaire(!formulaire)}
+                onClick={basculerFormulaire}
                 style={{ ...BOUTON, background: formulaire ? "none" : "#c8a96e", color: formulaire ? "#c8a96e" : "#050508", border: formulaire ? "1px solid rgba(200,169,110,0.45)" : "none", fontWeight: "bold" }}
               >
                 {formulaire ? "Annuler" : "Ajouter un compte"}
@@ -276,10 +308,25 @@ export default function PageComptes() {
 
             {formulaire && (
               <div style={{ ...CARTE, border: "1px solid rgba(200,169,110,0.5)" }}>
+                <p style={{ color: "#c8a96e", fontSize: "15px", fontWeight: "bold", margin: "0 0 4px" }}>
+                  {modifie ? "Modifier le compte " + modifie : "Nouveau compte"}
+                </p>
+                <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "13px", margin: "0 0 16px", lineHeight: "1.7" }}>
+                  {modifie
+                    ? "Les valeurs actuelles du compte sont reprises ci-dessous. Ce que vous laissez vide sera efface."
+                    : "Un numero deja present au plan sera mis a jour plutot que cree une seconde fois."}
+                </p>
+
                 <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
                   <div style={{ flex: "1 1 140px" }}>
                     <span style={LIBELLE}>Numero</span>
-                    <input value={numero} onChange={(e) => setNumero(e.target.value)} placeholder="622600" style={CHAMP} />
+                    <input
+                      value={numero}
+                      onChange={(e) => setNumero(e.target.value)}
+                      readOnly={modifie !== ""}
+                      placeholder="622600"
+                      style={{ ...CHAMP, opacity: modifie ? 0.6 : 1 }}
+                    />
                   </div>
                   <div style={{ flex: "1 1 260px" }}>
                     <span style={LIBELLE}>Libelle</span>
@@ -329,7 +376,7 @@ export default function PageComptes() {
                   disabled={occupe !== ""}
                   style={{ background: occupe !== "" ? "rgba(200,169,110,0.3)" : "#c8a96e", color: occupe !== "" ? "#8a8a8a" : "#050508", padding: "13px 26px", borderRadius: "8px", border: "none", cursor: "pointer", fontWeight: "bold", fontSize: "15px", fontFamily: "Georgia,serif", width: "100%" }}
                 >
-                  {occupe === "enr" ? "Enregistrement..." : "Enregistrer le compte"}
+                  {occupe === "enr" ? "Enregistrement..." : modifie ? "Enregistrer les modifications" : "Enregistrer le compte"}
                 </button>
               </div>
             )}
@@ -342,16 +389,17 @@ export default function PageComptes() {
               </div>
             ) : (
               <div style={{ border: "1px solid rgba(200,169,110,0.25)", borderRadius: "12px", overflow: "hidden" }}>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 2.6fr 1fr 0.8fr", background: "rgba(200,169,110,0.12)", padding: "12px 16px", fontSize: "12.5px", color: "#c8a96e", fontWeight: "bold" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 2.2fr 0.9fr 0.6fr 1fr", background: "rgba(200,169,110,0.12)", padding: "12px 16px", fontSize: "12.5px", color: "#c8a96e", fontWeight: "bold" }}>
                   <span>Numero</span>
                   <span>Libelle</span>
                   <span>Portee</span>
                   <span>Mouv.</span>
+                  <span></span>
                 </div>
 
                 {affiches.map(function (c: any) {
                   return (
-                    <div key={c.id} style={{ display: "grid", gridTemplateColumns: "1fr 2.6fr 1fr 0.8fr", padding: "11px 16px", borderTop: "1px solid rgba(255,255,255,0.06)", fontSize: "13.5px", color: "rgba(255,255,255,0.8)", alignItems: "center", opacity: c.actif === false ? 0.45 : 1 }}>
+                    <div key={c.id} style={{ display: "grid", gridTemplateColumns: "1fr 2.2fr 0.9fr 0.6fr 1fr", padding: "11px 16px", borderTop: "1px solid rgba(255,255,255,0.06)", fontSize: "13.5px", color: "rgba(255,255,255,0.8)", alignItems: "center", opacity: c.actif === false ? 0.45 : 1 }}>
                       <span style={{ fontFamily: "monospace", color: "#c8a96e" }}>{c.numero}</span>
                       <span>
                         {c.libelle}
@@ -361,15 +409,22 @@ export default function PageComptes() {
                       <span style={{ color: c.origine === "dossier" ? "#4caf50" : "rgba(255,255,255,0.4)", fontSize: "12.5px" }}>
                         {c.origine === "dossier" ? "ce dossier" : "commun"}
                       </span>
-                      <span style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                        <span style={{ color: c.mouvements > 0 ? "#c8a96e" : "rgba(255,255,255,0.25)" }}>
-                          {c.mouvements}
-                        </span>
+                      <span style={{ color: c.mouvements > 0 ? "#c8a96e" : "rgba(255,255,255,0.25)" }}>
+                        {c.mouvements}
+                      </span>
+                      <span style={{ display: "flex", alignItems: "center", gap: "12px", justifyContent: "flex-end" }}>
+                        <button
+                          onClick={() => modifier(c)}
+                          disabled={occupe !== ""}
+                          style={{ background: "none", border: "none", color: "#c8a96e", cursor: "pointer", fontSize: "12.5px", padding: 0, fontFamily: "Georgia,serif", textDecoration: "underline" }}
+                        >
+                          modifier
+                        </button>
                         {c.mouvements === 0 && c.origine === "dossier" && (
                           <button
                             onClick={() => supprimer(c)}
                             disabled={occupe !== ""}
-                            style={{ background: "none", border: "none", color: "#e8836a", cursor: "pointer", fontSize: "12px", padding: 0 }}
+                            style={{ background: "none", border: "none", color: "#e8836a", cursor: "pointer", fontSize: "12px", padding: 0, fontFamily: "Georgia,serif" }}
                           >
                             suppr.
                           </button>
