@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { sessionCourante } from "../../../../lib/session";
+import { barrage } from "../../../../lib/droits";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -119,7 +120,6 @@ export async function GET(req: NextRequest) {
 
     const etat = await etatCloture(id, debut, fin);
 
-    // Les trois verifications qu un comptable fait avant de cloturer.
     const { data: banque } = await supabase
       .from("compta_releves")
       .select("id")
@@ -168,13 +168,14 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const session = sessionCourante();
-    if (!session || ADMINS.indexOf(session.email) < 0) return refuse();
-
     const b = await req.json().catch(function () { return null; });
     if (!b || !b.societe_id) {
       return NextResponse.json({ ok: false, erreur: "Dossier non precise." }, { status: 400 });
     }
+
+    // LE BARRAGE : cloturer est le droit le plus lourd du logiciel.
+    const refusDroit = await barrage("cloturer", String(b.societe_id));
+    if (refusDroit) return refusDroit;
 
     const { data: dossier } = await supabase
       .from("compta_societes")
@@ -196,7 +197,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // On ne cloture jamais deux fois : les a-nouveaux seraient doubles.
     const { data: deja } = await supabase
       .from("compta_ecritures")
       .select("ecriture_num")
@@ -224,7 +224,6 @@ export async function POST(req: NextRequest) {
     const resultat = etat.resultat;
     const lendemain = new Date(new Date(fin).getTime() + 86400000).toISOString().slice(0, 10);
 
-    // 1. Solde des comptes de gestion par le compte de resultat.
     const soldeGestion: any[] = [];
     for (const c of etat.gestion) {
       if (Math.abs(c.solde) < 0.005) continue;
@@ -271,7 +270,6 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 2. Report des soldes de bilan au premier jour de l exercice suivant.
     const anouveaux: any[] = [];
     let cumulAN = 0;
 
@@ -293,7 +291,6 @@ export async function POST(req: NextRequest) {
       cumulAN = r2(cumulAN + c.solde);
     }
 
-    // Le resultat rejoint les capitaux propres du nouvel exercice.
     if (Math.abs(resultat) > 0.005) {
       anouveaux.push({
         societe_id: b.societe_id,
