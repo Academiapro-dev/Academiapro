@@ -130,13 +130,15 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "formation introuvable: " + code }, { status: 404 });
     }
 
+    // LE PRIX FACTURE EST LE PRIX AFFICHE. Aucune remise n est calculee ici :
+    // les 10 % Fondateur s obtiennent avec le code, saisi au paiement et limite
+    // aux 100 premiers. Les appliquer deux fois reviendrait a 19 % de remise.
     let prixFinal: number;
     if (estAtelier) {
       prixFinal = f.prix;
     } else {
       const estBootcamp = String(f.titre || "").startsWith("Bootcamp") || formule === "bootcamp";
-      const prixFormule = estBootcamp ? f.prix : prixPalier(f.prix, formule);
-      prixFinal = Math.round(prixFormule * 0.9);
+      prixFinal = estBootcamp ? f.prix : prixPalier(f.prix, formule);
     }
 
     if (paiement !== "comptant" && prixFinal < MINIMUM_ECHELONNE) {
