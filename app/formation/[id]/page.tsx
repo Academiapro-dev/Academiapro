@@ -8,7 +8,7 @@ const FR = {
   retourCatalogue: "Retour au catalogue",
   niveau: "Niveau",
   formuleTitre: "Choisissez votre formule",
-  prixNormal: "Prix normal :",
+  fondateur: "Code FONDATEURS : -10 % pour les 100 premiers clients, a saisir au moment du paiement.",
   bootcampNote: "Programme intensif complet — 3 classes virtuelles et plus par semaine, prix unique",
   description: "Description",
   objectifs: "Objectifs",
@@ -94,17 +94,20 @@ export default function FormationPage({ params }: { params: { id: string } }) {
   const estBootcamp = typeof formation.titre === "string" && formation.titre.startsWith("Bootcamp");
   const estAtelier = String(params.id).toUpperCase().indexOf("SK") === 0;
   const prixBase = formation.prix || 0;
+
+  // LE PRIX AFFICHE EST LE PRIX PAYE. La remise Fondateur s obtient avec le
+  // code, au moment du paiement, et seulement pour les 100 premiers clients.
   const prixFormule = estBootcamp ? prixBase : prixPalier(prixBase, palier);
-  const prixPromo = Math.round(prixFormule * 0.9);
+
   const detailPalier = (txt.paliers.find((p: { id: string }) => p.id === palier) || txt.paliers[0]).detail;
   const aProgrammeBase = formation.programme && Array.isArray(formation.programme) && formation.programme.length > 0;
   const aApercu = apercu && apercu.modules && apercu.modules.length > 0;
   const heures = (apercu && apercu.heures_programme) || 0;
   const nbModules = (apercu && apercu.nb_modules) || 0;
 
-  const echelonnable = !estAtelier && prixPromo >= MINIMUM_ECHELONNE;
+  const echelonnable = !estAtelier && prixFormule >= MINIMUM_ECHELONNE;
   const paiementActif = echelonnable ? paiement : "comptant";
-  const mensualite = Math.ceil(prixPromo / 4);
+  const mensualite = Math.ceil(prixFormule / 4);
   const totalEchelonne = mensualite * 4;
 
   const ligneTotal = heures > 0 ? (
@@ -141,7 +144,7 @@ export default function FormationPage({ params }: { params: { id: string } }) {
         <div style={{ display: "flex", gap: "15px", justifyContent: "center", flexWrap: "wrap" }}>
           {heures > 0 && <span style={{ background: "rgba(200,169,110,0.2)", color: "#c8a96e", padding: "6px 16px", borderRadius: "20px" }}>{heures} h</span>}
           {formation.niveau && <span style={{ background: "rgba(200,169,110,0.2)", color: "#c8a96e", padding: "6px 16px", borderRadius: "20px" }}>{txt.niveau} {formation.niveau}</span>}
-          {prixBase > 0 && <span style={{ background: "#c8a96e", color: "#050508", padding: "6px 16px", borderRadius: "20px", fontWeight: "bold" }}>{prixPromo.toLocaleString("fr-FR")}€</span>}
+          {prixBase > 0 && <span style={{ background: "#c8a96e", color: "#050508", padding: "6px 16px", borderRadius: "20px", fontWeight: "bold" }}>{prixFormule.toLocaleString("fr-FR")}€</span>}
         </div>
       </div>
 
@@ -274,11 +277,6 @@ export default function FormationPage({ params }: { params: { id: string } }) {
         <div style={{ textAlign: "center", padding: "40px", background: "rgba(255,255,255,0.03)", borderRadius: "12px" }}>
           <h2 style={{ color: "#fff", fontFamily: "Georgia,serif", marginBottom: "10px" }}>{txt.pret}</h2>
           <p style={{ color: "rgba(255,255,255,0.6)", marginBottom: "20px" }}>{txt.acces}</p>
-          {prixBase > 0 && (
-            <p style={{ color: "rgba(255,255,255,0.35)", fontSize: "13px", marginBottom: "14px", textDecoration: "line-through" }}>
-              {txt.prixNormal} {prixFormule.toLocaleString("fr-FR")}€
-            </p>
-          )}
 
           {echelonnable && (
             <div style={{ marginBottom: "24px" }}>
@@ -287,7 +285,7 @@ export default function FormationPage({ params }: { params: { id: string } }) {
                 <button onClick={() => setPaiement("comptant")} style={styleChoix(paiementActif === "comptant")}>
                   <div style={{ fontWeight: "bold", fontSize: "15px", marginBottom: "4px" }}>{txt.comptant}</div>
                   <div style={{ color: "#c8a96e", fontSize: "20px", fontWeight: "bold", marginBottom: "4px" }}>
-                    {prixPromo.toLocaleString("fr-FR")}€
+                    {prixFormule.toLocaleString("fr-FR")}€
                   </div>
                   <div style={{ color: "rgba(255,255,255,0.5)", fontSize: "12px" }}>{txt.comptantDetail}</div>
                 </button>
@@ -311,8 +309,14 @@ export default function FormationPage({ params }: { params: { id: string } }) {
           >
             {paiementActif === "4x"
               ? `${txt.acheter} — 4 × ${mensualite.toLocaleString("fr-FR")}€`
-              : `${txt.acheter} — ${prixPromo.toLocaleString("fr-FR")}€`}
+              : `${txt.acheter} — ${prixFormule.toLocaleString("fr-FR")}€`}
           </a>
+
+          {prixBase > 0 && (
+            <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "12.5px", margin: "16px auto 0", maxWidth: "460px", lineHeight: "1.7" }}>
+              {txt.fondateur}
+            </p>
+          )}
         </div>
 
       </div>
