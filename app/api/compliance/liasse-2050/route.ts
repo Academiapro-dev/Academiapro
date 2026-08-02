@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { sessionCourante } from "../../../../lib/session"; 
+import { sessionCourante } from "../../../../lib/session";
+import { lecture } from "../../../../lib/droits";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -40,7 +41,7 @@ const PASSIF = [
   { code: "DI", libelle: "Resultat de l exercice", racines: ["120", "129"] },
   { code: "DK", libelle: "Subventions d investissement", racines: ["13"] },
   { code: "DP", libelle: "Provisions pour risques et charges", racines: ["15"] },
-  { code: "DU", libelle: "Emprunts et dettes aupres des etablissements de credit", racines: ["16", "512c"] },
+  { code: "DU", libelle: "Emprunts et dettes aupres des etablissements de credit", racines: ["16"] },
   { code: "DV", libelle: "Emprunts et dettes financieres divers", racines: ["17", "455"] },
   { code: "DW", libelle: "Avances et acomptes recus", racines: ["419"] },
   { code: "DX", libelle: "Fournisseurs et comptes rattaches", racines: ["401", "403", "404", "408"] },
@@ -89,23 +90,19 @@ const supabase = createClient(
   }
 );
 
-function refuse() {
-  return NextResponse.json({ ok: false, erreur: "reserve a l administrateur" }, { status: 403 });
-}
-
 function r2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
 export async function GET(req: NextRequest) {
   try {
-    const session = sessionCourante();
-    if (!session || ADMINS.indexOf(session.email) < 0) return refuse();
-
     const id = (req.nextUrl.searchParams.get("societe_id") || "").trim();
     if (!id) {
       return NextResponse.json({ ok: false, erreur: "Dossier non precise." }, { status: 400 });
     }
+
+    const refus = await lecture(id);
+    if (refus) return refus;
 
     const { data: dossier } = await supabase
       .from("compta_societes").select("*").eq("id", id).maybeSingle();
