@@ -8,6 +8,7 @@ const EXIGENT_SOCIETE = ['/admin/compliance', '/admin/qualiopi'];
 // rendrait inatteignables.
 const EXCEPTIONS = [
   '/admin/compliance/ma-societe',
+  '/admin/compliance/tableau-de-bord',
   '/admin/compliance/societes',
   '/admin/compliance/comptes',
   '/admin/compliance/saisie',
