@@ -177,6 +177,9 @@ export async function POST(req: NextRequest) {
     const refusDroit = await barrage("cloturer", String(b.societe_id));
     if (refusDroit) return refusDroit;
 
+    const session = sessionCourante();
+    const email = session ? session.email : "inconnu";
+
     const { data: dossier } = await supabase
       .from("compta_societes")
       .select("id, code, raison_sociale, exercice_debut, exercice_fin")
@@ -328,15 +331,43 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // CLOTURER, C EST FERMER. Sans ce verrou, une ecriture passee apres coup
+    // se logeait dans l exercice clos : le bilan cessait de tomber juste et
+    // les a-nouveaux deja reportes ne correspondaient plus a rien. Les
+    // a-nouveaux, dates du lendemain, restent libres — c est l exercice neuf.
+    const { data: verrouillees } = await supabase
+      .from("compta_ecritures")
+      .update({ verrouille: true, verrouille_le: new Date().toISOString() })
+      .eq("societe_id", b.societe_id)
+      .gte("ecriture_date", debut)
+      .lte("ecriture_date", fin)
+      .select("id");
+
+    const nbVerrouillees = (verrouillees || []).length;
+
+    const ip = req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || null;
+    await supabase.from("compta_audit").insert({
+      societe_id: b.societe_id,
+      email: email,
+      action: "verrouillage",
+      cible: "exercice",
+      reference: fin.slice(0, 4),
+      avant: null,
+      apres: { lignes: nbVerrouillees, motif: "Verrouillage automatique a la cloture" },
+      adresse_ip: ip ? String(ip).split(",")[0].trim() : null,
+    });
+
     return NextResponse.json({
       ok: true,
       resultat: resultat,
       lignes_solde: soldeGestion.length,
       lignes_anouveaux: anouveaux.length,
+      lignes_verrouillees: nbVerrouillees,
       ouverture: lendemain,
       message: "Exercice " + fin.slice(0, 4) + " cloture. Resultat de "
         + resultat.toFixed(2) + " EUR, " + anouveaux.length
-        + " ligne(s) reportees au " + lendemain + ".",
+        + " ligne(s) reportees au " + lendemain + ". L exercice est verrouille : "
+        + nbVerrouillees + " ligne(s) ne se modifient plus.",
     });
   } catch (e: any) {
     return NextResponse.json({ ok: false, erreur: String(e) }, { status: 500 });
