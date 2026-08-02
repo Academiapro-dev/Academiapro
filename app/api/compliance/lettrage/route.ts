@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { sessionCourante } from "../../../../lib/session";
+import { barrage, lecture } from "../../../../lib/droits";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,10 +22,6 @@ const supabase = createClient(
     },
   }
 );
-
-function refuse() {
-  return NextResponse.json({ ok: false, erreur: "reserve a l administrateur" }, { status: 403 });
-}
 
 function r2(n: number): number {
   return Math.round(n * 100) / 100;
@@ -48,17 +45,16 @@ function lettreSuivante(derniere: string): string {
 
 export async function GET(req: NextRequest) {
   try {
-    const session = sessionCourante();
-    if (!session || ADMINS.indexOf(session.email) < 0) return refuse();
-
     const id = (req.nextUrl.searchParams.get("societe_id") || "").trim();
     if (!id) {
       return NextResponse.json({ ok: false, erreur: "Dossier non precise." }, { status: 400 });
     }
 
+    const refus = await lecture(id);
+    if (refus) return refus;
+
     const compte = (req.nextUrl.searchParams.get("compte") || "").replace(/\D/g, "");
 
-    // Les comptes lettrables du plan : le socle commun plus ceux du dossier.
     const { data: communs } = await supabase
       .from("compta_comptes")
       .select("numero, libelle, lettrable")
@@ -78,7 +74,6 @@ export async function GET(req: NextRequest) {
     for (const c of propres || []) lettrables[c.numero] = c.libelle;
 
     if (!compte) {
-      // Vue d ensemble : combien reste-t-il a lettrer sur chaque compte.
       const { data: toutes } = await supabase
         .from("compta_ecritures")
         .select("compte_num, debit, credit, lettrage")
@@ -166,15 +161,15 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const session = sessionCourante();
-    if (!session || ADMINS.indexOf(session.email) < 0) return refuse();
-
     const b = await req.json().catch(function () { return null; });
     if (!b || !b.societe_id) {
       return NextResponse.json({ ok: false, erreur: "Dossier non precise." }, { status: 400 });
     }
 
-    // Delettrage : on rend les lignes a leur etat ouvert.
+    // LE BARRAGE : lettrer comme delettrer touche des soldes de tiers.
+    const refusDroit = await barrage("valider", String(b.societe_id));
+    if (refusDroit) return refusDroit;
+
     if (b.action === "delettrer") {
       const lettre = String(b.lettre || "").trim().toUpperCase();
       if (!lettre) {
@@ -253,7 +248,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Lettre suivante disponible sur le compte.
     const { data: existantes } = await supabase
       .from("compta_ecritures")
       .select("lettrage")
