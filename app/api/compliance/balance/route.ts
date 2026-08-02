@@ -11,13 +11,8 @@ export const maxDuration = 60;
 const ADMINS = ["contact@academiapro.fr"];
 
 const CLASSES: any = {
-  1: "Capitaux",
-  2: "Immobilisations",
-  3: "Stocks",
-  4: "Tiers",
-  5: "Tresorerie",
-  6: "Charges",
-  7: "Produits",
+  1: "Capitaux", 2: "Immobilisations", 3: "Stocks", 4: "Tiers",
+  5: "Tresorerie", 6: "Charges", 7: "Produits",
 };
 
 const supabase = createClient(
@@ -48,6 +43,8 @@ export async function GET(req: NextRequest) {
     const code = (req.nextUrl.searchParams.get("societe") || "").trim().toUpperCase();
     const id = (req.nextUrl.searchParams.get("societe_id") || "").trim();
     const compteDemande = (req.nextUrl.searchParams.get("compte") || "").trim();
+    const vueDemandee = (req.nextUrl.searchParams.get("vue") || "").trim();
+    const journalDemande = (req.nextUrl.searchParams.get("journal") || "").trim().toUpperCase();
 
     const { data: dossiers } = await supabase
       .from("compta_societes")
@@ -100,15 +97,13 @@ export async function GET(req: NextRequest) {
 
     let requete = supabase
       .from("compta_ecritures")
-      .select("journal_code, ecriture_num, ecriture_date, compte_num, compte_lib, ecriture_lib, piece_ref, debit, credit, lettrage")
+      .select("journal_code, journal_lib, ecriture_num, ecriture_date, compte_num, compte_lib, ecriture_lib, piece_ref, debit, credit, lettrage")
       .eq("societe_id", dossier.id)
       .gte("ecriture_date", debut)
       .lte("ecriture_date", fin);
 
-    // GRAND LIVRE : un compte precis, avec le detail de ses mouvements.
-    if (compteDemande) {
-      requete = requete.eq("compte_num", compteDemande);
-    }
+    if (compteDemande) requete = requete.eq("compte_num", compteDemande);
+    if (journalDemande) requete = requete.eq("journal_code", journalDemande);
 
     const { data: lignes, error } = await requete
       .order("ecriture_date", { ascending: true })
@@ -120,8 +115,81 @@ export async function GET(req: NextRequest) {
     }
 
     const mouvements = lignes || [];
+    const entete = {
+      dossier: { code: dossier.code, raison_sociale: dossier.raison_sociale },
+      periode: { debut: debut, fin: fin },
+    };
 
-    // Detail d un compte : solde progressif, comme sur un grand livre papier.
+    // ---- LIVRE JOURNAL : les ecritures groupees par piece, dans l ordre. ----
+    if (vueDemandee === "journal") {
+      const pieces: any = {};
+      const journaux: any = {};
+
+      for (const l of mouvements) {
+        const n = String(l.ecriture_num);
+        if (!pieces[n]) {
+          pieces[n] = {
+            ecriture_num: n,
+            journal_code: l.journal_code,
+            journal_lib: l.journal_lib,
+            date: l.ecriture_date,
+            piece_ref: l.piece_ref,
+            libelle: l.ecriture_lib,
+            lignes: [],
+            debit: 0,
+            credit: 0,
+          };
+        }
+        const p = pieces[n];
+        p.lignes.push({
+          compte: l.compte_num,
+          libelle_compte: l.compte_lib,
+          libelle: l.ecriture_lib,
+          debit: Number(l.debit) || 0,
+          credit: Number(l.credit) || 0,
+          lettrage: l.lettrage,
+        });
+        p.debit = r2(p.debit + (Number(l.debit) || 0));
+        p.credit = r2(p.credit + (Number(l.credit) || 0));
+
+        if (!journaux[l.journal_code]) {
+          journaux[l.journal_code] = { code: l.journal_code, libelle: l.journal_lib, pieces: 0, debit: 0 };
+        }
+        journaux[l.journal_code].debit = r2(journaux[l.journal_code].debit + (Number(l.debit) || 0));
+      }
+
+      const ecritures = Object.keys(pieces)
+        .map(function (k) {
+          const p = pieces[k];
+          return { ...p, equilibree: Math.abs(r2(p.debit - p.credit)) < 0.01 };
+        })
+        .sort(function (a: any, b: any) {
+          const da = new Date(a.date).getTime();
+          const db = new Date(b.date).getTime();
+          if (da !== db) return da - db;
+          return String(a.ecriture_num).localeCompare(String(b.ecriture_num));
+        });
+
+      for (const e of ecritures) {
+        if (journaux[e.journal_code]) journaux[e.journal_code].pieces += 1;
+      }
+
+      return NextResponse.json({
+        ok: true,
+        vue: "journal",
+        ...entete,
+        journal_filtre: journalDemande || null,
+        journaux: Object.keys(journaux).sort().map(function (k) { return journaux[k]; }),
+        totaux: {
+          pieces: ecritures.length,
+          lignes: mouvements.length,
+          desequilibrees: ecritures.filter(function (e: any) { return !e.equilibree; }).length,
+        },
+        ecritures: ecritures,
+      });
+    }
+
+    // ---- GRAND LIVRE : un compte, avec son solde progressif. ----
     if (compteDemande) {
       let cumul = 0;
       const detail = mouvements.map(function (l: any) {
@@ -147,8 +215,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({
         ok: true,
         vue: "grand_livre",
-        dossier: { code: dossier.code, raison_sociale: dossier.raison_sociale },
-        periode: { debut: debut, fin: fin },
+        ...entete,
         compte: {
           numero: compteDemande,
           libelle: mouvements.length > 0 ? mouvements[0].compte_lib : "",
@@ -160,7 +227,7 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // BALANCE : un compte par ligne, avec ses totaux.
+    // ---- BALANCE : un compte par ligne. ----
     const comptes: any = {};
 
     for (const l of mouvements) {
@@ -174,26 +241,23 @@ export async function GET(req: NextRequest) {
       c.lignes = c.lignes + 1;
     }
 
-    const balance = Object.keys(comptes)
-      .sort()
-      .map(function (num) {
-        const c = comptes[num];
-        const solde = r2(c.debit - c.credit);
-        return {
-          ...c,
-          classe: parseInt(num.charAt(0), 10),
-          classe_nom: CLASSES[parseInt(num.charAt(0), 10)] || "",
-          solde: solde,
-          solde_debiteur: solde > 0 ? solde : 0,
-          solde_crediteur: solde < 0 ? r2(-solde) : 0,
-        };
-      });
+    const balance = Object.keys(comptes).sort().map(function (num) {
+      const c = comptes[num];
+      const solde = r2(c.debit - c.credit);
+      return {
+        ...c,
+        classe: parseInt(num.charAt(0), 10),
+        classe_nom: CLASSES[parseInt(num.charAt(0), 10)] || "",
+        solde: solde,
+        solde_debiteur: solde > 0 ? solde : 0,
+        solde_crediteur: solde < 0 ? r2(-solde) : 0,
+      };
+    });
 
     const totalDebit = r2(balance.reduce(function (s: number, c: any) { return s + c.debit; }, 0));
     const totalCredit = r2(balance.reduce(function (s: number, c: any) { return s + c.credit; }, 0));
     const ecart = r2(totalDebit - totalCredit);
 
-    // Totaux par classe : la lecture rapide d un comptable.
     const parClasse: any = {};
     for (const c of balance) {
       const k = String(c.classe);
@@ -213,8 +277,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       vue: "balance",
-      dossier: { code: dossier.code, raison_sociale: dossier.raison_sociale },
-      periode: { debut: debut, fin: fin },
+      ...entete,
       totaux: {
         debit: totalDebit,
         credit: totalCredit,
