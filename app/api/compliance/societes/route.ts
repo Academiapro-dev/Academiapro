@@ -1,17 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { sessionCourante } from "../../../../lib/session";
+import { dossiersAutorises } from "../../../../lib/droits";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
+export const fetchCache = "force-no-store";
 export const maxDuration = 60;
 
 const ADMINS = ["contact@academiapro.fr"];
 
 const REGIMES_FISCAUX: any = {
   is: "Impot sur les societes",
-  ir: "Impot sur le revenu",
-  transparent: "Societe transparente",
+  ir_bic: "Impot sur le revenu - BIC",
+  ir_bnc: "Impot sur le revenu - BNC",
   micro: "Micro-entreprise",
   a_determiner: "A determiner",
 };
@@ -36,7 +39,14 @@ const supabase = createClient(
 );
 
 function refuse() {
-  return NextResponse.json({ ok: false, erreur: "reserve a l administrateur" }, { status: 403 });
+  return NextResponse.json(
+    { ok: false, erreur: "Ouvrir ou modifier un dossier est reserve aux associes du cabinet." },
+    { status: 403 }
+  );
+}
+
+function r2(n: number): number {
+  return Math.round(n * 100) / 100;
 }
 
 function propre(v: any, max: number): string | null {
@@ -48,11 +58,24 @@ function propre(v: any, max: number): string | null {
 export async function GET(req: NextRequest) {
   try {
     const session = sessionCourante();
-    if (!session || ADMINS.indexOf(session.email) < 0) return refuse();
+    if (!session) {
+      return NextResponse.json({ ok: false, erreur: "Connectez-vous." }, { status: 401 });
+    }
 
-    const { data: societes, error } = await supabase
-      .from("compta_societes")
-      .select("*")
+    // Un collaborateur ne voit que les dossiers qui lui sont confies.
+    const autorises = await dossiersAutorises();
+    if (autorises !== null && autorises.length === 0) {
+      return NextResponse.json({
+        ok: true, total: 0, actifs: 0, desequilibres: 0,
+        ecritures_orphelines: 0, societes: [],
+        regimes_fiscaux: REGIMES_FISCAUX, regimes_tva: REGIMES_TVA,
+      });
+    }
+
+    let requete = supabase.from("compta_societes").select("*");
+    if (autorises !== null) requete = requete.in("id", autorises);
+
+    const { data: dossiers, error } = await requete
       .order("raison_sociale", { ascending: true })
       .limit(500);
 
@@ -60,57 +83,65 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: false, erreur: error.message }, { status: 500 });
     }
 
-    // Pour chaque dossier : son volume d ecritures, son equilibre et sa
-    // derniere date. C est ce qui dit d un coup d oeil si un dossier est tenu.
-    const { data: ecritures } = await supabase
-      .from("compta_ecritures")
-      .select("societe_id, debit, credit, ecriture_date")
-      .limit(50000);
+    const liste = dossiers || [];
+    const ids = liste.map(function (s: any) { return s.id; });
 
-    const parSociete: any = {};
-    let orphelines = 0;
+    const { data: ecritures } = ids.length > 0
+      ? await supabase
+        .from("compta_ecritures")
+        .select("societe_id, debit, credit, ecriture_date")
+        .in("societe_id", ids)
+        .limit(100000)
+      : { data: [] };
 
-    for (const e of ecritures || []) {
-      if (!e.societe_id) {
-        orphelines = orphelines + 1;
-        continue;
+    const stats: any = {};
+    for (const l of ecritures || []) {
+      if (!stats[l.societe_id]) {
+        stats[l.societe_id] = { lignes: 0, debit: 0, credit: 0, derniere: null };
       }
-      if (!parSociete[e.societe_id]) {
-        parSociete[e.societe_id] = { lignes: 0, debit: 0, credit: 0, derniere: null };
-      }
-      const p = parSociete[e.societe_id];
-      p.lignes = p.lignes + 1;
-      p.debit = p.debit + (Number(e.debit) || 0);
-      p.credit = p.credit + (Number(e.credit) || 0);
-      const t = e.ecriture_date ? new Date(e.ecriture_date).getTime() : 0;
-      if (t && (!p.derniere || t > p.derniere)) p.derniere = t;
+      const s = stats[l.societe_id];
+      s.lignes = s.lignes + 1;
+      s.debit = r2(s.debit + (Number(l.debit) || 0));
+      s.credit = r2(s.credit + (Number(l.credit) || 0));
+      const t = l.ecriture_date ? new Date(l.ecriture_date).getTime() : 0;
+      if (t && (!s.derniere || t > s.derniere)) s.derniere = t;
     }
 
-    const liste = (societes || []).map(function (s: any) {
-      const p = parSociete[s.id] || { lignes: 0, debit: 0, credit: 0, derniere: null };
-      const debit = Math.round(p.debit * 100) / 100;
-      const credit = Math.round(p.credit * 100) / 100;
+    // Les ecritures qui ne sont rattachees a aucun dossier n apparaissent
+    // dans aucun FEC ni aucune liasse : il faut le dire.
+    let orphelines = 0;
+    if (autorises === null) {
+      const { count } = await supabase
+        .from("compta_ecritures")
+        .select("*", { count: "exact", head: true })
+        .is("societe_id", null);
+      orphelines = count || 0;
+    }
+
+    const societes = liste.map(function (s: any) {
+      const st = stats[s.id] || { lignes: 0, debit: 0, credit: 0, derniere: null };
       return {
         ...s,
         regime_fiscal_nom: REGIMES_FISCAUX[s.regime_fiscal] || s.regime_fiscal,
         regime_tva_nom: REGIMES_TVA[s.regime_tva] || s.regime_tva,
-        lignes: p.lignes,
-        debit: debit,
-        credit: credit,
-        equilibre: Math.abs(debit - credit) < 0.01,
-        derniere_ecriture: p.derniere ? new Date(p.derniere).toISOString() : null,
+        lignes: st.lignes,
+        debit: st.debit,
+        credit: st.credit,
+        equilibre: Math.abs(r2(st.debit - st.credit)) < 0.01,
+        derniere_ecriture: st.derniere ? new Date(st.derniere).toISOString() : null,
       };
     });
 
     return NextResponse.json({
       ok: true,
+      restreint: autorises !== null,
+      total: societes.length,
+      actifs: societes.filter(function (s: any) { return s.actif !== false; }).length,
+      desequilibres: societes.filter(function (s: any) { return s.lignes > 0 && !s.equilibre; }).length,
+      ecritures_orphelines: orphelines,
       regimes_fiscaux: REGIMES_FISCAUX,
       regimes_tva: REGIMES_TVA,
-      total: liste.length,
-      actifs: liste.filter(function (s: any) { return s.actif; }).length,
-      desequilibres: liste.filter(function (s: any) { return s.lignes > 0 && !s.equilibre; }).length,
-      ecritures_orphelines: orphelines,
-      societes: liste,
+      societes: societes,
     });
   } catch (e: any) {
     return NextResponse.json({ ok: false, erreur: String(e) }, { status: 500 });
@@ -120,6 +151,9 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const session = sessionCourante();
+
+    // Ouvrir un dossier est un acte de cabinet, pas un acte comptable :
+    // aucun des six droits ne le couvre, il reste donc reserve.
     if (!session || ADMINS.indexOf(session.email) < 0) return refuse();
 
     const b = await req.json().catch(function () { return null; });
@@ -135,50 +169,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Le code sert de prefixe aux numeros d ecriture : il doit rester court,
-    // stable et sans caractere qui gênerait un export FEC.
-    let code = propre(b.code, 12) || raison;
-    code = code
-      .toUpperCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/[^A-Z0-9]/g, "")
-      .slice(0, 12);
-
-    if (code.length < 2) {
-      return NextResponse.json(
-        { ok: false, erreur: "Le code du dossier doit comporter au moins deux caracteres." },
-        { status: 400 }
-      );
-    }
-
-    const siren = b.siren ? String(b.siren).replace(/\D/g, "").slice(0, 9) : null;
-    if (siren && siren.length !== 9) {
-      return NextResponse.json(
-        { ok: false, erreur: "Le SIREN comporte neuf chiffres." },
-        { status: 400 }
-      );
-    }
-
-    const regimeFiscal = REGIMES_FISCAUX[String(b.regime_fiscal || "")]
-      ? String(b.regime_fiscal)
-      : "a_determiner";
-    const regimeTva = REGIMES_TVA[String(b.regime_tva || "")]
-      ? String(b.regime_tva)
-      : "reel_normal";
-
     const fiche: any = {
       raison_sociale: raison,
-      siren: siren,
-      forme: propre(b.forme, 80),
-      regime_fiscal: regimeFiscal,
-      regime_tva: regimeTva,
-      devise: propre(b.devise, 3) || "EUR",
-      exercice_debut: b.exercice_debut || null,
-      exercice_fin: b.exercice_fin || null,
-      plan_comptable: propre(b.plan_comptable, 40) || "pcg",
+      siren: b.siren ? String(b.siren).replace(/\D/g, "").slice(0, 9) : null,
+      forme: propre(b.forme, 40),
+      regime_fiscal: REGIMES_FISCAUX[String(b.regime_fiscal || "")] ? b.regime_fiscal : "a_determiner",
+      regime_tva: REGIMES_TVA[String(b.regime_tva || "")] ? b.regime_tva : "reel_normal",
+      exercice_debut: b.exercice_debut ? String(b.exercice_debut).slice(0, 10) : null,
+      exercice_fin: b.exercice_fin ? String(b.exercice_fin).slice(0, 10) : null,
       adresse: propre(b.adresse, 300),
-      email_contact: b.email_contact ? String(b.email_contact).trim().toLowerCase() : null,
+      email_contact: propre(b.email_contact, 120),
       expert_responsable: propre(b.expert_responsable, 120),
       notes: propre(b.notes, 2000),
       updated_at: new Date().toISOString(),
@@ -186,7 +186,7 @@ export async function POST(req: NextRequest) {
 
     if (b.actif !== undefined) fiche.actif = b.actif !== false;
 
-    // Modification d un dossier existant.
+    // MODIFICATION d un dossier existant.
     if (b.id) {
       const { error } = await supabase
         .from("compta_societes")
@@ -197,7 +197,31 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ ok: false, erreur: error.message }, { status: 500 });
       }
 
-      return NextResponse.json({ ok: true, modifie: b.id });
+      return NextResponse.json({
+        ok: true,
+        message: "Dossier " + raison + " enregistre.",
+      });
+    }
+
+    // OUVERTURE. Le code se retrouve dans les numeros d ecriture et le nom
+    // du fichier FEC : court, sans accent, definitif.
+    let code = propre(b.code, 20);
+    if (!code) {
+      code = raison
+        .toUpperCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^A-Z0-9]/g, "")
+        .slice(0, 12);
+    } else {
+      code = code.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 20);
+    }
+
+    if (code.length < 2) {
+      return NextResponse.json(
+        { ok: false, erreur: "Le code du dossier doit comporter au moins deux caracteres." },
+        { status: 400 }
+      );
     }
 
     const { data: deja } = await supabase
@@ -208,16 +232,14 @@ export async function POST(req: NextRequest) {
 
     if (deja) {
       return NextResponse.json(
-        { ok: false, erreur: "Un dossier porte deja le code " + code + "." },
+        { ok: false, erreur: "Le code " + code + " est deja pris par un autre dossier." },
         { status: 409 }
       );
     }
 
-    const { data, error } = await supabase
-      .from("compta_societes")
-      .insert({ ...fiche, code: code })
-      .select("id, code, raison_sociale")
-      .limit(1);
+    fiche.code = code;
+
+    const { error } = await supabase.from("compta_societes").insert(fiche);
 
     if (error) {
       return NextResponse.json({ ok: false, erreur: error.message }, { status: 500 });
@@ -225,8 +247,8 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       ok: true,
-      societe: (data || [])[0] || null,
-      message: "Dossier " + code + " ouvert.",
+      code: code,
+      message: "Dossier " + raison + " ouvert sous le code " + code + ".",
     });
   } catch (e: any) {
     return NextResponse.json({ ok: false, erreur: String(e) }, { status: 500 });
