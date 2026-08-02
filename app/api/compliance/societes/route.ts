@@ -26,6 +26,28 @@ const REGIMES_TVA: any = {
   non_assujetti: "Non assujetti",
 };
 
+// Le pays decide de ce que le logiciel a le droit de reclamer : un SIREN, une
+// liasse, une TVA francaise. Il se declare, il ne se devine pas.
+const PAYS: any = {
+  FR: "France",
+  BE: "Belgique",
+  CH: "Suisse",
+  LU: "Luxembourg",
+  MC: "Monaco",
+  ES: "Espagne",
+  IT: "Italie",
+  DE: "Allemagne",
+  PT: "Portugal",
+  NL: "Pays-Bas",
+  IE: "Irlande",
+  GB: "Royaume-Uni",
+  US: "Etats-Unis",
+  CA: "Canada",
+  MA: "Maroc",
+  TN: "Tunisie",
+  IL: "Israel",
+};
+
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
   process.env.SUPABASE_SERVICE_ROLE_KEY || "",
@@ -55,6 +77,13 @@ function propre(v: any, max: number): string | null {
   return t ? t.slice(0, max) : null;
 }
 
+// Un code inconnu ne fait pas echouer l enregistrement : il retombe sur la
+// France, qui est le cas courant.
+function paysValide(v: any): string {
+  const t = String(v || "").toUpperCase().trim();
+  return PAYS[t] ? t : "FR";
+}
+
 export async function GET(req: NextRequest) {
   try {
     const session = sessionCourante();
@@ -68,7 +97,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({
         ok: true, total: 0, actifs: 0, desequilibres: 0,
         ecritures_orphelines: 0, societes: [],
-        regimes_fiscaux: REGIMES_FISCAUX, regimes_tva: REGIMES_TVA,
+        regimes_fiscaux: REGIMES_FISCAUX, regimes_tva: REGIMES_TVA, pays: PAYS,
       });
     }
 
@@ -120,8 +149,12 @@ export async function GET(req: NextRequest) {
 
     const societes = liste.map(function (s: any) {
       const st = stats[s.id] || { lignes: 0, debit: 0, credit: 0, derniere: null };
+      const pays = paysValide(s.pays);
       return {
         ...s,
+        pays: pays,
+        pays_nom: PAYS[pays],
+        francais: pays === "FR",
         regime_fiscal_nom: REGIMES_FISCAUX[s.regime_fiscal] || s.regime_fiscal,
         regime_tva_nom: REGIMES_TVA[s.regime_tva] || s.regime_tva,
         lignes: st.lignes,
@@ -141,6 +174,7 @@ export async function GET(req: NextRequest) {
       ecritures_orphelines: orphelines,
       regimes_fiscaux: REGIMES_FISCAUX,
       regimes_tva: REGIMES_TVA,
+      pays: PAYS,
       societes: societes,
     });
   } catch (e: any) {
@@ -171,6 +205,7 @@ export async function POST(req: NextRequest) {
 
     const fiche: any = {
       raison_sociale: raison,
+      pays: paysValide(b.pays),
       siren: b.siren ? String(b.siren).replace(/\D/g, "").slice(0, 9) : null,
       forme: propre(b.forme, 40),
       regime_fiscal: REGIMES_FISCAUX[String(b.regime_fiscal || "")] ? b.regime_fiscal : "a_determiner",
