@@ -12,6 +12,7 @@ const PORTES = [
   ["/admin/compliance/tva", "TVA"],
   ["/admin/compliance/immobilisations", "Immobilisations"],
   ["/admin/compliance/provisions", "Provisions"],
+  ["/admin/compliance/paie", "Paie"],
   ["/admin/compliance/pieces", "Pieces"],
   ["/admin/compliance/cloture", "Cloture"],
 ];
