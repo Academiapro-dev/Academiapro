@@ -45,6 +45,16 @@ function r2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
+// LA CLOTURE N EST PAS DE L EXPLOITATION. Ses lignes de solde portent un
+// numero qui se termine par -CLOTURE, et les a-nouveaux vivent dans le
+// journal AN. Les compter reviendrait a annuler l exercice qu on declare :
+// le resultat tomberait a zero, et l impot avec lui.
+function estEcritureDeCloture(l: any): boolean {
+  const num = String(l.ecriture_num || "").toUpperCase();
+  const journal = String(l.journal_code || "").toUpperCase();
+  return journal === "AN" || num.slice(-8) === "-CLOTURE";
+}
+
 export async function GET(req: NextRequest) {
   try {
     const id = (req.nextUrl.searchParams.get("societe_id") || "").trim();
@@ -78,20 +88,26 @@ export async function GET(req: NextRequest) {
       fin = a + "-12-31";
     }
 
-    const { data: lignes } = await supabase
+    const { data: toutes } = await supabase
       .from("compta_ecritures")
-      .select("compte_num, compte_lib, debit, credit")
+      .select("compte_num, compte_lib, debit, credit, ecriture_num, journal_code")
       .eq("societe_id", id)
       .gte("ecriture_date", debut)
       .lte("ecriture_date", fin)
       .limit(50000);
+
+    const lignes = (toutes || []).filter(function (l: any) {
+      return !estEcritureDeCloture(l);
+    });
+
+    const cloturee = (toutes || []).length > lignes.length;
 
     let produits = 0;
     let charges = 0;
     let resultatAuBilan = 0;
     const comptes: any = {};
 
-    for (const l of lignes || []) {
+    for (const l of lignes) {
       const n = String(l.compte_num || "");
       const d = Number(l.debit) || 0;
       const c = Number(l.credit) || 0;
@@ -102,22 +118,25 @@ export async function GET(req: NextRequest) {
 
       if (n.charAt(0) === "7") produits = r2(produits + c - d);
       if (n.charAt(0) === "6") charges = r2(charges + d - c);
+    }
 
-      // Le resultat loge au bilan par la cloture : benefice en 120,
-      // perte en 129. Un solde crediteur est un benefice.
+    // Le resultat loge au bilan par la cloture : benefice en 120, perte en
+    // 129. On le lit sur TOUTES les ecritures, cloture comprise, puisque
+    // c est elle qui l y a mis.
+    for (const l of toutes || []) {
+      const n = String(l.compte_num || "");
       if (n.startsWith("120") || n.startsWith("129")) {
-        resultatAuBilan = r2(resultatAuBilan + c - d);
+        resultatAuBilan = r2(resultatAuBilan + (Number(l.credit) || 0) - (Number(l.debit) || 0));
       }
     }
 
-    // UN EXERCICE CLOTURE N A PLUS DE COMPTE DE GESTION : la cloture les a
-    // soldes par le resultat. Recalculer produits moins charges donnerait
-    // zero, et l impot serait calcule sur un resultat nul. On lit donc le
-    // resultat la ou il se trouve reellement : au bilan.
-    const gestionSoldee = Math.abs(produits) < 0.005 && Math.abs(charges) < 0.005;
-    const exerciceCloture = gestionSoldee && Math.abs(resultatAuBilan) > 0.005;
+    // Le calcul normal suffit desormais, meme sur un exercice clos. Le repli
+    // sur le bilan ne sert que si les comptes de gestion sont muets pour une
+    // raison que nous n avons pas prevue.
+    const gestionMuette = Math.abs(produits) < 0.005 && Math.abs(charges) < 0.005;
+    const repliSurBilan = gestionMuette && Math.abs(resultatAuBilan) > 0.005;
 
-    const resultatComptable = exerciceCloture ? resultatAuBilan : r2(produits - charges);
+    const resultatComptable = repliSurBilan ? resultatAuBilan : r2(produits - charges);
 
     function propose(racines: string[]): number {
       if (racines.length === 0) return 0;
@@ -160,7 +179,8 @@ export async function GET(req: NextRequest) {
       },
       periode: { debut: debut, fin: fin },
       soumis_is: dossier.regime_fiscal === "is",
-      exercice_cloture: exerciceCloture,
+      exercice_cloture: cloturee,
+      resultat_lu_au_bilan: repliSurBilan,
       resultat_comptable: resultatComptable,
       produits: produits,
       charges: charges,
