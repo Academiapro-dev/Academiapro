@@ -1,6 +1,14 @@
 "use client";
 import { useState, useEffect } from "react";
 
+// Minuscules, sans accents : « Tresorerie » se trouve en tapant tresorerie.
+function sansAccent(s: any): string {
+  return String(s || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
 export default function PageRapprochement() {
   const [societes, setSocietes] = useState<any[]>([]);
   const [dossier, setDossier] = useState("");
@@ -8,6 +16,7 @@ export default function PageRapprochement() {
   const [prop, setProp] = useState<any>(null);
   const [comptes, setComptes] = useState<any[]>([]);
   const [choixCompte, setChoixCompte] = useState<any>({});
+  const [rechercheCompte, setRechercheCompte] = useState<any>({});
   const [chargement, setChargement] = useState(false);
   const [occupe, setOccupe] = useState("");
   const [message, setMessage] = useState("");
@@ -62,6 +71,24 @@ export default function PageRapprochement() {
       setErreur("Lecture impossible : " + String(e));
     }
     setChargement(false);
+  }
+
+  // LA RECHERCHE DE COMPTE : un numero, un debut de numero, ou un mot du
+  // libelle. Taper 6 ne laisse que les charges. Le compte deja choisi reste
+  // toujours propose, sans quoi la ligne se viderait toute seule.
+  function comptesProposes(q: string, courant: string) {
+    const t = sansAccent(q).trim();
+    if (!t) return comptes;
+
+    const trouves = comptes.filter(function (c: any) {
+      return sansAccent(c.numero + " " + (c.libelle || "")).indexOf(t) >= 0;
+    });
+
+    if (courant && !trouves.some(function (c: any) { return c.numero === courant; })) {
+      const garde = comptes.find(function (c: any) { return c.numero === courant; });
+      if (garde) return [garde].concat(trouves);
+    }
+    return trouves;
   }
 
   async function agir(id: string, corps: any) {
@@ -176,6 +203,8 @@ export default function PageRapprochement() {
             ) : (
               d.propositions.map(function (p: any) {
                 const suggestion = propositionDe(p.id);
+                const q = rechercheCompte[p.id] || "";
+                const proposes = comptesProposes(q, choixCompte[p.id] || "");
                 return (
                   <div key={p.id} style={{ ...CARTE, border: p.certaine ? "1px solid rgba(76,175,80,0.45)" : CARTE.border }}>
                     <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "10px" }}>
@@ -228,6 +257,18 @@ export default function PageRapprochement() {
                         {suggestion ? " (propose : " + suggestion.compte + " " + suggestion.libelle + ", " + suggestion.confiance + " %)" : ""}
                       </p>
 
+                      <input
+                        value={q}
+                        onChange={(e) => setRechercheCompte({ ...rechercheCompte, [p.id]: e.target.value })}
+                        placeholder="Chercher un compte : 606, 6, fournitures..."
+                        style={{ ...CHAMP, marginBottom: "6px" }}
+                      />
+                      <p style={{ color: "rgba(255,255,255,0.35)", fontSize: "12px", margin: "0 0 8px" }}>
+                        {q
+                          ? proposes.length + " compte(s) sur " + comptes.length
+                          : comptes.length + " compte(s) — tapez un chiffre pour n avoir qu une classe"}
+                      </p>
+
                       <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
                         <select
                           value={choixCompte[p.id] || ""}
@@ -235,7 +276,7 @@ export default function PageRapprochement() {
                           style={{ ...CHAMP, flex: "1 1 260px" }}
                         >
                           <option value="">— compte de contrepartie —</option>
-                          {comptes.map(function (c: any) {
+                          {proposes.map(function (c: any) {
                             return (
                               <option key={c.numero} value={c.numero}>
                                 {c.numero} — {c.libelle}
