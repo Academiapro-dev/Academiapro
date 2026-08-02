@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 
 export default function PagePieces() {
-  const [societes, setSocietes] = useState<any[]>([]);
+  const [societes, setSocietes] = useState<any[]>([]); 
   const [dossier, setDossier] = useState("");
   const [d, setD] = useState<any>(null);
   const [chargement, setChargement] = useState(false);
