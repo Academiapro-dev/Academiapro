@@ -19,6 +19,7 @@ const FAMILLES = [
     portes: [
       ["/admin/compliance/revision", "Revision"],
       ["/admin/compliance/balance", "Balance et journal"],
+      ["/admin/compliance/liasse-2033", "Liasse 2033"],
     ],
   },
   {
@@ -27,6 +28,7 @@ const FAMILLES = [
       ["/admin/compliance/immobilisations", "Immobilisations"],
       ["/admin/compliance/provisions", "Provisions"],
       ["/admin/compliance/cloture", "Cloture"],
+      ["/admin/compliance/verrouillage", "Verrouillage et audit"],
     ],
   },
   {
@@ -148,7 +150,14 @@ export default function PageSocietes() {
           Une societe, un dossier, des ecritures cloisonnees
         </p>
 
-        <div style={{ margin: "24px 0" }}>
+        <a
+          href="/admin/compliance/tableau-de-bord"
+          style={{ display: "inline-block", background: "#c8a96e", color: "#050508", padding: "12px 24px", borderRadius: "20px", textDecoration: "none", fontSize: "14.5px", fontWeight: "bold", margin: "22px 0 8px" }}
+        >
+          Ce qui vous attend →
+        </a>
+
+        <div style={{ margin: "16px 0" }}>
           {FAMILLES.map(function (f: any) {
             return (
               <div key={f.titre} style={{ marginBottom: "16px" }}>
