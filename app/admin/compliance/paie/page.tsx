@@ -10,6 +10,11 @@ export default function PagePaie() {
   const [message, setMessage] = useState("");
   const [erreur, setErreur] = useState("");
 
+  // Tant que l utilisateur n a pas touche au net, c est nous qui le tenons a
+  // jour. Des qu il y touche, il reprend la main et le controle d ecart
+  // redevient utile : un bulletin peut porter une retenue que nous ignorons.
+  const [netTouche, setNetTouche] = useState(false);
+
   const [f, setF] = useState<any>({
     date: new Date().toISOString().slice(0, 10),
     brut: "", cotisations_salariales: "", cotisations_patronales: "",
@@ -49,30 +54,6 @@ export default function PagePaie() {
     setChargement(false);
   }
 
-  async function passer() {
-    setOccupe(true);
-    setMessage("");
-    setErreur("");
-    try {
-      const r = await fetch("/api/compliance/paie", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ societe_id: dossier, ...f }),
-      });
-      const data = await r.json();
-      if (data.ok) {
-        setMessage(data.message);
-        setF({ ...f, brut: "", cotisations_salariales: "", cotisations_patronales: "", impot_source: "", net_a_payer: "" });
-        await charger();
-      } else {
-        setErreur(data.erreur || "Passage impossible.");
-      }
-    } catch (e: any) {
-      setErreur("Passage impossible : " + String(e));
-    }
-    setOccupe(false);
-  }
-
   const CADRE: any = { minHeight: "100vh", background: "#050508", color: "#fff", fontFamily: "Georgia, serif", padding: "40px 20px" };
   const CARTE: any = { background: "rgba(255,255,255,0.03)", border: "1px solid rgba(200,169,110,0.25)", borderRadius: "12px", padding: "20px 24px", marginBottom: "16px" };
   const CHAMP: any = { width: "100%", padding: "11px 13px", borderRadius: "8px", border: "1px solid rgba(200,169,110,0.3)", background: "rgba(255,255,255,0.05)", color: "#fff", fontSize: "15px", fontFamily: "Georgia,serif", boxSizing: "border-box", marginBottom: "12px" };
@@ -85,23 +66,56 @@ export default function PagePaie() {
   function euros(n: any) {
     return (Number(n) || 0).toLocaleString("fr-FR", { minimumFractionDigits: 2 }) + " EUR";
   }
+  function virgule(n: number) {
+    return (Math.round(n * 100) / 100).toFixed(2).replace(".", ",");
+  }
 
   const brut = nombre(f.brut);
   const sal = nombre(f.cotisations_salariales);
   const pat = nombre(f.cotisations_patronales);
   const imp = nombre(f.impot_source);
-  const netSaisi = nombre(f.net_a_payer);
   const netCalcule = Math.round((brut - sal - imp) * 100) / 100;
+
+  // LE NET SE CALCULE : brut moins cotisations salariales moins prelevement
+  // a la source. Le faire taper a la main, c est ouvrir la porte a une faute
+  // de frappe qui desequilibre l ecriture.
+  const netAffiche = netTouche ? f.net_a_payer : (brut > 0 ? virgule(netCalcule) : "");
+  const netSaisi = nombre(netAffiche);
+
   const ecart = netSaisi > 0 ? Math.round((netCalcule - netSaisi) * 100) / 100 : 0;
   const juste = brut > 0 && (netSaisi === 0 || Math.abs(ecart) <= 0.02);
   const cout = Math.round((brut + pat) * 100) / 100;
+
+  async function passer() {
+    setOccupe(true);
+    setMessage("");
+    setErreur("");
+    try {
+      const r = await fetch("/api/compliance/paie", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ societe_id: dossier, ...f, net_a_payer: netAffiche }),
+      });
+      const data = await r.json();
+      if (data.ok) {
+        setMessage(data.message);
+        setNetTouche(false);
+        setF({ ...f, brut: "", cotisations_salariales: "", cotisations_patronales: "", impot_source: "", net_a_payer: "" });
+        await charger();
+      } else {
+        setErreur(data.erreur || "Passage impossible.");
+      }
+    } catch (e: any) {
+      setErreur("Passage impossible : " + String(e));
+    }
+    setOccupe(false);
+  }
 
   const CHAMPS = [
     ["brut", "Salaire brut total", "3200,00"],
     ["cotisations_salariales", "Cotisations salariales", "704,00"],
     ["cotisations_patronales", "Cotisations patronales", "1280,00"],
     ["impot_source", "Prelevement a la source", "0,00"],
-    ["net_a_payer", "Net a payer", "2496,00"],
   ];
 
   return (
@@ -168,13 +182,37 @@ export default function PagePaie() {
                   </div>
                 );
               })}
+
+              <div style={{ flex: "1 1 170px" }}>
+                <span style={LIBELLE}>
+                  Net a payer {netTouche ? "" : "· calcule"}
+                </span>
+                <input
+                  value={netAffiche}
+                  onChange={(e) => { setNetTouche(true); setF({ ...f, net_a_payer: e.target.value }); }}
+                  inputMode="decimal"
+                  placeholder="2496,00"
+                  style={{ ...CHAMP, textAlign: "right", color: netTouche ? "#fff" : "#c8a96e" }}
+                />
+              </div>
             </div>
+
+            {netTouche && (
+              <p style={{ margin: "-4px 0 12px" }}>
+                <button
+                  onClick={() => { setNetTouche(false); setF({ ...f, net_a_payer: "" }); }}
+                  style={{ background: "none", border: "none", color: "#c8a96e", fontSize: "13px", fontFamily: "Georgia,serif", cursor: "pointer", padding: 0, textDecoration: "underline" }}
+                >
+                  Revenir au net calcule
+                </button>
+              </p>
+            )}
 
             {brut > 0 && (
               <div style={{ background: juste ? "rgba(76,175,80,0.1)" : "rgba(232,163,61,0.1)", border: "1px solid " + (juste ? "rgba(76,175,80,0.4)" : "rgba(232,163,61,0.4)"), borderRadius: "10px", padding: "14px 16px", marginBottom: "14px" }}>
                 <p style={{ color: "rgba(255,255,255,0.8)", fontSize: "14.5px", margin: "0 0 6px", lineHeight: "1.7" }}>
                   Net calcule : <strong>{euros(netCalcule)}</strong>
-                  {netSaisi > 0 && !juste ? " — vous avez saisi " + euros(netSaisi) : ""}
+                  {netTouche && netSaisi > 0 && !juste ? " — vous avez saisi " + euros(netSaisi) : ""}
                 </p>
                 <p style={{ color: juste ? "#4caf50" : "#e8a33d", fontSize: "14px", margin: "0 0 6px", fontWeight: "bold" }}>
                   {juste
