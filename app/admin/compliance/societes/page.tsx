@@ -21,6 +21,7 @@ const FAMILLES = [
       ["/admin/compliance/revision", "Revision"],
       ["/admin/compliance/balance", "Balance et journal"],
       ["/admin/compliance/liasse-2033", "Liasse 2033"],
+      ["/admin/compliance/liasse-2050", "Liasse 2050"],
     ],
   },
   {
@@ -34,7 +35,10 @@ const FAMILLES = [
   },
   {
     titre: "Declarer",
-    portes: [["/admin/compliance/tva", "TVA"]],
+    portes: [
+      ["/admin/compliance/tva", "TVA"],
+      ["/admin/compliance/liasse-2065", "Impot sur les societes"],
+    ],
   },
   {
     titre: "Administrer",
@@ -302,7 +306,6 @@ export default function PageSocietes() {
                         return <a key={p[0]} href={p[0] + q} style={LIEN}>{p[1]}</a>;
                       })}
                       <a href={"/api/compliance/fec?societe=" + s.code} style={LIEN}>FEC</a>
-                      <a href={"/api/compliance/liasse/fiche?societe=" + s.code} style={LIEN}>Liasse</a>
                     </div>
 
                     {estOuvert && (
