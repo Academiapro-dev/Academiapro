@@ -179,6 +179,12 @@ export default function PageSocietes() {
     return (Number(n) || 0).toLocaleString("fr-FR", { minimumFractionDigits: 2 }) + " EUR";
   }
 
+  const PORTES = [
+    ["/admin/compliance/comptes", "Plan comptable"],
+    ["/admin/compliance/saisie", "Saisie des ecritures"],
+    ["/admin/compliance/tva", "Declaration de TVA"],
+  ];
+
   return (
     <div style={CADRE}>
       <div style={{ maxWidth: "1000px", margin: "0 auto" }}>
@@ -194,12 +200,21 @@ export default function PageSocietes() {
           Une societe, un dossier, des ecritures cloisonnees
         </p>
 
-        <button
-          onClick={() => setFormulaire(!formulaire)}
-          style={{ background: formulaire ? "none" : "#c8a96e", color: formulaire ? "#c8a96e" : "#050508", border: formulaire ? "1px solid rgba(200,169,110,0.45)" : "none", padding: "12px 24px", borderRadius: "20px", cursor: "pointer", fontSize: "15px", fontFamily: "Georgia,serif", fontWeight: "bold", margin: "22px 0" }}
-        >
-          {formulaire ? "Annuler" : "Ouvrir un dossier"}
-        </button>
+        <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", margin: "22px 0" }}>
+          {PORTES.map(function (p: any) {
+            return (
+              <a key={p[0]} href={p[0]} style={{ ...LIEN, fontSize: "14px", padding: "11px 20px" }}>
+                {p[1]} →
+              </a>
+            );
+          })}
+          <button
+            onClick={() => setFormulaire(!formulaire)}
+            style={{ background: formulaire ? "none" : "#c8a96e", color: formulaire ? "#c8a96e" : "#050508", border: formulaire ? "1px solid rgba(200,169,110,0.45)" : "none", padding: "11px 22px", borderRadius: "20px", cursor: "pointer", fontSize: "14px", fontFamily: "Georgia,serif", fontWeight: "bold" }}
+          >
+            {formulaire ? "Annuler" : "Ouvrir un dossier"}
+          </button>
+        </div>
 
         {formulaire && (
           <div style={{ ...CARTE, border: "1px solid rgba(200,169,110,0.5)" }}>
@@ -221,7 +236,7 @@ export default function PageSocietes() {
               </div>
               <div style={{ flex: "1 1 150px" }}>
                 <span style={LIBELLE}>Forme juridique</span>
-                <input value={forme} onChange={(e) => setForme(e.target.value)} placeholder="SARL, SАS, EI..." style={CHAMP} />
+                <input value={forme} onChange={(e) => setForme(e.target.value)} placeholder="SARL, SAS, EI..." style={CHAMP} />
               </div>
               <div style={{ flex: "1 1 180px" }}>
                 <span style={LIBELLE}>Expert responsable</span>
@@ -269,7 +284,8 @@ export default function PageSocietes() {
 
             <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px", margin: "12px 0 0", lineHeight: "1.7" }}>
               Le code se retrouve dans les numeros d ecriture et le nom du fichier FEC :
-              choisissez-le court et definitif.
+              choisissez-le court et definitif. Laisse vide, il sera fabrique depuis la raison
+              sociale.
             </p>
           </div>
         )}
@@ -364,12 +380,11 @@ export default function PageSocietes() {
                       >
                         {estOuvert ? "Fermer la fiche" : "Sa fiche"}
                       </button>
-                      <a href={"/api/compliance/fec?year=" + new Date().getFullYear()} style={LIEN}>
-                        Son FEC →
-                      </a>
-                      <a href="/api/compliance/liasse/fiche" style={LIEN}>
-                        Sa liasse →
-                      </a>
+                      <a href={"/admin/compliance/saisie?societe_id=" + s.id} style={LIEN}>Saisir →</a>
+                      <a href={"/admin/compliance/comptes?societe_id=" + s.id} style={LIEN}>Son plan →</a>
+                      <a href={"/admin/compliance/tva?societe_id=" + s.id} style={LIEN}>Sa TVA →</a>
+                      <a href={"/api/compliance/fec?societe=" + s.code} style={LIEN}>Son FEC →</a>
+                      <a href={"/api/compliance/liasse/fiche?societe=" + s.code} style={LIEN}>Sa liasse →</a>
                     </div>
 
                     {estOuvert && (
@@ -445,14 +460,6 @@ export default function PageSocietes() {
                 );
               })
             )}
-
-            <div style={{ ...CARTE, background: "rgba(232,163,61,0.06)", border: "1px solid rgba(232,163,61,0.35)", marginTop: "20px" }}>
-              <p style={{ color: "#e8a33d", fontSize: "14px", margin: 0, lineHeight: "1.8" }}>
-                Les liens FEC et liasse ci-dessus portent encore sur l ensemble des ecritures,
-                sans distinguer le dossier. Tant qu ils ne filtrent pas par societe, ne les
-                utilisez que si vous n avez qu un seul dossier renseigne.
-              </p>
-            </div>
           </>
         )}
       </div>
