@@ -59,6 +59,12 @@ const EXPORTS = [
   ["plan", "Plan comptable"],
 ];
 
+// Valeurs de secours utilisees TANT QUE les donnees ne sont pas chargees.
+// Le formulaire d ouverture s affiche avant la garde de chargement : sans
+// cela, l ecran casse des qu on l ouvre trop tot.
+const FISCAUX_DEFAUT: any = { is: "IS" };
+const TVA_DEFAUT: any = { reel_normal: "Reel normal" };
+
 export default function PageSocietes() {
   const [d, setD] = useState<any>(null);
   const [chargement, setChargement] = useState(true);
@@ -128,6 +134,11 @@ export default function PageSocietes() {
     }
     setOccupe("");
   }
+
+  // Une seule source pour les libelles ET pour les cles. Les listes
+  // deroulantes ne lisent plus jamais d directement.
+  const FISCAUX: any = (d && d.regimes_fiscaux) ? d.regimes_fiscaux : FISCAUX_DEFAUT;
+  const TVA: any = (d && d.regimes_tva) ? d.regimes_tva : TVA_DEFAUT;
 
   const CADRE: any = { minHeight: "100vh", background: "#050508", color: "#fff", fontFamily: "Georgia, serif", padding: "40px 20px" };
   const CARTE: any = { background: "rgba(255,255,255,0.03)", border: "1px solid rgba(200,169,110,0.25)", borderRadius: "12px", padding: "20px 24px", marginBottom: "16px" };
@@ -220,16 +231,16 @@ export default function PageSocietes() {
               <div style={{ flex: "1 1 200px" }}>
                 <span style={LIBELLE}>Regime fiscal</span>
                 <select value={neuf.regime_fiscal} onChange={(e) => setNeuf({ ...neuf, regime_fiscal: e.target.value })} style={CHAMP}>
-                  {Object.keys(d && d.regimes_fiscaux ? d.regimes_fiscaux : { is: "IS" }).map(function (k) {
-                    return <option key={k} value={k}>{d.regimes_fiscaux[k]}</option>;
+                  {Object.keys(FISCAUX).map(function (k) {
+                    return <option key={k} value={k}>{FISCAUX[k]}</option>;
                   })}
                 </select>
               </div>
               <div style={{ flex: "1 1 200px" }}>
                 <span style={LIBELLE}>Regime de TVA</span>
                 <select value={neuf.regime_tva} onChange={(e) => setNeuf({ ...neuf, regime_tva: e.target.value })} style={CHAMP}>
-                  {Object.keys(d && d.regimes_tva ? d.regimes_tva : { reel_normal: "Reel normal" }).map(function (k) {
-                    return <option key={k} value={k}>{d.regimes_tva[k]}</option>;
+                  {Object.keys(TVA).map(function (k) {
+                    return <option key={k} value={k}>{TVA[k]}</option>;
                   })}
                 </select>
               </div>
@@ -263,8 +274,8 @@ export default function PageSocietes() {
             {d.ecritures_orphelines > 0 && (
               <div style={{ ...CARTE, border: "1px solid rgba(232,131,106,0.55)" }}>
                 <p style={{ color: "#e8836a", fontSize: "15px", margin: 0, lineHeight: "1.75" }}>
-                  {d.ecritures_orphelines} ecriture(s) ne sont rattachees a aucun dossier : elles
-                  n apparaitront dans aucun FEC ni aucune liasse.
+                  {d.ecritures_orphelines} ligne(s) d ecriture ne sont rattachees a aucun dossier :
+                  elles n apparaitront dans aucun FEC ni aucune liasse.
                 </p>
               </div>
             )}
@@ -297,7 +308,7 @@ export default function PageSocietes() {
                       </div>
                       <div style={{ textAlign: "right" }}>
                         <p style={{ color: "#c8a96e", fontSize: "22px", fontWeight: "bold", margin: "0 0 2px" }}>{s.lignes}</p>
-                        <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "12px", margin: 0 }}>ecriture(s)</p>
+                        <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "12px", margin: 0 }}>ligne(s) d ecriture</p>
                       </div>
                     </div>
 
@@ -343,16 +354,16 @@ export default function PageSocietes() {
                           <div style={{ flex: "1 1 200px" }}>
                             <span style={LIBELLE}>Regime fiscal</span>
                             <select value={ch(s.id, "regime_fiscal")} onChange={(e) => poser(s.id, "regime_fiscal", e.target.value)} style={CHAMP}>
-                              {Object.keys(d.regimes_fiscaux).map(function (k) {
-                                return <option key={k} value={k}>{d.regimes_fiscaux[k]}</option>;
+                              {Object.keys(FISCAUX).map(function (k) {
+                                return <option key={k} value={k}>{FISCAUX[k]}</option>;
                               })}
                             </select>
                           </div>
                           <div style={{ flex: "1 1 200px" }}>
                             <span style={LIBELLE}>Regime de TVA</span>
                             <select value={ch(s.id, "regime_tva")} onChange={(e) => poser(s.id, "regime_tva", e.target.value)} style={CHAMP}>
-                              {Object.keys(d.regimes_tva).map(function (k) {
-                                return <option key={k} value={k}>{d.regimes_tva[k]}</option>;
+                              {Object.keys(TVA).map(function (k) {
+                                return <option key={k} value={k}>{TVA[k]}</option>;
                               })}
                             </select>
                           </div>
