@@ -22,6 +22,7 @@ const EXCEPTIONS = [
   '/admin/compliance/cloture',
   '/admin/compliance/revision',
   '/admin/compliance/pieces',
+  '/admin/compliance/collaborateurs',
 ];
 
 const CHEMINS_ELEVE = [
@@ -116,8 +117,4 @@ export const config = {
     '/api/mr-cam/:path*',
     '/api/mr-cam',
     '/api/mr-comptable/:path*',
-    '/api/mr-comptable',
-    '/api/mr-juridique/:path*',
-    '/api/mr-juridique',
-  ],
-};
+    '/api/mr
