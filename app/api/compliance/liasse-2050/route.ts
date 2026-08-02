@@ -202,6 +202,16 @@ export async function GET(req: NextRequest) {
     const charges = r2(resultat.filter(function (c: any) { return c.sens === "debit"; })
       .reduce(function (s: number, c: any) { return s + c.montant; }, 0));
 
+    const resultatCalcule = r2(produits - charges);
+    const resultatAuBilan = (passif.find(function (c: any) { return c.code === "DI"; }) || { montant: 0 }).montant;
+
+    // UN EXERCICE CLOTURE N A PLUS DE COMPTE DE GESTION : la cloture les a
+    // soldes par le resultat, qui vit desormais au bilan. Comparer le resultat
+    // recalcule au poste DI n a donc plus de sens, et laisser le controle en
+    // echec bloquerait a jamais la teletransmission d un exercice pourtant sain.
+    const gestionSoldee = Math.abs(produits) < 0.005 && Math.abs(charges) < 0.005;
+    const exerciceCloture = gestionSoldee && Math.abs(resultatAuBilan) > 0.005;
+
     const orphelins = Object.keys(comptes)
       .filter(function (n) {
         if (pris[n]) return false;
@@ -220,8 +230,12 @@ export async function GET(req: NextRequest) {
       },
       {
         nom: "Le resultat se retrouve au bilan",
-        ok: Math.abs(r2(r2(produits - charges) - (passif.find(function (c: any) { return c.code === "DI"; }) || { montant: 0 }).montant)) < 0.01,
-        detail: "Calcule " + r2(produits - charges).toFixed(2),
+        ok: exerciceCloture
+          ? true
+          : Math.abs(r2(resultatCalcule - resultatAuBilan)) < 0.01,
+        detail: exerciceCloture
+          ? "Exercice cloture — resultat de " + resultatAuBilan.toFixed(2) + " loge au bilan"
+          : "Calcule " + resultatCalcule.toFixed(2),
       },
       {
         nom: "Tous les comptes sont ventiles",
@@ -236,9 +250,10 @@ export async function GET(req: NextRequest) {
       regime_du_dossier: dossier.regime_fiscal,
       dossier: { code: dossier.code, raison_sociale: dossier.raison_sociale, siren: dossier.siren },
       periode: { debut: debut, fin: fin },
+      exercice_cloture: exerciceCloture,
       bilan_actif: { lignes: actif, total_brut: totalBrut, total_amortissements: totalAmort, total_net: totalNet },
       bilan_passif: { lignes: passif, total: totalPassif },
-      compte_resultat: { lignes: resultat, produits: produits, charges: charges, resultat: r2(produits - charges) },
+      compte_resultat: { lignes: resultat, produits: produits, charges: charges, resultat: resultatCalcule },
       orphelins: orphelins,
       controles: controles,
       pret_pour_edi: controles.every(function (c: any) { return c.ok; }),
