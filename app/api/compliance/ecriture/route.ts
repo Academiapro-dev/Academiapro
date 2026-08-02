@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { sessionCourante } from "../../../../lib/session";
+import { barrage } from "../../../../lib/droits";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -79,10 +80,9 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // Les dernieres pieces saisies, regroupees par numero d ecriture.
     const { data: lignes } = await supabase
       .from("compta_ecritures")
-      .select("ecriture_num, journal_code, ecriture_date, compte_num, compte_lib, ecriture_lib, debit, credit, piece_ref, source_table")
+      .select("ecriture_num, journal_code, ecriture_date, compte_num, compte_lib, ecriture_lib, debit, credit, piece_ref, source_table, verrouille")
       .eq("societe_id", dossier.id)
       .order("ecriture_date", { ascending: false })
       .limit(400);
@@ -97,6 +97,7 @@ export async function GET(req: NextRequest) {
           piece_ref: l.piece_ref,
           libelle: l.ecriture_lib,
           manuelle: !l.source_table,
+          verrouillee: l.verrouille === true,
           lignes: [],
           debit: 0,
           credit: 0,
@@ -111,7 +112,7 @@ export async function GET(req: NextRequest) {
     const ecritures = Object.keys(pieces)
       .map(function (k) {
         const p = pieces[k];
-        return { ...p, equilibree: Math.abs(p.debit - p.credit) < 0.01 };
+        return { ...p, equilibree: Math.abs(r2(p.debit - p.credit)) < 0.01 };
       })
       .sort(function (a: any, b: any) {
         return String(b.ecriture_num).localeCompare(String(a.ecriture_num));
@@ -132,9 +133,6 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const session = sessionCourante();
-    if (!session || ADMINS.indexOf(session.email) < 0) return refuse();
-
     const b = await req.json().catch(function () { return null; });
     if (!b) {
       return NextResponse.json({ ok: false, erreur: "Requete illisible" }, { status: 400 });
@@ -144,6 +142,10 @@ export async function POST(req: NextRequest) {
     if (!societeId) {
       return NextResponse.json({ ok: false, erreur: "Dossier non precise." }, { status: 400 });
     }
+
+    // LE BARRAGE : le droit de saisir, sur ce dossier precisement.
+    const refusDroit = await barrage("saisir", societeId);
+    if (refusDroit) return refusDroit;
 
     const { data: dossier } = await supabase
       .from("compta_societes")
@@ -168,8 +170,27 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, erreur: "Date invalide." }, { status: 400 });
     }
 
-    // On ne saisit pas hors de l exercice ouvert : ce serait une ecriture
-    // invisible dans la liasse et dans le FEC de la periode.
+    // On n ecrit jamais sur un exercice verrouille : il faudrait contrepasser.
+    const { data: verrou } = await supabase
+      .from("compta_ecritures")
+      .select("ecriture_num")
+      .eq("societe_id", societeId)
+      .eq("verrouille", true)
+      .gte("ecriture_date", date.slice(0, 4) + "-01-01")
+      .lte("ecriture_date", date.slice(0, 4) + "-12-31")
+      .limit(1);
+
+    if ((verrou || []).length > 0) {
+      return NextResponse.json(
+        {
+          ok: false,
+          erreur: "L exercice " + date.slice(0, 4) + " est verrouille."
+            + " Passez par une contrepassation plutot que par une saisie.",
+        },
+        { status: 409 }
+      );
+    }
+
     if (dossier.exercice_debut && date < String(dossier.exercice_debut).slice(0, 10)) {
       return NextResponse.json(
         { ok: false, erreur: "Cette date precede l ouverture de l exercice du dossier." },
@@ -199,7 +220,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Le plan du dossier : socle commun plus comptes propres.
     const { data: communs } = await supabase
       .from("compta_comptes")
       .select("numero, libelle")
@@ -287,7 +307,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // LA REGLE FONDAMENTALE : une ecriture desequilibree n existe pas.
     const ecart = r2(totalDebit - totalCredit);
     if (Math.abs(ecart) > 0.005) {
       return NextResponse.json(
@@ -304,7 +323,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // NUMEROTATION : un compteur par journal et par annee, sans trou.
     const annee = date.slice(0, 4);
     const prefixe = journal + annee + "-";
 
