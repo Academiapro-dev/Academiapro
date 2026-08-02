@@ -199,11 +199,34 @@ export async function POST(req: NextRequest) {
 
     if (b.actif !== undefined) fiche.actif = b.actif !== false;
 
+    // La recherche prealable doit REUSSIR avant toute ecriture. Si elle echoue,
+    // on refuse : croire le compte absent sur une lecture ratee, c est ce qui a
+    // fabrique un troisieme exemplaire de 622600 le 02/08.
     const requete = supabase.from("compta_comptes").select("id").eq("numero", numero);
-    const { data: deja } = await (societeId
+    const { data: trouves, error: eLecture } = await (societeId
       ? requete.eq("societe_id", societeId)
       : requete.is("societe_id", null)
-    ).maybeSingle();
+    ).limit(2);
+
+    if (eLecture) {
+      return NextResponse.json(
+        { ok: false, erreur: "Le plan comptable n a pas pu etre consulte : " + eLecture.message },
+        { status: 500 }
+      );
+    }
+
+    if ((trouves || []).length > 1) {
+      return NextResponse.json(
+        {
+          ok: false,
+          erreur: "Le compte " + numero + " figure en plusieurs exemplaires au plan."
+            + " Supprimez le doublon avant de le modifier.",
+        },
+        { status: 409 }
+      );
+    }
+
+    const deja = (trouves || [])[0] || null;
 
     const r = deja
       ? await supabase.from("compta_comptes").update(fiche).eq("id", deja.id)
