@@ -1,15 +1,11 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-// Pages reservees a un utilisateur connecte.
 const CHEMINS_PROTEGES = ['/admin'];
-
-// Pages qui exigent EN PLUS une societe rattachee au compte.
 const EXIGENT_SOCIETE = ['/admin/compliance', '/admin/qualiopi'];
 
-// Exceptions : ecrans de gestion des dossiers comptables. Les exiger
-// rattaches a une societe les rendrait inatteignables — c'est justement
-// la qu'on ouvre et qu'on tient les dossiers.
+// Ecrans de gestion des dossiers comptables : les exiger rattaches a une
+// societe les rendrait inatteignables.
 const EXCEPTIONS = [
   '/admin/compliance/ma-societe',
   '/admin/compliance/societes',
@@ -18,35 +14,16 @@ const EXCEPTIONS = [
   '/admin/compliance/tva',
 ];
 
-// Pages de contenu reservees aux eleves connectes.
 const CHEMINS_ELEVE = [
-  '/lms',
-  '/classe',
-  '/classe-virtuelle',
-  '/evaluation',
-  '/mon-espace',
-  '/mes-certificats',
-  '/replay',
-  '/dashboard',
-  '/organisme',
+  '/lms', '/classe', '/classe-virtuelle', '/evaluation', '/mon-espace',
+  '/mes-certificats', '/replay', '/dashboard', '/organisme',
 ];
 
-// Routes API qui consomment les credits Claude et n'ont AUCUNE raison
-// d'etre appelees par un inconnu.
 const API_SESSION_REQUISE = [
-  '/api/agent-tuteur',
-  '/api/mr-cam',
-  '/api/mr-comptable',
-  '/api/mr-juridique',
+  '/api/agent-tuteur', '/api/mr-cam', '/api/mr-comptable', '/api/mr-juridique',
 ];
 
-// Nos propres adresses. Tout autre hote est le domaine d'un organisme
-// client, et sa racine mene a sa vitrine.
-const HOTES_CONNUS = [
-  'academiapro.fr',
-  'www.academiapro.fr',
-  'localhost',
-];
+const HOTES_CONNUS = ['academiapro.fr', 'www.academiapro.fr', 'localhost'];
 
 const NOM_COOKIE_SESSION = 'session_academia';
 
@@ -57,8 +34,7 @@ function correspond(chemin: string, liste: string[]): boolean {
 function estNotre(hote: string): boolean {
   const h = hote.split(':')[0].toLowerCase();
   if (HOTES_CONNUS.indexOf(h) >= 0) return true;
-  if (h.endsWith('.vercel.app')) return true;
-  return false;
+  return h.endsWith('.vercel.app');
 }
 
 function societeDuJeton(jeton: string | undefined): string | null {
@@ -66,8 +42,7 @@ function societeDuJeton(jeton: string | undefined): string | null {
   try {
     const corps = jeton.split('.')[0];
     if (!corps) return null;
-    const texte = Buffer.from(corps, 'base64url').toString('utf8');
-    const charge = JSON.parse(texte);
+    const charge = JSON.parse(Buffer.from(corps, 'base64url').toString('utf8'));
     return charge && charge.tid ? String(charge.tid) : null;
   } catch {
     return null;
@@ -79,16 +54,14 @@ export function middleware(request: NextRequest) {
   const session = request.cookies.get(NOM_COOKIE_SESSION)?.value;
   const hote = request.headers.get('host') || '';
 
-  // DOMAINE PROPRE D'UN ORGANISME. On ne consulte PAS la base ici : ce serait
-  // une requete a chaque page chargee. On se contente de reecrire vers la
-  // vitrine, et c'est la route du portail qui reconnaitra l'hote.
+  // Domaine propre d'un organisme : on reecrit vers sa vitrine sans consulter
+  // la base, ce qui couterait une requete a chaque page.
   if (hote && !estNotre(hote) && chemin === '/') {
     const url = request.nextUrl.clone();
     url.pathname = '/of/@' + hote.split(':')[0].toLowerCase();
     return NextResponse.rewrite(url);
   }
 
-  // Agents IA : refus net, sans redirection.
   if (correspond(chemin, API_SESSION_REQUISE)) {
     if (!session) {
       return NextResponse.json({ success: false, error: 'non connecte' }, { status: 401 });
@@ -96,7 +69,6 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Espace eleve : il faut un cookie de session.
   if (correspond(chemin, CHEMINS_ELEVE)) {
     if (!session) {
       const url = request.nextUrl.clone();
@@ -107,11 +79,8 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  if (!correspond(chemin, CHEMINS_PROTEGES)) {
-    return NextResponse.next();
-  }
+  if (!correspond(chemin, CHEMINS_PROTEGES)) return NextResponse.next();
 
-  // ADMINISTRATION : le cookie signe est exige.
   if (!session) {
     const url = request.nextUrl.clone();
     url.pathname = '/connexion';
@@ -119,10 +88,8 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Seuls Compliance et Qualiopi exigent une societe rattachee.
   if (correspond(chemin, EXIGENT_SOCIETE) && !correspond(chemin, EXCEPTIONS)) {
-    const societe = societeDuJeton(session);
-    if (!societe) {
+    if (!societeDuJeton(session)) {
       const url = request.nextUrl.clone();
       url.pathname = '/admin/compliance/ma-societe';
       url.search = '';
@@ -142,4 +109,7 @@ export const config = {
     '/api/mr-cam',
     '/api/mr-comptable/:path*',
     '/api/mr-comptable',
-    '/api/mr-juridique
+    '/api/mr-juridique/:path*',
+    '/api/mr-juridique',
+  ],
+};
