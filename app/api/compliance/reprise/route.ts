@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { sessionCourante } from "../../../../lib/session";
+import { barrage } from "../../../../lib/droits";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,10 +23,6 @@ const supabase = createClient(
     },
   }
 );
-
-function refuse() {
-  return NextResponse.json({ ok: false, erreur: "reserve a l administrateur" }, { status: 403 });
-}
 
 function r2(n: number): number {
   return Math.round(n * 100) / 100;
@@ -53,9 +50,6 @@ function propre(v: any, max: number): string | null {
 
 export async function POST(req: NextRequest) {
   try {
-    const session = sessionCourante();
-    if (!session || ADMINS.indexOf(session.email) < 0) return refuse();
-
     const b = await req.json().catch(function () { return null; });
     if (!b || !b.societe_id || !b.contenu) {
       return NextResponse.json(
@@ -63,6 +57,13 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
+
+    // LE BARRAGE : un seul appel peut deverser des milliers de lignes.
+    const refusDroit = await barrage("saisir", String(b.societe_id));
+    if (refusDroit) return refusDroit;
+
+    const session = sessionCourante();
+    const email = session ? session.email : null;
 
     const { data: dossier } = await supabase
       .from("compta_societes")
@@ -89,7 +90,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Le plan du dossier, pour completer les comptes inconnus.
     const { data: communs } = await supabase
       .from("compta_comptes").select("numero").is("societe_id", null).limit(3000);
     const { data: propresC } = await supabase
@@ -163,7 +163,7 @@ export async function POST(req: NextRequest) {
           credit: cr,
           devise: "EUR",
           valid_date: new Date().toISOString().slice(0, 10),
-          saisi_par: session.email,
+          saisi_par: email,
         });
       }
 
@@ -215,7 +215,6 @@ export async function POST(req: NextRequest) {
     }
 
     // ---- MODE FEC ----
-    // L en-tete donne l ordre des colonnes : on ne suppose rien.
     const entete = brutes[0].split("|").map(function (x) {
       return x.replace(/^"|"$/g, "").trim().toLowerCase();
     });
@@ -251,7 +250,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Les ecritures deja presentes ne sont pas reprises deux fois.
     const { data: existantes } = await supabase
       .from("compta_ecritures")
       .select("ecriture_num")
@@ -322,7 +320,7 @@ export async function POST(req: NextRequest) {
         lettrage: iLettrage >= 0 ? propre(c[iLettrage], 20) : null,
         devise: "EUR",
         valid_date: new Date().toISOString().slice(0, 10),
-        saisi_par: session.email,
+        saisi_par: email,
       });
     }
 
