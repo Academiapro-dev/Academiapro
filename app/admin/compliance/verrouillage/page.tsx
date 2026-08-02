@@ -81,6 +81,10 @@ export default function PageVerrouillage() {
   const LIBELLE: any = { display: "block", color: "#c8a96e", fontSize: "13px", marginBottom: "5px" };
   const BOUTON: any = { background: "none", border: "1px solid rgba(200,169,110,0.45)", color: "#c8a96e", padding: "9px 17px", borderRadius: "20px", cursor: "pointer", fontSize: "13.5px", fontFamily: "Georgia,serif" };
 
+  // Une contrepassation part seulement si elle est justifiee. La route l exige
+  // aussi de son cote : ceci n est que le garde-fou visible.
+  const cpPret = cp.ecriture_num.trim().length >= 4 && cp.motif.trim().length >= 3;
+
   return (
     <div style={CADRE}>
       <div style={{ maxWidth: "900px", margin: "0 auto" }}>
@@ -134,10 +138,10 @@ export default function PageVerrouillage() {
                         <h3 style={{ color: "#fff", fontSize: "17px", margin: "0 0 3px" }}>{e.annee}</h3>
                         <p style={{ color: e.verrouille ? "#4caf50" : e.partiel ? "#e8a33d" : "rgba(255,255,255,0.5)", fontSize: "13.5px", margin: 0 }}>
                           {e.verrouille
-                            ? "Verrouille · " + e.total + " ecriture(s)"
+                            ? "Verrouille · " + e.total + " ligne(s) d ecriture"
                             : e.partiel
                               ? e.verrouillees + " verrouillees sur " + e.total
-                              : "Ouvert · " + e.total + " ecriture(s)"}
+                              : "Ouvert · " + e.total + " ligne(s) d ecriture"}
                         </p>
                       </div>
                     </div>
@@ -160,7 +164,7 @@ export default function PageVerrouillage() {
                         />
                         <button
                           onClick={() => agir({ action: "deverrouiller", annee: e.annee, motif: motif[e.annee] }, e.annee)}
-                          disabled={occupe !== "" || !(motif[e.annee] || "").trim()}
+                          disabled={occupe !== "" || (motif[e.annee] || "").trim().length < 3}
                           style={{ ...BOUTON, color: "#e8836a", borderColor: "rgba(232,131,106,0.45)" }}
                         >
                           {occupe === e.annee ? "..." : "Deverrouiller"}
@@ -178,7 +182,8 @@ export default function PageVerrouillage() {
             <div style={CARTE}>
               <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "13.5px", margin: "0 0 12px", lineHeight: "1.75" }}>
                 L ecriture d origine reste intacte au journal. Son miroir exact est ecrit a la
-                date du jour, et la correction se voit.
+                date du jour, et la correction se voit. Le motif est obligatoire : il sera
+                consigne dans la piste d audit.
               </p>
               <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
                 <div style={{ flex: "1 1 180px" }}>
@@ -186,14 +191,14 @@ export default function PageVerrouillage() {
                   <input value={cp.ecriture_num} onChange={(e) => setCp({ ...cp, ecriture_num: e.target.value })} placeholder="AC2026-0012" style={CHAMP} />
                 </div>
                 <div style={{ flex: "1 1 240px" }}>
-                  <span style={LIBELLE}>Motif</span>
+                  <span style={LIBELLE}>Motif — obligatoire</span>
                   <input value={cp.motif} onChange={(e) => setCp({ ...cp, motif: e.target.value })} placeholder="Erreur de compte de charge" style={CHAMP} />
                 </div>
               </div>
               <button
                 onClick={() => agir({ action: "contrepasser", ecriture_num: cp.ecriture_num, motif: cp.motif }, "cp")}
-                disabled={occupe !== "" || cp.ecriture_num.trim().length < 4}
-                style={{ background: occupe !== "" || cp.ecriture_num.trim().length < 4 ? "rgba(200,169,110,0.3)" : "#c8a96e", color: "#050508", padding: "13px 26px", borderRadius: "8px", border: "none", cursor: "pointer", fontWeight: "bold", fontSize: "15px", fontFamily: "Georgia,serif" }}
+                disabled={occupe !== "" || !cpPret}
+                style={{ background: occupe !== "" || !cpPret ? "rgba(200,169,110,0.3)" : "#c8a96e", color: "#050508", padding: "13px 26px", borderRadius: "8px", border: "none", cursor: "pointer", fontWeight: "bold", fontSize: "15px", fontFamily: "Georgia,serif" }}
               >
                 {occupe === "cp" ? "Contrepassation..." : "Contrepasser"}
               </button>
@@ -228,7 +233,7 @@ export default function PageVerrouillage() {
                       </div>
                       <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", margin: "4px 0 0", wordBreak: "break-all" }}>
                         {a.email}
-                        {a.apres && a.apres.motif ? " · " + a.apres.motif : ""}
+                        {a.apres && a.apres.motif ? " · motif : " + a.apres.motif : " · motif non renseigne"}
                         {a.apres && a.apres.lignes ? " · " + a.apres.lignes + " ligne(s)" : ""}
                         {a.apres && a.apres.ecriture_num ? " · devient " + a.apres.ecriture_num : ""}
                       </p>
