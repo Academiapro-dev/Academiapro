@@ -14,6 +14,7 @@ const EXCEPTIONS = [
   '/admin/compliance/saisie',
   '/admin/compliance/reprise',
   '/admin/compliance/tva',
+  '/admin/compliance/das2',
   '/admin/compliance/balance',
   '/admin/compliance/releve',
   '/admin/compliance/rapprochement',
