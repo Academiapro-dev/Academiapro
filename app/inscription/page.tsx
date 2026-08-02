@@ -1,44 +1,38 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useTraductionAuto } from "../../hooks/useTraductionAuto";
 
 const FRT = {
-  lancement: "LANCEMENT IMMINENT",
-  titre: "Rejoignez la Liste Prioritaire",
-  sousTitre: "Soyez parmi les premiers a acceder a AcademIA Pro et beneficiez de tarifs de lancement exclusifs.",
-  dejaInscrites: "personnes deja inscrites",
-  placesLimitees: "Places limitees au lancement",
+  lancement: "RESTER INFORME",
+  titre: "Les nouveautes d AcademIA Pro",
+  sousTitre: "Laissez-nous votre adresse et vous serez prevenu des nouvelles formations, des nouveaux ateliers et des dates de classes virtuelles.",
   cadreTitre: "Votre inscription gratuite",
   votreNom: "Votre nom",
   votreEmail: "Votre email",
   interetPrincipal: "Votre interet principal",
   choisir: "Choisir...",
-  bouton: "Rejoindre la liste prioritaire",
+  bouton: "M inscrire aux nouveautes",
   enCours: "Inscription en cours...",
-  mention: "Inscription gratuite - Aucun paiement requis - Vous serez contacte a l ouverture",
+  mention: "Inscription gratuite - aucun paiement requis - desinscription a tout moment",
   erreurRemplir: "Veuillez remplir votre nom et email",
   erreurSurvenue: "Une erreur est survenue",
   erreurConnexion: "Erreur de connexion",
   interets: [
     "Formations professionnelles",
-    "Pack IA Expert",
-    "Seances therapeutiques",
-    "Classe virtuelle Live",
+    "Seances d accompagnement",
+    "Classe virtuelle",
     "Tout AcademIA Pro",
   ],
-  succesTitre: "Bienvenue sur la liste prioritaire !",
-  succesTexte: "vous etes parmi les premiers a rejoindre AcademIA Pro. Vous serez contacte en priorite des l ouverture officielle avec une offre exclusive.",
-  attendTitre: "Ce qui vous attend",
-  avantages: [
-    "Acces prioritaire avant ouverture publique",
-    "Tarif de lancement exclusif",
-    "Formation offerte au choix",
-    "Accompagnement personnalise",
-  ],
+  succesTitre: "Vous etes inscrit",
+  succesTexte: "merci. Vous recevrez nos nouveautes par email, et rien d autre.",
+  attendTitre: "En attendant",
+  attendTexte: "Le catalogue est deja ouvert : vous pouvez consulter les formations et vous inscrire des maintenant.",
+  voirCatalogue: "Voir le catalogue",
   retourAccueil: "Retour a l accueil",
-  stat1Label: "263 formations", stat1Desc: "Certifiantes",
+  stat1Vide: "Catalogue", stat1Desc: "Avec certificat AcadeMIA Pro",
+  stat1Suffixe: "formations",
   stat2Label: "Agent IA", stat2Desc: "24h/24",
-  stat3Label: "5 therapeutes", stat3Desc: "IA specialises",
+  stat3Label: "Accompagnants IA", stat3Desc: "Seances d accompagnement",
 };
 
 export default function InscriptionPage() {
@@ -47,7 +41,20 @@ export default function InscriptionPage() {
   const [loading, setLoading] = useState(false);
   const [succes, setSucces] = useState(false);
   const [erreur, setErreur] = useState("");
-  const [compteur] = useState(Math.floor(Math.random() * 50) + 127);
+  const [nbFormations, setNbFormations] = useState(0);
+
+  // Le nombre de formations se lit, il ne s ecrit pas : il change des qu une
+  // fiche est ajoutee au catalogue.
+  useEffect(() => {
+    fetch("/api/nombre-formations")
+      .then(r => r.json())
+      .then(d => {
+        const n = (d && (d.total || d.nombre || d.count)) ||
+          (d && Array.isArray(d.formations) ? d.formations.length : 0);
+        if (Number(n) > 0) setNbFormations(Number(n));
+      })
+      .catch(() => {});
+  }, []);
 
   async function inscrire() {
     if (!form.nom || !form.email) {
@@ -78,7 +85,7 @@ export default function InscriptionPage() {
     return (
       <div style={{ backgroundColor: "#050508", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}>
         <div style={{ maxWidth: "500px", textAlign: "center" }}>
-          <div style={{ fontSize: "60px", marginBottom: "20px" }}>🎉</div>
+          <div style={{ fontSize: "60px", marginBottom: "20px" }}>✉️</div>
           <h1 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", marginBottom: "15px" }}>
             {txtT.succesTitre}
           </h1>
@@ -87,16 +94,18 @@ export default function InscriptionPage() {
           </p>
           <div style={{ background: "rgba(200,169,110,0.1)", border: "1px solid rgba(200,169,110,0.3)", borderRadius: "12px", padding: "20px", marginBottom: "25px" }}>
             <h3 style={{ color: "#c8a96e", marginTop: 0 }}>{txtT.attendTitre}</h3>
-            {txtT.avantages.map((item, i) => (
-              <div key={i} style={{ display: "flex", gap: "10px", alignItems: "center", marginBottom: "8px" }}>
-                <span style={{ color: "#22c55e" }}>✓</span>
-                <span style={{ color: "rgba(255,255,255,0.7)", fontSize: "14px" }}>{item}</span>
-              </div>
-            ))}
+            <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "14px", lineHeight: "1.8", margin: 0 }}>
+              {txtT.attendTexte}
+            </p>
           </div>
-          <a href="/" style={{ display: "inline-block", background: "#c8a96e", color: "#050508", padding: "12px 30px", borderRadius: "8px", textDecoration: "none", fontWeight: "bold" }}>
-            {txtT.retourAccueil}
-          </a>
+          <div style={{ display: "flex", gap: "12px", justifyContent: "center", flexWrap: "wrap" }}>
+            <a href="/formations" style={{ display: "inline-block", background: "#c8a96e", color: "#050508", padding: "12px 30px", borderRadius: "8px", textDecoration: "none", fontWeight: "bold" }}>
+              {txtT.voirCatalogue}
+            </a>
+            <a href="/" style={{ display: "inline-block", background: "rgba(200,169,110,0.15)", color: "#c8a96e", padding: "12px 30px", borderRadius: "8px", textDecoration: "none", fontWeight: "bold", border: "1px solid rgba(200,169,110,0.3)" }}>
+              {txtT.retourAccueil}
+            </a>
+          </div>
         </div>
       </div>
     );
@@ -109,17 +118,9 @@ export default function InscriptionPage() {
         <h1 style={{ color: "#fff", fontFamily: "Georgia,serif", fontSize: "2.5rem", marginBottom: "15px" }}>
           {txtT.titre}
         </h1>
-        <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "16px", maxWidth: "600px", margin: "0 auto 25px" }}>
+        <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "16px", maxWidth: "600px", margin: "0 auto" }}>
           {txtT.sousTitre}
         </p>
-        <div style={{ display: "inline-flex", gap: "20px", flexWrap: "wrap", justifyContent: "center" }}>
-          <span style={{ background: "rgba(34,197,94,0.2)", color: "#22c55e", padding: "6px 16px", borderRadius: "20px", fontSize: "13px" }}>
-            {compteur} {txtT.dejaInscrites}
-          </span>
-          <span style={{ background: "rgba(200,169,110,0.2)", color: "#c8a96e", padding: "6px 16px", borderRadius: "20px", fontSize: "13px" }}>
-            {txtT.placesLimitees}
-          </span>
-        </div>
       </div>
 
       <div style={{ maxWidth: "600px", margin: "0 auto", padding: "50px 20px" }}>
@@ -163,9 +164,9 @@ export default function InscriptionPage() {
 
         <div style={{ marginTop: "40px", display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "15px" }}>
           {[
-            { icon: "🎓", label: txtT.stat1Label, desc: txtT.stat1Desc },
+            { icon: "🎓", label: nbFormations > 0 ? nbFormations + " " + txtT.stat1Suffixe : txtT.stat1Vide, desc: txtT.stat1Desc },
             { icon: "🤖", label: txtT.stat2Label, desc: txtT.stat2Desc },
-            { icon: "💆", label: txtT.stat3Label, desc: txtT.stat3Desc },
+            { icon: "💬", label: txtT.stat3Label, desc: txtT.stat3Desc },
           ].map(item => (
             <div key={item.label} style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(200,169,110,0.2)", borderRadius: "10px", padding: "15px", textAlign: "center" }}>
               <div style={{ fontSize: "25px", marginBottom: "5px" }}>{item.icon}</div>
