@@ -42,7 +42,7 @@ const LIBELLES: any = {
 // Un administrateur garde tous les droits, sur tous les dossiers. C est ce
 // qui garantit que rien ne casse tant qu aucun collaborateur n est utilise.
 export async function verifier(
-  droit: Droit,
+  droit: Droit | null,
   societeId?: string | null
 ): Promise<Verdict> {
   const session = sessionCourante();
@@ -84,6 +84,12 @@ export async function verifier(
     };
   }
 
+  // Un droit nul signifie : simple consultation. Le rattachement au cabinet
+  // et l acces au dossier suffisent.
+  if (droit === null) {
+    return { autorise: true, email: session.email, role: collaborateur.role, motif: null };
+  }
+
   if (collaborateur["peut_" + droit] !== true) {
     return {
       autorise: false, email: session.email, role: collaborateur.role,
@@ -94,15 +100,7 @@ export async function verifier(
   return { autorise: true, email: session.email, role: collaborateur.role, motif: null };
 }
 
-// Raccourci pour les routes : renvoie une reponse toute faite si le droit
-// manque, ou null si la voie est libre.
-export async function barrage(
-  droit: Droit,
-  societeId?: string | null
-): Promise<Response | null> {
-  const v = await verifier(droit, societeId);
-  if (v.autorise) return null;
-
+function reponse(v: Verdict): Response {
   return new Response(
     JSON.stringify({ ok: false, erreur: v.motif || "Acces refuse." }),
     {
@@ -112,8 +110,25 @@ export async function barrage(
   );
 }
 
-// Les dossiers qu un utilisateur a le droit de voir. Utile aux ecrans qui
-// listent les dossiers : un collaborateur ne doit pas voir ceux des autres.
+// Pour les routes qui ECRIVENT : renvoie une reponse toute faite si le droit
+// manque, ou null si la voie est libre.
+export async function barrage(
+  droit: Droit,
+  societeId?: string | null
+): Promise<Response | null> {
+  const v = await verifier(droit, societeId);
+  return v.autorise ? null : reponse(v);
+}
+
+// Pour les routes qui LISENT : un collaborateur restreint a certains dossiers
+// ne doit pas pouvoir consulter les comptes des autres clients du cabinet.
+export async function lecture(societeId?: string | null): Promise<Response | null> {
+  const v = await verifier(null, societeId);
+  return v.autorise ? null : reponse(v);
+}
+
+// Les dossiers qu un utilisateur a le droit de voir. Rend null quand il les
+// voit tous, ce qui evite de filtrer inutilement.
 export async function dossiersAutorises(): Promise<string[] | null> {
   const session = sessionCourante();
   if (!session) return [];
