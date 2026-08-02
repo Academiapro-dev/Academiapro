@@ -1,6 +1,15 @@
 "use client";
 import { useState, useEffect } from "react";
 
+const JOURNAUX_DEFAUT: any = {
+  AC: "Achats",
+  VE: "Ventes",
+  BQ: "Banque",
+  CA: "Caisse",
+  OD: "Operations diverses",
+  AN: "A nouveaux",
+};
+
 export default function PageSaisie() {
   const [societes, setSocietes] = useState<any[]>([]);
   const [dossier, setDossier] = useState("");
@@ -21,7 +30,18 @@ export default function PageSaisie() {
   ]);
 
   useEffect(function () {
-    chargerSocietes();
+    (async function () {
+      try {
+        const r = await fetch("/api/compliance/societes");
+        const data = await r.json();
+        if (data.ok) {
+          setSocietes(data.societes || []);
+          const p = new URLSearchParams(window.location.search).get("societe_id");
+          if (p) setDossier(p);
+          else if ((data.societes || []).length === 1) setDossier(data.societes[0].id);
+        }
+      } catch (e) {}
+    })();
   }, []);
 
   useEffect(function () {
@@ -30,17 +50,6 @@ export default function PageSaisie() {
       chargerEcritures();
     }
   }, [dossier]);
-
-  async function chargerSocietes() {
-    try {
-      const r = await fetch("/api/compliance/societes");
-      const data = await r.json();
-      if (data.ok) {
-        setSocietes(data.societes || []);
-        if ((data.societes || []).length === 1) setDossier(data.societes[0].id);
-      }
-    } catch (e) {}
-  }
 
   async function chargerComptes() {
     try {
@@ -101,6 +110,11 @@ export default function PageSaisie() {
 
   const pret = !!dossier && libelle.trim().length >= 3 && equilibre && remplies >= 2;
 
+  // Les journaux viennent du serveur quand ils sont la, du secours sinon.
+  // La liste et son contenu doivent venir de la MEME source, sans quoi la
+  // page casse avant meme de s afficher.
+  const journaux = d && d.journaux ? d.journaux : JOURNAUX_DEFAUT;
+
   async function enregistrer() {
     if (!pret) return;
     setOccupe("enr");
@@ -137,52 +151,11 @@ export default function PageSaisie() {
     setOccupe("");
   }
 
-  const CADRE: any = {
-    minHeight: "100vh",
-    background: "#050508",
-    color: "#fff",
-    fontFamily: "Georgia, serif",
-    padding: "40px 20px",
-  };
-
-  const CARTE: any = {
-    background: "rgba(255,255,255,0.03)",
-    border: "1px solid rgba(200,169,110,0.25)",
-    borderRadius: "12px",
-    padding: "20px 24px",
-    marginBottom: "16px",
-  };
-
-  const CHAMP: any = {
-    width: "100%",
-    padding: "11px 13px",
-    borderRadius: "8px",
-    border: "1px solid rgba(200,169,110,0.3)",
-    background: "rgba(255,255,255,0.05)",
-    color: "#fff",
-    fontSize: "15px",
-    fontFamily: "Georgia,serif",
-    boxSizing: "border-box",
-    marginBottom: "12px",
-  };
-
-  const LIBELLE: any = {
-    display: "block",
-    color: "#c8a96e",
-    fontSize: "13px",
-    marginBottom: "5px",
-  };
-
-  const BOUTON: any = {
-    background: "none",
-    border: "1px solid rgba(200,169,110,0.45)",
-    color: "#c8a96e",
-    padding: "8px 16px",
-    borderRadius: "20px",
-    cursor: "pointer",
-    fontSize: "13px",
-    fontFamily: "Georgia,serif",
-  };
+  const CADRE: any = { minHeight: "100vh", background: "#050508", color: "#fff", fontFamily: "Georgia, serif", padding: "40px 20px" };
+  const CARTE: any = { background: "rgba(255,255,255,0.03)", border: "1px solid rgba(200,169,110,0.25)", borderRadius: "12px", padding: "20px 24px", marginBottom: "16px" };
+  const CHAMP: any = { width: "100%", padding: "11px 13px", borderRadius: "8px", border: "1px solid rgba(200,169,110,0.3)", background: "rgba(255,255,255,0.05)", color: "#fff", fontSize: "15px", fontFamily: "Georgia,serif", boxSizing: "border-box", marginBottom: "12px" };
+  const LIBELLE: any = { display: "block", color: "#c8a96e", fontSize: "13px", marginBottom: "5px" };
+  const BOUTON: any = { background: "none", border: "1px solid rgba(200,169,110,0.45)", color: "#c8a96e", padding: "8px 16px", borderRadius: "20px", cursor: "pointer", fontSize: "13px", fontFamily: "Georgia,serif" };
 
   function euros(n: any) {
     return (Number(n) || 0).toLocaleString("fr-FR", { minimumFractionDigits: 2 }) + " EUR";
@@ -208,11 +181,7 @@ export default function PageSaisie() {
           <select value={dossier} onChange={(e) => setDossier(e.target.value)} style={{ ...CHAMP, marginBottom: 0 }}>
             <option value="">— choisir un dossier —</option>
             {societes.map(function (s) {
-              return (
-                <option key={s.id} value={s.id}>
-                  {s.raison_sociale} ({s.code})
-                </option>
-              );
+              return <option key={s.id} value={s.id}>{s.raison_sociale} ({s.code})</option>;
             })}
           </select>
         </div>
@@ -226,8 +195,8 @@ export default function PageSaisie() {
               <div style={{ flex: "1 1 160px" }}>
                 <span style={LIBELLE}>Journal</span>
                 <select value={journal} onChange={(e) => setJournal(e.target.value)} style={CHAMP}>
-                  {Object.keys(d && d.journaux ? d.journaux : { OD: "Operations diverses" }).map(function (k) {
-                    return <option key={k} value={k}>{k} · {d.journaux[k]}</option>;
+                  {Object.keys(journaux).map(function (k) {
+                    return <option key={k} value={k}>{k} · {journaux[k]}</option>;
                   })}
                 </select>
               </div>
@@ -237,7 +206,7 @@ export default function PageSaisie() {
               </div>
               <div style={{ flex: "1 1 160px" }}>
                 <span style={LIBELLE}>Piece de reference</span>
-                <input value={piece} onChange={(e) => setPiece(e.target.value)} placeholder="FA-2026-014" style={CHAMP} />
+                <input value={piece} onChange={(e) => setPiece(e.target.value)} placeholder="reference du justificatif" style={CHAMP} />
               </div>
             </div>
 
@@ -245,7 +214,7 @@ export default function PageSaisie() {
             <input
               value={libelle}
               onChange={(e) => setLibelle(e.target.value)}
-              placeholder="Facture fournisseur - honoraires de janvier"
+              placeholder="ce que dit la piece, en clair"
               style={CHAMP}
             />
 
@@ -283,7 +252,7 @@ export default function PageSaisie() {
                     <input
                       value={l.libelle}
                       onChange={(e) => poser(i, "libelle", e.target.value)}
-                      placeholder="Libelle de la ligne (facultatif)"
+                      placeholder="libelle propre a la ligne, facultatif"
                       style={CHAMP}
                     />
 
@@ -294,7 +263,6 @@ export default function PageSaisie() {
                           value={l.debit}
                           onChange={(e) => poser(i, "debit", e.target.value)}
                           inputMode="decimal"
-                          placeholder="0,00"
                           style={{ ...CHAMP, marginBottom: 0, textAlign: "right" }}
                         />
                       </div>
@@ -304,7 +272,6 @@ export default function PageSaisie() {
                           value={l.credit}
                           onChange={(e) => poser(i, "credit", e.target.value)}
                           inputMode="decimal"
-                          placeholder="0,00"
                           style={{ ...CHAMP, marginBottom: 0, textAlign: "right" }}
                         />
                       </div>
@@ -352,7 +319,7 @@ export default function PageSaisie() {
               <div style={CARTE}>
                 <p style={{ color: "rgba(255,255,255,0.6)", margin: 0 }}>Lecture...</p>
               </div>
-            ) : !d || d.ecritures.length === 0 ? (
+            ) : !d || !d.ecritures || d.ecritures.length === 0 ? (
               <div style={CARTE}>
                 <p style={{ color: "rgba(255,255,255,0.6)", margin: 0, fontSize: "15px" }}>
                   Aucune ecriture sur ce dossier.
@@ -368,6 +335,7 @@ export default function PageSaisie() {
                           {e.ecriture_num} · {e.journal_code}
                           {e.piece_ref ? " · " + e.piece_ref : ""}
                           {e.manuelle ? " · saisie manuelle" : " · automatique"}
+                          {e.verrouillee ? " · verrouillee" : ""}
                         </p>
                         <h3 style={{ color: "#fff", fontSize: "15.5px", margin: 0 }}>{e.libelle}</h3>
                       </div>
