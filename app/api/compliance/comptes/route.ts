@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { sessionCourante } from "../../../../lib/session";
+import { barrage } from "../../../../lib/droits";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -67,8 +68,7 @@ export async function GET(req: NextRequest) {
     const dossier = await dossierDemande(req);
 
     // Le plan commun sert de socle ; les comptes propres au dossier le
-    // completent, et PRIMENT sur un compte commun de meme numero. Un cabinet
-    // peut ainsi personnaliser un libelle sans toucher au socle.
+    // completent, et PRIMENT sur un compte commun de meme numero.
     const { data: communs, error: e1 } = await supabase
       .from("compta_comptes")
       .select("*")
@@ -110,8 +110,6 @@ export async function GET(req: NextRequest) {
         return { ...c, classe_nom: CLASSES[c.classe] || "" };
       });
 
-    // Comptes reellement mouvementes, pour distinguer le plan theorique de
-    // celui qui sert vraiment.
     let utilises: any = {};
     if (dossier) {
       const { data: ecritures } = await supabase
@@ -146,13 +144,16 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const session = sessionCourante();
-    if (!session || ADMINS.indexOf(session.email) < 0) return refuse();
-
     const b = await req.json().catch(function () { return null; });
     if (!b) {
       return NextResponse.json({ ok: false, erreur: "Requete illisible" }, { status: 400 });
     }
+
+    const societeId = b.societe_id ? String(b.societe_id) : null;
+
+    // LE BARRAGE : une seule ligne, et le droit est verifie pour ce dossier.
+    const refus = await barrage("gerer_plan", societeId);
+    if (refus) return refus;
 
     const numero = String(b.numero || "").replace(/\D/g, "").slice(0, 12);
     if (numero.length < 3) {
@@ -177,8 +178,6 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-
-    const societeId = b.societe_id ? String(b.societe_id) : null;
 
     const fiche: any = {
       societe_id: societeId,
@@ -229,9 +228,6 @@ export async function POST(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
-    const session = sessionCourante();
-    if (!session || ADMINS.indexOf(session.email) < 0) return refuse();
-
     const id = new URL(req.url).searchParams.get("id");
     if (!id) {
       return NextResponse.json({ ok: false, erreur: "Compte non precise." }, { status: 400 });
@@ -246,6 +242,9 @@ export async function DELETE(req: NextRequest) {
     if (!compte) {
       return NextResponse.json({ ok: false, erreur: "Compte introuvable." }, { status: 404 });
     }
+
+    const refus = await barrage("gerer_plan", compte.societe_id);
+    if (refus) return refus;
 
     // Un compte mouvemente ne se supprime pas : la piste d audit serait rompue.
     const requete = supabase
