@@ -105,11 +105,12 @@ export default function PageCollaborateurs() {
           Qui a le droit de faire quoi, et sur quels dossiers
         </p>
 
-        <div style={{ ...CARTE, marginTop: "22px", background: "rgba(232,163,61,0.06)", border: "1px solid rgba(232,163,61,0.35)" }}>
-          <p style={{ color: "#e8a33d", fontSize: "14px", margin: 0, lineHeight: "1.8" }}>
-            Ces droits sont pour l instant declaratifs : les routes verifient encore la seule
-            liste des administrateurs. Avant de confier un dossier a un collaborateur reel, il
-            faudra reprendre chaque route pour qu elle les applique.
+        <div style={{ ...CARTE, marginTop: "22px", background: "rgba(76,175,80,0.06)", border: "1px solid rgba(76,175,80,0.35)" }}>
+          <p style={{ color: "rgba(255,255,255,0.75)", fontSize: "14px", margin: 0, lineHeight: "1.8" }}>
+            Ces droits sont appliques par le logiciel lui-meme, et non simplement affiches ici.
+            Un collaborateur ne peut ni ecrire ni meme consulter un dossier qui ne lui est pas
+            confie, et chaque geste reserve — cloture, declaration, plan comptable — lui est
+            refuse s il ne porte pas le droit correspondant. Un associe garde tout.
           </p>
         </div>
 
@@ -220,7 +221,7 @@ export default function PageCollaborateurs() {
                     })}
 
                     <button
-                      onClick={() => envoyer({ email: c.email, nom: c.nom, role: c.role, actif: !c.actif }, c.id)}
+                      onClick={() => envoyer({ email: c.email, nom: c.nom, role: c.role, dossiers: c.dossiers, actif: !c.actif }, c.id)}
                       disabled={occupe !== ""}
                       style={{ ...BOUTON, color: c.actif ? "#e8836a" : "#4caf50", borderColor: "rgba(255,255,255,0.2)", marginTop: "8px" }}
                     >
