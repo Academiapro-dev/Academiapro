@@ -175,6 +175,12 @@ export async function PATCH(req: NextRequest) {
 
     if (corps.qualiopi !== undefined) m.qualiopi = corps.qualiopi === true;
 
+    // L option de gestion administrative : tant qu elle n est pas souscrite,
+    // c est le minimum par stagiaire qui s applique.
+    if (corps.gestion_souscrite !== undefined) {
+      m.gestion_souscrite = corps.gestion_souscrite === true;
+    }
+
     if (corps.domaine !== undefined) {
       const domaine = nettoyerDomaine(corps.domaine);
 
