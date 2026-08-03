@@ -112,6 +112,12 @@ export async function POST(req: NextRequest) {
       ? Number(org.taux_apport)
       : 50;
 
+    // Prestation optionnelle : elle ne figure au bon que si un forfait a ete
+    // fixe a la fiche du client.
+    const gestion = org.forfait_gestion !== null && org.forfait_gestion !== undefined
+      ? Number(org.forfait_gestion)
+      : 0;
+
     const { data: catalogue } = await supabase
       .from("organisme_catalogue")
       .select("formation_code, prix_contractuel, prix_vente_public")
@@ -257,6 +263,26 @@ export async function POST(req: NextRequest) {
       9, normal, gris, 5
     );
 
+    if (gestion > 0) {
+      titreBloc("GESTION ADMINISTRATIVE - OPTION");
+      paire("Forfait par stagiaire inscrit", euros(gestion));
+      y = y - 4;
+      ligne(
+        "Prestation optionnelle, due uniquement si le Client la demande. Elle couvre, pour les " +
+        "formations propres du Client : conventions et contrats, convocations, feuilles " +
+        "d emargement, evaluations, attestations de fin de formation, pieces justificatives " +
+        "attendues lors d un audit et preparation du bilan pedagogique et financier.",
+        9, normal, noir, 5
+      );
+      y = y - 4;
+      ligne(
+        "Ce forfait est tout compris : il remplace le minimum par stagiaire ci-dessus et ne s y " +
+        "ajoute pas. Le Client demeure seul responsable de l exactitude des informations " +
+        "transmises, de la verification des documents produits et du depot de ses declarations.",
+        9, normal, gris, 5
+      );
+    }
+
     titreBloc("AFFAIRES ORIENTEES PAR L EDITEUR");
     paire("Partage du produit HT", apport + " % pour l Editeur");
     y = y - 4;
@@ -369,6 +395,7 @@ export async function POST(req: NextRequest) {
         plein: plein,
         taux: taux,
         plancher: plancher,
+        gestion: gestion,
         apport: apport,
         lancement_jusqu_au: org.lancement_jusqu_au,
         formations: (catalogue || []).length,
