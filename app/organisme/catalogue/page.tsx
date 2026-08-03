@@ -35,11 +35,18 @@ export default function PageCatalogueOrganisme() {
         setFormations(data.formations || []);
         setDisponibles(data.disponibles || []);
         setAdmin(data.admin === true);
+
+        // Le champ part du prix de vente enregistre ; a defaut, du prix public
+        // de l Editeur. Un champ vide obligerait a chercher un chiffre ailleurs.
         const p: any = {};
         for (const f of data.formations || []) {
-          p[f.id] = f.prix_vente_public !== null && f.prix_vente_public !== undefined
-            ? String(f.prix_vente_public)
-            : "";
+          if (f.prix_vente_public !== null && f.prix_vente_public !== undefined) {
+            p[f.id] = String(f.prix_vente_public);
+          } else if (f.prix_academia !== null && f.prix_academia !== undefined) {
+            p[f.id] = String(f.prix_academia);
+          } else {
+            p[f.id] = "";
+          }
         }
         setPrixEnCours(p);
       } else {
@@ -162,8 +169,19 @@ export default function PageCatalogueOrganisme() {
         <h1 style={{ color: "#fff", fontSize: "30px", margin: "0 0 6px" }}>Mon catalogue</h1>
         <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "14px", marginTop: 0 }}>
           {formations.length} formation(s) · {totalStagiaires} stagiaire(s) inscrit(s)
-          {sansPrix > 0 ? " · " + sansPrix + " sans prix de vente" : ""}
+          {sansPrix > 0 ? " · " + sansPrix + " sans prix enregistre" : ""}
         </p>
+
+        {sansPrix > 0 && (
+          <div style={{ ...CARTE, marginTop: "18px", background: "rgba(232,163,61,0.06)", border: "1px solid rgba(232,163,61,0.35)" }}>
+            <p style={{ color: "#e8a33d", fontSize: "14px", margin: 0, lineHeight: "1.8" }}>
+              {sansPrix} formation(s) affichent le prix public de l editeur mais n ont pas encore
+              de prix enregistre. Le prix propose est modifiable : ajustez-le si vous le souhaitez,
+              puis appuyez sur Enregistrer. Tant qu il n est pas enregistre, il ne figure ni sur
+              votre bon de commande ni sur vos documents.
+            </p>
+          </div>
+        )}
 
         {admin && (
           <div style={{ ...CARTE, marginTop: "26px", border: "1px solid rgba(200,169,110,0.5)" }}>
@@ -214,6 +232,7 @@ export default function PageCatalogueOrganisme() {
           </div>
         ) : (
           formations.map(function (f) {
+            const enregistre = f.prix_vente_public !== null && f.prix_vente_public !== undefined;
             return (
               <div key={f.id} style={CARTE}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "12px" }}>
@@ -221,10 +240,17 @@ export default function PageCatalogueOrganisme() {
                     <p style={{ color: "#c8a96e", fontSize: "12px", margin: "0 0 3px" }}>
                       {f.formation_code}{f.domaine ? " · " + f.domaine : ""}
                     </p>
-                    <h3 style={{ color: "#fff", fontSize: "17px", margin: "0 0 4px" }}>{f.titre}</h3>
+                    <h3 style={{ color: "#fff", fontSize: "17px", margin: "0 0 6px" }}>{f.titre}</h3>
+
+                    {f.prix_academia ? (
+                      <p style={{ color: "#c8a96e", fontSize: "16px", margin: "0 0 3px" }}>
+                        Prix public AcadeMIA :{" "}
+                        <strong>{Number(f.prix_academia).toLocaleString("fr-FR")} EUR</strong>
+                      </p>
+                    ) : null}
+
                     <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px", margin: 0 }}>
-                      {f.duree ? f.duree + " h" : ""}
-                      {f.prix_academia ? " · prix public AcadeMIA : " + Number(f.prix_academia).toLocaleString("fr-FR") + " EUR" : ""}
+                      {f.duree ? f.duree + " heures" : ""}
                     </p>
                   </div>
 
@@ -242,8 +268,7 @@ export default function PageCatalogueOrganisme() {
                   <input
                     value={prixEnCours[f.id] || ""}
                     onChange={(e) => setPrixEnCours({ ...prixEnCours, [f.id]: e.target.value })}
-                    placeholder="1500"
-                    style={{ ...CHAMP, border: prixEnCours[f.id] ? "1px solid rgba(200,169,110,0.35)" : "1px solid rgba(232,131,106,0.5)" }}
+                    style={{ ...CHAMP, border: enregistre ? "1px solid rgba(200,169,110,0.35)" : "1px solid rgba(232,163,61,0.55)" }}
                   />
 
                   <span style={{ color: "rgba(255,255,255,0.4)", fontSize: "14px" }}>EUR</span>
@@ -254,6 +279,12 @@ export default function PageCatalogueOrganisme() {
                   >
                     Enregistrer
                   </button>
+
+                  {!enregistre && (
+                    <span style={{ color: "#e8a33d", fontSize: "13px" }}>
+                      prix propose, a enregistrer
+                    </span>
+                  )}
 
                   {admin && (
                     <button
