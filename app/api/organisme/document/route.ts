@@ -77,7 +77,8 @@ function corps(type: string, o: any, a: any, f: any, prix: number, modules: any[
   const nom = a && a.nom ? a.nom : a && a.email ? a.email : "le stagiaire";
   const of = (o && o.raison_sociale) || "l organisme";
   const titre = (f && f.titre) || a.formation_code || "la formation";
-  const duree = Number(f && f.duree) || 0;
+  const duree = Number(String((f && f.duree) || "").replace(",", ".").match(/[\d.]+/)?.[0] || 0) || 0;
+
 
   if (type === "convention") {
     return [
