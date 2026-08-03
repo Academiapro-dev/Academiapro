@@ -14,6 +14,8 @@ const JOURS_VALIDITE = 30;
 const LIBELLE_TYPE: any = {
   convention: "convention de formation",
   devis: "devis",
+  bon_commande: "bon de commande",
+  contrat: "contrat",
   convocation: "convocation",
   programme: "programme de formation",
   attestation: "attestation de fin de formation",
@@ -40,11 +42,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, erreur: "Connectez-vous." }, { status: 401 });
     }
 
+    const estAdmin = ADMINS.indexOf(session.email) >= 0;
+
     let tenant = session.tenantId;
-    if (!tenant && ADMINS.indexOf(session.email) >= 0) {
+    if (!tenant && estAdmin) {
       tenant = new URL(req.url).searchParams.get("tenant");
     }
-    if (!tenant) {
+
+    // L administrateur peut faire signer un document QUI N APPARTIENT A AUCUN
+    // ORGANISME — c est le cas de ses propres contrats, generes avec un
+    // tenant nul. Un organisme client, lui, reste tenu d en avoir un.
+    if (!tenant && !estAdmin) {
       return NextResponse.json(
         { ok: false, erreur: "Aucun organisme rattache a votre compte." },
         { status: 403 }
@@ -62,14 +70,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, erreur: "Document non precise." }, { status: 400 });
     }
 
+    // On cherche d abord le document seul, puis on verifie qu il revient bien
+    // a celui qui demande. Un organisme ne voit que les siens ; un
+    // administrateur voit aussi ceux qui n ont pas d organisme.
     const { data: doc } = await supabase
       .from("organisme_documents")
-      .select("type, reference, stagiaire_email, tenant_id")
+      .select("type, reference, stagiaire_email, tenant_id, donnees")
       .eq("reference", reference)
-      .eq("tenant_id", tenant)
       .maybeSingle();
 
     if (!doc) {
+      return NextResponse.json({ ok: false, erreur: "Document introuvable." }, { status: 404 });
+    }
+
+    const monDocument = tenant ? doc.tenant_id === tenant : doc.tenant_id === null;
+    if (!monDocument && !estAdmin) {
       return NextResponse.json({ ok: false, erreur: "Document introuvable." }, { status: 404 });
     }
 
@@ -78,13 +93,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, erreur: "Destinataire inconnu." }, { status: 400 });
     }
 
-    const { data: org } = await supabase
-      .from("organismes_formation")
-      .select("raison_sociale")
-      .eq("tenant_id", tenant)
-      .maybeSingle();
+    // L expediteur : l organisme client quand il y en a un, l editeur sinon.
+    let nomExpediteur = "AcadeMIA Pro LLC";
 
-    const nomOrganisme = (org && org.raison_sociale) || "votre organisme de formation";
+    if (doc.tenant_id) {
+      const { data: org } = await supabase
+        .from("organismes_formation")
+        .select("raison_sociale")
+        .eq("tenant_id", doc.tenant_id)
+        .maybeSingle();
+      if (org && org.raison_sociale) nomExpediteur = org.raison_sociale;
+    }
 
     // Le lien magique connecte le signataire : c est lui qui etablit son
     // identite, et c est cette identite qui donne sa valeur a la signature.
@@ -106,12 +125,18 @@ export async function POST(req: NextRequest) {
     const lien = SITE + "/api/auth/valider?jeton=" + jeton + "&retour=" + retour;
     const libelle = LIBELLE_TYPE[doc.type] || "document";
 
+    // Sur un contrat, le titre du modele est plus parlant que le mot contrat.
+    const donnees = doc.donnees && typeof doc.donnees === "object" ? doc.donnees : {};
+    const intitule = doc.type === "contrat" && donnees.titre
+      ? String(donnees.titre)
+      : libelle;
+
     const html =
       '<div style="font-family:Georgia,serif;max-width:560px;margin:0 auto;color:#1a1a1a;line-height:1.7">' +
       '<p style="color:#0a3d2e;font-size:13px;letter-spacing:2px;margin:0 0 6px">DOCUMENT A SIGNER</p>' +
       '<h1 style="color:#0a3d2e;font-size:23px;margin:0 0 18px">Bonjour,</h1>' +
-      "<p>" + nomOrganisme + " vous invite a signer electroniquement votre " + libelle +
-      " (reference " + reference + ").</p>" +
+      "<p>" + nomExpediteur + " vous invite a signer electroniquement : <strong>" +
+      intitule + "</strong> (reference " + reference + ").</p>" +
       "<p>Le lien ci-dessous vous connecte directement, sans mot de passe. Vous pourrez relire " +
       "le document, puis apposer votre signature.</p>" +
       '<p style="margin:28px 0"><a href="' + lien +
@@ -130,7 +155,7 @@ export async function POST(req: NextRequest) {
       body: JSON.stringify({
         from: "AcadeMIA Pro <contact@academiapro.fr>",
         to: [destinataire],
-        subject: "Votre " + libelle + " a signer (" + reference + ")",
+        subject: "A signer : " + intitule + " (" + reference + ")",
         html: html,
       }),
     });
@@ -144,7 +169,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, erreur: "Envoi impossible : " + detail }, { status: 500 });
     }
 
-    return NextResponse.json({ ok: true, destinataire: destinataire, reference: reference });
+    return NextResponse.json({
+      ok: true,
+      destinataire: destinataire,
+      reference: reference,
+      intitule: intitule,
+      editeur: !doc.tenant_id,
+    });
   } catch (e: any) {
     return NextResponse.json({ ok: false, erreur: String(e) }, { status: 500 });
   }
