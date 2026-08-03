@@ -165,10 +165,12 @@ export default function PageCoffre() {
     return true;
   }
 
+  // Le rangement suit le drapeau calcule par la route : mes contrats sont
+  // ceux sans rattachement ET ceux rattaches a mon propre organisme.
   const pieces = d
     ? d.pieces.filter(function (p: any) {
-        if (filtre === "miennes") return !p.tenant_id;
-        if (filtre === "clients") return !!p.tenant_id;
+        if (filtre === "miennes") return p.mienne === true;
+        if (filtre === "clients") return p.mienne !== true;
         return true;
       })
     : [];
