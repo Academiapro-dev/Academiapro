@@ -12,11 +12,18 @@ const BUCKET = "documents-signes";
 const TAILLE_MAX = 15 * 1024 * 1024;
 const ANNEES_DEFAUT = 10;
 
+// Les contrats de l editeur sont rattaches a un organisme comme les autres :
+// la contrainte de la base l impose. On le reconnait a son email de contact,
+// qui est aussi l adresse de l administrateur.
+const EMAIL_EDITEUR = "contact@academiapro.fr";
+
 const CATEGORIES: any = {
   partenariat: "Contrat de partenariat",
   bon_commande: "Bon de commande",
   convention: "Convention",
   fournisseur: "Contrat fournisseur",
+  client: "Contrat client",
+  contrat: "Contrat",
   assurance: "Assurance",
   bancaire: "Document bancaire",
   societe: "Document de societe",
@@ -83,11 +90,25 @@ export async function GET(req: NextRequest) {
 
     const { data: organismes } = await supabase
       .from("organismes_formation")
-      .select("tenant_id, raison_sociale")
+      .select("tenant_id, raison_sociale, email_contact")
       .limit(500);
 
     const nomDe: any = {};
-    for (const o of organismes || []) nomDe[o.tenant_id] = o.raison_sociale;
+    const tenantsEditeur: string[] = [];
+
+    for (const o of organismes || []) {
+      nomDe[o.tenant_id] = o.raison_sociale;
+      if (String(o.email_contact || "").trim().toLowerCase() === EMAIL_EDITEUR) {
+        tenantsEditeur.push(o.tenant_id);
+      }
+    }
+
+    // Une piece est la mienne si elle n a aucun rattachement, ou si elle est
+    // rattachee a mon propre organisme.
+    function estMienne(p: any): boolean {
+      if (!p.tenant_id) return true;
+      return tenantsEditeur.indexOf(p.tenant_id) >= 0;
+    }
 
     const maintenant = Date.now();
 
@@ -95,11 +116,13 @@ export async function GET(req: NextRequest) {
       const echu = p.conserver_jusqu_au
         ? new Date(p.conserver_jusqu_au).getTime() < maintenant
         : false;
+      const mienne = estMienne(p);
       return {
         ...p,
-        organisme: p.tenant_id ? nomDe[p.tenant_id] || "client inconnu" : null,
+        organisme: p.tenant_id && !mienne ? nomDe[p.tenant_id] || "client inconnu" : null,
         categorie_nom: CATEGORIES[p.categorie] || p.categorie,
         echu: echu,
+        mienne: mienne,
       };
     });
 
@@ -107,8 +130,8 @@ export async function GET(req: NextRequest) {
       ok: true,
       categories: CATEGORIES,
       total: liste.length,
-      miennes: liste.filter(function (p: any) { return !p.tenant_id; }).length,
-      clients: liste.filter(function (p: any) { return !!p.tenant_id; }).length,
+      miennes: liste.filter(function (p: any) { return p.mienne; }).length,
+      clients: liste.filter(function (p: any) { return !p.mienne; }).length,
       signees: liste.filter(function (p: any) { return p.signe; }).length,
       echues: liste.filter(function (p: any) { return p.echu; }).length,
       pieces: liste,
