@@ -11,6 +11,7 @@ const ADMINS = ["contact@academiapro.fr"];
 const BUCKET = "documents-signes";
 const VALIDITE_CODE_MIN = 15;
 const MAX_TENTATIVES = 5;
+const VALIDITE_LECTURE_S = 3600;
 
 const CONSENTEMENT =
   "En cochant cette case et en validant, je reconnais avoir lu le document, " +
@@ -40,6 +41,22 @@ function empreinteTexte(t: string): string {
   return crypto.createHash("sha256").update(t).digest("hex");
 }
 
+async function documentDe(reference: string) {
+  const { data } = await supabase
+    .from("organisme_documents")
+    .select("id, tenant_id, type, reference, stagiaire_email, formation_code, pdf_chemin, pdf_sha256, donnees, groupe")
+    .eq("reference", reference)
+    .maybeSingle();
+  return data || null;
+}
+
+function autorise(doc: any, session: any) {
+  const estLeStagiaire = doc.stagiaire_email === session.email;
+  const estLOrganisme = session.tenantId === doc.tenant_id;
+  const estAdmin = ADMINS.indexOf(session.email) >= 0;
+  return estLeStagiaire || estLOrganisme || estAdmin;
+}
+
 export async function GET(req: NextRequest) {
   try {
     const session = sessionCourante();
@@ -48,6 +65,49 @@ export async function GET(req: NextRequest) {
     }
 
     const url = new URL(req.url);
+
+    // LECTURE DU DOCUMENT AVANT SIGNATURE. On ne peut pas demander a quelqu un
+    // de reconnaitre avoir lu un texte qu on ne lui montre pas : la case de
+    // consentement se retournerait contre nous. Le lien renvoye est temporaire
+    // et ne donne acces qu a ce seul fichier.
+    if (url.searchParams.get("vue") === "document") {
+      const reference = String(url.searchParams.get("reference") || "").trim();
+      if (!reference) {
+        return NextResponse.json({ ok: false, erreur: "Document non precise." }, { status: 400 });
+      }
+
+      const doc = await documentDe(reference);
+      if (!doc) {
+        return NextResponse.json({ ok: false, erreur: "Document introuvable." }, { status: 404 });
+      }
+
+      if (!autorise(doc, session)) {
+        return NextResponse.json(
+          { ok: false, erreur: "Ce document ne vous concerne pas." },
+          { status: 403 }
+        );
+      }
+
+      const donnees = doc.donnees && typeof doc.donnees === "object" ? doc.donnees : {};
+
+      let lien = "";
+      if (doc.pdf_chemin) {
+        const { data: signe } = await supabase.storage
+          .from(BUCKET)
+          .createSignedUrl(doc.pdf_chemin, VALIDITE_LECTURE_S);
+        if (signe && signe.signedUrl) lien = signe.signedUrl;
+      }
+
+      return NextResponse.json({
+        ok: true,
+        reference: doc.reference,
+        type: doc.type,
+        titre: donnees.titre || null,
+        contrepartie: donnees.contrepartie || null,
+        empreinte: doc.pdf_sha256 || null,
+        lien_lecture: lien || null,
+      });
+    }
 
     if (url.searchParams.get("vue") === "miennes") {
       const { data } = await supabase
@@ -119,22 +179,6 @@ export async function GET(req: NextRequest) {
   } catch (e: any) {
     return NextResponse.json({ ok: false, erreur: String(e) }, { status: 500 });
   }
-}
-
-async function documentDe(reference: string) {
-  const { data } = await supabase
-    .from("organisme_documents")
-    .select("id, tenant_id, type, reference, stagiaire_email, formation_code, pdf_chemin, pdf_sha256, donnees, groupe")
-    .eq("reference", reference)
-    .maybeSingle();
-  return data || null;
-}
-
-function autorise(doc: any, session: any) {
-  const estLeStagiaire = doc.stagiaire_email === session.email;
-  const estLOrganisme = session.tenantId === doc.tenant_id;
-  const estAdmin = ADMINS.indexOf(session.email) >= 0;
-  return estLeStagiaire || estLOrganisme || estAdmin;
 }
 
 // Une variante de negociation deja abandonnee ne doit plus etre signable :
