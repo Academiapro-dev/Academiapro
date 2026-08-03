@@ -51,9 +51,150 @@ const DROIT_7 =
   "Tribunal de commerce de Paris, auquel les parties attribuent competence exclusive, " +
   "nonobstant pluralite de defendeurs ou appel en garantie.\n";
 
-// Quatre modeles prets a l emploi. Ce sont des PROJETS : ils doivent etre relus
+// Cinq modeles prets a l emploi. Ce sont des PROJETS : ils doivent etre relus
 // par un professionnel du droit avant d etre opposes a un cocontractant.
 const MODELES = [
+  {
+    code: "PACK",
+    titre: "Contrat d abonnement - plateforme et catalogue en marque blanche",
+    categorie: "client",
+    description:
+      "Le contrat du pack : plateforme, catalogue, marque blanche et gestion administrative.",
+    champs: CHAMPS_COMMUNS.concat([
+      { cle: "numero_da", libelle: "Numero de declaration d activite du client" },
+      { cle: "abonnement", libelle: "Abonnement mensuel HT, en euros" },
+      { cle: "commission", libelle: "Commission sur le catalogue editeur, en pourcentage" },
+      { cle: "plancher", libelle: "Minimum par stagiaire inscrit, en euros" },
+      { cle: "gestion", libelle: "Forfait par stagiaire avec gestion administrative, en euros" },
+      { cle: "duree", libelle: "Duree initiale, en mois" },
+      { cle: "preavis", libelle: "Preavis de resiliation, en mois" },
+    ]),
+    corps:
+      "ENTRE LES SOUSSIGNES\n\n" +
+      "AcadeMIA Pro LLC, societe de droit du Wyoming, dont le siege est situe 30 N Gould St " +
+      "STE R, Sheridan WY 82801, Etats-Unis, representee par Jacques Lalou, en sa qualite de " +
+      "gerant, ci-apres denommee l Editeur,\n\n" +
+      "ET\n\n" +
+      "{{contrepartie}}, {{forme}}, dont le siege est situe {{siege}}, immatriculee sous le " +
+      "numero {{immatriculation}}, declaree en qualite d organisme de formation sous le numero " +
+      "{{numero_da}}, representee par {{representant}}, ci-apres denommee le Client,\n\n" +
+      "IL A ETE CONVENU CE QUI SUIT\n\n" +
+      "## Article 1 - Objet\n\n" +
+      "L Editeur met a la disposition du Client, pour la duree du present contrat, une " +
+      "plateforme de formation en ligne, son catalogue de formations, et les services " +
+      "d accompagnement definis ci-apres.\n\n" +
+      "Le Client exploite ces moyens sous sa propre marque, aupres de ses propres clients, en " +
+      "son nom et pour son compte. Il demeure seul organisme de formation au sens du code du " +
+      "travail, seul titulaire de sa declaration d activite et, le cas echeant, de sa " +
+      "certification qualite.\n\n" +
+      "## Article 2 - Ce que l Editeur met a disposition\n\n" +
+      "L Editeur fournit, sans supplement de prix :\n\n" +
+      "L acces a la plateforme pour le Client et ses collaborateurs, ainsi qu aux espaces de " +
+      "ses stagiaires.\n\n" +
+      "Le catalogue de formations de l Editeur, dans son etendue au jour de la souscription et " +
+      "tel qu il evolue pendant la duree du contrat.\n\n" +
+      "Un portail public en marque blanche : denomination, logo, couleurs et nom de domaine du " +
+      "Client. Les documents remis aux stagiaires et les manuels portent son en-tete.\n\n" +
+      "Les outils de suivi : registre des stagiaires, evaluations, documents administratifs, " +
+      "signature electronique, journal des telechargements.\n\n" +
+      "La maintenance, les corrections et les evolutions de la plateforme.\n\n" +
+      "L Editeur ne garantit aucun volume de vente ni aucun resultat commercial ou pedagogique.\n\n" +
+      "## Article 3 - Ce que le Client conserve\n\n" +
+      "Les formations creees par le Client demeurent sa propriete pleine et entiere. L Editeur " +
+      "n acquiert aucun droit sur elles, ne percoit aucune commission a ce titre, et ne peut " +
+      "les diffuser ni les reutiliser sans son accord ecrit.\n\n" +
+      "Les donnees des stagiaires du Client lui appartiennent. Elles lui sont restituees sur " +
+      "demande, dans un format exploitable, pendant la duree du contrat et les trente jours " +
+      "suivant son terme.\n\n" +
+      "## Article 4 - Obligations du Client\n\n" +
+      "Le Client repond seul de la relation avec ses stagiaires et ses clients, de la " +
+      "facturation, du recouvrement, et du respect de la reglementation applicable a son " +
+      "activite.\n\n" +
+      "Il verifie que chaque formation qu il diffuse correspond a ce qu il vend, et s abstient " +
+      "de toute affirmation inexacte a son sujet.\n\n" +
+      "Il s interdit de reproduire, d extraire, de rediffuser ou de ceder les contenus de " +
+      "l Editeur en dehors du cadre defini au present contrat.\n\n" +
+      "Il informe l Editeur de toute reclamation, controle ou audit portant sur une formation " +
+      "issue du catalogue de l Editeur.\n\n" +
+      "## Article 5 - Prix\n\n" +
+      "Abonnement mensuel : {{abonnement}} euros hors taxes, tout compris. Il couvre " +
+      "l integralite de l article 2, sans option ni supplement.\n\n" +
+      "Catalogue de l Editeur : {{commission}} % du prix de vente hors taxes pratique par le " +
+      "Client.\n\n" +
+      "Formations propres du Client : aucune commission.\n\n" +
+      "Minimum par stagiaire : pour chaque stagiaire inscrit, il est du le plus eleve des deux " +
+      "montants suivants : la commission definie ci-dessus, ou {{plancher}} euros hors taxes. " +
+      "Ce minimum est du pour tout stagiaire inscrit, y compris sur les formations propres du " +
+      "Client et y compris lorsque la formation n est facturee a personne : il couvre les " +
+      "couts de plateforme, de correction et de traitement automatise que chaque inscription " +
+      "engendre.\n\n" +
+      "Affaires apportees : lorsque l Editeur presente au Client un client final qu il a " +
+      "trouve lui-meme, la part revenant a l Editeur sur cette affaire est portee a 50 % du " +
+      "prix de vente hors taxes.\n\n" +
+      "## Article 6 - Fait generateur et reglement\n\n" +
+      "Les sommes dues au titre de l article 5 sont acquises a l Editeur a l inscription du " +
+      "stagiaire. Elles restent dues quelle que soit l issue du parcours, notamment en cas " +
+      "d abandon, d interruption ou d absence du stagiaire.\n\n" +
+      "Le decompte est etabli mensuellement. Le reglement intervient a trente jours a compter " +
+      "de la facture.\n\n" +
+      "Toute somme impayee a son echeance porte interet au taux legal majore, et donne lieu a " +
+      "l indemnite forfaitaire de recouvrement prevue par le code de commerce.\n\n" +
+      "## Article 7 - Gestion administrative des formations propres du Client\n\n" +
+      "Cette prestation est optionnelle. Elle n est due que si le Client la demande, et se " +
+      "substitue alors au minimum par stagiaire defini a l article 5.\n\n" +
+      "Lorsqu elle est retenue, l Editeur prend en charge, pour les formations propres du " +
+      "Client : la production des conventions et contrats, des convocations, des feuilles " +
+      "d emargement, des evaluations, des attestations de fin de formation, ainsi que la " +
+      "constitution des pieces justificatives attendues lors d un audit, et la preparation des " +
+      "elements du bilan pedagogique et financier.\n\n" +
+      "Prix : {{gestion}} euros hors taxes par stagiaire inscrit, tout compris, minimum de " +
+      "l article 5 inclus.\n\n" +
+      "Le Client demeure seul responsable, devant l administration comme devant tout " +
+      "certificateur, de l exactitude des informations qu il transmet, de la verification des " +
+      "documents produits, et du depot de ses declarations. L Editeur produit les elements ; " +
+      "le Client les controle, les signe et les depose.\n\n" +
+      "## Article 8 - Propriete intellectuelle et marque blanche\n\n" +
+      "Les contenus, manuels, marques, developpements et bases de donnees de l Editeur " +
+      "demeurent sa propriete exclusive.\n\n" +
+      "Le present contrat n emporte aucune cession. Il confere au Client une licence d usage " +
+      "non exclusive, non cessible et limitee a la duree du contrat, l autorisant a diffuser " +
+      "les formations du catalogue sous sa propre marque aupres de ses stagiaires.\n\n" +
+      "A l expiration du contrat, quelle qu en soit la cause, cette licence cesse de plein " +
+      "droit. Le Client cesse toute diffusion des contenus de l Editeur et n en conserve " +
+      "aucune copie. Les formations qu il a creees lui-meme, ainsi que les donnees de ses " +
+      "stagiaires, lui demeurent acquises.\n\n" +
+      "## Article 9 - Donnees personnelles\n\n" +
+      "Le Client est responsable de traitement des donnees de ses stagiaires. L Editeur agit " +
+      "en qualite de sous-traitant au sens de l article 28 du reglement (UE) 2016/679.\n\n" +
+      "Une annexe de sous-traitance est conclue entre les parties et fait partie integrante du " +
+      "present contrat.\n\n" +
+      "## Article 10 - Disponibilite et responsabilite\n\n" +
+      "L Editeur s engage a mettre en oeuvre ses meilleurs efforts pour assurer la " +
+      "disponibilite de la plateforme. Il n est pas tenu des interruptions imputables aux " +
+      "services tiers dont elle depend, ni des cas de force majeure.\n\n" +
+      "La responsabilite de chaque partie ne peut etre engagee qu en cas de faute prouvee et " +
+      "se limite aux dommages directs, dans la limite des sommes echangees au titre des douze " +
+      "mois precedant le fait generateur.\n\n" +
+      "Sont exclus les dommages indirects, la perte de chiffre d affaires, la perte de " +
+      "clientele, et les consequences d un retrait de certification ou d un refus de prise en " +
+      "charge par un financeur.\n\n" +
+      "## Article 11 - Duree et resiliation\n\n" +
+      "Le contrat est conclu pour une duree de {{duree}} mois, renouvelable par tacite " +
+      "reconduction. Chaque partie peut y mettre fin par ecrit moyennant un preavis de " +
+      "{{preavis}} mois.\n\n" +
+      "En cas de manquement grave, la resiliation intervient de plein droit quinze jours apres " +
+      "une mise en demeure restee sans effet.\n\n" +
+      "Les stagiaires inscrits avant le terme achevent leur parcours. Les sommes " +
+      "correspondantes restent dues.\n\n" +
+      "## Article 12 - Confidentialite\n\n" +
+      "Chaque partie s engage a ne pas divulguer les informations non publiques recues de " +
+      "l autre, pendant la duree du contrat et les trois annees suivantes.\n\n" +
+      "## Article 13 - Droit applicable et juridiction\n\n" +
+      "Le present contrat est soumis au droit francais.\n\n" +
+      "Tout differend relatif a sa validite, son interpretation ou son execution sera soumis " +
+      "au Tribunal de commerce de Paris, auquel les parties attribuent competence exclusive, " +
+      "nonobstant pluralite de defendeurs ou appel en garantie.\n",
+  },
   {
     code: "PARTENARIAT",
     titre: "Contrat de partenariat de distribution",
