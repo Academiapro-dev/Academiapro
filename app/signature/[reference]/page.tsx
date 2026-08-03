@@ -5,6 +5,7 @@ const LIBELLE_TYPE: any = {
   convention: "Convention de formation professionnelle",
   devis: "Devis",
   bon_commande: "Bon de commande",
+  contrat: "Contrat",
   convocation: "Convocation",
   programme: "Programme de formation",
   attestation: "Attestation de fin de formation",
@@ -18,6 +19,7 @@ export default function PageSignature({ params }: { params: { reference: string 
   const [consentement, setConsentement] = useState("");
   const [email, setEmail] = useState("");
   const [deja, setDeja] = useState<any>(null);
+  const [document, setDocument] = useState<any>(null);
   const [nom, setNom] = useState("");
   const [qualite, setQualite] = useState("");
   const [code, setCode] = useState("");
@@ -34,6 +36,7 @@ export default function PageSignature({ params }: { params: { reference: string 
 
   useEffect(function () {
     charger();
+    chargerDocument();
   }, []);
 
   async function charger() {
@@ -54,6 +57,18 @@ export default function PageSignature({ params }: { params: { reference: string 
     } catch (e: any) {
       setErreur("Lecture impossible : " + String(e));
     }
+  }
+
+  // Le document doit etre lisible AVANT la signature : la case de consentement
+  // fait reconnaitre qu on l a lu.
+  async function chargerDocument() {
+    try {
+      const r = await fetch(
+        "/api/organisme/signature?vue=document&reference=" + encodeURIComponent(reference)
+      );
+      const data = await r.json();
+      if (data.ok) setDocument(data);
+    } catch (e) {}
   }
 
   async function demanderCode() {
@@ -153,6 +168,10 @@ export default function PageSignature({ params }: { params: { reference: string 
   const signature = resultat || deja;
   const pretASigner = accepte && nom.trim().length >= 2 && code.trim().length === 6;
 
+  const intitule = document
+    ? document.titre || LIBELLE_TYPE[document.type] || "Document"
+    : "";
+
   return (
     <div style={CADRE}>
       <div style={{ maxWidth: "680px", margin: "0 auto" }}>
@@ -163,12 +182,61 @@ export default function PageSignature({ params }: { params: { reference: string 
           Document {reference}
         </h1>
         <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "15px", lineHeight: "1.7", marginTop: 0 }}>
-          Relisez le document que vous avez recu, puis signez-le ci-dessous.
+          Relisez le document ci-dessous, puis signez-le.
         </p>
 
         {erreur && (
           <div style={{ ...CARTE, background: "#fdf3f2", border: "1px solid #f0c8c2" }}>
             <p style={{ color: "#a33a2a", fontSize: "15px", margin: 0, lineHeight: "1.7" }}>{erreur}</p>
+          </div>
+        )}
+
+        {document && (
+          <div style={{ ...CARTE, background: "#faf8f3", border: "1px solid #e0d6c0" }}>
+            <p style={{ color: "#8a7040", fontSize: "12px", letterSpacing: "2px", margin: "0 0 8px" }}>
+              LE DOCUMENT
+            </p>
+            <h2 style={{ color: "#0a3d2e", fontSize: "20px", margin: "0 0 6px" }}>
+              {intitule}
+            </h2>
+            {document.contrepartie && (
+              <p style={{ color: "#555", fontSize: "15px", margin: "0 0 16px", lineHeight: "1.7" }}>
+                Etabli avec {document.contrepartie}.
+              </p>
+            )}
+
+            {document.lien_lecture ? (
+              <a
+                href={document.lien_lecture}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: "inline-block",
+                  background: "#0a3d2e",
+                  color: "#ffffff",
+                  padding: "14px 26px",
+                  borderRadius: "8px",
+                  textDecoration: "none",
+                  fontSize: "16px",
+                  fontFamily: "Georgia,serif",
+                  fontWeight: "bold",
+                }}
+              >
+                Lire le document
+              </a>
+            ) : (
+              <p style={{ color: "#a33a2a", fontSize: "15px", margin: 0, lineHeight: "1.7" }}>
+                Le document n a pas pu etre affiche. Ne signez pas avant d en avoir pris
+                connaissance : demandez-en une copie a l expediteur.
+              </p>
+            )}
+
+            {document.empreinte && (
+              <p style={{ color: "#8a7a5a", fontSize: "12px", margin: "16px 0 0", lineHeight: "1.7", wordBreak: "break-all" }}>
+                Empreinte du document :<br />
+                <span style={{ fontFamily: "monospace" }}>{document.empreinte}</span>
+              </p>
+            )}
           </div>
         )}
 
