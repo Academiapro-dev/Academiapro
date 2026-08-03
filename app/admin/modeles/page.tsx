@@ -13,6 +13,8 @@ export default function PageModeles() {
   const [resultat, setResultat] = useState<any>(null);
   const [organismes, setOrganismes] = useState<any[]>([]);
   const [tenant, setTenant] = useState("");
+  const [envoyes, setEnvoyes] = useState<any>({});
+  const [copie, setCopie] = useState("");
 
   useEffect(function () {
     charger();
@@ -69,6 +71,7 @@ export default function PageModeles() {
     setMessage("");
     setErreur("");
     setResultat(null);
+    setEnvoyes({});
     try {
       const liste = (variantes[m.id] || []).filter(function (v: any) {
         return v && String(v.libelle || "").trim();
@@ -96,6 +99,43 @@ export default function PageModeles() {
       setErreur("Generation impossible : " + String(e));
     }
     setOccupe("");
+  }
+
+  // Copier le lien ne suffit pas : le signataire exterieur n a pas de session.
+  // Seul l email de faire-signer porte le lien magique qui le connecte.
+  async function envoyerASigner(reference: string, email: string) {
+    setOccupe("envoi-" + reference);
+    setErreur("");
+    try {
+      const url = tenant
+        ? "/api/organisme/faire-signer?tenant=" + encodeURIComponent(tenant)
+        : "/api/organisme/faire-signer";
+
+      const r = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ document_reference: reference, email: email }),
+      });
+      const data = await r.json();
+      if (data.ok) {
+        setEnvoyes({ ...envoyes, [reference]: data.destinataire });
+      } else {
+        setErreur(data.erreur || "Envoi impossible.");
+      }
+    } catch (e: any) {
+      setErreur("Envoi impossible : " + String(e));
+    }
+    setOccupe("");
+  }
+
+  async function copier(texte: string, reference: string) {
+    try {
+      await navigator.clipboard.writeText(texte);
+      setCopie(reference);
+      setTimeout(function () { setCopie(""); }, 2500);
+    } catch (e) {
+      setErreur("Copie impossible. Selectionnez le lien a la main.");
+    }
   }
 
   const CADRE: any = {
@@ -138,6 +178,17 @@ export default function PageModeles() {
     background: "none",
     border: "1px solid rgba(200,169,110,0.45)",
     color: "#c8a96e",
+    padding: "8px 16px",
+    borderRadius: "20px",
+    cursor: "pointer",
+    fontSize: "13px",
+    fontFamily: "Georgia,serif",
+  };
+
+  const BOUTON_PALE: any = {
+    background: "none",
+    border: "1px solid rgba(255,255,255,0.15)",
+    color: "rgba(255,255,255,0.45)",
     padding: "8px 16px",
     borderRadius: "20px",
     cursor: "pointer",
@@ -201,28 +252,58 @@ export default function PageModeles() {
             </p>
             <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "14px", margin: "0 0 14px", lineHeight: "1.75" }}>
               {resultat.contrats.length > 1
-                ? "Envoyez a " + resultat.signataire + " le lien de la version retenue. Des que"
-                  + " l une est signee, les autres cessent d etre signables."
-                : "Envoyez ce lien a " + resultat.signataire + ". Un code de verification lui"
-                  + " sera demande avant signature."}
+                ? "Envoyez a " + resultat.signataire + " la version retenue. Des que l une est"
+                  + " signee, les autres cessent d etre signables."
+                : "Envoyez le document a " + resultat.signataire + ". Il recevra un lien qui le"
+                  + " connecte, puis un code de verification avant signature."}
             </p>
 
             {resultat.contrats.map(function (c: any) {
+              const envoye = envoyes[c.reference];
               return (
-                <div key={c.reference} style={{ background: "rgba(255,255,255,0.06)", borderRadius: "8px", padding: "12px 14px", marginBottom: "10px" }}>
+                <div key={c.reference} style={{ background: "rgba(255,255,255,0.06)", borderRadius: "8px", padding: "14px 16px", marginBottom: "10px" }}>
                   {c.libelle && (
                     <p style={{ color: "#c8a96e", fontSize: "13px", margin: "0 0 5px", fontWeight: "bold" }}>
                       {c.libelle}
                     </p>
                   )}
-                  <p style={{ color: "rgba(255,255,255,0.8)", fontSize: "13px", margin: 0, fontFamily: "monospace", wordBreak: "break-all" }}>
+                  <p style={{ color: "rgba(255,255,255,0.8)", fontSize: "13px", margin: "0 0 12px", fontFamily: "monospace", wordBreak: "break-all" }}>
                     {c.lien_signature}
                   </p>
+
+                  {envoye ? (
+                    <p style={{ color: "#4caf50", fontSize: "14px", margin: 0 }}>
+                      Envoye a {envoye}. Le lien de connexion est valable trente jours.
+                    </p>
+                  ) : (
+                    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                      <button
+                        onClick={() => envoyerASigner(c.reference, resultat.signataire)}
+                        disabled={occupe !== ""}
+                        style={{ background: "#c8a96e", color: "#050508", padding: "10px 20px", borderRadius: "20px", border: "none", cursor: "pointer", fontWeight: "bold", fontSize: "13px", fontFamily: "Georgia,serif" }}
+                      >
+                        {occupe === "envoi-" + c.reference
+                          ? "Envoi..."
+                          : "Envoyer a signer"}
+                      </button>
+                      <button
+                        onClick={() => copier(c.lien_signature, c.reference)}
+                        style={BOUTON}
+                      >
+                        {copie === c.reference ? "Lien copie" : "Copier le lien"}
+                      </button>
+                    </div>
+                  )}
                 </div>
               );
             })}
 
-            <a href="/admin/coffre" style={{ ...BOUTON, display: "inline-block", textDecoration: "none", marginTop: "6px" }}>
+            <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px", margin: "10px 0 14px", lineHeight: "1.7" }}>
+              Le lien copie ne connecte personne : il ne sert que pour vous, deja identifie.
+              Un signataire exterieur doit recevoir l email.
+            </p>
+
+            <a href="/admin/coffre" style={{ ...BOUTON, display: "inline-block", textDecoration: "none" }}>
               Voir au coffre →
             </a>
           </div>
@@ -237,14 +318,14 @@ export default function PageModeles() {
             {d.a_installer > 0 && (
               <div style={{ ...CARTE, marginTop: "24px", border: "1px solid rgba(200,169,110,0.5)" }}>
                 <p style={{ color: "rgba(255,255,255,0.75)", fontSize: "15px", margin: "0 0 14px", lineHeight: "1.75" }}>
-                  {d.a_installer} modele(s) disponibles et pas encore installes.
+                  {d.a_installer} modele(s) a installer ou a mettre a jour.
                 </p>
                 <button
                   onClick={installer}
                   disabled={occupe !== ""}
                   style={{ background: "#c8a96e", color: "#050508", padding: "13px 26px", borderRadius: "8px", border: "none", cursor: "pointer", fontWeight: "bold", fontSize: "15px", fontFamily: "Georgia,serif" }}
                 >
-                  {occupe === "installer" ? "Installation..." : "Installer les modeles"}
+                  {occupe === "installer" ? "Installation..." : "Mettre les modeles a jour"}
                 </button>
               </div>
             )}
@@ -394,7 +475,7 @@ export default function PageModeles() {
                           </button>
                         </div>
 
-                        <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+                        <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
                           <button
                             onClick={() => generer(m, false)}
                             disabled={occupe !== ""}
@@ -409,7 +490,7 @@ export default function PageModeles() {
                           <button
                             onClick={() => generer(m, true)}
                             disabled={occupe !== ""}
-                            style={BOUTON}
+                            style={BOUTON_PALE}
                           >
                             Generer malgre les champs vides
                           </button>
@@ -417,7 +498,8 @@ export default function PageModeles() {
 
                         <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px", margin: "12px 0 0", lineHeight: "1.7" }}>
                           Chaque contrat est archive au coffre des sa generation, avec son
-                          empreinte. Vous recevrez un lien de signature par version.
+                          empreinte. Generer malgre les champs vides produit un document
+                          incomplet, portant la mention A COMPLETER : reserve a la preparation.
                         </p>
                       </div>
                     )}
