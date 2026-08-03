@@ -9,7 +9,7 @@ const CGV_HTML = "<p style='background:rgba(200,169,110,0.1);border:1px solid rg
 
 export default function PageCGV() {
   return (
-    <main
+    <main 
       style={{
         maxWidth: 900,
         margin: "0 auto",
