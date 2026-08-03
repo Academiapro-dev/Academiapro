@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
+import crypto from "crypto";
 import { sessionCourante } from "../../../../lib/session";
 
 export const runtime = "nodejs";
@@ -8,6 +9,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 const ADMINS = ["contact@academiapro.fr"];
+const BUCKET = "documents-signes";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
@@ -383,13 +385,37 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const octets = Buffer.from(await pdf.save());
+
+    // ARCHIVAGE. Sans depot, le signataire ne peut pas relire ce qu il signe,
+    // et la signature regenererait un fichier different de celui qui lui a
+    // ete presente. Le bon suit donc le meme chemin que les contrats.
+    const empreinte = crypto.createHash("sha256").update(octets).digest("hex");
+    const chemin = String(b.tenant_id) + "/" + reference + ".pdf";
+
+    const { error: erreurDepot } = await supabase.storage
+      .from(BUCKET)
+      .upload(chemin, octets, { contentType: "application/pdf", upsert: true });
+
+    if (erreurDepot) {
+      return NextResponse.json(
+        { ok: false, erreur: "Archivage impossible : " + erreurDepot.message },
+        { status: 500 }
+      );
+    }
+
     await supabase.from("organisme_documents").insert({
       tenant_id: b.tenant_id,
       type: "bon_commande",
       stagiaire_email: org.email_contact,
       formation_code: null,
       reference: reference,
+      pdf_chemin: chemin,
+      pdf_sha256: empreinte,
+      pdf_octets: octets.length,
       donnees: {
+        titre: "Bon de commande",
+        contrepartie: org.raison_sociale || null,
         frais: frais,
         mensuel: mensuel,
         plein: plein,
@@ -402,9 +428,21 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    const octets = await pdf.save();
+    await supabase.from("coffre_documents").insert({
+      tenant_id: b.tenant_id,
+      categorie: "bon_commande",
+      titre: "Bon de commande - " + (org.raison_sociale || reference),
+      contrepartie: org.raison_sociale || org.email_contact,
+      reference: reference,
+      chemin: chemin,
+      empreinte_sha256: empreinte,
+      octets: octets.length,
+      signe: false,
+      depose_par: session.email,
+      notes: "Edite depuis la fiche du client",
+    });
 
-    return new NextResponse(Buffer.from(octets), {
+    return new NextResponse(new Uint8Array(octets), {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",
