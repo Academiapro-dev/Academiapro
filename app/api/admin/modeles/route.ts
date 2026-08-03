@@ -58,7 +58,7 @@ const DROIT_7 =
   "Tribunal de commerce de Paris, auquel les parties attribuent competence exclusive, " +
   "nonobstant pluralite de defendeurs ou appel en garantie.\n";
 
-// Dix modeles prets a l emploi. Ce sont des PROJETS : ils doivent etre relus
+// Onze modeles prets a l emploi. Ce sont des PROJETS : ils doivent etre relus
 // par un professionnel du droit avant d etre opposes a un cocontractant.
 const MODELES = [
   {
@@ -203,6 +203,158 @@ const MODELES = [
       "nonobstant pluralite de defendeurs ou appel en garantie.\n",
   },
   {
+    code: "PACK_INTERNATIONAL",
+    titre: "Contrat d abonnement international - plateforme et catalogue en marque blanche",
+    categorie: "client",
+    description:
+      "Le contrat du pack pour un client etabli hors de France. Sans reference au droit francais de la formation.",
+    champs: CHAMPS_COMMUNS.concat([
+      { cle: "pays", libelle: "Pays d etablissement du client" },
+      { cle: "tva_intra", libelle: "Numero de TVA intracommunautaire, si UE" },
+      { cle: "abonnement", libelle: "Abonnement mensuel HT, en euros" },
+      { cle: "commission", libelle: "Commission sur le catalogue editeur, en pourcentage" },
+      { cle: "plancher", libelle: "Minimum par stagiaire inscrit, en euros" },
+      { cle: "gestion", libelle: "Forfait par stagiaire avec gestion administrative, en euros" },
+      { cle: "duree", libelle: "Duree initiale, en mois" },
+      { cle: "preavis", libelle: "Preavis de resiliation, en mois" },
+    ]),
+    corps:
+      "ENTRE LES SOUSSIGNES\n\n" +
+      "AcadeMIA Pro LLC, societe de droit du Wyoming, dont le siege est situe 30 N Gould St " +
+      "STE R, Sheridan WY 82801, Etats-Unis, representee par Jacques Lalou, en sa qualite de " +
+      "gerant, ci-apres denommee l Editeur,\n\n" +
+      "ET\n\n" +
+      "{{contrepartie}}, {{forme}}, dont le siege est situe {{siege}}, {{pays}}, immatriculee " +
+      "sous le numero {{immatriculation}}, representee par {{representant}}, ci-apres denommee " +
+      "le Client,\n\n" +
+      "IL A ETE CONVENU CE QUI SUIT\n\n" +
+      "## Article 1 - Objet\n\n" +
+      "L Editeur met a la disposition du Client, pour la duree du present contrat, une " +
+      "plateforme de formation en ligne, son catalogue de formations, et les services " +
+      "d accompagnement definis ci-apres.\n\n" +
+      "Le Client exploite ces moyens sous sa propre marque, aupres de ses propres clients, en " +
+      "son nom et pour son compte.\n\n" +
+      "## Article 2 - Conformite locale\n\n" +
+      "Le Client est etabli en {{pays}}. Il fait son affaire personnelle du respect de la " +
+      "reglementation applicable a son activite de formation dans ce pays, notamment en " +
+      "matiere d autorisation d exercer, de certification qualite, de contenu obligatoire des " +
+      "contrats de formation, de protection des consommateurs et de fiscalite.\n\n" +
+      "L Editeur ne delivre aucune garantie de conformite des contenus ou des documents " +
+      "produits par la plateforme au droit du pays du Client. Il appartient au Client de les " +
+      "adapter et de les faire verifier.\n\n" +
+      "Les modeles de documents proposes par la plateforme sont concus au regard du droit " +
+      "francais et sont fournis a titre indicatif.\n\n" +
+      "## Article 3 - Ce que l Editeur met a disposition\n\n" +
+      "L Editeur fournit, sans supplement de prix :\n\n" +
+      "L acces a la plateforme pour le Client et ses collaborateurs, ainsi qu aux espaces de " +
+      "ses stagiaires.\n\n" +
+      "Le catalogue de formations de l Editeur, dans son etendue au jour de la souscription et " +
+      "tel qu il evolue pendant la duree du contrat.\n\n" +
+      "Un portail public en marque blanche : denomination, logo, couleurs et nom de domaine du " +
+      "Client. Les documents remis aux stagiaires et les manuels portent son en-tete.\n\n" +
+      "Les outils de suivi : registre des stagiaires, evaluations, documents administratifs, " +
+      "signature electronique, journal des telechargements.\n\n" +
+      "La maintenance, les corrections et les evolutions de la plateforme.\n\n" +
+      "L Editeur ne garantit aucun volume de vente ni aucun resultat commercial ou pedagogique.\n\n" +
+      "## Article 4 - Ce que le Client conserve\n\n" +
+      "Les formations creees par le Client demeurent sa propriete pleine et entiere. L Editeur " +
+      "n acquiert aucun droit sur elles, ne percoit aucune commission a ce titre, et ne peut " +
+      "les diffuser ni les reutiliser sans son accord ecrit.\n\n" +
+      "Les donnees des stagiaires du Client lui appartiennent. Elles lui sont restituees sur " +
+      "demande, dans un format exploitable, pendant la duree du contrat et les trente jours " +
+      "suivant son terme.\n\n" +
+      "## Article 5 - Prix\n\n" +
+      "Abonnement mensuel : {{abonnement}} euros hors taxes, tout compris. Il couvre " +
+      "l integralite de l article 3, sans option ni supplement.\n\n" +
+      "Catalogue de l Editeur : {{commission}} % du prix de vente hors taxes pratique par le " +
+      "Client.\n\n" +
+      "Formations propres du Client : aucune commission.\n\n" +
+      "Minimum par stagiaire : pour chaque stagiaire inscrit, il est du le plus eleve des deux " +
+      "montants suivants : la commission definie ci-dessus, ou {{plancher}} euros hors taxes. " +
+      "Ce minimum est du pour tout stagiaire inscrit, y compris sur les formations propres du " +
+      "Client et y compris lorsque la formation n est facturee a personne.\n\n" +
+      "Affaires apportees : lorsque l Editeur presente au Client un client final qu il a " +
+      "trouve lui-meme, la part revenant a l Editeur sur cette affaire est portee a 50 % du " +
+      "prix de vente hors taxes.\n\n" +
+      "Tous les montants sont exprimes en euros. Les frais bancaires et de change sont a la " +
+      "charge du Client.\n\n" +
+      "## Article 6 - Taxes\n\n" +
+      "Le Client communique son numero de TVA intracommunautaire {{tva_intra}} lorsqu il est " +
+      "etabli dans l Union europeenne. Dans ce cas, la prestation releve de l autoliquidation " +
+      "et aucune taxe n est facturee par l Editeur.\n\n" +
+      "Lorsque le Client est etabli hors de l Union europeenne, la prestation est hors du champ " +
+      "de la taxe sur la valeur ajoutee de l Union.\n\n" +
+      "Toute retenue a la source ou taxe locale exigible dans le pays du Client demeure a sa " +
+      "charge et ne vient pas en diminution des sommes dues a l Editeur.\n\n" +
+      "## Article 7 - Fait generateur et reglement\n\n" +
+      "Les sommes dues au titre de l article 5 sont acquises a l Editeur a l inscription du " +
+      "stagiaire. Elles restent dues quelle que soit l issue du parcours, notamment en cas " +
+      "d abandon, d interruption ou d absence du stagiaire.\n\n" +
+      "Le decompte est etabli mensuellement. Le reglement intervient a trente jours a compter " +
+      "de la facture, par virement, sans compensation ni deduction.\n\n" +
+      "## Article 8 - Gestion administrative des formations propres du Client\n\n" +
+      "Cette prestation est optionnelle. Elle n est due que si le Client la demande, et se " +
+      "substitue alors au minimum par stagiaire defini a l article 5.\n\n" +
+      "Lorsqu elle est retenue, l Editeur prend en charge, pour les formations propres du " +
+      "Client : la production des documents contractuels et pedagogiques, des convocations, " +
+      "des feuilles d emargement, des evaluations, des attestations de fin de formation, ainsi " +
+      "que la constitution des pieces justificatives d execution.\n\n" +
+      "Prix : {{gestion}} euros hors taxes par stagiaire inscrit, tout compris, minimum de " +
+      "l article 5 inclus.\n\n" +
+      "Le Client demeure seul responsable de l exactitude des informations qu il transmet, de " +
+      "la verification des documents produits, de leur conformite au droit de son pays, et de " +
+      "leur depot aupres de toute autorite. L Editeur produit les elements ; le Client les " +
+      "controle, les signe et les depose.\n\n" +
+      "## Article 9 - Propriete intellectuelle et marque blanche\n\n" +
+      "Les contenus, manuels, marques, developpements et bases de donnees de l Editeur " +
+      "demeurent sa propriete exclusive.\n\n" +
+      "Le present contrat n emporte aucune cession. Il confere au Client une licence d usage " +
+      "non exclusive, non cessible et limitee a la duree du contrat, l autorisant a diffuser " +
+      "les formations du catalogue sous sa propre marque aupres de ses stagiaires, sur le " +
+      "territoire de {{pays}}.\n\n" +
+      "A l expiration du contrat, quelle qu en soit la cause, cette licence cesse de plein " +
+      "droit. Le Client cesse toute diffusion des contenus de l Editeur et n en conserve " +
+      "aucune copie. Les formations qu il a creees lui-meme, ainsi que les donnees de ses " +
+      "stagiaires, lui demeurent acquises.\n\n" +
+      "## Article 10 - Donnees personnelles\n\n" +
+      "Le Client est responsable de traitement des donnees de ses stagiaires. L Editeur agit " +
+      "en qualite de sous-traitant.\n\n" +
+      "Lorsque des donnees de personnes situees dans l Union europeenne sont traitees, une " +
+      "annexe conforme a l article 28 du reglement (UE) 2016/679 est conclue entre les parties " +
+      "et fait partie integrante du present contrat.\n\n" +
+      "Lorsque le droit du pays du Client impose des obligations equivalentes, le Client en " +
+      "informe l Editeur et les parties concluent l annexe correspondante.\n\n" +
+      "## Article 11 - Disponibilite et responsabilite\n\n" +
+      "L Editeur s engage a mettre en oeuvre ses meilleurs efforts pour assurer la " +
+      "disponibilite de la plateforme. Il n est pas tenu des interruptions imputables aux " +
+      "services tiers dont elle depend, ni des cas de force majeure.\n\n" +
+      "La responsabilite de chaque partie ne peut etre engagee qu en cas de faute prouvee et " +
+      "se limite aux dommages directs, dans la limite des sommes echangees au titre des douze " +
+      "mois precedant le fait generateur.\n\n" +
+      "Sont exclus les dommages indirects, la perte de chiffre d affaires, la perte de " +
+      "clientele, et les consequences d une non-conformite a la reglementation locale.\n\n" +
+      "## Article 12 - Duree et resiliation\n\n" +
+      "Le contrat est conclu pour une duree de {{duree}} mois, renouvelable par tacite " +
+      "reconduction. Chaque partie peut y mettre fin par ecrit moyennant un preavis de " +
+      "{{preavis}} mois.\n\n" +
+      "En cas de manquement grave, la resiliation intervient de plein droit quinze jours apres " +
+      "une mise en demeure restee sans effet.\n\n" +
+      "Les stagiaires inscrits avant le terme achevent leur parcours. Les sommes " +
+      "correspondantes restent dues.\n\n" +
+      "## Article 13 - Confidentialite\n\n" +
+      "Chaque partie s engage a ne pas divulguer les informations non publiques recues de " +
+      "l autre, pendant la duree du contrat et les trois annees suivantes.\n\n" +
+      "## Article 14 - Langue\n\n" +
+      "Le present contrat est redige en langue francaise. Toute traduction n a qu une valeur " +
+      "informative ; en cas de contradiction, la version francaise prevaut.\n\n" +
+      "## Article 15 - Droit applicable et juridiction\n\n" +
+      "Le present contrat est soumis au droit francais, a l exclusion de la Convention des " +
+      "Nations unies sur les contrats de vente internationale de marchandises.\n\n" +
+      "Tout differend relatif a sa validite, son interpretation ou son execution sera soumis " +
+      "au Tribunal de commerce de Paris, auquel les parties attribuent competence exclusive, " +
+      "nonobstant pluralite de defendeurs ou appel en garantie.\n",
+  },
+  {
     code: "CONVENTION",
     titre: "Convention de formation professionnelle - entreprise",
     categorie: "client",
@@ -327,7 +479,7 @@ const MODELES = [
       "IL A ETE CONVENU CE QUI SUIT, en application des articles L.6353-3 et suivants du code " +
       "du travail\n\n" +
       "## Article 1 - Objet\n\n" +
-      "Le Stagiaire, agissant a titre personnel et finançant lui-meme sa formation, s inscrit " +
+      "Le Stagiaire, agissant a titre personnel et financant lui-meme sa formation, s inscrit " +
       "a l action intitulee {{intitule}}.\n\n" +
       "## Article 2 - Nature et caracteristiques\n\n" +
       "Objectifs vises : {{objectifs}}.\n\n" +
