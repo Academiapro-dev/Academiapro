@@ -33,6 +33,24 @@ const CHAMPS_COMMUNS = [
   { cle: "email", libelle: "Email du signataire" },
 ];
 
+// Clause de droit applicable commune a tous les modeles de l editeur. Droit
+// francais et Tribunal de commerce de Paris : nos cocontractants sont
+// francais et nous operons depuis la France. Une clause renvoyant au Wyoming
+// serait inapplicable en pratique.
+const DROIT_9 =
+  "## Article 9 - Droit applicable et juridiction\n\n" +
+  "Le present accord est soumis au droit francais.\n\n" +
+  "Tout differend relatif a sa validite, son interpretation ou son execution sera soumis au " +
+  "Tribunal de commerce de Paris, auquel les parties attribuent competence exclusive, " +
+  "nonobstant pluralite de defendeurs ou appel en garantie.\n";
+
+const DROIT_7 =
+  "## Article 7 - Droit applicable et juridiction\n\n" +
+  "Le present contrat est soumis au droit francais.\n\n" +
+  "Tout differend relatif a sa validite, son interpretation ou son execution sera soumis au " +
+  "Tribunal de commerce de Paris, auquel les parties attribuent competence exclusive, " +
+  "nonobstant pluralite de defendeurs ou appel en garantie.\n";
+
 // Quatre modeles prets a l emploi. Ce sont des PROJETS : ils doivent etre relus
 // par un professionnel du droit avant d etre opposes a un cocontractant.
 const MODELES = [
@@ -51,8 +69,8 @@ const MODELES = [
     corps:
       "ENTRE LES SOUSSIGNES\n\n" +
       "AcadeMIA Pro LLC, societe de droit du Wyoming, dont le siege est situe 30 N Gould St " +
-      "STE R, Sheridan WY 82801, Etats-Unis, representee par Jacques Lalou, ci-apres " +
-      "denommee l Editeur,\n\n" +
+      "STE R, Sheridan WY 82801, Etats-Unis, representee par Jacques Lalou, en sa qualite de " +
+      "gerant, ci-apres denommee l Editeur,\n\n" +
       "ET\n\n" +
       "{{contrepartie}}, {{forme}}, dont le siege est situe {{siege}}, immatriculee sous le " +
       "numero {{immatriculation}}, representee par {{representant}}, ci-apres denommee le " +
@@ -93,9 +111,7 @@ const MODELES = [
       "La responsabilite de chaque partie ne peut etre engagee qu en cas de faute prouvee et se " +
       "limite aux dommages directs, dans la limite des sommes echangees au titre des douze mois " +
       "precedents.\n\n" +
-      "## Article 9 - Differends\n\n" +
-      "Les parties recherchent une solution amiable. A defaut, le differend releve des " +
-      "juridictions competentes selon les regles applicables entre professionnels.\n",
+      DROIT_9,
   },
   {
     code: "CONFIDENTIALITE",
@@ -110,14 +126,17 @@ const MODELES = [
     corps:
       "ENTRE LES SOUSSIGNES\n\n" +
       "AcadeMIA Pro LLC, societe de droit du Wyoming, dont le siege est situe 30 N Gould St " +
-      "STE R, Sheridan WY 82801, Etats-Unis, representee par Jacques Lalou,\n\n" +
+      "STE R, Sheridan WY 82801, Etats-Unis, representee par Jacques Lalou, en sa qualite de " +
+      "gerant,\n\n" +
       "ET\n\n" +
       "{{contrepartie}}, {{forme}}, dont le siege est situe {{siege}}, immatriculee sous le " +
       "numero {{immatriculation}}, representee par {{representant}},\n\n" +
       "IL A ETE CONVENU CE QUI SUIT\n\n" +
       "## Article 1 - Contexte\n\n" +
-      "Les parties envisagent {{objet}}. A cette occasion, elles seront amenees a echanger des " +
-      "informations non publiques.\n\n" +
+      "Les parties envisagent {{objet}}. A cette occasion, chacune d elles sera amenee a " +
+      "communiquer a l autre des informations non publiques.\n\n" +
+      "Le present accord est reciproque : chaque partie est tour a tour partie emettrice et " +
+      "partie destinataire, et supporte les memes obligations.\n\n" +
       "## Article 2 - Informations couvertes\n\n" +
       "Sont confidentielles toutes les informations echangees, quel qu en soit le support : " +
       "donnees commerciales et financieres, methodes, contenus pedagogiques, code source, " +
@@ -136,7 +155,24 @@ const MODELES = [
       "par ecrit.\n\n" +
       "## Article 6 - Absence d engagement\n\n" +
       "Le present accord n emporte aucune obligation de conclure, ni aucune cession de droit " +
-      "sur les informations echangees.\n",
+      "sur les informations echangees.\n\n" +
+      "## Article 7 - Donnees personnelles\n\n" +
+      "Si des donnees a caractere personnel sont echangees au titre du present accord, chaque " +
+      "partie s engage a les traiter conformement au reglement (UE) 2016/679 et a la loi " +
+      "Informatique et Libertes, a ne les utiliser qu aux fins de l objet defini a l article 1, " +
+      "et a les supprimer dans les conditions prevues a l article 5.\n\n" +
+      "Le present accord ne vaut pas contrat de sous-traitance au sens de l article 28 du " +
+      "reglement (UE) 2016/679. Si l une des parties devait traiter des donnees personnelles " +
+      "pour le compte de l autre, une annexe de sous-traitance distincte serait conclue " +
+      "prealablement.\n\n" +
+      "## Article 8 - Consequences d un manquement\n\n" +
+      "Tout manquement aux obligations du present accord engage la responsabilite de son " +
+      "auteur, qui repare le prejudice direct qui en resulte.\n\n" +
+      "Les parties reconnaissent qu une divulgation non autorisee est susceptible de causer un " +
+      "prejudice que des dommages et interets ne suffiraient pas a reparer. En consequence, la " +
+      "partie lesee pourra solliciter en refere toute mesure destinee a faire cesser le " +
+      "manquement, sans prejudice de toute demande indemnitaire ulterieure.\n\n" +
+      DROIT_9,
   },
   {
     code: "SOUSTRAITANCE",
@@ -152,7 +188,8 @@ const MODELES = [
     corps:
       "ENTRE LES SOUSSIGNES\n\n" +
       "AcadeMIA Pro LLC, societe de droit du Wyoming, dont le siege est situe 30 N Gould St " +
-      "STE R, Sheridan WY 82801, Etats-Unis, ci-apres le Donneur d ordre,\n\n" +
+      "STE R, Sheridan WY 82801, Etats-Unis, representee par Jacques Lalou, en sa qualite de " +
+      "gerant, ci-apres le Donneur d ordre,\n\n" +
       "ET\n\n" +
       "{{contrepartie}}, {{forme}}, dont le siege est situe {{siege}}, immatriculee sous le " +
       "numero {{immatriculation}}, representee par {{representant}}, ci-apres le Sous-traitant,\n\n" +
@@ -181,8 +218,12 @@ const MODELES = [
       "## Article 7 - Confidentialite et propriete\n\n" +
       "Les contenus fournis par le Donneur d ordre demeurent sa propriete. Le Sous-traitant " +
       "s interdit de les reutiliser en dehors de la prestation.\n\n" +
-      "## Article 8 - Differends\n\n" +
-      "Les parties recherchent une solution amiable avant toute action.\n",
+      "## Article 8 - Donnees personnelles\n\n" +
+      "Lorsque le Sous-traitant traite des donnees a caractere personnel pour le compte du " +
+      "Donneur d ordre, notamment les donnees des stagiaires, une annexe de sous-traitance " +
+      "conforme a l article 28 du reglement (UE) 2016/679 est conclue et fait partie " +
+      "integrante du present contrat.\n\n" +
+      DROIT_9,
   },
   {
     code: "PRESTATION",
@@ -198,7 +239,8 @@ const MODELES = [
     corps:
       "ENTRE LES SOUSSIGNES\n\n" +
       "AcadeMIA Pro LLC, societe de droit du Wyoming, dont le siege est situe 30 N Gould St " +
-      "STE R, Sheridan WY 82801, Etats-Unis, ci-apres le Client,\n\n" +
+      "STE R, Sheridan WY 82801, Etats-Unis, representee par Jacques Lalou, en sa qualite de " +
+      "gerant, ci-apres le Client,\n\n" +
       "ET\n\n" +
       "{{contrepartie}}, {{forme}}, dont le siege est situe {{siege}}, immatriculee sous le " +
       "numero {{immatriculation}}, representee par {{representant}}, ci-apres le Prestataire,\n\n" +
@@ -223,9 +265,20 @@ const MODELES = [
       "reserve, la livraison est reputee acceptee.\n\n" +
       "## Article 6 - Confidentialite\n\n" +
       "Le Prestataire s interdit de divulguer les informations recues et de reutiliser le " +
-      "contenu produit pour son compte ou pour un tiers.\n",
+      "contenu produit pour son compte ou pour un tiers.\n\n" +
+      DROIT_7,
   },
 ];
+
+// Compare le modele du fichier a celui enregistre en base. Le fichier fait
+// foi : c est lui qui est versionne et relu.
+function differe(fourni: any, enBase: any): boolean {
+  if (!enBase) return true;
+  if (String(enBase.corps || "") !== fourni.corps) return true;
+  if (String(enBase.titre || "") !== fourni.titre) return true;
+  if (JSON.stringify(enBase.champs || []) !== JSON.stringify(fourni.champs)) return true;
+  return false;
+}
 
 export async function GET() {
   try {
@@ -242,9 +295,11 @@ export async function GET() {
       return NextResponse.json({ ok: false, erreur: error.message }, { status: 500 });
     }
 
-    const codes = (data || []).map(function (m: any) { return m.code; });
+    const parCode: any = {};
+    for (const m of data || []) parCode[m.code] = m;
+
     const aInstaller = MODELES.filter(function (m: any) {
-      return codes.indexOf(m.code) < 0;
+      return differe(m, parCode[m.code]);
     }).length;
 
     return NextResponse.json({
@@ -268,37 +323,66 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, erreur: "Requete illisible" }, { status: 400 });
     }
 
-    // Installation des modeles fournis : on n ecrase jamais un modele que
-    // vous auriez deja modifie.
+    // Mise en place des modeles fournis. Ceux que vous avez crees vous-meme
+    // ne sont jamais touches : seuls les codes presents dans ce fichier le
+    // sont, et uniquement s ils different de leur version enregistree.
     if (b.action === "installer") {
       const { data: existants } = await supabase
         .from("modeles_contrats")
-        .select("code")
+        .select("id, code, titre, corps, champs")
         .limit(200);
 
-      const codes = (existants || []).map(function (m: any) { return m.code; });
-      const nouveaux = MODELES.filter(function (m: any) {
-        return codes.indexOf(m.code) < 0;
+      const parCode: any = {};
+      for (const m of existants || []) parCode[m.code] = m;
+
+      const nouveaux = MODELES.filter(function (m: any) { return !parCode[m.code]; });
+      const aJour = MODELES.filter(function (m: any) {
+        return parCode[m.code] && differe(m, parCode[m.code]);
       });
 
-      if (nouveaux.length === 0) {
+      if (nouveaux.length === 0 && aJour.length === 0) {
         return NextResponse.json({
           ok: true,
           installes: 0,
-          message: "Vos modeles sont deja en place.",
+          actualises: 0,
+          message: "Vos modeles sont deja a jour.",
         });
       }
 
-      const { error } = await supabase.from("modeles_contrats").insert(nouveaux);
-
-      if (error) {
-        return NextResponse.json({ ok: false, erreur: error.message }, { status: 500 });
+      if (nouveaux.length > 0) {
+        const { error } = await supabase.from("modeles_contrats").insert(nouveaux);
+        if (error) {
+          return NextResponse.json({ ok: false, erreur: error.message }, { status: 500 });
+        }
       }
+
+      for (const m of aJour) {
+        const { error } = await supabase
+          .from("modeles_contrats")
+          .update({
+            titre: m.titre,
+            categorie: m.categorie,
+            description: m.description,
+            champs: m.champs,
+            corps: m.corps,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", parCode[m.code].id);
+
+        if (error) {
+          return NextResponse.json({ ok: false, erreur: error.message }, { status: 500 });
+        }
+      }
+
+      const bouts: string[] = [];
+      if (nouveaux.length > 0) bouts.push(nouveaux.length + " modele(s) installe(s)");
+      if (aJour.length > 0) bouts.push(aJour.length + " mis a jour");
 
       return NextResponse.json({
         ok: true,
         installes: nouveaux.length,
-        message: nouveaux.length + " modele(s) installe(s). Relisez-les avant tout usage.",
+        actualises: aJour.length,
+        message: bouts.join(", ") + ". Relisez-les avant tout usage.",
       });
     }
 
