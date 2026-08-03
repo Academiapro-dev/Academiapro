@@ -37,6 +37,7 @@ export default function PageOrganismes() {
             taux: o.taux_prelevement !== null && o.taux_prelevement !== undefined ? String(o.taux_prelevement) : "",
             plancher: o.plancher_stagiaire !== null && o.plancher_stagiaire !== undefined ? String(o.plancher_stagiaire) : "",
             gestion: o.forfait_gestion !== null && o.forfait_gestion !== undefined ? String(o.forfait_gestion) : "",
+            gestion_souscrite: o.gestion_souscrite === true,
             apport: o.taux_apport !== null && o.taux_apport !== undefined ? String(o.taux_apport) : "",
             quota: o.quota_ia_mensuel !== null && o.quota_ia_mensuel !== undefined ? String(o.quota_ia_mensuel) : "",
             lancement: o.lancement_jusqu_au || "",
@@ -163,7 +164,7 @@ export default function PageOrganismes() {
     return (fiche[id] && fiche[id][cle]) || "";
   }
 
-  function poser(id: string, cle: string, valeur: string) {
+  function poser(id: string, cle: string, valeur: any) {
     setFiche({ ...fiche, [id]: { ...(fiche[id] || {}), [cle]: valeur } });
   }
 
@@ -269,6 +270,7 @@ export default function PageOrganismes() {
           organismes.map(function (o) {
             const estOuvert = ouvert[o.id] === true;
             const pretAContracter = !!o.abonnement_mensuel && !!o.email_contact;
+            const gestionCochee = fiche[o.id] ? fiche[o.id].gestion_souscrite === true : false;
             return (
               <div key={o.id} style={{ ...CARTE, border: pretAContracter ? CARTE.border : "1px solid rgba(232,163,61,0.45)" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "12px" }}>
@@ -278,8 +280,9 @@ export default function PageOrganismes() {
                     <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "13px", margin: 0 }}>
                       {o.abonnement_mensuel ? o.abonnement_mensuel + " EUR/mois" : "abonnement non fixe"}
                       {" · " + (o.taux_prelevement !== null && o.taux_prelevement !== undefined ? o.taux_prelevement : 35) + " %"}
-                      {" · plancher " + (o.plancher_stagiaire !== null && o.plancher_stagiaire !== undefined ? o.plancher_stagiaire : 30) + " EUR"}
-                      {o.forfait_gestion ? " · gestion " + o.forfait_gestion + " EUR" : ""}
+                      {o.gestion_souscrite && o.forfait_gestion
+                        ? " · gestion " + o.forfait_gestion + " EUR par stagiaire"
+                        : " · plancher " + (o.plancher_stagiaire !== null && o.plancher_stagiaire !== undefined ? o.plancher_stagiaire : 30) + " EUR"}
                       {" · quota " + (o.quota_ia_mensuel !== null && o.quota_ia_mensuel !== undefined ? o.quota_ia_mensuel : 40)}
                       {o.lancement_jusqu_au ? " · lancement jusqu au " + new Date(o.lancement_jusqu_au).toLocaleDateString("fr-FR") : ""}
                       {o.numero_tva ? "" : " · TVA manquante"}
@@ -349,10 +352,21 @@ export default function PageOrganismes() {
                       </div>
                     </div>
 
-                    <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px", margin: "-6px 0 14px", lineHeight: "1.6" }}>
-                      La gestion administrative est optionnelle : ce forfait par stagiaire
-                      remplace le minimum ci-dessus quand le client la demande.
-                    </p>
+                    <div
+                      onClick={() => poser(o.id, "gestion_souscrite", !gestionCochee)}
+                      style={{ display: "flex", alignItems: "flex-start", gap: "12px", padding: "14px 16px", borderRadius: "8px", cursor: "pointer", background: gestionCochee ? "rgba(200,169,110,0.15)" : "rgba(255,255,255,0.04)", border: gestionCochee ? "2px solid #c8a96e" : "1px solid rgba(255,255,255,0.12)", marginBottom: "14px" }}
+                    >
+                      <span style={{ flexShrink: 0, width: "22px", height: "22px", borderRadius: "5px", background: gestionCochee ? "#c8a96e" : "transparent", border: gestionCochee ? "2px solid #c8a96e" : "2px solid #999", color: "#050508", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "bold" }}>
+                        {gestionCochee ? "✓" : ""}
+                      </span>
+                      <span style={{ color: "rgba(255,255,255,0.85)", fontSize: "15px", lineHeight: "1.7" }}>
+                        Ce client a souscrit la gestion administrative.
+                        <span style={{ display: "block", color: "rgba(255,255,255,0.45)", fontSize: "13px", marginTop: "3px" }}>
+                          Le forfait ci-dessus remplace alors le minimum par stagiaire sur sa
+                          facture. Tant que la case est decochee, c est le minimum qui s applique.
+                        </span>
+                      </span>
+                    </div>
 
                     <h4 style={{ color: "#c8a96e", fontSize: "15px", margin: "14px 0" }}>Redaction assistee</h4>
 
@@ -411,6 +425,7 @@ export default function PageOrganismes() {
                           taux_prelevement: champ(o.id, "taux"),
                           plancher_stagiaire: champ(o.id, "plancher"),
                           forfait_gestion: champ(o.id, "gestion"),
+                          gestion_souscrite: gestionCochee,
                           taux_apport: champ(o.id, "apport"),
                           quota_ia_mensuel: champ(o.id, "quota"),
                           lancement_jusqu_au: champ(o.id, "lancement") || null,
