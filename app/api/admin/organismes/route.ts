@@ -27,6 +27,7 @@ const NOMBRES: any = {
   abonnement_mensuel: { max: 100000, libelle: "Abonnement invalide." },
   taux_prelevement: { max: 100, libelle: "Taux invalide." },
   plancher_stagiaire: { max: 10000, libelle: "Minimum par stagiaire invalide." },
+  forfait_gestion: { max: 10000, libelle: "Forfait de gestion administrative invalide." },
   taux_apport: { max: 100, libelle: "Taux d apport invalide." },
   frais_installation: { max: 100000, libelle: "Frais de mise en service invalides." },
   quota_ia_mensuel: { max: 5000, libelle: "Quota de redaction invalide." },
