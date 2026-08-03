@@ -64,15 +64,27 @@ export default async function EspaceStagiaire() {
   const t = session.tenantId;
   const vide: any = { data: [] };
 
-  // Sa fiche au registre : formation a laquelle il est inscrit.
-  const { data: fiche } = t
+  // SES INSCRIPTIONS AU REGISTRE. C est la seule source d acces : un stagiaire
+  // ne voit que ce a quoi il a ete inscrit, jamais le catalogue entier de son
+  // organisme. Une inscription par formation ; trois inscriptions, trois
+  // formations.
+  const { data: inscriptions } = t
     ? await supabase
         .from("organisme_apprenants")
         .select("nom, formation_code")
         .eq("tenant_id", t)
         .eq("email", session.email)
-        .maybeSingle()
-    : { data: null };
+        .limit(100)
+    : vide;
+
+  const mesCodes: string[] = [];
+  for (const i of inscriptions || []) {
+    if (i.formation_code && mesCodes.indexOf(i.formation_code) < 0) {
+      mesCodes.push(i.formation_code);
+    }
+  }
+
+  const fiche = (inscriptions || [])[0] || null;
 
   const { data: organisme } = t
     ? await supabase
@@ -82,29 +94,34 @@ export default async function EspaceStagiaire() {
         .maybeSingle()
     : { data: null };
 
-  // Le catalogue souscrit par son organisme.
-  const { data: souscrites } = t
+  // Parmi ses inscriptions, celles qui portent sur le catalogue de l editeur
+  // ouvert a son organisme. Une formation retiree du catalogue cesse d etre
+  // accessible.
+  const { data: souscrites } = t && mesCodes.length > 0
     ? await supabase
         .from("organisme_catalogue")
         .select("formation_code")
         .eq("tenant_id", t)
         .eq("actif", true)
-        .limit(1000)
+        .in("formation_code", mesCodes)
+        .limit(200)
     : vide;
 
   const codes = (souscrites || []).map(function (c: any) { return c.formation_code; });
 
   const { data: fiches } = codes.length > 0
-    ? await supabase.from("formations").select("code, titre, duree, domaine").in("code", codes).limit(1000)
+    ? await supabase.from("formations").select("code, titre, duree, domaine").in("code", codes).limit(200)
     : vide;
 
-  // Les formations propres de son organisme, publiees seulement.
-  const { data: propres } = t
+  // Celles qui portent sur les formations propres de son organisme, publiees
+  // seulement, et la encore limitees a ses inscriptions.
+  const { data: propres } = t && mesCodes.length > 0
     ? await supabase
         .from("organisme_cours")
         .select("code, titre, duree, domaine")
         .eq("tenant_id", t)
         .eq("publie", true)
+        .in("code", mesCodes)
         .limit(200)
     : vide;
 
@@ -174,6 +191,11 @@ export default async function EspaceStagiaire() {
   });
 
   const formations = miennes.concat(catalogue);
+
+  // Une inscription dont la formation n est plus ouverte au catalogue : on le
+  // dit, plutot que de la faire disparaitre sans explication.
+  const affiches = formations.map(function (f: any) { return f.code; });
+  const introuvables = mesCodes.filter(function (c: string) { return affiches.indexOf(c) < 0; });
 
   const nom = fiche && fiche.nom ? fiche.nom : (session.email || "").split("@")[0];
   const nomOrganisme = organisme ? organisme.raison_sociale : null;
@@ -252,9 +274,7 @@ export default async function EspaceStagiaire() {
         ) : (
           formations.map(function (f: any) {
             const modules = valides[f.code] || 0;
-            const aEvaluer = f.code === (fiche ? fiche.formation_code : null) &&
-              modules > 0 &&
-              !evaluees.has(f.code + "|chaud");
+            const aEvaluer = modules > 0 && !evaluees.has(f.code + "|chaud");
             return (
               <div key={f.code} style={CARTE}>
                 <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "10px" }}>
@@ -299,6 +319,18 @@ export default async function EspaceStagiaire() {
               </div>
             );
           })
+        )}
+
+        {introuvables.length > 0 && (
+          <div style={{ ...CARTE, border: "1px solid rgba(232,163,61,0.4)" }}>
+            <p style={{ color: "#e8a33d", fontSize: "14px", margin: 0, lineHeight: "1.7" }}>
+              Vous etes inscrit a {introuvables.join(", ")}, mais cette formation n est pas
+              disponible actuellement.
+              {organisme && organisme.email_contact
+                ? " Signalez-le a votre organisme : " + organisme.email_contact + "."
+                : ""}
+            </p>
+          </div>
         )}
 
         {nomOrganisme && organisme && organisme.email_contact && (
