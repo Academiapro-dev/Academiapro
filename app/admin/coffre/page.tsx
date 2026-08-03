@@ -156,6 +156,15 @@ export default function PageCoffre() {
     return Math.round(n / 1024) + " Ko";
   }
 
+  // Le certificat porte la preuve de signature. Il ne s affiche que sur une
+  // piece signee et referencee, jamais sur la ligne de preuve elle-meme.
+  function certificatPossible(p: any): boolean {
+    if (!p.signe) return false;
+    if (!p.reference) return false;
+    if (String(p.reference).indexOf("-PREUVE") >= 0) return false;
+    return true;
+  }
+
   const pieces = d
     ? d.pieces.filter(function (p: any) {
         if (filtre === "miennes") return !p.tenant_id;
@@ -358,6 +367,18 @@ export default function PageCoffre() {
                       >
                         {occupe === "ouvrir-" + p.id ? "Ouverture..." : "Ouvrir le document"}
                       </button>
+
+                      {certificatPossible(p) && (
+                        <a
+                          href={"/api/organisme/certificat?reference=" + encodeURIComponent(p.reference)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ ...BOUTON, display: "inline-block", textDecoration: "none" }}
+                        >
+                          Certificat de signature
+                        </a>
+                      )}
+
                       <span style={{ color: p.echu ? "#e8a33d" : "rgba(255,255,255,0.4)", fontSize: "13px" }}>
                         {p.conserver_jusqu_au
                           ? (p.echu ? "Conservation echue le " : "A conserver jusqu au ")
