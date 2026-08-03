@@ -172,6 +172,9 @@ export default function PageSignature({ params }: { params: { reference: string 
     ? document.titre || LIBELLE_TYPE[document.type] || "Document"
     : "";
 
+  const lienCertificat =
+    "/api/organisme/certificat?reference=" + encodeURIComponent(reference);
+
   return (
     <div style={CADRE}>
       <div style={{ maxWidth: "680px", margin: "0 auto" }}>
@@ -265,9 +268,52 @@ export default function PageSignature({ params }: { params: { reference: string 
               </span>
             </p>
 
-            <p style={{ color: "#6b8a6e", fontSize: "13px", margin: "16px 0 0", lineHeight: "1.7" }}>
-              Cette empreinte identifie le document de maniere unique. Si une seule lettre
-              en etait modifiee, elle changerait entierement. Conservez-la.
+            <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", margin: "22px 0 0" }}>
+              <a
+                href={lienCertificat}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: "inline-block",
+                  background: "#0a3d2e",
+                  color: "#ffffff",
+                  padding: "14px 26px",
+                  borderRadius: "8px",
+                  textDecoration: "none",
+                  fontSize: "15px",
+                  fontFamily: "Georgia,serif",
+                  fontWeight: "bold",
+                }}
+              >
+                Telecharger le certificat
+              </a>
+
+              {document && document.lien_lecture && (
+                <a
+                  href={document.lien_lecture}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    display: "inline-block",
+                    background: "none",
+                    color: "#0a3d2e",
+                    border: "1px solid #0a3d2e",
+                    padding: "14px 26px",
+                    borderRadius: "8px",
+                    textDecoration: "none",
+                    fontSize: "15px",
+                    fontFamily: "Georgia,serif",
+                  }}
+                >
+                  Relire le document
+                </a>
+              )}
+            </div>
+
+            <p style={{ color: "#6b8a6e", fontSize: "13px", margin: "18px 0 0", lineHeight: "1.7" }}>
+              Le document n a pas ete modifie par votre signature : son empreinte reste
+              identique. C est le certificat qui porte la preuve — conservez les deux
+              ensemble.
             </p>
           </div>
         ) : (
