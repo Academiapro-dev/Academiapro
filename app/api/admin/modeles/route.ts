@@ -33,10 +33,17 @@ const CHAMPS_COMMUNS = [
   { cle: "email", libelle: "Email du signataire" },
 ];
 
-// Clause de droit applicable commune a tous les modeles de l editeur. Droit
-// francais et Tribunal de commerce de Paris : nos cocontractants sont
-// francais et nous operons depuis la France. Une clause renvoyant au Wyoming
-// serait inapplicable en pratique.
+// Champs des modeles que le CLIENT du pack etablit avec ses propres clients.
+// L organisme de formation n est pas l Editeur : c est le client du pack.
+const CHAMPS_ORGANISME = [
+  { cle: "organisme", libelle: "Denomination de l organisme de formation" },
+  { cle: "organisme_siege", libelle: "Adresse du siege de l organisme" },
+  { cle: "organisme_siret", libelle: "SIRET de l organisme" },
+  { cle: "organisme_da", libelle: "Numero de declaration d activite" },
+  { cle: "organisme_representant", libelle: "Representant de l organisme et sa qualite" },
+];
+
+// Clause de droit applicable commune aux modeles de l editeur.
 const DROIT_9 =
   "## Article 9 - Droit applicable et juridiction\n\n" +
   "Le present accord est soumis au droit francais.\n\n" +
@@ -51,7 +58,7 @@ const DROIT_7 =
   "Tribunal de commerce de Paris, auquel les parties attribuent competence exclusive, " +
   "nonobstant pluralite de defendeurs ou appel en garantie.\n";
 
-// Cinq modeles prets a l emploi. Ce sont des PROJETS : ils doivent etre relus
+// Dix modeles prets a l emploi. Ce sont des PROJETS : ils doivent etre relus
 // par un professionnel du droit avant d etre opposes a un cocontractant.
 const MODELES = [
   {
@@ -194,6 +201,328 @@ const MODELES = [
       "Tout differend relatif a sa validite, son interpretation ou son execution sera soumis " +
       "au Tribunal de commerce de Paris, auquel les parties attribuent competence exclusive, " +
       "nonobstant pluralite de defendeurs ou appel en garantie.\n",
+  },
+  {
+    code: "CONVENTION",
+    titre: "Convention de formation professionnelle - entreprise",
+    categorie: "client",
+    description:
+      "Pour votre client organisme : la convention qu il signe avec une entreprise qui forme ses salaries.",
+    champs: CHAMPS_ORGANISME.concat([
+      { cle: "contrepartie", libelle: "Denomination de l entreprise cliente" },
+      { cle: "forme", libelle: "Forme juridique de l entreprise" },
+      { cle: "siege", libelle: "Adresse du siege de l entreprise" },
+      { cle: "immatriculation", libelle: "SIRET de l entreprise" },
+      { cle: "representant", libelle: "Representant de l entreprise et sa qualite" },
+      { cle: "email", libelle: "Email du signataire" },
+      { cle: "intitule", libelle: "Intitule de l action de formation" },
+      { cle: "objectifs", libelle: "Objectifs professionnels vises" },
+      { cle: "prerequis", libelle: "Prerequis et public vise" },
+      { cle: "modalites", libelle: "Modalites : distanciel, presentiel, mixte" },
+      { cle: "duree_heures", libelle: "Duree totale, en heures" },
+      { cle: "periode", libelle: "Periode d execution, du ... au ..." },
+      { cle: "lieu", libelle: "Lieu ou plateforme d execution" },
+      { cle: "beneficiaires", libelle: "Nombre et noms des salaries beneficiaires" },
+      { cle: "prix", libelle: "Prix total hors taxes" },
+    ]),
+    corps:
+      "ENTRE LES SOUSSIGNES\n\n" +
+      "{{organisme}}, organisme de formation dont le siege est situe {{organisme_siege}}, " +
+      "immatricule sous le numero {{organisme_siret}}, declare aupres du prefet de region sous " +
+      "le numero {{organisme_da}}, cet enregistrement ne valant pas agrement de l Etat, " +
+      "represente par {{organisme_representant}}, ci-apres l Organisme,\n\n" +
+      "ET\n\n" +
+      "{{contrepartie}}, {{forme}}, dont le siege est situe {{siege}}, immatriculee sous le " +
+      "numero {{immatriculation}}, representee par {{representant}}, ci-apres l Entreprise,\n\n" +
+      "IL A ETE CONVENU CE QUI SUIT, en application des articles L.6353-1 et suivants du code " +
+      "du travail\n\n" +
+      "## Article 1 - Objet de la convention\n\n" +
+      "L Organisme organise l action de formation intitulee {{intitule}} au benefice des " +
+      "salaries designes par l Entreprise.\n\n" +
+      "Cette action releve de la categorie des actions de formation au sens de l article " +
+      "L.6313-1 du code du travail.\n\n" +
+      "## Article 2 - Nature et caracteristiques de l action\n\n" +
+      "Objectifs professionnels vises : {{objectifs}}.\n\n" +
+      "Prerequis et public vise : {{prerequis}}.\n\n" +
+      "Modalites de deroulement : {{modalites}}.\n\n" +
+      "Duree totale : {{duree_heures}} heures.\n\n" +
+      "Periode d execution : {{periode}}.\n\n" +
+      "Lieu ou plateforme : {{lieu}}.\n\n" +
+      "Le programme detaille de l action, precisant son contenu, ses moyens pedagogiques et " +
+      "techniques ainsi que ses modalites d evaluation, est annexe a la presente convention et " +
+      "en fait partie integrante.\n\n" +
+      "## Article 3 - Beneficiaires\n\n" +
+      "L action est dispensee aux salaries suivants : {{beneficiaires}}.\n\n" +
+      "L Entreprise informe chaque salarie des objectifs, du contenu et des modalites de " +
+      "l action, ainsi que des dates et lieux de son deroulement.\n\n" +
+      "## Article 4 - Suivi et evaluation\n\n" +
+      "L execution de l action est attestee par des feuilles d emargement signees par periode " +
+      "et par participant, ou, en cas de formation a distance, par les traces d activite " +
+      "produites par la plateforme.\n\n" +
+      "A l issue de l action, l Organisme remet a l Entreprise une attestation de fin de " +
+      "formation mentionnant les objectifs, la nature et la duree de l action, ainsi que les " +
+      "resultats de l evaluation des acquis.\n\n" +
+      "## Article 5 - Prix et reglement\n\n" +
+      "Le prix de l action est fixe a {{prix}} hors taxes. Il couvre l integralite des " +
+      "prestations decrites a l article 2.\n\n" +
+      "Le reglement intervient a trente jours a compter de la facture, apres execution.\n\n" +
+      "Toute somme impayee a son echeance porte interet au taux legal majore, et donne lieu a " +
+      "l indemnite forfaitaire de recouvrement prevue par le code de commerce.\n\n" +
+      "## Article 6 - Prise en charge par un financeur\n\n" +
+      "Lorsque l Entreprise sollicite la prise en charge de tout ou partie du prix par un " +
+      "operateur de competences ou tout autre financeur, elle en informe l Organisme avant le " +
+      "debut de l action et lui communique l accord de prise en charge.\n\n" +
+      "En cas de refus, de reduction ou de retrait de la prise en charge, quelle qu en soit la " +
+      "cause, l Entreprise demeure redevable envers l Organisme de l integralite du prix.\n\n" +
+      "## Article 7 - Absence, abandon et dedit\n\n" +
+      "En cas d absence ou d abandon d un participant, le prix demeure du en totalite, sauf " +
+      "cas de force majeure durement etabli.\n\n" +
+      "En cas de renoncement de l Entreprise moins de quinze jours avant le debut de l action, " +
+      "il est du a l Organisme une indemnite egale a 30 % du prix, non imputable sur les " +
+      "depenses liberatoires de formation.\n\n" +
+      "En cas d interruption de l action du fait de l Organisme, le prix est du au prorata des " +
+      "heures effectivement realisees.\n\n" +
+      "## Article 8 - Donnees personnelles\n\n" +
+      "Chaque partie traite les donnees des participants conformement au reglement (UE) " +
+      "2016/679. L Entreprise est responsable des donnees de ses salaries qu elle transmet ; " +
+      "l Organisme les traite aux seules fins de l execution de la presente convention et de " +
+      "ses obligations legales de conservation.\n\n" +
+      "## Article 9 - Confidentialite et propriete des supports\n\n" +
+      "Les supports pedagogiques remis aux participants sont proteges par le droit d auteur. " +
+      "Leur reproduction, diffusion ou reutilisation en dehors du cadre de l action est " +
+      "interdite.\n\n" +
+      "## Article 10 - Differends\n\n" +
+      "Les parties recherchent une solution amiable. A defaut, le differend est soumis au " +
+      "tribunal de commerce dans le ressort duquel se trouve le siege de l Organisme.\n",
+  },
+  {
+    code: "FORMATION_PARTICULIER",
+    titre: "Contrat de formation - particulier",
+    categorie: "client",
+    description:
+      "Pour votre client organisme : le contrat qu il signe avec un particulier qui finance lui-meme sa formation.",
+    champs: CHAMPS_ORGANISME.concat([
+      { cle: "contrepartie", libelle: "Nom et prenom du stagiaire" },
+      { cle: "siege", libelle: "Adresse du domicile du stagiaire" },
+      { cle: "email", libelle: "Email du stagiaire" },
+      { cle: "naissance", libelle: "Date et lieu de naissance" },
+      { cle: "intitule", libelle: "Intitule de la formation" },
+      { cle: "objectifs", libelle: "Objectifs vises" },
+      { cle: "prerequis", libelle: "Prerequis" },
+      { cle: "modalites", libelle: "Modalites : distanciel, presentiel, mixte" },
+      { cle: "duree_heures", libelle: "Duree totale, en heures" },
+      { cle: "periode", libelle: "Periode d execution, du ... au ..." },
+      { cle: "sanction", libelle: "Sanction : attestation de suivi, certificat..." },
+      { cle: "prix", libelle: "Prix total TTC" },
+      { cle: "echelonnement", libelle: "Modalites de reglement : comptant, 4 fois, 12 fois..." },
+    ]),
+    corps:
+      "ENTRE LES SOUSSIGNES\n\n" +
+      "{{organisme}}, organisme de formation dont le siege est situe {{organisme_siege}}, " +
+      "immatricule sous le numero {{organisme_siret}}, declare aupres du prefet de region sous " +
+      "le numero {{organisme_da}}, cet enregistrement ne valant pas agrement de l Etat, " +
+      "represente par {{organisme_representant}}, ci-apres l Organisme,\n\n" +
+      "ET\n\n" +
+      "{{contrepartie}}, ne le {{naissance}}, demeurant {{siege}}, ci-apres le Stagiaire,\n\n" +
+      "IL A ETE CONVENU CE QUI SUIT, en application des articles L.6353-3 et suivants du code " +
+      "du travail\n\n" +
+      "## Article 1 - Objet\n\n" +
+      "Le Stagiaire, agissant a titre personnel et finançant lui-meme sa formation, s inscrit " +
+      "a l action intitulee {{intitule}}.\n\n" +
+      "## Article 2 - Nature et caracteristiques\n\n" +
+      "Objectifs vises : {{objectifs}}.\n\n" +
+      "Prerequis : {{prerequis}}.\n\n" +
+      "Modalites de deroulement : {{modalites}}.\n\n" +
+      "Duree totale : {{duree_heures}} heures.\n\n" +
+      "Periode d execution : {{periode}}.\n\n" +
+      "Sanction de la formation : {{sanction}}.\n\n" +
+      "Le programme detaille, precisant le contenu, les moyens pedagogiques et les modalites " +
+      "d evaluation, est annexe au present contrat et en fait partie integrante.\n\n" +
+      "## Article 3 - Delai de retractation\n\n" +
+      "Le Stagiaire dispose d un delai de dix jours a compter de la signature du present " +
+      "contrat pour se retracter, par lettre recommandee avec avis de reception.\n\n" +
+      "Aucune somme ne peut etre exigee ni encaissee avant l expiration de ce delai.\n\n" +
+      "En cas de retractation dans ce delai, aucune somme n est due par le Stagiaire et " +
+      "l integralite des sommes eventuellement versees lui est restituee.\n\n" +
+      "## Article 4 - Prix et reglement\n\n" +
+      "Le prix total de la formation est de {{prix}} toutes taxes comprises.\n\n" +
+      "A l expiration du delai de retractation, il ne peut etre exige du Stagiaire un premier " +
+      "versement superieur a 30 % du prix. Le solde est echelonne au fur et a mesure du " +
+      "deroulement de la formation.\n\n" +
+      "Modalites retenues : {{echelonnement}}.\n\n" +
+      "## Article 5 - Interruption de la formation\n\n" +
+      "En cas de cessation anticipee de la formation du fait de l Organisme, le present " +
+      "contrat est resilie de plein droit. Seules les prestations effectivement dispensees " +
+      "sont dues, au prorata de leur valeur prevue au contrat.\n\n" +
+      "En cas d abandon du Stagiaire pour un motif de force majeure durement reconnu, seules " +
+      "les prestations effectivement dispensees sont dues.\n\n" +
+      "En cas d abandon du Stagiaire pour tout autre motif, le prix demeure du en totalite. " +
+      "L Organisme peut en outre reclamer un dedommagement qui ne peut exceder 30 % du prix, " +
+      "conformement a l article L.6353-7 du code du travail.\n\n" +
+      "## Article 6 - Assiduite et sanction\n\n" +
+      "Le Stagiaire s engage a suivre l action avec assiduite. Son assiduite est etablie par " +
+      "les feuilles d emargement ou, en formation a distance, par les traces d activite de la " +
+      "plateforme.\n\n" +
+      "L attestation de fin de formation est remise au Stagiaire a l issue de l action.\n\n" +
+      "## Article 7 - Donnees personnelles\n\n" +
+      "L Organisme traite les donnees du Stagiaire aux seules fins de l execution du present " +
+      "contrat et de ses obligations legales de conservation, conformement au reglement (UE) " +
+      "2016/679. Le Stagiaire dispose des droits d acces, de rectification, d effacement, de " +
+      "limitation, de portabilite et d opposition, qu il exerce aupres de l Organisme.\n\n" +
+      "## Article 8 - Propriete des supports\n\n" +
+      "Les supports remis au Stagiaire sont proteges par le droit d auteur. Leur reproduction, " +
+      "diffusion ou reutilisation en dehors d un usage strictement personnel est interdite.\n\n" +
+      "## Article 9 - Reclamations, mediation et differends\n\n" +
+      "Toute reclamation est adressee par ecrit a l Organisme, qui accuse reception sous cinq " +
+      "jours ouvres et repond au fond dans les trente jours.\n\n" +
+      "A defaut de solution amiable, le Stagiaire consommateur peut recourir gratuitement au " +
+      "mediateur de la consommation dont les coordonnees figurent sur les conditions generales " +
+      "de l Organisme, ou saisir la plateforme europeenne de reglement en ligne des litiges.\n\n" +
+      "Le present contrat est soumis au droit francais. Le Stagiaire consommateur peut saisir " +
+      "soit la juridiction du lieu ou il demeurait lors de la conclusion du contrat, soit " +
+      "celle du lieu du dommage.\n\n" +
+      "## Article 10 - Exemplaires\n\n" +
+      "Le present contrat est etabli en deux exemplaires, dont un remis au Stagiaire.\n",
+  },
+  {
+    code: "SOUSTRAITANCE_OF",
+    titre: "Convention de sous-traitance entre organismes de formation",
+    categorie: "partenariat",
+    description:
+      "Quand un organisme confie tout ou partie d une action a un autre organisme declare.",
+    champs: CHAMPS_ORGANISME.concat([
+      { cle: "contrepartie", libelle: "Denomination de l organisme sous-traitant" },
+      { cle: "forme", libelle: "Forme juridique du sous-traitant" },
+      { cle: "siege", libelle: "Adresse du siege du sous-traitant" },
+      { cle: "immatriculation", libelle: "SIRET du sous-traitant" },
+      { cle: "sous_traitant_da", libelle: "Numero de declaration d activite du sous-traitant" },
+      { cle: "representant", libelle: "Representant du sous-traitant et sa qualite" },
+      { cle: "email", libelle: "Email du signataire" },
+      { cle: "intitule", libelle: "Intitule de l action confiee" },
+      { cle: "perimetre", libelle: "Perimetre confie : totalite, module, sequence..." },
+      { cle: "duree_heures", libelle: "Duree confiee, en heures" },
+      { cle: "periode", libelle: "Periode d execution" },
+      { cle: "prix", libelle: "Prix hors taxes" },
+    ]),
+    corps:
+      "ENTRE LES SOUSSIGNES\n\n" +
+      "{{organisme}}, organisme de formation dont le siege est situe {{organisme_siege}}, " +
+      "immatricule sous le numero {{organisme_siret}}, declare sous le numero {{organisme_da}}, " +
+      "represente par {{organisme_representant}}, ci-apres le Donneur d ordre,\n\n" +
+      "ET\n\n" +
+      "{{contrepartie}}, {{forme}}, dont le siege est situe {{siege}}, immatriculee sous le " +
+      "numero {{immatriculation}}, declaree en qualite d organisme de formation sous le numero " +
+      "{{sous_traitant_da}}, representee par {{representant}}, ci-apres le Sous-traitant,\n\n" +
+      "IL A ETE CONVENU CE QUI SUIT\n\n" +
+      "## Article 1 - Objet\n\n" +
+      "Le Donneur d ordre confie au Sous-traitant la realisation de {{perimetre}} de l action " +
+      "intitulee {{intitule}}, pour une duree de {{duree_heures}} heures, sur la periode " +
+      "{{periode}}.\n\n" +
+      "Le Donneur d ordre demeure seul titulaire de la relation contractuelle avec le " +
+      "beneficiaire final et seul responsable de l action devant le financeur.\n\n" +
+      "## Article 2 - Declaration et qualite\n\n" +
+      "Le Sous-traitant garantit etre regulierement declare en qualite d organisme de " +
+      "formation, disposer des qualifications et habilitations necessaires, et etre a jour de " +
+      "ses obligations declaratives. Il en fournit les justificatifs a premiere demande et " +
+      "informe sans delai le Donneur d ordre de toute modification.\n\n" +
+      "Lorsque l action releve d un financement conditionne a une certification qualite, le " +
+      "Sous-traitant se conforme au referentiel applicable et fournit les elements de preuve " +
+      "attendus lors d un audit.\n\n" +
+      "## Article 3 - Execution\n\n" +
+      "Le Sous-traitant execute l action confiee avec ses propres moyens et son propre " +
+      "personnel, dont il demeure seul employeur. Il ne peut sous-traiter a son tour sans " +
+      "l accord ecrit prealable du Donneur d ordre.\n\n" +
+      "## Article 4 - Pieces d execution\n\n" +
+      "Le Sous-traitant remet au Donneur d ordre, au plus tard quinze jours apres la fin de " +
+      "l action : les feuilles d emargement ou traces d activite, les evaluations des acquis, " +
+      "les evaluations de satisfaction, et tout element necessaire a la justification de " +
+      "l action devant un financeur ou un auditeur.\n\n" +
+      "Le defaut de remise de ces pieces suspend l exigibilite du prix.\n\n" +
+      "## Article 5 - Prix et reglement\n\n" +
+      "Le prix est fixe a {{prix}} hors taxes. Le reglement intervient a trente jours a " +
+      "compter de la facture, apres service fait et remise des pieces prevues a l article 4.\n\n" +
+      "## Article 6 - Non-sollicitation\n\n" +
+      "Le Sous-traitant s interdit, pendant la duree de la convention et les vingt-quatre mois " +
+      "suivants, de demarcher directement les beneficiaires finaux auxquels le Donneur d ordre " +
+      "l a donne acces, pour des prestations de meme nature.\n\n" +
+      "## Article 7 - Confidentialite et propriete\n\n" +
+      "Les contenus, methodes et supports fournis par le Donneur d ordre demeurent sa " +
+      "propriete. Le Sous-traitant s interdit de les reutiliser en dehors de l action confiee.\n\n" +
+      "## Article 8 - Donnees personnelles\n\n" +
+      "Le Sous-traitant traite les donnees des beneficiaires pour le compte du Donneur d ordre. " +
+      "Une annexe de sous-traitance conforme a l article 28 du reglement (UE) 2016/679 est " +
+      "conclue entre les parties et fait partie integrante de la presente convention.\n\n" +
+      DROIT_9,
+  },
+  {
+    code: "RESPONSABILITE",
+    titre: "Annexe de responsabilite",
+    categorie: "client",
+    description:
+      "A signer avec tout contrat portant sur un logiciel de gestion, de comptabilite ou de conformite.",
+    champs: CHAMPS_COMMUNS.concat([
+      { cle: "contrat_principal", libelle: "Contrat auquel cette annexe se rattache" },
+    ]),
+    corps:
+      "ANNEXE DE RESPONSABILITE\n\n" +
+      "La presente annexe se rattache au contrat {{contrat_principal}} conclu entre :\n\n" +
+      "AcadeMIA Pro LLC, societe de droit du Wyoming, dont le siege est situe 30 N Gould St " +
+      "STE R, Sheridan WY 82801, Etats-Unis, representee par Jacques Lalou, en sa qualite de " +
+      "gerant, ci-apres l Editeur,\n\n" +
+      "ET\n\n" +
+      "{{contrepartie}}, {{forme}}, dont le siege est situe {{siege}}, immatriculee sous le " +
+      "numero {{immatriculation}}, representee par {{representant}}, ci-apres le Client.\n\n" +
+      "Elle en fait partie integrante et prevaut sur lui pour les points qu elle traite.\n\n" +
+      "## Article 1 - Nature de la prestation\n\n" +
+      "L Editeur fournit un outil logiciel. Il n exerce ni la profession d expert-comptable, " +
+      "ni celle d avocat, ni celle de conseil fiscal, et ne delivre aucun conseil personnalise " +
+      "au sens de la reglementation applicable a ces professions.\n\n" +
+      "Les calculs, etats et declarations produits par l outil sont des propositions etablies " +
+      "a partir des seules donnees saisies par le Client. Ils ne valent ni avis, ni " +
+      "attestation, ni garantie de conformite.\n\n" +
+      "## Article 2 - Responsabilite du Client sur ses donnees\n\n" +
+      "Le Client est seul responsable de l exactitude, de l exhaustivite et de l actualite des " +
+      "donnees qu il saisit ou importe, ainsi que des choix de parametrage qu il opere.\n\n" +
+      "L Editeur n a ni la charge ni les moyens de verifier ces donnees.\n\n" +
+      "## Article 3 - Obligation de verification avant depot\n\n" +
+      "Le Client verifie chaque etat, declaration ou document avant sa transmission a un tiers " +
+      "ou a une administration. Cette verification lui incombe en propre.\n\n" +
+      "Lorsque la nature de la declaration l exige, il la fait controler par un professionnel " +
+      "habilite.\n\n" +
+      "Le depot d un document produit par l outil vaut appropriation de son contenu par le " +
+      "Client.\n\n" +
+      "## Article 4 - Exclusion des penalites et redressements\n\n" +
+      "L Editeur n est en aucun cas tenu des penalites, majorations, interets de retard, " +
+      "amendes ou redressements prononces a l encontre du Client par une administration " +
+      "francaise ou etrangere, quelle qu en soit la cause.\n\n" +
+      "## Article 5 - Evolution du droit\n\n" +
+      "L Editeur s engage a mettre l outil en conformite avec toute evolution du droit " +
+      "applicable dans un delai de quatre-vingt-dix jours a compter de son entree en vigueur.\n\n" +
+      "Pendant ce delai, le Client demeure tenu de ses obligations declaratives et ne peut se " +
+      "prevaloir d une non-conformite de l outil.\n\n" +
+      "## Article 6 - Plafond d indemnisation\n\n" +
+      "La responsabilite de l Editeur, toutes causes confondues, est plafonnee au montant des " +
+      "sommes effectivement versees par le Client au titre des douze mois precedant le fait " +
+      "generateur du dommage.\n\n" +
+      "Sont exclus les dommages indirects, la perte de chiffre d affaires, la perte de " +
+      "clientele, l atteinte a l image et la perte de donnees imputable au Client.\n\n" +
+      "Cette limitation ne s applique pas en cas de dol ou de faute lourde.\n\n" +
+      "## Article 7 - Disponibilite\n\n" +
+      "L Editeur assure la disponibilite du service selon une obligation de moyens. Les " +
+      "interruptions pour maintenance sont annoncees lorsque cela est possible.\n\n" +
+      "## Article 8 - Dependances tierces\n\n" +
+      "Le service repose sur des prestataires tiers, notamment d hebergement, de " +
+      "teletransmission, de paiement et de traitement automatise. L Editeur n est pas tenu des " +
+      "defaillances, interruptions, modifications ou cessations de service de ces tiers.\n\n" +
+      "## Article 9 - Sauvegarde et restitution\n\n" +
+      "Les donnees du Client lui appartiennent. Elles lui sont restituees sur demande dans un " +
+      "format exploitable, pendant la duree du contrat et les trente jours suivant son terme.\n\n" +
+      "Il appartient au Client de conserver ses propres sauvegardes des documents qu il " +
+      "depose aupres des administrations.\n\n" +
+      "## Article 10 - Portee\n\n" +
+      "Les stipulations de la presente annexe demeurent applicables apres le terme du contrat " +
+      "principal, pour les faits survenus pendant son execution.\n\n" +
+      "Si l une d elles etait declaree nulle, les autres demeureraient en vigueur.\n",
   },
   {
     code: "PARTENARIAT",
