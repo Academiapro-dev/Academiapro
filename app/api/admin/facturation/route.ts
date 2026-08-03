@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
 
     const { data: organismes, error } = await supabase
       .from("organismes_formation")
-      .select("id, tenant_id, raison_sociale, email_contact, statut, abonnement_mensuel, taux_prelevement, plancher_stagiaire, lancement_jusqu_au")
+      .select("id, tenant_id, raison_sociale, email_contact, statut, abonnement_mensuel, taux_prelevement, plancher_stagiaire, forfait_gestion, gestion_souscrite, lancement_jusqu_au")
       .order("raison_sociale", { ascending: true })
       .limit(500);
 
@@ -92,6 +92,20 @@ export async function GET(req: NextRequest) {
         ? Number(o.plancher_stagiaire)
         : 30;
 
+      // GESTION ADMINISTRATIVE. Optionnelle : elle n est due que si le client
+      // l a souscrite. Elle remplace alors le minimum par stagiaire, sans s y
+      // ajouter — c est ce que dit son contrat et son bon de commande.
+      const gestionSouscrite = o.gestion_souscrite === true;
+      const forfaitGestion = o.forfait_gestion !== null && o.forfait_gestion !== undefined
+        ? Number(o.forfait_gestion)
+        : 0;
+      const minimum = gestionSouscrite && forfaitGestion > 0 ? forfaitGestion : plancher;
+
+      // Un organisme suspendu n est plus facture : ni abonnement, ni
+      // inscriptions. On le presente quand meme, pour qu il ne disparaisse pas
+      // du suivi.
+      const suspendu = o.statut !== "actif";
+
       let du = 0;
       let auPlancher = 0;
       let auTaux = 0;
@@ -120,11 +134,11 @@ export async function GET(req: NextRequest) {
         if (!prix) prix = prixDe[cle] || 0;
 
         const part = Math.round(prix * taux) / 100;
-        // On retient le plus eleve des deux : la part, ou le minimum par
-        // stagiaire. C est ce qui rend l illimite sans risque.
-        const retenu = Math.max(part, plancher);
+        // On retient le plus eleve des deux : la part, ou le minimum retenu
+        // pour ce client. C est ce qui rend l illimite sans risque.
+        const retenu = Math.max(part, minimum);
 
-        if (retenu === plancher && part < plancher) auPlancher = auPlancher + 1;
+        if (retenu === minimum && part < minimum) auPlancher = auPlancher + 1;
         else auTaux = auTaux + 1;
 
         du = du + retenu;
@@ -136,7 +150,11 @@ export async function GET(req: NextRequest) {
           prix: prix,
           part: part,
           du: retenu,
-          motif: part < plancher ? "minimum par stagiaire" : "part au taux",
+          motif: part < minimum
+            ? (gestionSouscrite && forfaitGestion > 0
+                ? "forfait gestion administrative"
+                : "minimum par stagiaire")
+            : "part au taux",
         });
       }
 
@@ -146,7 +164,10 @@ export async function GET(req: NextRequest) {
       const enLancement = o.lancement_jusqu_au
         ? new Date(o.lancement_jusqu_au).getTime() >= new Date(debut).getTime()
         : false;
-      const abonnement = enLancement ? Math.round(abonnementPlein / 2) : abonnementPlein;
+      const abonnementCalcule = enLancement ? Math.round(abonnementPlein / 2) : abonnementPlein;
+
+      const abonnement = suspendu ? 0 : abonnementCalcule;
+      const prelevement = suspendu ? 0 : du;
 
       return {
         id: o.id,
@@ -154,31 +175,40 @@ export async function GET(req: NextRequest) {
         raison_sociale: o.raison_sociale,
         email_contact: o.email_contact,
         statut: o.statut,
+        suspendu: suspendu,
         en_lancement: enLancement,
         lancement_jusqu_au: o.lancement_jusqu_au,
         abonnement_plein: abonnementPlein,
         abonnement: abonnement,
         taux: taux,
         plancher: plancher,
+        gestion_souscrite: gestionSouscrite,
+        forfait_gestion: forfaitGestion,
+        minimum_retenu: minimum,
         inscriptions: inscrits.length,
         au_taux: auTaux,
         au_plancher: auPlancher,
         hors_catalogue: horsCatalogue,
-        prelevement: du,
-        total: Math.round((abonnement + du) * 100) / 100,
+        prelevement: prelevement,
+        total: Math.round((abonnement + prelevement) * 100) / 100,
         details: details,
       };
     });
 
     const totalAbonnements = lignes.reduce(function (s: number, l: any) { return s + l.abonnement; }, 0);
     const totalPrelevements = lignes.reduce(function (s: number, l: any) { return s + l.prelevement; }, 0);
-    const totalInscriptions = lignes.reduce(function (s: number, l: any) { return s + l.inscriptions; }, 0);
-    const totalPlancher = lignes.reduce(function (s: number, l: any) { return s + l.au_plancher; }, 0);
+    const totalInscriptions = lignes.reduce(function (s: number, l: any) {
+      return s + (l.suspendu ? 0 : l.inscriptions);
+    }, 0);
+    const totalPlancher = lignes.reduce(function (s: number, l: any) {
+      return s + (l.suspendu ? 0 : l.au_plancher);
+    }, 0);
 
     return NextResponse.json({
       ok: true,
       mois: libelle,
       organismes: lignes.length,
+      suspendus: lignes.filter(function (l: any) { return l.suspendu; }).length,
       total_abonnements: Math.round(totalAbonnements * 100) / 100,
       total_prelevements: Math.round(totalPrelevements * 100) / 100,
       total_inscriptions: totalInscriptions,
