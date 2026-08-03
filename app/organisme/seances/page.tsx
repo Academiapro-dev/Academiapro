@@ -7,6 +7,17 @@ const LIBELLE_STATUT: any = {
   terminee: "Terminee",
 };
 
+// L HEURE SAISIE EST CELLE DE CELUI QUI SAISIT. Le champ du navigateur rend
+// "2026-08-03T22:40" sans fuseau ; le serveur, lui, vit en heure universelle
+// et comprendrait 22:40 UTC. On lui envoie donc l instant exact, calcule ici,
+// avec le fuseau de l ordinateur qui saisit.
+function instantExact(saisie: string): string {
+  if (!saisie) return "";
+  const d = new Date(saisie);
+  if (isNaN(d.getTime())) return "";
+  return d.toISOString();
+}
+
 export default function PageSeances() {
   const [d, setD] = useState<any>(null);
   const [chargement, setChargement] = useState(true);
@@ -54,6 +65,13 @@ export default function PageSeances() {
       setErreur("Indiquez un titre et une date.");
       return;
     }
+
+    const instant = instantExact(debut);
+    if (!instant) {
+      setErreur("Date invalide.");
+      return;
+    }
+
     setOccupe("creation");
     setMessage("");
     setErreur("");
@@ -64,7 +82,7 @@ export default function PageSeances() {
         body: JSON.stringify({
           titre: titre,
           formation_code: formation,
-          debut: debut,
+          debut: instant,
           duree_minutes: duree,
           formateur: formateur,
           description: description,
@@ -222,6 +240,15 @@ export default function PageSeances() {
               </div>
             </div>
 
+            {debut && instantExact(debut) && (
+              <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "13px", margin: "-6px 0 12px" }}>
+                Soit le {new Date(instantExact(debut)).toLocaleString("fr-FR")} a votre heure.
+                La salle ouvrira a{" "}
+                {new Date(new Date(instantExact(debut)).getTime() - 15 * 60000)
+                  .toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}.
+              </p>
+            )}
+
             <span style={LIBELLE}>Formateur</span>
             <input value={formateur} onChange={(e) => setFormateur(e.target.value)} style={CHAMP} />
 
@@ -302,7 +329,9 @@ export default function PageSeances() {
                     </a>
                   ) : (
                     <span style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px" }}>
-                      la salle ouvrira un quart d heure avant
+                      la salle ouvrira a{" "}
+                      {new Date(new Date(s.debut).getTime() - 15 * 60000)
+                        .toLocaleString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
                     </span>
                   )}
 
