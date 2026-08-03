@@ -1,6 +1,9 @@
 "use client";
 import { useState, useEffect } from "react";
 
+const MON_EMAIL = "contact@academiapro.fr";
+const MEMOIRE_CLIENT = "modeles-dernier-client";
+
 export default function PageModeles() {
   const [d, setD] = useState<any>(null);
   const [chargement, setChargement] = useState(true);
@@ -35,11 +38,35 @@ export default function PageModeles() {
     setChargement(false);
   }
 
+  // Le client choisi est retenu d une generation a l autre : l oublier fait
+  // repartir le contrat sans rattachement, ce que la base refuse.
   async function chargerClients() {
     try {
       const r = await fetch("/api/admin/organismes");
       const data = await r.json();
-      if (data.ok) setOrganismes(data.organismes || []);
+      if (data.ok) {
+        const liste = data.organismes || [];
+        setOrganismes(liste);
+
+        let retenu = "";
+        try {
+          retenu = window.sessionStorage.getItem(MEMOIRE_CLIENT) || "";
+        } catch (e) {}
+
+        const existe = liste.some(function (o: any) { return o.tenant_id === retenu; });
+        if (retenu && existe) {
+          setTenant(retenu);
+        } else if (liste.length === 1) {
+          setTenant(liste[0].tenant_id);
+        }
+      }
+    } catch (e) {}
+  }
+
+  function choisirClient(valeur: string) {
+    setTenant(valeur);
+    try {
+      window.sessionStorage.setItem(MEMOIRE_CLIENT, valeur);
     } catch (e) {}
   }
 
@@ -204,6 +231,20 @@ export default function PageModeles() {
     return (valeurs[id] && valeurs[id][cle]) || "";
   }
 
+  // A l ouverture d un modele, l email du signataire est deja le mien : c est
+  // le cas le plus frequent, et le retaper a chaque fois n apporte rien.
+  function ouvrirModele(m: any, estOuvert: boolean) {
+    setOuvert({ ...ouvert, [m.id]: !estOuvert });
+
+    if (estOuvert) return;
+
+    const aUnEmail = (m.champs || []).some(function (c: any) { return c.cle === "email"; });
+    if (!aUnEmail) return;
+    if (valeurs[m.id] && valeurs[m.id].email) return;
+
+    setValeurs({ ...valeurs, [m.id]: { ...(valeurs[m.id] || {}), email: MON_EMAIL } });
+  }
+
   function ajouterVariante(id: string) {
     const liste = (variantes[id] || []).slice();
     if (liste.length >= 5) return;
@@ -332,8 +373,8 @@ export default function PageModeles() {
 
             {d.total > 0 && (
               <div style={{ ...CARTE, marginTop: "20px" }}>
-                <span style={LIBELLE}>Rattacher a un client (facultatif)</span>
-                <select value={tenant} onChange={(e) => setTenant(e.target.value)} style={{ ...CHAMP, marginBottom: 0 }}>
+                <span style={LIBELLE}>Rattacher a un client</span>
+                <select value={tenant} onChange={(e) => choisirClient(e.target.value)} style={{ ...CHAMP, marginBottom: 0 }}>
                   <option value="">Aucun — contrat propre a l editeur</option>
                   {organismes.map(function (o) {
                     return (
@@ -343,6 +384,12 @@ export default function PageModeles() {
                     );
                   })}
                 </select>
+                {!tenant && (
+                  <p style={{ color: "#e8a33d", fontSize: "13px", margin: "10px 0 0", lineHeight: "1.7" }}>
+                    Sans rattachement, la generation sera refusee. Choisissez AcadeMIA Pro LLC
+                    pour vos propres contrats.
+                  </p>
+                )}
               </div>
             )}
 
@@ -378,7 +425,7 @@ export default function PageModeles() {
 
                     <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "14px" }}>
                       <button
-                        onClick={() => setOuvert({ ...ouvert, [m.id]: !estOuvert })}
+                        onClick={() => ouvrirModele(m, estOuvert)}
                         style={estOuvert ? BOUTON : { ...BOUTON, background: "#c8a96e", color: "#050508", border: "none", fontWeight: "bold" }}
                       >
                         {estOuvert ? "Fermer" : "Etablir ce contrat"}
