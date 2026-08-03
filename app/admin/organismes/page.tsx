@@ -36,6 +36,7 @@ export default function PageOrganismes() {
             abonnement: o.abonnement_mensuel !== null && o.abonnement_mensuel !== undefined ? String(o.abonnement_mensuel) : "",
             taux: o.taux_prelevement !== null && o.taux_prelevement !== undefined ? String(o.taux_prelevement) : "",
             plancher: o.plancher_stagiaire !== null && o.plancher_stagiaire !== undefined ? String(o.plancher_stagiaire) : "",
+            gestion: o.forfait_gestion !== null && o.forfait_gestion !== undefined ? String(o.forfait_gestion) : "",
             apport: o.taux_apport !== null && o.taux_apport !== undefined ? String(o.taux_apport) : "",
             quota: o.quota_ia_mensuel !== null && o.quota_ia_mensuel !== undefined ? String(o.quota_ia_mensuel) : "",
             lancement: o.lancement_jusqu_au || "",
@@ -278,6 +279,7 @@ export default function PageOrganismes() {
                       {o.abonnement_mensuel ? o.abonnement_mensuel + " EUR/mois" : "abonnement non fixe"}
                       {" · " + (o.taux_prelevement !== null && o.taux_prelevement !== undefined ? o.taux_prelevement : 35) + " %"}
                       {" · plancher " + (o.plancher_stagiaire !== null && o.plancher_stagiaire !== undefined ? o.plancher_stagiaire : 30) + " EUR"}
+                      {o.forfait_gestion ? " · gestion " + o.forfait_gestion + " EUR" : ""}
                       {" · quota " + (o.quota_ia_mensuel !== null && o.quota_ia_mensuel !== undefined ? o.quota_ia_mensuel : 40)}
                       {o.lancement_jusqu_au ? " · lancement jusqu au " + new Date(o.lancement_jusqu_au).toLocaleDateString("fr-FR") : ""}
                       {o.numero_tva ? "" : " · TVA manquante"}
@@ -323,7 +325,7 @@ export default function PageOrganismes() {
                     <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
                       <div style={{ flex: "1 1 150px" }}>
                         <span style={LIBELLE}>Abonnement mensuel (EUR)</span>
-                        <input value={champ(o.id, "abonnement")} onChange={(e) => poser(o.id, "abonnement", e.target.value)} placeholder="150" style={CHAMP} />
+                        <input value={champ(o.id, "abonnement")} onChange={(e) => poser(o.id, "abonnement", e.target.value)} placeholder="390" style={CHAMP} />
                       </div>
                       <div style={{ flex: "1 1 130px" }}>
                         <span style={LIBELLE}>Part catalogue (%)</span>
@@ -332,6 +334,10 @@ export default function PageOrganismes() {
                       <div style={{ flex: "1 1 150px" }}>
                         <span style={LIBELLE}>Minimum par stagiaire (EUR)</span>
                         <input value={champ(o.id, "plancher")} onChange={(e) => poser(o.id, "plancher", e.target.value)} placeholder="30" style={CHAMP} />
+                      </div>
+                      <div style={{ flex: "1 1 170px" }}>
+                        <span style={LIBELLE}>Gestion administrative (EUR)</span>
+                        <input value={champ(o.id, "gestion")} onChange={(e) => poser(o.id, "gestion", e.target.value)} placeholder="180" style={CHAMP} />
                       </div>
                       <div style={{ flex: "1 1 150px" }}>
                         <span style={LIBELLE}>Apport d affaires (%)</span>
@@ -342,6 +348,11 @@ export default function PageOrganismes() {
                         <input type="date" value={champ(o.id, "lancement")} onChange={(e) => poser(o.id, "lancement", e.target.value)} style={CHAMP} />
                       </div>
                     </div>
+
+                    <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px", margin: "-6px 0 14px", lineHeight: "1.6" }}>
+                      La gestion administrative est optionnelle : ce forfait par stagiaire
+                      remplace le minimum ci-dessus quand le client la demande.
+                    </p>
 
                     <h4 style={{ color: "#c8a96e", fontSize: "15px", margin: "14px 0" }}>Redaction assistee</h4>
 
@@ -399,6 +410,7 @@ export default function PageOrganismes() {
                           abonnement_mensuel: champ(o.id, "abonnement"),
                           taux_prelevement: champ(o.id, "taux"),
                           plancher_stagiaire: champ(o.id, "plancher"),
+                          forfait_gestion: champ(o.id, "gestion"),
                           taux_apport: champ(o.id, "apport"),
                           quota_ia_mensuel: champ(o.id, "quota"),
                           lancement_jusqu_au: champ(o.id, "lancement") || null,
