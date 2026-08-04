@@ -65,6 +65,7 @@ async function delivrer(email: string, nom: string, formation: string, score: an
       const lien = "https://academiapro.fr/attestation?nom=" + encodeURIComponent(nom) +
         "&formation=" + encodeURIComponent(intitule) +
         (heures ? "&heures=" + encodeURIComponent(heures) : "") +
+        "&certif=" + encodeURIComponent(certif_id) +
         (score != null ? "&score=" + score + "&total=" + total : "");
       const html = "<div style=\"font-family:Georgia,serif;max-width:600px;margin:auto;padding:24px;border:2px solid #1d4ed8\">" +
         "<p style=\"letter-spacing:3px;color:#1d4ed8;text-align:center\">ACADEMIA PRO</p>" +
@@ -72,13 +73,14 @@ async function delivrer(email: string, nom: string, formation: string, score: an
         "<p>Vous avez valid&eacute; l &eacute;valuation finale de la formation <b>" + intitule + "</b>" +
         (heures ? " (" + heures + " heures)" : "") +
         (score != null ? " avec un score de <b>" + score + " / " + total + "</b>" : "") + ".</p>" +
-        "<p>Votre certificat de r&eacute;alisation porte le num&eacute;ro <b>" + certif_id + "</b>.</p>" +
-        "<p style=\"text-align:center;margin:28px 0\"><a href=\"" + lien + "\" style=\"background:#1d4ed8;color:#fff;padding:12px 24px;text-decoration:none;border-radius:8px\">Voir et imprimer mon certificat</a></p>" +
+        "<p>Votre attestation de suivi porte le num&eacute;ro <b>" + certif_id + "</b>.</p>" +
+        "<p style=\"font-size:13px;color:#555;line-height:1.6\">Cette attestation est un document interne a Acad&eacute;mIA Pro, sans valeur legale ou reglementaire externe. La formation n est enregistree ni au RNCP ni au repertoire specifique.</p>" +
+        "<p style=\"text-align:center;margin:28px 0\"><a href=\"" + lien + "\" style=\"background:#1d4ed8;color:#fff;padding:12px 24px;text-decoration:none;border-radius:8px\">Voir et imprimer mon attestation</a></p>" +
         "<p>Jacques Lalou<br/>Fondateur, Acad&eacute;mIA Pro LLC</p></div>";
       const re = await fetch("https://api.resend.com/emails", {
         method: "POST",
         headers: { Authorization: "Bearer " + rk, "Content-Type": "application/json" },
-        body: JSON.stringify({ from: process.env.EMAIL_FROM || "AcademIA Pro <contact@academiapro.fr>", to: [email], subject: "Votre certificat de realisation - " + intitule, html })
+        body: JSON.stringify({ from: process.env.EMAIL_FROM || "AcademIA Pro <contact@academiapro.fr>", to: [email], subject: "Votre attestation de suivi - " + intitule, html })
       });
       const rtxt = await re.text();
       if (re.ok) { email_envoye = true; } else { erreur_email = rtxt.slice(0, 300); }
