@@ -15,7 +15,8 @@ const T = {
     nav_formations: "Formations", nav_séances: "Séances", nav_packs: "Packs", nav_competences: "Compétences", nav_blog: "Blog", nav_contact: "Contact",
     footer_desc: "La plateforme de formation propulsee par l IA. {NB} formations avec certificat AcadeMIA Pro.",
     voir_formation: "Voir la formation", voir_tout: "Voir les {NB} formations", nos_formations: "Nos formations phares",
-    nos_formations_sub: "Certificat AcadeMIA Pro · Garantie 30 jours",
+     nos_formations_sub: "Certificat AcadeMIA Pro · Retractation 14 jours",
+
     badge_carte: "Certificat AcadeMIA",
   },
   en: {
@@ -211,7 +212,8 @@ export default function HomePage() {
               <a href="/cgv" style={{ color: "rgba(255,255,255,0.5)", textDecoration: "none", fontSize: "13px" }}>CGV</a>
               <a href="/politique-confidentialite" style={{ color: "rgba(255,255,255,0.5)", textDecoration: "none", fontSize: "13px" }}>Confidentialite</a>
               <a href="/mentions-legales" style={{ color: "rgba(255,255,255,0.5)", textDecoration: "none", fontSize: "13px" }}>Mentions legales</a>
-              <a href="/garantie" style={{ color: "rgba(255,255,255,0.5)", textDecoration: "none", fontSize: "13px" }}>Garantie 30 jours</a>
+              <a href="/garantie" style={{ color: "rgba(255,255,255,0.5)", textDecoration: "none", fontSize: "13px" }}>Droit de retractation</a>
+
             </div>
           </div>
         </div>
