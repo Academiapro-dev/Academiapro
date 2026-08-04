@@ -145,15 +145,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, erreur: "Duree invalide." }, { status: 400 });
     }
 
-    // Nom de salle imprevisible : sans cela, un inconnu entrerait dans la
-    // classe en devinant un nom de formation.
-    const salle = "academia-" + crypto.randomBytes(9).toString("hex");
+    const code = b.formation_code ? String(b.formation_code).trim().toUpperCase() : null;
+
+    // NOM DE SALLE. Il commence par le code de la formation quand il y en a
+    // une : le formateur charge alors le programme de ce cours au lieu d un
+    // cours general. Le reste est imprevisible, pour qu un inconnu n entre
+    // pas en devinant un nom.
+    const hasard = crypto.randomBytes(9).toString("hex");
+    const salle = code ? code + "-" + hasard : "academia-" + hasard;
 
     const { data, error } = await supabase
       .from("organisme_seances")
       .insert({
         tenant_id: tenant,
-        formation_code: b.formation_code ? String(b.formation_code).trim().toUpperCase() : null,
+        formation_code: code,
         titre: titre,
         description: b.description ? String(b.description).trim() : null,
         debut: debut.toISOString(),
