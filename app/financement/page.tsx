@@ -4,16 +4,18 @@ import { useTraductionAuto } from "../../hooks/useTraductionAuto";
 const FR = {
   surTitre: "ACADEMIAPRO",
   titre: "Financement de votre Formation",
-  sousTitre: "Plusieurs options disponibles · nous vous accompagnons",
+  sousTitre: "Reglez en une fois ou en quatre mensualites",
   sections: [
-    { titre: "Paiement Personnel",
-      corps: "Paiement en 1 fois · 3 fois sans frais ou 10 fois avec frais. Carte bancaire · virement bancaire acceptes. Facture immediate." },
-    { titre: "Financement Entreprise",
-      corps: "Votre entreprise peut financer votre formation via son plan de formation annuel. Nous fournissons tous les documents necessaires." },
-    { titre: "OPCO et Financement Pro",
-      corps: "Selon votre situation · un OPCO peut financer tout ou partie de votre formation. Nous vous accompagnons dans les demarches." },
-    { titre: "Garantie 30 Jours",
-      corps: "Toutes nos formations sont garanties satisfait ou rembourse pendant 30 jours. Aucun risque · aucune question posee." },
+    { titre: "Paiement en une fois",
+      corps: "Reglement integral a l inscription, par carte bancaire. Facture adressee par courrier electronique dans les 24 heures." },
+    { titre: "Paiement en quatre mensualites",
+      corps: "Le montant de la formation est reparti en quatre echeances mensuelles egales, prelevees automatiquement. L acces a la formation est ouvert des la premiere echeance." },
+    { titre: "Financement par votre entreprise",
+      corps: "Votre employeur peut prendre en charge votre formation sur ses fonds propres. Nous fournissons devis, convention et facture a son nom, sur simple demande a contact@academiapro.fr." },
+    { titre: "Absence de financement public",
+      corps: "AcademIA Pro n est pas certifiee Qualiopi et ses formations ne sont enregistrees ni au RNCP ni au repertoire specifique. Elles ne sont donc eligibles ni au compte personnel de formation (CPF), ni a une prise en charge par un OPCO, ni a aucun autre financement public. La souscription se fait sur fonds propres." },
+    { titre: "Retractation",
+      corps: "Vous disposez de quatorze (14) jours pour vous retracter, tant que vous n avez accede a aucun contenu. Les modalites figurent sur la page consacree a la retractation." },
   ],
 };
 
@@ -54,6 +56,11 @@ export default function FinancementPage() {
               margin: "0" }}>{section.corps}</p>
           </div>
         ))}
+        <p style={{ textAlign: "center", marginTop: "16px" }}>
+          <a href="/garantie" style={{ color: "#c8a96e", fontSize: "14px" }}>Droit de retractation</a>
+          <span style={{ color: "rgba(255,255,255,0.3)", margin: "0 10px" }}>·</span>
+          <a href="/cgv" style={{ color: "#c8a96e", fontSize: "14px" }}>Conditions generales de vente</a>
+        </p>
       </div>
     </div>
   );
