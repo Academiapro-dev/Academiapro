@@ -34,7 +34,7 @@ export async function GET(req: Request) {
   // 1. L attestation elle-meme : qui, quelle formation.
   const lignes = await lire(
     "certificats_delivres?certif_id=eq." + encodeURIComponent(certif) +
-    "&select=certif_id,user_email,nom,formation_code,created_at&limit=1"
+    "&select=certif_id,user_email,nom,formation_code,formation_titre,niveau,date_obtention&limit=1"
   );
 
   if (lignes.length === 0) {
@@ -100,14 +100,14 @@ export async function GET(req: Request) {
     attestation: {
       numero: att.certif_id,
       nom: att.nom || att.user_email,
-      delivree_le: att.created_at,
+      delivree_le: att.date_obtention,
     },
     formation: {
       code: code,
-      titre: fiche ? fiche.titre : code,
+      titre: (fiche && fiche.titre) || att.formation_titre || code,
       heures: heuresDe(fiche && fiche.duree),
       objectifs: fiche ? fiche.objectifs : null,
-      niveau: fiche ? fiche.niveau : null,
+      niveau: (fiche && fiche.niveau) || att.niveau || null,
       domaine: fiche ? fiche.domaine : null,
     },
     parcours: {
