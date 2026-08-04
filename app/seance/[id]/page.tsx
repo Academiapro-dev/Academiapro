@@ -1,10 +1,37 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
+import {
+  LiveKitRoom,
+  VideoConference,
+  formatChatMessageLinks,
+} from "@livekit/components-react";
+import "@livekit/components-styles";
+
+// L agent formateur n a pas de visage : seul son avatar en a un. On masque
+// sa tuile et on donne a l avatar le nom que les stagiaires attendent.
+const styleSalle = `
+  .lk-participant-tile:has([data-lk-participant-name^="agent-"]),
+  .lk-participant-tile:has(.lk-participant-name[title^="agent-"]),
+  [data-lk-participant-name^="agent-"] {
+    display: none !important;
+  }
+  .lk-participant-name[title^="liveavatar"] {
+    visibility: hidden;
+    position: relative;
+  }
+  .lk-participant-name[title^="liveavatar"]::after {
+    content: "Formateur AcadémIA";
+    visibility: visible;
+    position: absolute;
+    left: 0;
+  }
+`;
 
 export default function SalleDeClasse({ params }: { params: { id: string } }) {
   const seanceId = params.id;
 
   const [salle, setSalle] = useState("");
+  const [jeton, setJeton] = useState("");
   const [moi, setMoi] = useState<any>(null);
   const [erreur, setErreur] = useState("");
   const [chargement, setChargement] = useState(true);
@@ -43,6 +70,8 @@ export default function SalleDeClasse({ params }: { params: { id: string } }) {
       const dm = await rm.json();
       if (dm.connecte) setMoi(dm);
 
+      // 1. Le pointage d entree. Il part avant toute video : la preuve
+      // d assiduite ne depend pas du bon fonctionnement de l image.
       const r = await fetch("/api/organisme/seance" + suffixe("?"), {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -50,11 +79,31 @@ export default function SalleDeClasse({ params }: { params: { id: string } }) {
       });
       const data = await r.json();
 
-      if (data.ok && data.salle) {
-        setSalle(data.salle);
-      } else {
+      if (!data.ok || !data.salle) {
         setErreur(data.erreur || "Entree impossible.");
+        setChargement(false);
+        return;
       }
+
+      setSalle(data.salle);
+
+      // 2. Le badge d entree dans la salle, delivre par notre serveur.
+      const identite = (dm && dm.email ? dm.email : "participant").split("@")[0];
+
+      const rj = await fetch(
+        "/api/classe-token?session=" + encodeURIComponent(data.salle) +
+        "&identite=" + encodeURIComponent(identite)
+      );
+
+      if (!rj.ok) {
+        setErreur("La salle n a pas pu s ouvrir. Reessayez dans un instant.");
+        setChargement(false);
+        return;
+      }
+
+      const dj = await rj.json();
+      if (dj.token) setJeton(dj.token);
+      else setErreur(dj.erreur || "La salle n a pas pu s ouvrir.");
     } catch (e: any) {
       setErreur("Entree impossible : " + String(e));
     }
@@ -87,17 +136,6 @@ export default function SalleDeClasse({ params }: { params: { id: string } }) {
     } catch (e) {}
   }
 
-  const nom = moi ? (moi.email || "").split("@")[0] : "Participant";
-
-  const adresse = salle
-    ? "https://meet.jit.si/" + encodeURIComponent(salle) +
-      "#userInfo.displayName=%22" + encodeURIComponent(nom) + "%22" +
-      "&config.prejoinPageEnabled=false" +
-      "&config.startWithVideoMuted=true" +
-      "&config.disableDeepLinking=true" +
-      "&interfaceConfig.SHOW_JITSI_WATERMARK=false"
-    : "";
-
   const CADRE: any = {
     minHeight: "100vh",
     background: "#050508",
@@ -113,7 +151,7 @@ export default function SalleDeClasse({ params }: { params: { id: string } }) {
     );
   }
 
-  if (erreur || !salle) {
+  if (erreur || !salle || !jeton) {
     return (
       <div style={{ ...CADRE, padding: "44px 20px" }}>
         <div style={{ maxWidth: "660px", margin: "0 auto" }}>
@@ -158,17 +196,26 @@ export default function SalleDeClasse({ params }: { params: { id: string } }) {
         </a>
       </div>
 
-      <iframe
-        src={adresse}
-        allow="camera; microphone; display-capture; autoplay; clipboard-write"
-        style={{ flex: 1, width: "100%", border: "none", minHeight: "78vh" }}
-        title="Classe virtuelle"
-      />
+      <div style={{ flex: 1, minHeight: "78vh" }}>
+        <LiveKitRoom
+          serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL}
+          token={jeton}
+          connect={true}
+          audio={false}
+          video={false}
+          data-lk-theme="default"
+          style={{ height: "100%", background: "#111" }}
+        >
+          <style>{styleSalle}</style>
+          <VideoConference chatMessageFormatter={formatChatMessageLinks} />
+        </LiveKitRoom>
+      </div>
 
       <div style={{ padding: "10px 20px", background: "rgba(255,255,255,0.02)", borderTop: "1px solid rgba(200,169,110,0.2)" }}>
         <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "12px", margin: 0, lineHeight: "1.6" }}>
-          Le tableau blanc se trouve dans le menu des trois points, en bas a droite de la
-          fenetre. Votre heure d entree et votre heure de sortie sont enregistrees : elles
+          Votre micro et votre camera sont fermes a l entree : ouvrez-les quand le
+          formateur vous donne la parole. Vos questions ecrites passent par le chat.
+          Votre heure d entree et votre heure de sortie sont enregistrees : elles
           tiennent lieu de feuille d emargement.
         </p>
       </div>
