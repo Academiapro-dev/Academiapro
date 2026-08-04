@@ -48,6 +48,44 @@ export default function SalleDeClasse({ params }: { params: { id: string } }) {
     };
   }, []);
 
+  // LA TUILE DU CERVEAU. L agent qui raisonne n a pas d image : sa tuile
+  // reste vide et porte un nom technique. On la retire, en verifiant deux
+  // fois plutot qu une : son etiquette commence par "agent-" ET elle ne
+  // diffuse aucune image. L avatar, lui, en diffuse une et reste visible
+  // quoi qu il arrive.
+  useEffect(function () {
+    if (!jeton) return;
+
+    function ranger() {
+      const tuiles = document.querySelectorAll(".lk-participant-tile");
+
+      tuiles.forEach(function (t: any) {
+        if (t.dataset && t.dataset.rangee === "oui") return;
+
+        const video = t.querySelector("video");
+        const diffuse = !!(video && video.srcObject);
+        if (diffuse) return;
+
+        const etiquette = t.querySelector(".lk-participant-name");
+        const nom = ((etiquette && etiquette.textContent) || "").trim();
+
+        if (/^agent[-_]/i.test(nom)) {
+          t.style.display = "none";
+          if (t.dataset) t.dataset.rangee = "oui";
+        }
+      });
+    }
+
+    // On laisse a l avatar le temps de publier son image avant de ranger.
+    const depart = setTimeout(ranger, 4000);
+    const minuteur = setInterval(ranger, 3000);
+
+    return function () {
+      clearTimeout(depart);
+      clearInterval(minuteur);
+    };
+  }, [jeton]);
+
   function suffixe(sep: string) {
     try {
       const t = new URLSearchParams(window.location.search).get("tenant");
