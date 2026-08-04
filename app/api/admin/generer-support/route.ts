@@ -56,6 +56,9 @@ export async function GET(req: Request) {
 
     const url = new URL(req.url);
     const demande = (url.searchParams.get("code") || "").trim().toUpperCase();
+    // FORCE : ecrase le support existant au lieu de le refuser. Sert aux
+    // recalibrages, Supabase interdisant la suppression directe en SQL.
+    const force = url.searchParams.get("force") === "1";
 
     const { data: fichiers } = await supabase.storage
       .from(BUCKET)
@@ -81,7 +84,7 @@ export async function GET(req: Request) {
       return NextResponse.json({ ok: true, termine: true, restants: 0, message: "aucune formation sans support" });
     }
 
-    if (existants.has(fiche.code + "_support_cours.html")) {
+    if (!force && existants.has(fiche.code + "_support_cours.html")) {
       return NextResponse.json({ ok: true, code: fiche.code, deja: true, restants: candidates.length });
     }
 
@@ -178,7 +181,7 @@ export async function GET(req: Request) {
     const ecriture = await supabase.storage
       .from(BUCKET)
       .upload(fiche.code + "_support_cours.html", new Blob([html], { type: "text/html" }), {
-        upsert: false,
+        upsert: force,
         cacheControl: "60",
       });
 
@@ -209,6 +212,7 @@ export async function GET(req: Request) {
       titre: fiche.titre,
       heures: heures,
       modules_demandes: bornes.maxi,
+      force: force,
       taille: html.length,
       restants: Math.max(candidates.length - 1, 0),
     });
