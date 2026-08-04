@@ -62,7 +62,7 @@ export default function FormationsClient({ formations }: { formations: any[] }) 
         <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
           <p style={{ color: "#c8a96e", fontSize: "12px", letterSpacing: "3px", margin: "0 0 8px" }}>CATALOGUE COMPLET</p>
           <h1 style={{ color: "#fff", fontSize: "32px", margin: "0 0 8px" }}>{filtrees.length} Formations</h1>
-          <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "14px", margin: "0" }}>Certificat AcadeMIA Pro - Garantie 30 jours</p>
+          <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "14px", margin: "0" }}>Certificat AcadeMIA Pro - Retractation 14 jours</p>
         </div>
       </div>
 
@@ -110,7 +110,7 @@ export default function FormationsClient({ formations }: { formations: any[] }) 
               <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
                 <span style={{ background: (COULEURS[f.domaine] || "#c8a96e") + "22", color: COULEURS[f.domaine] || "#c8a96e", padding: "3px 10px", borderRadius: "10px", fontSize: "11px", fontWeight: "bold" }}>{f.domaine}</span>
                 <span style={{ color: "rgba(255,255,255,0.4)", fontSize: "12px", minWidth: "60px", textAlign: "right" }}>{f.duree}</span>
-                <span style={{ color: "#c8a96e", fontSize: "16px", fontWeight: "bold", minWidth: "70px", textAlign: "right" }}>{f.prix} EUR</span>
+                <span style={{ color: "#c8a96e", fontSize: "16px", fontWeight: "bold", minWidth: "70px", textAlign: "right" }}>{f.prix} €</span>
                 <span style={{ color: "#c8a96e", fontSize: "18px" }}>&rsaquo;</span>
               </div>
             </a>
@@ -137,3 +137,4 @@ export default function FormationsClient({ formations }: { formations: any[] }) 
     </div>
   );
 }
+
