@@ -7,11 +7,15 @@ import {
 } from "@livekit/components-react";
 import "@livekit/components-styles";
 
-// L agent formateur n a pas de visage : seul son avatar en a un. On masque
-// sa tuile et on donne a l avatar le nom que les stagiaires attendent.
+// L agent formateur n a pas de visage : seul son avatar en a un. On masque sa
+// tuile, quelle que soit la facon dont LiveKit la nomme, et on donne a
+// l avatar le nom que les stagiaires attendent.
 const styleSalle = `
+  .lk-participant-tile[data-lk-local-participant="false"]:has(.lk-participant-placeholder):has([title^="agent-"]),
   .lk-participant-tile:has([data-lk-participant-name^="agent-"]),
   .lk-participant-tile:has(.lk-participant-name[title^="agent-"]),
+  .lk-participant-tile:has(.lk-participant-metadata-item[title^="agent-"]),
+  .lk-participant-tile:has(span[title^="agent-"]),
   [data-lk-participant-name^="agent-"] {
     display: none !important;
   }
@@ -53,6 +57,26 @@ export default function SalleDeClasse({ params }: { params: { id: string } }) {
       sortir();
     };
   }, []);
+
+  // MASQUAGE DE SECOURS. Si la feuille de style ne trouve pas la tuile de
+  // l agent, on la retire nous-memes : elle n a rien a montrer.
+  useEffect(function () {
+    if (!jeton) return;
+
+    function cacherAgent() {
+      const tuiles = document.querySelectorAll(".lk-participant-tile");
+      tuiles.forEach(function (t: any) {
+        const texte = (t.textContent || "").trim().toLowerCase();
+        if (texte.indexOf("agent-") === 0 || texte.indexOf("agent_") === 0) {
+          t.style.display = "none";
+        }
+      });
+    }
+
+    cacherAgent();
+    const minuteur = setInterval(cacherAgent, 1500);
+    return function () { clearInterval(minuteur); };
+  }, [jeton]);
 
   function suffixe(sep: string) {
     try {
