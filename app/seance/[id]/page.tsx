@@ -48,35 +48,6 @@ export default function SalleDeClasse({ params }: { params: { id: string } }) {
     };
   }, []);
 
-  // MASQUAGE DE LA TUILE DU CERVEAU. L agent qui raisonne n a pas d image :
-  // sa tuile est vide. On ne masque QUE les tuiles sans video dont le nom
-  // commence par "agent" — l avatar, lui, a une video et reste visible.
-  useEffect(function () {
-    if (!jeton) return;
-
-    function cacherAgent() {
-      const tuiles = document.querySelectorAll(".lk-participant-tile");
-      tuiles.forEach(function (t: any) {
-        const video = t.querySelector("video");
-        const aUneImage = video && video.videoWidth > 0;
-        if (aUneImage) return;
-
-        const etiquette = t.querySelector(".lk-participant-name");
-        const nom = ((etiquette && (etiquette.getAttribute("title") || etiquette.textContent)) || "")
-          .trim()
-          .toLowerCase();
-
-        if (nom.indexOf("agent") === 0) {
-          t.style.display = "none";
-        }
-      });
-    }
-
-    const minuteur = setInterval(cacherAgent, 1500);
-    cacherAgent();
-    return function () { clearInterval(minuteur); };
-  }, [jeton]);
-
   function suffixe(sep: string) {
     try {
       const t = new URLSearchParams(window.location.search).get("tenant");
