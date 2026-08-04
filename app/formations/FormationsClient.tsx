@@ -13,7 +13,7 @@ const FRT = {
   voir: "Voir la formation",
 };
 
-const DOMAINES = ["Tous", "IA", "Business", "Marketing", "Langues", "Bien-etre", "Tech", "Design", "Finance", "Droit", "Outils"];
+const DOMAINES = ["Tous", "IA", "Business", "Marketing", "Langues", "Bien-etre", "Securite", "Tech", "Design", "Finance", "Droit", "Outils"];
 const NIVEAUX = ["Tous", "Debutant", "Intermediaire", "Avance", "Expert", "Tous niveaux"];
 const PAR_PAGE = 20;
 
@@ -23,6 +23,7 @@ const COULEURS: Record<string, string> = {
   "Marketing": "#f97316",
   "Langues": "#22c55e",
   "Bien-etre": "#a855f7",
+  "Securite": "#ef4444",
   "Tech": "#06b6d4",
   "Design": "#ec4899",
   "Finance": "#eab308",
@@ -137,4 +138,3 @@ export default function FormationsClient({ formations }: { formations: any[] }) 
     </div>
   );
 }
-
