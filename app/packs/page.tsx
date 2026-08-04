@@ -4,18 +4,18 @@ import { useTraductionAuto } from "../../hooks/useTraductionAuto";
 const FR = {
   surTitre: "ACADEMIAPRO",
   titre: "Nos Packs Formations",
-  sousTitre: "Certification AcadémIA Pro · Paiement 3x · Garantie 30 jours",
+  sousTitre: "Certificat AcadémIA Pro · Paiement en une fois ou en 4 mensualites · Retractation 14 jours",
   badge: "PACK",
-  voir: "Voir",
+  voir: "Nous contacter",
   items: [
-    { code: "P01", titre: "Starter Pack IA", prix: "47euro", desc: "100 prompts · Guide PDF · Module 1 F128" },
-    { code: "P02", titre: "Pack Starter Complet", prix: "97euro", desc: "P01 + 3 Skills IA + Acces communaute" },
-    { code: "P03", titre: "Pack Skills IA", prix: "597euro", desc: "10 Skills IA + Communaute VIP" },
-    { code: "P04", titre: "Pack Marketing Digital", prix: "1490euro", desc: "F010 + F043 + F131 + 5 Skills" },
-    { code: "P05", titre: "Pack IA Complet", prix: "2690euro", desc: "F128 + F129 + F130 + F131" },
-    { code: "P06", titre: "Pack IA et Skills", prix: "2990euro", desc: "Pack IA Complet + 10 Skills IA" },
-    { code: "P07", titre: "Pack Entrepreneur Digital", prix: "3490euro", desc: "5 formations + 10 Skills + Seances" },
-    { code: "P08", titre: "Pack Entrepreneur Elite", prix: "3990euro", desc: "7 formations + 15 Skills + Seances VIP" },
+    { code: "P01", titre: "Starter Pack IA", prix: "47 €", desc: "100 prompts · Guide PDF · Module 1 F128" },
+    { code: "P02", titre: "Pack Starter Complet", prix: "97 €", desc: "P01 + 3 Skills IA + Acces communaute" },
+    { code: "P03", titre: "Pack Skills IA", prix: "597 €", desc: "10 Skills IA + Communaute VIP" },
+    { code: "P04", titre: "Pack Marketing Digital", prix: "1 490 €", desc: "F010 + F043 + F131 + 5 Skills" },
+    { code: "P05", titre: "Pack IA Complet", prix: "2 690 €", desc: "F128 + F129 + F130 + F131" },
+    { code: "P06", titre: "Pack IA et Skills", prix: "2 990 €", desc: "Pack IA Complet + 10 Skills IA" },
+    { code: "P07", titre: "Pack Entrepreneur Digital", prix: "3 490 €", desc: "5 formations + 10 Skills + Seances" },
+    { code: "P08", titre: "Pack Entrepreneur Elite", prix: "3 990 €", desc: "7 formations + 15 Skills + Seances VIP" },
   ],
 };
 
@@ -74,7 +74,7 @@ export default function PacksPage() {
                   {item.prix}
                 </span>
               </div>
-              <a href="#" style={{ display: "block",
+              <a href="/contact" style={{ display: "block",
                 background:
                   "linear-gradient(135deg, #c8a96e, #a07840)",
                 color: "#050508", borderRadius: "8px",
@@ -84,6 +84,11 @@ export default function PacksPage() {
             </div>
           ))}
         </div>
+        <p style={{ textAlign: "center", marginTop: "32px" }}>
+          <a href="/garantie" style={{ color: "#c8a96e", fontSize: "14px" }}>Droit de retractation</a>
+          <span style={{ color: "rgba(255,255,255,0.3)", margin: "0 10px" }}>·</span>
+          <a href="/cgv" style={{ color: "#c8a96e", fontSize: "14px" }}>Conditions generales de vente</a>
+        </p>
       </div>
     </div>
   );
