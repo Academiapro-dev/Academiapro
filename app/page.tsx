@@ -23,18 +23,21 @@ const T = {
     hero_titre: "Train with your personal AI agent",
     hero_sub: "{NB} courses with AcadeMIA Pro certificate · AI Agent 24/7 · Support sessions",
     btn_formations: "View courses", btn_ebook: "Free e-book", btn_demarrer: "Get Started",
-    stat1: "Courses", stat2: "Validated skills", stat3: "AI Guides", stat4: "Satisfaction guarantee",
+    stat1: "Courses", stat2: "Validated skills", stat3: "AI Guides", stat4: "Withdrawal period",
+
     nav_formations: "Courses", nav_séances: "Sessions", nav_packs: "Packs", nav_competences: "Skills", nav_blog: "Blog", nav_contact: "Contact",
     footer_desc: "The AI-powered training platform. {NB} courses with AcadeMIA Pro certificate.",
     voir_formation: "View course", voir_tout: "View all {NB} courses", nos_formations: "Our featured courses",
-    nos_formations_sub: "AcadeMIA Pro Certificate · 30-day guarantee",
+    nos_formations_sub: "AcadeMIA Pro Certificate · 14-day withdrawal period",
+
     badge_carte: "AcadeMIA Certificate",
   },
   es: {
     hero_titre: "Formese con su agente IA personal",
     hero_sub: "{NB} cursos con certificado AcadeMIA Pro · Agente IA 24h · Sesiones de acompanamiento",
     btn_formations: "Ver cursos", btn_ebook: "E-book gratis", btn_demarrer: "Comenzar",
-    stat1: "Cursos", stat2: "Habilidades validadas", stat3: "Guias IA", stat4: "Garantia satisfaccion",
+    stat1: "Cursos", stat2: "Habilidades validadas", stat3: "Guias IA", stat4: "Derecho de desistimiento",
+
     nav_formations: "Cursos", nav_séances: "Sesiones", nav_packs: "Packs", nav_competences: "Habilidades", nav_blog: "Blog", nav_contact: "Contacto",
     footer_desc: "La plataforma de formacion impulsada por IA. {NB} cursos con certificado AcadeMIA Pro.",
     voir_formation: "Ver curso", voir_tout: "Ver los {NB} cursos", nos_formations: "Nuestros cursos destacados",
@@ -49,7 +52,8 @@ const T = {
     nav_formations: "Cursos", nav_séances: "Sessoes", nav_packs: "Packs", nav_competences: "Competencias", nav_blog: "Blog", nav_contact: "Contato",
     footer_desc: "A plataforma de formacao impulsionada por IA. {NB} cursos com certificado AcadeMIA Pro.",
     voir_formation: "Ver curso", voir_tout: "Ver os {NB} cursos", nos_formations: "Nossos cursos em destaque",
-    nos_formations_sub: "Certificado AcadeMIA Pro · Garantia 30 dias",
+    nos_formations_sub: "Certificado AcadeMIA Pro · Desistimiento 14 dias",
+
     badge_carte: "Certificado AcadeMIA",
   },
   de: {
