@@ -30,6 +30,7 @@ export default function PageCRM() {
   const [filtre, setFiltre] = useState("");
   const [prix, setPrix] = useState<any>({});
   const [inscrire, setInscrire] = useState<any>({});
+  const [campagne, setCampagne] = useState<any>(null);
 
   const [nom, setNom] = useState("");
   const [email, setEmail] = useState("");
@@ -229,6 +230,73 @@ export default function PageCRM() {
     setOccupe("");
   }
 
+  // ENVOI D UNE RELANCE RELUE. Le texte affiche est celui qui part : rien
+  // n est envoye sans que l organisme l ait sous les yeux.
+  async function envoyer(mail: string, texte: string) {
+    setOccupe("envoi-" + mail);
+    setMessage("");
+    setErreur("");
+    try {
+      const r = await fetch("/api/organisme/relancer-prospects" + suffixe("?"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: mail, texte: texte }),
+      });
+      const data = await r.json();
+      if (data.ok) {
+        setMessage(data.message);
+        setOuvert({ ...ouvert, [mail]: null });
+        await charger();
+      } else {
+        setErreur(data.erreur || "Envoi impossible.");
+      }
+    } catch (e: any) {
+      setErreur("Envoi impossible : " + String(e));
+    }
+    setOccupe("");
+  }
+
+  // APERCU DE LA CAMPAGNE. On regarde qui recevra le message avant de
+  // l envoyer : une relance en nombre ne se declenche pas a l aveugle.
+  async function preparerCampagne() {
+    setOccupe("campagne");
+    setMessage("");
+    setErreur("");
+    try {
+      const r = await fetch("/api/organisme/relancer-prospects" + suffixe("?"));
+      const data = await r.json();
+      if (data.ok) setCampagne(data);
+      else setErreur(data.erreur || "Apercu impossible.");
+    } catch (e: any) {
+      setErreur("Apercu impossible : " + String(e));
+    }
+    setOccupe("");
+  }
+
+  async function lancerCampagne() {
+    setOccupe("campagne-envoi");
+    setMessage("");
+    setErreur("");
+    try {
+      const r = await fetch("/api/organisme/relancer-prospects" + suffixe("?"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const data = await r.json();
+      if (data.ok) {
+        setMessage(data.message);
+        setCampagne(null);
+        await charger();
+      } else {
+        setErreur(data.erreur || "Envoi impossible.");
+      }
+    } catch (e: any) {
+      setErreur("Envoi impossible : " + String(e));
+    }
+    setOccupe("");
+  }
+
   const CADRE: any = {
     minHeight: "100vh",
     background: "#050508",
@@ -357,18 +425,79 @@ export default function PageCRM() {
 
         <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginBottom: "18px" }}>
           <button
-            onClick={() => { setFormulaire(!formulaire); setImportOuvert(false); }}
+            onClick={() => { setFormulaire(!formulaire); setImportOuvert(false); setCampagne(null); }}
             style={{ ...BOUTON, background: formulaire ? "none" : "#c8a96e", color: formulaire ? "#c8a96e" : "#050508", border: formulaire ? "1px solid rgba(200,169,110,0.45)" : "none", fontWeight: "bold", padding: "10px 20px" }}
           >
             {formulaire ? "Annuler" : "Ajouter un prospect"}
           </button>
           <button
-            onClick={() => { setImportOuvert(!importOuvert); setFormulaire(false); }}
+            onClick={() => { setImportOuvert(!importOuvert); setFormulaire(false); setCampagne(null); }}
             style={{ ...BOUTON, padding: "10px 20px" }}
           >
             {importOuvert ? "Fermer l import" : "Importer une liste"}
           </button>
+          <button
+            onClick={() => { if (campagne) setCampagne(null); else preparerCampagne(); }}
+            disabled={occupe !== ""}
+            style={{ ...BOUTON, padding: "10px 20px" }}
+          >
+            {occupe === "campagne" ? "Preparation..." : campagne ? "Fermer la campagne" : "Relancer mes prospects"}
+          </button>
         </div>
+
+        {campagne && (
+          <div style={{ ...CARTE, border: "1px solid rgba(200,169,110,0.5)" }}>
+            <h2 style={{ color: "#c8a96e", fontSize: "19px", margin: "0 0 10px" }}>
+              {campagne.nombre} prospect(s) seront relance(s)
+            </h2>
+
+            {campagne.nombre === 0 ? (
+              <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "15px", lineHeight: "1.75", margin: 0 }}>
+                Personne a relancer aujourd hui. Sont ecartes : ceux qui se sont desinscrits,
+                ceux qui sont deja clients ou perdus, ceux qui n ont jamais pris contact
+                d eux-memes, et ceux qui ont recu un message il y a moins de{" "}
+                {campagne.repos_jours} jours.
+              </p>
+            ) : (
+              <>
+                <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "14px", lineHeight: "1.75", marginTop: 0 }}>
+                  Seuls les prospects venus d eux-memes sont relances : formulaire, webinaire,
+                  chat ou recommandation. Chaque message porte un lien de desinscription, et
+                  personne ne recoit deux messages en moins de {campagne.repos_jours} jours.
+                </p>
+
+                <div style={{ maxHeight: "240px", overflowY: "auto", margin: "14px 0", paddingRight: "6px" }}>
+                  {(campagne.candidats || []).map(function (c: any) {
+                    return (
+                      <div key={c.email} style={{ display: "flex", justifyContent: "space-between", gap: "10px", padding: "7px 0", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+                        <span style={{ color: "rgba(255,255,255,0.75)", fontSize: "13.5px", wordBreak: "break-all" }}>
+                          {c.nom || c.email}
+                          <span style={{ color: "rgba(255,255,255,0.35)" }}>
+                            {" · " + c.source}{c.formation ? " · " + c.formation : ""}
+                            {c.relances > 0 ? " · deja relance " + c.relances + " fois" : ""}
+                          </span>
+                        </span>
+                        <span style={{ color: couleurScore(c.score || 0), fontSize: "13.5px", fontWeight: "bold" }}>
+                          {c.score || 0}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <button
+                  onClick={lancerCampagne}
+                  disabled={occupe !== ""}
+                  style={{ background: occupe === "campagne-envoi" ? "rgba(200,169,110,0.3)" : "#c8a96e", color: occupe === "campagne-envoi" ? "#8a8a8a" : "#050508", padding: "14px 28px", borderRadius: "8px", border: "none", cursor: "pointer", fontWeight: "bold", fontSize: "15px", fontFamily: "Georgia,serif", width: "100%" }}
+                >
+                  {occupe === "campagne-envoi"
+                    ? "Envoi en cours..."
+                    : "Envoyer les " + campagne.nombre + " relances"}
+                </button>
+              </>
+            )}
+          </div>
+        )}
 
         {formulaire && (
           <div style={{ ...CARTE, border: "1px solid rgba(200,169,110,0.5)" }}>
@@ -451,7 +580,8 @@ export default function PageCRM() {
 
             <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px", margin: "12px 0 0", lineHeight: "1.7" }}>
               Un prospect deja connu est mis a jour, sans que son etape ni ses notes soient
-              effacees.
+              effacees. Une liste importee n entre pas dans les relances en nombre : ces
+              personnes ne vous ont pas contacte d elles-memes.
             </p>
           </div>
         )}
@@ -507,6 +637,17 @@ export default function PageCRM() {
                       {p.formation_interesse ? " · " + p.formation_interesse : ""}
                       {p.source ? " · " + p.source : ""}
                     </p>
+                    {p.desinscrit && (
+                      <p style={{ color: "#e8836a", fontSize: "13px", margin: "6px 0 0" }}>
+                        Desinscrit — ne recoit plus de messages
+                      </p>
+                    )}
+                    {p.relance_le && (
+                      <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "12.5px", margin: "4px 0 0" }}>
+                        Relance le {new Date(p.relance_le).toLocaleDateString("fr-FR")}
+                        {p.relances ? " · " + p.relances + " au total" : ""}
+                      </p>
+                    )}
                     {p.progression ? (
                       <p style={{ color: "#4caf50", fontSize: "13px", margin: "6px 0 0" }}>
                         {p.progression} % de sa formation · {p.modules_valides || 0} module(s)
@@ -617,11 +758,27 @@ export default function PageCRM() {
                     <div style={{ whiteSpace: "pre-wrap", fontSize: "15px", lineHeight: "1.75" }}>
                       {String(panneau.texte).replace(/\*\*/g, "")}
                     </div>
+
                     {panneau.type === "relance" && (
-                      <p style={{ color: "#777", fontSize: "13px", margin: "14px 0 0", lineHeight: "1.6" }}>
-                        Copiez ce texte dans votre messagerie apres l avoir relu. Rien n est
-                        envoye automatiquement.
-                      </p>
+                      <>
+                        <button
+                          onClick={() => envoyer(p.email, String(panneau.texte).replace(/\*\*/g, ""))}
+                          disabled={occupe !== "" || p.desinscrit === true}
+                          style={{ background: p.desinscrit ? "#ddd" : "#0a3d2e", color: p.desinscrit ? "#999" : "#ffffff", padding: "13px 26px", borderRadius: "8px", border: "none", cursor: p.desinscrit ? "default" : "pointer", fontWeight: "bold", fontSize: "15px", fontFamily: "Georgia,serif", marginTop: "18px", width: "100%" }}
+                        >
+                          {occupe === "envoi-" + p.email
+                            ? "Envoi..."
+                            : p.desinscrit
+                            ? "Ce prospect s est desinscrit"
+                            : "Envoyer cette relance"}
+                        </button>
+
+                        <p style={{ color: "#777", fontSize: "13px", margin: "12px 0 0", lineHeight: "1.6" }}>
+                          Relisez avant d envoyer : c est ce texte qui partira, signe de votre
+                          organisme, avec un lien de desinscription. Vous pouvez aussi le copier
+                          dans votre propre messagerie.
+                        </p>
+                      </>
                     )}
                   </div>
                 )}
