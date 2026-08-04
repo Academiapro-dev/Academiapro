@@ -11,12 +11,11 @@ const T = {
     stat1: "Formations",
     stat2: "Compétences validées",
     stat3: "Accompagnants IA",
-    stat4: "Garantie satisfait ✓",
+    stat4: "Retractation",
     nav_formations: "Formations", nav_séances: "Séances", nav_packs: "Packs", nav_competences: "Compétences", nav_blog: "Blog", nav_contact: "Contact",
     footer_desc: "La plateforme de formation propulsee par l IA. {NB} formations avec certificat AcadeMIA Pro.",
     voir_formation: "Voir la formation", voir_tout: "Voir les {NB} formations", nos_formations: "Nos formations phares",
-     nos_formations_sub: "Certificat AcadeMIA Pro · Retractation 14 jours",
-
+    nos_formations_sub: "Certificat AcadeMIA Pro · Retractation 14 jours",
     badge_carte: "Certificat AcadeMIA",
   },
   en: {
@@ -24,12 +23,10 @@ const T = {
     hero_sub: "{NB} courses with AcadeMIA Pro certificate · AI Agent 24/7 · Support sessions",
     btn_formations: "View courses", btn_ebook: "Free e-book", btn_demarrer: "Get Started",
     stat1: "Courses", stat2: "Validated skills", stat3: "AI Guides", stat4: "Withdrawal period",
-
     nav_formations: "Courses", nav_séances: "Sessions", nav_packs: "Packs", nav_competences: "Skills", nav_blog: "Blog", nav_contact: "Contact",
     footer_desc: "The AI-powered training platform. {NB} courses with AcadeMIA Pro certificate.",
     voir_formation: "View course", voir_tout: "View all {NB} courses", nos_formations: "Our featured courses",
     nos_formations_sub: "AcadeMIA Pro Certificate · 14-day withdrawal period",
-
     badge_carte: "AcadeMIA Certificate",
   },
   es: {
@@ -37,56 +34,54 @@ const T = {
     hero_sub: "{NB} cursos con certificado AcadeMIA Pro · Agente IA 24h · Sesiones de acompanamiento",
     btn_formations: "Ver cursos", btn_ebook: "E-book gratis", btn_demarrer: "Comenzar",
     stat1: "Cursos", stat2: "Habilidades validadas", stat3: "Guias IA", stat4: "Derecho de desistimiento",
-
     nav_formations: "Cursos", nav_séances: "Sesiones", nav_packs: "Packs", nav_competences: "Habilidades", nav_blog: "Blog", nav_contact: "Contacto",
     footer_desc: "La plataforma de formacion impulsada por IA. {NB} cursos con certificado AcadeMIA Pro.",
     voir_formation: "Ver curso", voir_tout: "Ver los {NB} cursos", nos_formations: "Nuestros cursos destacados",
-    nos_formations_sub: "Certificado AcadeMIA Pro · Garantia 30 dias",
+    nos_formations_sub: "Certificado AcadeMIA Pro · Desistimiento 14 dias",
     badge_carte: "Certificado AcadeMIA",
   },
   pt: {
     hero_titre: "Forme-se com seu agente IA pessoal",
     hero_sub: "{NB} cursos com certificado AcadeMIA Pro · Agente IA 24h · Sessoes de acompanhamento",
     btn_formations: "Ver cursos", btn_ebook: "E-book gratuito", btn_demarrer: "Comecar",
-    stat1: "Cursos", stat2: "Competencias validadas", stat3: "Guias IA", stat4: "Garantia de satisfacao",
+    stat1: "Cursos", stat2: "Competencias validadas", stat3: "Guias IA", stat4: "Direito de arrependimento",
     nav_formations: "Cursos", nav_séances: "Sessoes", nav_packs: "Packs", nav_competences: "Competencias", nav_blog: "Blog", nav_contact: "Contato",
     footer_desc: "A plataforma de formacao impulsionada por IA. {NB} cursos com certificado AcadeMIA Pro.",
     voir_formation: "Ver curso", voir_tout: "Ver os {NB} cursos", nos_formations: "Nossos cursos em destaque",
-    nos_formations_sub: "Certificado AcadeMIA Pro · Desistimiento 14 dias",
-
+    nos_formations_sub: "Certificado AcadeMIA Pro · Direito de arrependimento 14 dias",
     badge_carte: "Certificado AcadeMIA",
   },
   de: {
     hero_titre: "Weiterbilden mit Ihrem personlichen KI-Agenten",
     hero_sub: "{NB} Kurse mit AcadeMIA Pro Zertifikat · KI-Agent 24h · Begleitsitzungen",
     btn_formations: "Kurse ansehen", btn_ebook: "Kostenloses E-Book", btn_demarrer: "Loslegen",
-    stat1: "Kurse", stat2: "Validierte Kompetenzen", stat3: "KI-Begleiter", stat4: "Zufriedenheitsgarantie",
+    stat1: "Kurse", stat2: "Validierte Kompetenzen", stat3: "KI-Begleiter", stat4: "Widerrufsrecht",
     nav_formations: "Kurse", nav_séances: "Sitzungen", nav_packs: "Pakete", nav_competences: "Kompetenzen", nav_blog: "Blog", nav_contact: "Kontakt",
     footer_desc: "Die KI-gestutzte Weiterbildungsplattform. {NB} Kurse mit AcadeMIA Pro Zertifikat.",
     voir_formation: "Kurs ansehen", voir_tout: "Alle {NB} Kurse ansehen", nos_formations: "Unsere Top-Kurse",
-    nos_formations_sub: "AcadeMIA Pro Zertifikat · 30-Tage-Garantie",
+    nos_formations_sub: "AcadeMIA Pro Zertifikat · 14 Tage Widerrufsrecht",
     badge_carte: "AcadeMIA Zertifikat",
   },
   ar: {
     hero_titre: "تدرب مع وكيل الذكاء الاصطناعي الشخصي",
     hero_sub: "{NB} دورة بشهادة AcadeMIA Pro · وكيل ذكاء اصطناعي 24/24 · جلسات مرافقة",
     btn_formations: "عرض الدورات", btn_ebook: "كتاب مجاني", btn_demarrer: "ابدأ",
-    stat1: "دورات", stat2: "مهارات معتمدة", stat3: "مرافقون AI", stat4: "ضمان الرضا",
+    stat1: "دورات", stat2: "مهارات معتمدة", stat3: "مرافقون AI", stat4: "حق الانسحاب",
     nav_formations: "الدورات", nav_séances: "الجلسات", nav_packs: "الباقات", nav_competences: "المهارات", nav_blog: "المدونة", nav_contact: "اتصل",
     footer_desc: "منصة التدريب المدعومة بالذكاء الاصطناعي. {NB} دورة بشهادة AcadeMIA Pro.",
     voir_formation: "عرض الدورة", voir_tout: "عرض جميع الدورات {NB}", nos_formations: "دوراتنا المميزة",
-    nos_formations_sub: "شهادة AcadeMIA Pro · ضمان 30 يوماً",
+    nos_formations_sub: "شهادة AcadeMIA Pro · حق الانسحاب 14 يوماً",
     badge_carte: "شهادة AcadeMIA",
   },
   he: {
     hero_titre: "התאמנו עם סוכן הבינה המלאכותית האישי שלכם",
     hero_sub: "{NB} קורסים עם תעודת AcadeMIA Pro · סוכן AI 24/7 · מפגשי ליווי",
     btn_formations: "צפה בקורסים", btn_ebook: "ספר אלקטרוני חינם", btn_demarrer: "התחל",
-    stat1: "קורסים", stat2: "מיומנויות מאושרות", stat3: "מלווי AI", stat4: "ערבות שביעות רצון",
+    stat1: "קורסים", stat2: "מיומנויות מאושרות", stat3: "מלווי AI", stat4: "זכות ביטול",
     nav_formations: "קורסים", nav_séances: "מפגשים", nav_packs: "חבילות", nav_competences: "מיומנויות", nav_blog: "בלוג", nav_contact: "צור קשר",
     footer_desc: "פלטפורמת הכשרה מופעלת בינה מלאכותית. {NB} קורסים עם תעודת AcadeMIA Pro.",
     voir_formation: "צפה בקורס", voir_tout: "צפה בכל {NB} הקורסים", nos_formations: "הקורסים המובילים שלנו",
-    nos_formations_sub: "תעודת AcadémIA Pro · ערבות 30 יום",
+    nos_formations_sub: "תעודת AcadémIA Pro · זכות ביטול 14 יום",
     badge_carte: "תעודת AcadeMIA",
   },
 };
@@ -136,7 +131,7 @@ export default function HomePage() {
 
       <section style={{ background: "#1a1a2e", padding: "60px 40px" }}>
         <div style={{ maxWidth: "1000px", margin: "0 auto", display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "32px", textAlign: "center" }}>
-          {[{ nb: String(nbFormations), label: t("stat1") }, { nb: "100+", label: t("stat2") }, { nb: "5", label: t("stat3") }, { nb: "30j", label: t("stat4") }].map((s) => (
+          {[{ nb: String(nbFormations), label: t("stat1") }, { nb: "100+", label: t("stat2") }, { nb: "5", label: t("stat3") }, { nb: "14j", label: t("stat4") }].map((s) => (
             <div key={s.label}>
               <p style={{ color: "#c8a96e", fontSize: "40px", fontWeight: "bold", margin: "0 0 8px" }}>{s.nb}</p>
               <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "15px", margin: "0" }}>{s.label}</p>
@@ -217,7 +212,6 @@ export default function HomePage() {
               <a href="/politique-confidentialite" style={{ color: "rgba(255,255,255,0.5)", textDecoration: "none", fontSize: "13px" }}>Confidentialite</a>
               <a href="/mentions-legales" style={{ color: "rgba(255,255,255,0.5)", textDecoration: "none", fontSize: "13px" }}>Mentions legales</a>
               <a href="/garantie" style={{ color: "rgba(255,255,255,0.5)", textDecoration: "none", fontSize: "13px" }}>Droit de retractation</a>
-
             </div>
           </div>
         </div>
