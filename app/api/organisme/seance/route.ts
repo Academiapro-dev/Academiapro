@@ -147,12 +147,10 @@ export async function POST(req: NextRequest) {
 
     const code = b.formation_code ? String(b.formation_code).trim().toUpperCase() : null;
 
-    // NOM DE SALLE. Il commence par le code de la formation quand il y en a
-    // une : le formateur charge alors le programme de ce cours au lieu d un
-    // cours general. Le reste est imprevisible, pour qu un inconnu n entre
-    // pas en devinant un nom.
-    const hasard = crypto.randomBytes(9).toString("hex");
-    const salle = code ? code + "-" + hasard : "academia-" + hasard;
+    // NOM DE SALLE. Toujours "academia-" suivi de caracteres imprevisibles :
+    // c est ce nom que le formateur rejoint, et un inconnu ne peut pas le
+    // deviner. La formation est portee par la seance, pas par le nom.
+    const salle = "academia-" + crypto.randomBytes(9).toString("hex");
 
     const { data, error } = await supabase
       .from("organisme_seances")
