@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { sessionCourante } from "../../../../lib/session";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -20,19 +21,6 @@ function origineLegitime(req: NextRequest): boolean {
   );
 }
 
-// Lit le tenant_id depuis le cookie de session sb_user.
-// Retourne null si absent : la route doit alors refuser la requete.
-function tenantDeLaSession(req: NextRequest): string | null {
-  try {
-    const brut = req.cookies.get("sb_user")?.value;
-    if (!brut) return null;
-    const donnees = JSON.parse(decodeURIComponent(brut));
-    return donnees?.tenant_id || null;
-  } catch {
-    return null;
-  }
-}
-
 function trimestreDe(dateStr: string): number {
   const m = new Date(dateStr).getMonth();
   return Math.floor(m / 3) + 1;
@@ -43,7 +31,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Acces refuse" }, { status: 403 });
   }
 
-  const tenantId = tenantDeLaSession(req);
+  // L organisme vient du JETON SIGNE session_academia, et non plus
+  // du cookie sb_user qui n etait qu un objet JSON encode :
+  // n importe qui pouvait le forger et lire les donnees d un autre organisme.
+  const session = sessionCourante();
+  const tenantId = session ? session.tenantId : null;
   if (!tenantId) {
     return NextResponse.json(
       { error: "Session sans societe rattachee. Reconnectez-vous." },
