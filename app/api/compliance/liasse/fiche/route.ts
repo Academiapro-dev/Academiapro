@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { sessionCourante } from "../../../../../lib/session";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -22,12 +23,10 @@ const supabase = createClient(
   }
 );
 
-function sessionPresente(req: NextRequest): boolean {
-  try {
-    return !!req.cookies.get("sb_user")?.value;
-  } catch {
-    return false;
-  }
+// La session vient du JETON SIGNE session_academia. Avec l ancien cookie
+// sb_user, la simple presence d un cookie fabrique a la main suffisait.
+function sessionPresente(): boolean {
+  return sessionCourante() !== null;
 }
 
 function r2(n: number): number {
@@ -62,7 +61,7 @@ function calculIS(base: number): { is_15: number; is_25: number; total: number }
 }
 
 export async function GET(req: NextRequest) {
-  if (!sessionPresente(req)) {
+  if (!sessionPresente()) {
     return NextResponse.json(
       { error: "Connectez-vous pour produire une fiche." },
       { status: 401 }
