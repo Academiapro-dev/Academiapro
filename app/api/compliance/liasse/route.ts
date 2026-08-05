@@ -23,10 +23,13 @@ const supabase = createClient(
   }
 );
 
-// La session vient du JETON SIGNE session_academia. Avec l ancien cookie
-// sb_user, la simple presence d un cookie fabrique a la main suffisait.
-function sessionPresente(): boolean {
-  return sessionCourante() !== null;
+// L organisme vient du JETON SIGNE session_academia. Il ne sert pas seulement
+// a authentifier : il CLOISONNE. Sans le filtre tenant_id plus bas, tout
+// utilisateur connecte pouvait reclamer la liasse d un autre cabinet en
+// devinant son code dans l adresse.
+function tenantDeLaSession(): string | null {
+  const session = sessionCourante();
+  return session ? session.tenantId : null;
 }
 
 function r2(n: number): number {
@@ -44,7 +47,8 @@ function calculIS(base: number): { is_15: number; is_25: number; total: number }
 }
 
 export async function GET(req: NextRequest) {
-  if (!sessionPresente()) {
+  const tenantId = tenantDeLaSession();
+  if (!tenantId) {
     return NextResponse.json(
       { error: "Connectez-vous pour produire une liasse." },
       { status: 401 }
@@ -59,6 +63,7 @@ export async function GET(req: NextRequest) {
     const { data: dossiers, error: erreurDossiers } = await supabase
       .from("compta_societes")
       .select("id, code, raison_sociale, siren, forme, regime_fiscal, exercice_debut, exercice_fin, actif")
+      .eq("tenant_id", tenantId)
       .limit(500);
 
     if (erreurDossiers) {
