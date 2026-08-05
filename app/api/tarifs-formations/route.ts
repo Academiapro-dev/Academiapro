@@ -10,9 +10,12 @@ const supabase = createClient(
 
 export async function GET() {
   try {
+    // LA DUREE EST DESORMAIS RENVOYEE : la page Tarifs en a besoin pour
+    // masquer les formules de classe virtuelle sur les formations courtes,
+    // comme le fait deja la fiche formation.
     const { data, error } = await supabase
       .from("formations")
-      .select("code, titre, domaine, niveau, prix")
+      .select("code, titre, domaine, niveau, prix, duree")
       .order("domaine", { ascending: true })
       .order("prix", { ascending: false });
 
