@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { sessionCourante } from "../../../../../lib/session";
+import { dossiersAutorises } from "../../../../../lib/droits";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -22,12 +23,6 @@ const supabase = createClient(
     },
   }
 );
-
-// La session vient du JETON SIGNE session_academia. Avec l ancien cookie
-// sb_user, la simple presence d un cookie fabrique a la main suffisait.
-function sessionPresente(): boolean {
-  return sessionCourante() !== null;
-}
 
 function r2(n: number): number {
   return Math.round(n * 100) / 100;
@@ -61,173 +56,188 @@ function calculIS(base: number): { is_15: number; is_25: number; total: number }
 }
 
 export async function GET(req: NextRequest) {
-  if (!sessionPresente()) {
-    return NextResponse.json(
-      { error: "Connectez-vous pour produire une fiche." },
-      { status: 401 }
-    );
-  }
+  try {
+    const session = sessionCourante();
+    if (!session) {
+      return NextResponse.json(
+        { error: "Connectez-vous pour produire une fiche." },
+        { status: 401 }
+      );
+    }
 
-  // CHOIX DU DOSSIER : jamais devine des qu il y en a plusieurs.
-  const codeDemande = (req.nextUrl.searchParams.get("societe") || "").trim().toUpperCase();
-  const idDemande = (req.nextUrl.searchParams.get("societe_id") || "").trim();
+    // dossiersAutorises rend TOUJOURS une liste : les dossiers de l organisme
+    // de la session, restreints a ceux confies au collaborateur. Sans ce
+    // filtre, tout utilisateur connecte obtenait la liasse d un autre cabinet
+    // en devinant son code dans l adresse.
+    const autorises = await dossiersAutorises();
+    if (autorises.length === 0) {
+      return NextResponse.json(
+        { error: "Aucun dossier ne vous est confie." },
+        { status: 403 }
+      );
+    }
 
-  const { data: dossiers, error: erreurDossiers } = await supabase
-    .from("compta_societes")
-    .select("id, code, raison_sociale, siren, forme, adresse, regime_fiscal, exercice_debut, exercice_fin, actif")
-    .limit(500);
+    // CHOIX DU DOSSIER : jamais devine des qu il y en a plusieurs.
+    const codeDemande = (req.nextUrl.searchParams.get("societe") || "").trim().toUpperCase();
+    const idDemande = (req.nextUrl.searchParams.get("societe_id") || "").trim();
 
-  if (erreurDossiers) {
-    return NextResponse.json(
-      { error: "Lecture des dossiers: " + erreurDossiers.message },
-      { status: 500 }
-    );
-  }
+    const { data: dossiers, error: erreurDossiers } = await supabase
+      .from("compta_societes")
+      .select("id, code, raison_sociale, siren, forme, adresse, regime_fiscal, exercice_debut, exercice_fin, actif")
+      .in("id", autorises)
+      .limit(500);
 
-  const liste = (dossiers || []).filter(function (s: any) { return s.actif !== false; });
+    if (erreurDossiers) {
+      return NextResponse.json(
+        { error: "Lecture des dossiers: " + erreurDossiers.message },
+        { status: 500 }
+      );
+    }
 
-  if (liste.length === 0) {
-    return NextResponse.json(
-      { error: "Aucun dossier comptable. Ouvrez-en un avant de produire une fiche." },
-      { status: 404 }
-    );
-  }
+    const liste = (dossiers || []).filter(function (s: any) { return s.actif !== false; });
 
-  let dossier: any = null;
+    if (liste.length === 0) {
+      return NextResponse.json(
+        { error: "Aucun dossier comptable. Ouvrez-en un avant de produire une fiche." },
+        { status: 404 }
+      );
+    }
 
-  if (idDemande) {
-    dossier = liste.find(function (s: any) { return s.id === idDemande; }) || null;
-  } else if (codeDemande) {
-    dossier = liste.find(function (s: any) {
-      return String(s.code || "").trim().toUpperCase() === codeDemande;
-    }) || null;
-  } else if (liste.length === 1) {
-    dossier = liste[0];
-  }
+    let dossier: any = null;
 
-  if (!dossier) {
-    if (!codeDemande && !idDemande) {
+    if (idDemande) {
+      dossier = liste.find(function (s: any) { return s.id === idDemande; }) || null;
+    } else if (codeDemande) {
+      dossier = liste.find(function (s: any) {
+        return String(s.code || "").trim().toUpperCase() === codeDemande;
+      }) || null;
+    } else if (liste.length === 1) {
+      dossier = liste[0];
+    }
+
+    if (!dossier) {
+      if (!codeDemande && !idDemande) {
+        return NextResponse.json(
+          {
+            error: "Precisez le dossier : ?societe=CODE",
+            dossiers: liste.map(function (s: any) {
+              return { code: s.code, raison_sociale: s.raison_sociale };
+            }),
+          },
+          { status: 400 }
+        );
+      }
       return NextResponse.json(
         {
-          error: "Precisez le dossier : ?societe=CODE",
-          dossiers: liste.map(function (s: any) {
+          error: "Dossier introuvable.",
+          demande: codeDemande || idDemande,
+          dossiers_connus: liste.map(function (s: any) {
             return { code: s.code, raison_sociale: s.raison_sociale };
           }),
         },
-        { status: 400 }
+        { status: 404 }
       );
     }
-    return NextResponse.json(
-      {
-        error: "Dossier introuvable.",
-        demande: codeDemande || idDemande,
-        dossiers_connus: liste.map(function (s: any) {
-          return { code: s.code, raison_sociale: s.raison_sociale };
-        }),
-      },
-      { status: 404 }
-    );
-  }
 
-  const anneeDemandee = parseInt(req.nextUrl.searchParams.get("year") || "", 10);
+    const anneeDemandee = parseInt(req.nextUrl.searchParams.get("year") || "", 10);
 
-  let debut: string;
-  let fin: string;
+    let debut: string;
+    let fin: string;
 
-  if (anneeDemandee) {
-    debut = anneeDemandee + "-01-01";
-    fin = anneeDemandee + "-12-31";
-  } else if (dossier.exercice_debut && dossier.exercice_fin) {
-    debut = String(dossier.exercice_debut).slice(0, 10);
-    fin = String(dossier.exercice_fin).slice(0, 10);
-  } else {
-    const annee = new Date().getFullYear();
-    debut = annee + "-01-01";
-    fin = annee + "-12-31";
-  }
+    if (anneeDemandee) {
+      debut = anneeDemandee + "-01-01";
+      fin = anneeDemandee + "-12-31";
+    } else if (dossier.exercice_debut && dossier.exercice_fin) {
+      debut = String(dossier.exercice_debut).slice(0, 10);
+      fin = String(dossier.exercice_fin).slice(0, 10);
+    } else {
+      const annee = new Date().getFullYear();
+      debut = annee + "-01-01";
+      fin = annee + "-12-31";
+    }
 
-  const { data: lignes, error } = await supabase
-    .from("compta_ecritures")
-    .select("compte_num, compte_lib, debit, credit")
-    .eq("societe_id", dossier.id)
-    .gte("ecriture_date", debut)
-    .lte("ecriture_date", fin)
-    .limit(50000);
+    const { data: lignes, error } = await supabase
+      .from("compta_ecritures")
+      .select("compte_num, compte_lib, debit, credit")
+      .eq("societe_id", dossier.id)
+      .gte("ecriture_date", debut)
+      .lte("ecriture_date", fin)
+      .limit(50000);
 
-  if (error) {
-    return NextResponse.json({ error: "Lecture ecritures: " + error.message }, { status: 500 });
-  }
-  if (!lignes || lignes.length === 0) {
-    return NextResponse.json(
-      {
-        error: "Aucune ecriture pour " + dossier.raison_sociale
-          + " entre le " + debut + " et le " + fin + ".",
-        dossier: dossier.code,
-      },
-      { status: 404 }
-    );
-  }
+    if (error) {
+      return NextResponse.json({ error: "Lecture ecritures: " + error.message }, { status: 500 });
+    }
+    if (!lignes || lignes.length === 0) {
+      return NextResponse.json(
+        {
+          error: "Aucune ecriture pour " + dossier.raison_sociale
+            + " entre le " + debut + " et le " + fin + ".",
+          dossier: dossier.code,
+        },
+        { status: 404 }
+      );
+    }
 
-  const comptes: Record<string, { lib: string; debit: number; credit: number }> = {};
-  for (const l of lignes) {
-    if (!comptes[l.compte_num]) comptes[l.compte_num] = { lib: l.compte_lib, debit: 0, credit: 0 };
-    comptes[l.compte_num].debit += Number(l.debit || 0);
-    comptes[l.compte_num].credit += Number(l.credit || 0);
-  }
+    const comptes: Record<string, { lib: string; debit: number; credit: number }> = {};
+    for (const l of lignes) {
+      if (!comptes[l.compte_num]) comptes[l.compte_num] = { lib: l.compte_lib, debit: 0, credit: 0 };
+      comptes[l.compte_num].debit += Number(l.debit || 0);
+      comptes[l.compte_num].credit += Number(l.credit || 0);
+    }
 
-  let produits = 0, charges = 0;
-  const detProduits: Array<[string, number]> = [];
-  const detCharges: Array<[string, number]> = [];
-  let immo = 0, stocks = 0, creances = 0, dettes = 0, tresoA = 0, tresoP = 0, capHors = 0;
+    let produits = 0, charges = 0;
+    const detProduits: Array<[string, number]> = [];
+    const detCharges: Array<[string, number]> = [];
+    let immo = 0, stocks = 0, creances = 0, dettes = 0, tresoA = 0, tresoP = 0, capHors = 0;
 
-  for (const num of Object.keys(comptes).sort()) {
-    const c = comptes[num];
-    const solde = r2(c.debit - c.credit);
-    const cl = num.charAt(0);
-    if (cl === "7") {
-      const m = r2(c.credit - c.debit);
-      produits = r2(produits + m);
-      detProduits.push([num + " - " + c.lib, m]);
-    } else if (cl === "6") {
-      const m = r2(c.debit - c.credit);
-      charges = r2(charges + m);
-      detCharges.push([num + " - " + c.lib, m]);
-    } else if (cl === "2") immo = r2(immo + solde);
-    else if (cl === "3") stocks = r2(stocks + solde);
-    else if (cl === "4") { if (solde >= 0) creances = r2(creances + solde); else dettes = r2(dettes - solde); }
-    else if (cl === "5") { if (solde >= 0) tresoA = r2(tresoA + solde); else tresoP = r2(tresoP - solde); }
-    else if (cl === "1") capHors = r2(capHors + (c.credit - c.debit));
-  }
+    for (const num of Object.keys(comptes).sort()) {
+      const c = comptes[num];
+      const solde = r2(c.debit - c.credit);
+      const cl = num.charAt(0);
+      if (cl === "7") {
+        const m = r2(c.credit - c.debit);
+        produits = r2(produits + m);
+        detProduits.push([num + " - " + c.lib, m]);
+      } else if (cl === "6") {
+        const m = r2(c.debit - c.credit);
+        charges = r2(charges + m);
+        detCharges.push([num + " - " + c.lib, m]);
+      } else if (cl === "2") immo = r2(immo + solde);
+      else if (cl === "3") stocks = r2(stocks + solde);
+      else if (cl === "4") { if (solde >= 0) creances = r2(creances + solde); else dettes = r2(dettes - solde); }
+      else if (cl === "5") { if (solde >= 0) tresoA = r2(tresoA + solde); else tresoP = r2(tresoP - solde); }
+      else if (cl === "1") capHors = r2(capHors + (c.credit - c.debit));
+    }
 
-  const resultat = r2(produits - charges);
-  const regime = String(dossier.regime_fiscal || "a_determiner");
-  const soumisIS = regime === "is";
-  const impot = soumisIS ? calculIS(resultat) : { is_15: 0, is_25: 0, total: 0 };
-  const deficit = resultat < 0 ? r2(-resultat) : 0;
-  const totalActif = r2(immo + stocks + creances + tresoA);
-  const capitaux = r2(capHors + resultat);
-  const totalPassif = r2(capitaux + dettes + tresoP);
+    const resultat = r2(produits - charges);
+    const regime = String(dossier.regime_fiscal || "a_determiner");
+    const soumisIS = regime === "is";
+    const impot = soumisIS ? calculIS(resultat) : { is_15: 0, is_25: 0, total: 0 };
+    const deficit = resultat < 0 ? r2(-resultat) : 0;
+    const totalActif = r2(immo + stocks + creances + tresoA);
+    const capitaux = r2(capHors + resultat);
+    const totalPassif = r2(capitaux + dettes + tresoP);
 
-  const lignesCharges = detCharges
-    .map(([lib, m]) => "<tr><td>" + echapper(lib) + "</td><td class='m'>" + eur(m) + "</td></tr>")
-    .join("");
-  const lignesProduits = detProduits.length
-    ? detProduits.map(([lib, m]) => "<tr><td>" + echapper(lib) + "</td><td class='m'>" + eur(m) + "</td></tr>").join("")
-    : "<tr><td>Aucun produit sur l'exercice</td><td class='m'>" + eur(0) + "</td></tr>";
+    const lignesCharges = detCharges
+      .map(([lib, m]) => "<tr><td>" + echapper(lib) + "</td><td class='m'>" + eur(m) + "</td></tr>")
+      .join("");
+    const lignesProduits = detProduits.length
+      ? detProduits.map(([lib, m]) => "<tr><td>" + echapper(lib) + "</td><td class='m'>" + eur(m) + "</td></tr>").join("")
+      : "<tr><td>Aucun produit sur l'exercice</td><td class='m'>" + eur(0) + "</td></tr>";
 
-  // Le bandeau d hypothese ne s affiche que si le regime n est pas tranche.
-  const bandeau = regime === "a_determiner"
-    ? "<div class='bandeau'>RÉGIME FISCAL NON TRANCHÉ pour ce dossier : aucun impôt n'est calculé. "
-      + "Renseignez le régime sur la fiche du dossier. Document interne, ne vaut pas déclaration.</div>"
-    : soumisIS
-      ? "<div class='bandeau'>Document de travail. La liasse réelle (2065 + 2033) se télétransmet en EDI-TDFC. "
-        + "Taux réduit 15 % supposé, conditions PME à vérifier.</div>"
-      : "<div class='bandeau'>Société non soumise à l'impôt sur les sociétés : le résultat est imposé "
-        + "entre les mains des associés. La liasse 2065/2033 ne s'applique pas en l'état.</div>";
+    // Le bandeau d hypothese ne s affiche que si le regime n est pas tranche.
+    const bandeau = regime === "a_determiner"
+      ? "<div class='bandeau'>RÉGIME FISCAL NON TRANCHÉ pour ce dossier : aucun impôt n'est calculé. "
+        + "Renseignez le régime sur la fiche du dossier. Document interne, ne vaut pas déclaration.</div>"
+      : soumisIS
+        ? "<div class='bandeau'>Document de travail. La liasse réelle (2065 + 2033) se télétransmet en EDI-TDFC. "
+          + "Taux réduit 15 % supposé, conditions PME à vérifier.</div>"
+        : "<div class='bandeau'>Société non soumise à l'impôt sur les sociétés : le résultat est imposé "
+          + "entre les mains des associés. La liasse 2065/2033 ne s'applique pas en l'état.</div>";
 
-  // Le bloc IS n a de sens que pour une societe a l IS.
-  const blocIS = soumisIS
-    ? `<h2>Impôt sur les sociétés (structure 2065)</h2>
+    // Le bloc IS n a de sens que pour une societe a l IS.
+    const blocIS = soumisIS
+      ? `<h2>Impôt sur les sociétés (structure 2065)</h2>
 <table>
 <tr><td>Résultat fiscal (= résultat comptable, aucune réintégration à ce stade)</td><td class="m ${resultat < 0 ? "negatif" : ""}">${eur(resultat)}</td></tr>
 <tr><td>Base imposable</td><td class="m">${eur(resultat > 0 ? resultat : 0)}</td></tr>
@@ -236,18 +246,18 @@ export async function GET(req: NextRequest) {
 <tr class="total"><td>IS TOTAL DÛ</td><td class="m">${eur(impot.total)}</td></tr>
 <tr><td>Déficit reportable sur les exercices suivants</td><td class="m">${eur(deficit)}</td></tr>
 </table>`
-    : `<h2>Imposition</h2>
+      : `<h2>Imposition</h2>
 <table>
 <tr><td>Résultat de l'exercice</td><td class="m ${resultat < 0 ? "negatif" : ""}">${eur(resultat)}</td></tr>
 <tr><td>Impôt sur les sociétés</td><td class="m">non applicable a ce dossier</td></tr>
 <tr><td>Déficit reportable</td><td class="m">${eur(deficit)}</td></tr>
 </table>`;
 
-  const identite = echapper(dossier.raison_sociale)
-    + (dossier.forme ? " — " + echapper(dossier.forme) : "")
-    + (dossier.siren ? " — SIREN " + echapper(dossier.siren) : "");
+    const identite = echapper(dossier.raison_sociale)
+      + (dossier.forme ? " — " + echapper(dossier.forme) : "")
+      + (dossier.siren ? " — SIREN " + echapper(dossier.siren) : "");
 
-  const html = `<!DOCTYPE html>
+    const html = `<!DOCTYPE html>
 <html lang="fr">
 <head>
 <meta charset="utf-8">
@@ -315,11 +325,17 @@ ${blocIS}
 </body>
 </html>`;
 
-  return new NextResponse(html, {
-    status: 200,
-    headers: {
-      "Content-Type": "text/html; charset=utf-8",
-      "Cache-Control": "no-store",
-    },
-  });
+    return new NextResponse(html, {
+      status: 200,
+      headers: {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "no-store",
+      },
+    });
+  } catch (e: any) {
+    return NextResponse.json(
+      { error: String(e && e.message ? e.message : e) },
+      { status: 500 }
+    );
+  }
 }
