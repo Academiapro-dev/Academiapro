@@ -13,30 +13,30 @@ const supabase = createClient(
 
 const TITRES: Record<string, { titre: string; pourquoi: string }> = {
   US: {
-    titre: "Obligations americaines",
-    pourquoi: "Dues par toute LLC americaine, quel que soit le pays de residence du dirigeant.",
+    titre: "Obligations américaines",
+    pourquoi: "Dues par toute LLC américaine, quel que soit le pays de résidence du dirigeant.",
   },
   FR: {
-    titre: "Obligations francaises",
-    pourquoi: "Dues parce que le dirigeant est resident fiscal en France (rattachement francais de la structure et de son dirigeant).",
+    titre: "Obligations françaises",
+    pourquoi: "Dues parce que le dirigeant est résident fiscal en France (rattachement français de la structure et de son dirigeant).",
   },
   EU: {
-    titre: "Obligations europeennes",
-    pourquoi: "Liees aux ventes B2C a des particuliers de l'Union europeenne.",
+    titre: "Obligations européennes",
+    pourquoi: "Liées aux ventes B2C à des particuliers de l'Union européenne.",
   },
 };
 
 const ETIQUETTES: Record<string, string> = {
-  Q1: "residence fiscale",
+  Q1: "résidence fiscale",
   Q2: "pays de la structure",
   Q3: "forme de la structure",
-  Q4: "impot paye aux USA",
-  Q5: "sommes percues personnellement",
-  Q6: "comptes a l'etranger",
-  Q7: "detention d'au moins 10 %",
+  Q4: "impôt payé aux USA",
+  Q5: "sommes perçues personnellement",
+  Q6: "comptes à l'étranger",
+  Q7: "détention d'au moins 10 %",
   Q8: "ventes B2C dans l'UE",
-  Q9: "qualification francaise",
-  Q10: "salaries ou remuneration",
+  Q9: "qualification française",
+  Q10: "salariés ou rémunération",
 };
 
 // L organisme vient du JETON SIGNE session_academia. Avec l ancien cookie
@@ -55,8 +55,8 @@ function libelle(opt: string): string {
     remboursement_compte_courant: "Remboursement de compte courant",
     distributions: "Distributions", direct: "Oui, en direct",
     merchant_of_record: "Oui, via merchant of record",
-    transparente: "Transparente", opaque_siege_france: "Opaque (siege en France)",
-    non_tranchee: "Non tranchee",
+    transparente: "Transparente", opaque_siege_france: "Opaque (siège en France)",
+    non_tranchee: "Non tranchée",
   };
   return table[opt] || opt.replace(/_/g, " ");
 }
@@ -89,7 +89,7 @@ export async function GET(req: NextRequest) {
   const tenantId = tenantDeLaSession();
   if (!tenantId) {
     return NextResponse.json(
-      { error: "Session sans societe rattachee. Reconnectez-vous." },
+      { error: "Session sans société rattachée. Reconnectez-vous." },
       { status: 401 }
     );
   }
@@ -151,7 +151,7 @@ export async function GET(req: NextRequest) {
 
     const lignesQ = (questions || [])
       .map((q) => "<tr><td>" + q.question + "</td><td class='r'>" +
-        (reponses[q.code] ? libelle(reponses[q.code]) : "<em>sans reponse</em>") + "</td></tr>")
+        (reponses[q.code] ? libelle(reponses[q.code]) : "<em>sans réponse</em>") + "</td></tr>")
       .join("");
 
     const blocs = ["US", "FR", "EU"]
@@ -161,7 +161,7 @@ export async function GET(req: NextRequest) {
         const t = TITRES[jur];
         const cartes = liste
           .map((o) => "<div class='ob'><div class='t'>" + o.document_lib +
-            (aConfirmer(o.consequence) ? " <span class='badge'>a confirmer</span>" : "") + "</div>" +
+            (aConfirmer(o.consequence) ? " <span class='badge'>à confirmer</span>" : "") + "</div>" +
             "<div>" + nettoyer(o.consequence) + "</div>" +
             "<div class='src'>Source : " + o.source + "</div></div>")
           .join("");
@@ -210,24 +210,24 @@ export async function GET(req: NextRequest) {
 </style>
 </head>
 <body>
-<h1>Carte d'obligations declaratives</h1>
-<p class="sous">${nom}${tenant?.formation_state ? " — structure " + tenant.formation_state + " (USA)" : ""} — etablie le ${new Date().toLocaleDateString("fr-FR")}</p>
+<h1>Carte d'obligations déclaratives</h1>
+<p class="sous">${nom}${tenant?.formation_state ? " — structure " + tenant.formation_state + " (USA)" : ""} — établie le ${new Date().toLocaleDateString("fr-FR")}</p>
 
-<h2>Votre situation declaree</h2>
+<h2>Votre situation déclarée</h2>
 <table>${lignesQ}</table>
 
 ${blocs}
 
-<h2>Prochaines echeances</h2>
+<h2>Prochaines échéances</h2>
 <table>
-<tr><th>Obligation</th><th>Periode</th><th class="r">Date limite</th></tr>
-${lignesEch || "<tr><td colspan='3'>Aucune echeance a venir</td></tr>"}
+<tr><th>Obligation</th><th>Période</th><th class="r">Date limite</th></tr>
+${lignesEch || "<tr><td colspan='3'>Aucune échéance à venir</td></tr>"}
 </table>
 
 <h2>Ce qui ne vous concerne pas (${ecartes.length})</h2>
 ${lignesEc}
 
-<p class="pied">Carte etablie automatiquement a partir de vos reponses, par regles documentees non validees par un professionnel. Ce document ne constitue pas un avis fiscal ni juridique. Les regles marquees « a confirmer » signalent une incertitude connue.</p>
+<p class="pied">Carte établie automatiquement à partir de vos réponses, par règles documentées non validées par un professionnel. Ce document ne constitue pas un avis fiscal ni juridique. Les règles marquées « à confirmer » signalent une incertitude connue.</p>
 </body>
 </html>`;
 
