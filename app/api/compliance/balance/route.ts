@@ -1,15 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { sessionCourante } from "../../../../lib/session";
-import { lecture } from "../../../../lib/droits";
+import { lecture, dossiersAutorises } from "../../../../lib/droits";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 export const fetchCache = "force-no-store";
 export const maxDuration = 60;
-
-const ADMINS = ["contact@academiapro.fr"];
 
 const CLASSES: any = {
   1: "Capitaux", 2: "Immobilisations", 3: "Stocks", 4: "Tiers",
@@ -34,15 +32,33 @@ function r2(n: number): number {
 
 export async function GET(req: NextRequest) {
   try {
+    const session = sessionCourante();
+    if (!session) {
+      return NextResponse.json({ ok: false, erreur: "Connectez-vous." }, { status: 401 });
+    }
+
     const code = (req.nextUrl.searchParams.get("societe") || "").trim().toUpperCase();
     const id = (req.nextUrl.searchParams.get("societe_id") || "").trim();
     const compteDemande = (req.nextUrl.searchParams.get("compte") || "").trim();
     const vueDemandee = (req.nextUrl.searchParams.get("vue") || "").trim();
     const journalDemande = (req.nextUrl.searchParams.get("journal") || "").trim().toUpperCase();
 
+    // dossiersAutorises rend TOUJOURS une liste, bornee a l organisme de la
+    // session puis aux dossiers confies au collaborateur. Sans ce filtre, la
+    // balance, le grand livre et le livre journal d un autre cabinet
+    // s obtenaient en devinant un code.
+    const autorises = await dossiersAutorises();
+    if (autorises.length === 0) {
+      return NextResponse.json(
+        { ok: false, erreur: "Aucun dossier ne vous est confie." },
+        { status: 403 }
+      );
+    }
+
     const { data: dossiers } = await supabase
       .from("compta_societes")
       .select("id, code, raison_sociale, exercice_debut, exercice_fin, actif")
+      .in("id", autorises)
       .limit(500);
 
     const liste = (dossiers || []).filter(function (s: any) { return s.actif !== false; });
