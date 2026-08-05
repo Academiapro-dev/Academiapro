@@ -15,11 +15,6 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || ""
 );
 
-// Les huit domaines proposes sur /lead-magnets/ebook. Le slug sert de nom de
-// fichier : ebook_<slug>.txt puis ebook_<slug>.pdf.
-// CE PREMIER APPEL N ECRIT QUE LE TEXTE. La mise en page est faite ensuite
-// par /api/admin/pdf-ebook?domaine=<slug> — decouper les deux evite que la
-// requete du navigateur expire pendant la redaction.
 const DOMAINES: any = {
   "ia": { nom: "Intelligence artificielle", titre: "Guide Pratique de l Intelligence Artificielle" },
   "business": { nom: "Business et management", titre: "Guide Pratique du Management" },
@@ -31,6 +26,9 @@ const DOMAINES: any = {
   "technique": { nom: "Technique et numerique", titre: "Guide Pratique des Outils Numeriques" },
 };
 
+// UN SEUL CHAPITRE PAR APPEL. La redaction est ce qui prend du temps ;
+// decouper le guide en morceaux courts evite que la requete du navigateur
+// expire. Chaque appel ajoute son chapitre au fichier texte.
 export async function GET(req: Request) {
   try {
     const email = emailDeSession();
@@ -43,7 +41,8 @@ export async function GET(req: Request) {
       return NextResponse.json({ ok: false, erreur: "ANTHROPIC_API_KEY absente" }, { status: 500 });
     }
 
-    const slug = (new URL(req.url).searchParams.get("domaine") || "").trim().toLowerCase();
+    const url = new URL(req.url);
+    const slug = (url.searchParams.get("domaine") || "").trim().toLowerCase();
     const d = DOMAINES[slug];
     if (!d) {
       return NextResponse.json(
@@ -52,25 +51,44 @@ export async function GET(req: Request) {
       );
     }
 
+    const total = 6;
+    const n = Math.max(1, Math.min(total, parseInt(url.searchParams.get("chapitre") || "1", 10) || 1));
+    const source = "ebook_" + slug + ".txt";
+
+    // On relit ce qui a deja ete ecrit, pour que le chapitre suivant s y ajoute
+    // et pour donner a Claude les titres deja utilises.
+    let deja = "";
+    if (n > 1) {
+      const { data: fichier } = await supabase.storage.from(BUCKET).download(source);
+      if (fichier) deja = await fichier.text();
+    }
+
+    const titresDeja = (deja.match(/^CHAPITRE\s*:\s*(.+)$/gim) || [])
+      .map(function (l: string) { return l.replace(/^CHAPITRE\s*:\s*/i, "").trim(); });
+
     const invite =
-      "Tu rediges un guide gratuit offert par un organisme de formation francais, destine "
-      + "a des professionnels qui envisagent de se former.\n\n"
+      "Tu rediges UN SEUL CHAPITRE d un guide gratuit offert par un organisme de "
+      + "formation francais, destine a des professionnels qui envisagent de se former.\n\n"
       + "Domaine : " + d.nom + "\n"
-      + "Titre : " + d.titre + "\n\n"
-      + "Produis un guide structure en francais, de six chapitres, chacun comportant "
-      + "deux a trois sections. Ecris du contenu reellement utile : des reperes, des "
-      + "methodes, des erreurs courantes, des exemples concrets. Compte environ quatre "
-      + "mille mots au total.\n\n"
+      + "Titre du guide : " + d.titre + "\n"
+      + "Tu rediges le chapitre " + n + " sur " + total + ".\n"
+      + (titresDeja.length > 0
+          ? "Chapitres deja ecrits, a ne pas repeter :\n- " + titresDeja.join("\n- ") + "\n"
+          : "")
+      + "\nCe chapitre comporte deux ou trois sections. Ecris du contenu reellement "
+      + "utile : des reperes, des methodes, des erreurs courantes, des exemples "
+      + "concrets. Environ sept cents mots.\n\n"
       + "FORMAT EXACT, sans aucune balise ni Markdown :\n"
-      + "Une ligne de chapitre commence par CHAPITRE: suivi du titre.\n"
+      + "La premiere ligne commence par CHAPITRE: suivi du titre.\n"
       + "Une ligne de section commence par SECTION: suivi du titre.\n"
       + "Une ligne de liste commence par - suivi du texte.\n"
       + "Tout le reste est du paragraphe ordinaire, une ligne par paragraphe.\n\n"
       + "Regles imperatives :\n"
-      + "- N invente aucune statistique, aucun chiffre d etude, aucun nom d entreprise cliente.\n"
+      + "- N invente aucune statistique, aucun chiffre d etude, aucun nom d entreprise.\n"
       + "- N indique aucun prix et ne cite aucune formation par son code.\n"
       + "- Ne promets aucun resultat et ne mentionne aucune certification.\n"
-      + "- Ne parle jamais de toi ni de la facon dont ce texte a ete produit.";
+      + "- Ne parle jamais de toi ni de la facon dont ce texte a ete produit.\n"
+      + "- N ecris ni introduction ni conclusion du guide : seulement ce chapitre.";
 
     const r = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -81,7 +99,7 @@ export async function GET(req: Request) {
       },
       body: JSON.stringify({
         model: MODELE,
-        max_tokens: 8000,
+        max_tokens: 2000,
         messages: [{ role: "user", content: invite }],
       }),
     });
@@ -100,21 +118,19 @@ export async function GET(req: Request) {
       .join("\n")
       .trim();
 
-    if (texte.length < 2000) {
+    if (texte.length < 400) {
       return NextResponse.json(
         { ok: false, erreur: "reponse trop courte (" + texte.length + " caracteres)" },
         { status: 500 }
       );
     }
 
-    // On range le titre en tete, separe par une ligne dediee : la mise en
-    // page le relira sans avoir besoin de connaitre la table des domaines.
-    const contenu = "TITRE: " + d.titre + "\nDOMAINE: " + d.nom + "\n\n" + texte;
-    const sortie = "ebook_" + slug + ".txt";
+    const entete = "TITRE: " + d.titre + "\nDOMAINE: " + d.nom + "\n";
+    const contenu = n === 1 ? entete + "\n" + texte : deja + "\n\n" + texte;
 
     const ecriture = await supabase.storage
       .from(BUCKET)
-      .upload(sortie, new Blob([contenu], { type: "text/plain; charset=utf-8" }), {
+      .upload(source, new Blob([contenu], { type: "text/plain; charset=utf-8" }), {
         upsert: true,
         cacheControl: "60",
       });
@@ -123,18 +139,21 @@ export async function GET(req: Request) {
       return NextResponse.json({ ok: false, erreur: ecriture.error.message }, { status: 500 });
     }
 
-    const chapitres = (texte.match(/^CHAPITRE\s*:/gim) || []).length;
-    const sections = (texte.match(/^SECTION\s*:/gim) || []).length;
+    const faits = (contenu.match(/^CHAPITRE\s*:/gim) || []).length;
+    const reste = n < total;
 
     return NextResponse.json({
       ok: true,
-      etape: "1 sur 2 — texte ecrit",
       domaine: d.nom,
-      fichier: sortie,
+      chapitre_ecrit: n,
+      chapitres_dans_le_fichier: faits,
       caracteres: contenu.length,
-      chapitres: chapitres,
-      sections: sections,
-      suite: "https://academiapro.fr/api/admin/pdf-ebook?domaine=" + slug,
+      suite: reste
+        ? "https://academiapro.fr/api/admin/ebook-domaine?domaine=" + slug + "&chapitre=" + (n + 1)
+        : "https://academiapro.fr/api/admin/pdf-ebook?domaine=" + slug,
+      message: reste
+        ? "Chapitre " + n + " sur " + total + " ecrit. Ouvrez le lien de suite."
+        : "Les " + total + " chapitres sont ecrits. Ouvrez le lien de suite pour la mise en page.",
     });
   } catch (e: any) {
     return NextResponse.json({ ok: false, erreur: String(e.message || e) }, { status: 500 });
