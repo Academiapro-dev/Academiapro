@@ -11,6 +11,7 @@ const supabase = createClient(
 
 const CLAUDE_API_KEY = process.env.ANTHROPIC_API_KEY!;
 const CLAUDE_MODEL = "claude-sonnet-4-6";
+const ADMINS = ["contact@academiapro.fr"];
 
 async function appel_claude(system: string, user: string): Promise<string> {
   const res = await fetch("https://api.anthropic.com/v1/messages", {
@@ -58,6 +59,17 @@ async function scorer_prospect(prospect: any): Promise<number> {
 // Chaque prospect appartient a un organisme : celui de la session.
 function filtreTenant(requete: any, tenantId: string | null) {
   return tenantId ? requete.eq("tenant_id", tenantId) : requete.is("tenant_id", null);
+}
+
+// PORTEE. Un administrateur est rattache a son propre organisme, mais ses
+// prospects a lui — ceux qui arrivent par les tunnels publics — sont
+// enregistres SANS organisme. Sans cette option, il ne les voit jamais.
+// Le cloisonnement des organismes clients reste entier : seul un
+// administrateur peut demander la portee editeur.
+function porteeDe(session: any, demande: any): string | null {
+  const admin = ADMINS.indexOf(session.email) >= 0;
+  if (admin && demande === "editeur") return null;
+  return session.tenantId;
 }
 
 async function upsert_prospect(data: any, tenantId: string | null) {
@@ -304,7 +316,7 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const { action } = body;
-    const t = session.tenantId;
+    const t = porteeDe(session, body.portee);
 
     if (action === "upsert") return NextResponse.json(await upsert_prospect(body.data, t));
     if (action === "prospects") return NextResponse.json(await get_prospects(body.statut, body.domaine, t));
@@ -319,10 +331,11 @@ export async function POST(req: NextRequest) {
   }
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const session = sessionCourante();
   if (!session) {
     return NextResponse.json({ erreur: "Connectez-vous" }, { status: 401 });
   }
-  return NextResponse.json(await stats_crm(session.tenantId));
+  const portee = new URL(req.url).searchParams.get("portee");
+  return NextResponse.json(await stats_crm(porteeDe(session, portee)));
 }
