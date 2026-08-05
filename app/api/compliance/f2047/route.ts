@@ -1,18 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
+import { sessionCourante } from "../../../../lib/session";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 export const dynamic = "force-dynamic";
 
-function tenantDeLaSession(req: NextRequest): string | null {
-  try {
-    const brut = req.cookies.get("sb_user")?.value;
-    if (!brut) return null;
-    const donnees = JSON.parse(decodeURIComponent(brut));
-    return donnees?.tenant_id || null;
-  } catch {
-    return null;
-  }
+// L organisme vient du JETON SIGNE session_academia, et non plus du cookie
+// sb_user qui n etait qu un objet JSON encode, forgeable par n importe qui.
+function tenantDeLaSession(): string | null {
+  const session = sessionCourante();
+  return session ? session.tenantId : null;
 }
 
 function eur(n: number): string {
@@ -20,7 +17,7 @@ function eur(n: number): string {
 }
 
 export async function GET(req: NextRequest) {
-  const tenantId = tenantDeLaSession(req);
+  const tenantId = tenantDeLaSession();
   if (!tenantId) {
     return NextResponse.json(
       { error: "Session sans societe rattachee. Reconnectez-vous." },
