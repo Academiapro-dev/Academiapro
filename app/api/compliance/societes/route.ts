@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { sessionCourante } from "../../../../lib/session";
-import { dossiersAutorises } from "../../../../lib/droits";
+import { dossiersAutorises, tenantCourant } from "../../../../lib/droits";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -91,9 +91,10 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: false, erreur: "Connectez-vous." }, { status: 401 });
     }
 
-    // Un collaborateur ne voit que les dossiers qui lui sont confies.
+    // dossiersAutorises rend TOUJOURS une liste, bornee a l organisme de la
+    // session puis aux dossiers confies au collaborateur. Vide = rien a voir.
     const autorises = await dossiersAutorises();
-    if (autorises !== null && autorises.length === 0) {
+    if (autorises.length === 0) {
       return NextResponse.json({
         ok: true, total: 0, actifs: 0, desequilibres: 0,
         ecritures_orphelines: 0, societes: [],
@@ -101,10 +102,10 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    let requete = supabase.from("compta_societes").select("*");
-    if (autorises !== null) requete = requete.in("id", autorises);
-
-    const { data: dossiers, error } = await requete
+    const { data: dossiers, error } = await supabase
+      .from("compta_societes")
+      .select("*")
+      .in("id", autorises)
       .order("raison_sociale", { ascending: true })
       .limit(500);
 
@@ -137,9 +138,10 @@ export async function GET(req: NextRequest) {
     }
 
     // Les ecritures qui ne sont rattachees a aucun dossier n apparaissent
-    // dans aucun FEC ni aucune liasse : il faut le dire.
+    // dans aucun FEC ni aucune liasse : il faut le dire. Reserve aux
+    // administrateurs, c est une information de maintenance.
     let orphelines = 0;
-    if (autorises === null) {
+    if (ADMINS.indexOf(session.email) >= 0) {
       const { count } = await supabase
         .from("compta_ecritures")
         .select("*", { count: "exact", head: true })
@@ -167,7 +169,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       ok: true,
-      restreint: autorises !== null,
+      restreint: true,
       total: societes.length,
       actifs: societes.filter(function (s: any) { return s.actif !== false; }).length,
       desequilibres: societes.filter(function (s: any) { return s.lignes > 0 && !s.equilibre; }).length,
@@ -189,6 +191,17 @@ export async function POST(req: NextRequest) {
     // Ouvrir un dossier est un acte de cabinet, pas un acte comptable :
     // aucun des six droits ne le couvre, il reste donc reserve.
     if (!session || ADMINS.indexOf(session.email) < 0) return refuse();
+
+    // L ORGANISME EST OBLIGATOIRE. C est l oubli de ce rattachement qui
+    // rendait les dossiers orphelins, donc invisibles une fois le
+    // cloisonnement en place.
+    const tenantId = tenantCourant();
+    if (!tenantId) {
+      return NextResponse.json(
+        { ok: false, erreur: "Session sans organisme rattache. Reconnectez-vous." },
+        { status: 401 }
+      );
+    }
 
     const b = await req.json().catch(function () { return null; });
     if (!b) {
@@ -221,15 +234,26 @@ export async function POST(req: NextRequest) {
 
     if (b.actif !== undefined) fiche.actif = b.actif !== false;
 
-    // MODIFICATION d un dossier existant.
+    // MODIFICATION d un dossier existant. Le filtre sur tenant_id empeche
+    // de modifier le dossier d un autre organisme en devinant son id.
     if (b.id) {
-      const { error } = await supabase
+      const { data: modifie, error } = await supabase
         .from("compta_societes")
         .update(fiche)
-        .eq("id", b.id);
+        .eq("id", b.id)
+        .eq("tenant_id", tenantId)
+        .select("id")
+        .maybeSingle();
 
       if (error) {
         return NextResponse.json({ ok: false, erreur: error.message }, { status: 500 });
+      }
+
+      if (!modifie) {
+        return NextResponse.json(
+          { ok: false, erreur: "Ce dossier n appartient pas a votre organisme." },
+          { status: 403 }
+        );
       }
 
       return NextResponse.json({
@@ -259,10 +283,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // L unicite du code se juge DANS l organisme : deux cabinets peuvent
+    // parfaitement avoir chacun un dossier « DUPONT ».
     const { data: deja } = await supabase
       .from("compta_societes")
       .select("id")
       .eq("code", code)
+      .eq("tenant_id", tenantId)
       .maybeSingle();
 
     if (deja) {
@@ -273,6 +300,7 @@ export async function POST(req: NextRequest) {
     }
 
     fiche.code = code;
+    fiche.tenant_id = tenantId;
 
     const { error } = await supabase.from("compta_societes").insert(fiche);
 
