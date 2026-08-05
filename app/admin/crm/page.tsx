@@ -1,6 +1,11 @@
 "use client";
 import { useState, useEffect } from "react";
 
+// CET ECRAN EST CELUI DE L EDITEUR : il montre les prospects d AcadeMIA Pro,
+// ceux qui arrivent par les tunnels publics et n ont aucun organisme
+// rattache. Les prospects des organismes clients restent sur /organisme/crm.
+const PORTEE = "editeur";
+
 export default function CRMPage() {
   const [stats, setStats] = useState<any>(null);
   const [prospects, setProspects] = useState<any[]>([]);
@@ -13,8 +18,8 @@ export default function CRMPage() {
 
   async function charger() {
     const [s, p] = await Promise.all([
-      fetch("/api/crm").then(r => r.json()),
-      fetch("/api/crm", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "prospects" }) }).then(r => r.json()),
+      fetch("/api/crm?portee=" + PORTEE).then(r => r.json()),
+      fetch("/api/crm", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "prospects", portee: PORTEE }) }).then(r => r.json()),
     ]);
     setStats(s);
     setProspects(Array.isArray(p) ? p : []);
@@ -22,7 +27,7 @@ export default function CRMPage() {
 
   async function ajouterProspect() {
     setLoading(true);
-    const r = await fetch("/api/crm", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "upsert", data: form }) });
+    const r = await fetch("/api/crm", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "upsert", data: form, portee: PORTEE }) });
     const data = await r.json();
     setResultat(data);
     await charger();
@@ -32,7 +37,7 @@ export default function CRMPage() {
 
   async function analyser(email: string) {
     setLoading(true);
-    const r = await fetch("/api/crm", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "analyser", email }) });
+    const r = await fetch("/api/crm", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "analyser", email, portee: PORTEE }) });
     const data = await r.json();
     setResultat(data);
     setLoading(false);
@@ -40,7 +45,7 @@ export default function CRMPage() {
 
   async function relancer(email: string) {
     setLoading(true);
-    const r = await fetch("/api/crm", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "relance", email }) });
+    const r = await fetch("/api/crm", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "relance", email, portee: PORTEE }) });
     const data = await r.json();
     setResultat(data);
     setLoading(false);
@@ -56,8 +61,8 @@ export default function CRMPage() {
   return (
     <div style={{ backgroundColor: "#050508", minHeight: "100vh", color: "#fff", fontFamily: "Georgia, serif" }}>
       <div style={{ background: "linear-gradient(135deg,#0a0a1a,#1a1a2e)", padding: "30px 20px" }}>
-        <h1 style={{ color: "#c8a96e", margin: 0, fontSize: "24px" }}>🎯 Agent CRM</h1>
-        <p style={{ color: "rgba(255,255,255,0.5)", margin: "5px 0 0", fontSize: "13px" }}>AcadémIA Pro · Piloté par CAM</p>
+        <h1 style={{ color: "#c8a96e", margin: 0, fontSize: "24px" }}>🎯 Mes prospects</h1>
+        <p style={{ color: "rgba(255,255,255,0.5)", margin: "5px 0 0", fontSize: "13px" }}>AcadémIA Pro · demandes arrivees par les tunnels</p>
       </div>
 
       <div style={{ display: "flex", gap: "5px", padding: "15px 20px", background: "rgba(255,255,255,0.03)", overflowX: "auto" }}>
@@ -128,6 +133,12 @@ export default function CRMPage() {
                     {p.domaine && <span style={{ marginRight: "10px" }}>🏷️ {p.domaine}</span>}
                     {p.source && <span>📍 {p.source}</span>}
                   </div>
+                  {p.telephone && (
+                    <div style={{ color: "rgba(255,255,255,0.6)", fontSize: "12px", marginBottom: "10px" }}>☎️ {p.telephone}</div>
+                  )}
+                  {p.notes && (
+                    <div style={{ color: "rgba(255,255,255,0.5)", fontSize: "12px", marginBottom: "10px", lineHeight: "1.7" }}>{p.notes}</div>
+                  )}
                   <div style={{ display: "flex", gap: "8px" }}>
                     <button onClick={() => { analyser(p.email); setOnglet("resultat"); }} disabled={loading} style={{ flex: 1, background: "rgba(200,169,110,0.15)", color: "#c8a96e", border: "1px solid rgba(200,169,110,0.3)", borderRadius: "6px", padding: "8px", fontSize: "12px", cursor: "pointer" }}>
                       🤖 Analyser
@@ -176,7 +187,7 @@ export default function CRMPage() {
                 <select value={form.domaine} onChange={e => setForm(p => ({ ...p, domaine: e.target.value }))}
                   style={{ width: "100%", padding: "11px", borderRadius: "8px", border: "1px solid rgba(200,169,110,0.3)", background: "#1a1a2e", color: "#fff" }}>
                   <option value="">Choisir...</option>
-                  {["IA", "Business", "Marketing", "Langues", "Bien-etre", "Tech", "Design", "Finance", "Droit", "Outils"].map(d => (
+                  {["Interim", "ESN", "Organisme de formation", "IA", "Business", "Marketing", "Langues", "Bien-etre", "Tech", "Design", "Finance", "Droit", "Outils"].map(d => (
                     <option key={d} value={d}>{d}</option>
                   ))}
                 </select>
@@ -217,4 +228,3 @@ export default function CRMPage() {
     </div>
   );
 }
-
