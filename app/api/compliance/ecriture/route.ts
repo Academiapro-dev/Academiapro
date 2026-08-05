@@ -1,15 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { sessionCourante } from "../../../../lib/session";
-import { barrage } from "../../../../lib/droits";
+import { barrage, dossiersAutorises } from "../../../../lib/droits";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 export const fetchCache = "force-no-store";
 export const maxDuration = 60;
-
-const ADMINS = ["contact@academiapro.fr"];
 
 const JOURNAUX: any = {
   AC: "Achats",
@@ -32,10 +30,6 @@ const supabase = createClient(
   }
 );
 
-function refuse() {
-  return NextResponse.json({ ok: false, erreur: "reserve a l administrateur" }, { status: 403 });
-}
-
 function propre(v: any, max: number): string | null {
   if (v === null || v === undefined) return null;
   const t = String(v).replace(/[|\r\n\t]/g, " ").trim();
@@ -49,7 +43,21 @@ function r2(n: number): number {
 export async function GET(req: NextRequest) {
   try {
     const session = sessionCourante();
-    if (!session || ADMINS.indexOf(session.email) < 0) return refuse();
+    if (!session) {
+      return NextResponse.json({ ok: false, erreur: "Connectez-vous." }, { status: 401 });
+    }
+
+    // La consultation etait reservee a une liste d administrateurs en dur.
+    // Elle s ouvre desormais a tout utilisateur, mais BORNEE AUX DOSSIERS DE
+    // SON ORGANISME : c est le cloisonnement qui protege, pas une liste
+    // d emails ecrite dans le code.
+    const autorises = await dossiersAutorises();
+    if (autorises.length === 0) {
+      return NextResponse.json(
+        { ok: false, erreur: "Aucun dossier ne vous est confie." },
+        { status: 403 }
+      );
+    }
 
     const code = (req.nextUrl.searchParams.get("societe") || "").trim().toUpperCase();
     const id = (req.nextUrl.searchParams.get("societe_id") || "").trim();
@@ -57,6 +65,7 @@ export async function GET(req: NextRequest) {
     const { data: dossiers } = await supabase
       .from("compta_societes")
       .select("id, code, raison_sociale, exercice_debut, exercice_fin")
+      .in("id", autorises)
       .limit(500);
 
     const liste = dossiers || [];
@@ -143,7 +152,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, erreur: "Dossier non precise." }, { status: 400 });
     }
 
-    // LE BARRAGE : le droit de saisir, sur ce dossier precisement.
+    // LE BARRAGE : le droit de saisir, sur ce dossier precisement. Il verifie
+    // d abord que le dossier appartient bien a l organisme de la session.
     const refusDroit = await barrage("saisir", societeId);
     if (refusDroit) return refusDroit;
 
