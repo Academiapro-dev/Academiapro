@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { sessionCourante } from "../../../../../lib/session";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -18,23 +19,6 @@ function origineLegitime(req: NextRequest): boolean {
     origine.includes("vercel.app") || referent.includes("vercel.app") ||
     origine.includes("localhost") || referent.includes("localhost")
   );
-}
-
-function sessionDuCookie(req: NextRequest): { tenantId: string | null; email: string | null } {
-  try {
-    const brut = req.cookies.get("sb_user")?.value;
-    if (!brut) return { tenantId: null, email: null };
-    let texte = brut;
-    try {
-      texte = decodeURIComponent(brut);
-    } catch {
-      texte = brut;
-    }
-    const donnees = JSON.parse(texte);
-    return { tenantId: donnees?.tenant_id || null, email: donnees?.email || null };
-  } catch {
-    return { tenantId: null, email: null };
-  }
 }
 
 function fr(v: unknown): string {
@@ -155,7 +139,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Acces refuse" }, { status: 403 });
   }
 
-  const { tenantId, email: emailSession } = sessionDuCookie(req);
+  // L organisme ET l adresse email viennent du JETON SIGNE session_academia.
+  // Avec l ancien cookie sb_user, un cookie forge faisait generer la fiche
+  // des comptes etrangers d un autre organisme ET l expediait a l attaquant.
+  const session = sessionCourante();
+  const tenantId = session ? session.tenantId : null;
+  const emailSession = session ? session.email : null;
   if (!tenantId) {
     return NextResponse.json(
       { error: "Session sans societe rattachee. Reconnectez-vous." },
