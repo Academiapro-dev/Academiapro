@@ -28,10 +28,10 @@ type Doc = {
 };
 
 const STATUT_LABEL: Record<string, string> = {
-  a_venir: "A venir",
-  prepare: "Prepare",
-  depose: "Depose",
-  accuse_archive: "Accuse archive",
+  a_venir: "À venir",
+  prepare: "Préparé",
+  depose: "Déposé",
+  accuse_archive: "Accusé archivé",
 };
 
 const STATUT_COLOR: Record<string, string> = {
@@ -115,16 +115,16 @@ export default function ComplianceDashboard() {
       });
       const data = await r.json();
       if (data.success) {
-        let msg = "Fiche generee (version " + data.version + ", license tax " + data.tax + " USD) et archivee au coffre.";
+        let msg = "Fiche générée (version " + data.version + ", license tax " + data.tax + " USD) et archivée au coffre.";
         const em = data.email || {};
         if (em.envoye === true) {
-          msg += " Email envoye a contact@academiapro.fr.";
+          msg += " Courriel envoyé à contact@academiapro.fr.";
         } else {
-          msg += " ATTENTION : l'email n'est PAS parti.";
+          msg += " ATTENTION : le courriel n'est PAS parti.";
           setGenDetail(
             "Cause : " + (em.raison || "inconnue") +
             (em.statut_http ? " (code HTTP " + em.statut_http + ")" : "") +
-            (em.reponse ? " - Reponse du service : " + em.reponse : "")
+            (em.reponse ? " — réponse du service : " + em.reponse : "")
           );
         }
         setGenMsg(msg);
@@ -153,13 +153,13 @@ export default function ComplianceDashboard() {
         const c = data.calcul || {};
         let msg =
           (formulaire === "f5472" ? "Form 5472" : "Form 1120 pro forma") +
-          " genere pour " + data.year +
-          " - " + c.nb_avances + " avances, total " + c.total_usd + " USD";
+          " généré pour " + data.year +
+          " — " + c.nb_avances + " avances, total " + c.total_usd + " USD";
         if (c.taux_valide === false) {
-          msg += " (taux de change PROVISOIRE, non valide par l'IRS)";
+          msg += " (taux de change PROVISOIRE, non validé par l'IRS)";
         }
         if (data.nb_avertissements > 0) {
-          msg += " - " + data.nb_avertissements + " champ(s) non trouve(s)";
+          msg += " — " + data.nb_avertissements + " champ(s) non trouvé(s)";
         }
         setIrsMsg(msg);
         setIrsUrl(data.url || null);
@@ -184,18 +184,18 @@ export default function ComplianceDashboard() {
       const data = await r.json();
       if (data.success) {
         let msg =
-          "Fiche 3916 generee (version " + data.version + ") pour " + data.annee +
-          " - " + data.nb_comptes + " compte(s) etranger(s), archivee au coffre.";
+          "Fiche 3916 générée (version " + data.version + ") pour " + data.annee +
+          " — " + data.nb_comptes + " compte(s) étranger(s), archivée au coffre.";
         if (data.nb_comptes === 0) {
-          msg += " ATTENTION : aucun compte enregistre, la fiche est vide.";
+          msg += " ATTENTION : aucun compte enregistré, la fiche est vide.";
         } else if (!data.tous_valides) {
-          msg += " Au moins un compte n'est pas encore valide par un fiscaliste.";
+          msg += " Au moins un compte n'est pas encore validé par un fiscaliste.";
         }
         const em = data.email || {};
         if (em.envoye === true) {
-          msg += " Email envoye.";
+          msg += " Courriel envoyé.";
         } else {
-          msg += " L'email n'est PAS parti (" + (em.raison || "cause inconnue") + ").";
+          msg += " Le courriel n'est PAS parti (" + (em.raison || "cause inconnue") + ").";
         }
         setF3916Msg(msg);
         charger();
@@ -220,7 +220,7 @@ export default function ComplianceDashboard() {
       });
       const data = await r.json();
       if (data.ok) {
-        setPdfMsg("Controle effectue sur le compte : " + data.compte);
+        setPdfMsg("Contrôle effectué sur le compte : " + data.compte);
         let txt = "CHAMPS REMPLIS\n";
         Object.keys(data.champs_remplis || {}).forEach((k) => {
           txt += k + " = " + data.champs_remplis[k] + "\n";
@@ -268,7 +268,7 @@ export default function ComplianceDashboard() {
       a.click();
       document.body.removeChild(a);
       window.URL.revokeObjectURL(url);
-      setPdfMsg("PDF telecharge. Verifiez le rendu page par page.");
+      setPdfMsg("PDF téléchargé. Vérifiez le rendu page par page.");
     } catch (e: any) {
       setPdfMsg("Erreur : " + String(e));
     }
@@ -320,21 +320,21 @@ export default function ComplianceDashboard() {
           Tableau de bord Compliance
         </h1>
 
-        {loading && <p>Chargement...</p>}
+        {loading && <p>Chargement…</p>}
         {erreur && <p style={{ color: "#c62828" }}>Erreur : {erreur}</p>}
 
         {tenant && (
           <div style={{ background: "#f4f4f0", color: "#1a1a1a", padding: 16, borderRadius: 8, marginBottom: 24 }}>
             <strong>{tenant.legal_name}</strong><br />
-            Wyoming Filing ID : {tenant.wy_filing_id || "-"}<br />
-            Residence du fondateur : {tenant.member_residence || "-"}<br />
+            Wyoming Filing ID : {tenant.wy_filing_id || "—"}<br />
+            Résidence du fondateur : {tenant.member_residence || "—"}<br />
             Revenus de source US : {tenant.has_us_source_income ? "Oui" : "Non"}
           </div>
         )}
 
         <h2 style={{ color: "#0a3d2e", fontSize: 20 }}>Wyoming</h2>
         <button onClick={genererAnnualReport} disabled={genLoading} style={styleBouton}>
-          {genLoading ? "Generation..." : "Generer la fiche Annual Report 2027"}
+          {genLoading ? "Génération…" : "Générer la fiche Annual Report 2027"}
         </button>
         {genMsg && (
           <p style={{ marginTop: 10, color: genMsg.indexOf("ATTENTION") !== -1 ? "#c62828" : "#0a3d2e" }}>
@@ -362,24 +362,24 @@ export default function ComplianceDashboard() {
           Formulaires IRS {PNL_YEAR}
         </h2>
         <p style={{ fontSize: 14, color: "#555", marginTop: 0 }}>
-          Documents fictifs tant que la qualification du compte courant n'a pas ete
-          validee par un CPA americain et que le taux de change officiel de l'IRS
-          n'est pas publie. Les montants se recalculent automatiquement depuis les
-          depenses marquees comme avances personnelles.
+          Documents fictifs tant que la qualification du compte courant n'a pas été
+          validée par un CPA américain et que le taux de change officiel de l'IRS
+          n'est pas publié. Les montants se recalculent automatiquement depuis les
+          dépenses marquées comme avances personnelles.
         </p>
         <button
           onClick={() => genererIRS("f5472")}
           disabled={irsLoading !== null}
           style={styleBouton}
         >
-          {irsLoading === "f5472" ? "Generation..." : "Generer le Form 5472"}
+          {irsLoading === "f5472" ? "Génération…" : "Générer le Form 5472"}
         </button>
         <button
           onClick={() => genererIRS("f1120")}
           disabled={irsLoading !== null}
           style={styleBouton}
         >
-          {irsLoading === "f1120" ? "Generation..." : "Generer le Form 1120 pro forma"}
+          {irsLoading === "f1120" ? "Génération…" : "Générer le Form 1120 pro forma"}
         </button>
         {irsMsg && (
           <p style={{ marginTop: 10, color: irsMsg.indexOf("Erreur") === 0 ? "#c62828" : "#0a3d2e" }}>
@@ -389,33 +389,33 @@ export default function ComplianceDashboard() {
         {irsUrl && (
           <p style={{ marginTop: 6 }}>
             <a href={irsUrl} target="_blank" rel="noreferrer" style={{ color: "#0a3d2e", fontWeight: "bold" }}>
-              Ouvrir le PDF genere
+              Ouvrir le PDF généré
             </a>
             <span style={{ color: "#666", fontSize: 13 }}> (lien valable 1 heure)</span>
           </p>
         )}
 
         <h2 style={{ color: "#0a3d2e", fontSize: 20, marginTop: 32 }}>
-          Comptes etrangers - formulaire 3916 ({PNL_YEAR})
+          Comptes étrangers — formulaire 3916 ({PNL_YEAR})
         </h2>
         <p style={{ fontSize: 14, color: "#555", marginTop: 0 }}>
-          Article 1649 A du CGI : tout compte ouvert, detenu, utilise ou sous procuration
-          a l'etranger doit etre declare. Penalite d'omission : 1 500 EUR par compte et par an.
+          Article 1649 A du CGI : tout compte ouvert, détenu, utilisé ou sous procuration
+          à l'étranger doit être déclaré. Pénalité d'omission : 1 500 € par compte et par an.
         </p>
         <p style={{ fontSize: 15, marginTop: 0 }}>
-          Comptes enregistres pour {PNL_YEAR} :{" "}
+          Comptes enregistrés pour {PNL_YEAR} :{" "}
           <strong style={{ color: nbComptes === 0 ? "#c62828" : "#0a3d2e" }}>
-            {nbComptes === null ? "..." : nbComptes}
+            {nbComptes === null ? "…" : nbComptes}
           </strong>
           {nbComptes === 0 && (
-            <span style={{ color: "#c62828" }}> - rien a declarer pour l'instant</span>
+            <span style={{ color: "#c62828" }}> — rien à déclarer pour l'instant</span>
           )}
         </p>
         <a href="/admin/compliance/comptes-etrangers" style={styleLien}>
-          Gerer les comptes etrangers
+          Gérer les comptes étrangers
         </a>
         <button onClick={generer3916} disabled={f3916Loading} style={styleBouton}>
-          {f3916Loading ? "Generation..." : "Generer la fiche 3916"}
+          {f3916Loading ? "Génération…" : "Générer la fiche 3916"}
         </button>
         {f3916Msg && (
           <p style={{ marginTop: 10, color: f3916Msg.indexOf("Erreur") === 0 || f3916Msg.indexOf("ATTENTION") !== -1 ? "#c62828" : "#0a3d2e" }}>
@@ -425,18 +425,18 @@ export default function ComplianceDashboard() {
 
         <div style={{ ...styleCarte, marginTop: 16, background: "#f8f8f4" }}>
           <h3 style={{ color: "#0a3d2e", marginTop: 0, fontSize: 17 }}>
-            CERFA 3916 pre-rempli (PDF officiel)
+            CERFA 3916 pré-rempli (PDF officiel)
           </h3>
           <p style={{ fontSize: 14, color: "#555", marginTop: 0 }}>
-            Remplit le CERFA officiel n° 11916*13 a partir de la fiche declarant et
-            du compte selectionne. Aide-memoire a recopier : la declaration reelle se
+            Remplit le CERFA officiel n° 11916*13 à partir de la fiche déclarant et
+            du compte sélectionné. Aide-mémoire à recopier : la déclaration réelle se
             saisit en ligne sur impots.gouv.fr.
           </p>
           <button onClick={verifier3916Pdf} disabled={pdfLoading} style={styleLien}>
-            {pdfLoading ? "..." : "Verifier le mapping"}
+            {pdfLoading ? "…" : "Vérifier le mapping"}
           </button>
           <button onClick={telecharger3916Pdf} disabled={pdfLoading} style={styleBouton}>
-            {pdfLoading ? "..." : "Telecharger le PDF pre-rempli"}
+            {pdfLoading ? "…" : "Télécharger le PDF pré-rempli"}
           </button>
           {pdfMsg && (
             <p style={{ marginTop: 10, color: pdfMsg.indexOf("Erreur") === 0 ? "#c62828" : "#0a3d2e" }}>
@@ -462,11 +462,11 @@ export default function ComplianceDashboard() {
         </div>
 
         <h2 style={{ color: "#0a3d2e", fontSize: 20, marginTop: 32 }}>
-          Compte de resultat {PNL_YEAR} (par devise)
+          Compte de résultat {PNL_YEAR} (par devise)
         </h2>
-        {!pnl && <p>Chargement du P&L...</p>}
+        {!pnl && <p>Chargement du compte de résultat…</p>}
         {pnl && Object.keys(pnl.resultat || {}).length === 0 && (
-          <p>Aucune donnee financiere pour {PNL_YEAR}.</p>
+          <p>Aucune donnée financière pour {PNL_YEAR}.</p>
         )}
         {pnl && Object.keys(pnl.resultat || {}).map((dev: string) => {
           const res = pnl.resultat[dev];
@@ -476,12 +476,12 @@ export default function ComplianceDashboard() {
               <h3 style={{ color: "#0a3d2e", marginTop: 0 }}>Devise : {dev}</h3>
               <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 12 }}>
                 <tbody>
-                  <tr><td style={{ padding: 6 }}>Produits (factures encaissees)</td>
+                  <tr><td style={{ padding: 6 }}>Produits (factures encaissées)</td>
                     <td style={{ padding: 6, textAlign: "right" }}>{res.produits.toFixed(2)} {dev}</td></tr>
-                  <tr><td style={{ padding: 6 }}>Charges (depenses)</td>
+                  <tr><td style={{ padding: 6 }}>Charges (dépenses)</td>
                     <td style={{ padding: 6, textAlign: "right" }}>- {res.charges.toFixed(2)} {dev}</td></tr>
                   <tr style={{ borderTop: "2px solid #0a3d2e", fontWeight: "bold" }}>
-                    <td style={{ padding: 6 }}>Resultat net</td>
+                    <td style={{ padding: 6 }}>Résultat net</td>
                     <td style={{ padding: 6, textAlign: "right", color: res.net >= 0 ? "#2e7d32" : "#c62828" }}>
                       {res.net.toFixed(2)} {dev}
                     </td></tr>
@@ -489,7 +489,7 @@ export default function ComplianceDashboard() {
               </table>
               {Object.keys(cats).length > 0 && (
                 <details>
-                  <summary style={{ cursor: "pointer", color: "#0a3d2e" }}>Detail des charges par categorie</summary>
+                  <summary style={{ cursor: "pointer", color: "#0a3d2e" }}>Détail des charges par catégorie</summary>
                   <ul>
                     {Object.keys(cats).map((c) => (
                       <li key={c}>{c} : {cats[c].toFixed(2)} {dev}</li>
@@ -515,7 +515,7 @@ export default function ComplianceDashboard() {
                       <th style={{ padding: 8, textAlign: "left" }}>Trimestre</th>
                       <th style={{ padding: 8, textAlign: "right" }}>Produits</th>
                       <th style={{ padding: 8, textAlign: "right" }}>Charges</th>
-                      <th style={{ padding: 8, textAlign: "right" }}>Resultat net</th>
+                      <th style={{ padding: 8, textAlign: "right" }}>Résultat net</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -545,7 +545,7 @@ export default function ComplianceDashboard() {
               Bilan de gestion
             </h2>
             {Object.keys(bilan.bilan).length === 0 && (
-              <p>Aucune creance ni dette en cours.</p>
+              <p>Aucune créance ni dette en cours.</p>
             )}
             {Object.keys(bilan.bilan).map((dev: string) => {
               const b = bilan.bilan[dev];
@@ -557,10 +557,10 @@ export default function ComplianceDashboard() {
                       <tr style={{ fontWeight: "bold", color: "#0a3d2e" }}>
                         <td style={{ padding: 6 }}>ACTIF</td><td></td>
                       </tr>
-                      <tr><td style={{ padding: 6, paddingLeft: 20 }}>Creances (factures non payees)</td>
+                      <tr><td style={{ padding: 6, paddingLeft: 20 }}>Créances (factures non payées)</td>
                         <td style={{ padding: 6, textAlign: "right" }}>{b.actif.creances.toFixed(2)} {dev}</td></tr>
-                      <tr><td style={{ padding: 6, paddingLeft: 20, color: "#666" }}>Tresorerie</td>
-                        <td style={{ padding: 6, textAlign: "right", color: "#666" }}>via Wise (a venir)</td></tr>
+                      <tr><td style={{ padding: 6, paddingLeft: 20, color: "#666" }}>Trésorerie</td>
+                        <td style={{ padding: 6, textAlign: "right", color: "#666" }}>via Wise (à venir)</td></tr>
                       <tr style={{ fontWeight: "bold", color: "#0a3d2e" }}>
                         <td style={{ padding: 6, paddingTop: 12 }}>PASSIF</td><td></td>
                       </tr>
@@ -575,11 +575,11 @@ export default function ComplianceDashboard() {
           </>
         )}
 
-        <h2 style={{ color: "#0a3d2e", fontSize: 20, marginTop: 32 }}>Calendrier des echeances</h2>
+        <h2 style={{ color: "#0a3d2e", fontSize: 20, marginTop: 32 }}>Calendrier des échéances</h2>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr style={{ background: "#0a3d2e", color: "#ffffff" }}>
-              <th style={{ padding: 8, textAlign: "left" }}>Echeance</th>
+              <th style={{ padding: 8, textAlign: "left" }}>Échéance</th>
               <th style={{ padding: 8 }}>Date</th>
               <th style={{ padding: 8 }}>Dans</th>
               <th style={{ padding: 8 }}>Statut</th>
@@ -594,12 +594,12 @@ export default function ComplianceDashboard() {
                 <tr key={d.id} style={{ borderBottom: "1px solid #ddd" }}>
                   <td style={{ padding: 8 }}>{d.title}</td>
                   <td style={{ padding: 8, textAlign: "center" }}>{d.due_date}</td>
-                  <td style={{ padding: 8, textAlign: "center" }}>{jr > 0 ? "J-" + jr : "echu"}</td>
+                  <td style={{ padding: 8, textAlign: "center" }}>{jr > 0 ? "J-" + jr : "échue"}</td>
                   <td style={{ padding: 8, textAlign: "center", color: STATUT_COLOR[d.status] || "#1a1a1a" }}>
                     {STATUT_LABEL[d.status] || d.status}
                   </td>
                   <td style={{ padding: 8, textAlign: "center" }}>
-                    {d.amount_due ? d.amount_due + " " + d.currency : "-"}
+                    {d.amount_due ? d.amount_due + " " + d.currency : "—"}
                   </td>
                   <td style={{ padding: 8, textAlign: "center" }}>{d.channel}</td>
                 </tr>
@@ -610,19 +610,19 @@ export default function ComplianceDashboard() {
 
         <h2 style={{ color: "#0a3d2e", fontSize: 20, marginTop: 32 }}>Coffre documentaire</h2>
         <p style={{ fontSize: 14, color: "#555", marginTop: 0 }}>
-          Documents generes par le systeme et pieces justificatives deposees.
-          Chaque depot est versionne, horodate et scelle par une empreinte SHA-256.
+          Documents générés par le système et pièces justificatives déposées.
+          Chaque dépôt est versionné, horodaté et scellé par une empreinte SHA-256.
         </p>
         <a href="/admin/compliance/deposer" style={styleLien}>
-          Deposer une piece au coffre
+          Déposer une pièce au coffre
         </a>
-        {documents.length === 0 && <p>Aucun document archive.</p>}
+        {documents.length === 0 && <p>Aucun document archivé.</p>}
         <ul>
           {documents.map((doc) => (
             <li key={doc.id} style={{ marginBottom: 8 }}>
-              {doc.title} (v{doc.version}) - {new Date(doc.uploaded_at).toLocaleDateString("fr-FR")}
+              {doc.title} (v{doc.version}) — {new Date(doc.uploaded_at).toLocaleDateString("fr-FR")}
               {doc.download_url && (
-                <> - <a href={doc.download_url} target="_blank" rel="noreferrer" style={{ color: "#0a3d2e" }}>Telecharger</a></>
+                <> — <a href={doc.download_url} target="_blank" rel="noreferrer" style={{ color: "#0a3d2e" }}>Télécharger</a></>
               )}
             </li>
           ))}
