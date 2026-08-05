@@ -51,7 +51,9 @@ const LIBELLES: any = {
 //
 // Ce fichier ne traitait que la seconde question : « voit tous les dossiers »
 // signifiait tous les dossiers DE LA BASE, tous cabinets confondus. Le tenant
-// est desormais applique EN PREMIER, avant toute question de role.
+// est desormais applique EN PREMIER, avant toute question de role, ET la
+// fiche du collaborateur est cherchee DANS SON ORGANISME : deux cabinets
+// peuvent employer la meme adresse email sans se voir.
 // ---------------------------------------------------------------------------
 
 // L organisme de la session, ou null si la session n en porte pas.
@@ -74,6 +76,21 @@ async function dossiersDuTenant(): Promise<string[]> {
     .limit(2000);
 
   return (data || []).map(function (d: any) { return d.id; });
+}
+
+// La fiche du collaborateur, cherchee dans son organisme uniquement.
+async function ficheCollaborateur(email: string): Promise<any | null> {
+  const tenantId = tenantCourant();
+  if (!tenantId) return null;
+
+  const { data } = await supabase
+    .from("compta_collaborateurs")
+    .select("*")
+    .eq("email", email)
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
+
+  return data || null;
 }
 
 // Un administrateur garde tous les droits, sur tous les dossiers DE SON
@@ -104,11 +121,7 @@ export async function verifier(
     return { autorise: true, email: session.email, role: "administrateur", motif: null };
   }
 
-  const { data: collaborateur } = await supabase
-    .from("compta_collaborateurs")
-    .select("*")
-    .eq("email", session.email)
-    .maybeSingle();
+  const collaborateur = await ficheCollaborateur(session.email);
 
   if (!collaborateur) {
     return {
@@ -190,15 +203,10 @@ export async function dossiersAutorises(): Promise<string[]> {
 
   if (ADMINS.indexOf(session.email) >= 0) return duTenant;
 
-  const { data } = await supabase
-    .from("compta_collaborateurs")
-    .select("dossiers, actif")
-    .eq("email", session.email)
-    .maybeSingle();
+  const collaborateur = await ficheCollaborateur(session.email);
+  if (!collaborateur || collaborateur.actif === false) return [];
 
-  if (!data || data.actif === false) return [];
-
-  const dossiers = data.dossiers || [];
+  const dossiers = collaborateur.dossiers || [];
   if (dossiers.length === 0) return duTenant;
 
   return duTenant.filter(function (id: string) { return dossiers.indexOf(id) >= 0; });
