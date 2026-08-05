@@ -40,14 +40,24 @@ const FR = {
     { id: "cv2", nom: "Classe virtuelle 2x/sem", detail: "+ 2 seances live par semaine" },
     { id: "cv3", nom: "Intensif 3x/sem", detail: "+ 3 seances live par semaine" },
   ],
+  courtNom: "Classe virtuelle",
+  courtDetail: "+ 1 seance live d accompagnement incluse",
 };
 
-// En dessous de ce montant, l echelonnement n est pas propose.
 const MINIMUM_ECHELONNE = 300;
 
-// Valeurs de repli : si la table ne repond pas, la page annonce quand meme
-// quelque chose de vrai plutot qu un trou.
+// Moins d une semaine de formation (8 h par jour) : une seance live PAR
+// SEMAINE n a aucun sens, le stagiaire a fini avant.
+const SEUIL_COURTE = 40;
+
 const REMISE_DEFAUT = { pct: "10", places: "100", code: "FONDATEURS" };
+
+function heuresDe(duree: any): number {
+  const m = String(duree || "").replace(",", ".").match(/[\d.]+/);
+  if (!m) return 0;
+  const n = Number(m[0]);
+  return n > 0 ? n : 0;
+}
 
 function prixPalier(base: number, palier: string): number {
   if (palier === "elearning") return Math.round(base * 0.5);
@@ -69,10 +79,7 @@ export default function FormationPage({ params }: { params: { id: string } }) {
   useEffect(() => {
     fetch(`/api/formation/${params.id}?lang=${langue}`)
       .then(r => r.json())
-      .then(data => {
-        setFormation(data);
-        setLoading(false);
-      })
+      .then(data => { setFormation(data); setLoading(false); })
       .catch(() => setLoading(false));
   }, [params.id, langue]);
 
@@ -83,8 +90,6 @@ export default function FormationPage({ params }: { params: { id: string } }) {
       .catch(() => {});
   }, [params.id]);
 
-  // Le pourcentage, le nombre de places et le code viennent de textes_site :
-  // les changer ne demande plus de toucher au code.
   useEffect(() => {
     fetch("/api/textes")
       .then(r => r.json())
@@ -123,15 +128,24 @@ export default function FormationPage({ params }: { params: { id: string } }) {
   const estAtelier = String(params.id).toUpperCase().indexOf("SK") === 0;
   const prixBase = formation.prix || 0;
 
-  // LE PRIX AFFICHE EST LE PRIX PAYE. La remise Fondateur s obtient avec le
-  // code, au moment du paiement, et seulement pour les premiers clients.
-  const prixFormule = estBootcamp ? prixBase : prixPalier(prixBase, palier);
-
-  const detailPalier = (txt.paliers.find((p: { id: string }) => p.id === palier) || txt.paliers[0]).detail;
   const aProgrammeBase = formation.programme && Array.isArray(formation.programme) && formation.programme.length > 0;
   const aApercu = apercu && apercu.modules && apercu.modules.length > 0;
   const heures = (apercu && apercu.heures_programme) || 0;
   const nbModules = (apercu && apercu.nb_modules) || 0;
+
+  const heuresReference = heures > 0 ? heures : heuresDe(formation.duree);
+  const estCourte = heuresReference > 0 && heuresReference < SEUIL_COURTE;
+
+  const paliersAffiches = estCourte
+    ? txt.paliers
+        .filter((p: { id: string }) => p.id === "elearning" || p.id === "plus" || p.id === "cv1")
+        .map((p: { id: string; nom: string; detail: string }) =>
+          p.id === "cv1" ? { id: "cv1", nom: txt.courtNom, detail: txt.courtDetail } : p)
+    : txt.paliers;
+
+  const palierActif = paliersAffiches.find((p: { id: string }) => p.id === palier) ? palier : "cv1";
+  const prixFormule = estBootcamp ? prixBase : prixPalier(prixBase, palierActif);
+  const detailPalier = (paliersAffiches.find((p: { id: string }) => p.id === palierActif) || paliersAffiches[0]).detail;
 
   const echelonnable = !estAtelier && prixFormule >= MINIMUM_ECHELONNE;
   const paiementActif = echelonnable ? paiement : "comptant";
@@ -182,21 +196,9 @@ export default function FormationPage({ params }: { params: { id: string } }) {
           <div style={{ marginBottom: "40px" }}>
             <h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", fontSize: "18px", textAlign: "center", marginBottom: "14px" }}>{txt.formuleTitre}</h2>
             <div style={{ display: "flex", flexWrap: "wrap", gap: "10px", justifyContent: "center", marginBottom: "10px" }}>
-              {txt.paliers.map((p: { id: string; nom: string }) => (
-                <button
-                  key={p.id}
-                  onClick={() => setPalier(p.id)}
-                  style={{
-                    background: palier === p.id ? "#c8a96e" : "rgba(255,255,255,0.05)",
-                    color: palier === p.id ? "#050508" : "rgba(255,255,255,0.7)",
-                    border: "1px solid rgba(200,169,110,0.4)",
-                    borderRadius: "24px",
-                    padding: "10px 18px",
-                    fontSize: "13px",
-                    fontWeight: "bold",
-                    cursor: "pointer",
-                  }}
-                >
+              {paliersAffiches.map((p: { id: string; nom: string }) => (
+                <button key={p.id} onClick={() => setPalier(p.id)}
+                  style={{ background: palierActif === p.id ? "#c8a96e" : "rgba(255,255,255,0.05)", color: palierActif === p.id ? "#050508" : "rgba(255,255,255,0.7)", border: "1px solid rgba(200,169,110,0.4)", borderRadius: "24px", padding: "10px 18px", fontSize: "13px", fontWeight: "bold", cursor: "pointer" }}>
                   {p.nom}
                 </button>
               ))}
@@ -246,9 +248,7 @@ export default function FormationPage({ params }: { params: { id: string } }) {
             {formation.programme.map((ch: any, i: number) => (
               <div key={i} style={{ marginBottom: "15px", border: "1px solid rgba(200,169,110,0.3)", borderRadius: "10px", overflow: "hidden" }}>
                 <div style={{ background: "linear-gradient(135deg,#c8a96e,#a07840)", padding: "12px 20px" }}>
-                  <h3 style={{ color: "#fff", margin: 0, fontFamily: "Georgia,serif", fontSize: "15px" }}>
-                    {ch.chapitre} — {ch.titre}
-                  </h3>
+                  <h3 style={{ color: "#fff", margin: 0, fontFamily: "Georgia,serif", fontSize: "15px" }}>{ch.chapitre} — {ch.titre}</h3>
                 </div>
                 {ch.modules && (
                   <div style={{ padding: "10px 20px" }}>
@@ -286,8 +286,7 @@ export default function FormationPage({ params }: { params: { id: string } }) {
               <div style={{ color: "#c8a96e", fontWeight: "bold", marginBottom: "3px" }}>📖 {txt.support}</div>
               <div style={{ color: "rgba(255,255,255,0.4)", fontSize: "12px" }}>{txt.supportSub}</div>
             </div>
-            <a href={"/apercu/" + String(params.id).toUpperCase()}
-              style={{ background: "#c8a96e", color: "#050508", padding: "10px 20px", borderRadius: "8px", textDecoration: "none", fontWeight: "bold", fontSize: "13px" }}>
+            <a href={"/apercu/" + String(params.id).toUpperCase()} style={{ background: "#c8a96e", color: "#050508", padding: "10px 20px", borderRadius: "8px", textDecoration: "none", fontWeight: "bold", fontSize: "13px" }}>
               {txt.voirSupport}
             </a>
           </div>
@@ -312,12 +311,9 @@ export default function FormationPage({ params }: { params: { id: string } }) {
               <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", justifyContent: "center" }}>
                 <button onClick={() => setPaiement("comptant")} style={styleChoix(paiementActif === "comptant")}>
                   <div style={{ fontWeight: "bold", fontSize: "15px", marginBottom: "4px" }}>{txt.comptant}</div>
-                  <div style={{ color: "#c8a96e", fontSize: "20px", fontWeight: "bold", marginBottom: "4px" }}>
-                    {prixFormule.toLocaleString("fr-FR")}€
-                  </div>
+                  <div style={{ color: "#c8a96e", fontSize: "20px", fontWeight: "bold", marginBottom: "4px" }}>{prixFormule.toLocaleString("fr-FR")}€</div>
                   <div style={{ color: "rgba(255,255,255,0.5)", fontSize: "12px" }}>{txt.comptantDetail}</div>
                 </button>
-
                 <button onClick={() => setPaiement("4x")} style={styleChoix(paiementActif === "4x")}>
                   <div style={{ fontWeight: "bold", fontSize: "15px", marginBottom: "4px" }}>{txt.quatreFois}</div>
                   <div style={{ color: "#c8a96e", fontSize: "20px", fontWeight: "bold", marginBottom: "4px" }}>
@@ -331,10 +327,8 @@ export default function FormationPage({ params }: { params: { id: string } }) {
             </div>
           )}
 
-          <a
-            href={`/api/checkout?formation=${params.id}&formule=${estBootcamp ? "bootcamp" : palier}&paiement=${paiementActif}`}
-            style={{ display: "inline-block", background: "#c8a96e", color: "#050508", padding: "16px 40px", borderRadius: "8px", textDecoration: "none", fontWeight: "bold", fontSize: "18px" }}
-          >
+          <a href={`/api/checkout?formation=${params.id}&formule=${estBootcamp ? "bootcamp" : palierActif}&paiement=${paiementActif}`}
+            style={{ display: "inline-block", background: "#c8a96e", color: "#050508", padding: "16px 40px", borderRadius: "8px", textDecoration: "none", fontWeight: "bold", fontSize: "18px" }}>
             {paiementActif === "4x"
               ? `${txt.acheter} — 4 × ${mensualite.toLocaleString("fr-FR")}€`
               : `${txt.acheter} — ${prixFormule.toLocaleString("fr-FR")}€`}
