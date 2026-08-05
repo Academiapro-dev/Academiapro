@@ -5,9 +5,20 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const BUCKET = "formations-pdf";
-// LE PDF, pas le HTML : un guide se garde et se transmet.
-// Il est produit par /api/admin/pdf-ebook a partir du fichier HTML source.
-const FICHIER = "ebook_guide_claude_ia_2026.pdf";
+const REPLI = "ebook_guide_claude_ia_2026.pdf";
+
+// Le formulaire envoie le libelle affiche ; on le ramene au slug du fichier.
+// Un domaine qui n a pas encore son guide retombe sur celui de l IA.
+const SLUGS: any = {
+  "intelligence artificielle": "ia",
+  "business et management": "business",
+  "marketing et vente": "marketing",
+  "bien-etre et developpement personnel": "bien-etre",
+  "securite et prevention": "securite",
+  "comptabilite et finance": "finance",
+  "langues": "langues",
+  "technique et numerique": "technique",
+};
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
@@ -41,6 +52,14 @@ function propre(v: any, max: number): string | null {
   const t = String(v).replace(/[\u0000-\u001F\u007F]/g, "").trim();
   if (!t) return null;
   return t.slice(0, max);
+}
+
+function sansAccents(t: string): string {
+  return String(t || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
 }
 
 function paysDe(v: any): string {
@@ -105,9 +124,23 @@ export async function POST(req: NextRequest) {
     const domaine = propre(b.domaine, 60);
     const pays = paysDe(b.pays);
 
+    // CHOIX DU FICHIER. On verifie qu il existe reellement avant de le
+    // promettre : sinon on retombe sur le guide IA, qui existe toujours.
+    const slug = domaine ? SLUGS[sansAccents(domaine)] : null;
+    let fichier = REPLI;
+
+    if (slug) {
+      const candidat = "ebook_" + slug + ".pdf";
+      const { data: liste } = await supabase.storage
+        .from(BUCKET)
+        .list("", { limit: 1000, search: candidat });
+      const present = (liste || []).some(function (f: any) { return f.name === candidat; });
+      if (present) fichier = candidat;
+    }
+
     const notes = [
       propre(b.metier, 120) ? "Metier : " + propre(b.metier, 120) : "",
-      "A telecharge l e-book le " + new Date().toLocaleDateString("fr-FR"),
+      "A telecharge " + fichier + " le " + new Date().toLocaleDateString("fr-FR"),
     ].filter(function (x) { return x; }).join(" | ");
 
     const fiche: any = {
@@ -138,11 +171,9 @@ export async function POST(req: NextRequest) {
       await supabase.from("crm").insert(fiche);
     }
 
-    // LIEN DE TELECHARGEMENT, valable vingt-quatre heures. Le fichier n est
-    // jamais expose publiquement : chaque acces passe par un lien signe.
     const { data: signe } = await supabase.storage
       .from(BUCKET)
-      .createSignedUrl(FICHIER, 24 * 60 * 60, { download: "guide-academiapro.pdf" });
+      .createSignedUrl(fichier, 24 * 60 * 60, { download: "guide-academiapro.pdf" });
 
     const lien = signe && signe.signedUrl ? signe.signedUrl : null;
 
@@ -155,8 +186,6 @@ export async function POST(req: NextRequest) {
 
     const rk = process.env.RESEND_API_KEY || "";
 
-    // L ENVOI PAR COURRIER verifie l adresse au passage : une adresse fausse
-    // ne recoit rien, et le prospect ne vaut rien.
     if (rk) {
       try {
         const html =
@@ -196,6 +225,7 @@ export async function POST(req: NextRequest) {
               "<p><b>" + (prenom || "sans prenom") + "</b> — " + email + "</p>" +
               "<p>Domaine : " + (domaine || "non precise") + " · Pays : " + pays +
               " · Score : " + fiche.score + "/100</p>" +
+              "<p>Guide envoye : <b>" + fichier + "</b></p>" +
               (notes ? "<p style=\"color:#444\">" + notes + "</p>" : "") +
               "<p><a href=\"https://academiapro.fr/admin/crm\">Ouvrir mes prospects</a></p></div>",
           }),
@@ -207,7 +237,7 @@ export async function POST(req: NextRequest) {
       formation_code: "EBOOK",
       agent: "Capture publique",
       action: "ebook_telecharge",
-      resultat: email + " — " + pays + " — " + (domaine || "sans domaine"),
+      resultat: email + " — " + pays + " — " + (domaine || "sans domaine") + " — " + fichier,
       timestamp: new Date().toISOString(),
     });
 
