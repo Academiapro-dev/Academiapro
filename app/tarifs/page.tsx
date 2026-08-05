@@ -11,6 +11,7 @@ const FRT = {
   fondateur: "🎯 Offre Fondateur — code {CODE} : -{PCT} % pour les {PLACES} premiers clients",
   fondateurDetail: "Le code se saisit au moment du paiement. Il cesse de fonctionner apres la {PLACES}e utilisation.",
   choisissez: "Choisissez votre formule — le prix s ajuste pour chaque formation :",
+  noteCourte: "Les seances live hebdomadaires concernent les formations de 40 heures et plus. En dessous, une seance d accompagnement est incluse et le prix reste celui de la formule de base.",
   bootcampsTitre: "🚀 Bootcamps — la gamme premium",
   bootcampsTexte: "Programmes intensifs complets vers un metier, 3 classes virtuelles et plus par semaine, prix unique.",
   chargement: "Chargement des formations...",
@@ -31,13 +32,27 @@ const FRT = {
 // quelque chose de vrai plutot qu un trou.
 const REMISE_DEFAUT = { pct: "10", places: "100", code: "FONDATEURS" };
 
+// Meme seuil que la fiche formation : en dessous de 40 heures, soit moins
+// d une semaine a raison de 8 heures par jour, un rythme hebdomadaire n a
+// aucun sens et les supplements de 800 et 1 800 EUR sont absurdes.
+const SEUIL_COURTE = 40;
+
 type Formation = {
   code: string;
   titre: string;
   domaine: string;
   niveau: string;
   prix: number;
+  duree?: string | null;
 };
+
+// "8h", "120h", "250h - 10 mois" -> 8, 120, 250. Zero si illisible.
+function heuresDe(duree: any): number {
+  const m = String(duree || "").replace(",", ".").match(/[\d.]+/);
+  if (!m) return 0;
+  const n = Number(m[0]);
+  return n > 0 ? n : 0;
+}
 
 function prixPalier(base: number, palier: string): number {
   if (palier === "elearning") return Math.round(base * 0.5);
@@ -45,6 +60,14 @@ function prixPalier(base: number, palier: string): number {
   if (palier === "cv2") return base + 800;
   if (palier === "cv3") return base + 1800;
   return base;
+}
+
+// Le palier demande est ramene a ce que la formation peut reellement offrir.
+function palierApplicable(palier: string, heures: number): string {
+  if (heures > 0 && heures < SEUIL_COURTE && (palier === "cv2" || palier === "cv3")) {
+    return "cv1";
+  }
+  return palier;
 }
 
 export default function TarifsPage() {
@@ -104,15 +127,32 @@ export default function TarifsPage() {
     }
   }
 
+  const courtesConcernees =
+    (palier === "cv2" || palier === "cv3") &&
+    classiques.some((f) => {
+      const h = heuresDe(f.duree);
+      return h > 0 && h < SEUIL_COURTE;
+    });
+
   // LE PRIX AFFICHE EST LE PRIX PAYE. La remise Fondateur ne se calcule plus
   // ici : elle s obtient avec le code, et seulement pour les premiers clients.
-  const carte = (titre: string, niveau: string, prixBase: number, fixe: boolean) => {
-    const p = fixe ? prixBase : prixPalier(prixBase, palier);
+  const carte = (f: Formation, fixe: boolean) => {
+    const heures = heuresDe(f.duree);
+    const applicable = palierApplicable(palier, heures);
+    const p = fixe ? f.prix : prixPalier(f.prix, applicable);
+    const ramene = !fixe && applicable !== palier;
     return (
       <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(200,169,110,0.15)", borderRadius: "12px", padding: "18px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div style={{ flex: 1 }}>
-          <div style={{ color: "#fff", fontSize: "14px", fontWeight: "500", marginBottom: "4px" }}>{titre}</div>
-          <div style={{ color: "rgba(255,255,255,0.4)", fontSize: "12px" }}>{niveau}</div>
+          <div style={{ color: "#fff", fontSize: "14px", fontWeight: "500", marginBottom: "4px" }}>{f.titre}</div>
+          <div style={{ color: "rgba(255,255,255,0.4)", fontSize: "12px" }}>
+            {f.niveau}{heures > 0 ? " · " + heures + " h" : ""}
+          </div>
+          {ramene && (
+            <div style={{ color: "rgba(200,169,110,0.7)", fontSize: "11px", marginTop: "5px", lineHeight: 1.5 }}>
+              Formation courte : 1 seance d accompagnement incluse
+            </div>
+          )}
         </div>
         <div style={{ textAlign: "right", marginLeft: "16px" }}>
           <div style={{ color: "#c8a96e", fontSize: "20px", fontWeight: "bold" }}>
@@ -163,9 +203,16 @@ export default function TarifsPage() {
             </button>
           ))}
         </div>
-        <p style={{ color: "rgba(200,169,110,0.8)", fontSize: "13px", textAlign: "center", margin: "0 0 36px" }}>
+        <p style={{ color: "rgba(200,169,110,0.8)", fontSize: "13px", textAlign: "center", margin: "0 0 10px" }}>
           {(txtT.paliers.find((p: { id: string }) => p.id === palier) || txtT.paliers[0]).detail}
         </p>
+
+        {courtesConcernees && (
+          <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "12.5px", textAlign: "center", margin: "0 auto 36px", maxWidth: "620px", lineHeight: 1.7 }}>
+            {txtT.noteCourte}
+          </p>
+        )}
+        {!courtesConcernees && <div style={{ marginBottom: "36px" }} />}
 
         {etat === "chargement" && (
           <p style={{ color: "rgba(255,255,255,0.5)", textAlign: "center" }}>{txtT.chargement}</p>
@@ -181,7 +228,7 @@ export default function TarifsPage() {
             </h2>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "12px" }}>
               {domaine.liste.map((f) => (
-                <div key={f.code}>{carte(f.titre, f.niveau, f.prix, false)}</div>
+                <div key={f.code}>{carte(f, false)}</div>
               ))}
             </div>
           </div>
@@ -195,7 +242,7 @@ export default function TarifsPage() {
             <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", margin: "0 0 18px" }}>{txtT.bootcampsTexte}</p>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "12px" }}>
               {bootcamps.map((f) => (
-                <div key={f.code}>{carte(f.titre, f.niveau, f.prix, true)}</div>
+                <div key={f.code}>{carte(f, true)}</div>
               ))}
             </div>
           </div>
