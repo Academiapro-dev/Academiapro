@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { sessionCourante } from "../../../../lib/session";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -10,15 +11,12 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-function tenantDeLaSession(req: NextRequest): string | null {
-  try {
-    const brut = req.cookies.get("sb_user")?.value;
-    if (!brut) return null;
-    const donnees = JSON.parse(decodeURIComponent(brut));
-    return donnees?.tenant_id || null;
-  } catch {
-    return null;
-  }
+// L organisme vient du JETON SIGNE session_academia. Avec l ancien cookie
+// sb_user, un cookie forge permettait de lire ET D ECRIRE les reponses de
+// qualification d un autre organisme.
+function tenantDeLaSession(): string | null {
+  const session = sessionCourante();
+  return session ? session.tenantId : null;
 }
 
 // Evalue une condition {"Qx":"valeur"} / {"ou":[...]} / {"et":[...]}
@@ -37,7 +35,7 @@ function decrireCondition(cond: any): string {
 }
 
 export async function GET(req: NextRequest) {
-  const tenantId = tenantDeLaSession(req);
+  const tenantId = tenantDeLaSession();
   if (!tenantId) {
     return NextResponse.json(
       { error: "Session sans societe rattachee. Reconnectez-vous." },
