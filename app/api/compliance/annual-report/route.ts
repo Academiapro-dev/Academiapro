@@ -43,37 +43,37 @@ function ficheHTML(t: any, year: number, tax: number): string {
   .footer { margin-top:40px; font-size:12px; color:#888; border-top:1px solid #eee; padding-top:12px; }
 </style></head><body>
 
-<h1>Fiche de preparation - Wyoming Annual Report ${year}</h1>
-<p>Document de preparation genere le ${date}. Recopiez ces informations dans l'assistant en ligne du Wyoming Secretary of State, puis archivez l'accuse.</p>
+<h1>Fiche de préparation — Wyoming Annual Report ${year}</h1>
+<p>Document de préparation généré le ${date}. Recopiez ces informations dans l'assistant en ligne du Wyoming Secretary of State, puis archivez l'accusé.</p>
 
-<h2>Informations de l'entite</h2>
+<h2>Informations de l'entité</h2>
 <table>
   <tr><td class="label">Legal name</td><td>${t.legal_name}</td></tr>
-  <tr><td class="label">Wyoming Filing ID</td><td>${t.wy_filing_id || "- a renseigner -"}</td></tr>
-  <tr><td class="label">Registered agent</td><td>${t.registered_agent_name || "-"}</td></tr>
-  <tr><td class="label">Mailing address</td><td>${t.mailing_address || "-"}</td></tr>
-  <tr><td class="label">Principal office</td><td>${t.principal_office_address || "-"}</td></tr>
-  <tr><td class="label">Valeur des actifs situes au Wyoming</td><td>${(t.wy_assets_value ?? 0)} USD</td></tr>
+  <tr><td class="label">Wyoming Filing ID</td><td>${t.wy_filing_id || "— à renseigner —"}</td></tr>
+  <tr><td class="label">Registered agent</td><td>${t.registered_agent_name || "—"}</td></tr>
+  <tr><td class="label">Mailing address</td><td>${t.mailing_address || "—"}</td></tr>
+  <tr><td class="label">Principal office</td><td>${t.principal_office_address || "—"}</td></tr>
+  <tr><td class="label">Valeur des actifs situés au Wyoming</td><td>${(t.wy_assets_value ?? 0)} USD</td></tr>
 </table>
 
-<h2>License tax a payer</h2>
+<h2>License tax à payer</h2>
 <p class="montant">${tax.toFixed(2)} USD</p>
-<p>Calcul : maximum entre 60 USD et 0,0002 x valeur des actifs Wyoming.</p>
+<p>Calcul : maximum entre 60 USD et 0,0002 × valeur des actifs Wyoming.</p>
 
 <div class="alerte">
-  <strong>A verifier avant depot :</strong> confirmez la valeur des actifs situes au Wyoming
-  (pour une plateforme de services numeriques sans biens physiques dans l'Etat, elle est
-  generalement nulle, d'ou la license tax minimale de 60 USD). Le Wyoming n'autorise pas
-  la modification d'un rapport deja depose : verifiez chaque champ avant validation.
+  <strong>À vérifier avant dépôt :</strong> confirmez la valeur des actifs situés au Wyoming
+  (pour une plateforme de services numériques sans biens physiques dans l'État, elle est
+  généralement nulle, d'où la license tax minimale de 60 USD). Le Wyoming n'autorise pas
+  la modification d'un rapport déjà déposé : vérifiez chaque champ avant validation.
 </div>
 
-<h2>Depot</h2>
-<p>Le depot se fait en ligne via l'assistant du Wyoming Secretary of State :</p>
+<h2>Dépôt</h2>
+<p>Le dépôt se fait en ligne via l'assistant du Wyoming Secretary of State :</p>
 <a class="cta" href="https://wyobiz.wyo.gov/Business/AnnualReport.aspx">Ouvrir l'Annual Report Wizard</a>
 
 <div class="footer">
-  Module Compliance - Fiche de preparation Annual Report ${year} - ${date}<br/>
-  Ce document est une aide a la saisie et ne constitue pas un depot officiel.
+  Module Compliance — Fiche de préparation Annual Report ${year} — ${date}<br/>
+  Ce document est une aide à la saisie et ne constitue pas un dépôt officiel.
 </div>
 </body></html>`;
 }
@@ -91,7 +91,7 @@ export async function POST(req: NextRequest) {
   const emailSession = session ? session.email : null;
   if (!tenantId) {
     return NextResponse.json(
-      { error: "Session sans societe rattachee. Reconnectez-vous." },
+      { error: "Session sans société rattachée. Reconnectez-vous." },
       { status: 401 }
     );
   }
@@ -106,7 +106,7 @@ export async function POST(req: NextRequest) {
       .eq("tenant_id", tenantId)
       .single();
     if (e1 || !tenant) {
-      return NextResponse.json({ error: "Tenant introuvable" }, { status: 404 });
+      return NextResponse.json({ error: "Société introuvable" }, { status: 404 });
     }
 
     const tax = licenseTax(Number(tenant.wy_assets_value ?? 0));
@@ -127,7 +127,7 @@ export async function POST(req: NextRequest) {
         upsert: true,
       });
     if (upErr) {
-      return NextResponse.json({ error: "Upload coffre echoue: " + upErr.message }, { status: 500 });
+      return NextResponse.json({ error: "Dépôt au coffre échoué : " + upErr.message }, { status: 500 });
     }
 
     await supabase.from("compliance_documents").insert({
@@ -160,7 +160,7 @@ export async function POST(req: NextRequest) {
           body: JSON.stringify({
             from: "Mr. Compliance <contact@hebrewproai.com>",
             to: [emailSession],
-            subject: "Fiche Annual Report Wyoming " + annee + " - license tax " + tax.toFixed(2) + " USD",
+            subject: "Fiche Annual Report Wyoming " + annee + " — license tax " + tax.toFixed(2) + " USD",
             html: html,
           }),
         });
@@ -173,12 +173,12 @@ export async function POST(req: NextRequest) {
           email.reponse = corps.slice(0, 300);
         } else {
           email.envoye = false;
-          email.raison = "Resend a refuse l'envoi";
+          email.raison = "Resend a refusé l'envoi";
           email.reponse = corps.slice(0, 500);
         }
       } catch (e: unknown) {
         email.envoye = false;
-        email.raison = "Appel a Resend impossible";
+        email.raison = "Appel à Resend impossible";
         email.reponse = e instanceof Error ? e.message : String(e);
       }
     }
