@@ -63,26 +63,24 @@ export async function GET(req: NextRequest) {
     const codeDemande = (req.nextUrl.searchParams.get("societe") || "").trim().toUpperCase();
     const idDemande = (req.nextUrl.searchParams.get("societe_id") || "").trim();
 
-    // Un collaborateur ne voit que les dossiers qui lui sont confies. Un
-    // dossier hors de sa portee doit lui repondre « introuvable » : lui dire
-    // qu il existe mais lui est interdit serait deja un renseignement.
+    // dossiersAutorises rend TOUJOURS une liste : les dossiers de l organisme
+    // de la session, restreints a ceux confies au collaborateur. Un dossier
+    // hors de cette liste doit repondre « introuvable » : dire qu il existe
+    // mais qu il est interdit serait deja un renseignement.
     const autorises = await dossiersAutorises();
 
-    let requete = supabase
-      .from("compta_societes")
-      .select("id, code, raison_sociale, siren, exercice_debut, exercice_fin, actif");
-
-    if (autorises !== null) {
-      if (autorises.length === 0) {
-        return NextResponse.json(
-          { error: "Aucun dossier ne vous est confie." },
-          { status: 403 }
-        );
-      }
-      requete = requete.in("id", autorises);
+    if (autorises.length === 0) {
+      return NextResponse.json(
+        { error: "Aucun dossier ne vous est confie." },
+        { status: 403 }
+      );
     }
 
-    const { data: dossiers, error: erreurDossiers } = await requete.limit(500);
+    const { data: dossiers, error: erreurDossiers } = await supabase
+      .from("compta_societes")
+      .select("id, code, raison_sociale, siren, exercice_debut, exercice_fin, actif")
+      .in("id", autorises)
+      .limit(500);
 
     if (erreurDossiers) {
       return NextResponse.json(
