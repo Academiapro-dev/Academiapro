@@ -1,5 +1,5 @@
 import { mesurer } from "../../../lib/usageIA";
-// app/api/commercial/route.ts — Agent Commercial connecté à CAM
+// app/api/agent-commercial/route.ts — Agent Commercial connecté à CAM
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
@@ -32,42 +32,60 @@ async function appel_claude(system: string, user: string): Promise<string> {
   return data.content[0].text || "";
 }
 
-const SYSTEM_COMMERCIAL = `Tu es l Agent Commercial d AcadémIA Pro, plateforme de formation 100% IA. Tu crees des arguments de vente percutants et des scripts commerciaux efficaces. Style direct, persuasif et professionnel. Pas de guillemets doubles. Pas de markdown.`;
+// INTERDICTIONS AJOUTEES LE 05/08. Un temoignage invente, une statistique
+// fabriquee ou un resultat promis constituent une pratique commerciale
+// trompeuse au sens de l article L.121-2 du code de la consommation.
+const SYSTEM_COMMERCIAL = `Tu es l Agent Commercial d AcademIA Pro, plateforme de formation qui s appuie sur l intelligence artificielle. Tu produis des arguments de vente clairs et des scripts commerciaux efficaces. Style direct, professionnel. Pas de guillemets doubles. Pas de markdown.
+
+INTERDICTIONS ABSOLUES, sans exception :
+- N invente AUCUN temoignage client, AUCUN nom de client, AUCUN avis, AUCUNE note ou etoile.
+- N invente AUCUNE statistique, AUCUN pourcentage de reussite, AUCUN nombre d apprenants, AUCUN chiffre d affaires, AUCUN classement.
+- N annonce AUCUNE certification, AUCUN enregistrement au Repertoire national des certifications professionnelles ni au repertoire specifique, AUCUNE eligibilite au compte personnel de formation ni a un operateur de competences.
+- NE PROMETS AUCUN RESULTAT : ni emploi, ni reussite, ni retour sur investissement chiffre, ni delai garanti.
+- N ecris aucune mention de type premier, leader, meilleur, numero un.
+
+Si un element te manque pour argumenter, ecris explicitement A COMPLETER PAR JACQUES plutot que de l inventer. Un argument vrai et modeste vaut mieux qu une affirmation invendable en justice.`;
 
 async function generer_contenu(type: string, contexte: any): Promise<string> {
   const prompts: Record<string, string> = {
-    pitch: `Redige un pitch de vente complet pour AcadémIA Pro.
-Formation: ${contexte.formation || "nos formations IA"}
+    pitch: `Redige un pitch de vente complet pour AcademIA Pro.
+Formation: ${contexte.formation || "nos formations"}
 Public: ${contexte.cible || "professionnels"}
 Duree: ${contexte.duree || "2 minutes"}
-Inclus: accroche, probleme, solution, benefices, preuve sociale, offre, CTA.`,
+Inclus: accroche, probleme rencontre par le public, solution apportee, benefices concrets et verifiables, offre, appel a l action.
+N inclus PAS de preuve sociale : il n y a pas encore de clients a citer.`,
 
-    objections: `Redige les reponses aux 10 objections les plus courantes pour AcadémIA Pro.
+    objections: `Redige les reponses aux 10 objections les plus courantes pour AcademIA Pro.
 Formation: ${contexte.formation || "nos formations"}
-Prix: ${contexte.prix || "1400 EUR"}
-Format: Objection / Reponse percutante`,
+Prix: ${contexte.prix || "a preciser"}
+Format: Objection / Reponse argumentee.
+Les reponses doivent s appuyer sur ce que le produit fait reellement, jamais sur des references clients ou des chiffres de resultats.`,
 
-    proposition: `Redige une proposition commerciale complete pour AcadémIA Pro.
+    proposition: `Redige une proposition commerciale complete pour AcademIA Pro.
 Prospect: ${contexte.prospect || "entreprise"}
 Formation: ${contexte.formation || "nos formations"}
 Budget: ${contexte.budget || "a definir"}
-Inclus: contexte, solution proposee, programme detaille, investissement, ROI estime, garanties, CTA.`,
+Inclus: contexte du prospect, solution proposee, programme detaille, investissement, modalites, appel a l action.
+N inclus NI retour sur investissement chiffre NI garantie de resultat.`,
 
-    script_appel: `Redige un script d appel commercial pour AcadémIA Pro.
+    script_appel: `Redige un script d appel commercial pour AcademIA Pro.
 Formation: ${contexte.formation || "nos formations"}
 Prospect: ${contexte.prospect || "professionnel"}
-Inclus: introduction, qualification, decouverte besoins, presentation solution, traitement objections, closing.`,
+Inclus: introduction, qualification, decouverte des besoins, presentation de la solution, traitement des objections, conclusion.`,
 
-    devis: `Redige un devis professionnel pour AcadémIA Pro.
+    devis: `Redige un devis professionnel pour AcademIA Pro.
 Client: ${contexte.prospect || "client"}
 Formation: ${contexte.formation || "formation"}
-Prix: ${contexte.prix || "1400 EUR"}
-Inclus: description formation, duree, modalites, prix HT/TTC, conditions paiement, validite 30 jours.`,
+Prix: ${contexte.prix || "a preciser"}
+Inclus: description de la formation, duree, modalites, prix hors taxes, conditions de paiement, validite 30 jours, droit de retractation de 14 jours.`,
 
-    temoignage: `Redige 3 temoignages clients fictifs mais realistes pour AcadémIA Pro.
-Formation: ${contexte.formation || "nos formations"}
-Domaine: ${contexte.domaine || "professionnel"}
-Format: Nom, poste, temoignage 3-4 phrases, note 5 etoiles.`,
+    // REMPLACE l ancien type temoignage, qui faisait ecrire de faux avis.
+    // Ici on redige le message qui SOLLICITE un temoignage reel.
+    demande_temoignage: `Redige un message court pour DEMANDER un temoignage a un client qui vient de terminer sa formation.
+Formation: ${contexte.formation || "sa formation"}
+Prenom du client: ${contexte.prospect || "le client"}
+Le message doit: remercier, expliquer en une phrase a quoi servira le temoignage, poser trois questions simples et ouvertes (ce qu il cherchait, ce qu il a obtenu, a qui il le conseillerait), preciser qu il pourra relire avant publication et refuser sans probleme.
+N ECRIS PAS le temoignage a sa place : ecris seulement la demande.`,
   };
 
   const prompt = prompts[type] || prompts.pitch;
@@ -109,6 +127,18 @@ export async function POST(req: NextRequest) {
 
     if (action === "generer") {
       const { type, contexte } = body;
+
+      // L ancien type temoignage est refuse explicitement, au cas ou un
+      // ecran ou un signet l appellerait encore.
+      if (type === "temoignage") {
+        return NextResponse.json(
+          {
+            erreur: "La generation de temoignages a ete retiree : un avis client invente est une pratique commerciale trompeuse. Utilisez le type demande_temoignage pour solliciter un vrai temoignage.",
+          },
+          { status: 400 },
+        );
+      }
+
       const contenu = await generer_contenu(type, contexte || {});
 
       await supabase.from("commercial").insert({
