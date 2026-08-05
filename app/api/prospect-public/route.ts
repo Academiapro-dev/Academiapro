@@ -19,7 +19,6 @@ const supabase = createClient(
 const SOURCES = ["formulaire", "webinaire", "chat", "recommandation", "reseaux", "autre"];
 
 // Memoire courte du serveur : combien de demandes par adresse, sur une heure.
-// Suffit contre un envoi repete ; ce n est pas une protection absolue.
 const compteurs = new Map<string, { n: number; debut: number }>();
 const FENETRE = 60 * 60 * 1000;
 const MAX_PAR_HEURE = 5;
@@ -40,6 +39,15 @@ function propre(v: any, max: number): string | null {
   const t = String(v).replace(/[\u0000-\u001F\u007F]/g, "").trim();
   if (!t) return null;
   return t.slice(0, max);
+}
+
+// LE PAYS EST LA CLE DU CLASSEMENT, pas la langue ni l adresse de la page :
+// un Belge qui lit en francais n est pas concerne par Qualiopi.
+// On garde un code a deux lettres en majuscules, FR par defaut.
+function paysDe(v: any): string {
+  const t = String(v || "").trim().toUpperCase();
+  if (/^[A-Z]{2}$/.test(t)) return t;
+  return "FR";
 }
 
 function score(p: any): number {
@@ -102,6 +110,7 @@ export async function POST(req: NextRequest) {
     }
 
     const source = SOURCES.indexOf(String(b.source || "")) >= 0 ? String(b.source) : "formulaire";
+    const pays = paysDe(b.pays);
 
     // Les champs de qualification sectorielle sont replies dans les notes :
     // ils varient d un tunnel a l autre et ne meritent pas de colonne.
@@ -109,8 +118,9 @@ export async function POST(req: NextRequest) {
       propre(b.societe, 160) ? "Societe : " + propre(b.societe, 160) : "",
       propre(b.effectif, 60) ? "Effectif : " + propre(b.effectif, 60) : "",
       propre(b.secteur, 80) ? "Secteur : " + propre(b.secteur, 80) : "",
-      propre(b.certifie, 40) ? "Qualiopi : " + propre(b.certifie, 40) : "",
+      propre(b.certifie, 60) ? "Organisme de formation : " + propre(b.certifie, 60) : "",
       propre(b.stagiaires_an, 60) ? "Stagiaires par an : " + propre(b.stagiaires_an, 60) : "",
+      propre(b.langue, 10) ? "Langue de lecture : " + propre(b.langue, 10) : "",
       propre(b.message, 1200) || "",
     ].filter(function (x) { return x; }).join(" | ");
 
@@ -120,6 +130,7 @@ export async function POST(req: NextRequest) {
       telephone: propre(b.telephone, 40),
       formation_interesse: propre(b.formation_interesse, 40),
       domaine: propre(b.domaine, 60),
+      pays: pays,
       source: source,
       statut: "prospect",
       notes: notes || null,
@@ -155,7 +166,7 @@ export async function POST(req: NextRequest) {
       formation_code: fiche.formation_interesse || "CRM",
       agent: "Capture publique",
       action: "prospect_capture",
-      resultat: fiche.email + " — score " + fiche.score + " — " + source,
+      resultat: fiche.email + " — " + pays + " — score " + fiche.score + " — " + source,
       timestamp: new Date().toISOString(),
     });
 
@@ -165,12 +176,13 @@ export async function POST(req: NextRequest) {
       try {
         const html =
           "<div style=\"font-family:Georgia,serif;max-width:600px;margin:auto\">" +
-          "<h2>Nouvelle demande</h2>" +
+          "<h2>Nouvelle demande — " + pays + "</h2>" +
           "<p><b>" + (fiche.nom || fiche.email) + "</b> — " + fiche.email +
           (fiche.telephone ? " — " + fiche.telephone : "") + "</p>" +
-          "<p>Score : <b>" + fiche.score + "/100</b> · Secteur : " + (fiche.domaine || "non precise") + "</p>" +
+          "<p>Score : <b>" + fiche.score + "/100</b> · Secteur : " + (fiche.domaine || "non precise") +
+          " · Pays : <b>" + pays + "</b></p>" +
           (notes ? "<p style=\"color:#444\">" + notes + "</p>" : "") +
-          "<p><a href=\"https://academiapro.fr/organisme/crm\">Ouvrir le CRM</a></p></div>";
+          "<p><a href=\"https://academiapro.fr/admin/crm\">Ouvrir mes prospects</a></p></div>";
 
         await fetch("https://api.resend.com/emails", {
           method: "POST",
@@ -178,7 +190,7 @@ export async function POST(req: NextRequest) {
           body: JSON.stringify({
             from: process.env.EMAIL_FROM || "AcademIA Pro <contact@academiapro.fr>",
             to: ["contact@academiapro.fr"],
-            subject: "Prospect " + fiche.score + "/100 — " + (fiche.nom || fiche.email),
+            subject: "Prospect " + pays + " " + fiche.score + "/100 — " + (fiche.nom || fiche.email),
             html: html,
           }),
         });
