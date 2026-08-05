@@ -39,8 +39,46 @@ const LIBELLES: any = {
   deposer_pieces: "deposer des pieces",
 };
 
-// Un administrateur garde tous les droits, sur tous les dossiers. C est ce
-// qui garantit que rien ne casse tant qu aucun collaborateur n est utilise.
+// ---------------------------------------------------------------------------
+// DEUX QUESTIONS DISTINCTES, A NE JAMAIS CONFONDRE
+//
+// 1. L ORGANISME (tenant_id) : de quel cabinet parle-t-on ? C est l etage de
+//    l immeuble. Aucun utilisateur ne doit jamais voir un dossier d un autre
+//    organisme, quel que soit son role.
+// 2. LES DROITS (compta_collaborateurs) : a l interieur d un organisme, qui
+//    a la cle de quel bureau. Un collaborateur peut etre restreint a
+//    certains dossiers et a certaines actions.
+//
+// Ce fichier ne traitait que la seconde question : « voit tous les dossiers »
+// signifiait tous les dossiers DE LA BASE, tous cabinets confondus. Le tenant
+// est desormais applique EN PREMIER, avant toute question de role.
+// ---------------------------------------------------------------------------
+
+// L organisme de la session, ou null si la session n en porte pas.
+export function tenantCourant(): string | null {
+  const session = sessionCourante();
+  return session ? session.tenantId : null;
+}
+
+// Les identifiants des dossiers appartenant a l organisme de la session.
+// Rend un tableau VIDE quand il n y a pas d organisme : dans ce cas rien
+// n est visible, ce qui est le comportement sur lequel on veut se tromper.
+async function dossiersDuTenant(): Promise<string[]> {
+  const tenantId = tenantCourant();
+  if (!tenantId) return [];
+
+  const { data } = await supabase
+    .from("compta_societes")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .limit(2000);
+
+  return (data || []).map(function (d: any) { return d.id; });
+}
+
+// Un administrateur garde tous les droits, sur tous les dossiers DE SON
+// ORGANISME. C est ce qui garantit que rien ne casse tant qu aucun
+// collaborateur n est utilise.
 export async function verifier(
   droit: Droit | null,
   societeId?: string | null
@@ -49,6 +87,17 @@ export async function verifier(
 
   if (!session) {
     return { autorise: false, email: null, role: null, motif: "Connectez-vous." };
+  }
+
+  // ---- BARRIERE D ORGANISME, appliquee a tout le monde, admins compris ----
+  if (societeId) {
+    const duTenant = await dossiersDuTenant();
+    if (duTenant.indexOf(societeId) < 0) {
+      return {
+        autorise: false, email: session.email, role: null,
+        motif: "Ce dossier n appartient pas a votre organisme.",
+      };
+    }
   }
 
   if (ADMINS.indexOf(session.email) >= 0) {
@@ -75,7 +124,7 @@ export async function verifier(
     };
   }
 
-  // Un tableau de dossiers vide signifie : tous les dossiers.
+  // Un tableau de dossiers vide signifie : tous les dossiers DE SON ORGANISME.
   const dossiers = collaborateur.dossiers || [];
   if (societeId && dossiers.length > 0 && dossiers.indexOf(societeId) < 0) {
     return {
@@ -127,12 +176,19 @@ export async function lecture(societeId?: string | null): Promise<Response | nul
   return v.autorise ? null : reponse(v);
 }
 
-// Les dossiers qu un utilisateur a le droit de voir. Rend null quand il les
-// voit tous, ce qui evite de filtrer inutilement.
-export async function dossiersAutorises(): Promise<string[] | null> {
+// Les dossiers qu un utilisateur a le droit de voir.
+// ATTENTION : ne rend JAMAIS null. L ancienne version rendait null pour dire
+// « voit tout », ce qui, faute de notion d organisme, voulait dire tous les
+// dossiers de la base. Elle rend desormais TOUJOURS une liste, bornee a
+// l organisme de la session — donc utilisable directement dans un .in().
+export async function dossiersAutorises(): Promise<string[]> {
   const session = sessionCourante();
   if (!session) return [];
-  if (ADMINS.indexOf(session.email) >= 0) return null;
+
+  const duTenant = await dossiersDuTenant();
+  if (duTenant.length === 0) return [];
+
+  if (ADMINS.indexOf(session.email) >= 0) return duTenant;
 
   const { data } = await supabase
     .from("compta_collaborateurs")
@@ -141,6 +197,9 @@ export async function dossiersAutorises(): Promise<string[] | null> {
     .maybeSingle();
 
   if (!data || data.actif === false) return [];
+
   const dossiers = data.dossiers || [];
-  return dossiers.length === 0 ? null : dossiers;
+  if (dossiers.length === 0) return duTenant;
+
+  return duTenant.filter(function (id: string) { return dossiers.indexOf(id) >= 0; });
 }
