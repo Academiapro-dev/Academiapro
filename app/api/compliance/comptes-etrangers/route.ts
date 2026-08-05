@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { sessionCourante } from "../../../../lib/session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,15 +20,12 @@ function origineLegitime(req: NextRequest): boolean {
   );
 }
 
-function tenantDeLaSession(req: NextRequest): string | null {
-  try {
-    const brut = req.cookies.get("sb_user")?.value;
-    if (!brut) return null;
-    const donnees = JSON.parse(decodeURIComponent(brut));
-    return donnees?.tenant_id || null;
-  } catch {
-    return null;
-  }
+// L organisme vient du JETON SIGNE session_academia. Avec l ancien cookie
+// sb_user, un cookie forge permettait de lire, d ajouter et de supprimer
+// les comptes etrangers d un autre organisme.
+function tenantDeLaSession(): string | null {
+  const session = sessionCourante();
+  return session ? session.tenantId : null;
 }
 
 // Liste des comptes d'un exercice
@@ -36,7 +34,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Acces refuse" }, { status: 403 });
   }
 
-  const tenantId = tenantDeLaSession(req);
+  const tenantId = tenantDeLaSession();
   if (!tenantId) {
     return NextResponse.json(
       { error: "Session sans societe rattachee. Reconnectez-vous." },
@@ -75,7 +73,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Acces refuse" }, { status: 403 });
   }
 
-  const tenantId = tenantDeLaSession(req);
+  const tenantId = tenantDeLaSession();
   if (!tenantId) {
     return NextResponse.json(
       { error: "Session sans societe rattachee. Reconnectez-vous." },
@@ -137,7 +135,7 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: "Acces refuse" }, { status: 403 });
   }
 
-  const tenantId = tenantDeLaSession(req);
+  const tenantId = tenantDeLaSession();
   if (!tenantId) {
     return NextResponse.json(
       { error: "Session sans societe rattachee. Reconnectez-vous." },
