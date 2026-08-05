@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { sessionCourante } from "../../../../../lib/session";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -38,15 +39,12 @@ const ETIQUETTES: Record<string, string> = {
   Q10: "salaries ou remuneration",
 };
 
-function tenantDeLaSession(req: NextRequest): string | null {
-  try {
-    const brut = req.cookies.get("sb_user")?.value;
-    if (!brut) return null;
-    const donnees = JSON.parse(decodeURIComponent(brut));
-    return donnees?.tenant_id || null;
-  } catch {
-    return null;
-  }
+// L organisme vient du JETON SIGNE session_academia. Avec l ancien cookie
+// sb_user, un cookie forge permettait d editer la carte d obligations
+// complete d un autre organisme.
+function tenantDeLaSession(): string | null {
+  const session = sessionCourante();
+  return session ? session.tenantId : null;
 }
 
 function libelle(opt: string): string {
@@ -88,7 +86,7 @@ function nettoyer(consequence: string): string {
 }
 
 export async function GET(req: NextRequest) {
-  const tenantId = tenantDeLaSession(req);
+  const tenantId = tenantDeLaSession();
   if (!tenantId) {
     return NextResponse.json(
       { error: "Session sans societe rattachee. Reconnectez-vous." },
