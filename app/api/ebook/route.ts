@@ -5,7 +5,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const BUCKET = "formations-pdf";
-const REPLI = "ebook_guide_claude_ia_2026.pdf";
+const REPLI = "ia";
 
 // Le formulaire envoie le libelle affiche ; on le ramene au slug du fichier.
 // Un domaine qui n a pas encore son guide retombe sur celui de l IA.
@@ -19,6 +19,15 @@ const SLUGS: any = {
   "langues": "langues",
   "technique et numerique": "technique",
 };
+
+// Le guide IA d origine ne suit pas la nomenclature ebook_<slug>.pdf.
+const FICHIERS: any = {
+  "ia": "ebook_guide_claude_ia_2026.pdf",
+};
+
+function fichierDe(slug: string): string {
+  return FICHIERS[slug] || "ebook_" + slug + ".pdf";
+}
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
@@ -78,6 +87,36 @@ function score(p: any): number {
   return Math.min(s, 100);
 }
 
+// LECTURE DU GUIDE. Le PDF est diffuse par le domaine academiapro.fr, avec
+// les bons en-tetes : un lien signe Supabase ouvrait un onglet blanc sur
+// iPad. Le guide est un document offert, il n a pas besoin d etre protege.
+export async function GET(req: NextRequest) {
+  try {
+    const demande = (new URL(req.url).searchParams.get("guide") || "").trim().toLowerCase();
+    const slug = demande && (FICHIERS[demande] || /^[a-z-]{2,20}$/.test(demande)) ? demande : REPLI;
+    const nom = fichierDe(slug);
+
+    const { data, error } = await supabase.storage.from(BUCKET).download(nom);
+    if (error || !data) {
+      return NextResponse.json({ ok: false, erreur: "Guide introuvable." }, { status: 404 });
+    }
+
+    const octets = Buffer.from(await data.arrayBuffer());
+
+    return new NextResponse(new Uint8Array(octets), {
+      status: 200,
+      headers: {
+        "Content-Type": "application/pdf",
+        "Content-Disposition": 'inline; filename="guide-academiapro.pdf"',
+        "Content-Length": String(octets.length),
+        "Cache-Control": "public, max-age=3600",
+      },
+    });
+  } catch (e: any) {
+    return NextResponse.json({ ok: false, erreur: "Lecture impossible." }, { status: 500 });
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
     const provenance = req.headers.get("origin") || req.headers.get("referer") || "";
@@ -124,23 +163,25 @@ export async function POST(req: NextRequest) {
     const domaine = propre(b.domaine, 60);
     const pays = paysDe(b.pays);
 
-    // CHOIX DU FICHIER. On verifie qu il existe reellement avant de le
+    // CHOIX DU GUIDE. On verifie qu il existe reellement avant de le
     // promettre : sinon on retombe sur le guide IA, qui existe toujours.
-    const slug = domaine ? SLUGS[sansAccents(domaine)] : null;
-    let fichier = REPLI;
+    let slug = REPLI;
+    const candidat = domaine ? SLUGS[sansAccents(domaine)] : null;
 
-    if (slug) {
-      const candidat = "ebook_" + slug + ".pdf";
+    if (candidat) {
+      const nom = fichierDe(candidat);
       const { data: liste } = await supabase.storage
         .from(BUCKET)
-        .list("", { limit: 1000, search: candidat });
-      const present = (liste || []).some(function (f: any) { return f.name === candidat; });
-      if (present) fichier = candidat;
+        .list("", { limit: 1000, search: nom });
+      const present = (liste || []).some(function (f: any) { return f.name === nom; });
+      if (present) slug = candidat;
     }
+
+    const lien = "https://academiapro.fr/api/ebook?guide=" + slug;
 
     const notes = [
       propre(b.metier, 120) ? "Metier : " + propre(b.metier, 120) : "",
-      "A telecharge " + fichier + " le " + new Date().toLocaleDateString("fr-FR"),
+      "A telecharge le guide " + slug + " le " + new Date().toLocaleDateString("fr-FR"),
     ].filter(function (x) { return x; }).join(" | ");
 
     const fiche: any = {
@@ -171,19 +212,6 @@ export async function POST(req: NextRequest) {
       await supabase.from("crm").insert(fiche);
     }
 
-    const { data: signe } = await supabase.storage
-      .from(BUCKET)
-      .createSignedUrl(fichier, 24 * 60 * 60, { download: "guide-academiapro.pdf" });
-
-    const lien = signe && signe.signedUrl ? signe.signedUrl : null;
-
-    if (!lien) {
-      return NextResponse.json(
-        { ok: false, erreur: "Le guide est momentanement indisponible. Reessayez dans un instant." },
-        { status: 500 }
-      );
-    }
-
     const rk = process.env.RESEND_API_KEY || "";
 
     if (rk) {
@@ -193,9 +221,9 @@ export async function POST(req: NextRequest) {
           "<p style=\"letter-spacing:3px;color:#c8a96e;text-align:center\">ACADEMIA PRO</p>" +
           "<h1 style=\"text-align:center;font-size:24px\">Votre guide vous attend</h1>" +
           "<p>Bonjour" + (prenom ? " " + prenom : "") + ",</p>" +
-          "<p>Voici le guide que vous avez demande, au format PDF. Le lien reste valable vingt-quatre heures.</p>" +
+          "<p>Voici le guide que vous avez demande, au format PDF.</p>" +
           "<p style=\"text-align:center;margin:28px 0\"><a href=\"" + lien +
-          "\" style=\"background:#c8a96e;color:#050508;padding:13px 26px;text-decoration:none;border-radius:8px;font-weight:bold\">Telecharger le guide (PDF)</a></p>" +
+          "\" style=\"background:#c8a96e;color:#050508;padding:13px 26px;text-decoration:none;border-radius:8px;font-weight:bold\">Ouvrir le guide</a></p>" +
           "<p style=\"font-size:13px;color:#555;line-height:1.7\">Notre catalogue compte plus de trois cents formations. " +
           "Si vous cherchez a vous former sur un sujet precis, repondez simplement a ce message.</p>" +
           "<p>Jacques Lalou<br/>Fondateur, Acad&eacute;mIA Pro</p></div>";
@@ -225,7 +253,7 @@ export async function POST(req: NextRequest) {
               "<p><b>" + (prenom || "sans prenom") + "</b> — " + email + "</p>" +
               "<p>Domaine : " + (domaine || "non precise") + " · Pays : " + pays +
               " · Score : " + fiche.score + "/100</p>" +
-              "<p>Guide envoye : <b>" + fichier + "</b></p>" +
+              "<p>Guide envoye : <b>" + slug + "</b></p>" +
               (notes ? "<p style=\"color:#444\">" + notes + "</p>" : "") +
               "<p><a href=\"https://academiapro.fr/admin/crm\">Ouvrir mes prospects</a></p></div>",
           }),
@@ -237,7 +265,7 @@ export async function POST(req: NextRequest) {
       formation_code: "EBOOK",
       agent: "Capture publique",
       action: "ebook_telecharge",
-      resultat: email + " — " + pays + " — " + (domaine || "sans domaine") + " — " + fichier,
+      resultat: email + " — " + pays + " — " + (domaine || "sans domaine") + " — " + slug,
       timestamp: new Date().toISOString(),
     });
 
