@@ -79,13 +79,13 @@ export async function POST(req: NextRequest) {
       path: "/",
     });
 
-    response.cookies.set("sb_user", JSON.stringify({
-      id: data.user?.id,
-      email: data.user?.email,
-      tenant_id: tenantId,
-      role: role,
-    }), {
-      maxAge: 60 * 60 * 24 * 7,
+    // L ANCIEN COOKIE sb_user N EST PLUS POSE. Ce n etait qu un objet JSON
+    // encode, non signe : n importe qui pouvait y changer le tenant_id et
+    // lire les donnees d un autre organisme. Toutes les routes lisent
+    // desormais le jeton signe ci-dessous. On le fait expirer ici pour
+    // le purger des navigateurs ou il subsiste.
+    response.cookies.set("sb_user", "", {
+      maxAge: 0,
       path: "/",
     });
 
