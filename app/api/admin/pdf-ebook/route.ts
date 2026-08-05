@@ -9,10 +9,12 @@ export const maxDuration = 300;
 
 const ADMINS = ["contact@academiapro.fr"];
 const BUCKET = "formations-pdf";
-const SOURCE = "ebook_guide_claude_ia_2026.html";
-const SORTIE = "ebook_guide_claude_ia_2026.pdf";
-const TITRE = "Guide Pratique Claude et IA Generative";
-const SOUS_TITRE = "Edition 2026";
+
+// Sans parametre, on met en page le guide IA d origine, qui est en HTML.
+const SOURCE_HTML = "ebook_guide_claude_ia_2026.html";
+const SORTIE_HTML = "ebook_guide_claude_ia_2026.pdf";
+const TITRE_HTML = "Guide Pratique Claude et IA Generative";
+const SOUS_TITRE_HTML = "Edition 2026";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
@@ -56,7 +58,8 @@ function sansPrix(t: string): string {
     .replace(/(Tarif|Prix)\s*:?\s*[^|.]{0,30}/gi, " ");
 }
 
-function extraireBlocs(html: string): any[] {
+// Source HTML : on deduit la structure des balises de titre.
+function blocsDepuisHtml(html: string): any[] {
   let t = String(html || "")
     .replace(/<script[\s\S]*?<\/script>/gi, " ")
     .replace(/<style[\s\S]*?<\/style>/gi, " ")
@@ -82,6 +85,22 @@ function extraireBlocs(html: string): any[] {
     else blocs.push({ type: "p", texte: brut });
   }
   return blocs.filter(function (b: any) { return b.texte.length > 2; });
+}
+
+// Source texte produite par /api/admin/ebook-domaine : la structure est
+// marquee explicitement en debut de ligne.
+function blocsDepuisTexte(texte: string): any[] {
+  const blocs: any[] = [];
+  for (const ligne of String(texte || "").split("\n")) {
+    const brut = latin1(ligne).replace(/[ \t]+/g, " ").trim();
+    if (!brut || brut.length < 3) continue;
+    if (/^TITRE\s*:/i.test(brut) || /^DOMAINE\s*:/i.test(brut)) continue;
+    if (/^CHAPITRE\s*:/i.test(brut)) blocs.push({ type: "h1", texte: brut.replace(/^CHAPITRE\s*:/i, "").trim() });
+    else if (/^SECTION\s*:/i.test(brut)) blocs.push({ type: "h2", texte: brut.replace(/^SECTION\s*:/i, "").trim() });
+    else if (/^[-\u2022]\s+/.test(brut)) blocs.push({ type: "li", texte: brut.replace(/^[-\u2022]\s+/, "").trim() });
+    else blocs.push({ type: "p", texte: brut });
+  }
+  return blocs;
 }
 
 function couper(texte: string, police: any, taille: number, largeur: number): string[] {
@@ -113,13 +132,43 @@ export async function GET(req: Request) {
       return NextResponse.json({ ok: false, erreur: "reserve a l administrateur" }, { status: 403 });
     }
 
-    const { data: fichier } = await supabase.storage.from(BUCKET).download(SOURCE);
-    if (!fichier) {
-      return NextResponse.json({ ok: false, erreur: "fichier source introuvable : " + SOURCE }, { status: 404 });
+    const slug = (new URL(req.url).searchParams.get("domaine") || "").trim().toLowerCase();
+
+    let blocs: any[] = [];
+    let titre = "";
+    let sousTitre = "";
+    let sortie = "";
+
+    if (slug) {
+      const source = "ebook_" + slug + ".txt";
+      const { data: fichier } = await supabase.storage.from(BUCKET).download(source);
+      if (!fichier) {
+        return NextResponse.json(
+          { ok: false, erreur: "texte introuvable : " + source + ". Lancez d abord /api/admin/ebook-domaine?domaine=" + slug },
+          { status: 404 }
+        );
+      }
+      const contenu = await fichier.text();
+      const mt = contenu.match(/^TITRE\s*:\s*(.+)$/im);
+      const md = contenu.match(/^DOMAINE\s*:\s*(.+)$/im);
+      titre = latin1(mt ? mt[1].trim() : "Guide AcadeMIA Pro");
+      sousTitre = latin1(md ? md[1].trim() : "");
+      blocs = blocsDepuisTexte(contenu);
+      sortie = "ebook_" + slug + ".pdf";
+    } else {
+      const { data: fichier } = await supabase.storage.from(BUCKET).download(SOURCE_HTML);
+      if (!fichier) {
+        return NextResponse.json({ ok: false, erreur: "fichier source introuvable : " + SOURCE_HTML }, { status: 404 });
+      }
+      titre = latin1(TITRE_HTML);
+      sousTitre = latin1(SOUS_TITRE_HTML);
+      blocs = blocsDepuisHtml(await fichier.text());
+      sortie = SORTIE_HTML;
     }
 
-    const blocs = extraireBlocs(await fichier.text());
-    const titre = latin1(TITRE);
+    if (blocs.length < 5) {
+      return NextResponse.json({ ok: false, erreur: "contenu trop pauvre : " + blocs.length + " blocs" }, { status: 500 });
+    }
 
     const livre = await PDFDocument.create();
     const normal = await livre.embedFont("Times-Roman");
@@ -131,6 +180,7 @@ export async function GET(req: Request) {
     const sommaire: any[] = [];
     let numChapitre = 0;
     let numSection = 0;
+    let premier = true;
 
     function nouvellePage() {
       page = livre.addPage([LARGEUR, HAUTEUR]);
@@ -149,7 +199,10 @@ export async function GET(req: Request) {
 
     for (const b of blocs) {
       if (b.type === "h1") {
-        nouvellePage();
+        // Le premier chapitre reste sur la page deja ouverte, sinon elle
+        // resterait blanche juste apres le sommaire.
+        if (!premier) nouvellePage();
+        premier = false;
         numChapitre++;
         numSection = 0;
         const etiquette = String(numChapitre) + ". " + b.texte;
@@ -188,7 +241,6 @@ export async function GET(req: Request) {
     const n2 = await doc.embedFont("Times-Roman");
     const g2 = await doc.embedFont("Times-Bold");
 
-    // Couverture
     const cv = doc.addPage([LARGEUR, HAUTEUR]);
     cv.drawText("AcadeMIA Pro", { x: MARGE, y: HAUTEUR - 232, size: 12, font: n2, color: GRIS });
     cv.drawRectangle({ x: MARGE, y: HAUTEUR - 244, width: UTILE, height: 2, color: OR });
@@ -196,13 +248,15 @@ export async function GET(req: Request) {
     centrer(cv, "Guide gratuit", HAUTEUR - 330, n2, 17, ENCRE);
 
     let yt2 = HAUTEUR - 390;
-    for (const l of couper(titre, g2, 30, UTILE)) {
-      centrer(cv, l, yt2, g2, 30, OR);
-      yt2 = yt2 - 38;
+    for (const l of couper(titre, g2, 28, UTILE)) {
+      centrer(cv, l, yt2, g2, 28, OR);
+      yt2 = yt2 - 36;
     }
 
-    centrer(cv, latin1(SOUS_TITRE), yt2 - 6, n2, 14, ENCRE);
-    yt2 = yt2 - 30;
+    if (sousTitre) {
+      centrer(cv, sousTitre, yt2 - 6, n2, 14, ENCRE);
+      yt2 = yt2 - 30;
+    }
 
     cv.drawRectangle({ x: MARGE, y: yt2 - 40, width: UTILE, height: 2, color: OR });
 
@@ -218,7 +272,6 @@ export async function GET(req: Request) {
     const date = latin1(new Date().toLocaleDateString("fr-FR", { year: "numeric", month: "long", day: "numeric" }));
     cv.drawText("Edition du " + date, { x: MARGE, y: 90, size: 10, font: n2, color: GRIS });
 
-    // Table des matieres
     const parPage = 32;
     const nbSommaire = Math.max(1, Math.ceil(sommaire.length / parPage));
     const pagesSommaire: any[] = [];
@@ -263,7 +316,7 @@ export async function GET(req: Request) {
 
     const ecriture = await supabase.storage
       .from(BUCKET)
-      .upload(SORTIE, new Blob([octets], { type: "application/pdf" }), { upsert: true, cacheControl: "60" });
+      .upload(sortie, new Blob([octets], { type: "application/pdf" }), { upsert: true, cacheControl: "60" });
 
     if (ecriture.error) {
       return NextResponse.json({ ok: false, erreur: ecriture.error.message }, { status: 500 });
@@ -271,7 +324,9 @@ export async function GET(req: Request) {
 
     return NextResponse.json({
       ok: true,
-      fichier: SORTIE,
+      etape: slug ? "2 sur 2 — mise en page" : "mise en page",
+      titre: titre,
+      fichier: sortie,
       pages: toutes.length,
       chapitres: sommaire.filter(function (s: any) { return s.niveau === 1; }).length,
       sections: sommaire.filter(function (s: any) { return s.niveau === 2; }).length,
