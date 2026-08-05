@@ -58,7 +58,6 @@ function sansPrix(t: string): string {
     .replace(/(Tarif|Prix)\s*:?\s*[^|.]{0,30}/gi, " ");
 }
 
-// Source HTML : on deduit la structure des balises de titre.
 function blocsDepuisHtml(html: string): any[] {
   let t = String(html || "")
     .replace(/<script[\s\S]*?<\/script>/gi, " ")
@@ -324,7 +323,6 @@ export async function GET(req: Request) {
 
     return NextResponse.json({
       ok: true,
-      etape: slug ? "2 sur 2 — mise en page" : "mise en page",
       titre: titre,
       fichier: sortie,
       pages: toutes.length,
