@@ -5,7 +5,9 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const BUCKET = "formations-pdf";
-const FICHIER = "ebook_guide_claude_ia_2026.html";
+// LE PDF, pas le HTML : un guide se garde et se transmet.
+// Il est produit par /api/admin/pdf-ebook a partir du fichier HTML source.
+const FICHIER = "ebook_guide_claude_ia_2026.pdf";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
@@ -47,14 +49,13 @@ function paysDe(v: any): string {
   return "FR";
 }
 
-// Meme bareme que /api/prospect-public, pour rester coherent.
 function score(p: any): number {
   let s = 0;
   if (p.email) s = s + 20;
   if (p.telephone) s = s + 15;
   if (p.formation_interesse) s = s + 25;
   if (p.domaine) s = s + 10;
-  s = s + 15; // source formulaire
+  s = s + 15;
   return Math.min(s, 100);
 }
 
@@ -137,11 +138,11 @@ export async function POST(req: NextRequest) {
       await supabase.from("crm").insert(fiche);
     }
 
-    // LIEN DE LECTURE, valable vingt-quatre heures. Le fichier n est jamais
-    // expose publiquement : chaque telechargement passe par un lien signe.
+    // LIEN DE TELECHARGEMENT, valable vingt-quatre heures. Le fichier n est
+    // jamais expose publiquement : chaque acces passe par un lien signe.
     const { data: signe } = await supabase.storage
       .from(BUCKET)
-      .createSignedUrl(FICHIER, 24 * 60 * 60);
+      .createSignedUrl(FICHIER, 24 * 60 * 60, { download: "guide-academiapro.pdf" });
 
     const lien = signe && signe.signedUrl ? signe.signedUrl : null;
 
@@ -163,9 +164,9 @@ export async function POST(req: NextRequest) {
           "<p style=\"letter-spacing:3px;color:#c8a96e;text-align:center\">ACADEMIA PRO</p>" +
           "<h1 style=\"text-align:center;font-size:24px\">Votre guide vous attend</h1>" +
           "<p>Bonjour" + (prenom ? " " + prenom : "") + ",</p>" +
-          "<p>Voici le guide que vous avez demande. Le lien reste valable vingt-quatre heures.</p>" +
+          "<p>Voici le guide que vous avez demande, au format PDF. Le lien reste valable vingt-quatre heures.</p>" +
           "<p style=\"text-align:center;margin:28px 0\"><a href=\"" + lien +
-          "\" style=\"background:#c8a96e;color:#050508;padding:13px 26px;text-decoration:none;border-radius:8px;font-weight:bold\">Lire le guide</a></p>" +
+          "\" style=\"background:#c8a96e;color:#050508;padding:13px 26px;text-decoration:none;border-radius:8px;font-weight:bold\">Telecharger le guide (PDF)</a></p>" +
           "<p style=\"font-size:13px;color:#555;line-height:1.7\">Notre catalogue compte plus de trois cents formations. " +
           "Si vous cherchez a vous former sur un sujet precis, repondez simplement a ce message.</p>" +
           "<p>Jacques Lalou<br/>Fondateur, Acad&eacute;mIA Pro</p></div>";
@@ -182,7 +183,6 @@ export async function POST(req: NextRequest) {
         });
       } catch (e) {}
 
-      // Avertissement pour Jacques.
       try {
         await fetch("https://api.resend.com/emails", {
           method: "POST",
