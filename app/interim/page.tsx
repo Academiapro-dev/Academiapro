@@ -47,19 +47,19 @@ export default function InterimPage() {
     if (email.indexOf("@") < 1) { setErreur("Adresse electronique invalide."); return; }
     setEnvoi("1");
     try {
-      const r = await fetch("/api/prospect", {
+      const r = await fetch("/api/prospect-public", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           nom: nom, email: email, telephone: telephone, societe: societe,
           effectif: effectif, secteur: secteur, message: texte,
           domaine: "Interim", formation_interesse: "Socle interim",
-          societe_bis: piege,
+          source: "formulaire", societe_bis: piege,
         }),
       });
       const d = await r.json();
       if (d.ok) {
-        setMessage(d.message || "Demande enregistree.");
+        setMessage(d.message || "Merci, votre demande est enregistree.");
         setNom(""); setSociete(""); setEmail(""); setTelephone("");
         setEffectif(""); setSecteur(""); setTexte("");
       } else {
