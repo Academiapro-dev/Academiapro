@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { sessionCourante } from "../../../../lib/session";
+import { tenantCourant } from "../../../../lib/droits";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -47,6 +48,13 @@ function refuse() {
   return NextResponse.json({ ok: false, erreur: "reserve a l administrateur" }, { status: 403 });
 }
 
+function sansOrganisme() {
+  return NextResponse.json(
+    { ok: false, erreur: "Session sans organisme rattache. Reconnectez-vous." },
+    { status: 401 }
+  );
+}
+
 function propre(v: any, max: number): string | null {
   if (v === null || v === undefined) return null;
   const t = String(v).replace(/[\u0000-\u001F\u007F]/g, "").trim();
@@ -58,9 +66,15 @@ export async function GET(req: NextRequest) {
     const session = sessionCourante();
     if (!session || ADMINS.indexOf(session.email) < 0) return refuse();
 
+    // TOUT EST BORNE A L ORGANISME. La table etait mono-cabinet : sans ce
+    // filtre, un cabinet verrait les collaborateurs d un autre.
+    const tenantId = tenantCourant();
+    if (!tenantId) return sansOrganisme();
+
     const { data, error } = await supabase
       .from("compta_collaborateurs")
       .select("*")
+      .eq("tenant_id", tenantId)
       .order("role", { ascending: true })
       .limit(500);
 
@@ -71,6 +85,7 @@ export async function GET(req: NextRequest) {
     const { data: dossiers } = await supabase
       .from("compta_societes")
       .select("id, code, raison_sociale")
+      .eq("tenant_id", tenantId)
       .eq("actif", true)
       .limit(500);
 
@@ -104,6 +119,9 @@ export async function POST(req: NextRequest) {
     const session = sessionCourante();
     if (!session || ADMINS.indexOf(session.email) < 0) return refuse();
 
+    const tenantId = tenantCourant();
+    if (!tenantId) return sansOrganisme();
+
     const b = await req.json().catch(function () { return null; });
     if (!b) {
       return NextResponse.json({ ok: false, erreur: "Requete illisible" }, { status: 400 });
@@ -132,12 +150,35 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const dossiers = Array.isArray(b.dossiers) ? b.dossiers.filter(function (x: any) {
+    // Les dossiers confies doivent appartenir a l organisme : sans ce
+    // controle, on confierait a un collaborateur le dossier d un autre
+    // cabinet en collant son identifiant.
+    const demandes = Array.isArray(b.dossiers) ? b.dossiers.filter(function (x: any) {
       return typeof x === "string" && x.length > 10;
     }) : [];
 
+    let dossiers: string[] = [];
+    if (demandes.length > 0) {
+      const { data: valides } = await supabase
+        .from("compta_societes")
+        .select("id")
+        .eq("tenant_id", tenantId)
+        .in("id", demandes)
+        .limit(500);
+
+      dossiers = (valides || []).map(function (d: any) { return d.id; });
+
+      if (dossiers.length !== demandes.length) {
+        return NextResponse.json(
+          { ok: false, erreur: "Un ou plusieurs dossiers n appartiennent pas a votre organisme." },
+          { status: 403 }
+        );
+      }
+    }
+
     const fiche: any = {
       email: email,
+      tenant_id: tenantId,
       nom: propre(b.nom, 120),
       role: role,
       dossiers: dossiers,
@@ -157,14 +198,17 @@ export async function POST(req: NextRequest) {
       .from("compta_collaborateurs")
       .select("id, role, actif")
       .eq("email", email)
+      .eq("tenant_id", tenantId)
       .maybeSingle();
 
-    // Le dernier associe actif ne se desactive pas : sinon plus personne
-    // ne peut administrer le cabinet.
+    // Le dernier associe actif DE CET ORGANISME ne se desactive pas : sinon
+    // plus personne ne peut administrer le cabinet. Le compte se fait bien
+    // dans l organisme, et non sur toute la base.
     if (deja && deja.role === "associe" && (fiche.actif === false || role !== "associe")) {
       const { data: associes } = await supabase
         .from("compta_collaborateurs")
         .select("id")
+        .eq("tenant_id", tenantId)
         .eq("role", "associe")
         .eq("actif", true)
         .limit(10);
