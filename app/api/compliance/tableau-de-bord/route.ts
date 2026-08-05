@@ -38,21 +38,20 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: false, erreur: "Connectez-vous." }, { status: 401 });
     }
 
-    // LE FILTRE : null signifie « tous les dossiers », un tableau vide
-    // signifie « aucun ». Un collaborateur ne voit que les siens.
+    // LE FILTRE : dossiersAutorises rend TOUJOURS une liste, bornee a
+    // l organisme de la session et aux dossiers confies au collaborateur.
+    // Une liste vide signifie « aucun dossier visible » — on s arrete la.
     const autorises = await dossiersAutorises();
-    if (autorises !== null && autorises.length === 0) {
+    if (autorises.length === 0) {
       return NextResponse.json({ ok: true, total: 0, dossiers: [], alertes: 0 });
     }
 
-    let requete = supabase
+    const { data: dossiers } = await supabase
       .from("compta_societes")
       .select("*")
-      .eq("actif", true);
-
-    if (autorises !== null) requete = requete.in("id", autorises);
-
-    const { data: dossiers } = await requete.limit(500);
+      .eq("actif", true)
+      .in("id", autorises)
+      .limit(500);
 
     const liste = dossiers || [];
     if (liste.length === 0) {
@@ -202,7 +201,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       ok: true,
-      restreint: autorises !== null,
+      restreint: true,
       total: resultat.length,
       alertes: resultat.filter(function (s: any) { return s.priorite > 0; }).length,
       desequilibres: resultat.filter(function (s: any) { return !s.equilibre && s.lignes > 0; }).length,
