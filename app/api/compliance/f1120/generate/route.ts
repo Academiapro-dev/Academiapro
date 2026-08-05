@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { PDFDocument, StandardFonts } from "pdf-lib";
 import { createClient } from "@supabase/supabase-js";
+import { sessionCourante } from "../../../../../lib/session";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -24,17 +25,6 @@ function origineLegitime(req: NextRequest): boolean {
   );
 }
 
-function tenantDeLaSession(req: NextRequest): string | null {
-  try {
-    const brut = req.cookies.get("sb_user")?.value;
-    if (!brut) return null;
-    const donnees = JSON.parse(decodeURIComponent(brut));
-    return donnees?.tenant_id || null;
-  } catch {
-    return null;
-  }
-}
-
 function money(n: number | null | undefined): string {
   if (n === null || n === undefined) return "";
   return Number(n).toFixed(2);
@@ -55,7 +45,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Acces refuse" }, { status: 403 });
   }
 
-  const tenantId = tenantDeLaSession(req);
+  // L organisme vient du JETON SIGNE session_academia. Avec l ancien cookie
+  // sb_user, un cookie forge permettait de generer le 1120 d un autre organisme.
+  const session = sessionCourante();
+  const tenantId = session ? session.tenantId : null;
   if (!tenantId) {
     return NextResponse.json(
       { error: "Session sans societe rattachee. Reconnectez-vous." },
