@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { sessionCourante } from "../../../../lib/session";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -20,21 +21,20 @@ function origineLegitime(req: NextRequest): boolean {
   );
 }
 
-function utilisateurDeLaSession(req: NextRequest): { id: string | null; tenantId: string | null } {
-  try {
-    const brut = req.cookies.get("sb_user")?.value;
-    if (!brut) return { id: null, tenantId: null };
-    let texte = brut;
-    try {
-      texte = decodeURIComponent(brut);
-    } catch {
-      texte = brut;
-    }
-    const donnees = JSON.parse(texte);
-    return { id: donnees?.id || null, tenantId: donnees?.tenant_id || null };
-  } catch {
-    return { id: null, tenantId: null };
-  }
+// L utilisateur vient du JETON SIGNE session_academia. Avec l ancien cookie
+// sb_user, un cookie forge permettait de rattacher une societe au compte
+// d un autre utilisateur. Le jeton ne portant que l email, l identifiant
+// est retrouve en base via la fonction utilisateur_par_email.
+async function utilisateurDeLaSession(): Promise<{ id: string | null; tenantId: string | null }> {
+  const session = sessionCourante();
+  if (!session || !session.email) return { id: null, tenantId: null };
+
+  const { data, error } = await supabase.rpc("utilisateur_par_email", {
+    p_email: session.email,
+  });
+
+  if (error) return { id: null, tenantId: session.tenantId };
+  return { id: (data as string) || null, tenantId: session.tenantId };
 }
 
 // GET : l'utilisateur connecte a-t-il deja une societe ?
@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Acces refuse" }, { status: 403 });
   }
 
-  const { id, tenantId } = utilisateurDeLaSession(req);
+  const { id, tenantId } = await utilisateurDeLaSession();
 
   if (!id) {
     return NextResponse.json(
@@ -75,7 +75,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Acces refuse" }, { status: 403 });
   }
 
-  const { id: userId, tenantId: tenantExistant } = utilisateurDeLaSession(req);
+  const { id: userId, tenantId: tenantExistant } = await utilisateurDeLaSession();
 
   if (!userId) {
     return NextResponse.json(
