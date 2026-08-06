@@ -62,6 +62,20 @@ export default function PageTableauDeBord() {
   const CARTE: any = { background: "rgba(255,255,255,0.03)", border: "1px solid rgba(200,169,110,0.25)", borderRadius: "12px", padding: "20px 24px", marginBottom: "16px" };
   const LIEN: any = { color: "#c8a96e", fontSize: "12.5px", textDecoration: "none", border: "1px solid rgba(200,169,110,0.35)", padding: "6px 13px", borderRadius: "20px" };
 
+  // Les acces generaux sont des CARTES, pas des pastilles : une pastille se
+  // lit comme une etiquette, une carte se lit comme une porte.
+  const PORTE: any = {
+    display: "block",
+    background: "rgba(200,169,110,0.07)",
+    border: "1px solid rgba(200,169,110,0.35)",
+    borderRadius: "12px",
+    padding: "18px 20px",
+    color: "#c8a96e",
+    textDecoration: "none",
+    fontSize: "15.5px",
+    fontWeight: "bold",
+  };
+
   function euros(n: any) {
     return (Number(n) || 0).toLocaleString("fr-FR", { minimumFractionDigits: 2 }) + " €";
   }
@@ -220,18 +234,22 @@ export default function PageTableauDeBord() {
           </>
         )}
 
-        <h2 style={{ color: "#c8a96e", fontSize: "18px", letterSpacing: "2px", margin: "44px 0 6px", textTransform: "uppercase" }}>
+        <h2 style={{ color: "#c8a96e", fontSize: "20px", letterSpacing: "2px", margin: "52px 0 6px", textTransform: "uppercase" }}>
           Tous les outils
         </h2>
-        <div style={{ height: "1px", background: "rgba(200,169,110,0.25)", marginBottom: "22px" }} />
+        <div style={{ height: "2px", background: "rgba(200,169,110,0.35)", marginBottom: "28px" }} />
 
         {OUTILS.map(function (g) {
           return (
-            <div key={g.titre} style={{ marginBottom: "24px" }}>
-              <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "13px", margin: "0 0 10px" }}>{g.titre}</p>
-              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            <div key={g.titre} style={{ marginBottom: "34px" }}>
+              <h3 style={{ color: "#fff", fontSize: "16px", margin: "0 0 14px", fontWeight: "normal" }}>{g.titre}</h3>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(230px, 1fr))", gap: "12px" }}>
                 {g.liens.map(function (l) {
-                  return <a key={l.href} href={l.href} style={{ ...LIEN, fontSize: "13.5px", padding: "9px 16px" }}>{l.nom}</a>;
+                  return (
+                    <a key={l.href} href={l.href} style={PORTE}>
+                      {l.nom} <span style={{ float: "right", opacity: 0.7 }}>→</span>
+                    </a>
+                  );
                 })}
               </div>
             </div>
