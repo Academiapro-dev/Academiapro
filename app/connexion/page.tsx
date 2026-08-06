@@ -2,12 +2,12 @@
 import { useState, useEffect } from "react";
 
 const MESSAGES: Record<string, string> = {
-  lien_expire: "Ce lien a expire. Demandez-en un nouveau ci-dessous.",
-  lien_deja_utilise: "Ce lien a deja servi. Demandez-en un nouveau ci-dessous.",
-  lien_inconnu: "Ce lien n est pas valide. Demandez-en un nouveau ci-dessous.",
+  lien_expire: "Ce lien a expiré. Demandez-en un nouveau ci-dessous.",
+  lien_deja_utilise: "Ce lien a déjà servi. Demandez-en un nouveau ci-dessous.",
+  lien_inconnu: "Ce lien n'est pas valide. Demandez-en un nouveau ci-dessous.",
   lien_incomplet: "Le lien semble incomplet. Demandez-en un nouveau ci-dessous.",
-  configuration: "Probleme de configuration du serveur. Reessayez plus tard.",
-  technique: "Un probleme technique est survenu. Reessayez.",
+  configuration: "Problème de configuration du serveur. Réessayez plus tard.",
+  technique: "Un problème technique est survenu. Réessayez.",
 };
 
 export default function ConnexionPage() {
@@ -27,7 +27,7 @@ export default function ConnexionPage() {
   async function demander() {
     const propre = email.toLowerCase().trim();
     if (!propre || propre.indexOf("@") < 1) {
-      setErreur("Veuillez saisir votre adresse email.");
+      setErreur("Veuillez saisir votre adresse électronique.");
       return;
     }
     setLoading(true);
@@ -63,13 +63,13 @@ export default function ConnexionPage() {
         <div style={{ maxWidth: "520px", textAlign: "center" }}>
           <div style={{ fontSize: "54px", marginBottom: "20px" }}>📩</div>
           <h1 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", marginBottom: "15px" }}>
-            Verifiez votre boite mail
+            Vérifiez votre boîte de réception
           </h1>
           <p style={{ color: "rgba(255,255,255,0.7)", lineHeight: "1.8", marginBottom: "10px" }}>
-            Un lien de connexion vient d etre envoye a <strong style={{ color: "#fff" }}>{email.toLowerCase().trim()}</strong>.
+            Un lien de connexion vient d'être envoyé à <strong style={{ color: "#fff" }}>{email.toLowerCase().trim()}</strong>.
           </p>
           <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px", lineHeight: "1.7" }}>
-            Il est valable 20 minutes et ne peut servir qu une fois. Pensez a regarder dans les indesirables.
+            Il est valable 20 minutes et ne peut servir qu'une fois. Pensez à regarder dans les indésirables.
           </p>
           <button
             onClick={() => { setEnvoye(false); setErreur(""); }}
@@ -85,12 +85,12 @@ export default function ConnexionPage() {
   return (
     <div style={{ backgroundColor: "#050508", minHeight: "100vh", color: "#fff" }}>
       <div style={{ background: "linear-gradient(135deg,#0a0a1a,#1a1a2e)", padding: "60px 20px", textAlign: "center" }}>
-        <p style={{ color: "#c8a96e", fontSize: "12px", letterSpacing: "3px", marginBottom: "15px" }}>ESPACE ELEVE</p>
+        <p style={{ color: "#c8a96e", fontSize: "12px", letterSpacing: "3px", marginBottom: "15px" }}>VOTRE ESPACE</p>
         <h1 style={{ color: "#fff", fontFamily: "Georgia,serif", fontSize: "2.4rem", marginBottom: "15px" }}>
           Connexion
         </h1>
         <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "15px", maxWidth: "560px", margin: "0 auto" }}>
-          Saisissez l adresse email utilisee lors de votre achat. Vous recevrez un lien de connexion, sans mot de passe a retenir.
+          Saisissez votre adresse électronique. Vous recevrez un lien de connexion, sans mot de passe à retenir.
         </p>
       </div>
 
@@ -101,7 +101,7 @@ export default function ConnexionPage() {
               {erreur}
             </div>
           )}
-          <label style={{ color: "#c8a96e", fontSize: "13px", display: "block", marginBottom: "6px" }}>Votre email</label>
+          <label style={{ color: "#c8a96e", fontSize: "13px", display: "block", marginBottom: "6px" }}>Votre adresse électronique</label>
           <input
             type="email"
             placeholder="vous@exemple.fr"
@@ -115,10 +115,24 @@ export default function ConnexionPage() {
             disabled={loading}
             style={{ width: "100%", padding: "14px", background: "#c8a96e", color: "#050508", border: "none", borderRadius: "8px", fontWeight: "bold", fontSize: "16px", cursor: loading ? "not-allowed" : "pointer" }}
           >
-            {loading ? "Envoi en cours..." : "Recevoir mon lien de connexion"}
+            {loading ? "Envoi en cours…" : "Recevoir mon lien de connexion"}
           </button>
-          <p style={{ color: "rgba(255,255,255,0.3)", fontSize: "12px", textAlign: "center", marginTop: "15px" }}>
-            Pas encore d achat ? <a href="/catalogue" style={{ color: "#c8a96e" }}>Decouvrir les formations</a>
+
+          <div style={{ height: "1px", background: "rgba(200,169,110,0.2)", margin: "28px 0 22px" }} />
+
+          <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "14px", textAlign: "center", margin: "0 0 14px" }}>
+            Vous n'avez pas encore de compte ?
+          </p>
+
+          <a
+            href="/comptable/inscription"
+            style={{ display: "block", textAlign: "center", padding: "13px", border: "1px solid rgba(200,169,110,0.45)", color: "#c8a96e", borderRadius: "8px", textDecoration: "none", fontWeight: "bold", fontSize: "15px", marginBottom: "12px" }}
+          >
+            S'inscrire — espace comptabilité
+          </a>
+
+          <p style={{ color: "rgba(255,255,255,0.3)", fontSize: "12px", textAlign: "center", marginTop: "16px", marginBottom: 0 }}>
+            Vous cherchez une formation ? <a href="/catalogue" style={{ color: "#c8a96e" }}>Découvrir le catalogue</a>
           </p>
         </div>
       </div>
