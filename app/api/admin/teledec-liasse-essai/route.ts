@@ -44,9 +44,14 @@ async function jeton(): Promise<string> {
 // davantage pour que TELEDEC ait de quoi creer l entreprise sans redemander.
 // AFFICHAGE-BOUTON-ENVOYER a NON : le client peut relire sa liasse mais pas
 // la teletransmettre lui-meme.
+//
+// #SOURCE est l IDENTIFIANT DU PARTENAIRE, sensible a la casse. Sur
+// l environnement de stage, TELEDEC impose la valeur generique API : c est
+// la seule cause de l erreur 101 rencontree le 05/08. Un identifiant dedie a
+// AcademIA Pro sera attribue a la finalisation de l onboarding.
 function identification(): string {
   const lignes = [
-    "#SOURCE AcademIA Pro",
+    "#SOURCE API",
     "#VERSION 1.0",
     "#NOM SOCIETE D ESSAI ACADEMIA",
     "#SIRET 12581251256423",
