@@ -46,6 +46,7 @@ const GROUPES = [
   {
     titre: "Comptabilité",
     liens: [
+      { nom: "Dépenses et justificatifs", href: "/admin/comptabilite" },
       { nom: "Comptabilité", href: "/admin/comptabilite" },
       { nom: "Mr. Comptable", href: "/admin/mr-comptable" },
     ],
@@ -130,7 +131,7 @@ export default function AdminPage() {
             <div style={{ height: "1px", background: "rgba(200,169,110,0.25)", marginBottom: "20px" }} />
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: "14px" }}>
               {g.liens.map((l) => (
-                <a key={l.href} href={l.href} style={bouton}>{l.nom}</a>
+                <a key={l.nom} href={l.href} style={bouton}>{l.nom}</a>
               ))}
             </div>
           </div>
