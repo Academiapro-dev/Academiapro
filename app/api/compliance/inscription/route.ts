@@ -16,15 +16,19 @@ const supabase = createClient(
   }
 );
 
-// Cree le compte d un nouveau client de Mr. Comptable, son organisme, et son
-// premier dossier. L envoi du lien de connexion reste assure par /connexion,
-// qui fonctionne deja : on ne duplique pas ce mecanisme.
+const PROFILS = ["vend_formations", "forme_salaries", "devenir_of", "cabinet_comptable"];
+
+// Cree le compte d un nouveau client, son organisme, et son premier dossier.
+// L envoi du lien de connexion reste assure par /connexion, qui fonctionne
+// deja : on ne duplique pas ce mecanisme.
 export async function POST(req: NextRequest) {
   try {
     const corps = await req.json();
 
     const email = String(corps.email || "").toLowerCase().trim();
     const raisonSociale = String(corps.raison_sociale || "").trim();
+    const profilDemande = String(corps.profil || "").trim();
+    const profil = PROFILS.indexOf(profilDemande) >= 0 ? profilDemande : "cabinet_comptable";
 
     if (!email || email.indexOf("@") < 0) {
       return NextResponse.json({ ok: false, erreur: "Adresse électronique invalide." }, { status: 400 });
@@ -71,33 +75,44 @@ export async function POST(req: NextRequest) {
       tenant_id: tenantId,
       role: "proprietaire",
       actif: true,
+      profil: profil,
     });
     if (errMembre) {
       return NextResponse.json({ ok: false, erreur: "Rattachement impossible : " + errMembre.message }, { status: 400 });
     }
 
-    // 4. Son premier dossier comptable.
     const code = raisonSociale
       .toUpperCase()
       .replace(/[^A-Z0-9]/g, "")
       .slice(0, 12) || "DOSSIER1";
 
-    await supabase.from("compta_societes").insert({
-      code,
-      nom: raisonSociale,
-      tenant_id: tenantId,
-    });
-
-    // 5. Sa fiche de collaborateur, pour les droits par dossier.
-    await supabase.from("compta_collaborateurs").insert({
-      email,
-      nom: raisonSociale,
-      role: "associe",
-      tenant_id: tenantId,
-    });
+    // 4. Un cabinet comptable recoit un dossier comptable. Les autres
+    // profils recoivent un organisme de formation.
+    if (profil === "cabinet_comptable") {
+      await supabase.from("compta_societes").insert({
+        code,
+        nom: raisonSociale,
+        tenant_id: tenantId,
+      });
+      await supabase.from("compta_collaborateurs").insert({
+        email,
+        nom: raisonSociale,
+        role: "associe",
+        tenant_id: tenantId,
+      });
+    } else {
+      await supabase.from("organismes_formation").insert({
+        tenant_id: tenantId,
+        raison_sociale: raisonSociale,
+        email_contact: email,
+        statut: "essai",
+        profils: [profil],
+      });
+    }
 
     return NextResponse.json({
       ok: true,
+      profil: profil,
       message: "Compte créé. Demandez votre lien de connexion pour entrer.",
     });
   } catch (e: any) {
