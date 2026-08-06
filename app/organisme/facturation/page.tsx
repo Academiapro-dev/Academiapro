@@ -17,7 +17,6 @@ const supabase = createClient(
   }
 );
 
-// Les deux produits du pack chez Lemon Squeezy.
 const ACHAT = "https://academiapro.lemonsqueezy.com/checkout/buy/";
 const MISE_EN_SERVICE = "b000148c-61e4-4434-9be1-d0d3945cd703";
 const ABONNEMENT = "a10511ba-be2a-45f4-b340-2461efcbd4ac";
@@ -73,7 +72,7 @@ export default async function PageFacturationClient() {
 
   const { data: org } = await supabase
     .from("organismes_formation")
-    .select("raison_sociale, abonnement_mensuel, taux_prelevement, plancher_stagiaire, lancement_jusqu_au, statut, frais_installation, email_contact")
+    .select("raison_sociale, abonnement_mensuel, taux_prelevement, plancher_stagiaire, lancement_jusqu_au, statut, frais_installation, email_contact, essai_jusqu_au")
     .eq("tenant_id", t)
     .maybeSingle();
 
@@ -129,6 +128,14 @@ export default async function PageFacturationClient() {
   const actif = statut === "actif";
   const miseEnServiceReglee = org && Number(org.frais_installation) > 0;
   const emailOrg = (org && org.email_contact) || session.email || "";
+
+  // DUREE DE L ESSAI. Un essai sans fin n en est pas un : le client doit
+  // savoir combien de jours il lui reste, sans avoir a le chercher.
+  const finEssai = org && org.essai_jusqu_au ? new Date(org.essai_jusqu_au + "T23:59:59") : null;
+  const joursRestants = finEssai
+    ? Math.ceil((finEssai.getTime() - maintenant.getTime()) / 86400000)
+    : null;
+  const essaiExpire = joursRestants !== null && joursRestants < 0;
 
   const lignes: any[] = [];
   let du = 0;
@@ -211,13 +218,24 @@ export default async function PageFacturationClient() {
         </p>
 
         {!actif && (
-          <div style={{ ...CARTE, border: "1px solid rgba(232,163,61,0.55)", background: "rgba(232,163,61,0.06)", marginTop: "22px" }}>
-            <p style={{ color: "#e8a33d", fontSize: "17px", fontWeight: "bold", margin: "0 0 8px" }}>
-              Votre abonnement n'est pas encore actif
+          <div style={{ ...CARTE, border: "1px solid " + (essaiExpire ? "rgba(232,131,106,0.6)" : "rgba(232,163,61,0.55)"), background: essaiExpire ? "rgba(232,131,106,0.07)" : "rgba(232,163,61,0.06)", marginTop: "22px" }}>
+            <p style={{ color: essaiExpire ? "#e8836a" : "#e8a33d", fontSize: "17px", fontWeight: "bold", margin: "0 0 8px" }}>
+              {essaiExpire
+                ? "Votre période d'essai est terminée"
+                : "Votre abonnement n'est pas encore actif"}
             </p>
+
+            {joursRestants !== null && !essaiExpire && (
+              <p style={{ color: "#fff", fontSize: "15px", margin: "0 0 8px", lineHeight: "1.7" }}>
+                Il vous reste <strong>{joursRestants} jour{joursRestants > 1 ? "s" : ""}</strong> d'essai,
+                jusqu'au {finEssai ? finEssai.toLocaleDateString("fr-FR") : ""}.
+              </p>
+            )}
+
             <p style={{ color: "rgba(255,255,255,0.72)", fontSize: "14px", margin: "0 0 6px", lineHeight: "1.8" }}>
-              Votre espace fonctionne, mais rien n'est encore souscrit. Deux règlements
-              ouvrent votre accès : la mise en service, une seule fois, puis l'abonnement mensuel.
+              {essaiExpire
+                ? "Vos données sont conservées : votre espace reprend là où vous l'avez laissé dès la souscription."
+                : "Votre espace fonctionne, mais rien n'est encore souscrit. Deux règlements ouvrent votre accès : la mise en service, une seule fois, puis l'abonnement mensuel."}
             </p>
 
             {!miseEnServiceReglee && (
