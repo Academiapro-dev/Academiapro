@@ -16,11 +16,11 @@ function echec(motif: string) {
   return NextResponse.redirect(SITE + "/connexion?erreur=" + encodeURIComponent(motif));
 }
 
-// Chaque profil entre chez lui. Un cabinet comptable qui atterrit sur
-// l espace apprenant referme la page.
+// Chaque profil entre chez lui. Un cabinet comptable doit arriver sur ses
+// DOSSIERS, pas sur le volet de conformite americaine.
 function accueilDuProfil(profil: string | null, role: string | null): string {
   if (role === "stagiaire") return "/dashboard";
-  if (profil === "cabinet_comptable") return "/admin/compliance";
+  if (profil === "cabinet_comptable") return "/admin/compliance/tableau-de-bord";
   if (profil === "vend_formations") return "/organisme";
   if (profil === "forme_salaries") return "/organisme";
   if (profil === "devenir_of") return "/admin/qualiopi";
