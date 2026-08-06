@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
+import { usePathname } from "next/navigation";
 
 const T = {
   fr: { formations: "Formations", seances: "Séances", blog: "Blog", tarifs: "Tarifs", contact: "Contact", connexion: "Se connecter", demarrer: "Démarrer" },
@@ -13,6 +14,7 @@ const T = {
 
 export default function NavBar() {
   const [langue, setLangue] = useState("fr");
+  const chemin = usePathname() || "";
 
   useEffect(() => {
     const saved = localStorage.getItem("langue") || "fr";
@@ -28,6 +30,11 @@ export default function NavBar() {
   }
 
   const t = (cle) => T[langue]?.[cle] || T["fr"][cle] || cle;
+
+  // MARQUE BLANCHE. Sur la vitrine d un organisme client, notre barre ne doit
+  // pas apparaitre : le visiteur y verrait la marque du fournisseur avant
+  // celle de son prestataire, avec un lien pour partir chez nous.
+  if (chemin.indexOf("/of/") === 0) return null;
 
   return (
     <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "15px 40px", background: "rgba(5,5,8,0.95)", backdropFilter: "blur(10px)", borderBottom: "1px solid rgba(200,169,110,0.15)", position: "sticky", top: 0, zIndex: 1000 }}>
