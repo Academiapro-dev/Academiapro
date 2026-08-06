@@ -2,11 +2,11 @@
 import { useState, useEffect } from "react";
 
 const LIBELLE_STATUT: any = {
-  emise: "Emise",
-  reglee: "Reglee",
-  partielle: "Partiellement reglee",
-  impayee: "Impayee",
-  annulee: "Annulee",
+  emise: "Émise",
+  reglee: "Réglée",
+  partielle: "Partiellement réglée",
+  impayee: "Impayée",
+  annulee: "Annulée",
 };
 
 export default function PageFactures() {
@@ -17,7 +17,10 @@ export default function PageFactures() {
   const [message, setMessage] = useState("");
   const [erreur, setErreur] = useState("");
   const [formulaire, setFormulaire] = useState(false);
-  const [reglement, setReglement] = useState<any>({});
+
+  // Le champ porte un VERSEMENT, pas un cumul : il s ajoute a ce qui a deja
+  // ete regle. Deux versements de 500 soldent une facture de 1000.
+  const [versement, setVersement] = useState<any>({});
 
   const [type, setType] = useState("stagiaire");
   const [nom, setNom] = useState("");
@@ -52,11 +55,7 @@ export default function PageFactures() {
       if (data.ok) {
         setD(data);
         setAnnee(data.annee);
-        const reg: any = {};
-        for (const f of data.factures || []) {
-          reg[f.id] = String(f.montant_regle || "");
-        }
-        setReglement(reg);
+        setVersement({});
       } else {
         setErreur(data.erreur || "Lecture impossible.");
       }
@@ -68,7 +67,7 @@ export default function PageFactures() {
 
   async function creer() {
     if (nom.trim().length < 2 || designation.trim().length < 3 || !prix) {
-      setErreur("Indiquez le destinataire, la designation et le prix.");
+      setErreur("Indiquez le destinataire, la désignation et le prix.");
       return;
     }
     setOccupe(true);
@@ -93,16 +92,16 @@ export default function PageFactures() {
       });
       const data = await r.json();
       if (data.ok) {
-        setMessage("Facture " + (data.facture ? data.facture.numero : "") + " emise.");
+        setMessage("Facture " + (data.facture ? data.facture.numero : "") + " émise.");
         setNom(""); setEmailDest(""); setDesignation(""); setPrix(""); setQuantite("1");
         setEcheance(""); setCodeFormation("");
         setFormulaire(false);
         await charger(annee);
       } else {
-        setErreur(data.erreur || "Emission impossible.");
+        setErreur(data.erreur || "Émission impossible.");
       }
     } catch (e: any) {
-      setErreur("Emission impossible : " + String(e));
+      setErreur("Émission impossible : " + String(e));
     }
     setOccupe(false);
   }
@@ -118,7 +117,7 @@ export default function PageFactures() {
       });
       const data = await r.json();
       if (data.ok) {
-        setMessage("Enregistre.");
+        setMessage("Enregistré.");
         await charger(annee);
       } else {
         setErreur(data.erreur || "Modification impossible.");
@@ -128,8 +127,21 @@ export default function PageFactures() {
     }
   }
 
+  // Le versement saisi S AJOUTE au montant deja regle. La route enregistre un
+  // total, c est donc ici qu on fait l addition.
+  async function encaisser(f: any) {
+    const saisi = Number(String(versement[f.id] || "").replace(",", "."));
+    if (!saisi || saisi <= 0) {
+      setErreur("Indiquez le montant du versement reçu.");
+      return;
+    }
+    const dejaRegle = Number(f.montant_regle) || 0;
+    const nouveau = Math.round((dejaRegle + saisi) * 100) / 100;
+    await modifier(f.id, { montant_regle: nouveau });
+  }
+
   function euros(n: any) {
-    return (Number(n) || 0).toLocaleString("fr-FR") + " EUR";
+    return (Number(n) || 0).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
   }
 
   const CADRE: any = {
@@ -210,20 +222,20 @@ export default function PageFactures() {
                 {euros(d.facture_ht)}
               </p>
               <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", margin: 0 }}>
-                Facture HT · {d.nombre} facture(s)
+                Facturé HT · {d.nombre} facture(s)
               </p>
             </div>
             <div style={{ ...CARTE, flex: "1 1 150px", marginBottom: 0 }}>
               <p style={{ color: "#4caf50", fontSize: "22px", fontWeight: "bold", margin: "0 0 4px" }}>
                 {euros(d.encaisse)}
               </p>
-              <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", margin: 0 }}>Encaisse</p>
+              <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", margin: 0 }}>Encaissé</p>
             </div>
             <div style={{ ...CARTE, flex: "1 1 150px", marginBottom: 0 }}>
               <p style={{ color: d.reste_du > 0 ? "#e8a33d" : "#4caf50", fontSize: "22px", fontWeight: "bold", margin: "0 0 4px" }}>
                 {euros(d.reste_du)}
               </p>
-              <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", margin: 0 }}>Reste du</p>
+              <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", margin: 0 }}>Reste dû</p>
             </div>
             <div style={{ ...CARTE, flex: "1 1 150px", marginBottom: 0 }}>
               <p style={{ color: d.en_retard > 0 ? "#e8836a" : "#4caf50", fontSize: "22px", fontWeight: "bold", margin: "0 0 4px" }}>
@@ -240,7 +252,7 @@ export default function PageFactures() {
           onClick={() => setFormulaire(!formulaire)}
           style={{ background: formulaire ? "none" : "#c8a96e", color: formulaire ? "#c8a96e" : "#050508", border: formulaire ? "1px solid rgba(200,169,110,0.45)" : "none", padding: "12px 24px", borderRadius: "20px", cursor: "pointer", fontSize: "15px", fontFamily: "Georgia,serif", fontWeight: "bold", marginBottom: "20px" }}
         >
-          {formulaire ? "Annuler" : "Emettre une facture"}
+          {formulaire ? "Annuler" : "Émettre une facture"}
         </button>
 
         {formulaire && (
@@ -255,10 +267,10 @@ export default function PageFactures() {
             <span style={LIBELLE}>Nom ou raison sociale</span>
             <input value={nom} onChange={(e) => setNom(e.target.value)} style={CHAMP} />
 
-            <span style={LIBELLE}>Email</span>
+            <span style={LIBELLE}>Adresse électronique</span>
             <input value={emailDest} onChange={(e) => setEmailDest(e.target.value)} style={CHAMP} />
 
-            <span style={LIBELLE}>Designation</span>
+            <span style={LIBELLE}>Désignation</span>
             <input value={designation} onChange={(e) => setDesignation(e.target.value)} placeholder="Formation Hypnose Praticien - 100 heures" style={CHAMP} />
 
             <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
@@ -267,7 +279,7 @@ export default function PageFactures() {
                 <input value={codeFormation} onChange={(e) => setCodeFormation(e.target.value)} placeholder="F028" style={CHAMP} />
               </div>
               <div style={{ flex: "1 1 100px" }}>
-                <span style={LIBELLE}>Quantite</span>
+                <span style={LIBELLE}>Quantité</span>
                 <input value={quantite} onChange={(e) => setQuantite(e.target.value)} style={CHAMP} />
               </div>
               <div style={{ flex: "1 1 120px" }}>
@@ -281,12 +293,12 @@ export default function PageFactures() {
             </div>
 
             <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "13px", margin: "-4px 0 12px", lineHeight: "1.6" }}>
-              La formation professionnelle continue est exoneree de TVA si vous detenez
-              l attestation prevue a l article 261-4-4 a du Code general des impots. Laissez
-              zero dans ce cas.
+              La formation professionnelle continue est exonérée de TVA si vous détenez
+              l'attestation prévue à l'article 261-4-4 a du Code général des impôts. Laissez
+              zéro dans ce cas.
             </p>
 
-            <span style={LIBELLE}>Echeance</span>
+            <span style={LIBELLE}>Échéance</span>
             <input type="date" value={echeance} onChange={(e) => setEcheance(e.target.value)} style={CHAMP} />
 
             <button
@@ -294,7 +306,7 @@ export default function PageFactures() {
               disabled={occupe}
               style={{ background: occupe ? "rgba(200,169,110,0.3)" : "#c8a96e", color: occupe ? "#8a8a8a" : "#050508", padding: "13px 26px", borderRadius: "8px", border: "none", cursor: occupe ? "default" : "pointer", fontWeight: "bold", fontSize: "15px", fontFamily: "Georgia,serif", width: "100%" }}
             >
-              {occupe ? "Emission..." : "Emettre la facture"}
+              {occupe ? "Émission…" : "Émettre la facture"}
             </button>
           </div>
         )}
@@ -304,7 +316,7 @@ export default function PageFactures() {
 
         {chargement ? (
           <div style={CARTE}>
-            <p style={{ color: "rgba(255,255,255,0.6)", margin: 0 }}>Chargement...</p>
+            <p style={{ color: "rgba(255,255,255,0.6)", margin: 0 }}>Chargement…</p>
           </div>
         ) : !d || d.factures.length === 0 ? (
           <div style={CARTE}>
@@ -315,13 +327,16 @@ export default function PageFactures() {
         ) : (
           d.factures.map(function (f: any) {
             const retard = enRetard(f);
+            const regle = Number(f.montant_regle) || 0;
+            const total = Number(f.montant_ttc) || 0;
+            const reste = Math.round((total - regle) * 100) / 100;
             return (
               <div key={f.id} style={{ ...CARTE, border: "1px solid " + (f.statut === "annulee" ? "rgba(255,255,255,0.12)" : f.statut === "reglee" ? "rgba(76,175,80,0.35)" : retard ? "rgba(232,131,106,0.55)" : "rgba(232,163,61,0.35)"), opacity: f.statut === "annulee" ? 0.5 : 1 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "10px" }}>
                   <div style={{ flex: "1 1 260px" }}>
                     <p style={{ color: "#c8a96e", fontSize: "13px", margin: "0 0 3px" }}>
-                      Facture {f.numero} · emise le {new Date(f.emise_le).toLocaleDateString("fr-FR")}
-                      {f.echeance ? " · echeance " + new Date(f.echeance).toLocaleDateString("fr-FR") : ""}
+                      Facture {f.numero} · émise le {new Date(f.emise_le).toLocaleDateString("fr-FR")}
+                      {f.echeance ? " · échéance " + new Date(f.echeance).toLocaleDateString("fr-FR") : ""}
                     </p>
                     <h3 style={{ color: "#fff", fontSize: "16px", margin: "0 0 3px" }}>{f.destinataire_nom}</h3>
                     <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "13px", margin: 0 }}>
@@ -339,7 +354,7 @@ export default function PageFactures() {
                     </p>
                     <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "12px", margin: 0 }}>
                       {euros(f.montant_ht)} HT
-                      {Number(f.montant_tva) > 0 ? " + " + euros(f.montant_tva) + " TVA" : " · exonere"}
+                      {Number(f.montant_tva) > 0 ? " + " + euros(f.montant_tva) + " de TVA" : " · exonérée"}
                     </p>
                     <p style={{ color: f.statut === "reglee" ? "#4caf50" : retard ? "#e8836a" : "#e8a33d", fontSize: "13px", fontWeight: "bold", margin: "6px 0 0" }}>
                       {retard ? "En retard" : LIBELLE_STATUT[f.statut] || f.statut}
@@ -348,35 +363,42 @@ export default function PageFactures() {
                 </div>
 
                 {f.statut !== "annulee" && (
-                  <div style={{ display: "flex", gap: "8px", alignItems: "center", marginTop: "14px", flexWrap: "wrap" }}>
-                    <span style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px" }}>Regle</span>
-                    <input
-                      value={reglement[f.id] || ""}
-                      onChange={(e) => setReglement({ ...reglement, [f.id]: e.target.value })}
-                      placeholder="0"
-                      style={{ ...CHAMP, width: "120px", marginBottom: 0, fontSize: "14px", padding: "8px 12px" }}
-                    />
-                    <span style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px" }}>
-                      sur {euros(f.montant_ttc)}
-                    </span>
+                  <div style={{ marginTop: "14px", paddingTop: "14px", borderTop: "1px solid rgba(255,255,255,0.07)" }}>
 
-                    <button
-                      onClick={() => modifier(f.id, { montant_regle: reglement[f.id] || 0 })}
-                      style={BOUTON}
-                    >
-                      Enregistrer
-                    </button>
+                    <p style={{ fontSize: "14px", margin: "0 0 12px" }}>
+                      <span style={{ color: "#4caf50", fontWeight: "bold" }}>{euros(regle)} encaissé</span>
+                      <span style={{ color: "rgba(255,255,255,0.4)" }}> sur {euros(total)} — </span>
+                      <span style={{ color: reste > 0 ? "#e8a33d" : "#4caf50", fontWeight: "bold" }}>
+                        {reste > 0 ? "reste " + euros(reste) : "soldée"}
+                      </span>
+                    </p>
 
-                    <button
-                      onClick={() => modifier(f.id, { montant_regle: f.montant_ttc })}
-                      style={{ ...BOUTON, border: "1px solid rgba(76,175,80,0.5)", color: "#4caf50" }}
-                    >
-                      Reglee en totalite
-                    </button>
+                    {reste > 0 && (
+                      <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+                        <span style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px" }}>Versement reçu</span>
+                        <input
+                          value={versement[f.id] || ""}
+                          onChange={(e) => setVersement({ ...versement, [f.id]: e.target.value })}
+                          placeholder="0"
+                          style={{ ...CHAMP, width: "120px", marginBottom: 0, fontSize: "14px", padding: "8px 12px" }}
+                        />
+
+                        <button onClick={() => encaisser(f)} style={BOUTON}>
+                          Ajouter ce versement
+                        </button>
+
+                        <button
+                          onClick={() => modifier(f.id, { montant_regle: total })}
+                          style={{ ...BOUTON, border: "1px solid rgba(76,175,80,0.5)", color: "#4caf50" }}
+                        >
+                          Solder la facture
+                        </button>
+                      </div>
+                    )}
 
                     <button
                       onClick={() => modifier(f.id, { annuler: true })}
-                      style={{ background: "none", border: "none", color: "#e8836a", cursor: "pointer", fontSize: "13px", padding: 0 }}
+                      style={{ background: "none", border: "none", color: "#e8836a", cursor: "pointer", fontSize: "13px", padding: 0, marginTop: "12px" }}
                     >
                       Annuler la facture
                     </button>
