@@ -32,6 +32,11 @@ const CARTE: any = {
   padding: "18px 22px",
 };
 
+// Les quatre profils. Une porte sans liste « pour » est visible par tous.
+const TOUS: string[] = [];
+const VENTE = ["vend_formations"];
+const QUALIOPI = ["vend_formations", "devenir_of"];
+
 export default async function TableauDeBordOrganisme() {
   const session = sessionCourante();
 
@@ -91,7 +96,7 @@ export default async function TableauDeBordOrganisme() {
     : vide;
 
   const { data: org } = t
-    ? await supabase.from("organismes_formation").select("slug, portail_actif, abonnement_mensuel, lancement_jusqu_au").eq("tenant_id", t).maybeSingle()
+    ? await supabase.from("organismes_formation").select("slug, portail_actif, abonnement_mensuel, lancement_jusqu_au, profils").eq("tenant_id", t).maybeSingle()
     : { data: null };
 
   const { data: documents } = t
@@ -186,43 +191,61 @@ export default async function TableauDeBordOrganisme() {
     ? new Date(org.lancement_jusqu_au).getTime() >= maintenant
     : false;
 
-  const familles = [
+  // PROFILS DU CLIENT. Sans profil declare, on suppose qu'il vend des
+  // formations : c'est le cas de tous les comptes existants.
+  const mesProfils: string[] =
+    org && Array.isArray(org.profils) && org.profils.length > 0
+      ? org.profils
+      : ["vend_formations"];
+
+  function visible(pour: string[]): boolean {
+    if (pour.length === 0) return true;
+    return mesProfils.some(function (p: string) { return pour.indexOf(p) >= 0; });
+  }
+
+  const famillesBrutes = [
     {
       titre: "Former",
       portes: [
-        { href: "/organisme/stagiaires", nom: "Mes stagiaires", detail: inscrits + " inscrit(s)", alerte: aInviter > 0 ? aInviter + " sans accès" : "" },
-        { href: "/organisme/cours", nom: "Mes formations", detail: (coursPropres || []).length + " créée(s) · " + publiees + " publiée(s)", alerte: "" },
-        { href: "/organisme/catalogue", nom: "Catalogue AcadémIA", detail: (catalogue || []).length + " formation(s)", alerte: "" },
-        { href: "/organisme/seances", nom: "Classes virtuelles", detail: seancesAvenir > 0 ? seancesAvenir + " à venir" : (seances || []).length + " séance(s)", alerte: "" },
-        { href: "/organisme/relances", nom: "Qui a décroché", detail: decroches > 0 ? decroches + " inactif(s)" : "tout le monde avance", alerte: decroches > 0 ? "à relancer" : "" },
+        { pour: TOUS, href: "/organisme/stagiaires", nom: "Mes stagiaires", detail: inscrits + " inscrit(s)", alerte: aInviter > 0 ? aInviter + " sans accès" : "" },
+        { pour: TOUS, href: "/organisme/cours", nom: "Mes formations", detail: (coursPropres || []).length + " créée(s) · " + publiees + " publiée(s)", alerte: "" },
+        { pour: TOUS, href: "/organisme/catalogue", nom: "Catalogue AcadémIA", detail: (catalogue || []).length + " formation(s)", alerte: "" },
+        { pour: TOUS, href: "/organisme/seances", nom: "Classes virtuelles", detail: seancesAvenir > 0 ? seancesAvenir + " à venir" : (seances || []).length + " séance(s)", alerte: "" },
+        { pour: TOUS, href: "/organisme/relances", nom: "Qui a décroché", detail: decroches > 0 ? decroches + " inactif(s)" : "tout le monde avance", alerte: decroches > 0 ? "à relancer" : "" },
+        { pour: TOUS, href: "/organisme/importer", nom: "Importer une liste", detail: "jusqu'à 500 stagiaires", alerte: "" },
       ],
     },
     {
       titre: "Vendre",
       portes: [
-        { href: "/organisme/crm", nom: "Mes prospects", detail: (prospects || []).length + " fiche(s)", alerte: aTraiter > 0 ? aTraiter + " à traiter" : "" },
-        { href: "/organisme/portail", nom: "Ma page publique", detail: org && org.portail_actif ? "en ligne · /of/" + org.slug : "fermée", alerte: org && !org.portail_actif ? "à ouvrir" : "" },
-        { href: "/organisme/importer", nom: "Importer une liste", detail: "jusqu'à 500 stagiaires", alerte: "" },
-        { href: "/organisme/facturation", nom: "Ma facturation", detail: abonnement > 0 ? (enLancement ? Math.round(abonnement / 2) : abonnement) + " € / mois + inscriptions" : "en cours", alerte: "" },
+        { pour: VENTE, href: "/organisme/crm", nom: "Mes prospects", detail: (prospects || []).length + " fiche(s)", alerte: aTraiter > 0 ? aTraiter + " à traiter" : "" },
+        { pour: VENTE, href: "/organisme/portail", nom: "Ma page publique", detail: org && org.portail_actif ? "en ligne · /of/" + org.slug : "fermée", alerte: org && !org.portail_actif ? "à ouvrir" : "" },
+        { pour: VENTE, href: "/organisme/facturation", nom: "Ma facturation", detail: abonnement > 0 ? (enLancement ? Math.round(abonnement / 2) : abonnement) + " € / mois + inscriptions" : "en cours", alerte: "" },
       ],
     },
     {
       titre: "Prouver",
       portes: [
-        { href: "/organisme/documents", nom: "Mes documents", detail: (documents || []).length + " émis", alerte: "" },
-        { href: "/organisme/signatures", nom: "Signatures", detail: signees + " signé(s)", alerte: "" },
-        { href: "/organisme/evaluations", nom: "Évaluations", detail: satisfaction !== null ? satisfaction + "/5 sur " + notesEval.length : "aucune réponse", alerte: "" },
-        { href: "/organisme/reclamations", nom: "Réclamations", detail: (reclamations || []).length + " au registre", alerte: ouvertes > 0 ? ouvertes + " en attente" : "" },
-        { href: "/organisme/bilan", nom: "Bilan pédagogique", detail: "Cerfa 10443", alerte: incomplets > 0 ? incomplets + " à compléter" : "" },
+        { pour: TOUS, href: "/organisme/documents", nom: "Mes documents", detail: (documents || []).length + " émis", alerte: "" },
+        { pour: QUALIOPI, href: "/organisme/signatures", nom: "Signatures", detail: signees + " signé(s)", alerte: "" },
+        { pour: QUALIOPI, href: "/organisme/evaluations", nom: "Évaluations", detail: satisfaction !== null ? satisfaction + "/5 sur " + notesEval.length : "aucune réponse", alerte: "" },
+        { pour: QUALIOPI, href: "/organisme/reclamations", nom: "Réclamations", detail: (reclamations || []).length + " au registre", alerte: ouvertes > 0 ? ouvertes + " en attente" : "" },
+        { pour: QUALIOPI, href: "/organisme/bilan", nom: "Bilan pédagogique", detail: "Cerfa 10443", alerte: incomplets > 0 ? incomplets + " à compléter" : "" },
       ],
     },
   ];
+
+  const familles = famillesBrutes
+    .map(function (f) {
+      return { titre: f.titre, portes: f.portes.filter(function (p) { return visible(p.pour); }) };
+    })
+    .filter(function (f) { return f.portes.length > 0; });
 
   return (
     <div style={CADRE}>
       <div style={{ maxWidth: "1100px", margin: "0 auto" }}>
         <p style={{ color: "#c8a96e", fontSize: "12px", letterSpacing: "3px", margin: "0 0 8px" }}>
-          ESPACE ORGANISME
+          ESPACE PROFESSIONNEL
         </p>
         <h1 style={{ color: "#fff", fontSize: "30px", margin: "0 0 6px" }}>Tableau de bord</h1>
         <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "14px", marginTop: 0 }}>
