@@ -1,10 +1,26 @@
 import { mesurer } from "../../../lib/usageIA";
+import { sessionCourante } from "../../../lib/session";
 // app/api/cam/route.ts — v6 LMS COMPLET
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
+
+// Cette route DEPENSE DE L ARGENT : chaque generation declenche une
+// vingtaine d appels a Claude. Elle est donc reservee aux administrateurs,
+// et le controle d origine ne suffit pas : les en-tetes se posent a la main.
+const ADMINS = ["contact@academiapro.fr"];
+
+function refuser() {
+  return NextResponse.json({ erreur: "Acces refuse" }, { status: 403 });
+}
+
+function estAdministrateur(): boolean {
+  const session = sessionCourante();
+  if (!session || !session.email) return false;
+  return ADMINS.indexOf(session.email) >= 0;
+}
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -207,8 +223,13 @@ async function cam_generer_lms_complet(code_formation: string) {
 }
 
 async function cam_statut() {
+  // Les ateliers (codes SK) ne sont pas des formations : ils n ont pas
+  // vocation a recevoir un LMS et fausseraient le compte.
   const { data: formations } = await supabase
-    .from("formations").select("code,titre,domaine,niveau").eq("actif", true).order("code");
+    .from("formations").select("code,titre,domaine,niveau")
+    .eq("actif", true)
+    .eq("type_objet", "formation")
+    .order("code");
   const { data: lms } = await supabase.from("formations_lms").select("formation_code,contenu");
   const lms_v6 = (lms || []).filter((x: any) => x.contenu?.v === "6").map((x: any) => x.formation_code);
   const lms_codes = (lms || []).map((x: any) => x.formation_code);
@@ -223,22 +244,7 @@ async function cam_statut() {
 }
 
 export async function POST(req: NextRequest) {
-  // Garde-fou : n accepter que les appels du site
-  const origineApp = req.headers.get("origin") || "";
-  const referentApp = req.headers.get("referer") || "";
-  const appelLegitime =
-    origineApp.includes("academiapro.fr")
-    || referentApp.includes("academiapro.fr")
-    || origineApp.includes("vercel.app")
-    || referentApp.includes("vercel.app")
-    || origineApp.includes("localhost")
-    || referentApp.includes("localhost");
-  if (!appelLegitime) {
-    return NextResponse.json(
-      { error: "Acces refuse" },
-      { status: 403 },
-    );
-  }
+  if (!estAdministrateur()) return refuser();
 
   try {
     const body = await req.json();
@@ -264,5 +270,6 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET() {
+  if (!estAdministrateur()) return refuser();
   return NextResponse.json(await cam_statut());
 }
