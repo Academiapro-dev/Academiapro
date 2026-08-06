@@ -12,15 +12,16 @@ const INDICATEURS = [
 
 const GROUPES = [
   {
-    titre: "Catalogue et formation",
+    titre: "Catalogue et LMS",
     liens: [
       { nom: "Modules et formations", href: "/admin/module" },
       { nom: "Sessions", href: "/admin/sessions" },
       { nom: "Certificats", href: "/admin/certificats" },
       { nom: "Téléchargements", href: "/admin/telechargements" },
       { nom: "Gamification", href: "/admin/gamification" },
-      { nom: "Remotivation", href: "/admin/remotivation" },
-      { nom: "Cam", href: "/admin/cam" },
+      { nom: "Relance des apprenants inactifs", href: "/admin/remotivation" },
+      { nom: "CAM — génération et pilotage des agents", href: "/admin/cam" },
+      { nom: "Maintenance", href: "/maintenance" },
     ],
   },
   {
@@ -34,13 +35,13 @@ const GROUPES = [
       { nom: "Coffre", href: "/admin/coffre" },
       { nom: "Agent commercial", href: "/admin/agent-commercial" },
       { nom: "Agents", href: "/admin/agents" },
+      { nom: "Marque blanche", href: "/admin/domaines" },
     ],
   },
   {
     titre: "Facturation",
     liens: [
       { nom: "Facturation", href: "/admin/facturation" },
-      { nom: "Holding", href: "/admin/holding" },
     ],
   },
   {
@@ -52,17 +53,17 @@ const GROUPES = [
     ],
   },
   {
-    titre: "Conformité et juridique",
+    titre: "Conformité et international",
     liens: [
       { nom: "Compliance", href: "/admin/compliance" },
+      { nom: "Structures internationales", href: "/admin/holding" },
       { nom: "Mr. Juridique", href: "/admin/mr-juridique" },
     ],
   },
   {
     titre: "Qualiopi",
     liens: [
-      { nom: "Qualiopi", href: "/admin/qualiopi" },
-      { nom: "Mr. Qualiopi", href: "/admin/mr-qualiopi" },
+      { nom: "Qualiopi — préparer ma certification", href: "/admin/qualiopi" },
     ],
   },
   {
@@ -70,7 +71,7 @@ const GROUPES = [
     liens: [
       { nom: "Marketing", href: "/admin/marketing" },
       { nom: "Emailing", href: "/admin/emailing" },
-      { nom: "Emails", href: "/admin/emails" },
+      { nom: "Emails automatiques", href: "/admin/emails" },
       { nom: "Réseaux sociaux", href: "/admin/reseaux-sociaux" },
       { nom: "Blog", href: "/admin/blog" },
     ],
@@ -81,7 +82,6 @@ const GROUPES = [
       { nom: "Analyses", href: "/admin/analytics" },
       { nom: "Diagnostic", href: "/admin/diagnostic" },
       { nom: "Usage de l'IA", href: "/admin/usage-ia" },
-      { nom: "Domaines", href: "/admin/domaines" },
     ],
   },
 ];
