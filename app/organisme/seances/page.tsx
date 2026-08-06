@@ -2,9 +2,9 @@
 import { useState, useEffect } from "react";
 
 const LIBELLE_STATUT: any = {
-  prevue: "Prevue",
+  prevue: "Prévue",
   en_cours: "En cours",
-  terminee: "Terminee",
+  terminee: "Terminée",
 };
 
 // L HEURE SAISIE EST CELLE DE CELUI QUI SAISIT. Le champ du navigateur rend
@@ -16,6 +16,15 @@ function instantExact(saisie: string): string {
   const d = new Date(saisie);
   if (isNaN(d.getTime())) return "";
   return d.toISOString();
+}
+
+// LE STATUT ENREGISTRE NE SE FERME PAS TOUT SEUL : une seance restee en base
+// a "en_cours" s afficherait ainsi des semaines apres. Le temps tranche avant
+// la base — si la fin est passee, la seance est terminee.
+function libelleStatut(s: any): string {
+  if (s.ouverte) return "Salle ouverte";
+  if (s.passee) return "Terminée";
+  return LIBELLE_STATUT[s.statut] || s.statut;
 }
 
 export default function PageSeances() {
@@ -90,15 +99,15 @@ export default function PageSeances() {
       });
       const data = await r.json();
       if (data.ok) {
-        setMessage("Seance programmee. Pensez a prevenir vos stagiaires.");
+        setMessage("Séance programmée. Pensez à prévenir vos stagiaires.");
         setTitre(""); setFormation(""); setDebut(""); setFormateur(""); setDescription("");
         setFormulaire(false);
         await charger();
       } else {
-        setErreur(data.erreur || "Creation impossible.");
+        setErreur(data.erreur || "Création impossible.");
       }
     } catch (e: any) {
-      setErreur("Creation impossible : " + String(e));
+      setErreur("Création impossible : " + String(e));
     }
     setOccupe("");
   }
@@ -115,7 +124,7 @@ export default function PageSeances() {
       });
       const data = await r.json();
       if (data.ok) {
-        setMessage(data.envoyes + " stagiaire(s) prevenu(s).");
+        setMessage(data.envoyes + " stagiaire(s) prévenu(s).");
       } else {
         setErreur(data.erreur || "Annonce impossible.");
       }
@@ -137,13 +146,13 @@ export default function PageSeances() {
       });
       const data = await r.json();
       if (data.ok) {
-        setMessage("Seance close.");
+        setMessage("Séance close.");
         await charger();
       } else {
-        setErreur(data.erreur || "Cloture impossible.");
+        setErreur(data.erreur || "Clôture impossible.");
       }
     } catch (e: any) {
-      setErreur("Cloture impossible : " + String(e));
+      setErreur("Clôture impossible : " + String(e));
     }
     setOccupe("");
   }
@@ -206,9 +215,9 @@ export default function PageSeances() {
         <p style={{ color: "#c8a96e", fontSize: "12px", letterSpacing: "3px", margin: "22px 0 8px" }}>
           CLASSES VIRTUELLES
         </p>
-        <h1 style={{ color: "#fff", fontSize: "30px", margin: "0 0 6px" }}>Mes seances</h1>
+        <h1 style={{ color: "#fff", fontSize: "30px", margin: "0 0 6px" }}>Mes séances</h1>
         <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "14px", marginTop: 0 }}>
-          {d ? d.total : 0} seance(s) · {d ? d.a_venir : 0} a venir · visio et tableau blanc
+          {d ? d.total : 0} séance(s) · {d ? d.a_venir : 0} à venir · visio et tableau blanc
         </p>
 
         {d && d.membre && (
@@ -216,13 +225,13 @@ export default function PageSeances() {
             onClick={() => setFormulaire(!formulaire)}
             style={{ background: formulaire ? "none" : "#c8a96e", color: formulaire ? "#c8a96e" : "#050508", border: formulaire ? "1px solid rgba(200,169,110,0.45)" : "none", padding: "12px 24px", borderRadius: "20px", cursor: "pointer", fontSize: "15px", fontFamily: "Georgia,serif", fontWeight: "bold", margin: "22px 0" }}
           >
-            {formulaire ? "Annuler" : "Programmer une seance"}
+            {formulaire ? "Annuler" : "Programmer une séance"}
           </button>
         )}
 
         {formulaire && (
           <div style={{ ...CARTE, border: "1px solid rgba(200,169,110,0.5)" }}>
-            <span style={LIBELLE}>Titre de la seance</span>
+            <span style={LIBELLE}>Titre de la séance</span>
             <input value={titre} onChange={(e) => setTitre(e.target.value)} placeholder="Atelier pratique du module 3" style={CHAMP} />
 
             <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
@@ -231,7 +240,7 @@ export default function PageSeances() {
                 <input type="datetime-local" value={debut} onChange={(e) => setDebut(e.target.value)} style={CHAMP} />
               </div>
               <div style={{ flex: "1 1 120px" }}>
-                <span style={LIBELLE}>Duree (minutes)</span>
+                <span style={LIBELLE}>Durée (minutes)</span>
                 <input value={duree} onChange={(e) => setDuree(e.target.value)} style={CHAMP} />
               </div>
               <div style={{ flex: "1 1 120px" }}>
@@ -242,8 +251,8 @@ export default function PageSeances() {
 
             {debut && instantExact(debut) && (
               <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "13px", margin: "-6px 0 12px" }}>
-                Soit le {new Date(instantExact(debut)).toLocaleString("fr-FR")} a votre heure.
-                La salle ouvrira a{" "}
+                Soit le {new Date(instantExact(debut)).toLocaleString("fr-FR")} à votre heure.
+                La salle ouvrira à{" "}
                 {new Date(new Date(instantExact(debut)).getTime() - 15 * 60000)
                   .toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}.
               </p>
@@ -252,7 +261,7 @@ export default function PageSeances() {
             <span style={LIBELLE}>Formateur</span>
             <input value={formateur} onChange={(e) => setFormateur(e.target.value)} style={CHAMP} />
 
-            <span style={LIBELLE}>Ce qui sera aborde</span>
+            <span style={LIBELLE}>Ce qui sera abordé</span>
             <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} style={CHAMP} />
 
             <button
@@ -260,13 +269,13 @@ export default function PageSeances() {
               disabled={occupe === "creation"}
               style={{ background: occupe === "creation" ? "rgba(200,169,110,0.3)" : "#c8a96e", color: occupe === "creation" ? "#8a8a8a" : "#050508", padding: "13px 26px", borderRadius: "8px", border: "none", cursor: "pointer", fontWeight: "bold", fontSize: "15px", fontFamily: "Georgia,serif", width: "100%" }}
             >
-              {occupe === "creation" ? "Creation..." : "Programmer"}
+              {occupe === "creation" ? "Création…" : "Programmer"}
             </button>
 
             <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px", margin: "12px 0 0", lineHeight: "1.6" }}>
-              Si vous indiquez une formation, seuls ses stagiaires seront prevenus. Sans elle,
-              tout votre registre le sera. La salle s ouvre un quart d heure avant et les entrees
-              sont horodatees : elles tiennent lieu de feuille d emargement.
+              Si vous indiquez une formation, seuls ses stagiaires seront prévenus. Sans elle,
+              tout votre registre le sera. La salle s'ouvre un quart d'heure avant et les entrées
+              sont horodatées : elles tiennent lieu de feuille d'émargement.
             </p>
           </div>
         )}
@@ -276,14 +285,14 @@ export default function PageSeances() {
 
         {chargement ? (
           <div style={CARTE}>
-            <p style={{ color: "rgba(255,255,255,0.6)", margin: 0 }}>Chargement...</p>
+            <p style={{ color: "rgba(255,255,255,0.6)", margin: 0 }}>Chargement…</p>
           </div>
         ) : !d || d.seances.length === 0 ? (
           <div style={CARTE}>
             <p style={{ color: "rgba(255,255,255,0.6)", margin: 0, fontSize: "15px", lineHeight: "1.7" }}>
-              Aucune seance programmee. Une classe virtuelle vous permet de reunir vos
+              Aucune séance programmée. Une classe virtuelle vous permet de réunir vos
               stagiaires en direct, avec la visio et un tableau blanc, et produit au passage
-              une preuve d assiduite horodatee.
+              une preuve d'assiduité horodatée.
             </p>
           </div>
         ) : (
@@ -300,12 +309,12 @@ export default function PageSeances() {
                     <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "13px", margin: 0 }}>
                       {s.formateur ? s.formateur + " · " : ""}
                       {s.participants} participant(s)
-                      {s.minutes_cumulees ? " · " + s.minutes_cumulees + " min cumulees" : ""}
+                      {s.minutes_cumulees ? " · " + s.minutes_cumulees + " min cumulées" : ""}
                     </p>
                   </div>
 
                   <span style={{ color: s.ouverte ? "#4caf50" : s.passee ? "rgba(255,255,255,0.45)" : "#e8a33d", fontSize: "13px", fontWeight: "bold" }}>
-                    {s.ouverte ? "Salle ouverte" : LIBELLE_STATUT[s.statut] || s.statut}
+                    {libelleStatut(s)}
                   </span>
                 </div>
 
@@ -325,11 +334,11 @@ export default function PageSeances() {
                     </a>
                   ) : s.passee ? (
                     <a href={"/organisme/seances/" + s.id + suffixe("?")} style={BOUTON}>
-                      Feuille de presence
+                      Feuille de présence
                     </a>
                   ) : (
                     <span style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px" }}>
-                      la salle ouvrira a{" "}
+                      la salle ouvrira à{" "}
                       {new Date(new Date(s.debut).getTime() - 15 * 60000)
                         .toLocaleString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
                     </span>
@@ -341,13 +350,13 @@ export default function PageSeances() {
                       disabled={occupe !== ""}
                       style={BOUTON}
                     >
-                      {occupe === "annonce-" + s.id ? "Envoi..." : "Prevenir les stagiaires"}
+                      {occupe === "annonce-" + s.id ? "Envoi…" : "Prévenir les stagiaires"}
                     </button>
                   )}
 
                   {d.membre && s.passee && (
                     <a href={"/organisme/seances/" + s.id + suffixe("?")} style={BOUTON}>
-                      Emargement
+                      Émargement
                     </a>
                   )}
 
