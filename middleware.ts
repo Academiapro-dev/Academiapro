@@ -5,6 +5,12 @@ import type { NextRequest } from 'next/server';
 const ADMINS = ['contact@academiapro.fr'];
 
 const CHEMINS_PROTEGES = ['/admin', '/maintenance'];
+
+// Les ecrans clients de Mr. Comptable : ouverts a tout utilisateur connecte
+// portant un organisme. Les routes de donnees sont deja cloisonnees par
+// organisme et par role, un client ne voit que ses propres dossiers.
+const ESPACE_CLIENT = ['/admin/compliance', '/admin/qualiopi'];
+
 const EXIGENT_SOCIETE = ['/admin/compliance', '/admin/qualiopi'];
 
 // Tous les ecrans comptables : les exiger rattaches a une societe les
@@ -74,25 +80,8 @@ function octetsVersBase64url(buffer: ArrayBuffer): string {
   return btoa(binaire).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
-function chargeDuJeton(jeton: string | undefined): any {
-  if (!jeton) return null;
-  try {
-    const corps = jeton.split('.')[0];
-    if (!corps) return null;
-    return JSON.parse(base64urlVersTexte(corps));
-  } catch {
-    return null;
-  }
-}
-
-function societeDuJeton(jeton: string | undefined): string | null {
-  const charge = chargeDuJeton(jeton);
-  return charge && charge.tid ? String(charge.tid) : null;
-}
-
-// VERIFICATION REELLE DE LA SIGNATURE. Sans elle, un cookie fabrique a la
-// main ouvrait l administration : la presence du cookie ne prouve rien.
-async function emailVerifie(jeton: string | undefined): Promise<string | null> {
+// Verification reelle de la signature. Renvoie la charge du jeton ou null.
+async function jetonVerifie(jeton: string | undefined): Promise<any> {
   if (!jeton) return null;
 
   const secret = process.env.SESSION_SECRET || '';
@@ -123,7 +112,7 @@ async function emailVerifie(jeton: string | undefined): Promise<string | null> {
     if (typeof charge.exp !== 'number') return null;
     if (Date.now() > charge.exp) return null;
 
-    return String(charge.email).toLowerCase().trim();
+    return charge;
   } catch {
     return null;
   }
@@ -159,19 +148,21 @@ export async function middleware(request: NextRequest) {
 
   if (!correspond(chemin, CHEMINS_PROTEGES)) return NextResponse.next();
 
-  // ---- ADMINISTRATION ET MAINTENANCE : signature verifiee, adresse verifiee ----
-  const email = await emailVerifie(session);
+  const charge = await jetonVerifie(session);
 
-  if (!email) {
+  if (!charge) {
     const url = request.nextUrl.clone();
     url.pathname = '/connexion';
     url.search = '';
     return NextResponse.redirect(url);
   }
 
-  if (ADMINS.indexOf(email) < 0) {
-    // Un refus explicite confirmerait que la page existe. On repond comme
-    // si elle n existait pas.
+  const email = String(charge.email).toLowerCase().trim();
+  const estAdmin = ADMINS.indexOf(email) >= 0;
+  const estEspaceClient = correspond(chemin, ESPACE_CLIENT);
+
+  // Hors espace client, tout /admin reste reserve a l administrateur.
+  if (!estAdmin && !estEspaceClient) {
     return new NextResponse('Page introuvable', {
       status: 404,
       headers: { 'Content-Type': 'text/plain; charset=utf-8' },
@@ -179,7 +170,7 @@ export async function middleware(request: NextRequest) {
   }
 
   if (correspond(chemin, EXIGENT_SOCIETE) && !correspond(chemin, EXCEPTIONS)) {
-    if (!societeDuJeton(session)) {
+    if (!charge.tid) {
       const url = request.nextUrl.clone();
       url.pathname = '/admin/compliance/ma-societe';
       url.search = '';
