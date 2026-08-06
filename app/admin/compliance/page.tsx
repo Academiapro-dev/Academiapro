@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 
-const TENANT_ID = "048da817-b4d1-40d8-9107-88fe87e600ee";
 const PNL_YEAR = 2026;
 
 type Deadline = {
@@ -48,6 +47,10 @@ function joursRestants(due: string): number {
 }
 
 export default function ComplianceDashboard() {
+  // L organisme vient de la session, JAMAIS d une constante ecrite en dur :
+  // sinon chaque client verrait les donnees du meme organisme.
+  const [tenantId, setTenantId] = useState<string | null>(null);
+
   const [loading, setLoading] = useState(true);
   const [tenant, setTenant] = useState<any>(null);
   const [deadlines, setDeadlines] = useState<Deadline[]>([]);
@@ -71,11 +74,11 @@ export default function ComplianceDashboard() {
   const [pdfMsg, setPdfMsg] = useState<string | null>(null);
   const [pdfControle, setPdfControle] = useState<string | null>(null);
 
-  async function charger() {
+  async function charger(id: string) {
     setLoading(true);
     setErreur(null);
     try {
-      const r = await fetch("/api/compliance/dashboard?tenant_id=" + TENANT_ID);
+      const r = await fetch("/api/compliance/dashboard?tenant_id=" + id);
       const data = await r.json();
       if (!data.success) {
         setErreur(data.error || "Erreur de chargement");
@@ -90,7 +93,7 @@ export default function ComplianceDashboard() {
       const rb = await fetch("/api/compliance/bilan");
       const db = await rb.json();
       if (db.success) setBilan(db);
-      const rc = await fetch("/api/compliance/comptes-etrangers?tenant_id=" + TENANT_ID + "&year=" + PNL_YEAR);
+      const rc = await fetch("/api/compliance/comptes-etrangers?tenant_id=" + id + "&year=" + PNL_YEAR);
       const dc = await rc.json();
       if (dc.success) setNbComptes((dc.comptes || []).length);
     } catch (e: any) {
@@ -100,10 +103,27 @@ export default function ComplianceDashboard() {
   }
 
   useEffect(() => {
-    charger();
+    async function demarrer() {
+      try {
+        const r = await fetch("/api/compliance/moi", { cache: "no-store" });
+        const d = await r.json();
+        if (!d.ok || !d.tenant_id) {
+          setErreur("Connectez-vous pour accéder à votre espace.");
+          setLoading(false);
+          return;
+        }
+        setTenantId(d.tenant_id);
+        charger(d.tenant_id);
+      } catch (e: any) {
+        setErreur(String(e));
+        setLoading(false);
+      }
+    }
+    demarrer();
   }, []);
 
   async function genererAnnualReport() {
+    if (!tenantId) return;
     setGenLoading(true);
     setGenMsg(null);
     setGenDetail(null);
@@ -111,14 +131,14 @@ export default function ComplianceDashboard() {
       const r = await fetch("/api/compliance/annual-report", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tenant_id: TENANT_ID, year: 2027 }),
+        body: JSON.stringify({ tenant_id: tenantId, year: 2027 }),
       });
       const data = await r.json();
       if (data.success) {
         let msg = "Fiche générée (version " + data.version + ", license tax " + data.tax + " USD) et archivée au coffre.";
         const em = data.email || {};
         if (em.envoye === true) {
-          msg += " Courriel envoyé à contact@academiapro.fr.";
+          msg += " Courriel envoyé.";
         } else {
           msg += " ATTENTION : le courriel n'est PAS parti.";
           setGenDetail(
@@ -128,7 +148,7 @@ export default function ComplianceDashboard() {
           );
         }
         setGenMsg(msg);
-        charger();
+        charger(tenantId);
       } else {
         setGenMsg("Erreur : " + (data.error || "inconnue"));
       }
@@ -139,6 +159,7 @@ export default function ComplianceDashboard() {
   }
 
   async function genererIRS(formulaire: "f5472" | "f1120") {
+    if (!tenantId) return;
     setIrsLoading(formulaire);
     setIrsMsg(null);
     setIrsUrl(null);
@@ -146,7 +167,7 @@ export default function ComplianceDashboard() {
       const r = await fetch("/api/compliance/" + formulaire + "/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tenant_id: TENANT_ID, year: PNL_YEAR }),
+        body: JSON.stringify({ tenant_id: tenantId, year: PNL_YEAR }),
       });
       const data = await r.json();
       if (data.success) {
@@ -173,13 +194,14 @@ export default function ComplianceDashboard() {
   }
 
   async function generer3916() {
+    if (!tenantId) return;
     setF3916Loading(true);
     setF3916Msg(null);
     try {
       const r = await fetch("/api/compliance/f3916/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tenant_id: TENANT_ID, year: PNL_YEAR }),
+        body: JSON.stringify({ tenant_id: tenantId, year: PNL_YEAR }),
       });
       const data = await r.json();
       if (data.success) {
@@ -198,7 +220,7 @@ export default function ComplianceDashboard() {
           msg += " Le courriel n'est PAS parti (" + (em.raison || "cause inconnue") + ").";
         }
         setF3916Msg(msg);
-        charger();
+        charger(tenantId);
       } else {
         setF3916Msg("Erreur : " + (data.error || "inconnue"));
       }
@@ -209,6 +231,7 @@ export default function ComplianceDashboard() {
   }
 
   async function verifier3916Pdf() {
+    if (!tenantId) return;
     setPdfLoading(true);
     setPdfMsg(null);
     setPdfControle(null);
@@ -216,7 +239,7 @@ export default function ComplianceDashboard() {
       const r = await fetch("/api/compliance/f3916/generate-pdf", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tenant_id: TENANT_ID, controle: true }),
+        body: JSON.stringify({ tenant_id: tenantId, controle: true }),
       });
       const data = await r.json();
       if (data.ok) {
@@ -245,13 +268,14 @@ export default function ComplianceDashboard() {
   }
 
   async function telecharger3916Pdf() {
+    if (!tenantId) return;
     setPdfLoading(true);
     setPdfMsg(null);
     try {
       const r = await fetch("/api/compliance/f3916/generate-pdf", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tenant_id: TENANT_ID }),
+        body: JSON.stringify({ tenant_id: tenantId }),
       });
       if (!r.ok) {
         const data = await r.json();
@@ -317,7 +341,7 @@ export default function ComplianceDashboard() {
     >
       <div style={{ maxWidth: 1000, margin: "0 auto", padding: 32 }}>
         <h1 style={{ color: "#0a3d2e", borderBottom: "3px solid #0a3d2e", paddingBottom: 10 }}>
-          Tableau de bord Compliance
+          Conformité internationale
         </h1>
 
         {loading && <p>Chargement…</p>}
