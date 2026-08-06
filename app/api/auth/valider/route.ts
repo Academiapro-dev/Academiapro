@@ -16,55 +16,58 @@ function echec(motif: string) {
   return NextResponse.redirect(SITE + "/connexion?erreur=" + encodeURIComponent(motif));
 }
 
+// Chaque profil entre chez lui. Un cabinet comptable qui atterrit sur
+// l espace apprenant referme la page.
+function accueilDuProfil(profil: string | null, role: string | null): string {
+  if (role === "stagiaire") return "/dashboard";
+  if (profil === "cabinet_comptable") return "/admin/compliance";
+  if (profil === "vend_formations") return "/organisme";
+  if (profil === "forme_salaries") return "/organisme";
+  if (profil === "devenir_of") return "/admin/qualiopi";
+  return "/dashboard";
+}
+
 // Seuls les chemins RELATIFS sont acceptes. Sans ce controle, un lien forge
 // pourrait renvoyer le signataire vers un site etranger apres l avoir connecte :
 // c est une redirection ouverte, et cela sert au hameconnage.
-function destination(brut: string | null): string {
-  if (!brut) return "/dashboard";
+function destination(brut: string | null): string | null {
+  if (!brut) return null;
   let chemin = brut;
   try {
     chemin = decodeURIComponent(brut);
   } catch (e) {
-    return "/dashboard";
+    return null;
   }
-  if (chemin.charAt(0) !== "/") return "/dashboard";
-  if (chemin.indexOf("//") === 0) return "/dashboard";
-  if (chemin.indexOf("\\") >= 0) return "/dashboard";
+  if (chemin.charAt(0) !== "/") return null;
+  if (chemin.indexOf("//") === 0) return null;
+  if (chemin.indexOf("\\") >= 0) return null;
   return chemin;
 }
 
-async function organismeDe(email: string): Promise<{ tenantId: string | null; role: string | null }> {
-  const vide = { tenantId: null, role: null };
+// ATTENTION : ne PAS chercher l utilisateur via /auth/v1/admin/users?email=,
+// ce point d entree ne filtre pas et ne renvoie que la premiere page. Les
+// comptes recents y sont invisibles. La fonction SQL, elle, resout l adresse.
+async function organismeDe(email: string): Promise<{ tenantId: string | null; role: string | null; profil: string | null }> {
+  const vide = { tenantId: null, role: null, profil: null };
 
   try {
-    const base = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-    const cle = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
-    if (!base || !cle) return vide;
+    const { data: userId } = await supabase.rpc("utilisateur_par_email", { email });
 
-    const r = await fetch(base + "/auth/v1/admin/users?email=" + encodeURIComponent(email), {
-      headers: { apikey: cle, Authorization: "Bearer " + cle },
-      cache: "no-store",
-    });
+    if (userId) {
+      const { data: membre } = await supabase
+        .from("compliance_membres")
+        .select("tenant_id, role, profil")
+        .eq("user_id", userId)
+        .eq("actif", true)
+        .limit(1)
+        .maybeSingle();
 
-    if (r.ok) {
-      const data = await r.json();
-      const liste = Array.isArray(data) ? data : (data.users || []);
-      const utilisateur = liste.find(function (u: any) {
-        return String(u.email || "").toLowerCase() === email;
-      });
-
-      if (utilisateur && utilisateur.id) {
-        const { data: membre } = await supabase
-          .from("compliance_membres")
-          .select("tenant_id, role")
-          .eq("user_id", utilisateur.id)
-          .eq("actif", true)
-          .limit(1)
-          .maybeSingle();
-
-        if (membre && membre.tenant_id) {
-          return { tenantId: membre.tenant_id, role: membre.role || null };
-        }
+      if (membre && membre.tenant_id) {
+        return {
+          tenantId: membre.tenant_id,
+          role: membre.role || null,
+          profil: membre.profil || null,
+        };
       }
     }
 
@@ -76,7 +79,7 @@ async function organismeDe(email: string): Promise<{ tenantId: string | null; ro
       .maybeSingle();
 
     if (apprenant && apprenant.tenant_id) {
-      return { tenantId: apprenant.tenant_id, role: "stagiaire" };
+      return { tenantId: apprenant.tenant_id, role: "stagiaire", profil: null };
     }
 
     return vide;
@@ -97,7 +100,7 @@ export async function GET(req: Request) {
       return echec("lien_incomplet");
     }
 
-    const ou = destination(url.searchParams.get("retour"));
+    const demande = destination(url.searchParams.get("retour"));
 
     const { data: ligne, error } = await supabase
       .from("liens_magiques")
@@ -130,6 +133,9 @@ export async function GET(req: Request) {
 
     const email = String(ligne.email || "").toLowerCase().trim();
     const organisme = await organismeDe(email);
+
+    // Une destination explicite reste prioritaire ; sinon chacun rentre chez lui.
+    const ou = demande || accueilDuProfil(organisme.profil, organisme.role);
 
     const reponse = NextResponse.redirect(SITE + ou);
     reponse.cookies.set({
