@@ -3,23 +3,23 @@ import { useState } from "react";
 import { useTraductionAuto } from "../../hooks/useTraductionAuto";
 
 const FRT = {
-  surTitre: "ACADEMIAPRO",
+  surTitre: "ACADÉMIA PRO",
   titre: "Bon retour parmi nous",
-  connectez: "Connectez-vous a votre espace",
-  votreEmail: "Votre email",
+  connectez: "Connectez-vous à votre espace",
+  votreEmail: "Votre adresse électronique",
   votreMotDePasse: "Votre mot de passe",
-  motDePasseOublie: "Mot de passe oublie ?",
+  motDePasseOublie: "Mot de passe oublié ?",
   bouton: "Se connecter",
-  connexionEnCours: "Connexion...",
-  pasDeCompte: "Pas encore de compte ? ",
-  sInscrire: "S inscrire",
-  resetTitre: "Reinitialisation du mot de passe",
-  emailEnvoye: "Email envoye ! Verifiez votre boite mail.",
-  retourConnexion: "Retour a la connexion",
-  envoyerLien: "Envoyer le lien de reinitialisation",
-  envoiEnCours: "Envoi...",
-  erreurIdentifiants: "Email ou mot de passe incorrect",
-  erreurEnvoi: "Erreur lors de l envoi",
+  connexionEnCours: "Connexion…",
+  pasDeCompte: "Pas de mot de passe ? ",
+  sInscrire: "Recevoir un lien de connexion",
+  resetTitre: "Réinitialisation du mot de passe",
+  emailEnvoye: "Courriel envoyé ! Vérifiez votre boîte de réception.",
+  retourConnexion: "Retour à la connexion",
+  envoyerLien: "Envoyer le lien de réinitialisation",
+  envoiEnCours: "Envoi…",
+  erreurIdentifiants: "Adresse ou mot de passe incorrect",
+  erreurEnvoi: "Erreur lors de l'envoi",
   erreurConnexion: "Erreur de connexion",
 };
 
@@ -82,7 +82,7 @@ export default function LoginPage() {
     <div style={{ backgroundColor: "#050508", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
       <div style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(200,169,110,0.3)", borderRadius: "16px", padding: "40px", width: "100%", maxWidth: "400px" }}>
         <h1 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", textAlign: "center", marginBottom: "10px" }}>
-          AcademIA Pro
+          AcadémIA Pro
         </h1>
         <p style={{ color: "#fff", textAlign: "center", fontFamily: "Georgia,serif", fontSize: "18px", marginBottom: "8px" }}>{txtT.titre}</p>
 
@@ -130,7 +130,7 @@ export default function LoginPage() {
               style={{ width: "100%", padding: "14px", background: "#c8a96e", color: "#050508", border: "none", borderRadius: "8px", fontWeight: "bold", fontSize: "16px", cursor: "pointer" }}>
               {loading ? txtT.connexionEnCours : txtT.bouton}
             </button>
-            <p style={{ color: "rgba(255,255,255,0.4)", textAlign: "center", marginTop: "20px", fontSize: "13px" }}>{txtT.pasDeCompte}<a href="/inscription" style={{ color: "#c8a96e" }}>{txtT.sInscrire}</a>
+            <p style={{ color: "rgba(255,255,255,0.4)", textAlign: "center", marginTop: "20px", fontSize: "13px" }}>{txtT.pasDeCompte}<a href="/connexion" style={{ color: "#c8a96e" }}>{txtT.sInscrire}</a>
             </p>
           </>
         ) : (
