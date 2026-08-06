@@ -2,8 +2,6 @@
 
 import { useEffect, useState } from "react";
 
-const TENANT_ID = "048da817-b4d1-40d8-9107-88fe87e600ee";
-
 type Compte = {
   id: string;
   designation: string;
@@ -24,6 +22,9 @@ type Compte = {
 };
 
 export default function ComptesEtrangers() {
+  // L organisme vient de la session, JAMAIS d une constante ecrite en dur.
+  const [tenantId, setTenantId] = useState<string | null>(null);
+
   const [annee, setAnnee] = useState(new Date().getFullYear());
   const [comptes, setComptes] = useState<Compte[]>([]);
   const [chargement, setChargement] = useState(true);
@@ -44,10 +45,10 @@ export default function ComptesEtrangers() {
   const [titulairePrecision, setTitulairePrecision] = useState("");
   const [notes, setNotes] = useState("");
 
-  async function charger(a: number) {
+  async function charger(id: string, a: number) {
     setChargement(true);
     try {
-      const r = await fetch("/api/compliance/comptes-etrangers?tenant_id=" + TENANT_ID + "&year=" + a);
+      const r = await fetch("/api/compliance/comptes-etrangers?tenant_id=" + id + "&year=" + a);
       const d = await r.json();
       if (d.success) setComptes(d.comptes || []);
       else setMsg("Erreur : " + (d.error || "inconnue"));
@@ -58,10 +59,31 @@ export default function ComptesEtrangers() {
   }
 
   useEffect(() => {
-    charger(annee);
+    async function demarrer() {
+      try {
+        const r = await fetch("/api/compliance/moi", { cache: "no-store" });
+        const d = await r.json();
+        if (!d.ok || !d.tenant_id) {
+          setMsg("Connectez-vous pour accéder à votre espace.");
+          setChargement(false);
+          return;
+        }
+        setTenantId(d.tenant_id);
+        charger(d.tenant_id, annee);
+      } catch (e: any) {
+        setMsg("Erreur : " + String(e));
+        setChargement(false);
+      }
+    }
+    demarrer();
+  }, []);
+
+  useEffect(() => {
+    if (tenantId) charger(tenantId, annee);
   }, [annee]);
 
   async function ajouter() {
+    if (!tenantId) return;
     setEnCours(true);
     setMsg(null);
     try {
@@ -69,7 +91,7 @@ export default function ComptesEtrangers() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          tenant_id: TENANT_ID,
+          tenant_id: tenantId,
           designation,
           type_compte: typeCompte,
           caractere,
@@ -88,7 +110,7 @@ export default function ComptesEtrangers() {
       });
       const d = await r.json();
       if (d.success) {
-        setMsg("Compte enregistre.");
+        setMsg("Compte enregistré.");
         setDesignation("");
         setOrganismeNom("");
         setOrganismeAdresse("");
@@ -98,7 +120,7 @@ export default function ComptesEtrangers() {
         setDateCloture("");
         setTitulairePrecision("");
         setNotes("");
-        charger(annee);
+        charger(tenantId, annee);
       } else {
         setMsg("Erreur : " + (d.error || "inconnue"));
       }
@@ -109,14 +131,15 @@ export default function ComptesEtrangers() {
   }
 
   async function supprimer(id: string, nom: string) {
-    if (!confirm("Supprimer definitivement le compte \"" + nom + "\" ?")) return;
+    if (!tenantId) return;
+    if (!confirm("Supprimer définitivement le compte « " + nom + " » ?")) return;
     setEnCours(true);
     try {
       const r = await fetch("/api/compliance/comptes-etrangers?id=" + id, { method: "DELETE" });
       const d = await r.json();
       if (d.success) {
-        setMsg("Compte supprime.");
-        charger(annee);
+        setMsg("Compte supprimé.");
+        charger(tenantId, annee);
       } else {
         setMsg("Erreur : " + (d.error || "inconnue"));
       }
@@ -152,14 +175,14 @@ export default function ComptesEtrangers() {
     >
       <div style={{ maxWidth: 900, margin: "0 auto", padding: 32 }}>
         <h1 style={{ color: "#0a3d2e", borderBottom: "3px solid #0a3d2e", paddingBottom: 10 }}>
-          Comptes etrangers (formulaire 3916)
+          Comptes étrangers (formulaire 3916)
         </h1>
 
         <div style={{ background: "#f0f5f2", borderLeft: "4px solid #0a3d2e", padding: 16, marginBottom: 24 }}>
-          <strong>Article 1649 A du CGI :</strong> toute personne physique domiciliee en France
-          doit declarer les comptes ouverts, detenus, utilises ou sous procuration a l'etranger.
-          Un compte au nom de la LLC est concerne des lors que vous pouvez le faire fonctionner.
-          Penalite d'omission : 1 500 EUR par compte et par an.
+          <strong>Article 1649 A du CGI :</strong> toute personne physique domiciliée en France
+          doit déclarer les comptes ouverts, détenus, utilisés ou sous procuration à l'étranger.
+          Un compte au nom de la société est concerné dès lors que vous pouvez le faire fonctionner.
+          Pénalité d'omission : 1 500 € par compte et par an.
         </div>
 
         <label style={label}>Exercice</label>
@@ -170,13 +193,13 @@ export default function ComptesEtrangers() {
         </select>
 
         <h2 style={{ color: "#0a3d2e", fontSize: 20 }}>
-          Comptes enregistres pour {annee} : {comptes.length}
+          Comptes enregistrés pour {annee} : {comptes.length}
         </h2>
 
-        {chargement && <p>Chargement...</p>}
+        {chargement && <p>Chargement…</p>}
 
         {!chargement && comptes.length === 0 && (
-          <p style={{ color: "#666" }}>Aucun compte enregistre pour cet exercice.</p>
+          <p style={{ color: "#666" }}>Aucun compte enregistré pour cet exercice.</p>
         )}
 
         {comptes.map((c) => (
@@ -192,17 +215,17 @@ export default function ComptesEtrangers() {
           >
             <strong style={{ color: "#0a3d2e", fontSize: 17 }}>{c.designation}</strong>
             <span style={{ color: c.valide_par_fiscaliste ? "#2e7d32" : "#8a6d2f", marginLeft: 10, fontSize: 13 }}>
-              {c.valide_par_fiscaliste ? "valide par un fiscaliste" : "non valide"}
+              {c.valide_par_fiscaliste ? "validé par un fiscaliste" : "non validé"}
             </span>
             <br />
             {c.organisme_nom}
             {c.organisme_pays ? " (" + c.organisme_pays + ")" : ""}
-            {c.numero_compte ? " - n. " + c.numero_compte : ""}
-            {c.devise ? " - " + c.devise : ""}
+            {c.numero_compte ? " — n° " + c.numero_compte : ""}
+            {c.devise ? " — " + c.devise : ""}
             <br />
             <span style={{ color: "#666", fontSize: 14 }}>
-              Titulaire : {c.titulaire || "-"}
-              {c.date_ouverture ? " - ouvert le " + c.date_ouverture : ""}
+              Titulaire : {c.titulaire || "—"}
+              {c.date_ouverture ? " — ouvert le " + c.date_ouverture : ""}
             </span>
             <br />
             <button
@@ -226,17 +249,17 @@ export default function ComptesEtrangers() {
 
         <h2 style={{ color: "#0a3d2e", fontSize: 20, marginTop: 32 }}>Ajouter un compte</h2>
 
-        <label style={label}>Designation du compte (obligatoire)</label>
-        <input value={designation} onChange={(e) => setDesignation(e.target.value)} placeholder="Compte courant Airwallex ACADEMIA PRO LLC" style={champ} />
+        <label style={label}>Désignation du compte (obligatoire)</label>
+        <input value={designation} onChange={(e) => setDesignation(e.target.value)} placeholder="Compte courant Airwallex" style={champ} />
 
         <label style={label}>Type de compte</label>
         <select value={typeCompte} onChange={(e) => setTypeCompte(e.target.value)} style={champ}>
           <option value="compte bancaire">Compte bancaire</option>
-          <option value="compte d actifs numeriques">Compte d'actifs numeriques</option>
+          <option value="compte d actifs numeriques">Compte d'actifs numériques</option>
           <option value="compte de paiement">Compte de paiement</option>
         </select>
 
-        <label style={label}>Caractere</label>
+        <label style={label}>Caractère</label>
         <select value={caractere} onChange={(e) => setCaractere(e.target.value)} style={champ}>
           <option value="professionnel">Professionnel</option>
           <option value="personnel">Personnel</option>
@@ -250,28 +273,28 @@ export default function ComptesEtrangers() {
         <input value={organismeAdresse} onChange={(e) => setOrganismeAdresse(e.target.value)} style={champ} />
 
         <label style={label}>Pays de l'organisme</label>
-        <input value={organismePays} onChange={(e) => setOrganismePays(e.target.value)} placeholder="Etats-Unis" style={champ} />
+        <input value={organismePays} onChange={(e) => setOrganismePays(e.target.value)} placeholder="États-Unis" style={champ} />
 
-        <label style={label}>Numero de compte</label>
+        <label style={label}>Numéro de compte</label>
         <input value={numeroCompte} onChange={(e) => setNumeroCompte(e.target.value)} style={champ} />
 
         <label style={label}>Date d'ouverture</label>
         <input type="date" value={dateOuverture} onChange={(e) => setDateOuverture(e.target.value)} style={champ} />
 
-        <label style={label}>Date de cloture (laisser vide si actif)</label>
+        <label style={label}>Date de clôture (laisser vide si actif)</label>
         <input type="date" value={dateCloture} onChange={(e) => setDateCloture(e.target.value)} style={champ} />
 
         <label style={label}>Devise</label>
         <input value={devise} onChange={(e) => setDevise(e.target.value)} style={champ} />
 
-        <label style={label}>Titulaire declare</label>
+        <label style={label}>Titulaire déclaré</label>
         <select value={titulaire} onChange={(e) => setTitulaire(e.target.value)} style={champ}>
-          <option value="entite">Entite (la LLC)</option>
-          <option value="personne_physique">Personne physique</option>
+          <option value="entite">L'entité (la société)</option>
+          <option value="personne_physique">Une personne physique</option>
         </select>
 
-        <label style={label}>Precision sur le titulaire</label>
-        <input value={titulairePrecision} onChange={(e) => setTitulairePrecision(e.target.value)} placeholder="ACADEMIA PRO LLC - membre unique et gerant, droit d'utilisation" style={champ} />
+        <label style={label}>Précision sur le titulaire</label>
+        <input value={titulairePrecision} onChange={(e) => setTitulairePrecision(e.target.value)} placeholder="Membre unique et gérant, droit d'utilisation" style={champ} />
 
         <label style={label}>Notes</label>
         <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} style={champ} />
@@ -290,7 +313,7 @@ export default function ComptesEtrangers() {
             fontWeight: 600,
           }}
         >
-          {enCours ? "Enregistrement..." : "Enregistrer le compte"}
+          {enCours ? "Enregistrement…" : "Enregistrer le compte"}
         </button>
 
         {msg && (
