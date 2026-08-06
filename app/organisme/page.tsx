@@ -41,7 +41,7 @@ export default async function TableauDeBordOrganisme() {
         <div style={{ maxWidth: "1000px", margin: "0 auto" }}>
           <h1 style={{ color: "#c8a96e" }}>Tableau de bord</h1>
           <p style={{ color: "rgba(255,255,255,0.6)" }}>
-            Connectez-vous pour acceder a votre espace.
+            Connectez-vous pour accéder à votre espace.
           </p>
           <a href="/connexion" style={{ color: "#c8a96e" }}>Se connecter</a>
         </div>
@@ -190,30 +190,30 @@ export default async function TableauDeBordOrganisme() {
     {
       titre: "Former",
       portes: [
-        { href: "/organisme/stagiaires", nom: "Mes stagiaires", detail: inscrits + " inscrit(s)", alerte: aInviter > 0 ? aInviter + " sans acces" : "" },
-        { href: "/organisme/cours", nom: "Mes formations", detail: (coursPropres || []).length + " creee(s) · " + publiees + " publiee(s)", alerte: "" },
-        { href: "/organisme/catalogue", nom: "Catalogue AcadeMIA", detail: (catalogue || []).length + " formation(s)", alerte: "" },
-        { href: "/organisme/seances", nom: "Classes virtuelles", detail: seancesAvenir > 0 ? seancesAvenir + " a venir" : (seances || []).length + " seance(s)", alerte: "" },
-        { href: "/organisme/relances", nom: "Qui a decroche", detail: decroches > 0 ? decroches + " inactif(s)" : "tout le monde avance", alerte: decroches > 0 ? "a relancer" : "" },
+        { href: "/organisme/stagiaires", nom: "Mes stagiaires", detail: inscrits + " inscrit(s)", alerte: aInviter > 0 ? aInviter + " sans accès" : "" },
+        { href: "/organisme/cours", nom: "Mes formations", detail: (coursPropres || []).length + " créée(s) · " + publiees + " publiée(s)", alerte: "" },
+        { href: "/organisme/catalogue", nom: "Catalogue AcadémIA", detail: (catalogue || []).length + " formation(s)", alerte: "" },
+        { href: "/organisme/seances", nom: "Classes virtuelles", detail: seancesAvenir > 0 ? seancesAvenir + " à venir" : (seances || []).length + " séance(s)", alerte: "" },
+        { href: "/organisme/relances", nom: "Qui a décroché", detail: decroches > 0 ? decroches + " inactif(s)" : "tout le monde avance", alerte: decroches > 0 ? "à relancer" : "" },
       ],
     },
     {
       titre: "Vendre",
       portes: [
-        { href: "/organisme/crm", nom: "Mes prospects", detail: (prospects || []).length + " fiche(s)", alerte: aTraiter > 0 ? aTraiter + " a traiter" : "" },
-        { href: "/organisme/portail", nom: "Ma page publique", detail: org && org.portail_actif ? "en ligne · /of/" + org.slug : "fermee", alerte: org && !org.portail_actif ? "a ouvrir" : "" },
-        { href: "/organisme/importer", nom: "Importer une liste", detail: "jusqu a 500 stagiaires", alerte: "" },
-        { href: "/organisme/facturation", nom: "Ma facturation", detail: abonnement > 0 ? (enLancement ? Math.round(abonnement / 2) : abonnement) + " EUR/mois + inscriptions" : "en cours", alerte: "" },
+        { href: "/organisme/crm", nom: "Mes prospects", detail: (prospects || []).length + " fiche(s)", alerte: aTraiter > 0 ? aTraiter + " à traiter" : "" },
+        { href: "/organisme/portail", nom: "Ma page publique", detail: org && org.portail_actif ? "en ligne · /of/" + org.slug : "fermée", alerte: org && !org.portail_actif ? "à ouvrir" : "" },
+        { href: "/organisme/importer", nom: "Importer une liste", detail: "jusqu'à 500 stagiaires", alerte: "" },
+        { href: "/organisme/facturation", nom: "Ma facturation", detail: abonnement > 0 ? (enLancement ? Math.round(abonnement / 2) : abonnement) + " € / mois + inscriptions" : "en cours", alerte: "" },
       ],
     },
     {
       titre: "Prouver",
       portes: [
-        { href: "/organisme/documents", nom: "Mes documents", detail: (documents || []).length + " emis", alerte: "" },
-        { href: "/organisme/signatures", nom: "Signatures", detail: signees + " signe(s)", alerte: "" },
-        { href: "/organisme/evaluations", nom: "Evaluations", detail: satisfaction !== null ? satisfaction + "/5 sur " + notesEval.length : "aucune reponse", alerte: "" },
-        { href: "/organisme/reclamations", nom: "Reclamations", detail: (reclamations || []).length + " au registre", alerte: ouvertes > 0 ? ouvertes + " en attente" : "" },
-        { href: "/organisme/bilan", nom: "Bilan pedagogique", detail: "Cerfa 10443", alerte: incomplets > 0 ? incomplets + " a completer" : "" },
+        { href: "/organisme/documents", nom: "Mes documents", detail: (documents || []).length + " émis", alerte: "" },
+        { href: "/organisme/signatures", nom: "Signatures", detail: signees + " signé(s)", alerte: "" },
+        { href: "/organisme/evaluations", nom: "Évaluations", detail: satisfaction !== null ? satisfaction + "/5 sur " + notesEval.length : "aucune réponse", alerte: "" },
+        { href: "/organisme/reclamations", nom: "Réclamations", detail: (reclamations || []).length + " au registre", alerte: ouvertes > 0 ? ouvertes + " en attente" : "" },
+        { href: "/organisme/bilan", nom: "Bilan pédagogique", detail: "Cerfa 10443", alerte: incomplets > 0 ? incomplets + " à compléter" : "" },
       ],
     },
   ];
@@ -226,7 +226,7 @@ export default async function TableauDeBordOrganisme() {
         </p>
         <h1 style={{ color: "#fff", fontSize: "30px", margin: "0 0 6px" }}>Tableau de bord</h1>
         <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "14px", marginTop: 0 }}>
-          {t ? "Votre organisme" : "AcadeMIA Pro"} · {session.email}
+          {t ? "Votre organisme" : "AcadémIA Pro"} · {session.email}
         </p>
 
         <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", margin: "26px 0 30px" }}>
@@ -236,7 +236,7 @@ export default async function TableauDeBordOrganisme() {
           </div>
           <div style={{ ...CARTE, flex: "1 1 190px" }}>
             <p style={{ color: "#c8a96e", fontSize: "28px", fontWeight: "bold", margin: "0 0 4px" }}>{modulesTotal}</p>
-            <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "13px", margin: 0 }}>Module(s) valide(s)</p>
+            <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "13px", margin: 0 }}>Module(s) validé(s)</p>
           </div>
           <div style={{ ...CARTE, flex: "1 1 190px" }}>
             <p style={{ color: "#c8a96e", fontSize: "28px", fontWeight: "bold", margin: "0 0 4px" }}>
@@ -280,7 +280,7 @@ export default async function TableauDeBordOrganisme() {
         {rangees.length === 0 ? (
           <div style={CARTE}>
             <p style={{ color: "rgba(255,255,255,0.6)", margin: 0, fontSize: "15px" }}>
-              Aucun stagiaire n a encore valide de module. Le suivi apparaitra des la premiere validation.
+              Aucun stagiaire n'a encore validé de module. Le suivi apparaîtra dès la première validation.
             </p>
           </div>
         ) : (
@@ -290,7 +290,7 @@ export default async function TableauDeBordOrganisme() {
               <span>Formation</span>
               <span>Modules</span>
               <span>Moyenne</span>
-              <span>Derniere activite</span>
+              <span>Dernière activité</span>
             </div>
 
             {rangees.map(function (r: any, i: number) {
