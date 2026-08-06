@@ -47,12 +47,16 @@ async function jeton(): Promise<string> {
 //
 // #SOURCE est l IDENTIFIANT DU PARTENAIRE, sensible a la casse. Sur
 // l environnement de stage, TELEDEC impose la valeur generique API : c est
-// la seule cause de l erreur 101 rencontree le 05/08. Un identifiant dedie a
-// AcademIA Pro sera attribue a la finalisation de l onboarding.
+// la seule cause de l erreur 101 rencontree le 05/08.
+//
+// #EMAIL doit porter une adresse AUTORISEE POUR LE PARTENAIRE, sans quoi
+// TELEDEC repond 403. C est l adresse du compte partenaire, pas celle du
+// client final.
 function identification(): string {
   const lignes = [
     "#SOURCE API",
     "#VERSION 1.0",
+    "#EMAIL contact@academiapro.fr",
     "#NOM SOCIETE D ESSAI ACADEMIA",
     "#SIRET 12581251256423",
     "#FORME-JURIDIQUE SAS",
