@@ -44,14 +44,16 @@ function destination(brut: string | null): string | null {
   return chemin;
 }
 
-// ATTENTION : ne PAS chercher l utilisateur via /auth/v1/admin/users?email=,
-// ce point d entree ne filtre pas et ne renvoie que la premiere page. Les
-// comptes recents y sont invisibles. La fonction SQL, elle, resout l adresse.
+// ATTENTION, DEUX PIEGES ICI :
+// 1. ne PAS chercher via /auth/v1/admin/users?email= : ce point d entree ne
+//    filtre pas et ne renvoie que la premiere page ;
+// 2. le parametre de la fonction SQL s appelle p_email, pas email. Un mauvais
+//    nom fait echouer l appel EN SILENCE.
 async function organismeDe(email: string): Promise<{ tenantId: string | null; role: string | null; profil: string | null }> {
   const vide = { tenantId: null, role: null, profil: null };
 
   try {
-    const { data: userId } = await supabase.rpc("utilisateur_par_email", { email });
+    const { data: userId } = await supabase.rpc("utilisateur_par_email", { p_email: email });
 
     if (userId) {
       const { data: membre } = await supabase
