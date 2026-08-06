@@ -17,6 +17,22 @@ const supabase = createClient(
   }
 );
 
+// Les deux produits du pack chez Lemon Squeezy.
+const ACHAT = "https://academiapro.lemonsqueezy.com/checkout/buy/";
+const MISE_EN_SERVICE = "b000148c-61e4-4434-9be1-d0d3945cd703";
+const ABONNEMENT = "a10511ba-be2a-45f4-b340-2461efcbd4ac";
+
+// LE TENANT EST TRANSMIS AU PAIEMENT. Sans lui, le webhook devrait deviner
+// l organisme d apres l adresse de l acheteur — or rien ne garantit qu il
+// paie avec l adresse de contact de sa fiche.
+function lienAchat(variante: string, tenant: string, email: string): string {
+  return (
+    ACHAT + variante +
+    "?checkout%5Bcustom%5D%5Btenant%5D=" + encodeURIComponent(tenant) +
+    (email ? "&checkout%5Bemail%5D=" + encodeURIComponent(email) : "")
+  );
+}
+
 const CADRE: any = {
   minHeight: "100vh",
   background: "#050508",
@@ -34,7 +50,7 @@ const CARTE: any = {
 };
 
 function euros(n: any) {
-  return (Number(n) || 0).toLocaleString("fr-FR") + " EUR";
+  return (Number(n) || 0).toLocaleString("fr-FR") + " €";
 }
 
 export default async function PageFacturationClient() {
@@ -57,7 +73,7 @@ export default async function PageFacturationClient() {
 
   const { data: org } = await supabase
     .from("organismes_formation")
-    .select("raison_sociale, abonnement_mensuel, taux_prelevement, plancher_stagiaire, lancement_jusqu_au")
+    .select("raison_sociale, abonnement_mensuel, taux_prelevement, plancher_stagiaire, lancement_jusqu_au, statut, frais_installation, email_contact")
     .eq("tenant_id", t)
     .maybeSingle();
 
@@ -109,6 +125,11 @@ export default async function PageFacturationClient() {
     : false;
   const abonnement = enLancement ? Math.round(abonnementPlein / 2) : abonnementPlein;
 
+  const statut = org && org.statut ? String(org.statut) : "essai";
+  const actif = statut === "actif";
+  const miseEnServiceReglee = org && Number(org.frais_installation) > 0;
+  const emailOrg = (org && org.email_contact) || session.email || "";
+
   const lignes: any[] = [];
   let du = 0;
   let propres = 0;
@@ -154,6 +175,26 @@ export default async function PageFacturationClient() {
   const total = Math.round((abonnement + du) * 100) / 100;
   const mois = maintenant.toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
 
+  const BOUTON: any = {
+    display: "inline-block",
+    background: "#c8a96e",
+    color: "#050508",
+    padding: "14px 26px",
+    borderRadius: "9px",
+    textDecoration: "none",
+    fontWeight: "bold",
+    fontSize: "15px",
+    marginRight: "12px",
+    marginTop: "8px",
+  };
+
+  const BOUTON_CLAIR: any = {
+    ...BOUTON,
+    background: "transparent",
+    color: "#c8a96e",
+    border: "1px solid rgba(200,169,110,0.5)",
+  };
+
   return (
     <div style={CADRE}>
       <div style={{ maxWidth: "1000px", margin: "0 auto" }}>
@@ -166,8 +207,46 @@ export default async function PageFacturationClient() {
         </p>
         <h1 style={{ color: "#fff", fontSize: "29px", margin: "0 0 6px" }}>Ma facturation</h1>
         <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "14px", marginTop: 0 }}>
-          Ce qui sera facture en fin de mois, mis a jour en continu
+          Ce qui sera facturé en fin de mois, mis à jour en continu
         </p>
+
+        {!actif && (
+          <div style={{ ...CARTE, border: "1px solid rgba(232,163,61,0.55)", background: "rgba(232,163,61,0.06)", marginTop: "22px" }}>
+            <p style={{ color: "#e8a33d", fontSize: "17px", fontWeight: "bold", margin: "0 0 8px" }}>
+              Votre abonnement n'est pas encore actif
+            </p>
+            <p style={{ color: "rgba(255,255,255,0.72)", fontSize: "14px", margin: "0 0 6px", lineHeight: "1.8" }}>
+              Votre espace fonctionne, mais rien n'est encore souscrit. Deux règlements
+              ouvrent votre accès : la mise en service, une seule fois, puis l'abonnement mensuel.
+            </p>
+
+            {!miseEnServiceReglee && (
+              <a href={lienAchat(MISE_EN_SERVICE, t, emailOrg)} style={BOUTON}>
+                Régler la mise en service
+              </a>
+            )}
+
+            <a
+              href={lienAchat(ABONNEMENT, t, emailOrg)}
+              style={miseEnServiceReglee ? BOUTON : BOUTON_CLAIR}
+            >
+              Activer mon abonnement mensuel
+            </a>
+
+            <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "12.5px", margin: "14px 0 0", lineHeight: "1.7" }}>
+              Sans engagement de durée, résiliable à tout moment. Le règlement est encaissé
+              par Lemon Squeezy, qui établit votre facture et applique la TVA de votre pays.
+            </p>
+          </div>
+        )}
+
+        {actif && (
+          <div style={{ ...CARTE, border: "1px solid rgba(76,175,80,0.45)", background: "rgba(76,175,80,0.05)", marginTop: "22px" }}>
+            <p style={{ color: "#4caf50", fontSize: "15px", margin: 0, lineHeight: "1.8" }}>
+              Votre abonnement est actif. Les prélèvements sont en place, vous n'avez rien à faire.
+            </p>
+          </div>
+        )}
 
         <div style={{ display: "flex", gap: "14px", flexWrap: "wrap", margin: "24px 0" }}>
           <div style={{ ...CARTE, flex: "1 1 170px", marginBottom: 0 }}>
@@ -199,9 +278,9 @@ export default async function PageFacturationClient() {
         {enLancement && org && org.lancement_jusqu_au && (
           <div style={{ ...CARTE, border: "1px solid rgba(200,169,110,0.45)" }}>
             <p style={{ color: "rgba(255,255,255,0.75)", fontSize: "14px", margin: 0, lineHeight: "1.75" }}>
-              Vous beneficiez du tarif de lancement jusqu au{" "}
-              {new Date(org.lancement_jusqu_au).toLocaleDateString("fr-FR")}. Au-dela, l abonnement
-              passera a {euros(abonnementPlein)} par mois, comme prevu a votre bon de commande.
+              Vous bénéficiez du tarif de lancement jusqu'au{" "}
+              {new Date(org.lancement_jusqu_au).toLocaleDateString("fr-FR")}. Au-delà, l'abonnement
+              passera à {euros(abonnementPlein)} par mois, comme prévu à votre bon de commande.
             </p>
           </div>
         )}
@@ -209,20 +288,20 @@ export default async function PageFacturationClient() {
         {propres > 0 && (
           <div style={{ ...CARTE, background: "rgba(76,175,80,0.06)", border: "1px solid rgba(76,175,80,0.3)" }}>
             <p style={{ color: "#4caf50", fontSize: "14px", margin: 0, lineHeight: "1.75" }}>
-              {propres} inscription(s) sur vos propres formations : elles ne vous coutent rien.
-              Seules les formations de notre catalogue donnent lieu a une part.
+              {propres} inscription(s) sur vos propres formations : elles ne vous coûtent rien.
+              Seules les formations de notre catalogue donnent lieu à une part.
             </p>
           </div>
         )}
 
         <h2 style={{ color: "#c8a96e", fontSize: "18px", margin: "26px 0 14px" }}>
-          Le detail, inscription par inscription
+          Le détail, inscription par inscription
         </h2>
 
         {lignes.length === 0 ? (
           <div style={CARTE}>
             <p style={{ color: "rgba(255,255,255,0.6)", margin: 0, fontSize: "15px" }}>
-              Aucune inscription ce mois-ci. Seul l abonnement sera facture.
+              Aucune inscription ce mois-ci. Seul l'abonnement sera facturé.
             </p>
           </div>
         ) : (
@@ -231,7 +310,7 @@ export default async function PageFacturationClient() {
               <span>Stagiaire</span>
               <span>Formation</span>
               <span>Calcul</span>
-              <span>Du</span>
+              <span>Dû</span>
             </div>
 
             {lignes.map(function (l: any, i: number) {
@@ -251,14 +330,14 @@ export default async function PageFacturationClient() {
 
         <div style={{ ...CARTE, background: "rgba(200,169,110,0.05)", marginTop: "20px" }}>
           <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "14px", margin: "0 0 10px", lineHeight: "1.8" }}>
-            Comment se calcule votre facture : l abonnement, plus {taux} % du prix de vente de
+            Comment se calcule votre facture : l'abonnement, plus {taux} % du prix de vente de
             chaque formation de notre catalogue, avec un minimum de {euros(plancher)} par stagiaire
-            inscrit. Le plus eleve des deux est retenu.
+            inscrit. Le plus élevé des deux est retenu.
           </p>
           <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "13px", margin: 0, lineHeight: "1.8" }}>
-            Rien n est du sur les formations que vous creez. La facture est etablie en fin de mois,
-            reglable a trente jours. Cette page est mise a jour en continu : vous n avez aucune
-            declaration a faire.
+            Rien n'est dû sur les formations que vous créez. La facture est établie en fin de mois,
+            réglable à trente jours. Cette page est mise à jour en continu : vous n'avez aucune
+            déclaration à faire.
           </p>
         </div>
       </div>
