@@ -2,13 +2,13 @@
 import { useState, useEffect } from "react";
 
 const T = {
-  fr: { formations: "Formations", seances: "Séances", blog: "Blog", tarifs: "Tarifs", contact: "Contact", demarrer: "Démarrer" },
-  en: { formations: "Courses", seances: "Sessions", blog: "Blog", tarifs: "Pricing", contact: "Contact", demarrer: "Get Started" },
-  es: { formations: "Cursos", seances: "Sesiones", blog: "Blog", tarifs: "Precios", contact: "Contacto", demarrer: "Comenzar" },
-  pt: { formations: "Cursos", seances: "Sessoes", blog: "Blog", tarifs: "Preços", contact: "Contato", demarrer: "Comecar" },
-  de: { formations: "Kurse", seances: "Sitzungen", blog: "Blog", tarifs: "Preise", contact: "Kontakt", demarrer: "Loslegen" },
-  ar: { formations: "الدورات", seances: "الجلسات", blog: "المدونة", tarifs: "الأسعار", contact: "اتصل", demarrer: "ابدأ" },
-  he: { formations: "קורסים", seances: "פגישות", blog: "בלוג", tarifs: "מחירים", contact: "צור קשר", demarrer: "התחל" },
+  fr: { formations: "Formations", seances: "Séances", blog: "Blog", tarifs: "Tarifs", contact: "Contact", connexion: "Se connecter", demarrer: "Démarrer" },
+  en: { formations: "Courses", seances: "Sessions", blog: "Blog", tarifs: "Pricing", contact: "Contact", connexion: "Sign in", demarrer: "Get Started" },
+  es: { formations: "Cursos", seances: "Sesiones", blog: "Blog", tarifs: "Precios", contact: "Contacto", connexion: "Iniciar sesión", demarrer: "Comenzar" },
+  pt: { formations: "Cursos", seances: "Sessoes", blog: "Blog", tarifs: "Preços", contact: "Contato", connexion: "Entrar", demarrer: "Comecar" },
+  de: { formations: "Kurse", seances: "Sitzungen", blog: "Blog", tarifs: "Preise", contact: "Kontakt", connexion: "Anmelden", demarrer: "Loslegen" },
+  ar: { formations: "الدورات", seances: "الجلسات", blog: "المدونة", tarifs: "الأسعار", contact: "اتصل", connexion: "تسجيل الدخول", demarrer: "ابدأ" },
+  he: { formations: "קורסים", seances: "פגישות", blog: "בלוג", tarifs: "מחירים", contact: "צור קשר", connexion: "התחברות", demarrer: "התחל" },
 };
 
 export default function NavBar() {
@@ -55,6 +55,9 @@ export default function NavBar() {
           <option value="ar">🇸🇦 AR</option>
           <option value="he">🇮🇱 HE</option>
           </select>
+        <a href="/connexion" style={{ color: "#c8a96e", border: "1px solid rgba(200,169,110,0.45)", padding: "8px 16px", borderRadius: "8px", textDecoration: "none", fontWeight: "bold", fontSize: "14px" }}>
+          {t("connexion")}
+        </a>
         <a href="/login" style={{ background: "linear-gradient(135deg,#c8a96e,#a07840)", color: "#050508", padding: "8px 20px", borderRadius: "8px", textDecoration: "none", fontWeight: "bold", fontSize: "14px" }}>
           {t("demarrer")}
         </a>
