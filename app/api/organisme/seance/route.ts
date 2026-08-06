@@ -8,6 +8,11 @@ export const dynamic = "force-dynamic";
 
 const ADMINS = ["contact@academiapro.fr"];
 
+// PENDANT L ESSAI : une seule seance, dix minutes. La limite vit ici et non
+// dans l ecran, sinon elle se contourne en appelant la route directement.
+const ESSAI_SEANCES_MAX = 1;
+const ESSAI_MINUTES_MAX = 10;
+
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
   process.env.SUPABASE_SERVICE_ROLE_KEY || "",
@@ -74,6 +79,14 @@ export async function GET(req: NextRequest) {
       minutes[p.seance_id] = (minutes[p.seance_id] || 0) + (Number(p.minutes_presence) || 0);
     }
 
+    const { data: org } = await supabase
+      .from("organismes_formation")
+      .select("statut")
+      .eq("tenant_id", tenant)
+      .maybeSingle();
+
+    const enEssai = !org || String(org.statut || "essai") !== "actif";
+
     const maintenant = Date.now();
 
     const liste = (seances || []).map(function (s: any) {
@@ -95,6 +108,9 @@ export async function GET(req: NextRequest) {
       membre: estMembre(session),
       total: liste.length,
       a_venir: liste.filter(function (s: any) { return !s.passee; }).length,
+      essai: enEssai,
+      essai_seances_max: ESSAI_SEANCES_MAX,
+      essai_minutes_max: ESSAI_MINUTES_MAX,
       seances: liste,
     });
   } catch (e: any) {
@@ -140,9 +156,39 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, erreur: "Date invalide." }, { status: 400 });
     }
 
-    const duree = b.duree_minutes ? Number(b.duree_minutes) : 90;
+    let duree = b.duree_minutes ? Number(b.duree_minutes) : 90;
     if (isNaN(duree) || duree < 15 || duree > 600) {
       return NextResponse.json({ ok: false, erreur: "Duree invalide." }, { status: 400 });
+    }
+
+    // ---- LIMITES DE L ESSAI ----
+    const { data: org } = await supabase
+      .from("organismes_formation")
+      .select("statut")
+      .eq("tenant_id", tenant)
+      .maybeSingle();
+
+    const enEssai = !org || String(org.statut || "essai") !== "actif";
+
+    if (enEssai) {
+      const { count } = await supabase
+        .from("organisme_seances")
+        .select("id", { count: "exact", head: true })
+        .eq("tenant_id", tenant);
+
+      if ((count || 0) >= ESSAI_SEANCES_MAX) {
+        return NextResponse.json(
+          {
+            ok: false,
+            erreur:
+              "Pendant l essai, une seule classe virtuelle est possible. " +
+              "Activez votre abonnement pour en programmer autant que vous voulez.",
+          },
+          { status: 403 }
+        );
+      }
+
+      if (duree > ESSAI_MINUTES_MAX) duree = ESSAI_MINUTES_MAX;
     }
 
     const code = b.formation_code ? String(b.formation_code).trim().toUpperCase() : null;
@@ -165,14 +211,19 @@ export async function POST(req: NextRequest) {
         formateur: b.formateur ? String(b.formateur).trim() : null,
         statut: "prevue",
       })
-      .select("id, titre, debut, salle")
+      .select("id, titre, debut, salle, duree_minutes")
       .limit(1);
 
     if (error) {
       return NextResponse.json({ ok: false, erreur: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ ok: true, seance: (data || [])[0] || null });
+    return NextResponse.json({
+      ok: true,
+      seance: (data || [])[0] || null,
+      essai: enEssai,
+      duree_appliquee: duree,
+    });
   } catch (e: any) {
     return NextResponse.json({ ok: false, erreur: String(e) }, { status: 500 });
   }
