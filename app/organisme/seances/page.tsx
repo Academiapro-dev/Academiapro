@@ -27,6 +27,14 @@ function libelleStatut(s: any): string {
   return LIBELLE_STATUT[s.statut] || s.statut;
 }
 
+// Une seance passee reste une PREUVE D ASSIDUITE : elle doit rester lisible.
+// Du gris sur fond noir, a 70 % d opacite, ne l est pas.
+function couleurStatut(s: any): string {
+  if (s.ouverte) return "#4caf50";
+  if (s.passee) return "#9fb8c8";
+  return "#e8a33d";
+}
+
 export default function PageSeances() {
   const [d, setD] = useState<any>(null);
   const [chargement, setChargement] = useState(true);
@@ -298,7 +306,7 @@ export default function PageSeances() {
         ) : (
           d.seances.map(function (s: any) {
             return (
-              <div key={s.id} style={{ ...CARTE, border: "1px solid " + (s.ouverte ? "rgba(76,175,80,0.5)" : s.passee ? "rgba(255,255,255,0.12)" : "rgba(200,169,110,0.25)"), opacity: s.passee ? 0.7 : 1 }}>
+              <div key={s.id} style={{ ...CARTE, border: "1px solid " + (s.ouverte ? "rgba(76,175,80,0.5)" : s.passee ? "rgba(159,184,200,0.3)" : "rgba(200,169,110,0.25)") }}>
                 <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "10px" }}>
                   <div style={{ flex: "1 1 260px" }}>
                     <p style={{ color: "#c8a96e", fontSize: "12px", margin: "0 0 3px" }}>
@@ -306,14 +314,14 @@ export default function PageSeances() {
                       {s.formation_code ? " · " + s.formation_code : " · tous les stagiaires"}
                     </p>
                     <h3 style={{ color: "#fff", fontSize: "17px", margin: "0 0 4px" }}>{s.titre}</h3>
-                    <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "13px", margin: 0 }}>
+                    <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", margin: 0 }}>
                       {s.formateur ? s.formateur + " · " : ""}
                       {s.participants} participant(s)
                       {s.minutes_cumulees ? " · " + s.minutes_cumulees + " min cumulées" : ""}
                     </p>
                   </div>
 
-                  <span style={{ color: s.ouverte ? "#4caf50" : s.passee ? "rgba(255,255,255,0.45)" : "#e8a33d", fontSize: "13px", fontWeight: "bold" }}>
+                  <span style={{ color: couleurStatut(s), fontSize: "14px", fontWeight: "bold" }}>
                     {libelleStatut(s)}
                   </span>
                 </div>
