@@ -19,9 +19,13 @@ const MENTION =
   "certification de ces organismes." +
   "</p>";
 
-// Les 158 autres occurrences sont neutralisees : on ne supprime pas le mot,
-// on le remplace, sinon les phrases perdent leur sujet.
+// ACC, PCC et MCC sont les trois NIVEAUX de certification de cet organisme :
+// les laisser reviendrait a conserver l allegation sous une autre forme.
 const REMPLACEMENTS: [RegExp, string][] = [
+  [/coaching\s+de\s+vie\s+ICF\s+ACC/gi, "Coaching de Vie - Méthode Professionnelle Complète"],
+  [/ICF\s+(ACC|PCC|MCC)/gi, "coaching professionnel"],
+  [/niveau\s+(ACC|PCC|MCC)/gi, "niveau praticien"],
+  [/\b(ACC|PCC|MCC)\s*\((Associate|Professional|Master)[^)]*\)/gi, "praticien professionnel"],
   [/certifi(é|e)e?\s+(par\s+l['’]?\s*)?ICF/gi, "conforme aux standards internationaux du coaching"],
   [/certification\s+(ICF|de\s+l['’]?\s*ICF)/gi, "référentiel international du coaching"],
   [/accr(é|e)dit(é|e)e?\s+(par\s+l['’]?\s*)?ICF/gi, "fondée sur les standards internationaux du coaching"],
@@ -30,7 +34,7 @@ const REMPLACEMENTS: [RegExp, string][] = [
   [/coach\s+ICF/gi, "coach professionnel"],
   [/(r(é|e)f(é|e)rentiel|standards?|code de d(é|e)ontologie|comp(é|e)tences?)\s+(de\s+l['’]?\s*)?ICF/gi, "$1 international du coaching"],
   [/l['’]\s*ICF/gi, "le référentiel international du coaching"],
-  [/\bICF\b/g, "référentiel international du coaching"],
+  [/\bICF\b/gi, "référentiel international du coaching"],
 ];
 
 const supabase = createClient(
@@ -61,7 +65,8 @@ export async function GET(req: NextRequest) {
     }
 
     const avant = await data.text();
-    const compteAvant = (avant.match(/\bICF\b/g) || []).length;
+    const icfAvant = (avant.match(/\bICF\b/gi) || []).length;
+    const niveauxAvant = (avant.match(/\b(ACC|PCC|MCC)\b/g) || []).length;
 
     let apres = avant;
     for (const [motif, remplacement] of REMPLACEMENTS) {
@@ -80,20 +85,27 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const restant = (apres.match(/\bICF\b/g) || []).length;
+    // La mention contient volontairement le mot ICF : on ne le compte pas
+    // comme un reliquat.
+    const sansMention = apres.split(MENTION).join("");
+    const icfRestant = (sansMention.match(/\bICF\b/gi) || []).length;
+    const niveauxRestants = (sansMention.match(/\b(ACC|PCC|MCC)\b/g) || []).length;
 
-    const position = avant.search(/\bICF\b/);
-    const extraitAvant = position >= 0 ? avant.slice(Math.max(0, position - 150), position + 150) : "";
+    const position = sansMention.search(/\b(ICF|ACC|PCC|MCC)\b/i);
+    const reliquat = position >= 0
+      ? sansMention.slice(Math.max(0, position - 150), position + 150)
+      : "";
 
     if (!executer) {
       return NextResponse.json({
         ok: true,
         simulation: true,
         code: code,
-        occurrences_avant: compteAvant,
-        occurrences_restantes: restant,
-        mention_posee: true,
-        extrait_avant: extraitAvant,
+        icf_avant: icfAvant,
+        icf_restant: icfRestant,
+        niveaux_avant: niveauxAvant,
+        niveaux_restants: niveauxRestants,
+        reliquat: reliquat,
         pour_executer: "/api/admin/retirer-icf?code=" + code + "&executer=oui",
       });
     }
@@ -122,9 +134,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       code: code,
-      occurrences_avant: compteAvant,
-      occurrences_restantes: restant,
-      mention_posee: true,
+      icf_avant: icfAvant,
+      icf_restant: icfRestant,
+      niveaux_avant: niveauxAvant,
+      niveaux_restants: niveauxRestants,
+      reliquat: reliquat,
       sauvegarde: "originaux/" + code + "_support_avant_icf.html",
       suite: "Vérifiez le support, puis réactivez la formation.",
     });
