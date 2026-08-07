@@ -15,6 +15,12 @@ export default function PagePaie() {
   // redevient utile : un bulletin peut porter une retenue que nous ignorons.
   const [netTouche, setNetTouche] = useState(false);
 
+  // MEME PRINCIPE POUR LA REFERENCE. Elle se deduit du mois de la paie —
+  // PAIE-2026-08 pour aout — et se met a jour quand la date change. Un
+  // exemple fige comme PAIE-2026-03 se recopiait tel quel et datait
+  // l ecriture de mars : le journal en devenait faux.
+  const [refTouchee, setRefTouchee] = useState(false);
+
   const [f, setF] = useState<any>({
     date: new Date().toISOString().slice(0, 10),
     brut: "", cotisations_salariales: "", cotisations_patronales: "",
@@ -64,11 +70,20 @@ export default function PagePaie() {
     return isNaN(n) ? 0 : n;
   }
   function euros(n: any) {
-    return (Number(n) || 0).toLocaleString("fr-FR", { minimumFractionDigits: 2 }) + " EUR";
+    return (Number(n) || 0).toLocaleString("fr-FR", { minimumFractionDigits: 2 }) + " €";
   }
   function virgule(n: number) {
     return (Math.round(n * 100) / 100).toFixed(2).replace(".", ",");
   }
+
+  // La reference suit le format deja en base : PAIE-ANNEE-MOIS.
+  function referenceDe(date: string): string {
+    if (!date || date.length < 7) return "";
+    return "PAIE-" + date.slice(0, 4) + "-" + date.slice(5, 7);
+  }
+
+  const referenceAuto = referenceDe(f.date);
+  const referenceAffichee = refTouchee ? f.reference : referenceAuto;
 
   const brut = nombre(f.brut);
   const sal = nombre(f.cotisations_salariales);
@@ -94,13 +109,19 @@ export default function PagePaie() {
       const r = await fetch("/api/compliance/paie", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ societe_id: dossier, ...f, net_a_payer: netAffiche }),
+        body: JSON.stringify({
+          societe_id: dossier,
+          ...f,
+          reference: referenceAffichee,
+          net_a_payer: netAffiche,
+        }),
       });
       const data = await r.json();
       if (data.ok) {
         setMessage(data.message);
         setNetTouche(false);
-        setF({ ...f, brut: "", cotisations_salariales: "", cotisations_patronales: "", impot_source: "", net_a_payer: "" });
+        setRefTouchee(false);
+        setF({ ...f, brut: "", cotisations_salariales: "", cotisations_patronales: "", impot_source: "", net_a_payer: "", reference: "" });
         await charger();
       } else {
         setErreur(data.erreur || "Passage impossible.");
@@ -115,7 +136,7 @@ export default function PagePaie() {
     ["brut", "Salaire brut total", "3200,00"],
     ["cotisations_salariales", "Cotisations salariales", "704,00"],
     ["cotisations_patronales", "Cotisations patronales", "1280,00"],
-    ["impot_source", "Prelevement a la source", "0,00"],
+    ["impot_source", "Prélèvement à la source", "0,00"],
   ];
 
   return (
@@ -126,11 +147,11 @@ export default function PagePaie() {
         </a>
 
         <p style={{ color: "#c8a96e", fontSize: "12px", letterSpacing: "3px", margin: "22px 0 8px" }}>
-          COMPTABILITE
+          COMPTABILITÉ
         </p>
-        <h1 style={{ color: "#fff", fontSize: "29px", margin: "0 0 6px" }}>Ecritures de paie</h1>
+        <h1 style={{ color: "#fff", fontSize: "29px", margin: "0 0 6px" }}>Écritures de paie</h1>
         <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "14px", marginTop: 0 }}>
-          Le journal de paie du mois, passe en une fois
+          Le journal de paie du mois, passé en une fois
         </p>
 
         <div style={{ ...CARTE, marginTop: "24px" }}>
@@ -162,10 +183,28 @@ export default function PagePaie() {
                 <input value={f.effectif} onChange={(e) => setF({ ...f, effectif: e.target.value })} placeholder="3" style={CHAMP} />
               </div>
               <div style={{ flex: "1 1 160px" }}>
-                <span style={LIBELLE}>Reference</span>
-                <input value={f.reference} onChange={(e) => setF({ ...f, reference: e.target.value })} placeholder="PAIE-2026-03" style={CHAMP} />
+                <span style={LIBELLE}>
+                  Référence {refTouchee ? "" : "· automatique"}
+                </span>
+                <input
+                  value={referenceAffichee}
+                  onChange={(e) => { setRefTouchee(true); setF({ ...f, reference: e.target.value }); }}
+                  placeholder={referenceAuto}
+                  style={{ ...CHAMP, color: refTouchee ? "#fff" : "#c8a96e" }}
+                />
               </div>
             </div>
+
+            {refTouchee && referenceAffichee !== referenceAuto && (
+              <p style={{ margin: "-4px 0 12px" }}>
+                <button
+                  onClick={() => { setRefTouchee(false); setF({ ...f, reference: "" }); }}
+                  style={{ background: "none", border: "none", color: "#c8a96e", fontSize: "13px", fontFamily: "Georgia,serif", cursor: "pointer", padding: 0, textDecoration: "underline" }}
+                >
+                  Revenir à {referenceAuto}
+                </button>
+              </p>
+            )}
 
             <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
               {CHAMPS.map(function (c: any) {
@@ -185,7 +224,7 @@ export default function PagePaie() {
 
               <div style={{ flex: "1 1 170px" }}>
                 <span style={LIBELLE}>
-                  Net a payer {netTouche ? "" : "· calcule"}
+                  Net à payer {netTouche ? "" : "· calculé"}
                 </span>
                 <input
                   value={netAffiche}
@@ -203,7 +242,7 @@ export default function PagePaie() {
                   onClick={() => { setNetTouche(false); setF({ ...f, net_a_payer: "" }); }}
                   style={{ background: "none", border: "none", color: "#c8a96e", fontSize: "13px", fontFamily: "Georgia,serif", cursor: "pointer", padding: 0, textDecoration: "underline" }}
                 >
-                  Revenir au net calcule
+                  Revenir au net calculé
                 </button>
               </p>
             )}
@@ -211,16 +250,16 @@ export default function PagePaie() {
             {brut > 0 && (
               <div style={{ background: juste ? "rgba(76,175,80,0.1)" : "rgba(232,163,61,0.1)", border: "1px solid " + (juste ? "rgba(76,175,80,0.4)" : "rgba(232,163,61,0.4)"), borderRadius: "10px", padding: "14px 16px", marginBottom: "14px" }}>
                 <p style={{ color: "rgba(255,255,255,0.8)", fontSize: "14.5px", margin: "0 0 6px", lineHeight: "1.7" }}>
-                  Net calcule : <strong>{euros(netCalcule)}</strong>
+                  Net calculé : <strong>{euros(netCalcule)}</strong>
                   {netTouche && netSaisi > 0 && !juste ? " — vous avez saisi " + euros(netSaisi) : ""}
                 </p>
                 <p style={{ color: juste ? "#4caf50" : "#e8a33d", fontSize: "14px", margin: "0 0 6px", fontWeight: "bold" }}>
                   {juste
                     ? "Le net tombe juste"
-                    : "Ecart de " + euros(Math.abs(ecart)) + " : une ligne du bulletin manque"}
+                    : "Écart de " + euros(Math.abs(ecart)) + " : une ligne du bulletin manque"}
                 </p>
                 <p style={{ color: "#c8a96e", fontSize: "15px", margin: 0 }}>
-                  Cout total employeur : <strong>{euros(cout)}</strong>
+                  Coût total employeur : <strong>{euros(cout)}</strong>
                 </p>
               </div>
             )}
@@ -230,28 +269,28 @@ export default function PagePaie() {
               disabled={occupe || !juste}
               style={{ background: occupe || !juste ? "rgba(200,169,110,0.3)" : "#c8a96e", color: occupe || !juste ? "#8a8a8a" : "#050508", padding: "15px 30px", borderRadius: "8px", border: "none", cursor: occupe || !juste ? "default" : "pointer", fontWeight: "bold", fontSize: "16px", fontFamily: "Georgia,serif", width: "100%" }}
             >
-              {occupe ? "Passage de l ecriture..." : "Passer l ecriture de paie"}
+              {occupe ? "Passage de l'écriture…" : "Passer l'écriture de paie"}
             </button>
 
             <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px", margin: "12px 0 0", lineHeight: "1.7" }}>
-              L ecriture porte le brut et les charges patronales au debit, le net du au personnel
-              et les cotisations dues aux organismes au credit.
+              L'écriture porte le brut et les charges patronales au débit, le net dû au personnel
+              et les cotisations dues aux organismes au crédit.
             </p>
           </div>
         )}
 
         {chargement ? (
-          <div style={CARTE}><p style={{ color: "rgba(255,255,255,0.6)", margin: 0 }}>Lecture...</p></div>
+          <div style={CARTE}><p style={{ color: "rgba(255,255,255,0.6)", margin: 0 }}>Lecture…</p></div>
         ) : !d ? null : d.paies.length === 0 ? (
           <div style={CARTE}>
             <p style={{ color: "rgba(255,255,255,0.6)", margin: 0, fontSize: "15px" }}>
-              Aucune ecriture de paie sur ce dossier.
+              Aucune écriture de paie sur ce dossier.
             </p>
           </div>
         ) : (
           <>
             <h2 style={{ color: "#c8a96e", fontSize: "17px", margin: "24px 0 12px" }}>
-              Paies deja passees
+              Paies déjà passées
             </h2>
             {d.paies.map(function (p: any) {
               return (
