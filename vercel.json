@@ -35,6 +35,10 @@
     {
       "path": "/api/traiter-commandes",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/facturation-dossiers",
+      "schedule": "0 6 3 * *"
     }
   ]
 }
