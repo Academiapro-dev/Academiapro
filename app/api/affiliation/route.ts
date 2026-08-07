@@ -13,8 +13,9 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || ""
 );
 
-// Un code lisible, tire du nom, suivi de quatre caracteres imprevisibles :
-// deux affilies homonymes ne peuvent pas se retrouver avec le meme code.
+// Un code lisible, tire du nom, suivi de quatre caracteres imprevisibles.
+// L appelant peut aussi fournir le sien : l ancienne version fonctionnait
+// ainsi et une page existante compte peut-etre dessus.
 function fabriquerCode(nom: string): string {
   const base = String(nom || "PARTENAIRE")
     .normalize("NFD")
@@ -41,7 +42,7 @@ async function courriel(destinataire: string, sujet: string, html: string) {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: "AcadémIA Pro <bienvenue@academiapro.fr>",
+        from: "AcadémIA Pro <contact@academiapro.fr>",
         to: destinataire,
         subject: sujet,
         html: html,
@@ -118,38 +119,24 @@ export async function GET(req: NextRequest) {
 // ---- INSCRIPTION D UN NOUVEL AFFILIE ----
 export async function POST(req: NextRequest) {
   try {
-    const origine = req.headers.get("origin") || "";
-    const referent = req.headers.get("referer") || "";
-    const legitime =
-      origine.indexOf("academiapro.fr") >= 0 ||
-      referent.indexOf("academiapro.fr") >= 0 ||
-      origine.indexOf("vercel.app") >= 0 ||
-      referent.indexOf("vercel.app") >= 0 ||
-      origine.indexOf("localhost") >= 0 ||
-      referent.indexOf("localhost") >= 0;
-
-    if (!legitime) {
-      return NextResponse.json({ ok: false, erreur: "Accès refusé." }, { status: 403 });
-    }
-
     const b = await req.json().catch(function () { return null; });
     if (!b) {
-      return NextResponse.json({ ok: false, erreur: "Requête illisible." }, { status: 400 });
+      return NextResponse.json({ success: false, ok: false, message: "Requete illisible" }, { status: 400 });
     }
 
     // Champ piege : rempli, c est un robot.
     if (String(b.societe_bis || "").trim().length > 0) {
-      return NextResponse.json({ ok: true, code: "MERCI" });
+      return NextResponse.json({ success: true, ok: true, code: "MERCI" });
     }
 
     const nom = String(b.nom || "").trim();
     const email = String(b.email || "").toLowerCase().trim();
 
     if (nom.length < 2) {
-      return NextResponse.json({ ok: false, erreur: "Indiquez votre nom." }, { status: 400 });
+      return NextResponse.json({ success: false, ok: false, message: "Indiquez votre nom." }, { status: 400 });
     }
     if (email.indexOf("@") < 1 || email.indexOf(".") < 0) {
-      return NextResponse.json({ ok: false, erreur: "Adresse électronique invalide." }, { status: 400 });
+      return NextResponse.json({ success: false, ok: false, message: "Adresse electronique invalide." }, { status: 400 });
     }
 
     // Deja inscrit : on lui redonne son code plutot que d en creer un second.
@@ -161,17 +148,20 @@ export async function POST(req: NextRequest) {
 
     if (existant) {
       return NextResponse.json({
+        success: false,
         ok: true,
         deja_inscrit: true,
+        message: "Cet email est deja inscrit",
         code: existant.code_affiliation,
         commission: Number(existant.commission_pct) || COMMISSION_PAR_DEFAUT,
         lien: SITE + "/api/affiliation?code=" + existant.code_affiliation,
       });
     }
 
-    let code = fabriquerCode(nom);
+    // Code fourni par l appelant, sinon fabrique ici.
+    let code = String(b.code_affiliation || "").trim().toUpperCase();
+    if (code.length < 3) code = fabriquerCode(nom);
 
-    // Collision improbable mais possible : on retente une fois.
     const { data: pris } = await supabase
       .from("affilies")
       .select("id")
@@ -191,22 +181,30 @@ export async function POST(req: NextRequest) {
     });
 
     if (error) {
-      return NextResponse.json({ ok: false, erreur: error.message }, { status: 500 });
+      const texte = String(error.message || "");
+      if (texte.indexOf("duplicate") >= 0) {
+        return NextResponse.json({ success: false, ok: false, message: "Cet email est deja inscrit" });
+      }
+      return NextResponse.json({ success: false, ok: false, message: texte }, { status: 500 });
     }
 
     const lien = SITE + "/api/affiliation?code=" + code;
 
     await courriel(
       email,
-      "Votre lien de partenariat AcadémIA Pro",
-      '<div style="font-family:Georgia,serif;line-height:1.7;color:#1a1a1a">' +
-      '<h1 style="color:#c8a96e">Bienvenue ' + nom + "</h1>" +
-      "<p>Voici votre lien de partenariat. Toute personne qui l'utilise vous est rattachée " +
-      "pendant soixante jours, même si elle achète plus tard.</p>" +
-      '<p style="background:#f4f4f0;padding:14px;border-left:4px solid #0a3d2e"><strong>' + lien + "</strong></p>" +
-      "<p>Votre commission est de " + COMMISSION_PAR_DEFAUT + " % du montant hors taxes de chaque vente.</p>" +
+      "Bienvenue dans le Programme Affilié AcadémIA Pro",
+      '<div style="font-family:Georgia,serif;max-width:600px;margin:0 auto;padding:40px;line-height:1.7;color:#1a1a1a">' +
+      '<h1 style="color:#c8a96e">AcadémIA Pro — Programme Affilié</h1>' +
+      "<h2>Bienvenue " + nom + "</h2>" +
+      "<p>Votre compte partenaire est créé. Voici votre lien unique : toute personne qui " +
+      "l'utilise vous est rattachée pendant soixante jours, même si elle achète plus tard.</p>" +
+      '<div style="background:#f8f4ee;padding:15px;border-radius:8px;margin:20px 0">' +
+      "<strong>Lien :</strong> " + lien + "<br/>" +
+      "<strong>Code :</strong> " + code + "<br/>" +
+      "<strong>Commission :</strong> " + COMMISSION_PAR_DEFAUT + " % sur chaque vente" +
+      "</div>" +
       '<p>Suivez vos résultats à tout moment : <a href="' + SITE + "/partenaire?code=" + code + '">votre tableau de bord</a></p>' +
-      "<p>L'équipe AcadémIA Pro</p></div>"
+      "<p>Jacques, fondateur — AcadémIA Pro</p></div>"
     );
 
     await courriel(
@@ -216,12 +214,13 @@ export async function POST(req: NextRequest) {
     );
 
     return NextResponse.json({
+      success: true,
       ok: true,
       code: code,
       commission: COMMISSION_PAR_DEFAUT,
       lien: lien,
     });
   } catch (e: any) {
-    return NextResponse.json({ ok: false, erreur: String(e) }, { status: 500 });
+    return NextResponse.json({ success: false, ok: false, message: "Erreur serveur" }, { status: 500 });
   }
 }
