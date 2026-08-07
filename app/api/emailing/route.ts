@@ -11,6 +11,21 @@ const supabase = createClient(
 const CLAUDE_API_KEY = process.env.ANTHROPIC_API_KEY!;
 const CLAUDE_MODEL = "claude-sonnet-4-6";
 
+// DEUX EXPEDITEURS, ET C EST VOULU.
+//
+// La PROSPECTION part d un sous-domaine dedie : si une campagne se fait mal
+// noter, la reputation d academiapro.fr n est pas touchee, et les courriels
+// que les clients ATTENDENT — inscription, certificat, rappel de classe —
+// continuent d arriver.
+//
+// Personne ne releve la boite du sous-domaine : le reply_to ramene donc
+// toujours les reponses vers l adresse reelle.
+const EXPEDITEUR_PROSPECTION = "Jacques Lalou <jacques@contact-pro.academiapro.fr>";
+const EXPEDITEUR_CLIENT = "AcadémIA Pro <contact@academiapro.fr>";
+const REPONSE_VERS = "contact@academiapro.fr";
+
+const TYPES_PROSPECTION = ["relance", "newsletter"];
+
 async function appel_claude(system: string, user: string): Promise<string> {
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
@@ -32,7 +47,9 @@ async function appel_claude(system: string, user: string): Promise<string> {
   return data.content[0].text || "";
 }
 
-async function envoyer_email(destinataire: string, sujet: string, corps: string) {
+async function envoyer_email(type: string, destinataire: string, sujet: string, corps: string) {
+  const prospection = TYPES_PROSPECTION.indexOf(String(type)) >= 0;
+
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
@@ -40,7 +57,8 @@ async function envoyer_email(destinataire: string, sujet: string, corps: string)
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      from: "AcadémIA Pro <contact@academiapro.fr>",
+      from: prospection ? EXPEDITEUR_PROSPECTION : EXPEDITEUR_CLIENT,
+      reply_to: REPONSE_VERS,
       to: destinataire,
       subject: sujet,
       html: corps.replace(/\n/g, "<br/>"),
@@ -62,7 +80,7 @@ async function generer_campagne(type: string, contexte: any): Promise<{ sujet: s
 
   const prompts: Record<string, string> = {
     bienvenue: `Redige un email de bienvenue pour un nouvel inscrit sur AcadémIA Pro.
-Prénom: ${contexte.prenom || "cher apprenant"}
+Prénom: ${contexte.prenom || "cher apprenant"}
 Formation: ${contexte.formation || "votre formation"}
 Inclus: accueil chaleureux, acces plateforme, formateur assigne, prochaines etapes, contact support.
 Format: SUJET: xxx\n\nCORPS: xxx`,
@@ -74,14 +92,14 @@ Inclus: rappel valeur formation, offre speciale, urgence douce, CTA vers academi
 Format: SUJET: xxx\n\nCORPS: xxx`,
 
     remotivation: `Redige un email de remotivation pour un apprenant inactif depuis ${contexte.jours || 7} jours.
-Prénom: ${contexte.prenom || "cher apprenant"}
+Prénom: ${contexte.prenom || "cher apprenant"}
 Formation: ${contexte.formation || "votre formation"}
 Progression: ${contexte.progression || "en cours"}
 Inclus: encouragement, rappel objectifs, offre aide formateur, CTA reprendre formation.
 Format: SUJET: xxx\n\nCORPS: xxx`,
 
     certification: `Redige un email de felicitations pour un apprenant qui vient d obtenir sa certification.
-Prénom: ${contexte.prenom || "cher apprenant"}
+Prénom: ${contexte.prenom || "cher apprenant"}
 Formation: ${contexte.formation || "votre formation"}
 Inclus: felicitations chaleureuses, valeur du certificat, prochaine formation recommandee, partage LinkedIn.
 Format: SUJET: xxx\n\nCORPS: xxx`,
@@ -93,7 +111,7 @@ Inclus: actualites plateforme, formation du mois, conseil pratique IA, CTA catal
 Format: SUJET: xxx\n\nCORPS: xxx`,
 
     rappel_classe: `Redige un email de rappel pour une classe virtuelle.
-Prénom: ${contexte.prenom || "cher apprenant"}
+Prénom: ${contexte.prenom || "cher apprenant"}
 Formation: ${contexte.formation || "votre formation"}
 Date: ${contexte.date || "demain"}
 Heure: ${contexte.heure || "14h00"}
@@ -166,8 +184,14 @@ export async function POST(req: NextRequest) {
       await sauver_email(type, contexte?.email || "contact@academiapro.fr", sujet, corps);
 
       if (envoyer && contexte?.email) {
-        const ok = await envoyer_email(contexte.email, sujet, corps);
-        return NextResponse.json({ succes: true, sujet, corps, envoye: ok });
+        const ok = await envoyer_email(type, contexte.email, sujet, corps);
+        return NextResponse.json({
+          succes: true,
+          sujet,
+          corps,
+          envoye: ok,
+          expediteur: TYPES_PROSPECTION.indexOf(String(type)) >= 0 ? "prospection" : "client",
+        });
       }
 
       return NextResponse.json({ succes: true, sujet, corps, envoye: false });
@@ -189,4 +213,3 @@ export async function POST(req: NextRequest) {
 export async function GET() {
   return NextResponse.json(await stats_emailing());
 }
-
