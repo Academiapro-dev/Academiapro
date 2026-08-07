@@ -13,19 +13,13 @@ const supabase = createClient(
 const LS_API = "https://api.lemonsqueezy.com/v1";
 const KEY = process.env.LEMONSQUEEZY_API_KEY || "";
 
-// Noms exacts des trois produits Lemon Squeezy, une fois normalises.
 const NOM_COMPTANT = "formation academia pro";
 const NOM_4X = "formation academia pro - 4 fois";
 const NOM_12M = "formation academia pro - 12 mois";
 
-// La formule 12 mois est un accompagnement sur un an : majoration de 20 %.
 const MAJORATION_12M = 1.2;
-
-// En dessous de ce montant, l echelonnement n est pas propose.
 const MINIMUM_ECHELONNE = 300;
 
-// LANGUES SERVIES. Le manuel et le parcours sont produits dans la langue de
-// l acheteur : elle doit donc voyager du site jusqu a la commande.
 const LANGUES = ["fr", "en", "es", "pt", "de", "ar", "he"];
 
 let cacheStoreId: string | null = null;
@@ -39,7 +33,6 @@ function prixPalier(base: number, palier: string): number {
   return base;
 }
 
-// Minuscules, sans accents, tirets uniformises, espaces reduits.
 function normaliser(s: string): string {
   return String(s)
     .toLowerCase()
@@ -50,15 +43,15 @@ function normaliser(s: string): string {
     .trim();
 }
 
-// LE PARTENAIRE QUI A ENVOYE L ACHETEUR. Il est pose dans un cookie par
-// /api/affiliation au moment du clic, et vaut soixante jours : sans cette
-// lecture, aucune commission ne peut etre attribuee.
+// Le partenaire qui a envoye l acheteur, pose dans un cookie par
+// /api/affiliation au moment du clic et valable soixante jours.
 function affiliationDe(req: Request): string {
   const brut = req.headers.get("cookie") || "";
-  for (const morceau of brut.split(";")) {
-    const [nom, ...reste] = morceau.trim().split("=");
-    if (nom === "aff") {
-      return decodeURIComponent(reste.join("=")).trim().toUpperCase().slice(0, 40);
+  const morceaux = brut.split(";");
+  for (const morceau of morceaux) {
+    const paire = morceau.trim().split("=");
+    if (paire[0] === "aff") {
+      return decodeURIComponent(paire.slice(1).join("=")).trim().toUpperCase().slice(0, 40);
     }
   }
   return "";
@@ -76,17 +69,12 @@ async function lsGet(path: string) {
   return { status: r.status, j };
 }
 
-// Retrouve un produit par son nom exact et renvoie sa premiere variante.
 async function trouverVariante(nomCible: string): Promise<string> {
   if (cacheVariantes[nomCible]) return cacheVariantes[nomCible];
 
   const res = await lsGet("/products?page[size]=100");
   if (res.status !== 200) {
-    throw new Error(
-      "Lemon Squeezy repond " + res.status +
-      " (cle presente: " + (KEY ? "oui, " + KEY.length + " caracteres" : "NON") + ") - " +
-      JSON.stringify((res.j && res.j.errors) || res.j).slice(0, 300)
-    );
+    throw new Error("Lemon Squeezy repond " + res.status);
   }
 
   const liste = (res.j && res.j.data) || [];
@@ -94,18 +82,14 @@ async function trouverVariante(nomCible: string): Promise<string> {
   const prod = liste.find((p: any) => normaliser(p.attributes.name || "") === nomCible);
 
   if (!prod) {
-    throw new Error(
-      "Produit introuvable : \"" + nomCible + "\". Produits visibles par la cle : [" +
-      noms.join(" | ") +
-      "]. Verifier le nom exact et le mode Test/Live."
-    );
+    throw new Error("Produit introuvable : " + nomCible + ". Visibles : " + noms.join(" | "));
   }
 
   cacheStoreId = String(prod.attributes.store_id);
 
   const vars = await lsGet("/variants?filter[product_id]=" + prod.id);
   if (!vars.j || !vars.j.data || !vars.j.data.length) {
-    throw new Error("Aucune variante pour le produit \"" + nomCible + "\"");
+    throw new Error("Aucune variante pour " + nomCible);
   }
 
   cacheVariantes[nomCible] = String(vars.j.data[0].id);
@@ -119,18 +103,15 @@ export async function GET(req: Request) {
     let formule = url.searchParams.get("formule") || "cv1";
     const paiement = url.searchParams.get("paiement") || "comptant";
 
-    // La langue vient du site : parametre lang, sinon francais.
     const langueDemandee = String(url.searchParams.get("lang") || "fr").toLowerCase().trim();
     const langue = LANGUES.indexOf(langueDemandee) >= 0 ? langueDemandee : "fr";
 
-    // Le partenaire vient du cookie, ou d un parametre explicite.
     const affiliation = String(url.searchParams.get("ref") || affiliationDe(req) || "").toUpperCase();
 
     if (["comptant", "4x", "12m"].indexOf(paiement) === -1) {
       return NextResponse.json({ error: "mode de paiement invalide" }, { status: 400 });
     }
 
-    // Les ateliers (codes SK) ont un prix fixe : ni palier, ni remise.
     const estAtelier = code.toUpperCase().indexOf("SK") === 0;
     if (estAtelier) formule = "atelier";
 
@@ -140,10 +121,7 @@ export async function GET(req: Request) {
     }
 
     if (estAtelier && paiement !== "comptant") {
-      return NextResponse.json(
-        { error: "les ateliers se reglent comptant" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "les ateliers se reglent comptant" }, { status: 400 });
     }
 
     const { data: f, error } = await supabase
@@ -151,13 +129,11 @@ export async function GET(req: Request) {
       .select("code, titre, prix")
       .eq("code", code)
       .single();
+
     if (error || !f) {
       return NextResponse.json({ error: "formation introuvable: " + code }, { status: 404 });
     }
 
-    // LE PRIX FACTURE EST LE PRIX AFFICHE. Aucune remise n est calculee ici :
-    // les 10 % Fondateur s obtiennent avec le code, saisi au paiement et limite
-    // aux 100 premiers. Les appliquer deux fois reviendrait a 19 % de remise.
     let prixFinal: number;
     if (estAtelier) {
       prixFinal = f.prix;
@@ -178,9 +154,6 @@ export async function GET(req: Request) {
     let prixTotal = prixFinal;
     let montantEcheance = prixFinal;
 
-    // Pour les formules echelonnees, la mensualite est un nombre ENTIER d euros :
-    // Lemon Squeezy ne retient que la QUANTITE d un abonnement, pas un prix
-    // personnalise, et l unite vaut 1,00 EUR. On arrondit donc a l euro superieur.
     if (paiement === "4x") {
       nomProduit = NOM_4X;
       echeances = 4;
@@ -194,9 +167,6 @@ export async function GET(req: Request) {
     }
 
     const varianteChoisie = await trouverVariante(nomProduit);
-
-    // Si l acheteur est connecte, on preremplit son email de session :
-    // l acces est indexe sur cette adresse, autant qu il paie avec.
     const emailConnecte = emailDeSession();
 
     const donneesCheckout: any = {
@@ -209,6 +179,7 @@ export async function GET(req: Request) {
         langue: langue,
       },
     };
+
     if (affiliation) donneesCheckout.custom.affiliation = affiliation;
     if (emailConnecte) donneesCheckout.email = emailConnecte;
 
@@ -221,8 +192,7 @@ export async function GET(req: Request) {
       ];
     } else if (paiement === "12m") {
       libelle = "Formation " + f.code + " - formule " + formule +
-        " - parcours en 12 mois, " + montantEcheance + " EUR par mois (total " +
-        prixTotal + " EUR)";
+        " - parcours en 12 mois, " + montantEcheance + " EUR par mois (total " + prixTotal + " EUR)";
       donneesCheckout.variant_quantities = [
         { variant_id: Number(varianteChoisie), quantity: montantEcheance },
       ];
@@ -239,8 +209,6 @@ export async function GET(req: Request) {
       checkout_data: donneesCheckout,
     };
 
-    // Le prix personnalise ne vaut que pour le paiement unique : Lemon Squeezy
-    // ne le conserve pas d une echeance a l autre.
     if (paiement === "comptant") {
       attributs.custom_price = Math.round(montantEcheance * 100);
     }
@@ -257,4 +225,24 @@ export async function GET(req: Request) {
     };
 
     const r = await fetch(LS_API + "/checkouts", {
-      method
+      method: "POST",
+      headers: {
+        Accept: "application/vnd.api+json",
+        "Content-Type": "application/vnd.api+json",
+        Authorization: "Bearer " + KEY,
+      },
+      body: JSON.stringify(corps),
+    });
+
+    const j = await r.json();
+    const lien = j && j.data && j.data.attributes && j.data.attributes.url;
+
+    if (!lien) {
+      return NextResponse.json({ error: "checkout refuse", detail: j }, { status: 500 });
+    }
+
+    return NextResponse.redirect(lien, 302);
+  } catch (e: any) {
+    return NextResponse.json({ error: String(e) }, { status: 500 });
+  }
+}
