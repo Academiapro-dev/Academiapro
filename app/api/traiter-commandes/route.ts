@@ -19,6 +19,19 @@ const QUESTIONS_PAR_MODULE_EXAMEN = 2;
 const MODULES_PAR_LOT_EXAMEN = 5;
 const SEUIL_REUSSITE = 70;
 
+// LA LANGUE DE L ACHETEUR. Elle est jointe a la commande par la route de
+// paiement et voyage jusqu ici : le manuel, les exercices, les questionnaires
+// et l examen sont produits dans cette langue, et le cache est indexe dessus.
+const LANGUES: Record<string, string> = {
+  fr: "francais",
+  en: "English",
+  es: "espanol",
+  pt: "portugues",
+  de: "Deutsch",
+  ar: "arabe",
+  he: "hebreu",
+};
+
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
   process.env.SUPABASE_SERVICE_ROLE_KEY || ""
@@ -34,10 +47,14 @@ const OR = rgb(0.706, 0.612, 0.365);
 const ENCRE = rgb(0.13, 0.13, 0.13);
 const GRIS = rgb(0.45, 0.45, 0.45);
 
-const SYSTEME =
-  "Tu es un formateur expert de niveau universitaire. Tu rediges des manuels de formation professionnelle denses, " +
-  "complets et de haute qualite academique, en francais. Tu ne delayes jamais : chaque paragraphe apporte une " +
-  "information nouvelle. Tu n inventes aucun titre officiel et aucun prix.";
+function systemePour(langue: string): string {
+  const nom = LANGUES[langue] || "francais";
+  return (
+    "Tu es un formateur expert de niveau universitaire. Tu rediges des manuels de formation professionnelle denses, " +
+    "complets et de haute qualite academique, ENTIEREMENT en " + nom + ". Tu ne delayes jamais : chaque paragraphe apporte une " +
+    "information nouvelle. Tu n inventes aucun titre officiel et aucun prix."
+  );
+}
 
 const REGLE_EVALUATION =
   "REGLE ABSOLUE POUR LES QUESTIONS : n interroge JAMAIS sur des dates, des noms propres, " +
@@ -108,22 +125,25 @@ function gabaritSynthese(titreModule: string, code: string, cible: string): stri
     "la synthese verifie que vous avez reellement integre le module et que vous savez le transmettre.";
 }
 
-async function appeler(cle: string, invite: string): Promise<string> {
+async function appeler(cle: string, invite: string, langue: string): Promise<string> {
   const r = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-api-key": cle, "anthropic-version": "2023-06-01" },
-    body: JSON.stringify({ model: MODELE, max_tokens: 4000, system: SYSTEME, messages: [{ role: "user", content: invite }] }),
+    body: JSON.stringify({ model: MODELE, max_tokens: 4000, system: systemePour(langue), messages: [{ role: "user", content: invite }] }),
   });
   if (!r.ok) throw new Error("Claude a repondu " + r.status);
   const rep = await r.json();
   return (rep.content || []).map(function (b: any) { return b && b.type === "text" ? b.text : ""; }).join("").trim();
 }
 
-function invitePour(titreFormation: string, l: any, mission: any, dejaEcrites: string[]): string {
+function invitePour(titreFormation: string, l: any, mission: any, dejaEcrites: string[], langue: string): string {
+  const nomLangue = LANGUES[langue] || "francais";
+
   let texte =
     "Formation: " + titreFormation + "\n" +
     "Chapitre " + l.chapitre_num + ": " + l.chapitre_titre + "\n" +
-    "Module " + l.module_num + ": " + l.module_titre + "\n\n" +
+    "Module " + l.module_num + ": " + l.module_titre + "\n" +
+    "Langue de redaction: " + nomLangue + "\n\n" +
     "SECTION A REDIGER : " + mission.titre + "\n" +
     mission.consigne + "\n\n";
 
@@ -140,7 +160,8 @@ function invitePour(titreFormation: string, l: any, mission: any, dejaEcrites: s
     texte += "Ce module est de nature EVALUATIVE : privilegie les questions, les corriges commentes et les criteres de notation.\n";
   }
 
-  texte += "Redige directement le contenu de la section, sans introduction sur ce que tu vas faire, sans conclusion sur ce que tu viens de faire.";
+  texte += "Redige directement le contenu de la section, sans introduction sur ce que tu vas faire, sans conclusion sur ce que tu viens de faire. " +
+    "REDIGE ENTIEREMENT EN " + nomLangue.toUpperCase() + ", titres compris.";
   return texte;
 }
 
@@ -176,7 +197,7 @@ function centrer(page: any, texte: string, y: number, police: any, taille: numbe
   page.drawText(texte, { x: (LARGEUR - l) / 2, y: y, size: taille, font: police, color: couleur });
 }
 
-async function composerManuel(fiche: any, plan: any[], contenus: any, examen: string): Promise<Uint8Array> {
+async function composerManuel(fiche: any, plan: any[], contenus: any, examen: string, langue: string): Promise<Uint8Array> {
   const titre = latin1(fiche.titre || fiche.code);
 
   const livre = await PDFDocument.create();
@@ -246,7 +267,7 @@ async function composerManuel(fiche: any, plan: any[], contenus: any, examen: st
     y = ys - 8;
     sommaire.push({ niveau: 2, numero: num, titre: latin1(l.module_titre), page: pages.length });
 
-    corps(contenus[fiche.code + "_ch" + l.chapitre_num + "_mod" + l.module_num + "_fr"] || "");
+    corps(contenus[fiche.code + "_ch" + l.chapitre_num + "_mod" + l.module_num + "_" + langue] || "");
   }
 
   // L examen final ferme le manuel, comme un chapitre a part entiere.
@@ -342,9 +363,9 @@ async function composerManuel(fiche: any, plan: any[], contenus: any, examen: st
   return await doc.save();
 }
 
-async function livrer(fiche: any, plan: any[], contenus: any, examen: string, email: string, identifiant: string) {
-  const octets = await composerManuel(fiche, plan, contenus, examen);
-  const chemin = "manuels/" + fiche.code + "_manuel.pdf";
+async function livrer(fiche: any, plan: any[], contenus: any, examen: string, email: string, identifiant: string, langue: string) {
+  const octets = await composerManuel(fiche, plan, contenus, examen, langue);
+  const chemin = "manuels/" + fiche.code + "_manuel_" + langue + ".pdf";
 
   await supabase.storage
     .from(BUCKET)
@@ -403,7 +424,7 @@ export async function GET(req: Request) {
 
     const { data: commandes } = await supabase
       .from("commandes_lemonsqueezy")
-      .select("identifiant_ls, formation, email")
+      .select("identifiant_ls, formation, email, donnees")
       .eq("manuel_statut", "a_generer")
       .order("id", { ascending: true })
       .limit(1);
@@ -414,6 +435,16 @@ export async function GET(req: Request) {
 
     const cmd = commandes[0];
     const code = String(cmd.formation || "").toUpperCase();
+
+    // LA LANGUE DE L ACHETEUR, jointe a la commande par la route de paiement.
+    let langue = "fr";
+    try {
+      const perso = cmd.donnees && cmd.donnees.meta && cmd.donnees.meta.custom_data;
+      const demandee = String((perso && perso.langue) || "fr").toLowerCase().trim();
+      if (LANGUES[demandee]) langue = demandee;
+    } catch (e) {
+      langue = "fr";
+    }
 
     const { data: fiche } = await supabase
       .from("formations")
@@ -443,7 +474,7 @@ export async function GET(req: Request) {
       .from("lms_cache")
       .select("cache_key, contenu")
       .eq("formation_code", code)
-      .eq("langue", "fr");
+      .eq("langue", langue);
 
     const contenus: any = {};
     for (const c of cache || []) contenus[c.cache_key] = c.contenu || "";
@@ -459,7 +490,7 @@ export async function GET(req: Request) {
     // ---- 1. UNE section de module par passage ----
     for (const l of plan) {
       const identifiant = "ch" + l.chapitre_num + "_mod" + l.module_num;
-      const cleCache = code + "_" + identifiant + "_fr";
+      const cleCache = code + "_" + identifiant + "_" + langue;
       const actuel = String(contenus[cleCache] || "");
 
       const faites = missions
@@ -476,7 +507,7 @@ export async function GET(req: Request) {
       if (suivante.local) {
         texte = gabaritSynthese(l.module_titre, code, identifiant);
       } else {
-        texte = await appeler(cle, invitePour(fiche.titre, l, suivante, faites));
+        texte = await appeler(cle, invitePour(fiche.titre, l, suivante, faites, langue), langue);
         if (texte.length < 400) {
           return NextResponse.json({ ok: false, code: code, erreur: "section trop courte : " + suivante.titre }, { status: 500 });
         }
@@ -492,7 +523,7 @@ export async function GET(req: Request) {
           formation_code: code,
           chapitre_num: l.chapitre_num,
           module_num: l.module_num,
-          langue: "fr",
+          langue: langue,
           contenu: nouveau,
           created_at: new Date().toISOString(),
         });
@@ -501,6 +532,7 @@ export async function GET(req: Request) {
       return NextResponse.json({
         ok: true,
         code: code,
+        langue: langue,
         module: identifiant,
         section: suivante.titre,
         sections_faites: faites.length + 1,
@@ -510,10 +542,10 @@ export async function GET(req: Request) {
     }
 
     // ---- 2. L examen final, un lot de cinq modules par passage ----
-    const cleExamen = code + "_ch99_mod1_fr";
+    const cleExamen = code + "_ch99_mod1_" + langue;
     const examenActuel = String(contenus[cleExamen] || "");
     const lotsTotal = Math.ceil(plan.length / MODULES_PAR_LOT_EXAMEN);
-    const lotsFaits = examenActuel ? (examenActuel.match(/\n\n/g) || []).length >= 0 ? examenActuel.split("\u2014LOT\u2014").length - 1 : 0 : 0;
+    const lotsFaits = examenActuel ? examenActuel.split("\u2014LOT\u2014").length - 1 : 0;
 
     if (lotsFaits < lotsTotal) {
       const debut = lotsFaits * MODULES_PAR_LOT_EXAMEN;
@@ -524,19 +556,22 @@ export async function GET(req: Request) {
       const combien = groupe.length * QUESTIONS_PAR_MODULE_EXAMEN;
       const premier = debut * QUESTIONS_PAR_MODULE_EXAMEN + 1;
       const total = plan.length * QUESTIONS_PAR_MODULE_EXAMEN;
+      const nomLangue = LANGUES[langue] || "francais";
 
       const invite =
-        "Formation: " + fiche.titre + "\n\n" +
+        "Formation: " + fiche.titre + "\n" +
+        "Langue de redaction: " + nomLangue + "\n\n" +
         "SECTION A REDIGER : partie d un examen final\n" +
         "Redige " + combien + " questions a choix multiple, soit EXACTEMENT " +
         QUESTIONS_PAR_MODULE_EXAMEN + " questions par module, dans l ordre des modules ci-dessous. " +
         "Numerote-les a partir de " + premier + ". " +
         "Quatre propositions par question, une seule correcte. Les deux questions d un meme module doivent porter sur des aspects DIFFERENTS de ce module. " +
-        "Apres les questions, donne le corrige avec la bonne reponse et son explication.\n\n" +
+        "Apres les questions, donne le corrige avec la bonne reponse et son explication. " +
+        "REDIGE ENTIEREMENT EN " + nomLangue.toUpperCase() + ".\n\n" +
         REGLE_EVALUATION + "\n\n" +
         "MODULES CONCERNES :\n" + sommaire;
 
-      const morceau = await appeler(cle, invite);
+      const morceau = await appeler(cle, invite, langue);
 
       let contenuExamen = "";
       if (lotsFaits === 0) {
@@ -567,7 +602,7 @@ export async function GET(req: Request) {
           formation_code: code,
           chapitre_num: 99,
           module_num: 1,
-          langue: "fr",
+          langue: langue,
           contenu: contenuExamen,
           created_at: new Date().toISOString(),
         });
@@ -576,6 +611,7 @@ export async function GET(req: Request) {
       return NextResponse.json({
         ok: true,
         code: code,
+        langue: langue,
         examen: true,
         lot: lotsFaits + 1,
         lots: lotsTotal,
@@ -585,8 +621,8 @@ export async function GET(req: Request) {
 
     // ---- 3. Tout est produit : on compose et on livre ----
     const examenPropre = examenActuel.split("\u2014LOT\u2014").join("").trim();
-    const poids = await livrer(fiche, plan, contenus, examenPropre, cmd.email, cmd.identifiant_ls);
-    return NextResponse.json({ ok: true, code: code, livre: true, octets: poids });
+    const poids = await livrer(fiche, plan, contenus, examenPropre, cmd.email, cmd.identifiant_ls, langue);
+    return NextResponse.json({ ok: true, code: code, langue: langue, livre: true, octets: poids });
   } catch (e: any) {
     return NextResponse.json({ ok: false, erreur: String(e.message || e) }, { status: 500 });
   }
