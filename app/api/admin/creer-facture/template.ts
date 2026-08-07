@@ -3,11 +3,11 @@ const ENTITE = {
   adresse1: "30 N Gould St, STE R",
   adresse2: "Sheridan, WY 82801",
   pays: "United States / Etats-Unis",
-  ein: "[EIN - A COMPLETER]",
+  ein: "32-0862305",
   numero_oss: "[NUMERO OSS non-Union - A COMPLETER]",
   email: "contact@academiapro.fr",
   site: "academiapro.fr",
-  stripe_link: "[LIEN STRIPE - A COMPLETER]",
+  paiement: "Lien de paiement transmis avec la facture",
 };
 
 const LOGOS: Record<string, string> = {
@@ -121,6 +121,7 @@ export function genererFactureHTML(d: FactureData): string {
       <p><strong>${d.client_nom}</strong></p>
       <p>${d.client_pays || "-"}</p>
       <p>Type : ${d.type_client || "B2C"}</p>
+      ${d.numero_tva_client ? `<p>N° TVA : ${d.numero_tva_client}</p>` : ""}
     </div>
   </div>
   <table class="items">
@@ -150,8 +151,7 @@ export function genererFactureHTML(d: FactureData): string {
   </div>
   <div class="mention">${mentionTVA}</div>
   <div class="mention" style="background:#f0f7ff;border-color:#3b82f6;">
-    <strong>Paiement / Payment :</strong> ${ENTITE.stripe_link}<br/>
-    Paiement securise par Stripe / Secure payment via Stripe
+    <strong>Paiement / Payment :</strong> ${ENTITE.paiement}
   </div>
   <div class="footer">
     <p>Acompte / Deposit : les sommes versees a l'inscription constituent un acompte imputable sur le prix total (non des arrhes).</p>
