@@ -25,8 +25,7 @@ const MAJORATION_12M = 1.2;
 const MINIMUM_ECHELONNE = 300;
 
 // LANGUES SERVIES. Le manuel et le parcours sont produits dans la langue de
-// l acheteur : elle doit donc voyager du site jusqu a la commande, sinon la
-// generation retombe sur le francais quel que soit le pays du client.
+// l acheteur : elle doit donc voyager du site jusqu a la commande.
 const LANGUES = ["fr", "en", "es", "pt", "de", "ar", "he"];
 
 let cacheStoreId: string | null = null;
@@ -49,6 +48,20 @@ function normaliser(s: string): string {
     .replace(/[\u2010-\u2015]/g, "-")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+// LE PARTENAIRE QUI A ENVOYE L ACHETEUR. Il est pose dans un cookie par
+// /api/affiliation au moment du clic, et vaut soixante jours : sans cette
+// lecture, aucune commission ne peut etre attribuee.
+function affiliationDe(req: Request): string {
+  const brut = req.headers.get("cookie") || "";
+  for (const morceau of brut.split(";")) {
+    const [nom, ...reste] = morceau.trim().split("=");
+    if (nom === "aff") {
+      return decodeURIComponent(reste.join("=")).trim().toUpperCase().slice(0, 40);
+    }
+  }
+  return "";
 }
 
 async function lsGet(path: string) {
@@ -109,6 +122,9 @@ export async function GET(req: Request) {
     // La langue vient du site : parametre lang, sinon francais.
     const langueDemandee = String(url.searchParams.get("lang") || "fr").toLowerCase().trim();
     const langue = LANGUES.indexOf(langueDemandee) >= 0 ? langueDemandee : "fr";
+
+    // Le partenaire vient du cookie, ou d un parametre explicite.
+    const affiliation = String(url.searchParams.get("ref") || affiliationDe(req) || "").toUpperCase();
 
     if (["comptant", "4x", "12m"].indexOf(paiement) === -1) {
       return NextResponse.json({ error: "mode de paiement invalide" }, { status: 400 });
@@ -193,6 +209,7 @@ export async function GET(req: Request) {
         langue: langue,
       },
     };
+    if (affiliation) donneesCheckout.custom.affiliation = affiliation;
     if (emailConnecte) donneesCheckout.email = emailConnecte;
 
     let libelle: string;
@@ -240,21 +257,4 @@ export async function GET(req: Request) {
     };
 
     const r = await fetch(LS_API + "/checkouts", {
-      method: "POST",
-      headers: {
-        Accept: "application/vnd.api+json",
-        "Content-Type": "application/vnd.api+json",
-        Authorization: "Bearer " + KEY,
-      },
-      body: JSON.stringify(corps),
-    });
-    const j = await r.json();
-    const lien = j && j.data && j.data.attributes && j.data.attributes.url;
-    if (!lien) {
-      return NextResponse.json({ error: "checkout refuse", detail: j }, { status: 500 });
-    }
-    return NextResponse.redirect(lien, 302);
-  } catch (e: any) {
-    return NextResponse.json({ error: String(e) }, { status: 500 });
-  }
-}
+      method
