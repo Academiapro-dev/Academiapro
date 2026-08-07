@@ -24,6 +24,11 @@ const MAJORATION_12M = 1.2;
 // En dessous de ce montant, l echelonnement n est pas propose.
 const MINIMUM_ECHELONNE = 300;
 
+// LANGUES SERVIES. Le manuel et le parcours sont produits dans la langue de
+// l acheteur : elle doit donc voyager du site jusqu a la commande, sinon la
+// generation retombe sur le francais quel que soit le pays du client.
+const LANGUES = ["fr", "en", "es", "pt", "de", "ar", "he"];
+
 let cacheStoreId: string | null = null;
 const cacheVariantes: { [nom: string]: string } = {};
 
@@ -100,6 +105,10 @@ export async function GET(req: Request) {
     const code = url.searchParams.get("formation") || "";
     let formule = url.searchParams.get("formule") || "cv1";
     const paiement = url.searchParams.get("paiement") || "comptant";
+
+    // La langue vient du site : parametre lang, sinon francais.
+    const langueDemandee = String(url.searchParams.get("lang") || "fr").toLowerCase().trim();
+    const langue = LANGUES.indexOf(langueDemandee) >= 0 ? langueDemandee : "fr";
 
     if (["comptant", "4x", "12m"].indexOf(paiement) === -1) {
       return NextResponse.json({ error: "mode de paiement invalide" }, { status: 400 });
@@ -181,6 +190,7 @@ export async function GET(req: Request) {
         paiement: paiement,
         echeances: String(echeances),
         prix_total: String(prixTotal),
+        langue: langue,
       },
     };
     if (emailConnecte) donneesCheckout.email = emailConnecte;
@@ -207,7 +217,7 @@ export async function GET(req: Request) {
       product_options: {
         name: f.titre,
         description: libelle,
-        redirect_url: "https://academiapro.fr/dashboard",
+        redirect_url: "https://academiapro.fr/dashboard?lang=" + langue,
       },
       checkout_data: donneesCheckout,
     };
