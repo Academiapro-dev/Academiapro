@@ -51,9 +51,19 @@ export async function GET(req: NextRequest) {
   try {
     const url = new URL(req.url);
 
-    // Securite : meme cle que la creation de facture.
+    // Deux entrees possibles :
+    // - le cron Vercel, qui envoie Authorization: Bearer CRON_SECRET
+    //   et ne peut transmettre ni parametre ni en-tete personnalise ;
+    // - un appel manuel, avec la cle de facturation.
+    const autorisation = req.headers.get("authorization") || "";
+    const secretCron = process.env.CRON_SECRET || "";
+    const parCron = secretCron.length > 0 && autorisation === "Bearer " + secretCron;
+
     const cle = req.headers.get("x-cle-facture") || url.searchParams.get("cle") || "";
-    if (!process.env.CLE_API_FACTURE || cle !== process.env.CLE_API_FACTURE) {
+    const cleFacture = process.env.CLE_API_FACTURE || "";
+    const parCle = cleFacture.length > 0 && cle === cleFacture;
+
+    if (!parCron && !parCle) {
       return NextResponse.json({ ok: false, erreur: "Non autorise" }, { status: 401 });
     }
 
@@ -166,7 +176,7 @@ export async function GET(req: NextRequest) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-cle-facture": process.env.CLE_API_FACTURE || "",
+          "x-cle-facture": cleFacture,
         },
         body: JSON.stringify({
           projet: "academia",
@@ -227,6 +237,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       periode: periode,
+      declencheur: parCron ? "cron" : "manuel",
       cabinets: cabinets.length,
       resultats: resultats,
     });
