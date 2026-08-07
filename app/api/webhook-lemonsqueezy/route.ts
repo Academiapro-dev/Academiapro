@@ -15,15 +15,25 @@ const SECRET = process.env.LEMONSQUEEZY_WEBHOOK_SECRET || "";
 const LS_API = "https://api.lemonsqueezy.com/v1";
 const KEY = process.env.LEMONSQUEEZY_API_KEY || "";
 
-// Evenements qui retirent l acces. Attention : un abonnement "cancelled"
-// reste actif jusqu a la fin de la periode payee, on ne retire donc rien.
 const RETRAITS = ["subscription_expired", "order_refunded"];
 
 function sansAccents(s: string): string {
   return String(s).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 }
 
-// Arrete les prelevements une fois le plan solde.
+// LA BASE DE LA COMMISSION EST LE MONTANT HORS TAXES ET HORS REMISE.
+// Le champ total inclut la TVA collectee par Lemon Squeezy, qui ne nous
+// appartient pas : la retenir reviendrait a payer environ 20 % de trop.
+function montantHT(attributs: any): number {
+  const centimes =
+    typeof attributs.subtotal === "number"
+      ? attributs.subtotal - (typeof attributs.discount_total === "number" ? attributs.discount_total : 0)
+      : (typeof attributs.total === "number" ? attributs.total : 0) -
+        (typeof attributs.tax === "number" ? attributs.tax : 0);
+
+  return Math.max(0, Math.round(centimes) / 100);
+}
+
 async function annulerAbonnement(id: string) {
   try {
     await fetch(LS_API + "/subscriptions/" + id, {
@@ -59,11 +69,8 @@ async function envoyerEmail(email: string, sujet: string, html: string) {
   }
 }
 
-// ---- COMMISSION DU PARTENAIRE ----
-// Elle n est versee QU UNE FOIS PAR COMMANDE : sur order_created pour un
-// paiement comptant, sur subscription_created pour un paiement echelonne.
-// Surtout pas sur chaque echeance, sinon un plan en 12 mois paierait douze
-// commissions pour une seule vente.
+// La commission n est versee QU UNE FOIS PAR VENTE : sur order_created pour
+// un paiement comptant, sur subscription_created pour un plan echelonne.
 async function crediterAffiliation(code: string, formationCode: string, montant: number) {
   if (!code || !montant || montant <= 0) return;
 
@@ -103,7 +110,8 @@ async function crediterAffiliation(code: string, formationCode: string, montant:
         '<h1 style="color:#c8a96e">Bonne nouvelle</h1>' +
         "<p>Une personne que vous nous avez adressee vient d acheter la formation " +
         formationCode + ".</p>" +
-        "<p>Votre commission : <strong>" + commission + " EUR</strong> (" + taux + " % de " + montant + " EUR).</p>" +
+        "<p>Votre commission : <strong>" + commission + " EUR</strong> (" + taux +
+        " % de " + montant + " EUR hors taxes).</p>" +
         '<p><a href="https://academiapro.fr/partenaire?code=' + affilie.code_affiliation +
         '">Voir votre tableau de bord</a></p>' +
         "<p>AcademIA Pro</p></div>"
@@ -115,7 +123,7 @@ async function crediterAffiliation(code: string, formationCode: string, montant:
       "Commission a regler : " + commission + " EUR",
       "<p>Partenaire : " + (affilie.nom || affilie.code_affiliation) +
       "<br>Formation : " + formationCode +
-      "<br>Vente : " + montant + " EUR<br>Commission : " + commission + " EUR</p>"
+      "<br>Vente HT : " + montant + " EUR<br>Commission : " + commission + " EUR</p>"
     );
   } catch (e) {
     console.error("affiliation:", e);
@@ -143,10 +151,10 @@ async function envoyerEmailBienvenue(
   }
 
   const html =
-    "<div style=\"font-family:Georgia,serif;line-height:1.7;color:#1a1a1a\">" +
-    "<h1 style=\"color:#c8a96e\">Bienvenue " + nom + "</h1>" +
+    '<div style="font-family:Georgia,serif;line-height:1.7;color:#1a1a1a">' +
+    '<h1 style="color:#c8a96e">Bienvenue ' + nom + "</h1>" +
     "<p>Votre inscription a <strong>" + titre + "</strong> est confirmee.</p>" +
-    "<p><a href=\"https://academiapro.fr/dashboard\">Acceder a votre espace de formation</a></p>" +
+    '<p><a href="https://academiapro.fr/dashboard">Acceder a votre espace de formation</a></p>' +
     suite +
     "<p>L equipe AcademIA Pro</p>" +
     "</div>";
@@ -156,8 +164,8 @@ async function envoyerEmailBienvenue(
 
 async function envoyerEmailSolde(email: string, titre: string, echeances: number) {
   const html =
-    "<div style=\"font-family:Georgia,serif;line-height:1.7;color:#1a1a1a\">" +
-    "<h1 style=\"color:#c8a96e\">Votre formation est integralement reglee</h1>" +
+    '<div style="font-family:Georgia,serif;line-height:1.7;color:#1a1a1a">' +
+    '<h1 style="color:#c8a96e">Votre formation est integralement reglee</h1>' +
     "<p>Nous avons bien recu la derniere de vos " + echeances +
     " mensualites pour <strong>" + titre + "</strong>.</p>" +
     "<p>Aucun autre prelevement ne sera effectue. Votre acces reste ouvert.</p>" +
@@ -167,8 +175,6 @@ async function envoyerEmailSolde(email: string, titre: string, echeances: number
   await envoyerEmail(email, "Formation soldee - AcademIA Pro", html);
 }
 
-// Retrouve la formation concernee quand l evenement ne la porte pas :
-// on reprend la derniere commande de cet acheteur.
 async function formationDeLAcheteur(email: string): Promise<string | null> {
   const { data } = await supabase
     .from("commandes_lemonsqueezy")
@@ -189,6 +195,7 @@ export async function POST(req: Request) {
       SECRET &&
       signature.length === attendu.length &&
       crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(attendu));
+
     if (!valide) {
       return NextResponse.json({ error: "signature invalide" }, { status: 401 });
     }
@@ -212,8 +219,6 @@ export async function POST(req: Request) {
     const nom = String(attributs.user_name || "").trim();
     const identifiant = evenement + "-" + String((corps.data && corps.data.id) || "");
 
-    // Sur un evenement de paiement, l abonnement est designe par subscription_id ;
-    // sur les autres evenements d abonnement, c est l objet lui-meme.
     const idAbonnement =
       evenement.indexOf("subscription_payment") === 0
         ? String(attributs.subscription_id || "")
@@ -249,8 +254,8 @@ export async function POST(req: Request) {
     // ---- OUVERTURE D UN PLAN ECHELONNE ----
     if (nouvel && evenement === "subscription_created" && idAbonnement) {
       if (paiement === "4x" || paiement === "12m") {
-        const echeancesPrevues = parseInt(String(custom.echeances || "0"), 10) ||
-          (paiement === "4x" ? 4 : 12);
+        const echeancesPrevues =
+          parseInt(String(custom.echeances || "0"), 10) || (paiement === "4x" ? 4 : 12);
         const prixTotal = parseFloat(String(custom.prix_total || "0")) || 0;
         const montantEcheance = echeancesPrevues
           ? Math.round((prixTotal * 100) / echeancesPrevues) / 100
@@ -275,8 +280,7 @@ export async function POST(req: Request) {
           console.error("plans_paiement creation:", e);
         }
 
-        // La commission porte sur le montant TOTAL de la vente, versee une
-        // seule fois a l ouverture du plan.
+        // prix_total vient de notre propre calcul : il est deja hors taxes.
         if (affiliation && formation) {
           await crediterAffiliation(affiliation, String(formation), prixTotal);
         }
@@ -357,8 +361,6 @@ export async function POST(req: Request) {
 
     // ---- RETRAIT D ACCES ----
     if (nouvel && RETRAITS.indexOf(evenement) >= 0 && email) {
-      // Un plan echelonne arrive a son terme expire normalement :
-      // le client a tout paye, on ne lui retire surtout rien.
       if (evenement === "subscription_expired" && idAbonnement) {
         const { data: plan } = await supabase
           .from("plans_paiement")
@@ -408,7 +410,7 @@ export async function POST(req: Request) {
       }
 
       // Remboursement : la commission n est plus due.
-      if (evenement === "order_refunded" && affiliation) {
+      if (evenement === "order_refunded" && affiliation && cible) {
         try {
           await supabase
             .from("ventes_affiliation")
@@ -489,16 +491,12 @@ export async function POST(req: Request) {
           console.error("crm:", e);
         }
 
-        // Commission du partenaire, sur le montant reellement encaisse.
         if (affiliation) {
-          const montant = typeof attributs.total === "number" ? attributs.total / 100 : 0;
-          await crediterAffiliation(affiliation, String(formation), montant);
+          await crediterAffiliation(affiliation, String(formation), montantHT(attributs));
         }
 
         await envoyerEmailBienvenue(email, nom || email, titre, estAtelier, paiement);
 
-        // En 12 mois, le manuel est remis progressivement :
-        // le robot de generation ne doit pas produire le document complet.
         let statutManuel: string;
         if (estAtelier) {
           statutManuel = "sans_objet";
