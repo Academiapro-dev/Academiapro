@@ -15,9 +15,9 @@ const supabase = createClient(
 // B2C : il ecarte tout produit dont le nom ne contient pas "academia", donc
 // il ignorerait les paiements du pack. On ne le remanie pas, on double.
 //
-// ⚠️ Le .trim() est indispensable : une variable d environnement collee dans
-// Vercel emporte souvent un espace ou un retour a la ligne invisible, et la
-// signature ne correspond alors jamais.
+// Le .trim() est indispensable : une valeur collee dans Vercel emporte
+// souvent un espace ou un retour a la ligne invisible, et la signature ne
+// correspond alors jamais.
 const SECRET_BRUT = process.env.LEMONSQUEEZY_WEBHOOK_PACK || "";
 const SECRET_REPLI = process.env.LEMONSQUEEZY_WEBHOOK_SECRET || "";
 const SECRET = String(SECRET_BRUT || SECRET_REPLI).trim();
@@ -67,7 +67,8 @@ async function courriel(destinataire: string, sujet: string, html: string) {
 }
 
 // COMMISSION D APPORT SUR LE PACK. Versee UNE SEULE FOIS, sur la MISE EN
-// SERVICE — jamais sur les abonnements mensuels.
+// SERVICE — jamais sur les abonnements mensuels : presenter un client est un
+// acte unique, alors que la plateforme se maintient pendant des annees.
 async function crediterApport(code: string, produit: string, montant: number) {
   const base = baseCommission(montant);
   if (!code || base <= 0) return;
@@ -134,15 +135,17 @@ export async function POST(req: Request) {
     const attendu = crypto.createHmac("sha256", SECRET).update(brut, "utf8").digest("hex");
 
     if (signature !== attendu) {
-      // DIAGNOSTIC. On ne revele jamais le secret : seulement sa longueur et
-      // les huit premiers caracteres des deux empreintes, ce qui suffit a
-      // savoir SI elles different et POURQUOI.
+      // DIAGNOSTIC. Le secret n est jamais revele : seulement sa longueur et
+      // les douze premiers caracteres des deux empreintes, ce qui suffit a
+      // savoir si elles different et pourquoi.
       return NextResponse.json(
         {
           erreur: "signature invalide",
-          secret_utilise: SECRET_BRUT ? "LEMONSQUEEZY_WEBHOOK_PACK" : (SECRET_REPLI ? "repli sur LEMONSQUEEZY_WEBHOOK_SECRET" : "AUCUN SECRET"),
+          variable_utilisee: SECRET_BRUT
+            ? "LEMONSQUEEZY_WEBHOOK_PACK"
+            : (SECRET_REPLI ? "repli sur LEMONSQUEEZY_WEBHOOK_SECRET" : "AUCUN SECRET TROUVE"),
           longueur_secret: SECRET.length,
-          longueur_secret_avant_nettoyage: String(SECRET_BRUT || SECRET_REPLI).length,
+          longueur_avant_nettoyage: String(SECRET_BRUT || SECRET_REPLI).length,
           signature_recue: signature.slice(0, 12),
           signature_attendue: attendu.slice(0, 12),
           longueur_corps: brut.length,
@@ -157,6 +160,8 @@ export async function POST(req: Request) {
     const premier = attributs.first_order_item || {};
     const nomProduit = sansAccents(String(attributs.product_name || premier.product_name || ""));
 
+    // On ne traite QUE les produits du pack. Tout le reste appartient a
+    // l autre webhook.
     const estPack = nomProduit.indexOf("pack lms") >= 0;
     const estGestion = nomProduit.indexOf("gestion administrative") >= 0;
     if (!estPack && !estGestion) {
@@ -169,6 +174,8 @@ export async function POST(req: Request) {
     const email = String(attributs.user_email || "").toLowerCase().trim();
     const montant = typeof attributs.total === "number" ? attributs.total / 100 : 0;
 
+    // L organisme est designe par le tenant transmis au paiement ; a defaut,
+    // on le retrouve par l adresse de l acheteur.
     let organisme: any = null;
 
     if (tenantDemande) {
@@ -204,15 +211,18 @@ export async function POST(req: Request) {
 
     const majuscule: any = { updated_at: new Date().toISOString() };
 
+    // MISE EN SERVICE : paiement unique.
     if (nomProduit.indexOf("mise en service") >= 0 && evenement === "order_created") {
       majuscule.frais_installation = montant;
       majuscule.statut = "actif";
 
+      // C est ici, et seulement ici, que l apporteur est paye.
       if (affiliation) {
         await crediterApport(affiliation, "Pack — mise en service", montantHT(attributs));
       }
     }
 
+    // ABONNEMENT : ouverture, renouvellement, ou fin. Aucune commission.
     if (nomProduit.indexOf("abonnement") >= 0) {
       if (evenement === "subscription_created" || evenement === "subscription_payment_success") {
         majuscule.abonnement_mensuel = montant || organisme.abonnement_mensuel;
@@ -226,11 +236,47 @@ export async function POST(req: Request) {
       }
     }
 
+    // GESTION ADMINISTRATIVE : option souscrite.
     if (estGestion && evenement === "order_created") {
       majuscule.gestion_souscrite = true;
       majuscule.forfait_gestion = montant;
     }
 
+    // Remboursement : la commission n est plus due.
     if (evenement === "order_refunded" && affiliation) {
       try {
-        await supab
+        await supabase
+          .from("ventes_affiliation")
+          .update({ statut: "annulee" })
+          .eq("code_affiliation", affiliation)
+          .eq("formation_code", "PACK")
+          .eq("statut", "a_regler");
+      } catch (e) {
+        console.error("apport remboursement:", e);
+      }
+    }
+
+    await supabase
+      .from("organismes_formation")
+      .update(majuscule)
+      .eq("tenant_id", organisme.tenant_id);
+
+    await courriel(
+      "contact@academiapro.fr",
+      "Pack — " + evenement + " — " + organisme.raison_sociale,
+      "<p><strong>" + organisme.raison_sociale + "</strong></p>" +
+      "<p>Produit : " + nomProduit + "<br>Montant : " + montant + " €" +
+      "<br>Nouveau statut : " + (majuscule.statut || organisme.statut) + "</p>"
+    );
+
+    return NextResponse.json({
+      ok: true,
+      rattache: true,
+      organisme: organisme.raison_sociale,
+      statut: majuscule.statut || organisme.statut,
+      apport: affiliation || null,
+    });
+  } catch (e: any) {
+    return NextResponse.json({ erreur: String(e) }, { status: 500 });
+  }
+}
