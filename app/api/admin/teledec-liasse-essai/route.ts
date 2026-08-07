@@ -40,23 +40,37 @@ async function jeton(): Promise<string> {
   return d.access_token;
 }
 
+// LE MOT DE PASSE TELEDEC DU CLIENT, EN HASH BCRYPT.
+//
+// Sans lui, TELEDEC ne sait pas ouvrir de session et renvoie l utilisateur
+// vers sa page de creation de compte — c est ce qui cassait la marque blanche.
+// La valeur DOIT etre un hash bcrypt (prefixe $2y$, $2a$, $2b$ ou $2x$) : un
+// mot de passe en clair provoque une erreur 104.
+//
+// Ce secret appartient a l utilisateur final : en production, on en genere UN
+// PAR CLIENT et on le conserve dans sa fiche, pour le renvoyer identique a
+// chaque appel — c est ce qui le reconnecte au lieu d en creer un nouveau.
+// Pour cet essai, une valeur unique posee en variable d environnement suffit.
+const MDP_CLIENT =
+  process.env.TELEDEC_MDP_CLIENT ||
+  "$2a$12$.6.1crJz//g6rFR/870sq.77sAJ/9rd5cfomE6d7yN307OQjoROCW";
+
 // SECTION IDENTIFICATION. Un seul champ est obligatoire, SOURCE. On en met
 // davantage pour que TELEDEC ait de quoi creer l entreprise sans redemander.
 // AFFICHAGE-BOUTON-ENVOYER a NON : le client peut relire sa liasse mais pas
 // la teletransmettre lui-meme.
 //
 // #SOURCE est l IDENTIFIANT DU PARTENAIRE, sensible a la casse. Sur
-// l environnement de stage, TELEDEC impose la valeur generique API : c est
-// la seule cause de l erreur 101 rencontree le 05/08.
+// l environnement de stage, TELEDEC impose la valeur generique API.
 //
 // #EMAIL doit porter une adresse AUTORISEE POUR LE PARTENAIRE, sans quoi
-// TELEDEC repond 403. C est l adresse du compte partenaire, pas celle du
-// client final.
+// TELEDEC repond 403.
 function identification(): string {
   const lignes = [
     "#SOURCE API",
     "#VERSION 1.0",
     "#EMAIL contact@academiapro.fr",
+    "#MOT-DE-PASSE " + MDP_CLIENT,
     "#NOM SOCIETE D ESSAI ACADEMIA",
     "#SIRET 12581251256423",
     "#FORME-JURIDIQUE SAS",
@@ -134,7 +148,7 @@ export async function GET() {
           etape: "envoi de la liasse",
           statut: r.status,
           reponse: reponse.slice(0, 1500),
-          rappel: "Un statut 500 renvoie un message d erreur technique de TELEDEC.",
+          rappel: "Erreur 104 = le mot de passe n est pas un hash bcrypt valide.",
         },
         { status: 500 },
       );
@@ -153,7 +167,7 @@ export async function GET() {
       statut: r.status,
       url_de_la_liasse: url,
       reponse_brute: reponse.slice(0, 800),
-      suite: "Ouvrez l URL ci-dessus : c est l ecran que verrait votre client, a integrer dans un cadre de votre site.",
+      suite: "Ouvrez l URL : elle doit afficher la liasse pre-remplie, deja connecte, SANS ecran d inscription.",
     });
   } catch (e: any) {
     return NextResponse.json({ ok: false, erreur: String(e.message || e) }, { status: 500 });
