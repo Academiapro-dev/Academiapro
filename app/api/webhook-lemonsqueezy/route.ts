@@ -17,13 +17,24 @@ const KEY = process.env.LEMONSQUEEZY_API_KEY || "";
 
 const RETRAITS = ["subscription_expired", "order_refunded"];
 
+// FRAIS DU VENDEUR DE REGISTRE. Lemon Squeezy ne les transmet PAS dans le
+// message : on applique donc son tarif public. A ajuster s il change.
+const FRAIS_LS_PCT = 5;
+const FRAIS_LS_FIXE = 0.5;
+
 function sansAccents(s: string): string {
   return String(s).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 }
 
-// LA BASE DE LA COMMISSION EST LE MONTANT HORS TAXES ET HORS REMISE.
-// Le champ total inclut la TVA collectee par Lemon Squeezy, qui ne nous
-// appartient pas : la retenir reviendrait a payer environ 20 % de trop.
+// BASE DE LA COMMISSION : hors taxes, hors remise, ET DEDUCTION FAITE DES
+// FRAIS LEMON SQUEEZY. On ne verse pas de commission sur de l argent qui
+// n a jamais ete encaisse.
+function baseCommission(montantHT: number): number {
+  if (!montantHT || montantHT <= 0) return 0;
+  const frais = (montantHT * FRAIS_LS_PCT) / 100 + FRAIS_LS_FIXE;
+  return Math.max(0, Math.round((montantHT - frais) * 100) / 100);
+}
+
 function montantHT(attributs: any): number {
   const centimes =
     typeof attributs.subtotal === "number"
@@ -72,7 +83,8 @@ async function envoyerEmail(email: string, sujet: string, html: string) {
 // La commission n est versee QU UNE FOIS PAR VENTE : sur order_created pour
 // un paiement comptant, sur subscription_created pour un plan echelonne.
 async function crediterAffiliation(code: string, formationCode: string, montant: number) {
-  if (!code || !montant || montant <= 0) return;
+  const base = baseCommission(montant);
+  if (!code || base <= 0) return;
 
   try {
     const { data: affilie } = await supabase
@@ -84,12 +96,12 @@ async function crediterAffiliation(code: string, formationCode: string, montant:
     if (!affilie || String(affilie.statut || "actif") !== "actif") return;
 
     const taux = Number(affilie.commission_pct) || 15;
-    const commission = Math.round(montant * taux) / 100;
+    const commission = Math.round(base * taux) / 100;
 
     await supabase.from("ventes_affiliation").insert({
       code_affiliation: affilie.code_affiliation,
       formation_code: formationCode,
-      montant: montant,
+      montant: base,
       commission: commission,
       statut: "a_regler",
     });
@@ -110,8 +122,8 @@ async function crediterAffiliation(code: string, formationCode: string, montant:
         '<h1 style="color:#c8a96e">Bonne nouvelle</h1>' +
         "<p>Une personne que vous nous avez adressee vient d acheter la formation " +
         formationCode + ".</p>" +
-        "<p>Votre commission : <strong>" + commission + " EUR</strong> (" + taux +
-        " % de " + montant + " EUR hors taxes).</p>" +
+        "<p>Votre commission : <strong>" + commission + " EUR</strong>, soit " + taux +
+        " % de " + base + " EUR (montant hors taxes, frais de paiement deduits).</p>" +
         '<p><a href="https://academiapro.fr/partenaire?code=' + affilie.code_affiliation +
         '">Voir votre tableau de bord</a></p>' +
         "<p>AcademIA Pro</p></div>"
@@ -123,7 +135,7 @@ async function crediterAffiliation(code: string, formationCode: string, montant:
       "Commission a regler : " + commission + " EUR",
       "<p>Partenaire : " + (affilie.nom || affilie.code_affiliation) +
       "<br>Formation : " + formationCode +
-      "<br>Vente HT : " + montant + " EUR<br>Commission : " + commission + " EUR</p>"
+      "<br>Base retenue : " + base + " EUR<br>Commission : " + commission + " EUR</p>"
     );
   } catch (e) {
     console.error("affiliation:", e);
