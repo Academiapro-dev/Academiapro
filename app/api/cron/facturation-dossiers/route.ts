@@ -106,12 +106,21 @@ export async function GET(req: NextRequest) {
 
       const montant_ht = Math.round(vivants.length * PRIX_DOSSIER * 100) / 100;
 
+      // Coordonnees du cabinet.
+      const { data: org } = await supabase
+        .from("organismes_formation")
+        .select("raison_sociale, email_contact, numero_tva")
+        .eq("tenant_id", tenant)
+        .maybeSingle();
+
       if (essai) {
         resultats.push({
           tenant,
           periode,
           dossiers: vivants.length,
           montant_ht,
+          client: (org && org.raison_sociale) || null,
+          numero_tva: (org && org.numero_tva) || null,
           statut: "essai, rien emis",
           codes: vivants.map(function (v: any) { return v.code; }),
         });
@@ -141,13 +150,6 @@ export async function GET(req: NextRequest) {
         continue;
       }
 
-      // Coordonnees du cabinet.
-      const { data: org } = await supabase
-        .from("organismes_formation")
-        .select("raison_sociale, email, numero_tva")
-        .eq("tenant_id", tenant)
-        .maybeSingle();
-
       const description =
         "Mr. Comptable — gestion des dossiers, période " +
         periode +
@@ -157,6 +159,9 @@ export async function GET(req: NextRequest) {
         PRIX_DOSSIER +
         " € HT";
 
+      // Prestataire hors UE, preneur assujetti en France : la TVA est
+      // autoliquidee par le client. Sans son numero de TVA, la facture
+      // n est pas reguliere.
       const reponse = await fetch(new URL("/api/admin/creer-facture", req.url).toString(), {
         method: "POST",
         headers: {
@@ -167,12 +172,14 @@ export async function GET(req: NextRequest) {
           projet: "academia",
           tenant_id: tenant,
           client_nom: (org && org.raison_sociale) || "Cabinet " + tenant.slice(0, 8),
-          client_email: (org && org.email) || null,
+          client_email: (org && org.email_contact) || null,
           client_pays: "FR",
           type_client: "B2B",
           numero_tva_client: (org && org.numero_tva) || null,
           montant_ht: montant_ht,
           taux_tva: 0,
+          autoliquidation: true,
+          zone: "UE",
           devise: "EUR",
           description: description,
         }),
@@ -212,6 +219,7 @@ export async function GET(req: NextRequest) {
         dossiers: vivants.length,
         montant_ht,
         numero: jf.numero,
+        sans_tva_client: !(org && org.numero_tva),
         statut: "facture emise",
       });
     }
