@@ -70,8 +70,7 @@ export async function POST(req: NextRequest) {
     ].join("|");
     const hash_sha256 = crypto.createHash("sha256").update(contenuHash).digest("hex");
 
-    // 8) Generer le HTML bilingue AVANT l'insertion, pour le stocker :
-    // une facture sans son rendu n'est pas opposable.
+    // 7) HTML genere AVANT l'insertion, pour etre stocke avec la facture
     const date_emission = new Date().toISOString().slice(0, 10);
 
     const facture_html = genererFactureHTML({
@@ -91,7 +90,7 @@ export async function POST(req: NextRequest) {
       date_emission,
     });
 
-    // 7) Insertion dans la table factures (centrale)
+    // 8) Insertion dans la table factures (centrale)
     const { data: facture, error: insErr } = await supabase
       .from("factures")
       .insert({
@@ -132,4 +131,13 @@ export async function POST(req: NextRequest) {
       projet,
       tenant_id,
       montant_ht,
-      montant_t
+      montant_tva,
+      montant_ttc,
+      hash_sha256,
+      facture_id: facture.id,
+      facture_html,
+    });
+  } catch (error: any) {
+    return NextResponse.json({ error: "Erreur serveur: " + (error?.message || "") }, { status: 500 });
+  }
+}
