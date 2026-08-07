@@ -37,6 +37,10 @@ export async function POST(req: NextRequest) {
     const description = body.description || "";
     const devise = body.devise || "EUR";
 
+    // tenant_id : sans lui, la facture n'apparait ni au bilan ni au compte
+    // de resultat, qui filtrent tous deux sur cette colonne.
+    const tenant_id = body.tenant_id || null;
+
     // 3) Verifier que le projet existe dans le referentiel
     const { data: projetRow, error: projetErr } = await supabase
       .from("projets")
@@ -66,38 +70,10 @@ export async function POST(req: NextRequest) {
     ].join("|");
     const hash_sha256 = crypto.createHash("sha256").update(contenuHash).digest("hex");
 
-    // 7) Insertion dans la table factures (centrale)
-    const { data: facture, error: insErr } = await supabase
-      .from("factures")
-      .insert({
-        numero,
-        projet,
-        client_nom,
-        client_email,
-        client_pays,
-        type_client,
-        numero_tva_client,
-        montant_ht,
-        taux_tva,
-        montant_tva,
-        montant_ttc,
-        devise,
-        zone,
-        autoliquidation,
-        description,
-        statut: "emise",
-        statut_paiement: "en_attente",
-        hash_sha256,
-        horodatage_hash: horodatage,
-      })
-      .select()
-      .single();
+    // 8) Generer le HTML bilingue AVANT l'insertion, pour le stocker :
+    // une facture sans son rendu n'est pas opposable.
+    const date_emission = new Date().toISOString().slice(0, 10);
 
-    if (insErr) {
-      return NextResponse.json({ error: "Erreur insertion: " + insErr.message }, { status: 500 });
-    }
-
-    // 8) Generer le HTML bilingue de la facture
     const facture_html = genererFactureHTML({
       numero,
       projet,
@@ -112,23 +88,48 @@ export async function POST(req: NextRequest) {
       devise,
       autoliquidation,
       description,
-      date_emission: facture.date_emission,
+      date_emission,
     });
+
+    // 7) Insertion dans la table factures (centrale)
+    const { data: facture, error: insErr } = await supabase
+      .from("factures")
+      .insert({
+        numero,
+        projet,
+        tenant_id,
+        client_nom,
+        client_email,
+        client_pays,
+        type_client,
+        numero_tva_client,
+        montant_ht,
+        taux_tva,
+        montant_tva,
+        montant_ttc,
+        devise,
+        zone,
+        autoliquidation,
+        description,
+        html: facture_html,
+        statut: "emise",
+        statut_paiement: "en_attente",
+        date_emission,
+        hash_sha256,
+        horodatage_hash: horodatage,
+      })
+      .select()
+      .single();
+
+    if (insErr) {
+      return NextResponse.json({ error: "Erreur insertion: " + insErr.message }, { status: 500 });
+    }
 
     // 9) Reponse
     return NextResponse.json({
       success: true,
       numero,
       projet,
+      tenant_id,
       montant_ht,
-      montant_tva,
-      montant_ttc,
-      hash_sha256,
-      facture_id: facture.id,
-      facture_html,
-    });
-
-  } catch (error: any) {
-    return NextResponse.json({ error: "Erreur serveur: " + (error?.message || "") }, { status: 500 });
-  }
-}
+      montant_t
