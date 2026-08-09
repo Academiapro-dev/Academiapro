@@ -91,7 +91,6 @@ async function postsFormation(f: any, lien: string, annee: number, nb: number) {
     + "TITRE : " + f.titre + "\n"
     + "DOMAINE : " + (f.domaine || "") + "\n"
     + "DUREE : " + (f.duree || "") + "\n"
-    + "PRIX : " + (f.prix ? f.prix + " euros" : "non precise") + "\n"
     + "OBJECTIFS : " + (f.objectifs || "") + "\n"
     + "PUBLIC : " + (f.public_cible || "") + "\n"
     + "DESCRIPTION : " + (f.description || "") + "\n\n"
@@ -150,7 +149,7 @@ export async function GET(req: NextRequest) {
     const { data: dernier } = await supabase
       .from("posts_sociaux")
       .select("formation_code")
-      .order("created_at", { ascending: false })
+      .order("cree_le", { ascending: false })
       .limit(1);
 
     const dernierEtaitFormation = dernier && dernier[0] && dernier[0].formation_code;
@@ -269,25 +268,4 @@ export async function GET(req: NextRequest) {
       formation_code: formationCode,
       plateforme: "facebook",
       statut: "a_publier",
-      contenu: posts.facebook,
-      url_media: urlMedia
-    }
-  ];
-
-  const { error } = await supabase
-    .from("posts_sociaux")
-    .insert(lignes);
-
-  if (error) {
-    return NextResponse.json(
-      { erreur: error.message }, { status: 500 });
-  }
-
-  return NextResponse.json({
-    type: type,
-    sujet: sujet,
-    formations_au_catalogue: nb,
-    video: urlMedia ? "associee" : "aucune",
-    posts_crees: 2
-  });
-}
+      contenu: posts.facebook
