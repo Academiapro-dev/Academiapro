@@ -4,15 +4,17 @@ import { useState, useEffect } from "react";
 // L ESPACE DU DIRIGEANT.
 //
 // Il n est pas comptable et ne le sera jamais. Il vient pour trois choses,
-// dans cet ordre : savoir ce qu on lui reclame, envoyer une photo de
-// facture, repartir. Tout le reste le ferait fuir.
+// dans cet ordre : savoir ce qu on lui reclame, envoyer une facture,
+// verifier ce qu il a envoye. Tout le reste le ferait fuir.
 //
 // La page est concue pour le TELEPHONE. Mais on ne FORCE PAS l appareil
 // photo : l attribut capture, sur iPad, empeche de choisir un PDF deja
-// recu par courriel — or c est la moitie des factures. Sans lui, le
-// telephone propose les deux.
+// recu par courriel — or c est la moitie des factures.
+//
+// CHAQUE ENVOI SE ROUVRE. Un dirigeant qui vient de photographier veut
+// verifier que la photo est nette. Sans cela, il renvoie deux fois par
+// prudence, ou pire, il n ose plus rien envoyer.
 
-const BLEU = "#1a3a6b";
 const OR = "#c8a96e";
 const NOIR = "#050508";
 
@@ -227,19 +229,43 @@ export default function EspaceClient() {
           </div>
         )}
 
-        {/* CE QU IL A DEJA ENVOYE. Le rassurer, pour qu il n envoie pas deux
-            fois la meme piece. */}
+        {/* CE QU IL A DEJA ENVOYE, ET QU IL PEUT ROUVRIR. */}
         {deposees.length > 0 && (
           <div style={carte}>
-            <h2 style={{ fontSize: "17px", margin: "0 0 14px" }}>Vos derniers envois</h2>
+            <h2 style={{ fontSize: "17px", margin: "0 0 6px" }}>Vos documents</h2>
+            <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "12.5px", margin: "0 0 14px" }}>
+              Touchez un document pour le revoir.
+            </p>
+
             {deposees.map(function (p: any, i: number) {
               return (
-                <div key={i} style={{ padding: "9px 0", borderBottom: i < deposees.length - 1 ? "1px solid rgba(255,255,255,0.06)" : "none", fontSize: "13px", color: "rgba(255,255,255,0.6)" }}>
-                  {p.nom}
-                  <span style={{ color: "rgba(255,255,255,0.35)", marginLeft: "8px" }}>
-                    {jour(p.created_at)}
-                  </span>
-                </div>
+                <a
+                  key={p.id || i}
+                  href={"/api/comptable/portail-piece?j=" + encodeURIComponent(jeton) + "&piece=" + encodeURIComponent(p.id)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    gap: "12px",
+                    padding: "13px 0",
+                    borderBottom: i < deposees.length - 1 ? "1px solid rgba(255,255,255,0.06)" : "none",
+                    textDecoration: "none",
+                    color: "inherit",
+                  }}
+                >
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: "14px", color: "rgba(255,255,255,0.85)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {p.nom}
+                    </div>
+                    <div style={{ color: "rgba(255,255,255,0.35)", fontSize: "12px", marginTop: "3px" }}>
+                      {jour(p.created_at)}
+                      {p.ecriture_num ? " · rattaché" : " · en attente de traitement"}
+                    </div>
+                  </div>
+                  <span style={{ color: OR, fontSize: "13px", whiteSpace: "nowrap" }}>Voir</span>
+                </a>
               );
             })}
           </div>
