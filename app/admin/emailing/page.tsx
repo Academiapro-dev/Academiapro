@@ -10,6 +10,13 @@ const TYPES_EMAIL = [
   { id: "rappel_classe", label: "📅 Rappel Classe", desc: "Avant séance" },
 ];
 
+// Le produit commande l'expéditeur, l'adresse de réponse ET le contenu généré.
+// Un cabinet comptable ne doit pas recevoir un message signé d'une académie.
+const PRODUITS = [
+  { id: "academia", label: "AcadémIA Pro", desc: "Formation professionnelle" },
+  { id: "comptable", label: "Mr. Comptable", desc: "Cabinets comptables" },
+];
+
 export default function EmailingPage() {
   const [stats, setStats] = useState<any>(null);
   const [emails, setEmails] = useState<any[]>([]);
@@ -17,6 +24,7 @@ export default function EmailingPage() {
   const [loading, setLoading] = useState(false);
   const [resultat, setResultat] = useState<any>(null);
   const [typeSelectionne, setTypeSelectionne] = useState("bienvenue");
+  const [produit, setProduit] = useState("academia");
   const [contexte, setContexte] = useState({ prenom: "", nom: "", email: "", formation: "", mois: "", date: "", heure: "", jours: "7", progression: "" });
   const [envoyer, setEnvoyer] = useState(false);
 
@@ -37,7 +45,7 @@ export default function EmailingPage() {
     const r = await fetch("/api/emailing", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "generer", type: typeSelectionne, contexte, envoyer }),
+      body: JSON.stringify({ action: "generer", type: typeSelectionne, produit, contexte, envoyer }),
     });
     const data = await r.json();
     setResultat(data);
@@ -51,11 +59,13 @@ export default function EmailingPage() {
     { id: "historique", label: "📋 Historique" },
   ];
 
+  const marque = produit === "comptable" ? "Mr. Comptable" : "AcadémIA Pro";
+
   return (
     <div style={{ backgroundColor: "#050508", minHeight: "100vh", color: "#fff", fontFamily: "Georgia, serif" }}>
       <div style={{ background: "linear-gradient(135deg,#0a0a1a,#1a1a2e)", padding: "30px 20px" }}>
         <h1 style={{ color: "#c8a96e", margin: 0, fontSize: "24px" }}>📧 Agent Emailing</h1>
-        <p style={{ color: "rgba(255,255,255,0.5)", margin: "5px 0 0", fontSize: "13px" }}>AcadémIA Pro · Piloté par CAM</p>
+        <p style={{ color: "rgba(255,255,255,0.5)", margin: "5px 0 0", fontSize: "13px" }}>{marque} · Piloté par CAM</p>
       </div>
 
       <div style={{ display: "flex", gap: "5px", padding: "15px 20px", background: "rgba(255,255,255,0.03)", overflowX: "auto" }}>
@@ -103,7 +113,19 @@ export default function EmailingPage() {
 
         {onglet === "generer" && (
           <div>
-            <h2 style={{ color: "#c8a96e", fontSize: "16px", marginBottom: "20px" }}>GÉNÉRER UN EMAIL</h2>
+            <h2 style={{ color: "#c8a96e", fontSize: "16px", marginBottom: "12px" }}>PRODUIT</h2>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "25px" }}>
+              {PRODUITS.map(p => (
+                <button key={p.id} onClick={() => setProduit(p.id)}
+                  style={{ padding: "12px", borderRadius: "8px", border: `1px solid ${produit === p.id ? "#c8a96e" : "rgba(255,255,255,0.1)"}`, background: produit === p.id ? "rgba(200,169,110,0.2)" : "rgba(255,255,255,0.03)", color: produit === p.id ? "#c8a96e" : "rgba(255,255,255,0.6)", cursor: "pointer", textAlign: "left" }}>
+                  <div style={{ fontWeight: "bold", fontSize: "13px" }}>{p.label}</div>
+                  <div style={{ fontSize: "11px", marginTop: "3px" }}>{p.desc}</div>
+                </button>
+              ))}
+            </div>
+
+            <h2 style={{ color: "#c8a96e", fontSize: "16px", marginBottom: "12px" }}>TYPE D'EMAIL</h2>
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "20px" }}>
               {TYPES_EMAIL.map(t => (
@@ -119,7 +141,7 @@ export default function EmailingPage() {
               {[
                 { label: "Prénom", key: "prenom", placeholder: "Marie" },
                 { label: "Email destinataire", key: "email", placeholder: "marie@email.com" },
-                { label: "Formation", key: "formation", placeholder: "Sophrologie Caycédienne" },
+                { label: produit === "comptable" ? "Sujet d'intérêt" : "Formation", key: "formation", placeholder: produit === "comptable" ? "Tenue comptable et liasses" : "Sophrologie Caycédienne" },
                 { label: "Nom", key: "nom", placeholder: "Dupont" },
               ].map(f => (
                 <div key={f.key}>
@@ -142,6 +164,11 @@ export default function EmailingPage() {
 
             {resultat && !loading && (
               <div style={{ background: "#1a1a2e", borderRadius: "12px", padding: "20px", marginTop: "20px", border: "1px solid rgba(200,169,110,0.3)" }}>
+                {resultat.expediteur && (
+                  <div style={{ color: "rgba(255,255,255,0.5)", fontSize: "11px", marginBottom: "12px", wordBreak: "break-all" }}>
+                    Expéditeur : {resultat.expediteur}
+                  </div>
+                )}
                 <div style={{ color: "#c8a96e", fontWeight: "bold", fontSize: "13px", marginBottom: "8px" }}>SUJET</div>
                 <div style={{ color: "#fff", marginBottom: "15px", fontSize: "14px" }}>{resultat.sujet}</div>
                 <div style={{ color: "#c8a96e", fontWeight: "bold", fontSize: "13px", marginBottom: "8px" }}>CORPS</div>
@@ -177,4 +204,3 @@ export default function EmailingPage() {
     </div>
   );
 }
-
