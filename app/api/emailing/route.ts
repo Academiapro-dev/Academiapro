@@ -11,20 +11,47 @@ const supabase = createClient(
 const CLAUDE_API_KEY = process.env.ANTHROPIC_API_KEY!;
 const CLAUDE_MODEL = "claude-sonnet-4-6";
 
-// DEUX EXPEDITEURS, ET C EST VOULU.
+// DEUX AXES, ET C EST VOULU.
 //
-// La PROSPECTION part d un sous-domaine dedie : si une campagne se fait mal
-// noter, la reputation d academiapro.fr n est pas touchee, et les courriels
-// que les clients ATTENDENT — inscription, certificat, rappel de classe —
-// continuent d arriver.
+// AXE 1 — LE TYPE. La PROSPECTION part d un sous-domaine dedie : si une
+// campagne se fait mal noter, la reputation du domaine principal n est pas
+// touchee, et les courriels que les clients ATTENDENT — inscription,
+// certificat, facture — continuent d arriver.
 //
-// Personne ne releve la boite du sous-domaine : le reply_to ramene donc
-// toujours les reponses vers l adresse reelle.
-const EXPEDITEUR_PROSPECTION = "Jacques Lalou <jacques@contact-pro.academiapro.fr>";
-const EXPEDITEUR_CLIENT = "AcadémIA Pro <contact@academiapro.fr>";
-const REPONSE_VERS = "contact@academiapro.fr";
+// AXE 2 — LE PRODUIT. Un cabinet comptable ne doit pas recevoir un message
+// signe d une academie de formation. L expediteur, l adresse de reponse ET
+// le contenu genere suivent donc le produit.
+//
+// Personne ne releve la boite des sous-domaines de prospection : le reply_to
+// ramene donc toujours les reponses vers une adresse reelle.
+
+const PRODUITS: Record<string, any> = {
+  academia: {
+    marque: "AcadémIA Pro",
+    site: "academiapro.fr",
+    prospection: "Jacques Lalou <jacques@contact-pro.academiapro.fr>",
+    client: "AcadémIA Pro <contact@academiapro.fr>",
+    reponse: "contact@academiapro.fr",
+    metier: "la formation professionnelle",
+    cible: "un responsable de formation ou un dirigeant",
+  },
+  comptable: {
+    marque: "Mr. Comptable",
+    site: "mrcomptable.fr",
+    prospection: "Jacques Lalou <jacques@contact-pro.mrcomptable.fr>",
+    client: "Mr. Comptable <contact@mrcomptable.fr>",
+    reponse: "contact@mrcomptable.fr",
+    metier: "la tenue comptable et les declarations fiscales",
+    cible: "un expert-comptable ou un responsable de cabinet",
+  },
+};
 
 const TYPES_PROSPECTION = ["relance", "newsletter"];
+
+function produitDe(valeur: any) {
+  const cle = String(valeur || "academia").trim().toLowerCase();
+  return PRODUITS[cle] ? cle : "academia";
+}
 
 async function appel_claude(system: string, user: string): Promise<string> {
   const res = await fetch("https://api.anthropic.com/v1/messages", {
@@ -47,7 +74,14 @@ async function appel_claude(system: string, user: string): Promise<string> {
   return data.content[0].text || "";
 }
 
-async function envoyer_email(type: string, destinataire: string, sujet: string, corps: string) {
+async function envoyer_email(
+  type: string,
+  produit: string,
+  destinataire: string,
+  sujet: string,
+  corps: string
+) {
+  const p = PRODUITS[produit] || PRODUITS.academia;
   const prospection = TYPES_PROSPECTION.indexOf(String(type)) >= 0;
 
   const res = await fetch("https://api.resend.com/emails", {
@@ -57,8 +91,8 @@ async function envoyer_email(type: string, destinataire: string, sujet: string, 
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      from: prospection ? EXPEDITEUR_PROSPECTION : EXPEDITEUR_CLIENT,
-      reply_to: REPONSE_VERS,
+      from: prospection ? p.prospection : p.client,
+      reply_to: p.reponse,
       to: destinataire,
       subject: sujet,
       html: corps.replace(/\n/g, "<br/>"),
@@ -67,55 +101,67 @@ async function envoyer_email(type: string, destinataire: string, sujet: string, 
   return res.ok;
 }
 
-async function sauver_email(type: string, destinataire: string, sujet: string, corps: string) {
+async function sauver_email(
+  type: string,
+  destinataire: string,
+  sujet: string,
+  corps: string,
+  envoye: boolean
+) {
   await supabase.from("emails_automatiques").insert({
     type, destinataire, sujet, corps,
-    envoye: false,
+    envoye: envoye,
     created_at: new Date().toISOString(),
   });
 }
 
-async function generer_campagne(type: string, contexte: any): Promise<{ sujet: string; corps: string }> {
-  const system = `Tu es l Agent Emailing d AcadémIA Pro. Tu rediges des emails professionnels et engageants. Style chaleureux et professionnel. Pas de guillemets doubles. Pas de markdown.`;
+async function generer_campagne(
+  type: string,
+  produit: string,
+  contexte: any
+): Promise<{ sujet: string; corps: string }> {
+  const p = PRODUITS[produit] || PRODUITS.academia;
+
+  const system = `Tu es l Agent Emailing de ${p.marque}, qui edite un logiciel pour ${p.metier}. Tu rediges des emails professionnels et engageants a destination de ${p.cible}. Style chaleureux et professionnel. Ne cite jamais une autre marque que ${p.marque}. Pas de guillemets doubles. Pas de markdown. Jamais de statistique inventee, jamais de nom de client, jamais de promesse de resultat, jamais de mention de certification.`;
 
   const prompts: Record<string, string> = {
-    bienvenue: `Redige un email de bienvenue pour un nouvel inscrit sur AcadémIA Pro.
-Prénom: ${contexte.prenom || "cher apprenant"}
-Formation: ${contexte.formation || "votre formation"}
-Inclus: accueil chaleureux, acces plateforme, formateur assigne, prochaines etapes, contact support.
+    bienvenue: `Redige un email de bienvenue pour un nouvel inscrit sur ${p.marque}.
+Prénom: ${contexte.prenom || "cher client"}
+Offre: ${contexte.formation || "votre acces"}
+Inclus: accueil chaleureux, acces a la plateforme, prochaines etapes, contact support.
 Format: SUJET: xxx\n\nCORPS: xxx`,
 
-    relance: `Redige un email de relance pour un prospect qui n a pas encore achete.
+    relance: `Redige un email de relance pour un prospect qui n a pas encore souscrit a ${p.marque}.
 Nom: ${contexte.nom || "cher prospect"}
-Formation interessee: ${contexte.formation || "nos formations"}
-Inclus: rappel valeur formation, offre speciale, urgence douce, CTA vers academiapro.fr.
+Sujet d interet: ${contexte.formation || "notre solution"}
+Inclus: rappel de la valeur, urgence douce, CTA vers ${p.site}.
 Format: SUJET: xxx\n\nCORPS: xxx`,
 
-    remotivation: `Redige un email de remotivation pour un apprenant inactif depuis ${contexte.jours || 7} jours.
-Prénom: ${contexte.prenom || "cher apprenant"}
-Formation: ${contexte.formation || "votre formation"}
+    remotivation: `Redige un email de remotivation pour un utilisateur de ${p.marque} inactif depuis ${contexte.jours || 7} jours.
+Prénom: ${contexte.prenom || "cher client"}
+Offre: ${contexte.formation || "votre acces"}
 Progression: ${contexte.progression || "en cours"}
-Inclus: encouragement, rappel objectifs, offre aide formateur, CTA reprendre formation.
+Inclus: encouragement, rappel des objectifs, offre d aide, CTA reprendre.
 Format: SUJET: xxx\n\nCORPS: xxx`,
 
-    certification: `Redige un email de felicitations pour un apprenant qui vient d obtenir sa certification.
+    certification: `Redige un email de felicitations pour un apprenant de ${p.marque} qui vient d obtenir son attestation.
 Prénom: ${contexte.prenom || "cher apprenant"}
 Formation: ${contexte.formation || "votre formation"}
-Inclus: felicitations chaleureuses, valeur du certificat, prochaine formation recommandee, partage LinkedIn.
+Inclus: felicitations chaleureuses, valeur de l attestation, suite recommandee.
 Format: SUJET: xxx\n\nCORPS: xxx`,
 
-    newsletter: `Redige une newsletter mensuelle pour AcadémIA Pro.
+    newsletter: `Redige une newsletter mensuelle pour ${p.marque}.
 Mois: ${contexte.mois || new Date().toLocaleDateString("fr-FR", { month: "long", year: "numeric" })}
-Nouvelles formations: ${contexte.nouvelles_formations || "nouvelles formations disponibles"}
-Inclus: actualites plateforme, formation du mois, conseil pratique IA, CTA catalogue.
+Nouveautes: ${contexte.nouvelles_formations || "nouveautes du mois"}
+Inclus: actualites, conseil pratique, CTA vers ${p.site}.
 Format: SUJET: xxx\n\nCORPS: xxx`,
 
-    rappel_classe: `Redige un email de rappel pour une classe virtuelle.
+    rappel_classe: `Redige un email de rappel pour une classe virtuelle ${p.marque}.
 Prénom: ${contexte.prenom || "cher apprenant"}
 Formation: ${contexte.formation || "votre formation"}
 Date: ${contexte.date || "demain"}
 Heure: ${contexte.heure || "14h00"}
-Inclus: rappel classe, lien connexion, preparation, contact formateur.
+Inclus: rappel, lien de connexion, preparation, contact formateur.
 Format: SUJET: xxx\n\nCORPS: xxx`,
   };
 
@@ -138,7 +184,7 @@ Format: SUJET: xxx\n\nCORPS: xxx`,
     }
   }
 
-  if (!sujet) sujet = `AcadémIA Pro — ${type}`;
+  if (!sujet) sujet = `${p.marque} — ${type}`;
   if (!corps) corps = texte;
 
   return { sujet, corps: corps.trim() };
@@ -157,16 +203,13 @@ async function stats_emailing() {
 }
 
 export async function POST(req: NextRequest) {
-  // Garde-fou : n accepter que les appels du site
+  // Garde-fou : n accepter que les appels des sites de la maison.
   const origineApp = req.headers.get("origin") || "";
   const referentApp = req.headers.get("referer") || "";
-  const appelLegitime =
-    origineApp.includes("academiapro.fr")
-    || referentApp.includes("academiapro.fr")
-    || origineApp.includes("vercel.app")
-    || referentApp.includes("vercel.app")
-    || origineApp.includes("localhost")
-    || referentApp.includes("localhost");
+  const DOMAINES = ["academiapro.fr", "mrcomptable.fr", "vercel.app", "localhost"];
+  const appelLegitime = DOMAINES.some(function (d) {
+    return origineApp.includes(d) || referentApp.includes(d);
+  });
   if (!appelLegitime) {
     return NextResponse.json(
       { error: "Acces refuse" },
@@ -180,21 +223,32 @@ export async function POST(req: NextRequest) {
 
     if (action === "generer") {
       const { type, contexte, envoyer } = body;
-      const { sujet, corps } = await generer_campagne(type, contexte || {});
-      await sauver_email(type, contexte?.email || "contact@academiapro.fr", sujet, corps);
+      const produit = produitDe(body.produit);
+      const p = PRODUITS[produit];
+
+      const { sujet, corps } = await generer_campagne(type, produit, contexte || {});
+
+      let ok = false;
+      if (envoyer && contexte?.email) {
+        ok = await envoyer_email(type, produit, contexte.email, sujet, corps);
+      }
+
+      // On enregistre le statut REEL de l envoi, pas une valeur figee :
+      // sans cela les statistiques annoncent zero envoi alors que tout part.
+      await sauver_email(type, contexte?.email || p.reponse, sujet, corps, ok);
 
       if (envoyer && contexte?.email) {
-        const ok = await envoyer_email(type, contexte.email, sujet, corps);
         return NextResponse.json({
           succes: true,
           sujet,
           corps,
           envoye: ok,
-          expediteur: TYPES_PROSPECTION.indexOf(String(type)) >= 0 ? "prospection" : "client",
+          produit: produit,
+          expediteur: TYPES_PROSPECTION.indexOf(String(type)) >= 0 ? p.prospection : p.client,
         });
       }
 
-      return NextResponse.json({ succes: true, sujet, corps, envoye: false });
+      return NextResponse.json({ succes: true, sujet, corps, envoye: false, produit: produit });
     }
 
     if (action === "stats") return NextResponse.json(await stats_emailing());
