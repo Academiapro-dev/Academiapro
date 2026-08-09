@@ -53,15 +53,35 @@ const API_SESSION_REQUISE = [
 
 const HOTES_CONNUS = ['academiapro.fr', 'www.academiapro.fr', 'localhost'];
 
+// MARQUES DE LA MAISON.
+//
+// Un meme deploiement sert plusieurs domaines : le code est unique, seule la
+// vitrine change. Le visiteur qui arrive par mrcomptable.fr voit les pages
+// de /comptable sans que l adresse le trahisse.
+//
+// ATTENTION : un hote absent de cette liste ET de HOTES_CONNUS est traite
+// comme un portail de marque blanche d organisme, et sa racine part vers
+// /of/@son-domaine. Un domaine de la maison oublie ici tombe donc sur une
+// page vide.
+const MARQUES: Record<string, string> = {
+  'mrcomptable.fr': '/comptable',
+  'www.mrcomptable.fr': '/comptable',
+};
+
 const NOM_COOKIE_SESSION = 'session_academia';
 
 function correspond(chemin: string, liste: string[]): boolean {
   return liste.some((p) => chemin === p || chemin.startsWith(p + '/'));
 }
 
+function hoteNu(hote: string): string {
+  return hote.split(':')[0].toLowerCase();
+}
+
 function estNotre(hote: string): boolean {
-  const h = hote.split(':')[0].toLowerCase();
+  const h = hoteNu(hote);
   if (HOTES_CONNUS.indexOf(h) >= 0) return true;
+  if (MARQUES[h]) return true;
   return h.endsWith('.vercel.app');
 }
 
@@ -122,10 +142,33 @@ export async function middleware(request: NextRequest) {
   const chemin = request.nextUrl.pathname;
   const session = request.cookies.get(NOM_COOKIE_SESSION)?.value;
   const hote = request.headers.get('host') || '';
+  const h = hoteNu(hote);
+
+  // Une marque de la maison : la racine et les pages de vitrine partent vers
+  // le dossier du produit. Le reste — connexion, espaces, administration —
+  // continue de fonctionner tel quel, sur le meme deploiement.
+  const racineMarque = MARQUES[h];
+  if (racineMarque) {
+    if (chemin === '/') {
+      const url = request.nextUrl.clone();
+      url.pathname = racineMarque;
+      return NextResponse.rewrite(url);
+    }
+    // Les pages de la vitrine se demandent sans prefixe depuis ce domaine :
+    // mrcomptable.fr/inscription sert /comptable/inscription. On ne reecrit
+    // que si la page existe cote produit ; les chemins connus de la maison
+    // passent leur chemin.
+    const RESERVES = ['/admin', '/api', '/connexion', '/comptable', '/of', '/maintenance', '/_next'];
+    if (!correspond(chemin, RESERVES)) {
+      const url = request.nextUrl.clone();
+      url.pathname = racineMarque + chemin;
+      return NextResponse.rewrite(url);
+    }
+  }
 
   if (hote && !estNotre(hote) && chemin === '/') {
     const url = request.nextUrl.clone();
-    url.pathname = '/of/@' + hote.split(':')[0].toLowerCase();
+    url.pathname = '/of/@' + h;
     return NextResponse.rewrite(url);
   }
 
