@@ -46,7 +46,7 @@ const PRODUITS: Record<string, any> = {
   },
 };
 
-const TYPES_PROSPECTION = ["relance", "newsletter"];
+const TYPES_PROSPECTION = ["prospection", "relance", "newsletter"];
 
 function produitDe(valeur: any) {
   const cle = String(valeur || "academia").trim().toLowerCase();
@@ -122,19 +122,39 @@ async function generer_campagne(
 ): Promise<{ sujet: string; corps: string }> {
   const p = PRODUITS[produit] || PRODUITS.academia;
 
-  const system = `Tu es l Agent Emailing de ${p.marque}, qui edite un logiciel pour ${p.metier}. Tu rediges des emails professionnels et engageants a destination de ${p.cible}. Style chaleureux et professionnel. Ne cite jamais une autre marque que ${p.marque}. Pas de guillemets doubles. Pas de markdown. Jamais de statistique inventee, jamais de nom de client, jamais de promesse de resultat, jamais de mention de certification.`;
+  // INTERDICTIONS ABSOLUES. Le modele contourne les consignes vagues par des
+  // formules generiques — « les retours de nos utilisateurs », « nos clients
+  // constatent ». Devant un professionnel du chiffre, une allegation
+  // invérifiable coute la credibilite de tout le message.
+  const system = `Tu es l Agent Emailing de ${p.marque}, qui edite un logiciel pour ${p.metier}. Tu ecris a ${p.cible}, au nom de Jacques Lalou, fondateur, a la premiere personne du singulier.
+
+INTERDICTIONS ABSOLUES, sans exception :
+- Ne jamais evoquer des utilisateurs, clients ou temoignages existants, meme de facon vague ou anonyme. Pas de « nos utilisateurs », « nos clients », « les retours du terrain », « beaucoup de cabinets ».
+- Ne jamais citer de chiffre, de pourcentage, de duree de gain, de classement ni de statistique.
+- Ne jamais promettre un resultat.
+- Ne jamais mentionner une certification, un agrement ou un label.
+- Ne jamais citer une autre marque que ${p.marque}.
+- Ne jamais inventer un contact anterieur, une demande ou un echange qui n a pas eu lieu.
+
+Style : direct, sobre, professionnel, chaleureux sans familiarite. Signature : Jacques Lalou, ${p.marque}. Pas de guillemets doubles. Pas de markdown.`;
 
   const prompts: Record<string, string> = {
+    prospection: `Redige un PREMIER courriel de prise de contact a froid pour ${p.marque}. Le destinataire ne te connait pas et n a jamais rien demande : n invente aucun historique.
+Nom: ${contexte.nom || "Madame, Monsieur"}
+Sujet: ${contexte.formation || "notre solution"}
+Court — dix lignes au maximum. Dis qui tu es, ce que fait l outil concretement, et propose un echange bref. Termine par ${p.site}. Aucune pression, aucune urgence artificielle.
+Format: SUJET: xxx\n\nCORPS: xxx`,
+
     bienvenue: `Redige un email de bienvenue pour un nouvel inscrit sur ${p.marque}.
 Prénom: ${contexte.prenom || "cher client"}
 Offre: ${contexte.formation || "votre acces"}
 Inclus: accueil chaleureux, acces a la plateforme, prochaines etapes, contact support.
 Format: SUJET: xxx\n\nCORPS: xxx`,
 
-    relance: `Redige un email de relance pour un prospect qui n a pas encore souscrit a ${p.marque}.
+    relance: `Redige une relance pour un prospect qui a DEJA ete en contact avec ${p.marque} et n a pas donne suite. N invente rien d autre sur cet echange.
 Nom: ${contexte.nom || "cher prospect"}
 Sujet d interet: ${contexte.formation || "notre solution"}
-Inclus: rappel de la valeur, urgence douce, CTA vers ${p.site}.
+Inclus: rappel de ce que fait l outil, proposition d echange, CTA vers ${p.site}. Pas d urgence artificielle.
 Format: SUJET: xxx\n\nCORPS: xxx`,
 
     remotivation: `Redige un email de remotivation pour un utilisateur de ${p.marque} inactif depuis ${contexte.jours || 7} jours.
@@ -144,10 +164,10 @@ Progression: ${contexte.progression || "en cours"}
 Inclus: encouragement, rappel des objectifs, offre d aide, CTA reprendre.
 Format: SUJET: xxx\n\nCORPS: xxx`,
 
-    certification: `Redige un email de felicitations pour un apprenant de ${p.marque} qui vient d obtenir son attestation.
+    certification: `Redige un email de felicitations pour un apprenant de ${p.marque} qui vient d obtenir son attestation de suivi.
 Prénom: ${contexte.prenom || "cher apprenant"}
 Formation: ${contexte.formation || "votre formation"}
-Inclus: felicitations chaleureuses, valeur de l attestation, suite recommandee.
+Inclus: felicitations chaleureuses, ce que l attestation atteste, suite recommandee.
 Format: SUJET: xxx\n\nCORPS: xxx`,
 
     newsletter: `Redige une newsletter mensuelle pour ${p.marque}.
