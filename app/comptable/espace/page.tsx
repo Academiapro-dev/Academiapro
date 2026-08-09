@@ -7,8 +7,10 @@ import { useState, useEffect } from "react";
 // dans cet ordre : savoir ce qu on lui reclame, envoyer une photo de
 // facture, repartir. Tout le reste le ferait fuir.
 //
-// La page est concue pour le TELEPHONE : c est la que la photo se prend.
-// Un bouton unique, tres grand, qui ouvre directement l appareil photo.
+// La page est concue pour le TELEPHONE. Mais on ne FORCE PAS l appareil
+// photo : l attribut capture, sur iPad, empeche de choisir un PDF deja
+// recu par courriel — or c est la moitie des factures. Sans lui, le
+// telephone propose les deux.
 
 const BLEU = "#1a3a6b";
 const OR = "#c8a96e";
@@ -136,8 +138,8 @@ export default function EspaceClient() {
         <div style={{ ...carte, borderColor: "rgba(200,169,110,0.45)", textAlign: "center", padding: "28px 20px" }}>
           <h2 style={{ fontSize: "19px", margin: "0 0 8px" }}>Envoyer une facture</h2>
           <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "14px", lineHeight: "1.6", margin: "0 0 20px" }}>
-            Photographiez le document. Une photo nette suffit : il est lu
-            automatiquement.
+            Photographiez le document, ou choisissez un fichier déjà sur votre
+            appareil. Une photo nette suffit : il est lu automatiquement.
           </p>
 
           {pour && (
@@ -158,11 +160,10 @@ export default function EspaceClient() {
               cursor: envoi ? "default" : "pointer",
             }}
           >
-            {envoi ? "Envoi en cours…" : "Prendre une photo ou choisir un fichier"}
+            {envoi ? "Envoi en cours…" : "Photo ou fichier"}
             <input
               type="file"
               accept="image/*,application/pdf"
-              capture="environment"
               disabled={envoi}
               onChange={function (e) { envoyer(e.target.files ? e.target.files[0] : null); }}
               style={{ display: "none" }}
