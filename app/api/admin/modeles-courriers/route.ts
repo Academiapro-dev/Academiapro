@@ -26,48 +26,68 @@ const supabase = createClient(
 // demande, plutot que d entretenir deux versions qui divergeraient a la
 // premiere correction.
 //
-// La transformation est mecanique, donc imparfaite : elle est faite pour
-// des textes commerciaux ecrits simplement. Le resultat se RELIT toujours
-// avant l envoi — c est le prix d une regle automatique sur une langue qui
-// ne l est pas.
+// L ORDRE DES REGLES COMPTE. Les formes les plus longues passent d abord :
+// « vous appartiennent » avant « vous », faute de quoi on obtient
+// « elles tu appartiennent ». Et les titres en capitales ont leurs propres
+// regles, la casse ne se devinant pas.
+//
+// La transformation reste mecanique, donc imparfaite : le resultat se RELIT
+// toujours avant l envoi.
 const TUTOIEMENT: any[] = [
-  // Les formes les plus longues d abord : « vous seul » avant « vous ».
+  // --- Capitales des titres ---
+  [/\bVOUS GÉREZ\b/g, "TU GÈRES"],
+  [/\bVOS STAGIAIRES\b/g, "TES STAGIAIRES"],
+  [/\bCE QUE VOUS AURIEZ\b/g, "CE QUE TU AURAIS"],
+  [/\bVOUS AURIEZ\b/g, "TU AURAIS"],
+  [/\bVOUS\b/g, "TU"],
+  [/\bVOS\b/g, "TES"],
+  [/\bVOTRE\b/g, "TON"],
+
+  // --- « vous » complement d objet : il devient « t' » ou « te » ---
+  [/\bvous appartiennent\b/g, "t'appartiennent"],
+  [/\bvous appartient\b/g, "t'appartient"],
+  [/\bvous en resterait\b/g, "t'en resterait"],
+  [/\bvous en reste\b/g, "t'en reste"],
+  [/\bvous parle\b/g, "te parle"],
+  [/\bvous dire\b/g, "te dire"],
+  [/\bvous suivre\b/g, "te suivre"],
+
+  // --- Formes verbales, les plus longues d abord ---
   [/\bVous seul pouvez\b/g, "Toi seul peux"],
   [/\bvous seul pouvez\b/g, "toi seul peux"],
   [/\bvous n'auriez\b/g, "tu n'aurais"],
+  [/\bVous n'auriez\b/g, "Tu n'aurais"],
   [/\bvous auriez\b/g, "tu aurais"],
+  [/\bVous auriez\b/g, "Tu aurais"],
   [/\bvous conserveriez\b/g, "tu conserverais"],
   [/\bVous conserveriez\b/g, "Tu conserverais"],
-  [/\bvous creeriez\b/g, "tu creerais"],
   [/\bvous créeriez\b/g, "tu créerais"],
-  [/\bvous gerez\b/g, "tu geres"],
+  [/\bvous creeriez\b/g, "tu creerais"],
   [/\bvous gérez\b/g, "tu gères"],
-  [/\bVOUS GÉREZ\b/g, "TU GÈRES"],
+  [/\bvous gerez\b/g, "tu geres"],
   [/\bvous vendez\b/g, "tu vends"],
-  [/\bvous parle\b/g, "te parle"],
-  [/\bvous en resterait\b/g, "t'en resterait"],
+  [/\bvous pouvez\b/g, "tu peux"],
+  [/\bvous voulez\b/g, "tu veux"],
+  [/\bvous avez\b/g, "tu as"],
+  [/\bvous êtes\b/g, "tu es"],
+  [/\bvous etes\b/g, "tu es"],
+  [/\bvous savez\b/g, "tu sais"],
+  [/\bvous verrez\b/g, "tu verras"],
+
+  // --- Imperatifs ---
   [/\bDonnez-moi\b/g, "Donne-moi"],
   [/\bDites-moi\b/g, "Dis-moi"],
+  [/\bEnvoyez-moi\b/g, "Envoie-moi"],
+  [/\bAppelez-moi\b/g, "Appelle-moi"],
+
+  // --- Possessifs et locutions ---
   [/\bvous-même\b/g, "toi-même"],
   [/\bvous-meme\b/g, "toi-meme"],
   [/\bchez vous\b/g, "chez toi"],
-  [/\bVOS STAGIAIRES\b/g, "TES STAGIAIRES"],
-  [/\bvos stagiaires\b/g, "tes stagiaires"],
-  [/\bvos vrais volumes\b/g, "tes vrais volumes"],
-  [/\bvos conventions\b/g, "tes conventions"],
-  [/\bvos émargements\b/g, "tes émargements"],
-  [/\bvos attestations\b/g, "tes attestations"],
-  [/\bvos propres formations\b/g, "tes propres formations"],
-  [/\bvos équipes\b/g, "tes équipes"],
-  [/\bvos couleurs\b/g, "tes couleurs"],
-  [/\bvos documents\b/g, "tes documents"],
-  [/\bVotre plateforme\b/g, "Ta plateforme"],
-  [/\bvotre plateforme\b/g, "ta plateforme"],
-  [/\bvotre nom\b/g, "ton nom"],
-  [/\bvotre propre domaine\b/g, "ton propre domaine"],
-  [/\bvotre logo\b/g, "ton logo"],
-  [/\bvotre espace\b/g, "ton espace"],
-  [/\bvotre fonctionnement\b/g, "ton fonctionnement"],
+  [/\bpour vous\b/g, "pour toi"],
+  [/\bavec vous\b/g, "avec toi"],
+
+  // --- Le reste, en dernier ---
   [/\bvos\b/g, "tes"],
   [/\bVos\b/g, "Tes"],
   [/\bvotre\b/g, "ton"],
@@ -122,14 +142,13 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: false, erreur: "Modele inconnu : " + cle }, { status: 404 });
     }
 
-    let corps = data.corps;
+    // Le tutoiement AVANT le prenom : sinon la regle transformerait un nom
+    // qui contiendrait par hasard une forme reconnue.
+    let corps = tu ? tutoyer(data.corps) : data.corps;
 
-    // Le prenom remplace le « Bonjour, » seul, quand il est fourni.
     if (destinataire) {
       corps = corps.replace(/^Bonjour,/, tu ? destinataire + "," : "Bonjour " + destinataire + ",");
     }
-
-    if (tu) corps = tutoyer(corps);
 
     return NextResponse.json({
       ok: true,
