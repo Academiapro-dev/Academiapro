@@ -8,10 +8,10 @@ export const maxDuration = 300;
 
 const ADMINS = ["contact@academiapro.fr"];
 
-// Trente par appel. Une route qui fait ecrire un long texte par l IA ne
-// tient pas dans une requete de navigateur : on decoupe, et chaque appel
-// renvoie le lien du suivant.
-const PAR_LOT = 30;
+// Dix par appel par defaut. Trente depassait le temps que le navigateur
+// accepte d attendre : la route travaillait, mais la reponse n arrivait
+// jamais. Le parametre lot= permet d ajuster sans redeployer.
+const PAR_LOT = 10;
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
@@ -20,26 +20,21 @@ const supabase = createClient(
 
 // Les mots qui, en francais, portent presque toujours un accent. Si un
 // texte long n en contient AUCUN et ne comporte AUCUN de ces mots, il est
-// probablement correct tel quel : « Savoir utiliser un ordinateur et
-// naviguer sur Internet » n a besoin de rien.
-//
-// Sans ce filtre, ces textes reviennent a chaque lot et occupent une place
-// pour rien, indefiniment.
+// probablement correct tel quel.
 const INDICES = [
   "avance", "maitris", "developp", "integr", "realis", "methode", "strateg",
   "securite", "prevention", "specialis", "prepar", "acquer", "competence",
   "experience", "necessaire", "different", "premiere", "derniere", "annee",
-  "systeme", "modele", "resultat", "objectif", "cle ", "etape", "meme",
+  "systeme", "modele", "resultat", "objectif", "etape", "meme",
   "apres", "deja", "tres", "creer", "gerer", "operationnel", "controle",
   "qualite", "activite", "societe", "procedure", "reference", "elabor",
   "evaluer", "ameliorer", "financ", "comptabilite", "fiscal", "juridiqu",
   "numerique", "reseau", "donnee", "utilisateur", "interet", "marche",
-  "clientele", "salarie", "employe", "entreprise", "l ", "d ", "n ", "s ",
-  "qu ", "c ", "j ", "aujourd",
+  "clientele", "salarie", "employe", "entreprise", "aujourd",
+  "seance", "reflexe", "mecanisme", "electrique", "econome", "regle",
+  "protege", "reperer", "connaitre", "reconnaitre", "etiquetage",
 ];
 
-// Un texte est suspect s il est long, ne porte AUCUN accent, ET contient au
-// moins un mot qui devrait en porter un.
 function suspect(t: any): boolean {
   const s = String(t || "");
   if (s.length < 40) return false;
@@ -110,6 +105,9 @@ export async function GET(req: NextRequest) {
     const url = new URL(req.url);
     const essai = url.searchParams.get("essai") === "1";
 
+    const demande = parseInt(url.searchParams.get("lot") || "0", 10);
+    const parLot = demande > 0 && demande <= 40 ? demande : PAR_LOT;
+
     const { data: toutes, error } = await supabase
       .from("formations")
       .select("code, titre, description, objectifs, prerequis, public_cible")
@@ -154,9 +152,10 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    const lot = aTraiter.slice(0, PAR_LOT);
+    const lot = aTraiter.slice(0, parLot);
     const resultats: any[] = [];
     let corriges = 0;
+    let inchanges = 0;
 
     for (const f of lot) {
       try {
@@ -166,20 +165,18 @@ export async function GET(req: NextRequest) {
 
         const modifications: any = {};
         for (let i = 0; i < noms.length; i++) {
-          // Garde-fou : si la longueur varie de plus de vingt pour cent,
-          // l IA a reecrit au lieu d accentuer. On refuse.
           const avant = valeurs[i].length;
           const apres = String(reponse[i]).length;
           if (apres < avant * 0.8 || apres > avant * 1.3) {
             resultats.push({ code: f.code, champ: noms[i], statut: "refuse, longueur suspecte" });
             continue;
           }
-          // Inutile d ecrire si rien n a change.
           if (String(reponse[i]) === valeurs[i]) continue;
           modifications[noms[i]] = reponse[i];
         }
 
         if (Object.keys(modifications).length === 0) {
+          inchanges = inchanges + 1;
           resultats.push({ code: f.code, statut: "deja correct" });
           continue;
         }
@@ -206,13 +203,11 @@ export async function GET(req: NextRequest) {
       ok: true,
       examines: lot.length,
       corriges: corriges,
+      inchanges: inchanges,
       restant: restant,
       resultats: resultats,
       message: restant > 0
         ? "Il reste " + restant + " formation(s). Rouvrez la meme adresse pour continuer."
         : "Termine.",
     });
-  } catch (e: any) {
-    return NextResponse.json({ ok: false, erreur: String(e.message || e) }, { status: 500 });
   }
-}
