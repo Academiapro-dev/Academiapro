@@ -135,6 +135,8 @@ const MODELES = [
       "Client et y compris lorsque la formation n est facturee a personne : il couvre les " +
       "couts de plateforme, de correction et de traitement automatise que chaque inscription " +
       "engendre.\n\n" +
+      "Ce minimum ne s applique pas lorsque le Client a retenu la gestion administrative " +
+      "prevue a l article 7, qui s y substitue.\n\n" +
       "Affaires apportees : lorsque l Editeur presente au Client un client final qu il a " +
       "trouve lui-meme, la part revenant a l Editeur sur cette affaire est portee a 50 % du " +
       "prix de vente hors taxes.\n\n" +
@@ -146,16 +148,21 @@ const MODELES = [
       "de la facture.\n\n" +
       "Toute somme impayee a son echeance porte interet au taux legal majore, et donne lieu a " +
       "l indemnite forfaitaire de recouvrement prevue par le code de commerce.\n\n" +
-      "## Article 7 - Gestion administrative des formations propres du Client\n\n" +
-      "Cette prestation est optionnelle. Elle n est due que si le Client la demande, et se " +
+      "## Article 7 - Gestion administrative des stagiaires\n\n" +
+      "Cette prestation est optionnelle. Elle n est due que si le Client la retient, et se " +
       "substitue alors au minimum par stagiaire defini a l article 5.\n\n" +
-      "Lorsqu elle est retenue, l Editeur prend en charge, pour les formations propres du " +
-      "Client : la production des conventions et contrats, des convocations, des feuilles " +
-      "d emargement, des evaluations, des attestations de fin de formation, ainsi que la " +
-      "constitution des pieces justificatives attendues lors d un audit, et la preparation des " +
-      "elements du bilan pedagogique et financier.\n\n" +
+      "Lorsqu elle est retenue, l Editeur prend en charge, pour l ensemble des stagiaires du " +
+      "Client, quelle que soit l origine de la formation suivie : la production des " +
+      "conventions et contrats, des convocations, des feuilles d emargement, des evaluations, " +
+      "des attestations de fin de formation, ainsi que la constitution des pieces " +
+      "justificatives attendues lors d un audit, et la preparation des elements du bilan " +
+      "pedagogique et financier.\n\n" +
       "Prix : {{gestion}} euros hors taxes par stagiaire inscrit, tout compris, minimum de " +
       "l article 5 inclus.\n\n" +
+      "CONTREPARTIE. En consideration de cette prestation, la part due a l Editeur sur son " +
+      "catalogue, definie a l article 5, est ramenee au taux reduit qui y figure. Si le Client " +
+      "renonce a la gestion administrative, le taux plein est retabli par avenant, et le " +
+      "minimum par stagiaire redevient applicable.\n\n" +
       "Le Client demeure seul responsable, devant l administration comme devant tout " +
       "certificateur, de l exactitude des informations qu il transmet, de la verification des " +
       "documents produits, et du depot de ses declarations. L Editeur produit les elements ; " +
@@ -273,6 +280,8 @@ const MODELES = [
       "montants suivants : la commission definie ci-dessus, ou {{plancher}} euros hors taxes. " +
       "Ce minimum est du pour tout stagiaire inscrit, y compris sur les formations propres du " +
       "Client et y compris lorsque la formation n est facturee a personne.\n\n" +
+      "Ce minimum ne s applique pas lorsque le Client a retenu la gestion administrative " +
+      "prevue a l article 8, qui s y substitue.\n\n" +
       "Affaires apportees : lorsque l Editeur presente au Client un client final qu il a " +
       "trouve lui-meme, la part revenant a l Editeur sur cette affaire est portee a 50 % du " +
       "prix de vente hors taxes.\n\n" +
@@ -292,15 +301,20 @@ const MODELES = [
       "d abandon, d interruption ou d absence du stagiaire.\n\n" +
       "Le decompte est etabli mensuellement. Le reglement intervient a trente jours a compter " +
       "de la facture, par virement, sans compensation ni deduction.\n\n" +
-      "## Article 8 - Gestion administrative des formations propres du Client\n\n" +
-      "Cette prestation est optionnelle. Elle n est due que si le Client la demande, et se " +
+      "## Article 8 - Gestion administrative des stagiaires\n\n" +
+      "Cette prestation est optionnelle. Elle n est due que si le Client la retient, et se " +
       "substitue alors au minimum par stagiaire defini a l article 5.\n\n" +
-      "Lorsqu elle est retenue, l Editeur prend en charge, pour les formations propres du " +
-      "Client : la production des documents contractuels et pedagogiques, des convocations, " +
-      "des feuilles d emargement, des evaluations, des attestations de fin de formation, ainsi " +
-      "que la constitution des pieces justificatives d execution.\n\n" +
+      "Lorsqu elle est retenue, l Editeur prend en charge, pour l ensemble des stagiaires du " +
+      "Client, quelle que soit l origine de la formation suivie : la production des documents " +
+      "contractuels et pedagogiques, des convocations, des feuilles d emargement, des " +
+      "evaluations, des attestations de fin de formation, ainsi que la constitution des pieces " +
+      "justificatives d execution.\n\n" +
       "Prix : {{gestion}} euros hors taxes par stagiaire inscrit, tout compris, minimum de " +
       "l article 5 inclus.\n\n" +
+      "CONTREPARTIE. En consideration de cette prestation, la part due a l Editeur sur son " +
+      "catalogue, definie a l article 5, est ramenee au taux reduit qui y figure. Si le Client " +
+      "renonce a la gestion administrative, le taux plein est retabli par avenant, et le " +
+      "minimum par stagiaire redevient applicable.\n\n" +
       "Le Client demeure seul responsable de l exactitude des informations qu il transmet, de " +
       "la verification des documents produits, de leur conformite au droit de son pays, et de " +
       "leur depot aupres de toute autorite. L Editeur produit les elements ; le Client les " +
