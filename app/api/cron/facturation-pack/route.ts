@@ -15,6 +15,10 @@ const PROJET = "academia";
 
 // GRILLE DU PACK, TELLE QUE LE CONTRAT L ECRIT.
 //
+// Mise en service, UNE SEULE FOIS, a la premiere facture. La date de
+// facturation est enregistree a la fiche : sans ce marqueur, un cron
+// mensuel la reprendrait chaque mois.
+//
 // Abonnement mensuel, du quel que soit l usage.
 //
 // Puis, POUR CHAQUE STAGIAIRE INSCRIT DANS LE MOIS, selon l origine de son
@@ -75,13 +79,11 @@ export async function GET(req: NextRequest) {
 
     const essai = url.searchParams.get("essai") === "1";
 
-    // Les clients du pack : ceux qui vendent des formations. Un cabinet
-    // comptable n est pas concerne, il a sa propre facturation.
     const { data: clients, error: eCli } = await supabase
       .from("organismes_formation")
       .select("tenant_id, raison_sociale, email_contact, numero_tva, statut, profils, "
         + "abonnement_mensuel, taux_prelevement, plancher_stagiaire, forfait_gestion, "
-        + "gestion_souscrite, taux_apport")
+        + "gestion_souscrite, taux_apport, frais_installation, mise_en_service_facturee_le")
       .limit(2000);
 
     if (eCli) {
@@ -122,6 +124,11 @@ export async function GET(req: NextRequest) {
         ? Number(org.taux_apport)
         : TAUX_ORIENTEE_DEFAUT;
 
+      // MISE EN SERVICE : une seule fois, jamais reprise.
+      const fraisFiche = Number(org.frais_installation) || 0;
+      const dejaFacturee = !!org.mise_en_service_facturee_le;
+      const miseEnService = !dejaFacturee && fraisFiche > 0 ? fraisFiche : 0;
+
       // Les stagiaires inscrits DANS LE MOIS. Le fait generateur est
       // l inscription, pas l achevement : le contrat le dit expressement.
       const { data: inscrits, error: eIns } = await supabase
@@ -151,7 +158,6 @@ export async function GET(req: NextRequest) {
         if (origine === "orientee") {
           nbOrientees = nbOrientees + 1;
           partOrientee = partOrientee + prix * (tauxOrientee / 100);
-          // La gestion, si elle est souscrite, couvre aussi ces stagiaires.
           if (forfait > 0) partGestion = partGestion + forfait;
           continue;
         }
@@ -174,8 +180,6 @@ export async function GET(req: NextRequest) {
           partCatalogue = partCatalogue + part;
           partGestion = partGestion + forfait;
         } else {
-          // Sans gestion : le minimum par stagiaire s applique lorsque la
-          // part calculee lui est inferieure.
           partCatalogue = partCatalogue + Math.max(part, plancher);
         }
       }
@@ -184,14 +188,18 @@ export async function GET(req: NextRequest) {
       partOrientee = r2(partOrientee);
       partGestion = r2(partGestion);
 
-      const montant_ht = r2(abonnement + partCatalogue + partOrientee + partGestion);
+      const montant_ht = r2(miseEnService + abonnement + partCatalogue + partOrientee + partGestion);
 
       if (montant_ht <= 0) {
         resultats.push({ tenant, client: org.raison_sociale, statut: "rien a facturer" });
         continue;
       }
 
-      const lignes: string[] = ["abonnement " + abonnement + " € HT"];
+      const lignes: string[] = [];
+      if (miseEnService > 0) {
+        lignes.push("mise en service " + miseEnService + " € HT, facturée une seule fois");
+      }
+      lignes.push("abonnement " + abonnement + " € HT");
       if (nbCatalogue > 0) {
         lignes.push(nbCatalogue + " stagiaire(s) catalogue à " + taux + " % : " + partCatalogue.toFixed(2) + " € HT");
       }
@@ -213,6 +221,8 @@ export async function GET(req: NextRequest) {
           tenant,
           client: org.raison_sociale,
           periode,
+          mise_en_service: miseEnService,
+          mise_en_service_deja_facturee: dejaFacturee,
           abonnement,
           catalogue: { nombre: nbCatalogue, taux: taux, montant: partCatalogue },
           orientees: { nombre: nbOrientees, taux: tauxOrientee, montant: partOrientee },
@@ -292,10 +302,20 @@ export async function GET(req: NextRequest) {
         .eq("periode", periode)
         .eq("produit", PRODUIT);
 
+      // La mise en service est marquee APRES l emission : si la facture
+      // avait echoue, elle doit pouvoir repartir au prochain passage.
+      if (miseEnService > 0) {
+        await supabase
+          .from("organismes_formation")
+          .update({ mise_en_service_facturee_le: new Date().toISOString() })
+          .eq("tenant_id", tenant);
+      }
+
       resultats.push({
         tenant,
         client: org.raison_sociale,
         periode,
+        mise_en_service: miseEnService,
         abonnement,
         catalogue: { nombre: nbCatalogue, taux: taux, montant: partCatalogue },
         orientees: { nombre: nbOrientees, taux: tauxOrientee, montant: partOrientee },
