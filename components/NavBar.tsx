@@ -12,13 +12,34 @@ const T = {
   he: { formations: "קורסים", seances: "פגישות", blog: "בלוג", tarifs: "מחירים", contact: "צור קשר", partenaire: "שותף", connexion: "התחברות", demarrer: "התחל" },
 };
 
+// LES ECRANS DE MR. COMPTABLE.
+//
+// Un cabinet comptable ne doit pas lire « Formations », « Séances » ni
+// « Blog » dans son espace de travail : il a paye un logiciel de
+// comptabilite, pas un catalogue de formation. La barre change donc de
+// marque et de menu des qu on entre chez lui.
+const CHEMINS_COMPTABLE = [
+  "/comptable",
+  "/admin/compliance",
+  "/admin/mr-comptable",
+];
+
+function estComptable(chemin) {
+  for (const p of CHEMINS_COMPTABLE) {
+    if (chemin === p || chemin.indexOf(p + "/") === 0) return true;
+  }
+  return false;
+}
+
 export default function NavBar() {
   const [langue, setLangue] = useState("fr");
+  const [hote, setHote] = useState("");
   const chemin = usePathname() || "";
 
   useEffect(() => {
     const saved = localStorage.getItem("langue") || "fr";
     setLangue(saved);
+    setHote(window.location.hostname.toLowerCase());
   }, []);
 
   function changerLangue(l) {
@@ -36,18 +57,75 @@ export default function NavBar() {
   // celle de son prestataire, avec un lien pour partir chez nous.
   if (chemin.indexOf("/of/") === 0) return null;
 
+  // Les pages de vitrine de Mr. Comptable portent deja leur propre en-tete :
+  // deux barres superposees feraient doublon.
+  if (chemin === "/comptable" || chemin.indexOf("/comptable/") === 0) return null;
+
+  const barre = {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: "15px 40px",
+    background: "rgba(5,5,8,0.95)",
+    backdropFilter: "blur(10px)",
+    borderBottom: "1px solid rgba(200,169,110,0.15)",
+    position: "sticky",
+    top: 0,
+    zIndex: 1000,
+  };
+
+  const lienMarque = {
+    color: "#c8a96e",
+    fontFamily: "Georgia,serif",
+    fontSize: "20px",
+    fontWeight: "bold",
+    textDecoration: "none",
+  };
+
+  const lienMenu = {
+    color: "rgba(255,255,255,0.7)",
+    textDecoration: "none",
+    fontSize: "14px",
+  };
+
+  // ---- Espace de travail comptable : marque et menu propres --------------
+  // On y arrive soit par mrcomptable.fr, soit depuis academiapro.fr sur un
+  // ecran comptable. Dans les deux cas le client doit lire sa marque.
+  if (estComptable(chemin) || hote.indexOf("mrcomptable.fr") >= 0) {
+    return (
+      <header style={barre}>
+        <a href="/admin/compliance/tableau-de-bord" style={lienMarque}>
+          Mr. Comptable
+        </a>
+        <nav style={{ display: "flex", gap: "25px" }}>
+          <a href="/admin/compliance/tableau-de-bord" style={lienMenu}>Tableau de bord</a>
+          <a href="/admin/compliance/societes" style={lienMenu}>Mes dossiers</a>
+          <a href="/admin/compliance/saisie" style={lienMenu}>Saisie</a>
+          <a href="/admin/compliance/pieces" style={lienMenu}>Pièces</a>
+          <a href="/admin/compliance/tva" style={lienMenu}>TVA</a>
+        </nav>
+        <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+          <a href="/admin/compliance/ma-societe" style={{ color: "#c8a96e", border: "1px solid rgba(200,169,110,0.45)", padding: "8px 16px", borderRadius: "8px", textDecoration: "none", fontWeight: "bold", fontSize: "14px" }}>
+            Mon cabinet
+          </a>
+        </div>
+      </header>
+    );
+  }
+
+  // ---- Vitrine AcadéMIA Pro ---------------------------------------------
   return (
-    <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "15px 40px", background: "rgba(5,5,8,0.95)", backdropFilter: "blur(10px)", borderBottom: "1px solid rgba(200,169,110,0.15)", position: "sticky", top: 0, zIndex: 1000 }}>
-      <a href="/" style={{ color: "#c8a96e", fontFamily: "Georgia,serif", fontSize: "20px", fontWeight: "bold", textDecoration: "none" }}>
+    <header style={barre}>
+      <a href="/" style={lienMarque}>
         AcadémIA Pro
       </a>
       <nav style={{ display: "flex", gap: "25px" }}>
-        <a href={"/catalogue?lang=" + langue} style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "14px" }}>{t("formations")}</a>
-        <a href={"/seances?lang=" + langue} style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "14px" }}>{t("seances")}</a>
-        <a href="/blog" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "14px" }}>{t("blog")}</a>
-        <a href="/tarifs" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "14px" }}>{t("tarifs")}</a>
-        <a href="/partenaire" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "14px" }}>{t("partenaire")}</a>
-        <a href="/contact" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "14px" }}>{t("contact")}</a>
+        <a href={"/catalogue?lang=" + langue} style={lienMenu}>{t("formations")}</a>
+        <a href={"/seances?lang=" + langue} style={lienMenu}>{t("seances")}</a>
+        <a href="/blog" style={lienMenu}>{t("blog")}</a>
+        <a href="/tarifs" style={lienMenu}>{t("tarifs")}</a>
+        <a href="/partenaire" style={lienMenu}>{t("partenaire")}</a>
+        <a href="/contact" style={lienMenu}>{t("contact")}</a>
       </nav>
       <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
         <select
