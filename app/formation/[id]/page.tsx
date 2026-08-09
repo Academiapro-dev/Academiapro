@@ -42,6 +42,15 @@ const FR = {
   ],
   courtNom: "Classe virtuelle",
   courtDetail: "+ 1 seance live d accompagnement incluse",
+  // Bloc de capture : il retient celui qui n achete pas aujourd hui.
+  guideTitre: "Pas encore decide ?",
+  guideTexte: "Recevez le guide de ce domaine, gratuitement. Vous jugerez du serieux de nos contenus avant d engager quoi que ce soit.",
+  guidePrenom: "Votre prenom",
+  guideEmail: "Votre adresse electronique",
+  guideBouton: "Recevoir le guide",
+  guideEnCours: "Envoi en cours...",
+  guideMerci: "C est envoye. Regardez votre boite de reception.",
+  guideErreur: "Envoi impossible. Verifiez votre adresse.",
 };
 
 const MINIMUM_ECHELONNE = 300;
@@ -51,6 +60,51 @@ const MINIMUM_ECHELONNE = 300;
 const SEUIL_COURTE = 40;
 
 const REMISE_DEFAUT = { pct: "10", places: "100", code: "FONDATEURS" };
+
+// LA COULEUR DU DOMAINE.
+//
+// Faute de photographies, le bandeau se fabrique avec un degrade. Ce n est
+// pas un pis-aller : une couleur par domaine se reconnait d un coup d oeil,
+// et un visuel generique repete sur trois cents pages ne dirait rien.
+const COULEURS: any = {
+  "IA": ["#1a2a4a", "#0a1428"],
+  "Tech": ["#16323a", "#08181d"],
+  "Business": ["#2a2416", "#16120a"],
+  "Marketing": ["#3a1a2a", "#1d0d15"],
+  "Finance": ["#14301f", "#0a180f"],
+  "Securite": ["#3a1e14", "#1d0f0a"],
+  "Langues": ["#2a1a3a", "#150d1d"],
+  "Langues Anciennes": ["#2a1a3a", "#150d1d"],
+  "Bien-etre": ["#1a3a2e", "#0d1d17"],
+  "Design": ["#3a2a14", "#1d150a"],
+  "Droit": ["#1e2438", "#0f121c"],
+  "Psychologie": ["#2e1a34", "#170d1a"],
+  "Outils": ["#16323a", "#08181d"],
+  "Ateliers": ["#332a16", "#19150b"],
+};
+
+// LE GUIDE DU DOMAINE.
+//
+// Huit guides existent, quatorze domaines. Chacun pointe vers le libelle
+// que la route /api/ebook sait reconnaitre. Un domaine sans guide propre
+// prend celui du plus proche : mieux vaut un guide voisin qu un guide
+// hors sujet.
+const GUIDES: any = {
+  "IA": "intelligence artificielle",
+  "Tech": "technique et numerique",
+  "Outils": "technique et numerique",
+  "Design": "technique et numerique",
+  "Business": "business et management",
+  "Droit": "business et management",
+  "Marketing": "marketing et vente",
+  "Finance": "comptabilite et finance",
+  "Securite": "securite et prevention",
+  "Langues": "langues",
+  "Langues Anciennes": "langues",
+  "Bien-etre": "bien-etre et developpement personnel",
+  "Psychologie": "bien-etre et developpement personnel",
+  "Ateliers": "business et management",
+};
 
 function heuresDe(duree: any): number {
   const m = String(duree || "").replace(",", ".").match(/[\d.]+/);
@@ -75,6 +129,11 @@ export default function FormationPage({ params }: { params: { id: string } }) {
   const [paiement, setPaiement] = useState("comptant");
   const [apercu, setApercu] = useState<any>(null);
   const [remise, setRemise] = useState(REMISE_DEFAUT);
+
+  const [gPrenom, setGPrenom] = useState("");
+  const [gEmail, setGEmail] = useState("");
+  const [gPiege, setGPiege] = useState("");
+  const [gEtat, setGEtat] = useState("");
 
   useEffect(() => {
     fetch(`/api/formation/${params.id}?lang=${langue}`)
@@ -109,6 +168,31 @@ export default function FormationPage({ params }: { params: { id: string } }) {
       .replace(/\{CODE\}/g, remise.code)
       .replace(/\{PCT\}/g, remise.pct)
       .replace(/\{PLACES\}/g, remise.places);
+  }
+
+  async function demanderGuide() {
+    if (!gEmail || gEmail.indexOf("@") < 1) {
+      setGEtat("erreur");
+      return;
+    }
+    setGEtat("envoi");
+    try {
+      const r = await fetch("/api/ebook", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prenom: gPrenom,
+          email: gEmail,
+          domaine: GUIDES[formation?.domaine] || "intelligence artificielle",
+          societe_bis: gPiege,
+          metier: "Interesse par " + (formation?.titre || params.id),
+        }),
+      });
+      const d = await r.json();
+      setGEtat(d && d.ok ? "merci" : "erreur");
+    } catch (e) {
+      setGEtat("erreur");
+    }
   }
 
   if (loading) return (
@@ -152,6 +236,15 @@ export default function FormationPage({ params }: { params: { id: string } }) {
   const mensualite = Math.ceil(prixFormule / 4);
   const totalEchelonne = mensualite * 4;
 
+  const couleurs = COULEURS[formation.domaine] || ["#0a0a1a", "#1a1a2e"];
+
+  // LA PROMESSE, EN TETE.
+  //
+  // Le visiteur doit savoir ce qu il saura faire AVANT de descendre la page.
+  // Les objectifs sont le meilleur candidat ; a defaut, la description.
+  const promesse = String(formation.objectifs || formation.description || "").trim();
+  const promesseCourte = promesse.length > 220 ? promesse.slice(0, 217) + "..." : promesse;
+
   const ligneTotal = heures > 0 ? (
     <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "13px", marginTop: 0, marginBottom: "18px" }}>
       {nbModules} {txt.modulesMot} · {heures} {txt.heuresTotal}
@@ -169,6 +262,18 @@ export default function FormationPage({ params }: { params: { id: string } }) {
     color: "#fff",
   });
 
+  const champGuide: any = {
+    flex: "1 1 200px",
+    padding: "13px 14px",
+    borderRadius: "8px",
+    border: "1px solid rgba(200,169,110,0.3)",
+    background: "rgba(255,255,255,0.05)",
+    color: "#fff",
+    fontSize: "15px",
+    fontFamily: "Georgia, serif",
+    boxSizing: "border-box" as const,
+  };
+
   return (
     <div style={{ backgroundColor: "#050508", minHeight: "100vh", color: "#fff" }}>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify({
@@ -180,14 +285,37 @@ export default function FormationPage({ params }: { params: { id: string } }) {
         ...(formation.prix ? { "offers": { "@type": "Offer", "price": String(formation.prix), "priceCurrency": "EUR", "availability": "https://schema.org/InStock", "url": "https://www.academiapro.fr/formation/" + params.id } } : {}),
         "hasCourseInstance": { "@type": "CourseInstance", "courseMode": "online" }
       }) }} />
-      <div style={{ background: "linear-gradient(135deg,#0a0a1a,#1a1a2e)", padding: "60px 40px", textAlign: "center" }}>
-        <div style={{ color: "#c8a96e", fontSize: "13px", marginBottom: "10px" }}>{formation.code} · {formation.domaine}</div>
-        <h1 style={{ color: "#fff", fontFamily: "Georgia,serif", fontSize: "2rem", marginBottom: "20px" }}>{formation.titre}</h1>
-        <div style={{ display: "flex", gap: "15px", justifyContent: "center", flexWrap: "wrap" }}>
-          {heures > 0 && <span style={{ background: "rgba(200,169,110,0.2)", color: "#c8a96e", padding: "6px 16px", borderRadius: "20px" }}>{heures} h</span>}
-          {formation.niveau && <span style={{ background: "rgba(200,169,110,0.2)", color: "#c8a96e", padding: "6px 16px", borderRadius: "20px" }}>{txt.niveau} {formation.niveau}</span>}
-          {prixBase > 0 && <span style={{ background: "#c8a96e", color: "#050508", padding: "6px 16px", borderRadius: "20px", fontWeight: "bold" }}>{prixFormule.toLocaleString("fr-FR")}€</span>}
+
+      {/* BANDEAU. La couleur porte le domaine, la promesse porte la vente. */}
+      <div style={{ background: "linear-gradient(135deg," + couleurs[0] + "," + couleurs[1] + ")", padding: "70px 40px 60px", textAlign: "center", borderBottom: "1px solid rgba(200,169,110,0.25)" }}>
+        <div style={{ color: "#c8a96e", fontSize: "12px", letterSpacing: "3px", marginBottom: "14px", textTransform: "uppercase" }}>
+          {formation.domaine}
         </div>
+        <h1 style={{ color: "#fff", fontFamily: "Georgia,serif", fontSize: "2.2rem", lineHeight: "1.25", margin: "0 auto 20px", maxWidth: "760px" }}>
+          {formation.titre}
+        </h1>
+
+        {promesseCourte && (
+          <p style={{ color: "rgba(255,255,255,0.78)", fontSize: "17px", lineHeight: "1.7", margin: "0 auto 26px", maxWidth: "660px" }}>
+            {promesseCourte}
+          </p>
+        )}
+
+        <div style={{ display: "flex", gap: "12px", justifyContent: "center", flexWrap: "wrap" }}>
+          {heures > 0 && <span style={{ background: "rgba(200,169,110,0.2)", color: "#c8a96e", padding: "6px 16px", borderRadius: "20px", fontSize: "14px" }}>{heures} h</span>}
+          {nbModules > 0 && <span style={{ background: "rgba(200,169,110,0.2)", color: "#c8a96e", padding: "6px 16px", borderRadius: "20px", fontSize: "14px" }}>{nbModules} {txt.modulesMot}</span>}
+          {formation.niveau && <span style={{ background: "rgba(200,169,110,0.2)", color: "#c8a96e", padding: "6px 16px", borderRadius: "20px", fontSize: "14px" }}>{txt.niveau} {formation.niveau}</span>}
+          {prixBase > 0 && <span style={{ background: "#c8a96e", color: "#050508", padding: "6px 18px", borderRadius: "20px", fontWeight: "bold", fontSize: "14px" }}>{prixFormule.toLocaleString("fr-FR")}€</span>}
+        </div>
+
+        {prixBase > 0 && (
+          <div style={{ marginTop: "30px" }}>
+            <a href={`/api/checkout?formation=${params.id}&formule=${estBootcamp ? "bootcamp" : palierActif}&paiement=${paiementActif}`}
+              style={{ display: "inline-block", background: "#c8a96e", color: "#050508", padding: "14px 34px", borderRadius: "8px", textDecoration: "none", fontWeight: "bold", fontSize: "16px" }}>
+              {txt.acheter} — {prixFormule.toLocaleString("fr-FR")}€
+            </a>
+          </div>
+        )}
       </div>
 
       <div style={{ maxWidth: "900px", margin: "0 auto", padding: "40px 20px" }}>
@@ -338,6 +466,59 @@ export default function FormationPage({ params }: { params: { id: string } }) {
             <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "12.5px", margin: "16px auto 0", maxWidth: "460px", lineHeight: "1.7" }}>
               {remplir(txt.fondateur)}
             </p>
+          )}
+        </div>
+
+        {/* CAPTURE. Celui qui n achete pas aujourd hui laisse au moins une
+            adresse : sans ce bloc, il repart sans laisser de trace. */}
+        <div style={{ marginTop: "30px", padding: "34px 26px", background: "rgba(200,169,110,0.06)", border: "1px solid rgba(200,169,110,0.25)", borderRadius: "12px" }}>
+          <h3 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", fontSize: "20px", margin: "0 0 10px" }}>
+            {txt.guideTitre}
+          </h3>
+          <p style={{ color: "rgba(255,255,255,0.65)", fontSize: "15px", lineHeight: "1.7", margin: "0 0 20px", maxWidth: "620px" }}>
+            {txt.guideTexte}
+          </p>
+
+          {gEtat === "merci" ? (
+            <p style={{ color: "#00e676", fontSize: "15px", margin: 0 }}>{txt.guideMerci}</p>
+          ) : (
+            <>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "10px", marginBottom: "12px" }}>
+                <input
+                  value={gPrenom}
+                  onChange={(e) => setGPrenom(e.target.value)}
+                  placeholder={txt.guidePrenom}
+                  style={champGuide}
+                />
+                <input
+                  type="email"
+                  value={gEmail}
+                  onChange={(e) => setGEmail(e.target.value)}
+                  placeholder={txt.guideEmail}
+                  onKeyDown={(e) => e.key === "Enter" && demanderGuide()}
+                  style={champGuide}
+                />
+                {/* Champ piege : un robot le remplit, un humain ne le voit pas. */}
+                <input
+                  value={gPiege}
+                  onChange={(e) => setGPiege(e.target.value)}
+                  tabIndex={-1}
+                  autoComplete="off"
+                  style={{ position: "absolute", left: "-9999px", width: "1px", height: "1px" }}
+                  aria-hidden="true"
+                />
+                <button
+                  onClick={demanderGuide}
+                  disabled={gEtat === "envoi"}
+                  style={{ background: gEtat === "envoi" ? "rgba(200,169,110,0.3)" : "#c8a96e", color: gEtat === "envoi" ? "#8a8a8a" : "#050508", border: "none", borderRadius: "8px", padding: "13px 26px", fontWeight: "bold", fontSize: "15px", cursor: gEtat === "envoi" ? "default" : "pointer", fontFamily: "Georgia, serif" }}
+                >
+                  {gEtat === "envoi" ? txt.guideEnCours : txt.guideBouton}
+                </button>
+              </div>
+              {gEtat === "erreur" && (
+                <p style={{ color: "#e8836a", fontSize: "14px", margin: 0 }}>{txt.guideErreur}</p>
+              )}
+            </>
           )}
         </div>
 
