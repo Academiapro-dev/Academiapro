@@ -24,13 +24,12 @@ export default async function CgvComptable() {
     .eq("cle", "cgv_comptable")
     .maybeSingle();
 
-  const titre = (data && data.titre) || "Conditions générales de vente";
   const contenu = (data && data.contenu) || "";
   const maj = data && data.maj_le
     ? new Date(data.maj_le).toLocaleDateString("fr-FR")
     : null;
 
-  // Rendu du texte : les titres commencent par des dièses, le reste est du
+  // Rendu du texte : les titres commencent par des dieses, le reste est du
   // paragraphe. Pas de bibliotheque, pas de dependance nouvelle.
   const lignes = contenu.split("\n");
   const blocs: any[] = [];
@@ -62,6 +61,8 @@ export default async function CgvComptable() {
     paragraphe.push(l);
   }
   viderParagraphe("fin");
+
+  const lienPied: any = { color: OR, fontSize: "14px", textDecoration: "none" };
 
   return (
     <div style={{ minHeight: "100vh", background: NOIR, color: "#fff", fontFamily: "Georgia, serif" }}>
@@ -124,6 +125,10 @@ export default async function CgvComptable() {
             Mr. Comptable — une marque d'AcadéMIA Pro LLC<br />
             30 N Gould St, STE R, Sheridan WY 82801, États-Unis<br />
             contact@mrcomptable.fr
+          </p>
+          <p style={{ margin: "16px 0 0", display: "flex", gap: "20px", flexWrap: "wrap" }}>
+            <a href="/comptable" style={lienPied}>Accueil</a>
+            <a href="/comptable/mentions" style={lienPied}>Mentions légales</a>
           </p>
         </div>
       </footer>
