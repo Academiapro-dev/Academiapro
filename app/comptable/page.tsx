@@ -78,6 +78,8 @@ export default function AccueilComptable() {
     border: "1px solid rgba(200,169,110,0.4)",
   };
 
+  const lienPied: any = { color: OR, fontSize: "14px", textDecoration: "none" };
+
   return (
     <div style={{ minHeight: "100vh", background: NOIR, color: "#fff", fontFamily: "Georgia, serif" }}>
 
@@ -215,9 +217,12 @@ export default function AccueilComptable() {
             États-Unis<br />
             contact@mrcomptable.fr · mrcomptable.fr
           </p>
-          <p style={{ margin: "16px 0 0" }}>
-            <Link href="/comptable/cgv" style={{ color: OR, fontSize: "14px" }}>
+          <p style={{ margin: "16px 0 0", display: "flex", gap: "20px", flexWrap: "wrap" }}>
+            <Link href="/comptable/cgv" style={lienPied}>
               Conditions générales de vente
+            </Link>
+            <Link href="/comptable/mentions" style={lienPied}>
+              Mentions légales
             </Link>
           </p>
           <p style={{ color: "rgba(255,255,255,0.3)", fontSize: "13px", marginTop: "14px", marginBottom: 0 }}>
