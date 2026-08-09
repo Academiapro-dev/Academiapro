@@ -66,7 +66,11 @@ export async function GET(req: NextRequest) {
       afRelationship: AFRelationship.Alternative,
     });
 
-    const octets = await pdf.save();
+    // useObjectStreams a false : le PDF reste lisible sans decompression
+    // des tables d objets. Les vrais emetteurs compressent souvent, la
+    // lecture doit savoir faire les deux — mais pour eprouver la chaine,
+    // on ecarte d abord cette variable.
+    const octets = await pdf.save({ useObjectStreams: false });
 
     return new NextResponse(Buffer.from(octets), {
       headers: {
