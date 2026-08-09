@@ -13,8 +13,16 @@ const ENTITE = {
 const LOGOS: Record<string, string> = {
   academia: "https://kpxrbwsbhmggoajtxzqn.supabase.co/storage/v1/object/public/assets-publics/IMG_2595.png",
   hebrewpro: "https://kpxrbwsbhmggoajtxzqn.supabase.co/storage/v1/object/public/assets-publics/IMG_2675.png",
+  comptable: "https://kpxrbwsbhmggoajtxzqn.supabase.co/storage/v1/object/public/assets-publics/IMG_3936.png",
 };
 
+// Chaque marque porte ses propres coordonnees de contact : un cabinet
+// comptable ne doit pas lire une adresse d academie sur sa facture.
+const MARQUES: Record<string, any> = {
+  academia: { nom: "AcademIA Pro", email: "contact@academiapro.fr", site: "academiapro.fr" },
+  hebrewpro: { nom: "HebrewPro AI", email: "contact@academiapro.fr", site: "hebrewproai.com" },
+  comptable: { nom: "Mr. Comptable", email: "contact@mrcomptable.fr", site: "mrcomptable.fr" },
+};
 
 type FactureData = {
   numero: string;
@@ -42,7 +50,9 @@ export function genererFactureHTML(d: FactureData): string {
   const echeanceStr = echeance.toLocaleDateString("fr-FR");
   const devise = d.devise || "EUR";
   const symbole = devise === "USD" ? "$" : devise === "EUR" ? "€" : devise;
-  const projetNom = d.projet_nom || (d.projet === "hebrewpro" ? "HebrewPro AI" : "AcademIA Pro");
+
+  const marque = MARQUES[d.projet] || MARQUES.academia;
+  const projetNom = d.projet_nom || marque.nom;
   const logoUrl = LOGOS[d.projet] || LOGOS.academia;
   const fmt = (n: number) => n.toFixed(2) + " " + symbole;
 
@@ -96,8 +106,8 @@ export function genererFactureHTML(d: FactureData): string {
     <div>
       <img class="logo-img" src="${logoUrl}" alt="${projetNom}" />
       <p class="sub">${ENTITE.nom}</p>
-      <p class="sub">${ENTITE.email}</p>
-      <p class="sub">${ENTITE.site}</p>
+      <p class="sub">${marque.email}</p>
+      <p class="sub">${marque.site}</p>
     </div>
     <div class="facture-title">
       <h1>FACTURE / INVOICE</h1>
@@ -114,7 +124,7 @@ export function genererFactureHTML(d: FactureData): string {
       <p>${ENTITE.adresse2}</p>
       <p>${ENTITE.pays}</p>
       <p>EIN : ${ENTITE.ein}</p>
-      <p>${ENTITE.email}</p>
+      <p>${marque.email}</p>
     </div>
     <div class="partie">
       <h3>Client / Bill to</h3>
@@ -157,7 +167,7 @@ export function genererFactureHTML(d: FactureData): string {
     <p>Acompte / Deposit : les sommes versees a l'inscription constituent un acompte imputable sur le prix total (non des arrhes).</p>
     <p>Penalites de retard / Late penalties : 3x taux legal + indemnite forfaitaire 40€ (art. L441-10 C. commerce).</p>
     <p>Droit applicable / Governing law : droit francais pour consommateurs UE (Reglement Rome I) ; droit du Wyoming (USA) a titre suppletif hors UE.</p>
-    <p>${ENTITE.nom} · ${ENTITE.email} · ${ENTITE.site}</p>
+    <p>${projetNom} — une marque de ${ENTITE.nom} · ${marque.email} · ${marque.site}</p>
   </div>
 </body>
 </html>`;
