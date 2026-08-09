@@ -1,4 +1,6 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
+import crypto from "crypto";
 import { emailDeSession } from "../../../../lib/session";
 
 export const runtime = "nodejs";
@@ -9,6 +11,14 @@ const ADMINS = ["contact@academiapro.fr"];
 
 const URL_TOKEN = "https://auth.partners.teledec.fr/oauth2/token";
 const URL_LIASSE = "https://stage.teledec.fr/service/liasse";
+
+// Le tenant de travail : cet essai n appartient a aucun client.
+const TENANT_ESSAI = "048da817-b4d1-40d8-9107-88fe87e600ee";
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL || "",
+  process.env.SUPABASE_SERVICE_ROLE_KEY || ""
+);
 
 // Le jeton vaut une heure. On le redemande a chaque essai : c est un
 // verificateur, pas un chemin de production.
@@ -55,6 +65,16 @@ const MDP_CLIENT =
   process.env.TELEDEC_MDP_CLIENT ||
   "$2a$12$.6.1crJz//g6rFR/870sq.77sAJ/9rd5cfomE6d7yN307OQjoROCW";
 
+// LA REFERENCE DU DOSSIER.
+//
+// C est elle que TELEDEC nous renverra dans le callback, et c est elle SEULE
+// qui autorise l ecriture du retour. Elle doit donc etre imprevisible : un
+// numero sequentiel se devine, et quiconque le devinerait pourrait ecrire un
+// faux accuse de reception dans le dossier d un client.
+function nouvelleReference(): string {
+  return "AP-" + crypto.randomBytes(16).toString("hex");
+}
+
 // SECTION IDENTIFICATION. Un seul champ est obligatoire, SOURCE. On en met
 // davantage pour que TELEDEC ait de quoi creer l entreprise sans redemander.
 // AFFICHAGE-BOUTON-ENVOYER a NON : le client peut relire sa liasse mais pas
@@ -65,12 +85,20 @@ const MDP_CLIENT =
 //
 // #EMAIL doit porter une adresse AUTORISEE POUR LE PARTENAIRE, sans quoi
 // TELEDEC repond 403.
-function identification(): string {
+//
+// #URL est l adresse a laquelle la DGFIP nous repond, par l intermediaire de
+// TELEDEC. Sans elle, la liasse part et nous ne savons jamais si elle a ete
+// acceptee ou rejetee.
+//
+// #REFERENCE-DOSSIER voyage avec la declaration et nous revient telle quelle.
+function identification(reference: string, urlCallback: string): string {
   const lignes = [
     "#SOURCE API",
     "#VERSION 1.0",
     "#EMAIL contact@academiapro.fr",
     "#MOT-DE-PASSE " + MDP_CLIENT,
+    "#REFERENCE-DOSSIER " + reference,
+    "#URL " + urlCallback,
     "#NOM SOCIETE D ESSAI ACADEMIA",
     "#SIRET 12581251256423",
     "#FORME-JURIDIQUE SAS",
@@ -115,7 +143,7 @@ function balance(): string {
   return lignes.join("\n");
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     const email = emailDeSession();
     if (!email || ADMINS.indexOf(email) < 0) {
@@ -124,10 +152,32 @@ export async function GET() {
 
     const acces = await jeton();
 
+    const reference = nouvelleReference();
+    const urlCallback = new URL("/api/teledec/callback", req.url).toString();
+
+    // On enregistre AVANT d envoyer. Si le retour arrivait plus vite que
+    // notre propre ecriture, le callback ne trouverait pas la reference et
+    // refuserait un retour legitime.
+    const { error: eLigne } = await supabase.from("teledec_declarations").insert({
+      tenant_id: TENANT_ESSAI,
+      reference: reference,
+      siren: "125812512",
+      formulaire: "liasse",
+      millesime: "2025",
+      statut: "envoyee",
+    });
+
+    if (eLigne) {
+      return NextResponse.json(
+        { ok: false, etape: "enregistrement", erreur: eLigne.message },
+        { status: 500 },
+      );
+    }
+
     // LES TROIS SECTIONS SONT DANS UN SEUL CORPS DE REQUETE, a la suite :
     // identification, puis balance, puis le bloc JSON. On laisse le JSON
     // vide pour cet essai : on veut voir ce que TELEDEC ventile tout seul.
-    const corps = identification() + "\n" + balance() + "\n";
+    const corps = identification(reference, urlCallback) + "\n" + balance() + "\n";
 
     const r = await fetch(URL_LIASSE, {
       method: "POST",
@@ -142,6 +192,9 @@ export async function GET() {
     const reponse = await r.text();
 
     if (!r.ok) {
+      // L envoi a echoue : la ligne posee plus haut n a plus d objet.
+      await supabase.from("teledec_declarations").delete().eq("reference", reference);
+
       return NextResponse.json(
         {
           ok: false,
@@ -165,9 +218,12 @@ export async function GET() {
       ok: true,
       message: "Liasse creee chez TELEDEC.",
       statut: r.status,
+      reference: reference,
+      url_de_retour: urlCallback,
       url_de_la_liasse: url,
       reponse_brute: reponse.slice(0, 800),
-      suite: "Ouvrez l URL : elle doit afficher la liasse pre-remplie, deja connecte, SANS ecran d inscription.",
+      suite: "Ouvrez l URL : elle doit afficher la liasse pre-remplie, deja connecte, SANS ecran d inscription. "
+        + "Le retour DGFIP arrivera sur l url de retour et se lira dans teledec_declarations.",
     });
   } catch (e: any) {
     return NextResponse.json({ ok: false, erreur: String(e.message || e) }, { status: 500 });
