@@ -8,23 +8,48 @@ export const maxDuration = 300;
 
 const ADMINS = ["contact@academiapro.fr"];
 
-// Dix par appel. Une route qui fait ecrire un long texte par l IA ne tient
-// pas dans une requete de navigateur : on decoupe, et chaque appel renvoie
-// le lien du suivant.
-const PAR_LOT = 10;
+// Trente par appel. Une route qui fait ecrire un long texte par l IA ne
+// tient pas dans une requete de navigateur : on decoupe, et chaque appel
+// renvoie le lien du suivant.
+const PAR_LOT = 30;
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
   process.env.SUPABASE_SERVICE_ROLE_KEY || ""
 );
 
-// Un texte est suspect s il est long et ne porte AUCUN accent. Le francais
-// en met partout : cent caracteres sans un seul signe diacritique, c est
-// qu ils ont ete perdus a l import.
-function sansAccents(t: any): boolean {
+// Les mots qui, en francais, portent presque toujours un accent. Si un
+// texte long n en contient AUCUN et ne comporte AUCUN de ces mots, il est
+// probablement correct tel quel : « Savoir utiliser un ordinateur et
+// naviguer sur Internet » n a besoin de rien.
+//
+// Sans ce filtre, ces textes reviennent a chaque lot et occupent une place
+// pour rien, indefiniment.
+const INDICES = [
+  "avance", "maitris", "developp", "integr", "realis", "methode", "strateg",
+  "securite", "prevention", "specialis", "prepar", "acquer", "competence",
+  "experience", "necessaire", "different", "premiere", "derniere", "annee",
+  "systeme", "modele", "resultat", "objectif", "cle ", "etape", "meme",
+  "apres", "deja", "tres", "creer", "gerer", "operationnel", "controle",
+  "qualite", "activite", "societe", "procedure", "reference", "elabor",
+  "evaluer", "ameliorer", "financ", "comptabilite", "fiscal", "juridiqu",
+  "numerique", "reseau", "donnee", "utilisateur", "interet", "marche",
+  "clientele", "salarie", "employe", "entreprise", "l ", "d ", "n ", "s ",
+  "qu ", "c ", "j ", "aujourd",
+];
+
+// Un texte est suspect s il est long, ne porte AUCUN accent, ET contient au
+// moins un mot qui devrait en porter un.
+function suspect(t: any): boolean {
   const s = String(t || "");
   if (s.length < 40) return false;
-  return !/[éèêëàâäîïôöùûüçÉÈÊËÀÂÄÎÏÔÖÙÛÜÇ]/.test(s);
+  if (/[éèêëàâäîïôöùûüçÉÈÊËÀÂÄÎÏÔÖÙÛÜÇ]/.test(s)) return false;
+
+  const bas = s.toLowerCase();
+  for (const mot of INDICES) {
+    if (bas.indexOf(mot) >= 0) return true;
+  }
+  return false;
 }
 
 async function reaccentuer(cle: string, textes: string[]): Promise<string[]> {
@@ -38,13 +63,14 @@ async function reaccentuer(cle: string, textes: string[]): Promise<string[]> {
     body: JSON.stringify({
       model: "claude-sonnet-4-6",
       max_tokens: 4000,
-      system: "Tu remets les accents d un texte francais qui les a perdus. "
-        + "REGLE ABSOLUE : tu ne changes RIEN d autre. Pas un mot, pas une "
-        + "virgule, pas une tournure, pas une majuscule. Tu ajoutes "
-        + "uniquement les signes diacritiques manquants : accents, cedilles, "
-        + "trema. Si un texte est deja correct, tu le renvoies tel quel. "
-        + "Tu reponds en JSON strict : un tableau de chaines, dans le meme "
-        + "ordre, sans texte autour, sans balises de code.",
+      system: "Tu remets les accents et les apostrophes d un texte francais "
+        + "qui les a perdus. REGLE ABSOLUE : tu ne changes RIEN d autre. Pas "
+        + "un mot, pas une virgule, pas une tournure, pas une majuscule. Tu "
+        + "ajoutes uniquement les signes diacritiques manquants — accents, "
+        + "cedilles, trema — et les apostrophes d elision. Si un texte est "
+        + "deja correct, tu le renvoies tel quel. Tu reponds en JSON strict : "
+        + "un tableau de chaines, dans le meme ordre, sans texte autour, sans "
+        + "balises de code.",
       messages: [{
         role: "user",
         content: JSON.stringify(textes),
@@ -95,16 +121,15 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: false, erreur: error.message }, { status: 500 });
     }
 
-    // On ne retient que ce qui a REELLEMENT perdu ses accents.
     const aTraiter: any[] = [];
 
     for (const f of toutes || []) {
       const champs: any = {};
-      if (sansAccents(f.titre)) champs.titre = f.titre;
-      if (sansAccents(f.description)) champs.description = f.description;
-      if (sansAccents(f.objectifs)) champs.objectifs = f.objectifs;
-      if (sansAccents(f.prerequis)) champs.prerequis = f.prerequis;
-      if (sansAccents(f.public_cible)) champs.public_cible = f.public_cible;
+      if (suspect(f.titre)) champs.titre = f.titre;
+      if (suspect(f.description)) champs.description = f.description;
+      if (suspect(f.objectifs)) champs.objectifs = f.objectifs;
+      if (suspect(f.prerequis)) champs.prerequis = f.prerequis;
+      if (suspect(f.public_cible)) champs.public_cible = f.public_cible;
 
       if (Object.keys(champs).length > 0) {
         aTraiter.push({ code: f.code, champs: champs });
@@ -131,27 +156,31 @@ export async function GET(req: NextRequest) {
 
     const lot = aTraiter.slice(0, PAR_LOT);
     const resultats: any[] = [];
+    let corriges = 0;
 
     for (const f of lot) {
       try {
         const noms = Object.keys(f.champs);
         const valeurs = noms.map(function (n) { return f.champs[n]; });
-        const corriges = await reaccentuer(cle, valeurs);
+        const reponse = await reaccentuer(cle, valeurs);
 
         const modifications: any = {};
         for (let i = 0; i < noms.length; i++) {
           // Garde-fou : si la longueur varie de plus de vingt pour cent,
           // l IA a reecrit au lieu d accentuer. On refuse.
           const avant = valeurs[i].length;
-          const apres = String(corriges[i]).length;
-          if (apres < avant * 0.8 || apres > avant * 1.25) {
+          const apres = String(reponse[i]).length;
+          if (apres < avant * 0.8 || apres > avant * 1.3) {
             resultats.push({ code: f.code, champ: noms[i], statut: "refuse, longueur suspecte" });
             continue;
           }
-          modifications[noms[i]] = corriges[i];
+          // Inutile d ecrire si rien n a change.
+          if (String(reponse[i]) === valeurs[i]) continue;
+          modifications[noms[i]] = reponse[i];
         }
 
         if (Object.keys(modifications).length === 0) {
+          resultats.push({ code: f.code, statut: "deja correct" });
           continue;
         }
 
@@ -160,11 +189,12 @@ export async function GET(req: NextRequest) {
           .update(modifications)
           .eq("code", f.code);
 
-        resultats.push({
-          code: f.code,
-          champs: Object.keys(modifications),
-          statut: eMaj ? "echec : " + eMaj.message : "corrige",
-        });
+        if (eMaj) {
+          resultats.push({ code: f.code, statut: "echec : " + eMaj.message });
+        } else {
+          corriges = corriges + 1;
+          resultats.push({ code: f.code, champs: Object.keys(modifications), statut: "corrige" });
+        }
       } catch (e: any) {
         resultats.push({ code: f.code, statut: "echec : " + String(e.message || e) });
       }
@@ -174,12 +204,10 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       ok: true,
-      traites: resultats.length,
+      examines: lot.length,
+      corriges: corriges,
       restant: restant,
       resultats: resultats,
-      suivant: restant > 0
-        ? url.origin + "/api/admin/reaccentuer"
-        : null,
       message: restant > 0
         ? "Il reste " + restant + " formation(s). Rouvrez la meme adresse pour continuer."
         : "Termine.",
