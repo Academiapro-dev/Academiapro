@@ -26,22 +26,47 @@ const supabase = createClient(
 // demande, plutot que d entretenir deux versions qui divergeraient a la
 // premiere correction.
 //
-// L ORDRE DES REGLES COMPTE. Les formes les plus longues passent d abord :
-// « vous appartiennent » avant « vous », faute de quoi on obtient
-// « elles tu appartiennent ». Et les titres en capitales ont leurs propres
-// regles, la casse ne se devinant pas.
+// TROIS PIEGES, ET L ORDRE DES REGLES LES EVITE.
+//
+//  1. « votre » devient « ton » ou « ta » selon le genre du nom qui suit :
+//     le francais ne se devine pas, on liste donc les feminins courants.
+//  2. « vous » complement devient « t' » ou « te » : « vous appartiennent »
+//     avant « vous », faute de quoi on obtient « elles tu appartiennent ».
+//  3. Les titres en capitales ont leurs propres regles.
 //
 // La transformation reste mecanique, donc imparfaite : le resultat se RELIT
-// toujours avant l envoi.
+// toujours avant l envoi. C est ce que dit l avertissement renvoye.
+
+// Les noms feminins qu on rencontre dans un courrier commercial. « votre »
+// devant l un d eux devient « ta ».
+const FEMININS = [
+  "plateforme", "equipe", "équipe", "societe", "société", "facture",
+  "marque", "formation", "certification", "demande", "reponse", "réponse",
+  "proposition", "offre", "structure", "activite", "activité", "clientele",
+  "clientèle", "gestion", "comptabilite", "comptabilité", "declaration",
+  "déclaration", "liasse", "banque", "signature", "convention", "attestation",
+  "page", "fiche", "liste", "base", "part", "grille", "situation",
+];
+
+function reglesFeminines(): any[] {
+  const sortie: any[] = [];
+  for (const nom of FEMININS) {
+    sortie.push([new RegExp("\\bvotre " + nom + "\\b", "g"), "ta " + nom]);
+    sortie.push([new RegExp("\\bVotre " + nom + "\\b", "g"), "Ta " + nom]);
+    sortie.push([new RegExp("\\bVOTRE " + nom.toUpperCase() + "\\b", "g"), "TA " + nom.toUpperCase()]);
+  }
+  return sortie;
+}
+
 const TUTOIEMENT: any[] = [
   // --- Capitales des titres ---
   [/\bVOUS GÉREZ\b/g, "TU GÈRES"],
   [/\bVOS STAGIAIRES\b/g, "TES STAGIAIRES"],
   [/\bCE QUE VOUS AURIEZ\b/g, "CE QUE TU AURAIS"],
   [/\bVOUS AURIEZ\b/g, "TU AURAIS"],
-  [/\bVOUS\b/g, "TU"],
-  [/\bVOS\b/g, "TES"],
-  [/\bVOTRE\b/g, "TON"],
+
+  // --- Feminins : « votre plateforme » devient « ta plateforme » ---
+  ...reglesFeminines(),
 
   // --- « vous » complement d objet : il devient « t' » ou « te » ---
   [/\bvous appartiennent\b/g, "t'appartiennent"],
@@ -51,6 +76,7 @@ const TUTOIEMENT: any[] = [
   [/\bvous parle\b/g, "te parle"],
   [/\bvous dire\b/g, "te dire"],
   [/\bvous suivre\b/g, "te suivre"],
+  [/\bvous convient\b/g, "te convient"],
 
   // --- Formes verbales, les plus longues d abord ---
   [/\bVous seul pouvez\b/g, "Toi seul peux"],
@@ -73,12 +99,14 @@ const TUTOIEMENT: any[] = [
   [/\bvous etes\b/g, "tu es"],
   [/\bvous savez\b/g, "tu sais"],
   [/\bvous verrez\b/g, "tu verras"],
+  [/\bvous trouverez\b/g, "tu trouveras"],
 
   // --- Imperatifs ---
   [/\bDonnez-moi\b/g, "Donne-moi"],
   [/\bDites-moi\b/g, "Dis-moi"],
   [/\bEnvoyez-moi\b/g, "Envoie-moi"],
   [/\bAppelez-moi\b/g, "Appelle-moi"],
+  [/\bPrévenez-moi\b/g, "Préviens-moi"],
 
   // --- Possessifs et locutions ---
   [/\bvous-même\b/g, "toi-même"],
@@ -86,8 +114,12 @@ const TUTOIEMENT: any[] = [
   [/\bchez vous\b/g, "chez toi"],
   [/\bpour vous\b/g, "pour toi"],
   [/\bavec vous\b/g, "avec toi"],
+  [/\bde votre côté\b/g, "de ton côté"],
 
-  // --- Le reste, en dernier ---
+  // --- Le reste, en dernier. « votre » masculin par defaut. ---
+  [/\bVOUS\b/g, "TU"],
+  [/\bVOS\b/g, "TES"],
+  [/\bVOTRE\b/g, "TON"],
   [/\bvos\b/g, "tes"],
   [/\bVos\b/g, "Tes"],
   [/\bvotre\b/g, "ton"],
