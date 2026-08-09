@@ -60,6 +60,8 @@ export default async function MentionsComptable() {
   }
   viderParagraphe("fin");
 
+  const lienPied: any = { color: OR, fontSize: "14px", textDecoration: "none" };
+
   return (
     <div style={{ minHeight: "100vh", background: NOIR, color: "#fff", fontFamily: "Georgia, serif" }}>
 
@@ -122,10 +124,9 @@ export default async function MentionsComptable() {
             30 N Gould St, STE R, Sheridan WY 82801, États-Unis<br />
             contact@mrcomptable.fr
           </p>
-          <p style={{ margin: "16px 0 0" }}>
-            <a href="/comptable/cgv" style={{ color: OR, fontSize: "14px" }}>
-              Conditions générales de vente
-            </a>
+          <p style={{ margin: "16px 0 0", display: "flex", gap: "20px", flexWrap: "wrap" }}>
+            <a href="/comptable" style={lienPied}>Accueil</a>
+            <a href="/comptable/cgv" style={lienPied}>Conditions générales de vente</a>
           </p>
         </div>
       </footer>
