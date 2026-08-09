@@ -2,55 +2,60 @@
 import { useState, useEffect } from "react";
 import { useTraductionAuto } from "../../../hooks/useTraductionAuto";
 
+// LES ACCENTS SONT OBLIGATOIRES ICI.
+//
+// Ce fichier porte des libelles LUS PAR LE VISITEUR, sur les trois cent
+// trente et une pages du catalogue. L ASCII pur ne concerne que le code :
+// tout texte destine a un tiers s ecrit accentue.
 const FR = {
-  chargement: "Chargement...",
-  nonTrouvee: "Formation non trouvee",
+  chargement: "Chargement…",
+  nonTrouvee: "Formation non trouvée",
   retourCatalogue: "Retour au catalogue",
   niveau: "Niveau",
   formuleTitre: "Choisissez votre formule",
-  fondateur: "Code {CODE} : -{PCT} % pour les {PLACES} premiers clients, a saisir au moment du paiement.",
+  fondateur: "Code {CODE} : -{PCT} % pour les {PLACES} premiers clients, à saisir au moment du paiement.",
   bootcampNote: "Programme intensif complet — 3 classes virtuelles et plus par semaine, prix unique",
   description: "Description",
   objectifs: "Objectifs",
-  prerequis: "Prerequis",
-  publicCible: "Public cible",
+  prerequis: "Prérequis",
+  publicCible: "Public visé",
   programme: "Programme",
   modulesMot: "modules",
   heuresTotal: "heures de formation",
-  support: "Apercu du manuel",
-  supportSub: "Lisez les premieres pages avant de vous inscrire",
+  support: "Aperçu du manuel",
+  supportSub: "Lisez les premières pages avant de vous inscrire",
   voirSupport: "Feuilleter",
   coachBtn: "Mon coach IA",
   classeBtn: "Classe virtuelle",
-  pret: "Pret a demarrer ?",
-  acces: "Acces immediat apres inscription",
+  pret: "Prêt à démarrer ?",
+  acces: "Accès immédiat après inscription",
   acheter: "Acheter",
-  paiementTitre: "Comment souhaitez-vous regler ?",
+  paiementTitre: "Comment souhaitez-vous régler ?",
   comptant: "En une fois",
-  comptantDetail: "Reglement unique, acces immediat",
+  comptantDetail: "Règlement unique, accès immédiat",
   quatreFois: "En 4 fois sans frais",
-  quatreFoisDetail: "4 prelevements mensuels, acces immediat des le premier",
+  quatreFoisDetail: "4 prélèvements mensuels, accès immédiat dès le premier",
   parMois: "par mois",
   soitTotal: "soit",
   auTotal: "au total",
   paliers: [
-    { id: "elearning", nom: "E-learning", detail: "Formation complete a votre rythme, manuel PDF inclus" },
-    { id: "plus", nom: "E-learning Plus", detail: "+ chat virtuel 24h/24 qui repond a toutes vos questions" },
-    { id: "cv1", nom: "Classe virtuelle 1x/sem", detail: "+ 1 seance live par semaine" },
-    { id: "cv2", nom: "Classe virtuelle 2x/sem", detail: "+ 2 seances live par semaine" },
-    { id: "cv3", nom: "Intensif 3x/sem", detail: "+ 3 seances live par semaine" },
+    { id: "elearning", nom: "E-learning", detail: "Formation complète à votre rythme, manuel PDF inclus" },
+    { id: "plus", nom: "E-learning Plus", detail: "+ chat virtuel 24h/24 qui répond à toutes vos questions" },
+    { id: "cv1", nom: "Classe virtuelle 1×/sem", detail: "+ 1 séance live par semaine" },
+    { id: "cv2", nom: "Classe virtuelle 2×/sem", detail: "+ 2 séances live par semaine" },
+    { id: "cv3", nom: "Intensif 3×/sem", detail: "+ 3 séances live par semaine" },
   ],
   courtNom: "Classe virtuelle",
-  courtDetail: "+ 1 seance live d accompagnement incluse",
+  courtDetail: "+ 1 séance live d'accompagnement incluse",
   // Bloc de capture : il retient celui qui n achete pas aujourd hui.
-  guideTitre: "Pas encore decide ?",
-  guideTexte: "Recevez le guide de ce domaine, gratuitement. Vous jugerez du serieux de nos contenus avant d engager quoi que ce soit.",
-  guidePrenom: "Votre prenom",
-  guideEmail: "Votre adresse electronique",
+  guideTitre: "Pas encore décidé ?",
+  guideTexte: "Recevez le guide de ce domaine, gratuitement. Vous jugerez du sérieux de nos contenus avant d'engager quoi que ce soit.",
+  guidePrenom: "Votre prénom",
+  guideEmail: "Votre adresse électronique",
   guideBouton: "Recevoir le guide",
-  guideEnCours: "Envoi en cours...",
-  guideMerci: "C est envoye. Regardez votre boite de reception.",
-  guideErreur: "Envoi impossible. Verifiez votre adresse.",
+  guideEnCours: "Envoi en cours…",
+  guideMerci: "C'est envoyé. Regardez votre boîte de réception.",
+  guideErreur: "Envoi impossible. Vérifiez votre adresse.",
 };
 
 const MINIMUM_ECHELONNE = 300;
@@ -81,6 +86,27 @@ const COULEURS: any = {
   "Psychologie": ["#2e1a34", "#170d1a"],
   "Outils": ["#16323a", "#08181d"],
   "Ateliers": ["#332a16", "#19150b"],
+};
+
+// LE NOM DU DOMAINE, TEL QU ON L AFFICHE.
+//
+// La base porte des libelles courts et sans accents. Le visiteur, lui, doit
+// lire du francais.
+const NOMS_DOMAINE: any = {
+  "IA": "Intelligence artificielle",
+  "Tech": "Technique et numérique",
+  "Outils": "Outils numériques",
+  "Design": "Design",
+  "Business": "Business et management",
+  "Droit": "Droit",
+  "Marketing": "Marketing et vente",
+  "Finance": "Comptabilité et finance",
+  "Securite": "Sécurité et prévention",
+  "Langues": "Langues",
+  "Langues Anciennes": "Langues anciennes",
+  "Bien-etre": "Bien-être et développement personnel",
+  "Psychologie": "Psychologie",
+  "Ateliers": "Ateliers",
 };
 
 // LE GUIDE DU DOMAINE.
@@ -237,13 +263,18 @@ export default function FormationPage({ params }: { params: { id: string } }) {
   const totalEchelonne = mensualite * 4;
 
   const couleurs = COULEURS[formation.domaine] || ["#0a0a1a", "#1a1a2e"];
+  const nomDomaine = NOMS_DOMAINE[formation.domaine] || formation.domaine;
 
   // LA PROMESSE, EN TETE.
   //
   // Le visiteur doit savoir ce qu il saura faire AVANT de descendre la page.
   // Les objectifs sont le meilleur candidat ; a defaut, la description.
   const promesse = String(formation.objectifs || formation.description || "").trim();
-  const promesseCourte = promesse.length > 220 ? promesse.slice(0, 217) + "..." : promesse;
+  const promesseCourte = promesse.length > 220 ? promesse.slice(0, 217) + "…" : promesse;
+
+  // La promesse reprend les objectifs : les reafficher plus bas ferait
+  // doublon a quelques centimetres d ecart.
+  const objectifsAilleurs = formation.objectifs && promesse === String(formation.objectifs).trim();
 
   const ligneTotal = heures > 0 ? (
     <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "13px", marginTop: 0, marginBottom: "18px" }}>
@@ -289,7 +320,7 @@ export default function FormationPage({ params }: { params: { id: string } }) {
       {/* BANDEAU. La couleur porte le domaine, la promesse porte la vente. */}
       <div style={{ background: "linear-gradient(135deg," + couleurs[0] + "," + couleurs[1] + ")", padding: "70px 40px 60px", textAlign: "center", borderBottom: "1px solid rgba(200,169,110,0.25)" }}>
         <div style={{ color: "#c8a96e", fontSize: "12px", letterSpacing: "3px", marginBottom: "14px", textTransform: "uppercase" }}>
-          {formation.domaine}
+          {nomDomaine}
         </div>
         <h1 style={{ color: "#fff", fontFamily: "Georgia,serif", fontSize: "2.2rem", lineHeight: "1.25", margin: "0 auto 20px", maxWidth: "760px" }}>
           {formation.titre}
@@ -348,7 +379,7 @@ export default function FormationPage({ params }: { params: { id: string } }) {
           </div>
         )}
 
-        {formation.objectifs && (
+        {formation.objectifs && !objectifsAilleurs && (
           <div style={{ marginBottom: "35px" }}>
             <h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", marginBottom: "15px" }}>{txt.objectifs}</h2>
             <p style={{ color: "rgba(255,255,255,0.8)", lineHeight: "1.8" }}>{formation.objectifs}</p>
@@ -408,7 +439,7 @@ export default function FormationPage({ params }: { params: { id: string } }) {
           </div>
         )}
 
-        {aApercu && (
+        {aApercu && apercu.pdf_pret && (
           <div style={{ background: "rgba(200,169,110,0.08)", border: "1px solid rgba(200,169,110,0.2)", borderRadius: "10px", padding: "20px", marginBottom: "30px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px" }}>
             <div>
               <div style={{ color: "#c8a96e", fontWeight: "bold", marginBottom: "3px" }}>📖 {txt.support}</div>
