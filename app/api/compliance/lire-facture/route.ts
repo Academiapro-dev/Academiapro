@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { PDFDocument } from "pdf-lib";
 import { sessionCourante } from "../../../../lib/session";
 import { barrage } from "../../../../lib/droits";
 
@@ -46,21 +45,21 @@ function mots(t: string): string[] {
 // PDF ordinaire ni un scan : c est un fichier structure — Factur-X, UBL ou
 // CII — que la machine lit sans interpreter.
 //
-// Un Factur-X est un PDF/A-3 qui porte un fichier XML EN PIECE JOINTE.
-// Quand ce XML est la, les montants ne se devinent plus : ils se lisent.
-// On evite alors l appel a l IA, qui coute et qui peut se tromper.
+// Un Factur-X est un PDF qui porte un XML EN PIECE JOINTE. Quand ce XML est
+// la, les montants ne se devinent plus : ils se lisent. On evite alors
+// l appel a l IA, qui coute et qui peut se tromper.
 //
-// pdf-lib est deja au projet : aucune dependance nouvelle.
+// On ne passe PAS par une bibliotheque PDF pour l extraction : on balaie les
+// octets. C est plus robuste, parce que les emetteurs stockent la piece
+// jointe de facons tres variables — en clair, compressee, ou dans un flux
+// d objets.
 // ---------------------------------------------------------------------------
 
-// Une seule balise, sans espace de nom : <ram:Truc>valeur</ram:Truc> ou
-// <Truc>valeur</Truc>. On prend la premiere occurrence.
 function baliseXml(xml: string, nom: string): string {
   const m = xml.match(new RegExp("<(?:[a-zA-Z0-9]+:)?" + nom + "[^>]*>([^<]*)<", "i"));
   return m ? String(m[1]).trim() : "";
 }
 
-// Une balise dont on veut TOUTES les occurrences (montants de TVA par taux).
 function balisesXml(xml: string, nom: string): string[] {
   const re = new RegExp("<(?:[a-zA-Z0-9]+:)?" + nom + "[^>]*>([^<]*)<", "gi");
   const sortie: string[] = [];
@@ -85,48 +84,78 @@ function dateFacturX(v: string): string {
   return "";
 }
 
-// Extrait le XML attache a un PDF, s il y en a un.
-async function xmlAttache(octets: Buffer): Promise<string> {
-  try {
-    const pdf = await PDFDocument.load(octets, { ignoreEncryption: true });
-    const brut = octets.toString("latin1");
+// Un XML de facture, quel que soit son profil : CII (Factur-X, Zugferd),
+// UBL, ou une variante. On reconnait a la racine.
+function estXmlFacture(t: string): boolean {
+  if (!t || t.indexOf("<") < 0) return false;
+  return t.indexOf("CrossIndustryInvoice") >= 0
+    || t.indexOf("CrossIndustryDocument") >= 0
+    || (t.indexOf("<Invoice") >= 0 && t.indexOf("urn:oasis") >= 0);
+}
 
-    // Les noms normalises des pieces jointes Factur-X et Zugferd.
-    const noms = ["factur-x.xml", "zugferd-invoice.xml", "xrechnung.xml", "factur_x.xml"];
-    let present = false;
-    for (const n of noms) {
-      if (brut.toLowerCase().indexOf(n) >= 0) present = true;
+// Extrait le XML d une facture electronique. Renvoie aussi un diagnostic :
+// sans lui, un echec est muet et impossible a corriger.
+function xmlAttache(octets: Buffer): { xml: string; diagnostic: string } {
+  const brut = octets.toString("latin1");
+  const nomPresent = /factur[-_]x\.xml|zugferd[-_]invoice\.xml|xrechnung\.xml/i.test(brut);
+
+  // 1) Le XML est stocke en clair : le cas le plus frequent.
+  const debut = brut.search(/<\?xml/i);
+  if (debut >= 0) {
+    const morceau = brut.slice(debut, debut + 600000);
+    const fin = morceau.search(/<\/(?:[a-zA-Z0-9]+:)?(?:CrossIndustryInvoice|CrossIndustryDocument|Invoice)>/i);
+    if (fin > 0) {
+      const bloc = morceau.slice(0, fin + 200);
+      if (estXmlFacture(bloc)) {
+        return { xml: bloc, diagnostic: "xml en clair" };
+      }
     }
-    if (!present) return "";
+  }
 
-    // Le XML est stocke dans un flux, souvent compresse. On cherche d abord
-    // en clair : beaucoup d emetteurs ne compressent pas la piece jointe.
-    const direct = brut.match(/<\?xml[\s\S]{0,400000}?<\/(?:[a-zA-Z0-9]+:)?CrossIndustryInvoice>/i);
-    if (direct) return direct[0];
-
-    // Sinon, on decompresse les flux du document.
+  // 2) Le XML est dans un flux compresse.
+  try {
     const zlib = require("zlib");
-    const re = /stream\r?\n([\s\S]*?)\r?\nendstream/g;
+    const re = /stream[\r\n]+/g;
     let m = re.exec(brut);
+    let flux = 0;
     while (m) {
-      try {
-        const clair = zlib.inflateSync(Buffer.from(m[1], "latin1")).toString("utf8");
-        if (clair.indexOf("CrossIndustryInvoice") >= 0 || clair.indexOf("Invoice") >= 0) {
-          if (clair.indexOf("<?xml") >= 0) return clair;
+      const depart = m.index + m[0].length;
+      const arret = brut.indexOf("endstream", depart);
+      if (arret > depart) {
+        flux = flux + 1;
+        try {
+          const clair = zlib
+            .inflateSync(Buffer.from(brut.slice(depart, arret), "latin1"))
+            .toString("utf8");
+          if (estXmlFacture(clair)) {
+            return { xml: clair, diagnostic: "xml decompresse" };
+          }
+        } catch (e) {
+          try {
+            const clair2 = zlib
+              .inflateRawSync(Buffer.from(brut.slice(depart, arret), "latin1"))
+              .toString("utf8");
+            if (estXmlFacture(clair2)) {
+              return { xml: clair2, diagnostic: "xml decompresse (brut)" };
+            }
+          } catch (e2) {
+            // flux illisible : suivant
+          }
         }
-      } catch (e) {
-        // Flux non compresse ou illisible : on passe au suivant.
       }
       m = re.exec(brut);
     }
-
-    return "";
+    return {
+      xml: "",
+      diagnostic: nomPresent
+        ? "piece jointe annoncee mais XML introuvable, " + flux + " flux examines"
+        : "aucune piece jointe de facture electronique",
+    };
   } catch (e) {
-    return "";
+    return { xml: "", diagnostic: "erreur d extraction : " + String(e).slice(0, 80) };
   }
 }
 
-// Lit les champs utiles d un XML Factur-X / CII.
 function lireFacturX(xml: string): any {
   const ht = nombre(baliseXml(xml, "LineTotalAmount"));
   const ttc = nombre(baliseXml(xml, "GrandTotalAmount"));
@@ -136,18 +165,18 @@ function lireFacturX(xml: string): any {
   const tvas = balisesXml(xml, "TaxTotalAmount");
   let tva = 0;
   for (const t of tvas) tva = tva + nombre(t);
+  if (tva === 0) tva = nombre(baliseXml(xml, "CalculatedAmount"));
 
-  // Le taux : on prend le premier declare.
   const taux = nombre(baliseXml(xml, "RateApplicablePercent"));
 
-  // Le vendeur est le premier bloc Name du document.
+  // Le vendeur : premier bloc Name du document.
   const noms = balisesXml(xml, "Name");
   const fournisseur = noms.length > 0 ? noms[0] : "";
 
   return {
     fournisseur: fournisseur,
     reference: baliseXml(xml, "ID"),
-    date: dateFacturX(baliseXml(xml, "DateTimeString")),
+    date: dateFacturX(baliseXml(xml, "DateTimeString") || baliseXml(xml, "IssueDate")),
     montant_ht: r2(baseHt > 0 ? baseHt : ht),
     montant_tva: r2(tva),
     montant_ttc: r2(ttc),
@@ -182,7 +211,6 @@ export async function POST(req: NextRequest) {
     const refus = await barrage("deposer_pieces", piece.societe_id);
     if (refus) return refus;
 
-    // On telecharge le fichier depuis le coffre prive.
     const { data: fichier, error: erreurFichier } = await supabase.storage
       .from(BUCKET)
       .download(piece.chemin);
@@ -204,18 +232,19 @@ export async function POST(req: NextRequest) {
     const estPdf = extension === "pdf";
 
     // ---- VOIE 1 : facture electronique structuree -------------------------
-    // On regarde AVANT d appeler l IA. Si le XML est la, les montants sont
-    // certains : pas d interpretation, pas de cout, pas d ecart possible.
     let lu: any = null;
     let structuree = false;
+    let diagnostic = "non applicable";
 
     if (estPdf) {
-      const xml = await xmlAttache(octets);
-      if (xml) {
-        const f = lireFacturX(xml);
+      const trouve = xmlAttache(octets);
+      diagnostic = trouve.diagnostic;
+
+      if (trouve.xml) {
+        const f = lireFacturX(trouve.xml);
         // On n accepte la lecture structuree que si elle donne un TTC :
-        // sinon le XML est d un profil qu on ne sait pas encore lire, et
-        // mieux vaut retomber sur la lecture visuelle que servir un zero.
+        // sinon le profil n est pas reconnu, et mieux vaut la lecture
+        // visuelle qu un zero servi comme certitude.
         if (f.montant_ttc > 0) {
           lu = {
             fournisseur: f.fournisseur,
@@ -230,6 +259,8 @@ export async function POST(req: NextRequest) {
             confiance: 100,
           };
           structuree = true;
+        } else {
+          diagnostic = diagnostic + ", mais aucun total lisible dans ce profil";
         }
       }
     }
@@ -307,8 +338,6 @@ export async function POST(req: NextRequest) {
     const ecart = ttc > 0 && ht > 0 ? r2(ttc - ht - tva) : 0;
     const coherent = Math.abs(ecart) < 0.02;
 
-    // PROPOSITION DE COMPTE : d abord ce qui a deja ete fait pour ce
-    // fournisseur, sinon la nature lue.
     const NATURES: any = {
       loyer: "613000", honoraires: "622600", telecom: "626000",
       energie: "606100", fournitures: "606400", transport: "625100",
@@ -348,7 +377,6 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // On enrichit la fiche de la piece avec ce qui a ete lu.
     await supabase
       .from("compta_pieces")
       .update({
@@ -363,8 +391,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       ok: true,
-      source: structuree ? "facture electronique (Factur-X)" : "lecture visuelle",
+      source: structuree ? "facture electronique (fichier structure)" : "lecture visuelle",
       structuree: structuree,
+      diagnostic: diagnostic,
       lu: {
         fournisseur: lu.fournisseur || null,
         date: lu.date || null,
