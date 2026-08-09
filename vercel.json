@@ -43,6 +43,10 @@
     {
       "path": "/api/cron/facturation-pack",
       "schedule": "30 6 3 * *"
+    },
+    {
+      "path": "/api/cron/relance-pieces",
+      "schedule": "0 9 5 * *"
     }
   ]
 }
