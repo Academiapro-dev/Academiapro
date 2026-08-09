@@ -210,4 +210,7 @@ export async function GET(req: NextRequest) {
         ? "Il reste " + restant + " formation(s). Rouvrez la meme adresse pour continuer."
         : "Termine.",
     });
+  } catch (e: any) {
+    return NextResponse.json({ ok: false, erreur: String(e) }, { status: 500 });
   }
+}
