@@ -4,8 +4,10 @@ import { useState } from "react";
 export default function InscriptionComptable() {
   const [email, setEmail] = useState("");
   const [raisonSociale, setRaisonSociale] = useState("");
+  const [siren, setSiren] = useState("");
   const [occupe, setOccupe] = useState(false);
   const [message, setMessage] = useState("");
+  const [tva, setTva] = useState("");
   const [erreur, setErreur] = useState("");
   const [fait, setFait] = useState(false);
 
@@ -22,16 +24,28 @@ export default function InscriptionComptable() {
       return;
     }
 
+    const chiffres = siren.replace(/\D/g, "");
+    if (chiffres.length > 0 && chiffres.length < 9) {
+      setErreur("Le SIREN compte neuf chiffres.");
+      return;
+    }
+
     setOccupe(true);
     try {
       const r = await fetch("/api/compliance/inscription", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email, raison_sociale: raisonSociale }),
+        body: JSON.stringify({
+          email: email,
+          raison_sociale: raisonSociale,
+          siren: chiffres,
+          profil: "cabinet_comptable",
+        }),
       });
       const d = await r.json();
       if (d.ok) {
         setMessage(d.message || "Compte créé.");
+        setTva(d.numero_tva || "");
         setFait(true);
       } else {
         setErreur(d.erreur || "Création impossible.");
@@ -93,6 +107,13 @@ export default function InscriptionComptable() {
           <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "15px", lineHeight: "1.7" }}>
             {message}
           </p>
+          {tva && (
+            <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "14px", lineHeight: "1.7" }}>
+              Votre numéro de TVA intracommunautaire a été calculé depuis votre SIREN :
+              <span style={{ color: "#c8a96e" }}> {tva}</span>. Vous pourrez le corriger
+              depuis votre fiche s'il diffère.
+            </p>
+          )}
           <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "14px", lineHeight: "1.7" }}>
             Il n'y a pas de mot de passe à retenir : vous recevrez un lien de connexion
             par courriel, valable quelques minutes.
@@ -127,6 +148,19 @@ export default function InscriptionComptable() {
           placeholder="Cabinet Durand"
           style={CHAMP}
         />
+
+        <span style={LIBELLE}>SIREN</span>
+        <input
+          value={siren}
+          onChange={(e) => setSiren(e.target.value)}
+          placeholder="123 456 789"
+          inputMode="numeric"
+          style={CHAMP}
+        />
+        <p style={{ color: "rgba(255,255,255,0.35)", fontSize: "12px", marginTop: "-10px", marginBottom: "16px" }}>
+          Neuf chiffres. Nous en déduisons votre numéro de TVA intracommunautaire,
+          nécessaire à la facturation.
+        </p>
 
         <span style={LIBELLE}>Votre adresse électronique</span>
         <input
