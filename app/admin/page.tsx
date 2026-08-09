@@ -1,14 +1,5 @@
 "use client";
-import React from "react";
-
-const INDICATEURS = [
-  { titre: "CA Total", sous: "Chiffre d'affaires cumulé", valeur: "0 euro" },
-  { titre: "Apprenants", sous: "Total apprenants inscrits", valeur: "0" },
-  { titre: "Formations vendues", sous: "Ce mois", valeur: "0" },
-  { titre: "Séances réservées", sous: "Ce mois", valeur: "0" },
-  { titre: "Certificats délivrés", sous: "Total", valeur: "0" },
-  { titre: "Leads pipeline", sous: "CRM · prospects actifs", valeur: "0" },
-];
+import React, { useState, useEffect } from "react";
 
 const GROUPES = [
   {
@@ -48,7 +39,6 @@ const GROUPES = [
     titre: "Comptabilité",
     liens: [
       { nom: "Dépenses et justificatifs", href: "/admin/comptabilite" },
-      { nom: "Comptabilité", href: "/admin/comptabilite" },
       { nom: "Mr. Comptable", href: "/admin/mr-comptable" },
     ],
   },
@@ -87,14 +77,39 @@ const GROUPES = [
 ];
 
 export default function AdminPage() {
-  const carte = {
+  const [ind, setInd] = useState<any>(null);
+  const [detail, setDetail] = useState<any>(null);
+  const [erreur, setErreur] = useState("");
+  const [chargement, setChargement] = useState(true);
+
+  useEffect(function () { charger(); }, []);
+
+  async function charger() {
+    setChargement(true);
+    setErreur("");
+    try {
+      const r = await fetch("/api/admin/indicateurs", { cache: "no-store" });
+      const d = await r.json();
+      if (d.ok) {
+        setInd(d.indicateurs);
+        setDetail(d.detail);
+      } else {
+        setErreur(d.erreur || "Lecture impossible.");
+      }
+    } catch (e: any) {
+      setErreur(String(e));
+    }
+    setChargement(false);
+  }
+
+  const carte: any = {
     background: "#1a1a2e",
     borderRadius: "12px",
     padding: "24px",
     border: "1px solid rgba(200,169,110,0.3)",
   };
 
-  const bouton = {
+  const bouton: any = {
     display: "block",
     background: "#12121f",
     border: "1px solid rgba(200,169,110,0.35)",
@@ -104,6 +119,31 @@ export default function AdminPage() {
     textDecoration: "none",
     fontSize: "15px",
   };
+
+  function euros(n: number): string {
+    return (Number(n) || 0).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
+  }
+
+  // Les six indicateurs sont desormais calcules depuis la base, plus ecrits
+  // en dur. Un chiffre faux vaut moins que pas de chiffre : en cas d erreur
+  // de lecture, on affiche un tiret plutot qu un zero rassurant.
+  const CARTES = ind
+    ? [
+        { titre: "Chiffre d'affaires", sous: "Encaissé et facturé, cumulé", valeur: euros(ind.ca_total) },
+        { titre: "Apprenants", sous: "Total inscrits", valeur: String(ind.apprenants) },
+        { titre: "Formations vendues", sous: "Ce mois", valeur: String(ind.formations_vendues) },
+        { titre: "Séances réservées", sous: "Ce mois", valeur: String(ind.seances) },
+        { titre: "Attestations délivrées", sous: "Total", valeur: String(ind.certificats) },
+        { titre: "Pipeline", sous: "CRM · prospects encore ouverts", valeur: String(ind.pipeline) },
+      ]
+    : [
+        { titre: "Chiffre d'affaires", sous: "Encaissé et facturé, cumulé", valeur: "—" },
+        { titre: "Apprenants", sous: "Total inscrits", valeur: "—" },
+        { titre: "Formations vendues", sous: "Ce mois", valeur: "—" },
+        { titre: "Séances réservées", sous: "Ce mois", valeur: "—" },
+        { titre: "Attestations délivrées", sous: "Total", valeur: "—" },
+        { titre: "Pipeline", sous: "CRM · prospects encore ouverts", valeur: "—" },
+      ];
 
   return (
     <div style={{ minHeight: "100vh", background: "#050508", color: "#fff", fontFamily: "Georgia, serif", padding: "40px 20px" }}>
@@ -116,13 +156,37 @@ export default function AdminPage() {
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "20px" }}>
-          {INDICATEURS.map((i) => (
+          {CARTES.map((i) => (
             <div key={i.titre} style={carte}>
               <h3 style={{ color: "#c8a96e", fontSize: "16px", margin: "0 0 12px" }}>{i.titre}</h3>
               <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "13px", margin: "0 0 16px" }}>{i.sous}</p>
-              <p style={{ color: "#fff", fontSize: "24px", fontWeight: "bold", margin: "0" }}>{i.valeur}</p>
+              <p style={{ color: "#fff", fontSize: "24px", fontWeight: "bold", margin: "0" }}>
+                {chargement ? "…" : i.valeur}
+              </p>
             </div>
           ))}
+        </div>
+
+        {detail && (
+          <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px", marginTop: "18px", textAlign: "center" }}>
+            Dont {euros(detail.ca_encaisse_lemonsqueezy)} encaissés par Lemon Squeezy
+            et {euros(detail.ca_facture_llc)} facturés directement.
+          </p>
+        )}
+
+        {erreur && (
+          <p style={{ color: "#e8836a", fontSize: "14px", marginTop: "18px", textAlign: "center" }}>
+            Indicateurs indisponibles : {erreur}
+          </p>
+        )}
+
+        <div style={{ textAlign: "center", marginTop: "20px" }}>
+          <button
+            onClick={charger}
+            style={{ background: "transparent", color: "#c8a96e", border: "1px solid rgba(200,169,110,0.3)", borderRadius: "8px", padding: "10px 22px", cursor: "pointer", fontFamily: "Georgia, serif", fontSize: "14px" }}
+          >
+            Rafraîchir
+          </button>
         </div>
 
         {GROUPES.map((g) => (
@@ -136,10 +200,6 @@ export default function AdminPage() {
             </div>
           </div>
         ))}
-
-        <p style={{ color: "rgba(255,255,255,0.35)", fontSize: "13px", marginTop: "48px", textAlign: "center" }}>
-          Les six indicateurs ci-dessus sont encore fixes : ils ne sont pas calculés depuis les données.
-        </p>
 
       </div>
     </div>
