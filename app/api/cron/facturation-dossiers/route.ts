@@ -16,6 +16,11 @@ const supabase = createClient(
 const PRIX_DOSSIER = 19;
 const PRODUIT = "comptable";
 
+// Le code projet, tel qu il figure dans la table projets. creer-facture
+// refuse un code inconnu. Facturer sous 'comptable' plutot que 'academia'
+// permet de lire le chiffre d affaires produit par produit.
+const PROJET = "comptable";
+
 // Un dossier vivant : societe active ET au moins une ecriture SAISIE dans
 // le mois. On lit created_at et non ecriture_date : une ecriture de janvier
 // saisie en aout temoigne d un travail d aout.
@@ -179,7 +184,7 @@ export async function GET(req: NextRequest) {
           "x-cle-facture": cleFacture,
         },
         body: JSON.stringify({
-          projet: "academia",
+          projet: PROJET,
           tenant_id: tenant,
           client_nom: (org && org.raison_sociale) || "Cabinet " + tenant.slice(0, 8),
           client_email: (org && org.email_contact) || null,
@@ -237,6 +242,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       periode: periode,
+      projet: PROJET,
       declencheur: parCron ? "cron" : "manuel",
       cabinets: cabinets.length,
       resultats: resultats,
