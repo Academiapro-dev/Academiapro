@@ -104,9 +104,23 @@ export async function POST(req: NextRequest) {
     const enLancement = b.lancement !== false && !!org.lancement_jusqu_au;
     const mensuel = enLancement ? Math.round(plein / 2) : plein;
 
+    // DEUX FORMULES, ET LE CLIENT CHOISIT.
+    //
+    //  - Sans gestion : il suit lui-meme ses stagiaires, et la part sur le
+    //    catalogue est pleine (40 % par defaut).
+    //  - Avec gestion : l Editeur prend en charge le suivi administratif,
+    //    facture par stagiaire, et la part sur le catalogue est reduite
+    //    (10 % par defaut) — sans quoi il ne resterait presque rien au
+    //    Client sur ses ventes.
+    //
+    // Le taux vient TOUJOURS de la fiche : la valeur de secours ne sert que
+    // si le champ est vide, et elle ne doit jamais contredire la grille en
+    // vigueur.
+    const gestionSouscrite = org.gestion_souscrite === true;
+
     const taux = org.taux_prelevement !== null && org.taux_prelevement !== undefined
       ? Number(org.taux_prelevement)
-      : 35;
+      : (gestionSouscrite ? 10 : 40);
     const plancher = org.plancher_stagiaire !== null && org.plancher_stagiaire !== undefined
       ? Number(org.plancher_stagiaire)
       : 30;
@@ -114,9 +128,8 @@ export async function POST(req: NextRequest) {
       ? Number(org.taux_apport)
       : 50;
 
-    // Prestation optionnelle : elle ne figure au bon que si un forfait a ete
-    // fixe a la fiche du client.
-    const gestion = org.forfait_gestion !== null && org.forfait_gestion !== undefined
+    // Le forfait ne figure au bon que si le Client a souscrit la gestion.
+    const gestion = gestionSouscrite && org.forfait_gestion !== null && org.forfait_gestion !== undefined
       ? Number(org.forfait_gestion)
       : 0;
 
@@ -211,6 +224,20 @@ export async function POST(req: NextRequest) {
     paire("Telephone", org.telephone || "-");
     paire("N de TVA intracommunautaire", org.numero_tva || "A COMPLETER");
 
+    titreBloc("FORMULE RETENUE");
+    paire("Suivi administratif des stagiaires", gestionSouscrite ? "assure par l Editeur" : "assure par le Client");
+    y = y - 4;
+    ligne(
+      gestionSouscrite
+        ? "Le Client a retenu la formule avec gestion administrative : l Editeur prend en charge le "
+          + "suivi de ses stagiaires, facture par stagiaire inscrit. En contrepartie, la part sur "
+          + "les formations du catalogue de l Editeur est reduite."
+        : "Le Client a retenu la formule sans gestion administrative : il assure lui-meme le suivi "
+          + "de ses stagiaires. La part sur les formations du catalogue de l Editeur est celle "
+          + "indiquee ci-dessous.",
+      9, normal, noir, 5
+    );
+
     if (frais > 0) {
       titreBloc("MISE EN SERVICE");
       paire("Frais uniques a la signature", euros(frais));
@@ -249,14 +276,24 @@ export async function POST(req: NextRequest) {
 
     titreBloc("PART SUR LES FORMATIONS DU CATALOGUE DE L EDITEUR");
     paire("Taux", taux + " % du prix de vente hors taxes");
-    paire("Minimum par stagiaire inscrit", euros(plancher));
-    y = y - 4;
-    ligne(
-      "Le minimum par stagiaire est du pour chaque inscription sur une formation du catalogue de " +
-      "l Editeur, QUE LA FORMATION AIT ETE VENDUE OU NON. Lorsque la part calculee au taux " +
-      "ci-dessus lui est superieure, seule cette part est due.",
-      9, normal, noir, 5
-    );
+    if (!gestionSouscrite) {
+      paire("Minimum par stagiaire inscrit", euros(plancher));
+      y = y - 4;
+      ligne(
+        "Le minimum par stagiaire est du pour chaque inscription sur une formation du catalogue de " +
+        "l Editeur, QUE LA FORMATION AIT ETE VENDUE OU NON. Lorsque la part calculee au taux " +
+        "ci-dessus lui est superieure, seule cette part est due.",
+        9, normal, noir, 5
+      );
+    } else {
+      y = y - 4;
+      ligne(
+        "Ce taux reduit est la contrepartie de la gestion administrative souscrite ci-dessous. Il " +
+        "cesserait de s appliquer si le Client renoncait a cette prestation, le taux plein etant " +
+        "alors retabli par avenant.",
+        9, normal, noir, 5
+      );
+    }
     y = y - 4;
     ligne(
       "AUCUNE PART N EST DUE SUR LES FORMATIONS CREEES PAR LE CLIENT : elles lui appartiennent " +
@@ -266,21 +303,20 @@ export async function POST(req: NextRequest) {
     );
 
     if (gestion > 0) {
-      titreBloc("GESTION ADMINISTRATIVE - OPTION");
+      titreBloc("GESTION ADMINISTRATIVE");
       paire("Forfait par stagiaire inscrit", euros(gestion));
       y = y - 4;
       ligne(
-        "Prestation optionnelle, due uniquement si le Client la demande. Elle couvre, pour les " +
-        "formations propres du Client : conventions et contrats, convocations, feuilles " +
-        "d emargement, evaluations, attestations de fin de formation, pieces justificatives " +
-        "attendues lors d un audit et preparation du bilan pedagogique et financier.",
+        "Couvre, pour l ensemble des stagiaires du Client : conventions et contrats, convocations, " +
+        "feuilles d emargement, evaluations, attestations de fin de formation, pieces " +
+        "justificatives attendues lors d un audit et preparation du bilan pedagogique et financier.",
         9, normal, noir, 5
       );
       y = y - 4;
       ligne(
-        "Ce forfait est tout compris : il remplace le minimum par stagiaire ci-dessus et ne s y " +
-        "ajoute pas. Le Client demeure seul responsable de l exactitude des informations " +
-        "transmises, de la verification des documents produits et du depot de ses declarations.",
+        "Ce forfait est tout compris : il remplace le minimum par stagiaire et ne s y ajoute pas. " +
+        "Le Client demeure seul responsable de l exactitude des informations transmises, de la " +
+        "verification des documents produits et du depot de ses declarations.",
         9, normal, gris, 5
       );
     }
@@ -422,6 +458,7 @@ export async function POST(req: NextRequest) {
         taux: taux,
         plancher: plancher,
         gestion: gestion,
+        gestion_souscrite: gestionSouscrite,
         apport: apport,
         lancement_jusqu_au: org.lancement_jusqu_au,
         formations: (catalogue || []).length,
