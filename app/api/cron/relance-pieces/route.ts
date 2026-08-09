@@ -16,9 +16,18 @@ const supabase = createClient(
 // chaque mois, il faut ecrire a chaque client pour lui redemander les memes
 // factures. Cette route le fait a sa place.
 //
-// Une ecriture est SANS JUSTIFICATIF quand aucune ligne de compta_pieces ne
-// porte le meme couple (societe, numero d ecriture). On ne relance que ce
-// qui le merite :
+// UN JUSTIFICATIF PEUT SE TROUVER A DEUX ENDROITS, et les deux comptent :
+//
+//   compta_pieces — le depot direct, par le client ou le cabinet ;
+//   depenses      — la saisie de dépense, qui porte son propre pdf_url.
+//                   L ecriture garde alors le lien dans source_table et
+//                   source_id.
+//
+// Ne regarder que la premiere ferait crier au manque sur des pieces
+// parfaitement deposees. C est l erreur a ne pas commettre : une relance
+// injustifiee fait perdre confiance dans toutes les autres.
+//
+// On ne relance que ce qui le merite :
 //   - les journaux d achat et de vente, ou la piece est obligatoire ;
 //   - au-dela d un montant plancher, pour ne pas harceler sur trois euros ;
 //   - passe un delai de grace, le temps que le client depose ;
@@ -26,7 +35,6 @@ const supabase = createClient(
 const JOURNAUX = ["AC", "ACH", "VE", "VTE", "HA", "BQ"];
 const MONTANT_PLANCHER = 50;
 const JOURS_DE_GRACE = 15;
-const JOURS_ENTRE_RELANCES = 30;
 
 function r2(n: number): number {
   return Math.round(n * 100) / 100;
@@ -59,6 +67,22 @@ export async function GET(req: NextRequest) {
     const limite = new Date();
     limite.setDate(limite.getDate() - JOURS_DE_GRACE);
 
+    // Les depenses qui portent deja leur justificatif. On les lit une fois
+    // pour toutes : c est une table courte, et cela evite une requete par
+    // ecriture.
+    const { data: depenses } = await supabase
+      .from("depenses")
+      .select("id, pdf_url")
+      .not("pdf_url", "is", null)
+      .limit(20000);
+
+    const depensesJustifiees: string[] = [];
+    for (const d of depenses || []) {
+      if (d.id && String(d.pdf_url || "").length > 3) {
+        depensesJustifiees.push(String(d.id));
+      }
+    }
+
     const { data: societes, error: eSoc } = await supabase
       .from("compta_societes")
       .select("id, tenant_id, code, raison_sociale, email_contact, actif")
@@ -72,10 +96,10 @@ export async function GET(req: NextRequest) {
     const resultats: any[] = [];
 
     for (const s of societes || []) {
-      // Les ecritures qui devraient porter une piece.
       const { data: ecritures, error: eEcr } = await supabase
         .from("compta_ecritures")
-        .select("ecriture_num, ecriture_date, journal_code, ecriture_lib, debit, credit, piece_ref")
+        .select("ecriture_num, ecriture_date, journal_code, ecriture_lib, debit, credit, "
+          + "piece_ref, source_table, source_id")
         .eq("societe_id", s.id)
         .lte("ecriture_date", limite.toISOString().slice(0, 10))
         .limit(5000);
@@ -85,7 +109,7 @@ export async function GET(req: NextRequest) {
         continue;
       }
 
-      // Les justificatifs deja deposes.
+      // Les justificatifs deposes directement.
       const { data: pieces } = await supabase
         .from("compta_pieces")
         .select("ecriture_num")
@@ -107,7 +131,16 @@ export async function GET(req: NextRequest) {
         const journal = String(e.journal_code || "").toUpperCase();
         if (JOURNAUX.indexOf(journal) < 0) continue;
         if (!e.ecriture_num) continue;
+
+        // Piece deposee directement : rien a reclamer.
         if (deposees.indexOf(e.ecriture_num) >= 0) continue;
+
+        // Piece portee par la depense d origine : rien a reclamer non plus.
+        if (String(e.source_table || "") === "depenses"
+            && e.source_id
+            && depensesJustifiees.indexOf(String(e.source_id)) >= 0) {
+          continue;
+        }
 
         const montant = Math.max(Number(e.debit) || 0, Number(e.credit) || 0);
 
@@ -157,17 +190,16 @@ export async function GET(req: NextRequest) {
         continue;
       }
 
-      // Verrou : une seule relance par mois et par societe. On s appuie sur
-      // la table de facturation, dont la contrainte d unicite fait deja ce
-      // travail — produit distinct pour ne pas se melanger aux factures.
+      // Verrou : une seule relance par mois et par societe.
       const periode = new Date().toISOString().slice(0, 7);
+      const marque = "relance_pieces_" + String(s.id).slice(0, 8);
 
       const { error: eVerrou } = await supabase
         .from("facturation_periodes")
         .insert({
           tenant_id: s.tenant_id,
           periode: periode,
-          produit: "relance_pieces_" + String(s.id).slice(0, 8),
+          produit: marque,
           nb_dossiers: manquantes.length,
           montant_ht: 0,
         });
@@ -245,7 +277,7 @@ export async function GET(req: NextRequest) {
           .delete()
           .eq("tenant_id", s.tenant_id)
           .eq("periode", periode)
-          .eq("produit", "relance_pieces_" + String(s.id).slice(0, 8));
+          .eq("produit", marque);
       }
 
       resultats.push({
