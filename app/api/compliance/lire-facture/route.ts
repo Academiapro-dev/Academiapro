@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { PDFDocument } from "pdf-lib";
 import { sessionCourante } from "../../../../lib/session";
 import { barrage } from "../../../../lib/droits";
 
@@ -35,6 +36,124 @@ function mots(t: string): string[] {
     .replace(/[\u0300-\u036f]/g, "")
     .split(/[^a-z0-9]+/)
     .filter(function (m) { return m.length >= 4; });
+}
+
+// ---------------------------------------------------------------------------
+// FACTURE ELECTRONIQUE
+//
+// Au 1er septembre 2026, toute entreprise assujettie a la TVA doit pouvoir
+// RECEVOIR des factures electroniques. Une facture electronique n est ni un
+// PDF ordinaire ni un scan : c est un fichier structure — Factur-X, UBL ou
+// CII — que la machine lit sans interpreter.
+//
+// Un Factur-X est un PDF/A-3 qui porte un fichier XML EN PIECE JOINTE.
+// Quand ce XML est la, les montants ne se devinent plus : ils se lisent.
+// On evite alors l appel a l IA, qui coute et qui peut se tromper.
+//
+// pdf-lib est deja au projet : aucune dependance nouvelle.
+// ---------------------------------------------------------------------------
+
+// Une seule balise, sans espace de nom : <ram:Truc>valeur</ram:Truc> ou
+// <Truc>valeur</Truc>. On prend la premiere occurrence.
+function baliseXml(xml: string, nom: string): string {
+  const m = xml.match(new RegExp("<(?:[a-zA-Z0-9]+:)?" + nom + "[^>]*>([^<]*)<", "i"));
+  return m ? String(m[1]).trim() : "";
+}
+
+// Une balise dont on veut TOUTES les occurrences (montants de TVA par taux).
+function balisesXml(xml: string, nom: string): string[] {
+  const re = new RegExp("<(?:[a-zA-Z0-9]+:)?" + nom + "[^>]*>([^<]*)<", "gi");
+  const sortie: string[] = [];
+  let m = re.exec(xml);
+  while (m) {
+    sortie.push(String(m[1]).trim());
+    m = re.exec(xml);
+  }
+  return sortie;
+}
+
+function nombre(v: string): number {
+  const n = parseFloat(String(v || "").replace(",", "."));
+  return isNaN(n) ? 0 : n;
+}
+
+// AAAAMMJJ (format 102 de Factur-X) ou AAAA-MM-JJ deja normalise.
+function dateFacturX(v: string): string {
+  const t = String(v || "").trim();
+  if (/^\d{8}$/.test(t)) return t.slice(0, 4) + "-" + t.slice(4, 6) + "-" + t.slice(6, 8);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t;
+  return "";
+}
+
+// Extrait le XML attache a un PDF, s il y en a un.
+async function xmlAttache(octets: Buffer): Promise<string> {
+  try {
+    const pdf = await PDFDocument.load(octets, { ignoreEncryption: true });
+    const brut = octets.toString("latin1");
+
+    // Les noms normalises des pieces jointes Factur-X et Zugferd.
+    const noms = ["factur-x.xml", "zugferd-invoice.xml", "xrechnung.xml", "factur_x.xml"];
+    let present = false;
+    for (const n of noms) {
+      if (brut.toLowerCase().indexOf(n) >= 0) present = true;
+    }
+    if (!present) return "";
+
+    // Le XML est stocke dans un flux, souvent compresse. On cherche d abord
+    // en clair : beaucoup d emetteurs ne compressent pas la piece jointe.
+    const direct = brut.match(/<\?xml[\s\S]{0,400000}?<\/(?:[a-zA-Z0-9]+:)?CrossIndustryInvoice>/i);
+    if (direct) return direct[0];
+
+    // Sinon, on decompresse les flux du document.
+    const zlib = require("zlib");
+    const re = /stream\r?\n([\s\S]*?)\r?\nendstream/g;
+    let m = re.exec(brut);
+    while (m) {
+      try {
+        const clair = zlib.inflateSync(Buffer.from(m[1], "latin1")).toString("utf8");
+        if (clair.indexOf("CrossIndustryInvoice") >= 0 || clair.indexOf("Invoice") >= 0) {
+          if (clair.indexOf("<?xml") >= 0) return clair;
+        }
+      } catch (e) {
+        // Flux non compresse ou illisible : on passe au suivant.
+      }
+      m = re.exec(brut);
+    }
+
+    return "";
+  } catch (e) {
+    return "";
+  }
+}
+
+// Lit les champs utiles d un XML Factur-X / CII.
+function lireFacturX(xml: string): any {
+  const ht = nombre(baliseXml(xml, "LineTotalAmount"));
+  const ttc = nombre(baliseXml(xml, "GrandTotalAmount"));
+  const baseHt = nombre(baliseXml(xml, "TaxBasisTotalAmount"));
+
+  // La TVA peut apparaitre plusieurs fois, un montant par taux. On additionne.
+  const tvas = balisesXml(xml, "TaxTotalAmount");
+  let tva = 0;
+  for (const t of tvas) tva = tva + nombre(t);
+
+  // Le taux : on prend le premier declare.
+  const taux = nombre(baliseXml(xml, "RateApplicablePercent"));
+
+  // Le vendeur est le premier bloc Name du document.
+  const noms = balisesXml(xml, "Name");
+  const fournisseur = noms.length > 0 ? noms[0] : "";
+
+  return {
+    fournisseur: fournisseur,
+    reference: baliseXml(xml, "ID"),
+    date: dateFacturX(baliseXml(xml, "DateTimeString")),
+    montant_ht: r2(baseHt > 0 ? baseHt : ht),
+    montant_tva: r2(tva),
+    montant_ttc: r2(ttc),
+    taux_tva: taux,
+    devise: baliseXml(xml, "InvoiceCurrencyCode") || "EUR",
+  };
 }
 
 export async function POST(req: NextRequest) {
@@ -84,66 +203,99 @@ export async function POST(req: NextRequest) {
     const extension = String(piece.chemin).split(".").pop()?.toLowerCase() || "pdf";
     const estPdf = extension === "pdf";
 
-    const typeImage = extension === "png" ? "image/png"
-      : extension === "webp" ? "image/webp" : "image/jpeg";
+    // ---- VOIE 1 : facture electronique structuree -------------------------
+    // On regarde AVANT d appeler l IA. Si le XML est la, les montants sont
+    // certains : pas d interpretation, pas de cout, pas d ecart possible.
+    let lu: any = null;
+    let structuree = false;
 
-    const contenu: any[] = [
-      estPdf
-        ? { type: "document", source: { type: "base64", media_type: "application/pdf", data: base64 } }
-        : { type: "image", source: { type: "base64", media_type: typeImage, data: base64 } },
-      {
-        type: "text",
-        text: "Tu lis une piece comptable francaise. Extrais uniquement ce que tu vois, "
-          + "sans rien deviner. Reponds en JSON strict, sans texte autour, sans balises :\n"
-          + '{"fournisseur":"","date":"AAAA-MM-JJ","reference":"","montant_ht":0,'
-          + '"montant_tva":0,"montant_ttc":0,"taux_tva":0,"nature":"",'
-          + '"devise":"EUR","confiance":0}\n'
-          + "nature : une categorie courte parmi loyer, honoraires, telecom, energie, "
-          + "fournitures, transport, assurance, logiciel, sous-traitance, publicite, "
-          + "restauration, banque, marchandises, autre.\n"
-          + "confiance : de 0 a 100, ta certitude de lecture.\n"
-          + "Si une valeur est illisible ou absente, mets 0 ou une chaine vide.",
-      },
-    ];
-
-    const r = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": cle,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-6",
-        max_tokens: 700,
-        messages: [{ role: "user", content: contenu }],
-      }),
-    });
-
-    if (!r.ok) {
-      const detail = await r.text();
-      return NextResponse.json(
-        { ok: false, erreur: "Lecture impossible : " + detail.slice(0, 200) },
-        { status: 500 }
-      );
+    if (estPdf) {
+      const xml = await xmlAttache(octets);
+      if (xml) {
+        const f = lireFacturX(xml);
+        // On n accepte la lecture structuree que si elle donne un TTC :
+        // sinon le XML est d un profil qu on ne sait pas encore lire, et
+        // mieux vaut retomber sur la lecture visuelle que servir un zero.
+        if (f.montant_ttc > 0) {
+          lu = {
+            fournisseur: f.fournisseur,
+            date: f.date,
+            reference: f.reference,
+            montant_ht: f.montant_ht,
+            montant_tva: f.montant_tva,
+            montant_ttc: f.montant_ttc,
+            taux_tva: f.taux_tva,
+            nature: "",
+            devise: f.devise,
+            confiance: 100,
+          };
+          structuree = true;
+        }
+      }
     }
 
-    const reponse = await r.json();
-    const texte = (reponse.content || [])
-      .filter(function (x: any) { return x.type === "text"; })
-      .map(function (x: any) { return x.text; })
-      .join("")
-      .replace(/```json|```/g, "")
-      .trim();
+    // ---- VOIE 2 : lecture visuelle par l IA -------------------------------
+    if (!lu) {
+      const typeImage = extension === "png" ? "image/png"
+        : extension === "webp" ? "image/webp" : "image/jpeg";
 
-    let lu: any = null;
-    try {
-      lu = JSON.parse(texte);
-    } catch (e) {
-      return NextResponse.json(
-        { ok: false, erreur: "Reponse illisible du lecteur.", brut: texte.slice(0, 300) },
-        { status: 500 }
-      );
+      const contenu: any[] = [
+        estPdf
+          ? { type: "document", source: { type: "base64", media_type: "application/pdf", data: base64 } }
+          : { type: "image", source: { type: "base64", media_type: typeImage, data: base64 } },
+        {
+          type: "text",
+          text: "Tu lis une piece comptable francaise. Extrais uniquement ce que tu vois, "
+            + "sans rien deviner. Reponds en JSON strict, sans texte autour, sans balises :\n"
+            + '{"fournisseur":"","date":"AAAA-MM-JJ","reference":"","montant_ht":0,'
+            + '"montant_tva":0,"montant_ttc":0,"taux_tva":0,"nature":"",'
+            + '"devise":"EUR","confiance":0}\n'
+            + "nature : une categorie courte parmi loyer, honoraires, telecom, energie, "
+            + "fournitures, transport, assurance, logiciel, sous-traitance, publicite, "
+            + "restauration, banque, marchandises, autre.\n"
+            + "confiance : de 0 a 100, ta certitude de lecture.\n"
+            + "Si une valeur est illisible ou absente, mets 0 ou une chaine vide.",
+        },
+      ];
+
+      const r = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": cle,
+          "anthropic-version": "2023-06-01",
+        },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-6",
+          max_tokens: 700,
+          messages: [{ role: "user", content: contenu }],
+        }),
+      });
+
+      if (!r.ok) {
+        const detail = await r.text();
+        return NextResponse.json(
+          { ok: false, erreur: "Lecture impossible : " + detail.slice(0, 200) },
+          { status: 500 }
+        );
+      }
+
+      const reponse = await r.json();
+      const texte = (reponse.content || [])
+        .filter(function (x: any) { return x.type === "text"; })
+        .map(function (x: any) { return x.text; })
+        .join("")
+        .replace(/```json|```/g, "")
+        .trim();
+
+      try {
+        lu = JSON.parse(texte);
+      } catch (e) {
+        return NextResponse.json(
+          { ok: false, erreur: "Reponse illisible du lecteur.", brut: texte.slice(0, 300) },
+          { status: 500 }
+        );
+      }
     }
 
     const ht = r2(Number(lu.montant_ht) || 0);
@@ -211,6 +363,8 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       ok: true,
+      source: structuree ? "facture electronique (Factur-X)" : "lecture visuelle",
+      structuree: structuree,
       lu: {
         fournisseur: lu.fournisseur || null,
         date: lu.date || null,
@@ -226,12 +380,16 @@ export async function POST(req: NextRequest) {
       coherent: coherent,
       ecart: ecart,
       proposition: { compte: compte, origine: origine },
-      message: coherent
-        ? "Facture lue : " + (lu.fournisseur || "fournisseur inconnu") + ", "
-          + ttc.toFixed(2) + " EUR TTC."
-        : "Facture lue mais les montants ne tombent pas juste : "
-          + ht.toFixed(2) + " HT plus " + tva.toFixed(2) + " de TVA ne font pas "
-          + ttc.toFixed(2) + ". Verifiez avant de saisir.",
+      message: structuree
+        ? "Facture electronique lue dans le fichier structure : "
+          + (lu.fournisseur || "fournisseur inconnu") + ", " + ttc.toFixed(2)
+          + " EUR TTC. Montants certains, aucune interpretation."
+        : coherent
+          ? "Facture lue : " + (lu.fournisseur || "fournisseur inconnu") + ", "
+            + ttc.toFixed(2) + " EUR TTC."
+          : "Facture lue mais les montants ne tombent pas juste : "
+            + ht.toFixed(2) + " HT plus " + tva.toFixed(2) + " de TVA ne font pas "
+            + ttc.toFixed(2) + ". Verifiez avant de saisir.",
     });
   } catch (e: any) {
     return NextResponse.json({ ok: false, erreur: String(e) }, { status: 500 });
