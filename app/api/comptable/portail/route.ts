@@ -15,8 +15,8 @@ const supabase = createClient(
 // LE PORTAIL DU DIRIGEANT.
 //
 // Ce n est PAS l espace du cabinet. Le dirigeant vient pour trois choses :
-// voir ce qu on lui reclame, deposer une facture, et savoir ou en est sa
-// tresorerie. Rien d autre.
+// voir ce qu on lui reclame, deposer une facture, et relire ce qu il a
+// envoye. Rien d autre.
 //
 // L acces se fait par un JETON, pas par un mot de passe. Un dirigeant ne se
 // connecte pas tous les jours : lui imposer un mot de passe a retenir le
@@ -81,9 +81,11 @@ export async function GET(req: NextRequest) {
       .order("ecriture_date", { ascending: false })
       .limit(3000);
 
+    // L identifiant est indispensable : c est lui qui permet de rouvrir le
+    // document depuis l espace.
     const { data: pieces } = await supabase
       .from("compta_pieces")
-      .select("ecriture_num, nom, date_piece, montant_ttc, fournisseur, created_at")
+      .select("id, ecriture_num, nom, date_piece, montant_ttc, fournisseur, created_at")
       .eq("societe_id", droit.societe_id)
       .order("created_at", { ascending: false })
       .limit(2000);
@@ -95,6 +97,8 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // On regroupe par numero d ecriture : une ecriture comptable porte
+    // plusieurs lignes, mais un seul justificatif.
     const parNumero: any = {};
 
     for (const e of ecritures || []) {
