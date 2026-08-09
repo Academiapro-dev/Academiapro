@@ -7,7 +7,8 @@ const OUTILS = [
     { nom: "Plan comptable", href: "/admin/compliance/comptes" },
     { nom: "Balance", href: "/admin/compliance/balance" },
     { nom: "Lettrage", href: "/admin/compliance/lettrage" },
-    { nom: "Pièces justificatives", href: "/admin/compliance/pieces" },
+    { nom: "Factures et justificatifs", href: "/admin/compliance/pieces" },
+    { nom: "Espaces clients", href: "/admin/compliance/acces-clients" },
     { nom: "Reprise d'un dossier", href: "/admin/compliance/reprise" },
   ]},
   { titre: "Banque et TVA", liens: [
@@ -28,6 +29,7 @@ const OUTILS = [
     { nom: "Liasse 2033", href: "/admin/compliance/liasse-2033" },
     { nom: "Liasse 2050", href: "/admin/compliance/liasse-2050" },
     { nom: "Liasse 2065", href: "/admin/compliance/liasse-2065" },
+    { nom: "Télétransmissions", href: "/admin/compliance/teledec" },
   ]},
   { titre: "Le cabinet", liens: [
     { nom: "Mes dossiers", href: "/admin/compliance/societes" },
@@ -76,6 +78,17 @@ export default function PageTableauDeBord() {
     fontWeight: "bold",
   };
 
+  // LES TROIS GESTES DU QUOTIDIEN, EN HAUT DE PAGE.
+  //
+  // Un comptable ouvre son logiciel pour saisir, deposer une piece, ou
+  // regarder un dossier. Le faire descendre jusqu a « Tous les outils »
+  // pour cela, c est lui faire perdre du temps trente fois par jour.
+  const RACCOURCIS = [
+    { nom: "Déposer une facture", href: "/admin/compliance/pieces" },
+    { nom: "Saisir une écriture", href: "/admin/compliance/saisie" },
+    { nom: "Ouvrir un dossier", href: "/admin/compliance/societes" },
+  ];
+
   function euros(n: any) {
     return (Number(n) || 0).toLocaleString("fr-FR", { minimumFractionDigits: 2 }) + " €";
   }
@@ -101,10 +114,33 @@ export default function PageTableauDeBord() {
         <p style={{ color: "#c8a96e", fontSize: "12px", letterSpacing: "3px", margin: "22px 0 8px" }}>
           COMPTABILITÉ
         </p>
-        <h1 style={{ color: "#fff", fontSize: "29px", margin: "0 0 6px" }}>Ce qui vous attend</h1>
+        <h1 style={{ color: "#fff", fontSize: "29px", margin: "0 0 6px" }}>Vos dossiers</h1>
         <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "14px", marginTop: 0 }}>
-          Tous vos dossiers, classés par ce qui réclame votre attention
+          Classés du plus urgent au plus calme
         </p>
+
+        {/* Les trois gestes du quotidien, avant tout le reste. */}
+        <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", margin: "22px 0 0" }}>
+          {RACCOURCIS.map(function (r) {
+            return (
+              <a
+                key={r.href}
+                href={r.href}
+                style={{
+                  background: "#c8a96e",
+                  color: "#050508",
+                  padding: "13px 22px",
+                  borderRadius: "9px",
+                  textDecoration: "none",
+                  fontWeight: "bold",
+                  fontSize: "14.5px",
+                }}
+              >
+                {r.nom}
+              </a>
+            );
+          })}
+        </div>
 
         {erreur && <p style={{ color: "#e8836a", fontSize: "15px" }}>{erreur}</p>}
 
@@ -216,7 +252,7 @@ export default function PageTableauDeBord() {
                       </a>
                     )}
                     {s.ecritures_sans_piece > 0 && (
-                      <a href={"/admin/compliance/pieces" + q} style={LIEN}>Justifier</a>
+                      <a href={"/admin/compliance/pieces" + q} style={LIEN}>Déposer les factures</a>
                     )}
                     <a href={"/admin/compliance/saisie" + q} style={LIEN}>Saisir</a>
                   </div>
