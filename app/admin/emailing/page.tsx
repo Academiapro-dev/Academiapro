@@ -2,8 +2,9 @@
 import { useState, useEffect } from "react";
 
 const TYPES_EMAIL = [
+  { id: "prospection", label: "🎯 Prospection à froid", desc: "Premier contact" },
+  { id: "relance", label: "🔥 Relance Prospect", desc: "Déjà en contact" },
   { id: "bienvenue", label: "🎉 Bienvenue", desc: "Nouvel inscrit" },
-  { id: "relance", label: "🔥 Relance Prospect", desc: "Prospect inactif" },
   { id: "remotivation", label: "💪 Remotivation", desc: "Apprenant inactif" },
   { id: "certification", label: "🏆 Certification", desc: "Félicitations" },
   { id: "newsletter", label: "📰 Newsletter", desc: "Mensuelle" },
@@ -23,7 +24,7 @@ export default function EmailingPage() {
   const [onglet, setOnglet] = useState("dashboard");
   const [loading, setLoading] = useState(false);
   const [resultat, setResultat] = useState<any>(null);
-  const [typeSelectionne, setTypeSelectionne] = useState("bienvenue");
+  const [typeSelectionne, setTypeSelectionne] = useState("prospection");
   const [produit, setProduit] = useState("academia");
   const [contexte, setContexte] = useState({ prenom: "", nom: "", email: "", formation: "", mois: "", date: "", heure: "", jours: "7", progression: "" });
   const [envoyer, setEnvoyer] = useState(false);
