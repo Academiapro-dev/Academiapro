@@ -21,6 +21,11 @@ const CE_QUE_FAIT: any[] = [
       "Vous déposez la facture, elle se lit et se comptabilise. Les factures électroniques au format Factur-X sont lues dans leur fichier structuré : les montants ne sont pas interprétés, ils sont lus. Le compte d'imputation est proposé d'après vos écritures passées.",
   },
   {
+    titre: "La relance des justificatifs",
+    texte:
+      "Chaque mois, la plateforme repère les écritures sans pièce et écrit elle-même au client, avec la liste des factures attendues et un lien pour les déposer. Vous ne courez plus après les justificatifs : ils arrivent.",
+  },
+  {
     titre: "Les déclarations",
     texte:
       "TVA, liasse fiscale, impôt sur les sociétés. La télétransmission à la DGFiP se fait depuis le dossier, sans ressaisie, et les accusés de réception remontent dans votre interface.",
@@ -39,6 +44,11 @@ const CE_QUE_FAIT: any[] = [
     titre: "La traçabilité",
     texte:
       "Chaque modification est enregistrée : qui, quand, la valeur avant et la valeur après. C'est ce que l'administration demandera, et c'est écrit sans que personne ait à y penser.",
+  },
+  {
+    titre: "L'inaltérabilité",
+    texte:
+      "Une écriture validée ne se supprime pas : elle se contre-passe, et la trace des deux demeure. Les factures émises portent une numérotation continue que la base elle-même garantit, sans rupture ni doublon possible.",
   },
 ];
 
@@ -132,6 +142,31 @@ export default function AccueilComptable() {
         </div>
       </section>
 
+      {/* Le temps rendu. Un cabinet n achete pas des fonctions, il achete des
+          heures. C est le seul endroit de la page ou on parle de son metier
+          plutot que du logiciel. */}
+      <section style={{ ...section, paddingBottom: "70px" }}>
+        <div style={{ ...carte, borderColor: "rgba(200,169,110,0.4)", padding: "34px" }}>
+          <h2 style={{ color: OR, fontSize: "13px", letterSpacing: "3px", margin: "0 0 16px" }}>
+            CE QUE VOUS NE FEREZ PLUS
+          </h2>
+          <p style={{ color: "rgba(255,255,255,0.75)", fontSize: "16px", lineHeight: "1.8", margin: "0 0 14px", maxWidth: "760px" }}>
+            Réclamer les justificatifs un par un, dossier par dossier, tous les mois.
+            La plateforme repère les écritures sans pièce, écrit au client, lui donne
+            la liste et le lien pour déposer. Vous relisez, vous ne relancez plus.
+          </p>
+          <p style={{ color: "rgba(255,255,255,0.75)", fontSize: "16px", lineHeight: "1.8", margin: "0 0 14px", maxWidth: "760px" }}>
+            Ressaisir une facture. Vous la déposez, elle se lit. Au format Factur-X,
+            les montants sont repris du fichier structuré, sans lecture visuelle donc
+            sans écart possible.
+          </p>
+          <p style={{ color: "rgba(255,255,255,0.75)", fontSize: "16px", lineHeight: "1.8", margin: 0, maxWidth: "760px" }}>
+            Recopier une liasse dans un autre portail. La télétransmission part du
+            dossier, et l'accusé de réception y revient.
+          </p>
+        </div>
+      </section>
+
       {/* Facture électronique */}
       <section style={{ ...section, paddingBottom: "70px" }}>
         <div style={{ ...carte, borderColor: "rgba(200,169,110,0.4)", padding: "34px" }}>
@@ -191,8 +226,8 @@ export default function AccueilComptable() {
 
         <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "15px", lineHeight: "1.8", marginTop: "24px", maxWidth: "760px" }}>
           Tout est compris dans ces deux lignes : la tenue, les déclarations, la
-          télétransmission, la lecture des pièces et l'assistance. Aucun module en
-          supplément, aucun engagement de durée.
+          télétransmission, la lecture des pièces, la relance des justificatifs et
+          l'assistance. Aucun module en supplément, aucun engagement de durée.
         </p>
       </section>
 
