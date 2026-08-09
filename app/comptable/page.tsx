@@ -215,6 +215,11 @@ export default function AccueilComptable() {
             États-Unis<br />
             contact@mrcomptable.fr · mrcomptable.fr
           </p>
+          <p style={{ margin: "16px 0 0" }}>
+            <Link href="/comptable/cgv" style={{ color: OR, fontSize: "14px" }}>
+              Conditions générales de vente
+            </Link>
+          </p>
           <p style={{ color: "rgba(255,255,255,0.3)", fontSize: "13px", marginTop: "14px", marginBottom: 0 }}>
             Prix hors taxes. Prestataire établi hors Union européenne : la TVA est
             autoliquidée par le preneur assujetti.
