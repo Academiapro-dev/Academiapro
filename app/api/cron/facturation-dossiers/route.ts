@@ -10,15 +10,21 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || ""
 );
 
-// Grille arretee : 90 EUR d abonnement preleve par Lemon Squeezy, plus
-// 19 EUR par dossier vivant factures ici. L abonnement n est PAS refacture,
-// il ferait doublon avec le prelevement.
+// GRILLE MR. COMPTABLE.
+//
+// 90 EUR d abonnement, DUS QUEL QUE SOIT L USAGE : un abonnement se paie
+// parce que le service est disponible, pas parce qu il a servi. Plus 19 EUR
+// par dossier reellement travaille dans le mois.
+//
+// Tout est facture par la LLC, en direct. Lemon Squeezy ne sert plus au B2B :
+// sans TVA a porter, il n apportait que l encaissement par carte, dont un
+// cabinet n a pas l usage — il regle par virement a trente jours.
+const ABONNEMENT = 90;
 const PRIX_DOSSIER = 19;
 const PRODUIT = "comptable";
 
 // Le code projet, tel qu il figure dans la table projets. creer-facture
-// refuse un code inconnu. Facturer sous 'comptable' plutot que 'academia'
-// permet de lire le chiffre d affaires produit par produit.
+// refuse un code inconnu.
 const PROJET = "comptable";
 
 // Un dossier vivant : societe active ET au moins une ecriture SAISIE dans
@@ -114,12 +120,8 @@ export async function GET(req: NextRequest) {
     for (const tenant of cabinets) {
       const vivants = await dossiersVivants(tenant, debut, fin);
 
-      if (vivants.length === 0) {
-        resultats.push({ tenant, periode, dossiers: 0, statut: "aucun dossier vivant" });
-        continue;
-      }
-
-      const montant_ht = Math.round(vivants.length * PRIX_DOSSIER * 100) / 100;
+      const partDossiers = Math.round(vivants.length * PRIX_DOSSIER * 100) / 100;
+      const montant_ht = Math.round((ABONNEMENT + partDossiers) * 100) / 100;
 
       // Coordonnees du cabinet.
       const { data: org } = await supabase
@@ -133,6 +135,8 @@ export async function GET(req: NextRequest) {
           tenant,
           periode,
           dossiers: vivants.length,
+          abonnement: ABONNEMENT,
+          part_dossiers: partDossiers,
           montant_ht,
           client: (org && org.raison_sociale) || null,
           numero_tva: (org && org.numero_tva) || null,
@@ -165,14 +169,15 @@ export async function GET(req: NextRequest) {
         continue;
       }
 
-      const description =
-        "Mr. Comptable — gestion des dossiers, période " +
-        periode +
-        " — " +
-        vivants.length +
-        " dossier(s) × " +
-        PRIX_DOSSIER +
-        " € HT";
+      // Une seule facture, deux lignes de nature differente. Le detail
+      // figure dans la designation : le client doit pouvoir refaire le
+      // calcul sans nous appeler.
+      const description = vivants.length > 0
+        ? "Mr. Comptable — période " + periode
+          + " : abonnement " + ABONNEMENT + " € HT"
+          + " + " + vivants.length + " dossier(s) × " + PRIX_DOSSIER + " € HT"
+        : "Mr. Comptable — période " + periode
+          + " : abonnement " + ABONNEMENT + " € HT (aucun dossier travaillé sur la période)";
 
       // Prestataire hors UE, preneur assujetti en France : la TVA est
       // autoliquidee par le client. Sans son numero de TVA, la facture
@@ -232,6 +237,8 @@ export async function GET(req: NextRequest) {
         tenant,
         periode,
         dossiers: vivants.length,
+        abonnement: ABONNEMENT,
+        part_dossiers: partDossiers,
         montant_ht,
         numero: jf.numero,
         sans_tva_client: !(org && org.numero_tva),
