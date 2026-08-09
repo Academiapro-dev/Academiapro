@@ -97,11 +97,12 @@ export default function NavBar() {
         <a href="/admin/compliance/tableau-de-bord" style={lienMarque}>
           Mr. Comptable
         </a>
-        <nav style={{ display: "flex", gap: "22px", flexWrap: "wrap" }}>
+        <nav style={{ display: "flex", gap: "20px", flexWrap: "wrap" }}>
           <a href="/admin/compliance/tableau-de-bord" style={lienMenu}>Tableau de bord</a>
           <a href="/admin/compliance/societes" style={lienMenu}>Mes dossiers</a>
           <a href="/admin/compliance/saisie" style={lienMenu}>Saisie</a>
           <a href="/admin/compliance/pieces" style={lienMenu}>Pièces</a>
+          <a href="/admin/compliance/acces-clients" style={lienMenu}>Espaces clients</a>
           <a href="/admin/compliance/tva" style={lienMenu}>TVA</a>
           <a href="/admin/compliance/teledec" style={lienMenu}>Télétransmissions</a>
         </nav>
