@@ -67,6 +67,23 @@ const LIGNE_F3: any = {
   vae: "f",
 };
 
+// LA DUREE EST UN TEXTE, PAS UN NOMBRE.
+//
+// En base, elle s ecrit « 120h », « 8 h », « 24 heures ». Un Number() dessus
+// renvoie NaN, la duree tombe a zero, et le bilan reclame une duree qui est
+// pourtant renseignee. C est ce qui faisait crier au manque sur des fiches
+// completes.
+function heuresDe(valeur: any): number {
+  if (valeur === null || valeur === undefined) return 0;
+  const direct = Number(valeur);
+  if (!isNaN(direct) && direct > 0) return direct;
+
+  const m = String(valeur).replace(",", ".").match(/[\d.]+/);
+  if (!m) return 0;
+  const n = Number(m[0]);
+  return isNaN(n) || n <= 0 ? 0 : n;
+}
+
 function contexte(req: NextRequest) {
   const session = sessionCourante();
   if (!session) return { session: null, tenant: null };
@@ -164,7 +181,7 @@ export async function GET(req: NextRequest) {
       stagiaires.add(i.email);
 
       const fiche = infoDe[i.formation_code || ""] || {};
-      const duree = Number(fiche.duree) || 0;
+      const duree = heuresDe(fiche.duree);
       if (!i.formation_code) aCompleter.sans_formation = aCompleter.sans_formation + 1;
       if (!duree) aCompleter.sans_duree = aCompleter.sans_duree + 1;
 
@@ -226,7 +243,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       avertissement:
-        "Etat preparatoire au bilan pedagogique et financier (Cerfa 10443*17). Les chiffres sont ranges selon les cadres du formulaire pour etre recopies sur Mon Activite Formation. Ce document n est pas la declaration.",
+        "État préparatoire au bilan pédagogique et financier (Cerfa 10443*17). "
+        + "Les chiffres sont rangés selon les cadres du formulaire pour être "
+        + "recopiés sur Mon Activité Formation. Ce document n'est pas la déclaration.",
       annee: annee,
       cadre_a: fiche || null,
       distanciel: true,
