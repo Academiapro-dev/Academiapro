@@ -180,7 +180,7 @@ export default function LMSPage({ params }) {
         setAvertissement("");
       } else if (r.status === 401) {
         setProgression({});
-        setAvertissement("Connectez-vous pour que votre progression soit enregistree.");
+        setAvertissement("Connectez-vous pour que votre progression soit enregistrée.");
       }
     } catch {
       setAvertissement("Progression indisponible pour le moment.");
@@ -282,7 +282,7 @@ export default function LMSPage({ params }) {
       const data = await r.json();
       setChatHistory(prev => [
         ...prev,
-        { role: "agent", text: data.ok ? data.reponse : (data.erreur || "Reponse impossible.") },
+        { role: "agent", text: data.ok ? data.reponse : (data.erreur || "Réponse impossible.") },
       ]);
     } catch {
       setChatHistory(prev => [...prev, { role: "agent", text: "Erreur de connexion." }]);
@@ -301,14 +301,14 @@ export default function LMSPage({ params }) {
 
   if (loadingFormation) return (
     <div style={{ background: "#050508", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <p style={{ color: "#c8a96e", fontSize: "18px" }}>Chargement...</p>
+      <p style={{ color: "#c8a96e", fontSize: "18px" }}>Chargement…</p>
     </div>
   );
 
   if (chapitres.length === 0) return (
     <div style={{ background: "#050508", minHeight: "100vh", color: "#fff", padding: "40px", textAlign: "center" }}>
-      <h1 style={{ color: "#c8a96e" }}>Formation en preparation</h1>
-      <p style={{ color: "rgba(255,255,255,0.6)" }}>Le contenu de cette formation est en cours de generation.</p>
+      <h1 style={{ color: "#c8a96e" }}>Formation en préparation</h1>
+      <p style={{ color: "rgba(255,255,255,0.6)" }}>Le contenu de cette formation est en cours de génération.</p>
       <a href="/catalogue" style={{ color: "#c8a96e" }}>Retour au catalogue</a>
     </div>
   );
@@ -336,7 +336,7 @@ export default function LMSPage({ params }) {
       <div style={{ background: "linear-gradient(135deg,#0a0a1a,#1a1a2e)", padding: "20px 30px", borderBottom: "2px solid rgba(200,169,110,0.3)" }}>
         <div style={{ maxWidth: "1200px", margin: "0 auto", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div>
-            <p style={{ color: "#c8a96e", fontSize: "12px", margin: "0 0 2px" }}>AcadeMIA Pro · LMS · {domaine}</p>
+            <p style={{ color: "#c8a96e", fontSize: "12px", margin: "0 0 2px" }}>AcadémIA Pro · LMS · {domaine}</p>
             <h1 style={{ color: "#fff", fontFamily: "Georgia,serif", fontSize: "20px", margin: "0 0 2px" }}>{formation?.titre || code}</h1>
             <p style={{ color: "rgba(200,169,110,0.7)", fontSize: "11px", margin: 0 }}>Formateur : {formateurDyn || agents.formateur}</p>
           </div>
@@ -393,7 +393,7 @@ export default function LMSPage({ params }) {
             <div style={{ marginBottom: "15px" }}>
               <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "12px", margin: "0 0 4px" }}>Chapitre {chapitreActif} · Module {moduleActif}</p>
               <h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", margin: 0, fontSize: "18px" }}>{module.titre}</h2>
-              {moduleValide && <span style={{ background: "rgba(0,200,0,0.2)", color: "#00c800", padding: "3px 10px", borderRadius: "20px", fontSize: "11px" }}>✅ Module valide</span>}
+              {moduleValide && <span style={{ background: "rgba(0,200,0,0.2)", color: "#00c800", padding: "3px 10px", borderRadius: "20px", fontSize: "11px" }}>✅ Module validé</span>}
             </div>
           )}
 
@@ -402,7 +402,7 @@ export default function LMSPage({ params }) {
               {loading ? (
                 <div style={{ textAlign: "center", padding: "60px 0" }}>
                   <div style={{ fontSize: "32px", marginBottom: "15px" }}>⚡</div>
-                  <div style={{ color: "#c8a96e", fontSize: "16px" }}>Chargement du module...</div>
+                  <div style={{ color: "#c8a96e", fontSize: "16px" }}>Chargement du module…</div>
                 </div>
               ) : texteCours ? (
                 <div>
@@ -439,7 +439,7 @@ export default function LMSPage({ params }) {
                   </div>
                 </div>
               ) : (
-                <div style={{ textAlign: "center", padding: "60px 0", color: "#999" }}>Selectionnez un module</div>
+                <div style={{ textAlign: "center", padding: "60px 0", color: "#999" }}>Sélectionnez un module</div>
               )}
             </div>
           )}
@@ -447,11 +447,11 @@ export default function LMSPage({ params }) {
           {onglet === "qcm" && (
             <div>
               {loading ? (
-                <div style={CARTE}><p style={{ color: "#666", margin: 0 }}>Chargement du module...</p></div>
+                <div style={CARTE}><p style={{ color: "#666", margin: 0 }}>Chargement du module…</p></div>
               ) : questions.length === 0 ? (
                 <div style={CARTE}>
                   <p style={{ color: "#666", margin: 0, fontSize: "17px" }}>
-                    Ce module n a pas encore de questionnaire.
+                    Ce module n'a pas encore de questionnaire.
                   </p>
                 </div>
               ) : (
@@ -459,8 +459,8 @@ export default function LMSPage({ params }) {
                   <div style={CARTE}>
                     <h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", fontSize: "21px", margin: "0 0 8px" }}>Questionnaire du module</h2>
                     <p style={{ color: "#555", fontSize: "15px", marginTop: 0, lineHeight: "1.6" }}>
-                      Cochez une reponse par question. Les bonnes reponses vous seront donnees et
-                      expliquees par votre correcteur, apres votre note.
+                      Cochez une réponse par question. Les bonnes réponses vous seront données et
+                      expliquées par votre correcteur, après votre note.
                     </p>
 
                     {questions.map(function (q) {
@@ -512,23 +512,23 @@ export default function LMSPage({ params }) {
                     })}
 
                     <p style={{ color: repondues === questions.length ? "#2e7d32" : "#a06a2c", fontSize: "15px", marginTop: "22px", marginBottom: 0, fontWeight: "bold" }}>
-                      {repondues} reponse(s) sur {questions.length}
+                      {repondues} réponse(s) sur {questions.length}
                     </p>
                   </div>
 
                   <div style={CARTE}>
-                    <h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", fontSize: "21px", margin: "0 0 8px" }}>Votre note de synthese</h2>
+                    <h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", fontSize: "21px", margin: "0 0 8px" }}>Votre note de synthèse</h2>
                     <p style={{ color: "#555", fontSize: "15px", marginTop: 0, lineHeight: "1.6" }}>
-                      Avec vos mots, sans recopier le cours : les notions cles de ce module, la methode
-                      retenue, et une situation ou vous comptez l appliquer. Votre correcteur en tient
-                      compte dans la note, autant que vos reponses.
+                      Avec vos mots, sans recopier le cours : les notions clés de ce module, la méthode
+                      retenue, et une situation où vous comptez l'appliquer. Votre correcteur en tient
+                      compte dans la note, autant que vos réponses.
                     </p>
 
                     <textarea
                       value={synthese}
                       onChange={(e) => setSynthese(e.target.value)}
                       rows={9}
-                      placeholder="Ce que j ai retenu de ce module..."
+                      placeholder="Ce que j'ai retenu de ce module…"
                       disabled={correctionEnCours}
                       style={{ width: "100%", padding: "16px", borderRadius: "8px", border: "1px solid #ccc", background: "#fff", color: "#1a1a1a", fontSize: "17px", lineHeight: "1.7", fontFamily: "Georgia,serif", boxSizing: "border-box", marginBottom: "12px" }}
                     />
@@ -542,11 +542,11 @@ export default function LMSPage({ params }) {
                       disabled={correctionEnCours || !pretAcorriger}
                       style={{ background: correctionEnCours || !pretAcorriger ? "#e3d9c2" : "#c8a96e", color: correctionEnCours || !pretAcorriger ? "#8a8a8a" : "#050508", padding: "16px 30px", borderRadius: "8px", border: "none", cursor: correctionEnCours || !pretAcorriger ? "default" : "pointer", fontWeight: "bold", fontSize: "17px", width: "100%", fontFamily: "Georgia,serif" }}
                     >
-                      {correctionEnCours ? "Votre correcteur lit votre copie..." : correction ? "Faire corriger a nouveau" : "Faire corriger ma copie"}
+                      {correctionEnCours ? "Votre correcteur lit votre copie…" : correction ? "Faire corriger à nouveau" : "Faire corriger ma copie"}
                     </button>
 
                     <p style={{ color: "#888", fontSize: "14px", marginTop: "12px", marginBottom: 0 }}>
-                      Il faut {seuil} sur 20 pour valider ce module. Vous pouvez recommencer autant de fois que necessaire.
+                      Il faut {seuil} sur 20 pour valider ce module. Vous pouvez recommencer autant de fois que nécessaire.
                     </p>
                   </div>
 
@@ -557,7 +557,7 @@ export default function LMSPage({ params }) {
                           {correction.note}/20
                         </span>
                         <span style={{ color: correction.valide ? "#2e7d32" : "#a06a2c", fontSize: "16px", fontWeight: "bold" }}>
-                          {correction.valide ? "Module valide" : "Pas encore acquis"}
+                          {correction.valide ? "Module validé" : "Pas encore acquis"}
                         </span>
                       </div>
 
@@ -582,20 +582,20 @@ export default function LMSPage({ params }) {
               <h3 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", margin: "0 0 6px" }}>Coach IA — {coachDyn || agents.coach}</h3>
               <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "13px", margin: "0 0 16px", lineHeight: "1.7" }}>
                 Vos questions sur le module {chapitreActif}.{moduleActif} que vous lisez. Le coach
-                s appuie sur son contenu, et vous dira si la reponse se trouve ailleurs dans la
-                formation. Il ne donne jamais les reponses du questionnaire.
+                s'appuie sur son contenu, et vous dira si la réponse se trouve ailleurs dans la
+                formation. Il ne donne jamais les réponses du questionnaire.
               </p>
               <div style={{ minHeight: "300px", maxHeight: "400px", overflowY: "auto", marginBottom: "15px" }}>
-                {chatHistory.length === 0 && <p style={{ color: "rgba(255,255,255,0.3)", textAlign: "center", marginTop: "80px" }}>Une notion vous echappe ? Demandez.</p>}
+                {chatHistory.length === 0 && <p style={{ color: "rgba(255,255,255,0.3)", textAlign: "center", marginTop: "80px" }}>Une notion vous échappe ? Demandez.</p>}
                 {chatHistory.map((msg, i) => (
                   <div key={i} style={{ marginBottom: "12px", display: "flex", justifyContent: msg.role === "user" ? "flex-end" : "flex-start" }}>
                     <div style={{ background: msg.role === "user" ? "#c8a96e" : "rgba(255,255,255,0.08)", color: msg.role === "user" ? "#050508" : "#fff", padding: "12px 15px", borderRadius: "10px", maxWidth: "82%", fontSize: "14.5px", lineHeight: "1.7", whiteSpace: "pre-wrap" }}>{propre(msg.text)}</div>
                   </div>
                 ))}
-                {chatLoading && <p style={{ color: "#c8a96e", textAlign: "center" }}>Le coach relit votre module...</p>}
+                {chatLoading && <p style={{ color: "#c8a96e", textAlign: "center" }}>Le coach relit votre module…</p>}
               </div>
               <div style={{ display: "flex", gap: "10px" }}>
-                <input type="text" value={chatMessage} onChange={e => setChatMessage(e.target.value)} onKeyDown={e => e.key === "Enter" && !chatLoading && envoyerChat()} placeholder="Posez votre question..."
+                <input type="text" value={chatMessage} onChange={e => setChatMessage(e.target.value)} onKeyDown={e => e.key === "Enter" && !chatLoading && envoyerChat()} placeholder="Posez votre question…"
                   style={{ flex: 1, padding: "10px", borderRadius: "8px", border: "1px solid rgba(200,169,110,0.3)", background: "rgba(255,255,255,0.05)", color: "#fff" }} />
                 <button onClick={envoyerChat} disabled={chatLoading} style={{ padding: "10px 20px", background: "#c8a96e", color: "#050508", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "bold" }}>Envoyer</button>
               </div>
