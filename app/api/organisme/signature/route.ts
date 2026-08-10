@@ -50,11 +50,24 @@ async function documentDe(reference: string) {
   return data || null;
 }
 
-function autorise(doc: any, session: any) {
-  const estLeStagiaire = doc.stagiaire_email === session.email;
+// LIRE N EST PAS SIGNER, et la distinction est essentielle.
+//
+// L organisme et l editeur ont besoin de CONSULTER le document : c est leur
+// piece, ils la produisent et l archivent. Mais ils ne doivent EN AUCUN CAS
+// pouvoir le signer a la place du beneficiaire — la preuve porterait alors le
+// nom de celui qui a clique, et non celui qui s engage. En marque blanche,
+// cela reviendrait meme a laisser l editeur signer les documents des clients
+// de ses clients.
+function peutLire(doc: any, session: any) {
+  const estLeBeneficiaire = doc.stagiaire_email === session.email;
   const estLOrganisme = session.tenantId === doc.tenant_id;
   const estAdmin = ADMINS.indexOf(session.email) >= 0;
-  return estLeStagiaire || estLOrganisme || estAdmin;
+  return estLeBeneficiaire || estLOrganisme || estAdmin;
+}
+
+// SEUL LE BENEFICIAIRE SIGNE. Sans exception, sans passe-droit administrateur.
+function peutSigner(doc: any, session: any) {
+  return String(doc.stagiaire_email || "").toLowerCase() === String(session.email || "").toLowerCase();
 }
 
 export async function GET(req: NextRequest) {
@@ -81,7 +94,7 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ ok: false, erreur: "Document introuvable." }, { status: 404 });
       }
 
-      if (!autorise(doc, session)) {
+      if (!peutLire(doc, session)) {
         return NextResponse.json(
           { ok: false, erreur: "Ce document ne vous concerne pas." },
           { status: 403 }
@@ -106,6 +119,8 @@ export async function GET(req: NextRequest) {
         contrepartie: donnees.contrepartie || null,
         empreinte: doc.pdf_sha256 || null,
         lien_lecture: lien || null,
+        beneficiaire: doc.stagiaire_email,
+        vous_pouvez_signer: peutSigner(doc, session),
       });
     }
 
@@ -212,10 +227,22 @@ async function variantePerimee(doc: any) {
 // ENVOI DU CODE. C est ce qui fait passer la preuve de « quelqu un a clique »
 // a « le titulaire de cette adresse a clique ». On ne conserve que l empreinte
 // du code, jamais le code lui-meme.
-async function envoyerCode(req: NextRequest, doc: any, session: any) {
+//
+// LE CODE PART A L ADRESSE DU BENEFICIAIRE INSCRITE SUR LE DOCUMENT, jamais a
+// celle de la session : autrement, en marque blanche, l editeur recevrait les
+// codes des stagiaires de ses clients.
+async function envoyerCode(req: NextRequest, doc: any) {
   const cle = process.env.RESEND_API_KEY || "";
   if (!cle) {
     return NextResponse.json({ ok: false, erreur: "RESEND_API_KEY absente" }, { status: 500 });
+  }
+
+  const destinataire = String(doc.stagiaire_email || "").toLowerCase().trim();
+  if (!destinataire) {
+    return NextResponse.json(
+      { ok: false, erreur: "Ce document ne porte aucune adresse de beneficiaire." },
+      { status: 400 }
+    );
   }
 
   const code = String(Math.floor(100000 + Math.random() * 900000));
@@ -226,8 +253,8 @@ async function envoyerCode(req: NextRequest, doc: any, session: any) {
     ? donnees.codes_signature
     : {};
 
-  codes[session.email] = {
-    empreinte: empreinteTexte(code + "|" + session.email),
+  codes[destinataire] = {
+    empreinte: empreinteTexte(code + "|" + destinataire),
     envoye_le: new Date().toISOString(),
     expire_le: expire,
     tentatives: 0,
@@ -261,7 +288,7 @@ async function envoyerCode(req: NextRequest, doc: any, session: any) {
     headers: { Authorization: "Bearer " + cle, "Content-Type": "application/json" },
     body: JSON.stringify({
       from: "AcadeMIA Pro <contact@academiapro.fr>",
-      to: [session.email],
+      to: [destinataire],
       subject: "Code de verification - signature du document " + doc.reference,
       html: html,
     }),
@@ -277,9 +304,9 @@ async function envoyerCode(req: NextRequest, doc: any, session: any) {
   return NextResponse.json({
     ok: true,
     envoye: true,
-    email: session.email,
+    email: destinataire,
     validite_minutes: VALIDITE_CODE_MIN,
-    message: "Un code a six chiffres vient d etre envoye a " + session.email + ".",
+    message: "Un code a six chiffres vient d etre envoye a " + destinataire + ".",
   });
 }
 
@@ -309,9 +336,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, erreur: "Document introuvable." }, { status: 404 });
     }
 
-    if (!autorise(doc, session)) {
+    // LE VERROU : ni l organisme ni l editeur ne signent a la place du
+    // beneficiaire, meme s ils ont le droit de lire le document.
+    if (!peutSigner(doc, session)) {
       return NextResponse.json(
-        { ok: false, erreur: "Ce document ne vous concerne pas." },
+        {
+          ok: false,
+          erreur: "Seul le beneficiaire du document peut le signer. Ce document est"
+            + " etabli au nom de " + doc.stagiaire_email
+            + " : connectez-vous avec ce compte pour le signer.",
+          beneficiaire: doc.stagiaire_email,
+        },
         { status: 403 }
       );
     }
@@ -329,7 +364,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (b.action === "code") {
-      return await envoyerCode(req, doc, session);
+      return await envoyerCode(req, doc);
     }
 
     if (b.accepte !== true) {
@@ -339,11 +374,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const signataire = String(doc.stagiaire_email || "").toLowerCase().trim();
+
     const { data: deja } = await supabase
       .from("organisme_signatures")
       .select("id")
       .eq("document_reference", reference)
-      .eq("signataire_email", session.email)
+      .eq("signataire_email", signataire)
       .eq("annulee", false)
       .maybeSingle();
 
@@ -358,7 +395,7 @@ export async function POST(req: NextRequest) {
     const codes = donnees.codes_signature && typeof donnees.codes_signature === "object"
       ? donnees.codes_signature
       : {};
-    const attendu = codes[session.email] || null;
+    const attendu = codes[signataire] || null;
 
     const codeSaisi = String(b.code || "").trim();
     let codeEnvoyeLe = null;
@@ -386,8 +423,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (empreinteTexte(codeSaisi + "|" + session.email) !== attendu.empreinte) {
-      codes[session.email] = { ...attendu, tentatives: tentatives + 1 };
+    if (empreinteTexte(codeSaisi + "|" + signataire) !== attendu.empreinte) {
+      codes[signataire] = { ...attendu, tentatives: tentatives + 1 };
       await supabase
         .from("organisme_documents")
         .update({ donnees: { ...donnees, codes_signature: codes } })
@@ -416,7 +453,7 @@ export async function POST(req: NextRequest) {
       const base = process.env.NEXT_PUBLIC_SITE_URL || "https://academiapro.fr";
       const cookie = req.headers.get("cookie") || "";
 
-      const rPdf = await fetch(base + "/api/organisme/document", {
+      const rPdf = await fetch(base + "/api/organisme/document?tenant=" + doc.tenant_id, {
         method: "POST",
         headers: { "Content-Type": "application/json", cookie: cookie },
         body: JSON.stringify({
@@ -461,7 +498,7 @@ export async function POST(req: NextRequest) {
 
     const charge = [
       doc.tenant_id, doc.type, reference, empreinte,
-      session.email, CONSENTEMENT, signeLe,
+      signataire, CONSENTEMENT, signeLe,
     ].join("|");
 
     // CHAINAGE : chaque preuve porte l empreinte de la precedente.
@@ -483,7 +520,7 @@ export async function POST(req: NextRequest) {
         document_type: doc.type,
         document_reference: reference,
         empreinte_sha256: empreinte,
-        signataire_email: session.email,
+        signataire_email: signataire,
         signataire_nom: b.signataire_nom ? String(b.signataire_nom).trim() : null,
         signataire_qualite: b.signataire_qualite ? String(b.signataire_qualite).trim() : null,
         consentement: CONSENTEMENT,
@@ -507,7 +544,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Le code est consomme : il ne doit plus jamais resservir.
-    delete codes[session.email];
+    delete codes[signataire];
     await supabase
       .from("organisme_documents")
       .update({ donnees: { ...donnees, codes_signature: codes } })
@@ -543,7 +580,7 @@ export async function POST(req: NextRequest) {
       tenant_id: doc.tenant_id,
       categorie: doc.type,
       titre: "Preuve de signature - " + reference,
-      contrepartie: session.email,
+      contrepartie: signataire,
       reference: reference + "-PREUVE",
       chemin: chemin,
       empreinte_sha256: empreinte,
@@ -558,6 +595,7 @@ export async function POST(req: NextRequest) {
       signature: (data || [])[0] || null,
       empreinte: empreinte,
       archive: chemin,
+      signataire: signataire,
       verifie_par_code: true,
       variantes_annulees: annulees,
       avertissement:
