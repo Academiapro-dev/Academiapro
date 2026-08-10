@@ -19,18 +19,37 @@ const supabase = createClient(
   }
 );
 
-async function declencherCertificatSiComplet(email: string, formationCode: string) {
+async function declencherAttestationSiComplet(email: string, formationCode: string) {
+  // LE TOTAL SE COMPTE SUR LE PLAN REELLEMENT SUIVI.
+  //
+  // Il etait lu dans formations_lms.contenu, un JSON herite d un premier
+  // manuel. Le LMS, lui, sert lms_plans. Quand les deux plans different, le
+  // total est faux : l attestation part trop tot, ou jamais.
+  const { data: plan } = await supabase
+    .from("lms_plans")
+    .select("chapitre_num, module_num")
+    .eq("formation_code", formationCode);
+
+  let totalModules = plan ? plan.length : 0;
+  let titre = formationCode;
+
   const { data: formationLms } = await supabase
     .from("formations_lms")
     .select("contenu")
     .eq("formation_code", formationCode)
-    .single();
+    .maybeSingle();
 
-  if (!formationLms) return;
+  if (formationLms && formationLms.contenu) {
+    titre = formationLms.contenu?.titre || formationCode;
 
-  const chapitres = formationLms.contenu?.chapitres || [];
-  let totalModules = 0;
-  chapitres.forEach((c: any) => { totalModules += (c.modules?.length || 0); });
+    // Repli : les formations sans plan construit gardent l ancien decompte.
+    if (totalModules === 0) {
+      const chapitres = formationLms.contenu?.chapitres || [];
+      chapitres.forEach((c: any) => { totalModules += (c.modules?.length || 0); });
+    }
+  }
+
+  if (totalModules === 0) return;
 
   const { data: valides } = await supabase
     .from("progression_apprenants")
@@ -40,40 +59,41 @@ async function declencherCertificatSiComplet(email: string, formationCode: strin
     .eq("statut", "valide");
 
   const nbValides = valides?.length || 0;
+  if (nbValides < totalModules) return;
 
-  if (totalModules > 0 && nbValides >= totalModules) {
-    const { data: dejaExiste } = await supabase
-      .from("certificats_delivres")
-      .select("id")
-      .eq("user_email", email)
-      .eq("formation_code", formationCode)
-      .limit(1);
+  const { data: dejaExiste } = await supabase
+    .from("certificats_delivres")
+    .select("id")
+    .eq("user_email", email)
+    .eq("formation_code", formationCode)
+    .limit(1);
 
-    if (dejaExiste && dejaExiste.length > 0) return;
+  if (dejaExiste && dejaExiste.length > 0) return;
 
-    const { data: crmData } = await supabase
-      .from("crm")
-      .select("nom")
-      .eq("email", email)
-      .limit(1);
+  const { data: crmData } = await supabase
+    .from("crm")
+    .select("nom")
+    .eq("email", email)
+    .limit(1);
 
-    const nom = crmData && crmData[0] ? crmData[0].nom : email;
-    const titre = formationLms.contenu?.titre || formationCode;
+  const nom = crmData && crmData[0] ? crmData[0].nom : email;
 
-    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://academiapro.fr";
-    await fetch(baseUrl + "/api/admin/certificat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        nom: nom || email,
-        formation: titre,
-        code: formationCode,
-        niveau: "Expert",
-        date: new Date().toLocaleDateString("fr-FR"),
-        userEmail: email,
-      }),
-    });
-  }
+  // L appel est de serveur a serveur : il ne transporte aucun cookie, donc
+  // aucune session. Le jeton partage l authentifie.
+  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://academiapro.fr";
+  await fetch(baseUrl + "/api/admin/certificat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      nom: nom || email,
+      formation: titre,
+      code: formationCode,
+      niveau: "Formation achevee",
+      date: new Date().toLocaleDateString("fr-FR"),
+      userEmail: email,
+      jeton_interne: process.env.SESSION_SECRET || "",
+    }),
+  });
 }
 
 // LECTURE. L email vient de la session, jamais de l adresse. Et si la session
@@ -169,7 +189,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
 
-    await declencherCertificatSiComplet(session.email, formation_code);
+    await declencherAttestationSiComplet(session.email, formation_code);
 
     return NextResponse.json({ success: true, email: session.email, tenant_id: session.tenantId });
   } catch (error: any) {
