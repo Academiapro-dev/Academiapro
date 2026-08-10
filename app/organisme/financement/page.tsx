@@ -1,403 +1,388 @@
 "use client";
 import { useState, useEffect } from "react";
 
+const OR = "#c8a96e";
+const NOIR = "#050508";
+const ROUGE = "#e8836a";
+const ORANGE = "#e8a33d";
+const VERT = "#4caf50";
+
+// LES DOSSIERS DE FINANCEMENT.
+//
+// Un organisme de formation ne perd pas son argent parce qu on refuse ses
+// dossiers : il le perd parce qu il oublie de declarer le service fait, ou
+// parce qu un accord dort trois mois sans que personne ne relance.
+//
+// Cet ecran montre donc d abord CE QUI BLOQUE L ARGENT, et seulement
+// ensuite la liste.
+
 export default function PageFinancement() {
   const [d, setD] = useState<any>(null);
   const [chargement, setChargement] = useState(true);
-  const [occupe, setOccupe] = useState(false);
-  const [message, setMessage] = useState("");
   const [erreur, setErreur] = useState("");
+  const [message, setMessage] = useState("");
+  const [occupe, setOccupe] = useState("");
   const [formulaire, setFormulaire] = useState(false);
-  const [brouillon, setBrouillon] = useState<any>({});
+  const [filtre, setFiltre] = useState("");
 
-  const [email, setEmail] = useState("");
-  const [nomStagiaire, setNomStagiaire] = useState("");
-  const [code, setCode] = useState("");
-  const [financeur, setFinanceur] = useState("edof");
-  const [reference, setReference] = useState("");
-  const [demande, setDemande] = useState("");
+  const [n, setN] = useState<any>({
+    stagiaire_nom: "",
+    stagiaire_email: "",
+    formation_code: "",
+    financeur: "edof",
+    reference_dossier: "",
+    montant_demande: "",
+  });
 
-  useEffect(function () {
-    charger();
-  }, []);
-
-  function suffixe() {
-    try {
-      const t = new URLSearchParams(window.location.search).get("tenant");
-      return t ? "?tenant=" + t : "";
-    } catch {
-      return "";
-    }
-  }
+  useEffect(function () { charger(); }, []);
 
   async function charger() {
     setChargement(true);
     setErreur("");
     try {
-      const r = await fetch("/api/organisme/financement" + suffixe());
+      const r = await fetch("/api/organisme/financement", { cache: "no-store" });
       const data = await r.json();
-      if (data.ok) {
-        setD(data);
-        const b: any = {};
-        for (const x of data.dossiers || []) {
-          b[x.id] = {
-            reference: x.reference_dossier || "",
-            accorde: x.montant_accorde !== null && x.montant_accorde !== undefined ? String(x.montant_accorde) : "",
-            pieces: x.pieces_manquantes || "",
-          };
-        }
-        setBrouillon(b);
-      } else {
-        setErreur(data.erreur || "Lecture impossible.");
-      }
+      if (data.ok) setD(data);
+      else setErreur(data.erreur || "Lecture impossible.");
     } catch (e: any) {
-      setErreur("Lecture impossible : " + String(e));
+      setErreur("Lecture impossible.");
     }
     setChargement(false);
   }
 
   async function creer() {
-    if (email.indexOf("@") < 1) {
-      setErreur("Indiquez l email du stagiaire.");
+    if (!n.stagiaire_email || n.stagiaire_email.indexOf("@") < 1) {
+      setErreur("Indiquez l'adresse du stagiaire.");
       return;
     }
-    setOccupe(true);
-    setMessage("");
+    setOccupe("creation");
     setErreur("");
+    setMessage("");
     try {
-      const r = await fetch("/api/organisme/financement" + suffixe(), {
+      const r = await fetch("/api/organisme/financement", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          stagiaire_email: email,
-          stagiaire_nom: nomStagiaire,
-          formation_code: code,
-          financeur: financeur,
-          reference_dossier: reference,
-          montant_demande: demande || null,
-        }),
+        body: JSON.stringify(n),
       });
       const data = await r.json();
       if (data.ok) {
-        setMessage("Dossier cree.");
-        setEmail(""); setNomStagiaire(""); setCode(""); setReference(""); setDemande("");
+        setMessage("Dossier créé.");
         setFormulaire(false);
-        await charger();
+        setN({ stagiaire_nom: "", stagiaire_email: "", formation_code: "", financeur: "edof", reference_dossier: "", montant_demande: "" });
+        charger();
       } else {
-        setErreur(data.erreur || "Creation impossible.");
+        setErreur(data.erreur || "Création impossible.");
       }
     } catch (e: any) {
-      setErreur("Creation impossible : " + String(e));
+      setErreur("Création impossible.");
     }
-    setOccupe(false);
+    setOccupe("");
   }
 
-  async function modifier(id: string, corps: any) {
-    setMessage("");
+  async function avancer(id: string, etape: string, champs?: any) {
+    setOccupe(id);
     setErreur("");
+    setMessage("");
     try {
-      const r = await fetch("/api/organisme/financement" + suffixe(), {
+      const r = await fetch("/api/organisme/financement", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: id, ...corps }),
+        body: JSON.stringify({ id: id, etape: etape, ...(champs || {}) }),
       });
       const data = await r.json();
-      if (data.ok) {
-        setMessage("Enregistre.");
-        await charger();
-      } else {
-        setErreur(data.erreur || "Modification impossible.");
-      }
+      if (data.ok) { setMessage("Dossier mis à jour."); charger(); }
+      else setErreur(data.erreur || "Mise à jour impossible.");
     } catch (e: any) {
-      setErreur("Modification impossible : " + String(e));
+      setErreur("Mise à jour impossible.");
     }
+    setOccupe("");
   }
 
-  async function retirer(id: string) {
-    setMessage("");
-    setErreur("");
+  async function supprimer(id: string) {
+    if (!confirm("Supprimer ce dossier ?")) return;
+    setOccupe(id);
     try {
-      const sep = suffixe() ? suffixe() + "&" : "?";
-      const r = await fetch("/api/organisme/financement" + sep + "id=" + id, { method: "DELETE" });
-      const data = await r.json();
-      if (data.ok) {
-        setMessage("Dossier retire.");
-        await charger();
-      } else {
-        setErreur(data.erreur || "Suppression impossible.");
-      }
-    } catch (e: any) {
-      setErreur("Suppression impossible : " + String(e));
-    }
+      await fetch("/api/organisme/financement?id=" + encodeURIComponent(id), { method: "DELETE" });
+      charger();
+    } catch (e) {}
+    setOccupe("");
   }
 
-  function euros(n: any) {
-    return (Number(n) || 0).toLocaleString("fr-FR") + " EUR";
+  const CADRE: any = { minHeight: "100vh", background: NOIR, color: "#fff", fontFamily: "Georgia, serif", padding: "40px 20px" };
+  const CARTE: any = { background: "rgba(255,255,255,0.03)", border: "1px solid rgba(200,169,110,0.25)", borderRadius: "12px", padding: "20px 24px", marginBottom: "16px" };
+  const CHAMP: any = { width: "100%", padding: "11px 13px", borderRadius: "8px", border: "1px solid rgba(200,169,110,0.3)", background: "rgba(255,255,255,0.05)", color: "#fff", fontSize: "15px", fontFamily: "Georgia,serif", boxSizing: "border-box", marginBottom: "12px" };
+  const LIBELLE: any = { display: "block", color: OR, fontSize: "13px", marginBottom: "5px" };
+  const BOUTON: any = { background: "none", border: "1px solid rgba(200,169,110,0.45)", color: OR, padding: "8px 16px", borderRadius: "20px", cursor: "pointer", fontSize: "13px", fontFamily: "Georgia,serif" };
+  const PLEIN: any = { ...BOUTON, background: OR, color: NOIR, border: "none", fontWeight: "bold" };
+
+  function euros(v: any) {
+    return (Number(v) || 0).toLocaleString("fr-FR", { minimumFractionDigits: 2 }) + " €";
   }
 
-  const CADRE: any = {
-    minHeight: "100vh",
-    background: "#050508",
-    color: "#fff",
-    fontFamily: "Georgia, serif",
-    padding: "40px 20px",
-  };
-
-  const CARTE: any = {
-    background: "rgba(255,255,255,0.03)",
-    border: "1px solid rgba(200,169,110,0.25)",
-    borderRadius: "12px",
-    padding: "20px 24px",
-    marginBottom: "16px",
-  };
-
-  const CHAMP: any = {
-    width: "100%",
-    padding: "12px 14px",
-    borderRadius: "8px",
-    border: "1px solid rgba(200,169,110,0.3)",
-    background: "rgba(255,255,255,0.05)",
-    color: "#fff",
-    fontSize: "15px",
-    fontFamily: "Georgia,serif",
-    boxSizing: "border-box",
-    marginBottom: "12px",
-  };
-
-  const LIBELLE: any = {
-    display: "block",
-    color: "#c8a96e",
-    fontSize: "14px",
-    marginBottom: "6px",
-  };
-
-  const BOUTON: any = {
-    background: "none",
-    border: "1px solid rgba(200,169,110,0.45)",
-    color: "#c8a96e",
-    padding: "7px 15px",
-    borderRadius: "20px",
-    cursor: "pointer",
-    fontSize: "13px",
-    fontFamily: "Georgia,serif",
-  };
-
-  // Etape suivante logique, pour n offrir qu un seul bouton d avancee.
-  const SUITE: any = {
-    a_deposer: "depose",
-    depose: "accorde",
-    accorde: "service_fait",
-    service_fait: "regle",
-  };
-
-  function couleur(x: any) {
-    if (x.etape === "regle") return "rgba(76,175,80,0.4)";
-    if (x.etape === "refuse" || x.etape === "annule") return "rgba(255,255,255,0.12)";
-    if (x.etape === "accorde" && !x.service_fait_le) return "rgba(232,131,106,0.55)";
-    if (x.etape === "service_fait") return "rgba(232,163,61,0.45)";
-    return "rgba(200,169,110,0.25)";
+  function jour(v: any) {
+    if (!v) return "";
+    return new Date(v).toLocaleDateString("fr-FR");
   }
+
+  // Depuis combien de temps un dossier dort a cette etape. C est ce chiffre
+  // qui dit s il faut relancer.
+  function depuis(v: any): number {
+    if (!v) return 0;
+    return Math.floor((Date.now() - new Date(v).getTime()) / 86400000);
+  }
+
+  const dossiers = d && d.dossiers ? d.dossiers : [];
+  const affiches = filtre
+    ? dossiers.filter(function (x: any) { return x.etape === filtre; })
+    : dossiers;
 
   return (
     <div style={CADRE}>
       <div style={{ maxWidth: "1000px", margin: "0 auto" }}>
-        <a href="/organisme" style={{ color: "#c8a96e", fontSize: "14px", textDecoration: "none" }}>
-          ← Retour au tableau de bord
+
+        <a href="/organisme" style={{ color: OR, fontSize: "14px", textDecoration: "none" }}>
+          ← Mon organisme
         </a>
 
-        <p style={{ color: "#c8a96e", fontSize: "12px", letterSpacing: "3px", margin: "22px 0 8px" }}>
-          DOSSIERS DE FINANCEMENT
+        <p style={{ color: OR, fontSize: "12px", letterSpacing: "3px", margin: "22px 0 8px" }}>
+          GESTION ADMINISTRATIVE
         </p>
-        <h1 style={{ color: "#fff", fontSize: "30px", margin: "0 0 6px" }}>Mes financements</h1>
-        <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "14px", marginTop: 0 }}>
-          EDOF, OPCO, France Travail et conseils regionaux
+        <h1 style={{ fontSize: "29px", margin: "0 0 6px" }}>Dossiers de financement</h1>
+        <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "14px", marginTop: 0, lineHeight: "1.7", maxWidth: "680px" }}>
+          Du dépôt au règlement. La déclaration de service fait est l'étape qu'on
+          oublie : sans elle, le financeur ne paie jamais.
         </p>
 
-        {d && (
+        {message && <p style={{ color: VERT, fontSize: "15px", fontWeight: "bold" }}>{message}</p>}
+        {erreur && <p style={{ color: ROUGE, fontSize: "15px" }}>{erreur}</p>}
+
+        {chargement ? (
+          <div style={{ ...CARTE, marginTop: "24px" }}>
+            <p style={{ color: "rgba(255,255,255,0.6)", margin: 0 }}>Lecture…</p>
+          </div>
+        ) : !d ? null : (
           <>
-            <div style={{ display: "flex", gap: "14px", flexWrap: "wrap", margin: "24px 0 16px" }}>
-              <div style={{ ...CARTE, flex: "1 1 150px", marginBottom: 0 }}>
-                <p style={{ color: "#c8a96e", fontSize: "22px", fontWeight: "bold", margin: "0 0 4px" }}>
-                  {d.a_deposer}
-                </p>
-                <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", margin: 0 }}>A deposer</p>
+            {/* CE QUI BLOQUE L ARGENT. */}
+            {(d.accorde_sans_service_fait > 0 || d.service_fait_non_regle > 0) && (
+              <div style={{ ...CARTE, border: "1px solid rgba(232,163,61,0.5)", marginTop: "24px" }}>
+                <h2 style={{ fontSize: "18px", margin: "0 0 14px", color: ORANGE }}>
+                  Ce qui bloque votre argent
+                </h2>
+
+                {d.accorde_sans_service_fait > 0 && (
+                  <p style={{ color: "rgba(255,255,255,0.8)", fontSize: "15px", lineHeight: "1.75", margin: "0 0 10px" }}>
+                    <strong>{d.accorde_sans_service_fait} dossier(s) accordé(s)</strong> sans
+                    déclaration de service fait, soit {euros(d.accorde_sans_service_fait_montant)}.
+                    Le financeur attend cette déclaration pour payer.
+                  </p>
+                )}
+
+                {d.service_fait_non_regle > 0 && (
+                  <p style={{ color: "rgba(255,255,255,0.8)", fontSize: "15px", lineHeight: "1.75", margin: 0 }}>
+                    <strong>{d.service_fait_non_regle} dossier(s)</strong> avec service fait
+                    déclaré mais non réglé, soit {euros(d.service_fait_non_regle_montant)}.
+                    C'est ce qu'on vous doit.
+                  </p>
+                )}
               </div>
-              <div style={{ ...CARTE, flex: "1 1 150px", marginBottom: 0 }}>
-                <p style={{ color: "#c8a96e", fontSize: "22px", fontWeight: "bold", margin: "0 0 4px" }}>
-                  {d.en_attente}
-                </p>
-                <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", margin: 0 }}>En attente de decision</p>
-              </div>
-              <div style={{ ...CARTE, flex: "1 1 150px", marginBottom: 0 }}>
-                <p style={{ color: d.accorde_sans_service_fait > 0 ? "#e8836a" : "#4caf50", fontSize: "22px", fontWeight: "bold", margin: "0 0 4px" }}>
-                  {euros(d.accorde_sans_service_fait_montant)}
-                </p>
-                <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", margin: 0 }}>
-                  Sans service fait · {d.accorde_sans_service_fait} dossier(s)
-                </p>
-              </div>
-              <div style={{ ...CARTE, flex: "1 1 150px", marginBottom: 0 }}>
-                <p style={{ color: d.service_fait_non_regle > 0 ? "#e8a33d" : "#4caf50", fontSize: "22px", fontWeight: "bold", margin: "0 0 4px" }}>
-                  {euros(d.service_fait_non_regle_montant)}
-                </p>
-                <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", margin: 0 }}>
-                  En attente de reglement
-                </p>
-              </div>
+            )}
+
+            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", margin: "20px 0" }}>
+              <button onClick={function () { setFiltre(""); }} style={filtre === "" ? PLEIN : BOUTON}>
+                Tous · {d.total}
+              </button>
+              <button onClick={function () { setFiltre("a_deposer"); }} style={filtre === "a_deposer" ? PLEIN : BOUTON}>
+                À déposer · {d.a_deposer}
+              </button>
+              <button onClick={function () { setFiltre("depose"); }} style={filtre === "depose" ? PLEIN : BOUTON}>
+                En attente · {d.en_attente}
+              </button>
+              <button onClick={function () { setFormulaire(!formulaire); }} style={BOUTON}>
+                {formulaire ? "Annuler" : "Nouveau dossier"}
+              </button>
             </div>
 
-            {d.accorde_sans_service_fait > 0 && (
-              <div style={{ ...CARTE, border: "1px solid rgba(232,131,106,0.6)" }}>
-                <p style={{ color: "#e8836a", fontSize: "15px", margin: 0, lineHeight: "1.75" }}>
-                  {euros(d.accorde_sans_service_fait_montant)} sont accordes mais attendent votre
-                  declaration de service fait. Tant qu elle n est pas faite, le financeur ne paie
-                  pas — et c est la premiere cause des paiements qui n arrivent jamais.
+            {formulaire && (
+              <div style={{ ...CARTE, border: "1px solid rgba(200,169,110,0.5)" }}>
+                <h2 style={{ fontSize: "18px", margin: "0 0 16px" }}>Nouveau dossier</h2>
+
+                <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+                  <div style={{ flex: "1 1 220px" }}>
+                    <span style={LIBELLE}>Nom du stagiaire</span>
+                    <input value={n.stagiaire_nom} onChange={function (e) { setN({ ...n, stagiaire_nom: e.target.value }); }} style={CHAMP} />
+                  </div>
+                  <div style={{ flex: "1 1 220px" }}>
+                    <span style={LIBELLE}>Son adresse électronique</span>
+                    <input type="email" value={n.stagiaire_email} onChange={function (e) { setN({ ...n, stagiaire_email: e.target.value }); }} style={CHAMP} />
+                  </div>
+                  <div style={{ flex: "1 1 140px" }}>
+                    <span style={LIBELLE}>Code formation</span>
+                    <input value={n.formation_code} onChange={function (e) { setN({ ...n, formation_code: e.target.value }); }} placeholder="F424" style={CHAMP} />
+                  </div>
+                  <div style={{ flex: "1 1 200px" }}>
+                    <span style={LIBELLE}>Financeur</span>
+                    <select value={n.financeur} onChange={function (e) { setN({ ...n, financeur: e.target.value }); }} style={CHAMP}>
+                      {Object.keys(d.financeurs).map(function (k) {
+                        return <option key={k} value={k}>{d.financeurs[k]}</option>;
+                      })}
+                    </select>
+                  </div>
+                  <div style={{ flex: "1 1 180px" }}>
+                    <span style={LIBELLE}>Référence du dossier</span>
+                    <input value={n.reference_dossier} onChange={function (e) { setN({ ...n, reference_dossier: e.target.value }); }} style={CHAMP} />
+                  </div>
+                  <div style={{ flex: "1 1 140px" }}>
+                    <span style={LIBELLE}>Montant demandé</span>
+                    <input value={n.montant_demande} onChange={function (e) { setN({ ...n, montant_demande: e.target.value }); }} placeholder="1200" style={CHAMP} />
+                  </div>
+                </div>
+
+                <button onClick={creer} disabled={occupe !== ""} style={{ ...PLEIN, padding: "13px 26px", borderRadius: "8px", fontSize: "15px" }}>
+                  {occupe === "creation" ? "Création…" : "Créer le dossier"}
+                </button>
+              </div>
+            )}
+
+            {affiches.length === 0 ? (
+              <div style={CARTE}>
+                <p style={{ color: "rgba(255,255,255,0.6)", margin: 0, fontSize: "15px" }}>
+                  Aucun dossier{filtre ? " à cette étape" : ""}.
                 </p>
+              </div>
+            ) : (
+              affiches.map(function (x: any) {
+                const bloque = x.etape === "accorde" && !x.service_fait_le;
+                const attendu = x.service_fait_le && !x.regle_le;
+
+                const bordure = bloque || attendu
+                  ? "1px solid rgba(232,163,61,0.5)"
+                  : x.etape === "regle"
+                    ? "1px solid rgba(76,175,80,0.35)"
+                    : CARTE.border;
+
+                return (
+                  <div key={x.id} style={{ ...CARTE, border: bordure }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "12px" }}>
+                      <div style={{ flex: "1 1 300px" }}>
+                        <p style={{ color: OR, fontSize: "12.5px", margin: "0 0 3px" }}>
+                          {d.financeurs[x.financeur] || x.financeur}
+                          {x.reference_dossier ? " · " + x.reference_dossier : ""}
+                          {x.formation_code ? " · " + x.formation_code : ""}
+                        </p>
+                        <h3 style={{ fontSize: "16px", margin: "0 0 4px" }}>
+                          {x.stagiaire_nom || x.stagiaire_email}
+                        </h3>
+                        <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "13px", margin: 0 }}>
+                          {d.etapes[x.etape] || x.etape}
+                          {x.depose_le ? " · déposé le " + jour(x.depose_le) : ""}
+                          {x.decision_le ? " · décision le " + jour(x.decision_le) : ""}
+                          {x.service_fait_le ? " · service fait le " + jour(x.service_fait_le) : ""}
+                          {x.regle_le ? " · réglé le " + jour(x.regle_le) : ""}
+                        </p>
+                      </div>
+                      <div style={{ textAlign: "right" }}>
+                        {x.montant_accorde ? (
+                          <span style={{ color: "#fff", fontSize: "16px", fontWeight: "bold" }}>{euros(x.montant_accorde)}</span>
+                        ) : x.montant_demande ? (
+                          <span style={{ color: "rgba(255,255,255,0.6)", fontSize: "15px" }}>{euros(x.montant_demande)} demandés</span>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    {bloque && (
+                      <p style={{ color: ORANGE, fontSize: "13.5px", margin: "10px 0 0", lineHeight: "1.7" }}>
+                        Accordé depuis {depuis(x.decision_le)} jour(s) sans service fait déclaré.
+                        Tant qu'il ne l'est pas, le financeur ne paiera pas.
+                      </p>
+                    )}
+                    {attendu && (
+                      <p style={{ color: ORANGE, fontSize: "13.5px", margin: "10px 0 0", lineHeight: "1.7" }}>
+                        Service fait déclaré depuis {depuis(x.service_fait_le)} jour(s), toujours
+                        non réglé.
+                      </p>
+                    )}
+
+                    <div style={{ display: "flex", gap: "7px", flexWrap: "wrap", marginTop: "14px" }}>
+                      {x.etape === "a_deposer" && (
+                        <button onClick={function () { avancer(x.id, "depose"); }} disabled={occupe !== ""} style={PLEIN}>
+                          Marquer déposé
+                        </button>
+                      )}
+                      {x.etape === "depose" && (
+                        <>
+                          <button
+                            onClick={function () {
+                              const m = prompt("Montant accordé, en euros :", String(x.montant_demande || ""));
+                              if (m !== null) avancer(x.id, "accorde", { montant_accorde: m });
+                            }}
+                            disabled={occupe !== ""}
+                            style={PLEIN}
+                          >
+                            Accordé
+                          </button>
+                          <button onClick={function () { avancer(x.id, "refuse"); }} disabled={occupe !== ""} style={BOUTON}>
+                            Refusé
+                          </button>
+                        </>
+                      )}
+                      {x.etape === "accorde" && (
+                        <button onClick={function () { avancer(x.id, "service_fait"); }} disabled={occupe !== ""} style={PLEIN}>
+                          Déclarer le service fait
+                        </button>
+                      )}
+                      {x.etape === "service_fait" && (
+                        <button onClick={function () { avancer(x.id, "regle"); }} disabled={occupe !== ""} style={PLEIN}>
+                          Marquer réglé
+                        </button>
+                      )}
+                      {x.etape !== "regle" && (
+                        <button onClick={function () { supprimer(x.id); }} disabled={occupe !== ""} style={{ ...BOUTON, color: ROUGE, borderColor: "rgba(232,131,106,0.35)" }}>
+                          Supprimer
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+
+            {/* PAR FINANCEUR. Un organisme doit savoir d ou vient son argent :
+                c est ce que le bilan pedagogique et financier demandera. */}
+            {d.par_financeur && Object.keys(d.par_financeur).length > 0 && (
+              <div style={CARTE}>
+                <h2 style={{ fontSize: "18px", margin: "0 0 16px" }}>Par financeur</h2>
+                <div style={{ overflowX: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "14px", minWidth: "460px" }}>
+                    <thead>
+                      <tr style={{ color: OR, fontSize: "12.5px" }}>
+                        <th style={{ textAlign: "left", padding: "8px 10px 12px 0", fontWeight: "normal" }}>Financeur</th>
+                        <th style={{ textAlign: "right", padding: "8px 10px 12px", fontWeight: "normal" }}>Dossiers</th>
+                        <th style={{ textAlign: "right", padding: "8px 10px 12px", fontWeight: "normal" }}>Demandé</th>
+                        <th style={{ textAlign: "right", padding: "8px 10px 12px", fontWeight: "normal" }}>Accordé</th>
+                        <th style={{ textAlign: "right", padding: "8px 0 12px 10px", fontWeight: "normal" }}>Réglé</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Object.keys(d.par_financeur).map(function (k) {
+                        const f = d.par_financeur[k];
+                        return (
+                          <tr key={k} style={{ borderTop: "1px solid rgba(255,255,255,0.07)" }}>
+                            <td style={{ padding: "11px 10px 11px 0" }}>{d.financeurs[k] || k}</td>
+                            <td style={{ padding: "11px 10px", textAlign: "right", color: "rgba(255,255,255,0.7)" }}>{f.nombre}</td>
+                            <td style={{ padding: "11px 10px", textAlign: "right", color: "rgba(255,255,255,0.7)" }}>{euros(f.demande)}</td>
+                            <td style={{ padding: "11px 10px", textAlign: "right", color: "rgba(255,255,255,0.7)" }}>{euros(f.accorde)}</td>
+                            <td style={{ padding: "11px 0 11px 10px", textAlign: "right", color: VERT }}>{euros(f.regle)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             )}
           </>
         )}
 
-        <button
-          onClick={() => setFormulaire(!formulaire)}
-          style={{ background: formulaire ? "none" : "#c8a96e", color: formulaire ? "#c8a96e" : "#050508", border: formulaire ? "1px solid rgba(200,169,110,0.45)" : "none", padding: "12px 24px", borderRadius: "20px", cursor: "pointer", fontSize: "15px", fontFamily: "Georgia,serif", fontWeight: "bold", marginBottom: "20px" }}
-        >
-          {formulaire ? "Annuler" : "Ouvrir un dossier"}
-        </button>
-
-        {formulaire && (
-          <div style={{ ...CARTE, border: "1px solid rgba(200,169,110,0.5)" }}>
-            <span style={LIBELLE}>Financeur</span>
-            <select value={financeur} onChange={(e) => setFinanceur(e.target.value)} style={CHAMP}>
-              {Object.keys(d && d.financeurs ? d.financeurs : { edof: "EDOF" }).map(function (k) {
-                return <option key={k} value={k}>{d.financeurs[k]}</option>;
-              })}
-            </select>
-
-            <span style={LIBELLE}>Email du stagiaire</span>
-            <input value={email} onChange={(e) => setEmail(e.target.value)} style={CHAMP} />
-
-            <span style={LIBELLE}>Nom du stagiaire</span>
-            <input value={nomStagiaire} onChange={(e) => setNomStagiaire(e.target.value)} style={CHAMP} />
-
-            <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
-              <div style={{ flex: "1 1 140px" }}>
-                <span style={LIBELLE}>Formation</span>
-                <input value={code} onChange={(e) => setCode(e.target.value)} placeholder="F028" style={CHAMP} />
-              </div>
-              <div style={{ flex: "1 1 140px" }}>
-                <span style={LIBELLE}>Reference du dossier</span>
-                <input value={reference} onChange={(e) => setReference(e.target.value)} style={CHAMP} />
-              </div>
-              <div style={{ flex: "1 1 140px" }}>
-                <span style={LIBELLE}>Montant demande</span>
-                <input value={demande} onChange={(e) => setDemande(e.target.value)} placeholder="1500" style={CHAMP} />
-              </div>
-            </div>
-
-            <button
-              onClick={creer}
-              disabled={occupe}
-              style={{ background: occupe ? "rgba(200,169,110,0.3)" : "#c8a96e", color: occupe ? "#8a8a8a" : "#050508", padding: "13px 26px", borderRadius: "8px", border: "none", cursor: occupe ? "default" : "pointer", fontWeight: "bold", fontSize: "15px", fontFamily: "Georgia,serif", width: "100%" }}
-            >
-              {occupe ? "Creation..." : "Ouvrir le dossier"}
-            </button>
-          </div>
-        )}
-
-        {message && <p style={{ color: "#4caf50", fontSize: "15px", fontWeight: "bold" }}>{message}</p>}
-        {erreur && <p style={{ color: "#e8836a", fontSize: "15px" }}>{erreur}</p>}
-
-        {chargement ? (
-          <div style={CARTE}>
-            <p style={{ color: "rgba(255,255,255,0.6)", margin: 0 }}>Chargement...</p>
-          </div>
-        ) : !d || d.dossiers.length === 0 ? (
-          <div style={CARTE}>
-            <p style={{ color: "rgba(255,255,255,0.6)", margin: 0, fontSize: "15px" }}>
-              Aucun dossier de financement.
-            </p>
-          </div>
-        ) : (
-          d.dossiers.map(function (x: any) {
-            const suite = SUITE[x.etape];
-            return (
-              <div key={x.id} style={{ ...CARTE, border: "1px solid " + couleur(x), opacity: x.etape === "refuse" || x.etape === "annule" ? 0.55 : 1 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "10px" }}>
-                  <div style={{ flex: "1 1 250px" }}>
-                    <p style={{ color: "#c8a96e", fontSize: "13px", margin: "0 0 3px" }}>
-                      {(d.financeurs && d.financeurs[x.financeur]) || x.financeur}
-                      {x.reference_dossier ? " · " + x.reference_dossier : ""}
-                    </p>
-                    <h3 style={{ color: "#fff", fontSize: "16px", margin: "0 0 3px", wordBreak: "break-all" }}>
-                      {x.stagiaire_nom || x.stagiaire_email}
-                    </h3>
-                    <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "13px", margin: 0 }}>
-                      {x.formation_code || "—"}
-                      {x.depose_le ? " · depose le " + new Date(x.depose_le).toLocaleDateString("fr-FR") : ""}
-                      {x.service_fait_le ? " · service fait le " + new Date(x.service_fait_le).toLocaleDateString("fr-FR") : ""}
-                    </p>
-                  </div>
-
-                  <div style={{ textAlign: "right" }}>
-                    <p style={{ color: "#c8a96e", fontSize: "18px", fontWeight: "bold", margin: "0 0 2px" }}>
-                      {x.montant_accorde ? euros(x.montant_accorde) : x.montant_demande ? euros(x.montant_demande) + " demandes" : "—"}
-                    </p>
-                    <p style={{ color: x.etape === "regle" ? "#4caf50" : x.etape === "accorde" && !x.service_fait_le ? "#e8836a" : "#e8a33d", fontSize: "13px", fontWeight: "bold", margin: 0 }}>
-                      {(d.etapes && d.etapes[x.etape]) || x.etape}
-                    </p>
-                  </div>
-                </div>
-
-                {x.etape === "accorde" && !x.service_fait_le && (
-                  <p style={{ color: "#e8836a", fontSize: "13px", margin: "12px 0 0", lineHeight: "1.6" }}>
-                    Declarez le service fait pour debloquer le paiement.
-                  </p>
-                )}
-
-                <div style={{ display: "flex", gap: "8px", alignItems: "center", marginTop: "14px", flexWrap: "wrap" }}>
-                  {x.etape === "depose" && (
-                    <input
-                      value={(brouillon[x.id] && brouillon[x.id].accorde) || ""}
-                      onChange={(e) => setBrouillon({ ...brouillon, [x.id]: { ...(brouillon[x.id] || {}), accorde: e.target.value } })}
-                      placeholder="Montant accorde"
-                      style={{ ...CHAMP, width: "150px", marginBottom: 0, fontSize: "14px", padding: "8px 12px" }}
-                    />
-                  )}
-
-                  {suite && (
-                    <button
-                      onClick={() => modifier(x.id, {
-                        etape: suite,
-                        montant_accorde: suite === "accorde" && brouillon[x.id] ? brouillon[x.id].accorde : undefined,
-                        reference_dossier: brouillon[x.id] ? brouillon[x.id].reference : undefined,
-                      })}
-                      style={{ ...BOUTON, background: x.etape === "accorde" ? "#c8a96e" : "none", color: x.etape === "accorde" ? "#050508" : "#c8a96e", fontWeight: x.etape === "accorde" ? "bold" : "normal" }}
-                    >
-                      {(d.etapes && d.etapes[suite]) || suite} →
-                    </button>
-                  )}
-
-                  {x.etape !== "refuse" && x.etape !== "regle" && (
-                    <button
-                      onClick={() => modifier(x.id, { etape: "refuse" })}
-                      style={{ background: "none", border: "none", color: "rgba(255,255,255,0.5)", cursor: "pointer", fontSize: "13px", padding: "0 6px" }}
-                    >
-                      Refuse
-                    </button>
-                  )}
-
-                  <button
-                    onClick={() => retirer(x.id)}
-                    style={{ background: "none", border: "none", color: "#e8836a", cursor: "pointer", fontSize: "13px", padding: 0 }}
-                  >
-                    Retirer
-                  </button>
-                </div>
-              </div>
-            );
-          })
-        )}
       </div>
     </div>
   );
