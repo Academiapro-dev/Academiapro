@@ -9,10 +9,14 @@ export const maxDuration = 60;
 
 const ADMINS = ["contact@academiapro.fr"];
 
-// Bucket unique pour toutes les pieces justificatives. Le nom est historique
-// — il a ete cree pour les formateurs — mais il sert desormais l ensemble
-// des briques : mieux vaut un nom imparfait qu un second coffre a gerer.
+// Coffre des pieces justificatives. Le nom est historique — il a ete cree
+// pour les formateurs — mais il sert desormais toutes les briques.
 const BUCKET = "pieces-formateurs";
+
+// Coffre des documents signes. LA ROUTE DE SIGNATURE NE REGARDE QUE LA.
+// C est ce decalage qui empechait la page de signature d afficher un
+// document depose : elle le cherchait ici, on l avait range ailleurs.
+const BUCKET_SIGNATURE = "documents-signes";
 
 const TAILLE_MAX = 8 * 1024 * 1024;
 const VALIDITE_LECTURE_S = 3600;
@@ -20,13 +24,8 @@ const VALIDITE_LECTURE_S = 3600;
 // UNE PIECE JUSTIFICATIVE EST UN FICHIER, PAS UNE CASE A COCHER.
 //
 // Et pour les pieces qui ENGAGENT — un contrat —, le fichier ne suffit pas
-// davantage : il devient SIGNABLE des son depot. C est la demande de Jacques,
-// et elle est juste : reclamer plus tard un contrat signe, c est se condamner
-// a ne jamais le verifier. On fait signer en amont, quel que soit le document.
-//
-// Cette liste blanche dit, pour chaque piece : dans quelle table elle vit,
-// quelle colonne porte le chemin du fichier, quel drapeau la declare presente,
-// et — si elle engage — qui doit la signer.
+// davantage : il devient SIGNABLE des son depot. Reclamer plus tard un
+// contrat signe, c est se condamner a ne jamais le verifier.
 const PIECES: any = {
   formateur_cv: {
     table: "organisme_formateurs",
@@ -46,7 +45,7 @@ const PIECES: any = {
     table: "organisme_soustraitance",
     colonne: "contrat_chemin",
     drapeau: "contrat_signe",
-    libelle: "Contrat signe",
+    libelle: "Contrat",
     nom: "prestataire",
     date: "contrat_date",
     signable: true,
@@ -101,6 +100,10 @@ function extension(nom: string): string {
 // document et la preuve de signature pointerait vers l ancien.
 function referenceDe(cle: string, id: string): string {
   return "PJ-" + cle.slice(0, 3).toUpperCase() + "-" + String(id).replace(/-/g, "").slice(0, 10).toUpperCase();
+}
+
+function cheminSignature(tenant: string, reference: string): string {
+  return String(tenant) + "/" + reference + ".pdf";
 }
 
 // La ligne doit appartenir a cet organisme : sans ce controle, un client
@@ -158,7 +161,22 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (fichier.type && TYPES_ACCEPTES.indexOf(fichier.type) < 0) {
+    // UNE PIECE QUI SE SIGNE DOIT ETRE UN PDF. On demande au signataire de
+    // reconnaitre avoir lu le document : encore faut-il qu il puisse
+    // l afficher, ce qu un fichier Word ne garantit pas.
+    if (piece.signable) {
+      const estPdf = fichier.type === "application/pdf" || extension(fichier.name) === "pdf";
+      if (!estPdf) {
+        return NextResponse.json(
+          {
+            ok: false,
+            erreur: "Ce document doit etre un PDF : il sera presente au signataire, "
+              + "qui doit pouvoir le lire avant de s engager.",
+          },
+          { status: 400 }
+        );
+      }
+    } else if (fichier.type && TYPES_ACCEPTES.indexOf(fichier.type) < 0) {
       return NextResponse.json(
         { ok: false, erreur: "Format non accepte. Deposez un PDF, une image ou un document Word." },
         { status: 400 }
@@ -228,8 +246,9 @@ export async function POST(req: NextRequest) {
     }
 
     // LE FICHIER DEVIENT UN DOCUMENT SIGNABLE. Il entre dans le meme registre
-    // que les conventions generees, avec son empreinte : la brique de
-    // signature le traite ensuite sans rien savoir de son origine.
+    // que les conventions generees, avec son empreinte — ET UNE COPIE PART
+    // DANS LE COFFRE DES DOCUMENTS SIGNES, seul endroit ou la page de
+    // signature sait aller la chercher.
     let signable = false;
     let signataire = "";
 
@@ -237,6 +256,26 @@ export async function POST(req: NextRequest) {
       signataire = String((ligne as any)[piece.signataire] || "").toLowerCase().trim();
 
       if (signataire) {
+        const cheminSigne = cheminSignature(tenant, reference);
+
+        const { error: erreurCopie } = await supabase.storage
+          .from(BUCKET_SIGNATURE)
+          .upload(cheminSigne, octets, {
+            contentType: "application/pdf",
+            upsert: true,
+          });
+
+        if (erreurCopie) {
+          return NextResponse.json(
+            {
+              ok: false,
+              erreur: "Le fichier est depose, mais il n a pas pu etre prepare pour la"
+                + " signature : " + erreurCopie.message,
+            },
+            { status: 500 }
+          );
+        }
+
         const empreinte = crypto.createHash("sha256").update(octets).digest("hex");
 
         const { data: deja } = await supabase
@@ -251,7 +290,7 @@ export async function POST(req: NextRequest) {
           stagiaire_email: signataire,
           formation_code: null,
           reference: reference,
-          pdf_chemin: chemin,
+          pdf_chemin: cheminSigne,
           pdf_sha256: empreinte,
           pdf_octets: octets.length,
           donnees: {
@@ -445,7 +484,9 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ ok: false, erreur: error.message }, { status: 500 });
     }
 
+    // La copie destinee a la signature part avec le reste.
     if (piece.signable) {
+      await supabase.storage.from(BUCKET_SIGNATURE).remove([cheminSignature(tenant, reference)]);
       await supabase.from("organisme_documents").delete().eq("reference", reference);
     }
 
