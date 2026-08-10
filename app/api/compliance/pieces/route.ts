@@ -14,6 +14,28 @@ const ADMINS = ["contact@academiapro.fr"];
 const BUCKET = "pieces-comptables";
 const TAILLE_MAX = 15 * 1024 * 1024;
 
+// LES COFFRES OU DORMENT LES JUSTIFICATIFS.
+//
+// Les pieces deposees par le cabinet ou par le client vont dans
+// pieces-comptables. Mais celles qui viennent d une SAISIE DE DEPENSE ont
+// ete deposees ailleurs, dans documents-comptables, avant que les deux
+// circuits ne se rejoignent.
+//
+// Plutot que de recopier des centaines de fichiers d un coffre a l autre,
+// le chemin porte son coffre en prefixe quand il n est pas le coffre par
+// defaut. On le lit, on sert le fichier, personne ne s en apercoit.
+const COFFRES = ["documents-comptables", "pieces-comptables", "documents-signes"];
+
+function coffreEtChemin(chemin: string): { coffre: string; chemin: string } {
+  const c = String(chemin || "");
+  for (const nom of COFFRES) {
+    if (c.indexOf(nom + "/") === 0) {
+      return { coffre: nom, chemin: c.slice(nom.length + 1) };
+    }
+  }
+  return { coffre: BUCKET, chemin: c };
+}
+
 const TYPES: any = {
   facture_achat: "Facture d achat",
   facture_vente: "Facture de vente",
@@ -64,12 +86,20 @@ export async function GET(req: NextRequest) {
       const refus = await lecture(ligne.societe_id);
       if (refus) return refus;
 
+      const place = coffreEtChemin(ligne.chemin);
+
       const { data: signe, error } = await supabase.storage
-        .from(BUCKET)
-        .createSignedUrl(ligne.chemin, 3600);
+        .from(place.coffre)
+        .createSignedUrl(place.chemin, 3600);
 
       if (error || !signe) {
-        return NextResponse.json({ ok: false, erreur: "Fichier introuvable." }, { status: 404 });
+        return NextResponse.json(
+          {
+            ok: false,
+            erreur: "Fichier introuvable au coffre " + place.coffre + ".",
+          },
+          { status: 404 }
+        );
       }
 
       return NextResponse.json({ ok: true, url: signe.signedUrl, nom: ligne.nom });
@@ -301,7 +331,9 @@ export async function DELETE(req: NextRequest) {
       );
     }
 
-    await supabase.storage.from(BUCKET).remove([piece.chemin]);
+    const place = coffreEtChemin(piece.chemin);
+    await supabase.storage.from(place.coffre).remove([place.chemin]);
+
     const { error } = await supabase.from("compta_pieces").delete().eq("id", id);
 
     if (error) {
