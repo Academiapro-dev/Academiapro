@@ -233,6 +233,13 @@ export async function PATCH(req: NextRequest) {
 
     const modifications: any = {};
 
+    // LE NOM. Il ne figurait nulle part en modification, alors qu il est
+    // porte par l attestation de fin de formation : un stagiaire inscrit
+    // par une simple adresse restait anonyme jusqu au bout.
+    if (corps.nom !== undefined) {
+      modifications.nom = corps.nom ? String(corps.nom).trim().slice(0, 200) : null;
+    }
+
     if (corps.payeur !== undefined) {
       const p = String(corps.payeur || "").trim().toLowerCase();
       if (p && PAYEURS.indexOf(p) < 0) {
