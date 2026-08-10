@@ -33,12 +33,21 @@ const supabase = createClient(
 //   ERREUR  = rejet, avec le detail dans declarationErreurs
 //   SENT    = transmise, en attente
 //   CREATED = creee, pas encore transmise
+//
+// LES CHAMPS A null NE SONT PAS EMIS. On ne recoit que ce qui est
+// renseigne : chaque lecture doit donc tolerer l absence.
 // ---------------------------------------------------------------------------
 
 function texte(v: any): string | null {
   if (v === null || v === undefined) return null;
   const t = String(v).trim();
   return t.length > 0 ? t : null;
+}
+
+function date(v: any): string | null {
+  if (!v) return null;
+  const t = String(v).slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(t) ? t : null;
 }
 
 export async function POST(req: NextRequest) {
@@ -69,7 +78,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false }, { status: 404 });
     }
 
-    const statutBrut = String(b.status || b.statut || "").trim().toUpperCase();
+    const statutBrut = String(b.status || b.declarationStatus || b.statut || "")
+      .trim()
+      .toUpperCase();
 
     const statut = statutBrut === "OK" ? "acceptee"
       : statutBrut === "ERREUR" ? "rejetee"
@@ -101,9 +112,18 @@ export async function POST(req: NextRequest) {
       repondu_le: new Date().toISOString(),
     };
 
+    // Ce que le retour nous apprend sur la declaration elle-meme. Un dossier
+    // peut porter plusieurs obligations fiscales : le rof dit laquelle a
+    // ete servie, et le comptable en a besoin pour s y retrouver.
     if (texte(b.siren)) modifications.siren = texte(b.siren);
     if (texte(b.formulaire)) modifications.formulaire = texte(b.formulaire);
-    if (texte(b.millesime)) modifications.millesime = texte(b.millesime);
+    if (b.millesime) modifications.millesime = String(b.millesime);
+    if (texte(b.rof)) modifications.rof = texte(b.rof);
+    if (texte(b.declarationType)) modifications.declaration_type = texte(b.declarationType);
+    if (texte(b.nom)) modifications.nom_entreprise = texte(b.nom);
+    if (date(b.dateDebut)) modifications.periode_debut = date(b.dateDebut);
+    if (date(b.dateFin)) modifications.periode_fin = date(b.dateFin);
+    if (texte(b.compte)) modifications.compte_teledec = texte(b.compte);
 
     // LE PDF. Il arrive en base64 quand sa taille le permet, sinon par un
     // lien valable une heure. On le depose CHEZ NOUS dans les deux cas :
