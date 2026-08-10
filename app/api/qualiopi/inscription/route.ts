@@ -13,9 +13,10 @@ const supabase = createClient(
 
 // L OUVERTURE D UN ESPACE QUALIOPI.
 //
-// Le formulaire est court a dessein : un organisme qui doit remplir vingt
-// champs avant d avoir rien vu s en va. On demande le minimum, et le reste
-// se precise dans l espace.
+// L identite vit dans l authentification Supabase ; compliance_membres ne
+// porte que le rattachement — user_id, tenant_id, role, profil. L adresse
+// ne s y trouve pas, et la chercher la produirait l erreur qu on vient de
+// voir.
 //
 // LES CATEGORIES D ACTION NE SONT PAS UN DETAIL. Le Referentiel National
 // Qualite n applique pas les memes indicateurs a un centre de formation, a
@@ -42,6 +43,19 @@ function propre(v: any, max: number): string | null {
   if (v === null || v === undefined) return null;
   const t = String(v).replace(/[\u0000-\u001F\u007F]/g, "").trim();
   return t.length > 0 ? t.slice(0, max) : null;
+}
+
+// L utilisateur peut deja exister : il a pu ouvrir un espace comptable ou
+// acheter une formation. On le retrouve plutot que d en creer un second.
+async function trouverUtilisateur(email: string): Promise<string | null> {
+  try {
+    const { data } = await supabase.auth.admin.listUsers({ page: 1, perPage: 1000 });
+    const bas = email.toLowerCase();
+    for (const u of (data && data.users) || []) {
+      if (String(u.email || "").toLowerCase() === bas) return u.id;
+    }
+  } catch (e) {}
+  return null;
 }
 
 export async function POST(req: NextRequest) {
@@ -98,21 +112,43 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Un espace deja ouvert sur cette adresse : on ne cree pas de doublon.
+    const bas = email.toLowerCase();
+
+    // 1. L utilisateur, dans l authentification.
+    let userId = await trouverUtilisateur(bas);
+
+    if (!userId) {
+      const { data: cree, error: eUser } = await supabase.auth.admin.createUser({
+        email: bas,
+        email_confirm: true,
+      });
+
+      if (eUser || !cree || !cree.user) {
+        return NextResponse.json(
+          { ok: false, erreur: "Ouverture impossible : " + ((eUser && eUser.message) || "compte non cree") },
+          { status: 500 }
+        );
+      }
+      userId = cree.user.id;
+    }
+
+    // 2. Le rattachement. S il existe deja, on garde son tenant : un meme
+    // organisme ne doit pas se retrouver avec deux espaces.
     const { data: deja } = await supabase
       .from("compliance_membres")
       .select("tenant_id")
-      .eq("email", email.toLowerCase())
+      .eq("user_id", userId)
       .maybeSingle();
 
     const tenantId = deja ? deja.tenant_id : crypto.randomUUID();
 
     if (!deja) {
       const { error: eMembre } = await supabase.from("compliance_membres").insert({
+        user_id: userId,
         tenant_id: tenantId,
-        email: email.toLowerCase(),
         role: "proprietaire",
-        nom: raisonSociale,
+        profil: "organisme_formation",
+        actif: true,
       });
 
       if (eMembre) {
@@ -123,7 +159,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // La fiche de l organisme, qui commande les indicateurs applicables.
+    // 3. La fiche de l organisme, qui commande les indicateurs applicables.
     const { data: fiche } = await supabase
       .from("qualiopi_organisme")
       .select("id")
@@ -156,20 +192,19 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Le prospect entre au registre commercial : un organisme qui ouvre un
-    // espace sans souscrire reste un prospect qu il faudra relancer.
+    // 4. Le prospect entre au registre : un organisme qui ouvre un espace
+    // sans souscrire reste un prospect qu il faudra relancer.
     try {
       const { data: connu } = await supabase
         .from("crm")
         .select("id")
-        .eq("email", email.toLowerCase())
+        .eq("email", bas)
         .is("tenant_id", null)
         .limit(1);
 
       const fichePros: any = {
-        email: email.toLowerCase(),
+        email: bas,
         nom: raisonSociale,
-        entreprise: raisonSociale,
         source: "qualiopi",
         statut: "prospect",
         formation_interesse: "Mr. Qualiopi",
@@ -209,13 +244,12 @@ export async function POST(req: NextRequest) {
           + "Tous ne s'appliquent pas à tous.</p>"
           + "<p>L'équipe AcadéMIA Pro</p></div>";
 
-
         await fetch("https://api.resend.com/emails", {
           method: "POST",
           headers: { Authorization: "Bearer " + rk, "Content-Type": "application/json" },
           body: JSON.stringify({
             from: "Mr. Qualiopi <contact@academiapro.fr>",
-            to: [email],
+            to: [bas],
             subject: "Votre espace Mr. Qualiopi — " + raisonSociale,
             html: html,
           }),
@@ -232,7 +266,7 @@ export async function POST(req: NextRequest) {
             subject: "Qualiopi — " + raisonSociale,
             html:
               "<div style=\"font-family:Georgia,serif\"><h2>Nouvel espace Qualiopi</h2>"
-              + "<p><b>" + raisonSociale + "</b> — " + email + "</p>"
+              + "<p><b>" + raisonSociale + "</b> — " + bas + "</p>"
               + "<p>Declaration d activite : " + (numeroDa || "non precisee") + "</p>"
               + "<p><a href=\"https://academiapro.fr/admin/crm\">Ouvrir le registre</a></p></div>",
           }),
