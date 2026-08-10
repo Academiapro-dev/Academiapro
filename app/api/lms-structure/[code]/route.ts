@@ -16,26 +16,65 @@ export async function GET(req, { params }) {
     .eq("formation_code", code)
     .limit(1);
 
-  if (!lms || lms.length === 0) {
-    return NextResponse.json({ chapitres: [] });
+  const contenu = lms && lms.length > 0 ? lms[0].contenu : null;
+
+  // LE SOMMAIRE SUIT LE PLAN QUI A REELLEMENT ETE PRODUIT.
+  //
+  // Deux plans coexistent pour certaines formations : le JSON de
+  // formations_lms, herite d un premier manuel, et lms_plans, sur lequel les
+  // supports ont ete generes. Le sommaire lisait le JSON pendant que le cours
+  // servait lms_plans : le stagiaire cliquait sur un module et en lisait un
+  // autre. lms_plans fait desormais foi ; le JSON reste intact.
+  const { data: plans } = await supabase
+    .from("lms_plans")
+    .select("chapitre_num, chapitre_titre, module_num, module_titre, type")
+    .eq("formation_code", code)
+    .order("chapitre_num", { ascending: true })
+    .order("module_num", { ascending: true });
+
+  let chapitres = [];
+
+  if (plans && plans.length > 0) {
+    const parNumero = new Map();
+
+    for (const ligne of plans) {
+      const num = Number(ligne.chapitre_num) || 1;
+      if (!parNumero.has(num)) {
+        parNumero.set(num, {
+          numero: num,
+          titre: ligne.chapitre_titre || ("Chapitre " + num),
+          modules: [],
+        });
+      }
+      parNumero.get(num).modules.push({
+        numero: Number(ligne.module_num) || parNumero.get(num).modules.length + 1,
+        titre: ligne.module_titre || ("Module " + (parNumero.get(num).modules.length + 1)),
+        type: ligne.type || "theorie",
+      });
+    }
+
+    chapitres = Array.from(parNumero.values()).sort((a, b) => a.numero - b.numero);
+  } else {
+    // REPLI : les formations dont le plan n a pas encore ete construit dans
+    // lms_plans continuent d afficher le sommaire du JSON.
+    let bruts = contenu?.chapitres || [];
+    chapitres = bruts.map((ch, idx) => {
+      const modules = (ch.modules || []).map((mod, midx) => ({
+        numero: mod.numero || midx + 1,
+        titre: mod.titre || ("Module " + (midx + 1)),
+        type: mod.type || "theorie",
+      }));
+      return {
+        numero: ch.numero || idx + 1,
+        titre: ch.titre || ("Chapitre " + (idx + 1)),
+        modules,
+      };
+    });
   }
 
-  const contenu = lms[0].contenu;
-  let chapitres = contenu?.chapitres || [];
-
-  // Normaliser la structure — chaque chapitre doit avoir numero, titre, modules[]
-  chapitres = chapitres.map((ch, idx) => {
-    const modules = (ch.modules || []).map((mod, midx) => ({
-      numero: mod.numero || midx + 1,
-      titre: mod.titre || ("Module " + (midx + 1)),
-      type: mod.type || "theorie",
-    }));
-    return {
-      numero: ch.numero || idx + 1,
-      titre: ch.titre || ("Chapitre " + (idx + 1)),
-      modules,
-    };
-  });
+  if (chapitres.length === 0) {
+    return NextResponse.json({ chapitres: [] });
+  }
 
   // Si langue != fr, traduire les titres via lms_cache si disponible
   if (lang !== "fr") {
