@@ -2,36 +2,36 @@
 import { useState, useEffect } from "react";
 
 const LIBELLE_PAYEUR: any = {
-  entreprise: "Entreprise (salaries)",
+  entreprise: "Entreprise (salariés)",
   opco: "OPCO",
   cpf: "CPF",
   pouvoirs_publics: "Pouvoirs publics",
-  particulier: "Particulier (a ses frais)",
+  particulier: "Particulier (à ses frais)",
   organisme_formation: "Autre organisme de formation",
   fonds_propres: "Fonds propres",
-  non_renseigne: "Non renseigne",
+  non_renseigne: "Non renseigné",
 };
 
 const LIBELLE_STATUT: any = {
-  salarie_prive: "Salarie d employeur prive",
+  salarie_prive: "Salarié d'employeur privé",
   apprenti: "Apprenti",
-  recherche_emploi: "En recherche d emploi",
-  particulier: "Particulier a ses frais",
+  recherche_emploi: "En recherche d'emploi",
+  particulier: "Particulier à ses frais",
   autre: "Autre stagiaire",
 };
 
 const LIBELLE_DISPOSITIF: any = {
-  apprentissage: "Contrat d apprentissage",
+  apprentissage: "Contrat d'apprentissage",
   professionnalisation: "Contrat de professionnalisation",
   reconversion_alternance: "Reconversion par alternance",
   transition_pro: "Projet de transition professionnelle",
   cpf: "Compte personnel de formation",
-  demandeur_emploi: "Dispositif demandeurs d emploi",
-  travailleur_non_salarie: "Dispositif travailleurs non salaries",
-  plan_developpement: "Plan de developpement des competences",
-  public_europe: "Instances europeennes",
-  public_etat: "Etat",
-  public_region: "Conseil regional",
+  demandeur_emploi: "Dispositif demandeurs d'emploi",
+  travailleur_non_salarie: "Dispositif travailleurs non salariés",
+  plan_developpement: "Plan de développement des compétences",
+  public_europe: "Instances européennes",
+  public_etat: "État",
+  public_region: "Conseil régional",
   public_france_travail: "France Travail",
   public_autre: "Autres ressources publiques",
 };
@@ -49,6 +49,12 @@ export default function PageStagiaires() {
   const [invitationEnCours, setInvitationEnCours] = useState("");
   const [message, setMessage] = useState("");
   const [erreur, setErreur] = useState("");
+
+  // La fiche ouverte en modification. Une seule a la fois : ouvrir tous les
+  // champs de toutes les fiches ferait un mur illisible sur un registre de
+  // cent stagiaires.
+  const [ouverte, setOuverte] = useState("");
+  const [brouillon, setBrouillon] = useState<any>({});
 
   const [saisie, setSaisie] = useState("");
   const [payeur, setPayeur] = useState("");
@@ -113,7 +119,7 @@ export default function PageStagiaires() {
       });
       const data = await r.json();
       if (data.ok) {
-        setMessage(data.ajoutes + " stagiaire(s) inscrit(s). Ils n ont pas encore recu leur acces.");
+        setMessage(data.ajoutes + " stagiaire(s) inscrit(s). Ils n'ont pas encore reçu leur accès.");
         setSaisie("");
         await charger();
       } else {
@@ -137,7 +143,7 @@ export default function PageStagiaires() {
       });
       const data = await r.json();
       if (data.ok) {
-        setMessage(data.envoyes + " invitation(s) envoyee(s)");
+        setMessage(data.envoyes + " invitation(s) envoyée(s)");
         await charger();
       } else {
         setErreur(data.erreur || "Envoi impossible.");
@@ -167,15 +173,61 @@ export default function PageStagiaires() {
     }
   }
 
+  // Le nom, le code formation et le prix se saisissent au clavier : on ne
+  // les envoie qu une fois la saisie finie, sinon chaque lettre ferait un
+  // appel.
+  async function enregistrerFiche(id: string) {
+    setMessage("");
+    setErreur("");
+    try {
+      const r = await fetch("/api/organisme/stagiaires" + suffixe(), {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: id,
+          nom: brouillon.nom !== undefined ? brouillon.nom : undefined,
+          formation_code: brouillon.formation_code !== undefined ? brouillon.formation_code : undefined,
+          prix_vente: brouillon.prix_vente !== undefined ? brouillon.prix_vente : undefined,
+        }),
+      });
+      const data = await r.json();
+      if (data.ok) {
+        setMessage("Fiche mise à jour.");
+        setOuverte("");
+        setBrouillon({});
+        await charger();
+      } else {
+        setErreur(data.erreur || "Modification impossible.");
+      }
+    } catch (e: any) {
+      setErreur("Modification impossible : " + String(e));
+    }
+  }
+
+  function ouvrir(a: any) {
+    if (ouverte === a.id) {
+      setOuverte("");
+      setBrouillon({});
+      return;
+    }
+    setOuverte(a.id);
+    setBrouillon({
+      nom: a.nom || "",
+      formation_code: a.formation_code || "",
+      prix_vente: a.prix_vente !== null && a.prix_vente !== undefined ? String(a.prix_vente) : "",
+    });
+  }
+
   async function retirer(id: string, email: string) {
     setMessage("");
     setErreur("");
+    if (!confirm("Retirer " + email + " du registre ?")) return;
     try {
       const sep = suffixe() ? suffixe() + "&" : "?";
       const r = await fetch("/api/organisme/stagiaires" + sep + "id=" + id, { method: "DELETE" });
       const data = await r.json();
       if (data.ok) {
-        setMessage(email + " a ete retire du registre.");
+        setMessage(email + " a été retiré du registre.");
         await charger();
       } else {
         setErreur(data.erreur || "Suppression impossible.");
@@ -245,21 +297,21 @@ export default function PageStagiaires() {
         </p>
         <h1 style={{ color: "#fff", fontSize: "30px", margin: "0 0 6px" }}>Mes stagiaires</h1>
         <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "14px", marginTop: 0 }}>
-          {apprenants.length} inscrit(s) · {commences} ont commence · {chiffre.toLocaleString("fr-FR")} EUR declares
-          {incomplets > 0 ? " · " + incomplets + " fiche(s) incomplete(s) pour le bilan" : ""}
+          {apprenants.length} inscrit(s) · {commences} ont commencé · {chiffre.toLocaleString("fr-FR")} € déclarés
+          {incomplets > 0 ? " · " + incomplets + " fiche(s) incomplète(s) pour le bilan" : ""}
         </p>
 
         {aInviter > 0 && (
           <div style={{ ...CARTE, marginTop: "24px", border: "1px solid rgba(200,169,110,0.5)" }}>
             <p style={{ color: "#fff", fontSize: "16px", margin: "0 0 12px" }}>
-              {aInviter} stagiaire(s) n ont pas encore recu leur acces.
+              {aInviter} stagiaire(s) n'ont pas encore reçu leur accès.
             </p>
             <button
               onClick={() => inviter("")}
               disabled={invitationEnCours !== ""}
               style={{ background: invitationEnCours !== "" ? "rgba(200,169,110,0.3)" : "#c8a96e", color: invitationEnCours !== "" ? "#8a8a8a" : "#050508", padding: "13px 26px", borderRadius: "8px", border: "none", cursor: invitationEnCours !== "" ? "default" : "pointer", fontWeight: "bold", fontSize: "16px", fontFamily: "Georgia,serif" }}
             >
-              {invitationEnCours === "tous" ? "Envoi en cours..." : "Envoyer les invitations"}
+              {invitationEnCours === "tous" ? "Envoi en cours…" : "Envoyer les invitations"}
             </button>
           </div>
         )}
@@ -268,10 +320,10 @@ export default function PageStagiaires() {
           <h2 style={{ color: "#c8a96e", fontSize: "19px", margin: "0 0 8px" }}>Inscrire des stagiaires</h2>
           <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "14px", marginTop: 0, lineHeight: "1.6" }}>
             Le statut et le dispositif remplissent les cadres C et F-1 de votre bilan
-            pedagogique. Renseignez-les maintenant : dans un an, personne ne s en souviendra.
+            pédagogique. Renseignez-les maintenant : dans un an, personne ne s'en souviendra.
           </p>
 
-          <span style={LIBELLE}>Adresses email</span>
+          <span style={LIBELLE}>Adresses électroniques</span>
           <textarea
             value={saisie}
             onChange={(e) => setSaisie(e.target.value)}
@@ -283,7 +335,7 @@ export default function PageStagiaires() {
 
           <span style={LIBELLE}>Statut du stagiaire (cadre F-1)</span>
           <select value={statutStagiaire} onChange={(e) => setStatutStagiaire(e.target.value)} style={CHAMP}>
-            <option value="">— a preciser —</option>
+            <option value="">— à préciser —</option>
             {statuts.map(function (s) {
               return <option key={s} value={s}>{LIBELLE_STATUT[s] || s}</option>;
             })}
@@ -291,7 +343,7 @@ export default function PageStagiaires() {
 
           <span style={LIBELLE}>Qui finance ?</span>
           <select value={payeur} onChange={(e) => setPayeur(e.target.value)} style={CHAMP}>
-            <option value="">— a preciser —</option>
+            <option value="">— à préciser —</option>
             {payeurs.map(function (p) {
               return <option key={p} value={p}>{LIBELLE_PAYEUR[p] || p}</option>;
             })}
@@ -311,7 +363,7 @@ export default function PageStagiaires() {
               <input value={formation} onChange={(e) => setFormation(e.target.value)} placeholder="F028" style={CHAMP} />
             </div>
             <div style={{ flex: "1 1 200px" }}>
-              <span style={LIBELLE}>Prix de vente (EUR)</span>
+              <span style={LIBELLE}>Prix de vente (€)</span>
               <input value={prix} onChange={(e) => setPrix(e.target.value)} placeholder="1500" style={CHAMP} />
             </div>
           </div>
@@ -321,7 +373,7 @@ export default function PageStagiaires() {
             disabled={occupe || !saisie.trim()}
             style={{ background: occupe || !saisie.trim() ? "rgba(200,169,110,0.3)" : "#c8a96e", color: occupe || !saisie.trim() ? "#8a8a8a" : "#050508", padding: "14px 30px", borderRadius: "8px", border: "none", cursor: occupe || !saisie.trim() ? "default" : "pointer", fontWeight: "bold", fontSize: "16px", fontFamily: "Georgia,serif", width: "100%" }}
           >
-            {occupe ? "Inscription..." : "Inscrire ces stagiaires"}
+            {occupe ? "Inscription…" : "Inscrire ces stagiaires"}
           </button>
         </div>
 
@@ -341,14 +393,14 @@ export default function PageStagiaires() {
               })}
             </div>
             <a href="/organisme/bilan" style={{ color: "#c8a96e", fontSize: "14px", display: "inline-block", marginTop: "14px" }}>
-              Voir mon bilan pedagogique et financier →
+              Voir mon bilan pédagogique et financier →
             </a>
           </div>
         )}
 
         {chargement ? (
           <div style={CARTE}>
-            <p style={{ color: "rgba(255,255,255,0.6)", margin: 0 }}>Chargement du registre...</p>
+            <p style={{ color: "rgba(255,255,255,0.6)", margin: 0 }}>Chargement du registre…</p>
           </div>
         ) : apprenants.length === 0 ? (
           <div style={CARTE}>
@@ -360,6 +412,8 @@ export default function PageStagiaires() {
           apprenants.map(function (a) {
             const invite = a.statut === "invitation_envoyee";
             const complet = a.statut_stagiaire && a.payeur;
+            const enModification = ouverte === a.id;
+
             return (
               <div key={a.id} style={{ ...CARTE, padding: "18px 22px", marginBottom: "12px", border: complet ? "1px solid rgba(200,169,110,0.25)" : "1px solid rgba(232,131,106,0.4)" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "10px" }}>
@@ -370,7 +424,7 @@ export default function PageStagiaires() {
                     </p>
                     <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px", margin: 0 }}>
                       {a.formation_code || "aucune formation"}
-                      {a.prix_vente ? " · " + Number(a.prix_vente).toLocaleString("fr-FR") + " EUR" : ""}
+                      {a.prix_vente ? " · " + Number(a.prix_vente).toLocaleString("fr-FR") + " €" : ""}
                       {a.dispositif ? " · " + (LIBELLE_DISPOSITIF[a.dispositif] || a.dispositif) : ""}
                     </p>
                   </div>
@@ -381,6 +435,58 @@ export default function PageStagiaires() {
                     <span style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px" }}> module(s)</span>
                   </div>
                 </div>
+
+                {/* MODIFICATION DE LA FICHE. Le nom, la formation et le prix
+                    se corrigent sans avoir a supprimer le stagiaire — ce qui
+                    ferait perdre sa progression. */}
+                {enModification && (
+                  <div style={{ marginTop: "16px", padding: "16px", background: "rgba(200,169,110,0.06)", borderRadius: "10px" }}>
+                    <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+                      <div style={{ flex: "1 1 220px" }}>
+                        <span style={LIBELLE}>Nom du stagiaire</span>
+                        <input
+                          value={brouillon.nom}
+                          onChange={(e) => setBrouillon({ ...brouillon, nom: e.target.value })}
+                          placeholder="Marie Dupont"
+                          style={CHAMP}
+                        />
+                      </div>
+                      <div style={{ flex: "1 1 140px" }}>
+                        <span style={LIBELLE}>Formation (code)</span>
+                        <input
+                          value={brouillon.formation_code}
+                          onChange={(e) => setBrouillon({ ...brouillon, formation_code: e.target.value })}
+                          placeholder="F028"
+                          style={CHAMP}
+                        />
+                      </div>
+                      <div style={{ flex: "1 1 140px" }}>
+                        <span style={LIBELLE}>Prix de vente (€)</span>
+                        <input
+                          value={brouillon.prix_vente}
+                          onChange={(e) => setBrouillon({ ...brouillon, prix_vente: e.target.value })}
+                          placeholder="1500"
+                          style={CHAMP}
+                        />
+                      </div>
+                    </div>
+
+                    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                      <button
+                        onClick={() => enregistrerFiche(a.id)}
+                        style={{ background: "#c8a96e", color: "#050508", border: "none", padding: "10px 22px", borderRadius: "8px", cursor: "pointer", fontWeight: "bold", fontSize: "14px", fontFamily: "Georgia,serif" }}
+                      >
+                        Enregistrer
+                      </button>
+                      <button
+                        onClick={() => { setOuverte(""); setBrouillon({}); }}
+                        style={{ background: "none", border: "1px solid rgba(200,169,110,0.4)", color: "#c8a96e", padding: "10px 22px", borderRadius: "8px", cursor: "pointer", fontSize: "14px", fontFamily: "Georgia,serif" }}
+                      >
+                        Annuler
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 <div style={{ display: "flex", gap: "8px", alignItems: "center", marginTop: "14px", flexWrap: "wrap" }}>
                   <select
@@ -417,11 +523,18 @@ export default function PageStagiaires() {
                   </select>
 
                   <button
+                    onClick={() => ouvrir(a)}
+                    style={{ background: "none", border: "1px solid rgba(200,169,110,0.45)", color: "#c8a96e", padding: "7px 16px", borderRadius: "20px", cursor: "pointer", fontSize: "13px", fontFamily: "Georgia,serif" }}
+                  >
+                    {enModification ? "Fermer" : "Modifier la fiche"}
+                  </button>
+
+                  <button
                     onClick={() => inviter(a.id)}
                     disabled={invitationEnCours !== ""}
                     style={{ background: "none", border: "1px solid rgba(200,169,110,0.45)", color: "#c8a96e", padding: "7px 16px", borderRadius: "20px", cursor: invitationEnCours !== "" ? "default" : "pointer", fontSize: "13px", fontFamily: "Georgia,serif" }}
                   >
-                    {invitationEnCours === a.id ? "Envoi..." : invite ? "Renvoyer" : "Envoyer l acces"}
+                    {invitationEnCours === a.id ? "Envoi…" : invite ? "Renvoyer" : "Envoyer l'accès"}
                   </button>
 
                   <button
