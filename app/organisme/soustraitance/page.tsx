@@ -5,6 +5,7 @@ export default function PageSousTraitance() {
   const [d, setD] = useState<any>(null);
   const [chargement, setChargement] = useState(true);
   const [occupe, setOccupe] = useState(false);
+  const [depot, setDepot] = useState("");
   const [message, setMessage] = useState("");
   const [erreur, setErreur] = useState("");
   const [formulaire, setFormulaire] = useState(false);
@@ -112,6 +113,78 @@ export default function PageSousTraitance() {
     }
   }
 
+  // LE DEPOT D UN VRAI FICHIER. Cocher une case ne prouvait rien : l auditeur
+  // ne demande pas si le contrat existe, il demande a le lire.
+  async function deposer(id: string, piece: string, fichier: File | null) {
+    if (!fichier) return;
+
+    setDepot(id + "-" + piece);
+    setMessage("");
+    setErreur("");
+
+    try {
+      const corps = new FormData();
+      corps.append("id", id);
+      corps.append("piece", piece);
+      corps.append("fichier", fichier);
+
+      const r = await fetch("/api/organisme/piece" + suffixe(), {
+        method: "POST",
+        body: corps,
+      });
+      const data = await r.json();
+
+      if (data.ok) {
+        setMessage(data.piece + " depose pour " + data.fiche + " (" + data.nom_fichier + ").");
+        await charger();
+      } else {
+        setErreur(data.erreur || "Depot impossible.");
+      }
+    } catch (e: any) {
+      setErreur("Depot impossible : " + String(e));
+    }
+
+    setDepot("");
+  }
+
+  async function voir(id: string, piece: string) {
+    setMessage("");
+    setErreur("");
+    try {
+      const sep = suffixe() ? suffixe() + "&" : "?";
+      const r = await fetch("/api/organisme/piece" + sep + "id=" + id + "&piece=" + piece);
+      const data = await r.json();
+      if (data.ok && data.lien) {
+        window.open(data.lien, "_blank");
+      } else {
+        setErreur(data.erreur || "Lecture impossible.");
+      }
+    } catch (e: any) {
+      setErreur("Lecture impossible : " + String(e));
+    }
+  }
+
+  async function retirerPiece(id: string, piece: string) {
+    setMessage("");
+    setErreur("");
+    try {
+      const sep = suffixe() ? suffixe() + "&" : "?";
+      const r = await fetch(
+        "/api/organisme/piece" + sep + "id=" + id + "&piece=" + piece,
+        { method: "DELETE" }
+      );
+      const data = await r.json();
+      if (data.ok) {
+        setMessage(data.retiree + " retire. Le dossier redevient incomplet.");
+        await charger();
+      } else {
+        setErreur(data.erreur || "Retrait impossible.");
+      }
+    } catch (e: any) {
+      setErreur("Retrait impossible : " + String(e));
+    }
+  }
+
   async function retirer(id: string, n: string) {
     setMessage("");
     setErreur("");
@@ -167,13 +240,48 @@ export default function PageSousTraitance() {
     marginBottom: "6px",
   };
 
-  function pastille(actif: boolean, libelle: string, poser: any) {
+  // La piece justificative : on la depose, on la relit, on la retire.
+  function piece(s: any, cle: string, libelle: string, deposee: boolean) {
+    const champ = "fichier-" + cle + "-" + s.id;
+    const enCours = depot === s.id + "-" + cle;
+
     return (
-      <span
-        onClick={poser}
-        style={{ display: "inline-flex", alignItems: "center", gap: "8px", padding: "7px 14px", borderRadius: "20px", cursor: "pointer", background: actif ? "rgba(76,175,80,0.18)" : "rgba(255,255,255,0.05)", border: actif ? "1px solid rgba(76,175,80,0.5)" : "1px solid rgba(255,255,255,0.15)", color: actif ? "#4caf50" : "rgba(255,255,255,0.55)", fontSize: "13px" }}
-      >
-        {actif ? "✓" : "○"} {libelle}
+      <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+        <input
+          id={champ}
+          type="file"
+          accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+          style={{ display: "none" }}
+          onChange={(e) => {
+            const fichier = e.target.files && e.target.files[0] ? e.target.files[0] : null;
+            deposer(s.id, cle, fichier);
+            e.target.value = "";
+          }}
+        />
+
+        <span
+          onClick={() => {
+            if (enCours) return;
+            if (deposee) voir(s.id, cle);
+            else {
+              const champDom = document.getElementById(champ) as HTMLInputElement | null;
+              if (champDom) champDom.click();
+            }
+          }}
+          style={{ display: "inline-flex", alignItems: "center", gap: "8px", padding: "7px 14px", borderRadius: "20px", cursor: enCours ? "default" : "pointer", background: deposee ? "rgba(76,175,80,0.18)" : "rgba(255,255,255,0.05)", border: deposee ? "1px solid rgba(76,175,80,0.5)" : "1px solid rgba(255,255,255,0.15)", color: deposee ? "#4caf50" : "rgba(255,255,255,0.55)", fontSize: "13px" }}
+        >
+          {enCours ? "Depot..." : (deposee ? "✓ " + libelle + " · voir" : "○ Deposer " + libelle)}
+        </span>
+
+        {deposee && !enCours && (
+          <button
+            onClick={() => retirerPiece(s.id, cle)}
+            title={"Retirer " + libelle}
+            style={{ background: "none", border: "none", color: "rgba(255,255,255,0.4)", cursor: "pointer", fontSize: "13px", padding: "0 2px" }}
+          >
+            ✕
+          </button>
+        )}
       </span>
     );
   }
@@ -293,13 +401,9 @@ export default function PageSousTraitance() {
                   </span>
                 </div>
 
-                <div style={{ display: "flex", gap: "8px", marginTop: "14px", flexWrap: "wrap" }}>
-                  {pastille(s.contrat_signe, "Contrat signe", function () {
-                    modifier(s.id, { contrat_signe: !s.contrat_signe, contrat_date: !s.contrat_signe ? new Date().toISOString().slice(0, 10) : null });
-                  })}
-                  {pastille(s.qualiopi_prestataire, "Certifie Qualiopi", function () {
-                    modifier(s.id, { qualiopi_prestataire: !s.qualiopi_prestataire });
-                  })}
+                <div style={{ display: "flex", gap: "10px", marginTop: "14px", flexWrap: "wrap", alignItems: "center" }}>
+                  {piece(s, "soustraitance_contrat", "le contrat signe", !!s.contrat_signe)}
+                  {piece(s, "soustraitance_certificat", "le certificat Qualiopi", !!s.qualiopi_prestataire)}
 
                   <button
                     onClick={() => setOuvert({ ...ouvert, [s.id]: !estOuvert })}
@@ -344,7 +448,7 @@ export default function PageSousTraitance() {
                       value={(brouillon[s.id] && brouillon[s.id].competence) || ""}
                       onChange={(e) => setBrouillon({ ...brouillon, [s.id]: { ...(brouillon[s.id] || {}), competence: e.target.value } })}
                       rows={3}
-                      placeholder="CV recu, diplome verifie, entretien du 12 mars, references appelees..."
+                      placeholder="CV recu, diplome verifie, entretien du 12 mars, references appelees, certificat Qualiopi en cours de validite..."
                       style={CHAMP}
                     />
 
