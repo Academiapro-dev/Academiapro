@@ -187,6 +187,38 @@ export default function LMSPage({ params }) {
     }
   }
 
+  // L ASSIDUITE S ECRIT, ELLE NE SE DEDUIT PAS.
+  //
+  // La page ne faisait que RELIRE la progression apres une note reussie :
+  // rien n appelait jamais le POST, donc progression_apprenants restait vide,
+  // le stagiaire retrouvait 0 % a chaque retour, et le certificat — declenche
+  // depuis ce meme POST — ne pouvait pas se declencher non plus.
+  async function enregistrerValidation(module_cle, score) {
+    try {
+      const r = await fetch("/api/progression", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          formation_code: code,
+          module_cle: module_cle,
+          score: score,
+        }),
+      });
+      const data = await r.json();
+      if (!data.success) {
+        setAvertissement(
+          "Votre note est enregistrée, mais votre progression n'a pas pu être sauvegardée : " +
+          (data.error || "raison inconnue")
+        );
+        return false;
+      }
+      return true;
+    } catch (e) {
+      setAvertissement("Progression non sauvegardée : " + String(e));
+      return false;
+    }
+  }
+
   async function chargerCopie(ch_num, mod_num) {
     setCorrection(null);
     setChoix({});
@@ -248,7 +280,10 @@ export default function LMSPage({ params }) {
       if (data.ok) {
         setCorrection({ note: data.note, retour: data.retour, valide: data.valide });
         if (data.seuil) setSeuil(data.seuil);
-        if (data.valide) await chargerProgression();
+        if (data.valide) {
+          await enregistrerValidation(cle, data.note);
+          await chargerProgression();
+        }
       } else {
         setAvertissement(data.erreur || "Correction impossible.");
       }
