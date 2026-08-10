@@ -5,7 +5,7 @@ import { emailDeSession } from "../../../../lib/session";
 export const runtime = "nodejs";
 export const maxDuration = 30;
 
-// Comptes autorises a emettre un certificat pour quelqu'un d'autre
+// Comptes autorises a emettre une attestation pour quelqu'un d'autre
 // (generateur manuel de l'admin). Ajouter une adresse ici si besoin.
 const ADMINS = ["contact@academiapro.fr"];
 
@@ -14,7 +14,7 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || ""
 );
 
-async function envoyerEmailCertificat(email: string, nom: string, formation: string, certifId: string) {
+async function envoyerEmailAttestation(email: string, nom: string, formation: string, certifId: string) {
   if (!email) return;
   try {
     await fetch("https://api.resend.com/emails", {
@@ -24,36 +24,55 @@ async function envoyerEmailCertificat(email: string, nom: string, formation: str
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: "AcademIA Pro <certificats@academiapro.fr>",
+        from: "AcadémIA Pro <certificats@academiapro.fr>",
         to: email,
-        subject: "Felicitations ! Votre certificat AcademIA Pro",
-        html: "<p>Bonjour " + nom + ",</p><p>Felicitations pour avoir complete avec succes la formation <strong>" + formation + "</strong> !</p><p>Votre certificat officiel est pret. Vous pouvez le verifier a tout moment sur : academiapro.fr/verifier/" + certifId + "</p><p>L equipe AcademIA Pro</p>",
+        subject: "Votre attestation de fin de formation",
+        html: "<p>Bonjour " + nom + ",</p><p>Vous avez terminé la formation <strong>" + formation + "</strong>. Votre attestation de fin de formation est disponible.</p><p>Elle est consultable à tout moment sur : academiapro.fr/verifier/" + certifId + "</p><p>L'équipe AcadémIA Pro</p>",
       }),
     });
   } catch (e) {
-    console.error("Erreur envoi email certificat:", e);
+    console.error("Erreur envoi email attestation:", e);
   }
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const { nom, formation, code, date, niveau, userEmail } = await req.json();
+    const { nom, formation, code, date, niveau, userEmail, jeton_interne } = await req.json();
 
-    // ---- Verrou : personne n'emet un certificat sans session ----
+    // ---- Verrou ----
+    //
+    // DEUX CHEMINS D APPEL, ET UN SEUL PORTAIT UN COOKIE.
+    //
+    // La route etait appelee depuis /api/progression quand tous les modules
+    // sont valides : un fetch de serveur a serveur, qui ne transporte AUCUN
+    // cookie. emailDeSession() renvoyait donc vide, la route repondait 401, et
+    // l attestation n etait jamais emise — d ou une table restee vide malgre
+    // un parcours complet. L appel interne s authentifie desormais par un
+    // jeton partage, jamais expose au navigateur.
     const emailSession = emailDeSession();
-    if (!emailSession) {
+    const appelInterne =
+      !!jeton_interne &&
+      !!process.env.SESSION_SECRET &&
+      jeton_interne === process.env.SESSION_SECRET;
+
+    if (!emailSession && !appelInterne) {
       return NextResponse.json({ success: false, error: "non connecte" }, { status: 401 });
     }
 
-    const estAdmin = ADMINS.indexOf(emailSession) >= 0;
-    // Un eleve ne peut emettre que pour lui-meme ; l'admin garde son generateur manuel.
-    const emailCible = estAdmin ? (userEmail || emailSession) : emailSession;
+    const estAdmin = !appelInterne && ADMINS.indexOf(emailSession || "") >= 0;
 
-    if (!estAdmin) {
+    // Appel interne : la cible est celle que la progression a transmise.
+    // Un eleve ne peut emettre que pour lui-meme ; l'admin garde son
+    // generateur manuel.
+    const emailCible = appelInterne
+      ? (userEmail || null)
+      : (estAdmin ? (userEmail || emailSession) : emailSession);
+
+    if (!appelInterne && !estAdmin) {
       const { data: acces } = await supabase
         .from("acces_formations")
         .select("formation")
-        .ilike("email", emailSession)
+        .ilike("email", emailSession || "")
         .eq("formation", code)
         .maybeSingle();
 
@@ -68,11 +87,18 @@ export async function POST(req: NextRequest) {
 
     const certifId = `ACAD-${code}-${Date.now().toString(36).toUpperCase()}`;
 
+    // LE DOCUMENT DIT CE QU IL EST, ET RIEN DE PLUS.
+    //
+    // Il portait « Certificat Officiel », un badge « Expert » et la mention
+    // d une « certification officielle […] reconnue ». AcadeMIA Pro n est pas
+    // organisme certificateur : ces termes exposent l editeur autant que le
+    // stagiaire, qui pourrait croire detenir un titre enregistre. Le document
+    // atteste ce qui est verifiable — le suivi et la reussite des evaluations.
     const certifHtml = `<!DOCTYPE html>
 <html lang="fr">
 <head>
 <meta charset="utf-8">
-<title>Certificat ${formation} - AcadémIA Pro</title>
+<title>Attestation ${formation} - AcadémIA Pro</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { background: #000; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 20px; }
@@ -228,27 +254,28 @@ export async function POST(req: NextRequest) {
       <div class="logo-text">ACADÉMIA PRO</div>
       <div class="logo-sub">Formation Professionnelle par l'IA</div>
     </div>
-    <div class="trophee">🏆</div>
+    <div class="trophee">🎓</div>
     <div class="certif-label">
-      <div class="certif-label-text">Certificat Officiel</div>
+      <div class="certif-label-text">Attestation de fin de formation</div>
       <div class="certif-num">${certifId}</div>
     </div>
   </div>
 
   <div class="corps">
-    <div class="certifie-text">Ce certificat est décerné à</div>
+    <div class="certifie-text">La présente attestation est délivrée à</div>
     <div class="nom">${nom}</div>
     <div class="sep">
       <div class="sep-line"></div>
       <div class="sep-star">★ ★ ★</div>
       <div class="sep-line"></div>
     </div>
-    <div class="pour-avoir">pour avoir complété avec excellence la formation</div>
+    <div class="pour-avoir">pour avoir suivi et achevé la formation</div>
     <div class="formation-nom">${formation}</div>
-    <div><span class="badge-niveau">${niveau || "Expert"}</span></div>
+    <div><span class="badge-niveau">${niveau || "Formation achevée"}</span></div>
     <div class="attestation">
-      Cette certification officielle atteste des compétences acquises, validées et reconnues<br/>
-      par la plateforme d'excellence AcadémIA Pro
+      Cette attestation rend compte du suivi intégral du parcours et de la réussite des<br/>
+      évaluations qui le jalonnent. Elle ne constitue ni un diplôme, ni un titre, ni une<br/>
+      certification professionnelle enregistrée.
     </div>
   </div>
 
@@ -259,17 +286,17 @@ export async function POST(req: NextRequest) {
       <div class="etoiles-pied">★ ★ ★ ★ ★</div>
     </div>
     <div class="pied-col">
-      <div class="pied-label">Signature Officielle</div>
+      <div class="pied-label">Signature</div>
       <div class="sig-nom">Jacques Lalou</div>
       <div class="sig-titre">Fondateur · AcadémIA Pro</div>
     </div>
     <div class="pied-col">
       <div class="pied-label">Vérification</div>
       <div class="qr">🔐</div>
-      <div class="qr-text">academiapro.fr/verify</div>
+      <div class="qr-text">academiapro.fr/verifier</div>
     </div>
     <div class="pied-col">
-      <div class="pied-label">Date d'Obtention</div>
+      <div class="pied-label">Date de délivrance</div>
       <div class="pied-val">${date}</div>
     </div>
   </div>
@@ -283,12 +310,12 @@ export async function POST(req: NextRequest) {
       nom,
       formation_code: code,
       formation_titre: formation,
-      niveau: niveau || "Expert",
+      niveau: niveau || "Formation achevee",
       certif_html: certifHtml,
     });
 
     if (emailCible) {
-      await envoyerEmailCertificat(emailCible, nom, formation, certifId);
+      await envoyerEmailAttestation(emailCible, nom, formation, certifId);
     }
 
     return NextResponse.json({
@@ -300,6 +327,6 @@ export async function POST(req: NextRequest) {
     });
 
   } catch (error) {
-    return NextResponse.json({ error: "Erreur generation certificat" }, { status: 500 });
+    return NextResponse.json({ error: "Erreur generation attestation" }, { status: 500 });
   }
 }
