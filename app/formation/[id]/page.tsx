@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect } from "react"; 
 import { useTraductionAuto } from "../../../hooks/useTraductionAuto";
 
 // LES ACCENTS SONT OBLIGATOIRES ICI.
