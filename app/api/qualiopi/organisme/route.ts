@@ -27,6 +27,21 @@ function client() {
   });
 }
 
+// Un champ vide arrive comme chaine vide depuis un formulaire. L enregistrer
+// tel quel remplirait la base de chaines vides indiscernables d une valeur
+// saisie : on le ramene a l absence de valeur.
+function texte(v: any): string | null {
+  if (v === null || v === undefined) return null;
+  const t = String(v).replace(/[\u0000-\u001F\u007F]/g, "").trim();
+  return t.length > 0 ? t.slice(0, 300) : null;
+}
+
+function nombre(v: any): number | null {
+  if (v === null || v === undefined || v === "") return null;
+  const n = Number(v);
+  return isNaN(n) || n < 0 ? null : Math.round(n);
+}
+
 export async function GET() {
   const session = societeDeSession();
   if (!session) {
@@ -108,10 +123,31 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // LA FICHE ADMINISTRATIVE COMPTE AUTANT QUE LES CATEGORIES D ACTION.
+  //
+  // Sans SIRET ni adresse, aucune facture reguliere n est possible. Sans
+  // representant legal, aucun document du referentiel ne peut porter de
+  // signature — or il en reclame plusieurs.
   const fiche = {
     tenant_id: session.tenantId,
-    raison_sociale: corps.raison_sociale || null,
-    numero_da: corps.numero_da || null,
+    raison_sociale: texte(corps.raison_sociale),
+    numero_da: texte(corps.numero_da),
+    date_declaration: corps.date_declaration || null,
+
+    siret: texte(corps.siret),
+    numero_tva: texte(corps.numero_tva),
+    forme_juridique: texte(corps.forme_juridique),
+    adresse: texte(corps.adresse),
+    code_postal: texte(corps.code_postal),
+    ville: texte(corps.ville),
+    pays: texte(corps.pays) || "FR",
+    telephone: texte(corps.telephone),
+    email_contact: texte(corps.email_contact),
+    site_web: texte(corps.site_web),
+    representant_nom: texte(corps.representant_nom),
+    representant_qualite: texte(corps.representant_qualite),
+    effectif: nombre(corps.effectif),
+
     action_formation: corps.action_formation === true,
     action_apprentissage: corps.action_apprentissage === true,
     action_vae: corps.action_vae === true,
@@ -120,8 +156,8 @@ export async function POST(req: NextRequest) {
     recours_sous_traitance: corps.recours_sous_traitance === true,
     afest: corps.afest === true,
     date_audit_prevue: corps.date_audit_prevue || null,
-    certificateur: corps.certificateur || null,
-    notes: corps.notes || null,
+    certificateur: texte(corps.certificateur),
+    notes: corps.notes ? String(corps.notes).slice(0, 4000) : null,
     updated_at: new Date().toISOString(),
   };
 
