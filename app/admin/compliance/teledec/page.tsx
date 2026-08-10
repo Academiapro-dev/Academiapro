@@ -17,6 +17,8 @@ const STATUTS: any = {
 
 export default function TeledecPage() {
   const [lignes, setLignes] = useState<any[]>([]);
+  const [rejetees, setRejetees] = useState(0);
+  const [enAttente, setEnAttente] = useState(0);
   const [chargement, setChargement] = useState(true);
   const [erreur, setErreur] = useState("");
 
@@ -28,8 +30,13 @@ export default function TeledecPage() {
     try {
       const r = await fetch("/api/teledec/declarations", { cache: "no-store" });
       const d = await r.json();
-      if (d.ok) setLignes(d.declarations || []);
-      else setErreur(d.erreur || "Lecture impossible.");
+      if (d.ok) {
+        setLignes(d.declarations || []);
+        setRejetees(d.rejetees || 0);
+        setEnAttente(d.en_attente || 0);
+      } else {
+        setErreur(d.erreur || "Lecture impossible.");
+      }
     } catch (e: any) {
       setErreur(String(e));
     }
@@ -47,6 +54,11 @@ export default function TeledecPage() {
   function date(v: string) {
     if (!v) return "";
     return new Date(v).toLocaleString("fr-FR");
+  }
+
+  function jour(v: string) {
+    if (!v) return "";
+    return new Date(v).toLocaleDateString("fr-FR");
   }
 
   // LES REJETS, LISIBLEMENT.
@@ -143,10 +155,18 @@ export default function TeledecPage() {
           COMPTABILITÉ
         </p>
         <h1 style={{ fontSize: "30px", margin: "0 0 10px" }}>Télétransmissions</h1>
-        <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "15px", lineHeight: "1.7", margin: "0 0 30px", maxWidth: "700px" }}>
+        <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "15px", lineHeight: "1.7", margin: "0 0 24px", maxWidth: "700px" }}>
           Les liasses envoyées à l'administration et leur réponse. Un accusé de réception
           vaut dépôt ; un rejet indique le formulaire et le champ à corriger.
         </p>
+
+        {/* Ce qui reclame une action, avant la liste. */}
+        {(rejetees > 0 || enAttente > 0) && !chargement && (
+          <p style={{ color: rejetees > 0 ? "#e8836a" : "rgba(255,255,255,0.6)", fontSize: "15px", margin: "0 0 20px", lineHeight: "1.7" }}>
+            {rejetees > 0 ? rejetees + " déclaration(s) rejetée(s) à corriger. " : ""}
+            {enAttente > 0 ? enAttente + " en attente de réponse." : ""}
+          </p>
+        )}
 
         <button
           onClick={charger}
@@ -179,27 +199,48 @@ export default function TeledecPage() {
           return (
             <div key={l.id} style={{ ...carte, borderColor: rejet ? "rgba(232,131,106,0.5)" : "rgba(200,169,110,0.22)" }}>
 
-              <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "10px", marginBottom: "12px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "10px", marginBottom: "10px" }}>
                 <span style={{ color: s.couleur, fontWeight: "bold", fontSize: "16px" }}>{s.mot}</span>
                 <span style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px" }}>
                   envoyée le {date(l.envoyee_le)}
                 </span>
               </div>
 
+              {/* Le dossier concerne, avant tout le reste : un cabinet en
+                  suit cinquante, et le SIREN seul ne lui dit rien. */}
+              {l.nom_entreprise && (
+                <h2 style={{ color: "#fff", fontSize: "18px", margin: "0 0 6px" }}>
+                  {l.nom_entreprise}
+                </h2>
+              )}
+
               {l.statut_libelle && (
-                <p style={{ color: "rgba(255,255,255,0.75)", fontSize: "15px", lineHeight: "1.6", margin: "0 0 12px" }}>
+                <p style={{ color: "rgba(255,255,255,0.75)", fontSize: "15px", lineHeight: "1.6", margin: "0 0 10px" }}>
                   {l.statut_libelle}
                 </p>
               )}
 
               <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "13px", lineHeight: "1.8", margin: 0 }}>
                 {l.siren ? "SIREN " + l.siren : ""}
-                {l.formulaire ? " · " + l.formulaire : ""}
+                {l.declaration_type ? " · " + l.declaration_type : ""}
+                {l.formulaire ? " · formulaire " + l.formulaire : ""}
                 {l.millesime ? " · exercice " + l.millesime : ""}
-                {l.reference_dgfip ? " · réf. DGFiP " + l.reference_dgfip : ""}
-                {l.numero_traitement_dgfip ? " · traitement " + l.numero_traitement_dgfip : ""}
-                {l.repondu_le ? " · réponse le " + date(l.repondu_le) : ""}
+                {l.rof ? " · obligation " + l.rof : ""}
               </p>
+
+              {(l.periode_debut || l.periode_fin) && (
+                <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "13px", lineHeight: "1.8", margin: "3px 0 0" }}>
+                  Période du {jour(l.periode_debut)} au {jour(l.periode_fin)}
+                </p>
+              )}
+
+              {(l.reference_dgfip || l.repondu_le) && (
+                <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "13px", lineHeight: "1.8", margin: "3px 0 0" }}>
+                  {l.reference_dgfip ? "Réf. DGFiP " + l.reference_dgfip : ""}
+                  {l.numero_traitement_dgfip ? " · traitement " + l.numero_traitement_dgfip : ""}
+                  {l.repondu_le ? " · réponse le " + date(l.repondu_le) : ""}
+                </p>
+              )}
 
               {rejet && l.erreurs && (
                 <div style={{ background: "rgba(232,131,106,0.08)", border: "1px solid rgba(232,131,106,0.3)", borderRadius: "8px", padding: "16px 18px", marginTop: "16px" }}>
