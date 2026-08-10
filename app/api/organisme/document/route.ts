@@ -636,8 +636,11 @@ export async function POST(req: NextRequest) {
     }
 
     // MENTION DE LA SIGNATURE ELECTRONIQUE, sur les seuls documents signables,
-    // suivie de L ADRESSE OU SIGNER : sans elle, le beneficiaire qui recoit ce
-    // PDF par courriel n a aucun moyen d y acceder.
+    // suivie de L ADRESSE OU SIGNER.
+    //
+    // ON NE NOMME AUCUNE ADRESSE DE COURRIEL ICI : le code part vers l adresse
+    // du COMPTE CONNECTE, pas vers celle inscrite sur le document. Annoncer le
+    // contraire ferait mentir une piece contractuelle.
     if (signable) {
       y = y - 34;
       saut(150);
@@ -652,7 +655,7 @@ export async function POST(req: NextRequest) {
       }
 
       y = y - 10;
-      saut(30);
+      saut(34);
       page.drawText(ascii("Pour signer ce document en ligne :"), {
         x: 50, y: y, size: 8.5, font: normal, color: noir,
       });
@@ -662,7 +665,12 @@ export async function POST(req: NextRequest) {
       });
       y = y - 13;
       page.drawText(
-        ascii("Un code de verification a six chiffres vous sera adresse a " + email + "."),
+        ascii("Connectez-vous a votre espace : un code de verification a six chiffres sera"),
+        { x: 50, y: y, size: 7.5, font: normal, color: gris }
+      );
+      y = y - 10;
+      page.drawText(
+        ascii("adresse a l adresse de votre compte."),
         { x: 50, y: y, size: 7.5, font: normal, color: gris }
       );
       y = y - 10;
