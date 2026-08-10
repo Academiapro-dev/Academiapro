@@ -47,9 +47,10 @@ export async function GET(req: NextRequest) {
 
     const { data, error } = await supabase
       .from("teledec_declarations")
-      .select("id, reference, siren, formulaire, millesime, statut, statut_libelle, "
-        + "reference_dgfip, numero_traitement_dgfip, date_heure_dgfip, "
-        + "pdf_chemin, erreurs, envoyee_le, repondu_le")
+      .select("id, reference, siren, nom_entreprise, formulaire, millesime, "
+        + "declaration_type, rof, periode_debut, periode_fin, "
+        + "statut, statut_libelle, reference_dgfip, numero_traitement_dgfip, "
+        + "date_heure_dgfip, pdf_chemin, erreurs, envoyee_le, repondu_le")
       .eq("tenant_id", tenant)
       .order("envoyee_le", { ascending: false })
       .limit(500);
