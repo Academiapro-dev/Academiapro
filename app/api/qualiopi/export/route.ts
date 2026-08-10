@@ -84,6 +84,35 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // LE BARRAGE. L export est ce qui a de la valeur : c est le dossier
+    // classe, pret a presenter. Griser un bouton dans le navigateur ne
+    // protege rien — il suffit d appeler cette adresse directement. Le
+    // barrage doit donc etre ICI, et nulle part ailleurs.
+    const { data: souscription } = await supabase
+      .from("qualiopi_souscriptions")
+      .select("id, statut, nb_exports")
+      .eq("tenant_id", session.tenantId)
+      .maybeSingle();
+
+    if (!souscription) {
+      return NextResponse.json(
+        {
+          ok: false,
+          erreur: "L export du dossier est ouvert par la souscription. "
+            + "Votre diagnostic reste consultable sans limite.",
+          souscription_requise: true,
+        },
+        { status: 402 }
+      );
+    }
+
+    if (souscription.statut === "rembourse") {
+      return NextResponse.json(
+        { ok: false, erreur: "Cette souscription a ete remboursee." },
+        { status: 402 }
+      );
+    }
+
     const { data: orgs, error: errOrg } = await supabase
       .from("qualiopi_organisme")
       .select("*")
@@ -378,6 +407,20 @@ export async function POST(req: NextRequest) {
       false,
       0
     );
+
+    // LA TRACE. C est elle qui ferme la garantie : le dossier a ete
+    // emporte, le remboursement n a plus lieu d etre. On l enregistre
+    // APRES la generation, pour ne pas fermer la garantie sur un echec.
+    try {
+      const dejaExporte = (souscription.nb_exports || 0) > 0;
+      const maj: any = { nb_exports: (souscription.nb_exports || 0) + 1 };
+      if (!dejaExporte) maj.premier_export_le = new Date().toISOString();
+
+      await supabase
+        .from("qualiopi_souscriptions")
+        .update(maj)
+        .eq("id", souscription.id);
+    } catch (e) {}
 
     const sortie = await pdfDoc.save();
     const nomFichier =
