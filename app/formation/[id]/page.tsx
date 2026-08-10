@@ -19,9 +19,14 @@ const FR = {
   objectifs: "Objectifs",
   prerequis: "Prérequis",
   publicCible: "Public visé",
-  programme: "Programme",
+  programme: "Programme détaillé",
+  programmeSous: "Le plan complet de la formation, chapitre par chapitre.",
   modulesMot: "modules",
+  chapitresMot: "chapitres",
   heuresTotal: "heures de formation",
+  typeTheorie: "Théorie",
+  typePratique: "Mise en pratique",
+  typeEvaluation: "Évaluation",
   support: "Aperçu du manuel",
   supportSub: "Lisez les premières pages avant de vous inscrire",
   voirSupport: "Feuilleter",
@@ -238,10 +243,21 @@ export default function FormationPage({ params }: { params: { id: string } }) {
   const estAtelier = String(params.id).toUpperCase().indexOf("SK") === 0;
   const prixBase = formation.prix || 0;
 
+  // LE PROGRAMME REEL, PAR CHAPITRES.
+  //
+  // Trois cent trente et une fiches batie sur un gabarit unique se
+  // ressemblent : meme structure, meme bloc de prix, description courte. Ce
+  // qui les distingue vraiment — leurs cinq chapitres et leurs vingt modules,
+  // deja en base dans lms_plans — n etait pas affiche. La route en renvoie
+  // desormais le plan structure ; il passe devant la liste plate.
+  const chapitresApercu = (apercu && Array.isArray(apercu.chapitres)) ? apercu.chapitres : [];
+  const aChapitres = chapitresApercu.length > 0;
+
   const aProgrammeBase = formation.programme && Array.isArray(formation.programme) && formation.programme.length > 0;
   const aApercu = apercu && apercu.modules && apercu.modules.length > 0;
   const heures = (apercu && apercu.heures_programme) || 0;
   const nbModules = (apercu && apercu.nb_modules) || 0;
+  const nbChapitres = (apercu && apercu.nb_chapitres) || chapitresApercu.length;
 
   const heuresReference = heures > 0 ? heures : heuresDe(formation.duree);
   const estCourte = heuresReference > 0 && heuresReference < SEUIL_COURTE;
@@ -265,6 +281,18 @@ export default function FormationPage({ params }: { params: { id: string } }) {
   const couleurs = COULEURS[formation.domaine] || ["#0a0a1a", "#1a1a2e"];
   const nomDomaine = NOMS_DOMAINE[formation.domaine] || formation.domaine;
 
+  function libelleType(t: string): string {
+    if (t === "pratique") return txt.typePratique;
+    if (t === "evaluation") return txt.typeEvaluation;
+    return txt.typeTheorie;
+  }
+
+  function couleurType(t: string): string {
+    if (t === "pratique") return "#7fb3a3";
+    if (t === "evaluation") return "#c8a96e";
+    return "rgba(255,255,255,0.35)";
+  }
+
   // LA PROMESSE, EN TETE.
   //
   // Le visiteur doit savoir ce qu il saura faire AVANT de descendre la page.
@@ -276,9 +304,11 @@ export default function FormationPage({ params }: { params: { id: string } }) {
   // doublon a quelques centimetres d ecart.
   const objectifsAilleurs = formation.objectifs && promesse === String(formation.objectifs).trim();
 
-  const ligneTotal = heures > 0 ? (
+  const ligneTotal = (heures > 0 || nbChapitres > 0) ? (
     <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "13px", marginTop: 0, marginBottom: "18px" }}>
-      {nbModules} {txt.modulesMot} · {heures} {txt.heuresTotal}
+      {nbChapitres > 0 ? nbChapitres + " " + txt.chapitresMot + " · " : ""}
+      {nbModules} {txt.modulesMot}
+      {heures > 0 ? " · " + heures + " " + txt.heuresTotal : ""}
     </p>
   ) : null;
 
@@ -313,6 +343,16 @@ export default function FormationPage({ params }: { params: { id: string } }) {
         "name": formation.titre,
         "description": formation.description || formation.titre,
         "provider": { "@type": "Organization", "name": "Acad\u00e9mIA Pro", "url": "https://www.academiapro.fr" },
+        ...(heuresReference > 0 ? { "timeRequired": "PT" + heuresReference + "H" } : {}),
+        ...(aChapitres ? {
+          "syllabusSections": chapitresApercu.map(function (ch: any) {
+            return {
+              "@type": "Syllabus",
+              "name": ch.titre,
+              "description": (ch.modules || []).map(function (m: any) { return m.titre; }).join(" · "),
+            };
+          })
+        } : {}),
         ...(formation.prix ? { "offers": { "@type": "Offer", "price": String(formation.prix), "priceCurrency": "EUR", "availability": "https://schema.org/InStock", "url": "https://www.academiapro.fr/formation/" + params.id } } : {}),
         "hasCourseInstance": { "@type": "CourseInstance", "courseMode": "online" }
       }) }} />
@@ -400,7 +440,37 @@ export default function FormationPage({ params }: { params: { id: string } }) {
           </div>
         )}
 
-        {aProgrammeBase && (
+        {/* LE PLAN REEL PASSE DEVANT. C est lui qui distingue cette fiche des
+            trois cent trente autres, aux yeux du visiteur comme du moteur. */}
+        {aChapitres && (
+          <div style={{ marginBottom: "40px" }}>
+            <h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", marginBottom: "6px" }}>{txt.programme}</h2>
+            <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "14px", marginTop: 0, marginBottom: "6px" }}>{txt.programmeSous}</p>
+            {ligneTotal}
+            {chapitresApercu.map((ch: any, i: number) => (
+              <div key={i} style={{ marginBottom: "15px", border: "1px solid rgba(200,169,110,0.3)", borderRadius: "10px", overflow: "hidden" }}>
+                <div style={{ background: "linear-gradient(135deg,#c8a96e,#a07840)", padding: "12px 20px" }}>
+                  <h3 style={{ color: "#fff", margin: 0, fontFamily: "Georgia,serif", fontSize: "15px" }}>
+                    {txt.chapitresMot === "chapitres" ? "Chapitre " : ""}{ch.numero} — {ch.titre}
+                  </h3>
+                </div>
+                <div style={{ padding: "10px 20px" }}>
+                  {(ch.modules || []).map((mod: any, j: number) => (
+                    <div key={j} style={{ padding: "9px 0", borderBottom: j < (ch.modules.length - 1) ? "1px solid rgba(255,255,255,0.05)" : "none", color: "rgba(255,255,255,0.75)", fontSize: "14px", display: "flex", justifyContent: "space-between", gap: "14px" }}>
+                      <span style={{ flex: 1, lineHeight: "1.6" }}>
+                        <span style={{ color: "#c8a96e", marginRight: "8px" }}>{ch.numero}.{mod.numero}</span>
+                        {mod.titre}
+                      </span>
+                      <span style={{ color: couleurType(mod.type), fontSize: "12px", whiteSpace: "nowrap" }}>{libelleType(mod.type)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {!aChapitres && aProgrammeBase && (
           <div style={{ marginBottom: "40px" }}>
             <h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", marginBottom: "6px" }}>{txt.programme}</h2>
             {ligneTotal}
@@ -424,7 +494,7 @@ export default function FormationPage({ params }: { params: { id: string } }) {
           </div>
         )}
 
-        {!aProgrammeBase && aApercu && (
+        {!aChapitres && !aProgrammeBase && aApercu && (
           <div style={{ marginBottom: "40px" }}>
             <h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", marginBottom: "6px" }}>{txt.programme}</h2>
             {ligneTotal}
@@ -439,7 +509,7 @@ export default function FormationPage({ params }: { params: { id: string } }) {
           </div>
         )}
 
-        {aApercu && apercu.pdf_pret && (
+        {apercu && apercu.pdf_pret && (
           <div style={{ background: "rgba(200,169,110,0.08)", border: "1px solid rgba(200,169,110,0.2)", borderRadius: "10px", padding: "20px", marginBottom: "30px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px" }}>
             <div>
               <div style={{ color: "#c8a96e", fontWeight: "bold", marginBottom: "3px" }}>📖 {txt.support}</div>
