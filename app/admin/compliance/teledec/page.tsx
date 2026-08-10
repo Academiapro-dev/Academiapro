@@ -49,12 +49,94 @@ export default function TeledecPage() {
     return new Date(v).toLocaleString("fr-FR");
   }
 
+  // LES REJETS, LISIBLEMENT.
+  //
+  // L administration renvoie deux natures d anomalies : les erreurs
+  // metier — un calcul faux, un report incoherent — et les erreurs de
+  // syntaxe, propres au format d echange.
+  //
+  // Les afficher en bloc technique obligeait le comptable a dechiffrer des
+  // accolades pour savoir quel champ corriger. Il lui faut le formulaire,
+  // le champ, son libelle et ce qu on lui reproche.
+  function Anomalies({ erreurs }: any) {
+    if (!erreurs) return null;
+
+    const metier = Array.isArray(erreurs.declaration) ? erreurs.declaration : [];
+    const syntaxe = Array.isArray(erreurs.syntaxe) ? erreurs.syntaxe : [];
+
+    if (metier.length === 0 && syntaxe.length === 0) {
+      // Format inattendu : plutot que de perdre l information, on la montre.
+      return (
+        <pre style={{ color: "rgba(255,255,255,0.7)", fontSize: "12px", lineHeight: "1.6", margin: 0, whiteSpace: "pre-wrap", fontFamily: "monospace" }}>
+          {JSON.stringify(erreurs, null, 2)}
+        </pre>
+      );
+    }
+
+    const ligne: any = {
+      padding: "12px 0",
+      borderBottom: "1px solid rgba(232,131,106,0.18)",
+    };
+
+    return (
+      <div>
+        {metier.length > 0 && (
+          <div style={{ marginBottom: syntaxe.length > 0 ? "18px" : 0 }}>
+            <p style={{ color: "#e8836a", fontSize: "12.5px", letterSpacing: "1px", margin: "0 0 6px" }}>
+              ANOMALIES DE DÉCLARATION
+            </p>
+            {metier.map(function (e: any, i: number) {
+              return (
+                <div key={i} style={ligne}>
+                  <p style={{ color: "#fff", fontSize: "14.5px", margin: "0 0 4px" }}>
+                    {e.champLibelle || e.champ || "Champ non précisé"}
+                  </p>
+                  <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "13.5px", margin: "0 0 4px", lineHeight: "1.6" }}>
+                    {e.libelle || "Anomalie signalée sans explication."}
+                  </p>
+                  <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "12.5px", margin: 0 }}>
+                    {e.formulaire ? "Formulaire " + e.formulaire : ""}
+                    {e.champ ? " · champ " + e.champ : ""}
+                    {e.code ? " · code " + e.code : ""}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {syntaxe.length > 0 && (
+          <div>
+            <p style={{ color: "#e8836a", fontSize: "12.5px", letterSpacing: "1px", margin: "0 0 6px" }}>
+              ANOMALIES DE FORMAT
+            </p>
+            {syntaxe.map(function (e: any, i: number) {
+              return (
+                <div key={i} style={ligne}>
+                  <p style={{ color: "rgba(255,255,255,0.85)", fontSize: "14px", margin: "0 0 4px", lineHeight: "1.6" }}>
+                    {e.libelleErreur || "Anomalie de format."}
+                  </p>
+                  <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "12.5px", margin: 0 }}>
+                    {e.formulaire ? "Formulaire " + e.formulaire : ""}
+                    {e.champ ? " · champ " + e.champ : ""}
+                    {e.codeErreur ? " · " + e.codeErreur : ""}
+                    {e.ligne ? " · ligne " + e.ligne : ""}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div style={{ minHeight: "100vh", background: NOIR, color: "#fff", fontFamily: "Georgia, serif", padding: "40px 20px" }}>
       <div style={{ maxWidth: "980px", margin: "0 auto" }}>
 
         <a href="/admin/compliance/tableau-de-bord" style={{ color: OR, fontSize: "14px", textDecoration: "none" }}>
-          ← Retour au tableau de bord
+          ← Retour à vos dossiers
         </a>
 
         <p style={{ color: OR, fontSize: "12px", letterSpacing: "3px", margin: "26px 0 10px" }}>
@@ -115,17 +197,16 @@ export default function TeledecPage() {
                 {l.formulaire ? " · " + l.formulaire : ""}
                 {l.millesime ? " · exercice " + l.millesime : ""}
                 {l.reference_dgfip ? " · réf. DGFiP " + l.reference_dgfip : ""}
+                {l.numero_traitement_dgfip ? " · traitement " + l.numero_traitement_dgfip : ""}
                 {l.repondu_le ? " · réponse le " + date(l.repondu_le) : ""}
               </p>
 
               {rejet && l.erreurs && (
-                <div style={{ background: "rgba(232,131,106,0.08)", border: "1px solid rgba(232,131,106,0.3)", borderRadius: "8px", padding: "14px", marginTop: "14px" }}>
-                  <p style={{ color: "#e8836a", fontSize: "13px", fontWeight: "bold", margin: "0 0 8px" }}>
+                <div style={{ background: "rgba(232,131,106,0.08)", border: "1px solid rgba(232,131,106,0.3)", borderRadius: "8px", padding: "16px 18px", marginTop: "16px" }}>
+                  <p style={{ color: "#e8836a", fontSize: "14px", fontWeight: "bold", margin: "0 0 14px" }}>
                     À corriger avant de renvoyer
                   </p>
-                  <pre style={{ color: "rgba(255,255,255,0.7)", fontSize: "12px", lineHeight: "1.6", margin: 0, whiteSpace: "pre-wrap", fontFamily: "monospace" }}>
-                    {JSON.stringify(l.erreurs, null, 2)}
-                  </pre>
+                  <Anomalies erreurs={l.erreurs} />
                 </div>
               )}
 
