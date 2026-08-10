@@ -11,6 +11,7 @@ const STYLE_CHAMP = {
   background: "#ffffff",
   color: "#1a1a1a",
   marginBottom: 16,
+  boxSizing: "border-box" as const,
 };
 
 const STYLE_LIBELLE = {
@@ -18,6 +19,15 @@ const STYLE_LIBELLE = {
   fontWeight: "bold" as const,
   marginBottom: 6,
   color: "#0a3d2e",
+};
+
+const STYLE_AIDE = {
+  display: "block",
+  fontSize: 13,
+  color: "#666",
+  marginTop: -12,
+  marginBottom: 12,
+  lineHeight: 1.6,
 };
 
 const STYLE_BOUTON = {
@@ -47,6 +57,24 @@ export default function MonOrganisme() {
 
   const [raisonSociale, setRaisonSociale] = useState("");
   const [numeroDa, setNumeroDa] = useState("");
+  const [dateDeclaration, setDateDeclaration] = useState("");
+
+  // La fiche administrative. Sans SIRET ni adresse, aucune facture
+  // reguliere n est possible ; sans representant legal, aucun document du
+  // referentiel ne peut porter de signature.
+  const [siret, setSiret] = useState("");
+  const [numeroTva, setNumeroTva] = useState("");
+  const [formeJuridique, setFormeJuridique] = useState("");
+  const [adresse, setAdresse] = useState("");
+  const [codePostal, setCodePostal] = useState("");
+  const [ville, setVille] = useState("");
+  const [telephone, setTelephone] = useState("");
+  const [emailContact, setEmailContact] = useState("");
+  const [siteWeb, setSiteWeb] = useState("");
+  const [representantNom, setRepresentantNom] = useState("");
+  const [representantQualite, setRepresentantQualite] = useState("");
+  const [effectif, setEffectif] = useState("");
+
   const [actionFormation, setActionFormation] = useState(true);
   const [actionApprentissage, setActionApprentissage] = useState(false);
   const [actionVae, setActionVae] = useState(false);
@@ -71,6 +99,19 @@ export default function MonOrganisme() {
         setExiste(true);
         setRaisonSociale(o.raison_sociale || "");
         setNumeroDa(o.numero_da || "");
+        setDateDeclaration(o.date_declaration || "");
+        setSiret(o.siret || "");
+        setNumeroTva(o.numero_tva || "");
+        setFormeJuridique(o.forme_juridique || "");
+        setAdresse(o.adresse || "");
+        setCodePostal(o.code_postal || "");
+        setVille(o.ville || "");
+        setTelephone(o.telephone || "");
+        setEmailContact(o.email_contact || "");
+        setSiteWeb(o.site_web || "");
+        setRepresentantNom(o.representant_nom || "");
+        setRepresentantQualite(o.representant_qualite || "");
+        setEffectif(o.effectif ? String(o.effectif) : "");
         setActionFormation(o.action_formation === true);
         setActionApprentissage(o.action_apprentissage === true);
         setActionVae(o.action_vae === true);
@@ -103,6 +144,20 @@ export default function MonOrganisme() {
         body: JSON.stringify({
           raison_sociale: raisonSociale,
           numero_da: numeroDa,
+          date_declaration: dateDeclaration || null,
+          siret: siret,
+          numero_tva: numeroTva,
+          forme_juridique: formeJuridique,
+          adresse: adresse,
+          code_postal: codePostal,
+          ville: ville,
+          pays: "FR",
+          telephone: telephone,
+          email_contact: emailContact,
+          site_web: siteWeb,
+          representant_nom: representantNom,
+          representant_qualite: representantQualite,
+          effectif: effectif ? Number(effectif) : null,
           action_formation: actionFormation,
           action_apprentissage: actionApprentissage,
           action_vae: actionVae,
@@ -118,7 +173,7 @@ export default function MonOrganisme() {
       const data = await r.json();
       if (data.ok) {
         setExiste(true);
-        setMessage("Profil enregistre.");
+        setMessage("Profil enregistré.");
       } else {
         setErreur(data.erreur || "Erreur inconnue");
       }
@@ -178,13 +233,13 @@ export default function MonOrganisme() {
           Mon organisme de formation
         </h1>
 
-        <p style={{ fontSize: 15, color: "#555" }}>
-          Ces informations determinent les indicateurs du referentiel qui vous
-          seront presentes. Un organisme de formation classique en valide 23 ;
-          un centre de formation d'apprentis peut aller jusqu'a 32.
+        <p style={{ fontSize: 15, color: "#555", lineHeight: 1.7 }}>
+          Ces informations déterminent les indicateurs du référentiel qui vous
+          seront présentés. Un organisme de formation classique en valide 23 ;
+          un centre de formation d'apprentis peut aller jusqu'à 32.
         </p>
 
-        {chargement && <p>Chargement...</p>}
+        {chargement && <p>Chargement…</p>}
 
         {!chargement && (
           <>
@@ -201,9 +256,37 @@ export default function MonOrganisme() {
                 style={STYLE_CHAMP}
               />
 
-              <span style={STYLE_LIBELLE}>
-                Numero de declaration d'activite
+              <span style={STYLE_LIBELLE}>Forme juridique</span>
+              <input
+                type="text"
+                value={formeJuridique}
+                onChange={(e) => setFormeJuridique(e.target.value)}
+                placeholder="SARL, SAS, association, entreprise individuelle…"
+                style={STYLE_CHAMP}
+              />
+
+              <span style={STYLE_LIBELLE}>SIRET</span>
+              <input
+                type="text"
+                value={siret}
+                onChange={(e) => setSiret(e.target.value)}
+                placeholder="14 chiffres"
+                style={STYLE_CHAMP}
+              />
+              <span style={STYLE_AIDE}>
+                Il figure sur vos documents contractuels et sur vos factures.
               </span>
+
+              <span style={STYLE_LIBELLE}>Numéro de TVA intracommunautaire</span>
+              <input
+                type="text"
+                value={numeroTva}
+                onChange={(e) => setNumeroTva(e.target.value)}
+                placeholder="FR00000000000"
+                style={STYLE_CHAMP}
+              />
+
+              <span style={STYLE_LIBELLE}>Numéro de déclaration d'activité</span>
               <input
                 type="text"
                 value={numeroDa}
@@ -211,14 +294,127 @@ export default function MonOrganisme() {
                 placeholder="11 chiffres"
                 style={STYLE_CHAMP}
               />
+              <span style={STYLE_AIDE}>
+                Délivré par le préfet de région. Cet enregistrement ne vaut pas
+                agrément de l'État, et cette mention doit figurer sur vos documents.
+              </span>
+
+              <span style={STYLE_LIBELLE}>Date de déclaration</span>
+              <input
+                type="date"
+                value={dateDeclaration}
+                onChange={(e) => setDateDeclaration(e.target.value)}
+                style={STYLE_CHAMP}
+              />
+
+              <span style={STYLE_LIBELLE}>Effectif</span>
+              <input
+                type="number"
+                value={effectif}
+                onChange={(e) => setEffectif(e.target.value)}
+                placeholder="Nombre de personnes"
+                style={STYLE_CHAMP}
+              />
             </div>
 
             <div style={STYLE_CARTE}>
               <h2 style={{ color: "#0a3d2e", fontSize: 18, marginTop: 0 }}>
-                Types d'action realises
+                Adresse et contact
+              </h2>
+
+              <span style={STYLE_LIBELLE}>Adresse</span>
+              <input
+                type="text"
+                value={adresse}
+                onChange={(e) => setAdresse(e.target.value)}
+                placeholder="12 rue de la Formation"
+                style={STYLE_CHAMP}
+              />
+
+              <div style={{ display: "flex", gap: 12 }}>
+                <div style={{ flex: "0 0 140px" }}>
+                  <span style={STYLE_LIBELLE}>Code postal</span>
+                  <input
+                    type="text"
+                    value={codePostal}
+                    onChange={(e) => setCodePostal(e.target.value)}
+                    style={STYLE_CHAMP}
+                  />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <span style={STYLE_LIBELLE}>Ville</span>
+                  <input
+                    type="text"
+                    value={ville}
+                    onChange={(e) => setVille(e.target.value)}
+                    style={STYLE_CHAMP}
+                  />
+                </div>
+              </div>
+
+              <span style={STYLE_LIBELLE}>Téléphone</span>
+              <input
+                type="tel"
+                value={telephone}
+                onChange={(e) => setTelephone(e.target.value)}
+                style={STYLE_CHAMP}
+              />
+
+              <span style={STYLE_LIBELLE}>Adresse électronique de contact</span>
+              <input
+                type="email"
+                value={emailContact}
+                onChange={(e) => setEmailContact(e.target.value)}
+                style={STYLE_CHAMP}
+              />
+
+              <span style={STYLE_LIBELLE}>Site internet</span>
+              <input
+                type="text"
+                value={siteWeb}
+                onChange={(e) => setSiteWeb(e.target.value)}
+                placeholder="monorganisme.fr"
+                style={STYLE_CHAMP}
+              />
+              <span style={STYLE_AIDE}>
+                L'auditeur ira le consulter : c'est là que se vérifie le critère 1.
+              </span>
+            </div>
+
+            <div style={STYLE_CARTE}>
+              <h2 style={{ color: "#0a3d2e", fontSize: 18, marginTop: 0 }}>
+                Représentant légal
+              </h2>
+              <p style={{ fontSize: 14, color: "#666", marginTop: 0, lineHeight: 1.7 }}>
+                Le référentiel réclame plusieurs documents signés : règlement
+                intérieur, procédure de réclamation, livret d'accueil. C'est ce nom
+                qui y figurera.
+              </p>
+
+              <span style={STYLE_LIBELLE}>Nom et prénom</span>
+              <input
+                type="text"
+                value={representantNom}
+                onChange={(e) => setRepresentantNom(e.target.value)}
+                style={STYLE_CHAMP}
+              />
+
+              <span style={STYLE_LIBELLE}>Qualité</span>
+              <input
+                type="text"
+                value={representantQualite}
+                onChange={(e) => setRepresentantQualite(e.target.value)}
+                placeholder="Gérant, président, directeur…"
+                style={STYLE_CHAMP}
+              />
+            </div>
+
+            <div style={STYLE_CARTE}>
+              <h2 style={{ color: "#0a3d2e", fontSize: 18, marginTop: 0 }}>
+                Types d'action réalisés
               </h2>
               <p style={{ fontSize: 14, color: "#666", marginTop: 0 }}>
-                Cochez tout ce qui s'applique. Au moins un choix est necessaire.
+                Cochez tout ce qui s'applique. Au moins un choix est nécessaire.
               </p>
 
               {ligneCase(
@@ -236,46 +432,46 @@ export default function MonOrganisme() {
               {ligneCase(
                 actionVae,
                 setActionVae,
-                "Validation des acquis de l'experience"
+                "Validation des acquis de l'expérience"
               )}
               {ligneCase(
                 actionBilan,
                 setActionBilan,
-                "Bilans de competences"
+                "Bilans de compétences"
               )}
             </div>
 
             <div style={STYLE_CARTE}>
               <h2 style={{ color: "#0a3d2e", fontSize: 18, marginTop: 0 }}>
-                Situations particulieres
+                Situations particulières
               </h2>
 
               {ligneCase(
                 certifiantes,
                 setCertifiantes,
-                "Vous preparez a des certifications",
+                "Vous préparez à des certifications",
                 "Ajoute les indicateurs 3, 7 et 16"
               )}
               {ligneCase(
                 sousTraitance,
                 setSousTraitance,
-                "Vous faites appel a des formateurs externes ou a la sous-traitance",
+                "Vous faites appel à des formateurs externes ou à la sous-traitance",
                 "Ajoute l'indicateur 27"
               )}
               {ligneCase(
                 afest,
                 setAfest,
-                "Vous realisez des actions de formation en situation de travail (AFEST)",
+                "Vous réalisez des actions de formation en situation de travail (AFEST)",
                 "Ajoute les indicateurs 13 et 28"
               )}
             </div>
 
             <div style={STYLE_CARTE}>
               <h2 style={{ color: "#0a3d2e", fontSize: 18, marginTop: 0 }}>
-                Audit (facultatif)
+                Audit
               </h2>
 
-              <span style={STYLE_LIBELLE}>Date d'audit prevue</span>
+              <span style={STYLE_LIBELLE}>Date d'audit prévue</span>
               <input
                 type="date"
                 value={dateAudit}
@@ -290,6 +486,10 @@ export default function MonOrganisme() {
                 onChange={(e) => setCertificateur(e.target.value)}
                 style={STYLE_CHAMP}
               />
+              <span style={STYLE_AIDE}>
+                Celui que vous avez retenu parmi les organismes accrédités par le
+                Comité français d'accréditation.
+              </span>
 
               <span style={STYLE_LIBELLE}>Notes</span>
               <textarea
@@ -306,9 +506,9 @@ export default function MonOrganisme() {
               style={STYLE_BOUTON}
             >
               {enregistrement
-                ? "Enregistrement..."
+                ? "Enregistrement…"
                 : existe
-                ? "Mettre a jour mon profil"
+                ? "Mettre à jour mon profil"
                 : "Enregistrer mon profil"}
             </button>
 
