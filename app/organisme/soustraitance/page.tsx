@@ -42,6 +42,11 @@ export default function PageSousTraitance() {
         const b: any = {};
         for (const s of data.prestataires || []) {
           b[s.id] = {
+            prestataire: s.prestataire || "",
+            objet: s.objet_confie || "",
+            siret: s.siret || "",
+            numero_da: s.numero_da || "",
+            contact: s.contact_email || "",
             competence: s.competence_verifiee || "",
             evaluation: s.evaluation_prestation || "",
             formations: s.formations_concernees || "",
@@ -114,7 +119,8 @@ export default function PageSousTraitance() {
   }
 
   // LE DEPOT D UN VRAI FICHIER. Cocher une case ne prouvait rien : l auditeur
-  // ne demande pas si le contrat existe, il demande a le lire.
+  // ne demande pas si le contrat existe, il demande a le lire. Et pour une
+  // piece qui engage, le depot ouvre en plus la signature electronique.
   async function deposer(id: string, piece: string, fichier: File | null) {
     if (!fichier) return;
 
@@ -135,7 +141,11 @@ export default function PageSousTraitance() {
       const data = await r.json();
 
       if (data.ok) {
-        setMessage(data.piece + " depose pour " + data.fiche + " (" + data.nom_fichier + ").");
+        setMessage(
+          data.piece + " depose pour " + data.fiche + " (" + data.nom_fichier + ")." +
+          (data.signable ? " Il peut maintenant etre signe par " + data.signataire + "." : "") +
+          (data.rappel ? " " + data.rappel : "")
+        );
         await charger();
       } else {
         setErreur(data.erreur || "Depot impossible.");
@@ -161,6 +171,23 @@ export default function PageSousTraitance() {
       }
     } catch (e: any) {
       setErreur("Lecture impossible : " + String(e));
+    }
+  }
+
+  async function faireSigner(id: string, piece: string) {
+    setMessage("");
+    setErreur("");
+    try {
+      const sep = suffixe() ? suffixe() + "&" : "?";
+      const r = await fetch("/api/organisme/piece" + sep + "id=" + id + "&piece=" + piece);
+      const data = await r.json();
+      if (data.ok && data.lien_signature) {
+        window.open(data.lien_signature, "_blank");
+      } else {
+        setErreur(data.erreur || "Ce document n est pas signable.");
+      }
+    } catch (e: any) {
+      setErreur("Ouverture impossible : " + String(e));
     }
   }
 
@@ -240,8 +267,13 @@ export default function PageSousTraitance() {
     marginBottom: "6px",
   };
 
-  // La piece justificative : on la depose, on la relit, on la retire.
-  function piece(s: any, cle: string, libelle: string, deposee: boolean) {
+  function poser(id: string, champ: string, valeur: string) {
+    setBrouillon({ ...brouillon, [id]: { ...(brouillon[id] || {}), [champ]: valeur } });
+  }
+
+  // La piece justificative : on la depose, on la relit, on la fait signer,
+  // on la retire tant qu elle ne l est pas.
+  function piece(s: any, cle: string, libelle: string, deposee: boolean, signable: boolean) {
     const champ = "fichier-" + cle + "-" + s.id;
     const enCours = depot === s.id + "-" + cle;
 
@@ -272,6 +304,15 @@ export default function PageSousTraitance() {
         >
           {enCours ? "Depot..." : (deposee ? "✓ " + libelle + " · voir" : "○ Deposer " + libelle)}
         </span>
+
+        {deposee && signable && !enCours && (
+          <button
+            onClick={() => faireSigner(s.id, cle)}
+            style={{ background: "none", border: "1px solid rgba(200,169,110,0.45)", color: "#c8a96e", padding: "6px 13px", borderRadius: "20px", cursor: "pointer", fontSize: "12.5px", fontFamily: "Georgia,serif" }}
+          >
+            Faire signer
+          </button>
+        )}
 
         {deposee && !enCours && (
           <button
@@ -359,8 +400,8 @@ export default function PageSousTraitance() {
               </div>
             </div>
 
-            <span style={LIBELLE}>Contact</span>
-            <input value={contact} onChange={(e) => setContact(e.target.value)} style={CHAMP} />
+            <span style={LIBELLE}>Contact · indispensable pour lui faire signer un document</span>
+            <input value={contact} onChange={(e) => setContact(e.target.value)} placeholder="contact@prestataire.fr" style={CHAMP} />
 
             <button
               onClick={ajouter}
@@ -382,6 +423,7 @@ export default function PageSousTraitance() {
         ) : (
           (d ? d.prestataires : []).map(function (s: any) {
             const estOuvert = ouvert[s.id] === true;
+            const b = brouillon[s.id] || {};
             return (
               <div key={s.id} style={{ ...CARTE, border: "1px solid " + (s.complet ? "rgba(76,175,80,0.35)" : "rgba(232,131,106,0.45)"), opacity: s.actif ? 1 : 0.55 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "10px" }}>
@@ -390,7 +432,7 @@ export default function PageSousTraitance() {
                     <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "13px", margin: 0 }}>
                       {s.siret ? "SIRET " + s.siret : ""}
                       {s.numero_da ? " · DA " + s.numero_da : ""}
-                      {s.contact_email ? " · " + s.contact_email : ""}
+                      {s.contact_email ? " · " + s.contact_email : " · aucun contact"}
                     </p>
                     <p style={{ color: "rgba(255,255,255,0.75)", fontSize: "14px", margin: "8px 0 0", lineHeight: "1.7" }}>
                       {s.objet_confie}
@@ -402,14 +444,14 @@ export default function PageSousTraitance() {
                 </div>
 
                 <div style={{ display: "flex", gap: "10px", marginTop: "14px", flexWrap: "wrap", alignItems: "center" }}>
-                  {piece(s, "soustraitance_contrat", "le contrat signe", !!s.contrat_signe)}
-                  {piece(s, "soustraitance_certificat", "le certificat Qualiopi", !!s.qualiopi_prestataire)}
+                  {piece(s, "soustraitance_contrat", "le contrat", !!s.contrat_signe, true)}
+                  {piece(s, "soustraitance_certificat", "le certificat Qualiopi", !!s.qualiopi_prestataire, false)}
 
                   <button
                     onClick={() => setOuvert({ ...ouvert, [s.id]: !estOuvert })}
                     style={{ background: "none", border: "1px solid rgba(200,169,110,0.45)", color: "#c8a96e", padding: "7px 16px", borderRadius: "20px", cursor: "pointer", fontSize: "13px", fontFamily: "Georgia,serif" }}
                   >
-                    {estOuvert ? "Fermer" : "Competence et evaluation"}
+                    {estOuvert ? "Fermer" : "Modifier la fiche"}
                   </button>
 
                   <button
@@ -435,18 +477,70 @@ export default function PageSousTraitance() {
 
                 {estOuvert && (
                   <div style={{ marginTop: "16px", paddingTop: "14px", borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+                    <p style={{ color: "#c8a96e", fontSize: "13px", letterSpacing: "2px", margin: "0 0 12px" }}>
+                      IDENTITE DU PRESTATAIRE
+                    </p>
+
+                    <span style={LIBELLE}>Prestataire</span>
+                    <input
+                      value={b.prestataire || ""}
+                      onChange={(e) => poser(s.id, "prestataire", e.target.value)}
+                      style={CHAMP}
+                    />
+
+                    <span style={LIBELLE}>Ce que vous lui confiez</span>
+                    <textarea
+                      value={b.objet || ""}
+                      onChange={(e) => poser(s.id, "objet", e.target.value)}
+                      rows={2}
+                      style={CHAMP}
+                    />
+
+                    <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+                      <div style={{ flex: "1 1 180px" }}>
+                        <span style={LIBELLE}>SIRET</span>
+                        <input
+                          value={b.siret || ""}
+                          onChange={(e) => poser(s.id, "siret", e.target.value)}
+                          style={CHAMP}
+                        />
+                      </div>
+                      <div style={{ flex: "1 1 180px" }}>
+                        <span style={LIBELLE}>Numero de declaration</span>
+                        <input
+                          value={b.numero_da || ""}
+                          onChange={(e) => poser(s.id, "numero_da", e.target.value)}
+                          style={CHAMP}
+                        />
+                      </div>
+                    </div>
+
+                    <span style={{ ...LIBELLE, color: b.contact ? "#c8a96e" : "#e8a33d" }}>
+                      Contact · indispensable pour lui faire signer un document
+                    </span>
+                    <input
+                      value={b.contact || ""}
+                      onChange={(e) => poser(s.id, "contact", e.target.value)}
+                      placeholder="contact@prestataire.fr"
+                      style={{ ...CHAMP, border: b.contact ? CHAMP.border : "1px solid rgba(232,163,61,0.5)" }}
+                    />
+
+                    <p style={{ color: "#c8a96e", fontSize: "13px", letterSpacing: "2px", margin: "18px 0 12px" }}>
+                      INDICATEUR 27
+                    </p>
+
                     <span style={LIBELLE}>Formations concernees</span>
                     <input
-                      value={(brouillon[s.id] && brouillon[s.id].formations) || ""}
-                      onChange={(e) => setBrouillon({ ...brouillon, [s.id]: { ...(brouillon[s.id] || {}), formations: e.target.value } })}
+                      value={b.formations || ""}
+                      onChange={(e) => poser(s.id, "formations", e.target.value)}
                       placeholder="F028, F030"
                       style={CHAMP}
                     />
 
                     <span style={LIBELLE}>Comment vous avez verifie sa competence AVANT</span>
                     <textarea
-                      value={(brouillon[s.id] && brouillon[s.id].competence) || ""}
-                      onChange={(e) => setBrouillon({ ...brouillon, [s.id]: { ...(brouillon[s.id] || {}), competence: e.target.value } })}
+                      value={b.competence || ""}
+                      onChange={(e) => poser(s.id, "competence", e.target.value)}
                       rows={3}
                       placeholder="CV recu, diplome verifie, entretien du 12 mars, references appelees, certificat Qualiopi en cours de validite..."
                       style={CHAMP}
@@ -456,8 +550,8 @@ export default function PageSousTraitance() {
                       Comment vous avez evalue sa prestation APRES
                     </span>
                     <textarea
-                      value={(brouillon[s.id] && brouillon[s.id].evaluation) || ""}
-                      onChange={(e) => setBrouillon({ ...brouillon, [s.id]: { ...(brouillon[s.id] || {}), evaluation: e.target.value } })}
+                      value={b.evaluation || ""}
+                      onChange={(e) => poser(s.id, "evaluation", e.target.value)}
                       rows={3}
                       placeholder="C est cette case que les organismes oublient : retours des stagiaires, bilan avec le prestataire, decision de reconduire."
                       style={{ ...CHAMP, border: "1px solid rgba(232,163,61,0.5)" }}
@@ -465,9 +559,14 @@ export default function PageSousTraitance() {
 
                     <button
                       onClick={() => modifier(s.id, {
-                        formations_concernees: brouillon[s.id] ? brouillon[s.id].formations : "",
-                        competence_verifiee: brouillon[s.id] ? brouillon[s.id].competence : "",
-                        evaluation_prestation: brouillon[s.id] ? brouillon[s.id].evaluation : "",
+                        prestataire: b.prestataire || "",
+                        objet_confie: b.objet || "",
+                        siret: b.siret || "",
+                        numero_da: b.numero_da || "",
+                        contact_email: b.contact || "",
+                        formations_concernees: b.formations || "",
+                        competence_verifiee: b.competence || "",
+                        evaluation_prestation: b.evaluation || "",
                       })}
                       style={{ background: "#c8a96e", color: "#050508", padding: "12px 24px", borderRadius: "8px", border: "none", cursor: "pointer", fontWeight: "bold", fontSize: "15px", fontFamily: "Georgia,serif" }}
                     >
