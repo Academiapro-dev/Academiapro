@@ -2,50 +2,50 @@
 import { useState, useEffect } from "react";
 
 const LIBELLE_C: any = {
-  "1": "1 · Entreprises pour la formation de leurs salaries",
-  "2a": "2a · Contrats d apprentissage",
+  "1": "1 · Entreprises pour la formation de leurs salariés",
+  "2a": "2a · Contrats d'apprentissage",
   "2b": "2b · Contrats de professionnalisation",
   "2c": "2c · Promotion ou reconversion par alternance",
   "2d": "2d · Projets de transition professionnelle",
   "2e": "2e · Compte personnel de formation",
-  "2f": "2f · Dispositifs personnes en recherche d emploi",
-  "2g": "2g · Dispositifs travailleurs non salaries",
-  "2h": "2h · Plan de developpement des competences",
+  "2f": "2f · Dispositifs personnes en recherche d'emploi",
+  "2g": "2g · Dispositifs travailleurs non salariés",
+  "2h": "2h · Plan de développement des compétences",
   "3": "3 · Pouvoirs publics pour leurs agents",
-  "4": "4 · Instances europeennes",
-  "5": "5 · Etat",
-  "6": "6 · Conseils regionaux",
+  "4": "4 · Instances européennes",
+  "5": "5 · État",
+  "6": "6 · Conseils régionaux",
   "7": "7 · France Travail",
   "8": "8 · Autres ressources publiques",
-  "9": "9 · Personnes a titre individuel et a leurs frais",
+  "9": "9 · Personnes à titre individuel et à leurs frais",
   "10": "10 · Autres organismes de formation",
   "11": "11 · Autres produits",
 };
 
 const LIBELLE_F1: any = {
-  a: "a · Salaries d employeurs prives hors apprentis",
+  a: "a · Salariés d'employeurs privés hors apprentis",
   b: "b · Apprentis",
-  c: "c · Personnes en recherche d emploi",
-  d: "d · Particuliers a leurs propres frais",
+  c: "c · Personnes en recherche d'emploi",
+  d: "d · Particuliers à leurs propres frais",
   e: "e · Autres stagiaires",
 };
 
 const LIBELLE_F3: any = {
-  a: "a · Formations visant un titre enregistre au RNCP",
-  b: "b · Formations visant une certification au repertoire specifique",
-  c: "c · CQP non enregistre",
+  a: "a · Formations visant un titre enregistré au RNCP",
+  b: "b · Formations visant une certification au répertoire spécifique",
+  c: "c · CQP non enregistré",
   d: "d · Autres formations professionnelles",
-  e: "e · Bilans de competences",
-  f: "f · Accompagnement a la VAE",
+  e: "e · Bilans de compétences",
+  f: "f · Accompagnement à la VAE",
 };
 
 const LIBELLE_MANQUE: any = {
   sans_dispositif: "sans dispositif de financement",
   sans_statut: "sans statut de stagiaire",
   sans_prix: "sans prix de vente",
-  sans_formation: "sans formation rattachee",
-  sans_duree: "sans duree connue",
-  sans_code_nsf: "sans code de specialite",
+  sans_formation: "sans formation rattachée",
+  sans_duree: "sans durée connue",
+  sans_code_nsf: "sans code de spécialité",
 };
 
 export default function PageBilan() {
@@ -53,6 +53,7 @@ export default function PageBilan() {
   const [annee, setAnnee] = useState(0);
   const [chargement, setChargement] = useState(true);
   const [erreur, setErreur] = useState("");
+  const [pdfEnCours, setPdfEnCours] = useState(false);
 
   useEffect(function () {
     charger(0);
@@ -86,8 +87,43 @@ export default function PageBilan() {
     setChargement(false);
   }
 
+  // LE PDF. Un organisme ne recopie pas des chiffres depuis un ecran : il
+  // imprime son etat, le pose a cote du clavier, et remplit le formulaire
+  // en ligne cadre par cadre.
+  async function telecharger() {
+    setPdfEnCours(true);
+    setErreur("");
+    try {
+      const r = await fetch("/api/organisme/bilan/pdf" + suffixe(annee));
+
+      if (!r.ok) {
+        let detail = "code " + r.status;
+        try {
+          const j = await r.json();
+          detail = j.erreur || detail;
+        } catch (e) {}
+        setErreur("Génération impossible : " + detail);
+        setPdfEnCours(false);
+        return;
+      }
+
+      const blob = await r.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "bilan_pedagogique_" + annee + ".pdf";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch (e: any) {
+      setErreur("Génération impossible : " + String(e));
+    }
+    setPdfEnCours(false);
+  }
+
   function euros(n: number) {
-    return (Number(n) || 0).toLocaleString("fr-FR") + " EUR";
+    return (Number(n) || 0).toLocaleString("fr-FR") + " €";
   }
 
   const CADRE: any = {
@@ -114,6 +150,18 @@ export default function PageBilan() {
     borderRadius: "20px",
     cursor: "pointer",
     fontSize: "14px",
+    fontFamily: "Georgia,serif",
+  };
+
+  const PLEIN: any = {
+    background: "#c8a96e",
+    color: "#050508",
+    border: "none",
+    padding: "13px 28px",
+    borderRadius: "8px",
+    cursor: "pointer",
+    fontSize: "15px",
+    fontWeight: "bold",
     fontFamily: "Georgia,serif",
   };
 
@@ -160,20 +208,24 @@ export default function PageBilan() {
           CERFA 10443*17
         </p>
         <h1 style={{ color: "#fff", fontSize: "30px", margin: "0 0 6px" }}>
-          Bilan pedagogique et financier
+          Bilan pédagogique et financier
         </h1>
 
         <div style={{ display: "flex", gap: "12px", alignItems: "center", margin: "18px 0 24px", flexWrap: "wrap" }}>
           <button onClick={() => charger(annee - 1)} style={BOUTON}>← {annee - 1}</button>
           <span style={{ color: "#c8a96e", fontSize: "19px", fontWeight: "bold" }}>{annee}</span>
           <button onClick={() => charger(annee + 1)} style={BOUTON}>{annee + 1} →</button>
+
+          <button onClick={telecharger} disabled={pdfEnCours || !d} style={{ ...PLEIN, opacity: pdfEnCours || !d ? 0.5 : 1 }}>
+            {pdfEnCours ? "Génération…" : "Télécharger le bilan"}
+          </button>
         </div>
 
         {erreur && <p style={{ color: "#e8836a", fontSize: "15px" }}>{erreur}</p>}
 
         {chargement ? (
           <div style={CARTE}>
-            <p style={{ color: "rgba(255,255,255,0.6)", margin: 0 }}>Calcul en cours...</p>
+            <p style={{ color: "rgba(255,255,255,0.6)", margin: 0 }}>Calcul en cours…</p>
           </div>
         ) : !d ? null : (
           <>
@@ -182,14 +234,14 @@ export default function PageBilan() {
                 {d.avertissement}
               </p>
               <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "13px", margin: "10px 0 0" }}>
-                Teledeclaration sur monactiviteformation.emploi.gouv.fr, avant le 30 avril.
+                Télédéclaration sur monactiviteformation.emploi.gouv.fr, avant le 30 avril.
               </p>
             </div>
 
             {manques.length > 0 && (
               <div style={{ ...CARTE, border: "1px solid rgba(232,131,106,0.5)" }}>
                 <h2 style={{ color: "#e8836a", fontSize: "17px", margin: "0 0 12px" }}>
-                  A completer avant de declarer
+                  À compléter avant de déclarer
                 </h2>
                 {manques.map(function (k) {
                   return (
@@ -199,7 +251,7 @@ export default function PageBilan() {
                   );
                 })}
                 <a href="/organisme/stagiaires" style={{ color: "#c8a96e", fontSize: "14px" }}>
-                  Completer le registre des stagiaires
+                  Compléter le registre des stagiaires
                 </a>
               </div>
             )}
@@ -232,22 +284,22 @@ export default function PageBilan() {
             {d.cadre_c_total_2 && d.cadre_c_total_2.montant > 0 && (
               <div style={{ ...CARTE, marginTop: "-6px" }}>
                 <p style={{ color: "rgba(255,255,255,0.75)", fontSize: "14px", margin: 0 }}>
-                  Ligne 2 · Total des produits provenant des organismes gestionnaires (lignes 2a a 2h) :{" "}
+                  Ligne 2 · Total des produits provenant des organismes gestionnaires (lignes 2a à 2h) :{" "}
                   <strong style={{ color: "#c8a96e" }}>{euros(d.cadre_c_total_2.montant)}</strong>
                 </p>
               </div>
             )}
 
             {bloc("Cadre F-1 · Type de stagiaires", d.cadre_f1, LIBELLE_F1, false)}
-            {bloc("Cadre F-3 · Objectif general des prestations", d.cadre_f3, LIBELLE_F3, false)}
-            {bloc("Cadre F-4 · Specialites de formation", d.cadre_f4, {}, false)}
+            {bloc("Cadre F-3 · Objectif général des prestations", d.cadre_f3, LIBELLE_F3, false)}
+            {bloc("Cadre F-4 · Spécialités de formation", d.cadre_f4, {}, false)}
 
             <div style={CARTE}>
               <h2 style={{ color: "#c8a96e", fontSize: "17px", margin: "0 0 12px" }}>
-                Cadre B · Formation a distance
+                Cadre B · Formation à distance
               </h2>
               <p style={{ color: "rgba(255,255,255,0.75)", fontSize: "14px", margin: 0 }}>
-                Repondre OUI : les formations sont dispensees en ligne, en tout ou partie.
+                Répondre OUI : les formations sont dispensées en ligne, en tout ou partie.
               </p>
             </div>
           </>
