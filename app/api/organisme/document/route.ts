@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
+import crypto from "crypto";
 import { sessionCourante } from "../../../../lib/session";
 
 export const runtime = "nodejs";
@@ -8,6 +9,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 const ADMINS = ["contact@academiapro.fr"];
+const BUCKET = "documents-signes";
 
 const TYPES: any = {
   convention: "Convention de formation professionnelle",
@@ -19,12 +21,10 @@ const TYPES: any = {
   livret: "Livret d accueil du stagiaire",
 };
 
-// MENTION PORTEE SUR LE DOCUMENT LUI-MEME, et non plus seulement dans la
-// reponse technique. Elle dit ce que la signature vaut ET ce qu elle ne vaut
-// pas : une signature electronique simple est parfaitement recevable, mais
-// c est a celui qui s en prevaut d en demontrer la fiabilite, la presomption
-// n etant acquise qu a la signature qualifiee. Le taire exposerait
-// l organisme client, qui croirait detenir davantage.
+// MENTION PORTEE SUR LE DOCUMENT LUI-MEME. Elle dit ce que la signature vaut
+// ET ce qu elle ne vaut pas : une signature electronique simple est recevable,
+// mais c est a celui qui s en prevaut d en demontrer la fiabilite, la
+// presomption n etant acquise qu a la signature qualifiee.
 const MENTION_SIGNATURE = [
   "Ce document peut etre signe electroniquement depuis la plateforme. La signature repose sur",
   "l identification du signataire par son adresse electronique, la saisie d un code a usage unique",
@@ -69,14 +69,12 @@ function euros(n: any): string {
 
 // TROIS SITUATIONS JURIDIQUES DIFFERENTES, ET UN SEUL GENERATEUR.
 //
-// 1. L organisme client est DECLARE (il a un numero d activite) et le payeur
-//    est une entreprise ou un financeur : c est une CONVENTION de formation.
+// 1. L organisme client est DECLARE et le payeur est une entreprise ou un
+//    financeur : c est une CONVENTION de formation.
 // 2. Le meme organisme, mais le stagiaire paie DE SA POCHE : le droit impose
-//    un CONTRAT de formation professionnelle (art. L. 6353-3), avec un delai
-//    de retractation de dix jours et interdiction d encaisser avant sept.
-// 3. L organisme n est PAS declare — cas de la vente directe par l editeur :
-//    on ne peut alors ni parler de convention de formation professionnelle,
-//    ni mentionner un numero d activite. C est un contrat de prestation.
+//    un CONTRAT de formation professionnelle (art. L. 6353-3).
+// 3. L organisme n est PAS declare — vente directe par l editeur : ni
+//    convention de formation professionnelle, ni numero d activite.
 function natureDuContrat(o: any, a: any): string {
   const declare = !!(o && o.numero_da);
   const payeur = String((a && a.payeur) || "").toLowerCase();
@@ -93,8 +91,6 @@ function titreDuDocument(type: string, nature: string): string {
   return "Convention de formation professionnelle";
 }
 
-// La formation peut venir du catalogue de l editeur OU des cours propres du
-// client. Sans ce repli, une attestation portait le code au lieu du titre.
 async function ficheFormation(code: string, tenant: string) {
   if (!code) return null;
 
@@ -116,8 +112,6 @@ async function ficheFormation(code: string, tenant: string) {
   return c || null;
 }
 
-// L identite complete de la partie qui contracte. Une convention sans SIRET,
-// sans adresse et sans representant legal n engage personne.
 function identite(o: any): string {
   const bouts: string[] = [];
   if (o && o.raison_sociale) bouts.push(o.raison_sociale);
@@ -292,9 +286,7 @@ function corps(type: string, o: any, a: any, f: any, prix: number, modules: any[
     const valides = modules.length;
     const heures = duree > 0 ? duree : null;
     return [
-      ["", [
-        identite(o) + ", atteste que :",
-      ]],
+      ["", [identite(o) + ", atteste que :"]],
       ["", [nom + " (" + a.email + ")"]],
       ["a suivi la formation", [
         titre,
@@ -403,8 +395,6 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: false, erreur: error.message }, { status: 500 });
     }
 
-    // On previent l organisme de ce qui manque a sa fiche : sans ces champs,
-    // les documents qu il emet n engagent juridiquement personne.
     const { data: o } = await supabase
       .from("organismes_formation")
       .select("raison_sociale, numero_da, siret, adresse, representant_nom")
@@ -506,12 +496,11 @@ export async function POST(req: NextRequest) {
     const sections = corps(type, o, a, f, prix, modules || [], nature);
     const signable = type === "convention" || type === "devis";
 
-    // LA REFERENCE EST STABLE POUR UN MEME DOCUMENT. La route de signature
-    // regenere le PDF pour l archiver : si la reference changeait a chaque
-    // appel, la preuve pointerait vers un document introuvable.
+    // LA REFERENCE EST STABLE POUR UN MEME DOCUMENT : la preuve de signature
+    // pointe dessus, elle ne peut pas changer a chaque telechargement.
     const { data: dejaEmis } = await supabase
       .from("organisme_documents")
-      .select("reference")
+      .select("id, reference, pdf_chemin, pdf_sha256")
       .eq("tenant_id", tenant)
       .eq("type", type)
       .eq("stagiaire_email", email)
@@ -523,8 +512,33 @@ export async function POST(req: NextRequest) {
     const reference = (dejaEmis && dejaEmis.reference)
       || type.slice(0, 3).toUpperCase() + "-" + Date.now().toString().slice(-8);
 
-    // L adresse de signature suit la MARQUE BLANCHE : si le client a son
-    // propre domaine, c est le sien qui figure sur le document, pas le notre.
+    // UN DOCUMENT DEJA SIGNE NE SE REECRIT PLUS. La preuve porte l empreinte
+    // du fichier signe : le regenerer la rendrait fausse. On rend alors la
+    // copie archivee, a l identique.
+    const { data: signature } = await supabase
+      .from("organisme_signatures")
+      .select("id")
+      .eq("document_reference", reference)
+      .eq("annulee", false)
+      .maybeSingle();
+
+    if (signature && dejaEmis && dejaEmis.pdf_chemin) {
+      const { data: archive } = await supabase.storage
+        .from(BUCKET)
+        .download(dejaEmis.pdf_chemin);
+
+      if (archive) {
+        const octetsArchive = Buffer.from(await archive.arrayBuffer());
+        return new NextResponse(octetsArchive, {
+          status: 200,
+          headers: {
+            "Content-Type": "application/pdf",
+            "Content-Disposition": 'attachment; filename="' + type + "-" + reference + '.pdf"',
+          },
+        });
+      }
+    }
+
     const siteSignature = (o && o.domaine) ? String(o.domaine) : "academiapro.fr";
     const adresseSignature = siteSignature + "/signature/" + reference;
 
@@ -635,12 +649,8 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // MENTION DE LA SIGNATURE ELECTRONIQUE, sur les seuls documents signables,
-    // suivie de L ADRESSE OU SIGNER.
-    //
-    // ON NE NOMME AUCUNE ADRESSE DE COURRIEL ICI : le code part vers l adresse
-    // du COMPTE CONNECTE, pas vers celle inscrite sur le document. Annoncer le
-    // contraire ferait mentir une piece contractuelle.
+    // MENTION DE LA SIGNATURE, suivie de L ADRESSE OU SIGNER. On ne nomme
+    // aucune adresse de courriel : le code part au beneficiaire du document.
     if (signable) {
       y = y - 34;
       saut(150);
@@ -660,9 +670,25 @@ export async function POST(req: NextRequest) {
         x: 50, y: y, size: 8.5, font: normal, color: noir,
       });
       y = y - 13;
-      page.drawText(ascii(adresseSignature), {
-        x: 50, y: y, size: 10, font: gras, color: vert,
+
+      // UN VRAI LIEN CLIQUABLE, et non plus du texte imprime. L adresse reste
+      // ecrite en clair : certaines messageries desactivent les annotations.
+      const largeurLien = gras.widthOfTextAtSize(ascii(adresseSignature), 10);
+      page.drawText(ascii(adresseSignature), { x: 50, y: y, size: 10, font: gras, color: vert });
+
+      const annotation = pdf.context.obj({
+        Type: "Annot",
+        Subtype: "Link",
+        Rect: [48, y - 3, 50 + largeurLien + 2, y + 12],
+        Border: [0, 0, 0],
+        A: pdf.context.obj({
+          Type: "Action",
+          S: "URI",
+          URI: pdf.context.obj("https://" + adresseSignature),
+        }),
       });
+      page.node.addAnnot(pdf.context.register(annotation));
+
       y = y - 13;
       page.drawText(
         ascii("Connectez-vous a votre espace : un code de verification a six chiffres sera"),
@@ -670,7 +696,7 @@ export async function POST(req: NextRequest) {
       );
       y = y - 10;
       page.drawText(
-        ascii("adresse a l adresse de votre compte."),
+        ascii("adresse a l adresse du beneficiaire figurant sur ce document."),
         { x: 50, y: y, size: 7.5, font: normal, color: gris }
       );
       y = y - 10;
@@ -684,13 +710,33 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (!dejaEmis) {
+    const octets = Buffer.from(await pdf.save());
+
+    // ARCHIVAGE IMMEDIAT. Le document doit pouvoir etre LU AVANT d etre signe :
+    // s il n est archive qu au moment de la signature, la page de signature
+    // n a rien a montrer et refuse — c est le cercle qu on brise ici.
+    const empreinte = crypto.createHash("sha256").update(octets).digest("hex");
+    const chemin = String(tenant) + "/" + reference + ".pdf";
+
+    await supabase.storage
+      .from(BUCKET)
+      .upload(chemin, octets, { contentType: "application/pdf", upsert: true });
+
+    if (dejaEmis) {
+      await supabase
+        .from("organisme_documents")
+        .update({ pdf_chemin: chemin, pdf_sha256: empreinte, pdf_octets: octets.length })
+        .eq("id", dejaEmis.id);
+    } else {
       await supabase.from("organisme_documents").insert({
         tenant_id: tenant,
         type: type,
         stagiaire_email: email,
         formation_code: code || null,
         reference: reference,
+        pdf_chemin: chemin,
+        pdf_sha256: empreinte,
+        pdf_octets: octets.length,
         donnees: {
           prix: prix,
           modules_valides: (modules || []).length,
@@ -700,9 +746,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const octets = await pdf.save();
-
-    return new NextResponse(Buffer.from(octets), {
+    return new NextResponse(octets, {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",
