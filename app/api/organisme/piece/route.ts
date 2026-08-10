@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import crypto from "crypto";
 import { sessionCourante } from "../../../../lib/session";
 
 export const runtime = "nodejs";
@@ -18,14 +19,14 @@ const VALIDITE_LECTURE_S = 3600;
 
 // UNE PIECE JUSTIFICATIVE EST UN FICHIER, PAS UNE CASE A COCHER.
 //
-// C est le defaut que Jacques a repere partout : le CV, le contrat, le
-// certificat se validaient d un clic, sans qu aucun document n existe. Le
-// logiciel affichait « conforme » sur la seule parole de l organisme, et
-// l auditeur, lui, demande a voir la piece.
+// Et pour les pieces qui ENGAGENT — un contrat —, le fichier ne suffit pas
+// davantage : il devient SIGNABLE des son depot. C est la demande de Jacques,
+// et elle est juste : reclamer plus tard un contrat signe, c est se condamner
+// a ne jamais le verifier. On fait signer en amont, quel que soit le document.
 //
 // Cette liste blanche dit, pour chaque piece : dans quelle table elle vit,
-// quelle colonne porte le chemin du fichier, et quel drapeau la declare
-// presente. Toute brique suivante s ajoute ici, sans nouveau fichier.
+// quelle colonne porte le chemin du fichier, quel drapeau la declare presente,
+// et — si elle engage — qui doit la signer.
 const PIECES: any = {
   formateur_cv: {
     table: "organisme_formateurs",
@@ -48,6 +49,8 @@ const PIECES: any = {
     libelle: "Contrat signe",
     nom: "prestataire",
     date: "contrat_date",
+    signable: true,
+    signataire: "contact_email",
   },
   soustraitance_certificat: {
     table: "organisme_soustraitance",
@@ -93,13 +96,22 @@ function extension(nom: string): string {
   return bout.toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
+// La reference est DETERMINISTE : une meme piece sur une meme fiche porte
+// toujours la meme. Sans cela, redeposer le fichier creerait un second
+// document et la preuve de signature pointerait vers l ancien.
+function referenceDe(cle: string, id: string): string {
+  return "PJ-" + cle.slice(0, 3).toUpperCase() + "-" + String(id).replace(/-/g, "").slice(0, 10).toUpperCase();
+}
+
 // La ligne doit appartenir a cet organisme : sans ce controle, un client
 // pourrait deposer une piece sur le dossier d un autre.
 async function ligneDe(piece: any, id: string, tenant: string) {
-  const champs = ["id", piece.nom, piece.colonne].join(", ");
+  const champs = ["id", piece.nom, piece.colonne];
+  if (piece.signataire) champs.push(piece.signataire);
+
   const { data } = await supabase
     .from(piece.table)
-    .select(champs)
+    .select(champs.join(", "))
     .eq("id", id)
     .eq("tenant_id", tenant)
     .maybeSingle();
@@ -158,6 +170,31 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, erreur: "Fiche introuvable." }, { status: 404 });
     }
 
+    const reference = referenceDe(cle, id);
+
+    // UN DOCUMENT DEJA SIGNE NE SE REMPLACE PLUS. La preuve porte l empreinte
+    // du fichier signe : le remplacer la rendrait fausse.
+    if (piece.signable) {
+      const { data: signature } = await supabase
+        .from("organisme_signatures")
+        .select("id, signe_le")
+        .eq("document_reference", reference)
+        .eq("annulee", false)
+        .maybeSingle();
+
+      if (signature) {
+        return NextResponse.json(
+          {
+            ok: false,
+            erreur: "Ce document a deja ete signe le "
+              + new Date(signature.signe_le).toLocaleDateString("fr-FR")
+              + ". Il ne peut plus etre remplace : la preuve de signature porte son empreinte.",
+          },
+          { status: 409 }
+        );
+      }
+    }
+
     const octets = Buffer.from(await fichier.arrayBuffer());
     const chemin = String(tenant) + "/" + piece.table + "/" + id + "/" + cle + "." + extension(fichier.name);
 
@@ -190,12 +227,64 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, erreur: error.message }, { status: 500 });
     }
 
+    // LE FICHIER DEVIENT UN DOCUMENT SIGNABLE. Il entre dans le meme registre
+    // que les conventions generees, avec son empreinte : la brique de
+    // signature le traite ensuite sans rien savoir de son origine.
+    let signable = false;
+    let signataire = "";
+
+    if (piece.signable) {
+      signataire = String((ligne as any)[piece.signataire] || "").toLowerCase().trim();
+
+      if (signataire) {
+        const empreinte = crypto.createHash("sha256").update(octets).digest("hex");
+
+        const { data: deja } = await supabase
+          .from("organisme_documents")
+          .select("id")
+          .eq("reference", reference)
+          .maybeSingle();
+
+        const contenu: any = {
+          tenant_id: tenant,
+          type: cle,
+          stagiaire_email: signataire,
+          formation_code: null,
+          reference: reference,
+          pdf_chemin: chemin,
+          pdf_sha256: empreinte,
+          pdf_octets: octets.length,
+          donnees: {
+            titre: piece.libelle + " - " + ((ligne as any)[piece.nom] || ""),
+            contrepartie: (ligne as any)[piece.nom] || "",
+            origine: "depot",
+            nom_fichier: fichier.name,
+          },
+        };
+
+        if (deja) {
+          await supabase.from("organisme_documents").update(contenu).eq("id", deja.id);
+        } else {
+          await supabase.from("organisme_documents").insert(contenu);
+        }
+
+        signable = true;
+      }
+    }
+
     return NextResponse.json({
       ok: true,
       piece: piece.libelle,
       fiche: (ligne as any)[piece.nom] || "",
       nom_fichier: fichier.name,
       octets: octets.length,
+      signable: signable,
+      signataire: signataire || null,
+      reference: signable ? reference : null,
+      lien_signature: signable ? "/signature/" + reference : null,
+      rappel: piece.signable && !signataire
+        ? "Renseignez l adresse du prestataire pour pouvoir lui faire signer ce document."
+        : null,
     });
   } catch (e: any) {
     return NextResponse.json({ ok: false, erreur: String(e) }, { status: 500 });
@@ -252,12 +341,30 @@ export async function GET(req: NextRequest) {
       );
     }
 
+    // L etat de signature, s il y a lieu : c est ce que l ecran affiche.
+    const reference = referenceDe(cle, id);
+    let signature: any = null;
+
+    if (piece.signable) {
+      const { data } = await supabase
+        .from("organisme_signatures")
+        .select("signataire_email, signe_le, empreinte_sha256")
+        .eq("document_reference", reference)
+        .eq("annulee", false)
+        .maybeSingle();
+      signature = data || null;
+    }
+
     return NextResponse.json({
       ok: true,
       piece: piece.libelle,
       fiche: (ligne as any)[piece.nom] || "",
       lien: signe.signedUrl,
       validite_minutes: Math.round(VALIDITE_LECTURE_S / 60),
+      signable: !!piece.signable,
+      reference: piece.signable ? reference : null,
+      lien_signature: piece.signable ? "/signature/" + reference : null,
+      signature: signature,
     });
   } catch (e: any) {
     return NextResponse.json({ ok: false, erreur: String(e) }, { status: 500 });
@@ -265,7 +372,7 @@ export async function GET(req: NextRequest) {
 }
 
 // LE RETRAIT. Retirer la piece efface le drapeau : le dossier redevient
-// incomplet, comme il doit l etre.
+// incomplet, comme il doit l etre. Un document signe, lui, ne se retire pas.
 export async function DELETE(req: NextRequest) {
   try {
     const session = sessionCourante();
@@ -295,6 +402,29 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ ok: false, erreur: "Fiche introuvable." }, { status: 404 });
     }
 
+    const reference = referenceDe(cle, id);
+
+    if (piece.signable) {
+      const { data: signature } = await supabase
+        .from("organisme_signatures")
+        .select("id, signe_le")
+        .eq("document_reference", reference)
+        .eq("annulee", false)
+        .maybeSingle();
+
+      if (signature) {
+        return NextResponse.json(
+          {
+            ok: false,
+            erreur: "Ce document a ete signe le "
+              + new Date(signature.signe_le).toLocaleDateString("fr-FR")
+              + " : il ne peut plus etre retire. La preuve de signature en depend.",
+          },
+          { status: 409 }
+        );
+      }
+    }
+
     const chemin = (ligne as any)[piece.colonne];
     if (chemin) {
       await supabase.storage.from(BUCKET).remove([chemin]);
@@ -313,6 +443,10 @@ export async function DELETE(req: NextRequest) {
 
     if (error) {
       return NextResponse.json({ ok: false, erreur: error.message }, { status: 500 });
+    }
+
+    if (piece.signable) {
+      await supabase.from("organisme_documents").delete().eq("reference", reference);
     }
 
     return NextResponse.json({ ok: true, retiree: piece.libelle });
