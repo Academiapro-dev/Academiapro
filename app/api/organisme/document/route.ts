@@ -50,6 +50,32 @@ function euros(n: any): string {
   return (Number(n) || 0).toLocaleString("fr-FR") + " EUR";
 }
 
+// TROIS SITUATIONS JURIDIQUES DIFFERENTES, ET UN SEUL GENERATEUR.
+//
+// 1. L organisme client est DECLARE (il a un numero d activite) et le payeur
+//    est une entreprise ou un financeur : c est une CONVENTION de formation.
+// 2. Le meme organisme, mais le stagiaire paie DE SA POCHE : le droit impose
+//    un CONTRAT de formation professionnelle (art. L. 6353-3), avec un delai
+//    de retractation de dix jours et interdiction d encaisser avant sept.
+// 3. L organisme n est PAS declare — cas de la vente directe par l editeur :
+//    on ne peut alors ni parler de convention de formation professionnelle,
+//    ni mentionner un numero d activite. C est un contrat de prestation.
+function natureDuContrat(o: any, a: any): string {
+  const declare = !!(o && o.numero_da);
+  const payeur = String((a && a.payeur) || "").toLowerCase();
+  const particulier = payeur === "particulier" || payeur === "cpf" || payeur === "";
+
+  if (!declare) return "prestation";
+  return particulier ? "contrat" : "convention";
+}
+
+function titreDuDocument(type: string, nature: string): string {
+  if (type !== "convention") return TYPES[type];
+  if (nature === "contrat") return "Contrat de formation professionnelle";
+  if (nature === "prestation") return "Contrat de prestation de formation";
+  return "Convention de formation professionnelle";
+}
+
 // La formation peut venir du catalogue de l editeur OU des cours propres du
 // client. Sans ce repli, une attestation portait le code au lieu du titre.
 async function ficheFormation(code: string, tenant: string) {
@@ -73,48 +99,96 @@ async function ficheFormation(code: string, tenant: string) {
   return c || null;
 }
 
-function corps(type: string, o: any, a: any, f: any, prix: number, modules: any[]) {
+// L identite complete de la partie qui contracte. Une convention sans SIRET,
+// sans adresse et sans representant legal n engage personne.
+function identite(o: any): string {
+  const bouts: string[] = [];
+  if (o && o.raison_sociale) bouts.push(o.raison_sociale);
+  if (o && o.adresse) bouts.push("dont le siege est situe " + o.adresse);
+  if (o && o.siret) bouts.push("immatriculee sous le SIRET " + o.siret);
+  if (o && o.numero_da) bouts.push("declaree sous le numero d activite " + o.numero_da);
+  if (o && o.numero_tva) bouts.push("numero de TVA " + o.numero_tva);
+  if (o && o.representant_nom) {
+    bouts.push(
+      "representee par " + o.representant_nom +
+      (o.representant_qualite ? ", " + o.representant_qualite : "")
+    );
+  }
+  return bouts.join(", ");
+}
+
+function corps(type: string, o: any, a: any, f: any, prix: number, modules: any[], nature: string) {
   const nom = a && a.nom ? a.nom : a && a.email ? a.email : "le stagiaire";
   const of = (o && o.raison_sociale) || "l organisme";
   const titre = (f && f.titre) || a.formation_code || "la formation";
   const duree = Number(String((f && f.duree) || "").replace(",", ".").match(/[\d.]+/)?.[0] || 0) || 0;
-
+  const debut = a && a.date_debut ? jour(a.date_debut) : null;
+  const fin = a && a.date_fin ? jour(a.date_fin) : null;
 
   if (type === "convention") {
-    return [
-      ["Entre les parties", [
-        of + (o && o.numero_da ? ", declare sous le numero " + o.numero_da : "") +
-        (o && o.siret ? ", SIRET " + o.siret : "") + ", ci-apres l organisme de formation,",
-        "et " + nom + " (" + a.email + "), ci-apres le beneficiaire.",
-      ]],
-      ["Article 1 - Objet", [
-        "L organisme de formation organise l action de formation intitulee : " + titre + ".",
-        "Cette action entre dans le champ de la formation professionnelle au sens de l article L. 6313-1 du Code du travail.",
-      ]],
-      ["Article 2 - Nature et duree", [
-        "Action de formation realisee a distance, en autoformation accompagnee.",
-        "Duree : " + duree + " heures. Le beneficiaire dispose d un acces individuel a la plateforme pendant toute la duree du parcours.",
-      ]],
-      ["Article 3 - Modalites pedagogiques", [
-        "Le parcours est compose de modules comportant un cours, des exercices corriges, un questionnaire d evaluation et une note de synthese.",
-        "Chaque module est corrige individuellement : le beneficiaire recoit une note et une explication de chacune de ses erreurs. Un module est valide a partir de 14 sur 20.",
-        "Un assistant pedagogique repond a ses questions tout au long du parcours.",
-      ]],
-      ["Article 4 - Prix et reglement", [
-        "Le prix de l action est fixe a " + euros(prix) + " par beneficiaire.",
-        "Les modalites de reglement sont convenues entre les parties et figurent sur la facture.",
-      ]],
-      ["Article 5 - Suivi et evaluation", [
-        "L assiduite est etablie par les traces de connexion et les validations enregistrees par la plateforme.",
-        "Une attestation de fin de formation est remise au beneficiaire a l issue du parcours, conformement a l article L. 6353-1 du Code du travail.",
-      ]],
-      ["Article 6 - Interruption", [
-        "En cas d abandon en cours de parcours, l organisme etablit une attestation mentionnant les modules effectivement suivis et les heures realisees.",
-      ]],
-      ["Article 7 - Differends", [
-        "Les parties recherchent une solution amiable. A defaut, le differend releve des juridictions competentes.",
-      ]],
-    ];
+    const sections: any[] = [];
+
+    sections.push(["Entre les parties", [
+      identite(o) + ", ci-apres " + (nature === "prestation" ? "le prestataire" : "l organisme de formation") + ",",
+      "et " + nom + " (" + a.email + "), ci-apres le beneficiaire.",
+    ]]);
+
+    sections.push(["Article 1 - Objet", [
+      (nature === "prestation" ? "Le prestataire" : "L organisme de formation") +
+      " organise l action de formation intitulee : " + titre + ".",
+      nature === "prestation"
+        ? "Le prestataire n est pas enregistre comme organisme de formation aupres d une autorite francaise. La presente prestation ne peut faire l objet d une prise en charge au titre de la formation professionnelle continue."
+        : "Cette action entre dans le champ de la formation professionnelle au sens de l article L. 6313-1 du Code du travail.",
+    ]]);
+
+    sections.push(["Article 2 - Nature, duree et effectif", [
+      "Action de formation realisee a distance, en autoformation accompagnee.",
+      "Duree : " + duree + " heures.",
+      debut && fin
+        ? "Periode de realisation : du " + debut + " au " + fin + "."
+        : "Periode de realisation : l acces est ouvert a compter de la confirmation d inscription et pour la duree du parcours.",
+      "Effectif : un beneficiaire. La formation est individuelle.",
+      "Le beneficiaire dispose d un acces individuel a la plateforme pendant toute la duree du parcours.",
+    ]]);
+
+    sections.push(["Article 3 - Moyens pedagogiques et d encadrement", [
+      "Le parcours est compose de modules comportant un cours, des exercices corriges, un questionnaire d evaluation et une note de synthese.",
+      "Chaque module est corrige individuellement : le beneficiaire recoit une note et une explication de chacune de ses erreurs. Un module est valide a partir de 14 sur 20.",
+      "L encadrement pedagogique est assure par " + of + ", qui met a disposition un assistant repondant aux questions du beneficiaire tout au long du parcours.",
+    ]]);
+
+    sections.push(["Article 4 - Prix et modalites de reglement", [
+      "Le prix de l action est fixe a " + euros(prix) + " par beneficiaire.",
+      nature === "contrat"
+        ? "Conformement a l article L. 6353-6 du Code du travail, aucune somme ne peut etre exigee du beneficiaire avant l expiration d un delai de sept jours a compter de la signature du present contrat. A l issue de ce delai, il ne peut etre verse plus de trente pour cent du prix convenu."
+        : "Les modalites de reglement sont convenues entre les parties et figurent sur la facture.",
+    ]]);
+
+    sections.push(["Article 5 - Suivi et appreciation des resultats", [
+      "L assiduite est etablie par les traces de connexion et les validations enregistrees par la plateforme.",
+      "Les acquis sont apprecies par les questionnaires et les notes de synthese, corriges individuellement et notes sur vingt.",
+      "Une attestation de fin de formation mentionnant les objectifs, la duree et les resultats de l evaluation est remise au beneficiaire a l issue du parcours, conformement a l article L. 6353-1 du Code du travail.",
+    ]]);
+
+    if (nature === "contrat") {
+      sections.push(["Article 6 - Delai de retractation", [
+        "Conformement a l article L. 6353-5 du Code du travail, le beneficiaire dispose d un delai de DIX JOURS a compter de la signature du present contrat pour se retracter, par lettre recommandee avec avis de reception.",
+        "Dans ce cas, aucune somme ne peut lui etre reclamee.",
+      ]]);
+    }
+
+    sections.push(["Article " + (nature === "contrat" ? "7" : "6") + " - Cessation anticipee et dedit", [
+      "En cas d abandon en cours de parcours, " + of + " etablit une attestation mentionnant les modules effectivement suivis et les heures realisees.",
+      nature === "contrat"
+        ? "Si le beneficiaire est empeche de suivre la formation par un cas de force majeure dument reconnu, le contrat est resilie et seules les prestations effectivement dispensees sont dues, a due proportion de leur valeur."
+        : "En cas de resiliation du fait du beneficiaire moins de quinze jours avant le debut de l action, ou d abandon en cours de parcours, l organisme retient a titre de dedit trente pour cent du prix convenu, le solde restant du au prorata des heures effectivement realisees.",
+    ]]);
+
+    sections.push(["Article " + (nature === "contrat" ? "8" : "7") + " - Differends", [
+      "Les parties recherchent une solution amiable. A defaut, le differend releve des juridictions competentes.",
+    ]]);
+
+    return sections;
   }
 
   if (type === "devis") {
@@ -142,6 +216,7 @@ function corps(type: string, o: any, a: any, f: any, prix: number, modules: any[
       ["Votre formation", [
         titre,
         "Duree : " + duree + " heures.",
+        debut ? "Debut : " + debut + "." : "",
         "Modalite : a distance, en autoformation accompagnee. Vous avancez a votre rythme.",
       ]],
       ["Comment y acceder", [
@@ -201,12 +276,13 @@ function corps(type: string, o: any, a: any, f: any, prix: number, modules: any[
     const heures = duree > 0 ? duree : null;
     return [
       ["", [
-        of + (o && o.numero_da ? ", declare sous le numero d activite " + o.numero_da : "") + ", atteste que :",
+        identite(o) + ", atteste que :",
       ]],
       ["", [nom + " (" + a.email + ")"]],
       ["a suivi la formation", [
         titre,
         heures ? "Duree : " + heures + " heures." : "",
+        debut && fin ? "Periode : du " + debut + " au " + fin + "." : "",
         "Modalite : formation a distance en autoformation accompagnee.",
       ]],
       ["Objectifs de la formation", [
@@ -310,7 +386,27 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: false, erreur: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ ok: true, types: TYPES, documents: data || [] });
+    // On previent l organisme de ce qui manque a sa fiche : sans ces champs,
+    // les documents qu il emet n engagent juridiquement personne.
+    const { data: o } = await supabase
+      .from("organismes_formation")
+      .select("raison_sociale, numero_da, siret, adresse, representant_nom")
+      .eq("tenant_id", tenant)
+      .maybeSingle();
+
+    const manques: string[] = [];
+    if (!o || !o.siret) manques.push("SIRET");
+    if (!o || !o.adresse) manques.push("adresse");
+    if (!o || !o.numero_da) manques.push("numero de declaration d activite");
+    if (!o || !o.representant_nom) manques.push("representant legal");
+
+    return NextResponse.json({
+      ok: true,
+      types: TYPES,
+      documents: data || [],
+      fiche_incomplete: manques.length > 0,
+      manques: manques,
+    });
   } catch (e: any) {
     return NextResponse.json({ ok: false, erreur: String(e) }, { status: 500 });
   }
@@ -347,7 +443,7 @@ export async function POST(req: NextRequest) {
 
     const { data: a } = await supabase
       .from("organisme_apprenants")
-      .select("email, nom, formation_code, prix_vente")
+      .select("email, nom, formation_code, prix_vente, payeur")
       .eq("tenant_id", tenant)
       .eq("email", email)
       .maybeSingle();
@@ -362,7 +458,7 @@ export async function POST(req: NextRequest) {
 
     const { data: o } = await supabase
       .from("organismes_formation")
-      .select("raison_sociale, numero_da, siret, adresse, telephone, email_contact")
+      .select("raison_sociale, numero_da, siret, adresse, telephone, email_contact, numero_tva, representant_nom, representant_qualite")
       .eq("tenant_id", tenant)
       .maybeSingle();
 
@@ -387,7 +483,9 @@ export async function POST(req: NextRequest) {
       .eq("statut", "valide")
       .limit(500);
 
-    const sections = corps(type, o, a, f, prix, modules || []);
+    const nature = natureDuContrat(o, a);
+    const titreDoc = titreDuDocument(type, nature);
+    const sections = corps(type, o, a, f, prix, modules || [], nature);
     const reference = type.slice(0, 3).toUpperCase() + "-" + Date.now().toString().slice(-8);
 
     const pdf = await PDFDocument.create();
@@ -430,14 +528,18 @@ export async function POST(req: NextRequest) {
     }
 
     paragraphe(((o && o.raison_sociale) || "Organisme de formation").toUpperCase(), 11, gras, vert);
-    if (o && o.numero_da) paragraphe("Declaration d activite n " + o.numero_da, 8.5, normal, gris);
     if (o && o.adresse) paragraphe(o.adresse, 8.5, normal, gris);
+    if (o && o.siret) paragraphe("SIRET " + o.siret, 8.5, normal, gris);
+    if (o && o.numero_da) paragraphe("Declaration d activite n " + o.numero_da, 8.5, normal, gris);
+    if (o && (o.email_contact || o.telephone)) {
+      paragraphe([o.email_contact, o.telephone].filter(Boolean).join(" - "), 8.5, normal, gris);
+    }
     y = y - 14;
 
     page.drawLine({ start: { x: 50, y: y }, end: { x: 545, y: y }, thickness: 1.2, color: vert });
     y = y - 26;
 
-    paragraphe(TYPES[type].toUpperCase(), 16, gras, vert);
+    paragraphe(titreDoc.toUpperCase(), 16, gras, vert);
     paragraphe("Reference " + reference + " - etabli le " + jour(), 9, normal, gris);
     y = y - 14;
 
@@ -456,15 +558,37 @@ export async function POST(req: NextRequest) {
 
     if (type === "convention" || type === "devis" || type === "attestation" || type === "emargement") {
       y = y - 26;
-      saut(90);
+      saut(120);
       paragraphe("Fait le " + jour() + ".", 10, normal, noir);
-      y = y - 30;
-      saut(60);
-      page.drawText(ascii("Pour l organisme de formation"), { x: 50, y: y, size: 9.5, font: gras, color: noir });
+
+      if (type === "convention" || type === "devis") {
+        paragraphe(
+          "Le beneficiaire fait preceder sa signature de la mention Lu et approuve.",
+          9, normal, gris
+        );
+      }
+
+      y = y - 26;
+      saut(70);
+
+      const gauche = nature === "prestation" ? "Pour le prestataire" : "Pour l organisme de formation";
+      page.drawText(ascii(gauche), { x: 50, y: y, size: 9.5, font: gras, color: noir });
       if (type === "convention" || type === "devis") {
         page.drawText(ascii("Le beneficiaire"), { x: 330, y: y, size: 9.5, font: gras, color: noir });
       }
-      y = y - 46;
+
+      y = y - 12;
+      if (o && o.representant_nom) {
+        page.drawText(
+          ascii(o.representant_nom + (o.representant_qualite ? ", " + o.representant_qualite : "")),
+          { x: 50, y: y, size: 8.5, font: normal, color: gris }
+        );
+      }
+      if (type === "convention" || type === "devis") {
+        page.drawText(ascii((a && a.nom) || a.email), { x: 330, y: y, size: 8.5, font: normal, color: gris });
+      }
+
+      y = y - 40;
       page.drawLine({ start: { x: 50, y: y }, end: { x: 250, y: y }, thickness: 0.7, color: gris });
       if (type === "convention" || type === "devis") {
         page.drawLine({ start: { x: 330, y: y }, end: { x: 530, y: y }, thickness: 0.7, color: gris });
@@ -485,7 +609,12 @@ export async function POST(req: NextRequest) {
       stagiaire_email: email,
       formation_code: code || null,
       reference: reference,
-      donnees: { prix: prix, modules_valides: (modules || []).length, titre: f ? f.titre : null },
+      donnees: {
+        prix: prix,
+        modules_valides: (modules || []).length,
+        titre: f ? f.titre : null,
+        nature: nature,
+      },
     });
 
     const octets = await pdf.save();
