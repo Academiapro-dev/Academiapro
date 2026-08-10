@@ -64,7 +64,7 @@ export async function GET(req: Request) {
   try {
     const code = (new URL(req.url).searchParams.get("code") || "").trim().toUpperCase();
     if (!code) {
-      return NextResponse.json({ ok: false, version: 9, erreur: "code manquant" }, { status: 400 });
+      return NextResponse.json({ ok: false, version: 10, erreur: "code manquant" }, { status: 400 });
     }
 
     // La base est la seule source de verite du commercial : titre, prix ET duree.
@@ -75,42 +75,43 @@ export async function GET(req: Request) {
       .maybeSingle();
 
     if (!fiche) {
-      return NextResponse.json({ ok: false, version: 9, erreur: "formation introuvable" }, { status: 404 });
+      return NextResponse.json({ ok: false, version: 10, erreur: "formation introuvable" }, { status: 404 });
     }
 
-    const { data } = await supabase.storage
-      .from(BUCKET)
-      .download(code + "_support_cours.html");
+    // LE PROGRAMME SE LIT DANS lms_plans, PAS DANS LE MANUEL HTML.
+    //
+    // La route grattait le manuel a coups d expression reguliere pour en tirer
+    // une liste plate d intitules. Or lms_plans porte deja le plan structure et
+    // exact — chapitres, modules, type — celui-la meme que sert le LMS. Trois
+    // consequences : les fiches sans manuel genere n affichaient aucun
+    // programme ; les intitules dependaient du formatage du document ; et deux
+    // fiches du catalogue se ressemblaient faute de montrer ce qui les
+    // distingue. Le manuel ne sert plus que de repli.
+    const { data: plan } = await supabase
+      .from("lms_plans")
+      .select("chapitre_num, chapitre_titre, module_num, module_titre, type")
+      .eq("formation_code", code)
+      .order("chapitre_num", { ascending: true })
+      .order("module_num", { ascending: true });
 
+    const chapitres: any[] = [];
     let modules: string[] = [];
 
-    if (data) {
-      const brut = texteBrut((await data.text()).slice(0, 150000));
-      // On ne retient que l intitule : les durees du document d origine ne font
-      // pas foi, seule la duree totale de la base est annoncee au client.
-      const motif = /Module\s*(\d{1,2})\s*[:\-\u2013\u2014]?\s*([^()\u00B7|]{3,70}?)\s*\((\d{1,3})\s*h\)/g;
-      let m;
-      while ((m = motif.exec(brut)) !== null) {
-        const ligne = reparer(m[2].replace(/\s+/g, " "));
-        if (ligne && modules.indexOf(ligne) < 0) modules.push(ligne);
-        if (modules.length >= 25) break;
-      }
-    }
+    if (plan && plan.length > 0) {
+      const parNumero = new Map();
 
-    return NextResponse.json({
-      ok: true,
-      version: 9,
-      code: fiche.code,
-      titre: fiche.titre,
-      domaine: fiche.domaine,
-      niveau: fiche.niveau,
-      prix: fiche.prix,
-      support_disponible: data ? true : false,
-      nb_modules: modules.length,
-      heures_programme: heuresDeLaBase(fiche.duree),
-      modules: modules,
-    });
-  } catch (e: any) {
-    return NextResponse.json({ ok: false, version: 9, erreur: String(e) }, { status: 500 });
-  }
-}
+      for (const ligne of plan) {
+        const num = Number(ligne.chapitre_num) || 1;
+        if (!parNumero.has(num)) {
+          parNumero.set(num, {
+            numero: num,
+            titre: reparer(ligne.chapitre_titre || ("Chapitre " + num)),
+            modules: [],
+          });
+        }
+        const bloc = parNumero.get(num);
+        const intitule = reparer(ligne.module_titre || "");
+        if (!intitule) continue;
+
+        bloc.modules.push({
+          numero:
