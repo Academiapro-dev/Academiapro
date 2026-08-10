@@ -9,18 +9,18 @@ const FR = {
   streak: "Streak",
   badges: "Badges",
   agentTitre: "Mon Agent IA Tuteur",
-  placeholderVide: "Posez une question a votre agent tuteur...",
-  placeholderInput: "Posez votre question...",
+  placeholderVide: "Posez une question à votre agent tuteur…",
+  placeholderInput: "Posez votre question…",
   envoyer: "Envoyer",
   erreur: "Erreur.",
-  recoTitre: "Formations recommandees pour vous",
-  recoAide: "Ces formations ne sont pas les votres : ce sont des suggestions du catalogue.",
+  recoTitre: "Formations recommandées pour vous",
+  recoAide: "Ces formations ne sont pas les vôtres : ce sont des suggestions du catalogue.",
   mesFormations: "Mes Formations",
-  acceder: "Acceder",
+  acceder: "Reprendre ma formation",
   voirCatalogue: "Voir les formations",
-  connecteAvec: "Vous etes connecte avec",
-  aucuneFormation: "Aucune formation n est rattachee a cette adresse.",
-  aucuneAide: "Si votre organisme de formation vous a inscrit, verifiez que c est bien l adresse qu il a utilisee. Sinon, decouvrez le catalogue.",
+  connecteAvec: "Vous êtes connecté avec",
+  aucuneFormation: "Aucune formation n'est rattachée à cette adresse.",
+  aucuneAide: "Si votre organisme de formation vous a inscrit, vérifiez que c'est bien l'adresse qu'il a utilisée. Sinon, découvrez le catalogue.",
 };
 
 export default function DashboardPage() {
@@ -152,7 +152,11 @@ export default function DashboardPage() {
               {mesFormations.map((f:any)=>(
                 <div key={f.code} style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(200,169,110,0.2)",borderRadius:"10px",padding:"16px",display:"flex",justifyContent:"space-between",alignItems:"center",gap:"12px",flexWrap:"wrap"}}>
                   <span style={{color:"rgba(255,255,255,0.8)",fontSize:"14px"}}>{f.code} — {f.titre}{f.formule ? " · " + f.formule : ""}</span>
-                  <a href={"/formation/"+f.code} style={{background:"#c8a96e",color:"#050508",padding:"8px 16px",borderRadius:"6px",textDecoration:"none",fontSize:"13px",fontWeight:"bold"}}>{txt.acceder}</a>
+                  {/* CE QUI EST ACHETE MENE AU COURS, PAS A LA VENTE.
+                      Ce lien pointait vers /formation/, la fiche commerciale :
+                      un stagiaire ayant deja paye se voyait reclamer le prix
+                      de sa propre formation. Le LMS, lui, sert le contenu. */}
+                  <a href={"/lms/"+f.code} style={{background:"#c8a96e",color:"#050508",padding:"8px 16px",borderRadius:"6px",textDecoration:"none",fontSize:"13px",fontWeight:"bold"}}>{txt.acceder}</a>
                 </div>
               ))}
             </div>
