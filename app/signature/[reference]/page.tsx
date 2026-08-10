@@ -11,6 +11,8 @@ const LIBELLE_TYPE: any = {
   attestation: "Attestation de fin de formation",
   emargement: "Attestation d assiduite",
   livret: "Livret d accueil",
+  soustraitance_contrat: "Contrat de sous-traitance",
+  soustraitance_certificat: "Certificat Qualiopi du prestataire",
 };
 
 export default function PageSignature({ params }: { params: { reference: string } }) {
@@ -68,6 +70,7 @@ export default function PageSignature({ params }: { params: { reference: string 
       );
       const data = await r.json();
       if (data.ok) setDocument(data);
+      else setErreur(data.erreur || "");
     } catch (e) {}
   }
 
@@ -172,8 +175,28 @@ export default function PageSignature({ params }: { params: { reference: string 
     ? document.titre || LIBELLE_TYPE[document.type] || "Document"
     : "";
 
+  // L ADRESSE DU BENEFICIAIRE, PAS CELLE DE LA SESSION. Le code part a la
+  // personne au nom de qui le document est etabli : annoncer une autre
+  // adresse ferait mentir la page, et c est exactement ce qui s est produit.
+  const beneficiaire = (document && document.beneficiaire) || "";
+
+  // Le droit de signer est decide par la route, la page ne fait que le
+  // refleter — et surtout ne laisse plus cliquer dans le vide.
+  const jePeuxSigner = document ? document.vous_pouvez_signer !== false : true;
+
   const lienCertificat =
     "/api/organisme/certificat?reference=" + encodeURIComponent(reference);
+
+  // L erreur est repetee au plus pres du bouton : sur un telephone ou une
+  // tablette, un message affiche en haut de page est invisible depuis le bas.
+  function bandeauErreur() {
+    if (!erreur) return null;
+    return (
+      <div style={{ background: "#fdf3f2", border: "1px solid #f0c8c2", borderRadius: "8px", padding: "16px 18px", marginBottom: "18px" }}>
+        <p style={{ color: "#a33a2a", fontSize: "15px", margin: 0, lineHeight: "1.7" }}>{erreur}</p>
+      </div>
+    );
+  }
 
   return (
     <div style={CADRE}>
@@ -316,6 +339,20 @@ export default function PageSignature({ params }: { params: { reference: string 
               ensemble.
             </p>
           </div>
+        ) : !jePeuxSigner ? (
+          <div style={{ ...CARTE, background: "#fdf8ee", border: "1px solid #e5d3a8" }}>
+            <h2 style={{ color: "#8a6d1f", fontSize: "19px", margin: "0 0 10px" }}>
+              Ce document ne vous est pas destine
+            </h2>
+            <p style={{ color: "#5a4d2a", fontSize: "15px", margin: "0 0 14px", lineHeight: "1.75" }}>
+              Il est etabli au nom de <strong>{beneficiaire || "une autre personne"}</strong>.
+              Seule cette personne peut le signer : c est ce qui donne sa valeur a la signature.
+            </p>
+            <p style={{ color: "#7a6a4a", fontSize: "14px", margin: 0, lineHeight: "1.75" }}>
+              Vous pouvez lire le document ci-dessus. Pour le signer, connectez-vous avec le
+              compte correspondant a cette adresse.
+            </p>
+          </div>
         ) : (
           <div style={CARTE}>
             {!codeEnvoye ? (
@@ -325,9 +362,11 @@ export default function PageSignature({ params }: { params: { reference: string 
                 </h2>
                 <p style={{ color: "#555", fontSize: "15px", margin: "0 0 20px", lineHeight: "1.75" }}>
                   Avant de signer, nous verifions que vous etes bien le titulaire de
-                  l adresse <strong>{email || "a laquelle ce lien a ete envoye"}</strong>.
+                  l adresse <strong>{beneficiaire || email || "a laquelle ce lien a ete envoye"}</strong>.
                   Un code a six chiffres va vous y etre adresse.
                 </p>
+
+                {bandeauErreur()}
 
                 <button
                   onClick={demanderCode}
@@ -412,6 +451,8 @@ export default function PageSignature({ params }: { params: { reference: string 
                     {consentement || "Chargement du texte de consentement..."}
                   </span>
                 </div>
+
+                {bandeauErreur()}
 
                 <button
                   onClick={signer}
