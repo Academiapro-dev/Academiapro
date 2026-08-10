@@ -11,35 +11,20 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || ""
 );
 
-// Table de correspondance directe : aucune logique d encodage, aucun echec possible.
-const REMPLACEMENTS: [string, string][] = [
-  // Accents COMBINANTS mal decodes : l accent est separe de sa lettre.
-  ["\u00CC\u0081", "\u0301"], ["\u00CC\u0080", "\u0300"], ["\u00CC\u0082", "\u0302"],
-  ["\u00CC\u0083", "\u0303"], ["\u00CC\u0088", "\u0308"], ["\u00CC\u00A7", "\u0327"],
-  // Accents COMPOSES mal decodes, au cas ou les deux formes coexistent.
-  ["\u00C3\u00A9", "\u00E9"], ["\u00C3\u00A8", "\u00E8"], ["\u00C3\u00AA", "\u00EA"],
-  ["\u00C3\u00AB", "\u00EB"], ["\u00C3\u00A0", "\u00E0"], ["\u00C3\u00A2", "\u00E2"],
-  ["\u00C3\u00A4", "\u00E4"], ["\u00C3\u00AE", "\u00EE"], ["\u00C3\u00AF", "\u00EF"],
-  ["\u00C3\u00B4", "\u00F4"], ["\u00C3\u00B6", "\u00F6"], ["\u00C3\u00B9", "\u00F9"],
-  ["\u00C3\u00BB", "\u00FB"], ["\u00C3\u00BC", "\u00FC"], ["\u00C3\u00A7", "\u00E7"],
-  ["\u00C3\u0089", "\u00C9"], ["\u00C3\u0088", "\u00C8"], ["\u00C3\u008A", "\u00CA"],
-  ["\u00C3\u0080", "\u00C0"], ["\u00C3\u0082", "\u00C2"], ["\u00C3\u0087", "\u00C7"],
-  ["\u00C3\u0094", "\u00D4"], ["\u00C3\u008E", "\u00CE"], ["\u00C3\u00B1", "\u00F1"],
-  // Ponctuation typographique et residus.
-  ["\u00E2\u0080\u0099", "'"], ["\u00E2\u0080\u0098", "'"],
-  ["\u00E2\u0080\u009C", "\""], ["\u00E2\u0080\u009D", "\""],
-  ["\u00E2\u0080\u0093", "-"], ["\u00E2\u0080\u0094", "-"],
-  ["\u00E2\u0080\u00A6", "..."], ["\u00C2\u00A0", " "], ["\u00C2", ""],
-];
-
+// Reparation minimale : lms_plans sort de Postgres en UTF-8 propre. Cette
+// fonction ne sert plus qu au repli sur le manuel HTML.
 function reparer(s: string): string {
-  let t = String(s || "");
-  for (const [abime, correct] of REMPLACEMENTS) {
-    t = t.split(abime).join(correct);
-  }
-  // On recolle les accents combinants a leur lettre.
-  try { t = t.normalize("NFC"); } catch (e) {}
-  return t.replace(/[\u0080-\u009F]/g, "").trim();
+  return String(s || "")
+    .split("\u00C3\u00A9").join("\u00E9")
+    .split("\u00C3\u00A8").join("\u00E8")
+    .split("\u00C3\u00AA").join("\u00EA")
+    .split("\u00C3\u00A0").join("\u00E0")
+    .split("\u00C3\u00A7").join("\u00E7")
+    .split("\u00C3\u00B4").join("\u00F4")
+    .split("\u00C2\u00A0").join(" ")
+    .normalize("NFC")
+    .replace(/[\u0080-\u009F]/g, "")
+    .trim();
 }
 
 function texteBrut(html: string): string {
@@ -48,13 +33,11 @@ function texteBrut(html: string): string {
     .replace(/<style[\s\S]*?<\/style>/gi, " ")
     .replace(/<[^>]+>/g, " ")
     .replace(/&nbsp;/gi, " ")
-    .replace(/&amp;/gi, "&")
     .replace(/\uFFFD/g, "")
     .replace(/\s+/g, " ")
     .trim();
 }
 
-// La duree est stockee en base sous forme de texte : "130h", "100 h".
 function heuresDeLaBase(duree: any): number {
   const m = String(duree || "").match(/(\d{1,4})/);
   return m ? parseInt(m[1], 10) : 0;
@@ -64,10 +47,9 @@ export async function GET(req: Request) {
   try {
     const code = (new URL(req.url).searchParams.get("code") || "").trim().toUpperCase();
     if (!code) {
-      return NextResponse.json({ ok: false, version: 10, erreur: "code manquant" }, { status: 400 });
+      return NextResponse.json({ ok: false, erreur: "code manquant" }, { status: 400 });
     }
 
-    // La base est la seule source de verite du commercial : titre, prix ET duree.
     const { data: fiche } = await supabase
       .from("formations")
       .select("code, titre, domaine, niveau, prix, duree")
@@ -75,18 +57,13 @@ export async function GET(req: Request) {
       .maybeSingle();
 
     if (!fiche) {
-      return NextResponse.json({ ok: false, version: 10, erreur: "formation introuvable" }, { status: 404 });
+      return NextResponse.json({ ok: false, erreur: "formation introuvable" }, { status: 404 });
     }
 
     // LE PROGRAMME SE LIT DANS lms_plans, PAS DANS LE MANUEL HTML.
-    //
-    // La route grattait le manuel a coups d expression reguliere pour en tirer
-    // une liste plate d intitules. Or lms_plans porte deja le plan structure et
-    // exact — chapitres, modules, type — celui-la meme que sert le LMS. Trois
-    // consequences : les fiches sans manuel genere n affichaient aucun
-    // programme ; les intitules dependaient du formatage du document ; et deux
-    // fiches du catalogue se ressemblaient faute de montrer ce qui les
-    // distingue. Le manuel ne sert plus que de repli.
+    // La route grattait le manuel a coups d expression reguliere, alors que
+    // lms_plans porte le plan exact que sert le LMS. Le manuel n est plus
+    // qu un repli pour les formations sans plan construit.
     const { data: plan } = await supabase
       .from("lms_plans")
       .select("chapitre_num, chapitre_titre, module_num, module_titre, type")
@@ -94,24 +71,62 @@ export async function GET(req: Request) {
       .order("chapitre_num", { ascending: true })
       .order("module_num", { ascending: true });
 
-    const chapitres: any[] = [];
+    const parNumero: any = {};
+    const ordre: number[] = [];
     let modules: string[] = [];
 
-    if (plan && plan.length > 0) {
-      const parNumero = new Map();
+    for (const l of plan || []) {
+      const intitule = String(l.module_titre || "").trim();
+      if (!intitule) continue;
 
-      for (const ligne of plan) {
-        const num = Number(ligne.chapitre_num) || 1;
-        if (!parNumero.has(num)) {
-          parNumero.set(num, {
-            numero: num,
-            titre: reparer(ligne.chapitre_titre || ("Chapitre " + num)),
-            modules: [],
-          });
-        }
-        const bloc = parNumero.get(num);
-        const intitule = reparer(ligne.module_titre || "");
-        if (!intitule) continue;
+      const num = Number(l.chapitre_num) || 1;
+      if (!parNumero[num]) {
+        parNumero[num] = { numero: num, titre: String(l.chapitre_titre || "").trim(), modules: [] };
+        ordre.push(num);
+      }
+      parNumero[num].modules.push({
+        numero: Number(l.module_num) || parNumero[num].modules.length + 1,
+        titre: intitule,
+        type: l.type || "theorie",
+      });
+      modules.push(intitule);
+    }
 
-        bloc.modules.push({
-          numero:
+    ordre.sort(function (a, b) { return a - b; });
+    const chapitres = ordre.map(function (n) { return parNumero[n]; });
+
+    const { data: manuel } = await supabase.storage
+      .from(BUCKET)
+      .download(code + "_support_cours.html");
+
+    if (modules.length === 0 && manuel) {
+      const brut = texteBrut((await manuel.text()).slice(0, 150000));
+      const motif = /Module\s*(\d{1,2})\s*[:\-\u2013\u2014]?\s*([^()\u00B7|]{3,70}?)\s*\((\d{1,3})\s*h\)/g;
+      let m;
+      while ((m = motif.exec(brut)) !== null) {
+        const ligne = reparer(m[2].replace(/\s+/g, " "));
+        if (ligne && modules.indexOf(ligne) < 0) modules.push(ligne);
+        if (modules.length >= 25) break;
+      }
+    }
+
+    return NextResponse.json({
+      ok: true,
+      version: 10,
+      code: fiche.code,
+      titre: fiche.titre,
+      domaine: fiche.domaine,
+      niveau: fiche.niveau,
+      prix: fiche.prix,
+      support_disponible: manuel ? true : false,
+      pdf_pret: manuel ? true : false,
+      nb_chapitres: chapitres.length,
+      nb_modules: modules.length,
+      heures_programme: heuresDeLaBase(fiche.duree),
+      chapitres: chapitres,
+      modules: modules,
+    });
+  } catch (e: any) {
+    return NextResponse.json({ ok: false, erreur: String(e) }, { status: 500 });
+  }
+}
