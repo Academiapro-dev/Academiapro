@@ -417,7 +417,6 @@ export async function GET(req: NextRequest) {
     if (!o || !o.numero_da) manques.push("numero de declaration d activite");
     if (!o || !o.representant_nom) manques.push("representant legal");
 
-    // Les types signables : c est sur eux que l ecran proposera la signature.
     return NextResponse.json({
       ok: true,
       types: TYPES,
@@ -477,7 +476,7 @@ export async function POST(req: NextRequest) {
 
     const { data: o } = await supabase
       .from("organismes_formation")
-      .select("raison_sociale, numero_da, siret, adresse, telephone, email_contact, numero_tva, representant_nom, representant_qualite")
+      .select("raison_sociale, numero_da, siret, adresse, telephone, email_contact, numero_tva, representant_nom, representant_qualite, domaine")
       .eq("tenant_id", tenant)
       .maybeSingle();
 
@@ -523,6 +522,11 @@ export async function POST(req: NextRequest) {
 
     const reference = (dejaEmis && dejaEmis.reference)
       || type.slice(0, 3).toUpperCase() + "-" + Date.now().toString().slice(-8);
+
+    // L adresse de signature suit la MARQUE BLANCHE : si le client a son
+    // propre domaine, c est le sien qui figure sur le document, pas le notre.
+    const siteSignature = (o && o.domaine) ? String(o.domaine) : "academiapro.fr";
+    const adresseSignature = siteSignature + "/signature/" + reference;
 
     const pdf = await PDFDocument.create();
     const normal = await pdf.embedFont(StandardFonts.Helvetica);
@@ -631,10 +635,12 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // MENTION DE LA SIGNATURE ELECTRONIQUE, sur les seuls documents signables.
+    // MENTION DE LA SIGNATURE ELECTRONIQUE, sur les seuls documents signables,
+    // suivie de L ADRESSE OU SIGNER : sans elle, le beneficiaire qui recoit ce
+    // PDF par courriel n a aucun moyen d y acceder.
     if (signable) {
       y = y - 34;
-      saut(120);
+      saut(150);
       page.drawLine({ start: { x: 50, y: y }, end: { x: 545, y: y }, thickness: 0.5, color: gris });
       y = y - 16;
       paragraphe("Signature electronique", 9, gras, vert);
@@ -644,6 +650,22 @@ export async function POST(req: NextRequest) {
         page.drawText(ascii(l), { x: 50, y: y, size: 7.5, font: normal, color: gris });
         y = y - 10;
       }
+
+      y = y - 10;
+      saut(30);
+      page.drawText(ascii("Pour signer ce document en ligne :"), {
+        x: 50, y: y, size: 8.5, font: normal, color: noir,
+      });
+      y = y - 13;
+      page.drawText(ascii(adresseSignature), {
+        x: 50, y: y, size: 10, font: gras, color: vert,
+      });
+      y = y - 13;
+      page.drawText(
+        ascii("Un code de verification a six chiffres vous sera adresse a " + email + "."),
+        { x: 50, y: y, size: 7.5, font: normal, color: gris }
+      );
+      y = y - 10;
     }
 
     const pages = pdf.getPages();
