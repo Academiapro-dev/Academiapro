@@ -81,12 +81,12 @@ export default function PageTableauDeBord() {
   // LES TROIS GESTES DU QUOTIDIEN, EN HAUT DE PAGE.
   //
   // Un comptable ouvre son logiciel pour saisir, deposer une piece, ou
-  // regarder un dossier. Le faire descendre jusqu a « Tous les outils »
+  // regarder ses chiffres. Le faire descendre jusqu a « Tous les outils »
   // pour cela, c est lui faire perdre du temps trente fois par jour.
   const RACCOURCIS = [
+    { nom: "Tableau de bord", href: "/admin/compliance/chiffres" },
     { nom: "Déposer une facture", href: "/admin/compliance/pieces" },
     { nom: "Saisir une écriture", href: "/admin/compliance/saisie" },
-    { nom: "Ouvrir un dossier", href: "/admin/compliance/societes" },
   ];
 
   function euros(n: any) {
@@ -119,7 +119,6 @@ export default function PageTableauDeBord() {
           Classés du plus urgent au plus calme
         </p>
 
-        {/* Les trois gestes du quotidien, avant tout le reste. */}
         <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", margin: "22px 0 0" }}>
           {RACCOURCIS.map(function (r) {
             return (
@@ -235,6 +234,7 @@ export default function PageTableauDeBord() {
                   )}
 
                   <div style={{ display: "flex", gap: "7px", flexWrap: "wrap", marginTop: "14px" }}>
+                    <a href={"/admin/compliance/chiffres?societe_id=" + s.id} style={LIEN}>Ses chiffres</a>
                     <a href={"/admin/compliance/revision" + q} style={LIEN}>Réviser</a>
                     {!s.equilibre && s.lignes > 0 && (
                       <a href={"/admin/compliance/balance" + q} style={{ ...LIEN, background: "#c8a96e", color: "#050508", border: "none", fontWeight: "bold" }}>
@@ -277,8 +277,16 @@ export default function PageTableauDeBord() {
 
         {OUTILS.map(function (g) {
           return (
-            <div key={g.titre} style={{ marginBottom: "34px" }}>
-              <h3 style={{ color: "#fff", fontSize: "16px", margin: "0 0 14px", fontWeight: "normal" }}>{g.titre}</h3>
+            <div key={g.titre} style={{ marginBottom: "40px" }}>
+              {/* Le titre de groupe doit se voir. En seize pixels sans graisse,
+                  il se noyait entre les cartes et personne ne comprenait ce
+                  que ces boutons faisaient ensemble. */}
+              <div style={{ display: "flex", alignItems: "center", gap: "14px", margin: "0 0 16px" }}>
+                <h3 style={{ color: "#fff", fontSize: "22px", margin: 0, fontWeight: "bold", whiteSpace: "nowrap" }}>
+                  {g.titre}
+                </h3>
+                <div style={{ flex: 1, height: "1px", background: "rgba(200,169,110,0.22)" }} />
+              </div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(230px, 1fr))", gap: "12px" }}>
                 {g.liens.map(function (l) {
                   return (
