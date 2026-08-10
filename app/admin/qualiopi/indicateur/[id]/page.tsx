@@ -62,9 +62,9 @@ const STYLE_ECOUTER = {
 };
 
 const VERDICTS: Record<string, { label: string; couleur: string }> = {
-  a_retravailler: { label: "A retravailler", couleur: "#c62828" },
+  a_retravailler: { label: "À retravailler", couleur: "#c62828" },
   en_bonne_voie: { label: "En bonne voie", couleur: "#8a6d2f" },
-  pret_pour_audit: { label: "Pret pour l'audit", couleur: "#2e7d32" },
+  pret_pour_audit: { label: "Prêt pour l'audit", couleur: "#2e7d32" },
 };
 
 function taille(octets: number): string {
@@ -238,7 +238,7 @@ export default function PageIndicateur({ params }: { params: { id: string } }) {
         await audio.play();
       } catch (e: any) {
         setErreurVoix(
-          "Lecture bloquee par le navigateur. Touchez a nouveau Ecouter."
+          "Lecture bloquée par le navigateur. Touchez à nouveau Écouter."
         );
         setVoixEnCours(null);
       }
@@ -334,7 +334,7 @@ export default function PageIndicateur({ params }: { params: { id: string } }) {
       });
       const data = await r.json();
       if (data.ok) {
-        setMessage("Examen termine.");
+        setMessage("Examen terminé.");
         charger();
       } else {
         setErreur(data.erreur || "Erreur d'examen");
@@ -361,7 +361,7 @@ export default function PageIndicateur({ params }: { params: { id: string } }) {
       });
       const data = await r.json();
       if (data.ok) {
-        setMessageNote("Note enregistree.");
+        setMessageNote("Note enregistrée.");
       } else {
         setErreur(data.erreur || "Erreur d'enregistrement");
       }
@@ -392,13 +392,13 @@ export default function PageIndicateur({ params }: { params: { id: string } }) {
       });
       const data = await r.json();
       if (data.ok) {
-        setMessage("Preuve deposee.");
+        setMessage("Preuve déposée.");
         setTitre("");
         setNotes("");
         setFichier(null);
         charger();
       } else {
-        setErreur(data.erreur || "Erreur de depot");
+        setErreur(data.erreur || "Erreur de dépôt");
       }
     } catch (e: any) {
       setErreur(String(e));
@@ -415,7 +415,7 @@ export default function PageIndicateur({ params }: { params: { id: string } }) {
       });
       const data = await r.json();
       if (data.ok) {
-        setMessage("Preuve supprimee.");
+        setMessage("Preuve supprimée.");
         charger();
       } else {
         setErreur(data.erreur || "Erreur de suppression");
@@ -440,7 +440,7 @@ export default function PageIndicateur({ params }: { params: { id: string } }) {
     >
       <div style={{ maxWidth: 860, margin: "0 auto", padding: 32 }}>
         <a href="/admin/qualiopi" style={STYLE_LIEN}>
-          Retour a la grille
+          Retour à la grille
         </a>
 
         <h1
@@ -451,7 +451,7 @@ export default function PageIndicateur({ params }: { params: { id: string } }) {
             fontSize: 32,
           }}
         >
-          Preparation de l'indicateur
+          Préparation de l'indicateur
         </h1>
 
         {erreurVoix && (
@@ -485,10 +485,10 @@ export default function PageIndicateur({ params }: { params: { id: string } }) {
               lineHeight: 1.6,
             }}
           >
-            Votre assistant connait le niveau attendu par le guide de lecture.
-            Il vous explique ce qui est demande, repond a vos questions et vous
-            dit ce qu'il manque. Il ne delivre aucune certification et ne
-            prejuge pas de la decision de l'auditeur.
+            Votre assistant connaît le niveau attendu par le guide de lecture.
+            Il vous explique ce qui est demandé, répond à vos questions et vous
+            dit ce qu'il manque. Il ne délivre aucune certification et ne
+            préjuge pas de la décision de l'auditeur.
           </p>
 
           <button
@@ -497,7 +497,7 @@ export default function PageIndicateur({ params }: { params: { id: string } }) {
             style={STYLE_BOUTON}
           >
             {ouvertureEnCours
-              ? "Ouverture..."
+              ? "Ouverture…"
               : conversation.length > 0
               ? "Reprendre avec l'assistant"
               : "Commencer cet indicateur"}
@@ -553,7 +553,7 @@ export default function PageIndicateur({ params }: { params: { id: string } }) {
                           onClick={() => ecouter(m.message, m.id)}
                           style={STYLE_ECOUTER}
                         >
-                          {voixEnCours === m.id ? "Arreter" : "Ecouter"}
+                          {voixEnCours === m.id ? "Arrêter" : "Écouter"}
                         </button>
                       </div>
                     )}
@@ -574,7 +574,7 @@ export default function PageIndicateur({ params }: { params: { id: string } }) {
                         fontStyle: "italic",
                       }}
                     >
-                      L'assistant reflechit...
+                      L'assistant réfléchit…
                     </div>
                   </div>
                 )}
@@ -586,7 +586,7 @@ export default function PageIndicateur({ params }: { params: { id: string } }) {
                 value={saisie}
                 onChange={(e) => setSaisie(e.target.value)}
                 rows={3}
-                placeholder="Posez votre question a l'assistant"
+                placeholder="Posez votre question à l'assistant"
                 disabled={chatEnCours || messagesRestants <= 0}
                 style={STYLE_CHAMP}
               />
@@ -596,13 +596,13 @@ export default function PageIndicateur({ params }: { params: { id: string } }) {
                 disabled={chatEnCours || messagesRestants <= 0 || !saisie.trim()}
                 style={STYLE_BOUTON}
               >
-                {chatEnCours ? "L'assistant reflechit..." : "Envoyer"}
+                {chatEnCours ? "L'assistant réfléchit…" : "Envoyer"}
               </button>
 
               <p style={{ fontSize: 15, color: "#666666", marginTop: 14 }}>
                 {messagesRestants > 0
                   ? messagesRestants + " message(s) restant(s) sur 50."
-                  : "Vous avez utilise vos 50 messages pour cet indicateur."}
+                  : "Vous avez utilisé vos 50 messages pour cet indicateur."}
               </p>
             </div>
           )}
@@ -704,8 +704,8 @@ export default function PageIndicateur({ params }: { params: { id: string } }) {
                   style={STYLE_ECOUTER}
                 >
                   {voixEnCours === "examen-" + dernier.id
-                    ? "Arreter"
-                    : "Ecouter ce retour"}
+                    ? "Arrêter"
+                    : "Écouter ce retour"}
                 </button>
               </div>
             </div>
@@ -717,7 +717,7 @@ export default function PageIndicateur({ params }: { params: { id: string } }) {
             style={STYLE_BOUTON}
           >
             {examenEnCours
-              ? "Examen en cours..."
+              ? "Examen en cours…"
               : dernier
               ? "Refaire examiner"
               : "Faire examiner cet indicateur"}
@@ -726,7 +726,7 @@ export default function PageIndicateur({ params }: { params: { id: string } }) {
           <p style={{ fontSize: 15, color: "#666666", marginTop: 14 }}>
             {restants > 0
               ? restants + " examen(s) restant(s) sur 5 pour cet indicateur."
-              : "Vous avez utilise vos 5 examens pour cet indicateur."}
+              : "Vous avez utilisé vos 5 examens pour cet indicateur."}
           </p>
         </div>
 
@@ -742,8 +742,8 @@ export default function PageIndicateur({ params }: { params: { id: string } }) {
               lineHeight: 1.6,
             }}
           >
-            Ce que vous avez mis en place, ce qui reste a faire, ou ce que vous
-            direz a l'auditeur.
+            Ce que vous avez mis en place, ce qui reste à faire, ou ce que vous
+            direz à l'auditeur.
           </p>
 
           <span style={STYLE_LIBELLE}>Commentaire</span>
@@ -767,7 +767,7 @@ export default function PageIndicateur({ params }: { params: { id: string } }) {
             disabled={sauvegardeNote}
             style={STYLE_BOUTON}
           >
-            {sauvegardeNote ? "Enregistrement..." : "Enregistrer ma note"}
+            {sauvegardeNote ? "Enregistrement…" : "Enregistrer ma note"}
           </button>
 
           {messageNote && (
@@ -786,7 +786,7 @@ export default function PageIndicateur({ params }: { params: { id: string } }) {
 
         <div style={STYLE_CARTE}>
           <h2 style={{ color: "#0a3d2e", fontSize: 21, marginTop: 0 }}>
-            Deposer une preuve
+            Déposer une preuve
           </h2>
 
           <span style={STYLE_LIBELLE}>Fichier</span>
@@ -805,7 +805,7 @@ export default function PageIndicateur({ params }: { params: { id: string } }) {
             type="text"
             value={titre}
             onChange={(e) => setTitre(e.target.value)}
-            placeholder="Ex : Catalogue 2026 publie sur le site"
+            placeholder="Ex : Catalogue 2026 publié sur le site"
             style={STYLE_CHAMP}
           />
 
@@ -819,11 +819,11 @@ export default function PageIndicateur({ params }: { params: { id: string } }) {
           />
 
           <button onClick={deposer} disabled={envoi} style={STYLE_BOUTON}>
-            {envoi ? "Depot en cours..." : "Deposer la preuve"}
+            {envoi ? "Dépôt en cours…" : "Déposer la preuve"}
           </button>
 
           <p style={{ fontSize: 15, color: "#666666", marginTop: 14 }}>
-            20 Mo maximum par fichier. Chaque depot est horodate et scelle par
+            20 Mo maximum par fichier. Chaque dépôt est horodaté et scellé par
             une empreinte SHA-256.
           </p>
         </div>
@@ -839,17 +839,17 @@ export default function PageIndicateur({ params }: { params: { id: string } }) {
 
         <div style={STYLE_CARTE}>
           <h2 style={{ color: "#0a3d2e", fontSize: 21, marginTop: 0 }}>
-            Preuves deposees
+            Preuves déposées
             <span style={{ color: "#999999", fontWeight: "normal" }}>
               {" (" + preuves.length + ")"}
             </span>
           </h2>
 
-          {chargement && <p>Chargement...</p>}
+          {chargement && <p>Chargement…</p>}
 
           {!chargement && preuves.length === 0 && (
             <p style={{ color: "#666666", fontSize: 16 }}>
-              Aucune preuve deposee pour cet indicateur.
+              Aucune preuve déposée pour cet indicateur.
             </p>
           )}
 
@@ -882,7 +882,7 @@ export default function PageIndicateur({ params }: { params: { id: string } }) {
               )}
 
               <div style={{ fontSize: 15, color: "#888888", marginBottom: 8 }}>
-                Depose le {new Date(p.uploaded_at).toLocaleDateString("fr-FR")}
+                Déposé le {new Date(p.uploaded_at).toLocaleDateString("fr-FR")}
               </div>
 
               <div>
@@ -898,7 +898,7 @@ export default function PageIndicateur({ params }: { params: { id: string } }) {
                       fontSize: 16,
                     }}
                   >
-                    Telecharger
+                    Télécharger
                   </a>
                 )}
                 <button
