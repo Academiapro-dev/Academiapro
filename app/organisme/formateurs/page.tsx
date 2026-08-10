@@ -11,6 +11,7 @@ export default function PageFormateurs() {
   const [d, setD] = useState<any>(null);
   const [chargement, setChargement] = useState(true);
   const [occupe, setOccupe] = useState(false);
+  const [depot, setDepot] = useState("");
   const [message, setMessage] = useState("");
   const [erreur, setErreur] = useState("");
   const [formulaire, setFormulaire] = useState(false);
@@ -120,6 +121,79 @@ export default function PageFormateurs() {
     }
   }
 
+  // LE DEPOT D UN VRAI FICHIER. Cocher une case ne prouve rien : l auditeur
+  // ne demande pas si le CV existe, il demande a le voir. Le fichier part
+  // dans un espace prive et le dossier ne devient complet que par sa presence.
+  async function deposer(id: string, piece: string, fichier: File | null) {
+    if (!fichier) return;
+
+    setDepot(id + "-" + piece);
+    setMessage("");
+    setErreur("");
+
+    try {
+      const corps = new FormData();
+      corps.append("id", id);
+      corps.append("piece", piece);
+      corps.append("fichier", fichier);
+
+      const r = await fetch("/api/organisme/formateur-piece" + suffixe(), {
+        method: "POST",
+        body: corps,
+      });
+      const data = await r.json();
+
+      if (data.ok) {
+        setMessage(data.piece + " depose pour " + data.formateur + " (" + data.nom_fichier + ").");
+        await charger();
+      } else {
+        setErreur(data.erreur || "Depot impossible.");
+      }
+    } catch (e: any) {
+      setErreur("Depot impossible : " + String(e));
+    }
+
+    setDepot("");
+  }
+
+  async function voir(id: string, piece: string) {
+    setMessage("");
+    setErreur("");
+    try {
+      const sep = suffixe() ? suffixe() + "&" : "?";
+      const r = await fetch("/api/organisme/formateur-piece" + sep + "id=" + id + "&piece=" + piece);
+      const data = await r.json();
+      if (data.ok && data.lien) {
+        window.open(data.lien, "_blank");
+      } else {
+        setErreur(data.erreur || "Lecture impossible.");
+      }
+    } catch (e: any) {
+      setErreur("Lecture impossible : " + String(e));
+    }
+  }
+
+  async function retirerPiece(id: string, piece: string) {
+    setMessage("");
+    setErreur("");
+    try {
+      const sep = suffixe() ? suffixe() + "&" : "?";
+      const r = await fetch(
+        "/api/organisme/formateur-piece" + sep + "id=" + id + "&piece=" + piece,
+        { method: "DELETE" }
+      );
+      const data = await r.json();
+      if (data.ok) {
+        setMessage(data.retiree + " retire. Le dossier redevient incomplet.");
+        await charger();
+      } else {
+        setErreur(data.erreur || "Retrait impossible.");
+      }
+    } catch (e: any) {
+      setErreur("Retrait impossible : " + String(e));
+    }
+  }
+
   async function retirer(id: string, n: string) {
     setMessage("");
     setErreur("");
@@ -174,13 +248,48 @@ export default function PageFormateurs() {
     marginBottom: "6px",
   };
 
-  function pastille(actif: boolean, libelle: string, poser: any) {
+  // La piece justificative : soit on la depose, soit on la consulte.
+  function piece(f: any, cle: string, libelle: string, deposee: boolean) {
+    const champ = "fichier-" + cle + "-" + f.id;
+    const enCours = depot === f.id + "-" + cle;
+
     return (
-      <span
-        onClick={poser}
-        style={{ display: "inline-flex", alignItems: "center", gap: "8px", padding: "7px 14px", borderRadius: "20px", cursor: "pointer", background: actif ? "rgba(76,175,80,0.18)" : "rgba(255,255,255,0.05)", border: actif ? "1px solid rgba(76,175,80,0.5)" : "1px solid rgba(255,255,255,0.15)", color: actif ? "#4caf50" : "rgba(255,255,255,0.55)", fontSize: "13px" }}
-      >
-        {actif ? "✓" : "○"} {libelle}
+      <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+        <input
+          id={champ}
+          type="file"
+          accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+          style={{ display: "none" }}
+          onChange={(e) => {
+            const fichier = e.target.files && e.target.files[0] ? e.target.files[0] : null;
+            deposer(f.id, cle, fichier);
+            e.target.value = "";
+          }}
+        />
+
+        <span
+          onClick={() => {
+            if (enCours) return;
+            if (deposee) voir(f.id, cle);
+            else {
+              const champDom = document.getElementById(champ) as HTMLInputElement | null;
+              if (champDom) champDom.click();
+            }
+          }}
+          style={{ display: "inline-flex", alignItems: "center", gap: "8px", padding: "7px 14px", borderRadius: "20px", cursor: enCours ? "default" : "pointer", background: deposee ? "rgba(76,175,80,0.18)" : "rgba(255,255,255,0.05)", border: deposee ? "1px solid rgba(76,175,80,0.5)" : "1px solid rgba(255,255,255,0.15)", color: deposee ? "#4caf50" : "rgba(255,255,255,0.55)", fontSize: "13px" }}
+        >
+          {enCours ? "Depot..." : (deposee ? "✓ " + libelle + " · voir" : "○ Deposer le " + libelle)}
+        </span>
+
+        {deposee && !enCours && (
+          <button
+            onClick={() => retirerPiece(f.id, cle)}
+            title={"Retirer le " + libelle}
+            style={{ background: "none", border: "none", color: "rgba(255,255,255,0.4)", cursor: "pointer", fontSize: "13px", padding: "0 2px" }}
+          >
+            ✕
+          </button>
+        )}
       </span>
     );
   }
@@ -225,9 +334,9 @@ export default function PageFormateurs() {
           <div style={{ ...CARTE, border: "1px solid rgba(232,131,106,0.5)" }}>
             <p style={{ color: "#e8836a", fontSize: "15px", margin: 0, lineHeight: "1.7" }}>
               {d.a_completer} dossier(s) incomplet(s). Un dossier est complet lorsque la
-              qualification est renseignee, le CV depose, et qu une action de developpement
-              des competences datant de moins de trois ans est enregistree. C est ce dernier
-              point qui fait tomber la plupart des organismes en audit.
+              qualification est renseignee, le CV est REELLEMENT DEPOSE, et qu une action de
+              developpement des competences datant de moins de trois ans est enregistree.
+              C est ce dernier point qui fait tomber la plupart des organismes en audit.
             </p>
           </div>
         )}
@@ -311,9 +420,9 @@ export default function PageFormateurs() {
                   </span>
                 </div>
 
-                <div style={{ display: "flex", gap: "8px", marginTop: "14px", flexWrap: "wrap" }}>
-                  {pastille(f.cv_depose, "CV", function () { modifier(f.id, { cv_depose: !f.cv_depose }); })}
-                  {pastille(f.diplome_depose, "Diplome", function () { modifier(f.id, { diplome_depose: !f.diplome_depose }); })}
+                <div style={{ display: "flex", gap: "10px", marginTop: "14px", flexWrap: "wrap", alignItems: "center" }}>
+                  {piece(f, "cv", "CV", !!f.cv_depose)}
+                  {piece(f, "diplome", "Diplome", !!f.diplome_depose)}
 
                   <button
                     onClick={() => setOuvert({ ...ouvert, [f.id]: !estOuvert })}
