@@ -1,12 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { createClient } from "@supabase/supabase-js";
 import { useTraductionAuto } from "../../hooks/useTraductionAuto";
-
-const SB_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-const SB_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
-const sb = createClient(SB_URL, SB_KEY);
-const EMAIL_REPLI = "contact@academiapro.fr";
 
 const FR = {
   titre: "Mon Espace Apprenant",
@@ -20,10 +14,13 @@ const FR = {
   envoyer: "Envoyer",
   erreur: "Erreur.",
   recoTitre: "Formations recommandees pour vous",
+  recoAide: "Ces formations ne sont pas les votres : ce sont des suggestions du catalogue.",
   mesFormations: "Mes Formations",
   acceder: "Acceder",
-  aucuneFormation: "Vous n'avez pas encore de formation. Decouvrez le catalogue :",
   voirCatalogue: "Voir les formations",
+  connecteAvec: "Vous etes connecte avec",
+  aucuneFormation: "Aucune formation n est rattachee a cette adresse.",
+  aucuneAide: "Si votre organisme de formation vous a inscrit, verifiez que c est bien l adresse qu il a utilisee. Sinon, decouvrez le catalogue.",
 };
 
 export default function DashboardPage() {
@@ -34,25 +31,37 @@ export default function DashboardPage() {
   const [reco, setReco] = useState<any[]>([]);
   const [mesFormations, setMesFormations] = useState<any[]>([]);
   const [profil, setProfil] = useState<any>(null);
+  const [email, setEmail] = useState("");
+  const [chargement, setChargement] = useState(true);
 
+  // L IDENTITE VIENT DE LA SESSION, ET D ELLE SEULE.
+  //
+  // La page interrogeait l authentification Supabase, avec un repli code en
+  // dur sur une adresse : elle ne pouvait donc pas savoir qui etait vraiment
+  // connecte. La route /api/mes-formations lit le cookie signe et renvoie
+  // l adresse reelle : c est elle qui fait foi, et on s en sert pour la suite.
   useEffect(() => {
-    sb.auth.getUser()
-      .then(({ data }) => (data && data.user && data.user.email) || EMAIL_REPLI)
-      .catch(() => EMAIL_REPLI)
-      .then((email) => {
-        fetch("/api/mes-formations?email=" + encodeURIComponent(email))
+    fetch("/api/mes-formations")
+      .then(r => r.json())
+      .then(d => {
+        if (d.email) setEmail(d.email);
+        if (d.success && Array.isArray(d.formations)) setMesFormations(d.formations);
+        setChargement(false);
+
+        const adresse = d.email || "";
+        if (!adresse) return;
+
+        fetch("/api/recommandation?email=" + encodeURIComponent(adresse))
           .then(r => r.json())
-          .then(d => { if (d.success && Array.isArray(d.formations)) setMesFormations(d.formations); })
+          .then(x => { if (x.success && x.recommandations) setReco(x.recommandations); })
           .catch(() => {});
-        fetch("/api/recommandation?email=" + encodeURIComponent(email))
+
+        fetch("/api/gamification?email=" + encodeURIComponent(adresse))
           .then(r => r.json())
-          .then(d => { if (d.success && d.recommandations) setReco(d.recommandations); })
+          .then(x => { if (x.profil) setProfil(x.profil); })
           .catch(() => {});
-        fetch("/api/gamification?email=" + encodeURIComponent(email))
-          .then(r => r.json())
-          .then(d => { if (d.profil) setProfil(d.profil); })
-          .catch(() => {});
-      });
+      })
+      .catch(() => setChargement(false));
   }, []);
 
   async function chercher(question: string, mots: string[]) {
@@ -96,7 +105,17 @@ export default function DashboardPage() {
   return (
     <div style={{backgroundColor:"#050508",minHeight:"100vh",color:"#fff",padding:"30px 20px"}}>
       <div style={{maxWidth:"900px",margin:"0 auto"}}>
-        <h1 style={{color:"#c8a96e",fontFamily:"Georgia,serif",marginBottom:"25px"}}>{txt.titre}</h1>
+        <h1 style={{color:"#c8a96e",fontFamily:"Georgia,serif",marginBottom:"6px"}}>{txt.titre}</h1>
+
+        {/* L ADRESSE CONNECTEE, TOUJOURS VISIBLE. Sans elle, un stagiaire
+            inscrit par son organisme ne peut pas comprendre pourquoi son
+            espace est vide : il croit que son inscription a echoue. */}
+        {email && (
+          <p style={{color:"rgba(255,255,255,0.45)",fontSize:"13px",marginTop:0,marginBottom:"25px"}}>
+            {txt.connecteAvec} <span style={{color:"#c8a96e"}}>{email}</span>
+          </p>
+        )}
+
         <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:"15px",marginBottom:"35px"}}>
           {[
             {titre:txt.formations,valeur:mesFormations.length.toString(),icon:"🎓"},
@@ -111,6 +130,35 @@ export default function DashboardPage() {
             </div>
           ))}
         </div>
+
+        {/* MES FORMATIONS EN PREMIER. Elles etaient releguees tout en bas,
+            sous le bloc de recommandations qui affiche des prix : on croyait
+            devoir acheter ce a quoi on avait deja acces. */}
+        <div style={{marginBottom:"35px"}}>
+          <h2 style={{color:"#c8a96e",fontFamily:"Georgia,serif",marginBottom:"15px"}}>🎓 {txt.mesFormations}</h2>
+
+          {chargement ? (
+            <div style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(200,169,110,0.2)",borderRadius:"10px",padding:"20px"}}>
+              <p style={{color:"rgba(255,255,255,0.5)",fontSize:"14px",margin:0}}>...</p>
+            </div>
+          ) : mesFormations.length === 0 ? (
+            <div style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(200,169,110,0.2)",borderRadius:"10px",padding:"22px",textAlign:"center"}}>
+              <p style={{color:"rgba(255,255,255,0.75)",fontSize:"15px",marginBottom:"10px"}}>{txt.aucuneFormation}</p>
+              <p style={{color:"rgba(255,255,255,0.5)",fontSize:"13.5px",lineHeight:"1.7",marginBottom:"16px"}}>{txt.aucuneAide}</p>
+              <a href="/formations" style={{background:"#c8a96e",color:"#050508",padding:"10px 20px",borderRadius:"8px",textDecoration:"none",fontSize:"13px",fontWeight:"bold"}}>{txt.voirCatalogue}</a>
+            </div>
+          ) : (
+            <div style={{display:"grid",gap:"12px"}}>
+              {mesFormations.map((f:any)=>(
+                <div key={f.code} style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(200,169,110,0.2)",borderRadius:"10px",padding:"16px",display:"flex",justifyContent:"space-between",alignItems:"center",gap:"12px",flexWrap:"wrap"}}>
+                  <span style={{color:"rgba(255,255,255,0.8)",fontSize:"14px"}}>{f.code} — {f.titre}{f.formule ? " · " + f.formule : ""}</span>
+                  <a href={"/formation/"+f.code} style={{background:"#c8a96e",color:"#050508",padding:"8px 16px",borderRadius:"6px",textDecoration:"none",fontSize:"13px",fontWeight:"bold"}}>{txt.acceder}</a>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         <h2 style={{color:"#c8a96e",fontFamily:"Georgia,serif",marginBottom:"15px"}}>🤖 {txt.agentTitre}</h2>
         <div style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(200,169,110,0.2)",borderRadius:"12px",padding:"20px",minHeight:"280px",marginBottom:"15px",maxHeight:"400px",overflowY:"auto"}}>
           {chat.length===0&&<p style={{color:"rgba(255,255,255,0.3)",textAlign:"center",marginTop:"100px"}}>{txt.placeholderVide}</p>}
@@ -125,9 +173,11 @@ export default function DashboardPage() {
           <input type="text" placeholder={txt.placeholderInput} value={message} onChange={e=>setMessage(e.target.value)} onKeyDown={e=>e.key==="Enter"&&envoyer()} style={{flex:1,padding:"12px",borderRadius:"8px",border:"1px solid rgba(200,169,110,0.3)",background:"rgba(255,255,255,0.05)",color:"#fff"}}/>
           <button onClick={envoyer} disabled={loading} style={{padding:"12px 24px",background:"#c8a96e",color:"#050508",border:"none",borderRadius:"8px",fontWeight:"bold",cursor:"pointer"}}>{txt.envoyer}</button>
         </div>
+
         {reco.length>0&&(
           <div style={{marginBottom:"30px"}}>
-            <h3 style={{color:"#c8a96e",fontFamily:"Georgia,serif",marginBottom:"12px",fontSize:"16px"}}>{txt.recoTitre}</h3>
+            <h3 style={{color:"#c8a96e",fontFamily:"Georgia,serif",marginBottom:"4px",fontSize:"16px"}}>{txt.recoTitre}</h3>
+            <p style={{color:"rgba(255,255,255,0.4)",fontSize:"12.5px",marginTop:0,marginBottom:"12px"}}>{txt.recoAide}</p>
             <div style={{display:"flex",flexDirection:"column",gap:"10px"}}>
               {reco.map((f:any)=>(
                 <a key={f.code} href={"/formation/"+f.code} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:"rgba(200,169,110,0.1)",border:"1px solid rgba(200,169,110,0.3)",borderRadius:"10px",padding:"14px 18px",textDecoration:"none"}}>
@@ -138,23 +188,6 @@ export default function DashboardPage() {
             </div>
           </div>
         )}
-        <div style={{marginTop:"10px"}}>
-          <h2 style={{color:"#c8a96e",fontFamily:"Georgia,serif",marginBottom:"15px"}}>🎓 {txt.mesFormations}</h2>
-          {mesFormations.length===0&&(
-            <div style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(200,169,110,0.2)",borderRadius:"10px",padding:"20px",textAlign:"center"}}>
-              <p style={{color:"rgba(255,255,255,0.6)",fontSize:"14px",marginBottom:"14px"}}>{txt.aucuneFormation}</p>
-              <a href="/formations" style={{background:"#c8a96e",color:"#050508",padding:"10px 20px",borderRadius:"8px",textDecoration:"none",fontSize:"13px",fontWeight:"bold"}}>{txt.voirCatalogue}</a>
-            </div>
-          )}
-          <div style={{display:"grid",gap:"12px"}}>
-            {mesFormations.map((f:any)=>(
-              <div key={f.code} style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(200,169,110,0.2)",borderRadius:"10px",padding:"16px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                <span style={{color:"rgba(255,255,255,0.8)",fontSize:"14px"}}>{f.code} — {f.titre}{f.formule ? " · " + f.formule : ""}</span>
-                <a href={"/formation/"+f.code} style={{background:"#c8a96e",color:"#050508",padding:"8px 16px",borderRadius:"6px",textDecoration:"none",fontSize:"13px",fontWeight:"bold"}}>{txt.acceder}</a>
-              </div>
-            ))}
-          </div>
-        </div>
       </div>
     </div>
   );
