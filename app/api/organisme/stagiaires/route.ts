@@ -58,6 +58,44 @@ function organismeDeLaDemande(req: NextRequest, session: any): string | null {
   return null;
 }
 
+// L ACCES A LA FORMATION.
+//
+// Inscrire un stagiaire au registre ne lui ouvrait AUCUN acces : le registre
+// ecrit dans organisme_apprenants, tandis que la formation se lit dans
+// acces_formations. Le stagiaire tombait donc sur la page d achat de la
+// formation que son organisme venait de lui payer.
+//
+// En marque blanche, c est redhibitoire : le client inscrit ses stagiaires
+// et pas un seul n entre en formation.
+//
+// L ouverture ne bloque jamais l inscription : un acces qui echoue se
+// rattrape, une inscription perdue non.
+async function ouvrirAcces(email: string, formation: string | null) {
+  if (!email || !formation) return false;
+
+  try {
+    const { data: deja } = await supabase
+      .from("acces_formations")
+      .select("id")
+      .eq("email", email)
+      .eq("formation", formation)
+      .maybeSingle();
+
+    if (deja) return true;
+
+    const { error } = await supabase.from("acces_formations").insert({
+      email: email,
+      formation: formation,
+      formule: "elearning",
+      source: "organisme",
+    });
+
+    return !error;
+  } catch (e) {
+    return false;
+  }
+}
+
 export async function GET(req: NextRequest) {
   try {
     const session = sessionCourante();
@@ -96,18 +134,43 @@ export async function GET(req: NextRequest) {
       compte[v.user_email] = (compte[v.user_email] || 0) + 1;
     }
 
+    // Qui a reellement acces a sa formation. Sans cette lecture, le registre
+    // affiche des inscrits qui ne peuvent pas entrer, et personne ne le voit.
+    const adresses = (registre || []).map(function (a: any) { return a.email; });
+
+    const { data: acces } = adresses.length > 0
+      ? await supabase
+          .from("acces_formations")
+          .select("email, formation")
+          .in("email", adresses)
+          .limit(5000)
+      : { data: [] as any[] };
+
+    const ouverts: any = {};
+    for (const a of acces || []) {
+      ouverts[String(a.email) + "|" + String(a.formation)] = true;
+    }
+
     const liste = (registre || []).map(function (a: any) {
-      return { ...a, modules_valides: compte[a.email] || 0 };
+      return {
+        ...a,
+        modules_valides: compte[a.email] || 0,
+        acces_ouvert: a.formation_code
+          ? ouverts[a.email + "|" + a.formation_code] === true
+          : false,
+      };
     });
 
     const parPayeur: any = {};
     let chiffre = 0;
     let incomplets = 0;
+    let sansAcces = 0;
     for (const a of liste) {
       const p = a.payeur || "non_renseigne";
       parPayeur[p] = (parPayeur[p] || 0) + 1;
       chiffre = chiffre + (Number(a.prix_vente) || 0);
       if (!a.statut_stagiaire || !a.payeur) incomplets = incomplets + 1;
+      if (a.formation_code && !a.acces_ouvert) sansAcces = sansAcces + 1;
     }
 
     return NextResponse.json({
@@ -120,6 +183,7 @@ export async function GET(req: NextRequest) {
       par_payeur: parPayeur,
       chiffre_declare: chiffre,
       incomplets: incomplets,
+      sans_acces: sansAcces,
       apprenants: liste,
     });
   } catch (e: any) {
@@ -205,7 +269,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, erreur: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ ok: true, ajoutes: uniques.length, emails: uniques });
+    // L acces suit l inscription. Sans cela, le stagiaire recoit son
+    // invitation et se heurte a une page d achat.
+    let accesOuverts = 0;
+    if (formation) {
+      for (const email of uniques) {
+        const fait = await ouvrirAcces(email, formation);
+        if (fait) accesOuverts = accesOuverts + 1;
+      }
+    }
+
+    return NextResponse.json({
+      ok: true,
+      ajoutes: uniques.length,
+      emails: uniques,
+      acces_ouverts: accesOuverts,
+      sans_formation: !formation,
+    });
   } catch (e: any) {
     return NextResponse.json({ ok: false, erreur: String(e) }, { status: 500 });
   }
@@ -294,7 +374,23 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ ok: false, erreur: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ ok: true, modifie: corps.id });
+    // Changer la formation d un stagiaire doit lui ouvrir la nouvelle : sans
+    // cela, il perd l acces sans que personne ne s en apercoive.
+    let accesOuvert = false;
+    if (modifications.formation_code) {
+      const { data: fiche } = await supabase
+        .from("organisme_apprenants")
+        .select("email")
+        .eq("id", corps.id)
+        .eq("tenant_id", tenant)
+        .maybeSingle();
+
+      if (fiche && fiche.email) {
+        accesOuvert = await ouvrirAcces(fiche.email, modifications.formation_code);
+      }
+    }
+
+    return NextResponse.json({ ok: true, modifie: corps.id, acces_ouvert: accesOuvert });
   } catch (e: any) {
     return NextResponse.json({ ok: false, erreur: String(e) }, { status: 500 });
   }
