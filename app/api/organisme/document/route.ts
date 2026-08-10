@@ -19,6 +19,23 @@ const TYPES: any = {
   livret: "Livret d accueil du stagiaire",
 };
 
+// MENTION PORTEE SUR LE DOCUMENT LUI-MEME, et non plus seulement dans la
+// reponse technique. Elle dit ce que la signature vaut ET ce qu elle ne vaut
+// pas : une signature electronique simple est parfaitement recevable, mais
+// c est a celui qui s en prevaut d en demontrer la fiabilite, la presomption
+// n etant acquise qu a la signature qualifiee. Le taire exposerait
+// l organisme client, qui croirait detenir davantage.
+const MENTION_SIGNATURE = [
+  "Ce document peut etre signe electroniquement depuis la plateforme. La signature repose sur",
+  "l identification du signataire par son adresse electronique, la saisie d un code a usage unique",
+  "adresse a cette adresse, et l horodatage de son acceptation. Sont conservees l empreinte",
+  "numerique du document signe, la date et l heure, l adresse de connexion et le texte accepte.",
+  "Il s agit d une signature electronique SIMPLE au sens du reglement europeen n 910/2014 dit",
+  "eIDAS. Elle est recevable comme preuve entre les parties. Elle n est ni avancee ni qualifiee,",
+  "et ne beneficie donc pas de la presomption de fiabilite attachee aux signatures delivrees par",
+  "un prestataire de services de confiance qualifie.",
+];
+
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
   process.env.SUPABASE_SERVICE_ROLE_KEY || "",
@@ -374,7 +391,7 @@ export async function GET(req: NextRequest) {
 
     let requete = supabase
       .from("organisme_documents")
-      .select("id, type, stagiaire_email, formation_code, reference, emis_le")
+      .select("id, type, stagiaire_email, formation_code, reference, emis_le, pdf_sha256")
       .eq("tenant_id", tenant)
       .order("emis_le", { ascending: false });
 
@@ -400,10 +417,12 @@ export async function GET(req: NextRequest) {
     if (!o || !o.numero_da) manques.push("numero de declaration d activite");
     if (!o || !o.representant_nom) manques.push("representant legal");
 
+    // Les types signables : c est sur eux que l ecran proposera la signature.
     return NextResponse.json({
       ok: true,
       types: TYPES,
       documents: data || [],
+      signables: ["convention", "devis"],
       fiche_incomplete: manques.length > 0,
       manques: manques,
     });
@@ -486,7 +505,24 @@ export async function POST(req: NextRequest) {
     const nature = natureDuContrat(o, a);
     const titreDoc = titreDuDocument(type, nature);
     const sections = corps(type, o, a, f, prix, modules || [], nature);
-    const reference = type.slice(0, 3).toUpperCase() + "-" + Date.now().toString().slice(-8);
+    const signable = type === "convention" || type === "devis";
+
+    // LA REFERENCE EST STABLE POUR UN MEME DOCUMENT. La route de signature
+    // regenere le PDF pour l archiver : si la reference changeait a chaque
+    // appel, la preuve pointerait vers un document introuvable.
+    const { data: dejaEmis } = await supabase
+      .from("organisme_documents")
+      .select("reference")
+      .eq("tenant_id", tenant)
+      .eq("type", type)
+      .eq("stagiaire_email", email)
+      .eq("formation_code", code || null)
+      .order("emis_le", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const reference = (dejaEmis && dejaEmis.reference)
+      || type.slice(0, 3).toUpperCase() + "-" + Date.now().toString().slice(-8);
 
     const pdf = await PDFDocument.create();
     const normal = await pdf.embedFont(StandardFonts.Helvetica);
@@ -561,7 +597,7 @@ export async function POST(req: NextRequest) {
       saut(120);
       paragraphe("Fait le " + jour() + ".", 10, normal, noir);
 
-      if (type === "convention" || type === "devis") {
+      if (signable) {
         paragraphe(
           "Le beneficiaire fait preceder sa signature de la mention Lu et approuve.",
           9, normal, gris
@@ -573,7 +609,7 @@ export async function POST(req: NextRequest) {
 
       const gauche = nature === "prestation" ? "Pour le prestataire" : "Pour l organisme de formation";
       page.drawText(ascii(gauche), { x: 50, y: y, size: 9.5, font: gras, color: noir });
-      if (type === "convention" || type === "devis") {
+      if (signable) {
         page.drawText(ascii("Le beneficiaire"), { x: 330, y: y, size: 9.5, font: gras, color: noir });
       }
 
@@ -584,14 +620,29 @@ export async function POST(req: NextRequest) {
           { x: 50, y: y, size: 8.5, font: normal, color: gris }
         );
       }
-      if (type === "convention" || type === "devis") {
+      if (signable) {
         page.drawText(ascii((a && a.nom) || a.email), { x: 330, y: y, size: 8.5, font: normal, color: gris });
       }
 
       y = y - 40;
       page.drawLine({ start: { x: 50, y: y }, end: { x: 250, y: y }, thickness: 0.7, color: gris });
-      if (type === "convention" || type === "devis") {
+      if (signable) {
         page.drawLine({ start: { x: 330, y: y }, end: { x: 530, y: y }, thickness: 0.7, color: gris });
+      }
+    }
+
+    // MENTION DE LA SIGNATURE ELECTRONIQUE, sur les seuls documents signables.
+    if (signable) {
+      y = y - 34;
+      saut(120);
+      page.drawLine({ start: { x: 50, y: y }, end: { x: 545, y: y }, thickness: 0.5, color: gris });
+      y = y - 16;
+      paragraphe("Signature electronique", 9, gras, vert);
+      y = y - 2;
+      for (const l of MENTION_SIGNATURE) {
+        saut(12);
+        page.drawText(ascii(l), { x: 50, y: y, size: 7.5, font: normal, color: gris });
+        y = y - 10;
       }
     }
 
@@ -603,19 +654,21 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    await supabase.from("organisme_documents").insert({
-      tenant_id: tenant,
-      type: type,
-      stagiaire_email: email,
-      formation_code: code || null,
-      reference: reference,
-      donnees: {
-        prix: prix,
-        modules_valides: (modules || []).length,
-        titre: f ? f.titre : null,
-        nature: nature,
-      },
-    });
+    if (!dejaEmis) {
+      await supabase.from("organisme_documents").insert({
+        tenant_id: tenant,
+        type: type,
+        stagiaire_email: email,
+        formation_code: code || null,
+        reference: reference,
+        donnees: {
+          prix: prix,
+          modules_valides: (modules || []).length,
+          titre: f ? f.titre : null,
+          nature: nature,
+        },
+      });
+    }
 
     const octets = await pdf.save();
 
