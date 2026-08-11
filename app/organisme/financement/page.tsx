@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
+import Guide from "../../../components/Guide";
 
 const OR = "#c8a96e";
 const NOIR = "#050508";
@@ -152,6 +153,10 @@ export default function PageFinancement() {
           Du dépôt au règlement. La déclaration de service fait est l'étape qu'on
           oublie : sans elle, le financeur ne paie jamais.
         </p>
+
+        <div style={{ marginTop: "18px" }}>
+          <Guide ecran="organisme.financement" />
+        </div>
 
         {message && <p style={{ color: VERT, fontSize: "15px", fontWeight: "bold" }}>{message}</p>}
         {erreur && <p style={{ color: ROUGE, fontSize: "15px" }}>{erreur}</p>}
