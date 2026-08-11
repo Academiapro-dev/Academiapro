@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
+import Guide from "../../../../components/Guide";
 
 const OR = "#c8a96e";
 const NOIR = "#050508";
@@ -159,6 +160,8 @@ export default function TeledecPage() {
           Les liasses envoyées à l'administration et leur réponse. Un accusé de réception
           vaut dépôt ; un rejet indique le formulaire et le champ à corriger.
         </p>
+
+        <Guide ecran="comptable.teledec" />
 
         {/* Ce qui reclame une action, avant la liste. */}
         {(rejetees > 0 || enAttente > 0) && !chargement && (
