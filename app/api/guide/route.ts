@@ -184,6 +184,27 @@ const GUIDES: any = {
   },
 
   // ─────────────────────────────────────────────────────────────────
+  // LE LMS — LE STAGIAIRE
+  //
+  // C est l ecran que verra le plus grand nombre : chaque stagiaire de
+  // chaque organisme client y passe. Il s adresse a quelqu un qui n a rien
+  // demande a personne et veut savoir par ou commencer.
+  // ─────────────────────────────────────────────────────────────────
+
+  "lms.parcours": {
+    titre: "Votre formation",
+    texte: "Le programme est à gauche, le contenu au milieu. Vous avancez "
+      + "module par module, à votre rythme : votre progression est "
+      + "enregistrée, vous pouvez fermer et revenir quand vous voulez.",
+    points: [
+      "Trois onglets par module : le cours, le questionnaire, et un coach qui répond à vos questions sur ce que vous êtes en train de lire.",
+      "Le questionnaire demande aussi une note de synthèse écrite avec vos mots : votre correcteur en tient compte autant que vos réponses.",
+      "Il faut 14 sur 20 pour valider un module. Vous pouvez recommencer autant de fois que nécessaire, et chaque copie est corrigée avec l'explication des erreurs.",
+      "Le coach ne donne jamais les réponses du questionnaire — il vous aide à comprendre, pas à contourner.",
+    ],
+  },
+
+  // ─────────────────────────────────────────────────────────────────
   // LE CRM
   // ─────────────────────────────────────────────────────────────────
 
