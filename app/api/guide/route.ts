@@ -17,9 +17,32 @@ const supabase = createClient(
 // apprend a la fermer sans la lire. On retient donc ce qui a ete vu, par
 // personne et par ecran, et on ne le remontre jamais.
 //
+// DEUX SORTES DE VISITEURS. Le cabinet et l organisme ont une session, donc
+// une adresse. Le dirigeant, lui, arrive par un lien a jeton, sans compte ni
+// mot de passe : sans cela son guide se rouvrirait a chaque visite. Son
+// jeton tient donc lieu d identite, range sous la forme "jeton:xxxx" pour
+// qu aucune adresse ne puisse s y confondre.
+//
 // LE CONTENU VIT ICI, PAS DANS LES PAGES. Un texte d aide se corrige
 // souvent : le premier client dira ce qui manque. L avoir en un seul
 // endroit evite d aller le chercher dans quinze fichiers.
+
+function identite(req: NextRequest, jetonCorps?: string): string | null {
+  const session = sessionCourante();
+  if (session && session.email) {
+    return String(session.email).toLowerCase();
+  }
+
+  let jeton = String(jetonCorps || "").trim();
+  if (!jeton) {
+    try {
+      jeton = String(new URL(req.url).searchParams.get("jeton") || "").trim();
+    } catch (e) {}
+  }
+  if (!jeton) return null;
+
+  return "jeton:" + jeton.slice(0, 80);
+}
 
 const GUIDES: any = {
 
@@ -200,18 +223,18 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: true, guide: null, vu: true });
     }
 
-    const session = sessionCourante();
+    const qui = identite(req);
 
-    // Sans session, on montre le guide : c est souvent le premier passage,
-    // et c est la que l aide sert le plus.
-    if (!session || !session.email) {
+    // Ni session ni jeton : on montre le guide. C est souvent le premier
+    // passage, et c est la que l aide sert le plus.
+    if (!qui) {
       return NextResponse.json({ ok: true, guide: guide, vu: false, ecran: ecran });
     }
 
     const { data } = await supabase
       .from("guide_vus")
       .select("id")
-      .eq("email", String(session.email).toLowerCase())
+      .eq("email", qui)
       .eq("ecran", ecran)
       .maybeSingle();
 
@@ -229,13 +252,13 @@ export async function GET(req: NextRequest) {
 // L utilisateur a lu : on ne le lui remontre plus.
 export async function POST(req: NextRequest) {
   try {
-    const session = sessionCourante();
-    if (!session || !session.email) {
-      return NextResponse.json({ ok: true, enregistre: false });
-    }
-
     const b = await req.json().catch(function () { return null; });
     const ecran = b && b.ecran ? String(b.ecran).slice(0, 100) : "";
+    const qui = identite(req, b && b.jeton ? String(b.jeton) : "");
+
+    if (!qui) {
+      return NextResponse.json({ ok: true, enregistre: false });
+    }
 
     if (!ecran) {
       return NextResponse.json({ ok: false, erreur: "Ecran non precise." }, { status: 400 });
@@ -244,7 +267,7 @@ export async function POST(req: NextRequest) {
     await supabase
       .from("guide_vus")
       .upsert(
-        { email: String(session.email).toLowerCase(), ecran: ecran },
+        { email: qui, ecran: ecran },
         { onConflict: "email,ecran" }
       );
 
@@ -256,17 +279,17 @@ export async function POST(req: NextRequest) {
 
 // Tout revoir : utile apres une mise a jour importante, ou pour montrer le
 // produit a quelqu un.
-export async function DELETE() {
+export async function DELETE(req: NextRequest) {
   try {
-    const session = sessionCourante();
-    if (!session || !session.email) {
+    const qui = identite(req);
+    if (!qui) {
       return NextResponse.json({ ok: false, erreur: "Connectez-vous." }, { status: 401 });
     }
 
     await supabase
       .from("guide_vus")
       .delete()
-      .eq("email", String(session.email).toLowerCase());
+      .eq("email", qui);
 
     return NextResponse.json({ ok: true, message: "Les guides réapparaîtront." });
   } catch (e: any) {
