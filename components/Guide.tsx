@@ -11,15 +11,18 @@ import { useState, useEffect } from "react";
 //
 // Usage : <Guide ecran="comptable.pieces" />
 //         <Guide ecran="qualiopi.grille" couleur="#0a3d2e" fond="clair" />
+//         <Guide ecran="client.espace" jeton={jeton} />
 
 export default function Guide({
   ecran,
   couleur,
   fond,
+  jeton,
 }: {
   ecran: string;
   couleur?: string;
   fond?: string;
+  jeton?: string;
 }) {
   const [guide, setGuide] = useState<any>(null);
   const [ouvert, setOuvert] = useState(false);
@@ -39,7 +42,12 @@ export default function Guide({
     let vivant = true;
     (async function () {
       try {
-        const r = await fetch("/api/guide?ecran=" + encodeURIComponent(ecran), { cache: "no-store" });
+        // Le dirigeant n a pas de session : son jeton tient lieu d identite,
+        // sinon son guide se rouvrirait a chaque visite.
+        const adresse =
+          "/api/guide?ecran=" + encodeURIComponent(ecran) +
+          (jeton ? "&jeton=" + encodeURIComponent(jeton) : "");
+        const r = await fetch(adresse, { cache: "no-store" });
         const d = await r.json();
         if (!vivant) return;
         if (d.ok && d.guide) {
@@ -50,7 +58,7 @@ export default function Guide({
       } catch (e) {}
     })();
     return function () { vivant = false; };
-  }, [ecran]);
+  }, [ecran, jeton]);
 
   // FERMER, C EST AVOIR LU. Le bouton enregistrait, la croix non : celui qui
   // fermait d un geste rapide retrouvait le guide ouvert a chaque visite.
@@ -61,7 +69,7 @@ export default function Guide({
       await fetch("/api/guide", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ecran: ecran }),
+        body: JSON.stringify({ ecran: ecran, jeton: jeton || "" }),
       });
     } catch (e) {}
   }
@@ -104,6 +112,7 @@ export default function Guide({
       </button>
     );
   }
+
   return (
     <div
       style={{
