@@ -198,8 +198,8 @@ export async function POST(req: NextRequest) {
 
       return NextResponse.json({
         ok: true,
-        message: (nomBanque || "La banque") + " est connectee. "
-          + comptes.length + " compte(s) trouve(s).",
+        message: (nomBanque || "La banque") + " est connectée. "
+          + comptes.length + " compte(s) trouvé(s).",
         banque: nomBanque,
         comptes: comptes,
       });
