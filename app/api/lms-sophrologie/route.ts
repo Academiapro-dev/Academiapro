@@ -17,34 +17,8 @@ const LANGUES = {
   fr: "francais", en: "English", ar: "العربية", es: "espanol", pt: "portugues", de: "Deutsch",
 };
 
-// UN QCM A LA FIN DE CHAQUE MODULE.
-//
-// Seuls les modules de type « evaluation » en recevaient un : sur vingt
-// modules, quatre etaient evalues et seize se terminaient par « Ce module n a
-// pas encore de questionnaire ». Le stagiaire lisait trois heures de cours
-// sans jamais verifier ce qu il en avait retenu, et sa progression n avancait
-// pas — elle ne s enregistre qu a la validation d une copie.
-//
-// Le format est IMPOSE au mot pres : la page lit les questions par expression
-// reguliere (Q1., A), B)…) et n affiche rien si elle n en trouve aucune.
-const FORMAT_QCM =
-  " Termine par un QCM de 10 questions portant sur CE module. FORMAT EXACT, SANS EXCEPTION :\n" +
-  "## QCM\n" +
-  "Q1. [Enonce de la question]\n" +
-  "A) [Option A]\n" +
-  "B) [Option B]\n" +
-  "C) [Option C]\n" +
-  "D) [Option D]\n" +
-  "Reponse : A - [Explication de 3 lignes minimum]\n\n" +
-  "Puis Q2, Q3, jusqu a Q10, au meme format." +
-  " Le titre « ## QCM » est OBLIGATOIRE et doit preceder la premiere question." +
-  " N evalue JAMAIS sur des dates ni sur des noms propres : uniquement methode," +
-  " protocole, application et securite.";
-
-// Structure de secours, utilisee UNIQUEMENT si formations_lms n a pas de plan
-// pour cette formation. Elle vient de la sophrologie : c est l origine de cette
-// route, et c est ce qui faisait que TOUTES les formations recevaient les titres
-// de la sophrologie dans le contenu genere.
+// Structure de secours, utilisee UNIQUEMENT si aucun plan n existe pour cette
+// formation. Elle vient de la sophrologie : c est l origine de cette route.
 const CHAPITRES_SECOURS = [
   { numero: 1, titre: "Fondements Theoriques et Scientifiques", modules: [
     { numero: 1, titre: "Histoire et origines de la sophrologie caycedienne", type: "theorie" },
@@ -82,7 +56,7 @@ const CHAPITRES_SECOURS = [
 //
 // Cette route lisait formations_lms pendant que le sommaire affichait
 // lms_plans : le stagiaire cliquait sur un module et en lisait un autre. Le
-// JSON reste en repli pour les formations dont le plan n a pas ete construit.
+// JSON reste en repli pour les formations sans plan construit.
 async function chapitresDe(formation_code) {
   try {
     const { data: plans } = await supabase
@@ -128,14 +102,11 @@ async function chapitresDe(formation_code) {
 }
 
 // VERROU D ACCES. Un stagiaire rattache a un organisme ne peut ouvrir que les
-// formations que cet organisme a souscrites. Sans ce controle, la table
-// organisme_catalogue serait decorative et un client a dix formations
-// accederait au catalogue entier.
+// formations que cet organisme a souscrites.
 async function accesAutorise(formation_code) {
   const session = sessionCourante();
   if (!session) return { ok: false, code: 401, erreur: "Connectez-vous pour acceder a ce module." };
 
-  // Pas d organisme : apprenant direct d AcademIA, comportement inchange.
   if (!session.tenantId) return { ok: true };
 
   const { data } = await supabase
@@ -182,12 +153,12 @@ async function generer(formation, chapitre, module, langue) {
     theorie: [
       contexte + " PARTIE 1 SUR 3 - INTRODUCTION ET FONDEMENTS. Redige: (1) Introduction generale 3 paragraphes denses sur le contexte historique et scientifique. (2) Genese de la discipline et auteurs fondateurs 4 paragraphes. (3) Contexte philosophique et scientifique 3 paragraphes. (4) Travaux et decouvertes fondamentales 3 paragraphes. Traite STRICTEMENT le sujet du module indique. Langue: " + langue_nom,
       contexte + " PARTIE 2 SUR 3 - BASES THEORIQUES ET SCIENTIFIQUES. Redige: (1) Mecanismes et principes detailles 4 paragraphes avec references scientifiques. (2) Etudes et recherches publiees 3 paragraphes. (3) Concepts fondamentaux et definitions 4 paragraphes. (4) Comparaison avec les autres approches du domaine 3 paragraphes. (5) Applications en pratique professionnelle 3 paragraphes. Traite STRICTEMENT le sujet du module. Langue: " + langue_nom,
-      contexte + " PARTIE 3 SUR 3 - APPROFONDISSEMENT ET EVALUATION. Redige: (1) Concepts avances pour praticiens experimentes 4 paragraphes. (2) Cas illustratifs detailles 3 paragraphes. (3) Points cles essentiels liste de 10 items developpes. (4) Glossaire de 15 termes cles avec definitions completes. Traite STRICTEMENT le sujet du module. Langue: " + langue_nom + FORMAT_QCM,
+      contexte + " PARTIE 3 SUR 3 - APPROFONDISSEMENT ET RESSOURCES. Redige: (1) Concepts avances pour praticiens experimentes 4 paragraphes. (2) Cas illustratifs detailles 3 paragraphes. (3) Points cles essentiels liste de 10 items developpes. (4) Glossaire de 15 termes cles avec definitions completes. (5) Bibliographie selective de 8 references commentees. Traite STRICTEMENT le sujet du module. Langue: " + langue_nom,
     ],
     pratique: [
       contexte + " PARTIE 1 SUR 3 - PREPARATION ET EXERCICES 1 ET 2. Redige: (1) Introduction aux objectifs pratiques 2 paragraphes. (2) Preparation du cadre et de l environnement 3 paragraphes. (3) EXERCICE 1 COMPLET: objectif preparation protocole detaille etape par etape variantes contre-indications. (4) EXERCICE 2 COMPLET: meme structure complete. Traite STRICTEMENT le sujet du module. Langue: " + langue_nom,
       contexte + " PARTIE 2 SUR 3 - EXERCICES 3 4 ET 5. Redige: (1) EXERCICE 3 COMPLET avec protocole detaille. (2) EXERCICE 4 COMPLET avec protocole detaille. (3) EXERCICE 5 COMPLET avec protocole detaille. (4) Deroule complet d une seance guidee mot a mot pour 30 minutes. Traite STRICTEMENT le sujet du module. Langue: " + langue_nom,
-      contexte + " PARTIE 3 SUR 3 - ADAPTATION, SUIVI ET EVALUATION. Redige: (1) Adaptation pour differents publics 4 paragraphes par public. (2) Erreurs courantes et corrections detaillees. (3) Fiche de suivi apprenant avec grille d evaluation 20 criteres. (4) Progression et niveaux d avancement. Traite STRICTEMENT le sujet du module. Langue: " + langue_nom + FORMAT_QCM,
+      contexte + " PARTIE 3 SUR 3 - ADAPTATION ET SUIVI. Redige: (1) Adaptation pour differents publics 4 paragraphes par public. (2) Erreurs courantes et corrections detaillees. (3) Fiche de suivi apprenant avec grille d evaluation 20 criteres. (4) Progression et niveaux d avancement. (5) Ressources complementaires 8 references. Traite STRICTEMENT le sujet du module. Langue: " + langue_nom,
     ],
     evaluation: [
       contexte + " PARTIE 1 SUR 3 - QCM OBLIGATOIRE FORMAT STRICT. Redige exactement 10 questions QCM portant sur le sujet du module. CHAQUE QUESTION DOIT ETRE AU FORMAT EXACT SUIVANT SANS EXCEPTION:\nQ1. [Enonce de la question detaille]\nA) [Option A]\nB) [Option B]\nC) [Option C]\nD) [Option D]\nReponse : A - [Explication detaillee de 3 lignes minimum]\n\nN evalue JAMAIS sur des dates ni sur des noms propres : uniquement methode, protocole, application et securite. Respect absolu du format. Commence directement par Q1. Langue: " + langue_nom,
@@ -197,7 +168,41 @@ async function generer(formation, chapitre, module, langue) {
   };
 
   const type_prompts = prompts[module.type] || prompts.theorie;
-  const parties = await Promise.all(type_prompts.map(p => appel_claude(p, langue_nom, auteur)));
+
+  // LE QCM EST UN APPEL A PART, PAS UNE CONSIGNE DE PLUS.
+  //
+  // Seuls les modules « evaluation » recevaient un questionnaire : sur vingt
+  // modules, seize se terminaient par « Ce module n a pas encore de
+  // questionnaire ». Le stagiaire lisait des heures de cours sans jamais
+  // verifier ce qu il en retenait — et sa progression n avancait pas, puisqu
+  // elle ne s enregistre qu a la validation d une copie.
+  //
+  // Ajoutee en fin d une invite qui en portait deja cinq, la demande etait
+  // ignoree : le module se regenerait sans une seule question. Un appel dedie
+  // ne peut pas etre noye. Les modules d evaluation n en ont pas besoin :
+  // leurs trois parties sont deja des questionnaires.
+  const invites = module.type === "evaluation"
+    ? type_prompts
+    : type_prompts.concat([
+        contexte +
+        " TU REDIGES UNIQUEMENT UN QCM, RIEN D AUTRE. Ni introduction, ni cours," +
+        " ni conclusion : dix questions et leurs corriges, un point c est tout.\n\n" +
+        "Commence ta reponse EXACTEMENT par cette ligne :\n" +
+        "## QCM\n\n" +
+        "Puis les dix questions, au format EXACT suivant, sans aucune variation :\n" +
+        "Q1. [Enonce de la question]\n" +
+        "A) [Option A]\n" +
+        "B) [Option B]\n" +
+        "C) [Option C]\n" +
+        "D) [Option D]\n" +
+        "Reponse : A - [Explication de 3 lignes minimum]\n\n" +
+        "Puis Q2, Q3, et ainsi de suite jusqu a Q10, au meme format.\n\n" +
+        "Les questions portent STRICTEMENT sur le sujet de ce module." +
+        " N evalue JAMAIS sur des dates ni sur des noms propres : uniquement" +
+        " methode, protocole, application et securite. Langue: " + langue_nom,
+      ]);
+
+  const parties = await Promise.all(invites.map(p => appel_claude(p, langue_nom, auteur)));
   return parties.join("\n\n---\n\n");
 }
 
