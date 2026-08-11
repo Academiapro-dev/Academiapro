@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
+import Guide from "../../../../components/Guide";
 
 const OR = "#c8a96e";
 const NOIR = "#050508";
@@ -128,11 +129,13 @@ export default function AccesClients() {
           COMPTABILITÉ
         </p>
         <h1 style={{ fontSize: "29px", margin: "0 0 12px" }}>Espaces clients</h1>
-        <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "15px", lineHeight: "1.75", margin: "0 0 30px", maxWidth: "660px" }}>
+        <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "15px", lineHeight: "1.75", margin: "0 0 24px", maxWidth: "660px" }}>
           Ouvrez un espace à un dirigeant : il verra les justificatifs que vous
           attendez et pourra les envoyer en photographiant le document. Il n'a ni
           compte à créer ni mot de passe à retenir.
         </p>
+
+        <Guide ecran="comptable.acces-clients" />
 
         <div style={carte}>
           <h2 style={{ fontSize: "18px", margin: "0 0 16px" }}>Ouvrir un accès</h2>
