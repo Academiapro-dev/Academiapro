@@ -13,14 +13,13 @@ const JOURS_VALIDITE = 30;
 
 // LE DOMAINE D EXPEDITION.
 //
-// Tant qu il vaut academiapro.fr, le stagiaire d un client en marque blanche
-// lit le nom de son fournisseur — et peut visiter le site pour y trouver le
+// academiapro.fr disait au stagiaire d un client en marque blanche le nom de
+// son fournisseur — et lui donnait de quoi visiter le site pour y trouver le
 // catalogue et les prix. espaces-formations.fr est neutre : il ne mene a rien
 // et ne designe personne.
 //
-// LA BASCULE TIENT EN UN MOT, mais ne se fait PAS avant que le domaine ait
-// chauffe. Un domaine neuf qui expedie d un coup part en indesirables :
-// quelques envois par jour pendant une a deux semaines d abord.
+// LE DOMAINE CHAUFFE. Quelques envois par jour, en montant progressivement :
+// un domaine neuf qui expedie d un coup part en indesirables.
 const DOMAINE_ENVOI = "espaces-formations.fr";
 const EXPEDITEUR_DEFAUT = "contact@academiapro.fr";
 
@@ -45,24 +44,34 @@ function organismeDeLaDemande(req: NextRequest, session: any): string | null {
   return null;
 }
 
-// UNE ADRESSE PAR ORGANISME, SUR UN DOMAINE NEUTRE.
-//
-// Le slug de l organisme sert de partie locale : il est deja normalise et
-// unique en base, contrairement a la raison sociale. Sans slug, on retombe
-// sur l adresse de la maison.
-function adresseEnvoi(slug: string | null): string {
-  if (DOMAINE_ENVOI === "academiapro.fr") return EXPEDITEUR_DEFAUT;
-
-  const propre = String(slug || "")
+// Accents retires, tout ce qui n est pas lettre ou chiffre devient un tiret.
+function normaliser(texte: string): string {
+  return String(texte || "")
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 40);
+}
 
-  if (!propre) return "formation@" + DOMAINE_ENVOI;
-  return propre + "@" + DOMAINE_ENVOI;
+// UNE ADRESSE PROPRE A CHAQUE ORGANISME.
+//
+// Le slug vient en premier : il est normalise et unique en base. Mais peu
+// d organismes en ont un, et sans second recours ils partageaient TOUS la
+// meme adresse — deux clients differents ecrivant depuis « formation@ », ce
+// qui brouille la separation entre organismes et affaiblit la reputation du
+// domaine. La raison sociale prend donc le relais.
+function adresseEnvoi(slug: string | null, raisonSociale: string | null): string {
+  if (DOMAINE_ENVOI === "academiapro.fr") return EXPEDITEUR_DEFAUT;
+
+  const parSlug = normaliser(slug || "");
+  if (parSlug) return parSlug + "@" + DOMAINE_ENVOI;
+
+  const parNom = normaliser(raisonSociale || "");
+  if (parNom) return parNom + "@" + DOMAINE_ENVOI;
+
+  return "formation@" + DOMAINE_ENVOI;
 }
 
 // Le nom affiche est celui de l organisme : c est lui que le stagiaire a paye.
@@ -71,7 +80,8 @@ function expediteur(nomOrganisme: string, slug: string | null): string {
     .replace(/["<>]/g, "")
     .trim()
     .slice(0, 60);
-  return (propre || "Votre organisme de formation") + " <" + adresseEnvoi(slug) + ">";
+  return (propre || "Votre organisme de formation")
+    + " <" + adresseEnvoi(slug, nomOrganisme) + ">";
 }
 
 async function envoyerEmail(
