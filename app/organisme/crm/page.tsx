@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
+import Guide from "../../../components/Guide";
 
 const ETAPES = [
   { cle: "prospect", nom: "Prospects", couleur: "rgba(255,255,255,0.55)" },
@@ -380,6 +381,10 @@ export default function PageCRM() {
         <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "14px", marginTop: 0 }}>
           {prospects.length} fiche(s) · {clients} devenu(s) client(s) · {conversion} % de conversion
         </p>
+
+        <div style={{ marginTop: "18px" }}>
+          <Guide ecran="crm.prospects" />
+        </div>
 
         {stats && (
           <div style={{ display: "flex", gap: "14px", flexWrap: "wrap", margin: "24px 0" }}>
