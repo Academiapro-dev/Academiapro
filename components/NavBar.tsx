@@ -24,6 +24,10 @@ const CHEMINS_COMPTABLE = [
   "/admin/mr-comptable",
 ];
 
+// Le logo de la marque, en or sur fond noir : les memes teintes que le site,
+// donc aucun rectangle blanc au milieu du bandeau.
+const LOGO_COMPTABLE = "/IMG_4100.jpeg";
+
 function estComptable(chemin) {
   for (const p of CHEMINS_COMPTABLE) {
     if (chemin === p || chemin.indexOf(p + "/") === 0) return true;
@@ -94,8 +98,12 @@ export default function NavBar() {
   if (estComptable(chemin) || hote.indexOf("mrcomptable.fr") >= 0) {
     return (
       <header style={barre}>
-        <a href="/admin/compliance/tableau-de-bord" style={lienMarque}>
-          Mr. Comptable
+        <a href="/admin/compliance/tableau-de-bord" style={{ display: "flex", alignItems: "center", textDecoration: "none" }}>
+          <img
+            src={LOGO_COMPTABLE}
+            alt="Mr. Comptable"
+            style={{ height: "46px", width: "auto", display: "block" }}
+          />
         </a>
         <nav style={{ display: "flex", gap: "20px", flexWrap: "wrap" }}>
           <a href="/admin/compliance/tableau-de-bord" style={lienMenu}>Tableau de bord</a>
