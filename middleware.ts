@@ -144,6 +144,20 @@ export async function middleware(request: NextRequest) {
   const hote = request.headers.get('host') || '';
   const h = hoteNu(hote);
 
+  // LE SITEMAP DE MR. COMPTABLE, AVANT TOUTE REECRITURE DE MARQUE.
+  //
+  // Ce fichier doit etre servi sur mrcomptable.fr lui-meme : Search Console
+  // refuse un sitemap heberge sur un autre domaine que la propriete. Sans
+  // cette regle, l adresse partait vers /comptable/sitemap-comptable.xml —
+  // qui n existe pas — et Google repondait « impossible de recuperer le
+  // sitemap ». La route vit sous /api parce qu un dossier portant un point
+  // dans son nom n est pas servi par Next.js.
+  if (chemin === '/sitemap-comptable.xml') {
+    const url = request.nextUrl.clone();
+    url.pathname = '/api/sitemap-comptable';
+    return NextResponse.rewrite(url);
+  }
+
   // Une marque de la maison : la racine et les pages de vitrine partent vers
   // le dossier du produit. Le reste — connexion, espaces, administration —
   // continue de fonctionner tel quel, sur le meme deploiement.
