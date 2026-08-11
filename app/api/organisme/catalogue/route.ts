@@ -199,7 +199,73 @@ export async function PATCH(req: NextRequest) {
     }
 
     const corps = await req.json().catch(function () { return null; });
-    if (!corps || !corps.id) {
+    if (!corps) {
+      return NextResponse.json({ ok: false, erreur: "Requete illisible" }, { status: 400 });
+    }
+
+    // REPRENDRE LES PRIX DU CATALOGUE, EN UNE FOIS.
+    //
+    // Un organisme qui accepte nos prix devait les enregistrer formation par
+    // formation : trois cent dix fois. Personne ne le fait — d ou des
+    // catalogues entiers sans prix, et un portail public qui n affiche que
+    // « sur devis ».
+    //
+    // Ce geste ne touche QUE les formations sans prix enregistre : celles que
+    // l organisme a deja fixees sont les siennes, on ne les ecrase pas.
+    if (corps.tout_reprendre === true) {
+      const { data: lignes } = await supabase
+        .from("organisme_catalogue")
+        .select("id, formation_code, prix_vente_public")
+        .eq("tenant_id", tenant)
+        .is("prix_vente_public", null)
+        .limit(1000);
+
+      if (!lignes || lignes.length === 0) {
+        return NextResponse.json({
+          ok: true,
+          repris: 0,
+          message: "Toutes vos formations ont deja un prix enregistre.",
+        });
+      }
+
+      const codes = lignes.map(function (l: any) { return l.formation_code; });
+
+      const { data: fiches } = await supabase
+        .from("formations")
+        .select("code, prix")
+        .in("code", codes)
+        .limit(1000);
+
+      const prixParCode: any = {};
+      for (const f of fiches || []) prixParCode[f.code] = f.prix;
+
+      let repris = 0;
+      let sansPrix = 0;
+
+      for (const l of lignes) {
+        const prix = prixParCode[l.formation_code];
+        if (prix === null || prix === undefined) {
+          sansPrix = sansPrix + 1;
+          continue;
+        }
+        const { error } = await supabase
+          .from("organisme_catalogue")
+          .update({ prix_vente_public: prix })
+          .eq("id", l.id)
+          .eq("tenant_id", tenant);
+        if (!error) repris = repris + 1;
+      }
+
+      return NextResponse.json({
+        ok: true,
+        repris: repris,
+        sans_prix: sansPrix,
+        message: repris + " prix repris du catalogue AcadeMIA Pro."
+          + (sansPrix > 0 ? " " + sansPrix + " formation(s) sans prix public n ont pas ete touchees." : ""),
+      });
+    }
+
+    if (!corps.id) {
       return NextResponse.json({ ok: false, erreur: "Identifiant manquant" }, { status: 400 });
     }
 
