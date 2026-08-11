@@ -172,8 +172,14 @@ export async function middleware(request: NextRequest) {
     // mrcomptable.fr/inscription sert /comptable/inscription. On ne reecrit
     // que si la page existe cote produit ; les chemins connus de la maison
     // passent leur chemin.
+    //
+    // TOUT CE QUI PORTE UNE EXTENSION EST LAISSE TEL QUEL. Le logo depose
+    // dans public/ partait vers /comptable/IMG_4100.jpeg, qui n existe pas :
+    // la barre de Mr. Comptable affichait une image cassee. Un fichier n est
+    // jamais une page de vitrine.
     const RESERVES = ['/admin', '/api', '/connexion', '/comptable', '/of', '/maintenance', '/_next'];
-    if (!correspond(chemin, RESERVES)) {
+    const estFichier = chemin.lastIndexOf('.') > chemin.lastIndexOf('/');
+    if (!estFichier && !correspond(chemin, RESERVES)) {
       const url = request.nextUrl.clone();
       url.pathname = racineMarque + chemin;
       return NextResponse.rewrite(url);
