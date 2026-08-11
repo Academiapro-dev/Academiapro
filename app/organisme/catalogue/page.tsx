@@ -7,6 +7,7 @@ export default function PageCatalogueOrganisme() {
   const [admin, setAdmin] = useState(false);
   const [chargement, setChargement] = useState(true);
   const [occupe, setOccupe] = useState(false);
+  const [reprise, setReprise] = useState(false);
   const [message, setMessage] = useState("");
   const [erreur, setErreur] = useState("");
   const [codes, setCodes] = useState("");
@@ -103,6 +104,35 @@ export default function PageCatalogueOrganisme() {
     }
   }
 
+  // REPRENDRE TOUS LES PRIX, EN UN GESTE.
+  //
+  // Enregistrer trois cent dix prix un par un, personne ne le fait. Ce bouton
+  // ne touche QUE les formations sans prix : celles deja fixees sont celles de
+  // l organisme, elles ne sont pas ecrasees. Il peut donc en poser trois a la
+  // main, laisser le reste en « sur devis », et changer d avis plus tard.
+  async function reprendreTousLesPrix() {
+    setReprise(true);
+    setMessage("");
+    setErreur("");
+    try {
+      const r = await fetch("/api/organisme/catalogue" + suffixe(), {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tout_reprendre: true }),
+      });
+      const data = await r.json();
+      if (data.ok) {
+        setMessage(data.message || "Prix repris.");
+        await charger();
+      } else {
+        setErreur(data.erreur || "Reprise impossible.");
+      }
+    } catch (e: any) {
+      setErreur("Reprise impossible : " + String(e));
+    }
+    setReprise(false);
+  }
+
   async function retirer(id: string, code: string) {
     setMessage("");
     setErreur("");
@@ -179,12 +209,24 @@ export default function PageCatalogueOrganisme() {
             ses clients. */}
         {sansPrix > 0 && (
           <div style={{ ...CARTE, marginTop: "18px", background: "rgba(232,163,61,0.06)", border: "1px solid rgba(232,163,61,0.35)" }}>
-            <p style={{ color: "#e8a33d", fontSize: "14px", margin: 0, lineHeight: "1.8" }}>
+            <p style={{ color: "#e8a33d", fontSize: "14px", margin: "0 0 16px", lineHeight: "1.8" }}>
               {sansPrix} formation(s) n'ont pas encore de prix de vente enregistré. Tant qu'il ne
               l'est pas, votre page publique affiche « sur devis » à vos prospects, et le prix ne
               figure ni sur votre bon de commande ni sur vos documents. Le montant proposé
               ci-dessous est celui du catalogue AcadémIA Pro : ajustez-le à votre tarif, puis
               appuyez sur Enregistrer.
+            </p>
+
+            <button
+              onClick={reprendreTousLesPrix}
+              disabled={reprise}
+              style={{ background: reprise ? "rgba(232,163,61,0.3)" : "#e8a33d", color: reprise ? "#8a8a8a" : "#050508", padding: "13px 26px", borderRadius: "8px", border: "none", cursor: reprise ? "default" : "pointer", fontWeight: "bold", fontSize: "15px", fontFamily: "Georgia,serif" }}
+            >
+              {reprise ? "Reprise en cours…" : "Reprendre les " + sansPrix + " prix du catalogue AcadémIA Pro"}
+            </button>
+
+            <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px", margin: "12px 0 0", lineHeight: "1.7" }}>
+              Les prix que vous avez déjà enregistrés ne seront pas modifiés : ce sont les vôtres.
             </p>
           </div>
         )}
