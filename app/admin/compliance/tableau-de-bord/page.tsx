@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
+import Guide from "../../../../components/Guide";
 
 const OUTILS = [
   { titre: "Tenue", liens: [
@@ -115,11 +116,13 @@ export default function PageTableauDeBord() {
           COMPTABILITÉ
         </p>
         <h1 style={{ color: "#fff", fontSize: "29px", margin: "0 0 6px" }}>Vos dossiers</h1>
-        <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "14px", marginTop: 0 }}>
+        <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "14px", margin: "0 0 22px" }}>
           Classés du plus urgent au plus calme
         </p>
 
-        <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", margin: "22px 0 0" }}>
+        <Guide ecran="comptable.dossiers" />
+
+        <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", margin: "0 0 4px" }}>
           {RACCOURCIS.map(function (r) {
             return (
               <a
