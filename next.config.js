@@ -27,14 +27,20 @@ const nextConfig = {
   // l espace du cabinet — dossiers, chiffres, pieces, espaces clients,
   // teletransmissions — vit sous /admin/compliance : « compliance » est le
   // nom de code du dossier, « Mr. Comptable » le nom commercial.
-  //
-  // TOUT CE QUI PORTE UNE EXTENSION EST EXCLU. La regle precedente renvoyait
-  // sitemap-comptable.xml vers /comptable/sitemap-comptable.xml, qui n existe
-  // pas : d ou un 404 sur le sitemap. Les fichiers a extension — .xml, .txt,
-  // .json, .png — sont desormais servis tels quels.
   async rewrites() {
     return {
       beforeFiles: [
+        // LE SITEMAP, EN PREMIER ET NOMME EXPLICITEMENT.
+        //
+        // Il est declare AVANT les regles de marque, sur les deux domaines,
+        // et par son nom exact : aucune expression a rallonge ne peut donc
+        // l intercepter par accident. La route vit sous /api parce qu un
+        // dossier portant un point dans son nom n est pas servi par Next.js.
+        {
+          source: "/sitemap-comptable.xml",
+          destination: "/api/sitemap-comptable",
+        },
+
         {
           source: "/",
           has: [{ type: "host", value: "(www\\.)?mrcomptable\\.fr" }],
