@@ -27,7 +27,13 @@ async function envoyerEmailAttestation(email: string, nom: string, formation: st
         from: "AcadémIA Pro <certificats@academiapro.fr>",
         to: email,
         subject: "Votre attestation de fin de formation",
-        html: "<p>Bonjour " + nom + ",</p><p>Vous avez terminé la formation <strong>" + formation + "</strong>. Votre attestation de fin de formation est disponible.</p><p>Elle est consultable à tout moment sur : academiapro.fr/verifier/" + certifId + "</p><p>L'équipe AcadémIA Pro</p>",
+        // LE LIEN MENE AU DOCUMENT, PAS AU CONTROLE.
+        //
+        // Il pointait vers /verifier, la page qui dit seulement si le numero
+        // existe. Le destinataire, lui, veut son attestation : le detail de
+        // son parcours, ses notes, la mention de portee — tout cela est sur
+        // /attestation, qui fait foi.
+        html: "<p>Bonjour " + nom + ",</p><p>Vous avez terminé la formation <strong>" + formation + "</strong>. Votre attestation de fin de formation est disponible.</p><p>Vous pouvez la consulter et l'imprimer à tout moment : <a href=\"https://academiapro.fr/attestation?certif=" + encodeURIComponent(certifId) + "\">academiapro.fr/attestation</a></p><p>L'équipe AcadémIA Pro</p>",
       }),
     });
   } catch (e) {
