@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
+import Guide from "../../../../components/Guide";
 
 const OR = "#c8a96e";
 const NOIR = "#050508";
@@ -85,12 +86,14 @@ export default function PageChiffres() {
           COMPTABILITÉ
         </p>
         <h1 style={{ color: "#fff", fontSize: "29px", margin: "0 0 6px" }}>Tableau de bord</h1>
-        <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "14px", marginTop: 0 }}>
+        <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "14px", margin: "0 0 22px" }}>
           Ce qui entre, ce qui sort, ce qui reste
         </p>
 
+        <Guide ecran="comptable.chiffres" />
+
         {d && d.tous && d.tous.length > 1 && (
-          <div style={{ ...CARTE, marginTop: "24px" }}>
+          <div style={CARTE}>
             <p style={{ color: OR, fontSize: "13px", margin: "0 0 8px" }}>Dossier</p>
             <select value={dossier} onChange={function (e) { setDossier(e.target.value); }} style={CHAMP}>
               <option value="">Tous les dossiers — vue d'ensemble</option>
@@ -104,11 +107,11 @@ export default function PageChiffres() {
         {erreur && <p style={{ color: ROUGE, fontSize: "15px" }}>{erreur}</p>}
 
         {chargement ? (
-          <div style={{ ...CARTE, marginTop: "24px" }}>
+          <div style={CARTE}>
             <p style={{ color: "rgba(255,255,255,0.6)", margin: 0 }}>Calcul en cours…</p>
           </div>
         ) : !chiffres ? (
-          <div style={{ ...CARTE, marginTop: "24px" }}>
+          <div style={CARTE}>
             <p style={{ color: "rgba(255,255,255,0.6)", margin: 0, fontSize: "15px" }}>
               Aucun dossier actif. Ouvrez-en un pour commencer.
             </p>
