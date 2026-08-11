@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
+import Guide from "../../../../components/Guide";
 
 export default function PagePieces() {
   const [societes, setSocietes] = useState<any[]>([]);
@@ -71,10 +72,10 @@ export default function PagePieces() {
         setFormulaire(false);
         await charger();
       } else {
-        setErreur(data.erreur || "Depot impossible.");
+        setErreur(data.erreur || "Dépôt impossible.");
       }
     } catch (e: any) {
-      setErreur("Depot impossible : " + String(e));
+      setErreur("Dépôt impossible : " + String(e));
     }
     setOccupe("");
   }
@@ -139,13 +140,13 @@ export default function PagePieces() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ id: p.id, ecriture_num: data.ecriture_num }),
         });
-        setMessage(data.message + " Piece rattachee.");
+        setMessage(data.message + " Pièce rattachée.");
         await charger();
       } else {
-        setErreur(data.erreur || "Ecriture impossible.");
+        setErreur(data.erreur || "Écriture impossible.");
       }
     } catch (e: any) {
-      setErreur("Ecriture impossible : " + String(e));
+      setErreur("Écriture impossible : " + String(e));
     }
     setOccupe("");
   }
@@ -192,14 +193,14 @@ export default function PagePieces() {
 
   function euros(n: any) {
     if (!n) return "";
-    return (Number(n) || 0).toLocaleString("fr-FR", { minimumFractionDigits: 2 }) + " EUR";
+    return (Number(n) || 0).toLocaleString("fr-FR", { minimumFractionDigits: 2 }) + " €";
   }
 
   const CHAMPS = [
-    ["nom", "Nom de la piece", "Facture OVH mars"],
+    ["nom", "Nom de la pièce", "Facture OVH mars"],
     ["fournisseur", "Fournisseur", "OVH"],
     ["montant_ttc", "Montant TTC", "22,90"],
-    ["reference", "Reference", "FR78399269"],
+    ["reference", "Référence", "FR78399269"],
   ];
 
   return (
@@ -210,14 +211,16 @@ export default function PagePieces() {
         </a>
 
         <p style={{ color: "#c8a96e", fontSize: "12px", letterSpacing: "3px", margin: "22px 0 8px" }}>
-          COMPTABILITE
+          COMPTABILITÉ
         </p>
-        <h1 style={{ color: "#fff", fontSize: "29px", margin: "0 0 6px" }}>Pieces justificatives</h1>
-        <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "14px", marginTop: 0 }}>
-          Deposez la facture, elle se lit et se comptabilise
+        <h1 style={{ color: "#fff", fontSize: "29px", margin: "0 0 6px" }}>Pièces justificatives</h1>
+        <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "14px", margin: "0 0 22px" }}>
+          Déposez la facture, elle se lit et se comptabilise
         </p>
 
-        <div style={{ ...CARTE, marginTop: "24px" }}>
+        <Guide ecran="comptable.pieces" />
+
+        <div style={CARTE}>
           <span style={LIBELLE}>Dossier</span>
           <select value={dossier} onChange={(e) => setDossier(e.target.value)} style={{ ...CHAMP, marginBottom: 0 }}>
             <option value="">— choisir un dossier —</option>
@@ -233,13 +236,13 @@ export default function PagePieces() {
         {dossier && d && (
           <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "16px" }}>
             <button onClick={() => setVue("pieces")} style={{ ...BOUTON, background: vue === "pieces" ? "#c8a96e" : "none", color: vue === "pieces" ? "#050508" : "#c8a96e", border: vue === "pieces" ? "none" : BOUTON.border, fontWeight: "bold", padding: "10px 18px" }}>
-              Pieces · {d.total}
+              Pièces · {d.total}
             </button>
             <button onClick={() => setVue("manquantes")} style={{ ...BOUTON, background: vue === "manquantes" ? "#c8a96e" : "none", color: vue === "manquantes" ? "#050508" : "#c8a96e", border: vue === "manquantes" ? "none" : BOUTON.border, fontWeight: "bold", padding: "10px 18px" }}>
-              A justifier · {d.sans_piece}
+              À justifier · {d.sans_piece}
             </button>
             <button onClick={() => setFormulaire(!formulaire)} style={{ ...BOUTON, padding: "10px 18px" }}>
-              {formulaire ? "Annuler" : "Deposer une piece"}
+              {formulaire ? "Annuler" : "Déposer une pièce"}
             </button>
           </div>
         )}
@@ -273,18 +276,18 @@ export default function PagePieces() {
             </div>
 
             <button onClick={deposer} disabled={occupe !== "" || !fichier} style={{ ...PLEIN, padding: "14px 28px", borderRadius: "8px", fontSize: "15px", width: "100%" }}>
-              {occupe === "depot" ? "Depot en cours..." : "Deposer la piece"}
+              {occupe === "depot" ? "Dépôt en cours…" : "Déposer la pièce"}
             </button>
           </div>
         )}
 
         {chargement ? (
-          <div style={CARTE}><p style={{ color: "rgba(255,255,255,0.6)", margin: 0 }}>Lecture...</p></div>
+          <div style={CARTE}><p style={{ color: "rgba(255,255,255,0.6)", margin: 0 }}>Lecture…</p></div>
         ) : !d ? null : vue === "manquantes" ? (
           d.ecritures_sans_piece.length === 0 ? (
             <div style={{ ...CARTE, border: "1px solid rgba(76,175,80,0.45)" }}>
               <p style={{ color: "#4caf50", margin: 0, fontSize: "15px", lineHeight: "1.8" }}>
-                Toutes les ecritures ont leur piece.
+                Toutes les écritures ont leur pièce.
               </p>
             </div>
           ) : (
@@ -307,7 +310,7 @@ export default function PagePieces() {
                       defaultValue=""
                       style={{ ...CHAMP, marginTop: "12px", marginBottom: 0 }}
                     >
-                      <option value="">— rattacher une piece deposee —</option>
+                      <option value="">— rattacher une pièce déposée —</option>
                       {d.pieces.filter(function (p: any) { return !p.ecriture_num; }).map(function (p: any) {
                         return <option key={p.id} value={p.id}>{p.nom}{p.montant_ttc ? " · " + euros(p.montant_ttc) : ""}</option>;
                       })}
@@ -320,7 +323,7 @@ export default function PagePieces() {
         ) : d.pieces.length === 0 ? (
           <div style={CARTE}>
             <p style={{ color: "rgba(255,255,255,0.6)", margin: 0, fontSize: "15px" }}>
-              Aucune piece deposee sur ce dossier.
+              Aucune pièce déposée sur ce dossier.
             </p>
           </div>
         ) : (
@@ -337,7 +340,7 @@ export default function PagePieces() {
                     </p>
                     <h3 style={{ color: "#fff", fontSize: "15.5px", margin: "0 0 4px" }}>{p.nom}</h3>
                     <p style={{ color: p.ecriture_num ? "#4caf50" : "#e8a33d", fontSize: "13px", margin: 0 }}>
-                      {p.ecriture_num ? "Rattachee a " + p.ecriture_num : "Non rattachee"}
+                      {p.ecriture_num ? "Rattachée à " + p.ecriture_num : "Non rattachée"}
                     </p>
                   </div>
                   <span style={{ color: "rgba(255,255,255,0.7)", fontSize: "15px" }}>{euros(p.montant_ttc)}</span>
@@ -357,12 +360,12 @@ export default function PagePieces() {
                     </p>
                     <p style={{ color: l.coherent ? "#4caf50" : "#e8a33d", fontSize: "13px", margin: "0 0 10px", lineHeight: "1.7" }}>
                       {l.coherent
-                        ? "Compte propose : " + l.proposition.compte + " — " + l.proposition.origine
-                        : "Les montants ne tombent pas juste : verifiez avant de saisir."}
+                        ? "Compte proposé : " + l.proposition.compte + " — " + l.proposition.origine
+                        : "Les montants ne tombent pas juste : vérifiez avant de saisir."}
                     </p>
                     {!p.ecriture_num && (
                       <button onClick={() => comptabiliser(p)} disabled={occupe !== ""} style={PLEIN}>
-                        {occupe === "ecr-" + p.id ? "..." : "Comptabiliser"}
+                        {occupe === "ecr-" + p.id ? "…" : "Comptabiliser"}
                       </button>
                     )}
                   </div>
@@ -370,16 +373,16 @@ export default function PagePieces() {
 
                 <div style={{ display: "flex", gap: "8px", marginTop: "12px", flexWrap: "wrap" }}>
                   <button onClick={() => ouvrir(p.id)} disabled={occupe !== ""} style={PLEIN}>
-                    {occupe === "o-" + p.id ? "..." : "Ouvrir"}
+                    {occupe === "o-" + p.id ? "…" : "Ouvrir"}
                   </button>
                   {!p.ecriture_num && (
                     <button onClick={() => lire(p)} disabled={occupe !== ""} style={BOUTON}>
-                      {occupe === "lire-" + p.id ? "Lecture..." : "Lire la facture"}
+                      {occupe === "lire-" + p.id ? "Lecture…" : "Lire la facture"}
                     </button>
                   )}
                   {p.ecriture_num && (
                     <button onClick={() => rattacher(p.id, "")} disabled={occupe !== ""} style={BOUTON}>
-                      Detacher
+                      Détacher
                     </button>
                   )}
                 </div>
