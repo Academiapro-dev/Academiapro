@@ -137,6 +137,16 @@ const GUIDES: any = {
   "Ateliers": "business et management",
 };
 
+// UN CHAPITRE, UN MODULE : LE SINGULIER.
+//
+// La fiche ecrivait « 1 chapitres · 4 modules » sur les formations courtes.
+// Detail minuscule, mais il se lit sur la page de vente, juste au-dessus du
+// prix — et c est exactement la que le visiteur juge du soin apporte.
+function accorder(nombre: number, mot: string): string {
+  if (nombre > 1) return mot;
+  return mot.replace(/s$/, "");
+}
+
 function heuresDe(duree: any): number {
   const m = String(duree || "").replace(",", ".").match(/[\d.]+/);
   if (!m) return 0;
@@ -306,8 +316,8 @@ export default function FormationPage({ params }: { params: { id: string } }) {
 
   const ligneTotal = (heures > 0 || nbChapitres > 0) ? (
     <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "13px", marginTop: 0, marginBottom: "18px" }}>
-      {nbChapitres > 0 ? nbChapitres + " " + txt.chapitresMot + " · " : ""}
-      {nbModules} {txt.modulesMot}
+      {nbChapitres > 0 ? nbChapitres + " " + accorder(nbChapitres, txt.chapitresMot) + " · " : ""}
+      {nbModules} {accorder(nbModules, txt.modulesMot)}
       {heures > 0 ? " · " + heures + " " + txt.heuresTotal : ""}
     </p>
   ) : null;
@@ -374,7 +384,7 @@ export default function FormationPage({ params }: { params: { id: string } }) {
 
         <div style={{ display: "flex", gap: "12px", justifyContent: "center", flexWrap: "wrap" }}>
           {heures > 0 && <span style={{ background: "rgba(200,169,110,0.2)", color: "#c8a96e", padding: "6px 16px", borderRadius: "20px", fontSize: "14px" }}>{heures} h</span>}
-          {nbModules > 0 && <span style={{ background: "rgba(200,169,110,0.2)", color: "#c8a96e", padding: "6px 16px", borderRadius: "20px", fontSize: "14px" }}>{nbModules} {txt.modulesMot}</span>}
+          {nbModules > 0 && <span style={{ background: "rgba(200,169,110,0.2)", color: "#c8a96e", padding: "6px 16px", borderRadius: "20px", fontSize: "14px" }}>{nbModules} {accorder(nbModules, txt.modulesMot)}</span>}
           {formation.niveau && <span style={{ background: "rgba(200,169,110,0.2)", color: "#c8a96e", padding: "6px 16px", borderRadius: "20px", fontSize: "14px" }}>{txt.niveau} {formation.niveau}</span>}
           {prixBase > 0 && <span style={{ background: "#c8a96e", color: "#050508", padding: "6px 18px", borderRadius: "20px", fontWeight: "bold", fontSize: "14px" }}>{prixFormule.toLocaleString("fr-FR")}€</span>}
         </div>
