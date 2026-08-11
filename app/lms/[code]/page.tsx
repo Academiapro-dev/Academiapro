@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
+import Guide from "../../../components/Guide";
 
 const CARACTERES_PAR_PAGE = 2500;
 const MOTS_MIN_SYNTHESE = 80;
@@ -415,6 +416,10 @@ export default function LMSPage({ params }) {
         </div>
 
         <div>
+          {/* L ecran que verra le plus grand nombre : chaque stagiaire de
+              chaque organisme client y passe. */}
+          <Guide ecran="lms.parcours" />
+
           <div style={{ display: "flex", gap: "10px", marginBottom: "20px" }}>
             {[{ id: "cours", label: "📖 Cours" }, { id: "qcm", label: "✅ QCM" }, { id: "chat", label: "🤖 Coach IA" }].map(o => (
               <button key={o.id} onClick={() => setOnglet(o.id)}
