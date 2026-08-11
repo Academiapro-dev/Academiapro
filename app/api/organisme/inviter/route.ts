@@ -11,6 +11,19 @@ const ADMINS = ["contact@academiapro.fr"];
 const SITE = "https://academiapro.fr";
 const JOURS_VALIDITE = 30;
 
+// LE DOMAINE D EXPEDITION.
+//
+// Tant qu il vaut academiapro.fr, le stagiaire d un client en marque blanche
+// lit le nom de son fournisseur — et peut visiter le site pour y trouver le
+// catalogue et les prix. espaces-formations.fr est neutre : il ne mene a rien
+// et ne designe personne.
+//
+// LA BASCULE TIENT EN UN MOT, mais ne se fait PAS avant que le domaine ait
+// chauffe. Un domaine neuf qui expedie d un coup part en indesirables :
+// quelques envois par jour pendant une a deux semaines d abord.
+const DOMAINE_ENVOI = "academiapro.fr";
+const EXPEDITEUR_DEFAUT = "contact@academiapro.fr";
+
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
   process.env.SUPABASE_SERVICE_ROLE_KEY || "",
@@ -32,28 +45,55 @@ function organismeDeLaDemande(req: NextRequest, session: any): string | null {
   return null;
 }
 
-// LE STAGIAIRE A PAYE SON ORGANISME, PAS NOUS.
+// UNE ADRESSE PAR ORGANISME, SUR UN DOMAINE NEUTRE.
 //
-// L invitation partait signee « AcadeMIA Pro », et le corps du message
-// nommait la plateforme : le stagiaire d un client en marque blanche
-// decouvrait le fournisseur de son prestataire. Le nom affiche est desormais
-// celui de l organisme.
-//
-// L ADRESSE, ELLE, RESTE LA NOTRE. Resend n expedie que depuis un domaine
-// verifie : afficher l adresse de l organisme supposerait de faire verifier
-// son domaine, un a un. Le nom suffit a ce que le stagiaire reconnaisse son
-// interlocuteur ; l adresse ne se lit qu en depliant l en-tete.
-function expediteur(nomOrganisme: string): string {
+// Le slug de l organisme sert de partie locale : il est deja normalise et
+// unique en base, contrairement a la raison sociale. Sans slug, on retombe
+// sur l adresse de la maison.
+function adresseEnvoi(slug: string | null): string {
+  if (DOMAINE_ENVOI === "academiapro.fr") return EXPEDITEUR_DEFAUT;
+
+  const propre = String(slug || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40);
+
+  if (!propre) return "formation@" + DOMAINE_ENVOI;
+  return propre + "@" + DOMAINE_ENVOI;
+}
+
+// Le nom affiche est celui de l organisme : c est lui que le stagiaire a paye.
+function expediteur(nomOrganisme: string, slug: string | null): string {
   const propre = String(nomOrganisme || "")
     .replace(/["<>]/g, "")
     .trim()
     .slice(0, 60);
-  return (propre || "Votre organisme de formation") + " <contact@academiapro.fr>";
+  return (propre || "Votre organisme de formation") + " <" + adresseEnvoi(slug) + ">";
 }
 
-async function envoyerEmail(destinataire: string, sujet: string, html: string, de: string) {
+async function envoyerEmail(
+  destinataire: string,
+  sujet: string,
+  html: string,
+  de: string,
+  repondreA: string | null
+) {
   const cle = process.env.RESEND_API_KEY || "";
   if (!cle) return { ok: false, erreur: "RESEND_API_KEY absente" };
+
+  const corps: any = {
+    from: de,
+    to: [destinataire],
+    subject: sujet,
+    html: html,
+  };
+
+  // LE STAGIAIRE REPONDRA. Sans cette ligne, sa reponse part vers une adresse
+  // qui ne recoit rien, et personne ne le sait — ni lui, ni son organisme.
+  if (repondreA) corps.reply_to = repondreA;
 
   const r = await fetch("https://api.resend.com/emails", {
     method: "POST",
@@ -61,12 +101,7 @@ async function envoyerEmail(destinataire: string, sujet: string, html: string, d
       Authorization: "Bearer " + cle,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      from: de,
-      to: [destinataire],
-      subject: sujet,
-      html: html,
-    }),
+    body: JSON.stringify(corps),
   });
 
   if (!r.ok) {
@@ -123,15 +158,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Nom de l organisme, pour que le stagiaire reconnaisse l expediteur.
+    // Nom, slug et adresse de contact de l organisme : le premier pour que le
+    // stagiaire reconnaisse l expediteur, le deuxieme pour fabriquer l adresse
+    // d envoi, le troisieme pour qu une reponse arrive quelque part.
     const { data: fiche } = await supabase
       .from("organismes_formation")
-      .select("raison_sociale")
+      .select("raison_sociale, slug, email_contact")
       .eq("tenant_id", tenant)
       .maybeSingle();
 
     const nomOrganisme = (fiche && fiche.raison_sociale) || "votre organisme de formation";
-    const de = expediteur(fiche && fiche.raison_sociale ? fiche.raison_sociale : "");
+    const de = expediteur(fiche && fiche.raison_sociale ? fiche.raison_sociale : "", fiche ? fiche.slug : null);
+    const repondreA = fiche && fiche.email_contact ? String(fiche.email_contact).trim() : null;
 
     // Le titre de la formation, pour ne pas ecrire un code a un stagiaire qui
     // ne le connait pas : il a achete « Sophrologie Professionnelle », pas F030.
@@ -202,7 +240,8 @@ export async function POST(req: NextRequest) {
         cible.email,
         "Votre accès à la formation" + (laFormation ? " " + laFormation : ""),
         html,
-        de
+        de,
+        repondreA
       );
 
       if (!envoi.ok) {
