@@ -5,8 +5,17 @@ import NavBar from "../components/NavBar";
 import CookieBanner from "../components/CookieBanner";
 
 export const metadata: Metadata = {
+  // SANS metadataBase, AUCUNE CANONIQUE NE PEUT SE RESOUDRE.
+  //
+  // Google signalait seize pages « en double sans URL canonique
+  // selectionnee » : le site n en emettait aucune. Cette base permet aux
+  // pages de declarer la leur en chemin relatif.
+  metadataBase: new URL("https://academiapro.fr"),
+  // La canonique de l accueil. Chaque page qui doit etre indexee declare la
+  // sienne ; sans quoi elle herite de celle-ci, ce qui serait pire que rien.
+  alternates: { canonical: "/" },
   title: "AcadémIA Pro — Formation Professionnelle par l IA",
-  description: "266 formations professionnelles avec certificat AcadémIA Pro · Agent IA tuteur 24h/24 · Séances d'accompagnement · Classes virtuelles live",
+  description: "331 formations professionnelles avec attestation AcadémIA Pro · Agent IA tuteur 24h/24 · Séances d'accompagnement · Classes virtuelles live",
   manifest: "/manifest.json",
   appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "AcadémIA Pro" },
   openGraph: { title: "AcadémIA Pro", description: "Plateforme de formation professionnelle 100% IA", type: "website", locale: "fr_FR" },
@@ -31,7 +40,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             "name": "Acad\u00e9mIA Pro",
             "url": "https://academiapro.fr",
             "logo": "https://academiapro.fr/icon-192.png",
-            "description": "Plateforme de formation professionnelle propuls\u00e9e par l'IA \u2014 266 formations avec certificat Acad\u00e9mIA Pro.",
+            "description": "Plateforme de formation professionnelle propuls\u00e9e par l'IA \u2014 331 formations avec attestation de fin de formation.",
             "sameAs": ["https://www.linkedin.com/company/academiapro-fr"]
           }) }}
         />
