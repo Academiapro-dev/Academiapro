@@ -12,14 +12,15 @@ import { useState, useEffect } from "react";
 //
 // IL NE COUTE RIEN S IL ECHOUE. Une aide qui empeche d utiliser le logiciel
 // parce que sa requete a echoue serait pire que pas d aide du tout : en cas
-// d erreur, il ne s affiche simplement pas.
+// d erreur, elle se tait.
 //
 // Usage : <Guide ecran="comptable.pieces" />
 
 export default function Guide({ ecran, couleur }: { ecran: string; couleur?: string }) {
   const [guide, setGuide] = useState<any>(null);
   const [ouvert, setOuvert] = useState(false);
-  const [ferme, setFerme] = useState(false);
+  const [confirme, setConfirme] = useState(false);
+  const [lu, setLu] = useState(false);
 
   const teinte = couleur || "#c8a96e";
 
@@ -35,6 +36,7 @@ export default function Guide({ ecran, couleur }: { ecran: string; couleur?: str
         if (!vivant) return;
         if (d.ok && d.guide) {
           setGuide(d.guide);
+          setLu(Boolean(d.vu));
           setOuvert(!d.vu);
         }
       } catch (e) {
@@ -45,9 +47,15 @@ export default function Guide({ ecran, couleur }: { ecran: string; couleur?: str
     return function () { vivant = false; };
   }, [ecran]);
 
-  async function jAiCompris() {
-    setFerme(true);
-    setOuvert(false);
+  // FERMER, C EST AVOIR LU.
+  //
+  // Il y avait deux sorties pour un seul geste : le bouton enregistrait, la
+  // croix non. Celui qui fermait d un geste rapide retrouvait le guide
+  // ouvert a chaque visite et croyait le logiciel casse. Les deux sorties
+  // enregistrent desormais.
+  async function marquerLu() {
+    if (lu) return;
+    setLu(true);
     try {
       await fetch("/api/guide", {
         method: "POST",
@@ -57,6 +65,20 @@ export default function Guide({ ecran, couleur }: { ecran: string; couleur?: str
     } catch (e) {}
   }
 
+  function fermerParLaCroix() {
+    setOuvert(false);
+    marquerLu();
+  }
+
+  // La confirmation s affichait dans le meme rendu que le repli : elle etait
+  // donc invisible. Elle tient maintenant une seconde avant que le bloc se
+  // referme.
+  function jAiCompris() {
+    setConfirme(true);
+    marquerLu();
+    setTimeout(function () { setOuvert(false); }, 900);
+  }
+
   if (!guide) return null;
 
   // Une fois lu, il reste une porte discrete pour le rouvrir : personne ne
@@ -64,7 +86,7 @@ export default function Guide({ ecran, couleur }: { ecran: string; couleur?: str
   if (!ouvert) {
     return (
       <button
-        onClick={function () { setOuvert(true); }}
+        onClick={function () { setConfirme(false); setOuvert(true); }}
         style={{
           background: "none",
           border: "1px solid " + teinte + "55",
@@ -91,6 +113,10 @@ export default function Guide({ ecran, couleur }: { ecran: string; couleur?: str
         padding: "20px 24px",
         marginBottom: "22px",
         fontFamily: "Georgia, serif",
+        // Couleur explicite : le guide vit sur des ecrans sombres comme sur
+        // l espace du dirigeant, concu pour le telephone. `inherit` laissait
+        // le texte a la merci du parent.
+        color: "#f2f2f2",
       }}
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "14px" }}>
@@ -98,7 +124,7 @@ export default function Guide({ ecran, couleur }: { ecran: string; couleur?: str
           {guide.titre}
         </h2>
         <button
-          onClick={function () { setOuvert(false); }}
+          onClick={fermerParLaCroix}
           aria-label="Fermer"
           style={{
             background: "none",
@@ -115,7 +141,7 @@ export default function Guide({ ecran, couleur }: { ecran: string; couleur?: str
         </button>
       </div>
 
-      <p style={{ color: "inherit", opacity: 0.85, fontSize: "15px", lineHeight: "1.75", margin: "0 0 14px" }}>
+      <p style={{ opacity: 0.85, fontSize: "15px", lineHeight: "1.75", margin: "0 0 14px" }}>
         {guide.texte}
       </p>
 
@@ -134,19 +160,20 @@ export default function Guide({ ecran, couleur }: { ecran: string; couleur?: str
 
       <button
         onClick={jAiCompris}
+        disabled={confirme}
         style={{
-          background: teinte,
-          color: "#050508",
+          background: confirme ? teinte + "55" : teinte,
+          color: confirme ? "#f2f2f2" : "#050508",
           border: "none",
           borderRadius: "8px",
           padding: "10px 22px",
           fontSize: "14px",
           fontWeight: "bold",
           fontFamily: "Georgia, serif",
-          cursor: "pointer",
+          cursor: confirme ? "default" : "pointer",
         }}
       >
-        {ferme ? "Enregistré" : "J'ai compris"}
+        {confirme ? "Enregistré" : "J'ai compris"}
       </button>
     </div>
   );
