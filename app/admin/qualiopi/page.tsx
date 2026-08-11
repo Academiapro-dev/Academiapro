@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Guide from "../../../components/Guide";
 
 const VERDICTS: Record<string, { label: string; couleur: string }> = {
   non_commence: { label: "Non commencé", couleur: "#999999" },
@@ -176,6 +177,12 @@ export default function GrilleQualiopi() {
         >
           Préparation Qualiopi
         </h1>
+
+        {/* Cet ecran est le seul sur fond clair : le guide prend le vert de
+            Mr. Qualiopi, et non l or des ecrans sombres. */}
+        <div style={{ marginTop: 20 }}>
+          <Guide ecran="qualiopi.grille" couleur="#0a3d2e" />
+        </div>
 
         {chargement && <p>Chargement…</p>}
 
