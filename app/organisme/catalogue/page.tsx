@@ -70,7 +70,7 @@ export default function PageCatalogueOrganisme() {
       });
       const data = await r.json();
       if (data.ok) {
-        setMessage(data.ouvertes + " formation(s) ouverte(s) a cet organisme.");
+        setMessage(data.ouvertes + " formation(s) ouverte(s) à cet organisme.");
         setCodes("");
         await charger();
       } else {
@@ -93,7 +93,7 @@ export default function PageCatalogueOrganisme() {
       });
       const data = await r.json();
       if (data.ok) {
-        setMessage("Prix enregistre.");
+        setMessage("Prix enregistré.");
         await charger();
       } else {
         setErreur(data.erreur || "Enregistrement impossible.");
@@ -111,7 +111,7 @@ export default function PageCatalogueOrganisme() {
       const r = await fetch("/api/organisme/catalogue" + sep + "id=" + id, { method: "DELETE" });
       const data = await r.json();
       if (data.ok) {
-        setMessage(code + " retiree du catalogue de cet organisme.");
+        setMessage(code + " retirée du catalogue de cet organisme.");
         await charger();
       } else {
         setErreur(data.erreur || "Suppression impossible.");
@@ -169,16 +169,22 @@ export default function PageCatalogueOrganisme() {
         <h1 style={{ color: "#fff", fontSize: "30px", margin: "0 0 6px" }}>Mon catalogue</h1>
         <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "14px", marginTop: 0 }}>
           {formations.length} formation(s) · {totalStagiaires} stagiaire(s) inscrit(s)
-          {sansPrix > 0 ? " · " + sansPrix + " sans prix enregistre" : ""}
+          {sansPrix > 0 ? " · " + sansPrix + " sans prix enregistré" : ""}
         </p>
 
+        {/* CE QUE COUTE UN PRIX NON ENREGISTRE.
+            L organisme ne voyait pas la consequence : sa page publique affiche
+            « sur devis » a ses propres prospects, silencieusement. Le prix de
+            l editeur n y est jamais montre — ce serait exposer nos tarifs a
+            ses clients. */}
         {sansPrix > 0 && (
           <div style={{ ...CARTE, marginTop: "18px", background: "rgba(232,163,61,0.06)", border: "1px solid rgba(232,163,61,0.35)" }}>
             <p style={{ color: "#e8a33d", fontSize: "14px", margin: 0, lineHeight: "1.8" }}>
-              {sansPrix} formation(s) affichent le prix public de l editeur mais n ont pas encore
-              de prix enregistre. Le prix propose est modifiable : ajustez-le si vous le souhaitez,
-              puis appuyez sur Enregistrer. Tant qu il n est pas enregistre, il ne figure ni sur
-              votre bon de commande ni sur vos documents.
+              {sansPrix} formation(s) n'ont pas encore de prix de vente enregistré. Tant qu'il ne
+              l'est pas, votre page publique affiche « sur devis » à vos prospects, et le prix ne
+              figure ni sur votre bon de commande ni sur vos documents. Le montant proposé
+              ci-dessous est celui du catalogue AcadémIA Pro : ajustez-le à votre tarif, puis
+              appuyez sur Enregistrer.
             </p>
           </div>
         )}
@@ -187,7 +193,7 @@ export default function PageCatalogueOrganisme() {
           <div style={{ ...CARTE, marginTop: "26px", border: "1px solid rgba(200,169,110,0.5)" }}>
             <h2 style={{ color: "#c8a96e", fontSize: "18px", margin: "0 0 8px" }}>Ouvrir des formations</h2>
             <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "14px", marginTop: 0, lineHeight: "1.6" }}>
-              Reserve a l editeur. {disponibles.length} formation(s) encore fermee(s) a cet organisme.
+              Réservé à l'éditeur. {disponibles.length} formation(s) encore fermée(s) à cet organisme.
             </p>
 
             <input
@@ -203,7 +209,7 @@ export default function PageCatalogueOrganisme() {
                 disabled={occupe || !codes.trim()}
                 style={{ background: occupe || !codes.trim() ? "rgba(200,169,110,0.3)" : "#c8a96e", color: occupe || !codes.trim() ? "#8a8a8a" : "#050508", padding: "12px 24px", borderRadius: "8px", border: "none", cursor: occupe || !codes.trim() ? "default" : "pointer", fontWeight: "bold", fontSize: "15px", fontFamily: "Georgia,serif" }}
               >
-                {occupe ? "..." : "Ouvrir ces codes"}
+                {occupe ? "…" : "Ouvrir ces codes"}
               </button>
 
               <button
@@ -222,7 +228,7 @@ export default function PageCatalogueOrganisme() {
 
         {chargement ? (
           <div style={CARTE}>
-            <p style={{ color: "rgba(255,255,255,0.6)", margin: 0 }}>Chargement...</p>
+            <p style={{ color: "rgba(255,255,255,0.6)", margin: 0 }}>Chargement…</p>
           </div>
         ) : formations.length === 0 ? (
           <div style={CARTE}>
@@ -244,8 +250,8 @@ export default function PageCatalogueOrganisme() {
 
                     {f.prix_academia ? (
                       <p style={{ color: "#c8a96e", fontSize: "16px", margin: "0 0 3px" }}>
-                        Prix public AcadeMIA :{" "}
-                        <strong>{Number(f.prix_academia).toLocaleString("fr-FR")} EUR</strong>
+                        Prix public AcadémIA :{" "}
+                        <strong>{Number(f.prix_academia).toLocaleString("fr-FR")} €</strong>
                       </p>
                     ) : null}
 
@@ -271,7 +277,7 @@ export default function PageCatalogueOrganisme() {
                     style={{ ...CHAMP, border: enregistre ? "1px solid rgba(200,169,110,0.35)" : "1px solid rgba(232,163,61,0.55)" }}
                   />
 
-                  <span style={{ color: "rgba(255,255,255,0.4)", fontSize: "14px" }}>EUR</span>
+                  <span style={{ color: "rgba(255,255,255,0.4)", fontSize: "14px" }}>€</span>
 
                   <button
                     onClick={() => enregistrerPrix(f.id)}
@@ -282,7 +288,7 @@ export default function PageCatalogueOrganisme() {
 
                   {!enregistre && (
                     <span style={{ color: "#e8a33d", fontSize: "13px" }}>
-                      prix propose, a enregistrer
+                      prix proposé, à enregistrer
                     </span>
                   )}
 
