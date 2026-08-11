@@ -4,16 +4,16 @@ import Guide from "../../../components/Guide";
 
 const ETAPES = [
   { cle: "prospect", nom: "Prospects", couleur: "rgba(255,255,255,0.55)" },
-  { cle: "contacte", nom: "Contactes", couleur: "#e8a33d" },
-  { cle: "interesse", nom: "Interesses", couleur: "#c8a96e" },
+  { cle: "contacte", nom: "Contactés", couleur: "#e8a33d" },
+  { cle: "interesse", nom: "Intéressés", couleur: "#c8a96e" },
   { cle: "client", nom: "Clients", couleur: "#4caf50" },
   { cle: "perdu", nom: "Perdus", couleur: "rgba(255,255,255,0.35)" },
 ];
 
 const LIBELLE_STATUT: any = {
   prospect: "Prospect",
-  contacte: "Contacte",
-  interesse: "Interesse",
+  contacte: "Contacté",
+  interesse: "Intéressé",
   client: "Client",
   perdu: "Perdu",
 };
@@ -103,7 +103,7 @@ export default function PageCRM() {
         },
       });
       if (data.succes) {
-        setMessage("Prospect enregistre, score " + data.score + " sur 100.");
+        setMessage("Prospect enregistré, score " + data.score + " sur 100.");
         setNom(""); setEmail(""); setTelephone(""); setFormation(""); setNotes("");
         setFormulaire(false);
         await charger();
@@ -158,7 +158,7 @@ export default function PageCRM() {
         data: { email: p.email, nom: p.nom, statut: statut },
       });
       if (data.succes) {
-        setMessage("Etape mise a jour.");
+        setMessage("Étape mise à jour.");
         await charger();
       } else {
         setErreur(data.erreur || "Modification impossible.");
@@ -223,10 +223,10 @@ export default function PageCRM() {
       if (data.email_relance) {
         setOuvert({ ...ouvert, [mail]: { type: "relance", texte: data.email_relance } });
       } else {
-        setErreur(data.erreur || "Redaction impossible.");
+        setErreur(data.erreur || "Rédaction impossible.");
       }
     } catch (e: any) {
-      setErreur("Redaction impossible : " + String(e));
+      setErreur("Rédaction impossible : " + String(e));
     }
     setOccupe("");
   }
@@ -267,9 +267,9 @@ export default function PageCRM() {
       const r = await fetch("/api/organisme/relancer-prospects" + suffixe("?"));
       const data = await r.json();
       if (data.ok) setCampagne(data);
-      else setErreur(data.erreur || "Apercu impossible.");
+      else setErreur(data.erreur || "Aperçu impossible.");
     } catch (e: any) {
-      setErreur("Apercu impossible : " + String(e));
+      setErreur("Aperçu impossible : " + String(e));
     }
     setOccupe("");
   }
@@ -439,36 +439,36 @@ export default function PageCRM() {
             onClick={() => { setImportOuvert(!importOuvert); setFormulaire(false); setCampagne(null); }}
             style={{ ...BOUTON, padding: "10px 20px" }}
           >
-            {importOuvert ? "Fermer l import" : "Importer une liste"}
+            {importOuvert ? "Fermer l'import" : "Importer une liste"}
           </button>
           <button
             onClick={() => { if (campagne) setCampagne(null); else preparerCampagne(); }}
             disabled={occupe !== ""}
             style={{ ...BOUTON, padding: "10px 20px" }}
           >
-            {occupe === "campagne" ? "Preparation..." : campagne ? "Fermer la campagne" : "Relancer mes prospects"}
+            {occupe === "campagne" ? "Préparation…" : campagne ? "Fermer la campagne" : "Relancer mes prospects"}
           </button>
         </div>
 
         {campagne && (
           <div style={{ ...CARTE, border: "1px solid rgba(200,169,110,0.5)" }}>
             <h2 style={{ color: "#c8a96e", fontSize: "19px", margin: "0 0 10px" }}>
-              {campagne.nombre} prospect(s) seront relance(s)
+              {campagne.nombre} prospect(s) seront relancé(s)
             </h2>
 
             {campagne.nombre === 0 ? (
               <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "15px", lineHeight: "1.75", margin: 0 }}>
-                Personne a relancer aujourd hui. Sont ecartes : ceux qui se sont desinscrits,
-                ceux qui sont deja clients ou perdus, ceux qui n ont jamais pris contact
-                d eux-memes, et ceux qui ont recu un message il y a moins de{" "}
+                Personne à relancer aujourd'hui. Sont écartés : ceux qui se sont désinscrits,
+                ceux qui sont déjà clients ou perdus, ceux qui n'ont jamais pris contact
+                d'eux-mêmes, et ceux qui ont reçu un message il y a moins de{" "}
                 {campagne.repos_jours} jours.
               </p>
             ) : (
               <>
                 <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "14px", lineHeight: "1.75", marginTop: 0 }}>
-                  Seuls les prospects venus d eux-memes sont relances : formulaire, webinaire,
-                  chat ou recommandation. Chaque message porte un lien de desinscription, et
-                  personne ne recoit deux messages en moins de {campagne.repos_jours} jours.
+                  Seuls les prospects venus d'eux-mêmes sont relancés : formulaire, webinaire,
+                  chat ou recommandation. Chaque message porte un lien de désinscription, et
+                  personne ne reçoit deux messages en moins de {campagne.repos_jours} jours.
                 </p>
 
                 <div style={{ maxHeight: "240px", overflowY: "auto", margin: "14px 0", paddingRight: "6px" }}>
@@ -479,7 +479,7 @@ export default function PageCRM() {
                           {c.nom || c.email}
                           <span style={{ color: "rgba(255,255,255,0.35)" }}>
                             {" · " + c.source}{c.formation ? " · " + c.formation : ""}
-                            {c.relances > 0 ? " · deja relance " + c.relances + " fois" : ""}
+                            {c.relances > 0 ? " · déjà relancé " + c.relances + " fois" : ""}
                           </span>
                         </span>
                         <span style={{ color: couleurScore(c.score || 0), fontSize: "13.5px", fontWeight: "bold" }}>
@@ -496,7 +496,7 @@ export default function PageCRM() {
                   style={{ background: occupe === "campagne-envoi" ? "rgba(200,169,110,0.3)" : "#c8a96e", color: occupe === "campagne-envoi" ? "#8a8a8a" : "#050508", padding: "14px 28px", borderRadius: "8px", border: "none", cursor: "pointer", fontWeight: "bold", fontSize: "15px", fontFamily: "Georgia,serif", width: "100%" }}
                 >
                   {occupe === "campagne-envoi"
-                    ? "Envoi en cours..."
+                    ? "Envoi en cours…"
                     : "Envoyer les " + campagne.nombre + " relances"}
                 </button>
               </>
@@ -512,22 +512,22 @@ export default function PageCRM() {
                 <input value={nom} onChange={(e) => setNom(e.target.value)} style={CHAMP} />
               </div>
               <div style={{ flex: "1 1 200px" }}>
-                <span style={LIBELLE}>Email</span>
+                <span style={LIBELLE}>Adresse électronique</span>
                 <input value={email} onChange={(e) => setEmail(e.target.value)} style={CHAMP} />
               </div>
             </div>
 
             <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
               <div style={{ flex: "1 1 160px" }}>
-                <span style={LIBELLE}>Telephone</span>
+                <span style={LIBELLE}>Téléphone</span>
                 <input value={telephone} onChange={(e) => setTelephone(e.target.value)} style={CHAMP} />
               </div>
               <div style={{ flex: "1 1 160px" }}>
-                <span style={LIBELLE}>Formation qui l interesse</span>
+                <span style={LIBELLE}>Formation qui l'intéresse</span>
                 <input value={formation} onChange={(e) => setFormation(e.target.value)} placeholder="F028" style={CHAMP} />
               </div>
               <div style={{ flex: "1 1 160px" }}>
-                <span style={LIBELLE}>Comment il vous a trouve</span>
+                <span style={LIBELLE}>Comment il vous a trouvé</span>
                 <select value={source} onChange={(e) => setSource(e.target.value)} style={CHAMP}>
                   <option value="formulaire">Formulaire</option>
                   <option value="webinaire">Webinaire</option>
@@ -546,12 +546,12 @@ export default function PageCRM() {
               disabled={occupe === "ajout"}
               style={{ background: occupe === "ajout" ? "rgba(200,169,110,0.3)" : "#c8a96e", color: occupe === "ajout" ? "#8a8a8a" : "#050508", padding: "13px 26px", borderRadius: "8px", border: "none", cursor: "pointer", fontWeight: "bold", fontSize: "15px", fontFamily: "Georgia,serif", width: "100%" }}
             >
-              {occupe === "ajout" ? "Enregistrement..." : "Enregistrer"}
+              {occupe === "ajout" ? "Enregistrement…" : "Enregistrer"}
             </button>
 
             <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px", margin: "12px 0 0", lineHeight: "1.6" }}>
-              Le score se calcule tout seul : email, telephone, formation visee, origine.
-              Plus la fiche est complete, plus le prospect est joignable.
+              Le score se calcule tout seul : adresse, téléphone, formation visée, origine.
+              Plus la fiche est complète, plus le prospect est joignable.
             </p>
           </div>
         )}
@@ -563,8 +563,8 @@ export default function PageCRM() {
               email ; nom ; telephone ; formation ; origine ; notes
             </p>
             <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "13px", margin: "0 0 14px", lineHeight: "1.7" }}>
-              Seule la premiere colonne est obligatoire. Point-virgule, virgule ou tabulation :
-              les trois fonctionnent, et une ligne d en-tete est ignoree.
+              Seule la première colonne est obligatoire. Point-virgule, virgule ou tabulation :
+              les trois fonctionnent, et une ligne d'en-tête est ignorée.
             </p>
 
             <textarea
@@ -580,13 +580,13 @@ export default function PageCRM() {
               disabled={occupe === "import" || contenu.trim().length < 6}
               style={{ background: occupe === "import" || contenu.trim().length < 6 ? "rgba(200,169,110,0.3)" : "#c8a96e", color: occupe === "import" || contenu.trim().length < 6 ? "#8a8a8a" : "#050508", padding: "13px 26px", borderRadius: "8px", border: "none", cursor: "pointer", fontWeight: "bold", fontSize: "15px", fontFamily: "Georgia,serif", width: "100%" }}
             >
-              {occupe === "import" ? "Import en cours..." : "Importer"}
+              {occupe === "import" ? "Import en cours…" : "Importer"}
             </button>
 
             <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px", margin: "12px 0 0", lineHeight: "1.7" }}>
-              Un prospect deja connu est mis a jour, sans que son etape ni ses notes soient
-              effacees. Une liste importee n entre pas dans les relances en nombre : ces
-              personnes ne vous ont pas contacte d elles-memes.
+              Un prospect déjà connu est mis à jour, sans que son étape ni ses notes soient
+              effacées. Une liste importée n'entre pas dans les relances en nombre : ces
+              personnes ne vous ont pas contacté d'elles-mêmes.
             </p>
           </div>
         )}
@@ -597,7 +597,7 @@ export default function PageCRM() {
         {rejets.length > 0 && (
           <div style={CARTE}>
             <h2 style={{ color: "#e8a33d", fontSize: "16px", margin: "0 0 12px" }}>
-              {rejets.length} ligne(s) ecartee(s)
+              {rejets.length} ligne(s) écartée(s)
             </h2>
             {rejets.map(function (r: any, i: number) {
               return (
@@ -615,12 +615,12 @@ export default function PageCRM() {
 
         {chargement ? (
           <div style={CARTE}>
-            <p style={{ color: "rgba(255,255,255,0.6)", margin: 0 }}>Chargement...</p>
+            <p style={{ color: "rgba(255,255,255,0.6)", margin: 0 }}>Chargement…</p>
           </div>
         ) : affiches.length === 0 ? (
           <div style={CARTE}>
             <p style={{ color: "rgba(255,255,255,0.6)", margin: 0, fontSize: "15px", lineHeight: "1.75" }}>
-              Aucun prospect {filtre ? "a cette etape" : "pour le moment"}. Les demandes venues
+              Aucun prospect {filtre ? "à cette étape" : "pour le moment"}. Les demandes venues
               de votre page publique arrivent directement ici.
             </p>
           </div>
@@ -644,12 +644,12 @@ export default function PageCRM() {
                     </p>
                     {p.desinscrit && (
                       <p style={{ color: "#e8836a", fontSize: "13px", margin: "6px 0 0" }}>
-                        Desinscrit — ne recoit plus de messages
+                        Désinscrit — ne reçoit plus de messages
                       </p>
                     )}
                     {p.relance_le && (
                       <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "12.5px", margin: "4px 0 0" }}>
-                        Relance le {new Date(p.relance_le).toLocaleDateString("fr-FR")}
+                        Relancé le {new Date(p.relance_le).toLocaleDateString("fr-FR")}
                         {p.relances ? " · " + p.relances + " au total" : ""}
                       </p>
                     )}
@@ -697,7 +697,7 @@ export default function PageCRM() {
                     disabled={occupe !== ""}
                     style={BOUTON}
                   >
-                    {occupe === "analyse-" + p.email ? "Analyse..." : "Analyser"}
+                    {occupe === "analyse-" + p.email ? "Analyse…" : "Analyser"}
                   </button>
 
                   <button
@@ -705,7 +705,7 @@ export default function PageCRM() {
                     disabled={occupe !== ""}
                     style={BOUTON}
                   >
-                    {occupe === "relance-" + p.email ? "Redaction..." : "Rediger une relance"}
+                    {occupe === "relance-" + p.email ? "Rédaction…" : "Rédiger une relance"}
                   </button>
 
                   {etape !== "client" && (
@@ -747,10 +747,10 @@ export default function PageCRM() {
                       disabled={occupe !== ""}
                       style={{ background: "#c8a96e", color: "#050508", border: "none", padding: "11px 22px", borderRadius: "8px", cursor: "pointer", fontSize: "14px", fontFamily: "Georgia,serif", fontWeight: "bold" }}
                     >
-                      {occupe === "convertir-" + p.email ? "Inscription..." : "Confirmer l inscription"}
+                      {occupe === "convertir-" + p.email ? "Inscription…" : "Confirmer l'inscription"}
                     </button>
                     <span style={{ color: "rgba(255,255,255,0.4)", fontSize: "12.5px" }}>
-                      {p.formation_interesse ? "sur " + p.formation_interesse : "sans formation precisee"}
+                      {p.formation_interesse ? "sur " + p.formation_interesse : "sans formation précisée"}
                     </span>
                   </div>
                 )}
@@ -758,7 +758,7 @@ export default function PageCRM() {
                 {panneau && panneau.texte && (
                   <div style={{ marginTop: "14px", background: "#ffffff", borderRadius: "10px", padding: "20px 22px", color: "#1a1a1a" }}>
                     <p style={{ color: "#0a3d2e", fontSize: "13px", fontWeight: "bold", margin: "0 0 10px", letterSpacing: "1px" }}>
-                      {panneau.type === "relance" ? "EMAIL DE RELANCE PROPOSE" : "ANALYSE COMMERCIALE"}
+                      {panneau.type === "relance" ? "EMAIL DE RELANCE PROPOSÉ" : "ANALYSE COMMERCIALE"}
                     </p>
                     <div style={{ whiteSpace: "pre-wrap", fontSize: "15px", lineHeight: "1.75" }}>
                       {String(panneau.texte).replace(/\*\*/g, "")}
@@ -772,15 +772,15 @@ export default function PageCRM() {
                           style={{ background: p.desinscrit ? "#ddd" : "#0a3d2e", color: p.desinscrit ? "#999" : "#ffffff", padding: "13px 26px", borderRadius: "8px", border: "none", cursor: p.desinscrit ? "default" : "pointer", fontWeight: "bold", fontSize: "15px", fontFamily: "Georgia,serif", marginTop: "18px", width: "100%" }}
                         >
                           {occupe === "envoi-" + p.email
-                            ? "Envoi..."
+                            ? "Envoi…"
                             : p.desinscrit
-                            ? "Ce prospect s est desinscrit"
+                            ? "Ce prospect s'est désinscrit"
                             : "Envoyer cette relance"}
                         </button>
 
                         <p style={{ color: "#777", fontSize: "13px", margin: "12px 0 0", lineHeight: "1.6" }}>
-                          Relisez avant d envoyer : c est ce texte qui partira, signe de votre
-                          organisme, avec un lien de desinscription. Vous pouvez aussi le copier
+                          Relisez avant d'envoyer : c'est ce texte qui partira, signé de votre
+                          organisme, avec un lien de désinscription. Vous pouvez aussi le copier
                           dans votre propre messagerie.
                         </p>
                       </>
