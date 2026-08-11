@@ -15,14 +15,33 @@ import { useState, useEffect } from "react";
 // d erreur, elle se tait.
 //
 // Usage : <Guide ecran="comptable.pieces" />
+//         <Guide ecran="qualiopi.grille" couleur="#0a3d2e" fond="clair" />
 
-export default function Guide({ ecran, couleur }: { ecran: string; couleur?: string }) {
+export default function Guide({
+  ecran,
+  couleur,
+  fond,
+}: {
+  ecran: string;
+  couleur?: string;
+  fond?: string;
+}) {
   const [guide, setGuide] = useState<any>(null);
   const [ouvert, setOuvert] = useState(false);
   const [confirme, setConfirme] = useState(false);
   const [lu, setLu] = useState(false);
 
   const teinte = couleur || "#c8a96e";
+
+  // LE GUIDE VIT SUR DEUX SORTES D ECRANS.
+  //
+  // Mr. Comptable, le LMS et le CRM sont sombres ; la grille Qualiopi est
+  // blanche. Un texte clair y serait illisible. La teinte du texte suit donc
+  // le fond, au lieu d etre fixee une fois pour toutes.
+  const clair = fond === "clair";
+  const encre = clair ? "#1a1a1a" : "#f2f2f2";
+  const opaciteTexte = clair ? 1 : 0.85;
+  const opacitePoints = clair ? 0.9 : 0.75;
 
   useEffect(function () {
     let vivant = true;
@@ -85,14 +104,13 @@ export default function Guide({ ecran, couleur }: { ecran: string; couleur?: str
   //
   // La pastille etait sans fond et sans icone : discrete au point de
   // disparaitre. Une aide que personne ne retrouve n existe plus apres le
-  // premier passage. Fond teinte, bordure franche, et un libelle qui dit ce
-  // que c est plutot que de poser une question.
+  // premier passage.
   if (!ouvert) {
     return (
       <button
         onClick={function () { setConfirme(false); setOuvert(true); }}
         style={{
-          background: teinte + "1a",
+          background: teinte + (clair ? "12" : "1a"),
           border: "1px solid " + teinte + "88",
           color: teinte,
           borderRadius: "20px",
@@ -116,16 +134,13 @@ export default function Guide({ ecran, couleur }: { ecran: string; couleur?: str
   return (
     <div
       style={{
-        background: teinte + "0f",
+        background: teinte + (clair ? "0a" : "0f"),
         border: "1px solid " + teinte + "44",
         borderRadius: "12px",
         padding: "20px 24px",
         marginBottom: "22px",
         fontFamily: "Georgia, serif",
-        // Couleur explicite : le guide vit sur des ecrans sombres comme sur
-        // l espace du dirigeant, concu pour le telephone. `inherit` laissait
-        // le texte a la merci du parent.
-        color: "#f2f2f2",
+        color: encre,
       }}
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "14px" }}>
@@ -150,7 +165,7 @@ export default function Guide({ ecran, couleur }: { ecran: string; couleur?: str
         </button>
       </div>
 
-      <p style={{ opacity: 0.85, fontSize: "15px", lineHeight: "1.75", margin: "0 0 14px" }}>
+      <p style={{ opacity: opaciteTexte, fontSize: "15px", lineHeight: "1.75", margin: "0 0 14px" }}>
         {guide.texte}
       </p>
 
@@ -160,7 +175,7 @@ export default function Guide({ ecran, couleur }: { ecran: string; couleur?: str
             return (
               <div key={i} style={{ display: "flex", gap: "10px", marginBottom: "9px", alignItems: "flex-start" }}>
                 <span style={{ color: teinte, fontSize: "14px", lineHeight: "1.7", flexShrink: 0 }}>·</span>
-                <span style={{ opacity: 0.75, fontSize: "14.5px", lineHeight: "1.7" }}>{p}</span>
+                <span style={{ opacity: opacitePoints, fontSize: "14.5px", lineHeight: "1.7" }}>{p}</span>
               </div>
             );
           })}
@@ -172,18 +187,9 @@ export default function Guide({ ecran, couleur }: { ecran: string; couleur?: str
         disabled={confirme}
         style={{
           background: confirme ? teinte + "55" : teinte,
-          color: confirme ? "#f2f2f2" : "#050508",
+          color: confirme ? encre : "#ffffff",
           border: "none",
           borderRadius: "8px",
           padding: "10px 22px",
           fontSize: "14px",
-          fontWeight: "bold",
-          fontFamily: "Georgia, serif",
-          cursor: confirme ? "default" : "pointer",
-        }}
-      >
-        {confirme ? "Enregistré" : "J'ai compris"}
-      </button>
-    </div>
-  );
-}
+          fontWeight: "bold
