@@ -32,7 +32,26 @@ function organismeDeLaDemande(req: NextRequest, session: any): string | null {
   return null;
 }
 
-async function envoyerEmail(destinataire: string, sujet: string, html: string) {
+// LE STAGIAIRE A PAYE SON ORGANISME, PAS NOUS.
+//
+// L invitation partait signee « AcadeMIA Pro », et le corps du message
+// nommait la plateforme : le stagiaire d un client en marque blanche
+// decouvrait le fournisseur de son prestataire. Le nom affiche est desormais
+// celui de l organisme.
+//
+// L ADRESSE, ELLE, RESTE LA NOTRE. Resend n expedie que depuis un domaine
+// verifie : afficher l adresse de l organisme supposerait de faire verifier
+// son domaine, un a un. Le nom suffit a ce que le stagiaire reconnaisse son
+// interlocuteur ; l adresse ne se lit qu en depliant l en-tete.
+function expediteur(nomOrganisme: string): string {
+  const propre = String(nomOrganisme || "")
+    .replace(/["<>]/g, "")
+    .trim()
+    .slice(0, 60);
+  return (propre || "Votre organisme de formation") + " <contact@academiapro.fr>";
+}
+
+async function envoyerEmail(destinataire: string, sujet: string, html: string, de: string) {
   const cle = process.env.RESEND_API_KEY || "";
   if (!cle) return { ok: false, erreur: "RESEND_API_KEY absente" };
 
@@ -43,7 +62,7 @@ async function envoyerEmail(destinataire: string, sujet: string, html: string) {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      from: "AcadeMIA Pro <contact@academiapro.fr>",
+      from: de,
       to: [destinataire],
       subject: sujet,
       html: html,
@@ -112,6 +131,25 @@ export async function POST(req: NextRequest) {
       .maybeSingle();
 
     const nomOrganisme = (fiche && fiche.raison_sociale) || "votre organisme de formation";
+    const de = expediteur(fiche && fiche.raison_sociale ? fiche.raison_sociale : "");
+
+    // Le titre de la formation, pour ne pas ecrire un code a un stagiaire qui
+    // ne le connait pas : il a achete « Sophrologie Professionnelle », pas F030.
+    const codes = Array.from(new Set(
+      (cibles || [])
+        .map(function (c: any) { return c.formation_code; })
+        .filter(Boolean)
+    ));
+
+    const titres: any = {};
+    if (codes.length > 0) {
+      const { data: fiches } = await supabase
+        .from("formations")
+        .select("code, titre")
+        .in("code", codes)
+        .limit(200);
+      for (const f of fiches || []) titres[f.code] = f.titre;
+    }
 
     const envoyes: string[] = [];
     const echecs: any[] = [];
@@ -137,29 +175,34 @@ export async function POST(req: NextRequest) {
       // bord grand public, qui ne le concerne pas.
       const lien = SITE + "/api/auth/valider?jeton=" + jeton + "&retour=" + encodeURIComponent("/stagiaire");
 
+      const laFormation = cible.formation_code
+        ? (titres[cible.formation_code] || cible.formation_code)
+        : null;
+
       const html =
         '<div style="font-family:Georgia,serif;max-width:560px;margin:0 auto;color:#1a1a1a;line-height:1.7">' +
-        '<p style="color:#0a3d2e;font-size:13px;letter-spacing:2px;margin:0 0 6px">ACCES A VOTRE FORMATION</p>' +
+        '<p style="color:#0a3d2e;font-size:13px;letter-spacing:2px;margin:0 0 6px">ACCÈS À VOTRE FORMATION</p>' +
         '<h1 style="color:#0a3d2e;font-size:24px;margin:0 0 18px">Bonjour' +
         (cible.nom ? " " + cible.nom : "") + ",</h1>" +
         "<p>" + nomOrganisme + " vous a inscrit" +
-        (cible.formation_code ? " a la formation " + cible.formation_code : " a une formation") +
-        " sur la plateforme AcadeMIA Pro.</p>" +
+        (laFormation ? " à la formation <strong>" + laFormation + "</strong>" : " à une formation") +
+        ".</p>" +
         "<p>Votre espace vous attend : vos modules, vos questionnaires, et un correcteur qui " +
-        "note vos reponses et vous explique chacune de vos erreurs.</p>" +
+        "note vos réponses et vous explique chacune de vos erreurs.</p>" +
         '<p style="margin:28px 0"><a href="' + lien +
         '" style="background:#0a3d2e;color:#ffffff;padding:14px 28px;border-radius:6px;' +
-        'text-decoration:none;font-size:16px;display:inline-block">Acceder a ma formation</a></p>' +
+        'text-decoration:none;font-size:16px;display:inline-block">Accéder à ma formation</a></p>' +
         '<p style="font-size:14px;color:#666">Ce lien vous connecte directement, sans mot de passe. ' +
-        "Il est valable " + JOURS_VALIDITE + " jours et ne fonctionne qu une seule fois. " +
-        "Si vous ne l utilisez pas, demandez-en un nouveau a " + nomOrganisme + ".</p>" +
-        '<p style="font-size:13px;color:#999;margin-top:26px">AcadeMIA Pro — plateforme de formation</p>' +
+        "Il est valable " + JOURS_VALIDITE + " jours et ne fonctionne qu'une seule fois. " +
+        "Si vous ne l'utilisez pas, demandez-en un nouveau à " + nomOrganisme + ".</p>" +
+        '<p style="font-size:13px;color:#999;margin-top:26px">' + nomOrganisme + "</p>" +
         "</div>";
 
       const envoi = await envoyerEmail(
         cible.email,
-        "Votre acces a la formation" + (cible.formation_code ? " " + cible.formation_code : ""),
-        html
+        "Votre accès à la formation" + (laFormation ? " " + laFormation : ""),
+        html,
+        de
       );
 
       if (!envoi.ok) {
