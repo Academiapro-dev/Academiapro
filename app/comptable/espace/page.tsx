@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
+import Guide from "../../../components/Guide";
 
 // L ESPACE DU DIRIGEANT.
 //
@@ -135,6 +136,10 @@ export default function EspaceClient() {
       </header>
 
       <div style={dedans}>
+
+        {/* Le dirigeant n a pas de session : c est son jeton qui permet de se
+            souvenir qu il a deja lu l aide. */}
+        {jeton && <Guide ecran="client.espace" jeton={jeton} />}
 
         {/* LE DEPOT, EN PREMIER. C est ce pour quoi il est venu. */}
         <div style={{ ...carte, borderColor: "rgba(200,169,110,0.45)", textAlign: "center", padding: "28px 20px" }}>
