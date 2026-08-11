@@ -16,6 +16,14 @@ const ADMINS = ["contact@academiapro.fr"];
 // identifiants et une conversation tarifaire avec Plaid.
 const PLAID = "https://sandbox.plaid.com";
 
+// LE COMPTE DE BANQUE DU PLAN COMPTABLE.
+//
+// L identifiant du compte chez Plaid — une suite de trente-sept caracteres —
+// etait ecrit dans compte_num : les lignes devenaient invisibles a l ecran de
+// rapprochement, qui travaille sur le plan comptable. Trente-six ecritures
+// etaient arrivees sans que personne ne puisse les traiter.
+const COMPTE_BANQUE = "512000";
+
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
   process.env.SUPABASE_SERVICE_ROLE_KEY || "",
@@ -73,12 +81,12 @@ async function societeAutorisee(societeId: string) {
 // L EMPREINTE EVITE LES DOUBLONS.
 //
 // Une synchronisation relancee, ou une operation renvoyee deux fois par la
-// banque, ne doit pas creer deux lignes. L empreinte porte sur ce qui
-// identifie l operation, pas sur son libelle qui peut etre reecrit.
-function empreinte(compte: string, date: string, montant: number, reference: string) {
+// banque, ne doit pas creer deux lignes. L empreinte porte sur la reference
+// Plaid, qui identifie l operation de maniere unique et durable.
+function empreinte(reference: string, date: string, montant: number) {
   return crypto
     .createHash("sha256")
-    .update([compte, date, String(montant), reference || ""].join("|"))
+    .update([reference || "", date, String(montant)].join("|"))
     .digest("hex")
     .slice(0, 40);
 }
@@ -260,11 +268,10 @@ export async function POST(req: NextRequest) {
             // Plaid compte les depenses en positif ; la comptabilite les veut
             // en negatif sur le releve. On inverse une fois pour toutes.
             const montant = -Number(op.amount);
-            const compte = op.account_id;
             const date = op.date;
             const reference = op.transaction_id;
 
-            const trace = empreinte(compte, date, montant, reference);
+            const trace = empreinte(reference, date, montant);
 
             const { data: existante } = await supabase
               .from("compta_releves")
@@ -279,7 +286,7 @@ export async function POST(req: NextRequest) {
 
             const { error } = await supabase.from("compta_releves").insert({
               societe_id: societeId,
-              compte_num: compte,
+              compte_num: COMPTE_BANQUE,
               operation_date: date,
               valeur_date: op.authorized_date || date,
               libelle: String(op.name || op.merchant_name || "Operation").slice(0, 300),
@@ -309,8 +316,8 @@ export async function POST(req: NextRequest) {
 
       return NextResponse.json({
         ok: true,
-        message: ajoutees + " ecriture(s) rapatriee(s)"
-          + (deja > 0 ? ", " + deja + " deja connue(s)" : "") + ".",
+        message: ajoutees + " écriture(s) rapatriée(s)"
+          + (deja > 0 ? ", " + deja + " déjà connue(s)" : "") + ".",
         ajoutees: ajoutees,
         deja: deja,
         echecs: echecs,
