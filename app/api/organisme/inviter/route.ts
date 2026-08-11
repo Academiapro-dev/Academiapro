@@ -21,7 +21,7 @@ const JOURS_VALIDITE = 30;
 // LA BASCULE TIENT EN UN MOT, mais ne se fait PAS avant que le domaine ait
 // chauffe. Un domaine neuf qui expedie d un coup part en indesirables :
 // quelques envois par jour pendant une a deux semaines d abord.
-const DOMAINE_ENVOI = "academiapro.fr";
+const DOMAINE_ENVOI = "espaces-formations.fr";
 const EXPEDITEUR_DEFAUT = "contact@academiapro.fr";
 
 const supabase = createClient(
