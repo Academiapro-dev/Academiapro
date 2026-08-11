@@ -10,10 +10,12 @@ export const metadata: Metadata = {
   // Google signalait seize pages « en double sans URL canonique
   // selectionnee » : le site n en emettait aucune. Cette base permet aux
   // pages de declarer la leur en chemin relatif.
+  //
+  // AUCUNE CANONIQUE ICI. Une canonique posee dans le layout racine serait
+  // HERITEE par toutes les pages qui n en declarent pas : /tarifs, /catalogue
+  // et les tunnels se declareraient page d accueil. Chaque page indexable
+  // declare la sienne, ou n en declare aucune.
   metadataBase: new URL("https://academiapro.fr"),
-  // La canonique de l accueil. Chaque page qui doit etre indexee declare la
-  // sienne ; sans quoi elle herite de celle-ci, ce qui serait pire que rien.
-  alternates: { canonical: "/" },
   title: "AcadémIA Pro — Formation Professionnelle par l IA",
   description: "331 formations professionnelles avec attestation AcadémIA Pro · Agent IA tuteur 24h/24 · Séances d'accompagnement · Classes virtuelles live",
   manifest: "/manifest.json",
