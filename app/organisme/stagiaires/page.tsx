@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
+import Guide from "../../../components/Guide";
 
 const LIBELLE_PAYEUR: any = {
   entreprise: "Entreprise (salariés)",
@@ -300,6 +301,10 @@ export default function PageStagiaires() {
           {apprenants.length} inscrit(s) · {commences} ont commencé · {chiffre.toLocaleString("fr-FR")} € déclarés
           {incomplets > 0 ? " · " + incomplets + " fiche(s) incomplète(s) pour le bilan" : ""}
         </p>
+
+        <div style={{ marginTop: "18px" }}>
+          <Guide ecran="organisme.stagiaires" />
+        </div>
 
         {aInviter > 0 && (
           <div style={{ ...CARTE, marginTop: "24px", border: "1px solid rgba(200,169,110,0.5)" }}>
