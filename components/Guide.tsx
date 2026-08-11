@@ -6,13 +6,8 @@ import { useState, useEffect } from "react";
 // Il s ouvre au premier passage sur un ecran, explique ce qu on y fait, et
 // ne revient plus une fois lu. Deux principes.
 //
-// IL NE BLOQUE RIEN. Pas de fenetre modale, pas de fond grise, pas de
-// parcours en sept etapes qu il faut subir avant de travailler. Celui qui
-// sait deja ferme et continue.
-//
-// IL NE COUTE RIEN S IL ECHOUE. Une aide qui empeche d utiliser le logiciel
-// parce que sa requete a echoue serait pire que pas d aide du tout : en cas
-// d erreur, elle se tait.
+// IL NE BLOQUE RIEN. Celui qui sait deja ferme et continue.
+// IL NE COUTE RIEN S IL ECHOUE : en cas d erreur, il se tait.
 //
 // Usage : <Guide ecran="comptable.pieces" />
 //         <Guide ecran="qualiopi.grille" couleur="#0a3d2e" fond="clair" />
@@ -33,11 +28,8 @@ export default function Guide({
 
   const teinte = couleur || "#c8a96e";
 
-  // LE GUIDE VIT SUR DEUX SORTES D ECRANS.
-  //
-  // Mr. Comptable, le LMS et le CRM sont sombres ; la grille Qualiopi est
-  // blanche. Un texte clair y serait illisible. La teinte du texte suit donc
-  // le fond, au lieu d etre fixee une fois pour toutes.
+  // Mr. Comptable, le LMS et le CRM sont sombres ; Qualiopi est blanc. La
+  // teinte du texte suit le fond au lieu d etre fixee une fois pour toutes.
   const clair = fond === "clair";
   const encre = clair ? "#1a1a1a" : "#f2f2f2";
   const opaciteTexte = clair ? 1 : 0.85;
@@ -45,12 +37,9 @@ export default function Guide({
 
   useEffect(function () {
     let vivant = true;
-
     (async function () {
       try {
-        const r = await fetch("/api/guide?ecran=" + encodeURIComponent(ecran), {
-          cache: "no-store",
-        });
+        const r = await fetch("/api/guide?ecran=" + encodeURIComponent(ecran), { cache: "no-store" });
         const d = await r.json();
         if (!vivant) return;
         if (d.ok && d.guide) {
@@ -58,20 +47,13 @@ export default function Guide({
           setLu(Boolean(d.vu));
           setOuvert(!d.vu);
         }
-      } catch (e) {
-        // Silence : l aide ne doit jamais gener le travail.
-      }
+      } catch (e) {}
     })();
-
     return function () { vivant = false; };
   }, [ecran]);
 
-  // FERMER, C EST AVOIR LU.
-  //
-  // Il y avait deux sorties pour un seul geste : le bouton enregistrait, la
-  // croix non. Celui qui fermait d un geste rapide retrouvait le guide
-  // ouvert a chaque visite et croyait le logiciel casse. Les deux sorties
-  // enregistrent desormais.
+  // FERMER, C EST AVOIR LU. Le bouton enregistrait, la croix non : celui qui
+  // fermait d un geste rapide retrouvait le guide ouvert a chaque visite.
   async function marquerLu() {
     if (lu) return;
     setLu(true);
@@ -89,9 +71,6 @@ export default function Guide({
     marquerLu();
   }
 
-  // La confirmation s affichait dans le meme rendu que le repli : elle etait
-  // donc invisible. Elle tient maintenant une seconde avant que le bloc se
-  // referme.
   function jAiCompris() {
     setConfirme(true);
     marquerLu();
@@ -100,11 +79,6 @@ export default function Guide({
 
   if (!guide) return null;
 
-  // UNE FOIS LU, L AIDE DOIT RESTER TROUVABLE.
-  //
-  // La pastille etait sans fond et sans icone : discrete au point de
-  // disparaitre. Une aide que personne ne retrouve n existe plus apres le
-  // premier passage.
   if (!ouvert) {
     return (
       <button
@@ -130,7 +104,6 @@ export default function Guide({
       </button>
     );
   }
-
   return (
     <div
       style={{
@@ -192,4 +165,13 @@ export default function Guide({
           borderRadius: "8px",
           padding: "10px 22px",
           fontSize: "14px",
-          fontWeight: "bold
+          fontWeight: "bold",
+          fontFamily: "Georgia, serif",
+          cursor: confirme ? "default" : "pointer",
+        }}
+      >
+        {confirme ? "Enregistré" : "J'ai compris"}
+      </button>
+    </div>
+  );
+}
