@@ -26,12 +26,12 @@ const nextConfig = {
   // DEUX NOMS POUR UN SEUL PRODUIT. La vitrine vit sous /comptable, mais
   // l espace du cabinet — dossiers, chiffres, pieces, espaces clients,
   // teletransmissions — vit sous /admin/compliance : « compliance » est le
-  // nom de code du dossier, « Mr. Comptable » le nom commercial. Sans la
-  // seconde regle, le cabinet basculerait sur academiapro.fr des qu il se met
-  // au travail.
+  // nom de code du dossier, « Mr. Comptable » le nom commercial.
   //
-  // Les routes d API, les fichiers statiques et le sitemap ne sont PAS
-  // reecrits : ils sont communs aux deux domaines.
+  // TOUT CE QUI PORTE UNE EXTENSION EST EXCLU. La regle precedente renvoyait
+  // sitemap-comptable.xml vers /comptable/sitemap-comptable.xml, qui n existe
+  // pas : d ou un 404 sur le sitemap. Les fichiers a extension — .xml, .txt,
+  // .json, .png — sont desormais servis tels quels.
   async rewrites() {
     return {
       beforeFiles: [
@@ -46,7 +46,7 @@ const nextConfig = {
           destination: "/admin/compliance/:chemin*",
         },
         {
-          source: "/:chemin((?!api|_next|comptable|admin|connexion|favicon|icon|manifest|sitemap|robots).*)",
+          source: "/:chemin((?!api|_next|comptable|admin|connexion|favicon|icon|manifest|sitemap|robots)[^.]*)",
           has: [{ type: "host", value: "(www\\.)?mrcomptable\\.fr" }],
           destination: "/comptable/:chemin",
         },
