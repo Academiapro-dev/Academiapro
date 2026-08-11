@@ -26,8 +26,8 @@ const CHEMINS_COMPTABLE = [
 
 // Le logo, en or sur fond noir : les memes teintes que le site, donc aucun
 // rectangle blanc au milieu du bandeau. La LARGEUR est imposee plutot que la
-// hauteur — l image porte de larges marges noires, et fixer la hauteur
-// reduisait le dessin a une vignette illisible.
+// hauteur — l image porte de larges marges, et fixer la hauteur reduisait le
+// dessin a une vignette illisible.
 const LOGO_COMPTABLE = "/IMG_4100.jpeg";
 
 function estComptable(chemin) {
@@ -99,12 +99,27 @@ export default function NavBar() {
   // ecran comptable. Dans les deux cas le client doit lire sa marque.
   if (estComptable(chemin) || hote.indexOf("mrcomptable.fr") >= 0) {
     return (
-      <header style={{ ...barre, padding: "8px 30px" }}>
-        <a href="/admin/compliance/tableau-de-bord" style={{ display: "flex", alignItems: "center", textDecoration: "none", flexShrink: 0 }}>
+      <header style={{ ...barre, padding: "0 30px", background: "#000" }}>
+        {/* LE LISERE BLANC VENAIT DE L IMAGE ELLE-MEME.
+            Ses bords ne sont pas parfaitement noirs, et le trait se detachait
+            sur le fond du site. Le cadre rogne l image de quelques pixels sur
+            chaque bord : le dessin est intact, la bordure disparait. Le fond
+            de la barre passe au noir pur pour epouser celui du logo. */}
+        <a
+          href="/admin/compliance/tableau-de-bord"
+          style={{ display: "block", textDecoration: "none", flexShrink: 0, overflow: "hidden", lineHeight: 0 }}
+        >
           <img
             src={LOGO_COMPTABLE}
             alt="Mr. Comptable"
-            style={{ width: "400px", maxWidth: "40vw", height: "auto", display: "block" }}
+            style={{
+              width: "400px",
+              maxWidth: "40vw",
+              height: "auto",
+              display: "block",
+              margin: "-4px",
+              clipPath: "inset(4px)",
+            }}
           />
         </a>
         <nav style={{ display: "flex", gap: "18px", flexWrap: "wrap", justifyContent: "center" }}>
