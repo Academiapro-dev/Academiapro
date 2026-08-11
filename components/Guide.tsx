@@ -81,25 +81,34 @@ export default function Guide({ ecran, couleur }: { ecran: string; couleur?: str
 
   if (!guide) return null;
 
-  // Une fois lu, il reste une porte discrete pour le rouvrir : personne ne
-  // retient tout du premier coup.
+  // UNE FOIS LU, L AIDE DOIT RESTER TROUVABLE.
+  //
+  // La pastille etait sans fond et sans icone : discrete au point de
+  // disparaitre. Une aide que personne ne retrouve n existe plus apres le
+  // premier passage. Fond teinte, bordure franche, et un libelle qui dit ce
+  // que c est plutot que de poser une question.
   if (!ouvert) {
     return (
       <button
         onClick={function () { setConfirme(false); setOuvert(true); }}
         style={{
-          background: "none",
-          border: "1px solid " + teinte + "55",
+          background: teinte + "1a",
+          border: "1px solid " + teinte + "88",
           color: teinte,
           borderRadius: "20px",
-          padding: "6px 16px",
-          fontSize: "13px",
+          padding: "9px 20px",
+          fontSize: "14px",
+          fontWeight: "bold",
           fontFamily: "Georgia, serif",
           cursor: "pointer",
           marginBottom: "18px",
+          display: "inline-flex",
+          alignItems: "center",
+          gap: "9px",
         }}
       >
-        Comment ça marche ?
+        <span style={{ fontSize: "16px", lineHeight: 1 }}>💡</span>
+        Aide sur cet écran
       </button>
     );
   }
