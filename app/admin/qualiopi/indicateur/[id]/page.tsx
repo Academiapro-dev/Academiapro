@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
+import Guide from "../../../../../components/Guide";
 
 const STYLE_CARTE = {
   border: "1px solid #dddddd",
@@ -453,6 +454,11 @@ export default function PageIndicateur({ params }: { params: { id: string } }) {
         >
           Préparation de l'indicateur
         </h1>
+
+        {/* Ecran sur fond clair : le guide prend le vert de Mr. Qualiopi. */}
+        <div style={{ marginTop: 20 }}>
+          <Guide ecran="qualiopi.indicateur" couleur="#0a3d2e" fond="clair" />
+        </div>
 
         {erreurVoix && (
           <div
