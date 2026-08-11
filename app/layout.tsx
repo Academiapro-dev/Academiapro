@@ -21,6 +21,15 @@ export const metadata: Metadata = {
   manifest: "/manifest.json",
   appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "AcadémIA Pro" },
   openGraph: { title: "AcadémIA Pro", description: "Plateforme de formation professionnelle 100% IA", type: "website", locale: "fr_FR" },
+  // PROPRIETE DE mrcomptable.fr AUPRES DE GOOGLE.
+  //
+  // Les deux domaines partagent ce layout, donc ce meme <head>. Google
+  // ignore cette balise sur academiapro.fr, deja verifie autrement ; elle ne
+  // vaut que pour mrcomptable.fr. A NE PAS SUPPRIMER : le retrait ferait
+  // perdre la propriete de la seconde marque.
+  verification: {
+    google: "4UmansIXLAyeM2GO9WTWdkFssDOALRNiVGLPK8TKP1w",
+  },
 };
 
 export const viewport: Viewport = {
