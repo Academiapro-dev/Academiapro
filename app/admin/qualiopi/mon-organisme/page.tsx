@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Guide from "../../../../components/Guide";
 
 const STYLE_CHAMP = {
   width: "100%",
@@ -232,6 +233,11 @@ export default function MonOrganisme() {
         >
           Mon organisme de formation
         </h1>
+
+        {/* Ecran sur fond clair : le guide prend le vert de Mr. Qualiopi. */}
+        <div style={{ marginTop: 20 }}>
+          <Guide ecran="qualiopi.mon-organisme" couleur="#0a3d2e" fond="clair" />
+        </div>
 
         <p style={{ fontSize: 15, color: "#555", lineHeight: 1.7 }}>
           Ces informations déterminent les indicateurs du référentiel qui vous
