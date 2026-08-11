@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
+import Guide from "../../../components/Guide";
 
 const LIBELLE_C: any = {
   "1": "1 · Entreprises pour la formation de leurs salariés",
@@ -210,6 +211,10 @@ export default function PageBilan() {
         <h1 style={{ color: "#fff", fontSize: "30px", margin: "0 0 6px" }}>
           Bilan pédagogique et financier
         </h1>
+
+        <div style={{ marginTop: "18px" }}>
+          <Guide ecran="organisme.bilan" />
+        </div>
 
         <div style={{ display: "flex", gap: "12px", alignItems: "center", margin: "18px 0 24px", flexWrap: "wrap" }}>
           <button onClick={() => charger(annee - 1)} style={BOUTON}>← {annee - 1}</button>
