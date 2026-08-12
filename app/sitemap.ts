@@ -4,6 +4,9 @@ import { createClient } from "@supabase/supabase-js";
 // + blog en 3 langues. Genere a la demande, mis en cache 1h.
 // Chaque nouvelle formation et chaque nouvel article
 // apparaissent automatiquement.
+//
+// Ce sitemap est celui d academiapro.fr. Les articles Mr. Comptable
+// relevent de mrcomptable.fr et n ont rien a faire ici.
 
 export const revalidate = 3600;
 
@@ -55,7 +58,8 @@ export default async function sitemap() {
     const { data: articlesFr } = await supabase
       .from("blog")
       .select("slug, created_at")
-      .eq("publie", true);
+      .eq("publie", true)
+      .eq("marque", "academiapro");
 
     const { data: traductions } = await supabase
       .from("blog_traductions")
