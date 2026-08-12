@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
+import Guide from "../../../../components/Guide";
 
 // Minuscules, sans accents : « Tresorerie » se trouve en tapant tresorerie.
 function sansAccent(s: any): string {
@@ -162,7 +163,11 @@ export default function PageRapprochement() {
           Rapprocher d'une écriture existante, ou la créer
         </p>
 
-        <div style={{ ...CARTE, marginTop: "24px" }}>
+        <div style={{ marginTop: "18px" }}>
+          <Guide ecran="comptable.rapprochement" />
+        </div>
+
+        <div style={{ ...CARTE, marginTop: "18px" }}>
           <span style={LIBELLE}>Dossier</span>
           <select value={dossier} onChange={(e) => setDossier(e.target.value)} style={CHAMP}>
             <option value="">— choisir un dossier —</option>
