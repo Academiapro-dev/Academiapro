@@ -3,6 +3,11 @@ import Link from "next/link";
 
 // Blog Mr. Comptable. Ne lit QUE les articles de marque mrcomptable :
 // le blog AcademIA Pro est ailleurs et les deux ne se melangent jamais.
+//
+// LA CANONIQUE EST SANS PREFIXE. Le middleware sert cette page sous
+// mrcomptable.fr/blog : c est cette adresse-la que le sitemap declare et
+// que le visiteur voit. Declarer /comptable/blog creerait deux adresses
+// pour une seule page.
 
 export const revalidate = 3600;
 
@@ -12,7 +17,7 @@ export const metadata = {
     "Articles sur la facture électronique, la fiscalité et la tenue"
     + " comptable, écrits pour les cabinets d'expertise comptable.",
   alternates: {
-    canonical: "https://mrcomptable.fr/comptable/blog",
+    canonical: "https://mrcomptable.fr/blog",
   },
 };
 
