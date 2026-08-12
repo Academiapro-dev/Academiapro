@@ -3,7 +3,12 @@ import { NextRequest, NextResponse } from "next/server";
 
 // Redacteur automatique : appele par le cron chaque lundi.
 // Prend le prochain sujet 'a_faire', redige un article
-// complet via Claude avec la voix AcademIA Pro.
+// complet via Claude avec la voix de la marque du sujet.
+//
+// DEUX MARQUES, DEUX VOIX. Un sujet porte sa marque. La voix, l auteur,
+// la categorie et les chemins de maillage en decoulent. Un article
+// Mr. Comptable ne doit jamais paraitre sur le blog AcademIA Pro, ni
+// tutoyer un cabinet.
 
 export const maxDuration = 300;
 
@@ -15,7 +20,7 @@ function clientAdmin() {
 
 const ANNEE = new Date().getFullYear();
 
-const VOIX = `Nous sommes en ${ANNEE}. Toute reference temporelle doit utiliser ${ANNEE} ou au-dela, jamais une annee passee. Tu es le redacteur du blog AcademIA Pro,
+const VOIX_ACADEMIA = `Nous sommes en ${ANNEE}. Toute reference temporelle doit utiliser ${ANNEE} ou au-dela, jamais une annee passee. Tu es le redacteur du blog AcademIA Pro,
 plateforme francaise de formation professionnelle propulsee
 par l IA (266 formations professionnelles : IA, business,
 marketing, langues, bien-etre, tech), fondee par un auteur
@@ -65,6 +70,69 @@ MAILLAGE INTERNE OBLIGATOIRE :
   notre catalogue de formations](/formations)), jamais de
   "clique ici"`;
 
+const VOIX_COMPTABLE = `Nous sommes en ${ANNEE}. Toute reference temporelle doit utiliser ${ANNEE} ou au-dela, jamais une annee passee. Tu es le redacteur du blog Mr. Comptable,
+logiciel de comptabilite destine aux cabinets d expertise
+comptable francais.
+
+A QUI TU T ADRESSES :
+- A un expert-comptable ou a un collaborateur de cabinet,
+  pas a un chef d entreprise et pas a un particulier
+- Ton lecteur connait son metier mieux que toi : tu ne lui
+  expliques pas ce qu est un lettrage, tu lui parles de ce
+  qui change et de ce que cela lui coute
+
+TON STYLE :
+- VOUVOIEMENT, toujours. Ton professionnel et sobre.
+- Precis avant tout : dates, textes applicables, obligations
+- Phrases courtes. Le vocabulaire technique du metier est
+  acquis, celui de la reforme s explique.
+- Jamais d enthousiasme commercial, jamais d emoji
+
+STRUCTURE OBLIGATOIRE :
+- Introduction qui pose l obligation ou le probleme concret
+- 4 a 6 sections avec titres ## clairs
+- Des passages en **gras** pour les points cles
+- Une conclusion avec ce qu il y a a verifier ou preparer
+- 900 a 1300 mots
+
+REGLES :
+- Jamais de promesses irrealistes ni de sensationnalisme
+- Mentionner naturellement (sans forcer) que Mr. Comptable
+  prend en charge le sujet quand c est pertinent
+- Contenu original et utile : le lecteur doit repartir
+  avec de la valeur meme s il n achete rien
+
+INTERDICTIONS ABSOLUES :
+- Ne JAMAIS ecrire que Mr. Comptable est une plateforme
+  agreee : c est une solution compatible au sens de la
+  reforme, le transport des factures est assure par une
+  plateforme agreee a laquelle nous nous raccordons
+- Ne JAMAIS citer le nom d un prestataire, d un partenaire
+  ni d un editeur concurrent
+- Ne JAMAIS donner de conseil fiscal ou juridique
+  personnalise : tu decris la regle, tu ne l appliques pas
+  a un cas
+- Ne JAMAIS inventer de chiffre sur Mr. Comptable : ni
+  nombre de cabinets, ni nombre de dossiers, ni gain de
+  temps chiffre
+
+MAILLAGE INTERNE OBLIGATOIRE :
+- Integre naturellement 2 a 3 liens internes au format
+  markdown [texte du lien](/chemin) dans le corps de
+  l article, la ou c est pertinent pour le lecteur
+- Chemins autorises UNIQUEMENT : /comptable (presentation
+  du logiciel), /comptable/inscription (ouverture d un
+  espace), /comptable/cgv (conditions generales)
+- N invente JAMAIS d autre chemin ni d URL externe
+- Le texte du lien decrit la destination (ex : [le detail
+  de l offre](/comptable)), jamais de "cliquez ici"`;
+
+const CATEGORIES_ACADEMIA = "Intelligence Artificielle,"
+  + " Business, Bien-Etre, Formation Pro, Tech";
+
+const CATEGORIES_COMPTABLE = "Facture electronique, Fiscalite,"
+  + " Tenue comptable, Cabinet";
+
 async function claude(prompt: string): Promise<string> {
   const r = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
@@ -74,7 +142,7 @@ async function claude(prompt: string): Promise<string> {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: "claude-sonnet-4-5-20250929",
+      model: "claude-sonnet-4-6",
       max_tokens: 8000,
       messages: [{ role: "user", content: prompt }],
     }),
@@ -102,10 +170,20 @@ export async function GET(req: NextRequest) {
 
   const supa = clientAdmin();
 
-  const { data: sujets } = await supa
+  // marque= permet de forcer la marque traitee. Sans ce parametre, on
+  // prend le plus ancien sujet a faire, quelle que soit sa marque.
+  const marqueDemandee = req.nextUrl.searchParams.get("marque");
+
+  let requete = supa
     .from("blog_sujets")
     .select("*")
-    .eq("statut", "a_faire")
+    .eq("statut", "a_faire");
+
+  if (marqueDemandee) {
+    requete = requete.eq("marque", marqueDemandee);
+  }
+
+  const { data: sujets } = await requete
     .order("id", { ascending: true })
     .limit(1);
 
@@ -115,7 +193,16 @@ export async function GET(req: NextRequest) {
   }
   const sujet = sujets[0];
 
-  const prompt = VOIX
+  const estComptable = sujet.marque === "mrcomptable";
+
+  const voix = estComptable ? VOIX_COMPTABLE : VOIX_ACADEMIA;
+  const categories = estComptable
+    ? CATEGORIES_COMPTABLE : CATEGORIES_ACADEMIA;
+  const categorieDefaut = estComptable
+    ? "Cabinet" : "Formation Pro";
+  const auteur = estComptable ? "Mr. Comptable" : "AcademIA Pro";
+
+  const prompt = voix
     + "\n\nSUJET DE L ARTICLE : " + sujet.titre
     + "\nANGLE : " + (sujet.angle || "libre")
     + "\nMOTS-CLES SEO a integrer naturellement : "
@@ -126,8 +213,7 @@ export async function GET(req: NextRequest) {
     + " extrait (2 phrases qui donnent envie, max 200 car),"
     + " contenu (article complet, ## pour les titres,"
     + " ** pour le gras, sauts de ligne preserves),"
-    + " categorie (une parmi : Intelligence Artificielle,"
-    + " Business, Bien-Etre, Formation Pro, Tech).";
+    + " categorie (une parmi : " + categories + ").";
 
   let brut = (await claude(prompt)).trim();
   if (brut.startsWith("```")) {
@@ -154,8 +240,9 @@ export async function GET(req: NextRequest) {
     slug: slugifier(article.titre),
     extrait: article.extrait || "",
     contenu: article.contenu,
-    categorie: article.categorie || "Formation Pro",
-    auteur: "AcademIA Pro",
+    categorie: article.categorie || categorieDefaut,
+    auteur: auteur,
+    marque: sujet.marque || "academiapro",
     publie: true,
   });
   if (errInsert) {
@@ -171,6 +258,7 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({
     redige: article.titre,
+    marque: sujet.marque || "academiapro",
     statut: "publie",
   });
 }
