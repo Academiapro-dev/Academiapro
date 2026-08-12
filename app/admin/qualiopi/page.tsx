@@ -130,7 +130,7 @@ export default function GrilleQualiopi() {
       const r = await fetch("/api/qualiopi/export", { method: "POST" });
       if (!r.ok) {
         const data = await r.json();
-        setErreur(data.erreur || "Erreur de generation");
+        setErreur(data.erreur || "Erreur de génération");
         setExportEnCours(false);
         return;
       }
@@ -178,10 +178,12 @@ export default function GrilleQualiopi() {
           Préparation Qualiopi
         </h1>
 
-        {/* Cet ecran est le seul sur fond clair : le guide prend le vert de
-            Mr. Qualiopi, et non l or des ecrans sombres. */}
+        {/* LE SEUL ECRAN SUR FOND CLAIR.
+            Le guide prend le vert de Mr. Qualiopi, et non l or des ecrans
+            sombres. SURTOUT, il lui faut fond="clair" : sans cela son texte
+            reste en blanc sur du blanc, et le cadre s affiche vide. */}
         <div style={{ marginTop: 20 }}>
-          <Guide ecran="qualiopi.grille" couleur="#0a3d2e" />
+          <Guide ecran="qualiopi.grille" couleur="#0a3d2e" fond="clair" />
         </div>
 
         {chargement && <p>Chargement…</p>}
