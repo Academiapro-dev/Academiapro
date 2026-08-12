@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
+import Guide from "../../../../components/Guide";
 
 // LA CONNEXION BANCAIRE S AJOUTE A L IMPORT, ELLE NE LE REMPLACE PAS.
 //
@@ -100,7 +101,7 @@ export default function PageReleve() {
 
       const Plaid = (window as any).Plaid;
       if (!Plaid) {
-        setErreur("La fenetre de connexion n'a pas pu se charger. Rechargez la page.");
+        setErreur("La fenêtre de connexion n'a pas pu se charger. Rechargez la page.");
         setOccupe("");
         return;
       }
@@ -244,7 +245,11 @@ export default function PageReleve() {
           Connectez la banque, ou importez le relevé, puis rapprochez-le des écritures
         </p>
 
-        <div style={{ ...CARTE, marginTop: "24px" }}>
+        <div style={{ marginTop: "18px" }}>
+          <Guide ecran="comptable.releve" />
+        </div>
+
+        <div style={{ ...CARTE, marginTop: "18px" }}>
           <span style={LIBELLE}>Dossier</span>
           <select value={dossier} onChange={(e) => setDossier(e.target.value)} style={{ ...CHAMP, marginBottom: 0 }}>
             <option value="">— choisir un dossier —</option>
