@@ -181,6 +181,25 @@ export default function Guide({
       >
         {confirme ? "Enregistré" : "J'ai compris"}
       </button>
+
+      {/* DIRE OU LE GUIDE VA SE RANGER.
+          Sans cette ligne, celui qui ferme croit l avoir perdu — et ceux qui
+          n osent pas fermer gardent une aide encombrante devant les yeux a
+          chaque visite. Elle ne s affiche qu au premier passage : une fois le
+          guide lu, l utilisateur a vu la pastille et n a plus besoin qu on la
+          lui annonce. */}
+      {!lu && (
+        <p style={{
+          opacity: clair ? 0.6 : 0.45,
+          fontSize: "13px",
+          lineHeight: "1.65",
+          margin: "14px 0 0",
+        }}>
+          Cette aide ne s'ouvrira qu'une fois. Elle restera ensuite rangée sous la
+          pastille « 💡 Aide sur cet écran », en haut de la page, à rouvrir quand
+          vous en aurez besoin.
+        </p>
+      )}
     </div>
   );
 }
