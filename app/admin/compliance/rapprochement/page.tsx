@@ -124,9 +124,9 @@ export default function PageRapprochement() {
       });
       const data = await r.json();
       if (data.ok) { setMessage(data.message); await charger(); }
-      else setErreur(data.erreur || "Creation impossible.");
+      else setErreur(data.erreur || "Création impossible.");
     } catch (e: any) {
-      setErreur("Creation impossible : " + String(e));
+      setErreur("Création impossible : " + String(e));
     }
     setOccupe("");
   }
@@ -138,7 +138,7 @@ export default function PageRapprochement() {
   const BOUTON: any = { background: "none", border: "1px solid rgba(200,169,110,0.45)", color: "#c8a96e", padding: "8px 16px", borderRadius: "20px", cursor: "pointer", fontSize: "13px", fontFamily: "Georgia,serif" };
 
   function euros(n: any) {
-    return (Number(n) || 0).toLocaleString("fr-FR", { minimumFractionDigits: 2 }) + " EUR";
+    return (Number(n) || 0).toLocaleString("fr-FR", { minimumFractionDigits: 2 }) + " €";
   }
 
   function propositionDe(id: string) {
@@ -151,15 +151,15 @@ export default function PageRapprochement() {
     <div style={CADRE}>
       <div style={{ maxWidth: "1000px", margin: "0 auto" }}>
         <a href="/admin/compliance/releve" style={{ color: "#c8a96e", fontSize: "14px", textDecoration: "none" }}>
-          ← Retour aux releves
+          ← Retour aux relevés
         </a>
 
         <p style={{ color: "#c8a96e", fontSize: "12px", letterSpacing: "3px", margin: "22px 0 8px" }}>
-          COMPTABILITE
+          COMPTABILITÉ
         </p>
         <h1 style={{ color: "#fff", fontSize: "29px", margin: "0 0 6px" }}>Rapprochement bancaire</h1>
         <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "14px", marginTop: 0 }}>
-          Rapprocher d une ecriture existante, ou la creer
+          Rapprocher d'une écriture existante, ou la créer
         </p>
 
         <div style={{ ...CARTE, marginTop: "24px" }}>
@@ -176,28 +176,28 @@ export default function PageRapprochement() {
         {erreur && <p style={{ color: "#e8836a", fontSize: "15px", lineHeight: "1.7" }}>{erreur}</p>}
 
         {chargement ? (
-          <div style={CARTE}><p style={{ color: "rgba(255,255,255,0.6)", margin: 0 }}>Recherche des correspondances...</p></div>
+          <div style={CARTE}><p style={{ color: "rgba(255,255,255,0.6)", margin: 0 }}>Recherche des correspondances…</p></div>
         ) : !d ? null : (
           <>
             <div style={{ display: "flex", gap: "14px", flexWrap: "wrap", marginBottom: "18px" }}>
               <div style={{ ...CARTE, flex: "1 1 140px", marginBottom: 0 }}>
                 <p style={{ color: "#c8a96e", fontSize: "23px", fontWeight: "bold", margin: "0 0 4px" }}>{d.a_traiter}</p>
-                <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", margin: 0 }}>A traiter</p>
+                <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", margin: 0 }}>À traiter</p>
               </div>
               <div style={{ ...CARTE, flex: "1 1 140px", marginBottom: 0 }}>
                 <p style={{ color: "#4caf50", fontSize: "23px", fontWeight: "bold", margin: "0 0 4px" }}>{d.certaines}</p>
-                <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", margin: 0 }}>Correspondances sures</p>
+                <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", margin: 0 }}>Correspondances sûres</p>
               </div>
               <div style={{ ...CARTE, flex: "1 1 140px", marginBottom: 0 }}>
                 <p style={{ color: "#e8a33d", fontSize: "23px", fontWeight: "bold", margin: "0 0 4px" }}>{d.sans_candidat}</p>
-                <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", margin: 0 }}>A saisir</p>
+                <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", margin: 0 }}>À saisir</p>
               </div>
             </div>
 
             {d.propositions.length === 0 ? (
               <div style={CARTE}>
                 <p style={{ color: "#4caf50", margin: 0, fontSize: "15px" }}>
-                  Tout est rapproche. La banque tombe juste.
+                  Tout est rapproché. La banque tombe juste.
                 </p>
               </div>
             ) : (
@@ -210,7 +210,7 @@ export default function PageRapprochement() {
                     <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "10px" }}>
                       <div style={{ flex: "1 1 260px" }}>
                         <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "12.5px", margin: "0 0 3px" }}>
-                          Releve du {new Date(p.operation_date).toLocaleDateString("fr-FR")}
+                          Relevé du {new Date(p.operation_date).toLocaleDateString("fr-FR")}
                         </p>
                         <h3 style={{ color: "#fff", fontSize: "16px", margin: 0 }}>{p.libelle}</h3>
                       </div>
@@ -227,7 +227,7 @@ export default function PageRapprochement() {
                               <div style={{ flex: "1 1 240px" }}>
                                 <p style={{ color: "#c8a96e", fontSize: "12.5px", margin: "0 0 2px" }}>
                                   {c.ecriture_num} · {new Date(c.date).toLocaleDateString("fr-FR")}
-                                  {c.ecart_jours > 0 ? " · " + c.ecart_jours + " j d ecart" : " · meme jour"}
+                                  {c.ecart_jours > 0 ? " · " + c.ecart_jours + " j d'écart" : " · même jour"}
                                 </p>
                                 <p style={{ color: "rgba(255,255,255,0.8)", fontSize: "14px", margin: 0 }}>{c.libelle}</p>
                               </div>
@@ -240,7 +240,7 @@ export default function PageRapprochement() {
                                   disabled={occupe !== ""}
                                   style={{ ...BOUTON, background: "#c8a96e", color: "#050508", border: "none", fontWeight: "bold" }}
                                 >
-                                  {occupe === p.id ? "..." : "Rapprocher"}
+                                  {occupe === p.id ? "…" : "Rapprocher"}
                                 </button>
                               </div>
                             </div>
@@ -252,21 +252,21 @@ export default function PageRapprochement() {
                     <div style={{ marginTop: "12px", paddingTop: "12px", borderTop: "1px solid rgba(255,255,255,0.08)" }}>
                       <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", margin: "0 0 8px", lineHeight: "1.7" }}>
                         {p.candidats.length === 0
-                          ? "Aucune ecriture de ce montant. Creez-la en choisissant sa contrepartie :"
-                          : "Ou creez une nouvelle ecriture :"}
-                        {suggestion ? " (propose : " + suggestion.compte + " " + suggestion.libelle + ", " + suggestion.confiance + " %)" : ""}
+                          ? "Aucune écriture de ce montant. Créez-la en choisissant sa contrepartie :"
+                          : "Ou créez une nouvelle écriture :"}
+                        {suggestion ? " (proposé : " + suggestion.compte + " " + suggestion.libelle + ", " + suggestion.confiance + " %)" : ""}
                       </p>
 
                       <input
                         value={q}
                         onChange={(e) => setRechercheCompte({ ...rechercheCompte, [p.id]: e.target.value })}
-                        placeholder="Chercher un compte : 606, 6, fournitures..."
+                        placeholder="Chercher un compte : 606, 6, fournitures…"
                         style={{ ...CHAMP, marginBottom: "6px" }}
                       />
                       <p style={{ color: "rgba(255,255,255,0.35)", fontSize: "12px", margin: "0 0 8px" }}>
                         {q
                           ? proposes.length + " compte(s) sur " + comptes.length
-                          : comptes.length + " compte(s) — tapez un chiffre pour n avoir qu une classe"}
+                          : comptes.length + " compte(s) — tapez un chiffre pour n'avoir qu'une classe"}
                       </p>
 
                       <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
@@ -289,7 +289,7 @@ export default function PageRapprochement() {
                           disabled={occupe !== "" || !choixCompte[p.id]}
                           style={{ ...BOUTON, background: !choixCompte[p.id] ? "none" : "#c8a96e", color: !choixCompte[p.id] ? "#c8a96e" : "#050508", border: !choixCompte[p.id] ? BOUTON.border : "none", fontWeight: "bold", padding: "10px 20px" }}
                         >
-                          {occupe === p.id ? "..." : "Creer l ecriture"}
+                          {occupe === p.id ? "…" : "Créer l'écriture"}
                         </button>
                       </div>
                     </div>
@@ -299,7 +299,7 @@ export default function PageRapprochement() {
                       disabled={occupe !== ""}
                       style={{ background: "none", border: "none", color: "rgba(255,255,255,0.4)", cursor: "pointer", fontSize: "13px", padding: "10px 0 0" }}
                     >
-                      Ecarter cette ligne
+                      Écarter cette ligne
                     </button>
                   </div>
                 );
@@ -308,7 +308,7 @@ export default function PageRapprochement() {
 
             <div style={{ ...CARTE, background: "rgba(200,169,110,0.05)", marginTop: "20px" }}>
               <p style={{ color: "rgba(255,255,255,0.65)", fontSize: "13.5px", margin: 0, lineHeight: "1.8" }}>
-                Le compte propose vient des ecritures deja passees sur ce dossier : plus il est
+                Le compte proposé vient des écritures déjà passées sur ce dossier : plus il est
                 tenu, plus la proposition tombe juste. Si le compte porte un taux de TVA, la
                 ventilation se fait toute seule.
               </p>
