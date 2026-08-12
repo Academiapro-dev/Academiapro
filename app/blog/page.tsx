@@ -34,10 +34,13 @@ function extraireTexte(contenu) {
 
 export default async function PageBlog() {
   const supabase = clientLecture();
+  // Ce blog est celui d AcademIA Pro. Les articles Mr. Comptable ont
+  // leur propre blog et ne doivent jamais paraitre ici.
   const { data } = await supabase
     .from("blog")
     .select("id, titre, slug, extrait, contenu, categorie, created_at")
     .eq("publie", true)
+    .eq("marque", "academiapro")
     .order("created_at", { ascending: false });
   const articles = data || [];
 
@@ -110,7 +113,7 @@ export default async function PageBlog() {
                 alignItems: "center" }}>
                 <span style={{ color: "rgba(255,255,255,0.4)",
                   fontSize: 13 }}>
-                  AcadémIA Pro
+                  AcadémIA Pro
                 </span>
                 <span style={{ color: "#c8a96e", fontSize: 14,
                   fontWeight: 700 }}>
