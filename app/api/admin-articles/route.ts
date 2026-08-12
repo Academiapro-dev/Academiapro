@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
+// Ecran d administration des brouillons. Deux marques cohabitent dans la
+// table blog : la marque est renvoyee avec chaque ligne, et le parametre
+// marque= permet de n afficher que celles d une marque.
+
 function clientSupa() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL || "",
@@ -15,11 +19,21 @@ export async function GET(req: NextRequest) {
       { erreur: "non autorise" }, { status: 401 });
   }
   const supa = clientSupa();
-  const { data } = await supa
+
+  const marque = req.nextUrl.searchParams.get("marque");
+
+  let requete = supa
     .from("blog")
-    .select("id, titre, extrait, contenu, categorie, created_at")
-    .eq("publie", false)
+    .select("id, titre, extrait, contenu, categorie, marque, created_at")
+    .eq("publie", false);
+
+  if (marque) {
+    requete = requete.eq("marque", marque);
+  }
+
+  const { data } = await requete
     .order("created_at", { ascending: false });
+
   return NextResponse.json({ brouillons: data || [] });
 }
 
