@@ -4,12 +4,14 @@ import { NextRequest, NextResponse } from "next/server";
 // Publie sur LinkedIn les posts en attente : statut a_publier,
 // plateforme linkedin. La page visee depend de la marque du post.
 //
-// POURQUOI CETTE ROUTE EXISTE. La publication passait par Make, qui a
-// cesse de fonctionner sans erreur lisible. Ici tout est visible : la
-// requete, la reponse, le statut ecrit.
+// L IMAGE EST JOINTE SYSTEMATIQUEMENT. Dans un fil LinkedIn, un post sans
+// visuel passe inapercu. LinkedIn n accepte pas une adresse d image : il
+// faut d abord enregistrer le televersement, deposer les octets, puis
+// attacher la reference obtenue. Si cette chaine echoue, on publie en
+// texte seul plutot que de perdre le post.
 //
 // LE JETON. LINKEDIN_TOKEN doit porter la portee w_organization_social
-// et l administration des deux pages.
+// et l administration des pages visees.
 
 export const maxDuration = 300;
 
@@ -19,25 +21,103 @@ const PAGES: Record<string, string> = {
   mrcomptable: "137943950",
 };
 
+// L image jointe par defaut, par marque : le logo. Un post qui ne porte
+// aucune image propre prend celle-ci.
+const LOGOS: Record<string, string> = {
+  academiapro: "https://academiapro.fr/IMG_4100.jpeg",
+  mrcomptable: "https://academiapro.fr/IMG_4158.jpeg",
+};
+
 function clientAdmin() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL || "",
     process.env.SUPABASE_SERVICE_ROLE_KEY || "");
 }
 
-async function publierSurLinkedin(contenu: string, marque: string) {
-  const token = process.env.LINKEDIN_TOKEN || "";
+function jeton() {
+  return process.env.LINKEDIN_TOKEN || "";
+}
+
+// Etape 1 : demander a LinkedIn ou deposer l image.
+// Etape 2 : y deposer les octets.
+// Renvoie l URN de l image, ou null si quoi que ce soit echoue.
+async function televerserImage(urlImage: string, auteur: string) {
+  try {
+    const enregistrement = await fetch(
+      "https://api.linkedin.com/v2/assets?action=registerUpload", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer " + jeton(),
+          "X-Restli-Protocol-Version": "2.0.0"
+        },
+        body: JSON.stringify({
+          registerUploadRequest: {
+            owner: auteur,
+            recipes: ["urn:li:digitalmediaRecipe:feedshare-image"],
+            serviceRelationships: [{
+              identifier: "urn:li:userGeneratedContent",
+              relationshipType: "OWNER"
+            }]
+          }
+        })
+      });
+
+    if (!enregistrement.ok) return null;
+
+    const donnees = await enregistrement.json();
+    const mecanisme = donnees?.value?.uploadMechanism;
+    const cle = "com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest";
+    const urlDepot = mecanisme?.[cle]?.uploadUrl;
+    const urn = donnees?.value?.asset;
+
+    if (!urlDepot || !urn) return null;
+
+    // Recuperer les octets de l image depuis notre propre domaine.
+    const image = await fetch(urlImage);
+    if (!image.ok) return null;
+    const octets = await image.arrayBuffer();
+
+    const depot = await fetch(urlDepot, {
+      method: "PUT",
+      headers: { "Authorization": "Bearer " + jeton() },
+      body: octets
+    });
+
+    if (!depot.ok) return null;
+
+    return urn;
+  } catch {
+    return null;
+  }
+}
+
+async function publierSurLinkedin(
+  contenu: string, marque: string, urlMedia: string | null) {
+
   const page = PAGES[marque] || PAGES.academiapro;
   const auteur = "urn:li:organization:" + page;
+
+  const image = urlMedia || LOGOS[marque] || LOGOS.academiapro;
+  const urnImage = await televerserImage(image, auteur);
+
+  const partage: any = {
+    shareCommentary: { text: contenu },
+    shareMediaCategory: urnImage ? "IMAGE" : "NONE"
+  };
+
+  if (urnImage) {
+    partage.media = [{
+      status: "READY",
+      media: urnImage
+    }];
+  }
 
   const corps = {
     author: auteur,
     lifecycleState: "PUBLISHED",
     specificContent: {
-      "com.linkedin.ugc.ShareContent": {
-        shareCommentary: { text: contenu },
-        shareMediaCategory: "NONE"
-      }
+      "com.linkedin.ugc.ShareContent": partage
     },
     visibility: {
       "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC"
@@ -48,7 +128,7 @@ async function publierSurLinkedin(contenu: string, marque: string) {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "Authorization": "Bearer " + token,
+      "Authorization": "Bearer " + jeton(),
       "X-Restli-Protocol-Version": "2.0.0"
     },
     body: JSON.stringify(corps)
@@ -62,14 +142,13 @@ async function publierSurLinkedin(contenu: string, marque: string) {
     data = { brut: texte };
   }
 
-  // LinkedIn renvoie l identifiant du post dans l en-tete, pas toujours
-  // dans le corps.
   const idEntete = r.headers.get("x-restli-id");
 
   return {
     ok: r.status >= 200 && r.status < 300,
     statut: r.status,
     id: (data && data.id) || idEntete || null,
+    image: urnImage ? "jointe" : "aucune",
     reponse: data
   };
 }
@@ -120,7 +199,8 @@ export async function GET(req: NextRequest) {
   const resultats = [];
   for (const post of posts) {
     const marque = post.marque || "academiapro";
-    const res = await publierSurLinkedin(post.contenu, marque);
+    const res = await publierSurLinkedin(
+      post.contenu, marque, post.url_media);
 
     if (res.ok) {
       await supabase
@@ -133,6 +213,7 @@ export async function GET(req: NextRequest) {
       resultats.push({
         post: post.id,
         marque: marque,
+        image: res.image,
         linkedin_id: res.id
       });
     } else {
