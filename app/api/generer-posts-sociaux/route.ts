@@ -10,6 +10,12 @@ import { NextRequest, NextResponse } from "next/server";
 //
 // Le nombre de formations n est plus ecrit en dur : il se compte en base.
 // Un chiffre faux dans un post public se remarque et ne se rattrape pas.
+//
+// DEUX MARQUES. Cette route ne traite QUE la marque academiapro : elle ne
+// lit que les articles academiapro et n insere que des lignes academiapro.
+// Les posts Mr. Comptable ont leur propre voix et ne paraissent que sur
+// LinkedIn : ils seront produits par une branche dediee une fois la page
+// LinkedIn Mr. Comptable ouverte.
 
 export const maxDuration = 300;
 
@@ -17,6 +23,8 @@ const URL_VIDEOS = (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/\/+$/, 
   + "/storage/v1/object/public/videos_marketing/";
 
 const SITE = "https://academiapro.fr";
+
+const MARQUE = "academiapro";
 
 function clientAdmin() {
   return createClient(
@@ -149,6 +157,7 @@ export async function GET(req: NextRequest) {
     const { data: dernier } = await supabase
       .from("posts_sociaux")
       .select("formation_code")
+      .eq("marque", MARQUE)
       .order("cree_le", { ascending: false })
       .limit(1);
 
@@ -167,6 +176,7 @@ export async function GET(req: NextRequest) {
       .from("blog")
       .select("id, titre, contenu")
       .eq("publie", true)
+      .eq("marque", MARQUE)
       .order("created_at", { ascending: false })
       .limit(10);
 
@@ -261,7 +271,8 @@ export async function GET(req: NextRequest) {
       plateforme: "linkedin",
       statut: "a_publier",
       contenu: posts.linkedin,
-      url_media: urlMedia
+      url_media: urlMedia,
+      marque: MARQUE
     },
     {
       article_id: articleId,
@@ -269,7 +280,8 @@ export async function GET(req: NextRequest) {
       plateforme: "facebook",
       statut: "a_publier",
       contenu: posts.facebook,
-      url_media: urlMedia
+      url_media: urlMedia,
+      marque: MARQUE
     }
   ];
 
@@ -285,8 +297,9 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     type: type,
     sujet: sujet,
+    marque: MARQUE,
     formations_au_catalogue: nb,
     video: urlMedia ? "associee" : "aucune",
-    posts_crees: 2
+    posts_crees: lignes.length
   });
 }
