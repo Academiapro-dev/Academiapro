@@ -186,8 +186,8 @@ export default function AccueilComptable() {
           </p>
           <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "14px", lineHeight: "1.75", margin: 0, maxWidth: "760px" }}>
             Mr. Comptable est une solution compatible au sens de la réforme, et non une
-            plateforme agréée. Le transport des factures reste assuré par la plateforme
-            agréée que vous avez retenue ; nous nous y raccordons.
+            plateforme agréée. Le transport des factures est assuré par une plateforme
+            agréée, à laquelle nous nous raccordons.
           </p>
         </div>
       </section>
