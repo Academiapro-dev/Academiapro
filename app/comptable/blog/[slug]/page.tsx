@@ -4,6 +4,9 @@ import { notFound } from "next/navigation";
 
 // Article du blog Mr. Comptable. Ne sert QUE les articles de marque
 // mrcomptable : un slug academiapro renvoie 404 ici.
+//
+// LA CANONIQUE EST SANS PREFIXE. Le middleware sert cette page sous
+// mrcomptable.fr/blog/{slug} : c est cette adresse que le sitemap declare.
 
 export const revalidate = 3600;
 
@@ -38,7 +41,7 @@ export async function generateMetadata({ params }: any) {
     title: article.titre + " — Mr. Comptable",
     description: article.extrait || "",
     alternates: {
-      canonical: "https://mrcomptable.fr/comptable/blog/" + article.slug,
+      canonical: "https://mrcomptable.fr/blog/" + article.slug,
     },
   };
 }
