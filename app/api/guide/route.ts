@@ -107,6 +107,43 @@ const GUIDES: any = {
     ],
   },
 
+  // L ECRAN OU LE CABINET GAGNE SES HEURES.
+  //
+  // Connecter la banque supprime le telechargement mensuel du releve, sa
+  // mise en forme et sa saisie. Mais le geste engage le client du cabinet :
+  // il doit y consentir, et comprendre que ses identifiants ne passent par
+  // personne. Le guide le dit avant qu on le lui demande.
+  "comptable.releve": {
+    titre: "Les relevés bancaires",
+    texte: "Connectez la banque du dossier une fois, et les écritures "
+      + "arrivent ensuite d'elles-mêmes. Plus de relevé à télécharger, à "
+      + "remettre en forme, ni à recopier.",
+    points: [
+      "C'est votre client qui se connecte à sa banque, dans une fenêtre qui appartient au prestataire : ses identifiants ne passent ni par vous ni par nous.",
+      "Il choisit les comptes qu'il partage — un compte personnel peut rester en dehors.",
+      "« Relever les écritures » ne rapatrie que le nouveau : relancer deux fois ne double jamais la trésorerie.",
+      "Toutes les banques ne sont pas couvertes : l'import du relevé à la main reste disponible, et les deux se mélangent sans risque.",
+    ],
+  },
+
+  // LE RAPPROCHEMENT EST LE GESTE LE PLUS REPETITIF DU CABINET.
+  //
+  // Il consiste a retrouver, pour chaque ligne de banque, l ecriture qui lui
+  // correspond — ou a la creer. La machine propose, le comptable tranche :
+  // c est sa responsabilite, pas la notre.
+  "comptable.rapprochement": {
+    titre: "Le rapprochement bancaire",
+    texte: "Chaque ligne de banque doit retrouver son écriture. Les "
+      + "correspondances sont cherchées par montant et par date : vous "
+      + "confirmez, ou vous créez l'écriture manquante.",
+    points: [
+      "Un pourcentage accompagne chaque proposition. Au-dessus de 80 %, montant et date concordent — mais c'est vous qui validez.",
+      "Sans écriture correspondante, choisissez le compte de contrepartie et l'écriture se crée : le 512 est déjà du bon côté.",
+      "Le compte proposé vient de vos écritures passées sur ce dossier. Plus il est tenu, plus la proposition tombe juste.",
+      "« Écarter » sert aux lignes qui ne donneront jamais d'écriture — un virement interne, une opération déjà passée autrement.",
+    ],
+  },
+
   // ─────────────────────────────────────────────────────────────────
   // MR. QUALIOPI
   // ─────────────────────────────────────────────────────────────────
