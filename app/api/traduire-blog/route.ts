@@ -5,6 +5,10 @@ import { NextRequest, NextResponse } from "next/server";
 // Vercel chaque nuit. Detecte les articles publies sans
 // traduction EN/ES et les traduit via Claude, une seule
 // fois chacun (flux tendu).
+//
+// SEUL LE BLOG ACADEMIA PRO EST TRADUIT. Les articles
+// Mr. Comptable visent les cabinets francais : la reforme
+// de la facture electronique n a pas de sens hors de France.
 
 export const maxDuration = 300;
 
@@ -28,7 +32,7 @@ async function claude(prompt: string): Promise<string> {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: "claude-sonnet-4-5-20250929",
+      model: "claude-sonnet-4-6",
       max_tokens: 8000,
       messages: [{ role: "user", content: prompt }],
     }),
@@ -72,7 +76,8 @@ export async function GET(req: NextRequest) {
   const { data: articles } = await supa
     .from("blog")
     .select("id, titre, slug, extrait, contenu")
-    .eq("publie", true);
+    .eq("publie", true)
+    .eq("marque", "academiapro");
   const { data: existantes } = await supa
     .from("blog_traductions")
     .select("article_id, langue");
@@ -113,4 +118,3 @@ export async function GET(req: NextRequest) {
     details: resultats,
   });
 }
-
