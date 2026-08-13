@@ -53,6 +53,15 @@ export default function PagePieces() {
     setChargement(false);
   }
 
+  // LE DEPOT ENCHAINE SUR LA LECTURE.
+  //
+  // Deposer puis appuyer sur « Lire la facture » faisait deux gestes pour
+  // une seule intention. La lecture n ecrit rien de definitif : elle
+  // renseigne la fiche, que l on corrige avant de comptabiliser. Il n y a
+  // donc aucune raison d attendre un second clic.
+  //
+  // La comptabilisation, elle, reste manuelle : c est elle qui engage, et
+  // une ecriture validee ne se supprime pas, elle se contre-passe.
   async function deposer() {
     if (!fichier) { setErreur("Choisissez un fichier."); return; }
     setOccupe("depot");
@@ -71,6 +80,11 @@ export default function PagePieces() {
         setF({ ...f, nom: "", fournisseur: "", montant_ttc: "", reference: "", ecriture_num: "" });
         setFormulaire(false);
         await charger();
+
+        // La piece vient d etre creee : on la lit dans la foulee.
+        if (data.piece && data.piece.id) {
+          await lire({ id: data.piece.id });
+        }
       } else {
         setErreur(data.erreur || "Dépôt impossible.");
       }
@@ -92,7 +106,11 @@ export default function PagePieces() {
       });
       const data = await r.json();
       if (data.ok) {
-        setLectures({ ...lectures, [p.id]: data });
+        setLectures(function (avant: any) {
+          const suite = { ...avant };
+          suite[p.id] = data;
+          return suite;
+        });
         setMessage(data.message);
         await charger();
       } else {
@@ -196,11 +214,13 @@ export default function PagePieces() {
     return (Number(n) || 0).toLocaleString("fr-FR", { minimumFractionDigits: 2 }) + " €";
   }
 
+  // AUCUN EXEMPLE DANS LES CHAMPS. Un montant affiche en gris se prend pour
+  // une valeur deja saisie : le lecteur croit qu on lui propose 22,90 EUR.
   const CHAMPS = [
-    ["nom", "Nom de la pièce", "Facture OVH mars"],
-    ["fournisseur", "Fournisseur", "OVH"],
-    ["montant_ttc", "Montant TTC", "22,90"],
-    ["reference", "Référence", "FR78399269"],
+    ["nom", "Nom de la pièce"],
+    ["fournisseur", "Fournisseur"],
+    ["montant_ttc", "Montant TTC"],
+    ["reference", "Référence"],
   ];
 
   return (
@@ -261,7 +281,7 @@ export default function PagePieces() {
                 return (
                   <div key={c[0]} style={{ flex: "1 1 180px" }}>
                     <span style={LIBELLE}>{c[1]}</span>
-                    <input value={f[c[0]]} onChange={(e) => setF({ ...f, [c[0]]: e.target.value })} placeholder={c[2]} style={CHAMP} />
+                    <input value={f[c[0]]} onChange={(e) => setF({ ...f, [c[0]]: e.target.value })} style={CHAMP} />
                   </div>
                 );
               })}
@@ -276,7 +296,7 @@ export default function PagePieces() {
             </div>
 
             <button onClick={deposer} disabled={occupe !== "" || !fichier} style={{ ...PLEIN, padding: "14px 28px", borderRadius: "8px", fontSize: "15px", width: "100%" }}>
-              {occupe === "depot" ? "Dépôt en cours…" : "Déposer la pièce"}
+              {occupe === "depot" ? "Dépôt en cours…" : occupe.indexOf("lire-") === 0 ? "Lecture en cours…" : "Déposer la pièce"}
             </button>
           </div>
         )}
@@ -377,7 +397,7 @@ export default function PagePieces() {
                   </button>
                   {!p.ecriture_num && (
                     <button onClick={() => lire(p)} disabled={occupe !== ""} style={BOUTON}>
-                      {occupe === "lire-" + p.id ? "Lecture…" : "Lire la facture"}
+                      {occupe === "lire-" + p.id ? "Lecture…" : l ? "Relire la facture" : "Lire la facture"}
                     </button>
                   )}
                   {p.ecriture_num && (
