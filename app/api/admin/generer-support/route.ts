@@ -42,6 +42,10 @@ function moduleDe(heures: number): { mini: number; maxi: number } {
   return { mini: n, maxi: n };
 }
 
+function renseigne(v: any): boolean {
+  return typeof v === "string" && v.trim().length > 20;
+}
+
 export async function GET(req: Request) {
   try {
     const email = emailDeSession();
@@ -65,9 +69,18 @@ export async function GET(req: Request) {
       .list("", { limit: 1000, sortBy: { column: "name", order: "asc" } });
     const existants = new Set((fichiers || []).map((f) => f.name));
 
+    // LA FICHE FAIT FOI QUAND ELLE EST RENSEIGNEE.
+    //
+    // Le 13 aout, un support a ete produit deux fois de suite en ignorant
+    // un programme detaille de mille caracteres : la requete ne lisait pas
+    // la colonne. Le modele n y etait pour rien.
+    //
+    // Desormais : ce qui est ecrit dans la fiche est IMPOSE au modele, et
+    // ce qui manque est laisse a sa redaction. Une fiche vide se comporte
+    // donc exactement comme avant.
     const { data: formations } = await supabase
       .from("formations")
-      .select("code, titre, domaine, niveau, prix, duree")
+      .select("code, titre, domaine, niveau, prix, duree, description, programme, objectifs, prerequis, public_cible")
       .order("code", { ascending: true });
 
     const candidates = (formations || []).filter(
@@ -76,7 +89,7 @@ export async function GET(req: Request) {
         !existants.has(f.code + "_support_cours.html")
     );
 
-    const fiche = demande
+    const fiche: any = demande
       ? (formations || []).find((f: any) => f.code === demande)
       : candidates[0];
 
@@ -98,12 +111,37 @@ export async function GET(req: Request) {
       ? Math.max(1, Math.round(heures / bornes.maxi))
       : 0;
 
+    // Ce que la fiche impose. Chaque bloc n apparait que s il est renseigne.
+    let impose = "";
+    if (renseigne(fiche.description)) {
+      impose += "\nCE QUE LA FORMATION EST (a respecter) :\n" + fiche.description + "\n";
+    }
+    if (renseigne(fiche.objectifs)) {
+      impose += "\nOBJECTIFS IMPOSES (reprends-les, reformule sans les trahir) :\n" + fiche.objectifs + "\n";
+    }
+    if (renseigne(fiche.public_cible)) {
+      impose += "\nPUBLIC IMPOSE :\n" + fiche.public_cible + "\n";
+    }
+    if (renseigne(fiche.prerequis)) {
+      impose += "\nPREREQUIS IMPOSES :\n" + fiche.prerequis + "\n";
+    }
+    if (renseigne(fiche.programme)) {
+      impose += "\nPROGRAMME IMPOSE — c est CE decoupage qu il faut suivre, "
+        + "module par module, en gardant les intitules et les notions citees. "
+        + "Tu peux etoffer la description de chaque module, tu ne peux ni en "
+        + "ajouter, ni en retirer, ni remplacer les notions par d autres :\n"
+        + fiche.programme + "\n";
+    }
+
+    const aProgramme = renseigne(fiche.programme);
+
     const invite =
       "Tu rediges le support de cours officiel d un organisme de formation professionnelle francais.\n\n" +
       "Formation : " + fiche.titre + "\n" +
       "Domaine : " + (fiche.domaine || "non precise") + "\n" +
       "Niveau : " + (fiche.niveau || "non precise") + "\n" +
       (heures > 0 ? "Duree totale : " + heures + " heures.\n" : "") +
+      impose +
       "\nProduis un document structure en francais comprenant, dans cet ordre :\n" +
       "1. OBJECTIFS DE LA FORMATION : un paragraphe de 5 a 8 lignes.\n" +
       "2. PREREQUIS : 3 a 5 lignes.\n" +
@@ -114,11 +152,21 @@ export async function GET(req: Request) {
       "suivi de 2 a 4 lignes decrivant son contenu.\n" +
       "6. MODALITES D EVALUATION : un paragraphe.\n\n" +
       "Regles imperatives :\n" +
+      (impose
+        ? "- CE QUI EST IMPOSE CI-DESSUS PREVAUT SUR TOUT LE RESTE. N invente "
+          + "aucune fonctionnalite, aucun ecran, aucune notion qui n y figure pas.\n"
+        : "") +
+      (aProgramme
+        ? "- Le programme impose donne les modules : suis-le dans son ordre, "
+          + "sans en ajouter ni en supprimer.\n"
+        : "") +
       (heures > 0
         ? "- LE NOMBRE DE MODULES EST IMPOSE : " + combien + ", ni plus ni moins.\n" +
           "- LE TOTAL DES HEURES DES MODULES DOIT FAIRE EXACTEMENT " + heures + " HEURES" +
           (parModule > 0 ? ", soit environ " + parModule + " heures par module" : "") + ".\n"
         : "- Le total des heures doit etre coherent avec le niveau annonce.\n") +
+      "- Nomme les choses comme l utilisateur les voit a l ecran, jamais en "
+      + "jargon technique.\n" +
       "- N invente AUCUNE certification, aucun titre RNCP, aucun label, aucun organisme tiers.\n" +
       "- N indique AUCUN prix.\n" +
       "- Pas de promesse de resultat ni de garantie chiffree.\n" +
@@ -212,6 +260,8 @@ export async function GET(req: Request) {
       titre: fiche.titre,
       heures: heures,
       modules_demandes: bornes.maxi,
+      fiche_suivie: impose ? true : false,
+      programme_impose: aProgramme,
       force: force,
       taille: html.length,
       restants: Math.max(candidates.length - 1, 0),
