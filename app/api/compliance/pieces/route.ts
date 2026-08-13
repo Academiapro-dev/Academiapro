@@ -238,6 +238,41 @@ export async function POST(req: NextRequest) {
     const octets = Buffer.from(await fichier.arrayBuffer());
     const empreinte = crypto.createHash("sha256").update(octets).digest("hex");
 
+    // LE MEME FICHIER NE SE DEPOSE PAS DEUX FOIS SUR LE MEME DOSSIER.
+    //
+    // Deux pieces identiques, ce sont deux charges et deux fois la TVA
+    // deduite. L empreinte du fichier ne trompe pas : deux octets qui
+    // different suffisent a la changer, deux fichiers identiques ont
+    // forcement la meme.
+    //
+    // Le controle a lieu AVANT l envoi au coffre : un doublon n encombre
+    // meme pas le stockage.
+    const { data: dejaLa } = await supabase
+      .from("compta_pieces")
+      .select("id, nom, ecriture_num, created_at")
+      .eq("societe_id", societeId)
+      .eq("empreinte_sha256", empreinte)
+      .limit(1);
+
+    if (dejaLa && dejaLa.length > 0) {
+      const p = dejaLa[0];
+      const quand = p.created_at
+        ? new Date(p.created_at).toLocaleDateString("fr-FR")
+        : "";
+      return NextResponse.json(
+        {
+          ok: false,
+          doublon: true,
+          piece_existante: p.id,
+          erreur: "Ce fichier est deja au dossier sous le nom « " + p.nom + " »"
+            + (quand ? ", depose le " + quand : "")
+            + (p.ecriture_num ? ", rattache a l ecriture " + p.ecriture_num : "")
+            + ". Rien n a ete depose.",
+        },
+        { status: 409 }
+      );
+    }
+
     const extension = (fichier.name || "piece.pdf").split(".").pop() || "pdf";
     const chemin = societeId + "/" + Date.now() + "-"
       + Math.random().toString(36).slice(2, 7) + "." + extension.toLowerCase();
