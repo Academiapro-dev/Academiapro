@@ -47,25 +47,25 @@ export default function PagePack() {
           POUR LES ORGANISMES DE FORMATION
         </p>
         <h1 style={{ color: "#fff", fontSize: "34px", lineHeight: "1.3", margin: "0 0 16px" }}>
-          300 formations pretes a vendre,<br />et tout l administratif qui va avec
+          331 formations pretes a vendre,<br />et tout l administratif qui va avec
         </h1>
         <p style={{ ...P, fontSize: "18px" }}>
           Les logiciels de gestion vous donnent un outil. Nous vous donnons le contenu : trois
-          cents formations a distance, redigees et corrigees, que vous proposez a vos stagiaires
-          des demain sous votre nom. Avec la plateforme, les documents obligatoires et votre bilan
-          pedagogique prepare.
+          cent trente et une formations a distance, redigees et corrigees, que vous proposez a vos
+          stagiaires des demain sous votre nom. Avec la plateforme, les documents obligatoires et
+          votre bilan pedagogique prepare.
         </p>
 
         <div style={{ ...CARTE, border: "2px solid " + OR, marginTop: "36px" }}>
           <h2 style={{ ...H2, fontSize: "18px", margin: "0 0 8px" }}>La formule</h2>
           <p style={{ color: "#fff", fontSize: "34px", fontWeight: "bold", margin: "0 0 2px" }}>
-            150 EUR
+            390 EUR
           </p>
           <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "14px", margin: "0 0 18px" }}>
             hors taxes par mois, sans engagement de duree
           </p>
 
-          <p style={PUCE}><span style={{ color: OR }}>·</span> Les 300 formations du catalogue, a vos prix</p>
+          <p style={PUCE}><span style={{ color: OR }}>·</span> Les 331 formations du catalogue, a vos prix</p>
           <p style={PUCE}><span style={{ color: OR }}>·</span> Vos propres formations, creees et publiees sans limite</p>
           <p style={PUCE}><span style={{ color: OR }}>·</span> Stagiaires illimites</p>
           <p style={PUCE}><span style={{ color: OR }}>·</span> Correction des questionnaires par IA, erreur par erreur</p>
@@ -76,6 +76,12 @@ export default function PagePack() {
           <p style={PUCE}><span style={{ color: OR }}>·</span> Bilan pedagogique et financier prepare, cadre par cadre</p>
 
           <div style={{ borderTop: "1px solid rgba(200,169,110,0.25)", marginTop: "18px", paddingTop: "16px" }}>
+            <p style={{ ...P, fontSize: "15px", margin: "0 0 8px" }}>
+              La mise en service est facturee{" "}
+              <strong style={{ color: "#fff" }}>1 500 EUR hors taxes, une seule fois</strong> :
+              ouverture de votre espace, portail a votre marque, reprise de votre catalogue et
+              prise en main.
+            </p>
             <p style={{ ...P, fontSize: "15px", margin: "0 0 8px" }}>
               S y ajoutent <strong style={{ color: "#fff" }}>35 % du prix de vente</strong> de chaque
               formation <em>de notre catalogue</em> que vous vendez, avec un minimum de{" "}
@@ -153,7 +159,7 @@ export default function PagePack() {
         <div style={CARTE}>
           <h2 style={H2}>Mr. Qualiopi</h2>
           <p style={{ color: "#fff", fontSize: "26px", fontWeight: "bold", margin: "0 0 2px" }}>
-            1 190 EUR
+            790 EUR
           </p>
           <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "14px", margin: "0 0 14px" }}>
             hors taxes, une fois, en sus de l abonnement
