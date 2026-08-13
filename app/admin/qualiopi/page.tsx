@@ -275,7 +275,7 @@ export default function GrilleQualiopi() {
                   présenterez à l'auditeur.
                 </p>
                 <p style={{ fontSize: 15, lineHeight: 1.75, color: "#555", margin: "0 0 18px" }}>
-                  1 190 € hors taxes, une fois, pour douze mois — ce qui couvre la
+                  790 € hors taxes, une fois, pour douze mois — ce qui couvre la
                   préparation et l'audit initial. Remboursement sur simple demande
                   dans les trente jours, tant que le dossier n'a pas été exporté.
                 </p>
@@ -284,7 +284,7 @@ export default function GrilleQualiopi() {
                   disabled={souscrire}
                   style={{ ...STYLE_BOUTON, fontSize: 16, padding: "13px 26px", marginBottom: 0 }}
                 >
-                  {souscrire ? "Enregistrement…" : "Souscrire — 1 190 € HT"}
+                  {souscrire ? "Enregistrement…" : "Souscrire — 790 € HT"}
                 </button>
                 {messageSouscription && (
                   <p style={{ color: "#0a3d2e", fontWeight: "bold", marginBottom: 0 }}>
