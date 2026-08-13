@@ -6,7 +6,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-const PRIX = 1190;
+const PRIX = 790;
 const PROJET = "academia";
 
 const supabase = createClient(
