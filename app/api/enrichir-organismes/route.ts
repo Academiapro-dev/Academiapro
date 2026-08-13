@@ -1,13 +1,13 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 
-// Enrichit une table de prospects depuis l annuaire des entreprises de
+// Enrichit les tables de prospects depuis l annuaire des entreprises de
 // l Etat. API publique, gratuite, sans cle.
 //
-// UNE SEULE ROUTE POUR TOUTES LES CIBLES. Le parametre table= choisit
-// laquelle : organismes de formation, cabinets comptables, interim. Les
-// trois tables portent les memes colonnes de travail — siren, dirigeant,
-// site_web, statut — c est ce qui rend la route commune possible.
+// UNE SEULE ROUTE POUR TOUTES LES CIBLES, ET ELLE ENCHAINE SEULE. Sans
+// parametre, elle prend la premiere table qui a encore des lignes a
+// traiter, dans l ordre ci-dessous. Le cron appelle toujours la meme
+// adresse : rien a surveiller, rien a changer entre deux campagnes.
 //
 // CE QU ELLE APPORTE : le nom du dirigeant. L API ne donne PAS le site
 // web — verifie le 13 aout, le champ n existe nulle part dans sa reponse.
@@ -19,13 +19,15 @@ export const maxDuration = 300;
 
 const URL_API = "https://recherche-entreprises.api.gouv.fr/search";
 
-// Les tables autorisees. Une valeur absente de cette liste est refusee :
-// on ne laisse pas un parametre d URL designer une table quelconque.
+// L ordre compte : c est celui dans lequel les campagnes partiront.
 const TABLES: Record<string, string> = {
   organismes: "prospects_organismes",
-  cabinets: "prospects_cabinets",
+  qualiopi: "prospects_qualiopi",
   interim: "prospects_interim",
+  cabinets: "prospects_cabinets",
 };
+
+const ORDRE = ["organismes", "qualiopi", "interim", "cabinets"];
 
 function clientAdmin() {
   return createClient(
@@ -64,17 +66,40 @@ export async function GET(req: NextRequest) {
 
   const supabase = clientAdmin();
 
-  // Sans parametre, on traite les organismes : c est la campagne en cours.
-  // Quand elle sera finie, la route repondra qu il n y a plus rien et il
-  // suffira de changer le parametre du cron.
-  const cle = String(req.nextUrl.searchParams.get("table") || "organismes");
-  const table = TABLES[cle];
+  const demandee = req.nextUrl.searchParams.get("table");
 
-  if (!table) {
-    return NextResponse.json(
-      { erreur: "table inconnue", tables_possibles: Object.keys(TABLES) },
-      { status: 400 });
+  // Table imposee : on la traite, meme si elle est vide.
+  // Sans parametre : on cherche la premiere qui a du travail.
+  let cle: string | null = null;
+
+  if (demandee) {
+    if (!TABLES[demandee]) {
+      return NextResponse.json(
+        { erreur: "table inconnue", tables_possibles: ORDRE },
+        { status: 400 });
+    }
+    cle = demandee;
+  } else {
+    for (const candidate of ORDRE) {
+      const { count } = await supabase
+        .from(TABLES[candidate])
+        .select("id", { count: "exact", head: true })
+        .eq("statut", "a_enrichir");
+      if ((count || 0) > 0) {
+        cle = candidate;
+        break;
+      }
+    }
   }
+
+  if (!cle) {
+    return NextResponse.json({
+      info: "toutes les tables sont enrichies",
+      tables: ORDRE,
+    });
+  }
+
+  const table = TABLES[cle];
 
   const demande = Number(req.nextUrl.searchParams.get("limite") || 500);
   const limite = demande > 0 && demande <= 2000 ? demande : 500;
@@ -170,6 +195,6 @@ export async function GET(req: NextRequest) {
     avec_dirigeant: avecDirigeant,
     introuvables: introuvables,
     erreurs: erreurs,
-    reste_a_enrichir: restant || 0,
+    reste_dans_cette_table: restant || 0,
   });
 }
