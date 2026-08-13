@@ -80,8 +80,11 @@ function nouvelleReference(): string {
 // AFFICHAGE-BOUTON-ENVOYER a NON : le client peut relire sa liasse mais pas
 // la teletransmettre lui-meme.
 //
-// #SOURCE est l IDENTIFIANT DU PARTENAIRE, sensible a la casse. Sur
-// l environnement de stage, TELEDEC impose la valeur generique API.
+// #SOURCE est l IDENTIFIANT DU PARTENAIRE. Il est ATTRIBUE PAR TELEDEC, pas
+// choisi par nous, et il est SENSIBLE A LA CASSE. Notre valeur, confirmee
+// par Thomas Brethiot le 13 aout 2026 : ACADEMIAPRO, en majuscules.
+// C est elle qui declenche la marque blanche — logo et adresses
+// @mrcomptable.fr — de leur cote.
 //
 // #EMAIL doit porter une adresse AUTORISEE POUR LE PARTENAIRE, sans quoi
 // TELEDEC repond 403.
@@ -93,7 +96,7 @@ function nouvelleReference(): string {
 // #REFERENCE-DOSSIER voyage avec la declaration et nous revient telle quelle.
 function identification(reference: string, urlCallback: string): string {
   const lignes = [
-    "#SOURCE API",
+    "#SOURCE ACADEMIAPRO",
     "#VERSION 1.0",
     "#EMAIL contact@academiapro.fr",
     "#MOT-DE-PASSE " + MDP_CLIENT,
