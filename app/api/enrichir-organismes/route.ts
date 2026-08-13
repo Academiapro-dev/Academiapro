@@ -1,15 +1,16 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 
-// Enrichit prospects_organismes depuis l annuaire des entreprises de l Etat.
-// API publique, gratuite, sans cle : recherche-entreprises.api.gouv.fr
+// Enrichit une table de prospects depuis l annuaire des entreprises de
+// l Etat. API publique, gratuite, sans cle.
 //
-// CE QU ELLE APPORTE : le nom du dirigeant, et le site web quand il est
-// declare. Ces deux elements sont ce que Dropcontact exige pour deduire
-// une adresse electronique. Sans eux, son taux s effondre.
+// UNE SEULE ROUTE POUR TOUTES LES CIBLES. Le parametre table= choisit
+// laquelle : organismes de formation, cabinets comptables, interim. Les
+// trois tables portent les memes colonnes de travail — siren, dirigeant,
+// site_web, statut — c est ce qui rend la route commune possible.
 //
-// L API limite le debit : on espace les appels. Un lot de 500 prend
-// environ 75 secondes.
+// CE QU ELLE APPORTE : le nom du dirigeant. L API ne donne PAS le site
+// web — verifie le 13 aout, le champ n existe nulle part dans sa reponse.
 //
 // Le statut passe de 'a_enrichir' a 'enrichi' ou 'introuvable'. Une ligne
 // deja traitee ne repasse jamais.
@@ -17,6 +18,14 @@ import { NextRequest, NextResponse } from "next/server";
 export const maxDuration = 300;
 
 const URL_API = "https://recherche-entreprises.api.gouv.fr/search";
+
+// Les tables autorisees. Une valeur absente de cette liste est refusee :
+// on ne laisse pas un parametre d URL designer une table quelconque.
+const TABLES: Record<string, string> = {
+  organismes: "prospects_organismes",
+  cabinets: "prospects_cabinets",
+  interim: "prospects_interim",
+};
 
 function clientAdmin() {
   return createClient(
@@ -26,23 +35,6 @@ function clientAdmin() {
 
 function pause(ms: number) {
   return new Promise(function (r) { setTimeout(r, ms); });
-}
-
-// Cherche partout ou le site web pourrait se trouver dans la reponse :
-// la structure exacte n est pas garantie et peut evoluer.
-function trouverSite(entreprise: any): string | null {
-  const candidats = [
-    entreprise?.complements?.site_internet,
-    entreprise?.site_internet,
-    entreprise?.siege?.site_internet,
-    entreprise?.complements?.web,
-  ];
-  for (const c of candidats) {
-    if (c && typeof c === "string" && c.trim() !== "") {
-      return c.trim();
-    }
-  }
-  return null;
 }
 
 // Le dirigeant : on prend la premiere personne physique de la liste.
@@ -72,12 +64,24 @@ export async function GET(req: NextRequest) {
 
   const supabase = clientAdmin();
 
+  // Sans parametre, on traite les organismes : c est la campagne en cours.
+  // Quand elle sera finie, la route repondra qu il n y a plus rien et il
+  // suffira de changer le parametre du cron.
+  const cle = String(req.nextUrl.searchParams.get("table") || "organismes");
+  const table = TABLES[cle];
+
+  if (!table) {
+    return NextResponse.json(
+      { erreur: "table inconnue", tables_possibles: Object.keys(TABLES) },
+      { status: 400 });
+  }
+
   const demande = Number(req.nextUrl.searchParams.get("limite") || 500);
   const limite = demande > 0 && demande <= 2000 ? demande : 500;
 
   const { data: lignes, error: errLecture } = await supabase
-    .from("prospects_organismes")
-    .select("id, siren, raison_sociale")
+    .from(table)
+    .select("id, siren, raison_sociale, dirigeant_nom")
     .eq("statut", "a_enrichir")
     .not("siren", "is", null)
     .order("id", { ascending: true })
@@ -85,20 +89,31 @@ export async function GET(req: NextRequest) {
 
   if (errLecture) {
     return NextResponse.json(
-      { erreur: errLecture.message }, { status: 500 });
+      { erreur: errLecture.message, table: table }, { status: 500 });
   }
 
   if (!lignes || lignes.length === 0) {
-    return NextResponse.json({ info: "plus rien a enrichir" });
+    return NextResponse.json({ info: "plus rien a enrichir", table: table });
   }
 
   let avecDirigeant = 0;
-  let avecSite = 0;
+  let deja = 0;
   let introuvables = 0;
   let erreurs = 0;
-  const echantillon: any[] = [];
 
   for (const ligne of lignes) {
+    // CERTAINES LIGNES PORTENT DEJA LEUR DIRIGEANT. Le fichier SIRENE le
+    // donne pour les personnes physiques : inutile d appeler l API pour
+    // elles, on marque et on passe.
+    if (ligne.dirigeant_nom && String(ligne.dirigeant_nom).trim() !== "") {
+      deja++;
+      await supabase
+        .from(table)
+        .update({ statut: "enrichi" })
+        .eq("id", ligne.id);
+      continue;
+    }
+
     try {
       const r = await fetch(
         URL_API + "?q=" + encodeURIComponent(String(ligne.siren))
@@ -117,7 +132,7 @@ export async function GET(req: NextRequest) {
       if (!entreprise) {
         introuvables++;
         await supabase
-          .from("prospects_organismes")
+          .from(table)
           .update({ statut: "introuvable" })
           .eq("id", ligne.id);
         await pause(150);
@@ -125,30 +140,13 @@ export async function GET(req: NextRequest) {
       }
 
       const dirigeant = trouverDirigeant(entreprise);
-      const site = trouverSite(entreprise);
-
       if (dirigeant.nom) avecDirigeant++;
-      if (site) avecSite++;
-
-      // Les cinq premieres reponses sont renvoyees telles quelles :
-      // c est ainsi qu on verifie ce que l API donne vraiment, plutot
-      // que de le supposer.
-      if (echantillon.length < 5) {
-        echantillon.push({
-          raison_sociale: ligne.raison_sociale,
-          dirigeant: dirigeant,
-          site: site,
-          cles_disponibles: Object.keys(entreprise || {}),
-          cles_complements: Object.keys(entreprise?.complements || {}),
-        });
-      }
 
       await supabase
-        .from("prospects_organismes")
+        .from(table)
         .update({
           dirigeant_prenom: dirigeant.prenom,
           dirigeant_nom: dirigeant.nom,
-          site_web: site,
           statut: "enrichi",
         })
         .eq("id", ligne.id);
@@ -161,17 +159,17 @@ export async function GET(req: NextRequest) {
   }
 
   const { count: restant } = await supabase
-    .from("prospects_organismes")
+    .from(table)
     .select("id", { count: "exact", head: true })
     .eq("statut", "a_enrichir");
 
   return NextResponse.json({
+    table: table,
     traites: lignes.length,
+    deja_renseignes: deja,
     avec_dirigeant: avecDirigeant,
-    avec_site_web: avecSite,
     introuvables: introuvables,
     erreurs: erreurs,
     reste_a_enrichir: restant || 0,
-    echantillon: echantillon,
   });
 }
