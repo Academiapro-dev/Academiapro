@@ -51,6 +51,10 @@
     {
       "path": "/api/cron/relance-pieces",
       "schedule": "0 9 5 * *"
+    },
+    {
+      "path": "/api/enrichir-organismes",
+      "schedule": "* * * * *"
     }
   ]
 }
