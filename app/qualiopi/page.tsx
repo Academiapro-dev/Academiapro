@@ -3,7 +3,7 @@ import Link from "next/link";
 export const metadata = {
   title: "Mr. Qualiopi — Préparez votre certification sans y passer vos nuits",
   description:
-    "Les 7 critères et 32 indicateurs du Référentiel National Qualité, indicateur par indicateur. Ce qui est attendu, ce qui vous manque, les documents à présenter. 1 190 € HT.",
+    "Les 7 critères et 32 indicateurs du Référentiel National Qualité, indicateur par indicateur. Ce qui est attendu, ce qui vous manque, les documents à présenter. 790 € HT.",
 };
 
 const VERT = "#3d9970";
@@ -216,7 +216,7 @@ export default function AccueilQualiopi() {
 
         <div style={{ ...carte, borderColor: "rgba(61,153,112,0.5)", padding: "34px" }}>
           <p style={{ color: VERT, fontSize: "40px", fontWeight: "bold", margin: "0 0 6px" }}>
-            1 190 € <span style={{ fontSize: "17px", color: "rgba(255,255,255,0.55)" }}>HT, une fois</span>
+            790 € <span style={{ fontSize: "17px", color: "rgba(255,255,255,0.55)" }}>HT, une fois</span>
           </p>
           <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "16px", lineHeight: "1.8", margin: "0 0 20px", maxWidth: "700px" }}>
             L'accès pour douze mois, ce qui couvre la préparation et l'audit initial.
