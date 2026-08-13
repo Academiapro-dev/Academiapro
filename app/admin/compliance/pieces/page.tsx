@@ -53,12 +53,34 @@ export default function PagePieces() {
     setChargement(false);
   }
 
-  // LE DEPOT ENCHAINE SUR LA LECTURE.
+  // Lecture d une piece. Renvoie le resultat plutot que de se contenter de
+  // l enregistrer : le depot en a besoin pour savoir quand il a fini.
+  async function lireInterne(pieceId: string) {
+    const r = await fetch("/api/compliance/lire-facture", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ piece_id: pieceId, societe_id: dossier }),
+    });
+    const data = await r.json();
+    if (data.ok) {
+      setLectures(function (avant: any) {
+        const suite = { ...avant };
+        suite[pieceId] = data;
+        return suite;
+      });
+    }
+    return data;
+  }
+
+  // LE DEPOT ENCHAINE SUR LA LECTURE, SANS BLANC A L ECRAN.
   //
   // Deposer puis appuyer sur « Lire la facture » faisait deux gestes pour
   // une seule intention. La lecture n ecrit rien de definitif : elle
-  // renseigne la fiche, que l on corrige avant de comptabiliser. Il n y a
-  // donc aucune raison d attendre un second clic.
+  // renseigne la fiche, que l on corrige avant de comptabiliser.
+  //
+  // LE FORMULAIRE RESTE OUVERT JUSQU AU BOUT. Le fermer des le depot
+  // laissait une seconde sans rien a l ecran, pendant laquelle on croit
+  // devoir agir. Il se ferme quand la lecture est finie, pas avant.
   //
   // La comptabilisation, elle, reste manuelle : c est elle qui engage, et
   // une ecriture validee ne se supprime pas, elle se contre-passe.
@@ -74,20 +96,27 @@ export default function PagePieces() {
       for (const k of Object.keys(f)) donnees.append(k, f[k]);
       const r = await fetch("/api/compliance/pieces", { method: "POST", body: donnees });
       const data = await r.json();
-      if (data.ok) {
-        setMessage(data.message);
-        setFichier(null);
-        setF({ ...f, nom: "", fournisseur: "", montant_ttc: "", reference: "", ecriture_num: "" });
-        setFormulaire(false);
-        await charger();
 
-        // La piece vient d etre creee : on la lit dans la foulee.
-        if (data.piece && data.piece.id) {
-          await lire({ id: data.piece.id });
-        }
-      } else {
+      if (!data.ok) {
         setErreur(data.erreur || "Dépôt impossible.");
+        setOccupe("");
+        return;
       }
+
+      // La piece vient d etre creee : on la lit dans la foulee, formulaire
+      // toujours ouvert et bouton en « Lecture en cours ».
+      if (data.piece && data.piece.id) {
+        setOccupe("lecture");
+        const lu = await lireInterne(data.piece.id);
+        setMessage(lu && lu.ok ? lu.message : data.message);
+      } else {
+        setMessage(data.message);
+      }
+
+      setFichier(null);
+      setF({ ...f, nom: "", fournisseur: "", montant_ttc: "", reference: "", ecriture_num: "" });
+      setFormulaire(false);
+      await charger();
     } catch (e: any) {
       setErreur("Dépôt impossible : " + String(e));
     }
@@ -99,18 +128,8 @@ export default function PagePieces() {
     setMessage("");
     setErreur("");
     try {
-      const r = await fetch("/api/compliance/lire-facture", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ piece_id: p.id, societe_id: dossier }),
-      });
-      const data = await r.json();
+      const data = await lireInterne(p.id);
       if (data.ok) {
-        setLectures(function (avant: any) {
-          const suite = { ...avant };
-          suite[p.id] = data;
-          return suite;
-        });
         setMessage(data.message);
         await charger();
       } else {
@@ -296,7 +315,11 @@ export default function PagePieces() {
             </div>
 
             <button onClick={deposer} disabled={occupe !== "" || !fichier} style={{ ...PLEIN, padding: "14px 28px", borderRadius: "8px", fontSize: "15px", width: "100%" }}>
-              {occupe === "depot" ? "Dépôt en cours…" : occupe.indexOf("lire-") === 0 ? "Lecture en cours…" : "Déposer la pièce"}
+              {occupe === "depot"
+                ? "Dépôt en cours…"
+                : occupe === "lecture"
+                  ? "Lecture de la facture en cours…"
+                  : "Déposer la pièce"}
             </button>
           </div>
         )}
