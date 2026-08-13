@@ -52,6 +52,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, erreur: error.message }, { status: 500 });
     }
 
+    // LA MEME OPPOSITION VAUT POUR LA PROSPECTION FROIDE. Sans cette
+    // seconde ecriture, un organisme desinscrit resterait joignable par les
+    // campagnes : c est precisement ce qu il refuse.
+    //
+    // On n echoue pas si l adresse est absente de cette table : la personne
+    // a exerce son droit, la reponse doit rester la meme dans tous les cas.
+    const { error: errOrg } = await supabase
+      .from("prospects_organismes")
+      .update({ desabonne: true, statut: "desabonne" })
+      .eq("email", email);
+
+    if (errOrg) {
+      return NextResponse.json({ ok: false, erreur: errOrg.message }, { status: 500 });
+    }
+
     return NextResponse.json({ ok: true });
   } catch (e: any) {
     return NextResponse.json({ ok: false, erreur: String(e) }, { status: 500 });
