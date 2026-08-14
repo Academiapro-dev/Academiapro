@@ -64,8 +64,6 @@ function filtreTenant(requete: any, tenantId: string | null) {
 // PORTEE. Un administrateur est rattache a son propre organisme, mais ses
 // prospects a lui — ceux qui arrivent par les tunnels publics — sont
 // enregistres SANS organisme. Sans cette option, il ne les voit jamais.
-// Le cloisonnement des organismes clients reste entier : seul un
-// administrateur peut demander la portee editeur.
 function porteeDe(session: any, demande: any): string | null {
   const admin = ADMINS.indexOf(session.email) >= 0;
   if (admin && demande === "editeur") return null;
@@ -90,6 +88,85 @@ async function upsert_prospect(data: any, tenantId: string | null) {
 
   await notifier_cam("prospect_upsert", { ...data, score });
   return { succes: !result.error, score, erreur: result.error ? result.error.message : null };
+}
+
+// MARQUER UN PROSPECT PERDU, AVEC SON MOTIF.
+//
+// C est la donnee la plus instructive du CRM : ce qui fait dire non. Un
+// prospect perdu sans motif n apprend rien ; dix prospects perdus pour la
+// meme raison disent ou l offre bloque.
+//
+// Un prospect perdu sort des relances : son statut l exclut deja des
+// lectures, et perdu_le horodate la sortie.
+async function marquer_perdu(email: string, motif: string, tenantId: string | null) {
+  if (!email) return { erreur: "Email requis" };
+
+  const { data } = await filtreTenant(
+    supabase.from("crm").select("id, nom").eq("email", email),
+    tenantId
+  ).limit(1);
+
+  if (!data || data.length === 0) return { erreur: "Prospect non trouve" };
+
+  const { error } = await supabase
+    .from("crm")
+    .update({
+      statut: "perdu",
+      motif_perte: String(motif || "").slice(0, 500) || null,
+      perdu_le: new Date().toISOString(),
+      relance_auto: false,
+      derniere_interaction: new Date().toISOString(),
+    })
+    .eq("id", data[0].id);
+
+  if (error) return { erreur: error.message };
+
+  await notifier_cam("prospect_perdu", { email, motif });
+  return { succes: true, email, motif };
+}
+
+// ARMER OU DESARMER LA RELANCE AUTOMATIQUE, PROSPECT PAR PROSPECT.
+//
+// Deux verrous : celui-ci, et la constante ACTIVE de la route
+// /api/cron/relance-crm. Tant que l un des deux est ferme, rien ne part.
+async function basculer_relance_auto(email: string, actif: boolean, tenantId: string | null) {
+  if (!email) return { erreur: "Email requis" };
+
+  const { data } = await filtreTenant(
+    supabase.from("crm").select("id").eq("email", email),
+    tenantId
+  ).limit(1);
+
+  if (!data || data.length === 0) return { erreur: "Prospect non trouve" };
+
+  const { error } = await supabase
+    .from("crm")
+    .update({ relance_auto: !!actif })
+    .eq("id", data[0].id);
+
+  if (error) return { erreur: error.message };
+  return { succes: true, email, relance_auto: !!actif };
+}
+
+// LES MOTIFS DE PERTE, REGROUPES. Ce que cette liste montre au bout de
+// quelques semaines vaut plus qu une etude de marche.
+async function motifs_perte(tenantId: string | null) {
+  const { data } = await filtreTenant(
+    supabase.from("crm").select("motif_perte, perdu_le").eq("statut", "perdu"),
+    tenantId
+  ).limit(2000);
+
+  const compte: any = {};
+  for (const l of (data || [])) {
+    const m = (l.motif_perte || "sans motif").trim();
+    compte[m] = (compte[m] || 0) + 1;
+  }
+
+  const liste = Object.keys(compte)
+    .map(function (m) { return { motif: m, nombre: compte[m] }; })
+    .sort(function (a, b) { return b.nombre - a.nombre; });
+
+  return { total: (data || []).length, motifs: liste };
 }
 
 async function get_prospects(statut: string | undefined, domaine: string | undefined, tenantId: string | null) {
@@ -177,6 +254,7 @@ async function stats_crm(tenantId: string | null) {
   const prospects = tous.filter(p => p.statut === "prospect").length;
   const chauds = tous.filter(p => (p.score || 0) >= 60).length;
   const clients = tous.filter(p => p.statut === "client").length;
+  const perdus = tous.filter(p => p.statut === "perdu").length;
   const score_moyen = total > 0 ? Math.round(tous.reduce((s, p) => s + (p.score || 0), 0) / total) : 0;
 
   const par_domaine = tous.reduce((acc: any, p) => {
@@ -189,7 +267,7 @@ async function stats_crm(tenantId: string | null) {
     return acc;
   }, {});
 
-  return { total, prospects, chauds, clients, score_moyen, par_domaine, par_source };
+  return { total, prospects, chauds, clients, perdus, score_moyen, par_domaine, par_source };
 }
 
 async function declencher_certificat_auto(email: string, formationCode: string) {
@@ -322,6 +400,9 @@ export async function POST(req: NextRequest) {
     if (action === "prospects") return NextResponse.json(await get_prospects(body.statut, body.domaine, t));
     if (action === "analyser") return NextResponse.json(await analyser_prospect(body.email, t));
     if (action === "relance") return NextResponse.json(await generer_relance(body.email, t));
+    if (action === "perdu") return NextResponse.json(await marquer_perdu(body.email, body.motif, t));
+    if (action === "motifs_perte") return NextResponse.json(await motifs_perte(t));
+    if (action === "relance_auto") return NextResponse.json(await basculer_relance_auto(body.email, body.actif, t));
     if (action === "lms_update") return NextResponse.json(await lms_update(session.email, body.data || {}, t));
     if (action === "stats") return NextResponse.json(await stats_crm(t));
 
