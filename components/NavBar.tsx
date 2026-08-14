@@ -3,25 +3,50 @@ import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 
 const T = {
-  fr: { formations: "Formations", seances: "Séances", blog: "Blog", tarifs: "Tarifs", contact: "Contact", partenaire: "Partenaire", connexion: "Se connecter", demarrer: "Démarrer", pack: "Pack organisme", crm: "CRM", lms: "LMS" },
-  en: { formations: "Courses", seances: "Sessions", blog: "Blog", tarifs: "Pricing", contact: "Contact", partenaire: "Affiliate", connexion: "Sign in", demarrer: "Get Started", pack: "Training pack", crm: "CRM", lms: "LMS" },
-  es: { formations: "Cursos", seances: "Sesiones", blog: "Blog", tarifs: "Precios", contact: "Contacto", partenaire: "Afiliado", connexion: "Iniciar sesión", demarrer: "Comenzar", pack: "Pack organismo", crm: "CRM", lms: "LMS" },
-  pt: { formations: "Cursos", seances: "Sessoes", blog: "Blog", tarifs: "Preços", contact: "Contato", partenaire: "Afiliado", connexion: "Entrar", demarrer: "Comecar", pack: "Pack organismo", crm: "CRM", lms: "LMS" },
-  de: { formations: "Kurse", seances: "Sitzungen", blog: "Blog", tarifs: "Preise", contact: "Kontakt", partenaire: "Partner", connexion: "Anmelden", demarrer: "Loslegen", pack: "Anbieter-Paket", crm: "CRM", lms: "LMS" },
-  ar: { formations: "الدورات", seances: "الجلسات", blog: "المدونة", tarifs: "الأسعار", contact: "اتصل", partenaire: "شريك", connexion: "تسجيل الدخول", demarrer: "ابدأ", pack: "باقة المؤسسات", crm: "CRM", lms: "LMS" },
-  he: { formations: "קורסים", seances: "פגישות", blog: "בלוג", tarifs: "מחירים", contact: "צור קשר", partenaire: "שותף", connexion: "התחברות", demarrer: "התחל", pack: "חבילת ארגון", crm: "CRM", lms: "LMS" },
+  fr: { formations: "Formations", seances: "Séances", blog: "Blog", tarifs: "Tarifs", contact: "Contact", partenaire: "Partenaire", connexion: "Se connecter", demarrer: "Démarrer", pack: "Pour les organismes de formation", crm: "CRM", lms: "LMS" },
+  en: { formations: "Courses", seances: "Sessions", blog: "Blog", tarifs: "Pricing", contact: "Contact", partenaire: "Affiliate", connexion: "Sign in", demarrer: "Get Started", pack: "For training providers", crm: "CRM", lms: "LMS" },
+  es: { formations: "Cursos", seances: "Sesiones", blog: "Blog", tarifs: "Precios", contact: "Contacto", partenaire: "Afiliado", connexion: "Iniciar sesión", demarrer: "Comenzar", pack: "Para organismos de formación", crm: "CRM", lms: "LMS" },
+  pt: { formations: "Cursos", seances: "Sessoes", blog: "Blog", tarifs: "Preços", contact: "Contato", partenaire: "Afiliado", connexion: "Entrar", demarrer: "Comecar", pack: "Para organismos de formação", crm: "CRM", lms: "LMS" },
+  de: { formations: "Kurse", seances: "Sitzungen", blog: "Blog", tarifs: "Preise", contact: "Kontakt", partenaire: "Partner", connexion: "Anmelden", demarrer: "Loslegen", pack: "Für Bildungsanbieter", crm: "CRM", lms: "LMS" },
+  ar: { formations: "الدورات", seances: "الجلسات", blog: "المدونة", tarifs: "الأسعار", contact: "اتصل", partenaire: "شريك", connexion: "تسجيل الدخول", demarrer: "ابدأ", pack: "لمؤسسات التدريب", crm: "CRM", lms: "LMS" },
+  he: { formations: "קורסים", seances: "פגישות", blog: "בלוג", tarifs: "מחירים", contact: "צור קשר", partenaire: "שותף", connexion: "התחברות", demarrer: "התחל", pack: "לארגוני הכשרה", crm: "CRM", lms: "LMS" },
 };
 
-// LES ECRANS DE MR. COMPTABLE.
+// L ESPACE DE TRAVAIL DU CABINET.
 //
 // Un cabinet comptable ne doit pas lire « Formations », « Séances » ni
 // « Blog » dans son espace de travail : il a paye un logiciel de
 // comptabilite, pas un catalogue de formation. La barre change donc de
 // marque et de menu des qu on entre chez lui.
 const CHEMINS_COMPTABLE = [
-  "/comptable",
   "/admin/compliance",
   "/admin/mr-comptable",
+];
+
+// LES PAGES PUBLIQUES DE MRCOMPTABLE.FR.
+//
+// Elles portent DEJA leur propre en-tete, avec le menu deroulant des
+// fonctionnalites. NavBar ne doit rien afficher dessus.
+//
+// LE PIEGE, VU DEUX FOIS LE 14 AOUT : tester le chemin ne suffit pas. Le
+// middleware sert /comptable/tenue sous mrcomptable.fr/tenue — le chemin
+// vu par NavBar est alors « /tenue », qui ne commence pas par /comptable.
+// La barre de travail du cabinet s affichait donc au-dessus de la vitrine,
+// et un visiteur voyait « Mes dossiers » et « Saisie » avant meme d etre
+// client. On teste desormais le DOMAINE, pas seulement le chemin.
+const PAGES_PUBLIQUES_COMPTABLE = [
+  "/",
+  "/inscription",
+  "/facture-electronique",
+  "/rapprochement-bancaire",
+  "/lecture-des-pieces",
+  "/tenue",
+  "/declarations",
+  "/relance-justificatifs",
+  "/blog",
+  "/contact",
+  "/cgv",
+  "/mentions",
 ];
 
 // Le logo, en or sur fond noir : les memes teintes que le site, donc aucun
@@ -33,6 +58,14 @@ const LOGO_COMPTABLE = "/IMG_4100.jpeg";
 function estComptable(chemin) {
   for (const p of CHEMINS_COMPTABLE) {
     if (chemin === p || chemin.indexOf(p + "/") === 0) return true;
+  }
+  return false;
+}
+
+function estPagePubliqueComptable(chemin) {
+  for (const p of PAGES_PUBLIQUES_COMPTABLE) {
+    if (chemin === p) return true;
+    if (p !== "/" && chemin.indexOf(p + "/") === 0) return true;
   }
   return false;
 }
@@ -58,14 +91,18 @@ export default function NavBar() {
 
   const t = (cle) => T[langue]?.[cle] || T["fr"][cle] || cle;
 
+  const surMrComptable = hote.indexOf("mrcomptable.fr") >= 0;
+
   // MARQUE BLANCHE. Sur la vitrine d un organisme client, notre barre ne doit
   // pas apparaitre : le visiteur y verrait la marque du fournisseur avant
   // celle de son prestataire, avec un lien pour partir chez nous.
   if (chemin.indexOf("/of/") === 0) return null;
 
-  // Les pages de vitrine de Mr. Comptable portent deja leur propre en-tete :
-  // deux barres superposees feraient doublon.
+  // Les pages de vitrine de Mr. Comptable portent deja leur propre en-tete,
+  // qu on y arrive par /comptable/... depuis academiapro.fr ou par une
+  // adresse sans prefixe sur mrcomptable.fr.
   if (chemin === "/comptable" || chemin.indexOf("/comptable/") === 0) return null;
+  if (surMrComptable && estPagePubliqueComptable(chemin)) return null;
 
   const barre = {
     display: "flex",
@@ -98,7 +135,7 @@ export default function NavBar() {
   // ---- Espace de travail comptable : marque et menu propres --------------
   // On y arrive soit par mrcomptable.fr, soit depuis academiapro.fr sur un
   // ecran comptable. Dans les deux cas le client doit lire sa marque.
-  if (estComptable(chemin) || hote.indexOf("mrcomptable.fr") >= 0) {
+  if (estComptable(chemin) || surMrComptable) {
     return (
       <header style={{ ...barre, padding: "0 30px", background: "#000" }}>
         {/* LE LISERE BLANC VENAIT DE L IMAGE ELLE-MEME.
@@ -144,16 +181,17 @@ export default function NavBar() {
   // ---- Vitrine AcadéMIA Pro ---------------------------------------------
   //
   // TOUTE L OFFRE EST VISIBLE. Jusqu au 14 aout, la barre ne montrait que le
-  // catalogue grand public : ni pack organisme, ni Mr. Qualiopi, ni CRM, ni
-  // LMS. Un organisme qui arrivait ne voyait rien de ce qu on lui vend
-  // 390 EUR par mois.
+  // catalogue grand public : ni offre aux organismes, ni Mr. Qualiopi, ni
+  // CRM, ni LMS.
+  //
+  // UN SEUL ONGLET NOMME POUR UN PUBLIC. « Pack organisme » etait ambigu :
+  // un particulier pouvait y lire un lot de formations a acheter. Ecrire
+  // « Pour les organismes de formation » leve le doute d un mot, et laisse
+  // entendre que tout le reste s adresse a lui.
   //
   // CRM et LMS menent a /espace-prive, qui explique le produit et dit qu il
   // est reserve aux abonnes. Un onglet grise frustre et fait partir ; un
   // onglet qui explique donne envie d entrer.
-  //
-  // LE SIGLE LMS EST ECRIT TEL QUEL : c est le mot que le metier tape dans
-  // un moteur de recherche.
   return (
     <header style={barre}>
       <a href="/" style={lienMarque}>
@@ -161,14 +199,14 @@ export default function NavBar() {
       </a>
       <nav style={{ display: "flex", gap: "20px", flexWrap: "wrap", justifyContent: "center" }}>
         <a href={"/catalogue?lang=" + langue} style={lienMenu}>{t("formations")}</a>
-        <a href="/pack" style={lienMenu}>{t("pack")}</a>
-        <a href="/qualiopi" style={lienMenu}>Mr. Qualiopi</a>
-        <a href="/espace-prive?p=crm" style={lienMenu}>{t("crm")}</a>
-        <a href="/espace-prive?p=lms" style={lienMenu}>{t("lms")}</a>
         <a href={"/seances?lang=" + langue} style={lienMenu}>{t("seances")}</a>
         <a href="/blog" style={lienMenu}>{t("blog")}</a>
         <a href="/tarifs" style={lienMenu}>{t("tarifs")}</a>
         <a href="/contact" style={lienMenu}>{t("contact")}</a>
+        <a href="/pack" style={{ ...lienMenu, color: "#c8a96e" }}>{t("pack")}</a>
+        <a href="/qualiopi" style={lienMenu}>Mr. Qualiopi</a>
+        <a href="/espace-prive?p=crm" style={lienMenu}>{t("crm")}</a>
+        <a href="/espace-prive?p=lms" style={lienMenu}>{t("lms")}</a>
       </nav>
       <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
         <select
