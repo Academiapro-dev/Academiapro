@@ -22,30 +22,39 @@ const supabase = createClient(
 //
 // PIEGE VERIFIE LE 14 AOUT : prospects_organismes n a PAS de colonne
 // vague, contrairement aux trois autres. La demander la ferait echouer.
+//
+// SECOND PIEGE DE LA MEME FAMILLE : la colonne linkedin a ete ajoutee le
+// 14 aout aux TROIS tables prospectables, mais PAS a prospects_cabinets,
+// qu on ne touche pas avant l accord BCSolutions. D ou le drapeau ci
+// dessous : demander linkedin sur cabinets ferait echouer la lecture.
 const BASES: any = {
   organismes: {
     table: "prospects_organismes",
     titre: "Organismes certifies Qualiopi",
     cible: "Pack organisme",
     vague: false,
+    linkedin: true,
   },
   qualiopi: {
     table: "prospects_qualiopi",
     titre: "Organismes NON certifies",
     cible: "Mr. Qualiopi",
     vague: true,
+    linkedin: true,
   },
   interim: {
     table: "prospects_interim",
     titre: "Agences d interim",
     cible: "Formations securite",
     vague: true,
+    linkedin: true,
   },
   cabinets: {
     table: "prospects_cabinets",
     titre: "Cabinets comptables",
     cible: "Mr. Comptable",
     vague: true,
+    linkedin: false,
   },
 };
 
@@ -84,6 +93,13 @@ export async function GET(req: NextRequest) {
       const avecTel = await compter(b.table, function (q: any) {
         return q.not("telephone", "is", null);
       });
+      // Le compte des profils LinkedIn n a de sens que la ou la colonne
+      // existe : ailleurs on renvoie zero sans interroger la base.
+      const avecLinkedin = b.linkedin
+        ? await compter(b.table, function (q: any) {
+            return q.not("linkedin", "is", null);
+          })
+        : 0;
       const envoyes = await compter(b.table, function (q: any) {
         return q.eq("statut", "envoye");
       });
@@ -105,6 +121,8 @@ export async function GET(req: NextRequest) {
         enrichis: enrichis,
         avec_email: avecEmail,
         avec_telephone: avecTel,
+        avec_linkedin: avecLinkedin,
+        porte_linkedin: !!b.linkedin,
         soumis_dropcontact: soumis,
         envoyes: envoyes,
         desabonnes: desabonnes,
@@ -121,7 +139,8 @@ export async function GET(req: NextRequest) {
       const colonnes = "id, raison_sociale, siren, ville, code_postal, "
         + "dirigeant_prenom, dirigeant_nom, email, telephone, site_web, "
         + "statut, envoye_le, desabonne, dropcontact_le, sms_accepte_le"
-        + (b.vague ? ", vague" : "");
+        + (b.vague ? ", vague" : "")
+        + (b.linkedin ? ", linkedin" : "");
 
       let q = supabase.from(b.table).select(colonnes, { count: "exact" });
 
@@ -135,6 +154,8 @@ export async function GET(req: NextRequest) {
         q = q.not("email", "is", null);
       } else if (filtre === "avec_telephone") {
         q = q.not("telephone", "is", null);
+      } else if (filtre === "avec_linkedin" && b.linkedin) {
+        q = q.not("linkedin", "is", null);
       } else if (filtre === "a_enrichir") {
         q = q.is("email", null).is("dropcontact_le", null)
           .not("dirigeant_nom", "is", null).not("dirigeant_prenom", "is", null);
@@ -168,6 +189,7 @@ export async function GET(req: NextRequest) {
         titre: b.titre,
         cible: b.cible,
         porte_vague: b.vague,
+        porte_linkedin: !!b.linkedin,
         filtre: filtre,
         recherche: cherche,
         page: page,
