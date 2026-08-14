@@ -1,29 +1,161 @@
-export default function CrmPage() {
+import Link from "next/link";
+
+export const metadata = {
+  title: "CRM pour organisme de formation — AcadéMIA Pro",
+  description:
+    "Suivez vos prospects étape par étape : score automatique, analyse de chaque fiche, relance rédigée. SMS en option. Pour organismes de formation et centres d'appels.",
+};
+
+const OR = "#c8a96e";
+const NOIR = "#050508";
+
+// UNE PAGE VITRINE, PAS L OUTIL.
+//
+// L outil vit derriere la session, sur /admin/crm et /organisme/crm, et
+// c est tres bien ainsi. Mais un moteur de recherche ne se connecte jamais :
+// il ne voyait que /espace-prive, une page qui dit « reserve aux abonnes ».
+// Personne ne pouvait donc trouver le CRM en cherchant « logiciel CRM
+// organisme de formation ».
+//
+// CE QUI ETAIT ECRIT ICI AVANT N EXISTAIT PAS. L ancienne page annoncait un
+// pipeline Kanban a six colonnes qu on fait glisser, un « LeadBot », un
+// « CA pipeline » : aucune de ces fonctions n est dans le code. Une page qui
+// promet plus que le produit se retourne contre nous a la demonstration.
+// Ce qui suit decrit ce qui existe, et rien d autre.
+//
+// AUCUN PRIX ICI. Le tarif se donne apres un echange, comme pour le pack et
+// pour Mr. Comptable. Seule exception : le SMS, qui affiche son prix parce
+// qu il se facture a l usage et que chaque option porte son tarif chez elle.
+
+export default function PageCRM() {
+  const section: any = {
+    maxWidth: "860px",
+    margin: "0 auto",
+    padding: "0 24px",
+  };
+
+  const carte: any = {
+    background: "rgba(255,255,255,0.03)",
+    border: "1px solid rgba(200,169,110,0.22)",
+    borderRadius: "14px",
+    padding: "26px 28px",
+    marginBottom: "18px",
+  };
+
+  const bouton: any = {
+    display: "inline-block",
+    background: OR,
+    color: NOIR,
+    padding: "15px 30px",
+    borderRadius: "9px",
+    textDecoration: "none",
+    fontWeight: "bold",
+    fontSize: "16px",
+  };
+
+  const H2: any = { color: OR, fontSize: "22px", margin: "44px 0 16px" };
+
+  const P: any = {
+    color: "rgba(255,255,255,0.75)",
+    fontSize: "16.5px",
+    lineHeight: "1.85",
+    margin: "0 0 16px",
+  };
+
   return (
-    <div style={{ minHeight: "100vh", background: "#050508", color: "#fff", fontFamily: "Georgia, serif", padding: "40px 20px" }}>
-      <div style={{ maxWidth: "1100px", margin: "0 auto" }}>
-        <div style={{ textAlign: "center", marginBottom: "48px" }}>
-          <p style={{ color: "#c8a96e", fontSize: "12px", letterSpacing: "3px", margin: "0 0 12px" }}>ACADEMIAPRO</p>
-          <h1 style={{ color: "#fff", fontSize: "36px", margin: "0 0 12px" }}>CRM AcadémIA Pro</h1>
-          <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "16px", margin: "0" }}>Gestion contacts · Pipeline · Automatisation Agent Commercial</p>
+    <div style={{ minHeight: "100vh", background: NOIR, color: "#fff", fontFamily: "Georgia, serif" }}>
+
+      <article style={{ ...section, paddingTop: "60px", paddingBottom: "80px" }}>
+        <p style={{ color: OR, fontSize: "12px", letterSpacing: "3px", margin: "0 0 16px" }}>
+          NOS SOLUTIONS MÉTIER
+        </p>
+        <h1 style={{ fontSize: "38px", lineHeight: "1.25", margin: "0 0 24px" }}>
+          Le CRM : savoir qui rappeler, et quoi lui dire
+        </h1>
+        <p style={{ ...P, fontSize: "18.5px", color: "rgba(255,255,255,0.8)" }}>
+          Un prospect qui demande un devis et qu'on rappelle trois semaines plus tard
+          est un prospect perdu. Le CRM tient la liste, la trie par intérêt, et écrit
+          la relance à votre place.
+        </p>
+
+        <h2 style={H2}>Cinq étapes, une seule liste</h2>
+        <p style={P}>
+          Prospect, contacté, intéressé, client, perdu. Chaque fiche avance dans ce
+          parcours, et vous voyez d'un coup d'œil où en est chacun. Les demandes venues
+          de votre site y arrivent seules : formulaire, chat, page de vente.
+        </p>
+
+        <h2 style={H2}>Un score, pour savoir par où commencer</h2>
+        <p style={P}>
+          Chaque prospect porte une note calculée sur ce qu'il a fait : ce qu'il a
+          demandé, d'où il vient, depuis combien de temps il n'a pas donné signe.
+          Au-dessus de soixante, il est chaud — c'est celui-là qu'on rappelle
+          aujourd'hui.
+        </p>
+
+        <div style={{ ...carte, borderColor: "rgba(200,169,110,0.4)", marginTop: "30px" }}>
+          <h3 style={{ color: OR, fontSize: "13px", letterSpacing: "3px", margin: "0 0 14px" }}>
+            L'ANALYSE ET LA RELANCE
+          </h3>
+          <p style={{ ...P, margin: "0 0 12px", fontSize: "16px" }}>
+            Sur une fiche, deux boutons. Le premier analyse le prospect : ce qu'on sait
+            de lui, ce qui manque, ce qui bloque probablement.
+          </p>
+          <p style={{ ...P, margin: 0, fontSize: "16px" }}>
+            Le second écrit la relance — un message qui tient compte de son parcours,
+            pas un modèle générique. Vous relisez, vous corrigez, vous envoyez.
+          </p>
         </div>
-        <div style={{ background: "#1a1a2e", borderRadius: "16px", padding: "32px", border: "1px solid rgba(200,169,110,0.3)", marginBottom: "24px" }}>
-          <h2 style={{ color: "#c8a96e", fontSize: "20px", margin: "0 0 16px" }}>Vue d Ensemble</h2>
-          <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "14px", lineHeight: "1.8", margin: "0" }}>Total contacts · leads · prospects · clients actifs · CA pipeline. Mise a jour en temps reel par Agent Commercial IA.</p>
+
+        <h2 style={H2}>Du prospect au stagiaire, sans changer d'écran</h2>
+        <p style={P}>
+          Quand un prospect s'inscrit, sa fiche ne disparaît pas : elle affiche
+          désormais sa progression et ses modules validés. Vous suivez la même personne
+          du premier contact à son attestation.
+        </p>
+
+        <h2 style={H2}>Les options</h2>
+        <p style={P}>
+          <strong>L'envoi de SMS</strong> — répondre à un prospect, confirmer un
+          rendez-vous, rappeler une échéance. Facturé à l'unité, sans abonnement, sous
+          le nom de votre organisme. 0,12 € HT le message, dégressif jusqu'à 0,08 €
+          selon le volume.
+        </p>
+        <p style={P}>
+          <strong>Les appels depuis le navigateur</strong> — appeler sans quitter la
+          fiche, avec la durée décomptée et l'historique conservé. En préparation.
+        </p>
+
+        <h2 style={H2}>Pour qui</h2>
+        <p style={P}>
+          Organismes de formation qui vendent leurs sessions. Centres d'appels et
+          équipes commerciales qui travaillent au volume. Le CRM se prend seul, ou avec
+          le catalogue et la plateforme d'apprentissage.
+        </p>
+
+        <div style={{ ...carte, textAlign: "center", padding: "40px 26px", marginTop: "44px", borderColor: "rgba(200,169,110,0.4)" }}>
+          <h2 style={{ fontSize: "25px", margin: "0 0 14px" }}>Voyez-le sur vos propres prospects</h2>
+          <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "16px", lineHeight: "1.7", margin: "0 0 26px" }}>
+            Quinze minutes suffisent pour comprendre si l'outil vous convient.
+            Nous vous adressons le tarif à l'issue de l'échange.
+          </p>
+          <div style={{ display: "flex", gap: "14px", justifyContent: "center", flexWrap: "wrap" }}>
+            <a
+              href="mailto:contact@academiapro.fr?subject=Le%20CRM%20AcadeMIA%20Pro&body=Bonjour%2C%0A%0AJe%20souhaite%20une%20demonstration%20du%20CRM.%0A%0AOrganisme%20%3A%20%0ANombre%20de%20commerciaux%20%3A%20%0ATelephone%20%3A%20%0A%0AMerci."
+              style={bouton}
+            >
+              Demander une démonstration
+            </a>
+            <Link
+              href="/connexion"
+              style={{ ...bouton, background: "transparent", color: OR, border: "1px solid rgba(200,169,110,0.4)" }}
+            >
+              Me connecter
+            </Link>
+          </div>
         </div>
-        <div style={{ background: "#1a1a2e", borderRadius: "16px", padding: "32px", border: "1px solid rgba(200,169,110,0.3)", marginBottom: "24px" }}>
-          <h2 style={{ color: "#c8a96e", fontSize: "20px", margin: "0 0 16px" }}>Pipeline Kanban</h2>
-          <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "14px", lineHeight: "1.8", margin: "0" }}>Lead · Qualification · Proposition · Negociation · Gagne · Perdu. Glissez les contacts d une colonne a l autre.</p>
-        </div>
-        <div style={{ background: "#1a1a2e", borderRadius: "16px", padding: "32px", border: "1px solid rgba(200,169,110,0.3)", marginBottom: "24px" }}>
-          <h2 style={{ color: "#c8a96e", fontSize: "20px", margin: "0 0 16px" }}>Activite Recente</h2>
-          <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "14px", lineHeight: "1.8", margin: "0" }}>Derniers prospects qualifies par LeadBot · paiements recus · inscriptions · alertes urgentes.</p>
-        </div>
-        <div style={{ background: "#1a1a2e", borderRadius: "16px", padding: "32px", border: "1px solid rgba(200,169,110,0.3)", marginBottom: "24px" }}>
-          <h2 style={{ color: "#c8a96e", fontSize: "20px", margin: "0 0 16px" }}>Taches a Faire</h2>
-          <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "14px", lineHeight: "1.8", margin: "0" }}>Relances programmees · appels a passer · propositions a envoyer. Gestion automatique par Agent Commercial.</p>
-        </div>
-      </div>
+      </article>
+
     </div>
   );
 }
