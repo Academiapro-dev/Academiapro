@@ -13,9 +13,7 @@ const NOIR = "#050508";
 //
 // Chaque entree mene a SA PROPRE PAGE, jamais a une ancre. Une ancre ramene
 // a la meme page pour Google : dix ancres se positionnent comme une seule
-// adresse. Une page par sujet se positionne sur chaque recherche — un
-// cabinet qui cherche « rapprochement bancaire » doit trouver une page qui
-// ne parle que de ca.
+// adresse. Une page par sujet se positionne sur chaque recherche.
 const FONCTIONS = [
   { nom: "Facture électronique", href: "/comptable/facture-electronique" },
   { nom: "Rapprochement bancaire", href: "/comptable/rapprochement-bancaire" },
@@ -110,9 +108,14 @@ export default function AccueilComptable() {
   return (
     <div style={{ minHeight: "100vh", background: NOIR, color: "#fff", fontFamily: "Georgia, serif" }}>
 
-      {/* En-tête. Le menu deroulant est en CSS pur — details et summary — pour
-          que la page reste servie par le serveur : pas de "use client", donc
-          pas de JavaScript avant que Google lise le contenu. */}
+      {/* En-tête. Le menu deroulant est en CSS pur — details et summary —
+          pour que la page reste servie par le serveur.
+
+          L ONGLET ADMIN MENE A L ESPACE DE TRAVAIL. Sans lui, la barre du
+          cabinet — Tableau de bord, Mes dossiers, Saisie, Pieces — ne
+          s affiche QUE sur les ecrans /admin/compliance : la porte n existait
+          que pour qui etait deja entre, et il fallait retenir l adresse par
+          coeur. L acces reste protege par la session. */}
       <header style={{ borderBottom: "1px solid rgba(200,169,110,0.15)", padding: "22px 0" }}>
         <div style={{ ...section, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "14px" }}>
           <span style={{ color: OR, fontSize: "21px", fontWeight: "bold" }}>Mr. Comptable</span>
@@ -149,7 +152,12 @@ export default function AccueilComptable() {
 
             <Link href="/comptable/blog" style={lienMenu}>Blog</Link>
             <Link href="/comptable/contact" style={lienMenu}>Contact</Link>
-            <Link href="/connexion" style={lienMenu}>Se connecter</Link>
+            <Link
+              href="/admin/compliance/tableau-de-bord"
+              style={{ ...lienMenu, color: OR, fontWeight: "bold" }}
+            >
+              Admin
+            </Link>
             <Link href="/comptable/inscription" style={{ ...bouton, padding: "11px 22px", fontSize: "15px" }}>Ouvrir mon espace</Link>
           </nav>
         </div>
@@ -191,9 +199,7 @@ export default function AccueilComptable() {
         </div>
       </section>
 
-      {/* Le temps rendu. Un cabinet n achete pas des fonctions, il achete des
-          heures. C est le seul endroit de la page ou on parle de son metier
-          plutot que du logiciel. */}
+      {/* Le temps rendu. */}
       <section style={{ ...section, paddingBottom: "70px" }}>
         <div style={{ ...carte, borderColor: "rgba(200,169,110,0.4)", padding: "34px" }}>
           <h2 style={{ color: OR, fontSize: "13px", letterSpacing: "3px", margin: "0 0 16px" }}>
@@ -244,11 +250,7 @@ export default function AccueilComptable() {
         </div>
       </section>
 
-      {/* LE TARIF NE S AFFICHE PLUS ICI.
-          Decision du 14 aout, alignee sur celle du pack organisme : les
-          editeurs du marche donnent leur prix apres echange. Le tarif devient
-          la raison de laisser ses coordonnees, et chaque consultation produit
-          un prospect au lieu d une lecture anonyme. */}
+      {/* LE TARIF NE S AFFICHE PLUS ICI. */}
       <section id="tarif" style={{ ...section, paddingBottom: "70px" }}>
         <h2 style={{ color: OR, fontSize: "13px", letterSpacing: "3px", margin: "0 0 10px" }}>
           LE TARIF
@@ -303,6 +305,7 @@ export default function AccueilComptable() {
           <p style={{ margin: "16px 0 0", display: "flex", gap: "20px", flexWrap: "wrap" }}>
             <Link href="/comptable/blog" style={lienPied}>Blog</Link>
             <Link href="/comptable/contact" style={lienPied}>Contact</Link>
+            <Link href="/admin/compliance/tableau-de-bord" style={lienPied}>Admin</Link>
             <Link href="/comptable/cgv" style={lienPied}>
               Conditions générales de vente
             </Link>
