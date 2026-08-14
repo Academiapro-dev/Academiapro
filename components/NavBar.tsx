@@ -3,13 +3,13 @@ import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 
 const T = {
-  fr: { formations: "Formations", seances: "Séances", blog: "Blog", tarifs: "Tarifs", contact: "Contact", partenaire: "Partenaire", connexion: "Se connecter", demarrer: "Démarrer" },
-  en: { formations: "Courses", seances: "Sessions", blog: "Blog", tarifs: "Pricing", contact: "Contact", partenaire: "Affiliate", connexion: "Sign in", demarrer: "Get Started" },
-  es: { formations: "Cursos", seances: "Sesiones", blog: "Blog", tarifs: "Precios", contact: "Contacto", partenaire: "Afiliado", connexion: "Iniciar sesión", demarrer: "Comenzar" },
-  pt: { formations: "Cursos", seances: "Sessoes", blog: "Blog", tarifs: "Preços", contact: "Contato", partenaire: "Afiliado", connexion: "Entrar", demarrer: "Comecar" },
-  de: { formations: "Kurse", seances: "Sitzungen", blog: "Blog", tarifs: "Preise", contact: "Kontakt", partenaire: "Partner", connexion: "Anmelden", demarrer: "Loslegen" },
-  ar: { formations: "الدورات", seances: "الجلسات", blog: "المدونة", tarifs: "الأسعار", contact: "اتصل", partenaire: "شريك", connexion: "تسجيل الدخول", demarrer: "ابدأ" },
-  he: { formations: "קורסים", seances: "פגישות", blog: "בלוג", tarifs: "מחירים", contact: "צור קשר", partenaire: "שותף", connexion: "התחברות", demarrer: "התחל" },
+  fr: { formations: "Formations", seances: "Séances", blog: "Blog", tarifs: "Tarifs", contact: "Contact", partenaire: "Partenaire", connexion: "Se connecter", demarrer: "Démarrer", pack: "Pack organisme", crm: "CRM", lms: "LMS" },
+  en: { formations: "Courses", seances: "Sessions", blog: "Blog", tarifs: "Pricing", contact: "Contact", partenaire: "Affiliate", connexion: "Sign in", demarrer: "Get Started", pack: "Training pack", crm: "CRM", lms: "LMS" },
+  es: { formations: "Cursos", seances: "Sesiones", blog: "Blog", tarifs: "Precios", contact: "Contacto", partenaire: "Afiliado", connexion: "Iniciar sesión", demarrer: "Comenzar", pack: "Pack organismo", crm: "CRM", lms: "LMS" },
+  pt: { formations: "Cursos", seances: "Sessoes", blog: "Blog", tarifs: "Preços", contact: "Contato", partenaire: "Afiliado", connexion: "Entrar", demarrer: "Comecar", pack: "Pack organismo", crm: "CRM", lms: "LMS" },
+  de: { formations: "Kurse", seances: "Sitzungen", blog: "Blog", tarifs: "Preise", contact: "Kontakt", partenaire: "Partner", connexion: "Anmelden", demarrer: "Loslegen", pack: "Anbieter-Paket", crm: "CRM", lms: "LMS" },
+  ar: { formations: "الدورات", seances: "الجلسات", blog: "المدونة", tarifs: "الأسعار", contact: "اتصل", partenaire: "شريك", connexion: "تسجيل الدخول", demarrer: "ابدأ", pack: "باقة المؤسسات", crm: "CRM", lms: "LMS" },
+  he: { formations: "קורסים", seances: "פגישות", blog: "בלוג", tarifs: "מחירים", contact: "צור קשר", partenaire: "שותף", connexion: "התחברות", demarrer: "התחל", pack: "חבילת ארגון", crm: "CRM", lms: "LMS" },
 };
 
 // LES ECRANS DE MR. COMPTABLE.
@@ -92,6 +92,7 @@ export default function NavBar() {
     color: "rgba(255,255,255,0.7)",
     textDecoration: "none",
     fontSize: "14px",
+    whiteSpace: "nowrap",
   };
 
   // ---- Espace de travail comptable : marque et menu propres --------------
@@ -141,17 +142,32 @@ export default function NavBar() {
   }
 
   // ---- Vitrine AcadéMIA Pro ---------------------------------------------
+  //
+  // TOUTE L OFFRE EST VISIBLE. Jusqu au 14 aout, la barre ne montrait que le
+  // catalogue grand public : ni pack organisme, ni Mr. Qualiopi, ni CRM, ni
+  // LMS. Un organisme qui arrivait ne voyait rien de ce qu on lui vend
+  // 390 EUR par mois.
+  //
+  // CRM et LMS menent a /espace-prive, qui explique le produit et dit qu il
+  // est reserve aux abonnes. Un onglet grise frustre et fait partir ; un
+  // onglet qui explique donne envie d entrer.
+  //
+  // LE SIGLE LMS EST ECRIT TEL QUEL : c est le mot que le metier tape dans
+  // un moteur de recherche.
   return (
     <header style={barre}>
       <a href="/" style={lienMarque}>
         AcadémIA Pro
       </a>
-      <nav style={{ display: "flex", gap: "25px" }}>
+      <nav style={{ display: "flex", gap: "20px", flexWrap: "wrap", justifyContent: "center" }}>
         <a href={"/catalogue?lang=" + langue} style={lienMenu}>{t("formations")}</a>
+        <a href="/pack" style={lienMenu}>{t("pack")}</a>
+        <a href="/qualiopi" style={lienMenu}>Mr. Qualiopi</a>
+        <a href="/espace-prive?p=crm" style={lienMenu}>{t("crm")}</a>
+        <a href="/espace-prive?p=lms" style={lienMenu}>{t("lms")}</a>
         <a href={"/seances?lang=" + langue} style={lienMenu}>{t("seances")}</a>
         <a href="/blog" style={lienMenu}>{t("blog")}</a>
         <a href="/tarifs" style={lienMenu}>{t("tarifs")}</a>
-        <a href="/partenaire" style={lienMenu}>{t("partenaire")}</a>
         <a href="/contact" style={lienMenu}>{t("contact")}</a>
       </nav>
       <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
@@ -168,10 +184,10 @@ export default function NavBar() {
           <option value="ar">🇸🇦 AR</option>
           <option value="he">🇮🇱 HE</option>
           </select>
-        <a href="/connexion" style={{ color: "#c8a96e", border: "1px solid rgba(200,169,110,0.45)", padding: "8px 16px", borderRadius: "8px", textDecoration: "none", fontWeight: "bold", fontSize: "14px" }}>
+        <a href="/connexion" style={{ color: "#c8a96e", border: "1px solid rgba(200,169,110,0.45)", padding: "8px 16px", borderRadius: "8px", textDecoration: "none", fontWeight: "bold", fontSize: "14px", whiteSpace: "nowrap" }}>
           {t("connexion")}
         </a>
-        <a href="/login" style={{ background: "linear-gradient(135deg,#c8a96e,#a07840)", color: "#050508", padding: "8px 20px", borderRadius: "8px", textDecoration: "none", fontWeight: "bold", fontSize: "14px" }}>
+        <a href="/login" style={{ background: "linear-gradient(135deg,#c8a96e,#a07840)", color: "#050508", padding: "8px 20px", borderRadius: "8px", textDecoration: "none", fontWeight: "bold", fontSize: "14px", whiteSpace: "nowrap" }}>
           {t("demarrer")}
         </a>
       </div>
