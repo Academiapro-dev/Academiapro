@@ -21,6 +21,26 @@ const FILTRES = [
   { cle: "desabonnes", nom: "Desabonnes" },
 ];
 
+// LES MOTIFS DE PERTE SONT UNE LISTE, PAS UN CHAMP LIBRE.
+//
+// Un champ libre produit autant de formulations que de fiches, et le
+// regroupement du Dashboard ne montre plus rien. La liste sert au comptage,
+// la precision libre sert a la memoire. Les deux sont enregistres dans la
+// meme colonne, separes par un tiret cadratin : le regroupement ne retient
+// que ce qui precede le tiret.
+const MOTIFS_PERTE = [
+  "Prix trop élevé",
+  "A choisi un concurrent",
+  "Projet abandonné",
+  "Pas de budget",
+  "Sans réponse",
+  "Hors cible",
+  "Mauvais moment",
+  "Autre",
+];
+
+const SEPARATEUR = " — ";
+
 export default function CRMPage() {
   const [stats, setStats] = useState<any>(null);
   const [prospects, setProspects] = useState<any[]>([]);
@@ -39,6 +59,15 @@ export default function CRMPage() {
   const [chargeBases, setChargeBases] = useState(false);
   const [erreurBases, setErreurBases] = useState("");
 
+  // Perte, relance automatique et regroupement des motifs.
+  const [motifs, setMotifs] = useState<any>(null);
+  const [fichePerdu, setFichePerdu] = useState("");
+  const [motifChoisi, setMotifChoisi] = useState("");
+  const [precision, setPrecision] = useState("");
+  const [enCours, setEnCours] = useState("");
+  const [messageErreur, setMessageErreur] = useState("");
+  const [masquerPerdus, setMasquerPerdus] = useState(true);
+
   useEffect(() => { charger(); }, []);
 
   useEffect(() => {
@@ -52,6 +81,21 @@ export default function CRMPage() {
     ]);
     setStats(s);
     setProspects(Array.isArray(p) ? p : []);
+    chargerMotifs();
+  }
+
+  async function chargerMotifs() {
+    try {
+      const r = await fetch("/api/crm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "motifs_perte", portee: PORTEE }),
+      });
+      const d = await r.json();
+      setMotifs(d && Array.isArray(d.motifs) ? d : null);
+    } catch (e) {
+      setMotifs(null);
+    }
   }
 
   async function chargerBases() {
@@ -100,6 +144,59 @@ export default function CRMPage() {
     setLoading(false);
   }
 
+  // MARQUER PERDU. Le motif de la liste et la precision libre partent dans
+  // la meme colonne, separes par le tiret cadratin.
+  async function marquerPerdu(email: string) {
+    if (!motifChoisi) {
+      setMessageErreur("Choisissez d abord un motif.");
+      return;
+    }
+    setEnCours(email);
+    setMessageErreur("");
+    const texte = precision.trim() ? motifChoisi + SEPARATEUR + precision.trim() : motifChoisi;
+    try {
+      const r = await fetch("/api/crm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "perdu", email, motif: texte, portee: PORTEE }),
+      });
+      const d = await r.json();
+      if (d.erreur) setMessageErreur(d.erreur);
+      else {
+        setFichePerdu("");
+        setMotifChoisi("");
+        setPrecision("");
+        await charger();
+      }
+    } catch (e: any) {
+      setMessageErreur("Enregistrement impossible : " + String(e));
+    }
+    setEnCours("");
+  }
+
+  // ARMER OU DESARMER LA RELANCE AUTOMATIQUE POUR CETTE FICHE.
+  //
+  // Armer ne declenche rien aujourd hui : le second verrou, dans la route
+  // /api/cron/relance-crm, reste ferme. Ce reglage prepare le jour ou il
+  // s ouvrira.
+  async function basculerRelanceAuto(email: string, actif: boolean) {
+    setEnCours(email);
+    setMessageErreur("");
+    try {
+      const r = await fetch("/api/crm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "relance_auto", email, actif, portee: PORTEE }),
+      });
+      const d = await r.json();
+      if (d.erreur) setMessageErreur(d.erreur);
+      else await charger();
+    } catch (e: any) {
+      setMessageErreur("Enregistrement impossible : " + String(e));
+    }
+    setEnCours("");
+  }
+
   // LE NUMERO DEVIENT UN APPEL. Sur iPad, tel: ouvre le combine et c est
   // l appareil qui compose : aucun cout, aucun fournisseur. La telephonie
   // facturee a la minute est un autre chantier.
@@ -109,6 +206,26 @@ export default function CRMPage() {
 
   function nombre(n: any) {
     return (Number(n) || 0).toLocaleString("fr-FR");
+  }
+
+  function jolieDate(d: any) {
+    if (!d) return "";
+    try { return new Date(d).toLocaleDateString("fr-FR"); } catch (e) { return ""; }
+  }
+
+  // REGROUPEMENT DES MOTIFS. La route renvoie le texte complet de chaque
+  // motif ; on n en retient ici que la partie qui precede le tiret, sans
+  // quoi chaque precision libre creerait sa propre ligne.
+  function motifsRegroupes() {
+    if (!motifs || !Array.isArray(motifs.motifs)) return [];
+    const compte: any = {};
+    motifs.motifs.forEach(function (m: any) {
+      const tete = String(m.motif || "").split(SEPARATEUR)[0].trim() || "Sans motif";
+      compte[tete] = (compte[tete] || 0) + (Number(m.nombre) || 0);
+    });
+    return Object.keys(compte)
+      .map(function (k) { return { motif: k, nombre: compte[k] }; })
+      .sort(function (a, b) { return b.nombre - a.nombre; });
   }
 
   const onglets = [
@@ -123,12 +240,24 @@ export default function CRMPage() {
   const LIEN: any = { color: "#c8a96e", textDecoration: "none", borderBottom: "1px dotted rgba(200,169,110,0.5)" };
   const CARTE: any = { background: "#1a1a2e", borderRadius: "10px", padding: "15px", marginBottom: "10px", border: "1px solid rgba(200,169,110,0.15)" };
   const BOUTON: any = { background: "rgba(255,255,255,0.06)", border: "1px solid rgba(200,169,110,0.3)", color: "#c8a96e", padding: "8px 15px", borderRadius: "18px", cursor: "pointer", fontSize: "12.5px", fontFamily: "Georgia,serif" };
+  const CHAMP: any = { width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid rgba(200,169,110,0.3)", background: "#1a1a2e", color: "#fff", fontSize: "13.5px", fontFamily: "Georgia,serif", boxSizing: "border-box" };
 
   const apprenants = prospects.filter(function (p: any) {
     return (p.progression || 0) > 0 || p.formation_active;
   });
 
+  const perdus = prospects.filter(function (p: any) { return p.statut === "perdu"; });
+  const armes = prospects.filter(function (p: any) { return !!p.relance_auto; });
+
+  // Les perdus restent lisibles a la demande : la route ne les ecarte pas
+  // des lectures, contrairement a ce que laissait entendre son commentaire.
+  const listeProspects = masquerPerdus
+    ? prospects.filter(function (p: any) { return p.statut !== "perdu"; })
+    : prospects;
+
   const detail = bases && bases.detail ? bases.detail : null;
+  const regroupes = motifsRegroupes();
+  const totalMotifs = regroupes.reduce(function (s, m) { return s + m.nombre; }, 0);
 
   return (
     <div style={{ backgroundColor: "#050508", minHeight: "100vh", color: "#fff", fontFamily: "Georgia, serif" }}>
@@ -149,6 +278,12 @@ export default function CRMPage() {
 
       <div style={{ padding: "25px 20px", maxWidth: "980px", margin: "0 auto" }}>
 
+        {messageErreur && (
+          <div style={{ background: "rgba(232,131,106,0.12)", border: "1px solid rgba(232,131,106,0.4)", borderRadius: "8px", padding: "12px", marginBottom: "16px", color: "#e8836a", fontSize: "13px" }}>
+            {messageErreur}
+          </div>
+        )}
+
         {onglet === "dashboard" && stats && (
           <div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: "12px", marginBottom: "25px" }}>
@@ -159,12 +294,45 @@ export default function CRMPage() {
                 { label: "Score Moyen", value: `${stats.score_moyen || 0}%`, color: "#448aff" },
                 { label: "Actifs", value: stats.prospects || 0, color: "#c8a96e" },
                 { label: "Taux Conversion", value: stats.total > 0 ? `${Math.round((stats.clients / stats.total) * 100)}%` : "0%", color: "#00e676" },
+                { label: "Perdus ❌", value: stats.perdus || 0, color: "#e8836a" },
+                { label: "Taux de perte", value: stats.total > 0 ? `${Math.round(((stats.perdus || 0) / stats.total) * 100)}%` : "0%", color: "#e8836a" },
+                { label: "Relance auto armée", value: armes.length, color: "#448aff" },
               ].map(item => (
                 <div key={item.label} style={{ background: "#1a1a2e", border: "1px solid rgba(200,169,110,0.2)", borderRadius: "10px", padding: "15px", textAlign: "center" }}>
                   <div style={{ fontSize: "22px", fontWeight: "bold", color: item.color }}>{item.value}</div>
                   <div style={{ color: "rgba(255,255,255,0.5)", fontSize: "11px", marginTop: "4px" }}>{item.label}</div>
                 </div>
               ))}
+            </div>
+
+            {/* ---------- POURQUOI ILS DISENT NON ---------- */}
+            <div style={{ background: "#1a1a2e", borderRadius: "12px", padding: "20px", marginBottom: "20px", border: "1px solid rgba(232,131,106,0.25)" }}>
+              <h3 style={{ color: "#e8836a", marginTop: 0, fontSize: "14px" }}>POURQUOI ILS DISENT NON</h3>
+              {regroupes.length === 0 ? (
+                <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px", lineHeight: "1.7", margin: 0 }}>
+                  Aucun prospect perdu pour l'instant. Chaque fiche que vous marquez « Perdu » vient nourrir cette liste : au bout de quelques semaines, c'est elle qui montre où l'offre bloque.
+                </p>
+              ) : (
+                <div>
+                  {regroupes.map(function (m) {
+                    const part = totalMotifs > 0 ? Math.round((m.nombre / totalMotifs) * 100) : 0;
+                    return (
+                      <div key={m.motif} style={{ padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", marginBottom: "5px" }}>
+                          <span style={{ color: "rgba(255,255,255,0.75)" }}>{m.motif}</span>
+                          <span style={{ color: "#e8836a", fontWeight: "bold" }}>{m.nombre} · {part} %</span>
+                        </div>
+                        <div style={{ background: "rgba(255,255,255,0.06)", borderRadius: "4px", height: "6px", overflow: "hidden" }}>
+                          <div style={{ background: "#e8836a", height: "100%", width: part + "%" }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <p style={{ color: "rgba(255,255,255,0.35)", fontSize: "11.5px", marginBottom: 0, marginTop: "12px" }}>
+                    {nombre(totalMotifs)} fiche(s) perdue(s). Le détail écrit sur chaque fiche reste consultable dans l'onglet Prospects.
+                  </p>
+                </div>
+              )}
             </div>
 
             {stats.par_domaine && Object.keys(stats.par_domaine).length > 0 && (
@@ -376,77 +544,178 @@ export default function CRMPage() {
         {/* ---------- PROSPECTS ET APPRENANTS ---------- */}
         {(onglet === "prospects" || onglet === "apprenants") && (
           <div>
-            <h2 style={{ color: "#c8a96e", fontSize: "16px", marginBottom: "15px" }}>
-              {onglet === "apprenants"
-                ? "APPRENANTS (" + apprenants.length + ")"
-                : "PROSPECTS (" + prospects.length + ")"}
-            </h2>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px", marginBottom: "15px" }}>
+              <h2 style={{ color: "#c8a96e", fontSize: "16px", margin: 0 }}>
+                {onglet === "apprenants"
+                  ? "APPRENANTS (" + apprenants.length + ")"
+                  : "PROSPECTS (" + listeProspects.length + ")"}
+              </h2>
 
-            {(onglet === "apprenants" ? apprenants : prospects).length === 0 ? (
+              {onglet === "prospects" && perdus.length > 0 && (
+                <button
+                  onClick={() => setMasquerPerdus(!masquerPerdus)}
+                  style={{ ...BOUTON, color: masquerPerdus ? "rgba(255,255,255,0.5)" : "#e8836a", borderColor: masquerPerdus ? "rgba(200,169,110,0.3)" : "rgba(232,131,106,0.5)" }}
+                >
+                  {masquerPerdus ? "Afficher les " + perdus.length + " perdu(s)" : "Masquer les perdus"}
+                </button>
+              )}
+            </div>
+
+            {(onglet === "apprenants" ? apprenants : listeProspects).length === 0 ? (
               <p style={{ color: "rgba(255,255,255,0.4)", textAlign: "center", marginTop: "50px" }}>
                 {onglet === "apprenants"
                   ? "Aucun apprenant en cours. Un prospect devient apprenant dès qu'il commence une formation."
                   : "Aucun prospect — ajoutez le premier !"}
               </p>
             ) : (
-              (onglet === "apprenants" ? apprenants : prospects).map(p => (
-                <div key={p.id} style={CARTE}>
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px", flexWrap: "wrap", gap: "8px" }}>
-                    <div>
-                      <span style={{ color: "#c8a96e", fontWeight: "bold", fontSize: "14px" }}>{p.nom || "Sans nom"}</span>
+              (onglet === "apprenants" ? apprenants : listeProspects).map(p => {
+                const estPerdu = p.statut === "perdu";
+                const occupe = enCours === p.email;
+                return (
+                  <div key={p.id} style={{ ...CARTE, opacity: estPerdu ? 0.75 : 1, border: estPerdu ? "1px solid rgba(232,131,106,0.35)" : CARTE.border }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px", flexWrap: "wrap", gap: "8px" }}>
+                      <div>
+                        <span style={{ color: "#c8a96e", fontWeight: "bold", fontSize: "14px" }}>{p.nom || "Sans nom"}</span>
+                      </div>
+                      <div style={{ background: p.score >= 60 ? "#ff6b35" : "rgba(200,169,110,0.2)", color: p.score >= 60 ? "#fff" : "#c8a96e", padding: "3px 10px", borderRadius: "12px", fontSize: "12px", fontWeight: "bold" }}>
+                        {p.score}pts
+                      </div>
                     </div>
-                    <div style={{ background: p.score >= 60 ? "#ff6b35" : "rgba(200,169,110,0.2)", color: p.score >= 60 ? "#fff" : "#c8a96e", padding: "3px 10px", borderRadius: "12px", fontSize: "12px", fontWeight: "bold" }}>
-                      {p.score}pts
+
+                    {estPerdu && (
+                      <div style={{ background: "rgba(232,131,106,0.12)", border: "1px solid rgba(232,131,106,0.3)", borderRadius: "8px", padding: "10px 12px", marginBottom: "10px" }}>
+                        <div style={{ color: "#e8836a", fontSize: "12.5px", fontWeight: "bold", marginBottom: "3px" }}>
+                          Perdu{p.perdu_le ? " le " + jolieDate(p.perdu_le) : ""}
+                        </div>
+                        <div style={{ color: "rgba(255,255,255,0.7)", fontSize: "12.5px", lineHeight: "1.6" }}>
+                          {p.motif_perte || "Aucun motif enregistré"}
+                        </div>
+                      </div>
+                    )}
+
+                    {p.email && (
+                      <div style={{ fontSize: "12.5px", marginBottom: "3px", wordBreak: "break-all" }}>
+                        ✉️ <a href={"mailto:" + p.email} style={LIEN}>{p.email}</a>
+                      </div>
+                    )}
+                    {p.telephone && (
+                      <div style={{ fontSize: "12.5px", marginBottom: "8px" }}>
+                        ☎️ <a href={"tel:" + appelable(p.telephone)} style={LIEN}>{p.telephone}</a>
+                        <span style={{ color: "rgba(255,255,255,0.3)", fontSize: "11.5px" }}>
+                          {p.sms_accepte_le ? " · SMS accepté" : " · pas de consentement SMS"}
+                        </span>
+                      </div>
+                    )}
+
+                    <div style={{ color: "rgba(255,255,255,0.6)", fontSize: "12px", marginBottom: "10px" }}>
+                      {p.formation_interesse && <span style={{ marginRight: "10px" }}>📚 {p.formation_interesse}</span>}
+                      {p.domaine && <span style={{ marginRight: "10px" }}>🏷️ {p.domaine}</span>}
+                      {p.source && <span>📍 {p.source}</span>}
                     </div>
+
+                    {p.progression ? (
+                      <div style={{ color: "#00e676", fontSize: "12.5px", marginBottom: "10px" }}>
+                        🎓 {p.progression} % de sa formation · {p.modules_valides || 0} module(s) validé(s)
+                        {p.formation_active ? " · " + p.formation_active : ""}
+                      </div>
+                    ) : null}
+
+                    {p.notes && (
+                      <div style={{ color: "rgba(255,255,255,0.5)", fontSize: "12px", marginBottom: "10px", lineHeight: "1.7" }}>{p.notes}</div>
+                    )}
+
+                    {p.desinscrit && (
+                      <div style={{ color: "#e8836a", fontSize: "12.5px", marginBottom: "10px" }}>
+                        Désinscrit — ne reçoit plus de messages
+                      </div>
+                    )}
+
+                    {!estPerdu && (
+                      <div style={{ display: "flex", gap: "8px", marginBottom: "8px" }}>
+                        <button onClick={() => { analyser(p.email); setOnglet("resultat"); }} disabled={loading} style={{ flex: 1, background: "rgba(200,169,110,0.15)", color: "#c8a96e", border: "1px solid rgba(200,169,110,0.3)", borderRadius: "6px", padding: "8px", fontSize: "12px", cursor: "pointer" }}>
+                          🤖 Analyser
+                        </button>
+                        <button onClick={() => { relancer(p.email); setOnglet("resultat"); }} disabled={loading} style={{ flex: 1, background: "rgba(0,230,118,0.1)", color: "#00e676", border: "1px solid rgba(0,230,118,0.3)", borderRadius: "6px", padding: "8px", fontSize: "12px", cursor: "pointer" }}>
+                          📧 Relancer
+                        </button>
+                      </div>
+                    )}
+
+                    {/* ---------- RELANCE AUTOMATIQUE ET PERTE ---------- */}
+                    {!estPerdu && (
+                      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                        <button
+                          onClick={() => basculerRelanceAuto(p.email, !p.relance_auto)}
+                          disabled={occupe}
+                          style={{
+                            flex: 1,
+                            minWidth: "150px",
+                            background: p.relance_auto ? "rgba(68,138,255,0.18)" : "rgba(255,255,255,0.05)",
+                            color: p.relance_auto ? "#448aff" : "rgba(255,255,255,0.5)",
+                            border: p.relance_auto ? "1px solid rgba(68,138,255,0.5)" : "1px solid rgba(255,255,255,0.15)",
+                            borderRadius: "6px", padding: "8px", fontSize: "12px", cursor: occupe ? "wait" : "pointer",
+                          }}
+                        >
+                          {p.relance_auto ? "🔔 Relance auto armée" : "🔕 Relance auto désarmée"}
+                        </button>
+
+                        <button
+                          onClick={() => { setFichePerdu(fichePerdu === p.email ? "" : p.email); setMotifChoisi(""); setPrecision(""); setMessageErreur(""); }}
+                          disabled={occupe}
+                          style={{ flex: 1, minWidth: "150px", background: "rgba(232,131,106,0.1)", color: "#e8836a", border: "1px solid rgba(232,131,106,0.35)", borderRadius: "6px", padding: "8px", fontSize: "12px", cursor: occupe ? "wait" : "pointer" }}
+                        >
+                          ❌ Perdu
+                        </button>
+                      </div>
+                    )}
+
+                    {fichePerdu === p.email && !estPerdu && (
+                      <div style={{ marginTop: "12px", padding: "14px", background: "rgba(232,131,106,0.07)", border: "1px solid rgba(232,131,106,0.3)", borderRadius: "8px" }}>
+                        <label style={{ color: "#e8836a", fontSize: "12px", display: "block", marginBottom: "6px" }}>
+                          Pourquoi ce prospect est-il perdu ?
+                        </label>
+                        <select value={motifChoisi} onChange={e => setMotifChoisi(e.target.value)} style={{ ...CHAMP, marginBottom: "10px" }}>
+                          <option value="">Choisir un motif…</option>
+                          {MOTIFS_PERTE.map(m => (
+                            <option key={m} value={m}>{m}</option>
+                          ))}
+                        </select>
+
+                        <label style={{ color: "rgba(255,255,255,0.5)", fontSize: "12px", display: "block", marginBottom: "6px" }}>
+                          Précision (facultative)
+                        </label>
+                        <textarea
+                          value={precision}
+                          onChange={e => setPrecision(e.target.value)}
+                          rows={2}
+                          placeholder="Ce qu'il a dit exactement…"
+                          style={{ ...CHAMP, marginBottom: "10px", resize: "vertical" }}
+                        />
+
+                        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                          <button
+                            onClick={() => marquerPerdu(p.email)}
+                            disabled={occupe || !motifChoisi}
+                            style={{ flex: 1, minWidth: "140px", background: motifChoisi ? "#e8836a" : "rgba(232,131,106,0.3)", color: "#050508", border: "none", borderRadius: "6px", padding: "10px", fontSize: "12.5px", fontWeight: "bold", cursor: motifChoisi ? "pointer" : "not-allowed" }}
+                          >
+                            {occupe ? "Enregistrement…" : "Enregistrer la perte"}
+                          </button>
+                          <button
+                            onClick={() => { setFichePerdu(""); setMotifChoisi(""); setPrecision(""); }}
+                            style={{ ...BOUTON, flex: 1, minWidth: "110px", borderRadius: "6px", padding: "10px" }}
+                          >
+                            Annuler
+                          </button>
+                        </div>
+
+                        <p style={{ color: "rgba(255,255,255,0.35)", fontSize: "11.5px", marginBottom: 0, marginTop: "10px", lineHeight: "1.6" }}>
+                          La fiche passe en perdu, sort des relances automatiques, et le motif rejoint le bloc « Pourquoi ils disent non » du Dashboard.
+                        </p>
+                      </div>
+                    )}
                   </div>
-
-                  {p.email && (
-                    <div style={{ fontSize: "12.5px", marginBottom: "3px", wordBreak: "break-all" }}>
-                      ✉️ <a href={"mailto:" + p.email} style={LIEN}>{p.email}</a>
-                    </div>
-                  )}
-                  {p.telephone && (
-                    <div style={{ fontSize: "12.5px", marginBottom: "8px" }}>
-                      ☎️ <a href={"tel:" + appelable(p.telephone)} style={LIEN}>{p.telephone}</a>
-                      <span style={{ color: "rgba(255,255,255,0.3)", fontSize: "11.5px" }}>
-                        {p.sms_accepte_le ? " · SMS accepté" : " · pas de consentement SMS"}
-                      </span>
-                    </div>
-                  )}
-
-                  <div style={{ color: "rgba(255,255,255,0.6)", fontSize: "12px", marginBottom: "10px" }}>
-                    {p.formation_interesse && <span style={{ marginRight: "10px" }}>📚 {p.formation_interesse}</span>}
-                    {p.domaine && <span style={{ marginRight: "10px" }}>🏷️ {p.domaine}</span>}
-                    {p.source && <span>📍 {p.source}</span>}
-                  </div>
-
-                  {p.progression ? (
-                    <div style={{ color: "#00e676", fontSize: "12.5px", marginBottom: "10px" }}>
-                      🎓 {p.progression} % de sa formation · {p.modules_valides || 0} module(s) validé(s)
-                      {p.formation_active ? " · " + p.formation_active : ""}
-                    </div>
-                  ) : null}
-
-                  {p.notes && (
-                    <div style={{ color: "rgba(255,255,255,0.5)", fontSize: "12px", marginBottom: "10px", lineHeight: "1.7" }}>{p.notes}</div>
-                  )}
-
-                  {p.desinscrit && (
-                    <div style={{ color: "#e8836a", fontSize: "12.5px", marginBottom: "10px" }}>
-                      Désinscrit — ne reçoit plus de messages
-                    </div>
-                  )}
-
-                  <div style={{ display: "flex", gap: "8px" }}>
-                    <button onClick={() => { analyser(p.email); setOnglet("resultat"); }} disabled={loading} style={{ flex: 1, background: "rgba(200,169,110,0.15)", color: "#c8a96e", border: "1px solid rgba(200,169,110,0.3)", borderRadius: "6px", padding: "8px", fontSize: "12px", cursor: "pointer" }}>
-                      🤖 Analyser
-                    </button>
-                    <button onClick={() => { relancer(p.email); setOnglet("resultat"); }} disabled={loading} style={{ flex: 1, background: "rgba(0,230,118,0.1)", color: "#00e676", border: "1px solid rgba(0,230,118,0.3)", borderRadius: "6px", padding: "8px", fontSize: "12px", cursor: "pointer" }}>
-                      📧 Relancer
-                    </button>
-                  </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         )}
