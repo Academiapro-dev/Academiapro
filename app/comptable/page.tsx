@@ -111,11 +111,12 @@ export default function AccueilComptable() {
       {/* En-tête. Le menu deroulant est en CSS pur — details et summary —
           pour que la page reste servie par le serveur.
 
-          L ONGLET ADMIN MENE A L ESPACE DE TRAVAIL. Sans lui, la barre du
-          cabinet — Tableau de bord, Mes dossiers, Saisie, Pieces — ne
-          s affiche QUE sur les ecrans /admin/compliance : la porte n existait
-          que pour qui etait deja entre, et il fallait retenir l adresse par
-          coeur. L acces reste protege par la session. */}
+          L ONGLET ADMIN MENE AU TABLEAU DE BORD GENERAL, pas a celui du
+          cabinet : de la, tous les ecrans sont accessibles — dont le depot
+          des pieces comptables. Sans cet onglet, la barre de travail ne
+          s affichait QUE sur les ecrans /admin/compliance : la porte
+          n existait que pour qui etait deja entre, et il fallait retenir
+          l adresse par coeur. L acces reste protege par la session. */}
       <header style={{ borderBottom: "1px solid rgba(200,169,110,0.15)", padding: "22px 0" }}>
         <div style={{ ...section, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "14px" }}>
           <span style={{ color: OR, fontSize: "21px", fontWeight: "bold" }}>Mr. Comptable</span>
@@ -153,7 +154,7 @@ export default function AccueilComptable() {
             <Link href="/comptable/blog" style={lienMenu}>Blog</Link>
             <Link href="/comptable/contact" style={lienMenu}>Contact</Link>
             <Link
-              href="/admin/compliance/tableau-de-bord"
+              href="/admin"
               style={{ ...lienMenu, color: OR, fontWeight: "bold" }}
             >
               Admin
@@ -305,7 +306,7 @@ export default function AccueilComptable() {
           <p style={{ margin: "16px 0 0", display: "flex", gap: "20px", flexWrap: "wrap" }}>
             <Link href="/comptable/blog" style={lienPied}>Blog</Link>
             <Link href="/comptable/contact" style={lienPied}>Contact</Link>
-            <Link href="/admin/compliance/tableau-de-bord" style={lienPied}>Admin</Link>
+            <Link href="/admin" style={lienPied}>Admin</Link>
             <Link href="/comptable/cgv" style={lienPied}>
               Conditions générales de vente
             </Link>
