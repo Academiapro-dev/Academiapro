@@ -9,13 +9,22 @@ export const metadata = {
 const OR = "#c8a96e";
 const NOIR = "#050508";
 
-// UNE PAGE PAR FONCTIONNALITE, JAMAIS UNE ANCRE.
-//
+// LE MENU DES FONCTIONNALITES VIT SUR LES SIX PAGES, PAS SEULEMENT SUR
+// L ACCUEIL. Sans lui, un lecteur arrive sur une fonctionnalite et ne peut
+// plus passer a la suivante sans revenir en arriere.
+const FONCTIONS = [
+  { nom: "Facture électronique", href: "/comptable/facture-electronique" },
+  { nom: "Rapprochement bancaire", href: "/comptable/rapprochement-bancaire" },
+  { nom: "Lecture des pièces", href: "/comptable/lecture-des-pieces" },
+  { nom: "Tenue et révision", href: "/comptable/tenue" },
+  { nom: "Déclarations et liasse", href: "/comptable/declarations" },
+  { nom: "Relance des justificatifs", href: "/comptable/relance-justificatifs" },
+];
+
 // CE QUI EST ECRIT ICI EST EPROUVE, rien d autre. Le depot de pieces a ete
 // refait le 13 aout : lecture enchainee au depot, formulaire sans exemples
 // fantomes, empreinte SHA-256 verifiee AVANT l envoi au coffre. Les indices
-// de confiance annonces — 97 a 98 % sur un PDF net, lecture exacte sur un
-// fichier structure — sont ceux qui ont ete constates.
+// de confiance annonces sont ceux qui ont ete constates.
 //
 // VOUVOIEMENT, VOCABULAIRE COMPTABLE, AUCUNE MENTION DE FORMATION.
 
@@ -45,6 +54,8 @@ export default function PageLectureDesPieces() {
     fontSize: "16px",
   };
 
+  const lienMenu: any = { color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "15px" };
+
   const H2: any = {
     color: OR,
     fontSize: "22px",
@@ -69,9 +80,37 @@ export default function PageLectureDesPieces() {
             Mr. Comptable
           </Link>
           <nav style={{ display: "flex", gap: "22px", alignItems: "center", flexWrap: "wrap" }}>
-            <Link href="/comptable" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "15px" }}>L'offre</Link>
-            <Link href="/comptable/blog" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "15px" }}>Blog</Link>
-            <Link href="/comptable/contact" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "15px" }}>Contact</Link>
+            <Link href="/comptable" style={lienMenu}>L'offre</Link>
+
+            <details style={{ position: "relative" }}>
+              <summary style={{ ...lienMenu, cursor: "pointer", listStyle: "none" }}>
+                Fonctionnalités ▾
+              </summary>
+              <div style={{
+                position: "absolute",
+                top: "26px",
+                left: 0,
+                background: "#0d0d16",
+                border: "1px solid rgba(200,169,110,0.3)",
+                borderRadius: "10px",
+                padding: "10px 0",
+                minWidth: "250px",
+                zIndex: 100,
+              }}>
+                {FONCTIONS.map((f) => (
+                  <Link
+                    key={f.href}
+                    href={f.href}
+                    style={{ display: "block", padding: "9px 20px", color: "rgba(255,255,255,0.75)", textDecoration: "none", fontSize: "14.5px", whiteSpace: "nowrap" }}
+                  >
+                    {f.nom}
+                  </Link>
+                ))}
+              </div>
+            </details>
+
+            <Link href="/comptable/blog" style={lienMenu}>Blog</Link>
+            <Link href="/comptable/contact" style={lienMenu}>Contact</Link>
             <Link href="/comptable/inscription" style={{ ...bouton, padding: "11px 22px", fontSize: "15px" }}>Ouvrir mon espace</Link>
           </nav>
         </div>
@@ -163,6 +202,11 @@ export default function PageLectureDesPieces() {
           <p style={{ color: OR, fontSize: "17px", margin: "0 0 8px" }}>Mr. Comptable</p>
           <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "14px", lineHeight: "1.8", margin: 0 }}>
             Une marque d'AcadéMIA Pro LLC · contact@mrcomptable.fr · mrcomptable.fr
+          </p>
+          <p style={{ margin: "20px 0 0", display: "flex", gap: "20px", flexWrap: "wrap" }}>
+            {FONCTIONS.map((f) => (
+              <Link key={f.href} href={f.href} style={lienPied}>{f.nom}</Link>
+            ))}
           </p>
           <p style={{ margin: "16px 0 0", display: "flex", gap: "20px", flexWrap: "wrap" }}>
             <Link href="/comptable" style={lienPied}>L'offre</Link>
