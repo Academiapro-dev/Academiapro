@@ -9,8 +9,10 @@ const FOND = "#050508";
 // mene ici fait comprendre trois choses d un coup : le produit existe, il
 // est reserve aux abonnes, et voila comment y entrer.
 //
-// Le parametre ?p= dit de quel espace il s agit. Sans lui, la page reste
-// juste, elle parle simplement d espace client.
+// CHAQUE PRODUIT AFFICHE SON PRIX CHEZ LUI, ET NULLE PART AILLEURS. Le
+// 14 aout, le tarif de Mr. Qualiopi figurait a la fois sur sa page et sur
+// celle du pack : deux endroits a corriger a chaque changement. Le prix des
+// options du CRM vit donc ici, et seulement ici.
 //
 // LES OPTIONS SONT ANNONCEES POUR CE QU ELLES SONT. Le SMS fonctionne ; la
 // telephonie n est pas construite et se presente donc comme a venir. Ne
@@ -25,6 +27,7 @@ const ESPACES: any = {
       {
         nom: "Envoi de SMS",
         etat: "en option",
+        prix: "0,12 € HT le message, degressif jusqu a 0,08 € selon le volume",
         texte: "Repondre a un prospect, confirmer un rendez-vous, rappeler "
           + "une echeance. Facture a l unite, sans abonnement, sous le nom "
           + "de votre organisme.",
@@ -32,6 +35,7 @@ const ESPACES: any = {
       {
         nom: "Appels depuis le navigateur",
         etat: "a venir",
+        prix: "",
         texte: "Appeler un prospect sans quitter sa fiche, avec la duree "
           + "decomptee et l historique conserve. En preparation.",
       },
@@ -161,9 +165,16 @@ export default function EspacePrive({ searchParams }: any) {
                       {o.etat === "a venir" ? "À venir" : "En option"}
                     </span>
                   </div>
+
                   <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "14.5px", lineHeight: "1.75", margin: 0 }}>
                     {o.texte}
                   </p>
+
+                  {o.prix && (
+                    <p style={{ color: OR, fontSize: "14.5px", lineHeight: "1.7", margin: "9px 0 0", fontWeight: "bold" }}>
+                      {o.prix}
+                    </p>
+                  )}
                 </div>
               );
             })}
