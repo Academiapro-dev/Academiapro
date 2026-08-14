@@ -9,12 +9,21 @@ export const metadata = {
 const OR = "#c8a96e";
 const NOIR = "#050508";
 
-// UNE PAGE PAR FONCTIONNALITE, JAMAIS UNE ANCRE.
-//
+// LE MENU DES FONCTIONNALITES VIT SUR LES SIX PAGES, PAS SEULEMENT SUR
+// L ACCUEIL. Sans lui, un lecteur arrive sur une fonctionnalite et ne peut
+// plus passer a la suivante sans revenir en arriere.
+const FONCTIONS = [
+  { nom: "Facture électronique", href: "/comptable/facture-electronique" },
+  { nom: "Rapprochement bancaire", href: "/comptable/rapprochement-bancaire" },
+  { nom: "Lecture des pièces", href: "/comptable/lecture-des-pieces" },
+  { nom: "Tenue et révision", href: "/comptable/tenue" },
+  { nom: "Déclarations et liasse", href: "/comptable/declarations" },
+  { nom: "Relance des justificatifs", href: "/comptable/relance-justificatifs" },
+];
+
 // L INALTERABILITE EST UN ARGUMENT DE CONFORMITE, pas une fonction parmi
 // d autres : c est ce que l administration verifie. Elle merite d etre dite
-// clairement, avec ce qu elle implique concretement — une ecriture validee
-// se contre-passe, elle ne se supprime pas.
+// clairement, avec ce qu elle implique concretement.
 //
 // VOUVOIEMENT, VOCABULAIRE COMPTABLE, AUCUNE MENTION DE FORMATION.
 
@@ -44,6 +53,8 @@ export default function PageTenue() {
     fontSize: "16px",
   };
 
+  const lienMenu: any = { color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "15px" };
+
   const H2: any = {
     color: OR,
     fontSize: "22px",
@@ -68,9 +79,37 @@ export default function PageTenue() {
             Mr. Comptable
           </Link>
           <nav style={{ display: "flex", gap: "22px", alignItems: "center", flexWrap: "wrap" }}>
-            <Link href="/comptable" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "15px" }}>L'offre</Link>
-            <Link href="/comptable/blog" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "15px" }}>Blog</Link>
-            <Link href="/comptable/contact" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "15px" }}>Contact</Link>
+            <Link href="/comptable" style={lienMenu}>L'offre</Link>
+
+            <details style={{ position: "relative" }}>
+              <summary style={{ ...lienMenu, cursor: "pointer", listStyle: "none" }}>
+                Fonctionnalités ▾
+              </summary>
+              <div style={{
+                position: "absolute",
+                top: "26px",
+                left: 0,
+                background: "#0d0d16",
+                border: "1px solid rgba(200,169,110,0.3)",
+                borderRadius: "10px",
+                padding: "10px 0",
+                minWidth: "250px",
+                zIndex: 100,
+              }}>
+                {FONCTIONS.map((f) => (
+                  <Link
+                    key={f.href}
+                    href={f.href}
+                    style={{ display: "block", padding: "9px 20px", color: "rgba(255,255,255,0.75)", textDecoration: "none", fontSize: "14.5px", whiteSpace: "nowrap" }}
+                  >
+                    {f.nom}
+                  </Link>
+                ))}
+              </div>
+            </details>
+
+            <Link href="/comptable/blog" style={lienMenu}>Blog</Link>
+            <Link href="/comptable/contact" style={lienMenu}>Contact</Link>
             <Link href="/comptable/inscription" style={{ ...bouton, padding: "11px 22px", fontSize: "15px" }}>Ouvrir mon espace</Link>
           </nav>
         </div>
@@ -172,6 +211,11 @@ export default function PageTenue() {
           <p style={{ color: OR, fontSize: "17px", margin: "0 0 8px" }}>Mr. Comptable</p>
           <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "14px", lineHeight: "1.8", margin: 0 }}>
             Une marque d'AcadéMIA Pro LLC · contact@mrcomptable.fr · mrcomptable.fr
+          </p>
+          <p style={{ margin: "20px 0 0", display: "flex", gap: "20px", flexWrap: "wrap" }}>
+            {FONCTIONS.map((f) => (
+              <Link key={f.href} href={f.href} style={lienPied}>{f.nom}</Link>
+            ))}
           </p>
           <p style={{ margin: "16px 0 0", display: "flex", gap: "20px", flexWrap: "wrap" }}>
             <Link href="/comptable" style={lienPied}>L'offre</Link>
