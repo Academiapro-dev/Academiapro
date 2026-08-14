@@ -3,11 +3,27 @@ import Link from "next/link";
 export const metadata = {
   title: "Mr. Comptable — Logiciel de comptabilité pour cabinets",
   description:
-    "Tenue, déclarations, liasse fiscale et lecture des factures électroniques. 90 € par mois, 19 € par dossier vivant. Sans engagement.",
+    "Tenue, déclarations, liasse fiscale et lecture des factures électroniques. Sans engagement.",
 };
 
 const OR = "#c8a96e";
 const NOIR = "#050508";
+
+// LE MENU DEROULANT DES FONCTIONNALITES.
+//
+// Chaque entree mene a SA PROPRE PAGE, jamais a une ancre. Une ancre ramene
+// a la meme page pour Google : dix ancres se positionnent comme une seule
+// adresse. Une page par sujet se positionne sur chaque recherche — un
+// cabinet qui cherche « rapprochement bancaire » doit trouver une page qui
+// ne parle que de ca.
+const FONCTIONS = [
+  { nom: "Facture électronique", href: "/comptable/facture-electronique" },
+  { nom: "Rapprochement bancaire", href: "/comptable/rapprochement-bancaire" },
+  { nom: "Lecture des pièces", href: "/comptable/lecture-des-pieces" },
+  { nom: "Tenue et révision", href: "/comptable/tenue" },
+  { nom: "Déclarations et liasse", href: "/comptable/declarations" },
+  { nom: "Relance des justificatifs", href: "/comptable/relance-justificatifs" },
+];
 
 const CE_QUE_FAIT: any[] = [
   {
@@ -88,19 +104,52 @@ export default function AccueilComptable() {
     border: "1px solid rgba(200,169,110,0.4)",
   };
 
+  const lienMenu: any = { color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "15px" };
   const lienPied: any = { color: OR, fontSize: "14px", textDecoration: "none" };
 
   return (
     <div style={{ minHeight: "100vh", background: NOIR, color: "#fff", fontFamily: "Georgia, serif" }}>
 
-      {/* En-tête */}
+      {/* En-tête. Le menu deroulant est en CSS pur — details et summary — pour
+          que la page reste servie par le serveur : pas de "use client", donc
+          pas de JavaScript avant que Google lise le contenu. */}
       <header style={{ borderBottom: "1px solid rgba(200,169,110,0.15)", padding: "22px 0" }}>
         <div style={{ ...section, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "14px" }}>
           <span style={{ color: OR, fontSize: "21px", fontWeight: "bold" }}>Mr. Comptable</span>
+
           <nav style={{ display: "flex", gap: "22px", alignItems: "center", flexWrap: "wrap" }}>
-            <a href="#offre" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "15px" }}>L'offre</a>
-            <a href="#tarif" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "15px" }}>Tarif</a>
-            <Link href="/connexion" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: "15px" }}>Se connecter</Link>
+            <a href="#offre" style={lienMenu}>L'offre</a>
+
+            <details style={{ position: "relative" }}>
+              <summary style={{ ...lienMenu, cursor: "pointer", listStyle: "none" }}>
+                Fonctionnalités ▾
+              </summary>
+              <div style={{
+                position: "absolute",
+                top: "26px",
+                left: 0,
+                background: "#0d0d16",
+                border: "1px solid rgba(200,169,110,0.3)",
+                borderRadius: "10px",
+                padding: "10px 0",
+                minWidth: "250px",
+                zIndex: 100,
+              }}>
+                {FONCTIONS.map((f) => (
+                  <Link
+                    key={f.href}
+                    href={f.href}
+                    style={{ display: "block", padding: "9px 20px", color: "rgba(255,255,255,0.75)", textDecoration: "none", fontSize: "14.5px", whiteSpace: "nowrap" }}
+                  >
+                    {f.nom}
+                  </Link>
+                ))}
+              </div>
+            </details>
+
+            <Link href="/comptable/blog" style={lienMenu}>Blog</Link>
+            <Link href="/comptable/contact" style={lienMenu}>Contact</Link>
+            <Link href="/connexion" style={lienMenu}>Se connecter</Link>
             <Link href="/comptable/inscription" style={{ ...bouton, padding: "11px 22px", fontSize: "15px" }}>Ouvrir mon espace</Link>
           </nav>
         </div>
@@ -120,7 +169,7 @@ export default function AccueilComptable() {
         </p>
         <div style={{ display: "flex", gap: "14px", flexWrap: "wrap" }}>
           <Link href="/comptable/inscription" style={bouton}>Ouvrir mon espace</Link>
-          <a href="#tarif" style={boutonPale}>Voir le tarif</a>
+          <Link href="/comptable/contact" style={boutonPale}>Recevoir le tarif</Link>
         </div>
       </section>
 
@@ -184,51 +233,43 @@ export default function AccueilComptable() {
             le fournisseur, la date, la référence, le HT, la TVA et le TTC sont repris
             tels qu'ils y figurent — sans lecture visuelle, donc sans écart possible.
           </p>
-          <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "14px", lineHeight: "1.75", margin: 0, maxWidth: "760px" }}>
+          <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "14px", lineHeight: "1.75", margin: "0 0 18px", maxWidth: "760px" }}>
             Mr. Comptable est une solution compatible au sens de la réforme, et non une
             plateforme agréée. Le transport des factures est assuré par une plateforme
             agréée, à laquelle nous nous raccordons.
           </p>
+          <Link href="/comptable/facture-electronique" style={{ color: OR, fontSize: "15px", textDecoration: "none", borderBottom: "1px solid rgba(200,169,110,0.4)" }}>
+            Tout ce qu'il faut savoir sur la facture électronique →
+          </Link>
         </div>
       </section>
 
-      {/* Tarif */}
+      {/* LE TARIF NE S AFFICHE PLUS ICI.
+          Decision du 14 aout, alignee sur celle du pack organisme : les
+          editeurs du marche donnent leur prix apres echange. Le tarif devient
+          la raison de laisser ses coordonnees, et chaque consultation produit
+          un prospect au lieu d une lecture anonyme. */}
       <section id="tarif" style={{ ...section, paddingBottom: "70px" }}>
         <h2 style={{ color: OR, fontSize: "13px", letterSpacing: "3px", margin: "0 0 10px" }}>
           LE TARIF
         </h2>
         <div style={{ height: "1px", background: "rgba(200,169,110,0.25)", marginBottom: "34px" }} />
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "18px" }}>
-          <div style={carte}>
-            <h3 style={{ color: "#fff", fontSize: "20px", margin: "0 0 6px" }}>L'abonnement</h3>
-            <p style={{ color: OR, fontSize: "34px", fontWeight: "bold", margin: "0 0 12px" }}>
-              90 € <span style={{ fontSize: "16px", color: "rgba(255,255,255,0.55)" }}>HT / mois</span>
-            </p>
-            <p style={{ color: "rgba(255,255,255,0.65)", fontSize: "15px", lineHeight: "1.7", margin: 0 }}>
-              L'accès au logiciel, quel que soit le nombre de collaborateurs. Les mises à
-              jour réglementaires sont comprises.
-            </p>
-          </div>
-
-          <div style={carte}>
-            <h3 style={{ color: "#fff", fontSize: "20px", margin: "0 0 6px" }}>Le dossier</h3>
-            <p style={{ color: OR, fontSize: "34px", fontWeight: "bold", margin: "0 0 12px" }}>
-              19 € <span style={{ fontSize: "16px", color: "rgba(255,255,255,0.55)" }}>HT / mois</span>
-            </p>
-            <p style={{ color: "rgba(255,255,255,0.65)", fontSize: "15px", lineHeight: "1.7", margin: 0 }}>
-              Par dossier réellement travaillé dans le mois. Un dossier créé mais sans
-              aucune écriture n'est pas facturé. Le décompte est fait par la plateforme,
-              vous n'avez rien à déclarer.
-            </p>
-          </div>
+        <div style={{ ...carte, borderColor: "rgba(200,169,110,0.4)", padding: "34px" }}>
+          <p style={{ color: "rgba(255,255,255,0.75)", fontSize: "16px", lineHeight: "1.8", margin: "0 0 14px", maxWidth: "760px" }}>
+            Un abonnement au cabinet, quel que soit le nombre de collaborateurs, et une
+            ligne par dossier réellement travaillé dans le mois. Un dossier créé mais sans
+            aucune écriture n'est pas facturé, et le décompte est fait par la plateforme :
+            vous n'avez rien à déclarer.
+          </p>
+          <p style={{ color: "rgba(255,255,255,0.75)", fontSize: "16px", lineHeight: "1.8", margin: "0 0 24px", maxWidth: "760px" }}>
+            Tout est compris : la tenue, les déclarations, la télétransmission, la lecture
+            des pièces, la relance des justificatifs et l'assistance. Aucun module en
+            supplément, aucun engagement de durée. Nous vous adressons le tarif après un
+            échange de quinze minutes.
+          </p>
+          <Link href="/comptable/contact" style={bouton}>Recevoir le tarif</Link>
         </div>
-
-        <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "15px", lineHeight: "1.8", marginTop: "24px", maxWidth: "760px" }}>
-          Tout est compris dans ces deux lignes : la tenue, les déclarations, la
-          télétransmission, la lecture des pièces, la relance des justificatifs et
-          l'assistance. Aucun module en supplément, aucun engagement de durée.
-        </p>
       </section>
 
       {/* Appel */}
@@ -252,7 +293,16 @@ export default function AccueilComptable() {
             États-Unis<br />
             contact@mrcomptable.fr · mrcomptable.fr
           </p>
+
+          <p style={{ margin: "20px 0 0", display: "flex", gap: "20px", flexWrap: "wrap" }}>
+            {FONCTIONS.map((f) => (
+              <Link key={f.href} href={f.href} style={lienPied}>{f.nom}</Link>
+            ))}
+          </p>
+
           <p style={{ margin: "16px 0 0", display: "flex", gap: "20px", flexWrap: "wrap" }}>
+            <Link href="/comptable/blog" style={lienPied}>Blog</Link>
+            <Link href="/comptable/contact" style={lienPied}>Contact</Link>
             <Link href="/comptable/cgv" style={lienPied}>
               Conditions générales de vente
             </Link>
