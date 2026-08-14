@@ -70,18 +70,50 @@ function porteeDe(session: any, demande: any): string | null {
   return session.tenantId;
 }
 
-async function upsert_prospect(data: any, tenantId: string | null) {
-  const score = await scorer_prospect(data);
-  const payload = { ...data, score, tenant_id: tenantId, derniere_interaction: new Date().toISOString() };
+// UN ENVOI PARTIEL NE DOIT PLUS EFFACER LE RESTE DE LA FICHE.
+//
+// DEFAUT TROUVE LE 14 AOUT. Les boutons d etape de l ecran client
+// (« → Contactes », « → Client ») appellent cette fonction avec TROIS
+// champs seulement : email, nom, statut. L ancienne version ecrasait la
+// ligne entiere avec ces trois champs et RECALCULAIT LE SCORE dessus —
+// un prospect a 85 points retombait a 20 des qu on le faisait avancer,
+// et son telephone, sa formation et ses notes disparaissaient au passage.
+//
+// La regle est desormais : on relit la fiche, on pose par-dessus ce qui
+// est reellement fourni, et on score le resultat. Plus l organisme
+// travaille son pipeline, plus la fiche s enrichit — l inverse d avant.
+function fusionner(existante: any, entrant: any) {
+  const fusion: any = Object.assign({}, existante || {});
+  for (const cle of Object.keys(entrant || {})) {
+    const v = entrant[cle];
+    if (v === undefined || v === null) continue;
+    if (typeof v === "string" && v.trim() === "") continue;
+    fusion[cle] = v;
+  }
+  return fusion;
+}
 
+async function upsert_prospect(data: any, tenantId: string | null) {
   const { data: existant } = await filtreTenant(
-    supabase.from("crm").select("id").eq("email", data.email),
+    supabase.from("crm").select("*").eq("email", data.email),
     tenantId
   ).limit(1);
 
+  const ancienne = existant && existant.length > 0 ? existant[0] : null;
+  const complete = fusionner(ancienne, data);
+  const score = await scorer_prospect(complete);
+
+  // On n ecrit que les champs fournis, plus le score recalcule sur la
+  // fiche complete : les colonnes absentes de l envoi restent en base.
+  const payload: any = Object.assign({}, data, {
+    score: score,
+    tenant_id: tenantId,
+    derniere_interaction: new Date().toISOString(),
+  });
+
   let result;
-  if (existant && existant.length > 0) {
-    result = await supabase.from("crm").update(payload).eq("id", existant[0].id);
+  if (ancienne) {
+    result = await supabase.from("crm").update(payload).eq("id", ancienne.id);
   } else {
     result = await supabase.from("crm").insert(payload);
   }
@@ -96,8 +128,10 @@ async function upsert_prospect(data: any, tenantId: string | null) {
 // prospect perdu sans motif n apprend rien ; dix prospects perdus pour la
 // meme raison disent ou l offre bloque.
 //
-// Un prospect perdu sort des relances : son statut l exclut deja des
-// lectures, et perdu_le horodate la sortie.
+// Un prospect perdu sort des relances : perdu_le horodate la sortie et
+// relance_auto est desarme. ATTENTION : son statut ne le retire PAS des
+// lectures — get_prospects ne filtre par statut que si on le lui demande.
+// C est l ecran qui masque les perdus, pas la route.
 async function marquer_perdu(email: string, motif: string, tenantId: string | null) {
   if (!email) return { erreur: "Email requis" };
 
@@ -123,6 +157,35 @@ async function marquer_perdu(email: string, motif: string, tenantId: string | nu
 
   await notifier_cam("prospect_perdu", { email, motif });
   return { succes: true, email, motif };
+}
+
+// ROUVRIR UNE FICHE FERMEE PAR ERREUR.
+//
+// Sans cette action, une mauvaise manipulation ne se reparait qu en SQL.
+// Le motif et la date de perte sont effaces : garder un motif sur une
+// fiche rouverte fausserait le regroupement du tableau de bord.
+async function rouvrir_prospect(email: string, tenantId: string | null) {
+  if (!email) return { erreur: "Email requis" };
+
+  const { data } = await filtreTenant(
+    supabase.from("crm").select("id").eq("email", email),
+    tenantId
+  ).limit(1);
+
+  if (!data || data.length === 0) return { erreur: "Prospect non trouve" };
+
+  const { error } = await supabase
+    .from("crm")
+    .update({
+      statut: "prospect",
+      motif_perte: null,
+      perdu_le: null,
+      derniere_interaction: new Date().toISOString(),
+    })
+    .eq("id", data[0].id);
+
+  if (error) return { erreur: error.message };
+  return { succes: true, email };
 }
 
 // ARMER OU DESARMER LA RELANCE AUTOMATIQUE, PROSPECT PAR PROSPECT.
@@ -244,7 +307,7 @@ L email doit:
 
 async function stats_crm(tenantId: string | null) {
   const { data: tous } = await filtreTenant(
-    supabase.from("crm").select("statut,score,domaine,source"),
+    supabase.from("crm").select("statut,score,domaine,source,relance_auto"),
     tenantId
   ).limit(5000);
 
@@ -255,6 +318,7 @@ async function stats_crm(tenantId: string | null) {
   const chauds = tous.filter(p => (p.score || 0) >= 60).length;
   const clients = tous.filter(p => p.statut === "client").length;
   const perdus = tous.filter(p => p.statut === "perdu").length;
+  const relance_armee = tous.filter(p => !!p.relance_auto).length;
   const score_moyen = total > 0 ? Math.round(tous.reduce((s, p) => s + (p.score || 0), 0) / total) : 0;
 
   const par_domaine = tous.reduce((acc: any, p) => {
@@ -267,7 +331,7 @@ async function stats_crm(tenantId: string | null) {
     return acc;
   }, {});
 
-  return { total, prospects, chauds, clients, perdus, score_moyen, par_domaine, par_source };
+  return { total, prospects, chauds, clients, perdus, relance_armee, score_moyen, par_domaine, par_source };
 }
 
 async function declencher_certificat_auto(email: string, formationCode: string) {
@@ -401,6 +465,7 @@ export async function POST(req: NextRequest) {
     if (action === "analyser") return NextResponse.json(await analyser_prospect(body.email, t));
     if (action === "relance") return NextResponse.json(await generer_relance(body.email, t));
     if (action === "perdu") return NextResponse.json(await marquer_perdu(body.email, body.motif, t));
+    if (action === "rouvrir") return NextResponse.json(await rouvrir_prospect(body.email, t));
     if (action === "motifs_perte") return NextResponse.json(await motifs_perte(t));
     if (action === "relance_auto") return NextResponse.json(await basculer_relance_auto(body.email, body.actif, t));
     if (action === "lms_update") return NextResponse.json(await lms_update(session.email, body.data || {}, t));
