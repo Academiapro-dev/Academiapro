@@ -8,8 +8,7 @@ import { useState, useEffect } from "react";
 // DEUX MOTS DIFFERENTS POUR DEUX METIERS. « Prospection » designe les quatre
 // bases froides — 69 000 entreprises collectees puis enrichies, que l on
 // travaille au volume. « Mes contacts » designe les gens qui ont leve la
-// main sur le site, que l on travaille un par un. Les appeler tous les deux
-// « prospects » obligeait a chercher lequel on regardait.
+// main sur le site, que l on travaille un par un.
 const PORTEE = "editeur";
 
 const FILTRES = [
@@ -18,18 +17,14 @@ const FILTRES = [
   { cle: "envoyes", nom: "Deja contactes" },
   { cle: "avec_email", nom: "Avec adresse" },
   { cle: "avec_telephone", nom: "Avec telephone" },
-  { cle: "avec_linkedin", nom: "Avec LinkedIn" },
+  { cle: "linkedin_a_faire", nom: "LinkedIn a faire" },
+  { cle: "linkedin_invites", nom: "Deja invites" },
   { cle: "a_enrichir", nom: "A enrichir" },
   { cle: "desabonnes", nom: "Desabonnes" },
 ];
 
-// LES MOTIFS DE PERTE SONT UNE LISTE, PAS UN CHAMP LIBRE.
-//
-// Un champ libre produit autant de formulations que de fiches, et le
-// regroupement du Dashboard ne montre plus rien. La liste sert au comptage,
-// la precision libre sert a la memoire. Les deux sont enregistres dans la
-// meme colonne, separes par un tiret cadratin : le regroupement ne retient
-// que ce qui precede le tiret.
+const LINKEDIN = ["linkedin_a_faire", "linkedin_invites"];
+
 const MOTIFS_PERTE = [
   "Prix trop élevé",
   "A choisi un concurrent",
@@ -42,10 +37,6 @@ const MOTIFS_PERTE = [
 ];
 
 const SEPARATEUR = " — ";
-
-// LA PREMIERE BASE S OUVRE SEULE. Un ecran qui demande de choisir avant de
-// rien montrer fait perdre un clic a chaque visite, et donne l impression
-// d une base vide alors qu elle contient 69 000 lignes.
 const BASE_PAR_DEFAUT = "organismes";
 
 export default function CRMPage() {
@@ -56,7 +47,6 @@ export default function CRMPage() {
   const [resultat, setResultat] = useState<any>(null);
   const [form, setForm] = useState({ nom: "", email: "", telephone: "", source: "formulaire", statut: "prospect", formation_interesse: "", domaine: "", notes: "" });
 
-  // Les quatre bases de prospection, servies par /api/admin/prospection.
   const [bases, setBases] = useState<any>(null);
   const [base, setBase] = useState(BASE_PAR_DEFAUT);
   const [filtre, setFiltre] = useState("");
@@ -66,7 +56,6 @@ export default function CRMPage() {
   const [chargeBases, setChargeBases] = useState(false);
   const [erreurBases, setErreurBases] = useState("");
 
-  // Perte, relance automatique et regroupement des motifs.
   const [motifs, setMotifs] = useState<any>(null);
   const [fichePerdu, setFichePerdu] = useState("");
   const [motifChoisi, setMotifChoisi] = useState("");
@@ -74,6 +63,10 @@ export default function CRMPage() {
   const [enCours, setEnCours] = useState("");
   const [messageErreur, setMessageErreur] = useState("");
   const [masquerPerdus, setMasquerPerdus] = useState(true);
+
+  // Le compteur LinkedIn des sept derniers jours.
+  const [compteurIn, setCompteurIn] = useState<any>(null);
+  const [ligneOccupee, setLigneOccupee] = useState<any>(null);
 
   useEffect(() => { charger(); }, []);
 
@@ -89,6 +82,7 @@ export default function CRMPage() {
     setStats(s);
     setProspects(Array.isArray(p) ? p : []);
     chargerMotifs();
+    chargerCompteurIn();
   }
 
   async function chargerMotifs() {
@@ -102,6 +96,16 @@ export default function CRMPage() {
       setMotifs(d && Array.isArray(d.motifs) ? d : null);
     } catch (e) {
       setMotifs(null);
+    }
+  }
+
+  async function chargerCompteurIn() {
+    try {
+      const r = await fetch("/api/admin/linkedin", { cache: "no-store" });
+      const d = await r.json();
+      if (d.ok) setCompteurIn(d);
+    } catch (e) {
+      setCompteurIn(null);
     }
   }
 
@@ -123,6 +127,64 @@ export default function CRMPage() {
       setErreurBases("Lecture impossible : " + String(e));
     }
     setChargeBases(false);
+  }
+
+  // INVITER SUR LINKEDIN — LE PROFIL S OUVRE, LA DATE S ENREGISTRE.
+  //
+  // Rien n est envoye automatiquement, et c est volontaire : l API de
+  // LinkedIn ne permet pas d envoyer des invitations, et les outils qui
+  // le font par le navigateur font restreindre puis supprimer le compte.
+  // Le bouton ouvre le profil dans un onglet, Jacques ecrit son mot a la
+  // main, et la fiche retient qu il l a fait — pour ne jamais solliciter
+  // deux fois la meme personne.
+  //
+  // L ouverture se fait AVANT l appel reseau : un window.open declenche
+  // apres un await est bloque par le navigateur comme une fenetre
+  // surgissante non sollicitee.
+  async function inviter(l: any) {
+    const url = lienLinkedin(l.linkedin);
+    if (!url) return;
+    try { window.open(url, "_blank", "noopener"); } catch (e) { }
+
+    setLigneOccupee(l.id);
+    setErreurBases("");
+    try {
+      const r = await fetch("/api/admin/linkedin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ base: base, id: l.id, statut: "invite" }),
+      });
+      const d = await r.json();
+      if (d.ok) {
+        setCompteurIn(d);
+        await chargerBases();
+      } else {
+        setErreurBases(d.erreur || "Enregistrement impossible.");
+      }
+    } catch (e: any) {
+      setErreurBases("Enregistrement impossible : " + String(e));
+    }
+    setLigneOccupee(null);
+  }
+
+  // La reponse constatee, plus tard : accepte ou refuse. La date d envoi
+  // est conservee, sans quoi le compteur de la semaine serait fausse.
+  async function reponseIn(l: any, statut: string) {
+    setLigneOccupee(l.id);
+    setErreurBases("");
+    try {
+      const r = await fetch("/api/admin/linkedin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ base: base, id: l.id, statut: statut }),
+      });
+      const d = await r.json();
+      if (d.ok) await chargerBases();
+      else setErreurBases(d.erreur || "Enregistrement impossible.");
+    } catch (e: any) {
+      setErreurBases("Enregistrement impossible : " + String(e));
+    }
+    setLigneOccupee(null);
   }
 
   async function ajouterProspect() {
@@ -151,8 +213,6 @@ export default function CRMPage() {
     setLoading(false);
   }
 
-  // MARQUER PERDU. Le motif de la liste et la precision libre partent dans
-  // la meme colonne, separes par le tiret cadratin.
   async function marquerPerdu(email: string) {
     if (!motifChoisi) {
       setMessageErreur("Choisissez d abord un motif.");
@@ -181,11 +241,24 @@ export default function CRMPage() {
     setEnCours("");
   }
 
-  // ARMER OU DESARMER LA RELANCE AUTOMATIQUE POUR CETTE FICHE.
-  //
-  // Armer ne declenche rien aujourd hui : le second verrou, dans la route
-  // /api/cron/relance-crm, reste ferme. Ce reglage prepare le jour ou il
-  // s ouvrira.
+  async function rouvrir(email: string) {
+    setEnCours(email);
+    setMessageErreur("");
+    try {
+      const r = await fetch("/api/crm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "rouvrir", email, portee: PORTEE }),
+      });
+      const d = await r.json();
+      if (d.erreur) setMessageErreur(d.erreur);
+      else await charger();
+    } catch (e: any) {
+      setMessageErreur("Réouverture impossible : " + String(e));
+    }
+    setEnCours("");
+  }
+
   async function basculerRelanceAuto(email: string, actif: boolean) {
     setEnCours(email);
     setMessageErreur("");
@@ -204,16 +277,12 @@ export default function CRMPage() {
     setEnCours("");
   }
 
-  // LE NUMERO DEVIENT UN APPEL. Sur iPad, tel: ouvre le combine et c est
-  // l appareil qui compose : aucun cout, aucun fournisseur. La telephonie
-  // facturee a la minute est un autre chantier.
   function appelable(t: string) {
     return String(t || "").replace(/[^0-9+]/g, "");
   }
 
-  // LE PROFIL LINKEDIN EST STOCKE SANS SCHEMA : « www.linkedin.com/in/x ».
-  // Tel quel dans un href, le navigateur le prendrait pour un chemin
-  // relatif et resterait sur academiapro.fr.
+  // Le profil est stocke sans schema : « www.linkedin.com/in/x ». Tel quel
+  // dans un href, le navigateur le prendrait pour un chemin relatif.
   function lienLinkedin(v: string) {
     const t = String(v || "").trim();
     if (!t) return "";
@@ -221,7 +290,6 @@ export default function CRMPage() {
     return "https://" + t.replace(/^\/+/, "");
   }
 
-  // Ce qu on affiche du profil : l identifiant, pas l adresse complete.
   function nomLinkedin(v: string) {
     const t = String(v || "").trim().replace(/\/+$/, "");
     const m = t.split("/");
@@ -237,9 +305,6 @@ export default function CRMPage() {
     try { return new Date(d).toLocaleDateString("fr-FR"); } catch (e) { return ""; }
   }
 
-  // REGROUPEMENT DES MOTIFS. La route renvoie le texte complet de chaque
-  // motif ; on n en retient ici que la partie qui precede le tiret, sans
-  // quoi chaque precision libre creerait sa propre ligne.
   function motifsRegroupes() {
     if (!motifs || !Array.isArray(motifs.motifs)) return [];
     const compte: any = {};
@@ -266,8 +331,6 @@ export default function CRMPage() {
   const BOUTON: any = { background: "rgba(255,255,255,0.06)", border: "1px solid rgba(200,169,110,0.3)", color: "#c8a96e", padding: "8px 15px", borderRadius: "18px", cursor: "pointer", fontSize: "12.5px", fontFamily: "Georgia,serif" };
   const CHAMP: any = { width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid rgba(200,169,110,0.3)", background: "#1a1a2e", color: "#fff", fontSize: "13.5px", fontFamily: "Georgia,serif", boxSizing: "border-box" };
 
-  // LE TABLEAU. En-tete figee, colonnes fixes, lignes serrees : c est ce qui
-  // permet de lire trente societes d un coup d oeil au lieu de cinq.
   const TH: any = { position: "sticky", top: 0, background: "#12121f", color: "#c8a96e", fontSize: "11.5px", fontWeight: "bold", textAlign: "left", padding: "9px 10px", borderBottom: "2px solid rgba(200,169,110,0.35)", whiteSpace: "nowrap", zIndex: 2 };
   const TD: any = { padding: "7px 10px", fontSize: "12.5px", borderBottom: "1px solid rgba(255,255,255,0.06)", whiteSpace: "nowrap", color: "rgba(255,255,255,0.85)" };
 
@@ -276,10 +339,7 @@ export default function CRMPage() {
   });
 
   const perdus = prospects.filter(function (p: any) { return p.statut === "perdu"; });
-  const armes = prospects.filter(function (p: any) { return !!p.relance_auto; });
 
-  // Les perdus restent lisibles a la demande : la route ne les ecarte pas
-  // des lectures, contrairement a ce que laissait entendre son commentaire.
   const listeProspects = masquerPerdus
     ? prospects.filter(function (p: any) { return p.statut !== "perdu"; })
     : prospects;
@@ -288,11 +348,12 @@ export default function CRMPage() {
   const regroupes = motifsRegroupes();
   const totalMotifs = regroupes.reduce(function (s, m) { return s + m.nombre; }, 0);
 
-  // Le filtre LinkedIn n a de sens que sur une base qui porte la colonne.
   const filtresVisibles = FILTRES.filter(function (f) {
-    if (f.cle !== "avec_linkedin") return true;
+    if (LINKEDIN.indexOf(f.cle) < 0) return true;
     return detail ? !!detail.porte_linkedin : true;
   });
+
+  const plafondAtteint = compteurIn ? (compteurIn.reste || 0) <= 0 : false;
 
   return (
     <div style={{ backgroundColor: "#050508", minHeight: "100vh", color: "#fff", fontFamily: "Georgia, serif" }}>
@@ -331,7 +392,7 @@ export default function CRMPage() {
                 { label: "Taux conversion", value: stats.total > 0 ? `${Math.round((stats.clients / stats.total) * 100)}%` : "0%", color: "#00e676" },
                 { label: "Perdus ❌", value: stats.perdus || 0, color: "#e8836a" },
                 { label: "Taux de perte", value: stats.total > 0 ? `${Math.round(((stats.perdus || 0) / stats.total) * 100)}%` : "0%", color: "#e8836a" },
-                { label: "Relance auto armée", value: armes.length, color: "#448aff" },
+                { label: "Relance auto armée", value: stats.relance_armee || 0, color: "#448aff" },
               ].map(item => (
                 <div key={item.label} style={{ background: "#1a1a2e", border: "1px solid rgba(200,169,110,0.2)", borderRadius: "10px", padding: "15px", textAlign: "center" }}>
                   <div style={{ fontSize: "22px", fontWeight: "bold", color: item.color }}>{item.value}</div>
@@ -340,12 +401,23 @@ export default function CRMPage() {
               ))}
             </div>
 
-            {/* ---------- POURQUOI ILS DISENT NON ---------- */}
+            {compteurIn && (
+              <div style={{ background: "#1a1a2e", borderRadius: "12px", padding: "18px 20px", marginBottom: "20px", border: "1px solid rgba(68,138,255,0.3)" }}>
+                <h3 style={{ color: "#448aff", marginTop: 0, marginBottom: "8px", fontSize: "14px" }}>INVITATIONS LINKEDIN</h3>
+                <p style={{ color: "rgba(255,255,255,0.75)", fontSize: "13.5px", margin: "0 0 4px" }}>
+                  {nombre(compteurIn.semaine)} envoyée(s) ces sept derniers jours · {nombre(compteurIn.reste)} avant le plafond de {compteurIn.plafond}
+                </p>
+                <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "12px", margin: 0, lineHeight: "1.6" }}>
+                  {nombre(compteurIn.total)} au total. Les invitations partent à la main depuis l'onglet Prospection : LinkedIn restreint les comptes qui automatisent, et une réputation abîmée ne se répare pas.
+                </p>
+              </div>
+            )}
+
             <div style={{ background: "#1a1a2e", borderRadius: "12px", padding: "20px", marginBottom: "20px", border: "1px solid rgba(232,131,106,0.25)" }}>
               <h3 style={{ color: "#e8836a", marginTop: 0, fontSize: "14px" }}>POURQUOI ILS DISENT NON</h3>
               {regroupes.length === 0 ? (
                 <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px", lineHeight: "1.7", margin: 0 }}>
-                  Aucun contact perdu pour l'instant. Chaque fiche que vous marquez « Perdu » vient nourrir cette liste : au bout de quelques semaines, c'est elle qui montre où l'offre bloque.
+                  Aucun contact perdu pour l'instant. Chaque fiche que vous marquez « Perdu » vient nourrir cette liste.
                 </p>
               ) : (
                 <div>
@@ -364,7 +436,7 @@ export default function CRMPage() {
                     );
                   })}
                   <p style={{ color: "rgba(255,255,255,0.35)", fontSize: "11.5px", marginBottom: 0, marginTop: "12px" }}>
-                    {nombre(totalMotifs)} fiche(s) perdue(s). Le détail écrit sur chaque fiche reste consultable dans l'onglet Mes contacts.
+                    {nombre(totalMotifs)} fiche(s) perdue(s).
                   </p>
                 </div>
               )}
@@ -388,15 +460,13 @@ export default function CRMPage() {
           </div>
         )}
 
-        {/* ---------- PROSPECTION : LES QUATRE BASES ---------- */}
+        {/* ---------- PROSPECTION ---------- */}
         {onglet === "bases" && (
           <div>
             {erreurBases && (
               <p style={{ color: "#e8836a", fontSize: "14px", lineHeight: "1.7" }}>{erreurBases}</p>
             )}
 
-            {/* Les quatre bases deviennent un selecteur compact : une pastille
-                par base, la selection ouvre le tableau juste dessous. */}
             {bases && bases.resume && (
               <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "14px", alignItems: "stretch" }}>
                 {bases.resume.map(function (r: any) {
@@ -422,7 +492,7 @@ export default function CRMPage() {
                       <div style={{ color: "rgba(255,255,255,0.4)", fontSize: "11.5px", marginTop: "2px" }}>
                         {nombre(r.envoyes)} contacté(s)
                         {r.a_envoyer > 0 ? " · " + nombre(r.a_envoyer) + " à envoyer" : ""}
-                        {r.desabonnes > 0 ? " · " + nombre(r.desabonnes) + " désab." : ""}
+                        {r.porte_linkedin && r.linkedin_a_faire > 0 ? " · " + nombre(r.linkedin_a_faire) + " à inviter" : ""}
                       </div>
                     </div>
                   );
@@ -430,9 +500,17 @@ export default function CRMPage() {
               </div>
             )}
 
-            <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "12px", margin: "0 0 14px" }}>
-              {bases ? nombre(bases.total_general) + " entreprises dans les quatre bases" : "Chargement…"}
-            </p>
+            <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "10px", margin: "0 0 14px" }}>
+              <span style={{ color: "rgba(255,255,255,0.4)", fontSize: "12px" }}>
+                {bases ? nombre(bases.total_general) + " entreprises dans les quatre bases" : "Chargement…"}
+              </span>
+              {compteurIn && (
+                <span style={{ color: plafondAtteint ? "#e8836a" : "#448aff", fontSize: "12px" }}>
+                  LinkedIn cette semaine : {nombre(compteurIn.semaine)} / {compteurIn.plafond}
+                  {plafondAtteint ? " — plafond atteint, attendez quelques jours" : " · " + nombre(compteurIn.reste) + " restantes"}
+                </span>
+              )}
+            </div>
 
             {detail && (
               <div>
@@ -485,7 +563,7 @@ export default function CRMPage() {
                   <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "14px" }}>Aucune ligne pour ce filtre.</p>
                 ) : (
                   <div style={{ overflowX: "auto", overflowY: "auto", maxHeight: "70vh", border: "1px solid rgba(200,169,110,0.2)", borderRadius: "10px", background: "#12121f" }}>
-                    <table style={{ borderCollapse: "collapse", width: "100%", minWidth: "1300px" }}>
+                    <table style={{ borderCollapse: "collapse", width: "100%", minWidth: "1450px" }}>
                       <thead>
                         <tr>
                           <th style={TH}>Société</th>
@@ -495,10 +573,10 @@ export default function CRMPage() {
                           <th style={TH}>Adresse e-mail</th>
                           <th style={TH}>Téléphone</th>
                           {detail.porte_linkedin && <th style={TH}>LinkedIn</th>}
+                          {detail.porte_linkedin && <th style={TH}>Invitation</th>}
                           <th style={TH}>SMS</th>
                           <th style={TH}>État</th>
                           <th style={TH}>Contacté le</th>
-                          <th style={TH}>Enrichi le</th>
                           <th style={TH}>SIREN</th>
                           {detail.porte_vague && <th style={TH}>Vague</th>}
                         </tr>
@@ -508,9 +586,10 @@ export default function CRMPage() {
                           const fond = l.desabonne
                             ? "rgba(232,131,106,0.09)"
                             : (i % 2 === 0 ? "transparent" : "rgba(255,255,255,0.022)");
+                          const occupee = ligneOccupee === l.id;
                           return (
                             <tr key={l.id} style={{ background: fond }}>
-                              <td style={{ ...TD, color: "#fff", fontWeight: "bold", maxWidth: "260px", overflow: "hidden", textOverflow: "ellipsis" }}>
+                              <td style={{ ...TD, color: "#fff", fontWeight: "bold", maxWidth: "240px", overflow: "hidden", textOverflow: "ellipsis" }}>
                                 {l.raison_sociale || "—"}
                               </td>
                               <td style={TD}>
@@ -528,13 +607,52 @@ export default function CRMPage() {
                                   ? <a href={"tel:" + appelable(l.telephone)} style={LIEN}>{l.telephone}</a>
                                   : <span style={{ color: "rgba(255,255,255,0.25)" }}>—</span>}
                               </td>
+
                               {detail.porte_linkedin && (
-                                <td style={{ ...TD, maxWidth: "200px", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                <td style={{ ...TD, maxWidth: "190px", overflow: "hidden", textOverflow: "ellipsis" }}>
                                   {l.linkedin
                                     ? <a href={lienLinkedin(l.linkedin)} target="_blank" rel="noreferrer" style={{ ...LIEN, color: "#448aff" }}>in/{nomLinkedin(l.linkedin)}</a>
                                     : <span style={{ color: "rgba(255,255,255,0.25)" }}>—</span>}
                                 </td>
                               )}
+
+                              {detail.porte_linkedin && (
+                                <td style={TD}>
+                                  {!l.linkedin ? (
+                                    <span style={{ color: "rgba(255,255,255,0.25)" }}>—</span>
+                                  ) : l.linkedin_le ? (
+                                    <span>
+                                      <span style={{ color: l.linkedin_statut === "accepte" ? "#00e676" : l.linkedin_statut === "refuse" ? "#e8836a" : "rgba(255,255,255,0.6)" }}>
+                                        {l.linkedin_statut === "accepte" ? "Accepté" : l.linkedin_statut === "refuse" ? "Refusé" : "Invité"}
+                                      </span>
+                                      <span style={{ color: "rgba(255,255,255,0.35)" }}> {jolieDate(l.linkedin_le)}</span>
+                                      {l.linkedin_statut !== "accepte" && (
+                                        <button onClick={() => reponseIn(l, "accepte")} disabled={occupee}
+                                          style={{ background: "none", border: "none", color: "#00e676", cursor: "pointer", fontSize: "12px", padding: "0 4px" }}>✓</button>
+                                      )}
+                                      {l.linkedin_statut !== "refuse" && (
+                                        <button onClick={() => reponseIn(l, "refuse")} disabled={occupee}
+                                          style={{ background: "none", border: "none", color: "#e8836a", cursor: "pointer", fontSize: "12px", padding: "0 4px" }}>✕</button>
+                                      )}
+                                    </span>
+                                  ) : (
+                                    <button
+                                      onClick={() => inviter(l)}
+                                      disabled={occupee || plafondAtteint}
+                                      style={{
+                                        background: plafondAtteint ? "rgba(255,255,255,0.05)" : "rgba(68,138,255,0.18)",
+                                        color: plafondAtteint ? "rgba(255,255,255,0.3)" : "#448aff",
+                                        border: "1px solid " + (plafondAtteint ? "rgba(255,255,255,0.12)" : "rgba(68,138,255,0.5)"),
+                                        borderRadius: "14px", padding: "4px 12px", fontSize: "12px",
+                                        fontFamily: "Georgia,serif", cursor: plafondAtteint ? "not-allowed" : "pointer",
+                                      }}
+                                    >
+                                      {occupee ? "…" : plafondAtteint ? "Plafond" : "Inviter"}
+                                    </button>
+                                  )}
+                                </td>
+                              )}
+
                               <td style={{ ...TD, color: l.sms_accepte_le ? "#00e676" : "rgba(255,255,255,0.25)" }}>
                                 {l.sms_accepte_le ? "oui" : "non"}
                               </td>
@@ -554,7 +672,6 @@ export default function CRMPage() {
                                 )}
                               </td>
                               <td style={{ ...TD, color: "rgba(255,255,255,0.55)" }}>{jolieDate(l.envoye_le) || "—"}</td>
-                              <td style={{ ...TD, color: "rgba(255,255,255,0.4)" }}>{jolieDate(l.dropcontact_le) || "—"}</td>
                               <td style={{ ...TD, color: "rgba(255,255,255,0.4)" }}>{l.siren || "—"}</td>
                               {detail.porte_vague && (
                                 <td style={{ ...TD, color: "rgba(255,255,255,0.4)" }}>{l.vague || "—"}</td>
@@ -569,21 +686,11 @@ export default function CRMPage() {
 
                 {detail.pages > 1 && (
                   <div style={{ display: "flex", gap: "10px", justifyContent: "center", marginTop: "16px", flexWrap: "wrap" }}>
-                    <button onClick={() => setPage(0)} disabled={page === 0} style={{ ...BOUTON, padding: "9px 16px", opacity: page === 0 ? 0.35 : 1 }}>
-                      ⏮ Début
-                    </button>
-                    <button onClick={() => setPage(Math.max(0, page - 1))} disabled={page === 0} style={{ ...BOUTON, padding: "9px 18px", opacity: page === 0 ? 0.35 : 1 }}>
-                      Précédent
-                    </button>
-                    <span style={{ color: "rgba(255,255,255,0.5)", fontSize: "13px", alignSelf: "center" }}>
-                      {page + 1} / {detail.pages}
-                    </span>
-                    <button onClick={() => setPage(page + 1)} disabled={page + 1 >= detail.pages} style={{ ...BOUTON, padding: "9px 18px", opacity: page + 1 >= detail.pages ? 0.35 : 1 }}>
-                      Suivant
-                    </button>
-                    <button onClick={() => setPage(detail.pages - 1)} disabled={page + 1 >= detail.pages} style={{ ...BOUTON, padding: "9px 16px", opacity: page + 1 >= detail.pages ? 0.35 : 1 }}>
-                      Fin ⏭
-                    </button>
+                    <button onClick={() => setPage(0)} disabled={page === 0} style={{ ...BOUTON, padding: "9px 16px", opacity: page === 0 ? 0.35 : 1 }}>⏮ Début</button>
+                    <button onClick={() => setPage(Math.max(0, page - 1))} disabled={page === 0} style={{ ...BOUTON, padding: "9px 18px", opacity: page === 0 ? 0.35 : 1 }}>Précédent</button>
+                    <span style={{ color: "rgba(255,255,255,0.5)", fontSize: "13px", alignSelf: "center" }}>{page + 1} / {detail.pages}</span>
+                    <button onClick={() => setPage(page + 1)} disabled={page + 1 >= detail.pages} style={{ ...BOUTON, padding: "9px 18px", opacity: page + 1 >= detail.pages ? 0.35 : 1 }}>Suivant</button>
+                    <button onClick={() => setPage(detail.pages - 1)} disabled={page + 1 >= detail.pages} style={{ ...BOUTON, padding: "9px 16px", opacity: page + 1 >= detail.pages ? 0.35 : 1 }}>Fin ⏭</button>
                   </div>
                 )}
               </div>
@@ -640,6 +747,13 @@ export default function CRMPage() {
                         <div style={{ color: "rgba(255,255,255,0.7)", fontSize: "12.5px", lineHeight: "1.6" }}>
                           {p.motif_perte || "Aucun motif enregistré"}
                         </div>
+                        <button
+                          onClick={() => rouvrir(p.email)}
+                          disabled={occupe}
+                          style={{ ...BOUTON, marginTop: "10px", fontSize: "12px", padding: "5px 13px" }}
+                        >
+                          {occupe ? "Réouverture…" : "Rouvrir cette fiche"}
+                        </button>
                       </div>
                     )}
 
@@ -691,15 +805,13 @@ export default function CRMPage() {
                       </div>
                     )}
 
-                    {/* ---------- RELANCE AUTOMATIQUE ET PERTE ---------- */}
                     {!estPerdu && (
                       <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
                         <button
                           onClick={() => basculerRelanceAuto(p.email, !p.relance_auto)}
                           disabled={occupe}
                           style={{
-                            flex: 1,
-                            minWidth: "150px",
+                            flex: 1, minWidth: "150px",
                             background: p.relance_auto ? "rgba(68,138,255,0.18)" : "rgba(255,255,255,0.05)",
                             color: p.relance_auto ? "#448aff" : "rgba(255,255,255,0.5)",
                             border: p.relance_auto ? "1px solid rgba(68,138,255,0.5)" : "1px solid rgba(255,255,255,0.15)",
@@ -726,9 +838,7 @@ export default function CRMPage() {
                         </label>
                         <select value={motifChoisi} onChange={e => setMotifChoisi(e.target.value)} style={{ ...CHAMP, marginBottom: "10px" }}>
                           <option value="">Choisir un motif…</option>
-                          {MOTIFS_PERTE.map(m => (
-                            <option key={m} value={m}>{m}</option>
-                          ))}
+                          {MOTIFS_PERTE.map(m => (<option key={m} value={m}>{m}</option>))}
                         </select>
 
                         <label style={{ color: "rgba(255,255,255,0.5)", fontSize: "12px", display: "block", marginBottom: "6px" }}>
@@ -757,10 +867,6 @@ export default function CRMPage() {
                             Annuler
                           </button>
                         </div>
-
-                        <p style={{ color: "rgba(255,255,255,0.35)", fontSize: "11.5px", marginBottom: 0, marginTop: "10px", lineHeight: "1.6" }}>
-                          La fiche passe en perdu, sort des relances automatiques, et le motif rejoint le bloc « Pourquoi ils disent non » du Dashboard.
-                        </p>
                       </div>
                     )}
                   </div>
