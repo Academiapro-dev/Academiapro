@@ -86,9 +86,29 @@ const T = {
   },
 };
 
+// LA BARRE DE NAVIGATION MONTRE TOUTE L OFFRE.
+//
+// Avant le 14 aout, la page d accueil n avait AUCUN onglet : ni pack
+// organisme, ni Mr. Qualiopi, ni Mr. Comptable, ni CRM, ni LMS. Un
+// organisme qui arrivait ne voyait rien de ce qu on lui vend 390 EUR par
+// mois — seulement le catalogue grand public.
+//
+// Les espaces reserves sont VISIBLES ET CLIQUABLES. Ils menent a une page
+// qui dit ce qu ils contiennent et qu il faut etre abonne. Un onglet grise
+// frustre ; un onglet qui explique donne envie.
+const NAV = [
+  { nom: "Formations", href: "/catalogue" },
+  { nom: "Pack organisme", href: "/pack" },
+  { nom: "Mr. Qualiopi", href: "/qualiopi" },
+  { nom: "CRM", href: "/espace-prive?p=crm" },
+  { nom: "Plateforme d apprentissage", href: "/espace-prive?p=lms" },
+  { nom: "Blog", href: "/blog" },
+];
+
 export default function HomePage() {
-  const [nbFormations, setNbFormations] = useState(266);
+  const [nbFormations, setNbFormations] = useState(0);
   const [dyn, setDyn] = useState({});
+  const [menu, setMenu] = useState(false);
 
   useEffect(() => {
     fetch("/api/nombre-formations").then(r => r.json()).then(d => { if (d.success) setNbFormations(d.total); }).catch(() => {});
@@ -102,9 +122,12 @@ export default function HomePage() {
     setLangue(saved);
   }, []);
 
+  // Le nombre de formations se lit en base. Tant qu il n est pas revenu, on
+  // n affiche RIEN plutot qu un chiffre faux : 266 etait ecrit en dur et
+  // s affichait une fraction de seconde a chaque visite.
   const t = (cle) => {
     const base = (langue === "fr" && dyn[cle]) ? dyn[cle] : (T[langue]?.[cle] || T["fr"][cle] || cle);
-    return String(base).replace("{NB}", String(nbFormations));
+    return String(base).replace("{NB}", nbFormations ? String(nbFormations) : "");
   };
 
   function changerLangue(l) {
@@ -113,10 +136,39 @@ export default function HomePage() {
     window.location.reload();
   }
 
+  const lienNav = {
+    color: "rgba(255,255,255,0.75)",
+    textDecoration: "none",
+    fontSize: "14.5px",
+    whiteSpace: "nowrap",
+  };
+
   return (
     <div style={{ minHeight: "100vh", background: "#050508", color: "#fff", fontFamily: "Georgia, serif", direction: langue === "he" || langue === "ar" ? "rtl" : "ltr" }}>
       <a href="/lancement" data-bandeau-fondateur style={{display:"block",textAlign:"center",padding:"10px 16px",background:"linear-gradient(90deg,#a07840,#c8a96e,#a07840)",color:"#050508",fontWeight:"bold",fontSize:"14px",textDecoration:"none"}}>Offre Fondateur : -10% a vie pour les 100 premiers inscrits — Reserver ma place</a>
-<section style={{ padding: "100px 40px", textAlign: "center", maxWidth: "900px", margin: "0 auto" }}>
+
+      <header style={{ borderBottom: "1px solid rgba(200,169,110,0.2)", padding: "18px 24px", position: "sticky", top: 0, background: "rgba(5,5,8,0.96)", zIndex: 50 }}>
+        <div style={{ maxWidth: "1200px", margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "20px", flexWrap: "wrap" }}>
+          <a href="/" style={{ color: "#c8a96e", fontSize: "21px", fontWeight: "bold", textDecoration: "none", whiteSpace: "nowrap" }}>
+            AcadémIA Pro
+          </a>
+
+          <nav style={{ display: "flex", gap: "22px", alignItems: "center", flexWrap: "wrap", flex: "1 1 auto", justifyContent: "center" }}>
+            {NAV.map((l) => (
+              <a key={l.nom} href={l.href} style={lienNav}>{l.nom}</a>
+            ))}
+          </nav>
+
+          <a
+            href="/connexion"
+            style={{ background: "#c8a96e", color: "#050508", padding: "10px 22px", borderRadius: "8px", textDecoration: "none", fontSize: "14.5px", fontWeight: "bold", whiteSpace: "nowrap" }}
+          >
+            Me connecter
+          </a>
+        </div>
+      </header>
+
+      <section style={{ padding: "100px 40px", textAlign: "center", maxWidth: "900px", margin: "0 auto" }}>
         <p style={{ color: "#c8a96e", fontSize: "15px", letterSpacing: "4px", margin: "0 0 24px" }}>LA PLATEFORME DE FORMATION IA</p>
         <h1 style={{ fontSize: "52px", fontWeight: "bold", margin: "0 0 24px", lineHeight: "1.2" }}>{t("hero_titre")}</h1>
         <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "18px", margin: "0 0 40px", lineHeight: "1.7" }}>{t("hero_sub")}</p>
@@ -131,11 +183,41 @@ export default function HomePage() {
 
       <section style={{ background: "#1a1a2e", padding: "60px 40px" }}>
         <div style={{ maxWidth: "1000px", margin: "0 auto", display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "32px", textAlign: "center" }}>
-          {[{ nb: String(nbFormations), label: t("stat1") }, { nb: "100+", label: t("stat2") }, { nb: "5", label: t("stat3") }, { nb: "14j", label: t("stat4") }].map((s) => (
+          {[{ nb: nbFormations ? String(nbFormations) : "…", label: t("stat1") }, { nb: "100+", label: t("stat2") }, { nb: "5", label: t("stat3") }, { nb: "14j", label: t("stat4") }].map((s) => (
             <div key={s.label}>
               <p style={{ color: "#c8a96e", fontSize: "40px", fontWeight: "bold", margin: "0 0 8px" }}>{s.nb}</p>
               <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "15px", margin: "0" }}>{s.label}</p>
             </div>
+          ))}
+        </div>
+      </section>
+
+      {/* CE QUE NOUS VENDONS AUX PROFESSIONNELS. Cette section n existait
+          pas : la vitrine ne montrait que le catalogue grand public. */}
+      <section style={{ padding: "80px 40px", maxWidth: "1100px", margin: "0 auto" }}>
+        <div style={{ textAlign: "center", marginBottom: "44px" }}>
+          <p style={{ color: "#c8a96e", fontSize: "15px", letterSpacing: "3px", margin: "0 0 12px" }}>POUR LES PROFESSIONNELS</p>
+          <h2 style={{ fontSize: "36px", margin: "0 0 12px" }}>Nos solutions métier</h2>
+          <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "16px" }}>
+            Organismes de formation, cabinets comptables, équipes commerciales.
+          </p>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "24px" }}>
+          {[
+            { titre: "Pack organisme", sous: "Le catalogue, la plateforme et l'administratif sous votre marque.", href: "/pack" },
+            { titre: "Mr. Qualiopi", sous: "Les 32 indicateurs, vos preuves, votre dossier d'audit.", href: "/qualiopi" },
+            { titre: "Le CRM", sous: "Vos prospects suivis, analysés et relancés.", href: "/espace-prive?p=crm" },
+            { titre: "La plateforme d'apprentissage", sous: "Vos formations, vos stagiaires, vos attestations.", href: "/espace-prive?p=lms" },
+          ].map((s) => (
+            <a
+              key={s.titre}
+              href={s.href}
+              style={{ background: "#1a1a2e", borderRadius: "12px", padding: "26px 24px", border: "1px solid rgba(200,169,110,0.3)", textDecoration: "none", display: "block" }}
+            >
+              <h3 style={{ color: "#c8a96e", fontSize: "18px", margin: "0 0 10px" }}>{s.titre}</h3>
+              <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "14.5px", lineHeight: "1.7", margin: 0 }}>{s.sous}</p>
+            </a>
           ))}
         </div>
       </section>
@@ -186,6 +268,15 @@ export default function HomePage() {
               <a href="/catalogue" style={{ color: "rgba(255,255,255,0.5)", textDecoration: "none", fontSize: "13px" }}>Catalogue complet</a>
               <a href="/catalogue" style={{ color: "rgba(255,255,255,0.5)", textDecoration: "none", fontSize: "13px" }}>Nos packs</a>
               <a href="/tarifs" style={{ color: "rgba(255,255,255,0.5)", textDecoration: "none", fontSize: "13px" }}>Tarifs</a>
+            </div>
+          </div>
+          <div>
+            <h4 style={{ color: "#fff", fontSize: "15px", margin: "0 0 16px" }}>Professionnels</h4>
+            <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+              <a href="/pack" style={{ color: "rgba(255,255,255,0.5)", textDecoration: "none", fontSize: "13px" }}>Pack organisme</a>
+              <a href="/qualiopi" style={{ color: "rgba(255,255,255,0.5)", textDecoration: "none", fontSize: "13px" }}>Mr. Qualiopi</a>
+              <a href="/espace-prive?p=crm" style={{ color: "rgba(255,255,255,0.5)", textDecoration: "none", fontSize: "13px" }}>Le CRM</a>
+              <a href="/espace-prive?p=lms" style={{ color: "rgba(255,255,255,0.5)", textDecoration: "none", fontSize: "13px" }}>La plateforme d apprentissage</a>
             </div>
           </div>
           <div>
