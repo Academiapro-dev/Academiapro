@@ -3,14 +3,32 @@ import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 
 const T = {
-  fr: { formations: "Formations", seances: "Séances", blog: "Blog", tarifs: "Tarifs", contact: "Contact", partenaire: "Partenaire", connexion: "Se connecter", demarrer: "Démarrer", pack: "Pour les organismes de formation", crm: "CRM", lms: "LMS" },
-  en: { formations: "Courses", seances: "Sessions", blog: "Blog", tarifs: "Pricing", contact: "Contact", partenaire: "Affiliate", connexion: "Sign in", demarrer: "Get Started", pack: "For training providers", crm: "CRM", lms: "LMS" },
-  es: { formations: "Cursos", seances: "Sesiones", blog: "Blog", tarifs: "Precios", contact: "Contacto", partenaire: "Afiliado", connexion: "Iniciar sesión", demarrer: "Comenzar", pack: "Para organismos de formación", crm: "CRM", lms: "LMS" },
-  pt: { formations: "Cursos", seances: "Sessoes", blog: "Blog", tarifs: "Preços", contact: "Contato", partenaire: "Afiliado", connexion: "Entrar", demarrer: "Comecar", pack: "Para organismos de formação", crm: "CRM", lms: "LMS" },
-  de: { formations: "Kurse", seances: "Sitzungen", blog: "Blog", tarifs: "Preise", contact: "Kontakt", partenaire: "Partner", connexion: "Anmelden", demarrer: "Loslegen", pack: "Für Bildungsanbieter", crm: "CRM", lms: "LMS" },
-  ar: { formations: "الدورات", seances: "الجلسات", blog: "المدونة", tarifs: "الأسعار", contact: "اتصل", partenaire: "شريك", connexion: "تسجيل الدخول", demarrer: "ابدأ", pack: "لمؤسسات التدريب", crm: "CRM", lms: "LMS" },
-  he: { formations: "קורסים", seances: "פגישות", blog: "בלוג", tarifs: "מחירים", contact: "צור קשר", partenaire: "שותף", connexion: "התחברות", demarrer: "התחל", pack: "לארגוני הכשרה", crm: "CRM", lms: "LMS" },
+  fr: { formations: "Formations", seances: "Séances", blog: "Blog", tarifs: "Tarifs", contact: "Contact", connexion: "Se connecter", demarrer: "Démarrer", solutions: "Nos solutions", espacePro: "Espace pro" },
+  en: { formations: "Courses", seances: "Sessions", blog: "Blog", tarifs: "Pricing", contact: "Contact", connexion: "Sign in", demarrer: "Get Started", solutions: "Our solutions", espacePro: "Pro area" },
+  es: { formations: "Cursos", seances: "Sesiones", blog: "Blog", tarifs: "Precios", contact: "Contacto", connexion: "Iniciar sesión", demarrer: "Comenzar", solutions: "Soluciones", espacePro: "Área pro" },
+  pt: { formations: "Cursos", seances: "Sessoes", blog: "Blog", tarifs: "Preços", contact: "Contato", connexion: "Entrar", demarrer: "Comecar", solutions: "Soluções", espacePro: "Área pro" },
+  de: { formations: "Kurse", seances: "Sitzungen", blog: "Blog", tarifs: "Preise", contact: "Kontakt", connexion: "Anmelden", demarrer: "Loslegen", solutions: "Lösungen", espacePro: "Pro-Bereich" },
+  ar: { formations: "الدورات", seances: "الجلسات", blog: "المدونة", tarifs: "الأسعار", contact: "اتصل", connexion: "تسجيل الدخول", demarrer: "ابدأ", solutions: "حلولنا", espacePro: "مساحة احترافية" },
+  he: { formations: "קורסים", seances: "פגישות", blog: "בלוג", tarifs: "מחירים", contact: "צור קשר", connexion: "התחברות", demarrer: "התחל", solutions: "הפתרונות שלנו", espacePro: "אזור מקצועי" },
 };
+
+// LE MENU DEROULANT DES SOLUTIONS METIER.
+//
+// Chaque entree mene a SA PROPRE PAGE VITRINE, publique et redigee pour
+// etre trouvee dans un moteur de recherche. L outil, lui, reste derriere la
+// session : c est « Espace pro » qui y mene.
+//
+// LA DISTINCTION EST DEMANDEE PAR JACQUES : « CRM » et « LMS » decrivent le
+// produit a qui ne le connait pas ; « Espace pro » ouvre la porte a qui est
+// deja client. Sans elle, un visiteur pouvait croire que la page reservee
+// etait tout ce qui existait.
+const SOLUTIONS = [
+  { nom: "Pour les organismes de formation", href: "/pack" },
+  { nom: "Mr. Qualiopi", href: "/qualiopi" },
+  { nom: "Le CRM", href: "/crm" },
+  { nom: "La plateforme d'apprentissage (LMS)", href: "/plateforme-apprentissage" },
+  { nom: "Mr. Comptable", href: "/comptable" },
+];
 
 // L ESPACE DE TRAVAIL DU CABINET.
 const CHEMINS_COMPTABLE = [
@@ -20,10 +38,9 @@ const CHEMINS_COMPTABLE = [
 
 // LES PAGES PUBLIQUES DE MRCOMPTABLE.FR.
 //
-// Elles portent DEJA leur propre en-tete. NavBar ne doit rien afficher
-// dessus. Tester le chemin ne suffit pas : le middleware sert
-// /comptable/tenue sous mrcomptable.fr/tenue, et le chemin vu ici est
-// alors « /tenue ». On teste donc le DOMAINE, pas seulement le chemin.
+// Elles portent DEJA leur propre en-tete. Tester le chemin ne suffit pas :
+// le middleware sert /comptable/tenue sous mrcomptable.fr/tenue, et le
+// chemin vu ici est alors « /tenue ». On teste donc le DOMAINE.
 const PAGES_PUBLIQUES_COMPTABLE = [
   "/",
   "/inscription",
@@ -79,10 +96,7 @@ export default function NavBar() {
 
   const surMrComptable = hote.indexOf("mrcomptable.fr") >= 0;
 
-  // MARQUE BLANCHE. Sur la vitrine d un organisme client, notre barre ne
-  // doit pas apparaitre.
   if (chemin.indexOf("/of/") === 0) return null;
-
   if (chemin === "/comptable" || chemin.indexOf("/comptable/") === 0) return null;
   if (surMrComptable && estPagePubliqueComptable(chemin)) return null;
 
@@ -154,30 +168,49 @@ export default function NavBar() {
   }
 
   // ---- Vitrine AcadéMIA Pro ---------------------------------------------
-  //
-  // TOUTE L OFFRE EST VISIBLE : offre aux organismes, Mr. Qualiopi, CRM,
-  // LMS. Un seul onglet nomme pour un public — « Pour les organismes de
-  // formation » — laisse entendre que tout le reste s adresse au particulier.
-  //
-  // L ONGLET ADMIN MENE AU TABLEAU DE BORD. Sans lui, il fallait retenir
-  // l adresse par coeur pour retrouver ses propres depenses ou son CRM.
-  // L acces reste protege par la session : un visiteur qui appuie dessus
-  // sans etre connecte est renvoye vers la connexion.
   return (
     <header style={barre}>
       <a href="/" style={lienMarque}>
         AcadémIA Pro
       </a>
-      <nav style={{ display: "flex", gap: "20px", flexWrap: "wrap", justifyContent: "center" }}>
+      <nav style={{ display: "flex", gap: "20px", flexWrap: "wrap", justifyContent: "center", alignItems: "center" }}>
         <a href={"/catalogue?lang=" + langue} style={lienMenu}>{t("formations")}</a>
         <a href={"/seances?lang=" + langue} style={lienMenu}>{t("seances")}</a>
         <a href="/blog" style={lienMenu}>{t("blog")}</a>
         <a href="/tarifs" style={lienMenu}>{t("tarifs")}</a>
         <a href="/contact" style={lienMenu}>{t("contact")}</a>
-        <a href="/pack" style={{ ...lienMenu, color: "#c8a96e" }}>{t("pack")}</a>
-        <a href="/qualiopi" style={lienMenu}>Mr. Qualiopi</a>
-        <a href="/espace-prive?p=crm" style={lienMenu}>{t("crm")}</a>
-        <a href="/espace-prive?p=lms" style={lienMenu}>{t("lms")}</a>
+
+        {/* Le menu deroulant est en CSS pur — details et summary — pour ne
+            dependre d aucun etat : il fonctionne meme si le JavaScript
+            n a pas encore ete charge. */}
+        <details style={{ position: "relative" }}>
+          <summary style={{ ...lienMenu, color: "#c8a96e", cursor: "pointer", listStyle: "none", fontWeight: "bold" }}>
+            {t("solutions")} ▾
+          </summary>
+          <div style={{
+            position: "absolute",
+            top: "26px",
+            left: 0,
+            background: "#0d0d16",
+            border: "1px solid rgba(200,169,110,0.3)",
+            borderRadius: "10px",
+            padding: "10px 0",
+            minWidth: "290px",
+            zIndex: 100,
+          }}>
+            {SOLUTIONS.map((s) => (
+              <a
+                key={s.href}
+                href={s.href}
+                style={{ display: "block", padding: "9px 20px", color: "rgba(255,255,255,0.75)", textDecoration: "none", fontSize: "14.5px", whiteSpace: "nowrap" }}
+              >
+                {s.nom}
+              </a>
+            ))}
+          </div>
+        </details>
+
+        <a href="/espace-prive" style={lienMenu}>{t("espacePro")}</a>
         <a href="/admin" style={{ ...lienMenu, color: "#c8a96e", fontWeight: "bold" }}>Admin</a>
       </nav>
       <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
