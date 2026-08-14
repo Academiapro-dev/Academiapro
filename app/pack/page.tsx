@@ -128,12 +128,15 @@ export default function PagePack() {
         </div>
 
         {/* CE QUE NOUS FAISONS, CE QUE NOUS NE FAISONS PAS.
-            Reecrit le 14 aout. Le texte dit d abord la qualite, ensuite la
-            limite : l inverse decourageait avant d avoir convaincu.
-            IMPORTANT : l habilitation par un certificateur ne s achete pas.
-            Elle depend des criteres propres a chaque certificateur. Ecrire
-            qu une redevance suffit serait une promesse que nous ne tenons
-            pas — et dont nous porterions la responsabilite. */}
+            Reecrit le 14 aout, sur le fond dicte par Jacques.
+            RETIRE : « nous ne vendons pas au stagiaire final » — c est faux,
+            le catalogue se vend d abord aux particuliers ; la phrase
+            contredisait la page d accueil. Retirees aussi les deux clauses
+            qui rejetaient le formateur et la responsabilite du cote du
+            client : elles disaient le contraire de notre modele.
+            MAINTENU : l habilitation par un certificateur ne s achete pas,
+            elle depend de ses criteres. Ecrire qu une redevance suffit
+            serait une promesse dont nous porterions la responsabilite. */}
         <div style={{ ...CARTE, background: "rgba(255,255,255,0.015)" }}>
           <h2 style={{ ...H2, fontSize: "19px" }}>Ce que nous faisons, ce que nous ne faisons pas</h2>
 
@@ -146,16 +149,19 @@ export default function PagePack() {
           </p>
 
           <p style={P}>
+            Nos formateurs sont des agents d intelligence artificielle, disponibles a toute
+            heure, qui repondent a la question du stagiaire au moment ou il se la pose. Tout est
+            mis en place pour qu il reussisse sa formation. Un organisme qui reprend notre
+            catalogue et prefere y adjoindre ses propres formateurs en presentiel reste libre de
+            le faire : c est son choix, pas le notre. Le notre est de proposer l excellence avec
+            les outils technologiques de derniere generation.
+          </p>
+
+          <p style={P}>
             Nous avons choisi de ne pas enregistrer ces formations au Repertoire national des
             certifications professionnelles ni au repertoire specifique. Nous ne delivrons donc
             aucune certification reconnue par l Etat, et nos formations ne sont pas directement
             eligibles au compte personnel de formation.
-          </p>
-
-          <p style={P}>
-            Ce choix decoule de notre modele : nous ne vendons pas au stagiaire final, nous
-            equipons l organisme de formation. C est lui qui porte la certification, la relation
-            avec ses financeurs et la responsabilite pedagogique.
           </p>
 
           <p style={P}>
@@ -166,20 +172,10 @@ export default function PagePack() {
             nous n assurons pas a votre place.
           </p>
 
-          <p style={P}>
+          <p style={{ ...P, margin: 0 }}>
             Pour les entreprises, la voie est plus directe encore : un organisme certifie
             Qualiopi peut proposer ces formations dans le cadre d un financement OPCO, sans
             passer par une certification enregistree.
-          </p>
-
-          <p style={P}>
-            Pour les actions reglementees, nous fournissons les supports theoriques et l acces a
-            distance. L evaluation pratique et le formateur habilite restent de votre cote.
-          </p>
-
-          <p style={{ ...P, margin: 0 }}>
-            Vous demeurez l organisme de formation : votre certification, votre numero de
-            declaration, vos attestations, votre responsabilite.
           </p>
         </div>
 
