@@ -9,19 +9,29 @@ import crypto from "crypto";
 // sera jamais reprise. Un doublon d envoi grille un prospect et abime la
 // reputation du domaine — c est la seule faute qui ne se rattrape pas.
 //
-// LE DOMAINE D ENVOI est un sous-domaine dedie : une campagne mal notee
-// ne touche pas les courriels que les clients attendent.
-//
 // PROSPECTION B2B : licite sans consentement prealable si l offre concerne
 // l activite professionnelle du destinataire, a condition qu un moyen de
-// s opposer figure dans chaque message. D ou le lien de desinscription,
-// signe pour qu un tiers ne puisse pas desinscrire quelqu un d autre.
+// s opposer figure dans chaque message.
 
 export const maxDuration = 300;
 
 const EXPEDITEUR = "Jacques Lalou <jacques@contact-pro.academiapro.fr>";
 const REPONSE = "contact@academiapro.fr";
 const SITE = "https://academiapro.fr";
+
+// LE LOT PAR DEFAUT COMMANDE LE CRON.
+//
+// Vercel appelle une adresse fixe : un cron ne peut pas porter de
+// parametre. C est donc CETTE VALEUR qui decide du nombre d envois
+// quotidiens, et c est ici qu on la monte quand la chauffe le permet.
+//
+// Elle etait a 50 : un cron aurait vide la reserve entiere en une fois,
+// sur un domaine qui n avait jamais envoye avant le 13 aout. Un passage de
+// deux a cinquante messages est le signal exact d un domaine compromis, et
+// une reputation abimee ne se repare pas.
+//
+// PALIERS : 5 par jour, puis 10, 20, 50. Modifier ce chiffre suffit.
+const LOT_PAR_DEFAUT = 5;
 
 function clientAdmin() {
   return createClient(
@@ -33,8 +43,6 @@ function pause(ms: number) {
   return new Promise(function (r) { setTimeout(r, ms); });
 }
 
-// Le meme calcul que la route de desinscription : sans le secret du site,
-// le lien n est pas fabricable.
 function jetonDesinscription(email: string): string {
   const secret = process.env.SESSION_SECRET
     || process.env.SUPABASE_SERVICE_ROLE_KEY || "";
@@ -123,10 +131,8 @@ export async function GET(req: NextRequest) {
 
   const supabase = clientAdmin();
 
-  // Le lot reste petit par defaut : un domaine neuf qui envoie trop vite
-  // se fait classer indesirable, et cela ne se repare pas.
-  const demande = Number(req.nextUrl.searchParams.get("lot") || 50);
-  const lot = demande > 0 && demande <= 500 ? demande : 50;
+  const demande = Number(req.nextUrl.searchParams.get("lot") || LOT_PAR_DEFAUT);
+  const lot = demande > 0 && demande <= 500 ? demande : LOT_PAR_DEFAUT;
 
   const { count: nbFormations } = await supabase
     .from("formations")
