@@ -5,10 +5,11 @@ import { useState, useEffect } from "react";
 // ceux qui arrivent par les tunnels publics et n ont aucun organisme
 // rattache. Les prospects des organismes clients restent sur /organisme/crm.
 //
-// LES SIX ONGLETS SONT UNE SEULE PORTE. Le 14 aout, le suivi commercial
-// vivait a trois adresses qu il fallait retenir une par une. Les donnees ne
-// fusionnent pas — la prospection de l editeur et celle d un client ne se
-// croisent jamais — mais on n a plus a chercher ses outils a trois endroits.
+// DEUX MOTS DIFFERENTS POUR DEUX METIERS. « Prospection » designe les quatre
+// bases froides — 69 000 entreprises collectees puis enrichies, que l on
+// travaille au volume. « Mes contacts » designe les gens qui ont leve la
+// main sur le site, que l on travaille un par un. Les appeler tous les deux
+// « prospects » obligeait a chercher lequel on regardait.
 const PORTEE = "editeur";
 
 const FILTRES = [
@@ -41,6 +42,11 @@ const MOTIFS_PERTE = [
 
 const SEPARATEUR = " — ";
 
+// LA PREMIERE BASE S OUVRE SEULE. Un ecran qui demande de choisir avant de
+// rien montrer fait perdre un clic a chaque visite, et donne l impression
+// d une base vide alors qu elle contient 69 000 lignes.
+const BASE_PAR_DEFAUT = "organismes";
+
 export default function CRMPage() {
   const [stats, setStats] = useState<any>(null);
   const [prospects, setProspects] = useState<any[]>([]);
@@ -51,7 +57,7 @@ export default function CRMPage() {
 
   // Les quatre bases de prospection, servies par /api/admin/prospection.
   const [bases, setBases] = useState<any>(null);
-  const [base, setBase] = useState("");
+  const [base, setBase] = useState(BASE_PAR_DEFAUT);
   const [filtre, setFiltre] = useState("");
   const [cherche, setCherche] = useState("");
   const [saisie, setSaisie] = useState("");
@@ -230,17 +236,22 @@ export default function CRMPage() {
 
   const onglets = [
     { id: "dashboard", label: "📊 Dashboard" },
-    { id: "bases", label: "🗂 Mes bases" },
-    { id: "prospects", label: "👥 Prospects" },
+    { id: "bases", label: "🗂 Prospection" },
+    { id: "prospects", label: "👥 Mes contacts" },
     { id: "apprenants", label: "🎓 Apprenants" },
     { id: "ajouter", label: "➕ Ajouter" },
     { id: "resultat", label: "🤖 Résultat IA" },
   ];
 
-  const LIEN: any = { color: "#c8a96e", textDecoration: "none", borderBottom: "1px dotted rgba(200,169,110,0.5)" };
+  const LIEN: any = { color: "#c8a96e", textDecoration: "none" };
   const CARTE: any = { background: "#1a1a2e", borderRadius: "10px", padding: "15px", marginBottom: "10px", border: "1px solid rgba(200,169,110,0.15)" };
   const BOUTON: any = { background: "rgba(255,255,255,0.06)", border: "1px solid rgba(200,169,110,0.3)", color: "#c8a96e", padding: "8px 15px", borderRadius: "18px", cursor: "pointer", fontSize: "12.5px", fontFamily: "Georgia,serif" };
   const CHAMP: any = { width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid rgba(200,169,110,0.3)", background: "#1a1a2e", color: "#fff", fontSize: "13.5px", fontFamily: "Georgia,serif", boxSizing: "border-box" };
+
+  // LE TABLEAU. En-tete figee, colonnes fixes, lignes serrees : c est ce qui
+  // permet de lire trente societes d un coup d oeil au lieu de cinq.
+  const TH: any = { position: "sticky", top: 0, background: "#12121f", color: "#c8a96e", fontSize: "11.5px", fontWeight: "bold", textAlign: "left", padding: "9px 10px", borderBottom: "2px solid rgba(200,169,110,0.35)", whiteSpace: "nowrap", zIndex: 2 };
+  const TD: any = { padding: "7px 10px", fontSize: "12.5px", borderBottom: "1px solid rgba(255,255,255,0.06)", whiteSpace: "nowrap", color: "rgba(255,255,255,0.85)" };
 
   const apprenants = prospects.filter(function (p: any) {
     return (p.progression || 0) > 0 || p.formation_active;
@@ -264,7 +275,7 @@ export default function CRMPage() {
       <div style={{ background: "linear-gradient(135deg,#0a0a1a,#1a1a2e)", padding: "30px 20px" }}>
         <h1 style={{ color: "#c8a96e", margin: 0, fontSize: "24px" }}>🎯 Mon CRM</h1>
         <p style={{ color: "rgba(255,255,255,0.5)", margin: "5px 0 0", fontSize: "13px" }}>
-          AcadémIA Pro · mes bases, mes prospects, mes apprenants
+          AcadémIA Pro · ma prospection, mes contacts, mes apprenants
         </p>
       </div>
 
@@ -276,7 +287,7 @@ export default function CRMPage() {
         ))}
       </div>
 
-      <div style={{ padding: "25px 20px", maxWidth: "980px", margin: "0 auto" }}>
+      <div style={{ padding: "25px 20px", maxWidth: onglet === "bases" ? "100%" : "980px", margin: "0 auto" }}>
 
         {messageErreur && (
           <div style={{ background: "rgba(232,131,106,0.12)", border: "1px solid rgba(232,131,106,0.4)", borderRadius: "8px", padding: "12px", marginBottom: "16px", color: "#e8836a", fontSize: "13px" }}>
@@ -288,12 +299,12 @@ export default function CRMPage() {
           <div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: "12px", marginBottom: "25px" }}>
               {[
-                { label: "Total Prospects", value: stats.total || 0, color: "#c8a96e" },
-                { label: "Prospects Chauds 🔥", value: stats.chauds || 0, color: "#ff6b35" },
+                { label: "Total contacts", value: stats.total || 0, color: "#c8a96e" },
+                { label: "Contacts chauds 🔥", value: stats.chauds || 0, color: "#ff6b35" },
                 { label: "Clients ✅", value: stats.clients || 0, color: "#00e676" },
-                { label: "Score Moyen", value: `${stats.score_moyen || 0}%`, color: "#448aff" },
+                { label: "Score moyen", value: `${stats.score_moyen || 0}%`, color: "#448aff" },
                 { label: "Actifs", value: stats.prospects || 0, color: "#c8a96e" },
-                { label: "Taux Conversion", value: stats.total > 0 ? `${Math.round((stats.clients / stats.total) * 100)}%` : "0%", color: "#00e676" },
+                { label: "Taux conversion", value: stats.total > 0 ? `${Math.round((stats.clients / stats.total) * 100)}%` : "0%", color: "#00e676" },
                 { label: "Perdus ❌", value: stats.perdus || 0, color: "#e8836a" },
                 { label: "Taux de perte", value: stats.total > 0 ? `${Math.round(((stats.perdus || 0) / stats.total) * 100)}%` : "0%", color: "#e8836a" },
                 { label: "Relance auto armée", value: armes.length, color: "#448aff" },
@@ -310,7 +321,7 @@ export default function CRMPage() {
               <h3 style={{ color: "#e8836a", marginTop: 0, fontSize: "14px" }}>POURQUOI ILS DISENT NON</h3>
               {regroupes.length === 0 ? (
                 <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px", lineHeight: "1.7", margin: 0 }}>
-                  Aucun prospect perdu pour l'instant. Chaque fiche que vous marquez « Perdu » vient nourrir cette liste : au bout de quelques semaines, c'est elle qui montre où l'offre bloque.
+                  Aucun contact perdu pour l'instant. Chaque fiche que vous marquez « Perdu » vient nourrir cette liste : au bout de quelques semaines, c'est elle qui montre où l'offre bloque.
                 </p>
               ) : (
                 <div>
@@ -329,7 +340,7 @@ export default function CRMPage() {
                     );
                   })}
                   <p style={{ color: "rgba(255,255,255,0.35)", fontSize: "11.5px", marginBottom: 0, marginTop: "12px" }}>
-                    {nombre(totalMotifs)} fiche(s) perdue(s). Le détail écrit sur chaque fiche reste consultable dans l'onglet Prospects.
+                    {nombre(totalMotifs)} fiche(s) perdue(s). Le détail écrit sur chaque fiche reste consultable dans l'onglet Mes contacts.
                   </p>
                 </div>
               )}
@@ -353,61 +364,50 @@ export default function CRMPage() {
           </div>
         )}
 
-        {/* ---------- MES BASES DE PROSPECTION ---------- */}
+        {/* ---------- PROSPECTION : LES QUATRE BASES ---------- */}
         {onglet === "bases" && (
           <div>
-            <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "13px", margin: "0 0 16px" }}>
-              {bases ? nombre(bases.total_general) + " prospects au total" : "Chargement…"}
-            </p>
-
             {erreurBases && (
               <p style={{ color: "#e8836a", fontSize: "14px", lineHeight: "1.7" }}>{erreurBases}</p>
             )}
 
+            {/* Les quatre bases deviennent un selecteur compact : une pastille
+                par base, la selection ouvre le tableau juste dessous. */}
             {bases && bases.resume && (
-              <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", marginBottom: "22px" }}>
+              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "14px", alignItems: "stretch" }}>
                 {bases.resume.map(function (r: any) {
                   const actif = base === r.cle;
                   return (
                     <div
                       key={r.cle}
-                      onClick={() => { setBase(actif ? "" : r.cle); setFiltre(""); setCherche(""); setSaisie(""); setPage(0); }}
+                      onClick={() => { setBase(r.cle); setFiltre(""); setCherche(""); setSaisie(""); setPage(0); }}
                       style={{
-                        ...CARTE, flex: "1 1 220px", marginBottom: 0, cursor: "pointer",
-                        border: actif ? "2px solid #c8a96e" : CARTE.border,
-                        background: actif ? "rgba(200,169,110,0.08)" : CARTE.background,
+                        flex: "1 1 200px", cursor: "pointer", borderRadius: "9px", padding: "10px 13px",
+                        background: actif ? "rgba(200,169,110,0.13)" : "#1a1a2e",
+                        border: actif ? "2px solid #c8a96e" : "1px solid rgba(200,169,110,0.15)",
                       }}
                     >
-                      <div style={{ color: "#c8a96e", fontSize: "14px", fontWeight: "bold", marginBottom: "3px" }}>{r.titre}</div>
-                      <div style={{ color: "rgba(255,255,255,0.35)", fontSize: "12px", marginBottom: "10px" }}>{r.cible}</div>
-                      <div style={{ color: "#fff", fontSize: "24px", fontWeight: "bold", marginBottom: "8px" }}>{nombre(r.total)}</div>
-                      <div style={{ color: "rgba(255,255,255,0.6)", fontSize: "12.5px", lineHeight: "1.6" }}>
-                        {nombre(r.avec_email)} adresse(s) · {nombre(r.avec_telephone)} tél.
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "8px" }}>
+                        <span style={{ color: actif ? "#c8a96e" : "rgba(255,255,255,0.75)", fontSize: "13px", fontWeight: "bold" }}>{r.titre}</span>
+                        <span style={{ color: "#fff", fontSize: "17px", fontWeight: "bold" }}>{nombre(r.total)}</span>
                       </div>
-                      <div style={{ color: r.envoyes > 0 ? "#00e676" : "rgba(255,255,255,0.4)", fontSize: "12.5px", lineHeight: "1.6" }}>
-                        {nombre(r.envoyes)} contacté(s)
-                        {r.a_envoyer > 0 ? " · " + nombre(r.a_envoyer) + " à envoyer" : ""}
+                      <div style={{ color: "rgba(255,255,255,0.5)", fontSize: "11.5px", marginTop: "4px" }}>
+                        {nombre(r.avec_email)} adresse(s) · {nombre(r.avec_telephone)} tél. · {nombre(r.envoyes)} contacté(s)
+                        {r.desabonnes > 0 ? " · " + nombre(r.desabonnes) + " désab." : ""}
                       </div>
-                      {r.desabonnes > 0 && (
-                        <div style={{ color: "#e8836a", fontSize: "12px", marginTop: "4px" }}>
-                          {nombre(r.desabonnes)} désabonné(s)
-                        </div>
-                      )}
                     </div>
                   );
                 })}
               </div>
             )}
 
-            {!base && !chargeBases && (
-              <p style={{ color: "rgba(255,255,255,0.4)", textAlign: "center", marginTop: "30px", fontSize: "14px" }}>
-                Choisissez une base ci-dessus pour en parcourir le détail.
-              </p>
-            )}
+            <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "12px", margin: "0 0 14px" }}>
+              {bases ? nombre(bases.total_general) + " entreprises dans les quatre bases" : "Chargement…"}
+            </p>
 
             {detail && (
               <div>
-                <div style={{ display: "flex", gap: "7px", flexWrap: "wrap", marginBottom: "14px" }}>
+                <div style={{ display: "flex", gap: "7px", flexWrap: "wrap", marginBottom: "12px" }}>
                   {FILTRES.map(function (f) {
                     const actif = filtre === f.cle;
                     return (
@@ -415,7 +415,7 @@ export default function CRMPage() {
                         key={f.cle || "tout"}
                         onClick={() => { setFiltre(f.cle); setPage(0); }}
                         style={{
-                          ...BOUTON,
+                          ...BOUTON, padding: "6px 13px",
                           background: actif ? "#c8a96e" : "rgba(255,255,255,0.06)",
                           color: actif ? "#050508" : "rgba(255,255,255,0.6)",
                           border: actif ? "none" : BOUTON.border,
@@ -428,111 +428,124 @@ export default function CRMPage() {
                   })}
                 </div>
 
-                <div style={{ display: "flex", gap: "9px", flexWrap: "wrap", marginBottom: "16px" }}>
+                <div style={{ display: "flex", gap: "9px", flexWrap: "wrap", marginBottom: "12px", alignItems: "center" }}>
                   <input
                     value={saisie}
                     onChange={(e) => setSaisie(e.target.value)}
                     onKeyDown={(e) => { if (e.key === "Enter") { setCherche(saisie.trim()); setPage(0); } }}
-                    placeholder="Nom, ville ou SIREN"
-                    style={{ flex: "1 1 260px", padding: "11px 13px", borderRadius: "8px", border: "1px solid rgba(200,169,110,0.3)", background: "rgba(255,255,255,0.05)", color: "#fff", fontSize: "14px", fontFamily: "Georgia,serif", boxSizing: "border-box" }}
+                    placeholder="Nom, ville, adresse ou SIREN"
+                    style={{ flex: "1 1 260px", padding: "10px 13px", borderRadius: "8px", border: "1px solid rgba(200,169,110,0.3)", background: "rgba(255,255,255,0.05)", color: "#fff", fontSize: "13.5px", fontFamily: "Georgia,serif", boxSizing: "border-box" }}
                   />
-                  <button onClick={() => { setCherche(saisie.trim()); setPage(0); }} style={{ ...BOUTON, padding: "11px 20px" }}>
+                  <button onClick={() => { setCherche(saisie.trim()); setPage(0); }} style={{ ...BOUTON, padding: "10px 20px" }}>
                     Chercher
                   </button>
                   {cherche && (
-                    <button onClick={() => { setSaisie(""); setCherche(""); setPage(0); }} style={{ ...BOUTON, padding: "11px 20px" }}>
+                    <button onClick={() => { setSaisie(""); setCherche(""); setPage(0); }} style={{ ...BOUTON, padding: "10px 20px" }}>
                       Effacer
                     </button>
                   )}
+                  <span style={{ color: "rgba(255,255,255,0.45)", fontSize: "12.5px" }}>
+                    {nombre(detail.total_filtre)} ligne(s)
+                    {detail.pages > 1 ? " · page " + (detail.page + 1) + "/" + detail.pages : ""}
+                  </span>
                 </div>
-
-                <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "13px", margin: "0 0 12px" }}>
-                  {nombre(detail.total_filtre)} ligne(s)
-                  {detail.pages > 1 ? " · page " + (detail.page + 1) + " sur " + detail.pages : ""}
-                </p>
 
                 {chargeBases ? (
                   <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "14px" }}>Chargement…</p>
                 ) : detail.lignes.length === 0 ? (
                   <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "14px" }}>Aucune ligne pour ce filtre.</p>
                 ) : (
-                  detail.lignes.map(function (l: any) {
-                    return (
-                      <div key={l.id} style={CARTE}>
-                        <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "10px" }}>
-                          <div style={{ flex: "1 1 280px" }}>
-                            <div style={{ color: "#fff", fontSize: "15px", fontWeight: "bold", marginBottom: "4px" }}>
-                              {l.raison_sociale}
-                            </div>
-                            <div style={{ color: "rgba(255,255,255,0.4)", fontSize: "12px", marginBottom: "6px" }}>
-                              {l.ville || "ville inconnue"}
-                              {l.code_postal ? " · " + l.code_postal : ""}
-                              {l.siren ? " · SIREN " + l.siren : ""}
-                              {detail.porte_vague && l.vague ? " · vague " + l.vague : ""}
-                            </div>
-
-                            {(l.dirigeant_prenom || l.dirigeant_nom) && (
-                              <div style={{ color: "rgba(255,255,255,0.6)", fontSize: "13px", marginBottom: "4px" }}>
-                                {l.dirigeant_prenom} {l.dirigeant_nom}
-                              </div>
-                            )}
-
-                            {l.email && (
-                              <div style={{ fontSize: "13px", marginBottom: "3px", wordBreak: "break-all" }}>
-                                ✉️ <a href={"mailto:" + l.email} style={LIEN}>{l.email}</a>
-                              </div>
-                            )}
-                            {l.telephone && (
-                              <div style={{ fontSize: "13px", marginBottom: "3px" }}>
-                                ☎️ <a href={"tel:" + appelable(l.telephone)} style={LIEN}>{l.telephone}</a>
-                                <span style={{ color: "rgba(255,255,255,0.3)", fontSize: "12px" }}>
-                                  {l.sms_accepte_le ? " · SMS accepté" : " · pas de consentement SMS"}
-                                </span>
-                              </div>
-                            )}
-                            {l.site_web && (
-                              <div style={{ color: "rgba(255,255,255,0.3)", fontSize: "12px", wordBreak: "break-all" }}>
-                                {l.site_web}
-                              </div>
-                            )}
-                          </div>
-
-                          <div style={{ textAlign: "right", minWidth: "130px" }}>
-                            {l.desabonne ? (
-                              <div style={{ color: "#e8836a", fontSize: "12.5px", fontWeight: "bold" }}>Désabonné</div>
-                            ) : l.statut === "envoye" ? (
-                              <div style={{ color: "#00e676", fontSize: "12.5px", fontWeight: "bold" }}>
-                                Contacté
-                                {l.envoye_le && (
-                                  <div style={{ color: "rgba(255,255,255,0.4)", fontWeight: "normal", fontSize: "11.5px", marginTop: "2px" }}>
-                                    le {new Date(l.envoye_le).toLocaleDateString("fr-FR")}
-                                  </div>
+                  <div style={{ overflowX: "auto", overflowY: "auto", maxHeight: "70vh", border: "1px solid rgba(200,169,110,0.2)", borderRadius: "10px", background: "#12121f" }}>
+                    <table style={{ borderCollapse: "collapse", width: "100%", minWidth: "1150px" }}>
+                      <thead>
+                        <tr>
+                          <th style={TH}>Société</th>
+                          <th style={TH}>Dirigeant</th>
+                          <th style={TH}>Ville</th>
+                          <th style={TH}>CP</th>
+                          <th style={TH}>Adresse e-mail</th>
+                          <th style={TH}>Téléphone</th>
+                          <th style={TH}>SMS</th>
+                          <th style={TH}>État</th>
+                          <th style={TH}>Contacté le</th>
+                          <th style={TH}>Enrichi le</th>
+                          <th style={TH}>SIREN</th>
+                          {detail.porte_vague && <th style={TH}>Vague</th>}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {detail.lignes.map(function (l: any, i: number) {
+                          const fond = l.desabonne
+                            ? "rgba(232,131,106,0.09)"
+                            : (i % 2 === 0 ? "transparent" : "rgba(255,255,255,0.022)");
+                          return (
+                            <tr key={l.id} style={{ background: fond }}>
+                              <td style={{ ...TD, color: "#fff", fontWeight: "bold", maxWidth: "260px", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                {l.raison_sociale || "—"}
+                              </td>
+                              <td style={TD}>
+                                {(l.dirigeant_prenom || "") + " " + (l.dirigeant_nom || "")}
+                              </td>
+                              <td style={TD}>{l.ville || "—"}</td>
+                              <td style={{ ...TD, color: "rgba(255,255,255,0.45)" }}>{l.code_postal || ""}</td>
+                              <td style={TD}>
+                                {l.email
+                                  ? <a href={"mailto:" + l.email} style={LIEN}>{l.email}</a>
+                                  : <span style={{ color: "rgba(255,255,255,0.25)" }}>{l.dropcontact_le ? "non trouvée" : "à enrichir"}</span>}
+                              </td>
+                              <td style={TD}>
+                                {l.telephone
+                                  ? <a href={"tel:" + appelable(l.telephone)} style={LIEN}>{l.telephone}</a>
+                                  : <span style={{ color: "rgba(255,255,255,0.25)" }}>—</span>}
+                              </td>
+                              <td style={{ ...TD, color: l.sms_accepte_le ? "#00e676" : "rgba(255,255,255,0.25)" }}>
+                                {l.sms_accepte_le ? "oui" : "non"}
+                              </td>
+                              <td style={TD}>
+                                {l.desabonne ? (
+                                  <span style={{ color: "#e8836a", fontWeight: "bold" }}>Désabonné</span>
+                                ) : l.statut === "envoye" ? (
+                                  <span style={{ color: "#00e676" }}>Contacté</span>
+                                ) : l.statut === "enrichi" ? (
+                                  <span style={{ color: "#c8a96e" }}>À envoyer</span>
+                                ) : l.statut === "envoi_en_cours" ? (
+                                  <span style={{ color: "#448aff" }}>En cours</span>
+                                ) : l.statut === "echec" ? (
+                                  <span style={{ color: "#e8836a" }}>Échec</span>
+                                ) : (
+                                  <span style={{ color: "rgba(255,255,255,0.35)" }}>{l.statut || "brut"}</span>
                                 )}
-                              </div>
-                            ) : l.email ? (
-                              <div style={{ color: "#c8a96e", fontSize: "12.5px" }}>Joignable</div>
-                            ) : (
-                              <div style={{ color: "rgba(255,255,255,0.35)", fontSize: "12.5px" }}>
-                                {l.dropcontact_le ? "Sans adresse" : "À enrichir"}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })
+                              </td>
+                              <td style={{ ...TD, color: "rgba(255,255,255,0.55)" }}>{jolieDate(l.envoye_le) || "—"}</td>
+                              <td style={{ ...TD, color: "rgba(255,255,255,0.4)" }}>{jolieDate(l.dropcontact_le) || "—"}</td>
+                              <td style={{ ...TD, color: "rgba(255,255,255,0.4)" }}>{l.siren || "—"}</td>
+                              {detail.porte_vague && (
+                                <td style={{ ...TD, color: "rgba(255,255,255,0.4)" }}>{l.vague || "—"}</td>
+                              )}
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
                 )}
 
                 {detail.pages > 1 && (
-                  <div style={{ display: "flex", gap: "10px", justifyContent: "center", marginTop: "18px", flexWrap: "wrap" }}>
-                    <button onClick={() => setPage(Math.max(0, page - 1))} disabled={page === 0} style={{ ...BOUTON, padding: "10px 20px", opacity: page === 0 ? 0.35 : 1 }}>
+                  <div style={{ display: "flex", gap: "10px", justifyContent: "center", marginTop: "16px", flexWrap: "wrap" }}>
+                    <button onClick={() => setPage(0)} disabled={page === 0} style={{ ...BOUTON, padding: "9px 16px", opacity: page === 0 ? 0.35 : 1 }}>
+                      ⏮ Début
+                    </button>
+                    <button onClick={() => setPage(Math.max(0, page - 1))} disabled={page === 0} style={{ ...BOUTON, padding: "9px 18px", opacity: page === 0 ? 0.35 : 1 }}>
                       Précédent
                     </button>
                     <span style={{ color: "rgba(255,255,255,0.5)", fontSize: "13px", alignSelf: "center" }}>
                       {page + 1} / {detail.pages}
                     </span>
-                    <button onClick={() => setPage(page + 1)} disabled={page + 1 >= detail.pages} style={{ ...BOUTON, padding: "10px 20px", opacity: page + 1 >= detail.pages ? 0.35 : 1 }}>
+                    <button onClick={() => setPage(page + 1)} disabled={page + 1 >= detail.pages} style={{ ...BOUTON, padding: "9px 18px", opacity: page + 1 >= detail.pages ? 0.35 : 1 }}>
                       Suivant
+                    </button>
+                    <button onClick={() => setPage(detail.pages - 1)} disabled={page + 1 >= detail.pages} style={{ ...BOUTON, padding: "9px 16px", opacity: page + 1 >= detail.pages ? 0.35 : 1 }}>
+                      Fin ⏭
                     </button>
                   </div>
                 )}
@@ -541,14 +554,14 @@ export default function CRMPage() {
           </div>
         )}
 
-        {/* ---------- PROSPECTS ET APPRENANTS ---------- */}
+        {/* ---------- MES CONTACTS ET APPRENANTS ---------- */}
         {(onglet === "prospects" || onglet === "apprenants") && (
           <div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px", marginBottom: "15px" }}>
               <h2 style={{ color: "#c8a96e", fontSize: "16px", margin: 0 }}>
                 {onglet === "apprenants"
                   ? "APPRENANTS (" + apprenants.length + ")"
-                  : "PROSPECTS (" + listeProspects.length + ")"}
+                  : "MES CONTACTS (" + listeProspects.length + ")"}
               </h2>
 
               {onglet === "prospects" && perdus.length > 0 && (
@@ -564,8 +577,8 @@ export default function CRMPage() {
             {(onglet === "apprenants" ? apprenants : listeProspects).length === 0 ? (
               <p style={{ color: "rgba(255,255,255,0.4)", textAlign: "center", marginTop: "50px" }}>
                 {onglet === "apprenants"
-                  ? "Aucun apprenant en cours. Un prospect devient apprenant dès qu'il commence une formation."
-                  : "Aucun prospect — ajoutez le premier !"}
+                  ? "Aucun apprenant en cours. Un contact devient apprenant dès qu'il commence une formation."
+                  : "Aucun contact — ajoutez le premier !"}
               </p>
             ) : (
               (onglet === "apprenants" ? apprenants : listeProspects).map(p => {
@@ -672,7 +685,7 @@ export default function CRMPage() {
                     {fichePerdu === p.email && !estPerdu && (
                       <div style={{ marginTop: "12px", padding: "14px", background: "rgba(232,131,106,0.07)", border: "1px solid rgba(232,131,106,0.3)", borderRadius: "8px" }}>
                         <label style={{ color: "#e8836a", fontSize: "12px", display: "block", marginBottom: "6px" }}>
-                          Pourquoi ce prospect est-il perdu ?
+                          Pourquoi ce contact est-il perdu ?
                         </label>
                         <select value={motifChoisi} onChange={e => setMotifChoisi(e.target.value)} style={{ ...CHAMP, marginBottom: "10px" }}>
                           <option value="">Choisir un motif…</option>
@@ -722,7 +735,7 @@ export default function CRMPage() {
 
         {onglet === "ajouter" && (
           <div>
-            <h2 style={{ color: "#c8a96e", fontSize: "16px", marginBottom: "20px" }}>AJOUTER UN PROSPECT</h2>
+            <h2 style={{ color: "#c8a96e", fontSize: "16px", marginBottom: "20px" }}>AJOUTER UN CONTACT</h2>
             <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
               {[
                 { label: "Nom", key: "nom", placeholder: "Jean Dupont" },
@@ -761,9 +774,9 @@ export default function CRMPage() {
               </div>
               <button onClick={ajouterProspect} disabled={loading || !form.email}
                 style={{ width: "100%", background: form.email ? "#c8a96e" : "rgba(200,169,110,0.3)", color: "#050508", border: "none", borderRadius: "8px", padding: "14px", fontWeight: "bold", cursor: form.email ? "pointer" : "not-allowed", fontSize: "15px" }}>
-                {loading ? "Ajout en cours..." : "➕ Ajouter le prospect"}
+                {loading ? "Ajout en cours..." : "➕ Ajouter le contact"}
               </button>
-              {resultat?.succes && <div style={{ color: "#00e676", textAlign: "center", fontSize: "13px" }}>✅ Prospect ajouté — Score: {resultat.score}pts</div>}
+              {resultat?.succes && <div style={{ color: "#00e676", textAlign: "center", fontSize: "13px" }}>✅ Contact ajouté — Score: {resultat.score}pts</div>}
             </div>
           </div>
         )}
