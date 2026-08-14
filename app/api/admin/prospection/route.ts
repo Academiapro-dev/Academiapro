@@ -23,10 +23,11 @@ const supabase = createClient(
 // PIEGE VERIFIE LE 14 AOUT : prospects_organismes n a PAS de colonne
 // vague, contrairement aux trois autres. La demander la ferait echouer.
 //
-// SECOND PIEGE DE LA MEME FAMILLE : la colonne linkedin a ete ajoutee le
-// 14 aout aux TROIS tables prospectables, mais PAS a prospects_cabinets,
-// qu on ne touche pas avant l accord BCSolutions. D ou le drapeau ci
-// dessous : demander linkedin sur cabinets ferait echouer la lecture.
+// SECOND PIEGE DE LA MEME FAMILLE : les colonnes linkedin, linkedin_le et
+// linkedin_statut existent sur les TROIS tables prospectables, mais PAS
+// sur prospects_cabinets, qu on ne touche pas avant l accord BCSolutions.
+// D ou le drapeau ci dessous : les demander sur cabinets ferait echouer
+// la lecture entiere.
 const BASES: any = {
   organismes: {
     table: "prospects_organismes",
@@ -93,6 +94,7 @@ export async function GET(req: NextRequest) {
       const avecTel = await compter(b.table, function (q: any) {
         return q.not("telephone", "is", null);
       });
+
       // Le compte des profils LinkedIn n a de sens que la ou la colonne
       // existe : ailleurs on renvoie zero sans interroger la base.
       const avecLinkedin = b.linkedin
@@ -100,6 +102,20 @@ export async function GET(req: NextRequest) {
             return q.not("linkedin", "is", null);
           })
         : 0;
+
+      // Ce qui reste a faire a la main : un profil connu, jamais sollicite.
+      const linkedinAFaire = b.linkedin
+        ? await compter(b.table, function (q: any) {
+            return q.not("linkedin", "is", null).is("linkedin_le", null);
+          })
+        : 0;
+
+      const linkedinInvites = b.linkedin
+        ? await compter(b.table, function (q: any) {
+            return q.not("linkedin_le", "is", null);
+          })
+        : 0;
+
       const envoyes = await compter(b.table, function (q: any) {
         return q.eq("statut", "envoye");
       });
@@ -122,6 +138,8 @@ export async function GET(req: NextRequest) {
         avec_email: avecEmail,
         avec_telephone: avecTel,
         avec_linkedin: avecLinkedin,
+        linkedin_a_faire: linkedinAFaire,
+        linkedin_invites: linkedinInvites,
         porte_linkedin: !!b.linkedin,
         soumis_dropcontact: soumis,
         envoyes: envoyes,
@@ -140,12 +158,13 @@ export async function GET(req: NextRequest) {
         + "dirigeant_prenom, dirigeant_nom, email, telephone, site_web, "
         + "statut, envoye_le, desabonne, dropcontact_le, sms_accepte_le"
         + (b.vague ? ", vague" : "")
-        + (b.linkedin ? ", linkedin" : "");
+        + (b.linkedin ? ", linkedin, linkedin_le, linkedin_statut" : "");
 
       let q = supabase.from(b.table).select(colonnes, { count: "exact" });
 
       // Les filtres disent ce qu on cherche a faire, pas seulement ce qu on
-      // veut voir : « a envoyer » est une liste de travail.
+      // veut voir : « a envoyer » et « LinkedIn a faire » sont des listes
+      // de travail, pas des vues.
       if (filtre === "a_envoyer") {
         q = q.not("email", "is", null).neq("statut", "envoye").not("desabonne", "is", true);
       } else if (filtre === "envoyes") {
@@ -156,6 +175,10 @@ export async function GET(req: NextRequest) {
         q = q.not("telephone", "is", null);
       } else if (filtre === "avec_linkedin" && b.linkedin) {
         q = q.not("linkedin", "is", null);
+      } else if (filtre === "linkedin_a_faire" && b.linkedin) {
+        q = q.not("linkedin", "is", null).is("linkedin_le", null);
+      } else if (filtre === "linkedin_invites" && b.linkedin) {
+        q = q.not("linkedin_le", "is", null);
       } else if (filtre === "a_enrichir") {
         q = q.is("email", null).is("dropcontact_le", null)
           .not("dirigeant_nom", "is", null).not("dirigeant_prenom", "is", null);
