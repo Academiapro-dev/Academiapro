@@ -13,11 +13,6 @@ const T = {
 };
 
 // L ESPACE DE TRAVAIL DU CABINET.
-//
-// Un cabinet comptable ne doit pas lire « Formations », « Séances » ni
-// « Blog » dans son espace de travail : il a paye un logiciel de
-// comptabilite, pas un catalogue de formation. La barre change donc de
-// marque et de menu des qu on entre chez lui.
 const CHEMINS_COMPTABLE = [
   "/admin/compliance",
   "/admin/mr-comptable",
@@ -25,15 +20,10 @@ const CHEMINS_COMPTABLE = [
 
 // LES PAGES PUBLIQUES DE MRCOMPTABLE.FR.
 //
-// Elles portent DEJA leur propre en-tete, avec le menu deroulant des
-// fonctionnalites. NavBar ne doit rien afficher dessus.
-//
-// LE PIEGE, VU DEUX FOIS LE 14 AOUT : tester le chemin ne suffit pas. Le
-// middleware sert /comptable/tenue sous mrcomptable.fr/tenue — le chemin
-// vu par NavBar est alors « /tenue », qui ne commence pas par /comptable.
-// La barre de travail du cabinet s affichait donc au-dessus de la vitrine,
-// et un visiteur voyait « Mes dossiers » et « Saisie » avant meme d etre
-// client. On teste desormais le DOMAINE, pas seulement le chemin.
+// Elles portent DEJA leur propre en-tete. NavBar ne doit rien afficher
+// dessus. Tester le chemin ne suffit pas : le middleware sert
+// /comptable/tenue sous mrcomptable.fr/tenue, et le chemin vu ici est
+// alors « /tenue ». On teste donc le DOMAINE, pas seulement le chemin.
 const PAGES_PUBLIQUES_COMPTABLE = [
   "/",
   "/inscription",
@@ -49,10 +39,6 @@ const PAGES_PUBLIQUES_COMPTABLE = [
   "/mentions",
 ];
 
-// Le logo, en or sur fond noir : les memes teintes que le site, donc aucun
-// rectangle blanc au milieu du bandeau. La LARGEUR est imposee plutot que la
-// hauteur — l image porte de larges marges, et fixer la hauteur reduisait le
-// dessin a une vignette illisible.
 const LOGO_COMPTABLE = "/IMG_4100.jpeg";
 
 function estComptable(chemin) {
@@ -93,14 +79,10 @@ export default function NavBar() {
 
   const surMrComptable = hote.indexOf("mrcomptable.fr") >= 0;
 
-  // MARQUE BLANCHE. Sur la vitrine d un organisme client, notre barre ne doit
-  // pas apparaitre : le visiteur y verrait la marque du fournisseur avant
-  // celle de son prestataire, avec un lien pour partir chez nous.
+  // MARQUE BLANCHE. Sur la vitrine d un organisme client, notre barre ne
+  // doit pas apparaitre.
   if (chemin.indexOf("/of/") === 0) return null;
 
-  // Les pages de vitrine de Mr. Comptable portent deja leur propre en-tete,
-  // qu on y arrive par /comptable/... depuis academiapro.fr ou par une
-  // adresse sans prefixe sur mrcomptable.fr.
   if (chemin === "/comptable" || chemin.indexOf("/comptable/") === 0) return null;
   if (surMrComptable && estPagePubliqueComptable(chemin)) return null;
 
@@ -132,17 +114,10 @@ export default function NavBar() {
     whiteSpace: "nowrap",
   };
 
-  // ---- Espace de travail comptable : marque et menu propres --------------
-  // On y arrive soit par mrcomptable.fr, soit depuis academiapro.fr sur un
-  // ecran comptable. Dans les deux cas le client doit lire sa marque.
+  // ---- Espace de travail comptable ---------------------------------------
   if (estComptable(chemin) || surMrComptable) {
     return (
       <header style={{ ...barre, padding: "0 30px", background: "#000" }}>
-        {/* LE LISERE BLANC VENAIT DE L IMAGE ELLE-MEME.
-            Ses bords ne sont pas parfaitement noirs, et le trait se detachait
-            sur le fond du site. Le cadre rogne l image de quelques pixels sur
-            chaque bord : le dessin est intact, la bordure disparait. Le fond
-            de la barre passe au noir pur pour epouser celui du logo. */}
         <a
           href="/admin/compliance/tableau-de-bord"
           style={{ display: "block", textDecoration: "none", flexShrink: 0, overflow: "hidden", lineHeight: 0 }}
@@ -180,18 +155,14 @@ export default function NavBar() {
 
   // ---- Vitrine AcadéMIA Pro ---------------------------------------------
   //
-  // TOUTE L OFFRE EST VISIBLE. Jusqu au 14 aout, la barre ne montrait que le
-  // catalogue grand public : ni offre aux organismes, ni Mr. Qualiopi, ni
-  // CRM, ni LMS.
+  // TOUTE L OFFRE EST VISIBLE : offre aux organismes, Mr. Qualiopi, CRM,
+  // LMS. Un seul onglet nomme pour un public — « Pour les organismes de
+  // formation » — laisse entendre que tout le reste s adresse au particulier.
   //
-  // UN SEUL ONGLET NOMME POUR UN PUBLIC. « Pack organisme » etait ambigu :
-  // un particulier pouvait y lire un lot de formations a acheter. Ecrire
-  // « Pour les organismes de formation » leve le doute d un mot, et laisse
-  // entendre que tout le reste s adresse a lui.
-  //
-  // CRM et LMS menent a /espace-prive, qui explique le produit et dit qu il
-  // est reserve aux abonnes. Un onglet grise frustre et fait partir ; un
-  // onglet qui explique donne envie d entrer.
+  // L ONGLET ADMIN MENE AU TABLEAU DE BORD. Sans lui, il fallait retenir
+  // l adresse par coeur pour retrouver ses propres depenses ou son CRM.
+  // L acces reste protege par la session : un visiteur qui appuie dessus
+  // sans etre connecte est renvoye vers la connexion.
   return (
     <header style={barre}>
       <a href="/" style={lienMarque}>
@@ -207,6 +178,7 @@ export default function NavBar() {
         <a href="/qualiopi" style={lienMenu}>Mr. Qualiopi</a>
         <a href="/espace-prive?p=crm" style={lienMenu}>{t("crm")}</a>
         <a href="/espace-prive?p=lms" style={lienMenu}>{t("lms")}</a>
+        <a href="/admin" style={{ ...lienMenu, color: "#c8a96e", fontWeight: "bold" }}>Admin</a>
       </nav>
       <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
         <select
