@@ -18,6 +18,7 @@ const FILTRES = [
   { cle: "envoyes", nom: "Deja contactes" },
   { cle: "avec_email", nom: "Avec adresse" },
   { cle: "avec_telephone", nom: "Avec telephone" },
+  { cle: "avec_linkedin", nom: "Avec LinkedIn" },
   { cle: "a_enrichir", nom: "A enrichir" },
   { cle: "desabonnes", nom: "Desabonnes" },
 ];
@@ -210,6 +211,23 @@ export default function CRMPage() {
     return String(t || "").replace(/[^0-9+]/g, "");
   }
 
+  // LE PROFIL LINKEDIN EST STOCKE SANS SCHEMA : « www.linkedin.com/in/x ».
+  // Tel quel dans un href, le navigateur le prendrait pour un chemin
+  // relatif et resterait sur academiapro.fr.
+  function lienLinkedin(v: string) {
+    const t = String(v || "").trim();
+    if (!t) return "";
+    if (t.indexOf("http") === 0) return t;
+    return "https://" + t.replace(/^\/+/, "");
+  }
+
+  // Ce qu on affiche du profil : l identifiant, pas l adresse complete.
+  function nomLinkedin(v: string) {
+    const t = String(v || "").trim().replace(/\/+$/, "");
+    const m = t.split("/");
+    return m[m.length - 1] || t;
+  }
+
   function nombre(n: any) {
     return (Number(n) || 0).toLocaleString("fr-FR");
   }
@@ -269,6 +287,12 @@ export default function CRMPage() {
   const detail = bases && bases.detail ? bases.detail : null;
   const regroupes = motifsRegroupes();
   const totalMotifs = regroupes.reduce(function (s, m) { return s + m.nombre; }, 0);
+
+  // Le filtre LinkedIn n a de sens que sur une base qui porte la colonne.
+  const filtresVisibles = FILTRES.filter(function (f) {
+    if (f.cle !== "avec_linkedin") return true;
+    return detail ? !!detail.porte_linkedin : true;
+  });
 
   return (
     <div style={{ backgroundColor: "#050508", minHeight: "100vh", color: "#fff", fontFamily: "Georgia, serif" }}>
@@ -392,7 +416,12 @@ export default function CRMPage() {
                         <span style={{ color: "#fff", fontSize: "17px", fontWeight: "bold" }}>{nombre(r.total)}</span>
                       </div>
                       <div style={{ color: "rgba(255,255,255,0.5)", fontSize: "11.5px", marginTop: "4px" }}>
-                        {nombre(r.avec_email)} adresse(s) · {nombre(r.avec_telephone)} tél. · {nombre(r.envoyes)} contacté(s)
+                        {nombre(r.avec_email)} adresse(s) · {nombre(r.avec_telephone)} tél.
+                        {r.porte_linkedin ? " · " + nombre(r.avec_linkedin) + " LinkedIn" : ""}
+                      </div>
+                      <div style={{ color: "rgba(255,255,255,0.4)", fontSize: "11.5px", marginTop: "2px" }}>
+                        {nombre(r.envoyes)} contacté(s)
+                        {r.a_envoyer > 0 ? " · " + nombre(r.a_envoyer) + " à envoyer" : ""}
                         {r.desabonnes > 0 ? " · " + nombre(r.desabonnes) + " désab." : ""}
                       </div>
                     </div>
@@ -408,7 +437,7 @@ export default function CRMPage() {
             {detail && (
               <div>
                 <div style={{ display: "flex", gap: "7px", flexWrap: "wrap", marginBottom: "12px" }}>
-                  {FILTRES.map(function (f) {
+                  {filtresVisibles.map(function (f) {
                     const actif = filtre === f.cle;
                     return (
                       <button
@@ -456,7 +485,7 @@ export default function CRMPage() {
                   <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "14px" }}>Aucune ligne pour ce filtre.</p>
                 ) : (
                   <div style={{ overflowX: "auto", overflowY: "auto", maxHeight: "70vh", border: "1px solid rgba(200,169,110,0.2)", borderRadius: "10px", background: "#12121f" }}>
-                    <table style={{ borderCollapse: "collapse", width: "100%", minWidth: "1150px" }}>
+                    <table style={{ borderCollapse: "collapse", width: "100%", minWidth: "1300px" }}>
                       <thead>
                         <tr>
                           <th style={TH}>Société</th>
@@ -465,6 +494,7 @@ export default function CRMPage() {
                           <th style={TH}>CP</th>
                           <th style={TH}>Adresse e-mail</th>
                           <th style={TH}>Téléphone</th>
+                          {detail.porte_linkedin && <th style={TH}>LinkedIn</th>}
                           <th style={TH}>SMS</th>
                           <th style={TH}>État</th>
                           <th style={TH}>Contacté le</th>
@@ -498,6 +528,13 @@ export default function CRMPage() {
                                   ? <a href={"tel:" + appelable(l.telephone)} style={LIEN}>{l.telephone}</a>
                                   : <span style={{ color: "rgba(255,255,255,0.25)" }}>—</span>}
                               </td>
+                              {detail.porte_linkedin && (
+                                <td style={{ ...TD, maxWidth: "200px", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                  {l.linkedin
+                                    ? <a href={lienLinkedin(l.linkedin)} target="_blank" rel="noreferrer" style={{ ...LIEN, color: "#448aff" }}>in/{nomLinkedin(l.linkedin)}</a>
+                                    : <span style={{ color: "rgba(255,255,255,0.25)" }}>—</span>}
+                                </td>
+                              )}
                               <td style={{ ...TD, color: l.sms_accepte_le ? "#00e676" : "rgba(255,255,255,0.25)" }}>
                                 {l.sms_accepte_le ? "oui" : "non"}
                               </td>
