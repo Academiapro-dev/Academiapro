@@ -29,6 +29,15 @@ export default async function sitemap() {
     "/inscription", "/login", "/blog", "/en/blog",
     "/es/blog", "/cgv", "/mentions-legales",
     "/politique-confidentialite", "/politique-cookies",
+
+    // LES PAGES VITRINES DES SOLUTIONS METIER.
+    //
+    // Ce sont elles qui doivent etre trouvees par un professionnel qui
+    // cherche « logiciel CRM organisme de formation » ou « LMS pour
+    // organisme ». L outil, lui, vit derriere la session et n a rien a
+    // faire dans un sitemap : une page que Google ne peut pas atteindre
+    // n a aucune raison d y figurer.
+    "/pack", "/qualiopi", "/crm", "/plateforme-apprentissage",
   ];
 
   const entrees: any[] = pagesPubliques.map((p) => ({
