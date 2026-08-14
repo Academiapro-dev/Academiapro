@@ -11,12 +11,31 @@ const FOND = "#050508";
 //
 // Le parametre ?p= dit de quel espace il s agit. Sans lui, la page reste
 // juste, elle parle simplement d espace client.
+//
+// LES OPTIONS SONT ANNONCEES POUR CE QU ELLES SONT. Le SMS fonctionne ; la
+// telephonie n est pas construite et se presente donc comme a venir. Ne
+// jamais annoncer disponible ce qu on ne sait pas livrer le lendemain.
 const ESPACES: any = {
   crm: {
     nom: "Le CRM",
     quoi: "Vos prospects suivis etape par etape, avec leur score, l analyse "
       + "de chaque fiche et la relance redigee pour vous.",
     pour: "Organismes de formation, centres d appels, equipes commerciales.",
+    options: [
+      {
+        nom: "Envoi de SMS",
+        etat: "en option",
+        texte: "Repondre a un prospect, confirmer un rendez-vous, rappeler "
+          + "une echeance. Facture a l unite, sans abonnement, sous le nom "
+          + "de votre organisme.",
+      },
+      {
+        nom: "Appels depuis le navigateur",
+        etat: "a venir",
+        texte: "Appeler un prospect sans quitter sa fiche, avec la duree "
+          + "decomptee et l historique conserve. En preparation.",
+      },
+    ],
   },
   lms: {
     nom: "La plateforme d apprentissage",
@@ -25,6 +44,7 @@ const ESPACES: any = {
       + "produites automatiquement.",
     pour: "Organismes de formation, entreprises qui forment leurs equipes, "
       + "formateurs independants qui ont deja leur contenu.",
+    options: [],
   },
   organisme: {
     nom: "L espace organisme",
@@ -32,24 +52,28 @@ const ESPACES: any = {
       + "administratifs a votre en-tete, vos signatures electroniques et "
       + "votre bilan pedagogique prepare au fil de l eau.",
     pour: "Organismes de formation declares.",
+    options: [],
   },
   comptable: {
     nom: "Mr. Comptable",
     quoi: "La tenue de vos dossiers clients, la lecture automatique des "
       + "factures, le rapprochement bancaire et la teletransmission.",
     pour: "Cabinets d expertise comptable.",
+    options: [],
   },
   qualiopi: {
     nom: "Mr. Qualiopi",
     quoi: "Les 32 indicateurs expliques un par un, vos preuves rassemblees "
       + "et horodatees, votre dossier d audit exportable.",
     pour: "Organismes qui preparent leur certification.",
+    options: [],
   },
 };
 
 export default function EspacePrive({ searchParams }: any) {
   const cle = String((searchParams && searchParams.p) || "").toLowerCase();
   const e = ESPACES[cle] || null;
+  const options = e && e.options ? e.options : [];
 
   const CADRE: any = {
     minHeight: "100vh",
@@ -63,7 +87,7 @@ export default function EspacePrive({ searchParams }: any) {
   };
 
   const CARTE: any = {
-    maxWidth: "620px",
+    maxWidth: "640px",
     width: "100%",
     background: "rgba(255,255,255,0.03)",
     border: "1px solid rgba(200,169,110,0.3)",
@@ -102,6 +126,53 @@ export default function EspacePrive({ searchParams }: any) {
             Cet espace est ouvert aux organismes et aux cabinets abonnés. Vos
             données y sont cloisonnées : personne d'autre que vous n'y accède.
           </p>
+        )}
+
+        {options.length > 0 && (
+          <div style={{ marginTop: "32px", textAlign: "left" }}>
+            <p style={{ color: OR, fontSize: "12px", letterSpacing: "2px", margin: "0 0 16px", textAlign: "center" }}>
+              LES OPTIONS
+            </p>
+
+            {options.map(function (o: any) {
+              return (
+                <div
+                  key={o.nom}
+                  style={{
+                    background: "rgba(255,255,255,0.03)",
+                    border: "1px solid rgba(200,169,110,0.2)",
+                    borderRadius: "11px",
+                    padding: "18px 20px",
+                    marginBottom: "12px",
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px", flexWrap: "wrap", marginBottom: "7px" }}>
+                    <span style={{ color: "#fff", fontSize: "16px", fontWeight: "bold" }}>
+                      {o.nom}
+                    </span>
+                    <span style={{
+                      color: o.etat === "a venir" ? "rgba(255,255,255,0.45)" : OR,
+                      border: "1px solid " + (o.etat === "a venir" ? "rgba(255,255,255,0.2)" : "rgba(200,169,110,0.45)"),
+                      padding: "3px 11px",
+                      borderRadius: "12px",
+                      fontSize: "12px",
+                      whiteSpace: "nowrap",
+                    }}>
+                      {o.etat === "a venir" ? "À venir" : "En option"}
+                    </span>
+                  </div>
+                  <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "14.5px", lineHeight: "1.75", margin: 0 }}>
+                    {o.texte}
+                  </p>
+                </div>
+              );
+            })}
+
+            <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "13.5px", lineHeight: "1.7", margin: "14px 0 0", textAlign: "center" }}>
+              Les options se facturent à l'usage, sans engagement, et
+              s'activent quand vous le décidez.
+            </p>
+          </div>
         )}
 
         <div style={{ height: "1px", background: "rgba(200,169,110,0.2)", margin: "30px 0" }} />
