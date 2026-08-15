@@ -3,7 +3,7 @@ import Link from "next/link";
 export const metadata = {
   title: "CRM pour organisme de formation — AcadéMIA Pro",
   description:
-    "Suivez vos prospects étape par étape : score automatique, analyse de chaque fiche, relance rédigée. SMS en option. Pour organismes de formation et centres d'appels.",
+    "Suivez vos prospects étape par étape : score de complétude, analyse de chaque fiche, relance rédigée, motifs de perte. Pour organismes de formation et centres d'appels.",
 };
 
 const OR = "#c8a96e";
@@ -23,9 +23,25 @@ const NOIR = "#050508";
 // promet plus que le produit se retourne contre nous a la demonstration.
 // Ce qui suit decrit ce qui existe, et rien d autre.
 //
+// TROIS CORRECTIONS DU 15/08, DE LA MEME FAMILLE QUE CI-DESSUS.
+//
+// (1) LE SCORE ETAIT DECRIT FAUX. La page annoncait une note calculee sur
+// le comportement du prospect et son anciennete. Le code fait autre chose :
+// il additionne des points selon la PRESENCE d une adresse, d un telephone,
+// d une formation visee, d un domaine, et selon la source. C est un score de
+// COMPLETUDE DE FICHE. L anciennete n entre nulle part dans le calcul.
+//
+// (2) LE SMS ETAIT VENDU AVEC SON PRIX alors qu aucune route ne l envoie.
+// Seule existe la colonne sms_accepte_le, qui enregistre un consentement.
+// Il passe donc en preparation, comme les appels, et le prix disparait
+// jusqu a ce que la fonction existe.
+//
+// (3) « SANS CHANGER D ECRAN » laissait croire a un passage automatique du
+// prospect au stagiaire. L inscription au registre demande un bouton et un
+// prix de vente — c est simple, mais ce n est pas rien.
+//
 // AUCUN PRIX ICI. Le tarif se donne apres un echange, comme pour le pack et
-// pour Mr. Comptable. Seule exception : le SMS, qui affiche son prix parce
-// qu il se facture a l usage et que chaque option porte son tarif chez elle.
+// pour Mr. Comptable.
 
 export default function PageCRM() {
   const section: any = {
@@ -87,10 +103,10 @@ export default function PageCRM() {
 
         <h2 style={H2}>Un score, pour savoir par où commencer</h2>
         <p style={P}>
-          Chaque prospect porte une note calculée sur ce qu'il a fait : ce qu'il a
-          demandé, d'où il vient, depuis combien de temps il n'a pas donné signe.
-          Au-dessus de soixante, il est chaud — c'est celui-là qu'on rappelle
-          aujourd'hui.
+          Chaque fiche porte une note sur cent, calculée sur ce que vous savez du
+          prospect : adresse électronique, téléphone, formation qui l'intéresse,
+          origine du contact. Plus la fiche est complète, plus le prospect est
+          joignable — et c'est celui-là qu'on rappelle en premier.
         </p>
 
         <div style={{ ...carte, borderColor: "rgba(200,169,110,0.4)", marginTop: "30px" }}>
@@ -107,19 +123,27 @@ export default function PageCRM() {
           </p>
         </div>
 
-        <h2 style={H2}>Du prospect au stagiaire, sans changer d'écran</h2>
+        <h2 style={H2}>Pourquoi vous perdez des affaires</h2>
         <p style={P}>
-          Quand un prospect s'inscrit, sa fiche ne disparaît pas : elle affiche
-          désormais sa progression et ses modules validés. Vous suivez la même personne
-          du premier contact à son attestation.
+          Une affaire qui ne se fait pas se ferme avec son motif : prix trop élevé,
+          concurrent choisi, projet abandonné, pas de budget. Le tableau de bord les
+          regroupe par fréquence. Au bout de quelques semaines, ce classement vaut
+          mieux qu'une étude de marché — il vient de vos propres clients.
         </p>
 
-        <h2 style={H2}>Les options</h2>
+        <h2 style={H2}>Du prospect au stagiaire</h2>
+        <p style={P}>
+          Quand un prospect s'inscrit, sa fiche ne disparaît pas : vous l'inscrivez au
+          registre depuis la fiche elle-même, et elle affiche ensuite sa progression et
+          ses modules validés. Vous suivez la même personne du premier contact à son
+          attestation.
+        </p>
+
+        <h2 style={H2}>Ce qui vient ensuite</h2>
         <p style={P}>
           <strong>L'envoi de SMS</strong> — répondre à un prospect, confirmer un
-          rendez-vous, rappeler une échéance. Facturé à l'unité, sans abonnement, sous
-          le nom de votre organisme. 0,12 € HT le message, dégressif jusqu'à 0,08 €
-          selon le volume.
+          rendez-vous, rappeler une échéance, sous le nom de votre organisme. En
+          préparation.
         </p>
         <p style={P}>
           <strong>Les appels depuis le navigateur</strong> — appeler sans quitter la
