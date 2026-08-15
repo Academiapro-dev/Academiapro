@@ -3,7 +3,7 @@ import Link from "next/link";
 export const metadata = {
   title: "LMS pour organisme de formation — AcadéMIA Pro",
   description:
-    "Créez vos formations, suivez vos stagiaires, produisez vos attestations. Questionnaires corrigés erreur par erreur, classes virtuelles, émargement horodaté.",
+    "Créez vos formations, suivez vos stagiaires, produisez vos attestations. Questionnaires corrigés erreur par erreur, classes virtuelles, présences horodatées.",
 };
 
 const OR = "#c8a96e";
@@ -19,6 +19,25 @@ const NOIR = "#050508";
 // LE SIGLE LMS FIGURE DANS LE TITRE : le metier le tape dans un moteur de
 // recherche, le profane cherche « plateforme d apprentissage ». Les deux
 // mots doivent etre presents.
+//
+// TROIS CORRECTIONS DU 15/08, APRES VERIFICATION EN BASE.
+//
+// (1) LA SOUS-TRAITANCE EST RETIREE. Aucune table ne la porte, et surtout
+// ELLE N EST PAS DE NOTRE RESSORT : l organisme client est seul prestataire
+// de formation (article 1 des CGV), c est donc a lui d encadrer ses
+// sous-traitants. Les cinq autres preuves annoncees, elles, EXISTENT
+// REELLEMENT — verifie en base : organisme_evaluations,
+// organisme_reclamations, organisme_formateurs, organisme_ameliorations,
+// organisme_presences. Elles appartiennent bien au LMS et non a
+// Mr. Qualiopi, dont les tables portent le prefixe qualiopi_.
+//
+// (2) LE TABLEAU BLANC PARTAGE EST RETIRE. Il avait ete demande, jamais
+// constate a l ecran. Une fonction qu on souhaite n est pas une fonction
+// qu on vend.
+//
+// (3) L EMARGEMENT EST REFORMULE. Ecrire que l horodatage « tient lieu de
+// feuille d emargement » est une affirmation de conformite reglementaire.
+// La trace existe (organisme_presences), on la decrit pour ce qu elle est.
 //
 // AUCUN PRIX ICI. Le tarif se donne apres un echange.
 
@@ -88,9 +107,9 @@ export default function PagePlateforme() {
 
         <h2 style={H2}>Les classes en direct</h2>
         <p style={P}>
-          Réunissez vos stagiaires en visio, avec un tableau blanc partagé. Les entrées
-          et les sorties sont horodatées : elles tiennent lieu de feuille d'émargement
-          pour vos formations synchrones.
+          Réunissez vos stagiaires en visioconférence. Les entrées et les sorties sont
+          horodatées et conservées : vous gardez une trace d'assiduité pour vos
+          formations synchrones.
         </p>
 
         <div style={{ ...carte, borderColor: "rgba(200,169,110,0.4)", marginTop: "30px" }}>
@@ -100,7 +119,7 @@ export default function PagePlateforme() {
           <p style={{ ...P, margin: "0 0 12px", fontSize: "16px" }}>
             Évaluations à chaud et à froid avec leur taux de retour, registre des
             réclamations et de leurs actions correctives, dossiers de vos formateurs,
-            suivi de la sous-traitance, plan d'amélioration continue.
+            plan d'amélioration continue.
           </p>
           <p style={{ ...P, margin: 0, fontSize: "16px" }}>
             Et votre bilan pédagogique et financier prérempli, cadre par cadre, à partir
