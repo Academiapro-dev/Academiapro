@@ -3,7 +3,7 @@ import Link from "next/link";
 export const metadata = {
   title: "CRM pour organisme de formation — AcadéMIA Pro",
   description:
-    "Suivez vos prospects étape par étape : score de complétude, analyse de chaque fiche, relance rédigée, motifs de perte. Pour organismes de formation et centres d'appels.",
+    "Suivez vos prospects étape par étape : score de complétude, analyse de chaque fiche, relance rédigée, motifs de perte. SMS et appels intégrés. Pour organismes de formation et centres d'appels.",
 };
 
 const OR = "#c8a96e";
@@ -21,9 +21,8 @@ const NOIR = "#050508";
 // pipeline Kanban a six colonnes qu on fait glisser, un « LeadBot », un
 // « CA pipeline » : aucune de ces fonctions n est dans le code. Une page qui
 // promet plus que le produit se retourne contre nous a la demonstration.
-// Ce qui suit decrit ce qui existe, et rien d autre.
 //
-// TROIS CORRECTIONS DU 15/08, DE LA MEME FAMILLE QUE CI-DESSUS.
+// CORRECTIONS DU 15/08.
 //
 // (1) LE SCORE ETAIT DECRIT FAUX. La page annoncait une note calculee sur
 // le comportement du prospect et son anciennete. Le code fait autre chose :
@@ -31,17 +30,27 @@ const NOIR = "#050508";
 // d une formation visee, d un domaine, et selon la source. C est un score de
 // COMPLETUDE DE FICHE. L anciennete n entre nulle part dans le calcul.
 //
-// (2) LE SMS ETAIT VENDU AVEC SON PRIX alors qu aucune route ne l envoie.
-// Seule existe la colonne sms_accepte_le, qui enregistre un consentement.
-// Il passe donc en preparation, comme les appels, et le prix disparait
-// jusqu a ce que la fonction existe.
-//
-// (3) « SANS CHANGER D ECRAN » laissait croire a un passage automatique du
+// (2) « SANS CHANGER D ECRAN » laissait croire a un passage automatique du
 // prospect au stagiaire. L inscription au registre demande un bouton et un
 // prix de vente — c est simple, mais ce n est pas rien.
 //
-// AUCUN PRIX ICI. Le tarif se donne apres un echange, comme pour le pack et
-// pour Mr. Comptable.
+// (3) LES MOTIFS DE PERTE SONT AJOUTES. Livres le 14/08, ils n etaient pas
+// decrits : la page perdait une fonction qu aucun concurrent ne met en avant.
+//
+// LE SMS ET LA TELEPHONIE SONT UNE DECISION DE JACQUES, PAS UNE OPTION.
+// Un CRM sans canal de contact integre ne pese pas face a Digiforma ni a
+// Dendreo — c est precisement ce qui ouvre le marche des centres d appels,
+// que le tout-en-un de la formation n atteint pas.
+//
+// LE SMS AFFICHE SON PRIX, LA VOIX NON, et la difference n est pas un oubli :
+// le SMS a un cout etabli (Brevo, 0,033 a 0,045 EUR le message) et un prix
+// de revente arrete (0,12 EUR HT degressif jusqu a 0,08 EUR). La voix a son
+// fournisseur choisi (Plivo) et son modele arrete — location du numero
+// refacturee au client, marge sur les minutes — mais PAS son tarif : le prix
+// d accroche affiche par les operateurs concerne les lignes FIXES et les
+// appels d origine europeenne, alors que le trafic reel ira vers des MOBILES.
+// L ecart est d un facteur deux a six. Le prix se fixera sur un mois de cout
+// CONSTATE, pas sur une grille. On n ecrit pas un tarif qu on devra corriger.
 
 export default function PageCRM() {
   const section: any = {
@@ -139,15 +148,19 @@ export default function PageCRM() {
           attestation.
         </p>
 
-        <h2 style={H2}>Ce qui vient ensuite</h2>
+        <h2 style={H2}>Joindre vos prospects, depuis la fiche</h2>
         <p style={P}>
           <strong>L'envoi de SMS</strong> — répondre à un prospect, confirmer un
-          rendez-vous, rappeler une échéance, sous le nom de votre organisme. En
-          préparation.
+          rendez-vous, rappeler une échéance, sous le nom de votre organisme. Facturé
+          à l'unité, sans abonnement : 0,12 € HT le message, dégressif jusqu'à 0,08 €
+          selon le volume. Mise en service prochaine.
         </p>
         <p style={P}>
           <strong>Les appels depuis le navigateur</strong> — appeler sans quitter la
-          fiche, avec la durée décomptée et l'historique conservé. En préparation.
+          fiche, avec la durée décomptée et l'historique conservé. Votre numéro vous
+          est refacturé à prix coûtant, et vous ne payez que les minutes que vous
+          consommez : pas d'abonnement, rien à payer les mois où vous n'appelez pas.
+          En préparation.
         </p>
 
         <h2 style={H2}>Pour qui</h2>
