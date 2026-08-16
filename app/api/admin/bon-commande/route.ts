@@ -25,16 +25,15 @@ const supabase = createClient(
 
 // TROIS OFFRES, TROIS BONS DE COMMANDE DIFFERENTS.
 //
-//  - PACK : 390 EUR HT par mois en forfait, stagiaires ET utilisateurs
-//    illimites, 35 % sur le catalogue editeur avec un minimum de 30 EUR par
-//    stagiaire inscrit, 1 500 EUR de mise en service.
-//  - LMS SEUL : 290 EUR HT par mois en forfait, sans catalogue editeur.
+//  - PACK : 390 EUR HT par mois, stagiaires ET utilisateurs illimites,
+//    35 % sur le catalogue editeur avec un minimum de 30 EUR par stagiaire
+//    inscrit, 1 500 EUR de mise en service.
+//  - LMS SEUL : 290 EUR HT par mois, sans catalogue editeur.
 //  - CRM SEUL : 35 EUR HT PAR UTILISATEUR ET PAR MOIS, sans degressivite.
 //
-// 🚨 IL N Y A PLUS DE TARIF DE LANCEMENT. Supprime le 16/08 sur demande de
-// Jacques : le code divisait l abonnement PAR DEUX des que la colonne
-// lancement_jusqu_au portait une date, sans qu il l ait jamais decide. Ne
-// pas le reintroduire. Le prix affiche est TOUJOURS le prix plein.
+// 🚨 IL N Y A PLUS DE TARIF DE LANCEMENT. Le code divisait l abonnement PAR
+// DEUX des que lancement_jusqu_au portait une date, sans que Jacques l ait
+// jamais decide. Ne pas le reintroduire.
 //
 // 🚨🚨 LA STRATEGIE, ARRETEE LE 16/08 AU SOIR — NE PAS LA REOUVRIR.
 //
@@ -42,29 +41,30 @@ const supabase = createClient(
 // fabrication. Ses mots : « les formations que nous generons deviennent
 // automatiquement notre propriete, sinon comment aurions-nous construit
 // 310 formations qui font partie de notre catalogue ». Aujourd hui 331,
-// demain 500, apres-demain 1 000 — et toutes appartiennent a l editeur,
-// qu elles viennent de ses propres recherches ou d une demande client.
+// demain 500, apres-demain 1 000.
 //
-// LE MODELE EST CELUI DE LA SOUS-TRAITANCE DE CONTENU, et c est la pratique
-// du metier : l organisme vend l action, porte sa certification et sa
-// responsabilite, et SOUS-TRAITE LE CONTENU. Un organisme qui veut produire
-// ses propres formations devient un CONCURRENT, pas un client.
+// LE MODELE EST CELUI DE LA SOUS-TRAITANCE DE CONTENU : l organisme vend
+// l action, porte sa certification et sa responsabilite, et SOUS-TRAITE LE
+// CONTENU. Un organisme qui veut produire ses propres formations DEVIENT UN
+// CONCURRENT, pas un client.
 //
-// CE QUI A ETE RETIRE DE CE DOCUMENT EN CONSEQUENCE :
-//   - « creation de ses propres contenus sans limite de nombre » dans ce
-//     que couvre l abonnement du pack — c etait une invitation a fabriquer
-//     ecrite noir sur blanc dans le document commercial ;
-//   - « AUCUNE PART N EST DUE SUR LES FORMATIONS CREEES PAR LE CLIENT :
-//     elles lui appartiennent en propre », qui disait le contraire de la
-//     propriete reelle des contenus produits par la plateforme.
+// 🚨🚨 ET IL N Y A AUCUNE FACTURATION A L ACTE — supprimee le 16/08 au soir.
+// Ses mots : « en tant que partenaire, je propose toute l infrastructure et
+// la gestion, et il me donne un pourcentage ». Les 90 EUR par formation
+// redigee ont existe quelques heures et NE DOIVENT PAS REVENIR.
 //
-// CE QUI LES REMPLACE : la production sur mesure, et un bloc PROPRIETE qui
-// dit qui possede quoi. La rassurance demeure — la part ne porte QUE sur le
-// catalogue editeur — mais sans inviter personne a fabriquer.
+// LES DEUX FORMULES, ET TOUT EST COMPRIS DEDANS — la plateforme, le
+// catalogue, l administratif ET LA PRODUCTION DES FORMATIONS :
 //
-// ⚠️ AUCUN PRIX N EST ECRIT POUR LA FORMATION COMMANDEE : il est rouvert
-// depuis le 16/08 au soir et n appartient qu a Jacques. Ne pas l inscrire
-// ici sans qu il l ait tranche.
+//   A. LE CLIENT ASSURE LA GESTION : 390 EUR HT/mois + 35 % du prix de
+//      vente HT + minimum 30 EUR par stagiaire inscrit.
+//   B. L EDITEUR ASSURE LA GESTION : 180 EUR HT par stagiaire + 10 % du
+//      prix de vente HT.
+//
+// Le taux passe de 10 a 35 % quand le Client reprend la gestion a sa charge :
+// le pourcentage faible est la contrepartie des 180 EUR. RIEN D AUTRE N EST
+// FACTURE, et le document doit le dire noir sur blanc — c est la demande
+// expresse de Jacques : « preciser que tout est compris dedans ».
 const OFFRES: any = {
   pack: {
     nom: "PACK COMPLET",
@@ -86,9 +86,6 @@ const OFFRES: any = {
   },
 };
 
-// Le taux de secours est a 35 %, aligne sur le bon de reference et sur le
-// defaut de la colonne taux_prelevement. Le taux avec gestion reste a 10 % :
-// il est la contrepartie des 180 EUR par stagiaire.
 const TAUX_DEFAUT = 35;
 const TAUX_AVEC_GESTION = 10;
 
@@ -172,8 +169,6 @@ export async function POST(req: NextRequest) {
         .eq("tenant_id", b.tenant_id);
     }
 
-    // SUR LE CRM SEUL, abonnement_mensuel porte LE PRIX PAR POSTE et non le
-    // total : le total se calcule ici. AUCUNE REMISE N EST APPLIQUEE.
     const unitaire = Number(org.abonnement_mensuel) || 0;
     const plein = offre.parUtilisateur ? unitaire * postes : unitaire;
 
@@ -287,19 +282,35 @@ export async function POST(req: NextRequest) {
     paire("Telephone", org.telephone || "-");
     paire("N de TVA intracommunautaire", org.numero_tva || "A COMPLETER");
 
+    // LES DEUX FORMULES, ENONCEES COTE A COTE.
+    //
+    // Le Client doit voir CE QU IL A CHOISI ET CE QU IL AURAIT PU CHOISIR :
+    // c est ce qui rend le taux comprehensible. Un 35 % isole parait eleve ;
+    // mis en regard des 10 % contre 180 EUR par stagiaire, il s explique.
     if (offre.catalogue) {
       titreBloc("FORMULE RETENUE");
       paire("Suivi administratif des stagiaires", gestionSouscrite ? "assure par l Editeur" : "assure par le Client");
       y = y - 4;
       ligne(
         gestionSouscrite
-          ? "Le Client a retenu la formule avec gestion administrative : l Editeur prend en charge le "
-            + "suivi de ses stagiaires, facture par stagiaire inscrit. En contrepartie, la part sur "
-            + "les formations du catalogue de l Editeur est reduite."
-          : "Le Client a retenu la formule sans gestion administrative : il assure lui-meme le suivi "
-            + "de ses stagiaires. La part sur les formations du catalogue de l Editeur est celle "
-            + "indiquee ci-dessous.",
-        9, normal, noir, 5
+          ? "FORMULE B - L EDITEUR ASSURE LA GESTION ADMINISTRATIVE. Le Client verse " +
+            "180 EUR HT par stagiaire inscrit et 10 % de son prix de vente hors taxes. Le taux " +
+            "reduit est la contrepartie de cette prise en charge."
+          : "FORMULE A - LE CLIENT ASSURE LUI-MEME LA GESTION ADMINISTRATIVE. Il verse " +
+            "l abonnement mensuel ci-dessous et 35 % de son prix de vente hors taxes, avec un " +
+            "minimum par stagiaire inscrit.",
+        10, normal, noir, 5
+      );
+      y = y - 4;
+      ligne(
+        gestionSouscrite
+          ? "S il reprenait la gestion a sa charge, le taux passerait de 10 a 35 % et le forfait " +
+            "par stagiaire serait remplace par le minimum par stagiaire. Le changement se fait " +
+            "par avenant."
+          : "S il confiait la gestion a l Editeur, le taux passerait de 35 a 10 % et un forfait de " +
+            "180 EUR HT par stagiaire remplacerait le minimum par stagiaire. Le changement se " +
+            "fait par avenant.",
+        9, normal, gris, 5
       );
     }
 
@@ -385,29 +396,33 @@ export async function POST(req: NextRequest) {
       paire("Abonnement mensuel", euros(plein) + " par mois");
     }
 
-    // LA PRODUCTION SUR MESURE — CE QUI REMPLACE L INVITATION A FABRIQUER.
+    // LA PRODUCTION SUR MESURE — COMPRISE, JAMAIS FACTUREE A PART.
     //
-    // C est l argument que personne d autre ne peut copier : Digiforma et
-    // Dendreo vendent l outil, jamais le contenu, et encore moins du contenu
-    // produit a la demande. Le prix n est PAS ecrit ici : il est rouvert et
-    // n appartient qu a Jacques.
+    // 🚨 CE BLOC A PORTE « tarif communique sur demande » PENDANT QUELQUES
+    // HEURES LE 16/08. C ETAIT FAUX et Jacques l a corrige le soir meme : la
+    // production est comprise dans les deux formules, l Editeur se remunerant
+    // sur les ventes. NE PAS Y REMETTRE DE PRIX.
     if (offre.catalogue) {
-      titreBloc("PRODUCTION SUR MESURE");
+      titreBloc("PRODUCTION DES FORMATIONS - COMPRISE");
       ligne(
         "Le Client peut demander a l Editeur de produire une formation qui ne figure pas encore " +
         "au catalogue. Il indique le sujet, la duree souhaitee, le public vise et ce que le " +
         "stagiaire doit savoir faire ; l Editeur construit le plan, redige les modules, les " +
-        "exercices corriges, les questionnaires et le manuel.",
+        "exercices corriges, les questionnaires et le manuel. Delai indicatif : une semaine.",
         10, normal, noir, 5
       );
       y = y - 4;
-      paire("Delai indicatif", "une semaine");
-      paire("Tarif", "communique sur demande, avant tout engagement");
+      ligne(
+        "CETTE PRODUCTION EST COMPRISE DANS LA FORMULE RETENUE ET N EST JAMAIS FACTUREE A PART. " +
+        "L abonnement, la part sur les ventes et, le cas echeant, le forfait de gestion couvrent " +
+        "l integralite de la prestation : la plateforme, le catalogue, l administratif et la " +
+        "production des formations. Aucun autre montant n est du a l Editeur.",
+        10, gras, noir, 5
+      );
       y = y - 4;
       ligne(
         "La formation ainsi produite rejoint le catalogue de l Editeur et suit les memes " +
-        "conditions que les autres : le Client la vend sous son nom, aux conditions de part " +
-        "indiquees ci-dessous.",
+        "conditions que les autres : le Client la vend sous son nom, au prix qu il fixe.",
         9, normal, gris, 5
       );
     }
@@ -416,14 +431,13 @@ export async function POST(req: NextRequest) {
     //
     // Le SMS et la voix sont les DEUX SEULS postes ou chaque usage coute
     // reellement de l argent a l Editeur : Brevo facture chaque message,
-    // Plivo chaque minute. Un forfait illimite ferait travailler a perte des
-    // qu un client envoie en volume — et l interim, premiere cible, est
-    // precisement du volume.
+    // Plivo chaque minute.
     titreBloc("OPTIONS FACTUREES A L USAGE");
     ligne(
-      "CES DEUX OPTIONS NE SONT PAS COMPRISES DANS L ABONNEMENT. Elles ne sont dues que si le " +
-      "Client les active, et facturees a ce qu il consomme reellement. L illimite porte sur les " +
-      "stagiaires et les utilisateurs, jamais sur les envois ni sur les communications.",
+      "CES DEUX OPTIONS SONT LES SEULES QUI NE SOIENT PAS COMPRISES DANS L ABONNEMENT. Elles ne " +
+      "sont dues que si le Client les active, et facturees a ce qu il consomme reellement. " +
+      "L illimite porte sur les stagiaires et les utilisateurs, jamais sur les envois ni sur les " +
+      "communications.",
       10, gras, noir, 5
     );
     y = y - 6;
@@ -463,7 +477,7 @@ export async function POST(req: NextRequest) {
         y = y - 4;
         ligne(
           "Ce taux reduit est la contrepartie de la gestion administrative souscrite ci-dessous. Il " +
-          "cesserait de s appliquer si le Client renoncait a cette prestation, le taux plein etant " +
+          "cesserait de s appliquer si le Client renoncait a cette prestation, le taux de 35 % etant " +
           "alors retabli par avenant.",
           9, normal, noir, 5
         );
@@ -476,12 +490,6 @@ export async function POST(req: NextRequest) {
         9, normal, gris, 5
       );
 
-      // LE BLOC QUI DIT QUI POSSEDE QUOI.
-      //
-      // Il remplace l ancienne mention « AUCUNE PART N EST DUE SUR LES
-      // FORMATIONS CREEES PAR LE CLIENT : elles lui appartiennent en propre »,
-      // qui disait le contraire de la propriete reelle des contenus produits
-      // par la plateforme, et qui invitait a fabriquer plutot qu a commander.
       titreBloc("PROPRIETE DES CONTENUS");
       ligne(
         "Les formations du catalogue, y compris celles produites a la demande du Client, sont et " +
