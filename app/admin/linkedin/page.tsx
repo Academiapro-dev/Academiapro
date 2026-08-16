@@ -18,6 +18,11 @@ import { useState, useEffect } from "react";
 // LE MOT EST PRE-REDIGE, PAS PRE-ENVOYE. Il se copie d un bouton, se colle
 // dans LinkedIn, et se modifie si la fiche s y prete. Une invitation
 // visiblement generique se refuse.
+//
+// « ECARTER » N EST PAS « REFUSER ». Ecarter est la decision de Jacques,
+// prise avant tout envoi ; refuser est celle du destinataire, apres. Les
+// confondre rendrait le taux d acceptation illisible — on ne saurait plus
+// si personne ne repond ou si les fiches etaient mauvaises.
 
 const BASES = [
   { cle: "organismes", nom: "Organismes certifiés Qualiopi" },
@@ -111,18 +116,18 @@ export default function PageLinkedin() {
     setCharge(false);
   }
 
-  // PASSER SANS INVITER. La fiche n est pas marquee : elle reviendra.
-  // Utile quand le profil ne correspond pas — mauvaise personne, societe
-  // qui n a plus d activite, dirigeant parti ailleurs.
-  async function passer() {
+  // ECARTER SANS INVITER. La fiche sort de la file, ne compte dans aucun
+  // quota, et reste distincte d une invitation refusee. Cas d usage : le
+  // dirigeant a change d entreprise, la societe n a plus d activite, le
+  // profil est hors cible.
+  async function ecarter() {
     if (!fiche) return;
     setCharge(true);
     setErreur("");
     try {
-      // On marque « refuse » sans poser de date : la fiche sort de la file
-      // sans compter dans le quota, puisque rien n a ete envoye.
-      const d = await appeler({ base: base, id: fiche.id, statut: "refuse" });
+      const d = await appeler({ base: base, id: fiche.id, statut: "ecarte" });
       if (d.ok) {
+        setCompteurs(d.compteurs || null);
         setFiche(d.fiche || null);
         setRestant(d.restant || 0);
         setEpuise(!!d.epuise);
@@ -221,13 +226,19 @@ export default function PageLinkedin() {
                 <div style={{ color: "rgba(255,255,255,0.75)", fontSize: "20px", fontWeight: "bold" }}>
                   {nombre(compteurs.total)}
                 </div>
-                <div style={{ color: "rgba(255,255,255,0.45)", fontSize: "12px" }}>au total</div>
+                <div style={{ color: "rgba(255,255,255,0.45)", fontSize: "12px" }}>invitations au total</div>
               </div>
               <div>
                 <div style={{ color: OR, fontSize: "20px", fontWeight: "bold" }}>{nombre(restant)}</div>
                 <div style={{ color: "rgba(255,255,255,0.45)", fontSize: "12px" }}>restent dans cette base</div>
               </div>
             </div>
+
+            {compteurs.ecartes > 0 && (
+              <p style={{ color: "rgba(255,255,255,0.35)", fontSize: "12px", margin: "12px 0 0" }}>
+                {nombre(compteurs.ecartes)} fiche(s) écartée(s) — jamais sollicitées, hors quota.
+              </p>
+            )}
 
             {bloque && (
               <p style={{ color: "#e8836a", fontSize: "13px", lineHeight: "1.7", margin: "14px 0 0" }}>
@@ -364,19 +375,20 @@ export default function PageLinkedin() {
               </button>
 
               <button
-                onClick={passer}
+                onClick={ecarter}
                 disabled={charge}
                 style={{ ...BOUTON, flex: "1 1 140px", padding: "16px", color: "rgba(255,255,255,0.55)", borderColor: "rgba(255,255,255,0.18)" }}
               >
-                Passer
+                Écarter
               </button>
             </div>
 
             <p style={{ color: "rgba(255,255,255,0.35)", fontSize: "12.5px", lineHeight: "1.75", marginTop: "16px" }}>
               Le profil s'ouvre dans un onglet. Sur LinkedIn, cliquez <strong>Se connecter</strong>,
               puis <strong>Ajouter une note</strong>, et collez le mot — n'utilisez pas
-              « Message », réservé aux comptes Premium. « Passer » écarte une fiche sans
-              rien envoyer : elle ne compte pas dans le quota.
+              « Message », réservé aux comptes Premium. <strong>Écarter</strong> retire une fiche
+              de la file sans rien envoyer : elle ne compte dans aucun quota et reste distincte
+              d'une invitation refusée.
             </p>
           </>
         )}
