@@ -12,34 +12,36 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || ""
 );
 
-// LA FILE DE TRAVAIL LINKEDIN.
-//
-// AUCUNE INVITATION N EST ENVOYEE PAR CETTE ROUTE, ET C EST VOLONTAIRE.
-// L API officielle de LinkedIn ne permet pas d envoyer des invitations ;
-// tout ce qui le fait passe par l automatisation du navigateur, qui viole
-// les conditions d utilisation et fait restreindre puis supprimer le
-// compte. Jacques clique lui-meme — cette route ne fait qu ENREGISTRER.
 const TABLES: any = {
   organismes: "prospects_organismes",
   qualiopi: "prospects_qualiopi",
   interim: "prospects_interim",
 };
 
-// CINQ STATUTS.
+// SEPT STATUTS, ET LA DISTINCTION AVEC OU SANS NOTE EST LA PLUS UTILE.
 //
-// invite   : l invitation est partie, la date est posee, elle compte au quota.
-// accepte  : la personne a accepte — c est la que le vrai message devient
-//            possible, sans limite de caracteres et lu par quelqu un qui a
-//            deja dit oui.
-// relance  : le message long a ete envoye apres acceptation. Distinguer
-//            « accepte » de « relance » evite d ecrire deux fois a la meme
-//            personne, et mesure ce que la connexion a reellement produit.
-// refuse   : la personne n a pas donne suite — c est SON choix.
-// ecarte   : Jacques a decide de ne pas inviter — c est SA decision, prise
-//            avant tout envoi.
-const STATUTS = ["invite", "accepte", "relance", "refuse", "ecarte"];
+// invite      : partie AVEC une note personnalisee.
+// invite_nu   : partie SANS note — LinkedIn plafonne les notes a quelques
+//               unes par mois en compte gratuit, la plupart des invitations
+//               partiront donc nues.
+// accepte / accepte_nu : la personne a accepte. On garde la trace de ce qui
+//               a ete envoye, sans quoi la comparaison serait perdue des la
+//               premiere reponse.
+// relance     : le message long a ete envoye apres acceptation.
+// refuse      : sans suite.
+// ecarte      : decision de Jacques avant tout envoi.
+//
+// POURQUOI CETTE DISTINCTION : c est la SEULE facon de savoir si Premium
+// vaut son abonnement. Si les invitations avec note sont acceptees deux
+// fois plus, il se justifie ; sinon non. Sans ces deux statuts, aucune
+// comparaison n est possible.
+const STATUTS = ["invite", "invite_nu", "accepte", "accepte_nu", "relance", "refuse", "ecarte"];
 
-// LE RYTHME, arrete le 16/08 : VINGT PAR JOUR, CENT PAR SEMAINE.
+// Les statuts qui designent une invitation partie et sans reponse encore.
+const EN_ATTENTE = ["invite", "invite_nu"];
+// Les statuts qui designent une acceptation pas encore relancee.
+const ACCEPTES = ["accepte", "accepte_nu"];
+
 const PLAFOND_SEMAINE = 100;
 const PLAFOND_JOUR = 20;
 
@@ -68,48 +70,51 @@ function ilYaSeptJours(): string {
   return new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString();
 }
 
-async function compterStatut(statut: string): Promise<number> {
+async function compterStatuts(statuts: string[]): Promise<number> {
   let total = 0;
   for (const cle of Object.keys(TABLES)) {
     const { count } = await supabase
       .from(TABLES[cle])
       .select("id", { count: "exact", head: true })
-      .eq("linkedin_statut", statut);
+      .in("linkedin_statut", statuts);
     total += count || 0;
   }
   return total;
+}
+
+function taux(acceptes: number, refuses: number) {
+  const repondu = acceptes + refuses;
+  return repondu > 0 ? Math.round((acceptes / repondu) * 100) : null;
 }
 
 async function compteurs() {
   const jour = await compterDepuis(debutDuJour());
   const semaine = await compterDepuis(ilYaSeptJours());
 
-  let total = 0;
-  for (const cle of Object.keys(TABLES)) {
-    const { count } = await supabase
-      .from(TABLES[cle])
-      .select("id", { count: "exact", head: true })
-      .not("linkedin_le", "is", null)
-      .neq("linkedin_statut", "ecarte");
-    total += count || 0;
-  }
+  const attente_note = await compterStatuts(["invite"]);
+  const attente_nu = await compterStatuts(["invite_nu"]);
+  const accepte_note = await compterStatuts(["accepte"]);
+  const accepte_nu = await compterStatuts(["accepte_nu"]);
+  const relances = await compterStatuts(["relance"]);
+  const refuses = await compterStatuts(["refuse"]);
+  const ecartes = await compterStatuts(["ecarte"]);
 
-  const en_attente = await compterStatut("invite");
-  const acceptes = await compterStatut("accepte");
-  const relances = await compterStatut("relance");
-  const refuses = await compterStatut("refuse");
-  const ecartes = await compterStatut("ecarte");
-
-  // LE TAUX D ACCEPTATION se calcule sur ce qui a recu une reponse, pas
-  // sur tout ce qui est parti : une invitation de la veille n a pas encore
-  // eu le temps d etre acceptee, la compter comme un echec fausserait tout.
-  const repondu = acceptes + relances + refuses;
-  const taux = repondu > 0 ? Math.round(((acceptes + relances) / repondu) * 100) : null;
-
+  // LE TAUX SE CALCULE SUR CE QUI A RECU UNE REPONSE, pas sur tout ce qui
+  // est parti : une invitation d hier n a pas eu le temps d etre acceptee,
+  // la compter comme un echec fausserait la mesure.
+  //
+  // Les relances ne sont pas ventilees par type — une fois le message long
+  // envoye, on perd la trace de l invitation d origine. C est acceptable :
+  // la comparaison se fait sur les acceptations, pas sur les relances.
   return {
-    jour, semaine, total,
-    en_attente, acceptes, relances, refuses, ecartes,
-    taux_acceptation: taux,
+    jour, semaine,
+    en_attente: attente_note + attente_nu,
+    attente_note, attente_nu,
+    acceptes: accepte_note + accepte_nu,
+    accepte_note, accepte_nu,
+    relances, refuses, ecartes,
+    taux_note: taux(accepte_note, 0) === null ? null : taux(accepte_note + relances * 0, refuses),
+    taux_global: taux(accepte_note + accepte_nu + relances, refuses),
     plafond_jour: PLAFOND_JOUR,
     plafond_semaine: PLAFOND_SEMAINE,
     reste_jour: Math.max(PLAFOND_JOUR - jour, 0),
@@ -119,8 +124,6 @@ async function compteurs() {
 
 const COLONNES = "id, raison_sociale, ville, code_postal, siren, dirigeant_prenom, dirigeant_nom, linkedin, email, telephone, site_web, linkedin_le, linkedin_statut";
 
-// LA FICHE SUIVANTE A INVITER : un profil connu, jamais sollicite,
-// jamais ecarte.
 async function suivante(base: string) {
   const table = TABLES[base];
   if (!table) return { erreur: "Base inconnue." };
@@ -147,25 +150,19 @@ async function suivante(base: string) {
   return { fiche: data[0], restant: count || 0 };
 }
 
-// LA LISTE DES FICHES A UN STATUT DONNE, TOUTES BASES CONFONDUES.
-//
-// Sert a deux ecrans : « Mes invitations » (statut invite, en attente de
-// reponse) et « A relancer » (statut accepte, message long a envoyer).
 // La cle de base est renvoyee avec chaque ligne — sans elle, l ecran ne
 // saurait pas dans quelle table ecrire au moment de marquer.
-async function lister(statut: string, limite: number) {
+async function lister(statuts: string[], limite: number) {
   const lignes: any[] = [];
   for (const cle of Object.keys(TABLES)) {
     const { data } = await supabase
       .from(TABLES[cle])
       .select(COLONNES)
-      .eq("linkedin_statut", statut)
+      .in("linkedin_statut", statuts)
       .order("linkedin_le", { ascending: true })
       .limit(limite);
     for (const l of (data || [])) lignes.push({ ...l, base: cle });
   }
-  // Les plus anciennes d abord : une invitation qui date de trois semaines
-  // merite une reponse avant celle d hier.
   lignes.sort(function (a, b) {
     return String(a.linkedin_le || "").localeCompare(String(b.linkedin_le || ""));
   });
@@ -189,15 +186,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, ...r, compteurs: await compteurs() });
     }
 
-    // Les invitations en attente de reponse.
     if (action === "en_attente") {
-      const lignes = await lister("invite", 200);
+      const lignes = await lister(EN_ATTENTE, 200);
       return NextResponse.json({ ok: true, lignes, compteurs: await compteurs() });
     }
 
-    // Les acceptations pas encore relancees.
     if (action === "a_relancer") {
-      const lignes = await lister("accepte", 200);
+      const lignes = await lister(ACCEPTES, 200);
       return NextResponse.json({ ok: true, lignes, compteurs: await compteurs() });
     }
 
@@ -211,10 +206,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, erreur: "Statut inconnu." }, { status: 400 });
     }
 
-    // LE PLAFOND SE VERIFIE COTE SERVEUR, pas seulement a l ecran.
-    // Il ne concerne QUE l invitation : marquer une acceptation ou envoyer
-    // un message a quelqu un de deja connecte n est plafonne par rien.
-    if (statut === "invite") {
+    // LE PLAFOND SE VERIFIE COTE SERVEUR, pas seulement a l ecran. Il
+    // concerne les DEUX formes d invitation : LinkedIn plafonne les envois,
+    // pas les notes. Marquer une acceptation n est plafonne par rien.
+    if (statut === "invite" || statut === "invite_nu") {
       const c = await compteurs();
       if (c.reste_jour <= 0) {
         return NextResponse.json({
@@ -232,11 +227,9 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // La date d envoi initial est CONSERVEE quand on marque une reponse :
-    // c est elle qui dit quand l invitation est partie, et le compteur de
-    // la semaine s appuie dessus.
+    // La date d envoi initial est CONSERVEE quand on marque une reponse.
     const champs: any = { linkedin_statut: statut };
-    if (statut === "invite" || statut === "ecarte") {
+    if (statut === "invite" || statut === "invite_nu" || statut === "ecarte") {
       champs.linkedin_le = new Date().toISOString();
     }
 
@@ -245,8 +238,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, erreur: error.message }, { status: 500 });
     }
 
-    // Pour la file d invitation, on rend la fiche suivante dans la foulee.
-    const suite: any = (statut === "invite" || statut === "ecarte") ? await suivante(base) : {};
+    const enFile = (statut === "invite" || statut === "invite_nu" || statut === "ecarte");
+    const suite: any = enFile ? await suivante(base) : {};
 
     return NextResponse.json({
       ok: true,
