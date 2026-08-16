@@ -1,6 +1,33 @@
 "use client";
 import { useState, useEffect } from "react";
 
+// LES CLIENTS B2B, ET LEURS TROIS OFFRES POSSIBLES.
+//
+// Arretees par Jacques le 16/08 :
+//
+//  PACK — 390 EUR HT par mois en forfait, stagiaires ET utilisateurs
+//    illimites, 35 % sur le catalogue editeur, minimum 30 EUR par stagiaire
+//    inscrit, 1 500 EUR de mise en service.
+//  LMS SEUL — 290 EUR HT par mois en forfait, sans catalogue editeur, donc
+//    aucune part ni minimum par stagiaire.
+//  CRM SEUL — 35 EUR HT PAR UTILISATEUR ET PAR MOIS, sans degressivite.
+//
+// 🚨 SUR LE CRM SEUL, LE CHAMP « ABONNEMENT » PORTE LE PRIX PAR POSTE — 35 —
+// ET NON LE TOTAL. C est le bon de commande qui multiplie par le nombre
+// d utilisateurs. Saisir 3 500 pour cent postes donnerait 350 000 EUR sur le
+// bon. L ecran le rappelle a l ecran quand l offre CRM est choisie.
+//
+// POURQUOI LE PACK NE COMPTE PAS LES POSTES : il porte deja trois axes de
+// facturation. Un quatrieme compteur rendrait la facture incalculable pour
+// le client — c est le reproche que le marche adresse a Digiforma et a ses
+// paliers d utilisateurs.
+
+const OFFRES = [
+  { cle: "pack", nom: "Pack complet", detail: "LMS + CRM + catalogue · forfait" },
+  { cle: "lms", nom: "Plateforme seule", detail: "sans catalogue · forfait" },
+  { cle: "crm", nom: "Suivi commercial seul", detail: "par utilisateur" },
+];
+
 export default function PageOrganismes() {
   const [organismes, setOrganismes] = useState<any[]>([]);
   const [chargement, setChargement] = useState(true);
@@ -17,6 +44,7 @@ export default function PageOrganismes() {
   const [numeroDa, setNumeroDa] = useState("");
   const [telephone, setTelephone] = useState("");
   const [qualiopi, setQualiopi] = useState(false);
+  const [offreNeuve, setOffreNeuve] = useState("pack");
 
   useEffect(function () {
     charger();
@@ -33,6 +61,8 @@ export default function PageOrganismes() {
         const f: any = {};
         for (const o of data.organismes || []) {
           f[o.id] = {
+            offre: o.offre || "pack",
+            utilisateurs: o.nb_utilisateurs !== null && o.nb_utilisateurs !== undefined ? String(o.nb_utilisateurs) : "1",
             abonnement: o.abonnement_mensuel !== null && o.abonnement_mensuel !== undefined ? String(o.abonnement_mensuel) : "",
             taux: o.taux_prelevement !== null && o.taux_prelevement !== undefined ? String(o.taux_prelevement) : "",
             plancher: o.plancher_stagiaire !== null && o.plancher_stagiaire !== undefined ? String(o.plancher_stagiaire) : "",
@@ -76,13 +106,14 @@ export default function PageOrganismes() {
           numero_da: numeroDa,
           telephone: telephone,
           qualiopi: qualiopi,
+          offre: offreNeuve,
         }),
       });
       const data = await r.json();
       if (data.ok) {
-        setMessage("Organisme cree. Completez sa fiche avant d editer son bon de commande.");
+        setMessage("Client cree. Completez sa fiche avant d editer son bon de commande.");
         setRaison(""); setEmailContact(""); setSiret(""); setNumeroDa("");
-        setTelephone(""); setQualiopi(false);
+        setTelephone(""); setQualiopi(false); setOffreNeuve("pack");
         setFormulaire(false);
         await charger();
       } else {
@@ -168,6 +199,11 @@ export default function PageOrganismes() {
     setFiche({ ...fiche, [id]: { ...(fiche[id] || {}), [cle]: valeur } });
   }
 
+  function nomOffre(cle: string) {
+    const o = OFFRES.filter(function (x) { return x.cle === cle; })[0];
+    return o ? o.nom : cle;
+  }
+
   const actifs = organismes.filter(function (o) { return o.statut === "actif"; }).length;
   const totalStagiaires = organismes.reduce(function (s: number, o: any) { return s + (o.stagiaires || 0); }, 0);
 
@@ -183,15 +219,44 @@ export default function PageOrganismes() {
     ["/admin/diagnostic", "Diagnostic"],
   ];
 
+  // Le selecteur d offre, partage par le formulaire de creation et la fiche.
+  function choixOffre(valeur: string, surChoix: any) {
+    return (
+      <div style={{ display: "flex", gap: "9px", flexWrap: "wrap", marginBottom: "14px" }}>
+        {OFFRES.map(function (o) {
+          const actif = valeur === o.cle;
+          return (
+            <div
+              key={o.cle}
+              onClick={() => surChoix(o.cle)}
+              style={{
+                flex: "1 1 190px", cursor: "pointer", borderRadius: "9px", padding: "12px 14px",
+                background: actif ? "rgba(200,169,110,0.15)" : "rgba(255,255,255,0.04)",
+                border: actif ? "2px solid #c8a96e" : "1px solid rgba(255,255,255,0.12)",
+              }}
+            >
+              <div style={{ color: actif ? "#c8a96e" : "rgba(255,255,255,0.8)", fontSize: "14.5px", fontWeight: "bold" }}>
+                {o.nom}
+              </div>
+              <div style={{ color: "rgba(255,255,255,0.4)", fontSize: "12.5px", marginTop: "3px" }}>
+                {o.detail}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
   return (
     <div style={CADRE}>
       <div style={{ maxWidth: "1000px", margin: "0 auto" }}>
         <p style={{ color: "#c8a96e", fontSize: "12px", letterSpacing: "3px", margin: "0 0 8px" }}>
-          CLIENTS DU PACK
+          CLIENTS B2B
         </p>
-        <h1 style={{ color: "#fff", fontSize: "30px", margin: "0 0 6px" }}>Organismes de formation</h1>
+        <h1 style={{ color: "#fff", fontSize: "30px", margin: "0 0 6px" }}>Organismes et entreprises clientes</h1>
         <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "14px", marginTop: 0 }}>
-          {organismes.length} organisme(s) · {actifs} actif(s) · {totalStagiaires} stagiaire(s)
+          {organismes.length} client(s) · {actifs} actif(s) · {totalStagiaires} stagiaire(s)
         </p>
 
         <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", margin: "24px 0" }}>
@@ -213,6 +278,9 @@ export default function PageOrganismes() {
         {formulaire && (
           <div style={{ ...CARTE, border: "1px solid rgba(200,169,110,0.5)" }}>
             <h2 style={{ color: "#c8a96e", fontSize: "19px", margin: "0 0 16px" }}>Nouveau client</h2>
+
+            <span style={LIBELLE}>Offre souscrite</span>
+            {choixOffre(offreNeuve, setOffreNeuve)}
 
             <span style={LIBELLE}>Raison sociale</span>
             <input value={raison} onChange={(e) => setRaison(e.target.value)} placeholder="Formation Conseil SARL" style={CHAMP} />
@@ -263,7 +331,7 @@ export default function PageOrganismes() {
         ) : organismes.length === 0 ? (
           <div style={CARTE}>
             <p style={{ color: "rgba(255,255,255,0.6)", margin: 0, fontSize: "15px" }}>
-              Aucun organisme client pour le moment.
+              Aucun client pour le moment.
             </p>
           </div>
         ) : (
@@ -271,6 +339,12 @@ export default function PageOrganismes() {
             const estOuvert = ouvert[o.id] === true;
             const pretAContracter = !!o.abonnement_mensuel && !!o.email_contact;
             const gestionCochee = fiche[o.id] ? fiche[o.id].gestion_souscrite === true : false;
+            const offreFiche = (fiche[o.id] && fiche[o.id].offre) || o.offre || "pack";
+            const auPoste = offreFiche === "crm";
+            const avecCatalogue = offreFiche === "pack";
+            const postes = Math.max(1, Number(champ(o.id, "utilisateurs")) || 1);
+            const unitaire = Number(champ(o.id, "abonnement")) || 0;
+
             return (
               <div key={o.id} style={{ ...CARTE, border: pretAContracter ? CARTE.border : "1px solid rgba(232,163,61,0.45)" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "12px" }}>
@@ -278,12 +352,22 @@ export default function PageOrganismes() {
                     <h3 style={{ color: "#fff", fontSize: "18px", margin: "0 0 4px" }}>{o.raison_sociale}</h3>
                     <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "14px", margin: "0 0 4px" }}>{o.email_contact}</p>
                     <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "13px", margin: 0 }}>
-                      {o.abonnement_mensuel ? o.abonnement_mensuel + " EUR/mois" : "abonnement non fixe"}
-                      {" · " + (o.taux_prelevement !== null && o.taux_prelevement !== undefined ? o.taux_prelevement : 35) + " %"}
-                      {o.gestion_souscrite && o.forfait_gestion
-                        ? " · gestion " + o.forfait_gestion + " EUR par stagiaire"
-                        : " · plancher " + (o.plancher_stagiaire !== null && o.plancher_stagiaire !== undefined ? o.plancher_stagiaire : 30) + " EUR"}
-                      {" · quota " + (o.quota_ia_mensuel !== null && o.quota_ia_mensuel !== undefined ? o.quota_ia_mensuel : 40)}
+                      <span style={{ color: "#c8a96e" }}>{nomOffre(o.offre || "pack")}</span>
+                      {" · "}
+                      {o.abonnement_mensuel
+                        ? ((o.offre === "crm")
+                            ? o.abonnement_mensuel + " EUR x " + (o.nb_utilisateurs || 1) + " poste(s) = "
+                              + (Number(o.abonnement_mensuel) * (Number(o.nb_utilisateurs) || 1)).toLocaleString("fr-FR") + " EUR/mois"
+                            : o.abonnement_mensuel + " EUR/mois")
+                        : "abonnement non fixe"}
+                      {o.offre === "pack"
+                        ? " · " + (o.taux_prelevement !== null && o.taux_prelevement !== undefined ? o.taux_prelevement : 35) + " %"
+                        : ""}
+                      {o.offre === "pack"
+                        ? (o.gestion_souscrite && o.forfait_gestion
+                            ? " · gestion " + o.forfait_gestion + " EUR par stagiaire"
+                            : " · plancher " + (o.plancher_stagiaire !== null && o.plancher_stagiaire !== undefined ? o.plancher_stagiaire : 30) + " EUR")
+                        : ""}
                       {o.lancement_jusqu_au ? " · lancement jusqu au " + new Date(o.lancement_jusqu_au).toLocaleDateString("fr-FR") : ""}
                       {o.numero_tva ? "" : " · TVA manquante"}
                       {o.domaine ? " · " + o.domaine : ""}
@@ -323,50 +407,101 @@ export default function PageOrganismes() {
 
                 {estOuvert && (
                   <div style={{ marginTop: "18px", paddingTop: "16px", borderTop: "1px solid rgba(255,255,255,0.08)" }}>
-                    <h4 style={{ color: "#c8a96e", fontSize: "15px", margin: "0 0 14px" }}>Termes du contrat</h4>
+                    <h4 style={{ color: "#c8a96e", fontSize: "15px", margin: "0 0 12px" }}>Offre souscrite</h4>
+                    {choixOffre(offreFiche, function (v: string) { poser(o.id, "offre", v); })}
+
+                    <h4 style={{ color: "#c8a96e", fontSize: "15px", margin: "14px 0" }}>Termes du contrat</h4>
 
                     <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
-                      <div style={{ flex: "1 1 150px" }}>
-                        <span style={LIBELLE}>Abonnement mensuel (EUR)</span>
-                        <input value={champ(o.id, "abonnement")} onChange={(e) => poser(o.id, "abonnement", e.target.value)} placeholder="390" style={CHAMP} />
-                      </div>
-                      <div style={{ flex: "1 1 130px" }}>
-                        <span style={LIBELLE}>Part catalogue (%)</span>
-                        <input value={champ(o.id, "taux")} onChange={(e) => poser(o.id, "taux", e.target.value)} placeholder="35" style={CHAMP} />
-                      </div>
-                      <div style={{ flex: "1 1 150px" }}>
-                        <span style={LIBELLE}>Minimum par stagiaire (EUR)</span>
-                        <input value={champ(o.id, "plancher")} onChange={(e) => poser(o.id, "plancher", e.target.value)} placeholder="30" style={CHAMP} />
-                      </div>
                       <div style={{ flex: "1 1 170px" }}>
-                        <span style={LIBELLE}>Gestion administrative (EUR)</span>
-                        <input value={champ(o.id, "gestion")} onChange={(e) => poser(o.id, "gestion", e.target.value)} placeholder="180" style={CHAMP} />
+                        <span style={LIBELLE}>
+                          {auPoste ? "Prix PAR UTILISATEUR (EUR)" : "Abonnement mensuel (EUR)"}
+                        </span>
+                        <input
+                          value={champ(o.id, "abonnement")}
+                          onChange={(e) => poser(o.id, "abonnement", e.target.value)}
+                          placeholder={auPoste ? "35" : (offreFiche === "lms" ? "290" : "390")}
+                          style={{ ...CHAMP, borderColor: auPoste ? "rgba(68,138,255,0.5)" : CHAMP.border }}
+                        />
                       </div>
-                      <div style={{ flex: "1 1 150px" }}>
-                        <span style={LIBELLE}>Apport d affaires (%)</span>
-                        <input value={champ(o.id, "apport")} onChange={(e) => poser(o.id, "apport", e.target.value)} placeholder="50" style={CHAMP} />
-                      </div>
+
+                      {auPoste && (
+                        <div style={{ flex: "1 1 150px" }}>
+                          <span style={LIBELLE}>Nombre d utilisateurs</span>
+                          <input
+                            value={champ(o.id, "utilisateurs")}
+                            onChange={(e) => poser(o.id, "utilisateurs", e.target.value)}
+                            placeholder="1"
+                            style={{ ...CHAMP, borderColor: "rgba(68,138,255,0.5)" }}
+                          />
+                        </div>
+                      )}
+
+                      {avecCatalogue && (
+                        <>
+                          <div style={{ flex: "1 1 130px" }}>
+                            <span style={LIBELLE}>Part catalogue (%)</span>
+                            <input value={champ(o.id, "taux")} onChange={(e) => poser(o.id, "taux", e.target.value)} placeholder="35" style={CHAMP} />
+                          </div>
+                          <div style={{ flex: "1 1 150px" }}>
+                            <span style={LIBELLE}>Minimum par stagiaire (EUR)</span>
+                            <input value={champ(o.id, "plancher")} onChange={(e) => poser(o.id, "plancher", e.target.value)} placeholder="30" style={CHAMP} />
+                          </div>
+                          <div style={{ flex: "1 1 170px" }}>
+                            <span style={LIBELLE}>Gestion administrative (EUR)</span>
+                            <input value={champ(o.id, "gestion")} onChange={(e) => poser(o.id, "gestion", e.target.value)} placeholder="180" style={CHAMP} />
+                          </div>
+                          <div style={{ flex: "1 1 150px" }}>
+                            <span style={LIBELLE}>Apport d affaires (%)</span>
+                            <input value={champ(o.id, "apport")} onChange={(e) => poser(o.id, "apport", e.target.value)} placeholder="50" style={CHAMP} />
+                          </div>
+                        </>
+                      )}
+
                       <div style={{ flex: "1 1 180px" }}>
                         <span style={LIBELLE}>Lancement jusqu au</span>
                         <input type="date" value={champ(o.id, "lancement")} onChange={(e) => poser(o.id, "lancement", e.target.value)} style={CHAMP} />
                       </div>
                     </div>
 
-                    <div
-                      onClick={() => poser(o.id, "gestion_souscrite", !gestionCochee)}
-                      style={{ display: "flex", alignItems: "flex-start", gap: "12px", padding: "14px 16px", borderRadius: "8px", cursor: "pointer", background: gestionCochee ? "rgba(200,169,110,0.15)" : "rgba(255,255,255,0.04)", border: gestionCochee ? "2px solid #c8a96e" : "1px solid rgba(255,255,255,0.12)", marginBottom: "14px" }}
-                    >
-                      <span style={{ flexShrink: 0, width: "22px", height: "22px", borderRadius: "5px", background: gestionCochee ? "#c8a96e" : "transparent", border: gestionCochee ? "2px solid #c8a96e" : "2px solid #999", color: "#050508", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "bold" }}>
-                        {gestionCochee ? "✓" : ""}
-                      </span>
-                      <span style={{ color: "rgba(255,255,255,0.85)", fontSize: "15px", lineHeight: "1.7" }}>
-                        Ce client a souscrit la gestion administrative.
-                        <span style={{ display: "block", color: "rgba(255,255,255,0.45)", fontSize: "13px", marginTop: "3px" }}>
-                          Le forfait ci-dessus remplace alors le minimum par stagiaire sur sa
-                          facture. Tant que la case est decochee, c est le minimum qui s applique.
+                    {auPoste && (
+                      <div style={{ background: "rgba(68,138,255,0.09)", border: "1px solid rgba(68,138,255,0.35)", borderRadius: "8px", padding: "13px 15px", marginBottom: "14px" }}>
+                        <p style={{ color: "#448aff", fontSize: "13.5px", margin: "0 0 4px", fontWeight: "bold" }}>
+                          Le champ ci-dessus porte le prix PAR POSTE, pas le total.
+                        </p>
+                        <p style={{ color: "rgba(255,255,255,0.65)", fontSize: "13px", margin: 0, lineHeight: "1.7" }}>
+                          {unitaire > 0
+                            ? unitaire.toLocaleString("fr-FR") + " EUR x " + postes + " poste(s) = "
+                              + (unitaire * postes).toLocaleString("fr-FR") + " EUR HT par mois sur le bon de commande."
+                            : "Saisissez 35 pour le tarif arrete. Le bon de commande multipliera par le nombre d utilisateurs."}
+                        </p>
+                      </div>
+                    )}
+
+                    {!avecCatalogue && (
+                      <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px", margin: "-4px 0 14px", lineHeight: "1.6" }}>
+                        Sans le catalogue de l Editeur, il n y a ni part sur les ventes ni minimum
+                        par stagiaire : ces champs disparaissent du bon de commande.
+                      </p>
+                    )}
+
+                    {avecCatalogue && (
+                      <div
+                        onClick={() => poser(o.id, "gestion_souscrite", !gestionCochee)}
+                        style={{ display: "flex", alignItems: "flex-start", gap: "12px", padding: "14px 16px", borderRadius: "8px", cursor: "pointer", background: gestionCochee ? "rgba(200,169,110,0.15)" : "rgba(255,255,255,0.04)", border: gestionCochee ? "2px solid #c8a96e" : "1px solid rgba(255,255,255,0.12)", marginBottom: "14px" }}
+                      >
+                        <span style={{ flexShrink: 0, width: "22px", height: "22px", borderRadius: "5px", background: gestionCochee ? "#c8a96e" : "transparent", border: gestionCochee ? "2px solid #c8a96e" : "2px solid #999", color: "#050508", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "bold" }}>
+                          {gestionCochee ? "✓" : ""}
                         </span>
-                      </span>
-                    </div>
+                        <span style={{ color: "rgba(255,255,255,0.85)", fontSize: "15px", lineHeight: "1.7" }}>
+                          Ce client a souscrit la gestion administrative.
+                          <span style={{ display: "block", color: "rgba(255,255,255,0.45)", fontSize: "13px", marginTop: "3px" }}>
+                            Le forfait ci-dessus remplace alors le minimum par stagiaire sur sa
+                            facture. Tant que la case est decochee, c est le minimum qui s applique.
+                          </span>
+                        </span>
+                      </div>
+                    )}
 
                     <h4 style={{ color: "#c8a96e", fontSize: "15px", margin: "14px 0" }}>Redaction assistee</h4>
 
@@ -421,6 +556,8 @@ export default function PageOrganismes() {
                     <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
                       <button
                         onClick={() => modifier(o.id, {
+                          offre: offreFiche,
+                          nb_utilisateurs: champ(o.id, "utilisateurs"),
                           abonnement_mensuel: champ(o.id, "abonnement"),
                           taux_prelevement: champ(o.id, "taux"),
                           plancher_stagiaire: champ(o.id, "plancher"),
