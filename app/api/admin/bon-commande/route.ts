@@ -23,6 +23,47 @@ const supabase = createClient(
   }
 );
 
+// TROIS OFFRES, TROIS BONS DE COMMANDE DIFFERENTS.
+//
+// Arretees par Jacques le 16/08 :
+//
+//  - PACK : 390 EUR HT par mois en forfait, stagiaires ET utilisateurs
+//    illimites, 35 % sur le catalogue editeur avec un minimum de 30 EUR par
+//    stagiaire inscrit, 1 500 EUR de mise en service.
+//  - LMS SEUL : 290 EUR HT par mois en forfait, stagiaires illimites, SANS
+//    catalogue editeur — donc AUCUNE part et AUCUN minimum par stagiaire.
+//    Les formations propres du client restent a 0 %, comme dans le pack.
+//  - CRM SEUL : 35 EUR HT PAR UTILISATEUR ET PAR MOIS, sans degressivite.
+//    Ses mots : « on ne bouge pas les tarifs, on reste a 35 ». Un forfait
+//    d'entree et des paliers ont ete ecartes — a cent postes, le prix par
+//    utilisateur rapporte 3 500 EUR par mois la ou un forfait plafonnerait.
+//
+// POURQUOI LE PACK NE COMPTE PAS LES UTILISATEURS : il porte deja trois
+// axes de facturation (abonnement, part sur le catalogue, minimum par
+// stagiaire). Un quatrieme compteur rendrait la facture incalculable pour
+// le client — et c'est precisement le reproche que le marche adresse a
+// Digiforma et a ses paliers d'utilisateurs.
+const OFFRES: any = {
+  pack: {
+    nom: "PACK COMPLET",
+    parUtilisateur: false,
+    catalogue: true,
+    defaut: 390,
+  },
+  lms: {
+    nom: "PLATEFORME D APPRENTISSAGE SEULE",
+    parUtilisateur: false,
+    catalogue: false,
+    defaut: 290,
+  },
+  crm: {
+    nom: "SUIVI COMMERCIAL SEUL",
+    parUtilisateur: true,
+    catalogue: false,
+    defaut: 35,
+  },
+};
+
 function ascii(t: any): string {
   return String(t === null || t === undefined ? "" : t)
     .normalize("NFD")
@@ -65,6 +106,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, erreur: "Client introuvable." }, { status: 404 });
     }
 
+    // L offre vient de la demande si elle est precisee, sinon de la fiche,
+    // sinon du pack — pour que rien ne change sur les clients existants.
+    const cleOffre = String(b.offre || org.offre || "pack").trim().toLowerCase();
+    const offre = OFFRES[cleOffre];
+    if (!offre) {
+      return NextResponse.json({ ok: false, erreur: "Offre inconnue." }, { status: 400 });
+    }
+
+    const postes = Math.max(1, Number(org.nb_utilisateurs) || 1);
+
     const manques: string[] = [];
     if (!org.abonnement_mensuel) manques.push("l abonnement mensuel");
     if (!org.lancement_jusqu_au && b.lancement !== false) {
@@ -100,24 +151,27 @@ export async function POST(req: NextRequest) {
         .eq("tenant_id", b.tenant_id);
     }
 
-    const plein = Number(org.abonnement_mensuel) || 0;
+    // SUR LE CRM SEUL, abonnement_mensuel porte LE PRIX PAR POSTE et non le
+    // total : le total se calcule ici, en multipliant par le nombre de
+    // postes releve sur la fiche.
+    const unitaire = Number(org.abonnement_mensuel) || 0;
+    const plein = offre.parUtilisateur ? unitaire * postes : unitaire;
     const enLancement = b.lancement !== false && !!org.lancement_jusqu_au;
     const mensuel = enLancement ? Math.round(plein / 2) : plein;
 
-    // DEUX FORMULES, ET LE CLIENT CHOISIT.
+    // DEUX FORMULES SUR LE PACK, ET LE CLIENT CHOISIT.
     //
     //  - Sans gestion : il suit lui-meme ses stagiaires, et la part sur le
     //    catalogue est pleine (40 % par defaut).
     //  - Avec gestion : l Editeur prend en charge le suivi administratif,
     //    facture par stagiaire, et la part sur le catalogue est reduite
-    //    (10 % par defaut) — sans quoi il ne resterait presque rien au
-    //    Client sur ses ventes.
+    //    (10 % par defaut).
     //
     // ⚠️ CES DEUX VALEURS NE SONT QUE DES SECOURS. Le taux vient TOUJOURS de
     // la fiche client ; celui du bon de commande de reference est de 35 %.
     // Si taux_prelevement est laisse vide a la creation d un client, le bon
     // sortira donc a 40 % — verifier la fiche avant d editer.
-    const gestionSouscrite = org.gestion_souscrite === true;
+    const gestionSouscrite = offre.catalogue && org.gestion_souscrite === true;
 
     const taux = org.taux_prelevement !== null && org.taux_prelevement !== undefined
       ? Number(org.taux_prelevement)
@@ -129,18 +183,21 @@ export async function POST(req: NextRequest) {
       ? Number(org.taux_apport)
       : 50;
 
-    // Le forfait ne figure au bon que si le Client a souscrit la gestion.
     const gestion = gestionSouscrite && org.forfait_gestion !== null && org.forfait_gestion !== undefined
       ? Number(org.forfait_gestion)
       : 0;
 
-    const { data: catalogue } = await supabase
-      .from("organisme_catalogue")
-      .select("formation_code, prix_contractuel, prix_vente_public")
-      .eq("tenant_id", b.tenant_id)
-      .eq("actif", true)
-      .order("formation_code", { ascending: true })
-      .limit(500);
+    // LE CATALOGUE N EST LU QUE POUR LE PACK : sur le LMS seul et le CRM
+    // seul, aucune formation de l Editeur n est ouverte, donc pas d annexe.
+    const { data: catalogue } = offre.catalogue
+      ? await supabase
+          .from("organisme_catalogue")
+          .select("formation_code, prix_contractuel, prix_vente_public")
+          .eq("tenant_id", b.tenant_id)
+          .eq("actif", true)
+          .order("formation_code", { ascending: true })
+          .limit(500)
+      : { data: [] };
 
     const codes = (catalogue || []).map(function (c: any) { return c.formation_code; });
 
@@ -209,6 +266,7 @@ export async function POST(req: NextRequest) {
 
     ligne("BON DE COMMANDE", 18, gras, vert, 0);
     ligne("Reference " + reference + " - etabli le " + jour(new Date()), 9, normal, gris, 0);
+    ligne(offre.nom, 11, gras, noir, 0);
     y = y - 10;
 
     titreBloc("L EDITEUR");
@@ -225,19 +283,21 @@ export async function POST(req: NextRequest) {
     paire("Telephone", org.telephone || "-");
     paire("N de TVA intracommunautaire", org.numero_tva || "A COMPLETER");
 
-    titreBloc("FORMULE RETENUE");
-    paire("Suivi administratif des stagiaires", gestionSouscrite ? "assure par l Editeur" : "assure par le Client");
-    y = y - 4;
-    ligne(
-      gestionSouscrite
-        ? "Le Client a retenu la formule avec gestion administrative : l Editeur prend en charge le "
-          + "suivi de ses stagiaires, facture par stagiaire inscrit. En contrepartie, la part sur "
-          + "les formations du catalogue de l Editeur est reduite."
-        : "Le Client a retenu la formule sans gestion administrative : il assure lui-meme le suivi "
-          + "de ses stagiaires. La part sur les formations du catalogue de l Editeur est celle "
-          + "indiquee ci-dessous.",
-      9, normal, noir, 5
-    );
+    if (offre.catalogue) {
+      titreBloc("FORMULE RETENUE");
+      paire("Suivi administratif des stagiaires", gestionSouscrite ? "assure par l Editeur" : "assure par le Client");
+      y = y - 4;
+      ligne(
+        gestionSouscrite
+          ? "Le Client a retenu la formule avec gestion administrative : l Editeur prend en charge le "
+            + "suivi de ses stagiaires, facture par stagiaire inscrit. En contrepartie, la part sur "
+            + "les formations du catalogue de l Editeur est reduite."
+          : "Le Client a retenu la formule sans gestion administrative : il assure lui-meme le suivi "
+            + "de ses stagiaires. La part sur les formations du catalogue de l Editeur est celle "
+            + "indiquee ci-dessous.",
+        9, normal, noir, 5
+      );
+    }
 
     if (frais > 0) {
       titreBloc("MISE EN SERVICE");
@@ -251,42 +311,87 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 🚨 CE QUE COUVRE L ABONNEMENT — LES TROIS BRIQUES SONT NOMMEES.
-    //
-    // Corrige le 16/08 : le paragraphe decrivait « la plateforme complete »
-    // sans jamais nommer LE SUIVI COMMERCIAL. Un client pouvait donc croire
-    // qu il fallait le payer en supplement — ou l Editeur decouvrir apres
-    // coup qu il pensait l avoir. Le CRM est vendu 35 EUR HT par utilisateur
-    // et par mois QUAND IL EST PRIS SEUL ; dans le pack il est compris, sans
-    // aucun compteur d utilisateurs. Decision de Jacques du meme jour : ne
-    // pas cumuler un quatrieme axe de facturation par-dessus l abonnement,
-    // la part sur le catalogue et le minimum par stagiaire.
     titreBloc("ABONNEMENT");
-    ligne(
-      "Trois briques comprises dans un seul abonnement, sans option a ajouter : " +
-      "(1) LA PLATEFORME D APPRENTISSAGE - diffusion des formations, creation de ses propres " +
-      "contenus sans limite de nombre, questionnaires corriges erreur par erreur, classes " +
-      "virtuelles, suivi de chaque stagiaire et attestations de fin de formation ; " +
-      "(2) LE SUIVI COMMERCIAL - prospects, etapes, relances redigees, motifs de perte, page " +
-      "publique de l organisme, sans limite d utilisateurs ; " +
-      "(3) LE CATALOGUE DE L EDITEUR - formations pretes a vendre sous le nom du Client, " +
-      "ouvertes selon l annexe ci-apres.",
-      10, normal, noir, 5
-    );
-    y = y - 4;
-    ligne(
-      "S y ajoutent les documents administratifs a l en-tete du Client, la signature " +
-      "electronique et son archivage, les evaluations, le registre des reclamations, les " +
-      "dossiers de ses formateurs, le suivi de sa sous-traitance et son bilan pedagogique et " +
-      "financier prepare cadre par cadre. STAGIAIRES ILLIMITES ET UTILISATEURS ILLIMITES.",
-      10, normal, noir, 5
-    );
+
+    if (cleOffre === "pack") {
+      ligne(
+        "Trois briques comprises dans un seul abonnement, sans option a ajouter : " +
+        "(1) LA PLATEFORME D APPRENTISSAGE - diffusion des formations, creation de ses propres " +
+        "contenus sans limite de nombre, questionnaires corriges erreur par erreur, classes " +
+        "virtuelles, suivi de chaque stagiaire et attestations de fin de formation ; " +
+        "(2) LE SUIVI COMMERCIAL - prospects, etapes, relances redigees, motifs de perte, page " +
+        "publique de l organisme, sans limite d utilisateurs ; " +
+        "(3) LE CATALOGUE DE L EDITEUR - formations pretes a vendre sous le nom du Client, " +
+        "ouvertes selon l annexe ci-apres.",
+        10, normal, noir, 5
+      );
+      y = y - 4;
+      ligne(
+        "S y ajoutent les documents administratifs a l en-tete du Client, la signature " +
+        "electronique et son archivage, les evaluations, le registre des reclamations, les " +
+        "dossiers de ses formateurs, le suivi de sa sous-traitance et son bilan pedagogique et " +
+        "financier prepare cadre par cadre. STAGIAIRES ILLIMITES ET UTILISATEURS ILLIMITES.",
+        10, normal, noir, 5
+      );
+    } else if (cleOffre === "lms") {
+      ligne(
+        "LA PLATEFORME D APPRENTISSAGE, sans le catalogue de l Editeur : diffusion des formations " +
+        "DU CLIENT, creation de ses propres contenus sans limite de nombre, questionnaires " +
+        "corriges erreur par erreur, classes virtuelles, suivi de chaque stagiaire et " +
+        "attestations de fin de formation a son en-tete.",
+        10, normal, noir, 5
+      );
+      y = y - 4;
+      ligne(
+        "S y ajoutent les documents administratifs, la signature electronique et son archivage, " +
+        "les evaluations, le registre des reclamations, les dossiers de ses formateurs, le suivi " +
+        "de sa sous-traitance, ses registres de veille et son bilan pedagogique et financier " +
+        "prepare cadre par cadre. STAGIAIRES ILLIMITES ET UTILISATEURS ILLIMITES.",
+        10, normal, noir, 5
+      );
+      y = y - 4;
+      ligne(
+        "AUCUNE PART N EST DUE A L EDITEUR sur les formations du Client : elles lui appartiennent " +
+        "en propre, et il en fixe librement le prix. Le catalogue de l Editeur peut lui etre " +
+        "ouvert a tout moment par avenant.",
+        9, gras, noir, 5
+      );
+    } else {
+      ligne(
+        "LE SUIVI COMMERCIAL, facture par utilisateur : prospects et etapes du parcours, score de " +
+        "chaque fiche, analyse et relance redigees, motifs de perte regroupes par frequence, " +
+        "import de listes, page publique et relances en nombre.",
+        10, normal, noir, 5
+      );
+      y = y - 4;
+      ligne(
+        "EST APPELE UTILISATEUR TOUT COMPTE OUVERT SUR LA PLATEFORME AU NOM DU CLIENT. Le nombre " +
+        "enregistre par la plateforme fait foi ; le Client n a aucune declaration a fournir. " +
+        "L ouverture ou la fermeture d un compte prend effet sur la facture du mois suivant.",
+        9, normal, noir, 5
+      );
+    }
     y = y - 6;
 
-    if (enLancement) {
+    if (offre.parUtilisateur) {
+      paire("Prix par utilisateur", euros(unitaire) + " par mois");
+      paire("Nombre d utilisateurs", String(postes));
+      if (enLancement) {
+        paire("Tarif de lancement", euros(mensuel) + " par mois");
+        paire("Jusqu au", jour(org.lancement_jusqu_au));
+        paire("Puis, de plein droit", euros(plein) + " par mois");
+      } else {
+        paire("Total mensuel", euros(plein) + " par mois");
+      }
+    } else if (enLancement) {
       paire("Tarif de lancement", euros(mensuel) + " par mois");
       paire("Jusqu au", jour(org.lancement_jusqu_au));
       paire("Puis, de plein droit", euros(plein) + " par mois");
+    } else {
+      paire("Abonnement mensuel", euros(plein) + " par mois");
+    }
+
+    if (enLancement) {
       y = y - 4;
       ligne(
         "A la date ci-dessus, le montant plein s applique de plein droit, sans formalite ni " +
@@ -294,25 +399,22 @@ export async function POST(req: NextRequest) {
         "citer sa denomination a titre de reference et s engage a fournir un temoignage ecrit.",
         9, normal, gris, 5
       );
-    } else {
-      paire("Abonnement mensuel", euros(plein) + " par mois");
     }
 
-    // 🚨 CE QUI N EST PAS COMPRIS DANS L ILLIMITE — AJOUTE LE 16/08.
+    // 🚨 CE QUI N EST PAS COMPRIS DANS L ILLIMITE.
     //
     // « Stagiaires illimites et utilisateurs illimites » se lit vite comme
     // « tout est illimite ». Or le SMS et la voix sont les DEUX SEULS postes
     // ou chaque usage coute reellement de l argent a l Editeur : Brevo
     // facture chaque message, Plivo chaque minute. Un forfait illimite ferait
     // travailler a perte des qu un client envoie en volume — et l interim,
-    // qui est la premiere cible, est precisement du volume.
+    // premiere cible, est precisement du volume.
     //
     // LE SMS PORTE SON PRIX, PAS LA VOIX : le tarif de revente du message est
     // arrete (0,12 EUR degressif a 0,08), celui de la minute ne l est pas —
     // le tarif d accroche des operateurs concerne les lignes fixes et les
     // appels d origine europeenne, alors que le trafic reel ira vers des
-    // mobiles. Le prix se fixera sur un mois de cout constate. On n ecrit
-    // pas au contrat un tarif qu on devra corriger.
+    // mobiles. Le prix se fixera sur un mois de cout constate.
     titreBloc("OPTIONS FACTUREES A L USAGE");
     ligne(
       "CES DEUX OPTIONS NE SONT PAS COMPRISES DANS L ABONNEMENT. Elles ne sont dues que si le " +
@@ -341,33 +443,35 @@ export async function POST(req: NextRequest) {
       9, normal, noir, 5
     );
 
-    titreBloc("PART SUR LES FORMATIONS DU CATALOGUE DE L EDITEUR");
-    paire("Taux", taux + " % du prix de vente hors taxes");
-    if (!gestionSouscrite) {
-      paire("Minimum par stagiaire inscrit", euros(plancher));
+    if (offre.catalogue) {
+      titreBloc("PART SUR LES FORMATIONS DU CATALOGUE DE L EDITEUR");
+      paire("Taux", taux + " % du prix de vente hors taxes");
+      if (!gestionSouscrite) {
+        paire("Minimum par stagiaire inscrit", euros(plancher));
+        y = y - 4;
+        ligne(
+          "Le minimum par stagiaire est du pour chaque inscription sur une formation du catalogue de " +
+          "l Editeur, QUE LA FORMATION AIT ETE VENDUE OU NON. Lorsque la part calculee au taux " +
+          "ci-dessus lui est superieure, seule cette part est due.",
+          9, normal, noir, 5
+        );
+      } else {
+        y = y - 4;
+        ligne(
+          "Ce taux reduit est la contrepartie de la gestion administrative souscrite ci-dessous. Il " +
+          "cesserait de s appliquer si le Client renoncait a cette prestation, le taux plein etant " +
+          "alors retabli par avenant.",
+          9, normal, noir, 5
+        );
+      }
       y = y - 4;
       ligne(
-        "Le minimum par stagiaire est du pour chaque inscription sur une formation du catalogue de " +
-        "l Editeur, QUE LA FORMATION AIT ETE VENDUE OU NON. Lorsque la part calculee au taux " +
-        "ci-dessus lui est superieure, seule cette part est due.",
-        9, normal, noir, 5
-      );
-    } else {
-      y = y - 4;
-      ligne(
-        "Ce taux reduit est la contrepartie de la gestion administrative souscrite ci-dessous. Il " +
-        "cesserait de s appliquer si le Client renoncait a cette prestation, le taux plein etant " +
-        "alors retabli par avenant.",
-        9, normal, noir, 5
+        "AUCUNE PART N EST DUE SUR LES FORMATIONS CREEES PAR LE CLIENT : elles lui appartiennent " +
+        "en propre. Le nombre d inscriptions enregistre par la plateforme fait foi ; le Client n a " +
+        "aucune declaration de chiffre d affaires a fournir.",
+        9, normal, gris, 5
       );
     }
-    y = y - 4;
-    ligne(
-      "AUCUNE PART N EST DUE SUR LES FORMATIONS CREEES PAR LE CLIENT : elles lui appartiennent " +
-      "en propre. Le nombre d inscriptions enregistre par la plateforme fait foi ; le Client n a " +
-      "aucune declaration de chiffre d affaires a fournir.",
-      9, normal, gris, 5
-    );
 
     if (gestion > 0) {
       titreBloc("GESTION ADMINISTRATIVE");
@@ -388,37 +492,52 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    titreBloc("AFFAIRES ORIENTEES PAR L EDITEUR");
-    paire("Partage du produit HT", apport + " % pour l Editeur");
-    y = y - 4;
-    ligne(
-      "S applique aux demandes que l Editeur oriente vers le Client, notamment lorsqu un " +
-      "financement par un operateur de competences est sollicite et que seul le Client detient " +
-      "la certification exigee. Ce partage est distinct de la part ci-dessus.",
-      9, normal, noir, 5
-    );
-    y = y - 4;
-    ligne(
-      "Les formations du catalogue ne sont enregistrees ni au RNCP ni au repertoire specifique : " +
-      "elles ne sont eligibles a aucun financement au titre du compte personnel de formation.",
-      9, normal, gris, 5
-    );
+    if (offre.catalogue) {
+      titreBloc("AFFAIRES ORIENTEES PAR L EDITEUR");
+      paire("Partage du produit HT", apport + " % pour l Editeur");
+      y = y - 4;
+      ligne(
+        "S applique aux demandes que l Editeur oriente vers le Client, notamment lorsqu un " +
+        "financement par un operateur de competences est sollicite et que seul le Client detient " +
+        "la certification exigee. Ce partage est distinct de la part ci-dessus.",
+        9, normal, noir, 5
+      );
+      y = y - 4;
+      ligne(
+        "Les formations du catalogue ne sont enregistrees ni au RNCP ni au repertoire specifique : " +
+        "elles ne sont eligibles a aucun financement au titre du compte personnel de formation.",
+        9, normal, gris, 5
+      );
+    }
 
-    titreBloc("REPARTITION DES ROLES");
-    ligne(
-      "Le Client demeure seul prestataire de formation : sa certification, son numero de " +
-      "declaration, ses attestations, sa responsabilite. L Editeur fournit le contenu, la " +
-      "plateforme, la correction des evaluations et les documents.",
-      9, normal, noir, 5
-    );
-    y = y - 4;
-    ligne(
-      "Toute intervention en presence, l evaluation pratique, le recrutement des formateurs, leur " +
-      "remuneration et la verification de leurs habilitations relevent exclusivement du Client. " +
-      "Pour les actions reglementees, l Editeur fournit les supports theoriques et l acces a " +
-      "distance ; il ne delivre aucune habilitation ni certification.",
-      9, normal, noir, 5
-    );
+    if (cleOffre !== "crm") {
+      titreBloc("REPARTITION DES ROLES");
+      ligne(
+        "Le Client demeure seul prestataire de formation : sa certification, son numero de " +
+        "declaration, ses attestations, sa responsabilite. L Editeur fournit " +
+        (offre.catalogue ? "le contenu, la plateforme, " : "la plateforme, ") +
+        "la correction des evaluations et les documents.",
+        9, normal, noir, 5
+      );
+      y = y - 4;
+      ligne(
+        "Toute intervention en presence, l evaluation pratique, le recrutement des formateurs, leur " +
+        "remuneration et la verification de leurs habilitations relevent exclusivement du Client. " +
+        "Pour les actions reglementees, l Editeur fournit " +
+        (offre.catalogue ? "les supports theoriques et l acces a distance" : "l acces a distance") +
+        " ; il ne delivre aucune habilitation ni certification.",
+        9, normal, noir, 5
+      );
+    } else {
+      titreBloc("DONNEES ET RESPONSABILITE");
+      ligne(
+        "Les prospects et contacts enregistres par le Client lui appartiennent en propre. " +
+        "L Editeur n y accede que pour assurer le service et n en fait aucun autre usage. Le " +
+        "Client demeure responsable de la licite de sa prospection, notamment du consentement " +
+        "prealable exige pour l envoi de messages courts.",
+        9, normal, noir, 5
+      );
+    }
 
     if ((catalogue || []).length > 0) {
       titreBloc("ANNEXE - FORMATIONS OUVERTES");
@@ -518,15 +637,18 @@ export async function POST(req: NextRequest) {
       pdf_octets: octets.length,
       donnees: {
         titre: "Bon de commande",
+        offre: cleOffre,
         contrepartie: org.raison_sociale || null,
         frais: frais,
+        unitaire: unitaire,
+        utilisateurs: offre.parUtilisateur ? postes : null,
         mensuel: mensuel,
         plein: plein,
-        taux: taux,
-        plancher: plancher,
+        taux: offre.catalogue ? taux : null,
+        plancher: offre.catalogue ? plancher : null,
         gestion: gestion,
         gestion_souscrite: gestionSouscrite,
-        apport: apport,
+        apport: offre.catalogue ? apport : null,
         lancement_jusqu_au: org.lancement_jusqu_au,
         formations: (catalogue || []).length,
       },
@@ -535,7 +657,7 @@ export async function POST(req: NextRequest) {
     await supabase.from("coffre_documents").insert({
       tenant_id: b.tenant_id,
       categorie: "bon_commande",
-      titre: "Bon de commande - " + (org.raison_sociale || reference),
+      titre: "Bon de commande " + offre.nom + " - " + (org.raison_sociale || reference),
       contrepartie: org.raison_sociale || org.email_contact,
       reference: reference,
       chemin: chemin,
@@ -543,7 +665,7 @@ export async function POST(req: NextRequest) {
       octets: octets.length,
       signe: false,
       depose_par: session.email,
-      notes: "Edite depuis la fiche du client",
+      notes: "Edite depuis la fiche du client - offre " + cleOffre,
     });
 
     return new NextResponse(new Uint8Array(octets), {
