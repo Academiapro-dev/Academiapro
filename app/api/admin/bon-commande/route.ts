@@ -113,9 +113,10 @@ export async function POST(req: NextRequest) {
     //    (10 % par defaut) — sans quoi il ne resterait presque rien au
     //    Client sur ses ventes.
     //
-    // Le taux vient TOUJOURS de la fiche : la valeur de secours ne sert que
-    // si le champ est vide, et elle ne doit jamais contredire la grille en
-    // vigueur.
+    // ⚠️ CES DEUX VALEURS NE SONT QUE DES SECOURS. Le taux vient TOUJOURS de
+    // la fiche client ; celui du bon de commande de reference est de 35 %.
+    // Si taux_prelevement est laisse vide a la creation d un client, le bon
+    // sortira donc a 40 % — verifier la fiche avant d editer.
     const gestionSouscrite = org.gestion_souscrite === true;
 
     const taux = org.taux_prelevement !== null && org.taux_prelevement !== undefined
@@ -250,11 +251,34 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // 🚨 CE QUE COUVRE L ABONNEMENT — LES TROIS BRIQUES SONT NOMMEES.
+    //
+    // Corrige le 16/08 : le paragraphe decrivait « la plateforme complete »
+    // sans jamais nommer LE SUIVI COMMERCIAL. Un client pouvait donc croire
+    // qu il fallait le payer en supplement — ou l Editeur decouvrir apres
+    // coup qu il pensait l avoir. Le CRM est vendu 35 EUR HT par utilisateur
+    // et par mois QUAND IL EST PRIS SEUL ; dans le pack il est compris, sans
+    // aucun compteur d utilisateurs. Decision de Jacques du meme jour : ne
+    // pas cumuler un quatrieme axe de facturation par-dessus l abonnement,
+    // la part sur le catalogue et le minimum par stagiaire.
     titreBloc("ABONNEMENT");
     ligne(
-      "Plateforme complete, catalogue de formations ouvert au Client, creation de ses propres " +
-      "formations, classes virtuelles, documents administratifs, signature electronique et bilan " +
-      "pedagogique prepare. Stagiaires illimites.",
+      "Trois briques comprises dans un seul abonnement, sans option a ajouter : " +
+      "(1) LA PLATEFORME D APPRENTISSAGE - diffusion des formations, creation de ses propres " +
+      "contenus sans limite de nombre, questionnaires corriges erreur par erreur, classes " +
+      "virtuelles, suivi de chaque stagiaire et attestations de fin de formation ; " +
+      "(2) LE SUIVI COMMERCIAL - prospects, etapes, relances redigees, motifs de perte, page " +
+      "publique de l organisme, sans limite d utilisateurs ; " +
+      "(3) LE CATALOGUE DE L EDITEUR - formations pretes a vendre sous le nom du Client, " +
+      "ouvertes selon l annexe ci-apres.",
+      10, normal, noir, 5
+    );
+    y = y - 4;
+    ligne(
+      "S y ajoutent les documents administratifs a l en-tete du Client, la signature " +
+      "electronique et son archivage, les evaluations, le registre des reclamations, les " +
+      "dossiers de ses formateurs, le suivi de sa sous-traitance et son bilan pedagogique et " +
+      "financier prepare cadre par cadre. STAGIAIRES ILLIMITES ET UTILISATEURS ILLIMITES.",
       10, normal, noir, 5
     );
     y = y - 6;
@@ -273,6 +297,49 @@ export async function POST(req: NextRequest) {
     } else {
       paire("Abonnement mensuel", euros(plein) + " par mois");
     }
+
+    // 🚨 CE QUI N EST PAS COMPRIS DANS L ILLIMITE — AJOUTE LE 16/08.
+    //
+    // « Stagiaires illimites et utilisateurs illimites » se lit vite comme
+    // « tout est illimite ». Or le SMS et la voix sont les DEUX SEULS postes
+    // ou chaque usage coute reellement de l argent a l Editeur : Brevo
+    // facture chaque message, Plivo chaque minute. Un forfait illimite ferait
+    // travailler a perte des qu un client envoie en volume — et l interim,
+    // qui est la premiere cible, est precisement du volume.
+    //
+    // LE SMS PORTE SON PRIX, PAS LA VOIX : le tarif de revente du message est
+    // arrete (0,12 EUR degressif a 0,08), celui de la minute ne l est pas —
+    // le tarif d accroche des operateurs concerne les lignes fixes et les
+    // appels d origine europeenne, alors que le trafic reel ira vers des
+    // mobiles. Le prix se fixera sur un mois de cout constate. On n ecrit
+    // pas au contrat un tarif qu on devra corriger.
+    titreBloc("OPTIONS FACTUREES A L USAGE");
+    ligne(
+      "CES DEUX OPTIONS NE SONT PAS COMPRISES DANS L ABONNEMENT. Elles ne sont dues que si le " +
+      "Client les active, et facturees a ce qu il consomme reellement. L illimite porte sur les " +
+      "stagiaires et les utilisateurs, jamais sur les envois ni sur les communications.",
+      10, gras, noir, 5
+    );
+    y = y - 6;
+    paire("Envoi de SMS", "0,12 EUR HT le message");
+    y = y - 2;
+    ligne(
+      "Degressif jusqu a 0,08 EUR HT selon le volume mensuel. Aucun abonnement : les credits " +
+      "sont prepayes et sans expiration. Les messages partent sous le nom de l organisme du " +
+      "Client. La prospection par SMS suppose le consentement prealable du destinataire, y " +
+      "compris entre professionnels ; le Client en demeure seul responsable.",
+      9, normal, noir, 5
+    );
+    y = y - 4;
+    paire("Appels depuis la plateforme", "a l ouverture du service");
+    y = y - 2;
+    ligne(
+      "La location du numero est refacturee au Client a son cout, sans marge. Seules les minutes " +
+      "reellement consommees portent la marge de l Editeur, decomptees a la seconde. Le tarif a " +
+      "la minute est communique au Client a l ouverture du service et porte a l avenant. Aucun " +
+      "montant n est du les mois ou le Client n appelle pas.",
+      9, normal, noir, 5
+    );
 
     titreBloc("PART SUR LES FORMATIONS DU CATALOGUE DE L EDITEUR");
     paire("Taux", taux + " % du prix de vente hors taxes");
