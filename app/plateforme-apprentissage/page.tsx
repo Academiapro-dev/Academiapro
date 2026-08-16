@@ -12,30 +12,31 @@ const NOIR = "#050508";
 // UNE PAGE VITRINE POUR L ORGANISME QUI ACHETE, pas pour le stagiaire.
 //
 // /lms existe deja et s adresse au stagiaire : « Mon LMS », « votre espace
-// d apprentissage ». Elle decrit ce qui existe et n a pas ete touchee.
-// Celle-ci parle a qui cherche un LMS a acheter — ce n est ni le meme
-// public ni le meme discours, d ou une adresse distincte.
+// d apprentissage ». Celle-ci parle a qui cherche un LMS a acheter — ce
+// n est ni le meme public ni le meme discours, d ou une adresse distincte.
 //
 // LE SIGLE LMS FIGURE DANS LE TITRE : le metier le tape dans un moteur de
-// recherche, le profane cherche « plateforme d apprentissage ». Les deux
-// mots doivent etre presents.
+// recherche, le profane cherche « plateforme d apprentissage ».
 //
-// TROIS CORRECTIONS DU 15/08, APRES VERIFICATION EN BASE.
+// ⚠️ ERREUR CORRIGEE LE 16/08 — LA SOUS-TRAITANCE EST RETABLIE.
+// Elle avait ete retiree le matin meme au motif qu aucune table ne la
+// portait. C ETAIT FAUX : la recherche avait ete faite sur le motif
+// « sous_trait » alors que la table s appelle `organisme_soustraitance`,
+// sans tiret bas. Elle existe, elle porte des lignes, et le generateur de
+// documents produit meme un type `soustraitance_contrat`. Une absence ne
+// se conclut jamais d une seule recherche qui ne trouve rien.
 //
-// (1) LA SOUS-TRAITANCE EST RETIREE. Aucune table ne la porte, et surtout
-// ELLE N EST PAS DE NOTRE RESSORT : l organisme client est seul prestataire
-// de formation (article 1 des CGV), c est donc a lui d encadrer ses
-// sous-traitants. Les cinq autres preuves annoncees, elles, EXISTENT
-// REELLEMENT — verifie en base : organisme_evaluations,
-// organisme_reclamations, organisme_formateurs, organisme_ameliorations,
-// organisme_presences. Elles appartiennent bien au LMS et non a
-// Mr. Qualiopi, dont les tables portent le prefixe qualiopi_.
+// LES SIX PREUVES SONT DONC TOUTES REELLES, verifiees en base :
+// organisme_evaluations, organisme_reclamations, organisme_formateurs,
+// organisme_ameliorations, organisme_soustraitance, organisme_veille.
+// Elles appartiennent au LMS et non a Mr. Qualiopi, dont les tables
+// portent le prefixe qualiopi_.
 //
-// (2) LE TABLEAU BLANC PARTAGE EST RETIRE. Il avait ete demande, jamais
-// constate a l ecran. Une fonction qu on souhaite n est pas une fonction
-// qu on vend.
+// CE QUI RESTE RETIRE : LE TABLEAU BLANC PARTAGE. Il avait ete demande,
+// jamais constate a l ecran. Une fonction qu on souhaite n est pas une
+// fonction qu on vend.
 //
-// (3) L EMARGEMENT EST REFORMULE. Ecrire que l horodatage « tient lieu de
+// L EMARGEMENT EST REFORMULE : ecrire que l horodatage « tient lieu de
 // feuille d emargement » est une affirmation de conformite reglementaire.
 // La trace existe (organisme_presences), on la decrit pour ce qu elle est.
 //
@@ -119,7 +120,8 @@ export default function PagePlateforme() {
           <p style={{ ...P, margin: "0 0 12px", fontSize: "16px" }}>
             Évaluations à chaud et à froid avec leur taux de retour, registre des
             réclamations et de leurs actions correctives, dossiers de vos formateurs,
-            plan d'amélioration continue.
+            registres de veille, suivi de la sous-traitance avec ses contrats, plan
+            d'amélioration continue.
           </p>
           <p style={{ ...P, margin: 0, fontSize: "16px" }}>
             Et votre bilan pédagogique et financier prérempli, cadre par cadre, à partir
