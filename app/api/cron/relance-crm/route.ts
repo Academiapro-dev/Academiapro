@@ -24,19 +24,27 @@ export const maxDuration = 300;
 //
 // TROIS CORRECTIONS DU 16/08, apres lecture de l apercu reel.
 //
-// (1) LE LIEN DE DESINSCRIPTION MANQUAIT. La campagne organismes en met un
-// dans chaque message, celle-ci n en avait aucun. C est ce qui rend la
-// prospection B2B licite sans consentement prealable, et c est aussi ce
-// qui protege le domaine : un destinataire qui ne peut pas se desabonner
-// clique sur « spam », et c est bien pire.
+// (1) LE LIEN DE DESINSCRIPTION MANQUAIT ENTIEREMENT. La campagne
+// organismes en met un dans chaque message, celle-ci n en avait aucun.
+// C est ce qui rend la prospection B2B licite sans consentement prealable,
+// et c est aussi ce qui protege le domaine : un destinataire qui ne peut
+// pas se desabonner clique sur « spam », et c est bien pire.
+//
+// ⚠️ LE FORMAT DU LIEN A ETE PRIS SUR LA PAGE ET LA ROUTE EXISTANTES, pas
+// invente. Trois details qui l auraient casse s ils avaient ete devines :
+// la page /desinscription attend DEUX parametres separes — ?e=adresse&j=jeton
+// et non un jeton compose ; le secret est SESSION_SECRET, pas CRON_SECRET ;
+// et le jeton fait 32 caracteres, pas 24. Un lien de desinscription casse
+// est pire que pas de lien : il affiche « Lien incomplet » a quelqu un qui
+// voulait juste ne plus etre derange.
 //
 // (2) L OBJET ETAIT FIGE : « Suite a votre demande » serait parti a des
 // gens qui n ont jamais rien demande — un prospect importe, un contact
 // pris en salon. L objet s adapte desormais a ce qu on sait de lui.
 //
-// (3) L ENCODAGE DES ACCENTS. L apercu rendait « suite Ã  votre » : le
-// charset n etait declare nulle part. Il l est maintenant dans l en-tete
-// de la requete ET dans le corps HTML du message.
+// (3) L ENCODAGE DES ACCENTS. L apercu rendait « suite Ã  votre ». Le
+// charset est desormais declare dans l en-tete de la requete ET dans le
+// document HTML lui-meme.
 const ACTIVE = false;
 
 // Le delai avant relance, et le nombre maximum de relances par prospect.
@@ -59,17 +67,18 @@ function pause(ms: number) {
   return new Promise(function (r) { setTimeout(r, ms); });
 }
 
-// LE JETON DE DESINSCRIPTION EST SIGNE, comme celui de la campagne
-// organismes : sans signature, n importe qui pourrait desinscrire
-// n importe quelle adresse en devinant l URL.
-function jetonDesinscription(email: string) {
-  const secret = process.env.CRON_SECRET || "";
-  const signature = crypto
+// LE JETON EST CALCULE EXACTEMENT COMME /api/desinscription L ATTEND.
+// Meme secret, meme algorithme, meme longueur — toute difference et le
+// lien serait rejete au moment ou quelqu un veut s en servir.
+function lienDesinscription(email: string) {
+  const secret = process.env.SESSION_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+  const jeton = crypto
     .createHmac("sha256", secret)
     .update(String(email).toLowerCase())
     .digest("hex")
-    .slice(0, 24);
-  return encodeURIComponent(String(email)) + "." + signature;
+    .slice(0, 32);
+  return SITE + "/desinscription?e=" + encodeURIComponent(String(email).toLowerCase())
+    + "&j=" + jeton;
 }
 
 // L OBJET S ADAPTE A CE QU ON SAIT DU PROSPECT.
@@ -143,7 +152,7 @@ async function redigerRelance(p: any): Promise<string | null> {
 }
 
 async function envoyer(destinataire: string, sujet: string, texte: string) {
-  const lien = SITE + "/desinscription?jeton=" + jetonDesinscription(destinataire);
+  const lien = lienDesinscription(destinataire);
 
   // Le charset est declare DANS le document : sans lui, certains clients
   // de messagerie rendent « suite Ã  votre » au lieu de « suite à votre ».
@@ -241,6 +250,7 @@ export async function GET(req: NextRequest) {
         score: p.score,
         relances_deja: p.relances || 0,
         objet: sujet,
+        desinscription: lienDesinscription(String(p.email)),
         message: texte,
       });
       continue;
