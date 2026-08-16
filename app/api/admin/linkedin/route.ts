@@ -18,42 +18,31 @@ const supabase = createClient(
 // L API officielle de LinkedIn ne permet pas d envoyer des invitations ;
 // tout ce qui le fait passe par l automatisation du navigateur, qui viole
 // les conditions d utilisation et fait restreindre puis supprimer le
-// compte. Jacques clique lui-meme, profil par profil, avec un mot
-// personnalise — cette route ne fait qu ENREGISTRER ce qu il a fait.
-//
-// Elle sert donc a deux choses : ne jamais inviter deux fois la meme
-// personne, et savoir combien d invitations sont parties cette semaine.
+// compte. Jacques clique lui-meme — cette route ne fait qu ENREGISTRER.
 const TABLES: any = {
   organismes: "prospects_organismes",
   qualiopi: "prospects_qualiopi",
   interim: "prospects_interim",
 };
 
-// QUATRE STATUTS, ET « ECARTE » N EST PAS « REFUSE ».
+// CINQ STATUTS.
 //
-// invite  : l invitation est partie, la date est posee, elle compte au quota.
-// accepte : la personne a accepte.
-// refuse  : la personne n a pas donne suite — c est SON choix.
-// ecarte  : Jacques a decide de ne pas inviter — c est SA decision, prise
-//           avant tout envoi. Un dirigeant parti ailleurs, une societe sans
-//           activite, un profil hors cible.
-//
-// Confondre les deux derniers rendrait le taux d acceptation illisible :
-// on ne saurait plus si personne ne repond ou si les fiches etaient
-// mauvaises. Ce sont deux enseignements differents.
-const STATUTS = ["invite", "accepte", "refuse", "ecarte"];
+// invite   : l invitation est partie, la date est posee, elle compte au quota.
+// accepte  : la personne a accepte — c est la que le vrai message devient
+//            possible, sans limite de caracteres et lu par quelqu un qui a
+//            deja dit oui.
+// relance  : le message long a ete envoye apres acceptation. Distinguer
+//            « accepte » de « relance » evite d ecrire deux fois a la meme
+//            personne, et mesure ce que la connexion a reellement produit.
+// refuse   : la personne n a pas donne suite — c est SON choix.
+// ecarte   : Jacques a decide de ne pas inviter — c est SA decision, prise
+//            avant tout envoi.
+const STATUTS = ["invite", "accepte", "relance", "refuse", "ecarte"];
 
 // LE RYTHME, arrete le 16/08 : VINGT PAR JOUR, CENT PAR SEMAINE.
-//
-// LinkedIn tolere environ une centaine d invitations hebdomadaires et
-// bloque si trop d entre elles restent sans reponse. Le plafond quotidien
-// compte autant que l hebdomadaire : epuiser sa semaine en deux jours est
-// precisement le comportement qui ressemble a une automatisation.
 const PLAFOND_SEMAINE = 100;
 const PLAFOND_JOUR = 20;
 
-// Le compte des invitations sur une periode, toutes bases confondues :
-// c est LE COMPTE LINKEDIN qui est plafonne, pas chaque base.
 // Une fiche ecartee ne compte jamais : rien n a ete envoye.
 async function compterDepuis(depuis: string): Promise<number> {
   let total = 0;
@@ -79,32 +68,48 @@ function ilYaSeptJours(): string {
   return new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString();
 }
 
+async function compterStatut(statut: string): Promise<number> {
+  let total = 0;
+  for (const cle of Object.keys(TABLES)) {
+    const { count } = await supabase
+      .from(TABLES[cle])
+      .select("id", { count: "exact", head: true })
+      .eq("linkedin_statut", statut);
+    total += count || 0;
+  }
+  return total;
+}
+
 async function compteurs() {
   const jour = await compterDepuis(debutDuJour());
   const semaine = await compterDepuis(ilYaSeptJours());
 
   let total = 0;
-  let ecartes = 0;
   for (const cle of Object.keys(TABLES)) {
-    const { count: t } = await supabase
+    const { count } = await supabase
       .from(TABLES[cle])
       .select("id", { count: "exact", head: true })
       .not("linkedin_le", "is", null)
       .neq("linkedin_statut", "ecarte");
-    total += t || 0;
-
-    const { count: e } = await supabase
-      .from(TABLES[cle])
-      .select("id", { count: "exact", head: true })
-      .eq("linkedin_statut", "ecarte");
-    ecartes += e || 0;
+    total += count || 0;
   }
 
+  const en_attente = await compterStatut("invite");
+  const acceptes = await compterStatut("accepte");
+  const relances = await compterStatut("relance");
+  const refuses = await compterStatut("refuse");
+  const ecartes = await compterStatut("ecarte");
+
+  // LE TAUX D ACCEPTATION se calcule sur ce qui a recu une reponse, pas
+  // sur tout ce qui est parti : une invitation de la veille n a pas encore
+  // eu le temps d etre acceptee, la compter comme un echec fausserait tout.
+  const repondu = acceptes + relances + refuses;
+  const taux = repondu > 0 ? Math.round(((acceptes + relances) / repondu) * 100) : null;
+
   return {
-    jour: jour,
-    semaine: semaine,
-    total: total,
-    ecartes: ecartes,
+    jour, semaine, total,
+    en_attente, acceptes, relances, refuses, ecartes,
+    taux_acceptation: taux,
     plafond_jour: PLAFOND_JOUR,
     plafond_semaine: PLAFOND_SEMAINE,
     reste_jour: Math.max(PLAFOND_JOUR - jour, 0),
@@ -112,18 +117,17 @@ async function compteurs() {
   };
 }
 
-// LA FICHE SUIVANTE A INVITER.
-//
-// Un profil connu, jamais sollicite, jamais ecarte. On sert UNE fiche a la
-// fois : c est ce qui permet d enchainer sans chercher ou on en etait, et
-// ce qui evite de charger cinquante lignes pour n en traiter une.
+const COLONNES = "id, raison_sociale, ville, code_postal, siren, dirigeant_prenom, dirigeant_nom, linkedin, email, telephone, site_web, linkedin_le, linkedin_statut";
+
+// LA FICHE SUIVANTE A INVITER : un profil connu, jamais sollicite,
+// jamais ecarte.
 async function suivante(base: string) {
   const table = TABLES[base];
   if (!table) return { erreur: "Base inconnue." };
 
   const { data, error } = await supabase
     .from(table)
-    .select("id, raison_sociale, ville, code_postal, siren, dirigeant_prenom, dirigeant_nom, linkedin, email, telephone, site_web")
+    .select(COLONNES)
     .not("linkedin", "is", null)
     .is("linkedin_le", null)
     .or("linkedin_statut.is.null,linkedin_statut.neq.ecarte")
@@ -133,7 +137,6 @@ async function suivante(base: string) {
   if (error) return { erreur: error.message };
   if (!data || data.length === 0) return { fiche: null, epuise: true };
 
-  // Ce qui reste a faire dans cette base, pour situer l effort.
   const { count } = await supabase
     .from(table)
     .select("id", { count: "exact", head: true })
@@ -142,6 +145,31 @@ async function suivante(base: string) {
     .or("linkedin_statut.is.null,linkedin_statut.neq.ecarte");
 
   return { fiche: data[0], restant: count || 0 };
+}
+
+// LA LISTE DES FICHES A UN STATUT DONNE, TOUTES BASES CONFONDUES.
+//
+// Sert a deux ecrans : « Mes invitations » (statut invite, en attente de
+// reponse) et « A relancer » (statut accepte, message long a envoyer).
+// La cle de base est renvoyee avec chaque ligne — sans elle, l ecran ne
+// saurait pas dans quelle table ecrire au moment de marquer.
+async function lister(statut: string, limite: number) {
+  const lignes: any[] = [];
+  for (const cle of Object.keys(TABLES)) {
+    const { data } = await supabase
+      .from(TABLES[cle])
+      .select(COLONNES)
+      .eq("linkedin_statut", statut)
+      .order("linkedin_le", { ascending: true })
+      .limit(limite);
+    for (const l of (data || [])) lignes.push({ ...l, base: cle });
+  }
+  // Les plus anciennes d abord : une invitation qui date de trois semaines
+  // merite une reponse avant celle d hier.
+  lignes.sort(function (a, b) {
+    return String(a.linkedin_le || "").localeCompare(String(b.linkedin_le || ""));
+  });
+  return lignes.slice(0, limite);
 }
 
 export async function POST(req: NextRequest) {
@@ -155,14 +183,24 @@ export async function POST(req: NextRequest) {
     const action = String(body.action || "marquer").trim();
     const base = String(body.base || "").trim();
 
-    // La fiche suivante a traiter, sans rien modifier.
     if (action === "suivante") {
       const r: any = await suivante(base);
       if (r.erreur) return NextResponse.json({ ok: false, erreur: r.erreur }, { status: 400 });
       return NextResponse.json({ ok: true, ...r, compteurs: await compteurs() });
     }
 
-    // L enregistrement de ce qui a ete fait a la main.
+    // Les invitations en attente de reponse.
+    if (action === "en_attente") {
+      const lignes = await lister("invite", 200);
+      return NextResponse.json({ ok: true, lignes, compteurs: await compteurs() });
+    }
+
+    // Les acceptations pas encore relancees.
+    if (action === "a_relancer") {
+      const lignes = await lister("accepte", 200);
+      return NextResponse.json({ ok: true, lignes, compteurs: await compteurs() });
+    }
+
     const id = body.id;
     const statut = String(body.statut || "invite").trim();
 
@@ -173,9 +211,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, erreur: "Statut inconnu." }, { status: 400 });
     }
 
-    // LE PLAFOND SE VERIFIE COTE SERVEUR, pas seulement a l ecran : un
-    // bouton grise se contourne, une regle en base non. Ecarter une fiche
-    // n est pas plafonne — rien ne part.
+    // LE PLAFOND SE VERIFIE COTE SERVEUR, pas seulement a l ecran.
+    // Il ne concerne QUE l invitation : marquer une acceptation ou envoyer
+    // un message a quelqu un de deja connecte n est plafonne par rien.
     if (statut === "invite") {
       const c = await compteurs();
       if (c.reste_jour <= 0) {
@@ -194,10 +232,9 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Marquer « invite » pose la date ; corriger en accepte ou refuse la
-    // conserve, sans quoi le compteur de la semaine serait fausse.
-    // « ecarte » pose aussi une date — elle sert de trace de la decision —
-    // mais elle est exclue de tous les comptes par le filtre ci-dessus.
+    // La date d envoi initial est CONSERVEE quand on marque une reponse :
+    // c est elle qui dit quand l invitation est partie, et le compteur de
+    // la semaine s appuie dessus.
     const champs: any = { linkedin_statut: statut };
     if (statut === "invite" || statut === "ecarte") {
       champs.linkedin_le = new Date().toISOString();
@@ -208,9 +245,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, erreur: error.message }, { status: 500 });
     }
 
-    // On rend la fiche suivante dans la foulee : l ecran enchaine sans
-    // avoir a redemander.
-    const suite: any = base ? await suivante(base) : {};
+    // Pour la file d invitation, on rend la fiche suivante dans la foulee.
+    const suite: any = (statut === "invite" || statut === "ecarte") ? await suivante(base) : {};
 
     return NextResponse.json({
       ok: true,
@@ -225,7 +261,6 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// Les compteurs seuls, pour l affichage au chargement de l ecran.
 export async function GET() {
   try {
     const email = emailDeSession();
