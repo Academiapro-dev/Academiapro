@@ -99,7 +99,24 @@ async function trouverVariante(nomCible: string): Promise<string> {
 export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
-    const code = url.searchParams.get("formation") || "";
+
+    // 🚨 LE CODE SE NORMALISE EN MAJUSCULES, ET C EST VITAL.
+    //
+    // DEFAUT TROUVE LE 16/08 EN ESSAYANT D ACHETER : le catalogue construit
+    // ses liens avec `f.code.toLowerCase()` — la page d une formation est
+    // donc /formation/f005 — tandis que la colonne `code` de la table
+    // formations porte F005 en MAJUSCULES. La recherche `.eq("code", code)`
+    // ne trouvait jamais rien, et TOUT ACHAT ECHOUAIT sur « formation
+    // introuvable: f005 ».
+    //
+    // AUCUNE VENTE N ETAIT DONC POSSIBLE sur le site. Le reste de la chaine
+    // — Lemon Squeezy, le manuel envoye par courriel, l acces au tableau de
+    // bord — n a jamais pu etre atteint par un acheteur reel.
+    //
+    // Le code est aussi nettoye des espaces : un lien copie-colle peut en
+    // trainer un, et il produirait la meme erreur muette.
+    const code = String(url.searchParams.get("formation") || "").trim().toUpperCase();
+
     let formule = url.searchParams.get("formule") || "cv1";
     const paiement = url.searchParams.get("paiement") || "comptant";
 
@@ -108,11 +125,15 @@ export async function GET(req: Request) {
 
     const affiliation = String(url.searchParams.get("ref") || affiliationDe(req) || "").toUpperCase();
 
+    if (!code) {
+      return NextResponse.json({ error: "formation non precisee" }, { status: 400 });
+    }
+
     if (["comptant", "4x", "12m"].indexOf(paiement) === -1) {
       return NextResponse.json({ error: "mode de paiement invalide" }, { status: 400 });
     }
 
-    const estAtelier = code.toUpperCase().indexOf("SK") === 0;
+    const estAtelier = code.indexOf("SK") === 0;
     if (estAtelier) formule = "atelier";
 
     const valides = ["elearning", "plus", "cv1", "cv2", "cv3", "bootcamp", "atelier"];
@@ -124,14 +145,26 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "les ateliers se reglent comptant" }, { status: 400 });
     }
 
+    // La recherche se fait sur le code normalise. `maybeSingle` plutot que
+    // `single` : une formation absente n est pas une erreur de base, c est
+    // un 404 propre.
     const { data: f, error } = await supabase
       .from("formations")
-      .select("code, titre, prix")
+      .select("code, titre, prix, actif")
       .eq("code", code)
-      .single();
+      .maybeSingle();
 
     if (error || !f) {
       return NextResponse.json({ error: "formation introuvable: " + code }, { status: 404 });
+    }
+
+    // Une formation retiree du catalogue ne doit plus se vendre, meme si
+    // quelqu un garde son lien.
+    if (f.actif === false) {
+      return NextResponse.json(
+        { error: "cette formation n est plus proposee a la vente" },
+        { status: 410 }
+      );
     }
 
     let prixFinal: number;
