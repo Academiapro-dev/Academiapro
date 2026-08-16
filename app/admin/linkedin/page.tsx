@@ -15,14 +15,9 @@ import { useState, useEffect } from "react";
 // le supprime. Cet ecran ouvre le profil et retient ce qui a ete fait —
 // c est tout, et c est ce qui protege le compte.
 //
-// LE MOT EST PRE-REDIGE, PAS PRE-ENVOYE. Il se copie d un bouton, se colle
-// dans LinkedIn, et se modifie si la fiche s y prete. Une invitation
-// visiblement generique se refuse.
-//
 // « ECARTER » N EST PAS « REFUSER ». Ecarter est la decision de Jacques,
 // prise avant tout envoi ; refuser est celle du destinataire, apres. Les
-// confondre rendrait le taux d acceptation illisible — on ne saurait plus
-// si personne ne repond ou si les fiches etaient mauvaises.
+// confondre rendrait le taux d acceptation illisible.
 
 const BASES = [
   { cle: "organismes", nom: "Organismes certifiés Qualiopi" },
@@ -30,16 +25,27 @@ const BASES = [
   { cle: "interim", nom: "Agences d'intérim" },
 ];
 
-// LA LIMITE DE LINKEDIN EST DE 300 CARACTERES pour la note d invitation.
-// Le compteur a l ecran evite d ecrire un mot qui sera tronque au collage.
-const LIMITE_NOTE = 300;
+// 🚨 DEUX CENTS CARACTERES, PAS TROIS CENTS. Constate a l ecran le 16/08 :
+// LinkedIn n accorde 300 caracteres QU AUX COMPTES PREMIUM. En compte
+// gratuit la limite est de 200, et au-dela le bouton « Ajouter une note »
+// disparait — il ne reste que « Envoyer sans note ». Or une invitation
+// partie sans note BRULE LA FICHE POUR TROIS SEMAINES : LinkedIn refuse
+// toute nouvelle invitation a la meme personne avant ce delai. Le texte
+// doit donc tenir sous 200 des le depart, sans quoi l ecran fabrique
+// exactement le probleme qu il devait eviter.
+const LIMITE_NOTE = 200;
 
+// LE MOT, RACCOURCI POUR TENIR SOUS LA LIMITE.
+//
+// Ce qui a saute : le detail des trois fonctions (bilan pedagogique,
+// preuves Qualiopi, suivi des stagiaires) et la duree. Ce qui reste est
+// l essentiel — le vecu, ce qui en est sorti, l ouverture. Le detail se
+// dira dans la conversation, pas dans l invitation.
 function mot(prenom: string) {
   const p = String(prenom || "").trim();
   const civilite = p ? "Bonjour " + p : "Bonjour";
-  return civilite + ", j'ai dirigé un organisme de formation certifié pendant quelques années, "
-    + "et c'est l'administratif qui m'a coûté le plus de temps. J'en ai fait un outil qui prend "
-    + "en charge le bilan pédagogique, les preuves Qualiopi et le suivi des stagiaires. "
+  return civilite + ", j'ai dirigé un organisme de formation certifié, et c'est l'administratif "
+    + "qui m'a coûté le plus de temps. J'en ai fait un outil qui le prend en charge. "
     + "Ravi d'échanger avec vous.";
 }
 
@@ -117,9 +123,7 @@ export default function PageLinkedin() {
   }
 
   // ECARTER SANS INVITER. La fiche sort de la file, ne compte dans aucun
-  // quota, et reste distincte d une invitation refusee. Cas d usage : le
-  // dirigeant a change d entreprise, la societe n a plus d activite, le
-  // profil est hors cible.
+  // quota, et reste distincte d une invitation refusee.
   async function ecarter() {
     if (!fiche) return;
     setCharge(true);
@@ -333,7 +337,7 @@ export default function PageLinkedin() {
               <textarea
                 value={texte}
                 onChange={(e) => setTexte(e.target.value)}
-                rows={6}
+                rows={5}
                 style={{
                   width: "100%", padding: "13px", borderRadius: "9px",
                   border: "1px solid " + (trop ? "rgba(232,131,106,0.6)" : "rgba(200,169,110,0.3)"),
@@ -345,13 +349,15 @@ export default function PageLinkedin() {
 
               {trop && (
                 <p style={{ color: "#e8836a", fontSize: "12.5px", margin: "8px 0 0", lineHeight: "1.6" }}>
-                  LinkedIn coupera le message au-delà de {LIMITE_NOTE} caractères. Raccourcissez avant de copier.
+                  Au-delà de {LIMITE_NOTE} caractères, LinkedIn retire le bouton « Ajouter une note »
+                  en compte gratuit. Raccourcissez avant de copier.
                 </p>
               )}
 
               <button
                 onClick={copier}
-                style={{ ...BOUTON, width: "100%", marginTop: "12px", background: copie ? "rgba(0,230,118,0.15)" : BOUTON.background, color: copie ? "#00e676" : OR, borderColor: copie ? "rgba(0,230,118,0.4)" : BOUTON.border }}
+                disabled={trop}
+                style={{ ...BOUTON, width: "100%", marginTop: "12px", opacity: trop ? 0.4 : 1, background: copie ? "rgba(0,230,118,0.15)" : BOUTON.background, color: copie ? "#00e676" : OR, borderColor: copie ? "rgba(0,230,118,0.4)" : BOUTON.border }}
               >
                 {copie ? "✓ Copié — collez-le dans LinkedIn" : "Copier le mot"}
               </button>
@@ -383,13 +389,18 @@ export default function PageLinkedin() {
               </button>
             </div>
 
-            <p style={{ color: "rgba(255,255,255,0.35)", fontSize: "12.5px", lineHeight: "1.75", marginTop: "16px" }}>
-              Le profil s'ouvre dans un onglet. Sur LinkedIn, cliquez <strong>Se connecter</strong>,
-              puis <strong>Ajouter une note</strong>, et collez le mot — n'utilisez pas
-              « Message », réservé aux comptes Premium. <strong>Écarter</strong> retire une fiche
-              de la file sans rien envoyer : elle ne compte dans aucun quota et reste distincte
-              d'une invitation refusée.
-            </p>
+            <div style={{ ...CARTE, marginTop: "16px", background: "rgba(232,131,106,0.07)", borderColor: "rgba(232,131,106,0.3)" }}>
+              <p style={{ color: "#e8836a", fontSize: "12.5px", letterSpacing: "2px", margin: "0 0 10px" }}>
+                COPIEZ LE MOT AVANT D'OUVRIR LE PROFIL
+              </p>
+              <p style={{ color: "rgba(255,255,255,0.65)", fontSize: "13px", lineHeight: "1.8", margin: 0 }}>
+                Sur LinkedIn, passez par les trois points <strong>⋯</strong> puis
+                <strong> Se connecter</strong>, et cherchez <strong>Ajouter une note</strong> —
+                le bouton est discret, LinkedIn pousse vers l'envoi direct. N'utilisez jamais
+                « Envoyer sans note » : la personne devient injoignable pendant trois semaines.
+                En cas de doute, fermez la fenêtre et écartez la fiche.
+              </p>
+            </div>
           </>
         )}
       </div>
