@@ -8,7 +8,6 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
 const ADMINS = ["contact@academiapro.fr"];
-const MAX_PAR_JOUR = 10;
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
@@ -64,25 +63,43 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // LIMITE DE RYTHME. Un catalogue entier ne se telecharge pas en une nuit :
-    // au-dela de dix manuels par jour, on suspend et on regarde qui c est.
+    // 🚨 UN MANUEL PAR UTILISATEUR ET PAR FORMATION.
+    //
+    // Regle posee par Jacques le 16/08 : « un manuel maximum par utilisateur ».
+    // Elle remplace la limite de dix telechargements par vingt-quatre heures,
+    // qui ne protegeait rien — il suffisait d attendre le lendemain pour
+    // reprendre, et un stagiaire reste douze mois en formation.
+    //
+    // POURQUOI CETTE REGLE EST MEILLEURE : elle suit ce que la personne a le
+    // droit d avoir, et non ce que l export coute. Un stagiaire suit une
+    // formation, il en recoit LE manuel. Elle est intelligible, elle ne se
+    // contourne pas en attendant, et personne ne se demande pourquoi il est
+    // bloque.
+    //
+    // PAR FORMATION, ET PAS SEULEMENT PAR PERSONNE : quelqu un qui suit deux
+    // formations chez le meme organisme a droit aux deux manuels. Refuser le
+    // second serait incomprehensible pour lui.
+    //
+    // L administrateur n est pas concerne : il doit pouvoir controler ce que
+    // ses clients recoivent.
     if (!estAdmin) {
-      const veille = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
       const { count } = await supabase
         .from("organisme_telechargements")
         .select("*", { count: "exact", head: true })
         .eq("email", session.email)
-        .gte("telecharge_le", veille);
+        .eq("type", "manuel")
+        .eq("code", code);
 
-      if (typeof count === "number" && count >= MAX_PAR_JOUR) {
+      if (typeof count === "number" && count >= 1) {
         return NextResponse.json(
           {
             ok: false,
             erreur:
-              "Vous avez telecharge " + MAX_PAR_JOUR +
-              " manuels au cours des dernieres vingt-quatre heures. Reessayez demain.",
+              "Vous avez deja recu le manuel de cette formation. Il vous a ete remis " +
+              "en un exemplaire personnel : retrouvez-le la ou vous l avez enregistre, " +
+              "ou demandez-le a votre organisme de formation.",
           },
-          { status: 429 }
+          { status: 409 }
         );
       }
     }
@@ -308,6 +325,8 @@ export async function GET(req: NextRequest) {
 
     const ip = req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || null;
 
+    // L ENREGISTREMENT EST CE QUI TIENT LA REGLE. Sans cette ligne, le
+    // comptage ci-dessus ne verrait rien et le manuel repartirait sans fin.
     await supabase.from("organisme_telechargements").insert({
       tenant_id: tenant,
       email: session.email,
