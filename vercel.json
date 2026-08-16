@@ -21,6 +21,10 @@
       "schedule": "0 5 * * *"
     },
     {
+      "path": "/api/cron/verifier-achat",
+      "schedule": "30 7 * * *"
+    },
+    {
       "path": "/api/cron/relances",
       "schedule": "0 8 * * *"
     },
