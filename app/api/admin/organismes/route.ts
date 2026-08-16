@@ -23,6 +23,20 @@ function refuse() {
   return NextResponse.json({ ok: false, erreur: "reserve a l administrateur" }, { status: 403 });
 }
 
+// LES TROIS OFFRES, arretees le 16/08/2026.
+//
+//  pack : 390 EUR HT par mois en forfait, stagiaires ET utilisateurs
+//         illimites, 35 % sur le catalogue editeur, minimum 30 EUR par
+//         stagiaire inscrit, 1 500 EUR de mise en service.
+//  lms  : 290 EUR HT par mois en forfait, sans catalogue editeur — donc
+//         aucune part ni minimum par stagiaire.
+//  crm  : 35 EUR HT PAR UTILISATEUR ET PAR MOIS, sans degressivite.
+//
+// ⚠️ SUR LE CRM SEUL, abonnement_mensuel PORTE LE PRIX PAR POSTE — 35 — et
+// non le total. C est le bon de commande qui multiplie par nb_utilisateurs.
+// Saisir 3 500 pour cent postes donnerait donc 350 000 EUR sur le bon.
+const OFFRES = ["pack", "lms", "crm"];
+
 const NOMBRES: any = {
   abonnement_mensuel: { max: 100000, libelle: "Abonnement invalide." },
   taux_prelevement: { max: 100, libelle: "Taux invalide." },
@@ -31,6 +45,7 @@ const NOMBRES: any = {
   taux_apport: { max: 100, libelle: "Taux d apport invalide." },
   frais_installation: { max: 100000, libelle: "Frais de mise en service invalides." },
   quota_ia_mensuel: { max: 5000, libelle: "Quota de redaction invalide." },
+  nb_utilisateurs: { max: 5000, libelle: "Nombre d utilisateurs invalide." },
 };
 
 function nettoyerDomaine(brut: string): string {
@@ -112,6 +127,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // L offre est choisie des l ouverture du compte : elle commande ce que
+    // le client voit, ce qu il paie, et quel bon de commande sera edite.
+    // A defaut, le pack — comportement historique.
+    const offre = String(corps.offre || "pack").trim().toLowerCase();
+    if (OFFRES.indexOf(offre) < 0) {
+      return NextResponse.json({ ok: false, erreur: "Offre inconnue." }, { status: 400 });
+    }
+
     const fiche = {
       raison_sociale: raison,
       siret: corps.siret ? String(corps.siret).trim() : null,
@@ -123,13 +146,15 @@ export async function POST(req: NextRequest) {
       qualiopi: corps.qualiopi === true,
       certificateur: corps.certificateur ? String(corps.certificateur).trim() : null,
       statut: "actif",
+      offre: offre,
+      nb_utilisateurs: 1,
       notes: corps.notes ? String(corps.notes).trim() : null,
     };
 
     const { data, error } = await supabase
       .from("organismes_formation")
       .insert(fiche)
-      .select("id, tenant_id, raison_sociale, email_contact")
+      .select("id, tenant_id, raison_sociale, email_contact, offre")
       .limit(1);
 
     if (error) {
@@ -166,6 +191,17 @@ export async function PATCH(req: NextRequest) {
     }
 
     if (m.email_contact) m.email_contact = String(m.email_contact).toLowerCase();
+
+    // L OFFRE EST VALIDEE CONTRE LA LISTE, jamais reprise telle quelle : une
+    // valeur inconnue en base ferait echouer l edition du bon de commande,
+    // qui la cherche dans son propre tableau d offres.
+    if (corps.offre !== undefined) {
+      const offre = String(corps.offre || "").trim().toLowerCase();
+      if (OFFRES.indexOf(offre) < 0) {
+        return NextResponse.json({ ok: false, erreur: "Offre inconnue." }, { status: 400 });
+      }
+      m.offre = offre;
+    }
 
     if (corps.numero_tva !== undefined) {
       m.numero_tva = corps.numero_tva
@@ -214,7 +250,9 @@ export async function PATCH(req: NextRequest) {
 
       const brut = corps[cle];
       if (brut === null || brut === "") {
-        m[cle] = null;
+        // Le nombre d utilisateurs ne peut pas etre vide : un client
+        // facture au poste en a toujours au moins un.
+        m[cle] = cle === "nb_utilisateurs" ? 1 : null;
         continue;
       }
 
@@ -222,7 +260,7 @@ export async function PATCH(req: NextRequest) {
       if (isNaN(valeur) || valeur < 0 || valeur > NOMBRES[cle].max) {
         return NextResponse.json({ ok: false, erreur: NOMBRES[cle].libelle }, { status: 400 });
       }
-      m[cle] = valeur;
+      m[cle] = cle === "nb_utilisateurs" ? Math.max(1, Math.round(valeur)) : valeur;
     }
 
     if (corps.lancement_jusqu_au !== undefined) {
