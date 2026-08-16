@@ -25,21 +25,17 @@ const supabase = createClient(
 
 // TROIS OFFRES, TROIS BONS DE COMMANDE DIFFERENTS.
 //
-// Arretees par Jacques le 16/08 :
-//
 //  - PACK : 390 EUR HT par mois en forfait, stagiaires ET utilisateurs
 //    illimites, 35 % sur le catalogue editeur avec un minimum de 30 EUR par
 //    stagiaire inscrit, 1 500 EUR de mise en service.
 //  - LMS SEUL : 290 EUR HT par mois en forfait, stagiaires illimites, SANS
 //    catalogue editeur — donc AUCUNE part et AUCUN minimum par stagiaire.
 //  - CRM SEUL : 35 EUR HT PAR UTILISATEUR ET PAR MOIS, sans degressivite.
-//    Ses mots : « on ne bouge pas les tarifs, on reste a 35 ». A cent
-//    postes, cela fait 3 500 EUR par mois la ou un forfait plafonnerait.
 //
-// POURQUOI LE PACK NE COMPTE PAS LES UTILISATEURS : il porte deja trois
-// axes de facturation. Un quatrieme compteur rendrait la facture
-// incalculable pour le client — c'est le reproche que le marche adresse a
-// Digiforma et a ses paliers d'utilisateurs.
+// 🚨 IL N Y A PLUS DE TARIF DE LANCEMENT. Supprime le 16/08 sur demande de
+// Jacques : le code divisait l abonnement PAR DEUX des que la colonne
+// lancement_jusqu_au portait une date, sans qu il l ait jamais decide. Ne
+// pas le reintroduire. Le prix affiche au bon est TOUJOURS le prix plein.
 const OFFRES: any = {
   pack: {
     nom: "PACK COMPLET",
@@ -61,17 +57,9 @@ const OFFRES: any = {
   },
 };
 
-// 🚨 LE TAUX DE SECOURS EST A 35 %, PAS A 40.
-//
-// Corrige le 16/08. Il valait 40 % — un chiffre qui ne correspondait a
-// aucun contrat et qui apparaissait a l'ecran comme une valeur fantome :
-// affichee, jamais enregistree, et differente de ce que le bon de commande
-// annonce. Le taux du bon de reference est de 35 %, et c'est desormais
-// aussi le defaut de la colonne taux_prelevement en base.
-//
-// Le taux avec gestion administrative reste a 10 % : il est la contrepartie
-// des 180 EUR par stagiaire, sans quoi il ne resterait presque rien au
-// Client sur ses ventes.
+// Le taux de secours est a 35 %, aligne sur le bon de reference et sur le
+// defaut de la colonne taux_prelevement. Le taux avec gestion reste a 10 % :
+// il est la contrepartie des 180 EUR par stagiaire.
 const TAUX_DEFAUT = 35;
 const TAUX_AVEC_GESTION = 10;
 
@@ -117,8 +105,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, erreur: "Client introuvable." }, { status: 404 });
     }
 
-    // L offre vient de la demande si elle est precisee, sinon de la fiche,
-    // sinon du pack — pour que rien ne change sur les clients existants.
     const cleOffre = String(b.offre || org.offre || "pack").trim().toLowerCase();
     const offre = OFFRES[cleOffre];
     if (!offre) {
@@ -127,11 +113,10 @@ export async function POST(req: NextRequest) {
 
     const postes = Math.max(1, Number(org.nb_utilisateurs) || 1);
 
+    // La date de lancement ne fait plus partie des champs exiges : elle
+    // n a plus aucun effet sur le prix.
     const manques: string[] = [];
     if (!org.abonnement_mensuel) manques.push("l abonnement mensuel");
-    if (!org.lancement_jusqu_au && b.lancement !== false) {
-      manques.push("la date de fin du tarif de lancement");
-    }
     if (!org.email_contact) manques.push("l email de contact");
 
     if (manques.length > 0) {
@@ -144,8 +129,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Les frais de mise en service sont decides en negociant : ils arrivent
-    // avec la demande, et sont enregistres a la fiche pour memoire.
     let frais = org.frais_installation !== null && org.frais_installation !== undefined
       ? Number(org.frais_installation)
       : 0;
@@ -164,11 +147,9 @@ export async function POST(req: NextRequest) {
 
     // SUR LE CRM SEUL, abonnement_mensuel porte LE PRIX PAR POSTE et non le
     // total : le total se calcule ici, en multipliant par le nombre de
-    // postes releve sur la fiche.
+    // postes releve sur la fiche. AUCUNE REMISE N EST APPLIQUEE.
     const unitaire = Number(org.abonnement_mensuel) || 0;
     const plein = offre.parUtilisateur ? unitaire * postes : unitaire;
-    const enLancement = b.lancement !== false && !!org.lancement_jusqu_au;
-    const mensuel = enLancement ? Math.round(plein / 2) : plein;
 
     const gestionSouscrite = offre.catalogue && org.gestion_souscrite === true;
 
@@ -186,8 +167,6 @@ export async function POST(req: NextRequest) {
       ? Number(org.forfait_gestion)
       : 0;
 
-    // LE CATALOGUE N EST LU QUE POUR LE PACK : sur le LMS seul et le CRM
-    // seul, aucune formation de l Editeur n est ouverte, donc pas d annexe.
     const { data: catalogue } = offre.catalogue
       ? await supabase
           .from("organisme_catalogue")
@@ -375,39 +354,17 @@ export async function POST(req: NextRequest) {
     if (offre.parUtilisateur) {
       paire("Prix par utilisateur", euros(unitaire) + " par mois");
       paire("Nombre d utilisateurs", String(postes));
-      if (enLancement) {
-        paire("Tarif de lancement", euros(mensuel) + " par mois");
-        paire("Jusqu au", jour(org.lancement_jusqu_au));
-        paire("Puis, de plein droit", euros(plein) + " par mois");
-      } else {
-        paire("Total mensuel", euros(plein) + " par mois");
-      }
-    } else if (enLancement) {
-      paire("Tarif de lancement", euros(mensuel) + " par mois");
-      paire("Jusqu au", jour(org.lancement_jusqu_au));
-      paire("Puis, de plein droit", euros(plein) + " par mois");
+      paire("Total mensuel", euros(plein) + " par mois");
     } else {
       paire("Abonnement mensuel", euros(plein) + " par mois");
     }
 
-    if (enLancement) {
-      y = y - 4;
-      ligne(
-        "A la date ci-dessus, le montant plein s applique de plein droit, sans formalite ni " +
-        "renegociation. En contrepartie du tarif de lancement, le Client autorise l Editeur a " +
-        "citer sa denomination a titre de reference et s engage a fournir un temoignage ecrit.",
-        9, normal, gris, 5
-      );
-    }
-
     // 🚨 CE QUI N EST PAS COMPRIS DANS L ILLIMITE.
     //
-    // « Stagiaires illimites et utilisateurs illimites » se lit vite comme
-    // « tout est illimite ». Or le SMS et la voix sont les DEUX SEULS postes
-    // ou chaque usage coute reellement de l argent a l Editeur : Brevo
-    // facture chaque message, Plivo chaque minute. Un forfait illimite ferait
-    // travailler a perte des qu un client envoie en volume — et l interim,
-    // premiere cible, est precisement du volume.
+    // Le SMS et la voix sont les DEUX SEULS postes ou chaque usage coute
+    // reellement de l argent a l Editeur : Brevo facture chaque message,
+    // Plivo chaque minute. Un forfait illimite ferait travailler a perte des
+    // qu un client envoie en volume.
     titreBloc("OPTIONS FACTUREES A L USAGE");
     ligne(
       "CES DEUX OPTIONS NE SONT PAS COMPRISES DANS L ABONNEMENT. Elles ne sont dues que si le " +
@@ -602,9 +559,6 @@ export async function POST(req: NextRequest) {
 
     const octets = Buffer.from(await pdf.save());
 
-    // ARCHIVAGE. Sans depot, le signataire ne peut pas relire ce qu il signe,
-    // et la signature regenererait un fichier different de celui qui lui a
-    // ete presente. Le bon suit donc le meme chemin que les contrats.
     const empreinte = crypto.createHash("sha256").update(octets).digest("hex");
     const chemin = String(b.tenant_id) + "/" + reference + ".pdf";
 
@@ -635,14 +589,12 @@ export async function POST(req: NextRequest) {
         frais: frais,
         unitaire: unitaire,
         utilisateurs: offre.parUtilisateur ? postes : null,
-        mensuel: mensuel,
         plein: plein,
         taux: offre.catalogue ? taux : null,
         plancher: offre.catalogue ? plancher : null,
         gestion: gestion,
         gestion_souscrite: gestionSouscrite,
         apport: offre.catalogue ? apport : null,
-        lancement_jusqu_au: org.lancement_jusqu_au,
         formations: (catalogue || []).length,
       },
     });
