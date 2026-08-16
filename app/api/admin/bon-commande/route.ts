@@ -28,14 +28,43 @@ const supabase = createClient(
 //  - PACK : 390 EUR HT par mois en forfait, stagiaires ET utilisateurs
 //    illimites, 35 % sur le catalogue editeur avec un minimum de 30 EUR par
 //    stagiaire inscrit, 1 500 EUR de mise en service.
-//  - LMS SEUL : 290 EUR HT par mois en forfait, stagiaires illimites, SANS
-//    catalogue editeur — donc AUCUNE part et AUCUN minimum par stagiaire.
+//  - LMS SEUL : 290 EUR HT par mois en forfait, sans catalogue editeur.
 //  - CRM SEUL : 35 EUR HT PAR UTILISATEUR ET PAR MOIS, sans degressivite.
 //
 // 🚨 IL N Y A PLUS DE TARIF DE LANCEMENT. Supprime le 16/08 sur demande de
 // Jacques : le code divisait l abonnement PAR DEUX des que la colonne
 // lancement_jusqu_au portait une date, sans qu il l ait jamais decide. Ne
-// pas le reintroduire. Le prix affiche au bon est TOUJOURS le prix plein.
+// pas le reintroduire. Le prix affiche est TOUJOURS le prix plein.
+//
+// 🚨🚨 LA STRATEGIE, ARRETEE LE 16/08 AU SOIR — NE PAS LA REOUVRIR.
+//
+// ACADEMIA PRO DEVIENT LE CATALOGUE, elle ne vend pas un outil de
+// fabrication. Ses mots : « les formations que nous generons deviennent
+// automatiquement notre propriete, sinon comment aurions-nous construit
+// 310 formations qui font partie de notre catalogue ». Aujourd hui 331,
+// demain 500, apres-demain 1 000 — et toutes appartiennent a l editeur,
+// qu elles viennent de ses propres recherches ou d une demande client.
+//
+// LE MODELE EST CELUI DE LA SOUS-TRAITANCE DE CONTENU, et c est la pratique
+// du metier : l organisme vend l action, porte sa certification et sa
+// responsabilite, et SOUS-TRAITE LE CONTENU. Un organisme qui veut produire
+// ses propres formations devient un CONCURRENT, pas un client.
+//
+// CE QUI A ETE RETIRE DE CE DOCUMENT EN CONSEQUENCE :
+//   - « creation de ses propres contenus sans limite de nombre » dans ce
+//     que couvre l abonnement du pack — c etait une invitation a fabriquer
+//     ecrite noir sur blanc dans le document commercial ;
+//   - « AUCUNE PART N EST DUE SUR LES FORMATIONS CREEES PAR LE CLIENT :
+//     elles lui appartiennent en propre », qui disait le contraire de la
+//     propriete reelle des contenus produits par la plateforme.
+//
+// CE QUI LES REMPLACE : la production sur mesure, et un bloc PROPRIETE qui
+// dit qui possede quoi. La rassurance demeure — la part ne porte QUE sur le
+// catalogue editeur — mais sans inviter personne a fabriquer.
+//
+// ⚠️ AUCUN PRIX N EST ECRIT POUR LA FORMATION COMMANDEE : il est rouvert
+// depuis le 16/08 au soir et n appartient qu a Jacques. Ne pas l inscrire
+// ici sans qu il l ait tranche.
 const OFFRES: any = {
   pack: {
     nom: "PACK COMPLET",
@@ -113,8 +142,6 @@ export async function POST(req: NextRequest) {
 
     const postes = Math.max(1, Number(org.nb_utilisateurs) || 1);
 
-    // La date de lancement ne fait plus partie des champs exiges : elle
-    // n a plus aucun effet sur le prix.
     const manques: string[] = [];
     if (!org.abonnement_mensuel) manques.push("l abonnement mensuel");
     if (!org.email_contact) manques.push("l email de contact");
@@ -146,8 +173,7 @@ export async function POST(req: NextRequest) {
     }
 
     // SUR LE CRM SEUL, abonnement_mensuel porte LE PRIX PAR POSTE et non le
-    // total : le total se calcule ici, en multipliant par le nombre de
-    // postes releve sur la fiche. AUCUNE REMISE N EST APPLIQUEE.
+    // total : le total se calcule ici. AUCUNE REMISE N EST APPLIQUEE.
     const unitaire = Number(org.abonnement_mensuel) || 0;
     const plein = offre.parUtilisateur ? unitaire * postes : unitaire;
 
@@ -294,29 +320,30 @@ export async function POST(req: NextRequest) {
     if (cleOffre === "pack") {
       ligne(
         "Trois briques comprises dans un seul abonnement, sans option a ajouter : " +
-        "(1) LA PLATEFORME D APPRENTISSAGE - diffusion des formations, creation de ses propres " +
-        "contenus sans limite de nombre, questionnaires corriges erreur par erreur, classes " +
-        "virtuelles, suivi de chaque stagiaire et attestations de fin de formation ; " +
-        "(2) LE SUIVI COMMERCIAL - prospects, etapes, relances redigees, motifs de perte, page " +
-        "publique de l organisme, sans limite d utilisateurs ; " +
-        "(3) LE CATALOGUE DE L EDITEUR - formations pretes a vendre sous le nom du Client, " +
-        "ouvertes selon l annexe ci-apres.",
+        "(1) LE CATALOGUE DE L EDITEUR - plus de trois cents formations a distance pretes a " +
+        "vendre sous le nom du Client, ouvertes selon l annexe ci-apres, avec leurs modules, " +
+        "leurs exercices corriges, leurs questionnaires et leur manuel ; " +
+        "(2) LA PLATEFORME D APPRENTISSAGE - diffusion des formations, questionnaires corriges " +
+        "erreur par erreur, classes virtuelles, suivi de chaque stagiaire et attestations de fin " +
+        "de formation a l en-tete du Client ; " +
+        "(3) LE SUIVI COMMERCIAL - prospects, etapes, relances redigees, motifs de perte, page " +
+        "publique de l organisme, sans limite d utilisateurs.",
         10, normal, noir, 5
       );
       y = y - 4;
       ligne(
         "S y ajoutent les documents administratifs a l en-tete du Client, la signature " +
         "electronique et son archivage, les evaluations, le registre des reclamations, les " +
-        "dossiers de ses formateurs, le suivi de sa sous-traitance et son bilan pedagogique et " +
-        "financier prepare cadre par cadre. STAGIAIRES ILLIMITES ET UTILISATEURS ILLIMITES.",
+        "dossiers de ses formateurs, ses registres de veille, le suivi de sa sous-traitance et " +
+        "son bilan pedagogique et financier prepare cadre par cadre. STAGIAIRES ILLIMITES ET " +
+        "UTILISATEURS ILLIMITES.",
         10, normal, noir, 5
       );
     } else if (cleOffre === "lms") {
       ligne(
         "LA PLATEFORME D APPRENTISSAGE, sans le catalogue de l Editeur : diffusion des formations " +
-        "DU CLIENT, creation de ses propres contenus sans limite de nombre, questionnaires " +
-        "corriges erreur par erreur, classes virtuelles, suivi de chaque stagiaire et " +
-        "attestations de fin de formation a son en-tete.",
+        "du Client, questionnaires corriges erreur par erreur, classes virtuelles, suivi de chaque " +
+        "stagiaire et attestations de fin de formation a son en-tete.",
         10, normal, noir, 5
       );
       y = y - 4;
@@ -329,9 +356,8 @@ export async function POST(req: NextRequest) {
       );
       y = y - 4;
       ligne(
-        "AUCUNE PART N EST DUE A L EDITEUR sur les formations du Client : elles lui appartiennent " +
-        "en propre, et il en fixe librement le prix. Le catalogue de l Editeur peut lui etre " +
-        "ouvert a tout moment par avenant.",
+        "Le catalogue de l Editeur n est pas compris dans cette formule. Il peut etre ouvert au " +
+        "Client a tout moment par avenant, aux conditions du pack complet.",
         9, gras, noir, 5
       );
     } else {
@@ -359,12 +385,40 @@ export async function POST(req: NextRequest) {
       paire("Abonnement mensuel", euros(plein) + " par mois");
     }
 
+    // LA PRODUCTION SUR MESURE — CE QUI REMPLACE L INVITATION A FABRIQUER.
+    //
+    // C est l argument que personne d autre ne peut copier : Digiforma et
+    // Dendreo vendent l outil, jamais le contenu, et encore moins du contenu
+    // produit a la demande. Le prix n est PAS ecrit ici : il est rouvert et
+    // n appartient qu a Jacques.
+    if (offre.catalogue) {
+      titreBloc("PRODUCTION SUR MESURE");
+      ligne(
+        "Le Client peut demander a l Editeur de produire une formation qui ne figure pas encore " +
+        "au catalogue. Il indique le sujet, la duree souhaitee, le public vise et ce que le " +
+        "stagiaire doit savoir faire ; l Editeur construit le plan, redige les modules, les " +
+        "exercices corriges, les questionnaires et le manuel.",
+        10, normal, noir, 5
+      );
+      y = y - 4;
+      paire("Delai indicatif", "une semaine");
+      paire("Tarif", "communique sur demande, avant tout engagement");
+      y = y - 4;
+      ligne(
+        "La formation ainsi produite rejoint le catalogue de l Editeur et suit les memes " +
+        "conditions que les autres : le Client la vend sous son nom, aux conditions de part " +
+        "indiquees ci-dessous.",
+        9, normal, gris, 5
+      );
+    }
+
     // 🚨 CE QUI N EST PAS COMPRIS DANS L ILLIMITE.
     //
     // Le SMS et la voix sont les DEUX SEULS postes ou chaque usage coute
     // reellement de l argent a l Editeur : Brevo facture chaque message,
     // Plivo chaque minute. Un forfait illimite ferait travailler a perte des
-    // qu un client envoie en volume.
+    // qu un client envoie en volume — et l interim, premiere cible, est
+    // precisement du volume.
     titreBloc("OPTIONS FACTUREES A L USAGE");
     ligne(
       "CES DEUX OPTIONS NE SONT PAS COMPRISES DANS L ABONNEMENT. Elles ne sont dues que si le " +
@@ -416,9 +470,37 @@ export async function POST(req: NextRequest) {
       }
       y = y - 4;
       ligne(
-        "AUCUNE PART N EST DUE SUR LES FORMATIONS CREEES PAR LE CLIENT : elles lui appartiennent " +
-        "en propre. Le nombre d inscriptions enregistre par la plateforme fait foi ; le Client n a " +
-        "aucune declaration de chiffre d affaires a fournir.",
+        "LE CLIENT FIXE LIBREMENT SON PRIX DE VENTE. Le nombre d inscriptions enregistre par la " +
+        "plateforme fait foi ; il n a aucune declaration de chiffre d affaires a fournir. Aucune " +
+        "part n est due sur les prestations que le Client realise hors de la plateforme.",
+        9, normal, gris, 5
+      );
+
+      // LE BLOC QUI DIT QUI POSSEDE QUOI.
+      //
+      // Il remplace l ancienne mention « AUCUNE PART N EST DUE SUR LES
+      // FORMATIONS CREEES PAR LE CLIENT : elles lui appartiennent en propre »,
+      // qui disait le contraire de la propriete reelle des contenus produits
+      // par la plateforme, et qui invitait a fabriquer plutot qu a commander.
+      titreBloc("PROPRIETE DES CONTENUS");
+      ligne(
+        "Les formations du catalogue, y compris celles produites a la demande du Client, sont et " +
+        "demeurent la propriete de l Editeur. Le Client dispose du droit de les diffuser a ses " +
+        "stagiaires et de les vendre sous son nom pendant toute la duree du present accord, aux " +
+        "conditions de part ci-dessus.",
+        9, normal, noir, 5
+      );
+      y = y - 4;
+      ligne(
+        "Ce droit d usage n est pas exclusif : l Editeur conserve la faculte de proposer les memes " +
+        "formations a d autres organismes. Une exclusivite sur un contenu determine peut etre " +
+        "convenue separement, par avenant et contre remuneration.",
+        9, normal, noir, 5
+      );
+      y = y - 4;
+      ligne(
+        "Les marques, le logo et les elements propres au Client lui restent acquis : ils ne sont " +
+        "utilises par l Editeur que pour habiller les documents et la plateforme a ses couleurs.",
         9, normal, gris, 5
       );
     }
