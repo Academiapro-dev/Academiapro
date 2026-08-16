@@ -29,7 +29,19 @@ const TABLES: any = {
   interim: "prospects_interim",
 };
 
-const STATUTS = ["invite", "accepte", "refuse"];
+// QUATRE STATUTS, ET « ECARTE » N EST PAS « REFUSE ».
+//
+// invite  : l invitation est partie, la date est posee, elle compte au quota.
+// accepte : la personne a accepte.
+// refuse  : la personne n a pas donne suite — c est SON choix.
+// ecarte  : Jacques a decide de ne pas inviter — c est SA decision, prise
+//           avant tout envoi. Un dirigeant parti ailleurs, une societe sans
+//           activite, un profil hors cible.
+//
+// Confondre les deux derniers rendrait le taux d acceptation illisible :
+// on ne saurait plus si personne ne repond ou si les fiches etaient
+// mauvaises. Ce sont deux enseignements differents.
+const STATUTS = ["invite", "accepte", "refuse", "ecarte"];
 
 // LE RYTHME, arrete le 16/08 : VINGT PAR JOUR, CENT PAR SEMAINE.
 //
@@ -42,6 +54,7 @@ const PLAFOND_JOUR = 20;
 
 // Le compte des invitations sur une periode, toutes bases confondues :
 // c est LE COMPTE LINKEDIN qui est plafonne, pas chaque base.
+// Une fiche ecartee ne compte jamais : rien n a ete envoye.
 async function compterDepuis(depuis: string): Promise<number> {
   let total = 0;
   for (const cle of Object.keys(TABLES)) {
@@ -49,6 +62,7 @@ async function compterDepuis(depuis: string): Promise<number> {
       .from(TABLES[cle])
       .select("id", { count: "exact", head: true })
       .not("linkedin_le", "is", null)
+      .neq("linkedin_statut", "ecarte")
       .gte("linkedin_le", depuis);
     total += count || 0;
   }
@@ -70,18 +84,27 @@ async function compteurs() {
   const semaine = await compterDepuis(ilYaSeptJours());
 
   let total = 0;
+  let ecartes = 0;
   for (const cle of Object.keys(TABLES)) {
-    const { count } = await supabase
+    const { count: t } = await supabase
       .from(TABLES[cle])
       .select("id", { count: "exact", head: true })
-      .not("linkedin_le", "is", null);
-    total += count || 0;
+      .not("linkedin_le", "is", null)
+      .neq("linkedin_statut", "ecarte");
+    total += t || 0;
+
+    const { count: e } = await supabase
+      .from(TABLES[cle])
+      .select("id", { count: "exact", head: true })
+      .eq("linkedin_statut", "ecarte");
+    ecartes += e || 0;
   }
 
   return {
     jour: jour,
     semaine: semaine,
     total: total,
+    ecartes: ecartes,
     plafond_jour: PLAFOND_JOUR,
     plafond_semaine: PLAFOND_SEMAINE,
     reste_jour: Math.max(PLAFOND_JOUR - jour, 0),
@@ -91,9 +114,9 @@ async function compteurs() {
 
 // LA FICHE SUIVANTE A INVITER.
 //
-// Un profil connu, jamais sollicite, dans la base demandee. On sert UNE
-// fiche a la fois : c est ce qui permet d enchainer sans chercher ou on en
-// etait, et ce qui evite de charger cinquante lignes pour n en traiter une.
+// Un profil connu, jamais sollicite, jamais ecarte. On sert UNE fiche a la
+// fois : c est ce qui permet d enchainer sans chercher ou on en etait, et
+// ce qui evite de charger cinquante lignes pour n en traiter une.
 async function suivante(base: string) {
   const table = TABLES[base];
   if (!table) return { erreur: "Base inconnue." };
@@ -103,6 +126,7 @@ async function suivante(base: string) {
     .select("id, raison_sociale, ville, code_postal, siren, dirigeant_prenom, dirigeant_nom, linkedin, email, telephone, site_web")
     .not("linkedin", "is", null)
     .is("linkedin_le", null)
+    .or("linkedin_statut.is.null,linkedin_statut.neq.ecarte")
     .order("id", { ascending: true })
     .limit(1);
 
@@ -114,7 +138,8 @@ async function suivante(base: string) {
     .from(table)
     .select("id", { count: "exact", head: true })
     .not("linkedin", "is", null)
-    .is("linkedin_le", null);
+    .is("linkedin_le", null)
+    .or("linkedin_statut.is.null,linkedin_statut.neq.ecarte");
 
   return { fiche: data[0], restant: count || 0 };
 }
@@ -149,7 +174,8 @@ export async function POST(req: NextRequest) {
     }
 
     // LE PLAFOND SE VERIFIE COTE SERVEUR, pas seulement a l ecran : un
-    // bouton grise se contourne, une regle en base non.
+    // bouton grise se contourne, une regle en base non. Ecarter une fiche
+    // n est pas plafonne — rien ne part.
     if (statut === "invite") {
       const c = await compteurs();
       if (c.reste_jour <= 0) {
@@ -170,8 +196,12 @@ export async function POST(req: NextRequest) {
 
     // Marquer « invite » pose la date ; corriger en accepte ou refuse la
     // conserve, sans quoi le compteur de la semaine serait fausse.
+    // « ecarte » pose aussi une date — elle sert de trace de la decision —
+    // mais elle est exclue de tous les comptes par le filtre ci-dessus.
     const champs: any = { linkedin_statut: statut };
-    if (statut === "invite") champs.linkedin_le = new Date().toISOString();
+    if (statut === "invite" || statut === "ecarte") {
+      champs.linkedin_le = new Date().toISOString();
+    }
 
     const { error } = await supabase.from(table).update(champs).eq("id", id);
     if (error) {
