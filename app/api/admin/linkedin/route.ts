@@ -31,10 +31,93 @@ const TABLES: any = {
 
 const STATUTS = ["invite", "accepte", "refuse"];
 
-// Le plafond hebdomadaire de LinkedIn tourne autour de cent invitations.
-// On se tient volontairement en dessous : un compte restreint ne se
-// repare pas, et les invitations sans reponse comptent contre soi.
-const PLAFOND_SEMAINE = 80;
+// LE RYTHME, arrete le 16/08 : VINGT PAR JOUR, CENT PAR SEMAINE.
+//
+// LinkedIn tolere environ une centaine d invitations hebdomadaires et
+// bloque si trop d entre elles restent sans reponse. Le plafond quotidien
+// compte autant que l hebdomadaire : epuiser sa semaine en deux jours est
+// precisement le comportement qui ressemble a une automatisation.
+const PLAFOND_SEMAINE = 100;
+const PLAFOND_JOUR = 20;
+
+// Le compte des invitations sur une periode, toutes bases confondues :
+// c est LE COMPTE LINKEDIN qui est plafonne, pas chaque base.
+async function compterDepuis(depuis: string): Promise<number> {
+  let total = 0;
+  for (const cle of Object.keys(TABLES)) {
+    const { count } = await supabase
+      .from(TABLES[cle])
+      .select("id", { count: "exact", head: true })
+      .not("linkedin_le", "is", null)
+      .gte("linkedin_le", depuis);
+    total += count || 0;
+  }
+  return total;
+}
+
+function debutDuJour(): string {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d.toISOString();
+}
+
+function ilYaSeptJours(): string {
+  return new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString();
+}
+
+async function compteurs() {
+  const jour = await compterDepuis(debutDuJour());
+  const semaine = await compterDepuis(ilYaSeptJours());
+
+  let total = 0;
+  for (const cle of Object.keys(TABLES)) {
+    const { count } = await supabase
+      .from(TABLES[cle])
+      .select("id", { count: "exact", head: true })
+      .not("linkedin_le", "is", null);
+    total += count || 0;
+  }
+
+  return {
+    jour: jour,
+    semaine: semaine,
+    total: total,
+    plafond_jour: PLAFOND_JOUR,
+    plafond_semaine: PLAFOND_SEMAINE,
+    reste_jour: Math.max(PLAFOND_JOUR - jour, 0),
+    reste_semaine: Math.max(PLAFOND_SEMAINE - semaine, 0),
+  };
+}
+
+// LA FICHE SUIVANTE A INVITER.
+//
+// Un profil connu, jamais sollicite, dans la base demandee. On sert UNE
+// fiche a la fois : c est ce qui permet d enchainer sans chercher ou on en
+// etait, et ce qui evite de charger cinquante lignes pour n en traiter une.
+async function suivante(base: string) {
+  const table = TABLES[base];
+  if (!table) return { erreur: "Base inconnue." };
+
+  const { data, error } = await supabase
+    .from(table)
+    .select("id, raison_sociale, ville, code_postal, siren, dirigeant_prenom, dirigeant_nom, linkedin, email, telephone, site_web")
+    .not("linkedin", "is", null)
+    .is("linkedin_le", null)
+    .order("id", { ascending: true })
+    .limit(1);
+
+  if (error) return { erreur: error.message };
+  if (!data || data.length === 0) return { fiche: null, epuise: true };
+
+  // Ce qui reste a faire dans cette base, pour situer l effort.
+  const { count } = await supabase
+    .from(table)
+    .select("id", { count: "exact", head: true })
+    .not("linkedin", "is", null)
+    .is("linkedin_le", null);
+
+  return { fiche: data[0], restant: count || 0 };
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -44,7 +127,17 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
+    const action = String(body.action || "marquer").trim();
     const base = String(body.base || "").trim();
+
+    // La fiche suivante a traiter, sans rien modifier.
+    if (action === "suivante") {
+      const r: any = await suivante(base);
+      if (r.erreur) return NextResponse.json({ ok: false, erreur: r.erreur }, { status: 400 });
+      return NextResponse.json({ ok: true, ...r, compteurs: await compteurs() });
+    }
+
+    // L enregistrement de ce qui a ete fait a la main.
     const id = body.id;
     const statut = String(body.statut || "invite").trim();
 
@@ -53,6 +146,26 @@ export async function POST(req: NextRequest) {
     if (!id) return NextResponse.json({ ok: false, erreur: "Ligne non precisee." }, { status: 400 });
     if (STATUTS.indexOf(statut) < 0) {
       return NextResponse.json({ ok: false, erreur: "Statut inconnu." }, { status: 400 });
+    }
+
+    // LE PLAFOND SE VERIFIE COTE SERVEUR, pas seulement a l ecran : un
+    // bouton grise se contourne, une regle en base non.
+    if (statut === "invite") {
+      const c = await compteurs();
+      if (c.reste_jour <= 0) {
+        return NextResponse.json({
+          ok: false,
+          erreur: "Plafond du jour atteint (" + PLAFOND_JOUR + "). Reprenez demain.",
+          compteurs: c,
+        }, { status: 429 });
+      }
+      if (c.reste_semaine <= 0) {
+        return NextResponse.json({
+          ok: false,
+          erreur: "Plafond de la semaine atteint (" + PLAFOND_SEMAINE + "). Attendez quelques jours.",
+          compteurs: c,
+        }, { status: 429 });
+      }
     }
 
     // Marquer « invite » pose la date ; corriger en accepte ou refuse la
@@ -65,64 +178,31 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, erreur: error.message }, { status: 500 });
     }
 
-    // Le compte des sept derniers jours, toutes bases confondues : c est
-    // le compte LinkedIn qui est plafonne, pas chaque base.
-    const depuis = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString();
-    let semaine = 0;
-    for (const cle of Object.keys(TABLES)) {
-      const { count } = await supabase
-        .from(TABLES[cle])
-        .select("id", { count: "exact", head: true })
-        .not("linkedin_le", "is", null)
-        .gte("linkedin_le", depuis);
-      semaine += count || 0;
-    }
+    // On rend la fiche suivante dans la foulee : l ecran enchaine sans
+    // avoir a redemander.
+    const suite: any = base ? await suivante(base) : {};
 
     return NextResponse.json({
       ok: true,
       statut: statut,
-      semaine: semaine,
-      plafond: PLAFOND_SEMAINE,
-      reste: Math.max(PLAFOND_SEMAINE - semaine, 0),
+      compteurs: await compteurs(),
+      fiche: suite.fiche || null,
+      restant: suite.restant,
+      epuise: suite.epuise || false,
     });
   } catch (e: any) {
     return NextResponse.json({ ok: false, erreur: String(e) }, { status: 500 });
   }
 }
 
-// Le compteur seul, pour l affichage au chargement de l ecran.
+// Les compteurs seuls, pour l affichage au chargement de l ecran.
 export async function GET() {
   try {
     const email = emailDeSession();
     if (!email || ADMINS.indexOf(email) < 0) {
       return NextResponse.json({ ok: false, erreur: "reserve a l administrateur" }, { status: 403 });
     }
-
-    const depuis = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString();
-    let semaine = 0;
-    let total = 0;
-    for (const cle of Object.keys(TABLES)) {
-      const { count: s } = await supabase
-        .from(TABLES[cle])
-        .select("id", { count: "exact", head: true })
-        .not("linkedin_le", "is", null)
-        .gte("linkedin_le", depuis);
-      semaine += s || 0;
-
-      const { count: t } = await supabase
-        .from(TABLES[cle])
-        .select("id", { count: "exact", head: true })
-        .not("linkedin_le", "is", null);
-      total += t || 0;
-    }
-
-    return NextResponse.json({
-      ok: true,
-      semaine: semaine,
-      total: total,
-      plafond: PLAFOND_SEMAINE,
-      reste: Math.max(PLAFOND_SEMAINE - semaine, 0),
-    });
+    return NextResponse.json({ ok: true, ...(await compteurs()) });
   } catch (e: any) {
     return NextResponse.json({ ok: false, erreur: String(e) }, { status: 500 });
   }
