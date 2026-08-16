@@ -96,7 +96,7 @@ export default async function TableauDeBordOrganisme() {
     : vide;
 
   const { data: org } = t
-    ? await supabase.from("organismes_formation").select("slug, portail_actif, abonnement_mensuel, lancement_jusqu_au, profils").eq("tenant_id", t).maybeSingle()
+    ? await supabase.from("organismes_formation").select("slug, portail_actif, abonnement_mensuel, profils").eq("tenant_id", t).maybeSingle()
     : { data: null };
 
   const { data: documents } = t
@@ -186,10 +186,11 @@ export default async function TableauDeBordOrganisme() {
     ? Math.round((notesEval.reduce(function (a: number, b: number) { return a + b; }, 0) / notesEval.length) * 10) / 10
     : null;
 
+  // 🚨 PLUS AUCUN TARIF DE LANCEMENT. Cet ecran affichait « abonnement / 2 »
+  // des que la colonne lancement_jusqu_au portait une date. Supprime le 16/08
+  // sur decision de Jacques : le montant affiche est TOUJOURS le prix plein,
+  // ici comme dans la facturation et sur le bon de commande.
   const abonnement = org ? Number(org.abonnement_mensuel) || 0 : 0;
-  const enLancement = org && org.lancement_jusqu_au
-    ? new Date(org.lancement_jusqu_au).getTime() >= maintenant
-    : false;
 
   // PROFILS DU CLIENT. Sans profil declare, on suppose qu'il vend des
   // formations : c'est le cas de tous les comptes existants.
@@ -210,6 +211,14 @@ export default async function TableauDeBordOrganisme() {
         { pour: TOUS, href: "/organisme/stagiaires", nom: "Mes stagiaires", detail: inscrits + " inscrit(s)", alerte: aInviter > 0 ? aInviter + " sans accès" : "" },
         { pour: TOUS, href: "/organisme/cours", nom: "Mes formations", detail: (coursPropres || []).length + " créée(s) · " + publiees + " publiée(s)", alerte: "" },
         { pour: TOUS, href: "/organisme/catalogue", nom: "Catalogue AcadémIA", detail: (catalogue || []).length + " formation(s)", alerte: "" },
+        // LA PORTE QUI SERT LA STRATEGIE — ajoutee le 16/08.
+        // AcadeMIA Pro devient LE CATALOGUE, elle ne vend pas un outil de
+        // fabrication. Un client qui nous COMMANDE ses formations fait
+        // grossir notre catalogue et ne peut plus partir ; un client qui
+        // fabrique lui-meme fait de nous un concurrent de Digiforma sur son
+        // terrain. On n interdit rien : la porte « Mes formations » reste
+        // juste a cote. On rend simplement la commande plus evidente.
+        { pour: TOUS, href: "/organisme/commander-formation", nom: "Demandez-nous une formation", detail: "sur mesure, sous une semaine", alerte: "" },
         { pour: TOUS, href: "/organisme/seances", nom: "Classes virtuelles", detail: seancesAvenir > 0 ? seancesAvenir + " à venir" : (seances || []).length + " séance(s)", alerte: "" },
         { pour: TOUS, href: "/organisme/relances", nom: "Qui a décroché", detail: decroches > 0 ? decroches + " inactif(s)" : "tout le monde avance", alerte: decroches > 0 ? "à relancer" : "" },
         { pour: TOUS, href: "/organisme/importer", nom: "Importer une liste", detail: "jusqu'à 500 stagiaires", alerte: "" },
@@ -220,7 +229,7 @@ export default async function TableauDeBordOrganisme() {
       portes: [
         { pour: VENTE, href: "/organisme/crm", nom: "Mes prospects", detail: (prospects || []).length + " fiche(s)", alerte: aTraiter > 0 ? aTraiter + " à traiter" : "" },
         { pour: VENTE, href: "/organisme/portail", nom: "Ma page publique", detail: org && org.portail_actif ? "en ligne · /of/" + org.slug : "fermée", alerte: org && !org.portail_actif ? "à ouvrir" : "" },
-        { pour: VENTE, href: "/organisme/facturation", nom: "Ma facturation", detail: abonnement > 0 ? (enLancement ? Math.round(abonnement / 2) : abonnement) + " € / mois + inscriptions" : "en cours", alerte: "" },
+        { pour: VENTE, href: "/organisme/facturation", nom: "Ma facturation", detail: abonnement > 0 ? abonnement + " € / mois + inscriptions" : "en cours", alerte: "" },
       ],
     },
     {
