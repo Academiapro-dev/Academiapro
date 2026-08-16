@@ -1,0 +1,386 @@
+"use client";
+import { useState, useEffect } from "react";
+
+// L ECRAN D INVITATION LINKEDIN — UNE FICHE A LA FOIS.
+//
+// POURQUOI UN ECRAN DEDIE PLUTOT QUE LE TABLEAU DE /admin/crm.
+// Le tableau sert a CHERCHER : cinquante lignes, des colonnes, des filtres.
+// Inviter est un autre geste — repetitif, machinal, vingt fois de suite.
+// Chercher ou on en etait dans un tableau apres chaque envoi fait perdre
+// plus de temps que l envoi lui-meme. Ici, la fiche suivante arrive seule.
+//
+// RIEN N EST AUTOMATISE, ET C EST VOLONTAIRE. L API de LinkedIn ne permet
+// pas d envoyer des invitations. Les outils qui le font pilotent le
+// navigateur en cachette : LinkedIn les detecte, restreint le compte, puis
+// le supprime. Cet ecran ouvre le profil et retient ce qui a ete fait —
+// c est tout, et c est ce qui protege le compte.
+//
+// LE MOT EST PRE-REDIGE, PAS PRE-ENVOYE. Il se copie d un bouton, se colle
+// dans LinkedIn, et se modifie si la fiche s y prete. Une invitation
+// visiblement generique se refuse.
+
+const BASES = [
+  { cle: "organismes", nom: "Organismes certifiés Qualiopi" },
+  { cle: "qualiopi", nom: "Organismes NON certifiés" },
+  { cle: "interim", nom: "Agences d'intérim" },
+];
+
+// LA LIMITE DE LINKEDIN EST DE 300 CARACTERES pour la note d invitation.
+// Le compteur a l ecran evite d ecrire un mot qui sera tronque au collage.
+const LIMITE_NOTE = 300;
+
+function mot(prenom: string) {
+  const p = String(prenom || "").trim();
+  const civilite = p ? "Bonjour " + p : "Bonjour";
+  return civilite + ", j'ai dirigé un organisme de formation certifié pendant quelques années, "
+    + "et c'est l'administratif qui m'a coûté le plus de temps. J'en ai fait un outil qui prend "
+    + "en charge le bilan pédagogique, les preuves Qualiopi et le suivi des stagiaires. "
+    + "Ravi d'échanger avec vous.";
+}
+
+export default function PageLinkedin() {
+  const [base, setBase] = useState("organismes");
+  const [fiche, setFiche] = useState<any>(null);
+  const [restant, setRestant] = useState(0);
+  const [epuise, setEpuise] = useState(false);
+  const [compteurs, setCompteurs] = useState<any>(null);
+  const [charge, setCharge] = useState(false);
+  const [erreur, setErreur] = useState("");
+  const [copie, setCopie] = useState(false);
+  const [texte, setTexte] = useState("");
+
+  useEffect(() => { chargerSuivante(); }, [base]);
+
+  async function appeler(corps: any) {
+    const r = await fetch("/api/admin/linkedin", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(corps),
+    });
+    return await r.json();
+  }
+
+  async function chargerSuivante() {
+    setCharge(true);
+    setErreur("");
+    setCopie(false);
+    try {
+      const d = await appeler({ action: "suivante", base: base });
+      if (d.ok) {
+        setFiche(d.fiche || null);
+        setRestant(d.restant || 0);
+        setEpuise(!!d.epuise);
+        setCompteurs(d.compteurs || null);
+        setTexte(d.fiche ? mot(d.fiche.dirigeant_prenom) : "");
+      } else {
+        setErreur(d.erreur || "Lecture impossible.");
+      }
+    } catch (e: any) {
+      setErreur("Lecture impossible : " + String(e));
+    }
+    setCharge(false);
+  }
+
+  // OUVRIR LE PROFIL ET MARQUER, DANS CET ORDRE.
+  //
+  // Le window.open se declenche AVANT l appel reseau : ouvert apres un
+  // await, Safari le prend pour une fenetre surgissante non sollicitee et
+  // le bloque.
+  async function inviter() {
+    if (!fiche) return;
+    try { window.open(lien(fiche.linkedin), "_blank", "noopener"); } catch (e) { }
+
+    setCharge(true);
+    setErreur("");
+    try {
+      const d = await appeler({ base: base, id: fiche.id, statut: "invite" });
+      if (d.ok) {
+        setCompteurs(d.compteurs || null);
+        setFiche(d.fiche || null);
+        setRestant(d.restant || 0);
+        setEpuise(!!d.epuise);
+        setTexte(d.fiche ? mot(d.fiche.dirigeant_prenom) : "");
+        setCopie(false);
+      } else {
+        setErreur(d.erreur || "Enregistrement impossible.");
+        if (d.compteurs) setCompteurs(d.compteurs);
+      }
+    } catch (e: any) {
+      setErreur("Enregistrement impossible : " + String(e));
+    }
+    setCharge(false);
+  }
+
+  // PASSER SANS INVITER. La fiche n est pas marquee : elle reviendra.
+  // Utile quand le profil ne correspond pas — mauvaise personne, societe
+  // qui n a plus d activite, dirigeant parti ailleurs.
+  async function passer() {
+    if (!fiche) return;
+    setCharge(true);
+    setErreur("");
+    try {
+      // On marque « refuse » sans poser de date : la fiche sort de la file
+      // sans compter dans le quota, puisque rien n a ete envoye.
+      const d = await appeler({ base: base, id: fiche.id, statut: "refuse" });
+      if (d.ok) {
+        setFiche(d.fiche || null);
+        setRestant(d.restant || 0);
+        setEpuise(!!d.epuise);
+        setTexte(d.fiche ? mot(d.fiche.dirigeant_prenom) : "");
+        setCopie(false);
+      } else {
+        setErreur(d.erreur || "Enregistrement impossible.");
+      }
+    } catch (e: any) {
+      setErreur("Enregistrement impossible : " + String(e));
+    }
+    setCharge(false);
+  }
+
+  function copier() {
+    try {
+      navigator.clipboard.writeText(texte);
+      setCopie(true);
+      setTimeout(() => setCopie(false), 2500);
+    } catch (e) {
+      setErreur("Copie impossible — sélectionnez le texte à la main.");
+    }
+  }
+
+  // Le profil est stocke sans schema : « www.linkedin.com/in/x ». Tel quel
+  // dans un href, le navigateur le prendrait pour un chemin relatif.
+  function lien(v: string) {
+    const t = String(v || "").trim();
+    if (!t) return "";
+    if (t.indexOf("http") === 0) return t;
+    return "https://" + t.replace(/^\/+/, "");
+  }
+
+  function nombre(n: any) {
+    return (Number(n) || 0).toLocaleString("fr-FR");
+  }
+
+  const OR = "#c8a96e";
+  const BLEU = "#448aff";
+
+  const CARTE: any = {
+    background: "#1a1a2e",
+    borderRadius: "12px",
+    padding: "22px 24px",
+    marginBottom: "16px",
+    border: "1px solid rgba(200,169,110,0.2)",
+  };
+
+  const BOUTON: any = {
+    background: "rgba(255,255,255,0.06)",
+    border: "1px solid rgba(200,169,110,0.35)",
+    color: OR,
+    padding: "11px 20px",
+    borderRadius: "9px",
+    cursor: "pointer",
+    fontSize: "14px",
+    fontFamily: "Georgia,serif",
+  };
+
+  const plafondJour = compteurs ? (compteurs.reste_jour || 0) <= 0 : false;
+  const plafondSemaine = compteurs ? (compteurs.reste_semaine || 0) <= 0 : false;
+  const bloque = plafondJour || plafondSemaine;
+  const trop = texte.length > LIMITE_NOTE;
+
+  return (
+    <div style={{ backgroundColor: "#050508", minHeight: "100vh", color: "#fff", fontFamily: "Georgia, serif" }}>
+      <div style={{ background: "linear-gradient(135deg,#0a0a1a,#1a1a2e)", padding: "28px 20px" }}>
+        <a href="/admin/crm" style={{ color: OR, fontSize: "13px", textDecoration: "none" }}>
+          ← Retour au CRM
+        </a>
+        <h1 style={{ color: OR, margin: "14px 0 4px", fontSize: "23px" }}>Inviter sur LinkedIn</h1>
+        <p style={{ color: "rgba(255,255,255,0.5)", margin: 0, fontSize: "13px" }}>
+          Une fiche à la fois · le profil s'ouvre, vous collez, la date s'enregistre
+        </p>
+      </div>
+
+      <div style={{ padding: "24px 20px", maxWidth: "760px", margin: "0 auto" }}>
+
+        {/* ---------- LE RYTHME ---------- */}
+        {compteurs && (
+          <div style={{ ...CARTE, borderColor: bloque ? "rgba(232,131,106,0.5)" : "rgba(68,138,255,0.35)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "12px" }}>
+              <div>
+                <div style={{ color: plafondJour ? "#e8836a" : BLEU, fontSize: "20px", fontWeight: "bold" }}>
+                  {nombre(compteurs.jour)} / {compteurs.plafond_jour}
+                </div>
+                <div style={{ color: "rgba(255,255,255,0.45)", fontSize: "12px" }}>aujourd'hui</div>
+              </div>
+              <div>
+                <div style={{ color: plafondSemaine ? "#e8836a" : BLEU, fontSize: "20px", fontWeight: "bold" }}>
+                  {nombre(compteurs.semaine)} / {compteurs.plafond_semaine}
+                </div>
+                <div style={{ color: "rgba(255,255,255,0.45)", fontSize: "12px" }}>sept derniers jours</div>
+              </div>
+              <div>
+                <div style={{ color: "rgba(255,255,255,0.75)", fontSize: "20px", fontWeight: "bold" }}>
+                  {nombre(compteurs.total)}
+                </div>
+                <div style={{ color: "rgba(255,255,255,0.45)", fontSize: "12px" }}>au total</div>
+              </div>
+              <div>
+                <div style={{ color: OR, fontSize: "20px", fontWeight: "bold" }}>{nombre(restant)}</div>
+                <div style={{ color: "rgba(255,255,255,0.45)", fontSize: "12px" }}>restent dans cette base</div>
+              </div>
+            </div>
+
+            {bloque && (
+              <p style={{ color: "#e8836a", fontSize: "13px", lineHeight: "1.7", margin: "14px 0 0" }}>
+                {plafondJour
+                  ? "Vous avez atteint les " + compteurs.plafond_jour + " invitations du jour. Reprenez demain — dépasser ce rythme est exactement ce qui fait restreindre un compte."
+                  : "Vous avez atteint les " + compteurs.plafond_semaine + " invitations de la semaine. Laissez passer quelques jours."}
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* ---------- LA BASE ---------- */}
+        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "18px" }}>
+          {BASES.map(function (b) {
+            const actif = base === b.cle;
+            return (
+              <button
+                key={b.cle}
+                onClick={() => setBase(b.cle)}
+                style={{
+                  ...BOUTON, borderRadius: "20px", padding: "8px 16px", fontSize: "13px",
+                  background: actif ? OR : "rgba(255,255,255,0.06)",
+                  color: actif ? "#050508" : "rgba(255,255,255,0.6)",
+                  border: actif ? "none" : BOUTON.border,
+                  fontWeight: actif ? "bold" : "normal",
+                }}
+              >
+                {b.nom}
+              </button>
+            );
+          })}
+        </div>
+
+        {erreur && (
+          <div style={{ background: "rgba(232,131,106,0.12)", border: "1px solid rgba(232,131,106,0.4)", borderRadius: "9px", padding: "13px", marginBottom: "16px", color: "#e8836a", fontSize: "13.5px", lineHeight: "1.7" }}>
+            {erreur}
+          </div>
+        )}
+
+        {/* ---------- LA FICHE ---------- */}
+        {charge && !fiche ? (
+          <p style={{ color: "rgba(255,255,255,0.5)" }}>Chargement…</p>
+        ) : epuise || !fiche ? (
+          <div style={CARTE}>
+            <p style={{ color: "rgba(255,255,255,0.65)", fontSize: "15px", lineHeight: "1.8", margin: 0 }}>
+              Plus aucun profil à inviter dans cette base. Essayez-en une autre, ou
+              enrichissez de nouvelles fiches pour en récupérer.
+            </p>
+          </div>
+        ) : (
+          <>
+            <div style={CARTE}>
+              <div style={{ color: "#fff", fontSize: "19px", fontWeight: "bold", marginBottom: "5px" }}>
+                {(fiche.dirigeant_prenom || "") + " " + (fiche.dirigeant_nom || "")}
+              </div>
+              <div style={{ color: OR, fontSize: "15px", marginBottom: "10px" }}>
+                {fiche.raison_sociale || "—"}
+              </div>
+              <div style={{ color: "rgba(255,255,255,0.45)", fontSize: "13px", lineHeight: "1.8" }}>
+                {fiche.ville || "ville inconnue"}
+                {fiche.code_postal ? " · " + fiche.code_postal : ""}
+                {fiche.siren ? " · SIREN " + fiche.siren : ""}
+              </div>
+              {fiche.site_web && (
+                <div style={{ color: "rgba(255,255,255,0.35)", fontSize: "12.5px", wordBreak: "break-all", marginTop: "4px" }}>
+                  {fiche.site_web}
+                </div>
+              )}
+              {(fiche.email || fiche.telephone) && (
+                <div style={{ color: "rgba(255,255,255,0.35)", fontSize: "12.5px", marginTop: "4px", wordBreak: "break-all" }}>
+                  {fiche.email ? "✉️ " + fiche.email : ""}
+                  {fiche.email && fiche.telephone ? " · " : ""}
+                  {fiche.telephone ? "☎️ " + fiche.telephone : ""}
+                </div>
+              )}
+              <div style={{ marginTop: "10px" }}>
+                <a href={lien(fiche.linkedin)} target="_blank" rel="noreferrer" style={{ color: BLEU, fontSize: "13px", textDecoration: "none" }}>
+                  {fiche.linkedin}
+                </a>
+              </div>
+            </div>
+
+            {/* ---------- LE MOT ---------- */}
+            <div style={CARTE}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "10px", flexWrap: "wrap", gap: "8px" }}>
+                <span style={{ color: OR, fontSize: "12px", letterSpacing: "2px" }}>VOTRE MOT D'INVITATION</span>
+                <span style={{ color: trop ? "#e8836a" : "rgba(255,255,255,0.4)", fontSize: "12px" }}>
+                  {texte.length} / {LIMITE_NOTE} caractères
+                </span>
+              </div>
+
+              <textarea
+                value={texte}
+                onChange={(e) => setTexte(e.target.value)}
+                rows={6}
+                style={{
+                  width: "100%", padding: "13px", borderRadius: "9px",
+                  border: "1px solid " + (trop ? "rgba(232,131,106,0.6)" : "rgba(200,169,110,0.3)"),
+                  background: "rgba(255,255,255,0.04)", color: "#fff",
+                  fontSize: "14.5px", lineHeight: "1.75", fontFamily: "Georgia,serif",
+                  boxSizing: "border-box", resize: "vertical",
+                }}
+              />
+
+              {trop && (
+                <p style={{ color: "#e8836a", fontSize: "12.5px", margin: "8px 0 0", lineHeight: "1.6" }}>
+                  LinkedIn coupera le message au-delà de {LIMITE_NOTE} caractères. Raccourcissez avant de copier.
+                </p>
+              )}
+
+              <button
+                onClick={copier}
+                style={{ ...BOUTON, width: "100%", marginTop: "12px", background: copie ? "rgba(0,230,118,0.15)" : BOUTON.background, color: copie ? "#00e676" : OR, borderColor: copie ? "rgba(0,230,118,0.4)" : BOUTON.border }}
+              >
+                {copie ? "✓ Copié — collez-le dans LinkedIn" : "Copier le mot"}
+              </button>
+            </div>
+
+            {/* ---------- LES DEUX ACTIONS ---------- */}
+            <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+              <button
+                onClick={inviter}
+                disabled={charge || bloque}
+                style={{
+                  flex: "2 1 260px",
+                  background: bloque ? "rgba(255,255,255,0.06)" : BLEU,
+                  color: bloque ? "rgba(255,255,255,0.3)" : "#fff",
+                  border: "none", borderRadius: "9px", padding: "16px",
+                  fontSize: "15.5px", fontWeight: "bold", fontFamily: "Georgia,serif",
+                  cursor: bloque ? "not-allowed" : "pointer",
+                }}
+              >
+                {charge ? "…" : bloque ? "Plafond atteint" : "Ouvrir le profil et marquer comme invité"}
+              </button>
+
+              <button
+                onClick={passer}
+                disabled={charge}
+                style={{ ...BOUTON, flex: "1 1 140px", padding: "16px", color: "rgba(255,255,255,0.55)", borderColor: "rgba(255,255,255,0.18)" }}
+              >
+                Passer
+              </button>
+            </div>
+
+            <p style={{ color: "rgba(255,255,255,0.35)", fontSize: "12.5px", lineHeight: "1.75", marginTop: "16px" }}>
+              Le profil s'ouvre dans un onglet. Sur LinkedIn, cliquez <strong>Se connecter</strong>,
+              puis <strong>Ajouter une note</strong>, et collez le mot — n'utilisez pas
+              « Message », réservé aux comptes Premium. « Passer » écarte une fiche sans
+              rien envoyer : elle ne compte pas dans le quota.
+            </p>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
