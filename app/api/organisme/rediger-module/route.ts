@@ -16,28 +16,32 @@ const PRIX_SORTIE = 15;
 
 // 🚨 QUATRE-VINGT-DIX EUROS PAR FORMATION PROPRE REDIGEE — 16/08/2026.
 //
-// LE RAISONNEMENT DE JACQUES, ET IL EST JUSTE. Les 331 formations du
-// catalogue editeur sont un COUT FERME : produites une fois, mises en cache,
-// elles ne coutent plus rien quel que soit le nombre de clients ou de
-// stagiaires, et ce cout est deja couvert par les 35 % sur les ventes.
+// CE PRIX N EST PAS UNE OFFRE, C EST UNE ORIENTATION. Decision strategique
+// de Jacques le meme soir : AcadeMIA Pro ne vend pas un outil de fabrication,
+// elle DEVIENT LE CATALOGUE. Un client qui fabrique lui-meme fait de nous un
+// concurrent de Digiforma sur son terrain ; un client qui nous COMMANDE ses
+// formations fait grossir notre catalogue et ne peut plus partir.
 //
-// Les formations PROPRES du client sont un COUT OUVERT : chaque formation
-// nouvelle est du contenu jamais produit, donc refacture par Anthropic a
-// chaque fois. LE CACHE NE PROTEGE QUE LA RELECTURE, JAMAIS LA CREATION —
-// la formation A devient gratuite pour toujours, mais la formation B repart
-// de zero. Un organisme au catalogue de cinquante formations pouvait donc se
-// les faire ecrire toutes, deux ou trois par mois, sur un abonnement fixe :
-// le plafond mensuel ne l arretait jamais, il l etalait.
+// Les 90 EUR rendent donc la fabrication moins attirante que la commande, sans
+// jamais l interdire. On ne les met en avant nulle part : ils apparaissent au
+// moment ou le client lance la redaction.
+//
+// POURQUOI CE COUT EXISTE. Les 331 formations du catalogue editeur sont un
+// COUT FERME : produites une fois, mises en cache, elles ne coutent plus rien
+// quel que soit le nombre de clients ou de stagiaires, et ce cout est deja
+// couvert par les 35 % sur les ventes. Les formations PROPRES du client sont
+// un COUT OUVERT : chaque formation nouvelle est du contenu jamais produit,
+// donc refacture par Anthropic a chaque fois. LE CACHE NE PROTEGE QUE LA
+// RELECTURE, JAMAIS LA CREATION — la formation A devient gratuite pour
+// toujours, mais la formation B repart de zero.
 //
 // COUT REEL MESURE EN BASE : 0,078 EUR le module, soit environ 1,57 EUR pour
 // une formation de vingt modules. Les 90 EUR couvrent donc le cout plus de
-// cinquante fois — c est le prix d un service, pas d une consommation.
+// cinquante fois.
 //
-// ON NE BLOQUE PAS, ON FACTURE. Decision de Jacques : « on lui envoie la
-// facture et on attendra sa reaction ». Le client produit sa formation sans
-// entrave ; le montant est pose des le PREMIER module et jamais ensuite,
-// quel que soit le nombre de modules qui suivent. Une formation de vingt
-// modules coute donc 90 EUR, pas 1 800.
+// ON NE BLOQUE PAS, ON FACTURE. Ses mots : « on lui envoie la facture et on
+// attendra sa reaction ». Le montant est pose des le PREMIER module et jamais
+// ensuite : une formation de vingt modules coute 90 EUR, pas 1 800.
 const PRIX_FORMATION = 90;
 
 const supabase = createClient(
@@ -124,9 +128,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, erreur: "Module non precise." }, { status: 400 });
     }
 
-    // QUOTA MENSUEL. Il reste en place et garde son role de garde-fou : il
-    // borne ce qui peut etre produit dans le mois, meme facture. Sans lui,
-    // rien n empecherait une production massive en une nuit.
+    // QUOTA MENSUEL. Il reste en place EN PLUS de la facturation : il borne
+    // ce qui peut etre produit dans le mois, meme facture. Sans lui, rien
+    // n empecherait une production massive en une nuit — ce serait l inverse
+    // de la strategie, qui est d orienter vers la commande.
     const { data: org } = await supabase
       .from("organismes_formation")
       .select("quota_ia_mensuel, raison_sociale")
@@ -155,8 +160,8 @@ export async function POST(req: NextRequest) {
           ok: false,
           erreur:
             "Vous avez atteint votre quota de " + quota + " modules rediges ce mois-ci. " +
-            "Vous pouvez continuer a ecrire vos modules vous-meme, ou nous contacter pour " +
-            "relever ce plafond.",
+            "Vous pouvez continuer a ecrire vos modules vous-meme, ou nous demander de " +
+            "produire cette formation pour vous.",
           quota: quota,
           consommes: consommes,
         },
@@ -196,9 +201,9 @@ export async function POST(req: NextRequest) {
     // CETTE FORMATION A-T-ELLE DEJA ETE FACTUREE ?
     //
     // Les 90 EUR sont dus PAR FORMATION, pas par module. On regarde donc si
-    // un module de CE cours a deja ete redige : si oui, la formation est
-    // deja payee et les suivants ne coutent rien. Un reecriture avec
-    // remplacement ne refacture pas non plus — c est la meme formation.
+    // un module de CE cours a deja ete redige : si oui, la formation est deja
+    // payee et les suivants ne coutent rien. Une reecriture avec remplacement
+    // ne refacture pas non plus — c est la meme formation.
     const { count: dejaFacturee } = await supabase
       .from("organisme_usage_ia")
       .select("*", { count: "exact", head: true })
