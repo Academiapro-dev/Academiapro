@@ -8,15 +8,17 @@ export const maxDuration = 300;
 
 // LA RELANCE AUTOMATIQUE DES PROSPECTS DU CRM.
 //
-// CONSTRUITE MAIS ENDORMIE. Tant que ACTIVE vaut false, la route lit,
-// calcule, et ne poste rien : elle renvoie ce qu elle AURAIT envoye. On
-// peut donc l eprouver sans risque, et l ouvrir le jour ou les premiers
-// messages auront montre qu ils sont bien recus.
+// ⚠️⚠️ ACTIVE VAUT true — LA ROUTE ENVOIE REELLEMENT.
+// Ouverte le 16/08 POUR UN SEUL ESSAI, vers l adresse de Jacques, afin de
+// verifier l encodage des accents et le rendu du pied de page. LA REMETTRE
+// A false AUSSITOT L ESSAI FAIT : un cron Vercel la declenche chaque matin,
+// et elle partirait toute seule sur de vrais prospects.
 //
 // POURQUOI CETTE PRUDENCE. Le domaine d envoi a quinze jours d existence
 // et sept messages a son actif. Une relance mal tournee partie toute seule
 // ne se rattrape pas : une reputation abimee ne se repare pas, elle se
-// remplace par un autre domaine.
+// remplace par un autre domaine. Et un rebond — un message vers une adresse
+// inexistante — abime cette reputation autant qu une plainte.
 //
 // CHAQUE PROSPECT PORTE AUSSI SON PROPRE INTERRUPTEUR — la colonne
 // relance_auto. Meme la route ouverte, seuls ceux qu on a marques sont
@@ -24,28 +26,24 @@ export const maxDuration = 300;
 //
 // TROIS CORRECTIONS DU 16/08, apres lecture de l apercu reel.
 //
-// (1) LE LIEN DE DESINSCRIPTION MANQUAIT ENTIEREMENT. La campagne
-// organismes en met un dans chaque message, celle-ci n en avait aucun.
-// C est ce qui rend la prospection B2B licite sans consentement prealable,
-// et c est aussi ce qui protege le domaine : un destinataire qui ne peut
-// pas se desabonner clique sur « spam », et c est bien pire.
+// (1) LE LIEN DE DESINSCRIPTION MANQUAIT ENTIEREMENT. C est ce qui rend la
+// prospection B2B licite sans consentement prealable, et ce qui protege le
+// domaine : un destinataire qui ne peut pas se desabonner clique sur
+// « spam », et c est bien pire.
 //
 // ⚠️ LE FORMAT DU LIEN A ETE PRIS SUR LA PAGE ET LA ROUTE EXISTANTES, pas
 // invente. Trois details qui l auraient casse s ils avaient ete devines :
-// la page /desinscription attend DEUX parametres separes — ?e=adresse&j=jeton
-// et non un jeton compose ; le secret est SESSION_SECRET, pas CRON_SECRET ;
-// et le jeton fait 32 caracteres, pas 24. Un lien de desinscription casse
-// est pire que pas de lien : il affiche « Lien incomplet » a quelqu un qui
-// voulait juste ne plus etre derange.
+// /desinscription attend DEUX parametres separes — ?e=adresse&j=jeton — et
+// non un jeton compose ; le secret est SESSION_SECRET, pas CRON_SECRET ; et
+// le jeton fait 32 caracteres, pas 24. Verifie a l ecran le 16/08 : le lien
+// s ouvre et affiche bien l adresse.
 //
 // (2) L OBJET ETAIT FIGE : « Suite a votre demande » serait parti a des
-// gens qui n ont jamais rien demande — un prospect importe, un contact
-// pris en salon. L objet s adapte desormais a ce qu on sait de lui.
+// gens qui n ont jamais rien demande. Il s adapte desormais a la source.
 //
-// (3) L ENCODAGE DES ACCENTS. L apercu rendait « suite Ã  votre ». Le
-// charset est desormais declare dans l en-tete de la requete ET dans le
-// document HTML lui-meme.
-const ACTIVE = false;
+// (3) L ENCODAGE DES ACCENTS. Le charset est declare dans l en-tete de la
+// requete ET dans le document HTML lui-meme.
+const ACTIVE = true;
 
 // Le delai avant relance, et le nombre maximum de relances par prospect.
 // Trois messages sans reponse suffisent : au-dela, on insiste.
@@ -235,6 +233,7 @@ export async function GET(req: NextRequest) {
 
   const apercu: any[] = [];
   let envoyes = 0;
+  const partis: string[] = [];
 
   for (const p of cibles) {
     const texte = await redigerRelance(p);
@@ -268,7 +267,7 @@ export async function GET(req: NextRequest) {
 
     const ok = await envoyer(String(p.email), sujet, texte);
 
-    if (ok) envoyes++;
+    if (ok) { envoyes++; partis.push(String(p.email)); }
     await pause(2000);
   }
 
@@ -276,9 +275,10 @@ export async function GET(req: NextRequest) {
     active: ACTIVE,
     examines: cibles.length,
     envoyes: ACTIVE ? envoyes : 0,
+    destinataires: ACTIVE ? partis : undefined,
     apercu: ACTIVE ? undefined : apercu,
     note: ACTIVE
-      ? undefined
+      ? "⚠️ ROUTE OUVERTE — des messages sont reellement partis. Remettre ACTIVE a false."
       : "Route endormie : rien n a ete envoye. Passer ACTIVE a true pour ouvrir.",
   });
 }
