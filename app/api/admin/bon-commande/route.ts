@@ -32,16 +32,13 @@ const supabase = createClient(
 //    stagiaire inscrit, 1 500 EUR de mise en service.
 //  - LMS SEUL : 290 EUR HT par mois en forfait, stagiaires illimites, SANS
 //    catalogue editeur — donc AUCUNE part et AUCUN minimum par stagiaire.
-//    Les formations propres du client restent a 0 %, comme dans le pack.
 //  - CRM SEUL : 35 EUR HT PAR UTILISATEUR ET PAR MOIS, sans degressivite.
-//    Ses mots : « on ne bouge pas les tarifs, on reste a 35 ». Un forfait
-//    d'entree et des paliers ont ete ecartes — a cent postes, le prix par
-//    utilisateur rapporte 3 500 EUR par mois la ou un forfait plafonnerait.
+//    Ses mots : « on ne bouge pas les tarifs, on reste a 35 ». A cent
+//    postes, cela fait 3 500 EUR par mois la ou un forfait plafonnerait.
 //
 // POURQUOI LE PACK NE COMPTE PAS LES UTILISATEURS : il porte deja trois
-// axes de facturation (abonnement, part sur le catalogue, minimum par
-// stagiaire). Un quatrieme compteur rendrait la facture incalculable pour
-// le client — et c'est precisement le reproche que le marche adresse a
+// axes de facturation. Un quatrieme compteur rendrait la facture
+// incalculable pour le client — c'est le reproche que le marche adresse a
 // Digiforma et a ses paliers d'utilisateurs.
 const OFFRES: any = {
   pack: {
@@ -63,6 +60,20 @@ const OFFRES: any = {
     defaut: 35,
   },
 };
+
+// 🚨 LE TAUX DE SECOURS EST A 35 %, PAS A 40.
+//
+// Corrige le 16/08. Il valait 40 % — un chiffre qui ne correspondait a
+// aucun contrat et qui apparaissait a l'ecran comme une valeur fantome :
+// affichee, jamais enregistree, et differente de ce que le bon de commande
+// annonce. Le taux du bon de reference est de 35 %, et c'est desormais
+// aussi le defaut de la colonne taux_prelevement en base.
+//
+// Le taux avec gestion administrative reste a 10 % : il est la contrepartie
+// des 180 EUR par stagiaire, sans quoi il ne resterait presque rien au
+// Client sur ses ventes.
+const TAUX_DEFAUT = 35;
+const TAUX_AVEC_GESTION = 10;
 
 function ascii(t: any): string {
   return String(t === null || t === undefined ? "" : t)
@@ -159,23 +170,11 @@ export async function POST(req: NextRequest) {
     const enLancement = b.lancement !== false && !!org.lancement_jusqu_au;
     const mensuel = enLancement ? Math.round(plein / 2) : plein;
 
-    // DEUX FORMULES SUR LE PACK, ET LE CLIENT CHOISIT.
-    //
-    //  - Sans gestion : il suit lui-meme ses stagiaires, et la part sur le
-    //    catalogue est pleine (40 % par defaut).
-    //  - Avec gestion : l Editeur prend en charge le suivi administratif,
-    //    facture par stagiaire, et la part sur le catalogue est reduite
-    //    (10 % par defaut).
-    //
-    // ⚠️ CES DEUX VALEURS NE SONT QUE DES SECOURS. Le taux vient TOUJOURS de
-    // la fiche client ; celui du bon de commande de reference est de 35 %.
-    // Si taux_prelevement est laisse vide a la creation d un client, le bon
-    // sortira donc a 40 % — verifier la fiche avant d editer.
     const gestionSouscrite = offre.catalogue && org.gestion_souscrite === true;
 
     const taux = org.taux_prelevement !== null && org.taux_prelevement !== undefined
       ? Number(org.taux_prelevement)
-      : (gestionSouscrite ? 10 : 40);
+      : (gestionSouscrite ? TAUX_AVEC_GESTION : TAUX_DEFAUT);
     const plancher = org.plancher_stagiaire !== null && org.plancher_stagiaire !== undefined
       ? Number(org.plancher_stagiaire)
       : 30;
@@ -409,12 +408,6 @@ export async function POST(req: NextRequest) {
     // facture chaque message, Plivo chaque minute. Un forfait illimite ferait
     // travailler a perte des qu un client envoie en volume — et l interim,
     // premiere cible, est precisement du volume.
-    //
-    // LE SMS PORTE SON PRIX, PAS LA VOIX : le tarif de revente du message est
-    // arrete (0,12 EUR degressif a 0,08), celui de la minute ne l est pas —
-    // le tarif d accroche des operateurs concerne les lignes fixes et les
-    // appels d origine europeenne, alors que le trafic reel ira vers des
-    // mobiles. Le prix se fixera sur un mois de cout constate.
     titreBloc("OPTIONS FACTUREES A L USAGE");
     ligne(
       "CES DEUX OPTIONS NE SONT PAS COMPRISES DANS L ABONNEMENT. Elles ne sont dues que si le " +
