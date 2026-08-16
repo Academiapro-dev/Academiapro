@@ -7,7 +7,7 @@ import { useState, useEffect } from "react";
 //
 //  PACK — 390 EUR HT par mois en forfait, stagiaires ET utilisateurs
 //    illimites, 35 % sur le catalogue editeur, minimum 30 EUR par stagiaire
-//    inscrit, 1 500 EUR de mise en service.
+//    inscrit, 1 500 EUR de mise en service — QUI NE S APPLIQUE QU AU PACK.
 //  LMS SEUL — 290 EUR HT par mois en forfait, sans catalogue editeur, donc
 //    aucune part ni minimum par stagiaire.
 //  CRM SEUL — 35 EUR HT PAR UTILISATEUR ET PAR MOIS, sans degressivite.
@@ -15,12 +15,15 @@ import { useState, useEffect } from "react";
 // 🚨 SUR LE CRM SEUL, LE CHAMP « ABONNEMENT » PORTE LE PRIX PAR POSTE — 35 —
 // ET NON LE TOTAL. C est le bon de commande qui multiplie par le nombre
 // d utilisateurs. Saisir 3 500 pour cent postes donnerait 350 000 EUR sur le
-// bon. L ecran le rappelle a l ecran quand l offre CRM est choisie.
+// bon. L ecran le rappelle quand l offre CRM est choisie.
 //
-// POURQUOI LE PACK NE COMPTE PAS LES POSTES : il porte deja trois axes de
-// facturation. Un quatrieme compteur rendrait la facture incalculable pour
-// le client — c est le reproche que le marche adresse a Digiforma et a ses
-// paliers d utilisateurs.
+// 🚨 LE QUOTA DE REDACTION N EST PLUS AFFICHE ICI. Retire le 16/08 a la
+// demande de Jacques : « il faut l effacer vis-a-vis de l utilisateur, ca
+// entraine des questions ». LA PROTECTION RESTE ENTIERE — la colonne
+// quota_ia_mensuel vaut toujours 40 en base et /api/organisme/rediger-module
+// continue de la lire pour borner ce qu un client peut faire rediger dans le
+// mois. Seul l affichage disparait. NE PAS croire, en relisant cet ecran,
+// que le garde-fou a saute.
 
 const OFFRES = [
   { cle: "pack", nom: "Pack complet", detail: "LMS + CRM + catalogue · forfait" },
@@ -69,8 +72,6 @@ export default function PageOrganismes() {
             gestion: o.forfait_gestion !== null && o.forfait_gestion !== undefined ? String(o.forfait_gestion) : "",
             gestion_souscrite: o.gestion_souscrite === true,
             apport: o.taux_apport !== null && o.taux_apport !== undefined ? String(o.taux_apport) : "",
-            quota: o.quota_ia_mensuel !== null && o.quota_ia_mensuel !== undefined ? String(o.quota_ia_mensuel) : "",
-            lancement: o.lancement_jusqu_au || "",
             telephone: o.telephone || "",
             siret: o.siret || "",
             numero_da: o.numero_da || "",
@@ -368,7 +369,6 @@ export default function PageOrganismes() {
                             ? " · gestion " + o.forfait_gestion + " EUR par stagiaire"
                             : " · plancher " + (o.plancher_stagiaire !== null && o.plancher_stagiaire !== undefined ? o.plancher_stagiaire : 30) + " EUR")
                         : ""}
-                      {o.lancement_jusqu_au ? " · lancement jusqu au " + new Date(o.lancement_jusqu_au).toLocaleDateString("fr-FR") : ""}
                       {o.numero_tva ? "" : " · TVA manquante"}
                       {o.domaine ? " · " + o.domaine : ""}
                     </p>
@@ -457,11 +457,6 @@ export default function PageOrganismes() {
                           </div>
                         </>
                       )}
-
-                      <div style={{ flex: "1 1 180px" }}>
-                        <span style={LIBELLE}>Lancement jusqu au</span>
-                        <input type="date" value={champ(o.id, "lancement")} onChange={(e) => poser(o.id, "lancement", e.target.value)} style={CHAMP} />
-                      </div>
                     </div>
 
                     {auPoste && (
@@ -502,18 +497,6 @@ export default function PageOrganismes() {
                         </span>
                       </div>
                     )}
-
-                    <h4 style={{ color: "#c8a96e", fontSize: "15px", margin: "14px 0" }}>Redaction assistee</h4>
-
-                    <div style={{ flex: "1 1 200px", maxWidth: "260px" }}>
-                      <span style={LIBELLE}>Modules rediges par mois</span>
-                      <input value={champ(o.id, "quota")} onChange={(e) => poser(o.id, "quota", e.target.value)} placeholder="40" style={CHAMP} />
-                    </div>
-
-                    <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px", margin: "-6px 0 14px", lineHeight: "1.6" }}>
-                      Chaque module redige par l assistant vous coute environ quinze centimes.
-                      Zero supprime toute limite — a vos risques.
-                    </p>
 
                     <h4 style={{ color: "#c8a96e", fontSize: "15px", margin: "14px 0" }}>Identification</h4>
 
@@ -564,8 +547,6 @@ export default function PageOrganismes() {
                           forfait_gestion: champ(o.id, "gestion"),
                           gestion_souscrite: gestionCochee,
                           taux_apport: champ(o.id, "apport"),
-                          quota_ia_mensuel: champ(o.id, "quota"),
-                          lancement_jusqu_au: champ(o.id, "lancement") || null,
                           siret: champ(o.id, "siret"),
                           numero_da: champ(o.id, "numero_da"),
                           numero_tva: champ(o.id, "numero_tva"),
