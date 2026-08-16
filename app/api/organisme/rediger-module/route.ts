@@ -14,6 +14,32 @@ const MODELE = "claude-sonnet-4-6";
 const PRIX_ENTREE = 3;
 const PRIX_SORTIE = 15;
 
+// 🚨 QUATRE-VINGT-DIX EUROS PAR FORMATION PROPRE REDIGEE — 16/08/2026.
+//
+// LE RAISONNEMENT DE JACQUES, ET IL EST JUSTE. Les 331 formations du
+// catalogue editeur sont un COUT FERME : produites une fois, mises en cache,
+// elles ne coutent plus rien quel que soit le nombre de clients ou de
+// stagiaires, et ce cout est deja couvert par les 35 % sur les ventes.
+//
+// Les formations PROPRES du client sont un COUT OUVERT : chaque formation
+// nouvelle est du contenu jamais produit, donc refacture par Anthropic a
+// chaque fois. LE CACHE NE PROTEGE QUE LA RELECTURE, JAMAIS LA CREATION —
+// la formation A devient gratuite pour toujours, mais la formation B repart
+// de zero. Un organisme au catalogue de cinquante formations pouvait donc se
+// les faire ecrire toutes, deux ou trois par mois, sur un abonnement fixe :
+// le plafond mensuel ne l arretait jamais, il l etalait.
+//
+// COUT REEL MESURE EN BASE : 0,078 EUR le module, soit environ 1,57 EUR pour
+// une formation de vingt modules. Les 90 EUR couvrent donc le cout plus de
+// cinquante fois — c est le prix d un service, pas d une consommation.
+//
+// ON NE BLOQUE PAS, ON FACTURE. Decision de Jacques : « on lui envoie la
+// facture et on attendra sa reaction ». Le client produit sa formation sans
+// entrave ; le montant est pose des le PREMIER module et jamais ensuite,
+// quel que soit le nombre de modules qui suivent. Une formation de vingt
+// modules coute donc 90 EUR, pas 1 800.
+const PRIX_FORMATION = 90;
+
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
   process.env.SUPABASE_SERVICE_ROLE_KEY || "",
@@ -98,8 +124,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, erreur: "Module non precise." }, { status: 400 });
     }
 
-    // QUOTA MENSUEL. La redaction a un cout reel : sans plafond, un client
-    // pourrait engendrer des dizaines de formations pour un abonnement fixe.
+    // QUOTA MENSUEL. Il reste en place et garde son role de garde-fou : il
+    // borne ce qui peut etre produit dans le mois, meme facture. Sans lui,
+    // rien n empecherait une production massive en une nuit.
     const { data: org } = await supabase
       .from("organismes_formation")
       .select("quota_ia_mensuel, raison_sociale")
@@ -165,6 +192,22 @@ export async function POST(req: NextRequest) {
     if (!cours) {
       return NextResponse.json({ ok: false, erreur: "Formation introuvable." }, { status: 404 });
     }
+
+    // CETTE FORMATION A-T-ELLE DEJA ETE FACTUREE ?
+    //
+    // Les 90 EUR sont dus PAR FORMATION, pas par module. On regarde donc si
+    // un module de CE cours a deja ete redige : si oui, la formation est
+    // deja payee et les suivants ne coutent rien. Un reecriture avec
+    // remplacement ne refacture pas non plus — c est la meme formation.
+    const { count: dejaFacturee } = await supabase
+      .from("organisme_usage_ia")
+      .select("*", { count: "exact", head: true })
+      .eq("tenant_id", tenant)
+      .eq("type", "redaction_module")
+      .eq("cours_id", module.cours_id);
+
+    const premiereFois = !(typeof dejaFacturee === "number" && dejaFacturee > 0);
+    const aFacturer = premiereFois ? PRIX_FORMATION : 0;
 
     const { data: freres } = await supabase
       .from("organisme_modules")
@@ -272,7 +315,7 @@ export async function POST(req: NextRequest) {
     }
 
     // On ne compte qu apres coup, et seulement si le module a bien ete ecrit :
-    // un echec ne doit pas entamer le quota du client.
+    // un echec ne doit entamer ni le quota du client ni sa facture.
     const cout = Math.round(
       ((entree / 1000000) * PRIX_ENTREE + (sortie / 1000000) * PRIX_SORTIE) * 10000
     ) / 10000;
@@ -281,10 +324,12 @@ export async function POST(req: NextRequest) {
       tenant_id: tenant,
       email: session.email,
       type: "redaction_module",
+      cours_id: module.cours_id,
       reference: module.chapitre + "." + module.numero + " " + module.titre,
       jetons_entree: entree,
       jetons_sortie: sortie,
       cout_estime: cout,
+      montant_facture: aFacturer,
     });
 
     const restants = quota > 0 ? Math.max(0, quota - consommes - 1) : null;
@@ -295,8 +340,14 @@ export async function POST(req: NextRequest) {
       titre: module.titre,
       signes: contenu.length,
       restants: restants,
+      facture: aFacturer,
       message:
         "Module redige : " + contenu.length.toLocaleString("fr-FR") + " signes." +
+        (aFacturer > 0
+          ? " La redaction de cette formation vous est facturee " + PRIX_FORMATION +
+            " EUR HT, une seule fois : les autres modules de cette meme formation " +
+            "ne vous couteront rien."
+          : "") +
         (restants !== null ? " Il vous reste " + restants + " module(s) ce mois-ci." : ""),
     });
   } catch (e: any) {
