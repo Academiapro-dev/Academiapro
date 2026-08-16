@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
 
     const { data: organismes, error } = await supabase
       .from("organismes_formation")
-      .select("id, tenant_id, raison_sociale, email_contact, statut, abonnement_mensuel, taux_prelevement, plancher_stagiaire, forfait_gestion, gestion_souscrite, lancement_jusqu_au")
+      .select("id, tenant_id, raison_sociale, email_contact, statut, abonnement_mensuel, taux_prelevement, plancher_stagiaire, forfait_gestion, gestion_souscrite")
       .order("raison_sociale", { ascending: true })
       .limit(500);
 
@@ -80,6 +80,31 @@ export async function GET(req: NextRequest) {
     for (const i of inscriptions || []) {
       if (!parTenant[i.tenant_id]) parTenant[i.tenant_id] = [];
       parTenant[i.tenant_id].push(i);
+    }
+
+    // LES FORMATIONS PROPRES REDIGEES PAR L ASSISTANT — 90 EUR HT chacune.
+    //
+    // Le montant est pose par /api/organisme/rediger-module au PREMIER module
+    // de chaque formation, jamais ensuite : une formation de vingt modules
+    // porte donc une seule ligne a 90 EUR. Ici on ne fait que RELEVER ce qui a
+    // deja ete decide la-bas — aucun calcul n est refait, sans quoi les deux
+    // routes pourraient diverger.
+    //
+    // Sans ce releve, le montant restait enregistre en base sans jamais
+    // apparaitre sur aucune facture.
+    const { data: redactions } = await supabase
+      .from("organisme_usage_ia")
+      .select("tenant_id, cours_id, reference, montant_facture, created_at")
+      .eq("type", "redaction_module")
+      .gt("montant_facture", 0)
+      .gte("created_at", debut)
+      .lt("created_at", fin)
+      .limit(5000);
+
+    const redactionsDe: any = {};
+    for (const r of redactions || []) {
+      if (!redactionsDe[r.tenant_id]) redactionsDe[r.tenant_id] = [];
+      redactionsDe[r.tenant_id].push(r);
     }
 
     const lignes = (organismes || []).map(function (o: any) {
@@ -160,13 +185,32 @@ export async function GET(req: NextRequest) {
 
       du = Math.round(du * 100) / 100;
 
-      const abonnementPlein = Number(o.abonnement_mensuel) || 0;
-      const enLancement = o.lancement_jusqu_au
-        ? new Date(o.lancement_jusqu_au).getTime() >= new Date(debut).getTime()
-        : false;
-      const abonnementCalcule = enLancement ? Math.round(abonnementPlein / 2) : abonnementPlein;
+      // Les redactions du mois pour ce client. Un organisme suspendu n en
+      // porte aucune : il ne peut plus rien produire.
+      const sesRedactions = redactionsDe[o.tenant_id] || [];
+      const montantRedactions = suspendu
+        ? 0
+        : Math.round(sesRedactions.reduce(function (s: number, r: any) {
+            return s + (Number(r.montant_facture) || 0);
+          }, 0) * 100) / 100;
 
-      const abonnement = suspendu ? 0 : abonnementCalcule;
+      const detailsRedactions = sesRedactions.map(function (r: any) {
+        return {
+          reference: r.reference,
+          cours_id: r.cours_id,
+          montant: Number(r.montant_facture) || 0,
+          le: r.created_at,
+        };
+      });
+
+      // 🚨 PLUS AUCUN TARIF DE LANCEMENT. Ce calcul divisait l abonnement PAR
+      // DEUX des que la colonne lancement_jusqu_au portait une date. Supprime
+      // le 16/08 sur decision de Jacques : « je n ai pas demande a ce qu on
+      // mette le lancement a 50 % du prix ». Le montant facture est TOUJOURS
+      // le prix plein. Ne pas le reintroduire.
+      const abonnementPlein = Number(o.abonnement_mensuel) || 0;
+
+      const abonnement = suspendu ? 0 : abonnementPlein;
       const prelevement = suspendu ? 0 : du;
 
       return {
@@ -176,8 +220,6 @@ export async function GET(req: NextRequest) {
         email_contact: o.email_contact,
         statut: o.statut,
         suspendu: suspendu,
-        en_lancement: enLancement,
-        lancement_jusqu_au: o.lancement_jusqu_au,
         abonnement_plein: abonnementPlein,
         abonnement: abonnement,
         taux: taux,
@@ -190,18 +232,25 @@ export async function GET(req: NextRequest) {
         au_plancher: auPlancher,
         hors_catalogue: horsCatalogue,
         prelevement: prelevement,
-        total: Math.round((abonnement + prelevement) * 100) / 100,
+        formations_redigees: sesRedactions.length,
+        redactions: montantRedactions,
+        details_redactions: detailsRedactions,
+        total: Math.round((abonnement + prelevement + montantRedactions) * 100) / 100,
         details: details,
       };
     });
 
     const totalAbonnements = lignes.reduce(function (s: number, l: any) { return s + l.abonnement; }, 0);
     const totalPrelevements = lignes.reduce(function (s: number, l: any) { return s + l.prelevement; }, 0);
+    const totalRedactions = lignes.reduce(function (s: number, l: any) { return s + l.redactions; }, 0);
     const totalInscriptions = lignes.reduce(function (s: number, l: any) {
       return s + (l.suspendu ? 0 : l.inscriptions);
     }, 0);
     const totalPlancher = lignes.reduce(function (s: number, l: any) {
       return s + (l.suspendu ? 0 : l.au_plancher);
+    }, 0);
+    const totalFormationsRedigees = lignes.reduce(function (s: number, l: any) {
+      return s + l.formations_redigees;
     }, 0);
 
     return NextResponse.json({
@@ -211,9 +260,11 @@ export async function GET(req: NextRequest) {
       suspendus: lignes.filter(function (l: any) { return l.suspendu; }).length,
       total_abonnements: Math.round(totalAbonnements * 100) / 100,
       total_prelevements: Math.round(totalPrelevements * 100) / 100,
+      total_redactions: Math.round(totalRedactions * 100) / 100,
+      total_formations_redigees: totalFormationsRedigees,
       total_inscriptions: totalInscriptions,
       total_au_plancher: totalPlancher,
-      total: Math.round((totalAbonnements + totalPrelevements) * 100) / 100,
+      total: Math.round((totalAbonnements + totalPrelevements + totalRedactions) * 100) / 100,
       lignes: lignes,
     });
   } catch (e: any) {
