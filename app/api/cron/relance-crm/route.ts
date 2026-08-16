@@ -8,45 +8,53 @@ export const maxDuration = 300;
 
 // LA RELANCE AUTOMATIQUE DES PROSPECTS DU CRM.
 //
-// ⚠️⚠️ ACTIVE VAUT true — LA ROUTE ENVOIE REELLEMENT.
-// Ouverte le 16/08 POUR UN SEUL ESSAI, vers l adresse de Jacques, afin de
-// verifier l encodage des accents et le rendu du pied de page. LA REMETTRE
-// A false AUSSITOT L ESSAI FAIT : un cron Vercel la declenche chaque matin,
-// et elle partirait toute seule sur de vrais prospects.
+// ÉPROUVÉE LE 16/08, PUIS REFERMÉE. Un vrai message a été envoyé ce
+// jour-là vers l'adresse de Jacques, et tout a été vérifié à l'écran :
+// les accents s'affichent correctement dans le courriel, l'objet s'adapte
+// à la source du prospect, le pied de page porte le lien de désinscription
+// et ce lien est accepté par /desinscription.
 //
-// POURQUOI CETTE PRUDENCE. Le domaine d envoi a quinze jours d existence
-// et sept messages a son actif. Une relance mal tournee partie toute seule
-// ne se rattrape pas : une reputation abimee ne se repare pas, elle se
-// remplace par un autre domaine. Et un rebond — un message vers une adresse
-// inexistante — abime cette reputation autant qu une plainte.
+// ⚠️ UN DÉTAIL À NE PAS MAL LIRE : l'aperçu JSON rendu dans le navigateur
+// affiche « suite Ã  votre » — c'est la façon dont Vercel rend le JSON, pas
+// un défaut du courriel. Le message reçu, lui, est impeccable. Ne pas
+// « corriger » un encodage qui n'est cassé qu'à l'écran de contrôle.
+//
+// ELLE RESTE ENDORMIE. Tant que ACTIVE vaut false, la route lit, calcule,
+// et ne poste rien : elle renvoie ce qu'elle AURAIT envoyé.
+//
+// POURQUOI CETTE PRUDENCE. Le domaine d'envoi a quinze jours d'existence
+// et quelques messages à son actif. Une relance partie toute seule ne se
+// rattrape pas : une réputation abîmée ne se répare pas, elle se remplace
+// par un autre domaine. Et un rebond — un message vers une adresse
+// inexistante — l'abîme autant qu'une plainte. C'est pourquoi on désarme
+// les fiches d'essai avant tout envoi réel.
 //
 // CHAQUE PROSPECT PORTE AUSSI SON PROPRE INTERRUPTEUR — la colonne
-// relance_auto. Meme la route ouverte, seuls ceux qu on a marques sont
-// relances. Deux verrous valent mieux qu un.
+// relance_auto. Même la route ouverte, seuls ceux qu'on a marqués sont
+// relancés. Deux verrous valent mieux qu'un.
 //
-// TROIS CORRECTIONS DU 16/08, apres lecture de l apercu reel.
+// CE QUI A ÉTÉ CORRIGÉ LE 16/08 :
 //
-// (1) LE LIEN DE DESINSCRIPTION MANQUAIT ENTIEREMENT. C est ce qui rend la
-// prospection B2B licite sans consentement prealable, et ce qui protege le
-// domaine : un destinataire qui ne peut pas se desabonner clique sur
-// « spam », et c est bien pire.
+// (1) LE LIEN DE DÉSINSCRIPTION MANQUAIT ENTIÈREMENT. C'est ce qui rend la
+// prospection B2B licite sans consentement préalable, et ce qui protège le
+// domaine : un destinataire qui ne peut pas se désabonner clique sur
+// « spam », et c'est bien pire.
 //
-// ⚠️ LE FORMAT DU LIEN A ETE PRIS SUR LA PAGE ET LA ROUTE EXISTANTES, pas
-// invente. Trois details qui l auraient casse s ils avaient ete devines :
-// /desinscription attend DEUX parametres separes — ?e=adresse&j=jeton — et
-// non un jeton compose ; le secret est SESSION_SECRET, pas CRON_SECRET ; et
-// le jeton fait 32 caracteres, pas 24. Verifie a l ecran le 16/08 : le lien
-// s ouvre et affiche bien l adresse.
+// ⚠️ LE FORMAT DU LIEN A ÉTÉ PRIS SUR LA PAGE ET LA ROUTE EXISTANTES, pas
+// inventé. Trois détails qui l'auraient cassé s'ils avaient été devinés :
+// /desinscription attend DEUX paramètres séparés — ?e=adresse&j=jeton — et
+// non un jeton composé ; le secret est SESSION_SECRET, pas CRON_SECRET ; et
+// le jeton fait 32 caractères, pas 24.
 //
-// (2) L OBJET ETAIT FIGE : « Suite a votre demande » serait parti a des
-// gens qui n ont jamais rien demande. Il s adapte desormais a la source.
+// (2) L'OBJET ÉTAIT FIGÉ : « Suite à votre demande » serait parti à des
+// gens qui n'ont jamais rien demandé. Il s'adapte désormais à la source.
 //
-// (3) L ENCODAGE DES ACCENTS. Le charset est declare dans l en-tete de la
-// requete ET dans le document HTML lui-meme.
-const ACTIVE = true;
+// (3) LE PROMPT INTERDIT MAINTENANT d'inventer un chiffre, un tarif, une
+// date de session ou un témoignage — les mêmes règles que partout ailleurs.
+const ACTIVE = false;
 
-// Le delai avant relance, et le nombre maximum de relances par prospect.
-// Trois messages sans reponse suffisent : au-dela, on insiste.
+// Le délai avant relance, et le nombre maximum de relances par prospect.
+// Trois messages sans réponse suffisent : au-delà, on insiste.
 const JOURS_AVANT_RELANCE = 7;
 const RELANCES_MAX = 2;
 const LOT = 5;
@@ -65,9 +73,9 @@ function pause(ms: number) {
   return new Promise(function (r) { setTimeout(r, ms); });
 }
 
-// LE JETON EST CALCULE EXACTEMENT COMME /api/desinscription L ATTEND.
-// Meme secret, meme algorithme, meme longueur — toute difference et le
-// lien serait rejete au moment ou quelqu un veut s en servir.
+// LE JETON EST CALCULÉ EXACTEMENT COMME /api/desinscription L'ATTEND.
+// Même secret, même algorithme, même longueur — toute différence et le
+// lien serait rejeté au moment où quelqu'un veut s'en servir.
 function lienDesinscription(email: string) {
   const secret = process.env.SESSION_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY || "";
   const jeton = crypto
@@ -79,11 +87,11 @@ function lienDesinscription(email: string) {
     + "&j=" + jeton;
 }
 
-// L OBJET S ADAPTE A CE QU ON SAIT DU PROSPECT.
+// L'OBJET S'ADAPTE À CE QU'ON SAIT DU PROSPECT.
 //
-// « Suite a votre demande » ne vaut que pour quelqu un qui a effectivement
-// demande quelque chose — un formulaire, un chat, un webinaire. Pour un
-// contact importe ou venu d ailleurs, c est faux, et un objet faux se
+// « Suite à votre demande » ne vaut que pour quelqu'un qui a effectivement
+// demandé quelque chose — un formulaire, un chat, un webinaire. Pour un
+// contact importé ou venu d'ailleurs, c'est faux, et un objet faux se
 // paie en signalements.
 function objetPour(p: any): string {
   const source = String(p.source || "").toLowerCase();
@@ -152,8 +160,6 @@ async function redigerRelance(p: any): Promise<string | null> {
 async function envoyer(destinataire: string, sujet: string, texte: string) {
   const lien = lienDesinscription(destinataire);
 
-  // Le charset est declare DANS le document : sans lui, certains clients
-  // de messagerie rendent « suite Ã  votre » au lieu de « suite à votre ».
   const html = '<!DOCTYPE html><html lang="fr"><head>'
     + '<meta charset="utf-8"/>'
     + '<meta name="viewport" content="width=device-width,initial-scale=1"/>'
@@ -181,8 +187,8 @@ async function envoyer(destinataire: string, sujet: string, texte: string) {
       to: destinataire,
       subject: sujet,
       html: html,
-      // L en-tete standard que les messageries lisent pour proposer le
-      // desabonnement d un clic, avant meme d ouvrir le message.
+      // L'en-tête standard que les messageries lisent pour proposer le
+      // désabonnement d'un clic, avant même d'ouvrir le message.
       headers: {
         "List-Unsubscribe": "<" + lien + ">",
         "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
@@ -205,9 +211,9 @@ export async function GET(req: NextRequest) {
   const limite = new Date();
   limite.setDate(limite.getDate() - JOURS_AVANT_RELANCE);
 
-  // QUI EST RELANCE : un prospect qui a une adresse, qui n est ni client ni
-  // perdu, qui n est pas desinscrit, qui n a pas donne signe depuis le
-  // delai, et qui n a pas deja ete relance trop souvent.
+  // QUI EST RELANCÉ : un prospect qui a une adresse, qui n'est ni client ni
+  // perdu, qui n'est pas désinscrit, qui n'a pas donné signe depuis le
+  // délai, et qui n'a pas déjà été relancé trop souvent.
   const { data: cibles, error } = await supabase
     .from("crm")
     .select("id, nom, email, statut, score, source, domaine, formation_interesse, notes, relances, derniere_interaction, relance_auto")
@@ -241,7 +247,7 @@ export async function GET(req: NextRequest) {
 
     const sujet = objetPour(p);
 
-    // MODE ENDORMI : on montre ce qui partirait, on n envoie rien.
+    // MODE ENDORMI : on montre ce qui partirait, on n'envoie rien.
     if (!ACTIVE) {
       apercu.push({
         nom: p.nom,
@@ -255,8 +261,8 @@ export async function GET(req: NextRequest) {
       continue;
     }
 
-    // MARQUAGE AVANT ENVOI, comme pour la campagne : si l appel echoue, la
-    // ligne porte deja son compteur et ne sera pas reprise deux fois.
+    // MARQUAGE AVANT ENVOI, comme pour la campagne : si l'appel échoue, la
+    // ligne porte déjà son compteur et ne sera pas reprise deux fois.
     await supabase
       .from("crm")
       .update({
@@ -278,7 +284,7 @@ export async function GET(req: NextRequest) {
     destinataires: ACTIVE ? partis : undefined,
     apercu: ACTIVE ? undefined : apercu,
     note: ACTIVE
-      ? "⚠️ ROUTE OUVERTE — des messages sont reellement partis. Remettre ACTIVE a false."
+      ? "ROUTE OUVERTE - des messages sont reellement partis. Remettre ACTIVE a false."
       : "Route endormie : rien n a ete envoye. Passer ACTIVE a true pour ouvrir.",
   });
 }
