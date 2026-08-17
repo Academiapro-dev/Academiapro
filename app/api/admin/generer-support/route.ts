@@ -31,10 +31,7 @@ function heuresDe(duree: any): number {
 }
 
 // UN MODULE TOUTES LES DEUX HEURES, plancher 4, plafond 20.
-// 8h -> 4 modules, 16h -> 8, 24h -> 12, 40h et au-dela -> 20.
-// Le plafond de 20 correspond au catalogue existant ET a la limite
-// d extraction de construire-plans, qui s arrete a 20 titres.
-// Sans duree lisible, on garde l ancien comportement (10 a 16).
+// N est utilise QUE SI AUCUN PLAN N EXISTE dans lms_plans.
 function moduleDe(heures: number): { mini: number; maxi: number } {
   if (heures <= 0) return { mini: 10, maxi: 16 };
   const cible = Math.round(heures / 2);
@@ -74,10 +71,6 @@ export async function GET(req: Request) {
     // Le 13 aout, un support a ete produit deux fois de suite en ignorant
     // un programme detaille de mille caracteres : la requete ne lisait pas
     // la colonne. Le modele n y etait pour rien.
-    //
-    // Desormais : ce qui est ecrit dans la fiche est IMPOSE au modele, et
-    // ce qui manque est laisse a sa redaction. Une fiche vide se comporte
-    // donc exactement comme avant.
     const { data: formations } = await supabase
       .from("formations")
       .select("code, titre, domaine, niveau, prix, duree, description, programme, objectifs, prerequis, public_cible")
@@ -101,9 +94,72 @@ export async function GET(req: Request) {
       return NextResponse.json({ ok: true, code: fiche.code, deja: true, restants: candidates.length });
     }
 
-    // LE DECOUPAGE SUIT LA DUREE REELLE, il n est plus fixe a 10-16.
+    // 🚨🚨 LE PLAN DE lms_plans PREVAUT SUR TOUT — ajoute le 17/08.
+    //
+    // CE QUI S'EST PASSE. F900, le manuel d'utilisation de la plateforme,
+    // avait recu un plan complet en base : cinq chapitres, vingt modules,
+    // dont UN CHAPITRE ENTIER consacre a la marque blanche. Cette route ne
+    // lisait que formations.programme, vide pour F900 — le modele a donc
+    // invente ses propres modules.
+    //
+    // LE RESULTAT ETAIT INUTILISABLE, ET DANGEREUX :
+    //   - la marque blanche avait DISPARU, alors que c'est le critere de
+    //     decision d'un etablissement qui diffuse sous son nom ;
+    //   - trois modules inventes s'intitulaient « Creer une formation dans
+    //     votre catalogue », « Configurer le contenu d'une formation »,
+    //     « Ouvrir une formation ». Le manuel aurait donc APPRIS AU CLIENT
+    //     A PRODUIRE SES PROPRES FORMATIONS — exactement ce que Jacques a
+    //     fait retirer du bon de commande, des CGV et de ses courriers le
+    //     jour meme. Ses mots : « c'est nous qui produisons notre propre
+    //     catalogue », « un organisme qui veut fabriquer devient un
+    //     concurrent, pas un client ».
+    //
+    // 🚨 LE MODELE NE DOIT DONC JAMAIS INVENTER UN PROGRAMME QUAND UN PLAN
+    // EXISTE. lms_plans est la source de verite : c'est ce plan que le LMS
+    // sert au stagiaire, c'est celui que la fiche affiche, c'est celui que
+    // le manuel doit suivre. Un support qui en diverge decrit une formation
+    // qui n'existe pas.
+    //
+    // ORDRE DE PRIORITE DESORMAIS APPLIQUE :
+    //   1. lms_plans, s'il porte des lignes pour cette formation ;
+    //   2. formations.programme, s'il est renseigne ;
+    //   3. redaction libre par le modele, avec le nombre de modules calcule
+    //      sur la duree — l'ancien comportement, conserve pour les fiches
+    //      qui n'ont encore ni plan ni programme.
+    const { data: lignesPlan } = await supabase
+      .from("lms_plans")
+      .select("chapitre_num, chapitre_titre, module_num, module_titre, type")
+      .eq("formation_code", fiche.code)
+      .order("chapitre_num", { ascending: true })
+      .order("module_num", { ascending: true })
+      .limit(500);
+
+    const plan = lignesPlan || [];
+    const aPlan = plan.length > 0;
+
+    // Le plan remis en forme pour le modele : chapitres et modules, dans
+    // l'ordre, avec le type de chaque module. Le modele n'a plus qu'a
+    // decrire ce qui lui est donne.
+    let texteDuPlan = "";
+    let chapitreCourant = -1;
+    for (const l of plan) {
+      if (l.chapitre_num !== chapitreCourant) {
+        chapitreCourant = l.chapitre_num;
+        texteDuPlan += "\nCHAPITRE " + l.chapitre_num + " - " + String(l.chapitre_titre || "").trim() + "\n";
+      }
+      texteDuPlan += "  Module " + l.chapitre_num + "." + l.module_num + " - "
+        + String(l.module_titre || "").trim()
+        + " [" + String(l.type || "theorie") + "]\n";
+    }
+
+    const nbModulesPlan = plan.length;
+    const nbChapitresPlan = new Set(plan.map(function (l: any) { return l.chapitre_num; })).size;
+
+    // LE DECOUPAGE SUIT LE PLAN QUAND IL EXISTE, la duree sinon.
     const heures = heuresDe(fiche.duree);
-    const bornes = moduleDe(heures);
+    const bornes = aPlan
+      ? { mini: nbModulesPlan, maxi: nbModulesPlan }
+      : moduleDe(heures);
     const combien = bornes.mini === bornes.maxi
       ? "exactement " + bornes.mini + " modules"
       : bornes.mini + " a " + bornes.maxi + " modules";
@@ -125,7 +181,18 @@ export async function GET(req: Request) {
     if (renseigne(fiche.prerequis)) {
       impose += "\nPREREQUIS IMPOSES :\n" + fiche.prerequis + "\n";
     }
-    if (renseigne(fiche.programme)) {
+
+    // LE PLAN PASSE DEVANT LE PROGRAMME DE LA FICHE.
+    if (aPlan) {
+      impose += "\n🚨 PLAN OFFICIEL DE LA FORMATION — C'EST CE PLAN, ET LUI SEUL, "
+        + "QUI DOIT ETRE SUIVI.\n"
+        + "Il compte " + nbChapitresPlan + " chapitres et " + nbModulesPlan + " modules. "
+        + "Tu reprends CHAQUE module dans cet ordre, avec SON INTITULE EXACT. "
+        + "Tu n'en ajoutes aucun, tu n'en retires aucun, tu n'en renommes aucun. "
+        + "Ta seule liberte est de rediger les deux a quatre lignes qui decrivent "
+        + "le contenu de chaque module.\n"
+        + texteDuPlan;
+    } else if (renseigne(fiche.programme)) {
       impose += "\nPROGRAMME IMPOSE — c est CE decoupage qu il faut suivre, "
         + "module par module, en gardant les intitules et les notions citees. "
         + "Tu peux etoffer la description de chaque module, tu ne peux ni en "
@@ -133,7 +200,7 @@ export async function GET(req: Request) {
         + fiche.programme + "\n";
     }
 
-    const aProgramme = renseigne(fiche.programme);
+    const aProgramme = aPlan || renseigne(fiche.programme);
 
     const invite =
       "Tu rediges le support de cours officiel d un organisme de formation professionnelle francais.\n\n" +
@@ -150,8 +217,19 @@ export async function GET(req: Request) {
       "5. PROGRAMME : " + combien + ". Chaque module sur une ligne au format exact :\n" +
       "Module N - Titre du module (XXh)\n" +
       "suivi de 2 a 4 lignes decrivant son contenu.\n" +
+      (aPlan
+        ? "Les modules sont numerotes de 1 a " + nbModulesPlan + " en continu, "
+          + "dans l'ordre du plan ci-dessus, et tu conserves les intitules a "
+          + "l'identique.\n"
+        : "") +
       "6. MODALITES D EVALUATION : un paragraphe.\n\n" +
       "Regles imperatives :\n" +
+      (aPlan
+        ? "- LE PLAN OFFICIEL CI-DESSUS EST LA SEULE SOURCE DU PROGRAMME. "
+          + "Toute invention de module, tout intitule modifie, toute omission "
+          + "rend le document inutilisable : il decrirait une formation qui "
+          + "n'existe pas.\n"
+        : "") +
       (impose
         ? "- CE QUI EST IMPOSE CI-DESSUS PREVAUT SUR TOUT LE RESTE. N invente "
           + "aucune fonctionnalite, aucun ecran, aucune notion qui n y figure pas.\n"
@@ -259,6 +337,9 @@ export async function GET(req: Request) {
       code: fiche.code,
       titre: fiche.titre,
       heures: heures,
+      plan_suivi: aPlan,
+      modules_du_plan: aPlan ? nbModulesPlan : null,
+      chapitres_du_plan: aPlan ? nbChapitresPlan : null,
       modules_demandes: bornes.maxi,
       fiche_suivie: impose ? true : false,
       programme_impose: aProgramme,
