@@ -186,6 +186,44 @@ export async function middleware(request: NextRequest) {
     }
   }
 
+  // 🚨 UNE FICHE DE FORMATION N A QU UNE SEULE ADRESSE — 17/08.
+  //
+  // LE DEFAUT. Le catalogue construisait ses liens en minuscules avec
+  // toLowerCase(), donc /formation/f005, tandis que LE SITEMAP ET LA
+  // CANONIQUE declarent le code tel qu il est en base : /formation/F005.
+  // Les deux adresses servaient exactement la meme page — la route et le
+  // layout normalisent le code avant de chercher en base.
+  //
+  // CE QUE GOOGLE EN A FAIT. Search Console a signale « Page en double :
+  // Google n a pas choisi la meme URL canonique que l utilisateur », et
+  // dix-neuf pages en double sans canonique retenue. Le moteur suivait des
+  // liens internes vers une adresse dont la canonique pointait ailleurs.
+  //
+  // POURQUOI UNE REDIRECTION ET NON UN SIMPLE ALIGNEMENT DES LIENS. Jacques
+  // a repris ma premiere solution, qui se contentait de corriger les liens
+  // du catalogue : « pourquoi laisser deux adresses identiques ? ». Il a
+  // raison — les liens deja partages, ceux du blog, ceux d un courriel
+  // envoye la semaine derniere resteraient en minuscules. Une redirection
+  // permanente les ramene tous vers l adresse unique ET transmet leur
+  // valeur de referencement, ce qu un simple changement de lien ne fait pas.
+  //
+  // 308 ET NON 302 : le 308 est PERMANENT, Google remplace l ancienne
+  // adresse par la nouvelle dans son index. Un 302 laisserait les deux.
+  //
+  // PLACEE APRES LE BLOC DES MARQUES, pour ne rien changer sur
+  // mrcomptable.fr. La chaine de requete est conservee : /formation/f005?lang=en
+  // arrive bien sur /formation/F005?lang=en.
+  if (chemin.startsWith('/formation/')) {
+    const morceaux = chemin.split('/');
+    const code = morceaux[2] || '';
+    if (code && code !== code.toUpperCase()) {
+      morceaux[2] = code.toUpperCase();
+      const url = request.nextUrl.clone();
+      url.pathname = morceaux.join('/');
+      return NextResponse.redirect(url, 308);
+    }
+  }
+
   if (hote && !estNotre(hote) && chemin === '/') {
     const url = request.nextUrl.clone();
     url.pathname = '/of/@' + h;
