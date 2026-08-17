@@ -12,23 +12,15 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || ""
 );
 
-// QUATRE SOURCES, DONT UNE MANUELLE — ajoutee le 17/08.
+// QUATRE SOURCES, DONT UNE MANUELLE.
 //
-// Les trois premieres viennent de l open data enrichi. LA QUATRIEME, « manuel »,
-// pointe sur la table crm et recoit les profils que Jacques trouve LUI-MEME
-// sur LinkedIn, au fil de son fil d actualite. Ses mots : « ces prospects
-// n'ont rien a voir avec ceux que nous avons enrichi, il manque une
-// fonctionnalite, celle de pouvoir inscrire des prospects manuellement ».
+// Les trois premieres viennent de l open data enrichi. LA QUATRIEME,
+// « manuel », pointe sur la table crm et recoit les profils que Jacques
+// trouve LUI-MEME sur LinkedIn, au fil de son fil d actualite.
 //
 // POURQUOI LA TABLE crm ET PAS UNE QUATRIEME TABLE DE PROSPECTION : ces
 // profils n ont PAS D ADRESSE, seulement un lien LinkedIn. Les loger dans le
-// CRM leur donne d emblee un score, un statut commercial et un historique —
-// et ils apparaissent au meme endroit que tous les autres prospects, ce qui
-// evite un second endroit ou regarder.
-//
-// La colonne email de crm a ete rendue FACULTATIVE le meme jour, sans quoi
-// aucune de ces fiches n aurait pu etre creee. La veille, il avait fallu
-// inventer une adresse factice pour enregistrer un profil a la main.
+// CRM leur donne d emblee un score, un statut commercial et un historique.
 const TABLES: any = {
   organismes: "prospects_organismes",
   qualiopi: "prospects_qualiopi",
@@ -40,18 +32,12 @@ const TABLES: any = {
 //
 // invite      : partie AVEC une note personnalisee.
 // invite_nu   : partie SANS note — LinkedIn plafonne les notes a quelques
-//               unes par mois en compte gratuit, la plupart des invitations
-//               partiront donc nues.
+//               unes par mois en compte gratuit.
 // accepte / accepte_nu : la personne a accepte. On garde la trace de ce qui
-//               a ete envoye, sans quoi la comparaison serait perdue des la
-//               premiere reponse.
+//               a ete envoye, sans quoi la comparaison serait perdue.
 // relance     : le message long a ete envoye apres acceptation.
 // refuse      : sans suite.
 // ecarte      : decision de Jacques avant tout envoi.
-//
-// POURQUOI CETTE DISTINCTION : c est la SEULE facon de savoir si Premium
-// vaut son abonnement. Si les invitations avec note sont acceptees deux
-// fois plus, il se justifie ; sinon non.
 const STATUTS = ["invite", "invite_nu", "accepte", "accepte_nu", "relance", "refuse", "ecarte"];
 
 const EN_ATTENTE = ["invite", "invite_nu"];
@@ -59,6 +45,20 @@ const ACCEPTES = ["accepte", "accepte_nu"];
 
 const PLAFOND_SEMAINE = 100;
 const PLAFOND_JOUR = 20;
+
+// 🚨 MILLE LIGNES, ET NON DEUX CENTS — porte le 17/08 au soir.
+//
+// A vingt invitations par jour, le plafond de 200 etait atteint en DIX
+// JOURS : au-dela, les fiches les plus recentes n apparaissaient tout
+// simplement plus dans les listes, sans aucun message d avertissement.
+// Ses mots : « d ici une semaine j aurai beaucoup plus de contacts et
+// j aurai beaucoup plus de difficulte a chercher ».
+//
+// Mille lignes couvrent cinquante jours au rythme actuel. La recherche de
+// l ecran filtre ensuite dans ce qui est charge, sans appel reseau — donc
+// instantanee. Le jour ou ce plafond serait atteint a son tour, il faudra
+// passer la recherche cote serveur.
+const LIMITE_LISTE = 1000;
 
 // Une fiche ecartee ne compte jamais : rien n a ete envoye.
 async function compterDepuis(depuis: string): Promise<number> {
@@ -115,8 +115,7 @@ async function compteurs() {
   const ecartes = await compterStatuts(["ecarte"]);
 
   // LE TAUX SE CALCULE SUR CE QUI A RECU UNE REPONSE, pas sur tout ce qui
-  // est parti : une invitation d hier n a pas eu le temps d etre acceptee,
-  // la compter comme un echec fausserait la mesure.
+  // est parti : une invitation d hier n a pas eu le temps d etre acceptee.
   return {
     jour, semaine,
     en_attente: attente_note + attente_nu,
@@ -150,8 +149,7 @@ function colonnesDe(cle: string): string {
 }
 
 // L ecran attend partout raison_sociale et dirigeant. Une fiche du CRM
-// n en a pas : on la presente sous la meme forme, sans quoi il faudrait
-// deux affichages differents pour la meme file.
+// n en a pas : on la presente sous la meme forme.
 function uniformiser(l: any, cle: string) {
   if (cle !== "manuel") return { ...l, base: cle };
   return {
@@ -227,9 +225,7 @@ export async function POST(req: NextRequest) {
     // AJOUTER UN PROFIL TROUVE A LA MAIN.
     //
     // La fiche entre directement au statut d invitation : si Jacques la
-    // saisit, c est qu il vient d envoyer la demande. Elle apparait donc
-    // aussitot dans « Mes invitations », prete a etre marquee acceptee ou
-    // sans suite — et elle existe des le meme instant dans le CRM.
+    // saisit, c est qu il vient d envoyer la demande.
     if (action === "ajouter") {
       const nom = propre(body.nom, 120);
       const lien = propre(body.linkedin, 300);
@@ -245,8 +241,7 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      // Le meme profil ne se saisit pas deux fois : on retrouve la fiche
-      // existante plutot que d en creer une seconde.
+      // Le meme profil ne se saisit pas deux fois.
       const { data: deja } = await supabase
         .from("crm")
         .select("id, nom, linkedin_statut")
@@ -319,12 +314,12 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === "en_attente") {
-      const lignes = await lister(EN_ATTENTE, 200);
+      const lignes = await lister(EN_ATTENTE, LIMITE_LISTE);
       return NextResponse.json({ ok: true, lignes, compteurs: await compteurs() });
     }
 
     if (action === "a_relancer") {
-      const lignes = await lister(ACCEPTES, 200);
+      const lignes = await lister(ACCEPTES, LIMITE_LISTE);
       return NextResponse.json({ ok: true, lignes, compteurs: await compteurs() });
     }
 
@@ -339,8 +334,8 @@ export async function POST(req: NextRequest) {
     }
 
     // LE PLAFOND SE VERIFIE COTE SERVEUR, pas seulement a l ecran. Il
-    // concerne les DEUX formes d invitation : LinkedIn plafonne les envois,
-    // pas les notes. Marquer une acceptation n est plafonne par rien.
+    // concerne les DEUX formes d invitation. Marquer une acceptation n est
+    // plafonne par rien.
     if (statut === "invite" || statut === "invite_nu") {
       const c = await compteurs();
       if (c.reste_jour <= 0) {
@@ -366,8 +361,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Sur une fiche du CRM, une acceptation vaut un signal commercial :
-    // le statut et le score suivent, sans quoi le CRM ignorerait ce qui
-    // se passe sur LinkedIn.
+    // le statut et le score suivent.
     if (base === "manuel") {
       champs.derniere_interaction = new Date().toISOString();
       if (statut === "accepte" || statut === "accepte_nu") {
