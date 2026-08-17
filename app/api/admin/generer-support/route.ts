@@ -15,6 +15,72 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || ""
 );
 
+// 🗺️ LA CARTE REELLE DE LA PLATEFORME — ajoutee le 17/08.
+//
+// POURQUOI ELLE EXISTE. Le support de F900, le manuel d'utilisation
+// d'AcadeMIA Pro, decrivait les actions en termes vagues : « il accede a la
+// section de la plateforme qui lui permet de... », « repérage des menus
+// principaux ». Aucun nom d'ecran, aucun chemin, aucun bouton. Le modele ne
+// connait pas la plateforme : il brode ce qu'il imagine d'un LMS.
+//
+// Un manuel d'utilisation qui ne nomme pas les ecrans est inutilisable — et
+// c'est celui que Jacques montrera en demonstration.
+//
+// CETTE CARTE EST LA LISTE EXACTE DES ECRANS, relevee dans app/organisme et
+// app/lms. Le modele ne peut plus inventer un chemin : il a la liste.
+//
+// ⚠️ ELLE N'EST INJECTEE QUE POUR LES FORMATIONS QUI PARLENT DE LA
+// PLATEFORME ELLE-MEME (F900 et suivantes). Les 331 formations du catalogue
+// portent sur d'autres sujets et n'en ont aucun besoin.
+//
+// 🚨 A TENIR A JOUR : si un ecran est ajoute, renomme ou retire dans
+// app/organisme, cette carte doit suivre. Un manuel qui decrit un ecran
+// disparu est pire qu'un manuel vague.
+const CARTE_PLATEFORME =
+  "\n🗺️ CARTE REELLE DE LA PLATEFORME ACADEMIA PRO — NOMME LES ECRANS PAR " +
+  "CES NOMS EXACTS ET PAR AUCUN AUTRE. N'invente jamais un ecran, un onglet " +
+  "ou un bouton qui ne figure pas ici.\n\n" +
+
+  "COTE APPRENANT (le stagiaire) :\n" +
+  "  /connexion — page de connexion, l'apprenant saisit son adresse et son mot de passe\n" +
+  "  /mon-espace — ses formations, sa progression, ses documents\n" +
+  "  /lms — le lecteur de formation : chapitres, modules, contenu du cours\n" +
+  "  /evaluation — les questionnaires de fin de module et leur correction expliquee\n" +
+  "  /mes-certificats — ses attestations de fin de formation, a telecharger\n" +
+  "  /classe-virtuelle — les seances en direct avec le formateur\n" +
+  "  /dashboard — l'assistant conversationnel, qui repond a ses questions sur le cours\n\n" +
+
+  "COTE ORGANISME (l'espace du client, sous /organisme) :\n" +
+  "  /organisme — l'accueil de l'espace, avec les portes vers toutes les sections\n" +
+  "  /organisme/catalogue — les formations ouvertes a ses stagiaires ; c'est ici qu'il " +
+  "choisit celles qu'il diffuse et fixe son prix de vente\n" +
+  "  /organisme/stagiaires — la liste de ses stagiaires, leur inscription, leur progression\n" +
+  "  /organisme/importer — l'import d'une liste de stagiaires en nombre\n" +
+  "  /organisme/documents — les documents administratifs edites a son en-tete : " +
+  "conventions, convocations, feuilles d'emargement, attestations\n" +
+  "  /organisme/signatures — la signature electronique des documents et son archivage\n" +
+  "  /organisme/evaluations — les evaluations a chaud et a froid de ses stagiaires\n" +
+  "  /organisme/positionnements — les tests de positionnement en entree de formation\n" +
+  "  /organisme/reclamations — le registre des reclamations et leurs actions correctives\n" +
+  "  /organisme/formateurs — les dossiers de ses formateurs et leurs habilitations\n" +
+  "  /organisme/veille — ses registres de veille : legale, metier, pedagogique, handicap\n" +
+  "  /organisme/soustraitance — le suivi de ses sous-traitants\n" +
+  "  /organisme/bilan — la preparation de son bilan pedagogique et financier annuel\n" +
+  "  /organisme/seances — les seances de classe virtuelle qu'il programme\n" +
+  "  /organisme/crm — le suivi commercial : ses prospects, leurs etapes, leur score\n" +
+  "  /organisme/relances — les relances commerciales a envoyer\n" +
+  "  /organisme/portail — sa page publique, ou ses formations sont presentees a ses prospects\n" +
+  "  /organisme/factures — les factures qu'il emet a ses propres clients\n" +
+  "  /organisme/facturation — ce qu'il doit a l'editeur : abonnement, part, redevance\n" +
+  "  /organisme/financement — les dossiers de financement de ses stagiaires\n" +
+  "  /organisme/amelioration — son registre d'amelioration continue\n\n" +
+
+  "LA MARQUE BLANCHE : le logo, les couleurs et l'identite de l'organisme se " +
+  "posent depuis l'accueil de son espace, /organisme. Une fois poses, ils " +
+  "apparaissent partout : sur la plateforme que voient ses stagiaires, sur sa " +
+  "page publique, et sur tous les documents qu'il edite. Le stagiaire ne voit " +
+  "jamais le nom AcadeMIA Pro.\n";
+
 function echapper(t: string): string {
   return String(t || "")
     .replace(/&/g, "&amp;")
@@ -43,6 +109,15 @@ function renseigne(v: any): boolean {
   return typeof v === "string" && v.trim().length > 20;
 }
 
+// La formation porte-t-elle sur la plateforme elle-meme ? Seules celles-la
+// recoivent la carte des ecrans.
+function parleDeLaPlateforme(fiche: any): boolean {
+  const code = String(fiche.code || "").toUpperCase();
+  if (code === "F900") return true;
+  const titre = String(fiche.titre || "").toLowerCase();
+  return titre.indexOf("academia pro") >= 0 || titre.indexOf("académia pro") >= 0;
+}
+
 export async function GET(req: Request) {
   try {
     const email = emailDeSession();
@@ -57,8 +132,7 @@ export async function GET(req: Request) {
 
     const url = new URL(req.url);
     const demande = (url.searchParams.get("code") || "").trim().toUpperCase();
-    // FORCE : ecrase le support existant au lieu de le refuser. Sert aux
-    // recalibrages, Supabase interdisant la suppression directe en SQL.
+    // FORCE : ecrase le support existant au lieu de le refuser.
     const force = url.searchParams.get("force") === "1";
 
     const { data: fichiers } = await supabase.storage
@@ -67,10 +141,6 @@ export async function GET(req: Request) {
     const existants = new Set((fichiers || []).map((f) => f.name));
 
     // LA FICHE FAIT FOI QUAND ELLE EST RENSEIGNEE.
-    //
-    // Le 13 aout, un support a ete produit deux fois de suite en ignorant
-    // un programme detaille de mille caracteres : la requete ne lisait pas
-    // la colonne. Le modele n y etait pour rien.
     const { data: formations } = await supabase
       .from("formations")
       .select("code, titre, domaine, niveau, prix, duree, description, programme, objectifs, prerequis, public_cible")
@@ -96,36 +166,19 @@ export async function GET(req: Request) {
 
     // 🚨🚨 LE PLAN DE lms_plans PREVAUT SUR TOUT — ajoute le 17/08.
     //
-    // CE QUI S'EST PASSE. F900, le manuel d'utilisation de la plateforme,
-    // avait recu un plan complet en base : cinq chapitres, vingt modules,
-    // dont UN CHAPITRE ENTIER consacre a la marque blanche. Cette route ne
-    // lisait que formations.programme, vide pour F900 — le modele a donc
-    // invente ses propres modules.
+    // F900 avait recu un plan complet en base : cinq chapitres, vingt
+    // modules, dont UN CHAPITRE ENTIER consacre a la marque blanche. Cette
+    // route ne lisait que formations.programme, vide pour F900 — le modele a
+    // donc invente ses propres modules.
     //
-    // LE RESULTAT ETAIT INUTILISABLE, ET DANGEREUX :
-    //   - la marque blanche avait DISPARU, alors que c'est le critere de
-    //     decision d'un etablissement qui diffuse sous son nom ;
-    //   - trois modules inventes s'intitulaient « Creer une formation dans
-    //     votre catalogue », « Configurer le contenu d'une formation »,
-    //     « Ouvrir une formation ». Le manuel aurait donc APPRIS AU CLIENT
-    //     A PRODUIRE SES PROPRES FORMATIONS — exactement ce que Jacques a
-    //     fait retirer du bon de commande, des CGV et de ses courriers le
-    //     jour meme. Ses mots : « c'est nous qui produisons notre propre
-    //     catalogue », « un organisme qui veut fabriquer devient un
-    //     concurrent, pas un client ».
+    // LE RESULTAT ETAIT INUTILISABLE, ET DANGEREUX : la marque blanche avait
+    // DISPARU, et trois modules inventes s'intitulaient « Creer une formation
+    // dans votre catalogue ». Le manuel aurait APPRIS AU CLIENT A PRODUIRE
+    // SES PROPRES FORMATIONS — exactement ce que Jacques a fait retirer de
+    // tous ses documents le jour meme.
     //
-    // 🚨 LE MODELE NE DOIT DONC JAMAIS INVENTER UN PROGRAMME QUAND UN PLAN
-    // EXISTE. lms_plans est la source de verite : c'est ce plan que le LMS
-    // sert au stagiaire, c'est celui que la fiche affiche, c'est celui que
-    // le manuel doit suivre. Un support qui en diverge decrit une formation
-    // qui n'existe pas.
-    //
-    // ORDRE DE PRIORITE DESORMAIS APPLIQUE :
-    //   1. lms_plans, s'il porte des lignes pour cette formation ;
-    //   2. formations.programme, s'il est renseigne ;
-    //   3. redaction libre par le modele, avec le nombre de modules calcule
-    //      sur la duree — l'ancien comportement, conserve pour les fiches
-    //      qui n'ont encore ni plan ni programme.
+    // ORDRE DE PRIORITE : lms_plans, puis formations.programme, puis
+    // redaction libre avec le nombre de modules calcule sur la duree.
     const { data: lignesPlan } = await supabase
       .from("lms_plans")
       .select("chapitre_num, chapitre_titre, module_num, module_titre, type")
@@ -137,9 +190,6 @@ export async function GET(req: Request) {
     const plan = lignesPlan || [];
     const aPlan = plan.length > 0;
 
-    // Le plan remis en forme pour le modele : chapitres et modules, dans
-    // l'ordre, avec le type de chaque module. Le modele n'a plus qu'a
-    // decrire ce qui lui est donne.
     let texteDuPlan = "";
     let chapitreCourant = -1;
     for (const l of plan) {
@@ -155,7 +205,6 @@ export async function GET(req: Request) {
     const nbModulesPlan = plan.length;
     const nbChapitresPlan = new Set(plan.map(function (l: any) { return l.chapitre_num; })).size;
 
-    // LE DECOUPAGE SUIT LE PLAN QUAND IL EXISTE, la duree sinon.
     const heures = heuresDe(fiche.duree);
     const bornes = aPlan
       ? { mini: nbModulesPlan, maxi: nbModulesPlan }
@@ -182,7 +231,6 @@ export async function GET(req: Request) {
       impose += "\nPREREQUIS IMPOSES :\n" + fiche.prerequis + "\n";
     }
 
-    // LE PLAN PASSE DEVANT LE PROGRAMME DE LA FICHE.
     if (aPlan) {
       impose += "\n🚨 PLAN OFFICIEL DE LA FORMATION — C'EST CE PLAN, ET LUI SEUL, "
         + "QUI DOIT ETRE SUIVI.\n"
@@ -198,6 +246,12 @@ export async function GET(req: Request) {
         + "Tu peux etoffer la description de chaque module, tu ne peux ni en "
         + "ajouter, ni en retirer, ni remplacer les notions par d autres :\n"
         + fiche.programme + "\n";
+    }
+
+    // LA CARTE DES ECRANS, pour les formations qui portent sur la plateforme.
+    const surLaPlateforme = parleDeLaPlateforme(fiche);
+    if (surLaPlateforme) {
+      impose += CARTE_PLATEFORME;
     }
 
     const aProgramme = aPlan || renseigne(fiche.programme);
@@ -229,6 +283,19 @@ export async function GET(req: Request) {
           + "Toute invention de module, tout intitule modifie, toute omission "
           + "rend le document inutilisable : il decrirait une formation qui "
           + "n'existe pas.\n"
+        : "") +
+      (surLaPlateforme
+        ? "- 🚨 CETTE FORMATION PORTE SUR LA PLATEFORME ELLE-MEME. C'EST UN "
+          + "MANUEL D'UTILISATION, PAS UN COURS THEORIQUE. Chaque description "
+          + "de module DOIT NOMMER L'ECRAN CONCERNE tel qu'il figure dans la "
+          + "carte ci-dessus, et decrire l'action concrete que l'utilisateur y "
+          + "accomplit. Ecris « depuis l'ecran Stagiaires de son espace, il "
+          + "clique sur Ajouter un stagiaire » et non « il accede a la section "
+          + "qui lui permet de gerer ses apprenants ». UNE DESCRIPTION VAGUE "
+          + "REND LE MANUEL INUTILISABLE.\n"
+          + "- N'invente AUCUN ecran, AUCUN onglet, AUCUN bouton absent de la "
+          + "carte. Si une action n'a pas d'ecran dedie dans la carte, decris-la "
+          + "depuis l'ecran le plus proche qui y figure.\n"
         : "") +
       (impose
         ? "- CE QUI EST IMPOSE CI-DESSUS PREVAUT SUR TOUT LE RESTE. N invente "
@@ -338,6 +405,7 @@ export async function GET(req: Request) {
       titre: fiche.titre,
       heures: heures,
       plan_suivi: aPlan,
+      carte_injectee: surLaPlateforme,
       modules_du_plan: aPlan ? nbModulesPlan : null,
       chapitres_du_plan: aPlan ? nbChapitresPlan : null,
       modules_demandes: bornes.maxi,
