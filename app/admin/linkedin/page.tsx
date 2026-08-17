@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 
 // L ECRAN LINKEDIN — TROIS TEMPS, TROIS ONGLETS.
 //
@@ -23,11 +23,19 @@ import { useState, useEffect } from "react";
 //
 // 🆕 AJOUT MANUEL — 17/08. Les trois bases viennent de l open data enrichi,
 // mais Jacques trouve aussi des profils AU FIL DE SON ACTUALITE LinkedIn.
-// Ses mots : « ces prospects n'ont rien a voir avec ceux que nous avons
-// enrichi, il manque une fonctionnalite, celle de pouvoir inscrire des
-// prospects manuellement ». Ces fiches vont dans la table crm — elles n ont
-// PAS D ADRESSE, seulement un lien de profil, et se retrouvent du meme coup
-// dans le CRM avec un score et un statut commercial.
+// Ces fiches vont dans la table crm — elles n ont PAS D ADRESSE, seulement
+// un lien de profil.
+//
+// 🔎 RECHERCHE — 17/08 au soir. A vingt invitations par jour, les listes
+// deviennent illisibles en deux semaines : il fallait deja parcourir les
+// fiches une par une pour retrouver quelqu un. Ses mots : « d ici une
+// semaine j aurai beaucoup plus de contacts et j aurai beaucoup plus de
+// difficulte a chercher ».
+//
+// LE FILTRE EST LOCAL, PAS UN APPEL RESEAU : les lignes sont deja chargees
+// (jusqu a mille depuis la route), on filtre dans ce qui est en memoire.
+// La liste se reduit a chaque lettre tapee, sans attente. Le jour ou mille
+// fiches ne suffiront plus, il faudra passer la recherche cote serveur.
 
 const BASES = [
   { cle: "organismes", nom: "Organismes certifiés Qualiopi" },
@@ -72,6 +80,16 @@ function messageRelance(prenom: string, societe: string) {
     + "Bien à vous,\nJacques Lalou\nacademiapro.fr";
 }
 
+// Sans accents et en minuscules : « Bousbia » retrouve « BOUSBIA »,
+// « Herve » retrouve « Hervé ».
+function aplatir(v: any): string {
+  return String(v === null || v === undefined ? "" : v)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
 export default function PageLinkedin() {
   const [onglet, setOnglet] = useState("inviter");
   const [base, setBase] = useState("organismes");
@@ -85,6 +103,9 @@ export default function PageLinkedin() {
   const [lignes, setLignes] = useState<any[]>([]);
   const [ouverte, setOuverte] = useState<any>(null);
   const [texteLong, setTexteLong] = useState("");
+
+  // La recherche dans les listes.
+  const [recherche, setRecherche] = useState("");
 
   // L AJOUT MANUEL — replie par defaut, pour ne pas encombrer l ecran.
   const [ajout, setAjout] = useState(false);
@@ -153,11 +174,28 @@ export default function PageLinkedin() {
     setCharge(false);
   }
 
+  // LE FILTRE. Il porte sur tout ce qui identifie une personne : son nom,
+  // son prenom, son organisme, sa ville, et jusqu a l identifiant de son
+  // profil LinkedIn. Plusieurs mots se cumulent — « bousbia lyon » ne
+  // retient que les fiches qui portent les deux.
+  const filtrees = useMemo(function () {
+    const q = aplatir(recherche);
+    if (!q) return lignes;
+    const mots = q.split(/\s+/).filter(Boolean);
+    return lignes.filter(function (l: any) {
+      const foin = aplatir(
+        (l.dirigeant_prenom || "") + " " +
+        (l.dirigeant_nom || "") + " " +
+        (l.raison_sociale || "") + " " +
+        (l.ville || "") + " " +
+        (l.email || "") + " " +
+        (l.linkedin || "")
+      );
+      return mots.every(function (m: string) { return foin.indexOf(m) >= 0; });
+    });
+  }, [lignes, recherche]);
+
   // AJOUTER UN PROFIL TROUVE A LA MAIN.
-  //
-  // La fiche entre directement au statut d invitation : si Jacques la
-  // saisit, c est qu il vient d envoyer la demande. Elle apparait aussitot
-  // dans « Mes invitations ».
   async function ajouter(avecNote: boolean) {
     if (aNom.trim().length < 2) {
       setErreur("Indiquez le nom du contact.");
@@ -302,6 +340,34 @@ export default function PageLinkedin() {
     { id: "relancer", nom: "À relancer" + (compteurs && compteurs.acceptes ? " · " + compteurs.acceptes : "") },
   ];
 
+  // LE CHAMP DE RECHERCHE, partage par les deux listes.
+  function barreRecherche() {
+    return (
+      <div style={{ marginBottom: "16px" }}>
+        <div style={{ display: "flex", gap: "9px", flexWrap: "wrap", alignItems: "center" }}>
+          <input
+            value={recherche}
+            onChange={(e) => setRecherche(e.target.value)}
+            placeholder="Rechercher un nom, un organisme, une ville…"
+            style={{ ...CHAMP, flex: "1 1 280px", padding: "12px 14px" }}
+          />
+          {recherche && (
+            <button onClick={() => setRecherche("")} style={{ ...BOUTON, padding: "12px 20px" }}>
+              Effacer
+            </button>
+          )}
+        </div>
+        {recherche && (
+          <p style={{ color: filtrees.length === 0 ? "#e8836a" : "rgba(255,255,255,0.5)", fontSize: "13px", margin: "9px 0 0" }}>
+            {filtrees.length === 0
+              ? "Aucune fiche ne correspond à « " + recherche + " »."
+              : filtrees.length + " fiche(s) sur " + lignes.length}
+          </p>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div style={{ backgroundColor: "#050508", minHeight: "100vh", color: "#fff", fontFamily: "Georgia, serif" }}>
       <div style={{ background: "linear-gradient(135deg,#0a0a1a,#1a1a2e)", padding: "26px 20px" }}>
@@ -318,7 +384,7 @@ export default function PageLinkedin() {
         {ONGLETS.map(function (o) {
           const actif = onglet === o.id;
           return (
-            <button key={o.id} onClick={() => setOnglet(o.id)}
+            <button key={o.id} onClick={() => { setOnglet(o.id); setRecherche(""); }}
               style={{
                 padding: "9px 17px", borderRadius: "8px", border: "none", cursor: "pointer",
                 whiteSpace: "nowrap", fontSize: "13.5px", fontFamily: "Georgia,serif",
@@ -618,6 +684,8 @@ export default function PageLinkedin() {
               long devient possible.
             </p>
 
+            {lignes.length > 0 && barreRecherche()}
+
             {charge ? (
               <p style={{ color: "rgba(255,255,255,0.5)" }}>Chargement…</p>
             ) : lignes.length === 0 ? (
@@ -627,7 +695,7 @@ export default function PageLinkedin() {
                 </p>
               </div>
             ) : (
-              lignes.map(function (l) {
+              filtrees.map(function (l) {
                 const j = joursDepuis(l.linkedin_le);
                 const note = avecNoteDe(l);
                 return (
@@ -682,6 +750,8 @@ export default function PageLinkedin() {
               aucune limite de caractères, aucun quota. C'est ici que le vrai message se place.
             </p>
 
+            {lignes.length > 0 && barreRecherche()}
+
             {charge ? (
               <p style={{ color: "rgba(255,255,255,0.5)" }}>Chargement…</p>
             ) : lignes.length === 0 ? (
@@ -692,7 +762,7 @@ export default function PageLinkedin() {
                 </p>
               </div>
             ) : (
-              lignes.map(function (l) {
+              filtrees.map(function (l) {
                 const active = ouverte === l.base + "-" + l.id;
                 return (
                   <div key={l.base + "-" + l.id} style={{ ...CARTE, borderColor: active ? "rgba(0,230,118,0.4)" : CARTE.border }}>
