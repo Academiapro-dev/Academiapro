@@ -1,15 +1,40 @@
 import { createClient } from "@supabase/supabase-js";
-import Link from "next/link";
 
 // Blog Mr. Comptable. Ne lit QUE les articles de marque mrcomptable :
 // le blog AcademIA Pro est ailleurs et les deux ne se melangent jamais.
 //
-// LA CANONIQUE EST SANS PREFIXE. Le middleware sert cette page sous
-// mrcomptable.fr/blog : c est cette adresse-la que le sitemap declare et
-// que le visiteur voit. Declarer /comptable/blog creerait deux adresses
-// pour une seule page.
+// LA CANONIQUE EST ABSOLUE ET SANS PREFIXE. Le middleware sert cette page
+// sous mrcomptable.fr/blog : c est cette adresse-la que le sitemap declare
+// et que le visiteur voit. L absolu est indispensable ici — metadataBase
+// pointe sur academiapro.fr, donc une canonique relative se resoudrait vers
+// le mauvais domaine.
+//
+// 🚨 LES LIENS DES ARTICLES SONT ABSOLUS EUX AUSSI — corrige le 17/08.
+//
+// LE DEFAUT. Les cartes pointaient vers `/comptable/blog/<slug>`. Or le
+// middleware ne reecrit PAS ce chemin sur mrcomptable.fr : `/comptable` fait
+// partie de ses chemins RESERVES. Chaque article etait donc atteignable a
+// DEUX adresses — mrcomptable.fr/blog/<slug>, celle du sitemap, et
+// mrcomptable.fr/comptable/blog/<slug>, celle des liens internes.
+//
+// CE QUE GOOGLE EN A FAIT : « Page en double sans URL canonique selectionnee
+// par l utilisateur ». Il suit les liens internes, arrive sur l adresse
+// prefixee, et ne sait pas laquelle des deux retenir.
+//
+// POURQUOI ABSOLU ET NON PAS SIMPLEMENT `/blog/<slug>` : cette meme page est
+// aussi servie depuis academiapro.fr/comptable/blog. Un lien relatif y
+// menerait au blog AcadeMIA Pro, qui n a rien a voir. L absolu garantit que
+// l article s ouvre toujours sur le bon domaine, quel que soit le point
+// d entree.
+//
+// Consequence a connaitre : ces liens ne passent plus par le routeur interne
+// de Next.js, donc chaque clic recharge la page. Sur un blog de quelques
+// articles c est sans effet visible, et la coherence des adresses vaut
+// largement cette milliseconde.
 
 export const revalidate = 3600;
+
+const SITE = "https://mrcomptable.fr";
 
 export const metadata = {
   title: "Blog — Mr. Comptable | Facture électronique et tenue comptable",
@@ -17,7 +42,27 @@ export const metadata = {
     "Articles sur la facture électronique, la fiscalité et la tenue"
     + " comptable, écrits pour les cabinets d'expertise comptable.",
   alternates: {
-    canonical: "https://mrcomptable.fr/blog",
+    canonical: SITE + "/blog",
+  },
+  // LES BALISES SOCIALES DOIVENT PARLER DE MR. COMPTABLE, pas d AcadeMIA
+  // Pro. Sans ces lignes, celles du layout racine s appliquent — le HTML
+  // servi annoncait « AcadeMIA Pro, plateforme de formation » sur une page
+  // destinee aux cabinets comptables.
+  openGraph: {
+    title: "Blog — Mr. Comptable",
+    description:
+      "Facture électronique, obligations déclaratives, tenue et révision :"
+      + " des articles écrits pour les cabinets d'expertise comptable.",
+    url: SITE + "/blog",
+    siteName: "Mr. Comptable",
+    locale: "fr_FR",
+    type: "website",
+  },
+  twitter: {
+    card: "summary",
+    title: "Blog — Mr. Comptable",
+    description:
+      "Facture électronique, obligations déclaratives, tenue et révision.",
   },
 };
 
@@ -97,8 +142,7 @@ export default async function BlogComptable() {
           gridTemplateColumns: "repeat(auto-fill, minmax(310px, 1fr))",
           gap: "18px" }}>
           {articles.map((a: any) => (
-            <Link key={a.id} href={"/comptable/blog/" + a.slug}
-              style={carte}>
+            <a key={a.id} href={SITE + "/blog/" + a.slug} style={carte}>
               {a.categorie && (
                 <span style={{ alignSelf: "flex-start",
                   background: "rgba(200,169,110,0.15)",
@@ -121,7 +165,7 @@ export default async function BlogComptable() {
                 fontWeight: "bold" }}>
                 Lire &rarr;
               </span>
-            </Link>
+            </a>
           ))}
         </div>
       </div>
