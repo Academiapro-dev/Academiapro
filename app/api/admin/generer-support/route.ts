@@ -4,7 +4,18 @@ import { emailDeSession } from "../../../../lib/session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+
+// 🚨 CINQ MINUTES, ET NON UNE — porte a 300 le 17/08.
+//
+// La generation de F900 a expire en 504 des que la carte de la plateforme a
+// ete injectee : l'invite plus riche produit un texte plus long, et vingt
+// modules a decrire precisement depassent la minute. Le plafond d'une minute
+// suffisait pour un support vague, plus pour un manuel exact.
+//
+// 300 s est le maximum d'une fonction Node.js sur un plan Vercel Pro. Si un
+// jour le compte repassait en Hobby, cette valeur serait ignoree et le
+// plafond retomberait a 60 s — le 504 reviendrait alors, sans autre cause.
+export const maxDuration = 300;
 
 const ADMINS = ["contact@academiapro.fr"];
 const BUCKET = "formations-pdf";
@@ -19,9 +30,9 @@ const supabase = createClient(
 //
 // POURQUOI ELLE EXISTE. Le support de F900, le manuel d'utilisation
 // d'AcadeMIA Pro, decrivait les actions en termes vagues : « il accede a la
-// section de la plateforme qui lui permet de... », « repérage des menus
-// principaux ». Aucun nom d'ecran, aucun chemin, aucun bouton. Le modele ne
-// connait pas la plateforme : il brode ce qu'il imagine d'un LMS.
+// section de la plateforme qui lui permet de... ». Aucun nom d'ecran, aucun
+// chemin, aucun bouton. Le modele ne connait pas la plateforme : il brode ce
+// qu'il imagine d'un LMS.
 //
 // Un manuel d'utilisation qui ne nomme pas les ecrans est inutilisable — et
 // c'est celui que Jacques montrera en demonstration.
