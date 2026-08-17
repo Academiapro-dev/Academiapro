@@ -1,4 +1,4 @@
-export const runtime = "nodejs";
+export const runtime = "nodejs"; 
 
 // LES CGV — MISES A JOUR LE 17 AOUT 2026.
 //
