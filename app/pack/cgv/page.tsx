@@ -1,47 +1,48 @@
 export const runtime = "nodejs";
 
-// LES CGV — MISES A JOUR LE 16 AOUT 2026.
+// LES CGV — MISES A JOUR LE 17 AOUT 2026.
 //
-// 🚨🚨 CINQ ARTICLES CONTREDISAIENT LES DECISIONS DU JOUR. Ce qui a change :
+// 🚨🚨🚨 LA GRILLE DEFINITIVE, arretee le 17/08 apres une demi-journee
+// d'arbitrages. NE PAS LA REOUVRIR.
 //
-// (1) ARTICLE 3 « TARIF DE LANCEMENT » — SUPPRIME. Ses mots : « je n'ai pas
-//     demande a ce qu'on mette le lancement a 50 % du prix ». Le prix affiche
-//     et facture est TOUJOURS le prix plein. Ne pas le reintroduire.
+//     390 EUR HT par mois (la plateforme et le suivi commercial)
+//   + 40 % du prix de vente hors taxes de chaque formation du catalogue
+//   + 30 EUR HT PAR STAGIAIRE INSCRIT, QUI S'AJOUTENT A LA PART
+//   = gestion administrative COMPRISE, bilan pedagogique et financier
+//     annuel inclus. Aucune option a facturer separement.
 //
-// (2) ARTICLE 8 « CONTENUS CREES SUR MESURE » — REECRIT. Il annoncait « le
-//     nombre compris dans l'abonnement » et une licence non exclusive. Or la
-//     production est COMPRISE SANS LIMITE de nombre, et le contenu produit
-//     APPARTIENT A L'EDITEUR : « les formations que nous generons deviennent
-//     automatiquement notre propriete, sinon comment aurions-nous construit
-//     310 formations qui font partie de notre catalogue ».
+// ⚠⚠️ LES 30 EUR NE SONT PLUS UN MINIMUM, C'EST UNE REDEVANCE QUI S'AJOUTE.
+// L'ancien article 5 disait « lorsque la part calculee au titre de l'article
+// 4 lui est superieure, seule cette part est due » : CETTE PHRASE EST DEVENUE
+// FAUSSE et un client s'en serait servi pour refuser la redevance. Reecrite.
+// Ne jamais la remettre.
 //
-// (3) ARTICLE 13 « FORMATIONS CREEES PAR LE CLIENT » — SUPPRIME. C'etait la
-//     derniere trace ecrite de la porte que Jacques a fait fermer partout
-//     ailleurs : « on ouvre la porte au futur client en lui disant qu'il peut
-//     creer ses propres formations, ca me gene enormement ». Le modele est
-//     LA SOUS-TRAITANCE DE CONTENU : l'organisme vend l'action, porte sa
-//     certification, et sous-traite le contenu. Un organisme qui veut
-//     fabriquer devient un concurrent, pas un client.
+// CE QUI A ETE ESSAYE ET ECARTE LE MEME JOUR, pour ne pas y revenir :
+//   - Deux formules au choix (35 % + minimum, ou 10 % + 180 EUR par
+//     stagiaire). Ecartees : « si on lui laisse le choix, on lui cree une
+//     hesitation dans sa tete, c'est psychologique ».
+//   - 35 % + une option de gestion a 49 EUR par mois et par stagiaire ACTIF.
+//     Ecartee : elle CONTREDISAIT LA PROMESSE D'UNE GESTION ANNUELLE — le
+//     bilan pedagogique se produit en janvier alors que les stagiaires ont
+//     fini en juin, et plus rien n'aurait ete facture depuis six mois.
+//   - Un abonnement abaisse a 49 EUR. Ecarte : « les 390 EUR, on les
+//     maintient ».
+//   - 45 % sans redevance. Ecarte au profit de 40 % + 30 EUR, qui rapporte
+//     autant : « c'est mieux, et c'est plus securisant pour moi ».
 //
-// (4) ARTICLE 2 « PRIX » — REECRIT pour porter LES DEUX FORMULES et dire
-//     que TOUT EST COMPRIS DEDANS. Demande expresse de Jacques : « il faudra
-//     rajouter ce que je viens de te dire pour que les choses soient claires
-//     des le depart avec le futur client ».
+// AUTRES DECISIONS INSCRITES ICI, A NE PAS DEFAIRE :
+//   - PLUS AUCUN TARIF DE LANCEMENT (l'ancien article 3 est supprime).
+//   - LES FORMATIONS PRODUITES APPARTIENNENT A L'EDITEUR, y compris celles
+//     commandees par le Client. L'ancien article 13, qui disait l'inverse,
+//     est supprime : c'etait la derniere trace ecrite de la porte que
+//     Jacques a fait fermer partout ailleurs.
+//   - LES TROIS OFFRES sont nommees a l'article 1 : le pack, la plateforme
+//     seule, le suivi commercial seul.
 //
-// (5) LES TROIS OFFRES sont desormais nommees a l'article 1 : le pack, la
-//     plateforme seule et le suivi commercial seul. Le bon de commande
-//     renvoyait ici pour les trois, alors que ce texte ne connaissait que le
-//     pack — un client du CRM seul se voyait opposer des conditions qui ne le
-//     concernaient pas.
-//
-// CE QUI N'A PAS BOUGE, ET QUI EST BON : autoliquidation de la TVA, duree et
+// CE QUI N'A PAS BOUGE ET QUI EST BON : autoliquidation de la TVA, duree et
 // resiliation, signature electronique simple sans presomption de fiabilite,
 // limitation de responsabilite, RGPD et cloisonnement, indicateur 27,
 // financements, et la mention finale qu'il s'agit d'un projet a faire relire.
-//
-// ⚠️ AUCUN CHIFFRE DE PRIX N'EST ECRIT ICI, sauf les deux taux et les deux
-// forfaits qui structurent les formules. Le bon de commande porte les
-// montants et prevaut.
 
 const CADRE: any = {
   minHeight: "100vh",
@@ -79,7 +80,7 @@ export default function PageCGV() {
         </h1>
         <p style={{ color: "#777", fontSize: "14px", margin: "0 0 30px" }}>
           Offre a destination des organismes de formation professionnelle et des entreprises.
-          Version du 16 aout 2026.
+          Version du 17 aout 2026.
         </p>
 
         <h2 style={H2}>1. Parties, objet et formules</h2>
@@ -116,30 +117,27 @@ export default function PageCGV() {
           consenti.
         </p>
         <p style={P}>
-          Pour les formules comprenant le catalogue de l Editeur, deux modes de remuneration sont
-          proposes, celui retenu figurant au bon de commande :
+          Pour le pack complet, la remuneration de l Editeur se compose de{" "}
+          <strong>trois elements qui s additionnent</strong> :
         </p>
         <p style={P}>
-          <strong>Formule A — le Client assure la gestion administrative.</strong> Il verse un
-          abonnement mensuel, une part de trente-cinq pour cent du prix de vente hors taxes de
-          chaque formation du catalogue de l Editeur, et un montant minimal par stagiaire inscrit.
+          <strong>Un abonnement mensuel</strong>, qui couvre la plateforme d apprentissage et le
+          suivi commercial, sans limite de stagiaires ni d utilisateurs.
         </p>
         <p style={P}>
-          <strong>Formule B — l Editeur assure la gestion administrative.</strong> Le Client verse
-          un forfait par stagiaire inscrit et une part de dix pour cent du prix de vente hors
-          taxes. Le taux reduit est la contrepartie de cette prise en charge ; le forfait remplace
-          le montant minimal par stagiaire et ne s y ajoute pas.
+          <strong>Une part sur les ventes</strong>, exprimee en pourcentage du prix de vente hors
+          taxes de chaque formation du catalogue de l Editeur.
         </p>
         <p style={P}>
-          Le passage d une formule a l autre s opere par avenant, le taux etant alors ajuste en
-          consequence.
+          <strong>Une redevance par stagiaire inscrit</strong>, due pour chaque inscription sur une
+          formation du catalogue.
         </p>
         <p style={P}>
-          <strong>Ces formules sont exhaustives.</strong> Elles couvrent l integralite de la
+          <strong>Ces trois elements sont exhaustifs.</strong> Ils couvrent l integralite de la
           prestation : la plateforme, l acces au catalogue, la production des formations prevue a
-          l article 8, les documents administratifs, la correction des evaluations et
-          l accompagnement. Aucun autre montant n est du a l Editeur, a l exception des frais de
-          mise en service et des options facturees a l usage mentionnes ci-apres.
+          l article 8, la gestion administrative prevue a l article 3, la correction des
+          evaluations et l accompagnement. Aucun autre montant n est du a l Editeur, a l exception
+          des frais de mise en service et des options facturees a l usage mentionnes ci-apres.
         </p>
         <p style={P}>
           Des frais de mise en service peuvent etre dus une seule fois a la signature, lorsque le
@@ -152,25 +150,32 @@ export default function PageCGV() {
           distinct, egalement porte au bon de commande.
         </p>
 
-        <h2 style={H2}>3. Options facturees a l usage</h2>
+        <h2 style={H2}>3. Gestion administrative — comprise</h2>
         <p style={P}>
-          L envoi de messages courts et les appels emis depuis la plateforme ne sont pas compris
-          dans l abonnement. Ils ne sont dus que si le Client active ces services et sont factures
-          a la consommation reelle, aux tarifs portes au bon de commande. Le caractere illimite
-          annonce porte sur les stagiaires et les utilisateurs, jamais sur les envois ni sur les
-          communications.
+          <strong>La gestion administrative est comprise dans les montants de l article 2 et ne
+          fait l objet d aucune facturation supplementaire.</strong>
         </p>
         <p style={P}>
-          Le Client demeure seul responsable de la liceite de sa prospection, notamment du
-          consentement prealable exige pour l envoi de messages courts, y compris entre
-          professionnels.
+          Elle comprend, pour l ensemble des stagiaires du Client : conventions et contrats,
+          convocations, feuilles d emargement, evaluations a chaud et a froid, attestations de fin
+          de formation, registre des reclamations et de leurs actions correctives, dossiers des
+          formateurs, registres de veille, suivi de la sous-traitance et pieces justificatives
+          attendues lors d un audit.
+        </p>
+        <p style={P}>
+          Elle comprend egalement <strong>la preparation du bilan pedagogique et financier annuel
+          </strong> de l organisme, cadre par cadre. Cette prestation est annuelle et demeure due
+          quel que soit le rythme des inscriptions.
+        </p>
+        <p style={P}>
+          Le Client demeure seul responsable de l exactitude des informations transmises, de la
+          verification des documents produits et du depot de ses declarations.
         </p>
 
         <h2 style={H2}>4. Part sur les formations du catalogue</h2>
         <p style={P}>
           Le Client verse a l Editeur une part du prix de vente hors taxes de chaque formation du
-          catalogue de l Editeur vendue a un beneficiaire. Le taux applicable resulte de la formule
-          retenue a l article 2 et figure au bon de commande.
+          catalogue de l Editeur vendue a un beneficiaire. Le taux figure au bon de commande.
         </p>
         <p style={P}>
           Le Client fixe librement le prix auquel il vend a ses stagiaires. La part se calcule sur
@@ -182,21 +187,21 @@ export default function PageCGV() {
           Client n a aucune declaration de chiffre d affaires a fournir.
         </p>
 
-        <h2 style={H2}>5. Montant minimal par stagiaire</h2>
+        <h2 style={H2}>5. Redevance par stagiaire inscrit</h2>
         <p style={P}>
-          En formule A, chaque stagiaire inscrit par le Client sur une formation du catalogue de
-          l Editeur donne lieu au versement d un montant minimal figurant au bon de commande,{" "}
+          Chaque stagiaire inscrit par le Client sur une formation du catalogue de l Editeur donne
+          lieu au versement d une redevance figurant au bon de commande,{" "}
           <strong>que la formation ait ete vendue ou non</strong>.
         </p>
         <p style={P}>
-          Ce montant couvre les couts que chaque inscription entraine pour l Editeur : correction
-          individuelle des questionnaires, assistance pedagogique, edition des documents et
-          conservation des traces. Lorsque la part calculee au titre de l article 4 lui est
-          superieure, seule cette part est due.
+          <strong>Cette redevance s ajoute a la part prevue a l article 4 ; elle ne s y substitue
+          pas.</strong> Pour chaque inscription, le Client verse donc a la fois le pourcentage du
+          prix de vente et la redevance par stagiaire.
         </p>
         <p style={P}>
-          En formule B, ce montant minimal est remplace par le forfait de gestion administrative
-          par stagiaire.
+          Cette redevance couvre les couts que chaque inscription entraine pour l Editeur :
+          correction individuelle des questionnaires, assistance pedagogique a l apprenant, edition
+          des documents et conservation des traces.
         </p>
 
         <h2 style={H2}>6. Modes de financement</h2>
@@ -255,9 +260,9 @@ export default function PageCGV() {
           questionnaires et le manuel. Le delai indicatif figure au bon de commande.
         </p>
         <p style={P}>
-          <strong>Cette production est comprise dans la formule retenue et n est jamais facturee a
-          part.</strong> Elle ne fait l objet d aucune limitation de nombre autre que celle
-          resultant du rythme raisonnable de production convenu entre les parties.
+          <strong>Cette production est comprise dans les montants de l article 2 et n est jamais
+          facturee a part.</strong> Elle ne fait l objet d aucune limitation de nombre autre que
+          celle resultant du rythme raisonnable de production convenu entre les parties.
         </p>
         <p style={P}>
           Les formations produites par l Editeur, y compris a la demande du Client,{" "}
@@ -278,7 +283,21 @@ export default function PageCGV() {
           pour habiller la plateforme et les documents aux couleurs du Client.
         </p>
 
-        <h2 style={H2}>9. Taxe sur la valeur ajoutee</h2>
+        <h2 style={H2}>9. Options facturees a l usage</h2>
+        <p style={P}>
+          L envoi de messages courts et les appels emis depuis la plateforme ne sont pas compris
+          dans l abonnement. Ils ne sont dus que si le Client active ces services et sont factures
+          a la consommation reelle, aux tarifs portes au bon de commande. Le caractere illimite
+          annonce porte sur les stagiaires et les utilisateurs, jamais sur les envois ni sur les
+          communications.
+        </p>
+        <p style={P}>
+          Le Client demeure seul responsable de la liceite de sa prospection, notamment du
+          consentement prealable exige pour l envoi de messages courts, y compris entre
+          professionnels.
+        </p>
+
+        <h2 style={H2}>10. Taxe sur la valeur ajoutee</h2>
         <p style={P}>
           Les prestations sont fournies par un etablissement etabli hors de l Union europeenne a un
           assujetti etabli en France. La taxe est autoliquidee par le Client, qui communique a
@@ -286,14 +305,14 @@ export default function PageCGV() {
           au paiement de la taxe due.
         </p>
 
-        <h2 style={H2}>10. Facturation et reglement</h2>
+        <h2 style={H2}>11. Facturation et reglement</h2>
         <p style={P}>
           La facturation est mensuelle, a terme echu, et comprend l abonnement ainsi que les parts,
-          montants minimaux, forfaits et options dus au titre des articles 2 a 6. Le reglement
-          intervient par virement dans les trente jours.
+          redevances et options dues au titre des articles 2 a 9. Le reglement intervient par
+          virement dans les trente jours.
         </p>
 
-        <h2 style={H2}>11. Duree, resiliation et suspension</h2>
+        <h2 style={H2}>12. Duree, resiliation et suspension</h2>
         <p style={P}>
           L abonnement est conclu pour une duree d un mois, renouvelable tacitement. Chaque partie
           peut y mettre fin a tout moment, par ecrit, avec effet a la fin du mois en cours. Les
@@ -305,7 +324,7 @@ export default function PageCGV() {
           jusqu a son terme, afin que le Client puisse honorer ses engagements.
         </p>
 
-        <h2 style={H2}>12. Droits d usage du catalogue</h2>
+        <h2 style={H2}>13. Droits d usage du catalogue</h2>
         <p style={P}>
           Le Client recoit un droit d usage non exclusif et non cessible des formations ouvertes,
           limite a la duree de l abonnement et a l usage de ses propres stagiaires. Toute
@@ -315,10 +334,10 @@ export default function PageCGV() {
         <p style={P}>
           A l issue du contrat, ce droit d usage prend fin. Les donnees propres au Client — ses
           stagiaires, ses documents, ses traces d assiduite — lui sont restituees selon
-          l article 16.
+          l article 17.
         </p>
 
-        <h2 style={H2}>13. Classes virtuelles</h2>
+        <h2 style={H2}>14. Classes virtuelles</h2>
         <p style={P}>
           La plateforme donne acces a un service de visioconference fourni par un tiers. L Editeur
           ne garantit ni sa disponibilite ni ses performances et n assume aucune responsabilite du
@@ -329,7 +348,7 @@ export default function PageCGV() {
           d assiduite.
         </p>
 
-        <h2 style={H2}>14. Signature electronique</h2>
+        <h2 style={H2}>15. Signature electronique</h2>
         <p style={P}>
           Le service met en oeuvre une signature electronique simple au sens du reglement (UE)
           n 910/2014. Elle ne constitue ni une signature avancee ni une signature qualifiee et ne
@@ -341,7 +360,7 @@ export default function PageCGV() {
           de la force probante releve du juge.
         </p>
 
-        <h2 style={H2}>15. Suivi commercial et donnees de prospection</h2>
+        <h2 style={H2}>16. Suivi commercial et donnees de prospection</h2>
         <p style={P}>
           Les prospects et contacts enregistres par le Client dans le suivi commercial lui
           appartiennent en propre. L Editeur n y accede que pour assurer le service et n en fait
@@ -354,13 +373,13 @@ export default function PageCGV() {
           effet sur la facture du mois suivant.
         </p>
 
-        <h2 style={H2}>16. Archivage et restitution</h2>
+        <h2 style={H2}>17. Archivage et restitution</h2>
         <p style={P}>
           Les documents signes sont archives pendant la duree du contrat et la duree legale de
           conservation applicable. Ils sont restitues au Client a sa demande a l issue du contrat.
         </p>
 
-        <h2 style={H2}>17. Nature de la relation et sous-traitance</h2>
+        <h2 style={H2}>18. Nature de la relation et sous-traitance</h2>
         <p style={P}>
           Les parties qualifient leur relation de licence de contenu et de fourniture d outil. Si
           le Client choisit de qualifier tout ou partie de la prestation de sous-traitance au sens
@@ -369,7 +388,7 @@ export default function PageCGV() {
           demande les elements descriptifs necessaires.
         </p>
 
-        <h2 style={H2}>18. Portee des outils et limites</h2>
+        <h2 style={H2}>19. Portee des outils et limites</h2>
         <p style={P}>
           Le module de preparation a la certification Qualiopi constitue une aide a la preparation.
           Il n emet aucun avis de conformite et ne prejuge en rien de la decision de l organisme
@@ -381,7 +400,7 @@ export default function PageCGV() {
           responsabilite exclusive du Client.
         </p>
 
-        <h2 style={H2}>19. Responsabilite et donnees</h2>
+        <h2 style={H2}>20. Responsabilite et donnees</h2>
         <p style={P}>
           La responsabilite de l Editeur ne peut etre engagee qu en cas de faute prouvee et se
           limite aux dommages directs, dans la limite des sommes effectivement versees par le
@@ -396,7 +415,7 @@ export default function PageCGV() {
           cloisonnees, et restituees ou supprimees sur demande a l issue du contrat.
         </p>
 
-        <h2 style={H2}>20. Disponibilite, evolutions et differends</h2>
+        <h2 style={H2}>21. Disponibilite, evolutions et differends</h2>
         <p style={P}>
           La plateforme est accessible en continu, sous reserve des interruptions necessaires a sa
           maintenance et des evenements independants de la volonte de l Editeur. Les contenus et
