@@ -2,47 +2,39 @@ export const runtime = "nodejs";
 
 // LES CGV — MISES A JOUR LE 17 AOUT 2026.
 //
-// 🚨🚨🚨 LA GRILLE DEFINITIVE, arretee le 17/08 apres une demi-journee
-// d'arbitrages. NE PAS LA REOUVRIR.
+// 🚨🚨🚨 IL N'Y A AUCUNE PRODUCTION SUR DEMANDE. NI SUR MESURE, NI
+// « COMMANDEZ-NOUS CETTE FORMATION », NI DELAI D'UNE SEMAINE.
 //
+// L'ancien article 8 promettait que l'Editeur produisait, a la demande du
+// Client, des formations ne figurant pas au catalogue. CETTE CLAUSE EST
+// SUPPRIMEE. Ses mots, repetes plusieurs fois : « c'est nous qui produisons
+// notre propre catalogue », « je veux que tu oublies la Creation sur
+// demande, tu oublies completement ca ».
+//
+// LA SEULE FORMULE AUTORISEE, SANS RIEN PRECISER D'AUTRE :
+//     « le catalogue est evolutif »
+//
+// Pas de delai annonce, pas de commande possible, pas de sur-mesure. Ni ici,
+// ni dans le bon de commande, ni dans un courrier, ni sur une page de vente.
+// NE JAMAIS LA REINTRODUIRE.
+//
+// 🚨🚨 LA GRILLE DEFINITIVE, arretee le 17/08 :
 //     390 EUR HT par mois (la plateforme et le suivi commercial)
 //   + 40 % du prix de vente hors taxes de chaque formation du catalogue
 //   + 30 EUR HT PAR STAGIAIRE INSCRIT, QUI S'AJOUTENT A LA PART
 //   = gestion administrative COMPRISE, bilan pedagogique et financier
-//     annuel inclus. Aucune option a facturer separement.
+//     annuel inclus.
 //
-// ⚠⚠️ LES 30 EUR NE SONT PLUS UN MINIMUM, C'EST UNE REDEVANCE QUI S'AJOUTE.
-// L'ancien article 5 disait « lorsque la part calculee au titre de l'article
-// 4 lui est superieure, seule cette part est due » : CETTE PHRASE EST DEVENUE
-// FAUSSE et un client s'en serait servi pour refuser la redevance. Reecrite.
-// Ne jamais la remettre.
-//
-// CE QUI A ETE ESSAYE ET ECARTE LE MEME JOUR, pour ne pas y revenir :
-//   - Deux formules au choix (35 % + minimum, ou 10 % + 180 EUR par
-//     stagiaire). Ecartees : « si on lui laisse le choix, on lui cree une
-//     hesitation dans sa tete, c'est psychologique ».
-//   - 35 % + une option de gestion a 49 EUR par mois et par stagiaire ACTIF.
-//     Ecartee : elle CONTREDISAIT LA PROMESSE D'UNE GESTION ANNUELLE — le
-//     bilan pedagogique se produit en janvier alors que les stagiaires ont
-//     fini en juin, et plus rien n'aurait ete facture depuis six mois.
-//   - Un abonnement abaisse a 49 EUR. Ecarte : « les 390 EUR, on les
-//     maintient ».
-//   - 45 % sans redevance. Ecarte au profit de 40 % + 30 EUR, qui rapporte
-//     autant : « c'est mieux, et c'est plus securisant pour moi ».
+// ⚠️ LES 30 EUR NE SONT PAS UN MINIMUM, C'EST UNE REDEVANCE QUI S'AJOUTE.
+// La phrase « seule cette part est due » a ete retiree : elle serait devenue
+// le levier d'un client pour refuser la redevance.
 //
 // AUTRES DECISIONS INSCRITES ICI, A NE PAS DEFAIRE :
-//   - PLUS AUCUN TARIF DE LANCEMENT (l'ancien article 3 est supprime).
-//   - LES FORMATIONS PRODUITES APPARTIENNENT A L'EDITEUR, y compris celles
-//     commandees par le Client. L'ancien article 13, qui disait l'inverse,
-//     est supprime : c'etait la derniere trace ecrite de la porte que
-//     Jacques a fait fermer partout ailleurs.
-//   - LES TROIS OFFRES sont nommees a l'article 1 : le pack, la plateforme
-//     seule, le suivi commercial seul.
-//
-// CE QUI N'A PAS BOUGE ET QUI EST BON : autoliquidation de la TVA, duree et
-// resiliation, signature electronique simple sans presomption de fiabilite,
-// limitation de responsabilite, RGPD et cloisonnement, indicateur 27,
-// financements, et la mention finale qu'il s'agit d'un projet a faire relire.
+//   - PLUS AUCUN TARIF DE LANCEMENT.
+//   - LES FORMATIONS DU CATALOGUE APPARTIENNENT A L'EDITEUR. L'ancien
+//     article 13, qui disait que les formations creees par le Client lui
+//     appartenaient, est supprime.
+//   - LES TROIS OFFRES sont nommees a l'article 1.
 
 const CADRE: any = {
   minHeight: "100vh",
@@ -134,10 +126,10 @@ export default function PageCGV() {
         </p>
         <p style={P}>
           <strong>Ces trois elements sont exhaustifs.</strong> Ils couvrent l integralite de la
-          prestation : la plateforme, l acces au catalogue, la production des formations prevue a
-          l article 8, la gestion administrative prevue a l article 3, la correction des
-          evaluations et l accompagnement. Aucun autre montant n est du a l Editeur, a l exception
-          des frais de mise en service et des options facturees a l usage mentionnes ci-apres.
+          prestation : la plateforme, l acces au catalogue, la gestion administrative prevue a
+          l article 3, la correction des evaluations et l accompagnement. Aucun autre montant n est
+          du a l Editeur, a l exception des frais de mise en service et des options facturees a
+          l usage mentionnes ci-apres.
         </p>
         <p style={P}>
           Des frais de mise en service peuvent etre dus une seule fois a la signature, lorsque le
@@ -252,21 +244,9 @@ export default function PageCGV() {
           adequation a ses actions de formation.
         </p>
 
-        <h2 style={H2}>8. Production des formations et propriete des contenus</h2>
+        <h2 style={H2}>8. Propriete des contenus</h2>
         <p style={P}>
-          L Editeur produit, a la demande du Client, des formations ne figurant pas encore a son
-          catalogue. Le Client indique le sujet, la duree souhaitee, le public vise et les acquis
-          attendus ; l Editeur construit le plan, redige les modules, les exercices corriges, les
-          questionnaires et le manuel. Le delai indicatif figure au bon de commande.
-        </p>
-        <p style={P}>
-          <strong>Cette production est comprise dans les montants de l article 2 et n est jamais
-          facturee a part.</strong> Elle ne fait l objet d aucune limitation de nombre autre que
-          celle resultant du rythme raisonnable de production convenu entre les parties.
-        </p>
-        <p style={P}>
-          Les formations produites par l Editeur, y compris a la demande du Client,{" "}
-          <strong>sont et demeurent la propriete de l Editeur</strong> et rejoignent son catalogue.
+          <strong>Les formations du catalogue sont et demeurent la propriete de l Editeur.</strong>{" "}
           Le Client dispose du droit de les diffuser a ses stagiaires et de les vendre sous son nom
           pendant toute la duree du contrat, aux conditions des articles 4 et 5.
         </p>
@@ -277,10 +257,13 @@ export default function PageCGV() {
           et d une remuneration specifique.</strong>
         </p>
         <p style={P}>
-          Les elements que le Client fournit pour l elaboration de ces contenus restent sa
-          propriete ; il garantit disposer des droits necessaires a leur transmission. Ses marques,
-          son logo et ses elements distinctifs lui restent acquis, l Editeur ne les utilisant que
-          pour habiller la plateforme et les documents aux couleurs du Client.
+          Le catalogue de l Editeur est evolutif. Les formations qui s y ajoutent sont ouvertes au
+          Client au fil de leur parution, sans supplement.
+        </p>
+        <p style={P}>
+          Les marques, le logo et les elements distinctifs du Client lui restent integralement
+          acquis. L Editeur ne les utilise que pour habiller la plateforme et les documents aux
+          couleurs du Client.
         </p>
 
         <h2 style={H2}>9. Options facturees a l usage</h2>
