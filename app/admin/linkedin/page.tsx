@@ -4,38 +4,31 @@ import { useState, useEffect, useMemo } from "react";
 // L ECRAN LINKEDIN — TROIS TEMPS, TROIS ONGLETS.
 //
 // INVITER : une fiche a la fois, le mot pre-redige, le profil qui s ouvre.
-// MES INVITATIONS : ce qui est parti et attend une reponse. C est la que
-//   Jacques marque les acceptations vues dans ses notifications LinkedIn.
+// MES INVITATIONS : ce qui est parti et attend une reponse.
 // A RELANCER : les personnes qui ont accepte. LA CONNEXION ETABLIE CHANGE
 //   TOUT — plus de limite de caracteres, plus de quota, et un lecteur qui
 //   a deja dit oui. C est la que le vrai message se place.
 //
-// 🚨 AVEC NOTE OU SANS NOTE — LA DISTINCTION EST LA RAISON D ETRE DE CET
-// ECRAN. LinkedIn plafonne les notes personnalisees a quelques-unes par
-// mois en compte gratuit ; la plupart des invitations partiront donc nues.
-// Marquer les deux separement est la SEULE facon de savoir si l abonnement
-// Premium se justifie.
+// 🚨 AUCUN ENVOI AUTOMATIQUE, ET CE N EST PAS UNE LIMITE TECHNIQUE QU ON
+// POURRAIT CONTOURNER. LinkedIn n expose AUCUNE API de messagerie, et les
+// outils qui simulent les clics dans le navigateur font restreindre puis
+// supprimer le compte. Une reputation abimee ne se repare pas.
+//
+// 🆕 MODE ENCHAINEMENT — 17/08 au soir. Jacques voulait « envoyer un
+// message a tous ceux qui ont accepte ». L envoi en masse est impossible,
+// mais l ESSENTIEL DU TEMPS PERDU tenait au va-et-vient : ouvrir la fiche,
+// preparer, copier, ouvrir la messagerie, revenir, marquer, chercher la
+// suivante. Le mode enchainement ramene cela a TROIS CLICS par personne —
+// le message est deja copie, la messagerie s ouvre, on marque et la fiche
+// suivante arrive d elle-meme.
 //
 // 🚨 DEFAUT CORRIGE LE 16/08 : le bouton faisait DEUX choses d un clic —
-// ouvrir le profil ET marquer la fiche. Or on ne sait qu APRES avoir vu le
-// profil si on veut inviter. Cinq fiches perdues en une matinee. Desormais
-// ouvrir ne marque rien : regarder n a jamais de consequence.
+// ouvrir le profil ET marquer la fiche. Cinq fiches perdues en une matinee.
+// Desormais ouvrir ne marque rien.
 //
-// 🆕 AJOUT MANUEL — 17/08. Les trois bases viennent de l open data enrichi,
-// mais Jacques trouve aussi des profils AU FIL DE SON ACTUALITE LinkedIn.
-// Ces fiches vont dans la table crm — elles n ont PAS D ADRESSE, seulement
-// un lien de profil.
-//
-// 🔎 RECHERCHE — 17/08 au soir. A vingt invitations par jour, les listes
-// deviennent illisibles en deux semaines : il fallait deja parcourir les
-// fiches une par une pour retrouver quelqu un. Ses mots : « d ici une
-// semaine j aurai beaucoup plus de contacts et j aurai beaucoup plus de
-// difficulte a chercher ».
-//
-// LE FILTRE EST LOCAL, PAS UN APPEL RESEAU : les lignes sont deja chargees
-// (jusqu a mille depuis la route), on filtre dans ce qui est en memoire.
-// La liste se reduit a chaque lettre tapee, sans attente. Le jour ou mille
-// fiches ne suffiront plus, il faudra passer la recherche cote serveur.
+// 🔎 RECHERCHE — 17/08. A vingt invitations par jour, les listes deviennent
+// illisibles en deux semaines. Le filtre est LOCAL : les lignes sont deja
+// chargees, on filtre en memoire, sans appel reseau.
 
 const BASES = [
   { cle: "organismes", nom: "Organismes certifiés Qualiopi" },
@@ -45,8 +38,8 @@ const BASES = [
 
 // 🚨 DEUX CENTS CARACTERES, PAS TROIS CENTS. LinkedIn n accorde 300
 // caracteres QU AUX COMPTES PREMIUM. Au-dela de 200 en compte gratuit, le
-// bouton « Ajouter une note » disparait et il ne reste que « Envoyer sans
-// note » — ce qui BRULE LA FICHE POUR TROIS SEMAINES si on ne voulait pas.
+// bouton « Ajouter une note » disparait — ce qui BRULE LA FICHE POUR TROIS
+// SEMAINES si on ne voulait pas.
 const LIMITE_NOTE = 200;
 
 function motInvitation(prenom: string) {
@@ -60,6 +53,9 @@ function motInvitation(prenom: string) {
 // LE MESSAGE APRES ACCEPTATION. Il peut enfin dire ce que la note ne
 // pouvait pas. Pas de promesse de resultat, pas de chiffre invente, pas de
 // temoignage — les memes regles que partout ailleurs.
+//
+// ⚠️ AUCUNE MENTION DE PRODUCTION SUR DEMANDE. Le catalogue est evolutif,
+// point. Decision du 17/08, a ne pas defaire.
 function messageRelance(prenom: string, societe: string) {
   const p = String(prenom || "").trim();
   const s = String(societe || "").trim();
@@ -80,8 +76,7 @@ function messageRelance(prenom: string, societe: string) {
     + "Bien à vous,\nJacques Lalou\nacademiapro.fr";
 }
 
-// Sans accents et en minuscules : « Bousbia » retrouve « BOUSBIA »,
-// « Herve » retrouve « Hervé ».
+// Sans accents et en minuscules : « Bousbia » retrouve « BOUSBIA ».
 function aplatir(v: any): string {
   return String(v === null || v === undefined ? "" : v)
     .normalize("NFD")
@@ -104,10 +99,17 @@ export default function PageLinkedin() {
   const [ouverte, setOuverte] = useState<any>(null);
   const [texteLong, setTexteLong] = useState("");
 
-  // La recherche dans les listes.
   const [recherche, setRecherche] = useState("");
 
-  // L AJOUT MANUEL — replie par defaut, pour ne pas encombrer l ecran.
+  // LE MODE ENCHAINEMENT. `serie` porte la file de fiches a traiter, `rang`
+  // celle qui est a l'ecran. Copie et ouverture se suivent d'un clic.
+  const [serie, setSerie] = useState<any[] | null>(null);
+  const [rang, setRang] = useState(0);
+  const [texteSerie, setTexteSerie] = useState("");
+  const [copieSerie, setCopieSerie] = useState(false);
+  const [ouvertSerie, setOuvertSerie] = useState(false);
+  const [faits, setFaits] = useState(0);
+
   const [ajout, setAjout] = useState(false);
   const [aNom, setANom] = useState("");
   const [aLien, setALien] = useState("");
@@ -174,10 +176,8 @@ export default function PageLinkedin() {
     setCharge(false);
   }
 
-  // LE FILTRE. Il porte sur tout ce qui identifie une personne : son nom,
-  // son prenom, son organisme, sa ville, et jusqu a l identifiant de son
-  // profil LinkedIn. Plusieurs mots se cumulent — « bousbia lyon » ne
-  // retient que les fiches qui portent les deux.
+  // LE FILTRE. Il porte sur tout ce qui identifie une personne. Plusieurs
+  // mots se cumulent — « dupont lyon » ne retient que les deux.
   const filtrees = useMemo(function () {
     const q = aplatir(recherche);
     if (!q) return lignes;
@@ -195,7 +195,85 @@ export default function PageLinkedin() {
     });
   }, [lignes, recherche]);
 
-  // AJOUTER UN PROFIL TROUVE A LA MAIN.
+  // ---------- LE MODE ENCHAINEMENT ----------
+
+  function demarrerSerie() {
+    if (filtrees.length === 0) return;
+    const file = filtrees.slice();
+    setSerie(file);
+    setRang(0);
+    setFaits(0);
+    setCopieSerie(false);
+    setOuvertSerie(false);
+    setTexteSerie(messageRelance(file[0].dirigeant_prenom, file[0].raison_sociale));
+    setErreur("");
+    setMessage("");
+  }
+
+  function quitterSerie() {
+    setSerie(null);
+    setRang(0);
+    setTexteSerie("");
+    setCopieSerie(false);
+    setOuvertSerie(false);
+  }
+
+  // Passer a la fiche suivante en preparant deja son message.
+  function avancer(file: any[], prochain: number) {
+    if (prochain >= file.length) {
+      setSerie(null);
+      setMessage(faits + 1 + " message(s) envoyé(s). La série est terminée.");
+      chargerListe();
+      return;
+    }
+    setRang(prochain);
+    setTexteSerie(messageRelance(file[prochain].dirigeant_prenom, file[prochain].raison_sociale));
+    setCopieSerie(false);
+    setOuvertSerie(false);
+  }
+
+  // COPIER PUIS OUVRIR, EN UN SEUL GESTE.
+  //
+  // ⚠️ L ouverture de la messagerie se fait AVANT toute attente : un
+  // window.open declenche apres un await est bloque par le navigateur comme
+  // une fenetre surgissante non sollicitee. La copie, elle, est synchrone.
+  function copierEtOuvrir(l: any) {
+    try {
+      navigator.clipboard.writeText(texteSerie);
+      setCopieSerie(true);
+    } catch (e) {
+      setErreur("Copie impossible — sélectionnez le texte à la main.");
+    }
+    try { window.open(lien(l.linkedin), "_blank", "noopener"); } catch (e) { }
+    setOuvertSerie(true);
+  }
+
+  async function envoyeEtSuivant(l: any) {
+    if (!serie) return;
+    setCharge(true);
+    setErreur("");
+    try {
+      const d = await appeler({ base: l.base || base, id: l.id, statut: "relance" });
+      if (d.ok) {
+        setCompteurs(d.compteurs || null);
+        setFaits(faits + 1);
+        avancer(serie, rang + 1);
+      } else {
+        setErreur(d.erreur || "Enregistrement impossible.");
+      }
+    } catch (e: any) {
+      setErreur("Enregistrement impossible : " + String(e));
+    }
+    setCharge(false);
+  }
+
+  function passerSuivant() {
+    if (!serie) return;
+    avancer(serie, rang + 1);
+  }
+
+  // ---------- FIN DU MODE ENCHAINEMENT ----------
+
   async function ajouter(avecNote: boolean) {
     if (aNom.trim().length < 2) {
       setErreur("Indiquez le nom du contact.");
@@ -289,7 +367,6 @@ export default function PageLinkedin() {
     try { return Math.floor((Date.now() - new Date(d).getTime()) / 86400000); } catch (e) { return null; }
   }
 
-  // Ce qui a ete envoye a cette personne — la trace est dans le statut.
   function avecNoteDe(l: any) {
     return l.linkedin_statut === "invite" || l.linkedin_statut === "accepte";
   }
@@ -340,7 +417,6 @@ export default function PageLinkedin() {
     { id: "relancer", nom: "À relancer" + (compteurs && compteurs.acceptes ? " · " + compteurs.acceptes : "") },
   ];
 
-  // LE CHAMP DE RECHERCHE, partage par les deux listes.
   function barreRecherche() {
     return (
       <div style={{ marginBottom: "16px" }}>
@@ -368,6 +444,9 @@ export default function PageLinkedin() {
     );
   }
 
+  const enSerie = serie !== null && serie.length > 0 && rang < serie.length;
+  const courante = enSerie ? serie![rang] : null;
+
   return (
     <div style={{ backgroundColor: "#050508", minHeight: "100vh", color: "#fff", fontFamily: "Georgia, serif" }}>
       <div style={{ background: "linear-gradient(135deg,#0a0a1a,#1a1a2e)", padding: "26px 20px" }}>
@@ -384,7 +463,7 @@ export default function PageLinkedin() {
         {ONGLETS.map(function (o) {
           const actif = onglet === o.id;
           return (
-            <button key={o.id} onClick={() => { setOnglet(o.id); setRecherche(""); }}
+            <button key={o.id} onClick={() => { setOnglet(o.id); setRecherche(""); quitterSerie(); }}
               style={{
                 padding: "9px 17px", borderRadius: "8px", border: "none", cursor: "pointer",
                 whiteSpace: "nowrap", fontSize: "13.5px", fontFamily: "Georgia,serif",
@@ -401,7 +480,7 @@ export default function PageLinkedin() {
       <div style={{ padding: "22px 20px", maxWidth: "800px", margin: "0 auto" }}>
 
         {/* ---------- LES COMPTEURS ---------- */}
-        {compteurs && (
+        {compteurs && !enSerie && (
           <div style={{ ...CARTE, borderColor: bloque ? "rgba(232,131,106,0.5)" : "rgba(68,138,255,0.3)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "14px" }}>
               <div>
@@ -436,7 +515,6 @@ export default function PageLinkedin() {
               </div>
             </div>
 
-            {/* AVEC NOTE CONTRE SANS NOTE — la comparaison qui decide de Premium */}
             {(compteurs.accepte_note > 0 || compteurs.accepte_nu > 0 || compteurs.attente_note > 0 || compteurs.attente_nu > 0) && (
               <div style={{ marginTop: "14px", paddingTop: "13px", borderTop: "1px solid rgba(255,255,255,0.08)", display: "flex", gap: "22px", flexWrap: "wrap" }}>
                 <div style={{ color: "rgba(255,255,255,0.6)", fontSize: "12.5px", lineHeight: "1.7" }}>
@@ -475,7 +553,6 @@ export default function PageLinkedin() {
         {/* ═══════════ ONGLET INVITER ═══════════ */}
         {onglet === "inviter" && (
           <>
-            {/* ---------- AJOUTER UN PROFIL TROUVE A LA MAIN ---------- */}
             <div style={{ ...CARTE, borderColor: ajout ? "rgba(68,138,255,0.45)" : CARTE.border }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px" }}>
                 <div style={{ flex: "1 1 240px" }}>
@@ -518,7 +595,7 @@ export default function PageLinkedin() {
 
                   <span style={LIBELLE}>Ce que vous voulez retenir</span>
                   <textarea value={aNotes} onChange={(e) => setANotes(e.target.value)} rows={3}
-                    placeholder="Croisé sur un post à propos de Qualiopi. Semble diriger un petit organisme."
+                    placeholder="Croisé sur un post à propos de Qualiopi."
                     style={{ ...CHAMP, marginBottom: "14px" }} />
 
                   <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "12.5px", lineHeight: "1.75", margin: "0 0 12px" }}>
@@ -745,81 +822,187 @@ export default function PageLinkedin() {
         {/* ═══════════ ONGLET À RELANCER ═══════════ */}
         {onglet === "relancer" && (
           <>
-            <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "13.5px", lineHeight: "1.8", margin: "0 0 16px" }}>
-              Ces personnes ont accepté votre invitation. La messagerie est maintenant libre :
-              aucune limite de caractères, aucun quota. C'est ici que le vrai message se place.
-            </p>
-
-            {lignes.length > 0 && barreRecherche()}
-
-            {charge ? (
-              <p style={{ color: "rgba(255,255,255,0.5)" }}>Chargement…</p>
-            ) : lignes.length === 0 ? (
-              <div style={CARTE}>
-                <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "15px", lineHeight: "1.8", margin: 0 }}>
-                  Personne à relancer pour l'instant. Marquez vos acceptations dans
-                  « Mes invitations » et elles arriveront ici.
-                </p>
-              </div>
-            ) : (
-              filtrees.map(function (l) {
-                const active = ouverte === l.base + "-" + l.id;
-                return (
-                  <div key={l.base + "-" + l.id} style={{ ...CARTE, borderColor: active ? "rgba(0,230,118,0.4)" : CARTE.border }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "10px" }}>
-                      <div style={{ flex: "1 1 240px" }}>
-                        <div style={{ color: "#fff", fontSize: "15.5px", fontWeight: "bold" }}>
-                          {(l.dirigeant_prenom || "") + " " + (l.dirigeant_nom || "")}
-                        </div>
-                        <div style={{ color: OR, fontSize: "13.5px", marginTop: "2px" }}>
-                          {l.raison_sociale || "—"}
-                        </div>
-                        <div style={{ color: "rgba(255,255,255,0.4)", fontSize: "12.5px", marginTop: "4px" }}>
-                          {l.ville || ""}{l.ville && l.site_web ? " · " : ""}{l.site_web || ""}
-                        </div>
-                      </div>
-                      <a href={lien(l.linkedin)} target="_blank" rel="noreferrer"
-                        style={{ color: BLEU, fontSize: "12.5px", textDecoration: "none", alignSelf: "center" }}>
-                        Ouvrir la messagerie
-                      </a>
-                    </div>
-
-                    {!active ? (
-                      <button
-                        onClick={() => { setOuverte(l.base + "-" + l.id); setTexteLong(messageRelance(l.dirigeant_prenom, l.raison_sociale)); }}
-                        style={{ ...BOUTON, width: "100%", marginTop: "12px" }}>
-                        Préparer le message
-                      </button>
-                    ) : (
-                      <div style={{ marginTop: "14px" }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "9px" }}>
-                          <span style={{ color: OR, fontSize: "12px", letterSpacing: "2px" }}>VOTRE MESSAGE</span>
-                          <span style={{ color: "rgba(255,255,255,0.35)", fontSize: "12px" }}>
-                            {texteLong.length} caractères · aucune limite
-                          </span>
-                        </div>
-                        <textarea value={texteLong} onChange={(e) => setTexteLong(e.target.value)} rows={14} style={CHAMP} />
-
-                        <button onClick={() => copier(texteLong, "long")}
-                          style={{ ...BOUTON, width: "100%", marginTop: "11px", background: copie === "long" ? "rgba(0,230,118,0.15)" : BOUTON.background, color: copie === "long" ? VERT : OR, borderColor: copie === "long" ? "rgba(0,230,118,0.4)" : BOUTON.border }}>
-                          {copie === "long" ? "✓ Copié — collez-le dans la messagerie" : "Copier le message"}
-                        </button>
-
-                        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "9px" }}>
-                          <button onClick={() => marquer(l, "relance")} disabled={charge}
-                            style={{ flex: "2 1 200px", background: "rgba(0,230,118,0.13)", color: VERT, border: "1px solid rgba(0,230,118,0.4)", borderRadius: "8px", padding: "13px", fontSize: "13.5px", fontWeight: "bold", fontFamily: "Georgia,serif", cursor: "pointer" }}>
-                            ✓ Message envoyé
-                          </button>
-                          <button onClick={() => setOuverte(null)}
-                            style={{ ...BOUTON, flex: "1 1 110px", padding: "13px", fontSize: "13.5px", color: "rgba(255,255,255,0.5)", borderColor: "rgba(255,255,255,0.18)" }}>
-                            Fermer
-                          </button>
-                        </div>
-                      </div>
-                    )}
+            {/* ---------- LE MODE ENCHAINEMENT ---------- */}
+            {enSerie && courante ? (
+              <>
+                <div style={{ ...CARTE, borderColor: "rgba(0,230,118,0.45)", background: "#12121f" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px", marginBottom: "14px" }}>
+                    <span style={{ color: VERT, fontSize: "12px", letterSpacing: "2px" }}>
+                      SÉRIE EN COURS · {rang + 1} / {serie!.length}
+                    </span>
+                    <button onClick={quitterSerie} style={{ ...BOUTON, padding: "8px 16px", fontSize: "12.5px", color: "rgba(255,255,255,0.5)", borderColor: "rgba(255,255,255,0.18)" }}>
+                      Quitter la série
+                    </button>
                   </div>
-                );
-              })
+
+                  <div style={{ background: "rgba(255,255,255,0.05)", borderRadius: "4px", height: "5px", overflow: "hidden", marginBottom: "18px" }}>
+                    <div style={{ background: VERT, height: "100%", width: Math.round((rang / serie!.length) * 100) + "%" }} />
+                  </div>
+
+                  <div style={{ color: "#fff", fontSize: "20px", fontWeight: "bold", marginBottom: "3px" }}>
+                    {(courante.dirigeant_prenom || "") + " " + (courante.dirigeant_nom || "")}
+                  </div>
+                  <div style={{ color: OR, fontSize: "15px", marginBottom: "4px" }}>
+                    {courante.raison_sociale || "—"}
+                  </div>
+                  <div style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px" }}>
+                    {courante.ville || ""}
+                    {courante.base === "manuel" ? " · ajouté à la main" : ""}
+                  </div>
+                </div>
+
+                <div style={CARTE}>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "9px", flexWrap: "wrap", gap: "8px" }}>
+                    <span style={{ color: OR, fontSize: "12px", letterSpacing: "2px" }}>
+                      LE MESSAGE, DÉJÀ AU NOM DE {String(courante.dirigeant_prenom || "CE CONTACT").toUpperCase()}
+                    </span>
+                    <span style={{ color: "rgba(255,255,255,0.35)", fontSize: "12px" }}>
+                      {texteSerie.length} caractères
+                    </span>
+                  </div>
+                  <textarea value={texteSerie} onChange={(e) => setTexteSerie(e.target.value)} rows={13} style={CHAMP} />
+                  <p style={{ color: "rgba(255,255,255,0.35)", fontSize: "12.5px", lineHeight: "1.7", margin: "10px 0 0" }}>
+                    Vous pouvez le retoucher avant de l'envoyer — un mot personnel change souvent
+                    la réponse.
+                  </p>
+                </div>
+
+                <div style={{ ...CARTE, borderColor: ouvertSerie ? "rgba(0,230,118,0.4)" : CARTE.border }}>
+                  <button
+                    onClick={() => copierEtOuvrir(courante)}
+                    style={{
+                      width: "100%",
+                      background: copieSerie ? "rgba(0,230,118,0.15)" : BLEU,
+                      color: copieSerie ? VERT : "#fff",
+                      border: copieSerie ? "1px solid rgba(0,230,118,0.45)" : "none",
+                      borderRadius: "9px", padding: "16px", fontSize: "15.5px",
+                      fontWeight: "bold", fontFamily: "Georgia,serif", cursor: "pointer",
+                    }}
+                  >
+                    {copieSerie ? "✓ Copié — collez dans la messagerie" : "Copier le message et ouvrir la messagerie"}
+                  </button>
+                  <p style={{ color: "rgba(255,255,255,0.35)", fontSize: "12.5px", lineHeight: "1.75", margin: "12px 0 0" }}>
+                    Le message est copié et le profil s'ouvre dans un onglet. Sur LinkedIn, cliquez
+                    sur <strong>Message</strong>, collez, envoyez — puis revenez ici.
+                  </p>
+
+                  <div style={{ display: "flex", gap: "9px", flexWrap: "wrap", marginTop: "16px" }}>
+                    <button onClick={() => envoyeEtSuivant(courante)} disabled={charge}
+                      style={{ flex: "2 1 220px", background: "rgba(0,230,118,0.15)", color: VERT, border: "1px solid rgba(0,230,118,0.45)", borderRadius: "9px", padding: "15px", fontSize: "14.5px", fontWeight: "bold", fontFamily: "Georgia,serif", cursor: "pointer" }}>
+                      ✓ Envoyé — au suivant
+                    </button>
+                    <button onClick={passerSuivant} disabled={charge}
+                      style={{ ...BOUTON, flex: "1 1 130px", padding: "15px", fontSize: "13.5px", color: "rgba(255,255,255,0.45)", borderColor: "rgba(255,255,255,0.15)" }}>
+                      Passer
+                    </button>
+                  </div>
+                  <p style={{ color: "rgba(255,255,255,0.3)", fontSize: "12px", lineHeight: "1.7", margin: "12px 0 0" }}>
+                    <strong>Passer</strong> laisse la fiche dans la liste pour plus tard.
+                    {faits > 0 ? " " + faits + " message(s) envoyé(s) dans cette série." : ""}
+                  </p>
+                </div>
+              </>
+            ) : (
+              <>
+                <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "13.5px", lineHeight: "1.8", margin: "0 0 16px" }}>
+                  Ces personnes ont accepté votre invitation. La messagerie est maintenant libre :
+                  aucune limite de caractères, aucun quota. C'est ici que le vrai message se place.
+                </p>
+
+                {lignes.length > 0 && barreRecherche()}
+
+                {/* LA PORTE VERS LE MODE ENCHAINEMENT. */}
+                {filtrees.length > 1 && (
+                  <div style={{ ...CARTE, borderColor: "rgba(0,230,118,0.4)", background: "rgba(0,230,118,0.05)" }}>
+                    <div style={{ color: VERT, fontSize: "15px", fontWeight: "bold", marginBottom: "5px" }}>
+                      Écrire à tous, l'un après l'autre
+                    </div>
+                    <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "13px", lineHeight: "1.75", margin: "0 0 14px" }}>
+                      {filtrees.length} personne(s) à relancer. Le message est préparé à chaque
+                      prénom, copié d'un clic, et la messagerie s'ouvre. Vous collez, vous marquez,
+                      la fiche suivante arrive.
+                    </p>
+                    <button onClick={demarrerSerie}
+                      style={{ width: "100%", background: VERT, color: "#050508", border: "none", borderRadius: "9px", padding: "15px", fontSize: "15px", fontWeight: "bold", fontFamily: "Georgia,serif", cursor: "pointer" }}>
+                      Démarrer la série — {filtrees.length} message(s)
+                    </button>
+                    <p style={{ color: "rgba(255,255,255,0.3)", fontSize: "12px", lineHeight: "1.7", margin: "12px 0 0" }}>
+                      Rien n'est envoyé automatiquement : LinkedIn n'a pas d'API de messagerie, et
+                      les outils qui simulent les clics font restreindre les comptes.
+                    </p>
+                  </div>
+                )}
+
+                {charge ? (
+                  <p style={{ color: "rgba(255,255,255,0.5)" }}>Chargement…</p>
+                ) : lignes.length === 0 ? (
+                  <div style={CARTE}>
+                    <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "15px", lineHeight: "1.8", margin: 0 }}>
+                      Personne à relancer pour l'instant. Marquez vos acceptations dans
+                      « Mes invitations » et elles arriveront ici.
+                    </p>
+                  </div>
+                ) : (
+                  filtrees.map(function (l) {
+                    const active = ouverte === l.base + "-" + l.id;
+                    return (
+                      <div key={l.base + "-" + l.id} style={{ ...CARTE, borderColor: active ? "rgba(0,230,118,0.4)" : CARTE.border }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "10px" }}>
+                          <div style={{ flex: "1 1 240px" }}>
+                            <div style={{ color: "#fff", fontSize: "15.5px", fontWeight: "bold" }}>
+                              {(l.dirigeant_prenom || "") + " " + (l.dirigeant_nom || "")}
+                            </div>
+                            <div style={{ color: OR, fontSize: "13.5px", marginTop: "2px" }}>
+                              {l.raison_sociale || "—"}
+                            </div>
+                            <div style={{ color: "rgba(255,255,255,0.4)", fontSize: "12.5px", marginTop: "4px" }}>
+                              {l.ville || ""}{l.ville && l.site_web ? " · " : ""}{l.site_web || ""}
+                            </div>
+                          </div>
+                          <a href={lien(l.linkedin)} target="_blank" rel="noreferrer"
+                            style={{ color: BLEU, fontSize: "12.5px", textDecoration: "none", alignSelf: "center" }}>
+                            Ouvrir la messagerie
+                          </a>
+                        </div>
+
+                        {!active ? (
+                          <button
+                            onClick={() => { setOuverte(l.base + "-" + l.id); setTexteLong(messageRelance(l.dirigeant_prenom, l.raison_sociale)); }}
+                            style={{ ...BOUTON, width: "100%", marginTop: "12px" }}>
+                            Préparer le message
+                          </button>
+                        ) : (
+                          <div style={{ marginTop: "14px" }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "9px" }}>
+                              <span style={{ color: OR, fontSize: "12px", letterSpacing: "2px" }}>VOTRE MESSAGE</span>
+                              <span style={{ color: "rgba(255,255,255,0.35)", fontSize: "12px" }}>
+                                {texteLong.length} caractères · aucune limite
+                              </span>
+                            </div>
+                            <textarea value={texteLong} onChange={(e) => setTexteLong(e.target.value)} rows={14} style={CHAMP} />
+
+                            <button onClick={() => copier(texteLong, "long")}
+                              style={{ ...BOUTON, width: "100%", marginTop: "11px", background: copie === "long" ? "rgba(0,230,118,0.15)" : BOUTON.background, color: copie === "long" ? VERT : OR, borderColor: copie === "long" ? "rgba(0,230,118,0.4)" : BOUTON.border }}>
+                              {copie === "long" ? "✓ Copié — collez-le dans la messagerie" : "Copier le message"}
+                            </button>
+
+                            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "9px" }}>
+                              <button onClick={() => marquer(l, "relance")} disabled={charge}
+                                style={{ flex: "2 1 200px", background: "rgba(0,230,118,0.13)", color: VERT, border: "1px solid rgba(0,230,118,0.4)", borderRadius: "8px", padding: "13px", fontSize: "13.5px", fontWeight: "bold", fontFamily: "Georgia,serif", cursor: "pointer" }}>
+                                ✓ Message envoyé
+                              </button>
+                              <button onClick={() => setOuverte(null)}
+                                style={{ ...BOUTON, flex: "1 1 110px", padding: "13px", fontSize: "13.5px", color: "rgba(255,255,255,0.5)", borderColor: "rgba(255,255,255,0.18)" }}>
+                                Fermer
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+              </>
             )}
           </>
         )}
