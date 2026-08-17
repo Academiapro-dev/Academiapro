@@ -33,8 +33,7 @@ const TABLES: any = {
 // invite      : partie AVEC une note personnalisee.
 // invite_nu   : partie SANS note — LinkedIn plafonne les notes a quelques
 //               unes par mois en compte gratuit.
-// accepte / accepte_nu : la personne a accepte. On garde la trace de ce qui
-//               a ete envoye, sans quoi la comparaison serait perdue.
+// accepte / accepte_nu : la personne a accepte.
 // relance     : le message long a ete envoye apres acceptation.
 // refuse      : sans suite.
 // ecarte      : decision de Jacques avant tout envoi.
@@ -49,16 +48,52 @@ const PLAFOND_JOUR = 20;
 // 🚨 MILLE LIGNES, ET NON DEUX CENTS — porte le 17/08 au soir.
 //
 // A vingt invitations par jour, le plafond de 200 etait atteint en DIX
-// JOURS : au-dela, les fiches les plus recentes n apparaissaient tout
-// simplement plus dans les listes, sans aucun message d avertissement.
-// Ses mots : « d ici une semaine j aurai beaucoup plus de contacts et
-// j aurai beaucoup plus de difficulte a chercher ».
-//
-// Mille lignes couvrent cinquante jours au rythme actuel. La recherche de
-// l ecran filtre ensuite dans ce qui est charge, sans appel reseau — donc
-// instantanee. Le jour ou ce plafond serait atteint a son tour, il faudra
-// passer la recherche cote serveur.
+// JOURS : au-dela, les fiches les plus recentes n apparaissaient plus dans
+// les listes, sans aucun avertissement. Mille lignes couvrent cinquante
+// jours. La recherche de l ecran filtre ensuite dans ce qui est charge.
 const LIMITE_LISTE = 1000;
+
+// 🚨🚨 LE JOUR SE COMPTE A PARIS, PAS EN TEMPS UNIVERSEL — corrige le 18/08.
+//
+// LE DEFAUT, ET IL DUPAIT L UTILISATEUR CHAQUE NUIT. Cette fonction faisait
+// `d.setHours(0,0,0,0)`, qui travaille dans le fuseau DU SERVEUR. Or Vercel
+// tourne en UTC. A 1 h 30 du matin a Paris, il est 23 h 30 LA VEILLE pour le
+// serveur : le « debut du jour » calcule renvoyait donc au matin de la
+// veille, et le compteur additionnait encore les vingt invitations deja
+// faites. ENTRE MINUIT ET DEUX HEURES DU MATIN, LE QUOTA NE SE REMETTAIT
+// JAMAIS A ZERO et tous les boutons restaient grises.
+//
+// Jacques l a constate a 1 h 30 : « nous sommes le lendemain, il est 1 h 30
+// du matin » — et il travaillait effectivement, comme souvent.
+//
+// COMMENT C EST CALCULE MAINTENANT : on mesure le decalage reel entre Paris
+// et le temps universel a cet instant precis — ce qui gere l heure d ete et
+// l heure d hiver sans table ni condition — puis on ramene minuit heure de
+// Paris a l instant universel correspondant.
+//
+// ⚠️ NE PAS REVENIR A setHours() : la correction serait annulee, et le
+// defaut ne se verrait qu apres minuit, quand personne ne teste.
+function decalageParisEnMs(d: Date): number {
+  const aParis = new Date(d.toLocaleString("en-US", { timeZone: "Europe/Paris" }));
+  const enUTC = new Date(d.toLocaleString("en-US", { timeZone: "UTC" }));
+  return aParis.getTime() - enUTC.getTime();
+}
+
+function debutDuJour(): string {
+  const maintenant = new Date();
+  const decalage = decalageParisEnMs(maintenant);
+  // L instant courant, vu comme l heure affichee a une horloge parisienne.
+  const murale = new Date(maintenant.getTime() + decalage);
+  murale.setUTCHours(0, 0, 0, 0);
+  // Retour a l instant reel correspondant a minuit parisien.
+  return new Date(murale.getTime() - decalage).toISOString();
+}
+
+// La semaine est GLISSANTE — sept jours en arriere depuis maintenant. Elle
+// n a donc pas besoin de la correction de fuseau.
+function ilYaSeptJours(): string {
+  return new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString();
+}
 
 // Une fiche ecartee ne compte jamais : rien n a ete envoye.
 async function compterDepuis(depuis: string): Promise<number> {
@@ -73,16 +108,6 @@ async function compterDepuis(depuis: string): Promise<number> {
     total += count || 0;
   }
   return total;
-}
-
-function debutDuJour(): string {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d.toISOString();
-}
-
-function ilYaSeptJours(): string {
-  return new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString();
 }
 
 async function compterStatuts(statuts: string[]): Promise<number> {
@@ -134,8 +159,7 @@ async function compteurs() {
 
 // LES COLONNES DIFFERENT SELON LA TABLE. Les trois bases de prospection
 // portent raison_sociale, siren, code_postal ; la table crm porte nom et
-// organisme. Demander les mauvaises colonnes ferait echouer la requete
-// entiere — d ou ces deux listes.
+// organisme. Demander les mauvaises colonnes ferait echouer la requete.
 const COLONNES_PROSPECTS =
   "id, raison_sociale, ville, code_postal, siren, dirigeant_prenom, dirigeant_nom, " +
   "linkedin, email, telephone, site_web, linkedin_le, linkedin_statut";
