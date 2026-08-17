@@ -30,8 +30,23 @@ const supabase = createClient(
 //  - LMS SEUL : 290 EUR HT par mois, sans catalogue editeur.
 //  - CRM SEUL : 35 EUR HT PAR UTILISATEUR ET PAR MOIS, sans degressivite.
 //
-// 🚨🚨🚨 LA GRILLE DEFINITIVE DU PACK — arretee le 17/08 en fin de journee,
-// apres une demi-journee d'arbitrages. NE PAS LA REOUVRIR.
+// 🚨🚨🚨 IL N'Y A AUCUNE PRODUCTION SUR DEMANDE — 17/08 au soir.
+//
+// Ce fichier a porte pendant quelques heures un bloc « PRODUCTION DES
+// FORMATIONS - COMPRISE » qui promettait de produire, a la demande du
+// Client, une formation absente du catalogue, sous une semaine. IL EST
+// SUPPRIME. Ses mots, repetes plusieurs fois et avec colere : « c'est nous
+// qui produisons notre propre catalogue », « je veux que tu oublies la
+// Creation sur demande, tu oublies completement ca ».
+//
+// LA SEULE FORMULE AUTORISEE, SANS RIEN PRECISER D'AUTRE :
+//     « le catalogue de l'Editeur est evolutif »
+//
+// Pas de delai annonce, pas de commande possible, pas de sur-mesure. Ni ici,
+// ni dans les CGV, ni dans un courrier, ni sur une page de vente.
+// NE JAMAIS LA REINTRODUIRE.
+//
+// 🚨🚨 LA GRILLE DEFINITIVE DU PACK, arretee le 17/08 :
 //
 //     390 EUR HT par mois (la plateforme et le suivi commercial)
 //   + 40 % du prix de vente hors taxes de chaque formation du catalogue
@@ -41,44 +56,31 @@ const supabase = createClient(
 //
 // ⚠️⚠️ LES 30 EUR NE SONT PLUS UN MINIMUM, C'EST UNE REDEVANCE QUI S'AJOUTE.
 // La phrase « lorsque la part calculee au taux ci-dessus lui est superieure,
-// seule cette part est due » figurait dans ce document : ELLE EST DEVENUE
-// FAUSSE et un client s'en serait servi pour refuser la redevance. Elle a
-// ete reecrite. Ne jamais la remettre.
+// seule cette part est due » a ete retiree : elle serait devenue le levier
+// d'un client pour refuser la redevance.
 //
 // CE QUI A ETE ESSAYE ET ECARTE LE MEME JOUR, pour ne pas y revenir :
-//   - Deux formules au choix (35 % + minimum 30 EUR, ou 10 % + 180 EUR par
+//   - Deux formules au choix (35 % + minimum, ou 10 % + 180 EUR par
 //     stagiaire). Ecartees : « si on lui laisse le choix, on lui cree une
-//     hesitation dans sa tete, c'est psychologique ». Et le client aurait
-//     evidemment pris la moins chere.
-//   - 35 % + une option de gestion a 49 EUR par mois et par stagiaire ACTIF.
-//     Ecartee : elle obligeait a compter l'activite mois par mois, et surtout
-//     elle CONTREDISAIT LA PROMESSE D'UNE GESTION ANNUELLE — le bilan
-//     pedagogique se produit en janvier alors que les stagiaires ont fini en
-//     juin, et plus rien n'aurait ete facture depuis six mois.
+//     hesitation dans sa tete, c'est psychologique ».
+//   - 35 % + une option de gestion a 79 puis 49 EUR par mois et par
+//     stagiaire ACTIF. Ecartee : elle contredisait la promesse d'une gestion
+//     ANNUELLE — le bilan pedagogique se produit en janvier alors que les
+//     stagiaires ont fini en juin.
 //   - Un abonnement abaisse a 49 EUR. Ecarte : « les 390 EUR, on les
 //     maintient ».
-//   - 45 % sans redevance. Ecarte au profit du montage a 40 % + 30 EUR, qui
-//     rapporte autant en repartissant sur trois lignes : « c'est mieux, et
-//     c'est plus securisant pour moi ».
+//   - 45 % sans redevance. Ecarte au profit de 40 % + 30 EUR, qui rapporte
+//     autant : « c'est mieux, et c'est plus securisant pour moi ».
 //
 // 🚨 IL N'Y A PLUS DE TARIF DE LANCEMENT. Le code divisait l'abonnement PAR
-// DEUX des que lancement_jusqu_au portait une date, sans que Jacques l'ait
-// jamais decide. Ne pas le reintroduire.
+// DEUX des que lancement_jusqu_au portait une date. Ne pas le reintroduire.
 //
-// 🚨🚨 LA STRATEGIE, ARRETEE LE 16/08 AU SOIR — NE PAS LA REOUVRIR.
-//
-// ACADEMIA PRO DEVIENT LE CATALOGUE, elle ne vend pas un outil de
-// fabrication. Ses mots : « les formations que nous generons deviennent
-// automatiquement notre propriete, sinon comment aurions-nous construit
-// 310 formations qui font partie de notre catalogue ».
-//
-// LE MODELE EST CELUI DE LA SOUS-TRAITANCE DE CONTENU : l'organisme vend
-// l'action, porte sa certification et sa responsabilite, et SOUS-TRAITE LE
-// CONTENU. Un organisme qui veut produire ses propres formations DEVIENT UN
-// CONCURRENT, pas un client.
-//
-// AUCUNE FACTURATION A L'ACTE : les 90 EUR par formation redigee ont existe
-// quelques heures le 16/08 et NE DOIVENT PAS REVENIR.
+// 🚨🚨 LA STRATEGIE, ARRETEE LE 16/08 — NE PAS LA REOUVRIR. ACADEMIA PRO EST
+// LE CATALOGUE, elle ne vend pas un outil de fabrication. Le modele est
+// celui de la SOUS-TRAITANCE DE CONTENU : l'organisme vend l'action, porte
+// sa certification et sa responsabilite, et sous-traite le contenu. Un
+// organisme qui veut produire ses propres formations DEVIENT UN CONCURRENT,
+// pas un client.
 const OFFRES: any = {
   pack: {
     nom: "PACK COMPLET",
@@ -327,6 +329,11 @@ export async function POST(req: NextRequest) {
         "STAGIAIRES ILLIMITES ET UTILISATEURS ILLIMITES.",
         10, normal, noir, 5
       );
+      y = y - 4;
+      ligne(
+        "Le catalogue de l Editeur est evolutif.",
+        10, normal, noir, 5
+      );
     } else if (cleOffre === "lms") {
       ligne(
         "LA PLATEFORME D APPRENTISSAGE, sans le catalogue de l Editeur : diffusion des formations " +
@@ -371,32 +378,6 @@ export async function POST(req: NextRequest) {
       paire("Total mensuel", euros(plein) + " par mois");
     } else {
       paire("Abonnement mensuel", euros(plein) + " par mois");
-    }
-
-    // LA PRODUCTION SUR MESURE — COMPRISE, JAMAIS FACTUREE A PART.
-    if (offre.catalogue) {
-      titreBloc("PRODUCTION DES FORMATIONS - COMPRISE");
-      ligne(
-        "Le Client peut demander a l Editeur de produire une formation qui ne figure pas encore " +
-        "au catalogue. Il indique le sujet, la duree souhaitee, le public vise et ce que le " +
-        "stagiaire doit savoir faire ; l Editeur construit le plan, redige les modules, les " +
-        "exercices corriges, les questionnaires et le manuel. Delai indicatif : une semaine.",
-        10, normal, noir, 5
-      );
-      y = y - 4;
-      ligne(
-        "CETTE PRODUCTION EST COMPRISE ET N EST JAMAIS FACTUREE A PART. L abonnement, la part sur " +
-        "les ventes et la redevance par stagiaire couvrent l integralite de la prestation : la " +
-        "plateforme, le catalogue, la gestion administrative et la production des formations. " +
-        "Aucun autre montant n est du a l Editeur.",
-        10, gras, noir, 5
-      );
-      y = y - 4;
-      ligne(
-        "La formation ainsi produite rejoint le catalogue de l Editeur et suit les memes " +
-        "conditions que les autres : le Client la vend sous son nom, au prix qu il fixe.",
-        9, normal, gris, 5
-      );
     }
 
     // 🚨 CE QUI N EST PAS COMPRIS DANS L ILLIMITE.
@@ -465,10 +446,9 @@ export async function POST(req: NextRequest) {
 
       titreBloc("PROPRIETE DES CONTENUS");
       ligne(
-        "Les formations du catalogue, y compris celles produites a la demande du Client, sont et " +
-        "demeurent la propriete de l Editeur. Le Client dispose du droit de les diffuser a ses " +
-        "stagiaires et de les vendre sous son nom pendant toute la duree du present accord, aux " +
-        "conditions ci-dessus.",
+        "Les formations du catalogue sont et demeurent la propriete de l Editeur. Le Client " +
+        "dispose du droit de les diffuser a ses stagiaires et de les vendre sous son nom pendant " +
+        "toute la duree du present accord, aux conditions ci-dessus.",
         9, normal, noir, 5
       );
       y = y - 4;
