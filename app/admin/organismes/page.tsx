@@ -3,27 +3,48 @@ import { useState, useEffect } from "react";
 
 // LES CLIENTS B2B, ET LEURS TROIS OFFRES POSSIBLES.
 //
-// Arretees par Jacques le 16/08 :
+// 🚨🚨 LA GRILLE DEFINITIVE DU PACK, arretee le 17/08 :
+//     390 EUR HT par mois (plateforme + suivi commercial)
+//   + 40 % du prix de vente hors taxes de chaque formation du catalogue
+//   + 30 EUR HT PAR STAGIAIRE INSCRIT, QUI S'ADDITIONNENT A LA PART
+//   = gestion administrative COMPRISE, bilan pedagogique annuel inclus.
+//   + 1 500 EUR de mise en service, QUI NE S'APPLIQUE QU'AU PACK.
 //
-//  PACK — 390 EUR HT par mois en forfait, stagiaires ET utilisateurs
-//    illimites, 35 % sur le catalogue editeur, minimum 30 EUR par stagiaire
-//    inscrit, 1 500 EUR de mise en service — QUI NE S APPLIQUE QU AU PACK.
 //  LMS SEUL — 290 EUR HT par mois en forfait, sans catalogue editeur, donc
-//    aucune part ni minimum par stagiaire.
+//    aucune part ni redevance par stagiaire.
 //  CRM SEUL — 35 EUR HT PAR UTILISATEUR ET PAR MOIS, sans degressivite.
 //
-// 🚨 SUR LE CRM SEUL, LE CHAMP « ABONNEMENT » PORTE LE PRIX PAR POSTE — 35 —
-// ET NON LE TOTAL. C est le bon de commande qui multiplie par le nombre
-// d utilisateurs. Saisir 3 500 pour cent postes donnerait 350 000 EUR sur le
-// bon. L ecran le rappelle quand l offre CRM est choisie.
+// ⚠️⚠️ CE QUI A CHANGE DANS CET ECRAN LE 17/08, ET POURQUOI :
 //
-// 🚨 LE QUOTA DE REDACTION N EST PLUS AFFICHE ICI. Retire le 16/08 a la
-// demande de Jacques : « il faut l effacer vis-a-vis de l utilisateur, ca
-// entraine des questions ». LA PROTECTION RESTE ENTIERE — la colonne
-// quota_ia_mensuel vaut toujours 40 en base et /api/organisme/rediger-module
-// continue de la lire pour borner ce qu un client peut faire rediger dans le
-// mois. Seul l affichage disparait. NE PAS croire, en relisant cet ecran,
-// que le garde-fou a saute.
+// (1) LE CHAMP « GESTION ADMINISTRATIVE » ET SA CASE A COCHER SONT RETIRES.
+//     La gestion est desormais COMPRISE dans les trois montants ci-dessus.
+//     La case disait « le forfait remplace alors le minimum par stagiaire » :
+//     c'etait l'ancien modele, ou souscrire la gestion faisait DISPARAITRE la
+//     redevance. Ce n'est plus vrai, et le laisser aurait produit des
+//     factures fausses.
+//
+// (2) « MINIMUM PAR STAGIAIRE » DEVIENT « REDEVANCE PAR STAGIAIRE ». Ce
+//     n'est plus un plancher qui se substitue a la part quand elle est
+//     faible, c'est un montant qui S'AJOUTE toujours. Le bon de commande et
+//     les CGV viennent d'etre repris pour lever cette confusion — garder
+//     l'ancien mot ici la reintroduirait par la petite porte.
+//
+// CE QUI A ETE ESSAYE ET ECARTE LE MEME JOUR, pour ne pas y revenir : deux
+// formules au choix (35 % ou 10 % + 180 EUR) ; une option de gestion a 79
+// puis 49 EUR par mois et par stagiaire actif, qui contredisait la promesse
+// d'une gestion annuelle ; un abonnement abaisse a 49 EUR ; et 45 % sans
+// redevance.
+//
+// 🚨 SUR LE CRM SEUL, LE CHAMP « ABONNEMENT » PORTE LE PRIX PAR POSTE — 35 —
+// ET NON LE TOTAL. C'est le bon de commande qui multiplie par le nombre
+// d'utilisateurs. Saisir 3 500 pour cent postes donnerait 350 000 EUR sur le
+// bon. L'ecran le rappelle quand l'offre CRM est choisie.
+//
+// 🚨 LE QUOTA DE REDACTION N'EST PLUS AFFICHE ICI. Retire le 16/08 : « il
+// faut l'effacer vis-a-vis de l'utilisateur, ca entraine des questions ». LA
+// PROTECTION RESTE ENTIERE — la colonne quota_ia_mensuel vaut toujours 40 en
+// base et /api/organisme/rediger-module continue de la lire. Seul l'affichage
+// disparait. NE PAS croire, en relisant cet ecran, que le garde-fou a saute.
 
 const OFFRES = [
   { cle: "pack", nom: "Pack complet", detail: "LMS + CRM + catalogue · forfait" },
@@ -68,9 +89,7 @@ export default function PageOrganismes() {
             utilisateurs: o.nb_utilisateurs !== null && o.nb_utilisateurs !== undefined ? String(o.nb_utilisateurs) : "1",
             abonnement: o.abonnement_mensuel !== null && o.abonnement_mensuel !== undefined ? String(o.abonnement_mensuel) : "",
             taux: o.taux_prelevement !== null && o.taux_prelevement !== undefined ? String(o.taux_prelevement) : "",
-            plancher: o.plancher_stagiaire !== null && o.plancher_stagiaire !== undefined ? String(o.plancher_stagiaire) : "",
-            gestion: o.forfait_gestion !== null && o.forfait_gestion !== undefined ? String(o.forfait_gestion) : "",
-            gestion_souscrite: o.gestion_souscrite === true,
+            redevance: o.plancher_stagiaire !== null && o.plancher_stagiaire !== undefined ? String(o.plancher_stagiaire) : "",
             apport: o.taux_apport !== null && o.taux_apport !== undefined ? String(o.taux_apport) : "",
             telephone: o.telephone || "",
             siret: o.siret || "",
@@ -339,7 +358,6 @@ export default function PageOrganismes() {
           organismes.map(function (o) {
             const estOuvert = ouvert[o.id] === true;
             const pretAContracter = !!o.abonnement_mensuel && !!o.email_contact;
-            const gestionCochee = fiche[o.id] ? fiche[o.id].gestion_souscrite === true : false;
             const offreFiche = (fiche[o.id] && fiche[o.id].offre) || o.offre || "pack";
             const auPoste = offreFiche === "crm";
             const avecCatalogue = offreFiche === "pack";
@@ -362,12 +380,10 @@ export default function PageOrganismes() {
                             : o.abonnement_mensuel + " EUR/mois")
                         : "abonnement non fixe"}
                       {o.offre === "pack"
-                        ? " · " + (o.taux_prelevement !== null && o.taux_prelevement !== undefined ? o.taux_prelevement : 35) + " %"
+                        ? " · " + (o.taux_prelevement !== null && o.taux_prelevement !== undefined ? o.taux_prelevement : 40) + " %"
                         : ""}
                       {o.offre === "pack"
-                        ? (o.gestion_souscrite && o.forfait_gestion
-                            ? " · gestion " + o.forfait_gestion + " EUR par stagiaire"
-                            : " · plancher " + (o.plancher_stagiaire !== null && o.plancher_stagiaire !== undefined ? o.plancher_stagiaire : 30) + " EUR")
+                        ? " + " + (o.plancher_stagiaire !== null && o.plancher_stagiaire !== undefined ? o.plancher_stagiaire : 30) + " EUR par stagiaire"
                         : ""}
                       {o.numero_tva ? "" : " · TVA manquante"}
                       {o.domaine ? " · " + o.domaine : ""}
@@ -441,15 +457,11 @@ export default function PageOrganismes() {
                         <>
                           <div style={{ flex: "1 1 130px" }}>
                             <span style={LIBELLE}>Part catalogue (%)</span>
-                            <input value={champ(o.id, "taux")} onChange={(e) => poser(o.id, "taux", e.target.value)} placeholder="35" style={CHAMP} />
-                          </div>
-                          <div style={{ flex: "1 1 150px" }}>
-                            <span style={LIBELLE}>Minimum par stagiaire (EUR)</span>
-                            <input value={champ(o.id, "plancher")} onChange={(e) => poser(o.id, "plancher", e.target.value)} placeholder="30" style={CHAMP} />
+                            <input value={champ(o.id, "taux")} onChange={(e) => poser(o.id, "taux", e.target.value)} placeholder="40" style={CHAMP} />
                           </div>
                           <div style={{ flex: "1 1 170px" }}>
-                            <span style={LIBELLE}>Gestion administrative (EUR)</span>
-                            <input value={champ(o.id, "gestion")} onChange={(e) => poser(o.id, "gestion", e.target.value)} placeholder="180" style={CHAMP} />
+                            <span style={LIBELLE}>Redevance par stagiaire (EUR)</span>
+                            <input value={champ(o.id, "redevance")} onChange={(e) => poser(o.id, "redevance", e.target.value)} placeholder="30" style={CHAMP} />
                           </div>
                           <div style={{ flex: "1 1 150px" }}>
                             <span style={LIBELLE}>Apport d affaires (%)</span>
@@ -473,29 +485,33 @@ export default function PageOrganismes() {
                       </div>
                     )}
 
-                    {!avecCatalogue && (
-                      <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px", margin: "-4px 0 14px", lineHeight: "1.6" }}>
-                        Sans le catalogue de l Editeur, il n y a ni part sur les ventes ni minimum
-                        par stagiaire : ces champs disparaissent du bon de commande.
-                      </p>
+                    {/* LA PART ET LA REDEVANCE S'ADDITIONNENT — le rappeler ici
+                        evite de refaire le calcul de tete a chaque fiche. */}
+                    {avecCatalogue && (
+                      <div style={{ background: "rgba(200,169,110,0.08)", border: "1px solid rgba(200,169,110,0.3)", borderRadius: "8px", padding: "13px 15px", marginBottom: "14px" }}>
+                        <p style={{ color: "#c8a96e", fontSize: "13.5px", margin: "0 0 4px", fontWeight: "bold" }}>
+                          La part et la redevance s additionnent.
+                        </p>
+                        <p style={{ color: "rgba(255,255,255,0.65)", fontSize: "13px", margin: 0, lineHeight: "1.7" }}>
+                          Pour chaque stagiaire inscrit, le client verse le pourcentage du prix de
+                          vente ET la redevance. Sur une formation vendue 600 EUR :{" "}
+                          {(Number(champ(o.id, "taux")) || 40)} % font{" "}
+                          {Math.round(600 * (Number(champ(o.id, "taux")) || 40)) / 100} EUR, plus{" "}
+                          {Number(champ(o.id, "redevance")) || 30} EUR de redevance ={" "}
+                          <strong style={{ color: "#c8a96e" }}>
+                            {Math.round(600 * (Number(champ(o.id, "taux")) || 40)) / 100 + (Number(champ(o.id, "redevance")) || 30)} EUR
+                          </strong>{" "}
+                          par stagiaire. La gestion administrative est comprise, bilan pedagogique
+                          et financier annuel inclus.
+                        </p>
+                      </div>
                     )}
 
-                    {avecCatalogue && (
-                      <div
-                        onClick={() => poser(o.id, "gestion_souscrite", !gestionCochee)}
-                        style={{ display: "flex", alignItems: "flex-start", gap: "12px", padding: "14px 16px", borderRadius: "8px", cursor: "pointer", background: gestionCochee ? "rgba(200,169,110,0.15)" : "rgba(255,255,255,0.04)", border: gestionCochee ? "2px solid #c8a96e" : "1px solid rgba(255,255,255,0.12)", marginBottom: "14px" }}
-                      >
-                        <span style={{ flexShrink: 0, width: "22px", height: "22px", borderRadius: "5px", background: gestionCochee ? "#c8a96e" : "transparent", border: gestionCochee ? "2px solid #c8a96e" : "2px solid #999", color: "#050508", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "bold" }}>
-                          {gestionCochee ? "✓" : ""}
-                        </span>
-                        <span style={{ color: "rgba(255,255,255,0.85)", fontSize: "15px", lineHeight: "1.7" }}>
-                          Ce client a souscrit la gestion administrative.
-                          <span style={{ display: "block", color: "rgba(255,255,255,0.45)", fontSize: "13px", marginTop: "3px" }}>
-                            Le forfait ci-dessus remplace alors le minimum par stagiaire sur sa
-                            facture. Tant que la case est decochee, c est le minimum qui s applique.
-                          </span>
-                        </span>
-                      </div>
+                    {!avecCatalogue && (
+                      <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px", margin: "-4px 0 14px", lineHeight: "1.6" }}>
+                        Sans le catalogue de l Editeur, il n y a ni part sur les ventes ni redevance
+                        par stagiaire : ces champs disparaissent du bon de commande.
+                      </p>
                     )}
 
                     <h4 style={{ color: "#c8a96e", fontSize: "15px", margin: "14px 0" }}>Identification</h4>
@@ -543,9 +559,7 @@ export default function PageOrganismes() {
                           nb_utilisateurs: champ(o.id, "utilisateurs"),
                           abonnement_mensuel: champ(o.id, "abonnement"),
                           taux_prelevement: champ(o.id, "taux"),
-                          plancher_stagiaire: champ(o.id, "plancher"),
-                          forfait_gestion: champ(o.id, "gestion"),
-                          gestion_souscrite: gestionCochee,
+                          plancher_stagiaire: champ(o.id, "redevance"),
                           taux_apport: champ(o.id, "apport"),
                           siret: champ(o.id, "siret"),
                           numero_da: champ(o.id, "numero_da"),
