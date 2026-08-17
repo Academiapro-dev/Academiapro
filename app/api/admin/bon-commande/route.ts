@@ -26,8 +26,7 @@ const supabase = createClient(
 // TROIS OFFRES, TROIS BONS DE COMMANDE DIFFERENTS.
 //
 //  - PACK : 390 EUR HT par mois, stagiaires ET utilisateurs illimites,
-//    35 % sur le catalogue editeur avec un minimum de 30 EUR par stagiaire
-//    inscrit, 1 500 EUR de mise en service.
+//    1 500 EUR de mise en service.
 //  - LMS SEUL : 290 EUR HT par mois, sans catalogue editeur.
 //  - CRM SEUL : 35 EUR HT PAR UTILISATEUR ET PAR MOIS, sans degressivite.
 //
@@ -40,18 +39,17 @@ const supabase = createClient(
 // ACADEMIA PRO DEVIENT LE CATALOGUE, elle ne vend pas un outil de
 // fabrication. Ses mots : « les formations que nous generons deviennent
 // automatiquement notre propriete, sinon comment aurions-nous construit
-// 310 formations qui font partie de notre catalogue ». Aujourd hui 331,
-// demain 500, apres-demain 1 000.
+// 310 formations qui font partie de notre catalogue ».
 //
 // LE MODELE EST CELUI DE LA SOUS-TRAITANCE DE CONTENU : l organisme vend
 // l action, porte sa certification et sa responsabilite, et SOUS-TRAITE LE
 // CONTENU. Un organisme qui veut produire ses propres formations DEVIENT UN
 // CONCURRENT, pas un client.
 //
-// 🚨🚨 ET IL N Y A AUCUNE FACTURATION A L ACTE — supprimee le 16/08 au soir.
-// Ses mots : « en tant que partenaire, je propose toute l infrastructure et
-// la gestion, et il me donne un pourcentage ». Les 90 EUR par formation
-// redigee ont existe quelques heures et NE DOIVENT PAS REVENIR.
+// 🚨🚨 AUCUNE FACTURATION A L ACTE — supprimee le 16/08 au soir. Ses mots :
+// « en tant que partenaire, je propose toute l infrastructure et la gestion,
+// et il me donne un pourcentage ». Les 90 EUR par formation redigee ont
+// existe quelques heures et NE DOIVENT PAS REVENIR.
 //
 // LES DEUX FORMULES, ET TOUT EST COMPRIS DEDANS — la plateforme, le
 // catalogue, l administratif ET LA PRODUCTION DES FORMATIONS :
@@ -61,10 +59,23 @@ const supabase = createClient(
 //   B. L EDITEUR ASSURE LA GESTION : 180 EUR HT par stagiaire + 10 % du
 //      prix de vente HT.
 //
-// Le taux passe de 10 a 35 % quand le Client reprend la gestion a sa charge :
-// le pourcentage faible est la contrepartie des 180 EUR. RIEN D AUTRE N EST
-// FACTURE, et le document doit le dire noir sur blanc — c est la demande
-// expresse de Jacques : « preciser que tout est compris dedans ».
+// 🚨🚨🚨 UNE SEULE FORMULE EST PRESENTEE AU CLIENT — decision du 17/08.
+//
+// Ses mots : « si on lui laisse le choix, on lui cree une hesitation dans sa
+// tete, c est psychologique ». Une offre unique se decide, deux offres se
+// comparent — et comparer, c est deja hesiter.
+//
+// LE BLOC « FORMULE RETENUE » NE DECRIT DONC QUE CELLE QUI EST SOUSCRITE.
+// J avais ecrit la veille les deux formules cote a cote, pour rendre le taux
+// comprehensible ; Jacques l a fait retirer. NE PAS REINTRODUIRE la phrase
+// qui expose l autre formule et son taux.
+//
+// LA FORMULE B EST CELLE QUE L ON MENE. Elle est la plus vendable et la plus
+// sure : les 180 EUR tombent des l inscription, sans dependre du prix auquel
+// le client vend ni de sa capacite a vendre. La formule A n est proposee QUE
+// SI le client refuse de confier la gestion — « une perche a lui tendre pour
+// ouvrir la discussion ». Les defauts en base ont ete inverses en
+// consequence le 17/08 : gestion_souscrite = true, taux = 10, forfait = 180.
 const OFFRES: any = {
   pack: {
     nom: "PACK COMPLET",
@@ -86,7 +97,9 @@ const OFFRES: any = {
   },
 };
 
-const TAUX_DEFAUT = 35;
+// Valeurs de secours, utilisees seulement si la fiche client est vide. Le
+// defaut en base est desormais la formule B, taux a 10 %.
+const TAUX_SANS_GESTION = 35;
 const TAUX_AVEC_GESTION = 10;
 
 function ascii(t: any): string {
@@ -176,7 +189,7 @@ export async function POST(req: NextRequest) {
 
     const taux = org.taux_prelevement !== null && org.taux_prelevement !== undefined
       ? Number(org.taux_prelevement)
-      : (gestionSouscrite ? TAUX_AVEC_GESTION : TAUX_DEFAUT);
+      : (gestionSouscrite ? TAUX_AVEC_GESTION : TAUX_SANS_GESTION);
     const plancher = org.plancher_stagiaire !== null && org.plancher_stagiaire !== undefined
       ? Number(org.plancher_stagiaire)
       : 30;
@@ -282,35 +295,25 @@ export async function POST(req: NextRequest) {
     paire("Telephone", org.telephone || "-");
     paire("N de TVA intracommunautaire", org.numero_tva || "A COMPLETER");
 
-    // LES DEUX FORMULES, ENONCEES COTE A COTE.
+    // 🚨 UNE SEULE FORMULE EST DECRITE — celle qui est souscrite.
     //
-    // Le Client doit voir CE QU IL A CHOISI ET CE QU IL AURAIT PU CHOISIR :
-    // c est ce qui rend le taux comprehensible. Un 35 % isole parait eleve ;
-    // mis en regard des 10 % contre 180 EUR par stagiaire, il s explique.
+    // Le paragraphe qui exposait l autre formule et son taux a ete RETIRE le
+    // 17/08. Ses mots : « si on lui laisse le choix, on lui cree une
+    // hesitation dans sa tete ». Le client lit ce qu il a retenu, pas un
+    // comparatif. NE PAS LE REINTRODUIRE.
     if (offre.catalogue) {
-      titreBloc("FORMULE RETENUE");
-      paire("Suivi administratif des stagiaires", gestionSouscrite ? "assure par l Editeur" : "assure par le Client");
+      titreBloc("SUIVI ADMINISTRATIF DES STAGIAIRES");
+      paire("Assure par", gestionSouscrite ? "l Editeur" : "le Client");
       y = y - 4;
       ligne(
         gestionSouscrite
-          ? "FORMULE B - L EDITEUR ASSURE LA GESTION ADMINISTRATIVE. Le Client verse " +
-            "180 EUR HT par stagiaire inscrit et 10 % de son prix de vente hors taxes. Le taux " +
-            "reduit est la contrepartie de cette prise en charge."
-          : "FORMULE A - LE CLIENT ASSURE LUI-MEME LA GESTION ADMINISTRATIVE. Il verse " +
-            "l abonnement mensuel ci-dessous et 35 % de son prix de vente hors taxes, avec un " +
-            "minimum par stagiaire inscrit.",
+          ? "L Editeur prend en charge le suivi administratif des stagiaires du Client : le forfait "
+            + "par stagiaire inscrit indique ci-apres couvre cette prestation, et la part sur les "
+            + "formations du catalogue en tient compte."
+          : "Le Client assure lui-meme le suivi administratif de ses stagiaires. La part sur les "
+            + "formations du catalogue de l Editeur et le minimum par stagiaire sont ceux indiques "
+            + "ci-apres.",
         10, normal, noir, 5
-      );
-      y = y - 4;
-      ligne(
-        gestionSouscrite
-          ? "S il reprenait la gestion a sa charge, le taux passerait de 10 a 35 % et le forfait " +
-            "par stagiaire serait remplace par le minimum par stagiaire. Le changement se fait " +
-            "par avenant."
-          : "S il confiait la gestion a l Editeur, le taux passerait de 35 a 10 % et un forfait de " +
-            "180 EUR HT par stagiaire remplacerait le minimum par stagiaire. Le changement se " +
-            "fait par avenant.",
-        9, normal, gris, 5
       );
     }
 
@@ -476,9 +479,9 @@ export async function POST(req: NextRequest) {
       } else {
         y = y - 4;
         ligne(
-          "Ce taux reduit est la contrepartie de la gestion administrative souscrite ci-dessous. Il " +
-          "cesserait de s appliquer si le Client renoncait a cette prestation, le taux de 35 % etant " +
-          "alors retabli par avenant.",
+          "Ce taux tient compte de la prise en charge du suivi administratif par l Editeur, " +
+          "facturee au forfait par stagiaire ci-apres. Il serait revu par avenant si le Client " +
+          "reprenait ce suivi a sa charge.",
           9, normal, noir, 5
         );
       }
