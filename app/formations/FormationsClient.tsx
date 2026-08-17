@@ -40,15 +40,14 @@ export default function FormationsClient({ formations }: { formations: any[] }) 
 
   // LE COMPTE PAR DOMAINE ET PAR NIVEAU.
   //
-  // Ajoute le 16/08. Un catalogue de 331 formations sans compteur oblige a
-  // cliquer pour savoir s il y a deux ou quarante titres derriere un filtre.
-  // Le nombre affiche a cote de chaque bouton donne le volume et la structure
-  // d un coup d oeil — et evite le clic qui ne mene a rien.
+  // Un catalogue de 331 formations sans compteur oblige a cliquer pour
+  // savoir s il y a deux ou quarante titres derriere un filtre. Le nombre
+  // affiche a cote de chaque bouton donne le volume d un coup d oeil.
   //
   // ⚠️ LE COMPTE TIENT COMPTE DES AUTRES FILTRES ACTIFS. Si un niveau est
-  // choisi, le compte des domaines ne montre que les formations de ce niveau :
-  // sans cela, un bouton annoncerait douze titres et l ecran n en afficherait
-  // aucun. Un compteur qui ment est pire que pas de compteur.
+  // choisi, le compte des domaines ne montre que les formations de ce
+  // niveau : sans cela, un bouton annoncerait douze titres et l ecran n en
+  // afficherait aucun. Un compteur qui ment est pire que pas de compteur.
   const comptesDomaine = useMemo(() => {
     const base = formations.filter((f) => {
       const r = recherche.toLowerCase();
@@ -95,6 +94,24 @@ export default function FormationsClient({ formations }: { formations: any[] }) 
     setNiveau("Tous");
     setPage(1);
   };
+
+  // 🚨 LE LIEN D UNE FICHE S ECRIT EN MAJUSCULES — corrige le 17/08.
+  //
+  // Ce catalogue construisait ses liens avec `f.code.toLowerCase()`, donc
+  // /formation/f005. Or LE SITEMAP ET LA CANONIQUE declarent tous deux le
+  // code TEL QU IL EST EN BASE, c est-a-dire /formation/F005 en majuscules.
+  //
+  // Google suivait donc des liens internes vers une adresse dont la
+  // canonique pointait ailleurs — d ou l avertissement recu de la Search
+  // Console : « Page en double : Google n a pas choisi la meme URL canonique
+  // que l utilisateur », et dix-neuf pages en double sans canonique retenue.
+  //
+  // Les deux adresses continuent de fonctionner : la route et le layout
+  // mettent le code en majuscules avant de chercher en base. Mais UNE SEULE
+  // doit etre celle vers laquelle on pointe, et c est celle du sitemap.
+  function lienFiche(code: string): string {
+    return "/formation/" + String(code || "").trim().toUpperCase();
+  }
 
   // Un bouton de filtre avec son compte. Un domaine vide se grise et ne se
   // clique pas : il n y a rien derriere.
@@ -168,7 +185,7 @@ export default function FormationsClient({ formations }: { formations: any[] }) 
 
         <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
           {paginees.map((f: any) => (
-            <a key={f.code} href={"/formation/" + f.code.toLowerCase()} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "#1a1a2e", borderRadius: "10px", padding: "16px 20px", border: "1px solid rgba(200,169,110,0.15)", textDecoration: "none", color: "#fff" }}>
+            <a key={f.code} href={lienFiche(f.code)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "#1a1a2e", borderRadius: "10px", padding: "16px 20px", border: "1px solid rgba(200,169,110,0.15)", textDecoration: "none", color: "#fff" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "16px", flex: 1 }}>
                 <span style={{ color: "#c8a96e", fontSize: "12px", fontWeight: "bold", minWidth: "48px" }}>{f.code}</span>
                 <span style={{ color: "#fff", fontSize: "15px", flex: 1 }}>{f.titre}</span>
@@ -201,12 +218,10 @@ export default function FormationsClient({ formations }: { formations: any[] }) 
         )}
 
         {/* CE QUE VOUS CHERCHEZ N EST PAS AU CATALOGUE.
-            Reprise de ce que fait Speak To Your Database en bas de son
-            catalogue, et cela sert directement la strategie : AcadeMIA Pro
-            devient LE CATALOGUE, donc chaque visite qui ne trouve pas son
-            sujet doit devenir une demande, pas un depart. La promesse est
-            tenable et verifiable — le sur-mesure sous une semaine est
-            precisement ce qu aucun concurrent ne sait faire. */}
+            Chaque visite qui ne trouve pas son sujet doit devenir une
+            demande, pas un depart. La promesse est tenable et verifiable —
+            le sur-mesure sous une semaine est ce qu aucun concurrent ne
+            sait faire. */}
         <div style={{ background: "#1a1a2e", border: "1px solid rgba(200,169,110,0.35)", borderRadius: "16px", padding: "36px 28px", marginTop: "40px", textAlign: "center" }}>
           <h2 style={{ color: "#fff", fontSize: "23px", margin: "0 0 12px" }}>
             Vous ne trouvez pas votre sujet ?
