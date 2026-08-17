@@ -9,6 +9,20 @@ import { useState, useEffect } from "react";
 // bases froides — 69 000 entreprises collectees puis enrichies, que l on
 // travaille au volume. « Mes contacts » designe les gens qui ont leve la
 // main sur le site, que l on travaille un par un.
+//
+// 🚨 L ECRAN LINKEDIN EST ACCESSIBLE D ICI — ajoute le 17/08.
+//
+// LE DEFAUT : /admin/linkedin n'etait atteignable qu'en tapant son adresse.
+// Le tableau de bord affichait meme un bloc « Invitations LinkedIn » SANS
+// AUCUN LIEN, et renvoyait vers « l'onglet Prospection » — qui n'est pas le
+// bon endroit : c'est l'ecran dedie qui porte la file d'invitation, le mot
+// pre-redige, le suivi des acceptations et l'ajout manuel de profils.
+//
+// Ses mots : « j'aimerais pouvoir le trouver tout seul, sinon ca voudrait
+// dire qu'il y a un probleme au niveau de la simplicite d'utilisation ».
+// Il a raison : un ecran qu'on ne trouve qu'en tapant son adresse est un
+// ecran mal range. Le lien figure desormais dans l'en-tete, visible depuis
+// tous les onglets, et dans le bloc du tableau de bord.
 const PORTEE = "editeur";
 
 const FILTRES = [
@@ -134,9 +148,6 @@ export default function CRMPage() {
   // Rien n est envoye automatiquement, et c est volontaire : l API de
   // LinkedIn ne permet pas d envoyer des invitations, et les outils qui
   // le font par le navigateur font restreindre puis supprimer le compte.
-  // Le bouton ouvre le profil dans un onglet, Jacques ecrit son mot a la
-  // main, et la fiche retient qu il l a fait — pour ne jamais solliciter
-  // deux fois la meme personne.
   //
   // L ouverture se fait AVANT l appel reseau : un window.open declenche
   // apres un await est bloque par le navigateur comme une fenetre
@@ -334,6 +345,21 @@ export default function CRMPage() {
   const TH: any = { position: "sticky", top: 0, background: "#12121f", color: "#c8a96e", fontSize: "11.5px", fontWeight: "bold", textAlign: "left", padding: "9px 10px", borderBottom: "2px solid rgba(200,169,110,0.35)", whiteSpace: "nowrap", zIndex: 2 };
   const TD: any = { padding: "7px 10px", fontSize: "12.5px", borderBottom: "1px solid rgba(255,255,255,0.06)", whiteSpace: "nowrap", color: "rgba(255,255,255,0.85)" };
 
+  // Le bouton vers l'ecran LinkedIn, present dans l'en-tete quel que soit
+  // l'onglet ouvert.
+  const PORTE_IN: any = {
+    background: "rgba(68,138,255,0.18)",
+    border: "1px solid rgba(68,138,255,0.5)",
+    color: "#448aff",
+    padding: "9px 18px",
+    borderRadius: "20px",
+    fontSize: "13px",
+    fontFamily: "Georgia,serif",
+    textDecoration: "none",
+    whiteSpace: "nowrap",
+    display: "inline-block",
+  };
+
   const apprenants = prospects.filter(function (p: any) {
     return (p.progression || 0) > 0 || p.formation_active;
   });
@@ -358,10 +384,22 @@ export default function CRMPage() {
   return (
     <div style={{ backgroundColor: "#050508", minHeight: "100vh", color: "#fff", fontFamily: "Georgia, serif" }}>
       <div style={{ background: "linear-gradient(135deg,#0a0a1a,#1a1a2e)", padding: "30px 20px" }}>
-        <h1 style={{ color: "#c8a96e", margin: 0, fontSize: "24px" }}>🎯 Mon CRM</h1>
-        <p style={{ color: "rgba(255,255,255,0.5)", margin: "5px 0 0", fontSize: "13px" }}>
-          AcadémIA Pro · ma prospection, mes contacts, mes apprenants
-        </p>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "14px" }}>
+          <div>
+            <h1 style={{ color: "#c8a96e", margin: 0, fontSize: "24px" }}>🎯 Mon CRM</h1>
+            <p style={{ color: "rgba(255,255,255,0.5)", margin: "5px 0 0", fontSize: "13px" }}>
+              AcadémIA Pro · ma prospection, mes contacts, mes apprenants
+            </p>
+          </div>
+
+          {/* LA PORTE VERS L'ECRAN LINKEDIN, visible depuis tous les onglets. */}
+          <a href="/admin/linkedin" style={PORTE_IN}>
+            💼 Prospection LinkedIn
+            {compteurIn && compteurIn.reste_jour !== undefined
+              ? " · " + nombre(compteurIn.reste_jour) + " aujourd'hui"
+              : ""}
+          </a>
+        </div>
       </div>
 
       <div style={{ display: "flex", gap: "5px", padding: "15px 20px", background: "rgba(255,255,255,0.03)", overflowX: "auto" }}>
@@ -405,11 +443,14 @@ export default function CRMPage() {
               <div style={{ background: "#1a1a2e", borderRadius: "12px", padding: "18px 20px", marginBottom: "20px", border: "1px solid rgba(68,138,255,0.3)" }}>
                 <h3 style={{ color: "#448aff", marginTop: 0, marginBottom: "8px", fontSize: "14px" }}>INVITATIONS LINKEDIN</h3>
                 <p style={{ color: "rgba(255,255,255,0.75)", fontSize: "13.5px", margin: "0 0 4px" }}>
-                  {nombre(compteurIn.semaine)} envoyée(s) ces sept derniers jours · {nombre(compteurIn.reste)} avant le plafond de {compteurIn.plafond}
+                  {nombre(compteurIn.semaine)} envoyée(s) ces sept derniers jours · {nombre(compteurIn.reste_semaine)} avant le plafond de {compteurIn.plafond_semaine}
                 </p>
-                <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "12px", margin: 0, lineHeight: "1.6" }}>
-                  {nombre(compteurIn.total)} au total. Les invitations partent à la main depuis l'onglet Prospection : LinkedIn restreint les comptes qui automatisent, et une réputation abîmée ne se répare pas.
+                <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "12px", margin: "0 0 14px", lineHeight: "1.6" }}>
+                  Les invitations partent à la main : LinkedIn restreint les comptes qui automatisent, et une réputation abîmée ne se répare pas.
                 </p>
+                <a href="/admin/linkedin" style={{ ...PORTE_IN, padding: "11px 22px", fontWeight: "bold" }}>
+                  Ouvrir la prospection LinkedIn →
+                </a>
               </div>
             )}
 
@@ -506,8 +547,8 @@ export default function CRMPage() {
               </span>
               {compteurIn && (
                 <span style={{ color: plafondAtteint ? "#e8836a" : "#448aff", fontSize: "12px" }}>
-                  LinkedIn cette semaine : {nombre(compteurIn.semaine)} / {compteurIn.plafond}
-                  {plafondAtteint ? " — plafond atteint, attendez quelques jours" : " · " + nombre(compteurIn.reste) + " restantes"}
+                  LinkedIn cette semaine : {nombre(compteurIn.semaine)} / {compteurIn.plafond_semaine}
+                  {plafondAtteint ? " — plafond atteint, attendez quelques jours" : " · " + nombre(compteurIn.reste_semaine) + " restantes"}
                 </span>
               )}
             </div>
