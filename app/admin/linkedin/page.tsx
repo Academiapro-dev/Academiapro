@@ -14,13 +14,20 @@ import { useState, useEffect } from "react";
 // ECRAN. LinkedIn plafonne les notes personnalisees a quelques-unes par
 // mois en compte gratuit ; la plupart des invitations partiront donc nues.
 // Marquer les deux separement est la SEULE facon de savoir si l abonnement
-// Premium se justifie : si les invitations avec note sont acceptees deux
-// fois plus, il vaut son prix ; sinon non.
+// Premium se justifie.
 //
 // 🚨 DEFAUT CORRIGE LE 16/08 : le bouton faisait DEUX choses d un clic —
 // ouvrir le profil ET marquer la fiche. Or on ne sait qu APRES avoir vu le
 // profil si on veut inviter. Cinq fiches perdues en une matinee. Desormais
 // ouvrir ne marque rien : regarder n a jamais de consequence.
+//
+// 🆕 AJOUT MANUEL — 17/08. Les trois bases viennent de l open data enrichi,
+// mais Jacques trouve aussi des profils AU FIL DE SON ACTUALITE LinkedIn.
+// Ses mots : « ces prospects n'ont rien a voir avec ceux que nous avons
+// enrichi, il manque une fonctionnalite, celle de pouvoir inscrire des
+// prospects manuellement ». Ces fiches vont dans la table crm — elles n ont
+// PAS D ADRESSE, seulement un lien de profil, et se retrouvent du meme coup
+// dans le CRM avec un score et un statut commercial.
 
 const BASES = [
   { cle: "organismes", nom: "Organismes certifiés Qualiopi" },
@@ -79,6 +86,15 @@ export default function PageLinkedin() {
   const [ouverte, setOuverte] = useState<any>(null);
   const [texteLong, setTexteLong] = useState("");
 
+  // L AJOUT MANUEL — replie par defaut, pour ne pas encombrer l ecran.
+  const [ajout, setAjout] = useState(false);
+  const [aNom, setANom] = useState("");
+  const [aLien, setALien] = useState("");
+  const [aOrganisme, setAOrganisme] = useState("");
+  const [aVille, setAVille] = useState("");
+  const [aNotes, setANotes] = useState("");
+  const [message, setMessage] = useState("");
+
   const [compteurs, setCompteurs] = useState<any>(null);
   const [charge, setCharge] = useState(false);
   const [erreur, setErreur] = useState("");
@@ -133,6 +149,48 @@ export default function PageLinkedin() {
       } else setErreur(d.erreur || "Lecture impossible.");
     } catch (e: any) {
       setErreur("Lecture impossible : " + String(e));
+    }
+    setCharge(false);
+  }
+
+  // AJOUTER UN PROFIL TROUVE A LA MAIN.
+  //
+  // La fiche entre directement au statut d invitation : si Jacques la
+  // saisit, c est qu il vient d envoyer la demande. Elle apparait aussitot
+  // dans « Mes invitations ».
+  async function ajouter(avecNote: boolean) {
+    if (aNom.trim().length < 2) {
+      setErreur("Indiquez le nom du contact.");
+      return;
+    }
+    if (aLien.indexOf("linkedin.com") < 0) {
+      setErreur("Collez l'adresse complète du profil LinkedIn.");
+      return;
+    }
+    setCharge(true);
+    setErreur("");
+    setMessage("");
+    try {
+      const d = await appeler({
+        action: "ajouter",
+        nom: aNom,
+        linkedin: aLien,
+        organisme: aOrganisme,
+        ville: aVille,
+        notes: aNotes,
+        avec_note: avecNote,
+      });
+      if (d.ok) {
+        setMessage(d.message || "Profil ajouté.");
+        setCompteurs(d.compteurs || null);
+        setANom(""); setALien(""); setAOrganisme(""); setAVille(""); setANotes("");
+        setAjout(false);
+      } else {
+        setErreur(d.erreur || "Ajout impossible.");
+        if (d.compteurs) setCompteurs(d.compteurs);
+      }
+    } catch (e: any) {
+      setErreur("Ajout impossible : " + String(e));
     }
     setCharge(false);
   }
@@ -194,7 +252,7 @@ export default function PageLinkedin() {
   }
 
   // Ce qui a ete envoye a cette personne — la trace est dans le statut.
-  function avecNote(l: any) {
+  function avecNoteDe(l: any) {
     return l.linkedin_statut === "invite" || l.linkedin_statut === "accepte";
   }
 
@@ -227,6 +285,10 @@ export default function PageLinkedin() {
     background: "rgba(255,255,255,0.04)", color: "#fff",
     fontSize: "14.5px", lineHeight: "1.75", fontFamily: "Georgia,serif",
     boxSizing: "border-box", resize: "vertical",
+  };
+
+  const LIBELLE: any = {
+    display: "block", color: OR, fontSize: "12.5px", marginBottom: "5px",
   };
 
   const plafondJour = compteurs ? (compteurs.reste_jour || 0) <= 0 : false;
@@ -332,6 +394,12 @@ export default function PageLinkedin() {
           </div>
         )}
 
+        {message && (
+          <div style={{ background: "rgba(0,230,118,0.12)", border: "1px solid rgba(0,230,118,0.4)", borderRadius: "9px", padding: "13px", marginBottom: "14px", color: VERT, fontSize: "13.5px", lineHeight: "1.7" }}>
+            {message}
+          </div>
+        )}
+
         {erreur && (
           <div style={{ background: "rgba(232,131,106,0.12)", border: "1px solid rgba(232,131,106,0.4)", borderRadius: "9px", padding: "13px", marginBottom: "14px", color: "#e8836a", fontSize: "13.5px", lineHeight: "1.7" }}>
             {erreur}
@@ -341,6 +409,71 @@ export default function PageLinkedin() {
         {/* ═══════════ ONGLET INVITER ═══════════ */}
         {onglet === "inviter" && (
           <>
+            {/* ---------- AJOUTER UN PROFIL TROUVE A LA MAIN ---------- */}
+            <div style={{ ...CARTE, borderColor: ajout ? "rgba(68,138,255,0.45)" : CARTE.border }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px" }}>
+                <div style={{ flex: "1 1 240px" }}>
+                  <div style={{ color: BLEU, fontSize: "15px", fontWeight: "bold" }}>
+                    Un profil croisé sur LinkedIn ?
+                  </div>
+                  <div style={{ color: "rgba(255,255,255,0.45)", fontSize: "12.5px", marginTop: "3px", lineHeight: "1.7" }}>
+                    Ajoutez-le à votre file, même sans adresse e-mail.
+                  </div>
+                </div>
+                <button onClick={() => { setAjout(!ajout); setErreur(""); setMessage(""); }}
+                  style={{ ...BOUTON, color: BLEU, borderColor: "rgba(68,138,255,0.45)" }}>
+                  {ajout ? "Annuler" : "Ajouter un profil"}
+                </button>
+              </div>
+
+              {ajout && (
+                <div style={{ marginTop: "18px", paddingTop: "16px", borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+                  <span style={LIBELLE}>Nom du contact *</span>
+                  <input value={aNom} onChange={(e) => setANom(e.target.value)}
+                    placeholder="Sarah Dupont" style={{ ...CHAMP, marginBottom: "12px" }} />
+
+                  <span style={LIBELLE}>Adresse du profil LinkedIn *</span>
+                  <input value={aLien} onChange={(e) => setALien(e.target.value)}
+                    placeholder="https://www.linkedin.com/in/sarah-dupont"
+                    style={{ ...CHAMP, marginBottom: "12px" }} />
+
+                  <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+                    <div style={{ flex: "1 1 200px" }}>
+                      <span style={LIBELLE}>Son organisme</span>
+                      <input value={aOrganisme} onChange={(e) => setAOrganisme(e.target.value)}
+                        placeholder="Formation Conseil" style={{ ...CHAMP, marginBottom: "12px" }} />
+                    </div>
+                    <div style={{ flex: "1 1 140px" }}>
+                      <span style={LIBELLE}>Ville</span>
+                      <input value={aVille} onChange={(e) => setAVille(e.target.value)}
+                        placeholder="Lyon" style={{ ...CHAMP, marginBottom: "12px" }} />
+                    </div>
+                  </div>
+
+                  <span style={LIBELLE}>Ce que vous voulez retenir</span>
+                  <textarea value={aNotes} onChange={(e) => setANotes(e.target.value)} rows={3}
+                    placeholder="Croisé sur un post à propos de Qualiopi. Semble diriger un petit organisme."
+                    style={{ ...CHAMP, marginBottom: "14px" }} />
+
+                  <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "12.5px", lineHeight: "1.75", margin: "0 0 12px" }}>
+                    La fiche entre directement comme invitation envoyée — dites simplement
+                    laquelle des deux. Elle apparaîtra dans « Mes invitations » et dans votre CRM.
+                  </p>
+
+                  <div style={{ display: "flex", gap: "9px", flexWrap: "wrap" }}>
+                    <button onClick={() => ajouter(true)} disabled={charge || bloque}
+                      style={{ flex: "1 1 200px", background: bloque ? "rgba(255,255,255,0.06)" : "rgba(0,230,118,0.15)", color: bloque ? "rgba(255,255,255,0.3)" : VERT, border: "1px solid " + (bloque ? "rgba(255,255,255,0.15)" : "rgba(0,230,118,0.45)"), borderRadius: "9px", padding: "14px", fontSize: "13.5px", fontWeight: "bold", fontFamily: "Georgia,serif", cursor: bloque ? "not-allowed" : "pointer" }}>
+                      ✓ Invitée avec une note
+                    </button>
+                    <button onClick={() => ajouter(false)} disabled={charge || bloque}
+                      style={{ flex: "1 1 200px", background: bloque ? "rgba(255,255,255,0.06)" : "rgba(68,138,255,0.15)", color: bloque ? "rgba(255,255,255,0.3)" : BLEU, border: "1px solid " + (bloque ? "rgba(255,255,255,0.15)" : "rgba(68,138,255,0.45)"), borderRadius: "9px", padding: "14px", fontSize: "13.5px", fontWeight: "bold", fontFamily: "Georgia,serif", cursor: bloque ? "not-allowed" : "pointer" }}>
+                      ✓ Invitée sans note
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
             <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "16px" }}>
               {BASES.map(function (b) {
                 const actif = base === b.cle;
@@ -496,7 +629,7 @@ export default function PageLinkedin() {
             ) : (
               lignes.map(function (l) {
                 const j = joursDepuis(l.linkedin_le);
-                const note = avecNote(l);
+                const note = avecNoteDe(l);
                 return (
                   <div key={l.base + "-" + l.id} style={CARTE}>
                     <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "10px" }}>
@@ -513,6 +646,9 @@ export default function PageLinkedin() {
                           <span style={{ color: note ? OR : "rgba(255,255,255,0.3)" }}>
                             {note ? " · avec note" : " · sans note"}
                           </span>
+                          {l.base === "manuel" ? (
+                            <span style={{ color: BLEU }}> · ajouté à la main</span>
+                          ) : ""}
                         </div>
                       </div>
                       <a href={lien(l.linkedin)} target="_blank" rel="noreferrer"
