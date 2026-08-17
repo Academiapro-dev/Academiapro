@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
 
     const { data: organismes, error } = await supabase
       .from("organismes_formation")
-      .select("id, tenant_id, raison_sociale, email_contact, statut, abonnement_mensuel, taux_prelevement, plancher_stagiaire, forfait_gestion, gestion_souscrite")
+      .select("id, tenant_id, raison_sociale, email_contact, statut, abonnement_mensuel, taux_prelevement, plancher_stagiaire")
       .order("raison_sociale", { ascending: true })
       .limit(500);
 
@@ -87,48 +87,20 @@ export async function GET(req: NextRequest) {
 
       const taux = o.taux_prelevement !== null && o.taux_prelevement !== undefined
         ? Number(o.taux_prelevement)
-        : 35;
-      const plancher = o.plancher_stagiaire !== null && o.plancher_stagiaire !== undefined
+        : 40;
+      const redevance = o.plancher_stagiaire !== null && o.plancher_stagiaire !== undefined
         ? Number(o.plancher_stagiaire)
         : 30;
 
-      // 🚨 UNE SEULE FORMULE, ET LA GESTION S'AJOUTE — corrige le 17/08.
-      //
-      // CE QUI A CHANGE. Jusqu'a ce jour, deux formules coexistaient : le
-      // client gerait (35 % + minimum 30 EUR) ou l'Editeur gerait (10 % +
-      // 180 EUR par stagiaire, qui REMPLACAIENT le minimum). Jacques a
-      // supprime ce choix : « si on lui laisse le choix, on lui cree une
-      // hesitation dans sa tete ». Le taux est desormais TOUJOURS de 35 %.
-      //
-      // LA GESTION EST UNE OPTION A 49 EUR HT PAR MOIS ET PAR STAGIAIRE.
-      // Elle S'AJOUTE a la part et REMPLACE le minimum par stagiaire —
-      // precision expresse de Jacques : « les 30 EUR de plancher ne sont pas
-      // additionnels par rapport aux 49 ».
-      //
-      // 🚨 LE DEFAUT QUE CETTE CORRECTION REPARE, ET IL ETAIT GRAVE : le code
-      // retenait `le plus eleve entre la part et le forfait`. Sur une
-      // formation vendue 600 EUR, la part fait 210 EUR — le forfait de
-      // 49 EUR n'entrait donc JAMAIS dans le calcul. LA GESTION N'AURAIT
-      // RIEN RAPPORTE, alors qu'elle est vendue comme une prestation payante.
-      //
-      // LE CALCUL JUSTE :
-      //   sans gestion  → le plus eleve entre la part et le minimum
-      //   avec gestion  → la part PLUS le forfait, sans minimum
-      const gestionSouscrite = o.gestion_souscrite === true;
-      const forfaitGestion = o.forfait_gestion !== null && o.forfait_gestion !== undefined
-        ? Number(o.forfait_gestion)
-        : 0;
-
       // Un organisme suspendu n est plus facture : ni abonnement, ni
-      // inscriptions. On le presente quand meme, pour qu il ne disparaisse pas
-      // du suivi.
+      // inscriptions. On le presente quand meme, pour qu il ne disparaisse
+      // pas du suivi.
       const suspendu = o.statut !== "actif";
 
-      let du = 0;
-      let auPlancher = 0;
-      let auTaux = 0;
+      let partTotale = 0;
+      let redevanceTotale = 0;
       let horsCatalogue = 0;
-      let gestionDue = 0;
+      let facturees = 0;
       const details: any[] = [];
 
       for (const i of inscrits) {
@@ -143,6 +115,8 @@ export async function GET(req: NextRequest) {
             formation_code: i.formation_code,
             payeur: i.payeur,
             prix: null,
+            part: 0,
+            redevance: 0,
             du: 0,
             motif: "formation propre du client",
           });
@@ -152,32 +126,42 @@ export async function GET(req: NextRequest) {
         let prix = Number(i.prix_vente) || 0;
         if (!prix) prix = prixDe[cle] || 0;
 
+        // 🚨🚨 LA PART ET LA REDEVANCE S'ADDITIONNENT — corrige le 17/08.
+        //
+        // LA GRILLE DEFINITIVE, arretee en fin de journee :
+        //   390 EUR HT par mois (LMS + CRM)
+        //   + 40 % du prix de vente hors taxes
+        //   + 30 EUR HT PAR STAGIAIRE INSCRIT, QUI S'AJOUTENT
+        // La gestion administrative est COMPRISE, bilan pedagogique et
+        // financier annuel inclus. Aucune option a facturer separement.
+        //
+        // 🚨 CE QUE CETTE CORRECTION REPARE, ET C'ETAIT UNE PERTE SECHE : le
+        // code retenait `Math.max(part, plancher)` — le plus eleve des deux.
+        // Sur une formation vendue 600 EUR, la part fait 240 EUR et les
+        // 30 EUR n'entraient JAMAIS dans le calcul. Pour cent stagiaires,
+        // c'etaient 3 000 EUR par an qui n'auraient jamais ete factures.
+        //
+        // ⚠️ LE MOT « MINIMUM » NE CONVIENT PLUS. Ce n'est plus un plancher
+        // qui se substitue a la part quand celle-ci est trop faible, c'est
+        // une REDEVANCE PAR STAGIAIRE INSCRIT qui s'y ajoute toujours. Le bon
+        // de commande porte encore la phrase « lorsque la part calculee lui
+        // est superieure, seule cette part est due » : ELLE EST DEVENUE
+        // FAUSSE et un client s'en servirait pour refuser la redevance. A
+        // reecrire dans le document.
+        //
+        // POURQUOI CE MONTAGE PLUTOT QUE LES 35 % + 49 EUR PAR MOIS ET PAR
+        // STAGIAIRE ACTIF, envisages l'apres-midi meme : celui-la obligeait a
+        // compter l'activite mois par mois, et surtout il entrait en
+        // contradiction avec la promesse d'une gestion annuelle — le bilan
+        // pedagogique se produit en janvier alors que les stagiaires ont fini
+        // en juin, et plus rien n'aurait ete facture depuis six mois. Ses
+        // mots : « on va rester prudent ».
         const part = Math.round(prix * taux) / 100;
+        const du = Math.round((part + redevance) * 100) / 100;
 
-        let retenu: number;
-        let motif: string;
-
-        if (gestionSouscrite && forfaitGestion > 0) {
-          // La part s'applique toujours, et le forfait de gestion s'y AJOUTE.
-          // Le minimum par stagiaire ne joue pas : le forfait le remplace.
-          retenu = part + forfaitGestion;
-          gestionDue = gestionDue + forfaitGestion;
-          auTaux = auTaux + 1;
-          motif = "part au taux + gestion";
-        } else {
-          // On retient le plus eleve des deux : la part, ou le minimum. C est
-          // ce qui rend l illimite sans risque.
-          retenu = Math.max(part, plancher);
-          if (part < plancher) {
-            auPlancher = auPlancher + 1;
-            motif = "minimum par stagiaire";
-          } else {
-            auTaux = auTaux + 1;
-            motif = "part au taux";
-          }
-        }
-
-        du = du + retenu;
+        partTotale = partTotale + part;
+        redevanceTotale = redevanceTotale + redevance;
+        facturees = facturees + 1;
 
         details.push({
           email: i.email,
@@ -185,19 +169,19 @@ export async function GET(req: NextRequest) {
           payeur: i.payeur,
           prix: prix,
           part: part,
-          gestion: gestionSouscrite && forfaitGestion > 0 ? forfaitGestion : 0,
-          du: Math.round(retenu * 100) / 100,
-          motif: motif,
+          redevance: redevance,
+          du: du,
+          motif: taux + " % + " + redevance + " EUR par stagiaire",
         });
       }
 
-      du = Math.round(du * 100) / 100;
-      gestionDue = Math.round(gestionDue * 100) / 100;
+      partTotale = Math.round(partTotale * 100) / 100;
+      redevanceTotale = Math.round(redevanceTotale * 100) / 100;
+      const du = Math.round((partTotale + redevanceTotale) * 100) / 100;
 
       // 🚨 PLUS AUCUN TARIF DE LANCEMENT. Ce calcul divisait l abonnement PAR
       // DEUX des que la colonne lancement_jusqu_au portait une date. Supprime
-      // le 16/08 sur decision de Jacques : le montant facture est TOUJOURS le
-      // prix plein. Ne pas le reintroduire.
+      // le 16/08 : le montant facture est TOUJOURS le prix plein.
       const abonnementPlein = Number(o.abonnement_mensuel) || 0;
 
       const abonnement = suspendu ? 0 : abonnementPlein;
@@ -213,14 +197,12 @@ export async function GET(req: NextRequest) {
         abonnement_plein: abonnementPlein,
         abonnement: abonnement,
         taux: taux,
-        plancher: plancher,
-        gestion_souscrite: gestionSouscrite,
-        forfait_gestion: forfaitGestion,
-        gestion_due: suspendu ? 0 : gestionDue,
+        redevance_unitaire: redevance,
         inscriptions: inscrits.length,
-        au_taux: auTaux,
-        au_plancher: auPlancher,
+        facturees: suspendu ? 0 : facturees,
         hors_catalogue: horsCatalogue,
+        part_totale: suspendu ? 0 : partTotale,
+        redevance_totale: suspendu ? 0 : redevanceTotale,
         prelevement: prelevement,
         total: Math.round((abonnement + prelevement) * 100) / 100,
         details: details,
@@ -229,12 +211,10 @@ export async function GET(req: NextRequest) {
 
     const totalAbonnements = lignes.reduce(function (s: number, l: any) { return s + l.abonnement; }, 0);
     const totalPrelevements = lignes.reduce(function (s: number, l: any) { return s + l.prelevement; }, 0);
-    const totalGestion = lignes.reduce(function (s: number, l: any) { return s + l.gestion_due; }, 0);
+    const totalParts = lignes.reduce(function (s: number, l: any) { return s + l.part_totale; }, 0);
+    const totalRedevances = lignes.reduce(function (s: number, l: any) { return s + l.redevance_totale; }, 0);
     const totalInscriptions = lignes.reduce(function (s: number, l: any) {
       return s + (l.suspendu ? 0 : l.inscriptions);
-    }, 0);
-    const totalPlancher = lignes.reduce(function (s: number, l: any) {
-      return s + (l.suspendu ? 0 : l.au_plancher);
     }, 0);
 
     return NextResponse.json({
@@ -244,9 +224,9 @@ export async function GET(req: NextRequest) {
       suspendus: lignes.filter(function (l: any) { return l.suspendu; }).length,
       total_abonnements: Math.round(totalAbonnements * 100) / 100,
       total_prelevements: Math.round(totalPrelevements * 100) / 100,
-      total_gestion: Math.round(totalGestion * 100) / 100,
+      total_parts: Math.round(totalParts * 100) / 100,
+      total_redevances: Math.round(totalRedevances * 100) / 100,
       total_inscriptions: totalInscriptions,
-      total_au_plancher: totalPlancher,
       total: Math.round((totalAbonnements + totalPrelevements) * 100) / 100,
       lignes: lignes,
     });
