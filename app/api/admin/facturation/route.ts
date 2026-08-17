@@ -82,31 +82,6 @@ export async function GET(req: NextRequest) {
       parTenant[i.tenant_id].push(i);
     }
 
-    // LES FORMATIONS PROPRES REDIGEES PAR L ASSISTANT — 90 EUR HT chacune.
-    //
-    // Le montant est pose par /api/organisme/rediger-module au PREMIER module
-    // de chaque formation, jamais ensuite : une formation de vingt modules
-    // porte donc une seule ligne a 90 EUR. Ici on ne fait que RELEVER ce qui a
-    // deja ete decide la-bas — aucun calcul n est refait, sans quoi les deux
-    // routes pourraient diverger.
-    //
-    // Sans ce releve, le montant restait enregistre en base sans jamais
-    // apparaitre sur aucune facture.
-    const { data: redactions } = await supabase
-      .from("organisme_usage_ia")
-      .select("tenant_id, cours_id, reference, montant_facture, created_at")
-      .eq("type", "redaction_module")
-      .gt("montant_facture", 0)
-      .gte("created_at", debut)
-      .lt("created_at", fin)
-      .limit(5000);
-
-    const redactionsDe: any = {};
-    for (const r of redactions || []) {
-      if (!redactionsDe[r.tenant_id]) redactionsDe[r.tenant_id] = [];
-      redactionsDe[r.tenant_id].push(r);
-    }
-
     const lignes = (organismes || []).map(function (o: any) {
       const inscrits = parTenant[o.tenant_id] || [];
 
@@ -117,14 +92,32 @@ export async function GET(req: NextRequest) {
         ? Number(o.plancher_stagiaire)
         : 30;
 
-      // GESTION ADMINISTRATIVE. Optionnelle : elle n est due que si le client
-      // l a souscrite. Elle remplace alors le minimum par stagiaire, sans s y
-      // ajouter — c est ce que dit son contrat et son bon de commande.
+      // 🚨 UNE SEULE FORMULE, ET LA GESTION S'AJOUTE — corrige le 17/08.
+      //
+      // CE QUI A CHANGE. Jusqu'a ce jour, deux formules coexistaient : le
+      // client gerait (35 % + minimum 30 EUR) ou l'Editeur gerait (10 % +
+      // 180 EUR par stagiaire, qui REMPLACAIENT le minimum). Jacques a
+      // supprime ce choix : « si on lui laisse le choix, on lui cree une
+      // hesitation dans sa tete ». Le taux est desormais TOUJOURS de 35 %.
+      //
+      // LA GESTION EST UNE OPTION A 49 EUR HT PAR MOIS ET PAR STAGIAIRE.
+      // Elle S'AJOUTE a la part et REMPLACE le minimum par stagiaire —
+      // precision expresse de Jacques : « les 30 EUR de plancher ne sont pas
+      // additionnels par rapport aux 49 ».
+      //
+      // 🚨 LE DEFAUT QUE CETTE CORRECTION REPARE, ET IL ETAIT GRAVE : le code
+      // retenait `le plus eleve entre la part et le forfait`. Sur une
+      // formation vendue 600 EUR, la part fait 210 EUR — le forfait de
+      // 49 EUR n'entrait donc JAMAIS dans le calcul. LA GESTION N'AURAIT
+      // RIEN RAPPORTE, alors qu'elle est vendue comme une prestation payante.
+      //
+      // LE CALCUL JUSTE :
+      //   sans gestion  → le plus eleve entre la part et le minimum
+      //   avec gestion  → la part PLUS le forfait, sans minimum
       const gestionSouscrite = o.gestion_souscrite === true;
       const forfaitGestion = o.forfait_gestion !== null && o.forfait_gestion !== undefined
         ? Number(o.forfait_gestion)
         : 0;
-      const minimum = gestionSouscrite && forfaitGestion > 0 ? forfaitGestion : plancher;
 
       // Un organisme suspendu n est plus facture : ni abonnement, ni
       // inscriptions. On le presente quand meme, pour qu il ne disparaisse pas
@@ -135,6 +128,7 @@ export async function GET(req: NextRequest) {
       let auPlancher = 0;
       let auTaux = 0;
       let horsCatalogue = 0;
+      let gestionDue = 0;
       const details: any[] = [];
 
       for (const i of inscrits) {
@@ -159,12 +153,29 @@ export async function GET(req: NextRequest) {
         if (!prix) prix = prixDe[cle] || 0;
 
         const part = Math.round(prix * taux) / 100;
-        // On retient le plus eleve des deux : la part, ou le minimum retenu
-        // pour ce client. C est ce qui rend l illimite sans risque.
-        const retenu = Math.max(part, minimum);
 
-        if (retenu === minimum && part < minimum) auPlancher = auPlancher + 1;
-        else auTaux = auTaux + 1;
+        let retenu: number;
+        let motif: string;
+
+        if (gestionSouscrite && forfaitGestion > 0) {
+          // La part s'applique toujours, et le forfait de gestion s'y AJOUTE.
+          // Le minimum par stagiaire ne joue pas : le forfait le remplace.
+          retenu = part + forfaitGestion;
+          gestionDue = gestionDue + forfaitGestion;
+          auTaux = auTaux + 1;
+          motif = "part au taux + gestion";
+        } else {
+          // On retient le plus eleve des deux : la part, ou le minimum. C est
+          // ce qui rend l illimite sans risque.
+          retenu = Math.max(part, plancher);
+          if (part < plancher) {
+            auPlancher = auPlancher + 1;
+            motif = "minimum par stagiaire";
+          } else {
+            auTaux = auTaux + 1;
+            motif = "part au taux";
+          }
+        }
 
         du = du + retenu;
 
@@ -174,40 +185,19 @@ export async function GET(req: NextRequest) {
           payeur: i.payeur,
           prix: prix,
           part: part,
-          du: retenu,
-          motif: part < minimum
-            ? (gestionSouscrite && forfaitGestion > 0
-                ? "forfait gestion administrative"
-                : "minimum par stagiaire")
-            : "part au taux",
+          gestion: gestionSouscrite && forfaitGestion > 0 ? forfaitGestion : 0,
+          du: Math.round(retenu * 100) / 100,
+          motif: motif,
         });
       }
 
       du = Math.round(du * 100) / 100;
-
-      // Les redactions du mois pour ce client. Un organisme suspendu n en
-      // porte aucune : il ne peut plus rien produire.
-      const sesRedactions = redactionsDe[o.tenant_id] || [];
-      const montantRedactions = suspendu
-        ? 0
-        : Math.round(sesRedactions.reduce(function (s: number, r: any) {
-            return s + (Number(r.montant_facture) || 0);
-          }, 0) * 100) / 100;
-
-      const detailsRedactions = sesRedactions.map(function (r: any) {
-        return {
-          reference: r.reference,
-          cours_id: r.cours_id,
-          montant: Number(r.montant_facture) || 0,
-          le: r.created_at,
-        };
-      });
+      gestionDue = Math.round(gestionDue * 100) / 100;
 
       // 🚨 PLUS AUCUN TARIF DE LANCEMENT. Ce calcul divisait l abonnement PAR
       // DEUX des que la colonne lancement_jusqu_au portait une date. Supprime
-      // le 16/08 sur decision de Jacques : « je n ai pas demande a ce qu on
-      // mette le lancement a 50 % du prix ». Le montant facture est TOUJOURS
-      // le prix plein. Ne pas le reintroduire.
+      // le 16/08 sur decision de Jacques : le montant facture est TOUJOURS le
+      // prix plein. Ne pas le reintroduire.
       const abonnementPlein = Number(o.abonnement_mensuel) || 0;
 
       const abonnement = suspendu ? 0 : abonnementPlein;
@@ -226,31 +216,25 @@ export async function GET(req: NextRequest) {
         plancher: plancher,
         gestion_souscrite: gestionSouscrite,
         forfait_gestion: forfaitGestion,
-        minimum_retenu: minimum,
+        gestion_due: suspendu ? 0 : gestionDue,
         inscriptions: inscrits.length,
         au_taux: auTaux,
         au_plancher: auPlancher,
         hors_catalogue: horsCatalogue,
         prelevement: prelevement,
-        formations_redigees: sesRedactions.length,
-        redactions: montantRedactions,
-        details_redactions: detailsRedactions,
-        total: Math.round((abonnement + prelevement + montantRedactions) * 100) / 100,
+        total: Math.round((abonnement + prelevement) * 100) / 100,
         details: details,
       };
     });
 
     const totalAbonnements = lignes.reduce(function (s: number, l: any) { return s + l.abonnement; }, 0);
     const totalPrelevements = lignes.reduce(function (s: number, l: any) { return s + l.prelevement; }, 0);
-    const totalRedactions = lignes.reduce(function (s: number, l: any) { return s + l.redactions; }, 0);
+    const totalGestion = lignes.reduce(function (s: number, l: any) { return s + l.gestion_due; }, 0);
     const totalInscriptions = lignes.reduce(function (s: number, l: any) {
       return s + (l.suspendu ? 0 : l.inscriptions);
     }, 0);
     const totalPlancher = lignes.reduce(function (s: number, l: any) {
       return s + (l.suspendu ? 0 : l.au_plancher);
-    }, 0);
-    const totalFormationsRedigees = lignes.reduce(function (s: number, l: any) {
-      return s + l.formations_redigees;
     }, 0);
 
     return NextResponse.json({
@@ -260,11 +244,10 @@ export async function GET(req: NextRequest) {
       suspendus: lignes.filter(function (l: any) { return l.suspendu; }).length,
       total_abonnements: Math.round(totalAbonnements * 100) / 100,
       total_prelevements: Math.round(totalPrelevements * 100) / 100,
-      total_redactions: Math.round(totalRedactions * 100) / 100,
-      total_formations_redigees: totalFormationsRedigees,
+      total_gestion: Math.round(totalGestion * 100) / 100,
       total_inscriptions: totalInscriptions,
       total_au_plancher: totalPlancher,
-      total: Math.round((totalAbonnements + totalPrelevements + totalRedactions) * 100) / 100,
+      total: Math.round((totalAbonnements + totalPrelevements) * 100) / 100,
       lignes: lignes,
     });
   } catch (e: any) {
