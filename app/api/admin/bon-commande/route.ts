@@ -30,8 +30,39 @@ const supabase = createClient(
 //  - LMS SEUL : 290 EUR HT par mois, sans catalogue editeur.
 //  - CRM SEUL : 35 EUR HT PAR UTILISATEUR ET PAR MOIS, sans degressivite.
 //
-// 🚨 IL N Y A PLUS DE TARIF DE LANCEMENT. Le code divisait l abonnement PAR
-// DEUX des que lancement_jusqu_au portait une date, sans que Jacques l ait
+// 🚨🚨🚨 LA GRILLE DEFINITIVE DU PACK — arretee le 17/08 en fin de journee,
+// apres une demi-journee d'arbitrages. NE PAS LA REOUVRIR.
+//
+//     390 EUR HT par mois (la plateforme et le suivi commercial)
+//   + 40 % du prix de vente hors taxes de chaque formation du catalogue
+//   + 30 EUR HT PAR STAGIAIRE INSCRIT, QUI S'AJOUTENT A LA PART
+//   = gestion administrative COMPRISE, bilan pedagogique et financier
+//     annuel inclus. Aucune option a facturer separement.
+//
+// ⚠️⚠️ LES 30 EUR NE SONT PLUS UN MINIMUM, C'EST UNE REDEVANCE QUI S'AJOUTE.
+// La phrase « lorsque la part calculee au taux ci-dessus lui est superieure,
+// seule cette part est due » figurait dans ce document : ELLE EST DEVENUE
+// FAUSSE et un client s'en serait servi pour refuser la redevance. Elle a
+// ete reecrite. Ne jamais la remettre.
+//
+// CE QUI A ETE ESSAYE ET ECARTE LE MEME JOUR, pour ne pas y revenir :
+//   - Deux formules au choix (35 % + minimum 30 EUR, ou 10 % + 180 EUR par
+//     stagiaire). Ecartees : « si on lui laisse le choix, on lui cree une
+//     hesitation dans sa tete, c'est psychologique ». Et le client aurait
+//     evidemment pris la moins chere.
+//   - 35 % + une option de gestion a 49 EUR par mois et par stagiaire ACTIF.
+//     Ecartee : elle obligeait a compter l'activite mois par mois, et surtout
+//     elle CONTREDISAIT LA PROMESSE D'UNE GESTION ANNUELLE — le bilan
+//     pedagogique se produit en janvier alors que les stagiaires ont fini en
+//     juin, et plus rien n'aurait ete facture depuis six mois.
+//   - Un abonnement abaisse a 49 EUR. Ecarte : « les 390 EUR, on les
+//     maintient ».
+//   - 45 % sans redevance. Ecarte au profit du montage a 40 % + 30 EUR, qui
+//     rapporte autant en repartissant sur trois lignes : « c'est mieux, et
+//     c'est plus securisant pour moi ».
+//
+// 🚨 IL N'Y A PLUS DE TARIF DE LANCEMENT. Le code divisait l'abonnement PAR
+// DEUX des que lancement_jusqu_au portait une date, sans que Jacques l'ait
 // jamais decide. Ne pas le reintroduire.
 //
 // 🚨🚨 LA STRATEGIE, ARRETEE LE 16/08 AU SOIR — NE PAS LA REOUVRIR.
@@ -41,41 +72,13 @@ const supabase = createClient(
 // automatiquement notre propriete, sinon comment aurions-nous construit
 // 310 formations qui font partie de notre catalogue ».
 //
-// LE MODELE EST CELUI DE LA SOUS-TRAITANCE DE CONTENU : l organisme vend
-// l action, porte sa certification et sa responsabilite, et SOUS-TRAITE LE
+// LE MODELE EST CELUI DE LA SOUS-TRAITANCE DE CONTENU : l'organisme vend
+// l'action, porte sa certification et sa responsabilite, et SOUS-TRAITE LE
 // CONTENU. Un organisme qui veut produire ses propres formations DEVIENT UN
 // CONCURRENT, pas un client.
 //
-// 🚨🚨 AUCUNE FACTURATION A L ACTE — supprimee le 16/08 au soir. Ses mots :
-// « en tant que partenaire, je propose toute l infrastructure et la gestion,
-// et il me donne un pourcentage ». Les 90 EUR par formation redigee ont
-// existe quelques heures et NE DOIVENT PAS REVENIR.
-//
-// LES DEUX FORMULES, ET TOUT EST COMPRIS DEDANS — la plateforme, le
-// catalogue, l administratif ET LA PRODUCTION DES FORMATIONS :
-//
-//   A. LE CLIENT ASSURE LA GESTION : 390 EUR HT/mois + 35 % du prix de
-//      vente HT + minimum 30 EUR par stagiaire inscrit.
-//   B. L EDITEUR ASSURE LA GESTION : 180 EUR HT par stagiaire + 10 % du
-//      prix de vente HT.
-//
-// 🚨🚨🚨 UNE SEULE FORMULE EST PRESENTEE AU CLIENT — decision du 17/08.
-//
-// Ses mots : « si on lui laisse le choix, on lui cree une hesitation dans sa
-// tete, c est psychologique ». Une offre unique se decide, deux offres se
-// comparent — et comparer, c est deja hesiter.
-//
-// LE BLOC « FORMULE RETENUE » NE DECRIT DONC QUE CELLE QUI EST SOUSCRITE.
-// J avais ecrit la veille les deux formules cote a cote, pour rendre le taux
-// comprehensible ; Jacques l a fait retirer. NE PAS REINTRODUIRE la phrase
-// qui expose l autre formule et son taux.
-//
-// LA FORMULE B EST CELLE QUE L ON MENE. Elle est la plus vendable et la plus
-// sure : les 180 EUR tombent des l inscription, sans dependre du prix auquel
-// le client vend ni de sa capacite a vendre. La formule A n est proposee QUE
-// SI le client refuse de confier la gestion — « une perche a lui tendre pour
-// ouvrir la discussion ». Les defauts en base ont ete inverses en
-// consequence le 17/08 : gestion_souscrite = true, taux = 10, forfait = 180.
+// AUCUNE FACTURATION A L'ACTE : les 90 EUR par formation redigee ont existe
+// quelques heures le 16/08 et NE DOIVENT PAS REVENIR.
 const OFFRES: any = {
   pack: {
     nom: "PACK COMPLET",
@@ -97,10 +100,9 @@ const OFFRES: any = {
   },
 };
 
-// Valeurs de secours, utilisees seulement si la fiche client est vide. Le
-// defaut en base est desormais la formule B, taux a 10 %.
-const TAUX_SANS_GESTION = 35;
-const TAUX_AVEC_GESTION = 10;
+// Valeurs de secours, utilisees seulement si la fiche client est vide.
+const TAUX_DEFAUT = 40;
+const REDEVANCE_DEFAUT = 30;
 
 function ascii(t: any): string {
   return String(t === null || t === undefined ? "" : t)
@@ -185,21 +187,15 @@ export async function POST(req: NextRequest) {
     const unitaire = Number(org.abonnement_mensuel) || 0;
     const plein = offre.parUtilisateur ? unitaire * postes : unitaire;
 
-    const gestionSouscrite = offre.catalogue && org.gestion_souscrite === true;
-
     const taux = org.taux_prelevement !== null && org.taux_prelevement !== undefined
       ? Number(org.taux_prelevement)
-      : (gestionSouscrite ? TAUX_AVEC_GESTION : TAUX_SANS_GESTION);
-    const plancher = org.plancher_stagiaire !== null && org.plancher_stagiaire !== undefined
+      : TAUX_DEFAUT;
+    const redevance = org.plancher_stagiaire !== null && org.plancher_stagiaire !== undefined
       ? Number(org.plancher_stagiaire)
-      : 30;
+      : REDEVANCE_DEFAUT;
     const apport = org.taux_apport !== null && org.taux_apport !== undefined
       ? Number(org.taux_apport)
       : 50;
-
-    const gestion = gestionSouscrite && org.forfait_gestion !== null && org.forfait_gestion !== undefined
-      ? Number(org.forfait_gestion)
-      : 0;
 
     const { data: catalogue } = offre.catalogue
       ? await supabase
@@ -295,28 +291,6 @@ export async function POST(req: NextRequest) {
     paire("Telephone", org.telephone || "-");
     paire("N de TVA intracommunautaire", org.numero_tva || "A COMPLETER");
 
-    // 🚨 UNE SEULE FORMULE EST DECRITE — celle qui est souscrite.
-    //
-    // Le paragraphe qui exposait l autre formule et son taux a ete RETIRE le
-    // 17/08. Ses mots : « si on lui laisse le choix, on lui cree une
-    // hesitation dans sa tete ». Le client lit ce qu il a retenu, pas un
-    // comparatif. NE PAS LE REINTRODUIRE.
-    if (offre.catalogue) {
-      titreBloc("SUIVI ADMINISTRATIF DES STAGIAIRES");
-      paire("Assure par", gestionSouscrite ? "l Editeur" : "le Client");
-      y = y - 4;
-      ligne(
-        gestionSouscrite
-          ? "L Editeur prend en charge le suivi administratif des stagiaires du Client : le forfait "
-            + "par stagiaire inscrit indique ci-apres couvre cette prestation, et la part sur les "
-            + "formations du catalogue en tient compte."
-          : "Le Client assure lui-meme le suivi administratif de ses stagiaires. La part sur les "
-            + "formations du catalogue de l Editeur et le minimum par stagiaire sont ceux indiques "
-            + "ci-apres.",
-        10, normal, noir, 5
-      );
-    }
-
     if (frais > 0) {
       titreBloc("MISE EN SERVICE");
       paire("Frais uniques a la signature", euros(frais));
@@ -346,11 +320,11 @@ export async function POST(req: NextRequest) {
       );
       y = y - 4;
       ligne(
-        "S y ajoutent les documents administratifs a l en-tete du Client, la signature " +
-        "electronique et son archivage, les evaluations, le registre des reclamations, les " +
-        "dossiers de ses formateurs, ses registres de veille, le suivi de sa sous-traitance et " +
-        "son bilan pedagogique et financier prepare cadre par cadre. STAGIAIRES ILLIMITES ET " +
-        "UTILISATEURS ILLIMITES.",
+        "S y ajoute LA GESTION ADMINISTRATIVE COMPLETE, comprise sans supplement : documents a " +
+        "l en-tete du Client, signature electronique et archivage, evaluations a chaud et a " +
+        "froid, registre des reclamations, dossiers des formateurs, registres de veille, suivi de " +
+        "la sous-traitance, et BILAN PEDAGOGIQUE ET FINANCIER ANNUEL prepare cadre par cadre. " +
+        "STAGIAIRES ILLIMITES ET UTILISATEURS ILLIMITES.",
         10, normal, noir, 5
       );
     } else if (cleOffre === "lms") {
@@ -400,11 +374,6 @@ export async function POST(req: NextRequest) {
     }
 
     // LA PRODUCTION SUR MESURE — COMPRISE, JAMAIS FACTUREE A PART.
-    //
-    // 🚨 CE BLOC A PORTE « tarif communique sur demande » PENDANT QUELQUES
-    // HEURES LE 16/08. C ETAIT FAUX et Jacques l a corrige le soir meme : la
-    // production est comprise dans les deux formules, l Editeur se remunerant
-    // sur les ventes. NE PAS Y REMETTRE DE PRIX.
     if (offre.catalogue) {
       titreBloc("PRODUCTION DES FORMATIONS - COMPRISE");
       ligne(
@@ -416,10 +385,10 @@ export async function POST(req: NextRequest) {
       );
       y = y - 4;
       ligne(
-        "CETTE PRODUCTION EST COMPRISE DANS LA FORMULE RETENUE ET N EST JAMAIS FACTUREE A PART. " +
-        "L abonnement, la part sur les ventes et, le cas echeant, le forfait de gestion couvrent " +
-        "l integralite de la prestation : la plateforme, le catalogue, l administratif et la " +
-        "production des formations. Aucun autre montant n est du a l Editeur.",
+        "CETTE PRODUCTION EST COMPRISE ET N EST JAMAIS FACTUREE A PART. L abonnement, la part sur " +
+        "les ventes et la redevance par stagiaire couvrent l integralite de la prestation : la " +
+        "plateforme, le catalogue, la gestion administrative et la production des formations. " +
+        "Aucun autre montant n est du a l Editeur.",
         10, gras, noir, 5
       );
       y = y - 4;
@@ -465,26 +434,27 @@ export async function POST(req: NextRequest) {
     );
 
     if (offre.catalogue) {
-      titreBloc("PART SUR LES FORMATIONS DU CATALOGUE DE L EDITEUR");
-      paire("Taux", taux + " % du prix de vente hors taxes");
-      if (!gestionSouscrite) {
-        paire("Minimum par stagiaire inscrit", euros(plancher));
-        y = y - 4;
-        ligne(
-          "Le minimum par stagiaire est du pour chaque inscription sur une formation du catalogue de " +
-          "l Editeur, QUE LA FORMATION AIT ETE VENDUE OU NON. Lorsque la part calculee au taux " +
-          "ci-dessus lui est superieure, seule cette part est due.",
-          9, normal, noir, 5
-        );
-      } else {
-        y = y - 4;
-        ligne(
-          "Ce taux tient compte de la prise en charge du suivi administratif par l Editeur, " +
-          "facturee au forfait par stagiaire ci-apres. Il serait revu par avenant si le Client " +
-          "reprenait ce suivi a sa charge.",
-          9, normal, noir, 5
-        );
-      }
+      // 🚨 LA PART ET LA REDEVANCE S'ADDITIONNENT. La phrase « seule cette
+      // part est due » a ete retiree le 17/08 : elle serait devenue le levier
+      // d'un client pour refuser la redevance.
+      titreBloc("PART SUR LES VENTES ET REDEVANCE PAR STAGIAIRE");
+      paire("Part sur le catalogue", taux + " % du prix de vente hors taxes");
+      paire("Redevance par stagiaire inscrit", euros(redevance));
+      y = y - 4;
+      ligne(
+        "CES DEUX MONTANTS S ADDITIONNENT. Pour chaque stagiaire inscrit sur une formation du " +
+        "catalogue de l Editeur, le Client verse " + taux + " % du prix de vente hors taxes ET " +
+        "la redevance de " + euros(redevance) + " par stagiaire. La redevance est due pour chaque " +
+        "inscription, QUE LA FORMATION AIT ETE VENDUE OU NON.",
+        10, gras, noir, 5
+      );
+      y = y - 4;
+      ligne(
+        "Ces montants couvrent l integralite de la prestation, gestion administrative comprise : " +
+        "le suivi de chaque stagiaire, ses documents, ses evaluations, et le bilan pedagogique et " +
+        "financier annuel de l organisme. Aucun supplement n est facture a ce titre.",
+        9, normal, noir, 5
+      );
       y = y - 4;
       ligne(
         "LE CLIENT FIXE LIBREMENT SON PRIX DE VENTE. Le nombre d inscriptions enregistre par la " +
@@ -498,7 +468,7 @@ export async function POST(req: NextRequest) {
         "Les formations du catalogue, y compris celles produites a la demande du Client, sont et " +
         "demeurent la propriete de l Editeur. Le Client dispose du droit de les diffuser a ses " +
         "stagiaires et de les vendre sous son nom pendant toute la duree du present accord, aux " +
-        "conditions de part ci-dessus.",
+        "conditions ci-dessus.",
         9, normal, noir, 5
       );
       y = y - 4;
@@ -514,28 +484,7 @@ export async function POST(req: NextRequest) {
         "utilises par l Editeur que pour habiller les documents et la plateforme a ses couleurs.",
         9, normal, gris, 5
       );
-    }
 
-    if (gestion > 0) {
-      titreBloc("GESTION ADMINISTRATIVE");
-      paire("Forfait par stagiaire inscrit", euros(gestion));
-      y = y - 4;
-      ligne(
-        "Couvre, pour l ensemble des stagiaires du Client : conventions et contrats, convocations, " +
-        "feuilles d emargement, evaluations, attestations de fin de formation, pieces " +
-        "justificatives attendues lors d un audit et preparation du bilan pedagogique et financier.",
-        9, normal, noir, 5
-      );
-      y = y - 4;
-      ligne(
-        "Ce forfait est tout compris : il remplace le minimum par stagiaire et ne s y ajoute pas. " +
-        "Le Client demeure seul responsable de l exactitude des informations transmises, de la " +
-        "verification des documents produits et du depot de ses declarations.",
-        9, normal, gris, 5
-      );
-    }
-
-    if (offre.catalogue) {
       titreBloc("AFFAIRES ORIENTEES PAR L EDITEUR");
       paire("Partage du produit HT", apport + " % pour l Editeur");
       y = y - 4;
@@ -606,7 +555,7 @@ export async function POST(req: NextRequest) {
       y = y - 6;
       ligne(
         "Le Client fixe librement le prix auquel il vend a ses stagiaires. La part due a l Editeur " +
-        "se calcule sur ce prix.",
+        "se calcule sur ce prix, et la redevance par stagiaire s y ajoute.",
         9, normal, gris, 5
       );
     }
@@ -684,9 +633,7 @@ export async function POST(req: NextRequest) {
         utilisateurs: offre.parUtilisateur ? postes : null,
         plein: plein,
         taux: offre.catalogue ? taux : null,
-        plancher: offre.catalogue ? plancher : null,
-        gestion: gestion,
-        gestion_souscrite: gestionSouscrite,
+        redevance: offre.catalogue ? redevance : null,
         apport: offre.catalogue ? apport : null,
         formations: (catalogue || []).length,
       },
