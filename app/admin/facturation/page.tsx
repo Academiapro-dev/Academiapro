@@ -3,18 +3,21 @@ import { useState, useEffect } from "react";
 
 // CE QUE VOUS FACTUREZ, MOIS PAR MOIS.
 //
-// TROIS SOURCES DE REVENU DEPUIS LE 16/08 :
-//   - l abonnement, forfaitaire ;
-//   - le prelevement sur les inscriptions au catalogue editeur, avec son
-//     minimum par stagiaire ;
-//   - les formations propres du client redigees par l assistant, a 90 EUR
-//     l une. Ce dernier montant etait deja calcule et enregistre, mais
-//     n apparaissait NULLE PART a l ecran : il dormait en base sans jamais
-//     etre reclame.
+// 🚨 LA GRILLE DEFINITIVE, arretee le 17/08 :
+//     390 EUR HT par mois (plateforme + suivi commercial)
+//   + 40 % du prix de vente hors taxes de chaque formation
+//   + 30 EUR HT PAR STAGIAIRE INSCRIT, QUI S'ADDITIONNENT a la part
+//   = gestion administrative COMPRISE, bilan pedagogique annuel inclus.
 //
-// 🚨 PLUS AUCUN TARIF DE LANCEMENT. Cet ecran affichait « (lancement, plein
-// X EUR) » sous chaque client. Supprime le 16/08 sur decision de Jacques :
-// le montant facture est TOUJOURS le prix plein.
+// 🚨 CET ECRAN ETAIT RESTE SUR L'ANCIEN MODELE. Il affichait « plancher
+// 0 EUR » alors que la redevance est de 30 EUR, « au taux · au plancher »
+// sans les nombres, et une quatrieme carte vide — la route ne renvoie plus
+// les champs qu'il lisait. Repris le 17/08 pour coller au calcul reel.
+//
+// LE MOT « PLANCHER » A DISPARU : ce n'est plus un minimum qui se substitue
+// a la part quand elle est faible, c'est une REDEVANCE qui s'y ajoute
+// toujours. Garder l'ancien mot entretiendrait la confusion que le bon de
+// commande vient justement de lever.
 
 export default function PageFacturation() {
   const [d, setD] = useState<any>(null);
@@ -22,7 +25,6 @@ export default function PageFacturation() {
   const [chargement, setChargement] = useState(true);
   const [erreur, setErreur] = useState("");
   const [ouvert, setOuvert] = useState<any>({});
-  const [ouvertRedac, setOuvertRedac] = useState<any>({});
 
   useEffect(function () {
     charger("");
@@ -56,11 +58,6 @@ export default function PageFacturation() {
 
   function euros(n: any) {
     return (Number(n) || 0).toLocaleString("fr-FR") + " EUR";
-  }
-
-  function jour(v: any) {
-    if (!v) return "";
-    try { return new Date(v).toLocaleDateString("fr-FR"); } catch (e) { return ""; }
   }
 
   const CADRE: any = {
@@ -116,48 +113,41 @@ export default function PageFacturation() {
           </div>
         ) : !d ? null : (
           <>
+            {/* QUATRE CARTES, ET LA PART EST SEPAREE DE LA REDEVANCE.
+                Les voir cote a cote est ce qui permet de verifier d'un coup
+                d'oeil que les deux se cumulent bien — le defaut repare
+                aujourd'hui les faisait s'exclure. */}
             <div style={{ display: "flex", gap: "14px", flexWrap: "wrap", marginBottom: "20px" }}>
-              <div style={{ ...CARTE, flex: "1 1 150px", marginBottom: 0 }}>
+              <div style={{ ...CARTE, flex: "1 1 160px", marginBottom: 0 }}>
                 <p style={{ color: "#c8a96e", fontSize: "24px", fontWeight: "bold", margin: "0 0 4px" }}>
                   {euros(d.total_abonnements)}
                 </p>
                 <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", margin: 0 }}>Abonnements</p>
               </div>
-              <div style={{ ...CARTE, flex: "1 1 150px", marginBottom: 0 }}>
+
+              <div style={{ ...CARTE, flex: "1 1 160px", marginBottom: 0 }}>
                 <p style={{ color: "#c8a96e", fontSize: "24px", fontWeight: "bold", margin: "0 0 4px" }}>
-                  {euros(d.total_prelevements)}
+                  {euros(d.total_parts)}
                 </p>
                 <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", margin: 0 }}>
-                  Prelevements · {d.total_inscriptions} inscription(s)
+                  Part sur les ventes
                 </p>
               </div>
 
-              {/* LES FORMATIONS REDIGEES. La carte n apparait que s il y en a :
-                  une ligne a zero tous les mois n apprendrait rien. */}
-              {d.total_redactions > 0 && (
-                <div style={{ ...CARTE, flex: "1 1 150px", marginBottom: 0, border: "1px solid rgba(68,138,255,0.45)" }}>
-                  <p style={{ color: "#448aff", fontSize: "24px", fontWeight: "bold", margin: "0 0 4px" }}>
-                    {euros(d.total_redactions)}
-                  </p>
-                  <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", margin: 0 }}>
-                    Redaction · {d.total_formations_redigees} formation(s)
-                  </p>
-                </div>
-              )}
+              <div style={{ ...CARTE, flex: "1 1 160px", marginBottom: 0 }}>
+                <p style={{ color: "#c8a96e", fontSize: "24px", fontWeight: "bold", margin: "0 0 4px" }}>
+                  {euros(d.total_redevances)}
+                </p>
+                <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", margin: 0 }}>
+                  Redevances · {d.total_inscriptions} inscription(s)
+                </p>
+              </div>
 
-              <div style={{ ...CARTE, flex: "1 1 150px", marginBottom: 0, border: "1px solid rgba(200,169,110,0.5)" }}>
+              <div style={{ ...CARTE, flex: "1 1 160px", marginBottom: 0, border: "1px solid rgba(200,169,110,0.5)" }}>
                 <p style={{ color: "#4caf50", fontSize: "26px", fontWeight: "bold", margin: "0 0 4px" }}>
                   {euros(d.total)}
                 </p>
                 <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", margin: 0 }}>Total du mois</p>
-              </div>
-              <div style={{ ...CARTE, flex: "1 1 150px", marginBottom: 0 }}>
-                <p style={{ color: d.total_au_plancher > 0 ? "#e8a33d" : "rgba(255,255,255,0.4)", fontSize: "24px", fontWeight: "bold", margin: "0 0 4px" }}>
-                  {d.total_au_plancher}
-                </p>
-                <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", margin: 0 }}>
-                  Inscription(s) au plancher
-                </p>
               </div>
             </div>
 
@@ -170,10 +160,8 @@ export default function PageFacturation() {
             ) : (
               d.lignes.map(function (l: any) {
                 const estOuvert = ouvert[l.id] === true;
-                const redacOuvert = ouvertRedac[l.id] === true;
-                const beaucoupDePlancher = l.au_plancher > 0 && l.au_plancher >= l.au_taux;
                 return (
-                  <div key={l.id} style={{ ...CARTE, border: beaucoupDePlancher ? "1px solid rgba(232,163,61,0.5)" : CARTE.border, opacity: l.statut === "actif" ? 1 : 0.6 }}>
+                  <div key={l.id} style={{ ...CARTE, opacity: l.statut === "actif" ? 1 : 0.6 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "10px" }}>
                       <div style={{ flex: "1 1 260px" }}>
                         <h3 style={{ color: "#fff", fontSize: "17px", margin: "0 0 3px" }}>
@@ -181,15 +169,21 @@ export default function PageFacturation() {
                         </h3>
                         <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "13px", margin: 0 }}>
                           {euros(l.abonnement)} d abonnement
-                          {" · " + l.taux + " % · plancher " + euros(l.plancher)}
+                          {" · " + l.taux + " % sur les ventes"}
+                          {" · " + euros(l.redevance_unitaire) + " par stagiaire"}
                         </p>
                         <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "13px", margin: "4px 0 0" }}>
-                          {l.inscriptions} inscription(s) · {l.au_taux} au taux · {l.au_plancher} au plancher
-                          {l.hors_catalogue > 0 ? " · " + l.hors_catalogue + " sur ses propres formations" : ""}
+                          {l.inscriptions} inscription(s)
+                          {l.facturees !== l.inscriptions
+                            ? " · " + l.facturees + " facturee(s)"
+                            : ""}
+                          {l.hors_catalogue > 0
+                            ? " · " + l.hors_catalogue + " sur ses propres formations"
+                            : ""}
                         </p>
-                        {l.formations_redigees > 0 && (
-                          <p style={{ color: "#448aff", fontSize: "13px", margin: "4px 0 0" }}>
-                            {l.formations_redigees} formation(s) redigee(s) par l assistant · {euros(l.redactions)}
+                        {l.facturees > 0 && (
+                          <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "12.5px", margin: "4px 0 0" }}>
+                            {euros(l.part_totale)} de part + {euros(l.redevance_totale)} de redevance
                           </p>
                         )}
                       </div>
@@ -200,37 +194,18 @@ export default function PageFacturation() {
                         </p>
                         <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "12px", margin: 0 }}>
                           dont {euros(l.prelevement)} de prelevement
-                          {l.redactions > 0 ? " et " + euros(l.redactions) + " de redaction" : ""}
                         </p>
                       </div>
                     </div>
 
-                    {beaucoupDePlancher && (
-                      <p style={{ color: "#e8a33d", fontSize: "13px", margin: "12px 0 0", lineHeight: "1.7" }}>
-                        La majorite de ses inscriptions tombent au plancher : il inscrit beaucoup et
-                        vend peu, ou vend a bas prix. C est la conversation a avoir avec lui.
-                      </p>
+                    {l.inscriptions > 0 && (
+                      <button
+                        onClick={() => setOuvert({ ...ouvert, [l.id]: !estOuvert })}
+                        style={{ ...BOUTON, marginTop: "14px" }}
+                      >
+                        {estOuvert ? "Fermer le detail" : "Detail des inscriptions"}
+                      </button>
                     )}
-
-                    <div style={{ display: "flex", gap: "9px", flexWrap: "wrap", marginTop: "14px" }}>
-                      {l.inscriptions > 0 && (
-                        <button
-                          onClick={() => setOuvert({ ...ouvert, [l.id]: !estOuvert })}
-                          style={BOUTON}
-                        >
-                          {estOuvert ? "Fermer le detail" : "Detail des inscriptions"}
-                        </button>
-                      )}
-
-                      {l.formations_redigees > 0 && (
-                        <button
-                          onClick={() => setOuvertRedac({ ...ouvertRedac, [l.id]: !redacOuvert })}
-                          style={{ ...BOUTON, color: "#448aff", borderColor: "rgba(68,138,255,0.45)" }}
-                        >
-                          {redacOuvert ? "Fermer les redactions" : "Detail des redactions"}
-                        </button>
-                      )}
-                    </div>
 
                     {estOuvert && (
                       <div style={{ marginTop: "14px", paddingTop: "12px", borderTop: "1px solid rgba(255,255,255,0.08)" }}>
@@ -243,29 +218,7 @@ export default function PageFacturation() {
                                 <span style={{ color: "rgba(255,255,255,0.35)" }}> · {x.motif}</span>
                               </span>
                               <span style={{ color: x.du > 0 ? "#c8a96e" : "rgba(255,255,255,0.3)", fontSize: "13px", fontWeight: "bold" }}>
-                                {x.prix !== null ? euros(x.prix) + " → " : ""}{euros(x.du)}
-                              </span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-
-                    {redacOuvert && (
-                      <div style={{ marginTop: "14px", paddingTop: "12px", borderTop: "1px solid rgba(68,138,255,0.25)" }}>
-                        <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "12.5px", margin: "0 0 10px", lineHeight: "1.7" }}>
-                          Une formation redigee par l assistant est facturee une seule fois, au
-                          premier module : les modules suivants de la meme formation ne coutent rien.
-                        </p>
-                        {(l.details_redactions || []).map(function (x: any, i: number) {
-                          return (
-                            <div key={i} style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "10px", padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
-                              <span style={{ color: "rgba(255,255,255,0.7)", fontSize: "13px", wordBreak: "break-all" }}>
-                                {x.reference}
-                                <span style={{ color: "rgba(255,255,255,0.35)" }}> · {jour(x.le)}</span>
-                              </span>
-                              <span style={{ color: "#448aff", fontSize: "13px", fontWeight: "bold" }}>
-                                {euros(x.montant)}
+                                {x.prix !== null && x.prix > 0 ? euros(x.prix) + " → " : ""}{euros(x.du)}
                               </span>
                             </div>
                           );
