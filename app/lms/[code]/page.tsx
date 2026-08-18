@@ -17,6 +17,9 @@ const AGENTS_DOMAINE = {
   "Droit": { formateur: "Antoine Moreau", coach: "Isabelle Moreau" },
   "Outils": { formateur: "Thomas Martin", coach: "Isabelle Moreau" },
   "Psychologie": { formateur: "Claire Beaumont", coach: "Maya" },
+  "Securite": { formateur: "Karim Benzara", coach: "Isabelle Moreau" },
+  "Ressources humaines": { formateur: "Emma Lefebvre", coach: "Isabelle Moreau" },
+  "Savoirs de base": { formateur: "Sofia Durand", coach: "Maya" },
 };
 
 function propre(t) {
@@ -85,6 +88,91 @@ function analyserQuestions(zone) {
   return questions;
 }
 
+// 🖥️🖥️ LE DECOUPAGE EN BLOCS — corrige le 18/08.
+//
+// LE DEFAUT, ET IL RENDAIT LES COURS SUR LOGICIEL ILLISIBLES. La page
+// decoupait le contenu LIGNE PAR LIGNE et affichait chaque ligne comme du
+// texte. Or un schema d'interface fait vingt a trente lignes de HTML : le
+// stagiaire voyait donc trente lignes de code brut a l'ecran.
+//
+// Ses mots : « il faut etre informaticien pour lire cette page ».
+//
+// COMMENT ON REPARE : avant de decouper en lignes, on isole les blocs HTML
+// — tout ce qui va d'une balise ouvrante de premier niveau a sa fermeture.
+// Ces blocs sont rendus tels quels ; le reste continue d'etre traite ligne
+// par ligne comme avant.
+//
+// ⚠️ POURQUOI C'EST SANS DANGER ICI. Le HTML vient de NOTRE generateur, pas
+// d'un utilisateur : personne d'exterieur ne peut y glisser quoi que ce
+// soit. On refuse malgre tout les balises script, iframe, object et les
+// gestionnaires d'evenements — si un jour un contenu venait d'ailleurs, la
+// page resterait sure.
+//
+// 🚨 LES 504 AUTRES FORMATIONS NE CONTIENNENT AUCUN HTML : elles passent
+// par le chemin habituel, rien ne change pour elles.
+function estOuvertureBloc(ligne) {
+  return /^<(div|table|figure|section)\b/i.test(ligne.trim());
+}
+
+function nomBalise(ligne) {
+  const m = ligne.trim().match(/^<([a-z]+)\b/i);
+  return m ? m[1].toLowerCase() : "";
+}
+
+// Nettoie ce qui pourrait etre dangereux, par precaution.
+function htmlSur(html) {
+  return String(html || "")
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<iframe[\s\S]*?<\/iframe>/gi, "")
+    .replace(/<object[\s\S]*?<\/object>/gi, "")
+    .replace(/<embed[\s\S]*?>/gi, "")
+    .replace(/\son\w+\s*=\s*"[^"]*"/gi, "")
+    .replace(/\son\w+\s*=\s*'[^']*'/gi, "")
+    .replace(/javascript:/gi, "");
+}
+
+// Transforme un texte en une suite de blocs : soit une ligne de texte,
+// soit un schema HTML complet.
+function enBlocs(texte) {
+  const lignes = String(texte || "").split("\n");
+  const blocs = [];
+  let i = 0;
+
+  while (i < lignes.length) {
+    const ligne = lignes[i];
+
+    if (estOuvertureBloc(ligne)) {
+      const balise = nomBalise(ligne);
+      const ouvrante = new RegExp("<" + balise + "\\b", "gi");
+      const fermante = new RegExp("</" + balise + ">", "gi");
+
+      let profondeur = 0;
+      const morceaux = [];
+      let j = i;
+
+      // On avance jusqu'a refermer toutes les balises ouvertes, sans
+      // depasser cent lignes — garde-fou contre un HTML mal ferme.
+      while (j < lignes.length && j < i + 100) {
+        const courante = lignes[j];
+        morceaux.push(courante);
+        profondeur += (courante.match(ouvrante) || []).length;
+        profondeur -= (courante.match(fermante) || []).length;
+        j = j + 1;
+        if (profondeur <= 0) break;
+      }
+
+      blocs.push({ type: "html", contenu: morceaux.join("\n") });
+      i = j;
+      continue;
+    }
+
+    if (ligne.trim()) blocs.push({ type: "texte", contenu: ligne });
+    i = i + 1;
+  }
+
+  return blocs;
+}
+
 export default function LMSPage({ params }) {
   const code = params.code?.toUpperCase();
   const [formation, setFormation] = useState(null);
@@ -120,25 +208,36 @@ export default function LMSPage({ params }) {
   const moduleValide = progression[cle] === "valide";
 
   const texteCours = coursSansQCM(contenu);
+
+  // 🖥️ LE DECOUPAGE EN PAGES TIENT COMPTE DES SCHEMAS : un schema n'est
+  // JAMAIS coupe en deux entre deux pages, sinon il ne s'afficherait pas.
   const pages = (function () {
-    const lignes = texteCours.split("\n").filter(l => l.trim() && l.trim() !== "---");
+    const blocs = enBlocs(texteCours).filter(function (b) {
+      return b.type === "html" || (b.contenu.trim() && b.contenu.trim() !== "---");
+    });
+
     const resultat = [];
-    let bloc = [];
+    let courant = [];
     let taille = 0;
-    for (const ligne of lignes) {
-      bloc.push(ligne);
-      taille = taille + ligne.length;
-      if (taille >= CARACTERES_PAR_PAGE && !/^#{1,6}\s/.test(ligne.trim())) {
-        resultat.push(bloc.join("\n"));
-        bloc = [];
+
+    for (const bloc of blocs) {
+      courant.push(bloc);
+      taille = taille + bloc.contenu.length;
+
+      const estTitre = bloc.type === "texte" && /^#{1,6}\s/.test(bloc.contenu.trim());
+      if (taille >= CARACTERES_PAR_PAGE && !estTitre) {
+        resultat.push(courant);
+        courant = [];
         taille = 0;
       }
     }
-    if (bloc.length > 0) resultat.push(bloc.join("\n"));
-    return resultat.length > 0 ? resultat : [texteCours];
+
+    if (courant.length > 0) resultat.push(courant);
+    return resultat.length > 0 ? resultat : [blocs];
   })();
+
   const totalPages = pages.length;
-  const pageCourante = pages[pageModule] || pages[0] || "";
+  const blocsPage = pages[pageModule] || pages[0] || [];
 
   const questions = analyserQuestions(zoneQCM(contenu));
   const repondues = questions.filter(q => choix[q.numero]).length;
@@ -189,11 +288,6 @@ export default function LMSPage({ params }) {
   }
 
   // L ASSIDUITE S ECRIT, ELLE NE SE DEDUIT PAS.
-  //
-  // La page ne faisait que RELIRE la progression apres une note reussie :
-  // rien n appelait jamais le POST, donc progression_apprenants restait vide,
-  // le stagiaire retrouvait 0 % a chaque retour, et le certificat — declenche
-  // depuis ce meme POST — ne pouvait pas se declencher non plus.
   async function enregistrerValidation(module_cle, score) {
     try {
       const r = await fetch("/api/progression", {
@@ -294,8 +388,7 @@ export default function LMSPage({ params }) {
     setCorrectionEnCours(false);
   }
 
-  // L assistant lit LE MODULE EN COURS et repond en s appuyant dessus, au lieu
-  // de repondre de culture generale sur le seul titre de la formation.
+  // L assistant lit LE MODULE EN COURS et repond en s appuyant dessus.
   async function envoyerChat() {
     if (!chatMessage.trim()) return;
     const msg = chatMessage;
@@ -366,6 +459,33 @@ export default function LMSPage({ params }) {
     boxShadow: "0 4px 30px rgba(0,0,0,0.4)",
     marginBottom: "20px",
   };
+
+  // 🖥️ Le rendu d'un bloc : un schema s'affiche tel quel, une ligne de
+  // texte suit le traitement habituel.
+  function rendreBloc(bloc, i) {
+    if (bloc.type === "html") {
+      return (
+        <div
+          key={i}
+          style={{ margin: "22px 0", overflowX: "auto" }}
+          dangerouslySetInnerHTML={{ __html: htmlSur(bloc.contenu) }}
+        />
+      );
+    }
+
+    const l = bloc.contenu.trim();
+
+    if (/^#{1,6}\s/.test(l)) {
+      const texte = l.replace(/^#{1,6}\s+/, "");
+      const niveau = (l.match(/^(#{1,6})/) || ["", ""])[1].length;
+      if (niveau <= 2) return <h2 key={i} style={{ color: "#c8a96e", fontFamily: "Georgia,serif", fontSize: "22px", margin: "20px 0 10px" }}>{texte}</h2>;
+      return <h3 key={i} style={{ color: "#333", fontSize: "18px", margin: "15px 0 8px", fontWeight: "bold" }}>{texte}</h3>;
+    }
+    if (l === "---") return <hr key={i} style={{ border: "none", borderTop: "1px solid #ddd", margin: "16px 0" }} />;
+    if (l.startsWith("> ")) return <blockquote key={i} style={{ borderLeft: "4px solid #c8a96e", paddingLeft: "16px", margin: "16px 0", color: "#555", fontStyle: "italic", fontSize: "18px" }}>{propre(l.replace(/^> /, ""))}</blockquote>;
+    if (/^[-*]\s+/.test(l)) return <p key={i} style={{ color: "#1a1a1a", fontSize: "18px", lineHeight: "1.8", margin: "0 0 10px 22px" }}>• {propre(l.replace(/^[-*]\s+/, ""))}</p>;
+    return <p key={i} style={{ color: "#1a1a1a", fontSize: "18px", lineHeight: "1.85", marginBottom: "16px", textAlign: "justify" }}>{propre(l)}</p>;
+  }
 
   return (
     <div style={{ background: "#050508", minHeight: "100vh", color: "#fff" }}>
@@ -454,19 +574,7 @@ export default function LMSPage({ params }) {
                     </div>
                   )}
 
-                  {pageCourante.split("\n").filter(l => l.trim()).map((ligne, i) => {
-                    const l = ligne.trim();
-                    if (/^#{1,6}\s/.test(l)) {
-                      const texte = l.replace(/^#{1,6}\s+/, "");
-                      const niveau = (l.match(/^(#{1,6})/) || ["", ""])[1].length;
-                      if (niveau <= 2) return <h2 key={i} style={{ color: "#c8a96e", fontFamily: "Georgia,serif", fontSize: "22px", margin: "20px 0 10px" }}>{texte}</h2>;
-                      return <h3 key={i} style={{ color: "#333", fontSize: "18px", margin: "15px 0 8px", fontWeight: "bold" }}>{texte}</h3>;
-                    }
-                    if (l === "---") return <hr key={i} style={{ border: "none", borderTop: "1px solid #ddd", margin: "16px 0" }} />;
-                    if (l.startsWith("> ")) return <blockquote key={i} style={{ borderLeft: "4px solid #c8a96e", paddingLeft: "16px", margin: "16px 0", color: "#555", fontStyle: "italic", fontSize: "18px" }}>{propre(l.replace(/^> /, ""))}</blockquote>;
-                    if (/^[-*]\s+/.test(l)) return <p key={i} style={{ color: "#1a1a1a", fontSize: "18px", lineHeight: "1.8", margin: "0 0 10px 22px" }}>• {propre(l.replace(/^[-*]\s+/, ""))}</p>;
-                    return <p key={i} style={{ color: "#1a1a1a", fontSize: "18px", lineHeight: "1.85", marginBottom: "16px", textAlign: "justify" }}>{propre(l)}</p>;
-                  })}
+                  {blocsPage.map(rendreBloc)}
 
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "30px", padding: "15px 0", borderTop: "1px solid #eee" }}>
                     <button onClick={() => setPageModule(p => Math.max(0, p - 1))} disabled={pageModule === 0} style={styleNav(pageModule > 0)}>← Précédent</button>
