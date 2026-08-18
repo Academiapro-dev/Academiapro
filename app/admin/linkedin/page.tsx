@@ -1,25 +1,27 @@
 "use client";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 
 // L ECRAN LINKEDIN — QUATRE TEMPS, QUATRE ONGLETS.
 //
 // INVITER : une fiche a la fois, le mot pre-redige, le profil qui s ouvre.
 // MES INVITATIONS : ce qui est parti et attend une reponse.
-// A RELANCER : les personnes qui ont accepte et n ont pas encore recu de
-//   message.
-// MESSAGES ENVOYES : ceux a qui l on a ecrit, classes du plus ancien au
-//   plus recent.
+// A ECRIRE : les personnes qui ont accepte et n ont pas encore recu de mot.
+// MESSAGES ENVOYES : ceux a qui l on a ecrit, du plus ancien au plus recent.
 //
-// 🚨 LE DEFAUT QUE LE QUATRIEME ONGLET REPARE — 18/08. Une fiche marquee
-// « Message envoye » passait au statut `relance` et DISPARAISSAIT DE TOUS
-// LES ONGLETS. Jacques a envoye treize messages et ne retrouvait plus
-// personne : « les fiches concernees disparaissent, je sais plus ou elles
-// sont ». Ce sont pourtant ses contacts les plus avances.
+// 🆕 LECTURE D UNE CAPTURE — 18/08. Jacques croise des profils au fil de son
+// actualite LinkedIn. Recopier a la main le nom, l organisme, la ville et
+// l adresse du profil est long sur un iPad, et c est la que naissent les
+// fautes de frappe. Il photographie desormais le profil, depose l image, et
+// les champs se remplissent seuls.
 //
-// 🚨 ET LE COMPTEUR MENTAIT. « Acceptees » ne totalisait que `accepte` et
-// `accepte_nu` : des qu un message partait, la fiche sortait du total et le
-// tableau de bord affichait ZERO ACCEPTATION. Le travail accompli faisait
-// BAISSER le chiffre au lieu de le monter.
+// La lecture est disponible A DEUX ENDROITS : dans le formulaire d ajout
+// d un nouveau profil, et DANS CHAQUE FICHE COMPLETE — car une capture sert
+// aussi a COMPLETER une fiche existante dont l open data n a donne qu un nom.
+//
+// ⚠️ RIEN N EST ENREGISTRE AUTOMATIQUEMENT. La lecture remplit les champs,
+// Jacques relit, corrige si besoin, puis enregistre. Une lecture se trompe
+// parfois — et une adresse de profil fausse enverrait l invitation dans le
+// vide.
 //
 // 🚨 AUCUN ENVOI AUTOMATIQUE, ET CE N EST PAS CONTOURNABLE. LinkedIn
 // n expose AUCUNE API de messagerie, et les outils qui simulent les clics
@@ -72,8 +74,7 @@ function champsDe(base: string) {
 // SEMAINES si on ne voulait pas.
 const LIMITE_NOTE = 200;
 
-// Au-dela de ce delai sans reponse, la fiche est signalee : c est le moment
-// d ecrire une seconde fois.
+// Au-dela de ce delai sans reponse, la fiche est signalee.
 const JOURS_AVANT_RELANCE = 12;
 
 function motInvitation(prenom: string) {
@@ -84,8 +85,7 @@ function motInvitation(prenom: string) {
     + "Ravi d'échanger avec vous.";
 }
 
-// LE MESSAGE APRES ACCEPTATION. Pas de promesse de resultat, pas de chiffre
-// invente, pas de temoignage.
+// LE MESSAGE APRES ACCEPTATION.
 //
 // ⚠️ AUCUNE MENTION DE PRODUCTION SUR DEMANDE. Le catalogue est evolutif,
 // point. Decision du 17/08, a ne pas defaire.
@@ -110,7 +110,6 @@ function messageRelance(prenom: string, societe: string) {
 }
 
 // LA SECONDE RELANCE, pour ceux qui n ont pas repondu au premier message.
-// Courte, sans reproche, et elle donne une raison de repondre.
 function secondMessage(prenom: string) {
   const p = String(prenom || "").trim();
   return (p ? "Bonjour " + p : "Bonjour") + ",\n\n"
@@ -151,6 +150,13 @@ export default function PageLinkedin() {
   const [brouillon, setBrouillon] = useState<any>({});
   const [enregistre, setEnregistre] = useState("");
 
+  // LA LECTURE DE CAPTURE. `litPour` porte la cle de la fiche en cours de
+  // lecture, ou « ajout » pour le formulaire de creation.
+  const [litPour, setLitPour] = useState("");
+  const champAjout = useRef<any>(null);
+  const champFiche = useRef<any>(null);
+  const [cibleFiche, setCibleFiche] = useState<any>(null);
+
   // LE MODE ENCHAINEMENT.
   const [serie, setSerie] = useState<any[] | null>(null);
   const [rang, setRang] = useState(0);
@@ -189,6 +195,101 @@ export default function PageLinkedin() {
   function cleDe(l: any) {
     return l.base + "-" + l.id;
   }
+
+  // ---------- LA LECTURE D UNE CAPTURE ----------
+
+  // L image est convertie en base64 avant d etre envoyee. Le navigateur le
+  // fait lui-meme, sans depot de fichier nulle part.
+  function enBase64(fichier: File): Promise<string> {
+    return new Promise(function (resoudre, rejeter) {
+      const lecteur = new FileReader();
+      lecteur.onload = function () { resoudre(String(lecteur.result || "")); };
+      lecteur.onerror = function () { rejeter(new Error("Lecture du fichier impossible")); };
+      lecteur.readAsDataURL(fichier);
+    });
+  }
+
+  async function lireCapture(fichier: File, pour: string, ligne?: any) {
+    if (!fichier) return;
+    setLitPour(pour);
+    setErreur("");
+    setMessage("");
+    try {
+      const image = await enBase64(fichier);
+
+      const r = await fetch("/api/admin/linkedin-lire-capture", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image: image }),
+      });
+      const d = await r.json();
+
+      if (!d.ok) {
+        setErreur(d.erreur || "Lecture impossible.");
+        setLitPour("");
+        return;
+      }
+
+      // LE FORMULAIRE D AJOUT.
+      if (pour === "ajout") {
+        if (d.nom) setANom(d.nom);
+        if (d.organisme) setAOrganisme(d.organisme);
+        if (d.ville) setAVille(d.ville);
+        if (d.linkedin) setALien(d.linkedin);
+        if (d.observation) setANotes(d.observation);
+
+        // Deux avertissements utiles, plutot qu un enregistrement silencieux.
+        let mot = "Capture lue.";
+        if (!d.linkedin) {
+          mot += " L'adresse du profil n'était pas visible : touchez les trois points "
+            + "sur LinkedIn, puis « Copier le lien vers le profil », et collez-la.";
+        }
+        if (d.deja_invite) {
+          mot += " ⚠️ Ce profil porte déjà la mention « En attente » — vous l'avez "
+            + "probablement invité depuis LinkedIn. L'ajouter consommerait une unité "
+            + "de votre quota sans que rien ne parte.";
+        }
+        setMessage(mot);
+      } else if (ligne) {
+        // UNE FICHE EXISTANTE : on ne remplit que les champs VIDES, pour ne
+        // jamais ecraser une donnee deja verifiee par une lecture d image.
+        const cle = cleDe(ligne);
+        const actuel = brouillon[cle] || {};
+        const neuf: any = { ...actuel };
+        const cible = ligne.base === "manuel" ? "crm" : "prospect";
+
+        function poserSiVide(champ: string, valeur: string) {
+          if (!valeur) return;
+          if (!actuel[champ] || String(actuel[champ]).trim() === "") neuf[champ] = valeur;
+        }
+
+        poserSiVide("dirigeant_prenom", d.prenom);
+        poserSiVide("dirigeant_nom", d.patronyme);
+        poserSiVide("ville", d.ville);
+        poserSiVide("linkedin", d.linkedin);
+        if (cible === "crm") {
+          poserSiVide("nom", d.nom);
+          poserSiVide("organisme", d.organisme);
+        } else {
+          poserSiVide("raison_sociale", d.organisme);
+        }
+
+        // L observation s AJOUTE a celle qui existe, elle ne la remplace pas.
+        if (d.observation) {
+          const ancienne = String(actuel.notes || "").trim();
+          neuf.notes = ancienne ? ancienne + "\n\n" + d.observation : d.observation;
+        }
+
+        setBrouillon({ ...brouillon, [cle]: neuf });
+        setMessage("Capture lue. Les champs vides ont été remplis — relisez avant d'enregistrer.");
+      }
+    } catch (e: any) {
+      setErreur("Lecture impossible : " + String(e.message || e));
+    }
+    setLitPour("");
+  }
+
+  // ---------- FIN DE LA LECTURE ----------
 
   function poser(d: any) {
     setFiche(d.fiche || null);
@@ -600,6 +701,7 @@ export default function PageLinkedin() {
     const vals = brouillon[cle] || {};
     const occupe = enregistre === cle;
     const aNote = String(l.notes || "").trim().length > 0;
+    const lit = litPour === cle;
 
     if (!ouvert) {
       return (
@@ -630,6 +732,21 @@ export default function PageLinkedin() {
       <div style={{ marginTop: "12px", padding: "16px", background: "rgba(200,169,110,0.05)", border: "1px solid rgba(200,169,110,0.3)", borderRadius: "9px" }}>
         <div style={{ color: OR, fontSize: "12px", letterSpacing: "2px", marginBottom: "14px" }}>
           FICHE COMPLÈTE — TOUT EST MODIFIABLE
+        </div>
+
+        {/* LA LECTURE DE CAPTURE, pour completer une fiche incomplete. */}
+        <div style={{ marginBottom: "16px", padding: "13px", background: "rgba(68,138,255,0.07)", border: "1px solid rgba(68,138,255,0.3)", borderRadius: "8px" }}>
+          <button
+            onClick={() => { setCibleFiche(l); if (champFiche.current) champFiche.current.click(); }}
+            disabled={lit}
+            style={{ width: "100%", background: lit ? "rgba(255,255,255,0.06)" : "rgba(68,138,255,0.18)", color: lit ? "rgba(255,255,255,0.4)" : BLEU, border: "1px solid rgba(68,138,255,0.45)", borderRadius: "8px", padding: "12px", fontSize: "13.5px", fontFamily: "Georgia,serif", cursor: lit ? "wait" : "pointer" }}
+          >
+            {lit ? "Lecture en cours…" : "📷 Compléter depuis une capture LinkedIn"}
+          </button>
+          <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "12px", lineHeight: "1.7", margin: "9px 0 0" }}>
+            Seuls les champs <strong>vides</strong> seront remplis — ce que vous avez déjà
+            vérifié ne sera pas écrasé. L'observation s'ajoute à la suite de l'existante.
+          </p>
         </div>
 
         <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
@@ -682,10 +799,35 @@ export default function PageLinkedin() {
 
   const enSerie = serie !== null && serie.length > 0 && rang < serie.length;
   const courante = enSerie ? serie![rang] : null;
-  const listeVisible = onglet === "attente" || onglet === "relancer" || onglet === "envoyes";
 
   return (
     <div style={{ backgroundColor: "#050508", minHeight: "100vh", color: "#fff", fontFamily: "Georgia, serif" }}>
+
+      {/* LES DEUX CHAMPS DE FICHIER, invisibles, declenches par les boutons.
+          Ils acceptent la photothèque comme l'appareil photo. */}
+      <input
+        ref={champAjout}
+        type="file"
+        accept="image/*"
+        style={{ display: "none" }}
+        onChange={(e) => {
+          const f = e.target.files && e.target.files[0];
+          if (f) lireCapture(f, "ajout");
+          e.target.value = "";
+        }}
+      />
+      <input
+        ref={champFiche}
+        type="file"
+        accept="image/*"
+        style={{ display: "none" }}
+        onChange={(e) => {
+          const f = e.target.files && e.target.files[0];
+          if (f && cibleFiche) lireCapture(f, cleDe(cibleFiche), cibleFiche);
+          e.target.value = "";
+        }}
+      />
+
       <div style={{ background: "linear-gradient(135deg,#0a0a1a,#1a1a2e)", padding: "26px 20px" }}>
         <a href="/admin/crm" style={{ color: OR, fontSize: "13px", textDecoration: "none" }}>
           ← Retour au CRM
@@ -803,7 +945,7 @@ export default function PageLinkedin() {
                     Un profil croisé sur LinkedIn ?
                   </div>
                   <div style={{ color: "rgba(255,255,255,0.45)", fontSize: "12.5px", marginTop: "3px", lineHeight: "1.7" }}>
-                    Ajoutez-le à votre file, même sans adresse e-mail.
+                    Photographiez-le, les champs se remplissent seuls.
                   </div>
                 </div>
                 <button onClick={() => { setAjout(!ajout); setErreur(""); setMessage(""); }}
@@ -814,6 +956,30 @@ export default function PageLinkedin() {
 
               {ajout && (
                 <div style={{ marginTop: "18px", paddingTop: "16px", borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+
+                  {/* LA LECTURE DE CAPTURE — en tete du formulaire, car c'est
+                      par la qu'on commence. */}
+                  <button
+                    onClick={() => { if (champAjout.current) champAjout.current.click(); }}
+                    disabled={litPour === "ajout"}
+                    style={{
+                      width: "100%",
+                      background: litPour === "ajout" ? "rgba(255,255,255,0.06)" : BLEU,
+                      color: litPour === "ajout" ? "rgba(255,255,255,0.4)" : "#fff",
+                      border: "none", borderRadius: "9px", padding: "15px",
+                      fontSize: "15px", fontWeight: "bold", fontFamily: "Georgia,serif",
+                      cursor: litPour === "ajout" ? "wait" : "pointer", marginBottom: "10px",
+                    }}
+                  >
+                    {litPour === "ajout" ? "Lecture de la capture…" : "📷 Lire une capture du profil"}
+                  </button>
+                  <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "12.5px", lineHeight: "1.75", margin: "0 0 18px" }}>
+                    Photographiez le haut du profil LinkedIn : le nom, l'organisme, la ville et
+                    l'observation seront remplis automatiquement. <strong>L'adresse du profil
+                    est rarement visible sur une capture</strong> — sur LinkedIn, touchez les
+                    trois points puis « Copier le lien vers le profil », et collez-la ci-dessous.
+                  </p>
+
                   <span style={LIBELLE}>Nom du contact *</span>
                   <input value={aNom} onChange={(e) => setANom(e.target.value)}
                     placeholder="Sarah Dupont" style={{ ...CHAMP, marginBottom: "12px" }} />
@@ -821,7 +987,7 @@ export default function PageLinkedin() {
                   <span style={LIBELLE}>Adresse du profil LinkedIn *</span>
                   <input value={aLien} onChange={(e) => setALien(e.target.value)}
                     placeholder="https://www.linkedin.com/in/sarah-dupont"
-                    style={{ ...CHAMP, marginBottom: "12px" }} />
+                    style={{ ...CHAMP, marginBottom: "12px", borderColor: aLien ? "rgba(200,169,110,0.3)" : "rgba(232,163,61,0.5)" }} />
 
                   <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
                     <div style={{ flex: "1 1 200px" }}>
@@ -837,7 +1003,7 @@ export default function PageLinkedin() {
                   </div>
 
                   <span style={LIBELLE}>Ce que vous voulez retenir</span>
-                  <textarea value={aNotes} onChange={(e) => setANotes(e.target.value)} rows={3}
+                  <textarea value={aNotes} onChange={(e) => setANotes(e.target.value)} rows={4}
                     placeholder="Croisé sur un post à propos de Qualiopi."
                     style={{ ...CHAMP, marginBottom: "14px" }} />
 
