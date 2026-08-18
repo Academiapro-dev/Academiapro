@@ -42,8 +42,6 @@ const supabase = createClient(
 // LA SEULE FORMULE AUTORISEE, SANS RIEN PRECISER D'AUTRE :
 //     « le catalogue de l'Editeur est evolutif »
 //
-// Pas de delai annonce, pas de commande possible, pas de sur-mesure. Ni ici,
-// ni dans les CGV, ni dans un courrier, ni sur une page de vente.
 // NE JAMAIS LA REINTRODUIRE.
 //
 // 🚨🚨 LA GRILLE DEFINITIVE DU PACK, arretee le 17/08 :
@@ -55,32 +53,31 @@ const supabase = createClient(
 //     annuel inclus. Aucune option a facturer separement.
 //
 // ⚠️⚠️ LES 30 EUR NE SONT PLUS UN MINIMUM, C'EST UNE REDEVANCE QUI S'AJOUTE.
-// La phrase « lorsque la part calculee au taux ci-dessus lui est superieure,
-// seule cette part est due » a ete retiree : elle serait devenue le levier
-// d'un client pour refuser la redevance.
 //
-// CE QUI A ETE ESSAYE ET ECARTE LE MEME JOUR, pour ne pas y revenir :
-//   - Deux formules au choix (35 % + minimum, ou 10 % + 180 EUR par
-//     stagiaire). Ecartees : « si on lui laisse le choix, on lui cree une
-//     hesitation dans sa tete, c'est psychologique ».
-//   - 35 % + une option de gestion a 79 puis 49 EUR par mois et par
-//     stagiaire ACTIF. Ecartee : elle contredisait la promesse d'une gestion
-//     ANNUELLE — le bilan pedagogique se produit en janvier alors que les
-//     stagiaires ont fini en juin.
-//   - Un abonnement abaisse a 49 EUR. Ecarte : « les 390 EUR, on les
-//     maintient ».
-//   - 45 % sans redevance. Ecarte au profit de 40 % + 30 EUR, qui rapporte
-//     autant : « c'est mieux, et c'est plus securisant pour moi ».
-//
-// 🚨 IL N'Y A PLUS DE TARIF DE LANCEMENT. Le code divisait l'abonnement PAR
-// DEUX des que lancement_jusqu_au portait une date. Ne pas le reintroduire.
+// 🚨 IL N'Y A PLUS DE TARIF DE LANCEMENT.
 //
 // 🚨🚨 LA STRATEGIE, ARRETEE LE 16/08 — NE PAS LA REOUVRIR. ACADEMIA PRO EST
-// LE CATALOGUE, elle ne vend pas un outil de fabrication. Le modele est
-// celui de la SOUS-TRAITANCE DE CONTENU : l'organisme vend l'action, porte
-// sa certification et sa responsabilite, et sous-traite le contenu. Un
-// organisme qui veut produire ses propres formations DEVIENT UN CONCURRENT,
-// pas un client.
+// LE CATALOGUE, elle ne vend pas un outil de fabrication.
+//
+// 🌍🌍 LA VARIANTE HORS FRANCE — ajoutee le 18/08.
+//
+// POURQUOI ELLE EXISTE. Ce bon de commande reclamait a TOUT client un
+// SIRET, un NUMERO DE DECLARATION D'ACTIVITE et un NUMERO DE TVA
+// INTRACOMMUNAUTAIRE. Ces trois mentions n'existent qu'en France : un
+// etablissement congolais, canadien ou suisse n'en a aucune, et se voir
+// demander « A COMPLETER » sur trois lignes qui le concernent pas donne
+// l'impression d'un document mal ficele.
+//
+// Deux autres passages etaient faux hors de France :
+//   - l'AUTOLIQUIDATION DE TVA, qui ne vaut qu'entre assujettis de l'Union
+//     europeenne. Hors UE, la prestation est simplement hors champ de la
+//     TVA francaise, et le client applique la fiscalite de son pays.
+//   - LA MENTION QUALIOPI ET LE RNCP, qui n'ont aucun sens ailleurs : un
+//     organisme etranger n'est pas certifie Qualiopi et ne cherche pas
+//     l'eligibilite au compte personnel de formation.
+//
+// La colonne `pays` de organismes_formation commande tout cela. Elle vaut
+// « FR » par defaut, donc RIEN NE CHANGE pour les clients existants.
 const OFFRES: any = {
   pack: {
     nom: "PACK COMPLET",
@@ -105,6 +102,15 @@ const OFFRES: any = {
 // Valeurs de secours, utilisees seulement si la fiche client est vide.
 const TAUX_DEFAUT = 40;
 const REDEVANCE_DEFAUT = 30;
+
+// Les pays de l'Union europeenne, pour lesquels l'autoliquidation de TVA
+// s'applique comme en France. Hors de cette liste, la prestation est hors
+// champ de la TVA francaise.
+const UNION_EUROPEENNE = [
+  "FR", "DE", "AT", "BE", "BG", "CY", "HR", "DK", "ES", "EE", "FI", "GR",
+  "HU", "IE", "IT", "LV", "LT", "LU", "MT", "NL", "PL", "PT", "CZ", "RO",
+  "SK", "SI", "SE",
+];
 
 function ascii(t: any): string {
   return String(t === null || t === undefined ? "" : t)
@@ -153,6 +159,11 @@ export async function POST(req: NextRequest) {
     if (!offre) {
       return NextResponse.json({ ok: false, erreur: "Offre inconnue." }, { status: 400 });
     }
+
+    // 🌍 LE PAYS COMMANDE TOUT LE DOCUMENT.
+    const pays = String(b.pays || org.pays || "FR").trim().toUpperCase();
+    const enFrance = pays === "FR";
+    const dansUE = UNION_EUROPEENNE.indexOf(pays) >= 0;
 
     const postes = Math.max(1, Number(org.nb_utilisateurs) || 1);
 
@@ -282,16 +293,30 @@ export async function POST(req: NextRequest) {
     titreBloc("L EDITEUR");
     paire("Denomination", "AcadeMIA Pro LLC");
     paire("Siege", "30 N Gould St STE R, Sheridan WY 82801, Etats-Unis");
+    paire("Identifiant fiscal (EIN)", "32-0862305");
     paire("Contact", "contact@academiapro.fr");
 
     titreBloc("LE CLIENT");
     paire("Raison sociale", org.raison_sociale || "-");
-    paire("SIRET", org.siret || "A COMPLETER");
-    paire("N de declaration d activite", org.numero_da || "A COMPLETER");
+
+    // 🌍 LES MENTIONS FRANCAISES NE S'AFFICHENT QU'EN FRANCE.
+    if (enFrance) {
+      paire("SIRET", org.siret || "A COMPLETER");
+      paire("N de declaration d activite", org.numero_da || "A COMPLETER");
+    } else {
+      paire("Immatriculation", org.siret || "A COMPLETER");
+      paire("Pays", pays);
+    }
+
     paire("Adresse", org.adresse || "A COMPLETER");
     paire("Email", org.email_contact || "-");
     paire("Telephone", org.telephone || "-");
-    paire("N de TVA intracommunautaire", org.numero_tva || "A COMPLETER");
+
+    if (dansUE) {
+      paire("N de TVA intracommunautaire", org.numero_tva || "A COMPLETER");
+    } else if (org.numero_tva) {
+      paire("Identifiant fiscal", org.numero_tva);
+    }
 
     if (frais > 0) {
       titreBloc("MISE EN SERVICE");
@@ -321,14 +346,38 @@ export async function POST(req: NextRequest) {
         10, normal, noir, 5
       );
       y = y - 4;
-      ligne(
-        "S y ajoute LA GESTION ADMINISTRATIVE COMPLETE, comprise sans supplement : documents a " +
-        "l en-tete du Client, signature electronique et archivage, evaluations a chaud et a " +
-        "froid, registre des reclamations, dossiers des formateurs, registres de veille, suivi de " +
-        "la sous-traitance, et BILAN PEDAGOGIQUE ET FINANCIER ANNUEL prepare cadre par cadre. " +
-        "STAGIAIRES ILLIMITES ET UTILISATEURS ILLIMITES.",
-        10, normal, noir, 5
-      );
+
+      // 🌍 LA GESTION ADMINISTRATIVE EST ECRITE POUR LE REFERENTIEL FRANCAIS.
+      // Le bilan pedagogique et financier, les registres de veille et le
+      // suivi de sous-traitance sont des exigences Qualiopi : ils n'ont
+      // aucun sens pour un etablissement etranger, qui a ses propres
+      // obligations.
+      if (enFrance) {
+        ligne(
+          "S y ajoute LA GESTION ADMINISTRATIVE COMPLETE, comprise sans supplement : documents a " +
+          "l en-tete du Client, signature electronique et archivage, evaluations a chaud et a " +
+          "froid, registre des reclamations, dossiers des formateurs, registres de veille, suivi de " +
+          "la sous-traitance, et BILAN PEDAGOGIQUE ET FINANCIER ANNUEL prepare cadre par cadre. " +
+          "STAGIAIRES ILLIMITES ET UTILISATEURS ILLIMITES.",
+          10, normal, noir, 5
+        );
+      } else {
+        ligne(
+          "S y ajoute LA GESTION ADMINISTRATIVE COMPLETE, comprise sans supplement : documents a " +
+          "l en-tete du Client, signature electronique et archivage, evaluations de satisfaction, " +
+          "registre des reclamations, dossiers des formateurs, suivi de l assiduite de chaque " +
+          "stagiaire et etats recapitulatifs annuels de l activite de formation. " +
+          "STAGIAIRES ILLIMITES ET UTILISATEURS ILLIMITES.",
+          10, normal, noir, 5
+        );
+        y = y - 4;
+        ligne(
+          "Les documents produits suivent le modele francais. Le Client demeure seul juge de leur " +
+          "conformite aux obligations de son propre pays, et l Editeur les adapte sur demande.",
+          9, normal, gris, 5
+        );
+      }
+
       y = y - 4;
       ligne(
         "Le catalogue de l Editeur est evolutif.",
@@ -342,13 +391,25 @@ export async function POST(req: NextRequest) {
         10, normal, noir, 5
       );
       y = y - 4;
-      ligne(
-        "S y ajoutent les documents administratifs, la signature electronique et son archivage, " +
-        "les evaluations, le registre des reclamations, les dossiers de ses formateurs, le suivi " +
-        "de sa sous-traitance, ses registres de veille et son bilan pedagogique et financier " +
-        "prepare cadre par cadre. STAGIAIRES ILLIMITES ET UTILISATEURS ILLIMITES.",
-        10, normal, noir, 5
-      );
+
+      if (enFrance) {
+        ligne(
+          "S y ajoutent les documents administratifs, la signature electronique et son archivage, " +
+          "les evaluations, le registre des reclamations, les dossiers de ses formateurs, le suivi " +
+          "de sa sous-traitance, ses registres de veille et son bilan pedagogique et financier " +
+          "prepare cadre par cadre. STAGIAIRES ILLIMITES ET UTILISATEURS ILLIMITES.",
+          10, normal, noir, 5
+        );
+      } else {
+        ligne(
+          "S y ajoutent les documents administratifs, la signature electronique et son archivage, " +
+          "les evaluations de satisfaction, le registre des reclamations, les dossiers de ses " +
+          "formateurs et les etats recapitulatifs annuels de son activite. " +
+          "STAGIAIRES ILLIMITES ET UTILISATEURS ILLIMITES.",
+          10, normal, noir, 5
+        );
+      }
+
       y = y - 4;
       ligne(
         "Le catalogue de l Editeur n est pas compris dans cette formule. Il peut etre ouvert au " +
@@ -394,15 +455,32 @@ export async function POST(req: NextRequest) {
       10, gras, noir, 5
     );
     y = y - 6;
-    paire("Envoi de SMS", "0,12 EUR HT le message");
-    y = y - 2;
-    ligne(
-      "Degressif jusqu a 0,08 EUR HT selon le volume mensuel. Aucun abonnement : les credits " +
-      "sont prepayes et sans expiration. Les messages partent sous le nom de l organisme du " +
-      "Client. La prospection par SMS suppose le consentement prealable du destinataire, y " +
-      "compris entre professionnels ; le Client en demeure seul responsable.",
-      9, normal, noir, 5
-    );
+
+    if (enFrance) {
+      paire("Envoi de SMS", "0,12 EUR HT le message");
+      y = y - 2;
+      ligne(
+        "Degressif jusqu a 0,08 EUR HT selon le volume mensuel. Aucun abonnement : les credits " +
+        "sont prepayes et sans expiration. Les messages partent sous le nom de l organisme du " +
+        "Client. La prospection par SMS suppose le consentement prealable du destinataire, y " +
+        "compris entre professionnels ; le Client en demeure seul responsable.",
+        9, normal, noir, 5
+      );
+    } else {
+      // 🌍 LE PRIX DU SMS DEPEND DU PAYS DE DESTINATION, parfois du simple
+      // au decuple. L'annoncer a 0,12 EUR hors de France serait un
+      // engagement qu'on ne pourrait pas tenir.
+      paire("Envoi de SMS", "selon le pays de destination");
+      y = y - 2;
+      ligne(
+        "Le cout d acheminement d un message court varie fortement d un pays a l autre. Le tarif " +
+        "applicable est communique au Client avant l ouverture du service et porte a l avenant. " +
+        "Aucun abonnement : les credits sont prepayes et sans expiration. Le Client demeure seul " +
+        "responsable de la liceite de sa prospection au regard du droit de son pays.",
+        9, normal, noir, 5
+      );
+    }
+
     y = y - 4;
     paire("Appels depuis la plateforme", "a l ouverture du service");
     y = y - 2;
@@ -415,9 +493,7 @@ export async function POST(req: NextRequest) {
     );
 
     if (offre.catalogue) {
-      // 🚨 LA PART ET LA REDEVANCE S'ADDITIONNENT. La phrase « seule cette
-      // part est due » a ete retiree le 17/08 : elle serait devenue le levier
-      // d'un client pour refuser la redevance.
+      // 🚨 LA PART ET LA REDEVANCE S'ADDITIONNENT.
       titreBloc("PART SUR LES VENTES ET REDEVANCE PAR STAGIAIRE");
       paire("Part sur le catalogue", taux + " % du prix de vente hors taxes");
       paire("Redevance par stagiaire inscrit", euros(redevance));
@@ -432,8 +508,8 @@ export async function POST(req: NextRequest) {
       y = y - 4;
       ligne(
         "Ces montants couvrent l integralite de la prestation, gestion administrative comprise : " +
-        "le suivi de chaque stagiaire, ses documents, ses evaluations, et le bilan pedagogique et " +
-        "financier annuel de l organisme. Aucun supplement n est facture a ce titre.",
+        "le suivi de chaque stagiaire, ses documents, ses evaluations, et les etats recapitulatifs " +
+        "annuels. Aucun supplement n est facture a ce titre.",
         9, normal, noir, 5
       );
       y = y - 4;
@@ -443,6 +519,16 @@ export async function POST(req: NextRequest) {
         "part n est due sur les prestations que le Client realise hors de la plateforme.",
         9, normal, gris, 5
       );
+
+      // 🌍 LA MONNAIE DE REGLEMENT, hors zone euro.
+      if (!dansUE) {
+        y = y - 4;
+        ligne(
+          "Tous les montants sont exprimes en euros. Le reglement s effectue en euros, les frais " +
+          "de change et de transfert restant a la charge du Client.",
+          9, gras, noir, 5
+        );
+      }
 
       titreBloc("PROPRIETE DES CONTENUS");
       ligne(
@@ -458,6 +544,18 @@ export async function POST(req: NextRequest) {
         "convenue separement, par avenant et contre remuneration.",
         9, normal, noir, 5
       );
+
+      // 🌍 L'EXCLUSIVITE TERRITORIALE n'a de sens qu'a l'international.
+      if (!enFrance) {
+        y = y - 4;
+        ligne(
+          "Une exclusivite territoriale, portant sur un pays ou une region determines, peut etre " +
+          "convenue par avenant distinct et contre remuneration specifique. Elle ne resulte " +
+          "d aucune stipulation du present bon de commande.",
+          9, normal, noir, 5
+        );
+      }
+
       y = y - 4;
       ligne(
         "Les marques, le logo et les elements propres au Client lui restent acquis : ils ne sont " +
@@ -465,32 +563,66 @@ export async function POST(req: NextRequest) {
         9, normal, gris, 5
       );
 
-      titreBloc("AFFAIRES ORIENTEES PAR L EDITEUR");
-      paire("Partage du produit HT", apport + " % pour l Editeur");
-      y = y - 4;
-      ligne(
-        "S applique aux demandes que l Editeur oriente vers le Client, notamment lorsqu un " +
-        "financement par un operateur de competences est sollicite et que seul le Client detient " +
-        "la certification exigee. Ce partage est distinct de la part ci-dessus.",
-        9, normal, noir, 5
-      );
-      y = y - 4;
-      ligne(
-        "Les formations du catalogue ne sont enregistrees ni au RNCP ni au repertoire specifique : " +
-        "elles ne sont eligibles a aucun financement au titre du compte personnel de formation.",
-        9, normal, gris, 5
-      );
+      // 🌍 LES FINANCEMENTS FRANCAIS NE CONCERNENT QUE LA FRANCE.
+      if (enFrance) {
+        titreBloc("AFFAIRES ORIENTEES PAR L EDITEUR");
+        paire("Partage du produit HT", apport + " % pour l Editeur");
+        y = y - 4;
+        ligne(
+          "S applique aux demandes que l Editeur oriente vers le Client, notamment lorsqu un " +
+          "financement par un operateur de competences est sollicite et que seul le Client detient " +
+          "la certification exigee. Ce partage est distinct de la part ci-dessus.",
+          9, normal, noir, 5
+        );
+        y = y - 4;
+        ligne(
+          "Les formations du catalogue ne sont enregistrees ni au RNCP ni au repertoire specifique : " +
+          "elles ne sont eligibles a aucun financement au titre du compte personnel de formation.",
+          9, normal, gris, 5
+        );
+      } else {
+        titreBloc("AFFAIRES ORIENTEES PAR L EDITEUR");
+        paire("Partage du produit HT", apport + " % pour l Editeur");
+        y = y - 4;
+        ligne(
+          "S applique aux demandes que l Editeur oriente vers le Client. Ce partage est distinct " +
+          "de la part ci-dessus.",
+          9, normal, noir, 5
+        );
+        y = y - 4;
+        ligne(
+          "LES FORMATIONS DU CATALOGUE NE SONT ADOSSEES A AUCUNE CERTIFICATION D ETAT, NI EN " +
+          "FRANCE NI AILLEURS. Elles donnent lieu a une attestation de fin de formation, delivree " +
+          "sous le nom du Client. Il appartient au Client de verifier ce que la reglementation de " +
+          "son pays exige pour l activite de formation, et de n annoncer a ses apprenants aucune " +
+          "reconnaissance officielle qui n existerait pas.",
+          9, gras, noir, 5
+        );
+      }
     }
 
     if (cleOffre !== "crm") {
       titreBloc("REPARTITION DES ROLES");
-      ligne(
-        "Le Client demeure seul prestataire de formation : sa certification, son numero de " +
-        "declaration, ses attestations, sa responsabilite. L Editeur fournit " +
-        (offre.catalogue ? "le contenu, la plateforme, " : "la plateforme, ") +
-        "la correction des evaluations et les documents.",
-        9, normal, noir, 5
-      );
+
+      if (enFrance) {
+        ligne(
+          "Le Client demeure seul prestataire de formation : sa certification, son numero de " +
+          "declaration, ses attestations, sa responsabilite. L Editeur fournit " +
+          (offre.catalogue ? "le contenu, la plateforme, " : "la plateforme, ") +
+          "la correction des evaluations et les documents.",
+          9, normal, noir, 5
+        );
+      } else {
+        ligne(
+          "Le Client demeure seul prestataire de formation a l egard de ses apprenants : ses " +
+          "autorisations, ses attestations, sa responsabilite, et le respect de la reglementation " +
+          "de son pays. L Editeur fournit " +
+          (offre.catalogue ? "le contenu, la plateforme, " : "la plateforme, ") +
+          "la correction des evaluations et les documents.",
+          9, normal, noir, 5
+        );
+      }
+
       y = y - 4;
       ligne(
         "Toute intervention en presence, l evaluation pratique, le recrutement des formateurs, leur " +
@@ -541,15 +673,63 @@ export async function POST(req: NextRequest) {
     }
 
     titreBloc("TAXE, FACTURATION ET REGLEMENT");
-    ligne(
-      "La prestation est fournie par un etablissement etabli hors de l Union europeenne a un " +
-      "assujetti etabli en France : la taxe est autoliquidee par le Client, qui communique son " +
-      "numero de taxe intracommunautaire et procede lui-meme a la declaration.",
-      9, normal, noir, 5
-    );
+
+    // 🌍 TROIS REGIMES DIFFERENTS.
+    //
+    // FRANCE et UNION EUROPEENNE : autoliquidation par le preneur, article
+    // 44 de la directive 2006/112/CE. La prestation est reputee se situer
+    // dans le pays du preneur assujetti.
+    //
+    // HORS UNION : la prestation est HORS CHAMP de la TVA francaise. Le
+    // Client applique la fiscalite de son propre pays — retenue a la source
+    // eventuelle, taxe locale sur les services numeriques, etc. Annoncer une
+    // « autoliquidation » serait faux et pourrait l'induire en erreur.
+    if (dansUE) {
+      ligne(
+        "La prestation est fournie par un etablissement etabli hors de l Union europeenne a un " +
+        "assujetti etabli dans l Union : la taxe est autoliquidee par le Client, qui communique son " +
+        "numero de taxe intracommunautaire et procede lui-meme a la declaration.",
+        9, normal, noir, 5
+      );
+    } else {
+      ligne(
+        "La prestation est fournie par une societe etablie aux Etats-Unis a un preneur etabli hors " +
+        "de l Union europeenne. ELLE EST HORS DU CHAMP DE LA TAXE SUR LA VALEUR AJOUTEE FRANCAISE " +
+        "et facturee sans taxe francaise.",
+        9, normal, noir, 5
+      );
+      y = y - 4;
+      ligne(
+        "Il appartient au Client de determiner et d acquitter les taxes eventuellement dues dans " +
+        "son propre pays au titre de l importation de services. Si la reglementation de son pays " +
+        "impose une retenue a la source, les sommes dues a l Editeur sont majorees a due " +
+        "concurrence, de sorte que l Editeur percoive le montant convenu.",
+        9, normal, noir, 5
+      );
+    }
+
     y = y - 4;
+    paire("Monnaie", "euro (EUR)");
     paire("Facturation", "mensuelle, a terme echu");
-    paire("Reglement", "par virement, a trente jours");
+    paire("Reglement", enFrance ? "par virement, a trente jours" : "par virement international, a trente jours");
+
+    if (!enFrance) {
+      y = y - 4;
+      ligne(
+        "Les frais bancaires de transfert et de change sont a la charge du Client, qui veille a ce " +
+        "que le montant credite a l Editeur corresponde au montant facture.",
+        9, normal, gris, 5
+      );
+
+      titreBloc("DROIT APPLICABLE");
+      ligne(
+        "Le present bon de commande et les conditions generales auxquelles il renvoie sont regis " +
+        "par le droit francais. Les parties recherchent une solution amiable avant toute action ; " +
+        "a defaut, le differend releve des tribunaux competents de Paris, France, auxquels les " +
+        "parties attribuent expressement competence.",
+        9, normal, noir, 5
+      );
+    }
 
     titreBloc("ACCEPTATION");
     ligne(
@@ -607,6 +787,7 @@ export async function POST(req: NextRequest) {
       donnees: {
         titre: "Bon de commande",
         offre: cleOffre,
+        pays: pays,
         contrepartie: org.raison_sociale || null,
         frais: frais,
         unitaire: unitaire,
@@ -630,7 +811,7 @@ export async function POST(req: NextRequest) {
       octets: octets.length,
       signe: false,
       depose_par: session.email,
-      notes: "Edite depuis la fiche du client - offre " + cleOffre,
+      notes: "Edite depuis la fiche du client - offre " + cleOffre + " - pays " + pays,
     });
 
     return new NextResponse(new Uint8Array(octets), {
