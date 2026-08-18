@@ -174,7 +174,7 @@ function gabaritSynthese(titreModule: string, code: string, cible: string): stri
 // ==================================================================
 // L EQUILIBRAGE DES BALISES.
 //
-// 🚨 CE QUI S EST PASSE LE 18/08 AU SOIR. Le modele avait laisse un
+// CE QUI S EST PASSE LE 18/08 AU SOIR. Le modele avait laisse un
 // <table> sans fermeture. Premiere correction : ajouter le </table>
 // manquant A LA FIN DU CONTENU. Resultat : le tableau englobait tout le
 // reste du module, et les 60 000 caracteres suivants se sont retrouves
@@ -318,6 +318,12 @@ function decoderEntites(t: string): string {
     });
 }
 
+// 🚨 AJOUT DU 18/08 : les espaces Unicode (fines, insecables, cadratins)
+// deviennent des espaces normaux, et les caracteres de largeur zero sont
+// supprimes. Avant, tout caractere au-dessus de 0xFF absent de cette table
+// etait SUPPRIME par translitterer : un espace fine (U+202F, frequent en
+// francais) disparaissait et collait les deux mots qu il separait —
+// exactement le mecanisme qui supprimait €, -> et Somme avant correction.
 const SYMBOLES: Record<string, string> = {
   "\u2630": "=",
   "\u2302": "",
@@ -338,6 +344,11 @@ const SYMBOLES: Record<string, string> = {
   "\u201c": '"', "\u201d": '"', "\u201e": '"',
   "\u2013": "-", "\u2014": "-", "\u2015": "-",
   "\u2039": "<", "\u203a": ">",
+  "\u2000": " ", "\u2001": " ", "\u2002": " ", "\u2003": " ",
+  "\u2004": " ", "\u2005": " ", "\u2006": " ", "\u2007": " ",
+  "\u2008": " ", "\u2009": " ", "\u200a": " ", "\u202f": " ",
+  "\u205f": " ", "\u3000": " ",
+  "\u200b": "", "\u200c": "", "\u200d": "", "\ufeff": "",
 };
 
 const WINANSI_EN_PLUS = "\u20ac\u2022\u2020\u2021\u2122\u2030\u0152\u0153\u0160\u0161\u0178\u017d\u017e\u0192";
@@ -380,7 +391,7 @@ function latin1(t: string): string {
   return translitterer(decoderEntites(String(t || "")));
 }
 
-// 🚨 DEUX FONCTIONS, ET LA DIFFERENCE COMPTE.
+// DEUX FONCTIONS, ET LA DIFFERENCE COMPTE.
 //
 // propre()   coupe les blancs de bord : bon pour un paragraphe entier.
 // nettoyer() les CONSERVE : indispensable pour un segment de phrase.
@@ -685,16 +696,7 @@ async function composerManuel(fiche: any, plan: any[], contenus: any, examen: st
     return normal;
   }
 
-  function ecrire(lignes: string[], police: any, taille: number, interligne: number, couleur: any, avant: number, retrait: number) {
-    y = y - avant;
-    for (const l of lignes) {
-      if (y < BAS + interligne) nouvellePage();
-      tracer(page, l, { x: MARGE + retrait, y: y, size: taille, font: police, color: couleur });
-      y = y - interligne;
-    }
-  }
-
-  // 🚨 nettoyer() et non propre() : les blancs de bord d un segment portent
+  // nettoyer() et non propre() : les blancs de bord d un segment portent
   // l information « il y a un espace avant le mot suivant ».
   function couperRiche(segments: any[], taille: number, largeur: number): any[][] {
     const jetons: any[] = [];
@@ -736,6 +738,20 @@ async function composerManuel(fiche: any, plan: any[], contenus: any, examen: st
     return lignes;
   }
 
+  // 🚨 LES ESPACES SONT DE VRAIS CARACTERES DANS LE PDF.
+  //
+  // CE QUI S EST VU LE 18/08 AU SOIR : chaque mot etait dessine par un
+  // drawText separe, et l espace n etait qu un decalage de position.
+  // Visuellement parfait — mais le PDF ne contenait AUCUN caractere espace.
+  // Toute extraction de texte (copier-coller d un stagiaire, lecture
+  // automatisee) devait deviner les espaces d apres les ecarts entre mots,
+  // et en recollait au hasard : « Vouspouvez », « Validerla ».
+  //
+  // DESORMAIS les mots consecutifs de meme police (hors code) sont fusionnes
+  // en une seule chaine avec de vrais espaces. Les quatre polices Times ont
+  // un espace de largeur identique a celui de Times-Roman deja utilise pour
+  // le calcul des lignes : la geometrie ne bouge pas d un point. Courier
+  // reste dessine a part : son espace est plus large.
   function ecrireRiche(segments: any[], taille: number, interligne: number, couleur: any, avant: number, retrait: number, forcerCouleur: boolean) {
     const lignes = couperRiche(segments, taille, UTILE - retrait);
     if (lignes.length === 0) return;
@@ -745,19 +761,39 @@ async function composerManuel(fiche: any, plan: any[], contenus: any, examen: st
     for (const l of lignes) {
       if (y < BAS + interligne) nouvellePage();
       let x = MARGE + retrait;
+      let i = 0;
 
-      for (let i = 0; i < l.length; i++) {
+      while (i < l.length) {
         const jeton = l[i];
         const police = policePour(jeton.seg);
         if (i > 0 && !jeton.colle) x = x + mesurer(normal, " ", taille);
-        tracer(page, jeton.texte, {
-          x: x,
-          y: y,
-          size: taille,
-          font: police,
-          color: forcerCouleur ? couleur : (jeton.seg.code ? rgb(0.30, 0.30, 0.36) : couleur),
-        });
-        x = x + mesurer(police, jeton.texte, taille);
+
+        if (jeton.seg.code) {
+          tracer(page, jeton.texte, {
+            x: x,
+            y: y,
+            size: taille,
+            font: police,
+            color: forcerCouleur ? couleur : rgb(0.30, 0.30, 0.36),
+          });
+          x = x + mesurer(police, jeton.texte, taille);
+          i = i + 1;
+          continue;
+        }
+
+        let texte = jeton.texte;
+        let j = i + 1;
+        while (j < l.length) {
+          const suivant = l[j];
+          if (suivant.seg.code) break;
+          if (policePour(suivant.seg) !== police) break;
+          texte = texte + (suivant.colle ? "" : " ") + suivant.texte;
+          j = j + 1;
+        }
+
+        tracer(page, texte, { x: x, y: y, size: taille, font: police, color: couleur });
+        x = x + mesurer(police, texte, taille);
+        i = j;
       }
 
       y = y - interligne;
@@ -1002,7 +1038,7 @@ async function composerManuel(fiche: any, plan: any[], contenus: any, examen: st
 
     if (info.nom === "table") {
       const rangs = lireTableauHTML(html);
-      // 🚨 Un tableau avec une cellule enorme a avale du contenu : on le
+      // Un tableau avec une cellule enorme a avale du contenu : on le
       // relit en markdown au lieu de l imprimer sur une colonne etroite.
       if (rangs.length > 0 && !tableauSuspect(rangs)) { dessinerTableau(rangs, true); return; }
       ecrireMarkdown(sansBalisesLignes(html));
