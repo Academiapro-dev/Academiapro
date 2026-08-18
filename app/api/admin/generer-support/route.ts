@@ -8,13 +8,8 @@ export const dynamic = "force-dynamic";
 // 🚨 CINQ MINUTES, ET NON UNE — porte a 300 le 17/08.
 //
 // La generation de F900 a expire en 504 des que la carte de la plateforme a
-// ete injectee : l'invite plus riche produit un texte plus long, et vingt
-// modules a decrire precisement depassent la minute. Le plafond d'une minute
-// suffisait pour un support vague, plus pour un manuel exact.
-//
-// 300 s est le maximum d'une fonction Node.js sur un plan Vercel Pro. Si un
-// jour le compte repassait en Hobby, cette valeur serait ignoree et le
-// plafond retomberait a 60 s — le 504 reviendrait alors, sans autre cause.
+// ete injectee : l'invite plus riche produit un texte plus long. 300 s est
+// le maximum d'une fonction Node.js sur un plan Vercel Pro.
 export const maxDuration = 300;
 
 const ADMINS = ["contact@academiapro.fr"];
@@ -26,27 +21,110 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || ""
 );
 
+// 🚨🚨🚨 LES TERMES INTERDITS — ajoutes le 18/08.
+//
+// POURQUOI CE BLOC EXISTE. Les 331 formations du catalogue ont ete
+// nettoyees a la main de toute mention risquee. Les 669 formations a venir
+// ne doivent pas reintroduire le probleme : la regle est donc posee ICI,
+// dans le generateur, plutot que d'etre verifiee formation par formation.
+//
+// Ses mots le 18/08 : « les formations ne doivent en aucun cas employer des
+// mots ou des termes qui pourraient nous creer des problemes de propriete
+// intellectuelle », « sans que cela nous empeche de creer des formations de
+// tres haute qualite ».
+//
+// ⚠️ DEUX FAMILLES DE RISQUE, A NE PAS CONFONDRE.
+//
+// LES MARQUES DEPOSEES. Le nom generique d'une discipline est libre ; le
+// nom de l'ecole qui l'a deposee ne l'est pas. « Sophrologie » s'ecrit sans
+// crainte, « sophrologie caycedienne » est une marque de la fondation
+// Caycedo. Meme logique pour l'EMDR, la Process Communication, l'Analyse
+// Transactionnelle, la Methode Pilates au sens strict, le MBSR de
+// Kabat-Zinn.
+//
+// LES TITRES REGLEMENTES. Psychologue, psychotherapeute, osteopathe,
+// dieteticien, infirmier, avocat, expert-comptable : ce sont des
+// professions protegees par la loi francaise. Les employer expose BIEN PLUS
+// qu'une marque — l'usurpation de titre est un delit penal.
+//
+// LES CERTIFICATIONS D'ETAT. Jacques a tranche le 29/07 : « Certification
+// AcadeMIA Pro » lui convient, et il ne veut plus qu'on revienne dessus. En
+// revanche le generateur ne doit JAMAIS ecrire qu'une formation prepare a
+// un titre RNCP, a une certification RS, ou qu'elle est eligible au compte
+// personnel de formation — ce serait faux, et c'est ce qui expose vraiment.
+//
+// 🚨 CE BLOC N'A PAS POUR OBJET D'APPAUVRIR LE CONTENU. On peut enseigner
+// la relaxation dynamique sans nommer Caycedo, le retraitement des
+// souvenirs sans ecrire EMDR, l'ecoute active sans citer Rogers comme
+// methode deposee. La substance reste, l'etiquette juridique disparait.
+const TERMES_INTERDITS =
+  "\n🚨 TERMES ET FORMULATIONS INTERDITS — REGLE ABSOLUE, SANS EXCEPTION.\n\n" +
+
+  "1. MARQUES ET METHODES DEPOSEES — n'ecris JAMAIS ces termes :\n" +
+  "   sophrologie caycedienne, methode Caycedo, relaxation dynamique de Caycedo,\n" +
+  "   EMDR, integration neuro-emotionnelle, Process Communication, Process Com,\n" +
+  "   Analyse Transactionnelle au sens de l'ecole (le concept general reste libre),\n" +
+  "   MBSR, mindfulness de Kabat-Zinn, methode Pilates, methode Feldenkrais,\n" +
+  "   methode Vittoz, methode Coue au sens depose, Reiki Usui, hypnose Ericksonienne\n" +
+  "   presentee comme une marque, Gordon, Faber et Mazlish, DISC, MBTI,\n" +
+  "   Ennegramme au sens depose, CNV de Rosenberg presentee comme methode deposee.\n\n" +
+
+  "   👉 CE QUI RESTE PARFAITEMENT AUTORISE, et qu'il faut employer a la place :\n" +
+  "   sophrologie, relaxation dynamique, techniques de respiration, pleine conscience,\n" +
+  "   meditation, communication bienveillante, ecoute active, communication non\n" +
+  "   violente (en minuscules, comme notion generale), hypnose, hypnose conversationnelle,\n" +
+  "   suggestion therapeutique, gainage postural, renforcement profond, typologies\n" +
+  "   de personnalite, profils comportementaux.\n\n" +
+
+  "2. TITRES PROFESSIONNELS REGLEMENTES — ne dis JAMAIS que la formation permet\n" +
+  "   de devenir, d'exercer comme, ou de porter le titre de :\n" +
+  "   psychologue, psychotherapeute, psychiatre, medecin, infirmier, kinesitherapeute,\n" +
+  "   osteopathe, chiropracteur, dieteticien, orthophoniste, sage-femme, avocat,\n" +
+  "   notaire, expert-comptable, commissaire aux comptes, architecte, veterinaire.\n\n" +
+
+  "   👉 FORMULE AUTORISEE : « praticien en... », « technicien en... », « accompagnant\n" +
+  "   en... », « conseiller en... », suivi du domaine. Exemple : « praticien en\n" +
+  "   relation d'aide » et non « psychotherapeute ».\n\n" +
+
+  "3. CERTIFICATIONS ET FINANCEMENTS — n'ecris JAMAIS :\n" +
+  "   titre RNCP, certification RS, France Competences, eligible au CPF, compte\n" +
+  "   personnel de formation, finance par un OPCO, diplome d'Etat, reconnu par\n" +
+  "   l'Etat, certification reconnue, equivalence universitaire, credits ECTS.\n\n" +
+  "   👉 LA SEULE FORMULE AUTORISEE : « attestation de fin de formation » ou\n" +
+  "   « Certification AcadeMIA Pro ». Rien d'autre.\n\n" +
+
+  "4. ORGANISMES ET ECOLES TIERS — ne cite AUCUN nom d'ecole, d'institut, de\n" +
+  "   federation, de syndicat professionnel ni d'organisme certificateur, et\n" +
+  "   n'affirme aucun partenariat, aucune affiliation, aucune reconnaissance par\n" +
+  "   un tiers.\n\n" +
+
+  "5. PROMESSES ET PREUVES — n'ecris AUCUNE promesse de resultat, AUCUN taux de\n" +
+  "   reussite, AUCUN taux d'insertion, AUCUN temoignage, AUCUN nom d'ancien\n" +
+  "   stagiaire, AUCUNE statistique inventee, AUCUN salaire moyen apres formation.\n\n" +
+
+  "6. LOGICIELS ET OUTILS PROPRIETAIRES — tu peux les NOMMER, c'est un usage\n" +
+  "   descriptif licite (Excel, Word, Sage, Photoshop, WordPress). Mais tu ne dois\n" +
+  "   JAMAIS te presenter comme formation officielle, agreee ou certifiante de\n" +
+  "   l'editeur, ni employer ses logos, slogans ou noms de certification\n" +
+  "   (TOSA, MOS, Adobe Certified, etc.).\n\n" +
+
+  "⚠️ CES INTERDITS NE DOIVENT EN RIEN APPAUVRIR LE CONTENU. La substance\n" +
+  "pedagogique reste entiere : on enseigne la technique, pas l'etiquette. Une\n" +
+  "formation de tres haute qualite se reconnait a la precision de son propos,\n" +
+  "pas aux marques qu'elle cite.\n";
+
 // 🗺️ LA CARTE REELLE DE LA PLATEFORME — ajoutee le 17/08.
 //
 // POURQUOI ELLE EXISTE. Le support de F900, le manuel d'utilisation
 // d'AcadeMIA Pro, decrivait les actions en termes vagues : « il accede a la
-// section de la plateforme qui lui permet de... ». Aucun nom d'ecran, aucun
-// chemin, aucun bouton. Le modele ne connait pas la plateforme : il brode ce
-// qu'il imagine d'un LMS.
-//
-// Un manuel d'utilisation qui ne nomme pas les ecrans est inutilisable — et
-// c'est celui que Jacques montrera en demonstration.
-//
-// CETTE CARTE EST LA LISTE EXACTE DES ECRANS, relevee dans app/organisme et
-// app/lms. Le modele ne peut plus inventer un chemin : il a la liste.
+// section de la plateforme qui lui permet de... ». Le modele ne connait pas
+// la plateforme : il brode ce qu'il imagine d'un LMS.
 //
 // ⚠️ ELLE N'EST INJECTEE QUE POUR LES FORMATIONS QUI PARLENT DE LA
-// PLATEFORME ELLE-MEME (F900 et suivantes). Les 331 formations du catalogue
-// portent sur d'autres sujets et n'en ont aucun besoin.
+// PLATEFORME ELLE-MEME (F900 et suivantes).
 //
 // 🚨 A TENIR A JOUR : si un ecran est ajoute, renomme ou retire dans
-// app/organisme, cette carte doit suivre. Un manuel qui decrit un ecran
-// disparu est pire qu'un manuel vague.
+// app/organisme, cette carte doit suivre.
 const CARTE_PLATEFORME =
   "\n🗺️ CARTE REELLE DE LA PLATEFORME ACADEMIA PRO — NOMME LES ECRANS PAR " +
   "CES NOMS EXACTS ET PAR AUCUN AUTRE. N'invente jamais un ecran, un onglet " +
@@ -67,8 +145,7 @@ const CARTE_PLATEFORME =
   "choisit celles qu'il diffuse et fixe son prix de vente\n" +
   "  /organisme/stagiaires — la liste de ses stagiaires, leur inscription, leur progression\n" +
   "  /organisme/importer — l'import d'une liste de stagiaires en nombre\n" +
-  "  /organisme/documents — les documents administratifs edites a son en-tete : " +
-  "conventions, convocations, feuilles d'emargement, attestations\n" +
+  "  /organisme/documents — les documents administratifs edites a son en-tete\n" +
   "  /organisme/signatures — la signature electronique des documents et son archivage\n" +
   "  /organisme/evaluations — les evaluations a chaud et a froid de ses stagiaires\n" +
   "  /organisme/positionnements — les tests de positionnement en entree de formation\n" +
@@ -80,7 +157,7 @@ const CARTE_PLATEFORME =
   "  /organisme/seances — les seances de classe virtuelle qu'il programme\n" +
   "  /organisme/crm — le suivi commercial : ses prospects, leurs etapes, leur score\n" +
   "  /organisme/relances — les relances commerciales a envoyer\n" +
-  "  /organisme/portail — sa page publique, ou ses formations sont presentees a ses prospects\n" +
+  "  /organisme/portail — sa page publique, ou ses formations sont presentees\n" +
   "  /organisme/factures — les factures qu'il emet a ses propres clients\n" +
   "  /organisme/facturation — ce qu'il doit a l'editeur : abonnement, part, redevance\n" +
   "  /organisme/financement — les dossiers de financement de ses stagiaires\n" +
@@ -120,8 +197,7 @@ function renseigne(v: any): boolean {
   return typeof v === "string" && v.trim().length > 20;
 }
 
-// La formation porte-t-elle sur la plateforme elle-meme ? Seules celles-la
-// recoivent la carte des ecrans.
+// La formation porte-t-elle sur la plateforme elle-meme ?
 function parleDeLaPlateforme(fiche: any): boolean {
   const code = String(fiche.code || "").toUpperCase();
   if (code === "F900") return true;
@@ -180,13 +256,8 @@ export async function GET(req: Request) {
     // F900 avait recu un plan complet en base : cinq chapitres, vingt
     // modules, dont UN CHAPITRE ENTIER consacre a la marque blanche. Cette
     // route ne lisait que formations.programme, vide pour F900 — le modele a
-    // donc invente ses propres modules.
-    //
-    // LE RESULTAT ETAIT INUTILISABLE, ET DANGEREUX : la marque blanche avait
-    // DISPARU, et trois modules inventes s'intitulaient « Creer une formation
-    // dans votre catalogue ». Le manuel aurait APPRIS AU CLIENT A PRODUIRE
-    // SES PROPRES FORMATIONS — exactement ce que Jacques a fait retirer de
-    // tous ses documents le jour meme.
+    // donc invente ses propres modules, faisant disparaitre la marque
+    // blanche et introduisant trois modules « Creer une formation ».
     //
     // ORDRE DE PRIORITE : lms_plans, puis formations.programme, puis
     // redaction libre avec le nombre de modules calcule sur la duree.
@@ -265,6 +336,9 @@ export async function GET(req: Request) {
       impose += CARTE_PLATEFORME;
     }
 
+    // 🚨 LES TERMES INTERDITS, POUR TOUTES LES FORMATIONS SANS EXCEPTION.
+    impose += TERMES_INTERDITS;
+
     const aProgramme = aPlan || renseigne(fiche.programme);
 
     const invite =
@@ -300,14 +374,15 @@ export async function GET(req: Request) {
           + "MANUEL D'UTILISATION, PAS UN COURS THEORIQUE. Chaque description "
           + "de module DOIT NOMMER L'ECRAN CONCERNE tel qu'il figure dans la "
           + "carte ci-dessus, et decrire l'action concrete que l'utilisateur y "
-          + "accomplit. Ecris « depuis l'ecran Stagiaires de son espace, il "
-          + "clique sur Ajouter un stagiaire » et non « il accede a la section "
-          + "qui lui permet de gerer ses apprenants ». UNE DESCRIPTION VAGUE "
-          + "REND LE MANUEL INUTILISABLE.\n"
+          + "accomplit. UNE DESCRIPTION VAGUE REND LE MANUEL INUTILISABLE.\n"
           + "- N'invente AUCUN ecran, AUCUN onglet, AUCUN bouton absent de la "
-          + "carte. Si une action n'a pas d'ecran dedie dans la carte, decris-la "
-          + "depuis l'ecran le plus proche qui y figure.\n"
+          + "carte.\n"
         : "") +
+      "- 🚨 LES TERMES INTERDITS CI-DESSUS SONT UNE REGLE ABSOLUE. Un seul "
+      + "terme depose, un seul titre reglemente, une seule mention de "
+      + "certification d'Etat rend le document inutilisable et expose "
+      + "juridiquement l'organisme. Verifie chaque intitule de module avant "
+      + "de le retenir.\n" +
       (impose
         ? "- CE QUI EST IMPOSE CI-DESSUS PREVAUT SUR TOUT LE RESTE. N invente "
           + "aucune fonctionnalite, aucun ecran, aucune notion qui n y figure pas.\n"
@@ -323,9 +398,7 @@ export async function GET(req: Request) {
         : "- Le total des heures doit etre coherent avec le niveau annonce.\n") +
       "- Nomme les choses comme l utilisateur les voit a l ecran, jamais en "
       + "jargon technique.\n" +
-      "- N invente AUCUNE certification, aucun titre RNCP, aucun label, aucun organisme tiers.\n" +
       "- N indique AUCUN prix.\n" +
-      "- Pas de promesse de resultat ni de garantie chiffree.\n" +
       "- Ecris en texte brut, sans balises HTML, sans Markdown, sans introduction ni conclusion sur toi-meme.";
 
     const r = await fetch("https://api.anthropic.com/v1/messages", {
@@ -360,6 +433,32 @@ export async function GET(req: Request) {
         { ok: false, code: fiche.code, erreur: "reponse trop courte (" + texte.length + " caracteres)" },
         { status: 500 }
       );
+    }
+
+    // 🚨 LE CONTROLE APRES COUP. L'invite pose la regle, ce bloc verifie
+    // qu'elle a ete tenue — un modele peut se tromper, et un support fautif
+    // partirait sinon en production sans que personne ne le voie.
+    //
+    // ⚠️ ON NE BLOQUE PAS LA PRODUCTION : le support est ecrit, mais la
+    // reponse porte la liste des termes trouves, pour que Jacques puisse
+    // decider. Bloquer laisserait la formation sans support du tout.
+    const SURVEILLES = [
+      "caycedien", "caycedo", "emdr", "process com", "mbsr", "kabat-zinn",
+      "feldenkrais", "vittoz", "reiki usui", "mbti", "disc ",
+      "rncp", "france competences", "france compétences", "repertoire specifique",
+      "répertoire spécifique", "eligible au cpf", "éligible au cpf",
+      "compte personnel de formation", "diplome d'etat", "diplôme d'état",
+      "reconnu par l'etat", "reconnu par l'état", "credits ects", "crédits ects",
+      "tosa", "adobe certified", "microsoft office specialist",
+      "devenir psychologue", "devenir psychotherapeute", "devenir psychothérapeute",
+      "devenir osteopathe", "devenir ostéopathe", "devenir dieteticien",
+      "devenir diététicien", "devenir kinesitherapeute", "devenir kinésithérapeute",
+    ];
+
+    const enMinuscules = texte.toLowerCase();
+    const trouves: string[] = [];
+    for (const terme of SURVEILLES) {
+      if (enMinuscules.indexOf(terme) >= 0) trouves.push(terme);
     }
 
     const corps = texte
@@ -399,11 +498,11 @@ export async function GET(req: Request) {
         code_fichier: fiche.code,
         titre_interne: fiche.titre,
         titre_fiche: fiche.titre,
-        statut: "conforme",
+        statut: trouves.length > 0 ? "a_verifier" : "conforme",
         taille: html.length,
         bavardage: false,
         sections: 6,
-        risque: "",
+        risque: trouves.length > 0 ? "Termes surveilles : " + trouves.join(", ") : "",
         extrait: texte.slice(0, 300),
         vu_le: new Date().toISOString(),
       },
@@ -422,6 +521,10 @@ export async function GET(req: Request) {
       modules_demandes: bornes.maxi,
       fiche_suivie: impose ? true : false,
       programme_impose: aProgramme,
+      termes_surveilles: trouves.length > 0 ? trouves : null,
+      alerte: trouves.length > 0
+        ? "⚠️ Termes surveilles trouves dans ce support : " + trouves.join(", ") + ". A relire."
+        : null,
       force: force,
       taille: html.length,
       restants: Math.max(candidates.length - 1, 0),
