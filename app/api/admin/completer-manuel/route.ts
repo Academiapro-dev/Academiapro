@@ -156,6 +156,12 @@ const supabase = createClient(
 
 const LANGUES: any = { fr: "francais", en: "English", es: "espanol", pt: "portugues", de: "Deutsch" };
 
+// ⚠️ LES TITRES DE SECTION RESTENT SANS ACCENTS, VOLONTAIREMENT.
+// La detection des sections deja ecrites compare le cache existant a
+// « ## » + titre, a l'identique : accentuer ces titres casserait la
+// reprise des 331 formations deja en cache. Le PDF les reaccentue de
+// toute facon a l'affichage (table TITRES_CANONIQUES du generateur).
+// Seuls les CORPS DE TEXTE lus par les stagiaires sont accentues.
 const COURS = [
   {
     titre: "Fondements et cadre conceptuel",
@@ -207,22 +213,28 @@ const QCM = {
 
 const SYNTHESE = { titre: "Votre synthese personnelle", local: true };
 
+// 🚨 CORRIGE LE 18/08 AU SOIR : ce gabarit etait ecrit sans accents et
+// c'est LUI qui imprimait « redigez VOTRE PROPRE SYNTHESE » dans les
+// manuels (constate sur F007). Le corps du texte est desormais accentue,
+// a l'identique du gabarit deja valide dans traiter-commandes. Le TITRE
+// de la section (« Votre synthese personnelle ») reste sans accents :
+// voir le commentaire au-dessus de COURS.
 function gabaritSynthese(titreModule: string, code: string, cible: string): string {
   const lien = "https://academiapro.fr/synthese?code=" + code + "&cible=" + cible;
 
-  return "Vous venez de terminer ce module. Avant de passer au suivant, redigez VOTRE PROPRE SYNTHESE de " +
+  return "Vous venez de terminer ce module. Avant de passer au suivant, r\u00e9digez VOTRE PROPRE SYNTH\u00c8SE de " +
     titreModule + ".\n\n" +
     "Ce qui est attendu :\n\n" +
-    "- de 300 a 500 mots, avec vos mots, sans recopier le cours ;\n" +
-    "- les notions cles du module, telles que vous les avez comprises ;\n" +
-    "- la methode ou le protocole, decrit comme si vous l expliquiez a un confrere ;\n" +
-    "- deux situations concretes dans lesquelles vous comptez l appliquer ;\n" +
-    "- ce qui reste flou pour vous, s il y a lieu.\n\n" +
-    "DEPOSEZ VOTRE SYNTHESE ICI :\n" + lien + "\n\n" +
-    "Vous pouvez la modifier tant qu elle n a pas ete corrigee. Une fois evaluee, vous recevrez par email " +
-    "une note et un retour ecrit signalant les points essentiels que vous auriez omis.\n\n" +
-    "Ce travail compte davantage que le QCM. Le QCM verifie que vous reconnaissez une bonne reponse ; " +
-    "la synthese verifie que vous avez reellement integre le module et que vous savez le transmettre.";
+    "- de 300 \u00e0 500 mots, avec vos mots, sans recopier le cours ;\n" +
+    "- les notions cl\u00e9s du module, telles que vous les avez comprises ;\n" +
+    "- la m\u00e9thode ou le protocole, d\u00e9crit comme si vous l\u2019expliquiez \u00e0 un confr\u00e8re ;\n" +
+    "- deux situations concr\u00e8tes dans lesquelles vous comptez l\u2019appliquer ;\n" +
+    "- ce qui reste flou pour vous, s\u2019il y a lieu.\n\n" +
+    "D\u00c9POSEZ VOTRE SYNTH\u00c8SE ICI :\n" + lien + "\n\n" +
+    "Vous pouvez la modifier tant qu\u2019elle n\u2019a pas \u00e9t\u00e9 corrig\u00e9e. Une fois \u00e9valu\u00e9e, vous recevrez par email " +
+    "une note et un retour \u00e9crit signalant les points essentiels que vous auriez omis.\n\n" +
+    "Ce travail compte davantage que le QCM. Le QCM v\u00e9rifie que vous reconnaissez une bonne r\u00e9ponse ; " +
+    "la synth\u00e8se v\u00e9rifie que vous avez r\u00e9ellement int\u00e9gr\u00e9 le module et que vous savez le transmettre.";
 }
 
 function systemePour(langue: string, avecInterface: boolean): string {
@@ -415,7 +427,7 @@ export async function GET(req: Request) {
         const total = plan.length * QUESTIONS_PAR_MODULE_EXAMEN;
         contenuExamen =
           "## Examen final\n\n" +
-          "Cet examen porte sur l ensemble des " + plan.length + " modules de la formation, a raison de " +
+          "Cet examen porte sur l\u2019ensemble des " + plan.length + " modules de la formation, \u00e0 raison de " +
           QUESTIONS_PAR_MODULE_EXAMEN + " questions par module, soit " + total + " questions.\n\n" +
           texte;
       } else {
@@ -426,12 +438,12 @@ export async function GET(req: Request) {
         const total = plan.length * QUESTIONS_PAR_MODULE_EXAMEN;
         contenuExamen +=
           "\n\n## Obtenir votre Certification AcademIA Pro\n\n" +
-          "Comptez vos points : chaque bonne reponse vaut un point, sur " + total + " au total.\n\n" +
-          "A partir de " + SEUIL_REUSSITE + " % de bonnes reponses, soit " +
-          Math.ceil((total * SEUIL_REUSSITE) / 100) + " points, la Certification AcademIA Pro de la formation " +
-          fiche.titre + " vous est delivree. Vous la recevez par email et la telechargez depuis votre espace personnel sur academiapro.fr.\n\n" +
-          "En dessous de ce seuil, reprenez les modules ou vos reponses etaient fausses, puis repassez l examen. " +
-          "Le nombre de tentatives n est pas limite : l objectif est votre maitrise, pas votre classement.\n";
+          "Comptez vos points : chaque bonne r\u00e9ponse vaut un point, sur " + total + " au total.\n\n" +
+          "\u00c0 partir de " + SEUIL_REUSSITE + " % de bonnes r\u00e9ponses, soit " +
+          Math.ceil((total * SEUIL_REUSSITE) / 100) + " points, la Certification Acad\u00e9MIA Pro de la formation " +
+          fiche.titre + " vous est d\u00e9livr\u00e9e. Vous la recevez par email et la t\u00e9l\u00e9chargez depuis votre espace personnel sur academiapro.fr.\n\n" +
+          "En dessous de ce seuil, reprenez les modules o\u00f9 vos r\u00e9ponses \u00e9taient fausses, puis repassez l\u2019examen. " +
+          "Le nombre de tentatives n\u2019est pas limit\u00e9 : l\u2019objectif est votre ma\u00eetrise, pas votre classement.\n";
       }
 
       if (existant) {
