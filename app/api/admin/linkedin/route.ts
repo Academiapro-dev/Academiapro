@@ -30,6 +30,20 @@ const STATUTS = ["invite", "invite_nu", "accepte", "accepte_nu", "relance", "ref
 const EN_ATTENTE = ["invite", "invite_nu"];
 const ACCEPTES = ["accepte", "accepte_nu"];
 
+// 🆕 LES MESSAGES ENVOYES — ajoute le 18/08.
+//
+// 🚨 LE DEFAUT QUE CELA REPARE, ET IL FAISAIT PERDRE LE TRAVAIL ACCOMPLI.
+// Une fiche marquee « Message envoye » passait au statut `relance` et
+// DISPARAISSAIT DE TOUS LES ONGLETS : l onglet A relancer ne montre que
+// `accepte` et `accepte_nu`. Jacques a envoye treize messages et ne
+// retrouvait plus personne. Ses mots : « les fiches concernees
+// disparaissent, je sais plus ou elles sont ».
+//
+// Ce sont pourtant SES CONTACTS LES PLUS AVANCES — ceux qu il faudra
+// relancer dans quinze jours s ils ne repondent pas. Ils meritent un
+// onglet, pas l oubli.
+const RELANCES = ["relance"];
+
 const PLAFOND_SEMAINE = 100;
 const PLAFOND_JOUR = 20;
 
@@ -109,17 +123,31 @@ async function compteurs() {
   const refuses = await compterStatuts(["refuse"]);
   const ecartes = await compterStatuts(["ecarte"]);
 
+  // 🚨 « ACCEPTEES » COMPTE AUSSI LES RELANCEES — corrige le 18/08.
+  //
+  // LE DEFAUT. Le compteur ne totalisait que `accepte` et `accepte_nu`.
+  // Des qu un message partait, la fiche passait en `relance` et sortait du
+  // total : le tableau de bord affichait ZERO ACCEPTATION alors que treize
+  // personnes avaient accepte. Le travail accompli faisait BAISSER le
+  // chiffre au lieu de le monter.
+  //
+  // Une acceptation reste une acceptation, qu on ait ecrit ensuite ou non.
+  // `en_attente_reponse` isole a part ceux qui n ont pas encore recu de
+  // message, pour savoir ce qu il reste a faire.
+  const acceptees = accepte_note + accepte_nu + relances;
+
   // LE TAUX SE CALCULE SUR CE QUI A RECU UNE REPONSE, pas sur tout ce qui
   // est parti : une invitation d hier n a pas eu le temps d etre acceptee.
   return {
     jour, semaine,
     en_attente: attente_note + attente_nu,
     attente_note, attente_nu,
-    acceptes: accepte_note + accepte_nu,
+    acceptes: acceptees,
+    en_attente_reponse: accepte_note + accepte_nu,
     accepte_note, accepte_nu,
     relances, refuses, ecartes,
     taux_note: taux(accepte_note, 0) === null ? null : taux(accepte_note + relances * 0, refuses),
-    taux_global: taux(accepte_note + accepte_nu + relances, refuses),
+    taux_global: taux(acceptees, refuses),
     plafond_jour: PLAFOND_JOUR,
     plafond_semaine: PLAFOND_SEMAINE,
     reste_jour: Math.max(PLAFOND_JOUR - jour, 0),
@@ -132,30 +160,24 @@ async function compteurs() {
 // organisme. Demander les mauvaises colonnes ferait echouer la requete.
 const COLONNES_PROSPECTS =
   "id, raison_sociale, ville, code_postal, siren, dirigeant_prenom, dirigeant_nom, " +
-  "linkedin, email, telephone, site_web, linkedin_le, linkedin_statut, notes";
+  "linkedin, email, telephone, site_web, linkedin_le, linkedin_relance_le, linkedin_statut, notes";
 
 const COLONNES_CRM =
   "id, nom, organisme, ville, dirigeant_prenom, dirigeant_nom, " +
-  "linkedin, email, telephone, linkedin_le, linkedin_statut, notes";
+  "linkedin, email, telephone, linkedin_le, linkedin_relance_le, linkedin_statut, notes";
 
 function colonnesDe(cle: string): string {
   return cle === "manuel" ? COLONNES_CRM : COLONNES_PROSPECTS;
 }
 
-// 🆕 CE QUI EST MODIFIABLE DEPUIS LA FICHE COMPLETE — ajoute le 18/08.
-//
-// LE MANQUE. L ecran n affichait que le nom, l organisme et la ville. Le
-// telephone, l adresse electronique, le SIREN ou le site etaient en base
-// mais invisibles, et rien ne permettait de corriger un numero errone
-// releve pendant un echange.
+// CE QUI EST MODIFIABLE DEPUIS LA FICHE COMPLETE.
 //
 // ⚠️ LES DEUX LISTES SONT DISTINCTES PARCE QUE LES TABLES LE SONT. Envoyer
 // `raison_sociale` a la table crm, ou `organisme` a une base de
 // prospection, ferait echouer la mise a jour entiere.
 //
-// 🚨 NI linkedin_statut NI linkedin_le NE SONT MODIFIABLES ICI. Corriger
-// une coordonnee ne doit jamais faire avancer une fiche dans le parcours
-// ni consommer le quota du jour — c est la meme regle que pour les notes.
+// 🚨 NI LE STATUT NI LES DATES NE SONT MODIFIABLES ICI. Corriger une
+// coordonnee ne doit jamais faire avancer une fiche dans le parcours.
 const MODIFIABLES_PROSPECTS = [
   "raison_sociale", "ville", "code_postal", "siren",
   "dirigeant_prenom", "dirigeant_nom",
@@ -214,19 +236,23 @@ async function suivante(base: string) {
 
 // La cle de base est renvoyee avec chaque ligne — sans elle, l ecran ne
 // saurait pas dans quelle table ecrire au moment de marquer.
-async function lister(statuts: string[], limite: number) {
+//
+// `colonneTri` permet de classer les messages envoyes par date d envoi
+// plutot que par date d invitation.
+async function lister(statuts: string[], limite: number, colonneTri?: string) {
+  const tri = colonneTri || "linkedin_le";
   const lignes: any[] = [];
   for (const cle of Object.keys(TABLES)) {
     const { data } = await supabase
       .from(TABLES[cle])
       .select(colonnesDe(cle))
       .in("linkedin_statut", statuts)
-      .order("linkedin_le", { ascending: true })
+      .order(tri, { ascending: true })
       .limit(limite);
     for (const l of (data || [])) lignes.push(uniformiser(l, cle));
   }
   lignes.sort(function (a, b) {
-    return String(a.linkedin_le || "").localeCompare(String(b.linkedin_le || ""));
+    return String(a[tri] || "").localeCompare(String(b[tri] || ""));
   });
   return lignes.slice(0, limite);
 }
@@ -246,12 +272,11 @@ export async function POST(req: NextRequest) {
     const action = String(body.action || "marquer").trim();
     const base = String(body.base || "").trim();
 
-    // 🆕 MODIFIER UNE FICHE COMPLETE — ajoute le 18/08.
+    // MODIFIER UNE FICHE COMPLETE.
     //
     // Corriger un telephone releve pendant un echange, completer une ville
-    // laissee vide par l open data, rectifier un nom mal orthographie. Seuls
-    // les champs presents dans la requete sont touches : envoyer uniquement
-    // le telephone ne vide pas le reste.
+    // laissee vide par l open data. Seuls les champs presents dans la
+    // requete sont touches.
     if (action === "modifier") {
       const id = body.id;
       const table = TABLES[base];
@@ -271,7 +296,6 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ ok: false, erreur: "Rien a modifier." }, { status: 400 });
       }
 
-      // Sur une fiche du CRM, toucher a la fiche vaut interaction.
       if (base === "manuel") champs.derniere_interaction = new Date().toISOString();
 
       const { data, error } = await supabase
@@ -297,7 +321,7 @@ export async function POST(req: NextRequest) {
     // Ce qu on retient d une conversation ne se retrouve nulle part
     // ailleurs : ni dans l open data, ni sur LinkedIn.
     //
-    // ⚠️ CETTE ACTION NE TOUCHE NI AU STATUT NI A LA DATE D INVITATION.
+    // ⚠️ CETTE ACTION NE TOUCHE NI AU STATUT NI AUX DATES.
     if (action === "note") {
       const id = body.id;
       const table = TABLES[base];
@@ -415,6 +439,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, lignes, compteurs: await compteurs() });
     }
 
+    // 🆕 LES MESSAGES ENVOYES, classes du plus ancien au plus recent :
+    // ceux qui attendent depuis le plus longtemps arrivent en tete, ce sont
+    // eux qu il faut relancer en premier.
+    if (action === "envoyes") {
+      const lignes = await lister(RELANCES, LIMITE_LISTE, "linkedin_relance_le");
+      return NextResponse.json({ ok: true, lignes, compteurs: await compteurs() });
+    }
+
     const id = body.id;
     const statut = String(body.statut || "invite").trim();
 
@@ -450,6 +482,13 @@ export async function POST(req: NextRequest) {
     const champs: any = { linkedin_statut: statut };
     if (statut === "invite" || statut === "invite_nu" || statut === "ecarte") {
       champs.linkedin_le = new Date().toISOString();
+    }
+
+    // 🆕 LA DATE DU MESSAGE, distincte de celle de l invitation. Sans elle,
+    // on ne saurait pas depuis combien de temps un message attend sa
+    // reponse — or c est ce qui declenche une relance.
+    if (statut === "relance") {
+      champs.linkedin_relance_le = new Date().toISOString();
     }
 
     // L observation peut etre enregistree EN MEME TEMPS qu un changement de
