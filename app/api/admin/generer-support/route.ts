@@ -341,6 +341,14 @@ export async function GET(req: Request) {
 
     const aProgramme = aPlan || renseigne(fiche.programme);
 
+    // 🚨 TITRES DE RUBRIQUE ACCENTUES — corrige le 18/08 au soir.
+    //
+    // L'invite ecrivait « PREREQUIS », « COMPETENCES VISEES », « MODALITES
+    // D EVALUATION » sans accents, et le modele les recopiait tels quels
+    // dans les supports. Le HTML final est en UTF-8 : rien n'empechait les
+    // accents. Les titres sont desormais accentues dans l'invite, avec une
+    // consigne explicite. Les supports generes AVANT cette correction
+    // restent desaccentues sur ces titres.
     const invite =
       "Tu rediges le support de cours officiel d un organisme de formation professionnelle francais.\n\n" +
       "Formation : " + fiche.titre + "\n" +
@@ -348,11 +356,11 @@ export async function GET(req: Request) {
       "Niveau : " + (fiche.niveau || "non precise") + "\n" +
       (heures > 0 ? "Duree totale : " + heures + " heures.\n" : "") +
       impose +
-      "\nProduis un document structure en francais comprenant, dans cet ordre :\n" +
+      "\nProduis un document structure en francais comprenant, dans cet ordre, avec ces titres de rubrique ECRITS EXACTEMENT AINSI, accents compris :\n" +
       "1. OBJECTIFS DE LA FORMATION : un paragraphe de 5 a 8 lignes.\n" +
-      "2. PREREQUIS : 3 a 5 lignes.\n" +
+      "2. PR\u00c9REQUIS : 3 a 5 lignes.\n" +
       "3. PUBLIC CIBLE : 3 a 5 lignes.\n" +
-      "4. COMPETENCES VISEES : 6 a 10 puces.\n" +
+      "4. COMP\u00c9TENCES VIS\u00c9ES : 6 a 10 puces.\n" +
       "5. PROGRAMME : " + combien + ". Chaque module sur une ligne au format exact :\n" +
       "Module N - Titre du module (XXh)\n" +
       "suivi de 2 a 4 lignes decrivant son contenu.\n" +
@@ -361,8 +369,10 @@ export async function GET(req: Request) {
           + "dans l'ordre du plan ci-dessus, et tu conserves les intitules a "
           + "l'identique.\n"
         : "") +
-      "6. MODALITES D EVALUATION : un paragraphe.\n\n" +
+      "6. MODALIT\u00c9S D\u2019\u00c9VALUATION : un paragraphe.\n\n" +
       "Regles imperatives :\n" +
+      "- Le document est destine a des stagiaires : ecris un francais irreprochable, " +
+      "AVEC TOUS SES ACCENTS, dans les titres de rubrique comme dans le texte.\n" +
       (aPlan
         ? "- LE PLAN OFFICIEL CI-DESSUS EST LA SEULE SOURCE DU PROGRAMME. "
           + "Toute invention de module, tout intitule modifie, toute omission "
