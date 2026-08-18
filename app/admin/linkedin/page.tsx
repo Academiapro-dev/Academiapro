@@ -1,30 +1,29 @@
 "use client";
 import { useState, useEffect, useMemo } from "react";
 
-// L ECRAN LINKEDIN — TROIS TEMPS, TROIS ONGLETS.
+// L ECRAN LINKEDIN — QUATRE TEMPS, QUATRE ONGLETS.
 //
 // INVITER : une fiche a la fois, le mot pre-redige, le profil qui s ouvre.
 // MES INVITATIONS : ce qui est parti et attend une reponse.
-// A RELANCER : les personnes qui ont accepte.
+// A RELANCER : les personnes qui ont accepte et n ont pas encore recu de
+//   message.
+// MESSAGES ENVOYES : ceux a qui l on a ecrit, classes du plus ancien au
+//   plus recent.
+//
+// 🚨 LE DEFAUT QUE LE QUATRIEME ONGLET REPARE — 18/08. Une fiche marquee
+// « Message envoye » passait au statut `relance` et DISPARAISSAIT DE TOUS
+// LES ONGLETS. Jacques a envoye treize messages et ne retrouvait plus
+// personne : « les fiches concernees disparaissent, je sais plus ou elles
+// sont ». Ce sont pourtant ses contacts les plus avances.
+//
+// 🚨 ET LE COMPTEUR MENTAIT. « Acceptees » ne totalisait que `accepte` et
+// `accepte_nu` : des qu un message partait, la fiche sortait du total et le
+// tableau de bord affichait ZERO ACCEPTATION. Le travail accompli faisait
+// BAISSER le chiffre au lieu de le monter.
 //
 // 🚨 AUCUN ENVOI AUTOMATIQUE, ET CE N EST PAS CONTOURNABLE. LinkedIn
 // n expose AUCUNE API de messagerie, et les outils qui simulent les clics
 // font restreindre puis supprimer le compte.
-//
-// 🆕 FICHE COMPLETE — 18/08. L ecran n affichait que le nom, l organisme et
-// la ville. Le telephone, l adresse, le SIREN ou le site etaient en base
-// mais invisibles, et rien ne permettait de corriger un numero errone
-// releve pendant un echange. Ses mots : « je ne peux pas ouvrir la fiche
-// entiere ou l editer entierement ».
-//
-// 🆕 OBSERVATION SUR CHAQUE FICHE — 18/08. Ce qu on retient d une
-// conversation ne se retrouve NULLE PART AILLEURS : ni dans l open data, ni
-// sur LinkedIn. C est la seule information qui appartienne vraiment a
-// Jacques. Elle s affiche sans avoir a ouvrir quoi que ce soit.
-//
-// 🆕 MODE ENCHAINEMENT — 17/08. L envoi en masse etant impossible,
-// l essentiel du temps perdu tenait au va-et-vient. Trois clics par
-// personne desormais.
 //
 // 🚨 DEFAUT CORRIGE LE 16/08 : le bouton faisait DEUX choses d un clic —
 // ouvrir le profil ET marquer la fiche. Cinq fiches perdues en une matinee.
@@ -38,9 +37,7 @@ const BASES = [
 // LES CHAMPS DE LA FICHE COMPLETE, ET ILS DIFFERENT SELON LA TABLE.
 //
 // ⚠️ Les trois bases de prospection portent raison_sociale, siren,
-// code_postal, site_web ; la table crm porte nom et organisme. Envoyer un
-// champ a la mauvaise table ferait echouer la mise a jour entiere — la
-// route filtre de son cote, mais l ecran ne doit pas les proposer.
+// code_postal, site_web ; la table crm porte nom et organisme.
 const CHAMPS_PROSPECTS = [
   { cle: "dirigeant_prenom", nom: "Prénom du dirigeant", large: false },
   { cle: "dirigeant_nom", nom: "Nom du dirigeant", large: false },
@@ -75,6 +72,10 @@ function champsDe(base: string) {
 // SEMAINES si on ne voulait pas.
 const LIMITE_NOTE = 200;
 
+// Au-dela de ce delai sans reponse, la fiche est signalee : c est le moment
+// d ecrire une seconde fois.
+const JOURS_AVANT_RELANCE = 12;
+
 function motInvitation(prenom: string) {
   const p = String(prenom || "").trim();
   const civilite = p ? "Bonjour " + p : "Bonjour";
@@ -108,6 +109,18 @@ function messageRelance(prenom: string, societe: string) {
     + "Bien à vous,\nJacques Lalou\nacademiapro.fr";
 }
 
+// LA SECONDE RELANCE, pour ceux qui n ont pas repondu au premier message.
+// Courte, sans reproche, et elle donne une raison de repondre.
+function secondMessage(prenom: string) {
+  const p = String(prenom || "").trim();
+  return (p ? "Bonjour " + p : "Bonjour") + ",\n\n"
+    + "Je me permets un mot, mon message précédent est peut-être passé inaperçu.\n\n"
+    + "Si le sujet ne vous concerne pas, dites-le-moi simplement, je n'insisterai pas.\n\n"
+    + "Et si vous êtes curieux de voir à quoi ressemble la plateforme, je peux vous ouvrir "
+    + "un accès pour que vous jugiez par vous-même — sans engagement d'aucune sorte.\n\n"
+    + "Bien à vous,\nJacques Lalou\nacademiapro.fr";
+}
+
 // Sans accents et en minuscules : « Bousbia » retrouve « BOUSBIA ».
 function aplatir(v: any): string {
   return String(v === null || v === undefined ? "" : v)
@@ -133,9 +146,7 @@ export default function PageLinkedin() {
 
   const [recherche, setRecherche] = useState("");
 
-  // LA FICHE COMPLETE. `depliee` porte la cle de celle qui est ouverte,
-  // `brouillon` les valeurs en cours de saisie, `enregistre` celle qu on
-  // est en train de sauver.
+  // LA FICHE COMPLETE.
   const [depliee, setDepliee] = useState("");
   const [brouillon, setBrouillon] = useState<any>({});
   const [enregistre, setEnregistre] = useState("");
@@ -207,7 +218,9 @@ export default function PageLinkedin() {
     setOuverte(null);
     setDepliee("");
     try {
-      const action = onglet === "attente" ? "en_attente" : "a_relancer";
+      const action = onglet === "attente" ? "en_attente"
+        : onglet === "envoyes" ? "envoyes"
+        : "a_relancer";
       const d = await appeler({ action: action });
       if (d.ok) {
         setLignes(d.lignes || []);
@@ -252,8 +265,6 @@ export default function PageLinkedin() {
       if (d.ok) {
         setMessage(d.message || "Fiche enregistrée.");
         setDepliee("");
-        // La fiche revient a jour depuis la base : on remplace la ligne
-        // sans recharger toute la liste.
         if (d.fiche) {
           setLignes(lignes.map(function (x: any) {
             return cleDe(x) === cle ? { ...d.fiche, base: l.base } : x;
@@ -294,12 +305,15 @@ export default function PageLinkedin() {
   function demarrerSerie() {
     if (filtrees.length === 0) return;
     const file = filtrees.slice();
+    const second = onglet === "envoyes";
     setSerie(file);
     setRang(0);
     setFaits(0);
     setCopieSerie(false);
     setOuvertSerie(false);
-    setTexteSerie(messageRelance(file[0].dirigeant_prenom, file[0].raison_sociale));
+    setTexteSerie(second
+      ? secondMessage(file[0].dirigeant_prenom)
+      : messageRelance(file[0].dirigeant_prenom, file[0].raison_sociale));
     setErreur("");
     setMessage("");
   }
@@ -319,8 +333,11 @@ export default function PageLinkedin() {
       chargerListe();
       return;
     }
+    const second = onglet === "envoyes";
     setRang(prochain);
-    setTexteSerie(messageRelance(file[prochain].dirigeant_prenom, file[prochain].raison_sociale));
+    setTexteSerie(second
+      ? secondMessage(file[prochain].dirigeant_prenom)
+      : messageRelance(file[prochain].dirigeant_prenom, file[prochain].raison_sociale));
     setCopieSerie(false);
     setOuvertSerie(false);
   }
@@ -471,6 +488,7 @@ export default function PageLinkedin() {
   const OR = "#c8a96e";
   const BLEU = "#448aff";
   const VERT = "#00e676";
+  const ORANGE = "#e8a33d";
 
   const CARTE: any = {
     background: "#1a1a2e",
@@ -511,7 +529,8 @@ export default function PageLinkedin() {
   const ONGLETS = [
     { id: "inviter", nom: "Inviter" },
     { id: "attente", nom: "Mes invitations" + (compteurs && compteurs.en_attente ? " · " + compteurs.en_attente : "") },
-    { id: "relancer", nom: "À relancer" + (compteurs && compteurs.acceptes ? " · " + compteurs.acceptes : "") },
+    { id: "relancer", nom: "À écrire" + (compteurs && compteurs.en_attente_reponse ? " · " + compteurs.en_attente_reponse : "") },
+    { id: "envoyes", nom: "Messages envoyés" + (compteurs && compteurs.relances ? " · " + compteurs.relances : "") },
   ];
 
   function barreRecherche() {
@@ -574,10 +593,7 @@ export default function PageLinkedin() {
     );
   }
 
-  // LE BLOC DE LA FICHE COMPLETE, partage par les deux listes et la serie.
-  //
-  // Replie : l observation s affiche si elle existe, et un bouton ouvre le
-  // detail. Ouvert : tous les champs de la table, modifiables.
+  // LE BLOC DE LA FICHE COMPLETE, partage par toutes les listes.
   function blocFiche(l: any) {
     const cle = cleDe(l);
     const ouvert = depliee === cle;
@@ -666,6 +682,7 @@ export default function PageLinkedin() {
 
   const enSerie = serie !== null && serie.length > 0 && rang < serie.length;
   const courante = enSerie ? serie![rang] : null;
+  const listeVisible = onglet === "attente" || onglet === "relancer" || onglet === "envoyes";
 
   return (
     <div style={{ backgroundColor: "#050508", minHeight: "100vh", color: "#fff", fontFamily: "Georgia, serif" }}>
@@ -675,7 +692,7 @@ export default function PageLinkedin() {
         </a>
         <h1 style={{ color: OR, margin: "13px 0 4px", fontSize: "23px" }}>Prospection LinkedIn</h1>
         <p style={{ color: "rgba(255,255,255,0.5)", margin: 0, fontSize: "13px" }}>
-          Inviter · suivre les réponses · écrire à ceux qui ont accepté
+          Inviter · suivre les réponses · écrire · relancer
         </p>
       </div>
 
@@ -726,6 +743,12 @@ export default function PageLinkedin() {
                   {nombre(compteurs.acceptes)}
                 </div>
                 <div style={{ color: "rgba(255,255,255,0.45)", fontSize: "11.5px" }}>acceptées</div>
+              </div>
+              <div>
+                <div style={{ color: ORANGE, fontSize: "19px", fontWeight: "bold" }}>
+                  {nombre(compteurs.relances)}
+                </div>
+                <div style={{ color: "rgba(255,255,255,0.45)", fontSize: "11.5px" }}>messages envoyés</div>
               </div>
               <div>
                 <div style={{ color: OR, fontSize: "19px", fontWeight: "bold" }}>
@@ -966,8 +989,7 @@ export default function PageLinkedin() {
           <>
             <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "13.5px", lineHeight: "1.8", margin: "0 0 16px" }}>
               Les invitations parties, en attente de réponse. Quand LinkedIn vous notifie une
-              acceptation, marquez-la ici : la fiche passera dans « À relancer », où le message
-              long devient possible.
+              acceptation, marquez-la ici : la fiche passera dans « À écrire ».
             </p>
 
             {lignes.length > 0 && barreRecherche()}
@@ -1032,15 +1054,15 @@ export default function PageLinkedin() {
           </>
         )}
 
-        {/* ═══════════ ONGLET À RELANCER ═══════════ */}
-        {onglet === "relancer" && (
+        {/* ═══════════ ONGLETS À ÉCRIRE ET MESSAGES ENVOYÉS ═══════════ */}
+        {(onglet === "relancer" || onglet === "envoyes") && (
           <>
             {enSerie && courante ? (
               <>
                 <div style={{ ...CARTE, borderColor: "rgba(0,230,118,0.45)", background: "#12121f" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px", marginBottom: "14px" }}>
                     <span style={{ color: VERT, fontSize: "12px", letterSpacing: "2px" }}>
-                      SÉRIE EN COURS · {rang + 1} / {serie!.length}
+                      {onglet === "envoyes" ? "SECONDE RELANCE" : "SÉRIE EN COURS"} · {rang + 1} / {serie!.length}
                     </span>
                     <button onClick={quitterSerie} style={{ ...BOUTON, padding: "8px 16px", fontSize: "12.5px", color: "rgba(255,255,255,0.5)", borderColor: "rgba(255,255,255,0.18)" }}>
                       Quitter la série
@@ -1131,8 +1153,9 @@ export default function PageLinkedin() {
             ) : (
               <>
                 <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "13.5px", lineHeight: "1.8", margin: "0 0 16px" }}>
-                  Ces personnes ont accepté votre invitation. La messagerie est maintenant libre :
-                  aucune limite de caractères, aucun quota. C'est ici que le vrai message se place.
+                  {onglet === "envoyes"
+                    ? "Les personnes à qui vous avez déjà écrit, de la plus ancienne à la plus récente. Celles qui attendent depuis plus de " + JOURS_AVANT_RELANCE + " jours sont signalées : c'est le moment d'écrire une seconde fois."
+                    : "Ces personnes ont accepté votre invitation et n'ont pas encore reçu de message. La messagerie est libre : aucune limite de caractères, aucun quota."}
                 </p>
 
                 {lignes.length > 0 && barreRecherche()}
@@ -1140,12 +1163,12 @@ export default function PageLinkedin() {
                 {filtrees.length > 1 && (
                   <div style={{ ...CARTE, borderColor: "rgba(0,230,118,0.4)", background: "rgba(0,230,118,0.05)" }}>
                     <div style={{ color: VERT, fontSize: "15px", fontWeight: "bold", marginBottom: "5px" }}>
-                      Écrire à tous, l'un après l'autre
+                      {onglet === "envoyes" ? "Relancer, l'un après l'autre" : "Écrire à tous, l'un après l'autre"}
                     </div>
                     <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "13px", lineHeight: "1.75", margin: "0 0 14px" }}>
-                      {filtrees.length} personne(s) à relancer. Le message est préparé à chaque
-                      prénom, copié d'un clic, et la messagerie s'ouvre. Vous collez, vous marquez,
-                      la fiche suivante arrive.
+                      {filtrees.length} personne(s). Le message est préparé à chaque prénom, copié
+                      d'un clic, et la messagerie s'ouvre. Vous collez, vous marquez, la fiche
+                      suivante arrive.
                     </p>
                     <button onClick={demarrerSerie}
                       style={{ width: "100%", background: VERT, color: "#050508", border: "none", borderRadius: "9px", padding: "15px", fontSize: "15px", fontWeight: "bold", fontFamily: "Georgia,serif", cursor: "pointer" }}>
@@ -1163,15 +1186,18 @@ export default function PageLinkedin() {
                 ) : lignes.length === 0 ? (
                   <div style={CARTE}>
                     <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "15px", lineHeight: "1.8", margin: 0 }}>
-                      Personne à relancer pour l'instant. Marquez vos acceptations dans
-                      « Mes invitations » et elles arriveront ici.
+                      {onglet === "envoyes"
+                        ? "Aucun message envoyé pour l'instant. Ils apparaîtront ici dès que vous en aurez écrit."
+                        : "Personne à qui écrire pour l'instant. Marquez vos acceptations dans « Mes invitations » et elles arriveront ici."}
                     </p>
                   </div>
                 ) : (
                   filtrees.map(function (l) {
                     const active = ouverte === cleDe(l);
+                    const jr = onglet === "envoyes" ? joursDepuis(l.linkedin_relance_le) : null;
+                    const aRelancer = jr !== null && jr >= JOURS_AVANT_RELANCE;
                     return (
-                      <div key={cleDe(l)} style={{ ...CARTE, borderColor: active ? "rgba(0,230,118,0.4)" : CARTE.border }}>
+                      <div key={cleDe(l)} style={{ ...CARTE, borderColor: active ? "rgba(0,230,118,0.4)" : aRelancer ? "rgba(232,163,61,0.45)" : CARTE.border }}>
                         <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "10px" }}>
                           <div style={{ flex: "1 1 240px" }}>
                             <div style={{ color: "#fff", fontSize: "15.5px", fontWeight: "bold" }}>
@@ -1182,8 +1208,20 @@ export default function PageLinkedin() {
                             </div>
                             <div style={{ color: "rgba(255,255,255,0.4)", fontSize: "12.5px", marginTop: "4px" }}>
                               {l.ville || ""}
+                              {onglet === "envoyes" && l.linkedin_relance_le ? (
+                                <span>
+                                  {l.ville ? " · " : ""}
+                                  écrit le {jolieDate(l.linkedin_relance_le)}
+                                  {jr !== null ? " · il y a " + jr + " jour" + (jr > 1 ? "s" : "") : ""}
+                                </span>
+                              ) : ""}
                               {l.base === "manuel" ? " · ajouté à la main" : ""}
                             </div>
+                            {aRelancer && (
+                              <div style={{ color: ORANGE, fontSize: "12.5px", marginTop: "6px", fontWeight: "bold" }}>
+                                Sans réponse depuis {jr} jours — une seconde relance se justifie
+                              </div>
+                            )}
                             {coordonnees(l)}
                           </div>
                           <a href={lien(l.linkedin)} target="_blank" rel="noreferrer"
@@ -1195,11 +1233,24 @@ export default function PageLinkedin() {
                         {blocFiche(l)}
 
                         {!active ? (
-                          <button
-                            onClick={() => { setOuverte(cleDe(l)); setTexteLong(messageRelance(l.dirigeant_prenom, l.raison_sociale)); }}
-                            style={{ ...BOUTON, width: "100%", marginTop: "12px" }}>
-                            Préparer le message
-                          </button>
+                          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "12px" }}>
+                            <button
+                              onClick={() => {
+                                setOuverte(cleDe(l));
+                                setTexteLong(onglet === "envoyes"
+                                  ? secondMessage(l.dirigeant_prenom)
+                                  : messageRelance(l.dirigeant_prenom, l.raison_sociale));
+                              }}
+                              style={{ ...BOUTON, flex: "2 1 200px" }}>
+                              {onglet === "envoyes" ? "Préparer une relance" : "Préparer le message"}
+                            </button>
+                            {onglet === "envoyes" && (
+                              <button onClick={() => marquer(l, "refuse")} disabled={charge}
+                                style={{ ...BOUTON, flex: "1 1 130px", fontSize: "13px", color: "rgba(255,255,255,0.45)", borderColor: "rgba(255,255,255,0.15)" }}>
+                                Sans suite
+                              </button>
+                            )}
+                          </div>
                         ) : (
                           <div style={{ marginTop: "14px" }}>
                             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "9px" }}>
