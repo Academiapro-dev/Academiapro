@@ -18,14 +18,8 @@ const QUESTIONS_PAR_QCM = 10;
 const QUESTIONS_PAR_MODULE_EXAMEN = 2;
 const MODULES_PAR_LOT_EXAMEN = 5;
 const SEUIL_REUSSITE = 70;
-
-// Le plafond de jetons d une passe. A 4000 les sections longues etaient
-// coupees en plein mot dans le manuel : « la zone Nom affiche la refer ».
 const JETONS_PAR_PASSE = 8000;
 
-// LA LANGUE DE L ACHETEUR. Elle est jointe a la commande par la route de
-// paiement et voyage jusqu ici : le manuel, les exercices, les questionnaires
-// et l examen sont produits dans cette langue, et le cache est indexe dessus.
 const LANGUES: Record<string, string> = {
   fr: "francais",
   en: "English",
@@ -68,9 +62,19 @@ const REGLE_EVALUATION =
   "la methode, le protocole, le choix de la technique selon la situation, les applications concretes, " +
   "les precautions et la securite. Gradue la difficulte : commence par la comprehension, termine par l application.";
 
-// Les titres portent leurs accents : ils sont imprimes dans le manuel, donc
-// destines a un tiers. Ils sont ecrits en sequences d echappement pour que le
-// fichier source reste en ASCII pur et survive a tout copier-coller.
+// La consigne qui borne les schemas d interface.
+//
+// LE DEFAUT QU ELLE CORRIGE : sur F007, le modele a laisse un <table> et un
+// <div> sans fermeture. Le manuel y perdait 84 % du module. Le PDF encaisse
+// desormais le HTML casse, mais mieux vaut ne plus en produire.
+const REGLE_SCHEMA =
+  "SI tu representes un ecran de logiciel, tu ecris un schema HTML autonome et COMPLET : " +
+  "chaque balise ouverte est refermee, dans l ordre inverse de son ouverture. " +
+  "Tu n utilises que <div>, <table>, <tr>, <td>, <b> et <br>, avec des attributs style en couleurs hexadecimales. " +
+  "Aucun commentaire HTML, aucune balise <script>, <style> ou <img>. " +
+  "Tu verifies avant de rendre ta reponse que le nombre de </div> egale le nombre de <div>, " +
+  "et que le nombre de </table> egale le nombre de <table>.";
+
 const COURS = [
   {
     titre: "Fondements et cadre conceptuel",
@@ -115,13 +119,6 @@ const QCM = {
 
 const SYNTHESE = { titre: "Votre synth\u00e8se personnelle", local: true };
 
-// Comparaison insensible aux accents et a la casse.
-//
-// INDISPENSABLE : la reprise du generateur repere les sections deja ecrites en
-// cherchant « ## <titre> » dans le cache. Les titres portent desormais leurs
-// accents, alors que tout le cache existant a ete ecrit sans. Sans cette
-// normalisation, plus aucune section ne serait reconnue et les 532 formations
-// seraient reecrites entierement, a nos frais.
 function sansAccents(t: string): string {
   return String(t || "")
     .normalize("NFD")
@@ -145,6 +142,40 @@ function gabaritSynthese(titreModule: string, code: string, cible: string): stri
     "une note et un retour \u00e9crit signalant les points essentiels que vous auriez omis.\n\n" +
     "Ce travail compte davantage que le QCM. Le QCM v\u00e9rifie que vous reconnaissez une bonne r\u00e9ponse ; " +
     "la synth\u00e8se v\u00e9rifie que vous avez r\u00e9ellement int\u00e9gr\u00e9 le module et que vous savez le transmettre.";
+}
+
+// ==================================================================
+// LE FILET DE SECURITE A L ECRITURE.
+//
+// On refuse d enregistrer un contenu dont les balises ne s equilibrent
+// pas : c est exactement ce qui a coute 84 % du module 1 de F007. Si le
+// modele a oublie une fermeture, on la pose avant d ecrire en base.
+// ==================================================================
+function compter(texte: string, motif: RegExp): number {
+  const trouves = String(texte).match(motif);
+  return trouves ? trouves.length : 0;
+}
+
+function equilibrerBalises(texte: string): string {
+  let sortie = String(texte || "");
+
+  for (const nom of ["table", "div"]) {
+    const ouverts = compter(sortie, new RegExp("<\\s*" + nom + "\\b[^>]*>", "gi"));
+    const fermes = compter(sortie, new RegExp("<\\s*/\\s*" + nom + "\\s*>", "gi"));
+
+    if (ouverts > fermes) {
+      sortie = sortie + "\n" + new Array(ouverts - fermes + 1).join("</" + nom + ">");
+    } else if (fermes > ouverts) {
+      // Fermetures en trop : on retire les premieres, elles sont orphelines.
+      let aRetirer = fermes - ouverts;
+      sortie = sortie.replace(new RegExp("<\\s*/\\s*" + nom + "\\s*>", "gi"), function (m) {
+        if (aRetirer > 0) { aRetirer = aRetirer - 1; return ""; }
+        return m;
+      });
+    }
+  }
+
+  return sortie;
 }
 
 async function appeler(cle: string, invite: string, langue: string): Promise<string> {
@@ -182,6 +213,8 @@ function invitePour(titreFormation: string, l: any, mission: any, dejaEcrites: s
     texte += "Ce module est de nature EVALUATIVE : privilegie les questions, les corriges commentes et les criteres de notation.\n";
   }
 
+  texte += REGLE_SCHEMA + "\n\n";
+
   texte += "Redige directement le contenu de la section, sans introduction sur ce que tu vas faire, sans conclusion sur ce que tu viens de faire. " +
     "Termine toujours ta derniere phrase : ne t arrete jamais au milieu d un mot ou d une phrase. " +
     "REDIGE ENTIEREMENT EN " + nomLangue.toUpperCase() + ", titres compris.";
@@ -199,10 +232,6 @@ function invitePour(titreFormation: string, l: any, mission: any, dejaEcrites: s
 //   1. decoderEntites  -> &#9776; devient le caractere reel
 //   2. translitterer   -> le caractere reel devient dessinable
 //   3. le reste est supprime, mais seulement en dernier recours
-//
-// AVANT, l etape 1 n existait pas et l etape 3 s appliquait d emblee :
-// le stagiaire lisait « &#128196; Budget_2024.xlsx » et « CA () » au
-// lieu de « CA (euro) ».
 // ==================================================================
 
 const ENTITES_NOMMEES: Record<string, string> = {
@@ -232,10 +261,9 @@ function decoderEntites(t: string): string {
     });
 }
 
-// Les symboles nommes un par un. Le reste passe par les plages.
 const SYMBOLES: Record<string, string> = {
-  "\u2630": "=",          // menu hamburger
-  "\u2302": "",           // maison
+  "\u2630": "=",
+  "\u2302": "",
   "\u25d0": "o",
   "\u2715": "x", "\u2716": "x", "\u2717": "-", "\u2718": "-",
   "\u2713": "x", "\u2714": "x",
@@ -255,7 +283,6 @@ const SYMBOLES: Record<string, string> = {
   "\u2039": "<", "\u203a": ">",
 };
 
-// Les caracteres au-dessus de U+00FF que WinAnsi sait tout de meme dessiner.
 const WINANSI_EN_PLUS = "\u20ac\u2022\u2020\u2021\u2122\u2030\u0152\u0153\u0160\u0161\u0178\u017d\u017e\u0192";
 
 function translitterer(t: string): string {
@@ -271,14 +298,13 @@ function translitterer(t: string): string {
     if (cp <= 0xff) { sortie += car; continue; }
     if (WINANSI_EN_PLUS.indexOf(car) >= 0) { sortie += car; continue; }
 
-    if (cp >= 0x2500 && cp <= 0x257f) { sortie += "-"; continue; }   // filets
-    if (cp >= 0x2580 && cp <= 0x259f) { sortie += " "; continue; }   // pavés
-    if (cp >= 0x25a0 && cp <= 0x25ff) { sortie += "-"; continue; }   // formes
-    if (cp >= 0x2190 && cp <= 0x21ff) { sortie += "->"; continue; }  // flèches
-    if (cp >= 0x1f000) { sortie += ""; continue; }                   // émoji
-    if (cp >= 0x2600 && cp <= 0x27bf) { sortie += ""; continue; }    // pictos
+    if (cp >= 0x2500 && cp <= 0x257f) { sortie += "-"; continue; }
+    if (cp >= 0x2580 && cp <= 0x259f) { sortie += " "; continue; }
+    if (cp >= 0x25a0 && cp <= 0x25ff) { sortie += "-"; continue; }
+    if (cp >= 0x2190 && cp <= 0x21ff) { sortie += "->"; continue; }
+    if (cp >= 0x1f000) { sortie += ""; continue; }
+    if (cp >= 0x2600 && cp <= 0x27bf) { sortie += ""; continue; }
 
-    // Dernier recours : la lettre sans son signe diacritique.
     const base = car.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
     sortie += base.length === 1 && (base.codePointAt(0) || 0) <= 0xff ? base : "";
   }
@@ -286,12 +312,23 @@ function translitterer(t: string): string {
   return sortie;
 }
 
+// LE FILET FINAL : aucun fragment de balise ne doit atteindre la page.
+// Meme si une expression a laisse passer un « </div> », il est retire ici.
+function sansFragmentDeBalise(t: string): string {
+  return String(t || "")
+    .replace(/<\s*\/?\s*[a-z][a-z0-9]*\b[^>]*>/gi, " ")
+    .replace(/<\s*\/?\s*[a-z][a-z0-9]*\b[^<]*$/gi, " ")
+    .replace(/\s{2,}/g, " ");
+}
+
 function latin1(t: string): string {
   return translitterer(decoderEntites(String(t || "")));
 }
 
-// Le filet de securite absolu : si une police refuse un caractere, on
-// redessine la ligne en ASCII plutot que de faire echouer tout le manuel.
+function propre(t: string): string {
+  return sansFragmentDeBalise(latin1(t)).trim();
+}
+
 function asciiPur(t: string): string {
   return String(t || "")
     .normalize("NFD")
@@ -331,15 +368,6 @@ function centrer(page: any, texte: string, y: number, police: any, taille: numbe
   tracer(page, texte, { x: (LARGEUR - l) / 2, y: y, size: taille, font: police, color: couleur });
 }
 
-// ==================================================================
-// LE MARKDOWN EN LIGNE : gras, italique, code.
-//
-// Le modele ecrit **cellule**, *legende* et `=SOMME(A1:A10)`. Avant, tout
-// cela partait tel quel dans le PDF, asterisques comprises. On decoupe la
-// phrase en segments porteurs de leur style, et chaque segment est dessine
-// avec sa propre police.
-// ==================================================================
-
 function analyserInline(texte: string): any[] {
   const segments: any[] = [];
   const source = String(texte || "");
@@ -349,9 +377,8 @@ function analyserInline(texte: string): any[] {
   let trouve: any;
 
   function ajouterSimple(brut: string) {
-    // Les marqueurs orphelins ne doivent jamais atteindre la page.
-    const propre = brut.replace(/\*\*/g, "").replace(/`/g, "");
-    if (propre) segments.push({ t: propre, gras: false, italique: false, code: false });
+    const nettoye = brut.replace(/\*\*/g, "").replace(/`/g, "");
+    if (nettoye) segments.push({ t: nettoye, gras: false, italique: false, code: false });
   }
 
   while ((trouve = motif.exec(source)) !== null) {
@@ -379,14 +406,15 @@ function analyserInline(texte: string): any[] {
 function sansBalises(html: string): string {
   return decoderEntites(
     String(html || "")
+      .replace(/<!--[\s\S]*?-->/g, " ")
       .replace(/<br\s*\/?>/gi, " ")
       .replace(/<[^>]*>/g, " ")
+      .replace(/<[^>]*$/g, " ")
   )
     .replace(/\s+/g, " ")
     .trim();
 }
 
-// Un <table> HTML : des rangs de cellules, avec leur style.
 function lireTableauHTML(html: string): any[] {
   const rangs: any[] = [];
   const lignes = String(html).match(/<tr[\s\S]*?<\/tr>/gi) || [];
@@ -398,7 +426,7 @@ function lireTableauHTML(html: string): any[] {
     for (const c of cases) {
       const style = (c.match(/style\s*=\s*"([^"]*)"/i) || ["", ""])[1];
       cellules.push({
-        texte: latin1(sansBalises(c)),
+        texte: propre(sansBalises(c)),
         fond: couleurDuStyle(style, "background"),
         encre: couleurDuStyle(style, "color") || ENCRE,
         gras: /font-weight\s*:\s*bold/i.test(style) || /<(b|strong|th)\b/i.test(c),
@@ -411,7 +439,6 @@ function lireTableauHTML(html: string): any[] {
   return rangs;
 }
 
-// Un tableau ecrit en markdown : | Onglet | Contenu |
 function lireTableauMarkdown(texte: string): any[] {
   const rangs: any[] = [];
   const lignes = String(texte).split("\n");
@@ -424,7 +451,7 @@ function lireTableauMarkdown(texte: string): any[] {
 
     const cellules = l.slice(1, -1).split("|").map(function (c: string) {
       return {
-        texte: latin1(c.replace(/\*\*/g, "").replace(/`/g, "").trim()),
+        texte: propre(c.replace(/\*\*/g, "").replace(/`/g, "").trim()),
         fond: premiere ? rgb(0.957, 0.937, 0.894) : null,
         encre: premiere ? rgb(0.478, 0.373, 0.165) : ENCRE,
         gras: premiere,
@@ -440,7 +467,6 @@ function lireTableauMarkdown(texte: string): any[] {
   return rangs;
 }
 
-// "#217346" ou "#fff" -> une couleur pdf-lib. Null si illisible.
 function hexEnCouleur(hex: string): any {
   const h = String(hex || "").replace(/[^0-9a-f]/gi, "");
   if (h.length === 3) {
@@ -470,17 +496,21 @@ function couleurDuStyle(style: string, propriete: string): any {
 // ==================================================================
 // LA LECTURE DU HTML A PROFONDEUR EQUILIBREE.
 //
-// C EST ICI QUE SE JOUAIT LE RUBAN ETALE SUR CINQ PAGES. L ancienne
-// expression <div[^>]*>[\s\S]*?</div> n est pas gourmande : sur des div
-// imbriques elle s arrete a la PREMIERE fermeture rencontree. Chaque
-// enfant du ruban devenait donc un bandeau isole, un par ligne.
+// 🚨 LE DEFAUT QUI A COUTE 84 % DU MODULE 1 DE F007.
 //
-// On compte desormais les ouvertures et les fermetures. Et un conteneur
-// dont tous les enfants sont courts est rendu sur UNE SEULE bande.
+// finDeBalise compte les ouvertures et les fermetures. Quand la fermeture
+// n existe pas — et le modele en a oublie une —, l ancienne version
+// retournait la FIN DU TEXTE : le <table> orphelin avalait les 74 000
+// caracteres qui le suivaient, dont lireTableauHTML ne gardait que les <tr>.
+// Le manuel tombait a deux pages, sans la moindre erreur.
+//
+// DESORMAIS : sans fermeture, on ne consomme QUE la balise ouvrante. Le
+// contenu qui suit repart en texte normal. Rien ne peut plus disparaitre.
 // ==================================================================
 
 const BALISES_BLOC = "div|table|section|header|footer|nav|ul|ol|li|p";
 
+// Retourne la fin de l element, ou -1 si la fermeture est absente.
 function finDeBalise(texte: string, debut: number, nom: string): number {
   const motif = new RegExp("<\\s*(/?)" + nom + "\\b[^>]*?(/?)>", "gi");
   motif.lastIndex = debut;
@@ -495,10 +525,15 @@ function finDeBalise(texte: string, debut: number, nom: string): number {
       profondeur = profondeur + 1;
     }
   }
-  return texte.length;
+  return -1;
 }
 
-// Separe un contenu en morceaux de texte et en elements HTML complets.
+// La longueur de la seule balise ouvrante, quand il n y a pas de fermeture.
+function finOuvrante(texte: string, debut: number): number {
+  const fin = texte.indexOf(">", debut);
+  return fin < 0 ? debut + 1 : fin + 1;
+}
+
 function decouperElements(texte: string): any[] {
   const sortie: any[] = [];
   const source = String(texte || "");
@@ -513,9 +548,16 @@ function decouperElements(texte: string): any[] {
       break;
     }
     if (trouve.index > position) sortie.push({ type: "texte", contenu: source.slice(position, trouve.index) });
+
     const fin = finDeBalise(source, trouve.index, trouve[1]);
-    sortie.push({ type: "element", contenu: source.slice(trouve.index, fin) });
-    position = fin;
+
+    if (fin < 0) {
+      // Balise orpheline : on la jette, sans toucher a ce qui suit.
+      position = finOuvrante(source, trouve.index);
+    } else {
+      sortie.push({ type: "element", contenu: source.slice(trouve.index, fin) });
+      position = fin;
+    }
   }
 
   return sortie.filter(function (s: any) { return s.contenu && s.contenu.trim(); });
@@ -531,13 +573,8 @@ function ouverture(html: string): any {
   return { nom: nom, style: style, interieur: fin > debut ? html.slice(debut, fin) : html.slice(debut) };
 }
 
-// Le contenu porte-t-il un schema a redessiner ?
-function contientSchema(bloc: string): boolean {
-  return new RegExp("<\\s*(" + BALISES_BLOC + "|tr|td)\\b", "i").test(bloc);
-}
-
 async function composerManuel(fiche: any, plan: any[], contenus: any, examen: string, langue: string): Promise<Uint8Array> {
-  const titre = latin1(fiche.titre || fiche.code);
+  const titre = propre(fiche.titre || fiche.code);
 
   const livre = await PDFDocument.create();
   const normal = await livre.embedFont("Times-Roman");
@@ -576,15 +613,12 @@ async function composerManuel(fiche: any, plan: any[], contenus: any, examen: st
     }
   }
 
-  // Decoupe des segments stylisés en lignes, chaque mot gardant sa police.
-  // « colle » retient l absence d espace avant le mot : c est ce qui evite
-  // d ecrire « (extension .xlsx , .xlsm ) » au lieu de « (extension .xlsx, .xlsm) ».
   function couperRiche(segments: any[], taille: number, largeur: number): any[][] {
     const jetons: any[] = [];
     let espaceEnAttente = false;
 
     for (const seg of segments) {
-      const texte = latin1(seg.t);
+      const texte = propre(seg.t);
       const morceaux = texte.split(/(\s+)/);
       for (const p of morceaux) {
         if (!p) continue;
@@ -619,6 +653,8 @@ async function composerManuel(fiche: any, plan: any[], contenus: any, examen: st
 
   function ecrireRiche(segments: any[], taille: number, interligne: number, couleur: any, avant: number, retrait: number, forcerCouleur: boolean) {
     const lignes = couperRiche(segments, taille, UTILE - retrait);
+    if (lignes.length === 0) return;
+
     y = y - avant;
 
     for (const l of lignes) {
@@ -644,24 +680,30 @@ async function composerManuel(fiche: any, plan: any[], contenus: any, examen: st
   }
 
   function paragraphe(texte: string) {
-    ecrireRiche(analyserInline(texte), 11, 16.5, ENCRE, 7, 0, false);
+    const t = propre(texte);
+    if (!t) return;
+    ecrireRiche(analyserInline(t), 11, 16.5, ENCRE, 7, 0, false);
   }
 
   function titreNiveau(niveau: number, texte: string) {
+    const t = propre(texte);
+    if (!t) return;
     if (niveau <= 2) {
-      ecrireRiche(analyserInline(texte), 11.5, 16, OR, 14, 0, true);
+      ecrireRiche(analyserInline(t), 11.5, 16, OR, 14, 0, true);
     } else if (niveau === 3) {
-      ecrireRiche(analyserInline(texte), 10.8, 15, ENCRE, 11, 0, true);
+      ecrireRiche(analyserInline(t), 10.8, 15, ENCRE, 11, 0, true);
     } else {
-      ecrireRiche(analyserInline(texte), 10.2, 14, GRIS, 9, 0, true);
+      ecrireRiche(analyserInline(t), 10.2, 14, GRIS, 9, 0, true);
     }
   }
 
   function puce(texte: string) {
+    const t = propre(texte);
+    if (!t) return;
     if (y < BAS + 20) nouvellePage();
     y = y - 3;
     tracer(page, "-", { x: MARGE + 4, y: y, size: 11, font: normal, color: ENCRE });
-    ecrireRiche(analyserInline(texte), 11, 16, ENCRE, 0, 18, false);
+    ecrireRiche(analyserInline(t), 11, 16, ENCRE, 0, 18, false);
   }
 
   function filet() {
@@ -671,39 +713,43 @@ async function composerManuel(fiche: any, plan: any[], contenus: any, examen: st
     y = y - 12;
   }
 
+  // Un bloc de code. PAGINE : au-dela d une page, il enchaine sur la
+  // suivante au lieu de dessiner hors du papier.
   function blocCode(lignes: string[]) {
-    const contenu = lignes.map(function (l) { return latin1(l); });
     const decoupees: string[] = [];
-    for (const l of contenu) {
-      const morceaux = couper(l || " ", fixe, 8.5, UTILE - 20);
+    for (const l of lignes) {
+      const morceaux = couper(propre(l) || " ", fixe, 8.5, UTILE - 20);
       for (const m of morceaux) decoupees.push(m);
     }
+    if (decoupees.length === 0) return;
 
-    const hauteur = decoupees.length * 12 + 14;
-    if (y - hauteur < BAS && hauteur < HAUTEUR - MARGE - BAS) nouvellePage();
+    let reste = decoupees;
 
-    y = y - 10;
-    page.drawRectangle({ x: MARGE, y: y - hauteur, width: UTILE, height: hauteur, color: rgb(0.965, 0.961, 0.949) });
-    page.drawRectangle({ x: MARGE, y: y - hauteur, width: UTILE, height: hauteur, borderColor: TRAIT, borderWidth: 0.5 });
+    while (reste.length > 0) {
+      const disponible = y - BAS - 24;
+      if (disponible < 24) { nouvellePage(); continue; }
 
-    let yc = y - 15;
-    for (const l of decoupees) {
-      if (yc < BAS) { nouvellePage(); yc = y - 15; }
-      tracer(page, l, { x: MARGE + 10, y: yc, size: 8.5, font: fixe, color: ENCRE });
-      yc = yc - 12;
+      const tiennent = Math.max(1, Math.floor(disponible / 12));
+      const paquet = reste.slice(0, tiennent);
+      reste = reste.slice(tiennent);
+
+      const hauteur = paquet.length * 12 + 14;
+
+      y = y - 10;
+      page.drawRectangle({ x: MARGE, y: y - hauteur, width: UTILE, height: hauteur, color: rgb(0.965, 0.961, 0.949) });
+      page.drawRectangle({ x: MARGE, y: y - hauteur, width: UTILE, height: hauteur, borderColor: TRAIT, borderWidth: 0.5 });
+
+      let yc = y - 15;
+      for (const l of paquet) {
+        tracer(page, l, { x: MARGE + 10, y: yc, size: 8.5, font: fixe, color: ENCRE });
+        yc = yc - 12;
+      }
+
+      y = y - hauteur - 12;
+      if (reste.length > 0) nouvellePage();
     }
-
-    y = y - hauteur - 12;
   }
 
-  // DESSINE UN TABLEAU, qu il vienne d un <table> HTML ou du markdown.
-  //
-  // Deux passes : on calcule d abord toutes les hauteurs, ce qui permet de
-  // savoir si le tableau tient sur la page restante. Un schema d interface
-  // coupe en deux pages ne veut plus rien dire.
-  //
-  // Les largeurs sont proportionnelles au contenu, avec un plancher, au lieu
-  // du partage a parts egales qui ecrasait les colonnes denses.
   function dessinerTableau(rangs: any[], monospace: boolean) {
     if (!rangs || rangs.length === 0) return;
 
@@ -717,7 +763,6 @@ async function composerManuel(fiche: any, plan: any[], contenus: any, examen: st
     const policeNormale = monospace ? fixe : normal;
     const policeGrasse = monospace ? fixeGras : gras;
 
-    // Poids de chaque colonne : la cellule la plus longue, plafonnee.
     const poids: number[] = [];
     let total = 0;
     for (let i = 0; i < colonnes; i++) {
@@ -741,7 +786,11 @@ async function composerManuel(fiche: any, plan: any[], contenus: any, examen: st
     }
     for (let i = 0; i < colonnes; i++) largeurs[i] = (largeurs[i] * UTILE) / sommeLargeurs;
 
-    // Premiere passe : les decoupes et les hauteurs.
+    // Hauteur maximale qu un rang peut occuper : au-dela, il serait dessine
+    // hors du papier. On le tronque plutot que de le perdre en silence.
+    const hauteurMax = HAUTEUR - MARGE - BAS - 40;
+    const lignesMaxRang = Math.max(1, Math.floor((hauteurMax - marge * 2) / interligne));
+
     const preparation: any[] = [];
     let hauteurTotale = 0;
 
@@ -752,9 +801,10 @@ async function composerManuel(fiche: any, plan: any[], contenus: any, examen: st
       for (let i = 0; i < colonnes; i++) {
         const cel = rang[i];
         const police = cel && cel.gras ? policeGrasse : policeNormale;
-        const morceaux = cel && cel.texte
+        let morceaux = cel && cel.texte
           ? couper(cel.texte, police, taille, largeurs[i] - marge * 2)
           : [""];
+        if (morceaux.length > lignesMaxRang) morceaux = morceaux.slice(0, lignesMaxRang);
         decoupes.push(morceaux);
         if (morceaux.length > lignesMax) lignesMax = morceaux.length;
       }
@@ -766,10 +816,8 @@ async function composerManuel(fiche: any, plan: any[], contenus: any, examen: st
 
     y = y - 12;
 
-    // Si le tableau entier tient sur une page vierge, on ne le coupe pas.
     if (y - hauteurTotale < BAS && hauteurTotale < HAUTEUR - MARGE - BAS - 30) nouvellePage();
 
-    // Seconde passe : le trace.
     for (const p of preparation) {
       if (y - p.hauteur < BAS) nouvellePage();
       const hautRang = y;
@@ -814,50 +862,59 @@ async function composerManuel(fiche: any, plan: any[], contenus: any, examen: st
     y = y - 14;
   }
 
-  // UN BANDEAU : barre de titre, onglet de ruban, message d etat.
+  // Un bandeau. PAGINE lui aussi : c est l autre raison pour laquelle le
+  // texte partait hors du papier sans qu aucune erreur ne soit levee.
   function dessinerBandeau(style: string, texte: string) {
-    const propre = latin1(texte);
-    if (!propre) return;
+    const t = propre(texte);
+    if (!t) return;
 
     const fond = couleurDuStyle(style, "background") || rgb(0.95, 0.95, 0.95);
     const encre = couleurDuStyle(style, "color") || ENCRE;
-    const lignes = couper(propre, fixe, 9, UTILE - 16);
-    const hauteur = lignes.length * 13 + 12;
 
-    if (y - hauteur < BAS) nouvellePage();
+    let reste = couper(t, fixe, 9, UTILE - 16);
 
-    y = y - 10;
-    page.drawRectangle({ x: MARGE, y: y - hauteur, width: UTILE, height: hauteur, color: fond });
-    page.drawRectangle({ x: MARGE, y: y - hauteur, width: UTILE, height: hauteur, borderColor: TRAIT, borderWidth: 0.5 });
+    while (reste.length > 0) {
+      const disponible = y - BAS - 22;
+      if (disponible < 26) { nouvellePage(); continue; }
 
-    let yc = y - 14;
-    for (const l of lignes) {
-      tracer(page, l, { x: MARGE + 8, y: yc, size: 9, font: fixe, color: encre });
-      yc = yc - 13;
+      const tiennent = Math.max(1, Math.floor(disponible / 13));
+      const paquet = reste.slice(0, tiennent);
+      reste = reste.slice(tiennent);
+
+      const hauteur = paquet.length * 13 + 12;
+
+      y = y - 10;
+      page.drawRectangle({ x: MARGE, y: y - hauteur, width: UTILE, height: hauteur, color: fond });
+      page.drawRectangle({ x: MARGE, y: y - hauteur, width: UTILE, height: hauteur, borderColor: TRAIT, borderWidth: 0.5 });
+
+      let yc = y - 14;
+      for (const l of paquet) {
+        tracer(page, l, { x: MARGE + 8, y: yc, size: 9, font: fixe, color: encre });
+        yc = yc - 13;
+      }
+
+      y = y - hauteur - 12;
+      if (reste.length > 0) nouvellePage();
     }
-
-    y = y - hauteur - 12;
   }
 
-  // Un element HTML complet. Recursif : un conteneur descend dans ses
-  // enfants, sauf si ses enfants sont tous courts — auquel cas ils sont
-  // rassembles sur une seule bande, comme une rangee de boutons.
   function dessinerElement(html: string, profondeur: number) {
     if (profondeur > 6) {
-      const t = latin1(sansBalises(html));
-      if (t) paragraphe(t);
+      paragraphe(sansBalises(html));
       return;
     }
 
     const info = ouverture(html);
     if (!info) {
-      const t = latin1(sansBalises(html));
-      if (t) paragraphe(t);
+      paragraphe(sansBalises(html));
       return;
     }
 
     if (info.nom === "table") {
-      dessinerTableau(lireTableauHTML(html), true);
+      const rangs = lireTableauHTML(html);
+      if (rangs.length > 0) { dessinerTableau(rangs, true); return; }
+      // Un <table> sans <tr> exploitable : on n avale pas son contenu.
+      paragraphe(sansBalises(html));
       return;
     }
 
@@ -888,19 +945,11 @@ async function composerManuel(fiche: any, plan: any[], contenus: any, examen: st
     }
 
     for (const e of enfants) {
-      if (e.type === "element") {
-        dessinerElement(e.contenu, profondeur + 1);
-      } else {
-        const t = latin1(sansBalises(e.contenu));
-        if (t) paragraphe(t);
-      }
+      if (e.type === "element") dessinerElement(e.contenu, profondeur + 1);
+      else paragraphe(sansBalises(e.contenu));
     }
   }
 
-  // Le markdown d une zone sans HTML, lu ligne par ligne.
-  //
-  // C EST ICI que les ### sortaient en clair : l ancien test
-  // x.indexOf("## ") === 0 renvoyait 1 sur « ### Section A », jamais 0.
   function ecrireMarkdown(texte: string) {
     const lignes = String(texte || "").split("\n");
     let tampon: string[] = [];
@@ -950,28 +999,33 @@ async function composerManuel(fiche: any, plan: any[], contenus: any, examen: st
   }
 
   // Separe le contenu d un module en zones HTML et en zones markdown.
-  //
-  // Le decoupage par lignes vides d avant cassait les schemas en morceaux :
-  // une ligne vide au milieu d un <table> et le tableau partait en trois.
+  // Une balise sans fermeture est ignoree : le texte qui suit reste du texte.
   function corps(texte: string) {
-    const source = String(texte || "");
+    const source = String(texte || "").replace(/<!--[\s\S]*?-->/g, " ");
     const motif = new RegExp("<\\s*(" + BALISES_BLOC + ")\\b", "i");
     let position = 0;
+    let garde = 0;
 
-    while (position < source.length) {
+    while (position < source.length && garde < 20000) {
+      garde = garde + 1;
+
       const reste = source.slice(position);
       const trouve = reste.search(motif);
 
       if (trouve < 0) { ecrireMarkdown(reste); break; }
-
       if (trouve > 0) ecrireMarkdown(reste.slice(0, trouve));
 
       const debutAbsolu = position + trouve;
       const nom = (source.slice(debutAbsolu).match(new RegExp("^<\\s*(" + BALISES_BLOC + ")\\b", "i")) || ["", "div"])[1];
       const finAbsolue = finDeBalise(source, debutAbsolu, nom);
 
-      dessinerElement(source.slice(debutAbsolu, finAbsolue), 0);
-      position = finAbsolue;
+      if (finAbsolue < 0) {
+        // 🚨 Orpheline : on saute la balise seule. Le reste du module suit.
+        position = finOuvrante(source, debutAbsolu);
+      } else {
+        dessinerElement(source.slice(debutAbsolu, finAbsolue), 0);
+        position = finAbsolue;
+      }
     }
   }
 
@@ -979,14 +1033,14 @@ async function composerManuel(fiche: any, plan: any[], contenus: any, examen: st
     if (l.chapitre_num !== chapitreCourant) {
       chapitreCourant = l.chapitre_num;
       nouvellePage();
-      const etiquette = "Chapitre " + l.chapitre_num + " - " + latin1(l.chapitre_titre);
+      const etiquette = "Chapitre " + l.chapitre_num + " - " + propre(l.chapitre_titre);
       page.drawRectangle({ x: MARGE, y: HAUTEUR - 132, width: UTILE, height: 1.5, color: OR });
       let yt = HAUTEUR - 118;
       for (const ligne of couper(etiquette, gras, 19, UTILE)) {
         tracer(page, ligne, { x: MARGE, y: yt, size: 19, font: gras, color: OR });
         yt = yt - 25;
       }
-      sommaire.push({ niveau: 1, numero: String(l.chapitre_num), titre: latin1(l.chapitre_titre), page: pages.length });
+      sommaire.push({ niveau: 1, numero: String(l.chapitre_num), titre: propre(l.chapitre_titre), page: pages.length });
       y = HAUTEUR - 180;
     }
 
@@ -995,17 +1049,16 @@ async function composerManuel(fiche: any, plan: any[], contenus: any, examen: st
     y = y - 18;
     tracer(page, num, { x: MARGE, y: y, size: 13, font: gras, color: OR });
     let ys = y;
-    for (const ligne of couper(latin1(l.module_titre), gras, 13, UTILE - 40)) {
+    for (const ligne of couper(propre(l.module_titre), gras, 13, UTILE - 40)) {
       tracer(page, ligne, { x: MARGE + 36, y: ys, size: 13, font: gras, color: ENCRE });
       ys = ys - 18;
     }
     y = ys - 8;
-    sommaire.push({ niveau: 2, numero: num, titre: latin1(l.module_titre), page: pages.length });
+    sommaire.push({ niveau: 2, numero: num, titre: propre(l.module_titre), page: pages.length });
 
     corps(contenus[fiche.code + "_ch" + l.chapitre_num + "_mod" + l.module_num + "_" + langue] || "");
   }
 
-  // L examen final ferme le manuel, comme un chapitre a part entiere.
   if (examen) {
     nouvellePage();
     page.drawRectangle({ x: MARGE, y: HAUTEUR - 132, width: UTILE, height: 1.5, color: OR });
@@ -1032,15 +1085,15 @@ async function composerManuel(fiche: any, plan: any[], contenus: any, examen: st
   }
 
   if (fiche.niveau) {
-    centrer(cv, latin1(String(fiche.niveau)), yt2 - 6, n2, 14, ENCRE);
+    centrer(cv, propre(String(fiche.niveau)), yt2 - 6, n2, 14, ENCRE);
     yt2 = yt2 - 30;
   }
 
   cv.drawRectangle({ x: MARGE, y: yt2 - 40, width: UTILE, height: 2, color: OR });
 
-  const infos: string[] = ["Formation " + latin1(fiche.code), "Acad\u00e9MIA Pro"];
-  if (fiche.duree) infos.push(latin1(String(fiche.duree)));
-  if (fiche.domaine) infos.push(latin1(String(fiche.domaine)));
+  const infos: string[] = ["Formation " + propre(fiche.code), "Acad\u00e9MIA Pro"];
+  if (fiche.duree) infos.push(propre(String(fiche.duree)));
+  if (fiche.domaine) infos.push(propre(String(fiche.domaine)));
 
   let yi = yt2 - 76;
   tracer(cv, infos.join(" - "), { x: MARGE, y: yi, size: 11, font: n2, color: ENCRE });
@@ -1051,7 +1104,7 @@ async function composerManuel(fiche: any, plan: any[], contenus: any, examen: st
   yi = yi - 18;
   tracer(cv, "DOCUMENT R\u00c9SERV\u00c9 AUX STAGIAIRES INSCRITS", { x: MARGE, y: yi, size: 10, font: n2, color: GRIS });
 
-  const date = latin1(new Date().toLocaleDateString("fr-FR", { year: "numeric", month: "long", day: "numeric" }));
+  const date = propre(new Date().toLocaleDateString("fr-FR", { year: "numeric", month: "long", day: "numeric" }));
   tracer(cv, "\u00c9dition du " + date, { x: MARGE, y: 90, size: 10, font: n2, color: GRIS });
 
   const parPage = 32;
@@ -1159,9 +1212,13 @@ export async function GET(req: Request) {
 
     // REFAIRE UN MANUEL A LA DEMANDE, sans passer par une commande.
     //   /api/traiter-commandes?secret=XXX&refaire=F007
+    //
+    // &reparer=1 rectifie AUSSI les balises non fermees en cache avant de
+    // composer : c est ce qui sauve les modules deja ecrits.
     const refaire = (url.searchParams.get("refaire") || "").trim().toUpperCase();
     if (refaire) {
       const langueDemandee = (url.searchParams.get("langue") || "fr").trim();
+      const reparer = (url.searchParams.get("reparer") || "") === "1";
 
       const { data: ficheR } = await supabase
         .from("formations")
@@ -1192,7 +1249,18 @@ export async function GET(req: Request) {
         .eq("langue", langueDemandee);
 
       const contenusR: any = {};
-      for (const c of cacheR || []) contenusR[c.cache_key] = c.contenu || "";
+      let reparees = 0;
+
+      for (const c of cacheR || []) {
+        const brut = c.contenu || "";
+        const corrige = equilibrerBalises(brut);
+        contenusR[c.cache_key] = corrige;
+
+        if (reparer && corrige !== brut) {
+          await supabase.from("lms_cache").update({ contenu: corrige }).eq("cache_key", c.cache_key);
+          reparees = reparees + 1;
+        }
+      }
 
       const modulesEcrits = (cacheR || []).filter(function (c: any) {
         return c.cache_key.indexOf("_ch99_") < 0;
@@ -1222,6 +1290,7 @@ export async function GET(req: Request) {
         langue: langueDemandee,
         modules_en_cache: modulesEcrits,
         modules_du_plan: planR.length,
+        balises_reparees: reparees,
         octets: octetsR.length,
         lien: (lienR && lienR.signedUrl) || null,
       });
@@ -1241,7 +1310,6 @@ export async function GET(req: Request) {
     const cmd = commandes[0];
     const code = String(cmd.formation || "").toUpperCase();
 
-    // LA LANGUE DE L ACHETEUR, jointe a la commande par la route de paiement.
     let langue = "fr";
     try {
       const perso = cmd.donnees && cmd.donnees.meta && cmd.donnees.meta.custom_data;
@@ -1284,7 +1352,6 @@ export async function GET(req: Request) {
     const contenus: any = {};
     for (const c of cache || []) contenus[c.cache_key] = c.contenu || "";
 
-    // La duree annoncee en base fixe le volume du cours : une page par heure.
     const trouve = String(fiche.duree || "").match(/(\d{1,4})/);
     const heures = trouve ? parseInt(trouve[1], 10) : 0;
     const pagesCours = Math.min(PAGES_MAX, Math.max(PAGES_MIN, heures));
@@ -1319,7 +1386,8 @@ export async function GET(req: Request) {
         }
       }
 
-      const nouveau = (actuel ? actuel + "\n\n" : "") + "## " + suivante.titre + "\n\n" + texte;
+      // On n enregistre jamais un HTML desequilibre.
+      const nouveau = equilibrerBalises((actuel ? actuel + "\n\n" : "") + "## " + suivante.titre + "\n\n" + texte);
 
       if (contenus[cleCache] !== undefined) {
         await supabase.from("lms_cache").update({ contenu: nouveau }).eq("cache_key", cleCache);
