@@ -17,10 +17,6 @@ const supabase = createClient(
 // Les trois premieres viennent de l open data enrichi. LA QUATRIEME,
 // « manuel », pointe sur la table crm et recoit les profils que Jacques
 // trouve LUI-MEME sur LinkedIn, au fil de son fil d actualite.
-//
-// POURQUOI LA TABLE crm ET PAS UNE QUATRIEME TABLE DE PROSPECTION : ces
-// profils n ont PAS D ADRESSE, seulement un lien LinkedIn. Les loger dans le
-// CRM leur donne d emblee un score, un statut commercial et un historique.
 const TABLES: any = {
   organismes: "prospects_organismes",
   qualiopi: "prospects_qualiopi",
@@ -45,34 +41,22 @@ const ACCEPTES = ["accepte", "accepte_nu"];
 const PLAFOND_SEMAINE = 100;
 const PLAFOND_JOUR = 20;
 
-// 🚨 MILLE LIGNES, ET NON DEUX CENTS — porte le 17/08 au soir.
-//
-// A vingt invitations par jour, le plafond de 200 etait atteint en DIX
-// JOURS : au-dela, les fiches les plus recentes n apparaissaient plus dans
-// les listes, sans aucun avertissement. Mille lignes couvrent cinquante
-// jours. La recherche de l ecran filtre ensuite dans ce qui est charge.
+// A vingt invitations par jour, le plafond de 200 etait atteint en dix
+// jours : au-dela, les fiches recentes n apparaissaient plus dans les
+// listes, sans aucun avertissement. Mille lignes couvrent cinquante jours.
 const LIMITE_LISTE = 1000;
 
 // 🚨🚨 LE JOUR SE COMPTE A PARIS, PAS EN TEMPS UNIVERSEL — corrige le 18/08.
 //
-// LE DEFAUT, ET IL DUPAIT L UTILISATEUR CHAQUE NUIT. Cette fonction faisait
+// LE DEFAUT, ET IL DUPAIT L UTILISATEUR CHAQUE NUIT. Le code faisait
 // `d.setHours(0,0,0,0)`, qui travaille dans le fuseau DU SERVEUR. Or Vercel
 // tourne en UTC. A 1 h 30 du matin a Paris, il est 23 h 30 LA VEILLE pour le
-// serveur : le « debut du jour » calcule renvoyait donc au matin de la
-// veille, et le compteur additionnait encore les vingt invitations deja
-// faites. ENTRE MINUIT ET DEUX HEURES DU MATIN, LE QUOTA NE SE REMETTAIT
-// JAMAIS A ZERO et tous les boutons restaient grises.
+// serveur : le « debut du jour » renvoyait au matin de la veille, et le
+// compteur additionnait encore les vingt invitations deja faites. ENTRE
+// MINUIT ET DEUX HEURES DU MATIN, LE QUOTA NE SE REMETTAIT JAMAIS A ZERO.
 //
-// Jacques l a constate a 1 h 30 : « nous sommes le lendemain, il est 1 h 30
-// du matin » — et il travaillait effectivement, comme souvent.
-//
-// COMMENT C EST CALCULE MAINTENANT : on mesure le decalage reel entre Paris
-// et le temps universel a cet instant precis — ce qui gere l heure d ete et
-// l heure d hiver sans table ni condition — puis on ramene minuit heure de
-// Paris a l instant universel correspondant.
-//
-// ⚠️ NE PAS REVENIR A setHours() : la correction serait annulee, et le
-// defaut ne se verrait qu apres minuit, quand personne ne teste.
+// ⚠️ NE PAS REVENIR A setHours() : le defaut ne se verrait qu apres minuit,
+// quand personne ne teste.
 function decalageParisEnMs(d: Date): number {
   const aParis = new Date(d.toLocaleString("en-US", { timeZone: "Europe/Paris" }));
   const enUTC = new Date(d.toLocaleString("en-US", { timeZone: "UTC" }));
@@ -82,10 +66,8 @@ function decalageParisEnMs(d: Date): number {
 function debutDuJour(): string {
   const maintenant = new Date();
   const decalage = decalageParisEnMs(maintenant);
-  // L instant courant, vu comme l heure affichee a une horloge parisienne.
   const murale = new Date(maintenant.getTime() + decalage);
   murale.setUTCHours(0, 0, 0, 0);
-  // Retour a l instant reel correspondant a minuit parisien.
   return new Date(murale.getTime() - decalage).toISOString();
 }
 
@@ -160,13 +142,16 @@ async function compteurs() {
 // LES COLONNES DIFFERENT SELON LA TABLE. Les trois bases de prospection
 // portent raison_sociale, siren, code_postal ; la table crm porte nom et
 // organisme. Demander les mauvaises colonnes ferait echouer la requete.
+//
+// 🆕 `notes` EST LU PARTOUT depuis le 18/08. La colonne existait deja dans
+// crm ; elle a ete ajoutee aux trois bases de prospection le meme jour.
 const COLONNES_PROSPECTS =
   "id, raison_sociale, ville, code_postal, siren, dirigeant_prenom, dirigeant_nom, " +
-  "linkedin, email, telephone, site_web, linkedin_le, linkedin_statut";
+  "linkedin, email, telephone, site_web, linkedin_le, linkedin_statut, notes";
 
 const COLONNES_CRM =
   "id, nom, organisme, ville, dirigeant_prenom, dirigeant_nom, " +
-  "linkedin, email, telephone, linkedin_le, linkedin_statut";
+  "linkedin, email, telephone, linkedin_le, linkedin_statut, notes";
 
 function colonnesDe(cle: string): string {
   return cle === "manuel" ? COLONNES_CRM : COLONNES_PROSPECTS;
@@ -245,6 +230,40 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const action = String(body.action || "marquer").trim();
     const base = String(body.base || "").trim();
+
+    // 🆕 ENREGISTRER UNE OBSERVATION SUR UNE FICHE — ajoute le 18/08.
+    //
+    // LE MANQUE. Jacques voulait noter ce qu il avait appris d un prospect
+    // apres lui avoir ecrit. Aucun champ ne le permettait dans la file : le
+    // seul bouton disponible, « Voir le profil », l envoyait directement sur
+    // LinkedIn — il perdait l ecran sans avoir rien pu ecrire.
+    //
+    // Ce qu on retient d une conversation ne se retrouve nulle part
+    // ailleurs : ni dans l open data, ni sur LinkedIn. C est la seule
+    // information qui appartienne vraiment a Jacques.
+    //
+    // ⚠️ CETTE ACTION NE TOUCHE NI AU STATUT NI A LA DATE D INVITATION.
+    // Ecrire une note ne doit jamais faire avancer une fiche dans le
+    // parcours, ni consommer le quota du jour.
+    if (action === "note") {
+      const id = body.id;
+      const table = TABLES[base];
+      if (!table) return NextResponse.json({ ok: false, erreur: "Base inconnue." }, { status: 400 });
+      if (!id) return NextResponse.json({ ok: false, erreur: "Ligne non precisee." }, { status: 400 });
+
+      const texte = propre(body.notes, 4000);
+
+      const champs: any = { notes: texte || null };
+      // Sur une fiche du CRM, ecrire une note vaut interaction.
+      if (base === "manuel") champs.derniere_interaction = new Date().toISOString();
+
+      const { error } = await supabase.from(table).update(champs).eq("id", id);
+      if (error) {
+        return NextResponse.json({ ok: false, erreur: error.message }, { status: 500 });
+      }
+
+      return NextResponse.json({ ok: true, notes: texte, message: "Observation enregistrée." });
+    }
 
     // AJOUTER UN PROFIL TROUVE A LA MAIN.
     //
@@ -382,6 +401,13 @@ export async function POST(req: NextRequest) {
     const champs: any = { linkedin_statut: statut };
     if (statut === "invite" || statut === "invite_nu" || statut === "ecarte") {
       champs.linkedin_le = new Date().toISOString();
+    }
+
+    // L observation peut etre enregistree EN MEME TEMPS qu un changement de
+    // statut — pratique quand on marque « a accepte » et qu on note ce
+    // qu on vient d apprendre dans le meme geste.
+    if (body.notes !== undefined) {
+      champs.notes = propre(body.notes, 4000) || null;
     }
 
     // Sur une fiche du CRM, une acceptation vaut un signal commercial :
