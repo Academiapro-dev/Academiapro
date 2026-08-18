@@ -5,36 +5,69 @@ import { useState, useEffect, useMemo } from "react";
 //
 // INVITER : une fiche a la fois, le mot pre-redige, le profil qui s ouvre.
 // MES INVITATIONS : ce qui est parti et attend une reponse.
-// A RELANCER : les personnes qui ont accepte. LA CONNEXION ETABLIE CHANGE
-//   TOUT — plus de limite de caracteres, plus de quota, et un lecteur qui
-//   a deja dit oui.
+// A RELANCER : les personnes qui ont accepte.
 //
 // 🚨 AUCUN ENVOI AUTOMATIQUE, ET CE N EST PAS CONTOURNABLE. LinkedIn
 // n expose AUCUNE API de messagerie, et les outils qui simulent les clics
 // font restreindre puis supprimer le compte.
 //
-// 🆕 OBSERVATION SUR CHAQUE FICHE — 18/08. Jacques voulait noter ce qu il
-// avait appris d un prospect. Aucun champ ne le permettait : le seul bouton
-// disponible, « Voir le profil », l envoyait directement sur LinkedIn — il
-// perdait l ecran sans avoir rien pu ecrire.
+// 🆕 FICHE COMPLETE — 18/08. L ecran n affichait que le nom, l organisme et
+// la ville. Le telephone, l adresse, le SIREN ou le site etaient en base
+// mais invisibles, et rien ne permettait de corriger un numero errone
+// releve pendant un echange. Ses mots : « je ne peux pas ouvrir la fiche
+// entiere ou l editer entierement ».
 //
-// ⚠️ CE QUE L ON RETIENT D UNE CONVERSATION NE SE RETROUVE NULLE PART
-// AILLEURS : ni dans l open data, ni sur LinkedIn. C est la seule
-// information qui appartienne vraiment a Jacques — elle merite un champ.
+// 🆕 OBSERVATION SUR CHAQUE FICHE — 18/08. Ce qu on retient d une
+// conversation ne se retrouve NULLE PART AILLEURS : ni dans l open data, ni
+// sur LinkedIn. C est la seule information qui appartienne vraiment a
+// Jacques. Elle s affiche sans avoir a ouvrir quoi que ce soit.
 //
 // 🆕 MODE ENCHAINEMENT — 17/08. L envoi en masse etant impossible,
 // l essentiel du temps perdu tenait au va-et-vient. Trois clics par
-// personne desormais : copier-et-ouvrir, coller, marquer.
+// personne desormais.
 //
 // 🚨 DEFAUT CORRIGE LE 16/08 : le bouton faisait DEUX choses d un clic —
 // ouvrir le profil ET marquer la fiche. Cinq fiches perdues en une matinee.
-// Desormais ouvrir ne marque rien.
 
 const BASES = [
   { cle: "organismes", nom: "Organismes certifiés Qualiopi" },
   { cle: "qualiopi", nom: "Organismes NON certifiés" },
   { cle: "interim", nom: "Agences d'intérim" },
 ];
+
+// LES CHAMPS DE LA FICHE COMPLETE, ET ILS DIFFERENT SELON LA TABLE.
+//
+// ⚠️ Les trois bases de prospection portent raison_sociale, siren,
+// code_postal, site_web ; la table crm porte nom et organisme. Envoyer un
+// champ a la mauvaise table ferait echouer la mise a jour entiere — la
+// route filtre de son cote, mais l ecran ne doit pas les proposer.
+const CHAMPS_PROSPECTS = [
+  { cle: "dirigeant_prenom", nom: "Prénom du dirigeant", large: false },
+  { cle: "dirigeant_nom", nom: "Nom du dirigeant", large: false },
+  { cle: "raison_sociale", nom: "Raison sociale", large: true },
+  { cle: "ville", nom: "Ville", large: false },
+  { cle: "code_postal", nom: "Code postal", large: false },
+  { cle: "email", nom: "Adresse électronique", large: true },
+  { cle: "telephone", nom: "Téléphone", large: false },
+  { cle: "siren", nom: "SIREN", large: false },
+  { cle: "site_web", nom: "Site internet", large: true },
+  { cle: "linkedin", nom: "Profil LinkedIn", large: true },
+];
+
+const CHAMPS_CRM = [
+  { cle: "dirigeant_prenom", nom: "Prénom", large: false },
+  { cle: "dirigeant_nom", nom: "Nom", large: false },
+  { cle: "nom", nom: "Nom complet du contact", large: true },
+  { cle: "organisme", nom: "Son organisme", large: true },
+  { cle: "ville", nom: "Ville", large: false },
+  { cle: "email", nom: "Adresse électronique", large: false },
+  { cle: "telephone", nom: "Téléphone", large: false },
+  { cle: "linkedin", nom: "Profil LinkedIn", large: true },
+];
+
+function champsDe(base: string) {
+  return base === "manuel" ? CHAMPS_CRM : CHAMPS_PROSPECTS;
+}
 
 // 🚨 DEUX CENTS CARACTERES, PAS TROIS CENTS. LinkedIn n accorde 300
 // caracteres QU AUX COMPTES PREMIUM. Au-dela de 200 en compte gratuit, le
@@ -100,12 +133,12 @@ export default function PageLinkedin() {
 
   const [recherche, setRecherche] = useState("");
 
-  // L OBSERVATION. `notes` porte le texte en cours de saisie pour chaque
-  // fiche ouverte, `noteOuverte` celle qu on edite, `noteEnCours` celle
-  // qu on est en train d enregistrer.
-  const [notes, setNotes] = useState<any>({});
-  const [noteOuverte, setNoteOuverte] = useState("");
-  const [noteEnCours, setNoteEnCours] = useState("");
+  // LA FICHE COMPLETE. `depliee` porte la cle de celle qui est ouverte,
+  // `brouillon` les valeurs en cours de saisie, `enregistre` celle qu on
+  // est en train de sauver.
+  const [depliee, setDepliee] = useState("");
+  const [brouillon, setBrouillon] = useState<any>({});
+  const [enregistre, setEnregistre] = useState("");
 
   // LE MODE ENCHAINEMENT.
   const [serie, setSerie] = useState<any[] | null>(null);
@@ -172,17 +205,13 @@ export default function PageLinkedin() {
     setCharge(true);
     setErreur("");
     setOuverte(null);
-    setNoteOuverte("");
+    setDepliee("");
     try {
       const action = onglet === "attente" ? "en_attente" : "a_relancer";
       const d = await appeler({ action: action });
       if (d.ok) {
         setLignes(d.lignes || []);
         setCompteurs(d.compteurs || null);
-        // Les observations deja enregistrees remontent avec les fiches.
-        const n: any = {};
-        for (const l of (d.lignes || [])) n[l.base + "-" + l.id] = l.notes || "";
-        setNotes(n);
       } else setErreur(d.erreur || "Lecture impossible.");
     } catch (e: any) {
       setErreur("Lecture impossible : " + String(e));
@@ -190,30 +219,53 @@ export default function PageLinkedin() {
     setCharge(false);
   }
 
-  // ENREGISTRER UNE OBSERVATION. N avance rien dans le parcours, ne
-  // consomme aucun quota.
-  async function enregistrerNote(l: any) {
+  // OUVRIR LA FICHE COMPLETE. On recopie les valeurs actuelles dans le
+  // brouillon : tant qu on n enregistre pas, rien ne bouge en base.
+  function deplier(l: any) {
     const cle = cleDe(l);
-    setNoteEnCours(cle);
+    const vals: any = { notes: l.notes || "" };
+    for (const c of champsDe(l.base)) vals[c.cle] = l[c.cle] || "";
+    setBrouillon({ ...brouillon, [cle]: vals });
+    setDepliee(cle);
+    setErreur("");
+    setMessage("");
+  }
+
+  function poserChamp(cle: string, champ: string, valeur: string) {
+    const actuel = brouillon[cle] || {};
+    setBrouillon({ ...brouillon, [cle]: { ...actuel, [champ]: valeur } });
+  }
+
+  // ENREGISTRER LA FICHE. N avance rien dans le parcours, ne consomme aucun
+  // quota — corriger un telephone ne doit pas faire avancer une invitation.
+  async function enregistrerFiche(l: any) {
+    const cle = cleDe(l);
+    const vals = brouillon[cle] || {};
+    setEnregistre(cle);
     setErreur("");
     setMessage("");
     try {
-      const d = await appeler({
-        action: "note",
-        base: l.base || base,
-        id: l.id,
-        notes: notes[cle] || "",
-      });
+      const corps: any = { action: "modifier", base: l.base || base, id: l.id, notes: vals.notes || "" };
+      for (const c of champsDe(l.base)) corps[c.cle] = vals[c.cle] || "";
+
+      const d = await appeler(corps);
       if (d.ok) {
-        setMessage("Observation enregistrée.");
-        setNoteOuverte("");
+        setMessage(d.message || "Fiche enregistrée.");
+        setDepliee("");
+        // La fiche revient a jour depuis la base : on remplace la ligne
+        // sans recharger toute la liste.
+        if (d.fiche) {
+          setLignes(lignes.map(function (x: any) {
+            return cleDe(x) === cle ? { ...d.fiche, base: l.base } : x;
+          }));
+        }
       } else {
         setErreur(d.erreur || "Enregistrement impossible.");
       }
     } catch (e: any) {
       setErreur("Enregistrement impossible : " + String(e));
     }
-    setNoteEnCours("");
+    setEnregistre("");
   }
 
   // LE FILTRE. Il porte sur tout ce qui identifie une personne, y compris
@@ -229,6 +281,7 @@ export default function PageLinkedin() {
         (l.raison_sociale || "") + " " +
         (l.ville || "") + " " +
         (l.email || "") + " " +
+        (l.telephone || "") + " " +
         (l.linkedin || "") + " " +
         (l.notes || "")
       );
@@ -293,12 +346,7 @@ export default function PageLinkedin() {
     setCharge(true);
     setErreur("");
     try {
-      const cle = cleDe(l);
-      const corps: any = { base: l.base || base, id: l.id, statut: "relance" };
-      // L observation saisie pendant la serie part avec le changement de statut.
-      if (notes[cle] !== undefined) corps.notes = notes[cle];
-
-      const d = await appeler(corps);
+      const d = await appeler({ base: l.base || base, id: l.id, statut: "relance" });
       if (d.ok) {
         setCompteurs(d.compteurs || null);
         setFaits(faits + 1);
@@ -366,12 +414,7 @@ export default function PageLinkedin() {
     setCharge(true);
     setErreur("");
     try {
-      const cle = cleDe(l);
-      const corps: any = { base: cleBase || l.base || base, id: l.id, statut: statut };
-      // L observation part avec le changement de statut, quand elle existe.
-      if (onglet !== "inviter" && notes[cle] !== undefined) corps.notes = notes[cle];
-
-      const d = await appeler(corps);
+      const d = await appeler({ base: cleBase || l.base || base, id: l.id, statut: statut });
       if (d.ok) {
         setCompteurs(d.compteurs || null);
         if (onglet === "inviter") poser(d);
@@ -401,6 +444,10 @@ export default function PageLinkedin() {
     if (!t) return "";
     if (t.indexOf("http") === 0) return t;
     return "https://" + t.replace(/^\/+/, "");
+  }
+
+  function appelable(t: string) {
+    return String(t || "").replace(/[^0-9+]/g, "");
   }
 
   function nombre(n: any) {
@@ -494,22 +541,54 @@ export default function PageLinkedin() {
     );
   }
 
-  // LE BLOC D OBSERVATION, partage par les deux listes.
+  // LES COORDONNEES EN LECTURE, sous le nom. Ce qui est vide ne s affiche
+  // pas — une ligne « téléphone : — » n apprend rien.
+  function coordonnees(l: any) {
+    const bouts: any[] = [];
+    if (l.email) {
+      bouts.push(
+        <a key="m" href={"mailto:" + l.email} style={{ color: BLEU, textDecoration: "none" }}>
+          ✉️ {l.email}
+        </a>
+      );
+    }
+    if (l.telephone) {
+      bouts.push(
+        <a key="t" href={"tel:" + appelable(l.telephone)} style={{ color: BLEU, textDecoration: "none" }}>
+          ☎️ {l.telephone}
+        </a>
+      );
+    }
+    if (l.site_web) {
+      bouts.push(
+        <a key="s" href={lien(l.site_web)} target="_blank" rel="noreferrer" style={{ color: "rgba(255,255,255,0.5)", textDecoration: "none" }}>
+          🌐 {l.site_web}
+        </a>
+      );
+    }
+    if (bouts.length === 0) return null;
+    return (
+      <div style={{ display: "flex", gap: "14px", flexWrap: "wrap", marginTop: "7px", fontSize: "12.5px" }}>
+        {bouts}
+      </div>
+    );
+  }
+
+  // LE BLOC DE LA FICHE COMPLETE, partage par les deux listes et la serie.
   //
-  // Replie quand il n y a rien a lire, ouvert d un clic. Quand une note
-  // existe deja, elle est visible sans avoir a ouvrir quoi que ce soit —
-  // c est tout l interet.
-  function blocNote(l: any) {
+  // Replie : l observation s affiche si elle existe, et un bouton ouvre le
+  // detail. Ouvert : tous les champs de la table, modifiables.
+  function blocFiche(l: any) {
     const cle = cleDe(l);
-    const ouvert = noteOuverte === cle;
-    const valeur = notes[cle] !== undefined ? notes[cle] : (l.notes || "");
-    const existe = String(l.notes || "").trim().length > 0;
-    const occupe = noteEnCours === cle;
+    const ouvert = depliee === cle;
+    const vals = brouillon[cle] || {};
+    const occupe = enregistre === cle;
+    const aNote = String(l.notes || "").trim().length > 0;
 
     if (!ouvert) {
       return (
         <div style={{ marginTop: "12px" }}>
-          {existe && (
+          {aNote && (
             <div style={{ background: "rgba(200,169,110,0.07)", border: "1px solid rgba(200,169,110,0.22)", borderRadius: "8px", padding: "11px 13px", marginBottom: "9px" }}>
               <div style={{ color: OR, fontSize: "11.5px", letterSpacing: "1.5px", marginBottom: "5px" }}>
                 VOTRE OBSERVATION
@@ -520,38 +599,65 @@ export default function PageLinkedin() {
             </div>
           )}
           <button
-            onClick={() => { setNoteOuverte(cle); setNotes({ ...notes, [cle]: valeur }); }}
-            style={{ ...BOUTON, width: "100%", padding: "10px", fontSize: "13px", color: existe ? OR : "rgba(255,255,255,0.5)", borderColor: existe ? BOUTON.border : "rgba(255,255,255,0.18)" }}
+            onClick={() => deplier(l)}
+            style={{ ...BOUTON, width: "100%", padding: "10px", fontSize: "13px", color: aNote ? OR : "rgba(255,255,255,0.55)", borderColor: aNote ? BOUTON.border : "rgba(255,255,255,0.18)" }}
           >
-            {existe ? "Modifier l'observation" : "Noter une observation"}
+            Voir la fiche complète
           </button>
         </div>
       );
     }
 
+    const champs = champsDe(l.base);
+
     return (
-      <div style={{ marginTop: "12px", padding: "14px", background: "rgba(200,169,110,0.06)", border: "1px solid rgba(200,169,110,0.3)", borderRadius: "9px" }}>
-        <span style={LIBELLE}>Ce que vous voulez retenir de ce contact</span>
+      <div style={{ marginTop: "12px", padding: "16px", background: "rgba(200,169,110,0.05)", border: "1px solid rgba(200,169,110,0.3)", borderRadius: "9px" }}>
+        <div style={{ color: OR, fontSize: "12px", letterSpacing: "2px", marginBottom: "14px" }}>
+          FICHE COMPLÈTE — TOUT EST MODIFIABLE
+        </div>
+
+        <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+          {champs.map(function (c) {
+            return (
+              <div key={c.cle} style={{ flex: c.large ? "1 1 100%" : "1 1 180px" }}>
+                <span style={LIBELLE}>{c.nom}</span>
+                <input
+                  value={vals[c.cle] !== undefined ? vals[c.cle] : ""}
+                  onChange={(e) => poserChamp(cle, c.cle, e.target.value)}
+                  style={{ ...CHAMP, marginBottom: "11px" }}
+                />
+              </div>
+            );
+          })}
+        </div>
+
+        <span style={LIBELLE}>Votre observation</span>
         <textarea
-          value={valeur}
-          onChange={(e) => setNotes({ ...notes, [cle]: e.target.value })}
+          value={vals.notes !== undefined ? vals.notes : ""}
+          onChange={(e) => poserChamp(cle, "notes", e.target.value)}
           rows={4}
           placeholder="Dirige trois centres en Normandie. Rappeler en septembre, en vacances jusqu'au 5."
-          style={{ ...CHAMP, marginBottom: "11px" }}
+          style={{ ...CHAMP, marginBottom: "13px" }}
         />
+
+        <p style={{ color: "rgba(255,255,255,0.35)", fontSize: "12.5px", lineHeight: "1.7", margin: "0 0 13px" }}>
+          Corriger une coordonnée ne fait rien avancer dans le parcours et ne consomme
+          aucune invitation.
+        </p>
+
         <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
           <button
-            onClick={() => enregistrerNote(l)}
+            onClick={() => enregistrerFiche(l)}
             disabled={occupe}
-            style={{ flex: "2 1 180px", background: "rgba(200,169,110,0.2)", color: OR, border: "1px solid rgba(200,169,110,0.5)", borderRadius: "8px", padding: "11px", fontSize: "13.5px", fontWeight: "bold", fontFamily: "Georgia,serif", cursor: occupe ? "wait" : "pointer" }}
+            style={{ flex: "2 1 200px", background: "rgba(200,169,110,0.2)", color: OR, border: "1px solid rgba(200,169,110,0.5)", borderRadius: "8px", padding: "12px", fontSize: "13.5px", fontWeight: "bold", fontFamily: "Georgia,serif", cursor: occupe ? "wait" : "pointer" }}
           >
-            {occupe ? "Enregistrement…" : "Enregistrer"}
+            {occupe ? "Enregistrement…" : "Enregistrer la fiche"}
           </button>
           <button
-            onClick={() => { setNoteOuverte(""); setNotes({ ...notes, [cle]: l.notes || "" }); }}
-            style={{ ...BOUTON, flex: "1 1 110px", padding: "11px", fontSize: "13.5px", color: "rgba(255,255,255,0.5)", borderColor: "rgba(255,255,255,0.18)" }}
+            onClick={() => setDepliee("")}
+            style={{ ...BOUTON, flex: "1 1 110px", padding: "12px", fontSize: "13.5px", color: "rgba(255,255,255,0.5)", borderColor: "rgba(255,255,255,0.18)" }}
           >
-            Annuler
+            Fermer
           </button>
         </div>
       </div>
@@ -777,18 +883,7 @@ export default function PageLinkedin() {
                     {fiche.code_postal ? " · " + fiche.code_postal : ""}
                     {fiche.siren ? " · SIREN " + fiche.siren : ""}
                   </div>
-                  {fiche.site_web && (
-                    <div style={{ color: "rgba(255,255,255,0.35)", fontSize: "12.5px", wordBreak: "break-all", marginTop: "3px" }}>
-                      {fiche.site_web}
-                    </div>
-                  )}
-                  {(fiche.email || fiche.telephone) && (
-                    <div style={{ color: "rgba(255,255,255,0.35)", fontSize: "12.5px", marginTop: "3px", wordBreak: "break-all" }}>
-                      {fiche.email ? "✉️ " + fiche.email : ""}
-                      {fiche.email && fiche.telephone ? " · " : ""}
-                      {fiche.telephone ? "☎️ " + fiche.telephone : ""}
-                    </div>
-                  )}
+                  {coordonnees(fiche)}
                 </div>
 
                 <div style={CARTE}>
@@ -900,6 +995,7 @@ export default function PageLinkedin() {
                           {l.raison_sociale || "—"}
                         </div>
                         <div style={{ color: "rgba(255,255,255,0.4)", fontSize: "12.5px", marginTop: "4px" }}>
+                          {l.ville ? l.ville + " · " : ""}
                           {jolieDate(l.linkedin_le)}
                           {j !== null ? " · il y a " + j + " jour" + (j > 1 ? "s" : "") : ""}
                           <span style={{ color: note ? OR : "rgba(255,255,255,0.3)" }}>
@@ -909,6 +1005,7 @@ export default function PageLinkedin() {
                             <span style={{ color: BLEU }}> · ajouté à la main</span>
                           ) : ""}
                         </div>
+                        {coordonnees(l)}
                       </div>
                       <a href={lien(l.linkedin)} target="_blank" rel="noreferrer"
                         style={{ color: BLEU, fontSize: "12.5px", textDecoration: "none", alignSelf: "center" }}>
@@ -916,7 +1013,7 @@ export default function PageLinkedin() {
                       </a>
                     </div>
 
-                    {blocNote(l)}
+                    {blocFiche(l)}
 
                     <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "12px" }}>
                       <button onClick={() => marquer(l, note ? "accepte" : "accepte_nu")} disabled={charge}
@@ -964,6 +1061,7 @@ export default function PageLinkedin() {
                     {courante.ville || ""}
                     {courante.base === "manuel" ? " · ajouté à la main" : ""}
                   </div>
+                  {coordonnees(courante)}
 
                   {courante.notes && (
                     <div style={{ background: "rgba(200,169,110,0.07)", border: "1px solid rgba(200,169,110,0.22)", borderRadius: "8px", padding: "11px 13px", marginTop: "13px" }}>
@@ -1012,7 +1110,7 @@ export default function PageLinkedin() {
                     sur <strong>Message</strong>, collez, envoyez — puis revenez ici.
                   </p>
 
-                  {blocNote(courante)}
+                  {blocFiche(courante)}
 
                   <div style={{ display: "flex", gap: "9px", flexWrap: "wrap", marginTop: "16px" }}>
                     <button onClick={() => envoyeEtSuivant(courante)} disabled={charge}
@@ -1083,8 +1181,10 @@ export default function PageLinkedin() {
                               {l.raison_sociale || "—"}
                             </div>
                             <div style={{ color: "rgba(255,255,255,0.4)", fontSize: "12.5px", marginTop: "4px" }}>
-                              {l.ville || ""}{l.ville && l.site_web ? " · " : ""}{l.site_web || ""}
+                              {l.ville || ""}
+                              {l.base === "manuel" ? " · ajouté à la main" : ""}
                             </div>
+                            {coordonnees(l)}
                           </div>
                           <a href={lien(l.linkedin)} target="_blank" rel="noreferrer"
                             style={{ color: BLEU, fontSize: "12.5px", textDecoration: "none", alignSelf: "center" }}>
@@ -1092,7 +1192,7 @@ export default function PageLinkedin() {
                           </a>
                         </div>
 
-                        {blocNote(l)}
+                        {blocFiche(l)}
 
                         {!active ? (
                           <button
