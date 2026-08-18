@@ -20,6 +20,10 @@ const MODULES_PAR_LOT_EXAMEN = 5;
 const SEUIL_REUSSITE = 70;
 const JETONS_PAR_PASSE = 8000;
 
+// Au-dela de cette longueur, une cellule n est pas une cellule : c est du
+// contenu avale par un tableau mal ferme. On le rend alors en texte.
+const CELLULE_MAX = 800;
+
 const LANGUES: Record<string, string> = {
   fr: "francais",
   en: "English",
@@ -62,11 +66,6 @@ const REGLE_EVALUATION =
   "la methode, le protocole, le choix de la technique selon la situation, les applications concretes, " +
   "les precautions et la securite. Gradue la difficulte : commence par la comprehension, termine par l application.";
 
-// La consigne qui borne les schemas d interface.
-//
-// LE DEFAUT QU ELLE CORRIGE : sur F007, le modele a laisse un <table> et un
-// <div> sans fermeture. Le manuel y perdait 84 % du module. Le PDF encaisse
-// desormais le HTML casse, mais mieux vaut ne plus en produire.
 const REGLE_SCHEMA =
   "SI tu representes un ecran de logiciel, tu ecris un schema HTML autonome et COMPLET : " +
   "chaque balise ouverte est refermee, dans l ordre inverse de son ouverture. " +
@@ -119,11 +118,39 @@ const QCM = {
 
 const SYNTHESE = { titre: "Votre synth\u00e8se personnelle", local: true };
 
+// LES TITRES DE SECTION DANS LEUR FORME IMPRIMEE.
+//
+// Tout le cache des 331 formations d origine a ete ecrit avec des titres
+// sans accents : « ## Methode et protocole ». Plutot que de reecrire la base
+// ou de regenerer, on rend le titre canonique a l affichage.
+const TITRES_CANONIQUES: string[] = [
+  "Fondements et cadre conceptuel",
+  "M\u00e9thode et protocole",
+  "\u00c9tudes de cas",
+  "Erreurs fr\u00e9quentes et rem\u00e9diation",
+  "Applications professionnelles",
+  "Approfondissement et ressources",
+  "Exercices pratiques et corrig\u00e9s",
+  "QCM du module",
+  "Votre synth\u00e8se personnelle",
+  "Obtenir votre Certification Acad\u00e9MIA Pro",
+  "Corrig\u00e9 comment\u00e9",
+  "Examen final",
+];
+
 function sansAccents(t: string): string {
   return String(t || "")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase();
+}
+
+function titreCanonique(t: string): string {
+  const cle = sansAccents(t).trim();
+  for (const officiel of TITRES_CANONIQUES) {
+    if (sansAccents(officiel).trim() === cle) return officiel;
+  }
+  return t;
 }
 
 function gabaritSynthese(titreModule: string, code: string, cible: string): string {
@@ -145,34 +172,77 @@ function gabaritSynthese(titreModule: string, code: string, cible: string): stri
 }
 
 // ==================================================================
-// LE FILET DE SECURITE A L ECRITURE.
+// L EQUILIBRAGE DES BALISES.
 //
-// On refuse d enregistrer un contenu dont les balises ne s equilibrent
-// pas : c est exactement ce qui a coute 84 % du module 1 de F007. Si le
-// modele a oublie une fermeture, on la pose avant d ecrire en base.
+// 🚨 CE QUI S EST PASSE LE 18/08 AU SOIR. Le modele avait laisse un
+// <table> sans fermeture. Premiere correction : ajouter le </table>
+// manquant A LA FIN DU CONTENU. Resultat : le tableau englobait tout le
+// reste du module, et les 60 000 caracteres suivants se sont retrouves
+// dans UNE SEULE CELLULE, imprimee sur une colonne etroite avec son
+// markdown brut. Exercices 5 a 8, QCM et synthese : disparus.
+//
+// DESORMAIS le </table> est pose juste apres le dernier </tr> du tableau
+// concerne. Un tableau se termine ou ses lignes se terminent.
 // ==================================================================
 function compter(texte: string, motif: RegExp): number {
   const trouves = String(texte).match(motif);
   return trouves ? trouves.length : 0;
 }
 
-function equilibrerBalises(texte: string): string {
+function equilibrerTableaux(texte: string): string {
   let sortie = String(texte || "");
+  let garde = 0;
 
-  for (const nom of ["table", "div"]) {
-    const ouverts = compter(sortie, new RegExp("<\\s*" + nom + "\\b[^>]*>", "gi"));
-    const fermes = compter(sortie, new RegExp("<\\s*/\\s*" + nom + "\\s*>", "gi"));
+  while (garde < 40) {
+    garde = garde + 1;
 
-    if (ouverts > fermes) {
-      sortie = sortie + "\n" + new Array(ouverts - fermes + 1).join("</" + nom + ">");
-    } else if (fermes > ouverts) {
-      // Fermetures en trop : on retire les premieres, elles sont orphelines.
-      let aRetirer = fermes - ouverts;
-      sortie = sortie.replace(new RegExp("<\\s*/\\s*" + nom + "\\s*>", "gi"), function (m) {
-        if (aRetirer > 0) { aRetirer = aRetirer - 1; return ""; }
-        return m;
-      });
+    const ouverts = compter(sortie, /<\s*table\b[^>]*>/gi);
+    const fermes = compter(sortie, /<\s*\/\s*table\s*>/gi);
+    if (ouverts <= fermes) break;
+
+    // Le premier <table> qui n a pas de fermeture.
+    const motif = /<\s*table\b[^>]*>/gi;
+    let orphelin = -1;
+    let debutContenu = -1;
+    let t: any;
+
+    while ((t = motif.exec(sortie)) !== null) {
+      if (finDeBalise(sortie, t.index, "table") < 0) {
+        orphelin = t.index;
+        debutContenu = t.index + t[0].length;
+        break;
+      }
     }
+
+    if (orphelin < 0) break;
+
+    // On borne la recherche au prochain <table> ouvrant, s il existe.
+    const suivant = sortie.toLowerCase().indexOf("<table", debutContenu);
+    const borne = suivant < 0 ? sortie.length : suivant;
+    const zone = sortie.slice(debutContenu, borne);
+    const dernierTr = zone.toLowerCase().lastIndexOf("</tr>");
+
+    const position = dernierTr < 0 ? debutContenu : debutContenu + dernierTr + 5;
+    sortie = sortie.slice(0, position) + "</table>" + sortie.slice(position);
+  }
+
+  return sortie;
+}
+
+function equilibrerBalises(texte: string): string {
+  let sortie = equilibrerTableaux(String(texte || ""));
+
+  const ouverts = compter(sortie, /<\s*div\b[^>]*>/gi);
+  const fermes = compter(sortie, /<\s*\/\s*div\s*>/gi);
+
+  if (ouverts > fermes) {
+    sortie = sortie + "\n" + new Array(ouverts - fermes + 1).join("</div>");
+  } else if (fermes > ouverts) {
+    let aRetirer = fermes - ouverts;
+    sortie = sortie.replace(/<\s*\/\s*div\s*>/gi, function (m) {
+      if (aRetirer > 0) { aRetirer = aRetirer - 1; return ""; }
+      return m;
+    });
   }
 
   return sortie;
@@ -220,19 +290,6 @@ function invitePour(titreFormation: string, l: any, mission: any, dejaEcrites: s
     "REDIGE ENTIEREMENT EN " + nomLangue.toUpperCase() + ", titres compris.";
   return texte;
 }
-
-// ==================================================================
-// LE TEXTE AVANT LE DESSIN : entites, symboles, jeu de caracteres.
-//
-// pdf-lib ne dessine que ce que la police sait encoder. Les polices
-// standard (Times, Courier) sont en WinAnsi : tout le latin accentue,
-// plus l euro, la puce, le symbole marque deposee.
-//
-// Trois etapes, dans cet ordre :
-//   1. decoderEntites  -> &#9776; devient le caractere reel
-//   2. translitterer   -> le caractere reel devient dessinable
-//   3. le reste est supprime, mais seulement en dernier recours
-// ==================================================================
 
 const ENTITES_NOMMEES: Record<string, string> = {
   nbsp: " ", amp: "&", lt: "<", gt: ">", quot: '"', apos: "'",
@@ -312,21 +369,32 @@ function translitterer(t: string): string {
   return sortie;
 }
 
-// LE FILET FINAL : aucun fragment de balise ne doit atteindre la page.
-// Meme si une expression a laisse passer un « </div> », il est retire ici.
 function sansFragmentDeBalise(t: string): string {
   return String(t || "")
     .replace(/<\s*\/?\s*[a-z][a-z0-9]*\b[^>]*>/gi, " ")
     .replace(/<\s*\/?\s*[a-z][a-z0-9]*\b[^<]*$/gi, " ")
-    .replace(/\s{2,}/g, " ");
+    .replace(/[ \t]{2,}/g, " ");
 }
 
 function latin1(t: string): string {
   return translitterer(decoderEntites(String(t || "")));
 }
 
+// 🚨 DEUX FONCTIONS, ET LA DIFFERENCE COMPTE.
+//
+// propre()   coupe les blancs de bord : bon pour un paragraphe entier.
+// nettoyer() les CONSERVE : indispensable pour un segment de phrase.
+//
+// LE DEFAUT DU 18/08 : couperRiche appelait propre() sur chaque segment.
+// « forme une **cellule** » perdait l espace apres « une » et le manuel
+// imprimait « unecellule ». Meme cause pour « format.xlsx »,
+// « d'Exceltel qu'il apparait », « surClasseur videest le point ».
+function nettoyer(t: string): string {
+  return sansFragmentDeBalise(latin1(t));
+}
+
 function propre(t: string): string {
-  return sansFragmentDeBalise(latin1(t)).trim();
+  return nettoyer(t).trim();
 }
 
 function asciiPur(t: string): string {
@@ -377,8 +445,8 @@ function analyserInline(texte: string): any[] {
   let trouve: any;
 
   function ajouterSimple(brut: string) {
-    const nettoye = brut.replace(/\*\*/g, "").replace(/`/g, "");
-    if (nettoye) segments.push({ t: nettoye, gras: false, italique: false, code: false });
+    const t = brut.replace(/\*\*/g, "").replace(/`/g, "");
+    if (t) segments.push({ t: t, gras: false, italique: false, code: false });
   }
 
   while ((trouve = motif.exec(source)) !== null) {
@@ -415,6 +483,25 @@ function sansBalises(html: string): string {
     .trim();
 }
 
+// La meme chose, mais les fins de bloc deviennent des retours a la ligne :
+// c est ce qui permet de relire en markdown un contenu avale par un tableau.
+function sansBalisesLignes(html: string): string {
+  return decoderEntites(
+    String(html || "")
+      .replace(/<!--[\s\S]*?-->/g, " ")
+      .replace(/<\s*br\s*\/?>/gi, "\n")
+      .replace(/<\s*\/\s*(div|p|tr|li|table|section|h[1-6])\s*>/gi, "\n")
+      .replace(/<[^>]*>/g, " ")
+      .replace(/<[^>]*$/g, " ")
+  )
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/\n{3,}/g, "\n\n");
+}
+
+function sansMarqueurs(t: string): string {
+  return String(t || "").replace(/\*+/g, "").replace(/`/g, "").trim();
+}
+
 function lireTableauHTML(html: string): any[] {
   const rangs: any[] = [];
   const lignes = String(html).match(/<tr[\s\S]*?<\/tr>/gi) || [];
@@ -426,7 +513,7 @@ function lireTableauHTML(html: string): any[] {
     for (const c of cases) {
       const style = (c.match(/style\s*=\s*"([^"]*)"/i) || ["", ""])[1];
       cellules.push({
-        texte: propre(sansBalises(c)),
+        texte: sansMarqueurs(propre(sansBalises(c))),
         fond: couleurDuStyle(style, "background"),
         encre: couleurDuStyle(style, "color") || ENCRE,
         gras: /font-weight\s*:\s*bold/i.test(style) || /<(b|strong|th)\b/i.test(c),
@@ -437,6 +524,17 @@ function lireTableauHTML(html: string): any[] {
   }
 
   return rangs;
+}
+
+// Un tableau dont une cellule depasse CELLULE_MAX n est pas un tableau :
+// c est du contenu avale. On le rendra en texte plutot qu en colonnes.
+function tableauSuspect(rangs: any[]): boolean {
+  for (const rang of rangs) {
+    for (const cel of rang) {
+      if (cel && cel.texte && String(cel.texte).length > CELLULE_MAX) return true;
+    }
+  }
+  return false;
 }
 
 function lireTableauMarkdown(texte: string): any[] {
@@ -451,7 +549,7 @@ function lireTableauMarkdown(texte: string): any[] {
 
     const cellules = l.slice(1, -1).split("|").map(function (c: string) {
       return {
-        texte: propre(c.replace(/\*\*/g, "").replace(/`/g, "").trim()),
+        texte: sansMarqueurs(propre(c)),
         fond: premiere ? rgb(0.957, 0.937, 0.894) : null,
         encre: premiere ? rgb(0.478, 0.373, 0.165) : ENCRE,
         gras: premiere,
@@ -493,21 +591,6 @@ function couleurDuStyle(style: string, propriete: string): any {
   return hexEnCouleur(trouve[1]);
 }
 
-// ==================================================================
-// LA LECTURE DU HTML A PROFONDEUR EQUILIBREE.
-//
-// 🚨 LE DEFAUT QUI A COUTE 84 % DU MODULE 1 DE F007.
-//
-// finDeBalise compte les ouvertures et les fermetures. Quand la fermeture
-// n existe pas — et le modele en a oublie une —, l ancienne version
-// retournait la FIN DU TEXTE : le <table> orphelin avalait les 74 000
-// caracteres qui le suivaient, dont lireTableauHTML ne gardait que les <tr>.
-// Le manuel tombait a deux pages, sans la moindre erreur.
-//
-// DESORMAIS : sans fermeture, on ne consomme QUE la balise ouvrante. Le
-// contenu qui suit repart en texte normal. Rien ne peut plus disparaitre.
-// ==================================================================
-
 const BALISES_BLOC = "div|table|section|header|footer|nav|ul|ol|li|p";
 
 // Retourne la fin de l element, ou -1 si la fermeture est absente.
@@ -528,7 +611,6 @@ function finDeBalise(texte: string, debut: number, nom: string): number {
   return -1;
 }
 
-// La longueur de la seule balise ouvrante, quand il n y a pas de fermeture.
 function finOuvrante(texte: string, debut: number): number {
   const fin = texte.indexOf(">", debut);
   return fin < 0 ? debut + 1 : fin + 1;
@@ -552,7 +634,6 @@ function decouperElements(texte: string): any[] {
     const fin = finDeBalise(source, trouve.index, trouve[1]);
 
     if (fin < 0) {
-      // Balise orpheline : on la jette, sans toucher a ce qui suit.
       position = finOuvrante(source, trouve.index);
     } else {
       sortie.push({ type: "element", contenu: source.slice(trouve.index, fin) });
@@ -613,12 +694,16 @@ async function composerManuel(fiche: any, plan: any[], contenus: any, examen: st
     }
   }
 
+  // 🚨 nettoyer() et non propre() : les blancs de bord d un segment portent
+  // l information « il y a un espace avant le mot suivant ».
   function couperRiche(segments: any[], taille: number, largeur: number): any[][] {
     const jetons: any[] = [];
     let espaceEnAttente = false;
 
     for (const seg of segments) {
-      const texte = propre(seg.t);
+      const texte = nettoyer(seg.t);
+      if (!texte) continue;
+
       const morceaux = texte.split(/(\s+)/);
       for (const p of morceaux) {
         if (!p) continue;
@@ -686,7 +771,7 @@ async function composerManuel(fiche: any, plan: any[], contenus: any, examen: st
   }
 
   function titreNiveau(niveau: number, texte: string) {
-    const t = propre(texte);
+    const t = titreCanonique(propre(texte));
     if (!t) return;
     if (niveau <= 2) {
       ecrireRiche(analyserInline(t), 11.5, 16, OR, 14, 0, true);
@@ -706,6 +791,17 @@ async function composerManuel(fiche: any, plan: any[], contenus: any, examen: st
     ecrireRiche(analyserInline(t), 11, 16, ENCRE, 0, 18, false);
   }
 
+  // Une liste numerotee garde son numero. Avant, elle recevait EN PLUS un
+  // tiret : le manuel imprimait « - 1. Saisissez toutes les donnees ».
+  function elementNumerote(marque: string, texte: string) {
+    const t = propre(texte);
+    if (!t) return;
+    if (y < BAS + 20) nouvellePage();
+    y = y - 3;
+    tracer(page, marque, { x: MARGE + 2, y: y, size: 11, font: normal, color: ENCRE });
+    ecrireRiche(analyserInline(t), 11, 16, ENCRE, 0, 24, false);
+  }
+
   function filet() {
     if (y < BAS + 24) nouvellePage();
     y = y - 10;
@@ -713,8 +809,6 @@ async function composerManuel(fiche: any, plan: any[], contenus: any, examen: st
     y = y - 12;
   }
 
-  // Un bloc de code. PAGINE : au-dela d une page, il enchaine sur la
-  // suivante au lieu de dessiner hors du papier.
   function blocCode(lignes: string[]) {
     const decoupees: string[] = [];
     for (const l of lignes) {
@@ -786,8 +880,6 @@ async function composerManuel(fiche: any, plan: any[], contenus: any, examen: st
     }
     for (let i = 0; i < colonnes; i++) largeurs[i] = (largeurs[i] * UTILE) / sommeLargeurs;
 
-    // Hauteur maximale qu un rang peut occuper : au-dela, il serait dessine
-    // hors du papier. On le tronque plutot que de le perdre en silence.
     const hauteurMax = HAUTEUR - MARGE - BAS - 40;
     const lignesMaxRang = Math.max(1, Math.floor((hauteurMax - marge * 2) / interligne));
 
@@ -862,8 +954,6 @@ async function composerManuel(fiche: any, plan: any[], contenus: any, examen: st
     y = y - 14;
   }
 
-  // Un bandeau. PAGINE lui aussi : c est l autre raison pour laquelle le
-  // texte partait hors du papier sans qu aucune erreur ne soit levee.
   function dessinerBandeau(style: string, texte: string) {
     const t = propre(texte);
     if (!t) return;
@@ -900,21 +990,22 @@ async function composerManuel(fiche: any, plan: any[], contenus: any, examen: st
 
   function dessinerElement(html: string, profondeur: number) {
     if (profondeur > 6) {
-      paragraphe(sansBalises(html));
+      ecrireMarkdown(sansBalisesLignes(html));
       return;
     }
 
     const info = ouverture(html);
     if (!info) {
-      paragraphe(sansBalises(html));
+      ecrireMarkdown(sansBalisesLignes(html));
       return;
     }
 
     if (info.nom === "table") {
       const rangs = lireTableauHTML(html);
-      if (rangs.length > 0) { dessinerTableau(rangs, true); return; }
-      // Un <table> sans <tr> exploitable : on n avale pas son contenu.
-      paragraphe(sansBalises(html));
+      // 🚨 Un tableau avec une cellule enorme a avale du contenu : on le
+      // relit en markdown au lieu de l imprimer sur une colonne etroite.
+      if (rangs.length > 0 && !tableauSuspect(rangs)) { dessinerTableau(rangs, true); return; }
+      ecrireMarkdown(sansBalisesLignes(html));
       return;
     }
 
@@ -946,7 +1037,7 @@ async function composerManuel(fiche: any, plan: any[], contenus: any, examen: st
 
     for (const e of enfants) {
       if (e.type === "element") dessinerElement(e.contenu, profondeur + 1);
-      else paragraphe(sansBalises(e.contenu));
+      else ecrireMarkdown(sansBalisesLignes(e.contenu));
     }
   }
 
@@ -988,7 +1079,7 @@ async function composerManuel(fiche: any, plan: any[], contenus: any, examen: st
       if (liste) { viderTampon(); puce(liste[2]); continue; }
 
       const numerotee = s.match(/^(\d{1,3})[.)]\s+(.*)$/);
-      if (numerotee) { viderTampon(); puce(numerotee[1] + ". " + numerotee[2]); continue; }
+      if (numerotee) { viderTampon(); elementNumerote(numerotee[1] + ".", numerotee[2]); continue; }
 
       tampon.push(s);
     }
@@ -998,8 +1089,6 @@ async function composerManuel(fiche: any, plan: any[], contenus: any, examen: st
     viderTableau();
   }
 
-  // Separe le contenu d un module en zones HTML et en zones markdown.
-  // Une balise sans fermeture est ignoree : le texte qui suit reste du texte.
   function corps(texte: string) {
     const source = String(texte || "").replace(/<!--[\s\S]*?-->/g, " ");
     const motif = new RegExp("<\\s*(" + BALISES_BLOC + ")\\b", "i");
@@ -1020,7 +1109,6 @@ async function composerManuel(fiche: any, plan: any[], contenus: any, examen: st
       const finAbsolue = finDeBalise(source, debutAbsolu, nom);
 
       if (finAbsolue < 0) {
-        // 🚨 Orpheline : on saute la balise seule. Le reste du module suit.
         position = finOuvrante(source, debutAbsolu);
       } else {
         dessinerElement(source.slice(debutAbsolu, finAbsolue), 0);
@@ -1211,10 +1299,8 @@ export async function GET(req: Request) {
     if (!cle) return NextResponse.json({ ok: false, erreur: "cle absente" }, { status: 500 });
 
     // REFAIRE UN MANUEL A LA DEMANDE, sans passer par une commande.
-    //   /api/traiter-commandes?secret=XXX&refaire=F007
-    //
-    // &reparer=1 rectifie AUSSI les balises non fermees en cache avant de
-    // composer : c est ce qui sauve les modules deja ecrits.
+    //   /api/traiter-commandes?refaire=F007
+    //   &reparer=1 corrige aussi les balises en base.
     const refaire = (url.searchParams.get("refaire") || "").trim().toUpperCase();
     if (refaire) {
       const langueDemandee = (url.searchParams.get("langue") || "fr").trim();
@@ -1386,7 +1472,6 @@ export async function GET(req: Request) {
         }
       }
 
-      // On n enregistre jamais un HTML desequilibre.
       const nouveau = equilibrerBalises((actuel ? actuel + "\n\n" : "") + "## " + suivante.titre + "\n\n" + texte);
 
       if (contenus[cleCache] !== undefined) {
