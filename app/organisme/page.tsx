@@ -61,10 +61,28 @@ export default async function TableauDeBordOrganisme() {
     return t ? r.eq("tenant_id", t) : r.is("tenant_id", null);
   };
 
+  // 🚨 LA COLONNE EST date_validation, PAS updated_at — corrige le 18/08.
+  //
+  // LE DEFAUT, ET IL FAUSSAIT TROIS CHIFFRES A L'ECRAN. La table
+  // `progression_apprenants` NE PORTE PAS DE COLONNE `updated_at` : sa date
+  // de validation s'appelle `date_validation`. Supabase renvoyait donc
+  // `undefined` pour chaque ligne, et la date de derniere activite restait
+  // a zero partout.
+  //
+  // CONSEQUENCES VISIBLES : la porte « Qui a decroche » affichait toujours
+  // « tout le monde avance » meme quand personne n'avait touche a rien
+  // depuis des semaines ; la colonne « Derniere activite » du tableau
+  // montrait un tiret sur toutes les lignes ; et le classement du tableau,
+  // qui trie par date decroissante, etait arbitraire.
+  //
+  // ⚠️ NE PAS CONFONDRE AVEC `qcm_reponses`, QUI PORTE BIEN `updated_at` :
+  // les deux tables n'ont pas la meme convention de nommage. C'est ce qui
+  // rendait le defaut invisible a la lecture — la seconde requete etait
+  // juste, la premiere non.
   const { data: lignes } = await filtre(
     supabase
       .from("progression_apprenants")
-      .select("user_email, formation_code, updated_at")
+      .select("user_email, formation_code, date_validation")
       .eq("statut", "valide")
   ).limit(5000);
 
@@ -128,7 +146,7 @@ export default async function TableauDeBordOrganisme() {
       parStagiaire[cle] = { email: l.user_email, code: l.formation_code, modules: 0, notes: [], derniere: null };
     }
     parStagiaire[cle].modules = parStagiaire[cle].modules + 1;
-    const d1 = l.updated_at ? new Date(l.updated_at).getTime() : 0;
+    const d1 = l.date_validation ? new Date(l.date_validation).getTime() : 0;
     if (d1 && (!parStagiaire[cle].derniere || d1 > parStagiaire[cle].derniere)) {
       parStagiaire[cle].derniere = d1;
     }
@@ -210,15 +228,24 @@ export default async function TableauDeBordOrganisme() {
       portes: [
         { pour: TOUS, href: "/organisme/stagiaires", nom: "Mes stagiaires", detail: inscrits + " inscrit(s)", alerte: aInviter > 0 ? aInviter + " sans accès" : "" },
         { pour: TOUS, href: "/organisme/cours", nom: "Mes formations", detail: (coursPropres || []).length + " créée(s) · " + publiees + " publiée(s)", alerte: "" },
-        { pour: TOUS, href: "/organisme/catalogue", nom: "Catalogue AcadémIA", detail: (catalogue || []).length + " formation(s)", alerte: "" },
-        // LA PORTE QUI SERT LA STRATEGIE — ajoutee le 16/08.
-        // AcadeMIA Pro devient LE CATALOGUE, elle ne vend pas un outil de
-        // fabrication. Un client qui nous COMMANDE ses formations fait
-        // grossir notre catalogue et ne peut plus partir ; un client qui
-        // fabrique lui-meme fait de nous un concurrent de Digiforma sur son
-        // terrain. On n interdit rien : la porte « Mes formations » reste
-        // juste a cote. On rend simplement la commande plus evidente.
-        { pour: TOUS, href: "/organisme/commander-formation", nom: "Demandez-nous une formation", detail: "sur mesure, sous une semaine", alerte: "" },
+        // 🚨🚨 LA PORTE « DEMANDEZ-NOUS UNE FORMATION » EST SUPPRIMEE —
+        // 18/08. Elle promettait du « sur mesure, sous une semaine » et
+        // menait a /organisme/commander-formation.
+        //
+        // C'est exactement ce que Jacques a fait retirer du bon de commande,
+        // des CGV et de tous ses courriers le 17/08 au soir, apres l'avoir
+        // repete plusieurs fois : « c'est nous qui produisons notre propre
+        // catalogue », « je veux que tu oublies la Creation sur demande, tu
+        // oublies completement ca ».
+        //
+        // LA SEULE FORMULE AUTORISEE, SANS RIEN PRECISER D'AUTRE :
+        //     « notre catalogue est evolutif »
+        //
+        // ⚠️ NE JAMAIS LA REINTRODUIRE, ni ici, ni ailleurs. La page
+        // /organisme/commander-formation existe encore dans le depot mais
+        // n'est plus atteignable depuis cet ecran ; elle sera retiree
+        // separement.
+        { pour: TOUS, href: "/organisme/catalogue", nom: "Catalogue AcadémIA", detail: (catalogue || []).length + " formation(s) ouverte(s)", alerte: "" },
         { pour: TOUS, href: "/organisme/seances", nom: "Classes virtuelles", detail: seancesAvenir > 0 ? seancesAvenir + " à venir" : (seances || []).length + " séance(s)", alerte: "" },
         { pour: TOUS, href: "/organisme/relances", nom: "Qui a décroché", detail: decroches > 0 ? decroches + " inactif(s)" : "tout le monde avance", alerte: decroches > 0 ? "à relancer" : "" },
         { pour: TOUS, href: "/organisme/importer", nom: "Importer une liste", detail: "jusqu'à 500 stagiaires", alerte: "" },
