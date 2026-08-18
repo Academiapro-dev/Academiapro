@@ -88,38 +88,60 @@ function analyserQuestions(zone) {
   return questions;
 }
 
-// 🖥️🖥️ LE DECOUPAGE EN BLOCS — corrige le 18/08.
+// 🖥️🖥️ LE DECOUPAGE EN BLOCS — corrige le 18/08, puis A NOUVEAU le meme
+// jour apres essai reel sur la formation Excel.
 //
-// LE DEFAUT, ET IL RENDAIT LES COURS SUR LOGICIEL ILLISIBLES. La page
-// decoupait le contenu LIGNE PAR LIGNE et affichait chaque ligne comme du
-// texte. Or un schema d'interface fait vingt a trente lignes de HTML : le
-// stagiaire voyait donc trente lignes de code brut a l'ecran.
+// LE DEFAUT D'ORIGINE. La page decoupait le contenu LIGNE PAR LIGNE. Un
+// schema d'interface faisant vingt a trente lignes de HTML, le stagiaire
+// voyait trente lignes de code brut. Ses mots : « il faut etre
+// informaticien pour lire cette page ».
 //
-// Ses mots : « il faut etre informaticien pour lire cette page ».
+// 🚨 LE DEFAUT DE MA PREMIERE CORRECTION, vu sur les pages 3, 4 et 5 de
+// F007 : je comptais les balises ouvrantes et fermantes pour savoir ou
+// s'arrete un bloc. Or LE GENERATEUR ECRIT DES COMMENTAIRES HTML —
+// « <!-- Ligne 4 : cellule active --> ». Mon compteur ne les voyait pas,
+// croyait le bloc referme, et le coupait en plein milieu : la premiere
+// moitie s'affichait correctement, la seconde en code brut.
 //
-// COMMENT ON REPARE : avant de decouper en lignes, on isole les blocs HTML
-// — tout ce qui va d'une balise ouvrante de premier niveau a sa fermeture.
-// Ces blocs sont rendus tels quels ; le reste continue d'etre traite ligne
-// par ligne comme avant.
+// COMMENT ON REPARE MAINTENANT, et c'est plus robuste : on ne compte plus
+// rien. On repere l'OUVERTURE d'un bloc, puis on cherche SA FERMETURE la
+// plus tardive dans les lignes qui suivent. Les commentaires, l'indentation
+// et les balises imbriquees ne changent plus rien.
 //
-// ⚠️ POURQUOI C'EST SANS DANGER ICI. Le HTML vient de NOTRE generateur, pas
-// d'un utilisateur : personne d'exterieur ne peut y glisser quoi que ce
-// soit. On refuse malgre tout les balises script, iframe, object et les
-// gestionnaires d'evenements — si un jour un contenu venait d'ailleurs, la
-// page resterait sure.
+// 🚨 SECOND DEFAUT VU SUR LA PAGE 5 : les TABLEAUX EN MARKDOWN, ecrits avec
+// des barres verticales, s'affichaient ligne par ligne — « | Onglet |
+// Contenu principal | » puis « |---|---| ». Ils sont desormais rendus comme
+// de vrais tableaux.
 //
-// 🚨 LES 504 AUTRES FORMATIONS NE CONTIENNENT AUCUN HTML : elles passent
-// par le chemin habituel, rien ne change pour elles.
-function estOuvertureBloc(ligne) {
-  return /^<(div|table|figure|section)\b/i.test(ligne.trim());
+// ⚠️ POURQUOI LE HTML BRUT EST SANS DANGER ICI. Il vient de NOTRE
+// generateur, jamais d'un utilisateur. On nettoie malgre tout script,
+// iframe, object et gestionnaires d'evenements : si un contenu venait un
+// jour d'ailleurs, la page resterait sure.
+const BALISES_BLOC = ["div", "table", "figure", "section", "pre", "ul", "ol"];
+
+function ouvertureBloc(ligne) {
+  const t = ligne.trim();
+  for (const b of BALISES_BLOC) {
+    if (new RegExp("^<" + b + "\\b", "i").test(t)) return b;
+  }
+  return null;
 }
 
-function nomBalise(ligne) {
-  const m = ligne.trim().match(/^<([a-z]+)\b/i);
-  return m ? m[1].toLowerCase() : "";
+// Une ligne de tableau markdown : commence et finit par une barre.
+function estLigneTableau(ligne) {
+  const t = ligne.trim();
+  return t.startsWith("|") && t.endsWith("|") && t.length > 2;
 }
 
-// Nettoie ce qui pourrait etre dangereux, par precaution.
+// La ligne de separation d'un tableau markdown : |---|---|
+function estSeparateurTableau(ligne) {
+  return /^\|[\s:|-]+\|$/.test(ligne.trim());
+}
+
+function cellulesDe(ligne) {
+  return ligne.trim().slice(1, -1).split("|").map(function (c) { return propre(c); });
+}
+
 function htmlSur(html) {
   return String(html || "")
     .replace(/<script[\s\S]*?<\/script>/gi, "")
@@ -131,8 +153,7 @@ function htmlSur(html) {
     .replace(/javascript:/gi, "");
 }
 
-// Transforme un texte en une suite de blocs : soit une ligne de texte,
-// soit un schema HTML complet.
+// Transforme un texte en blocs : ligne de texte, schema HTML, ou tableau.
 function enBlocs(texte) {
   const lignes = String(texte || "").split("\n");
   const blocs = [];
@@ -140,30 +161,45 @@ function enBlocs(texte) {
 
   while (i < lignes.length) {
     const ligne = lignes[i];
+    const balise = ouvertureBloc(ligne);
 
-    if (estOuvertureBloc(ligne)) {
-      const balise = nomBalise(ligne);
-      const ouvrante = new RegExp("<" + balise + "\\b", "gi");
-      const fermante = new RegExp("</" + balise + ">", "gi");
+    // ---- UN SCHEMA HTML ----
+    if (balise) {
+      const fermeture = new RegExp("</" + balise + ">", "i");
+      let dernier = -1;
+      const limite = Math.min(lignes.length, i + 150);
 
-      let profondeur = 0;
-      const morceaux = [];
-      let j = i;
-
-      // On avance jusqu'a refermer toutes les balises ouvertes, sans
-      // depasser cent lignes — garde-fou contre un HTML mal ferme.
-      while (j < lignes.length && j < i + 100) {
-        const courante = lignes[j];
-        morceaux.push(courante);
-        profondeur += (courante.match(ouvrante) || []).length;
-        profondeur -= (courante.match(fermante) || []).length;
-        j = j + 1;
-        if (profondeur <= 0) break;
+      // On cherche LA DERNIERE fermeture de cette balise dans la fenetre :
+      // un tableau contient des <table> imbriques ou des commentaires, et
+      // s'arreter a la premiere fermeture couperait le bloc en deux.
+      for (let j = i; j < limite; j = j + 1) {
+        if (fermeture.test(lignes[j])) dernier = j;
+        // Une ligne vide suivie d'un texte normal signale la fin du schema.
+        if (dernier >= 0 && j > dernier && !lignes[j].trim().startsWith("<") && lignes[j].trim()) break;
       }
 
-      blocs.push({ type: "html", contenu: morceaux.join("\n") });
-      i = j;
-      continue;
+      if (dernier >= 0) {
+        blocs.push({ type: "html", contenu: lignes.slice(i, dernier + 1).join("\n") });
+        i = dernier + 1;
+        continue;
+      }
+      // Bloc jamais referme : on le passe en texte plutot que d'avaler la
+      // suite du cours.
+    }
+
+    // ---- UN TABLEAU MARKDOWN ----
+    if (estLigneTableau(ligne)) {
+      const rangs = [];
+      let j = i;
+      while (j < lignes.length && estLigneTableau(lignes[j])) {
+        if (!estSeparateurTableau(lignes[j])) rangs.push(cellulesDe(lignes[j]));
+        j = j + 1;
+      }
+      if (rangs.length >= 2) {
+        blocs.push({ type: "tableau", rangs: rangs, contenu: lignes.slice(i, j).join("\n") });
+        i = j;
+        continue;
+      }
     }
 
     if (ligne.trim()) blocs.push({ type: "texte", contenu: ligne });
@@ -209,11 +245,10 @@ export default function LMSPage({ params }) {
 
   const texteCours = coursSansQCM(contenu);
 
-  // 🖥️ LE DECOUPAGE EN PAGES TIENT COMPTE DES SCHEMAS : un schema n'est
-  // JAMAIS coupe en deux entre deux pages, sinon il ne s'afficherait pas.
+  // 🖥️ Un schema ou un tableau n'est JAMAIS coupe entre deux pages.
   const pages = (function () {
     const blocs = enBlocs(texteCours).filter(function (b) {
-      return b.type === "html" || (b.contenu.trim() && b.contenu.trim() !== "---");
+      return b.type !== "texte" || (b.contenu.trim() && b.contenu.trim() !== "---");
     });
 
     const resultat = [];
@@ -460,8 +495,7 @@ export default function LMSPage({ params }) {
     marginBottom: "20px",
   };
 
-  // 🖥️ Le rendu d'un bloc : un schema s'affiche tel quel, une ligne de
-  // texte suit le traitement habituel.
+  // Le rendu d'un bloc : schema, tableau, ou ligne de texte.
   function rendreBloc(bloc, i) {
     if (bloc.type === "html") {
       return (
@@ -470,6 +504,42 @@ export default function LMSPage({ params }) {
           style={{ margin: "22px 0", overflowX: "auto" }}
           dangerouslySetInnerHTML={{ __html: htmlSur(bloc.contenu) }}
         />
+      );
+    }
+
+    if (bloc.type === "tableau") {
+      const [entete, ...corps] = bloc.rangs;
+      return (
+        <div key={i} style={{ margin: "22px 0", overflowX: "auto" }}>
+          <table style={{ borderCollapse: "collapse", width: "100%", fontSize: "16px" }}>
+            <thead>
+              <tr>
+                {entete.map(function (c, k) {
+                  return (
+                    <th key={k} style={{ border: "1px solid #ddd", padding: "10px 12px", background: "#f4efe4", color: "#7a5f2a", textAlign: "left", fontWeight: "bold" }}>
+                      {c}
+                    </th>
+                  );
+                })}
+              </tr>
+            </thead>
+            <tbody>
+              {corps.map(function (rang, k) {
+                return (
+                  <tr key={k} style={{ background: k % 2 === 0 ? "#fff" : "#fafafa" }}>
+                    {rang.map(function (c, m) {
+                      return (
+                        <td key={m} style={{ border: "1px solid #ddd", padding: "10px 12px", color: "#1a1a1a", lineHeight: "1.6" }}>
+                          {c}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       );
     }
 
