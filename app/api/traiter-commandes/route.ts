@@ -46,6 +46,7 @@ const BAS = 70;
 const OR = rgb(0.706, 0.612, 0.365);
 const ENCRE = rgb(0.13, 0.13, 0.13);
 const GRIS = rgb(0.45, 0.45, 0.45);
+const TRAIT = rgb(0.82, 0.82, 0.82);
 
 function systemePour(langue: string): string {
   const nom = LANGUES[langue] || "francais";
@@ -197,12 +198,152 @@ function centrer(page: any, texte: string, y: number, police: any, taille: numbe
   page.drawText(texte, { x: (LARGEUR - l) / 2, y: y, size: taille, font: police, color: couleur });
 }
 
+// ══════════════════════════════════════════════════════════════════
+// 🖥️🖥️ LES SCHEMAS D'INTERFACE DANS LE MANUEL PDF — ajoute le 18/08.
+//
+// POURQUOI CE BLOC EXISTE. Depuis le 18/08, le generateur produit pour les
+// formations sur logiciel des SCHEMAS D'INTERFACE ECRITS EN HTML : le ruban
+// d'Excel, la barre de formule, la grille de cellules. La page de lecture
+// les affiche correctement, mais LE MANUEL PDF NON — pdf-lib ne sait que
+// dessiner du texte, et le stagiaire aurait recu trente lignes de code brut
+// dans son manuel.
+//
+// 🎯 CE CHANTIER A ETE FAIT AVANT LA PREMIERE VENTE, deliberement. Ses
+// mots : « je prefere le faire tant qu'il n'y a pas de client ».
+//
+// COMMENT ON PROCEDE. On ne convertit pas le HTML : on le LIT et on le
+// REDESSINE. Un <table> devient un vrai tableau PDF avec ses bordures, ses
+// fonds de couleur et ses cellules en gras ; un <div> isole devient un
+// bandeau colore. Les couleurs sont reprises de l'attribut style, donc le
+// vert d'Excel reste vert dans le manuel.
+//
+// ⚠️ CE QUI N'EST PAS RENDU, ET C'EST ASSUME : les bordures individuelles
+// par cellule, les images, les polices particulieres. On garde la
+// structure, les couleurs de fond et le gras — assez pour reconnaitre
+// l'ecran decrit.
+//
+// 🚨 LES FORMATIONS SANS SCHEMA NE SONT PAS TOUCHEES : le detecteur ne
+// s'active que si le bloc contient une balise. Les 504 autres formations
+// passent par le chemin habituel.
+// ══════════════════════════════════════════════════════════════════
+
+// "#217346" ou "#fff" -> une couleur pdf-lib. Null si illisible.
+function hexEnCouleur(hex: string): any {
+  const h = String(hex || "").replace(/[^0-9a-f]/gi, "");
+  if (h.length === 3) {
+    return rgb(
+      parseInt(h[0] + h[0], 16) / 255,
+      parseInt(h[1] + h[1], 16) / 255,
+      parseInt(h[2] + h[2], 16) / 255
+    );
+  }
+  if (h.length === 6) {
+    return rgb(
+      parseInt(h.slice(0, 2), 16) / 255,
+      parseInt(h.slice(2, 4), 16) / 255,
+      parseInt(h.slice(4, 6), 16) / 255
+    );
+  }
+  return null;
+}
+
+// Extrait une couleur d'un attribut style : background, background-color,
+// ou color selon la propriete demandee.
+function couleurDuStyle(style: string, propriete: string): any {
+  const motif = new RegExp("(?:^|;)\\s*" + propriete + "(?:-color)?\\s*:\\s*([^;]+)", "i");
+  const trouve = String(style || "").match(motif);
+  if (!trouve) return null;
+  return hexEnCouleur(trouve[1]);
+}
+
+function sansBalises(html: string): string {
+  return String(html || "")
+    .replace(/<br\s*\/?>/gi, " ")
+    .replace(/<[^>]*>/g, "")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+// Lit un <table> HTML et en tire des rangs de cellules, avec leur style.
+function lireTableauHTML(html: string): any[] {
+  const rangs: any[] = [];
+  const lignes = String(html).match(/<tr[\s\S]*?<\/tr>/gi) || [];
+
+  for (const tr of lignes) {
+    const cellules: any[] = [];
+    const cases = tr.match(/<(td|th)[\s\S]*?<\/(td|th)>/gi) || [];
+
+    for (const c of cases) {
+      const style = (c.match(/style\s*=\s*"([^"]*)"/i) || ["", ""])[1];
+      cellules.push({
+        texte: latin1(sansBalises(c)),
+        fond: couleurDuStyle(style, "background"),
+        encre: couleurDuStyle(style, "color") || ENCRE,
+        gras: /font-weight\s*:\s*bold/i.test(style) || /<(b|strong|th)\b/i.test(c),
+      });
+    }
+
+    if (cellules.length > 0) rangs.push(cellules);
+  }
+
+  return rangs;
+}
+
+// Un tableau ecrit en markdown : | Onglet | Contenu |
+function lireTableauMarkdown(texte: string): any[] {
+  const rangs: any[] = [];
+  const lignes = String(texte).split("\n");
+  let premiere = true;
+
+  for (const brute of lignes) {
+    const l = brute.trim();
+    if (!l.startsWith("|") || !l.endsWith("|")) continue;
+    if (/^\|[\s:|-]+\|$/.test(l)) continue;
+
+    const cellules = l.slice(1, -1).split("|").map(function (c: string) {
+      return {
+        texte: latin1(c.replace(/\*\*/g, "").trim()),
+        fond: premiere ? rgb(0.957, 0.937, 0.894) : null,
+        encre: premiere ? rgb(0.478, 0.373, 0.165) : ENCRE,
+        gras: premiere,
+      };
+    });
+
+    if (cellules.length > 0) {
+      rangs.push(cellules);
+      premiere = false;
+    }
+  }
+
+  return rangs;
+}
+
+// Le contenu porte-t-il un schema ou un tableau a redessiner ?
+function contientSchema(bloc: string): boolean {
+  return /<(table|tr|td|div)\b/i.test(bloc);
+}
+
+function estTableauMarkdown(bloc: string): boolean {
+  const lignes = String(bloc).split("\n").filter(function (l: string) {
+    const t = l.trim();
+    return t.startsWith("|") && t.endsWith("|");
+  });
+  return lignes.length >= 2;
+}
+
 async function composerManuel(fiche: any, plan: any[], contenus: any, examen: string, langue: string): Promise<Uint8Array> {
   const titre = latin1(fiche.titre || fiche.code);
 
   const livre = await PDFDocument.create();
   const normal = await livre.embedFont("Times-Roman");
   const gras = await livre.embedFont("Times-Bold");
+  const fixe = await livre.embedFont("Courier");
+  const fixeGras = await livre.embedFont("Courier-Bold");
 
   let page = livre.addPage([LARGEUR, HAUTEUR]);
   let y = HAUTEUR - MARGE - 26;
@@ -225,9 +366,166 @@ async function composerManuel(fiche: any, plan: any[], contenus: any, examen: st
     }
   }
 
+  // 🖥️ DESSINE UN TABLEAU, qu'il vienne d'un <table> HTML ou du markdown.
+  //
+  // Les colonnes se partagent la largeur utile a parts egales — un calcul
+  // proportionnel au contenu donnerait un meilleur rendu mais compliquerait
+  // beaucoup le code pour un gain modeste sur des schemas d'interface, ou
+  // les colonnes sont deja regulieres.
+  function dessinerTableau(rangs: any[]) {
+    if (!rangs || rangs.length === 0) return;
+
+    const colonnes = Math.max.apply(null, rangs.map(function (r: any) { return r.length; }));
+    if (colonnes < 1) return;
+
+    const largeurCol = UTILE / colonnes;
+    const taille = colonnes > 6 ? 7 : colonnes > 4 ? 8 : 9;
+    const interligne = taille + 3;
+    const marge = 4;
+
+    y = y - 12;
+
+    for (const rang of rangs) {
+      // Hauteur du rang : la cellule qui prend le plus de lignes.
+      let lignesMax = 1;
+      const decoupes: string[][] = [];
+
+      for (let i = 0; i < colonnes; i++) {
+        const cel = rang[i];
+        const police = cel && cel.gras ? fixeGras : fixe;
+        const morceaux = cel && cel.texte
+          ? couper(cel.texte, police, taille, largeurCol - marge * 2)
+          : [""];
+        decoupes.push(morceaux);
+        if (morceaux.length > lignesMax) lignesMax = morceaux.length;
+      }
+
+      const hauteurRang = lignesMax * interligne + marge * 2;
+
+      if (y - hauteurRang < BAS) nouvellePage();
+
+      const hautRang = y;
+
+      for (let i = 0; i < colonnes; i++) {
+        const cel = rang[i];
+        const x = MARGE + i * largeurCol;
+
+        if (cel && cel.fond) {
+          page.drawRectangle({
+            x: x,
+            y: hautRang - hauteurRang,
+            width: largeurCol,
+            height: hauteurRang,
+            color: cel.fond,
+          });
+        }
+
+        page.drawRectangle({
+          x: x,
+          y: hautRang - hauteurRang,
+          width: largeurCol,
+          height: hauteurRang,
+          borderColor: TRAIT,
+          borderWidth: 0.5,
+        });
+
+        let yc = hautRang - marge - taille;
+        for (const ligne of decoupes[i]) {
+          if (!ligne) { yc = yc - interligne; continue; }
+          page.drawText(ligne, {
+            x: x + marge,
+            y: yc,
+            size: taille,
+            font: cel && cel.gras ? fixeGras : fixe,
+            color: (cel && cel.encre) || ENCRE,
+          });
+          yc = yc - interligne;
+        }
+      }
+
+      y = hautRang - hauteurRang;
+    }
+
+    y = y - 14;
+  }
+
+  // 🖥️ UN <div> SANS TABLEAU : c'est un bandeau — barre de titre d'une
+  // fenetre, onglet de ruban, message. On le redessine comme tel.
+  function dessinerBandeau(html: string) {
+    const style = (html.match(/style\s*=\s*"([^"]*)"/i) || ["", ""])[1];
+    const fond = couleurDuStyle(style, "background") || rgb(0.95, 0.95, 0.95);
+    const encre = couleurDuStyle(style, "color") || ENCRE;
+    const texte = latin1(sansBalises(html));
+
+    if (!texte) return;
+
+    const lignes = couper(texte, fixe, 9, UTILE - 16);
+    const hauteur = lignes.length * 13 + 12;
+
+    if (y - hauteur < BAS) nouvellePage();
+
+    y = y - 10;
+    page.drawRectangle({ x: MARGE, y: y - hauteur, width: UTILE, height: hauteur, color: fond });
+    page.drawRectangle({ x: MARGE, y: y - hauteur, width: UTILE, height: hauteur, borderColor: TRAIT, borderWidth: 0.5 });
+
+    let yc = y - 14;
+    for (const l of lignes) {
+      page.drawText(l, { x: MARGE + 8, y: yc, size: 9, font: fixe, color: encre });
+      yc = yc - 13;
+    }
+
+    y = y - hauteur - 12;
+  }
+
+  // 🖥️ Traite un bloc qui contient du HTML : on en tire les tableaux et les
+  // bandeaux, dans l'ordre ou ils apparaissent.
+  function dessinerSchema(bloc: string) {
+    const tableaux = bloc.match(/<table[\s\S]*?<\/table>/gi) || [];
+
+    if (tableaux.length > 0) {
+      // Ce qui precede le premier tableau : souvent la barre de titre.
+      const avant = bloc.slice(0, bloc.indexOf(tableaux[0]));
+      const divsAvant = avant.match(/<div[^>]*>[\s\S]*?<\/div>/gi) || [];
+      for (const d of divsAvant) {
+        if (!/<table/i.test(d)) dessinerBandeau(d);
+      }
+
+      for (const t of tableaux) {
+        dessinerTableau(lireTableauHTML(t));
+      }
+      return;
+    }
+
+    // Aucun tableau : on traite les div comme des bandeaux.
+    const divs = bloc.match(/<div[^>]*>[\s\S]*?<\/div>/gi) || [];
+    if (divs.length > 0) {
+      for (const d of divs) dessinerBandeau(d);
+      return;
+    }
+
+    // Balises orphelines : on affiche au moins le texte, jamais le code.
+    const texte = latin1(sansBalises(bloc));
+    if (texte) ecrire(couper(texte, normal, 11, UTILE), normal, 11, 16.5, ENCRE, 7, 0);
+  }
+
   function corps(texte: string) {
     for (const bloc of String(texte).split(/\n{2,}/)) {
-      const x = latin1(bloc).replace(/[ \t]+/g, " ").trim();
+      const brut = bloc.trim();
+      if (!brut) continue;
+
+      // 🖥️ UN SCHEMA D'INTERFACE : on le redessine.
+      if (contientSchema(brut)) {
+        dessinerSchema(brut);
+        continue;
+      }
+
+      // 🖥️ UN TABLEAU EN MARKDOWN : on le redessine aussi.
+      if (estTableauMarkdown(brut)) {
+        dessinerTableau(lireTableauMarkdown(brut));
+        continue;
+      }
+
+      const x = latin1(brut).replace(/[ \t]+/g, " ").trim();
       if (!x) continue;
       if (x.indexOf("## ") === 0 || x.indexOf("# ") === 0) {
         const t = x.replace(/^#+\s*/, "");
@@ -421,6 +719,80 @@ export async function GET(req: Request) {
 
     const cle = process.env.ANTHROPIC_API_KEY || "";
     if (!cle) return NextResponse.json({ ok: false, erreur: "cle absente" }, { status: 500 });
+
+    // 🖥️ REFAIRE UN MANUEL A LA DEMANDE, sans passer par une commande.
+    //
+    // Sert a EPROUVER le rendu des schemas avant la premiere vente. On
+    // recompose le PDF depuis ce qui est deja en cache, sans rien produire
+    // ni envoyer d'email.
+    //   /api/traiter-commandes?secret=XXX&refaire=F007
+    const refaire = (url.searchParams.get("refaire") || "").trim().toUpperCase();
+    if (refaire) {
+      const langueDemandee = (url.searchParams.get("langue") || "fr").trim();
+
+      const { data: ficheR } = await supabase
+        .from("formations")
+        .select("code, titre, domaine, niveau, duree")
+        .eq("code", refaire)
+        .maybeSingle();
+
+      if (!ficheR) {
+        return NextResponse.json({ ok: false, erreur: "formation introuvable" }, { status: 404 });
+      }
+
+      const { data: planR } = await supabase
+        .from("lms_plans")
+        .select("chapitre_num, chapitre_titre, module_num, module_titre, type")
+        .eq("formation_code", refaire)
+        .gt("chapitre_num", 0)
+        .order("chapitre_num", { ascending: true })
+        .order("module_num", { ascending: true });
+
+      if (!planR || planR.length === 0) {
+        return NextResponse.json({ ok: false, erreur: "aucun plan" }, { status: 404 });
+      }
+
+      const { data: cacheR } = await supabase
+        .from("lms_cache")
+        .select("cache_key, contenu")
+        .eq("formation_code", refaire)
+        .eq("langue", langueDemandee);
+
+      const contenusR: any = {};
+      for (const c of cacheR || []) contenusR[c.cache_key] = c.contenu || "";
+
+      const modulesEcrits = (cacheR || []).filter(function (c: any) {
+        return c.cache_key.indexOf("_ch99_") < 0;
+      }).length;
+
+      if (modulesEcrits === 0) {
+        return NextResponse.json({ ok: false, erreur: "aucun module en cache pour cette langue" }, { status: 404 });
+      }
+
+      const examenR = String(contenusR[refaire + "_ch99_mod1_" + langueDemandee] || "")
+        .split("\u2014LOT\u2014").join("").trim();
+
+      const octetsR = await composerManuel(ficheR, planR, contenusR, examenR, langueDemandee);
+      const cheminR = "manuels/" + refaire + "_manuel_" + langueDemandee + ".pdf";
+
+      await supabase.storage
+        .from(BUCKET)
+        .upload(cheminR, new Blob([octetsR], { type: "application/pdf" }), { upsert: true, cacheControl: "60" });
+
+      const { data: lienR } = await supabase.storage
+        .from(BUCKET)
+        .createSignedUrl(cheminR, 60 * 60 * 24 * 7);
+
+      return NextResponse.json({
+        ok: true,
+        code: refaire,
+        langue: langueDemandee,
+        modules_en_cache: modulesEcrits,
+        modules_du_plan: planR.length,
+        octets: octetsR.length,
+        lien: (lienR && lienR.signedUrl) || null,
+      });
+    }
 
     const { data: commandes } = await supabase
       .from("commandes_lemonsqueezy")
