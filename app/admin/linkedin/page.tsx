@@ -7,28 +7,28 @@ import { useState, useEffect, useMemo } from "react";
 // MES INVITATIONS : ce qui est parti et attend une reponse.
 // A RELANCER : les personnes qui ont accepte. LA CONNEXION ETABLIE CHANGE
 //   TOUT — plus de limite de caracteres, plus de quota, et un lecteur qui
-//   a deja dit oui. C est la que le vrai message se place.
+//   a deja dit oui.
 //
-// 🚨 AUCUN ENVOI AUTOMATIQUE, ET CE N EST PAS UNE LIMITE TECHNIQUE QU ON
-// POURRAIT CONTOURNER. LinkedIn n expose AUCUNE API de messagerie, et les
-// outils qui simulent les clics dans le navigateur font restreindre puis
-// supprimer le compte. Une reputation abimee ne se repare pas.
+// 🚨 AUCUN ENVOI AUTOMATIQUE, ET CE N EST PAS CONTOURNABLE. LinkedIn
+// n expose AUCUNE API de messagerie, et les outils qui simulent les clics
+// font restreindre puis supprimer le compte.
 //
-// 🆕 MODE ENCHAINEMENT — 17/08 au soir. Jacques voulait « envoyer un
-// message a tous ceux qui ont accepte ». L envoi en masse est impossible,
-// mais l ESSENTIEL DU TEMPS PERDU tenait au va-et-vient : ouvrir la fiche,
-// preparer, copier, ouvrir la messagerie, revenir, marquer, chercher la
-// suivante. Le mode enchainement ramene cela a TROIS CLICS par personne —
-// le message est deja copie, la messagerie s ouvre, on marque et la fiche
-// suivante arrive d elle-meme.
+// 🆕 OBSERVATION SUR CHAQUE FICHE — 18/08. Jacques voulait noter ce qu il
+// avait appris d un prospect. Aucun champ ne le permettait : le seul bouton
+// disponible, « Voir le profil », l envoyait directement sur LinkedIn — il
+// perdait l ecran sans avoir rien pu ecrire.
+//
+// ⚠️ CE QUE L ON RETIENT D UNE CONVERSATION NE SE RETROUVE NULLE PART
+// AILLEURS : ni dans l open data, ni sur LinkedIn. C est la seule
+// information qui appartienne vraiment a Jacques — elle merite un champ.
+//
+// 🆕 MODE ENCHAINEMENT — 17/08. L envoi en masse etant impossible,
+// l essentiel du temps perdu tenait au va-et-vient. Trois clics par
+// personne desormais : copier-et-ouvrir, coller, marquer.
 //
 // 🚨 DEFAUT CORRIGE LE 16/08 : le bouton faisait DEUX choses d un clic —
 // ouvrir le profil ET marquer la fiche. Cinq fiches perdues en une matinee.
 // Desormais ouvrir ne marque rien.
-//
-// 🔎 RECHERCHE — 17/08. A vingt invitations par jour, les listes deviennent
-// illisibles en deux semaines. Le filtre est LOCAL : les lignes sont deja
-// chargees, on filtre en memoire, sans appel reseau.
 
 const BASES = [
   { cle: "organismes", nom: "Organismes certifiés Qualiopi" },
@@ -50,9 +50,8 @@ function motInvitation(prenom: string) {
     + "Ravi d'échanger avec vous.";
 }
 
-// LE MESSAGE APRES ACCEPTATION. Il peut enfin dire ce que la note ne
-// pouvait pas. Pas de promesse de resultat, pas de chiffre invente, pas de
-// temoignage — les memes regles que partout ailleurs.
+// LE MESSAGE APRES ACCEPTATION. Pas de promesse de resultat, pas de chiffre
+// invente, pas de temoignage.
 //
 // ⚠️ AUCUNE MENTION DE PRODUCTION SUR DEMANDE. Le catalogue est evolutif,
 // point. Decision du 17/08, a ne pas defaire.
@@ -101,8 +100,14 @@ export default function PageLinkedin() {
 
   const [recherche, setRecherche] = useState("");
 
-  // LE MODE ENCHAINEMENT. `serie` porte la file de fiches a traiter, `rang`
-  // celle qui est a l'ecran. Copie et ouverture se suivent d'un clic.
+  // L OBSERVATION. `notes` porte le texte en cours de saisie pour chaque
+  // fiche ouverte, `noteOuverte` celle qu on edite, `noteEnCours` celle
+  // qu on est en train d enregistrer.
+  const [notes, setNotes] = useState<any>({});
+  const [noteOuverte, setNoteOuverte] = useState("");
+  const [noteEnCours, setNoteEnCours] = useState("");
+
+  // LE MODE ENCHAINEMENT.
   const [serie, setSerie] = useState<any[] | null>(null);
   const [rang, setRang] = useState(0);
   const [texteSerie, setTexteSerie] = useState("");
@@ -137,6 +142,10 @@ export default function PageLinkedin() {
     return await r.json();
   }
 
+  function cleDe(l: any) {
+    return l.base + "-" + l.id;
+  }
+
   function poser(d: any) {
     setFiche(d.fiche || null);
     setRestant(d.restant || 0);
@@ -163,12 +172,17 @@ export default function PageLinkedin() {
     setCharge(true);
     setErreur("");
     setOuverte(null);
+    setNoteOuverte("");
     try {
       const action = onglet === "attente" ? "en_attente" : "a_relancer";
       const d = await appeler({ action: action });
       if (d.ok) {
         setLignes(d.lignes || []);
         setCompteurs(d.compteurs || null);
+        // Les observations deja enregistrees remontent avec les fiches.
+        const n: any = {};
+        for (const l of (d.lignes || [])) n[l.base + "-" + l.id] = l.notes || "";
+        setNotes(n);
       } else setErreur(d.erreur || "Lecture impossible.");
     } catch (e: any) {
       setErreur("Lecture impossible : " + String(e));
@@ -176,8 +190,34 @@ export default function PageLinkedin() {
     setCharge(false);
   }
 
-  // LE FILTRE. Il porte sur tout ce qui identifie une personne. Plusieurs
-  // mots se cumulent — « dupont lyon » ne retient que les deux.
+  // ENREGISTRER UNE OBSERVATION. N avance rien dans le parcours, ne
+  // consomme aucun quota.
+  async function enregistrerNote(l: any) {
+    const cle = cleDe(l);
+    setNoteEnCours(cle);
+    setErreur("");
+    setMessage("");
+    try {
+      const d = await appeler({
+        action: "note",
+        base: l.base || base,
+        id: l.id,
+        notes: notes[cle] || "",
+      });
+      if (d.ok) {
+        setMessage("Observation enregistrée.");
+        setNoteOuverte("");
+      } else {
+        setErreur(d.erreur || "Enregistrement impossible.");
+      }
+    } catch (e: any) {
+      setErreur("Enregistrement impossible : " + String(e));
+    }
+    setNoteEnCours("");
+  }
+
+  // LE FILTRE. Il porte sur tout ce qui identifie une personne, y compris
+  // ses observations — retrouver « rappeler en septembre » devient possible.
   const filtrees = useMemo(function () {
     const q = aplatir(recherche);
     if (!q) return lignes;
@@ -189,7 +229,8 @@ export default function PageLinkedin() {
         (l.raison_sociale || "") + " " +
         (l.ville || "") + " " +
         (l.email || "") + " " +
-        (l.linkedin || "")
+        (l.linkedin || "") + " " +
+        (l.notes || "")
       );
       return mots.every(function (m: string) { return foin.indexOf(m) >= 0; });
     });
@@ -218,7 +259,6 @@ export default function PageLinkedin() {
     setOuvertSerie(false);
   }
 
-  // Passer a la fiche suivante en preparant deja son message.
   function avancer(file: any[], prochain: number) {
     if (prochain >= file.length) {
       setSerie(null);
@@ -234,9 +274,9 @@ export default function PageLinkedin() {
 
   // COPIER PUIS OUVRIR, EN UN SEUL GESTE.
   //
-  // ⚠️ L ouverture de la messagerie se fait AVANT toute attente : un
-  // window.open declenche apres un await est bloque par le navigateur comme
-  // une fenetre surgissante non sollicitee. La copie, elle, est synchrone.
+  // ⚠️ L ouverture se fait AVANT toute attente : un window.open declenche
+  // apres un await est bloque par le navigateur comme une fenetre
+  // surgissante non sollicitee.
   function copierEtOuvrir(l: any) {
     try {
       navigator.clipboard.writeText(texteSerie);
@@ -253,7 +293,12 @@ export default function PageLinkedin() {
     setCharge(true);
     setErreur("");
     try {
-      const d = await appeler({ base: l.base || base, id: l.id, statut: "relance" });
+      const cle = cleDe(l);
+      const corps: any = { base: l.base || base, id: l.id, statut: "relance" };
+      // L observation saisie pendant la serie part avec le changement de statut.
+      if (notes[cle] !== undefined) corps.notes = notes[cle];
+
+      const d = await appeler(corps);
       if (d.ok) {
         setCompteurs(d.compteurs || null);
         setFaits(faits + 1);
@@ -321,7 +366,12 @@ export default function PageLinkedin() {
     setCharge(true);
     setErreur("");
     try {
-      const d = await appeler({ base: cleBase || l.base || base, id: l.id, statut: statut });
+      const cle = cleDe(l);
+      const corps: any = { base: cleBase || l.base || base, id: l.id, statut: statut };
+      // L observation part avec le changement de statut, quand elle existe.
+      if (onglet !== "inviter" && notes[cle] !== undefined) corps.notes = notes[cle];
+
+      const d = await appeler(corps);
       if (d.ok) {
         setCompteurs(d.compteurs || null);
         if (onglet === "inviter") poser(d);
@@ -424,7 +474,7 @@ export default function PageLinkedin() {
           <input
             value={recherche}
             onChange={(e) => setRecherche(e.target.value)}
-            placeholder="Rechercher un nom, un organisme, une ville…"
+            placeholder="Rechercher un nom, un organisme, une ville, une observation…"
             style={{ ...CHAMP, flex: "1 1 280px", padding: "12px 14px" }}
           />
           {recherche && (
@@ -440,6 +490,70 @@ export default function PageLinkedin() {
               : filtrees.length + " fiche(s) sur " + lignes.length}
           </p>
         )}
+      </div>
+    );
+  }
+
+  // LE BLOC D OBSERVATION, partage par les deux listes.
+  //
+  // Replie quand il n y a rien a lire, ouvert d un clic. Quand une note
+  // existe deja, elle est visible sans avoir a ouvrir quoi que ce soit —
+  // c est tout l interet.
+  function blocNote(l: any) {
+    const cle = cleDe(l);
+    const ouvert = noteOuverte === cle;
+    const valeur = notes[cle] !== undefined ? notes[cle] : (l.notes || "");
+    const existe = String(l.notes || "").trim().length > 0;
+    const occupe = noteEnCours === cle;
+
+    if (!ouvert) {
+      return (
+        <div style={{ marginTop: "12px" }}>
+          {existe && (
+            <div style={{ background: "rgba(200,169,110,0.07)", border: "1px solid rgba(200,169,110,0.22)", borderRadius: "8px", padding: "11px 13px", marginBottom: "9px" }}>
+              <div style={{ color: OR, fontSize: "11.5px", letterSpacing: "1.5px", marginBottom: "5px" }}>
+                VOTRE OBSERVATION
+              </div>
+              <div style={{ color: "rgba(255,255,255,0.75)", fontSize: "13.5px", lineHeight: "1.75", whiteSpace: "pre-wrap" }}>
+                {l.notes}
+              </div>
+            </div>
+          )}
+          <button
+            onClick={() => { setNoteOuverte(cle); setNotes({ ...notes, [cle]: valeur }); }}
+            style={{ ...BOUTON, width: "100%", padding: "10px", fontSize: "13px", color: existe ? OR : "rgba(255,255,255,0.5)", borderColor: existe ? BOUTON.border : "rgba(255,255,255,0.18)" }}
+          >
+            {existe ? "Modifier l'observation" : "Noter une observation"}
+          </button>
+        </div>
+      );
+    }
+
+    return (
+      <div style={{ marginTop: "12px", padding: "14px", background: "rgba(200,169,110,0.06)", border: "1px solid rgba(200,169,110,0.3)", borderRadius: "9px" }}>
+        <span style={LIBELLE}>Ce que vous voulez retenir de ce contact</span>
+        <textarea
+          value={valeur}
+          onChange={(e) => setNotes({ ...notes, [cle]: e.target.value })}
+          rows={4}
+          placeholder="Dirige trois centres en Normandie. Rappeler en septembre, en vacances jusqu'au 5."
+          style={{ ...CHAMP, marginBottom: "11px" }}
+        />
+        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+          <button
+            onClick={() => enregistrerNote(l)}
+            disabled={occupe}
+            style={{ flex: "2 1 180px", background: "rgba(200,169,110,0.2)", color: OR, border: "1px solid rgba(200,169,110,0.5)", borderRadius: "8px", padding: "11px", fontSize: "13.5px", fontWeight: "bold", fontFamily: "Georgia,serif", cursor: occupe ? "wait" : "pointer" }}
+          >
+            {occupe ? "Enregistrement…" : "Enregistrer"}
+          </button>
+          <button
+            onClick={() => { setNoteOuverte(""); setNotes({ ...notes, [cle]: l.notes || "" }); }}
+            style={{ ...BOUTON, flex: "1 1 110px", padding: "11px", fontSize: "13.5px", color: "rgba(255,255,255,0.5)", borderColor: "rgba(255,255,255,0.18)" }}
+          >
+            Annuler
+          </button>
+        </div>
       </div>
     );
   }
@@ -776,7 +890,7 @@ export default function PageLinkedin() {
                 const j = joursDepuis(l.linkedin_le);
                 const note = avecNoteDe(l);
                 return (
-                  <div key={l.base + "-" + l.id} style={CARTE}>
+                  <div key={cleDe(l)} style={CARTE}>
                     <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "10px" }}>
                       <div style={{ flex: "1 1 240px" }}>
                         <div style={{ color: "#fff", fontSize: "15.5px", fontWeight: "bold" }}>
@@ -798,9 +912,11 @@ export default function PageLinkedin() {
                       </div>
                       <a href={lien(l.linkedin)} target="_blank" rel="noreferrer"
                         style={{ color: BLEU, fontSize: "12.5px", textDecoration: "none", alignSelf: "center" }}>
-                        Voir le profil
+                        Voir le profil ↗
                       </a>
                     </div>
+
+                    {blocNote(l)}
 
                     <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "12px" }}>
                       <button onClick={() => marquer(l, note ? "accepte" : "accepte_nu")} disabled={charge}
@@ -822,7 +938,6 @@ export default function PageLinkedin() {
         {/* ═══════════ ONGLET À RELANCER ═══════════ */}
         {onglet === "relancer" && (
           <>
-            {/* ---------- LE MODE ENCHAINEMENT ---------- */}
             {enSerie && courante ? (
               <>
                 <div style={{ ...CARTE, borderColor: "rgba(0,230,118,0.45)", background: "#12121f" }}>
@@ -849,6 +964,17 @@ export default function PageLinkedin() {
                     {courante.ville || ""}
                     {courante.base === "manuel" ? " · ajouté à la main" : ""}
                   </div>
+
+                  {courante.notes && (
+                    <div style={{ background: "rgba(200,169,110,0.07)", border: "1px solid rgba(200,169,110,0.22)", borderRadius: "8px", padding: "11px 13px", marginTop: "13px" }}>
+                      <div style={{ color: OR, fontSize: "11.5px", letterSpacing: "1.5px", marginBottom: "5px" }}>
+                        VOTRE OBSERVATION
+                      </div>
+                      <div style={{ color: "rgba(255,255,255,0.75)", fontSize: "13.5px", lineHeight: "1.75", whiteSpace: "pre-wrap" }}>
+                        {courante.notes}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div style={CARTE}>
@@ -886,6 +1012,8 @@ export default function PageLinkedin() {
                     sur <strong>Message</strong>, collez, envoyez — puis revenez ici.
                   </p>
 
+                  {blocNote(courante)}
+
                   <div style={{ display: "flex", gap: "9px", flexWrap: "wrap", marginTop: "16px" }}>
                     <button onClick={() => envoyeEtSuivant(courante)} disabled={charge}
                       style={{ flex: "2 1 220px", background: "rgba(0,230,118,0.15)", color: VERT, border: "1px solid rgba(0,230,118,0.45)", borderRadius: "9px", padding: "15px", fontSize: "14.5px", fontWeight: "bold", fontFamily: "Georgia,serif", cursor: "pointer" }}>
@@ -911,7 +1039,6 @@ export default function PageLinkedin() {
 
                 {lignes.length > 0 && barreRecherche()}
 
-                {/* LA PORTE VERS LE MODE ENCHAINEMENT. */}
                 {filtrees.length > 1 && (
                   <div style={{ ...CARTE, borderColor: "rgba(0,230,118,0.4)", background: "rgba(0,230,118,0.05)" }}>
                     <div style={{ color: VERT, fontSize: "15px", fontWeight: "bold", marginBottom: "5px" }}>
@@ -944,9 +1071,9 @@ export default function PageLinkedin() {
                   </div>
                 ) : (
                   filtrees.map(function (l) {
-                    const active = ouverte === l.base + "-" + l.id;
+                    const active = ouverte === cleDe(l);
                     return (
-                      <div key={l.base + "-" + l.id} style={{ ...CARTE, borderColor: active ? "rgba(0,230,118,0.4)" : CARTE.border }}>
+                      <div key={cleDe(l)} style={{ ...CARTE, borderColor: active ? "rgba(0,230,118,0.4)" : CARTE.border }}>
                         <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "10px" }}>
                           <div style={{ flex: "1 1 240px" }}>
                             <div style={{ color: "#fff", fontSize: "15.5px", fontWeight: "bold" }}>
@@ -961,13 +1088,15 @@ export default function PageLinkedin() {
                           </div>
                           <a href={lien(l.linkedin)} target="_blank" rel="noreferrer"
                             style={{ color: BLEU, fontSize: "12.5px", textDecoration: "none", alignSelf: "center" }}>
-                            Ouvrir la messagerie
+                            Ouvrir la messagerie ↗
                           </a>
                         </div>
 
+                        {blocNote(l)}
+
                         {!active ? (
                           <button
-                            onClick={() => { setOuverte(l.base + "-" + l.id); setTexteLong(messageRelance(l.dirigeant_prenom, l.raison_sociale)); }}
+                            onClick={() => { setOuverte(cleDe(l)); setTexteLong(messageRelance(l.dirigeant_prenom, l.raison_sociale)); }}
                             style={{ ...BOUTON, width: "100%", marginTop: "12px" }}>
                             Préparer le message
                           </button>
