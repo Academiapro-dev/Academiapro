@@ -25,14 +25,6 @@ const TABLES: any = {
 };
 
 // SEPT STATUTS, ET LA DISTINCTION AVEC OU SANS NOTE EST LA PLUS UTILE.
-//
-// invite      : partie AVEC une note personnalisee.
-// invite_nu   : partie SANS note — LinkedIn plafonne les notes a quelques
-//               unes par mois en compte gratuit.
-// accepte / accepte_nu : la personne a accepte.
-// relance     : le message long a ete envoye apres acceptation.
-// refuse      : sans suite.
-// ecarte      : decision de Jacques avant tout envoi.
 const STATUTS = ["invite", "invite_nu", "accepte", "accepte_nu", "relance", "refuse", "ecarte"];
 
 const EN_ATTENTE = ["invite", "invite_nu"];
@@ -42,21 +34,18 @@ const PLAFOND_SEMAINE = 100;
 const PLAFOND_JOUR = 20;
 
 // A vingt invitations par jour, le plafond de 200 etait atteint en dix
-// jours : au-dela, les fiches recentes n apparaissaient plus dans les
-// listes, sans aucun avertissement. Mille lignes couvrent cinquante jours.
+// jours. Mille lignes couvrent cinquante jours.
 const LIMITE_LISTE = 1000;
 
 // 🚨🚨 LE JOUR SE COMPTE A PARIS, PAS EN TEMPS UNIVERSEL — corrige le 18/08.
 //
-// LE DEFAUT, ET IL DUPAIT L UTILISATEUR CHAQUE NUIT. Le code faisait
-// `d.setHours(0,0,0,0)`, qui travaille dans le fuseau DU SERVEUR. Or Vercel
-// tourne en UTC. A 1 h 30 du matin a Paris, il est 23 h 30 LA VEILLE pour le
-// serveur : le « debut du jour » renvoyait au matin de la veille, et le
-// compteur additionnait encore les vingt invitations deja faites. ENTRE
-// MINUIT ET DEUX HEURES DU MATIN, LE QUOTA NE SE REMETTAIT JAMAIS A ZERO.
+// Le code faisait `d.setHours(0,0,0,0)`, qui travaille dans le fuseau DU
+// SERVEUR. Or Vercel tourne en UTC. A 1 h 30 du matin a Paris, il est
+// 23 h 30 LA VEILLE pour le serveur : le compteur additionnait encore les
+// vingt invitations deja faites. ENTRE MINUIT ET DEUX HEURES DU MATIN, LE
+// QUOTA NE SE REMETTAIT JAMAIS A ZERO.
 //
-// ⚠️ NE PAS REVENIR A setHours() : le defaut ne se verrait qu apres minuit,
-// quand personne ne teste.
+// ⚠️ NE PAS REVENIR A setHours() : le defaut ne se verrait qu apres minuit.
 function decalageParisEnMs(d: Date): number {
   const aParis = new Date(d.toLocaleString("en-US", { timeZone: "Europe/Paris" }));
   const enUTC = new Date(d.toLocaleString("en-US", { timeZone: "UTC" }));
@@ -71,8 +60,7 @@ function debutDuJour(): string {
   return new Date(murale.getTime() - decalage).toISOString();
 }
 
-// La semaine est GLISSANTE — sept jours en arriere depuis maintenant. Elle
-// n a donc pas besoin de la correction de fuseau.
+// La semaine est GLISSANTE — sept jours en arriere depuis maintenant.
 function ilYaSeptJours(): string {
   return new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString();
 }
@@ -142,9 +130,6 @@ async function compteurs() {
 // LES COLONNES DIFFERENT SELON LA TABLE. Les trois bases de prospection
 // portent raison_sociale, siren, code_postal ; la table crm porte nom et
 // organisme. Demander les mauvaises colonnes ferait echouer la requete.
-//
-// 🆕 `notes` EST LU PARTOUT depuis le 18/08. La colonne existait deja dans
-// crm ; elle a ete ajoutee aux trois bases de prospection le meme jour.
 const COLONNES_PROSPECTS =
   "id, raison_sociale, ville, code_postal, siren, dirigeant_prenom, dirigeant_nom, " +
   "linkedin, email, telephone, site_web, linkedin_le, linkedin_statut, notes";
@@ -155,6 +140,36 @@ const COLONNES_CRM =
 
 function colonnesDe(cle: string): string {
   return cle === "manuel" ? COLONNES_CRM : COLONNES_PROSPECTS;
+}
+
+// 🆕 CE QUI EST MODIFIABLE DEPUIS LA FICHE COMPLETE — ajoute le 18/08.
+//
+// LE MANQUE. L ecran n affichait que le nom, l organisme et la ville. Le
+// telephone, l adresse electronique, le SIREN ou le site etaient en base
+// mais invisibles, et rien ne permettait de corriger un numero errone
+// releve pendant un echange.
+//
+// ⚠️ LES DEUX LISTES SONT DISTINCTES PARCE QUE LES TABLES LE SONT. Envoyer
+// `raison_sociale` a la table crm, ou `organisme` a une base de
+// prospection, ferait echouer la mise a jour entiere.
+//
+// 🚨 NI linkedin_statut NI linkedin_le NE SONT MODIFIABLES ICI. Corriger
+// une coordonnee ne doit jamais faire avancer une fiche dans le parcours
+// ni consommer le quota du jour — c est la meme regle que pour les notes.
+const MODIFIABLES_PROSPECTS = [
+  "raison_sociale", "ville", "code_postal", "siren",
+  "dirigeant_prenom", "dirigeant_nom",
+  "linkedin", "email", "telephone", "site_web", "notes",
+];
+
+const MODIFIABLES_CRM = [
+  "nom", "organisme", "ville",
+  "dirigeant_prenom", "dirigeant_nom",
+  "linkedin", "email", "telephone", "notes",
+];
+
+function modifiablesDe(cle: string): string[] {
+  return cle === "manuel" ? MODIFIABLES_CRM : MODIFIABLES_PROSPECTS;
 }
 
 // L ecran attend partout raison_sociale et dirigeant. Une fiche du CRM
@@ -231,20 +246,58 @@ export async function POST(req: NextRequest) {
     const action = String(body.action || "marquer").trim();
     const base = String(body.base || "").trim();
 
-    // 🆕 ENREGISTRER UNE OBSERVATION SUR UNE FICHE — ajoute le 18/08.
+    // 🆕 MODIFIER UNE FICHE COMPLETE — ajoute le 18/08.
     //
-    // LE MANQUE. Jacques voulait noter ce qu il avait appris d un prospect
-    // apres lui avoir ecrit. Aucun champ ne le permettait dans la file : le
-    // seul bouton disponible, « Voir le profil », l envoyait directement sur
-    // LinkedIn — il perdait l ecran sans avoir rien pu ecrire.
+    // Corriger un telephone releve pendant un echange, completer une ville
+    // laissee vide par l open data, rectifier un nom mal orthographie. Seuls
+    // les champs presents dans la requete sont touches : envoyer uniquement
+    // le telephone ne vide pas le reste.
+    if (action === "modifier") {
+      const id = body.id;
+      const table = TABLES[base];
+      if (!table) return NextResponse.json({ ok: false, erreur: "Base inconnue." }, { status: 400 });
+      if (!id) return NextResponse.json({ ok: false, erreur: "Ligne non precisee." }, { status: 400 });
+
+      const permis = modifiablesDe(base);
+      const champs: any = {};
+
+      for (const cle of permis) {
+        if (body[cle] === undefined) continue;
+        const valeur = propre(body[cle], cle === "notes" ? 4000 : 300);
+        champs[cle] = valeur || null;
+      }
+
+      if (Object.keys(champs).length === 0) {
+        return NextResponse.json({ ok: false, erreur: "Rien a modifier." }, { status: 400 });
+      }
+
+      // Sur une fiche du CRM, toucher a la fiche vaut interaction.
+      if (base === "manuel") champs.derniere_interaction = new Date().toISOString();
+
+      const { data, error } = await supabase
+        .from(table)
+        .update(champs)
+        .eq("id", id)
+        .select(colonnesDe(base))
+        .maybeSingle();
+
+      if (error) {
+        return NextResponse.json({ ok: false, erreur: error.message }, { status: 500 });
+      }
+
+      return NextResponse.json({
+        ok: true,
+        fiche: data ? uniformiser(data, base) : null,
+        message: "Fiche enregistrée.",
+      });
+    }
+
+    // ENREGISTRER UNE OBSERVATION SUR UNE FICHE.
     //
     // Ce qu on retient d une conversation ne se retrouve nulle part
-    // ailleurs : ni dans l open data, ni sur LinkedIn. C est la seule
-    // information qui appartienne vraiment a Jacques.
+    // ailleurs : ni dans l open data, ni sur LinkedIn.
     //
     // ⚠️ CETTE ACTION NE TOUCHE NI AU STATUT NI A LA DATE D INVITATION.
-    // Ecrire une note ne doit jamais faire avancer une fiche dans le
-    // parcours, ni consommer le quota du jour.
     if (action === "note") {
       const id = body.id;
       const table = TABLES[base];
@@ -254,7 +307,6 @@ export async function POST(req: NextRequest) {
       const texte = propre(body.notes, 4000);
 
       const champs: any = { notes: texte || null };
-      // Sur une fiche du CRM, ecrire une note vaut interaction.
       if (base === "manuel") champs.derniere_interaction = new Date().toISOString();
 
       const { error } = await supabase.from(table).update(champs).eq("id", id);
@@ -266,9 +318,6 @@ export async function POST(req: NextRequest) {
     }
 
     // AJOUTER UN PROFIL TROUVE A LA MAIN.
-    //
-    // La fiche entre directement au statut d invitation : si Jacques la
-    // saisit, c est qu il vient d envoyer la demande.
     if (action === "ajouter") {
       const nom = propre(body.nom, 120);
       const lien = propre(body.linkedin, 300);
