@@ -1,34 +1,39 @@
 "use client";
 import { useState, useEffect, useMemo, useRef } from "react";
 
-// L ECRAN LINKEDIN — QUATRE TEMPS, QUATRE ONGLETS.
+// L ECRAN LINKEDIN — CINQ TEMPS, CINQ ONGLETS.
 //
 // INVITER : une fiche a la fois, le mot pre-redige, le profil qui s ouvre.
+// EN ATTENTE D INVITATION : les profils enregistres mais pas encore invites.
 // MES INVITATIONS : ce qui est parti et attend une reponse.
 // A ECRIRE : les personnes qui ont accepte et n ont pas encore recu de mot.
 // MESSAGES ENVOYES : ceux a qui l on a ecrit, du plus ancien au plus recent.
 //
-// 🆕 LECTURE D UNE CAPTURE — 18/08. Jacques croise des profils au fil de son
-// actualite LinkedIn. Recopier a la main le nom, l organisme, la ville et
-// l adresse du profil est long sur un iPad, et c est la que naissent les
-// fautes de frappe. Il photographie desormais le profil, depose l image, et
-// les champs se remplissent seuls.
+// 🚨🚨 LE DEFAUT DE CONCEPTION CORRIGE LE 18/08, ET IL FAUT LE COMPRENDRE
+// POUR NE PAS LE REFAIRE. Les deux seuls boutons d enregistrement etaient
+// « Invitee avec une note » et « Invitee sans note ». ENREGISTRER UNE FICHE
+// ET DECLARER UNE INVITATION ETAIENT DONC LA MEME ACTION.
 //
-// La lecture est disponible A DEUX ENDROITS : dans le formulaire d ajout
-// d un nouveau profil, et DANS CHAQUE FICHE COMPLETE — car une capture sert
-// aussi a COMPLETER une fiche existante dont l open data n a donne qu un nom.
+// Deux consequences, toutes deux constatees par Jacques :
+//   - impossible de ranger un profil croise le soir pour l inviter le
+//     lendemain ;
+//   - une fois le plafond du jour atteint, LES DEUX BOUTONS SE GRISAIENT et
+//     la fiche etait simplement perdue.
 //
-// ⚠️ RIEN N EST ENREGISTRE AUTOMATIQUEMENT. La lecture remplit les champs,
-// Jacques relit, corrige si besoin, puis enregistre. Une lecture se trompe
-// parfois — et une adresse de profil fausse enverrait l invitation dans le
-// vide.
+// Ses mots : « envoyer une fiche sans invitation, pour moi ca ne veut pas
+// dire enregistrer la fiche ».
+//
+// ⚠️ LECON GENERALE : toujours dérouler ce qui arrive AU BOUT — quand le
+// quota est atteint, quand la liste est vide, quand un champ manque. Un
+// bouton qui se grise ne doit jamais etre le SEUL moyen d enregistrer.
+//
+// 🆕 LECTURE D UNE CAPTURE — 18/08. Jacques photographie un profil, les
+// champs se remplissent. Disponible dans le formulaire d ajout ET dans
+// chaque fiche complete, pour completer une fiche existante.
 //
 // 🚨 AUCUN ENVOI AUTOMATIQUE, ET CE N EST PAS CONTOURNABLE. LinkedIn
 // n expose AUCUNE API de messagerie, et les outils qui simulent les clics
 // font restreindre puis supprimer le compte.
-//
-// 🚨 DEFAUT CORRIGE LE 16/08 : le bouton faisait DEUX choses d un clic —
-// ouvrir le profil ET marquer la fiche. Cinq fiches perdues en une matinee.
 
 const BASES = [
   { cle: "organismes", nom: "Organismes certifiés Qualiopi" },
@@ -37,9 +42,6 @@ const BASES = [
 ];
 
 // LES CHAMPS DE LA FICHE COMPLETE, ET ILS DIFFERENT SELON LA TABLE.
-//
-// ⚠️ Les trois bases de prospection portent raison_sociale, siren,
-// code_postal, site_web ; la table crm porte nom et organisme.
 const CHAMPS_PROSPECTS = [
   { cle: "dirigeant_prenom", nom: "Prénom du dirigeant", large: false },
   { cle: "dirigeant_nom", nom: "Nom du dirigeant", large: false },
@@ -74,7 +76,6 @@ function champsDe(base: string) {
 // SEMAINES si on ne voulait pas.
 const LIMITE_NOTE = 200;
 
-// Au-dela de ce delai sans reponse, la fiche est signalee.
 const JOURS_AVANT_RELANCE = 12;
 
 function motInvitation(prenom: string) {
@@ -109,7 +110,6 @@ function messageRelance(prenom: string, societe: string) {
     + "Bien à vous,\nJacques Lalou\nacademiapro.fr";
 }
 
-// LA SECONDE RELANCE, pour ceux qui n ont pas repondu au premier message.
 function secondMessage(prenom: string) {
   const p = String(prenom || "").trim();
   return (p ? "Bonjour " + p : "Bonjour") + ",\n\n"
@@ -150,8 +150,7 @@ export default function PageLinkedin() {
   const [brouillon, setBrouillon] = useState<any>({});
   const [enregistre, setEnregistre] = useState("");
 
-  // LA LECTURE DE CAPTURE. `litPour` porte la cle de la fiche en cours de
-  // lecture, ou « ajout » pour le formulaire de creation.
+  // LA LECTURE DE CAPTURE.
   const [litPour, setLitPour] = useState("");
   const champAjout = useRef<any>(null);
   const champFiche = useRef<any>(null);
@@ -198,8 +197,6 @@ export default function PageLinkedin() {
 
   // ---------- LA LECTURE D UNE CAPTURE ----------
 
-  // L image est convertie en base64 avant d etre envoyee. Le navigateur le
-  // fait lui-meme, sans depot de fichier nulle part.
   function enBase64(fichier: File): Promise<string> {
     return new Promise(function (resoudre, rejeter) {
       const lecteur = new FileReader();
@@ -230,7 +227,6 @@ export default function PageLinkedin() {
         return;
       }
 
-      // LE FORMULAIRE D AJOUT.
       if (pour === "ajout") {
         if (d.nom) setANom(d.nom);
         if (d.organisme) setAOrganisme(d.organisme);
@@ -238,7 +234,6 @@ export default function PageLinkedin() {
         if (d.linkedin) setALien(d.linkedin);
         if (d.observation) setANotes(d.observation);
 
-        // Deux avertissements utiles, plutot qu un enregistrement silencieux.
         let mot = "Capture lue.";
         if (!d.linkedin) {
           mot += " L'adresse du profil n'était pas visible : touchez les trois points "
@@ -246,8 +241,8 @@ export default function PageLinkedin() {
         }
         if (d.deja_invite) {
           mot += " ⚠️ Ce profil porte déjà la mention « En attente » — vous l'avez "
-            + "probablement invité depuis LinkedIn. L'ajouter consommerait une unité "
-            + "de votre quota sans que rien ne parte.";
+            + "probablement invité depuis LinkedIn. Utilisez « Enregistrer seulement » "
+            + "pour ne pas consommer une unité de quota inutilement.";
         }
         setMessage(mot);
       } else if (ligne) {
@@ -274,7 +269,6 @@ export default function PageLinkedin() {
           poserSiVide("raison_sociale", d.organisme);
         }
 
-        // L observation s AJOUTE a celle qui existe, elle ne la remplace pas.
         if (d.observation) {
           const ancienne = String(actuel.notes || "").trim();
           neuf.notes = ancienne ? ancienne + "\n\n" + d.observation : d.observation;
@@ -319,7 +313,8 @@ export default function PageLinkedin() {
     setOuverte(null);
     setDepliee("");
     try {
-      const action = onglet === "attente" ? "en_attente"
+      const action = onglet === "file" ? "en_file"
+        : onglet === "attente" ? "en_attente"
         : onglet === "envoyes" ? "envoyes"
         : "a_relancer";
       const d = await appeler({ action: action });
@@ -333,8 +328,6 @@ export default function PageLinkedin() {
     setCharge(false);
   }
 
-  // OUVRIR LA FICHE COMPLETE. On recopie les valeurs actuelles dans le
-  // brouillon : tant qu on n enregistre pas, rien ne bouge en base.
   function deplier(l: any) {
     const cle = cleDe(l);
     const vals: any = { notes: l.notes || "" };
@@ -350,8 +343,6 @@ export default function PageLinkedin() {
     setBrouillon({ ...brouillon, [cle]: { ...actuel, [champ]: valeur } });
   }
 
-  // ENREGISTRER LA FICHE. N avance rien dans le parcours, ne consomme aucun
-  // quota — corriger un telephone ne doit pas faire avancer une invitation.
   async function enregistrerFiche(l: any) {
     const cle = cleDe(l);
     const vals = brouillon[cle] || {};
@@ -380,8 +371,6 @@ export default function PageLinkedin() {
     setEnregistre("");
   }
 
-  // LE FILTRE. Il porte sur tout ce qui identifie une personne, y compris
-  // ses observations — retrouver « rappeler en septembre » devient possible.
   const filtrees = useMemo(function () {
     const q = aplatir(recherche);
     if (!q) return lignes;
@@ -443,8 +432,6 @@ export default function PageLinkedin() {
     setOuvertSerie(false);
   }
 
-  // COPIER PUIS OUVRIR, EN UN SEUL GESTE.
-  //
   // ⚠️ L ouverture se fait AVANT toute attente : un window.open declenche
   // apres un await est bloque par le navigateur comme une fenetre
   // surgissante non sollicitee.
@@ -485,7 +472,10 @@ export default function PageLinkedin() {
 
   // ---------- FIN DU MODE ENCHAINEMENT ----------
 
-  async function ajouter(avecNote: boolean) {
+  // 🚨 TROIS FACONS D ENREGISTRER — et « file » est toujours disponible,
+  // meme quand le plafond du jour est atteint. C est tout l objet de la
+  // correction du 18/08.
+  async function ajouter(mode: string) {
     if (aNom.trim().length < 2) {
       setErreur("Indiquez le nom du contact.");
       return;
@@ -500,24 +490,24 @@ export default function PageLinkedin() {
     try {
       const d = await appeler({
         action: "ajouter",
+        mode: mode,
         nom: aNom,
         linkedin: aLien,
         organisme: aOrganisme,
         ville: aVille,
         notes: aNotes,
-        avec_note: avecNote,
       });
       if (d.ok) {
-        setMessage(d.message || "Profil ajouté.");
+        setMessage(d.message || "Profil enregistré.");
         setCompteurs(d.compteurs || null);
         setANom(""); setALien(""); setAOrganisme(""); setAVille(""); setANotes("");
         setAjout(false);
       } else {
-        setErreur(d.erreur || "Ajout impossible.");
+        setErreur(d.erreur || "Enregistrement impossible.");
         if (d.compteurs) setCompteurs(d.compteurs);
       }
     } catch (e: any) {
-      setErreur("Ajout impossible : " + String(e));
+      setErreur("Enregistrement impossible : " + String(e));
     }
     setCharge(false);
   }
@@ -629,6 +619,7 @@ export default function PageLinkedin() {
 
   const ONGLETS = [
     { id: "inviter", nom: "Inviter" },
+    { id: "file", nom: "En attente d'invitation" + (compteurs && compteurs.en_file ? " · " + compteurs.en_file : "") },
     { id: "attente", nom: "Mes invitations" + (compteurs && compteurs.en_attente ? " · " + compteurs.en_attente : "") },
     { id: "relancer", nom: "À écrire" + (compteurs && compteurs.en_attente_reponse ? " · " + compteurs.en_attente_reponse : "") },
     { id: "envoyes", nom: "Messages envoyés" + (compteurs && compteurs.relances ? " · " + compteurs.relances : "") },
@@ -661,8 +652,6 @@ export default function PageLinkedin() {
     );
   }
 
-  // LES COORDONNEES EN LECTURE, sous le nom. Ce qui est vide ne s affiche
-  // pas — une ligne « téléphone : — » n apprend rien.
   function coordonnees(l: any) {
     const bouts: any[] = [];
     if (l.email) {
@@ -694,7 +683,6 @@ export default function PageLinkedin() {
     );
   }
 
-  // LE BLOC DE LA FICHE COMPLETE, partage par toutes les listes.
   function blocFiche(l: any) {
     const cle = cleDe(l);
     const ouvert = depliee === cle;
@@ -734,7 +722,6 @@ export default function PageLinkedin() {
           FICHE COMPLÈTE — TOUT EST MODIFIABLE
         </div>
 
-        {/* LA LECTURE DE CAPTURE, pour completer une fiche incomplete. */}
         <div style={{ marginBottom: "16px", padding: "13px", background: "rgba(68,138,255,0.07)", border: "1px solid rgba(68,138,255,0.3)", borderRadius: "8px" }}>
           <button
             onClick={() => { setCibleFiche(l); if (champFiche.current) champFiche.current.click(); }}
@@ -803,8 +790,7 @@ export default function PageLinkedin() {
   return (
     <div style={{ backgroundColor: "#050508", minHeight: "100vh", color: "#fff", fontFamily: "Georgia, serif" }}>
 
-      {/* LES DEUX CHAMPS DE FICHIER, invisibles, declenches par les boutons.
-          Ils acceptent la photothèque comme l'appareil photo. */}
+      {/* LES DEUX CHAMPS DE FICHIER, invisibles, declenches par les boutons. */}
       <input
         ref={champAjout}
         type="file"
@@ -834,7 +820,7 @@ export default function PageLinkedin() {
         </a>
         <h1 style={{ color: OR, margin: "13px 0 4px", fontSize: "23px" }}>Prospection LinkedIn</h1>
         <p style={{ color: "rgba(255,255,255,0.5)", margin: 0, fontSize: "13px" }}>
-          Inviter · suivre les réponses · écrire · relancer
+          Enregistrer · inviter · suivre · écrire · relancer
         </p>
       </div>
 
@@ -900,23 +886,16 @@ export default function PageLinkedin() {
               </div>
             </div>
 
-            {(compteurs.accepte_note > 0 || compteurs.accepte_nu > 0 || compteurs.attente_note > 0 || compteurs.attente_nu > 0) && (
-              <div style={{ marginTop: "14px", paddingTop: "13px", borderTop: "1px solid rgba(255,255,255,0.08)", display: "flex", gap: "22px", flexWrap: "wrap" }}>
-                <div style={{ color: "rgba(255,255,255,0.6)", fontSize: "12.5px", lineHeight: "1.7" }}>
-                  <strong style={{ color: OR }}>Avec note</strong> — {nombre(compteurs.attente_note)} en attente,
-                  {" " + nombre(compteurs.accepte_note)} acceptée(s)
-                </div>
-                <div style={{ color: "rgba(255,255,255,0.6)", fontSize: "12.5px", lineHeight: "1.7" }}>
-                  <strong style={{ color: "rgba(255,255,255,0.75)" }}>Sans note</strong> — {nombre(compteurs.attente_nu)} en attente,
-                  {" " + nombre(compteurs.accepte_nu)} acceptée(s)
-                </div>
-              </div>
+            {compteurs.en_file > 0 && (
+              <p style={{ color: BLEU, fontSize: "13px", lineHeight: "1.7", margin: "13px 0 0" }}>
+                {nombre(compteurs.en_file)} profil(s) enregistré(s) en attente d'invitation.
+              </p>
             )}
 
             {bloque && (
               <p style={{ color: "#e8836a", fontSize: "13px", lineHeight: "1.7", margin: "13px 0 0" }}>
                 {plafondJour
-                  ? "Plafond du jour atteint (" + compteurs.plafond_jour + "). Reprenez demain — dépasser ce rythme est ce qui fait restreindre un compte."
+                  ? "Plafond du jour atteint (" + compteurs.plafond_jour + "). Vous pouvez continuer à enregistrer des profils : ils vous attendront demain."
                   : "Plafond de la semaine atteint (" + compteurs.plafond_semaine + "). Laissez passer quelques jours."}
               </p>
             )}
@@ -957,8 +936,6 @@ export default function PageLinkedin() {
               {ajout && (
                 <div style={{ marginTop: "18px", paddingTop: "16px", borderTop: "1px solid rgba(255,255,255,0.08)" }}>
 
-                  {/* LA LECTURE DE CAPTURE — en tete du formulaire, car c'est
-                      par la qu'on commence. */}
                   <button
                     onClick={() => { if (champAjout.current) champAjout.current.click(); }}
                     disabled={litPour === "ajout"}
@@ -1005,22 +982,39 @@ export default function PageLinkedin() {
                   <span style={LIBELLE}>Ce que vous voulez retenir</span>
                   <textarea value={aNotes} onChange={(e) => setANotes(e.target.value)} rows={4}
                     placeholder="Croisé sur un post à propos de Qualiopi."
-                    style={{ ...CHAMP, marginBottom: "14px" }} />
+                    style={{ ...CHAMP, marginBottom: "16px" }} />
 
-                  <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "12.5px", lineHeight: "1.75", margin: "0 0 12px" }}>
-                    La fiche entre directement comme invitation envoyée — dites simplement
-                    laquelle des deux. Elle apparaîtra dans « Mes invitations » et dans votre CRM.
+                  {/* 🚨 LE BOUTON QUI MANQUAIT. Toujours actif, meme quand le
+                      plafond du jour est atteint. */}
+                  <button onClick={() => ajouter("file")} disabled={charge}
+                    style={{ width: "100%", background: "rgba(200,169,110,0.2)", color: OR, border: "1px solid rgba(200,169,110,0.5)", borderRadius: "9px", padding: "15px", fontSize: "14.5px", fontWeight: "bold", fontFamily: "Georgia,serif", cursor: "pointer", marginBottom: "8px" }}>
+                    💾 Enregistrer seulement — je l'inviterai plus tard
+                  </button>
+                  <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "12.5px", lineHeight: "1.75", margin: "0 0 18px" }}>
+                    La fiche est rangée dans « En attente d'invitation ». <strong>Aucune unité
+                    de quota n'est consommée</strong> — vous l'inviterez quand vous voudrez.
                   </p>
 
-                  <div style={{ display: "flex", gap: "9px", flexWrap: "wrap" }}>
-                    <button onClick={() => ajouter(true)} disabled={charge || bloque}
-                      style={{ flex: "1 1 200px", background: bloque ? "rgba(255,255,255,0.06)" : "rgba(0,230,118,0.15)", color: bloque ? "rgba(255,255,255,0.3)" : VERT, border: "1px solid " + (bloque ? "rgba(255,255,255,0.15)" : "rgba(0,230,118,0.45)"), borderRadius: "9px", padding: "14px", fontSize: "13.5px", fontWeight: "bold", fontFamily: "Georgia,serif", cursor: bloque ? "not-allowed" : "pointer" }}>
-                      ✓ Invitée avec une note
-                    </button>
-                    <button onClick={() => ajouter(false)} disabled={charge || bloque}
-                      style={{ flex: "1 1 200px", background: bloque ? "rgba(255,255,255,0.06)" : "rgba(68,138,255,0.15)", color: bloque ? "rgba(255,255,255,0.3)" : BLEU, border: "1px solid " + (bloque ? "rgba(255,255,255,0.15)" : "rgba(68,138,255,0.45)"), borderRadius: "9px", padding: "14px", fontSize: "13.5px", fontWeight: "bold", fontFamily: "Georgia,serif", cursor: bloque ? "not-allowed" : "pointer" }}>
-                      ✓ Invitée sans note
-                    </button>
+                  <div style={{ borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: "16px" }}>
+                    <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "12.5px", lineHeight: "1.75", margin: "0 0 12px" }}>
+                      Ou, si vous <strong>venez de l'inviter sur LinkedIn</strong>, dites laquelle
+                      des deux — la fiche entrera directement dans « Mes invitations ».
+                    </p>
+                    <div style={{ display: "flex", gap: "9px", flexWrap: "wrap" }}>
+                      <button onClick={() => ajouter("invite")} disabled={charge || bloque}
+                        style={{ flex: "1 1 200px", background: bloque ? "rgba(255,255,255,0.06)" : "rgba(0,230,118,0.15)", color: bloque ? "rgba(255,255,255,0.3)" : VERT, border: "1px solid " + (bloque ? "rgba(255,255,255,0.15)" : "rgba(0,230,118,0.45)"), borderRadius: "9px", padding: "14px", fontSize: "13.5px", fontWeight: "bold", fontFamily: "Georgia,serif", cursor: bloque ? "not-allowed" : "pointer" }}>
+                        ✓ Invité avec une note
+                      </button>
+                      <button onClick={() => ajouter("invite_nu")} disabled={charge || bloque}
+                        style={{ flex: "1 1 200px", background: bloque ? "rgba(255,255,255,0.06)" : "rgba(68,138,255,0.15)", color: bloque ? "rgba(255,255,255,0.3)" : BLEU, border: "1px solid " + (bloque ? "rgba(255,255,255,0.15)" : "rgba(68,138,255,0.45)"), borderRadius: "9px", padding: "14px", fontSize: "13.5px", fontWeight: "bold", fontFamily: "Georgia,serif", cursor: bloque ? "not-allowed" : "pointer" }}>
+                        ✓ Invité sans note
+                      </button>
+                    </div>
+                    {bloque && (
+                      <p style={{ color: ORANGE, fontSize: "12.5px", lineHeight: "1.7", margin: "10px 0 0" }}>
+                        Plafond atteint — utilisez « Enregistrer seulement » ci-dessus.
+                      </p>
+                    )}
                   </div>
                 </div>
               )}
@@ -1139,13 +1133,78 @@ export default function PageLinkedin() {
                     </button>
                   </div>
                   <p style={{ color: "rgba(255,255,255,0.35)", fontSize: "12.5px", lineHeight: "1.75", margin: "12px 0 0" }}>
-                    Distinguer les deux est ce qui vous dira, dans quelques semaines, si la note
-                    change vraiment le taux d'acceptation — et donc si Premium vaut son prix.
-                    <strong> Écarter</strong> retire la fiche définitivement, <strong>Passer</strong> ne
+                    <strong>Écarter</strong> retire la fiche définitivement, <strong>Passer</strong> ne
                     touche à rien.
                   </p>
                 </div>
               </>
+            )}
+          </>
+        )}
+
+        {/* ═══════════ ONGLET EN ATTENTE D'INVITATION ═══════════ */}
+        {onglet === "file" && (
+          <>
+            <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "13.5px", lineHeight: "1.8", margin: "0 0 16px" }}>
+              Les profils que vous avez enregistrés sans les inviter. Ouvrez le profil, envoyez
+              votre demande sur LinkedIn, puis marquez-la ici.
+            </p>
+
+            {lignes.length > 0 && barreRecherche()}
+
+            {charge ? (
+              <p style={{ color: "rgba(255,255,255,0.5)" }}>Chargement…</p>
+            ) : lignes.length === 0 ? (
+              <div style={CARTE}>
+                <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "15px", lineHeight: "1.8", margin: 0 }}>
+                  Aucun profil en attente. Ceux que vous enregistrez sans les inviter
+                  apparaîtront ici.
+                </p>
+              </div>
+            ) : (
+              filtrees.map(function (l) {
+                return (
+                  <div key={cleDe(l)} style={{ ...CARTE, borderColor: "rgba(68,138,255,0.3)" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "10px" }}>
+                      <div style={{ flex: "1 1 240px" }}>
+                        <div style={{ color: "#fff", fontSize: "15.5px", fontWeight: "bold" }}>
+                          {l.nom || ((l.dirigeant_prenom || "") + " " + (l.dirigeant_nom || ""))}
+                        </div>
+                        <div style={{ color: OR, fontSize: "13.5px", marginTop: "2px" }}>
+                          {l.raison_sociale || "—"}
+                        </div>
+                        <div style={{ color: "rgba(255,255,255,0.4)", fontSize: "12.5px", marginTop: "4px" }}>
+                          {l.ville || ""}
+                        </div>
+                        {coordonnees(l)}
+                      </div>
+                    </div>
+
+                    {blocFiche(l)}
+
+                    <button
+                      onClick={() => { try { window.open(lien(l.linkedin), "_blank", "noopener"); } catch (e) { } }}
+                      style={{ width: "100%", background: BLEU, color: "#fff", border: "none", borderRadius: "9px", padding: "14px", fontSize: "14.5px", fontWeight: "bold", fontFamily: "Georgia,serif", cursor: "pointer", marginTop: "12px" }}>
+                      Ouvrir le profil et inviter ↗
+                    </button>
+
+                    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "9px" }}>
+                      <button onClick={() => marquer(l, "invite")} disabled={charge || bloque}
+                        style={{ flex: "1 1 160px", background: bloque ? "rgba(255,255,255,0.06)" : "rgba(0,230,118,0.13)", color: bloque ? "rgba(255,255,255,0.3)" : VERT, border: "1px solid " + (bloque ? "rgba(255,255,255,0.15)" : "rgba(0,230,118,0.4)"), borderRadius: "8px", padding: "11px", fontSize: "13.5px", fontFamily: "Georgia,serif", cursor: bloque ? "not-allowed" : "pointer" }}>
+                        ✓ Invité avec note
+                      </button>
+                      <button onClick={() => marquer(l, "invite_nu")} disabled={charge || bloque}
+                        style={{ flex: "1 1 160px", background: bloque ? "rgba(255,255,255,0.06)" : "rgba(68,138,255,0.13)", color: bloque ? "rgba(255,255,255,0.3)" : BLEU, border: "1px solid " + (bloque ? "rgba(255,255,255,0.15)" : "rgba(68,138,255,0.4)"), borderRadius: "8px", padding: "11px", fontSize: "13.5px", fontFamily: "Georgia,serif", cursor: bloque ? "not-allowed" : "pointer" }}>
+                        ✓ Invité sans note
+                      </button>
+                      <button onClick={() => marquer(l, "ecarte")} disabled={charge}
+                        style={{ ...BOUTON, flex: "1 1 120px", padding: "11px", fontSize: "13px", color: "rgba(255,255,255,0.45)", borderColor: "rgba(255,255,255,0.15)" }}>
+                        Écarter
+                      </button>
+                    </div>
+                  </div>
+                );
+              })
             )}
           </>
         )}
@@ -1189,9 +1248,6 @@ export default function PageLinkedin() {
                           <span style={{ color: note ? OR : "rgba(255,255,255,0.3)" }}>
                             {note ? " · avec note" : " · sans note"}
                           </span>
-                          {l.base === "manuel" ? (
-                            <span style={{ color: BLEU }}> · ajouté à la main</span>
-                          ) : ""}
                         </div>
                         {coordonnees(l)}
                       </div>
@@ -1247,7 +1303,6 @@ export default function PageLinkedin() {
                   </div>
                   <div style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px" }}>
                     {courante.ville || ""}
-                    {courante.base === "manuel" ? " · ajouté à la main" : ""}
                   </div>
                   {coordonnees(courante)}
 
@@ -1273,10 +1328,6 @@ export default function PageLinkedin() {
                     </span>
                   </div>
                   <textarea value={texteSerie} onChange={(e) => setTexteSerie(e.target.value)} rows={13} style={CHAMP} />
-                  <p style={{ color: "rgba(255,255,255,0.35)", fontSize: "12.5px", lineHeight: "1.7", margin: "10px 0 0" }}>
-                    Vous pouvez le retoucher avant de l'envoyer — un mot personnel change souvent
-                    la réponse.
-                  </p>
                 </div>
 
                 <div style={{ ...CARTE, borderColor: ouvertSerie ? "rgba(0,230,118,0.4)" : CARTE.border }}>
@@ -1293,10 +1344,6 @@ export default function PageLinkedin() {
                   >
                     {copieSerie ? "✓ Copié — collez dans la messagerie" : "Copier le message et ouvrir la messagerie"}
                   </button>
-                  <p style={{ color: "rgba(255,255,255,0.35)", fontSize: "12.5px", lineHeight: "1.75", margin: "12px 0 0" }}>
-                    Le message est copié et le profil s'ouvre dans un onglet. Sur LinkedIn, cliquez
-                    sur <strong>Message</strong>, collez, envoyez — puis revenez ici.
-                  </p>
 
                   {blocFiche(courante)}
 
@@ -1320,8 +1367,8 @@ export default function PageLinkedin() {
               <>
                 <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "13.5px", lineHeight: "1.8", margin: "0 0 16px" }}>
                   {onglet === "envoyes"
-                    ? "Les personnes à qui vous avez déjà écrit, de la plus ancienne à la plus récente. Celles qui attendent depuis plus de " + JOURS_AVANT_RELANCE + " jours sont signalées : c'est le moment d'écrire une seconde fois."
-                    : "Ces personnes ont accepté votre invitation et n'ont pas encore reçu de message. La messagerie est libre : aucune limite de caractères, aucun quota."}
+                    ? "Les personnes à qui vous avez déjà écrit, de la plus ancienne à la plus récente. Celles qui attendent depuis plus de " + JOURS_AVANT_RELANCE + " jours sont signalées."
+                    : "Ces personnes ont accepté votre invitation et n'ont pas encore reçu de message. La messagerie est libre : aucune limite, aucun quota."}
                 </p>
 
                 {lignes.length > 0 && barreRecherche()}
@@ -1333,17 +1380,12 @@ export default function PageLinkedin() {
                     </div>
                     <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "13px", lineHeight: "1.75", margin: "0 0 14px" }}>
                       {filtrees.length} personne(s). Le message est préparé à chaque prénom, copié
-                      d'un clic, et la messagerie s'ouvre. Vous collez, vous marquez, la fiche
-                      suivante arrive.
+                      d'un clic, et la messagerie s'ouvre.
                     </p>
                     <button onClick={demarrerSerie}
                       style={{ width: "100%", background: VERT, color: "#050508", border: "none", borderRadius: "9px", padding: "15px", fontSize: "15px", fontWeight: "bold", fontFamily: "Georgia,serif", cursor: "pointer" }}>
                       Démarrer la série — {filtrees.length} message(s)
                     </button>
-                    <p style={{ color: "rgba(255,255,255,0.3)", fontSize: "12px", lineHeight: "1.7", margin: "12px 0 0" }}>
-                      Rien n'est envoyé automatiquement : LinkedIn n'a pas d'API de messagerie, et
-                      les outils qui simulent les clics font restreindre les comptes.
-                    </p>
                   </div>
                 )}
 
@@ -1353,8 +1395,8 @@ export default function PageLinkedin() {
                   <div style={CARTE}>
                     <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "15px", lineHeight: "1.8", margin: 0 }}>
                       {onglet === "envoyes"
-                        ? "Aucun message envoyé pour l'instant. Ils apparaîtront ici dès que vous en aurez écrit."
-                        : "Personne à qui écrire pour l'instant. Marquez vos acceptations dans « Mes invitations » et elles arriveront ici."}
+                        ? "Aucun message envoyé pour l'instant."
+                        : "Personne à qui écrire pour l'instant. Marquez vos acceptations dans « Mes invitations »."}
                     </p>
                   </div>
                 ) : (
@@ -1381,7 +1423,6 @@ export default function PageLinkedin() {
                                   {jr !== null ? " · il y a " + jr + " jour" + (jr > 1 ? "s" : "") : ""}
                                 </span>
                               ) : ""}
-                              {l.base === "manuel" ? " · ajouté à la main" : ""}
                             </div>
                             {aRelancer && (
                               <div style={{ color: ORANGE, fontSize: "12.5px", marginTop: "6px", fontWeight: "bold" }}>
@@ -1419,12 +1460,6 @@ export default function PageLinkedin() {
                           </div>
                         ) : (
                           <div style={{ marginTop: "14px" }}>
-                            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "9px" }}>
-                              <span style={{ color: OR, fontSize: "12px", letterSpacing: "2px" }}>VOTRE MESSAGE</span>
-                              <span style={{ color: "rgba(255,255,255,0.35)", fontSize: "12px" }}>
-                                {texteLong.length} caractères · aucune limite
-                              </span>
-                            </div>
                             <textarea value={texteLong} onChange={(e) => setTexteLong(e.target.value)} rows={14} style={CHAMP} />
 
                             <button onClick={() => copier(texteLong, "long")}
