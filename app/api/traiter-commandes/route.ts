@@ -19,6 +19,10 @@ const QUESTIONS_PAR_MODULE_EXAMEN = 2;
 const MODULES_PAR_LOT_EXAMEN = 5;
 const SEUIL_REUSSITE = 70;
 
+// Le plafond de jetons d une passe. A 4000 les sections longues etaient
+// coupees en plein mot dans le manuel : « la zone Nom affiche la refer ».
+const JETONS_PAR_PASSE = 8000;
+
 // LA LANGUE DE L ACHETEUR. Elle est jointe a la commande par la route de
 // paiement et voyage jusqu ici : le manuel, les exercices, les questionnaires
 // et l examen sont produits dans cette langue, et le cache est indexe dessus.
@@ -64,21 +68,24 @@ const REGLE_EVALUATION =
   "la methode, le protocole, le choix de la technique selon la situation, les applications concretes, " +
   "les precautions et la securite. Gradue la difficulte : commence par la comprehension, termine par l application.";
 
+// Les titres portent leurs accents : ils sont imprimes dans le manuel, donc
+// destines a un tiers. Ils sont ecrits en sequences d echappement pour que le
+// fichier source reste en ASCII pur et survive a tout copier-coller.
 const COURS = [
   {
     titre: "Fondements et cadre conceptuel",
     consigne: "Expose les fondements theoriques : origines, auteurs de reference, concepts cles, cadre conceptuel. Cite des travaux et des recherches.",
   },
   {
-    titre: "Methode et protocole",
+    titre: "M\u00e9thode et protocole",
     consigne: "Decris la methode operatoire etape par etape : preparation, deroulement, criteres de reussite, variantes selon les publics. Sois concret et sequentiel.",
   },
   {
-    titre: "Etudes de cas",
+    titre: "\u00c9tudes de cas",
     consigne: "Presente au moins quatre situations reelles et detaillees : contexte, difficulte rencontree, demarche suivie, resultat, enseignement a en tirer. Des recits, pas des generalites.",
   },
   {
-    titre: "Erreurs frequentes et remediation",
+    titre: "Erreurs fr\u00e9quentes et rem\u00e9diation",
     consigne: "Recense les erreurs les plus courantes, leurs causes, leurs consequences et la maniere de les corriger. Un tableau erreur / remede est bienvenu.",
   },
   {
@@ -92,7 +99,7 @@ const COURS = [
 ];
 
 const EXERCICES = {
-  titre: "Exercices pratiques et corriges",
+  titre: "Exercices pratiques et corrig\u00e9s",
   consigne: "Propose au moins huit exercices progressifs et concrets, chacun suivi de son corrige commente. Consignes precises, duree indicative, materiel necessaire, critere de reussite. Pas d invitation vague a reflechir.",
 };
 
@@ -106,31 +113,45 @@ const QCM = {
     "la bonne reponse ET l explication de pourquoi les autres sont fausses.\n\n" + REGLE_EVALUATION,
 };
 
-const SYNTHESE = { titre: "Votre synthese personnelle", local: true };
+const SYNTHESE = { titre: "Votre synth\u00e8se personnelle", local: true };
+
+// Comparaison insensible aux accents et a la casse.
+//
+// INDISPENSABLE : la reprise du generateur repere les sections deja ecrites en
+// cherchant « ## <titre> » dans le cache. Les titres portent desormais leurs
+// accents, alors que tout le cache existant a ete ecrit sans. Sans cette
+// normalisation, plus aucune section ne serait reconnue et les 532 formations
+// seraient reecrites entierement, a nos frais.
+function sansAccents(t: string): string {
+  return String(t || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
 
 function gabaritSynthese(titreModule: string, code: string, cible: string): string {
   const lien = "https://academiapro.fr/synthese?code=" + code + "&cible=" + cible;
 
-  return "Vous venez de terminer ce module. Avant de passer au suivant, redigez VOTRE PROPRE SYNTHESE de " +
+  return "Vous venez de terminer ce module. Avant de passer au suivant, r\u00e9digez VOTRE PROPRE SYNTH\u00c8SE de " +
     titreModule + ".\n\n" +
     "Ce qui est attendu :\n\n" +
-    "- de 300 a 500 mots, avec vos mots, sans recopier le cours ;\n" +
-    "- les notions cles du module, telles que vous les avez comprises ;\n" +
-    "- la methode ou le protocole, decrit comme si vous l expliquiez a un confrere ;\n" +
-    "- deux situations concretes dans lesquelles vous comptez l appliquer ;\n" +
-    "- ce qui reste flou pour vous, s il y a lieu.\n\n" +
-    "DEPOSEZ VOTRE SYNTHESE ICI :\n" + lien + "\n\n" +
-    "Vous pouvez la modifier tant qu elle n a pas ete corrigee. Une fois evaluee, vous recevrez par email " +
-    "une note et un retour ecrit signalant les points essentiels que vous auriez omis.\n\n" +
-    "Ce travail compte davantage que le QCM. Le QCM verifie que vous reconnaissez une bonne reponse ; " +
-    "la synthese verifie que vous avez reellement integre le module et que vous savez le transmettre.";
+    "- de 300 \u00e0 500 mots, avec vos mots, sans recopier le cours ;\n" +
+    "- les notions cl\u00e9s du module, telles que vous les avez comprises ;\n" +
+    "- la m\u00e9thode ou le protocole, d\u00e9crit comme si vous l\u2019expliquiez \u00e0 un confr\u00e8re ;\n" +
+    "- deux situations concr\u00e8tes dans lesquelles vous comptez l\u2019appliquer ;\n" +
+    "- ce qui reste flou pour vous, s\u2019il y a lieu.\n\n" +
+    "D\u00c9POSEZ VOTRE SYNTH\u00c8SE ICI :\n" + lien + "\n\n" +
+    "Vous pouvez la modifier tant qu\u2019elle n\u2019a pas \u00e9t\u00e9 corrig\u00e9e. Une fois \u00e9valu\u00e9e, vous recevrez par email " +
+    "une note et un retour \u00e9crit signalant les points essentiels que vous auriez omis.\n\n" +
+    "Ce travail compte davantage que le QCM. Le QCM v\u00e9rifie que vous reconnaissez une bonne r\u00e9ponse ; " +
+    "la synth\u00e8se v\u00e9rifie que vous avez r\u00e9ellement int\u00e9gr\u00e9 le module et que vous savez le transmettre.";
 }
 
 async function appeler(cle: string, invite: string, langue: string): Promise<string> {
   const r = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-api-key": cle, "anthropic-version": "2023-06-01" },
-    body: JSON.stringify({ model: MODELE, max_tokens: 4000, system: systemePour(langue), messages: [{ role: "user", content: invite }] }),
+    body: JSON.stringify({ model: MODELE, max_tokens: JETONS_PAR_PASSE, system: systemePour(langue), messages: [{ role: "user", content: invite }] }),
   });
   if (!r.ok) throw new Error("Claude a repondu " + r.status);
   const rep = await r.json();
@@ -162,18 +183,120 @@ function invitePour(titreFormation: string, l: any, mission: any, dejaEcrites: s
   }
 
   texte += "Redige directement le contenu de la section, sans introduction sur ce que tu vas faire, sans conclusion sur ce que tu viens de faire. " +
+    "Termine toujours ta derniere phrase : ne t arrete jamais au milieu d un mot ou d une phrase. " +
     "REDIGE ENTIEREMENT EN " + nomLangue.toUpperCase() + ", titres compris.";
   return texte;
 }
 
-function latin1(t: string): string {
+// ==================================================================
+// LE TEXTE AVANT LE DESSIN : entites, symboles, jeu de caracteres.
+//
+// pdf-lib ne dessine que ce que la police sait encoder. Les polices
+// standard (Times, Courier) sont en WinAnsi : tout le latin accentue,
+// plus l euro, la puce, le symbole marque deposee.
+//
+// Trois etapes, dans cet ordre :
+//   1. decoderEntites  -> &#9776; devient le caractere reel
+//   2. translitterer   -> le caractere reel devient dessinable
+//   3. le reste est supprime, mais seulement en dernier recours
+//
+// AVANT, l etape 1 n existait pas et l etape 3 s appliquait d emblee :
+// le stagiaire lisait « &#128196; Budget_2024.xlsx » et « CA () » au
+// lieu de « CA (euro) ».
+// ==================================================================
+
+const ENTITES_NOMMEES: Record<string, string> = {
+  nbsp: " ", amp: "&", lt: "<", gt: ">", quot: '"', apos: "'",
+  hellip: "...", mdash: "-", ndash: "-", minus: "-",
+  laquo: "\u00ab", raquo: "\u00bb", deg: "\u00b0", euro: "\u20ac",
+  bull: "\u2022", middot: "\u00b7", times: "\u00d7", divide: "\u00f7",
+  rarr: "->", larr: "<-", harr: "<->", uarr: "^", darr: "v",
+  rsquo: "'", lsquo: "'", rdquo: '"', ldquo: '"',
+  eacute: "\u00e9", egrave: "\u00e8", agrave: "\u00e0", ccedil: "\u00e7",
+  ugrave: "\u00f9", ocirc: "\u00f4", ecirc: "\u00ea", icirc: "\u00ee",
+  acirc: "\u00e2", ucirc: "\u00fb", euml: "\u00eb", iuml: "\u00ef",
+  copy: "(c)", reg: "(r)", trade: "\u2122",
+};
+
+function pointDeCode(cp: number): string {
+  try { return String.fromCodePoint(cp); } catch (e) { return ""; }
+}
+
+function decoderEntites(t: string): string {
   return String(t || "")
-    .replace(/[\u2018\u2019]/g, "'")
-    .replace(/[\u201C\u201D]/g, '"')
-    .replace(/[\u2013\u2014]/g, "-")
-    .replace(/\u2026/g, "...")
-    .replace(/\u00A0/g, " ")
-    .replace(/[^\u0000-\u00FF]/g, "");
+    .replace(/&#x([0-9a-f]+);/gi, function (_m, h) { return pointDeCode(parseInt(h, 16)); })
+    .replace(/&#(\d+);/g, function (_m, d) { return pointDeCode(parseInt(d, 10)); })
+    .replace(/&([a-z]+);/gi, function (m, n) {
+      const v = ENTITES_NOMMEES[String(n).toLowerCase()];
+      return v === undefined ? m : v;
+    });
+}
+
+// Les symboles nommes un par un. Le reste passe par les plages.
+const SYMBOLES: Record<string, string> = {
+  "\u2630": "=",          // menu hamburger
+  "\u2302": "",           // maison
+  "\u25d0": "o",
+  "\u2715": "x", "\u2716": "x", "\u2717": "-", "\u2718": "-",
+  "\u2713": "x", "\u2714": "x",
+  "\u2212": "-", "\u2261": "=", "\u2260": "!=", "\u2264": "<=", "\u2265": ">=",
+  "\u2211": "Somme", "\u221a": "racine", "\u221e": "infini",
+  "\u2190": "<-", "\u2191": "^", "\u2192": "->", "\u2193": "v", "\u2194": "<->",
+  "\u21d0": "<-", "\u21d2": "->", "\u21d4": "<->",
+  "\u21b5": "Entree", "\u23ce": "Entree", "\u21e5": "Tab", "\u21e7": "Maj",
+  "\u232b": "Retour", "\u2318": "Cmd", "\u2325": "Alt",
+  "\u25b6": ">", "\u25c0": "<", "\u25b2": "^", "\u25bc": "v",
+  "\u25a0": "[]", "\u25a1": "[]", "\u25fb": "[]", "\u25fc": "[]",
+  "\u25cf": "o", "\u25cb": "o",
+  "\uff5c": "|", "\u2026": "...", "\u00a0": " ",
+  "\u2018": "'", "\u2019": "'", "\u201a": "'", "\u201b": "'",
+  "\u201c": '"', "\u201d": '"', "\u201e": '"',
+  "\u2013": "-", "\u2014": "-", "\u2015": "-",
+  "\u2039": "<", "\u203a": ">",
+};
+
+// Les caracteres au-dessus de U+00FF que WinAnsi sait tout de meme dessiner.
+const WINANSI_EN_PLUS = "\u20ac\u2022\u2020\u2021\u2122\u2030\u0152\u0153\u0160\u0161\u0178\u017d\u017e\u0192";
+
+function translitterer(t: string): string {
+  let sortie = "";
+  const texte = String(t || "");
+
+  for (const car of texte) {
+    const cp = car.codePointAt(0) || 0;
+
+    const remplace = SYMBOLES[car];
+    if (remplace !== undefined) { sortie += remplace; continue; }
+
+    if (cp <= 0xff) { sortie += car; continue; }
+    if (WINANSI_EN_PLUS.indexOf(car) >= 0) { sortie += car; continue; }
+
+    if (cp >= 0x2500 && cp <= 0x257f) { sortie += "-"; continue; }   // filets
+    if (cp >= 0x2580 && cp <= 0x259f) { sortie += " "; continue; }   // pavés
+    if (cp >= 0x25a0 && cp <= 0x25ff) { sortie += "-"; continue; }   // formes
+    if (cp >= 0x2190 && cp <= 0x21ff) { sortie += "->"; continue; }  // flèches
+    if (cp >= 0x1f000) { sortie += ""; continue; }                   // émoji
+    if (cp >= 0x2600 && cp <= 0x27bf) { sortie += ""; continue; }    // pictos
+
+    // Dernier recours : la lettre sans son signe diacritique.
+    const base = car.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    sortie += base.length === 1 && (base.codePointAt(0) || 0) <= 0xff ? base : "";
+  }
+
+  return sortie;
+}
+
+function latin1(t: string): string {
+  return translitterer(decoderEntites(String(t || "")));
+}
+
+// Le filet de securite absolu : si une police refuse un caractere, on
+// redessine la ligne en ASCII plutot que de faire echouer tout le manuel.
+function asciiPur(t: string): string {
+  return String(t || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^\x20-\x7e]/g, "");
 }
 
 function couper(texte: string, police: any, taille: number, largeur: number): string[] {
@@ -192,84 +315,78 @@ function couper(texte: string, police: any, taille: number, largeur: number): st
   return lignes;
 }
 
+function mesurer(police: any, texte: string, taille: number): number {
+  try { return police.widthOfTextAtSize(texte, taille); } catch (e) { return texte.length * taille * 0.5; }
+}
+
+function tracer(page: any, texte: string, options: any) {
+  try { page.drawText(texte, options); }
+  catch (e) {
+    try { page.drawText(asciiPur(texte), options); } catch (e2) { /* on n interrompt jamais un manuel */ }
+  }
+}
+
 function centrer(page: any, texte: string, y: number, police: any, taille: number, couleur: any) {
-  let l = 0;
-  try { l = police.widthOfTextAtSize(texte, taille); } catch (e) { l = texte.length * taille * 0.5; }
-  page.drawText(texte, { x: (LARGEUR - l) / 2, y: y, size: taille, font: police, color: couleur });
+  const l = mesurer(police, texte, taille);
+  tracer(page, texte, { x: (LARGEUR - l) / 2, y: y, size: taille, font: police, color: couleur });
 }
 
-// ══════════════════════════════════════════════════════════════════
-// 🖥️🖥️ LES SCHEMAS D'INTERFACE DANS LE MANUEL PDF — ajoute le 18/08.
+// ==================================================================
+// LE MARKDOWN EN LIGNE : gras, italique, code.
 //
-// POURQUOI CE BLOC EXISTE. Depuis le 18/08, le generateur produit pour les
-// formations sur logiciel des SCHEMAS D'INTERFACE ECRITS EN HTML : le ruban
-// d'Excel, la barre de formule, la grille de cellules. La page de lecture
-// les affiche correctement, mais LE MANUEL PDF NON — pdf-lib ne sait que
-// dessiner du texte, et le stagiaire aurait recu trente lignes de code brut
-// dans son manuel.
-//
-// 🎯 CE CHANTIER A ETE FAIT AVANT LA PREMIERE VENTE, deliberement. Ses
-// mots : « je prefere le faire tant qu'il n'y a pas de client ».
-//
-// COMMENT ON PROCEDE. On ne convertit pas le HTML : on le LIT et on le
-// REDESSINE. Un <table> devient un vrai tableau PDF avec ses bordures, ses
-// fonds de couleur et ses cellules en gras ; un <div> isole devient un
-// bandeau colore. Les couleurs sont reprises de l'attribut style, donc le
-// vert d'Excel reste vert dans le manuel.
-//
-// ⚠️ CE QUI N'EST PAS RENDU, ET C'EST ASSUME : les bordures individuelles
-// par cellule, les images, les polices particulieres. On garde la
-// structure, les couleurs de fond et le gras — assez pour reconnaitre
-// l'ecran decrit.
-//
-// 🚨 LES FORMATIONS SANS SCHEMA NE SONT PAS TOUCHEES : le detecteur ne
-// s'active que si le bloc contient une balise. Les 504 autres formations
-// passent par le chemin habituel.
-// ══════════════════════════════════════════════════════════════════
+// Le modele ecrit **cellule**, *legende* et `=SOMME(A1:A10)`. Avant, tout
+// cela partait tel quel dans le PDF, asterisques comprises. On decoupe la
+// phrase en segments porteurs de leur style, et chaque segment est dessine
+// avec sa propre police.
+// ==================================================================
 
-// "#217346" ou "#fff" -> une couleur pdf-lib. Null si illisible.
-function hexEnCouleur(hex: string): any {
-  const h = String(hex || "").replace(/[^0-9a-f]/gi, "");
-  if (h.length === 3) {
-    return rgb(
-      parseInt(h[0] + h[0], 16) / 255,
-      parseInt(h[1] + h[1], 16) / 255,
-      parseInt(h[2] + h[2], 16) / 255
-    );
-  }
-  if (h.length === 6) {
-    return rgb(
-      parseInt(h.slice(0, 2), 16) / 255,
-      parseInt(h.slice(2, 4), 16) / 255,
-      parseInt(h.slice(4, 6), 16) / 255
-    );
-  }
-  return null;
-}
+function analyserInline(texte: string): any[] {
+  const segments: any[] = [];
+  const source = String(texte || "");
+  const motif = /(`[^`\n]+`)|(\*\*\*[^*\n]+\*\*\*)|(\*\*[^*\n]+\*\*)|(\*[^*\n]+\*)/g;
 
-// Extrait une couleur d'un attribut style : background, background-color,
-// ou color selon la propriete demandee.
-function couleurDuStyle(style: string, propriete: string): any {
-  const motif = new RegExp("(?:^|;)\\s*" + propriete + "(?:-color)?\\s*:\\s*([^;]+)", "i");
-  const trouve = String(style || "").match(motif);
-  if (!trouve) return null;
-  return hexEnCouleur(trouve[1]);
+  let position = 0;
+  let trouve: any;
+
+  function ajouterSimple(brut: string) {
+    // Les marqueurs orphelins ne doivent jamais atteindre la page.
+    const propre = brut.replace(/\*\*/g, "").replace(/`/g, "");
+    if (propre) segments.push({ t: propre, gras: false, italique: false, code: false });
+  }
+
+  while ((trouve = motif.exec(source)) !== null) {
+    if (trouve.index > position) ajouterSimple(source.slice(position, trouve.index));
+
+    const bloc = trouve[0];
+    if (bloc.charAt(0) === "`") {
+      segments.push({ t: bloc.slice(1, -1), gras: false, italique: false, code: true });
+    } else if (bloc.indexOf("***") === 0) {
+      segments.push({ t: bloc.slice(3, -3), gras: true, italique: true, code: false });
+    } else if (bloc.indexOf("**") === 0) {
+      segments.push({ t: bloc.slice(2, -2), gras: true, italique: false, code: false });
+    } else {
+      segments.push({ t: bloc.slice(1, -1), gras: false, italique: true, code: false });
+    }
+
+    position = trouve.index + bloc.length;
+  }
+
+  if (position < source.length) ajouterSimple(source.slice(position));
+  if (segments.length === 0) segments.push({ t: "", gras: false, italique: false, code: false });
+  return segments;
 }
 
 function sansBalises(html: string): string {
-  return String(html || "")
-    .replace(/<br\s*\/?>/gi, " ")
-    .replace(/<[^>]*>/g, "")
-    .replace(/&nbsp;/gi, " ")
-    .replace(/&amp;/gi, "&")
-    .replace(/&lt;/gi, "<")
-    .replace(/&gt;/gi, ">")
-    .replace(/&quot;/gi, '"')
+  return decoderEntites(
+    String(html || "")
+      .replace(/<br\s*\/?>/gi, " ")
+      .replace(/<[^>]*>/g, " ")
+  )
     .replace(/\s+/g, " ")
     .trim();
 }
 
-// Lit un <table> HTML et en tire des rangs de cellules, avec leur style.
+// Un <table> HTML : des rangs de cellules, avec leur style.
 function lireTableauHTML(html: string): any[] {
   const rangs: any[] = [];
   const lignes = String(html).match(/<tr[\s\S]*?<\/tr>/gi) || [];
@@ -307,7 +424,7 @@ function lireTableauMarkdown(texte: string): any[] {
 
     const cellules = l.slice(1, -1).split("|").map(function (c: string) {
       return {
-        texte: latin1(c.replace(/\*\*/g, "").trim()),
+        texte: latin1(c.replace(/\*\*/g, "").replace(/`/g, "").trim()),
         fond: premiere ? rgb(0.957, 0.937, 0.894) : null,
         encre: premiere ? rgb(0.478, 0.373, 0.165) : ENCRE,
         gras: premiere,
@@ -323,17 +440,100 @@ function lireTableauMarkdown(texte: string): any[] {
   return rangs;
 }
 
-// Le contenu porte-t-il un schema ou un tableau a redessiner ?
-function contientSchema(bloc: string): boolean {
-  return /<(table|tr|td|div)\b/i.test(bloc);
+// "#217346" ou "#fff" -> une couleur pdf-lib. Null si illisible.
+function hexEnCouleur(hex: string): any {
+  const h = String(hex || "").replace(/[^0-9a-f]/gi, "");
+  if (h.length === 3) {
+    return rgb(
+      parseInt(h[0] + h[0], 16) / 255,
+      parseInt(h[1] + h[1], 16) / 255,
+      parseInt(h[2] + h[2], 16) / 255
+    );
+  }
+  if (h.length === 6) {
+    return rgb(
+      parseInt(h.slice(0, 2), 16) / 255,
+      parseInt(h.slice(2, 4), 16) / 255,
+      parseInt(h.slice(4, 6), 16) / 255
+    );
+  }
+  return null;
 }
 
-function estTableauMarkdown(bloc: string): boolean {
-  const lignes = String(bloc).split("\n").filter(function (l: string) {
-    const t = l.trim();
-    return t.startsWith("|") && t.endsWith("|");
-  });
-  return lignes.length >= 2;
+function couleurDuStyle(style: string, propriete: string): any {
+  const motif = new RegExp("(?:^|;)\\s*" + propriete + "(?:-color)?\\s*:\\s*([^;]+)", "i");
+  const trouve = String(style || "").match(motif);
+  if (!trouve) return null;
+  return hexEnCouleur(trouve[1]);
+}
+
+// ==================================================================
+// LA LECTURE DU HTML A PROFONDEUR EQUILIBREE.
+//
+// C EST ICI QUE SE JOUAIT LE RUBAN ETALE SUR CINQ PAGES. L ancienne
+// expression <div[^>]*>[\s\S]*?</div> n est pas gourmande : sur des div
+// imbriques elle s arrete a la PREMIERE fermeture rencontree. Chaque
+// enfant du ruban devenait donc un bandeau isole, un par ligne.
+//
+// On compte desormais les ouvertures et les fermetures. Et un conteneur
+// dont tous les enfants sont courts est rendu sur UNE SEULE bande.
+// ==================================================================
+
+const BALISES_BLOC = "div|table|section|header|footer|nav|ul|ol|li|p";
+
+function finDeBalise(texte: string, debut: number, nom: string): number {
+  const motif = new RegExp("<\\s*(/?)" + nom + "\\b[^>]*?(/?)>", "gi");
+  motif.lastIndex = debut;
+  let profondeur = 0;
+  let trouve: any;
+
+  while ((trouve = motif.exec(texte)) !== null) {
+    if (trouve[1]) {
+      profondeur = profondeur - 1;
+      if (profondeur <= 0) return trouve.index + trouve[0].length;
+    } else if (!trouve[2]) {
+      profondeur = profondeur + 1;
+    }
+  }
+  return texte.length;
+}
+
+// Separe un contenu en morceaux de texte et en elements HTML complets.
+function decouperElements(texte: string): any[] {
+  const sortie: any[] = [];
+  const source = String(texte || "");
+  const motif = new RegExp("<\\s*(" + BALISES_BLOC + ")\\b", "gi");
+  let position = 0;
+
+  while (true) {
+    motif.lastIndex = position;
+    const trouve = motif.exec(source);
+    if (!trouve) {
+      if (position < source.length) sortie.push({ type: "texte", contenu: source.slice(position) });
+      break;
+    }
+    if (trouve.index > position) sortie.push({ type: "texte", contenu: source.slice(position, trouve.index) });
+    const fin = finDeBalise(source, trouve.index, trouve[1]);
+    sortie.push({ type: "element", contenu: source.slice(trouve.index, fin) });
+    position = fin;
+  }
+
+  return sortie.filter(function (s: any) { return s.contenu && s.contenu.trim(); });
+}
+
+function ouverture(html: string): any {
+  const m = String(html).match(/^<\s*([a-z0-9]+)([^>]*)>/i);
+  if (!m) return null;
+  const nom = m[1].toLowerCase();
+  const style = (m[2].match(/style\s*=\s*"([^"]*)"/i) || ["", ""])[1];
+  const debut = m[0].length;
+  const fin = String(html).toLowerCase().lastIndexOf("</" + nom);
+  return { nom: nom, style: style, interieur: fin > debut ? html.slice(debut, fin) : html.slice(debut) };
+}
+
+// Le contenu porte-t-il un schema a redessiner ?
+function contientSchema(bloc: string): boolean {
+  return new RegExp("<\\s*(" + BALISES_BLOC + "|tr|td)\\b", "i").test(bloc);
 }
 
 async function composerManuel(fiche: any, plan: any[], contenus: any, examen: string, langue: string): Promise<Uint8Array> {
@@ -342,6 +542,8 @@ async function composerManuel(fiche: any, plan: any[], contenus: any, examen: st
   const livre = await PDFDocument.create();
   const normal = await livre.embedFont("Times-Roman");
   const gras = await livre.embedFont("Times-Bold");
+  const italique = await livre.embedFont("Times-Italic");
+  const grasItalique = await livre.embedFont("Times-BoldItalic");
   const fixe = await livre.embedFont("Courier");
   const fixeGras = await livre.embedFont("Courier-Bold");
 
@@ -357,109 +559,269 @@ async function composerManuel(fiche: any, plan: any[], contenus: any, examen: st
     y = HAUTEUR - MARGE - 26;
   }
 
+  function policePour(seg: any): any {
+    if (seg.code) return fixe;
+    if (seg.gras && seg.italique) return grasItalique;
+    if (seg.gras) return gras;
+    if (seg.italique) return italique;
+    return normal;
+  }
+
   function ecrire(lignes: string[], police: any, taille: number, interligne: number, couleur: any, avant: number, retrait: number) {
     y = y - avant;
     for (const l of lignes) {
       if (y < BAS + interligne) nouvellePage();
-      page.drawText(l, { x: MARGE + retrait, y: y, size: taille, font: police, color: couleur });
+      tracer(page, l, { x: MARGE + retrait, y: y, size: taille, font: police, color: couleur });
       y = y - interligne;
     }
   }
 
-  // 🖥️ DESSINE UN TABLEAU, qu'il vienne d'un <table> HTML ou du markdown.
+  // Decoupe des segments stylisés en lignes, chaque mot gardant sa police.
+  // « colle » retient l absence d espace avant le mot : c est ce qui evite
+  // d ecrire « (extension .xlsx , .xlsm ) » au lieu de « (extension .xlsx, .xlsm) ».
+  function couperRiche(segments: any[], taille: number, largeur: number): any[][] {
+    const jetons: any[] = [];
+    let espaceEnAttente = false;
+
+    for (const seg of segments) {
+      const texte = latin1(seg.t);
+      const morceaux = texte.split(/(\s+)/);
+      for (const p of morceaux) {
+        if (!p) continue;
+        if (/^\s+$/.test(p)) { espaceEnAttente = true; continue; }
+        jetons.push({ texte: p, seg: seg, colle: !espaceEnAttente && jetons.length > 0 });
+        espaceEnAttente = false;
+      }
+    }
+
+    const lignes: any[][] = [];
+    let ligne: any[] = [];
+    let largeurCourante = 0;
+
+    for (const jeton of jetons) {
+      const police = policePour(jeton.seg);
+      const largeurMot = mesurer(police, jeton.texte, taille);
+      const largeurEspace = ligne.length > 0 && !jeton.colle ? mesurer(normal, " ", taille) : 0;
+
+      if (ligne.length > 0 && largeurCourante + largeurEspace + largeurMot > largeur) {
+        lignes.push(ligne);
+        ligne = [{ texte: jeton.texte, seg: jeton.seg, colle: true }];
+        largeurCourante = largeurMot;
+      } else {
+        ligne.push(jeton);
+        largeurCourante = largeurCourante + largeurEspace + largeurMot;
+      }
+    }
+
+    if (ligne.length > 0) lignes.push(ligne);
+    return lignes;
+  }
+
+  function ecrireRiche(segments: any[], taille: number, interligne: number, couleur: any, avant: number, retrait: number, forcerCouleur: boolean) {
+    const lignes = couperRiche(segments, taille, UTILE - retrait);
+    y = y - avant;
+
+    for (const l of lignes) {
+      if (y < BAS + interligne) nouvellePage();
+      let x = MARGE + retrait;
+
+      for (let i = 0; i < l.length; i++) {
+        const jeton = l[i];
+        const police = policePour(jeton.seg);
+        if (i > 0 && !jeton.colle) x = x + mesurer(normal, " ", taille);
+        tracer(page, jeton.texte, {
+          x: x,
+          y: y,
+          size: taille,
+          font: police,
+          color: forcerCouleur ? couleur : (jeton.seg.code ? rgb(0.30, 0.30, 0.36) : couleur),
+        });
+        x = x + mesurer(police, jeton.texte, taille);
+      }
+
+      y = y - interligne;
+    }
+  }
+
+  function paragraphe(texte: string) {
+    ecrireRiche(analyserInline(texte), 11, 16.5, ENCRE, 7, 0, false);
+  }
+
+  function titreNiveau(niveau: number, texte: string) {
+    if (niveau <= 2) {
+      ecrireRiche(analyserInline(texte), 11.5, 16, OR, 14, 0, true);
+    } else if (niveau === 3) {
+      ecrireRiche(analyserInline(texte), 10.8, 15, ENCRE, 11, 0, true);
+    } else {
+      ecrireRiche(analyserInline(texte), 10.2, 14, GRIS, 9, 0, true);
+    }
+  }
+
+  function puce(texte: string) {
+    if (y < BAS + 20) nouvellePage();
+    y = y - 3;
+    tracer(page, "-", { x: MARGE + 4, y: y, size: 11, font: normal, color: ENCRE });
+    ecrireRiche(analyserInline(texte), 11, 16, ENCRE, 0, 18, false);
+  }
+
+  function filet() {
+    if (y < BAS + 24) nouvellePage();
+    y = y - 10;
+    page.drawRectangle({ x: MARGE + UTILE * 0.3, y: y, width: UTILE * 0.4, height: 0.5, color: TRAIT });
+    y = y - 12;
+  }
+
+  function blocCode(lignes: string[]) {
+    const contenu = lignes.map(function (l) { return latin1(l); });
+    const decoupees: string[] = [];
+    for (const l of contenu) {
+      const morceaux = couper(l || " ", fixe, 8.5, UTILE - 20);
+      for (const m of morceaux) decoupees.push(m);
+    }
+
+    const hauteur = decoupees.length * 12 + 14;
+    if (y - hauteur < BAS && hauteur < HAUTEUR - MARGE - BAS) nouvellePage();
+
+    y = y - 10;
+    page.drawRectangle({ x: MARGE, y: y - hauteur, width: UTILE, height: hauteur, color: rgb(0.965, 0.961, 0.949) });
+    page.drawRectangle({ x: MARGE, y: y - hauteur, width: UTILE, height: hauteur, borderColor: TRAIT, borderWidth: 0.5 });
+
+    let yc = y - 15;
+    for (const l of decoupees) {
+      if (yc < BAS) { nouvellePage(); yc = y - 15; }
+      tracer(page, l, { x: MARGE + 10, y: yc, size: 8.5, font: fixe, color: ENCRE });
+      yc = yc - 12;
+    }
+
+    y = y - hauteur - 12;
+  }
+
+  // DESSINE UN TABLEAU, qu il vienne d un <table> HTML ou du markdown.
   //
-  // Les colonnes se partagent la largeur utile a parts egales — un calcul
-  // proportionnel au contenu donnerait un meilleur rendu mais compliquerait
-  // beaucoup le code pour un gain modeste sur des schemas d'interface, ou
-  // les colonnes sont deja regulieres.
-  function dessinerTableau(rangs: any[]) {
+  // Deux passes : on calcule d abord toutes les hauteurs, ce qui permet de
+  // savoir si le tableau tient sur la page restante. Un schema d interface
+  // coupe en deux pages ne veut plus rien dire.
+  //
+  // Les largeurs sont proportionnelles au contenu, avec un plancher, au lieu
+  // du partage a parts egales qui ecrasait les colonnes denses.
+  function dessinerTableau(rangs: any[], monospace: boolean) {
     if (!rangs || rangs.length === 0) return;
 
     const colonnes = Math.max.apply(null, rangs.map(function (r: any) { return r.length; }));
     if (colonnes < 1) return;
 
-    const largeurCol = UTILE / colonnes;
     const taille = colonnes > 6 ? 7 : colonnes > 4 ? 8 : 9;
     const interligne = taille + 3;
     const marge = 4;
 
-    y = y - 12;
+    const policeNormale = monospace ? fixe : normal;
+    const policeGrasse = monospace ? fixeGras : gras;
+
+    // Poids de chaque colonne : la cellule la plus longue, plafonnee.
+    const poids: number[] = [];
+    let total = 0;
+    for (let i = 0; i < colonnes; i++) {
+      let maxi = 1;
+      for (const rang of rangs) {
+        const cel = rang[i];
+        const longueur = cel && cel.texte ? Math.min(String(cel.texte).length, 70) : 1;
+        if (longueur > maxi) maxi = longueur;
+      }
+      poids.push(maxi);
+      total = total + maxi;
+    }
+
+    const plancher = UTILE * 0.10;
+    const largeurs: number[] = [];
+    let sommeLargeurs = 0;
+    for (let i = 0; i < colonnes; i++) {
+      const l = Math.max(plancher, (UTILE * poids[i]) / total);
+      largeurs.push(l);
+      sommeLargeurs = sommeLargeurs + l;
+    }
+    for (let i = 0; i < colonnes; i++) largeurs[i] = (largeurs[i] * UTILE) / sommeLargeurs;
+
+    // Premiere passe : les decoupes et les hauteurs.
+    const preparation: any[] = [];
+    let hauteurTotale = 0;
 
     for (const rang of rangs) {
-      // Hauteur du rang : la cellule qui prend le plus de lignes.
       let lignesMax = 1;
       const decoupes: string[][] = [];
 
       for (let i = 0; i < colonnes; i++) {
         const cel = rang[i];
-        const police = cel && cel.gras ? fixeGras : fixe;
+        const police = cel && cel.gras ? policeGrasse : policeNormale;
         const morceaux = cel && cel.texte
-          ? couper(cel.texte, police, taille, largeurCol - marge * 2)
+          ? couper(cel.texte, police, taille, largeurs[i] - marge * 2)
           : [""];
         decoupes.push(morceaux);
         if (morceaux.length > lignesMax) lignesMax = morceaux.length;
       }
 
-      const hauteurRang = lignesMax * interligne + marge * 2;
+      const hauteur = lignesMax * interligne + marge * 2;
+      preparation.push({ rang: rang, decoupes: decoupes, hauteur: hauteur });
+      hauteurTotale = hauteurTotale + hauteur;
+    }
 
-      if (y - hauteurRang < BAS) nouvellePage();
+    y = y - 12;
 
+    // Si le tableau entier tient sur une page vierge, on ne le coupe pas.
+    if (y - hauteurTotale < BAS && hauteurTotale < HAUTEUR - MARGE - BAS - 30) nouvellePage();
+
+    // Seconde passe : le trace.
+    for (const p of preparation) {
+      if (y - p.hauteur < BAS) nouvellePage();
       const hautRang = y;
 
+      let x = MARGE;
       for (let i = 0; i < colonnes; i++) {
-        const cel = rang[i];
-        const x = MARGE + i * largeurCol;
+        const cel = p.rang[i];
 
         if (cel && cel.fond) {
-          page.drawRectangle({
-            x: x,
-            y: hautRang - hauteurRang,
-            width: largeurCol,
-            height: hauteurRang,
-            color: cel.fond,
-          });
+          page.drawRectangle({ x: x, y: hautRang - p.hauteur, width: largeurs[i], height: p.hauteur, color: cel.fond });
         }
 
         page.drawRectangle({
           x: x,
-          y: hautRang - hauteurRang,
-          width: largeurCol,
-          height: hauteurRang,
+          y: hautRang - p.hauteur,
+          width: largeurs[i],
+          height: p.hauteur,
           borderColor: TRAIT,
           borderWidth: 0.5,
         });
 
         let yc = hautRang - marge - taille;
-        for (const ligne of decoupes[i]) {
-          if (!ligne) { yc = yc - interligne; continue; }
-          page.drawText(ligne, {
-            x: x + marge,
-            y: yc,
-            size: taille,
-            font: cel && cel.gras ? fixeGras : fixe,
-            color: (cel && cel.encre) || ENCRE,
-          });
+        for (const ligne of p.decoupes[i]) {
+          if (ligne) {
+            tracer(page, ligne, {
+              x: x + marge,
+              y: yc,
+              size: taille,
+              font: cel && cel.gras ? policeGrasse : policeNormale,
+              color: (cel && cel.encre) || ENCRE,
+            });
+          }
           yc = yc - interligne;
         }
+
+        x = x + largeurs[i];
       }
 
-      y = hautRang - hauteurRang;
+      y = hautRang - p.hauteur;
     }
 
     y = y - 14;
   }
 
-  // 🖥️ UN <div> SANS TABLEAU : c'est un bandeau — barre de titre d'une
-  // fenetre, onglet de ruban, message. On le redessine comme tel.
-  function dessinerBandeau(html: string) {
-    const style = (html.match(/style\s*=\s*"([^"]*)"/i) || ["", ""])[1];
+  // UN BANDEAU : barre de titre, onglet de ruban, message d etat.
+  function dessinerBandeau(style: string, texte: string) {
+    const propre = latin1(texte);
+    if (!propre) return;
+
     const fond = couleurDuStyle(style, "background") || rgb(0.95, 0.95, 0.95);
     const encre = couleurDuStyle(style, "color") || ENCRE;
-    const texte = latin1(sansBalises(html));
-
-    if (!texte) return;
-
-    const lignes = couper(texte, fixe, 9, UTILE - 16);
+    const lignes = couper(propre, fixe, 9, UTILE - 16);
     const hauteur = lignes.length * 13 + 12;
 
     if (y - hauteur < BAS) nouvellePage();
@@ -470,71 +832,146 @@ async function composerManuel(fiche: any, plan: any[], contenus: any, examen: st
 
     let yc = y - 14;
     for (const l of lignes) {
-      page.drawText(l, { x: MARGE + 8, y: yc, size: 9, font: fixe, color: encre });
+      tracer(page, l, { x: MARGE + 8, y: yc, size: 9, font: fixe, color: encre });
       yc = yc - 13;
     }
 
     y = y - hauteur - 12;
   }
 
-  // 🖥️ Traite un bloc qui contient du HTML : on en tire les tableaux et les
-  // bandeaux, dans l'ordre ou ils apparaissent.
-  function dessinerSchema(bloc: string) {
-    const tableaux = bloc.match(/<table[\s\S]*?<\/table>/gi) || [];
-
-    if (tableaux.length > 0) {
-      // Ce qui precede le premier tableau : souvent la barre de titre.
-      const avant = bloc.slice(0, bloc.indexOf(tableaux[0]));
-      const divsAvant = avant.match(/<div[^>]*>[\s\S]*?<\/div>/gi) || [];
-      for (const d of divsAvant) {
-        if (!/<table/i.test(d)) dessinerBandeau(d);
-      }
-
-      for (const t of tableaux) {
-        dessinerTableau(lireTableauHTML(t));
-      }
+  // Un element HTML complet. Recursif : un conteneur descend dans ses
+  // enfants, sauf si ses enfants sont tous courts — auquel cas ils sont
+  // rassembles sur une seule bande, comme une rangee de boutons.
+  function dessinerElement(html: string, profondeur: number) {
+    if (profondeur > 6) {
+      const t = latin1(sansBalises(html));
+      if (t) paragraphe(t);
       return;
     }
 
-    // Aucun tableau : on traite les div comme des bandeaux.
-    const divs = bloc.match(/<div[^>]*>[\s\S]*?<\/div>/gi) || [];
-    if (divs.length > 0) {
-      for (const d of divs) dessinerBandeau(d);
+    const info = ouverture(html);
+    if (!info) {
+      const t = latin1(sansBalises(html));
+      if (t) paragraphe(t);
       return;
     }
 
-    // Balises orphelines : on affiche au moins le texte, jamais le code.
-    const texte = latin1(sansBalises(bloc));
-    if (texte) ecrire(couper(texte, normal, 11, UTILE), normal, 11, 16.5, ENCRE, 7, 0);
+    if (info.nom === "table") {
+      dessinerTableau(lireTableauHTML(html), true);
+      return;
+    }
+
+    const enfants = decouperElements(info.interieur);
+    const blocs = enfants.filter(function (e: any) { return e.type === "element"; });
+
+    if (blocs.length === 0) {
+      dessinerBandeau(info.style, sansBalises(info.interieur));
+      return;
+    }
+
+    const contientTableau = blocs.some(function (e: any) { return /^<\s*table/i.test(e.contenu); });
+
+    if (!contientTableau) {
+      const tousCourts = blocs.every(function (e: any) {
+        const sous = ouverture(e.contenu);
+        if (!sous) return false;
+        if (new RegExp("<\\s*(" + BALISES_BLOC + ")\\b", "i").test(sous.interieur)) return false;
+        return sansBalises(sous.interieur).length <= 40;
+      });
+
+      if (tousCourts) {
+        const textes = blocs
+          .map(function (e: any) { const sous = ouverture(e.contenu); return sous ? sansBalises(sous.interieur) : ""; })
+          .filter(Boolean);
+        if (textes.length > 0) { dessinerBandeau(info.style, textes.join("   ")); return; }
+      }
+    }
+
+    for (const e of enfants) {
+      if (e.type === "element") {
+        dessinerElement(e.contenu, profondeur + 1);
+      } else {
+        const t = latin1(sansBalises(e.contenu));
+        if (t) paragraphe(t);
+      }
+    }
   }
 
+  // Le markdown d une zone sans HTML, lu ligne par ligne.
+  //
+  // C EST ICI que les ### sortaient en clair : l ancien test
+  // x.indexOf("## ") === 0 renvoyait 1 sur « ### Section A », jamais 0.
+  function ecrireMarkdown(texte: string) {
+    const lignes = String(texte || "").split("\n");
+    let tampon: string[] = [];
+    let tableau: string[] = [];
+    let codeLignes: string[] = [];
+    let dansCode = false;
+
+    function viderTampon() {
+      if (tampon.length > 0) { paragraphe(tampon.join(" ")); tampon = []; }
+    }
+    function viderTableau() {
+      if (tableau.length > 0) { dessinerTableau(lireTableauMarkdown(tableau.join("\n")), false); tableau = []; }
+    }
+
+    for (const brute of lignes) {
+      const s = String(brute).trim();
+
+      if (/^```/.test(s)) {
+        if (dansCode) { blocCode(codeLignes); codeLignes = []; dansCode = false; }
+        else { viderTampon(); viderTableau(); dansCode = true; }
+        continue;
+      }
+      if (dansCode) { codeLignes.push(String(brute)); continue; }
+
+      if (!s) { viderTampon(); viderTableau(); continue; }
+
+      if (s.startsWith("|") && s.endsWith("|")) { viderTampon(); tableau.push(s); continue; }
+      viderTableau();
+
+      if (/^(-{3,}|_{3,}|\*{3,})$/.test(s)) { viderTampon(); filet(); continue; }
+
+      const entete = s.match(/^(#{1,6})\s+(.*)$/);
+      if (entete) { viderTampon(); titreNiveau(entete[1].length, entete[2]); continue; }
+
+      const liste = s.match(/^([-*+])\s+(.*)$/);
+      if (liste) { viderTampon(); puce(liste[2]); continue; }
+
+      const numerotee = s.match(/^(\d{1,3})[.)]\s+(.*)$/);
+      if (numerotee) { viderTampon(); puce(numerotee[1] + ". " + numerotee[2]); continue; }
+
+      tampon.push(s);
+    }
+
+    if (dansCode && codeLignes.length > 0) blocCode(codeLignes);
+    viderTampon();
+    viderTableau();
+  }
+
+  // Separe le contenu d un module en zones HTML et en zones markdown.
+  //
+  // Le decoupage par lignes vides d avant cassait les schemas en morceaux :
+  // une ligne vide au milieu d un <table> et le tableau partait en trois.
   function corps(texte: string) {
-    for (const bloc of String(texte).split(/\n{2,}/)) {
-      const brut = bloc.trim();
-      if (!brut) continue;
+    const source = String(texte || "");
+    const motif = new RegExp("<\\s*(" + BALISES_BLOC + ")\\b", "i");
+    let position = 0;
 
-      // 🖥️ UN SCHEMA D'INTERFACE : on le redessine.
-      if (contientSchema(brut)) {
-        dessinerSchema(brut);
-        continue;
-      }
+    while (position < source.length) {
+      const reste = source.slice(position);
+      const trouve = reste.search(motif);
 
-      // 🖥️ UN TABLEAU EN MARKDOWN : on le redessine aussi.
-      if (estTableauMarkdown(brut)) {
-        dessinerTableau(lireTableauMarkdown(brut));
-        continue;
-      }
+      if (trouve < 0) { ecrireMarkdown(reste); break; }
 
-      const x = latin1(brut).replace(/[ \t]+/g, " ").trim();
-      if (!x) continue;
-      if (x.indexOf("## ") === 0 || x.indexOf("# ") === 0) {
-        const t = x.replace(/^#+\s*/, "");
-        ecrire(couper(t, gras, 11.5, UTILE), gras, 11.5, 16, OR, 12, 0);
-      } else if (x.indexOf("- ") === 0 || x.indexOf("* ") === 0) {
-        ecrire(couper("- " + x.slice(2), normal, 11, UTILE - 16), normal, 11, 16, ENCRE, 2, 16);
-      } else {
-        ecrire(couper(x, normal, 11, UTILE), normal, 11, 16.5, ENCRE, 7, 0);
-      }
+      if (trouve > 0) ecrireMarkdown(reste.slice(0, trouve));
+
+      const debutAbsolu = position + trouve;
+      const nom = (source.slice(debutAbsolu).match(new RegExp("^<\\s*(" + BALISES_BLOC + ")\\b", "i")) || ["", "div"])[1];
+      const finAbsolue = finDeBalise(source, debutAbsolu, nom);
+
+      dessinerElement(source.slice(debutAbsolu, finAbsolue), 0);
+      position = finAbsolue;
     }
   }
 
@@ -546,7 +983,7 @@ async function composerManuel(fiche: any, plan: any[], contenus: any, examen: st
       page.drawRectangle({ x: MARGE, y: HAUTEUR - 132, width: UTILE, height: 1.5, color: OR });
       let yt = HAUTEUR - 118;
       for (const ligne of couper(etiquette, gras, 19, UTILE)) {
-        page.drawText(ligne, { x: MARGE, y: yt, size: 19, font: gras, color: OR });
+        tracer(page, ligne, { x: MARGE, y: yt, size: 19, font: gras, color: OR });
         yt = yt - 25;
       }
       sommaire.push({ niveau: 1, numero: String(l.chapitre_num), titre: latin1(l.chapitre_titre), page: pages.length });
@@ -556,10 +993,10 @@ async function composerManuel(fiche: any, plan: any[], contenus: any, examen: st
     if (y < BAS + 80) nouvellePage();
     const num = String(l.chapitre_num) + "." + String(l.module_num);
     y = y - 18;
-    page.drawText(num, { x: MARGE, y: y, size: 13, font: gras, color: OR });
+    tracer(page, num, { x: MARGE, y: y, size: 13, font: gras, color: OR });
     let ys = y;
     for (const ligne of couper(latin1(l.module_titre), gras, 13, UTILE - 40)) {
-      page.drawText(ligne, { x: MARGE + 36, y: ys, size: 13, font: gras, color: ENCRE });
+      tracer(page, ligne, { x: MARGE + 36, y: ys, size: 13, font: gras, color: ENCRE });
       ys = ys - 18;
     }
     y = ys - 8;
@@ -572,7 +1009,7 @@ async function composerManuel(fiche: any, plan: any[], contenus: any, examen: st
   if (examen) {
     nouvellePage();
     page.drawRectangle({ x: MARGE, y: HAUTEUR - 132, width: UTILE, height: 1.5, color: OR });
-    page.drawText("Examen final", { x: MARGE, y: HAUTEUR - 118, size: 19, font: gras, color: OR });
+    tracer(page, "Examen final", { x: MARGE, y: HAUTEUR - 118, size: 19, font: gras, color: OR });
     sommaire.push({ niveau: 1, numero: "", titre: "Examen final", page: pages.length });
     y = HAUTEUR - 180;
     corps(examen);
@@ -583,7 +1020,7 @@ async function composerManuel(fiche: any, plan: any[], contenus: any, examen: st
   const g2 = await doc.embedFont("Times-Bold");
 
   const cv = doc.addPage([LARGEUR, HAUTEUR]);
-  cv.drawText("AcadeMIA Pro", { x: MARGE, y: HAUTEUR - 232, size: 12, font: n2, color: GRIS });
+  tracer(cv, "Acad\u00e9MIA Pro", { x: MARGE, y: HAUTEUR - 232, size: 12, font: n2, color: GRIS });
   cv.drawRectangle({ x: MARGE, y: HAUTEUR - 244, width: UTILE, height: 2, color: OR });
 
   centrer(cv, "Manuel Professionnel de Formation", HAUTEUR - 330, n2, 17, ENCRE);
@@ -601,21 +1038,21 @@ async function composerManuel(fiche: any, plan: any[], contenus: any, examen: st
 
   cv.drawRectangle({ x: MARGE, y: yt2 - 40, width: UTILE, height: 2, color: OR });
 
-  const infos: string[] = ["Formation " + latin1(fiche.code), "AcadeMIA Pro"];
+  const infos: string[] = ["Formation " + latin1(fiche.code), "Acad\u00e9MIA Pro"];
   if (fiche.duree) infos.push(latin1(String(fiche.duree)));
   if (fiche.domaine) infos.push(latin1(String(fiche.domaine)));
 
   let yi = yt2 - 76;
-  cv.drawText(infos.join(" - "), { x: MARGE, y: yi, size: 11, font: n2, color: ENCRE });
+  tracer(cv, infos.join(" - "), { x: MARGE, y: yi, size: 11, font: n2, color: ENCRE });
   yi = yi - 18;
   const nbCh = sommaire.filter(function (s: any) { return s.niveau === 1; }).length;
   const nbMo = sommaire.filter(function (s: any) { return s.niveau === 2; }).length;
-  cv.drawText(String(nbCh) + " chapitres - " + String(nbMo) + " modules", { x: MARGE, y: yi, size: 11, font: n2, color: ENCRE });
+  tracer(cv, String(nbCh) + " chapitres - " + String(nbMo) + " modules", { x: MARGE, y: yi, size: 11, font: n2, color: ENCRE });
   yi = yi - 18;
-  cv.drawText("DOCUMENT RESERVE AUX STAGIAIRES INSCRITS", { x: MARGE, y: yi, size: 10, font: n2, color: GRIS });
+  tracer(cv, "DOCUMENT R\u00c9SERV\u00c9 AUX STAGIAIRES INSCRITS", { x: MARGE, y: yi, size: 10, font: n2, color: GRIS });
 
   const date = latin1(new Date().toLocaleDateString("fr-FR", { year: "numeric", month: "long", day: "numeric" }));
-  cv.drawText("Edition du " + date, { x: MARGE, y: 90, size: 10, font: n2, color: GRIS });
+  tracer(cv, "\u00c9dition du " + date, { x: MARGE, y: 90, size: 10, font: n2, color: GRIS });
 
   const parPage = 32;
   const nbSommaire = Math.max(1, Math.ceil(sommaire.length / parPage));
@@ -627,7 +1064,7 @@ async function composerManuel(fiche: any, plan: any[], contenus: any, examen: st
     const p = pagesSommaire[i];
     let ys = HAUTEUR - 130;
     if (i === 0) {
-      centrer(p, "Table des Matieres", HAUTEUR - 110, g2, 26, OR);
+      centrer(p, "Table des Mati\u00e8res", HAUTEUR - 110, g2, 26, OR);
       p.drawRectangle({ x: MARGE, y: HAUTEUR - 126, width: UTILE, height: 1.5, color: OR });
       ys = HAUTEUR - 180;
     }
@@ -636,13 +1073,13 @@ async function composerManuel(fiche: any, plan: any[], contenus: any, examen: st
       if (s.niveau === 1) {
         const etiquette = s.numero ? s.numero + ". " + s.titre : s.titre;
         const t = couper(etiquette, g2, 13, UTILE - 50)[0] || s.titre;
-        p.drawText(t, { x: MARGE, y: ys, size: 13, font: g2, color: OR });
-        p.drawText("p." + numero, { x: LARGEUR - MARGE - 34, y: ys, size: 12, font: g2, color: OR });
+        tracer(p, t, { x: MARGE, y: ys, size: 13, font: g2, color: OR });
+        tracer(p, "p." + numero, { x: LARGEUR - MARGE - 34, y: ys, size: 12, font: g2, color: OR });
         ys = ys - 21;
       } else {
         const t = couper(s.numero + " " + s.titre, n2, 11, UTILE - 80)[0] || s.titre;
-        p.drawText(t, { x: MARGE + 26, y: ys, size: 11, font: n2, color: ENCRE });
-        p.drawText("p." + numero, { x: LARGEUR - MARGE - 34, y: ys, size: 10, font: n2, color: GRIS });
+        tracer(p, t, { x: MARGE + 26, y: ys, size: 11, font: n2, color: ENCRE });
+        tracer(p, "p." + numero, { x: LARGEUR - MARGE - 34, y: ys, size: 10, font: n2, color: GRIS });
         ys = ys - 18;
       }
     }
@@ -653,7 +1090,7 @@ async function composerManuel(fiche: any, plan: any[], contenus: any, examen: st
 
   const toutes = doc.getPages();
   for (let i = decalage; i < toutes.length; i++) {
-    toutes[i].drawText(titre.slice(0, 68), { x: MARGE, y: HAUTEUR - 44, size: 8, font: n2, color: GRIS });
+    tracer(toutes[i], titre.slice(0, 68), { x: MARGE, y: HAUTEUR - 44, size: 8, font: n2, color: GRIS });
     toutes[i].drawRectangle({ x: MARGE, y: HAUTEUR - 52, width: UTILE, height: 0.5, color: rgb(0.87, 0.87, 0.87) });
     centrer(toutes[i], String(i + 1), 40, n2, 9, GRIS);
   }
@@ -680,17 +1117,17 @@ async function livrer(fiche: any, plan: any[], contenus: any, examen: string, em
       method: "POST",
       headers: { Authorization: "Bearer " + process.env.RESEND_API_KEY, "Content-Type": "application/json" },
       body: JSON.stringify({
-        from: "AcademIA Pro <bienvenue@academiapro.fr>",
+        from: "Acad\u00e9MIA Pro <bienvenue@academiapro.fr>",
         to: email,
-        subject: "Votre manuel " + fiche.titre + " est pret",
+        subject: "Votre manuel " + fiche.titre + " est pr\u00eat",
         html:
           '<div style="font-family:Georgia,serif;line-height:1.7">' +
-          '<h1 style="color:#c8a96e">Votre manuel est pret</h1>' +
-          "<p>Le manuel complet de votre formation vous attend au format PDF : cours, exercices corriges, " +
+          '<h1 style="color:#c8a96e">Votre manuel est pr\u00eat</h1>' +
+          "<p>Le manuel complet de votre formation vous attend au format PDF : cours, exercices corrig\u00e9s, " +
           "questionnaires de validation et examen final.</p>" +
-          '<p><a href="' + adresse + '">Telecharger mon manuel</a></p>' +
-          '<p><a href="https://academiapro.fr/dashboard">Acceder a mon espace de formation</a></p>' +
-          "<p>L equipe AcademIA Pro</p></div>",
+          '<p><a href="' + adresse + '">T\u00e9l\u00e9charger mon manuel</a></p>' +
+          '<p><a href="https://academiapro.fr/dashboard">Acc\u00e9der \u00e0 mon espace de formation</a></p>' +
+          "<p>L\u2019\u00e9quipe Acad\u00e9MIA Pro</p></div>",
       }),
     });
   }
@@ -720,11 +1157,7 @@ export async function GET(req: Request) {
     const cle = process.env.ANTHROPIC_API_KEY || "";
     if (!cle) return NextResponse.json({ ok: false, erreur: "cle absente" }, { status: 500 });
 
-    // 🖥️ REFAIRE UN MANUEL A LA DEMANDE, sans passer par une commande.
-    //
-    // Sert a EPROUVER le rendu des schemas avant la premiere vente. On
-    // recompose le PDF depuis ce qui est deja en cache, sans rien produire
-    // ni envoyer d'email.
+    // REFAIRE UN MANUEL A LA DEMANDE, sans passer par une commande.
     //   /api/traiter-commandes?secret=XXX&refaire=F007
     const refaire = (url.searchParams.get("refaire") || "").trim().toUpperCase();
     if (refaire) {
@@ -864,10 +1297,11 @@ export async function GET(req: Request) {
       const identifiant = "ch" + l.chapitre_num + "_mod" + l.module_num;
       const cleCache = code + "_" + identifiant + "_" + langue;
       const actuel = String(contenus[cleCache] || "");
+      const actuelSansAccents = sansAccents(actuel);
 
       const faites = missions
         .map(function (m: any) { return m.titre; })
-        .filter(function (t: string) { return actuel.indexOf("## " + t) >= 0; });
+        .filter(function (t: string) { return actuelSansAccents.indexOf(sansAccents("## " + t)) >= 0; });
 
       const suivante = missions.filter(function (m: any) {
         return faites.indexOf(m.titre) < 0;
@@ -948,7 +1382,7 @@ export async function GET(req: Request) {
       let contenuExamen = "";
       if (lotsFaits === 0) {
         contenuExamen =
-          "Cet examen porte sur l ensemble des " + plan.length + " modules de la formation, a raison de " +
+          "Cet examen porte sur l\u2019ensemble des " + plan.length + " modules de la formation, \u00e0 raison de " +
           QUESTIONS_PAR_MODULE_EXAMEN + " questions par module, soit " + total + " questions.\n\n" +
           "\u2014LOT\u2014\n" + morceau;
       } else {
@@ -957,13 +1391,13 @@ export async function GET(req: Request) {
 
       if (debut + MODULES_PAR_LOT_EXAMEN >= plan.length) {
         contenuExamen +=
-          "\n\n## Obtenir votre Certification AcademIA Pro\n\n" +
-          "Comptez vos points : chaque bonne reponse vaut un point, sur " + total + " au total.\n\n" +
-          "A partir de " + SEUIL_REUSSITE + " % de bonnes reponses, soit " +
-          Math.ceil((total * SEUIL_REUSSITE) / 100) + " points, la Certification AcademIA Pro de la formation " +
-          fiche.titre + " vous est delivree. Vous la recevez par email et la telechargez depuis votre espace personnel sur academiapro.fr.\n\n" +
-          "En dessous de ce seuil, reprenez les modules ou vos reponses etaient fausses, puis repassez l examen. " +
-          "Le nombre de tentatives n est pas limite : l objectif est votre maitrise, pas votre classement.\n";
+          "\n\n## Obtenir votre Certification Acad\u00e9MIA Pro\n\n" +
+          "Comptez vos points : chaque bonne r\u00e9ponse vaut un point, sur " + total + " au total.\n\n" +
+          "\u00c0 partir de " + SEUIL_REUSSITE + " % de bonnes r\u00e9ponses, soit " +
+          Math.ceil((total * SEUIL_REUSSITE) / 100) + " points, la Certification Acad\u00e9MIA Pro de la formation " +
+          fiche.titre + " vous est d\u00e9livr\u00e9e. Vous la recevez par email et la t\u00e9l\u00e9chargez depuis votre espace personnel sur academiapro.fr.\n\n" +
+          "En dessous de ce seuil, reprenez les modules o\u00f9 vos r\u00e9ponses \u00e9taient fausses, puis repassez l\u2019examen. " +
+          "Le nombre de tentatives n\u2019est pas limit\u00e9 : l\u2019objectif est votre ma\u00eetrise, pas votre classement.\n";
       }
 
       if (contenus[cleExamen] !== undefined) {
