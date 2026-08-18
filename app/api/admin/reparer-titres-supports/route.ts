@@ -31,10 +31,16 @@ const supabase = createClient(
 // elle n'ecrit RIEN. L'ecriture n'a lieu qu'avec &ecrire=1.
 //
 // UTILISATION :
-//   /api/admin/reparer-titres-supports                → essai (aucune ecriture)
+//   /api/admin/reparer-titres-supports                → essai sur les 100 premiers
+//   /api/admin/reparer-titres-supports?depart=100     → essai sur les 100 suivants
 //   /api/admin/reparer-titres-supports?ecrire=1       → repare 10 fichiers
 //   /api/admin/reparer-titres-supports?ecrire=1&lot=25 → repare 25 fichiers
-//   Rappeler la route jusqu'a « termine: true ».
+//   Chaque reponse donne « prochain_depart » : le reporter dans l'adresse
+//   suivante, jusqu'a « termine: true ».
+//
+//   ⚠️ POURQUOI PAR TRANCHES : 300 s est le plafond absolu d'une fonction
+//   Vercel Pro. Lire des centaines de fichiers en un seul appel depasse ce
+//   plafond — la lecture se fait donc par paquets de 100.
 //
 // CAS LIMITES PREVUS :
 //   - fichier sans titre fautif → ignore, compte dans « deja_bons »
@@ -78,6 +84,8 @@ export async function GET(req: Request) {
     const url = new URL(req.url);
     const ecrire = url.searchParams.get("ecrire") === "1";
     const lot = Math.max(1, Math.min(50, Number(url.searchParams.get("lot") || 10)));
+    const depart = Math.max(0, Number(url.searchParams.get("depart") || 0));
+    const PAR_TRANCHE = 100;
 
     // Tous les supports du bucket (a la racine, comme les ecrit le generateur).
     const { data: fichiers, error: erreurListe } = await supabase.storage
@@ -96,6 +104,18 @@ export async function GET(req: Request) {
       return NextResponse.json({ ok: true, termine: true, message: "aucun support dans le bucket" });
     }
 
+    // La tranche du passage courant : de « depart » a « depart + 100 ».
+    const tranche = supports.slice(depart, depart + PAR_TRANCHE);
+
+    if (tranche.length === 0) {
+      return NextResponse.json({
+        ok: true,
+        termine: true,
+        message: "depart au-dela du dernier support : rien a examiner",
+        supports_dans_le_bucket: supports.length,
+      });
+    }
+
     let examines = 0;
     let dejaBons = 0;
     let aReparer = 0;
@@ -103,9 +123,9 @@ export async function GET(req: Request) {
     const details: any[] = [];
     const erreurs: any[] = [];
 
-    for (const nom of supports) {
-      // En mode ecriture, on s'arrete au lot demande pour rester dans les
-      // temps Vercel. En mode essai, la lecture est rapide : on parcourt tout.
+    for (const nom of tranche) {
+      // En mode ecriture, on s'arrete en plus au lot demande, pour que
+      // chaque appel reste court.
       if (ecrire && repares >= lot) break;
 
       const lecture = await supabase.storage.from(BUCKET).download(nom);
@@ -155,22 +175,28 @@ export async function GET(req: Request) {
       details.push({ fichier: nom, repare: true, titres_corriges: resultat.touches });
     }
 
-    const resteApresCePassage = ecrire ? aReparer - repares : aReparer;
+    // Ecriture : si la tranche n'a pas ete finie (arret au lot), on repart
+    // au meme endroit. Sinon, tranche suivante. Essai : tranche suivante.
+    const trancheFinie = !ecrire || repares >= aReparer;
+    const prochainDepart = trancheFinie ? depart + tranche.length : depart;
+    const derniereTranche = depart + tranche.length >= supports.length;
+    const termine = trancheFinie && derniereTranche;
 
     return NextResponse.json({
       ok: true,
       mode: ecrire ? "ECRITURE" : "ESSAI (aucune ecriture)",
       supports_dans_le_bucket: supports.length,
+      tranche: "fichiers " + (depart + 1) + " a " + (depart + tranche.length),
       examines: examines,
       deja_bons: dejaBons,
       a_reparer_trouves: aReparer,
       repares_ce_passage: ecrire ? repares : 0,
-      termine: ecrire ? resteApresCePassage <= 0 : null,
-      consigne: ecrire
-        ? (resteApresCePassage > 0
-            ? "Rappeler la meme adresse : il reste des fichiers a reparer."
-            : "Tous les supports sont repares.")
-        : "Mode essai : rien n'a ete modifie. Verifier la liste ci-dessous, puis relancer avec &ecrire=1.",
+      termine: termine,
+      prochain_depart: termine ? null : prochainDepart,
+      consigne: termine
+        ? (ecrire ? "Tous les supports sont passes et repares." : "Essai termine sur tous les supports : relancer avec &ecrire=1 pour reparer.")
+        : "Relancer la meme adresse avec depart=" + prochainDepart +
+          (ecrire ? "&ecrire=1" : "") + " pour continuer.",
       details: details.slice(0, 60),
       erreurs: erreurs.length > 0 ? erreurs : null,
     });
