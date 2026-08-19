@@ -58,53 +58,94 @@ REGLES :
 
 
 class FormateurClasseVirtuelle(Agent):
-    def __init__(self, contenu_du_jour: str) -> None:
-        super().__init__(
-            instructions=INSTRUCTIONS_FORMATEUR
-            + "\n\nCONTENU DU COURS DU JOUR :\n"
-            + contenu_du_jour
-        )
+    def __init__(self, contenu_du_jour: str,
+                 consigne_formation: str = "") -> None:
+        instructions = INSTRUCTIONS_FORMATEUR
+        # 🚨 CONSIGNE PAR FORMATION — ajoutee le 19/08.
+        # Certaines formations (F320 Psychanalyste en premier) ont une
+        # consigne d'animation specifique dans la table agent_consignes :
+        # posture, niveau, vocabulaire, limites. Elle s'ajoute AVANT le
+        # contenu du jour. Sans consigne en table : rien ne change.
+        if consigne_formation:
+            instructions += (
+                "\n\nCONSIGNE SPECIFIQUE A CETTE FORMATION"
+                " (elle precise ou surcharge les regles ci-dessus) :\n"
+                + consigne_formation
+            )
+        instructions += "\n\nCONTENU DU COURS DU JOUR :\n" + contenu_du_jour
+        super().__init__(instructions=instructions)
 
 
-def charger_programme(nom_salle: str) -> str:
-    """Si la salle commence par un code formation (ex: F030-session1),
-    charge le programme depuis Supabase. Sinon, cours general."""
+def _code_formation(nom_salle: str) -> str:
+    """Extrait le code formation du nom de salle (F320-session1 -> F320)."""
     import re
+    m = re.match(r"^(F\d{3})", (nom_salle or "").upper())
+    return m.group(1) if m else ""
+
+
+def _lire_supabase(chemin: str):
+    """Petit client REST Supabase en lecture seule. Retourne la liste
+    des lignes, ou [] si indisponible - l'agent ne plante jamais."""
     import urllib.request
     import json as _json
 
-    m = re.match(r"^(F\d{3})", nom_salle.upper())
-    if not m:
-        return "Cours general de decouverte AcademIA Pro."
-
-    code = m.group(1)
     supabase_url = os.environ.get("SUPABASE_URL", "")
     supabase_key = os.environ.get("SUPABASE_ANON_KEY", "")
     if not supabase_url or not supabase_key:
-        return "Cours general (Supabase non configure)."
-
+        return []
     try:
         req = urllib.request.Request(
-            supabase_url + "/rest/v1/formations"
-            + "?code=eq." + code
-            + "&select=titre,description,programme,objectifs",
+            supabase_url + chemin,
             headers={
                 "apikey": supabase_key,
                 "Authorization": "Bearer " + supabase_key,
             })
         with urllib.request.urlopen(req, timeout=10) as resp:
-            rows = _json.loads(resp.read().decode())
-        if rows:
-            f = rows[0]
-            return (
-                "FORMATION DU JOUR : " + str(f.get("titre", code))
-                + "\n\nDESCRIPTION : " + str(f.get("description", ""))[:500]
-                + "\n\nOBJECTIFS : " + str(f.get("objectifs", ""))[:500]
-                + "\n\nPROGRAMME : " + str(f.get("programme", ""))[:1500]
-            )
+            return _json.loads(resp.read().decode())
     except Exception as e:
-        logger.warning("Chargement formation %s impossible : %s", code, e)
+        logger.warning("Lecture Supabase impossible (%s) : %s", chemin, e)
+        return []
+
+
+def charger_programme(nom_salle: str) -> str:
+    """Si la salle commence par un code formation (ex: F030-session1),
+    charge le programme depuis Supabase. Sinon, cours general."""
+    code = _code_formation(nom_salle)
+    if not code:
+        return "Cours general de decouverte AcademIA Pro."
+
+    rows = _lire_supabase(
+        "/rest/v1/formations"
+        + "?code=eq." + code
+        + "&select=titre,description,programme,objectifs")
+    if rows:
+        f = rows[0]
+        return (
+            "FORMATION DU JOUR : " + str(f.get("titre", code))
+            + "\n\nDESCRIPTION : " + str(f.get("description", ""))[:500]
+            + "\n\nOBJECTIFS : " + str(f.get("objectifs", ""))[:500]
+            + "\n\nPROGRAMME : " + str(f.get("programme", ""))[:1500]
+        )
     return "Cours general AcademIA Pro (formation " + code + ")."
+
+
+def charger_consigne(nom_salle: str) -> str:
+    """Consigne d'animation propre a la formation, si elle existe dans
+    la table agent_consignes (F320 Psychanalyste en premier).
+    Retourne une chaine vide sinon : comportement inchange."""
+    code = _code_formation(nom_salle)
+    if not code:
+        return ""
+
+    rows = _lire_supabase(
+        "/rest/v1/agent_consignes"
+        + "?formation_code=eq." + code
+        + "&actif=eq.true"
+        + "&select=consigne")
+    if rows:
+        logger.info("Consigne specifique chargee pour %s", code)
+        return str(rows[0].get("consigne", ""))
+    return ""
 
 
 async def entrypoint(ctx: agents.JobContext):
@@ -130,6 +171,9 @@ async def entrypoint(ctx: agents.JobContext):
 
     # Le contenu du cours est passe via les metadata de la salle
     contenu_du_jour = ctx.room.metadata or charger_programme(ctx.room.name)
+    # La consigne par formation se charge TOUJOURS d'apres le nom de la
+    # salle, que le contenu vienne des metadata ou de la fiche.
+    consigne_formation = charger_consigne(ctx.room.name)
 
     # 1. La session agent : cerveau (LLM Claude via LiveAvatar mode Lite)
     session = AgentSession(
@@ -141,14 +185,14 @@ async def entrypoint(ctx: agents.JobContext):
     # 2. L'avatar LiveAvatar rejoint la salle et publie SON flux video
     avatar = liveavatar.AvatarSession(
         avatar_id=os.environ["LIVEAVATAR_AVATAR_ID"],
-        avatar_participant_name="Formateur AcadémIA",
+        avatar_participant_name="Formateur AcadémIA",
     )
     await avatar.start(session, room=ctx.room)
 
     # 3. Demarrage de la session pedagogique
     await session.start(
         room=ctx.room,
-        agent=FormateurClasseVirtuelle(contenu_du_jour),
+        agent=FormateurClasseVirtuelle(contenu_du_jour, consigne_formation),
         room_input_options=RoomInputOptions(),
     )
 
