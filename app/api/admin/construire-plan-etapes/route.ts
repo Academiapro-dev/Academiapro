@@ -57,6 +57,21 @@ function reparerAccents(s: string): string {
   return t;
 }
 
+// Filet : si un texte porte les stigmates du double encodage UTF-8
+// (« Ã© » pour « é »), on le re-decode. Sans stigmates : inchange.
+function corrigerDoubleEncodage(s: string): string {
+  const t = String(s || "");
+  if (t.indexOf("\u00C3") < 0 && t.indexOf("\u00E2\u0080") < 0) return t;
+  try {
+    const octets = new Uint8Array(t.length);
+    for (let i = 0; i < t.length; i++) octets[i] = t.charCodeAt(i) & 0xff;
+    const decode = new TextDecoder("utf-8", { fatal: true }).decode(octets);
+    return decode;
+  } catch (e) {
+    return t;
+  }
+}
+
 function texteBrut(html: string): string {
   return String(html || "")
     .replace(/<script[\s\S]*?<\/script>/gi, " ")
@@ -234,7 +249,12 @@ export async function GET(req: Request) {
       return NextResponse.json({ ok: false, code: code, erreur: "Claude a repondu " + r.status }, { status: 500 });
     }
 
-    const reponse = await r.json();
+    // 🚨 DECODAGE UTF-8 EXPLICITE — corrige le 19/08.
+    // Le premier essai (F233 etape 1) a insere des titres aux accents
+    // casses (« ProblÃ¨me ») : la reponse etait relue avec le mauvais
+    // encodage. On lit les octets bruts et on decode explicitement.
+    const octets = await r.arrayBuffer();
+    const reponse = JSON.parse(new TextDecoder("utf-8").decode(octets));
     let texte = (reponse.content || [])
       .map((b: any) => (b && b.type === "text" ? b.text : ""))
       .join("")
@@ -248,7 +268,9 @@ export async function GET(req: Request) {
       return NextResponse.json({ ok: false, code: code, erreur: "reponse illisible de Claude" }, { status: 500 });
     }
 
-    const titreEtape = String((plan && plan.titre_etape) || ("Étape " + etape)).slice(0, 200);
+    const titreEtape = corrigerDoubleEncodage(
+      String((plan && plan.titre_etape) || ("Étape " + etape))
+    ).slice(0, 200);
     const modules = ((plan && plan.modules) || [])
       .filter((l: any) => l && l.module && l.titre)
       .slice(0, MODULES_PAR_ETAPE)
@@ -257,7 +279,7 @@ export async function GET(req: Request) {
         chapitre_num: etape,
         chapitre_titre: titreEtape,
         module_num: i + 1,
-        module_titre: String(l.titre).slice(0, 200),
+        module_titre: corrigerDoubleEncodage(String(l.titre)).slice(0, 200),
         type: ["theorie", "pratique", "evaluation"].indexOf(String(l.type)) >= 0 ? String(l.type) : "theorie",
       }));
 
