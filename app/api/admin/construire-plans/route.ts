@@ -14,6 +14,17 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || ""
 );
 
+// 🚨 GARDE PARCOURS LONGS — ajoutee le 19/08.
+// Les formations en « 400h minimum » et « 600h ... » suivent une
+// architecture en ETAPES (2 x 20 ou 4 x 20 modules) concue A LA MAIN,
+// avec le soin du plan F320 Psychanalyste. Ce constructeur automatique
+// ne doit JAMAIS leur fabriquer un plan standard : il les saute et les
+// signale.
+function estParcoursLong(duree: any): boolean {
+  const d = String(duree || "");
+  return d.indexOf("400h") >= 0 || d.indexOf("600h") >= 0;
+}
+
 function reparerAccents(s: string): string {
   let t = String(s || "");
   t = t.replace(/([A-Za-z])\u00CC([\u0080-\u00BF])/g, function (tout, lettre, marque) {
@@ -55,7 +66,7 @@ export async function GET(req: Request) {
 
     const { data: formations } = await supabase
       .from("formations")
-      .select("code, titre")
+      .select("code, titre, duree")
       .eq("actif", true)
       .order("code", { ascending: true });
 
@@ -69,6 +80,7 @@ export async function GET(req: Request) {
     // On interroge formation par formation jusqu a en trouver une sans plan.
     let fiche: any = null;
     let dejaFaites = 0;
+    const parcoursLongsSautes: string[] = [];
 
     for (const f of eligibles) {
       const { data: existant } = await supabase
@@ -82,12 +94,25 @@ export async function GET(req: Request) {
         continue;
       }
 
+      // 🚨 GARDE : parcours long sans plan -> on saute, plan a la main.
+      if (estParcoursLong(f.duree)) {
+        parcoursLongsSautes.push(f.code);
+        continue;
+      }
+
       fiche = f;
       break;
     }
 
     if (!fiche) {
-      return NextResponse.json({ ok: true, termine: true, restants: 0, deja_faites: dejaFaites });
+      return NextResponse.json({
+        ok: true,
+        termine: true,
+        restants: 0,
+        deja_faites: dejaFaites,
+        parcours_longs_a_concevoir_a_la_main:
+          parcoursLongsSautes.length > 0 ? parcoursLongsSautes : null,
+      });
     }
 
     const restants = eligibles.length - dejaFaites - 1;
@@ -163,6 +188,8 @@ export async function GET(req: Request) {
       titre: titreFiche,
       nb_modules: lignes.length,
       restants: restants,
+      parcours_longs_a_concevoir_a_la_main:
+        parcoursLongsSautes.length > 0 ? parcoursLongsSautes : null,
     });
   } catch (e: any) {
     return NextResponse.json({ ok: false, erreur: String(e) }, { status: 500 });
