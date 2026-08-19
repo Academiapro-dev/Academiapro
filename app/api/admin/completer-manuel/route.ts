@@ -18,6 +18,13 @@ const QUESTIONS_PAR_MODULE_EXAMEN = 2;
 const MODULES_PAR_LOT_EXAMEN = 5;
 const SEUIL_REUSSITE = 70;
 
+// 🚨 CORRIGE LE 19/08 : une section coupee par le plafond de tokens etait
+// enregistree telle quelle (constate sur F007 module 1.1 : corrige de
+// l'exercice 4 ampute en pleine phrase). Desormais, quand l'API signale
+// stop_reason = "max_tokens", on RELANCE en donnant le texte deja produit
+// comme amorce : le modele reprend exactement ou il s'etait arrete.
+const PASSES_MAX_PAR_SECTION = 3;
+
 const REGLE_EVALUATION =
   "REGLE ABSOLUE POUR LES QUESTIONS : n interroge JAMAIS sur des dates, des noms propres, " +
   "des filiations d ecoles ou des anecdotes historiques. Ces elements figurent dans le cours pour la culture " +
@@ -299,31 +306,65 @@ function invitePour(
   return texte;
 }
 
+// 🚨 CORRIGE LE 19/08 : cette fonction acceptait silencieusement les
+// reponses coupees par le plafond max_tokens. Constate sur F007 module
+// 1.1 : « Fondements » et « Exercices » enregistrees ampute es en pleine
+// phrase, alors que la base affichait une taille normale. Desormais :
+//   1. On lit stop_reason dans la reponse de l'API.
+//   2. Si la section est coupee (stop_reason = "max_tokens"), on relance
+//      l'appel en redonnant le texte deja produit comme debut de reponse
+//      de l'assistant : le modele CONTINUE exactement ou il s'est arrete.
+//   3. Au maximum PASSES_MAX_PAR_SECTION passes ; si c'est toujours coupe,
+//      on jette une ERREUR au lieu d'enregistrer du contenu tronque —
+//      rien n'est ecrit en base, on relance simplement le bouton.
+// ⚠️ L'amorce donnee a l'API ne doit pas se terminer par une espace ou un
+// retour a la ligne (l'API le refuse) : on retire la fin blanche avant de
+// relancer, ce qui ne change rien au contenu.
 async function appeler(cle: string, langue: string, invite: string, avecInterface: boolean): Promise<string> {
-  const r = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": cle,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model: MODELE,
-      // 🖥️ Les schemas HTML sont volumineux : un module de logiciel a
-      // besoin de plus de place qu'un module de notions.
-      max_tokens: avecInterface ? 8000 : 4000,
-      system: systemePour(langue, avecInterface),
-      messages: [{ role: "user", content: invite }],
-    }),
-  });
+  let texte = "";
 
-  if (!r.ok) throw new Error("Claude a repondu " + r.status);
+  for (let passe = 1; passe <= PASSES_MAX_PAR_SECTION; passe++) {
+    const messages: any[] = [{ role: "user", content: invite }];
+    if (texte) {
+      messages.push({ role: "assistant", content: texte });
+    }
 
-  const reponse = await r.json();
-  return (reponse.content || [])
-    .map(function (b: any) { return b && b.type === "text" ? b.text : ""; })
-    .join("")
-    .trim();
+    const r = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": cle,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: MODELE,
+        // 🖥️ Les schemas HTML sont volumineux : un module de logiciel a
+        // besoin de plus de place qu'un module de notions.
+        max_tokens: avecInterface ? 8000 : 4000,
+        system: systemePour(langue, avecInterface),
+        messages: messages,
+      }),
+    });
+
+    if (!r.ok) throw new Error("Claude a repondu " + r.status);
+
+    const reponse = await r.json();
+    const morceau = (reponse.content || [])
+      .map(function (b: any) { return b && b.type === "text" ? b.text : ""; })
+      .join("");
+
+    texte += morceau;
+
+    if (reponse.stop_reason !== "max_tokens") {
+      return texte.trim();
+    }
+
+    // Section coupee : on retire la fin blanche pour que l'API accepte
+    // l'amorce, puis on repart pour une passe de continuation.
+    texte = texte.replace(/\s+$/, "");
+  }
+
+  throw new Error("section toujours incomplete apres " + PASSES_MAX_PAR_SECTION + " passes");
 }
 
 export async function GET(req: Request) {
