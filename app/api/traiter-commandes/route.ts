@@ -20,6 +20,15 @@ const MODULES_PAR_LOT_EXAMEN = 5;
 const SEUIL_REUSSITE = 70;
 const JETONS_PAR_PASSE = 8000;
 
+// 🚨 CORRIGE LE 19/08 : meme bug que dans completer-manuel. Une section
+// coupee par le plafond max_tokens etait enregistree telle quelle
+// (stop_reason jamais lu). Desormais : lecture de stop_reason, jusqu'a
+// PASSES_MAX_PAR_SECTION passes de reprise par MESSAGE UTILISATEUR
+// (jamais de « prefill » : les modeles Claude 4.6+ le refusent avec une
+// erreur 400, constate le 19/08), puis erreur franche si toujours coupe —
+// rien n'est ecrit en base.
+const PASSES_MAX_PAR_SECTION = 3;
+
 // Au-dela de cette longueur, une cellule n est pas une cellule : c est du
 // contenu avale par un tableau mal ferme. On le rend alors en texte.
 const CELLULE_MAX = 800;
@@ -248,15 +257,54 @@ function equilibrerBalises(texte: string): string {
   return sortie;
 }
 
+// 🚨 CORRIGE LE 19/08 : lecture de stop_reason + boucle de reprise.
+// Si l'API coupe la reponse au plafond de tokens, on rejoue la
+// conversation avec le texte partiel en message assistant SUIVI d'un
+// message utilisateur de reprise (methode officielle pour les modeles
+// 4.6+, le prefill etant refuse). Au bout de PASSES_MAX_PAR_SECTION
+// passes, erreur franche : rien n'est ecrit en base. Les erreurs API
+// incluent le detail renvoye par Anthropic.
 async function appeler(cle: string, invite: string, langue: string): Promise<string> {
-  const r = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "x-api-key": cle, "anthropic-version": "2023-06-01" },
-    body: JSON.stringify({ model: MODELE, max_tokens: JETONS_PAR_PASSE, system: systemePour(langue), messages: [{ role: "user", content: invite }] }),
-  });
-  if (!r.ok) throw new Error("Claude a repondu " + r.status);
-  const rep = await r.json();
-  return (rep.content || []).map(function (b: any) { return b && b.type === "text" ? b.text : ""; }).join("").trim();
+  let texte = "";
+
+  for (let passe = 1; passe <= PASSES_MAX_PAR_SECTION; passe++) {
+    const messages: any[] = [{ role: "user", content: invite }];
+
+    if (texte) {
+      messages.push({ role: "assistant", content: texte });
+      messages.push({
+        role: "user",
+        content:
+          "Ta reponse precedente a ete interrompue en cours de route. " +
+          "Reprends EXACTEMENT ou tu t'es arrete et termine la section. " +
+          "Ne repete AUCUN mot deja ecrit, n'ajoute AUCUNE phrase d'introduction ni de transition : " +
+          "ecris directement la suite immediate du dernier caractere produit, comme si tu n'avais jamais ete interrompu.",
+      });
+    }
+
+    const r = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-api-key": cle, "anthropic-version": "2023-06-01" },
+      body: JSON.stringify({ model: MODELE, max_tokens: JETONS_PAR_PASSE, system: systemePour(langue), messages: messages }),
+    });
+
+    if (!r.ok) {
+      let detail = "";
+      try { detail = await r.text(); } catch {}
+      throw new Error("Claude a repondu " + r.status + (detail ? " : " + detail.slice(0, 300) : ""));
+    }
+
+    const rep = await r.json();
+    const morceau = (rep.content || []).map(function (b: any) { return b && b.type === "text" ? b.text : ""; }).join("");
+
+    texte += morceau;
+
+    if (rep.stop_reason !== "max_tokens") {
+      return texte.trim();
+    }
+  }
+
+  throw new Error("section toujours incomplete apres " + PASSES_MAX_PAR_SECTION + " passes");
 }
 
 function invitePour(titreFormation: string, l: any, mission: any, dejaEcrites: string[], langue: string): string {
