@@ -21,8 +21,11 @@ const SEUIL_REUSSITE = 70;
 // 🚨 CORRIGE LE 19/08 : une section coupee par le plafond de tokens etait
 // enregistree telle quelle (constate sur F007 module 1.1 : corrige de
 // l'exercice 4 ampute en pleine phrase). Desormais, quand l'API signale
-// stop_reason = "max_tokens", on RELANCE en donnant le texte deja produit
-// comme amorce : le modele reprend exactement ou il s'etait arrete.
+// stop_reason = "max_tokens", on RELANCE avec un message utilisateur de
+// reprise : le modele continue exactement ou il s'etait arrete.
+// ⚠️ NE PAS revenir a la technique du « prefill » (texte partiel donne
+// comme message assistant final) : les modeles Claude 4.6 et suivants la
+// REFUSENT avec une erreur 400. Constate le 19/08 au premier essai.
 const PASSES_MAX_PAR_SECTION = 3;
 
 const REGLE_EVALUATION =
@@ -306,27 +309,37 @@ function invitePour(
   return texte;
 }
 
-// 🚨 CORRIGE LE 19/08 : cette fonction acceptait silencieusement les
-// reponses coupees par le plafond max_tokens. Constate sur F007 module
-// 1.1 : « Fondements » et « Exercices » enregistrees ampute es en pleine
-// phrase, alors que la base affichait une taille normale. Desormais :
+// 🚨 CORRIGE LE 19/08 (deuxieme version) : cette fonction acceptait
+// silencieusement les reponses coupees par le plafond max_tokens
+// (constate sur F007 module 1.1). Desormais :
 //   1. On lit stop_reason dans la reponse de l'API.
 //   2. Si la section est coupee (stop_reason = "max_tokens"), on relance
-//      l'appel en redonnant le texte deja produit comme debut de reponse
-//      de l'assistant : le modele CONTINUE exactement ou il s'est arrete.
+//      la conversation avec un MESSAGE UTILISATEUR de reprise apres le
+//      texte deja produit — c'est la methode recommandee par Anthropic
+//      pour les modeles 4.6+, qui refusent l'ancienne technique du
+//      prefill (message assistant en derniere position => erreur 400,
+//      constate au premier essai du 19/08).
 //   3. Au maximum PASSES_MAX_PAR_SECTION passes ; si c'est toujours coupe,
 //      on jette une ERREUR au lieu d'enregistrer du contenu tronque —
 //      rien n'est ecrit en base, on relance simplement le bouton.
-// ⚠️ L'amorce donnee a l'API ne doit pas se terminer par une espace ou un
-// retour a la ligne (l'API le refuse) : on retire la fin blanche avant de
-// relancer, ce qui ne change rien au contenu.
+//   4. Les erreurs API incluent desormais le detail renvoye par Anthropic,
+//      pas seulement le code HTTP.
 async function appeler(cle: string, langue: string, invite: string, avecInterface: boolean): Promise<string> {
   let texte = "";
 
   for (let passe = 1; passe <= PASSES_MAX_PAR_SECTION; passe++) {
     const messages: any[] = [{ role: "user", content: invite }];
+
     if (texte) {
       messages.push({ role: "assistant", content: texte });
+      messages.push({
+        role: "user",
+        content:
+          "Ta reponse precedente a ete interrompue en cours de route. " +
+          "Reprends EXACTEMENT ou tu t'es arrete et termine la section. " +
+          "Ne repete AUCUN mot deja ecrit, n'ajoute AUCUNE phrase d'introduction ni de transition : " +
+          "ecris directement la suite immediate du dernier caractere produit, comme si tu n'avais jamais ete interrompu.",
+      });
     }
 
     const r = await fetch("https://api.anthropic.com/v1/messages", {
@@ -346,7 +359,11 @@ async function appeler(cle: string, langue: string, invite: string, avecInterfac
       }),
     });
 
-    if (!r.ok) throw new Error("Claude a repondu " + r.status);
+    if (!r.ok) {
+      let detail = "";
+      try { detail = await r.text(); } catch {}
+      throw new Error("Claude a repondu " + r.status + (detail ? " : " + detail.slice(0, 300) : ""));
+    }
 
     const reponse = await r.json();
     const morceau = (reponse.content || [])
@@ -358,10 +375,6 @@ async function appeler(cle: string, langue: string, invite: string, avecInterfac
     if (reponse.stop_reason !== "max_tokens") {
       return texte.trim();
     }
-
-    // Section coupee : on retire la fin blanche pour que l'API accepte
-    // l'amorce, puis on repart pour une passe de continuation.
-    texte = texte.replace(/\s+$/, "");
   }
 
   throw new Error("section toujours incomplete apres " + PASSES_MAX_PAR_SECTION + " passes");
