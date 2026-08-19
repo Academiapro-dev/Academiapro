@@ -15,6 +15,15 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || ""
 );
 
+// 🚨 GARDE PARCOURS LONGS — ajoutee le 19/08.
+// Meme regle que construire-plans : les « 400h minimum » et « 600h »
+// recoivent un plan en ETAPES concu A LA MAIN (modele : F320).
+// Ce generateur automatique 5x4 ne doit jamais les traiter.
+function estParcoursLong(duree: any): boolean {
+  const d = String(duree || "");
+  return d.indexOf("400h") >= 0 || d.indexOf("600h") >= 0;
+}
+
 function reparerAccents(s: string): string {
   let t = String(s || "");
   t = t.replace(/([A-Za-z])\u00CC([\u0080-\u00BF])/g, function (tout, lettre, marque) {
@@ -68,13 +77,26 @@ export async function GET(req: Request) {
 
     const { data: fiche } = await supabase
       .from("formations")
-      .select("code, titre, domaine, niveau")
+      .select("code, titre, domaine, niveau, duree")
       .eq("code", code)
       .maybeSingle();
 
     if (!fiche) {
       await supabase.from("lms_plans").delete().eq("formation_code", code).eq("chapitre_num", 0);
       return NextResponse.json({ ok: true, code: code, ignore: true, restants: codes.length - 1 });
+    }
+
+    // 🚨 GARDE : parcours long -> on retire le marqueur et on signale,
+    // le plan en etapes se concoit a la main.
+    if (estParcoursLong(fiche.duree)) {
+      await supabase.from("lms_plans").delete().eq("formation_code", code).eq("chapitre_num", 0);
+      return NextResponse.json({
+        ok: true,
+        code: code,
+        parcours_long: true,
+        message: "Parcours long (" + String(fiche.duree) + ") : plan en etapes a concevoir A LA MAIN, modele F320.",
+        restants: codes.length - 1,
+      });
     }
 
     const { data: fichier } = await supabase.storage
