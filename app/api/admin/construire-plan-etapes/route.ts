@@ -41,6 +41,11 @@ const supabase = createClient(
 //   consciemment : delete from lms_plans where formation_code='X')
 // - refuse l'etape N si l'etape N-1 n'existe pas (ordre garanti)
 // - refuse de reecrire une etape existante sans &refaire=1
+//
+// 🚨 CORRIGE LE 20/08 : les titres etaient AMPUTES a 200 caracteres
+// par un .slice(0, 200) avant l'ecriture (constate sur F030 etape 3 :
+// 6 titres coupes en plein mot). La colonne module_titre est en texte
+// libre : les coupes ont ete SUPPRIMEES, les titres vivent entiers.
 // ==================================================================
 
 function formatDe(duree: any): number {
@@ -225,6 +230,7 @@ export async function GET(req: Request) {
       "- EXACTEMENT " + MODULES_PAR_ETAPE + " modules, progression logique du premier au dernier.\n" +
       "- Le DERNIER module est la synthese de l'etape (type evaluation).\n" +
       "- Des titres PRECIS et concrets, jamais generiques. Cite les auteurs, methodes et notions par leur nom quand le domaine en a.\n" +
+      "- Les REFERENCES HISTORIQUES aux fondateurs et auteurs sont permises, mais n'emploie AUCUNE marque deposee (EMDR, MBSR, Process Communication, methode Pilates, Reiki, MBTI, DISC...) ni aucun adjectif d'ecole deposee pour qualifier le praticien forme ou la pratique enseignee : decris la technique par sa fonction (retraitement des souvenirs, pleine conscience, coherence cardiaque...).\n" +
       "- Types : 'theorie', 'pratique' (manipulations, etudes de cas, exercices) ou 'evaluation'. Varie selon la nature reelle de chaque module.\n" +
       "- Donne aussi un TITRE D'ETAPE court et evocateur, au format : Étape " + etape + " - <titre>.\n" +
       "- Aucune mention de certification d'Etat, de titre reglemente, de prix.\n\n" +
@@ -270,7 +276,7 @@ export async function GET(req: Request) {
 
     const titreEtape = corrigerDoubleEncodage(
       String((plan && plan.titre_etape) || ("Étape " + etape))
-    ).slice(0, 200);
+    );
     const modules = ((plan && plan.modules) || [])
       .filter((l: any) => l && l.module && l.titre)
       .slice(0, MODULES_PAR_ETAPE)
@@ -279,7 +285,7 @@ export async function GET(req: Request) {
         chapitre_num: etape,
         chapitre_titre: titreEtape,
         module_num: i + 1,
-        module_titre: corrigerDoubleEncodage(String(l.titre)).slice(0, 200),
+        module_titre: corrigerDoubleEncodage(String(l.titre)),
         type: ["theorie", "pratique", "evaluation"].indexOf(String(l.type)) >= 0 ? String(l.type) : "theorie",
       }));
 
