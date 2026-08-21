@@ -7,6 +7,22 @@ export const dynamic = "force-dynamic";
 
 const SITE = "https://academiapro.fr";
 
+// L ADMINISTRATEUR N EST PAS UN CLIENT — 21/08.
+//
+// LE DEFAUT. Jacques teste tous les produits de la maison : son compte
+// figure dans compliance_membres avec un profil de cabinet comptable,
+// laisse la par un essai. A chaque connexion, accueilDuProfil le prenait
+// donc pour un client de Mr. Comptable et le deposait sur le tableau de
+// bord comptable au lieu de l administration.
+//
+// La correction ne touche a rien d autre : le profil reste en base, les
+// essais continuent de fonctionner, seule la porte d entree change.
+//
+// MEME LISTE QUE DANS middleware.ts. Si une adresse est ajoutee ici, elle
+// doit l etre la-bas aussi, sans quoi elle arriverait sur une page a
+// laquelle le middleware lui refuserait l acces.
+const ADMINS = ["contact@academiapro.fr"];
+
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
   process.env.SUPABASE_SERVICE_ROLE_KEY || ""
@@ -18,7 +34,8 @@ function echec(motif: string) {
 
 // Chaque profil entre chez lui. Un cabinet comptable doit arriver sur ses
 // DOSSIERS, pas sur le volet de conformite americaine.
-function accueilDuProfil(profil: string | null, role: string | null): string {
+function accueilDuProfil(email: string, profil: string | null, role: string | null): string {
+  if (ADMINS.indexOf(email) >= 0) return "/admin";
   if (role === "stagiaire") return "/dashboard";
   if (profil === "cabinet_comptable") return "/admin/compliance/tableau-de-bord";
   if (profil === "vend_formations") return "/organisme";
@@ -137,7 +154,7 @@ export async function GET(req: Request) {
     const organisme = await organismeDe(email);
 
     // Une destination explicite reste prioritaire ; sinon chacun rentre chez lui.
-    const ou = demande || accueilDuProfil(organisme.profil, organisme.role);
+    const ou = demande || accueilDuProfil(email, organisme.profil, organisme.role);
 
     const reponse = NextResponse.redirect(SITE + ou);
     reponse.cookies.set({
