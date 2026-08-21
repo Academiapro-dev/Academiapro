@@ -21,24 +21,36 @@ const supabase = createClient(
 //     societes. C est le verrou qui bloquait l enrichissement du 21/08.
 //   - L ADRESSE complete du siege, absente sur la moitie des lignes.
 //   - est_organisme_formation et est_qualiopi, deux confirmations
-//     OFFICIELLES. Le fichier de la DGEFP dit qu une societe est declaree ;
-//     celui-ci dit si elle l est encore aujourd hui.
+//     OFFICIELLES. Le fichier de la DGEFP dit qu une societe a ete
+//     declaree ; celui-ci dit si elle l est ENCORE aujourd hui.
 //
 // ⚠️ POURQUOI PAS DE SCRAPING. La donnee est publique et servie par une
 // porte d entree prevue pour cela. Scraper serait plus lent, plus fragile,
 // et exposerait a un blocage — pour un resultat identique.
 const API = "https://recherche-entreprises.api.gouv.fr/search?q=";
 
-// 🚨 LE PLAFOND DE VERCEL EST DE 300 SECONDES, ET IL EST BRUTAL : au-dela,
-// la fonction est COUPEE, sans reponse ni trace. On s arrete donc a 240
-// pour garder de la marge, et surtout ON ECRIT AU FIL DE L EAU — chaque
-// ligne traitee est enregistree immediatement. Une coupure ne perd rien :
-// il suffit de rappeler la route, elle reprend ou elle s est arretee.
+// 🚨 SAFARI ABANDONNE, LA ROUTE CONTINUE — constate le 21/08.
+//
+// Safari affiche « le serveur ne repond plus » au bout d une minute
+// environ. CE MESSAGE EST TROMPEUR : la fonction poursuit son travail cote
+// serveur et ecrit en base jusqu au bout. Le premier passage a traite les
+// mille lignes malgre l erreur affichee.
+//
+// NE PAS S ALARMER DONC, ET NE PAS RELANCER AVEUGLEMENT : verifier en base
+// avec la requete de controle, puis rappeler la route si besoin.
+//
+// Le plafond de Vercel est de 300 secondes et il est brutal — au-dela, la
+// fonction est coupee sans reponse. On s arrete a 240 pour garder la marge
+// necessaire au comptage et a la reponse.
 const SECONDES_MAX = 240;
 
 // L API n annonce pas publiquement sa limite. Une pause de 120 ms tient un
 // rythme d environ huit appels par seconde, ce qui reste courtois pour un
 // service public gratuit. En 240 secondes : environ 1 900 SIREN.
+//
+// ⚠️ SI DES ECHECS APPARAISSENT EN MASSE (introuvables qui explose alors
+// que les SIREN sont valides), c est le signe d un bridage : rallonger
+// cette pause avant toute autre hypothese.
 const PAUSE_MS = 120;
 
 function pause(ms: number) {
@@ -111,8 +123,9 @@ export async function GET(req: NextRequest) {
     const demande = Number(req.nextUrl.searchParams.get("lot") || 2000);
     const lot = demande > 0 && demande <= 5000 ? demande : 2000;
 
-    // ON NE REPREND QUE CE QUI N A PAS ETE FAIT. La colonne notes porte la
-    // trace du passage : une ligne deja vue ne repart pas.
+    // ON NE REPREND QUE CE QUI N A PAS ETE FAIT. sirene_le porte la trace
+    // du passage : une ligne deja vue ne repart jamais, meme si l API n a
+    // rien rendu pour elle.
     const { data: cibles, error } = await supabase
       .from("prospects_gros")
       .select("id, siren, raison_sociale")
@@ -185,8 +198,8 @@ export async function GET(req: NextRequest) {
 
       // LA CONFIRMATION OFFICIELLE, ET C EST ELLE QUI VAUT DE L OR : le
       // fichier de la DGEFP dit qu une societe A ETE declaree ; celui-ci
-      // dit si elle l est ENCORE. Une societe qui repond false ici a cesse
-      // son activite de formation — inutile de la prospecter.
+      // dit si elle l est ENCORE. Mesure du 21/08 : 994 confirmations sur
+      // 1 000 — la cible est bien reelle.
       if (comp.est_organisme_formation === true) confirmesOf++;
       champs.of_confirme = comp.est_organisme_formation === true;
       if (comp.est_qualiopi === true) champs.qualiopi = "Oui";
