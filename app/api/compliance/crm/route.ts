@@ -23,7 +23,7 @@ const supabase = createClient(
 
 const EXPEDITEUR = "Mr. Comptable <contact@academiapro.fr>";
 
-// LES SIX MOTIFS DE RELANCE.
+// LES SEPT MOTIFS DE RELANCE.
 //
 // Chacun repond a une question que le collaborateur pose aujourd hui au
 // telephone, une par une, dossier par dossier. C est ce temps-la qu on
@@ -31,8 +31,7 @@ const EXPEDITEUR = "Mr. Comptable <contact@academiapro.fr>";
 //
 // 🚨 LE RAPPROCHEMENT EST LE MOTIF QUI N EXISTE NULLE PART AILLEURS. Les
 // concurrents SIGNALENT l operation bancaire sans justificatif ; aucun ne
-// RELANCE le client a la place du cabinet. C est l idee de Jacques, et
-// c est elle qu il faut mettre en avant commercialement.
+// RELANCE le client a la place du cabinet.
 const MOTIFS: any = {
   piece_manquante: {
     nom: "Pièce justificative manquante",
@@ -69,6 +68,17 @@ const MOTIFS: any = {
     objet: "Votre note d'honoraires",
     corps: "Notre note d'honoraires reste à ce jour impayée :",
   },
+  // 🆕 LA RELANCE DES FACTURES QUE LE CABINET A LUI-MEME EMISES — 23/08.
+  //
+  // Elle vient du module de facturation, pas de la comptabilite. Un cabinet
+  // etablit ses honoraires et attend d etre paye comme tout le monde ; c est
+  // meme l argent qu il oublie le plus de reclamer, parce qu il passe ses
+  // journees sur les dossiers des autres.
+  facture_emise: {
+    nom: "Ma facture impayée",
+    objet: "Rappel de règlement",
+    corps: "Sauf erreur de notre part, la facture suivante reste impayée à ce jour :",
+  },
 };
 
 function r2(n: number): number {
@@ -77,6 +87,11 @@ function r2(n: number): number {
 
 function euros(n: any): string {
   return (Number(n) || 0).toLocaleString("fr-FR", { minimumFractionDigits: 2 }) + " €";
+}
+
+function jolieDate(d: any): string {
+  if (!d) return "";
+  try { return new Date(d).toLocaleDateString("fr-FR"); } catch (e) { return ""; }
 }
 
 function propre(v: any, max: number): string | null {
@@ -91,7 +106,7 @@ function appelable(t: string): string {
 // CE QUI RECLAME UNE RELANCE, DOSSIER PAR DOSSIER.
 //
 // Tout se lit en trois requetes, pas une par dossier : a cinquante dossiers,
-// la difference se voit. Meme principe que le tableau de bord comptable.
+// la difference se voit.
 async function aRelancer(ids: string[]) {
   const parDossier: any = {};
   for (const id of ids) {
@@ -156,6 +171,56 @@ async function aRelancer(ids: string[]) {
   return parDossier;
 }
 
+// 🆕 LES FACTURES DU CABINET QUI RESTENT IMPAYEES — 23/08.
+//
+// ⚠️ ELLES NE VIENNENT PAS DE LA COMPTABILITE mais du module de facturation.
+// Deux sources distinctes qui se rejoignent dans le meme ecran : les
+// impayes des CLIENTS DU CLIENT (compte 411 de sa comptabilite) et les
+// impayes DU CABINET LUI-MEME (ses propres factures).
+//
+// Une facture n est reclamable que si elle est EMISE et ECHUE. Relancer
+// avant l echeance fait passer le cabinet pour un creancier nerveux.
+async function mesFacturesImpayees(tenant: string) {
+  const aujourdhui = new Date().toISOString().slice(0, 10);
+
+  const { data } = await supabase
+    .from("devis_factures")
+    .select("id, numero, societe_id, client_nom, client_email, total_ttc, reste_du, date_emission, date_echeance, statut, type")
+    .eq("tenant_id", tenant)
+    .eq("type", "facture")
+    .not("numero", "is", null)
+    .in("statut", ["envoye", "partiel"])
+    .gt("reste_du", 0)
+    .order("date_echeance", { ascending: true })
+    .limit(500);
+
+  const liste = (data || []).filter(function (f: any) {
+    if (!f.date_echeance) return true;
+    return String(f.date_echeance).slice(0, 10) <= aujourdhui;
+  });
+
+  const parSociete: any = {};
+  for (const f of liste) {
+    const cle = f.societe_id || "sans_dossier";
+    if (!parSociete[cle]) parSociete[cle] = [];
+    parSociete[cle].push(f);
+  }
+
+  return { liste: liste, parSociete: parSociete };
+}
+
+// Le nombre de jours de retard, pour hierarchiser les relances.
+function joursDeRetard(echeance: any): number {
+  if (!echeance) return 0;
+  try {
+    const e = new Date(String(echeance).slice(0, 10)).getTime();
+    const j = Math.floor((Date.now() - e) / 86400000);
+    return j > 0 ? j : 0;
+  } catch (e) {
+    return 0;
+  }
+}
+
 async function envoyerEmail(destinataire: string, sujet: string, html: string) {
   if (!process.env.RESEND_API_KEY) {
     return { ok: false, detail: "RESEND_API_KEY absente" };
@@ -209,8 +274,18 @@ export async function GET(req: NextRequest) {
     }
 
     const autorises = await dossiersAutorises();
+
+    // Les factures du cabinet existent meme sans aucun dossier comptable :
+    // un cabinet peut facturer avant d avoir saisi la moindre ecriture.
+    const mesFactures = session.tenantId
+      ? await mesFacturesImpayees(session.tenantId)
+      : { liste: [], parSociete: {} };
+
     if (autorises.length === 0) {
-      return NextResponse.json({ ok: true, total: 0, clients: [], compteurs: null });
+      return NextResponse.json({
+        ok: true, total: 0, clients: [], compteurs: null,
+        motifs: MOTIFS, factures_impayees: mesFactures.liste,
+      });
     }
 
     const { data: societes } = await supabase
@@ -222,7 +297,10 @@ export async function GET(req: NextRequest) {
 
     const liste = societes || [];
     if (liste.length === 0) {
-      return NextResponse.json({ ok: true, total: 0, clients: [], compteurs: null });
+      return NextResponse.json({
+        ok: true, total: 0, clients: [], compteurs: null,
+        motifs: MOTIFS, factures_impayees: mesFactures.liste,
+      });
     }
 
     const ids = liste.map(function (s: any) { return s.id; });
@@ -235,7 +313,7 @@ export async function GET(req: NextRequest) {
 
     const { data: relances } = await supabase
       .from("compta_relances")
-      .select("societe_id, motif, canal, envoye_le")
+      .select("societe_id, motif, canal, envoye_le, reference")
       .in("societe_id", ids)
       .order("envoye_le", { ascending: false })
       .limit(5000);
@@ -258,7 +336,13 @@ export async function GET(req: NextRequest) {
       const mes = parSociete[s.id] || [];
       const principal = mes.filter(function (c: any) { return c.principal; })[0] || mes[0] || null;
 
-      const total = b.sans_piece + b.rapprochement + b.impayes;
+      // LES FACTURES DU CABINET SUR CE DOSSIER.
+      const factures = mesFactures.parSociete[s.id] || [];
+      const montantFactures = r2(factures.reduce(function (t: number, f: any) {
+        return t + (Number(f.reste_du) || 0);
+      }, 0));
+
+      const total = b.sans_piece + b.rapprochement + b.impayes + factures.length;
 
       return {
         id: s.id,
@@ -275,6 +359,14 @@ export async function GET(req: NextRequest) {
         rapprochement: b.rapprochement,
         impayes: b.impayes,
         montant_impaye: b.montant_impaye,
+        mes_factures: factures.map(function (f: any) {
+          return {
+            id: f.id, numero: f.numero, total_ttc: f.total_ttc,
+            reste_du: f.reste_du, date_echeance: f.date_echeance,
+            retard: joursDeRetard(f.date_echeance),
+          };
+        }),
+        mes_factures_montant: montantFactures,
         a_relancer: total,
         derniere_relance_le: derniere[s.id] || null,
         joignable: !!((principal && principal.email) || s.email_contact),
@@ -290,6 +382,11 @@ export async function GET(req: NextRequest) {
       rapprochement: clients.reduce(function (s: number, c: any) { return s + c.rapprochement; }, 0),
       impayes: clients.reduce(function (s: number, c: any) { return s + c.impayes; }, 0),
       montant_impaye: r2(clients.reduce(function (s: number, c: any) { return s + c.montant_impaye; }, 0)),
+      // Ce que le cabinet attend POUR LUI-MEME.
+      mes_factures: mesFactures.liste.length,
+      mes_factures_montant: r2(mesFactures.liste.reduce(function (s: number, f: any) {
+        return s + (Number(f.reste_du) || 0);
+      }, 0)),
       contacts: (contacts || []).length,
       sans_contact: clients.filter(function (c: any) { return !c.joignable; }).length,
       avec_sms: clients.filter(function (c: any) { return c.sms_accepte; }).length,
@@ -302,6 +399,7 @@ export async function GET(req: NextRequest) {
       clients: clients,
       compteurs: compteurs,
       motifs: MOTIFS,
+      factures_impayees: mesFactures.liste,
       historique: (relances || []).slice(0, 100),
     });
   } catch (e: any) {
@@ -351,7 +449,6 @@ export async function POST(req: NextRequest) {
           { ok: false, erreur: "Indiquez au moins un nom ou une adresse." }, { status: 400 });
       }
 
-      // Un seul contact principal par dossier.
       if (champs.principal) {
         await supabase
           .from("compta_contacts")
@@ -429,18 +526,68 @@ export async function POST(req: NextRequest) {
       const m = MOTIFS[motif];
       const prenom = principal && principal.nom ? String(principal.nom).split(/\s+/)[0] : "";
 
+      let reference = propre(b.reference, 200) || "";
+      let montant = b.montant ? Number(b.montant) : 0;
+      let detail = "";
+
+      // 🆕 LA RELANCE D UNE FACTURE DU CABINET PORTE SES PROPRES CHIFFRES.
+      //
+      // Reclamer « une facture » sans dire laquelle oblige le client a
+      // chercher, et un client qui cherche ne paie pas. Le numero, le
+      // montant et le retard figurent dans le message.
+      if (motif === "facture_emise" && session.tenantId) {
+        const { data: factures } = await supabase
+          .from("devis_factures")
+          .select("numero, total_ttc, reste_du, date_echeance")
+          .eq("tenant_id", session.tenantId)
+          .eq("societe_id", societeId)
+          .eq("type", "facture")
+          .not("numero", "is", null)
+          .in("statut", ["envoye", "partiel"])
+          .gt("reste_du", 0)
+          .order("date_echeance", { ascending: true })
+          .limit(20);
+
+        const lignes = (factures || []).map(function (f: any) {
+          const retard = joursDeRetard(f.date_echeance);
+          return "· Facture " + f.numero + " du " + jolieDate(f.date_emission || f.date_echeance)
+            + " — " + euros(f.reste_du) + " restant dû"
+            + (f.date_echeance ? ", échue le " + jolieDate(f.date_echeance) : "")
+            + (retard > 0 ? " (" + retard + " jour" + (retard > 1 ? "s" : "") + " de retard)" : "");
+        });
+
+        if (lignes.length > 0) {
+          detail = lignes.join("\n");
+          montant = (factures || []).reduce(function (t: number, f: any) {
+            return t + (Number(f.reste_du) || 0);
+          }, 0);
+          if ((factures || []).length === 1) reference = factures![0].numero;
+        }
+      }
+
       const corps = (prenom ? "Bonjour " + prenom : "Bonjour") + ",\n\n"
         + m.corps + "\n\n"
-        + (b.reference ? "Référence : " + b.reference + "\n" : "")
-        + (b.montant ? "Montant : " + euros(b.montant) + "\n" : "")
-        + "\nPourriez-vous nous le transmettre dès que possible ? Cela nous permet "
-        + "de tenir votre comptabilité à jour et d'éviter tout retard à la clôture.\n\n"
+        + (detail ? detail + "\n" : "")
+        + (!detail && reference ? "Référence : " + reference + "\n" : "")
+        + (!detail && montant ? "Montant : " + euros(montant) + "\n" : "")
+        + (detail && montant ? "\nSoit un total de " + euros(montant) + ".\n" : "")
+        + "\n"
+        + (motif === "facture_emise"
+          ? "Si le règlement a été effectué entre-temps, merci de ne pas tenir compte "
+            + "de ce message.\n\nDans le cas contraire, nous vous remercions de bien "
+            + "vouloir procéder au règlement dans les meilleurs délais.\n\n"
+          : "Pourriez-vous nous le transmettre dès que possible ? Cela nous permet "
+            + "de tenir votre comptabilité à jour et d'éviter tout retard à la clôture.\n\n")
         + "Merci d'avance,\n"
-        + (s && s.raison_sociale ? "Votre cabinet comptable" : "Votre cabinet comptable");
+        + "Votre cabinet comptable";
 
-      const sms = (prenom ? prenom + ", " : "") + m.objet.toLowerCase()
-        + (b.reference ? " (" + b.reference + ")" : "")
-        + ". Merci de nous le transmettre. Votre cabinet comptable.";
+      const sms = (prenom ? prenom + ", " : "")
+        + (motif === "facture_emise"
+          ? "rappel de reglement" + (reference ? " (facture " + reference + ")" : "")
+            + (montant ? " de " + euros(montant) : "") + ". Merci."
+          : m.objet.toLowerCase() + (reference ? " (" + reference + ")" : "")
+            + ". Merci de nous le transmettre.")
+        + " Votre cabinet comptable.";
 
       return NextResponse.json({
         ok: true,
@@ -449,6 +596,8 @@ export async function POST(req: NextRequest) {
         sms: sms,
         contact: principal,
         motif: motif,
+        reference: reference,
+        montant: montant,
       });
     }
 
