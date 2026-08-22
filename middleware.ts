@@ -2,6 +2,10 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 // Les adresses autorisees a ouvrir l administration et la maintenance.
+//
+// ⚠️ LA MEME LISTE EXISTE DANS app/api/auth/valider/route.ts. Toute adresse
+// ajoutee ici doit l etre la-bas aussi : sans quoi l administrateur serait
+// deverse sur une page a laquelle ce fichier lui refuserait l acces.
 const ADMINS = ['contact@academiapro.fr'];
 
 const CHEMINS_PROTEGES = ['/admin', '/maintenance'];
@@ -15,10 +19,15 @@ const EXIGENT_SOCIETE = ['/admin/compliance', '/admin/qualiopi'];
 
 // Tous les ecrans comptables : les exiger rattaches a une societe les
 // rendrait inatteignables.
+//
+// 🚨 UN ECRAN AJOUTE AU LOGICIEL DOIT ETRE AJOUTE ICI DANS LA FOULEE. Sans
+// sa ligne, le collaborateur est renvoye vers « Ma societe » sans comprendre
+// pourquoi — l ecran semble casse alors qu il est simplement barre.
 const EXCEPTIONS = [
   '/admin/compliance/ma-societe',
   '/admin/compliance/tableau-de-bord',
   '/admin/compliance/societes',
+  '/admin/compliance/crm',
   '/admin/compliance/comptes',
   '/admin/compliance/saisie',
   '/admin/compliance/reprise',
