@@ -57,6 +57,10 @@
       "schedule": "0 9 5 * *"
     },
     {
+      "path": "/api/cron/relances-cabinet",
+      "schedule": "0 9 * * 2,4"
+    },
+    {
       "path": "/api/campagne-organismes",
       "schedule": "0 8 * * 1,2,3,4,5"
     }
