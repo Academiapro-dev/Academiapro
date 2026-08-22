@@ -11,13 +11,10 @@ import { useState, useEffect, useRef } from "react";
 // Le collaborateur relance, le client repond, il depose la piece, elle se
 // lit, elle se comptabilise. Quatre gestes, une seule page.
 //
-// Envoyer chercher le depot sur /admin/compliance/pieces revenait a une
-// chasse au tresor : on relance ici, on depose la-bas, on revient ici pour
-// savoir ou l on en est.
-//
-// 🚨 LE MOTIF « RAPPROCHEMENT » EST CELUI QU AUCUN CONCURRENT N A. Les
-// autres SIGNALENT l operation bancaire sans justificatif ; ils ne
-// RELANCENT pas le client a la place du cabinet.
+// 🚨 LA NOTE DE FRAIS EST EMISE PAR LE CLIENT, PAS PAR LE CABINET. Elle
+// justifie un mouvement bancaire ; sans elle, le rapprochement reste troue.
+// C est la raison d etre de la relance : ce qui manque au rapprochement
+// bloque la revision, et le collaborateur passe ses journees a le reclamer.
 
 const FILTRES = [
   { cle: "", nom: "Tous" },
@@ -29,16 +26,82 @@ const FILTRES = [
   { cle: "avec_sms", nom: "SMS accepte" },
 ];
 
-// LES TYPES DE PIECE QU ON DEPOSE DEPUIS LE CRM.
+// LES PIECES QU ON DEPOSE, ET CE QU ELLES DEVIENNENT EN COMPTABILITE.
 //
-// Le type conditionne l ecriture : une facture d achat credite le
-// fournisseur, une note de frais credite le compte du salarie.
-const TYPES_PIECE = [
-  { cle: "facture_achat", nom: "Facture d'achat", credit: "401000" },
-  { cle: "note_frais", nom: "Note de frais", credit: "421000" },
-  { cle: "facture_vente", nom: "Facture de vente", credit: "411000" },
-  { cle: "releve_bancaire", nom: "Justificatif bancaire", credit: "401000" },
-  { cle: "autre", nom: "Autre pièce", credit: "401000" },
+// ⚠️ LE SENS DE L ECRITURE CHANGE AVEC LA PIECE, et les confondre fausse
+// les comptes de tiers :
+//   - un ACHAT credite le fournisseur (401)
+//   - une NOTE DE FRAIS credite le salarie (425 avance, 421 remboursement)
+//   - une VENTE debite le client (411) et credite le produit (70)
+//   - une NOTE D HONORAIRES du cabinet est une charge du client (6226)
+const PIECES = [
+  {
+    cle: "facture_achat",
+    nom: "Facture d'achat",
+    sens: "achat",
+    tiers: "401000",
+    aide: "Ce que le client a acheté. Le compte de charge est proposé d'après "
+      + "l'historique de ce fournisseur.",
+  },
+  {
+    cle: "note_frais",
+    nom: "Note de frais",
+    sens: "achat",
+    tiers: "425000",
+    ventilable: true,
+    aide: "Émise par le client pour justifier une dépense payée de sa poche ou "
+      + "par la carte de la société. Sans elle, le mouvement bancaire reste "
+      + "sans justificatif et le rapprochement ne tombe pas juste.",
+  },
+  {
+    cle: "honoraires_cabinet",
+    nom: "Note d'honoraires du cabinet",
+    sens: "achat",
+    tiers: "401000",
+    compte: "622600",
+    aide: "Vos propres honoraires, comptabilisés chez votre client en 622600.",
+  },
+  {
+    cle: "facture_vente",
+    nom: "Facture de vente",
+    sens: "vente",
+    tiers: "411000",
+    ventilable: true,
+    aide: "Ce que le client a facturé. Elle débite son compte client et crédite "
+      + "le produit.",
+  },
+  {
+    cle: "justificatif_bancaire",
+    nom: "Justificatif bancaire",
+    sens: "achat",
+    tiers: "401000",
+    aide: "Le document qui explique une opération du relevé : facture, reçu, "
+      + "quittance. C'est lui qui bouche le trou du rapprochement.",
+  },
+];
+
+// LA VENTILATION D UNE NOTE DE FRAIS.
+//
+// Un comptable ne met pas un repas et un billet de train sur le meme compte.
+// Les mettre tous en 606300 « fournitures diverses » serait vu au premier
+// coup d oeil, et un comptable qui voit ca ferme le logiciel.
+const POSTES_FRAIS = [
+  { compte: "625100", nom: "Voyages et déplacements" },
+  { compte: "625600", nom: "Missions" },
+  { compte: "625700", nom: "Réceptions et repas" },
+  { compte: "606100", nom: "Carburant et énergie" },
+  { compte: "606400", nom: "Fournitures de bureau" },
+  { compte: "613200", nom: "Locations (hôtel, salle)" },
+  { compte: "626000", nom: "Téléphone et internet" },
+  { compte: "627000", nom: "Frais bancaires" },
+];
+
+// LA VENTILATION D UNE VENTE.
+const POSTES_VENTE = [
+  { compte: "706000", nom: "Prestations de services" },
+  { compte: "707000", nom: "Ventes de marchandises" },
+  { compte: "701000", nom: "Ventes de produits finis" },
+  { compte: "708000", nom: "Produits annexes" },
 ];
 
 const PAR_PAGE = 50;
@@ -66,6 +129,7 @@ export default function CRMCabinet() {
   const [cible, setCible] = useState<any>(null);
   const [typePiece, setTypePiece] = useState("facture_achat");
   const [lecture, setLecture] = useState<any>(null);
+  const [compteChoisi, setCompteChoisi] = useState("");
 
   useEffect(function () { charger(); }, []);
 
@@ -92,12 +156,11 @@ export default function CRMCabinet() {
     return await r.json();
   }
 
-  // ---------- LE DEPOT, LA LECTURE ET L ECRITURE, D UN SEUL GESTE ----------
-  //
-  // ⚠️ TROIS APPELS S ENCHAINENT : depot, lecture, puis attente de la
-  // validation. LA COMPTABILISATION RESTE UN CLIC SEPARE — une ecriture
-  // validee ne se supprime pas, elle se contre-passe. Le collaborateur voit
-  // ce qui a ete lu avant d engager.
+  function pieceCourante() {
+    return PIECES.filter(function (p) { return p.cle === typePiece; })[0] || PIECES[0];
+  }
+
+  // ---------- LE DEPOT ET LA LECTURE ----------
   async function deposer(fichier: File) {
     if (!fichier || !cible) return;
     setOccupe("depot");
@@ -130,6 +193,12 @@ export default function CRMCabinet() {
         const lu = await r2.json();
         if (lu.ok) {
           setLecture({ ...lu, piece: data.piece, societe: cible });
+          // LE COMPTE PROPOSE DEPEND DE LA PIECE, pas seulement de la lecture.
+          const p = pieceCourante();
+          if (p.compte) setCompteChoisi(p.compte);
+          else if (p.sens === "vente") setCompteChoisi("706000");
+          else if (p.cle === "note_frais") setCompteChoisi(comptePourFrais(lu.lu.nature));
+          else setCompteChoisi(lu.proposition.compte);
           setMessage(lu.message);
         } else {
           setErreur(lu.erreur || "Lecture impossible.");
@@ -145,11 +214,22 @@ export default function CRMCabinet() {
     setOccupe("");
   }
 
-  // L ECRITURE COMPTABLE, construite depuis ce qui a ete lu.
-  //
-  // ⚠️ LE COMPTE DE CONTREPARTIE DEPEND DU TYPE : fournisseur pour un achat,
-  // personnel pour une note de frais, client pour une vente. Les confondre
-  // fausserait les comptes de tiers.
+  // La nature lue oriente le poste de frais : « restauration » va en 625700,
+  // « transport » en 625100. C est un point de depart, pas une decision — le
+  // collaborateur voit le compte et le change s il le faut.
+  function comptePourFrais(nature: any): string {
+    const n = String(nature || "").toLowerCase();
+    if (n.indexOf("restaur") >= 0) return "625700";
+    if (n.indexOf("transport") >= 0 || n.indexOf("voyage") >= 0) return "625100";
+    if (n.indexOf("energie") >= 0 || n.indexOf("carburant") >= 0) return "606100";
+    if (n.indexOf("fourniture") >= 0) return "606400";
+    if (n.indexOf("telecom") >= 0) return "626000";
+    if (n.indexOf("loyer") >= 0 || n.indexOf("location") >= 0) return "613200";
+    if (n.indexOf("banque") >= 0) return "627000";
+    return "625600";
+  }
+
+  // L ECRITURE COMPTABLE, construite selon le SENS de la piece.
   async function comptabiliser() {
     if (!lecture) return;
     setOccupe("ecriture");
@@ -159,21 +239,22 @@ export default function CRMCabinet() {
       const ht = Number(l.montant_ht) || 0;
       const tva = Number(l.montant_tva) || 0;
       const ttc = Number(l.montant_ttc) || 0;
-
-      const type = TYPES_PIECE.filter(function (t) { return t.cle === typePiece; })[0]
-        || TYPES_PIECE[0];
-      const vente = typePiece === "facture_vente";
+      const p = pieceCourante();
+      const compte = compteChoisi || lecture.proposition.compte;
 
       const lignes: any[] = [];
 
-      if (vente) {
-        lignes.push({ compte: "411000", debit: ttc, credit: "" });
+      if (p.sens === "vente") {
+        // Le client doit : on le debite. La TVA collectee et le produit se
+        // creditent.
+        lignes.push({ compte: p.tiers, debit: ttc, credit: "" });
         if (tva > 0) lignes.push({ compte: "445710", debit: "", credit: tva });
-        lignes.push({ compte: "706000", debit: "", credit: ht > 0 ? ht : ttc });
+        lignes.push({ compte: compte, debit: "", credit: ht > 0 ? ht : ttc });
       } else {
-        lignes.push({ compte: lecture.proposition.compte, debit: ht > 0 ? ht : ttc, credit: "" });
+        // La charge et la TVA deductible se debitent, le tiers se credite.
+        lignes.push({ compte: compte, debit: ht > 0 ? ht : ttc, credit: "" });
         if (tva > 0) lignes.push({ compte: "445660", debit: tva, credit: "" });
-        lignes.push({ compte: type.credit, debit: "", credit: ttc });
+        lignes.push({ compte: p.tiers, debit: "", credit: ttc });
       }
 
       const r = await fetch("/api/compliance/ecriture", {
@@ -181,10 +262,12 @@ export default function CRMCabinet() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           societe_id: lecture.societe.id,
-          journal: vente ? "VE" : "AC",
+          journal: p.sens === "vente" ? "VE" : "AC",
           date: l.date || new Date().toISOString().slice(0, 10),
           piece_ref: l.reference || lecture.piece.nom,
-          libelle: (l.fournisseur || lecture.piece.nom) + (l.reference ? " - " + l.reference : ""),
+          libelle: (l.fournisseur || lecture.piece.nom)
+            + (l.reference ? " - " + l.reference : "")
+            + (p.cle === "note_frais" ? " (note de frais)" : ""),
           lignes: lignes,
         }),
       });
@@ -199,6 +282,7 @@ export default function CRMCabinet() {
         setMessage(data.message + " Pièce rattachée.");
         setLecture(null);
         setCible(null);
+        setCompteChoisi("");
         await charger();
       } else {
         setErreur(data.erreur || "Écriture impossible.");
@@ -380,11 +464,10 @@ export default function CRMCabinet() {
     );
   }
 
-  // LE BOUTON DE DEPOT, disponible sur CHAQUE dossier, partout dans l ecran.
   function boutonDepot(x: any, large?: boolean) {
     return (
       <button
-        onClick={() => { setCible(x); setLecture(null); setErreur(""); setMessage(""); }}
+        onClick={() => { setCible(x); setLecture(null); setCompteChoisi(""); setErreur(""); setMessage(""); }}
         style={{
           background: "rgba(68,138,255,0.15)", color: BLEU,
           border: "1px solid rgba(68,138,255,0.45)", borderRadius: large ? "8px" : "18px",
@@ -397,10 +480,13 @@ export default function CRMCabinet() {
     );
   }
 
+  const p = pieceCourante();
+  const postes = p.cle === "note_frais" ? POSTES_FRAIS
+    : p.sens === "vente" ? POSTES_VENTE : null;
+
   return (
     <div style={{ backgroundColor: "#050508", minHeight: "100vh", color: "#fff", fontFamily: "Georgia, serif" }}>
 
-      {/* Le champ de fichier, invisible, declenche par le panneau de depot. */}
       <input
         ref={champFichier}
         type="file"
@@ -800,22 +886,18 @@ export default function CRMCabinet() {
       {/* ---------- LE DEPOT DE PIECE ---------- */}
       {cible && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", display: "flex", alignItems: "center", justifyContent: "center", padding: "20px", zIndex: 50 }}>
-          <div style={{ background: "#12121f", border: "1px solid rgba(68,138,255,0.45)", borderRadius: "12px", padding: "22px", maxWidth: "560px", width: "100%", maxHeight: "88vh", overflowY: "auto" }}>
-            <div style={{ color: BLEU, fontSize: "12px", letterSpacing: "2px", marginBottom: "6px" }}>
+          <div style={{ background: "#12121f", border: "1px solid rgba(68,138,255,0.45)", borderRadius: "12px", padding: "22px", maxWidth: "580px", width: "100%", maxHeight: "88vh", overflowY: "auto" }}>
+            <div style={{ color: BLEU, fontSize: "12px", letterSpacing: "2px", marginBottom: "14px" }}>
               DÉPOSER UNE PIÈCE — {cible.raison_sociale}
             </div>
-            <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "12.5px", lineHeight: "1.7", margin: "0 0 16px" }}>
-              La pièce est lue automatiquement : fournisseur, date, montants et TVA. Vous relisez,
-              puis vous comptabilisez.
-            </p>
 
             {!lecture && (
               <>
                 <label style={{ color: OR, fontSize: "12px", display: "block", marginBottom: "8px" }}>
                   De quelle pièce s'agit-il ?
                 </label>
-                <div style={{ display: "flex", gap: "7px", flexWrap: "wrap", marginBottom: "18px" }}>
-                  {TYPES_PIECE.map(function (t) {
+                <div style={{ display: "flex", gap: "7px", flexWrap: "wrap", marginBottom: "12px" }}>
+                  {PIECES.map(function (t) {
                     const actif = typePiece === t.cle;
                     return (
                       <button key={t.cle} onClick={() => setTypePiece(t.cle)}
@@ -831,6 +913,10 @@ export default function CRMCabinet() {
                     );
                   })}
                 </div>
+
+                <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "12.5px", lineHeight: "1.75", margin: "0 0 18px", padding: "11px 13px", background: "rgba(200,169,110,0.06)", border: "1px solid rgba(200,169,110,0.2)", borderRadius: "8px" }}>
+                  {p.aide}
+                </p>
 
                 <button
                   onClick={() => { if (champFichier.current) champFichier.current.click(); }}
@@ -856,36 +942,82 @@ export default function CRMCabinet() {
             )}
 
             {lecture && (
-              <div style={{ padding: "15px 17px", borderRadius: "10px", marginBottom: "16px", background: lecture.coherent ? "rgba(0,230,118,0.08)" : "rgba(232,163,61,0.08)", border: "1px solid " + (lecture.coherent ? "rgba(0,230,118,0.4)" : "rgba(232,163,61,0.45)") }}>
-                <div style={{ color: lecture.structuree ? VERT : OR, fontSize: "11.5px", letterSpacing: "1.5px", marginBottom: "9px" }}>
-                  {lecture.structuree ? "FACTURE ÉLECTRONIQUE — MONTANTS CERTAINS" : "LECTURE DE LA PIÈCE"}
+              <>
+                <div style={{ padding: "15px 17px", borderRadius: "10px", marginBottom: "16px", background: lecture.coherent ? "rgba(0,230,118,0.08)" : "rgba(232,163,61,0.08)", border: "1px solid " + (lecture.coherent ? "rgba(0,230,118,0.4)" : "rgba(232,163,61,0.45)") }}>
+                  <div style={{ color: lecture.structuree ? VERT : OR, fontSize: "11.5px", letterSpacing: "1.5px", marginBottom: "9px" }}>
+                    {lecture.structuree ? "FACTURE ÉLECTRONIQUE — MONTANTS CERTAINS" : "LECTURE DE LA PIÈCE"}
+                  </div>
+                  <p style={{ color: "rgba(255,255,255,0.85)", fontSize: "14px", margin: "0 0 6px", lineHeight: "1.75" }}>
+                    {lecture.lu.fournisseur || "Fournisseur non lu"}
+                    {lecture.lu.date ? " · " + jolieDate(lecture.lu.date) : ""}
+                    {lecture.lu.reference ? " · " + lecture.lu.reference : ""}
+                  </p>
+                  <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "13.5px", margin: "0 0 8px" }}>
+                    {euros(lecture.lu.montant_ht)} HT · {euros(lecture.lu.montant_tva)} de TVA ·{" "}
+                    <strong>{euros(lecture.lu.montant_ttc)} TTC</strong>
+                    {lecture.lu.confiance ? " · confiance " + lecture.lu.confiance + " %" : ""}
+                  </p>
+                  {!lecture.coherent && (
+                    <p style={{ color: ORANGE, fontSize: "12.5px", margin: 0, lineHeight: "1.7" }}>
+                      Les montants ne tombent pas juste : vérifiez avant de comptabiliser.
+                    </p>
+                  )}
                 </div>
-                <p style={{ color: "rgba(255,255,255,0.85)", fontSize: "14px", margin: "0 0 6px", lineHeight: "1.75" }}>
-                  {lecture.lu.fournisseur || "Fournisseur non lu"}
-                  {lecture.lu.date ? " · " + jolieDate(lecture.lu.date) : ""}
-                  {lecture.lu.reference ? " · " + lecture.lu.reference : ""}
+
+                {/* LA VENTILATION, quand la piece le demande. */}
+                {postes ? (
+                  <>
+                    <label style={{ color: OR, fontSize: "12px", display: "block", marginBottom: "8px" }}>
+                      {p.cle === "note_frais" ? "Quel poste de frais ?" : "Quelle nature de vente ?"}
+                    </label>
+                    <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "16px" }}>
+                      {postes.map(function (o) {
+                        const actif = compteChoisi === o.compte;
+                        return (
+                          <button key={o.compte} onClick={() => setCompteChoisi(o.compte)}
+                            style={{
+                              ...BOUTON, padding: "7px 13px", fontSize: "12px",
+                              background: actif ? OR : BOUTON.background,
+                              color: actif ? "#050508" : OR,
+                              border: actif ? "none" : BOUTON.border,
+                              fontWeight: actif ? "bold" : "normal",
+                            }}>
+                            {o.nom}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </>
+                ) : (
+                  <p style={{ color: VERT, fontSize: "12.5px", margin: "0 0 16px", lineHeight: "1.7" }}>
+                    Compte proposé : {compteChoisi} — {lecture.proposition.origine}
+                  </p>
+                )}
+
+                <label style={{ color: OR, fontSize: "12px", display: "block", marginBottom: "5px" }}>
+                  Compte imputé (modifiable)
+                </label>
+                <input value={compteChoisi} onChange={(e) => setCompteChoisi(e.target.value)}
+                  style={{ ...CHAMP, marginBottom: "10px" }} />
+
+                <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "12px", lineHeight: "1.7", margin: "0 0 16px" }}>
+                  Contrepartie : {p.tiers}
+                  {p.cle === "note_frais" ? " — compte du personnel, à rembourser" : ""}
+                  {p.sens === "vente" ? " — compte client, à encaisser" : ""}
+                  {p.cle === "facture_achat" || p.cle === "justificatif_bancaire" || p.cle === "honoraires_cabinet"
+                    ? " — compte fournisseur" : ""}
                 </p>
-                <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "13.5px", margin: "0 0 8px" }}>
-                  {euros(lecture.lu.montant_ht)} HT · {euros(lecture.lu.montant_tva)} de TVA ·{" "}
-                  <strong>{euros(lecture.lu.montant_ttc)} TTC</strong>
-                  {lecture.lu.confiance ? " · confiance " + lecture.lu.confiance + " %" : ""}
-                </p>
-                <p style={{ color: lecture.coherent ? VERT : ORANGE, fontSize: "12.5px", margin: 0, lineHeight: "1.7" }}>
-                  {lecture.coherent
-                    ? "Compte proposé : " + lecture.proposition.compte + " — " + lecture.proposition.origine
-                    : "Les montants ne tombent pas juste : vérifiez avant de comptabiliser."}
-                </p>
-              </div>
+              </>
             )}
 
             <div style={{ display: "flex", gap: "9px", flexWrap: "wrap" }}>
               {lecture && (
-                <button onClick={comptabiliser} disabled={occupe !== ""}
-                  style={{ flex: "2 1 200px", background: OR, color: "#050508", border: "none", borderRadius: "8px", padding: "13px", fontWeight: "bold", fontSize: "14px", fontFamily: "Georgia,serif", cursor: "pointer" }}>
+                <button onClick={comptabiliser} disabled={occupe !== "" || !compteChoisi}
+                  style={{ flex: "2 1 200px", background: compteChoisi ? OR : "rgba(200,169,110,0.3)", color: "#050508", border: "none", borderRadius: "8px", padding: "13px", fontWeight: "bold", fontSize: "14px", fontFamily: "Georgia,serif", cursor: compteChoisi ? "pointer" : "not-allowed" }}>
                   {occupe === "ecriture" ? "Écriture…" : "Comptabiliser"}
                 </button>
               )}
-              <button onClick={() => { setCible(null); setLecture(null); }} style={{ ...BOUTON, flex: "1 1 120px", borderRadius: "8px", padding: "13px" }}>
+              <button onClick={() => { setCible(null); setLecture(null); setCompteChoisi(""); }} style={{ ...BOUTON, flex: "1 1 120px", borderRadius: "8px", padding: "13px" }}>
                 {lecture ? "Plus tard" : "Annuler"}
               </button>
             </div>
