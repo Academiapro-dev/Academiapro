@@ -22,12 +22,15 @@ const EXIGENT_SOCIETE = ['/admin/compliance', '/admin/qualiopi'];
 //
 // 🚨 UN ECRAN AJOUTE AU LOGICIEL DOIT ETRE AJOUTE ICI DANS LA FOULEE. Sans
 // sa ligne, le collaborateur est renvoye vers « Ma societe » sans comprendre
-// pourquoi — l ecran semble casse alors qu il est simplement barre.
+// pourquoi — l ecran semble casse alors qu il est simplement barre. Le
+// defaut ne se voit PAS chez l administrateur, dont le compte porte deja un
+// organisme : il ne se revele que chez un client.
 const EXCEPTIONS = [
   '/admin/compliance/ma-societe',
   '/admin/compliance/tableau-de-bord',
   '/admin/compliance/societes',
   '/admin/compliance/crm',
+  '/admin/compliance/facturation',
   '/admin/compliance/comptes',
   '/admin/compliance/saisie',
   '/admin/compliance/reprise',
