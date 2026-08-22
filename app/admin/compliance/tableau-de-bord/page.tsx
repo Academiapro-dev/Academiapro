@@ -34,6 +34,11 @@ const OUTILS = [
   ]},
   { titre: "Le cabinet", liens: [
     { nom: "Mes dossiers", href: "/admin/compliance/societes" },
+    // 🚨 UN ECRAN QU ON NE TROUVE QU EN TAPANT SON ADRESSE EST UN ECRAN MAL
+    // RANGE. La lecon vient de l ecran LinkedIn, reste introuvable pendant
+    // des semaines faute d un lien. Le CRM du cabinet entre donc ici des sa
+    // creation, pas apres.
+    { nom: "CRM et relances", href: "/admin/compliance/crm" },
     { nom: "Ma société", href: "/admin/compliance/ma-societe" },
     { nom: "Mes collaborateurs", href: "/admin/compliance/collaborateurs" },
     { nom: "Paie", href: "/admin/compliance/paie" },
