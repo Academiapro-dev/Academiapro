@@ -36,8 +36,7 @@ const OUTILS = [
     { nom: "Mes dossiers", href: "/admin/compliance/societes" },
     // 🚨 UN ECRAN QU ON NE TROUVE QU EN TAPANT SON ADRESSE EST UN ECRAN MAL
     // RANGE. La lecon vient de l ecran LinkedIn, reste introuvable pendant
-    // des semaines faute d un lien. Le CRM du cabinet entre donc ici des sa
-    // creation, pas apres.
+    // des semaines faute d un lien. Le CRM entre donc ici des sa creation.
     { nom: "CRM et relances", href: "/admin/compliance/crm" },
     { nom: "Ma société", href: "/admin/compliance/ma-societe" },
     { nom: "Mes collaborateurs", href: "/admin/compliance/collaborateurs" },
@@ -84,13 +83,20 @@ export default function PageTableauDeBord() {
     fontWeight: "bold",
   };
 
-  // LES TROIS GESTES DU QUOTIDIEN, EN HAUT DE PAGE.
+  // LES QUATRE GESTES DU QUOTIDIEN, EN HAUT DE PAGE.
   //
-  // Un comptable ouvre son logiciel pour saisir, deposer une piece, ou
-  // regarder ses chiffres. Le faire descendre jusqu a « Tous les outils »
-  // pour cela, c est lui faire perdre du temps trente fois par jour.
+  // Un comptable ouvre son logiciel pour saisir, deposer une piece, regarder
+  // ses chiffres — ou relancer un client. Le faire descendre jusqu a « Tous
+  // les outils » pour cela, c est lui faire perdre du temps trente fois par
+  // jour.
+  //
+  // 🚨 « CRM » EST ECRIT EN TOUTES LETTRES, ET C EST VOLONTAIRE. Le mot dit
+  // au cabinet que le logiciel ne s arrete pas a la production comptable :
+  // il gere aussi la relation client. C est un argument face aux editeurs
+  // installes, et il doit se voir des la premiere page.
   const RACCOURCIS = [
     { nom: "Tableau de bord", href: "/admin/compliance/chiffres" },
+    { nom: "CRM", href: "/admin/compliance/crm" },
     { nom: "Déposer une facture", href: "/admin/compliance/pieces" },
     { nom: "Saisir une écriture", href: "/admin/compliance/saisie" },
   ];
