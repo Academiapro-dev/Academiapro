@@ -152,6 +152,12 @@ export default function NavBar() {
         <nav style={{ display: "flex", gap: "18px", flexWrap: "wrap", justifyContent: "center" }}>
           <a href="/admin/compliance/tableau-de-bord" style={lienMenu}>Tableau de bord</a>
           <a href="/admin/compliance/societes" style={lienMenu}>Mes dossiers</a>
+          {/* 🚨 LE CRM SE VOIT DEPUIS TOUS LES ECRANS DU CABINET — 23/08.
+              Le mot dit au collaborateur, et surtout au prospect qui regarde
+              par-dessus l epaule, que le logiciel ne s arrete pas a la
+              production comptable : il gere aussi la relation client. Cache
+              en bas d une page, il ne servait a personne. */}
+          <a href="/admin/compliance/crm" style={lienMenu}>CRM</a>
           <a href="/admin/compliance/saisie" style={lienMenu}>Saisie</a>
           <a href="/admin/compliance/pieces" style={lienMenu}>Pièces</a>
           <a href="/admin/compliance/acces-clients" style={lienMenu}>Espaces clients</a>
