@@ -113,6 +113,67 @@ export default function Facturation() {
     }
   }
 
+  // LE PDF S OUVRE DANS UN NOUVEL ONGLET.
+  //
+  // ⚠️ LA FENETRE S OUVRE AVANT L APPEL RESEAU. Un window.open declenche
+  // apres un await est bloque par le navigateur comme une fenetre
+  // surgissante non sollicitee — c est la meme lecon que sur l ecran
+  // LinkedIn.
+  async function voirPdf(id: any) {
+    setOccupe("pdf");
+    setErreur("");
+    setMessage("");
+    const fenetre = window.open("", "_blank");
+    try {
+      const r = await fetch("/api/compliance/facture-pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: id }),
+      });
+
+      if (!r.ok) {
+        const data = await r.json().catch(function () { return null; });
+        setErreur((data && data.erreur) || "Génération impossible.");
+        if (fenetre) fenetre.close();
+        setOccupe("");
+        return;
+      }
+
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      if (fenetre) fenetre.location.href = url;
+      else window.location.href = url;
+    } catch (e: any) {
+      setErreur("Génération impossible : " + String(e));
+      if (fenetre) fenetre.close();
+    }
+    setOccupe("");
+  }
+
+  async function envoyer(id: any) {
+    setOccupe("envoi");
+    setErreur("");
+    setMessage("");
+    try {
+      const r = await fetch("/api/compliance/facture-pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: id, envoyer: true }),
+      });
+      const data = await r.json();
+      if (data.ok) {
+        setMessage(data.message);
+        await charger();
+        await ouvrir(id);
+      } else {
+        setErreur(data.erreur || "Envoi impossible.");
+      }
+    } catch (e: any) {
+      setErreur("Envoi impossible : " + String(e));
+    }
+    setOccupe("");
+  }
+
   async function creer() {
     if (!creation) return;
     const data = await agir({ action: "creer", ...creation }, "creer");
@@ -233,6 +294,7 @@ export default function Facturation() {
                 Ce document est émis : il ne se modifie plus et ne se supprime pas.
                 Une erreur se corrige par un avoir.
                 {doc.hash_sha256 ? " Empreinte : " + String(doc.hash_sha256).slice(0, 16) + "…" : ""}
+                {doc.envoye_le ? " · Envoyé au client le " + jolieDate(doc.envoye_le) : ""}
               </p>
             </div>
           )}
@@ -347,6 +409,27 @@ export default function Facturation() {
                 {occupe === "emettre" ? "Émission…" : "Émettre le " + type.nom.toLowerCase()}
               </button>
             )}
+
+            {/* 🚨 LE PDF ET L ENVOI N APPARAISSENT QU APRES L EMISSION. Un
+                brouillon imprime circule et finit par etre pris pour une
+                facture — c est la numerotation qui fait le document. */}
+            {fige && (
+              <>
+                <button onClick={() => voirPdf(doc.id)} disabled={occupe !== ""}
+                  style={{ ...PLEIN, background: BLEU, color: "#fff" }}>
+                  {occupe === "pdf" ? "Génération…" : "📄 Voir le PDF"}
+                </button>
+                <button onClick={() => envoyer(doc.id)} disabled={occupe !== "" || !doc.client_email}
+                  style={{
+                    ...PLEIN,
+                    background: doc.client_email ? OR : "rgba(200,169,110,0.3)",
+                    cursor: doc.client_email ? "pointer" : "not-allowed",
+                  }}>
+                  {occupe === "envoi" ? "Envoi…" : doc.envoye_le ? "✉️ Renvoyer au client" : "✉️ Envoyer au client"}
+                </button>
+              </>
+            )}
+
             {doc.type === "devis" && fige && doc.statut !== "refuse" && (
               <>
                 <button onClick={() => agir({ action: "convertir", id: doc.id }, "conv")} disabled={occupe !== ""} style={PLEIN}>
@@ -373,6 +456,20 @@ export default function Facturation() {
               </button>
             )}
           </div>
+
+          {fige && !doc.client_email && (
+            <p style={{ color: ORANGE, fontSize: "12.5px", lineHeight: "1.7", marginTop: "12px" }}>
+              Aucune adresse électronique pour ce client : l'envoi est impossible.
+              Téléchargez le PDF et transmettez-le autrement.
+            </p>
+          )}
+
+          {fige && doc.type !== "devis" && (
+            <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "12px", lineHeight: "1.7", marginTop: "12px" }}>
+              Le PDF embarque le fichier Factur-X : c'est une facture électronique au sens de
+              la réforme, lisible par les plateformes agréées.
+            </p>
+          )}
 
           {/* ---------- LES REGLEMENTS ---------- */}
           {(ouvert.reglements || []).length > 0 && (
@@ -537,7 +634,7 @@ export default function Facturation() {
         </a>
         <h1 style={{ color: OR, margin: "12px 0 0", fontSize: "24px" }}>🧾 Devis et factures</h1>
         <p style={{ color: "rgba(255,255,255,0.5)", margin: "5px 0 0", fontSize: "13px" }}>
-          Établir · émettre · suivre les règlements
+          Établir · émettre · envoyer · suivre les règlements
         </p>
       </div>
 
@@ -618,7 +715,7 @@ export default function Facturation() {
           </div>
         ) : (
           <div style={{ overflowX: "auto", border: "1px solid rgba(200,169,110,0.2)", borderRadius: "10px", background: "#12121f" }}>
-            <table style={{ borderCollapse: "collapse", width: "100%", minWidth: "900px" }}>
+            <table style={{ borderCollapse: "collapse", width: "100%", minWidth: "1000px" }}>
               <thead>
                 <tr>
                   <th style={TH}>Numéro</th>
@@ -629,6 +726,7 @@ export default function Facturation() {
                   <th style={{ ...TH, textAlign: "right" }}>Total TTC</th>
                   <th style={{ ...TH, textAlign: "right" }}>Reste dû</th>
                   <th style={TH}>État</th>
+                  <th style={TH}>PDF</th>
                   <th style={TH}></th>
                 </tr>
               </thead>
@@ -652,6 +750,16 @@ export default function Facturation() {
                         {x.type === "facture" && x.numero ? euros(x.reste_du) : "—"}
                       </td>
                       <td style={{ ...TD, whiteSpace: "nowrap", color: etat.couleur }}>{etat.nom}</td>
+                      <td style={TD}>
+                        {x.numero ? (
+                          <button onClick={() => voirPdf(x.id)} disabled={occupe !== ""}
+                            style={{ ...BOUTON, padding: "5px 12px", fontSize: "12px", color: BLEU, borderColor: "rgba(68,138,255,0.4)" }}>
+                            📄
+                          </button>
+                        ) : (
+                          <span style={{ color: "rgba(255,255,255,0.25)" }}>—</span>
+                        )}
+                      </td>
                       <td style={{ ...TD, textAlign: "right" }}>
                         <button onClick={() => ouvrir(x.id)} style={{ ...BOUTON, padding: "5px 13px", fontSize: "12px" }}>
                           Ouvrir
