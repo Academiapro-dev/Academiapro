@@ -72,7 +72,7 @@ function destination(brut: string | null): string | null {
 //    pg_proc le 23/08 (pg_get_function_identity_arguments : p_email text).
 //    L API REST exige le nom exact. Le SQL Editor accepte l appel
 //    positionnel sans nom et ne prouve RIEN : c est ce piege qui a fait
-//    perdre une heure ce matin en faisant croire que le nom etait email.
+//    perdre une heure le 23/08 en faisant croire que le nom etait email.
 async function organismeDe(email: string): Promise<{ tenantId: string | null; role: string | null; profil: string | null }> {
   const vide = { tenantId: null, role: null, profil: null };
 
@@ -165,17 +165,12 @@ export async function GET(req: Request) {
     // Une destination explicite reste prioritaire ; sinon chacun rentre chez lui.
     const ou = demande || accueilDuProfil(email, organisme.profil, organisme.role);
 
-    // DIAGNOSTIC TEMPORAIRE 23/08 — a retirer apres resolution.
-    const diag = "?diag_profil=" + encodeURIComponent(String(organisme.profil))
-      + "&diag_role=" + encodeURIComponent(String(organisme.role))
-      + "&diag_tid=" + encodeURIComponent(String(organisme.tenantId).slice(0, 8));
-
     // CHACUN ATTERRIT SUR SON DOMAINE, quel que soit celui du lien.
     let siteFinal = site;
     if (ADMINS.indexOf(email) >= 0) siteFinal = "https://academiapro.fr";
     else if (organisme.profil === "cabinet_comptable") siteFinal = "https://mrcomptable.fr";
 
-    const reponse = NextResponse.redirect(siteFinal + ou + diag);
+    const reponse = NextResponse.redirect(siteFinal + ou);
     reponse.cookies.set({
       name: NOM_COOKIE_SESSION,
       value: fabriquerJetonSession(email, organisme.tenantId, organisme.role),
