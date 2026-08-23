@@ -194,7 +194,8 @@ export async function GET(req: Request) {
     if (ADMINS.indexOf(email) >= 0) siteFinal = "https://academiapro.fr";
     else if (organisme.profil === "cabinet_comptable") siteFinal = "https://mrcomptable.fr";
 
-    const reponse = NextResponse.redirect(siteFinal + ou);
+    const reponse = NextResponse.redirect(siteFinal + ou + diag);
+
 
     reponse.cookies.set({
       name: NOM_COOKIE_SESSION,
