@@ -5,7 +5,31 @@ import { fabriquerJetonSession, NOM_COOKIE_SESSION, DUREE_COOKIE_SECONDES } from
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const SITE = "https://academiapro.fr";
+// 🚨 LA CONNEXION RESTE SUR LE DOMAINE OU ELLE S EST FAITE — 23/08.
+//
+// LE DEFAUT. SITE valait "https://academiapro.fr" en dur : apres validation
+// du lien, un cabinet arrive par mrcomptable.fr etait renvoye vers
+// academiapro.fr/admin/compliance/..., et toute sa visite se passait sur le
+// domaine d un autre produit. Meme chose pour les messages d erreur, qui
+// ramenaient sur academiapro.fr/connexion.
+//
+// LA REGLE. Le domaine se lit dans l en-tete host. Connu : on y reste.
+// Inconnu (previsualisation Vercel, localhost) : academiapro.fr, comme avant.
+// Le cookie n a volontairement AUCUN attribut domain : il vaut pour le
+// domaine qui sert cette route, et c est exactement ce qu on veut.
+const SITE_PAR_DEFAUT = "https://academiapro.fr";
+
+const SITES: Record<string, string> = {
+  "academiapro.fr": "https://academiapro.fr",
+  "www.academiapro.fr": "https://academiapro.fr",
+  "mrcomptable.fr": "https://mrcomptable.fr",
+  "www.mrcomptable.fr": "https://mrcomptable.fr",
+};
+
+function siteDe(req: Request): string {
+  const hote = (req.headers.get("host") || "").split(":")[0].toLowerCase();
+  return SITES[hote] || SITE_PAR_DEFAUT;
+}
 
 // L ADMINISTRATEUR N EST PAS UN CLIENT — 21/08.
 //
@@ -28,8 +52,8 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || ""
 );
 
-function echec(motif: string) {
-  return NextResponse.redirect(SITE + "/connexion?erreur=" + encodeURIComponent(motif));
+function echec(site: string, motif: string) {
+  return NextResponse.redirect(site + "/connexion?erreur=" + encodeURIComponent(motif));
 }
 
 // Chaque profil entre chez lui. Un cabinet comptable doit arriver sur ses
@@ -108,15 +132,17 @@ async function organismeDe(email: string): Promise<{ tenantId: string | null; ro
 }
 
 export async function GET(req: Request) {
+  const site = siteDe(req);
+
   try {
     if (!process.env.SESSION_SECRET) {
-      return echec("configuration");
+      return echec(site, "configuration");
     }
 
     const url = new URL(req.url);
     const jeton = String(url.searchParams.get("jeton") || "");
     if (!jeton) {
-      return echec("lien_incomplet");
+      return echec(site, "lien_incomplet");
     }
 
     const demande = destination(url.searchParams.get("retour"));
@@ -128,16 +154,16 @@ export async function GET(req: Request) {
       .maybeSingle();
 
     if (error) {
-      return echec("technique");
+      return echec(site, "technique");
     }
     if (!ligne) {
-      return echec("lien_inconnu");
+      return echec(site, "lien_inconnu");
     }
     if (ligne.utilise) {
-      return echec("lien_deja_utilise");
+      return echec(site, "lien_deja_utilise");
     }
     if (new Date(ligne.expire_le).getTime() < Date.now()) {
-      return echec("lien_expire");
+      return echec(site, "lien_expire");
     }
 
     const { error: erreurBrulure } = await supabase
@@ -147,7 +173,7 @@ export async function GET(req: Request) {
       .eq("utilise", false);
 
     if (erreurBrulure) {
-      return echec("technique");
+      return echec(site, "technique");
     }
 
     const email = String(ligne.email || "").toLowerCase().trim();
@@ -156,7 +182,7 @@ export async function GET(req: Request) {
     // Une destination explicite reste prioritaire ; sinon chacun rentre chez lui.
     const ou = demande || accueilDuProfil(email, organisme.profil, organisme.role);
 
-    const reponse = NextResponse.redirect(SITE + ou);
+    const reponse = NextResponse.redirect(site + ou);
     reponse.cookies.set({
       name: NOM_COOKIE_SESSION,
       value: fabriquerJetonSession(email, organisme.tenantId, organisme.role),
@@ -168,6 +194,6 @@ export async function GET(req: Request) {
     });
     return reponse;
   } catch (e: any) {
-    return echec("technique");
+    return echec(site, "technique");
   }
 }
