@@ -94,7 +94,11 @@ async function organismeDe(email: string): Promise<{ tenantId: string | null; ro
   const vide = { tenantId: null, role: null, profil: null };
 
   try {
-    const { data: userId } = await supabase.rpc("utilisateur_par_email", { p_email: email });
+        // Le parametre s appelle email, PAS p_email — verifie en base le 23/08 :
+    // select utilisateur_par_email('...') fonctionne, la forme p_email echoue
+    // en silence et envoyait tout le monde sur /dashboard.
+    const { data: userId } = await supabase.rpc("utilisateur_par_email", { email: email });
+
 
     if (userId) {
       const { data: membre } = await supabase
