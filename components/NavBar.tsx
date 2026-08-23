@@ -53,6 +53,9 @@ const CHEMINS_COMPTABLE = [
 // Elles portent DEJA leur propre en-tete. Tester le chemin ne suffit pas :
 // le middleware sert /comptable/tenue sous mrcomptable.fr/tenue, et le
 // chemin vu ici est alors « /tenue ». On teste donc le DOMAINE.
+//
+// 🚨 UNE PAGE VITRINE AJOUTEE SOUS app/comptable DOIT ETRE AJOUTEE ICI.
+// Sinon cette barre s affiche par-dessus la sienne : deux en-tetes.
 const PAGES_PUBLIQUES_COMPTABLE = [
   "/",
   "/inscription",
@@ -62,6 +65,9 @@ const PAGES_PUBLIQUES_COMPTABLE = [
   "/tenue",
   "/declarations",
   "/relance-justificatifs",
+  "/crm",
+  "/facturation-recurrente",
+  "/tresorerie",
   "/blog",
   "/contact",
   "/cgv",
