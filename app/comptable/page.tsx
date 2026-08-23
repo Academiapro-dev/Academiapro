@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { FONCTIONS } from "./fonctions";
 
 export const metadata = {
   title: "Mr. Comptable — Logiciel de comptabilité pour cabinets",
@@ -9,25 +10,9 @@ export const metadata = {
 const OR = "#c8a96e";
 const NOIR = "#050508";
 
-// LE MENU DEROULANT DES FONCTIONNALITES.
-//
-// Chaque entree mene a SA PROPRE PAGE, jamais a une ancre. Une ancre ramene
-// a la meme page pour Google : dix ancres se positionnent comme une seule
-// adresse. Une page par sujet se positionne sur chaque recherche.
-//
-// 🚨 MEME LISTE SUR TOUTES LES PAGES DE app/comptable. Une entree ajoutee
-// ici doit l etre partout, sinon la page nouvelle reste introuvable.
-const FONCTIONS = [
-  { nom: "Facture électronique", href: "/comptable/facture-electronique" },
-  { nom: "Rapprochement bancaire", href: "/comptable/rapprochement-bancaire" },
-  { nom: "Lecture des pièces", href: "/comptable/lecture-des-pieces" },
-  { nom: "Tenue et révision", href: "/comptable/tenue" },
-  { nom: "Déclarations et liasse", href: "/comptable/declarations" },
-  { nom: "Relance des justificatifs", href: "/comptable/relance-justificatifs" },
-  { nom: "CRM et relances", href: "/comptable/crm" },
-  { nom: "Facturation récurrente", href: "/comptable/facturation-recurrente" },
-  { nom: "Prévisionnel de trésorerie", href: "/comptable/tresorerie" },
-];
+// LE MENU DEROULANT DES FONCTIONNALITES vit dans ./fonctions.ts, partage
+// par toutes les pages de la vitrine. Chaque entree mene a SA PROPRE PAGE,
+// jamais a une ancre : une page par sujet se positionne sur chaque recherche.
 
 const CE_QUE_FAIT: any[] = [
   {
