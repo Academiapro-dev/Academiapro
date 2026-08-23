@@ -20,29 +20,20 @@ const EXPEDITEUR = "Mr. Comptable <contact@academiapro.fr>";
 // reclamer passe apres. Six mois plus tard, la creance est douteuse et le
 // justificatif introuvable.
 //
-// Ce cron fait le geste que personne ne fait.
-//
 // 🚨 TROIS GARDE-FOUS, ET AUCUN N EST NEGOCIABLE :
 //
 //   1. JAMAIS DEUX FOIS LE MEME MOTIF EN MOINS DE DIX JOURS. Un client
 //      relance tous les matins ne paie pas plus vite : il se desabonne, ou
-//      il appelle le cabinet pour se plaindre. La relance perd alors plus
-//      que ce qu elle rapporte.
+//      il appelle le cabinet pour se plaindre.
 //   2. RIEN NE PART SANS ECHEANCE DEPASSEE. Reclamer avant terme fait
 //      passer le cabinet pour un creancier nerveux.
 //   3. LE CABINET DOIT L AVOIR ARME. Le silence ne vaut pas consentement :
 //      une relance part au nom du cabinet, a SON client, et engage sa
-//      relation commerciale. Personne ne decide cela a sa place.
+//      relation commerciale.
 // ---------------------------------------------------------------------------
 
 const JOURS_ENTRE_DEUX = 10;
-
-// Le premier rappel part sept jours apres l echeance. Avant, c est du zele :
-// un virement met deja quelques jours a arriver.
 const JOURS_APRES_ECHEANCE = 7;
-
-// Plafond par cabinet et par passage. Un cabinet qui decouvre trente
-// relances parties le meme matin coupe la fonction et ne la rallume jamais.
 const PLAFOND_PAR_CABINET = 10;
 
 function r2(n: any): number {
@@ -74,10 +65,6 @@ function echapper(t: any): string {
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-// LE TON MONTE AVEC LE RETARD, mais il ne devient jamais comminatoire.
-//
-// Un cabinet ne menace pas son client : il l informe. La mise en demeure,
-// s il faut en venir la, se signe a la main et part en recommande.
 function tonSelonRetard(jours: number): { entete: string; relance: string } {
   if (jours < 30) {
     return {
@@ -123,8 +110,6 @@ async function envoyer(destinataire: string, sujet: string, html: string, repond
   return { ok: r.ok, detail: texte.slice(0, 300) };
 }
 
-// Une relance recente sur le meme dossier et le meme motif interdit la
-// suivante. On lit la trace, jamais une supposition.
 function relanceRecente(historique: any[], societeId: string, motif: string): boolean {
   const limite = Date.now() - JOURS_ENTRE_DEUX * 86400000;
   for (const h of historique) {
@@ -140,15 +125,59 @@ export async function GET(req: NextRequest) {
   const debut = Date.now();
 
   try {
-    // Deux entrees possibles : le cron Vercel, qui envoie son secret en
-    // en-tete, ou un appel manuel avec la cle en parametre.
+    // ---- L AUTORISATION ----
+    //
+    // 🚨 UN REFUS MUET EST INDEBOGABLE. « Non autorise » sans autre precision
+    // laisse chercher entre dix causes : variable absente, valeur fausse,
+    // caractere mal encode par le navigateur, deploiement en retard. La
+    // reponse dit donc CE QUI MANQUE, sans jamais divulguer la valeur
+    // attendue — on compare des longueurs, pas des secrets.
+    //
+    // Deux cles sont acceptees : CRON_SECRET, envoye par Vercel en en-tete,
+    // et CLE_API_FACTURE, deja utilisee par les crons de facturation. Avoir
+    // deux portes evite de rester bloque quand l une des deux resiste.
     const autorisation = req.headers.get("authorization") || "";
-    const secret = process.env.CRON_SECRET || "";
-    const parCron = secret.length > 0 && autorisation === "Bearer " + secret;
-    const parCle = secret.length > 0 && req.nextUrl.searchParams.get("cle") === secret;
+    const secretCron = process.env.CRON_SECRET || "";
+    const cleFacture = process.env.CLE_API_FACTURE || "";
+
+    const parCron = secretCron.length > 0 && autorisation === "Bearer " + secretCron;
+
+    // La cle du parametre arrive percent-encodee : Safari transforme un « + »
+    // en espace et encode les caracteres speciaux. On decode avant de
+    // comparer, sans quoi une cle juste serait refusee.
+    let fournie = req.nextUrl.searchParams.get("cle") || "";
+    try {
+      fournie = decodeURIComponent(fournie);
+    } catch (e) {
+      // deja decodee
+    }
+    fournie = fournie.trim();
+
+    const parCle = fournie.length > 0
+      && ((secretCron.length > 0 && fournie === secretCron)
+        || (cleFacture.length > 0 && fournie === cleFacture));
 
     if (!parCron && !parCle) {
-      return NextResponse.json({ ok: false, erreur: "Non autorise" }, { status: 401 });
+      return NextResponse.json({
+        ok: false,
+        erreur: "Non autorise",
+        diagnostic: {
+          cron_secret_defini: secretCron.length > 0,
+          cle_api_facture_definie: cleFacture.length > 0,
+          cle_recue: fournie.length > 0,
+          longueur_recue: fournie.length,
+          longueur_cron_secret: secretCron.length,
+          longueur_cle_facture: cleFacture.length,
+          entete_presente: autorisation.length > 0,
+          aide: secretCron.length === 0 && cleFacture.length === 0
+            ? "Aucune des deux variables n existe dans Vercel."
+            : fournie.length === 0
+              ? "Ajoutez ?cle=LA_VALEUR a l adresse."
+              : "La cle recue ne correspond a aucune des deux. Comparez les longueurs "
+                + "ci-dessus : si elles different, le copier-coller a ajoute ou perdu "
+                + "des caracteres.",
+        },
+      }, { status: 401 });
     }
 
     // 🚨 L ESSAI NE PART PAS. Il montre ce QUI SERAIT envoye, a qui, et
@@ -160,19 +189,29 @@ export async function GET(req: NextRequest) {
       .toISOString().slice(0, 10);
 
     // ---- LES CABINETS QUI ONT ARME LA RELANCE ----
-    //
-    // La colonne relance_auto de organismes_formation commande tout. Absente
-    // ou fausse, le cabinet n est pas traite.
-    const { data: cabinets } = await supabase
+    const { data: cabinets, error: eCab } = await supabase
       .from("organismes_formation")
       .select("tenant_id, raison_sociale, email_contact, relance_auto")
       .eq("relance_auto", true)
       .limit(500);
 
+    if (eCab) {
+      return NextResponse.json({
+        ok: false,
+        erreur: eCab.message,
+        aide: eCab.message.indexOf("relance_auto") >= 0
+          ? "La colonne relance_auto n existe pas encore : "
+            + "alter table organismes_formation add column relance_auto boolean default false;"
+          : undefined,
+      }, { status: 500 });
+    }
+
     if (!cabinets || cabinets.length === 0) {
       return NextResponse.json({
         ok: true,
         info: "aucun cabinet n a arme la relance automatique",
+        aide: "Pour armer un cabinet : update organismes_formation "
+          + "set relance_auto = true where tenant_id = '...';",
         cabinets: 0,
       });
     }
@@ -187,7 +226,6 @@ export async function GET(req: NextRequest) {
       let ignorees = 0;
       const detail: any[] = [];
 
-      // ---- L HISTORIQUE, pour ne pas relancer deux fois ----
       const { data: historique } = await supabase
         .from("compta_relances")
         .select("societe_id, motif, envoye_le, statut")
@@ -212,8 +250,7 @@ export async function GET(req: NextRequest) {
         .limit(200);
 
       // Regroupees par dossier : un client qui doit trois factures recoit UN
-      // message, pas trois. Trois messages le meme matin agacent et se
-      // classent en indesirables.
+      // message, pas trois.
       const parDossier: any = {};
       for (const f of factures || []) {
         const cle = f.societe_id || ("libre:" + String(f.client_email || f.client_nom));
@@ -230,16 +267,11 @@ export async function GET(req: NextRequest) {
         const lot = parDossier[cle];
         const societeId = lot[0].societe_id || null;
 
-        // Le garde-fou des dix jours.
         if (societeId && relanceRecente(passees, societeId, "facture_emise")) {
           ignorees++;
           continue;
         }
 
-        // ---- A QUI ECRIRE ----
-        //
-        // Le contact du CRM d abord : c est celui que le cabinet a choisi.
-        // A defaut, l adresse portee par la facture elle-meme.
         let destinataire = "";
         let contactId: any = null;
         let prenom = "";
@@ -268,7 +300,6 @@ export async function GET(req: NextRequest) {
           continue;
         }
 
-        // ---- LE MESSAGE ----
         const retardMax = Math.max.apply(null, lot.map(function (f: any) {
           return joursDeRetard(f.date_echeance);
         }));
@@ -303,6 +334,7 @@ export async function GET(req: NextRequest) {
 
         if (essai) {
           detail.push({
+            motif: "facture_emise",
             dossier: societeId,
             destinataire: destinataire,
             factures: lot.map(function (f: any) { return f.numero; }),
@@ -316,8 +348,6 @@ export async function GET(req: NextRequest) {
 
         const resultat = await envoyer(destinataire, sujet, html, cab.email_contact || undefined);
 
-        // LA TRACE S ECRIT DANS LES DEUX CAS. Sans elle, le prochain passage
-        // relancerait le meme client demain matin.
         if (societeId) {
           await supabase.from("compta_relances").insert({
             tenant_id: tenant,
@@ -337,6 +367,7 @@ export async function GET(req: NextRequest) {
         if (resultat.ok) {
           envoyees++;
           detail.push({
+            motif: "facture_emise",
             dossier: societeId,
             destinataire: destinataire,
             factures: lot.map(function (f: any) { return f.numero; }),
@@ -348,11 +379,10 @@ export async function GET(req: NextRequest) {
         }
       }
 
-      // ---- LES PIECES MANQUANTES ----
+      // ---- LES OPERATIONS BANCAIRES SANS JUSTIFICATIF ----
       //
-      // Deuxieme motif automatique : les operations bancaires sans
-      // justificatif. C est ce qui bloque la revision, et c est la relance
-      // qu aucun concurrent ne fait.
+      // C est la relance qu aucun concurrent ne fait : les autres SIGNALENT
+      // le trou, ils ne reclament pas la piece a la place du cabinet.
       const { data: dossiers } = await supabase
         .from("compta_societes")
         .select("id, raison_sociale")
@@ -402,10 +432,10 @@ export async function GET(req: NextRequest) {
 
         if (essai) {
           detail.push({
+            motif: "rapprochement",
             dossier: s.id,
             raison_sociale: s.raison_sociale,
             destinataire: principal.email,
-            motif: "rapprochement",
             trous: trous,
           });
           envoyees++;
@@ -430,10 +460,10 @@ export async function GET(req: NextRequest) {
         if (resultat.ok) {
           envoyees++;
           detail.push({
+            motif: "rapprochement",
             dossier: s.id,
             raison_sociale: s.raison_sociale,
             destinataire: principal.email,
-            motif: "rapprochement",
             trous: trous,
           });
         } else {
