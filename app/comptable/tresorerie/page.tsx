@@ -25,6 +25,7 @@ const FONCTIONS = [
 ];
 
 
+
 // VOUVOIEMENT, VOCABULAIRE COMPTABLE, AUCUNE MENTION DE FORMATION, AUCUN PRIX.
 
 export default function PageTresorerie() {
