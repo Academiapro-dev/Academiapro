@@ -31,6 +31,8 @@ const EXCEPTIONS = [
   '/admin/compliance/societes',
   '/admin/compliance/crm',
   '/admin/compliance/facturation',
+  '/admin/compliance/recurrente',
+  '/admin/compliance/tresorerie',
   '/admin/compliance/comptes',
   '/admin/compliance/saisie',
   '/admin/compliance/reprise',
