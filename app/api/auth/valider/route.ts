@@ -184,7 +184,11 @@ export async function GET(req: Request) {
     const organisme = await organismeDe(email);
 
     // Une destination explicite reste prioritaire ; sinon chacun rentre chez lui.
-            const diag = "?diag_profil=" + encodeURIComponent(String(organisme.profil))
+    const ou = demande || accueilDuProfil(email, organisme.profil, organisme.role);
+    const diag = "?diag_profil=" + encodeURIComponent(String(organisme.profil))
+      + "&diag_role=" + encodeURIComponent(String(organisme.role))
+      + "&diag_tid=" + encodeURIComponent(String(organisme.tenantId).slice(0, 8));
+
       + "&diag_role=" + encodeURIComponent(String(organisme.role))
       + "&diag_tid=" + encodeURIComponent(String(organisme.tenantId).slice(0, 8));
 
