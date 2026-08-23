@@ -8,19 +8,14 @@ export const dynamic = "force-dynamic";
 
 // 🚨 LE LIEN DE CONNEXION RENVOIE SUR LE DOMAINE D OU IL A ETE DEMANDE — 23/08.
 //
-// LE DEFAUT. SITE valait "https://academiapro.fr" en dur. Un cabinet qui
-// demandait son lien depuis mrcomptable.fr recevait un courriel signe
-// AcademIA Pro, cliquait, et atterrissait sur academiapro.fr : le cookie de
-// session etait pose la, et il y restait pour toute sa visite.
-//
-// LA REGLE. Le domaine d arrivee est lu dans l en-tete host. S il est connu,
-// le lien y renvoie et le courriel porte la marque du produit. Sinon —
+// Le domaine d arrivee est lu dans l en-tete host. S il est connu, le lien
+// y renvoie et le courriel porte la marque du produit. Sinon —
 // previsualisation Vercel, localhost — academiapro.fr, comme avant.
 //
-// DOCTRINE D ENVOI — 23/08 : le transactionnel (liens de connexion, acces
-// clients, relances) part du DOMAINE PRINCIPAL de chaque marque, verifie
-// chez Resend. La prospection part des sous-domaines contact-pro.* pour
-// proteger la reputation des domaines principaux.
+// EXPEDITEURS — 23/08 : Mr. Comptable est une marque directe, son
+// transactionnel part de contact@mrcomptable.fr (verifie chez Resend).
+// espaces-formations.fr reste le domaine neutre de la marque blanche
+// AcadeMIA, les sous-domaines contact-pro.* restent a la prospection.
 const SITE_PAR_DEFAUT = "https://academiapro.fr";
 
 const MARQUES: Record<string, { site: string; nom: string; expediteur: string; espace: string }> = {
