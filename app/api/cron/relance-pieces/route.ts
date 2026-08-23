@@ -32,6 +32,22 @@ const supabase = createClient(
 //   - au-dela d un montant plancher, pour ne pas harceler sur trois euros ;
 //   - passe un delai de grace, le temps que le client depose ;
 //   - une seule fois par mois et par societe.
+//
+// 🚨 ET SEULEMENT POUR LES CABINETS QUI L ONT ARME — ajoute le 23/08.
+//
+// LE DEFAUT CORRIGE. Cette route relancait TOUS les dossiers actifs de TOUS
+// les cabinets, sans que personne ait rien demande. Tant que Jacques etait
+// seul client, cela ne se voyait pas. Le jour ou un cabinet arrive, ses
+// propres clients recevraient des relances signees de son nom, sur des
+// pieces qu il n a pas juge bon de reclamer.
+//
+// Un cabinet ne pardonne pas cela : la relation avec son client lui
+// appartient. Le silence ne vaut pas consentement.
+//
+// ⚠️ LE MEME VERROU EXISTE DANS /api/cron/relances-cabinet. Les deux routes
+// se partagent le terrain : celle-ci reclame les pieces des ECRITURES,
+// l autre les pieces des OPERATIONS BANCAIRES et les factures impayees du
+// cabinet. Toute modification de l une doit interroger l autre.
 const JOURNAUX = ["AC", "ACH", "VE", "VTE", "HA", "BQ"];
 const MONTANT_PLANCHER = 50;
 const JOURS_DE_GRACE = 15;
@@ -53,15 +69,72 @@ export async function GET(req: NextRequest) {
     const secretCron = process.env.CRON_SECRET || "";
     const parCron = secretCron.length > 0 && autorisation === "Bearer " + secretCron;
 
-    const cle = url.searchParams.get("cle") || "";
+    // Les deux cles sont acceptees : CRON_SECRET comme CLE_API_FACTURE.
+    // Rester bloque dehors parce qu on a pris la mauvaise des deux fait
+    // perdre plus de temps que le risque evite.
+    let cle = url.searchParams.get("cle") || "";
+    try {
+      cle = decodeURIComponent(cle);
+    } catch (e) {
+      // deja decodee
+    }
+    cle = cle.trim();
+
     const cleFacture = process.env.CLE_API_FACTURE || "";
-    const parCle = cleFacture.length > 0 && cle === cleFacture;
+    const parCle = cle.length > 0
+      && ((cleFacture.length > 0 && cle === cleFacture)
+        || (secretCron.length > 0 && cle === secretCron));
 
     if (!parCron && !parCle) {
-      return NextResponse.json({ ok: false, erreur: "Non autorise" }, { status: 401 });
+      return NextResponse.json({
+        ok: false,
+        erreur: "Non autorise",
+        diagnostic: {
+          longueur_recue: cle.length,
+          longueur_cron_secret: secretCron.length,
+          longueur_cle_facture: cleFacture.length,
+        },
+      }, { status: 401 });
     }
 
     const essai = url.searchParams.get("essai") === "1";
+
+    // ---- LES CABINETS QUI ONT ARME LA RELANCE ----
+    //
+    // Sans cette liste, aucune societe n est traitee. C est voulu : mieux
+    // vaut une fonction qui ne part pas qu une relance envoyee au nom d un
+    // cabinet qui ne l a pas voulu.
+    const { data: cabinets, error: eCab } = await supabase
+      .from("organismes_formation")
+      .select("tenant_id, raison_sociale, relance_auto")
+      .eq("relance_auto", true)
+      .limit(500);
+
+    if (eCab) {
+      return NextResponse.json({
+        ok: false,
+        erreur: eCab.message,
+        aide: eCab.message.indexOf("relance_auto") >= 0
+          ? "La colonne relance_auto n existe pas : alter table "
+            + "organismes_formation add column relance_auto boolean default false;"
+          : undefined,
+      }, { status: 500 });
+    }
+
+    const armes: string[] = [];
+    for (const c of cabinets || []) {
+      if (c.tenant_id) armes.push(String(c.tenant_id));
+    }
+
+    if (armes.length === 0) {
+      return NextResponse.json({
+        ok: true,
+        info: "aucun cabinet n a arme la relance automatique",
+        aide: "update organismes_formation set relance_auto = true where tenant_id = '...';",
+        cabinets: 0,
+        relances: 0,
+      });
+    }
 
     // Le delai de grace : on ne reclame pas une piece du jour meme.
     const limite = new Date();
@@ -83,10 +156,14 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // ⚠️ LE FILTRE SUR LES CABINETS ARMES SE FAIT ICI, dans la requete, et
+    // non plus tard dans une condition : une societe d un cabinet non arme
+    // ne doit meme pas etre lue.
     const { data: societes, error: eSoc } = await supabase
       .from("compta_societes")
       .select("id, tenant_id, code, raison_sociale, email_contact, actif")
       .eq("actif", true)
+      .in("tenant_id", armes)
       .limit(2000);
 
     if (eSoc) {
@@ -169,19 +246,42 @@ export async function GET(req: NextRequest) {
         return acc + m.montant;
       }, 0));
 
+      // ---- A QUI ECRIRE ----
+      //
+      // 🆕 LE CONTACT DU CRM PASSE AVANT L ADRESSE DU DOSSIER — 23/08.
+      //
+      // compta_contacts porte la personne que le cabinet a designee, avec son
+      // prenom. email_contact du dossier est souvent une adresse generique de
+      // societe, que personne ne lit. Ecrire a une personne nommee vaut mieux
+      // qu ecrire a « contact@ ».
+      const { data: contacts } = await supabase
+        .from("compta_contacts")
+        .select("id, nom, email, principal")
+        .eq("societe_id", s.id)
+        .not("email", "is", null)
+        .limit(10);
+
+      const principal = (contacts || []).filter(function (c: any) { return c.principal; })[0]
+        || (contacts || [])[0] || null;
+
+      const destinataire = (principal && principal.email) || s.email_contact || "";
+      const prenom = principal && principal.nom
+        ? String(principal.nom).split(/\s+/)[0] : "";
+
       if (essai) {
         resultats.push({
           societe: s.raison_sociale,
-          email: s.email_contact || null,
+          destinataire: destinataire || null,
+          contact: principal ? principal.nom : null,
           pieces_manquantes: manquantes.length,
           montant_concerne: total,
           exemple: manquantes.slice(0, 5),
-          statut: "essai, rien envoye",
+          statut: destinataire ? "essai, rien envoye" : "sans adresse",
         });
         continue;
       }
 
-      if (!s.email_contact) {
+      if (!destinataire) {
         resultats.push({
           societe: s.raison_sociale,
           pieces_manquantes: manquantes.length,
@@ -228,7 +328,7 @@ export async function GET(req: NextRequest) {
         "<div style=\"font-family:Georgia,serif;max-width:640px;margin:auto;padding:24px;color:#222\">"
         + "<p style=\"letter-spacing:3px;color:#1a3a6b;text-align:center;font-size:12px\">MR. COMPTABLE</p>"
         + "<h1 style=\"font-size:21px;text-align:center;margin:6px 0 24px\">Justificatifs manquants</h1>"
-        + "<p>Bonjour,</p>"
+        + "<p>" + (prenom ? "Bonjour " + prenom : "Bonjour") + ",</p>"
         + "<p>Votre comptabilité comporte <b>" + manquantes.length + " écriture(s)</b> sans "
         + "justificatif, pour un total de <b>" + total.toFixed(2) + " €</b>.</p>"
         + "<p>Ces pièces sont exigées en cas de contrôle, et elles conditionnent la "
@@ -261,7 +361,7 @@ export async function GET(req: NextRequest) {
             headers: { Authorization: "Bearer " + rk, "Content-Type": "application/json" },
             body: JSON.stringify({
               from: "Mr. Comptable <contact@mrcomptable.fr>",
-              to: [s.email_contact],
+              to: [destinataire],
               subject: manquantes.length + " justificatif(s) manquant(s) — " + (s.raison_sociale || ""),
               html: html,
             }),
@@ -280,9 +380,29 @@ export async function GET(req: NextRequest) {
           .eq("produit", marque);
       }
 
+      // 🆕 LA TRACE VA AUSSI DANS compta_relances, comme toutes les autres.
+      //
+      // Sans elle, l ecran du CRM affiche « jamais relance » sur un dossier
+      // qui vient de recevoir un courriel, et le collaborateur relance une
+      // seconde fois le meme jour.
+      await supabase.from("compta_relances").insert({
+        tenant_id: s.tenant_id,
+        societe_id: s.id,
+        contact_id: principal ? principal.id : null,
+        motif: "piece_manquante",
+        canal: "email",
+        objet: manquantes.length + " justificatif(s) manquant(s)",
+        corps: html,
+        reference: manquantes.length + " écriture(s)",
+        montant: total,
+        statut: envoye ? "envoyee" : "echec",
+        motif_echec: envoye ? null : "envoi refuse par Resend",
+      });
+
       resultats.push({
         societe: s.raison_sociale,
-        email: s.email_contact,
+        destinataire: destinataire,
+        contact: principal ? principal.nom : null,
         pieces_manquantes: manquantes.length,
         montant_concerne: total,
         statut: envoye ? "relance envoyee" : "echec d envoi",
@@ -292,6 +412,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       declencheur: parCron ? "cron" : "manuel",
+      cabinets_armes: armes.length,
       societes_examinees: (societes || []).length,
       relances: resultats.length,
       resultats: resultats,
