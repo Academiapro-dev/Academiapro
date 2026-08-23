@@ -10,12 +10,11 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || ""
 );
 
-// 🚨 L EXPEDITEUR EST MR. COMPTABLE, PAS ACADEMIA — 23/08. Ces relances
-// partent au nom d un cabinet vers SES clients : la marque formation n a
-// rien a y faire. espaces-formations.fr est le domaine d envoi neutre,
-// verifie chez Resend, deja eprouve par auth/demander. Le reply_to reste
-// le courriel du cabinet : les reponses des clients vont chez lui.
-const EXPEDITEUR = "Mr. Comptable <contact@espaces-formations.fr>";
+// 🚨 EXPEDITEUR — 23/08 : Mr. Comptable est une marque directe, son
+// transactionnel part de contact@mrcomptable.fr (verifie chez Resend).
+// Le reply_to reste le courriel du cabinet : les reponses des clients
+// vont chez lui.
+const EXPEDITEUR = "Mr. Comptable <contact@mrcomptable.fr>";
 
 // ---------------------------------------------------------------------------
 // LA RELANCE AUTOMATIQUE — ce que le collaborateur ne fera jamais a temps.
