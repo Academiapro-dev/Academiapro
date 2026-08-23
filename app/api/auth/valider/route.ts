@@ -7,16 +7,10 @@ export const dynamic = "force-dynamic";
 
 // 🚨 LA CONNEXION RESTE SUR LE DOMAINE OU ELLE S EST FAITE — 23/08.
 //
-// LE DEFAUT. SITE valait "https://academiapro.fr" en dur : apres validation
-// du lien, un cabinet arrive par mrcomptable.fr etait renvoye vers
-// academiapro.fr/admin/compliance/..., et toute sa visite se passait sur le
-// domaine d un autre produit. Meme chose pour les messages d erreur, qui
-// ramenaient sur academiapro.fr/connexion.
-//
-// LA REGLE. Le domaine se lit dans l en-tete host. Connu : on y reste.
-// Inconnu (previsualisation Vercel, localhost) : academiapro.fr, comme avant.
-// Le cookie n a volontairement AUCUN attribut domain : il vaut pour le
-// domaine qui sert cette route, et c est exactement ce qu on veut.
+// Le domaine se lit dans l en-tete host. Connu : on y reste. Inconnu
+// (previsualisation Vercel, localhost) : academiapro.fr. Le cookie n a
+// volontairement AUCUN attribut domain : il vaut pour le domaine qui sert
+// cette route.
 const SITE_PAR_DEFAUT = "https://academiapro.fr";
 
 const SITES: Record<string, string> = {
@@ -31,20 +25,8 @@ function siteDe(req: Request): string {
   return SITES[hote] || SITE_PAR_DEFAUT;
 }
 
-// L ADMINISTRATEUR N EST PAS UN CLIENT — 21/08.
-//
-// LE DEFAUT. Jacques teste tous les produits de la maison : son compte
-// figure dans compliance_membres avec un profil de cabinet comptable,
-// laisse la par un essai. A chaque connexion, accueilDuProfil le prenait
-// donc pour un client de Mr. Comptable et le deposait sur le tableau de
-// bord comptable au lieu de l administration.
-//
-// La correction ne touche a rien d autre : le profil reste en base, les
-// essais continuent de fonctionner, seule la porte d entree change.
-//
-// MEME LISTE QUE DANS middleware.ts. Si une adresse est ajoutee ici, elle
-// doit l etre la-bas aussi, sans quoi elle arriverait sur une page a
-// laquelle le middleware lui refuserait l acces.
+// L ADMINISTRATEUR N EST PAS UN CLIENT — 21/08. MEME LISTE QUE DANS
+// middleware.ts : toute adresse ajoutee ici doit l etre la-bas aussi.
 const ADMINS = ["contact@academiapro.fr"];
 
 const supabase = createClient(
@@ -56,8 +38,7 @@ function echec(site: string, motif: string) {
   return NextResponse.redirect(site + "/connexion?erreur=" + encodeURIComponent(motif));
 }
 
-// Chaque profil entre chez lui. Un cabinet comptable doit arriver sur ses
-// DOSSIERS, pas sur le volet de conformite americaine.
+// Chaque profil entre chez lui.
 function accueilDuProfil(email: string, profil: string | null, role: string | null): string {
   if (ADMINS.indexOf(email) >= 0) return "/admin";
   if (role === "stagiaire") return "/dashboard";
@@ -68,9 +49,8 @@ function accueilDuProfil(email: string, profil: string | null, role: string | nu
   return "/dashboard";
 }
 
-// Seuls les chemins RELATIFS sont acceptes. Sans ce controle, un lien forge
-// pourrait renvoyer le signataire vers un site etranger apres l avoir connecte :
-// c est une redirection ouverte, et cela sert au hameconnage.
+// Seuls les chemins RELATIFS sont acceptes : sans ce controle, un lien
+// forge serait une redirection ouverte, utile au hameconnage.
 function destination(brut: string | null): string | null {
   if (!brut) return null;
   let chemin = brut;
@@ -88,17 +68,15 @@ function destination(brut: string | null): string | null {
 // ATTENTION, DEUX PIEGES ICI :
 // 1. ne PAS chercher via /auth/v1/admin/users?email= : ce point d entree ne
 //    filtre pas et ne renvoie que la premiere page ;
-// 2. le parametre de la fonction SQL s appelle p_email, pas email. Un mauvais
-//    nom fait echouer l appel EN SILENCE.
+// 2. 🚨 le parametre de la fonction SQL s appelle email, PAS p_email —
+//    verifie en base le 23/08 : select utilisateur_par_email('...')
+//    fonctionne, la forme p_email echoue EN SILENCE et envoyait tout le
+//    monde sur /dashboard.
 async function organismeDe(email: string): Promise<{ tenantId: string | null; role: string | null; profil: string | null }> {
   const vide = { tenantId: null, role: null, profil: null };
 
   try {
-        // Le parametre s appelle email, PAS p_email — verifie en base le 23/08 :
-    // select utilisateur_par_email('...') fonctionne, la forme p_email echoue
-    // en silence et envoyait tout le monde sur /dashboard.
     const { data: userId } = await supabase.rpc("utilisateur_par_email", { email: email });
-
 
     if (userId) {
       const { data: membre } = await supabase
@@ -185,25 +163,18 @@ export async function GET(req: Request) {
 
     // Une destination explicite reste prioritaire ; sinon chacun rentre chez lui.
     const ou = demande || accueilDuProfil(email, organisme.profil, organisme.role);
+
+    // DIAGNOSTIC TEMPORAIRE 23/08 — a retirer apres resolution.
     const diag = "?diag_profil=" + encodeURIComponent(String(organisme.profil))
       + "&diag_role=" + encodeURIComponent(String(organisme.role))
       + "&diag_tid=" + encodeURIComponent(String(organisme.tenantId).slice(0, 8));
 
-      + "&diag_role=" + encodeURIComponent(String(organisme.role))
-      + "&diag_tid=" + encodeURIComponent(String(organisme.tenantId).slice(0, 8));
-
-
     // CHACUN ATTERRIT SUR SON DOMAINE, quel que soit celui du lien.
-    // L administrateur et les stagiaires vivent sur academiapro.fr ;
-    // les cabinets vivent sur mrcomptable.fr. Sans cette regle, demander
-    // son lien depuis l autre domaine y deposait la session entiere.
     let siteFinal = site;
     if (ADMINS.indexOf(email) >= 0) siteFinal = "https://academiapro.fr";
     else if (organisme.profil === "cabinet_comptable") siteFinal = "https://mrcomptable.fr";
 
     const reponse = NextResponse.redirect(siteFinal + ou + diag);
-
-
     reponse.cookies.set({
       name: NOM_COOKIE_SESSION,
       value: fabriquerJetonSession(email, organisme.tenantId, organisme.role),
