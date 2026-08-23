@@ -6,13 +6,58 @@ import crypto from "crypto";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const SITE = "https://academiapro.fr";
-const EXPEDITEUR = "AcademIA Pro <contact@academiapro.fr>";
+// 🚨 LE LIEN DE CONNEXION RENVOIE SUR LE DOMAINE D OU IL A ETE DEMANDE — 23/08.
+//
+// LE DEFAUT. SITE valait "https://academiapro.fr" en dur. Un cabinet qui
+// demandait son lien depuis mrcomptable.fr recevait un courriel signe
+// AcademIA Pro, cliquait, et atterrissait sur academiapro.fr : le cookie de
+// session etait pose la, et il y restait pour toute sa visite. Le domaine
+// d un AUTRE produit, le jour meme ou le communique LinkedIn invitait les
+// experts-comptables a s inscrire sur mrcomptable.fr.
+//
+// LA REGLE. Le domaine d arrivee est lu dans l en-tete host. S il est connu,
+// le lien y renvoie et le courriel porte la marque du produit. Sinon —
+// adresse de previsualisation Vercel, localhost, hote inattendu — on retombe
+// sur academiapro.fr, comme avant. Un cookie ne traverse pas les domaines :
+// c est ici, et nulle part ailleurs, que se decide celui qui le recevra.
+const SITE_PAR_DEFAUT = "https://academiapro.fr";
+
+const MARQUES: Record<string, { site: string; nom: string; expediteur: string; espace: string }> = {
+  "academiapro.fr": {
+    site: "https://academiapro.fr",
+    nom: "AcadéMIA Pro",
+    expediteur: "AcadéMIA Pro <contact@academiapro.fr>",
+    espace: "votre espace de formation",
+  },
+  "www.academiapro.fr": {
+    site: "https://academiapro.fr",
+    nom: "AcadéMIA Pro",
+    expediteur: "AcadéMIA Pro <contact@academiapro.fr>",
+    espace: "votre espace de formation",
+  },
+  "mrcomptable.fr": {
+    site: "https://mrcomptable.fr",
+    nom: "Mr. Comptable",
+    expediteur: "Mr. Comptable <contact@espaces-formations.fr>",
+    espace: "votre espace de travail",
+  },
+  "www.mrcomptable.fr": {
+    site: "https://mrcomptable.fr",
+    nom: "Mr. Comptable",
+    expediteur: "Mr. Comptable <contact@espaces-formations.fr>",
+    espace: "votre espace de travail",
+  },
+};
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
   process.env.SUPABASE_SERVICE_ROLE_KEY || ""
 );
+
+function marqueDe(req: Request) {
+  const hote = (req.headers.get("host") || "").split(":")[0].toLowerCase();
+  return MARQUES[hote] || MARQUES["academiapro.fr"];
+}
 
 export async function POST(req: Request) {
   try {
@@ -31,6 +76,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: "Adresse email invalide" }, { status: 400 });
     }
 
+    const marque = marqueDe(req);
+    const site = marque.site || SITE_PAR_DEFAUT;
+
     await supabase
       .from("liens_magiques")
       .update({ utilise: true })
@@ -48,27 +96,27 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: erreurInsert.message }, { status: 500 });
     }
 
-    const lien = SITE + "/api/auth/valider?jeton=" + encodeURIComponent(jeton);
+    const lien = site + "/api/auth/valider?jeton=" + encodeURIComponent(jeton);
 
     const resend = new Resend(cle);
     const envoi = await resend.emails.send({
-      from: EXPEDITEUR,
+      from: marque.expediteur,
       to: email,
-      subject: "Votre lien de connexion AcademIA Pro",
+      subject: "Votre lien de connexion " + marque.nom,
       html:
         '<div style="font-family:Georgia,serif;background:#050508;color:#fff;padding:40px 20px">' +
         '<div style="max-width:520px;margin:0 auto;background:rgba(255,255,255,0.03);' +
         'border:1px solid rgba(200,169,110,0.3);border-radius:16px;padding:32px">' +
-        '<h1 style="color:#c8a96e;font-size:22px;margin:0 0 18px">Votre connexion a AcademIA Pro</h1>' +
+        '<h1 style="color:#c8a96e;font-size:22px;margin:0 0 18px">Votre connexion à ' + marque.nom + "</h1>" +
         '<p style="color:rgba(255,255,255,0.75);line-height:1.7;margin:0 0 24px">' +
-        "Cliquez sur le bouton ci-dessous pour acceder a votre espace de formation. " +
-        "Ce lien est valable 20 minutes et ne peut servir qu une seule fois.</p>" +
+        "Cliquez sur le bouton ci-dessous pour accéder à " + marque.espace + ". " +
+        "Ce lien est valable 20 minutes et ne peut servir qu'une seule fois.</p>" +
         '<p style="text-align:center;margin:0 0 24px">' +
         '<a href="' + lien + '" style="display:inline-block;background:#c8a96e;color:#050508;' +
         'padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:bold">Me connecter</a></p>' +
         '<p style="color:rgba(255,255,255,0.35);font-size:12px;line-height:1.6;margin:0">' +
-        "Si vous n avez pas demande cette connexion, ignorez simplement cet email : " +
-        "personne ne peut acceder a votre espace sans ce lien.</p>" +
+        "Si vous n'avez pas demandé cette connexion, ignorez simplement ce courriel : " +
+        "personne ne peut accéder à votre espace sans ce lien.</p>" +
         "</div></div>",
     });
 
