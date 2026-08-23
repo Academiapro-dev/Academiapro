@@ -9,11 +9,14 @@ export const metadata = {
 const OR = "#c8a96e";
 const NOIR = "#050508";
 
-// LE MENU DES FONCTIONNALITES VIT SUR LES SIX PAGES, PAS SEULEMENT SUR
+// LE MENU DES FONCTIONNALITES VIT SUR CHAQUE PAGE, PAS SEULEMENT SUR
 // L ACCUEIL. Sans lui, un lecteur arrive sur une fonctionnalite et ne peut
 // plus passer a la suivante sans revenir en arriere : c est la moitie du
 // benefice de ces pages qui se perd, pour le visiteur comme pour le
 // maillage interne que Google suit.
+//
+// 🚨 MEME LISTE SUR TOUTES LES PAGES DE app/comptable. Une entree ajoutee
+// ici doit l etre partout, sinon la page nouvelle reste introuvable.
 const FONCTIONS = [
   { nom: "Facture électronique", href: "/comptable/facture-electronique" },
   { nom: "Rapprochement bancaire", href: "/comptable/rapprochement-bancaire" },
@@ -21,6 +24,9 @@ const FONCTIONS = [
   { nom: "Tenue et révision", href: "/comptable/tenue" },
   { nom: "Déclarations et liasse", href: "/comptable/declarations" },
   { nom: "Relance des justificatifs", href: "/comptable/relance-justificatifs" },
+  { nom: "CRM et relances", href: "/comptable/crm" },
+  { nom: "Facturation récurrente", href: "/comptable/facturation-recurrente" },
+  { nom: "Prévisionnel de trésorerie", href: "/comptable/tresorerie" },
 ];
 
 // NE JAMAIS NOMMER LE PRESTATAIRE. Mr. Comptable est une solution
