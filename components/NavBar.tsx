@@ -66,6 +66,7 @@ const PAGES_PUBLIQUES_COMPTABLE = [
   "/declarations",
   "/relance-justificatifs",
   "/crm",
+  "/facturation",
   "/facturation-recurrente",
   "/tresorerie",
   "/blog",
