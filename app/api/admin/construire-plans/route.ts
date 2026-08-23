@@ -25,6 +25,39 @@ function estParcoursLong(duree: any): boolean {
   return d.indexOf("400h") >= 0 || d.indexOf("600h") >= 0;
 }
 
+// 🚨 LECON DU 24/08 — LA LISTE DU BUCKET SE COUPE EN SILENCE.
+// L ancienne version lisait le bucket avec limit 1000 en une seule fois.
+// La racine contenait 1027 objets : F949_support_cours.html etait le
+// 1001e par ordre alphabetique. Son support EXISTAIT, mais la route ne
+// le voyait pas, ne le declarait pas eligible, et repondait « 0 traite »
+// sans la moindre erreur. Deux heures perdues a chercher un defaut de
+// fiche qui n existait pas.
+// REGLE : ne jamais faire confiance a un list() unique. On pagine
+// jusqu a ce qu un lot revienne plus court que la page demandee.
+async function listerTousLesSupports(): Promise<Set<string>> {
+  const noms = new Set<string>();
+  const PAGE = 1000;
+  let debut = 0;
+
+  for (let tour = 0; tour < 50; tour++) {
+    const { data, error } = await supabase.storage
+      .from(BUCKET)
+      .list("", {
+        limit: PAGE,
+        offset: debut,
+        sortBy: { column: "name", order: "asc" },
+      });
+
+    if (error) break;
+    const lot = data || [];
+    for (const f of lot) noms.add(f.name);
+    if (lot.length < PAGE) break;
+    debut = debut + PAGE;
+  }
+
+  return noms;
+}
+
 function reparerAccents(s: string): string {
   let t = String(s || "");
   t = t.replace(/([A-Za-z])\u00CC([\u0080-\u00BF])/g, function (tout, lettre, marque) {
@@ -59,10 +92,7 @@ export async function GET(req: Request) {
       return NextResponse.json({ ok: false, erreur: "reserve a l administrateur" }, { status: 403 });
     }
 
-    const { data: fichiers } = await supabase.storage
-      .from(BUCKET)
-      .list("", { limit: 1000, sortBy: { column: "name", order: "asc" } });
-    const supports = new Set((fichiers || []).map((f) => f.name));
+    const supports = await listerTousLesSupports();
 
     const { data: formations } = await supabase
       .from("formations")
@@ -110,6 +140,8 @@ export async function GET(req: Request) {
         termine: true,
         restants: 0,
         deja_faites: dejaFaites,
+        objets_bucket: supports.size,
+        eligibles: eligibles.length,
         parcours_longs_a_concevoir_a_la_main:
           parcoursLongsSautes.length > 0 ? parcoursLongsSautes : null,
       });
@@ -188,6 +220,7 @@ export async function GET(req: Request) {
       titre: titreFiche,
       nb_modules: lignes.length,
       restants: restants,
+      objets_bucket: supports.size,
       parcours_longs_a_concevoir_a_la_main:
         parcoursLongsSautes.length > 0 ? parcoursLongsSautes : null,
     });
