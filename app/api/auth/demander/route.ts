@@ -11,15 +11,16 @@ export const dynamic = "force-dynamic";
 // LE DEFAUT. SITE valait "https://academiapro.fr" en dur. Un cabinet qui
 // demandait son lien depuis mrcomptable.fr recevait un courriel signe
 // AcademIA Pro, cliquait, et atterrissait sur academiapro.fr : le cookie de
-// session etait pose la, et il y restait pour toute sa visite. Le domaine
-// d un AUTRE produit, le jour meme ou le communique LinkedIn invitait les
-// experts-comptables a s inscrire sur mrcomptable.fr.
+// session etait pose la, et il y restait pour toute sa visite.
 //
 // LA REGLE. Le domaine d arrivee est lu dans l en-tete host. S il est connu,
 // le lien y renvoie et le courriel porte la marque du produit. Sinon —
-// adresse de previsualisation Vercel, localhost, hote inattendu — on retombe
-// sur academiapro.fr, comme avant. Un cookie ne traverse pas les domaines :
-// c est ici, et nulle part ailleurs, que se decide celui qui le recevra.
+// previsualisation Vercel, localhost — academiapro.fr, comme avant.
+//
+// DOCTRINE D ENVOI — 23/08 : le transactionnel (liens de connexion, acces
+// clients, relances) part du DOMAINE PRINCIPAL de chaque marque, verifie
+// chez Resend. La prospection part des sous-domaines contact-pro.* pour
+// proteger la reputation des domaines principaux.
 const SITE_PAR_DEFAUT = "https://academiapro.fr";
 
 const MARQUES: Record<string, { site: string; nom: string; expediteur: string; espace: string }> = {
@@ -38,13 +39,13 @@ const MARQUES: Record<string, { site: string; nom: string; expediteur: string; e
   "mrcomptable.fr": {
     site: "https://mrcomptable.fr",
     nom: "Mr. Comptable",
-    expediteur: "Mr. Comptable <contact@espaces-formations.fr>",
+    expediteur: "Mr. Comptable <contact@mrcomptable.fr>",
     espace: "votre espace de travail",
   },
   "www.mrcomptable.fr": {
     site: "https://mrcomptable.fr",
     nom: "Mr. Comptable",
-    expediteur: "Mr. Comptable <contact@espaces-formations.fr>",
+    expediteur: "Mr. Comptable <contact@mrcomptable.fr>",
     espace: "votre espace de travail",
   },
 };
