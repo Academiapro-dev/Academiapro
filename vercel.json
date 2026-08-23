@@ -25,6 +25,10 @@
       "schedule": "0 6 * * *"
     },
     {
+      "path": "/api/cron/facturation-recurrente",
+      "schedule": "30 6 * * *"
+    },
+    {
       "path": "/api/cron/verifier-achat",
       "schedule": "30 7 * * *"
     },
