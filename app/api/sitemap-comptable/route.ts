@@ -20,12 +20,13 @@ export const dynamic = "force-dynamic";
 // sous mrcomptable.fr/inscription : declarer les deux formes creerait du
 // contenu duplique. On ne declare que la forme visible par le visiteur.
 //
-// LES SIX PAGES DE FONCTIONNALITE, ajoutees le 14 aout, sont la raison
-// d etre de ce sitemap. Une ancre sur la page d accueil se positionne comme
-// la page d accueil ; une page qui ne parle que de rapprochement bancaire se
-// positionne sur « rapprochement bancaire ». Encore faut-il que Google la
-// trouve : une page absente du sitemap sur un domaine neuf peut attendre des
-// mois avant d etre visitee.
+// LES PAGES DE FONCTIONNALITE sont la raison d etre de ce sitemap. Une ancre
+// sur la page d accueil se positionne comme la page d accueil ; une page qui
+// ne parle que de rapprochement bancaire se positionne sur « rapprochement
+// bancaire ». Encore faut-il que Google la trouve : une page absente du
+// sitemap sur un domaine neuf peut attendre des mois avant d etre visitee.
+// Six pages le 14 aout, trois de plus le 23 aout (CRM, facturation
+// recurrente, tresorerie).
 //
 // L espace de travail — /admin/compliance — n y figure PAS : il est derriere
 // une session, et une page que Google ne peut pas atteindre n a rien a faire
@@ -42,6 +43,9 @@ const PAGES = [
   { chemin: "/tenue", priorite: "0.9" },
   { chemin: "/declarations", priorite: "0.9" },
   { chemin: "/relance-justificatifs", priorite: "0.9" },
+  { chemin: "/crm", priorite: "0.9" },
+  { chemin: "/facturation-recurrente", priorite: "0.9" },
+  { chemin: "/tresorerie", priorite: "0.9" },
 
   { chemin: "/blog", priorite: "0.8" },
   { chemin: "/contact", priorite: "0.7" },
