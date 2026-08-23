@@ -5,7 +5,17 @@ export const metadata = {
   title: "Mr. Comptable — Logiciel de comptabilité pour cabinets",
   description:
     "Tenue, déclarations, liasse fiscale et lecture des factures électroniques. Sans engagement.",
+  openGraph: {
+    title: "Mr. Comptable — Logiciel de comptabilité pour cabinets",
+    description:
+      "Tenue, déclarations, liasse fiscale, relance des justificatifs et des honoraires. Sans engagement.",
+    url: "https://mrcomptable.fr",
+    siteName: "Mr. Comptable",
+    locale: "fr_FR",
+    type: "website",
+  },
 };
+
 
 const OR = "#c8a96e";
 const NOIR = "#050508";
