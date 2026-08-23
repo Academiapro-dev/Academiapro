@@ -21,6 +21,10 @@
       "schedule": "0 5 * * *"
     },
     {
+      "path": "/api/cron/synchro-bancaire",
+      "schedule": "0 6 * * *"
+    },
+    {
       "path": "/api/cron/verifier-achat",
       "schedule": "30 7 * * *"
     },
