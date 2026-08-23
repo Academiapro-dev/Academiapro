@@ -148,7 +148,8 @@ export default function NavBar() {
   };
 
   // ---- Espace de travail comptable ---------------------------------------
-  if (estComptable(chemin) || surMrComptable) {
+    if (estComptable(chemin) || (surMrComptable && chemin === "/connexion")) {
+
     const dansArgent = ARGENT.some(function (a) {
       return chemin === a.href || chemin.indexOf(a.href + "/") === 0;
     });
