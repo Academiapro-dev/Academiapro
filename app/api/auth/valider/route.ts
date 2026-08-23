@@ -184,7 +184,10 @@ export async function GET(req: Request) {
     const organisme = await organismeDe(email);
 
     // Une destination explicite reste prioritaire ; sinon chacun rentre chez lui.
-        const ou = demande || accueilDuProfil(email, organisme.profil, organisme.role);
+            const diag = "?diag_profil=" + encodeURIComponent(String(organisme.profil))
+      + "&diag_role=" + encodeURIComponent(String(organisme.role))
+      + "&diag_tid=" + encodeURIComponent(String(organisme.tenantId).slice(0, 8));
+
 
     // CHACUN ATTERRIT SUR SON DOMAINE, quel que soit celui du lien.
     // L administrateur et les stagiaires vivent sur academiapro.fr ;
