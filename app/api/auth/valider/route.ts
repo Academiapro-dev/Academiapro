@@ -68,15 +68,16 @@ function destination(brut: string | null): string | null {
 // ATTENTION, DEUX PIEGES ICI :
 // 1. ne PAS chercher via /auth/v1/admin/users?email= : ce point d entree ne
 //    filtre pas et ne renvoie que la premiere page ;
-// 2. 🚨 le parametre de la fonction SQL s appelle email, PAS p_email —
-//    verifie en base le 23/08 : select utilisateur_par_email('...')
-//    fonctionne, la forme p_email echoue EN SILENCE et envoyait tout le
-//    monde sur /dashboard.
+// 2. 🚨 le parametre de la fonction SQL s appelle p_email — verifie dans
+//    pg_proc le 23/08 (pg_get_function_identity_arguments : p_email text).
+//    L API REST exige le nom exact. Le SQL Editor accepte l appel
+//    positionnel sans nom et ne prouve RIEN : c est ce piege qui a fait
+//    perdre une heure ce matin en faisant croire que le nom etait email.
 async function organismeDe(email: string): Promise<{ tenantId: string | null; role: string | null; profil: string | null }> {
   const vide = { tenantId: null, role: null, profil: null };
 
   try {
-    const { data: userId } = await supabase.rpc("utilisateur_par_email", { email: email });
+    const { data: userId } = await supabase.rpc("utilisateur_par_email", { p_email: email });
 
     if (userId) {
       const { data: membre } = await supabase
