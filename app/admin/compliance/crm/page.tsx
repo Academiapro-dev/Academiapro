@@ -3,19 +3,20 @@ import { useState, useEffect, useRef } from "react";
 
 // LE CRM DU CABINET — meme architecture que /admin/crm, autre metier.
 //
-// Le CRM de l editeur travaille des PROSPECTS : des gens a convaincre.
-// Celui-ci travaille des CLIENTS DEJA SIGNES : des gens a relancer.
+// 🚨 IL SERT AU CABINET POUR GERER SES CLIENTS. Tout ce qu on y depose
+// appartient donc au CLIENT dont on tient la comptabilite : ses factures,
+// ses justificatifs, ses ventes, les notes de frais de son dirigeant.
+//
+// ⚠️ CE QUI N Y EST PAS, ET POURQUOI :
+//   - LA NOTE D HONORAIRES DU CABINET s emet depuis « Devis et factures ».
+//     Le cabinet la CREE, il ne la depose pas.
+//   - LES NOTES DE FRAIS DU CABINET LUI-MEME (son essence, ses repas) vont
+//     dans sa propre comptabilite, pas dans le dossier d un client.
 //
 // 🚨 TOUT SE FAIT ICI, SANS CHANGER D ECRAN — exigence de Jacques, 23/08 :
 // « si le logiciel n est pas simple a utiliser, on n aura pas de client ».
 // Le collaborateur relance, le client repond, il depose la piece, elle se
 // lit, elle se comptabilise. Quatre gestes, une seule page.
-//
-// 🚨 DEUX SOURCES D IMPAYES SE REJOIGNENT ICI :
-//   - ceux des CLIENTS DU CLIENT, lus dans le compte 411 de sa comptabilite ;
-//   - ceux DU CABINET LUI-MEME, lus dans son module de facturation.
-// Le second est celui qu un cabinet oublie le plus de reclamer, parce qu il
-// passe ses journees sur les dossiers des autres.
 
 const FILTRES = [
   { cle: "", nom: "Tous" },
@@ -28,40 +29,47 @@ const FILTRES = [
   { cle: "avec_sms", nom: "SMS accepte" },
 ];
 
-// LES PIECES QU ON DEPOSE, ET CE QU ELLES DEVIENNENT EN COMPTABILITE.
+// LES QUATRE PIECES DU CLIENT, ET CE QU ELLES DEVIENNENT EN COMPTABILITE.
 //
-// ⚠️ LE SENS DE L ECRITURE CHANGE AVEC LA PIECE, et les confondre fausse
-// les comptes de tiers :
-//   - un ACHAT credite le fournisseur (401)
-//   - une NOTE DE FRAIS credite le salarie (425)
-//   - une VENTE debite le client (411) et credite le produit (70)
-//   - une NOTE D HONORAIRES du cabinet est une charge du client (6226)
+// UN RAPPROCHEMENT BANCAIRE PORTE SUR LES DEUX SENS : ce qui sort et ce qui
+// entre. Chaque mouvement du releve doit trouver sa piece.
+//
+//   SORTIES : une facture d achat a payer, ou un justificatif de depense
+//             quand il n y a pas de facture formelle — recu, ticket,
+//             quittance. Contrepartie : le fournisseur, compte 401.
+//   ENTREES : une facture de vente. Elle debite le client (411) et credite
+//             le produit (70).
+//   LE CAS PARTICULIER : la note de frais du dirigeant, avancee de sa
+//             poche. La societe LUI doit l argent : contrepartie 425, pas
+//             401. Les confondre fausse les comptes de tiers.
 const PIECES = [
   {
     cle: "facture_achat",
     nom: "Facture d'achat",
     sens: "achat",
     tiers: "401000",
-    aide: "Ce que le client a acheté. Le compte de charge est proposé d'après "
-      + "l'historique de ce fournisseur.",
+    aide: "Une facture reçue par votre client et payée par sa société. "
+      + "Le compte de charge est proposé d'après l'historique de ce fournisseur.",
   },
   {
-    cle: "note_frais",
-    nom: "Note de frais",
+    cle: "justificatif_depense",
+    nom: "Justificatif de dépense",
+    sens: "achat",
+    tiers: "401000",
+    ventilable: true,
+    aide: "Le document qui explique une SORTIE du relevé bancaire quand il n'y a "
+      + "pas de facture formelle : reçu, ticket, quittance. Sans lui, le mouvement "
+      + "reste sans justificatif et le rapprochement ne tombe pas juste.",
+  },
+  {
+    cle: "note_frais_client",
+    nom: "Note de frais du client",
     sens: "achat",
     tiers: "425000",
     ventilable: true,
-    aide: "Émise par le client pour justifier une dépense payée de sa poche ou "
-      + "par la carte de la société. Sans elle, le mouvement bancaire reste "
-      + "sans justificatif et le rapprochement ne tombe pas juste.",
-  },
-  {
-    cle: "honoraires_cabinet",
-    nom: "Note d'honoraires du cabinet",
-    sens: "achat",
-    tiers: "401000",
-    compte: "622600",
-    aide: "Vos propres honoraires, comptabilisés chez votre client en 622600.",
+    aide: "Une dépense avancée par le dirigeant ou un salarié, de sa poche. "
+      + "La société lui doit le remboursement : la contrepartie est son compte "
+      + "personnel, pas un fournisseur.",
   },
   {
     cle: "facture_vente",
@@ -69,23 +77,17 @@ const PIECES = [
     sens: "vente",
     tiers: "411000",
     ventilable: true,
-    aide: "Ce que le client a facturé. Elle débite son compte client et crédite "
-      + "le produit.",
-  },
-  {
-    cle: "justificatif_bancaire",
-    nom: "Justificatif bancaire",
-    sens: "achat",
-    tiers: "401000",
-    aide: "Le document qui explique une opération du relevé : facture, reçu, "
-      + "quittance. C'est lui qui bouche le trou du rapprochement.",
+    aide: "Ce que votre client a facturé. Elle explique une ENTRÉE du relevé : "
+      + "elle débite son compte client et crédite le produit.",
   },
 ];
 
-// LA VENTILATION D UNE NOTE DE FRAIS.
+// LA VENTILATION D UNE DEPENSE.
 //
 // Un comptable ne met pas un repas et un billet de train sur le meme compte.
-const POSTES_FRAIS = [
+// Les mettre tous en 606300 « fournitures diverses » se verrait au premier
+// coup d oeil, et un comptable qui voit ca ferme le logiciel.
+const POSTES_DEPENSE = [
   { compte: "625100", nom: "Voyages et déplacements" },
   { compte: "625600", nom: "Missions" },
   { compte: "625700", nom: "Réceptions et repas" },
@@ -94,6 +96,8 @@ const POSTES_FRAIS = [
   { compte: "613200", nom: "Locations (hôtel, salle)" },
   { compte: "626000", nom: "Téléphone et internet" },
   { compte: "627000", nom: "Frais bancaires" },
+  { compte: "622600", nom: "Honoraires" },
+  { compte: "606300", nom: "Autres fournitures" },
 ];
 
 const POSTES_VENTE = [
@@ -192,9 +196,8 @@ export default function CRMCabinet() {
         if (lu.ok) {
           setLecture({ ...lu, piece: data.piece, societe: cible });
           const p = pieceCourante();
-          if (p.compte) setCompteChoisi(p.compte);
-          else if (p.sens === "vente") setCompteChoisi("706000");
-          else if (p.cle === "note_frais") setCompteChoisi(comptePourFrais(lu.lu.nature));
+          if (p.sens === "vente") setCompteChoisi("706000");
+          else if (p.ventilable) setCompteChoisi(comptePourDepense(lu.lu.nature));
           else setCompteChoisi(lu.proposition.compte);
           setMessage(lu.message);
         } else {
@@ -211,7 +214,10 @@ export default function CRMCabinet() {
     setOccupe("");
   }
 
-  function comptePourFrais(nature: any): string {
+  // La nature lue oriente le poste : « restauration » va en 625700,
+  // « transport » en 625100. C est un point de depart, pas une decision —
+  // le collaborateur voit le compte et le change s il le faut.
+  function comptePourDepense(nature: any): string {
     const n = String(nature || "").toLowerCase();
     if (n.indexOf("restaur") >= 0) return "625700";
     if (n.indexOf("transport") >= 0 || n.indexOf("voyage") >= 0) return "625100";
@@ -220,7 +226,8 @@ export default function CRMCabinet() {
     if (n.indexOf("telecom") >= 0) return "626000";
     if (n.indexOf("loyer") >= 0 || n.indexOf("location") >= 0) return "613200";
     if (n.indexOf("banque") >= 0) return "627000";
-    return "625600";
+    if (n.indexOf("honoraire") >= 0) return "622600";
+    return "606300";
   }
 
   async function comptabiliser() {
@@ -257,7 +264,7 @@ export default function CRMCabinet() {
           piece_ref: l.reference || lecture.piece.nom,
           libelle: (l.fournisseur || lecture.piece.nom)
             + (l.reference ? " - " + l.reference : "")
-            + (p.cle === "note_frais" ? " (note de frais)" : ""),
+            + (p.cle === "note_frais_client" ? " (note de frais)" : ""),
           lignes: lignes,
         }),
       });
@@ -474,8 +481,7 @@ export default function CRMCabinet() {
   }
 
   const p = pieceCourante();
-  const postes = p.cle === "note_frais" ? POSTES_FRAIS
-    : p.sens === "vente" ? POSTES_VENTE : null;
+  const postes = p.sens === "vente" ? POSTES_VENTE : (p.ventilable ? POSTES_DEPENSE : null);
 
   return (
     <div style={{ backgroundColor: "#050508", minHeight: "100vh", color: "#fff", fontFamily: "Georgia, serif" }}>
@@ -500,7 +506,7 @@ export default function CRMCabinet() {
             </a>
             <h1 style={{ color: OR, margin: "12px 0 0", fontSize: "24px" }}>🎯 CRM du cabinet</h1>
             <p style={{ color: "rgba(255,255,255,0.5)", margin: "5px 0 0", fontSize: "13px" }}>
-              Mes clients · leurs contacts · mes relances · mes pièces
+              Mes clients · leurs contacts · mes relances · leurs pièces
             </p>
           </div>
           {c && c.mes_factures > 0 && (
@@ -803,7 +809,6 @@ export default function CRMCabinet() {
                       </div>
                     </div>
 
-                    {/* LE DETAIL DE CE QU IL DOIT, facture par facture. */}
                     {doit && (
                       <div style={{ marginTop: "12px", padding: "11px 13px", background: "rgba(232,131,106,0.08)", border: "1px solid rgba(232,131,106,0.3)", borderRadius: "8px" }}>
                         <div style={{ color: ROUGE, fontSize: "11.5px", letterSpacing: "1.5px", marginBottom: "7px" }}>
@@ -1023,7 +1028,7 @@ export default function CRMCabinet() {
                 {postes ? (
                   <>
                     <label style={{ color: OR, fontSize: "12px", display: "block", marginBottom: "8px" }}>
-                      {p.cle === "note_frais" ? "Quel poste de frais ?" : "Quelle nature de vente ?"}
+                      {p.sens === "vente" ? "Quelle nature de vente ?" : "Quel poste de charge ?"}
                     </label>
                     <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "16px" }}>
                       {postes.map(function (o) {
@@ -1057,9 +1062,9 @@ export default function CRMCabinet() {
 
                 <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "12px", lineHeight: "1.7", margin: "0 0 16px" }}>
                   Contrepartie : {p.tiers}
-                  {p.cle === "note_frais" ? " — compte du personnel, à rembourser" : ""}
+                  {p.cle === "note_frais_client" ? " — compte du dirigeant, à rembourser" : ""}
                   {p.sens === "vente" ? " — compte client, à encaisser" : ""}
-                  {p.cle === "facture_achat" || p.cle === "justificatif_bancaire" || p.cle === "honoraires_cabinet"
+                  {p.cle === "facture_achat" || p.cle === "justificatif_depense"
                     ? " — compte fournisseur" : ""}
                 </p>
               </>
