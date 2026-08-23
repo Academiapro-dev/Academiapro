@@ -23,9 +23,11 @@ const FONCTIONS = [
   { nom: "Déclarations et liasse", href: "/comptable/declarations" },
   { nom: "Relance des justificatifs", href: "/comptable/relance-justificatifs" },
   { nom: "CRM et relances", href: "/comptable/crm" },
+  { nom: "Devis et factures", href: "/comptable/facturation" },
   { nom: "Facturation récurrente", href: "/comptable/facturation-recurrente" },
   { nom: "Prévisionnel de trésorerie", href: "/comptable/tresorerie" },
 ];
+
 
 // CE QUI EST ECRIT ICI EST EPROUVE, rien d autre. Le depot de pieces a ete
 // refait le 13 aout : lecture enchainee au depot, formulaire sans exemples
