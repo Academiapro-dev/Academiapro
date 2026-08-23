@@ -10,7 +10,12 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || ""
 );
 
-const EXPEDITEUR = "Mr. Comptable <contact@academiapro.fr>";
+// 🚨 L EXPEDITEUR EST MR. COMPTABLE, PAS ACADEMIA — 23/08. Ces relances
+// partent au nom d un cabinet vers SES clients : la marque formation n a
+// rien a y faire. espaces-formations.fr est le domaine d envoi neutre,
+// verifie chez Resend, deja eprouve par auth/demander. Le reply_to reste
+// le courriel du cabinet : les reponses des clients vont chez lui.
+const EXPEDITEUR = "Mr. Comptable <contact@espaces-formations.fr>";
 
 // ---------------------------------------------------------------------------
 // LA RELANCE AUTOMATIQUE — ce que le collaborateur ne fera jamais a temps.
@@ -30,6 +35,11 @@ const EXPEDITEUR = "Mr. Comptable <contact@academiapro.fr>";
 //   3. LE CABINET DOIT L AVOIR ARME. Le silence ne vaut pas consentement :
 //      une relance part au nom du cabinet, a SON client, et engage sa
 //      relation commerciale.
+//
+// 🚨 LEÇON DU 23/08 : une requete qui REUSSIT avec zero ligne alors que la
+// base en contient, sur une table en RLS, signifie que la cle service_role
+// de Vercel est fausse ou tronquee. Verifier la variable AVANT de chercher
+// ailleurs — deux heures perdues a explorer d autres pistes.
 // ---------------------------------------------------------------------------
 
 const JOURS_ENTRE_DEUX = 10;
