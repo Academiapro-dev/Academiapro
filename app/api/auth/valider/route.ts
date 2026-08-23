@@ -180,9 +180,18 @@ export async function GET(req: Request) {
     const organisme = await organismeDe(email);
 
     // Une destination explicite reste prioritaire ; sinon chacun rentre chez lui.
-    const ou = demande || accueilDuProfil(email, organisme.profil, organisme.role);
+        const ou = demande || accueilDuProfil(email, organisme.profil, organisme.role);
 
-    const reponse = NextResponse.redirect(site + ou);
+    // CHACUN ATTERRIT SUR SON DOMAINE, quel que soit celui du lien.
+    // L administrateur et les stagiaires vivent sur academiapro.fr ;
+    // les cabinets vivent sur mrcomptable.fr. Sans cette regle, demander
+    // son lien depuis l autre domaine y deposait la session entiere.
+    let siteFinal = site;
+    if (ADMINS.indexOf(email) >= 0) siteFinal = "https://academiapro.fr";
+    else if (organisme.profil === "cabinet_comptable") siteFinal = "https://mrcomptable.fr";
+
+    const reponse = NextResponse.redirect(siteFinal + ou);
+
     reponse.cookies.set({
       name: NOM_COOKIE_SESSION,
       value: fabriquerJetonSession(email, organisme.tenantId, organisme.role),
