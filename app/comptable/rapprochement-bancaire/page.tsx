@@ -23,9 +23,11 @@ const FONCTIONS = [
   { nom: "Déclarations et liasse", href: "/comptable/declarations" },
   { nom: "Relance des justificatifs", href: "/comptable/relance-justificatifs" },
   { nom: "CRM et relances", href: "/comptable/crm" },
+  { nom: "Devis et factures", href: "/comptable/facturation" },
   { nom: "Facturation récurrente", href: "/comptable/facturation-recurrente" },
   { nom: "Prévisionnel de trésorerie", href: "/comptable/tresorerie" },
 ];
+
 
 // NE JAMAIS NOMMER LE PRESTATAIRE de connexion bancaire sur une page
 // publique : la relation peut changer, la page resterait.
