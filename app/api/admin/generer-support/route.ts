@@ -21,12 +21,60 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || ""
 );
 
+// 🚨 UN list() DE BUCKET SE COUPE A 1000 OBJETS, EN SILENCE — corrige le 24/08.
+//
+// La racine de formations-pdf depasse ce seuil. Un appel unique rend les
+// 1000 PREMIERS par ordre alphabetique et rien d'autre : aucune erreur,
+// aucun avertissement. Ce sont donc les codes les plus RECENTS qui
+// disparaissent, puisqu'ils sont en fin d'alphabet.
+//
+// ICI LE DEFAUT COUTE DE L'ARGENT. Le Set des fichiers existants sert a
+// decider quelles formations ont deja un support : un objet non lu est vu
+// comme ABSENT. La formation est alors reproposee et regeneree pour rien
+// (~2,50 $), et le garde-fou « deja: true » ne se declenche plus.
+//
+// REGLE : paginer avec offset jusqu'a ce qu'un lot revienne plus court que
+// la page demandee, et renvoyer le nombre d'objets lus pour que toute
+// coupure future se voie dans la reponse.
+const PAGE = 1000;
+
+async function listerTousLesObjets(): Promise<{ noms: string[]; lus: number }> {
+  const noms: string[] = [];
+  let offset = 0;
+
+  for (;;) {
+    const { data, error } = await supabase.storage
+      .from(BUCKET)
+      .list("", {
+        limit: PAGE,
+        offset: offset,
+        sortBy: { column: "name", order: "asc" },
+      });
+
+    if (error) throw new Error(error.message);
+
+    const lot = data || [];
+    for (const f of lot) noms.push(f.name);
+
+    // Un lot plus court que la page demandee signifie la fin reelle.
+    if (lot.length < PAGE) break;
+
+    offset += PAGE;
+
+    // Garde-fou : au-dela de 50 000 objets, on arrete plutot que de boucler.
+    if (offset > 50000) break;
+  }
+
+  return { noms: noms, lus: noms.length };
+}
+
 // 🚨🚨🚨 LES TERMES INTERDITS — ajoutes le 18/08.
 //
-// POURQUOI CE BLOC EXISTE. Les 331 formations du catalogue ont ete
-// nettoyees a la main de toute mention risquee. Les 669 formations a venir
-// ne doivent pas reintroduire le probleme : la regle est donc posee ICI,
-// dans le generateur, plutot que d'etre verifiee formation par formation.
+// POURQUOI CE BLOC EXISTE. Les formations du catalogue ont ete nettoyees a
+// la main de toute mention risquee. Le catalogue compte aujourd'hui 560
+// formations actives, et celles qui s'y ajouteront ne doivent pas
+// reintroduire le probleme : la regle est donc posee ICI, dans le
+// generateur, plutot que d'etre verifiee formation par formation.
 //
 // Ses mots le 18/08 : « les formations ne doivent en aucun cas employer des
 // mots ou des termes qui pourraient nous creer des problemes de propriete
@@ -222,10 +270,22 @@ export async function GET(req: Request) {
     // FORCE : ecrase le support existant au lieu de le refuser.
     const force = url.searchParams.get("force") === "1";
 
-    const { data: fichiers } = await supabase.storage
-      .from(BUCKET)
-      .list("", { limit: 1000, sortBy: { column: "name", order: "asc" } });
-    const existants = new Set((fichiers || []).map((f) => f.name));
+    // 🚨 LECTURE PAGINEE DU BUCKET. Un appel unique se coupait a 1000 objets
+    // et faisait passer les supports les plus recents pour inexistants.
+    let objetsLus = 0;
+    let nomsBucket: string[] = [];
+    try {
+      const inventaire = await listerTousLesObjets();
+      nomsBucket = inventaire.noms;
+      objetsLus = inventaire.lus;
+    } catch (e: any) {
+      return NextResponse.json(
+        { ok: false, erreur: String(e && e.message ? e.message : e) },
+        { status: 500 }
+      );
+    }
+
+    const existants = new Set(nomsBucket);
 
     // LA FICHE FAIT FOI QUAND ELLE EST RENSEIGNEE.
     const { data: formations } = await supabase
@@ -244,11 +304,23 @@ export async function GET(req: Request) {
       : candidates[0];
 
     if (!fiche) {
-      return NextResponse.json({ ok: true, termine: true, restants: 0, message: "aucune formation sans support" });
+      return NextResponse.json({
+        ok: true,
+        termine: true,
+        restants: 0,
+        objets_lus_dans_le_bucket: objetsLus,
+        message: "aucune formation sans support",
+      });
     }
 
     if (!force && existants.has(fiche.code + "_support_cours.html")) {
-      return NextResponse.json({ ok: true, code: fiche.code, deja: true, restants: candidates.length });
+      return NextResponse.json({
+        ok: true,
+        code: fiche.code,
+        deja: true,
+        objets_lus_dans_le_bucket: objetsLus,
+        restants: candidates.length,
+      });
     }
 
     // 🚨🚨 LE PLAN DE lms_plans PREVAUT SUR TOUT — ajoute le 17/08.
@@ -524,6 +596,7 @@ export async function GET(req: Request) {
       code: fiche.code,
       titre: fiche.titre,
       heures: heures,
+      objets_lus_dans_le_bucket: objetsLus,
       plan_suivi: aPlan,
       carte_injectee: surLaPlateforme,
       modules_du_plan: aPlan ? nbModulesPlan : null,
