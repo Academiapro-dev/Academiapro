@@ -35,7 +35,37 @@ export const metadata: Metadata = {
   description: "560 formations professionnelles avec attestation AcadémIA Pro · Agent IA tuteur 24h/24 · Séances d'accompagnement · Classes virtuelles live",
   manifest: "/manifest.json",
   appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "AcadémIA Pro" },
-  openGraph: { title: "AcadémIA Pro", description: "Plateforme de formation professionnelle — 560 formations sur quinze domaines", type: "website", locale: "fr_FR" },
+  // 🚨 L IMAGE OUVERTE — ajoutee le 24/08.
+  //
+  // Sans elle, le Post Inspector de LinkedIn repondait « No image found » et
+  // la carte partait sans visuel : beaucoup moins visible dans le fil.
+  // Le fichier vit dans public/og-academia.png, 1200 x 630, le format
+  // attendu par LinkedIn, Facebook et X.
+  //
+  // ATTENTION : LinkedIn garde l image en cache. Apres tout changement,
+  // repasser l URL dans https://www.linkedin.com/post-inspector/
+  openGraph: {
+    title: "AcadémIA Pro",
+    description: "Plateforme de formation professionnelle — 560 formations sur quinze domaines",
+    type: "website",
+    locale: "fr_FR",
+    url: "https://academiapro.fr",
+    siteName: "AcadémIA Pro",
+    images: [
+      {
+        url: "/og-academia.png",
+        width: 1200,
+        height: 630,
+        alt: "AcadémIA Pro — 560 formations professionnelles à distance",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "AcadémIA Pro",
+    description: "Plateforme de formation professionnelle — 560 formations sur quinze domaines",
+    images: ["/og-academia.png"],
+  },
   // PROPRIETE DE mrcomptable.fr AUPRES DE GOOGLE.
   //
   // Les deux domaines partagent ce layout, donc ce meme <head>. Google
