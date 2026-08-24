@@ -5,18 +5,6 @@
       "schedule": "0 3 * * *"
     },
     {
-      "path": "/api/rediger-blog",
-      "schedule": "0 5 * * 1,3,5"
-    },
-    {
-      "path": "/api/generer-posts-sociaux",
-      "schedule": "0 7 * * 1,2,3,4"
-    },
-    {
-      "path": "/api/publier-facebook",
-      "schedule": "30 9 * * 1,2,3,4"
-    },
-    {
       "path": "/api/cron/backup",
       "schedule": "0 5 * * *"
     },
