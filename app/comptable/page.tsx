@@ -1,6 +1,12 @@
 import Link from "next/link";
 import { FONCTIONS } from "./fonctions";
 
+// 🚨 24/08 — UN BLOC openGraph REDECLARE ICI REMPLACE ENTIEREMENT CELUI DU
+// LAYOUT PARENT, il ne le complete pas. app/comptable/layout.tsx declare
+// l image d apercu ; comme cette page redeclarait openGraph SANS images,
+// LinkedIn repondait « No image found » sur https://mrcomptable.fr.
+// L IMAGE DOIT DONC ETRE REPETEE ICI. Meme piege pour toute page de la
+// vitrine qui redeclarerait openGraph.
 export const metadata = {
   title: "Mr. Comptable — Logiciel de comptabilité pour cabinets",
   description:
@@ -13,6 +19,21 @@ export const metadata = {
     siteName: "Mr. Comptable",
     locale: "fr_FR",
     type: "website",
+    images: [
+      {
+        url: "/og-mrcomptable.png",
+        width: 1200,
+        height: 630,
+        alt: "Mr. Comptable — logiciel de comptabilité pour cabinets",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Mr. Comptable — Logiciel de comptabilité pour cabinets",
+    description:
+      "Tenue, déclarations, liasse fiscale, relance des justificatifs et des honoraires. Sans engagement.",
+    images: ["/og-mrcomptable.png"],
   },
 };
 
