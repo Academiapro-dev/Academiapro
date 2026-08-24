@@ -1,7 +1,7 @@
 {
-  "name": "AcadémIA Pro",
-  "short_name": "AcadémIA",
-  "description": "Plateforme de formation professionnelle 100% IA",
+  "name": "AcadémIA Pro",
+  "short_name": "AcadémIA",
+  "description": "Plateforme de formation professionnelle — 560 formations sur quinze domaines",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#050508",
@@ -29,14 +29,14 @@
       "description": "Voir les formations"
     },
     {
-      "name": "Mon Dashboard",
+      "name": "Mon espace",
       "url": "/dashboard",
       "description": "Mon espace apprenant"
     },
     {
-      "name": "Seances",
+      "name": "Séances",
       "url": "/seances",
-      "description": "Seances therapeutiques"
+      "description": "Séances thérapeutiques"
     }
   ]
 }
