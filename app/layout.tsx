@@ -16,11 +16,26 @@ export const metadata: Metadata = {
   // et les tunnels se declareraient page d accueil. Chaque page indexable
   // declare la sienne, ou n en declare aucune.
   metadataBase: new URL("https://academiapro.fr"),
-  title: "AcadémIA Pro — Formation Professionnelle par l IA",
-  description: "331 formations professionnelles avec attestation AcadémIA Pro · Agent IA tuteur 24h/24 · Séances d'accompagnement · Classes virtuelles live",
+  // 🚨 24/08 — LA METHODE DE FABRICATION NE SE MET PAS EN VITRINE.
+  //
+  // Ce fichier annoncait « Formation Professionnelle par l IA » en titre et
+  // « Plateforme de formation professionnelle 100% IA » en description
+  // ouverte. Cette derniere est celle que LinkedIn affiche sous chaque lien
+  // partage : elle apparaissait en pied de chaque publication.
+  //
+  // Ce qu on vend, c est un catalogue et une plateforme. Comment il est
+  // produit ne regarde pas le prospect, et l afficher donne prise a ceux
+  // qui contestent la place de la machine dans la pedagogie.
+  //
+  // L AGENT IA TUTEUR RESTE ANNONCE : c est un service rendu au stagiaire,
+  // pas une methode de production. Decision de Jacques le 24/08.
+  //
+  // Le nombre de formations etait reste a 331 : il est de 560 au 24/08.
+  title: "AcadémIA Pro — 560 formations professionnelles à distance",
+  description: "560 formations professionnelles avec attestation AcadémIA Pro · Agent IA tuteur 24h/24 · Séances d'accompagnement · Classes virtuelles live",
   manifest: "/manifest.json",
   appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "AcadémIA Pro" },
-  openGraph: { title: "AcadémIA Pro", description: "Plateforme de formation professionnelle 100% IA", type: "website", locale: "fr_FR" },
+  openGraph: { title: "AcadémIA Pro", description: "Plateforme de formation professionnelle — 560 formations sur quinze domaines", type: "website", locale: "fr_FR" },
   // PROPRIETE DE mrcomptable.fr AUPRES DE GOOGLE.
   //
   // Les deux domaines partagent ce layout, donc ce meme <head>. Google
@@ -51,7 +66,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             "name": "Acad\u00e9mIA Pro",
             "url": "https://academiapro.fr",
             "logo": "https://academiapro.fr/icon-192.png",
-            "description": "Plateforme de formation professionnelle propuls\u00e9e par l'IA \u2014 331 formations avec attestation de fin de formation.",
+            "description": "Plateforme de formation professionnelle \u2014 560 formations sur quinze domaines, avec attestation de fin de formation.",
             "sameAs": ["https://www.linkedin.com/company/academiapro-fr"]
           }) }}
         />
