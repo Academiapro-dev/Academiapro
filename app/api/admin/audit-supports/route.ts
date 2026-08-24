@@ -34,6 +34,45 @@ const RISQUES: Record<string, string[]> = {
   ],
 };
 
+// UN list() DE BUCKET SE COUPE A 1000 OBJETS, EN SILENCE.
+// La racine de formations-pdf depasse ce seuil : un appel unique rend les
+// 1000 PREMIERS par ordre alphabetique et rien d autre, sans erreur ni
+// avertissement. Ce sont donc les codes les plus RECENTS qui disparaissent,
+// puisqu ils sont en fin d alphabet.
+// On pagine avec offset jusqu a ce qu un lot revienne plus court que la page
+// demandee, et on renvoie le nombre d objets lus pour que toute coupure se voie.
+const PAGE = 1000;
+
+async function listerToutLeBucket(): Promise<{ noms: string[]; lus: number }> {
+  const noms: string[] = [];
+  let offset = 0;
+
+  for (;;) {
+    const { data, error } = await supabase.storage
+      .from("formations-pdf")
+      .list("", {
+        limit: PAGE,
+        offset: offset,
+        sortBy: { column: "name", order: "asc" },
+      });
+
+    if (error) throw new Error(error.message);
+
+    const lot = data || [];
+    for (const f of lot) noms.push(f.name);
+
+    // Un lot plus court que la page demandee signifie la fin reelle.
+    if (lot.length < PAGE) break;
+
+    offset += PAGE;
+
+    // Garde-fou : au-dela de 50 000 objets, on arrete plutot que de boucler.
+    if (offset > 50000) break;
+  }
+
+  return { noms: noms, lus: noms.length };
+}
+
 function simplifier(t: string): string {
   return String(t || "")
     .normalize("NFD")
@@ -119,16 +158,17 @@ export async function GET(req: Request) {
     const debut = Number(url.searchParams.get("debut") || 0);
     const taille = Math.min(Number(url.searchParams.get("taille") || 40), 60);
 
-    const { data: fichiers, error: erreurListe } = await supabase.storage
-      .from("formations-pdf")
-      .list("", { limit: 1000, sortBy: { column: "name", order: "asc" } });
-
-    if (erreurListe) {
-      return NextResponse.json({ ok: false, erreur: erreurListe.message }, { status: 500 });
+    let objetsLus = 0;
+    let noms: string[] = [];
+    try {
+      const inventaire = await listerToutLeBucket();
+      noms = inventaire.noms;
+      objetsLus = inventaire.lus;
+    } catch (e: any) {
+      return NextResponse.json({ ok: false, erreur: String(e && e.message ? e.message : e) }, { status: 500 });
     }
 
-    const supports = (fichiers || [])
-      .map(f => f.name)
+    const supports = noms
       .filter(n => n.indexOf("_support_cours.html") > 0)
       .sort();
 
@@ -204,6 +244,7 @@ export async function GET(req: Request) {
     const suivant = debut + taille;
     return NextResponse.json({
       ok: true,
+      objets_lus_dans_le_bucket: objetsLus,
       total_supports: supports.length,
       lot: debut + " a " + Math.min(suivant, supports.length),
       enregistres: lignes.length,
