@@ -14,12 +14,6 @@ import { useState, useEffect, useMemo, useRef } from "react";
 // « Invitee avec une note » et « Invitee sans note ». ENREGISTRER UNE FICHE
 // ET DECLARER UNE INVITATION ETAIENT DONC LA MEME ACTION.
 //
-// Deux consequences, toutes deux constatees par Jacques :
-//   - impossible de ranger un profil croise le soir pour l inviter le
-//     lendemain ;
-//   - une fois le plafond du jour atteint, LES DEUX BOUTONS SE GRISAIENT et
-//     la fiche etait simplement perdue.
-//
 // Ses mots : « envoyer une fiche sans invitation, pour moi ca ne veut pas
 // dire enregistrer la fiche ».
 //
@@ -27,15 +21,23 @@ import { useState, useEffect, useMemo, useRef } from "react";
 // quota est atteint, quand la liste est vide, quand un champ manque. Un
 // bouton qui se grise ne doit jamais etre le SEUL moyen d enregistrer.
 //
-// 🆕 LECTURE D UNE CAPTURE — 18/08. Jacques photographie un profil, les
-// champs se remplissent. Disponible dans le formulaire d ajout ET dans
-// chaque fiche complete, pour completer une fiche existante.
+// 🚨🚨 LA MEME LECON, REJOUEE LE 25/08 SUR LA RECHERCHE.
 //
-// 🆕 LA RECHERCHE PARTOUT — 25/08. Elle vit deja dans l ecran CRM ; elle
-// est ici aussi parce que c est ici qu on croise un nom sans savoir d ou
-// il sort. Elle interroge /api/admin/prospection?global=TERME, qui balaie
-// les CINQ bases de prospection et rend au plus vingt lignes par base.
-// ELLE NE MODIFIE RIEN : c est une lunette, pas un outil.
+// Le bloc « Chercher partout » a d abord ete livre en LECTURE SEULE, au
+// motif qu on irait agir ailleurs. C etait faux. Jacques trouve un
+// prospect ICI, au moment ou LinkedIn lui notifie une acceptation, et il
+// doit pouvoir marquer SANS quitter l ecran. Une fiche qu on voit sans
+// pouvoir agir dessus est une impasse.
+//
+// LES BOUTONS SONT DONC SUR CHAQUE RESULTAT portant un profil LinkedIn.
+// Ils ecrivent par /api/admin/linkedin, avec sans_suite a true : marquer
+// depuis la recherche ne doit PAS faire defiler la file d invitation.
+//
+// 🆕 LECTURE D UNE CAPTURE — 18/08. Jacques photographie un profil, les
+// champs se remplissent.
+//
+// 🆕 LA FICHE CREEE S AFFICHE — 25/08. Elle ne s affichait pas : un message
+// vert confirmait, puis il fallait aller la chercher dans un onglet.
 //
 // 🚨 AUCUN ENVOI AUTOMATIQUE, ET CE N EST PAS CONTOURNABLE. LinkedIn
 // n expose AUCUNE API de messagerie, et les outils qui simulent les clics
@@ -151,12 +153,18 @@ export default function PageLinkedin() {
 
   const [recherche, setRecherche] = useState("");
 
-  // LA RECHERCHE PARTOUT — elle ne touche a rien, elle montre.
+  // LA RECHERCHE PARTOUT.
   const [partoutOuvert, setPartoutOuvert] = useState(false);
   const [partoutTerme, setPartoutTerme] = useState("");
   const [partoutCharge, setPartoutCharge] = useState(false);
   const [partoutResultat, setPartoutResultat] = useState<any>(null);
   const [partoutErreur, setPartoutErreur] = useState("");
+  const [partoutMessage, setPartoutMessage] = useState("");
+  const [partoutOccupe, setPartoutOccupe] = useState("");
+  const [partoutTexte, setPartoutTexte] = useState<any>({});
+
+  // LA FICHE QUI VIENT D ETRE CREEE.
+  const [creee, setCreee] = useState<any>(null);
 
   // LA FICHE COMPLETE.
   const [depliee, setDepliee] = useState("");
@@ -209,12 +217,9 @@ export default function PageLinkedin() {
   }
 
   // ---------- LA RECHERCHE PARTOUT ----------
-  //
-  // ⚠️ Elle appelle la route de PROSPECTION, pas celle de LinkedIn : c est
-  // la seule qui sait balayer les cinq bases. Deux caracteres minimum,
-  // impose par la route elle-meme.
-  async function chercherPartout() {
-    const t = partoutTerme.trim();
+
+  async function chercherPartout(terme?: string) {
+    const t = String(terme !== undefined ? terme : partoutTerme).trim();
     if (t.length < 2) {
       setPartoutErreur("Deux caractères au minimum.");
       setPartoutResultat(null);
@@ -222,12 +227,12 @@ export default function PageLinkedin() {
     }
     setPartoutCharge(true);
     setPartoutErreur("");
-    setPartoutResultat(null);
+    if (terme === undefined) setPartoutMessage("");
     try {
       const r = await fetch("/api/admin/prospection?global=" + encodeURIComponent(t));
       const d = await r.json();
       if (d.ok) setPartoutResultat(d);
-      else setPartoutErreur(d.erreur || "Recherche impossible.");
+      else { setPartoutErreur(d.erreur || "Recherche impossible."); setPartoutResultat(null); }
     } catch (e: any) {
       setPartoutErreur("Recherche impossible : " + String(e));
     }
@@ -238,6 +243,47 @@ export default function PageLinkedin() {
     setPartoutTerme("");
     setPartoutResultat(null);
     setPartoutErreur("");
+    setPartoutMessage("");
+  }
+
+  // MARQUER DEPUIS UN RESULTAT DE RECHERCHE.
+  //
+  // ⚠️ sans_suite EMPECHE LA FILE D INVITATION DE DEFILER. On agit sur une
+  // fiche precise, pas dans un enchainement.
+  async function marquerDepuisRecherche(cleBase: string, ligne: any, statut: string) {
+    const cle = cleBase + "-" + ligne.id;
+    setPartoutOccupe(cle);
+    setPartoutErreur("");
+    setPartoutMessage("");
+    try {
+      const d = await appeler({
+        base: cleBase,
+        id: ligne.id,
+        statut: statut,
+        sans_suite: true,
+      });
+      if (d.ok) {
+        if (d.compteurs) setCompteurs(d.compteurs);
+        const nom = ((ligne.dirigeant_prenom || "") + " " + (ligne.dirigeant_nom || "")).trim()
+          || ligne.raison_sociale || "La fiche";
+        const mots: any = {
+          accepte: " a été marqué comme ayant accepté. Sa fiche est dans « À écrire ».",
+          accepte_nu: " a été marqué comme ayant accepté. Sa fiche est dans « À écrire ».",
+          invite: " est marqué invité avec une note.",
+          invite_nu: " est marqué invité sans note.",
+          ecarte: " est écarté : il ne ressortira plus dans la file d'invitation.",
+        };
+        setPartoutMessage(nom + (mots[statut] || " est enregistré."));
+        await chercherPartout(partoutTerme);
+        if (onglet !== "inviter") await chargerListe();
+      } else {
+        setPartoutErreur(d.erreur || "Enregistrement impossible.");
+        if (d.compteurs) setCompteurs(d.compteurs);
+      }
+    } catch (e: any) {
+      setPartoutErreur("Enregistrement impossible : " + String(e));
+    }
+    setPartoutOccupe("");
   }
 
   // ---------- FIN DE LA RECHERCHE PARTOUT ----------
@@ -408,6 +454,7 @@ export default function PageLinkedin() {
           setLignes(lignes.map(function (x: any) {
             return cleDe(x) === cle ? { ...d.fiche, base: l.base } : x;
           }));
+          if (creee && cleDe(creee) === cle) setCreee({ ...d.fiche, base: l.base });
         }
       } else {
         setErreur(d.erreur || "Enregistrement impossible.");
@@ -520,8 +567,7 @@ export default function PageLinkedin() {
   // ---------- FIN DU MODE ENCHAINEMENT ----------
 
   // 🚨 TROIS FACONS D ENREGISTRER — et « file » est toujours disponible,
-  // meme quand le plafond du jour est atteint. C est tout l objet de la
-  // correction du 18/08.
+  // meme quand le plafond du jour est atteint.
   async function ajouter(mode: string) {
     if (aNom.trim().length < 2) {
       setErreur("Indiquez le nom du contact.");
@@ -547,6 +593,8 @@ export default function PageLinkedin() {
       if (d.ok) {
         setMessage(d.message || "Profil enregistré.");
         setCompteurs(d.compteurs || null);
+        // 🆕 LA FICHE CREEE S AFFICHE IMMEDIATEMENT — 25/08.
+        setCreee(d.ajoute || null);
         setANom(""); setALien(""); setAOrganisme(""); setAVille(""); setANotes("");
         setAjout(false);
       } else {
@@ -574,6 +622,30 @@ export default function PageLinkedin() {
         setCompteurs(d.compteurs || null);
         if (onglet === "inviter") poser(d);
         else await chargerListe();
+      } else {
+        setErreur(d.erreur || "Enregistrement impossible.");
+        if (d.compteurs) setCompteurs(d.compteurs);
+      }
+    } catch (e: any) {
+      setErreur("Enregistrement impossible : " + String(e));
+    }
+    setCharge(false);
+  }
+
+  // Marquer la fiche qui vient d etre creee, sans quitter l ecran.
+  async function marquerCreee(statut: string) {
+    if (!creee) return;
+    setCharge(true);
+    setErreur("");
+    setMessage("");
+    try {
+      const d = await appeler({ base: "manuel", id: creee.id, statut: statut, sans_suite: true });
+      if (d.ok) {
+        setCompteurs(d.compteurs || null);
+        setCreee({ ...creee, linkedin_statut: statut });
+        setMessage(statut === "ecarte"
+          ? "Fiche écartée."
+          : "Fiche mise à jour : " + statut + ".");
       } else {
         setErreur(d.erreur || "Enregistrement impossible.");
         if (d.compteurs) setCompteurs(d.compteurs);
@@ -672,12 +744,96 @@ export default function PageLinkedin() {
     { id: "envoyes", nom: "Messages envoyés" + (compteurs && compteurs.relances ? " · " + compteurs.relances : "") },
   ];
 
-  // LE BLOC « CHERCHER PARTOUT ».
+  // LES BOUTONS D UN RESULTAT DE RECHERCHE.
   //
-  // Il est REPLIE par defaut : il ne doit pas voler la place du travail
-  // du jour. Ouvert, il reste ouvert d un onglet a l autre, avec ses
-  // resultats — on cherche souvent un nom pour le retrouver ensuite.
+  // Ils ne s affichent QUE si la fiche porte un profil LinkedIn et n est
+  // pas deja ecartee. Sur une fiche ecartee, on ne propose rien : c est
+  // exactement le geste qui ressusciterait un doublon.
+  function actionsRecherche(cleBase: string, l: any) {
+    const cle = cleBase + "-" + l.id;
+    const occupe = partoutOccupe === cle;
+    const statut = String(l.linkedin_statut || "");
+
+    if (statut === "ecarte") {
+      return (
+        <p style={{ color: "rgba(255,255,255,0.35)", fontSize: "12px", lineHeight: "1.7", margin: "9px 0 0" }}>
+          Fiche écartée — aucune action proposée pour ne pas recréer un doublon.
+        </p>
+      );
+    }
+
+    const enAttente = statut === "invite" || statut === "invite_nu";
+    const dejaAccepte = statut === "accepte" || statut === "accepte_nu" || statut === "relance";
+
+    if (dejaAccepte) {
+      return (
+        <p style={{ color: VERT, fontSize: "12.5px", lineHeight: "1.7", margin: "9px 0 0" }}>
+          A déjà accepté — sa fiche est dans « À écrire » ou « Messages envoyés ».
+        </p>
+      );
+    }
+
+    const petit: any = {
+      padding: "9px 13px", borderRadius: "8px", fontSize: "12.5px",
+      fontFamily: "Georgia,serif", cursor: occupe ? "wait" : "pointer",
+      flex: "1 1 130px",
+    };
+
+    return (
+      <div style={{ display: "flex", gap: "7px", flexWrap: "wrap", marginTop: "10px" }}>
+        {enAttente && (
+          <button
+            onClick={() => marquerDepuisRecherche(cleBase, l, statut === "invite" ? "accepte" : "accepte_nu")}
+            disabled={occupe}
+            style={{ ...petit, background: "rgba(0,230,118,0.15)", color: VERT, border: "1px solid rgba(0,230,118,0.45)", fontWeight: "bold" }}
+          >
+            ✓ A accepté
+          </button>
+        )}
+        {!enAttente && (
+          <>
+            <button
+              onClick={() => marquerDepuisRecherche(cleBase, l, "invite")}
+              disabled={occupe || bloque}
+              style={{ ...petit, background: bloque ? "rgba(255,255,255,0.06)" : "rgba(0,230,118,0.13)", color: bloque ? "rgba(255,255,255,0.3)" : VERT, border: "1px solid " + (bloque ? "rgba(255,255,255,0.15)" : "rgba(0,230,118,0.4)") }}
+            >
+              Invité avec note
+            </button>
+            <button
+              onClick={() => marquerDepuisRecherche(cleBase, l, "invite_nu")}
+              disabled={occupe || bloque}
+              style={{ ...petit, background: bloque ? "rgba(255,255,255,0.06)" : "rgba(68,138,255,0.13)", color: bloque ? "rgba(255,255,255,0.3)" : BLEU, border: "1px solid " + (bloque ? "rgba(255,255,255,0.15)" : "rgba(68,138,255,0.4)") }}
+            >
+              Invité sans note
+            </button>
+          </>
+        )}
+        <button
+          onClick={() => marquerDepuisRecherche(cleBase, l, "ecarte")}
+          disabled={occupe}
+          style={{ ...petit, background: "rgba(255,255,255,0.04)", color: "rgba(255,255,255,0.45)", border: "1px solid rgba(255,255,255,0.15)", flex: "1 1 90px" }}
+        >
+          Écarter
+        </button>
+      </div>
+    );
+  }
+
+  // LE BLOC « CHERCHER PARTOUT ».
   function blocPartout() {
+    // Un meme dirigeant peut figurer dans plusieurs bases. On le signale :
+    // c est ainsi qu on evite d inviter deux fois la meme personne.
+    const compteParPersonne: any = {};
+    if (partoutResultat) {
+      for (const b of (partoutResultat.bases || [])) {
+        for (const l of (b.lignes || [])) {
+          const k = aplatir((l.dirigeant_prenom || "") + " " + (l.dirigeant_nom || ""));
+          if (k.length < 3) continue;
+          compteParPersonne[k] = (compteParPersonne[k] || 0) + 1;
+        }
+      }
+    }
+
     return (
       <div style={{ ...CARTE, borderColor: partoutOuvert ? "rgba(68,138,255,0.45)" : "rgba(255,255,255,0.12)", padding: partoutOuvert ? "20px 22px" : "14px 22px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px" }}>
@@ -687,8 +843,8 @@ export default function PageLinkedin() {
             </div>
             {partoutOuvert && (
               <div style={{ color: "rgba(255,255,255,0.45)", fontSize: "12.5px", marginTop: "3px", lineHeight: "1.7" }}>
-                Un nom, une société, une ville, un SIREN, un téléphone. Les cinq bases
-                de prospection sont interrogées d'un coup.
+                Un nom, une société, une ville, un SIREN, un téléphone. Votre file LinkedIn
+                et les cinq bases de prospection sont interrogées d'un coup.
               </div>
             )}
           </div>
@@ -707,11 +863,11 @@ export default function PageLinkedin() {
                 value={partoutTerme}
                 onChange={(e) => setPartoutTerme(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") chercherPartout(); }}
-                placeholder="GSIF, Debienne, Riom, 819814047…"
+                placeholder="Alexandre Cocco, EDAA, Reims, 811616374…"
                 style={{ ...CHAMP, flex: "1 1 240px", padding: "12px 14px" }}
               />
               <button
-                onClick={chercherPartout}
+                onClick={() => chercherPartout()}
                 disabled={partoutCharge}
                 style={{ background: partoutCharge ? "rgba(255,255,255,0.06)" : BLEU, color: partoutCharge ? "rgba(255,255,255,0.4)" : "#fff", border: "none", borderRadius: "9px", padding: "12px 24px", fontSize: "14px", fontWeight: "bold", fontFamily: "Georgia,serif", cursor: partoutCharge ? "wait" : "pointer" }}
               >
@@ -724,6 +880,12 @@ export default function PageLinkedin() {
               )}
             </div>
 
+            {partoutMessage && (
+              <div style={{ background: "rgba(0,230,118,0.12)", border: "1px solid rgba(0,230,118,0.4)", borderRadius: "9px", padding: "12px", margin: "12px 0 0", color: VERT, fontSize: "13px", lineHeight: "1.7" }}>
+                {partoutMessage}
+              </div>
+            )}
+
             {partoutErreur && (
               <p style={{ color: "#e8836a", fontSize: "13px", lineHeight: "1.7", margin: "11px 0 0" }}>
                 {partoutErreur}
@@ -734,7 +896,7 @@ export default function PageLinkedin() {
               <div style={{ marginTop: "16px" }}>
                 <p style={{ color: partoutResultat.total_trouve === 0 ? "#e8836a" : VERT, fontSize: "13.5px", lineHeight: "1.7", margin: "0 0 13px" }}>
                   {partoutResultat.total_trouve === 0
-                    ? "Rien trouvé pour « " + partoutResultat.terme + " » dans aucune des cinq bases."
+                    ? "Rien trouvé pour « " + partoutResultat.terme + " »."
                     : nombre(partoutResultat.total_trouve) + " résultat(s) pour « " + partoutResultat.terme + " »."}
                 </p>
 
@@ -744,7 +906,7 @@ export default function PageLinkedin() {
                     <div key={b.cle} style={{ marginBottom: "16px" }}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: "8px", marginBottom: "8px", paddingBottom: "6px", borderBottom: "1px solid rgba(200,169,110,0.22)" }}>
                         <span style={{ color: OR, fontSize: "12.5px", letterSpacing: "1.5px" }}>
-                          {b.titre.toUpperCase()}
+                          {String(b.titre || "").toUpperCase()}
                         </span>
                         <span style={{ color: "rgba(255,255,255,0.4)", fontSize: "12px" }}>
                           {b.erreur ? "lecture impossible" : nombre(b.trouves) + " trouvé(s)"}
@@ -759,8 +921,10 @@ export default function PageLinkedin() {
                       ) : (
                         (b.lignes || []).map(function (l: any) {
                           const nomComplet = ((l.dirigeant_prenom || "") + " " + (l.dirigeant_nom || "")).trim();
+                          const k = aplatir(nomComplet);
+                          const enDouble = k.length >= 3 && compteParPersonne[k] > 1;
                           return (
-                            <div key={b.cle + "-" + l.id} style={{ padding: "11px 13px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "8px", marginBottom: "7px" }}>
+                            <div key={b.cle + "-" + l.id} style={{ padding: "11px 13px", background: "rgba(255,255,255,0.03)", border: "1px solid " + (enDouble ? "rgba(232,163,61,0.45)" : "rgba(255,255,255,0.08)"), borderRadius: "8px", marginBottom: "7px" }}>
                               <div style={{ color: "#fff", fontSize: "14.5px", fontWeight: "bold" }}>
                                 {l.raison_sociale || "—"}
                               </div>
@@ -774,6 +938,13 @@ export default function PageLinkedin() {
                                 {l.statut === "envoye" ? " · courriel envoyé le " + jolieDate(l.envoye_le) : ""}
                                 {l.desabonne ? " · DÉSABONNÉ" : ""}
                               </div>
+
+                              {enDouble && (
+                                <div style={{ color: ORANGE, fontSize: "12px", marginTop: "6px", lineHeight: "1.7" }}>
+                                  ⚠️ Ce dirigeant apparaît dans plusieurs bases — écartez le doublon
+                                  pour ne pas l'inviter deux fois.
+                                </div>
+                              )}
 
                               {(l.email || l.telephone) && (
                                 <div style={{ display: "flex", gap: "14px", flexWrap: "wrap", marginTop: "7px", fontSize: "12.5px" }}>
@@ -791,17 +962,20 @@ export default function PageLinkedin() {
                               )}
 
                               {b.porte_linkedin && l.linkedin && (
-                                <div style={{ marginTop: "8px", display: "flex", gap: "12px", flexWrap: "wrap", alignItems: "center" }}>
-                                  <a href={lien(l.linkedin)} target="_blank" rel="noreferrer"
-                                    style={{ color: BLEU, fontSize: "12.5px", textDecoration: "none" }}>
-                                    Ouvrir le profil LinkedIn ↗
-                                  </a>
-                                  <span style={{ color: l.linkedin_statut ? VERT : "rgba(255,255,255,0.35)", fontSize: "12px" }}>
-                                    {l.linkedin_statut
-                                      ? l.linkedin_statut + (l.linkedin_le ? " le " + jolieDate(l.linkedin_le) : "")
-                                      : "jamais sollicité"}
-                                  </span>
-                                </div>
+                                <>
+                                  <div style={{ marginTop: "8px", display: "flex", gap: "12px", flexWrap: "wrap", alignItems: "center" }}>
+                                    <a href={lien(l.linkedin)} target="_blank" rel="noreferrer"
+                                      style={{ color: BLEU, fontSize: "12.5px", textDecoration: "none" }}>
+                                      Ouvrir le profil LinkedIn ↗
+                                    </a>
+                                    <span style={{ color: l.linkedin_statut ? VERT : "rgba(255,255,255,0.35)", fontSize: "12px" }}>
+                                      {l.linkedin_statut
+                                        ? l.linkedin_statut + (l.linkedin_le ? " le " + jolieDate(l.linkedin_le) : "")
+                                        : "jamais sollicité"}
+                                    </span>
+                                  </div>
+                                  {actionsRecherche(b.cle, l)}
+                                </>
                               )}
                             </div>
                           );
@@ -810,15 +984,71 @@ export default function PageLinkedin() {
                     </div>
                   );
                 })}
-
-                <p style={{ color: "rgba(255,255,255,0.3)", fontSize: "12px", lineHeight: "1.7", margin: "4px 0 0" }}>
-                  Cette recherche ne modifie rien. Pour agir sur une fiche, ouvrez la base
-                  concernée depuis le CRM.
-                </p>
               </div>
             )}
           </div>
         )}
+      </div>
+    );
+  }
+
+  // LA FICHE QUI VIENT D ETRE CREEE.
+  function blocCreee() {
+    if (!creee) return null;
+    const statut = String(creee.linkedin_statut || "");
+    const enAttente = statut === "invite" || statut === "invite_nu";
+    return (
+      <div style={{ ...CARTE, borderColor: "rgba(0,230,118,0.45)", background: "rgba(0,230,118,0.05)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: "8px", marginBottom: "10px" }}>
+          <span style={{ color: VERT, fontSize: "12px", letterSpacing: "2px" }}>
+            FICHE ENREGISTRÉE
+          </span>
+          <button onClick={() => setCreee(null)}
+            style={{ ...BOUTON, padding: "7px 14px", fontSize: "12px", color: "rgba(255,255,255,0.45)", borderColor: "rgba(255,255,255,0.15)" }}>
+            Fermer
+          </button>
+        </div>
+
+        <div style={{ color: "#fff", fontSize: "17px", fontWeight: "bold" }}>
+          {creee.nom || ((creee.dirigeant_prenom || "") + " " + (creee.dirigeant_nom || ""))}
+        </div>
+        <div style={{ color: OR, fontSize: "14px", marginTop: "2px" }}>
+          {creee.raison_sociale || creee.organisme || "—"}
+        </div>
+        <div style={{ color: "rgba(255,255,255,0.4)", fontSize: "12.5px", marginTop: "4px" }}>
+          {creee.ville || "ville inconnue"}
+          {" · "}
+          {statut ? statut : "en attente d'invitation"}
+        </div>
+        {coordonnees(creee)}
+
+        <button
+          onClick={() => { try { window.open(lien(creee.linkedin), "_blank", "noopener"); } catch (e) { } }}
+          style={{ width: "100%", background: BLEU, color: "#fff", border: "none", borderRadius: "9px", padding: "13px", fontSize: "14px", fontWeight: "bold", fontFamily: "Georgia,serif", cursor: "pointer", marginTop: "12px" }}>
+          Ouvrir le profil LinkedIn ↗
+        </button>
+
+        <div style={{ display: "flex", gap: "7px", flexWrap: "wrap", marginTop: "9px" }}>
+          {enAttente ? (
+            <button onClick={() => marquerCreee(statut === "invite" ? "accepte" : "accepte_nu")} disabled={charge}
+              style={{ flex: "2 1 180px", background: "rgba(0,230,118,0.15)", color: VERT, border: "1px solid rgba(0,230,118,0.45)", borderRadius: "8px", padding: "11px", fontSize: "13px", fontWeight: "bold", fontFamily: "Georgia,serif", cursor: "pointer" }}>
+              ✓ A accepté
+            </button>
+          ) : (
+            <>
+              <button onClick={() => marquerCreee("invite")} disabled={charge || bloque}
+                style={{ flex: "1 1 150px", background: bloque ? "rgba(255,255,255,0.06)" : "rgba(0,230,118,0.13)", color: bloque ? "rgba(255,255,255,0.3)" : VERT, border: "1px solid " + (bloque ? "rgba(255,255,255,0.15)" : "rgba(0,230,118,0.4)"), borderRadius: "8px", padding: "11px", fontSize: "13px", fontFamily: "Georgia,serif", cursor: bloque ? "not-allowed" : "pointer" }}>
+                Invité avec note
+              </button>
+              <button onClick={() => marquerCreee("invite_nu")} disabled={charge || bloque}
+                style={{ flex: "1 1 150px", background: bloque ? "rgba(255,255,255,0.06)" : "rgba(68,138,255,0.13)", color: bloque ? "rgba(255,255,255,0.3)" : BLEU, border: "1px solid " + (bloque ? "rgba(255,255,255,0.15)" : "rgba(68,138,255,0.4)"), borderRadius: "8px", padding: "11px", fontSize: "13px", fontFamily: "Georgia,serif", cursor: bloque ? "not-allowed" : "pointer" }}>
+                Invité sans note
+              </button>
+            </>
+          )}
+        </div>
+
+        {blocFiche(creee)}
       </div>
     );
   }
@@ -1114,6 +1344,9 @@ export default function PageLinkedin() {
             {erreur}
           </div>
         )}
+
+        {/* LA FICHE QUI VIENT D ETRE CREEE — visible partout. */}
+        {!enSerie && blocCreee()}
 
         {/* ═══════════ ONGLET INVITER ═══════════ */}
         {onglet === "inviter" && (
@@ -1681,7 +1914,7 @@ export default function PageLinkedin() {
                           </div>
                         )}
                       </div>
-                    );
+                    )
                   })
                 )}
               </>
