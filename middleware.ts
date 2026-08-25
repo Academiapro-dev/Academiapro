@@ -6,31 +6,40 @@ const ADMINS = ['contact@academiapro.fr'];
 
 const CHEMINS_PROTEGES = ['/admin', '/maintenance'];
 
-// 🚨 L ESPACE COMPTABLE S APPELLE DESORMAIS /admin/comptable — 25/08.
+// 🚨 L ESPACE COMPTABLE S APPELLE /admin/comptable — 25/08.
 //
 // LE DEFAUT. Les trente ecrans de Mr. Comptable vivent dans
 // app/admin/compliance/. Un cabinet qui utilise le logiciel lit donc
 // « compliance » dans sa barre d adresse, sur un espace comptable. Ca fait
 // bricolage, et ces cabinets sont des prospects avant d etre des clients.
 //
-// POURQUOI UN ALIAS PLUTOT QU UN RENOMMAGE DE DOSSIERS. Renommer les trente
-// dossiers imposerait de rouvrir chaque fichier pour corriger ses liens
-// internes, sur iPad, un par un — et le premier oubli casse un ecran sans
-// prevenir. L alias donne le meme resultat visible en une seule
-// modification, et il est reversible.
+// POURQUOI PAS UN RENOMMAGE DE DOSSIERS. Renommer les trente dossiers
+// imposerait de rouvrir chaque fichier pour corriger ses liens internes,
+// sur iPad, un par un — et le premier oubli casse un ecran sans prevenir.
 //
-// 🚨🚨 LE PIEGE QUI A FAILLI PASSER, ET IL FAUT LE COMPRENDRE.
-// Une reecriture posee en TETE de cette fonction rend la page AVANT les
-// controles de session : n importe qui atteindrait /admin/comptable/crm
-// sans etre connecte. Un rewrite retourne immediatement, il ne « continue »
-// pas.
+// LE MECANISME TIENT EN DEUX PIECES, ET L ORDRE COMPTE :
 //
-// LA SOLUTION : on calcule un CHEMIN EFFECTIF des la premiere ligne, tous
-// les controles portent sur LUI, et la reecriture n a lieu qu A LA SORTIE,
-// une fois les verifications passees. C est le role de la fonction sortie().
+//   1. UNE REDIRECTION 308 de /admin/compliance vers /admin/comptable.
+//      Elle rattrape les liens internes des trente pages, ceux d un
+//      favori, ceux d un courriel deja envoye. Aucun fichier de page n a
+//      donc besoin d etre modifie.
 //
-// ⚠️ NE JAMAIS REMPLACER cheminEffectif PAR chemin dans les tests
-// correspond() ci-dessous : ce serait rouvrir le trou.
+//   2. UNE REECRITURE de /admin/comptable vers le dossier reel, a la
+//      SORTIE de cette fonction.
+//
+// 🚨🚨 LE PIEGE DE LA BOUCLE. Rediriger vers /admin/comptable puis
+// reecrire vers /admin/compliance ne boucle PAS, parce que la reecriture
+// est INTERNE : le navigateur ne redemande rien, il ne voit jamais
+// /admin/compliance. Une REDIRECTION a la place de la reecriture, elle,
+// bouclerait a l infini. NE JAMAIS transformer sortie() en redirect.
+//
+// 🚨🚨 LE SECOND PIEGE, PLUS GRAVE. Une reecriture posee en TETE de cette
+// fonction rendrait la page AVANT les controles de session : n importe qui
+// atteindrait /admin/comptable/crm sans etre connecte. Un rewrite retourne
+// immediatement, il ne « continue » pas. D ou cheminEffectif, calcule des
+// la premiere ligne et utilise par TOUS les tests correspond() ci-dessous.
+//
+// ⚠️ NE JAMAIS REMPLACER cheminEffectif PAR chemin dans ces tests.
 const ALIAS_COMPTABLE = '/admin/comptable';
 const REEL_COMPTABLE = '/admin/compliance';
 
@@ -172,7 +181,24 @@ export async function middleware(request: NextRequest) {
   const hote = request.headers.get('host') || '';
   const h = hoteNu(hote);
 
-  // L ALIAS COMPTABLE — voir le commentaire en tete de fichier.
+  // ---- PIECE 1 : L ANCIENNE ADRESSE PART VERS LA NOUVELLE ----------------
+  //
+  // 308 ET NON 302 : le 308 est PERMANENT, il conserve la methode, et un
+  // navigateur le met en cache. Un favori pointant sur l ancienne adresse
+  // finit par ne plus jamais la demander.
+  //
+  // PLACEE TOUT EN TETE : rien ne sert de controler une session sur une
+  // adresse qui va etre abandonnee. Les controles se feront au tour
+  // suivant, sur la nouvelle adresse.
+  //
+  // LA CHAINE DE REQUETE EST CONSERVEE — clone() la garde par defaut.
+  if (chemin === REEL_COMPTABLE || chemin.startsWith(REEL_COMPTABLE + '/')) {
+    const url = request.nextUrl.clone();
+    url.pathname = ALIAS_COMPTABLE + chemin.slice(REEL_COMPTABLE.length);
+    return NextResponse.redirect(url, 308);
+  }
+
+  // ---- PIECE 2 : LA NOUVELLE ADRESSE SERT LE DOSSIER REEL ---------------
   //
   // cheminEffectif est ce que le code doit VOIR. chemin reste ce que le
   // navigateur AFFICHE. Les deux ne different que sous /admin/comptable.
@@ -186,22 +212,14 @@ export async function middleware(request: NextRequest) {
   // partout ailleurs, elle laisse passer. Toute sortie « tout va bien » de
   // cette fonction doit passer par ici, sans quoi l alias rendrait une
   // page introuvable.
+  //
+  // ⚠️ C EST UNE REECRITURE, PAS UNE REDIRECTION. Une redirection ici
+  // bouclerait avec la piece 1.
   function sortie() {
     if (!estAliasComptable) return NextResponse.next();
     const url = request.nextUrl.clone();
     url.pathname = cheminEffectif;
     return NextResponse.rewrite(url);
-  }
-
-  // Une redirection interne doit repartir sur l adresse que l utilisateur
-  // voit : renvoyer un cabinet vers /admin/compliance/ma-societe alors
-  // qu il naviguait sous /admin/comptable annulerait tout le benefice.
-  function versEcran(cheminReel: string): string {
-    if (!estAliasComptable) return cheminReel;
-    if (cheminReel.startsWith(REEL_COMPTABLE)) {
-      return ALIAS_COMPTABLE + cheminReel.slice(REEL_COMPTABLE.length);
-    }
-    return cheminReel;
   }
 
   // LE SITEMAP DE MR. COMPTABLE, AVANT TOUTE REECRITURE DE MARQUE.
@@ -337,7 +355,7 @@ export async function middleware(request: NextRequest) {
   if (correspond(cheminEffectif, EXIGENT_SOCIETE) && !correspond(cheminEffectif, EXCEPTIONS)) {
     if (!charge.tid) {
       const url = request.nextUrl.clone();
-      url.pathname = versEcran(REEL_COMPTABLE + '/ma-societe');
+      url.pathname = ALIAS_COMPTABLE + '/ma-societe';
       url.search = '';
       return NextResponse.redirect(url);
     }
