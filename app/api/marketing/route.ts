@@ -32,30 +32,27 @@ async function appel_claude(system: string, user: string): Promise<string> {
   return data.content[0].text || "";
 }
 
-// 🚨 LES CONSIGNES DE CET AGENT ONT ETE REECRITES LE 25/08.
+// LES CONSIGNES DE CET AGENT ONT ETE REECRITES LE 25/08.
 //
-// CE QUI A ETE RETIRE, ET POURQUOI :
+// CE QUI A ETE RETIRE :
 //
 // 1. « PLATEFORME DE FORMATION 100% IA ». La formule dit exactement ce
-//    qu il ne faut pas dire a un organisme de formation : que le contenu
-//    sort d une machine. Ce qui se vend, c est un catalogue et une
-//    plateforme ; la facon dont ils ont ete produits ne regarde personne.
+//    qu il ne faut pas dire a un organisme de formation. Ce qui se vend,
+//    c est un catalogue et une plateforme.
 //
 // 2. « SOCIAL PROOF » dans la landing page. C etait une commande de
 //    temoignages a une machine qui n en a aucun : elle les inventait.
 //    Douze articles de blog ont du etre reecrits le 25/08 pour cette
-//    raison exacte — Sophie la coach, Marc le plombier, Camille l ancienne
+//    raison — Sophie la coach, Marc le plombier, Camille l ancienne
 //    banquiere, tous inventes, tous publies.
 //
-// 3. LE PRIX DE 1400 EUR EN DUR. Aucun prix ne s affiche publiquement,
-//    c est une decision de strategie commerciale.
+// 3. LE PRIX DE 1400 EUR EN DUR. Aucun prix ne s affiche publiquement.
 //
-// 🚨 LA CONSIGNE LA PLUS IMPORTANTE EST CELLE SUR LES CHIFFRES. Ces
-// modeles produisent des statistiques fausses avec un aplomb parfait :
-// « selon une etude McKinsey de janvier 2026, 12 % des taches... ». La
-// source existe, le chiffre est invente, et un lecteur qui verifie ne
-// croit plus rien du reste. INTERDIRE LES CHIFFRES EST PLUS SUR QUE
-// DEMANDER DE LES VERIFIER.
+// LA CONSIGNE LA PLUS IMPORTANTE EST CELLE SUR LES CHIFFRES. Ces modeles
+// produisent des statistiques fausses avec un aplomb parfait : « selon une
+// etude McKinsey de janvier 2026, 12 % des taches... ». La source existe,
+// le chiffre est invente. INTERDIRE LES CHIFFRES EST PLUS SUR QUE DEMANDER
+// DE LES VERIFIER.
 const SYSTEM_MARKETING = `Tu es l Agent Marketing d AcadémIA Pro, editeur d une plateforme de formation et d un catalogue de formations professionnelles.
 
 REGLES ABSOLUES, sans exception :
@@ -154,9 +151,8 @@ export async function POST(req: NextRequest) {
       const { type, contexte } = body;
       const contenu = await generer_contenu(type, contexte || {});
 
-      // 🚨 STATUT BROUILLON, TOUJOURS. Rien de ce qui sort d ici ne part
-      // sans relecture — doctrine du 24/08 : « je prefere qu il n y ait
-      // pas d articles plutot que des articles qui agissent contre moi ».
+      // STATUT BROUILLON, TOUJOURS. Rien de ce qui sort d ici ne part sans
+      // relecture — doctrine du 24/08.
       await supabase.from("marketing").insert({
         type,
         titre: `${type} — ${new Date().toLocaleDateString("fr-FR")}`,
@@ -178,4 +174,10 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ erreur: "Action invalide" }, { status: 400 });
   } catch (err: any) {
-    return NextResponse.json({ erreur: err
+    return NextResponse.json({ erreur: err.message }, { status: 500 });
+  }
+}
+
+export async function GET() {
+  return NextResponse.json(await stats_marketing());
+}
