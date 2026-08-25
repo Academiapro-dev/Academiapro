@@ -3,11 +3,21 @@ import AiguillageLangueBlog from "../../components/AiguillageLangueBlog";
 
 export const revalidate = 3600;
 
+// 🚨 LES ACCENTS ONT ETE RETABLIS LE 25/08.
+//
+// Ce fichier portait « AcademIA Pro » sans accent et « bien-etre » dans le
+// TITRE et la DESCRIPTION de la page. Ces deux champs sont ce que Google
+// affiche dans ses resultats et ce qui s inscrit dans l onglet du
+// navigateur : c est le premier contact d un visiteur avec la marque.
+//
+// LA REGLE, ET ELLE NE SOUFFRE PAS D EXCEPTION : tout texte visible par un
+// tiers est accentue. Le code peut rester en ASCII, pas ce qui s affiche.
+
 export const metadata = {
-  title: "Blog - AcademIA Pro | IA, Formation et Bien-etre",
+  title: "Blog — AcadéMIA Pro | Intelligence artificielle, formation et bien-être",
   description:
-    "Articles sur l intelligence artificielle, la formation"
-    + " professionnelle et le bien-etre par AcademIA Pro.",
+    "Articles sur l'intelligence artificielle, la formation"
+    + " professionnelle et le bien-être, par AcadéMIA Pro.",
   alternates: {
     canonical: "https://academiapro.fr/blog",
     languages: {
@@ -34,8 +44,13 @@ function extraireTexte(contenu) {
 
 export default async function PageBlog() {
   const supabase = clientLecture();
-  // Ce blog est celui d AcademIA Pro. Les articles Mr. Comptable ont
+  // Ce blog est celui d AcadeMIA Pro. Les articles Mr. Comptable ont
   // leur propre blog et ne doivent jamais paraitre ici.
+  //
+  // 🚨 publie = true RESTE LE CRITERE D AFFICHAGE. La colonne publier_le,
+  // ajoutee le 25/08, ne se lit PAS ici : c est le cron /api/publier-blog
+  // qui bascule publie a true quand la date arrive. Filtrer sur publier_le
+  // dans cette page ferait doublon et compliquerait pour rien.
   const { data } = await supabase
     .from("blog")
     .select("id, titre, slug, extrait, contenu, categorie, created_at")
@@ -52,21 +67,21 @@ export default async function PageBlog() {
       <div style={{ textAlign: "center", marginBottom: 48 }}>
         <p style={{ color: "#c8a96e", fontSize: 12,
           letterSpacing: 3, margin: "0 0 12px" }}>
-          BLOG ACADEMIAPRO
+          BLOG ACADÉMIA PRO
         </p>
         <h1 style={{ fontSize: "2.4rem", margin: "0 0 12px" }}>
-          Insights IA et Formation
+          Intelligence artificielle et formation
         </h1>
         <p style={{ color: "rgba(255,255,255,0.6)", margin: 0 }}>
-          Articles sur l intelligence artificielle, la formation
-          professionnelle et le bien-etre.
+          Articles sur l&apos;intelligence artificielle, la formation
+          professionnelle et le bien-être.
         </p>
       </div>
 
       {articles.length === 0 && (
         <p style={{ textAlign: "center",
           color: "rgba(255,255,255,0.5)" }}>
-          Aucun article pour le moment. Revenez bientot !
+          Aucun article pour le moment. Revenez bientôt.
         </p>
       )}
 
@@ -106,7 +121,7 @@ export default async function PageBlog() {
               <p style={{ color: "rgba(255,255,255,0.6)",
                 fontSize: 14, lineHeight: 1.6,
                 margin: "0 0 16px", flex: 1 }}>
-                {a.extrait || extraireTexte(a.contenu)}...
+                {a.extrait || extraireTexte(a.contenu)}
               </p>
               <div style={{ display: "flex",
                 justifyContent: "space-between",
