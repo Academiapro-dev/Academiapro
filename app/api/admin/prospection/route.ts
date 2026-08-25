@@ -82,20 +82,35 @@ const BASES: any = {
   },
 };
 
-// 🔎 LA RECHERCHE GLOBALE — ajoutee le 24/08.
+// 🔎 LA RECHERCHE GLOBALE — ajoutee le 24/08, corrigee deux fois le 25/08.
 //
-// LE DEFAUT : il fallait SAVOIR dans quelle base se trouvait un prospect
-// AVANT de pouvoir le chercher. Or c est precisement ce qu on ignore quand
-// on cherche. Un nom entendu au telephone, une societe vue sur LinkedIn :
-// on ne sait pas dans laquelle des cinq bases elle se trouve.
+// LE DEFAUT D ORIGINE : il fallait SAVOIR dans quelle base se trouvait un
+// prospect AVANT de pouvoir le chercher. Or c est precisement ce qu on
+// ignore quand on cherche.
 //
-// La recherche par base reste en place, elle sert au travail au volume.
-// Celle-ci repond a une autre question : « ou est cette entreprise ? »
+// 🚨🚨 LE DEFAUT DU 25/08, ET IL A COUTE UN DOUBLON REEL.
 //
-// ELLE CHERCHE AUSSI PLUS LARGE. L ancienne recherche ne couvrait que la
-// raison sociale, la ville, l adresse et le SIREN. Le nom du dirigeant en
-// etait absent — alors que c est souvent la seule chose qu on retient d un
-// echange. Le telephone et le profil LinkedIn manquaient aussi.
+// Jacques a cherche « gregory bouli ». Zero resultat. Il a donc cree la
+// fiche a la main, consommant une unite de quota LinkedIn — alors que
+// G-B CONSULTING, GREGORY BOULICAUT, dormait dans prospects_organismes
+// sous l id 5375.
+//
+// POURQUOI. La clause cherchait la chaine ENTIERE « gregory bouli » dans
+// CHAQUE COLONNE PRISE SEPAREMENT. Or dirigeant_prenom porte « GREGORY »
+// et dirigeant_nom porte « BOULICAUT ». AUCUNE colonne ne contient la
+// chaine entiere. La requete reussissait et rendait zero.
+//
+// MEME FAMILLE QUE LA LECON DU BUCKET : ca reussit, ca rend moins, ca ne
+// dit rien.
+//
+// LA CORRECTION. Le terme est DECOUPE EN MOTS. Chaque mot doit se trouver
+// quelque part dans la ligne — un .or() par mot, chaines les uns apres
+// les autres, ce qui donne un ET entre les mots et un OU entre les
+// colonnes. « gregory bouli » retrouve donc une ligne ou le prenom est
+// dans une colonne et le nom dans une autre.
+//
+// ⚠️ NE PAS REVENIR A UN .or() UNIQUE SUR LA CHAINE ENTIERE : le defaut
+// ne se voit pas, il rend simplement moins.
 const COLONNES_GLOBALES = [
   "raison_sociale",
   "ville",
@@ -106,15 +121,67 @@ const COLONNES_GLOBALES = [
   "telephone",
 ];
 
+// LA TABLE CRM — ajoutee a la recherche le 25/08.
+//
+// C est la que vivent les profils que Jacques enregistre lui-meme depuis
+// l ecran LinkedIn. La recherche annoncait « aucune des cinq bases » alors
+// que la fiche cherchee etait dans une SIXIEME table jamais interrogee.
+//
+// 🚨 DEUX PRECAUTIONS, ET ELLES NE SE DISCUTENT PAS.
+//
+// 1. tenant_id IS NULL. La table crm est cloisonnee par tenant : elle
+//    porte AUSSI les contacts des organismes clients. Seules les fiches
+//    sans tenant sont celles de Jacques. Sans ce filtre, la recherche
+//    exposerait les contacts d un client a un autre.
+//
+// 2. SES COLONNES SONT DIFFERENTES. Pas de raison_sociale, pas de siren,
+//    pas de dropcontact_le, pas de code_postal. Les demander ferait
+//    echouer la lecture entiere — quatrieme occurrence du meme piege.
+const COLONNES_CRM_GLOBALES = [
+  "nom",
+  "organisme",
+  "ville",
+  "email",
+  "dirigeant_nom",
+  "dirigeant_prenom",
+  "telephone",
+  "linkedin",
+];
+
+// Le decoupage en mots. Les separateurs usuels sautent, les mots d une
+// seule lettre aussi : « j » ne doit pas ramener la moitie d une base.
+function motsDe(terme: string): string[] {
+  return terme
+    .replace(/[,%()]/g, " ")
+    .split(/\s+/)
+    .map(function (m) { return m.trim(); })
+    .filter(function (m) { return m.length >= 2; });
+}
+
+// La clause d UN mot : ce mot, dans n importe laquelle des colonnes.
+function clauseMot(mot: string, colonnes: string[]): string {
+  return colonnes
+    .map(function (c) { return c + ".ilike.%" + mot + "%"; })
+    .join(",");
+}
+
 // Le profil LinkedIn n existe pas partout : il est ajoute a la volee.
-function clauseOu(terme: string, avecLinkedin: boolean): string {
-  const propre = terme.replace(/[,%()]/g, " ").trim();
-  const colonnes = avecLinkedin
+function colonnesPour(avecLinkedin: boolean): string[] {
+  return avecLinkedin
     ? COLONNES_GLOBALES.concat(["linkedin"])
     : COLONNES_GLOBALES;
-  return colonnes
-    .map(function (c) { return c + ".ilike.%" + propre + "%"; })
-    .join(",");
+}
+
+// Chaque mot devient un .or() supplementaire. Supabase combine les
+// filtres successifs par ET : c est exactement ce qu on veut.
+function appliquerMots(q: any, terme: string, colonnes: string[]): any {
+  const mots = motsDe(terme);
+  const liste = mots.length > 0 ? mots : [terme.trim()];
+  let sortie = q;
+  for (const mot of liste) {
+    sortie = sortie.or(clauseMot(mot, colonnes));
+  }
+  return sortie;
 }
 
 // Le compte exact sans rapatrier les lignes : head true ne renvoie que le
@@ -137,10 +204,10 @@ async function chercherDans(cle: string, terme: string): Promise<any> {
     + "statut, envoye_le, desabonne, dropcontact_le"
     + (b.linkedin ? ", linkedin, linkedin_le, linkedin_statut" : "");
 
-  const { data, count, error } = await supabase
-    .from(b.table)
-    .select(colonnes, { count: "exact" })
-    .or(clauseOu(terme, !!b.linkedin))
+  let q = supabase.from(b.table).select(colonnes, { count: "exact" });
+  q = appliquerMots(q, terme, colonnesPour(!!b.linkedin));
+
+  const { data, count, error } = await q
     .order("id", { ascending: true })
     .range(0, 19);
 
@@ -167,6 +234,70 @@ async function chercherDans(cle: string, terme: string): Promise<any> {
   };
 }
 
+// LA FILE LINKEDIN DE JACQUES — table crm, tenant_id null.
+//
+// Elle est presentee sous la MEME FORME que les autres bases, pour que
+// l ecran n ait pas a distinguer : organisme devient raison_sociale, et
+// les colonnes absentes sont posees a null.
+async function chercherDansCrm(terme: string): Promise<any> {
+  const colonnes = "id, nom, organisme, ville, dirigeant_prenom, dirigeant_nom, "
+    + "email, telephone, linkedin, linkedin_le, linkedin_statut, statut";
+
+  let q = supabase
+    .from("crm")
+    .select(colonnes, { count: "exact" })
+    .is("tenant_id", null);
+
+  q = appliquerMots(q, terme, COLONNES_CRM_GLOBALES);
+
+  const { data, count, error } = await q
+    .order("nom", { ascending: true })
+    .range(0, 19);
+
+  if (error) {
+    return {
+      cle: "crm",
+      titre: "Ma file LinkedIn",
+      cible: "Contacts saisis a la main",
+      porte_linkedin: true,
+      trouves: 0,
+      lignes: [],
+      erreur: error.message,
+    };
+  }
+
+  const lignes = (data || []).map(function (l: any) {
+    return {
+      id: l.id,
+      raison_sociale: l.organisme || l.nom || "-",
+      siren: null,
+      ville: l.ville,
+      code_postal: null,
+      dirigeant_prenom: l.dirigeant_prenom,
+      dirigeant_nom: l.dirigeant_nom,
+      email: l.email,
+      telephone: l.telephone,
+      statut: l.statut,
+      envoye_le: null,
+      desabonne: false,
+      dropcontact_le: null,
+      linkedin: l.linkedin,
+      linkedin_le: l.linkedin_le,
+      linkedin_statut: l.linkedin_statut,
+    };
+  });
+
+  return {
+    cle: "crm",
+    titre: "Ma file LinkedIn",
+    cible: "Contacts saisis a la main",
+    porte_linkedin: true,
+    trouves: count || 0,
+    lignes: lignes,
+    erreur: null,
+  };
+}
+
 export async function GET(req: NextRequest) {
   try {
     const email = emailDeSession();
@@ -187,6 +318,10 @@ export async function GET(req: NextRequest) {
     // Elle repond seule : ni resume ni detail ne sont calcules, ce qui la
     // rend rapide. Deux caracteres minimum, sans quoi elle rendrait la
     // moitie des bases.
+    //
+    // LA FILE LINKEDIN VIENT EN TETE : c est la que se trouvent les fiches
+    // deja travaillees, et c est ce qu on veut savoir en premier avant de
+    // recreer un doublon.
     if (global) {
       if (global.length < 2) {
         return NextResponse.json({
@@ -195,9 +330,9 @@ export async function GET(req: NextRequest) {
         });
       }
 
-      const cles = Object.keys(BASES);
       const resultats: any[] = [];
-      for (const cle of cles) {
+      resultats.push(await chercherDansCrm(global));
+      for (const cle of Object.keys(BASES)) {
         resultats.push(await chercherDans(cle, global));
       }
 
@@ -209,6 +344,7 @@ export async function GET(req: NextRequest) {
         ok: true,
         mode: "global",
         terme: global,
+        mots: motsDe(global),
         total_trouve: total,
         bases: resultats,
       });
@@ -319,10 +455,10 @@ export async function GET(req: NextRequest) {
         q = q.eq("desabonne", true);
       }
 
-      // La recherche par base couvre desormais les memes colonnes que la
-      // recherche globale : le nom du dirigeant y manquait.
+      // La recherche par base beneficie du MEME decoupage en mots que la
+      // recherche globale. Sans quoi le defaut du 25/08 se rejouerait ici.
       if (cherche) {
-        q = q.or(clauseOu(cherche, !!b.linkedin));
+        q = appliquerMots(q, cherche, colonnesPour(!!b.linkedin));
       }
 
       const debut = page * parPage;
