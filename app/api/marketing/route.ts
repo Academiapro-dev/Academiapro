@@ -32,40 +32,85 @@ async function appel_claude(system: string, user: string): Promise<string> {
   return data.content[0].text || "";
 }
 
-const SYSTEM_MARKETING = `Tu es l Agent Marketing d AcadémIA Pro, plateforme de formation 100% IA. Tu crees du contenu marketing percutant et professionnel. Style direct et convincant. Pas de guillemets doubles. Pas de markdown.`;
+// 🚨 LES CONSIGNES DE CET AGENT ONT ETE REECRITES LE 25/08.
+//
+// CE QUI A ETE RETIRE, ET POURQUOI :
+//
+// 1. « PLATEFORME DE FORMATION 100% IA ». La formule dit exactement ce
+//    qu il ne faut pas dire a un organisme de formation : que le contenu
+//    sort d une machine. Ce qui se vend, c est un catalogue et une
+//    plateforme ; la facon dont ils ont ete produits ne regarde personne.
+//
+// 2. « SOCIAL PROOF » dans la landing page. C etait une commande de
+//    temoignages a une machine qui n en a aucun : elle les inventait.
+//    Douze articles de blog ont du etre reecrits le 25/08 pour cette
+//    raison exacte — Sophie la coach, Marc le plombier, Camille l ancienne
+//    banquiere, tous inventes, tous publies.
+//
+// 3. LE PRIX DE 1400 EUR EN DUR. Aucun prix ne s affiche publiquement,
+//    c est une decision de strategie commerciale.
+//
+// 🚨 LA CONSIGNE LA PLUS IMPORTANTE EST CELLE SUR LES CHIFFRES. Ces
+// modeles produisent des statistiques fausses avec un aplomb parfait :
+// « selon une etude McKinsey de janvier 2026, 12 % des taches... ». La
+// source existe, le chiffre est invente, et un lecteur qui verifie ne
+// croit plus rien du reste. INTERDIRE LES CHIFFRES EST PLUS SUR QUE
+// DEMANDER DE LES VERIFIER.
+const SYSTEM_MARKETING = `Tu es l Agent Marketing d AcadémIA Pro, editeur d une plateforme de formation et d un catalogue de formations professionnelles.
+
+REGLES ABSOLUES, sans exception :
+- AUCUN chiffre, AUCUN pourcentage, AUCUNE statistique. Tu ne disposes d aucune source verifiable : tout chiffre que tu produirais serait invente.
+- AUCUN temoignage, AUCUN avis client, AUCUN nom de personne. Aucune formule du type nos clients, nos apprenants, ils temoignent.
+- AUCUN prix, AUCUN montant, AUCUNE mention de tarif.
+- AUCUN nom de concurrent.
+- AUCUNE mention de la facon dont les contenus sont produits.
+- AUCUNE promesse de resultat, de delai ou de gain de temps chiffre.
+- AUCUNE affirmation absolue du type le seul, aucun autre, unique sur le marche.
+
+CE QUI REMPLACE CES ELEMENTS : le probleme concret du lecteur, decrit avec precision, et ce que la plateforme lui permet de faire.
+
+LE SUJET DE CHAQUE PHRASE EST LE CLIENT, jamais l editeur.
+
+Vouvoiement. Style direct, phrases courtes. Pas de guillemets doubles. Pas de markdown.
+
+Chaque phrase doit se lire du point de vue de quelqu un qui cherche une raison de ne pas signer.`;
 
 async function generer_contenu(type: string, contexte: any): Promise<string> {
   const prompts: Record<string, string> = {
     landing_page: `Redige le texte complet d une landing page pour AcadémIA Pro.
-Formation: ${contexte.formation || "nos formations IA"}
+Formation: ${contexte.formation || "nos formations"}
 Public cible: ${contexte.cible || "professionnels"}
-Inclus: headline percutant, sous-titre, 3 benefices cles, social proof, CTA fort, FAQ 3 questions.`,
+Inclus: titre principal, sous-titre, trois benefices concrets decrits sans chiffre, une section sur ce que la plateforme ne fait pas, un appel a l action, une FAQ de trois questions.
+Rappel: aucun temoignage, aucun chiffre, aucun prix.`,
 
     pub_google: `Redige 3 annonces Google Ads pour AcadémIA Pro.
-Formation: ${contexte.formation || "formations IA"}
-Budget: ${contexte.budget || "moyen"}
-Format: Titre 1 (30 car max) | Titre 2 (30 car max) | Description (90 car max)`,
+Formation: ${contexte.formation || "nos formations"}
+Format: Titre 1 (30 car max) | Titre 2 (30 car max) | Description (90 car max)
+Rappel: aucun chiffre, aucun prix, aucune promesse de resultat.`,
 
     pub_meta: `Redige 2 publicites Meta Ads pour AcadémIA Pro.
-Formation: ${contexte.formation || "formations IA"}
-Public: ${contexte.cible || "35-55 ans actifs"}
-Inclus: accroche, texte principal, CTA. Ton emotionnel et percutant.`,
-
-    article_seo: `Redige un article SEO optimise pour AcadémIA Pro.
-Sujet: ${contexte.sujet || "formation IA professionnelle"}
-Mot cle principal: ${contexte.mot_cle || "formation IA"}
-Longueur: 600 mots. Structure: H1, introduction, 3 sections H2, conclusion, CTA.`,
-
-    strategie: `Cree une strategie marketing complete pour AcadémIA Pro.
-Objectif: ${contexte.objectif || "augmenter les inscriptions"}
-Budget mensuel: ${contexte.budget || "500 EUR"}
-Periode: ${contexte.periode || "3 mois"}
-Inclus: canaux prioritaires, budget par canal, KPIs, planning mensuel, actions prioritaires.`,
-
-    tunnel_vente: `Cree un tunnel de vente complet pour AcadémIA Pro.
 Formation: ${contexte.formation || "nos formations"}
-Prix: ${contexte.prix || "1400 EUR"}
-Inclus: etape 1 attraction, etape 2 consideration, etape 3 decision, etape 4 fidelisation. Actions et messages pour chaque etape.`,
+Public: ${contexte.cible || "professionnels en activite"}
+Inclus: accroche, texte principal, appel a l action. Ton direct, ancre sur une situation reelle.
+Rappel: aucun chiffre, aucun temoignage, aucun prix.`,
+
+    article_seo: `Redige un article pour le blog d AcadémIA Pro.
+Sujet: ${contexte.sujet || "formation professionnelle"}
+Mot cle principal: ${contexte.mot_cle || "formation"}
+Longueur: 600 mots. Structure: titre, introduction, trois sections, conclusion.
+Le mot cle apparait naturellement, jamais repete artificiellement.
+Rappel: aucune statistique, aucune source citee, aucun temoignage, aucun concurrent nomme.`,
+
+    strategie: `Cree une strategie marketing pour AcadémIA Pro.
+Objectif: ${contexte.objectif || "obtenir les premiers clients"}
+Periode: ${contexte.periode || "3 mois"}
+Inclus: canaux prioritaires et pourquoi, actions concretes par canal, ce qu il faut mesurer, planning mensuel.
+Ce document est interne : les chiffres de budget fournis en contexte peuvent y figurer, mais aucune statistique de marche inventee.`,
+
+    tunnel_vente: `Cree un tunnel de vente pour AcadémIA Pro.
+Formation: ${contexte.formation || "nos formations"}
+Inclus: etape 1 attraction, etape 2 consideration, etape 3 decision, etape 4 fidelisation. Actions et messages pour chaque etape.
+Ce document est interne. Les messages destines aux prospects ne comportent ni chiffre, ni temoignage, ni prix.`,
   };
 
   const prompt = prompts[type] || prompts.strategie;
@@ -109,6 +154,9 @@ export async function POST(req: NextRequest) {
       const { type, contexte } = body;
       const contenu = await generer_contenu(type, contexte || {});
 
+      // 🚨 STATUT BROUILLON, TOUJOURS. Rien de ce qui sort d ici ne part
+      // sans relecture — doctrine du 24/08 : « je prefere qu il n y ait
+      // pas d articles plutot que des articles qui agissent contre moi ».
       await supabase.from("marketing").insert({
         type,
         titre: `${type} — ${new Date().toLocaleDateString("fr-FR")}`,
@@ -130,11 +178,4 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ erreur: "Action invalide" }, { status: 400 });
   } catch (err: any) {
-    return NextResponse.json({ erreur: err.message }, { status: 500 });
-  }
-}
-
-export async function GET() {
-  return NextResponse.json(await stats_marketing());
-}
-
+    return NextResponse.json({ erreur: err
