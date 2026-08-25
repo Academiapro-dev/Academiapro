@@ -12,14 +12,22 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || ""
 );
 
-// QUATRE SOURCES, DONT UNE MANUELLE.
+// CINQ SOURCES, DONT UNE MANUELLE.
 //
-// Les trois premieres viennent de l open data enrichi. LA QUATRIEME,
+// Les quatre premieres viennent de l open data enrichi. LA CINQUIEME,
 // « manuel », pointe sur la table crm et recoit les profils que Jacques
 // trouve LUI-MEME sur LinkedIn, au fil de son fil d actualite.
+//
+// 🚨 « gros » AJOUTEE LE 25/08, ET LA RAISON COMPTE.
+// L ecran de recherche rend des resultats venant de prospects_gros. Sans
+// cette entree, marquer une acceptation depuis un de ces resultats
+// echouait sur « Base inconnue » — des boutons visibles qui ne font rien.
+// RAPPEL : prospects_cabinets N A PAS les colonnes LinkedIn. Elle n a donc
+// rien a faire ici, et l y mettre ferait echouer tous les comptages.
 const TABLES: any = {
   organismes: "prospects_organismes",
   qualiopi: "prospects_qualiopi",
+  gros: "prospects_gros",
   interim: "prospects_interim",
   manuel: "crm",
 };
@@ -154,17 +162,12 @@ async function compteurs() {
   };
 }
 
-// LES COLONNES DIFFERENT SELON LA TABLE. Les trois bases de prospection
+// LES COLONNES DIFFERENT SELON LA TABLE. Les quatre bases de prospection
 // portent raison_sociale, siren, code_postal ; la table crm porte nom et
 // organisme. Demander les mauvaises colonnes ferait echouer la requete.
-//
-// 🆕 effectif_formateurs — ajoute le 21/08. Il sert au TRI (voir suivante)
-// et s affiche a l ecran : savoir qu on invite un organisme de deux cents
-// formateurs plutot que d un seul change la facon d aborder le contact.
 const COLONNES_PROSPECTS =
   "id, raison_sociale, ville, code_postal, siren, dirigeant_prenom, dirigeant_nom, " +
-  "linkedin, email, telephone, site_web, linkedin_le, linkedin_relance_le, linkedin_statut, " +
-  "notes, effectif_formateurs, specialite";
+  "linkedin, email, telephone, site_web, linkedin_le, linkedin_relance_le, linkedin_statut, notes";
 
 const COLONNES_CRM =
   "id, nom, organisme, ville, dirigeant_prenom, dirigeant_nom, " +
@@ -206,54 +209,22 @@ function uniformiser(l: any, cle: string) {
     code_postal: null,
     siren: null,
     site_web: null,
-    effectif_formateurs: null,
-    specialite: null,
     base: cle,
   };
 }
 
-// 🚨 LES PLUS GROS ORGANISMES D ABORD — 21/08.
-//
-// LE DEFAUT. La fiche suivante etait servie `.order("id")`, c est-a-dire
-// dans l ordre d import du fichier open data. Sur mille cinq cents profils,
-// Jacques tombait aussi bien sur un formateur independant que sur un
-// organisme de trois cents formateurs. A vingt invitations par jour, la
-// moitie du quota partait vers des structures qui n acheteront jamais un
-// abonnement a 390 euros par mois.
-//
-// LE CRITERE. effectif_formateurs est une donnee REELLE du fichier
-// officiel (mesuree le 20/08 : de 0 a 1 540, distribution naturelle).
-// ⚠️ NE PAS UTILISER nb_stagiaires : cette colonne est FABRIQUEE — toutes
-// ses valeurs tiennent entre 50 et 199, ce qui ne peut pas etre vrai.
-//
-// L ORDRE OBTENU : 28 organismes de plus de 50 formateurs, puis 55 de 21 a
-// 50, puis 336 de 6 a 20. Les independants (0-1) arrivent en dernier.
-//
-// nullsFirst: false tient les fiches sans effectif renseigne en fin de
-// file : une valeur absente n est pas une grosse structure.
-//
-// LA TABLE crm N A PAS CETTE COLONNE : les profils saisis a la main
-// continuent d etre servis par identifiant.
 async function suivante(base: string) {
   const table = TABLES[base];
   if (!table) return { erreur: "Base inconnue." };
 
-  let requete = supabase
+  const { data, error } = await supabase
     .from(table)
     .select(colonnesDe(base))
     .not("linkedin", "is", null)
     .is("linkedin_le", null)
-    .or("linkedin_statut.is.null,linkedin_statut.neq.ecarte");
-
-  if (base === "manuel") {
-    requete = requete.order("id", { ascending: true });
-  } else {
-    requete = requete
-      .order("effectif_formateurs", { ascending: false, nullsFirst: false })
-      .order("id", { ascending: true });
-  }
-
-  const { data, error } = await requete.limit(1);
+    .or("linkedin_statut.is.null,linkedin_statut.neq.ecarte")
+    .order("id", { ascending: true })
+    .limit(1);
 
   if (error) return { erreur: error.message };
   if (!data || data.length === 0) return { fiche: null, epuise: true };
@@ -486,7 +457,7 @@ export async function POST(req: NextRequest) {
       const { data: cree, error } = await supabase
         .from("crm")
         .insert(fiche)
-        .select("id, nom, linkedin_statut")
+        .select(COLONNES_CRM)
         .maybeSingle();
 
       if (error) {
@@ -498,9 +469,12 @@ export async function POST(req: NextRequest) {
         : nom + " est ajoute a votre file, " +
           (mode === "invite" ? "invitation avec note" : "invitation sans note") + ".";
 
+      // 🆕 LA FICHE COMPLETE EST RENVOYEE — 25/08.
+      // Elle ne l etait pas : l ecran confirmait « enregistre » puis
+      // n affichait rien, et il fallait aller la chercher dans un onglet.
       return NextResponse.json({
         ok: true,
-        ajoute: cree,
+        ajoute: cree ? uniformiser(cree, "manuel") : null,
         mode: mode,
         message: mot,
         compteurs: await compteurs(),
@@ -594,8 +568,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, erreur: error.message }, { status: 500 });
     }
 
+    // 🚨 LA FICHE SUIVANTE N EST CHARGEE QUE POUR L ONGLET INVITER.
+    //
+    // Depuis la recherche, marquer une acceptation ne doit PAS faire
+    // defiler la file d invitation : on agit sur une fiche precise, pas
+    // dans un enchainement. Le drapeau sansSuite le dit.
+    const sansSuite = body.sans_suite === true;
     const enFile = (statut === "invite" || statut === "invite_nu" || statut === "ecarte");
-    const suite: any = enFile ? await suivante(base) : {};
+    const suite: any = (enFile && !sansSuite) ? await suivante(base) : {};
 
     return NextResponse.json({
       ok: true,
