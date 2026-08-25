@@ -9,39 +9,28 @@ import { useState, useEffect, useMemo, useRef } from "react";
 // A ECRIRE : les personnes qui ont accepte et n ont pas encore recu de mot.
 // MESSAGES ENVOYES : ceux a qui l on a ecrit, du plus ancien au plus recent.
 //
-// 🚨🚨 LE DEFAUT DE CONCEPTION CORRIGE LE 18/08, ET IL FAUT LE COMPRENDRE
-// POUR NE PAS LE REFAIRE. Les deux seuls boutons d enregistrement etaient
-// « Invitee avec une note » et « Invitee sans note ». ENREGISTRER UNE FICHE
-// ET DECLARER UNE INVITATION ETAIENT DONC LA MEME ACTION.
-//
-// Ses mots : « envoyer une fiche sans invitation, pour moi ca ne veut pas
-// dire enregistrer la fiche ».
+// 🚨🚨 LE DEFAUT DE CONCEPTION CORRIGE LE 18/08. Les deux seuls boutons
+// d enregistrement etaient « Invitee avec une note » et « Invitee sans
+// note ». ENREGISTRER UNE FICHE ET DECLARER UNE INVITATION ETAIENT DONC LA
+// MEME ACTION. Ses mots : « envoyer une fiche sans invitation, pour moi ca
+// ne veut pas dire enregistrer la fiche ».
 //
 // ⚠️ LECON GENERALE : toujours dérouler ce qui arrive AU BOUT — quand le
-// quota est atteint, quand la liste est vide, quand un champ manque. Un
-// bouton qui se grise ne doit jamais etre le SEUL moyen d enregistrer.
+// quota est atteint, quand la liste est vide, quand un champ manque.
 //
-// 🚨🚨 LA MEME LECON, REJOUEE LE 25/08 SUR LA RECHERCHE.
+// 🚨🚨 LA MEME LECON, REJOUEE LE 25/08 SUR LA RECHERCHE. Le bloc
+// « Chercher partout » a d abord ete livre en LECTURE SEULE. C etait faux :
+// Jacques trouve un prospect ICI, au moment ou LinkedIn lui notifie une
+// acceptation, et il doit pouvoir marquer SANS quitter l ecran.
 //
-// Le bloc « Chercher partout » a d abord ete livre en LECTURE SEULE, au
-// motif qu on irait agir ailleurs. C etait faux. Jacques trouve un
-// prospect ICI, au moment ou LinkedIn lui notifie une acceptation, et il
-// doit pouvoir marquer SANS quitter l ecran. Une fiche qu on voit sans
-// pouvoir agir dessus est une impasse.
-//
-// LES BOUTONS SONT DONC SUR CHAQUE RESULTAT portant un profil LinkedIn.
-// Ils ecrivent par /api/admin/linkedin, avec sans_suite a true : marquer
-// depuis la recherche ne doit PAS faire defiler la file d invitation.
-//
-// 🆕 LECTURE D UNE CAPTURE — 18/08. Jacques photographie un profil, les
-// champs se remplissent.
-//
-// 🆕 LA FICHE CREEE S AFFICHE — 25/08. Elle ne s affichait pas : un message
-// vert confirmait, puis il fallait aller la chercher dans un onglet.
-//
-// 🚨 AUCUN ENVOI AUTOMATIQUE, ET CE N EST PAS CONTOURNABLE. LinkedIn
-// n expose AUCUNE API de messagerie, et les outils qui simulent les clics
-// font restreindre puis supprimer le compte.
+// 🆕 LE MESSAGE D APRES ACCEPTATION, REECRIT LE 25/08.
+// L ancienne version annoncait « plus de trois cents formations » quand le
+// catalogue en compte 560 — Jacques se sous-vendait de moitie, sur un
+// chiffre verifiable en trois clics sur le site. Elle affirmait aussi
+// « ce qu aucun logiciel du marche ne propose », affirmation absolue et
+// invérifiable qui donne exactement la prise que cherche un lecteur
+// mefiant.
+// LE CHIFFRE EST DESORMAIS CALCULE EN BASE et passe par les compteurs.
 
 const BASES = [
   { cle: "organismes", nom: "Organismes certifiés Qualiopi" },
@@ -86,40 +75,90 @@ const LIMITE_NOTE = 200;
 
 const JOURS_AVANT_RELANCE = 12;
 
+// 🆕 LA CAPITALISATION — 25/08.
+//
+// Les bases d open data stockent TOUT EN CAPITALES : « BRUNO »,
+// « ACTION PREVENTIVE FORMATIONS CONSEILS ». Une salutation en capitales
+// est la premiere chose que lit le destinataire, et elle trahit un champ
+// de base de donnees recopie tel quel.
+//
+// La regle : premiere lettre de chaque mot en majuscule, le reste en
+// minuscules. Les particules courantes restent en minuscules, et les
+// composes a trait d union sont traites mot par mot — « JEAN-LUC » devient
+// « Jean-Luc », pas « Jean-luc ».
+const PARTICULES = ["de", "du", "des", "le", "la", "les", "d", "l", "et", "en", "au", "aux"];
+
+function capitaliser(v: any): string {
+  const t = String(v === null || v === undefined ? "" : v).trim();
+  if (!t) return "";
+  // Un texte deja correctement casse n est pas retouche : on ne corrige
+  // que ce qui est integralement en capitales.
+  if (t !== t.toUpperCase()) return t;
+
+  return t.toLowerCase().split(/\s+/).map(function (mot, rang) {
+    if (rang > 0 && PARTICULES.indexOf(mot) >= 0) return mot;
+    return mot.split("-").map(function (bout) {
+      if (!bout) return bout;
+      return bout.charAt(0).toUpperCase() + bout.slice(1);
+    }).join("-");
+  }).join(" ");
+}
+
 function motInvitation(prenom: string) {
-  const p = String(prenom || "").trim();
+  const p = capitaliser(prenom);
   const civilite = p ? "Bonjour " + p : "Bonjour";
   return civilite + ", j'ai dirigé un organisme de formation certifié, et c'est l'administratif "
     + "qui m'a coûté le plus de temps. J'en ai fait un outil qui le prend en charge. "
     + "Ravi d'échanger avec vous.";
 }
 
-// LE MESSAGE APRES ACCEPTATION.
+// LE MESSAGE APRES ACCEPTATION — REECRIT LE 25/08.
+//
+// CE QUI A CHANGE, ET POURQUOI :
+//
+// 1. LE DEUXIEME PARAGRAPHE EST DEVENU CONCRET. « Le bilan pedagogique et
+//    financier, les preuves a reunir » enumerait des categories. Retrouver
+//    un emargement de mars decrit une scene que le lecteur reconnait.
+//
+// 2. LE CHIFFRE EST EXACT ET CALCULE EN BASE. « Plus de trois cents » quand
+//    le site en montre 560 : l ecart se voit, et il joue contre nous.
+//
+// 3. « CE QU AUCUN LOGICIEL DU MARCHE NE PROPOSE » A ETE RETIRE. Une
+//    affirmation absolue est exactement la prise que cherche quelqu un qui
+//    lit un message commercial.
+//
+// 4. LA MARQUE BLANCHE EST RELIEE A UNE SITUATION — un client qui demande
+//    un sujet hors domaine — au lieu d etre un argument suspendu.
 //
 // ⚠️ AUCUNE MENTION DE PRODUCTION SUR DEMANDE. Le catalogue est evolutif,
 // point. Decision du 17/08, a ne pas defaire.
-function messageRelance(prenom: string, societe: string) {
-  const p = String(prenom || "").trim();
-  const s = String(societe || "").trim();
+function messageRelance(prenom: string, societe: string, nbFormations: number) {
+  const p = capitaliser(prenom);
+  const s = capitaliser(societe);
+  const combien = nbFormations > 0 ? String(nbFormations) : "plusieurs centaines de";
+
   return (p ? "Bonjour " + p : "Bonjour") + ",\n\n"
     + "Merci d'avoir accepté ma demande.\n\n"
-    + "Je vous écris parce que j'ai dirigé un organisme de formation certifié Qualiopi pendant "
-    + "quelques années. Ce qui m'a coûté le plus de temps n'a jamais été de former : c'était le "
-    + "bilan pédagogique et financier, les preuves à réunir avant l'audit, et le suivi "
-    + "administratif des stagiaires.\n\n"
-    + "J'en ai fait une plateforme qui prend tout cela en charge — évaluations à chaud et à "
-    + "froid, registre des réclamations, dossiers des formateurs, bilan prérempli cadre par "
-    + "cadre. S'y ajoute un catalogue de plus de trois cents formations que vous pouvez vendre "
-    + "sous votre propre marque, ce qu'aucun logiciel du marché ne propose.\n\n"
-    + "Je ne cherche pas à vous vendre quoi que ce soit aujourd'hui. Je serais surtout curieux "
-    + "de savoir ce qui vous prend le plus de temps"
-    + (s ? " chez " + s : "") + " sur la partie administrative — c'est ce qui me dit si l'outil "
-    + "répond à un vrai besoin ou pas.\n\n"
+    + "J'ai dirigé un organisme de formation certifié Qualiopi pendant quelques années. "
+    + "Ce qui m'a coûté le plus de temps n'a jamais été de former. C'était de retrouver "
+    + "un émargement de mars au moment du bilan, de reconstituer les évaluations qu'on "
+    + "avait oublié d'envoyer, et de préparer un audit avec des preuves éparpillées dans "
+    + "quatre classeurs.\n\n"
+    + "J'en ai fait une plateforme qui consigne tout cela au fil de l'eau — évaluations "
+    + "à chaud et à froid, registre des réclamations, dossiers des formateurs, bilan "
+    + "prérempli cadre par cadre. Au moment du bilan pédagogique et financier, on vérifie "
+    + "et on signe au lieu de reconstituer.\n\n"
+    + "S'y ajoute un catalogue de " + combien + " formations que vous pouvez proposer sous "
+    + "votre propre marque, quand un client vous demande un sujet qui n'est pas le vôtre.\n\n"
+    + "Je ne cherche pas à vous vendre quoi que ce soit aujourd'hui. Ce qui m'intéresse, "
+    + "c'est de savoir ce qui vous prend le plus de temps sur la partie administrative"
+    + (s ? " chez " + s : "") + " — c'est ce qui me dit si l'outil répond à un vrai besoin "
+    + "ou pas.\n\n"
     + "Bien à vous,\nJacques Lalou\nacademiapro.fr";
 }
 
 function secondMessage(prenom: string) {
-  const p = String(prenom || "").trim();
+  const p = capitaliser(prenom);
   return (p ? "Bonjour " + p : "Bonjour") + ",\n\n"
     + "Je me permets un mot, mon message précédent est peut-être passé inaperçu.\n\n"
     + "Si le sujet ne vous concerne pas, dites-le-moi simplement, je n'insisterai pas.\n\n"
@@ -161,7 +200,6 @@ export default function PageLinkedin() {
   const [partoutErreur, setPartoutErreur] = useState("");
   const [partoutMessage, setPartoutMessage] = useState("");
   const [partoutOccupe, setPartoutOccupe] = useState("");
-  const [partoutTexte, setPartoutTexte] = useState<any>({});
 
   // LA FICHE QUI VIENT D ETRE CREEE.
   const [creee, setCreee] = useState<any>(null);
@@ -197,6 +235,9 @@ export default function PageLinkedin() {
   const [charge, setCharge] = useState(false);
   const [erreur, setErreur] = useState("");
   const [copie, setCopie] = useState("");
+
+  // LE NOMBRE DE FORMATIONS, tenu a jour par les compteurs.
+  const nbFormations = compteurs && compteurs.formations ? compteurs.formations : 0;
 
   useEffect(() => {
     if (onglet === "inviter") chargerSuivante();
@@ -264,8 +305,8 @@ export default function PageLinkedin() {
       });
       if (d.ok) {
         if (d.compteurs) setCompteurs(d.compteurs);
-        const nom = ((ligne.dirigeant_prenom || "") + " " + (ligne.dirigeant_nom || "")).trim()
-          || ligne.raison_sociale || "La fiche";
+        const nom = capitaliser((ligne.dirigeant_prenom || "") + " " + (ligne.dirigeant_nom || "")).trim()
+          || capitaliser(ligne.raison_sociale) || "La fiche";
         const mots: any = {
           accepte: " a été marqué comme ayant accepté. Sa fiche est dans « À écrire ».",
           accepte_nu: " a été marqué comme ayant accepté. Sa fiche est dans « À écrire ».",
@@ -497,7 +538,7 @@ export default function PageLinkedin() {
     setOuvertSerie(false);
     setTexteSerie(second
       ? secondMessage(file[0].dirigeant_prenom)
-      : messageRelance(file[0].dirigeant_prenom, file[0].raison_sociale));
+      : messageRelance(file[0].dirigeant_prenom, file[0].raison_sociale, nbFormations));
     setErreur("");
     setMessage("");
   }
@@ -521,7 +562,7 @@ export default function PageLinkedin() {
     setRang(prochain);
     setTexteSerie(second
       ? secondMessage(file[prochain].dirigeant_prenom)
-      : messageRelance(file[prochain].dirigeant_prenom, file[prochain].raison_sociale));
+      : messageRelance(file[prochain].dirigeant_prenom, file[prochain].raison_sociale, nbFormations));
     setCopieSerie(false);
     setOuvertSerie(false);
   }
@@ -593,7 +634,6 @@ export default function PageLinkedin() {
       if (d.ok) {
         setMessage(d.message || "Profil enregistré.");
         setCompteurs(d.compteurs || null);
-        // 🆕 LA FICHE CREEE S AFFICHE IMMEDIATEMENT — 25/08.
         setCreee(d.ajoute || null);
         setANom(""); setALien(""); setAOrganisme(""); setAVille(""); setANotes("");
         setAjout(false);
@@ -693,6 +733,12 @@ export default function PageLinkedin() {
 
   function avecNoteDe(l: any) {
     return l.linkedin_statut === "invite" || l.linkedin_statut === "accepte";
+  }
+
+  // Le nom affiche partout : capitalise, jamais en capitales brutes.
+  function nomDe(l: any) {
+    const complet = ((l.dirigeant_prenom || "") + " " + (l.dirigeant_nom || "")).trim();
+    return capitaliser(complet || l.nom || "");
   }
 
   const OR = "#c8a96e";
@@ -920,19 +966,19 @@ export default function PageLinkedin() {
                         </p>
                       ) : (
                         (b.lignes || []).map(function (l: any) {
-                          const nomComplet = ((l.dirigeant_prenom || "") + " " + (l.dirigeant_nom || "")).trim();
-                          const k = aplatir(nomComplet);
+                          const nomComplet = nomDe(l);
+                          const k = aplatir((l.dirigeant_prenom || "") + " " + (l.dirigeant_nom || ""));
                           const enDouble = k.length >= 3 && compteParPersonne[k] > 1;
                           return (
                             <div key={b.cle + "-" + l.id} style={{ padding: "11px 13px", background: "rgba(255,255,255,0.03)", border: "1px solid " + (enDouble ? "rgba(232,163,61,0.45)" : "rgba(255,255,255,0.08)"), borderRadius: "8px", marginBottom: "7px" }}>
                               <div style={{ color: "#fff", fontSize: "14.5px", fontWeight: "bold" }}>
-                                {l.raison_sociale || "—"}
+                                {capitaliser(l.raison_sociale) || "—"}
                               </div>
                               <div style={{ color: OR, fontSize: "13px", marginTop: "2px" }}>
                                 {nomComplet || "dirigeant inconnu"}
                               </div>
                               <div style={{ color: "rgba(255,255,255,0.4)", fontSize: "12.5px", marginTop: "4px", lineHeight: "1.7" }}>
-                                {l.ville || "ville inconnue"}
+                                {capitaliser(l.ville) || "ville inconnue"}
                                 {l.code_postal ? " · " + l.code_postal : ""}
                                 {l.siren ? " · SIREN " + l.siren : ""}
                                 {l.statut === "envoye" ? " · courriel envoyé le " + jolieDate(l.envoye_le) : ""}
@@ -1010,13 +1056,13 @@ export default function PageLinkedin() {
         </div>
 
         <div style={{ color: "#fff", fontSize: "17px", fontWeight: "bold" }}>
-          {creee.nom || ((creee.dirigeant_prenom || "") + " " + (creee.dirigeant_nom || ""))}
+          {capitaliser(creee.nom) || nomDe(creee)}
         </div>
         <div style={{ color: OR, fontSize: "14px", marginTop: "2px" }}>
-          {creee.raison_sociale || creee.organisme || "—"}
+          {capitaliser(creee.raison_sociale || creee.organisme) || "—"}
         </div>
         <div style={{ color: "rgba(255,255,255,0.4)", fontSize: "12.5px", marginTop: "4px" }}>
-          {creee.ville || "ville inconnue"}
+          {capitaliser(creee.ville) || "ville inconnue"}
           {" · "}
           {statut ? statut : "en attente d'invitation"}
         </div>
@@ -1487,16 +1533,16 @@ export default function PageLinkedin() {
                   <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "10px" }}>
                     <div>
                       <div style={{ color: "#fff", fontSize: "19px", fontWeight: "bold", marginBottom: "4px" }}>
-                        {(fiche.dirigeant_prenom || "") + " " + (fiche.dirigeant_nom || "")}
+                        {nomDe(fiche)}
                       </div>
                       <div style={{ color: OR, fontSize: "15px", marginBottom: "9px" }}>
-                        {fiche.raison_sociale || "—"}
+                        {capitaliser(fiche.raison_sociale) || "—"}
                       </div>
                     </div>
                     <div style={{ color: OR, fontSize: "13px" }}>{nombre(restant)} restantes</div>
                   </div>
                   <div style={{ color: "rgba(255,255,255,0.45)", fontSize: "13px", lineHeight: "1.8" }}>
-                    {fiche.ville || "ville inconnue"}
+                    {capitaliser(fiche.ville) || "ville inconnue"}
                     {fiche.code_postal ? " · " + fiche.code_postal : ""}
                     {fiche.siren ? " · SIREN " + fiche.siren : ""}
                   </div>
@@ -1602,13 +1648,13 @@ export default function PageLinkedin() {
                     <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "10px" }}>
                       <div style={{ flex: "1 1 240px" }}>
                         <div style={{ color: "#fff", fontSize: "15.5px", fontWeight: "bold" }}>
-                          {l.nom || ((l.dirigeant_prenom || "") + " " + (l.dirigeant_nom || ""))}
+                          {capitaliser(l.nom) || nomDe(l)}
                         </div>
                         <div style={{ color: OR, fontSize: "13.5px", marginTop: "2px" }}>
-                          {l.raison_sociale || "—"}
+                          {capitaliser(l.raison_sociale) || "—"}
                         </div>
                         <div style={{ color: "rgba(255,255,255,0.4)", fontSize: "12.5px", marginTop: "4px" }}>
-                          {l.ville || ""}
+                          {capitaliser(l.ville)}
                         </div>
                         {coordonnees(l)}
                       </div>
@@ -1670,13 +1716,13 @@ export default function PageLinkedin() {
                     <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "10px" }}>
                       <div style={{ flex: "1 1 240px" }}>
                         <div style={{ color: "#fff", fontSize: "15.5px", fontWeight: "bold" }}>
-                          {(l.dirigeant_prenom || "") + " " + (l.dirigeant_nom || "")}
+                          {nomDe(l)}
                         </div>
                         <div style={{ color: OR, fontSize: "13.5px", marginTop: "2px" }}>
-                          {l.raison_sociale || "—"}
+                          {capitaliser(l.raison_sociale) || "—"}
                         </div>
                         <div style={{ color: "rgba(255,255,255,0.4)", fontSize: "12.5px", marginTop: "4px" }}>
-                          {l.ville ? l.ville + " · " : ""}
+                          {l.ville ? capitaliser(l.ville) + " · " : ""}
                           {jolieDate(l.linkedin_le)}
                           {j !== null ? " · il y a " + j + " jour" + (j > 1 ? "s" : "") : ""}
                           <span style={{ color: note ? OR : "rgba(255,255,255,0.3)" }}>
@@ -1730,13 +1776,13 @@ export default function PageLinkedin() {
                   </div>
 
                   <div style={{ color: "#fff", fontSize: "20px", fontWeight: "bold", marginBottom: "3px" }}>
-                    {(courante.dirigeant_prenom || "") + " " + (courante.dirigeant_nom || "")}
+                    {nomDe(courante)}
                   </div>
                   <div style={{ color: OR, fontSize: "15px", marginBottom: "4px" }}>
-                    {courante.raison_sociale || "—"}
+                    {capitaliser(courante.raison_sociale) || "—"}
                   </div>
                   <div style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px" }}>
-                    {courante.ville || ""}
+                    {capitaliser(courante.ville)}
                   </div>
                   {coordonnees(courante)}
 
@@ -1755,7 +1801,7 @@ export default function PageLinkedin() {
                 <div style={CARTE}>
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "9px", flexWrap: "wrap", gap: "8px" }}>
                     <span style={{ color: OR, fontSize: "12px", letterSpacing: "2px" }}>
-                      LE MESSAGE, DÉJÀ AU NOM DE {String(courante.dirigeant_prenom || "CE CONTACT").toUpperCase()}
+                      LE MESSAGE, DÉJÀ AU NOM DE {String(capitaliser(courante.dirigeant_prenom) || "CE CONTACT").toUpperCase()}
                     </span>
                     <span style={{ color: "rgba(255,255,255,0.35)", fontSize: "12px" }}>
                       {texteSerie.length} caractères
@@ -1843,13 +1889,13 @@ export default function PageLinkedin() {
                         <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "10px" }}>
                           <div style={{ flex: "1 1 240px" }}>
                             <div style={{ color: "#fff", fontSize: "15.5px", fontWeight: "bold" }}>
-                              {(l.dirigeant_prenom || "") + " " + (l.dirigeant_nom || "")}
+                              {nomDe(l)}
                             </div>
                             <div style={{ color: OR, fontSize: "13.5px", marginTop: "2px" }}>
-                              {l.raison_sociale || "—"}
+                              {capitaliser(l.raison_sociale) || "—"}
                             </div>
                             <div style={{ color: "rgba(255,255,255,0.4)", fontSize: "12.5px", marginTop: "4px" }}>
-                              {l.ville || ""}
+                              {capitaliser(l.ville)}
                               {onglet === "envoyes" && l.linkedin_relance_le ? (
                                 <span>
                                   {l.ville ? " · " : ""}
@@ -1880,7 +1926,7 @@ export default function PageLinkedin() {
                                 setOuverte(cleDe(l));
                                 setTexteLong(onglet === "envoyes"
                                   ? secondMessage(l.dirigeant_prenom)
-                                  : messageRelance(l.dirigeant_prenom, l.raison_sociale));
+                                  : messageRelance(l.dirigeant_prenom, l.raison_sociale, nbFormations));
                               }}
                               style={{ ...BOUTON, flex: "2 1 200px" }}>
                               {onglet === "envoyes" ? "Préparer une relance" : "Préparer le message"}
@@ -1894,7 +1940,7 @@ export default function PageLinkedin() {
                           </div>
                         ) : (
                           <div style={{ marginTop: "14px" }}>
-                            <textarea value={texteLong} onChange={(e) => setTexteLong(e.target.value)} rows={14} style={CHAMP} />
+                            <textarea value={texteLong} onChange={(e) => setTexteLong(e.target.value)} rows={16} style={CHAMP} />
 
                             <button onClick={() => copier(texteLong, "long")}
                               style={{ ...BOUTON, width: "100%", marginTop: "11px", background: copie === "long" ? "rgba(0,230,118,0.15)" : BOUTON.background, color: copie === "long" ? VERT : OR, borderColor: copie === "long" ? "rgba(0,230,118,0.4)" : BOUTON.border }}>
