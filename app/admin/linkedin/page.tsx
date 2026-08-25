@@ -31,6 +31,12 @@ import { useState, useEffect, useMemo, useRef } from "react";
 // champs se remplissent. Disponible dans le formulaire d ajout ET dans
 // chaque fiche complete, pour completer une fiche existante.
 //
+// 🆕 LA RECHERCHE PARTOUT — 25/08. Elle vit deja dans l ecran CRM ; elle
+// est ici aussi parce que c est ici qu on croise un nom sans savoir d ou
+// il sort. Elle interroge /api/admin/prospection?global=TERME, qui balaie
+// les CINQ bases de prospection et rend au plus vingt lignes par base.
+// ELLE NE MODIFIE RIEN : c est une lunette, pas un outil.
+//
 // 🚨 AUCUN ENVOI AUTOMATIQUE, ET CE N EST PAS CONTOURNABLE. LinkedIn
 // n expose AUCUNE API de messagerie, et les outils qui simulent les clics
 // font restreindre puis supprimer le compte.
@@ -145,6 +151,13 @@ export default function PageLinkedin() {
 
   const [recherche, setRecherche] = useState("");
 
+  // LA RECHERCHE PARTOUT — elle ne touche a rien, elle montre.
+  const [partoutOuvert, setPartoutOuvert] = useState(false);
+  const [partoutTerme, setPartoutTerme] = useState("");
+  const [partoutCharge, setPartoutCharge] = useState(false);
+  const [partoutResultat, setPartoutResultat] = useState<any>(null);
+  const [partoutErreur, setPartoutErreur] = useState("");
+
   // LA FICHE COMPLETE.
   const [depliee, setDepliee] = useState("");
   const [brouillon, setBrouillon] = useState<any>({});
@@ -194,6 +207,40 @@ export default function PageLinkedin() {
   function cleDe(l: any) {
     return l.base + "-" + l.id;
   }
+
+  // ---------- LA RECHERCHE PARTOUT ----------
+  //
+  // ⚠️ Elle appelle la route de PROSPECTION, pas celle de LinkedIn : c est
+  // la seule qui sait balayer les cinq bases. Deux caracteres minimum,
+  // impose par la route elle-meme.
+  async function chercherPartout() {
+    const t = partoutTerme.trim();
+    if (t.length < 2) {
+      setPartoutErreur("Deux caractères au minimum.");
+      setPartoutResultat(null);
+      return;
+    }
+    setPartoutCharge(true);
+    setPartoutErreur("");
+    setPartoutResultat(null);
+    try {
+      const r = await fetch("/api/admin/prospection?global=" + encodeURIComponent(t));
+      const d = await r.json();
+      if (d.ok) setPartoutResultat(d);
+      else setPartoutErreur(d.erreur || "Recherche impossible.");
+    } catch (e: any) {
+      setPartoutErreur("Recherche impossible : " + String(e));
+    }
+    setPartoutCharge(false);
+  }
+
+  function viderPartout() {
+    setPartoutTerme("");
+    setPartoutResultat(null);
+    setPartoutErreur("");
+  }
+
+  // ---------- FIN DE LA RECHERCHE PARTOUT ----------
 
   // ---------- LA LECTURE D UNE CAPTURE ----------
 
@@ -625,6 +672,157 @@ export default function PageLinkedin() {
     { id: "envoyes", nom: "Messages envoyés" + (compteurs && compteurs.relances ? " · " + compteurs.relances : "") },
   ];
 
+  // LE BLOC « CHERCHER PARTOUT ».
+  //
+  // Il est REPLIE par defaut : il ne doit pas voler la place du travail
+  // du jour. Ouvert, il reste ouvert d un onglet a l autre, avec ses
+  // resultats — on cherche souvent un nom pour le retrouver ensuite.
+  function blocPartout() {
+    return (
+      <div style={{ ...CARTE, borderColor: partoutOuvert ? "rgba(68,138,255,0.45)" : "rgba(255,255,255,0.12)", padding: partoutOuvert ? "20px 22px" : "14px 22px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px" }}>
+          <div style={{ flex: "1 1 220px" }}>
+            <div style={{ color: partoutOuvert ? BLEU : "rgba(255,255,255,0.7)", fontSize: "14.5px", fontWeight: "bold" }}>
+              🔎 Chercher partout
+            </div>
+            {partoutOuvert && (
+              <div style={{ color: "rgba(255,255,255,0.45)", fontSize: "12.5px", marginTop: "3px", lineHeight: "1.7" }}>
+                Un nom, une société, une ville, un SIREN, un téléphone. Les cinq bases
+                de prospection sont interrogées d'un coup.
+              </div>
+            )}
+          </div>
+          <button
+            onClick={() => { setPartoutOuvert(!partoutOuvert); setPartoutErreur(""); }}
+            style={{ ...BOUTON, padding: "9px 18px", fontSize: "13px", color: partoutOuvert ? "rgba(255,255,255,0.5)" : BLEU, borderColor: partoutOuvert ? "rgba(255,255,255,0.18)" : "rgba(68,138,255,0.45)" }}
+          >
+            {partoutOuvert ? "Replier" : "Ouvrir"}
+          </button>
+        </div>
+
+        {partoutOuvert && (
+          <div style={{ marginTop: "16px" }}>
+            <div style={{ display: "flex", gap: "9px", flexWrap: "wrap" }}>
+              <input
+                value={partoutTerme}
+                onChange={(e) => setPartoutTerme(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") chercherPartout(); }}
+                placeholder="GSIF, Debienne, Riom, 819814047…"
+                style={{ ...CHAMP, flex: "1 1 240px", padding: "12px 14px" }}
+              />
+              <button
+                onClick={chercherPartout}
+                disabled={partoutCharge}
+                style={{ background: partoutCharge ? "rgba(255,255,255,0.06)" : BLEU, color: partoutCharge ? "rgba(255,255,255,0.4)" : "#fff", border: "none", borderRadius: "9px", padding: "12px 24px", fontSize: "14px", fontWeight: "bold", fontFamily: "Georgia,serif", cursor: partoutCharge ? "wait" : "pointer" }}
+              >
+                {partoutCharge ? "Recherche…" : "Chercher"}
+              </button>
+              {(partoutResultat || partoutTerme) && (
+                <button onClick={viderPartout} style={{ ...BOUTON, padding: "12px 20px", color: "rgba(255,255,255,0.5)", borderColor: "rgba(255,255,255,0.18)" }}>
+                  Effacer
+                </button>
+              )}
+            </div>
+
+            {partoutErreur && (
+              <p style={{ color: "#e8836a", fontSize: "13px", lineHeight: "1.7", margin: "11px 0 0" }}>
+                {partoutErreur}
+              </p>
+            )}
+
+            {partoutResultat && (
+              <div style={{ marginTop: "16px" }}>
+                <p style={{ color: partoutResultat.total_trouve === 0 ? "#e8836a" : VERT, fontSize: "13.5px", lineHeight: "1.7", margin: "0 0 13px" }}>
+                  {partoutResultat.total_trouve === 0
+                    ? "Rien trouvé pour « " + partoutResultat.terme + " » dans aucune des cinq bases."
+                    : nombre(partoutResultat.total_trouve) + " résultat(s) pour « " + partoutResultat.terme + " »."}
+                </p>
+
+                {(partoutResultat.bases || []).map(function (b: any) {
+                  if (!b.trouves && !b.erreur) return null;
+                  return (
+                    <div key={b.cle} style={{ marginBottom: "16px" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: "8px", marginBottom: "8px", paddingBottom: "6px", borderBottom: "1px solid rgba(200,169,110,0.22)" }}>
+                        <span style={{ color: OR, fontSize: "12.5px", letterSpacing: "1.5px" }}>
+                          {b.titre.toUpperCase()}
+                        </span>
+                        <span style={{ color: "rgba(255,255,255,0.4)", fontSize: "12px" }}>
+                          {b.erreur ? "lecture impossible" : nombre(b.trouves) + " trouvé(s)"}
+                          {b.trouves > 20 ? " · 20 affichés" : ""}
+                        </span>
+                      </div>
+
+                      {b.erreur ? (
+                        <p style={{ color: "#e8836a", fontSize: "12.5px", lineHeight: "1.7", margin: 0 }}>
+                          {b.erreur}
+                        </p>
+                      ) : (
+                        (b.lignes || []).map(function (l: any) {
+                          const nomComplet = ((l.dirigeant_prenom || "") + " " + (l.dirigeant_nom || "")).trim();
+                          return (
+                            <div key={b.cle + "-" + l.id} style={{ padding: "11px 13px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "8px", marginBottom: "7px" }}>
+                              <div style={{ color: "#fff", fontSize: "14.5px", fontWeight: "bold" }}>
+                                {l.raison_sociale || "—"}
+                              </div>
+                              <div style={{ color: OR, fontSize: "13px", marginTop: "2px" }}>
+                                {nomComplet || "dirigeant inconnu"}
+                              </div>
+                              <div style={{ color: "rgba(255,255,255,0.4)", fontSize: "12.5px", marginTop: "4px", lineHeight: "1.7" }}>
+                                {l.ville || "ville inconnue"}
+                                {l.code_postal ? " · " + l.code_postal : ""}
+                                {l.siren ? " · SIREN " + l.siren : ""}
+                                {l.statut === "envoye" ? " · courriel envoyé le " + jolieDate(l.envoye_le) : ""}
+                                {l.desabonne ? " · DÉSABONNÉ" : ""}
+                              </div>
+
+                              {(l.email || l.telephone) && (
+                                <div style={{ display: "flex", gap: "14px", flexWrap: "wrap", marginTop: "7px", fontSize: "12.5px" }}>
+                                  {l.email && (
+                                    <a href={"mailto:" + l.email} style={{ color: BLEU, textDecoration: "none" }}>
+                                      ✉️ {l.email}
+                                    </a>
+                                  )}
+                                  {l.telephone && (
+                                    <a href={"tel:" + appelable(l.telephone)} style={{ color: BLEU, textDecoration: "none" }}>
+                                      ☎️ {l.telephone}
+                                    </a>
+                                  )}
+                                </div>
+                              )}
+
+                              {b.porte_linkedin && l.linkedin && (
+                                <div style={{ marginTop: "8px", display: "flex", gap: "12px", flexWrap: "wrap", alignItems: "center" }}>
+                                  <a href={lien(l.linkedin)} target="_blank" rel="noreferrer"
+                                    style={{ color: BLEU, fontSize: "12.5px", textDecoration: "none" }}>
+                                    Ouvrir le profil LinkedIn ↗
+                                  </a>
+                                  <span style={{ color: l.linkedin_statut ? VERT : "rgba(255,255,255,0.35)", fontSize: "12px" }}>
+                                    {l.linkedin_statut
+                                      ? l.linkedin_statut + (l.linkedin_le ? " le " + jolieDate(l.linkedin_le) : "")
+                                      : "jamais sollicité"}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  );
+                })}
+
+                <p style={{ color: "rgba(255,255,255,0.3)", fontSize: "12px", lineHeight: "1.7", margin: "4px 0 0" }}>
+                  Cette recherche ne modifie rien. Pour agir sur une fiche, ouvrez la base
+                  concernée depuis le CRM.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   function barreRecherche() {
     return (
       <div style={{ marginBottom: "16px" }}>
@@ -843,6 +1041,9 @@ export default function PageLinkedin() {
       </div>
 
       <div style={{ padding: "22px 20px", maxWidth: "800px", margin: "0 auto" }}>
+
+        {/* ---------- CHERCHER PARTOUT — au-dessus de tout le reste ---------- */}
+        {!enSerie && blocPartout()}
 
         {/* ---------- LES COMPTEURS ---------- */}
         {compteurs && !enSerie && (
