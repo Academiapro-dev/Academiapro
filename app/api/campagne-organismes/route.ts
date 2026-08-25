@@ -35,7 +35,22 @@ const SITE = "https://academiapro.fr";
 // une reputation abimee ne se repare pas.
 //
 // PALIERS : 5 par jour, puis 10, 20, 50. Modifier ce chiffre suffit.
-const LOT_PAR_DEFAUT = 5;
+//
+// 🚨 PASSAGE A 10 LE 25/08, ET LA MESURE QUI L AUTORISE.
+// Le domaine contact-pro.academiapro.fr envoie depuis le 13 aout. Au
+// 25/08 : 42 messages partis, AUCUN echec, AUCUN rejet, aucune ligne
+// bloquee en envoi_en_cours. Douze jours d envoi continu sans incident.
+//
+// LA REGLE, ET ELLE NE SE CONTOURNE PAS : la chauffe se mesure en JOURS
+// D ENVOI, pas en volume cumule. On ne saute jamais un palier — 5 puis 10
+// puis 20 puis 50 — et on ne monte que si les echecs sont restes a zero.
+// PALIER SUIVANT : 20, vers le 10/09, et seulement apres la meme mesure.
+//
+// LA DECISION DE PASSER A 10 AVAIT ETE PRISE LE 24/08 MAIS LE FICHIER
+// N AVAIT PAS ETE MODIFIE : la campagne du 25/08 a donc envoye 5 messages
+// au lieu des 10 attendus. Une decision non ecrite dans le code n existe
+// pas.
+const LOT_PAR_DEFAUT = 10;
 
 function clientAdmin() {
   return createClient(
@@ -247,6 +262,4 @@ export async function GET(req: NextRequest) {
     echecs: echecs,
     formations_annoncees: nbFormations || 0,
     reste_a_contacter: restant || 0,
-    premiers_echecs: details,
-  });
-}
+    premiers
