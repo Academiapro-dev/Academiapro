@@ -74,6 +74,30 @@ function ilYaSeptJours(): string {
   return new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString();
 }
 
+// 🆕 LE NOMBRE DE FORMATIONS, CALCULE EN BASE — 25/08.
+//
+// LE DEFAUT CORRIGE : le message d apres acceptation annoncait « plus de
+// trois cents formations » alors que le catalogue en compte 560. Jacques
+// se sous-vendait de moitie, sur un chiffre que le prospect peut verifier
+// sur le site en trois clics.
+//
+// 🚨 LE DOMAINE « Ateliers » EST EXCLU, exactement comme dans la campagne
+// courriel. La table formations contient DEUX familles : les formations du
+// catalogue commercial ET les 20 ateliers, qui ne figurent nulle part au
+// catalogue. Sans cette exclusion, le message annoncerait 580 quand le site
+// en montre 560.
+//
+// EN DUR, CE CHIFFRE SERAIT FAUX A LA PROCHAINE VAGUE DE FICHES. Calcule,
+// il suit tout seul.
+async function compterFormations(): Promise<number> {
+  const { count } = await supabase
+    .from("formations")
+    .select("code", { count: "exact", head: true })
+    .eq("actif", true)
+    .neq("domaine", "Ateliers");
+  return count || 0;
+}
+
 // Une fiche ecartee ne compte jamais : rien n a ete envoye.
 //
 // 🚨 UNE FICHE EN ATTENTE NON PLUS. Depuis le 18/08, une fiche peut etre
@@ -134,6 +158,7 @@ async function compteurs() {
   const refuses = await compterStatuts(["refuse"]);
   const ecartes = await compterStatuts(["ecarte"]);
   const en_file = await compterEnFile();
+  const formations = await compterFormations();
 
   // 🚨 « ACCEPTEES » COMPTE AUSSI LES RELANCEES — corrige le 18/08.
   //
@@ -153,6 +178,7 @@ async function compteurs() {
     accepte_note, accepte_nu,
     relances, refuses, ecartes,
     en_file,
+    formations,
     taux_note: taux(accepte_note, 0) === null ? null : taux(accepte_note + relances * 0, refuses),
     taux_global: taux(acceptees, refuses),
     plafond_jour: PLAFOND_JOUR,
