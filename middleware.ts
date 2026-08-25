@@ -2,13 +2,37 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 // Les adresses autorisees a ouvrir l administration et la maintenance.
-//
-// ⚠️ LA MEME LISTE EXISTE DANS app/api/auth/valider/route.ts. Toute adresse
-// ajoutee ici doit l etre la-bas aussi : sans quoi l administrateur serait
-// deverse sur une page a laquelle ce fichier lui refuserait l acces.
 const ADMINS = ['contact@academiapro.fr'];
 
 const CHEMINS_PROTEGES = ['/admin', '/maintenance'];
+
+// 🚨 L ESPACE COMPTABLE S APPELLE DESORMAIS /admin/comptable — 25/08.
+//
+// LE DEFAUT. Les trente ecrans de Mr. Comptable vivent dans
+// app/admin/compliance/. Un cabinet qui utilise le logiciel lit donc
+// « compliance » dans sa barre d adresse, sur un espace comptable. Ca fait
+// bricolage, et ces cabinets sont des prospects avant d etre des clients.
+//
+// POURQUOI UN ALIAS PLUTOT QU UN RENOMMAGE DE DOSSIERS. Renommer les trente
+// dossiers imposerait de rouvrir chaque fichier pour corriger ses liens
+// internes, sur iPad, un par un — et le premier oubli casse un ecran sans
+// prevenir. L alias donne le meme resultat visible en une seule
+// modification, et il est reversible.
+//
+// 🚨🚨 LE PIEGE QUI A FAILLI PASSER, ET IL FAUT LE COMPRENDRE.
+// Une reecriture posee en TETE de cette fonction rend la page AVANT les
+// controles de session : n importe qui atteindrait /admin/comptable/crm
+// sans etre connecte. Un rewrite retourne immediatement, il ne « continue »
+// pas.
+//
+// LA SOLUTION : on calcule un CHEMIN EFFECTIF des la premiere ligne, tous
+// les controles portent sur LUI, et la reecriture n a lieu qu A LA SORTIE,
+// une fois les verifications passees. C est le role de la fonction sortie().
+//
+// ⚠️ NE JAMAIS REMPLACER cheminEffectif PAR chemin dans les tests
+// correspond() ci-dessous : ce serait rouvrir le trou.
+const ALIAS_COMPTABLE = '/admin/comptable';
+const REEL_COMPTABLE = '/admin/compliance';
 
 // Les ecrans clients de Mr. Comptable : ouverts a tout utilisateur connecte
 // portant un organisme. Les routes de donnees sont deja cloisonnees par
@@ -19,20 +43,10 @@ const EXIGENT_SOCIETE = ['/admin/compliance', '/admin/qualiopi'];
 
 // Tous les ecrans comptables : les exiger rattaches a une societe les
 // rendrait inatteignables.
-//
-// 🚨 UN ECRAN AJOUTE AU LOGICIEL DOIT ETRE AJOUTE ICI DANS LA FOULEE. Sans
-// sa ligne, le collaborateur est renvoye vers « Ma societe » sans comprendre
-// pourquoi — l ecran semble casse alors qu il est simplement barre. Le
-// defaut ne se voit PAS chez l administrateur, dont le compte porte deja un
-// organisme : il ne se revele que chez un client.
 const EXCEPTIONS = [
   '/admin/compliance/ma-societe',
   '/admin/compliance/tableau-de-bord',
   '/admin/compliance/societes',
-  '/admin/compliance/crm',
-  '/admin/compliance/facturation',
-  '/admin/compliance/recurrente',
-  '/admin/compliance/tresorerie',
   '/admin/compliance/comptes',
   '/admin/compliance/saisie',
   '/admin/compliance/reprise',
@@ -158,6 +172,38 @@ export async function middleware(request: NextRequest) {
   const hote = request.headers.get('host') || '';
   const h = hoteNu(hote);
 
+  // L ALIAS COMPTABLE — voir le commentaire en tete de fichier.
+  //
+  // cheminEffectif est ce que le code doit VOIR. chemin reste ce que le
+  // navigateur AFFICHE. Les deux ne different que sous /admin/comptable.
+  const estAliasComptable = chemin === ALIAS_COMPTABLE
+    || chemin.startsWith(ALIAS_COMPTABLE + '/');
+  const cheminEffectif = estAliasComptable
+    ? REEL_COMPTABLE + chemin.slice(ALIAS_COMPTABLE.length)
+    : chemin;
+
+  // LA SORTIE NORMALE. Sous l alias, elle reecrit vers le dossier reel ;
+  // partout ailleurs, elle laisse passer. Toute sortie « tout va bien » de
+  // cette fonction doit passer par ici, sans quoi l alias rendrait une
+  // page introuvable.
+  function sortie() {
+    if (!estAliasComptable) return NextResponse.next();
+    const url = request.nextUrl.clone();
+    url.pathname = cheminEffectif;
+    return NextResponse.rewrite(url);
+  }
+
+  // Une redirection interne doit repartir sur l adresse que l utilisateur
+  // voit : renvoyer un cabinet vers /admin/compliance/ma-societe alors
+  // qu il naviguait sous /admin/comptable annulerait tout le benefice.
+  function versEcran(cheminReel: string): string {
+    if (!estAliasComptable) return cheminReel;
+    if (cheminReel.startsWith(REEL_COMPTABLE)) {
+      return ALIAS_COMPTABLE + cheminReel.slice(REEL_COMPTABLE.length);
+    }
+    return cheminReel;
+  }
+
   // LE SITEMAP DE MR. COMPTABLE, AVANT TOUTE REECRITURE DE MARQUE.
   //
   // Ce fichier doit etre servi sur mrcomptable.fr lui-meme : Search Console
@@ -191,6 +237,10 @@ export async function middleware(request: NextRequest) {
     // dans public/ partait vers /comptable/IMG_4100.jpeg, qui n existe pas :
     // la barre de Mr. Comptable affichait une image cassee. Un fichier n est
     // jamais une page de vitrine.
+    //
+    // ⚠️ '/admin' COUVRE AUSSI '/admin/comptable' : l alias n est donc pas
+    // avale par cette reecriture de marque, et un cabinet connecte sur
+    // mrcomptable.fr reste bien sur son espace.
     const RESERVES = ['/admin', '/api', '/connexion', '/comptable', '/of', '/maintenance', '/_next'];
     const estFichier = chemin.lastIndexOf('.') > chemin.lastIndexOf('/');
     if (!estFichier && !correspond(chemin, RESERVES)) {
@@ -244,24 +294,24 @@ export async function middleware(request: NextRequest) {
     return NextResponse.rewrite(url);
   }
 
-  if (correspond(chemin, API_SESSION_REQUISE)) {
+  if (correspond(cheminEffectif, API_SESSION_REQUISE)) {
     if (!session) {
       return NextResponse.json({ success: false, error: 'non connecte' }, { status: 401 });
     }
-    return NextResponse.next();
+    return sortie();
   }
 
-  if (correspond(chemin, CHEMINS_ELEVE)) {
+  if (correspond(cheminEffectif, CHEMINS_ELEVE)) {
     if (!session) {
       const url = request.nextUrl.clone();
       url.pathname = '/connexion';
       url.search = '';
       return NextResponse.redirect(url);
     }
-    return NextResponse.next();
+    return sortie();
   }
 
-  if (!correspond(chemin, CHEMINS_PROTEGES)) return NextResponse.next();
+  if (!correspond(cheminEffectif, CHEMINS_PROTEGES)) return sortie();
 
   const charge = await jetonVerifie(session);
 
@@ -274,7 +324,7 @@ export async function middleware(request: NextRequest) {
 
   const email = String(charge.email).toLowerCase().trim();
   const estAdmin = ADMINS.indexOf(email) >= 0;
-  const estEspaceClient = correspond(chemin, ESPACE_CLIENT);
+  const estEspaceClient = correspond(cheminEffectif, ESPACE_CLIENT);
 
   // Hors espace client, tout /admin reste reserve a l administrateur.
   if (!estAdmin && !estEspaceClient) {
@@ -284,16 +334,16 @@ export async function middleware(request: NextRequest) {
     });
   }
 
-  if (correspond(chemin, EXIGENT_SOCIETE) && !correspond(chemin, EXCEPTIONS)) {
+  if (correspond(cheminEffectif, EXIGENT_SOCIETE) && !correspond(cheminEffectif, EXCEPTIONS)) {
     if (!charge.tid) {
       const url = request.nextUrl.clone();
-      url.pathname = '/admin/compliance/ma-societe';
+      url.pathname = versEcran(REEL_COMPTABLE + '/ma-societe');
       url.search = '';
       return NextResponse.redirect(url);
     }
   }
 
-  return NextResponse.next();
+  return sortie();
 }
 
 export const config = {
