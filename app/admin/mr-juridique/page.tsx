@@ -4,6 +4,31 @@ import { useState, useEffect } from "react";
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 
+// 🚨 « 100% IA » A ETE RETIRE DE CE FICHIER LE 25/08.
+//
+// La formule figurait dans quatre consignes d agent : celle des CGV, celle
+// du conseil juridique, et deux des prompts INPI. Elle disait exactement ce
+// qu il ne faut dire a personne — ni a un organisme de formation, ni a
+// l INPI, ni dans des conditions generales de vente.
+//
+// CE QUI SE VEND est une plateforme et un catalogue. La facon dont les
+// contenus sont produits ne regarde ni le client ni l administration.
+//
+// 🚨 LA FONCTION FiscalChat A ETE SUPPRIMEE. Elle n etait appelee nulle
+// part, et son JSX referencait des variables absentes de sa portee —
+// onglet, setOnglet, docSelectionne, setDocGenere — toutes definies dans
+// le composant principal. C etait un copier-coller reste en place. Le meme
+// contenu fiscal vit dans l onglet « fiscal » du composant principal, ou
+// il fonctionne.
+//
+// DEUX AUTRES CORRECTIONS DU 25/08 :
+//   - LA GARANTIE 30 JOURS a ete retiree du prompt des CGV. Une garantie
+//     de remboursement inscrite dans des conditions generales ENGAGE
+//     juridiquement. On ne la promet pas tant qu elle n a pas ete decidee.
+//   - « THERAPEUTIQUE » est devenu « accompagnement ». Le mot releve d un
+//     cadre reglemente ; l ecrire dans un depot INPI ou des CGV n est pas
+//     anodin.
+
 function formatReponse(text: string): string {
   return text
     .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
@@ -17,164 +42,13 @@ function formatReponse(text: string): string {
 }
 
 const DOCUMENTS_TYPES = [
-  { id: "cgv", label: "CGV - Conditions Générales de Vente", prompt: "Génère des CGV complètes et conformes au droit français pour AcadémIA Pro, plateforme de formation professionnelle et bien-être 100% IA. Inclus : objet - prix - paiement - accès - propriété intellectuelle - garantie 30 jours - responsabilité - données personnelles - droit applicable." },
-  { id: "mentions", label: "Mentions Légales", prompt: "Génère des mentions légales complètes pour academiapro.fr. Inclus : éditeur - hébergeur Vercel - directeur publication Jacques Lalou - données personnelles RGPD - cookies - propriété intellectuelle." },
-  { id: "nda", label: "NDA - Accord de Confidentialité", prompt: "Génère un NDA professionnel en droit français pour AcadémIA Pro avec Jacques Lalou. Inclus : définition informations confidentielles - obligations - durée 5 ans - exceptions - sanctions." },
-  { id: "rgpd", label: "Politique de Confidentialité RGPD", prompt: "Génère une politique de confidentialité RGPD complète pour AcadémIA Pro. Inclus : données collectées - finalités - base légale - durée conservation - droits utilisateurs - DPO - cookies - transferts." },
-  { id: "contrat_prestataire", label: "Contrat Prestataire", prompt: "Génère un contrat de prestation de services en droit français pour AcadémIA Pro avec un prestataire externe. Inclus : objet - missions - tarifs - délais - propriété intellectuelle - confidentialité - résiliation." },
-  { id: "reglement", label: "Règlement Intérieur Formation", prompt: "Génère un règlement intérieur de centre de formation conforme au droit français pour AcadémIA Pro. Inclus : objet - accès formations - comportement - droits stagiaires - sanctions - réclamations." },
+  { id: "cgv", label: "CGV - Conditions Générales de Vente", prompt: "Génère des CGV complètes et conformes au droit français pour AcadémIA Pro, éditeur d une plateforme de formation professionnelle en ligne. Inclus : objet - prix - paiement - accès - propriété intellectuelle - droit de rétractation - responsabilité - données personnelles - droit applicable. N invente aucune garantie de remboursement qui n aurait pas été décidée." },
+  { id: "mentions", label: "Mentions Légales", prompt: "Génère des mentions légales complètes pour academiapro.fr. Inclus : éditeur - hébergeur Vercel - directeur publication Jacques Lalou - données personnelles RGPD - cookies - propriété intellectuelle." },
+  { id: "nda", label: "NDA - Accord de Confidentialité", prompt: "Génère un NDA professionnel en droit français pour AcadémIA Pro avec Jacques Lalou. Inclus : définition informations confidentielles - obligations - durée 5 ans - exceptions - sanctions." },
+  { id: "rgpd", label: "Politique de Confidentialité RGPD", prompt: "Génère une politique de confidentialité RGPD complète pour AcadémIA Pro. Inclus : données collectées - finalités - base légale - durée conservation - droits utilisateurs - DPO - cookies - transferts." },
+  { id: "contrat_prestataire", label: "Contrat Prestataire", prompt: "Génère un contrat de prestation de services en droit français pour AcadémIA Pro avec un prestataire externe. Inclus : objet - missions - tarifs - délais - propriété intellectuelle - confidentialité - résiliation." },
+  { id: "reglement", label: "Règlement Intérieur Formation", prompt: "Génère un règlement intérieur de centre de formation conforme au droit français pour AcadémIA Pro. Inclus : objet - accès formations - comportement - droits stagiaires - sanctions - réclamations." },
 ];
-
-
-
-function FiscalChat() {
-  const [msg, setMsg] = useState("");
-  const [chat, setChat] = useState<{role: string, text: string}[]>([]);
-  const [loading, setLoading] = useState(false);
-
-  async function envoyer() {
-    if (!msg.trim()) return;
-    const userMsg = msg;
-    setMsg("");
-    setChat(prev => [...prev, { role: "user", text: userMsg }]);
-    setLoading(true);
-    const res = await fetch("/api/admin/agent", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        message: userMsg,
-        agent: { prompt: "Tu es un expert en optimisation fiscale française specialise dans les startups numeriques et plateformes IA. Tu conseilles Jacques Lalou fondateur d AcadémIA Pro. Tu donnes des conseils fiscaux precis et chiffres. Tu rappelles de consulter un expert-comptable pour les decisions importantes." },
-        historique: chat
-      }),
-    });
-    const data = await res.json();
-    setChat(prev => [...prev, { role: "agent", text: data.reply }]);
-    setLoading(false);
-  }
-
-  return (
-    <div>
-      <div style={{ minHeight: "150px", maxHeight: "250px", overflowY: "auto", marginBottom: "10px" }}>
-        {chat.length === 0 && <p style={{ color: "rgba(255,255,255,0.3)", fontSize: "13px" }}>Posez une question sur l optimisation fiscale...</p>}
-        {chat.map((m, i) => (
-          <div key={i} style={{ marginBottom: "10px", display: "flex", justifyContent: m.role === "user" ? "flex-end" : "flex-start" }}>
-            <div style={{ background: m.role === "user" ? "#c8a96e" : "rgba(255,255,255,0.08)", color: m.role === "user" ? "#050508" : "#fff", padding: "10px 14px", borderRadius: "10px", maxWidth: "85%", fontSize: "13px", lineHeight: "1.6" }}>
-              {m.text}
-            </div>
-          </div>
-        ))}
-        {loading && <p style={{ color: "#c8a96e", fontSize: "13px" }}>Analyse fiscale en cours...</p>}
-      </div>
-      <div style={{ display: "flex", gap: "8px" }}>
-        <input type="text" placeholder="Ex: Comment réduire mes charges ?" value={msg} onChange={e => setMsg(e.target.value)} onKeyDown={e => e.key === "Enter" && envoyer()}
-          style={{ flex: 1, padding: "10px", borderRadius: "8px", border: "1px solid rgba(200,169,110,0.3)", background: "rgba(255,255,255,0.05)", color: "#fff", fontSize: "13px" }} />
-        <button onClick={envoyer} disabled={loading} style={{ padding: "10px 16px", background: "#c8a96e", color: "#050508", border: "none", borderRadius: "8px", fontWeight: "bold", cursor: "pointer" }}>
-          Envoyer
-        </button>
-
-        {onglet === "fiscal" && (
-          <div>
-            <h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", marginBottom: "10px" }}>
-              💰 Agent Optimisation Fiscale
-            </h2>
-            <p style={{ color: "rgba(255,255,255,0.6)", marginBottom: "25px" }}>
-              Conseils personnalisés pour optimiser la fiscalité d AcadémIA Pro
-            </p>
-
-            <div style={{ display: "grid", gap: "15px", marginBottom: "30px" }}>
-              {[
-                {
-                  titre: "Micro-entreprise vs SASU - Quel régime choisir ?",
-                  description: "Analyse comparative selon votre CA prévisionnel",
-                  prompt: "En tant qu expert en optimisation fiscale française, analyse pour Jacques Lalou fondateur d AcadémIA Pro : quand passer de micro-entreprise à SASU ? Inclus les seuils de CA, avantages fiscaux de chaque structure, cotisations sociales, optimisation rémunération gérant, dividendes, charges déductibles. Donne des exemples chiffrés pour un CA de 50000€ - 100000€ - 200000€."
-                },
-                {
-                  titre: "Charges Déductibles AcadémIA Pro",
-                  description: "Toutes les charges déductibles pour votre activité",
-                  prompt: "Liste exhaustive des charges déductibles fiscalement pour AcadémIA Pro, plateforme IA de formation et bien-être. Inclus : abonnements API Claude - HeyGen - ElevenLabs - Daily.co - Vercel - Supabase - Resend - OVH - matériel iPad - domaines - formations - frais bancaires - honoraires - marketing. Précise les règles de déductibilité et les justificatifs nécessaires."
-                },
-                {
-                  titre: "Holding LLC + SAS - Optimisation Structurelle",
-                  description: "Stratégie holding pour maximiser les économies fiscales",
-                  prompt: "Explique à Jacques Lalou la stratégie optimale d une structure Holding LLC américaine + SAS française pour AcadémIA Pro. Inclus : avantages fiscaux - dividendes - optimisation IS - protection patrimoine - coûts de mise en place - délais - risques - quand mettre en place cette structure selon le CA."
-                },
-                {
-                  titre: "TVA - Stratégie et Anticipation",
-                  description: "Préparer le passage à la TVA au bon moment",
-                  prompt: "Conseille Jacques Lalou sur la gestion de la TVA pour AcadémIA Pro. Inclus : seuils de franchise 2026 - moment optimal pour opter volontairement - TVA sur formations exonérées - TVA sur thérapie - récupération TVA sur achats - impact sur les prix affichés - stratégie prix HT vs TTC."
-                },
-                {
-                  titre: "Plan d Épargne et Protection Sociale",
-                  description: "Optimiser sa protection sociale en tant que fondateur",
-                  prompt: "Conseille Jacques Lalou fondateur d AcadémIA Pro sur l optimisation de sa protection sociale et épargne. Inclus : PER - Madelin - complémentaire santé - prévoyance - retraite complémentaire - cotisations TNS - optimisation revenus - arbitrage salaire vs dividendes en SASU."
-                },
-                {
-                  titre: "Rapport Fiscal Annuel Personnalisé",
-                  description: "Bilan fiscal complet et recommandations",
-                  prompt: "Génère un rapport fiscal annuel personnalisé pour AcadémIA Pro de Jacques Lalou. Structure : situation fiscale actuelle - optimisations réalisées - optimisations à mettre en place - économies potentielles estimées - planning fiscal sur 3 ans - recommandations prioritaires. Adapte à une micro-entreprise en phase de lancement avec ambition de scaling."
-                },
-              ].map((item, i) => (
-                <div key={i} style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(200,169,110,0.2)", borderRadius: "10px", padding: "20px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "15px" }}>
-                  <div>
-                    <h3 style={{ color: "#c8a96e", margin: "0 0 5px", fontFamily: "Georgia,serif", fontSize: "15px" }}>{item.titre}</h3>
-                    <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "13px", margin: 0 }}>{item.description}</p>
-                  </div>
-                  <button
-                    onClick={async () => {
-                      setOnglet("generation");
-                      setDocSelectionne({ label: item.titre });
-                      setGenerationLoading(true);
-                      setDocGenere("");
-                      const res = await fetch("/api/admin/agent", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                          message: item.prompt,
-                          agent: { prompt: "Tu es un expert en optimisation fiscale française avec 20 ans d experience specialise dans les startups et plateformes numeriques. Tu conseilles Jacques Lalou fondateur d AcadémIA Pro. Tu donnes des conseils fiscaux precis chiffres et actionables conformes au droit fiscal francais en vigueur. Tu rappelles de consulter un expert-comptable pour les decisions importantes." },
-                          historique: []
-                        }),
-                      });
-                      const data = await res.json();
-                      setDocGenere(data.reply || "");
-                      await fetch(`${SUPABASE_URL}/rest/v1/documents_juridiques`, { cache: "no-store", 
-                        method: "POST",
-                        headers: { "Content-Type": "application/json", apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, Prefer: "return=minimal" },
-                        body: JSON.stringify({ type: "fiscal", titre: item.titre, contenu: data.reply, statut: "genere" }),
-                      });
-                      chargerDocuments();
-                      setGenerationLoading(false);
-                    }}
-                    style={{ padding: "10px 18px", background: "#c8a96e", color: "#050508", border: "none", borderRadius: "8px", fontWeight: "bold", cursor: "pointer", whiteSpace: "nowrap", minWidth: "100px" }}
-                  >
-                    Analyser
-                  </button>
-                </div>
-              ))}
-            </div>
-
-            <div style={{ background: "rgba(200,169,110,0.1)", border: "1px solid rgba(200,169,110,0.3)", borderRadius: "12px", padding: "20px" }}>
-              <h3 style={{ color: "#c8a96e", marginTop: 0 }}>💡 Conseil Fiscal Rapide</h3>
-              <div>
-              <div style={{ minHeight: "150px", maxHeight: "250px", overflowY: "auto", marginBottom: "10px" }}>
-                <p style={{ color: "rgba(255,255,255,0.3)", fontSize: "13px" }}>
-                  Utilisez l onglet Conseil IA pour poser vos questions fiscales.
-                </p>
-              </div>
-              <button
-                onClick={() => setOnglet("conseil")}
-                style={{ width: "100%", padding: "10px", background: "#c8a96e", color: "#050508", border: "none", borderRadius: "8px", fontWeight: "bold", cursor: "pointer" }}
-              >
-                Aller au Conseil IA
-              </button>
-            </div>
-            </div>
-          </div>
-        )}
-
-      </div>
-    </div>
-  );
-}
 
 function InpiDossierBouton() {
   const [loading, setLoading] = useState(false);
@@ -191,9 +65,9 @@ function InpiDossierBouton() {
         body: JSON.stringify({ email }),
       });
       const data = await res.json();
-      setMessage(data.message || "Dossier envoyé ✅");
+      setMessage(data.message || "Dossier envoyé ✅");
     } catch (e) {
-      setMessage("Erreur - réessayez");
+      setMessage("Erreur - réessayez");
     }
     setLoading(false);
   }
@@ -211,7 +85,7 @@ function InpiDossierBouton() {
         disabled={loading}
         style={{ width: "100%", padding: "14px", background: "#050508", color: "#c8a96e", border: "none", borderRadius: "8px", fontWeight: "bold", fontSize: "16px", cursor: loading ? "not-allowed" : "pointer" }}
       >
-        {loading ? "⏳ Génération en cours (2-3 min)..." : "📧 Générer et Envoyer par Email"}
+        {loading ? "⏳ Génération en cours (2-3 min)..." : "📧 Générer et Envoyer par Email"}
       </button>
       {message && <p style={{ color: "#fff", marginTop: "10px", fontWeight: "bold" }}>{message}</p>}
     </div>
@@ -277,7 +151,7 @@ export default function MrJuridiquePage() {
       body: JSON.stringify({
         message: userMsg,
         agent: {
-          prompt: "Tu es Mr Juridique, juriste d entreprise senior avec 20 ans d experience en droit francais des affaires. Tu conseilles Jacques Lalou, fondateur d AcadémIA Pro, plateforme de formation et bien-etre 100% IA. Tu maitrises le droit des societes, les contrats, CGV, RGPD, INPI, droit de la formation professionnelle. Tu donnes des conseils pratiques et precis adaptes a AcadémIA Pro. Tu structures tes reponses clairement."
+          prompt: "Tu es Mr Juridique, juriste d entreprise senior avec 20 ans d experience en droit francais des affaires. Tu conseilles Jacques Lalou, fondateur d AcadémIA Pro, editeur d une plateforme de formation professionnelle en ligne et d un logiciel comptable. Tu maitrises le droit des societes, les contrats, CGV, RGPD, INPI, droit de la formation professionnelle. Tu donnes des conseils pratiques et precis adaptes a AcadémIA Pro. Tu structures tes reponses clairement."
         },
         historique: chat
       }),
@@ -294,7 +168,7 @@ export default function MrJuridiquePage() {
       <style>body{font-family:Georgia,serif;max-width:800px;margin:0 auto;padding:40px;color:#1a1a1a;line-height:1.8;}
       h1,h2,h3{color:#c8a96e;} hr{border-color:#c8a96e;}</style></head><body>
       <h1>${docSelectionne?.label}</h1>
-      <p style="color:#666;">AcadémIA Pro - Jacques Lalou - ${new Date().toLocaleDateString("fr-FR")}</p>
+      <p style="color:#666;">AcadémIA Pro - Jacques Lalou - ${new Date().toLocaleDateString("fr-FR")}</p>
       <hr/>
       ${docGenere.replace(/\*\*(.+?)\*\*/g,"<strong>$1</strong>").replace(/# (.+)/g,"<h2>$1</h2>").replace(/\n/g,"<br/>")}
       </body></html>`);
@@ -305,8 +179,8 @@ export default function MrJuridiquePage() {
 
   const onglets = [
     { id: "conseil", label: "💬 Conseil IA" },
-    { id: "generation", label: "📄 Générer Documents" },
-    { id: "bibliotheque", label: "📚 Bibliothèque" },
+    { id: "generation", label: "📄 Générer Documents" },
+    { id: "bibliotheque", label: "📚 Bibliothèque" },
     { id: "upload", label: "📎 Upload Documents" },
     { id: "inpi", label: "🏛️ Protection Marque INPI" },
     { id: "fiscal", label: "💰 Optimisation Fiscale" },
@@ -316,7 +190,7 @@ export default function MrJuridiquePage() {
     <div style={{ backgroundColor: "#050508", minHeight: "100vh", color: "#fff" }}>
       <div style={{ background: "linear-gradient(135deg,#0a0a1a,#1a1a2e)", padding: "30px 40px" }}>
         <h1 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", margin: 0 }}>⚖️ Mr Juridique</h1>
-        <p style={{ color: "rgba(255,255,255,0.5)", margin: "5px 0 0" }}>Juriste d Entreprise Senior - AcadémIA Pro</p>
+        <p style={{ color: "rgba(255,255,255,0.5)", margin: "5px 0 0" }}>Juriste d Entreprise Senior - AcadémIA Pro</p>
       </div>
 
       <div style={{ display: "flex", gap: "5px", padding: "15px 20px", background: "rgba(255,255,255,0.03)", overflowX: "auto" }}>
@@ -351,7 +225,7 @@ export default function MrJuridiquePage() {
               {loading && <div style={{ color: "#c8a96e", textAlign: "center" }}>Mr Juridique analyse...</div>}
             </div>
             <div style={{ display: "flex", gap: "10px" }}>
-              <input type="text" placeholder="Ex: Comment protéger ma marque AcadémIA Pro ?" value={message} onChange={e => setMessage(e.target.value)} onKeyDown={e => e.key === "Enter" && envoyerMessage()}
+              <input type="text" placeholder="Ex: Comment protéger ma marque AcadémIA Pro ?" value={message} onChange={e => setMessage(e.target.value)} onKeyDown={e => e.key === "Enter" && envoyerMessage()}
                 style={{ flex: 1, padding: "12px", borderRadius: "8px", border: "1px solid rgba(200,169,110,0.3)", background: "rgba(255,255,255,0.05)", color: "#fff" }} />
               <button onClick={envoyerMessage} disabled={loading} style={{ padding: "12px 24px", background: "#c8a96e", color: "#050508", border: "none", borderRadius: "8px", fontWeight: "bold", cursor: "pointer" }}>
                 Envoyer
@@ -362,7 +236,7 @@ export default function MrJuridiquePage() {
 
         {onglet === "generation" && (
           <div>
-            <h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", marginBottom: "20px" }}>📄 Générer Documents Juridiques</h2>
+            <h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", marginBottom: "20px" }}>📄 Générer Documents Juridiques</h2>
             {docGenere ? (
               <div>
                 <div style={{ display: "flex", gap: "10px", marginBottom: "15px" }}>
@@ -371,7 +245,7 @@ export default function MrJuridiquePage() {
                 </div>
                 <div style={{ background: "#fff", borderRadius: "12px", padding: "30px", color: "#1a1a1a" }}>
                   <h2 style={{ color: "#c8a96e" }}>{docSelectionne?.label}</h2>
-                  <p style={{ color: "#666", fontSize: "13px" }}>AcadémIA Pro - Jacques Lalou - {new Date().toLocaleDateString("fr-FR")}</p>
+                  <p style={{ color: "#666", fontSize: "13px" }}>AcadémIA Pro - Jacques Lalou - {new Date().toLocaleDateString("fr-FR")}</p>
                   <hr style={{ borderColor: "#c8a96e" }} />
                   <div dangerouslySetInnerHTML={{ __html: formatReponse(docGenere) }} style={{ lineHeight: "1.8" }} />
                 </div>
@@ -388,7 +262,7 @@ export default function MrJuridiquePage() {
                       disabled={generationLoading}
                       style={{ padding: "10px 20px", background: "#c8a96e", color: "#050508", border: "none", borderRadius: "8px", fontWeight: "bold", cursor: "pointer", whiteSpace: "nowrap" }}
                     >
-                      {generationLoading && docSelectionne?.id === doc.id ? "Génération..." : "Générer"}
+                      {generationLoading && docSelectionne?.id === doc.id ? "Génération..." : "Générer"}
                     </button>
                   </div>
                 ))}
@@ -399,10 +273,10 @@ export default function MrJuridiquePage() {
 
         {onglet === "bibliotheque" && (
           <div>
-            <h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", marginBottom: "20px" }}>📚 Bibliothèque Juridique ({documents.length})</h2>
+            <h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", marginBottom: "20px" }}>📚 Bibliothèque Juridique ({documents.length})</h2>
             {documents.length === 0 ? (
               <p style={{ color: "rgba(255,255,255,0.4)", textAlign: "center", marginTop: "50px" }}>
-                Aucun document généré pour l instant. Allez dans Générer Documents.
+                Aucun document généré pour l instant. Allez dans Générer Documents.
               </p>
             ) : (
               documents.map(d => (
@@ -426,7 +300,7 @@ export default function MrJuridiquePage() {
         {onglet === "upload" && (
           <div>
             <h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", marginBottom: "20px" }}>📎 Upload Documents Juridiques</h2>
-            <p style={{ color: "rgba(255,255,255,0.6)", marginBottom: "25px" }}>Contrats reçus - Statuts - Courriers officiels - Documents INPI</p>
+            <p style={{ color: "rgba(255,255,255,0.6)", marginBottom: "25px" }}>Contrats reçus - Statuts - Courriers officiels - Documents INPI</p>
             <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(200,169,110,0.2)", borderRadius: "12px", padding: "25px" }}>
               <input type="file" accept="image/*,.pdf" style={{ color: "#fff", width: "100%", marginBottom: "15px" }} />
               <input type="text" placeholder="Description du document" style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid rgba(200,169,110,0.3)", background: "rgba(255,255,255,0.05)", color: "#fff", marginBottom: "15px", boxSizing: "border-box" as any }} />
@@ -437,23 +311,21 @@ export default function MrJuridiquePage() {
           </div>
         )}
 
-
         {onglet === "inpi" && (
           <div>
             <h2 style={{ color: "#c8a96e", fontFamily: "Georgia,serif", marginBottom: "10px" }}>
               🏛️ Protection Marque INPI
             </h2>
             <p style={{ color: "rgba(255,255,255,0.6)", marginBottom: "25px" }}>
-              Mr Juridique prépare votre dossier de dépôt de marque AcadémIA Pro
+              Mr Juridique prépare votre dossier de dépôt de marque AcadémIA Pro
             </p>
-
 
             <div style={{ background: "linear-gradient(135deg,#c8a96e,#a07840)", borderRadius: "12px", padding: "25px", marginBottom: "25px", textAlign: "center" }}>
               <h3 style={{ color: "#fff", margin: "0 0 10px", fontFamily: "Georgia,serif" }}>
-                🚀 Générer et Envoyer le Dossier Complet
+                🚀 Générer et Envoyer le Dossier Complet
               </h3>
               <p style={{ color: "rgba(255,255,255,0.8)", marginBottom: "15px", fontSize: "14px" }}>
-                Mr Juridique génère les 4 documents - les compile - les envoie par email
+                Mr Juridique génère les 4 documents - les compile - les envoie par email
               </p>
               <InpiDossierBouton />
             </div>
@@ -461,28 +333,28 @@ export default function MrJuridiquePage() {
               {[
                 {
                   titre: "Analyse et Classes INPI",
-                  description: "Identifier les bonnes classes pour AcadémIA Pro",
-                  prompt: "En tant que Mr Juridique expert en propriété intellectuelle, analyse la marque AcadémIA Pro et détermine les classes INPI à déposer. AcadémIA Pro est une plateforme de formation professionnelle 100% IA et de bien-être thérapeutique. Liste les classes pertinentes avec leur numéro, description et justification. Inclus le coût estimé du dépôt et les délais."
+                  description: "Identifier les bonnes classes pour AcadémIA Pro",
+                  prompt: "En tant que Mr Juridique expert en propriété intellectuelle, analyse la marque AcadémIA Pro et détermine les classes INPI à déposer. AcadémIA Pro édite une plateforme de formation professionnelle en ligne et un logiciel comptable destiné aux cabinets d expertise comptable. Liste les classes pertinentes avec leur numéro, description et justification. Inclus le coût estimé du dépôt et les délais."
                 },
                 {
                   titre: "Description de la Marque",
-                  description: "Rédiger la description officielle pour l INPI",
-                  prompt: "Rédige la description officielle de la marque AcadémIA Pro pour un dépôt INPI. La marque désigne une plateforme de formation professionnelle en ligne 100% intelligence artificielle et de séances thérapeutiques avec avatars IA. Inclus : dénomination - nature de la marque - liste précise des produits et services par classe - caractère distinctif."
+                  description: "Rédiger la description officielle pour l INPI",
+                  prompt: "Rédige la description officielle de la marque AcadémIA Pro pour un dépôt INPI. La marque désigne une plateforme de formation professionnelle en ligne, un catalogue de formations, des séances d accompagnement à distance et un logiciel de gestion comptable. Inclus : dénomination - nature de la marque - liste précise des produits et services par classe - caractère distinctif."
                 },
                 {
-                  titre: "Guide Dépôt INPI Étape par Étape",
-                  description: "Procédure complète pour déposer sur inpi.fr",
-                  prompt: "Explique à Jacques Lalou fondateur d AcadémIA Pro comment déposer sa marque sur inpi.fr étape par étape. Inclus : création compte INPI - remplissage formulaire - choix classes - paiement - délais - que faire après le dépôt - comment surveiller les oppositions - renouvellement tous les 10 ans."
+                  titre: "Guide Dépôt INPI Étape par Étape",
+                  description: "Procédure complète pour déposer sur inpi.fr",
+                  prompt: "Explique à Jacques Lalou fondateur d AcadémIA Pro comment déposer sa marque sur inpi.fr étape par étape. Inclus : création compte INPI - remplissage formulaire - choix classes - paiement - délais - que faire après le dépôt - comment surveiller les oppositions - renouvellement tous les 10 ans."
                 },
                 {
-                  titre: "NDA Protection Avant Dépôt",
-                  description: "Accord de confidentialité pour protéger avant le dépôt",
-                  prompt: "Génère un NDA spécifique pour protéger la marque et le concept AcadémIA Pro avant le dépôt INPI. Inclus : définition du concept protégé - obligations de confidentialité - durée - sanctions - droit applicable français."
+                  titre: "NDA Protection Avant Dépôt",
+                  description: "Accord de confidentialité pour protéger avant le dépôt",
+                  prompt: "Génère un NDA spécifique pour protéger la marque et le concept AcadémIA Pro avant le dépôt INPI. Inclus : définition du concept protégé - obligations de confidentialité - durée - sanctions - droit applicable français."
                 },
                 {
-                  titre: "Surveillance et Défense de Marque",
-                  description: "Comment surveiller et défendre AcadémIA Pro",
-                  prompt: "Explique à Jacques Lalou comment surveiller sa marque AcadémIA Pro après le dépôt INPI et comment la défendre en cas de contrefaçon. Inclus : outils de surveillance - délai opposition 2 mois - mise en demeure - procédures judiciaires - dommages et intérêts - coûts estimés."
+                  titre: "Surveillance et Défense de Marque",
+                  description: "Comment surveiller et défendre AcadémIA Pro",
+                  prompt: "Explique à Jacques Lalou comment surveiller sa marque AcadémIA Pro après le dépôt INPI et comment la défendre en cas de contrefaçon. Inclus : outils de surveillance - délai opposition 2 mois - mise en demeure - procédures judiciaires - dommages et intérêts - coûts estimés."
                 },
               ].map((item, i) => (
                 <div key={i} style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(200,169,110,0.2)", borderRadius: "10px", padding: "20px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "15px" }}>
@@ -501,7 +373,7 @@ export default function MrJuridiquePage() {
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({
                           message: item.prompt,
-                          agent: { prompt: "Tu es Mr Juridique, juriste expert en propriété intellectuelle et droit des affaires français avec 20 ans d experience. Tu conseilles Jacques Lalou fondateur d AcadémIA Pro. Tu donnes des conseils précis et pratiques conformes au droit français en vigueur." },
+                          agent: { prompt: "Tu es Mr Juridique, juriste expert en propriété intellectuelle et droit des affaires français avec 20 ans d experience. Tu conseilles Jacques Lalou fondateur d AcadémIA Pro. Tu donnes des conseils précis et pratiques conformes au droit français en vigueur." },
                           historique: []
                         }),
                       });
@@ -517,21 +389,21 @@ export default function MrJuridiquePage() {
                     }}
                     style={{ padding: "10px 18px", background: "#c8a96e", color: "#050508", border: "none", borderRadius: "8px", fontWeight: "bold", cursor: "pointer", whiteSpace: "nowrap", minWidth: "100px" }}
                   >
-                    Générer
+                    Générer
                   </button>
                 </div>
               ))}
             </div>
 
             <div style={{ background: "rgba(200,169,110,0.1)", border: "1px solid rgba(200,169,110,0.3)", borderRadius: "12px", padding: "20px" }}>
-              <h3 style={{ color: "#c8a96e", marginTop: 0 }}>💡 Informations Clés INPI</h3>
+              <h3 style={{ color: "#c8a96e", marginTop: 0 }}>💡 Informations Clés INPI</h3>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "15px" }}>
                 {[
-                  { label: "Coût dépôt", valeur: "190€ / classe" },
-                  { label: "Durée protection", valeur: "10 ans renouvelable" },
-                  { label: "Délai traitement", valeur: "6 mois environ" },
-                  { label: "Classes recommandées", valeur: "41 - 42 - 44" },
-                  { label: "Délai opposition", valeur: "2 mois après publication" },
+                  { label: "Coût dépôt", valeur: "190€ / classe" },
+                  { label: "Durée protection", valeur: "10 ans renouvelable" },
+                  { label: "Délai traitement", valeur: "6 mois environ" },
+                  { label: "Classes recommandées", valeur: "41 - 42 - 44" },
+                  { label: "Délai opposition", valeur: "2 mois après publication" },
                   { label: "Site officiel", valeur: "inpi.fr" },
                 ].map(item => (
                   <div key={item.label} style={{ background: "rgba(255,255,255,0.05)", borderRadius: "8px", padding: "12px" }}>
@@ -541,12 +413,11 @@ export default function MrJuridiquePage() {
                 ))}
               </div>
               <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "12px", marginBottom: 0, marginTop: "15px" }}>
-                ⚠️ Le dépôt final se fait sur inpi.fr - Mr Juridique prépare votre dossier complet
+                ⚠️ Le dépôt final se fait sur inpi.fr - Mr Juridique prépare votre dossier complet
               </p>
             </div>
           </div>
         )}
-
 
         {onglet === "fiscal" && (
           <div>
@@ -554,40 +425,40 @@ export default function MrJuridiquePage() {
               💰 Agent Optimisation Fiscale
             </h2>
             <p style={{ color: "rgba(255,255,255,0.6)", marginBottom: "25px" }}>
-              Conseils personnalisés pour optimiser la fiscalité d AcadémIA Pro
+              Conseils personnalisés pour optimiser la fiscalité d AcadémIA Pro
             </p>
 
             <div style={{ display: "grid", gap: "15px", marginBottom: "30px" }}>
               {[
                 {
-                  titre: "Micro-entreprise vs SASU - Quel régime choisir ?",
-                  description: "Analyse comparative selon votre CA prévisionnel",
-                  prompt: "En tant qu expert en optimisation fiscale française, analyse pour Jacques Lalou fondateur d AcadémIA Pro : quand passer de micro-entreprise à SASU ? Inclus les seuils de CA, avantages fiscaux de chaque structure, cotisations sociales, optimisation rémunération gérant, dividendes, charges déductibles. Donne des exemples chiffrés pour un CA de 50000€ - 100000€ - 200000€."
+                  titre: "Micro-entreprise vs SASU - Quel régime choisir ?",
+                  description: "Analyse comparative selon votre CA prévisionnel",
+                  prompt: "En tant qu expert en optimisation fiscale française, analyse pour Jacques Lalou fondateur d AcadémIA Pro : quand passer de micro-entreprise à SASU ? Inclus les seuils de CA, avantages fiscaux de chaque structure, cotisations sociales, optimisation rémunération gérant, dividendes, charges déductibles. Donne des exemples chiffrés pour un CA de 50000€ - 100000€ - 200000€."
                 },
                 {
-                  titre: "Charges Déductibles AcadémIA Pro",
-                  description: "Toutes les charges déductibles pour votre activité",
-                  prompt: "Liste exhaustive des charges déductibles fiscalement pour AcadémIA Pro, plateforme IA de formation et bien-être. Inclus : abonnements API Claude - HeyGen - ElevenLabs - Daily.co - Vercel - Supabase - Resend - OVH - matériel iPad - domaines - formations - frais bancaires - honoraires - marketing. Précise les règles de déductibilité et les justificatifs nécessaires."
+                  titre: "Charges Déductibles AcadémIA Pro",
+                  description: "Toutes les charges déductibles pour votre activité",
+                  prompt: "Liste exhaustive des charges déductibles fiscalement pour AcadémIA Pro, editeur d une plateforme de formation en ligne et d un logiciel comptable. Inclus : abonnements API - hébergement - base de données - envoi de courriels - noms de domaine - matériel - formations - frais bancaires - honoraires - marketing. Précise les règles de déductibilité et les justificatifs nécessaires."
                 },
                 {
                   titre: "Holding LLC + SAS - Optimisation Structurelle",
-                  description: "Stratégie holding pour maximiser les économies fiscales",
-                  prompt: "Explique à Jacques Lalou la stratégie optimale d une structure Holding LLC américaine + SAS française pour AcadémIA Pro. Inclus : avantages fiscaux - dividendes - optimisation IS - protection patrimoine - coûts de mise en place - délais - risques - quand mettre en place cette structure selon le CA."
+                  description: "Stratégie holding pour maximiser les économies fiscales",
+                  prompt: "Explique à Jacques Lalou la stratégie optimale d une structure Holding LLC américaine + SAS française pour AcadémIA Pro. Inclus : avantages fiscaux - dividendes - optimisation IS - protection patrimoine - coûts de mise en place - délais - risques - quand mettre en place cette structure selon le CA."
                 },
                 {
-                  titre: "TVA - Stratégie et Anticipation",
-                  description: "Préparer le passage à la TVA au bon moment",
-                  prompt: "Conseille Jacques Lalou sur la gestion de la TVA pour AcadémIA Pro. Inclus : seuils de franchise 2026 - moment optimal pour opter volontairement - TVA sur formations exonérées - TVA sur thérapie - récupération TVA sur achats - impact sur les prix affichés - stratégie prix HT vs TTC."
+                  titre: "TVA - Stratégie et Anticipation",
+                  description: "Préparer le passage à la TVA au bon moment",
+                  prompt: "Conseille Jacques Lalou sur la gestion de la TVA pour AcadémIA Pro. Inclus : seuils de franchise 2026 - moment optimal pour opter volontairement - TVA sur formations exonérées - récupération TVA sur achats - impact sur les prix affichés - stratégie prix HT vs TTC."
                 },
                 {
-                  titre: "Plan d Épargne et Protection Sociale",
+                  titre: "Plan d Épargne et Protection Sociale",
                   description: "Optimiser sa protection sociale en tant que fondateur",
-                  prompt: "Conseille Jacques Lalou fondateur d AcadémIA Pro sur l optimisation de sa protection sociale et épargne. Inclus : PER - Madelin - complémentaire santé - prévoyance - retraite complémentaire - cotisations TNS - optimisation revenus - arbitrage salaire vs dividendes en SASU."
+                  prompt: "Conseille Jacques Lalou fondateur d AcadémIA Pro sur l optimisation de sa protection sociale et épargne. Inclus : PER - Madelin - complémentaire santé - prévoyance - retraite complémentaire - cotisations TNS - optimisation revenus - arbitrage salaire vs dividendes en SASU."
                 },
                 {
-                  titre: "Rapport Fiscal Annuel Personnalisé",
+                  titre: "Rapport Fiscal Annuel Personnalisé",
                   description: "Bilan fiscal complet et recommandations",
-                  prompt: "Génère un rapport fiscal annuel personnalisé pour AcadémIA Pro de Jacques Lalou. Structure : situation fiscale actuelle - optimisations réalisées - optimisations à mettre en place - économies potentielles estimées - planning fiscal sur 3 ans - recommandations prioritaires. Adapte à une micro-entreprise en phase de lancement avec ambition de scaling."
+                  prompt: "Génère un rapport fiscal annuel personnalisé pour AcadémIA Pro de Jacques Lalou. Structure : situation fiscale actuelle - optimisations réalisées - optimisations à mettre en place - économies potentielles estimées - planning fiscal sur 3 ans - recommandations prioritaires."
                 },
               ].map((item, i) => (
                 <div key={i} style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(200,169,110,0.2)", borderRadius: "10px", padding: "20px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "15px" }}>
@@ -606,7 +477,7 @@ export default function MrJuridiquePage() {
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({
                           message: item.prompt,
-                          agent: { prompt: "Tu es un expert en optimisation fiscale française avec 20 ans d experience specialise dans les startups et plateformes numeriques. Tu conseilles Jacques Lalou fondateur d AcadémIA Pro. Tu donnes des conseils fiscaux precis chiffres et actionables conformes au droit fiscal francais en vigueur. Tu rappelles de consulter un expert-comptable pour les decisions importantes." },
+                          agent: { prompt: "Tu es un expert en optimisation fiscale française avec 20 ans d experience specialise dans les startups et plateformes numeriques. Tu conseilles Jacques Lalou fondateur d AcadémIA Pro. Tu donnes des conseils fiscaux precis chiffres et actionables conformes au droit fiscal francais en vigueur. Tu rappelles de consulter un expert-comptable pour les decisions importantes." },
                           historique: []
                         }),
                       });
@@ -630,8 +501,7 @@ export default function MrJuridiquePage() {
 
             <div style={{ background: "rgba(200,169,110,0.1)", border: "1px solid rgba(200,169,110,0.3)", borderRadius: "12px", padding: "20px" }}>
               <h3 style={{ color: "#c8a96e", marginTop: 0 }}>💡 Conseil Fiscal Rapide</h3>
-              <div>
-              <div style={{ minHeight: "150px", maxHeight: "250px", overflowY: "auto", marginBottom: "10px" }}>
+              <div style={{ minHeight: "80px", marginBottom: "10px" }}>
                 <p style={{ color: "rgba(255,255,255,0.3)", fontSize: "13px" }}>
                   Utilisez l onglet Conseil IA pour poser vos questions fiscales.
                 </p>
@@ -642,7 +512,6 @@ export default function MrJuridiquePage() {
               >
                 Aller au Conseil IA
               </button>
-            </div>
             </div>
           </div>
         )}
