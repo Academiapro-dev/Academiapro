@@ -59,6 +59,42 @@ const BASES: any = {
   },
 };
 
+// 🔎 LA RECHERCHE GLOBALE — ajoutee le 24/08.
+//
+// LE DEFAUT : il fallait SAVOIR dans quelle base se trouvait un prospect
+// AVANT de pouvoir le chercher. Or c est precisement ce qu on ignore quand
+// on cherche. Un nom entendu au telephone, une societe vue sur LinkedIn :
+// on ne sait pas si elle est dans les organismes, les qualiopi, l interim
+// ou les cabinets.
+//
+// La recherche par base reste en place, elle sert au travail au volume.
+// Celle-ci repond a une autre question : « ou est cette entreprise ? »
+//
+// ELLE CHERCHE AUSSI PLUS LARGE. L ancienne recherche ne couvrait que la
+// raison sociale, la ville, l adresse et le SIREN. Le nom du dirigeant en
+// etait absent — alors que c est souvent la seule chose qu on retient d un
+// echange. Le telephone et le profil LinkedIn manquaient aussi.
+const COLONNES_GLOBALES = [
+  "raison_sociale",
+  "ville",
+  "email",
+  "siren",
+  "dirigeant_nom",
+  "dirigeant_prenom",
+  "telephone",
+];
+
+// Le profil LinkedIn n existe pas partout : il est ajoute a la volee.
+function clauseOu(terme: string, avecLinkedin: boolean): string {
+  const propre = terme.replace(/[,%()]/g, " ").trim();
+  const colonnes = avecLinkedin
+    ? COLONNES_GLOBALES.concat(["linkedin"])
+    : COLONNES_GLOBALES;
+  return colonnes
+    .map(function (c) { return c + ".ilike.%" + propre + "%"; })
+    .join(",");
+}
+
 // Le compte exact sans rapatrier les lignes : head true ne renvoie que le
 // nombre. Sur 33 881 cabinets, la difference n est pas cosmetique.
 async function compter(table: string, filtre: any): Promise<number> {
@@ -66,6 +102,47 @@ async function compter(table: string, filtre: any): Promise<number> {
   if (filtre) q = filtre(q);
   const { count } = await q;
   return count || 0;
+}
+
+// Cherche le terme dans UNE base et rend au plus vingt lignes, avec le
+// compte reel. Vingt suffit : au-dela, c est que le terme est trop vague
+// et le compte le dit.
+async function chercherDans(cle: string, terme: string): Promise<any> {
+  const b = BASES[cle];
+
+  const colonnes = "id, raison_sociale, siren, ville, code_postal, "
+    + "dirigeant_prenom, dirigeant_nom, email, telephone, "
+    + "statut, envoye_le, desabonne, dropcontact_le"
+    + (b.linkedin ? ", linkedin, linkedin_le, linkedin_statut" : "");
+
+  const { data, count, error } = await supabase
+    .from(b.table)
+    .select(colonnes, { count: "exact" })
+    .or(clauseOu(terme, !!b.linkedin))
+    .order("id", { ascending: true })
+    .range(0, 19);
+
+  if (error) {
+    return {
+      cle: cle,
+      titre: b.titre,
+      cible: b.cible,
+      porte_linkedin: !!b.linkedin,
+      trouves: 0,
+      lignes: [],
+      erreur: error.message,
+    };
+  }
+
+  return {
+    cle: cle,
+    titre: b.titre,
+    cible: b.cible,
+    porte_linkedin: !!b.linkedin,
+    trouves: count || 0,
+    lignes: data || [],
+    erreur: null,
+  };
 }
 
 export async function GET(req: NextRequest) {
@@ -79,8 +156,41 @@ export async function GET(req: NextRequest) {
     const demandee = (url.searchParams.get("base") || "").trim();
     const filtre = (url.searchParams.get("filtre") || "").trim();
     const cherche = (url.searchParams.get("q") || "").trim();
+    const global = (url.searchParams.get("global") || "").trim();
     const page = Math.max(0, parseInt(url.searchParams.get("page") || "0", 10) || 0);
     const parPage = 50;
+
+    // ---- LA RECHERCHE GLOBALE ------------------------------------------
+    //
+    // Elle repond seule : ni resume ni detail ne sont calcules, ce qui la
+    // rend rapide. Deux caracteres minimum, sans quoi elle rendrait la
+    // moitie des bases.
+    if (global) {
+      if (global.length < 2) {
+        return NextResponse.json({
+          ok: false,
+          erreur: "Deux caracteres au minimum pour la recherche globale.",
+        });
+      }
+
+      const cles = Object.keys(BASES);
+      const resultats: any[] = [];
+      for (const cle of cles) {
+        resultats.push(await chercherDans(cle, global));
+      }
+
+      const total = resultats.reduce(function (s: number, r: any) {
+        return s + (r.trouves || 0);
+      }, 0);
+
+      return NextResponse.json({
+        ok: true,
+        mode: "global",
+        terme: global,
+        total_trouve: total,
+        bases: resultats,
+      });
+    }
 
     // ---- LE RESUME DES QUATRE BASES -------------------------------------
     const resume: any[] = [];
@@ -186,13 +296,10 @@ export async function GET(req: NextRequest) {
         q = q.eq("desabonne", true);
       }
 
+      // La recherche par base couvre desormais les memes colonnes que la
+      // recherche globale : le nom du dirigeant y manquait.
       if (cherche) {
-        q = q.or(
-          "raison_sociale.ilike.%" + cherche + "%,"
-          + "ville.ilike.%" + cherche + "%,"
-          + "email.ilike.%" + cherche + "%,"
-          + "siren.ilike.%" + cherche + "%"
-        );
+        q = q.or(clauseOu(cherche, !!b.linkedin));
       }
 
       const debut = page * parPage;
