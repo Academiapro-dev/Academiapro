@@ -17,6 +17,11 @@ const T = {
 // Chaque entree mene a SA PROPRE PAGE VITRINE, publique et redigee pour
 // etre trouvee dans un moteur de recherche. L outil, lui, reste derriere la
 // session : c est « Espace pro » qui y mene.
+//
+// LA DISTINCTION EST DEMANDEE PAR JACQUES : « CRM » et « LMS » decrivent le
+// produit a qui ne le connait pas ; « Espace pro » ouvre la porte a qui est
+// deja client. Sans elle, un visiteur pouvait croire que la page reservee
+// etait tout ce qui existait.
 const SOLUTIONS = [
   { nom: "Pour les organismes de formation", href: "/pack" },
   { nom: "Mr. Qualiopi", href: "/qualiopi" },
@@ -25,25 +30,23 @@ const SOLUTIONS = [
   { nom: "Mr. Comptable", href: "/comptable" },
 ];
 
-// 🚨 LES ECRANS FINANCIERS SOUS UN SEUL MENU — 23/08.
+// 🚨 L ESPACE COMPTABLE PORTE DEUX ADRESSES — 25/08.
 //
-// LE DEFAUT EVITE. A onze entrees en ligne, la barre devenait illisible et
-// passait a la ligne sur un ecran d ordinateur portable. Ces quatre ecrans
-// forment un metier a part — la relation client et l argent — distinct de la
-// production comptable qui reste en acces direct.
-const ARGENT = [
-  { nom: "CRM et relances", href: "/admin/compliance/crm",
-    detail: "Vos clients, leurs pièces manquantes, vos impayés" },
-  { nom: "Devis et factures", href: "/admin/compliance/facturation",
-    detail: "Établir, émettre, suivre les règlements" },
-  { nom: "Facturation récurrente", href: "/admin/compliance/recurrente",
-    detail: "Les honoraires qui reviennent chaque mois" },
-  { nom: "Prévisionnel de trésorerie", href: "/admin/compliance/tresorerie",
-    detail: "Les douze prochaines semaines" },
-];
+// /admin/comptable est l adresse VISIBLE, celle que lit un cabinet dans sa
+// barre. /admin/compliance est le dossier REEL, ou vivent les trente
+// ecrans. Le middleware reecrit la premiere vers la seconde.
+//
+// ⚠️ LES DEUX DOIVENT FIGURER ICI. Cette liste decide de l affichage de la
+// barre comptable : si l alias en etait absent, un cabinet arrivant par
+// /admin/comptable verrait la barre de la vitrine AcadeMIA Pro sur son
+// espace de travail — exactement ce qu on cherche a eviter.
+//
+// LES LIENS CI-DESSOUS POINTENT TOUS VERS L ALIAS : un cabinet qui navigue
+// ne doit jamais voir « compliance » reapparaitre dans son adresse.
+const ESPACE_COMPTABLE = "/admin/comptable";
 
-// L ESPACE DE TRAVAIL DU CABINET.
 const CHEMINS_COMPTABLE = [
+  "/admin/comptable",
   "/admin/compliance",
   "/admin/mr-comptable",
 ];
@@ -53,9 +56,6 @@ const CHEMINS_COMPTABLE = [
 // Elles portent DEJA leur propre en-tete. Tester le chemin ne suffit pas :
 // le middleware sert /comptable/tenue sous mrcomptable.fr/tenue, et le
 // chemin vu ici est alors « /tenue ». On teste donc le DOMAINE.
-//
-// 🚨 UNE PAGE VITRINE AJOUTEE SOUS app/comptable DOIT ETRE AJOUTEE ICI.
-// Sinon cette barre s affiche par-dessus la sienne : deux en-tetes.
 const PAGES_PUBLIQUES_COMPTABLE = [
   "/",
   "/inscription",
@@ -65,10 +65,6 @@ const PAGES_PUBLIQUES_COMPTABLE = [
   "/tenue",
   "/declarations",
   "/relance-justificatifs",
-  "/crm",
-  "/facturation",
-  "/facturation-recurrente",
-  "/tresorerie",
   "/blog",
   "/contact",
   "/cgv",
@@ -148,16 +144,11 @@ export default function NavBar() {
   };
 
   // ---- Espace de travail comptable ---------------------------------------
-    if (estComptable(chemin) || (surMrComptable && chemin === "/connexion")) {
-
-    const dansArgent = ARGENT.some(function (a) {
-      return chemin === a.href || chemin.indexOf(a.href + "/") === 0;
-    });
-
+  if (estComptable(chemin) || surMrComptable) {
     return (
       <header style={{ ...barre, padding: "0 30px", background: "#000" }}>
         <a
-          href="/admin/compliance/tableau-de-bord"
+          href={ESPACE_COMPTABLE + "/tableau-de-bord"}
           style={{ display: "block", textDecoration: "none", flexShrink: 0, overflow: "hidden", lineHeight: 0 }}
         >
           <img
@@ -173,72 +164,17 @@ export default function NavBar() {
             }}
           />
         </a>
-
-        <nav style={{ display: "flex", gap: "18px", flexWrap: "wrap", justifyContent: "center", alignItems: "center" }}>
-          <a href="/admin/compliance/tableau-de-bord" style={lienMenu}>Tableau de bord</a>
-          <a href="/admin/compliance/societes" style={lienMenu}>Mes dossiers</a>
-
-          {/* LE MENU DEROULANT, en CSS pur — details et summary — pour ne
-              dependre d aucun etat : il fonctionne meme si le JavaScript
-              n a pas encore ete charge. Meme mecanique que la vitrine. */}
-          <details style={{ position: "relative" }}>
-            <summary style={{
-              ...lienMenu,
-              color: dansArgent ? "#c8a96e" : "rgba(255,255,255,0.7)",
-              cursor: "pointer",
-              listStyle: "none",
-              fontWeight: dansArgent ? "bold" : "normal",
-            }}>
-              Facturation ▾
-            </summary>
-            <div style={{
-              position: "absolute",
-              top: "26px",
-              left: 0,
-              background: "#0d0d16",
-              border: "1px solid rgba(200,169,110,0.3)",
-              borderRadius: "10px",
-              padding: "8px 0",
-              minWidth: "300px",
-              zIndex: 100,
-              boxShadow: "0 8px 24px rgba(0,0,0,0.6)",
-            }}>
-              {ARGENT.map(function (a) {
-                const actif = chemin === a.href || chemin.indexOf(a.href + "/") === 0;
-                return (
-                  <a
-                    key={a.href}
-                    href={a.href}
-                    style={{
-                      display: "block",
-                      padding: "10px 20px",
-                      color: actif ? "#c8a96e" : "rgba(255,255,255,0.8)",
-                      textDecoration: "none",
-                      fontSize: "14px",
-                      whiteSpace: "nowrap",
-                      fontWeight: actif ? "bold" : "normal",
-                    }}
-                  >
-                    {a.nom}
-                    <div style={{ color: "rgba(255,255,255,0.35)", fontSize: "11.5px", marginTop: "2px" }}>
-                      {a.detail}
-                    </div>
-                  </a>
-                );
-              })}
-            </div>
-          </details>
-
-          <a href="/admin/compliance/saisie" style={lienMenu}>Saisie</a>
-          <a href="/admin/compliance/pieces" style={lienMenu}>Pièces</a>
-          <a href="/admin/compliance/releve" style={lienMenu}>Banque</a>
-          <a href="/admin/compliance/acces-clients" style={lienMenu}>Espaces clients</a>
-          <a href="/admin/compliance/tva" style={lienMenu}>TVA</a>
-          <a href="/admin/compliance/teledec" style={lienMenu}>Télétransmissions</a>
+        <nav style={{ display: "flex", gap: "18px", flexWrap: "wrap", justifyContent: "center" }}>
+          <a href={ESPACE_COMPTABLE + "/tableau-de-bord"} style={lienMenu}>Tableau de bord</a>
+          <a href={ESPACE_COMPTABLE + "/societes"} style={lienMenu}>Mes dossiers</a>
+          <a href={ESPACE_COMPTABLE + "/saisie"} style={lienMenu}>Saisie</a>
+          <a href={ESPACE_COMPTABLE + "/pieces"} style={lienMenu}>Pièces</a>
+          <a href={ESPACE_COMPTABLE + "/acces-clients"} style={lienMenu}>Espaces clients</a>
+          <a href={ESPACE_COMPTABLE + "/tva"} style={lienMenu}>TVA</a>
+          <a href={ESPACE_COMPTABLE + "/teledec"} style={lienMenu}>Télétransmissions</a>
         </nav>
-
         <div style={{ display: "flex", gap: "10px", alignItems: "center", flexShrink: 0 }}>
-          <a href="/admin/compliance/ma-societe" style={{ color: "#c8a96e", border: "1px solid rgba(200,169,110,0.45)", padding: "8px 16px", borderRadius: "8px", textDecoration: "none", fontWeight: "bold", fontSize: "14px", whiteSpace: "nowrap" }}>
+          <a href={ESPACE_COMPTABLE + "/ma-societe"} style={{ color: "#c8a96e", border: "1px solid rgba(200,169,110,0.45)", padding: "8px 16px", borderRadius: "8px", textDecoration: "none", fontWeight: "bold", fontSize: "14px", whiteSpace: "nowrap" }}>
             Mon cabinet
           </a>
         </div>
