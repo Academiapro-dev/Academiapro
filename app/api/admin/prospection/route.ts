@@ -14,20 +14,31 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || ""
 );
 
-// LES QUATRE BASES DE PROSPECTION.
+// LES CINQ BASES DE PROSPECTION.
 //
 // Elles ne sont PAS dans la table crm : celle-ci est cloisonnee par tenant
-// et appartient au client. Ces quatre-la sont la prospection de Jacques,
+// et appartient au client. Celles-ci sont la prospection de Jacques,
 // et n ont jamais eu d ecran pour les consulter.
 //
 // PIEGE VERIFIE LE 14 AOUT : prospects_organismes n a PAS de colonne
-// vague, contrairement aux trois autres. La demander la ferait echouer.
+// vague, contrairement aux autres. La demander la ferait echouer.
 //
 // SECOND PIEGE DE LA MEME FAMILLE : les colonnes linkedin, linkedin_le et
-// linkedin_statut existent sur les TROIS tables prospectables, mais PAS
+// linkedin_statut existent sur les tables prospectables, mais PAS
 // sur prospects_cabinets, qu on ne touche pas avant l accord BCSolutions.
 // D ou le drapeau ci dessous : les demander sur cabinets ferait echouer
 // la lecture entiere.
+//
+// 🚨 TROISIEME PIEGE DE LA MEME FAMILLE, TROUVE LE 25/08.
+// prospects_gros n a PAS de colonne sms_accepte_le, que le bloc detail
+// demandait jusqu ici sans condition. D ou le drapeau sms.
+// LA REGLE GENERALE, TROIS FOIS VERIFIEE : ne jamais demander une colonne
+// sans savoir qu elle existe sur CETTE table. Une colonne absente ne rend
+// pas une ligne vide, elle fait echouer la lecture ENTIERE.
+//
+// prospects_gros etait absente de la recherche globale alors qu elle porte
+// 8 213 organismes et la quasi-totalite des profils LinkedIn travailles.
+// Chercher un nom vu sur LinkedIn ne le trouvait donc pas. Ajoutee le 25/08.
 const BASES: any = {
   organismes: {
     table: "prospects_organismes",
@@ -35,6 +46,7 @@ const BASES: any = {
     cible: "Pack organisme",
     vague: false,
     linkedin: true,
+    sms: true,
   },
   qualiopi: {
     table: "prospects_qualiopi",
@@ -42,6 +54,15 @@ const BASES: any = {
     cible: "Mr. Qualiopi",
     vague: true,
     linkedin: true,
+    sms: true,
+  },
+  gros: {
+    table: "prospects_gros",
+    titre: "Grands organismes de formation",
+    cible: "Pack organisme",
+    vague: false,
+    linkedin: true,
+    sms: false,
   },
   interim: {
     table: "prospects_interim",
@@ -49,6 +70,7 @@ const BASES: any = {
     cible: "Formations securite",
     vague: true,
     linkedin: true,
+    sms: true,
   },
   cabinets: {
     table: "prospects_cabinets",
@@ -56,6 +78,7 @@ const BASES: any = {
     cible: "Mr. Comptable",
     vague: true,
     linkedin: false,
+    sms: true,
   },
 };
 
@@ -64,8 +87,7 @@ const BASES: any = {
 // LE DEFAUT : il fallait SAVOIR dans quelle base se trouvait un prospect
 // AVANT de pouvoir le chercher. Or c est precisement ce qu on ignore quand
 // on cherche. Un nom entendu au telephone, une societe vue sur LinkedIn :
-// on ne sait pas si elle est dans les organismes, les qualiopi, l interim
-// ou les cabinets.
+// on ne sait pas dans laquelle des cinq bases elle se trouve.
 //
 // La recherche par base reste en place, elle sert au travail au volume.
 // Celle-ci repond a une autre question : « ou est cette entreprise ? »
@@ -192,7 +214,7 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // ---- LE RESUME DES QUATRE BASES -------------------------------------
+    // ---- LE RESUME DES BASES --------------------------------------------
     const resume: any[] = [];
 
     for (const cle of Object.keys(BASES)) {
@@ -266,7 +288,8 @@ export async function GET(req: NextRequest) {
 
       const colonnes = "id, raison_sociale, siren, ville, code_postal, "
         + "dirigeant_prenom, dirigeant_nom, email, telephone, site_web, "
-        + "statut, envoye_le, desabonne, dropcontact_le, sms_accepte_le"
+        + "statut, envoye_le, desabonne, dropcontact_le"
+        + (b.sms ? ", sms_accepte_le" : "")
         + (b.vague ? ", vague" : "")
         + (b.linkedin ? ", linkedin, linkedin_le, linkedin_statut" : "");
 
@@ -320,6 +343,7 @@ export async function GET(req: NextRequest) {
         cible: b.cible,
         porte_vague: b.vague,
         porte_linkedin: !!b.linkedin,
+        porte_sms: !!b.sms,
         filtre: filtre,
         recherche: cherche,
         page: page,
