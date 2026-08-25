@@ -4,6 +4,23 @@ import { NextRequest, NextResponse } from "next/server";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
+// 🚨 TROIS FORMULES ONT ETE RETIREES DE CE FICHIER LE 25/08.
+//
+// 1. « PLATEFORME DE FORMATION 100% IA » dans le premier prompt.
+//
+// 2. « BIEN-ETRE THERAPEUTIQUE ». Le mot releve d un cadre reglemente ;
+//    l ecrire dans un depot INPI engage sur des services qu on ne rend pas
+//    en ces termes.
+//
+// 3. « PREPARE PAR : MR JURIDIQUE IA », qui figurait trois fois dans le
+//    dossier expedie. Ce document part par courriel et peut ensuite etre
+//    transmis a l INPI ou a un avocat. La mention n apporte rien et dit
+//    exactement ce qu il ne faut pas dire.
+//
+// LE DOSSIER RESTE UN DOCUMENT DE TRAVAIL : l avertissement final invitant
+// a consulter un avocat specialise est conserve, et il n est pas
+// negociable.
+
 export async function POST(req: NextRequest) {
   // Garde-fou : n accepter que les appels du site
   const origineApp = req.headers.get("origin") || "";
@@ -25,30 +42,30 @@ export async function POST(req: NextRequest) {
   try {
     const { email } = await req.json();
 
-    // Générer le dossier complet via Claude
+    // Générer le dossier complet
     const prompts = [
       {
         titre: "1. Analyse et Classes INPI",
-        prompt: "Génère l analyse complète des classes INPI pour la marque AcadémIA Pro, plateforme de formation professionnelle 100% IA et bien-être thérapeutique. Classes recommandées avec justification détaillée."
+        prompt: "Génère l analyse complète des classes INPI pour la marque AcadémIA Pro. AcadémIA Pro édite une plateforme de formation professionnelle en ligne, un catalogue de formations, des séances d accompagnement à distance et un logiciel de gestion comptable destiné aux cabinets d expertise comptable. Classes recommandées avec justification détaillée."
       },
       {
         titre: "2. Description Officielle de la Marque",
-        prompt: "Rédige la description officielle complète de la marque AcadémIA Pro pour dépôt INPI. Liste précise des produits et services par classe."
+        prompt: "Rédige la description officielle complète de la marque AcadémIA Pro pour dépôt INPI. Liste précise des produits et services par classe."
       },
       {
-        titre: "3. Guide de Dépôt Étape par Étape",
-        prompt: "Rédige le guide complet étape par étape pour déposer la marque AcadémIA Pro sur inpi.fr avec toutes les informations nécessaires."
+        titre: "3. Guide de Dépôt Étape par Étape",
+        prompt: "Rédige le guide complet étape par étape pour déposer la marque AcadémIA Pro sur inpi.fr avec toutes les informations nécessaires."
       },
       {
-        titre: "4. NDA Protection Avant Dépôt",
-        prompt: "Génère le NDA complet pour protéger la marque AcadémIA Pro avant le dépôt INPI."
+        titre: "4. NDA Protection Avant Dépôt",
+        prompt: "Génère le NDA complet pour protéger la marque AcadémIA Pro avant le dépôt INPI."
       },
     ];
 
     let dossierComplet = `DOSSIER PROTECTION MARQUE INPI
-AcadémIA Pro — Jacques Lalou
+AcadémIA Pro — Jacques Lalou
 Date : ${new Date().toLocaleDateString("fr-FR")}
-Préparé par : Mr Juridique IA — AcadémIA Pro
+Document de travail interne
 
 ${"=".repeat(60)}
 
@@ -65,7 +82,7 @@ ${"=".repeat(60)}
         body: JSON.stringify({
           model: "claude-sonnet-4-6",
           max_tokens: 1500,
-          system: "Tu es Mr Juridique, juriste expert en propriété intellectuelle et droit des affaires français avec 20 ans d experience. Tu prépares le dossier INPI complet pour AcadémIA Pro de Jacques Lalou.",
+          system: "Tu es Mr Juridique, juriste expert en propriété intellectuelle et droit des affaires français avec 20 ans d experience. Tu prépares le dossier INPI complet pour AcadémIA Pro de Jacques Lalou.",
           messages: [{ role: "user", content: p.prompt }],
         }),
       });
@@ -91,26 +108,26 @@ ${"=".repeat(60)}
       body: JSON.stringify({
         from: "Mr Juridique <contact@academiapro.fr>",
         to: [email || "contact@academiapro.fr"],
-        subject: "🏛️ Dossier INPI Complet — Protection Marque AcadémIA Pro",
+        subject: "🏛️ Dossier INPI Complet — Protection Marque AcadémIA Pro",
         html: `
 <div style="font-family:Georgia,serif;max-width:800px;margin:0 auto;padding:40px;color:#1a1a1a;">
   <h1 style="color:#c8a96e;border-bottom:2px solid #c8a96e;padding-bottom:10px;">
     🏛️ Dossier Protection Marque INPI
   </h1>
-  <p><strong>AcadémIA Pro — Jacques Lalou</strong></p>
+  <p><strong>AcadémIA Pro — Jacques Lalou</strong></p>
   <p>Date : ${new Date().toLocaleDateString("fr-FR")}</p>
-  <p>Préparé par : Mr Juridique IA</p>
+  <p>Document de travail interne</p>
   <hr style="border-color:#c8a96e;"/>
   
   <div style="background:#f8f4ee;padding:20px;border-radius:8px;margin:20px 0;">
-    <h2 style="color:#c8a96e;">📋 Étapes à suivre</h2>
+    <h2 style="color:#c8a96e;">📋 Étapes à suivre</h2>
     <ol>
       <li>Lisez le dossier complet ci-dessous</li>
       <li>Connectez-vous sur <a href="https://www.inpi.fr">inpi.fr</a></li>
-      <li>Créez votre compte INPI</li>
-      <li>Déposez la marque AcadémIA Pro</li>
-      <li>Payez : 190€ × 3 classes = <strong>570€</strong></li>
-      <li>Suivez votre dossier pendant 6 mois</li>
+      <li>Créez votre compte INPI</li>
+      <li>Déposez la marque AcadémIA Pro</li>
+      <li>Réglez les frais de dépôt selon le nombre de classes retenues</li>
+      <li>Suivez votre dossier pendant les mois qui suivent</li>
     </ol>
   </div>
 
@@ -119,11 +136,12 @@ ${dossierComplet}
   </pre>
 
   <div style="background:#fff8e7;border-left:4px solid #c8a96e;padding:15px;margin-top:20px;">
-    <p><strong>⚠️ Note importante :</strong> Ce dossier est préparé par Mr Juridique IA à titre informatif. 
-    Pour les décisions juridiques importantes, consultez un avocat spécialisé en propriété intellectuelle.</p>
+    <p><strong>⚠️ Note importante :</strong> ce dossier est un document de travail préparatoire.
+    Pour les décisions juridiques importantes, consultez un avocat spécialisé en propriété intellectuelle.
+    Les montants et délais indiqués doivent être vérifiés sur inpi.fr avant tout dépôt.</p>
   </div>
 
-  <p style="color:#c8a96e;margin-top:30px;"><strong>AcadémIA Pro — Mr Juridique</strong></p>
+  <p style="color:#c8a96e;margin-top:30px;"><strong>AcadémIA Pro</strong></p>
 </div>
         `,
       }),
@@ -143,7 +161,7 @@ ${dossierComplet}
           },
           body: JSON.stringify({
             type: "inpi_dossier",
-            titre: "Dossier INPI Complet — AcadémIA Pro",
+            titre: "Dossier INPI Complet — AcadémIA Pro",
             contenu: dossierComplet,
             statut: "envoye",
           }),
@@ -152,13 +170,13 @@ ${dossierComplet}
 
       return NextResponse.json({
         success: true,
-        message: `Dossier INPI complet envoyé à ${email || "contact@academiapro.fr"} ✅`
+        message: `Dossier INPI complet envoyé à ${email || "contact@academiapro.fr"} ✅`
       });
     } else {
       return NextResponse.json({ success: false, message: "Erreur envoi email" }, { status: 500 });
     }
 
   } catch (error) {
-    return NextResponse.json({ error: "Erreur génération dossier" }, { status: 500 });
+    return NextResponse.json({ error: "Erreur génération dossier" }, { status: 500 });
   }
 }
