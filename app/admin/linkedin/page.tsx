@@ -182,17 +182,18 @@ function messageRelance(prenom: string, societe: string, nbFormations: number, b
   if (estCabinet(base)) {
     return (p ? "Bonjour " + p : "Bonjour") + ",\n\n"
       + "Merci d'avoir accepté ma demande.\n\n"
-      + "Une tâche revient dans tous les cabinets et n'apparaît sur aucune facture : "
-      + "réclamer les justificatifs manquants. Le relevé montre un débit, la pièce "
-      + "n'est nulle part, et quelqu'un finit par écrire au client. Puis relancer. "
-      + "Puis relancer encore.\n\n"
-      + "J'ai construit Mr. Comptable autour de cette idée. Il repère les opérations "
-      + "sans justificatif et les pièces manquantes, puis relance le client par "
-      + "courriel ou par SMS, après votre relecture. Il relance aussi vos honoraires "
+      + "Certaines tâches chronophages reviennent sans cesse dans les cabinets "
+      + "comptables, et personne ne les a choisies : courir après des pièces "
+      + "justificatives qui n'arrivent jamais à temps.\n\n"
+      + "J'ai construit Mr. Comptable pour que ce soit lui qui coure. Il repère "
+      + "les opérations sans justificatif et les pièces manquantes, puis relance "
+      + "le client par courriel ou par SMS. Il relance aussi vos honoraires "
       + "impayés.\n\n"
-      + "Ce qui m'intéresse, c'est de savoir ce qui vous prend le plus de temps sans "
-      + "être facturable" + (s ? " chez " + s : "") + " — c'est ce qui me dit si l'outil "
-      + "répond à un vrai besoin ou pas.\n\n"
+      + "Ce qui m'intéresse, c'est de savoir ce qui vous prend le plus de temps "
+      + "sans que cela vous rapporte quoi que ce soit"
+      + (s ? " chez " + s : "") + ". Si le sujet vous parle, j'échange volontiers "
+      + "un quart d'heure avec vous. L'outil s'est construit sur ce que les "
+      + "cabinets signalent, et il continue d'évoluer.\n\n"
       + "Bien à vous,\nJacques Lalou\nmrcomptable.fr";
   }
 
