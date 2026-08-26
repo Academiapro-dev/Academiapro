@@ -9,9 +9,31 @@ export const maxDuration = 60;
 const ADMINS = ["contact@academiapro.fr"];
 const URL_BREVO = "https://api.brevo.com/v3/transactionalSMS/sms";
 
-// L EXPEDITEUR AFFICHE. Onze caracteres au maximum, lettres et chiffres
-// seulement : c est une contrainte des operateurs, pas de Brevo.
-const EXPEDITEUR = "AcademiaPro";
+// 🆕 L EXPEDITEUR SUIT LA MARQUE — 26/08.
+//
+// LE DEFAUT CORRIGE. L expediteur etait fige a « AcademiaPro ». Un cabinet
+// d expertise comptable relance par Mr. Comptable aurait donc recu un SMS
+// signe du nom d une plateforme de formation — et se serait demande qui
+// lui ecrit.
+//
+// ⚠️ ONZE CARACTERES AU MAXIMUM, lettres et chiffres seulement. C est une
+// contrainte des OPERATEURS, pas de Brevo : un expediteur plus long est
+// tronque ou refuse selon les reseaux. « MrComptable » fait exactement
+// onze caracteres — ne pas y ajouter de point ni d espace.
+//
+// 🚨 « academiapro » RESTE LA VALEUR PAR DEFAUT. Tous les appels deja
+// ecrits continuent de fonctionner sans etre modifies.
+const EXPEDITEURS: any = {
+  academiapro: "AcademiaPro",
+  mrcomptable: "MrComptable",
+};
+
+const EXPEDITEUR_DEFAUT = "AcademiaPro";
+
+function expediteurDe(marque: any): string {
+  const cle = String(marque || "").trim().toLowerCase();
+  return EXPEDITEURS[cle] || EXPEDITEUR_DEFAUT;
+}
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
@@ -88,15 +110,28 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // L expediteur est choisi ICI, avant toute trace : la ligne enregistree
+    // doit dire sous quel nom le message est parti.
+    const expediteur = expediteurDe(b.marque);
+
     // LE MARQUAGE PRECEDE L ENVOI, comme pour les courriels. Si l appel
     // echoue en cours de route, la trace existe deja : mieux vaut une
     // ligne en erreur qu un envoi dont on ignore tout.
+    //
+    // ⚠️ L expediteur est range dans « origine » plutot que dans une
+    // colonne nouvelle : la table sms_envoyes n a pas de colonne marque,
+    // et en ajouter une demanderait une migration pour un confort. La
+    // forme « marque:origine » se lit sans ambiguite dans l historique.
+    const origine = String(b.origine || "manuel").slice(0, 40);
+    const traceOrigine = (b.marque ? String(b.marque).toLowerCase() + ":" : "")
+      + origine;
+
     const { data: trace } = await supabase
       .from("sms_envoyes")
       .insert({
         destinataire: numero,
         message: texte,
-        origine: b.origine ? String(b.origine).slice(0, 60) : "manuel",
+        origine: traceOrigine.slice(0, 60),
         reference_id: b.reference_id || null,
         statut: "en_cours",
         envoye_par: email,
@@ -113,7 +148,7 @@ export async function POST(req: NextRequest) {
       },
       body: JSON.stringify({
         type: "transactional",
-        sender: EXPEDITEUR,
+        sender: expediteur,
         recipient: numero,
         content: texte,
       }),
@@ -135,6 +170,7 @@ export async function POST(req: NextRequest) {
           ok: false,
           erreur: "Brevo a repondu " + r.status,
           detail: brut.slice(0, 400),
+          expediteur: expediteur,
         },
         { status: 500 }
       );
@@ -156,10 +192,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       destinataire: numero,
+      expediteur: expediteur,
       caracteres: texte.length,
       sms_decomptes: nb,
       message_id: identifiant,
-      message: "SMS envoye a " + numero
+      message: "SMS envoye a " + numero + " sous le nom " + expediteur
         + (nb > 1 ? " — attention, " + nb + " SMS decomptes." : "."),
     });
   } catch (e: any) {
