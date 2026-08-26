@@ -2,14 +2,15 @@
 import { useState, useEffect } from "react";
 
 const OR = "#c8a96e";
+const COMPTABLE = "#4fc3f7";
 const FOND = "#050508";
 
 // L ECRAN D ESSAI DU SMS.
 //
 // La tuyauterie a ete posee le 14 aout — table sms_envoyes, colonne de
 // consentement sur cinq tables, route /api/admin/envoyer-sms, cle Brevo
-// dans Vercel — mais AUCUN message n est jamais parti. Une route qui n a
-// jamais tourne n est pas une route qui marche.
+// dans Vercel. Le premier envoi reel a eu lieu et a ete recu : la chaine
+// est eprouvee.
 //
 // LA ROUTE ATTEND UN APPEL EN POST : on ne peut pas l eprouver depuis la
 // barre d adresse. D ou cet ecran.
@@ -17,8 +18,25 @@ const FOND = "#050508";
 // LE COMPTE DES CARACTERES EST AFFICHE AVANT L ENVOI : au-dela de 160, un
 // message est decoupe et facture en plusieurs SMS. Mieux vaut le voir en
 // ecrivant qu en relisant sa facture.
+//
+// 🆕 LE CHOIX DE L EXPEDITEUR — 26/08.
+//
+// Deux marques envoient desormais des SMS. Un cabinet d expertise
+// comptable relance par Mr. Comptable ne doit pas recevoir un message
+// signe du nom d une plateforme de formation.
+//
+// 🚨 UN NOM D EXPEDITEUR DOIT PARFOIS ETRE DECLARE CHEZ BREVO AVANT DE
+// FONCTIONNER, selon les operateurs. « AcademiaPro » a deja servi et
+// passe. « MrComptable » est nouveau : c est precisement ce que cet ecran
+// permet de verifier, avant qu un vrai cabinet ne soit destinataire.
+const MARQUES = [
+  { cle: "academiapro", nom: "AcademiaPro", couleur: OR },
+  { cle: "mrcomptable", nom: "MrComptable", couleur: COMPTABLE },
+];
+
 export default function PageEssaiSMS() {
   const [numero, setNumero] = useState("");
+  const [marque, setMarque] = useState("academiapro");
   const [message, setMessage] = useState(
     "Bonjour, ceci est un essai depuis AcadeMIA Pro. Merci de ne pas repondre."
   );
@@ -30,6 +48,19 @@ export default function PageEssaiSMS() {
   useEffect(function () {
     charger();
   }, []);
+
+  // Le texte d essai suit la marque : on verifie ainsi que le message ET
+  // le nom de l expediteur correspondent au bon produit.
+  function choisirMarque(cle: string) {
+    setMarque(cle);
+    setResultat(null);
+    setErreur("");
+    if (cle === "mrcomptable") {
+      setMessage("Bonjour, ceci est un essai depuis Mr. Comptable. Merci de ne pas repondre.");
+    } else {
+      setMessage("Bonjour, ceci est un essai depuis AcadeMIA Pro. Merci de ne pas repondre.");
+    }
+  }
 
   async function charger() {
     try {
@@ -51,6 +82,7 @@ export default function PageEssaiSMS() {
         body: JSON.stringify({
           numero: numero,
           message: message,
+          marque: marque,
           origine: "essai",
         }),
       });
@@ -70,6 +102,8 @@ export default function PageEssaiSMS() {
 
   const n = message.length;
   const morceaux = n <= 160 ? 1 : Math.ceil(n / 153);
+  const marqueActive = MARQUES.find(function (m) { return m.cle === marque; })
+    || MARQUES[0];
 
   const CADRE: any = {
     minHeight: "100vh", background: FOND, color: "#fff",
@@ -110,6 +144,30 @@ export default function PageEssaiSMS() {
         </p>
 
         <div style={CARTE}>
+          <span style={LIBELLE}>Expéditeur affiché sur le téléphone</span>
+          <div style={{ display: "flex", gap: "9px", flexWrap: "wrap", marginBottom: "16px" }}>
+            {MARQUES.map(function (m) {
+              const actif = marque === m.cle;
+              return (
+                <button key={m.cle} onClick={() => choisirMarque(m.cle)}
+                  style={{
+                    flex: "1 1 160px", padding: "12px", borderRadius: "9px",
+                    fontSize: "14px", fontFamily: "Georgia,serif", cursor: "pointer",
+                    fontWeight: actif ? "bold" : "normal",
+                    background: actif ? m.couleur : "rgba(255,255,255,0.05)",
+                    color: actif ? FOND : m.couleur,
+                    border: actif ? "none" : "1px solid " + m.couleur + "66",
+                  }}>
+                  {m.nom}
+                </button>
+              );
+            })}
+          </div>
+          <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "12.5px", lineHeight: "1.7", margin: "0 0 18px" }}>
+            C'est ce nom que verra le destinataire à la place d'un numéro. Onze
+            caractères au maximum — une contrainte des opérateurs.
+          </p>
+
           <span style={LIBELLE}>Numéro du destinataire</span>
           <input
             value={numero}
@@ -140,14 +198,15 @@ export default function PageEssaiSMS() {
             onClick={envoyer}
             disabled={occupe || numero.trim().length < 6 || message.trim().length < 2}
             style={{
-              background: occupe || numero.trim().length < 6 ? "rgba(200,169,110,0.3)" : OR,
+              background: occupe || numero.trim().length < 6
+                ? "rgba(200,169,110,0.3)" : marqueActive.couleur,
               color: occupe || numero.trim().length < 6 ? "#8a8a8a" : FOND,
               padding: "14px 28px", borderRadius: "8px", border: "none",
               cursor: occupe ? "default" : "pointer", fontWeight: "bold",
               fontSize: "15px", fontFamily: "Georgia,serif", width: "100%",
             }}
           >
-            {occupe ? "Envoi en cours…" : "Envoyer le SMS"}
+            {occupe ? "Envoi en cours…" : "Envoyer sous le nom " + marqueActive.nom}
           </button>
         </div>
 
@@ -158,8 +217,13 @@ export default function PageEssaiSMS() {
             </p>
             <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13.5px", lineHeight: "1.8", margin: 0 }}>
               Destinataire : {resultat.destinataire}<br />
+              Expéditeur : {resultat.expediteur}<br />
               {resultat.caracteres} caractère(s) · {resultat.sms_decomptes} SMS décompté(s)
               {resultat.message_id ? <><br />Référence : {resultat.message_id}</> : null}
+            </p>
+            <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "12.5px", lineHeight: "1.7", margin: "12px 0 0" }}>
+              Vérifiez sur votre téléphone que le nom affiché est bien
+              « {resultat.expediteur} » — c'est ce que verra le destinataire.
             </p>
           </div>
         )}
@@ -168,6 +232,10 @@ export default function PageEssaiSMS() {
           <div style={{ ...CARTE, border: "1px solid rgba(232,131,106,0.5)" }}>
             <p style={{ color: "#e8836a", fontSize: "15px", lineHeight: "1.75", margin: 0 }}>
               {erreur}
+            </p>
+            <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "12.5px", lineHeight: "1.7", margin: "12px 0 0" }}>
+              Si l'erreur porte sur l'expéditeur, il faut le déclarer chez Brevo
+              avant qu'il ne soit accepté par les opérateurs.
             </p>
           </div>
         )}
@@ -188,6 +256,14 @@ export default function PageEssaiSMS() {
                     }}>
                       {l.statut}
                     </span>
+                    {l.origine && (
+                      <span style={{
+                        color: String(l.origine).indexOf("mrcomptable") === 0 ? COMPTABLE : "rgba(255,255,255,0.35)",
+                        marginLeft: "10px", fontSize: "12px",
+                      }}>
+                        {l.origine}
+                      </span>
+                    )}
                     <span style={{ color: "rgba(255,255,255,0.35)", marginLeft: "10px", fontSize: "12.5px" }}>
                       {l.created_at ? new Date(l.created_at).toLocaleString("fr-FR") : ""}
                     </span>
