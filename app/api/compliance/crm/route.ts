@@ -21,7 +21,22 @@ const supabase = createClient(
   }
 );
 
-const EXPEDITEUR = "Mr. Comptable <contact@academiapro.fr>";
+// 🚨 L EXPEDITEUR CORRIGE LE 26/08 — LE DEFAUT ETAIT VISIBLE EN DEUX CLICS.
+//
+// L adresse etait « Mr. Comptable <contact@academiapro.fr> ». Le nom
+// affiche disait Mr. Comptable, mais l adresse reelle celle d une
+// plateforme de formation. Le client d un cabinet qui deplie l en-tete de
+// son courriel voyait donc apparaitre une marque qui n a rien a faire la.
+//
+// ⚠️ contact@mrcomptable.fr EST VERIFIE CHEZ RESEND. Le domaine peut
+// emettre, c est mesure. Ne pas revenir a l ancienne adresse.
+//
+// 🚨 RAPPEL DE LA LECON 6 : pour EPROUVER cet envoi, ne jamais s ecrire a
+// soi-meme depuis contact@mrcomptable.fr vers contact@mrcomptable.fr. OVH
+// retient un message qui pretend venir d une de ses propres boites en
+// arrivant de l exterieur, et il reste bloque en « Delivery Delayed ».
+// TOUJOURS UNE ADRESSE EXTERIEURE.
+const EXPEDITEUR = "Mr. Comptable <contact@mrcomptable.fr>";
 
 // LES SEPT MOTIFS DE RELANCE.
 //
@@ -246,6 +261,9 @@ async function envoyerEmail(destinataire: string, sujet: string, html: string) {
 //
 // ⚠️ sms_accepte_le N EST PAS UNE FORMALITE : un SMS non consenti est une
 // infraction, et le numero d expediteur se fait bloquer par les operateurs.
+//
+// ⚠️ « MrComptable » FAIT EXACTEMENT ONZE CARACTERES — la limite des
+// operateurs. Ne pas y ajouter de point ni d espace.
 async function envoyerSms(numero: string, texte: string) {
   if (!process.env.BREVO_API_KEY) {
     return { ok: false, detail: "BREVO_API_KEY absente" };
