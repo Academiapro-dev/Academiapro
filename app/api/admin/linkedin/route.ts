@@ -12,9 +12,9 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || ""
 );
 
-// CINQ SOURCES, DONT UNE MANUELLE.
+// SIX SOURCES, DONT UNE MANUELLE.
 //
-// Les quatre premieres viennent de l open data enrichi. LA CINQUIEME,
+// Les cinq premieres viennent de l open data enrichi. LA SIXIEME,
 // « manuel », pointe sur la table crm et recoit les profils que Jacques
 // trouve LUI-MEME sur LinkedIn, au fil de son fil d actualite.
 //
@@ -22,13 +22,28 @@ const supabase = createClient(
 // L ecran de recherche rend des resultats venant de prospects_gros. Sans
 // cette entree, marquer une acceptation depuis un de ces resultats
 // echouait sur « Base inconnue » — des boutons visibles qui ne font rien.
-// RAPPEL : prospects_cabinets N A PAS les colonnes LinkedIn. Elle n a donc
-// rien a faire ici, et l y mettre ferait echouer tous les comptages.
+//
+// 🆕 « cabinets » AJOUTEE LE 26/08 — LA DEUXIEME CAMPAGNE.
+//
+// LA TABLE prospects_cabinets N AVAIT PAS LES COLONNES LINKEDIN. C est
+// pour cette raison qu elle etait tenue a l ecart : les demander faisait
+// echouer la lecture entiere. Les quatre colonnes ont ete ajoutees le
+// 26/08 — linkedin_le, linkedin_statut, linkedin_relance_le, notes — et
+// la table est desormais lisible exactement comme les autres.
+//
+// 🚨 POURQUOI UNE SEULE LISTE, ET PAS DEUX ECRANS SEPARES.
+// Les compteurs bouclent sur TOUTES les tables de cet objet. Le plafond
+// de vingt invitations par jour porte donc sur le TOTAL, organismes et
+// cabinets confondus — ce qui est la realite : les invitations partent
+// d un seul compte LinkedIn, celui de Jacques. Deux ecrans separes
+// auraient deux compteurs, et le total reel passerait a quarante sans
+// que personne ne le voie. NE PAS SCINDER.
 const TABLES: any = {
   organismes: "prospects_organismes",
   qualiopi: "prospects_qualiopi",
   gros: "prospects_gros",
   interim: "prospects_interim",
+  cabinets: "prospects_cabinets",
   manuel: "crm",
 };
 
@@ -188,9 +203,13 @@ async function compteurs() {
   };
 }
 
-// LES COLONNES DIFFERENT SELON LA TABLE. Les quatre bases de prospection
+// LES COLONNES DIFFERENT SELON LA TABLE. Les cinq bases de prospection
 // portent raison_sociale, siren, code_postal ; la table crm porte nom et
 // organisme. Demander les mauvaises colonnes ferait echouer la requete.
+//
+// 🆕 prospects_cabinets porte exactement les memes colonnes que les quatre
+// autres bases depuis le 26/08. Elle se lit donc avec COLONNES_PROSPECTS,
+// sans traitement particulier.
 const COLONNES_PROSPECTS =
   "id, raison_sociale, ville, code_postal, siren, dirigeant_prenom, dirigeant_nom, " +
   "linkedin, email, telephone, site_web, linkedin_le, linkedin_relance_le, linkedin_statut, notes";
@@ -227,6 +246,10 @@ function modifiablesDe(cle: string): string[] {
 
 // L ecran attend partout raison_sociale et dirigeant. Une fiche du CRM
 // n en a pas : on la presente sous la meme forme.
+//
+// 🆕 LA CLE DE BASE VOYAGE AVEC CHAQUE LIGNE. C est elle qui permet a
+// l ecran de savoir s il s adresse a un organisme de formation ou a un
+// cabinet comptable — et donc quel message preparer.
 function uniformiser(l: any, cle: string) {
   if (cle !== "manuel") return { ...l, base: cle };
   return {
@@ -543,6 +566,11 @@ export async function POST(req: NextRequest) {
     // LE PLAFOND SE VERIFIE COTE SERVEUR, pas seulement a l ecran. Il
     // concerne les DEUX formes d invitation. Marquer une acceptation n est
     // plafonne par rien.
+    //
+    // 🚨 DEPUIS LE 26/08, CE PLAFOND COUVRE LES DEUX CAMPAGNES. Les
+    // compteurs bouclent sur les six tables : vingt par jour au TOTAL,
+    // organismes et cabinets confondus. C est voulu — les invitations
+    // partent d un seul compte LinkedIn.
     if (statut === "invite" || statut === "invite_nu") {
       const c = await compteurs();
       if (c.reste_jour <= 0) {
