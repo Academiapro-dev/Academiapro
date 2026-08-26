@@ -23,20 +23,36 @@ import { useState, useEffect, useMemo, useRef } from "react";
 // Jacques trouve un prospect ICI, au moment ou LinkedIn lui notifie une
 // acceptation, et il doit pouvoir marquer SANS quitter l ecran.
 //
-// 🆕 LE MESSAGE D APRES ACCEPTATION, REECRIT LE 25/08.
-// L ancienne version annoncait « plus de trois cents formations » quand le
-// catalogue en compte 560 — Jacques se sous-vendait de moitie, sur un
-// chiffre verifiable en trois clics sur le site. Elle affirmait aussi
-// « ce qu aucun logiciel du marche ne propose », affirmation absolue et
-// invérifiable qui donne exactement la prise que cherche un lecteur
-// mefiant.
-// LE CHIFFRE EST DESORMAIS CALCULE EN BASE et passe par les compteurs.
+// 🆕🆕 DEUX CAMPAGNES DANS UN SEUL ECRAN — 26/08.
+//
+// La prospection porte desormais sur DEUX produits : la plateforme de
+// formation pour les organismes, et Mr. Comptable pour les cabinets
+// d expertise comptable. Chacun a son message, et un cabinet ne doit
+// JAMAIS recevoir celui des organismes.
+//
+// 🚨 POURQUOI UN SEUL ECRAN, ET PAS DEUX. Les invitations partent d un
+// SEUL compte LinkedIn, celui de Jacques. Le plafond de vingt par jour
+// porte donc sur le TOTAL. Deux ecrans separes auraient deux compteurs,
+// et le total reel passerait a quarante sans que personne ne le voie.
+// LE COMPTEUR EST GLOBAL, ET IL DOIT LE RESTER.
+//
+// 🚨 LE MESSAGE SUIT LA FICHE, PAS L ONGLET. Dans « A ecrire », les deux
+// campagnes se melangent : la liste rend les acceptations de toutes les
+// bases. C est donc l.base — la cle portee par CHAQUE ligne — qui decide
+// du message, jamais la base selectionnee a l ecran.
 
 const BASES = [
   { cle: "organismes", nom: "Organismes certifiés Qualiopi" },
   { cle: "qualiopi", nom: "Organismes NON certifiés" },
   { cle: "interim", nom: "Agences d'intérim" },
+  { cle: "cabinets", nom: "Cabinets comptables" },
 ];
+
+// LA BASE QUI RELEVE DE MR. COMPTABLE. Une seule pour l instant, mais la
+// fonction existe pour que l ajout d une autre ne demande qu une ligne.
+function estCabinet(base: any): boolean {
+  return String(base || "") === "cabinets";
+}
 
 // LES CHAMPS DE LA FICHE COMPLETE, ET ILS DIFFERENT SELON LA TABLE.
 const CHAMPS_PROSPECTS = [
@@ -104,17 +120,31 @@ function capitaliser(v: any): string {
   }).join(" ");
 }
 
-function motInvitation(prenom: string) {
+// LE MOT D INVITATION.
+//
+// ⚠️ EN COMPTE GRATUIT, CE MOT NE PART PRESQUE JAMAIS : les notes
+// personnalisees sont plafonnees a quelques-unes par mois. Les invitations
+// de Jacques partent SANS note. Ce texte reste disponible pour les rares
+// cas ou une note se justifie, mais LE VRAI MESSAGE EST CELUI D APRES
+// ACCEPTATION.
+function motInvitation(prenom: string, base?: string) {
   const p = capitaliser(prenom);
   const civilite = p ? "Bonjour " + p : "Bonjour";
+
+  if (estCabinet(base)) {
+    return civilite + ", je construis un outil pour les cabinets comptables, "
+      + "sur la relance des justificatifs et la facture électronique. "
+      + "Ravi d'échanger avec vous.";
+  }
+
   return civilite + ", j'ai dirigé un organisme de formation certifié, et c'est l'administratif "
     + "qui m'a coûté le plus de temps. J'en ai fait un outil qui le prend en charge. "
     + "Ravi d'échanger avec vous.";
 }
 
-// LE MESSAGE APRES ACCEPTATION — REECRIT LE 25/08.
+// LE MESSAGE APRES ACCEPTATION — DEUX VERSIONS DEPUIS LE 26/08.
 //
-// CE QUI A CHANGE, ET POURQUOI :
+// CE QUI A CHANGE LE 25/08 SUR LA VERSION ORGANISMES :
 //
 // 1. LE DEUXIEME PARAGRAPHE EST DEVENU CONCRET. « Le bilan pedagogique et
 //    financier, les preuves a reunir » enumerait des categories. Retrouver
@@ -127,14 +157,45 @@ function motInvitation(prenom: string) {
 //    affirmation absolue est exactement la prise que cherche quelqu un qui
 //    lit un message commercial.
 //
-// 4. LA MARQUE BLANCHE EST RELIEE A UNE SITUATION — un client qui demande
-//    un sujet hors domaine — au lieu d etre un argument suspendu.
+// 🆕 CE QUI A CHANGE LE 26/08, SUR LES DEUX VERSIONS :
 //
-// ⚠️ AUCUNE MENTION DE PRODUCTION SUR DEMANDE. Le catalogue est evolutif,
-// point. Decision du 17/08, a ne pas defaire.
-function messageRelance(prenom: string, societe: string, nbFormations: number) {
+// « JE NE CHERCHE PAS A VOUS VENDRE QUOI QUE CE SOIT AUJOURD HUI » A ETE
+// RETIRE. Ses mots : « ca fait tres commercial ». Il a raison — annoncer
+// qu on ne vend pas est precisement ce que dit quelqu un qui vend. La
+// phrase suivante, elle, pose une vraie question et se suffit.
+//
+// 🚨 LA VERSION CABINETS N ENUMERE AUCUNE FONCTIONNALITE. Une premiere
+// redaction listait comptabilite, facturation, rapprochement, tresorerie
+// et facture electronique. Son verdict : « il indique toutes les
+// fonctionnalites comme si j avais peur que le lecteur ne voie pas a quel
+// point mon logiciel est performant, donc c est purement commercial ».
+// UN MESSAGE QUI POSE UNE QUESTION OBTIENT UNE REPONSE ; UN MESSAGE QUI
+// EXPOSE OBTIENT UN SILENCE POLI. Le reste se decouvre sur le site.
+//
+// ⚠️ AUCUNE MENTION DE PRODUCTION SUR DEMANDE cote organismes. Le
+// catalogue est evolutif, point. Decision du 17/08, a ne pas defaire.
+// ⚠️ AUCUN CONCURRENT NOMME, dans aucune des deux versions.
+function messageRelance(prenom: string, societe: string, nbFormations: number, base?: string) {
   const p = capitaliser(prenom);
   const s = capitaliser(societe);
+
+  if (estCabinet(base)) {
+    return (p ? "Bonjour " + p : "Bonjour") + ",\n\n"
+      + "Merci d'avoir accepté ma demande.\n\n"
+      + "Une tâche revient dans tous les cabinets et n'apparaît sur aucune facture : "
+      + "réclamer les justificatifs manquants. Le relevé montre un débit, la pièce "
+      + "n'est nulle part, et quelqu'un finit par écrire au client. Puis relancer. "
+      + "Puis relancer encore.\n\n"
+      + "J'ai construit Mr. Comptable autour de cette idée. Il repère les opérations "
+      + "sans justificatif et les pièces manquantes, puis relance le client par "
+      + "courriel ou par SMS, après votre relecture. Il relance aussi vos honoraires "
+      + "impayés.\n\n"
+      + "Ce qui m'intéresse, c'est de savoir ce qui vous prend le plus de temps sans "
+      + "être facturable" + (s ? " chez " + s : "") + " — c'est ce qui me dit si l'outil "
+      + "répond à un vrai besoin ou pas.\n\n"
+      + "Bien à vous,\nJacques Lalou\nmrcomptable.fr";
+  }
+
   const combien = nbFormations > 0 ? String(nbFormations) : "plusieurs centaines de";
 
   return (p ? "Bonjour " + p : "Bonjour") + ",\n\n"
@@ -150,15 +211,25 @@ function messageRelance(prenom: string, societe: string, nbFormations: number) {
     + "et on signe au lieu de reconstituer.\n\n"
     + "S'y ajoute un catalogue de " + combien + " formations que vous pouvez proposer sous "
     + "votre propre marque, quand un client vous demande un sujet qui n'est pas le vôtre.\n\n"
-    + "Je ne cherche pas à vous vendre quoi que ce soit aujourd'hui. Ce qui m'intéresse, "
-    + "c'est de savoir ce qui vous prend le plus de temps sur la partie administrative"
-    + (s ? " chez " + s : "") + " — c'est ce qui me dit si l'outil répond à un vrai besoin "
-    + "ou pas.\n\n"
+    + "Ce qui m'intéresse, c'est de savoir ce qui vous prend le plus de temps sur la partie "
+    + "administrative" + (s ? " chez " + s : "") + " — c'est ce qui me dit si l'outil répond "
+    + "à un vrai besoin ou pas.\n\n"
     + "Bien à vous,\nJacques Lalou\nacademiapro.fr";
 }
 
-function secondMessage(prenom: string) {
+// LA SECONDE RELANCE, elle aussi dans les deux voix.
+function secondMessage(prenom: string, base?: string) {
   const p = capitaliser(prenom);
+
+  if (estCabinet(base)) {
+    return (p ? "Bonjour " + p : "Bonjour") + ",\n\n"
+      + "Je me permets un mot, mon message précédent est peut-être passé inaperçu.\n\n"
+      + "Si le sujet ne vous concerne pas, dites-le-moi simplement, je n'insisterai pas.\n\n"
+      + "Et si vous êtes curieux de voir à quoi ressemble l'outil, je peux vous ouvrir "
+      + "un accès pour que vous jugiez par vous-même — sans engagement d'aucune sorte.\n\n"
+      + "Bien à vous,\nJacques Lalou\nmrcomptable.fr";
+  }
+
   return (p ? "Bonjour " + p : "Bonjour") + ",\n\n"
     + "Je me permets un mot, mon message précédent est peut-être passé inaperçu.\n\n"
     + "Si le sujet ne vous concerne pas, dites-le-moi simplement, je n'insisterai pas.\n\n"
@@ -423,7 +494,7 @@ export default function PageLinkedin() {
     setFiche(d.fiche || null);
     setRestant(d.restant || 0);
     setEpuise(!!d.epuise);
-    setTexte(d.fiche ? motInvitation(d.fiche.dirigeant_prenom) : "");
+    setTexte(d.fiche ? motInvitation(d.fiche.dirigeant_prenom, d.fiche.base || base) : "");
     setCopie("");
     setVu(false);
   }
@@ -527,6 +598,14 @@ export default function PageLinkedin() {
 
   // ---------- LE MODE ENCHAINEMENT ----------
 
+  // 🚨 LE MESSAGE SUIT LA FICHE. On passe l.base, pas la base selectionnee :
+  // dans « A ecrire », les organismes et les cabinets se melangent.
+  function texteDe(l: any, second: boolean) {
+    return second
+      ? secondMessage(l.dirigeant_prenom, l.base)
+      : messageRelance(l.dirigeant_prenom, l.raison_sociale, nbFormations, l.base);
+  }
+
   function demarrerSerie() {
     if (filtrees.length === 0) return;
     const file = filtrees.slice();
@@ -536,9 +615,7 @@ export default function PageLinkedin() {
     setFaits(0);
     setCopieSerie(false);
     setOuvertSerie(false);
-    setTexteSerie(second
-      ? secondMessage(file[0].dirigeant_prenom)
-      : messageRelance(file[0].dirigeant_prenom, file[0].raison_sociale, nbFormations));
+    setTexteSerie(texteDe(file[0], second));
     setErreur("");
     setMessage("");
   }
@@ -560,9 +637,7 @@ export default function PageLinkedin() {
     }
     const second = onglet === "envoyes";
     setRang(prochain);
-    setTexteSerie(second
-      ? secondMessage(file[prochain].dirigeant_prenom)
-      : messageRelance(file[prochain].dirigeant_prenom, file[prochain].raison_sociale, nbFormations));
+    setTexteSerie(texteDe(file[prochain], second));
     setCopieSerie(false);
     setOuvertSerie(false);
   }
@@ -745,6 +820,8 @@ export default function PageLinkedin() {
   const BLEU = "#448aff";
   const VERT = "#00e676";
   const ORANGE = "#e8a33d";
+  // La couleur qui signale une fiche Mr. Comptable dans une liste melangee.
+  const COMPTABLE = "#4fc3f7";
 
   const CARTE: any = {
     background: "#1a1a2e",
@@ -789,6 +866,25 @@ export default function PageLinkedin() {
     { id: "relancer", nom: "À écrire" + (compteurs && compteurs.en_attente_reponse ? " · " + compteurs.en_attente_reponse : "") },
     { id: "envoyes", nom: "Messages envoyés" + (compteurs && compteurs.relances ? " · " + compteurs.relances : "") },
   ];
+
+  // 🆕 L ETIQUETTE DE CAMPAGNE — 26/08.
+  //
+  // Dans « A ecrire » et « Messages envoyes », les deux campagnes se
+  // melangent. Sans marque visible, on ne sait pas quel message va partir
+  // avant de l avoir lu. L etiquette le dit d un coup d oeil.
+  function etiquetteCampagne(l: any) {
+    if (!estCabinet(l.base)) return null;
+    return (
+      <span style={{
+        display: "inline-block", marginLeft: "8px", padding: "2px 9px",
+        borderRadius: "20px", fontSize: "11px", letterSpacing: "0.5px",
+        background: "rgba(79,195,247,0.15)", color: COMPTABLE,
+        border: "1px solid rgba(79,195,247,0.4)", verticalAlign: "middle",
+      }}>
+        Mr. Comptable
+      </span>
+    );
+  }
 
   // LES BOUTONS D UN RESULTAT DE RECHERCHE.
   //
@@ -890,7 +986,7 @@ export default function PageLinkedin() {
             {partoutOuvert && (
               <div style={{ color: "rgba(255,255,255,0.45)", fontSize: "12.5px", marginTop: "3px", lineHeight: "1.7" }}>
                 Un nom, une société, une ville, un SIREN, un téléphone. Votre file LinkedIn
-                et les cinq bases de prospection sont interrogées d'un coup.
+                et les bases de prospection sont interrogées d'un coup.
               </div>
             )}
           </div>
@@ -973,6 +1069,7 @@ export default function PageLinkedin() {
                             <div key={b.cle + "-" + l.id} style={{ padding: "11px 13px", background: "rgba(255,255,255,0.03)", border: "1px solid " + (enDouble ? "rgba(232,163,61,0.45)" : "rgba(255,255,255,0.08)"), borderRadius: "8px", marginBottom: "7px" }}>
                               <div style={{ color: "#fff", fontSize: "14.5px", fontWeight: "bold" }}>
                                 {capitaliser(l.raison_sociale) || "—"}
+                                {etiquetteCampagne({ base: b.cle })}
                               </div>
                               <div style={{ color: OR, fontSize: "13px", marginTop: "2px" }}>
                                 {nomComplet || "dirigeant inconnu"}
@@ -1363,8 +1460,15 @@ export default function PageLinkedin() {
               </div>
             </div>
 
+            {/* 🚨 LE PLAFOND EST GLOBAL. Les deux campagnes puisent dans le
+                meme quota, parce qu elles partent du meme compte LinkedIn. */}
+            <p style={{ color: "rgba(255,255,255,0.35)", fontSize: "12px", lineHeight: "1.7", margin: "13px 0 0" }}>
+              Ce plafond couvre les deux campagnes : les invitations partent d'un seul
+              compte, organismes et cabinets confondus.
+            </p>
+
             {compteurs.en_file > 0 && (
-              <p style={{ color: BLEU, fontSize: "13px", lineHeight: "1.7", margin: "13px 0 0" }}>
+              <p style={{ color: BLEU, fontSize: "13px", lineHeight: "1.7", margin: "10px 0 0" }}>
                 {nombre(compteurs.en_file)} profil(s) enregistré(s) en attente d'invitation.
               </p>
             )}
@@ -1500,16 +1604,20 @@ export default function PageLinkedin() {
               )}
             </div>
 
+            {/* 🆕 LE CHOIX DE LA BASE — quatre entrees depuis le 26/08.
+                « Cabinets comptables » se distingue par sa couleur : c est
+                l autre produit, et l autre message. */}
             <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "16px" }}>
               {BASES.map(function (b) {
                 const actif = base === b.cle;
+                const cab = estCabinet(b.cle);
                 return (
                   <button key={b.cle} onClick={() => setBase(b.cle)}
                     style={{
                       ...BOUTON, borderRadius: "20px", padding: "8px 16px", fontSize: "13px",
-                      background: actif ? OR : "rgba(255,255,255,0.06)",
-                      color: actif ? "#050508" : "rgba(255,255,255,0.6)",
-                      border: actif ? "none" : BOUTON.border,
+                      background: actif ? (cab ? COMPTABLE : OR) : "rgba(255,255,255,0.06)",
+                      color: actif ? "#050508" : (cab ? COMPTABLE : "rgba(255,255,255,0.6)"),
+                      border: actif ? "none" : "1px solid " + (cab ? "rgba(79,195,247,0.4)" : "rgba(200,169,110,0.35)"),
                       fontWeight: actif ? "bold" : "normal",
                     }}>
                     {b.nom}
@@ -1517,6 +1625,17 @@ export default function PageLinkedin() {
                 );
               })}
             </div>
+
+            {/* Le rappel de la campagne en cours, pour qu on ne se trompe
+                jamais de produit en ouvrant un profil. */}
+            <p style={{
+              color: estCabinet(base) ? COMPTABLE : OR,
+              fontSize: "12.5px", lineHeight: "1.7", margin: "0 0 16px",
+            }}>
+              {estCabinet(base)
+                ? "Campagne Mr. Comptable — le message d'après acceptation parlera de la relance des justificatifs."
+                : "Campagne plateforme de formation — le message d'après acceptation parlera du bilan pédagogique et du catalogue."}
+            </p>
 
             {charge && !fiche ? (
               <p style={{ color: "rgba(255,255,255,0.5)" }}>Chargement…</p>
@@ -1649,6 +1768,7 @@ export default function PageLinkedin() {
                       <div style={{ flex: "1 1 240px" }}>
                         <div style={{ color: "#fff", fontSize: "15.5px", fontWeight: "bold" }}>
                           {capitaliser(l.nom) || nomDe(l)}
+                          {etiquetteCampagne(l)}
                         </div>
                         <div style={{ color: OR, fontSize: "13.5px", marginTop: "2px" }}>
                           {capitaliser(l.raison_sociale) || "—"}
@@ -1717,6 +1837,7 @@ export default function PageLinkedin() {
                       <div style={{ flex: "1 1 240px" }}>
                         <div style={{ color: "#fff", fontSize: "15.5px", fontWeight: "bold" }}>
                           {nomDe(l)}
+                          {etiquetteCampagne(l)}
                         </div>
                         <div style={{ color: OR, fontSize: "13.5px", marginTop: "2px" }}>
                           {capitaliser(l.raison_sociale) || "—"}
@@ -1777,6 +1898,7 @@ export default function PageLinkedin() {
 
                   <div style={{ color: "#fff", fontSize: "20px", fontWeight: "bold", marginBottom: "3px" }}>
                     {nomDe(courante)}
+                    {etiquetteCampagne(courante)}
                   </div>
                   <div style={{ color: OR, fontSize: "15px", marginBottom: "4px" }}>
                     {capitaliser(courante.raison_sociale) || "—"}
@@ -1800,8 +1922,8 @@ export default function PageLinkedin() {
 
                 <div style={CARTE}>
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "9px", flexWrap: "wrap", gap: "8px" }}>
-                    <span style={{ color: OR, fontSize: "12px", letterSpacing: "2px" }}>
-                      LE MESSAGE, DÉJÀ AU NOM DE {String(capitaliser(courante.dirigeant_prenom) || "CE CONTACT").toUpperCase()}
+                    <span style={{ color: estCabinet(courante.base) ? COMPTABLE : OR, fontSize: "12px", letterSpacing: "2px" }}>
+                      MESSAGE {estCabinet(courante.base) ? "MR. COMPTABLE" : "FORMATION"} — AU NOM DE {String(capitaliser(courante.dirigeant_prenom) || "CE CONTACT").toUpperCase()}
                     </span>
                     <span style={{ color: "rgba(255,255,255,0.35)", fontSize: "12px" }}>
                       {texteSerie.length} caractères
@@ -1851,6 +1973,13 @@ export default function PageLinkedin() {
                     : "Ces personnes ont accepté votre invitation et n'ont pas encore reçu de message. La messagerie est libre : aucune limite, aucun quota."}
                 </p>
 
+                {/* 🚨 LES DEUX CAMPAGNES SE MELANGENT ICI. Le message est
+                    prepare d apres la fiche, pas d apres un reglage. */}
+                <p style={{ color: "rgba(255,255,255,0.35)", fontSize: "12.5px", lineHeight: "1.7", margin: "0 0 16px" }}>
+                  Les deux campagnes se croisent dans cette liste. Chaque fiche reçoit le
+                  message de son produit — les cabinets sont signalés par une pastille.
+                </p>
+
                 {lignes.length > 0 && barreRecherche()}
 
                 {filtrees.length > 1 && (
@@ -1859,8 +1988,8 @@ export default function PageLinkedin() {
                       {onglet === "envoyes" ? "Relancer, l'un après l'autre" : "Écrire à tous, l'un après l'autre"}
                     </div>
                     <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "13px", lineHeight: "1.75", margin: "0 0 14px" }}>
-                      {filtrees.length} personne(s). Le message est préparé à chaque prénom, copié
-                      d'un clic, et la messagerie s'ouvre.
+                      {filtrees.length} personne(s). Le message est préparé à chaque prénom, dans
+                      la voix du produit concerné, copié d'un clic, et la messagerie s'ouvre.
                     </p>
                     <button onClick={demarrerSerie}
                       style={{ width: "100%", background: VERT, color: "#050508", border: "none", borderRadius: "9px", padding: "15px", fontSize: "15px", fontWeight: "bold", fontFamily: "Georgia,serif", cursor: "pointer" }}>
@@ -1890,6 +2019,7 @@ export default function PageLinkedin() {
                           <div style={{ flex: "1 1 240px" }}>
                             <div style={{ color: "#fff", fontSize: "15.5px", fontWeight: "bold" }}>
                               {nomDe(l)}
+                              {etiquetteCampagne(l)}
                             </div>
                             <div style={{ color: OR, fontSize: "13.5px", marginTop: "2px" }}>
                               {capitaliser(l.raison_sociale) || "—"}
@@ -1924,9 +2054,7 @@ export default function PageLinkedin() {
                             <button
                               onClick={() => {
                                 setOuverte(cleDe(l));
-                                setTexteLong(onglet === "envoyes"
-                                  ? secondMessage(l.dirigeant_prenom)
-                                  : messageRelance(l.dirigeant_prenom, l.raison_sociale, nbFormations));
+                                setTexteLong(texteDe(l, onglet === "envoyes"));
                               }}
                               style={{ ...BOUTON, flex: "2 1 200px" }}>
                               {onglet === "envoyes" ? "Préparer une relance" : "Préparer le message"}
