@@ -2,6 +2,16 @@
 import { useState, useEffect } from "react";
 import Guide from "../../../../components/Guide";
 
+// 🆕 « ÉTABLIR LA LIASSE » AJOUTEE LE 27/08.
+//
+// Elle vient EN TETE du groupe, et c est voulu : c est le point de depart.
+// On etablit la liasse, on la relit, puis on la teletransmet. Les trois
+// formulaires 2033, 2050 et 2065 sont des vues de detail, pas des portes
+// d entree.
+//
+// ⚠️ LES ADRESSES RESTENT EN « compliance » DANS LE CODE. C est le
+// middleware qui les transforme en /admin/comptable/... pour le cabinet.
+// Ne pas les reecrire ici : la reecriture se fait en un seul endroit.
 const OUTILS = [
   { titre: "Tenue", liens: [
     { nom: "Saisie", href: "/admin/compliance/saisie" },
@@ -27,6 +37,7 @@ const OUTILS = [
     { nom: "Annexes", href: "/admin/compliance/annexes" },
   ]},
   { titre: "Liasse fiscale", liens: [
+    { nom: "Établir la liasse", href: "/admin/compliance/liasse" },
     { nom: "Liasse 2033", href: "/admin/compliance/liasse-2033" },
     { nom: "Liasse 2050", href: "/admin/compliance/liasse-2050" },
     { nom: "Liasse 2065", href: "/admin/compliance/liasse-2065" },
