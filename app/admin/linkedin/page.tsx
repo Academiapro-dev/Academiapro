@@ -1591,6 +1591,36 @@ export default function PageLinkedin() {
                         {nombre(b.en_attente)} sans réponse
                         {b.refuses > 0 ? " · " + nombre(b.refuses) + " refus" : ""}
                       </div>
+
+                      {/* L ENTONNOIR, DU MESSAGE AU CLIENT.
+                          Il ne s affiche que si des messages sont partis :
+                          avant, il n aurait que des zeros a montrer. */}
+                      {b.messages_envoyes > 0 && (
+                        <div style={{ marginTop: "9px", paddingTop: "9px",
+                          borderTop: "1px solid rgba(255,255,255,0.07)" }}>
+                          <div style={{ color: "rgba(255,255,255,0.5)",
+                            fontSize: "12.5px", lineHeight: "1.8" }}>
+                            {nombre(b.messages_envoyes)} message(s) envoyé(s) ·{" "}
+                            {nombre(b.repondus)} réponse(s)
+                            {b.taux_reponse !== null
+                              ? " (" + b.taux_reponse + " %)" : ""}
+                          </div>
+                          {(b.rendez_vous > 0 || b.clients > 0) && (
+                            <div style={{ color: VERT, fontSize: "12.5px",
+                              lineHeight: "1.8" }}>
+                              {b.rendez_vous > 0
+                                ? nombre(b.rendez_vous) + " rendez-vous" : ""}
+                              {b.rendez_vous > 0 && b.clients > 0 ? " · " : ""}
+                              {b.clients > 0
+                                ? nombre(b.clients) + " client(s)" : ""}
+                              {b.taux_concretisation
+                                ? " · " + b.taux_concretisation
+                                  + " % de concrétisation" : ""}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
                       {b.a_ecrire > 0 && (
                         <div style={{ color: VERT, fontSize: "12.5px",
                           marginTop: "5px" }}>
@@ -2226,6 +2256,66 @@ export default function PageLinkedin() {
                             Ouvrir la messagerie ↗
                           </a>
                         </div>
+
+                        {/* 🆕 LA SUITE DE LA CONVERSATION — 27/08.
+
+                            LE MANQUE. Les statuts s arretaient au message
+                            envoye : rien ne disait ce qui se passait
+                            ensuite. Le taux de concretisation etait donc
+                            incalculable — on savait combien de portes on
+                            avait frappees, jamais combien s etaient
+                            ouvertes.
+
+                            ⚠️ CHAQUE ETAT COMPTE DANS TOUS CEUX QUI LE
+                            PRECEDENT : un client a forcement repondu. La
+                            fiche reste donc visible ici quel que soit son
+                            avancement. */}
+                        {onglet === "envoyes" && (
+                          <div style={{ marginTop: "12px", paddingTop: "12px",
+                            borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+                            <div style={{ color: OR, fontSize: "11.5px",
+                              letterSpacing: "1.5px", marginBottom: "8px" }}>
+                              OÙ EN EST LA CONVERSATION ?
+                            </div>
+                            <div style={{ display: "flex", gap: "7px",
+                              flexWrap: "wrap" }}>
+                              {[
+                                { cle: "repondu", nom: "A répondu", couleur: BLEU },
+                                { cle: "rendez_vous", nom: "Rendez-vous pris", couleur: ORANGE },
+                                { cle: "client", nom: "Devenu client", couleur: VERT },
+                              ].map(function (e: any) {
+                                const actif = l.linkedin_statut === e.cle;
+                                return (
+                                  <button key={e.cle}
+                                    onClick={() => marquer(l, e.cle)}
+                                    disabled={charge}
+                                    style={{
+                                      flex: "1 1 140px", padding: "10px",
+                                      borderRadius: "8px", fontSize: "12.5px",
+                                      fontFamily: "Georgia,serif",
+                                      cursor: "pointer",
+                                      fontWeight: actif ? "bold" : "normal",
+                                      background: actif
+                                        ? e.couleur
+                                        : "rgba(255,255,255,0.04)",
+                                      color: actif ? "#050508" : e.couleur,
+                                      border: actif
+                                        ? "none"
+                                        : "1px solid " + e.couleur + "55",
+                                    }}>
+                                    {actif ? "✓ " : ""}{e.nom}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                            <p style={{ color: "rgba(255,255,255,0.35)",
+                              fontSize: "12px", lineHeight: "1.7",
+                              margin: "9px 0 0" }}>
+                              C'est ce qui permet de savoir ce que rapporte
+                              vraiment une invitation.
+                            </p>
+                          </div>
+                        )}
 
                         {blocFiche(l)}
 
