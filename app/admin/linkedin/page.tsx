@@ -312,6 +312,19 @@ export default function PageLinkedin() {
   // La campagne d une fiche saisie a la main. Elle decide du message qui
   // partira apres acceptation : il n existe aucun autre moyen de le savoir.
   const [aCampagne, setACampagne] = useState("academiapro");
+
+  // 🆕 CE QUE CHAQUE MODE D ENREGISTREMENT VEUT DIRE — 27/08.
+  //
+  // Les trois premiers touchent au quota d invitation ; les trois derniers
+  // non, puisqu ils consignent une relation qui existe deja.
+  const MODES: any = {
+    file: { quota: false, mot: "est enregistré, en attente d'invitation" },
+    invite: { quota: true, mot: "est marqué invité, avec une note" },
+    invite_nu: { quota: true, mot: "est marqué invité, sans note" },
+    accepte_nu: { quota: false, mot: "est enregistré comme relation établie" },
+    repondu: { quota: false, mot: "est enregistré : il a déjà répondu" },
+    rendez_vous: { quota: false, mot: "est enregistré : rendez-vous pris" },
+  };
   const [message, setMessage] = useState("");
 
   const [compteurs, setCompteurs] = useState<any>(null);
@@ -1906,6 +1919,53 @@ export default function PageLinkedin() {
                     La fiche est rangée dans « En attente d'invitation ». <strong>Aucune unité
                     de quota n'est consommée</strong> — vous l'inviterez quand vous voudrez.
                   </p>
+
+                  {/* 🚨🚨 LES ETATS AVANCES — ajoutes le 27/08.
+
+                      LE DEFAUT. Le formulaire ne proposait que trois etats,
+                      tous lies a l invitation : ranger, invite avec note,
+                      invite sans note. Or une relation ne commence pas
+                      toujours par une invitation.
+
+                      Eric, deja en relation, ayant deja repondu, avec un
+                      rendez-vous en cours, n entrait dans aucun des trois.
+                      Et le plafond du jour, atteint, grisait les deux seuls
+                      boutons qui posaient un statut. Sa fiche etait donc
+                      impossible a creer correctement.
+
+                      ⚠️ CES TROIS ETATS NE CONSOMMENT AUCUN QUOTA. Aucune
+                      invitation n est envoyee : on consigne une relation qui
+                      existe deja. Le plafond ne les concerne pas, et ne doit
+                      jamais les concerner. */}
+                  <div style={{ borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: "16px", marginBottom: "18px" }}>
+                    <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "12.5px", lineHeight: "1.75", margin: "0 0 12px" }}>
+                      Ou, si <strong>vous le connaissez déjà</strong> — relation
+                      établie, échange en cours, rendez-vous pris — dites où
+                      vous en êtes. Aucune invitation n'est envoyée, votre
+                      quota n'est pas touché.
+                    </p>
+                    <div style={{ display: "flex", gap: "9px", flexWrap: "wrap" }}>
+                      {[
+                        { cle: "accepte_nu", nom: "Déjà en relation", couleur: OR },
+                        { cle: "repondu", nom: "A déjà répondu", couleur: BLEU },
+                        { cle: "rendez_vous", nom: "Rendez-vous pris", couleur: ORANGE },
+                      ].map(function (e: any) {
+                        return (
+                          <button key={e.cle} onClick={() => ajouter(e.cle)}
+                            style={{
+                              flex: "1 1 160px", padding: "13px",
+                              borderRadius: "9px", fontSize: "13px",
+                              fontFamily: "Georgia,serif", cursor: "pointer",
+                              background: "rgba(255,255,255,0.04)",
+                              color: e.couleur,
+                              border: "1px solid " + e.couleur + "55",
+                            }}>
+                            {e.nom}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
 
                   <div style={{ borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: "16px" }}>
                     <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "12.5px", lineHeight: "1.75", margin: "0 0 12px" }}>
