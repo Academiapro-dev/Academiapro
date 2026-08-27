@@ -47,6 +47,28 @@ const TABLES: any = {
   manuel: "crm",
 };
 
+// 🚨🚨 « crm » ET « manuel » DESIGNENT LA MEME TABLE — corrige le 27/08.
+//
+// LE DEFAUT, ET IL S EST VU SUR UNE FICHE REELLE. La recherche globale
+// (/api/admin/prospection) nomme cette base « crm » ; cette route-ci la
+// nomme « manuel ». Marquer depuis un resultat de recherche envoyait donc
+// base = "crm", que TABLES ne connaissait pas : « Base inconnue », et la
+// fiche revenait a son etat precedent.
+//
+// C est arrive sur la fiche d Eric Haddad, trouvee par la recherche et
+// impossible a faire avancer.
+//
+// ⚠️ ON NE RENOMME NI L UN NI L AUTRE. « manuel » est employe partout
+// dans cette route et dans l ecran ; « crm » est employe par la recherche
+// et par le libelle affiche. Renommer casserait l un des deux. On traduit.
+//
+// ⚠️ TOUTE NOUVELLE BASE AJOUTEE D UN COTE DOIT L ETRE DE L AUTRE. Deux
+// listes de noms qui divergent, c est ce defaut qui recommence.
+function baseNormalisee(cle: string): string {
+  const c = String(cle || "").trim();
+  return c === "crm" ? "manuel" : c;
+}
+
 // \ud83c\udd95 DIX STATUTS DEPUIS LE 27/08 — LA CHAINE VA JUSQU AU BOUT.
 //
 // LE MANQUE. Les statuts s arretaient a « relance », c est-a-dire au
@@ -537,7 +559,8 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
     const action = String(body.action || "marquer").trim();
-    const base = String(body.base || "").trim();
+    // La base arrive du navigateur : on la traduit avant tout usage.
+    const base = baseNormalisee(String(body.base || "").trim());
 
     // MODIFIER UNE FICHE COMPLETE.
     if (action === "modifier") {
