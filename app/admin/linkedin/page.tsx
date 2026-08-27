@@ -301,6 +301,9 @@ export default function PageLinkedin() {
   const [aOrganisme, setAOrganisme] = useState("");
   const [aVille, setAVille] = useState("");
   const [aNotes, setANotes] = useState("");
+  // La campagne d une fiche saisie a la main. Elle decide du message qui
+  // partira apres acceptation : il n existe aucun autre moyen de le savoir.
+  const [aCampagne, setACampagne] = useState("academiapro");
   const [message, setMessage] = useState("");
 
   const [compteurs, setCompteurs] = useState<any>(null);
@@ -602,10 +605,17 @@ export default function PageLinkedin() {
 
   // 🚨 LE MESSAGE SUIT LA FICHE. On passe l.base, pas la base selectionnee :
   // dans « A ecrire », les organismes et les cabinets se melangent.
+  // 🚨 LE MESSAGE SUIT LA CAMPAGNE DE LA FICHE.
+  //
+  // Pour une fiche de prospection, la campagne se deduit de sa base. Pour
+  // une fiche SAISIE A LA MAIN, la base est toujours « manuel » : c est la
+  // colonne campagne qui tranche. Sans elle, un expert-comptable trouve
+  // sur LinkedIn recevait le message des organismes.
   function texteDe(l: any, second: boolean) {
+    const cle = campagneDe(l) === "mrcomptable" ? "cabinets" : "organismes";
     return second
-      ? secondMessage(l.dirigeant_prenom, l.base)
-      : messageRelance(l.dirigeant_prenom, l.raison_sociale, nbFormations, l.base);
+      ? secondMessage(l.dirigeant_prenom, cle)
+      : messageRelance(l.dirigeant_prenom, l.raison_sociale, nbFormations, cle);
   }
 
   function demarrerSerie() {
@@ -707,6 +717,7 @@ export default function PageLinkedin() {
         organisme: aOrganisme,
         ville: aVille,
         notes: aNotes,
+        campagne: aCampagne,
       });
       if (d.ok) {
         setMessage((d.message || "Profil enregistré.")
@@ -714,6 +725,7 @@ export default function PageLinkedin() {
         setCompteurs(d.compteurs || null);
         setCreee(d.ajoute || null);
         setANom(""); setALien(""); setAOrganisme(""); setAVille(""); setANotes("");
+        setACampagne("academiapro");
         setAjout(false);
       } else {
         setErreur(d.erreur || "Enregistrement impossible.");
@@ -900,16 +912,46 @@ export default function PageLinkedin() {
   // Dans « A ecrire » et « Messages envoyes », les deux campagnes se
   // melangent. Sans marque visible, on ne sait pas quel message va partir
   // avant de l avoir lu. L etiquette le dit d un coup d oeil.
+  // 🆕 CHAQUE FICHE ANNONCE SA CAMPAGNE — 27/08.
+  //
+  // LE DEFAUT. Seules les fiches cabinets portaient une pastille : la
+  // campagne organismes etant la principale, on la tenait pour implicite.
+  // Mais Jacques a bascule ses vingt invitations sur les cabinets — la
+  // regle implicite s est donc inversee sans que rien ne le dise.
+  //
+  // LA CORRECTION : les DEUX campagnes sont etiquetees, chacune avec sa
+  // couleur. Plus aucune regle a retenir, et l affichage reste juste quel
+  // que soit le rapport entre les deux.
+  //
+  // ⚠️ UNE FICHE MANUELLE PORTE SA CAMPAGNE DANS LA COLONNE campagne de
+  // la table crm — pas dans sa base d origine, qui est toujours « manuel ».
+  // Sans cette colonne, un expert-comptable trouve sur LinkedIn recevait le
+  // message des organismes : le bilan pedagogique et les 560 formations.
+  function campagneDe(l: any): string {
+    if (l.base === "manuel") {
+      return String(l.campagne || "academiapro").toLowerCase();
+    }
+    return estCabinet(l.base) ? "mrcomptable" : "academiapro";
+  }
+
   function etiquetteCampagne(l: any) {
-    if (!estCabinet(l.base)) return null;
+    const c = campagneDe(l);
+    const cab = c === "mrcomptable";
+    const manuelle = l.base === "manuel";
+
     return (
       <span style={{
         display: "inline-block", marginLeft: "8px", padding: "2px 9px",
         borderRadius: "20px", fontSize: "11px", letterSpacing: "0.5px",
-        background: "rgba(79,195,247,0.15)", color: COMPTABLE,
-        border: "1px solid rgba(79,195,247,0.4)", verticalAlign: "middle",
+        background: cab ? "rgba(79,195,247,0.15)" : "rgba(200,169,110,0.15)",
+        color: cab ? COMPTABLE : OR,
+        // Le trait interrompu signale une fiche saisie a la main : elle
+        // ne vient d aucune base de prospection.
+        border: (manuelle ? "1px dashed " : "1px solid ")
+          + (cab ? "rgba(79,195,247,0.55)" : "rgba(200,169,110,0.55)"),
+        verticalAlign: "middle",
       }}>
-        Mr. Comptable
+        {cab ? "Mr. Comptable" : "AcadéMIA Pro"}
       </span>
     );
   }
@@ -1567,6 +1609,48 @@ export default function PageLinkedin() {
                     l'observation seront remplis automatiquement. <strong>L'adresse du profil
                     est rarement visible sur une capture</strong> — sur LinkedIn, touchez les
                     trois points puis « Copier le lien vers le profil », et collez-la ci-dessous.
+                  </p>
+
+                  {/* 🚨 LA CAMPAGNE SE CHOISIT AVANT TOUT LE RESTE.
+                      C est elle qui decide du message envoye apres
+                      acceptation. Un expert-comptable trouve dans les
+                      relations d un autre expert-comptable ne doit jamais
+                      recevoir le message des organismes de formation. */}
+                  <span style={LIBELLE}>Pour quelle campagne ? *</span>
+                  <div style={{ display: "flex", gap: "9px", flexWrap: "wrap",
+                    marginBottom: "8px" }}>
+                    <button onClick={() => setACampagne("academiapro")}
+                      style={{
+                        flex: "1 1 180px", padding: "12px", borderRadius: "9px",
+                        fontSize: "13.5px", fontFamily: "Georgia,serif",
+                        cursor: "pointer",
+                        fontWeight: aCampagne === "academiapro" ? "bold" : "normal",
+                        background: aCampagne === "academiapro" ? OR : "rgba(255,255,255,0.05)",
+                        color: aCampagne === "academiapro" ? "#050508" : OR,
+                        border: aCampagne === "academiapro" ? "none"
+                          : "1px solid rgba(200,169,110,0.4)",
+                      }}>
+                      AcadéMIA Pro
+                    </button>
+                    <button onClick={() => setACampagne("mrcomptable")}
+                      style={{
+                        flex: "1 1 180px", padding: "12px", borderRadius: "9px",
+                        fontSize: "13.5px", fontFamily: "Georgia,serif",
+                        cursor: "pointer",
+                        fontWeight: aCampagne === "mrcomptable" ? "bold" : "normal",
+                        background: aCampagne === "mrcomptable" ? COMPTABLE : "rgba(255,255,255,0.05)",
+                        color: aCampagne === "mrcomptable" ? "#050508" : COMPTABLE,
+                        border: aCampagne === "mrcomptable" ? "none"
+                          : "1px solid rgba(79,195,247,0.4)",
+                      }}>
+                      Mr. Comptable
+                    </button>
+                  </div>
+                  <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "12.5px",
+                    lineHeight: "1.7", margin: "0 0 18px" }}>
+                    {aCampagne === "mrcomptable"
+                      ? "Cette fiche recevra le message sur la relance des justificatifs."
+                      : "Cette fiche recevra le message sur le bilan pédagogique et le catalogue."}
                   </p>
 
                   <span style={LIBELLE}>Nom du contact *</span>
