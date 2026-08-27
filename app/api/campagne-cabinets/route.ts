@@ -4,11 +4,6 @@ import crypto from "crypto";
 
 // Campagne de prospection vers les CABINETS D EXPERTISE COMPTABLE.
 //
-// 🚨🚨 CETTE ROUTE N EST PAS DECLAREE DANS vercel.json — 24/08.
-// Elle existe, elle est testable a la main, mais AUCUN CRON NE L APPELLE.
-// Rien ne part tant qu on n a pas ajoute la ligne d appel programme.
-// C est voulu : le fichier est pret d avance, l envoi attend la decision.
-//
 // LE MARQUAGE PRECEDE TOUT. Chaque ligne passe a 'envoi_en_cours' AVANT
 // l appel a Resend : si la route est relancee ou coupee, cette ligne ne
 // sera jamais reprise. Un doublon d envoi grille un prospect et abime la
@@ -18,12 +13,40 @@ import crypto from "crypto";
 // l activite professionnelle du destinataire, a condition qu un moyen de
 // s opposer figure dans chaque message.
 //
-// LA FACTURE ELECTRONIQUE EST ANNONCEE — decision de Jacques du 24/08,
-// prise apres objection et maintenue. Deux plateformes agreees sont en
-// discussion avancee, l accord est acquis des deux cotes.
-//
 // PAS D IMAGE : premier contact a froid, le rapport texte/image est un des
-// signaux que pesent les filtres. La signature decoree viendra plus tard.
+// signaux que pesent les filtres.
+//
+// ═══════════════════════════════════════════════════════════════════════
+// 🆕 LES VAGUES — 27/08.
+//
+// LE DEFAUT CORRIGE. La route lisait statut = 'enrichi' et le passait a
+// 'envoye'. Une ligne contactee sortait donc DEFINITIVEMENT du circuit :
+// aucun moyen de la reprendre plus tard, aucun moyen de savoir combien de
+// fois elle avait ete sollicitee.
+//
+// Or la reserve s epuise. Quand les 33 881 cabinets auront ete contactes
+// une fois, il faudra pouvoir revenir vers ceux qui n ont pas repondu —
+// avec un AUTRE message, pas le meme reformule.
+//
+// COMMENT CA MARCHE :
+//   vague_envoi = 0  jamais contacte
+//   vague_envoi = 1  a recu le premier message
+//   vague_envoi = 2  a recu le second
+//   nb_envois        le compte, qui borne tout
+//
+// ⚠️ LE PLAFOND EST DE DEUX ENVOIS. Au-dela, on n insiste pas : trois
+// messages a quelqu un qui n a jamais repondu, c est du harcelement, et
+// les filtres le lisent comme tel.
+//
+// ⚠️ LA COLONNE « vague » EXISTE DEJA ET NE VEUT PAS DIRE CA. Elle porte
+// des lots d importation (1, 2, 3), pas des vagues d envoi. NE PAS LES
+// CONFONDRE : d ou la colonne distincte vague_envoi.
+//
+// ⚠️ LE SECOND MESSAGE DOIT VRAIMENT DIRE AUTRE CHOSE. Le meme texte
+// reformule se fait reperer et fait chuter la delivrabilite. Le premier
+// parle de la corvee des justificatifs ; le second parle de ce que le
+// cabinet ne facture jamais, et de ce qu il fait du temps rendu.
+// ═══════════════════════════════════════════════════════════════════════
 
 export const maxDuration = 300;
 
@@ -38,6 +61,18 @@ const SITE = "https://mrcomptable.fr";
 // PALIERS : 5 par jour, puis 10, 20, 50. Modifier ce chiffre suffit.
 // Le domaine contact-pro.mrcomptable.fr n a JAMAIS envoye : on demarre bas.
 const LOT_PAR_DEFAUT = 5;
+
+// LE NOMBRE MAXIMUM DE SOLLICITATIONS PAR PROSPECT.
+const PLAFOND_ENVOIS = 2;
+
+// LE DELAI MINIMUM ENTRE DEUX VAGUES, EN JOURS.
+//
+// 🚨 QUATRE-VINGT-DIX JOURS, ET CE N EST PAS UN CHIFFRE ROND CHOISI AU
+// HASARD. Revenir trop tot vers quelqu un qui n a pas repondu se lit comme
+// de l insistance ; revenir trois mois plus tard se lit comme une nouvelle
+// prise de contact. Entre-temps, sa situation a change — et l echeance de
+// la facture electronique aussi.
+const DELAI_ENTRE_VAGUES = 90;
 
 function clientAdmin() {
   return createClient(
@@ -67,12 +102,35 @@ function salutationDe(o: any): string {
   return "Bonjour,";
 }
 
-function corpsMessage(o: any) {
+// Le pied de page, identique aux deux vagues : signature et desinscription.
+function habillage(o: any, texte: string): string {
   const jeton = jetonDesinscription(String(o.email).toLowerCase());
   const lien = SITE + "/desinscription?email="
     + encodeURIComponent(String(o.email).toLowerCase())
     + "&jeton=" + jeton;
 
+  const signature =
+    "<br/><br/>"
+    + "<p style=\"margin:0;line-height:1.5\">"
+    + "Jacques Lalou<br/>"
+    + "Fondateur — Mr. Comptable<br/>"
+    + "<a href=\"" + SITE + "\" style=\"color:#8a6d3b\">mrcomptable.fr</a>"
+    + "</p>";
+
+  return texte.replace(/\n/g, "<br/>")
+    + signature
+    + "<br/><hr/>"
+    + "<p style=\"font-size:12px;color:#888\">"
+    + "Ce message vous est adressé dans le cadre de votre activité "
+    + "professionnelle d'expertise comptable. "
+    + "<a href=\"" + lien + "\">Ne plus recevoir de messages</a>."
+    + "</p>";
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// PREMIERE VAGUE — LA CORVEE DES JUSTIFICATIFS.
+// ─────────────────────────────────────────────────────────────────────
+function messagePremiereVague(o: any): string {
   const texte =
     salutationDe(o) + "\n\n"
     + "Je m'appelle Jacques Lalou, je dirige Mr. Comptable, un logiciel de "
@@ -98,24 +156,53 @@ function corpsMessage(o: any) {
     + "Si le sujet vous parle, répondez-moi simplement : je vous montre en "
     + "quinze minutes ce que ça donne sur un dossier réel.";
 
-  const signature =
-    "<br/><br/>"
-    + "<p style=\"margin:0;line-height:1.5\">"
-    + "Jacques Lalou<br/>"
-    + "Fondateur — Mr. Comptable<br/>"
-    + "<a href=\"" + SITE + "\" style=\"color:#8a6d3b\">mrcomptable.fr</a>"
-    + "</p>";
+  return habillage(o, texte);
+}
 
-  const html = texte.replace(/\n/g, "<br/>")
-    + signature
-    + "<br/><hr/>"
-    + "<p style=\"font-size:12px;color:#888\">"
-    + "Ce message vous est adressé dans le cadre de votre activité "
-    + "professionnelle d'expertise comptable. "
-    + "<a href=\"" + lien + "\">Ne plus recevoir de messages</a>."
-    + "</p>";
+// ─────────────────────────────────────────────────────────────────────
+// SECONDE VAGUE — CE QUE LE CABINET NE FACTURE JAMAIS.
+//
+// L ANGLE, ET POURQUOI IL EST DIFFERENT. La premiere vague decrit une
+// corvee que le lecteur connait deja. Celle-ci parle de ce qu il gagne,
+// pas de ce qu on lui enleve — et elle s adresse a l associe qui pense a
+// son cabinet, pas au collaborateur qui saisit.
+//
+// ⚠️ AUCUNE ENUMERATION DE FONCTIONNALITES. Un message qui expose obtient
+// un silence poli ; un message qui pose une question obtient une reponse.
+// ⚠️ AUCUN CONCURRENT NOMME, AUCUNE STATISTIQUE INVENTEE.
+// ─────────────────────────────────────────────────────────────────────
+function messageSecondeVague(o: any): string {
+  const texte =
+    salutationDe(o) + "\n\n"
+    + "Je vous avais écrit il y a quelques mois au sujet de Mr. Comptable, "
+    + "un logiciel de comptabilité pour cabinets. Je reviens vers vous sur "
+    + "un autre angle.\n\n"
+    + "Un cabinet vend des heures. Mais une partie de son travail ne se "
+    + "facture jamais : le client qui appelle dix minutes pour une question "
+    + "rapide, le classement, la vérification, les justificatifs qu'on "
+    + "réclame trois fois. Sur cinquante dossiers, cela finit par "
+    + "représenter un temps de travail entier chaque mois.\n\n"
+    + "Ce travail est indispensable et personne ne l'a choisi en entrant "
+    + "dans la profession.\n\n"
+    + "Quand ce temps revient, il ne sert pas à travailler moins. Il sert "
+    + "à ce qu'un client attend vraiment d'un expert-comptable : du "
+    + "conseil, de l'anticipation, une réponse le jour même. C'est ce qui "
+    + "fait qu'un cabinet se recommande.\n\n"
+    + "C'est autour de cette idée que Mr. Comptable est construit : rendre "
+    + "au cabinet les heures qu'il ne facture pas.\n\n"
+    + "Si le sujet vous parle, répondez-moi simplement : je vous montre en "
+    + "quinze minutes ce que ça donne sur un dossier réel.";
 
-  return html;
+  return habillage(o, texte);
+}
+
+const SUJETS: any = {
+  1: "La corvee que personne ne facture",
+  2: "Les heures que votre cabinet ne facture pas",
+};
+
+function messageDe(o: any, vague: number): string {
+  return vague === 2 ? messageSecondeVague(o) : messagePremiereVague(o);
 }
 
 async function envoyer(destinataire: string, sujet: string, html: string) {
@@ -141,6 +228,41 @@ async function envoyer(destinataire: string, sujet: string, html: string) {
   return { ok: r.ok, statut: r.status, reponse: data };
 }
 
+// La date limite au-dela de laquelle une seconde vague se justifie.
+function dateLimiteVagueDeux(): string {
+  return new Date(Date.now() - DELAI_ENTRE_VAGUES * 86400000).toISOString();
+}
+
+// LE FILTRE, SELON LA VAGUE.
+//
+// Vague 1 : jamais contacte. Le statut 'enrichi' suffit, et vague_envoi
+// vaut 0 — le rattrapage du 27/08 a pose 1 sur les lignes deja parties.
+//
+// Vague 2 : a recu le premier message, il y a plus de quatre-vingt-dix
+// jours, et n a jamais ete recontacte.
+//
+// ⚠️ DANS LES DEUX CAS : desabonne = false. Une desinscription est
+// definitive, et la respecter n est pas une courtoisie mais la loi.
+function appliquerFiltre(q: any, vague: number): any {
+  let sortie = q
+    .eq("desabonne", false)
+    .not("email", "is", null)
+    .lt("nb_envois", PLAFOND_ENVOIS);
+
+  if (vague === 2) {
+    sortie = sortie
+      .eq("vague_envoi", 1)
+      .eq("statut", "envoye")
+      .lt("envoye_le", dateLimiteVagueDeux());
+  } else {
+    sortie = sortie
+      .eq("statut", "enrichi")
+      .eq("vague_envoi", 0);
+  }
+
+  return sortie;
+}
+
 export async function GET(req: NextRequest) {
   const secret = req.nextUrl.searchParams.get("secret")
     || req.headers.get("authorization")?.replace("Bearer ", "");
@@ -157,37 +279,65 @@ export async function GET(req: NextRequest) {
 
   const supabase = clientAdmin();
 
-  // MODE MESURE : ?compter=1 ne lit que la reserve et n envoie RIEN.
-  // A utiliser avant toute mise en route pour savoir combien de cabinets
-  // portent une adresse exploitable.
-  if (req.nextUrl.searchParams.get("compter") === "1") {
-    const { count: prets } = await supabase
-      .from("prospects_cabinets")
-      .select("id", { count: "exact", head: true })
-      .eq("statut", "enrichi")
-      .eq("desabonne", false)
-      .not("email", "is", null);
+  // LA VAGUE. Par defaut 1 : le cron quotidien reste sur la premiere.
+  // La seconde se declenche a la main — ?vague=2 — le jour ou la reserve
+  // de premiers contacts sera epuisee.
+  const vagueDemandee = Number(req.nextUrl.searchParams.get("vague") || 1);
+  const vague = vagueDemandee === 2 ? 2 : 1;
 
+  // MODE MESURE : ?compter=1 ne lit que la reserve et n envoie RIEN.
+  if (req.nextUrl.searchParams.get("compter") === "1") {
     const { count: total } = await supabase
       .from("prospects_cabinets")
       .select("id", { count: "exact", head: true });
 
+    const { count: vague1 } = await appliquerFiltre(
+      supabase.from("prospects_cabinets")
+        .select("id", { count: "exact", head: true }), 1);
+
+    const { count: vague2 } = await appliquerFiltre(
+      supabase.from("prospects_cabinets")
+        .select("id", { count: "exact", head: true }), 2);
+
+    // Ceux qui ont recu le premier message mais dont le delai n est pas
+    // encore ecoule : la reserve de demain, pour ainsi dire.
+    const { count: enAttente } = await supabase
+      .from("prospects_cabinets")
+      .select("id", { count: "exact", head: true })
+      .eq("vague_envoi", 1)
+      .eq("desabonne", false)
+      .gte("envoye_le", dateLimiteVagueDeux());
+
+    const { count: epuises } = await supabase
+      .from("prospects_cabinets")
+      .select("id", { count: "exact", head: true })
+      .gte("nb_envois", PLAFOND_ENVOIS);
+
+    const { count: desabonnes } = await supabase
+      .from("prospects_cabinets")
+      .select("id", { count: "exact", head: true })
+      .eq("desabonne", true);
+
     return NextResponse.json({
       mode: "mesure, aucun envoi",
       total_cabinets: total || 0,
-      prets_a_contacter: prets || 0,
+      premiere_vague_a_faire: vague1 || 0,
+      seconde_vague_a_faire: vague2 || 0,
+      seconde_vague_en_attente_du_delai: enAttente || 0,
+      delai_entre_vagues_jours: DELAI_ENTRE_VAGUES,
+      plafond_atteint: epuises || 0,
+      desabonnes: desabonnes || 0,
     });
   }
 
   const demande = Number(req.nextUrl.searchParams.get("lot") || LOT_PAR_DEFAUT);
   const lot = demande > 0 && demande <= 500 ? demande : LOT_PAR_DEFAUT;
 
-  const { data: cibles, error: errLecture } = await supabase
-    .from("prospects_cabinets")
-    .select("id, email, raison_sociale, dirigeant_prenom, dirigeant_nom")
-    .eq("statut", "enrichi")
-    .eq("desabonne", false)
-    .not("email", "is", null)
+  const { data: cibles, error: errLecture } = await appliquerFiltre(
+    supabase
+      .from("prospects_cabinets")
+      .select("id, email, raison_sociale, dirigeant_prenom, dirigeant_nom, nb_envois"),
+    vague)
     .order("id", { ascending: true })
     .limit(lot);
 
@@ -197,7 +347,10 @@ export async function GET(req: NextRequest) {
   }
 
   if (!cibles || cibles.length === 0) {
-    return NextResponse.json({ info: "aucun cabinet a contacter" });
+    return NextResponse.json({
+      info: "aucun cabinet a contacter en vague " + vague,
+      vague: vague,
+    });
   }
 
   let envoyes = 0;
@@ -208,22 +361,25 @@ export async function GET(req: NextRequest) {
     // MARQUAGE AVANT ENVOI. Si la suite echoue, la ligne porte deja un
     // statut qui l exclut des prochaines lectures : mieux vaut un envoi
     // manque qu un envoi double.
+    //
+    // ⚠️ LA CONDITION SUR LE STATUT EST CELLE DE LA VAGUE. En vague 2, la
+    // ligne est en 'envoye' et non en 'enrichi' : filtrer sur 'enrichi'
+    // ferait echouer tous les marquages en silence.
+    const statutAttendu = vague === 2 ? "envoye" : "enrichi";
+
     const { error: errMarque } = await supabase
       .from("prospects_cabinets")
       .update({ statut: "envoi_en_cours" })
       .eq("id", o.id)
-      .eq("statut", "enrichi");
+      .eq("statut", statutAttendu);
 
     if (errMarque) {
       echecs++;
       continue;
     }
 
-    const html = corpsMessage(o);
-    const res = await envoyer(
-      String(o.email),
-      "La corvee que personne ne facture",
-      html);
+    const html = messageDe(o, vague);
+    const res = await envoyer(String(o.email), SUJETS[vague], html);
 
     if (res.ok) {
       envoyes++;
@@ -232,6 +388,8 @@ export async function GET(req: NextRequest) {
         .update({
           statut: "envoye",
           envoye_le: new Date().toISOString(),
+          vague_envoi: vague,
+          nb_envois: (Number(o.nb_envois) || 0) + 1,
           motif_echec: null,
         })
         .eq("id", o.id);
@@ -254,14 +412,12 @@ export async function GET(req: NextRequest) {
     await pause(2000);
   }
 
-  const { count: restant } = await supabase
-    .from("prospects_cabinets")
-    .select("id", { count: "exact", head: true })
-    .eq("statut", "enrichi")
-    .eq("desabonne", false)
-    .not("email", "is", null);
+  const { count: restant } = await appliquerFiltre(
+    supabase.from("prospects_cabinets")
+      .select("id", { count: "exact", head: true }), vague);
 
   return NextResponse.json({
+    vague: vague,
     envoyes: envoyes,
     echecs: echecs,
     reste_a_contacter: restant || 0,
