@@ -262,6 +262,14 @@ export default function PageLinkedin() {
   const [ouverte, setOuverte] = useState<any>(null);
   const [texteLong, setTexteLong] = useState("");
 
+  // 🆕 QUELLE FICHE EST EN COURS D ENREGISTREMENT — 27/08.
+  //
+  // Le drapeau « charge » grisait TOUS les boutons de la page pendant
+  // l appel. Sur une liste de trois cents fiches, marquer la premiere
+  // figeait les deux cent quatre-vingt-dix-neuf autres. On ne grise
+  // desormais que la fiche concernee.
+  const [enCours, setEnCours] = useState("");
+
   const [recherche, setRecherche] = useState("");
 
   // LA RECHERCHE PARTOUT.
@@ -743,19 +751,62 @@ export default function PageLinkedin() {
     setVu(true);
   }
 
+  // 🚨🚨 LE MARQUAGE NE RECHARGE PLUS TOUTE LA LISTE — corrige le 27/08.
+  //
+  // LE DEFAUT. Chaque marquage relancait chargerListe(), qui relit les six
+  // tables et rend jusqu a mille lignes. Marquer trois personnes qui ont
+  // repondu demandait donc trois rechargements complets, avec plusieurs
+  // secondes d attente entre chacun. Ses mots : « c est très lourd ».
+  //
+  // LA CORRECTION. On met a jour LA SEULE FICHE concernee, en memoire. Le
+  // bouton change d etat immediatement et on enchaine. Le serveur a bien
+  // enregistre — c est sa reponse qui le dit — mais on ne lui redemande
+  // pas ce qu on sait deja.
+  //
+  // ⚠️ CE N EST PAS UN AFFICHAGE OPTIMISTE. On n avance rien avant la
+  // reponse du serveur : en cas d echec, l ecran ne bouge pas et l erreur
+  // s affiche. Ce qu on evite, c est la RELECTURE, pas l attente.
+  //
+  // LES DEUX CAS OU L ON RECHARGE QUAND MEME :
+  //   - l onglet « Inviter », qui doit passer a la fiche suivante
+  //   - un statut qui SORT la fiche de l onglet courant (refuse, ecarte)
   async function marquer(l: any, statut: string, cleBase?: string) {
+    setEnCours(cleDe(l));
     setCharge(true);
     setErreur("");
     try {
       const d = await appeler({ base: cleBase || l.base || base, id: l.id, statut: statut });
       if (d.ok) {
         setCompteurs(d.compteurs || null);
-        // L avertissement de depassement remonte du serveur : il s affiche
-        // comme un message, jamais comme une erreur — la declaration a bien
-        // ete enregistree.
         if (d.avertissement) setMessage(d.avertissement);
-        if (onglet === "inviter") poser(d);
-        else await chargerListe();
+
+        if (onglet === "inviter") {
+          poser(d);
+          setCharge(false);
+          setEnCours("");
+          return;
+        }
+
+        // La fiche quitte-t-elle l onglet ou elle se trouve ?
+        const sort =
+          (onglet === "attente" && statut !== "invite" && statut !== "invite_nu") ||
+          (onglet === "relancer" && statut !== "accepte" && statut !== "accepte_nu") ||
+          (onglet === "file" && statut !== null) ||
+          (onglet === "envoyes" && (statut === "refuse" || statut === "ecarte"));
+
+        if (sort) {
+          // Elle s en va : on la retire de la liste, sans tout relire.
+          setLignes(lignes.filter(function (x: any) {
+            return cleDe(x) !== cleDe(l);
+          }));
+        } else {
+          // Elle reste : on met simplement son statut a jour sur place.
+          setLignes(lignes.map(function (x: any) {
+            return cleDe(x) === cleDe(l)
+              ? { ...x, linkedin_statut: statut }
+              : x;
+          }));
+        }
       } else {
         setErreur(d.erreur || "Enregistrement impossible.");
         if (d.compteurs) setCompteurs(d.compteurs);
@@ -764,6 +815,7 @@ export default function PageLinkedin() {
       setErreur("Enregistrement impossible : " + String(e));
     }
     setCharge(false);
+    setEnCours("");
   }
 
   // Marquer la fiche qui vient d etre creee, sans quitter l ecran.
@@ -2288,7 +2340,7 @@ export default function PageLinkedin() {
                                 return (
                                   <button key={e.cle}
                                     onClick={() => marquer(l, e.cle)}
-                                    disabled={charge}
+                                    disabled={enCours === cleDe(l)}
                                     style={{
                                       flex: "1 1 140px", padding: "10px",
                                       borderRadius: "8px", fontSize: "12.5px",
