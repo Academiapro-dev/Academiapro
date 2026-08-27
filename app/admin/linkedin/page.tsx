@@ -374,11 +374,48 @@ export default function PageLinkedin() {
   //
   // ⚠️ sans_suite EMPECHE LA FILE D INVITATION DE DEFILER. On agit sur une
   // fiche precise, pas dans un enchainement.
+  // 🆕 MEME PRINCIPE QUE marquer() : l affichage precede l enregistrement.
+  //
+  // La ligne change d etat AVANT l appel, et l on ne relance NI la
+  // recherche NI la liste. Relire les six bases apres chaque marquage
+  // rendait la recherche inutilisable des qu on marquait deux fiches.
   async function marquerDepuisRecherche(cleBase: string, ligne: any, statut: string) {
-    const cle = cleBase + "-" + ligne.id;
-    setPartoutOccupe(cle);
     setPartoutErreur("");
     setPartoutMessage("");
+
+    const nom = capitaliser((ligne.dirigeant_prenom || "") + " " + (ligne.dirigeant_nom || "")).trim()
+      || capitaliser(ligne.raison_sociale) || "La fiche";
+
+    // L etat d avant, pour pouvoir revenir en arriere.
+    const avant = partoutResultat;
+
+    // On met la ligne a jour dans le resultat affiche, sans rien relire.
+    if (partoutResultat && Array.isArray(partoutResultat.bases)) {
+      setPartoutResultat({
+        ...partoutResultat,
+        bases: partoutResultat.bases.map(function (b: any) {
+          if (b.cle !== cleBase) return b;
+          return {
+            ...b,
+            lignes: (b.lignes || []).map(function (x: any) {
+              return x.id === ligne.id
+                ? { ...x, linkedin_statut: statut }
+                : x;
+            }),
+          };
+        }),
+      });
+    }
+
+    const mots: any = {
+      accepte: " a été marqué comme ayant accepté. Sa fiche est dans « À écrire ».",
+      accepte_nu: " a été marqué comme ayant accepté. Sa fiche est dans « À écrire ».",
+      invite: " est marqué invité avec une note.",
+      invite_nu: " est marqué invité sans note.",
+      ecarte: " est écarté : il ne ressortira plus dans la file d'invitation.",
+    };
+    setPartoutMessage(nom + (mots[statut] || " est enregistré."));
+
     try {
       const d = await appeler({
         base: cleBase,
@@ -388,27 +425,22 @@ export default function PageLinkedin() {
       });
       if (d.ok) {
         if (d.compteurs) setCompteurs(d.compteurs);
-        const nom = capitaliser((ligne.dirigeant_prenom || "") + " " + (ligne.dirigeant_nom || "")).trim()
-          || capitaliser(ligne.raison_sociale) || "La fiche";
-        const mots: any = {
-          accepte: " a été marqué comme ayant accepté. Sa fiche est dans « À écrire ».",
-          accepte_nu: " a été marqué comme ayant accepté. Sa fiche est dans « À écrire ».",
-          invite: " est marqué invité avec une note.",
-          invite_nu: " est marqué invité sans note.",
-          ecarte: " est écarté : il ne ressortira plus dans la file d'invitation.",
-        };
-        setPartoutMessage(nom + (mots[statut] || " est enregistré.")
-          + (d.avertissement ? " " + d.avertissement : ""));
-        await chercherPartout(partoutTerme);
-        if (onglet !== "inviter") await chargerListe();
+        if (d.avertissement) {
+          setPartoutMessage(nom + (mots[statut] || " est enregistré.")
+            + " " + d.avertissement);
+        }
       } else {
-        setPartoutErreur(d.erreur || "Enregistrement impossible.");
+        setPartoutResultat(avant);
+        setPartoutMessage("");
+        setPartoutErreur((d.erreur || "Enregistrement impossible.")
+          + " La fiche est revenue à son état précédent.");
         if (d.compteurs) setCompteurs(d.compteurs);
       }
     } catch (e: any) {
+      setPartoutResultat(avant);
+      setPartoutMessage("");
       setPartoutErreur("Enregistrement impossible : " + String(e));
     }
-    setPartoutOccupe("");
   }
 
   // ---------- FIN DE LA RECHERCHE PARTOUT ----------
@@ -676,23 +708,31 @@ export default function PageLinkedin() {
     setOuvertSerie(true);
   }
 
+  // 🆕 LA SERIE AVANCE SANS ATTENDRE — 27/08.
+  //
+  // Trente messages a la suite, c est trente attentes du serveur. On passe
+  // a la fiche suivante immediatement ; l enregistrement suit en
+  // arriere-plan. Un echec s affiche sans interrompre la serie : la fiche
+  // restera dans « A ecrire » et se retrouvera au prochain passage.
   async function envoyeEtSuivant(l: any) {
     if (!serie) return;
-    setCharge(true);
     setErreur("");
+    setFaits(faits + 1);
+    avancer(serie, rang + 1);
+
     try {
       const d = await appeler({ base: l.base || base, id: l.id, statut: "relance" });
       if (d.ok) {
         setCompteurs(d.compteurs || null);
-        setFaits(faits + 1);
-        avancer(serie, rang + 1);
       } else {
-        setErreur(d.erreur || "Enregistrement impossible.");
+        setErreur("Une fiche n'a pas pu être enregistrée ("
+          + (d.erreur || "cause inconnue")
+          + "). Elle restera dans « À écrire ».");
       }
     } catch (e: any) {
-      setErreur("Enregistrement impossible : " + String(e));
+      setErreur("Une fiche n'a pas pu être enregistrée : " + String(e)
+        + " Elle restera dans « À écrire ».");
     }
-    setCharge(false);
   }
 
   function passerSuivant() {
@@ -751,71 +791,99 @@ export default function PageLinkedin() {
     setVu(true);
   }
 
-  // 🚨🚨 LE MARQUAGE NE RECHARGE PLUS TOUTE LA LISTE — corrige le 27/08.
+  // 🚨🚨 LE MARQUAGE EST IMMEDIAT — corrige le 27/08, deux fois.
   //
-  // LE DEFAUT. Chaque marquage relancait chargerListe(), qui relit les six
-  // tables et rend jusqu a mille lignes. Marquer trois personnes qui ont
-  // repondu demandait donc trois rechargements complets, avec plusieurs
-  // secondes d attente entre chacun. Ses mots : « c est très lourd ».
+  // PREMIER DEFAUT. Chaque marquage relancait chargerListe(), qui relit
+  // les six tables et rend jusqu a mille lignes. Marquer trois personnes
+  // demandait trois rechargements complets.
   //
-  // LA CORRECTION. On met a jour LA SEULE FICHE concernee, en memoire. Le
-  // bouton change d etat immediatement et on enchaine. Le serveur a bien
-  // enregistre — c est sa reponse qui le dit — mais on ne lui redemande
-  // pas ce qu on sait deja.
+  // SECOND DEFAUT, apres la premiere correction : l ecran attendait encore
+  // la reponse du serveur avant de bouger. Ses mots : « trop d attente ».
   //
-  // ⚠️ CE N EST PAS UN AFFICHAGE OPTIMISTE. On n avance rien avant la
-  // reponse du serveur : en cas d echec, l ecran ne bouge pas et l erreur
-  // s affiche. Ce qu on evite, c est la RELECTURE, pas l attente.
+  // LA CORRECTION : L AFFICHAGE PRECEDE L ENREGISTREMENT.
+  // Le bouton change d etat AVANT l appel. On enchaine sans rien attendre.
+  // L appel part en arriere-plan ; s il echoue, on REVIENT EN ARRIERE et
+  // on le dit.
   //
-  // LES DEUX CAS OU L ON RECHARGE QUAND MEME :
-  //   - l onglet « Inviter », qui doit passer a la fiche suivante
-  //   - un statut qui SORT la fiche de l onglet courant (refuse, ecarte)
+  // ⚠️ CE N EST PAS UN MENSONGE A L ECRAN. L etat precedent est conserve
+  // et restaure en cas d echec, avec un message explicite. Ce qu on parie,
+  // c est que l enregistrement va reussir — ce qui est le cas presque
+  // toujours. Le rare echec est visible et rattrapable.
+  //
+  // ⚠️ NE PAS RETABLIR L ATTENTE. Marquer trente fiches a la suite doit
+  // se faire au rythme du doigt, pas a celui du reseau.
+  //
+  // LES DEUX CAS OU L ON ATTEND QUAND MEME :
+  //   - l onglet « Inviter », qui doit charger la fiche suivante
+  //   - la recherche globale, ou la ligne vient d ailleurs
   async function marquer(l: any, statut: string, cleBase?: string) {
-    setEnCours(cleDe(l));
-    setCharge(true);
     setErreur("");
+
+    // L onglet Inviter enchaine sur une autre fiche : il faut la reponse
+    // du serveur pour savoir laquelle. On attend, mais c est le seul cas.
+    if (onglet === "inviter") {
+      setCharge(true);
+      try {
+        const d = await appeler({
+          base: cleBase || l.base || base, id: l.id, statut: statut,
+        });
+        if (d.ok) {
+          setCompteurs(d.compteurs || null);
+          if (d.avertissement) setMessage(d.avertissement);
+          poser(d);
+        } else {
+          setErreur(d.erreur || "Enregistrement impossible.");
+          if (d.compteurs) setCompteurs(d.compteurs);
+        }
+      } catch (e: any) {
+        setErreur("Enregistrement impossible : " + String(e));
+      }
+      setCharge(false);
+      return;
+    }
+
+    // ---- L AFFICHAGE, TOUT DE SUITE ----
+
+    const cle = cleDe(l);
+    const avant = lignes.slice();
+
+    // La fiche quitte-t-elle l onglet ou elle se trouve ?
+    const sort =
+      (onglet === "attente" && statut !== "invite" && statut !== "invite_nu") ||
+      (onglet === "relancer" && statut !== "accepte" && statut !== "accepte_nu") ||
+      (onglet === "file") ||
+      (onglet === "envoyes" && (statut === "refuse" || statut === "ecarte"));
+
+    if (sort) {
+      setLignes(lignes.filter(function (x: any) { return cleDe(x) !== cle; }));
+    } else {
+      setLignes(lignes.map(function (x: any) {
+        return cleDe(x) === cle ? { ...x, linkedin_statut: statut } : x;
+      }));
+    }
+
+    // ---- L ENREGISTREMENT, EN ARRIERE-PLAN ----
+
     try {
-      const d = await appeler({ base: cleBase || l.base || base, id: l.id, statut: statut });
+      const d = await appeler({
+        base: cleBase || l.base || base, id: l.id, statut: statut,
+      });
+
       if (d.ok) {
         setCompteurs(d.compteurs || null);
         if (d.avertissement) setMessage(d.avertissement);
-
-        if (onglet === "inviter") {
-          poser(d);
-          setCharge(false);
-          setEnCours("");
-          return;
-        }
-
-        // La fiche quitte-t-elle l onglet ou elle se trouve ?
-        const sort =
-          (onglet === "attente" && statut !== "invite" && statut !== "invite_nu") ||
-          (onglet === "relancer" && statut !== "accepte" && statut !== "accepte_nu") ||
-          (onglet === "file" && statut !== null) ||
-          (onglet === "envoyes" && (statut === "refuse" || statut === "ecarte"));
-
-        if (sort) {
-          // Elle s en va : on la retire de la liste, sans tout relire.
-          setLignes(lignes.filter(function (x: any) {
-            return cleDe(x) !== cleDe(l);
-          }));
-        } else {
-          // Elle reste : on met simplement son statut a jour sur place.
-          setLignes(lignes.map(function (x: any) {
-            return cleDe(x) === cleDe(l)
-              ? { ...x, linkedin_statut: statut }
-              : x;
-          }));
-        }
       } else {
-        setErreur(d.erreur || "Enregistrement impossible.");
+        // L enregistrement a echoue : on remet la liste comme elle etait.
+        setLignes(avant);
+        setErreur((d.erreur || "Enregistrement impossible.")
+          + " La fiche est revenue à son état précédent.");
         if (d.compteurs) setCompteurs(d.compteurs);
       }
     } catch (e: any) {
-      setErreur("Enregistrement impossible : " + String(e));
+      setLignes(avant);
+      setErreur("Enregistrement impossible : " + String(e)
+        + " La fiche est revenue à son état précédent.");
     }
-    setCharge(false);
-    setEnCours("");
   }
 
   // Marquer la fiche qui vient d etre creee, sans quitter l ecran.
@@ -1295,7 +1363,7 @@ export default function PageLinkedin() {
 
         <div style={{ display: "flex", gap: "7px", flexWrap: "wrap", marginTop: "9px" }}>
           {enAttente ? (
-            <button onClick={() => marquerCreee(statut === "invite" ? "accepte" : "accepte_nu")} disabled={charge}
+            <button onClick={() => marquerCreee(statut === "invite" ? "accepte" : "accepte_nu")} disabled={false}
               style={{ flex: "2 1 180px", background: "rgba(0,230,118,0.15)", color: VERT, border: "1px solid rgba(0,230,118,0.45)", borderRadius: "8px", padding: "11px", fontSize: "13px", fontWeight: "bold", fontFamily: "Georgia,serif", cursor: "pointer" }}>
               ✓ A accepté
             </button>
@@ -1830,7 +1898,7 @@ export default function PageLinkedin() {
 
                   {/* 🚨 LE BOUTON QUI MANQUAIT. Toujours actif, meme quand le
                       plafond du jour est atteint. */}
-                  <button onClick={() => ajouter("file")} disabled={charge}
+                  <button onClick={() => ajouter("file")} disabled={false}
                     style={{ width: "100%", background: "rgba(200,169,110,0.2)", color: OR, border: "1px solid rgba(200,169,110,0.5)", borderRadius: "9px", padding: "15px", fontSize: "14.5px", fontWeight: "bold", fontFamily: "Georgia,serif", cursor: "pointer", marginBottom: "8px" }}>
                     💾 Enregistrer seulement — je l'inviterai plus tard
                   </button>
@@ -1984,11 +2052,11 @@ export default function PageLinkedin() {
                     </button>
                   </div>
                   <div style={{ display: "flex", gap: "9px", flexWrap: "wrap" }}>
-                    <button onClick={() => marquer(fiche, "ecarte", base)} disabled={charge}
+                    <button onClick={() => marquer(fiche, "ecarte", base)} disabled={false}
                       style={{ ...BOUTON, flex: "1 1 150px", padding: "13px", fontSize: "13.5px", color: "rgba(255,255,255,0.55)", borderColor: "rgba(255,255,255,0.18)" }}>
                       Écarter
                     </button>
-                    <button onClick={chargerSuivante} disabled={charge}
+                    <button onClick={chargerSuivante} disabled={false}
                       style={{ ...BOUTON, flex: "1 1 150px", padding: "13px", fontSize: "13.5px", color: "rgba(255,255,255,0.4)", borderColor: "rgba(255,255,255,0.12)" }}>
                       Passer
                     </button>
@@ -2059,7 +2127,7 @@ export default function PageLinkedin() {
                         style={{ flex: "1 1 160px", background: bloque ? "rgba(255,255,255,0.06)" : "rgba(68,138,255,0.13)", color: bloque ? "rgba(255,255,255,0.3)" : BLEU, border: "1px solid " + (bloque ? "rgba(255,255,255,0.15)" : "rgba(68,138,255,0.4)"), borderRadius: "8px", padding: "11px", fontSize: "13.5px", fontFamily: "Georgia,serif", cursor: bloque ? "not-allowed" : "pointer" }}>
                         ✓ Invité sans note
                       </button>
-                      <button onClick={() => marquer(l, "ecarte")} disabled={charge}
+                      <button onClick={() => marquer(l, "ecarte")} disabled={false}
                         style={{ ...BOUTON, flex: "1 1 120px", padding: "11px", fontSize: "13px", color: "rgba(255,255,255,0.45)", borderColor: "rgba(255,255,255,0.15)" }}>
                         Écarter
                       </button>
@@ -2123,11 +2191,11 @@ export default function PageLinkedin() {
                     {blocFiche(l)}
 
                     <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "12px" }}>
-                      <button onClick={() => marquer(l, note ? "accepte" : "accepte_nu")} disabled={charge}
+                      <button onClick={() => marquer(l, note ? "accepte" : "accepte_nu")} disabled={false}
                         style={{ flex: "1 1 150px", background: "rgba(0,230,118,0.13)", color: VERT, border: "1px solid rgba(0,230,118,0.4)", borderRadius: "8px", padding: "11px", fontSize: "13.5px", fontFamily: "Georgia,serif", cursor: "pointer" }}>
                         ✓ A accepté
                       </button>
-                      <button onClick={() => marquer(l, "refuse")} disabled={charge}
+                      <button onClick={() => marquer(l, "refuse")} disabled={false}
                         style={{ ...BOUTON, flex: "1 1 150px", padding: "11px", fontSize: "13.5px", color: "rgba(255,255,255,0.5)", borderColor: "rgba(255,255,255,0.18)" }}>
                         Sans suite
                       </button>
@@ -2212,11 +2280,11 @@ export default function PageLinkedin() {
                   {blocFiche(courante)}
 
                   <div style={{ display: "flex", gap: "9px", flexWrap: "wrap", marginTop: "16px" }}>
-                    <button onClick={() => envoyeEtSuivant(courante)} disabled={charge}
+                    <button onClick={() => envoyeEtSuivant(courante)} disabled={false}
                       style={{ flex: "2 1 220px", background: "rgba(0,230,118,0.15)", color: VERT, border: "1px solid rgba(0,230,118,0.45)", borderRadius: "9px", padding: "15px", fontSize: "14.5px", fontWeight: "bold", fontFamily: "Georgia,serif", cursor: "pointer" }}>
                       ✓ Envoyé — au suivant
                     </button>
-                    <button onClick={passerSuivant} disabled={charge}
+                    <button onClick={passerSuivant} disabled={false}
                       style={{ ...BOUTON, flex: "1 1 130px", padding: "15px", fontSize: "13.5px", color: "rgba(255,255,255,0.45)", borderColor: "rgba(255,255,255,0.15)" }}>
                       Passer
                     </button>
@@ -2340,7 +2408,7 @@ export default function PageLinkedin() {
                                 return (
                                   <button key={e.cle}
                                     onClick={() => marquer(l, e.cle)}
-                                    disabled={enCours === cleDe(l)}
+                                    disabled={false}
                                     style={{
                                       flex: "1 1 140px", padding: "10px",
                                       borderRadius: "8px", fontSize: "12.5px",
@@ -2382,7 +2450,7 @@ export default function PageLinkedin() {
                               {onglet === "envoyes" ? "Préparer une relance" : "Préparer le message"}
                             </button>
                             {onglet === "envoyes" && (
-                              <button onClick={() => marquer(l, "refuse")} disabled={charge}
+                              <button onClick={() => marquer(l, "refuse")} disabled={false}
                                 style={{ ...BOUTON, flex: "1 1 130px", fontSize: "13px", color: "rgba(255,255,255,0.45)", borderColor: "rgba(255,255,255,0.15)" }}>
                                 Sans suite
                               </button>
@@ -2398,7 +2466,8 @@ export default function PageLinkedin() {
                             </button>
 
                             <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "9px" }}>
-                              <button onClick={() => marquer(l, "relance")} disabled={charge}
+                              <button
+                                onClick={() => { setOuverte(null); marquer(l, "relance"); }}
                                 style={{ flex: "2 1 200px", background: "rgba(0,230,118,0.13)", color: VERT, border: "1px solid rgba(0,230,118,0.4)", borderRadius: "8px", padding: "13px", fontSize: "13.5px", fontWeight: "bold", fontFamily: "Georgia,serif", cursor: "pointer" }}>
                                 ✓ Message envoyé
                               </button>
