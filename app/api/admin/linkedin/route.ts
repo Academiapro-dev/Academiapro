@@ -208,10 +208,22 @@ async function bilanCampagne(campagne: string) {
   // accompli ferait BAISSER le chiffre au lieu de le monter.
   const acceptations = acceptes + relances;
 
-  // Le taux se calcule sur ceux qui ONT REPONDU, pas sur les invites :
-  // une invitation sans reponse n est ni un succes ni un echec, elle
-  // n a simplement pas encore ete vue.
-  const repondu = acceptations + refuses;
+  // \ud83d\udea8 LE TAUX SE CALCULE SUR LES INVITATIONS ENVOYEES.
+  //
+  // LE DEFAUT CORRIGE LE 27/08, DANS L HEURE. Le calcul portait d abord
+  // sur ceux qui AVAIENT REPONDU : trois acceptations et zero refus
+  // donnaient 100 %. C est exact statistiquement et faux dans l usage —
+  // le chiffre affichait 100 % pour vingt invitations dont trois avaient
+  // abouti. Ses mots : « le pourcentage c est invitation pas acceptation ».
+  //
+  // CE QUI COMPTE POUR JACQUES, c est le rendement de ses vingt
+  // invitations quotidiennes : combien d entre elles produisent une
+  // relation. Pas la proportion de gens polis parmi ceux qui repondent.
+  //
+  // \u26a0\ufe0f LE CHIFFRE MONTE PENDANT UNE SEMAINE. Une invitation met
+  // plusieurs jours a etre vue : le taux du premier jour est un plancher,
+  // jamais un resultat.
+  const invitations = attente + acceptations + refuses;
 
   return {
     campagne: campagne,
@@ -221,8 +233,10 @@ async function bilanCampagne(campagne: string) {
     messages_envoyes: relances,
     refuses: refuses,
     ecartes: ecartes,
-    invitations: attente + acceptations + refuses,
-    taux: repondu > 0 ? Math.round((acceptations / repondu) * 100) : null,
+    invitations: invitations,
+    taux: invitations > 0
+      ? Math.round((acceptations / invitations) * 100)
+      : null,
   };
 }
 
@@ -238,9 +252,14 @@ async function compterEnFile(): Promise<number> {
   return count || 0;
 }
 
-function taux(acceptes: number, refuses: number) {
-  const repondu = acceptes + refuses;
-  return repondu > 0 ? Math.round((acceptes / repondu) * 100) : null;
+// \ud83d\udea8 LE TAUX PORTE SUR LES INVITATIONS ENVOYEES, pas sur les
+// reponses recues — corrige le 27/08. Voir le commentaire de
+// bilanCampagne : afficher 100 % pour trois acceptations sur vingt
+// invitations n aide personne a decider.
+function taux(acceptes: number, invitations: number) {
+  return invitations > 0
+    ? Math.round((acceptes / invitations) * 100)
+    : null;
 }
 
 async function compteurs() {
@@ -283,8 +302,9 @@ async function compteurs() {
     en_file,
     formations,
     campagnes: { academiapro: academia, mrcomptable: comptable },
-    taux_note: taux(accepte_note, 0) === null ? null : taux(accepte_note + relances * 0, refuses),
-    taux_global: taux(acceptees, refuses),
+    taux_note: null,
+    taux_global: taux(acceptees,
+      attente_note + attente_nu + acceptees + refuses),
     plafond_jour: PLAFOND_JOUR,
     plafond_semaine: PLAFOND_SEMAINE,
     reste_jour: Math.max(PLAFOND_JOUR - jour, 0),
