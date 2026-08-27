@@ -23,12 +23,6 @@ const supabase = createClient(
 // PIEGE VERIFIE LE 14 AOUT : prospects_organismes n a PAS de colonne
 // vague, contrairement aux autres. La demander la ferait echouer.
 //
-// SECOND PIEGE DE LA MEME FAMILLE : les colonnes linkedin, linkedin_le et
-// linkedin_statut existent sur les tables prospectables, mais PAS
-// sur prospects_cabinets, qu on ne touche pas avant l accord BCSolutions.
-// D ou le drapeau ci dessous : les demander sur cabinets ferait echouer
-// la lecture entiere.
-//
 // 🚨 TROISIEME PIEGE DE LA MEME FAMILLE, TROUVE LE 25/08.
 // prospects_gros n a PAS de colonne sms_accepte_le, que le bloc detail
 // demandait jusqu ici sans condition. D ou le drapeau sms.
@@ -39,6 +33,24 @@ const supabase = createClient(
 // prospects_gros etait absente de la recherche globale alors qu elle porte
 // 8 213 organismes et la quasi-totalite des profils LinkedIn travailles.
 // Chercher un nom vu sur LinkedIn ne le trouvait donc pas. Ajoutee le 25/08.
+//
+// 🆕 « cabinets » PASSE A linkedin: true — 27/08.
+//
+// LE DEFAUT, ET IL S EST VU DES LA PREMIERE ACCEPTATION. La table
+// prospects_cabinets n avait pas les colonnes LinkedIn : le drapeau etait
+// donc a false, a juste titre. Les quatre colonnes ont ete ajoutees le
+// 26/08 — linkedin_le, linkedin_statut, linkedin_relance_le, notes — mais
+// ce drapeau est reste a false.
+//
+// CONSEQUENCE : la recherche globale rendait bien les fiches cabinets,
+// mais SANS AUCUN BOUTON. Jacques voyait deux experts-comptables qui
+// venaient d accepter son invitation, et ne pouvait ni ouvrir leur profil
+// ni marquer l acceptation. Il a fallu passer par une requete SQL.
+//
+// ⚠️ LE MEME PIEGE, DANS L AUTRE SENS. Le drapeau ne dit pas ce qu on
+// souhaite, il dit CE QUE LA TABLE PORTE. Le mettre a true avant que les
+// colonnes existent aurait fait echouer la lecture entiere ; le laisser a
+// false apres les avoir creees rend des fiches inertes.
 const BASES: any = {
   organismes: {
     table: "prospects_organismes",
@@ -77,7 +89,7 @@ const BASES: any = {
     titre: "Cabinets comptables",
     cible: "Mr. Comptable",
     vague: true,
-    linkedin: false,
+    linkedin: true,
     sms: true,
   },
 };
