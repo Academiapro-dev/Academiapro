@@ -47,12 +47,44 @@ const TABLES: any = {
   manuel: "crm",
 };
 
-// SEPT STATUTS, ET LA DISTINCTION AVEC OU SANS NOTE EST LA PLUS UTILE.
-const STATUTS = ["invite", "invite_nu", "accepte", "accepte_nu", "relance", "refuse", "ecarte"];
+// \ud83c\udd95 DIX STATUTS DEPUIS LE 27/08 — LA CHAINE VA JUSQU AU BOUT.
+//
+// LE MANQUE. Les statuts s arretaient a « relance », c est-a-dire au
+// message envoye. Rien ne disait ce qui se passait ENSUITE : pas de
+// reponse, pas de rendez-vous, pas de client. Le taux de concretisation
+// etait donc incalculable — on savait combien de portes on avait
+// frappees, jamais combien s etaient ouvertes.
+//
+// LA CHAINE COMPLETE :
+//   invite / invite_nu  l invitation est partie
+//   accepte / accepte_nu  la personne a accepte
+//   relance             le message est parti
+//   repondu             elle a repondu \u2014 la conversation existe
+//   rendez_vous         un echange est cale
+//   client              le contrat est signe
+//   refuse              elle a decline, ou n a jamais repondu
+//   ecarte              on ne la sollicite pas
+//
+// \u26a0\ufe0f LES TROIS NOUVEAUX NE SE RENOMMENT PAS. Les compteurs, les
+// filtres et l ecran les lisent tels quels.
+const STATUTS = [
+  "invite", "invite_nu",
+  "accepte", "accepte_nu",
+  "relance",
+  "repondu", "rendez_vous", "client",
+  "refuse", "ecarte",
+];
 
 const EN_ATTENTE = ["invite", "invite_nu"];
 const ACCEPTES = ["accepte", "accepte_nu"];
-const RELANCES = ["relance"];
+
+// « Messages envoyes » montre TOUT ce qui a recu un message, quel que
+// soit l etat de la conversation ensuite. Sans quoi une fiche qui repond
+// disparaitrait de l ecran, et on ne saurait plus ou elle en est.
+const RELANCES = ["relance", "repondu", "rendez_vous", "client"];
+
+// Ce qui compte comme une conversation entamee.
+const ENGAGES = ["repondu", "rendez_vous", "client"];
 
 const PLAFOND_SEMAINE = 100;
 const PLAFOND_JOUR = 20;
@@ -201,12 +233,21 @@ async function bilanCampagne(campagne: string) {
   const attente = await compterStatutsCampagne(["invite", "invite_nu"], campagne);
   const acceptes = await compterStatutsCampagne(["accepte", "accepte_nu"], campagne);
   const relances = await compterStatutsCampagne(["relance"], campagne);
+  const repondus = await compterStatutsCampagne(["repondu"], campagne);
+  const rendezVous = await compterStatutsCampagne(["rendez_vous"], campagne);
+  const clients = await compterStatutsCampagne(["client"], campagne);
   const refuses = await compterStatutsCampagne(["refuse"], campagne);
   const ecartes = await compterStatutsCampagne(["ecarte"], campagne);
 
-  // Une fiche relancee a forcement accepte : sans quoi le travail
-  // accompli ferait BAISSER le chiffre au lieu de le monter.
-  const acceptations = acceptes + relances;
+  // \ud83d\udea8 CHAQUE ETAT AVANCE COMPTE DANS TOUS CEUX QUI LE PRECEDENT.
+  //
+  // Une fiche « client » a forcement repondu, donc recu un message, donc
+  // accepte l invitation. Sans cette regle, le travail accompli ferait
+  // BAISSER les chiffres au lieu de les monter — c est exactement le
+  // defaut corrige le 18/08 sur les acceptations.
+  const engages = repondus + rendezVous + clients;
+  const messages = relances + engages;
+  const acceptations = acceptes + messages;
 
   // \ud83d\udea8 LE TAUX SE CALCULE SUR LES INVITATIONS ENVOYEES.
   //
@@ -227,15 +268,37 @@ async function bilanCampagne(campagne: string) {
 
   return {
     campagne: campagne,
+    invitations: invitations,
     en_attente: attente,
     acceptes: acceptations,
     a_ecrire: acceptes,
-    messages_envoyes: relances,
+    messages_envoyes: messages,
+    repondus: engages,
+    rendez_vous: rendezVous + clients,
+    clients: clients,
     refuses: refuses,
     ecartes: ecartes,
-    invitations: invitations,
+
+    // Le rendement des invitations : sur vingt envoyees, combien
+    // produisent une relation.
     taux: invitations > 0
       ? Math.round((acceptations / invitations) * 100)
+      : null,
+
+    // \ud83c\udd95 LE TAUX DE REPONSE — la mesure qui dit si le message
+    // fonctionne. Sur ceux a qui l on a ECRIT, combien ont repondu.
+    // En dessous de dix pour cent, ce n est pas le volume qu il faut
+    // augmenter, c est le texte qu il faut reprendre.
+    taux_reponse: messages > 0
+      ? Math.round((engages / messages) * 100)
+      : null,
+
+    // \ud83c\udd95 LE TAUX DE CONCRETISATION — d une invitation a un
+    // client. C est le seul chiffre qui dise ce que vaut vraiment le
+    // canal, et le seul qui permette de savoir combien on peut se
+    // permettre de payer pour une invitation.
+    taux_concretisation: invitations > 0
+      ? Math.round((clients / invitations) * 1000) / 10
       : null,
   };
 }
@@ -270,7 +333,9 @@ async function compteurs() {
   const attente_nu = await compterStatuts(["invite_nu"]);
   const accepte_note = await compterStatuts(["accepte"]);
   const accepte_nu = await compterStatuts(["accepte_nu"]);
-  const relances = await compterStatuts(["relance"]);
+  const relances = await compterStatuts(RELANCES);
+  const engages = await compterStatuts(ENGAGES);
+  const clients = await compterStatuts(["client"]);
   const refuses = await compterStatuts(["refuse"]);
   const ecartes = await compterStatuts(["ecarte"]);
   const en_file = await compterEnFile();
@@ -299,6 +364,7 @@ async function compteurs() {
     en_attente_reponse: accepte_note + accepte_nu,
     accepte_note, accepte_nu,
     relances, refuses, ecartes,
+    engages, clients,
     en_file,
     formations,
     campagnes: { academiapro: academia, mrcomptable: comptable },
@@ -756,6 +822,12 @@ export async function POST(req: NextRequest) {
     if (statut === "relance") {
       champs.linkedin_relance_le = new Date().toISOString();
     }
+
+    // \ud83d\udea8 LES ETATS AVANCES NE TOUCHENT A AUCUNE DATE.
+    //
+    // « repondu », « rendez_vous » et « client » decrivent ce qui suit le
+    // message. Ecraser linkedin_relance_le effacerait la date d envoi, et
+    // on ne saurait plus combien de temps la reponse a mis a venir.
 
     if (body.notes !== undefined) {
       champs.notes = propre(body.notes, 4000) || null;
