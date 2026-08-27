@@ -465,16 +465,16 @@ export async function POST(req: NextRequest) {
         }, { status: 409 });
       }
 
-      // LE QUOTA N EST VERIFIE QUE SI UNE INVITATION EST DECLAREE.
+      // LE QUOTA AVERTIT, IL NE REFUSE PLUS — meme raison que plus bas.
+      // Une fiche creee apres une invitation deja partie doit pouvoir
+      // porter son statut, sans quoi elle entre dans la base sans trace.
+      let avertirAjout: string | null = null;
       if (mode !== "file") {
         const c = await compteurs();
         if (c.reste_jour <= 0) {
-          return NextResponse.json({
-            ok: false,
-            erreur: "Plafond du jour atteint (" + PLAFOND_JOUR + "). Enregistrez la fiche "
-              + "sans invitation : elle vous attendra demain.",
-            compteurs: c,
-          }, { status: 429 });
+          avertirAjout = "Plafond du jour depasse (" + PLAFOND_JOUR
+            + " invitations). La fiche est enregistree avec son statut,"
+            + " mais n en envoyez plus aujourd hui.";
         }
       }
 
@@ -526,6 +526,7 @@ export async function POST(req: NextRequest) {
         ajoute: cree ? uniformiser(cree, "manuel") : null,
         mode: mode,
         message: mot,
+        avertissement: avertirAjout,
         compteurs: await compteurs(),
       });
     }
@@ -563,29 +564,43 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, erreur: "Statut inconnu." }, { status: 400 });
     }
 
-    // LE PLAFOND SE VERIFIE COTE SERVEUR, pas seulement a l ecran. Il
-    // concerne les DEUX formes d invitation. Marquer une acceptation n est
-    // plafonne par rien.
+    // 🚨🚨 LE PLAFOND AVERTIT, IL NE REFUSE PLUS — corrige le 27/08.
+    //
+    // LE DEFAUT, ET IL A FAUSSE LES DONNEES. Cette route refusait en 429
+    // toute declaration d invitation au-dela des vingt du jour. Jacques ne
+    // pouvait donc plus consigner une invitation qu il venait d envoyer
+    // DEPUIS LINKEDIN.
+    //
+    // Or LinkedIn ne connait pas ce compteur. Une invitation envoyee la-bas
+    // EXISTE, que cette route l accepte ou non. La refuser ne l annule pas :
+    // elle laisse la fiche vide, et le compteur ment dans l autre sens.
+    // C est ce qui est arrive a la fiche d Agnes Brunet, restee sans trace
+    // alors que le message etait parti.
+    //
+    // LA REGLE : le plafond dit QUAND S ARRETER D ENVOYER. Il n a pas a
+    // interdire d enregistrer ce qui est deja parti. Une route qui refuse
+    // de consigner la realite fabrique des donnees fausses.
+    //
+    // ⚠️ NE PAS RETABLIR LE REFUS. Le depassement est SIGNALE dans la
+    // reponse — champ « avertissement » — et l ecran l affiche. Jacques
+    // reste juge de ce qu il declare.
     //
     // 🚨 DEPUIS LE 26/08, CE PLAFOND COUVRE LES DEUX CAMPAGNES. Les
     // compteurs bouclent sur les six tables : vingt par jour au TOTAL,
     // organismes et cabinets confondus. C est voulu — les invitations
     // partent d un seul compte LinkedIn.
+    let avertissement: string | null = null;
+
     if (statut === "invite" || statut === "invite_nu") {
       const c = await compteurs();
       if (c.reste_jour <= 0) {
-        return NextResponse.json({
-          ok: false,
-          erreur: "Plafond du jour atteint (" + PLAFOND_JOUR + "). Reprenez demain.",
-          compteurs: c,
-        }, { status: 429 });
-      }
-      if (c.reste_semaine <= 0) {
-        return NextResponse.json({
-          ok: false,
-          erreur: "Plafond de la semaine atteint (" + PLAFOND_SEMAINE + "). Attendez quelques jours.",
-          compteurs: c,
-        }, { status: 429 });
+        avertissement = "Plafond du jour depasse (" + PLAFOND_JOUR
+          + " invitations). Cette declaration est enregistree, mais"
+          + " n en envoyez plus aujourd hui.";
+      } else if (c.reste_semaine <= 0) {
+        avertissement = "Plafond de la semaine depasse (" + PLAFOND_SEMAINE
+          + " invitations). Cette declaration est enregistree, mais"
+          + " laissez passer quelques jours.";
       }
     }
 
@@ -634,6 +649,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       statut: statut,
+      avertissement: avertissement,
       compteurs: await compteurs(),
       fiche: suite.fiche || null,
       restant: suite.restant,
