@@ -386,7 +386,8 @@ export default function PageLinkedin() {
           invite_nu: " est marqué invité sans note.",
           ecarte: " est écarté : il ne ressortira plus dans la file d'invitation.",
         };
-        setPartoutMessage(nom + (mots[statut] || " est enregistré."));
+        setPartoutMessage(nom + (mots[statut] || " est enregistré.")
+          + (d.avertissement ? " " + d.avertissement : ""));
         await chercherPartout(partoutTerme);
         if (onglet !== "inviter") await chargerListe();
       } else {
@@ -708,7 +709,8 @@ export default function PageLinkedin() {
         notes: aNotes,
       });
       if (d.ok) {
-        setMessage(d.message || "Profil enregistré.");
+        setMessage((d.message || "Profil enregistré.")
+          + (d.avertissement ? " " + d.avertissement : ""));
         setCompteurs(d.compteurs || null);
         setCreee(d.ajoute || null);
         setANom(""); setALien(""); setAOrganisme(""); setAVille(""); setANotes("");
@@ -736,6 +738,10 @@ export default function PageLinkedin() {
       const d = await appeler({ base: cleBase || l.base || base, id: l.id, statut: statut });
       if (d.ok) {
         setCompteurs(d.compteurs || null);
+        // L avertissement de depassement remonte du serveur : il s affiche
+        // comme un message, jamais comme une erreur — la declaration a bien
+        // ete enregistree.
+        if (d.avertissement) setMessage(d.avertissement);
         if (onglet === "inviter") poser(d);
         else await chargerListe();
       } else {
@@ -759,9 +765,10 @@ export default function PageLinkedin() {
       if (d.ok) {
         setCompteurs(d.compteurs || null);
         setCreee({ ...creee, linkedin_statut: statut });
-        setMessage(statut === "ecarte"
+        setMessage((statut === "ecarte"
           ? "Fiche écartée."
-          : "Fiche mise à jour : " + statut + ".");
+          : "Fiche mise à jour : " + statut + ".")
+          + (d.avertissement ? " " + d.avertissement : ""));
       } else {
         setErreur(d.erreur || "Enregistrement impossible.");
         if (d.compteurs) setCompteurs(d.compteurs);
@@ -857,7 +864,27 @@ export default function PageLinkedin() {
 
   const plafondJour = compteurs ? (compteurs.reste_jour || 0) <= 0 : false;
   const plafondSemaine = compteurs ? (compteurs.reste_semaine || 0) <= 0 : false;
-  const bloque = plafondJour || plafondSemaine;
+
+  // 🚨🚨 LE PLAFOND AVERTIT, IL NE BLOQUE PLUS — corrige le 27/08.
+  //
+  // LE DEFAUT, ET IL A FAUSSE LES DONNEES. Quand les vingt du jour etaient
+  // atteints, les boutons « Invite avec note » et « Invite sans note » se
+  // grisaient. Jacques ne pouvait donc plus DECLARER une invitation qu il
+  // venait pourtant d envoyer DEPUIS LINKEDIN.
+  //
+  // Or LinkedIn ne connait pas ce compteur. Une invitation envoyee la-bas
+  // EXISTE, que cet ecran l accepte ou non. La refuser ne l annule pas :
+  // elle laisse simplement la fiche vide, et le compteur ment dans l autre
+  // sens. C est exactement ce qui est arrive a la fiche d Agnes Brunet.
+  //
+  // LA REGLE : le plafond dit QUAND S ARRETER D ENVOYER. Il n a pas a
+  // interdire de consigner ce qui est deja parti. Un ecran qui refuse
+  // d enregistrer la realite fabrique des donnees fausses.
+  //
+  // ⚠️ NE PAS RETABLIR LE BLOCAGE. L avertissement suffit : il est visible,
+  // il rappelle le depassement, et il laisse Jacques juge.
+  const depasse = plafondJour || plafondSemaine;
+  const bloque = false;
   const trop = texte.length > LIMITE_NOTE;
 
   const ONGLETS = [
@@ -1474,11 +1501,11 @@ export default function PageLinkedin() {
               </p>
             )}
 
-            {bloque && (
-              <p style={{ color: "#e8836a", fontSize: "13px", lineHeight: "1.7", margin: "13px 0 0" }}>
+            {depasse && (
+              <p style={{ color: ORANGE, fontSize: "13px", lineHeight: "1.7", margin: "13px 0 0" }}>
                 {plafondJour
-                  ? "Plafond du jour atteint (" + compteurs.plafond_jour + "). Vous pouvez continuer à enregistrer des profils : ils vous attendront demain."
-                  : "Plafond de la semaine atteint (" + compteurs.plafond_semaine + "). Laissez passer quelques jours."}
+                  ? "Plafond du jour atteint (" + compteurs.plafond_jour + "). N'envoyez plus d'invitation aujourd'hui — mais si vous en avez déjà envoyé une depuis LinkedIn, marquez-la : une fiche non marquée fausse tous les comptes."
+                  : "Plafond de la semaine atteint (" + compteurs.plafond_semaine + "). Laissez passer quelques jours avant d'en envoyer d'autres."}
               </p>
             )}
           </div>
@@ -1595,9 +1622,11 @@ export default function PageLinkedin() {
                         ✓ Invité sans note
                       </button>
                     </div>
-                    {bloque && (
+                    {depasse && (
                       <p style={{ color: ORANGE, fontSize: "12.5px", lineHeight: "1.7", margin: "10px 0 0" }}>
-                        Plafond atteint — utilisez « Enregistrer seulement » ci-dessus.
+                        Plafond du jour atteint. Ces deux boutons restent actifs : si
+                        l'invitation est <strong>déjà partie</strong> depuis LinkedIn,
+                        marquez-la. Sinon, utilisez « Enregistrer seulement » ci-dessus.
                       </p>
                     )}
                   </div>
