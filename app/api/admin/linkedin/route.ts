@@ -214,9 +214,24 @@ const COLONNES_PROSPECTS =
   "id, raison_sociale, ville, code_postal, siren, dirigeant_prenom, dirigeant_nom, " +
   "linkedin, email, telephone, site_web, linkedin_le, linkedin_relance_le, linkedin_statut, notes";
 
+// 🆕 campagne AJOUTEE LE 27/08.
+//
+// LE DEFAUT. Une fiche saisie a la main n avait aucun moyen de dire a
+// quelle campagne elle appartenait. Elle recevait donc TOUJOURS le message
+// des organismes de formation — y compris un expert-comptable trouve dans
+// les relations d un autre expert-comptable.
+//
+// Or c est precisement la maniere de prospecter : on ouvre le profil d un
+// contact accepte, on regarde ses relations, on y trouve ses confreres.
+// Sans cette colonne, chaque fiche ainsi trouvee recevait le mauvais
+// message.
+//
+// ⚠️ UNE FICHE SANS CAMPAGNE VAUT « academiapro » : c est le comportement
+// d avant, et les fiches deja creees le gardent.
 const COLONNES_CRM =
   "id, nom, organisme, ville, dirigeant_prenom, dirigeant_nom, " +
-  "linkedin, email, telephone, linkedin_le, linkedin_relance_le, linkedin_statut, notes";
+  "linkedin, email, telephone, linkedin_le, linkedin_relance_le, " +
+  "linkedin_statut, campagne, notes";
 
 function colonnesDe(cle: string): string {
   return cle === "manuel" ? COLONNES_CRM : COLONNES_PROSPECTS;
@@ -237,7 +252,7 @@ const MODIFIABLES_PROSPECTS = [
 const MODIFIABLES_CRM = [
   "nom", "organisme", "ville",
   "dirigeant_prenom", "dirigeant_nom",
-  "linkedin", "email", "telephone", "notes",
+  "linkedin", "email", "telephone", "campagne", "notes",
 ];
 
 function modifiablesDe(cle: string): string[] {
@@ -251,13 +266,23 @@ function modifiablesDe(cle: string): string[] {
 // l ecran de savoir s il s adresse a un organisme de formation ou a un
 // cabinet comptable — et donc quel message preparer.
 function uniformiser(l: any, cle: string) {
-  if (cle !== "manuel") return { ...l, base: cle };
+  // Une fiche de prospection tient sa campagne de sa base : cabinets pour
+  // Mr. Comptable, tout le reste pour AcadeMIA Pro. On la pose ici pour
+  // que l ecran n ait pas a la deduire.
+  if (cle !== "manuel") {
+    return {
+      ...l,
+      base: cle,
+      campagne: cle === "cabinets" ? "mrcomptable" : "academiapro",
+    };
+  }
   return {
     ...l,
     raison_sociale: l.organisme || l.nom || "-",
     code_postal: null,
     siren: null,
     site_web: null,
+    campagne: l.campagne || "academiapro",
     base: cle,
   };
 }
@@ -482,9 +507,16 @@ export async function POST(req: NextRequest) {
       const prenom = morceaux.length > 1 ? morceaux[0] : "";
       const patronyme = morceaux.length > 1 ? morceaux.slice(1).join(" ") : nom;
 
+      // La campagne decide du message d apres acceptation. Toute valeur
+      // autre que mrcomptable vaut academiapro : on ne cree pas de
+      // troisieme voix par accident.
+      const campagne = String(body.campagne || "").trim().toLowerCase()
+        === "mrcomptable" ? "mrcomptable" : "academiapro";
+
       const fiche: any = {
         tenant_id: null,
         nom: nom,
+        campagne: campagne,
         organisme: propre(body.organisme, 160) || null,
         ville: propre(body.ville, 80) || null,
         dirigeant_prenom: prenom || null,
