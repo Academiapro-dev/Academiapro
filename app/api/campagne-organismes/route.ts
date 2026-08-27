@@ -16,6 +16,28 @@ import crypto from "crypto";
 // PAS D IMAGE DANS CE MESSAGE — decision du 24/08. Un premier contact a
 // froid reste sobre : le rapport texte/image est un des signaux que pesent
 // les filtres, et la signature decoree est reservee a la deuxieme touche.
+//
+// ═══════════════════════════════════════════════════════════════════════
+// 🆕 LES VAGUES — 27/08.
+//
+// LE DEFAUT CORRIGE. La route lisait statut = 'enrichi' et le passait a
+// 'envoye'. Une ligne contactee sortait donc DEFINITIVEMENT du circuit :
+// aucun moyen de la reprendre plus tard, aucun moyen de savoir combien de
+// fois elle avait ete sollicitee.
+//
+// COMMENT CA MARCHE :
+//   vague_envoi = 0  jamais contacte
+//   vague_envoi = 1  a recu le premier message
+//   vague_envoi = 2  a recu le second
+//   nb_envois        le compte, qui borne tout
+//
+// ⚠️ LE PLAFOND EST DE DEUX ENVOIS. Au-dela, on n insiste pas.
+//
+// ⚠️ LE SECOND MESSAGE DOIT VRAIMENT DIRE AUTRE CHOSE. Le premier parle du
+// bilan pedagogique et financier ; le second parle de la demande qu on
+// refuse faute de la couvrir — la marque blanche prise par le manque a
+// gagner plutot que par la fonctionnalite.
+// ═══════════════════════════════════════════════════════════════════════
 
 export const maxDuration = 300;
 
@@ -29,11 +51,6 @@ const SITE = "https://academiapro.fr";
 // parametre. C est donc CETTE VALEUR qui decide du nombre d envois
 // quotidiens, et c est ici qu on la monte quand la chauffe le permet.
 //
-// Elle etait a 50 : un cron aurait vide la reserve entiere en une fois,
-// sur un domaine qui n avait jamais envoye avant le 13 aout. Un passage de
-// deux a cinquante messages est le signal exact d un domaine compromis, et
-// une reputation abimee ne se repare pas.
-//
 // PALIERS : 5 par jour, puis 10, 20, 50. Modifier ce chiffre suffit.
 //
 // 🚨 PASSAGE A 10 LE 25/08, ET LA MESURE QUI L AUTORISE.
@@ -46,6 +63,16 @@ const SITE = "https://academiapro.fr";
 // puis 20 puis 50 — et on ne monte que si les echecs sont restes a zero.
 // PALIER SUIVANT : 20, vers le 10/09, et seulement apres la meme mesure.
 const LOT_PAR_DEFAUT = 10;
+
+// LE NOMBRE MAXIMUM DE SOLLICITATIONS PAR PROSPECT.
+const PLAFOND_ENVOIS = 2;
+
+// LE DELAI MINIMUM ENTRE DEUX VAGUES, EN JOURS.
+//
+// 🚨 QUATRE-VINGT-DIX JOURS. Revenir trop tot vers quelqu un qui n a pas
+// repondu se lit comme de l insistance ; revenir trois mois plus tard se
+// lit comme une nouvelle prise de contact.
+const DELAI_ENTRE_VAGUES = 90;
 
 function clientAdmin() {
   return createClient(
@@ -64,21 +91,43 @@ function jetonDesinscription(email: string): string {
     .update(email.toLowerCase()).digest("hex").slice(0, 32);
 }
 
-function corpsMessage(o: any, nbFormations: number) {
+function salutationDe(o: any): string {
+  return o.dirigeant_nom
+    ? "Bonjour " + String(o.dirigeant_nom).trim() + ","
+    : "Bonjour,";
+}
+
+// Le pied de page, identique aux deux vagues : signature et desinscription.
+function habillage(o: any, texte: string): string {
   const jeton = jetonDesinscription(String(o.email).toLowerCase());
   const lien = SITE + "/desinscription?email="
     + encodeURIComponent(String(o.email).toLowerCase())
     + "&jeton=" + jeton;
 
-  const salutation = o.dirigeant_nom
-    ? "Bonjour " + String(o.dirigeant_nom).trim() + ","
-    : "Bonjour,";
+  const signature =
+    "<br/><br/>"
+    + "<p style=\"margin:0;line-height:1.5\">"
+    + "Jacques Lalou<br/>"
+    + "Fondateur — AcadéMIA Pro<br/>"
+    + "<a href=\"" + SITE + "\" style=\"color:#8a6d3b\">academiapro.fr</a>"
+    + "</p>";
 
-  // LE CORPS S ARRETE AVANT LA SIGNATURE : celle-ci est construite en HTML
-  // plus bas, pour que l adresse du site soit cliquable. Un prospect ne
-  // recopie pas une adresse a la main.
+  return texte.replace(/\n/g, "<br/>")
+    + signature
+    + "<br/><hr/>"
+    + "<p style=\"font-size:12px;color:#888\">"
+    + "Ce message vous est adressé dans le cadre de votre activité "
+    + "professionnelle d'organisme de formation. "
+    + "<a href=\"" + lien + "\">Ne plus recevoir de messages</a>."
+    + "</p>";
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// PREMIERE VAGUE — LE BILAN PEDAGOGIQUE ET FINANCIER.
+// ─────────────────────────────────────────────────────────────────────
+function messagePremiereVague(o: any, nbFormations: number): string {
   const texte =
-    salutation + "\n\n"
+    salutationDe(o) + "\n\n"
     + "Je m'appelle Jacques Lalou, je dirige AcadéMIA Pro.\n\n"
     + "Vous êtes certifié Qualiopi. Vous savez donc que le bilan "
     + "pédagogique et financier n'est pas une formalité de fin d'année : "
@@ -95,24 +144,56 @@ function corpsMessage(o: any, nbFormations: number) {
     + "Si le sujet vous parle, répondez-moi simplement : je vous montre en "
     + "quinze minutes ce que ça donne sur un dossier réel.";
 
-  const signature =
-    "<br/><br/>"
-    + "<p style=\"margin:0;line-height:1.5\">"
-    + "Jacques Lalou<br/>"
-    + "Fondateur — AcadéMIA Pro<br/>"
-    + "<a href=\"" + SITE + "\" style=\"color:#8a6d3b\">academiapro.fr</a>"
-    + "</p>";
+  return habillage(o, texte);
+}
 
-  const html = texte.replace(/\n/g, "<br/>")
-    + signature
-    + "<br/><hr/>"
-    + "<p style=\"font-size:12px;color:#888\">"
-    + "Ce message vous est adressé dans le cadre de votre activité "
-    + "professionnelle d'organisme de formation. "
-    + "<a href=\"" + lien + "\">Ne plus recevoir de messages</a>."
-    + "</p>";
+// ─────────────────────────────────────────────────────────────────────
+// SECONDE VAGUE — LA DEMANDE QU ON REFUSE.
+//
+// L ANGLE, ET POURQUOI IL EST DIFFERENT. La premiere vague parle d une
+// obligation administrative. Celle-ci parle d un manque a gagner : un
+// client demande une formation hors du domaine de l organisme, il dit non,
+// le client va ailleurs — et n en revient pas toujours.
+//
+// C est la marque blanche, prise par la perte plutot que par la
+// fonctionnalite.
+//
+// ⚠️ LE SUJET EST TOUJOURS L ORGANISME CLIENT, JAMAIS L EDITEUR.
+// ⚠️ AUCUNE statistique inventee, AUCUN temoignage, AUCUN concurrent nomme.
+// ⚠️ « le catalogue de l Editeur est evolutif » est la SEULE formule
+// autorisee : il n existe aucune production sur demande.
+// ─────────────────────────────────────────────────────────────────────
+function messageSecondeVague(o: any, nbFormations: number): string {
+  const texte =
+    salutationDe(o) + "\n\n"
+    + "Je vous avais écrit il y a quelques mois au sujet d'AcadéMIA Pro. "
+    + "Je reviens vers vous sur un autre sujet.\n\n"
+    + "Un client vous appelle pour une formation qui n'est pas dans votre "
+    + "domaine. Vous connaissez la suite : vous dites non, il cherche "
+    + "ailleurs, il trouve — et il ne revient pas toujours vers vous pour "
+    + "le reste.\n\n"
+    + "C'est ce que nous proposons de changer. Le catalogue de l'Éditeur "
+    + "compte " + nbFormations + " formations que vous pouvez porter sous "
+    + "votre propre marque : votre nom, vos couleurs, vos tarifs. Le "
+    + "stagiaire ne voit que vous, l'attestation de fin de formation porte "
+    + "votre signature, et la relation client reste la vôtre.\n\n"
+    + "Vous répondez oui sans rien avoir à produire, et sans faire sortir "
+    + "votre client de chez vous.\n\n"
+    + "Si le sujet vous parle, répondez-moi simplement : je vous montre en "
+    + "quinze minutes ce que ça donne sur un cas réel.";
 
-  return html;
+  return habillage(o, texte);
+}
+
+const SUJETS: any = {
+  1: "Votre BPF de l'an prochain se prepare cette annee",
+  2: "La demande que vous avez du refuser le mois dernier",
+};
+
+function messageDe(o: any, vague: number, nbFormations: number): string {
+  return vague === 2
+    ? messageSecondeVague(o, nbFormations)
+    : messagePremiereVague(o, nbFormations);
 }
 
 async function envoyer(destinataire: string, sujet: string, html: string) {
@@ -138,6 +219,35 @@ async function envoyer(destinataire: string, sujet: string, html: string) {
   return { ok: r.ok, statut: r.status, reponse: data };
 }
 
+function dateLimiteVagueDeux(): string {
+  return new Date(Date.now() - DELAI_ENTRE_VAGUES * 86400000).toISOString();
+}
+
+// LE FILTRE, SELON LA VAGUE. Voir le commentaire de la campagne cabinets :
+// la mecanique est identique, seule la table change.
+//
+// ⚠️ prospects_organismes N A PAS de colonne « vague » (lot d importation).
+// Elle a en revanche vague_envoi et nb_envois depuis le 27/08.
+function appliquerFiltre(q: any, vague: number): any {
+  let sortie = q
+    .eq("desabonne", false)
+    .not("email", "is", null)
+    .lt("nb_envois", PLAFOND_ENVOIS);
+
+  if (vague === 2) {
+    sortie = sortie
+      .eq("vague_envoi", 1)
+      .eq("statut", "envoye")
+      .lt("envoye_le", dateLimiteVagueDeux());
+  } else {
+    sortie = sortie
+      .eq("statut", "enrichi")
+      .eq("vague_envoi", 0);
+  }
+
+  return sortie;
+}
+
 export async function GET(req: NextRequest) {
   const secret = req.nextUrl.searchParams.get("secret")
     || req.headers.get("authorization")?.replace("Bearer ", "");
@@ -154,8 +264,9 @@ export async function GET(req: NextRequest) {
 
   const supabase = clientAdmin();
 
-  const demande = Number(req.nextUrl.searchParams.get("lot") || LOT_PAR_DEFAUT);
-  const lot = demande > 0 && demande <= 500 ? demande : LOT_PAR_DEFAUT;
+  // LA VAGUE. Par defaut 1 : le cron quotidien reste sur la premiere.
+  const vagueDemandee = Number(req.nextUrl.searchParams.get("vague") || 1);
+  const vague = vagueDemandee === 2 ? 2 : 1;
 
   // 🚨 24/08 — LE COMPTAGE ANNONCAIT 580 FORMATIONS AU LIEU DE 560.
   //
@@ -164,21 +275,64 @@ export async function GET(req: NextRequest) {
   // et ne figurent nulle part au catalogue. Compter toutes les lignes
   // actives annoncait donc 580 a chaque prospect, alors que le site en
   // montre 560 : un destinataire qui verifie voit l ecart.
-  //
-  // On exclut le domaine « Ateliers ». Le chiffre reste calcule en base et
-  // suivra les prochaines vagues de fiches, sans qu on ait a y toucher.
   const { count: nbFormations } = await supabase
     .from("formations")
     .select("code", { count: "exact", head: true })
     .eq("actif", true)
     .neq("domaine", "Ateliers");
 
-  const { data: cibles, error: errLecture } = await supabase
-    .from("prospects_organismes")
-    .select("id, email, raison_sociale, dirigeant_nom")
-    .eq("statut", "enrichi")
-    .eq("desabonne", false)
-    .not("email", "is", null)
+  // MODE MESURE : ?compter=1 ne lit que la reserve et n envoie RIEN.
+  if (req.nextUrl.searchParams.get("compter") === "1") {
+    const { count: total } = await supabase
+      .from("prospects_organismes")
+      .select("id", { count: "exact", head: true });
+
+    const { count: vague1 } = await appliquerFiltre(
+      supabase.from("prospects_organismes")
+        .select("id", { count: "exact", head: true }), 1);
+
+    const { count: vague2 } = await appliquerFiltre(
+      supabase.from("prospects_organismes")
+        .select("id", { count: "exact", head: true }), 2);
+
+    const { count: enAttente } = await supabase
+      .from("prospects_organismes")
+      .select("id", { count: "exact", head: true })
+      .eq("vague_envoi", 1)
+      .eq("desabonne", false)
+      .gte("envoye_le", dateLimiteVagueDeux());
+
+    const { count: epuises } = await supabase
+      .from("prospects_organismes")
+      .select("id", { count: "exact", head: true })
+      .gte("nb_envois", PLAFOND_ENVOIS);
+
+    const { count: desabonnes } = await supabase
+      .from("prospects_organismes")
+      .select("id", { count: "exact", head: true })
+      .eq("desabonne", true);
+
+    return NextResponse.json({
+      mode: "mesure, aucun envoi",
+      total_organismes: total || 0,
+      formations_annoncees: nbFormations || 0,
+      premiere_vague_a_faire: vague1 || 0,
+      seconde_vague_a_faire: vague2 || 0,
+      seconde_vague_en_attente_du_delai: enAttente || 0,
+      delai_entre_vagues_jours: DELAI_ENTRE_VAGUES,
+      plafond_atteint: epuises || 0,
+      desabonnes: desabonnes || 0,
+    });
+  }
+
+  const demande = Number(req.nextUrl.searchParams.get("lot") || LOT_PAR_DEFAUT);
+  const lot = demande > 0 && demande <= 500 ? demande : LOT_PAR_DEFAUT;
+
+  const { data: cibles, error: errLecture } = await appliquerFiltre(
+    supabase
+      .from("prospects_organismes")
+      .select("id, email, raison_sociale, dirigeant_nom, nb_envois"),
+    vague)
     .order("id", { ascending: true })
     .limit(lot);
 
@@ -188,7 +342,10 @@ export async function GET(req: NextRequest) {
   }
 
   if (!cibles || cibles.length === 0) {
-    return NextResponse.json({ info: "aucun organisme a contacter" });
+    return NextResponse.json({
+      info: "aucun organisme a contacter en vague " + vague,
+      vague: vague,
+    });
   }
 
   let envoyes = 0;
@@ -199,22 +356,24 @@ export async function GET(req: NextRequest) {
     // MARQUAGE AVANT ENVOI. Si la suite echoue, la ligne porte deja un
     // statut qui l exclut des prochaines lectures : mieux vaut un envoi
     // manque qu un envoi double.
+    //
+    // ⚠️ LA CONDITION SUR LE STATUT EST CELLE DE LA VAGUE. En vague 2, la
+    // ligne est en 'envoye' et non en 'enrichi'.
+    const statutAttendu = vague === 2 ? "envoye" : "enrichi";
+
     const { error: errMarque } = await supabase
       .from("prospects_organismes")
       .update({ statut: "envoi_en_cours" })
       .eq("id", o.id)
-      .eq("statut", "enrichi");
+      .eq("statut", statutAttendu);
 
     if (errMarque) {
       echecs++;
       continue;
     }
 
-    const html = corpsMessage(o, nbFormations || 0);
-    const res = await envoyer(
-      String(o.email),
-      "Votre BPF de l'an prochain se prépare cette année",
-      html);
+    const html = messageDe(o, vague, nbFormations || 0);
+    const res = await envoyer(String(o.email), SUJETS[vague], html);
 
     if (res.ok) {
       envoyes++;
@@ -223,6 +382,8 @@ export async function GET(req: NextRequest) {
         .update({
           statut: "envoye",
           envoye_le: new Date().toISOString(),
+          vague_envoi: vague,
+          nb_envois: (Number(o.nb_envois) || 0) + 1,
           motif_echec: null,
         })
         .eq("id", o.id);
@@ -245,14 +406,12 @@ export async function GET(req: NextRequest) {
     await pause(2000);
   }
 
-  const { count: restant } = await supabase
-    .from("prospects_organismes")
-    .select("id", { count: "exact", head: true })
-    .eq("statut", "enrichi")
-    .eq("desabonne", false)
-    .not("email", "is", null);
+  const { count: restant } = await appliquerFiltre(
+    supabase.from("prospects_organismes")
+      .select("id", { count: "exact", head: true }), vague);
 
   return NextResponse.json({
+    vague: vague,
     envoyes: envoyes,
     echecs: echecs,
     formations_annoncees: nbFormations || 0,
