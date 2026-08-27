@@ -144,6 +144,88 @@ async function compterStatuts(statuts: string[]): Promise<number> {
   return total;
 }
 
+// \ud83c\udd95 LE MEME COMPTE, MAIS POUR UNE SEULE CAMPAGNE — 27/08.
+//
+// LE BESOIN. Le taux d acceptation affiche melangeait les deux campagnes.
+// Tant qu il n y avait qu AcadeMIA Pro, le chiffre disait quelque chose ;
+// depuis que Mr. Comptable prospecte aussi, il ne dit plus rien : un bon
+// taux d un cote peut masquer un mauvais de l autre.
+//
+// COMMENT LA CAMPAGNE SE DEDUIT :
+//   - table « cabinets »  -> mrcomptable
+//   - les quatre autres   -> academiapro
+//   - table « manuel »    -> la colonne campagne de chaque fiche
+//
+// \u26a0\ufe0f LE PLAFOND, LUI, RESTE GLOBAL. Les invitations partent d un
+// seul compte LinkedIn : vingt par jour au TOTAL. Separer les compteurs
+// d acceptation ne separe pas le quota.
+async function compterStatutsCampagne(statuts: string[],
+  campagne: string): Promise<number> {
+
+  let total = 0;
+
+  for (const cle of Object.keys(TABLES)) {
+    if (cle === "manuel") continue;
+    const laCampagne = cle === "cabinets" ? "mrcomptable" : "academiapro";
+    if (laCampagne !== campagne) continue;
+
+    const { count } = await supabase
+      .from(TABLES[cle])
+      .select("id", { count: "exact", head: true })
+      .in("linkedin_statut", statuts);
+    total += count || 0;
+  }
+
+  // Les fiches saisies a la main : c est leur colonne campagne qui
+  // tranche. Une fiche sans campagne vaut « academiapro », comme partout.
+  let q = supabase
+    .from("crm")
+    .select("id", { count: "exact", head: true })
+    .is("tenant_id", null)
+    .in("linkedin_statut", statuts);
+
+  if (campagne === "mrcomptable") {
+    q = q.eq("campagne", "mrcomptable");
+  } else {
+    q = q.or("campagne.is.null,campagne.eq.academiapro");
+  }
+
+  const { count: manuelles } = await q;
+  total += manuelles || 0;
+
+  return total;
+}
+
+// Le bilan d une campagne : ses invitations, ses acceptations, son taux.
+async function bilanCampagne(campagne: string) {
+  const attente = await compterStatutsCampagne(["invite", "invite_nu"], campagne);
+  const acceptes = await compterStatutsCampagne(["accepte", "accepte_nu"], campagne);
+  const relances = await compterStatutsCampagne(["relance"], campagne);
+  const refuses = await compterStatutsCampagne(["refuse"], campagne);
+  const ecartes = await compterStatutsCampagne(["ecarte"], campagne);
+
+  // Une fiche relancee a forcement accepte : sans quoi le travail
+  // accompli ferait BAISSER le chiffre au lieu de le monter.
+  const acceptations = acceptes + relances;
+
+  // Le taux se calcule sur ceux qui ONT REPONDU, pas sur les invites :
+  // une invitation sans reponse n est ni un succes ni un echec, elle
+  // n a simplement pas encore ete vue.
+  const repondu = acceptations + refuses;
+
+  return {
+    campagne: campagne,
+    en_attente: attente,
+    acceptes: acceptations,
+    a_ecrire: acceptes,
+    messages_envoyes: relances,
+    refuses: refuses,
+    ecartes: ecartes,
+    invitations: attente + acceptations + refuses,
+    taux: repondu > 0 ? Math.round((acceptations / repondu) * 100) : null,
+  };
+}
+
 // Les fiches manuelles enregistrees sans invitation, en attente d etre
 // invitees. Elles vivent dans la table crm, sans date ni statut.
 async function compterEnFile(): Promise<number> {
@@ -184,6 +266,12 @@ async function compteurs() {
   // chiffre au lieu de le monter.
   const acceptees = accepte_note + accepte_nu + relances;
 
+  // Le bilan de chaque campagne, cote a cote. C est ce qui permet de
+  // savoir laquelle des deux merite qu on lui donne plus de place dans
+  // les vingt invitations quotidiennes.
+  const academia = await bilanCampagne("academiapro");
+  const comptable = await bilanCampagne("mrcomptable");
+
   return {
     jour, semaine,
     en_attente: attente_note + attente_nu,
@@ -194,6 +282,7 @@ async function compteurs() {
     relances, refuses, ecartes,
     en_file,
     formations,
+    campagnes: { academiapro: academia, mrcomptable: comptable },
     taux_note: taux(accepte_note, 0) === null ? null : taux(accepte_note + relances * 0, refuses),
     taux_global: taux(acceptees, refuses),
     plafond_jour: PLAFOND_JOUR,
