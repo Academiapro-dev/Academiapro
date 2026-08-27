@@ -1537,6 +1537,72 @@ export default function PageLinkedin() {
               compte, organismes et cabinets confondus.
             </p>
 
+            {/* \ud83c\udd95 LE BILAN DE CHAQUE CAMPAGNE, COTE A COTE — 27/08.
+
+                LE BESOIN. Le taux d'acceptation global melangeait les deux
+                campagnes. Tant qu'il n'y avait qu'AcadeMIA Pro, le chiffre
+                disait quelque chose ; depuis que Mr. Comptable prospecte
+                aussi, un bon taux d'un cote peut masquer un mauvais de
+                l'autre.
+
+                \u26a0\ufe0f LE TAUX SE CALCULE SUR CEUX QUI ONT REPONDU, pas
+                sur les invites. Une invitation sans reponse n'est ni un
+                succes ni un echec : elle n'a pas encore ete vue. Les
+                premiers jours, le taux est donc peu significatif. */}
+            {compteurs.campagnes && (
+              <div style={{ display: "flex", gap: "12px", flexWrap: "wrap",
+                marginTop: "16px", paddingTop: "16px",
+                borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+                {[
+                  { cle: "academiapro", nom: "AcadéMIA Pro", couleur: OR },
+                  { cle: "mrcomptable", nom: "Mr. Comptable", couleur: COMPTABLE },
+                ].map(function (c: any) {
+                  const b = compteurs.campagnes[c.cle];
+                  if (!b) return null;
+                  return (
+                    <div key={c.cle} style={{
+                      flex: "1 1 240px", padding: "13px 15px",
+                      borderRadius: "10px",
+                      background: "rgba(255,255,255,0.03)",
+                      border: "1px solid " + c.couleur + "44",
+                    }}>
+                      <div style={{ color: c.couleur, fontSize: "13px",
+                        fontWeight: "bold", marginBottom: "9px" }}>
+                        {c.nom}
+                      </div>
+                      <div style={{ display: "flex", gap: "16px",
+                        flexWrap: "wrap", alignItems: "baseline" }}>
+                        <div>
+                          <span style={{ color: "#fff", fontSize: "19px",
+                            fontWeight: "bold" }}>
+                            {b.taux === null ? "—" : b.taux + " %"}
+                          </span>
+                          <span style={{ color: "rgba(255,255,255,0.4)",
+                            fontSize: "11.5px", marginLeft: "6px" }}>
+                            d'acceptation
+                          </span>
+                        </div>
+                      </div>
+                      <div style={{ color: "rgba(255,255,255,0.5)",
+                        fontSize: "12.5px", lineHeight: "1.8",
+                        marginTop: "7px" }}>
+                        {nombre(b.invitations)} invitation(s) ·{" "}
+                        {nombre(b.acceptes)} acceptée(s) ·{" "}
+                        {nombre(b.en_attente)} sans réponse
+                        {b.refuses > 0 ? " · " + nombre(b.refuses) + " refus" : ""}
+                      </div>
+                      {b.a_ecrire > 0 && (
+                        <div style={{ color: VERT, fontSize: "12.5px",
+                          marginTop: "5px" }}>
+                          {nombre(b.a_ecrire)} message(s) à écrire
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
             {compteurs.en_file > 0 && (
               <p style={{ color: BLEU, fontSize: "13px", lineHeight: "1.7", margin: "10px 0 0" }}>
                 {nombre(compteurs.en_file)} profil(s) enregistré(s) en attente d'invitation.
