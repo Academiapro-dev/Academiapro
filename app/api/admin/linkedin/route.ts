@@ -631,10 +631,37 @@ export async function POST(req: NextRequest) {
       const nom = propre(body.nom, 120);
       const lien = propre(body.linkedin, 300);
 
+      // 🚨🚨 SIX MODES D ENREGISTREMENT DEPUIS LE 27/08.
+      //
+      // LE DEFAUT. Trois modes seulement, tous lies a l invitation : ranger,
+      // invite avec note, invite sans note. Or une relation ne commence pas
+      // toujours par une invitation.
+      //
+      // Eric, deja en relation, ayant deja repondu, avec un rendez-vous en
+      // cours, n entrait dans aucun des trois. Et le plafond du jour,
+      // atteint, empechait les deux seuls modes qui posaient un statut.
+      //
+      // LES SIX MODES :
+      //   file         range la fiche, sans invitation
+      //   invite       l invitation est partie, avec une note
+      //   invite_nu    l invitation est partie, sans note
+      //   accepte_nu   la relation existe deja
+      //   repondu      la personne a deja repondu
+      //   rendez_vous  un rendez-vous est cale
+      //
+      // ⚠️ SEULS invite ET invite_nu TOUCHENT AU QUOTA. Les trois derniers
+      // consignent une relation qui existe : aucune invitation n est
+      // envoyee, le plafond ne les concerne pas.
+      const MODES_QUOTA = ["invite", "invite_nu"];
+      const MODES_VALIDES = [
+        "file", "invite", "invite_nu",
+        "accepte_nu", "repondu", "rendez_vous",
+      ];
+
       // Compatibilite avec l ancien appel, qui envoyait avec_note.
       let mode = String(body.mode || "").trim();
       if (!mode) mode = body.avec_note === true ? "invite" : "invite_nu";
-      if (["file", "invite", "invite_nu"].indexOf(mode) < 0) {
+      if (MODES_VALIDES.indexOf(mode) < 0) {
         return NextResponse.json({ ok: false, erreur: "Mode d enregistrement inconnu." }, { status: 400 });
       }
 
@@ -669,7 +696,7 @@ export async function POST(req: NextRequest) {
       // Une fiche creee apres une invitation deja partie doit pouvoir
       // porter son statut, sans quoi elle entre dans la base sans trace.
       let avertirAjout: string | null = null;
-      if (mode !== "file") {
+      if (MODES_QUOTA.indexOf(mode) >= 0) {
         const c = await compteurs();
         if (c.reste_jour <= 0) {
           avertirAjout = "Plafond du jour depasse (" + PLAFOND_JOUR
@@ -701,9 +728,19 @@ export async function POST(req: NextRequest) {
         // tient la fiche hors de tous les compteurs.
         linkedin_statut: mode === "file" ? null : mode,
         linkedin_le: mode === "file" ? null : new Date().toISOString(),
+        // Un etat avance suppose qu un message est deja parti : sans cette
+        // date, la fiche apparaitrait comme jamais contactee.
+        linkedin_relance_le: (mode === "repondu" || mode === "rendez_vous")
+          ? new Date().toISOString() : null,
         source: "linkedin",
-        statut: mode === "file" ? "prospect" : "contacte",
-        score: mode === "file" ? 35 : 45,
+        statut: mode === "file" ? "prospect"
+          : (mode === "repondu" || mode === "rendez_vous") ? "interesse"
+          : "contacte",
+        score: mode === "file" ? 35
+          : mode === "rendez_vous" ? 75
+          : mode === "repondu" ? 65
+          : mode === "accepte_nu" ? 60
+          : 45,
         notes: propre(body.notes, 4000) ||
           "Profil trouve sur LinkedIn et ajoute a la main. Aucune adresse connue : " +
           "le joindre par la messagerie LinkedIn.",
@@ -720,10 +757,16 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ ok: false, erreur: error.message }, { status: 500 });
       }
 
-      const mot = mode === "file"
-        ? nom + " est enregistre, en attente d invitation. Aucune unite de quota consommee."
-        : nom + " est ajoute a votre file, " +
-          (mode === "invite" ? "invitation avec note" : "invitation sans note") + ".";
+      const MOTS: any = {
+        file: " est enregistre, en attente d invitation. Aucune unite de quota consommee.",
+        invite: " est ajoute a votre file, invitation avec note.",
+        invite_nu: " est ajoute a votre file, invitation sans note.",
+        accepte_nu: " est enregistre comme relation etablie. Son message l attend dans « A ecrire ».",
+        repondu: " est enregistre : il a deja repondu. Sa fiche est dans « Messages envoyes ».",
+        rendez_vous: " est enregistre, rendez-vous pris. Sa fiche est dans « Messages envoyes ».",
+      };
+
+      const mot = nom + (MOTS[mode] || " est enregistre.");
 
       // 🆕 LA FICHE COMPLETE EST RENVOYEE — 25/08.
       // Elle ne l etait pas : l ecran confirmait « enregistre » puis
