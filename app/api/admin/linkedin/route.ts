@@ -512,21 +512,53 @@ async function suivante(base: string) {
 
 // La cle de base est renvoyee avec chaque ligne — sans elle, l ecran ne
 // saurait pas dans quelle table ecrire au moment de marquer.
-async function lister(statuts: string[], limite: number, colonneTri?: string) {
+//
+// 🚨🚨 L ORDRE EST INVERSE POUR « MES INVITATIONS » — corrige le 28/08.
+//
+// LE DEFAUT. La liste affichait la plus ANCIENNE invitation en premier.
+// Or LinkedIn annonce « trois personnes ont accepte » sans dire
+// lesquelles : il faut donc les retrouver a la main. Et une acceptation
+// vient presque toujours d une invitation des derniers jours, jamais
+// d une invitation vieille de trois semaines.
+//
+// Resultat : les invitations d hier se trouvaient tout en bas, apres cent
+// trente autres. Jacques a eu trois acceptations qu il n a pas pu
+// retrouver.
+//
+// ⚠️ LES DEUX AUTRES ONGLETS GARDENT L ORDRE ANCIEN-VERS-RECENT, et c est
+// voulu :
+//   « A ecrire » — celui qui a accepte il y a une semaine attend depuis
+//     une semaine, il passe devant.
+//   « Messages envoyes » — celui dont le message attend une reponse depuis
+//     le plus longtemps est celui a relancer en premier.
+//
+// La regle : ON MET EN TETE CE QUI RECLAME UNE ACTION MAINTENANT. Pour les
+// invitations, c est la derniere partie ; pour les autres, la plus vieille
+// en attente.
+async function lister(statuts: string[], limite: number,
+  colonneTri?: string, plusRecentDabord?: boolean) {
+
   const tri = colonneTri || "linkedin_le";
+  const recent = plusRecentDabord === true;
   const lignes: any[] = [];
+
   for (const cle of Object.keys(TABLES)) {
     const { data } = await supabase
       .from(TABLES[cle])
       .select(colonnesDe(cle))
       .in("linkedin_statut", statuts)
-      .order(tri, { ascending: true })
+      .order(tri, { ascending: !recent })
       .limit(limite);
     for (const l of (data || [])) lignes.push(uniformiser(l, cle));
   }
+
+  // Le tri final remet les six tables dans un ordre unique : chacune a
+  // ete lue separement, et leurs listes se croisent.
   lignes.sort(function (a, b) {
-    return String(a[tri] || "").localeCompare(String(b[tri] || ""));
+    const comparaison = String(a[tri] || "").localeCompare(String(b[tri] || ""));
+    return recent ? -comparaison : comparaison;
   });
+
   return lignes.slice(0, limite);
 }
 
@@ -810,8 +842,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, ...r, compteurs: await compteurs() });
     }
 
+    // 🚨 LES PLUS RECENTES EN TETE. Voir le commentaire de lister() :
+    // une acceptation vient des derniers jours, pas de trois semaines.
     if (action === "en_attente") {
-      const lignes = await lister(EN_ATTENTE, LIMITE_LISTE);
+      const lignes = await lister(EN_ATTENTE, LIMITE_LISTE, "linkedin_le", true);
       return NextResponse.json({ ok: true, lignes, compteurs: await compteurs() });
     }
 
