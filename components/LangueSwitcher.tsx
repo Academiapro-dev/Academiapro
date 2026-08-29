@@ -3,17 +3,89 @@ import { useState, useEffect, createContext, useContext } from "react";
 
 export const LangueContext = createContext({ langue: "fr", setLangue: (l) => {} });
 
+// ---------------------------------------------------------------------------
+// 🚨🚨 SEIZE LANGUES DEPUIS LE 29/08 — LA LISTE ETAIT PLUS COURTE QUE LE
+// CATALOGUE.
+//
+// CE QUI A ETE MESURE CE JOUR-LA :
+//   - le selecteur proposait SIX langues (fr, en, es, pt, de, ar)
+//   - la route /api/traduire n en connaissait que QUATRE (en, es, ar, he)
+//   - les fiches de formation, elles, sont traduites en SIX langues dans
+//     formations_traductions (265 lignes chacune, 235 pour l hebreu)
+//   - l interface n avait que 641 lignes en anglais, 83 en espagnol,
+//     13 en hebreu, et RIEN en portugais, allemand ni arabe
+//
+// LE RESULTAT VISIBLE : un visiteur choisissait le portugais, voyait les
+// formations traduites et tous les menus en francais. Aucune erreur ne
+// remontait, parce que la route recevait une langue qu elle ne connaissait
+// pas et rendait le texte d origine.
+//
+// ⚠️ CETTE LISTE ET CELLE DE /api/traduire DOIVENT RESTER IDENTIQUES.
+// Une langue ajoutee ici mais absente la-bas s affichera en francais, sans
+// message d erreur. C est exactement le defaut qu on vient de corriger.
+//
+// COMMENT LA TRADUCTION SE REMPLIT : rien n est genere d avance. Chaque
+// texte est traduit LA PREMIERE FOIS qu un visiteur l affiche, puis range
+// en base. La fois suivante, il est lu depuis la memoire — aucun appel,
+// aucun cout. Pour amorcer une langue, il suffit de parcourir le site une
+// fois dans cette langue.
+//
+// L ORDRE N EST PAS ALPHABETIQUE. Les six premieres sont celles dont les
+// fiches de formation sont deja traduites : elles rendent une experience
+// complete des le premier clic. Les dix autres traduisent l interface mais
+// pas encore les fiches.
+// ---------------------------------------------------------------------------
+const LANGUES = [
+  // Les six langues completes : interface ET fiches de formation.
+  { code: "fr", label: "FR", drapeau: "🇫🇷", nom: "Français" },
+  { code: "en", label: "EN", drapeau: "🇬🇧", nom: "English" },
+  { code: "es", label: "ES", drapeau: "🇪🇸", nom: "Español" },
+  { code: "pt", label: "PT", drapeau: "🇧🇷", nom: "Português" },
+  { code: "de", label: "DE", drapeau: "🇩🇪", nom: "Deutsch" },
+  { code: "ar", label: "AR", drapeau: "🇸🇦", nom: "العربية" },
+  { code: "he", label: "HE", drapeau: "🇮🇱", nom: "עברית" },
+
+  // Les neuf autres : interface traduite a la demande.
+  { code: "it", label: "IT", drapeau: "🇮🇹", nom: "Italiano" },
+  { code: "nl", label: "NL", drapeau: "🇳🇱", nom: "Nederlands" },
+  { code: "ru", label: "RU", drapeau: "🇷🇺", nom: "Русский" },
+  { code: "zh", label: "ZH", drapeau: "🇨🇳", nom: "中文" },
+  { code: "ja", label: "JA", drapeau: "🇯🇵", nom: "日本語" },
+  { code: "ko", label: "KO", drapeau: "🇰🇷", nom: "한국어" },
+  { code: "tr", label: "TR", drapeau: "🇹🇷", nom: "Türkçe" },
+  { code: "pl", label: "PL", drapeau: "🇵🇱", nom: "Polski" },
+  { code: "el", label: "EL", drapeau: "🇬🇷", nom: "Ελληνικά" },
+];
+
+// Les langues qui s ecrivent de droite a gauche. La mise en page bascule
+// deja correctement — verifie le 29/08 sur l arabe : logo a droite, menu
+// inverse, boutons a gauche. On pose l attribut pour que ce soit explicite
+// plutot que laisse au navigateur.
+const DROITE_A_GAUCHE = ["ar", "he"];
+
 export function LangueProvider({ children }) {
   const [langue, setLangue] = useState("fr");
 
   useEffect(() => {
     const saved = localStorage.getItem("langue") || "fr";
     setLangue(saved);
+    appliquerSens(saved);
   }, []);
+
+  // Le sens d ecriture se pose sur la balise html, la ou le navigateur
+  // l attend. Sans cela, il le devine caractere par caractere : les mots
+  // s affichent bien, mais rien ne garantit la mise en page.
+  function appliquerSens(l) {
+    if (typeof document === "undefined") return;
+    const rtl = DROITE_A_GAUCHE.indexOf(l) >= 0;
+    document.documentElement.setAttribute("dir", rtl ? "rtl" : "ltr");
+    document.documentElement.setAttribute("lang", l);
+  }
 
   function changerLangue(l) {
     setLangue(l);
     localStorage.setItem("langue", l);
+    appliquerSens(l);
     // Espace blog : chaque langue majeure a sa propre URL
     // (SEO). On navigue au lieu de traduire a la volee.
     if (typeof window !== "undefined") {
@@ -46,15 +118,6 @@ export function LangueProvider({ children }) {
 export function useLangue() {
   return useContext(LangueContext);
 }
-
-const LANGUES = [
-  { code: "fr", label: "FR", drapeau: "🇫🇷", nom: "Français" },
-  { code: "en", label: "EN", drapeau: "🇬🇧", nom: "English" },
-  { code: "es", label: "ES", drapeau: "🇪🇸", nom: "Español" },
-  { code: "pt", label: "PT", drapeau: "🇧🇷", nom: "Português" },
-  { code: "de", label: "DE", drapeau: "🇩🇪", nom: "Deutsch" },
-  { code: "ar", label: "AR", drapeau: "🇸🇦", nom: "العربية" },
-];
 
 export default function LangueSwitcher() {
   const { langue, setLangue } = useLangue();
