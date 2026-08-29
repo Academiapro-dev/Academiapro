@@ -2499,6 +2499,35 @@ export default function PageLinkedin() {
 
                         {blocFiche(l)}
 
+                        {/* 🆕 LE RETOUR EN ARRIERE — 28/08.
+
+                            LE DEFAUT. Une fiche marquee « a accepte » par
+                            erreur ne pouvait plus revenir a son etat
+                            precedent : les seuls boutons disponibles la
+                            faisaient AVANCER dans le parcours.
+
+                            ⚠️ LA DATE D INVITATION EST CONSERVEE. Revenir
+                            en arriere ne consomme aucun quota et ne
+                            reecrit pas la date d origine. */}
+                        {onglet === "relancer" && (
+                          <div style={{ marginTop: "10px" }}>
+                            <button
+                              onClick={() => marquer(l, "invite_nu")}
+                              style={{
+                                background: "transparent",
+                                border: "none",
+                                color: "rgba(255,255,255,0.4)",
+                                fontSize: "12.5px",
+                                fontFamily: "Georgia,serif",
+                                cursor: "pointer",
+                                padding: "4px 0",
+                                textDecoration: "underline",
+                              }}>
+                              Marqué par erreur ? Remettre en attente
+                            </button>
+                          </div>
+                        )}
+
                         {!active ? (
                           <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "12px" }}>
                             <button
@@ -2513,6 +2542,14 @@ export default function PageLinkedin() {
                               <button onClick={() => marquer(l, "refuse")} disabled={false}
                                 style={{ ...BOUTON, flex: "1 1 130px", fontSize: "13px", color: "rgba(255,255,255,0.45)", borderColor: "rgba(255,255,255,0.15)" }}>
                                 Sans suite
+                              </button>
+                            )}
+                            {/* Le retour en arriere : la fiche revient dans
+                                « A ecrire » avec sa date d origine. */}
+                            {onglet === "envoyes" && (
+                              <button onClick={() => marquer(l, "accepte_nu")}
+                                style={{ ...BOUTON, flex: "1 1 150px", fontSize: "13px", color: "rgba(255,255,255,0.35)", borderColor: "rgba(255,255,255,0.12)" }}>
+                                Message pas parti
                               </button>
                             )}
                           </div>
