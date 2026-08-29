@@ -911,10 +911,50 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // La date d envoi initial est CONSERVEE quand on marque une reponse.
+    // 🚨🚨 LA DATE NE SE REECRIT JAMAIS SI ELLE EXISTE — corrige le 28/08.
+    //
+    // LE DEFAUT, ET IL FAUSSAIT LE QUOTA. Marquer « invite sans note » une
+    // fiche dont l invitation etait partie LA VEILLE posait la date
+    // d aujourd hui. La fiche entrait donc dans le compteur du jour et
+    // consommait une des vingt invitations — alors qu aucune n avait ete
+    // envoyee aujourd hui.
+    //
+    // Ses mots : « ce qui enleve sur mon decompte de la journee ».
+    //
+    // LA REGLE : la date dit QUAND L INVITATION EST PARTIE, pas quand on
+    // l a consignee. On ne la pose que si elle est absente.
+    //
+    // ⚠️ ELLE EST DONC AUSSI CONSERVEE QUAND ON REVIENT EN ARRIERE. Une
+    // fiche marquee « accepte » par erreur, puis remise en « invite_nu »,
+    // garde la date de son invitation d origine.
     const champs: any = { linkedin_statut: statut };
-    if (statut === "invite" || statut === "invite_nu" || statut === "ecarte") {
-      champs.linkedin_le = new Date().toISOString();
+
+    const poseDate = (statut === "invite" || statut === "invite_nu"
+      || statut === "ecarte");
+
+    if (poseDate) {
+      // On lit la date existante AVANT d ecrire : si elle est deja la,
+      // on n y touche pas.
+      const { data: actuelle } = await supabase
+        .from(table)
+        .select("linkedin_le")
+        .eq("id", id)
+        .maybeSingle();
+
+      if (!actuelle || !actuelle.linkedin_le) {
+        champs.linkedin_le = new Date().toISOString();
+      }
+    }
+
+    // 🆕 UNE DATE PEUT ETRE IMPOSEE — 28/08.
+    //
+    // Utile quand une invitation est partie il y a plusieurs jours et
+    // qu on la consigne seulement maintenant. Format AAAA-MM-JJ.
+    if (body.date_invitation) {
+      const d = String(body.date_invitation).slice(0, 10);
+      if (/^\d{4}-\d{2}-\d{2}$/.test(d)) {
+        champs.linkedin_le = new Date(d + "T12:00:00Z").toISOString();
+      }
     }
 
     // La date du message, distincte de celle de l invitation. Sans elle, on
