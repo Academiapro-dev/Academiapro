@@ -16,16 +16,33 @@ import { NextRequest, NextResponse } from "next/server";
 export const maxDuration = 300;
 
 // Les pages entreprise, par marque.
+//
+// 🆕 HEBREWPRO AJOUTE — 30/08/2026. C est ainsi que fonctionne la
+// « signature automatique » que Jacques cherchait : elle n existe pas
+// dans LinkedIn, elle est ICI. Toute marque declaree dans ces deux
+// tables voit son logo joint a chaque post.
+//
+// ⚠️ DEUX TABLES A TENIR ENSEMBLE. Une marque presente dans PAGES mais
+// absente de LOGOS publierait avec le logo d AcadeMIA — et une marque
+// absente des deux publierait SUR LA PAGE D ACADEMIA, ce qui serait
+// pire. Ajouter une marque, c est ajouter DEUX lignes.
 const PAGES: Record<string, string> = {
   academiapro: "136105744",
   mrcomptable: "137943950",
+  hebrewpro: "136175562",
 };
 
 // L image jointe par defaut, par marque : le logo. Un post qui ne porte
 // aucune image propre prend celle-ci.
+//
+// ⚠️ L ADRESSE DOIT ETRE PUBLIQUE. LinkedIn ne recoit pas le fichier :
+// cette route va le chercher elle-meme a cette adresse, puis en depose
+// les octets. Un lien prive ou protege ferait echouer le televersement,
+// et le post partirait sans image.
 const LOGOS: Record<string, string> = {
   academiapro: "https://academiapro.fr/IMG_4100.jpeg",
   mrcomptable: "https://academiapro.fr/IMG_4158.jpeg",
+  hebrewpro: "https://hebrewproai.com/IMG_4626.jpeg",
 };
 
 function clientAdmin() {
