@@ -1,6 +1,24 @@
 "use client";
 import { useState, useEffect } from "react";
 
+// ---------------------------------------------------------------------------
+// SEIZE LANGUES DEPUIS LE 30/08 — LE TROISIEME ENDROIT.
+//
+// CE QUI A ETE MESURE. Apres la correction de NavBar et de /api/traduire
+// le 29/08, les neuf nouvelles langues restaient en francais. La cause
+// etait ICI : cette page porte SON PROPRE objet T, ecrit en dur, qui ne
+// contenait que sept langues. Sa fonction t() retombe sur le francais pour
+// toute langue absente — sans erreur, comme toujours.
+//
+// C est le TROISIEME endroit qui declare une liste de langues, apres
+// LangueSwitcher et NavBar. QUATRE LISTES DOIVENT DESORMAIS RESTER
+// ALIGNEES : l objet T de NavBar, le selecteur de NavBar, LANGUES dans
+// /api/traduire, et l objet T ci-dessous.
+//
+// ⚠️ AVANT DE CONCLURE QU UNE LANGUE NE MARCHE PAS, CHERCHER S IL EXISTE
+// UN ENIEME OBJET T DANS UNE AUTRE PAGE. Il y en avait un deuxieme, puis
+// un troisieme.
+// ---------------------------------------------------------------------------
 const T = {
   fr: {
     hero_titre: "Formez-vous avec votre agent IA personnel",
@@ -83,6 +101,105 @@ const T = {
     voir_formation: "צפה בקורס", voir_tout: "צפה בכל {NB} הקורסים", nos_formations: "הקורסים המובילים שלנו",
     nos_formations_sub: "תעודת AcadémIA Pro · זכות ביטול 14 יום",
     badge_carte: "תעודת AcadeMIA",
+  },
+  it: {
+    hero_titre: "Formati con il tuo agente IA personale",
+    hero_sub: "{NB} corsi con certificato AcadeMIA Pro · Agente IA 24h/24 · Sessioni di accompagnamento",
+    btn_formations: "Vedi i corsi", btn_ebook: "E-book gratuito", btn_demarrer: "Inizia",
+    stat1: "Corsi", stat2: "Competenze convalidate", stat3: "Guide IA", stat4: "Diritto di recesso",
+    nav_formations: "Corsi", nav_séances: "Sessioni", nav_packs: "Pacchetti", nav_competences: "Competenze", nav_blog: "Blog", nav_contact: "Contatti",
+    footer_desc: "La piattaforma di formazione basata sull'IA. {NB} corsi con certificato AcadeMIA Pro.",
+    voir_formation: "Vedi il corso", voir_tout: "Vedi tutti i {NB} corsi", nos_formations: "I nostri corsi in evidenza",
+    nos_formations_sub: "Certificato AcadeMIA Pro · Recesso entro 14 giorni",
+    badge_carte: "Certificato AcadeMIA",
+  },
+  nl: {
+    hero_titre: "Leer met uw persoonlijke AI-agent",
+    hero_sub: "{NB} cursussen met AcadeMIA Pro certificaat · AI-agent 24/7 · Begeleidingssessies",
+    btn_formations: "Bekijk cursussen", btn_ebook: "Gratis e-book", btn_demarrer: "Beginnen",
+    stat1: "Cursussen", stat2: "Gevalideerde vaardigheden", stat3: "AI-begeleiders", stat4: "Herroepingsrecht",
+    nav_formations: "Cursussen", nav_séances: "Sessies", nav_packs: "Pakketten", nav_competences: "Vaardigheden", nav_blog: "Blog", nav_contact: "Contact",
+    footer_desc: "Het opleidingsplatform aangedreven door AI. {NB} cursussen met AcadeMIA Pro certificaat.",
+    voir_formation: "Bekijk de cursus", voir_tout: "Bekijk alle {NB} cursussen", nos_formations: "Onze topcursussen",
+    nos_formations_sub: "AcadeMIA Pro certificaat · 14 dagen herroepingsrecht",
+    badge_carte: "AcadeMIA certificaat",
+  },
+  ru: {
+    hero_titre: "Учитесь с вашим персональным ИИ-агентом",
+    hero_sub: "{NB} курсов с сертификатом AcadeMIA Pro · ИИ-агент 24/7 · Сопровождающие занятия",
+    btn_formations: "Смотреть курсы", btn_ebook: "Бесплатная книга", btn_demarrer: "Начать",
+    stat1: "Курсы", stat2: "Подтверждённые навыки", stat3: "ИИ-наставники", stat4: "Право на возврат",
+    nav_formations: "Курсы", nav_séances: "Занятия", nav_packs: "Пакеты", nav_competences: "Навыки", nav_blog: "Блог", nav_contact: "Контакты",
+    footer_desc: "Платформа обучения на основе ИИ. {NB} курсов с сертификатом AcadeMIA Pro.",
+    voir_formation: "Смотреть курс", voir_tout: "Смотреть все {NB} курсов", nos_formations: "Наши ведущие курсы",
+    nos_formations_sub: "Сертификат AcadeMIA Pro · Возврат в течение 14 дней",
+    badge_carte: "Сертификат AcadeMIA",
+  },
+  zh: {
+    hero_titre: "与您的专属AI导师一起学习",
+    hero_sub: "{NB} 门课程，附AcadeMIA Pro证书 · AI导师全天候在线 · 辅导课程",
+    btn_formations: "查看课程", btn_ebook: "免费电子书", btn_demarrer: "开始",
+    stat1: "课程", stat2: "已验证技能", stat3: "AI导师", stat4: "退款期限",
+    nav_formations: "课程", nav_séances: "辅导课", nav_packs: "套餐", nav_competences: "技能", nav_blog: "博客", nav_contact: "联系我们",
+    footer_desc: "AI驱动的培训平台。{NB} 门课程，附AcadeMIA Pro证书。",
+    voir_formation: "查看课程", voir_tout: "查看全部 {NB} 门课程", nos_formations: "精选课程",
+    nos_formations_sub: "AcadeMIA Pro证书 · 14天退款保障",
+    badge_carte: "AcadeMIA证书",
+  },
+  ja: {
+    hero_titre: "あなた専属のAIエージェントと学ぶ",
+    hero_sub: "{NB} コース、AcadeMIA Pro修了証付き · AIエージェント24時間対応 · 伴走セッション",
+    btn_formations: "コースを見る", btn_ebook: "無料電子書籍", btn_demarrer: "はじめる",
+    stat1: "コース", stat2: "認定スキル", stat3: "AIガイド", stat4: "返金期間",
+    nav_formations: "コース", nav_séances: "セッション", nav_packs: "パック", nav_competences: "スキル", nav_blog: "ブログ", nav_contact: "お問い合わせ",
+    footer_desc: "AIを活用した研修プラットフォーム。{NB} コース、AcadeMIA Pro修了証付き。",
+    voir_formation: "コースを見る", voir_tout: "全 {NB} コースを見る", nos_formations: "注目のコース",
+    nos_formations_sub: "AcadeMIA Pro修了証 · 14日間の返金保証",
+    badge_carte: "AcadeMIA修了証",
+  },
+  ko: {
+    hero_titre: "나만의 AI 에이전트와 함께 배우세요",
+    hero_sub: "AcadeMIA Pro 수료증이 있는 {NB}개 강좌 · AI 에이전트 연중무휴 · 동반 세션",
+    btn_formations: "강좌 보기", btn_ebook: "무료 전자책", btn_demarrer: "시작하기",
+    stat1: "강좌", stat2: "검증된 역량", stat3: "AI 가이드", stat4: "환불 기간",
+    nav_formations: "강좌", nav_séances: "세션", nav_packs: "패키지", nav_competences: "역량", nav_blog: "블로그", nav_contact: "문의",
+    footer_desc: "AI 기반 교육 플랫폼. AcadeMIA Pro 수료증이 있는 {NB}개 강좌.",
+    voir_formation: "강좌 보기", voir_tout: "{NB}개 강좌 모두 보기", nos_formations: "추천 강좌",
+    nos_formations_sub: "AcadeMIA Pro 수료증 · 14일 환불 보장",
+    badge_carte: "AcadeMIA 수료증",
+  },
+  tr: {
+    hero_titre: "Kişisel yapay zeka ajanınızla öğrenin",
+    hero_sub: "AcadeMIA Pro sertifikalı {NB} kurs · 7/24 yapay zeka ajanı · Eşlik seansları",
+    btn_formations: "Kursları gör", btn_ebook: "Ücretsiz e-kitap", btn_demarrer: "Başla",
+    stat1: "Kurslar", stat2: "Onaylanmış beceriler", stat3: "YZ rehberleri", stat4: "Cayma hakkı",
+    nav_formations: "Kurslar", nav_séances: "Seanslar", nav_packs: "Paketler", nav_competences: "Beceriler", nav_blog: "Blog", nav_contact: "İletişim",
+    footer_desc: "Yapay zeka destekli eğitim platformu. AcadeMIA Pro sertifikalı {NB} kurs.",
+    voir_formation: "Kursu gör", voir_tout: "Tüm {NB} kursu gör", nos_formations: "Öne çıkan kurslarımız",
+    nos_formations_sub: "AcadeMIA Pro sertifikası · 14 gün cayma hakkı",
+    badge_carte: "AcadeMIA sertifikası",
+  },
+  pl: {
+    hero_titre: "Ucz się z osobistym agentem AI",
+    hero_sub: "{NB} kursów z certyfikatem AcadeMIA Pro · Agent AI 24/7 · Sesje towarzyszące",
+    btn_formations: "Zobacz kursy", btn_ebook: "Darmowy e-book", btn_demarrer: "Zacznij",
+    stat1: "Kursy", stat2: "Potwierdzone umiejętności", stat3: "Przewodnicy AI", stat4: "Prawo odstąpienia",
+    nav_formations: "Kursy", nav_séances: "Sesje", nav_packs: "Pakiety", nav_competences: "Umiejętności", nav_blog: "Blog", nav_contact: "Kontakt",
+    footer_desc: "Platforma szkoleniowa oparta na AI. {NB} kursów z certyfikatem AcadeMIA Pro.",
+    voir_formation: "Zobacz kurs", voir_tout: "Zobacz wszystkie {NB} kursów", nos_formations: "Nasze polecane kursy",
+    nos_formations_sub: "Certyfikat AcadeMIA Pro · 14 dni na odstąpienie",
+    badge_carte: "Certyfikat AcadeMIA",
+  },
+  el: {
+    hero_titre: "Εκπαιδευτείτε με τον προσωπικό σας πράκτορα ΤΝ",
+    hero_sub: "{NB} μαθήματα με πιστοποιητικό AcadeMIA Pro · Πράκτορας ΤΝ 24/7 · Συνεδρίες υποστήριξης",
+    btn_formations: "Δείτε τα μαθήματα", btn_ebook: "Δωρεάν e-book", btn_demarrer: "Ξεκινήστε",
+    stat1: "Μαθήματα", stat2: "Επικυρωμένες δεξιότητες", stat3: "Οδηγοί ΤΝ", stat4: "Δικαίωμα υπαναχώρησης",
+    nav_formations: "Μαθήματα", nav_séances: "Συνεδρίες", nav_packs: "Πακέτα", nav_competences: "Δεξιότητες", nav_blog: "Ιστολόγιο", nav_contact: "Επικοινωνία",
+    footer_desc: "Η πλατφόρμα εκπαίδευσης με τεχνητή νοημοσύνη. {NB} μαθήματα με πιστοποιητικό AcadeMIA Pro.",
+    voir_formation: "Δείτε το μάθημα", voir_tout: "Δείτε και τα {NB} μαθήματα", nos_formations: "Τα κορυφαία μαθήματά μας",
+    nos_formations_sub: "Πιστοποιητικό AcadeMIA Pro · Υπαναχώρηση 14 ημερών",
+    badge_carte: "Πιστοποιητικό AcadeMIA",
   },
 };
 
