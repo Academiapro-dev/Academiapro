@@ -40,6 +40,20 @@ import { useState, useEffect, useMemo, useRef } from "react";
 // campagnes se melangent : la liste rend les acceptations de toutes les
 // bases. C est donc l.base — la cle portee par CHAQUE ligne — qui decide
 // du message, jamais la base selectionnee a l ecran.
+//
+// 🆕 LA REGULARISATION DATEE — 30/08.
+//
+// LE CAS REEL : la fiche de Franck Zemmour (Apertura Management) est
+// reapparue dans la file comme jamais invitee, alors que l invitation
+// etait partie. Sa declaration avait ete refusee a l epoque du plafond
+// bloquant (le defaut Agnes Brunet, corrige le 27/08), et linkedin_le
+// etait reste vide.
+//
+// L API accepte date_invitation depuis le 28/08, mais AUCUN bouton de
+// l ecran ne le transmettait : les quatre gestes dataient tout
+// d aujourd hui et consommaient le plafond du jour. Le geste ajoute dans
+// l etape 3 de l onglet Inviter consigne l invitation A SA VRAIE DATE —
+// la fiche quitte la file, le compteur du jour ne bouge pas.
 
 const BASES = [
   { cle: "organismes", nom: "Organismes certifiés Qualiopi" },
@@ -313,6 +327,14 @@ export default function PageLinkedin() {
   // partira apres acceptation : il n existe aucun autre moyen de le savoir.
   const [aCampagne, setACampagne] = useState("academiapro");
 
+  // 🆕 LA REGULARISATION DATEE — 30/08. Repliee par defaut ; la date
+  // proposee est hier, le cas le plus frequent.
+  const [regulOuverte, setRegulOuverte] = useState(false);
+  const [dateRegul, setDateRegul] = useState(function () {
+    const hier = new Date(Date.now() - 24 * 3600 * 1000);
+    return hier.toISOString().slice(0, 10);
+  });
+
   // 🆕 CE QUE CHAQUE MODE D ENREGISTREMENT VEUT DIRE — 27/08.
   //
   // Les trois premiers touchent au quota d invitation ; les trois derniers
@@ -555,6 +577,8 @@ export default function PageLinkedin() {
     setTexte(d.fiche ? motInvitation(d.fiche.dirigeant_prenom, d.fiche.base || base) : "");
     setCopie("");
     setVu(false);
+    // La regularisation se replie a chaque nouvelle fiche.
+    setRegulOuverte(false);
   }
 
   async function chargerSuivante() {
@@ -829,7 +853,10 @@ export default function PageLinkedin() {
   // LES DEUX CAS OU L ON ATTEND QUAND MEME :
   //   - l onglet « Inviter », qui doit charger la fiche suivante
   //   - la recherche globale, ou la ligne vient d ailleurs
-  async function marquer(l: any, statut: string, cleBase?: string) {
+  //
+  // 🆕 30/08 : le parametre extra transporte date_invitation pour la
+  // regularisation datee. Il ne sert que depuis l onglet Inviter.
+  async function marquer(l: any, statut: string, cleBase?: string, extra?: any) {
     setErreur("");
 
     // L onglet Inviter enchaine sur une autre fiche : il faut la reponse
@@ -839,6 +866,7 @@ export default function PageLinkedin() {
       try {
         const d = await appeler({
           base: cleBase || l.base || base, id: l.id, statut: statut,
+          ...(extra || {}),
         });
         if (d.ok) {
           setCompteurs(d.compteurs || null);
@@ -2125,6 +2153,60 @@ export default function PageLinkedin() {
                     <strong>Écarter</strong> retire la fiche définitivement, <strong>Passer</strong> ne
                     touche à rien.
                   </p>
+
+                  {/* 🆕 LA REGULARISATION DATEE — 30/08.
+
+                      LE CAS : une fiche dont l invitation est partie AVANT
+                      aujourd hui mais n a jamais ete consignee (defaut
+                      Agnes Brunet / Franck Zemmour). Les boutons ci-dessus
+                      dateraient l envoi d aujourd hui et consommeraient le
+                      plafond du jour — a tort.
+
+                      Ce geste transmet date_invitation a la route (acceptee
+                      depuis le 28/08) : la fiche est marquee invitee A SA
+                      VRAIE DATE, le compteur du jour ne bouge pas, la file
+                      ne la represente plus. */}
+                  <div style={{ borderTop: "1px solid rgba(200,169,110,0.18)", marginTop: "16px", paddingTop: "13px" }}>
+                    {!regulOuverte ? (
+                      <button
+                        onClick={() => setRegulOuverte(true)}
+                        style={{
+                          background: "transparent", border: "none",
+                          color: "rgba(255,255,255,0.45)", fontSize: "12.5px",
+                          fontFamily: "Georgia,serif", cursor: "pointer",
+                          padding: "4px 0", textDecoration: "underline",
+                        }}>
+                        Cette invitation était déjà partie un autre jour ? La consigner à sa vraie date
+                      </button>
+                    ) : (
+                      <div>
+                        <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "12.5px", lineHeight: "1.75", margin: "0 0 10px" }}>
+                          La fiche sera marquée invitée <strong>à la date choisie</strong> —
+                          le compteur d'aujourd'hui ne bouge pas.
+                        </p>
+                        <div style={{ display: "flex", gap: "9px", flexWrap: "wrap", alignItems: "center" }}>
+                          <input
+                            type="date"
+                            value={dateRegul}
+                            max={new Date().toISOString().slice(0, 10)}
+                            onChange={(e) => setDateRegul(e.target.value)}
+                            style={{ ...CHAMP, width: "auto", flex: "0 1 180px", padding: "11px 13px" }}
+                          />
+                          <button
+                            onClick={() => marquer(fiche, "invite_nu", base, { date_invitation: dateRegul })}
+                            disabled={charge || !dateRegul}
+                            style={{ ...BOUTON, flex: "1 1 220px", padding: "12px", fontSize: "13.5px", fontWeight: "bold" }}>
+                            ✓ Invitation déjà envoyée à cette date
+                          </button>
+                          <button
+                            onClick={() => setRegulOuverte(false)}
+                            style={{ ...BOUTON, flex: "0 1 110px", padding: "12px", fontSize: "13px", color: "rgba(255,255,255,0.45)", borderColor: "rgba(255,255,255,0.15)" }}>
+                            Annuler
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </>
             )}
