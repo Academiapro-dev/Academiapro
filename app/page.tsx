@@ -18,6 +18,12 @@ import { useState, useEffect } from "react";
 // ⚠️ AVANT DE CONCLURE QU UNE LANGUE NE MARCHE PAS, CHERCHER S IL EXISTE
 // UN ENIEME OBJET T DANS UNE AUTRE PAGE. Il y en avait un deuxieme, puis
 // un troisieme.
+//
+// LE BANDEAU DES STATISTIQUES DIT DES CHIFFRES VRAIS — 30/08. La ligne
+// stat2 annoncait « 100+ competences validees » : une statistique
+// inventee, aucun client a ce jour. Remplacee par « 15 domaines », un
+// chiffre mesure en base et verifiable par quiconque ouvre le catalogue.
+// AUCUNE STATISTIQUE INVENTEE, c est la regle de relecture commerciale.
 // ---------------------------------------------------------------------------
 const T = {
   fr: {
@@ -27,7 +33,7 @@ const T = {
     btn_ebook: "E-book gratuit",
     btn_demarrer: "Demarrer",
     stat1: "Formations",
-    stat2: "Compétences validées",
+    stat2: "Domaines",
     stat3: "Accompagnants IA",
     stat4: "Retractation",
     nav_formations: "Formations", nav_séances: "Séances", nav_packs: "Packs", nav_competences: "Compétences", nav_blog: "Blog", nav_contact: "Contact",
@@ -40,7 +46,7 @@ const T = {
     hero_titre: "Train with your personal AI agent",
     hero_sub: "{NB} courses with AcadeMIA Pro certificate · AI Agent 24/7 · Support sessions",
     btn_formations: "View courses", btn_ebook: "Free e-book", btn_demarrer: "Get Started",
-    stat1: "Courses", stat2: "Validated skills", stat3: "AI Guides", stat4: "Withdrawal period",
+    stat1: "Courses", stat2: "Fields", stat3: "AI Guides", stat4: "Withdrawal period",
     nav_formations: "Courses", nav_séances: "Sessions", nav_packs: "Packs", nav_competences: "Skills", nav_blog: "Blog", nav_contact: "Contact",
     footer_desc: "The AI-powered training platform. {NB} courses with AcadeMIA Pro certificate.",
     voir_formation: "View course", voir_tout: "View all {NB} courses", nos_formations: "Our featured courses",
@@ -51,7 +57,7 @@ const T = {
     hero_titre: "Formese con su agente IA personal",
     hero_sub: "{NB} cursos con certificado AcadeMIA Pro · Agente IA 24h · Sesiones de acompanamiento",
     btn_formations: "Ver cursos", btn_ebook: "E-book gratis", btn_demarrer: "Comenzar",
-    stat1: "Cursos", stat2: "Habilidades validadas", stat3: "Guias IA", stat4: "Derecho de desistimiento",
+    stat1: "Cursos", stat2: "Ambitos", stat3: "Guias IA", stat4: "Derecho de desistimiento",
     nav_formations: "Cursos", nav_séances: "Sesiones", nav_packs: "Packs", nav_competences: "Habilidades", nav_blog: "Blog", nav_contact: "Contacto",
     footer_desc: "La plataforma de formacion impulsada por IA. {NB} cursos con certificado AcadeMIA Pro.",
     voir_formation: "Ver curso", voir_tout: "Ver los {NB} cursos", nos_formations: "Nuestros cursos destacados",
@@ -62,7 +68,7 @@ const T = {
     hero_titre: "Forme-se com seu agente IA pessoal",
     hero_sub: "{NB} cursos com certificado AcadeMIA Pro · Agente IA 24h · Sessoes de acompanhamento",
     btn_formations: "Ver cursos", btn_ebook: "E-book gratuito", btn_demarrer: "Comecar",
-    stat1: "Cursos", stat2: "Competencias validadas", stat3: "Guias IA", stat4: "Direito de arrependimento",
+    stat1: "Cursos", stat2: "Areas", stat3: "Guias IA", stat4: "Direito de arrependimento",
     nav_formations: "Cursos", nav_séances: "Sessoes", nav_packs: "Packs", nav_competences: "Competencias", nav_blog: "Blog", nav_contact: "Contato",
     footer_desc: "A plataforma de formacao impulsionada por IA. {NB} cursos com certificado AcadeMIA Pro.",
     voir_formation: "Ver curso", voir_tout: "Ver os {NB} cursos", nos_formations: "Nossos cursos em destaque",
@@ -73,7 +79,7 @@ const T = {
     hero_titre: "Weiterbilden mit Ihrem personlichen KI-Agenten",
     hero_sub: "{NB} Kurse mit AcadeMIA Pro Zertifikat · KI-Agent 24h · Begleitsitzungen",
     btn_formations: "Kurse ansehen", btn_ebook: "Kostenloses E-Book", btn_demarrer: "Loslegen",
-    stat1: "Kurse", stat2: "Validierte Kompetenzen", stat3: "KI-Begleiter", stat4: "Widerrufsrecht",
+    stat1: "Kurse", stat2: "Fachbereiche", stat3: "KI-Begleiter", stat4: "Widerrufsrecht",
     nav_formations: "Kurse", nav_séances: "Sitzungen", nav_packs: "Pakete", nav_competences: "Kompetenzen", nav_blog: "Blog", nav_contact: "Kontakt",
     footer_desc: "Die KI-gestutzte Weiterbildungsplattform. {NB} Kurse mit AcadeMIA Pro Zertifikat.",
     voir_formation: "Kurs ansehen", voir_tout: "Alle {NB} Kurse ansehen", nos_formations: "Unsere Top-Kurse",
@@ -84,7 +90,7 @@ const T = {
     hero_titre: "تدرب مع وكيل الذكاء الاصطناعي الشخصي",
     hero_sub: "{NB} دورة بشهادة AcadeMIA Pro · وكيل ذكاء اصطناعي 24/24 · جلسات مرافقة",
     btn_formations: "عرض الدورات", btn_ebook: "كتاب مجاني", btn_demarrer: "ابدأ",
-    stat1: "دورات", stat2: "مهارات معتمدة", stat3: "مرافقون AI", stat4: "حق الانسحاب",
+    stat1: "دورات", stat2: "مجالات", stat3: "مرافقون AI", stat4: "حق الانسحاب",
     nav_formations: "الدورات", nav_séances: "الجلسات", nav_packs: "الباقات", nav_competences: "المهارات", nav_blog: "المدونة", nav_contact: "اتصل",
     footer_desc: "منصة التدريب المدعومة بالذكاء الاصطناعي. {NB} دورة بشهادة AcadeMIA Pro.",
     voir_formation: "عرض الدورة", voir_tout: "عرض جميع الدورات {NB}", nos_formations: "دوراتنا المميزة",
@@ -95,7 +101,7 @@ const T = {
     hero_titre: "התאמנו עם סוכן הבינה המלאכותית האישי שלכם",
     hero_sub: "{NB} קורסים עם תעודת AcadeMIA Pro · סוכן AI 24/7 · מפגשי ליווי",
     btn_formations: "צפה בקורסים", btn_ebook: "ספר אלקטרוני חינם", btn_demarrer: "התחל",
-    stat1: "קורסים", stat2: "מיומנויות מאושרות", stat3: "מלווי AI", stat4: "זכות ביטול",
+    stat1: "קורסים", stat2: "תחומים", stat3: "מלווי AI", stat4: "זכות ביטול",
     nav_formations: "קורסים", nav_séances: "מפגשים", nav_packs: "חבילות", nav_competences: "מיומנויות", nav_blog: "בלוג", nav_contact: "צור קשר",
     footer_desc: "פלטפורמת הכשרה מופעלת בינה מלאכותית. {NB} קורסים עם תעודת AcadeMIA Pro.",
     voir_formation: "צפה בקורס", voir_tout: "צפה בכל {NB} הקורסים", nos_formations: "הקורסים המובילים שלנו",
@@ -106,7 +112,7 @@ const T = {
     hero_titre: "Formati con il tuo agente IA personale",
     hero_sub: "{NB} corsi con certificato AcadeMIA Pro · Agente IA 24h/24 · Sessioni di accompagnamento",
     btn_formations: "Vedi i corsi", btn_ebook: "E-book gratuito", btn_demarrer: "Inizia",
-    stat1: "Corsi", stat2: "Competenze convalidate", stat3: "Guide IA", stat4: "Diritto di recesso",
+    stat1: "Corsi", stat2: "Ambiti", stat3: "Guide IA", stat4: "Diritto di recesso",
     nav_formations: "Corsi", nav_séances: "Sessioni", nav_packs: "Pacchetti", nav_competences: "Competenze", nav_blog: "Blog", nav_contact: "Contatti",
     footer_desc: "La piattaforma di formazione basata sull'IA. {NB} corsi con certificato AcadeMIA Pro.",
     voir_formation: "Vedi il corso", voir_tout: "Vedi tutti i {NB} corsi", nos_formations: "I nostri corsi in evidenza",
@@ -117,7 +123,7 @@ const T = {
     hero_titre: "Leer met uw persoonlijke AI-agent",
     hero_sub: "{NB} cursussen met AcadeMIA Pro certificaat · AI-agent 24/7 · Begeleidingssessies",
     btn_formations: "Bekijk cursussen", btn_ebook: "Gratis e-book", btn_demarrer: "Beginnen",
-    stat1: "Cursussen", stat2: "Gevalideerde vaardigheden", stat3: "AI-begeleiders", stat4: "Herroepingsrecht",
+    stat1: "Cursussen", stat2: "Vakgebieden", stat3: "AI-begeleiders", stat4: "Herroepingsrecht",
     nav_formations: "Cursussen", nav_séances: "Sessies", nav_packs: "Pakketten", nav_competences: "Vaardigheden", nav_blog: "Blog", nav_contact: "Contact",
     footer_desc: "Het opleidingsplatform aangedreven door AI. {NB} cursussen met AcadeMIA Pro certificaat.",
     voir_formation: "Bekijk de cursus", voir_tout: "Bekijk alle {NB} cursussen", nos_formations: "Onze topcursussen",
@@ -128,7 +134,7 @@ const T = {
     hero_titre: "Учитесь с вашим персональным ИИ-агентом",
     hero_sub: "{NB} курсов с сертификатом AcadeMIA Pro · ИИ-агент 24/7 · Сопровождающие занятия",
     btn_formations: "Смотреть курсы", btn_ebook: "Бесплатная книга", btn_demarrer: "Начать",
-    stat1: "Курсы", stat2: "Подтверждённые навыки", stat3: "ИИ-наставники", stat4: "Право на возврат",
+    stat1: "Курсы", stat2: "Направления", stat3: "ИИ-наставники", stat4: "Право на возврат",
     nav_formations: "Курсы", nav_séances: "Занятия", nav_packs: "Пакеты", nav_competences: "Навыки", nav_blog: "Блог", nav_contact: "Контакты",
     footer_desc: "Платформа обучения на основе ИИ. {NB} курсов с сертификатом AcadeMIA Pro.",
     voir_formation: "Смотреть курс", voir_tout: "Смотреть все {NB} курсов", nos_formations: "Наши ведущие курсы",
@@ -139,7 +145,7 @@ const T = {
     hero_titre: "与您的专属AI导师一起学习",
     hero_sub: "{NB} 门课程，附AcadeMIA Pro证书 · AI导师全天候在线 · 辅导课程",
     btn_formations: "查看课程", btn_ebook: "免费电子书", btn_demarrer: "开始",
-    stat1: "课程", stat2: "已验证技能", stat3: "AI导师", stat4: "退款期限",
+    stat1: "课程", stat2: "领域", stat3: "AI导师", stat4: "退款期限",
     nav_formations: "课程", nav_séances: "辅导课", nav_packs: "套餐", nav_competences: "技能", nav_blog: "博客", nav_contact: "联系我们",
     footer_desc: "AI驱动的培训平台。{NB} 门课程，附AcadeMIA Pro证书。",
     voir_formation: "查看课程", voir_tout: "查看全部 {NB} 门课程", nos_formations: "精选课程",
@@ -150,7 +156,7 @@ const T = {
     hero_titre: "あなた専属のAIエージェントと学ぶ",
     hero_sub: "{NB} コース、AcadeMIA Pro修了証付き · AIエージェント24時間対応 · 伴走セッション",
     btn_formations: "コースを見る", btn_ebook: "無料電子書籍", btn_demarrer: "はじめる",
-    stat1: "コース", stat2: "認定スキル", stat3: "AIガイド", stat4: "返金期間",
+    stat1: "コース", stat2: "分野", stat3: "AIガイド", stat4: "返金期間",
     nav_formations: "コース", nav_séances: "セッション", nav_packs: "パック", nav_competences: "スキル", nav_blog: "ブログ", nav_contact: "お問い合わせ",
     footer_desc: "AIを活用した研修プラットフォーム。{NB} コース、AcadeMIA Pro修了証付き。",
     voir_formation: "コースを見る", voir_tout: "全 {NB} コースを見る", nos_formations: "注目のコース",
@@ -161,7 +167,7 @@ const T = {
     hero_titre: "나만의 AI 에이전트와 함께 배우세요",
     hero_sub: "AcadeMIA Pro 수료증이 있는 {NB}개 강좌 · AI 에이전트 연중무휴 · 동반 세션",
     btn_formations: "강좌 보기", btn_ebook: "무료 전자책", btn_demarrer: "시작하기",
-    stat1: "강좌", stat2: "검증된 역량", stat3: "AI 가이드", stat4: "환불 기간",
+    stat1: "강좌", stat2: "분야", stat3: "AI 가이드", stat4: "환불 기간",
     nav_formations: "강좌", nav_séances: "세션", nav_packs: "패키지", nav_competences: "역량", nav_blog: "블로그", nav_contact: "문의",
     footer_desc: "AI 기반 교육 플랫폼. AcadeMIA Pro 수료증이 있는 {NB}개 강좌.",
     voir_formation: "강좌 보기", voir_tout: "{NB}개 강좌 모두 보기", nos_formations: "추천 강좌",
@@ -172,7 +178,7 @@ const T = {
     hero_titre: "Kişisel yapay zeka ajanınızla öğrenin",
     hero_sub: "AcadeMIA Pro sertifikalı {NB} kurs · 7/24 yapay zeka ajanı · Eşlik seansları",
     btn_formations: "Kursları gör", btn_ebook: "Ücretsiz e-kitap", btn_demarrer: "Başla",
-    stat1: "Kurslar", stat2: "Onaylanmış beceriler", stat3: "YZ rehberleri", stat4: "Cayma hakkı",
+    stat1: "Kurslar", stat2: "Alanlar", stat3: "YZ rehberleri", stat4: "Cayma hakkı",
     nav_formations: "Kurslar", nav_séances: "Seanslar", nav_packs: "Paketler", nav_competences: "Beceriler", nav_blog: "Blog", nav_contact: "İletişim",
     footer_desc: "Yapay zeka destekli eğitim platformu. AcadeMIA Pro sertifikalı {NB} kurs.",
     voir_formation: "Kursu gör", voir_tout: "Tüm {NB} kursu gör", nos_formations: "Öne çıkan kurslarımız",
@@ -183,7 +189,7 @@ const T = {
     hero_titre: "Ucz się z osobistym agentem AI",
     hero_sub: "{NB} kursów z certyfikatem AcadeMIA Pro · Agent AI 24/7 · Sesje towarzyszące",
     btn_formations: "Zobacz kursy", btn_ebook: "Darmowy e-book", btn_demarrer: "Zacznij",
-    stat1: "Kursy", stat2: "Potwierdzone umiejętności", stat3: "Przewodnicy AI", stat4: "Prawo odstąpienia",
+    stat1: "Kursy", stat2: "Dziedziny", stat3: "Przewodnicy AI", stat4: "Prawo odstąpienia",
     nav_formations: "Kursy", nav_séances: "Sesje", nav_packs: "Pakiety", nav_competences: "Umiejętności", nav_blog: "Blog", nav_contact: "Kontakt",
     footer_desc: "Platforma szkoleniowa oparta na AI. {NB} kursów z certyfikatem AcadeMIA Pro.",
     voir_formation: "Zobacz kurs", voir_tout: "Zobacz wszystkie {NB} kursów", nos_formations: "Nasze polecane kursy",
@@ -194,7 +200,7 @@ const T = {
     hero_titre: "Εκπαιδευτείτε με τον προσωπικό σας πράκτορα ΤΝ",
     hero_sub: "{NB} μαθήματα με πιστοποιητικό AcadeMIA Pro · Πράκτορας ΤΝ 24/7 · Συνεδρίες υποστήριξης",
     btn_formations: "Δείτε τα μαθήματα", btn_ebook: "Δωρεάν e-book", btn_demarrer: "Ξεκινήστε",
-    stat1: "Μαθήματα", stat2: "Επικυρωμένες δεξιότητες", stat3: "Οδηγοί ΤΝ", stat4: "Δικαίωμα υπαναχώρησης",
+    stat1: "Μαθήματα", stat2: "Τομείς", stat3: "Οδηγοί ΤΝ", stat4: "Δικαίωμα υπαναχώρησης",
     nav_formations: "Μαθήματα", nav_séances: "Συνεδρίες", nav_packs: "Πακέτα", nav_competences: "Δεξιότητες", nav_blog: "Ιστολόγιο", nav_contact: "Επικοινωνία",
     footer_desc: "Η πλατφόρμα εκπαίδευσης με τεχνητή νοημοσύνη. {NB} μαθήματα με πιστοποιητικό AcadeMIA Pro.",
     voir_formation: "Δείτε το μάθημα", voir_tout: "Δείτε και τα {NB} μαθήματα", nos_formations: "Τα κορυφαία μαθήματά μας",
@@ -258,7 +264,7 @@ export default function HomePage() {
 
       <section style={{ background: "#1a1a2e", padding: "60px 40px" }}>
         <div style={{ maxWidth: "1000px", margin: "0 auto", display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "32px", textAlign: "center" }}>
-          {[{ nb: nbFormations ? String(nbFormations) : "…", label: t("stat1") }, { nb: "100+", label: t("stat2") }, { nb: "5", label: t("stat3") }, { nb: "14j", label: t("stat4") }].map((s) => (
+          {[{ nb: nbFormations ? String(nbFormations) : "…", label: t("stat1") }, { nb: "15", label: t("stat2") }, { nb: "5", label: t("stat3") }, { nb: "14j", label: t("stat4") }].map((s) => (
             <div key={s.label}>
               <p style={{ color: "#c8a96e", fontSize: "40px", fontWeight: "bold", margin: "0 0 8px" }}>{s.nb}</p>
               <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "15px", margin: "0" }}>{s.label}</p>
