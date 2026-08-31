@@ -136,12 +136,6 @@ export async function GET(req: NextRequest) {
   try {
     // ---- L AUTORISATION ----
     //
-    // 🚨 UN REFUS MUET EST INDEBOGABLE. « Non autorise » sans autre precision
-    // laisse chercher entre dix causes : variable absente, valeur fausse,
-    // caractere mal encode par le navigateur, deploiement en retard. La
-    // reponse dit donc CE QUI MANQUE, sans jamais divulguer la valeur
-    // attendue — on compare des longueurs, pas des secrets.
-    //
     // Deux cles sont acceptees : CRON_SECRET, envoye par Vercel en en-tete,
     // et CLE_API_FACTURE, deja utilisee par les crons de facturation. Avoir
     // deux portes evite de rester bloque quand l une des deux resiste.
@@ -167,26 +161,39 @@ export async function GET(req: NextRequest) {
         || (cleFacture.length > 0 && fournie === cleFacture));
 
     if (!parCron && !parCle) {
-      return NextResponse.json({
-        ok: false,
-        erreur: "Non autorise",
-        diagnostic: {
-          cron_secret_defini: secretCron.length > 0,
-          cle_api_facture_definie: cleFacture.length > 0,
-          cle_recue: fournie.length > 0,
-          longueur_recue: fournie.length,
-          longueur_cron_secret: secretCron.length,
-          longueur_cle_facture: cleFacture.length,
-          entete_presente: autorisation.length > 0,
-          aide: secretCron.length === 0 && cleFacture.length === 0
-            ? "Aucune des deux variables n existe dans Vercel."
-            : fournie.length === 0
-              ? "Ajoutez ?cle=LA_VALEUR a l adresse."
-              : "La cle recue ne correspond a aucune des deux. Comparez les longueurs "
-                + "ci-dessus : si elles different, le copier-coller a ajoute ou perdu "
-                + "des caracteres.",
-        },
-      }, { status: 401 });
+      // 🚨 LE DIAGNOSTIC EST SORTI DE LA REPONSE — 31/08. C ETAIT LE PLUS
+      // BAVARD DES TROIS CRONS.
+      //
+      // CE QUE CETTE ROUTE DISAIT A QUI L APPELAIT SANS CLE : que deux
+      // secrets existent, LEUR LONGUEUR EXACTE a chacun, lequel est defini
+      // — et, en clair, COMMENT S EN SERVIR : « Ajoutez ?cle=LA_VALEUR a
+      // l adresse ». Une personne qui sonde le site apprenait donc en UN
+      // SEUL APPEL la forme exacte de l attaque a monter.
+      //
+      // LE BESOIN D ORIGINE ETAIT JUSTE, et le commentaire d alors le
+      // disait bien : un refus muet est indebogable, on cherche entre dix
+      // causes. C est pourquoi le diagnostic est CONSERVE INTEGRALEMENT —
+      // mais ecrit dans les journaux Vercel, ou seul Jacques le lit.
+      //
+      // POUR LE RELIRE : tableau de bord Vercel, onglet Logs, filtrer sur
+      // cette route. Tout y est, y compris l aide au diagnostic.
+      console.error("[cron/relances-cabinet] refus d autorisation", {
+        cron_secret_defini: secretCron.length > 0,
+        cle_api_facture_definie: cleFacture.length > 0,
+        cle_recue: fournie.length > 0,
+        longueur_recue: fournie.length,
+        longueur_cron_secret: secretCron.length,
+        longueur_cle_facture: cleFacture.length,
+        entete_presente: autorisation.length > 0,
+        aide: secretCron.length === 0 && cleFacture.length === 0
+          ? "Aucune des deux variables n existe dans Vercel."
+          : fournie.length === 0
+            ? "Ajoutez ?cle=LA_VALEUR a l adresse."
+            : "La cle recue ne correspond a aucune des deux. Comparez les longueurs "
+              + "ci-dessus : si elles different, le copier-coller a ajoute ou perdu "
+              + "des caracteres.",
+      });
+      return NextResponse.json({ ok: false, erreur: "Non autorise" }, { status: 401 });
     }
 
     // 🚨 L ESSAI NE PART PAS. Il montre ce QUI SERAIT envoye, a qui, et
