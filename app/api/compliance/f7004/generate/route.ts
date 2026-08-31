@@ -371,30 +371,53 @@ export async function POST(req: NextRequest) {
     // gestionnaire pour non-residents.
     cocher(["Page1[0].c1_1[0]"]);
 
-    // 🚨 LIGNE 5a — L ANNEE CIVILE, ET LE PIEGE DE LA LARGEUR.
+    // 🚨 LIGNE 5a — L ANNEE CIVILE, ET LE PIEGE DU MAXLENGTH.
     //
-    // TROIS ESSAIS ONT ETE NECESSAIRES, ET VOICI CE QU ILS ONT APPRIS :
+    // QUATRE ESSAIS ONT ETE NECESSAIRES, ET VOICI CE QU ILS ONT APPRIS :
     //   - ecrire dans f1_13 mettait le chiffre dans l exercice decale ;
     //   - repartir les chiffres sur f1_11 et f1_12 dispersait l annee, le
     //     « 6 » partant dans « tax year beginning » ;
-    //   - ecrire « 26 » dans f1_11 seul n affichait que le « 2 ».
+    //   - ecrire « 26 » dans f1_11 seul n affichait que le « 2 » ;
+    //   - reduire la police a 8 points rapetissait le « 2 » sans faire
+    //     apparaitre le « 6 » — CE N EST DONC PAS UN PROBLEME DE LARGEUR.
     //
-    // LA CAUSE DU DERNIER CAS : le champ est etroit, et a la taille de
-    // police par defaut le second caractere DEBORDE SANS AUCUNE ERREUR.
-    // pdf-lib tronque en silence — c est le genre de defaut qui ne se voit
-    // qu en ouvrant le PDF.
+    // Le mode reperage a ensuite confirme que le « 2 » tombe EXACTEMENT
+    // dans la case de l annee civile : f1_11 EST le bon champ, bien place.
     //
-    // ⚠️ setFontSize AVANT setText : la taille doit etre fixee avant que le
-    // texte ne soit compose, sinon elle ne s applique pas.
+    // 🚨 LA CAUSE REELLE : LE CHAMP PORTE UNE LIMITE DE CARACTERES
+    // (maxLength) DEFINIE PAR L IRS DANS LE PDF LUI-MEME. Quand elle vaut
+    // 1, le second caractere est rejete quelle que soit la police — c est
+    // pour cela que setFontSize n y changeait rien.
+    //
+    // LE REMEDE : lire la limite, et si elle est inferieure a 2, la porter
+    // a 2 AVANT d ecrire. Un champ sans limite n est pas touche. Le
+    // journal garde la trace de la limite d origine — si l IRS la change a
+    // la prochaine revision, on le verra dans la reponse.
     //
     // ⚠️ f1_12 A f1_15 DECRIVENT L EXERCICE DECALE et restent vides :
     // declarer les deux formes rend le formulaire contradictoire.
     try {
       const champAnnee = form.getTextField(P + "Page1[0].f1_11[0]");
+
+      const limiteOrigine = champAnnee.getMaxLength();
+      if (limiteOrigine !== undefined && limiteOrigine < 2) {
+        champAnnee.setMaxLength(2);
+        journal.push(
+          "Annee civile : maxLength du champ f1_11 porte de "
+          + limiteOrigine + " a 2"
+        );
+      }
+
       champAnnee.setFontSize(8);
       champAnnee.setText(String(year).slice(2));
     } catch (e) {
-      journal.push("Annee civile : champ f1_11 introuvable");
+      // ⚠️ NE PAS DIRE « INTROUVABLE » SI LE CHAMP EXISTE : l erreur peut
+      // venir de l ecriture elle-meme (limite, texte trop long). On rend
+      // le message reel — c est lui qui oriente le prochain diagnostic.
+      journal.push(
+        "Annee civile (f1_11) : "
+        + (e instanceof Error ? e.message : String(e))
+      );
     }
 
     form.updateFieldAppearances(font);
