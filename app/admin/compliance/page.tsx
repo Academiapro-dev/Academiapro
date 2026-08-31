@@ -460,6 +460,34 @@ export default function ComplianceDashboard() {
     setAutreLoading(null);
   }
 
+  // Ecrit une lettre par champ pour voir ou chacun apparait sur la page.
+  // La liste des champs donne leurs noms, pas leur position : c est le seul
+  // moyen de faire la correspondance sans tatonner generation apres
+  // generation.
+  async function repererChamps() {
+    setAutreLoading("reperage");
+    setAutreMsg(null);
+    setChampsListe(null);
+    try {
+      const r = await fetch("/api/compliance/f7004/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reperage: true }),
+      });
+      const d = await r.json();
+      if (d.success) {
+        setChampsListe((d.correspondance || []).join("\n"));
+        setAutreMsg("Repérage généré.");
+        setAutreUrl(d.url || null);
+      } else {
+        setAutreMsg("Erreur : " + (d.error || "inconnue"));
+      }
+    } catch (e: any) {
+      setAutreMsg("Erreur : " + String(e));
+    }
+    setAutreLoading(null);
+  }
+
   const styleBouton = {
     background: VERT,
     color: "#ffffff",
@@ -611,6 +639,13 @@ export default function ComplianceDashboard() {
           style={{ ...styleLien, fontSize: 13, padding: "8px 14px" }}
         >
           {autreLoading === "champs" ? "…" : "Lister les champs du 7004"}
+        </button>
+        <button
+          onClick={repererChamps}
+          disabled={autreLoading !== null}
+          style={{ ...styleLien, fontSize: 13, padding: "8px 14px" }}
+        >
+          {autreLoading === "reperage" ? "…" : "Repérer les positions"}
         </button>
 
         {champsListe && (
