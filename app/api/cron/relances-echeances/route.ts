@@ -37,6 +37,20 @@ const supabase = createClient(
 // disaient a qui les appelait sans cle la LONGUEUR EXACTE des secrets —
 // corrige le 31/08. Ne pas reintroduire le defaut ici en copiant un ancien
 // modele.
+//
+// ---- DEFAUT TROUVE A L AUDIT DU SOIR — 31/08 ---------------------------
+//
+// 🚨 LE MODE ESSAI COMPTAIT SES SIMULATIONS COMME DES ENVOIS. La reponse
+// annoncait « envoyees: 47 » alors que rien n etait parti. Deux facons de
+// se tromper, dans les deux sens :
+//   - croire que 47 courriels sont partis chez des clients alors qu il ne
+//     s est rien passe, et ne pas armer ce qu il fallait armer ;
+//   - lire « envoyees: 0 » un jour de vrai passage et croire a une panne.
+//
+// UN COMPTEUR QUI MENT EST PIRE QU UN COMPTEUR ABSENT : on lui fait
+// confiance. Les deux chiffres sont desormais SEPARES — `envoyees` ne
+// compte que les envois reels, `simulees` compte l essai. Le champ
+// `envoyees` vaut donc toujours 0 en mode essai, ce qui est la verite.
 // ---------------------------------------------------------------------------
 
 // Les paliers de relance, en jours avant l echeance. Ils sont espaces : le
@@ -292,9 +306,15 @@ export async function GET(req: NextRequest) {
     for (const r of regles || []) titres[r.code] = r;
 
     // ---- L ENVOI ----
+    //
+    // ⚠️ DEUX COMPTEURS SEPARES, ET C EST VOLONTAIRE. `totalEnvoyees` ne
+    // compte QUE les envois reels ; `totalSimulees` compte ce que l essai
+    // aurait envoye. Les melanger — c etait le defaut — produit un chiffre
+    // auquel on fait confiance et qui ment.
     const parOrganisme: any = {};
     const resultats: any[] = [];
     let totalEnvoyees = 0;
+    let totalSimulees = 0;
     let totalIgnorees = 0;
 
     for (const ech of echeances) {
@@ -364,8 +384,10 @@ export async function GET(req: NextRequest) {
           palier: "J-" + palier,
           statut: "essai, rien envoye",
         });
+        // Le plafond par organisme est bien simule, sinon l essai ne
+        // montrerait pas ou il s arreterait un jour reel.
         parOrganisme[entite.tenant_id] = compteur + 1;
-        totalEnvoyees++;
+        totalSimulees++;
         continue;
       }
 
@@ -413,12 +435,16 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // ⚠️ `envoyees` VAUT TOUJOURS 0 EN MODE ESSAI, et c est la verite : rien
+    // n est parti. Le nombre de courriels qu un vrai passage produirait se
+    // lit dans `simulees`.
     return NextResponse.json({
       ok: true,
       essai: essai,
       societes_armees: entites.length,
       echeances_examinees: echeances.length,
       envoyees: totalEnvoyees,
+      simulees: totalSimulees,
       ignorees: totalIgnorees,
       secondes: Math.round((Date.now() - debut) / 1000),
       resultats: resultats,
