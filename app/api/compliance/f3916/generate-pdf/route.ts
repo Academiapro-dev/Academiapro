@@ -3,11 +3,49 @@ import { createClient } from "@supabase/supabase-js";
 import { PDFDocument, StandardFonts, PDFName, PDFDict } from "pdf-lib";
 import fs from "fs/promises";
 import path from "path";
+import { sessionCourante } from "../../../../../lib/session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const CERFA = "public/cerfa/3916_5173.pdf";
+
+// ---------------------------------------------------------------------------
+// 🚨 CORRIGE LE 31/08 — LA ROUTE LA PLUS EXPOSEE DU MODULE, ET SA JUMELLE
+// f3916/generate ETAIT DEJA JUSTE. La meme erreur qu a f5472/generate, dans
+// deux fichiers voisins : a chaque fois, l une des deux versions a ete
+// corrigee et l autre oubliee.
+//
+// LE DEFAUT. Aucune session n etait exigee, et le tenant_id etait pris DANS
+// LE CORPS DE LA REQUETE. Il suffisait donc de poster { tenant_id: "..." }
+// pour obtenir le CERFA 3916 rempli d une autre personne.
+//
+// CE QUE CE PDF CONTIENT, ET C EST LA QUE C EST GRAVE : la table
+// compliance_declarant porte le NOM PATRONYMIQUE, LES PRENOMS, LA DATE ET
+// LE LIEU DE NAISSANCE et L ADRESSE PERSONNELLE du declarant. S y ajoutent
+// ses COMPTES BANCAIRES A L ETRANGER avec leurs numeros et leur organisme.
+//
+// Ce ne sont pas seulement des donnees fiscales : ce sont des donnees
+// personnelles au sens du RGPD, et de quoi usurper une identite. Un
+// identifiant devine ou apercu suffisait.
+//
+// LA REGLE, LA MEME QUE PARTOUT : le tenant vient de la SESSION, jamais de
+// la requete. Ce que le navigateur envoie n est jamais une autorisation.
+//
+// ⚠️ compte_id RESTE LU DANS LE CORPS — c est normal et sans danger : il ne
+// sert qu a choisir un compte PARMI CEUX DU TENANT DE LA SESSION, puisque
+// la requete filtre d abord sur tenant_id.
+// ---------------------------------------------------------------------------
+
+function origineLegitime(req: NextRequest): boolean {
+  const origine = req.headers.get("origin") || "";
+  const referent = req.headers.get("referer") || "";
+  return (
+    origine.includes("academiapro.fr") || referent.includes("academiapro.fr") ||
+    origine.includes("vercel.app") || referent.includes("vercel.app") ||
+    origine.includes("localhost") || referent.includes("localhost")
+  );
+}
 
 function jour(d: string | null): string {
   if (!d) return "";
@@ -32,16 +70,23 @@ function sansAccent(v: any): string {
 export async function POST(req: NextRequest) {
   const avertissements: string[] = [];
   try {
-    const body = await req.json().catch(() => ({}));
-    const tenantId = body.tenant_id;
-    const compteId = body.compte_id;
+    if (!origineLegitime(req)) {
+      return NextResponse.json({ ok: false, erreur: "Acces refuse" }, { status: 403 });
+    }
 
+    // L ORGANISME VIENT DE LA SESSION SIGNEE, ET DE NULLE PART AILLEURS.
+    // Un tenant_id present dans le corps de la requete est desormais IGNORE.
+    const session = sessionCourante();
+    const tenantId = session ? session.tenantId : null;
     if (!tenantId) {
       return NextResponse.json(
-        { ok: false, erreur: "tenant_id manquant dans le corps de la requete" },
-        { status: 400 }
+        { ok: false, erreur: "Session sans societe rattachee. Reconnectez-vous." },
+        { status: 401 }
       );
     }
+
+    const body = await req.json().catch(() => ({}));
+    const compteId = body.compte_id;
 
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -60,14 +105,15 @@ export async function POST(req: NextRequest) {
       .limit(1);
 
     if (errDecl) {
+      console.error("[f3916/generate-pdf] lecture declarant :", errDecl.message);
       return NextResponse.json(
-        { ok: false, erreur: "Lecture compliance_declarant: " + errDecl.message },
+        { ok: false, erreur: "Lecture de la fiche declarant impossible." },
         { status: 500 }
       );
     }
     if (!decl || decl.length === 0) {
       return NextResponse.json(
-        { ok: false, erreur: "Aucune fiche declarant pour ce tenant_id" },
+        { ok: false, erreur: "Aucune fiche declarant pour votre societe." },
         { status: 404 }
       );
     }
@@ -79,13 +125,16 @@ export async function POST(req: NextRequest) {
       .eq("tenant_id", tenantId)
       .limit(50);
 
+    // Le filtre sur tenant_id vient AVANT celui sur l identifiant du compte :
+    // un compte_id appartenant a un autre organisme ne rend donc rien.
     if (compteId) requete = requete.eq("id", compteId);
 
     const { data: comptes, error: errCpt } = await requete;
 
     if (errCpt) {
+      console.error("[f3916/generate-pdf] lecture comptes :", errCpt.message);
       return NextResponse.json(
-        { ok: false, erreur: "Lecture comptes etrangers: " + errCpt.message },
+        { ok: false, erreur: "Lecture des comptes etrangers impossible." },
         { status: 500 }
       );
     }
@@ -121,8 +170,9 @@ export async function POST(req: NextRequest) {
     try {
       octets = await fs.readFile(chemin);
     } catch (e: any) {
+      console.error("[f3916/generate-pdf] CERFA introuvable :", e.message);
       return NextResponse.json(
-        { ok: false, erreur: "CERFA introuvable a " + CERFA + " : " + e.message },
+        { ok: false, erreur: "Le formulaire CERFA est introuvable sur le serveur." },
         { status: 500 }
       );
     }
@@ -268,6 +318,7 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (e: any) {
-    return NextResponse.json({ ok: false, erreur: e.message, avertissements }, { status: 500 });
+    console.error("[f3916/generate-pdf] exception :", e.message);
+    return NextResponse.json({ ok: false, erreur: "Erreur serveur." }, { status: 500 });
   }
 }
