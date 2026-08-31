@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { Resend } from "resend";
 import crypto from "crypto";
+import { limiter, ipDe } from "../../../../lib/limiteur";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,6 +18,31 @@ export const dynamic = "force-dynamic";
 // espaces-formations.fr reste le domaine neutre de la marque blanche
 // AcadeMIA, les sous-domaines contact-pro.* restent a la prospection.
 const SITE_PAR_DEFAUT = "https://academiapro.fr";
+
+// 🚨 LIMITE DE DEBIT — 31/08. SANS ELLE, N IMPORTE QUI POUVAIT APPELER
+// CETTE ROUTE EN BOUCLE.
+//
+// LE DEFAUT, ET IL NE SE VOYAIT PAS : la route envoyait un courriel a
+// chaque appel, sans compter. Deux consequences reelles, aucune visible
+// depuis le site : la boite de la personne visee noyee sous des centaines
+// de liens de connexion, et surtout LE QUOTA RESEND EPUISE — donc plus
+// aucun courriel transactionnel qui part, y compris celui d un vrai
+// client cabinet qui tente de se connecter au meme moment.
+//
+// DEUX COMPTEURS, ET LES DEUX SONT NECESSAIRES :
+//   - par ADRESSE : empeche de noyer une personne precise, meme si
+//     l attaquant change d adresse IP a chaque appel ;
+//   - par IP : empeche d arroser des centaines d adresses differentes
+//     depuis un seul poste.
+//
+// ⚠️ LE LIMITEUR VIT EN MEMOIRE : sur Vercel il ne couvre qu une instance
+// a la fois. Il arrete le martelement ordinaire, pas une attaque
+// distribuee. Le jour ou un vrai volume le justifiera, ce compteur devra
+// passer en base ou chez un service dedie.
+const MAX_PAR_EMAIL = 3;
+const FENETRE_EMAIL_MS = 15 * 60 * 1000;
+const MAX_PAR_IP = 10;
+const FENETRE_IP_MS = 60 * 60 * 1000;
 
 const MARQUES: Record<string, { site: string; nom: string; expediteur: string; espace: string }> = {
   "academiapro.fr": {
@@ -59,9 +85,17 @@ export async function POST(req: Request) {
   try {
     const cle = process.env.RESEND_API_KEY || "";
     if (!cle) {
-      const noms = Object.keys(process.env).filter((k) => k.indexOf("RESEND") >= 0);
+      // 🚨 LE DETAIL RESTE DANS LES JOURNAUX, JAMAIS DANS LA REPONSE — 31/08.
+      // Cette route renvoyait au visiteur la LISTE DES NOMS DE VARIABLES
+      // d environnement contenant « RESEND ». C est du renseignement offert
+      // a qui sonde le site. Le detail se lit maintenant dans les journaux
+      // Vercel, la reponse ne dit que l essentiel.
+      console.error(
+        "[auth/demander] RESEND_API_KEY absente. Variables vues :",
+        Object.keys(process.env).filter((k) => k.indexOf("RESEND") >= 0)
+      );
       return NextResponse.json(
-        { success: false, error: "RESEND_API_KEY absente", variables_resend_vues: noms },
+        { success: false, error: "Envoi indisponible pour le moment" },
         { status: 500 }
       );
     }
@@ -70,6 +104,26 @@ export async function POST(req: Request) {
     const email = String(corps.email || "").toLowerCase().trim();
     if (!email || email.indexOf("@") < 1 || email.indexOf(".") < 0) {
       return NextResponse.json({ success: false, error: "Adresse email invalide" }, { status: 400 });
+    }
+
+    // LES DEUX COMPTEURS, APRES la validation de l adresse : une adresse
+    // malformee ne doit pas consommer le quota d une adresse valide.
+    if (!limiter(email, "demander_email", MAX_PAR_EMAIL, FENETRE_EMAIL_MS)) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Trop de demandes pour cette adresse. Vérifiez votre boîte de réception, "
+            + "puis réessayez dans un quart d'heure.",
+        },
+        { status: 429 }
+      );
+    }
+
+    if (!limiter(ipDe(req), "demander_ip", MAX_PAR_IP, FENETRE_IP_MS)) {
+      return NextResponse.json(
+        { success: false, error: "Trop de demandes. Réessayez dans une heure." },
+        { status: 429 }
+      );
     }
 
     const marque = marqueDe(req);
@@ -89,7 +143,11 @@ export async function POST(req: Request) {
       .insert({ email: email, jeton: jeton, expire_le: expire });
 
     if (erreurInsert) {
-      return NextResponse.json({ success: false, error: erreurInsert.message }, { status: 500 });
+      console.error("[auth/demander] insertion liens_magiques :", erreurInsert.message);
+      return NextResponse.json(
+        { success: false, error: "Envoi impossible pour le moment" },
+        { status: 500 }
+      );
     }
 
     const lien = site + "/api/auth/valider?jeton=" + encodeURIComponent(jeton);
@@ -117,14 +175,22 @@ export async function POST(req: Request) {
     });
 
     if ((envoi as any)?.error) {
+      console.error(
+        "[auth/demander] Resend :",
+        String((envoi as any).error?.message || (envoi as any).error)
+      );
       return NextResponse.json(
-        { success: false, error: String((envoi as any).error?.message || (envoi as any).error) },
+        { success: false, error: "Envoi impossible pour le moment" },
         { status: 500 }
       );
     }
 
     return NextResponse.json({ success: true });
   } catch (e: any) {
-    return NextResponse.json({ success: false, error: String(e) }, { status: 500 });
+    console.error("[auth/demander] exception :", String(e));
+    return NextResponse.json(
+      { success: false, error: "Envoi impossible pour le moment" },
+      { status: 500 }
+    );
   }
 }
