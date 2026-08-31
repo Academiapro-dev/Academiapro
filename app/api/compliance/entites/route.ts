@@ -63,7 +63,7 @@ const FENETRE_CREATION_MS = 60 * 60 * 1000;
 const CHAMPS_LISTE =
   "id, label, legal_name, entity_type, formation_state, formation_date, "
   + "anniversary_month, fr_tax_resident, member_residence, wy_filing_id, "
-  + "registered_agent_name, created_at";
+  + "registered_agent_name, email_contact, relance_auto, created_at";
 
 // GET — la liste paginee des entites de l organisme.
 //
@@ -222,6 +222,11 @@ export async function POST(req: NextRequest) {
     mailing_address: String(corps.mailing_address || "").trim() || null,
     principal_office_address: String(corps.principal_office_address || "").trim() || null,
     notes: String(corps.notes || "").trim() || null,
+    email_contact: String(corps.email_contact || "").trim() || null,
+    // ⚠️ LA RELANCE N EST JAMAIS ARMEE PAR DEFAUT. Le silence ne vaut pas
+    // consentement : un courriel part au nom du gestionnaire, chez SON
+    // client. Il doit l avoir voulu, societe par societe.
+    relance_auto: corps.relance_auto === true,
   };
 
   const { data, error } = await supabase
@@ -304,11 +309,17 @@ export async function PATCH(req: NextRequest) {
 
   // Liste blanche : tenant_id n y figure PAS, une entite ne change jamais
   // d organisme par une requete.
+  //
+  // ⚠️ email_contact ET relance_auto SONT MODIFIABLES ICI, et c est par eux
+  // que le gestionnaire arme le suivi depuis l agenda. Sans cette
+  // possibilite, les deux colonnes ne se regleraient qu en SQL — autrement
+  // dit la fonction n existerait pas pour le client.
   const modifiables = [
     "label", "legal_name", "entity_type", "formation_state", "formation_date",
     "anniversary_month", "member_residence", "fr_tax_resident",
     "has_us_source_income", "registered_agent_name", "mailing_address",
     "principal_office_address", "notes", "wy_filing_id", "wy_assets_value",
+    "email_contact", "relance_auto",
   ];
 
   const champs: any = {};
