@@ -1,15 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { sessionCourante } from "../../../../lib/session";
-import { lecture } from "../../../../lib/droits";
+import { lecture, dossiersAutorises } from "../../../../lib/droits";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 export const fetchCache = "force-no-store";
 export const maxDuration = 60;
-
-const ADMINS = ["contact@academiapro.fr"];
 
 // Comptes normalises du plan comptable general francais.
 const COLLECTEE = "445710";
@@ -37,12 +35,53 @@ function r2(n: number): number {
 
 export async function GET(req: NextRequest) {
   try {
+    // 🚨 LA LISTE DES DOSSIERS SE BORNE A L ORGANISME — CORRIGE LE 31/08.
+    //
+    // LE DEFAUT. Cette route lisait compta_societes SANS AUCUN FILTRE :
+    // un simple .limit(500) sur toute la table. Les donnees comptables,
+    // elles, restaient protegees par le barrage lecture() plus bas — aucune
+    // ecriture d un autre cabinet n a jamais pu etre lue ici.
+    //
+    // CE QUI FUYAIT QUAND MEME, ET C EST GRAVE AUTREMENT : quand aucun
+    // dossier n etait precise, la reponse d erreur « Precisez le dossier »
+    // renvoyait LA LISTE DE TOUS LES DOSSIERS DE LA BASE, avec leur code et
+    // leur RAISON SOCIALE. Autrement dit LE PORTEFEUILLE CLIENTS DE TOUS
+    // LES CABINETS, visible par n importe quel utilisateur connecte, en
+    // appelant simplement /api/compliance/tva sans parametre.
+    //
+    // Ce n est pas une fuite comptable, c est une fuite COMMERCIALE — et
+    // devant un expert-comptable, elle est redhibitoire : la liste de ses
+    // clients est ce qu il protege avant ses chiffres.
+    //
+    // LA CORRECTION suit exactement le modele de /api/compliance/balance,
+    // qui portait deja la bonne solution et son commentaire : passer par
+    // dossiersAutorises(), qui rend TOUJOURS une liste, bornee d abord a
+    // l organisme de la session, puis aux dossiers confies au collaborateur.
+    //
+    // ⚠️ LE BARRAGE lecture() PLUS BAS RESTE NECESSAIRE. Le present filtre
+    // borne CE QUE L ON VOIT ; le barrage verifie LE DROIT sur le dossier
+    // choisi. Les deux repondent a des questions differentes — ne jamais
+    // supprimer l un en pensant que l autre suffit.
+    const session = sessionCourante();
+    if (!session) {
+      return NextResponse.json({ ok: false, erreur: "Connectez-vous." }, { status: 401 });
+    }
+
     const code = (req.nextUrl.searchParams.get("societe") || "").trim().toUpperCase();
     const id = (req.nextUrl.searchParams.get("societe_id") || "").trim();
+
+    const autorises = await dossiersAutorises();
+    if (autorises.length === 0) {
+      return NextResponse.json(
+        { ok: false, erreur: "Aucun dossier ne vous est confie." },
+        { status: 403 }
+      );
+    }
 
     const { data: dossiers } = await supabase
       .from("compta_societes")
       .select("id, code, raison_sociale, siren, regime_tva, exercice_debut, exercice_fin, actif")
+      .in("id", autorises)
       .limit(500);
 
     const liste = (dossiers || []).filter(function (s: any) { return s.actif !== false; });
