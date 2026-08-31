@@ -98,6 +98,13 @@ export default function ComplianceDashboard() {
   const [pdfMsg, setPdfMsg] = useState<string | null>(null);
   const [pdfControle, setPdfControle] = useState<string | null>(null);
 
+  // Les obligations ajoutees le 31/08 : extension de delai et fiches de
+  // preparation. Un seul etat de chargement pour les quatre, elles ne se
+  // lancent jamais en meme temps.
+  const [autreLoading, setAutreLoading] = useState<string | null>(null);
+  const [autreMsg, setAutreMsg] = useState<string | null>(null);
+  const [autreUrl, setAutreUrl] = useState<string | null>(null);
+
   async function charger(id: string, entite: string | null) {
     setLoading(true);
     setErreur(null);
@@ -338,6 +345,75 @@ export default function ComplianceDashboard() {
     setPdfLoading(false);
   }
 
+  // ---- LE FORM 7004 : EXTENSION DE DELAI ----
+  //
+  // ⚠️ IL DOIT ETRE DEPOSE AVANT L ECHEANCE D ORIGINE. Un 7004 envoye apres
+  // le 15 avril ne vaut rien : l extension previent le retard, elle ne le
+  // rattrape pas. C est pourquoi la reponse rappelle les deux dates.
+  async function genererExtension() {
+    if (!tenantId) return;
+    setAutreLoading("7004");
+    setAutreMsg(null);
+    setAutreUrl(null);
+    try {
+      const r = await fetch("/api/compliance/f7004/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ entite_id: entiteId, year: PNL_YEAR }),
+      });
+      const d = await r.json();
+      if (d.success) {
+        let msg = "Form 7004 généré pour " + d.year + ".";
+        if (d.echeances) {
+          msg += " À déposer avant le " + d.echeances.depot_extension_avant
+            + " — reporte le dépôt du 1120 au " + d.echeances.nouvelle_limite_1120 + ".";
+        }
+        if (d.nb_avertissements > 0) {
+          msg += " " + d.nb_avertissements + " champ(s) non trouvé(s) dans le formulaire.";
+        }
+        setAutreMsg(msg);
+        setAutreUrl(d.url || null);
+        charger(tenantId, entiteId);
+      } else {
+        setAutreMsg("Erreur : " + (d.error || "inconnue"));
+      }
+    } catch (e: any) {
+      setAutreMsg("Erreur : " + String(e));
+    }
+    setAutreLoading(null);
+  }
+
+  // ---- LES FICHES DE PREPARATION ----
+  //
+  // Ces trois obligations ne se deposent pas sur un formulaire pre-rempli :
+  // le BOI se saisit en ligne, le W-8BEN-E depend d un statut FATCA que
+  // l outil ne connait pas, et le registered agent est un contrat a
+  // renouveler. La fiche dit ou aller et quoi preparer.
+  async function genererFiche(type: string, libelle: string) {
+    if (!tenantId) return;
+    setAutreLoading(type);
+    setAutreMsg(null);
+    setAutreUrl(null);
+    try {
+      const r = await fetch("/api/compliance/fiches", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: type, entite_id: entiteId, year: PNL_YEAR }),
+      });
+      const d = await r.json();
+      if (d.success) {
+        setAutreMsg(libelle + " générée (version " + d.version + ") et archivée au coffre.");
+        setAutreUrl(d.url || null);
+        charger(tenantId, entiteId);
+      } else {
+        setAutreMsg("Erreur : " + (d.error || "inconnue"));
+      }
+    } catch (e: any) {
+      setAutreMsg("Erreur : " + String(e));
+    }
+    setAutreLoading(null);
+  }
+
   const styleBouton = {
     background: VERT,
     color: "#ffffff",
@@ -542,6 +618,81 @@ export default function ComplianceDashboard() {
               )}
             </div>
           </>
+        )}
+
+        {/* ---- LES AUTRES OBLIGATIONS ----
+            Regroupees ici parce qu elles ne produisent pas toutes un
+            formulaire : le 7004 est un vrai PDF, les trois autres sont des
+            fiches de preparation. Le libelle de chaque bouton le dit. */}
+        <h2 style={{ color: VERT, fontSize: 20, marginTop: 32 }}>
+          Autres obligations
+        </h2>
+
+        <div style={{ ...styleCarte, background: "#f8f8f4" }}>
+          <h3 style={{ color: VERT, marginTop: 0, fontSize: 17 }}>
+            Extension de délai — Form 7004
+          </h3>
+          <p style={{ fontSize: 14, color: "#555", marginTop: 0 }}>
+            Reporte de six mois le dépôt du 1120 et de son 5472, jusqu&apos;au 15 octobre.
+            L&apos;extension est accordée automatiquement, sans justification —
+            mais elle doit être déposée <strong>avant</strong> le 15 avril.
+            Passé cette date sans dépôt ni extension, l&apos;amende est de
+            25 000 USD par société.
+          </p>
+          <button
+            onClick={genererExtension}
+            disabled={autreLoading !== null}
+            style={styleBouton}
+          >
+            {autreLoading === "7004" ? "Génération…" : "Générer le Form 7004"}
+          </button>
+        </div>
+
+        <div style={{ ...styleCarte, background: "#f8f8f4" }}>
+          <h3 style={{ color: VERT, marginTop: 0, fontSize: 17 }}>
+            Fiches de préparation
+          </h3>
+          <p style={{ fontSize: 14, color: "#555", marginTop: 0 }}>
+            Ces trois obligations ne se déposent pas sur un formulaire pré-rempli.
+            La fiche indique où déposer, quoi préparer, et ce qui est en jeu.
+          </p>
+          <button
+            onClick={() => genererFiche("boi", "Fiche BOI FinCEN")}
+            disabled={autreLoading !== null}
+            style={styleLien}
+          >
+            {autreLoading === "boi" ? "…" : "Fiche BOI FinCEN"}
+          </button>
+          <button
+            onClick={() => genererFiche("w8bene", "Fiche W-8BEN-E")}
+            disabled={autreLoading !== null}
+            style={styleLien}
+          >
+            {autreLoading === "w8bene" ? "…" : "Fiche W-8BEN-E"}
+          </button>
+          {tenant && (!tenant.formation_state || tenant.formation_state === "WY") && (
+            <button
+              onClick={() => genererFiche("registered_agent", "Fiche registered agent")}
+              disabled={autreLoading !== null}
+              style={styleLien}
+            >
+              {autreLoading === "registered_agent" ? "…" : "Fiche registered agent"}
+            </button>
+          )}
+        </div>
+
+        {autreMsg && (
+          <p style={{ marginTop: 10, color: autreMsg.indexOf("Erreur") === 0 ? "#c62828" : VERT }}>
+            {autreMsg}
+          </p>
+        )}
+        {autreUrl && (
+          <p style={{ marginTop: 6 }}>
+            <a href={autreUrl} target="_blank" rel="noreferrer" style={{ color: VERT, fontWeight: "bold" }}>
+              Ouvrir le document généré
+            </a>
+            <span style={{ color: "#666", fontSize: 13 }}> (lien valable 1 heure)</span>
+          </p>
         )}
 
         <h2 style={{ color: VERT, fontSize: 20, marginTop: 32 }}>
