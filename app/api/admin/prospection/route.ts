@@ -14,43 +14,20 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || ""
 );
 
-// LES CINQ BASES DE PROSPECTION.
+// LES QUATRE BASES DE PROSPECTION.
 //
 // Elles ne sont PAS dans la table crm : celle-ci est cloisonnee par tenant
-// et appartient au client. Celles-ci sont la prospection de Jacques,
+// et appartient au client. Ces quatre-la sont la prospection de Jacques,
 // et n ont jamais eu d ecran pour les consulter.
 //
 // PIEGE VERIFIE LE 14 AOUT : prospects_organismes n a PAS de colonne
-// vague, contrairement aux autres. La demander la ferait echouer.
+// vague, contrairement aux trois autres. La demander la ferait echouer.
 //
-// 🚨 TROISIEME PIEGE DE LA MEME FAMILLE, TROUVE LE 25/08.
-// prospects_gros n a PAS de colonne sms_accepte_le, que le bloc detail
-// demandait jusqu ici sans condition. D ou le drapeau sms.
-// LA REGLE GENERALE, TROIS FOIS VERIFIEE : ne jamais demander une colonne
-// sans savoir qu elle existe sur CETTE table. Une colonne absente ne rend
-// pas une ligne vide, elle fait echouer la lecture ENTIERE.
-//
-// prospects_gros etait absente de la recherche globale alors qu elle porte
-// 8 213 organismes et la quasi-totalite des profils LinkedIn travailles.
-// Chercher un nom vu sur LinkedIn ne le trouvait donc pas. Ajoutee le 25/08.
-//
-// 🆕 « cabinets » PASSE A linkedin: true — 27/08.
-//
-// LE DEFAUT, ET IL S EST VU DES LA PREMIERE ACCEPTATION. La table
-// prospects_cabinets n avait pas les colonnes LinkedIn : le drapeau etait
-// donc a false, a juste titre. Les quatre colonnes ont ete ajoutees le
-// 26/08 — linkedin_le, linkedin_statut, linkedin_relance_le, notes — mais
-// ce drapeau est reste a false.
-//
-// CONSEQUENCE : la recherche globale rendait bien les fiches cabinets,
-// mais SANS AUCUN BOUTON. Jacques voyait deux experts-comptables qui
-// venaient d accepter son invitation, et ne pouvait ni ouvrir leur profil
-// ni marquer l acceptation. Il a fallu passer par une requete SQL.
-//
-// ⚠️ LE MEME PIEGE, DANS L AUTRE SENS. Le drapeau ne dit pas ce qu on
-// souhaite, il dit CE QUE LA TABLE PORTE. Le mettre a true avant que les
-// colonnes existent aurait fait echouer la lecture entiere ; le laisser a
-// false apres les avoir creees rend des fiches inertes.
+// SECOND PIEGE DE LA MEME FAMILLE : les colonnes linkedin, linkedin_le et
+// linkedin_statut existent sur les TROIS tables prospectables, mais PAS
+// sur prospects_cabinets, qu on ne touche pas avant l accord BCSolutions.
+// D ou le drapeau ci dessous : les demander sur cabinets ferait echouer
+// la lecture entiere.
 const BASES: any = {
   organismes: {
     table: "prospects_organismes",
@@ -58,7 +35,6 @@ const BASES: any = {
     cible: "Pack organisme",
     vague: false,
     linkedin: true,
-    sms: true,
   },
   qualiopi: {
     table: "prospects_qualiopi",
@@ -66,15 +42,6 @@ const BASES: any = {
     cible: "Mr. Qualiopi",
     vague: true,
     linkedin: true,
-    sms: true,
-  },
-  gros: {
-    table: "prospects_gros",
-    titre: "Grands organismes de formation",
-    cible: "Pack organisme",
-    vague: false,
-    linkedin: true,
-    sms: false,
   },
   interim: {
     table: "prospects_interim",
@@ -82,47 +49,31 @@ const BASES: any = {
     cible: "Formations securite",
     vague: true,
     linkedin: true,
-    sms: true,
   },
   cabinets: {
     table: "prospects_cabinets",
     titre: "Cabinets comptables",
     cible: "Mr. Comptable",
     vague: true,
-    linkedin: true,
-    sms: true,
+    linkedin: false,
   },
 };
 
-// 🔎 LA RECHERCHE GLOBALE — ajoutee le 24/08, corrigee deux fois le 25/08.
+// 🔎 LA RECHERCHE GLOBALE — ajoutee le 24/08.
 //
-// LE DEFAUT D ORIGINE : il fallait SAVOIR dans quelle base se trouvait un
-// prospect AVANT de pouvoir le chercher. Or c est precisement ce qu on
-// ignore quand on cherche.
+// LE DEFAUT : il fallait SAVOIR dans quelle base se trouvait un prospect
+// AVANT de pouvoir le chercher. Or c est precisement ce qu on ignore quand
+// on cherche. Un nom entendu au telephone, une societe vue sur LinkedIn :
+// on ne sait pas si elle est dans les organismes, les qualiopi, l interim
+// ou les cabinets.
 //
-// 🚨🚨 LE DEFAUT DU 25/08, ET IL A COUTE UN DOUBLON REEL.
+// La recherche par base reste en place, elle sert au travail au volume.
+// Celle-ci repond a une autre question : « ou est cette entreprise ? »
 //
-// Jacques a cherche « gregory bouli ». Zero resultat. Il a donc cree la
-// fiche a la main, consommant une unite de quota LinkedIn — alors que
-// G-B CONSULTING, GREGORY BOULICAUT, dormait dans prospects_organismes
-// sous l id 5375.
-//
-// POURQUOI. La clause cherchait la chaine ENTIERE « gregory bouli » dans
-// CHAQUE COLONNE PRISE SEPAREMENT. Or dirigeant_prenom porte « GREGORY »
-// et dirigeant_nom porte « BOULICAUT ». AUCUNE colonne ne contient la
-// chaine entiere. La requete reussissait et rendait zero.
-//
-// MEME FAMILLE QUE LA LECON DU BUCKET : ca reussit, ca rend moins, ca ne
-// dit rien.
-//
-// LA CORRECTION. Le terme est DECOUPE EN MOTS. Chaque mot doit se trouver
-// quelque part dans la ligne — un .or() par mot, chaines les uns apres
-// les autres, ce qui donne un ET entre les mots et un OU entre les
-// colonnes. « gregory bouli » retrouve donc une ligne ou le prenom est
-// dans une colonne et le nom dans une autre.
-//
-// ⚠️ NE PAS REVENIR A UN .or() UNIQUE SUR LA CHAINE ENTIERE : le defaut
-// ne se voit pas, il rend simplement moins.
+// ELLE CHERCHE AUSSI PLUS LARGE. L ancienne recherche ne couvrait que la
+// raison sociale, la ville, l adresse et le SIREN. Le nom du dirigeant en
+// etait absent — alors que c est souvent la seule chose qu on retient d un
+// echange. Le telephone et le profil LinkedIn manquaient aussi.
 const COLONNES_GLOBALES = [
   "raison_sociale",
   "ville",
@@ -133,67 +84,15 @@ const COLONNES_GLOBALES = [
   "telephone",
 ];
 
-// LA TABLE CRM — ajoutee a la recherche le 25/08.
-//
-// C est la que vivent les profils que Jacques enregistre lui-meme depuis
-// l ecran LinkedIn. La recherche annoncait « aucune des cinq bases » alors
-// que la fiche cherchee etait dans une SIXIEME table jamais interrogee.
-//
-// 🚨 DEUX PRECAUTIONS, ET ELLES NE SE DISCUTENT PAS.
-//
-// 1. tenant_id IS NULL. La table crm est cloisonnee par tenant : elle
-//    porte AUSSI les contacts des organismes clients. Seules les fiches
-//    sans tenant sont celles de Jacques. Sans ce filtre, la recherche
-//    exposerait les contacts d un client a un autre.
-//
-// 2. SES COLONNES SONT DIFFERENTES. Pas de raison_sociale, pas de siren,
-//    pas de dropcontact_le, pas de code_postal. Les demander ferait
-//    echouer la lecture entiere — quatrieme occurrence du meme piege.
-const COLONNES_CRM_GLOBALES = [
-  "nom",
-  "organisme",
-  "ville",
-  "email",
-  "dirigeant_nom",
-  "dirigeant_prenom",
-  "telephone",
-  "linkedin",
-];
-
-// Le decoupage en mots. Les separateurs usuels sautent, les mots d une
-// seule lettre aussi : « j » ne doit pas ramener la moitie d une base.
-function motsDe(terme: string): string[] {
-  return terme
-    .replace(/[,%()]/g, " ")
-    .split(/\s+/)
-    .map(function (m) { return m.trim(); })
-    .filter(function (m) { return m.length >= 2; });
-}
-
-// La clause d UN mot : ce mot, dans n importe laquelle des colonnes.
-function clauseMot(mot: string, colonnes: string[]): string {
-  return colonnes
-    .map(function (c) { return c + ".ilike.%" + mot + "%"; })
-    .join(",");
-}
-
 // Le profil LinkedIn n existe pas partout : il est ajoute a la volee.
-function colonnesPour(avecLinkedin: boolean): string[] {
-  return avecLinkedin
+function clauseOu(terme: string, avecLinkedin: boolean): string {
+  const propre = terme.replace(/[,%()]/g, " ").trim();
+  const colonnes = avecLinkedin
     ? COLONNES_GLOBALES.concat(["linkedin"])
     : COLONNES_GLOBALES;
-}
-
-// Chaque mot devient un .or() supplementaire. Supabase combine les
-// filtres successifs par ET : c est exactement ce qu on veut.
-function appliquerMots(q: any, terme: string, colonnes: string[]): any {
-  const mots = motsDe(terme);
-  const liste = mots.length > 0 ? mots : [terme.trim()];
-  let sortie = q;
-  for (const mot of liste) {
-    sortie = sortie.or(clauseMot(mot, colonnes));
-  }
-  return sortie;
+  return colonnes
+    .map(function (c) { return c + ".ilike.%" + propre + "%"; })
+    .join(",");
 }
 
 // Le compte exact sans rapatrier les lignes : head true ne renvoie que le
@@ -216,10 +115,10 @@ async function chercherDans(cle: string, terme: string): Promise<any> {
     + "statut, envoye_le, desabonne, dropcontact_le"
     + (b.linkedin ? ", linkedin, linkedin_le, linkedin_statut" : "");
 
-  let q = supabase.from(b.table).select(colonnes, { count: "exact" });
-  q = appliquerMots(q, terme, colonnesPour(!!b.linkedin));
-
-  const { data, count, error } = await q
+  const { data, count, error } = await supabase
+    .from(b.table)
+    .select(colonnes, { count: "exact" })
+    .or(clauseOu(terme, !!b.linkedin))
     .order("id", { ascending: true })
     .range(0, 19);
 
@@ -246,67 +145,155 @@ async function chercherDans(cle: string, terme: string): Promise<any> {
   };
 }
 
-// LA FILE LINKEDIN DE JACQUES — table crm, tenant_id null.
+// ---------------------------------------------------------------------------
+// 🚨 LA LENTEUR DE L ECRAN — DIAGNOSTIQUEE ET CORRIGEE LE 31/08 AU SOIR.
 //
-// Elle est presentee sous la MEME FORME que les autres bases, pour que
-// l ecran n ait pas a distinguer : organisme devient raison_sociale, et
-// les colonnes absentes sont posees a null.
-async function chercherDansCrm(terme: string): Promise<any> {
-  const colonnes = "id, nom, organisme, ville, dirigeant_prenom, dirigeant_nom, "
-    + "email, telephone, linkedin, linkedin_le, linkedin_statut, statut";
+// CE QUI SE PASSAIT. Le resume des quatre bases lancait DIX COMPTAGES PAR
+// BASE, LES UNS APRES LES AUTRES : total, avec adresse, avec telephone,
+// avec profil LinkedIn, LinkedIn a faire, LinkedIn invites, envoyes,
+// enrichis, soumis a Dropcontact, desabonnes. Quarante comptages
+// sequentiels sur des tables de dizaines de milliers de lignes.
+//
+// ET IL ETAIT REFAIT A CHAQUE FOIS. L ecran rappelle cette route au
+// changement de filtre, a la recherche, au changement de page et apres
+// chaque invitation LinkedIn — alors que ces totaux ne bougent quasiment
+// jamais. Afficher la page deux coutait quarante comptages.
+//
+// LES DEUX CORRECTIONS :
+//   1. Les comptages partent TOUS EN MEME TEMPS (Promise.all), et les
+//      quatre bases sont traitees ensemble. Le temps devient celui du plus
+//      lent, non la somme des quarante.
+//   2. Le resume ne se calcule QUE quand il sert. L ecran qui tourne une
+//      page ou change de filtre ajoute `&resume=0` et ne paie plus rien.
+//
+// ⚠️ COMPATIBILITE : sans parametre, le resume est calcule comme avant.
+// Aucun appel existant ne casse ; l ecran s allege quand il le demande.
+//
+// ⚠️ NE PAS REVENIR A UNE BOUCLE `for` AVEC `await` A L INTERIEUR : c est
+// la forme qui a produit la lenteur, et elle se reintroduit sans y penser
+// des qu on ajoute un compteur.
+// ---------------------------------------------------------------------------
 
-  let q = supabase
-    .from("crm")
-    .select(colonnes, { count: "exact" })
-    .is("tenant_id", null);
+// Les dix comptages d une base, lances ensemble.
+async function resumeDe(cle: string): Promise<any> {
+  const b = BASES[cle];
 
-  q = appliquerMots(q, terme, COLONNES_CRM_GLOBALES);
-
-  const { data, count, error } = await q
-    .order("nom", { ascending: true })
-    .range(0, 19);
-
-  if (error) {
-    return {
-      cle: "crm",
-      titre: "Ma file LinkedIn",
-      cible: "Contacts saisis a la main",
-      porte_linkedin: true,
-      trouves: 0,
-      lignes: [],
-      erreur: error.message,
-    };
-  }
-
-  const lignes = (data || []).map(function (l: any) {
-    return {
-      id: l.id,
-      raison_sociale: l.organisme || l.nom || "-",
-      siren: null,
-      ville: l.ville,
-      code_postal: null,
-      dirigeant_prenom: l.dirigeant_prenom,
-      dirigeant_nom: l.dirigeant_nom,
-      email: l.email,
-      telephone: l.telephone,
-      statut: l.statut,
-      envoye_le: null,
-      desabonne: false,
-      dropcontact_le: null,
-      linkedin: l.linkedin,
-      linkedin_le: l.linkedin_le,
-      linkedin_statut: l.linkedin_statut,
-    };
-  });
+  const [
+    total,
+    avecEmail,
+    avecTel,
+    avecLinkedin,
+    linkedinAFaire,
+    linkedinInvites,
+    envoyes,
+    enrichis,
+    soumis,
+    desabonnes,
+  ] = await Promise.all([
+    compter(b.table, null),
+    compter(b.table, function (q: any) { return q.not("email", "is", null); }),
+    compter(b.table, function (q: any) { return q.not("telephone", "is", null); }),
+    // Le compte des profils LinkedIn n a de sens que la ou la colonne
+    // existe : ailleurs on rend zero sans interroger la base.
+    b.linkedin
+      ? compter(b.table, function (q: any) { return q.not("linkedin", "is", null); })
+      : Promise.resolve(0),
+    // Ce qui reste a faire a la main : un profil connu, jamais sollicite.
+    b.linkedin
+      ? compter(b.table, function (q: any) {
+          return q.not("linkedin", "is", null).is("linkedin_le", null);
+        })
+      : Promise.resolve(0),
+    b.linkedin
+      ? compter(b.table, function (q: any) { return q.not("linkedin_le", "is", null); })
+      : Promise.resolve(0),
+    compter(b.table, function (q: any) { return q.eq("statut", "envoye"); }),
+    compter(b.table, function (q: any) { return q.eq("statut", "enrichi"); }),
+    compter(b.table, function (q: any) { return q.not("dropcontact_le", "is", null); }),
+    compter(b.table, function (q: any) { return q.eq("desabonne", true); }),
+  ]);
 
   return {
-    cle: "crm",
-    titre: "Ma file LinkedIn",
-    cible: "Contacts saisis a la main",
-    porte_linkedin: true,
-    trouves: count || 0,
-    lignes: lignes,
-    erreur: null,
+    cle: cle,
+    titre: b.titre,
+    cible: b.cible,
+    total: total,
+    enrichis: enrichis,
+    avec_email: avecEmail,
+    avec_telephone: avecTel,
+    avec_linkedin: avecLinkedin,
+    linkedin_a_faire: linkedinAFaire,
+    linkedin_invites: linkedinInvites,
+    porte_linkedin: !!b.linkedin,
+    soumis_dropcontact: soumis,
+    envoyes: envoyes,
+    desabonnes: desabonnes,
+    a_envoyer: Math.max(avecEmail - envoyes - desabonnes, 0),
+  };
+}
+
+// Le detail d une base : la page demandee et son compte, en une requete.
+async function detailDe(demandee: string, filtre: string, cherche: string, page: number, parPage: number) {
+  const b = BASES[demandee];
+
+  const colonnes = "id, raison_sociale, siren, ville, code_postal, "
+    + "dirigeant_prenom, dirigeant_nom, email, telephone, site_web, "
+    + "statut, envoye_le, desabonne, dropcontact_le, sms_accepte_le"
+    + (b.vague ? ", vague" : "")
+    + (b.linkedin ? ", linkedin, linkedin_le, linkedin_statut" : "");
+
+  let q = supabase.from(b.table).select(colonnes, { count: "exact" });
+
+  // Les filtres disent ce qu on cherche a faire, pas seulement ce qu on
+  // veut voir : « a envoyer » et « LinkedIn a faire » sont des listes
+  // de travail, pas des vues.
+  if (filtre === "a_envoyer") {
+    q = q.not("email", "is", null).neq("statut", "envoye").not("desabonne", "is", true);
+  } else if (filtre === "envoyes") {
+    q = q.eq("statut", "envoye");
+  } else if (filtre === "avec_email") {
+    q = q.not("email", "is", null);
+  } else if (filtre === "avec_telephone") {
+    q = q.not("telephone", "is", null);
+  } else if (filtre === "avec_linkedin" && b.linkedin) {
+    q = q.not("linkedin", "is", null);
+  } else if (filtre === "linkedin_a_faire" && b.linkedin) {
+    q = q.not("linkedin", "is", null).is("linkedin_le", null);
+  } else if (filtre === "linkedin_invites" && b.linkedin) {
+    q = q.not("linkedin_le", "is", null);
+  } else if (filtre === "a_enrichir") {
+    q = q.is("email", null).is("dropcontact_le", null)
+      .not("dirigeant_nom", "is", null).not("dirigeant_prenom", "is", null);
+  } else if (filtre === "desabonnes") {
+    q = q.eq("desabonne", true);
+  }
+
+  // La recherche par base couvre desormais les memes colonnes que la
+  // recherche globale : le nom du dirigeant y manquait.
+  if (cherche) {
+    q = q.or(clauseOu(cherche, !!b.linkedin));
+  }
+
+  const debut = page * parPage;
+  const { data, count, error } = await q
+    .order("id", { ascending: true })
+    .range(debut, debut + parPage - 1);
+
+  if (error) return { erreur: "Lecture de " + b.table + " : " + error.message };
+
+  return {
+    base: demandee,
+    titre: b.titre,
+    cible: b.cible,
+    porte_vague: b.vague,
+    porte_linkedin: !!b.linkedin,
+    filtre: filtre,
+    recherche: cherche,
+    page: page,
+    par_page: parPage,
+    total_filtre: count || 0,
+    pages: Math.ceil((count || 0) / parPage),
+    lignes: data || [],
   };
 }
 
@@ -325,15 +312,20 @@ export async function GET(req: NextRequest) {
     const page = Math.max(0, parseInt(url.searchParams.get("page") || "0", 10) || 0);
     const parPage = 50;
 
+    // ⚠️ LE RESUME EST CALCULE PAR DEFAUT, pour ne casser aucun appel
+    // existant. L ecran qui n en a pas besoin — changement de page, de
+    // filtre, de recherche — passe `resume=0` et economise quarante
+    // comptages.
+    const veutResume = (url.searchParams.get("resume") || "1") !== "0";
+
     // ---- LA RECHERCHE GLOBALE ------------------------------------------
     //
     // Elle repond seule : ni resume ni detail ne sont calcules, ce qui la
     // rend rapide. Deux caracteres minimum, sans quoi elle rendrait la
     // moitie des bases.
     //
-    // LA FILE LINKEDIN VIENT EN TETE : c est la que se trouvent les fiches
-    // deja travaillees, et c est ce qu on veut savoir en premier avant de
-    // recreer un doublon.
+    // ⚠️ LES QUATRE BASES SONT INTERROGEES ENSEMBLE, non l une apres
+    // l autre : la recherche allait a la vitesse de la somme des quatre.
     if (global) {
       if (global.length < 2) {
         return NextResponse.json({
@@ -342,11 +334,9 @@ export async function GET(req: NextRequest) {
         });
       }
 
-      const resultats: any[] = [];
-      resultats.push(await chercherDansCrm(global));
-      for (const cle of Object.keys(BASES)) {
-        resultats.push(await chercherDans(cle, global));
-      }
+      const resultats = await Promise.all(
+        Object.keys(BASES).map(function (cle) { return chercherDans(cle, global); })
+      );
 
       const total = resultats.reduce(function (s: number, r: any) {
         return s + (r.trouves || 0);
@@ -356,156 +346,34 @@ export async function GET(req: NextRequest) {
         ok: true,
         mode: "global",
         terme: global,
-        mots: motsDe(global),
         total_trouve: total,
         bases: resultats,
       });
     }
 
-    // ---- LE RESUME DES BASES --------------------------------------------
-    const resume: any[] = [];
+    // ---- LE RESUME ET LE DETAIL, CALCULES ENSEMBLE ----------------------
+    //
+    // Les deux sont independants : rien ne justifie d attendre l un pour
+    // commencer l autre.
+    const [resume, detail] = await Promise.all([
+      veutResume
+        ? Promise.all(Object.keys(BASES).map(function (cle) { return resumeDe(cle); }))
+        : Promise.resolve(null),
+      demandee && BASES[demandee]
+        ? detailDe(demandee, filtre, cherche, page, parPage)
+        : Promise.resolve(null),
+    ]);
 
-    for (const cle of Object.keys(BASES)) {
-      const b = BASES[cle];
-      const total = await compter(b.table, null);
-      const avecEmail = await compter(b.table, function (q: any) {
-        return q.not("email", "is", null);
-      });
-      const avecTel = await compter(b.table, function (q: any) {
-        return q.not("telephone", "is", null);
-      });
-
-      // Le compte des profils LinkedIn n a de sens que la ou la colonne
-      // existe : ailleurs on renvoie zero sans interroger la base.
-      const avecLinkedin = b.linkedin
-        ? await compter(b.table, function (q: any) {
-            return q.not("linkedin", "is", null);
-          })
-        : 0;
-
-      // Ce qui reste a faire a la main : un profil connu, jamais sollicite.
-      const linkedinAFaire = b.linkedin
-        ? await compter(b.table, function (q: any) {
-            return q.not("linkedin", "is", null).is("linkedin_le", null);
-          })
-        : 0;
-
-      const linkedinInvites = b.linkedin
-        ? await compter(b.table, function (q: any) {
-            return q.not("linkedin_le", "is", null);
-          })
-        : 0;
-
-      const envoyes = await compter(b.table, function (q: any) {
-        return q.eq("statut", "envoye");
-      });
-      const enrichis = await compter(b.table, function (q: any) {
-        return q.eq("statut", "enrichi");
-      });
-      const soumis = await compter(b.table, function (q: any) {
-        return q.not("dropcontact_le", "is", null);
-      });
-      const desabonnes = await compter(b.table, function (q: any) {
-        return q.eq("desabonne", true);
-      });
-
-      resume.push({
-        cle: cle,
-        titre: b.titre,
-        cible: b.cible,
-        total: total,
-        enrichis: enrichis,
-        avec_email: avecEmail,
-        avec_telephone: avecTel,
-        avec_linkedin: avecLinkedin,
-        linkedin_a_faire: linkedinAFaire,
-        linkedin_invites: linkedinInvites,
-        porte_linkedin: !!b.linkedin,
-        soumis_dropcontact: soumis,
-        envoyes: envoyes,
-        desabonnes: desabonnes,
-        a_envoyer: Math.max(avecEmail - envoyes - desabonnes, 0),
-      });
-    }
-
-    // ---- LE DETAIL D UNE BASE -------------------------------------------
-    let detail: any = null;
-
-    if (demandee && BASES[demandee]) {
-      const b = BASES[demandee];
-
-      const colonnes = "id, raison_sociale, siren, ville, code_postal, "
-        + "dirigeant_prenom, dirigeant_nom, email, telephone, site_web, "
-        + "statut, envoye_le, desabonne, dropcontact_le"
-        + (b.sms ? ", sms_accepte_le" : "")
-        + (b.vague ? ", vague" : "")
-        + (b.linkedin ? ", linkedin, linkedin_le, linkedin_statut" : "");
-
-      let q = supabase.from(b.table).select(colonnes, { count: "exact" });
-
-      // Les filtres disent ce qu on cherche a faire, pas seulement ce qu on
-      // veut voir : « a envoyer » et « LinkedIn a faire » sont des listes
-      // de travail, pas des vues.
-      if (filtre === "a_envoyer") {
-        q = q.not("email", "is", null).neq("statut", "envoye").not("desabonne", "is", true);
-      } else if (filtre === "envoyes") {
-        q = q.eq("statut", "envoye");
-      } else if (filtre === "avec_email") {
-        q = q.not("email", "is", null);
-      } else if (filtre === "avec_telephone") {
-        q = q.not("telephone", "is", null);
-      } else if (filtre === "avec_linkedin" && b.linkedin) {
-        q = q.not("linkedin", "is", null);
-      } else if (filtre === "linkedin_a_faire" && b.linkedin) {
-        q = q.not("linkedin", "is", null).is("linkedin_le", null);
-      } else if (filtre === "linkedin_invites" && b.linkedin) {
-        q = q.not("linkedin_le", "is", null);
-      } else if (filtre === "a_enrichir") {
-        q = q.is("email", null).is("dropcontact_le", null)
-          .not("dirigeant_nom", "is", null).not("dirigeant_prenom", "is", null);
-      } else if (filtre === "desabonnes") {
-        q = q.eq("desabonne", true);
-      }
-
-      // La recherche par base beneficie du MEME decoupage en mots que la
-      // recherche globale. Sans quoi le defaut du 25/08 se rejouerait ici.
-      if (cherche) {
-        q = appliquerMots(q, cherche, colonnesPour(!!b.linkedin));
-      }
-
-      const debut = page * parPage;
-      const { data, count, error } = await q
-        .order("id", { ascending: true })
-        .range(debut, debut + parPage - 1);
-
-      if (error) {
-        return NextResponse.json(
-          { ok: false, erreur: "Lecture de " + b.table + " : " + error.message },
-          { status: 500 }
-        );
-      }
-
-      detail = {
-        base: demandee,
-        titre: b.titre,
-        cible: b.cible,
-        porte_vague: b.vague,
-        porte_linkedin: !!b.linkedin,
-        porte_sms: !!b.sms,
-        filtre: filtre,
-        recherche: cherche,
-        page: page,
-        par_page: parPage,
-        total_filtre: count || 0,
-        pages: Math.ceil((count || 0) / parPage),
-        lignes: data || [],
-      };
+    if (detail && (detail as any).erreur) {
+      return NextResponse.json({ ok: false, erreur: (detail as any).erreur }, { status: 500 });
     }
 
     return NextResponse.json({
       ok: true,
       resume: resume,
-      total_general: resume.reduce(function (s: number, r: any) { return s + r.total; }, 0),
+      total_general: resume
+        ? (resume as any[]).reduce(function (s: number, r: any) { return s + r.total; }, 0)
+        : null,
       detail: detail,
     });
   } catch (e: any) {
