@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 // CET ECRAN EST CELUI DE L EDITEUR : il montre les prospects d AcadeMIA Pro,
 // ceux qui arrivent par les tunnels publics et n ont aucun organisme
@@ -24,19 +24,31 @@ import { useState, useEffect } from "react";
 // ecran mal range. Le lien figure desormais dans l'en-tete, visible depuis
 // tous les onglets, et dans le bloc du tableau de bord.
 //
-// 🔎 LA RECHERCHE GLOBALE — ajoutee le 24/08.
+// ---------------------------------------------------------------------------
+// 🚨 LA LENTEUR DE L ONGLET PROSPECTION — CORRIGEE LE 01/09.
 //
-// LE DEFAUT : le champ de recherche ne cherchait que dans la base ouverte.
-// Il fallait donc SAVOIR ou se trouvait un prospect avant de pouvoir le
-// chercher — ce qui est exactement ce qu on ignore quand on cherche.
+// CE QUI SE PASSAIT. Chaque changement de page, de filtre ou de recherche
+// rappelait /api/admin/prospection SANS PARAMETRE. La route recalculait
+// alors le RESUME DES QUATRE BASES — dix comptages par base, quarante en
+// tout, sur des tables de dizaines de milliers de lignes.
 //
-// Ses mots : « je n'ai pas un moteur de recherche global, ce qui m'oblige a
-// chercher dans les colonnes ou se trouve tel ou tel prospect ».
+// Or ces totaux ne bougent pas quand on tourne une page. Afficher la page
+// deux coutait quarante comptages pour reafficher exactement les memes
+// chiffres.
 //
-// Le champ pose en tete de l onglet Prospection interroge les QUATRE bases
-// d un coup et dit dans laquelle chaque resultat se trouve. Un clic sur une
-// base ouvre le detail correspondant. La recherche par base reste en place :
-// elle sert au travail au volume, celle-ci sert a retrouver quelqu un.
+// LA CORRECTION. Le resume n est demande QU AU PREMIER CHARGEMENT et au
+// changement de base. Pour tout le reste — page, filtre, recherche — on
+// passe `resume=0` et l on CONSERVE le resume deja en memoire.
+//
+// ⚠️ POURQUOI CONSERVER PLUTOT QUE VIDER. La route rend `resume: null`
+// quand on ne le demande pas. Ecraser l ancien par null ferait DISPARAITRE
+// les quatre cartes de bases a chaque clic — le remede serait pire que le
+// mal. On garde donc l ancien resume tant qu un nouveau n arrive pas.
+//
+// ⚠️ LE RESUME EST REDEMANDE AU CHANGEMENT DE BASE, parce que la carte
+// active change d apparence et que les compteurs de la base ouverte
+// peuvent avoir bouge depuis (une invitation, un envoi).
+// ---------------------------------------------------------------------------
 const PORTEE = "editeur";
 
 const FILTRES = [
@@ -84,11 +96,12 @@ export default function CRMPage() {
   const [chargeBases, setChargeBases] = useState(false);
   const [erreurBases, setErreurBases] = useState("");
 
-  // LA RECHERCHE GLOBALE. Elle vit a part de la recherche par base : ses
-  // resultats remplacent l affichage tant qu ils sont a l ecran.
-  const [saisieGlobale, setSaisieGlobale] = useState("");
-  const [globale, setGlobale] = useState<any>(null);
-  const [chargeGlobale, setChargeGlobale] = useState(false);
+  // 🚨 LA BASE DONT LE RESUME EST DEJA EN MEMOIRE.
+  //
+  // Elle sert a decider si le prochain appel doit redemander les quarante
+  // comptages ou non. Un useRef plutot qu un useState : sa valeur est lue
+  // dans une fonction asynchrone, et un state pourrait y arriver perime.
+  const resumePour = useRef<string>("");
 
   const [motifs, setMotifs] = useState<any>(null);
   const [fichePerdu, setFichePerdu] = useState("");
@@ -143,7 +156,11 @@ export default function CRMPage() {
     }
   }
 
-  async function chargerBases() {
+  // 🚨 LE RESUME N EST DEMANDE QUE QUAND IL PEUT AVOIR CHANGE.
+  //
+  // `forcer` permet de le redemander explicitement — apres une invitation,
+  // par exemple, ou le compteur « a inviter » de la base vient de bouger.
+  async function chargerBases(forcer?: boolean) {
     setChargeBases(true);
     setErreurBases("");
     try {
@@ -153,56 +170,34 @@ export default function CRMPage() {
       if (cherche) q.set("q", cherche);
       if (page) q.set("page", String(page));
 
+      // Le resume se redemande au premier chargement, au changement de
+      // base, ou sur demande explicite. Jamais pour une simple pagination.
+      const besoinResume = forcer === true || resumePour.current !== base;
+      if (!besoinResume) q.set("resume", "0");
+
       const r = await fetch("/api/admin/prospection?" + q.toString(), { cache: "no-store" });
       const data = await r.json();
-      if (data.ok) setBases(data);
-      else setErreurBases(data.erreur || "Lecture impossible.");
+
+      if (data.ok) {
+        // ⚠️ ON NE REMPLACE LE RESUME QUE S IL EN ARRIVE UN NOUVEAU.
+        // Sinon les quatre cartes de bases disparaitraient a chaque clic.
+        setBases(function (ancien: any) {
+          const resume = (data.resume !== null && data.resume !== undefined)
+            ? data.resume
+            : (ancien ? ancien.resume : null);
+          const total = (data.total_general !== null && data.total_general !== undefined)
+            ? data.total_general
+            : (ancien ? ancien.total_general : null);
+          return { ...data, resume: resume, total_general: total };
+        });
+        if (besoinResume) resumePour.current = base;
+      } else {
+        setErreurBases(data.erreur || "Lecture impossible.");
+      }
     } catch (e: any) {
       setErreurBases("Lecture impossible : " + String(e));
     }
     setChargeBases(false);
-  }
-
-  // CHERCHER PARTOUT. Le terme part vers les quatre bases, et le resultat
-  // dit dans laquelle chaque ligne se trouve.
-  async function chercherPartout() {
-    const terme = saisieGlobale.trim();
-    if (terme.length < 2) {
-      setErreurBases("Deux caractères au minimum.");
-      return;
-    }
-    setChargeGlobale(true);
-    setErreurBases("");
-    try {
-      const r = await fetch("/api/admin/prospection?global=" + encodeURIComponent(terme), { cache: "no-store" });
-      const d = await r.json();
-      if (d.ok) setGlobale(d);
-      else {
-        setGlobale(null);
-        setErreurBases(d.erreur || "Recherche impossible.");
-      }
-    } catch (e: any) {
-      setGlobale(null);
-      setErreurBases("Recherche impossible : " + String(e));
-    }
-    setChargeGlobale(false);
-  }
-
-  function effacerGlobale() {
-    setSaisieGlobale("");
-    setGlobale(null);
-    setErreurBases("");
-  }
-
-  // Ouvrir la base d un resultat global, en gardant le terme comme filtre
-  // de recherche dans cette base.
-  function ouvrirBase(cle: string, terme: string) {
-    setBase(cle);
-    setFiltre("");
-    setSaisie(terme);
-    setCherche(terme);
-    setPage(0);
-    setGlobale(null);
   }
 
   // INVITER SUR LINKEDIN — LE PROFIL S OUVRE, LA DATE S ENREGISTRE.
@@ -214,7 +209,10 @@ export default function CRMPage() {
   // L ouverture se fait AVANT l appel reseau : un window.open declenche
   // apres un await est bloque par le navigateur comme une fenetre
   // surgissante non sollicitee.
-  async function inviter(l: any, cleBase?: string) {
+  //
+  // ⚠️ LE RESUME EST FORCE ICI : le compteur « a inviter » de la base
+  // vient de diminuer d une unite, et l afficher perime serait faux.
+  async function inviter(l: any) {
     const url = lienLinkedin(l.linkedin);
     if (!url) return;
     try { window.open(url, "_blank", "noopener"); } catch (e) { }
@@ -225,13 +223,12 @@ export default function CRMPage() {
       const r = await fetch("/api/admin/linkedin", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ base: cleBase || base, id: l.id, statut: "invite" }),
+        body: JSON.stringify({ base: base, id: l.id, statut: "invite" }),
       });
       const d = await r.json();
       if (d.ok) {
-        setCompteurIn(d);
-        if (globale) await chercherPartout();
-        else await chargerBases();
+        setCompteurIn(d.compteurs || d);
+        await chargerBases(true);
       } else {
         setErreurBases(d.erreur || "Enregistrement impossible.");
       }
@@ -243,19 +240,22 @@ export default function CRMPage() {
 
   // La reponse constatee, plus tard : accepte ou refuse. La date d envoi
   // est conservee, sans quoi le compteur de la semaine serait fausse.
-  async function reponseIn(l: any, statut: string, cleBase?: string) {
+  //
+  // ⚠️ LE RESUME N EST PAS FORCE : marquer une acceptation ne change aucun
+  // des chiffres affiches sur les cartes de bases.
+  async function reponseIn(l: any, statut: string) {
     setLigneOccupee(l.id);
     setErreurBases("");
     try {
       const r = await fetch("/api/admin/linkedin", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ base: cleBase || base, id: l.id, statut: statut }),
+        body: JSON.stringify({ base: base, id: l.id, statut: statut }),
       });
       const d = await r.json();
       if (d.ok) {
-        if (globale) await chercherPartout();
-        else await chargerBases();
+        if (d.compteurs) setCompteurIn(d.compteurs);
+        await chargerBases();
       } else setErreurBases(d.erreur || "Enregistrement impossible.");
     } catch (e: any) {
       setErreurBases("Enregistrement impossible : " + String(e));
@@ -444,12 +444,7 @@ export default function CRMPage() {
     return detail ? !!detail.porte_linkedin : true;
   });
 
-  const plafondAtteint = compteurIn ? (compteurIn.reste || 0) <= 0 : false;
-
-  // Les bases qui ont au moins un resultat, pour n afficher que celles-la.
-  const basesTrouvees = globale && Array.isArray(globale.bases)
-    ? globale.bases.filter(function (b: any) { return (b.trouves || 0) > 0; })
-    : [];
+  const plafondAtteint = compteurIn ? (compteurIn.reste_jour || 0) <= 0 : false;
 
   return (
     <div style={{ backgroundColor: "#050508", minHeight: "100vh", color: "#fff", fontFamily: "Georgia, serif" }}>
@@ -578,142 +573,7 @@ export default function CRMPage() {
               <p style={{ color: "#e8836a", fontSize: "14px", lineHeight: "1.7" }}>{erreurBases}</p>
             )}
 
-            {/* LA RECHERCHE GLOBALE — elle precede tout le reste, parce que
-                c est la question la plus frequente : ou est cette entreprise ? */}
-            <div style={{ background: "#12121f", border: "1px solid rgba(200,169,110,0.28)", borderRadius: "11px", padding: "14px 16px", marginBottom: "16px" }}>
-              <div style={{ display: "flex", gap: "9px", flexWrap: "wrap", alignItems: "center" }}>
-                <span style={{ color: "#c8a96e", fontSize: "13px", fontWeight: "bold", whiteSpace: "nowrap" }}>
-                  🔎 Chercher partout
-                </span>
-                <input
-                  value={saisieGlobale}
-                  onChange={(e) => setSaisieGlobale(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter") chercherPartout(); }}
-                  placeholder="Société, dirigeant, ville, adresse, téléphone, SIREN ou LinkedIn"
-                  style={{ flex: "1 1 320px", padding: "11px 14px", borderRadius: "8px", border: "1px solid rgba(200,169,110,0.35)", background: "rgba(255,255,255,0.05)", color: "#fff", fontSize: "13.5px", fontFamily: "Georgia,serif", boxSizing: "border-box" }}
-                />
-                <button onClick={chercherPartout} disabled={chargeGlobale} style={{ ...BOUTON, padding: "11px 22px", fontWeight: "bold" }}>
-                  {chargeGlobale ? "…" : "Chercher"}
-                </button>
-                {globale && (
-                  <button onClick={effacerGlobale} style={{ ...BOUTON, padding: "11px 20px" }}>
-                    Effacer
-                  </button>
-                )}
-              </div>
-              <p style={{ color: "rgba(255,255,255,0.35)", fontSize: "11.5px", margin: "9px 0 0", lineHeight: "1.6" }}>
-                Cette recherche interroge les quatre bases à la fois et indique dans laquelle chaque résultat se trouve.
-              </p>
-            </div>
-
-            {/* LES RESULTATS GLOBAUX, groupes par base. */}
-            {globale && (
-              <div style={{ marginBottom: "20px" }}>
-                <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "13px", margin: "0 0 12px" }}>
-                  {nombre(globale.total_trouve)} résultat(s) pour « {globale.terme} »
-                  {basesTrouvees.length > 0
-                    ? " dans " + basesTrouvees.length + " base(s)"
-                    : ""}
-                </p>
-
-                {globale.total_trouve === 0 ? (
-                  <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "14px", lineHeight: "1.7" }}>
-                    Rien trouvé dans les quatre bases. Essayez avec moins de mots — le nom de la société seul, ou celui du dirigeant.
-                  </p>
-                ) : (
-                  basesTrouvees.map(function (b: any) {
-                    return (
-                      <div key={b.cle} style={{ marginBottom: "18px", border: "1px solid rgba(200,169,110,0.18)", borderRadius: "10px", background: "#12121f", overflow: "hidden" }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px", padding: "11px 15px", background: "rgba(200,169,110,0.08)", borderBottom: "1px solid rgba(200,169,110,0.18)" }}>
-                          <span style={{ color: "#c8a96e", fontSize: "13.5px", fontWeight: "bold" }}>
-                            {b.titre} · {nombre(b.trouves)} trouvé(s)
-                          </span>
-                          <button
-                            onClick={() => ouvrirBase(b.cle, globale.terme)}
-                            style={{ ...BOUTON, padding: "6px 15px", fontSize: "12px" }}
-                          >
-                            Ouvrir cette base →
-                          </button>
-                        </div>
-
-                        <div style={{ overflowX: "auto" }}>
-                          <table style={{ borderCollapse: "collapse", width: "100%", minWidth: "1100px" }}>
-                            <thead>
-                              <tr>
-                                <th style={TH}>Société</th>
-                                <th style={TH}>Dirigeant</th>
-                                <th style={TH}>Ville</th>
-                                <th style={TH}>Adresse e-mail</th>
-                                <th style={TH}>Téléphone</th>
-                                {b.porte_linkedin && <th style={TH}>LinkedIn</th>}
-                                <th style={TH}>État</th>
-                                <th style={TH}>SIREN</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {b.lignes.map(function (l: any, i: number) {
-                                const fond = l.desabonne
-                                  ? "rgba(232,131,106,0.09)"
-                                  : (i % 2 === 0 ? "transparent" : "rgba(255,255,255,0.022)");
-                                return (
-                                  <tr key={b.cle + "-" + l.id} style={{ background: fond }}>
-                                    <td style={{ ...TD, color: "#fff", fontWeight: "bold", maxWidth: "240px", overflow: "hidden", textOverflow: "ellipsis" }}>
-                                      {l.raison_sociale || "—"}
-                                    </td>
-                                    <td style={TD}>
-                                      {(l.dirigeant_prenom || "") + " " + (l.dirigeant_nom || "")}
-                                    </td>
-                                    <td style={TD}>{l.ville || "—"}</td>
-                                    <td style={TD}>
-                                      {l.email
-                                        ? <a href={"mailto:" + l.email} style={LIEN}>{l.email}</a>
-                                        : <span style={{ color: "rgba(255,255,255,0.25)" }}>{l.dropcontact_le ? "non trouvée" : "à enrichir"}</span>}
-                                    </td>
-                                    <td style={TD}>
-                                      {l.telephone
-                                        ? <a href={"tel:" + appelable(l.telephone)} style={LIEN}>{l.telephone}</a>
-                                        : <span style={{ color: "rgba(255,255,255,0.25)" }}>—</span>}
-                                    </td>
-                                    {b.porte_linkedin && (
-                                      <td style={{ ...TD, maxWidth: "190px", overflow: "hidden", textOverflow: "ellipsis" }}>
-                                        {l.linkedin
-                                          ? <a href={lienLinkedin(l.linkedin)} target="_blank" rel="noreferrer" style={{ ...LIEN, color: "#448aff" }}>in/{nomLinkedin(l.linkedin)}</a>
-                                          : <span style={{ color: "rgba(255,255,255,0.25)" }}>—</span>}
-                                      </td>
-                                    )}
-                                    <td style={TD}>
-                                      {l.desabonne ? (
-                                        <span style={{ color: "#e8836a", fontWeight: "bold" }}>Désabonné</span>
-                                      ) : l.statut === "envoye" ? (
-                                        <span style={{ color: "#00e676" }}>Contacté</span>
-                                      ) : l.statut === "enrichi" ? (
-                                        <span style={{ color: "#c8a96e" }}>À envoyer</span>
-                                      ) : (
-                                        <span style={{ color: "rgba(255,255,255,0.35)" }}>{l.statut || "brut"}</span>
-                                      )}
-                                    </td>
-                                    <td style={{ ...TD, color: "rgba(255,255,255,0.4)" }}>{l.siren || "—"}</td>
-                                  </tr>
-                                );
-                              })}
-                            </tbody>
-                          </table>
-                        </div>
-
-                        {b.trouves > b.lignes.length && (
-                          <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "12px", padding: "10px 15px", margin: 0 }}>
-                            {nombre(b.trouves - b.lignes.length)} autre(s) résultat(s) dans cette base — ouvrez-la pour tout voir.
-                          </p>
-                        )}
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            )}
-
-            {/* LE RESUME DES QUATRE BASES — masque pendant une recherche globale. */}
-            {!globale && bases && bases.resume && (
+            {bases && bases.resume && (
               <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "14px", alignItems: "stretch" }}>
                 {bases.resume.map(function (r: any) {
                   const actif = base === r.cle;
@@ -740,27 +600,35 @@ export default function CRMPage() {
                         {r.a_envoyer > 0 ? " · " + nombre(r.a_envoyer) + " à envoyer" : ""}
                         {r.porte_linkedin && r.linkedin_a_faire > 0 ? " · " + nombre(r.linkedin_a_faire) + " à inviter" : ""}
                       </div>
+                      {/* Les invitations deja parties sur cette base. Sans ce
+                          chiffre, une campagne dont toutes les fiches sont
+                          traitees parait vide alors qu elle est terminee. */}
+                      {r.porte_linkedin && r.linkedin_invites > 0 && (
+                        <div style={{ color: "#448aff", fontSize: "11.5px", marginTop: "2px" }}>
+                          {nombre(r.linkedin_invites)} invitation(s) LinkedIn envoyée(s)
+                        </div>
+                      )}
                     </div>
                   );
                 })}
               </div>
             )}
 
-            {!globale && (
-              <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "10px", margin: "0 0 14px" }}>
-                <span style={{ color: "rgba(255,255,255,0.4)", fontSize: "12px" }}>
-                  {bases ? nombre(bases.total_general) + " entreprises dans les quatre bases" : "Chargement…"}
+            <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "10px", margin: "0 0 14px" }}>
+              <span style={{ color: "rgba(255,255,255,0.4)", fontSize: "12px" }}>
+                {bases && bases.total_general
+                  ? nombre(bases.total_general) + " entreprises dans les quatre bases"
+                  : "Chargement…"}
+              </span>
+              {compteurIn && (
+                <span style={{ color: plafondAtteint ? "#e8836a" : "#448aff", fontSize: "12px" }}>
+                  LinkedIn cette semaine : {nombre(compteurIn.semaine)} / {compteurIn.plafond_semaine}
+                  {plafondAtteint ? " — plafond atteint, attendez quelques jours" : " · " + nombre(compteurIn.reste_semaine) + " restantes"}
                 </span>
-                {compteurIn && (
-                  <span style={{ color: plafondAtteint ? "#e8836a" : "#448aff", fontSize: "12px" }}>
-                    LinkedIn cette semaine : {nombre(compteurIn.semaine)} / {compteurIn.plafond_semaine}
-                    {plafondAtteint ? " — plafond atteint, attendez quelques jours" : " · " + nombre(compteurIn.reste_semaine) + " restantes"}
-                  </span>
-                )}
-              </div>
-            )}
+              )}
+            </div>
 
-            {!globale && detail && (
+            {detail && (
               <div>
                 <div style={{ display: "flex", gap: "7px", flexWrap: "wrap", marginBottom: "12px" }}>
                   {filtresVisibles.map(function (f) {
@@ -788,7 +656,7 @@ export default function CRMPage() {
                     value={saisie}
                     onChange={(e) => setSaisie(e.target.value)}
                     onKeyDown={(e) => { if (e.key === "Enter") { setCherche(saisie.trim()); setPage(0); } }}
-                    placeholder="Dans cette base : société, dirigeant, ville, e-mail, téléphone ou SIREN"
+                    placeholder="Nom, ville, adresse ou SIREN"
                     style={{ flex: "1 1 260px", padding: "10px 13px", borderRadius: "8px", border: "1px solid rgba(200,169,110,0.3)", background: "rgba(255,255,255,0.05)", color: "#fff", fontSize: "13.5px", fontFamily: "Georgia,serif", boxSizing: "border-box" }}
                   />
                   <button onClick={() => { setCherche(saisie.trim()); setPage(0); }} style={{ ...BOUTON, padding: "10px 20px" }}>
@@ -886,16 +754,16 @@ export default function CRMPage() {
                                   ) : (
                                     <button
                                       onClick={() => inviter(l)}
-                                      disabled={occupee || plafondAtteint}
+                                      disabled={occupee}
                                       style={{
-                                        background: plafondAtteint ? "rgba(255,255,255,0.05)" : "rgba(68,138,255,0.18)",
-                                        color: plafondAtteint ? "rgba(255,255,255,0.3)" : "#448aff",
-                                        border: "1px solid " + (plafondAtteint ? "rgba(255,255,255,0.12)" : "rgba(68,138,255,0.5)"),
+                                        background: "rgba(68,138,255,0.18)",
+                                        color: "#448aff",
+                                        border: "1px solid rgba(68,138,255,0.5)",
                                         borderRadius: "14px", padding: "4px 12px", fontSize: "12px",
-                                        fontFamily: "Georgia,serif", cursor: plafondAtteint ? "not-allowed" : "pointer",
+                                        fontFamily: "Georgia,serif", cursor: "pointer",
                                       }}
                                     >
-                                      {occupee ? "…" : plafondAtteint ? "Plafond" : "Inviter"}
+                                      {occupee ? "…" : "Inviter"}
                                     </button>
                                   )}
                                 </td>
@@ -1132,7 +1000,7 @@ export default function CRMPage() {
                 { label: "Nom", key: "nom", placeholder: "Jean Dupont" },
                 { label: "Email *", key: "email", placeholder: "jean@email.com" },
                 { label: "Téléphone", key: "telephone", placeholder: "+33 6 00 00 00 00" },
-                { label: "Formation intéressée", key: "formation_interesse", placeholder: "Relaxation dynamique" },
+                { label: "Formation intéressée", key: "formation_interesse", placeholder: "Sophrologie Caycédienne" },
                 { label: "Notes", key: "notes", placeholder: "A contacté via le chat..." },
               ].map(f => (
                 <div key={f.key}>
