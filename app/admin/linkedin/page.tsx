@@ -9,55 +9,64 @@ import { useState, useEffect, useMemo, useRef } from "react";
 // A ECRIRE : les personnes qui ont accepte et n ont pas encore recu de mot.
 // MESSAGES ENVOYES : ceux a qui l on a ecrit, du plus ancien au plus recent.
 //
-// 🚨🚨 LE DEFAUT DE CONCEPTION CORRIGE LE 18/08, ET IL FAUT LE COMPRENDRE
-// POUR NE PAS LE REFAIRE. Les deux seuls boutons d enregistrement etaient
-// « Invitee avec une note » et « Invitee sans note ». ENREGISTRER UNE FICHE
-// ET DECLARER UNE INVITATION ETAIENT DONC LA MEME ACTION.
-//
-// Deux consequences, toutes deux constatees par Jacques :
-//   - impossible de ranger un profil croise le soir pour l inviter le
-//     lendemain ;
-//   - une fois le plafond du jour atteint, LES DEUX BOUTONS SE GRISAIENT et
-//     la fiche etait simplement perdue.
-//
-// Ses mots : « envoyer une fiche sans invitation, pour moi ca ne veut pas
-// dire enregistrer la fiche ».
+// 🚨🚨 LE DEFAUT DE CONCEPTION CORRIGE LE 18/08. Les deux seuls boutons
+// d enregistrement etaient « Invitee avec une note » et « Invitee sans
+// note ». ENREGISTRER UNE FICHE ET DECLARER UNE INVITATION ETAIENT DONC LA
+// MEME ACTION. Ses mots : « envoyer une fiche sans invitation, pour moi ca
+// ne veut pas dire enregistrer la fiche ».
 //
 // ⚠️ LECON GENERALE : toujours dérouler ce qui arrive AU BOUT — quand le
-// quota est atteint, quand la liste est vide, quand un champ manque. Un
-// bouton qui se grise ne doit jamais etre le SEUL moyen d enregistrer.
+// quota est atteint, quand la liste est vide, quand un champ manque.
 //
-// 🆕 LECTURE D UNE CAPTURE — 18/08. Jacques photographie un profil, les
-// champs se remplissent. Disponible dans le formulaire d ajout ET dans
-// chaque fiche complete, pour completer une fiche existante.
+// 🚨🚨 LA MEME LECON, REJOUEE LE 25/08 SUR LA RECHERCHE. Le bloc
+// « Chercher partout » a d abord ete livre en LECTURE SEULE. C etait faux :
+// Jacques trouve un prospect ICI, au moment ou LinkedIn lui notifie une
+// acceptation, et il doit pouvoir marquer SANS quitter l ecran.
 //
-// 🚨 AUCUN ENVOI AUTOMATIQUE, ET CE N EST PAS CONTOURNABLE. LinkedIn
-// n expose AUCUNE API de messagerie, et les outils qui simulent les clics
-// font restreindre puis supprimer le compte.
+// 🆕🆕 DEUX CAMPAGNES DANS UN SEUL ECRAN — 26/08.
+//
+// La prospection porte desormais sur DEUX produits : la plateforme de
+// formation pour les organismes, et Mr. Comptable pour les cabinets
+// d expertise comptable. Chacun a son message, et un cabinet ne doit
+// JAMAIS recevoir celui des organismes.
+//
+// 🚨 POURQUOI UN SEUL ECRAN, ET PAS DEUX. Les invitations partent d un
+// SEUL compte LinkedIn, celui de Jacques. Le plafond de vingt par jour
+// porte donc sur le TOTAL. Deux ecrans separes auraient deux compteurs,
+// et le total reel passerait a quarante sans que personne ne le voie.
+// LE COMPTEUR EST GLOBAL, ET IL DOIT LE RESTER.
+//
+// 🚨 LE MESSAGE SUIT LA FICHE, PAS L ONGLET. Dans « A ecrire », les deux
+// campagnes se melangent : la liste rend les acceptations de toutes les
+// bases. C est donc l.base — la cle portee par CHAQUE ligne — qui decide
+// du message, jamais la base selectionnee a l ecran.
+//
+// 🆕 LA REGULARISATION DATEE — 30/08.
+//
+// LE CAS REEL : la fiche de Franck Zemmour (Apertura Management) est
+// reapparue dans la file comme jamais invitee, alors que l invitation
+// etait partie. Sa declaration avait ete refusee a l epoque du plafond
+// bloquant (le defaut Agnes Brunet, corrige le 27/08), et linkedin_le
+// etait reste vide.
+//
+// L API accepte date_invitation depuis le 28/08, mais AUCUN bouton de
+// l ecran ne le transmettait : les quatre gestes dataient tout
+// d aujourd hui et consommaient le plafond du jour. Le geste ajoute dans
+// l etape 3 de l onglet Inviter consigne l invitation A SA VRAIE DATE —
+// la fiche quitte la file, le compteur du jour ne bouge pas.
 
-// 🚨 LES CABINETS COMPTABLES AJOUTES LE 01/09, ET VOICI POURQUOI ILS
-// MANQUAIENT.
-//
-// CE QUE LA BASE CONTIENT, verifie le 01/09 : prospects_cabinets porte 353
-// profils LinkedIn, dont 118 DEJA INVITES. Ces invitations sont parties,
-// elles existent, elles attendent une reponse.
-//
-// CE QUE L ECRAN EN FAISAIT : rien. La liste ci-dessous n avait que trois
-// entrees, donc aucun bouton « Cabinets comptables », donc AUCUN MOYEN de
-// marquer une acceptation ou un refus sur ces 118 fiches. Elles seraient
-// restees « en attente » indefiniment.
-//
-// ⚠️ CET AJOUT VA DE PAIR AVEC DEUX AUTRES, dans /api/admin/linkedin
-// (la table ajoutee aux sources) et /api/admin/prospection (le drapeau
-// porte_linkedin passe a true). LES TROIS SONT NECESSAIRES : sans la
-// route, le bouton ne rendrait aucune fiche ; sans le drapeau, les
-// compteurs de la base afficheraient toujours zero.
 const BASES = [
   { cle: "organismes", nom: "Organismes certifiés Qualiopi" },
   { cle: "qualiopi", nom: "Organismes NON certifiés" },
   { cle: "interim", nom: "Agences d'intérim" },
   { cle: "cabinets", nom: "Cabinets comptables" },
 ];
+
+// LA BASE QUI RELEVE DE MR. COMPTABLE. Une seule pour l instant, mais la
+// fonction existe pour que l ajout d une autre ne demande qu une ligne.
+function estCabinet(base: any): boolean {
+  return String(base || "") === "cabinets";
+}
 
 // LES CHAMPS DE LA FICHE COMPLETE, ET ILS DIFFERENT SELON LA TABLE.
 const CHAMPS_PROSPECTS = [
@@ -96,40 +105,146 @@ const LIMITE_NOTE = 200;
 
 const JOURS_AVANT_RELANCE = 12;
 
-function motInvitation(prenom: string) {
-  const p = String(prenom || "").trim();
+// 🆕 LA CAPITALISATION — 25/08.
+//
+// Les bases d open data stockent TOUT EN CAPITALES : « BRUNO »,
+// « ACTION PREVENTIVE FORMATIONS CONSEILS ». Une salutation en capitales
+// est la premiere chose que lit le destinataire, et elle trahit un champ
+// de base de donnees recopie tel quel.
+//
+// La regle : premiere lettre de chaque mot en majuscule, le reste en
+// minuscules. Les particules courantes restent en minuscules, et les
+// composes a trait d union sont traites mot par mot — « JEAN-LUC » devient
+// « Jean-Luc », pas « Jean-luc ».
+const PARTICULES = ["de", "du", "des", "le", "la", "les", "d", "l", "et", "en", "au", "aux"];
+
+function capitaliser(v: any): string {
+  const t = String(v === null || v === undefined ? "" : v).trim();
+  if (!t) return "";
+  // Un texte deja correctement casse n est pas retouche : on ne corrige
+  // que ce qui est integralement en capitales.
+  if (t !== t.toUpperCase()) return t;
+
+  return t.toLowerCase().split(/\s+/).map(function (mot, rang) {
+    if (rang > 0 && PARTICULES.indexOf(mot) >= 0) return mot;
+    return mot.split("-").map(function (bout) {
+      if (!bout) return bout;
+      return bout.charAt(0).toUpperCase() + bout.slice(1);
+    }).join("-");
+  }).join(" ");
+}
+
+// LE MOT D INVITATION.
+//
+// ⚠️ EN COMPTE GRATUIT, CE MOT NE PART PRESQUE JAMAIS : les notes
+// personnalisees sont plafonnees a quelques-unes par mois. Les invitations
+// de Jacques partent SANS note. Ce texte reste disponible pour les rares
+// cas ou une note se justifie, mais LE VRAI MESSAGE EST CELUI D APRES
+// ACCEPTATION.
+function motInvitation(prenom: string, base?: string) {
+  const p = capitaliser(prenom);
   const civilite = p ? "Bonjour " + p : "Bonjour";
+
+  if (estCabinet(base)) {
+    return civilite + ", je construis un outil pour les cabinets comptables, "
+      + "sur la relance des justificatifs et la facture électronique. "
+      + "Ravi d'échanger avec vous.";
+  }
+
   return civilite + ", j'ai dirigé un organisme de formation certifié, et c'est l'administratif "
     + "qui m'a coûté le plus de temps. J'en ai fait un outil qui le prend en charge. "
     + "Ravi d'échanger avec vous.";
 }
 
-// LE MESSAGE APRES ACCEPTATION.
+// LE MESSAGE APRES ACCEPTATION — DEUX VERSIONS DEPUIS LE 26/08.
 //
-// ⚠️ AUCUNE MENTION DE PRODUCTION SUR DEMANDE. Le catalogue est evolutif,
-// point. Decision du 17/08, a ne pas defaire.
-function messageRelance(prenom: string, societe: string) {
-  const p = String(prenom || "").trim();
-  const s = String(societe || "").trim();
+// CE QUI A CHANGE LE 25/08 SUR LA VERSION ORGANISMES :
+//
+// 1. LE DEUXIEME PARAGRAPHE EST DEVENU CONCRET. « Le bilan pedagogique et
+//    financier, les preuves a reunir » enumerait des categories. Retrouver
+//    un emargement de mars decrit une scene que le lecteur reconnait.
+//
+// 2. LE CHIFFRE EST EXACT ET CALCULE EN BASE. « Plus de trois cents » quand
+//    le site en montre 560 : l ecart se voit, et il joue contre nous.
+//
+// 3. « CE QU AUCUN LOGICIEL DU MARCHE NE PROPOSE » A ETE RETIRE. Une
+//    affirmation absolue est exactement la prise que cherche quelqu un qui
+//    lit un message commercial.
+//
+// 🆕 CE QUI A CHANGE LE 26/08, SUR LES DEUX VERSIONS :
+//
+// « JE NE CHERCHE PAS A VOUS VENDRE QUOI QUE CE SOIT AUJOURD HUI » A ETE
+// RETIRE. Ses mots : « ca fait tres commercial ». Il a raison — annoncer
+// qu on ne vend pas est precisement ce que dit quelqu un qui vend. La
+// phrase suivante, elle, pose une vraie question et se suffit.
+//
+// 🚨 LA VERSION CABINETS N ENUMERE AUCUNE FONCTIONNALITE. Une premiere
+// redaction listait comptabilite, facturation, rapprochement, tresorerie
+// et facture electronique. Son verdict : « il indique toutes les
+// fonctionnalites comme si j avais peur que le lecteur ne voie pas a quel
+// point mon logiciel est performant, donc c est purement commercial ».
+// UN MESSAGE QUI POSE UNE QUESTION OBTIENT UNE REPONSE ; UN MESSAGE QUI
+// EXPOSE OBTIENT UN SILENCE POLI. Le reste se decouvre sur le site.
+//
+// ⚠️ AUCUNE MENTION DE PRODUCTION SUR DEMANDE cote organismes. Le
+// catalogue est evolutif, point. Decision du 17/08, a ne pas defaire.
+// ⚠️ AUCUN CONCURRENT NOMME, dans aucune des deux versions.
+function messageRelance(prenom: string, societe: string, nbFormations: number, base?: string) {
+  const p = capitaliser(prenom);
+  const s = capitaliser(societe);
+
+  if (estCabinet(base)) {
+    return (p ? "Bonjour " + p : "Bonjour") + ",\n\n"
+      + "Merci d'avoir accepté ma demande.\n\n"
+      + "Certaines tâches chronophages reviennent sans cesse dans les cabinets "
+      + "comptables, et personne ne les a choisies : courir après des pièces "
+      + "justificatives qui n'arrivent jamais à temps.\n\n"
+      + "J'ai construit Mr. Comptable pour que ce soit lui qui coure. Il repère "
+      + "les opérations sans justificatif et les pièces manquantes, puis relance "
+      + "le client par courriel ou par SMS. Il relance aussi vos honoraires "
+      + "impayés.\n\n"
+      + "Ce qui m'intéresse, c'est de savoir ce qui vous prend le plus de temps "
+      + "sans que cela vous rapporte quoi que ce soit"
+      + (s ? " chez " + s : "") + ". Si le sujet vous parle, j'échange volontiers "
+      + "un quart d'heure avec vous. L'outil s'est construit sur ce que les "
+      + "cabinets signalent, et il continue d'évoluer.\n\n"
+      + "Bien à vous,\nJacques Lalou\nmrcomptable.fr";
+  }
+
+  const combien = nbFormations > 0 ? String(nbFormations) : "plusieurs centaines de";
+
   return (p ? "Bonjour " + p : "Bonjour") + ",\n\n"
     + "Merci d'avoir accepté ma demande.\n\n"
-    + "Je vous écris parce que j'ai dirigé un organisme de formation certifié Qualiopi pendant "
-    + "quelques années. Ce qui m'a coûté le plus de temps n'a jamais été de former : c'était le "
-    + "bilan pédagogique et financier, les preuves à réunir avant l'audit, et le suivi "
-    + "administratif des stagiaires.\n\n"
-    + "J'en ai fait une plateforme qui prend tout cela en charge — évaluations à chaud et à "
-    + "froid, registre des réclamations, dossiers des formateurs, bilan prérempli cadre par "
-    + "cadre. S'y ajoute un catalogue de plus de trois cents formations que vous pouvez vendre "
-    + "sous votre propre marque, ce qu'aucun logiciel du marché ne propose.\n\n"
-    + "Je ne cherche pas à vous vendre quoi que ce soit aujourd'hui. Je serais surtout curieux "
-    + "de savoir ce qui vous prend le plus de temps"
-    + (s ? " chez " + s : "") + " sur la partie administrative — c'est ce qui me dit si l'outil "
-    + "répond à un vrai besoin ou pas.\n\n"
+    + "J'ai dirigé un organisme de formation certifié Qualiopi pendant quelques années. "
+    + "Ce qui m'a coûté le plus de temps n'a jamais été de former. C'était de retrouver "
+    + "un émargement de mars au moment du bilan, de reconstituer les évaluations qu'on "
+    + "avait oublié d'envoyer, et de préparer un audit avec des preuves éparpillées dans "
+    + "quatre classeurs.\n\n"
+    + "J'en ai fait une plateforme qui consigne tout cela au fil de l'eau — évaluations "
+    + "à chaud et à froid, registre des réclamations, dossiers des formateurs, bilan "
+    + "prérempli cadre par cadre. Au moment du bilan pédagogique et financier, on vérifie "
+    + "et on signe au lieu de reconstituer.\n\n"
+    + "S'y ajoute un catalogue de " + combien + " formations que vous pouvez proposer sous "
+    + "votre propre marque, quand un client vous demande un sujet qui n'est pas le vôtre.\n\n"
+    + "Ce qui m'intéresse, c'est de savoir ce qui vous prend le plus de temps sur la partie "
+    + "administrative" + (s ? " chez " + s : "") + " — c'est ce qui me dit si l'outil répond "
+    + "à un vrai besoin ou pas.\n\n"
     + "Bien à vous,\nJacques Lalou\nacademiapro.fr";
 }
 
-function secondMessage(prenom: string) {
-  const p = String(prenom || "").trim();
+// LA SECONDE RELANCE, elle aussi dans les deux voix.
+function secondMessage(prenom: string, base?: string) {
+  const p = capitaliser(prenom);
+
+  if (estCabinet(base)) {
+    return (p ? "Bonjour " + p : "Bonjour") + ",\n\n"
+      + "Je me permets un mot, mon message précédent est peut-être passé inaperçu.\n\n"
+      + "Si le sujet ne vous concerne pas, dites-le-moi simplement, je n'insisterai pas.\n\n"
+      + "Et si vous êtes curieux de voir à quoi ressemble l'outil, je peux vous ouvrir "
+      + "un accès pour que vous jugiez par vous-même — sans engagement d'aucune sorte.\n\n"
+      + "Bien à vous,\nJacques Lalou\nmrcomptable.fr";
+  }
+
   return (p ? "Bonjour " + p : "Bonjour") + ",\n\n"
     + "Je me permets un mot, mon message précédent est peut-être passé inaperçu.\n\n"
     + "Si le sujet ne vous concerne pas, dites-le-moi simplement, je n'insisterai pas.\n\n"
@@ -161,7 +276,27 @@ export default function PageLinkedin() {
   const [ouverte, setOuverte] = useState<any>(null);
   const [texteLong, setTexteLong] = useState("");
 
+  // 🆕 QUELLE FICHE EST EN COURS D ENREGISTREMENT — 27/08.
+  //
+  // Le drapeau « charge » grisait TOUS les boutons de la page pendant
+  // l appel. Sur une liste de trois cents fiches, marquer la premiere
+  // figeait les deux cent quatre-vingt-dix-neuf autres. On ne grise
+  // desormais que la fiche concernee.
+  const [enCours, setEnCours] = useState("");
+
   const [recherche, setRecherche] = useState("");
+
+  // LA RECHERCHE PARTOUT.
+  const [partoutOuvert, setPartoutOuvert] = useState(false);
+  const [partoutTerme, setPartoutTerme] = useState("");
+  const [partoutCharge, setPartoutCharge] = useState(false);
+  const [partoutResultat, setPartoutResultat] = useState<any>(null);
+  const [partoutErreur, setPartoutErreur] = useState("");
+  const [partoutMessage, setPartoutMessage] = useState("");
+  const [partoutOccupe, setPartoutOccupe] = useState("");
+
+  // LA FICHE QUI VIENT D ETRE CREEE.
+  const [creee, setCreee] = useState<any>(null);
 
   // LA FICHE COMPLETE.
   const [depliee, setDepliee] = useState("");
@@ -188,12 +323,39 @@ export default function PageLinkedin() {
   const [aOrganisme, setAOrganisme] = useState("");
   const [aVille, setAVille] = useState("");
   const [aNotes, setANotes] = useState("");
+  // La campagne d une fiche saisie a la main. Elle decide du message qui
+  // partira apres acceptation : il n existe aucun autre moyen de le savoir.
+  const [aCampagne, setACampagne] = useState("academiapro");
+
+  // 🆕 LA REGULARISATION DATEE — 30/08. Repliee par defaut ; la date
+  // proposee est hier, le cas le plus frequent.
+  const [regulOuverte, setRegulOuverte] = useState(false);
+  const [dateRegul, setDateRegul] = useState(function () {
+    const hier = new Date(Date.now() - 24 * 3600 * 1000);
+    return hier.toISOString().slice(0, 10);
+  });
+
+  // 🆕 CE QUE CHAQUE MODE D ENREGISTREMENT VEUT DIRE — 27/08.
+  //
+  // Les trois premiers touchent au quota d invitation ; les trois derniers
+  // non, puisqu ils consignent une relation qui existe deja.
+  const MODES: any = {
+    file: { quota: false, mot: "est enregistré, en attente d'invitation" },
+    invite: { quota: true, mot: "est marqué invité, avec une note" },
+    invite_nu: { quota: true, mot: "est marqué invité, sans note" },
+    accepte_nu: { quota: false, mot: "est enregistré comme relation établie" },
+    repondu: { quota: false, mot: "est enregistré : il a déjà répondu" },
+    rendez_vous: { quota: false, mot: "est enregistré : rendez-vous pris" },
+  };
   const [message, setMessage] = useState("");
 
   const [compteurs, setCompteurs] = useState<any>(null);
   const [charge, setCharge] = useState(false);
   const [erreur, setErreur] = useState("");
   const [copie, setCopie] = useState("");
+
+  // LE NOMBRE DE FORMATIONS, tenu a jour par les compteurs.
+  const nbFormations = compteurs && compteurs.formations ? compteurs.formations : 0;
 
   useEffect(() => {
     if (onglet === "inviter") chargerSuivante();
@@ -212,6 +374,111 @@ export default function PageLinkedin() {
   function cleDe(l: any) {
     return l.base + "-" + l.id;
   }
+
+  // ---------- LA RECHERCHE PARTOUT ----------
+
+  async function chercherPartout(terme?: string) {
+    const t = String(terme !== undefined ? terme : partoutTerme).trim();
+    if (t.length < 2) {
+      setPartoutErreur("Deux caractères au minimum.");
+      setPartoutResultat(null);
+      return;
+    }
+    setPartoutCharge(true);
+    setPartoutErreur("");
+    if (terme === undefined) setPartoutMessage("");
+    try {
+      const r = await fetch("/api/admin/prospection?global=" + encodeURIComponent(t));
+      const d = await r.json();
+      if (d.ok) setPartoutResultat(d);
+      else { setPartoutErreur(d.erreur || "Recherche impossible."); setPartoutResultat(null); }
+    } catch (e: any) {
+      setPartoutErreur("Recherche impossible : " + String(e));
+    }
+    setPartoutCharge(false);
+  }
+
+  function viderPartout() {
+    setPartoutTerme("");
+    setPartoutResultat(null);
+    setPartoutErreur("");
+    setPartoutMessage("");
+  }
+
+  // MARQUER DEPUIS UN RESULTAT DE RECHERCHE.
+  //
+  // ⚠️ sans_suite EMPECHE LA FILE D INVITATION DE DEFILER. On agit sur une
+  // fiche precise, pas dans un enchainement.
+  // 🆕 MEME PRINCIPE QUE marquer() : l affichage precede l enregistrement.
+  //
+  // La ligne change d etat AVANT l appel, et l on ne relance NI la
+  // recherche NI la liste. Relire les six bases apres chaque marquage
+  // rendait la recherche inutilisable des qu on marquait deux fiches.
+  async function marquerDepuisRecherche(cleBase: string, ligne: any, statut: string) {
+    setPartoutErreur("");
+    setPartoutMessage("");
+
+    const nom = capitaliser((ligne.dirigeant_prenom || "") + " " + (ligne.dirigeant_nom || "")).trim()
+      || capitaliser(ligne.raison_sociale) || "La fiche";
+
+    // L etat d avant, pour pouvoir revenir en arriere.
+    const avant = partoutResultat;
+
+    // On met la ligne a jour dans le resultat affiche, sans rien relire.
+    if (partoutResultat && Array.isArray(partoutResultat.bases)) {
+      setPartoutResultat({
+        ...partoutResultat,
+        bases: partoutResultat.bases.map(function (b: any) {
+          if (b.cle !== cleBase) return b;
+          return {
+            ...b,
+            lignes: (b.lignes || []).map(function (x: any) {
+              return x.id === ligne.id
+                ? { ...x, linkedin_statut: statut }
+                : x;
+            }),
+          };
+        }),
+      });
+    }
+
+    const mots: any = {
+      accepte: " a été marqué comme ayant accepté. Sa fiche est dans « À écrire ».",
+      accepte_nu: " a été marqué comme ayant accepté. Sa fiche est dans « À écrire ».",
+      invite: " est marqué invité avec une note.",
+      invite_nu: " est marqué invité sans note.",
+      ecarte: " est écarté : il ne ressortira plus dans la file d'invitation.",
+    };
+    setPartoutMessage(nom + (mots[statut] || " est enregistré."));
+
+    try {
+      const d = await appeler({
+        base: cleBase,
+        id: ligne.id,
+        statut: statut,
+        sans_suite: true,
+      });
+      if (d.ok) {
+        if (d.compteurs) setCompteurs(d.compteurs);
+        if (d.avertissement) {
+          setPartoutMessage(nom + (mots[statut] || " est enregistré.")
+            + " " + d.avertissement);
+        }
+      } else {
+        setPartoutResultat(avant);
+        setPartoutMessage("");
+        setPartoutErreur((d.erreur || "Enregistrement impossible.")
+          + " La fiche est revenue à son état précédent.");
+        if (d.compteurs) setCompteurs(d.compteurs);
+      }
+    } catch (e: any) {
+      setPartoutResultat(avant);
+      setPartoutMessage("");
+      setPartoutErreur("Enregistrement impossible : " + String(e));
+    }
+  }
+
+  // ---------- FIN DE LA RECHERCHE PARTOUT ----------
 
   // ---------- LA LECTURE D UNE CAPTURE ----------
 
@@ -307,9 +574,11 @@ export default function PageLinkedin() {
     setFiche(d.fiche || null);
     setRestant(d.restant || 0);
     setEpuise(!!d.epuise);
-    setTexte(d.fiche ? motInvitation(d.fiche.dirigeant_prenom) : "");
+    setTexte(d.fiche ? motInvitation(d.fiche.dirigeant_prenom, d.fiche.base || base) : "");
     setCopie("");
     setVu(false);
+    // La regularisation se replie a chaque nouvelle fiche.
+    setRegulOuverte(false);
   }
 
   async function chargerSuivante() {
@@ -379,6 +648,7 @@ export default function PageLinkedin() {
           setLignes(lignes.map(function (x: any) {
             return cleDe(x) === cle ? { ...d.fiche, base: l.base } : x;
           }));
+          if (creee && cleDe(creee) === cle) setCreee({ ...d.fiche, base: l.base });
         }
       } else {
         setErreur(d.erreur || "Enregistrement impossible.");
@@ -410,6 +680,21 @@ export default function PageLinkedin() {
 
   // ---------- LE MODE ENCHAINEMENT ----------
 
+  // 🚨 LE MESSAGE SUIT LA FICHE. On passe l.base, pas la base selectionnee :
+  // dans « A ecrire », les organismes et les cabinets se melangent.
+  // 🚨 LE MESSAGE SUIT LA CAMPAGNE DE LA FICHE.
+  //
+  // Pour une fiche de prospection, la campagne se deduit de sa base. Pour
+  // une fiche SAISIE A LA MAIN, la base est toujours « manuel » : c est la
+  // colonne campagne qui tranche. Sans elle, un expert-comptable trouve
+  // sur LinkedIn recevait le message des organismes.
+  function texteDe(l: any, second: boolean) {
+    const cle = campagneDe(l) === "mrcomptable" ? "cabinets" : "organismes";
+    return second
+      ? secondMessage(l.dirigeant_prenom, cle)
+      : messageRelance(l.dirigeant_prenom, l.raison_sociale, nbFormations, cle);
+  }
+
   function demarrerSerie() {
     if (filtrees.length === 0) return;
     const file = filtrees.slice();
@@ -419,9 +704,7 @@ export default function PageLinkedin() {
     setFaits(0);
     setCopieSerie(false);
     setOuvertSerie(false);
-    setTexteSerie(second
-      ? secondMessage(file[0].dirigeant_prenom)
-      : messageRelance(file[0].dirigeant_prenom, file[0].raison_sociale));
+    setTexteSerie(texteDe(file[0], second));
     setErreur("");
     setMessage("");
   }
@@ -443,9 +726,7 @@ export default function PageLinkedin() {
     }
     const second = onglet === "envoyes";
     setRang(prochain);
-    setTexteSerie(second
-      ? secondMessage(file[prochain].dirigeant_prenom)
-      : messageRelance(file[prochain].dirigeant_prenom, file[prochain].raison_sociale));
+    setTexteSerie(texteDe(file[prochain], second));
     setCopieSerie(false);
     setOuvertSerie(false);
   }
@@ -464,23 +745,31 @@ export default function PageLinkedin() {
     setOuvertSerie(true);
   }
 
+  // 🆕 LA SERIE AVANCE SANS ATTENDRE — 27/08.
+  //
+  // Trente messages a la suite, c est trente attentes du serveur. On passe
+  // a la fiche suivante immediatement ; l enregistrement suit en
+  // arriere-plan. Un echec s affiche sans interrompre la serie : la fiche
+  // restera dans « A ecrire » et se retrouvera au prochain passage.
   async function envoyeEtSuivant(l: any) {
     if (!serie) return;
-    setCharge(true);
     setErreur("");
+    setFaits(faits + 1);
+    avancer(serie, rang + 1);
+
     try {
       const d = await appeler({ base: l.base || base, id: l.id, statut: "relance" });
       if (d.ok) {
         setCompteurs(d.compteurs || null);
-        setFaits(faits + 1);
-        avancer(serie, rang + 1);
       } else {
-        setErreur(d.erreur || "Enregistrement impossible.");
+        setErreur("Une fiche n'a pas pu être enregistrée ("
+          + (d.erreur || "cause inconnue")
+          + "). Elle restera dans « À écrire ».");
       }
     } catch (e: any) {
-      setErreur("Enregistrement impossible : " + String(e));
+      setErreur("Une fiche n'a pas pu être enregistrée : " + String(e)
+        + " Elle restera dans « À écrire ».");
     }
-    setCharge(false);
   }
 
   function passerSuivant() {
@@ -491,8 +780,7 @@ export default function PageLinkedin() {
   // ---------- FIN DU MODE ENCHAINEMENT ----------
 
   // 🚨 TROIS FACONS D ENREGISTRER — et « file » est toujours disponible,
-  // meme quand le plafond du jour est atteint. C est tout l objet de la
-  // correction du 18/08.
+  // meme quand le plafond du jour est atteint.
   async function ajouter(mode: string) {
     if (aNom.trim().length < 2) {
       setErreur("Indiquez le nom du contact.");
@@ -514,11 +802,15 @@ export default function PageLinkedin() {
         organisme: aOrganisme,
         ville: aVille,
         notes: aNotes,
+        campagne: aCampagne,
       });
       if (d.ok) {
-        setMessage(d.message || "Profil enregistré.");
+        setMessage((d.message || "Profil enregistré.")
+          + (d.avertissement ? " " + d.avertissement : ""));
         setCompteurs(d.compteurs || null);
+        setCreee(d.ajoute || null);
         setANom(""); setALien(""); setAOrganisme(""); setAVille(""); setANotes("");
+        setACampagne("academiapro");
         setAjout(false);
       } else {
         setErreur(d.erreur || "Enregistrement impossible.");
@@ -536,15 +828,120 @@ export default function PageLinkedin() {
     setVu(true);
   }
 
-  async function marquer(l: any, statut: string, cleBase?: string) {
-    setCharge(true);
+  // 🚨🚨 LE MARQUAGE EST IMMEDIAT — corrige le 27/08, deux fois.
+  //
+  // PREMIER DEFAUT. Chaque marquage relancait chargerListe(), qui relit
+  // les six tables et rend jusqu a mille lignes. Marquer trois personnes
+  // demandait trois rechargements complets.
+  //
+  // SECOND DEFAUT, apres la premiere correction : l ecran attendait encore
+  // la reponse du serveur avant de bouger. Ses mots : « trop d attente ».
+  //
+  // LA CORRECTION : L AFFICHAGE PRECEDE L ENREGISTREMENT.
+  // Le bouton change d etat AVANT l appel. On enchaine sans rien attendre.
+  // L appel part en arriere-plan ; s il echoue, on REVIENT EN ARRIERE et
+  // on le dit.
+  //
+  // ⚠️ CE N EST PAS UN MENSONGE A L ECRAN. L etat precedent est conserve
+  // et restaure en cas d echec, avec un message explicite. Ce qu on parie,
+  // c est que l enregistrement va reussir — ce qui est le cas presque
+  // toujours. Le rare echec est visible et rattrapable.
+  //
+  // ⚠️ NE PAS RETABLIR L ATTENTE. Marquer trente fiches a la suite doit
+  // se faire au rythme du doigt, pas a celui du reseau.
+  //
+  // LES DEUX CAS OU L ON ATTEND QUAND MEME :
+  //   - l onglet « Inviter », qui doit charger la fiche suivante
+  //   - la recherche globale, ou la ligne vient d ailleurs
+  //
+  // 🆕 30/08 : le parametre extra transporte date_invitation pour la
+  // regularisation datee. Il ne sert que depuis l onglet Inviter.
+  async function marquer(l: any, statut: string, cleBase?: string, extra?: any) {
     setErreur("");
+
+    // L onglet Inviter enchaine sur une autre fiche : il faut la reponse
+    // du serveur pour savoir laquelle. On attend, mais c est le seul cas.
+    if (onglet === "inviter") {
+      setCharge(true);
+      try {
+        const d = await appeler({
+          base: cleBase || l.base || base, id: l.id, statut: statut,
+          ...(extra || {}),
+        });
+        if (d.ok) {
+          setCompteurs(d.compteurs || null);
+          if (d.avertissement) setMessage(d.avertissement);
+          poser(d);
+        } else {
+          setErreur(d.erreur || "Enregistrement impossible.");
+          if (d.compteurs) setCompteurs(d.compteurs);
+        }
+      } catch (e: any) {
+        setErreur("Enregistrement impossible : " + String(e));
+      }
+      setCharge(false);
+      return;
+    }
+
+    // ---- L AFFICHAGE, TOUT DE SUITE ----
+
+    const cle = cleDe(l);
+    const avant = lignes.slice();
+
+    // La fiche quitte-t-elle l onglet ou elle se trouve ?
+    const sort =
+      (onglet === "attente" && statut !== "invite" && statut !== "invite_nu") ||
+      (onglet === "relancer" && statut !== "accepte" && statut !== "accepte_nu") ||
+      (onglet === "file") ||
+      (onglet === "envoyes" && (statut === "refuse" || statut === "ecarte"));
+
+    if (sort) {
+      setLignes(lignes.filter(function (x: any) { return cleDe(x) !== cle; }));
+    } else {
+      setLignes(lignes.map(function (x: any) {
+        return cleDe(x) === cle ? { ...x, linkedin_statut: statut } : x;
+      }));
+    }
+
+    // ---- L ENREGISTREMENT, EN ARRIERE-PLAN ----
+
     try {
-      const d = await appeler({ base: cleBase || l.base || base, id: l.id, statut: statut });
+      const d = await appeler({
+        base: cleBase || l.base || base, id: l.id, statut: statut,
+      });
+
       if (d.ok) {
         setCompteurs(d.compteurs || null);
-        if (onglet === "inviter") poser(d);
-        else await chargerListe();
+        if (d.avertissement) setMessage(d.avertissement);
+      } else {
+        // L enregistrement a echoue : on remet la liste comme elle etait.
+        setLignes(avant);
+        setErreur((d.erreur || "Enregistrement impossible.")
+          + " La fiche est revenue à son état précédent.");
+        if (d.compteurs) setCompteurs(d.compteurs);
+      }
+    } catch (e: any) {
+      setLignes(avant);
+      setErreur("Enregistrement impossible : " + String(e)
+        + " La fiche est revenue à son état précédent.");
+    }
+  }
+
+  // Marquer la fiche qui vient d etre creee, sans quitter l ecran.
+  async function marquerCreee(statut: string) {
+    if (!creee) return;
+    setCharge(true);
+    setErreur("");
+    setMessage("");
+    try {
+      const d = await appeler({ base: "manuel", id: creee.id, statut: statut, sans_suite: true });
+      if (d.ok) {
+        setCompteurs(d.compteurs || null);
+        setCreee({ ...creee, linkedin_statut: statut });
+        setMessage((statut === "ecarte"
+          ? "Fiche écartée."
+          : "Fiche mise à jour : " + statut + ".")
+          + (d.avertissement ? " " + d.avertissement : ""));
       } else {
         setErreur(d.erreur || "Enregistrement impossible.");
         if (d.compteurs) setCompteurs(d.compteurs);
@@ -594,10 +991,18 @@ export default function PageLinkedin() {
     return l.linkedin_statut === "invite" || l.linkedin_statut === "accepte";
   }
 
+  // Le nom affiche partout : capitalise, jamais en capitales brutes.
+  function nomDe(l: any) {
+    const complet = ((l.dirigeant_prenom || "") + " " + (l.dirigeant_nom || "")).trim();
+    return capitaliser(complet || l.nom || "");
+  }
+
   const OR = "#c8a96e";
   const BLEU = "#448aff";
   const VERT = "#00e676";
   const ORANGE = "#e8a33d";
+  // La couleur qui signale une fiche Mr. Comptable dans une liste melangee.
+  const COMPTABLE = "#4fc3f7";
 
   const CARTE: any = {
     background: "#1a1a2e",
@@ -632,7 +1037,27 @@ export default function PageLinkedin() {
 
   const plafondJour = compteurs ? (compteurs.reste_jour || 0) <= 0 : false;
   const plafondSemaine = compteurs ? (compteurs.reste_semaine || 0) <= 0 : false;
-  const bloque = plafondJour || plafondSemaine;
+
+  // 🚨🚨 LE PLAFOND AVERTIT, IL NE BLOQUE PLUS — corrige le 27/08.
+  //
+  // LE DEFAUT, ET IL A FAUSSE LES DONNEES. Quand les vingt du jour etaient
+  // atteints, les boutons « Invite avec note » et « Invite sans note » se
+  // grisaient. Jacques ne pouvait donc plus DECLARER une invitation qu il
+  // venait pourtant d envoyer DEPUIS LINKEDIN.
+  //
+  // Or LinkedIn ne connait pas ce compteur. Une invitation envoyee la-bas
+  // EXISTE, que cet ecran l accepte ou non. La refuser ne l annule pas :
+  // elle laisse simplement la fiche vide, et le compteur ment dans l autre
+  // sens. C est exactement ce qui est arrive a la fiche d Agnes Brunet.
+  //
+  // LA REGLE : le plafond dit QUAND S ARRETER D ENVOYER. Il n a pas a
+  // interdire de consigner ce qui est deja parti. Un ecran qui refuse
+  // d enregistrer la realite fabrique des donnees fausses.
+  //
+  // ⚠️ NE PAS RETABLIR LE BLOCAGE. L avertissement suffit : il est visible,
+  // il rappelle le depassement, et il laisse Jacques juge.
+  const depasse = plafondJour || plafondSemaine;
+  const bloque = false;
   const trop = texte.length > LIMITE_NOTE;
 
   const ONGLETS = [
@@ -642,6 +1067,365 @@ export default function PageLinkedin() {
     { id: "relancer", nom: "À écrire" + (compteurs && compteurs.en_attente_reponse ? " · " + compteurs.en_attente_reponse : "") },
     { id: "envoyes", nom: "Messages envoyés" + (compteurs && compteurs.relances ? " · " + compteurs.relances : "") },
   ];
+
+  // 🆕 L ETIQUETTE DE CAMPAGNE — 26/08.
+  //
+  // Dans « A ecrire » et « Messages envoyes », les deux campagnes se
+  // melangent. Sans marque visible, on ne sait pas quel message va partir
+  // avant de l avoir lu. L etiquette le dit d un coup d oeil.
+  // 🆕 CHAQUE FICHE ANNONCE SA CAMPAGNE — 27/08.
+  //
+  // LE DEFAUT. Seules les fiches cabinets portaient une pastille : la
+  // campagne organismes etant la principale, on la tenait pour implicite.
+  // Mais Jacques a bascule ses vingt invitations sur les cabinets — la
+  // regle implicite s est donc inversee sans que rien ne le dise.
+  //
+  // LA CORRECTION : les DEUX campagnes sont etiquetees, chacune avec sa
+  // couleur. Plus aucune regle a retenir, et l affichage reste juste quel
+  // que soit le rapport entre les deux.
+  //
+  // ⚠️ UNE FICHE MANUELLE PORTE SA CAMPAGNE DANS LA COLONNE campagne de
+  // la table crm — pas dans sa base d origine, qui est toujours « manuel ».
+  // Sans cette colonne, un expert-comptable trouve sur LinkedIn recevait le
+  // message des organismes : le bilan pedagogique et les 560 formations.
+  function campagneDe(l: any): string {
+    if (l.base === "manuel") {
+      return String(l.campagne || "academiapro").toLowerCase();
+    }
+    return estCabinet(l.base) ? "mrcomptable" : "academiapro";
+  }
+
+  function etiquetteCampagne(l: any) {
+    const c = campagneDe(l);
+    const cab = c === "mrcomptable";
+    const manuelle = l.base === "manuel";
+
+    return (
+      <span style={{
+        display: "inline-block", marginLeft: "8px", padding: "2px 9px",
+        borderRadius: "20px", fontSize: "11px", letterSpacing: "0.5px",
+        background: cab ? "rgba(79,195,247,0.15)" : "rgba(200,169,110,0.15)",
+        color: cab ? COMPTABLE : OR,
+        // Le trait interrompu signale une fiche saisie a la main : elle
+        // ne vient d aucune base de prospection.
+        border: (manuelle ? "1px dashed " : "1px solid ")
+          + (cab ? "rgba(79,195,247,0.55)" : "rgba(200,169,110,0.55)"),
+        verticalAlign: "middle",
+      }}>
+        {cab ? "Mr. Comptable" : "AcadéMIA Pro"}
+      </span>
+    );
+  }
+
+  // LES BOUTONS D UN RESULTAT DE RECHERCHE.
+  //
+  // Ils ne s affichent QUE si la fiche porte un profil LinkedIn et n est
+  // pas deja ecartee. Sur une fiche ecartee, on ne propose rien : c est
+  // exactement le geste qui ressusciterait un doublon.
+  function actionsRecherche(cleBase: string, l: any) {
+    const cle = cleBase + "-" + l.id;
+    const occupe = partoutOccupe === cle;
+    const statut = String(l.linkedin_statut || "");
+
+    if (statut === "ecarte") {
+      return (
+        <p style={{ color: "rgba(255,255,255,0.35)", fontSize: "12px", lineHeight: "1.7", margin: "9px 0 0" }}>
+          Fiche écartée — aucune action proposée pour ne pas recréer un doublon.
+        </p>
+      );
+    }
+
+    const enAttente = statut === "invite" || statut === "invite_nu";
+    const dejaAccepte = statut === "accepte" || statut === "accepte_nu" || statut === "relance";
+
+    if (dejaAccepte) {
+      return (
+        <p style={{ color: VERT, fontSize: "12.5px", lineHeight: "1.7", margin: "9px 0 0" }}>
+          A déjà accepté — sa fiche est dans « À écrire » ou « Messages envoyés ».
+        </p>
+      );
+    }
+
+    const petit: any = {
+      padding: "9px 13px", borderRadius: "8px", fontSize: "12.5px",
+      fontFamily: "Georgia,serif", cursor: occupe ? "wait" : "pointer",
+      flex: "1 1 130px",
+    };
+
+    return (
+      <div style={{ display: "flex", gap: "7px", flexWrap: "wrap", marginTop: "10px" }}>
+        {enAttente && (
+          <button
+            onClick={() => marquerDepuisRecherche(cleBase, l, statut === "invite" ? "accepte" : "accepte_nu")}
+            disabled={occupe}
+            style={{ ...petit, background: "rgba(0,230,118,0.15)", color: VERT, border: "1px solid rgba(0,230,118,0.45)", fontWeight: "bold" }}
+          >
+            ✓ A accepté
+          </button>
+        )}
+        {!enAttente && (
+          <>
+            <button
+              onClick={() => marquerDepuisRecherche(cleBase, l, "invite")}
+              disabled={occupe || bloque}
+              style={{ ...petit, background: bloque ? "rgba(255,255,255,0.06)" : "rgba(0,230,118,0.13)", color: bloque ? "rgba(255,255,255,0.3)" : VERT, border: "1px solid " + (bloque ? "rgba(255,255,255,0.15)" : "rgba(0,230,118,0.4)") }}
+            >
+              Invité avec note
+            </button>
+            <button
+              onClick={() => marquerDepuisRecherche(cleBase, l, "invite_nu")}
+              disabled={occupe || bloque}
+              style={{ ...petit, background: bloque ? "rgba(255,255,255,0.06)" : "rgba(68,138,255,0.13)", color: bloque ? "rgba(255,255,255,0.3)" : BLEU, border: "1px solid " + (bloque ? "rgba(255,255,255,0.15)" : "rgba(68,138,255,0.4)") }}
+            >
+              Invité sans note
+            </button>
+          </>
+        )}
+        <button
+          onClick={() => marquerDepuisRecherche(cleBase, l, "ecarte")}
+          disabled={occupe}
+          style={{ ...petit, background: "rgba(255,255,255,0.04)", color: "rgba(255,255,255,0.45)", border: "1px solid rgba(255,255,255,0.15)", flex: "1 1 90px" }}
+        >
+          Écarter
+        </button>
+      </div>
+    );
+  }
+
+  // LE BLOC « CHERCHER PARTOUT ».
+  function blocPartout() {
+    // Un meme dirigeant peut figurer dans plusieurs bases. On le signale :
+    // c est ainsi qu on evite d inviter deux fois la meme personne.
+    const compteParPersonne: any = {};
+    if (partoutResultat) {
+      for (const b of (partoutResultat.bases || [])) {
+        for (const l of (b.lignes || [])) {
+          const k = aplatir((l.dirigeant_prenom || "") + " " + (l.dirigeant_nom || ""));
+          if (k.length < 3) continue;
+          compteParPersonne[k] = (compteParPersonne[k] || 0) + 1;
+        }
+      }
+    }
+
+    return (
+      <div style={{ ...CARTE, borderColor: partoutOuvert ? "rgba(68,138,255,0.45)" : "rgba(255,255,255,0.12)", padding: partoutOuvert ? "20px 22px" : "14px 22px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px" }}>
+          <div style={{ flex: "1 1 220px" }}>
+            <div style={{ color: partoutOuvert ? BLEU : "rgba(255,255,255,0.7)", fontSize: "14.5px", fontWeight: "bold" }}>
+              🔎 Chercher partout
+            </div>
+            {partoutOuvert && (
+              <div style={{ color: "rgba(255,255,255,0.45)", fontSize: "12.5px", marginTop: "3px", lineHeight: "1.7" }}>
+                Un nom, une société, une ville, un SIREN, un téléphone. Votre file LinkedIn
+                et les bases de prospection sont interrogées d'un coup.
+              </div>
+            )}
+          </div>
+          <button
+            onClick={() => { setPartoutOuvert(!partoutOuvert); setPartoutErreur(""); }}
+            style={{ ...BOUTON, padding: "9px 18px", fontSize: "13px", color: partoutOuvert ? "rgba(255,255,255,0.5)" : BLEU, borderColor: partoutOuvert ? "rgba(255,255,255,0.18)" : "rgba(68,138,255,0.45)" }}
+          >
+            {partoutOuvert ? "Replier" : "Ouvrir"}
+          </button>
+        </div>
+
+        {partoutOuvert && (
+          <div style={{ marginTop: "16px" }}>
+            <div style={{ display: "flex", gap: "9px", flexWrap: "wrap" }}>
+              <input
+                value={partoutTerme}
+                onChange={(e) => setPartoutTerme(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") chercherPartout(); }}
+                placeholder="Alexandre Cocco, EDAA, Reims, 811616374…"
+                style={{ ...CHAMP, flex: "1 1 240px", padding: "12px 14px" }}
+              />
+              <button
+                onClick={() => chercherPartout()}
+                disabled={partoutCharge}
+                style={{ background: partoutCharge ? "rgba(255,255,255,0.06)" : BLEU, color: partoutCharge ? "rgba(255,255,255,0.4)" : "#fff", border: "none", borderRadius: "9px", padding: "12px 24px", fontSize: "14px", fontWeight: "bold", fontFamily: "Georgia,serif", cursor: partoutCharge ? "wait" : "pointer" }}
+              >
+                {partoutCharge ? "Recherche…" : "Chercher"}
+              </button>
+              {(partoutResultat || partoutTerme) && (
+                <button onClick={viderPartout} style={{ ...BOUTON, padding: "12px 20px", color: "rgba(255,255,255,0.5)", borderColor: "rgba(255,255,255,0.18)" }}>
+                  Effacer
+                </button>
+              )}
+            </div>
+
+            {partoutMessage && (
+              <div style={{ background: "rgba(0,230,118,0.12)", border: "1px solid rgba(0,230,118,0.4)", borderRadius: "9px", padding: "12px", margin: "12px 0 0", color: VERT, fontSize: "13px", lineHeight: "1.7" }}>
+                {partoutMessage}
+              </div>
+            )}
+
+            {partoutErreur && (
+              <p style={{ color: "#e8836a", fontSize: "13px", lineHeight: "1.7", margin: "11px 0 0" }}>
+                {partoutErreur}
+              </p>
+            )}
+
+            {partoutResultat && (
+              <div style={{ marginTop: "16px" }}>
+                <p style={{ color: partoutResultat.total_trouve === 0 ? "#e8836a" : VERT, fontSize: "13.5px", lineHeight: "1.7", margin: "0 0 13px" }}>
+                  {partoutResultat.total_trouve === 0
+                    ? "Rien trouvé pour « " + partoutResultat.terme + " »."
+                    : nombre(partoutResultat.total_trouve) + " résultat(s) pour « " + partoutResultat.terme + " »."}
+                </p>
+
+                {(partoutResultat.bases || []).map(function (b: any) {
+                  if (!b.trouves && !b.erreur) return null;
+                  return (
+                    <div key={b.cle} style={{ marginBottom: "16px" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: "8px", marginBottom: "8px", paddingBottom: "6px", borderBottom: "1px solid rgba(200,169,110,0.22)" }}>
+                        <span style={{ color: OR, fontSize: "12.5px", letterSpacing: "1.5px" }}>
+                          {String(b.titre || "").toUpperCase()}
+                        </span>
+                        <span style={{ color: "rgba(255,255,255,0.4)", fontSize: "12px" }}>
+                          {b.erreur ? "lecture impossible" : nombre(b.trouves) + " trouvé(s)"}
+                          {b.trouves > 20 ? " · 20 affichés" : ""}
+                        </span>
+                      </div>
+
+                      {b.erreur ? (
+                        <p style={{ color: "#e8836a", fontSize: "12.5px", lineHeight: "1.7", margin: 0 }}>
+                          {b.erreur}
+                        </p>
+                      ) : (
+                        (b.lignes || []).map(function (l: any) {
+                          const nomComplet = nomDe(l);
+                          const k = aplatir((l.dirigeant_prenom || "") + " " + (l.dirigeant_nom || ""));
+                          const enDouble = k.length >= 3 && compteParPersonne[k] > 1;
+                          return (
+                            <div key={b.cle + "-" + l.id} style={{ padding: "11px 13px", background: "rgba(255,255,255,0.03)", border: "1px solid " + (enDouble ? "rgba(232,163,61,0.45)" : "rgba(255,255,255,0.08)"), borderRadius: "8px", marginBottom: "7px" }}>
+                              <div style={{ color: "#fff", fontSize: "14.5px", fontWeight: "bold" }}>
+                                {capitaliser(l.raison_sociale) || "—"}
+                                {etiquetteCampagne({ base: b.cle })}
+                              </div>
+                              <div style={{ color: OR, fontSize: "13px", marginTop: "2px" }}>
+                                {nomComplet || "dirigeant inconnu"}
+                              </div>
+                              <div style={{ color: "rgba(255,255,255,0.4)", fontSize: "12.5px", marginTop: "4px", lineHeight: "1.7" }}>
+                                {capitaliser(l.ville) || "ville inconnue"}
+                                {l.code_postal ? " · " + l.code_postal : ""}
+                                {l.siren ? " · SIREN " + l.siren : ""}
+                                {l.statut === "envoye" ? " · courriel envoyé le " + jolieDate(l.envoye_le) : ""}
+                                {l.desabonne ? " · DÉSABONNÉ" : ""}
+                              </div>
+
+                              {enDouble && (
+                                <div style={{ color: ORANGE, fontSize: "12px", marginTop: "6px", lineHeight: "1.7" }}>
+                                  ⚠️ Ce dirigeant apparaît dans plusieurs bases — écartez le doublon
+                                  pour ne pas l'inviter deux fois.
+                                </div>
+                              )}
+
+                              {(l.email || l.telephone) && (
+                                <div style={{ display: "flex", gap: "14px", flexWrap: "wrap", marginTop: "7px", fontSize: "12.5px" }}>
+                                  {l.email && (
+                                    <a href={"mailto:" + l.email} style={{ color: BLEU, textDecoration: "none" }}>
+                                      ✉️ {l.email}
+                                    </a>
+                                  )}
+                                  {l.telephone && (
+                                    <a href={"tel:" + appelable(l.telephone)} style={{ color: BLEU, textDecoration: "none" }}>
+                                      ☎️ {l.telephone}
+                                    </a>
+                                  )}
+                                </div>
+                              )}
+
+                              {b.porte_linkedin && l.linkedin && (
+                                <>
+                                  <div style={{ marginTop: "8px", display: "flex", gap: "12px", flexWrap: "wrap", alignItems: "center" }}>
+                                    <a href={lien(l.linkedin)} target="_blank" rel="noreferrer"
+                                      style={{ color: BLEU, fontSize: "12.5px", textDecoration: "none" }}>
+                                      Ouvrir le profil LinkedIn ↗
+                                    </a>
+                                    <span style={{ color: l.linkedin_statut ? VERT : "rgba(255,255,255,0.35)", fontSize: "12px" }}>
+                                      {l.linkedin_statut
+                                        ? l.linkedin_statut + (l.linkedin_le ? " le " + jolieDate(l.linkedin_le) : "")
+                                        : "jamais sollicité"}
+                                    </span>
+                                  </div>
+                                  {actionsRecherche(b.cle, l)}
+                                </>
+                              )}
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // LA FICHE QUI VIENT D ETRE CREEE.
+  function blocCreee() {
+    if (!creee) return null;
+    const statut = String(creee.linkedin_statut || "");
+    const enAttente = statut === "invite" || statut === "invite_nu";
+    return (
+      <div style={{ ...CARTE, borderColor: "rgba(0,230,118,0.45)", background: "rgba(0,230,118,0.05)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: "8px", marginBottom: "10px" }}>
+          <span style={{ color: VERT, fontSize: "12px", letterSpacing: "2px" }}>
+            FICHE ENREGISTRÉE
+          </span>
+          <button onClick={() => setCreee(null)}
+            style={{ ...BOUTON, padding: "7px 14px", fontSize: "12px", color: "rgba(255,255,255,0.45)", borderColor: "rgba(255,255,255,0.15)" }}>
+            Fermer
+          </button>
+        </div>
+
+        <div style={{ color: "#fff", fontSize: "17px", fontWeight: "bold" }}>
+          {capitaliser(creee.nom) || nomDe(creee)}
+        </div>
+        <div style={{ color: OR, fontSize: "14px", marginTop: "2px" }}>
+          {capitaliser(creee.raison_sociale || creee.organisme) || "—"}
+        </div>
+        <div style={{ color: "rgba(255,255,255,0.4)", fontSize: "12.5px", marginTop: "4px" }}>
+          {capitaliser(creee.ville) || "ville inconnue"}
+          {" · "}
+          {statut ? statut : "en attente d'invitation"}
+        </div>
+        {coordonnees(creee)}
+
+        <button
+          onClick={() => { try { window.open(lien(creee.linkedin), "_blank", "noopener"); } catch (e) { } }}
+          style={{ width: "100%", background: BLEU, color: "#fff", border: "none", borderRadius: "9px", padding: "13px", fontSize: "14px", fontWeight: "bold", fontFamily: "Georgia,serif", cursor: "pointer", marginTop: "12px" }}>
+          Ouvrir le profil LinkedIn ↗
+        </button>
+
+        <div style={{ display: "flex", gap: "7px", flexWrap: "wrap", marginTop: "9px" }}>
+          {enAttente ? (
+            <button onClick={() => marquerCreee(statut === "invite" ? "accepte" : "accepte_nu")} disabled={false}
+              style={{ flex: "2 1 180px", background: "rgba(0,230,118,0.15)", color: VERT, border: "1px solid rgba(0,230,118,0.45)", borderRadius: "8px", padding: "11px", fontSize: "13px", fontWeight: "bold", fontFamily: "Georgia,serif", cursor: "pointer" }}>
+              ✓ A accepté
+            </button>
+          ) : (
+            <>
+              <button onClick={() => marquerCreee("invite")} disabled={charge || bloque}
+                style={{ flex: "1 1 150px", background: bloque ? "rgba(255,255,255,0.06)" : "rgba(0,230,118,0.13)", color: bloque ? "rgba(255,255,255,0.3)" : VERT, border: "1px solid " + (bloque ? "rgba(255,255,255,0.15)" : "rgba(0,230,118,0.4)"), borderRadius: "8px", padding: "11px", fontSize: "13px", fontFamily: "Georgia,serif", cursor: bloque ? "not-allowed" : "pointer" }}>
+                Invité avec note
+              </button>
+              <button onClick={() => marquerCreee("invite_nu")} disabled={charge || bloque}
+                style={{ flex: "1 1 150px", background: bloque ? "rgba(255,255,255,0.06)" : "rgba(68,138,255,0.13)", color: bloque ? "rgba(255,255,255,0.3)" : BLEU, border: "1px solid " + (bloque ? "rgba(255,255,255,0.15)" : "rgba(68,138,255,0.4)"), borderRadius: "8px", padding: "11px", fontSize: "13px", fontFamily: "Georgia,serif", cursor: bloque ? "not-allowed" : "pointer" }}>
+                Invité sans note
+              </button>
+            </>
+          )}
+        </div>
+
+        {blocFiche(creee)}
+      </div>
+    );
+  }
 
   function barreRecherche() {
     return (
@@ -862,6 +1646,9 @@ export default function PageLinkedin() {
 
       <div style={{ padding: "22px 20px", maxWidth: "800px", margin: "0 auto" }}>
 
+        {/* ---------- CHERCHER PARTOUT — au-dessus de tout le reste ---------- */}
+        {!enSerie && blocPartout()}
+
         {/* ---------- LES COMPTEURS ---------- */}
         {compteurs && !enSerie && (
           <div style={{ ...CARTE, borderColor: bloque ? "rgba(232,131,106,0.5)" : "rgba(68,138,255,0.3)" }}>
@@ -904,17 +1691,120 @@ export default function PageLinkedin() {
               </div>
             </div>
 
+            {/* 🚨 LE PLAFOND EST GLOBAL. Les deux campagnes puisent dans le
+                meme quota, parce qu elles partent du meme compte LinkedIn. */}
+            <p style={{ color: "rgba(255,255,255,0.35)", fontSize: "12px", lineHeight: "1.7", margin: "13px 0 0" }}>
+              Ce plafond couvre les deux campagnes : les invitations partent d'un seul
+              compte, organismes et cabinets confondus.
+            </p>
+
+            {/* \ud83c\udd95 LE BILAN DE CHAQUE CAMPAGNE, COTE A COTE — 27/08.
+
+                LE BESOIN. Le taux d'acceptation global melangeait les deux
+                campagnes. Tant qu'il n'y avait qu'AcadeMIA Pro, le chiffre
+                disait quelque chose ; depuis que Mr. Comptable prospecte
+                aussi, un bon taux d'un cote peut masquer un mauvais de
+                l'autre.
+
+                \u26a0\ufe0f LE TAUX SE CALCULE SUR CEUX QUI ONT REPONDU, pas
+                sur les invites. Une invitation sans reponse n'est ni un
+                succes ni un echec : elle n'a pas encore ete vue. Les
+                premiers jours, le taux est donc peu significatif. */}
+            {compteurs.campagnes && (
+              <div style={{ display: "flex", gap: "12px", flexWrap: "wrap",
+                marginTop: "16px", paddingTop: "16px",
+                borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+                {[
+                  { cle: "academiapro", nom: "AcadéMIA Pro", couleur: OR },
+                  { cle: "mrcomptable", nom: "Mr. Comptable", couleur: COMPTABLE },
+                ].map(function (c: any) {
+                  const b = compteurs.campagnes[c.cle];
+                  if (!b) return null;
+                  return (
+                    <div key={c.cle} style={{
+                      flex: "1 1 240px", padding: "13px 15px",
+                      borderRadius: "10px",
+                      background: "rgba(255,255,255,0.03)",
+                      border: "1px solid " + c.couleur + "44",
+                    }}>
+                      <div style={{ color: c.couleur, fontSize: "13px",
+                        fontWeight: "bold", marginBottom: "9px" }}>
+                        {c.nom}
+                      </div>
+                      <div style={{ display: "flex", gap: "16px",
+                        flexWrap: "wrap", alignItems: "baseline" }}>
+                        <div>
+                          <span style={{ color: "#fff", fontSize: "19px",
+                            fontWeight: "bold" }}>
+                            {b.taux === null ? "—" : b.taux + " %"}
+                          </span>
+                          <span style={{ color: "rgba(255,255,255,0.4)",
+                            fontSize: "11.5px", marginLeft: "6px" }}>
+                            d'acceptation
+                          </span>
+                        </div>
+                      </div>
+                      <div style={{ color: "rgba(255,255,255,0.5)",
+                        fontSize: "12.5px", lineHeight: "1.8",
+                        marginTop: "7px" }}>
+                        {nombre(b.invitations)} invitation(s) ·{" "}
+                        {nombre(b.acceptes)} acceptée(s) ·{" "}
+                        {nombre(b.en_attente)} sans réponse
+                        {b.refuses > 0 ? " · " + nombre(b.refuses) + " refus" : ""}
+                      </div>
+
+                      {/* L ENTONNOIR, DU MESSAGE AU CLIENT.
+                          Il ne s affiche que si des messages sont partis :
+                          avant, il n aurait que des zeros a montrer. */}
+                      {b.messages_envoyes > 0 && (
+                        <div style={{ marginTop: "9px", paddingTop: "9px",
+                          borderTop: "1px solid rgba(255,255,255,0.07)" }}>
+                          <div style={{ color: "rgba(255,255,255,0.5)",
+                            fontSize: "12.5px", lineHeight: "1.8" }}>
+                            {nombre(b.messages_envoyes)} message(s) envoyé(s) ·{" "}
+                            {nombre(b.repondus)} réponse(s)
+                            {b.taux_reponse !== null
+                              ? " (" + b.taux_reponse + " %)" : ""}
+                          </div>
+                          {(b.rendez_vous > 0 || b.clients > 0) && (
+                            <div style={{ color: VERT, fontSize: "12.5px",
+                              lineHeight: "1.8" }}>
+                              {b.rendez_vous > 0
+                                ? nombre(b.rendez_vous) + " rendez-vous" : ""}
+                              {b.rendez_vous > 0 && b.clients > 0 ? " · " : ""}
+                              {b.clients > 0
+                                ? nombre(b.clients) + " client(s)" : ""}
+                              {b.taux_concretisation
+                                ? " · " + b.taux_concretisation
+                                  + " % de concrétisation" : ""}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {b.a_ecrire > 0 && (
+                        <div style={{ color: VERT, fontSize: "12.5px",
+                          marginTop: "5px" }}>
+                          {nombre(b.a_ecrire)} message(s) à écrire
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
             {compteurs.en_file > 0 && (
-              <p style={{ color: BLEU, fontSize: "13px", lineHeight: "1.7", margin: "13px 0 0" }}>
+              <p style={{ color: BLEU, fontSize: "13px", lineHeight: "1.7", margin: "10px 0 0" }}>
                 {nombre(compteurs.en_file)} profil(s) enregistré(s) en attente d'invitation.
               </p>
             )}
 
-            {bloque && (
-              <p style={{ color: "#e8836a", fontSize: "13px", lineHeight: "1.7", margin: "13px 0 0" }}>
+            {depasse && (
+              <p style={{ color: ORANGE, fontSize: "13px", lineHeight: "1.7", margin: "13px 0 0" }}>
                 {plafondJour
-                  ? "Plafond du jour atteint (" + compteurs.plafond_jour + "). Vous pouvez continuer à enregistrer des profils : ils vous attendront demain."
-                  : "Plafond de la semaine atteint (" + compteurs.plafond_semaine + "). Laissez passer quelques jours."}
+                  ? "Plafond du jour atteint (" + compteurs.plafond_jour + "). N'envoyez plus d'invitation aujourd'hui — mais si vous en avez déjà envoyé une depuis LinkedIn, marquez-la : une fiche non marquée fausse tous les comptes."
+                  : "Plafond de la semaine atteint (" + compteurs.plafond_semaine + "). Laissez passer quelques jours avant d'en envoyer d'autres."}
               </p>
             )}
           </div>
@@ -931,6 +1821,9 @@ export default function PageLinkedin() {
             {erreur}
           </div>
         )}
+
+        {/* LA FICHE QUI VIENT D ETRE CREEE — visible partout. */}
+        {!enSerie && blocCreee()}
 
         {/* ═══════════ ONGLET INVITER ═══════════ */}
         {onglet === "inviter" && (
@@ -975,6 +1868,48 @@ export default function PageLinkedin() {
                     trois points puis « Copier le lien vers le profil », et collez-la ci-dessous.
                   </p>
 
+                  {/* 🚨 LA CAMPAGNE SE CHOISIT AVANT TOUT LE RESTE.
+                      C est elle qui decide du message envoye apres
+                      acceptation. Un expert-comptable trouve dans les
+                      relations d un autre expert-comptable ne doit jamais
+                      recevoir le message des organismes de formation. */}
+                  <span style={LIBELLE}>Pour quelle campagne ? *</span>
+                  <div style={{ display: "flex", gap: "9px", flexWrap: "wrap",
+                    marginBottom: "8px" }}>
+                    <button onClick={() => setACampagne("academiapro")}
+                      style={{
+                        flex: "1 1 180px", padding: "12px", borderRadius: "9px",
+                        fontSize: "13.5px", fontFamily: "Georgia,serif",
+                        cursor: "pointer",
+                        fontWeight: aCampagne === "academiapro" ? "bold" : "normal",
+                        background: aCampagne === "academiapro" ? OR : "rgba(255,255,255,0.05)",
+                        color: aCampagne === "academiapro" ? "#050508" : OR,
+                        border: aCampagne === "academiapro" ? "none"
+                          : "1px solid rgba(200,169,110,0.4)",
+                      }}>
+                      AcadéMIA Pro
+                    </button>
+                    <button onClick={() => setACampagne("mrcomptable")}
+                      style={{
+                        flex: "1 1 180px", padding: "12px", borderRadius: "9px",
+                        fontSize: "13.5px", fontFamily: "Georgia,serif",
+                        cursor: "pointer",
+                        fontWeight: aCampagne === "mrcomptable" ? "bold" : "normal",
+                        background: aCampagne === "mrcomptable" ? COMPTABLE : "rgba(255,255,255,0.05)",
+                        color: aCampagne === "mrcomptable" ? "#050508" : COMPTABLE,
+                        border: aCampagne === "mrcomptable" ? "none"
+                          : "1px solid rgba(79,195,247,0.4)",
+                      }}>
+                      Mr. Comptable
+                    </button>
+                  </div>
+                  <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "12.5px",
+                    lineHeight: "1.7", margin: "0 0 18px" }}>
+                    {aCampagne === "mrcomptable"
+                      ? "Cette fiche recevra le message sur la relance des justificatifs."
+                      : "Cette fiche recevra le message sur le bilan pédagogique et le catalogue."}
+                  </p>
+
                   <span style={LIBELLE}>Nom du contact *</span>
                   <input value={aNom} onChange={(e) => setANom(e.target.value)}
                     placeholder="Sarah Dupont" style={{ ...CHAMP, marginBottom: "12px" }} />
@@ -1004,7 +1939,7 @@ export default function PageLinkedin() {
 
                   {/* 🚨 LE BOUTON QUI MANQUAIT. Toujours actif, meme quand le
                       plafond du jour est atteint. */}
-                  <button onClick={() => ajouter("file")} disabled={charge}
+                  <button onClick={() => ajouter("file")} disabled={false}
                     style={{ width: "100%", background: "rgba(200,169,110,0.2)", color: OR, border: "1px solid rgba(200,169,110,0.5)", borderRadius: "9px", padding: "15px", fontSize: "14.5px", fontWeight: "bold", fontFamily: "Georgia,serif", cursor: "pointer", marginBottom: "8px" }}>
                     💾 Enregistrer seulement — je l'inviterai plus tard
                   </button>
@@ -1012,6 +1947,53 @@ export default function PageLinkedin() {
                     La fiche est rangée dans « En attente d'invitation ». <strong>Aucune unité
                     de quota n'est consommée</strong> — vous l'inviterez quand vous voudrez.
                   </p>
+
+                  {/* 🚨🚨 LES ETATS AVANCES — ajoutes le 27/08.
+
+                      LE DEFAUT. Le formulaire ne proposait que trois etats,
+                      tous lies a l invitation : ranger, invite avec note,
+                      invite sans note. Or une relation ne commence pas
+                      toujours par une invitation.
+
+                      Eric, deja en relation, ayant deja repondu, avec un
+                      rendez-vous en cours, n entrait dans aucun des trois.
+                      Et le plafond du jour, atteint, grisait les deux seuls
+                      boutons qui posaient un statut. Sa fiche etait donc
+                      impossible a creer correctement.
+
+                      ⚠️ CES TROIS ETATS NE CONSOMMENT AUCUN QUOTA. Aucune
+                      invitation n est envoyee : on consigne une relation qui
+                      existe deja. Le plafond ne les concerne pas, et ne doit
+                      jamais les concerner. */}
+                  <div style={{ borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: "16px", marginBottom: "18px" }}>
+                    <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "12.5px", lineHeight: "1.75", margin: "0 0 12px" }}>
+                      Ou, si <strong>vous le connaissez déjà</strong> — relation
+                      établie, échange en cours, rendez-vous pris — dites où
+                      vous en êtes. Aucune invitation n'est envoyée, votre
+                      quota n'est pas touché.
+                    </p>
+                    <div style={{ display: "flex", gap: "9px", flexWrap: "wrap" }}>
+                      {[
+                        { cle: "accepte_nu", nom: "Déjà en relation", couleur: OR },
+                        { cle: "repondu", nom: "A déjà répondu", couleur: BLEU },
+                        { cle: "rendez_vous", nom: "Rendez-vous pris", couleur: ORANGE },
+                      ].map(function (e: any) {
+                        return (
+                          <button key={e.cle} onClick={() => ajouter(e.cle)}
+                            style={{
+                              flex: "1 1 160px", padding: "13px",
+                              borderRadius: "9px", fontSize: "13px",
+                              fontFamily: "Georgia,serif", cursor: "pointer",
+                              background: "rgba(255,255,255,0.04)",
+                              color: e.couleur,
+                              border: "1px solid " + e.couleur + "55",
+                            }}>
+                            {e.nom}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
 
                   <div style={{ borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: "16px" }}>
                     <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "12.5px", lineHeight: "1.75", margin: "0 0 12px" }}>
@@ -1028,9 +2010,11 @@ export default function PageLinkedin() {
                         ✓ Invité sans note
                       </button>
                     </div>
-                    {bloque && (
+                    {depasse && (
                       <p style={{ color: ORANGE, fontSize: "12.5px", lineHeight: "1.7", margin: "10px 0 0" }}>
-                        Plafond atteint — utilisez « Enregistrer seulement » ci-dessus.
+                        Plafond du jour atteint. Ces deux boutons restent actifs : si
+                        l'invitation est <strong>déjà partie</strong> depuis LinkedIn,
+                        marquez-la. Sinon, utilisez « Enregistrer seulement » ci-dessus.
                       </p>
                     )}
                   </div>
@@ -1038,16 +2022,20 @@ export default function PageLinkedin() {
               )}
             </div>
 
+            {/* 🆕 LE CHOIX DE LA BASE — quatre entrees depuis le 26/08.
+                « Cabinets comptables » se distingue par sa couleur : c est
+                l autre produit, et l autre message. */}
             <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "16px" }}>
               {BASES.map(function (b) {
                 const actif = base === b.cle;
+                const cab = estCabinet(b.cle);
                 return (
                   <button key={b.cle} onClick={() => setBase(b.cle)}
                     style={{
                       ...BOUTON, borderRadius: "20px", padding: "8px 16px", fontSize: "13px",
-                      background: actif ? OR : "rgba(255,255,255,0.06)",
-                      color: actif ? "#050508" : "rgba(255,255,255,0.6)",
-                      border: actif ? "none" : BOUTON.border,
+                      background: actif ? (cab ? COMPTABLE : OR) : "rgba(255,255,255,0.06)",
+                      color: actif ? "#050508" : (cab ? COMPTABLE : "rgba(255,255,255,0.6)"),
+                      border: actif ? "none" : "1px solid " + (cab ? "rgba(79,195,247,0.4)" : "rgba(200,169,110,0.35)"),
                       fontWeight: actif ? "bold" : "normal",
                     }}>
                     {b.nom}
@@ -1055,6 +2043,17 @@ export default function PageLinkedin() {
                 );
               })}
             </div>
+
+            {/* Le rappel de la campagne en cours, pour qu on ne se trompe
+                jamais de produit en ouvrant un profil. */}
+            <p style={{
+              color: estCabinet(base) ? COMPTABLE : OR,
+              fontSize: "12.5px", lineHeight: "1.7", margin: "0 0 16px",
+            }}>
+              {estCabinet(base)
+                ? "Campagne Mr. Comptable — le message d'après acceptation parlera de la relance des justificatifs."
+                : "Campagne plateforme de formation — le message d'après acceptation parlera du bilan pédagogique et du catalogue."}
+            </p>
 
             {charge && !fiche ? (
               <p style={{ color: "rgba(255,255,255,0.5)" }}>Chargement…</p>
@@ -1071,16 +2070,16 @@ export default function PageLinkedin() {
                   <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "10px" }}>
                     <div>
                       <div style={{ color: "#fff", fontSize: "19px", fontWeight: "bold", marginBottom: "4px" }}>
-                        {(fiche.dirigeant_prenom || "") + " " + (fiche.dirigeant_nom || "")}
+                        {nomDe(fiche)}
                       </div>
                       <div style={{ color: OR, fontSize: "15px", marginBottom: "9px" }}>
-                        {fiche.raison_sociale || "—"}
+                        {capitaliser(fiche.raison_sociale) || "—"}
                       </div>
                     </div>
                     <div style={{ color: OR, fontSize: "13px" }}>{nombre(restant)} restantes</div>
                   </div>
                   <div style={{ color: "rgba(255,255,255,0.45)", fontSize: "13px", lineHeight: "1.8" }}>
-                    {fiche.ville || "ville inconnue"}
+                    {capitaliser(fiche.ville) || "ville inconnue"}
                     {fiche.code_postal ? " · " + fiche.code_postal : ""}
                     {fiche.siren ? " · SIREN " + fiche.siren : ""}
                   </div>
@@ -1141,11 +2140,11 @@ export default function PageLinkedin() {
                     </button>
                   </div>
                   <div style={{ display: "flex", gap: "9px", flexWrap: "wrap" }}>
-                    <button onClick={() => marquer(fiche, "ecarte", base)} disabled={charge}
+                    <button onClick={() => marquer(fiche, "ecarte", base)} disabled={false}
                       style={{ ...BOUTON, flex: "1 1 150px", padding: "13px", fontSize: "13.5px", color: "rgba(255,255,255,0.55)", borderColor: "rgba(255,255,255,0.18)" }}>
                       Écarter
                     </button>
-                    <button onClick={chargerSuivante} disabled={charge}
+                    <button onClick={chargerSuivante} disabled={false}
                       style={{ ...BOUTON, flex: "1 1 150px", padding: "13px", fontSize: "13.5px", color: "rgba(255,255,255,0.4)", borderColor: "rgba(255,255,255,0.12)" }}>
                       Passer
                     </button>
@@ -1154,6 +2153,60 @@ export default function PageLinkedin() {
                     <strong>Écarter</strong> retire la fiche définitivement, <strong>Passer</strong> ne
                     touche à rien.
                   </p>
+
+                  {/* 🆕 LA REGULARISATION DATEE — 30/08.
+
+                      LE CAS : une fiche dont l invitation est partie AVANT
+                      aujourd hui mais n a jamais ete consignee (defaut
+                      Agnes Brunet / Franck Zemmour). Les boutons ci-dessus
+                      dateraient l envoi d aujourd hui et consommeraient le
+                      plafond du jour — a tort.
+
+                      Ce geste transmet date_invitation a la route (acceptee
+                      depuis le 28/08) : la fiche est marquee invitee A SA
+                      VRAIE DATE, le compteur du jour ne bouge pas, la file
+                      ne la represente plus. */}
+                  <div style={{ borderTop: "1px solid rgba(200,169,110,0.18)", marginTop: "16px", paddingTop: "13px" }}>
+                    {!regulOuverte ? (
+                      <button
+                        onClick={() => setRegulOuverte(true)}
+                        style={{
+                          background: "transparent", border: "none",
+                          color: "rgba(255,255,255,0.45)", fontSize: "12.5px",
+                          fontFamily: "Georgia,serif", cursor: "pointer",
+                          padding: "4px 0", textDecoration: "underline",
+                        }}>
+                        Cette invitation était déjà partie un autre jour ? La consigner à sa vraie date
+                      </button>
+                    ) : (
+                      <div>
+                        <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "12.5px", lineHeight: "1.75", margin: "0 0 10px" }}>
+                          La fiche sera marquée invitée <strong>à la date choisie</strong> —
+                          le compteur d'aujourd'hui ne bouge pas.
+                        </p>
+                        <div style={{ display: "flex", gap: "9px", flexWrap: "wrap", alignItems: "center" }}>
+                          <input
+                            type="date"
+                            value={dateRegul}
+                            max={new Date().toISOString().slice(0, 10)}
+                            onChange={(e) => setDateRegul(e.target.value)}
+                            style={{ ...CHAMP, width: "auto", flex: "0 1 180px", padding: "11px 13px" }}
+                          />
+                          <button
+                            onClick={() => marquer(fiche, "invite_nu", base, { date_invitation: dateRegul })}
+                            disabled={charge || !dateRegul}
+                            style={{ ...BOUTON, flex: "1 1 220px", padding: "12px", fontSize: "13.5px", fontWeight: "bold" }}>
+                            ✓ Invitation déjà envoyée à cette date
+                          </button>
+                          <button
+                            onClick={() => setRegulOuverte(false)}
+                            style={{ ...BOUTON, flex: "0 1 110px", padding: "12px", fontSize: "13px", color: "rgba(255,255,255,0.45)", borderColor: "rgba(255,255,255,0.15)" }}>
+                            Annuler
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </>
             )}
@@ -1186,13 +2239,14 @@ export default function PageLinkedin() {
                     <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "10px" }}>
                       <div style={{ flex: "1 1 240px" }}>
                         <div style={{ color: "#fff", fontSize: "15.5px", fontWeight: "bold" }}>
-                          {l.nom || ((l.dirigeant_prenom || "") + " " + (l.dirigeant_nom || ""))}
+                          {capitaliser(l.nom) || nomDe(l)}
+                          {etiquetteCampagne(l)}
                         </div>
                         <div style={{ color: OR, fontSize: "13.5px", marginTop: "2px" }}>
-                          {l.raison_sociale || "—"}
+                          {capitaliser(l.raison_sociale) || "—"}
                         </div>
                         <div style={{ color: "rgba(255,255,255,0.4)", fontSize: "12.5px", marginTop: "4px" }}>
-                          {l.ville || ""}
+                          {capitaliser(l.ville)}
                         </div>
                         {coordonnees(l)}
                       </div>
@@ -1215,7 +2269,7 @@ export default function PageLinkedin() {
                         style={{ flex: "1 1 160px", background: bloque ? "rgba(255,255,255,0.06)" : "rgba(68,138,255,0.13)", color: bloque ? "rgba(255,255,255,0.3)" : BLEU, border: "1px solid " + (bloque ? "rgba(255,255,255,0.15)" : "rgba(68,138,255,0.4)"), borderRadius: "8px", padding: "11px", fontSize: "13.5px", fontFamily: "Georgia,serif", cursor: bloque ? "not-allowed" : "pointer" }}>
                         ✓ Invité sans note
                       </button>
-                      <button onClick={() => marquer(l, "ecarte")} disabled={charge}
+                      <button onClick={() => marquer(l, "ecarte")} disabled={false}
                         style={{ ...BOUTON, flex: "1 1 120px", padding: "11px", fontSize: "13px", color: "rgba(255,255,255,0.45)", borderColor: "rgba(255,255,255,0.15)" }}>
                         Écarter
                       </button>
@@ -1254,13 +2308,14 @@ export default function PageLinkedin() {
                     <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "10px" }}>
                       <div style={{ flex: "1 1 240px" }}>
                         <div style={{ color: "#fff", fontSize: "15.5px", fontWeight: "bold" }}>
-                          {(l.dirigeant_prenom || "") + " " + (l.dirigeant_nom || "")}
+                          {nomDe(l)}
+                          {etiquetteCampagne(l)}
                         </div>
                         <div style={{ color: OR, fontSize: "13.5px", marginTop: "2px" }}>
-                          {l.raison_sociale || "—"}
+                          {capitaliser(l.raison_sociale) || "—"}
                         </div>
                         <div style={{ color: "rgba(255,255,255,0.4)", fontSize: "12.5px", marginTop: "4px" }}>
-                          {l.ville ? l.ville + " · " : ""}
+                          {l.ville ? capitaliser(l.ville) + " · " : ""}
                           {jolieDate(l.linkedin_le)}
                           {j !== null ? " · il y a " + j + " jour" + (j > 1 ? "s" : "") : ""}
                           <span style={{ color: note ? OR : "rgba(255,255,255,0.3)" }}>
@@ -1278,11 +2333,11 @@ export default function PageLinkedin() {
                     {blocFiche(l)}
 
                     <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "12px" }}>
-                      <button onClick={() => marquer(l, note ? "accepte" : "accepte_nu")} disabled={charge}
+                      <button onClick={() => marquer(l, note ? "accepte" : "accepte_nu")} disabled={false}
                         style={{ flex: "1 1 150px", background: "rgba(0,230,118,0.13)", color: VERT, border: "1px solid rgba(0,230,118,0.4)", borderRadius: "8px", padding: "11px", fontSize: "13.5px", fontFamily: "Georgia,serif", cursor: "pointer" }}>
                         ✓ A accepté
                       </button>
-                      <button onClick={() => marquer(l, "refuse")} disabled={charge}
+                      <button onClick={() => marquer(l, "refuse")} disabled={false}
                         style={{ ...BOUTON, flex: "1 1 150px", padding: "11px", fontSize: "13.5px", color: "rgba(255,255,255,0.5)", borderColor: "rgba(255,255,255,0.18)" }}>
                         Sans suite
                       </button>
@@ -1314,13 +2369,14 @@ export default function PageLinkedin() {
                   </div>
 
                   <div style={{ color: "#fff", fontSize: "20px", fontWeight: "bold", marginBottom: "3px" }}>
-                    {(courante.dirigeant_prenom || "") + " " + (courante.dirigeant_nom || "")}
+                    {nomDe(courante)}
+                    {etiquetteCampagne(courante)}
                   </div>
                   <div style={{ color: OR, fontSize: "15px", marginBottom: "4px" }}>
-                    {courante.raison_sociale || "—"}
+                    {capitaliser(courante.raison_sociale) || "—"}
                   </div>
                   <div style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px" }}>
-                    {courante.ville || ""}
+                    {capitaliser(courante.ville)}
                   </div>
                   {coordonnees(courante)}
 
@@ -1338,8 +2394,8 @@ export default function PageLinkedin() {
 
                 <div style={CARTE}>
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "9px", flexWrap: "wrap", gap: "8px" }}>
-                    <span style={{ color: OR, fontSize: "12px", letterSpacing: "2px" }}>
-                      LE MESSAGE, DÉJÀ AU NOM DE {String(courante.dirigeant_prenom || "CE CONTACT").toUpperCase()}
+                    <span style={{ color: estCabinet(courante.base) ? COMPTABLE : OR, fontSize: "12px", letterSpacing: "2px" }}>
+                      MESSAGE {estCabinet(courante.base) ? "MR. COMPTABLE" : "FORMATION"} — AU NOM DE {String(capitaliser(courante.dirigeant_prenom) || "CE CONTACT").toUpperCase()}
                     </span>
                     <span style={{ color: "rgba(255,255,255,0.35)", fontSize: "12px" }}>
                       {texteSerie.length} caractères
@@ -1366,11 +2422,11 @@ export default function PageLinkedin() {
                   {blocFiche(courante)}
 
                   <div style={{ display: "flex", gap: "9px", flexWrap: "wrap", marginTop: "16px" }}>
-                    <button onClick={() => envoyeEtSuivant(courante)} disabled={charge}
+                    <button onClick={() => envoyeEtSuivant(courante)} disabled={false}
                       style={{ flex: "2 1 220px", background: "rgba(0,230,118,0.15)", color: VERT, border: "1px solid rgba(0,230,118,0.45)", borderRadius: "9px", padding: "15px", fontSize: "14.5px", fontWeight: "bold", fontFamily: "Georgia,serif", cursor: "pointer" }}>
                       ✓ Envoyé — au suivant
                     </button>
-                    <button onClick={passerSuivant} disabled={charge}
+                    <button onClick={passerSuivant} disabled={false}
                       style={{ ...BOUTON, flex: "1 1 130px", padding: "15px", fontSize: "13.5px", color: "rgba(255,255,255,0.45)", borderColor: "rgba(255,255,255,0.15)" }}>
                       Passer
                     </button>
@@ -1389,6 +2445,13 @@ export default function PageLinkedin() {
                     : "Ces personnes ont accepté votre invitation et n'ont pas encore reçu de message. La messagerie est libre : aucune limite, aucun quota."}
                 </p>
 
+                {/* 🚨 LES DEUX CAMPAGNES SE MELANGENT ICI. Le message est
+                    prepare d apres la fiche, pas d apres un reglage. */}
+                <p style={{ color: "rgba(255,255,255,0.35)", fontSize: "12.5px", lineHeight: "1.7", margin: "0 0 16px" }}>
+                  Les deux campagnes se croisent dans cette liste. Chaque fiche reçoit le
+                  message de son produit — les cabinets sont signalés par une pastille.
+                </p>
+
                 {lignes.length > 0 && barreRecherche()}
 
                 {filtrees.length > 1 && (
@@ -1397,8 +2460,8 @@ export default function PageLinkedin() {
                       {onglet === "envoyes" ? "Relancer, l'un après l'autre" : "Écrire à tous, l'un après l'autre"}
                     </div>
                     <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "13px", lineHeight: "1.75", margin: "0 0 14px" }}>
-                      {filtrees.length} personne(s). Le message est préparé à chaque prénom, copié
-                      d'un clic, et la messagerie s'ouvre.
+                      {filtrees.length} personne(s). Le message est préparé à chaque prénom, dans
+                      la voix du produit concerné, copié d'un clic, et la messagerie s'ouvre.
                     </p>
                     <button onClick={demarrerSerie}
                       style={{ width: "100%", background: VERT, color: "#050508", border: "none", borderRadius: "9px", padding: "15px", fontSize: "15px", fontWeight: "bold", fontFamily: "Georgia,serif", cursor: "pointer" }}>
@@ -1427,13 +2490,14 @@ export default function PageLinkedin() {
                         <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "10px" }}>
                           <div style={{ flex: "1 1 240px" }}>
                             <div style={{ color: "#fff", fontSize: "15.5px", fontWeight: "bold" }}>
-                              {(l.dirigeant_prenom || "") + " " + (l.dirigeant_nom || "")}
+                              {nomDe(l)}
+                              {etiquetteCampagne(l)}
                             </div>
                             <div style={{ color: OR, fontSize: "13.5px", marginTop: "2px" }}>
-                              {l.raison_sociale || "—"}
+                              {capitaliser(l.raison_sociale) || "—"}
                             </div>
                             <div style={{ color: "rgba(255,255,255,0.4)", fontSize: "12.5px", marginTop: "4px" }}>
-                              {l.ville || ""}
+                              {capitaliser(l.ville)}
                               {onglet === "envoyes" && l.linkedin_relance_le ? (
                                 <span>
                                   {l.ville ? " · " : ""}
@@ -1455,30 +2519,125 @@ export default function PageLinkedin() {
                           </a>
                         </div>
 
+                        {/* 🆕 LA SUITE DE LA CONVERSATION — 27/08.
+
+                            LE MANQUE. Les statuts s arretaient au message
+                            envoye : rien ne disait ce qui se passait
+                            ensuite. Le taux de concretisation etait donc
+                            incalculable — on savait combien de portes on
+                            avait frappees, jamais combien s etaient
+                            ouvertes.
+
+                            ⚠️ CHAQUE ETAT COMPTE DANS TOUS CEUX QUI LE
+                            PRECEDENT : un client a forcement repondu. La
+                            fiche reste donc visible ici quel que soit son
+                            avancement. */}
+                        {onglet === "envoyes" && (
+                          <div style={{ marginTop: "12px", paddingTop: "12px",
+                            borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+                            <div style={{ color: OR, fontSize: "11.5px",
+                              letterSpacing: "1.5px", marginBottom: "8px" }}>
+                              OÙ EN EST LA CONVERSATION ?
+                            </div>
+                            <div style={{ display: "flex", gap: "7px",
+                              flexWrap: "wrap" }}>
+                              {[
+                                { cle: "repondu", nom: "A répondu", couleur: BLEU },
+                                { cle: "rendez_vous", nom: "Rendez-vous pris", couleur: ORANGE },
+                                { cle: "client", nom: "Devenu client", couleur: VERT },
+                              ].map(function (e: any) {
+                                const actif = l.linkedin_statut === e.cle;
+                                return (
+                                  <button key={e.cle}
+                                    onClick={() => marquer(l, e.cle)}
+                                    disabled={false}
+                                    style={{
+                                      flex: "1 1 140px", padding: "10px",
+                                      borderRadius: "8px", fontSize: "12.5px",
+                                      fontFamily: "Georgia,serif",
+                                      cursor: "pointer",
+                                      fontWeight: actif ? "bold" : "normal",
+                                      background: actif
+                                        ? e.couleur
+                                        : "rgba(255,255,255,0.04)",
+                                      color: actif ? "#050508" : e.couleur,
+                                      border: actif
+                                        ? "none"
+                                        : "1px solid " + e.couleur + "55",
+                                    }}>
+                                    {actif ? "✓ " : ""}{e.nom}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                            <p style={{ color: "rgba(255,255,255,0.35)",
+                              fontSize: "12px", lineHeight: "1.7",
+                              margin: "9px 0 0" }}>
+                              C'est ce qui permet de savoir ce que rapporte
+                              vraiment une invitation.
+                            </p>
+                          </div>
+                        )}
+
                         {blocFiche(l)}
+
+                        {/* 🆕 LE RETOUR EN ARRIERE — 28/08.
+
+                            LE DEFAUT. Une fiche marquee « a accepte » par
+                            erreur ne pouvait plus revenir a son etat
+                            precedent : les seuls boutons disponibles la
+                            faisaient AVANCER dans le parcours.
+
+                            ⚠️ LA DATE D INVITATION EST CONSERVEE. Revenir
+                            en arriere ne consomme aucun quota et ne
+                            reecrit pas la date d origine. */}
+                        {onglet === "relancer" && (
+                          <div style={{ marginTop: "10px" }}>
+                            <button
+                              onClick={() => marquer(l, "invite_nu")}
+                              style={{
+                                background: "transparent",
+                                border: "none",
+                                color: "rgba(255,255,255,0.4)",
+                                fontSize: "12.5px",
+                                fontFamily: "Georgia,serif",
+                                cursor: "pointer",
+                                padding: "4px 0",
+                                textDecoration: "underline",
+                              }}>
+                              Marqué par erreur ? Remettre en attente
+                            </button>
+                          </div>
+                        )}
 
                         {!active ? (
                           <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "12px" }}>
                             <button
                               onClick={() => {
                                 setOuverte(cleDe(l));
-                                setTexteLong(onglet === "envoyes"
-                                  ? secondMessage(l.dirigeant_prenom)
-                                  : messageRelance(l.dirigeant_prenom, l.raison_sociale));
+                                setTexteLong(texteDe(l, onglet === "envoyes"));
                               }}
                               style={{ ...BOUTON, flex: "2 1 200px" }}>
                               {onglet === "envoyes" ? "Préparer une relance" : "Préparer le message"}
                             </button>
                             {onglet === "envoyes" && (
-                              <button onClick={() => marquer(l, "refuse")} disabled={charge}
+                              <button onClick={() => marquer(l, "refuse")} disabled={false}
                                 style={{ ...BOUTON, flex: "1 1 130px", fontSize: "13px", color: "rgba(255,255,255,0.45)", borderColor: "rgba(255,255,255,0.15)" }}>
                                 Sans suite
+                              </button>
+                            )}
+                            {/* Le retour en arriere : la fiche revient dans
+                                « A ecrire » avec sa date d origine. */}
+                            {onglet === "envoyes" && (
+                              <button onClick={() => marquer(l, "accepte_nu")}
+                                style={{ ...BOUTON, flex: "1 1 150px", fontSize: "13px", color: "rgba(255,255,255,0.35)", borderColor: "rgba(255,255,255,0.12)" }}>
+                                Message pas parti
                               </button>
                             )}
                           </div>
                         ) : (
                           <div style={{ marginTop: "14px" }}>
-                            <textarea value={texteLong} onChange={(e) => setTexteLong(e.target.value)} rows={14} style={CHAMP} />
+                            <textarea value={texteLong} onChange={(e) => setTexteLong(e.target.value)} rows={16} style={CHAMP} />
 
                             <button onClick={() => copier(texteLong, "long")}
                               style={{ ...BOUTON, width: "100%", marginTop: "11px", background: copie === "long" ? "rgba(0,230,118,0.15)" : BOUTON.background, color: copie === "long" ? VERT : OR, borderColor: copie === "long" ? "rgba(0,230,118,0.4)" : BOUTON.border }}>
@@ -1486,7 +2645,8 @@ export default function PageLinkedin() {
                             </button>
 
                             <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "9px" }}>
-                              <button onClick={() => marquer(l, "relance")} disabled={charge}
+                              <button
+                                onClick={() => { setOuverte(null); marquer(l, "relance"); }}
                                 style={{ flex: "2 1 200px", background: "rgba(0,230,118,0.13)", color: VERT, border: "1px solid rgba(0,230,118,0.4)", borderRadius: "8px", padding: "13px", fontSize: "13.5px", fontWeight: "bold", fontFamily: "Georgia,serif", cursor: "pointer" }}>
                                 ✓ Message envoyé
                               </button>
@@ -1498,7 +2658,7 @@ export default function PageLinkedin() {
                           </div>
                         )}
                       </div>
-                    );
+                    )
                   })
                 )}
               </>
