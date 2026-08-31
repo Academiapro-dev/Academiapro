@@ -363,8 +363,7 @@ export default function VitrineMysterLLC() {
       {/* ---- PIED DE PAGE ---- */}
       <footer style={{ background: "#000", padding: "34px 24px", textAlign: "center", borderTop: "1px solid rgba(200,169,110,0.15)" }}>
         <p style={{ color: "rgba(255,255,255,0.3)", fontSize: "12.5px", lineHeight: "1.9", margin: 0 }}>
-          MysterLLC est un service édité par ACADÉMIA PRO LLC — 30 N Gould St,
-          Sheridan, WY 82801, États-Unis.<br />
+          MysterLLC — 30 N Gould St, Sheridan, WY 82801, États-Unis.<br />
           Les montants et échéances cités sont ceux en vigueur à la date de
           publication et ne constituent pas un conseil fiscal.
         </p>
