@@ -42,11 +42,35 @@ const P = "topmostSubform[0].";
 // organisme ne correspond a aucune ligne — elle est donc introuvable, et
 // rien ne fuit.
 //
-// ⚠️ LE MAPPING ET LES DEPENSES SUIVENT L ENTITE, pas seulement le tenant :
-// sans cela, cinquante societes d un meme gestionnaire produiraient
-// cinquante formulaires identiques, remplis avec les chiffres de la
-// premiere. Des montants faux sur une declaration IRS sont pires qu une
-// absence de declaration.
+// ---- DEFAUT 4, TROUVE A L AUDIT DU SOIR — 31/08 -------------------------
+//
+// 🚨 LE REPLI SILENCIEUX PRODUISAIT DES MONTANTS FAUX. La lecture du
+// mapping et celle des depenses tentaient d abord un filtre par entite,
+// puis RETOMBAIENT sur un filtre par tenant seul en cas d echec. Ce repli
+// avait ete ecrit parce que la colonne entite_id pouvait ne pas exister
+// encore sur ces tables.
+//
+// CE QU IL PRODUISAIT : si le filtre par entite echouait pour une raison
+// quelconque, le formulaire de la societe A etait rempli avec LES AVANCES
+// DE TOUT LE PORTEFEUILLE. Aucune erreur, aucun avertissement — un PDF
+// d apparence normale, avec des chiffres qui ne correspondent a rien.
+//
+// POURQUOI C EST PIRE QU UNE PANNE : une declaration IRS qui ne part pas
+// se remarque. Une declaration qui part avec les chiffres d une autre
+// societe se decouvre au controle, des annees plus tard.
+//
+// LA COLONNE entite_id EXISTE SUR LES CINQ TABLES DU MODULE, verifie en
+// base le 31/08 (information_schema.columns). LE REPLI EST DONC SUPPRIME :
+// un echec de lecture est desormais une erreur franche, pas un chemin
+// cache.
+//
+// ⚠️ NE PAS LE REINTRODUIRE. Un repli qui change le PERIMETRE des donnees
+// n est pas une securite, c est une source de faux silencieux. Un repli
+// n est acceptable que s il produit le MEME resultat par un autre moyen.
+//
+// ⚠️ CETTE ROUTE ET f1120/generate SONT JUMELLES. Le motif du 31/08 s est
+// produit deux fois : un defaut corrige dans l une, oublie dans l autre.
+// TOUTE MODIFICATION ICI DOIT ETRE REPORTEE LA-BAS, ET RECIPROQUEMENT.
 // ---------------------------------------------------------------------------
 
 function origineLegitime(req: NextRequest): boolean {
@@ -54,6 +78,7 @@ function origineLegitime(req: NextRequest): boolean {
   const referent = req.headers.get("referer") || "";
   return (
     origine.includes("academiapro.fr") || referent.includes("academiapro.fr") ||
+    origine.includes("mysterllc.com") || referent.includes("mysterllc.com") ||
     origine.includes("vercel.app") || referent.includes("vercel.app") ||
     origine.includes("localhost") || referent.includes("localhost")
   );
@@ -140,13 +165,11 @@ export async function POST(req: NextRequest) {
 
     // ---- LE MAPPING DE CETTE SOCIETE ----
     //
-    // La table porte tenant_id ; on retient le mapping propre a l entite
-    // quand la colonne existe, sinon celui du tenant. Le double filtre est
-    // tente d abord, avec repli : la colonne entite_id peut ne pas encore
-    // exister sur cette table selon l etat de la migration.
-    let mapping: any = null;
-
-    const essaiEntite = await supabase
+    // 🚨 LE DOUBLE FILTRE EST OBLIGATOIRE, SANS REPLI. tenant_id borne a
+    // l organisme, entite_id borne a la societe. Prendre le mapping du
+    // tenant seul rendrait le meme formulaire pour toutes les societes du
+    // portefeuille.
+    const { data: mapping, error: eMap } = await supabase
       .from("compliance_5472_mapping")
       .select("*")
       .eq("tenant_id", tenantId)
@@ -154,26 +177,17 @@ export async function POST(req: NextRequest) {
       .eq("tax_year", year)
       .maybeSingle();
 
-    if (!essaiEntite.error && essaiEntite.data) {
-      mapping = essaiEntite.data;
-    } else {
-      const { data: m, error: eMap } = await supabase
-        .from("compliance_5472_mapping")
-        .select("*")
-        .eq("tenant_id", tenantId)
-        .eq("tax_year", year)
-        .maybeSingle();
-
-      if (eMap) {
-        console.error("[f5472] lecture mapping :", eMap.message);
-        return NextResponse.json({ error: "Lecture du mapping impossible." }, { status: 500 });
-      }
-      mapping = m;
+    if (eMap) {
+      console.error("[f5472] lecture mapping :", eMap.message);
+      return NextResponse.json({ error: "Lecture du mapping impossible." }, { status: 500 });
     }
 
     if (!mapping) {
       return NextResponse.json(
-        { error: "Aucun mapping 5472 pour " + entite.label + " sur l'exercice " + year + "." },
+        {
+          error: "Aucun mapping 5472 pour " + entite.label + " sur l'exercice " + year
+            + ". Renseignez-le avant de generer le formulaire.",
+        },
         { status: 404 }
       );
     }
@@ -182,41 +196,24 @@ export async function POST(req: NextRequest) {
 
     // ---- RECALCUL DES AVANCES DU MEMBRE ----
     //
-    // ⚠️ LE FILTRE tenant_id EST INDISPENSABLE : sans lui, cette lecture
-    // additionnait les avances de TOUS les clients. Le filtre par entite
-    // est ajoute quand la colonne existe, pour qu un gestionnaire ne voie
-    // pas les memes chiffres sur toutes ses societes.
-    let requeteDep = supabase
+    // 🚨 LE DOUBLE FILTRE EST OBLIGATOIRE ICI AUSSI, ET C EST LE PLUS
+    // SENSIBLE : ces montants partent sur une declaration fiscale
+    // americaine. Sans le filtre par entite, la somme porterait sur tout le
+    // portefeuille du gestionnaire.
+    const { data: dep, error: eDep } = await supabase
       .from("depenses")
       .select("montant_ttc, devise, date_depense")
       .eq("tenant_id", tenantId)
+      .eq("entite_id", entiteId)
       .eq("avance_perso", true)
       .eq("rembourse", false)
       .gte("date_depense", year + "-01-01")
       .lte("date_depense", year + "-12-31")
       .limit(5000);
 
-    let dep: any[] | null = null;
-    const essaiDep = await requeteDep.eq("entite_id", entiteId);
-
-    if (!essaiDep.error) {
-      dep = essaiDep.data;
-    } else {
-      const { data: d2, error: eDep2 } = await supabase
-        .from("depenses")
-        .select("montant_ttc, devise, date_depense")
-        .eq("tenant_id", tenantId)
-        .eq("avance_perso", true)
-        .eq("rembourse", false)
-        .gte("date_depense", year + "-01-01")
-        .lte("date_depense", year + "-12-31")
-        .limit(5000);
-
-      if (eDep2) {
-        console.error("[f5472] lecture depenses :", eDep2.message);
-        return NextResponse.json({ error: "Lecture des depenses impossible." }, { status: 500 });
-      }
-      dep = d2;
+    if (eDep) {
+      console.error("[f5472] lecture depenses :", eDep.message);
+      return NextResponse.json({ error: "Lecture des depenses impossible." }, { status: 500 });
     }
 
     const taux = Number(m.taux_eur_usd) || 1;
