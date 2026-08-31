@@ -371,49 +371,71 @@ export async function POST(req: NextRequest) {
     // gestionnaire pour non-residents.
     cocher(["Page1[0].c1_1[0]"]);
 
-    // 🚨 LIGNE 5a — L ANNEE CIVILE, ET LE PIEGE DU MAXLENGTH.
+    // 🚨 LIGNE 5a — L ANNEE CIVILE, DESSINEE SUR LA PAGE.
     //
-    // QUATRE ESSAIS ONT ETE NECESSAIRES, ET VOICI CE QU ILS ONT APPRIS :
-    //   - ecrire dans f1_13 mettait le chiffre dans l exercice decale ;
-    //   - repartir les chiffres sur f1_11 et f1_12 dispersait l annee, le
-    //     « 6 » partant dans « tax year beginning » ;
-    //   - ecrire « 26 » dans f1_11 seul n affichait que le « 2 » ;
-    //   - reduire la police a 8 points rapetissait le « 2 » sans faire
-    //     apparaitre le « 6 » — CE N EST DONC PAS UN PROBLEME DE LARGEUR.
+    // L HISTOIRE COMPLETE, POUR QUI REPRENDRA CE FICHIER. Cinq essais ont
+    // ete necessaires :
+    //   1. ecrire dans f1_13 mettait le chiffre dans l exercice decale ;
+    //   2. repartir sur f1_11 et f1_12 dispersait l annee, le « 6 »
+    //      partant dans « tax year beginning » ;
+    //   3. ecrire « 26 » dans f1_11 seul n affichait que le « 2 » ;
+    //   4. reduire la police a 8 points rapetissait le « 2 » sans faire
+    //      apparaitre le « 6 » ;
+    //   5. porter le maxLength du champ a 2 n a rien change non plus.
     //
-    // Le mode reperage a ensuite confirme que le « 2 » tombe EXACTEMENT
-    // dans la case de l annee civile : f1_11 EST le bon champ, bien place.
+    // Le mode reperage a confirme que f1_11 EST le champ de l annee
+    // civile, bien place. LA CONCLUSION QUI RESTE : l affichage du champ
+    // est DECOUPE AUX DIMENSIONS DE SA CASE, et cette case, dans le PDF de
+    // l IRS, est physiquement trop etroite pour deux caracteres. Tout ce
+    // qui deborde du cadre est coupe, quelle que soit la police.
     //
-    // 🚨 LA CAUSE REELLE : LE CHAMP PORTE UNE LIMITE DE CARACTERES
-    // (maxLength) DEFINIE PAR L IRS DANS LE PDF LUI-MEME. Quand elle vaut
-    // 1, le second caractere est rejete quelle que soit la police — c est
-    // pour cela que setFontSize n y changeait rien.
+    // 🚨 LA SOLUTION : NE PLUS PASSER PAR LE CHAMP. Le texte est DESSINE
+    // SUR LA PAGE, par-dessus l emplacement du champ — un texte de page
+    // n est pas decoupe par le cadre d un champ.
     //
-    // LE REMEDE : lire la limite, et si elle est inferieure a 2, la porter
-    // a 2 AVANT d ecrire. Un champ sans limite n est pas touche. Le
-    // journal garde la trace de la limite d origine — si l IRS la change a
-    // la prochaine revision, on le verra dans la reponse.
+    // ⚠️ LES COORDONNEES NE SONT PAS FIXES : elles sont LUES sur le champ
+    // f1_11 a chaque generation (son rectangle exact dans le PDF). Si
+    // l IRS deplace la case a la prochaine revision, le texte suivra tout
+    // seul. Et l annee est calculee, pas gravee : « 26 » cette annee,
+    // « 27 » l an prochain, sans retouche. C est ce qui distingue cette
+    // approche du drawText a coordonnees en dur, ecarte precisement parce
+    // qu il ne passait pas 2027 automatiquement.
     //
     // ⚠️ f1_12 A f1_15 DECRIVENT L EXERCICE DECALE et restent vides :
     // declarer les deux formes rend le formulaire contradictoire.
     try {
       const champAnnee = form.getTextField(P + "Page1[0].f1_11[0]");
 
-      const limiteOrigine = champAnnee.getMaxLength();
-      if (limiteOrigine !== undefined && limiteOrigine < 2) {
-        champAnnee.setMaxLength(2);
-        journal.push(
-          "Annee civile : maxLength du champ f1_11 porte de "
-          + limiteOrigine + " a 2"
-        );
+      const widgets = champAnnee.acroField.getWidgets();
+      if (!widgets || widgets.length === 0) {
+        throw new Error("le champ f1_11 n'a aucun widget visible");
       }
 
-      champAnnee.setFontSize(8);
-      champAnnee.setText(String(year).slice(2));
+      const rect = widgets[0].getRectangle();
+      const page = doc.getPage(0);
+
+      // Le champ reste vide : le « 26 » est porte par la page, pas par le
+      // champ. Deux ecritures superposees se chevaucheraient.
+      champAnnee.setText("");
+
+      const taille = 9;
+      page.drawText(String(year).slice(2), {
+        // Un point vers la gauche : la case est etroite, on prend l espace
+        // des le bord pour que les deux chiffres tiennent sur la ligne.
+        x: rect.x - 1,
+        // Centre vertical de la case, moins un tiers de la taille de
+        // police pour poser la ligne de base au bon niveau.
+        y: rect.y + rect.height / 2 - taille / 3,
+        size: taille,
+        font: font,
+      });
+
+      journal.push(
+        "Annee civile : « " + String(year).slice(2)
+        + " » dessinee sur la page aux coordonnees du champ f1_11 ("
+        + Math.round(rect.x) + ", " + Math.round(rect.y) + ")"
+      );
     } catch (e) {
-      // ⚠️ NE PAS DIRE « INTROUVABLE » SI LE CHAMP EXISTE : l erreur peut
-      // venir de l ecriture elle-meme (limite, texte trop long). On rend
-      // le message reel — c est lui qui oriente le prochain diagnostic.
       journal.push(
         "Annee civile (f1_11) : "
         + (e instanceof Error ? e.message : String(e))
