@@ -6,92 +6,6 @@ const ADMINS = ['contact@academiapro.fr'];
 
 const CHEMINS_PROTEGES = ['/admin', '/maintenance'];
 
-// 🚨 LES ROUTES DE DONNEES DE L ADMINISTRATION — AJOUTEES LE 31/08.
-//
-// LE DEFAUT, ET IL NE SE VOYAIT NULLE PART. Le matcher en bas de ce fichier
-// EXCLUT tout ce qui commence par `api`, a l exception de quatre routes
-// nommees une par une. Les pages /admin/* etaient donc gardees ici, mais
-// les routes /api/admin/* — celles qui SERVENT REELLEMENT LES DONNEES —
-// passaient completement a cote de ce fichier.
-//
-// CE QUE L AUDIT A TROUVE : les six routes lues se defendaient chacune
-// toute seule, par QUATRE MECANISMES DIFFERENTS — session administrateur,
-// mot de passe comptable hache, cle d API fixe, jeton interne partage.
-// Aucune n etait ouverte. Le probleme n etait donc pas une porte ouverte,
-// mais l ABSENCE DE FILET : rien n empeche la prochaine route d etre
-// ecrite sans garde, et un oubli ne se verrait pas.
-//
-// CE BLOC EST DONC UNE SECONDE BARRIERE, PAS UN REMPLACEMENT. Les routes
-// gardent leurs propres controles — ceinture et bretelles. Ce qui change,
-// c est qu une route future oubliee sera refusee par defaut.
-//
-// 🚨🚨 LES DEUX EXCEPTIONS, ET ELLES SONT INDISPENSABLES.
-//
-//   1. LES APPELS DE SERVEUR A SERVEUR NE PORTENT AUCUN COOKIE. C est le
-//      defaut deja rencontre et documente dans /api/admin/certificat :
-//      /api/progression appelle cette route quand tous les modules sont
-//      valides, par un fetch interne qui ne transporte pas de session.
-//      Exiger un cookie ici casserait la delivrance des attestations.
-//      Ces appels s authentifient par un jeton partage ou une cle d API,
-//      dans un en-tete — on laisse donc passer toute requete qui en porte
-//      un, et la route verifie elle-meme sa validite.
-//
-//   2. LES CRONS DE VERCEL portent un en-tete authorization Bearer et
-//      aucun cookie. Meme raisonnement.
-//
-// ⚠️ CE BLOC NE VALIDE AUCUN SECRET — il ne fait que LAISSER PASSER vers
-// la route, qui reste seule juge. Sa seule fonction est de refuser ce qui
-// n a NI session NI en-tete d authentification : le navigateur d un
-// curieux qui tape une adresse au hasard.
-const API_ADMIN = '/api/admin';
-
-const ENTETES_MACHINE = ['authorization', 'x-cle-facture', 'x-mdp-compta'];
-
-function porteUneCleMachine(request: NextRequest): boolean {
-  for (const e of ENTETES_MACHINE) {
-    const v = request.headers.get(e);
-    if (v && v.length > 0) return true;
-  }
-  return false;
-}
-
-// 🚨 L ESPACE COMPTABLE S APPELLE /admin/comptable — 25/08.
-//
-// LE DEFAUT. Les trente ecrans de Mr. Comptable vivent dans
-// app/admin/compliance/. Un cabinet qui utilise le logiciel lit donc
-// « compliance » dans sa barre d adresse, sur un espace comptable. Ca fait
-// bricolage, et ces cabinets sont des prospects avant d etre des clients.
-//
-// POURQUOI PAS UN RENOMMAGE DE DOSSIERS. Renommer les trente dossiers
-// imposerait de rouvrir chaque fichier pour corriger ses liens internes,
-// sur iPad, un par un — et le premier oubli casse un ecran sans prevenir.
-//
-// LE MECANISME TIENT EN DEUX PIECES, ET L ORDRE COMPTE :
-//
-//   1. UNE REDIRECTION 308 de /admin/compliance vers /admin/comptable.
-//      Elle rattrape les liens internes des trente pages, ceux d un
-//      favori, ceux d un courriel deja envoye. Aucun fichier de page n a
-//      donc besoin d etre modifie.
-//
-//   2. UNE REECRITURE de /admin/comptable vers le dossier reel, a la
-//      SORTIE de cette fonction.
-//
-// 🚨🚨 LE PIEGE DE LA BOUCLE. Rediriger vers /admin/comptable puis
-// reecrire vers /admin/compliance ne boucle PAS, parce que la reecriture
-// est INTERNE : le navigateur ne redemande rien, il ne voit jamais
-// /admin/compliance. Une REDIRECTION a la place de la reecriture, elle,
-// bouclerait a l infini. NE JAMAIS transformer sortie() en redirect.
-//
-// 🚨🚨 LE SECOND PIEGE, PLUS GRAVE. Une reecriture posee en TETE de cette
-// fonction rendrait la page AVANT les controles de session : n importe qui
-// atteindrait /admin/comptable/crm sans etre connecte. Un rewrite retourne
-// immediatement, il ne « continue » pas. D ou cheminEffectif, calcule des
-// la premiere ligne et utilise par TOUS les tests correspond() ci-dessous.
-//
-// ⚠️ NE JAMAIS REMPLACER cheminEffectif PAR chemin dans ces tests.
-const ALIAS_COMPTABLE = '/admin/comptable';
-const REEL_COMPTABLE = '/admin/compliance';
-
 // Les ecrans clients de Mr. Comptable : ouverts a tout utilisateur connecte
 // portant un organisme. Les routes de donnees sont deja cloisonnees par
 // organisme et par role, un client ne voit que ses propres dossiers.
@@ -149,9 +63,18 @@ const HOTES_CONNUS = ['academiapro.fr', 'www.academiapro.fr', 'localhost'];
 // comme un portail de marque blanche d organisme, et sa racine part vers
 // /of/@son-domaine. Un domaine de la maison oublie ici tombe donc sur une
 // page vide.
+//
+// ⚠️ MYSTERLLC — AJOUTE LE 31/08. La vitrine /mysterllc doit exister dans
+// app/mysterllc/page.tsx : tant qu elle n est pas commitee, la racine de
+// mysterllc.com repond « page introuvable ». Les ecrans du produit, eux,
+// vivent sous /admin/compliance et fonctionnent des maintenant depuis ce
+// domaine (connexion comprise), car les chemins reserves ne sont pas
+// reecrits.
 const MARQUES: Record<string, string> = {
   'mrcomptable.fr': '/comptable',
   'www.mrcomptable.fr': '/comptable',
+  'mysterllc.com': '/mysterllc',
+  'www.mysterllc.com': '/mysterllc',
 };
 
 const NOM_COOKIE_SESSION = 'session_academia';
@@ -230,70 +153,6 @@ export async function middleware(request: NextRequest) {
   const hote = request.headers.get('host') || '';
   const h = hoteNu(hote);
 
-  // ---- LE FILET DES ROUTES D ADMINISTRATION ----------------------------
-  //
-  // PLACE TOUT EN TETE, ET AVANT LES REECRITURES DE MARQUE : une route de
-  // donnees n a rien a voir avec la vitrine, et le controle doit tomber
-  // avant que quoi que ce soit d autre ne s applique.
-  //
-  // TROIS PORTES, DANS CET ORDRE :
-  //   - une cle machine dans un en-tete : on laisse la route juger ;
-  //   - une session signee valide : on laisse passer ;
-  //   - rien du tout : 404, et surtout PAS 401. Un 401 confirmerait que
-  //     l adresse existe. Un 404 ne dit rien — c est le meme choix que
-  //     celui deja fait plus bas pour les pages /admin.
-  if (chemin === API_ADMIN || chemin.startsWith(API_ADMIN + '/')) {
-    if (porteUneCleMachine(request)) {
-      return NextResponse.next();
-    }
-    const chargeAdmin = await jetonVerifie(session);
-    if (!chargeAdmin) {
-      return NextResponse.json({ erreur: 'introuvable' }, { status: 404 });
-    }
-    return NextResponse.next();
-  }
-
-  // ---- PIECE 1 : L ANCIENNE ADRESSE PART VERS LA NOUVELLE ----------------
-  //
-  // 308 ET NON 302 : le 308 est PERMANENT, il conserve la methode, et un
-  // navigateur le met en cache. Un favori pointant sur l ancienne adresse
-  // finit par ne plus jamais la demander.
-  //
-  // PLACEE TOUT EN TETE : rien ne sert de controler une session sur une
-  // adresse qui va etre abandonnee. Les controles se feront au tour
-  // suivant, sur la nouvelle adresse.
-  //
-  // LA CHAINE DE REQUETE EST CONSERVEE — clone() la garde par defaut.
-  if (chemin === REEL_COMPTABLE || chemin.startsWith(REEL_COMPTABLE + '/')) {
-    const url = request.nextUrl.clone();
-    url.pathname = ALIAS_COMPTABLE + chemin.slice(REEL_COMPTABLE.length);
-    return NextResponse.redirect(url, 308);
-  }
-
-  // ---- PIECE 2 : LA NOUVELLE ADRESSE SERT LE DOSSIER REEL ---------------
-  //
-  // cheminEffectif est ce que le code doit VOIR. chemin reste ce que le
-  // navigateur AFFICHE. Les deux ne different que sous /admin/comptable.
-  const estAliasComptable = chemin === ALIAS_COMPTABLE
-    || chemin.startsWith(ALIAS_COMPTABLE + '/');
-  const cheminEffectif = estAliasComptable
-    ? REEL_COMPTABLE + chemin.slice(ALIAS_COMPTABLE.length)
-    : chemin;
-
-  // LA SORTIE NORMALE. Sous l alias, elle reecrit vers le dossier reel ;
-  // partout ailleurs, elle laisse passer. Toute sortie « tout va bien » de
-  // cette fonction doit passer par ici, sans quoi l alias rendrait une
-  // page introuvable.
-  //
-  // ⚠️ C EST UNE REECRITURE, PAS UNE REDIRECTION. Une redirection ici
-  // bouclerait avec la piece 1.
-  function sortie() {
-    if (!estAliasComptable) return NextResponse.next();
-    const url = request.nextUrl.clone();
-    url.pathname = cheminEffectif;
-    return NextResponse.rewrite(url);
-  }
-
   // LE SITEMAP DE MR. COMPTABLE, AVANT TOUTE REECRITURE DE MARQUE.
   //
   // Ce fichier doit etre servi sur mrcomptable.fr lui-meme : Search Console
@@ -327,11 +186,7 @@ export async function middleware(request: NextRequest) {
     // dans public/ partait vers /comptable/IMG_4100.jpeg, qui n existe pas :
     // la barre de Mr. Comptable affichait une image cassee. Un fichier n est
     // jamais une page de vitrine.
-    //
-    // ⚠️ '/admin' COUVRE AUSSI '/admin/comptable' : l alias n est donc pas
-    // avale par cette reecriture de marque, et un cabinet connecte sur
-    // mrcomptable.fr reste bien sur son espace.
-    const RESERVES = ['/admin', '/api', '/connexion', '/comptable', '/of', '/maintenance', '/_next'];
+    const RESERVES = ['/admin', '/api', '/connexion', '/comptable', '/mysterllc', '/of', '/maintenance', '/_next'];
     const estFichier = chemin.lastIndexOf('.') > chemin.lastIndexOf('/');
     if (!estFichier && !correspond(chemin, RESERVES)) {
       const url = request.nextUrl.clone();
@@ -384,24 +239,24 @@ export async function middleware(request: NextRequest) {
     return NextResponse.rewrite(url);
   }
 
-  if (correspond(cheminEffectif, API_SESSION_REQUISE)) {
+  if (correspond(chemin, API_SESSION_REQUISE)) {
     if (!session) {
       return NextResponse.json({ success: false, error: 'non connecte' }, { status: 401 });
     }
-    return sortie();
+    return NextResponse.next();
   }
 
-  if (correspond(cheminEffectif, CHEMINS_ELEVE)) {
+  if (correspond(chemin, CHEMINS_ELEVE)) {
     if (!session) {
       const url = request.nextUrl.clone();
       url.pathname = '/connexion';
       url.search = '';
       return NextResponse.redirect(url);
     }
-    return sortie();
+    return NextResponse.next();
   }
 
-  if (!correspond(cheminEffectif, CHEMINS_PROTEGES)) return sortie();
+  if (!correspond(chemin, CHEMINS_PROTEGES)) return NextResponse.next();
 
   const charge = await jetonVerifie(session);
 
@@ -414,7 +269,7 @@ export async function middleware(request: NextRequest) {
 
   const email = String(charge.email).toLowerCase().trim();
   const estAdmin = ADMINS.indexOf(email) >= 0;
-  const estEspaceClient = correspond(cheminEffectif, ESPACE_CLIENT);
+  const estEspaceClient = correspond(chemin, ESPACE_CLIENT);
 
   // Hors espace client, tout /admin reste reserve a l administrateur.
   if (!estAdmin && !estEspaceClient) {
@@ -424,27 +279,21 @@ export async function middleware(request: NextRequest) {
     });
   }
 
-  if (correspond(cheminEffectif, EXIGENT_SOCIETE) && !correspond(cheminEffectif, EXCEPTIONS)) {
+  if (correspond(chemin, EXIGENT_SOCIETE) && !correspond(chemin, EXCEPTIONS)) {
     if (!charge.tid) {
       const url = request.nextUrl.clone();
-      url.pathname = ALIAS_COMPTABLE + '/ma-societe';
+      url.pathname = '/admin/compliance/ma-societe';
       url.search = '';
       return NextResponse.redirect(url);
     }
   }
 
-  return sortie();
+  return NextResponse.next();
 }
 
 export const config = {
   matcher: [
     '/((?!api|_next/static|_next/image|favicon.ico).*)',
-    // 🚨 AJOUTE LE 31/08 : sans ces deux lignes, le filet pose en tete de
-    // la fonction ci-dessus ne s executerait JAMAIS. Le premier motif
-    // exclut tout `api` ; chaque route d api doit donc etre nommee ici pour
-    // que le middleware la voie. C est precisement ce qui manquait.
-    '/api/admin/:path*',
-    '/api/admin',
     '/api/agent-tuteur/:path*',
     '/api/agent-tuteur',
     '/api/mr-cam/:path*',
