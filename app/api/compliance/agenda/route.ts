@@ -38,6 +38,26 @@ const supabase = createClient(
 // des libelles de societes est donc paginee elle aussi : sans cela, un
 // portefeuille au-dela de mille dossiers afficherait des lignes sans nom,
 // sans qu aucune erreur ne le signale.
+//
+// ---- DEFAUT TROUVE A L AUDIT DU SOIR — 31/08 ---------------------------
+//
+// 🚨 LES QUATRE COMPTEURS PORTAIENT SUR LA PAGE, PAS SUR LE PORTEFEUILLE.
+// Ils etaient calcules en parcourant les lignes affichees — cent au plus.
+// Sur un portefeuille de quatre cents echeances, « 0 echue » pouvait donc
+// s afficher alors que trente etaient en retard sur les pages suivantes.
+//
+// POURQUOI C EST GRAVE ICI PLUS QU AILLEURS : ces quatre chiffres sont la
+// PREMIERE CHOSE que le gestionnaire lit le matin. Ils repondent a « qu
+// est-ce qui brule ? ». Un compteur faux a cet endroit precis ne se
+// remarque pas — il rassure a tort.
+//
+// LA CORRECTION : chaque compteur est desormais une requete de COMPTAGE en
+// base (count exact, head: true), portant sur tout l organisme. Aucune
+// ligne n est rapatriee pour compter : le cout est le meme avec quatre
+// cents echeances qu avec quarante mille.
+//
+// ⚠️ NE JAMAIS RECALCULER CES CHIFFRES A PARTIR DE `enrichies`. C etait le
+// defaut. Un total qui se deduit d une page est faux des la page deux.
 // ---------------------------------------------------------------------------
 
 const PAR_PAGE_DEFAUT = 100;
@@ -103,12 +123,77 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: false, erreur: "Lecture impossible." }, { status: 500 });
     }
 
+    // ---- LE RESUME, COMPTE EN BASE SUR TOUT LE PORTEFEUILLE ----
+    //
+    // 🚨 CES CHIFFRES NE DEPENDENT NI DE LA PAGE AFFICHEE, NI DE L HORIZON
+    // CHOISI. Une echeance echue reste echue meme si le gestionnaire
+    // regarde les trente prochains jours : la masquer du compteur
+    // reviendrait a lui cacher precisement ce qu il doit voir.
+    //
+    // `head: true` ne rapatrie AUCUNE ligne — seul le total revient.
+    async function compter(construire: (q: any) => any): Promise<number> {
+      const base = supabase
+        .from("compliance_deadlines")
+        .select("id", { count: "exact", head: true })
+        .eq("tenant_id", session!.tenantId)
+        .neq("status", "accuse_archive");
+
+      const { count: n, error: e } = await construire(base);
+      if (e) {
+        console.error("[compliance/agenda] comptage :", e.message);
+        return -1;
+      }
+      return n === null || n === undefined ? 0 : n;
+    }
+
+    const dans7 = jourISO(new Date(Date.now() + 7 * 86400000));
+    const dans30 = jourISO(new Date(Date.now() + 30 * 86400000));
+
+    const [nbEchues, nbSous7, nbSous30] = await Promise.all([
+      // Echues : tout ce qui est passe et n a pas ete archive.
+      compter((q: any) => q.lt("due_date", aujourdhui)),
+      // Sous 7 jours : d aujourd hui inclus a J+7.
+      compter((q: any) => q.gte("due_date", aujourdhui).lte("due_date", dans7)),
+      // Sous 30 jours : d aujourd hui inclus a J+30. Cette tranche CONTIENT
+      // la precedente — c est voulu : « ce qui tombe dans le mois » est la
+      // question que se pose le gestionnaire, pas « entre le huitieme et le
+      // trentieme jour ».
+      compter((q: any) => q.gte("due_date", aujourdhui).lte("due_date", dans30)),
+    ]);
+
+    // ---- LES SOCIETES SANS RELANCE ARMEE ----
+    //
+    // Ce compteur ne porte pas sur les echeances mais sur les SOCIETES :
+    // « combien de mes dossiers ne previendront personne ». Compte en base
+    // lui aussi.
+    const { count: nbSansRelance, error: eSans } = await supabase
+      .from("compliance_tenants")
+      .select("id", { count: "exact", head: true })
+      .eq("tenant_id", session.tenantId)
+      .or("relance_auto.is.null,relance_auto.eq.false");
+
+    if (eSans) {
+      console.error("[compliance/agenda] comptage sans relance :", eSans.message);
+    }
+
+    const resume = {
+      echues: nbEchues,
+      sous_7_jours: nbSous7,
+      sous_30_jours: nbSous30,
+      // ⚠️ CE COMPTEUR PORTE SUR DES SOCIETES, PAS DES ECHEANCES. Le libelle
+      // de l ecran doit le dire, sinon le chiffre parait incoherent avec
+      // les trois autres.
+      societes_sans_relance_armee: nbSansRelance === null || nbSansRelance === undefined
+        ? 0 : nbSansRelance,
+    };
+
     const echeances: any[] = lignes || [];
 
     if (echeances.length === 0) {
       return NextResponse.json({
         ok: true,
         echeances: [],
+        resume: resume,
         page: page,
         taille: taille,
         total: count || 0,
@@ -181,23 +266,6 @@ export async function GET(req: NextRequest) {
         devise: e.currency,
       };
     });
-
-    // ---- LE RESUME, CALCULE SUR LA PAGE AFFICHEE ----
-    //
-    // Il repond a la seule question du matin : « qu est-ce qui brule ? »
-    const resume = {
-      echues: 0,
-      sous_7_jours: 0,
-      sous_30_jours: 0,
-      sans_relance_armee: 0,
-    };
-
-    for (const e of enrichies) {
-      if (e.echue) resume.echues = resume.echues + 1;
-      else if (e.jours <= 7) resume.sous_7_jours = resume.sous_7_jours + 1;
-      else if (e.jours <= 30) resume.sous_30_jours = resume.sous_30_jours + 1;
-      if (!e.relance_armee) resume.sans_relance_armee = resume.sans_relance_armee + 1;
-    }
 
     const total = count === null || count === undefined ? enrichies.length : count;
 
