@@ -41,23 +41,31 @@ const supabase = createClient(
 //
 // ---- DEFAUT TROUVE A L AUDIT DU SOIR — 31/08 ---------------------------
 //
-// 🚨 LES QUATRE COMPTEURS PORTAIENT SUR LA PAGE, PAS SUR LE PORTEFEUILLE.
-// Ils etaient calcules en parcourant les lignes affichees — cent au plus.
-// Sur un portefeuille de quatre cents echeances, « 0 echue » pouvait donc
-// s afficher alors que trente etaient en retard sur les pages suivantes.
+// 🚨 LES COMPTEURS PORTAIENT SUR LA PAGE, PAS SUR LE PORTEFEUILLE. Ils
+// etaient calcules en parcourant les lignes affichees — cent au plus. Sur
+// un portefeuille de quatre cents echeances, « 0 echue » pouvait donc s
+// afficher alors que trente etaient en retard sur les pages suivantes.
 //
-// POURQUOI C EST GRAVE ICI PLUS QU AILLEURS : ces quatre chiffres sont la
-// PREMIERE CHOSE que le gestionnaire lit le matin. Ils repondent a « qu
-// est-ce qui brule ? ». Un compteur faux a cet endroit precis ne se
-// remarque pas — il rassure a tort.
+// POURQUOI C EST GRAVE ICI PLUS QU AILLEURS : ces chiffres sont la PREMIERE
+// CHOSE que le gestionnaire lit le matin. Ils repondent a « qu est-ce qui
+// brule ? ». Un compteur faux a cet endroit precis ne se remarque pas — il
+// rassure a tort.
 //
-// LA CORRECTION : chaque compteur est desormais une requete de COMPTAGE en
-// base (count exact, head: true), portant sur tout l organisme. Aucune
-// ligne n est rapatriee pour compter : le cout est le meme avec quatre
-// cents echeances qu avec quarante mille.
+// LA CORRECTION : chaque compteur est une requete de COMPTAGE en base
+// (count exact, head: true), portant sur tout l organisme. Aucune ligne n
+// est rapatriee pour compter : le cout est le meme avec quatre cents
+// echeances qu avec quarante mille.
 //
 // ⚠️ NE JAMAIS RECALCULER CES CHIFFRES A PARTIR DE `enrichies`. C etait le
 // defaut. Un total qui se deduit d une page est faux des la page deux.
+//
+// ⚠️ CINQ COMPTEURS, ET DEUX D ENTRE EUX COMPTENT DES CHOSES DIFFERENTES.
+// `sans_relance_armee` compte des ECHEANCES — combien de choses vont
+// tomber sans que personne ne soit prevenu. `societes_sans_relance_armee`
+// compte des SOCIETES — combien de dossiers sont muets. Les deux sont
+// utiles et ne se deduisent pas l un de l autre : une seule societe muette
+// peut porter trente echeances. Le libelle a l ecran doit dire lequel est
+// lequel, sinon les chiffres paraissent incoherents.
 // ---------------------------------------------------------------------------
 
 const PAR_PAGE_DEFAUT = 100;
@@ -77,6 +85,8 @@ export async function GET(req: NextRequest) {
   if (!session || !session.tenantId) {
     return NextResponse.json({ ok: false, erreur: "Connectez-vous." }, { status: 401 });
   }
+
+  const tenantId = session.tenantId;
 
   const p = req.nextUrl.searchParams;
 
@@ -101,7 +111,7 @@ export async function GET(req: NextRequest) {
       .from("compliance_deadlines")
       .select("id, entite_id, rule_code, period_label, due_date, status, amount_due, currency",
         { count: "exact" })
-      .eq("tenant_id", session.tenantId)
+      .eq("tenant_id", tenantId)
       .lte("due_date", limite)
       .order("due_date", { ascending: true })
       .range(debut, fin);
@@ -123,6 +133,37 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: false, erreur: "Lecture impossible." }, { status: 500 });
     }
 
+    // ---- LES SOCIETES QUI N ONT PAS ARME LA RELANCE ----
+    //
+    // Lue AVANT les compteurs d echeances, parce que le compteur
+    // `sans_relance_armee` a besoin de la liste de leurs identifiants.
+    //
+    // ⚠️ PAGINATION EXPLICITE : Supabase tronque a 1000 lignes sans erreur.
+    // Un portefeuille de 1 200 dossiers verrait les derniers ignores, et le
+    // compteur serait faux sans que rien ne le signale.
+    const idsMuettes: string[] = [];
+    let offsetM = 0;
+
+    while (true) {
+      const { data, error: eM } = await supabase
+        .from("compliance_tenants")
+        .select("id")
+        .eq("tenant_id", tenantId)
+        .or("relance_auto.is.null,relance_auto.eq.false")
+        .order("id", { ascending: true })
+        .range(offsetM, offsetM + PAS_PAGINATION - 1);
+
+      if (eM) {
+        console.error("[compliance/agenda] societes sans relance :", eM.message);
+        break;
+      }
+
+      const lot = data || [];
+      for (const s of lot) idsMuettes.push(s.id);
+      if (lot.length < PAS_PAGINATION) break;
+      offsetM = offsetM + PAS_PAGINATION;
+    }
+
     // ---- LE RESUME, COMPTE EN BASE SUR TOUT LE PORTEFEUILLE ----
     //
     // 🚨 CES CHIFFRES NE DEPENDENT NI DE LA PAGE AFFICHEE, NI DE L HORIZON
@@ -135,13 +176,13 @@ export async function GET(req: NextRequest) {
       const base = supabase
         .from("compliance_deadlines")
         .select("id", { count: "exact", head: true })
-        .eq("tenant_id", session!.tenantId)
+        .eq("tenant_id", tenantId)
         .neq("status", "accuse_archive");
 
       const { count: n, error: e } = await construire(base);
       if (e) {
         console.error("[compliance/agenda] comptage :", e.message);
-        return -1;
+        return 0;
       }
       return n === null || n === undefined ? 0 : n;
     }
@@ -161,30 +202,35 @@ export async function GET(req: NextRequest) {
       compter((q: any) => q.gte("due_date", aujourdhui).lte("due_date", dans30)),
     ]);
 
-    // ---- LES SOCIETES SANS RELANCE ARMEE ----
+    // ECHEANCES A VENIR DONT LA SOCIETE NE PREVIENDRA PERSONNE.
     //
-    // Ce compteur ne porte pas sur les echeances mais sur les SOCIETES :
-    // « combien de mes dossiers ne previendront personne ». Compte en base
-    // lui aussi.
-    const { count: nbSansRelance, error: eSans } = await supabase
-      .from("compliance_tenants")
-      .select("id", { count: "exact", head: true })
-      .eq("tenant_id", session.tenantId)
-      .or("relance_auto.is.null,relance_auto.eq.false");
-
-    if (eSans) {
-      console.error("[compliance/agenda] comptage sans relance :", eSans.message);
+    // ⚠️ SI AUCUNE SOCIETE N EST MUETTE, LE FILTRE .in() SUR UNE LISTE VIDE
+    // NE DOIT PAS ETRE ENVOYE : PostgREST le rejette ou rend n importe
+    // quoi. On rend zero directement, ce qui est la reponse juste.
+    let nbSansRelance = 0;
+    if (idsMuettes.length > 0) {
+      // La liste des identifiants passe dans l URL de la requete : au-dela
+      // d un millier, elle deviendrait trop longue. On compte alors par
+      // lots et on additionne.
+      for (let i = 0; i < idsMuettes.length; i = i + PAS_PAGINATION) {
+        const lot = idsMuettes.slice(i, i + PAS_PAGINATION);
+        const n = await compter((q: any) =>
+          q.gte("due_date", aujourdhui).in("entite_id", lot)
+        );
+        nbSansRelance = nbSansRelance + n;
+      }
     }
 
     const resume = {
+      // Des ECHEANCES.
       echues: nbEchues,
       sous_7_jours: nbSous7,
       sous_30_jours: nbSous30,
-      // ⚠️ CE COMPTEUR PORTE SUR DES SOCIETES, PAS DES ECHEANCES. Le libelle
-      // de l ecran doit le dire, sinon le chiffre parait incoherent avec
-      // les trois autres.
-      societes_sans_relance_armee: nbSansRelance === null || nbSansRelance === undefined
-        ? 0 : nbSansRelance,
+      // Des ECHEANCES a venir, portees par une societe qui n a pas arme la
+      // relance. Nom conserve : l ecran existant l affiche deja.
+      sans_relance_armee: nbSansRelance,
+      // Des SOCIETES. Nouveau compteur : combien de dossiers sont muets.
+      societes_sans_relance_armee: idsMuettes.length,
     };
 
     const echeances: any[] = lignes || [];
@@ -217,7 +263,7 @@ export async function GET(req: NextRequest) {
       const { data: ent, error: eEnt } = await supabase
         .from("compliance_tenants")
         .select("id, label, legal_name, formation_state, email_contact, relance_auto")
-        .eq("tenant_id", session.tenantId)
+        .eq("tenant_id", tenantId)
         .in("id", lot);
 
       if (eEnt) {
