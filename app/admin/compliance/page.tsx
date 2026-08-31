@@ -105,6 +105,10 @@ export default function ComplianceDashboard() {
   const [autreMsg, setAutreMsg] = useState<string | null>(null);
   const [autreUrl, setAutreUrl] = useState<string | null>(null);
 
+  // La liste des champs d un CERFA, relevee a la demande. Elle ne sert
+  // qu au reglage des chemins de remplissage.
+  const [champsListe, setChampsListe] = useState<string | null>(null);
+
   async function charger(id: string, entite: string | null) {
     setLoading(true);
     setErreur(null);
@@ -414,6 +418,48 @@ export default function ComplianceDashboard() {
     setAutreLoading(null);
   }
 
+  // ---- DIAGNOSTIC DES CHAMPS D UN CERFA ----
+  //
+  // 🚨 POURQUOI CE BOUTON EXISTE. Les noms de champs d un formulaire IRS ne
+  // se devinent pas : ils sont propres a chaque revision, et l administration
+  // les change sans prevenir. Le 5472 et le 1120 ont ete cartographies a la
+  // main lors d une session precedente ; le 7004 ne l avait jamais ete, et
+  // ses chemins ont d abord ete ecrits au jugé — d ou une ligne remplie au
+  // mauvais endroit et une autre restee vide.
+  //
+  // Ce bouton rend LA LISTE REELLE des champs du PDF, sans rien remplir.
+  // C est ce qui permet de corriger un chemin en une fois au lieu de
+  // tatonner generation apres generation.
+  //
+  // ⚠️ IL NE LIT AUCUNE DONNEE DE LA BASE : seulement la structure d un
+  // formulaire public telecharge sur irs.gov.
+  async function listerChamps() {
+    setAutreLoading("champs");
+    setAutreMsg(null);
+    setChampsListe(null);
+    try {
+      const r = await fetch("/api/compliance/f7004/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ champs: true }),
+      });
+      const d = await r.json();
+      if (d.success && d.champs) {
+        let txt = d.nb_champs + " champs dans " + d.formulaire + "\n\n";
+        for (const c of d.champs) {
+          txt += c.nom + "   [" + c.type + "]\n";
+        }
+        setChampsListe(txt);
+        setAutreMsg("Liste des champs relevée.");
+      } else {
+        setAutreMsg("Erreur : " + (d.error || "inconnue"));
+      }
+    } catch (e: any) {
+      setAutreMsg("Erreur : " + String(e));
+    }
+    setAutreLoading(null);
+  }
+
   const styleBouton = {
     background: VERT,
     color: "#ffffff",
@@ -555,6 +601,36 @@ export default function ComplianceDashboard() {
           Il doit être déposé avant le 15 avril, sinon l'échéance d'origine
           s'applique.
         </p>
+
+        {/* Outil de reglage : releve les noms de champs du CERFA. Il ne sert
+            qu a corriger les chemins de remplissage et ne touche a aucune
+            donnee. A retirer une fois la cartographie stabilisee. */}
+        <button
+          onClick={listerChamps}
+          disabled={autreLoading !== null}
+          style={{ ...styleLien, fontSize: 13, padding: "8px 14px" }}
+        >
+          {autreLoading === "champs" ? "…" : "Lister les champs du 7004"}
+        </button>
+
+        {champsListe && (
+          <pre
+            style={{
+              background: "#ffffff",
+              border: "1px solid #ddd",
+              color: "#1a1a1a",
+              padding: 12,
+              borderRadius: 6,
+              fontSize: 12,
+              maxHeight: 400,
+              overflow: "auto",
+              whiteSpace: "pre-wrap",
+              wordBreak: "break-word",
+            }}
+          >
+            {champsListe}
+          </pre>
+        )}
 
         {irsMsg && (
           <p style={{ marginTop: 10, color: irsMsg.indexOf("Erreur") === 0 ? "#c62828" : VERT }}>
