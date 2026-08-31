@@ -229,17 +229,22 @@ export async function POST(req: NextRequest) {
     // Les noms de champs varient d une revision du formulaire a l autre.
     // On tente plusieurs chemins connus plutot que d echouer en silence :
     // un champ non trouve est signale dans le journal, pas masque.
-    const setText = (chemins: string[], valeur: unknown) => {
-      if (valeur === null || valeur === undefined || valeur === "") return;
+    //
+    // La fonction rend TRUE si elle a ecrit : c est ce qui permet, pour le
+    // code de formulaire, de basculer sur la forme a deux cases separees
+    // quand la forme a une case n existe pas.
+    const setText = (chemins: string[], valeur: unknown): boolean => {
+      if (valeur === null || valeur === undefined || valeur === "") return false;
       for (const c of chemins) {
         try {
           form.getTextField(P + c).setText(String(valeur));
-          return;
+          return true;
         } catch (e) {
           // chemin suivant
         }
       }
       journal.push("Champ non trouve pour la valeur : " + String(valeur).slice(0, 40));
+      return false;
     };
 
     const cocher = (chemins: string[]) => {
@@ -262,8 +267,40 @@ export async function POST(req: NextRequest) {
     setText(["Page1[0].f1_7[0]", "Page1[0].f1_07[0]"], adr.pays);
     setText(["Page1[0].f1_8[0]", "Page1[0].f1_08[0]"], adr.zip);
 
-    // Ligne 1 : le code du formulaire dont on demande l extension.
-    setText(["Page1[0].f1_9[0]", "Page1[0].f1_09[0]"], CODE_FORMULAIRE_1120);
+    // 🚨 LIGNE 1 — LE CODE DU FORMULAIRE. C EST LE CHAMP LE PLUS IMPORTANT
+    // DE LA PAGE, et il etait reste vide au premier essai.
+    //
+    // Sans lui, l IRS ne sait pas DE QUELLE DECLARATION on demande
+    // l extension : le 7004 sert a une trentaine de formulaires differents,
+    // enumeres dans le tableau juste en dessous. Un 7004 sans code est
+    // irrecevable, donc le delai n est pas accorde — et le 5472 tombe en
+    // retard sans que personne ne s en apercoive avant la penalite.
+    //
+    // ⚠️ LE CODE EST SUR DEUX CASES SEPAREES dans le formulaire, une par
+    // chiffre. Selon la revision, pdf-lib les expose soit comme deux champs
+    // distincts, soit comme un seul. On tente les deux formes.
+    const codeEcrit = setText(
+      [
+        "Page1[0].Line1_ReadOrder[0].f1_9[0]",
+        "Page1[0].f1_9[0]",
+        "Page1[0].f1_09[0]",
+        "Page1[0].Line1[0].f1_9[0]",
+        "Page1[0].c1_1[0]",
+      ],
+      CODE_FORMULAIRE_1120
+    );
+
+    if (!codeEcrit) {
+      // Deux cases d un chiffre chacune : « 1 » puis « 2 ».
+      setText(
+        ["Page1[0].Line1_ReadOrder[0].f1_9[0]", "Page1[0].f1_9[0]"],
+        CODE_FORMULAIRE_1120.charAt(0)
+      );
+      setText(
+        ["Page1[0].Line1_ReadOrder[0].f1_10[0]", "Page1[0].f1_10[0]"],
+        CODE_FORMULAIRE_1120.charAt(1)
+      );
+    }
 
     // Ligne 2 : societe etrangere sans etablissement aux Etats-Unis.
     //
@@ -273,8 +310,28 @@ export async function POST(req: NextRequest) {
     // gestionnaire pour non-residents.
     cocher(["Page1[0].c1_1[0]", "Page1[0].c1_01[0]"]);
 
-    // Ligne 5a : l annee civile concernee.
-    setText(["Page1[0].f1_13[0]", "Page1[0].f1_10[0]"], String(year).slice(2));
+    // 🚨 LIGNE 5a — L ANNEE CIVILE, ET NON L EXERCICE DECALE.
+    //
+    // La ligne offre DEUX possibilites : « calendar year 20 __ » pour une
+    // societe dont l exercice suit l annee civile, ou « tax year beginning
+    // __ , 20 __ and ending __ , 20 __ » pour un exercice decale.
+    //
+    // AU PREMIER ESSAI, LE CHIFFRE S EST ECRIT DANS LA MAUVAISE CASE : il
+    // est apparu dans « tax year beginning », ce qui declare un exercice
+    // decale incomplet — et rend le formulaire incoherent.
+    //
+    // La quasi-totalite des LLC de gestion suivent l annee civile. On
+    // ecrit donc dans la premiere case, et on laisse les suivantes vides.
+    const anneeCourte = String(year).slice(2);
+    setText(
+      [
+        "Page1[0].Line5a_ReadOrder[0].f1_13[0]",
+        "Page1[0].Line5a[0].f1_13[0]",
+        "Page1[0].f1_13[0]",
+        "Page1[0].f1_11[0]",
+      ],
+      anneeCourte
+    );
 
     form.updateFieldAppearances(font);
     const bytes = await doc.save();
