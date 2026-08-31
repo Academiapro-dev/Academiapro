@@ -18,24 +18,11 @@ const supabase = createClient(
 // « manuel », pointe sur la table crm et recoit les profils que Jacques
 // trouve LUI-MEME sur LinkedIn, au fil de son fil d actualite.
 //
-// 🚨 LES CABINETS COMPTABLES ONT ETE AJOUTES LE 01/09 A 00h40, ET LEUR
-// ABSENCE AVAIT DES CONSEQUENCES.
-//
-// CE QUI SE PASSAIT. La table prospects_cabinets porte 353 profils
+// 🚨 LES CABINETS COMPTABLES ONT ETE AJOUTES LE 01/09, ET LEUR ABSENCE
+// AVAIT DES CONSEQUENCES. La table prospects_cabinets porte 353 profils
 // LinkedIn, dont 118 DEJA INVITES — verifie en base. Mais elle ne figurait
 // pas ici : aucun compteur ne les voyait, aucune liste ne les rendait,
-// aucune acceptation ni aucun refus ne pouvait etre marque. Cent
-// dix-huit invitations parties, et un outil qui l ignorait.
-//
-// ⚠️ CES 118 N ONT PAS PU PARTIR DEPUIS CET ECRAN, qui ne connaissait pas
-// la table. Leur origine reste a elucider — version anterieure du code, ou
-// saisie directe en base. A verifier avant de tirer une conclusion sur les
-// chiffres de la semaine.
-//
-// ⚠️ CONSEQUENCE ATTENDUE DE L AJOUT : tous les compteurs vont MONTER d un
-// coup, y compris `semaine` et `jour` si des invitations cabinets portent
-// une date recente. Ce n est pas une anomalie — c est ce qui etait cache
-// qui devient visible.
+// aucune acceptation ni aucun refus ne pouvait etre marque.
 const TABLES: any = {
   organismes: "prospects_organismes",
   qualiopi: "prospects_qualiopi",
@@ -87,33 +74,20 @@ function ilYaSeptJours(): string {
 }
 
 // ---------------------------------------------------------------------------
-// 🚨 LA LENTEUR DE L ECRAN — DIAGNOSTIQUEE ET CORRIGEE LE 31/08 AU SOIR.
+// 🚨 LA LENTEUR — DIAGNOSTIQUEE ET CORRIGEE LE 31/08 AU SOIR.
 //
-// CE QUI SE PASSAIT. La fonction compteurs() lancait TRENTE-SIX COMPTAGES,
-// LES UNS APRES LES AUTRES : deux passages de compterDepuis (quatre tables
-// chacun), sept passages de compterStatuts (quatre tables chacun), plus la
-// file. Chaque requete attendait la fin de la precedente.
-//
-// PIRE : sur une invitation, elle etait appelee DEUX FOIS — une premiere
-// pour verifier le plafond, une seconde pour la reponse. Soit SOIXANTE-DOUZE
-// comptages sequentiels sur des tables de dizaines de milliers de lignes,
-// pour enregistrer une date. Et l ecran enchainait derriere avec les trente-
-// six comptages de /api/admin/prospection.
+// CE QUI SE PASSAIT. compteurs() lancait TRENTE-SIX COMPTAGES LES UNS APRES
+// LES AUTRES, et elle etait appelee DEUX FOIS sur une invitation : une pour
+// verifier le plafond, une pour la reponse. Soit SOIXANTE-DOUZE comptages
+// sequentiels pour enregistrer une date.
 //
 // LES DEUX CORRECTIONS, ET AUCUNE NE CHANGE UN SEUL CHIFFRE :
-//   1. Les comptages partent TOUS EN MEME TEMPS (Promise.all). Le temps
-//      total devient celui du plus lent, non la somme.
-//   2. Le calcul fait avant l ecriture est REUTILISE dans la reponse, au
-//      lieu d etre refait a l identique.
+//   1. Les comptages partent TOUS EN MEME TEMPS (Promise.all).
+//   2. Le calcul fait avant l ecriture est REUTILISE dans la reponse.
 //
-// ⚠️ AVEC LA CINQUIEME TABLE, LE NOMBRE DE COMPTAGES PASSE DE 36 A 45.
-// C est precisement pour cela que la parallelisation devait etre faite
-// AVANT d ajouter les cabinets : en serie, l ajout aurait allonge encore
-// l attente.
-//
-// ⚠️ NE PAS REVENIR A UNE BOUCLE `for` AVEC `await` A L INTERIEUR. C est
-// la forme qui a produit la lenteur, et elle se reintroduit sans y penser
-// des qu on ajoute un compteur ou une table.
+// ⚠️ NE PAS REVENIR A UNE BOUCLE `for` AVEC `await` A L INTERIEUR. C est la
+// forme qui produit la lenteur, et elle se reintroduit sans y penser des
+// qu on ajoute un compteur ou une table.
 // ---------------------------------------------------------------------------
 
 // Une fiche ecartee ne compte jamais : rien n a ete envoye.
@@ -246,7 +220,7 @@ const COLONNES_PROSPECTS =
   "linkedin, email, telephone, site_web, linkedin_le, linkedin_relance_le, linkedin_statut, notes";
 
 const COLONNES_CRM =
-  "id, nom, organisme, ville, dirigeant_prenom, dirigeant_nom, " +
+  "id, nom, organisme, ville, dirigeant_prenom, dirigeant_nom, campagne, " +
   "linkedin, email, telephone, linkedin_le, linkedin_relance_le, linkedin_statut, notes";
 
 function colonnesDe(cle: string): string {
@@ -318,12 +292,36 @@ async function suivante(base: string) {
   return { fiche: uniformiser(lecture.data[0], base), restant: comptage.count || 0 };
 }
 
-// La cle de base est renvoyee avec chaque ligne — sans elle, l ecran ne
-// saurait pas dans quelle table ecrire au moment de marquer.
+// ---------------------------------------------------------------------------
+// 🚨 LE SENS DU TRI — CORRIGE LE 01/09.
 //
-// ⚠️ LES CINQ TABLES SONT LUES ENSEMBLE, pas l une apres l autre.
-async function lister(statuts: string[], limite: number, colonneTri?: string) {
+// LE DEFAUT SIGNALE PAR JACQUES : « les invitations sont du plus ancien au
+// plus recent, ca m oblige a descendre jusqu en bas de la page pour avoir
+// les plus recentes ».
+//
+// Il a raison, et le defaut venait d un tri unique pour deux besoins
+// opposes :
+//
+//   « MES INVITATIONS » — on cherche CE QU ON VIENT D ENVOYER, pour
+//   marquer les acceptations qui arrivent. Le plus recent doit etre EN
+//   HAUT. C est l ecran qu on ouvre apres une notification LinkedIn.
+//
+//   « MESSAGES ENVOYES » — on cherche AU CONTRAIRE ce qui attend depuis
+//   le plus longtemps, pour decider d une seconde relance. Le plus ancien
+//   doit rester en haut. C est l ecran qu on ouvre pour relancer.
+//
+// ⚠️ NE PAS UNIFORMISER LES DEUX. Ce sont deux questions differentes, et
+// chacune veut son ordre. Le parametre `recent` porte cette distinction.
+//
+// ⚠️ LE TRI EN MEMOIRE COMPTE AUTANT QUE CELUI DE LA BASE : les lignes
+// viennent de cinq tables, chacune triee de son cote. C est le tri final,
+// apres fusion, qui decide de ce que voit l ecran.
+// ---------------------------------------------------------------------------
+async function lister(statuts: string[], limite: number, colonneTri?: string, recent?: boolean) {
   const tri = colonneTri || "linkedin_le";
+  // Par defaut, le plus ancien en tete — c est ce que veut « Messages
+  // envoyes ». `recent` inverse pour « Mes invitations ».
+  const croissant = recent !== true;
 
   const parTable = await Promise.all(
     Object.keys(TABLES).map(async function (cle) {
@@ -331,7 +329,7 @@ async function lister(statuts: string[], limite: number, colonneTri?: string) {
         .from(TABLES[cle])
         .select(colonnesDe(cle))
         .in("linkedin_statut", statuts)
-        .order(tri, { ascending: true })
+        .order(tri, { ascending: croissant })
         .limit(limite);
       return (data || []).map(function (l: any) { return uniformiser(l, cle); });
     })
@@ -341,7 +339,9 @@ async function lister(statuts: string[], limite: number, colonneTri?: string) {
   for (const lot of parTable) for (const l of lot) lignes.push(l);
 
   lignes.sort(function (a, b) {
-    return String(a[tri] || "").localeCompare(String(b[tri] || ""));
+    const ga = String(a[tri] || "");
+    const gb = String(b[tri] || "");
+    return croissant ? ga.localeCompare(gb) : gb.localeCompare(ga);
   });
   return lignes.slice(0, limite);
 }
@@ -440,9 +440,6 @@ export async function POST(req: NextRequest) {
     }
 
     // LA FILE D ATTENTE : les fiches enregistrees sans invitation.
-    //
-    // ⚠️ LA LISTE ET LES COMPTEURS PARTENT ENSEMBLE : ils ne dependent pas
-    // l un de l autre.
     if (action === "en_file") {
       const [lignes, c] = await Promise.all([listerEnFile(LIMITE_LISTE), compteurs()]);
       return NextResponse.json({ ok: true, lignes, compteurs: c });
@@ -451,33 +448,35 @@ export async function POST(req: NextRequest) {
     // AJOUTER UN PROFIL TROUVE A LA MAIN.
     //
     // 🚨🚨 TROIS FACONS D ENREGISTRER, ET LA DISTINCTION EST ESSENTIELLE —
-    // corrigee le 18/08 apres un defaut de conception.
+    // corrigee le 18/08 apres un defaut de conception. Les deux seuls
+    // boutons disponibles etaient « Invitee avec une note » et « Invitee
+    // sans note » : ENREGISTRER UNE FICHE ET DECLARER UNE INVITATION
+    // ETAIENT DONC LA MEME ACTION.
     //
-    // LE DEFAUT. Les deux seuls boutons disponibles etaient « Invitee avec
-    // une note » et « Invitee sans note ». ENREGISTRER UNE FICHE ET
-    // DECLARER UNE INVITATION ETAIENT DONC LA MEME ACTION — impossible de
-    // ranger un profil croise le soir pour l inviter le lendemain. Et une
-    // fois le plafond du jour atteint, les deux boutons se grisaient : la
-    // fiche etait perdue. Ses mots : « envoyer une fiche sans invitation,
-    // pour moi ca ne veut pas dire enregistrer la fiche ».
+    // LES MODES :
+    //   « file »       : la fiche est rangee, SANS invitation, SANS quota.
+    //   « invite »     : l invitation est partie AVEC une note.
+    //   « invite_nu »  : l invitation est partie SANS note.
+    //   « accepte_nu » : relation deja etablie, aucun quota consomme.
+    //   « repondu »    : la personne a deja repondu.
+    //   « rendez_vous »: un rendez-vous est pris.
     //
-    // LES TROIS MODES :
-    //   mode « file »     : la fiche est rangee, SANS invitation, SANS
-    //                       toucher au quota. Elle attend son tour.
-    //   mode « invite »   : l invitation est partie AVEC une note.
-    //   mode « invite_nu » : l invitation est partie SANS note.
-    //
-    // Seuls les deux derniers consomment le quota.
+    // ⚠️ SEULS invite ET invite_nu CONSOMMENT LE QUOTA. Les trois derniers
+    // consignent une relation qui existe deja : aucune invitation n est
+    // envoyee, le plafond ne les concerne pas.
     if (action === "ajouter") {
       const nom = propre(body.nom, 120);
       const lien = propre(body.linkedin, 300);
 
-      // Compatibilite avec l ancien appel, qui envoyait avec_note.
       let mode = String(body.mode || "").trim();
       if (!mode) mode = body.avec_note === true ? "invite" : "invite_nu";
-      if (["file", "invite", "invite_nu"].indexOf(mode) < 0) {
+
+      const MODES_CONNUS = ["file", "invite", "invite_nu", "accepte_nu", "repondu", "rendez_vous"];
+      if (MODES_CONNUS.indexOf(mode) < 0) {
         return NextResponse.json({ ok: false, erreur: "Mode d enregistrement inconnu." }, { status: 400 });
       }
+
+      const consommeQuota = (mode === "invite" || mode === "invite_nu");
 
       if (nom.length < 2) {
         return NextResponse.json({ ok: false, erreur: "Indiquez le nom du contact." }, { status: 400 });
@@ -512,19 +511,41 @@ export async function POST(req: NextRequest) {
         }, { status: 409 });
       }
 
-      // LE QUOTA N EST VERIFIE QUE SI UNE INVITATION EST DECLAREE.
-      if (mode !== "file" && avant.reste_jour <= 0) {
-        return NextResponse.json({
-          ok: false,
-          erreur: "Plafond du jour atteint (" + PLAFOND_JOUR + "). Enregistrez la fiche "
-            + "sans invitation : elle vous attendra demain.",
-          compteurs: avant,
-        }, { status: 429 });
+      // 🚨 LE PLAFOND AVERTIT, IL NE BLOQUE PLUS — regle posee le 27/08.
+      // Une invitation partie depuis LinkedIn EXISTE, que cet ecran
+      // l accepte ou non. La refuser ne l annule pas : elle laisse la
+      // fiche vide et le compteur ment dans l autre sens.
+      let avertissement: string | null = null;
+      if (consommeQuota && avant.reste_jour <= 0) {
+        avertissement = "Plafond du jour depasse (" + PLAFOND_JOUR
+          + "). La fiche est enregistree, mais n envoyez plus d invitation aujourd hui.";
       }
 
       const morceaux = nom.split(/\s+/);
       const prenom = morceaux.length > 1 ? morceaux[0] : "";
       const patronyme = morceaux.length > 1 ? morceaux.slice(1).join(" ") : nom;
+
+      // Le statut LinkedIn depose selon le mode. « repondu » et
+      // « rendez_vous » n existent pas cote LinkedIn : ils se traduisent
+      // en relance, et le score commercial les distingue.
+      const statutIn: any = {
+        file: null,
+        invite: "invite",
+        invite_nu: "invite_nu",
+        accepte_nu: "accepte_nu",
+        repondu: "relance",
+        rendez_vous: "relance",
+      };
+
+      const scoreDe: any = {
+        file: 35, invite: 45, invite_nu: 45,
+        accepte_nu: 60, repondu: 70, rendez_vous: 85,
+      };
+
+      const statutCrm: any = {
+        file: "prospect", invite: "contacte", invite_nu: "contacte",
+        accepte_nu: "interesse", repondu: "interesse", rendez_vous: "interesse",
+      };
 
       const fiche: any = {
         tenant_id: null,
@@ -536,40 +557,50 @@ export async function POST(req: NextRequest) {
         linkedin: lien,
         // 🚨 EN MODE FILE, NI STATUT NI DATE. C est cette absence de date qui
         // tient la fiche hors de tous les compteurs.
-        linkedin_statut: mode === "file" ? null : mode,
+        linkedin_statut: statutIn[mode],
         linkedin_le: mode === "file" ? null : new Date().toISOString(),
         source: "linkedin",
-        statut: mode === "file" ? "prospect" : "contacte",
-        score: mode === "file" ? 35 : 45,
+        statut: statutCrm[mode],
+        score: scoreDe[mode],
+        campagne: String(body.campagne || "academiapro").toLowerCase(),
         notes: propre(body.notes, 4000) ||
           "Profil trouve sur LinkedIn et ajoute a la main. Aucune adresse connue : " +
           "le joindre par la messagerie LinkedIn.",
         derniere_interaction: new Date().toISOString(),
       };
 
+      // Un rendez-vous ou une reponse portent une date de message : sans
+      // elle, la fiche n apparaitrait pas dans « Messages envoyes ».
+      if (mode === "repondu" || mode === "rendez_vous") {
+        fiche.linkedin_relance_le = new Date().toISOString();
+      }
+
       const { data: cree, error } = await supabase
         .from("crm")
         .insert(fiche)
-        .select("id, nom, linkedin_statut")
+        .select("id, nom, organisme, ville, linkedin, linkedin_statut, campagne")
         .maybeSingle();
 
       if (error) {
         return NextResponse.json({ ok: false, erreur: error.message }, { status: 500 });
       }
 
-      const mot = mode === "file"
-        ? nom + " est enregistre, en attente d invitation. Aucune unite de quota consommee."
-        : nom + " est ajoute a votre file, " +
-          (mode === "invite" ? "invitation avec note" : "invitation sans note") + ".";
+      const mots: any = {
+        file: " est enregistre, en attente d invitation. Aucune unite de quota consommee.",
+        invite: " est marque invite, avec une note.",
+        invite_nu: " est marque invite, sans note.",
+        accepte_nu: " est enregistre comme relation etablie. Aucun quota consomme.",
+        repondu: " est enregistre : il a deja repondu. Aucun quota consomme.",
+        rendez_vous: " est enregistre : rendez-vous pris. Aucun quota consomme.",
+      };
 
-      // En mode file, rien n a bouge cote quota : on rend le calcul fait
-      // avant l ecriture, sans le refaire.
       return NextResponse.json({
         ok: true,
-        ajoute: cree,
+        ajoute: cree ? uniformiser(cree, "manuel") : null,
         mode: mode,
-        message: mot,
-        compteurs: mode === "file" ? avant : compteursApresInvitation(avant),
+        message: nom + (mots[mode] || " est enregistre."),
+        avertissement: avertissement,
+        compteurs: consommeQuota ? compteursApresInvitation(avant) : avant,
       });
     }
 
@@ -581,21 +612,34 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, ...r, compteurs: c });
     }
 
+    // 🚨 « MES INVITATIONS » : LE PLUS RECENT EN TETE — corrige le 01/09.
+    // C est l ecran qu on ouvre apres une notification LinkedIn, pour
+    // marquer une acceptation. Ce qu on vient d envoyer doit etre en haut.
     if (action === "en_attente") {
-      const [lignes, c] = await Promise.all([lister(EN_ATTENTE, LIMITE_LISTE), compteurs()]);
+      const [lignes, c] = await Promise.all([
+        lister(EN_ATTENTE, LIMITE_LISTE, "linkedin_le", true),
+        compteurs(),
+      ]);
       return NextResponse.json({ ok: true, lignes, compteurs: c });
     }
 
+    // « A ECRIRE » : le plus recent en tete aussi. Une acceptation fraiche
+    // se traite tant qu elle est encore presente a l esprit du destinataire.
     if (action === "a_relancer") {
-      const [lignes, c] = await Promise.all([lister(ACCEPTES, LIMITE_LISTE), compteurs()]);
+      const [lignes, c] = await Promise.all([
+        lister(ACCEPTES, LIMITE_LISTE, "linkedin_le", true),
+        compteurs(),
+      ]);
       return NextResponse.json({ ok: true, lignes, compteurs: c });
     }
 
-    // Les messages envoyes, du plus ancien au plus recent : ceux qui
-    // attendent depuis le plus longtemps arrivent en tete.
+    // 🚨 « MESSAGES ENVOYES » : LE PLUS ANCIEN EN TETE, ET C EST VOULU.
+    // Ici on cherche ce qui attend depuis le plus longtemps sans reponse,
+    // pour decider d une seconde relance. L ordre inverse des deux onglets
+    // precedents repond a une question inverse.
     if (action === "envoyes") {
       const [lignes, c] = await Promise.all([
-        lister(RELANCES, LIMITE_LISTE, "linkedin_relance_le"),
+        lister(RELANCES, LIMITE_LISTE, "linkedin_relance_le", false),
         compteurs(),
       ]);
       return NextResponse.json({ ok: true, lignes, compteurs: c });
@@ -613,34 +657,39 @@ export async function POST(req: NextRequest) {
 
     const estInvitation = (statut === "invite" || statut === "invite_nu");
 
-    // LE PLAFOND SE VERIFIE COTE SERVEUR, pas seulement a l ecran. Il
-    // concerne les DEUX formes d invitation. Marquer une acceptation n est
-    // plafonne par rien — et n a donc pas besoin des compteurs avant
-    // ecriture.
+    // 🆕 LA DATE D INVITATION PEUT ETRE FOURNIE — 28/08.
+    //
+    // Une invitation partie AVANT aujourd hui mais jamais consignee doit
+    // etre datee de son vrai jour : sinon elle consomme le plafond du jour
+    // a tort, et le compteur ment.
+    const dateFournie = propre(body.date_invitation, 10);
+    const dateValide = /^\d{4}-\d{2}-\d{2}$/.test(dateFournie) ? dateFournie : null;
+    const regularisation = estInvitation && dateValide !== null;
+
+    // LE PLAFOND SE VERIFIE COTE SERVEUR. Il n est calcule que pour une
+    // invitation datee d aujourd hui : une regularisation ne le touche pas.
     let avant: any = null;
+    let avertissement: string | null = null;
 
     if (estInvitation) {
       avant = await compteurs();
-      if (avant.reste_jour <= 0) {
-        return NextResponse.json({
-          ok: false,
-          erreur: "Plafond du jour atteint (" + PLAFOND_JOUR + "). Reprenez demain.",
-          compteurs: avant,
-        }, { status: 429 });
-      }
-      if (avant.reste_semaine <= 0) {
-        return NextResponse.json({
-          ok: false,
-          erreur: "Plafond de la semaine atteint (" + PLAFOND_SEMAINE + "). Attendez quelques jours.",
-          compteurs: avant,
-        }, { status: 429 });
+
+      // 🚨 LE PLAFOND AVERTIT, IL NE BLOQUE PLUS — regle du 27/08.
+      if (!regularisation && avant.reste_jour <= 0) {
+        avertissement = "Plafond du jour depasse (" + PLAFOND_JOUR
+          + "). La fiche est enregistree — n envoyez plus d invitation aujourd hui.";
+      } else if (!regularisation && avant.reste_semaine <= 0) {
+        avertissement = "Plafond de la semaine depasse (" + PLAFOND_SEMAINE
+          + "). La fiche est enregistree — laissez passer quelques jours.";
       }
     }
 
     // La date d envoi initial est CONSERVEE quand on marque une reponse.
     const champs: any = { linkedin_statut: statut };
     if (statut === "invite" || statut === "invite_nu" || statut === "ecarte") {
-      champs.linkedin_le = new Date().toISOString();
+      champs.linkedin_le = dateValide
+        ? new Date(dateValide + "T12:00:00Z").toISOString()
+        : new Date().toISOString();
     }
 
     // La date du message, distincte de celle de l invitation. Sans elle, on
@@ -670,22 +719,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, erreur: error.message }, { status: 500 });
     }
 
-    const enFile = (estInvitation || statut === "ecarte");
+    // ⚠️ sans_suite : la recherche globale agit sur une fiche precise et
+    // n enchaine sur rien. Charger la fiche suivante serait inutile.
+    const enFile = (estInvitation || statut === "ecarte") && body.sans_suite !== true;
 
-    // ⚠️ SUR UNE INVITATION, LES COMPTEURS NE SONT PAS RECALCULES : celui
-    // d avant est corrige de l unite qui vient d etre consommee. Refaire
-    // quarante-cinq comptages pour apprendre « un de plus » doublait
-    // l attente a chaque clic.
-    //
-    // Sur les autres statuts — acceptation, refus, relance — aucun calcul
-    // n a ete fait avant, on le fait maintenant, en parallele de la lecture
-    // de la fiche suivante.
+    // ⚠️ SUR UNE INVITATION DU JOUR, LES COMPTEURS NE SONT PAS RECALCULES :
+    // celui d avant est corrige de l unite consommee. Une REGULARISATION,
+    // elle, ne touche pas au compteur du jour — on rend le calcul tel quel.
     if (estInvitation) {
-      const suite: any = await suivante(base);
+      const suite: any = enFile ? await suivante(base) : {};
       return NextResponse.json({
         ok: true,
         statut: statut,
-        compteurs: compteursApresInvitation(avant),
+        avertissement: avertissement,
+        compteurs: regularisation ? avant : compteursApresInvitation(avant),
         fiche: suite.fiche || null,
         restant: suite.restant,
         epuise: suite.epuise || false,
