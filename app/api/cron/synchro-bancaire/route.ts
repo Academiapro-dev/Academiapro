@@ -91,8 +91,9 @@ export async function GET(req: NextRequest) {
   try {
     // ---- L AUTORISATION ----
     //
-    // Deux cles acceptees, et le refus dit ce qui manque : un « non
-    // autorise » muet fait perdre une heure a chercher entre dix causes.
+    // Deux cles acceptees : CRON_SECRET en en-tete, envoye par Vercel, et
+    // CLE_API_FACTURE en parametre. Avoir deux portes evite de rester
+    // bloque quand l une des deux resiste.
     const autorisation = req.headers.get("authorization") || "";
     const secretCron = process.env.CRON_SECRET || "";
     const cleFacture = process.env.CLE_API_FACTURE || "";
@@ -112,15 +113,28 @@ export async function GET(req: NextRequest) {
         || (cleFacture.length > 0 && fournie === cleFacture));
 
     if (!parCron && !parCle) {
-      return NextResponse.json({
-        ok: false,
-        erreur: "Non autorise",
-        diagnostic: {
-          longueur_recue: fournie.length,
-          longueur_cron_secret: secretCron.length,
-          longueur_cle_facture: cleFacture.length,
-        },
-      }, { status: 401 });
+      // 🚨 LE DIAGNOSTIC EST SORTI DE LA REPONSE — 31/08.
+      //
+      // CE QUE CETTE ROUTE DISAIT A QUI L APPELAIT SANS CLE : la longueur
+      // exacte de CRON_SECRET et celle de CLE_API_FACTURE. Connaitre la
+      // LONGUEUR d un secret reduit considerablement le travail de qui
+      // cherche a le deviner.
+      //
+      // LA MEME CORRECTION A ETE APPLIQUEE AUX DEUX AUTRES CRONS le meme
+      // jour — facturation-recurrente et relances-cabinet portaient le
+      // meme bloc, copie de l un a l autre. ⚠️ SI UN QUATRIEME CRON EST
+      // ECRIT EN PARTANT DE CELUI-CI, NE PAS REINTRODUIRE LE DIAGNOSTIC
+      // DANS LA REPONSE.
+      //
+      // POUR LE RELIRE : tableau de bord Vercel, onglet Logs, filtrer sur
+      // cette route.
+      console.error("[cron/synchro-bancaire] refus d autorisation", {
+        longueur_recue: fournie.length,
+        longueur_cron_secret: secretCron.length,
+        longueur_cle_facture: cleFacture.length,
+        entete_presente: autorisation.length > 0,
+      });
+      return NextResponse.json({ ok: false, erreur: "Non autorise" }, { status: 401 });
     }
 
     if (!process.env.PLAID_CLIENT_ID || !process.env.PLAID_SECRET) {
