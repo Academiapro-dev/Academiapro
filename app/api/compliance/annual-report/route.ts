@@ -11,6 +11,16 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+// 🚨 L EXPEDITEUR NE DOIT PAS ETRE CELUI D UN AUTRE PRODUIT — 31/08.
+//
+// CE FICHIER ENVOYAIT DEPUIS contact@hebrewproai.com, le domaine du beit
+// midrash. Une fiche fiscale qui arrive de la fait douter de tout le reste.
+//
+// ⚠️ RENSEIGNER COMPLIANCE_EXPEDITEUR DANS VERCEL des que le domaine du
+// produit est verifie chez Resend.
+const EXPEDITEUR = process.env.COMPLIANCE_EXPEDITEUR
+  || "Suivi des echeances <contact@academiapro.fr>";
+
 function origineLegitime(req: NextRequest): boolean {
   const origine = req.headers.get("origin") || "";
   const referent = req.headers.get("referer") || "";
@@ -72,7 +82,7 @@ function ficheHTML(t: any, year: number, tax: number): string {
 <a class="cta" href="https://wyobiz.wyo.gov/Business/AnnualReport.aspx">Ouvrir l'Annual Report Wizard</a>
 
 <div class="footer">
-  Module Compliance — Fiche de préparation Annual Report ${year} — ${date}<br/>
+  Fiche de préparation Annual Report ${year} — ${date}<br/>
   Ce document est une aide à la saisie et ne constitue pas un dépôt officiel.
 </div>
 </body></html>`;
@@ -97,16 +107,60 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { year } = await req.json();
-    const annee = year || new Date().getFullYear() + 1;
+    const body = await req.json().catch(() => ({} as any));
+    const annee = Number(body.year) || new Date().getFullYear() + 1;
+    const entiteDemandee = String(body.entite_id || "").trim();
 
-    const { data: tenant, error: e1 } = await supabase
+    // ---- LA SOCIETE CONCERNEE ----
+    //
+    // 🚨 LE `.single()` D ORIGINE AURAIT CASSE A LA DEUXIEME SOCIETE.
+    // PostgREST refuse de choisir quand plusieurs lignes correspondent : un
+    // gestionnaire ayant deux LLC aurait vu la generation echouer, sans que
+    // le message n indique pourquoi.
+    //
+    // 🚨 L IDENTIFIANT RECU N EST PAS UNE AUTORISATION : il est cherche AVEC
+    // le filtre tenant_id de la session. Une societe d un autre
+    // gestionnaire est simplement introuvable.
+    let requeteEntite = supabase
       .from("compliance_tenants")
       .select("*")
-      .eq("tenant_id", tenantId)
-      .single();
-    if (e1 || !tenant) {
-      return NextResponse.json({ error: "Société introuvable" }, { status: 404 });
+      .eq("tenant_id", tenantId);
+
+    if (entiteDemandee) {
+      requeteEntite = requeteEntite.eq("id", entiteDemandee);
+    }
+
+    const { data: tenant, error: e1 } = await requeteEntite
+      .order("label", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    if (e1) {
+      console.error("[annual-report] lecture entite :", e1.message);
+      return NextResponse.json({ error: "Lecture impossible." }, { status: 500 });
+    }
+
+    if (!tenant) {
+      return NextResponse.json(
+        { error: entiteDemandee ? "Société introuvable." : "Aucune société enregistrée." },
+        { status: 404 }
+      );
+    }
+
+    const entiteId = tenant.id;
+
+    // ⚠️ L ANNUAL REPORT EST UNE OBLIGATION DU WYOMING. Le generer pour une
+    // societe constituee ailleurs produirait un document sans objet, avec
+    // un montant de license tax qui ne veut rien dire.
+    const etat = String(tenant.formation_state || "").toUpperCase();
+    if (etat && etat !== "WY") {
+      return NextResponse.json(
+        {
+          error: tenant.label + " est constituée en " + etat
+            + " : l'Annual Report du Wyoming ne s'applique pas.",
+        },
+        { status: 400 }
+      );
     }
 
     const tax = licenseTax(Number(tenant.wy_assets_value ?? 0));
@@ -118,7 +172,10 @@ export async function POST(req: NextRequest) {
     });
     const version = ver || 1;
 
-    const path = tenantId + "/annual_report_" + annee + "_v" + version + ".html";
+    // Le chemin porte l identifiant de la SOCIETE : sans cela, deux
+    // societes d un meme gestionnaire ecraseraient mutuellement leur fiche,
+    // upsert etant a true.
+    const path = tenantId + "/" + entiteId + "/annual_report_" + annee + "_v" + version + ".html";
 
     const { error: upErr } = await supabase.storage
       .from("compliance-docs")
@@ -126,15 +183,21 @@ export async function POST(req: NextRequest) {
         contentType: "text/html",
         upsert: true,
       });
+
     if (upErr) {
-      return NextResponse.json({ error: "Dépôt au coffre échoué : " + upErr.message }, { status: 500 });
+      console.error("[annual-report] depot au coffre :", upErr.message);
+      return NextResponse.json({ error: "Dépôt au coffre impossible." }, { status: 500 });
     }
 
+    // 🚨 entite_id EST INDISPENSABLE. Le tableau de bord filtre les
+    // documents dessus depuis le 31/08 : une fiche enregistree sans lui
+    // serait deposee au coffre mais INVISIBLE a l ecran.
     await supabase.from("compliance_documents").insert({
       tenant_id: tenantId,
+      entite_id: entiteId,
       rule_code: "WY_ANNUAL_REPORT",
       doc_type: "fiche_annual_report",
-      title: "Fiche Annual Report Wyoming " + annee,
+      title: "Fiche Annual Report Wyoming " + annee + " — " + tenant.label,
       version: version,
       storage_path: "compliance-docs/" + path,
       mime_type: "text/html",
@@ -158,9 +221,10 @@ export async function POST(req: NextRequest) {
             Authorization: "Bearer " + process.env.RESEND_API_KEY,
           },
           body: JSON.stringify({
-            from: "Mr. Compliance <contact@hebrewproai.com>",
+            from: EXPEDITEUR,
             to: [emailSession],
-            subject: "Fiche Annual Report Wyoming " + annee + " — license tax " + tax.toFixed(2) + " USD",
+            subject: "Annual Report Wyoming " + annee + " — " + tenant.label
+              + " — license tax " + tax.toFixed(2) + " USD",
             html: html,
           }),
         });
@@ -183,8 +247,18 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    return NextResponse.json({ success: true, tenant_id: tenantId, version, tax, path, email });
+    return NextResponse.json({
+      success: true,
+      tenant_id: tenantId,
+      entite_id: entiteId,
+      societe: tenant.label,
+      version,
+      tax,
+      path,
+      email,
+    });
   } catch (e: any) {
-    return NextResponse.json({ error: String(e && e.message ? e.message : e) }, { status: 500 });
+    console.error("[annual-report] exception :", String(e && e.message ? e.message : e));
+    return NextResponse.json({ error: "Erreur serveur." }, { status: 500 });
   }
 }
