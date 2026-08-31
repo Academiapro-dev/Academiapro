@@ -16,11 +16,30 @@ export default function ConnexionPage() {
   const [envoye, setEnvoye] = useState(false);
   const [erreur, setErreur] = useState("");
 
+  // 🚨 LA PAGE DE CONNEXION EST PARTAGEE PAR TOUS LES DOMAINES — 31/08.
+  //
+  // LE DEFAUT CONSTATE. Sur mysterllc.com/connexion, un gestionnaire de LLC
+  // pour expatries lisait « S'inscrire — espace comptabilité » et « Vous
+  // cherchez une formation ? Découvrir le catalogue ». Deux propositions
+  // qui n ont aucun sens pour lui, et qui donnent l impression d etre
+  // tombe sur le site de quelqu un d autre — au moment precis ou il ouvre
+  // un compte, donc au pire moment possible.
+  //
+  // LE DOMAINE EST LU APRES LE MONTAGE, jamais pendant le rendu initial :
+  // window n existe pas cote serveur. Tant qu il n est pas connu, on
+  // affiche la version neutre — c est le defaut le plus sur, puisqu il ne
+  // propose rien de faux a personne.
+  const [surMysterLLC, setSurMysterLLC] = useState(false);
+
   useEffect(() => {
     try {
       const params = new URLSearchParams(window.location.search);
       const code = params.get("erreur");
       if (code) setErreur(MESSAGES[code] || MESSAGES.technique);
+    } catch (e) {}
+
+    try {
+      setSurMysterLLC(window.location.hostname.toLowerCase().indexOf("mysterllc.com") >= 0);
     } catch (e) {}
   }, []);
 
@@ -118,22 +137,31 @@ export default function ConnexionPage() {
             {loading ? "Envoi en cours…" : "Recevoir mon lien de connexion"}
           </button>
 
-          <div style={{ height: "1px", background: "rgba(200,169,110,0.2)", margin: "28px 0 22px" }} />
+          {/* ⚠️ LE BAS DE CARTE NE S AFFICHE PAS SUR MYSTERLLC.COM.
+              Aucune inscription en ligne n y est ouverte : les comptes des
+              gestionnaires se creent au cas par cas apres entretien. Une
+              porte d inscription libre y serait donc une promesse fausse,
+              en plus d etre celle d un autre produit. */}
+          {!surMysterLLC && (
+            <>
+              <div style={{ height: "1px", background: "rgba(200,169,110,0.2)", margin: "28px 0 22px" }} />
 
-          <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "14px", textAlign: "center", margin: "0 0 14px" }}>
-            Vous n'avez pas encore de compte ?
-          </p>
+              <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "14px", textAlign: "center", margin: "0 0 14px" }}>
+                Vous n'avez pas encore de compte ?
+              </p>
 
-          <a
-            href="/comptable/inscription"
-            style={{ display: "block", textAlign: "center", padding: "13px", border: "1px solid rgba(200,169,110,0.45)", color: "#c8a96e", borderRadius: "8px", textDecoration: "none", fontWeight: "bold", fontSize: "15px", marginBottom: "12px" }}
-          >
-            S'inscrire — espace comptabilité
-          </a>
+              <a
+                href="/comptable/inscription"
+                style={{ display: "block", textAlign: "center", padding: "13px", border: "1px solid rgba(200,169,110,0.45)", color: "#c8a96e", borderRadius: "8px", textDecoration: "none", fontWeight: "bold", fontSize: "15px", marginBottom: "12px" }}
+              >
+                S'inscrire — espace comptabilité
+              </a>
 
-          <p style={{ color: "rgba(255,255,255,0.3)", fontSize: "12px", textAlign: "center", marginTop: "16px", marginBottom: 0 }}>
-            Vous cherchez une formation ? <a href="/catalogue" style={{ color: "#c8a96e" }}>Découvrir le catalogue</a>
-          </p>
+              <p style={{ color: "rgba(255,255,255,0.3)", fontSize: "12px", textAlign: "center", marginTop: "16px", marginBottom: 0 }}>
+                Vous cherchez une formation ? <a href="/catalogue" style={{ color: "#c8a96e" }}>Découvrir le catalogue</a>
+              </p>
+            </>
+          )}
         </div>
       </div>
     </div>
