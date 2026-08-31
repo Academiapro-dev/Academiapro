@@ -1485,6 +1485,177 @@ export default function PageLinkedin() {
     );
   }
 
+  // ---------------------------------------------------------------------------
+  // 🆕 LE DEROULEMENT CHRONOLOGIQUE — 01/09.
+  //
+  // LE BESOIN, DIT PAR JACQUES : « un deroulement chronologique de
+  // "invitation envoyee sans note" a "invitation acceptee", puis "message
+  // envoye", puis "a repondu", ensuite "RDV pris" et "nouveau client" ».
+  //
+  // CE QUE CA CHANGE. Les deux encadres du haut donnent la vue d ensemble —
+  // combien, quel taux. Celui-ci repond a une autre question, fiche par
+  // fiche : OU EN EST CETTE PERSONNE ? On le lit d un coup d oeil au lieu
+  // de reconstituer mentalement a partir d un statut et de deux dates.
+  //
+  // 🚨 LES SIX ETAPES NE SONT PAS SIX STATUTS EN BASE. LinkedIn n en connait
+  // que quatre : invite, accepte, relance, refuse. Les trois derniers etats
+  // — a repondu, rendez-vous, client — se deduisent du SCORE COMMERCIAL,
+  // pose par les modes d enregistrement (70 pour une reponse, 85 pour un
+  // rendez-vous) et par le statut CRM pour un client.
+  //
+  // ⚠️ NE PAS INVENTER DE STATUT LINKEDIN POUR CES TROIS ETAPES. Le statut
+  // decrit la relation LinkedIn ; le score decrit l avancement commercial.
+  // Les melanger fausserait les compteurs d acceptation.
+  //
+  // ⚠️ UNE ETAPE FRANCHIE NE SE DEFRANCHIT PAS. Le parcours est cumulatif :
+  // qui a un rendez-vous a forcement repondu, donc recu un message, donc
+  // accepte. On calcule le rang atteint, et tout ce qui precede est acquis.
+  const ETAPES = [
+    { cle: "invite", nom: "Invitation envoyée" },
+    { cle: "accepte", nom: "Invitation acceptée" },
+    { cle: "message", nom: "Message envoyé" },
+    { cle: "repondu", nom: "A répondu" },
+    { cle: "rdv", nom: "Rendez-vous pris" },
+    { cle: "client", nom: "Nouveau client" },
+  ];
+
+  // Le rang atteint, de 0 (rien) a 6 (client). Chaque test remonte le rang :
+  // on ne redescend jamais.
+  function rangAtteint(l: any): number {
+    const statut = String(l.linkedin_statut || "");
+    const score = Number(l.score) || 0;
+    const statutCrm = String(l.statut || "");
+
+    let rang = 0;
+
+    // 1. L invitation est partie — une date suffit a le prouver.
+    if (l.linkedin_le || statut === "invite" || statut === "invite_nu") rang = 1;
+
+    // 2. Elle a ete acceptee. « relance » suppose l acceptation : on
+    //    n ecrit qu a une relation etablie.
+    if (statut === "accepte" || statut === "accepte_nu" || statut === "relance") rang = 2;
+
+    // 3. Le message est parti — la date de relance en est la trace.
+    if (l.linkedin_relance_le || statut === "relance") rang = 3;
+
+    // 4, 5. La reponse et le rendez-vous se lisent dans le score, pose par
+    //    les modes d enregistrement de l onglet Inviter.
+    if (score >= 70) rang = 4;
+    if (score >= 85) rang = 5;
+
+    // 6. Client : c est le statut CRM qui fait foi, pas le score.
+    if (statutCrm === "client") rang = 6;
+
+    return rang;
+  }
+
+  // ⚠️ UN REFUS N EST PAS UNE ETAPE, C EST UNE SORTIE. L afficher comme un
+  // rang intermediaire laisserait croire que le parcours continue.
+  function estSorti(l: any): boolean {
+    const statut = String(l.linkedin_statut || "");
+    return statut === "refuse" || statut === "ecarte"
+      || String(l.statut || "") === "perdu";
+  }
+
+  function blocParcours(l: any) {
+    const rang = rangAtteint(l);
+    const sorti = estSorti(l);
+
+    // Une fiche jamais sollicitee n a pas de parcours a montrer : afficher
+    // six pastilles grises n apprendrait rien.
+    if (rang === 0 && !sorti) return null;
+
+    const teinte = campagneDe(l) === "mrcomptable" ? COMPTABLE : OR;
+
+    return (
+      <div style={{
+        marginTop: "12px", padding: "12px 14px",
+        background: "rgba(255,255,255,0.025)",
+        border: "1px solid rgba(255,255,255,0.09)",
+        borderRadius: "9px",
+      }}>
+        <div style={{
+          color: "rgba(255,255,255,0.4)", fontSize: "11px",
+          letterSpacing: "1.5px", marginBottom: "10px",
+        }}>
+          OÙ EN EST CE CONTACT
+        </div>
+
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "0" }}>
+          {ETAPES.map(function (e, i) {
+            const franchie = (i + 1) <= rang;
+            const courante = (i + 1) === rang;
+            const derniere = i === ETAPES.length - 1;
+
+            return (
+              <div key={e.cle} style={{
+                display: "flex", alignItems: "center",
+                flex: "0 0 auto", marginBottom: "6px",
+              }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                  {/* La pastille : pleine si franchie, cerclee sinon. */}
+                  <span style={{
+                    width: "15px", height: "15px", borderRadius: "50%",
+                    flexShrink: 0, display: "inline-block",
+                    background: franchie ? (sorti ? "#e8836a" : teinte) : "transparent",
+                    border: franchie
+                      ? "none"
+                      : "1.5px solid rgba(255,255,255,0.2)",
+                    boxShadow: courante && !sorti
+                      ? "0 0 0 3px " + teinte + "33"
+                      : "none",
+                  }} />
+                  <span style={{
+                    fontSize: "12px", whiteSpace: "nowrap",
+                    color: franchie
+                      ? (sorti ? "#e8836a" : "rgba(255,255,255,0.85)")
+                      : "rgba(255,255,255,0.3)",
+                    fontWeight: courante ? "bold" : "normal",
+                  }}>
+                    {e.nom}
+                  </span>
+                </div>
+
+                {/* Le trait de liaison, absent apres la derniere etape. */}
+                {!derniere && (
+                  <span style={{
+                    width: "18px", height: "1.5px", margin: "0 8px",
+                    flexShrink: 0,
+                    background: (i + 2) <= rang
+                      ? (sorti ? "rgba(232,131,106,0.5)" : teinte + "88")
+                      : "rgba(255,255,255,0.12)",
+                  }} />
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Les dates connues, sous le parcours. Elles disent QUAND, la ou
+            les pastilles disent OU. */}
+        {(l.linkedin_le || l.linkedin_relance_le) && (
+          <div style={{
+            color: "rgba(255,255,255,0.4)", fontSize: "11.5px",
+            lineHeight: "1.8", marginTop: "8px",
+            paddingTop: "8px", borderTop: "1px solid rgba(255,255,255,0.06)",
+          }}>
+            {l.linkedin_le ? "Invitée le " + jolieDate(l.linkedin_le) : ""}
+            {l.linkedin_le && l.linkedin_relance_le ? " · " : ""}
+            {l.linkedin_relance_le ? "Message le " + jolieDate(l.linkedin_relance_le) : ""}
+          </div>
+        )}
+
+        {sorti && (
+          <div style={{ color: "#e8836a", fontSize: "12px", lineHeight: "1.7", marginTop: "7px" }}>
+            {String(l.linkedin_statut || "") === "ecarte"
+              ? "Fiche écartée — elle ne ressortira plus dans la file."
+              : "Sans suite."}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   function blocFiche(l: any) {
     const cle = cleDe(l);
     const ouvert = depliee === cle;
@@ -1496,6 +1667,10 @@ export default function PageLinkedin() {
     if (!ouvert) {
       return (
         <div style={{ marginTop: "12px" }}>
+          {/* 🆕 LE PARCOURS, AU-DESSUS DE TOUT LE RESTE — 01/09. Place ici,
+              il apparait sur les six ecrans qui appellent deja blocFiche,
+              sans qu aucun d eux n ait a etre modifie. */}
+          {blocParcours(l)}
           {aNote && (
             <div style={{ background: "rgba(200,169,110,0.07)", border: "1px solid rgba(200,169,110,0.22)", borderRadius: "8px", padding: "11px 13px", marginBottom: "9px" }}>
               <div style={{ color: OR, fontSize: "11.5px", letterSpacing: "1.5px", marginBottom: "5px" }}>
