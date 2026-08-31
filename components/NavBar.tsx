@@ -184,7 +184,15 @@ export default function NavBar() {
   // colonne illisible). Montage identique a celui de Mr Comptable :
   // largeur controlee, jamais etiree, bord rogne d un cheveu pour fondre le
   // fond de l image dans le noir de la barre.
-  if (estCheminMysterLLC(chemin) || (surMysterLLC && estComptable(chemin))) {
+  //
+  // 🚨 SUR MYSTERLLC.COM, TOUTE PAGE PORTE CETTE BARRE — correction du
+  // 31/08 au soir. La page /connexion affichait la barre AcadeMIA Pro
+  // (formations, catalogue) : un gestionnaire de LLC arrivant sur le
+  // domaine voyait une ecole de formation. La regle est la meme que pour
+  // mrcomptable.fr : le domaine impose la marque, seules les pages de
+  // vitrine (qui portent leur propre en-tete) y echappent, via les
+  // return null plus haut.
+  if (estCheminMysterLLC(chemin) || surMysterLLC) {
     return (
       <header style={{ ...barre, padding: "0 30px", background: "#000" }}>
         <a
