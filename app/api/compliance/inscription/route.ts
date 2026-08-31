@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { numeroTvaDepuisSiren, sirenDe } from "../../../../lib/tva";
+import { limiter, ipDe } from "../../../../lib/limiteur";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,10 +20,45 @@ const supabase = createClient(
 
 const PROFILS = ["vend_formations", "forme_salaries", "devenir_of", "cabinet_comptable"];
 
+// 🚨 LIMITE DE DEBIT — 31/08. CETTE ROUTE EST PUBLIQUE ET ELLE CREE BEAUCOUP.
+//
+// LE DEFAUT. Aucune session n est exigee ici — c est normal, on s inscrit
+// avant d avoir un compte. Mais AUCUN COMPTEUR ne bornait les appels, alors
+// qu un seul appel reussi cree QUATRE CHOSES : un compte dans Supabase Auth,
+// un organisme (tenant), et pour un cabinet un dossier comptable plus une
+// fiche de collaborateur portant TOUS LES DROITS.
+//
+// CE QU UN SCRIPT POUVAIT FAIRE EN QUELQUES MINUTES : des milliers de
+// comptes et de tenants fantomes. Consequences concretes — le quota Supabase
+// Auth consomme, la table organismes_formation noyee, et le tableau de bord
+// du cabinet rendu illisible par des dossiers inventes. Rien ne fuit, mais
+// tout se remplit, et le menage se fait ensuite a la main en SQL.
+//
+// LES SEUILS SONT BAS PARCE QU UNE INSCRIPTION EST UN ACTE RARE : on
+// s inscrit une fois. Trois tentatives par heure et par acces couvrent
+// l erreur de saisie et le partage de connexion d une entreprise ; au-dela,
+// c est une machine.
+//
+// ⚠️ LE LIMITEUR VIT EN MEMOIRE : sur Vercel il ne couvre qu une instance a
+// la fois. Il arrete le martelement ordinaire, pas une attaque distribuee.
+const MAX_PAR_IP = 3;
+const FENETRE_IP_MS = 60 * 60 * 1000;
+const MAX_PAR_EMAIL = 2;
+const FENETRE_EMAIL_MS = 24 * 60 * 60 * 1000;
+
 // Cree le compte d un nouveau client, sa fiche, et son premier dossier.
 // L envoi du lien de connexion reste assure par /connexion, qui fonctionne
 // deja : on ne duplique pas ce mecanisme.
 export async function POST(req: NextRequest) {
+  // LE COMPTEUR PAR IP VIENT AVANT TOUT, meme avant la lecture du corps :
+  // un appel refuse ici ne consomme ni base, ni quota d authentification.
+  if (!limiter(ipDe(req), "compliance_inscription_ip", MAX_PAR_IP, FENETRE_IP_MS)) {
+    return NextResponse.json(
+      { ok: false, erreur: "Trop de demandes depuis cet accès. Réessayez dans une heure." },
+      { status: 429 }
+    );
+  }
+
   try {
     const corps = await req.json();
 
@@ -39,6 +75,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, erreur: "Indiquez la raison sociale." }, { status: 400 });
     }
 
+    // SECOND COMPTEUR, PAR ADRESSE. Il complete le premier : sans lui, un
+    // appelant changeant d IP a chaque essai pourrait s acharner sur une
+    // meme adresse. Place APRES la validation du format, pour qu une
+    // adresse malformee ne consomme pas le quota d une adresse valable.
+    if (!limiter(email, "compliance_inscription_email", MAX_PAR_EMAIL, FENETRE_EMAIL_MS)) {
+      return NextResponse.json(
+        {
+          ok: true,
+          message: "Si cette adresse peut être inscrite, votre accès est prêt. "
+            + "Demandez votre lien de connexion pour entrer.",
+        }
+      );
+    }
+
     // Le numero de TVA se deduit du SIREN. Sans lui, la facture partirait
     // sans mention du preneur : elle ne serait pas reguliere en
     // autoliquidation. Le client pourra le corriger depuis sa fiche.
@@ -53,10 +103,20 @@ export async function POST(req: NextRequest) {
       const { data: membre } = await supabase
         .from("compliance_membres").select("id").eq("user_id", userId).limit(1);
       if (membre && membre.length > 0) {
+        // 🚨 LA REPONSE NE DIT PLUS SI LE COMPTE EXISTE — 31/08.
+        //
+        // Elle repondait « Ce compte existe déjà », ce qui permettait
+        // d ENUMERER LES CLIENTS : en essayant des adresses une par une, on
+        // apprenait lesquelles sont abonnees. Pour un logiciel de cabinet
+        // comptable, c est la liste des clients qui se reconstitue.
+        //
+        // La reponse est desormais LA MEME dans les deux cas. Celui qui a
+        // vraiment un compte suit l instruction et demande son lien : il
+        // entre. Celui qui sonde n apprend rien.
         return NextResponse.json({
           ok: true,
-          deja: true,
-          message: "Ce compte existe déjà. Connectez-vous pour y accéder.",
+          message: "Si cette adresse peut être inscrite, votre accès est prêt. "
+            + "Demandez votre lien de connexion pour entrer.",
         });
       }
     }
@@ -69,7 +129,8 @@ export async function POST(req: NextRequest) {
         email_confirm: true,
       });
       if (err || !cree || !cree.user) {
-        return NextResponse.json({ ok: false, erreur: "Création du compte impossible : " + (err ? err.message : "") }, { status: 400 });
+        console.error("[compliance/inscription] creation compte :", err ? err.message : "inconnue");
+        return NextResponse.json({ ok: false, erreur: "Création du compte impossible." }, { status: 400 });
       }
       userId = cree.user.id;
     }
@@ -85,7 +146,8 @@ export async function POST(req: NextRequest) {
       profil: profil,
     });
     if (errMembre) {
-      return NextResponse.json({ ok: false, erreur: "Rattachement impossible : " + errMembre.message }, { status: 400 });
+      console.error("[compliance/inscription] rattachement :", errMembre.message);
+      return NextResponse.json({ ok: false, erreur: "Rattachement impossible." }, { status: 400 });
     }
 
     const code = raisonSociale
@@ -100,7 +162,8 @@ export async function POST(req: NextRequest) {
     //
     // Les erreurs d insertion sont REMONTEES, jamais avalees : un compte
     // cree a moitie est pire qu un compte refuse, parce qu il se decouvre
-    // au moment de facturer.
+    // au moment de facturer. Le DETAIL, lui, reste dans les journaux : un
+    // message d erreur de base renseigne sur la structure des tables.
     const { error: errFiche } = await supabase.from("organismes_formation").insert({
       tenant_id: tenantId,
       raison_sociale: raisonSociale,
@@ -111,7 +174,8 @@ export async function POST(req: NextRequest) {
       profils: [profil],
     });
     if (errFiche) {
-      return NextResponse.json({ ok: false, erreur: "Fiche client impossible : " + errFiche.message }, { status: 400 });
+      console.error("[compliance/inscription] fiche client :", errFiche.message);
+      return NextResponse.json({ ok: false, erreur: "Fiche client impossible." }, { status: 400 });
     }
 
     // 5. Un cabinet comptable recoit en plus son premier dossier et sa
@@ -128,7 +192,8 @@ export async function POST(req: NextRequest) {
         pays: "FR",
       });
       if (errSoc) {
-        return NextResponse.json({ ok: false, erreur: "Dossier impossible : " + errSoc.message }, { status: 400 });
+        console.error("[compliance/inscription] dossier :", errSoc.message);
+        return NextResponse.json({ ok: false, erreur: "Dossier impossible." }, { status: 400 });
       }
 
       const { error: errCollab } = await supabase.from("compta_collaborateurs").insert({
@@ -145,7 +210,8 @@ export async function POST(req: NextRequest) {
         peut_deposer_pieces: true,
       });
       if (errCollab) {
-        return NextResponse.json({ ok: false, erreur: "Collaborateur impossible : " + errCollab.message }, { status: 400 });
+        console.error("[compliance/inscription] collaborateur :", errCollab.message);
+        return NextResponse.json({ ok: false, erreur: "Collaborateur impossible." }, { status: 400 });
       }
     }
 
@@ -156,6 +222,7 @@ export async function POST(req: NextRequest) {
       message: "Compte créé. Demandez votre lien de connexion pour entrer.",
     });
   } catch (e: any) {
-    return NextResponse.json({ ok: false, erreur: String(e) }, { status: 500 });
+    console.error("[compliance/inscription] exception :", String(e));
+    return NextResponse.json({ ok: false, erreur: "Erreur serveur." }, { status: 500 });
   }
 }
