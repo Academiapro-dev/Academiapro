@@ -258,49 +258,52 @@ export async function POST(req: NextRequest) {
       }
     };
 
-    // Identification
-    setText(["Page1[0].f1_1[0]", "Page1[0].f1_01[0]"], nom);
-    setText(["Page1[0].f1_2[0]", "Page1[0].f1_02[0]"], ein);
-    setText(["Page1[0].f1_3[0]", "Page1[0].f1_03[0]"], adr.rue);
-    setText(["Page1[0].f1_5[0]", "Page1[0].f1_05[0]"], adr.ville);
-    setText(["Page1[0].f1_6[0]", "Page1[0].f1_06[0]"], adr.etat);
-    setText(["Page1[0].f1_7[0]", "Page1[0].f1_07[0]"], adr.pays);
-    setText(["Page1[0].f1_8[0]", "Page1[0].f1_08[0]"], adr.zip);
+    // ---- CARTOGRAPHIE REELLE DU FORMULAIRE ----
+    //
+    // 🚨 CES CHEMINS ONT ETE RELEVES SUR LE PDF LUI-MEME, pas devines. Le
+    // mode diagnostic ({ champs: true }) rend la liste des champs ; c est
+    // ainsi que le 5472 et le 1120 avaient ete cartographies, et c est la
+    // seule methode fiable : l IRS renomme ses champs a chaque revision.
+    //
+    // LE PREMIER JET AVAIT ETE ECRIT AU JUGE, et il en portait les traces :
+    // le code de formulaire restait vide, et l annee s ecrivait dans la
+    // case de l exercice decale — ce qui declarait un exercice court
+    // incomplet.
+    //
+    // LA STRUCTURE, POUR QUI REPRENDRA CE FICHIER :
+    //   f1_1 a f1_8   identification (nom, EIN, adresse)
+    //   f1_9, f1_10   les DEUX cases du code de formulaire, un chiffre
+    //                 chacune
+    //   c1_1          ligne 2 — societe etrangere sans etablissement US
+    //   c1_2          ligne 3 — societe mere d un groupe consolide
+    //   c1_3          ligne 4 — section 1.6081-5
+    //   f1_11         ligne 5a — ANNEE CIVILE
+    //   f1_12 a f1_15 ligne 5a — exercice decale (debut / fin)
+    //   c1_4[0..4]    ligne 5b — motifs d exercice court
+    //   f1_16 a f1_18 lignes 6, 7, 8 — impot, paiements, solde
+    //
+    // ⚠️ NE PAS REMPLIR f1_12 A f1_15 EN MEME TEMPS QUE f1_11 : declarer a
+    // la fois une annee civile et un exercice decale rend le formulaire
+    // contradictoire.
 
-    // 🚨 LIGNE 1 — LE CODE DU FORMULAIRE. C EST LE CHAMP LE PLUS IMPORTANT
-    // DE LA PAGE, et il etait reste vide au premier essai.
+    // Identification
+    setText(["Page1[0].f1_1[0]"], nom);
+    setText(["Page1[0].f1_2[0]"], ein);
+    setText(["Page1[0].f1_3[0]"], adr.rue);
+    setText(["Page1[0].f1_5[0]"], adr.ville);
+    setText(["Page1[0].f1_6[0]"], adr.etat);
+    setText(["Page1[0].f1_7[0]"], adr.pays);
+    setText(["Page1[0].f1_8[0]"], adr.zip);
+
+    // 🚨 LIGNE 1 — LE CODE DU FORMULAIRE, SUR DEUX CASES.
     //
     // Sans lui, l IRS ne sait pas DE QUELLE DECLARATION on demande
-    // l extension : le 7004 sert a une trentaine de formulaires differents,
-    // enumeres dans le tableau juste en dessous. Un 7004 sans code est
-    // irrecevable, donc le delai n est pas accorde — et le 5472 tombe en
-    // retard sans que personne ne s en apercoive avant la penalite.
-    //
-    // ⚠️ LE CODE EST SUR DEUX CASES SEPAREES dans le formulaire, une par
-    // chiffre. Selon la revision, pdf-lib les expose soit comme deux champs
-    // distincts, soit comme un seul. On tente les deux formes.
-    const codeEcrit = setText(
-      [
-        "Page1[0].Line1_ReadOrder[0].f1_9[0]",
-        "Page1[0].f1_9[0]",
-        "Page1[0].f1_09[0]",
-        "Page1[0].Line1[0].f1_9[0]",
-        "Page1[0].c1_1[0]",
-      ],
-      CODE_FORMULAIRE_1120
-    );
-
-    if (!codeEcrit) {
-      // Deux cases d un chiffre chacune : « 1 » puis « 2 ».
-      setText(
-        ["Page1[0].Line1_ReadOrder[0].f1_9[0]", "Page1[0].f1_9[0]"],
-        CODE_FORMULAIRE_1120.charAt(0)
-      );
-      setText(
-        ["Page1[0].Line1_ReadOrder[0].f1_10[0]", "Page1[0].f1_10[0]"],
-        CODE_FORMULAIRE_1120.charAt(1)
-      );
-    }
+    // l extension : le 7004 sert a une trentaine de formulaires, enumeres
+    // dans le tableau juste en dessous. Un 7004 sans code est irrecevable,
+    // donc le delai n est pas accorde — et le 5472 tombe en retard sans
+    // que personne ne s en apercoive avant la penalite.
+    setText(["Page1[0].f1_9[0]"], CODE_FORMULAIRE_1120.charAt(0));
+    setText(["Page1[0].f1_10[0]"], CODE_FORMULAIRE_1120.charAt(1));
 
     // Ligne 2 : societe etrangere sans etablissement aux Etats-Unis.
     //
@@ -308,30 +311,16 @@ export async function POST(req: NextRequest) {
     // Elle indique a l IRS que l entite n a pas de bureau sur le sol
     // americain — situation de la quasi-totalite des dossiers d un
     // gestionnaire pour non-residents.
-    cocher(["Page1[0].c1_1[0]", "Page1[0].c1_01[0]"]);
+    cocher(["Page1[0].c1_1[0]"]);
 
     // 🚨 LIGNE 5a — L ANNEE CIVILE, ET NON L EXERCICE DECALE.
     //
-    // La ligne offre DEUX possibilites : « calendar year 20 __ » pour une
-    // societe dont l exercice suit l annee civile, ou « tax year beginning
-    // __ , 20 __ and ending __ , 20 __ » pour un exercice decale.
-    //
-    // AU PREMIER ESSAI, LE CHIFFRE S EST ECRIT DANS LA MAUVAISE CASE : il
-    // est apparu dans « tax year beginning », ce qui declare un exercice
-    // decale incomplet — et rend le formulaire incoherent.
-    //
-    // La quasi-totalite des LLC de gestion suivent l annee civile. On
-    // ecrit donc dans la premiere case, et on laisse les suivantes vides.
-    const anneeCourte = String(year).slice(2);
-    setText(
-      [
-        "Page1[0].Line5a_ReadOrder[0].f1_13[0]",
-        "Page1[0].Line5a[0].f1_13[0]",
-        "Page1[0].f1_13[0]",
-        "Page1[0].f1_11[0]",
-      ],
-      anneeCourte
-    );
+    // f1_11 est la case « The application is for calendar year 20 __ ».
+    // Les champs f1_12 a f1_15 decrivent un exercice decale et restent
+    // volontairement vides : la quasi-totalite des LLC de gestion suivent
+    // l annee civile, et remplir les deux rendrait la declaration
+    // contradictoire.
+    setText(["Page1[0].f1_11[0]"], String(year).slice(2));
 
     form.updateFieldAppearances(font);
     const bytes = await doc.save();
