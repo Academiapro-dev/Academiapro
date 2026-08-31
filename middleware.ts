@@ -6,6 +6,55 @@ const ADMINS = ['contact@academiapro.fr'];
 
 const CHEMINS_PROTEGES = ['/admin', '/maintenance'];
 
+// 🚨 LES ROUTES DE DONNEES DE L ADMINISTRATION — AJOUTEES LE 31/08.
+//
+// LE DEFAUT, ET IL NE SE VOYAIT NULLE PART. Le matcher en bas de ce fichier
+// EXCLUT tout ce qui commence par `api`, a l exception de quatre routes
+// nommees une par une. Les pages /admin/* etaient donc gardees ici, mais
+// les routes /api/admin/* — celles qui SERVENT REELLEMENT LES DONNEES —
+// passaient completement a cote de ce fichier.
+//
+// CE QUE L AUDIT A TROUVE : les six routes lues se defendaient chacune
+// toute seule, par QUATRE MECANISMES DIFFERENTS — session administrateur,
+// mot de passe comptable hache, cle d API fixe, jeton interne partage.
+// Aucune n etait ouverte. Le probleme n etait donc pas une porte ouverte,
+// mais l ABSENCE DE FILET : rien n empeche la prochaine route d etre
+// ecrite sans garde, et un oubli ne se verrait pas.
+//
+// CE BLOC EST DONC UNE SECONDE BARRIERE, PAS UN REMPLACEMENT. Les routes
+// gardent leurs propres controles — ceinture et bretelles. Ce qui change,
+// c est qu une route future oubliee sera refusee par defaut.
+//
+// 🚨🚨 LES DEUX EXCEPTIONS, ET ELLES SONT INDISPENSABLES.
+//
+//   1. LES APPELS DE SERVEUR A SERVEUR NE PORTENT AUCUN COOKIE. C est le
+//      defaut deja rencontre et documente dans /api/admin/certificat :
+//      /api/progression appelle cette route quand tous les modules sont
+//      valides, par un fetch interne qui ne transporte pas de session.
+//      Exiger un cookie ici casserait la delivrance des attestations.
+//      Ces appels s authentifient par un jeton partage ou une cle d API,
+//      dans un en-tete — on laisse donc passer toute requete qui en porte
+//      un, et la route verifie elle-meme sa validite.
+//
+//   2. LES CRONS DE VERCEL portent un en-tete authorization Bearer et
+//      aucun cookie. Meme raisonnement.
+//
+// ⚠️ CE BLOC NE VALIDE AUCUN SECRET — il ne fait que LAISSER PASSER vers
+// la route, qui reste seule juge. Sa seule fonction est de refuser ce qui
+// n a NI session NI en-tete d authentification : le navigateur d un
+// curieux qui tape une adresse au hasard.
+const API_ADMIN = '/api/admin';
+
+const ENTETES_MACHINE = ['authorization', 'x-cle-facture', 'x-mdp-compta'];
+
+function porteUneCleMachine(request: NextRequest): boolean {
+  for (const e of ENTETES_MACHINE) {
+    const v = request.headers.get(e);
+    if (v && v.length > 0) return true;
+  }
+  return false;
+}
+
 // 🚨 L ESPACE COMPTABLE S APPELLE /admin/comptable — 25/08.
 //
 // LE DEFAUT. Les trente ecrans de Mr. Comptable vivent dans
@@ -180,6 +229,29 @@ export async function middleware(request: NextRequest) {
   const session = request.cookies.get(NOM_COOKIE_SESSION)?.value;
   const hote = request.headers.get('host') || '';
   const h = hoteNu(hote);
+
+  // ---- LE FILET DES ROUTES D ADMINISTRATION ----------------------------
+  //
+  // PLACE TOUT EN TETE, ET AVANT LES REECRITURES DE MARQUE : une route de
+  // donnees n a rien a voir avec la vitrine, et le controle doit tomber
+  // avant que quoi que ce soit d autre ne s applique.
+  //
+  // TROIS PORTES, DANS CET ORDRE :
+  //   - une cle machine dans un en-tete : on laisse la route juger ;
+  //   - une session signee valide : on laisse passer ;
+  //   - rien du tout : 404, et surtout PAS 401. Un 401 confirmerait que
+  //     l adresse existe. Un 404 ne dit rien — c est le meme choix que
+  //     celui deja fait plus bas pour les pages /admin.
+  if (chemin === API_ADMIN || chemin.startsWith(API_ADMIN + '/')) {
+    if (porteUneCleMachine(request)) {
+      return NextResponse.next();
+    }
+    const chargeAdmin = await jetonVerifie(session);
+    if (!chargeAdmin) {
+      return NextResponse.json({ erreur: 'introuvable' }, { status: 404 });
+    }
+    return NextResponse.next();
+  }
 
   // ---- PIECE 1 : L ANCIENNE ADRESSE PART VERS LA NOUVELLE ----------------
   //
@@ -367,6 +439,12 @@ export async function middleware(request: NextRequest) {
 export const config = {
   matcher: [
     '/((?!api|_next/static|_next/image|favicon.ico).*)',
+    // 🚨 AJOUTE LE 31/08 : sans ces deux lignes, le filet pose en tete de
+    // la fonction ci-dessus ne s executerait JAMAIS. Le premier motif
+    // exclut tout `api` ; chaque route d api doit donc etre nommee ici pour
+    // que le middleware la voie. C est precisement ce qui manquait.
+    '/api/admin/:path*',
+    '/api/admin',
     '/api/agent-tuteur/:path*',
     '/api/agent-tuteur',
     '/api/mr-cam/:path*',
