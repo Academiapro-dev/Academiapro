@@ -277,18 +277,18 @@ export async function POST(req: NextRequest) {
     //   c1_1          ligne 2 — societe etrangere sans etablissement US
     //   c1_2          ligne 3 — societe mere d un groupe consolide
     //   c1_3          ligne 4 — section 1.6081-5
-    //   f1_11, f1_12  ligne 5a — ANNEE CIVILE, un chiffre par case
-    //   f1_13 a f1_15 ligne 5a — exercice decale (debut / fin)
+    //   f1_11         ligne 5a — ANNEE CIVILE, un seul champ
+    //   f1_12 a f1_15 ligne 5a — exercice decale (debut / fin)
     //   c1_4[0..4]    ligne 5b — motifs d exercice court
     //   f1_16 a f1_18 lignes 6, 7, 8 — impot, paiements, solde
     //
-    // ⚠️ L IRS DECOUPE SYSTEMATIQUEMENT SES CHAMPS NUMERIQUES en une case
-    // par chiffre. Ecrire « 12 » ou « 26 » dans un seul champ n affiche que
-    // le premier chiffre — defaut constate deux fois sur ce formulaire.
+    // ⚠️ LE DECOUPAGE N EST PAS UNIFORME. Le code de formulaire occupe DEUX
+    // cases d un chiffre chacune, mais l annee civile tient dans UN SEUL
+    // champ. Chaque cas se verifie sur le PDF genere — le supposer par
+    // analogie a coute deux essais sur ce formulaire.
     //
-    // ⚠️ NE PAS REMPLIR f1_13 A f1_15 EN MEME TEMPS QUE f1_11 ET f1_12 :
-    // declarer a la fois une annee civile et un exercice decale rend le
-    // formulaire contradictoire.
+    // ⚠️ NE PAS REMPLIR f1_12 A f1_15 : ils decrivent un exercice decale, et
+    // declarer les deux formes rend le formulaire contradictoire.
 
     // Identification
     setText(["Page1[0].f1_1[0]"], nom);
@@ -317,20 +317,22 @@ export async function POST(req: NextRequest) {
     // gestionnaire pour non-residents.
     cocher(["Page1[0].c1_1[0]"]);
 
-    // 🚨 LIGNE 5a — L ANNEE CIVILE, SUR DEUX CASES.
+    // 🚨 LIGNE 5a — L ANNEE CIVILE, DANS f1_11 SEUL.
     //
-    // f1_11 et f1_12 forment ensemble la case « The application is for
-    // calendar year 20 __ » : un chiffre chacune, comme le code de
-    // formulaire de la ligne 1. L IRS decoupe systematiquement ses champs
-    // numeriques — ecrire « 26 » dans f1_11 seul n affichait qu un « 2 ».
+    // CE CHAMP A COUTE DEUX ESSAIS, ET VOICI CE QU ILS ONT APPRIS :
+    //   - ecrire dans f1_13 mettait le chiffre dans l exercice decale ;
+    //   - ecrire un chiffre dans f1_11 et le suivant dans f1_12 dispersait
+    //     l annee : le « 2 » restait sur l annee civile, le « 6 » partait
+    //     dans « tax year beginning ».
     //
-    // ⚠️ LES CHAMPS SUIVANTS (f1_13 a f1_15) DECRIVENT UN EXERCICE DECALE
-    // et restent volontairement vides : la quasi-totalite des LLC de
-    // gestion suivent l annee civile, et remplir les deux formes rendrait
-    // la declaration contradictoire.
-    const anneeCourte = String(year).slice(2);
-    setText(["Page1[0].f1_11[0]"], anneeCourte.charAt(0));
-    setText(["Page1[0].f1_12[0]"], anneeCourte.charAt(1));
+    // CONCLUSION : contrairement au code de formulaire de la ligne 1, qui
+    // occupe DEUX cases, l annee civile tient dans UN SEUL champ. f1_12 est
+    // deja le debut de l exercice decale.
+    //
+    // ⚠️ f1_12 A f1_15 DECRIVENT L EXERCICE DECALE et doivent rester vides :
+    // declarer a la fois une annee civile et un exercice decale rend le
+    // formulaire contradictoire.
+    setText(["Page1[0].f1_11[0]"], String(year).slice(2));
 
     form.updateFieldAppearances(font);
     const bytes = await doc.save();
