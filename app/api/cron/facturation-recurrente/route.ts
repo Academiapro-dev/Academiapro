@@ -124,15 +124,28 @@ export async function GET(req: NextRequest) {
         || (cleFacture.length > 0 && fournie === cleFacture));
 
     if (!parCron && !parCle) {
-      return NextResponse.json({
-        ok: false,
-        erreur: "Non autorise",
-        diagnostic: {
-          longueur_recue: fournie.length,
-          longueur_cron_secret: secretCron.length,
-          longueur_cle_facture: cleFacture.length,
-        },
-      }, { status: 401 });
+      // 🚨 LE DIAGNOSTIC EST SORTI DE LA REPONSE — 31/08.
+      //
+      // CE QUE CETTE ROUTE DISAIT A QUI L APPELAIT SANS CLE : la longueur
+      // exacte de CRON_SECRET et celle de CLE_API_FACTURE. Connaitre la
+      // LONGUEUR d un secret reduit considerablement le travail de qui
+      // cherche a le deviner — et l information s obtenait en un appel,
+      // depuis n importe quel navigateur.
+      //
+      // LE BESOIN D ORIGINE RESTE LEGITIME : un refus muet est
+      // indebogable, et c est pour cela que ce diagnostic existait. Il est
+      // donc CONSERVE — mais ecrit dans les journaux Vercel, ou seul
+      // Jacques le lit, jamais dans la reponse HTTP.
+      //
+      // POUR LE RELIRE : tableau de bord Vercel, onglet Logs, filtrer sur
+      // cette route. Le detail y figure a chaque refus.
+      console.error("[cron/facturation-recurrente] refus d autorisation", {
+        longueur_recue: fournie.length,
+        longueur_cron_secret: secretCron.length,
+        longueur_cle_facture: cleFacture.length,
+        entete_presente: autorisation.length > 0,
+      });
+      return NextResponse.json({ ok: false, erreur: "Non autorise" }, { status: 401 });
     }
 
     // 🚨 L ESSAI NE PRODUIT RIEN. Il montre ce qui SERAIT facture, a qui, et
