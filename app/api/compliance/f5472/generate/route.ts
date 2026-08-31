@@ -15,9 +15,7 @@ const supabase = createClient(
 const P = "topmostSubform[0].";
 
 // ---------------------------------------------------------------------------
-// 🚨 TROIS DEFAUTS CORRIGES LE 31/08. C ETAIT LA ROUTE LA PLUS EXPOSEE DU
-// MODULE, ET SA JUMELLE f1120/generate ETAIT DEJA JUSTE — quelqu un a
-// corrige l une et oublie l autre.
+// 🚨 TROIS DEFAUTS CORRIGES LE 31/08, PUIS PASSAGE AU MULTI-SOCIETES.
 //
 // DEFAUT 1 — AUCUNE SESSION N ETAIT EXIGEE. Ni sessionCourante, ni controle
 // d origine : la route repondait a n importe quel appelant.
@@ -26,17 +24,29 @@ const P = "topmostSubform[0].";
 // { tenant_id: "..." } pour obtenir le formulaire 5472 d un AUTRE
 // ORGANISME : son EIN, son adresse, L IDENTITE DE SON ACTIONNAIRE ETRANGER
 // et le detail de ses transactions. Et la route renvoyait en prime UN LIEN
-// SIGNE VALABLE UNE HEURE vers ce PDF. Un identifiant devine ou apercu
-// suffisait a emporter le dossier fiscal americain d un client.
+// SIGNE VALABLE UNE HEURE vers ce PDF.
 //
 // DEFAUT 3 — LES DEPENSES N ETAIENT PAS FILTREES. La lecture additionnait
-// LES AVANCES DE TOUTE LA BASE, tous clients confondus. Les montants portes
-// sur le formulaire etaient donc faux des qu il existe plus d un client —
-// un chiffre faux sur une declaration IRS, c est pire qu une absence.
+// LES AVANCES DE TOUTE LA BASE, tous clients confondus.
 //
-// LA REGLE, LA MEME QUE PARTOUT AILLEURS : le tenant vient de la SESSION,
-// jamais de la requete. Ce que le navigateur envoie n est jamais une
-// autorisation.
+// ---- AJOUT DU 31/08 APRES-MIDI : PLUSIEURS SOCIETES PAR ORGANISME --------
+//
+// Un gestionnaire qui suit des dizaines de LLC doit pouvoir generer LE
+// formulaire DE LA SOCIETE QU IL A OUVERTE. La route accepte donc
+// `entite_id` — c est un choix dans une liste, il vient logiquement du
+// navigateur.
+//
+// 🚨🚨 MAIS UN IDENTIFIANT RECU N EST JAMAIS UNE AUTORISATION. C est
+// exactement le defaut 2 ci-dessus. La regle appliquee ici : l entite est
+// cherchee AVEC le filtre tenant_id de la session. Une entite d un autre
+// organisme ne correspond a aucune ligne — elle est donc introuvable, et
+// rien ne fuit.
+//
+// ⚠️ LE MAPPING ET LES DEPENSES SUIVENT L ENTITE, pas seulement le tenant :
+// sans cela, cinquante societes d un meme gestionnaire produiraient
+// cinquante formulaires identiques, remplis avec les chiffres de la
+// premiere. Des montants faux sur une declaration IRS sont pires qu une
+// absence de declaration.
 // ---------------------------------------------------------------------------
 
 function origineLegitime(req: NextRequest): boolean {
@@ -81,8 +91,7 @@ export async function POST(req: NextRequest) {
     }
 
     // L ORGANISME VIENT DE LA SESSION SIGNEE, ET DE NULLE PART AILLEURS.
-    // Un tenant_id present dans le corps de la requete est desormais
-    // IGNORE : il n a jamais rien prouve.
+    // Un tenant_id present dans le corps de la requete est IGNORE.
     const session = sessionCourante();
     const tenantId = session ? session.tenantId : null;
     if (!tenantId) {
@@ -94,28 +103,90 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json().catch(() => ({}));
     const year = Number(body.year) || new Date().getFullYear();
+    const entiteDemandee = String(body.entite_id || "").trim();
 
-    const { data: m, error: eMap } = await supabase
+    // ---- LA SOCIETE CONCERNEE ----
+    //
+    // ⚠️ LE FILTRE tenant_id EST CE QUI REND L IDENTIFIANT RECU INOFFENSIF.
+    // Sans lui, poster l identifiant d une societe d un autre gestionnaire
+    // rendrait son formulaire — le defaut corrige ce matin.
+    let requeteEntite = supabase
+      .from("compliance_tenants")
+      .select("id, label, legal_name")
+      .eq("tenant_id", tenantId);
+
+    if (entiteDemandee) {
+      requeteEntite = requeteEntite.eq("id", entiteDemandee);
+    }
+
+    const { data: entite, error: eEntite } = await requeteEntite
+      .order("label", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    if (eEntite) {
+      console.error("[f5472] lecture entite :", eEntite.message);
+      return NextResponse.json({ error: "Lecture impossible." }, { status: 500 });
+    }
+
+    if (!entite) {
+      return NextResponse.json(
+        { error: entiteDemandee ? "Societe introuvable." : "Aucune societe enregistree." },
+        { status: 404 }
+      );
+    }
+
+    const entiteId = entite.id;
+
+    // ---- LE MAPPING DE CETTE SOCIETE ----
+    //
+    // La table porte tenant_id ; on retient le mapping propre a l entite
+    // quand la colonne existe, sinon celui du tenant. Le double filtre est
+    // tente d abord, avec repli : la colonne entite_id peut ne pas encore
+    // exister sur cette table selon l etat de la migration.
+    let mapping: any = null;
+
+    const essaiEntite = await supabase
       .from("compliance_5472_mapping")
       .select("*")
       .eq("tenant_id", tenantId)
+      .eq("entite_id", entiteId)
       .eq("tax_year", year)
       .maybeSingle();
 
-    if (eMap) {
-      console.error("[f5472] lecture mapping :", eMap.message);
-      return NextResponse.json({ error: "Lecture du mapping impossible." }, { status: 500 });
-    }
-    if (!m) {
-      return NextResponse.json({ error: "Aucun mapping pour cet exercice" }, { status: 404 });
+    if (!essaiEntite.error && essaiEntite.data) {
+      mapping = essaiEntite.data;
+    } else {
+      const { data: m, error: eMap } = await supabase
+        .from("compliance_5472_mapping")
+        .select("*")
+        .eq("tenant_id", tenantId)
+        .eq("tax_year", year)
+        .maybeSingle();
+
+      if (eMap) {
+        console.error("[f5472] lecture mapping :", eMap.message);
+        return NextResponse.json({ error: "Lecture du mapping impossible." }, { status: 500 });
+      }
+      mapping = m;
     }
 
-    // ---- RECALCUL A LA VOLEE DES AVANCES DU MEMBRE ----
+    if (!mapping) {
+      return NextResponse.json(
+        { error: "Aucun mapping 5472 pour " + entite.label + " sur l'exercice " + year + "." },
+        { status: 404 }
+      );
+    }
+
+    const m = mapping;
+
+    // ---- RECALCUL DES AVANCES DU MEMBRE ----
     //
-    // ⚠️ LE FILTRE tenant_id EST INDISPENSABLE ICI. Sans lui, cette lecture
-    // additionnait les avances de TOUS les clients : le montant porte sur le
-    // formulaire n avait aucun rapport avec la societe declarante.
-    const { data: dep, error: eDep } = await supabase
+    // ⚠️ LE FILTRE tenant_id EST INDISPENSABLE : sans lui, cette lecture
+    // additionnait les avances de TOUS les clients. Le filtre par entite
+    // est ajoute quand la colonne existe, pour qu un gestionnaire ne voie
+    // pas les memes chiffres sur toutes ses societes.
+    let requeteDep = supabase
       .from("depenses")
       .select("montant_ttc, devise, date_depense")
       .eq("tenant_id", tenantId)
@@ -125,9 +196,27 @@ export async function POST(req: NextRequest) {
       .lte("date_depense", year + "-12-31")
       .limit(5000);
 
-    if (eDep) {
-      console.error("[f5472] lecture depenses :", eDep.message);
-      return NextResponse.json({ error: "Lecture des depenses impossible." }, { status: 500 });
+    let dep: any[] | null = null;
+    const essaiDep = await requeteDep.eq("entite_id", entiteId);
+
+    if (!essaiDep.error) {
+      dep = essaiDep.data;
+    } else {
+      const { data: d2, error: eDep2 } = await supabase
+        .from("depenses")
+        .select("montant_ttc, devise, date_depense")
+        .eq("tenant_id", tenantId)
+        .eq("avance_perso", true)
+        .eq("rembourse", false)
+        .gte("date_depense", year + "-01-01")
+        .lte("date_depense", year + "-12-31")
+        .limit(5000);
+
+      if (eDep2) {
+        console.error("[f5472] lecture depenses :", eDep2.message);
+        return NextResponse.json({ error: "Lecture des depenses impossible." }, { status: 500 });
+      }
+      dep = d2;
     }
 
     const taux = Number(m.taux_eur_usd) || 1;
@@ -226,8 +315,11 @@ export async function POST(req: NextRequest) {
     const bytes = await doc.save();
 
     // ---- Rangement au coffre prive ----
+    //
+    // Le chemin porte l identifiant de l ENTITE : sans cela, les documents
+    // de cinquante societes se melangeraient dans un meme dossier.
     const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-    const path = tenantId + "/5472/" + year + "/f5472-" + stamp + ".pdf";
+    const path = tenantId + "/" + entiteId + "/5472/" + year + "/f5472-" + stamp + ".pdf";
 
     const { error: eUp } = await supabase.storage
       .from("compliance-docs")
@@ -248,6 +340,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       tenant_id: tenantId,
+      entite_id: entiteId,
+      societe: entite.label,
       year,
       path,
       url: signed?.signedUrl ?? null,
