@@ -1,6 +1,7 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { PDFDocument, StandardFonts } from "pdf-lib";
 import { createClient } from "@supabase/supabase-js";
+import { sessionCourante } from "../../../../../lib/session";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -12,6 +13,41 @@ const supabase = createClient(
 );
 
 const P = "topmostSubform[0].";
+
+// ---------------------------------------------------------------------------
+// 🚨 TROIS DEFAUTS CORRIGES LE 31/08. C ETAIT LA ROUTE LA PLUS EXPOSEE DU
+// MODULE, ET SA JUMELLE f1120/generate ETAIT DEJA JUSTE — quelqu un a
+// corrige l une et oublie l autre.
+//
+// DEFAUT 1 — AUCUNE SESSION N ETAIT EXIGEE. Ni sessionCourante, ni controle
+// d origine : la route repondait a n importe quel appelant.
+//
+// DEFAUT 2 — LE TENANT VENAIT DU CORPS DE LA REQUETE. Il suffisait de poster
+// { tenant_id: "..." } pour obtenir le formulaire 5472 d un AUTRE
+// ORGANISME : son EIN, son adresse, L IDENTITE DE SON ACTIONNAIRE ETRANGER
+// et le detail de ses transactions. Et la route renvoyait en prime UN LIEN
+// SIGNE VALABLE UNE HEURE vers ce PDF. Un identifiant devine ou apercu
+// suffisait a emporter le dossier fiscal americain d un client.
+//
+// DEFAUT 3 — LES DEPENSES N ETAIENT PAS FILTREES. La lecture additionnait
+// LES AVANCES DE TOUTE LA BASE, tous clients confondus. Les montants portes
+// sur le formulaire etaient donc faux des qu il existe plus d un client —
+// un chiffre faux sur une declaration IRS, c est pire qu une absence.
+//
+// LA REGLE, LA MEME QUE PARTOUT AILLEURS : le tenant vient de la SESSION,
+// jamais de la requete. Ce que le navigateur envoie n est jamais une
+// autorisation.
+// ---------------------------------------------------------------------------
+
+function origineLegitime(req: NextRequest): boolean {
+  const origine = req.headers.get("origin") || "";
+  const referent = req.headers.get("referer") || "";
+  return (
+    origine.includes("academiapro.fr") || referent.includes("academiapro.fr") ||
+    origine.includes("vercel.app") || referent.includes("vercel.app") ||
+    origine.includes("localhost") || referent.includes("localhost")
+  );
+}
 
 function money(n: number | null | undefined): string {
   if (n === null || n === undefined) return "";
@@ -38,14 +74,26 @@ function coupeAdresse(v: unknown): { rue: string; villeEtatZip: string } {
   };
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
-    const body = await req.json().catch(() => ({}));
-    const tenantId = body.tenant_id as string | undefined;
-    const year = Number(body.year) || new Date().getFullYear();
-    if (!tenantId) {
-      return NextResponse.json({ error: "tenant_id requis" }, { status: 400 });
+    if (!origineLegitime(req)) {
+      return NextResponse.json({ error: "Acces refuse" }, { status: 403 });
     }
+
+    // L ORGANISME VIENT DE LA SESSION SIGNEE, ET DE NULLE PART AILLEURS.
+    // Un tenant_id present dans le corps de la requete est desormais
+    // IGNORE : il n a jamais rien prouve.
+    const session = sessionCourante();
+    const tenantId = session ? session.tenantId : null;
+    if (!tenantId) {
+      return NextResponse.json(
+        { error: "Session sans societe rattachee. Reconnectez-vous." },
+        { status: 401 }
+      );
+    }
+
+    const body = await req.json().catch(() => ({}));
+    const year = Number(body.year) || new Date().getFullYear();
 
     const { data: m, error: eMap } = await supabase
       .from("compliance_5472_mapping")
@@ -55,23 +103,31 @@ export async function POST(req: Request) {
       .maybeSingle();
 
     if (eMap) {
-      return NextResponse.json({ error: "Lecture mapping: " + eMap.message }, { status: 500 });
+      console.error("[f5472] lecture mapping :", eMap.message);
+      return NextResponse.json({ error: "Lecture du mapping impossible." }, { status: 500 });
     }
     if (!m) {
       return NextResponse.json({ error: "Aucun mapping pour cet exercice" }, { status: 404 });
     }
 
     // ---- RECALCUL A LA VOLEE DES AVANCES DU MEMBRE ----
+    //
+    // ⚠️ LE FILTRE tenant_id EST INDISPENSABLE ICI. Sans lui, cette lecture
+    // additionnait les avances de TOUS les clients : le montant porte sur le
+    // formulaire n avait aucun rapport avec la societe declarante.
     const { data: dep, error: eDep } = await supabase
       .from("depenses")
       .select("montant_ttc, devise, date_depense")
+      .eq("tenant_id", tenantId)
       .eq("avance_perso", true)
       .eq("rembourse", false)
       .gte("date_depense", year + "-01-01")
-      .lte("date_depense", year + "-12-31");
+      .lte("date_depense", year + "-12-31")
+      .limit(5000);
 
     if (eDep) {
-      return NextResponse.json({ error: "Lecture depenses: " + eDep.message }, { status: 500 });
+      console.error("[f5472] lecture depenses :", eDep.message);
+      return NextResponse.json({ error: "Lecture des depenses impossible." }, { status: 500 });
     }
 
     const taux = Number(m.taux_eur_usd) || 1;
@@ -181,7 +237,8 @@ export async function POST(req: Request) {
       });
 
     if (eUp) {
-      return NextResponse.json({ error: "Upload coffre: " + eUp.message }, { status: 500 });
+      console.error("[f5472] depot au coffre :", eUp.message);
+      return NextResponse.json({ error: "Depot au coffre impossible." }, { status: 500 });
     }
 
     const { data: signed } = await supabase.storage
@@ -190,6 +247,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       success: true,
+      tenant_id: tenantId,
       year,
       path,
       url: signed?.signedUrl ?? null,
@@ -209,7 +267,7 @@ export async function POST(req: Request) {
       note: "PDF fictif - taux provisoire, qualification non validee par fiscaliste",
     });
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e);
-    return NextResponse.json({ error: msg }, { status: 500 });
+    console.error("[f5472] exception :", e instanceof Error ? e.message : String(e));
+    return NextResponse.json({ error: "Erreur serveur." }, { status: 500 });
   }
 }
