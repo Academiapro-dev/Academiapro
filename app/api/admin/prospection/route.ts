@@ -23,11 +23,30 @@ const supabase = createClient(
 // PIEGE VERIFIE LE 14 AOUT : prospects_organismes n a PAS de colonne
 // vague, contrairement aux trois autres. La demander la ferait echouer.
 //
-// SECOND PIEGE DE LA MEME FAMILLE : les colonnes linkedin, linkedin_le et
-// linkedin_statut existent sur les TROIS tables prospectables, mais PAS
-// sur prospects_cabinets, qu on ne touche pas avant l accord BCSolutions.
-// D ou le drapeau ci dessous : les demander sur cabinets ferait echouer
-// la lecture entiere.
+// 🚨 LE DRAPEAU linkedin DE cabinets ETAIT FAUX — corrige le 01/09 a 00h40.
+//
+// CE QUE DISAIT L ANCIEN COMMENTAIRE : « les colonnes linkedin existent sur
+// les TROIS tables prospectables, mais PAS sur prospects_cabinets, qu on ne
+// touche pas avant l accord BCSolutions ». Deux affirmations, toutes deux
+// perimees :
+//
+//   1. TECHNIQUEMENT FAUX. Verifie en base le 01/09 : prospects_cabinets
+//      porte bien linkedin, linkedin_le, linkedin_relance_le et
+//      linkedin_statut. Et ces colonnes CONTIENNENT DES DONNEES — 353
+//      profils, dont 118 deja invites.
+//
+//   2. COMMERCIALEMENT DEPASSE. La retenue datait d avant les corrections
+//      de la prospection LinkedIn. Jacques a tranche : on ouvre.
+//
+// CE QUE LE DRAPEAU A FAIT ENTRE-TEMPS : le resume renvoyait zero sur les
+// trois compteurs LinkedIn des cabinets SANS INTERROGER LA BASE, et
+// l ecran n affichait ni la colonne ni le bouton d invitation. LES 118
+// INVITATIONS DEJA PARTIES ETAIENT DONC INVISIBLES ET INSUIVIES — aucune
+// acceptation, aucun refus ne pouvait etre marque.
+//
+// ⚠️ UN ZERO CALCULE SANS REQUETE EST UN MENSONGE, pas une optimisation.
+// S il faut a nouveau desactiver une base, la retirer de la liste plutot
+// que de lui faire rendre des chiffres faux.
 const BASES: any = {
   organismes: {
     table: "prospects_organismes",
@@ -55,7 +74,7 @@ const BASES: any = {
     titre: "Cabinets comptables",
     cible: "Mr. Comptable",
     vague: true,
-    linkedin: false,
+    linkedin: true,
   },
 };
 
