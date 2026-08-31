@@ -334,6 +334,33 @@ async function stats_crm(tenantId: string | null) {
   return { total, prospects, chauds, clients, perdus, relance_armee, score_moyen, par_domaine, par_source };
 }
 
+// 🚨 L ATTESTATION AUTOMATIQUE — LE JETON INTERNE AJOUTE LE 31/08.
+//
+// LE DEFAUT, ET IL N AURAIT ETE VU QUE PAR LE PREMIER CLIENT REEL.
+//
+// Cette fonction est le SEUL chemin par lequel un apprenant qui termine
+// vraiment sa formation recoit son attestation : quand la progression
+// atteint 100 %, elle appelle /api/admin/certificat. Or cet appel est un
+// fetch DE SERVEUR A SERVEUR — il ne transporte AUCUN COOKIE.
+//
+// Depuis que /api/admin/certificat exige « une session OU un jeton
+// interne », un appel sans l un ni l autre repond 401. La fonction etait
+// donc devenue muette : elle appelait, la route refusait, et le catch
+// avalait l echec sans rien dire. Aucune attestation n aurait ete emise.
+//
+// POURQUOI PERSONNE NE L A VU : le seul certificat de la table a ete
+// produit le 10/08 depuis l ECRAN D ADMINISTRATION, ou la session existe.
+// Ce chemin-la marchait, et masquait l autre. Verifie en base le 31/08 :
+// une seule ligne, celle de l administrateur.
+//
+// ⚠️ LE JETON EST SESSION_SECRET, exactement ce que /api/admin/certificat
+// compare. Il ne quitte JAMAIS le serveur — il n est pas expose au
+// navigateur, et cette route ne le renvoie a personne.
+//
+// ⚠️ IL SERT AUSSI DE CLE MACHINE POUR LE MIDDLEWARE. Depuis le 31/08,
+// le middleware filtre /api/admin et refuse ce qui n a ni session ni
+// en-tete d authentification. L en-tete authorization pose ci-dessous
+// laisse donc passer l appel jusqu a la route, qui reste seule juge.
 async function declencher_certificat_auto(email: string, formationCode: string) {
   try {
     const { data: existant } = await supabase
@@ -360,10 +387,21 @@ async function declencher_certificat_auto(email: string, formationCode: string) 
     const nomComplet = crmData && crmData[0] ? ((crmData[0].prenom || "") + " " + (crmData[0].nom || "")).trim() : email;
     const formationTitre = formationsData && formationsData[0] ? formationsData[0].titre : formationCode;
 
+    const secretInterne = process.env.SESSION_SECRET || "";
+    if (!secretInterne) {
+      console.error("[crm] SESSION_SECRET absente : attestation non emise pour " + email);
+      return;
+    }
+
     const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://academiapro.fr";
-    await fetch(baseUrl + "/api/admin/certificat", {
+    const reponse = await fetch(baseUrl + "/api/admin/certificat", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        // Laisse passer le filet du middleware ; la route verifie
+        // elle-meme la valeur du jeton dans le corps.
+        "Authorization": "Bearer " + secretInterne,
+      },
       body: JSON.stringify({
         nom: nomComplet || email,
         formation: formationTitre,
@@ -371,8 +409,18 @@ async function declencher_certificat_auto(email: string, formationCode: string) 
         niveau: "Expert",
         date: new Date().toLocaleDateString("fr-FR"),
         userEmail: email,
+        jeton_interne: secretInterne,
       }),
     });
+
+    // ⚠️ L ECHEC NE DOIT PLUS ETRE MUET. C est precisement le silence qui
+    // a laisse ce defaut invisible : sans cette trace, une attestation non
+    // emise ne se remarque que le jour ou l apprenant la reclame.
+    if (!reponse.ok) {
+      console.error(
+        "[crm] attestation refusee pour " + email + " — HTTP " + reponse.status
+      );
+    }
   } catch (e) {
     console.error("Erreur declenchement certificat auto:", e);
   }
