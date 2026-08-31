@@ -83,6 +83,11 @@ const PAGES_PUBLIQUES_COMPTABLE = [
 
 const LOGO_COMPTABLE = "/IMG_4100.jpeg";
 
+// La banniere MysterLLC deposee dans public/ le 31/08 : format large 4:1,
+// fond noir, M vegetal-circuit, nom et base line integres dans l image.
+// Le format carre (IMG_4722.jpeg) servira au favicon et a l Open Graph.
+const LOGO_MYSTERLLC = "/IMG_4723.jpeg";
+
 function estComptable(chemin) {
   for (const p of CHEMINS_COMPTABLE) {
     if (chemin === p || chemin.indexOf(p + "/") === 0) return true;
@@ -174,14 +179,30 @@ export default function NavBar() {
 
   // ---- Espace de travail MysterLLC ---------------------------------------
   //
-  // Identite de la LLC : le nom en toutes lettres, Georgia doree — pas de
-  // logo pour l instant (lecon HebrewPro v3 : un logo mal proportionne fait
-  // plus de mal qu un texte propre).
+  // La banniere porte deja le nom et la base line : rien d autre a ecrire a
+  // cote (lecon HebrewPro v3 — un texte pose pres d un logo s etire en
+  // colonne illisible). Montage identique a celui de Mr Comptable :
+  // largeur controlee, jamais etiree, bord rogne d un cheveu pour fondre le
+  // fond de l image dans le noir de la barre.
   if (estCheminMysterLLC(chemin) || (surMysterLLC && estComptable(chemin))) {
     return (
-      <header style={{ ...barre, background: "#000" }}>
-        <a href="/admin/compliance/entites" style={{ ...lienMarque, fontSize: "24px", letterSpacing: "0.5px" }}>
-          MysterLLC
+      <header style={{ ...barre, padding: "0 30px", background: "#000" }}>
+        <a
+          href="/admin/compliance/entites"
+          style={{ display: "block", textDecoration: "none", flexShrink: 0, overflow: "hidden", lineHeight: 0 }}
+        >
+          <img
+            src={LOGO_MYSTERLLC}
+            alt="MysterLLC"
+            style={{
+              width: "400px",
+              maxWidth: "40vw",
+              height: "auto",
+              display: "block",
+              margin: "-4px",
+              clipPath: "inset(4px)",
+            }}
+          />
         </a>
         <nav style={{ display: "flex", gap: "18px", flexWrap: "wrap", justifyContent: "center" }}>
           <a href="/admin/compliance/entites" style={lienMenu}>Portefeuille</a>
