@@ -258,6 +258,60 @@ export async function POST(req: NextRequest) {
       }
     };
 
+    // 🚨 MODE REPERAGE — { "reperage": true }
+    //
+    // POURQUOI IL EXISTE. La liste des champs donne leurs NOMS, pas leur
+    // POSITION sur la page. Trois essais successifs ont montre que la
+    // correspondance ne se deduit pas de l ordre : ecrire dans f1_12 faisait
+    // apparaitre le texte dans « tax year beginning », et f1_11 n affiche
+    // qu un seul caractere.
+    //
+    // Ce mode ecrit UNE LETTRE DIFFERENTE dans chaque champ de la zone
+    // douteuse. En ouvrant le PDF, on lit directement quelle lettre tombe
+    // ou — donc quel nom correspond a quelle case. Une seule generation
+    // remplace dix tatonnements.
+    //
+    // ⚠️ LE PDF PRODUIT N EST PAS DEPOSABLE : il ne sert qu au reglage.
+    if (body.reperage === true) {
+      const lettres = ["A", "B", "C", "D", "E", "F", "G", "H"];
+      const releve: string[] = [];
+
+      for (let i = 0; i < lettres.length; i++) {
+        const nomChamp = "Page1[0].f1_" + (11 + i) + "[0]";
+        try {
+          form.getTextField(P + nomChamp).setText(lettres[i]);
+          releve.push(lettres[i] + " -> f1_" + (11 + i));
+        } catch (e) {
+          releve.push(lettres[i] + " -> f1_" + (11 + i) + " INTROUVABLE");
+        }
+      }
+
+      form.updateFieldAppearances(font);
+      const octetsReperage = await doc.save();
+
+      const cheminReperage = tenantId + "/reperage-7004-"
+        + new Date().toISOString().replace(/[:.]/g, "-") + ".pdf";
+
+      await supabase.storage
+        .from("compliance-docs")
+        .upload(cheminReperage, Buffer.from(octetsReperage), {
+          contentType: "application/pdf",
+          upsert: true,
+        });
+
+      const { data: lienReperage } = await supabase.storage
+        .from("compliance-docs")
+        .createSignedUrl(cheminReperage, 3600);
+
+      return NextResponse.json({
+        success: true,
+        mode: "reperage",
+        correspondance: releve,
+        url: lienReperage?.signedUrl ?? null,
+        note: "Ouvrez le PDF et notez ou apparait chaque lettre.",
+      });
+    }
+
     // ---- CARTOGRAPHIE REELLE DU FORMULAIRE ----
     //
     // 🚨 CES CHEMINS ONT ETE RELEVES SUR LE PDF LUI-MEME, pas devines. Le
@@ -317,22 +371,31 @@ export async function POST(req: NextRequest) {
     // gestionnaire pour non-residents.
     cocher(["Page1[0].c1_1[0]"]);
 
-    // 🚨 LIGNE 5a — L ANNEE CIVILE, DANS f1_11 SEUL.
+    // 🚨 LIGNE 5a — L ANNEE CIVILE, ET LE PIEGE DE LA LARGEUR.
     //
-    // CE CHAMP A COUTE DEUX ESSAIS, ET VOICI CE QU ILS ONT APPRIS :
+    // TROIS ESSAIS ONT ETE NECESSAIRES, ET VOICI CE QU ILS ONT APPRIS :
     //   - ecrire dans f1_13 mettait le chiffre dans l exercice decale ;
-    //   - ecrire un chiffre dans f1_11 et le suivant dans f1_12 dispersait
-    //     l annee : le « 2 » restait sur l annee civile, le « 6 » partait
-    //     dans « tax year beginning ».
+    //   - repartir les chiffres sur f1_11 et f1_12 dispersait l annee, le
+    //     « 6 » partant dans « tax year beginning » ;
+    //   - ecrire « 26 » dans f1_11 seul n affichait que le « 2 ».
     //
-    // CONCLUSION : contrairement au code de formulaire de la ligne 1, qui
-    // occupe DEUX cases, l annee civile tient dans UN SEUL champ. f1_12 est
-    // deja le debut de l exercice decale.
+    // LA CAUSE DU DERNIER CAS : le champ est etroit, et a la taille de
+    // police par defaut le second caractere DEBORDE SANS AUCUNE ERREUR.
+    // pdf-lib tronque en silence — c est le genre de defaut qui ne se voit
+    // qu en ouvrant le PDF.
     //
-    // ⚠️ f1_12 A f1_15 DECRIVENT L EXERCICE DECALE et doivent rester vides :
-    // declarer a la fois une annee civile et un exercice decale rend le
-    // formulaire contradictoire.
-    setText(["Page1[0].f1_11[0]"], String(year).slice(2));
+    // ⚠️ setFontSize AVANT setText : la taille doit etre fixee avant que le
+    // texte ne soit compose, sinon elle ne s applique pas.
+    //
+    // ⚠️ f1_12 A f1_15 DECRIVENT L EXERCICE DECALE et restent vides :
+    // declarer les deux formes rend le formulaire contradictoire.
+    try {
+      const champAnnee = form.getTextField(P + "Page1[0].f1_11[0]");
+      champAnnee.setFontSize(8);
+      champAnnee.setText(String(year).slice(2));
+    } catch (e) {
+      journal.push("Annee civile : champ f1_11 introuvable");
+    }
 
     form.updateFieldAppearances(font);
     const bytes = await doc.save();
