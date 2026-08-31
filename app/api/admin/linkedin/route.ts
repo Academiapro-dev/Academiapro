@@ -12,15 +12,35 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || ""
 );
 
-// QUATRE SOURCES, DONT UNE MANUELLE.
+// CINQ SOURCES, DONT UNE MANUELLE.
 //
-// Les trois premieres viennent de l open data enrichi. LA QUATRIEME,
+// Les quatre premieres viennent de l open data enrichi. LA CINQUIEME,
 // « manuel », pointe sur la table crm et recoit les profils que Jacques
 // trouve LUI-MEME sur LinkedIn, au fil de son fil d actualite.
+//
+// 🚨 LES CABINETS COMPTABLES ONT ETE AJOUTES LE 01/09 A 00h40, ET LEUR
+// ABSENCE AVAIT DES CONSEQUENCES.
+//
+// CE QUI SE PASSAIT. La table prospects_cabinets porte 353 profils
+// LinkedIn, dont 118 DEJA INVITES — verifie en base. Mais elle ne figurait
+// pas ici : aucun compteur ne les voyait, aucune liste ne les rendait,
+// aucune acceptation ni aucun refus ne pouvait etre marque. Cent
+// dix-huit invitations parties, et un outil qui l ignorait.
+//
+// ⚠️ CES 118 N ONT PAS PU PARTIR DEPUIS CET ECRAN, qui ne connaissait pas
+// la table. Leur origine reste a elucider — version anterieure du code, ou
+// saisie directe en base. A verifier avant de tirer une conclusion sur les
+// chiffres de la semaine.
+//
+// ⚠️ CONSEQUENCE ATTENDUE DE L AJOUT : tous les compteurs vont MONTER d un
+// coup, y compris `semaine` et `jour` si des invitations cabinets portent
+// une date recente. Ce n est pas une anomalie — c est ce qui etait cache
+// qui devient visible.
 const TABLES: any = {
   organismes: "prospects_organismes",
   qualiopi: "prospects_qualiopi",
   interim: "prospects_interim",
+  cabinets: "prospects_cabinets",
   manuel: "crm",
 };
 
@@ -82,19 +102,18 @@ function ilYaSeptJours(): string {
 //
 // LES DEUX CORRECTIONS, ET AUCUNE NE CHANGE UN SEUL CHIFFRE :
 //   1. Les comptages partent TOUS EN MEME TEMPS (Promise.all). Le temps
-//      total devient celui du plus lent, non la somme des trente-six.
+//      total devient celui du plus lent, non la somme.
 //   2. Le calcul fait avant l ecriture est REUTILISE dans la reponse, au
 //      lieu d etre refait a l identique.
 //
+// ⚠️ AVEC LA CINQUIEME TABLE, LE NOMBRE DE COMPTAGES PASSE DE 36 A 45.
+// C est precisement pour cela que la parallelisation devait etre faite
+// AVANT d ajouter les cabinets : en serie, l ajout aurait allonge encore
+// l attente.
+//
 // ⚠️ NE PAS REVENIR A UNE BOUCLE `for` AVEC `await` A L INTERIEUR. C est
 // la forme qui a produit la lenteur, et elle se reintroduit sans y penser
-// des qu on ajoute un compteur. Toute nouvelle serie de comptages se lance
-// avec Promise.all.
-//
-// ⚠️ UN COMPTAGE RESTE UN COMPTAGE. Paralleliser ne rend pas la base plus
-// rapide : si le temps de reponse reste long apres cette correction, la
-// piste suivante est de ne calculer les compteurs QUE lorsqu ils sont
-// affiches, et non a chaque action.
+// des qu on ajoute un compteur ou une table.
 // ---------------------------------------------------------------------------
 
 // Une fiche ecartee ne compte jamais : rien n a ete envoye.
@@ -148,8 +167,8 @@ function taux(acceptes: number, refuses: number) {
 }
 
 // ⚠️ LES NEUF FAMILLES DE COMPTAGE PARTENT ENSEMBLE, et chacune interroge
-// ses quatre tables ensemble : trente-six requetes lancees d un coup, au
-// lieu de trente-six attentes enchainees.
+// ses cinq tables ensemble : quarante-cinq requetes lancees d un coup, au
+// lieu de quarante-cinq attentes enchainees.
 async function compteurs() {
   const [
     jour,
@@ -205,7 +224,7 @@ async function compteurs() {
 // Les compteurs apres une ecriture : ceux calcules avant, corriges de ce
 // que l ecriture vient de changer.
 //
-// ⚠️ POURQUOI NE PAS LES RECALCULER. Refaire trente-six comptages pour
+// ⚠️ POURQUOI NE PAS LES RECALCULER. Refaire quarante-cinq comptages pour
 // apprendre qu une invitation de plus est partie double le temps d attente
 // sans rien apprendre. Le seul chiffre qui bouge est connu d avance.
 function compteursApresInvitation(avant: any) {
@@ -219,7 +238,7 @@ function compteursApresInvitation(avant: any) {
   });
 }
 
-// LES COLONNES DIFFERENT SELON LA TABLE. Les trois bases de prospection
+// LES COLONNES DIFFERENT SELON LA TABLE. Les quatre bases de prospection
 // portent raison_sociale, siren, code_postal ; la table crm porte nom et
 // organisme. Demander les mauvaises colonnes ferait echouer la requete.
 const COLONNES_PROSPECTS =
@@ -302,7 +321,7 @@ async function suivante(base: string) {
 // La cle de base est renvoyee avec chaque ligne — sans elle, l ecran ne
 // saurait pas dans quelle table ecrire au moment de marquer.
 //
-// ⚠️ LES QUATRE TABLES SONT LUES ENSEMBLE, pas l une apres l autre.
+// ⚠️ LES CINQ TABLES SONT LUES ENSEMBLE, pas l une apres l autre.
 async function lister(statuts: string[], limite: number, colonneTri?: string) {
   const tri = colonneTri || "linkedin_le";
 
@@ -655,8 +674,8 @@ export async function POST(req: NextRequest) {
 
     // ⚠️ SUR UNE INVITATION, LES COMPTEURS NE SONT PAS RECALCULES : celui
     // d avant est corrige de l unite qui vient d etre consommee. Refaire
-    // trente-six comptages pour apprendre « un de plus » doublait l attente
-    // a chaque clic.
+    // quarante-cinq comptages pour apprendre « un de plus » doublait
+    // l attente a chaque clic.
     //
     // Sur les autres statuts — acceptation, refus, relance — aucun calcul
     // n a ete fait avant, on le fait maintenant, en parallele de la lecture
