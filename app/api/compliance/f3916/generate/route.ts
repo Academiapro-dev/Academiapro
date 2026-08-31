@@ -11,6 +11,19 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+// 🚨 L EXPEDITEUR NE DOIT PAS ETRE CELUI D UN AUTRE PRODUIT — 31/08.
+//
+// CE FICHIER ENVOYAIT DEPUIS contact@hebrewproai.com, le domaine du beit
+// midrash. Une fiche fiscale qui arrive de la fait douter de tout le reste,
+// et un destinataire attentif y verrait un signe d amateurisme — ou pire,
+// une tentative d hameconnage.
+//
+// ⚠️ LA VARIABLE COMPLIANCE_EXPEDITEUR DOIT ETRE RENSEIGNEE DANS VERCEL des
+// que le domaine du produit est verifie chez Resend. Le repli ci-dessous
+// utilise academiapro.fr, deja verifie : neutre, mais a remplacer.
+const EXPEDITEUR = process.env.COMPLIANCE_EXPEDITEUR
+  || "Suivi des echeances <contact@academiapro.fr>";
+
 function origineLegitime(req: NextRequest): boolean {
   const origine = req.headers.get("origin") || "";
   const referent = req.headers.get("referer") || "";
@@ -34,7 +47,7 @@ function dateFR(v: unknown): string {
   return p[2] + "/" + p[1] + "/" + p[0];
 }
 
-function ficheHTML(comptes: any[], annee: number, tousValides: boolean): string {
+function ficheHTML(comptes: any[], annee: number, tousValides: boolean, societe: string): string {
   const date = new Date().toLocaleDateString("fr-FR", { year: "numeric", month: "long", day: "numeric" });
 
   const blocs = comptes.map((c, i) => `
@@ -81,6 +94,7 @@ function ficheHTML(comptes: any[], annee: number, tousValides: boolean): string 
 </style></head><body>
 
 <h1>Fiche de préparation — Déclaration 2042 et formulaire 3916 — ${annee}</h1>
+<p>Société concernée : <strong>${fr(societe)}</strong></p>
 <p>Document de préparation généré le ${date}. Recopiez ces informations dans votre
 déclaration de revenus sur impots.gouv.fr.</p>
 
@@ -128,7 +142,7 @@ ${comptes.length === 0 ? "<p>Aucun compte enregistré pour cet exercice.</p>" : 
 ${avertissement}
 
 <div class="footer">
-  Module Compliance — Fiche de préparation 2042 + 3916 ${annee} — ${date}<br/>
+  Fiche de préparation 2042 + 3916 ${annee} — ${date}<br/>
   Ce document est une aide à la saisie et ne constitue pas un dépôt officiel.
 </div>
 </body></html>`;
@@ -153,24 +167,92 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { year } = await req.json();
-    const annee = Number(year) || new Date().getFullYear();
+    const body = await req.json().catch(() => ({} as any));
+    const annee = Number(body.year) || new Date().getFullYear();
+    const entiteDemandee = String(body.entite_id || "").trim();
 
-    const { data: comptes, error: eLect } = await supabase
+    // ---- LA SOCIETE CONCERNEE ----
+    //
+    // 🚨 L IDENTIFIANT RECU N EST PAS UNE AUTORISATION. Il est cherche AVEC
+    // le filtre tenant_id de la session : une societe d un autre
+    // gestionnaire est simplement introuvable.
+    let requeteEntite = supabase
+      .from("compliance_tenants")
+      .select("id, label, legal_name, fr_tax_resident")
+      .eq("tenant_id", tenantId);
+
+    if (entiteDemandee) {
+      requeteEntite = requeteEntite.eq("id", entiteDemandee);
+    }
+
+    const { data: entite, error: eEntite } = await requeteEntite
+      .order("label", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    if (eEntite) {
+      console.error("[f3916] lecture entite :", eEntite.message);
+      return NextResponse.json({ error: "Lecture impossible." }, { status: 500 });
+    }
+
+    if (!entite) {
+      return NextResponse.json(
+        { error: entiteDemandee ? "Société introuvable." : "Aucune société enregistrée." },
+        { status: 404 }
+      );
+    }
+
+    const entiteId = entite.id;
+
+    // ⚠️ LE 3916 NE CONCERNE QUE LES RESIDENTS FISCAUX FRANCAIS. Le generer
+    // pour un expatrie produirait un document sans objet — et sur un marche
+    // ou les clients ont precisement quitte la France, ce serait plus qu une
+    // maladresse.
+    if (entite.fr_tax_resident === false) {
+      return NextResponse.json(
+        {
+          error: entite.label + " n'est pas rattachée à un résident fiscal français : "
+            + "le formulaire 3916 ne s'applique pas.",
+        },
+        { status: 400 }
+      );
+    }
+
+    // ---- LES COMPTES DE CETTE SOCIETE ----
+    //
+    // Le filtre par entite est tente d abord ; sans la colonne, on retombe
+    // sur le tenant, qui reste la barriere de cloisonnement.
+    let liste: any[] = [];
+
+    const essai = await supabase
       .from("compliance_comptes_etrangers")
       .select("*")
       .eq("tenant_id", tenantId)
+      .eq("entite_id", entiteId)
       .eq("exercice", annee)
       .order("date_ouverture", { ascending: true })
       .limit(500);
 
-    if (eLect) {
-      return NextResponse.json({ error: "Lecture des comptes : " + eLect.message }, { status: 500 });
+    if (!essai.error) {
+      liste = essai.data || [];
+    } else {
+      const { data: c2, error: eLect } = await supabase
+        .from("compliance_comptes_etrangers")
+        .select("*")
+        .eq("tenant_id", tenantId)
+        .eq("exercice", annee)
+        .order("date_ouverture", { ascending: true })
+        .limit(500);
+
+      if (eLect) {
+        console.error("[f3916] lecture comptes :", eLect.message);
+        return NextResponse.json({ error: "Lecture des comptes impossible." }, { status: 500 });
+      }
+      liste = c2 || [];
     }
 
-    const liste = comptes ?? [];
     const tousValides = liste.length > 0 && liste.every((c: any) => c.valide_par_fiscaliste);
-    const html = ficheHTML(liste, annee, tousValides);
+    const html = ficheHTML(liste, annee, tousValides, entite.legal_name || entite.label);
 
     const { data: ver } = await supabase.rpc("compliance_next_doc_version", {
       p_tenant_id: tenantId,
@@ -178,21 +260,29 @@ export async function POST(req: NextRequest) {
     });
     const version = ver || 1;
 
-    const chemin = tenantId + "/3916_" + annee + "_v" + version + ".html";
+    // Le chemin porte l identifiant de la SOCIETE : sans cela, deux
+    // societes d un meme gestionnaire ecraseraient mutuellement leur fiche.
+    const chemin = tenantId + "/" + entiteId + "/3916_" + annee + "_v" + version + ".html";
 
     const { error: upErr } = await supabase.storage
       .from("compliance-docs")
       .upload(chemin, html, { contentType: "text/html", upsert: true });
 
     if (upErr) {
-      return NextResponse.json({ error: "Dépôt au coffre échoué : " + upErr.message }, { status: 500 });
+      console.error("[f3916] depot au coffre :", upErr.message);
+      return NextResponse.json({ error: "Dépôt au coffre impossible." }, { status: 500 });
     }
 
+    // 🚨 entite_id EST INDISPENSABLE ICI. Le tableau de bord filtre les
+    // documents dessus depuis le 31/08 : une fiche enregistree sans lui
+    // serait deposee au coffre mais INVISIBLE a l ecran, sans qu aucune
+    // erreur ne le signale.
     await supabase.from("compliance_documents").insert({
       tenant_id: tenantId,
+      entite_id: entiteId,
       rule_code: "FR_3916",
       doc_type: "fiche_3916",
-      title: "Fiche 2042 + 3916 comptes étrangers " + annee,
+      title: "Fiche 2042 + 3916 comptes étrangers " + annee + " — " + entite.label,
       version: version,
       storage_path: "compliance-docs/" + chemin,
       mime_type: "text/html",
@@ -215,9 +305,10 @@ export async function POST(req: NextRequest) {
             Authorization: "Bearer " + process.env.RESEND_API_KEY,
           },
           body: JSON.stringify({
-            from: "Mr. Compliance <contact@hebrewproai.com>",
+            from: EXPEDITEUR,
             to: [emailSession],
-            subject: "Fiche 2042 + 3916 " + annee + " — " + liste.length + " compte(s)",
+            subject: "Fiche 2042 + 3916 " + annee + " — " + entite.label
+              + " — " + liste.length + " compte(s)",
             html: html,
           }),
         });
@@ -240,6 +331,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       tenant_id: tenantId,
+      entite_id: entiteId,
+      societe: entite.label,
       annee,
       version,
       nb_comptes: liste.length,
@@ -248,6 +341,7 @@ export async function POST(req: NextRequest) {
       email,
     });
   } catch (e: any) {
-    return NextResponse.json({ error: String(e && e.message ? e.message : e) }, { status: 500 });
+    console.error("[f3916] exception :", String(e && e.message ? e.message : e));
+    return NextResponse.json({ error: "Erreur serveur." }, { status: 500 });
   }
 }
