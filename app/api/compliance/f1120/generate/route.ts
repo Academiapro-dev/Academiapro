@@ -15,6 +15,27 @@ const supabase = createClient(
 const P = "topmostSubform[0].";
 const NF = "Page1[0].NameFieldsReadOrder[0].";
 
+// ---------------------------------------------------------------------------
+// 🚨 PLUSIEURS SOCIETES PAR ORGANISME — 31/08 apres-midi.
+//
+// CE QUI CHANGE. Cette route generait « le » 1120 du compte : elle tenait
+// pour acquis qu un organisme n avait qu une societe. Un gestionnaire qui
+// suit des dizaines de LLC aurait obtenu le MEME formulaire pour toutes,
+// rempli avec les chiffres de la premiere. Des montants faux sur une
+// declaration IRS sont pires qu une absence de declaration.
+//
+// 🚨🚨 L IDENTIFIANT RECU N EST JAMAIS UNE AUTORISATION. C est le defaut
+// trouve le meme jour dans f5472 et f3916, ou le tenant etait pris dans le
+// corps de la requete sans verification. La regle appliquee ici : l entite
+// est cherchee AVEC le filtre tenant_id de la session. Une societe d un
+// autre gestionnaire ne correspond a aucune ligne — elle est introuvable,
+// et rien ne fuit.
+//
+// ⚠️ CETTE ROUTE ET f5472/generate SONT JUMELLES. Le motif du 31/08 s est
+// produit deux fois : un defaut corrige dans l une, oublie dans l autre.
+// TOUTE MODIFICATION ICI DOIT ETRE REPORTEE LA-BAS, ET RECIPROQUEMENT.
+// ---------------------------------------------------------------------------
+
 function origineLegitime(req: NextRequest): boolean {
   const origine = req.headers.get("origin") || "";
   const referent = req.headers.get("referer") || "";
@@ -59,34 +80,113 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
     const year = Number(body.year) || new Date().getFullYear();
+    const entiteDemandee = String(body.entite_id || "").trim();
 
-    const { data: m, error: eMap } = await supabase
+    // ---- LA SOCIETE CONCERNEE ----
+    //
+    // ⚠️ LE FILTRE tenant_id EST CE QUI REND L IDENTIFIANT RECU INOFFENSIF.
+    let requeteEntite = supabase
+      .from("compliance_tenants")
+      .select("id, label, legal_name")
+      .eq("tenant_id", tenantId);
+
+    if (entiteDemandee) {
+      requeteEntite = requeteEntite.eq("id", entiteDemandee);
+    }
+
+    const { data: entite, error: eEntite } = await requeteEntite
+      .order("label", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    if (eEntite) {
+      console.error("[f1120] lecture entite :", eEntite.message);
+      return NextResponse.json({ error: "Lecture impossible." }, { status: 500 });
+    }
+
+    if (!entite) {
+      return NextResponse.json(
+        { error: entiteDemandee ? "Societe introuvable." : "Aucune societe enregistree." },
+        { status: 404 }
+      );
+    }
+
+    const entiteId = entite.id;
+
+    // ---- LE MAPPING DE CETTE SOCIETE ----
+    //
+    // Le mapping propre a l entite est privilegie ; a defaut, celui du
+    // tenant. Le repli existe parce que la colonne entite_id peut ne pas
+    // encore avoir ete ajoutee a cette table.
+    let m: any = null;
+
+    const essaiEntite = await supabase
       .from("compliance_5472_mapping")
       .select("*")
       .eq("tenant_id", tenantId)
+      .eq("entite_id", entiteId)
       .eq("tax_year", year)
       .maybeSingle();
 
-    if (eMap) {
-      return NextResponse.json({ error: "Lecture mapping: " + eMap.message }, { status: 500 });
-    }
-    if (!m) {
-      return NextResponse.json({ error: "Aucun mapping pour cet exercice" }, { status: 404 });
+    if (!essaiEntite.error && essaiEntite.data) {
+      m = essaiEntite.data;
+    } else {
+      const { data: m2, error: eMap } = await supabase
+        .from("compliance_5472_mapping")
+        .select("*")
+        .eq("tenant_id", tenantId)
+        .eq("tax_year", year)
+        .maybeSingle();
+
+      if (eMap) {
+        console.error("[f1120] lecture mapping :", eMap.message);
+        return NextResponse.json({ error: "Lecture du mapping impossible." }, { status: 500 });
+      }
+      m = m2;
     }
 
-    // ---- RECALCUL A LA VOLEE (filtre par tenant) ----
-    const { data: dep, error: eDep } = await supabase
+    if (!m) {
+      return NextResponse.json(
+        { error: "Aucun mapping pour " + entite.label + " sur l'exercice " + year + "." },
+        { status: 404 }
+      );
+    }
+
+    // ---- RECALCUL DES AVANCES ----
+    //
+    // Le filtre par entite est tente d abord ; sans la colonne, on retombe
+    // sur le filtre par tenant, qui reste la barriere de cloisonnement.
+    let dep: any[] | null = null;
+
+    const essaiDep = await supabase
       .from("depenses")
       .select("montant_ttc, devise, date_depense")
       .eq("tenant_id", tenantId)
+      .eq("entite_id", entiteId)
       .eq("avance_perso", true)
       .eq("rembourse", false)
       .gte("date_depense", year + "-01-01")
       .lte("date_depense", year + "-12-31")
       .limit(5000);
 
-    if (eDep) {
-      return NextResponse.json({ error: "Lecture depenses: " + eDep.message }, { status: 500 });
+    if (!essaiDep.error) {
+      dep = essaiDep.data;
+    } else {
+      const { data: d2, error: eDep } = await supabase
+        .from("depenses")
+        .select("montant_ttc, devise, date_depense")
+        .eq("tenant_id", tenantId)
+        .eq("avance_perso", true)
+        .eq("rembourse", false)
+        .gte("date_depense", year + "-01-01")
+        .lte("date_depense", year + "-12-31")
+        .limit(5000);
+
+      if (eDep) {
+        console.error("[f1120] lecture depenses :", eDep.message);
+        return NextResponse.json({ error: "Lecture des depenses impossible." }, { status: 500 });
+      }
+      dep = d2;
     }
 
     const taux = Number(m.taux_eur_usd) || 1;
@@ -158,8 +258,10 @@ export async function POST(req: NextRequest) {
     form.updateFieldAppearances(font);
     const bytes = await doc.save();
 
+    // Le chemin porte l identifiant de l ENTITE : sans cela, les documents
+    // de toutes les societes se melangeraient dans un meme dossier.
     const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-    const chemin = tenantId + "/1120/" + year + "/f1120-" + stamp + ".pdf";
+    const chemin = tenantId + "/" + entiteId + "/1120/" + year + "/f1120-" + stamp + ".pdf";
 
     const { error: eUp } = await supabase.storage
       .from("compliance-docs")
@@ -169,7 +271,8 @@ export async function POST(req: NextRequest) {
       });
 
     if (eUp) {
-      return NextResponse.json({ error: "Upload coffre: " + eUp.message, journal }, { status: 500 });
+      console.error("[f1120] depot au coffre :", eUp.message);
+      return NextResponse.json({ error: "Depot au coffre impossible." }, { status: 500 });
     }
 
     const { data: signed } = await supabase.storage
@@ -179,6 +282,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       tenant_id: tenantId,
+      entite_id: entiteId,
+      societe: entite.label,
       year,
       path: chemin,
       url: signed?.signedUrl ?? null,
@@ -202,9 +307,7 @@ export async function POST(req: NextRequest) {
       note: "PDF fictif - taux provisoire, qualification non validee par fiscaliste",
     });
   } catch (e: unknown) {
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : String(e), journal },
-      { status: 500 }
-    );
+    console.error("[f1120] exception :", e instanceof Error ? e.message : String(e));
+    return NextResponse.json({ error: "Erreur serveur.", journal }, { status: 500 });
   }
 }
