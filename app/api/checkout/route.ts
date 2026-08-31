@@ -271,11 +271,30 @@ export async function GET(req: Request) {
     const lien = j && j.data && j.data.attributes && j.data.attributes.url;
 
     if (!lien) {
-      return NextResponse.json({ error: "checkout refuse", detail: j }, { status: 500 });
+      // 🚨 LE DETAIL RESTE DANS LES JOURNAUX, JAMAIS DANS LA REPONSE — 31/08.
+      //
+      // Cette route renvoyait `detail: j` — LA REPONSE BRUTE DE LEMON
+      // SQUEEZY — a l acheteur. Un refus de paiement affichait donc au
+      // visiteur la structure interne du compte marchand.
+      console.error("[checkout] Lemon Squeezy a refuse le checkout :", JSON.stringify(j));
+      return NextResponse.json(
+        { error: "Le paiement n'a pas pu être ouvert. Réessayez dans un instant." },
+        { status: 500 }
+      );
     }
 
     return NextResponse.redirect(lien, 302);
   } catch (e: any) {
-    return NextResponse.json({ error: String(e) }, { status: 500 });
+    // 🚨 MEME REGLE ICI, ET LA FUITE ETAIT PIRE.
+    //
+    // Le bloc renvoyait `String(e)`. Or trouverVariante() jette une erreur
+    // qui contient LA LISTE DE TOUS LES PRODUITS VISIBLES du compte Lemon
+    // Squeezy. Une simple demande d achat sur un produit mal nomme
+    // affichait donc le catalogue commercial complet a qui la provoquait.
+    console.error("[checkout] exception :", String(e));
+    return NextResponse.json(
+      { error: "Le paiement n'a pas pu être ouvert. Réessayez dans un instant." },
+      { status: 500 }
+    );
   }
 }
