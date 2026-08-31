@@ -240,44 +240,40 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, erreur: "Creation impossible." }, { status: 500 });
   }
 
-  // GENERATION DES ECHEANCES, comme le fait /api/compliance/onboarding.
+  // GENERATION DES ECHEANCES DE LA NOUVELLE SOCIETE.
   //
-  // ⚠️ LA FONCTION SQL TRAVAILLE PAR TENANT, PAS PAR ENTITE : elle ecrit
-  // des lignes sans entite_id. On les rattache donc juste apres, sinon
-  // elles resteraient invisibles dans la fiche de l entite.
+  // 🚨 LA FONCTION APPELEE ICI TRAVAILLE PAR ENTITE, PAS PAR TENANT.
+  // L ancienne — compliance_generate_deadlines — ne generait qu une fois
+  // par organisme : constate le 31/08 en peuplant vingt-six societes de
+  // demonstration, seules DEUX avaient recu leurs echeances, sans qu aucune
+  // erreur ne le signale. Un gestionnaire aurait cree ses dossiers un par
+  // un et n aurait rien vu venir.
   //
-  // Un echec ici NE DOIT PAS annuler la creation : l entite existe, ses
+  // ⚠️ ELLE NE RETIENT QUE LES REGLES APPLICABLES : une LLC d expatrie n a
+  // aucune obligation francaise, une LLC du Delaware n a pas d Annual
+  // Report Wyoming. Afficher des echeances qui n existent pas ferait douter
+  // du reste.
+  //
+  // Un echec ici NE DOIT PAS annuler la creation : la societe existe, ses
   // echeances se regenereront. Mais il est signale a l appelant, parce
-  // qu une entite sans echeance ne declenche aucune relance — et c est
+  // qu une societe sans echeance ne declenche aucune relance — et c est
   // precisement ce que le client achete.
-  const anneeCible = new Date().getFullYear() + 1;
+  const anneeCible = new Date().getFullYear();
   const echeances: any = { annee: anneeCible };
 
   try {
-    const { error: eGen } = await supabase.rpc("compliance_generate_deadlines", {
-      p_tenant_id: session.tenantId,
-      p_year: anneeCible,
-    });
+    const { data: nb, error: eGen } = await supabase.rpc(
+      "compliance_generer_echeances_entite",
+      { p_entite_id: data.id, p_annee: anneeCible }
+    );
 
     if (eGen) {
       echeances.generees = false;
       echeances.raison = eGen.message;
       console.error("[compliance/entites] generation echeances :", eGen.message);
     } else {
-      const { error: eMaj, count: nb } = await supabase
-        .from("compliance_deadlines")
-        .update({ entite_id: data.id }, { count: "exact" })
-        .eq("tenant_id", session.tenantId)
-        .is("entite_id", null);
-
-      if (eMaj) {
-        echeances.generees = false;
-        echeances.raison = "rattachement : " + eMaj.message;
-        console.error("[compliance/entites] rattachement echeances :", eMaj.message);
-      } else {
-        echeances.generees = true;
-        echeances.nombre = nb === null || nb === undefined ? 0 : nb;
-      }
+      echeances.generees = true;
+      echeances.nombre = Number(nb) || 0;
     }
   } catch (e: any) {
     echeances.generees = false;
