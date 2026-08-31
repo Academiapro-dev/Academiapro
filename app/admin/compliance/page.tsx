@@ -510,6 +510,12 @@ export default function ComplianceDashboard() {
           </pre>
         )}
 
+        {/* ---- LES FORMULAIRES OFFICIELS DE L IRS ----
+            Les trois produisent un vrai PDF a partir du CERFA americain.
+            Le 7004 y figure parce qu il est l accessoire du 1120 : il en
+            reporte le depot. Le separer des fiches de preparation, qui ne
+            produisent que des documents de travail, evite de laisser croire
+            que tout se depose de la meme facon. */}
         <h2 style={{ color: VERT, fontSize: 20, marginTop: 32 }}>
           Formulaires IRS {PNL_YEAR}
         </h2>
@@ -518,6 +524,10 @@ export default function ComplianceDashboard() {
           validée par un CPA américain et que le taux de change officiel de l'IRS
           n'est pas publié. Les montants se recalculent automatiquement depuis les
           dépenses marquées comme avances personnelles.
+        </p>
+        <p style={{ fontSize: 14, color: "#8a1c1c", marginTop: 0 }}>
+          <strong>Le Form 5472 est dû au 15 avril.</strong> Son dépôt tardif ou omis
+          coûte 25 000 USD par société et par an, quelle que soit l'activité.
         </p>
         <button
           onClick={() => genererIRS("f5472")}
@@ -533,6 +543,19 @@ export default function ComplianceDashboard() {
         >
           {irsLoading === "f1120" ? "Génération…" : "Générer le Form 1120 pro forma"}
         </button>
+        <button
+          onClick={genererExtension}
+          disabled={autreLoading !== null}
+          style={styleBouton}
+        >
+          {autreLoading === "7004" ? "Génération…" : "Générer le Form 7004"}
+        </button>
+        <p style={{ fontSize: 14, color: "#555", marginTop: 4 }}>
+          Le Form 7004 reporte au 15 octobre le dépôt du 1120 et de son 5472.
+          Il doit être déposé avant le 15 avril, sinon l'échéance d'origine
+          s'applique.
+        </p>
+
         {irsMsg && (
           <p style={{ marginTop: 10, color: irsMsg.indexOf("Erreur") === 0 ? "#c62828" : VERT }}>
             {irsMsg}
@@ -544,6 +567,23 @@ export default function ComplianceDashboard() {
               Ouvrir le PDF généré
             </a>
             <span style={{ color: "#666", fontSize: 13 }}> (lien valable 1 heure)</span>
+          </p>
+        )}
+
+        {/* Le message du 7004 s affiche ici, sous le bouton qui l a
+            declenche — et non en bas de page, ou il fallait le chercher. */}
+        {autreMsg && autreLoading === null && autreMsg.indexOf("7004") >= 0 && (
+          <p style={{ marginTop: 10, color: autreMsg.indexOf("Erreur") === 0 ? "#c62828" : VERT }}>
+            {autreMsg}
+            {autreUrl && (
+              <>
+                <br />
+                <a href={autreUrl} target="_blank" rel="noreferrer" style={{ color: VERT, fontWeight: "bold" }}>
+                  Ouvrir le PDF généré
+                </a>
+                <span style={{ color: "#666", fontSize: 13 }}> (lien valable 1 heure)</span>
+              </>
+            )}
           </p>
         )}
 
@@ -620,78 +660,58 @@ export default function ComplianceDashboard() {
           </>
         )}
 
-        {/* ---- LES AUTRES OBLIGATIONS ----
-            Regroupees ici parce qu elles ne produisent pas toutes un
-            formulaire : le 7004 est un vrai PDF, les trois autres sont des
-            fiches de preparation. Le libelle de chaque bouton le dit. */}
+        {/* ---- LES FICHES DE PREPARATION ----
+            Elles ne produisent PAS de formulaire officiel : le BOI se
+            saisit en ligne, le W-8BEN-E depend d un statut FATCA que
+            l outil ne connait pas, et le registered agent est un contrat a
+            renouveler. Le document produit est une aide au travail, pas une
+            piece a deposer — d ou la section separee. */}
         <h2 style={{ color: VERT, fontSize: 20, marginTop: 32 }}>
-          Autres obligations
+          Fiches de préparation
         </h2>
+        <p style={{ fontSize: 14, color: "#555", marginTop: 0 }}>
+          Ces obligations ne se déposent pas sur un formulaire pré-rempli. La fiche
+          indique où déposer, quoi préparer, et ce qui est en jeu.
+        </p>
 
-        <div style={{ ...styleCarte, background: "#f8f8f4" }}>
-          <h3 style={{ color: VERT, marginTop: 0, fontSize: 17 }}>
-            Extension de délai — Form 7004
-          </h3>
-          <p style={{ fontSize: 14, color: "#555", marginTop: 0 }}>
-            Reporte de six mois le dépôt du 1120 et de son 5472, jusqu&apos;au 15 octobre.
-            L&apos;extension est accordée automatiquement, sans justification —
-            mais elle doit être déposée <strong>avant</strong> le 15 avril.
-            Passé cette date sans dépôt ni extension, l&apos;amende est de
-            25 000 USD par société.
-          </p>
+        <button
+          onClick={() => genererFiche("boi", "Fiche BOI FinCEN")}
+          disabled={autreLoading !== null}
+          style={styleLien}
+        >
+          {autreLoading === "boi" ? "…" : "Fiche BOI FinCEN"}
+        </button>
+        <button
+          onClick={() => genererFiche("w8bene", "Fiche W-8BEN-E")}
+          disabled={autreLoading !== null}
+          style={styleLien}
+        >
+          {autreLoading === "w8bene" ? "…" : "Fiche W-8BEN-E"}
+        </button>
+        {tenant && (!tenant.formation_state || tenant.formation_state === "WY") && (
           <button
-            onClick={genererExtension}
-            disabled={autreLoading !== null}
-            style={styleBouton}
-          >
-            {autreLoading === "7004" ? "Génération…" : "Générer le Form 7004"}
-          </button>
-        </div>
-
-        <div style={{ ...styleCarte, background: "#f8f8f4" }}>
-          <h3 style={{ color: VERT, marginTop: 0, fontSize: 17 }}>
-            Fiches de préparation
-          </h3>
-          <p style={{ fontSize: 14, color: "#555", marginTop: 0 }}>
-            Ces trois obligations ne se déposent pas sur un formulaire pré-rempli.
-            La fiche indique où déposer, quoi préparer, et ce qui est en jeu.
-          </p>
-          <button
-            onClick={() => genererFiche("boi", "Fiche BOI FinCEN")}
+            onClick={() => genererFiche("registered_agent", "Fiche registered agent")}
             disabled={autreLoading !== null}
             style={styleLien}
           >
-            {autreLoading === "boi" ? "…" : "Fiche BOI FinCEN"}
+            {autreLoading === "registered_agent" ? "…" : "Fiche registered agent"}
           </button>
-          <button
-            onClick={() => genererFiche("w8bene", "Fiche W-8BEN-E")}
-            disabled={autreLoading !== null}
-            style={styleLien}
-          >
-            {autreLoading === "w8bene" ? "…" : "Fiche W-8BEN-E"}
-          </button>
-          {tenant && (!tenant.formation_state || tenant.formation_state === "WY") && (
-            <button
-              onClick={() => genererFiche("registered_agent", "Fiche registered agent")}
-              disabled={autreLoading !== null}
-              style={styleLien}
-            >
-              {autreLoading === "registered_agent" ? "…" : "Fiche registered agent"}
-            </button>
-          )}
-        </div>
+        )}
 
-        {autreMsg && (
+        {/* Le message des fiches, ici et pas ailleurs. Le test sur « 7004 »
+            evite qu un message d extension s affiche dans cette section. */}
+        {autreMsg && autreLoading === null && autreMsg.indexOf("7004") < 0 && (
           <p style={{ marginTop: 10, color: autreMsg.indexOf("Erreur") === 0 ? "#c62828" : VERT }}>
             {autreMsg}
-          </p>
-        )}
-        {autreUrl && (
-          <p style={{ marginTop: 6 }}>
-            <a href={autreUrl} target="_blank" rel="noreferrer" style={{ color: VERT, fontWeight: "bold" }}>
-              Ouvrir le document généré
-            </a>
-            <span style={{ color: "#666", fontSize: 13 }}> (lien valable 1 heure)</span>
+            {autreUrl && (
+              <>
+                <br />
+                <a href={autreUrl} target="_blank" rel="noreferrer" style={{ color: VERT, fontWeight: "bold" }}>
+                  Ouvrir la fiche générée
+                </a>
+                <span style={{ color: "#666", fontSize: 13 }}> (lien valable 1 heure)</span>
+              </>
+            )}
           </p>
         )}
 
