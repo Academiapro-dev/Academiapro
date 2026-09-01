@@ -135,9 +135,28 @@ async function compterEnFile(): Promise<number> {
   return count || 0;
 }
 
-function taux(acceptes: number, refuses: number) {
-  const repondu = acceptes + refuses;
-  return repondu > 0 ? Math.round((acceptes / repondu) * 100) : null;
+// 🚨 LE TAUX D ACCEPTATION SE RAPPORTE AUX INVITATIONS ENVOYEES — 02/09.
+//
+// CE QUI ETAIT CALCULE. acceptes / (acceptes + refuses) : le taux « parmi
+// ceux qui ont repondu ». L ecran affichait 87 %.
+//
+// POURQUOI C ETAIT FAUX A L USAGE. Sur LinkedIn, LE SILENCE EST LA REPONSE
+// LA PLUS FREQUENTE : 235 invitations sans reponse contre 8 refus
+// explicites. Diviser par les seuls repondants ecarte donc l immense
+// majorite du reel, et le chiffre gonfle toujours.
+//
+// LE CHIFFRE REEL, CONSTATE PAR JACQUES DEPUIS LE DEBUT : environ 20 %.
+// 54 acceptations sur 289 invitations parties = 19 %. C est celui qui
+// permet de piloter ; 87 % n apprend rien.
+//
+// L ENTONNOIR, DIT PAR JACQUES : les fiches vues donnent ~85 % d invitations
+// (le reste est hors cible, ecarte) ; les invitations donnent ~20 %
+// d acceptations. Ce sont DEUX mesures distinctes — celle-ci ne mesure que
+// la seconde.
+//
+// ⚠️ MEME FORMULE POUR LES CINQ PRODUITS. Aucun n a de calcul particulier.
+function taux(acceptes: number, invitations: number) {
+  return invitations > 0 ? Math.round((acceptes / invitations) * 100) : null;
 }
 
 // ⚠️ LES NEUF FAMILLES DE COMPTAGE PARTENT ENSEMBLE, et chacune interroge
@@ -170,14 +189,21 @@ async function compterCampagnes() {
     cles.map(async function (cle) {
       const bases = (BASES_DE as any)[cle] as string[];
 
+      // 🚨 UNE INVITATION SE COMPTE A SON STATUT, PAS A SA DATE — 02/09.
+      //
+      // Le premier jet exigeait linkedin_le non nul. Or les fiches invitees
+      // avant que la date ne soit consignee n en portent pas : les blocs
+      // affichaient « 0 invitation(s) » a cote de « 28 acceptee(s) ».
+      // Une fiche invitee porte un statut d invitation — c est lui qui fait foi.
+      const STATUTS_INVITES = EN_ATTENTE.concat(ACCEPTES).concat(RELANCES).concat(["refuse"]);
+
       const [depuisBases, depuisCrm] = await Promise.all([
         Promise.all(
           bases.map(async function (b) {
             const { count } = await supabase
               .from(TABLES[b])
               .select("id", { count: "exact", head: true })
-              .not("linkedin_le", "is", null)
-              .neq("linkedin_statut", "ecarte");
+              .in("linkedin_statut", STATUTS_INVITES);
             return count || 0;
           })
         ),
@@ -186,8 +212,7 @@ async function compterCampagnes() {
             .from("crm")
             .select("id", { count: "exact", head: true })
             .eq("campagne", cle)
-            .not("linkedin_le", "is", null)
-            .neq("linkedin_statut", "ecarte");
+            .in("linkedin_statut", STATUTS_INVITES);
           return count || 0;
         })(),
       ]);
@@ -245,7 +270,8 @@ async function compterCampagnes() {
           invites: invites,
           acceptes: acceptes,
           refuses: refuses,
-          taux: taux(acceptes, refuses),
+          sans_reponse: Math.max(invites - acceptes - refuses, 0),
+          taux: taux(acceptes, invites),
         },
       };
     })
@@ -302,8 +328,9 @@ async function compteurs() {
     relances, refuses, ecartes,
     en_file,
     campagnes,
-    taux_note: taux(accepte_note, 0) === null ? null : taux(accepte_note + relances * 0, refuses),
-    taux_global: taux(acceptees, refuses),
+    // Les deux taux se rapportent desormais aux invitations envoyees.
+    taux_note: taux(accepte_note, attente_note + accepte_note),
+    taux_global: taux(acceptees, attente_note + attente_nu + acceptees + refuses),
     plafond_jour: PLAFOND_JOUR,
     plafond_semaine: PLAFOND_SEMAINE,
     reste_jour: Math.max(PLAFOND_JOUR - jour, 0),
