@@ -4,8 +4,8 @@ import { useState, useEffect } from "react";
 const LIBELLE_STATUT: any = {
   ouverte: "Ouverte",
   en_cours: "En cours",
-  traitee: "Traitee",
-  classee_sans_suite: "Classee sans suite",
+  traitee: "Trait\u00e9e",
+  classee_sans_suite: "Class\u00e9e sans suite",
 };
 
 const LIBELLE_ORIGINE: any = {
@@ -69,7 +69,7 @@ export default function PageReclamations() {
 
   async function consigner() {
     if (objet.trim().length < 3 || texte.trim().length < 10) {
-      setErreur("Indiquez un objet et decrivez la reclamation.");
+      setErreur("Indiquez un objet et d\u00e9crivez la r\u00e9clamation.");
       return;
     }
     setOccupe(true);
@@ -89,7 +89,7 @@ export default function PageReclamations() {
       });
       const data = await r.json();
       if (data.ok) {
-        setMessage("Reclamation consignee au registre.");
+        setMessage("R\u00e9clamation consign\u00e9e au registre.");
         setAuteur(""); setNom(""); setObjet(""); setTexte("");
         setFormulaire(false);
         await charger();
@@ -119,7 +119,7 @@ export default function PageReclamations() {
       });
       const data = await r.json();
       if (data.ok) {
-        setMessage("Enregistre.");
+        setMessage("Enregistr\u00e9.");
         await charger();
       } else {
         setErreur(data.erreur || "Modification impossible.");
@@ -176,15 +176,15 @@ export default function PageReclamations() {
     <div style={CADRE}>
       <div style={{ maxWidth: "1000px", margin: "0 auto" }}>
         <a href="/organisme" style={{ color: "#c8a96e", fontSize: "14px", textDecoration: "none" }}>
-          ← Retour au tableau de bord
+          {"\u2190 Retour au tableau de bord"}
         </a>
 
         <p style={{ color: "#c8a96e", fontSize: "12px", letterSpacing: "3px", margin: "22px 0 8px" }}>
-          REGISTRE DES RECLAMATIONS
+          {"REGISTRE DES R\u00c9CLAMATIONS"}
         </p>
-        <h1 style={{ color: "#fff", fontSize: "30px", margin: "0 0 6px" }}>Reclamations</h1>
+        <h1 style={{ color: "#fff", fontSize: "30px", margin: "0 0 6px" }}>{"R\u00e9clamations"}</h1>
         <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "14px", marginTop: 0 }}>
-          Indicateur 31 du referentiel national qualite
+          {"Indicateur 31 du r\u00e9f\u00e9rentiel national qualit\u00e9"}
         </p>
 
         {d && (
@@ -194,20 +194,20 @@ export default function PageReclamations() {
                 {d.ouvertes}
               </p>
               <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", margin: 0 }}>
-                En attente · {d.total} au total
+                {"En attente \u00b7 " + d.total + " au total"}
               </p>
             </div>
             <div style={{ ...CARTE, flex: "1 1 150px", marginBottom: 0 }}>
               <p style={{ color: "#c8a96e", fontSize: "26px", fontWeight: "bold", margin: "0 0 4px" }}>
-                {d.delai_moyen_jours !== null ? d.delai_moyen_jours + " j" : "—"}
+                {d.delai_moyen_jours !== null ? d.delai_moyen_jours + " j" : "\u2014"}
               </p>
-              <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", margin: 0 }}>Delai moyen de reponse</p>
+              <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", margin: 0 }}>{"D\u00e9lai moyen de r\u00e9ponse"}</p>
             </div>
             <div style={{ ...CARTE, flex: "1 1 150px", marginBottom: 0 }}>
               <p style={{ color: "#c8a96e", fontSize: "26px", fontWeight: "bold", margin: "0 0 4px" }}>
                 {d.avec_action_corrective}
               </p>
-              <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", margin: 0 }}>Avec action corrective</p>
+              <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", margin: 0 }}>{"Avec action corrective"}</p>
             </div>
           </div>
         )}
@@ -216,17 +216,16 @@ export default function PageReclamations() {
           onClick={() => setFormulaire(!formulaire)}
           style={{ background: formulaire ? "none" : "#c8a96e", color: formulaire ? "#c8a96e" : "#050508", border: formulaire ? "1px solid rgba(200,169,110,0.45)" : "none", padding: "12px 24px", borderRadius: "20px", cursor: "pointer", fontSize: "15px", fontFamily: "Georgia,serif", fontWeight: "bold", marginBottom: "20px" }}
         >
-          {formulaire ? "Annuler" : "Consigner une reclamation"}
+          {formulaire ? "Annuler" : "Consigner une r\u00e9clamation"}
         </button>
 
         {formulaire && (
           <div style={{ ...CARTE, border: "1px solid rgba(200,169,110,0.5)" }}>
             <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "14px", marginTop: 0, lineHeight: "1.6" }}>
-              Pour une reclamation recue par telephone, par courrier ou de vive voix. Celles
-              deposees par vos stagiaires depuis leur espace arrivent ici automatiquement.
+              {"Pour une r\u00e9clamation re\u00e7ue par t\u00e9l\u00e9phone, par courrier ou de vive voix. Celles d\u00e9pos\u00e9es par vos stagiaires depuis leur espace arrivent ici automatiquement."}
             </p>
 
-            <span style={LIBELLE}>Auteur (email)</span>
+            <span style={LIBELLE}>{"Auteur (email)"}</span>
             <input value={auteur} onChange={(e) => setAuteur(e.target.value)} placeholder="marie.dupont@exemple.fr" style={CHAMP} />
 
             <span style={LIBELLE}>Nom</span>
@@ -240,9 +239,9 @@ export default function PageReclamations() {
             </select>
 
             <span style={LIBELLE}>Objet</span>
-            <input value={objet} onChange={(e) => setObjet(e.target.value)} placeholder="Acces a la plateforme" style={CHAMP} />
+            <input value={objet} onChange={(e) => setObjet(e.target.value)} placeholder={"Acc\u00e8s \u00e0 la plateforme"} style={CHAMP} />
 
-            <span style={LIBELLE}>Ce qui a ete reproche</span>
+            <span style={LIBELLE}>{"Ce qui a \u00e9t\u00e9 reproch\u00e9"}</span>
             <textarea value={texte} onChange={(e) => setTexte(e.target.value)} rows={4} style={CHAMP} />
 
             <button
@@ -265,9 +264,7 @@ export default function PageReclamations() {
         ) : !d || d.reclamations.length === 0 ? (
           <div style={CARTE}>
             <p style={{ color: "rgba(255,255,255,0.6)", margin: 0, fontSize: "15px", lineHeight: "1.7" }}>
-              Aucune reclamation enregistree. Un registre vide n est pas un defaut, mais
-              l auditeur verifiera que la procedure existe et que vos stagiaires la connaissent :
-              elle figure dans leur livret d accueil.
+              {"Aucune r\u00e9clamation enregistr\u00e9e. Un registre vide n'est pas un d\u00e9faut, mais l'auditeur v\u00e9rifiera que la proc\u00e9dure existe et que vos stagiaires la connaissent : elle figure dans leur livret d'accueil."}
             </p>
           </div>
         ) : (
@@ -279,8 +276,8 @@ export default function PageReclamations() {
                   <div style={{ flex: "1 1 280px" }}>
                     <h3 style={{ color: "#fff", fontSize: "17px", margin: "0 0 4px" }}>{r.objet}</h3>
                     <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "13px", margin: 0, wordBreak: "break-all" }}>
-                      {r.auteur_nom ? r.auteur_nom + " · " : ""}{r.auteur_email} · {LIBELLE_ORIGINE[r.origine] || r.origine}
-                      {" · recue le " + new Date(r.created_at).toLocaleDateString("fr-FR")}
+                      {r.auteur_nom ? r.auteur_nom + " \u00b7 " : ""}{r.auteur_email}{" \u00b7 "}{LIBELLE_ORIGINE[r.origine] || r.origine}
+                      {" \u00b7 re\u00e7ue le " + new Date(r.created_at).toLocaleDateString("fr-FR")}
                     </p>
                   </div>
                   <span style={{ color: couleurStatut(r.statut), fontSize: "14px", fontWeight: "bold" }}>
@@ -295,14 +292,14 @@ export default function PageReclamations() {
                 {r.reponse && !estOuvert && (
                   <div style={{ marginTop: "14px", paddingTop: "12px", borderTop: "1px solid rgba(255,255,255,0.08)" }}>
                     <p style={{ color: "#c8a96e", fontSize: "13px", margin: "0 0 4px" }}>
-                      Reponse du {r.repondue_le ? new Date(r.repondue_le).toLocaleDateString("fr-FR") : ""}
+                      {"R\u00e9ponse du " + (r.repondue_le ? new Date(r.repondue_le).toLocaleDateString("fr-FR") : "")}
                     </p>
                     <p style={{ color: "rgba(255,255,255,0.75)", fontSize: "14px", margin: 0, lineHeight: "1.7", whiteSpace: "pre-wrap" }}>
                       {r.reponse}
                     </p>
                     {r.action_corrective && (
                       <>
-                        <p style={{ color: "#c8a96e", fontSize: "13px", margin: "10px 0 4px" }}>Action corrective</p>
+                        <p style={{ color: "#c8a96e", fontSize: "13px", margin: "10px 0 4px" }}>{"Action corrective"}</p>
                         <p style={{ color: "rgba(255,255,255,0.75)", fontSize: "14px", margin: 0, lineHeight: "1.7" }}>
                           {r.action_corrective}
                         </p>
@@ -316,7 +313,7 @@ export default function PageReclamations() {
                     onClick={() => setOuvert({ ...ouvert, [r.id]: !estOuvert })}
                     style={{ background: "none", border: "1px solid rgba(200,169,110,0.45)", color: "#c8a96e", padding: "7px 16px", borderRadius: "20px", cursor: "pointer", fontSize: "13px", fontFamily: "Georgia,serif" }}
                   >
-                    {estOuvert ? "Fermer" : r.reponse ? "Modifier la reponse" : "Repondre"}
+                    {estOuvert ? "Fermer" : r.reponse ? "Modifier la r\u00e9ponse" : "R\u00e9pondre"}
                   </button>
 
                   {r.statut !== "traitee" && r.reponse && (
@@ -324,14 +321,14 @@ export default function PageReclamations() {
                       onClick={() => enregistrer(r.id, "traitee")}
                       style={{ background: "none", border: "1px solid rgba(76,175,80,0.5)", color: "#4caf50", padding: "7px 16px", borderRadius: "20px", cursor: "pointer", fontSize: "13px", fontFamily: "Georgia,serif" }}
                     >
-                      Marquer traitee
+                      {"Marquer trait\u00e9e"}
                     </button>
                   )}
                 </div>
 
                 {estOuvert && (
                   <div style={{ marginTop: "16px", paddingTop: "14px", borderTop: "1px solid rgba(255,255,255,0.08)" }}>
-                    <span style={LIBELLE}>Votre reponse ecrite</span>
+                    <span style={LIBELLE}>{"Votre r\u00e9ponse \u00e9crite"}</span>
                     <textarea
                       value={(brouillon[r.id] && brouillon[r.id].reponse) || ""}
                       onChange={(e) => setBrouillon({ ...brouillon, [r.id]: { ...(brouillon[r.id] || {}), reponse: e.target.value } })}
@@ -339,12 +336,12 @@ export default function PageReclamations() {
                       style={CHAMP}
                     />
 
-                    <span style={LIBELLE}>Action corrective engagee</span>
+                    <span style={LIBELLE}>{"Action corrective engag\u00e9e"}</span>
                     <textarea
                       value={(brouillon[r.id] && brouillon[r.id].action) || ""}
                       onChange={(e) => setBrouillon({ ...brouillon, [r.id]: { ...(brouillon[r.id] || {}), action: e.target.value } })}
                       rows={3}
-                      placeholder="Ce que vous avez change pour que cela ne se reproduise pas"
+                      placeholder={"Ce que vous avez chang\u00e9 pour que cela ne se reproduise pas"}
                       style={CHAMP}
                     />
 
