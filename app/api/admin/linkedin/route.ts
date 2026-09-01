@@ -535,6 +535,78 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // ---------------------------------------------------------------------
+    // 🆕 REMETTRE UNE FICHE ECARTEE DANS LA FILE — 01/09.
+    //
+    // LE BESOIN, DIT PAR JACQUES : « ceux qui ont ete ecartes doivent
+    // pouvoir changer de statut aussi ». L ecran refusait toute action sur
+    // une fiche ecartee, ce qui la condamnait pour toujours — alors qu on
+    // ecarte par erreur, ou qu une societe redevient pertinente plus tard.
+    //
+    // 🚨 UN ETAT DONT ON NE PEUT PAS SORTIR EST UN DEFAUT, PAS UNE
+    // SECURITE. C est le meme motif que le parcours qui ne savait
+    // qu avancer : l outil doit pouvoir defaire ce qu il a fait.
+    //
+    // ⚠️ AUCUNE INVITATION N EST ENVOYEE NI CONSOMMEE. La fiche repart a
+    // l etat « jamais sollicitee ».
+    //
+    // ⚠️ C EST LE SEUL ENDROIT OU linkedin_le EST EFFACEE, et c est
+    // justifie : sur une fiche ecartee, cette date ne marque AUCUN envoi.
+    // Elle enregistre le geste d ecarter, pose par la branche « ecarte »
+    // plus bas. La garder ferait compter la fiche comme sollicitee.
+    if (action === "remettre_en_file") {
+      const id = body.id;
+      const table = TABLES[base];
+      if (!table) return NextResponse.json({ ok: false, erreur: "Base inconnue." }, { status: 400 });
+      if (!id) return NextResponse.json({ ok: false, erreur: "Ligne non precisee." }, { status: 400 });
+
+      // On verifie que la fiche est bien ecartee : remettre en file une
+      // fiche invitee effacerait une vraie date d envoi.
+      const { data: avantR, error: eLire } = await supabase
+        .from(table)
+        .select("id, linkedin_statut")
+        .eq("id", id)
+        .maybeSingle();
+
+      if (eLire) {
+        return NextResponse.json({ ok: false, erreur: eLire.message }, { status: 500 });
+      }
+      if (!avantR) {
+        return NextResponse.json({ ok: false, erreur: "Fiche introuvable." }, { status: 404 });
+      }
+      if (String(avantR.linkedin_statut || "") !== "ecarte") {
+        return NextResponse.json({
+          ok: false,
+          erreur: "Cette fiche n'est pas écartée — rien à remettre en file.",
+        }, { status: 400 });
+      }
+
+      const champs: any = {
+        linkedin_statut: null,
+        linkedin_le: null,
+        linkedin_relance_le: null,
+      };
+
+      if (base === "manuel") {
+        champs.statut = "prospect";
+        champs.score = 35;
+        champs.derniere_interaction = new Date().toISOString();
+      }
+
+      const { error: eMaj } = await supabase.from(table).update(champs).eq("id", id);
+      if (eMaj) {
+        return NextResponse.json({ ok: false, erreur: eMaj.message }, { status: 500 });
+      }
+
+      const c = await compteurs();
+
+      return NextResponse.json({
+        ok: true,
+        compteurs: c,
+        message: "Fiche remise dans la file — elle ressortira à inviter.",
+      });
+    }
+
     if (action === "en_file") {
       const [lignes, c] = await Promise.all([listerEnFile(LIMITE_LISTE), compteurs()]);
       return NextResponse.json({ ok: true, lignes, compteurs: c });
