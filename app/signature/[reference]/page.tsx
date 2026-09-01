@@ -36,10 +36,52 @@ export default function PageSignature({ params }: { params: { reference: string 
   // ecoule entre la mise a disposition du document et son acceptation.
   const ouvertLe = useRef(new Date().toISOString());
 
+  // ---- LE TRACE MANUSCRIT — ajout du 01/09, sur le modele MysterLLC ----
+  //
+  // Le signataire peut dessiner sa signature au doigt ou au stylet. Cocher
+  // une case ne RESSEMBLE pas a signer ; le trace change le sentiment
+  // d engagement sans rien changer au droit.
+  //
+  // IL EST FACULTATIF, ET C EST VOULU. A la souris, le resultat ne
+  // ressemble a rien : l imposer affaiblirait la preuve au lieu de la
+  // renforcer. S il est trace, son empreinte entre dans le sceau cote
+  // route : il devient indissociable de la preuve.
+  const toile = useRef<any>(null);
+  const dessine = useRef(false);
+  const [aTrace, setATrace] = useState(false);
+
   useEffect(function () {
     charger();
     chargerDocument();
   }, []);
+
+  // LE CANVAS EST DIMENSIONNE APRES LE RENDU, quand sa largeur reelle est
+  // connue. Un canvas HTML a deux tailles — celle de son attribut et celle
+  // de son style ; les confondre decale le trace du doigt, defaut tres
+  // visible sur iPad. On ne redimensionne que si necessaire : changer la
+  // taille d un canvas EFFACE son contenu.
+  useEffect(function () {
+    function ajuster() {
+      const c = toile.current;
+      if (!c) return;
+      const largeur = c.offsetWidth;
+      const hauteur = 180;
+      if (c.width !== largeur || c.height !== hauteur) {
+        c.width = largeur;
+        c.height = hauteur;
+        const ctx = c.getContext("2d");
+        if (ctx) {
+          ctx.lineWidth = 2.5;
+          ctx.lineCap = "round";
+          ctx.lineJoin = "round";
+          ctx.strokeStyle = "#1a1a2e";
+        }
+      }
+    }
+    ajuster();
+    window.addEventListener("resize", ajuster);
+    return function () { window.removeEventListener("resize", ajuster); };
+  }, [codeEnvoye, document]);
 
   async function charger() {
     setErreur("");
@@ -72,6 +114,66 @@ export default function PageSignature({ params }: { params: { reference: string 
       if (data.ok) setDocument(data);
       else setErreur(data.erreur || "");
     } catch (e) {}
+  }
+
+  // ---- LE DESSIN ----
+  //
+  // ON UTILISE LES EVENEMENTS POINTER, non les evenements souris ou tactiles
+  // separement : ils couvrent le doigt, le stylet et la souris avec le meme
+  // code.
+  function position(e: any) {
+    const c = toile.current;
+    const cadre = c.getBoundingClientRect();
+    return {
+      x: e.clientX - cadre.left,
+      y: e.clientY - cadre.top,
+    };
+  }
+
+  function commencer(e: any) {
+    e.preventDefault();
+    const c = toile.current;
+    if (!c) return;
+    const ctx = c.getContext("2d");
+    const p = position(e);
+    dessine.current = true;
+    ctx.beginPath();
+    ctx.moveTo(p.x, p.y);
+  }
+
+  function tracer(e: any) {
+    if (!dessine.current) return;
+    e.preventDefault();
+    const c = toile.current;
+    if (!c) return;
+    const ctx = c.getContext("2d");
+    const p = position(e);
+    ctx.lineTo(p.x, p.y);
+    ctx.stroke();
+    if (!aTrace) setATrace(true);
+  }
+
+  function finir() {
+    dessine.current = false;
+  }
+
+  function effacer() {
+    const c = toile.current;
+    if (!c) return;
+    const ctx = c.getContext("2d");
+    ctx.clearRect(0, 0, c.width, c.height);
+    setATrace(false);
+  }
+
+  function traceEnImage(): string {
+    if (!aTrace) return "";
+    const c = toile.current;
+    if (!c) return "";
+    try {
+      return c.toDataURL("image/png");
+    } catch {
+      return "";
+    }
   }
 
   async function demanderCode() {
@@ -115,6 +217,7 @@ export default function PageSignature({ params }: { params: { reference: string 
           signataire_nom: nom,
           signataire_qualite: qualite,
           ouvert_le: ouvertLe.current,
+          trace: traceEnImage(),
         }),
       });
       const data = await r.json();
@@ -417,6 +520,41 @@ export default function PageSignature({ params }: { params: { reference: string 
                   style={CHAMP}
                 />
 
+                <span style={LIBELLE}>Votre signature manuscrite (facultatif)</span>
+                <p style={{ color: "#777", fontSize: "13px", margin: "0 0 10px", lineHeight: "1.7" }}>
+                  Tracez votre signature au doigt ou au stylet dans le cadre. Elle sera
+                  jointe a la preuve. Vous pouvez aussi signer sans trace : la case et le
+                  code suffisent.
+                </p>
+                <canvas
+                  ref={toile}
+                  onPointerDown={commencer}
+                  onPointerMove={tracer}
+                  onPointerUp={finir}
+                  onPointerLeave={finir}
+                  style={{
+                    width: "100%",
+                    height: "180px",
+                    border: "1px dashed #bbb",
+                    borderRadius: "8px",
+                    background: "#fdfcf9",
+                    touchAction: "none",
+                    display: "block",
+                    boxSizing: "border-box",
+                  }}
+                />
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", margin: "8px 0 20px" }}>
+                  <span style={{ color: aTrace ? "#2e7d32" : "#999", fontSize: "13px" }}>
+                    {aTrace ? "Trace releve — il sera scelle avec la signature." : "Aucun trace pour l instant."}
+                  </span>
+                  <button
+                    onClick={effacer}
+                    style={{ background: "none", border: "1px solid #ccc", color: "#555", padding: "7px 16px", borderRadius: "20px", cursor: "pointer", fontSize: "13px", fontFamily: "Georgia,serif" }}
+                  >
+                    Effacer
+                  </button>
+                </div>
+
                 <div
                   onClick={() => setAccepte(!accepte)}
                   style={{
@@ -445,7 +583,7 @@ export default function PageSignature({ params }: { params: { reference: string 
                     fontWeight: "bold",
                     fontSize: "15px",
                   }}>
-                    {accepte ? "✓" : ""}
+                    {accepte ? "\u2713" : ""}
                   </span>
                   <span style={{ color: "#1a1a1a", fontSize: "15px", lineHeight: "1.75" }}>
                     {consentement || "Chargement du texte de consentement..."}
