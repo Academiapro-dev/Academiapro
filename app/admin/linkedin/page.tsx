@@ -719,6 +719,35 @@ export default function PageLinkedin() {
     setBrouillon({ ...brouillon, [cle]: { ...actuel, [champ]: valeur } });
   }
 
+  // 🆕 SUPPRIMER UNE FICHE — 01/09.
+  //
+  // ⚠️ IRREVERSIBLE, d ou la confirmation. C est le seul geste de l ecran
+  // qui ne se defait pas.
+  async function supprimerFiche(l: any) {
+    const nom = l.raison_sociale || l.nom || "cette fiche";
+    if (!confirm("Supprimer définitivement « " + nom + " » ?\n\nCette action est irréversible.")) return;
+
+    const cle = cleDe(l);
+    setEnregistre(cle);
+    setErreur("");
+    setMessage("");
+    try {
+      const d = await appeler({ action: "supprimer", base: l.base || base, id: l.id });
+      if (d.ok) {
+        setMessage(d.message || "Fiche supprimée.");
+        setDepliee("");
+        if (d.compteurs) setCompteurs(d.compteurs);
+        await chargerListe();
+        if (partoutResultat && partoutTerme.trim().length >= 2) await chercherPartout();
+      } else {
+        setErreur(d.erreur || "Suppression impossible.");
+      }
+    } catch (e: any) {
+      setErreur("Suppression impossible : " + String(e));
+    }
+    setEnregistre("");
+  }
+
   async function enregistrerFiche(l: any) {
     const cle = cleDe(l);
     const vals = brouillon[cle] || {};
@@ -2131,6 +2160,30 @@ export default function PageLinkedin() {
           >
             Fermer
           </button>
+        </div>
+
+        {/* 🆕 LA SUPPRESSION — 01/09.
+            ⚠️ SEUL GESTE IRREVERSIBLE DE L ECRAN. Ecarter se defait, un
+            statut se corrige, une etape se deplace. Une ligne supprimee ne
+            revient pas — d ou la confirmation, et la place a l ecart des
+            autres boutons. */}
+        <div style={{ marginTop: "16px", paddingTop: "14px", borderTop: "1px solid rgba(232,131,106,0.2)" }}>
+          <button
+            onClick={() => supprimerFiche(l)}
+            disabled={occupe}
+            style={{
+              width: "100%", background: "transparent", color: "#e8836a",
+              border: "1px solid rgba(232,131,106,0.35)", borderRadius: "8px",
+              padding: "11px", fontSize: "13px", fontFamily: "Georgia,serif",
+              cursor: occupe ? "wait" : "pointer",
+            }}
+          >
+            Supprimer définitivement cette fiche
+          </button>
+          <p style={{ color: "rgba(255,255,255,0.3)", fontSize: "11.5px", lineHeight: "1.7", margin: "8px 0 0" }}>
+            Irréversible. Pour la retirer de la file sans la perdre, utilisez
+            plutôt « Écarter ».
+          </p>
         </div>
       </div>
     );
