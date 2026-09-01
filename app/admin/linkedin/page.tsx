@@ -62,10 +62,105 @@ const BASES = [
   { cle: "cabinets", nom: "Cabinets comptables" },
 ];
 
-// LA BASE QUI RELEVE DE MR. COMPTABLE. Une seule pour l instant, mais la
-// fonction existe pour que l ajout d une autre ne demande qu une ligne.
+// ---------------------------------------------------------------------------
+// 🆕🆕 LA TABLE DES PRODUITS — 02/09. LA PIECE MAITRESSE DE CET ECRAN.
+//
+// CE QUI EXISTAIT. Le code posait une question binaire — estCabinet() —
+// et tout en decoulait : la couleur, la pastille, le mot d invitation, le
+// message d apres acceptation, la seconde relance, le filtre, les boutons
+// du formulaire. Deux produits, deux branches. TROIS produits de plus
+// auraient demande de rouvrir huit endroits, et le suivant encore huit.
+//
+// CE QUI REMPLACE. Un produit = UNE ENTREE dans cette table. Tout le reste
+// la lit. Ajouter Mr. Qualiopi, ou n importe quel produit a venir, ne
+// demande plus qu une entree ici — ni pastille, ni filtre, ni bouton, ni
+// message a retoucher ailleurs.
+//
+// 🚨 REGLE INCHANGEE, ET C EST ELLE QUI COMPTE : LE MESSAGE SUIT LA FICHE,
+// PAS L ONGLET. Dans « A ecrire », toutes les campagnes se melangent. C est
+// la campagne PORTEE PAR LA LIGNE qui decide du message. Un expert-comptable
+// ne doit jamais recevoir le message des organismes de formation ; un
+// gestionnaire de LLC non plus.
+//
+// LES TROIS PRODUITS AJOUTES LE 02/09 N ONT PAS DE BASE DE PROSPECTION, et
+// c est voulu : leurs cibles ne sont dans aucun fichier d open data. Un
+// candidat a l expatriation, un cabinet qui cherche un CRM, un organisme
+// qui veut la plateforme sans le catalogue — cela se repere sur LinkedIn,
+// au fil des conversations. Ces fiches se saisissent donc a la main et
+// portent leur produit dans la colonne `campagne` de la table crm.
+// ---------------------------------------------------------------------------
+
+const OR_PRODUIT = "#c8a96e";
+const BLEU_PRODUIT = "#4fc3f7";
+const VERT_PRODUIT = "#7fc97f";
+const VIOLET_PRODUIT = "#b18ce8";
+const AMBRE_PRODUIT = "#e8a33d";
+
+const PRODUITS: any = {
+  academiapro: {
+    nom: "AcadéMIA Pro",
+    couleur: OR_PRODUIT,
+    domaine: "academiapro.fr",
+    // Les bases de prospection qui relevent de ce produit. Une fiche issue
+    // d une de ces bases porte ce produit sans qu on ait rien a saisir.
+    bases: ["organismes", "qualiopi", "interim"],
+    resume: "Cette fiche recevra le message sur le bilan pédagogique et le catalogue.",
+  },
+  mrcomptable: {
+    nom: "Mr. Comptable",
+    couleur: BLEU_PRODUIT,
+    domaine: "mrcomptable.fr",
+    bases: ["cabinets"],
+    resume: "Cette fiche recevra le message sur la relance des justificatifs.",
+  },
+  mysterllc: {
+    nom: "MysterLLC",
+    couleur: VERT_PRODUIT,
+    domaine: "mysterllc.com",
+    bases: [],
+    resume: "Cette fiche recevra le message sur l'administratif d'une LLC américaine.",
+  },
+  mrcrm: {
+    nom: "Mr. CRM",
+    couleur: VIOLET_PRODUIT,
+    domaine: "academiapro.fr",
+    bases: [],
+    resume: "Cette fiche recevra le message sur le suivi commercial, catalogue en option.",
+  },
+  mrlms: {
+    nom: "Mr. LMS",
+    couleur: AMBRE_PRODUIT,
+    domaine: "academiapro.fr",
+    bases: [],
+    resume: "Cette fiche recevra le message sur la plateforme et les preuves, sans catalogue imposé.",
+  },
+};
+
+// L ORDRE D AFFICHAGE. Les deux campagnes actives d abord : ce sont elles
+// qui portent les invitations du jour.
+const ORDRE_PRODUITS = ["academiapro", "mrcomptable", "mysterllc", "mrcrm", "mrlms"];
+
+// Le produit d une base de prospection. Rend null pour « manuel » : une
+// fiche saisie a la main porte son produit dans sa colonne campagne, pas
+// dans sa base.
+function produitDeBase(base: any): string | null {
+  const b = String(base || "");
+  for (const cle of ORDRE_PRODUITS) {
+    if ((PRODUITS[cle].bases || []).indexOf(b) >= 0) return cle;
+  }
+  return null;
+}
+
+// La fiche produit, toujours definie : un produit inconnu retombe sur
+// AcadeMIA Pro plutot que de casser l affichage.
+function produit(cle: any): any {
+  return PRODUITS[String(cle || "")] || PRODUITS.academiapro;
+}
+
+// CONSERVEE POUR NE RIEN CASSER. Plusieurs endroits l appellent encore ;
+// elle rend desormais sa reponse depuis la table des produits.
 function estCabinet(base: any): boolean {
-  return String(base || "") === "cabinets";
+  return produitDeBase(base) === "mrcomptable";
 }
 
 // LES CHAMPS DE LA FICHE COMPLETE, ET ILS DIFFERENT SELON LA TABLE.
@@ -141,19 +236,31 @@ function capitaliser(v: any): string {
 // de Jacques partent SANS note. Ce texte reste disponible pour les rares
 // cas ou une note se justifie, mais LE VRAI MESSAGE EST CELUI D APRES
 // ACCEPTATION.
-function motInvitation(prenom: string, base?: string) {
+const MOTS_INVITATION: any = {
+  academiapro:
+    ", j'ai dirigé un organisme de formation certifié, et c'est l'administratif "
+    + "qui m'a coûté le plus de temps. J'en ai fait un outil qui le prend en charge. "
+    + "Ravi d'échanger avec vous.",
+  mrcomptable:
+    ", je construis un outil pour les cabinets comptables, "
+    + "sur la relance des justificatifs et la facture électronique. "
+    + "Ravi d'échanger avec vous.",
+  mysterllc:
+    ", je construis un outil pour les LLC américaines : les formulaires fédéraux "
+    + "préparés, datés et rappelés. Ravi d'échanger avec vous.",
+  mrcrm:
+    ", je construis un outil de suivi commercial : savoir qui rappeler, et quoi "
+    + "lui dire. Ravi d'échanger avec vous.",
+  mrlms:
+    ", j'ai dirigé un organisme de formation certifié. J'en ai fait une plateforme "
+    + "qui produit les preuves au fil des sessions. Ravi d'échanger avec vous.",
+};
+
+// ⚠️ DEUX CENTS CARACTERES MAXIMUM, salutation comprise (voir LIMITE_NOTE).
+function motInvitation(prenom: string, cle?: string) {
   const p = capitaliser(prenom);
   const civilite = p ? "Bonjour " + p : "Bonjour";
-
-  if (estCabinet(base)) {
-    return civilite + ", je construis un outil pour les cabinets comptables, "
-      + "sur la relance des justificatifs et la facture électronique. "
-      + "Ravi d'échanger avec vous.";
-  }
-
-  return civilite + ", j'ai dirigé un organisme de formation certifié, et c'est l'administratif "
-    + "qui m'a coûté le plus de temps. J'en ai fait un outil qui le prend en charge. "
-    + "Ravi d'échanger avec vous.";
+  return civilite + (MOTS_INVITATION[String(cle || "")] || MOTS_INVITATION.academiapro);
 }
 
 // LE MESSAGE APRES ACCEPTATION — DEUX VERSIONS DEPUIS LE 26/08.
@@ -189,12 +296,39 @@ function motInvitation(prenom: string, base?: string) {
 // ⚠️ AUCUNE MENTION DE PRODUCTION SUR DEMANDE cote organismes. Le
 // catalogue est evolutif, point. Decision du 17/08, a ne pas defaire.
 // ⚠️ AUCUN CONCURRENT NOMME, dans aucune des deux versions.
-function messageRelance(prenom: string, societe: string, nbFormations: number, base?: string) {
+// LES MESSAGES D APRES ACCEPTATION — UN PAR PRODUIT.
+//
+// C EST LE VRAI MESSAGE. En compte gratuit les invitations partent sans
+// note : ce texte-ci est le premier que le contact lira vraiment.
+//
+// LES REGLES QUI ONT SURVECU A TOUTES LES REECRITURES :
+//   - UN MESSAGE QUI POSE UNE QUESTION OBTIENT UNE REPONSE ; un message qui
+//     enumere des fonctionnalites obtient un silence poli.
+//   - AUCUNE AFFIRMATION ABSOLUE (« ce qu aucun logiciel ne propose ») :
+//     c est exactement la prise que cherche un lecteur mefiant.
+//   - AUCUN CONCURRENT NOMME.
+//   - AUCUN PRIX. Les tarifs ne s affichent nulle part publiquement ; ils
+//     se discutent au quart d heure d echange.
+//   - « Je ne cherche pas a vous vendre quoi que ce soit » a ete RETIRE le
+//     26/08 : annoncer qu on ne vend pas est ce que dit quelqu un qui vend.
+//
+// 🆕 LE CATALOGUE EST DEVENU UNE OPTION — 02/09. Au demarrage, le catalogue
+// ETAIT le produit. Mr. CRM et Mr. LMS se vendent desormais par brique : le
+// client prend l outil, et le catalogue peut s y adosser s il le souhaite.
+// Il est donc MENTIONNE, jamais mis en avant — un prospect venu pour un CRM
+// qui lit un argumentaire de catalogue comprend qu on lui vend autre chose.
+//
+// ⚠️ AUCUNE MENTION DE PRODUCTION SUR DEMANDE cote organismes (17/08).
+function messageRelance(prenom: string, societe: string, nbFormations: number, cle?: string) {
   const p = capitaliser(prenom);
   const s = capitaliser(societe);
+  const salut = (p ? "Bonjour " + p : "Bonjour") + ",\n\n";
+  const chez = s ? " chez " + s : "";
+  const combien = nbFormations > 0 ? String(nbFormations) : "plusieurs centaines de";
+  const k = String(cle || "academiapro");
 
-  if (estCabinet(base)) {
-    return (p ? "Bonjour " + p : "Bonjour") + ",\n\n"
+  if (k === "mrcomptable") {
+    return salut
       + "Merci d'avoir accepté ma demande.\n\n"
       + "Certaines tâches chronophages reviennent sans cesse dans les cabinets "
       + "comptables, et personne ne les a choisies : courir après des pièces "
@@ -204,16 +338,69 @@ function messageRelance(prenom: string, societe: string, nbFormations: number, b
       + "le client par courriel ou par SMS. Il relance aussi vos honoraires "
       + "impayés.\n\n"
       + "Ce qui m'intéresse, c'est de savoir ce qui vous prend le plus de temps "
-      + "sans que cela vous rapporte quoi que ce soit"
-      + (s ? " chez " + s : "") + ". Si le sujet vous parle, j'échange volontiers "
-      + "un quart d'heure avec vous. L'outil s'est construit sur ce que les "
-      + "cabinets signalent, et il continue d'évoluer.\n\n"
+      + "sans que cela vous rapporte quoi que ce soit" + chez + ". Si le sujet vous "
+      + "parle, j'échange volontiers un quart d'heure avec vous. L'outil s'est "
+      + "construit sur ce que les cabinets signalent, et il continue d'évoluer.\n\n"
       + "Bien à vous,\nJacques Lalou\nmrcomptable.fr";
   }
 
-  const combien = nbFormations > 0 ? String(nbFormations) : "plusieurs centaines de";
+  // MYSTERLLC. Le ton part de ce qui retient les gens — la peur de mal
+  // faire — et non de ce que l outil sait faire. Aucune promesse fiscale,
+  // aucun conseil : l outil prepare, date et rappelle, rien de plus.
+  if (k === "mysterllc") {
+    return salut
+      + "Merci d'avoir accepté ma demande.\n\n"
+      + "Beaucoup de gens créent une LLC américaine sans qu'on leur dise ce qui "
+      + "vient après : des formulaires fédéraux à dates fixes, dont l'oubli se "
+      + "paie cher — et personne ne les prévient à temps.\n\n"
+      + "J'ai construit un outil qui prépare ces documents, les date, les fait "
+      + "signer et les rappelle avant l'échéance. Ce que j'ai cherché en le "
+      + "faisant, c'est la tranquillité de savoir où on en est.\n\n"
+      + "Ce qui m'intéresse, c'est de savoir ce qui vous a retenu — ou ce qui "
+      + "vous inquiète encore" + chez + ". Si le sujet vous parle, j'échange "
+      + "volontiers un quart d'heure avec vous.\n\n"
+      + "Bien à vous,\nJacques Lalou\nmysterllc.com";
+  }
 
-  return (p ? "Bonjour " + p : "Bonjour") + ",\n\n"
+  // MR. CRM. Le catalogue arrive en fin de message, en une ligne, comme une
+  // possibilite — le prospect est venu pour un suivi commercial.
+  if (k === "mrcrm") {
+    return salut
+      + "Merci d'avoir accepté ma demande.\n\n"
+      + "Savoir qui rappeler, et se souvenir de ce qu'on lui a dit : c'est le "
+      + "travail qu'aucun tableur ne fait à votre place. On finit par relancer "
+      + "ceux dont on se souvient, pas ceux qui attendent depuis le plus "
+      + "longtemps.\n\n"
+      + "J'ai construit un outil de suivi commercial qui montre où en est "
+      + "chaque contact, de la première prise jusqu'à la signature, et qui "
+      + "relance par courriel ou par SMS.\n\n"
+      + "Ce qui m'intéresse, c'est de savoir comment vous suivez vos contacts "
+      + "aujourd'hui" + chez + ", et ce que vous perdez en route.\n\n"
+      + "Si vous formez également, notre catalogue de " + combien + " formations "
+      + "peut s'y adosser — en option, rien ne l'impose.\n\n"
+      + "Bien à vous,\nJacques Lalou\nacademiapro.fr";
+  }
+
+  // MR. LMS. La brique sans le catalogue : c est precisement ce que ce
+  // prospect cherche, donc on le dit avant qu il ne le demande.
+  if (k === "mrlms") {
+    return salut
+      + "Merci d'avoir accepté ma demande.\n\n"
+      + "Former à distance oblige à prouver : les présences, les évaluations à "
+      + "chaud et à froid, le registre des réclamations. Ce travail-là se fait "
+      + "rarement au fil de l'eau — il se rattrape la veille du bilan.\n\n"
+      + "J'ai construit une plateforme qui consigne tout cela au fil des "
+      + "sessions, avec VOS formations, et qui prépare le bilan pédagogique et "
+      + "financier cadre par cadre. Aucun catalogue imposé : vous montez vos "
+      + "propres parcours.\n\n"
+      + "Ce qui m'intéresse, c'est de savoir ce qui vous prend le plus de temps "
+      + "entre deux sessions" + chez + ".\n\n"
+      + "Notre catalogue de " + combien + " formations peut s'y ajouter plus tard "
+      + "si vous le souhaitez — c'est un choix, pas un passage obligé.\n\n"
+      + "Bien à vous,\nJacques Lalou\nacademiapro.fr";
+  }
+
+  return salut
     + "Merci d'avoir accepté ma demande.\n\n"
     + "J'ai dirigé un organisme de formation certifié Qualiopi pendant quelques années. "
     + "Ce qui m'a coûté le plus de temps n'a jamais été de former. C'était de retrouver "
@@ -227,30 +414,27 @@ function messageRelance(prenom: string, societe: string, nbFormations: number, b
     + "S'y ajoute un catalogue de " + combien + " formations que vous pouvez proposer sous "
     + "votre propre marque, quand un client vous demande un sujet qui n'est pas le vôtre.\n\n"
     + "Ce qui m'intéresse, c'est de savoir ce qui vous prend le plus de temps sur la partie "
-    + "administrative" + (s ? " chez " + s : "") + " — c'est ce qui me dit si l'outil répond "
+    + "administrative" + chez + " — c'est ce qui me dit si l'outil répond "
     + "à un vrai besoin ou pas.\n\n"
     + "Bien à vous,\nJacques Lalou\nacademiapro.fr";
 }
 
-// LA SECONDE RELANCE, elle aussi dans les deux voix.
-function secondMessage(prenom: string, base?: string) {
+// LA SECONDE RELANCE. Meme squelette pour tous les produits — seuls le mot
+// qui designe l outil et le domaine changent. Elle ne reargumente pas :
+// elle donne une porte de sortie, et propose de montrer plutot que de dire.
+function secondMessage(prenom: string, cle?: string) {
   const p = capitaliser(prenom);
-
-  if (estCabinet(base)) {
-    return (p ? "Bonjour " + p : "Bonjour") + ",\n\n"
-      + "Je me permets un mot, mon message précédent est peut-être passé inaperçu.\n\n"
-      + "Si le sujet ne vous concerne pas, dites-le-moi simplement, je n'insisterai pas.\n\n"
-      + "Et si vous êtes curieux de voir à quoi ressemble l'outil, je peux vous ouvrir "
-      + "un accès pour que vous jugiez par vous-même — sans engagement d'aucune sorte.\n\n"
-      + "Bien à vous,\nJacques Lalou\nmrcomptable.fr";
-  }
+  const f = produit(cle);
+  const quoi = String(cle || "") === "academiapro" || String(cle || "") === "mrlms"
+    ? "la plateforme"
+    : "l'outil";
 
   return (p ? "Bonjour " + p : "Bonjour") + ",\n\n"
     + "Je me permets un mot, mon message précédent est peut-être passé inaperçu.\n\n"
     + "Si le sujet ne vous concerne pas, dites-le-moi simplement, je n'insisterai pas.\n\n"
-    + "Et si vous êtes curieux de voir à quoi ressemble la plateforme, je peux vous ouvrir "
+    + "Et si vous êtes curieux de voir à quoi ressemble " + quoi + ", je peux vous ouvrir "
     + "un accès pour que vous jugiez par vous-même — sans engagement d'aucune sorte.\n\n"
-    + "Bien à vous,\nJacques Lalou\nacademiapro.fr";
+    + "Bien à vous,\nJacques Lalou\n" + f.domaine;
 }
 
 // Sans accents et en minuscules : « Bousbia » retrouve « BOUSBIA ».
@@ -675,7 +859,7 @@ export default function PageLinkedin() {
     setFiche(d.fiche || null);
     setRestant(d.restant || 0);
     setEpuise(!!d.epuise);
-    setTexte(d.fiche ? motInvitation(d.fiche.dirigeant_prenom, d.fiche.base || base) : "");
+    setTexte(d.fiche ? motInvitation(d.fiche.dirigeant_prenom, campagneDe(d.fiche.base ? d.fiche : { base: base })) : "");
     setCopie("");
     setVu(false);
     // La regularisation se replie a chaque nouvelle fiche.
@@ -831,8 +1015,12 @@ export default function PageLinkedin() {
   // une fiche SAISIE A LA MAIN, la base est toujours « manuel » : c est la
   // colonne campagne qui tranche. Sans elle, un expert-comptable trouve
   // sur LinkedIn recevait le message des organismes.
+  // 🆕 02/09 : la campagne est passee TELLE QUELLE aux messages. L ancien
+  // code la retraduisait en base (« cabinets »/« organismes »), ce qui
+  // ecrasait tout produit qui n en avait pas — les trois campagnes ajoutees
+  // le 02/09 auraient toutes recu le message des organismes.
   function texteDe(l: any, second: boolean) {
-    const cle = campagneDe(l) === "mrcomptable" ? "cabinets" : "organismes";
+    const cle = campagneDe(l);
     return second
       ? secondMessage(l.dirigeant_prenom, cle)
       : messageRelance(l.dirigeant_prenom, l.raison_sociale, nbFormations, cle);
@@ -1233,29 +1421,28 @@ export default function PageLinkedin() {
   // message des organismes : le bilan pedagogique et les 560 formations.
   function campagneDe(l: any): string {
     if (l.base === "manuel") {
-      return String(l.campagne || "academiapro").toLowerCase();
+      const c = String(l.campagne || "academiapro").toLowerCase();
+      return PRODUITS[c] ? c : "academiapro";
     }
-    return estCabinet(l.base) ? "mrcomptable" : "academiapro";
+    return produitDeBase(l.base) || "academiapro";
   }
 
   function etiquetteCampagne(l: any) {
-    const c = campagneDe(l);
-    const cab = c === "mrcomptable";
+    const f = produit(campagneDe(l));
     const manuelle = l.base === "manuel";
 
     return (
       <span style={{
         display: "inline-block", marginLeft: "8px", padding: "2px 9px",
         borderRadius: "20px", fontSize: "11px", letterSpacing: "0.5px",
-        background: cab ? "rgba(79,195,247,0.15)" : "rgba(200,169,110,0.15)",
-        color: cab ? COMPTABLE : OR,
+        background: f.couleur + "26",
+        color: f.couleur,
         // Le trait interrompu signale une fiche saisie a la main : elle
         // ne vient d aucune base de prospection.
-        border: (manuelle ? "1px dashed " : "1px solid ")
-          + (cab ? "rgba(79,195,247,0.55)" : "rgba(200,169,110,0.55)"),
+        border: (manuelle ? "1px dashed " : "1px solid ") + f.couleur + "8c",
         verticalAlign: "middle",
       }}>
-        {cab ? "Mr. Comptable" : "AcadéMIA Pro"}
+        {f.nom}
       </span>
     );
   }
@@ -1995,7 +2182,7 @@ export default function PageLinkedin() {
     // six pastilles grises n apprendrait rien.
     if (rang === 0 && !sorti) return null;
 
-    const teinte = campagneDe(l) === "mrcomptable" ? COMPTABLE : OR;
+    const teinte = produit(campagneDe(l)).couleur;
 
     return (
       <div style={{
@@ -2421,10 +2608,8 @@ export default function PageLinkedin() {
               <div style={{ display: "flex", gap: "12px", flexWrap: "wrap",
                 marginTop: "16px", paddingTop: "16px",
                 borderTop: "1px solid rgba(255,255,255,0.08)" }}>
-                {[
-                  { cle: "academiapro", nom: "AcadéMIA Pro", couleur: OR },
-                  { cle: "mrcomptable", nom: "Mr. Comptable", couleur: COMPTABLE },
-                ].map(function (c: any) {
+                {ORDRE_PRODUITS.map(function (cle: string) {
+                  const c = { cle: cle, nom: PRODUITS[cle].nom, couleur: PRODUITS[cle].couleur };
                   const b = compteurs.campagnes[c.cle];
                   if (!b) return null;
                   return (
@@ -2583,38 +2768,31 @@ export default function PageLinkedin() {
                   <span style={LIBELLE}>Pour quelle campagne ? *</span>
                   <div style={{ display: "flex", gap: "9px", flexWrap: "wrap",
                     marginBottom: "8px" }}>
-                    <button onClick={() => setACampagne("academiapro")}
-                      style={{
-                        flex: "1 1 180px", padding: "12px", borderRadius: "9px",
-                        fontSize: "13.5px", fontFamily: "Georgia,serif",
-                        cursor: "pointer",
-                        fontWeight: aCampagne === "academiapro" ? "bold" : "normal",
-                        background: aCampagne === "academiapro" ? OR : "rgba(255,255,255,0.05)",
-                        color: aCampagne === "academiapro" ? "#050508" : OR,
-                        border: aCampagne === "academiapro" ? "none"
-                          : "1px solid rgba(200,169,110,0.4)",
-                      }}>
-                      AcadéMIA Pro
-                    </button>
-                    <button onClick={() => setACampagne("mrcomptable")}
-                      style={{
-                        flex: "1 1 180px", padding: "12px", borderRadius: "9px",
-                        fontSize: "13.5px", fontFamily: "Georgia,serif",
-                        cursor: "pointer",
-                        fontWeight: aCampagne === "mrcomptable" ? "bold" : "normal",
-                        background: aCampagne === "mrcomptable" ? COMPTABLE : "rgba(255,255,255,0.05)",
-                        color: aCampagne === "mrcomptable" ? "#050508" : COMPTABLE,
-                        border: aCampagne === "mrcomptable" ? "none"
-                          : "1px solid rgba(79,195,247,0.4)",
-                      }}>
-                      Mr. Comptable
-                    </button>
+                    {/* 🆕 UN BOUTON PAR PRODUIT — 02/09. La liste se construit depuis
+                        ORDRE_PRODUITS : un produit ajoute a la table apparait ici
+                        sans qu on touche a cet endroit. */}
+                    {ORDRE_PRODUITS.map(function (cle: string) {
+                      const f = PRODUITS[cle];
+                      const actif = aCampagne === cle;
+                      return (
+                        <button key={cle} onClick={() => setACampagne(cle)}
+                          style={{
+                            flex: "1 1 150px", padding: "12px", borderRadius: "9px",
+                            fontSize: "13.5px", fontFamily: "Georgia,serif",
+                            cursor: "pointer",
+                            fontWeight: actif ? "bold" : "normal",
+                            background: actif ? f.couleur : "rgba(255,255,255,0.05)",
+                            color: actif ? "#050508" : f.couleur,
+                            border: actif ? "none" : "1px solid " + f.couleur + "66",
+                          }}>
+                          {f.nom}
+                        </button>
+                      );
+                    })}
                   </div>
                   <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "12.5px",
                     lineHeight: "1.7", margin: "0 0 18px" }}>
-                    {aCampagne === "mrcomptable"
-                      ? "Cette fiche recevra le message sur la relance des justificatifs."
-                      : "Cette fiche recevra le message sur le bilan pédagogique et le catalogue."}
+                    {produit(aCampagne).resume}
                   </p>
 
                   <span style={LIBELLE}>Nom du contact *</span>
@@ -2754,12 +2932,11 @@ export default function PageLinkedin() {
             {/* Le rappel de la campagne en cours, pour qu on ne se trompe
                 jamais de produit en ouvrant un profil. */}
             <p style={{
-              color: estCabinet(base) ? COMPTABLE : OR,
+              color: produit(produitDeBase(base) || "academiapro").couleur,
               fontSize: "12.5px", lineHeight: "1.7", margin: "0 0 16px",
             }}>
-              {estCabinet(base)
-                ? "Campagne Mr. Comptable — le message d'après acceptation parlera de la relance des justificatifs."
-                : "Campagne plateforme de formation — le message d'après acceptation parlera du bilan pédagogique et du catalogue."}
+              {"Campagne " + produit(produitDeBase(base) || "academiapro").nom + " \u2014 "}
+              {produit(produitDeBase(base) || "academiapro").resume}
             </p>
 
             {charge && !fiche ? (
@@ -3101,8 +3278,8 @@ export default function PageLinkedin() {
 
                 <div style={CARTE}>
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "9px", flexWrap: "wrap", gap: "8px" }}>
-                    <span style={{ color: estCabinet(courante.base) ? COMPTABLE : OR, fontSize: "12px", letterSpacing: "2px" }}>
-                      MESSAGE {estCabinet(courante.base) ? "MR. COMPTABLE" : "FORMATION"} — AU NOM DE {String(capitaliser(courante.dirigeant_prenom) || "CE CONTACT").toUpperCase()}
+                    <span style={{ color: produit(campagneDe(courante)).couleur, fontSize: "12px", letterSpacing: "2px" }}>
+                      MESSAGE {String(produit(campagneDe(courante)).nom).toUpperCase()} — AU NOM DE {String(capitaliser(courante.dirigeant_prenom) || "CE CONTACT").toUpperCase()}
                     </span>
                     <span style={{ color: "rgba(255,255,255,0.35)", fontSize: "12px" }}>
                       {texteSerie.length} caractères
