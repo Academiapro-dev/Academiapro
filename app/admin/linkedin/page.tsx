@@ -1615,7 +1615,7 @@ export default function PageLinkedin() {
                                   Sans cette ligne, la recherche disait dans quelle
                                   BASE etait la fiche, mais pas dans quel ONGLET —
                                   donc pas ou la retrouver en naviguant. */}
-                              {b.porte_linkedin && (() => {
+                              {(() => {
                                 const o = ongletDe(l);
                                 return (
                                   <div style={{ marginTop: "7px", fontSize: "12px" }}>
@@ -1628,7 +1628,17 @@ export default function PageLinkedin() {
                               {/* 🆕 LE PARCOURS, CLIQUABLE ICI AUSSI — 01/09.
                                   Il ne s affiche que sur les fiches deja engagees ;
                                   blocParcours rend null pour les autres. */}
-                              {b.porte_linkedin && blocParcours({ ...l, base: b.cle })}
+                              {/* 🚨 LE PARCOURS VAUT AUSSI POUR UN CONTACT PAR
+                                  COURRIEL — corrige le 01/09.
+                                  LE DEFAUT : le bloc etait reserve aux bases
+                                  portant des colonnes LinkedIn. Or « a repondu »,
+                                  « rendez-vous pris » et « nouveau client » n ont
+                                  rien a voir avec LinkedIn : ce sont des etapes
+                                  commerciales. Anais Grimaud, contactee par
+                                  courriel le 31/08 et qui a demande un
+                                  rendez-vous, etait LE PROSPECT LE PLUS AVANCE ET
+                                  LE SEUL QU ON NE POUVAIT PAS MARQUER. */}
+                              {blocParcours({ ...l, base: b.cle })}
 
                               {/* 🆕 LA FICHE COMPLETE, MODIFIABLE DEPUIS LA RECHERCHE
                                   — 01/09.
@@ -1641,7 +1651,9 @@ export default function PageLinkedin() {
                                   second : deux blocs a maintenir finiraient par
                                   diverger. Il attend une ligne portant `base`, que la
                                   recherche ne pose pas — on l ajoute a la volee. */}
-                              {b.porte_linkedin && blocFiche({ ...l, base: b.cle })}
+                              {/* Meme raison : une fiche se corrige quelle que
+                                  soit la maniere dont on a contacte la personne. */}
+                              {blocFiche({ ...l, base: b.cle })}
 
                               {/* 🚨 LES ACTIONS SONT SORTIES DE CETTE CONDITION —
                                   corrige le 01/09.
@@ -1655,7 +1667,7 @@ export default function PageLinkedin() {
                                   ⚠️ CE QUI RESTE CONDITIONNE : la base doit porter les
                                   colonnes LinkedIn (b.porte_linkedin). Sans elles, la
                                   route n aurait rien a ecrire. */}
-                              {b.porte_linkedin && actionsRecherche(b.cle, l)}
+                              {actionsRecherche(b.cle, l)}
                             </div>
                           );
                         })
@@ -1815,6 +1827,21 @@ export default function PageLinkedin() {
   // ⚠️ UNE ETAPE FRANCHIE NE SE DEFRANCHIT PAS. Le parcours est cumulatif :
   // qui a un rendez-vous a forcement repondu, donc recu un message, donc
   // accepte. On calcule le rang atteint, et tout ce qui precede est acquis.
+  // Les deux premiers libelles changent selon le canal : « Invitation
+  // envoyee » n a pas de sens pour quelqu un contacte par courriel.
+  function etapesDe(l: any) {
+    const parCourriel = !String(l.linkedin || "").trim() && !!l.envoye_le;
+    if (!parCourriel) return ETAPES;
+    return [
+      { cle: "invite", nom: "Courriel envoyé" },
+      { cle: "accepte", nom: "Premier échange" },
+      { cle: "message", nom: "Relance envoyée" },
+      { cle: "repondu", nom: "A répondu" },
+      { cle: "rdv", nom: "Rendez-vous pris" },
+      { cle: "client", nom: "Nouveau client" },
+    ];
+  }
+
   const ETAPES = [
     { cle: "invite", nom: "Invitation envoyée" },
     { cle: "accepte", nom: "Invitation acceptée" },
@@ -1833,8 +1860,11 @@ export default function PageLinkedin() {
 
     let rang = 0;
 
-    // 1. L invitation est partie — une date suffit a le prouver.
-    if (l.linkedin_le || statut === "invite" || statut === "invite_nu") rang = 1;
+    // 1. LE PREMIER CONTACT EST PARTI — par invitation LinkedIn OU par
+    //    courriel. C est le second cas qui manquait : une fiche contactee
+    //    par courriel restait au rang 0, donc sans parcours affiche.
+    if (l.linkedin_le || l.envoye_le
+        || statut === "invite" || statut === "invite_nu") rang = 1;
 
     // 2. Elle a ete acceptee. « relance » suppose l acceptation : on
     //    n ecrit qu a une relation etablie.
@@ -1971,10 +2001,10 @@ export default function PageLinkedin() {
         </div>
 
         <div style={{ display: "flex", flexWrap: "wrap", gap: "0" }}>
-          {ETAPES.map(function (e, i) {
+          {etapesDe(l).map(function (e, i) {
             const franchie = (i + 1) <= rang;
             const courante = (i + 1) === rang;
-            const derniere = i === ETAPES.length - 1;
+            const derniere = i === etapesDe(l).length - 1;
 
             return (
               <div key={e.cle} style={{
