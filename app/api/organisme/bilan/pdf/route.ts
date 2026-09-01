@@ -35,22 +35,22 @@ const LIGNE_C_PAR_PAYEUR: any = {
 };
 
 const LIBELLE_C: any = {
-  "1": "1  Entreprises pour la formation de leurs salaries",
-  "2a": "2a Contrats d apprentissage",
+  "1": "1  Entreprises pour la formation de leurs salariés",
+  "2a": "2a Contrats d'apprentissage",
   "2b": "2b Contrats de professionnalisation",
   "2c": "2c Promotion ou reconversion par alternance",
   "2d": "2d Projets de transition professionnelle",
   "2e": "2e Compte personnel de formation",
-  "2f": "2f Dispositifs personnes en recherche d emploi",
-  "2g": "2g Dispositifs travailleurs non salaries",
-  "2h": "2h Plan de developpement des competences",
+  "2f": "2f Dispositifs personnes en recherche d'emploi",
+  "2g": "2g Dispositifs travailleurs non salariés",
+  "2h": "2h Plan de développement des compétences",
   "3": "3  Pouvoirs publics pour leurs agents",
-  "4": "4  Instances europeennes",
-  "5": "5  Etat",
-  "6": "6  Conseils regionaux",
+  "4": "4  Instances européennes",
+  "5": "5  État",
+  "6": "6  Conseils régionaux",
   "7": "7  France Travail",
   "8": "8  Autres ressources publiques",
-  "9": "9  Personnes a titre individuel et a leurs frais",
+  "9": "9  Personnes à titre individuel et à leurs frais",
   "10": "10 Autres organismes de formation",
   "11": "11 Autres produits",
 };
@@ -61,33 +61,83 @@ const LIGNE_F1: any = {
 };
 
 const LIBELLE_F1: any = {
-  a: "a Salaries d employeurs prives hors apprentis",
+  a: "a Salariés d'employeurs privés hors apprentis",
   b: "b Apprentis",
-  c: "c Personnes en recherche d emploi",
-  d: "d Particuliers a leurs propres frais",
+  c: "c Personnes en recherche d'emploi",
+  d: "d Particuliers à leurs propres frais",
   e: "e Autres stagiaires",
 };
 
 const LIBELLE_F3: any = {
-  a: "a Titre enregistre au RNCP",
-  b: "b Certification au repertoire specifique",
-  c: "c CQP non enregistre",
+  a: "a Titre enregistré au RNCP",
+  b: "b Certification au répertoire spécifique",
+  c: "c CQP non enregistré",
   d: "d Autres formations professionnelles",
-  e: "e Bilans de competences",
-  f: "f Accompagnement a la VAE",
+  e: "e Bilans de compétences",
+  f: "f Accompagnement à la VAE",
 };
 
-// pdf-lib et l encodage WinAnsi ne supportent pas tous les caracteres :
-// on retire accents et signes exotiques avant d ecrire.
+// LES SPECIALITES NSF DU CADRE F-4.
+//
+// Le PDF affichait le code nu, comme l ecran avant sa correction du 01/09 :
+// l organisme qui recopie son bilan ne connait pas les codes par coeur.
+const LIBELLE_F4: any = {
+  "326": "326 Informatique, numérique, intelligence artificielle",
+  "320": "320 Communication, image, multimédia",
+  "312": "312 Commerce, vente, marketing",
+  "310": "310 Gestion, management, entreprise",
+  "313": "313 Finance, banque, assurance",
+  "314": "314 Comptabilité, gestion financière",
+  "315": "315 Ressources humaines",
+  "128": "128 Droit, sciences politiques",
+  "331": "331 Santé, soins",
+  "332": "332 Travail social, accompagnement",
+  "333": "333 Enseignement, formation",
+  "334": "334 Accueil, hôtellerie, tourisme, restauration",
+  "336": "336 Coiffure, esthétique, bien-être corporel",
+  "136": "136 Langues vivantes",
+  "135": "135 Langues et civilisations anciennes",
+  "413": "413 Développement personnel, relationnel, gestion du stress",
+  "414": "414 Organisation, gestion du temps, méthodes de travail",
+  "411": "411 Pratiques sportives",
+  "343": "343 Nettoyage, sécurité, services aux personnes",
+  "230": "230 Bâtiment, travaux publics",
+  "200": "200 Technologies industrielles",
+};
+
+// 🚨 LA DUREE N EST PAS UN NOMBRE EN BASE — correction du 01/09.
+//
+// La colonne formations.duree est du texte, et elle est heterogene :
+// « 600h », « 120h », « 8h », « 200h minimum ». Number("600h") rend NaN,
+// donc l ancien code comptait ZERO HEURE pour toutes les formations : le
+// PDF affichait « 1 stagiaire(s) - 0 h » la ou l ecran montrait 600 h.
+// Une incoherence entre l ecran et le document telecharge, sur un etat
+// destine a preparer une declaration officielle.
+//
+// ⚠️ NE PAS « NETTOYER » LA COLONNE EN SQL pour contourner ce defaut :
+// d autres ecrans affichent la duree telle quelle, « 200h minimum » perdrait
+// son sens, et « 120 » sans unite serait pire. On lit les chiffres, on
+// laisse la donnee tranquille.
+function heuresDe(valeur: any): number {
+  if (valeur === null || valeur === undefined) return 0;
+  if (typeof valeur === "number") return isNaN(valeur) ? 0 : valeur;
+  const trouve = String(valeur).match(/\d+/);
+  return trouve ? parseInt(trouve[0], 10) : 0;
+}
+
+// pdf-lib encode en WinAnsi : les lettres accentuees francaises passent
+// tres bien. Seuls quelques signes typographiques n y sont pas — on ne
+// retire QUE ceux-la, au lieu de depouiller tout le document de ses
+// accents comme le faisait la version precedente.
 function ascii(t: any): string {
   return String(t === null || t === undefined ? "" : t)
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[’‘]/g, "'")
-    .replace(/[“”]/g, '"')
-    .replace(/[–—]/g, "-")
-    .replace(/€/g, "EUR")
-    .replace(/[^\x20-\x7E]/g, " ");
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[\u201C\u201D]/g, '"')
+    .replace(/[\u2013\u2014]/g, "-")
+    .replace(/\u20ac/g, "EUR")
+    .replace(/\u00b7/g, "-")
+    .replace(/[\u2026]/g, "...")
+    .replace(/[^\x20-\xFF]/g, " ");
 }
 
 export async function GET(req: NextRequest) {
@@ -162,7 +212,7 @@ export async function GET(req: NextRequest) {
     for (const i of inscrits || []) {
       stagiaires.add(i.email);
       const fiche = infoDe[i.formation_code || ""] || {};
-      const duree = Number(fiche.duree) || 0;
+      const duree = heuresDe(fiche.duree);
       let prix = Number(i.prix_vente);
       if (!prix || isNaN(prix)) prix = prixDe[i.formation_code || ""] || 0;
 
@@ -215,19 +265,19 @@ export async function GET(req: NextRequest) {
       y = y - 28;
     }
 
-    ecrire("BILAN PEDAGOGIQUE ET FINANCIER", 17, gras, vert, 0);
-    ecrire("Etat preparatoire - Cerfa 10443*17 - annee " + annee, 11, normal, gris, 0);
+    ecrire("BILAN PÉDAGOGIQUE ET FINANCIER", 17, gras, vert, 0);
+    ecrire("État préparatoire - Cerfa 10443*17 - année " + annee, 11, normal, gris, 0);
     y = y - 8;
 
-    titreCadre("A. IDENTIFICATION DE L ORGANISME");
-    ligne("Denomination", (org && org.raison_sociale) || "-");
-    ligne("Numero de declaration d activite", (org && org.numero_da) || "-");
+    titreCadre("A. IDENTIFICATION DE L'ORGANISME");
+    ligne("Dénomination", (org && org.raison_sociale) || "-");
+    ligne("Numéro de déclaration d'activité", (org && org.numero_da) || "-");
     ligne("SIRET", (org && org.siret) || "-");
     ligne("Email de contact", (org && org.email_contact) || "-");
 
-    titreCadre("B. INFORMATIONS GENERALES");
-    ligne("Actions de formation a distance", "OUI");
-    ligne("Periode", "01/01/" + annee + " au 31/12/" + annee);
+    titreCadre("B. INFORMATIONS GÉNÉRALES");
+    ligne("Actions de formation à distance", "OUI");
+    ligne("Période", "01/01/" + annee + " au 31/12/" + annee);
 
     titreCadre("C. ORIGINE DES PRODUITS (hors taxes)");
     const clesC = Object.keys(cadreC).sort();
@@ -238,7 +288,7 @@ export async function GET(req: NextRequest) {
     ["2a", "2b", "2c", "2d", "2e", "2f", "2g", "2h"].forEach(function (k) {
       if (cadreC[k]) total2 = total2 + cadreC[k].montant;
     });
-    if (total2 > 0) ligne("2  TOTAL organismes gestionnaires (2a a 2h)", total2.toLocaleString("fr-FR") + " EUR");
+    if (total2 > 0) ligne("2  TOTAL organismes gestionnaires (2a à 2h)", total2.toLocaleString("fr-FR") + " EUR");
     y = y - 4;
     ligne("TOTAL DES PRODUITS", produits.toLocaleString("fr-FR") + " EUR");
 
@@ -247,17 +297,17 @@ export async function GET(req: NextRequest) {
       ligne(LIBELLE_F1[k] || k, cadreF1[k].stagiaires + " stagiaire(s) - " + cadreF1[k].heures + " h");
     }
 
-    titreCadre("F-3. OBJECTIF GENERAL DES PRESTATIONS");
+    titreCadre("F-3. OBJECTIF GÉNÉRAL DES PRESTATIONS");
     for (const k of Object.keys(cadreF3).sort()) {
       ligne(LIBELLE_F3[k] || k, cadreF3[k].stagiaires + " stagiaire(s) - " + cadreF3[k].heures + " h");
     }
 
-    titreCadre("F-4. SPECIALITES DE FORMATION");
+    titreCadre("F-4. SPÉCIALITÉS DE FORMATION");
     for (const k of Object.keys(cadreF4).sort()) {
-      ligne(k, cadreF4[k].stagiaires + " stagiaire(s) - " + cadreF4[k].heures + " h");
+      ligne(LIBELLE_F4[k] || k, cadreF4[k].stagiaires + " stagiaire(s) - " + cadreF4[k].heures + " h");
     }
 
-    titreCadre("RECAPITULATIF");
+    titreCadre("RÉCAPITULATIF");
     ligne("Stagiaires distincts", String(stagiaires.size));
     ligne("Inscriptions", String((inscrits || []).length));
     ligne("Total des heures suivies", String(heures));
@@ -266,7 +316,7 @@ export async function GET(req: NextRequest) {
     for (let i = 0; i < pages.length; i = i + 1) {
       pages[i].drawText(
         ascii(
-          "Etat preparatoire, non contractuel. La declaration se fait sur monactiviteformation.emploi.gouv.fr. Page " +
+          "État préparatoire, non contractuel. La déclaration se fait sur monactiviteformation.emploi.gouv.fr. Page " +
           (i + 1) + "/" + pages.length
         ),
         { x: 50, y: 32, size: 7.5, font: normal, color: gris }
