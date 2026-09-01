@@ -3,13 +3,13 @@ import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 
 const T = {
-  fr: { formations: "Formations", seances: "Séances", blog: "Blog", tarifs: "Tarifs", contact: "Contact", connexion: "Se connecter", demarrer: "Démarrer", solutions: "Nos solutions", espacePro: "Espace pro" },
-  en: { formations: "Courses", seances: "Sessions", blog: "Blog", tarifs: "Pricing", contact: "Contact", connexion: "Sign in", demarrer: "Get Started", solutions: "Our solutions", espacePro: "Pro area" },
-  es: { formations: "Cursos", seances: "Sesiones", blog: "Blog", tarifs: "Precios", contact: "Contacto", connexion: "Iniciar sesión", demarrer: "Comenzar", solutions: "Soluciones", espacePro: "Área pro" },
-  pt: { formations: "Cursos", seances: "Sessoes", blog: "Blog", tarifs: "Preços", contact: "Contato", connexion: "Entrar", demarrer: "Comecar", solutions: "Soluções", espacePro: "Área pro" },
-  de: { formations: "Kurse", seances: "Sitzungen", blog: "Blog", tarifs: "Preise", contact: "Kontakt", connexion: "Anmelden", demarrer: "Loslegen", solutions: "Lösungen", espacePro: "Pro-Bereich" },
-  ar: { formations: "الدورات", seances: "الجلسات", blog: "المدونة", tarifs: "الأسعار", contact: "اتصل", connexion: "تسجيل الدخول", demarrer: "ابدأ", solutions: "حلولنا", espacePro: "مساحة احترافية" },
-  he: { formations: "קורסים", seances: "פגישות", blog: "בלוג", tarifs: "מחירים", contact: "צור קשר", connexion: "התחברות", demarrer: "התחל", solutions: "הפתרונות שלנו", espacePro: "אזור מקצועי" },
+  fr: { formations: "Formations", seances: "S\u00e9ances", blog: "Blog", tarifs: "Tarifs", contact: "Contact", connexion: "Se connecter", demarrer: "D\u00e9marrer", solutions: "Nos solutions", espacePro: "Espace pro", monEspace: "Mon espace" },
+  en: { formations: "Courses", seances: "Sessions", blog: "Blog", tarifs: "Pricing", contact: "Contact", connexion: "Sign in", demarrer: "Get Started", solutions: "Our solutions", espacePro: "Pro area", monEspace: "My space" },
+  es: { formations: "Cursos", seances: "Sesiones", blog: "Blog", tarifs: "Precios", contact: "Contacto", connexion: "Iniciar sesi\u00f3n", demarrer: "Comenzar", solutions: "Soluciones", espacePro: "\u00c1rea pro", monEspace: "Mi espacio" },
+  pt: { formations: "Cursos", seances: "Sessoes", blog: "Blog", tarifs: "Pre\u00e7os", contact: "Contato", connexion: "Entrar", demarrer: "Comecar", solutions: "Solu\u00e7\u00f5es", espacePro: "\u00c1rea pro", monEspace: "Meu espa\u00e7o" },
+  de: { formations: "Kurse", seances: "Sitzungen", blog: "Blog", tarifs: "Preise", contact: "Kontakt", connexion: "Anmelden", demarrer: "Loslegen", solutions: "L\u00f6sungen", espacePro: "Pro-Bereich", monEspace: "Mein Bereich" },
+  ar: { formations: "\u0627\u0644\u062f\u0648\u0631\u0627\u062a", seances: "\u0627\u0644\u062c\u0644\u0633\u0627\u062a", blog: "\u0627\u0644\u0645\u062f\u0648\u0646\u0629", tarifs: "\u0627\u0644\u0623\u0633\u0639\u0627\u0631", contact: "\u0627\u062a\u0635\u0644", connexion: "\u062a\u0633\u062c\u064a\u0644 \u0627\u0644\u062f\u062e\u0648\u0644", demarrer: "\u0627\u0628\u062f\u0623", solutions: "\u062d\u0644\u0648\u0644\u0646\u0627", espacePro: "\u0645\u0633\u0627\u062d\u0629 \u0627\u062d\u062a\u0631\u0627\u0641\u064a\u0629", monEspace: "\u0645\u0633\u0627\u062d\u062a\u064a" },
+  he: { formations: "\u05e7\u05d5\u05e8\u05e1\u05d9\u05dd", seances: "\u05e4\u05d2\u05d9\u05e9\u05d5\u05ea", blog: "\u05d1\u05dc\u05d5\u05d2", tarifs: "\u05de\u05d7\u05d9\u05e8\u05d9\u05dd", contact: "\u05e6\u05d5\u05e8 \u05e7\u05e9\u05e8", connexion: "\u05d4\u05ea\u05d7\u05d1\u05e8\u05d5\u05ea", demarrer: "\u05d4\u05ea\u05d7\u05dc", solutions: "\u05d4\u05e4\u05ea\u05e8\u05d5\u05e0\u05d5\u05ea \u05e9\u05dc\u05e0\u05d5", espacePro: "\u05d0\u05d6\u05d5\u05e8 \u05de\u05e7\u05e6\u05d5\u05e2\u05d9", monEspace: "\u05d4\u05d0\u05d6\u05d5\u05e8 \u05e9\u05dc\u05d9" },
 };
 
 // LE MENU DEROULANT DES SOLUTIONS METIER.
@@ -123,12 +123,30 @@ function estCheminMysterLLC(chemin) {
 export default function NavBar() {
   const [langue, setLangue] = useState("fr");
   const [hote, setHote] = useState("");
+  // 🆕 LA BARRE SAIT QUI LA REGARDE — 01/09.
+  //
+  // Elle affichait « Se connecter » et « Demarrer » a tout le monde, meme
+  // en pleine session — Jacques : « Imagine que ce soit un nouveau
+  // client ». Elle interroge desormais /api/auth/session : connecte, les
+  // deux boutons laissent place a « Mon espace » ; et le lien Admin n est
+  // montre qu a l administrateur. En cas d echec de l appel, la barre
+  // retombe sur son comportement public — jamais pire qu avant.
+  const [connecte, setConnecte] = useState(false);
+  const [admin, setAdmin] = useState(false);
   const chemin = usePathname() || "";
 
   useEffect(() => {
     const saved = localStorage.getItem("langue") || "fr";
     setLangue(saved);
     setHote(window.location.hostname.toLowerCase());
+
+    fetch("/api/auth/session")
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d && d.connecte) setConnecte(true);
+        if (d && d.admin) setAdmin(true);
+      })
+      .catch(function () {});
   }, []);
 
   function changerLangue(l) {
@@ -239,7 +257,7 @@ export default function NavBar() {
         </nav>
         <div style={{ display: "flex", gap: "10px", alignItems: "center", flexShrink: 0 }}>
           <a href="/admin/compliance/ma-societe" style={{ color: "#c8a96e", border: "1px solid rgba(200,169,110,0.45)", padding: "8px 16px", borderRadius: "8px", textDecoration: "none", fontWeight: "bold", fontSize: "14px", whiteSpace: "nowrap" }}>
-            Ma société
+            {"Ma soci\u00e9t\u00e9"}
           </a>
         </div>
       </header>
@@ -271,10 +289,10 @@ export default function NavBar() {
           <a href="/admin/compliance/tableau-de-bord" style={lienMenu}>Tableau de bord</a>
           <a href="/admin/compliance/societes" style={lienMenu}>Mes dossiers</a>
           <a href="/admin/compliance/saisie" style={lienMenu}>Saisie</a>
-          <a href="/admin/compliance/pieces" style={lienMenu}>Pièces</a>
+          <a href="/admin/compliance/pieces" style={lienMenu}>{"Pi\u00e8ces"}</a>
           <a href="/admin/compliance/acces-clients" style={lienMenu}>Espaces clients</a>
           <a href="/admin/compliance/tva" style={lienMenu}>TVA</a>
-          <a href="/admin/compliance/teledec" style={lienMenu}>Télétransmissions</a>
+          <a href="/admin/compliance/teledec" style={lienMenu}>{"T\u00e9l\u00e9transmissions"}</a>
         </nav>
         <div style={{ display: "flex", gap: "10px", alignItems: "center", flexShrink: 0 }}>
           <a href="/admin/compliance/ma-societe" style={{ color: "#c8a96e", border: "1px solid rgba(200,169,110,0.45)", padding: "8px 16px", borderRadius: "8px", textDecoration: "none", fontWeight: "bold", fontSize: "14px", whiteSpace: "nowrap" }}>
@@ -285,11 +303,11 @@ export default function NavBar() {
     );
   }
 
-  // ---- Vitrine AcadéMIA Pro ---------------------------------------------
+  // ---- Vitrine AcadémIA Pro ---------------------------------------------
   return (
     <header style={barre}>
       <a href="/" style={lienMarque}>
-        AcadémIA Pro
+        {"Acad\u00e9mIA Pro"}
       </a>
       <nav style={{ display: "flex", gap: "20px", flexWrap: "wrap", justifyContent: "center", alignItems: "center" }}>
         <a href={"/catalogue?lang=" + langue} style={lienMenu}>{t("formations")}</a>
@@ -303,7 +321,7 @@ export default function NavBar() {
             n a pas encore ete charge. */}
         <details style={{ position: "relative" }}>
           <summary style={{ ...lienMenu, color: "#c8a96e", cursor: "pointer", listStyle: "none", fontWeight: "bold" }}>
-            {t("solutions")} ▾
+            {t("solutions")} {"\u25be"}
           </summary>
           <div style={{
             position: "absolute",
@@ -329,7 +347,9 @@ export default function NavBar() {
         </details>
 
         <a href="/espace-prive" style={lienMenu}>{t("espacePro")}</a>
-        <a href="/admin" style={{ ...lienMenu, color: "#c8a96e", fontWeight: "bold" }}>Admin</a>
+        {admin && (
+          <a href="/admin" style={{ ...lienMenu, color: "#c8a96e", fontWeight: "bold" }}>Admin</a>
+        )}
       </nav>
       <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
         <select
@@ -337,20 +357,28 @@ export default function NavBar() {
           onChange={e => changerLangue(e.target.value)}
           style={{ background: "rgba(200,169,110,0.15)", border: "1px solid rgba(200,169,110,0.4)", color: "#c8a96e", padding: "6px 10px", borderRadius: "8px", cursor: "pointer", fontSize: "13px", fontWeight: "bold" }}
         >
-          <option value="fr">🇫🇷 FR</option>
-          <option value="en">🇬🇧 EN</option>
-          <option value="es">🇪🇸 ES</option>
-          <option value="pt">🇧🇷 PT</option>
-          <option value="de">🇩🇪 DE</option>
-          <option value="ar">🇸🇦 AR</option>
-          <option value="he">🇮🇱 HE</option>
+          <option value="fr">{"\ud83c\uddeb\ud83c\uddf7 FR"}</option>
+          <option value="en">{"\ud83c\uddec\ud83c\udde7 EN"}</option>
+          <option value="es">{"\ud83c\uddea\ud83c\uddf8 ES"}</option>
+          <option value="pt">{"\ud83c\udde7\ud83c\uddf7 PT"}</option>
+          <option value="de">{"\ud83c\udde9\ud83c\uddea DE"}</option>
+          <option value="ar">{"\ud83c\uddf8\ud83c\udde6 AR"}</option>
+          <option value="he">{"\ud83c\uddee\ud83c\uddf1 HE"}</option>
           </select>
-        <a href="/connexion" style={{ color: "#c8a96e", border: "1px solid rgba(200,169,110,0.45)", padding: "8px 16px", borderRadius: "8px", textDecoration: "none", fontWeight: "bold", fontSize: "14px", whiteSpace: "nowrap" }}>
-          {t("connexion")}
-        </a>
-        <a href="/login" style={{ background: "linear-gradient(135deg,#c8a96e,#a07840)", color: "#050508", padding: "8px 20px", borderRadius: "8px", textDecoration: "none", fontWeight: "bold", fontSize: "14px", whiteSpace: "nowrap" }}>
-          {t("demarrer")}
-        </a>
+        {connecte ? (
+          <a href="/espace-prive" style={{ background: "linear-gradient(135deg,#c8a96e,#a07840)", color: "#050508", padding: "8px 20px", borderRadius: "8px", textDecoration: "none", fontWeight: "bold", fontSize: "14px", whiteSpace: "nowrap" }}>
+            {t("monEspace")}
+          </a>
+        ) : (
+          <>
+            <a href="/connexion" style={{ color: "#c8a96e", border: "1px solid rgba(200,169,110,0.45)", padding: "8px 16px", borderRadius: "8px", textDecoration: "none", fontWeight: "bold", fontSize: "14px", whiteSpace: "nowrap" }}>
+              {t("connexion")}
+            </a>
+            <a href="/login" style={{ background: "linear-gradient(135deg,#c8a96e,#a07840)", color: "#050508", padding: "8px 20px", borderRadius: "8px", textDecoration: "none", fontWeight: "bold", fontSize: "14px", whiteSpace: "nowrap" }}>
+              {t("demarrer")}
+            </a>
+          </>
+        )}
       </div>
     </header>
   );
