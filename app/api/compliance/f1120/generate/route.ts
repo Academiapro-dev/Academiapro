@@ -2,6 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { PDFDocument, StandardFonts } from "pdf-lib";
 import { createClient } from "@supabase/supabase-js";
 import { sessionCourante } from "../../../../../lib/session";
+// 🚨 LE CONTROLE D ORIGINE EST DESORMAIS PARTAGE — 01/09.
+//
+// Cette route avait deja recu mysterllc.com le 31/08 : elle fonctionnait.
+// Mais elle gardait SA PROPRE COPIE de la fonction, ce qui annulait
+// l interet du fichier partage — la prochaine marque aurait ete oubliee
+// ici comme ailleurs.
+//
+// ⚠️ NE PAS REDEFINIR origineLegitime ICI.
+import { origineLegitime } from "../../../../../lib/origine";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -50,17 +59,6 @@ const NF = "Page1[0].NameFieldsReadOrder[0].";
 // produit deux fois : un defaut corrige dans l une, oublie dans l autre.
 // TOUTE MODIFICATION ICI DOIT ETRE REPORTEE LA-BAS, ET RECIPROQUEMENT.
 // ---------------------------------------------------------------------------
-
-function origineLegitime(req: NextRequest): boolean {
-  const origine = req.headers.get("origin") || "";
-  const referent = req.headers.get("referer") || "";
-  return (
-    origine.includes("academiapro.fr") || referent.includes("academiapro.fr") ||
-    origine.includes("mysterllc.com") || referent.includes("mysterllc.com") ||
-    origine.includes("vercel.app") || referent.includes("vercel.app") ||
-    origine.includes("localhost") || referent.includes("localhost")
-  );
-}
 
 function money(n: number | null | undefined): string {
   if (n === null || n === undefined) return "";
