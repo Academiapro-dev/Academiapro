@@ -1970,15 +1970,19 @@ export default function PageLinkedin() {
                     ⚠️ SUR UNE FICHE SORTIE (refus, ecartee), le parcours
                     n est pas cliquable : la faire avancer n aurait pas de
                     sens, et la ressusciter par megarde non plus. */}
+                {/* 🚨 CLIQUABLE MEME SUR UNE FICHE SORTIE — 01/09.
+                    Un refus se defait comme le reste : toucher une etape
+                    ramene la fiche dans le parcours. Le seul geste
+                    irreversible de l ecran est la suppression. */}
                 <button
-                  onClick={() => { if (!sorti) corrigerEtape(l, i + 1); }}
-                  disabled={charge || sorti}
-                  title={sorti ? "" : "Amener la fiche à cette étape"}
+                  onClick={() => corrigerEtape(l, i + 1)}
+                  disabled={charge}
+                  title="Amener la fiche à cette étape"
                   style={{
                     display: "flex", alignItems: "center", gap: "6px",
                     background: "transparent", border: "none",
                     padding: "3px 2px", margin: 0,
-                    cursor: sorti ? "default" : "pointer",
+                    cursor: "pointer",
                     fontFamily: "Georgia,serif",
                   }}
                 >
@@ -2000,7 +2004,7 @@ export default function PageLinkedin() {
                       ? (sorti ? "#e8836a" : "rgba(255,255,255,0.85)")
                       : "rgba(255,255,255,0.3)",
                     fontWeight: courante ? "bold" : "normal",
-                    textDecoration: sorti ? "none" : "underline",
+                    textDecoration: "underline",
                     textDecorationColor: "rgba(255,255,255,0.12)",
                     textUnderlineOffset: "3px",
                   }}>
@@ -2026,14 +2030,14 @@ export default function PageLinkedin() {
         {/* Sans cette ligne, personne ne devine que les etapes sont
             cliquables. Masquee sur une fiche sortie, ou le parcours est
             fige. */}
-        {!sorti && (
-          <div style={{
-            color: "rgba(255,255,255,0.3)", fontSize: "11.5px",
-            lineHeight: "1.7", marginTop: "6px",
-          }}>
-            Touchez une étape pour y amener la fiche — en avant comme en arrière.
-          </div>
-        )}
+        <div style={{
+          color: "rgba(255,255,255,0.3)", fontSize: "11.5px",
+          lineHeight: "1.7", marginTop: "6px",
+        }}>
+          {sorti
+            ? "Touchez une étape pour rouvrir cette fiche."
+            : "Touchez une étape pour y amener la fiche — en avant comme en arrière."}
+        </div>
 
         {/* Les dates connues, sous le parcours. Elles disent QUAND, la ou
             les pastilles disent OU. */}
@@ -2046,6 +2050,29 @@ export default function PageLinkedin() {
             {l.linkedin_le ? "Invitée le " + jolieDate(l.linkedin_le) : ""}
             {l.linkedin_le && l.linkedin_relance_le ? " · " : ""}
             {l.linkedin_relance_le ? "Message le " + jolieDate(l.linkedin_relance_le) : ""}
+          </div>
+        )}
+
+        {/* 🆕 LA SORTIE, POSABLE ET REVERSIBLE — 01/09.
+            Jacques : « il n y a meme pas de pastille que c est sans
+            suite ». Un refus n est pas une etape du parcours, c est une
+            sortie : il ne se place donc pas dans la ligne des six, mais a
+            part, en rouge.
+            ⚠️ ET IL SE DEFAIT : toucher une etape du parcours ramene la
+            fiche dedans. Rien n est definitif sauf la suppression. */}
+        {!sorti && (
+          <div style={{ marginTop: "9px", paddingTop: "9px", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+            <button
+              onClick={() => marquer(l, "refuse")}
+              disabled={charge}
+              style={{
+                background: "transparent", border: "1px solid rgba(232,131,106,0.3)",
+                color: "#e8836a", borderRadius: "7px", padding: "7px 14px",
+                fontSize: "12px", fontFamily: "Georgia,serif", cursor: "pointer",
+              }}
+            >
+              Sans suite — arrêter là
+            </button>
           </div>
         )}
 
