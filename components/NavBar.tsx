@@ -56,9 +56,15 @@ const CHEMINS_COMPTABLE = [
 //     MysterLLC meme depuis academiapro.fr.
 // Les ecrans comptables vus depuis academiapro.fr ou mrcomptable.fr
 // gardent la barre Mr Comptable.
+//
+// 🆕 LE REGISTRE DES SIGNATURES ET L ECRAN DE PREPARATION — 01/09. Ils
+// appartiennent au meme produit : un ecran de signature qui porterait la
+// barre Mr Comptable au-dessus d un mandat MysterLLC serait incoherent.
 const CHEMINS_MYSTERLLC = [
   "/admin/compliance/entites",
   "/admin/compliance/agenda",
+  "/admin/compliance/signatures",
+  "/admin/compliance/faire-signer",
 ];
 
 // LES PAGES PUBLIQUES DE MRCOMPTABLE.FR.
@@ -149,6 +155,15 @@ export default function NavBar() {
   if (chemin === "/mysterllc" || chemin.indexOf("/mysterllc/") === 0) return null;
   if (surMysterLLC && chemin === "/") return null;
 
+  // 🚨 L ECRAN DE SIGNATURE N A PAS DE BARRE — 01/09.
+  //
+  // Il s adresse au CLIENT du gestionnaire, pas au gestionnaire. Lui
+  // afficher une barre de navigation vers le portefeuille et l agenda lui
+  // proposerait des ecrans auxquels il n a pas acces, et brouillerait un
+  // moment ou il ne doit y avoir qu une seule chose a faire : lire, puis
+  // signer.
+  if (chemin.indexOf("/compliance/signature/") === 0) return null;
+
   const barre = {
     display: "flex",
     justifyContent: "space-between",
@@ -216,6 +231,11 @@ export default function NavBar() {
           <a href="/admin/compliance/entites" style={lienMenu}>Portefeuille</a>
           <a href="/admin/compliance/agenda" style={lienMenu}>Agenda</a>
           <a href="/admin/compliance" style={lienMenu}>Tableau de bord</a>
+          {/* 🆕 LE REGISTRE — 01/09. Sans ce lien, l ecran existait mais
+              n etait atteignable qu en tapant son adresse : c est
+              exactement le defaut signale par Jacques le 17/08 sur l ecran
+              LinkedIn. */}
+          <a href="/admin/compliance/signatures" style={lienMenu}>Signatures</a>
         </nav>
         <div style={{ display: "flex", gap: "10px", alignItems: "center", flexShrink: 0 }}>
           <a href="/admin/compliance/ma-societe" style={{ color: "#c8a96e", border: "1px solid rgba(200,169,110,0.45)", padding: "8px 16px", borderRadius: "8px", textDecoration: "none", fontWeight: "bold", fontSize: "14px", whiteSpace: "nowrap" }}>
