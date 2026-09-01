@@ -1002,6 +1002,56 @@ export default function ComplianceDashboard() {
             </li>
           ))}
         </ul>
+
+        {/* ---- LA SIGNATURE ELECTRONIQUE — 01/09 ----
+
+            🚨 CE QUI SE SIGNE ICI, ET CE QUI NE SE SIGNE PAS.
+
+            LES FORMULAIRES IRS NE SE SIGNENT PAS ELECTRONIQUEMENT. Le 5472,
+            le 1120 et le 7004 exigent une signature manuscrite ou les
+            procedures propres a l IRS. Le bloc ne les propose donc pas, et
+            la route les refuse meme si on l appelait directement.
+
+            CE QUI SE SIGNE : les documents CONTRACTUELS entre le
+            gestionnaire et son client. Le plus utile est L ACCUSE DE
+            LECTURE : le client atteste avoir lu et approuve le formulaire
+            qui va partir en son nom.
+
+            ⚠️ C EST LA TRADUCTION TECHNIQUE DE L ARGUMENT DE MAITRISE.
+            La signature ne remplace pas la decision du client, ELLE LA
+            PROUVE. Rien ne part en son nom sans qu il l ait vu. */}
+        <h2 style={{ color: VERT, fontSize: 20, marginTop: 32 }}>Signature électronique</h2>
+        <p style={{ fontSize: 14, color: "#555", marginTop: 0, lineHeight: 1.7 }}>
+          Faites signer à votre client le mandat, la lettre de mission, ou
+          l&apos;accusé de lecture du formulaire avant son dépôt. Chaque
+          signature produit un dossier de preuve : empreinte du document,
+          date, adresse de connexion, code vérifié par courriel et tracé
+          manuscrit.
+        </p>
+
+        <div style={{
+          background: "#fff8e1",
+          borderLeft: "4px solid #c8a96e",
+          padding: "12px 16px",
+          margin: "12px 0",
+          fontSize: 13.5,
+          lineHeight: 1.7,
+          color: "#555",
+        }}>
+          <strong>Les formulaires IRS ne se signent pas ici.</strong> Le 5472,
+          le 1120 et le 7004 exigent une signature manuscrite ou la procédure
+          propre à l&apos;IRS. Ce qui se signe électroniquement, ce sont les
+          documents contractuels entre vous et votre client.
+        </div>
+
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12 }}>
+          <a href="/admin/compliance/signatures" style={styleLien}>
+            Registre des signatures
+          </a>
+          <a href="/admin/compliance/faire-signer" style={styleLien}>
+            Préparer un document à signer
+          </a>
+        </div>
       </div>
     </div>
   );
