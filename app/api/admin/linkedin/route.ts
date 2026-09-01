@@ -229,20 +229,41 @@ function colonnesDe(cle: string): string {
 
 // CE QUI EST MODIFIABLE DEPUIS LA FICHE COMPLETE.
 //
-// ⚠️ LES DEUX LISTES SONT DISTINCTES PARCE QUE LES TABLES LE SONT.
+// 🚨 L ADMINISTRATEUR MODIFIE TOUT — decision de Jacques, 01/09.
 //
-// 🚨 NI LE STATUT NI LES DATES NE SONT MODIFIABLES ICI. Corriger une
-// coordonnee ne doit jamais faire avancer une fiche dans le parcours.
+// CE QUI SE PASSAIT. Ces listes etaient des LISTES BLANCHES : un champ
+// absent etait silencieusement ignore. Le statut, les dates, le score
+// n en faisaient pas partie — donc aucune correction n etait possible
+// dessus, et l ecran ne le disait meme pas.
+//
+// Ses mots : « je fais ce que je veux, je suis quand meme
+// l administrateur ». Il a raison : cette route est protegee par ADMINS,
+// personne d autre n y accede. Une liste blanche n y protege de rien, elle
+// entrave celui qui l administre.
+//
+// ⚠️ LES LISTES SERVENT DESORMAIS DE LISTE DE CHAMPS CONNUS, non de
+// barriere : elles disent quels champs l ecran envoie couramment. Tout
+// autre champ passe aussi — voir la branche « modifier » plus bas.
+//
+// ⚠️ CE QUI RESTE INTERDIT, ET UNIQUEMENT CELA : la colonne id. La
+// changer briserait les liens de la fiche avec son historique de
+// relances.
 const MODIFIABLES_PROSPECTS = [
   "raison_sociale", "ville", "code_postal", "siren",
   "dirigeant_prenom", "dirigeant_nom",
   "linkedin", "email", "telephone", "site_web", "notes",
+  // Ajoutes le 01/09 : l administrateur corrige aussi l avancement.
+  "linkedin_statut", "linkedin_le", "linkedin_relance_le", "score",
+  "statut", "envoye_le", "desabonne",
 ];
 
 const MODIFIABLES_CRM = [
   "nom", "organisme", "ville",
   "dirigeant_prenom", "dirigeant_nom",
   "linkedin", "email", "telephone", "notes",
+  // Ajoutes le 01/09 : l administrateur corrige aussi l avancement.
+  "linkedin_statut", "linkedin_le", "linkedin_relance_le", "score",
+  "statut", "campagne", "source", "pays", "motif_perte", "relance_auto",
 ];
 
 function modifiablesDe(cle: string): string[] {
@@ -384,13 +405,33 @@ export async function POST(req: NextRequest) {
       if (!table) return NextResponse.json({ ok: false, erreur: "Base inconnue." }, { status: 400 });
       if (!id) return NextResponse.json({ ok: false, erreur: "Ligne non precisee." }, { status: 400 });
 
-      const permis = modifiablesDe(base);
+      // 🚨 TOUT CHAMP ENVOYE EST ECRIT — 01/09.
+      //
+      // La liste ne sert plus de barriere : elle dit seulement quels champs
+      // l ecran envoie couramment. Un champ hors liste passe aussi.
+      //
+      // ⚠️ SEULS id ET action SONT REFUSES : changer l identifiant
+      // briserait les liens de la fiche avec son historique de relances.
+      //
+      // ⚠️ LES BOOLEENS ET LES NOMBRES NE PASSENT PAS PAR propre(), qui
+      // rend une chaine. Les convertir en texte ferait echouer l ecriture
+      // sur une colonne boolean ou integer.
+      const INTERDITS = ["id", "action", "base", "rang"];
       const champs: any = {};
 
-      for (const cle of permis) {
-        if (body[cle] === undefined) continue;
-        const valeur = propre(body[cle], cle === "notes" ? 4000 : 300);
-        champs[cle] = valeur || null;
+      for (const cle of Object.keys(body)) {
+        if (INTERDITS.indexOf(cle) >= 0) continue;
+        const v = body[cle];
+        if (v === undefined) continue;
+
+        if (v === null || v === "") {
+          champs[cle] = null;
+        } else if (typeof v === "boolean" || typeof v === "number") {
+          champs[cle] = v;
+        } else {
+          const valeur = propre(v, cle === "notes" ? 4000 : 300);
+          champs[cle] = valeur || null;
+        }
       }
 
       if (Object.keys(champs).length === 0) {
@@ -498,9 +539,21 @@ export async function POST(req: NextRequest) {
       // Le score porte les trois dernieres etapes, que LinkedIn ne connait
       // pas. Il ne s applique qu aux fiches du CRM : les tables de
       // prospection n ont pas de colonne score.
+      // 🚨 LE SCORE EST POSE SUR TOUTES LES TABLES — corrige le 01/09.
+      //
+      // LE DEFAUT : le score n etait ecrit que pour la table crm. Or il
+      // porte les etapes 4, 5 et 6 du parcours. Sur une fiche de
+      // prospection, cliquer « A repondu » ne laissait aucune trace : la
+      // fiche revenait a l ecran, le rang etait recalcule sans score, et
+      // retombait a 3. LE CLIC MARCHAIT, LE STOCKAGE MANQUAIT.
+      //
+      // ⚠️ LA COLONNE score DOIT EXISTER SUR LES QUATRE TABLES DE
+      // PROSPECTION. Le SQL est fourni avec cette livraison. Sans elle,
+      // l ecriture echoue et l erreur remonte a l ecran.
+      const score = Number(body.score) || 0;
+      if (score > 0) champs.score = score;
+
       if (base === "manuel") {
-        const score = Number(body.score) || 0;
-        if (score > 0) champs.score = score;
         champs.derniere_interaction = new Date().toISOString();
 
         // Le statut commercial suit le rang. « client » au rang 6 : c est
@@ -604,6 +657,40 @@ export async function POST(req: NextRequest) {
         ok: true,
         compteurs: c,
         message: "Fiche remise dans la file — elle ressortira à inviter.",
+      });
+    }
+
+    // ---------------------------------------------------------------------
+    // 🆕 SUPPRIMER UNE FICHE — 01/09.
+    //
+    // Demande de Jacques : « pourquoi ne pas etre capable de tout modifier
+    // si j ai envie ou de supprimer, je suis quand meme l administrateur ».
+    //
+    // ⚠️ C EST LE SEUL GESTE IRREVERSIBLE DE TOUT L ECRAN. Ecarter se
+    // defait, un statut se corrige, une etape se deplace. Une ligne
+    // supprimee ne revient pas. L ecran demande donc confirmation avant
+    // d appeler cette action.
+    //
+    // ⚠️ LES RELANCES LIEES NE SONT PAS SUPPRIMEES. Elles portent
+    // deadline_id et non l id de la fiche : les toucher effacerait
+    // l historique d envoi, qui vaut comme preuve.
+    if (action === "supprimer") {
+      const id = body.id;
+      const table = TABLES[base];
+      if (!table) return NextResponse.json({ ok: false, erreur: "Base inconnue." }, { status: 400 });
+      if (!id) return NextResponse.json({ ok: false, erreur: "Ligne non precisee." }, { status: 400 });
+
+      const { error: eSup } = await supabase.from(table).delete().eq("id", id);
+      if (eSup) {
+        return NextResponse.json({ ok: false, erreur: eSup.message }, { status: 500 });
+      }
+
+      const c = await compteurs();
+
+      return NextResponse.json({
+        ok: true,
+        compteurs: c,
+        message: "Fiche supprimée définitivement.",
       });
     }
 
