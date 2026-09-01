@@ -1,18 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { sessionCourante } from "../../../../lib/session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 120;
 
-// LE VRAI RISQUE DE L INDICATEUR 31 N EST PAS DE MAL REPONDRE, C EST D OUBLIER.
-// Jacques en a fait l experience : une reclamation deposee deux mois plus tot,
-// jamais traitee, retrouvee par hasard. Cette tache relance tant que la
-// reponse n est pas partie, avec une insistance croissante.
-//
-// PALIERS : 2 jours, 7 jours, puis chaque semaine. On ne relance qu une fois
-// par palier grace a la colonne `derniere_relance_le`.
-const PALIERS = [2, 7, 14, 21, 28, 35, 42, 49, 56];
+const ADMINS = ["contact@academiapro.fr"];
+
+const ORIGINES = ["stagiaire", "entreprise", "financeur", "formateur", "autre"];
+const STATUTS = ["ouverte", "en_cours", "traitee", "classee_sans_suite"];
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
@@ -26,12 +22,53 @@ const supabase = createClient(
   }
 );
 
-function jours(depuis: any): number {
-  return Math.floor((Date.now() - new Date(depuis).getTime()) / 86400000);
+// VERROU. Le registre des reclamations n appartient qu a son organisme :
+// seul un membre (pas un stagiaire) peut le lire et y ecrire. L editeur
+// y accede pour le service apres-vente, avec le parametre tenant.
+function resoudreTenant(req: NextRequest): { tenantId: string | null; erreur: any } {
+  const session = sessionCourante();
+  if (!session) {
+    return {
+      tenantId: null,
+      erreur: NextResponse.json({ ok: false, erreur: "Connectez-vous." }, { status: 401 }),
+    };
+  }
+
+  if (session.role === "stagiaire") {
+    return {
+      tenantId: null,
+      erreur: NextResponse.json(
+        { ok: false, erreur: "Le registre des reclamations est reserve a l organisme." },
+        { status: 403 }
+      ),
+    };
+  }
+
+  if (session.tenantId) {
+    return { tenantId: session.tenantId, erreur: null };
+  }
+
+  const estAdmin = ADMINS.indexOf(session.email) >= 0;
+  if (estAdmin) {
+    const t = new URL(req.url).searchParams.get("tenant");
+    if (t) return { tenantId: t, erreur: null };
+  }
+
+  return {
+    tenantId: null,
+    erreur: NextResponse.json(
+      { ok: false, erreur: "Aucun organisme associe a votre session." },
+      { status: 403 }
+    ),
+  };
 }
 
-async function courriel(destinataire: string, sujet: string, html: string) {
+async function accuseReception(destinataire: string, objet: string, organisme: string) {
+  // L accuse de reception est ce que la relance promet : le reclamant sait
+  // que sa demande est entree au registre. On ne l envoie qu a une adresse
+  // reelle, jamais au marqueur de saisie manuelle.
   if (!destinataire || !process.env.RESEND_API_KEY) return false;
+  if (destinataire === "non-renseigne@exemple.fr") return false;
   try {
     const r = await fetch("https://api.resend.com/emails", {
       method: "POST",
@@ -40,136 +77,189 @@ async function courriel(destinataire: string, sujet: string, html: string) {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: "AcadémIA Pro <contact@academiapro.fr>",
+        from: "Acad\u00e9mIA Pro <contact@academiapro.fr>",
         reply_to: "contact@academiapro.fr",
         to: destinataire,
-        subject: sujet,
-        html: html,
+        subject: "Accus\u00e9 de r\u00e9ception \u2014 votre r\u00e9clamation : " + objet,
+        html:
+          '<div style="font-family:Georgia,serif;max-width:560px;margin:0 auto;color:#1a1a1a;line-height:1.75">' +
+          '<p style="color:#c8a96e;font-size:13px;letter-spacing:2px;margin:0 0 6px">ACCUS\u00c9 DE R\u00c9CEPTION</p>' +
+          '<h1 style="color:#0a3d2e;font-size:21px;margin:0 0 16px">Votre r\u00e9clamation est enregistr\u00e9e</h1>' +
+          "<p><strong>Objet :</strong> " + objet + "<br>" +
+          "<strong>Re\u00e7ue le :</strong> " + new Date().toLocaleDateString("fr-FR") + "</p>" +
+          "<p>Elle est consign\u00e9e au registre et sera trait\u00e9e dans les meilleurs d\u00e9lais. " +
+          "Vous recevrez une r\u00e9ponse \u00e9crite.</p>" +
+          '<p style="margin-top:26px;color:#555">' + organisme + "</p></div>",
       }),
     });
     return r.ok;
   } catch (e) {
-    console.error("relance reclamation:", e);
+    console.error("accuse reception reclamation:", e);
     return false;
   }
 }
 
-function message(r: any, age: number, organisme: string): string {
-  // Le ton durcit avec l age : une relance a deux jours rappelle, une relance
-  // a deux mois avertit. C est le role de l outil de rendre l oubli inconfortable.
-  const grave = age >= 14;
-
-  return (
-    '<div style="font-family:Georgia,serif;max-width:560px;margin:0 auto;color:#1a1a1a;line-height:1.75">' +
-    '<p style="color:' + (grave ? "#b03a2e" : "#c8a96e") + ';font-size:13px;letter-spacing:2px;margin:0 0 6px">' +
-    (grave ? "RÉCLAMATION NON TRAITÉE DEPUIS " + age + " JOURS" : "RAPPEL") + "</p>" +
-    '<h1 style="color:#0a3d2e;font-size:21px;margin:0 0 16px">' +
-    (grave
-      ? "Cette réclamation attend toujours votre réponse"
-      : "Une réclamation attend votre réponse") +
-    "</h1>" +
-    "<p><strong>De :</strong> " + (r.auteur_nom || r.auteur_email) + "<br>" +
-    "<strong>Objet :</strong> " + r.objet + "<br>" +
-    "<strong>Déposée le :</strong> " + new Date(r.created_at).toLocaleDateString("fr-FR") +
-    " — il y a " + age + " jours</p>" +
-    '<p style="background:#f5f1e8;padding:14px 16px;border-left:4px solid ' +
-    (grave ? "#b03a2e" : "#0a3d2e") + ';margin:20px 0">' +
-    String(r.message || "").slice(0, 700) + "</p>" +
-    (grave
-      ? "<p>Une réclamation restée sans réponse écrite est l'écart le plus fréquemment " +
-        "relevé lors d'un audit Qualiopi, au titre de l'indicateur 31. Le réclamant a reçu " +
-        "un accusé de réception : il attend une réponse.</p>"
-      : "<p>Le réclamant a reçu un accusé de réception. Il vous revient d'arbitrer, " +
-        "puis d'écrire votre réponse et l'action corrective.</p>") +
-    '<p><a href="https://academiapro.fr/organisme/reclamations" ' +
-    'style="color:#0a3d2e;font-weight:bold">Ouvrir le registre des réclamations</a></p>' +
-    '<p style="margin-top:26px;color:#555">' + organisme + "</p></div>"
-  );
-}
-
 export async function GET(req: NextRequest) {
-  // Garde-fou : seule la tache planifiee de Vercel, ou l administrateur.
-  const secret = req.headers.get("authorization") || "";
-  const attendu = "Bearer " + (process.env.CRON_SECRET || "");
-  if (process.env.CRON_SECRET && secret !== attendu) {
-    return NextResponse.json({ ok: false, erreur: "Acces refuse" }, { status: 401 });
-  }
-
   try {
-    // Toutes les reclamations ouvertes, sans reponse ecrite.
+    const { tenantId, erreur } = resoudreTenant(req);
+    if (erreur) return erreur;
+
     const { data, error } = await supabase
       .from("organisme_reclamations")
-      .select("id, tenant_id, auteur_email, auteur_nom, objet, message, statut, reponse, created_at, derniere_relance_le")
-      .in("statut", ["ouverte", "en_cours"])
-      .is("reponse", null)
+      .select("id, tenant_id, auteur_email, auteur_nom, origine, objet, message, statut, reponse, action_corrective, created_at, repondue_le")
+      .eq("tenant_id", tenantId)
+      .order("created_at", { ascending: false })
       .limit(500);
 
     if (error) {
       return NextResponse.json({ ok: false, erreur: error.message }, { status: 500 });
     }
 
-    const enAttente = data || [];
-    if (enAttente.length === 0) {
-      return NextResponse.json({ ok: true, examinees: 0, relancees: 0 });
-    }
+    const reclamations = data || [];
 
-    // Une seule lecture des organismes concernes.
-    const tenants = Array.from(new Set(enAttente.map(function (r: any) { return r.tenant_id; })));
-    const { data: organismes } = await supabase
-      .from("organismes_formation")
-      .select("tenant_id, raison_sociale, email_contact")
-      .in("tenant_id", tenants);
+    let ouvertes = 0;
+    let avecAction = 0;
+    let sommeDelais = 0;
+    let repondues = 0;
 
-    const parTenant: any = {};
-    for (const o of organismes || []) parTenant[o.tenant_id] = o;
-
-    let relancees = 0;
-    const details: any[] = [];
-
-    for (const r of enAttente) {
-      const age = jours(r.created_at);
-
-      // Quel palier est atteint ?
-      let palier = 0;
-      for (const p of PALIERS) {
-        if (age >= p) palier = p;
-      }
-      if (palier === 0) continue;
-
-      // Deja relance depuis ce palier ? On ne harcele pas.
-      if (r.derniere_relance_le && jours(r.derniere_relance_le) < 7) continue;
-
-      const o = parTenant[r.tenant_id];
-      const destinataire = (o && o.email_contact) || "";
-      if (!destinataire) {
-        details.push({ id: r.id, ignoree: "organisme sans adresse de contact" });
-        continue;
-      }
-
-      const nom = (o && o.raison_sociale) || "AcadémIA Pro";
-      const envoye = await courriel(
-        destinataire,
-        (age >= 14 ? "Rappel urgent — " : "Rappel — ") + "réclamation non traitée : " + r.objet,
-        message(r, age, nom)
-      );
-
-      if (envoye) {
-        await supabase
-          .from("organisme_reclamations")
-          .update({ derniere_relance_le: new Date().toISOString() })
-          .eq("id", r.id);
-
-        relancees = relancees + 1;
-        details.push({ id: r.id, age_jours: age, organisme: nom });
+    for (const r of reclamations) {
+      if (r.statut === "ouverte" || r.statut === "en_cours") ouvertes = ouvertes + 1;
+      if (r.action_corrective && String(r.action_corrective).trim().length > 0) avecAction = avecAction + 1;
+      if (r.repondue_le) {
+        const delai = Math.floor(
+          (new Date(r.repondue_le).getTime() - new Date(r.created_at).getTime()) / 86400000
+        );
+        if (delai >= 0) {
+          sommeDelais = sommeDelais + delai;
+          repondues = repondues + 1;
+        }
       }
     }
 
     return NextResponse.json({
       ok: true,
-      examinees: enAttente.length,
-      relancees: relancees,
-      details: details,
+      reclamations: reclamations,
+      total: reclamations.length,
+      ouvertes: ouvertes,
+      avec_action_corrective: avecAction,
+      delai_moyen_jours: repondues > 0 ? Math.round(sommeDelais / repondues) : null,
+      origines: ORIGINES,
     });
+  } catch (e: any) {
+    return NextResponse.json({ ok: false, erreur: String(e) }, { status: 500 });
+  }
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const { tenantId, erreur } = resoudreTenant(req);
+    if (erreur) return erreur;
+
+    const corps = await req.json().catch(function () { return {}; });
+
+    const objet = String(corps.objet || "").trim();
+    const message = String(corps.message || "").trim();
+    if (objet.length < 3 || message.length < 10) {
+      return NextResponse.json(
+        { ok: false, erreur: "Indiquez un objet et decrivez la reclamation." },
+        { status: 400 }
+      );
+    }
+
+    const origine = ORIGINES.indexOf(corps.origine) >= 0 ? corps.origine : "autre";
+    const auteurEmail = String(corps.auteur_email || "non-renseigne@exemple.fr").trim().toLowerCase();
+    const auteurNom = String(corps.auteur_nom || "").trim();
+
+    const { data: inseree, error } = await supabase
+      .from("organisme_reclamations")
+      .insert({
+        tenant_id: tenantId,
+        auteur_email: auteurEmail,
+        auteur_nom: auteurNom,
+        origine: origine,
+        objet: objet,
+        message: message,
+        statut: "ouverte",
+      })
+      .select("id")
+      .maybeSingle();
+
+    if (error) {
+      return NextResponse.json({ ok: false, erreur: error.message }, { status: 500 });
+    }
+
+    // L accuse part vers le reclamant, au nom de l organisme.
+    const { data: org } = await supabase
+      .from("organismes_formation")
+      .select("raison_sociale")
+      .eq("tenant_id", tenantId)
+      .maybeSingle();
+
+    await accuseReception(auteurEmail, objet, (org && org.raison_sociale) || "Acad\u00e9mIA Pro");
+
+    return NextResponse.json({ ok: true, id: inseree ? inseree.id : null });
+  } catch (e: any) {
+    return NextResponse.json({ ok: false, erreur: String(e) }, { status: 500 });
+  }
+}
+
+export async function PATCH(req: NextRequest) {
+  try {
+    const { tenantId, erreur } = resoudreTenant(req);
+    if (erreur) return erreur;
+
+    const corps = await req.json().catch(function () { return {}; });
+    const id = String(corps.id || "").trim();
+    if (!id) {
+      return NextResponse.json({ ok: false, erreur: "Reclamation non precisee." }, { status: 400 });
+    }
+
+    // On relit d abord : la reclamation doit appartenir a l organisme.
+    const { data: existante } = await supabase
+      .from("organisme_reclamations")
+      .select("id, tenant_id, reponse, repondue_le")
+      .eq("id", id)
+      .eq("tenant_id", tenantId)
+      .maybeSingle();
+
+    if (!existante) {
+      return NextResponse.json({ ok: false, erreur: "Reclamation introuvable." }, { status: 404 });
+    }
+
+    const maj: any = {};
+
+    if (typeof corps.reponse === "string") {
+      maj.reponse = corps.reponse.trim() || null;
+      // La date de reponse se fige a la premiere reponse ecrite : c est elle
+      // qui nourrit le delai moyen presente a l auditeur.
+      if (maj.reponse && !existante.repondue_le) {
+        maj.repondue_le = new Date().toISOString();
+      }
+    }
+
+    if (typeof corps.action_corrective === "string") {
+      maj.action_corrective = corps.action_corrective.trim() || null;
+    }
+
+    if (corps.statut && STATUTS.indexOf(corps.statut) >= 0) {
+      maj.statut = corps.statut;
+    }
+
+    if (Object.keys(maj).length === 0) {
+      return NextResponse.json({ ok: false, erreur: "Rien a modifier." }, { status: 400 });
+    }
+
+    const { error } = await supabase
+      .from("organisme_reclamations")
+      .update(maj)
+      .eq("id", id)
+      .eq("tenant_id", tenantId);
+
+    if (error) {
+      return NextResponse.json({ ok: false, erreur: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ ok: true });
   } catch (e: any) {
     return NextResponse.json({ ok: false, erreur: String(e) }, { status: 500 });
   }
