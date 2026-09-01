@@ -2,6 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import { createClient } from "@supabase/supabase-js";
 import { sessionCourante } from "../../../../lib/session";
+// 🚨 LE CONTROLE D ORIGINE EST DESORMAIS PARTAGE — 01/09.
+// La fonction etait recopiee dans chaque route, chacune avec sa propre
+// liste. mysterllc.com avait ete ajoute a deux d entre elles seulement :
+// ouvrir un dossier depuis mysterllc.com rendait « Acces refuse ».
+// ⚠️ NE PAS REDEFINIR origineLegitime ICI. Une copie locale reintroduirait
+// exactement le defaut que ce fichier partage supprime.
+import { origineLegitime } from "../../../../lib/origine";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -47,16 +54,6 @@ const VERT = rgb(0.039, 0.239, 0.18);
 const NOIR = rgb(0.1, 0.1, 0.1);
 const GRIS = rgb(0.42, 0.42, 0.42);
 const ROUGE = rgb(0.65, 0.11, 0.11);
-
-function origineLegitime(req: NextRequest): boolean {
-  const origine = req.headers.get("origin") || "";
-  const referent = req.headers.get("referer") || "";
-  return (
-    origine.includes("academiapro.fr") || referent.includes("academiapro.fr") ||
-    origine.includes("vercel.app") || referent.includes("vercel.app") ||
-    origine.includes("localhost") || referent.includes("localhost")
-  );
-}
 
 function fr(v: unknown): string {
   if (v === null || v === undefined || v === "") return "—";
