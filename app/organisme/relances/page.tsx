@@ -49,7 +49,7 @@ export default function PageRelances() {
       });
       const data = await r.json();
       if (data.ok) {
-        setMessage(data.message || "Relance envoyee.");
+        setMessage(data.message || "Relance envoy\u00e9e.");
         await charger(jours);
       } else {
         setErreur(data.erreur || "Envoi impossible.");
@@ -97,15 +97,15 @@ export default function PageRelances() {
     <div style={CADRE}>
       <div style={{ maxWidth: "1000px", margin: "0 auto" }}>
         <a href="/organisme" style={{ color: "#c8a96e", fontSize: "14px", textDecoration: "none" }}>
-          ← Retour au tableau de bord
+          {"\u2190 Retour au tableau de bord"}
         </a>
 
         <p style={{ color: "#c8a96e", fontSize: "12px", letterSpacing: "3px", margin: "22px 0 8px" }}>
-          SUIVI DE L ASSIDUITE
+          {"SUIVI DE L'ASSIDUIT\u00c9"}
         </p>
-        <h1 style={{ color: "#fff", fontSize: "29px", margin: "0 0 6px" }}>Qui a decroche</h1>
+        <h1 style={{ color: "#fff", fontSize: "29px", margin: "0 0 6px" }}>{"Qui a d\u00e9croch\u00e9"}</h1>
         <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "14px", marginTop: 0 }}>
-          Indicateur 11 · un stagiaire relance a temps est un abandon evite
+          {"Indicateur 11 \u00b7 un stagiaire relanc\u00e9 \u00e0 temps est un abandon \u00e9vit\u00e9"}
         </p>
 
         <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", margin: "24px 0 18px" }}>
@@ -117,7 +117,7 @@ export default function PageRelances() {
                 onClick={() => charger(j)}
                 style={{ padding: "9px 18px", borderRadius: "20px", border: "none", cursor: "pointer", background: actif ? "#c8a96e" : "rgba(255,255,255,0.06)", color: actif ? "#050508" : "rgba(255,255,255,0.6)", fontSize: "14px", fontFamily: "Georgia,serif", fontWeight: actif ? "bold" : "normal" }}
               >
-                Inactifs depuis {j} jours
+                {"Inactifs depuis " + j + " jours"}
               </button>
             );
           })}
@@ -128,7 +128,7 @@ export default function PageRelances() {
 
         {chargement ? (
           <div style={CARTE}>
-            <p style={{ color: "rgba(255,255,255,0.6)", margin: 0 }}>Lecture de l activite...</p>
+            <p style={{ color: "rgba(255,255,255,0.6)", margin: 0 }}>{"Lecture de l'activit\u00e9..."}</p>
           </div>
         ) : !d ? null : (
           <>
@@ -137,14 +137,14 @@ export default function PageRelances() {
                 <p style={{ color: d.nombre > 0 ? "#e8a33d" : "#4caf50", fontSize: "26px", fontWeight: "bold", margin: "0 0 4px" }}>
                   {d.nombre}
                 </p>
-                <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", margin: 0 }}>A relancer</p>
+                <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", margin: 0 }}>{"\u00c0 relancer"}</p>
               </div>
               <div style={{ ...CARTE, flex: "1 1 150px", marginBottom: 0 }}>
                 <p style={{ color: "#c8a96e", fontSize: "26px", fontWeight: "bold", margin: "0 0 4px" }}>
                   {d.jamais_commence}
                 </p>
                 <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", margin: 0 }}>
-                  N ont jamais commence
+                  {"N'ont jamais commenc\u00e9"}
                 </p>
               </div>
               <div style={{ ...CARTE, flex: "1 1 150px", marginBottom: 0 }}>
@@ -152,7 +152,7 @@ export default function PageRelances() {
                   {d.insistants}
                 </p>
                 <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", margin: 0 }}>
-                  Deja relances 2 fois
+                  {"D\u00e9j\u00e0 relanc\u00e9s 2 fois"}
                 </p>
               </div>
             </div>
@@ -160,9 +160,7 @@ export default function PageRelances() {
             {d.insistants > 0 && (
               <div style={{ ...CARTE, border: "1px solid rgba(232,131,106,0.5)" }}>
                 <p style={{ color: "#e8836a", fontSize: "15px", margin: 0, lineHeight: "1.75" }}>
-                  {d.insistants} stagiaire(s) ont deja recu deux relances sans revenir. Un email de
-                  plus ne changera rien : appelez-les, ou consignez l abandon. C est ce que
-                  l auditeur attend de voir, plutot qu une relance de plus restee sans reponse.
+                  {d.insistants}{" stagiaire(s) ont d\u00e9j\u00e0 re\u00e7u deux relances sans revenir. Un email de plus ne changera rien : appelez-les, ou consignez l'abandon. C'est ce que l'auditeur attend de voir, plut\u00f4t qu'une relance de plus rest\u00e9e sans r\u00e9ponse."}
                 </p>
               </div>
             )}
@@ -170,8 +168,7 @@ export default function PageRelances() {
             {d.nombre === 0 ? (
               <div style={CARTE}>
                 <p style={{ color: "rgba(255,255,255,0.65)", margin: 0, fontSize: "15px", lineHeight: "1.75" }}>
-                  Personne a relancer sur ce seuil. Soit vos stagiaires avancent, soit ils ont ete
-                  relances il y a moins de sept jours — dans ce cas ils reapparaitront ensuite.
+                  {"Personne \u00e0 relancer sur ce seuil. Soit vos stagiaires avancent, soit ils ont \u00e9t\u00e9 relanc\u00e9s il y a moins de sept jours \u2014 dans ce cas ils r\u00e9appara\u00eetront ensuite."}
                 </p>
               </div>
             ) : (
@@ -194,12 +191,12 @@ export default function PageRelances() {
                           </h3>
                           <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "13px", margin: 0, wordBreak: "break-all" }}>
                             {c.email}
-                            {c.formation_code ? " · " + c.formation_code : ""}
-                            {c.relances > 0 ? " · " + c.relances + " relance(s) deja" : ""}
+                            {c.formation_code ? " \u00b7 " + c.formation_code : ""}
+                            {c.relances > 0 ? " \u00b7 " + c.relances + " relance(s) d\u00e9j\u00e0" : ""}
                           </p>
                           <p style={{ color: couleurJours(c.jours_inactif), fontSize: "13px", margin: "5px 0 0", fontWeight: "bold" }}>
                             {c.jamais_commence
-                              ? "Jamais commence · inscrit depuis " + c.jours_inactif + " jours"
+                              ? "Jamais commenc\u00e9 \u00b7 inscrit depuis " + c.jours_inactif + " jours"
                               : "Inactif depuis " + c.jours_inactif + " jours"}
                           </p>
                         </div>
