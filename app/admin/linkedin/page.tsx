@@ -1821,6 +1821,84 @@ export default function PageLinkedin() {
       || String(l.statut || "") === "perdu";
   }
 
+  // ---------------------------------------------------------------------------
+  // 🚨 CORRIGER L ETAPE — DANS LES DEUX SENS. 01/09.
+  //
+  // LE BESOIN DE JACQUES : le parcours doit AVANCER quand le contact
+  // progresse, et RECULER quand on s est trompe de bouton. Un outil qui ne
+  // sait aller que dans un sens finit par mentir.
+  //
+  // ⚠️ CETTE FONCTION A DEJA ETE PERDUE UNE FOIS, le 01/09, en
+  // reconstruisant le fichier depuis une version anterieure. Si elle
+  // disparait, le parcours redevient decoratif : les pastilles s affichent
+  // mais aucun clic ne fait rien. VERIFIER SA PRESENCE APRES TOUTE
+  // REECRITURE DU FICHIER.
+  //
+  // COMMENT ON DEPLACE, ET POURQUOI C EST PLUS QU UN STATUT. Les trois
+  // dernieres etapes ne sont pas des statuts LinkedIn : elles se deduisent
+  // du SCORE commercial. Deplacer suppose donc de reposer LES DEUX — le
+  // statut ET le score — sinon la fiche saute d un cran a l ecran et
+  // revient au prochain calcul.
+  //
+  // ⚠️ LES DATES REELLES NE SONT PAS EFFACEES. Une invitation partie le
+  // 30/08 est partie : passer de « message envoye » a « invitation
+  // acceptee » ne supprime pas linkedin_le. Effacer une date vraie serait
+  // reecrire l histoire et fausserait les compteurs de la semaine.
+  //
+  // ⚠️ ON NE DESCEND PAS SOUS L INVITATION. Le rang 1 est le plancher :
+  // une fiche invitee l a ete. Pour tout annuler, il y a « Ecarter ».
+  async function corrigerEtape(l: any, rangVoulu: number) {
+    if (rangVoulu < 1 || rangVoulu > 6) return;
+
+    // Le statut LinkedIn correspondant au rang vise. Les rangs 4, 5 et 6
+    // restent en « relance » : cote LinkedIn la relation n a pas change,
+    // c est le score qui porte l avancement commercial.
+    const parRang: any = {
+      1: { statut: avecNoteDe(l) ? "invite" : "invite_nu", score: 45 },
+      2: { statut: avecNoteDe(l) ? "accepte" : "accepte_nu", score: 60 },
+      3: { statut: "relance", score: 65 },
+      4: { statut: "relance", score: 70 },
+      5: { statut: "relance", score: 85 },
+      6: { statut: "relance", score: 95 },
+    };
+
+    const cible = parRang[rangVoulu];
+    if (!cible) return;
+
+    setCharge(true);
+    setErreur("");
+    setMessage("");
+    try {
+      const d = await appeler({
+        action: "corriger_etape",
+        base: l.base || base,
+        id: l.id,
+        statut: cible.statut,
+        score: cible.score,
+        // 🚨 LE RANG EST TRANSMIS TEL QUEL. La route en a besoin pour poser
+        // le statut CRM (« client » au rang 6) et pour savoir s il faut
+        // effacer la date de message quand on redescend sous le rang 3.
+        rang: rangVoulu,
+      });
+
+      if (d.ok) {
+        setMessage(d.message || "Étape corrigée.");
+        if (d.compteurs) setCompteurs(d.compteurs);
+        // La liste ET la recherche se rafraichissent : la fiche peut venir
+        // de l une ou de l autre.
+        await chargerListe();
+        if (partoutResultat && partoutTerme.trim().length >= 2) {
+          await chercherPartout();
+        }
+      } else {
+        setErreur(d.erreur || "Correction impossible.");
+      }
+    } catch (e: any) {
+      setErreur("Correction impossible : " + String(e));
+    }
+    setCharge(false);
+  }
+
   function blocParcours(l: any) {
     const rang = rangAtteint(l);
     const sorti = estSorti(l);
@@ -1856,7 +1934,25 @@ export default function PageLinkedin() {
                 display: "flex", alignItems: "center",
                 flex: "0 0 auto", marginBottom: "6px",
               }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                {/* 🚨 CHAQUE ETAPE EST UN BOUTON, DANS LES DEUX SENS.
+                    Toucher une etape y amene la fiche : en avant quand le
+                    contact progresse, en arriere quand on s est trompe de
+                    bouton. C est la demande explicite de Jacques.
+                    ⚠️ SUR UNE FICHE SORTIE (refus, ecartee), le parcours
+                    n est pas cliquable : la faire avancer n aurait pas de
+                    sens, et la ressusciter par megarde non plus. */}
+                <button
+                  onClick={() => { if (!sorti) corrigerEtape(l, i + 1); }}
+                  disabled={charge || sorti}
+                  title={sorti ? "" : "Amener la fiche à cette étape"}
+                  style={{
+                    display: "flex", alignItems: "center", gap: "6px",
+                    background: "transparent", border: "none",
+                    padding: "3px 2px", margin: 0,
+                    cursor: sorti ? "default" : "pointer",
+                    fontFamily: "Georgia,serif",
+                  }}
+                >
                   {/* La pastille : pleine si franchie, cerclee sinon. */}
                   <span style={{
                     width: "15px", height: "15px", borderRadius: "50%",
@@ -1875,10 +1971,13 @@ export default function PageLinkedin() {
                       ? (sorti ? "#e8836a" : "rgba(255,255,255,0.85)")
                       : "rgba(255,255,255,0.3)",
                     fontWeight: courante ? "bold" : "normal",
+                    textDecoration: sorti ? "none" : "underline",
+                    textDecorationColor: "rgba(255,255,255,0.12)",
+                    textUnderlineOffset: "3px",
                   }}>
                     {e.nom}
                   </span>
-                </div>
+                </button>
 
                 {/* Le trait de liaison, absent apres la derniere etape. */}
                 {!derniere && (
@@ -1894,6 +1993,18 @@ export default function PageLinkedin() {
             );
           })}
         </div>
+
+        {/* Sans cette ligne, personne ne devine que les etapes sont
+            cliquables. Masquee sur une fiche sortie, ou le parcours est
+            fige. */}
+        {!sorti && (
+          <div style={{
+            color: "rgba(255,255,255,0.3)", fontSize: "11.5px",
+            lineHeight: "1.7", marginTop: "6px",
+          }}>
+            Touchez une étape pour y amener la fiche — en avant comme en arrière.
+          </div>
+        )}
 
         {/* Les dates connues, sous le parcours. Elles disent QUAND, la ou
             les pastilles disent OU. */}
