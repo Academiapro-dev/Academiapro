@@ -3,12 +3,32 @@ import type { Metadata } from "next";
 // ---------------------------------------------------------------------------
 // LA VITRINE MYSTERLLC — 31/08.
 //
-// A QUI ELLE PARLE. Pas au proprietaire d une LLC, mais a CELUI QUI EN GERE
-// PLUSIEURS pour le compte d autrui : le prestataire qui cree des societes
-// pour des expatries, ouvre leurs comptes bancaires, domicilie leurs
-// adresses. Son probleme n est pas de comprendre le Form 5472 — il le
-// connait — c est de ne jamais en oublier un sur un portefeuille qui
-// grossit.
+// A QUI ELLE PARLE — DEUX PUBLICS DEPUIS LE 01/09.
+//
+// LE PREMIER : celui qui gere PLUSIEURS LLC pour le compte d autrui. Le
+// prestataire qui cree des societes pour des expatries, ouvre leurs comptes
+// bancaires, domicilie leurs adresses. Son probleme n est pas de comprendre
+// le Form 5472 — il le connait — c est de ne jamais en oublier un sur un
+// portefeuille qui grossit.
+//
+// LE SECOND, AJOUTE LE 01/09 : le dirigeant qui possede SA PROPRE LLC, ou
+// qui hesite a en creer une.
+//
+// 🚨 CE QUI LE RETIENT N EST PAS LE COUT, C EST LA DEPENDANCE. Analyse de
+// Jacques, qui l a vecue lui-meme en creant sa societe : « ce qui est
+// important pour un chef d entreprise, c est de ne pas avoir le sentiment
+// d etre sous l emprise d une structure qui fait pour lui des choses que
+// lui-meme ne maitrise pas ».
+//
+// CE QUE CA CHANGE DANS LE DISCOURS. La page disait « on suit vos
+// echeances » — un argument de delegation. Elle dit maintenant « rien ne
+// vous echappe » — un argument de maitrise. Le calendrier visible, les
+// formulaires qu on relit avant de signer, la responsabilite qui reste
+// explicitement celle du dirigeant : ce ne sont pas des limites, ce sont
+// LES RAISONS D ACHETER.
+//
+// ⚠️ NE PAS REBASCULER VERS « ON S OCCUPE DE TOUT ». C est ce que promet
+// une boite noire, et c est precisement ce qui fait hesiter.
 //
 // ⚠️ CE QUI N EST PAS ECRIT ICI, ET POURQUOI. Aucun chiffre invente, aucun
 // temoignage, aucune mention de clients existants : le produit sort
@@ -172,16 +192,22 @@ export default function VitrineMysterLLC() {
       {/* ---- LA PROMESSE ---- */}
       <div style={{ background: "linear-gradient(135deg,#0a0a1a,#1a1a2e)", padding: "80px 24px", textAlign: "center" }}>
         <p style={{ color: OR, fontSize: "12px", letterSpacing: "3px", marginBottom: "18px" }}>
-          POUR LES GESTIONNAIRES DE LLC
+          POUR CEUX QUI GÈRENT DES LLC — ET POUR CEUX QUI EN POSSÈDENT UNE
         </p>
+        {/* 🚨 LE TITRE DIT LA MAITRISE, PAS LA SURVEILLANCE — 01/09.
+            L ancien titre, « Nous surveillons leurs echeances », promettait
+            de faire a la place. C etait exactement ce qui fait hesiter : le
+            dirigeant ne veut pas deleguer ce qu il ne maitrise pas, il veut
+            comprendre ce qui l attend. */}
         <h1 style={{ color: "#fff", fontFamily: "Georgia,serif", fontSize: "2.6rem", lineHeight: "1.25", marginBottom: "22px" }}>
-          Vous gérez leurs sociétés.<br />Nous surveillons leurs échéances.
+          Rien ne vous échappe,<br />rien ne se fait sans vous.
         </h1>
         <p style={{ color: "rgba(255,255,255,0.65)", fontSize: "17px", lineHeight: "1.85", maxWidth: "660px", margin: "0 auto 34px" }}>
-          Chaque LLC que vous administrez porte ses propres obligations
-          américaines, à des dates différentes, selon son État et la
-          résidence de son membre. MysterLLC les tient à jour pour tout
-          votre portefeuille, et prépare les formulaires.
+          Chaque LLC porte ses propres obligations américaines, à des dates
+          différentes selon son État et la résidence de son membre.
+          MysterLLC vous les montre toutes, prépare les formulaires
+          officiels, et vous prévient avant l&apos;échéance. Vous relisez,
+          vous signez, vous déposez.
         </p>
         <a
           href="mailto:contact@mysterllc.com?subject=MysterLLC%20—%20demande%20de%20présentation"
@@ -217,6 +243,56 @@ export default function VitrineMysterLLC() {
             de sociétés, tombent à des dates différentes, et qu'un tableur ne
             prévient personne.
           </p>
+        </div>
+      </div>
+
+      {/* ---- LA MAITRISE, ARGUMENT CENTRAL — 01/09 ----
+           🚨 CETTE SECTION EST NEE D UNE OBSERVATION DE JACQUES, qui a cree
+           sa propre LLC : ce qui retient les dirigeants n est pas le cout ni
+           la complexite, c est LA PEUR DE DEPENDRE d une structure qui fait
+           pour eux ce qu ils ne maitrisent pas.
+           ⚠️ ELLE EST PLACEE AVANT « ce que l outil suit ». La liste des
+           formulaires vient apres : elle prouve la promesse, elle ne la
+           porte pas. */}
+      <div style={section}>
+        <h2 style={h2}>Une société qu&apos;on ne maîtrise pas devient une inquiétude</h2>
+        <p style={chapo}>
+          Beaucoup renoncent à créer leur LLC — ou vivent mal celle
+          qu&apos;ils ont — pour une raison qui n&apos;a rien à voir avec la
+          fiscalité : la crainte de se retrouver lié à un prestataire, sans
+          rien comprendre de ce qui se passe, et sans pouvoir en changer.
+        </p>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(290px,1fr))", gap: "18px" }}>
+          <div style={carte}>
+            <strong style={{ color: OR, fontSize: "15.5px", display: "block", marginBottom: "10px" }}>
+              Vous voyez ce qui arrive
+            </strong>
+            <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "14px", lineHeight: "1.75", margin: 0 }}>
+              Toutes les échéances de vos sociétés sur un écran, avec leur
+              date et ce qu&apos;elles engagent. Rien n&apos;est caché dans
+              un dossier que vous ne consultez jamais.
+            </p>
+          </div>
+          <div style={carte}>
+            <strong style={{ color: OR, fontSize: "15.5px", display: "block", marginBottom: "10px" }}>
+              Vous relisez avant de signer
+            </strong>
+            <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "14px", lineHeight: "1.75", margin: 0 }}>
+              Les formulaires officiels sortent pré-remplis, pas déposés.
+              Vous voyez ce qui part à l&apos;administration, et vous le
+              signez en connaissance de cause.
+            </p>
+          </div>
+          <div style={carte}>
+            <strong style={{ color: OR, fontSize: "15.5px", display: "block", marginBottom: "10px" }}>
+              Vous restez libre de partir
+            </strong>
+            <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "14px", lineHeight: "1.75", margin: 0 }}>
+              Vos données vous appartiennent et s&apos;exportent. Un outil
+              qu&apos;on ne peut pas quitter n&apos;est pas un outil,
+              c&apos;est une dépendance de plus.
+            </p>
+          </div>
         </div>
       </div>
 
@@ -274,14 +350,21 @@ export default function VitrineMysterLLC() {
       {/* ---- CE QUI EST DIT FRANCHEMENT ---- */}
       <div style={{ background: "rgba(255,255,255,0.02)" }}>
         <div style={section}>
-          <h2 style={h2}>Ce que l'outil ne fait pas</h2>
+          {/* 🚨 LE CADRAGE A ETE INVERSE LE 01/09, SANS CHANGER LE FOND.
+              Ces trois limites etaient presentees comme des aveux : « la
+              limite fait partie de l offre ». Ce sont en realite LES
+              RAISONS D ACHETER — c est parce que l outil ne depose rien
+              tout seul que le dirigeant garde la main. Le contenu est
+              identique, le titre dit maintenant ce qu il vaut. */}
+          <h2 style={h2}>Ce que l&apos;outil vous laisse</h2>
           <p style={chapo}>
-            Autant le dire tout de suite : la limite fait partie de l'offre.
+            Trois choses qu&apos;il ne fera jamais à votre place — et
+            c&apos;est précisément ce qui vous garde maître de vos sociétés.
           </p>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(290px,1fr))", gap: "18px" }}>
             <div style={carte}>
               <strong style={{ color: OR, fontSize: "15.5px", display: "block", marginBottom: "10px" }}>
-                Il ne dépose rien à votre place
+                Le dépôt reste le vôtre
               </strong>
               <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "14px", lineHeight: "1.75", margin: 0 }}>
                 Les formulaires sortent pré-remplis ; la relecture, la
@@ -291,7 +374,7 @@ export default function VitrineMysterLLC() {
             </div>
             <div style={carte}>
               <strong style={{ color: OR, fontSize: "15.5px", display: "block", marginBottom: "10px" }}>
-                Il ne remplit pas le W-8BEN-E
+                Le W-8BEN-E attend votre statut
               </strong>
               <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "14px", lineHeight: "1.75", margin: 0 }}>
                 Son remplissage dépend d'un statut FATCA que l'outil ne
@@ -302,7 +385,7 @@ export default function VitrineMysterLLC() {
             </div>
             <div style={carte}>
               <strong style={{ color: OR, fontSize: "15.5px", display: "block", marginBottom: "10px" }}>
-                Il n'est pas un conseil fiscal
+                Le jugement reste le vôtre
               </strong>
               <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "14px", lineHeight: "1.75", margin: 0 }}>
                 MysterLLC suit des échéances et prépare des documents. La
