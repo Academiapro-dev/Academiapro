@@ -40,6 +40,16 @@ export const maxDuration = 60;
 // alors que l administration exige autre chose, cree une fausse securite —
 // et c est le client qui la paierait.
 //
+// 🆕 LE TRACE MANUSCRIT — 01/09. Le signataire peut dessiner sa signature
+// au doigt ou au stylet. Observation de Jacques, en tant qu utilisateur :
+// « je me laisse souvent entrainer par les apparences comme tout humain ».
+// Cocher une case ne RESSEMBLE pas a signer.
+//
+// ⚠️ IL N AJOUTE RIEN JURIDIQUEMENT — la signature vaut deja sans lui — MAIS
+// SON EMPREINTE ENTRE DANS LE SCEAU. Un trace hors du sceau serait
+// decoratif et remplacable : on montrerait une signature sans pouvoir
+// prouver que c est celle qui a ete apposee.
+//
 // ⚠️ SIGNATURE ELECTRONIQUE SIMPLE au sens du reglement eIDAS. Ni avancee,
 // ni qualifiee. Elle est opposable ENTRE LES PARTIES ; elle ne vaut pas
 // verification d identite. L ecran le dit, et cette route le repete dans sa
@@ -245,9 +255,20 @@ export async function GET(req: NextRequest) {
     // laisse aucune trace sur les lignes restantes.
     let precedente = "";
     const liste = (data || []).map(function (s: any) {
+      // 🚨 LE TRACE ENTRE DANS LE SCEAU — 01/09.
+      //
+      // Sans lui, on afficherait une signature manuscrite qui ne ferait
+      // PAS PARTIE DE LA PREUVE : quelqu un pourrait la remplacer en base
+      // sans que le sceau bronche. Le trace serait alors decoratif, et
+      // trompeur.
+      //
+      // ⚠️ L ABSENCE DE TRACE VAUT CHAINE VIDE. Ainsi une signature posee
+      // avant l ajout de cette colonne reste valide : son sceau a ete
+      // calcule avec le meme "" a cette position.
       const charge = [
         s.tenant_id, s.document_type, s.document_reference, s.empreinte_sha256,
         s.signataire_email, s.consentement, new Date(s.signe_le).toISOString(),
+        s.trace_sha256 || "",
       ].join("|");
 
       const intacte = sceau(charge) === s.jeton_preuve;
@@ -529,9 +550,25 @@ export async function POST(req: NextRequest) {
     const ip = req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || null;
     const navigateur = req.headers.get("user-agent") || null;
 
+    // 🚨 LE TRACE MANUSCRIT, S IL EXISTE, ENTRE DANS LE SCEAU.
+    // Il est facultatif : la signature vaut sans lui. Mais s il est
+    // present, il devient indissociable de la preuve.
+    const trace = b.trace ? String(b.trace).trim() : "";
+    const traceEmpreinte = trace ? empreinteTexte(trace) : "";
+
+    // ⚠️ UNE BORNE DE TAILLE. Un trace au doigt tient dans quelques
+    // kilo-octets ; au-dela, c est qu on tente d y glisser autre chose.
+    if (trace && trace.length > 400000) {
+      return NextResponse.json(
+        { ok: false, erreur: "Le trace de signature est trop volumineux." },
+        { status: 400 }
+      );
+    }
+
     const charge = [
       doc.tenant_id, doc.doc_type, reference, empreinte,
       signataire, CONSENTEMENT, signeLe,
+      traceEmpreinte,
     ].join("|");
 
     // 🚨 LE CHAINAGE : chaque preuve porte l empreinte de la precedente.
@@ -570,6 +607,8 @@ export async function POST(req: NextRequest) {
         tentatives: tentatives,
         empreinte_precedente: precedente || null,
         empreinte_chaine: chaine,
+        trace_signature: trace || null,
+        trace_sha256: traceEmpreinte || null,
         ouvert_le: b.ouvert_le || null,
       })
       .select("id, empreinte_sha256, signe_le, empreinte_chaine")
