@@ -354,6 +354,18 @@ export default function PageLinkedin() {
   // chacun doit garder sa propre saisie.
   const [profilSaisi, setProfilSaisi] = useState<any>({});
 
+  // 🆕 LE RETOUR DE LA DERNIERE CORRECTION D ETAPE — 01/09.
+  //
+  // POURQUOI PAR FICHE. Les messages generaux s affichent en haut de la
+  // page. Sur une liste longue, Jacques touche une etape a mille pixels
+  // plus bas : le message apparait hors de son champ de vision, et de la
+  // ou il est, RIEN NE SEMBLE SE PASSER. C est ce qui a fait croire que
+  // les pastilles ne repondaient pas.
+  //
+  // ⚠️ LE RETOUR S AFFICHE DONC SOUS LES PASTILLES ELLES-MEMES, la ou le
+  // regard se trouve deja.
+  const [retourEtape, setRetourEtape] = useState<any>({});
+
   const [compteurs, setCompteurs] = useState<any>(null);
   const [charge, setCharge] = useState(false);
   const [erreur, setErreur] = useState("");
@@ -1878,6 +1890,7 @@ export default function PageLinkedin() {
   // une fiche invitee l a ete. Pour tout annuler, il y a « Ecarter ».
   async function corrigerEtape(l: any, rangVoulu: number) {
     if (rangVoulu < 1 || rangVoulu > 6) return;
+    const cle = cleDe(l);
 
     // Le statut LinkedIn correspondant au rang vise. Les rangs 4, 5 et 6
     // restent en « relance » : cote LinkedIn la relation n a pas change,
@@ -1912,6 +1925,7 @@ export default function PageLinkedin() {
 
       if (d.ok) {
         setMessage(d.message || "Étape corrigée.");
+        setRetourEtape({ [cle]: { ok: true, texte: d.message || "Étape enregistrée." } });
         if (d.compteurs) setCompteurs(d.compteurs);
         // La liste ET la recherche se rafraichissent : la fiche peut venir
         // de l une ou de l autre.
@@ -1920,10 +1934,14 @@ export default function PageLinkedin() {
           await chercherPartout();
         }
       } else {
-        setErreur(d.erreur || "Correction impossible.");
+        const t = d.erreur || "Correction impossible.";
+        setErreur(t);
+        setRetourEtape({ [cle]: { ok: false, texte: t } });
       }
     } catch (e: any) {
-      setErreur("Correction impossible : " + String(e));
+      const t = "Correction impossible : " + String(e);
+      setErreur(t);
+      setRetourEtape({ [cle]: { ok: false, texte: t } });
     }
     setCharge(false);
   }
@@ -2038,6 +2056,24 @@ export default function PageLinkedin() {
             ? "Touchez une étape pour rouvrir cette fiche."
             : "Touchez une étape pour y amener la fiche — en avant comme en arrière."}
         </div>
+
+        {/* 🆕 LE RETOUR, SOUS LES PASTILLES — 01/09.
+            Les messages generaux s affichent en haut de page : sur une
+            liste longue, ils sont invisibles depuis la fiche. Celui-ci
+            apparait la ou le regard se trouve deja. */}
+        {retourEtape[cleDe(l)] && (
+          <div style={{
+            marginTop: "8px", padding: "8px 11px", borderRadius: "7px",
+            fontSize: "12px", lineHeight: "1.6",
+            background: retourEtape[cleDe(l)].ok
+              ? "rgba(0,230,118,0.12)" : "rgba(232,131,106,0.12)",
+            border: "1px solid " + (retourEtape[cleDe(l)].ok
+              ? "rgba(0,230,118,0.4)" : "rgba(232,131,106,0.4)"),
+            color: retourEtape[cleDe(l)].ok ? VERT : "#e8836a",
+          }}>
+            {retourEtape[cleDe(l)].texte}
+          </div>
+        )}
 
         {/* Les dates connues, sous le parcours. Elles disent QUAND, la ou
             les pastilles disent OU. */}
