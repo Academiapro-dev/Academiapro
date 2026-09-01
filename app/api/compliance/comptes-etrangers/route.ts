@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { sessionCourante } from "../../../../lib/session";
+// 🚨 LE CONTROLE D ORIGINE EST DESORMAIS PARTAGE — 01/09.
+// La fonction etait recopiee dans chaque route, chacune avec sa propre
+// liste de domaines. mysterllc.com n avait ete ajoute qu a deux d entre
+// elles : ouvrir un dossier depuis mysterllc.com rendait « Acces refuse ».
+// ⚠️ NE PAS REDEFINIR origineLegitime ICI. Une copie locale reintroduirait
+// exactement le defaut que ce fichier partage supprime.
+import { origineLegitime } from "../../../../lib/origine";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -28,16 +35,6 @@ const supabase = createClient(
 // etrangers. C est la donnee la plus sensible du module apres l identite du
 // declarant. Aucun raccourci ici.
 // ---------------------------------------------------------------------------
-
-function origineLegitime(req: NextRequest): boolean {
-  const origine = req.headers.get("origin") || "";
-  const referent = req.headers.get("referer") || "";
-  return (
-    origine.includes("academiapro.fr") || referent.includes("academiapro.fr") ||
-    origine.includes("vercel.app") || referent.includes("vercel.app") ||
-    origine.includes("localhost") || referent.includes("localhost")
-  );
-}
 
 // L organisme vient du JETON SIGNE session_academia. Avec l ancien cookie
 // sb_user, un cookie forge permettait de lire, d ajouter et de supprimer
