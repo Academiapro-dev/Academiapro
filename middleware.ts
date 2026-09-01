@@ -167,6 +167,15 @@ export async function middleware(request: NextRequest) {
     return NextResponse.rewrite(url);
   }
 
+  // 🆕 LE SITEMAP DE MYSTERLLC — 01/09. Meme mecanisme, meme raison : le
+  // fichier doit etre servi sur mysterllc.com lui-meme, et un dossier
+  // portant un point dans son nom n est pas servi par Next.
+  if (chemin === '/sitemap-mysterllc.xml') {
+    const url = request.nextUrl.clone();
+    url.pathname = '/api/sitemap-mysterllc';
+    return NextResponse.rewrite(url);
+  }
+
   // Une marque de la maison : la racine et les pages de vitrine partent vers
   // le dossier du produit. Le reste — connexion, espaces, administration —
   // continue de fonctionner tel quel, sur le meme deploiement.
@@ -186,7 +195,20 @@ export async function middleware(request: NextRequest) {
     // dans public/ partait vers /comptable/IMG_4100.jpeg, qui n existe pas :
     // la barre de Mr. Comptable affichait une image cassee. Un fichier n est
     // jamais une page de vitrine.
-    const RESERVES = ['/admin', '/api', '/connexion', '/comptable', '/mysterllc', '/of', '/maintenance', '/_next'];
+    //
+    // 🚨 /compliance AJOUTE AUX RESERVES LE 01/09, ET SON ABSENCE AURAIT
+    // CASSE LA SIGNATURE DEVANT UN CLIENT.
+    //
+    // CE QUI SE SERAIT PASSE. Le lien de signature envoye au client pointe
+    // sur mysterllc.com/compliance/signature/SIG-... Sans cette reserve, le
+    // chemin partait vers /mysterllc/compliance/signature/... — qui
+    // n existe pas. LE CLIENT AURAIT CLIQUE ET SERAIT TOMBE SUR UNE PAGE
+    // INTROUVABLE, sur le premier document qu on lui demandait de signer.
+    //
+    // ⚠️ TOUT NOUVEL ECRAN PUBLIC HORS VITRINE DOIT ETRE AJOUTE ICI. Un
+    // chemin oublie n echoue pas bruyamment : il est simplement reecrit
+    // ailleurs, et rend « page introuvable » sans expliquer pourquoi.
+    const RESERVES = ['/admin', '/api', '/connexion', '/comptable', '/mysterllc', '/compliance', '/of', '/maintenance', '/_next'];
     const estFichier = chemin.lastIndexOf('.') > chemin.lastIndexOf('/');
     if (!estFichier && !correspond(chemin, RESERVES)) {
       const url = request.nextUrl.clone();
