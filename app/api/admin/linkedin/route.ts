@@ -440,7 +440,12 @@ export async function POST(req: NextRequest) {
 
       if (base === "manuel") champs.derniere_interaction = new Date().toISOString();
 
-      const { data, error } = await supabase
+      // ⚠️ MEME PARADE QUE DANS corriger_etape : la branche accepte
+      // desormais TOUT champ envoye, donc elle peut recevoir une colonne
+      // qui n existe pas sur cette table. Plutot que de tout refuser, on
+      // retire le champ fautif et on recommence — une seule fois, pour ne
+      // pas boucler.
+      let { data, error } = await supabase
         .from(table)
         .update(champs)
         .eq("id", id)
@@ -448,6 +453,29 @@ export async function POST(req: NextRequest) {
         .maybeSingle();
 
       if (error) {
+        const msg = String(error.message || "");
+        // Postgres nomme la colonne inconnue entre guillemets.
+        const trouve = msg.match(/'([^']+)'|"([^"]+)"/);
+        const fautive = trouve ? (trouve[1] || trouve[2]) : null;
+
+        if (fautive && champs[fautive] !== undefined) {
+          console.error("[modifier] colonne " + fautive + " absente sur "
+            + table + " — nouvel essai sans elle");
+          const reduit: any = { ...champs };
+          delete reduit[fautive];
+          const retour = await supabase
+            .from(table)
+            .update(reduit)
+            .eq("id", id)
+            .select(colonnesDe(base))
+            .maybeSingle();
+          data = retour.data;
+          error = retour.error;
+        }
+      }
+
+      if (error) {
+        console.error("[modifier]", error.message);
         return NextResponse.json({ ok: false, erreur: error.message }, { status: 500 });
       }
 
@@ -563,8 +591,44 @@ export async function POST(req: NextRequest) {
         else champs.statut = "contacte";
       }
 
-      const { error: eCorr } = await supabase.from(table).update(champs).eq("id", id);
+      // 🚨 LA COLONNE score N EXISTE PAS SUR TOUTES LES TABLES — 01/09.
+      //
+      // CE QUI S EST PASSE. En posant le score sur toutes les tables pour
+      // que les etapes 4, 5 et 6 fonctionnent partout, j ai fait ECHOUER LA
+      // MISE A JOUR ENTIERE sur les bases de prospection : Postgres refuse
+      // toute la requete si une seule colonne est inconnue. Avant, le score
+      // etait ignore ; apres, plus rien ne passait — meme reculer.
+      //
+      // LA PARADE. On tente avec le score, et si la colonne manque, on
+      // recommence sans. L etape est alors portee par le statut seul :
+      // exact pour les rangs 1 a 3, approche pour les rangs 4 a 6, qui
+      // retombent sur « message envoye ».
+      //
+      // ⚠️ CE REPLI PRODUIT UN RESULTAT MOINS PRECIS, PAS UN RESULTAT FAUX
+      // — c est ce qui le rend acceptable. Un repli qui changerait le
+      // PERIMETRE des donnees serait interdit ; celui-ci enregistre moins,
+      // il n invente rien.
+      //
+      // ⚠️ LA COLONNE RESTE A CREER pour que les trois dernieres etapes
+      // tiennent sur les bases de prospection :
+      //   alter table public.prospects_organismes add column if not exists score integer;
+      //   alter table public.prospects_qualiopi   add column if not exists score integer;
+      //   alter table public.prospects_interim    add column if not exists score integer;
+      //   alter table public.prospects_cabinets   add column if not exists score integer;
+      // Une fois faite, ce repli ne se declenchera plus.
+      let { error: eCorr } = await supabase.from(table).update(champs).eq("id", id);
+
+      if (eCorr && String(eCorr.message || "").indexOf("score") >= 0) {
+        console.error("[corriger_etape] colonne score absente sur " + table
+          + " — nouvel essai sans le score");
+        const sansScore: any = { ...champs };
+        delete sansScore.score;
+        const retour = await supabase.from(table).update(sansScore).eq("id", id);
+        eCorr = retour.error;
+      }
+
       if (eCorr) {
+        console.error("[corriger_etape]", eCorr.message);
         return NextResponse.json({ ok: false, erreur: eCorr.message }, { status: 500 });
       }
 
