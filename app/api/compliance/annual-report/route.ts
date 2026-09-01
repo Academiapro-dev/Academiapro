@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { sessionCourante } from "../../../../lib/session";
+// 🚨 LE CONTROLE D ORIGINE EST DESORMAIS PARTAGE — 01/09.
+// La fonction etait recopiee dans chaque route, chacune avec sa propre
+// liste de domaines. mysterllc.com n avait ete ajoute qu a deux d entre
+// elles : ouvrir un dossier depuis mysterllc.com rendait « Acces refuse ».
+// ⚠️ NE PAS REDEFINIR origineLegitime ICI. Une copie locale reintroduirait
+// exactement le defaut que ce fichier partage supprime.
+import { origineLegitime } from "../../../../lib/origine";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -16,20 +23,10 @@ const supabase = createClient(
 // CE FICHIER ENVOYAIT DEPUIS contact@hebrewproai.com, le domaine du beit
 // midrash. Une fiche fiscale qui arrive de la fait douter de tout le reste.
 //
-// ⚠️ RENSEIGNER COMPLIANCE_EXPEDITEUR DANS VERCEL des que le domaine du
-// produit est verifie chez Resend.
+// ⚠️ COMPLIANCE_EXPEDITEUR EST RENSEIGNEE DANS VERCEL depuis le 31/08 :
+// MysterLLC <contact@mysterllc.com>, verifie chez Resend.
 const EXPEDITEUR = process.env.COMPLIANCE_EXPEDITEUR
   || "Suivi des echeances <contact@academiapro.fr>";
-
-function origineLegitime(req: NextRequest): boolean {
-  const origine = req.headers.get("origin") || "";
-  const referent = req.headers.get("referer") || "";
-  return (
-    origine.includes("academiapro.fr") || referent.includes("academiapro.fr") ||
-    origine.includes("vercel.app") || referent.includes("vercel.app") ||
-    origine.includes("localhost") || referent.includes("localhost")
-  );
-}
 
 // License tax Wyoming : max(60, 0.0002 * valeur des actifs WY)
 function licenseTax(assets: number): number {
