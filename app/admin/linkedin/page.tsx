@@ -1628,17 +1628,11 @@ export default function PageLinkedin() {
                               {/* 🆕 LE PARCOURS, CLIQUABLE ICI AUSSI — 01/09.
                                   Il ne s affiche que sur les fiches deja engagees ;
                                   blocParcours rend null pour les autres. */}
-                              {/* 🚨 LE PARCOURS VAUT AUSSI POUR UN CONTACT PAR
-                                  COURRIEL — corrige le 01/09.
-                                  LE DEFAUT : le bloc etait reserve aux bases
-                                  portant des colonnes LinkedIn. Or « a repondu »,
-                                  « rendez-vous pris » et « nouveau client » n ont
-                                  rien a voir avec LinkedIn : ce sont des etapes
-                                  commerciales. Anais Grimaud, contactee par
-                                  courriel le 31/08 et qui a demande un
-                                  rendez-vous, etait LE PROSPECT LE PLUS AVANCE ET
-                                  LE SEUL QU ON NE POUVAIT PAS MARQUER. */}
-                              {blocParcours({ ...l, base: b.cle })}
+                              {/* 🚨 PAS D APPEL DIRECT A blocParcours ICI —
+                                  corrige le 01/09. blocFiche l affiche deja en
+                                  tete de son bloc replie : appeler les deux
+                                  faisait apparaitre LE PARCOURS EN DOUBLE sur
+                                  chaque resultat de recherche. */}
 
                               {/* 🆕 LA FICHE COMPLETE, MODIFIABLE DEPUIS LA RECHERCHE
                                   — 01/09.
@@ -1957,11 +1951,28 @@ export default function PageLinkedin() {
         setMessage(d.message || "Étape corrigée.");
         setRetourEtape({ [cle]: { ok: true, texte: d.message || "Étape enregistrée." } });
         if (d.compteurs) setCompteurs(d.compteurs);
-        // La liste ET la recherche se rafraichissent : la fiche peut venir
-        // de l une ou de l autre.
-        await chargerListe();
-        if (partoutResultat && partoutTerme.trim().length >= 2) {
+
+        // 🚨 LA PASTILLE NE SUIVAIT PAS LE MESSAGE — corrige le 01/09.
+        //
+        // LE DEFAUT CONSTATE PAR JACQUES : « ca a bien indique en vert que
+        // le rendez-vous a ete pris, mais la pastille est restee grisee ».
+        // L enregistrement reussissait, l affichage ne se rafraichissait
+        // pas.
+        //
+        // POURQUOI. chargerListe() etait appele meme depuis l onglet
+        // « Inviter », qui n a pas de liste — il ne relisait donc rien. Et
+        // la recherche n etait relancee que si un resultat existait deja :
+        // la condition regardait partoutResultat, qui pouvait etre vide au
+        // moment du test.
+        //
+        // LA CORRECTION : on relance CE QUI EST OUVERT. Une recherche en
+        // cours se relit toujours ; la liste ne se relit que dans les
+        // onglets qui en ont une.
+        if (partoutTerme.trim().length >= 2) {
           await chercherPartout();
+        }
+        if (onglet !== "inviter") {
+          await chargerListe();
         }
       } else {
         const t = d.erreur || "Correction impossible.";
