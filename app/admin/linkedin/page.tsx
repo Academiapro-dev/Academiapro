@@ -414,6 +414,47 @@ export default function PageLinkedin() {
   // La ligne change d etat AVANT l appel, et l on ne relance NI la
   // recherche NI la liste. Relire les six bases apres chaque marquage
   // rendait la recherche inutilisable des qu on marquait deux fiches.
+  // 🆕 REMETTRE UNE FICHE ECARTEE DANS LA FILE — 01/09.
+  //
+  // LE BESOIN : on ecarte par erreur, ou une societe redevient pertinente.
+  // L ecran refusait toute action sur une fiche ecartee, ce qui la
+  // condamnait pour toujours.
+  //
+  // ⚠️ AUCUNE INVITATION N EST ENVOYEE NI CONSOMMEE. La fiche repart a
+  // l etat « jamais sollicitee » : statut vide, date d invitation effacee.
+  // Elle ressortira dans l onglet Inviter comme si elle n avait jamais ete
+  // touchee.
+  //
+  // ⚠️ C EST LE SEUL CAS OU linkedin_le EST EFFACEE. Ailleurs, une date
+  // reelle ne se supprime jamais. Ici elle ne correspond a aucun envoi :
+  // « ecarte » pose une date qui marque le geste d ecarter, pas une
+  // invitation partie.
+  async function remettreEnFile(cleBase: string, ligne: any) {
+    setPartoutErreur("");
+    setPartoutMessage("");
+    const cle = cleBase + "-" + ligne.id;
+    setPartoutOccupe(cle);
+    try {
+      const d = await appeler({
+        action: "remettre_en_file",
+        base: cleBase,
+        id: ligne.id,
+      });
+      if (d.ok) {
+        setPartoutMessage(d.message || "Fiche remise dans la file.");
+        if (d.compteurs) setCompteurs(d.compteurs);
+        // La recherche est relancee pour que la fiche affiche son nouvel
+        // etat sans que Jacques ait a retaper son terme.
+        if (partoutTerme.trim().length >= 2) await chercherPartout();
+      } else {
+        setPartoutErreur(d.erreur || "Opération impossible.");
+      }
+    } catch (e: any) {
+      setPartoutErreur("Opération impossible : " + String(e));
+    }
+    setPartoutOccupe("");
+  }
+
   async function marquerDepuisRecherche(cleBase: string, ligne: any, statut: string) {
     setPartoutErreur("");
     setPartoutMessage("");
@@ -1127,11 +1168,35 @@ export default function PageLinkedin() {
     const occupe = partoutOccupe === cle;
     const statut = String(l.linkedin_statut || "");
 
+    // 🚨 UNE FICHE ECARTEE DOIT POUVOIR REVENIR — corrige le 01/09.
+    //
+    // CE QUI SE PASSAIT. L ecran affichait « aucune action proposee » et
+    // enfermait la fiche pour toujours. Or on ecarte par erreur, ou on
+    // ecarte a raison une societe qui redevient pertinente six mois plus
+    // tard. Rien ne justifie que ce soit definitif.
+    //
+    // ⚠️ REMETTRE EN FILE N INVITE PERSONNE : la fiche repart a l etat
+    // « jamais sollicitee », statut et date effaces. C est la route qui
+    // s en charge, via l action remettre_en_file.
     if (statut === "ecarte") {
       return (
-        <p style={{ color: "rgba(255,255,255,0.35)", fontSize: "12px", lineHeight: "1.7", margin: "9px 0 0" }}>
-          Fiche écartée — aucune action proposée pour ne pas recréer un doublon.
-        </p>
+        <div style={{ marginTop: "9px" }}>
+          <p style={{ color: "rgba(255,255,255,0.35)", fontSize: "12px", lineHeight: "1.7", margin: "0 0 8px" }}>
+            Fiche écartée — elle ne ressort plus dans la file d'invitation.
+          </p>
+          <button
+            onClick={() => remettreEnFile(cleBase, l)}
+            disabled={occupe}
+            style={{
+              padding: "9px 15px", borderRadius: "8px", fontSize: "12.5px",
+              fontFamily: "Georgia,serif", cursor: occupe ? "wait" : "pointer",
+              background: "rgba(200,169,110,0.13)", color: OR,
+              border: "1px solid rgba(200,169,110,0.4)",
+            }}
+          >
+            {occupe ? "…" : "↺ Remettre dans la file"}
+          </button>
+        </div>
       );
     }
 
@@ -1152,6 +1217,10 @@ export default function PageLinkedin() {
       flex: "1 1 130px",
     };
 
+    // ⚠️ SANS PROFIL LINKEDIN, ON NE PEUT PAS DECLARER UNE INVITATION —
+    // il n y aurait rien a ouvrir. La fiche peut en revanche etre ecartee.
+    const sansProfil = !String(l.linkedin || "").trim();
+
     return (
       <div style={{ display: "flex", gap: "7px", flexWrap: "wrap", marginTop: "10px" }}>
         {enAttente && (
@@ -1163,7 +1232,13 @@ export default function PageLinkedin() {
             ✓ A accepté
           </button>
         )}
-        {!enAttente && (
+        {!enAttente && sansProfil && (
+          <p style={{ color: "rgba(255,255,255,0.35)", fontSize: "12px", lineHeight: "1.7", margin: "0 0 4px", flex: "1 1 100%" }}>
+            Aucun profil LinkedIn sur cette fiche — ouvrez la fiche complète
+            pour en ajouter un avant de l'inviter.
+          </p>
+        )}
+        {!enAttente && !sansProfil && (
           <>
             <button
               onClick={() => marquerDepuisRecherche(cleBase, l, "invite")}
@@ -1313,10 +1388,22 @@ export default function PageLinkedin() {
                                 {l.desabonne ? " · DÉSABONNÉ" : ""}
                               </div>
 
+                              {/* 🚨 LE MESSAGE CONSEILLAIT D ECARTER — corrige le 01/09.
+                                  LE DEFAUT CONSTATE PAR JACQUES : Sebastien Forges dirige
+                                  Noscome ET Cmexpert, deux SIREN differents, deux societes
+                                  reelles. La detection ne compare QUE le prenom et le nom :
+                                  elle criait au doublon et invitait a supprimer un prospect
+                                  legitime.
+                                  ⚠️ CE N EST PAS UN DOUBLON, C EST LA MEME PERSONNE DANS
+                                  DEUX STRUCTURES. Le seul risque reel est de lui envoyer
+                                  deux invitations LinkedIn — c est cela qu il faut dire, et
+                                  rien de plus. */}
                               {enDouble && (
                                 <div style={{ color: ORANGE, fontSize: "12px", marginTop: "6px", lineHeight: "1.7" }}>
-                                  ⚠️ Ce dirigeant apparaît dans plusieurs bases — écartez le doublon
-                                  pour ne pas l'inviter deux fois.
+                                  ⚠️ Ce dirigeant apparaît sur plusieurs fiches — souvent deux
+                                  sociétés qu'il dirige. Vérifiez le SIREN : n'envoyez qu'une
+                                  seule invitation LinkedIn, mais ne supprimez pas la seconde
+                                  fiche, elle peut être un vrai prospect.
                                 </div>
                               )}
 
@@ -1335,22 +1422,35 @@ export default function PageLinkedin() {
                                 </div>
                               )}
 
+                              {/* 🚨 LE LIEN ET L ETAT NE S AFFICHENT QUE S IL Y A UN
+                                  PROFIL. Sans adresse LinkedIn, il n y a rien a ouvrir. */}
                               {b.porte_linkedin && l.linkedin && (
-                                <>
-                                  <div style={{ marginTop: "8px", display: "flex", gap: "12px", flexWrap: "wrap", alignItems: "center" }}>
-                                    <a href={lien(l.linkedin)} target="_blank" rel="noreferrer"
-                                      style={{ color: BLEU, fontSize: "12.5px", textDecoration: "none" }}>
-                                      Ouvrir le profil LinkedIn ↗
-                                    </a>
-                                    <span style={{ color: l.linkedin_statut ? VERT : "rgba(255,255,255,0.35)", fontSize: "12px" }}>
-                                      {l.linkedin_statut
-                                        ? l.linkedin_statut + (l.linkedin_le ? " le " + jolieDate(l.linkedin_le) : "")
-                                        : "jamais sollicité"}
-                                    </span>
-                                  </div>
-                                  {actionsRecherche(b.cle, l)}
-                                </>
+                                <div style={{ marginTop: "8px", display: "flex", gap: "12px", flexWrap: "wrap", alignItems: "center" }}>
+                                  <a href={lien(l.linkedin)} target="_blank" rel="noreferrer"
+                                    style={{ color: BLEU, fontSize: "12.5px", textDecoration: "none" }}>
+                                    Ouvrir le profil LinkedIn ↗
+                                  </a>
+                                  <span style={{ color: l.linkedin_statut ? VERT : "rgba(255,255,255,0.35)", fontSize: "12px" }}>
+                                    {l.linkedin_statut
+                                      ? l.linkedin_statut + (l.linkedin_le ? " le " + jolieDate(l.linkedin_le) : "")
+                                      : "jamais sollicité"}
+                                  </span>
+                                </div>
                               )}
+
+                              {/* 🚨 LES ACTIONS SONT SORTIES DE CETTE CONDITION —
+                                  corrige le 01/09.
+                                  LE DEFAUT CONSTATE PAR JACQUES : « impossible de
+                                  modifier la fiche pour la passer en invitation
+                                  acceptée ». Les boutons existaient, mais ils etaient
+                                  enfermes dans la condition `l.linkedin` : une fiche
+                                  SANS profil LinkedIn n en montrait aucun, donc rien
+                                  ne pouvait etre corrige — pas meme un ecart a
+                                  defaire.
+                                  ⚠️ CE QUI RESTE CONDITIONNE : la base doit porter les
+                                  colonnes LinkedIn (b.porte_linkedin). Sans elles, la
+                                  route n aurait rien a ecrire. */}
+                              {b.porte_linkedin && actionsRecherche(b.cle, l)}
                             </div>
                           );
                         })
@@ -1557,84 +1657,6 @@ export default function PageLinkedin() {
       || String(l.statut || "") === "perdu";
   }
 
-  // ---------------------------------------------------------------------------
-  // 🆕 CORRIGER L ETAPE — 01/09.
-  //
-  // LE DEFAUT SIGNALE PAR JACQUES : « le profil vient d accepter mon
-  // invitation et son etat est plus avance que la realite, aucun moyen de
-  // modifier ma fiche ».
-  //
-  // CE QUI SE PASSAIT. Le parcours ne savait qu AVANCER. Un clic sur
-  // « Message envoye » alors qu on voulait marquer une acceptation etait
-  // definitif : la fiche restait a une etape qu elle n avait pas atteinte,
-  // elle sortait de « A ecrire », et les compteurs comptaient un message
-  // jamais parti.
-  //
-  // 🚨 UN OUTIL QUI NE SAIT QUE PROGRESSER FINIT PAR MENTIR. On se trompe
-  // de bouton, on marque trop vite, un contact revient en arriere. Toute
-  // etape doit pouvoir se defaire.
-  //
-  // COMMENT ON RECULE, ET POURQUOI C EST PLUS QU UN STATUT. Les trois
-  // dernieres etapes ne sont pas des statuts LinkedIn : elles se deduisent
-  // du SCORE commercial. Reculer suppose donc de reposer LES DEUX — le
-  // statut ET le score — sinon la fiche redescend d un cran a l ecran et
-  // remonte au prochain calcul.
-  //
-  // ⚠️ LES DATES NE SONT PAS EFFACEES. Une invitation partie le 30/08 est
-  // partie : reculer de « Message envoye » a « Invitation acceptee » ne
-  // supprime pas linkedin_le. Effacer une date reelle serait reecrire
-  // l histoire, et fausserait les compteurs de la semaine.
-  //
-  // ⚠️ ON NE RECULE PAS EN DESSOUS DE L INVITATION. Le rang 1 est le
-  // plancher : une fiche invitee l a ete. Pour annuler une invitation
-  // entiere, il y a « Ecarter ».
-  async function corrigerEtape(l: any, rangVoulu: number) {
-    if (rangVoulu < 1 || rangVoulu > 6) return;
-
-    // Le statut LinkedIn correspondant au rang vise. Les rangs 4, 5 et 6
-    // restent en « relance » : cote LinkedIn, la relation n a pas change,
-    // c est le score qui porte l avancement commercial.
-    const parRang: any = {
-      1: { statut: avecNoteDe(l) ? "invite" : "invite_nu", score: 45 },
-      2: { statut: avecNoteDe(l) ? "accepte" : "accepte_nu", score: 60 },
-      3: { statut: "relance", score: 65 },
-      4: { statut: "relance", score: 70 },
-      5: { statut: "relance", score: 85 },
-      6: { statut: "relance", score: 95 },
-    };
-
-    const cible = parRang[rangVoulu];
-    if (!cible) return;
-
-    setCharge(true);
-    setErreur("");
-    setMessage("");
-    try {
-      const d = await appeler({
-        action: "corriger_etape",
-        base: l.base || base,
-        id: l.id,
-        statut: cible.statut,
-        score: cible.score,
-        // 🚨 LE RANG EST TRANSMIS TEL QUEL. La route en a besoin pour poser
-        // le statut CRM (« client » au rang 6) et pour savoir s il faut
-        // effacer la date de message quand on redescend sous le rang 3.
-        rang: rangVoulu,
-      });
-
-      if (d.ok) {
-        setMessage(d.message || "Étape corrigée.");
-        if (d.compteurs) setCompteurs(d.compteurs);
-        await chargerListe();
-      } else {
-        setErreur(d.erreur || "Correction impossible.");
-      }
-    } catch (e: any) {
-      setErreur("Correction impossible : " + String(e));
-    }
-    setCharge(false);
-  }
-
   function blocParcours(l: any) {
     const rang = rangAtteint(l);
     const sorti = estSorti(l);
@@ -1670,27 +1692,7 @@ export default function PageLinkedin() {
                 display: "flex", alignItems: "center",
                 flex: "0 0 auto", marginBottom: "6px",
               }}>
-                {/* 🆕 CHAQUE ETAPE EST UN BOUTON — 01/09.
-                    Toucher une etape y ramene la fiche, en avant comme en
-                    arriere. C est la reponse au defaut « aucun moyen de
-                    modifier ma fiche » : on voit le parcours, on touche la
-                    ou l on veut etre.
-
-                    ⚠️ SUR UNE FICHE SORTIE (refus, ecartee), LE PARCOURS
-                    N EST PAS CLIQUABLE : la faire avancer n aurait pas de
-                    sens, et la ressusciter par megarde non plus. */}
-                <button
-                  onClick={() => { if (!sorti) corrigerEtape(l, i + 1); }}
-                  disabled={charge || sorti}
-                  title={sorti ? "" : "Ramener la fiche à cette étape"}
-                  style={{
-                    display: "flex", alignItems: "center", gap: "6px",
-                    background: "transparent", border: "none",
-                    padding: "3px 2px", margin: 0,
-                    cursor: sorti ? "default" : "pointer",
-                    fontFamily: "Georgia,serif",
-                  }}
-                >
+                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                   {/* La pastille : pleine si franchie, cerclee sinon. */}
                   <span style={{
                     width: "15px", height: "15px", borderRadius: "50%",
@@ -1709,13 +1711,10 @@ export default function PageLinkedin() {
                       ? (sorti ? "#e8836a" : "rgba(255,255,255,0.85)")
                       : "rgba(255,255,255,0.3)",
                     fontWeight: courante ? "bold" : "normal",
-                    textDecoration: sorti ? "none" : "underline",
-                    textDecorationColor: "rgba(255,255,255,0.12)",
-                    textUnderlineOffset: "3px",
                   }}>
                     {e.nom}
                   </span>
-                </button>
+                </div>
 
                 {/* Le trait de liaison, absent apres la derniere etape. */}
                 {!derniere && (
@@ -1731,18 +1730,6 @@ export default function PageLinkedin() {
             );
           })}
         </div>
-
-        {/* 🆕 L INVITE A CORRIGER — sans elle, personne ne devine que les
-            etapes sont cliquables. Masquee sur une fiche sortie, ou le
-            parcours est fige. */}
-        {!sorti && (
-          <div style={{
-            color: "rgba(255,255,255,0.3)", fontSize: "11.5px",
-            lineHeight: "1.7", marginTop: "6px",
-          }}>
-            Touchez une étape pour y ramener la fiche — en avant comme en arrière.
-          </div>
-        )}
 
         {/* Les dates connues, sous le parcours. Elles disent QUAND, la ou
             les pastilles disent OU. */}
