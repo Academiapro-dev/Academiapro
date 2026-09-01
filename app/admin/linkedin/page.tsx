@@ -349,6 +349,11 @@ export default function PageLinkedin() {
   };
   const [message, setMessage] = useState("");
 
+  // 🆕 LES PROFILS LINKEDIN SAISIS DEPUIS LA RECHERCHE — 01/09.
+  // Un objet par cle de fiche : la recherche affiche plusieurs resultats,
+  // chacun doit garder sa propre saisie.
+  const [profilSaisi, setProfilSaisi] = useState<any>({});
+
   const [compteurs, setCompteurs] = useState<any>(null);
   const [charge, setCharge] = useState(false);
   const [erreur, setErreur] = useState("");
@@ -429,6 +434,49 @@ export default function PageLinkedin() {
   // reelle ne se supprime jamais. Ici elle ne correspond a aucun envoi :
   // « ecarte » pose une date qui marque le geste d ecarter, pas une
   // invitation partie.
+  // 🆕 ENREGISTRER UN PROFIL LINKEDIN SUR UNE FICHE DE PROSPECTION — 01/09.
+  //
+  // LE CAS REEL : Jacques invite quelqu un directement depuis LinkedIn,
+  // puis retrouve sa fiche en base — sans profil enregistre. Rien ne
+  // permettait de rattacher l un a l autre.
+  //
+  // ⚠️ CETTE ACTION N INVITE PERSONNE ET NE CONSOMME AUCUN QUOTA. Elle
+  // renseigne une coordonnee, rien de plus. C est l action « modifier »,
+  // celle-la meme qui sert a corriger un telephone.
+  async function enregistrerProfil(cleBase: string, ligne: any) {
+    const cle = cleBase + "-" + ligne.id;
+    const valeur = String(profilSaisi[cle] || "").trim();
+
+    if (valeur.indexOf("linkedin.com") < 0) {
+      setPartoutErreur("Collez l'adresse complète du profil LinkedIn.");
+      return;
+    }
+
+    setPartoutErreur("");
+    setPartoutMessage("");
+    setPartoutOccupe(cle);
+    try {
+      const d = await appeler({
+        action: "modifier",
+        base: cleBase,
+        id: ligne.id,
+        linkedin: valeur,
+      });
+      if (d.ok) {
+        setPartoutMessage("Profil enregistré — vous pouvez maintenant l'inviter.");
+        const reste: any = { ...profilSaisi };
+        delete reste[cle];
+        setProfilSaisi(reste);
+        if (partoutTerme.trim().length >= 2) await chercherPartout();
+      } else {
+        setPartoutErreur(d.erreur || "Enregistrement impossible.");
+      }
+    } catch (e: any) {
+      setPartoutErreur("Enregistrement impossible : " + String(e));
+    }
+    setPartoutOccupe("");
+  }
+
   async function remettreEnFile(cleBase: string, ligne: any) {
     setPartoutErreur("");
     setPartoutMessage("");
@@ -690,6 +738,19 @@ export default function PageLinkedin() {
             return cleDe(x) === cle ? { ...d.fiche, base: l.base } : x;
           }));
           if (creee && cleDe(creee) === cle) setCreee({ ...d.fiche, base: l.base });
+        }
+
+        // 🆕 LA RECHERCHE GLOBALE SE RAFRAICHIT AUSSI — 01/09.
+        //
+        // `lignes` ne contient QUE l onglet courant. Une fiche modifiee
+        // depuis la recherche n y figure pas : l enregistrement reussissait
+        // cote serveur mais l ecran gardait l ancienne valeur, ce qui
+        // donnait l impression que rien ne s etait passe.
+        //
+        // ⚠️ ON NE RELANCE QUE SI UNE RECHERCHE EST EN COURS. Sinon on
+        // declencherait une requete inutile a chaque enregistrement.
+        if (partoutResultat && partoutTerme.trim().length >= 2) {
+          await chercherPartout();
         }
       } else {
         setErreur(d.erreur || "Enregistrement impossible.");
@@ -1163,6 +1224,47 @@ export default function PageLinkedin() {
   // Ils ne s affichent QUE si la fiche porte un profil LinkedIn et n est
   // pas deja ecartee. Sur une fiche ecartee, on ne propose rien : c est
   // exactement le geste qui ressusciterait un doublon.
+  // ---------------------------------------------------------------------------
+  // 🆕 OU SE TROUVE CETTE FICHE — 01/09.
+  //
+  // LE BESOIN, DIT PAR JACQUES : « la recherche globale devrait m indiquer
+  // ou se trouve la fiche et sur quelle categorie ». Elle disait la BASE
+  // (organismes, cabinets) mais pas l ONGLET — donc pas ou la retrouver en
+  // naviguant.
+  //
+  // ⚠️ L INFORMATION N EST PAS STOCKEE, ELLE SE DEDUIT. Aucune colonne ne
+  // dit « cette fiche est dans A ecrire » : c est le statut LinkedIn qui
+  // decide de l onglet ou elle apparait. La regle ci-dessous doit donc
+  // rester alignee sur les actions en_attente, a_relancer et envoyes de la
+  // route — si l une change, celle-ci change aussi.
+  function ongletDe(l: any): { nom: string; teinte: string } {
+    const statut = String(l.linkedin_statut || "");
+    const aProfil = String(l.linkedin || "").trim().length > 0;
+
+    if (statut === "ecarte") {
+      return { nom: "Écartée — hors file", teinte: "rgba(255,255,255,0.4)" };
+    }
+    if (statut === "refuse") {
+      return { nom: "Sans suite", teinte: "#e8836a" };
+    }
+    if (statut === "relance") {
+      return { nom: "Messages envoyés", teinte: ORANGE };
+    }
+    if (statut === "accepte" || statut === "accepte_nu") {
+      return { nom: "À écrire", teinte: VERT };
+    }
+    if (statut === "invite" || statut === "invite_nu") {
+      return { nom: "Mes invitations", teinte: BLEU };
+    }
+    // Ni statut ni date : la fiche attend d etre invitee. Elle n apparait
+    // dans l onglet Inviter QUE si elle porte un profil — sans profil,
+    // elle n est nulle part et c est precisement ce qu il faut dire.
+    if (aProfil) {
+      return { nom: "Inviter — jamais sollicitée", teinte: OR };
+    }
+    return { nom: "Aucun onglet — profil LinkedIn manquant", teinte: "rgba(255,255,255,0.4)" };
+  }
+
   function actionsRecherche(cleBase: string, l: any) {
     const cle = cleBase + "-" + l.id;
     const occupe = partoutOccupe === cle;
@@ -1232,11 +1334,41 @@ export default function PageLinkedin() {
             ✓ A accepté
           </button>
         )}
+        {/* 🚨 LE CHAMP QUI MANQUAIT — 01/09.
+            LE DEFAUT : le message renvoyait vers « la fiche complete »,
+            qui n existait pas dans la recherche globale. On constatait
+            l absence de profil sans pouvoir y remedier.
+            LE CAS REEL : Jacques invite quelqu un DEPUIS LinkedIn, puis
+            veut rattacher ce profil a la fiche de prospection qu il a en
+            base. Sans ce champ, la fiche restait muette pour toujours. */}
         {!enAttente && sansProfil && (
-          <p style={{ color: "rgba(255,255,255,0.35)", fontSize: "12px", lineHeight: "1.7", margin: "0 0 4px", flex: "1 1 100%" }}>
-            Aucun profil LinkedIn sur cette fiche — ouvrez la fiche complète
-            pour en ajouter un avant de l'inviter.
-          </p>
+          <div style={{ flex: "1 1 100%" }}>
+            <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "12px", lineHeight: "1.7", margin: "0 0 7px" }}>
+              Aucun profil LinkedIn sur cette fiche. Collez son adresse pour
+              pouvoir l&apos;inviter — ou déclarer qu&apos;elle l&apos;a déjà été.
+            </p>
+            <input
+              value={profilSaisi[cle] !== undefined ? profilSaisi[cle] : ""}
+              onChange={(e) => setProfilSaisi({ ...profilSaisi, [cle]: e.target.value })}
+              placeholder="https://www.linkedin.com/in/…"
+              style={{ ...CHAMP, marginBottom: "8px", fontSize: "13px", padding: "10px 12px" }}
+            />
+            <button
+              onClick={() => enregistrerProfil(cleBase, l)}
+              disabled={occupe || !String(profilSaisi[cle] || "").trim()}
+              style={{
+                ...petit, flex: "1 1 100%",
+                background: String(profilSaisi[cle] || "").trim()
+                  ? "rgba(200,169,110,0.18)" : "rgba(255,255,255,0.05)",
+                color: String(profilSaisi[cle] || "").trim() ? OR : "rgba(255,255,255,0.3)",
+                border: "1px solid " + (String(profilSaisi[cle] || "").trim()
+                  ? "rgba(200,169,110,0.45)" : "rgba(255,255,255,0.12)"),
+                fontWeight: "bold",
+              }}
+            >
+              {occupe ? "…" : "Enregistrer le profil"}
+            </button>
+          </div>
         )}
         {!enAttente && !sansProfil && (
           <>
@@ -1437,6 +1569,38 @@ export default function PageLinkedin() {
                                   </span>
                                 </div>
                               )}
+
+                              {/* 🆕 OU SE TROUVE CETTE FICHE — 01/09.
+                                  Sans cette ligne, la recherche disait dans quelle
+                                  BASE etait la fiche, mais pas dans quel ONGLET —
+                                  donc pas ou la retrouver en naviguant. */}
+                              {b.porte_linkedin && (() => {
+                                const o = ongletDe(l);
+                                return (
+                                  <div style={{ marginTop: "7px", fontSize: "12px" }}>
+                                    <span style={{ color: "rgba(255,255,255,0.35)" }}>Où : </span>
+                                    <span style={{ color: o.teinte, fontWeight: "bold" }}>{o.nom}</span>
+                                  </div>
+                                );
+                              })()}
+
+                              {/* 🆕 LE PARCOURS, CLIQUABLE ICI AUSSI — 01/09.
+                                  Il ne s affiche que sur les fiches deja engagees ;
+                                  blocParcours rend null pour les autres. */}
+                              {b.porte_linkedin && blocParcours({ ...l, base: b.cle })}
+
+                              {/* 🆕 LA FICHE COMPLETE, MODIFIABLE DEPUIS LA RECHERCHE
+                                  — 01/09.
+                                  LE BESOIN DE JACQUES : « la recherche globale devrait
+                                  me donner la possibilite d atteindre la fiche
+                                  concernee et de la modifier a partir de la recherche
+                                  globale ».
+                                  ⚠️ blocFiche EST LE MEME BLOC QUE DANS LES AUTRES
+                                  ONGLETS. On le reutilise plutot que d en ecrire un
+                                  second : deux blocs a maintenir finiraient par
+                                  diverger. Il attend une ligne portant `base`, que la
+                                  recherche ne pose pas — on l ajoute a la volee. */}
+                              {b.porte_linkedin && blocFiche({ ...l, base: b.cle })}
 
                               {/* 🚨 LES ACTIONS SONT SORTIES DE CETTE CONDITION —
                                   corrige le 01/09.
