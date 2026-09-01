@@ -71,7 +71,7 @@ export default function PageCatalogueOrganisme() {
       });
       const data = await r.json();
       if (data.ok) {
-        setMessage(data.ouvertes + " formation(s) ouverte(s) à cet organisme.");
+        setMessage(data.ouvertes + " formation(s) ouverte(s) \u00e0 cet organisme.");
         setCodes("");
         await charger();
       } else {
@@ -94,7 +94,7 @@ export default function PageCatalogueOrganisme() {
       });
       const data = await r.json();
       if (data.ok) {
-        setMessage("Prix enregistré.");
+        setMessage("Prix enregistr\u00e9.");
         await charger();
       } else {
         setErreur(data.erreur || "Enregistrement impossible.");
@@ -141,7 +141,7 @@ export default function PageCatalogueOrganisme() {
       const r = await fetch("/api/organisme/catalogue" + sep + "id=" + id, { method: "DELETE" });
       const data = await r.json();
       if (data.ok) {
-        setMessage(code + " retirée du catalogue de cet organisme.");
+        setMessage(code + " retir\u00e9e du catalogue de cet organisme.");
         await charger();
       } else {
         setErreur(data.erreur || "Suppression impossible.");
@@ -190,7 +190,7 @@ export default function PageCatalogueOrganisme() {
     <div style={CADRE}>
       <div style={{ maxWidth: "1000px", margin: "0 auto" }}>
         <a href="/organisme" style={{ color: "#c8a96e", fontSize: "14px", textDecoration: "none" }}>
-          ← Retour au tableau de bord
+          {"\u2190 Retour au tableau de bord"}
         </a>
 
         <p style={{ color: "#c8a96e", fontSize: "12px", letterSpacing: "3px", margin: "22px 0 8px" }}>
@@ -198,8 +198,8 @@ export default function PageCatalogueOrganisme() {
         </p>
         <h1 style={{ color: "#fff", fontSize: "30px", margin: "0 0 6px" }}>Mon catalogue</h1>
         <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "14px", marginTop: 0 }}>
-          {formations.length} formation(s) · {totalStagiaires} stagiaire(s) inscrit(s)
-          {sansPrix > 0 ? " · " + sansPrix + " sans prix enregistré" : ""}
+          {formations.length}{" formation(s) \u00b7 "}{totalStagiaires}{" stagiaire(s) inscrit(s)"}
+          {sansPrix > 0 ? " \u00b7 " + sansPrix + " sans prix enregistr\u00e9" : ""}
         </p>
 
         {/* CE QUE COUTE UN PRIX NON ENREGISTRE.
@@ -210,11 +210,7 @@ export default function PageCatalogueOrganisme() {
         {sansPrix > 0 && (
           <div style={{ ...CARTE, marginTop: "18px", background: "rgba(232,163,61,0.06)", border: "1px solid rgba(232,163,61,0.35)" }}>
             <p style={{ color: "#e8a33d", fontSize: "14px", margin: "0 0 16px", lineHeight: "1.8" }}>
-              {sansPrix} formation(s) n'ont pas encore de prix de vente enregistré. Tant qu'il ne
-              l'est pas, votre page publique affiche « sur devis » à vos prospects, et le prix ne
-              figure ni sur votre bon de commande ni sur vos documents. Le montant proposé
-              ci-dessous est celui du catalogue AcadémIA Pro : ajustez-le à votre tarif, puis
-              appuyez sur Enregistrer.
+              {sansPrix}{" formation(s) n'ont pas encore de prix de vente enregistr\u00e9. Tant qu'il ne l'est pas, votre page publique affiche \u00ab sur devis \u00bb \u00e0 vos prospects, et le prix ne figure ni sur votre bon de commande ni sur vos documents. Le montant propos\u00e9 ci-dessous est celui du catalogue Acad\u00e9mIA Pro : ajustez-le \u00e0 votre tarif, puis appuyez sur Enregistrer."}
             </p>
 
             <button
@@ -222,11 +218,11 @@ export default function PageCatalogueOrganisme() {
               disabled={reprise}
               style={{ background: reprise ? "rgba(232,163,61,0.3)" : "#e8a33d", color: reprise ? "#8a8a8a" : "#050508", padding: "13px 26px", borderRadius: "8px", border: "none", cursor: reprise ? "default" : "pointer", fontWeight: "bold", fontSize: "15px", fontFamily: "Georgia,serif" }}
             >
-              {reprise ? "Reprise en cours…" : "Reprendre les " + sansPrix + " prix du catalogue AcadémIA Pro"}
+              {reprise ? "Reprise en cours\u2026" : "Reprendre les " + sansPrix + " prix du catalogue Acad\u00e9mIA Pro"}
             </button>
 
             <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px", margin: "12px 0 0", lineHeight: "1.7" }}>
-              Les prix que vous avez déjà enregistrés ne seront pas modifiés : ce sont les vôtres.
+              {"Les prix que vous avez d\u00e9j\u00e0 enregistr\u00e9s ne seront pas modifi\u00e9s : ce sont les v\u00f4tres."}
             </p>
           </div>
         )}
@@ -235,7 +231,7 @@ export default function PageCatalogueOrganisme() {
           <div style={{ ...CARTE, marginTop: "26px", border: "1px solid rgba(200,169,110,0.5)" }}>
             <h2 style={{ color: "#c8a96e", fontSize: "18px", margin: "0 0 8px" }}>Ouvrir des formations</h2>
             <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "14px", marginTop: 0, lineHeight: "1.6" }}>
-              Réservé à l'éditeur. {disponibles.length} formation(s) encore fermée(s) à cet organisme.
+              {"R\u00e9serv\u00e9 \u00e0 l'\u00e9diteur. "}{disponibles.length}{" formation(s) encore ferm\u00e9e(s) \u00e0 cet organisme."}
             </p>
 
             <input
@@ -251,7 +247,7 @@ export default function PageCatalogueOrganisme() {
                 disabled={occupe || !codes.trim()}
                 style={{ background: occupe || !codes.trim() ? "rgba(200,169,110,0.3)" : "#c8a96e", color: occupe || !codes.trim() ? "#8a8a8a" : "#050508", padding: "12px 24px", borderRadius: "8px", border: "none", cursor: occupe || !codes.trim() ? "default" : "pointer", fontWeight: "bold", fontSize: "15px", fontFamily: "Georgia,serif" }}
               >
-                {occupe ? "…" : "Ouvrir ces codes"}
+                {occupe ? "\u2026" : "Ouvrir ces codes"}
               </button>
 
               <button
@@ -270,7 +266,7 @@ export default function PageCatalogueOrganisme() {
 
         {chargement ? (
           <div style={CARTE}>
-            <p style={{ color: "rgba(255,255,255,0.6)", margin: 0 }}>Chargement…</p>
+            <p style={{ color: "rgba(255,255,255,0.6)", margin: 0 }}>{"Chargement\u2026"}</p>
           </div>
         ) : formations.length === 0 ? (
           <div style={CARTE}>
@@ -286,19 +282,19 @@ export default function PageCatalogueOrganisme() {
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "12px" }}>
                   <div style={{ flex: "1 1 300px" }}>
                     <p style={{ color: "#c8a96e", fontSize: "12px", margin: "0 0 3px" }}>
-                      {f.formation_code}{f.domaine ? " · " + f.domaine : ""}
+                      {f.formation_code}{f.domaine ? " \u00b7 " + f.domaine : ""}
                     </p>
                     <h3 style={{ color: "#fff", fontSize: "17px", margin: "0 0 6px" }}>{f.titre}</h3>
 
                     {f.prix_academia ? (
                       <p style={{ color: "#c8a96e", fontSize: "16px", margin: "0 0 3px" }}>
-                        Prix public AcadémIA :{" "}
-                        <strong>{Number(f.prix_academia).toLocaleString("fr-FR")} €</strong>
+                        {"Prix public Acad\u00e9mIA : "}
+                        <strong>{Number(f.prix_academia).toLocaleString("fr-FR")}{" \u20ac"}</strong>
                       </p>
                     ) : null}
 
                     <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px", margin: 0 }}>
-                      {f.duree ? f.duree + " heures" : ""}
+                      {f.duree ? String(f.duree) : ""}
                     </p>
                   </div>
 
@@ -319,7 +315,7 @@ export default function PageCatalogueOrganisme() {
                     style={{ ...CHAMP, border: enregistre ? "1px solid rgba(200,169,110,0.35)" : "1px solid rgba(232,163,61,0.55)" }}
                   />
 
-                  <span style={{ color: "rgba(255,255,255,0.4)", fontSize: "14px" }}>€</span>
+                  <span style={{ color: "rgba(255,255,255,0.4)", fontSize: "14px" }}>{"\u20ac"}</span>
 
                   <button
                     onClick={() => enregistrerPrix(f.id)}
@@ -330,7 +326,7 @@ export default function PageCatalogueOrganisme() {
 
                   {!enregistre && (
                     <span style={{ color: "#e8a33d", fontSize: "13px" }}>
-                      prix proposé, à enregistrer
+                      {"prix propos\u00e9, \u00e0 enregistrer"}
                     </span>
                   )}
 
