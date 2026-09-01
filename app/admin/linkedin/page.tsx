@@ -2585,11 +2585,12 @@ export default function PageLinkedin() {
               </div>
             </div>
 
-            {/* 🚨 LE PLAFOND EST GLOBAL. Les deux campagnes puisent dans le
-                meme quota, parce qu elles partent du meme compte LinkedIn. */}
+            {/* 🚨 LE PLAFOND EST GLOBAL. Toutes les campagnes puisent dans le
+                meme quota, parce qu elles partent du meme compte LinkedIn.
+                🆕 02/09 : elles sont cinq, la phrase ne les enumere plus. */}
             <p style={{ color: "rgba(255,255,255,0.35)", fontSize: "12px", lineHeight: "1.7", margin: "13px 0 0" }}>
-              Ce plafond couvre les deux campagnes : les invitations partent d'un seul
-              compte, organismes et cabinets confondus.
+              Ce plafond couvre toutes les campagnes : les invitations partent d'un seul
+              compte, tous produits confondus.
             </p>
 
             {/* \ud83c\udd95 LE BILAN DE CHAQUE CAMPAGNE, COTE A COTE — 27/08.
@@ -2639,9 +2640,9 @@ export default function PageLinkedin() {
                       <div style={{ color: "rgba(255,255,255,0.5)",
                         fontSize: "12.5px", lineHeight: "1.8",
                         marginTop: "7px" }}>
-                        {nombre(b.invitations)} invitation(s) ·{" "}
+                        {nombre(b.invites !== undefined ? b.invites : b.invitations)} invitation(s) ·{" "}
                         {nombre(b.acceptes)} acceptée(s) ·{" "}
-                        {nombre(b.en_attente)} sans réponse
+                        {nombre(b.sans_reponse !== undefined ? b.sans_reponse : b.en_attente)} sans réponse
                         {b.refuses > 0 ? " · " + nombre(b.refuses) + " refus" : ""}
                       </div>
 
