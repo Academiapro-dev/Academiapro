@@ -13,14 +13,39 @@ export const dynamic = "force-dynamic";
 // cette route.
 const SITE_PAR_DEFAUT = "https://academiapro.fr";
 
+// 🚨 MYSTERLLC AJOUTE LE 01/09.
+//
+// ⚠️ CETTE TABLE DOIT RESTER ALIGNEE SUR CELLE DE /api/auth/demander. Elles
+// sont distinctes et rien ne les relie : n en corriger qu une deplace le
+// defaut sans le supprimer. C est ce qui s est passe le 01/09 — le courriel
+// serait parti aux couleurs de MysterLLC, et la validation aurait quand
+// meme renvoye sur academiapro.fr.
 const SITES: Record<string, string> = {
   "academiapro.fr": "https://academiapro.fr",
   "www.academiapro.fr": "https://academiapro.fr",
   "mrcomptable.fr": "https://mrcomptable.fr",
   "www.mrcomptable.fr": "https://mrcomptable.fr",
+  "mysterllc.com": "https://mysterllc.com",
+  "www.mysterllc.com": "https://mysterllc.com",
 };
 
+// Les seuls domaines vers lesquels on accepte de rediriger. Sans cette
+// liste, le parametre marque serait une redirection ouverte.
+const SITES_CONNUS = [
+  "https://academiapro.fr",
+  "https://mrcomptable.fr",
+  "https://mysterllc.com",
+];
+
 function siteDe(req: Request): string {
+  const url = new URL(req.url);
+
+  // 🆕 LE DOMAINE PORTE PAR LE LIEN — 01/09. Il est pose par
+  // /api/auth/demander et dit d ou venait la demande. Il prime sur l en-tete
+  // host, qui pourrait differer si le courriel est ouvert autrement.
+  const demande = String(url.searchParams.get("marque") || "").trim();
+  if (demande && SITES_CONNUS.indexOf(demande) >= 0) return demande;
+
   const hote = (req.headers.get("host") || "").split(":")[0].toLowerCase();
   return SITES[hote] || SITE_PAR_DEFAUT;
 }
@@ -39,8 +64,22 @@ function echec(site: string, motif: string) {
 }
 
 // Chaque profil entre chez lui.
-function accueilDuProfil(email: string, profil: string | null, role: string | null): string {
-  if (ADMINS.indexOf(email) >= 0) return "/admin";
+function accueilDuProfil(email: string, profil: string | null, role: string | null, site: string): string {
+  // 🚨 L ADMINISTRATEUR ENTRE PAR LA PORTE OU IL A FRAPPE — corrige le 01/09.
+  //
+  // LE DEFAUT : l administrateur etait renvoye sur /admin quel que soit le
+  // domaine. Se connecter depuis mysterllc.com pour verifier le parcours
+  // d un client ramenait donc sur le tableau de bord AcadeMIA — et rendait
+  // TOUT TEST EN CONDITIONS REELLES IMPOSSIBLE.
+  //
+  // ⚠️ CE N EST PAS QU UN CONFORT DE TEST. Le meme code sert les clients :
+  // ce qui empeche Jacques de verifier empeche aussi de voir ce qu ils
+  // voient.
+  if (ADMINS.indexOf(email) >= 0) {
+    if (site === "https://mysterllc.com") return "/admin/compliance";
+    if (site === "https://mrcomptable.fr") return "/admin/compliance/tableau-de-bord";
+    return "/admin";
+  }
   if (role === "stagiaire") return "/dashboard";
   if (profil === "cabinet_comptable") return "/admin/compliance/tableau-de-bord";
   if (profil === "vend_formations") return "/organisme";
@@ -162,13 +201,26 @@ export async function GET(req: Request) {
     const email = String(ligne.email || "").toLowerCase().trim();
     const organisme = await organismeDe(email);
 
-    // Une destination explicite reste prioritaire ; sinon chacun rentre chez lui.
-    const ou = demande || accueilDuProfil(email, organisme.profil, organisme.role);
+    // Une destination explicite reste prioritaire ; sinon chacun rentre chez
+    // lui — l administrateur compris, sur le domaine d ou il vient.
+    const ou = demande || accueilDuProfil(email, organisme.profil, organisme.role, site);
 
-    // CHACUN ATTERRIT SUR SON DOMAINE, quel que soit celui du lien.
+    // 🚨 CHACUN ATTERRIT SUR SON DOMAINE — corrige le 01/09.
+    //
+    // CE QUI SE PASSAIT : une ligne renvoyait l administrateur sur
+    // academiapro.fr quoi qu il arrive. Il ne pouvait donc JAMAIS voir ce
+    // que voit un client MysterLLC, ni verifier le parcours avant un
+    // rendez-vous.
+    //
+    // ⚠️ LA REGLE RESTE POUR LES CLIENTS : un cabinet comptable atterrit
+    // chez Mr. Comptable meme s il a clique depuis ailleurs, parce que son
+    // espace est la-bas et nulle part ailleurs. L administrateur, lui, n a
+    // pas d espace unique : il a acces a tous, et doit pouvoir entrer par
+    // celui qu il veut.
     let siteFinal = site;
-    if (ADMINS.indexOf(email) >= 0) siteFinal = "https://academiapro.fr";
-    else if (organisme.profil === "cabinet_comptable") siteFinal = "https://mrcomptable.fr";
+    if (ADMINS.indexOf(email) < 0) {
+      if (organisme.profil === "cabinet_comptable") siteFinal = "https://mrcomptable.fr";
+    }
 
     const reponse = NextResponse.redirect(siteFinal + ou);
     reponse.cookies.set({
