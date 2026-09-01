@@ -440,6 +440,101 @@ export async function POST(req: NextRequest) {
     }
 
     // LA FILE D ATTENTE : les fiches enregistrees sans invitation.
+    // ---------------------------------------------------------------------
+    // 🆕 CORRIGER L ETAPE DU PARCOURS — 01/09.
+    //
+    // LE DEFAUT SIGNALE PAR JACQUES : « le profil vient d accepter mon
+    // invitation et son etat est plus avance que la realite, aucun moyen de
+    // modifier ma fiche ». Le parcours ne savait qu AVANCER : un clic de
+    // trop etait definitif.
+    //
+    // 🚨 UN OUTIL QUI NE SAIT QUE PROGRESSER FINIT PAR MENTIR. On se trompe
+    // de bouton, un contact revient en arriere, une acceptation est marquee
+    // trop vite. Toute etape doit pouvoir se defaire.
+    //
+    // POURQUOI UNE ACTION A PART, ET NON « marquer ». Marquer une etape
+    // AVANCE la fiche et touche aux dates : une invitation pose
+    // linkedin_le, un message pose linkedin_relance_le, et le plafond du
+    // jour se verifie. Reculer ne doit rien de tout cela — c est une
+    // correction, pas un evenement.
+    //
+    // ⚠️ AUCUNE DATE REELLE N EST EFFACEE PAR PRINCIPE. Une invitation
+    // partie le 30/08 est partie : reculer de « message envoye » a
+    // « invitation acceptee » NE SUPPRIME PAS linkedin_le. Effacer une date
+    // vraie serait reecrire l histoire et fausserait les compteurs de la
+    // semaine.
+    //
+    // ⚠️ SAUF LA DATE DE MESSAGE, ET C EST LA SEULE EXCEPTION. Redescendre
+    // sous le rang 3 signifie « le message n est pas parti » — la garder
+    // laisserait la fiche dans « Messages envoyes » et compterait une
+    // relance qui n a pas eu lieu.
+    //
+    // ⚠️ LE PLAFOND N EST PAS CONSULTE. Corriger une erreur de saisie ne
+    // doit jamais consommer une unite d invitation, ni etre refuse parce
+    // que le quota du jour est atteint.
+    if (action === "corriger_etape") {
+      const id = body.id;
+      const table = TABLES[base];
+      if (!table) return NextResponse.json({ ok: false, erreur: "Base inconnue." }, { status: 400 });
+      if (!id) return NextResponse.json({ ok: false, erreur: "Ligne non precisee." }, { status: 400 });
+
+      const rang = Number(body.rang) || 0;
+      if (rang < 1 || rang > 6) {
+        return NextResponse.json({ ok: false, erreur: "Etape inconnue." }, { status: 400 });
+      }
+
+      const statut = String(body.statut || "").trim();
+      if (STATUTS.indexOf(statut) < 0) {
+        return NextResponse.json({ ok: false, erreur: "Statut inconnu." }, { status: 400 });
+      }
+
+      const champs: any = { linkedin_statut: statut };
+
+      // La date de message ne survit qu au-dessus du rang 3.
+      if (rang < 3) {
+        champs.linkedin_relance_le = null;
+      }
+
+      // Le score porte les trois dernieres etapes, que LinkedIn ne connait
+      // pas. Il ne s applique qu aux fiches du CRM : les tables de
+      // prospection n ont pas de colonne score.
+      if (base === "manuel") {
+        const score = Number(body.score) || 0;
+        if (score > 0) champs.score = score;
+        champs.derniere_interaction = new Date().toISOString();
+
+        // Le statut commercial suit le rang. « client » au rang 6 : c est
+        // lui qui fait foi pour l entonnoir, pas le score.
+        if (rang === 6) champs.statut = "client";
+        else if (rang >= 2) champs.statut = "interesse";
+        else champs.statut = "contacte";
+      }
+
+      const { error: eCorr } = await supabase.from(table).update(champs).eq("id", id);
+      if (eCorr) {
+        return NextResponse.json({ ok: false, erreur: eCorr.message }, { status: 500 });
+      }
+
+      const NOMS: any = {
+        1: "Invitation envoyée",
+        2: "Invitation acceptée",
+        3: "Message envoyé",
+        4: "A répondu",
+        5: "Rendez-vous pris",
+        6: "Nouveau client",
+      };
+
+      const c = await compteurs();
+
+      return NextResponse.json({
+        ok: true,
+        rang: rang,
+        statut: statut,
+        compteurs: c,
+        message: "Fiche ramenée à l'étape « " + NOMS[rang] + " ».",
+      });
+    }
+
     if (action === "en_file") {
       const [lignes, c] = await Promise.all([listerEnFile(LIMITE_LISTE), compteurs()]);
       return NextResponse.json({ ok: true, lignes, compteurs: c });
