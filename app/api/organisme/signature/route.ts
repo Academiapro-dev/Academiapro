@@ -164,12 +164,18 @@ export async function GET(req: NextRequest) {
 
     // Verification en deux temps : le sceau de chaque signature prise
     // isolement, PUIS le chainage qui relie chaque preuve a la precedente.
+    //
+    // LE TRACE ENTRE DANS LE SCEAU QUAND IL EXISTE — ajout du 01/09.
+    // Les signatures posees AVANT cet ajout ont un sceau calcule sans cette
+    // position : on ne l ajoute que si trace_sha256 est present, sinon
+    // toutes les preuves anterieures s afficheraient ALTEREES a tort.
     let precedente = "";
     const liste = (data || []).map(function (s: any) {
-      const charge = [
+      const base = [
         s.tenant_id, s.document_type, s.document_reference, s.empreinte_sha256,
         s.signataire_email, s.consentement, new Date(s.signe_le).toISOString(),
       ].join("|");
+      const charge = s.trace_sha256 ? base + "|" + s.trace_sha256 : base;
 
       const intacte = sceau(charge) === s.jeton_preuve;
       const attendue = empreinteTexte(precedente + "|" + charge);
@@ -496,10 +502,27 @@ export async function POST(req: NextRequest) {
     const ip = req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || null;
     const navigateur = req.headers.get("user-agent") || null;
 
-    const charge = [
+    // LE TRACE MANUSCRIT, S IL EXISTE, ENTRE DANS LE SCEAU — ajout du 01/09.
+    // Il est facultatif : la signature vaut sans lui. Present, il devient
+    // indissociable de la preuve. En son absence, la charge garde son format
+    // historique, pour que les preuves anterieures restent verifiables.
+    const trace = b.trace ? String(b.trace).trim() : "";
+    const traceEmpreinte = trace ? empreinteTexte(trace) : "";
+
+    // Une borne de taille : un trace au doigt tient dans quelques
+    // kilo-octets ; au-dela, c est qu on tente d y glisser autre chose.
+    if (trace && trace.length > 400000) {
+      return NextResponse.json(
+        { ok: false, erreur: "Le trace de signature est trop volumineux." },
+        { status: 400 }
+      );
+    }
+
+    const chargeBase = [
       doc.tenant_id, doc.type, reference, empreinte,
       signataire, CONSENTEMENT, signeLe,
     ].join("|");
+    const charge = traceEmpreinte ? chargeBase + "|" + traceEmpreinte : chargeBase;
 
     // CHAINAGE : chaque preuve porte l empreinte de la precedente.
     const { data: derniere } = await supabase
@@ -534,6 +557,8 @@ export async function POST(req: NextRequest) {
         tentatives: tentatives,
         empreinte_precedente: precedente || null,
         empreinte_chaine: chaine,
+        trace_signature: trace || null,
+        trace_sha256: traceEmpreinte || null,
         ouvert_le: b.ouvert_le || null,
       })
       .select("id, empreinte_sha256, signe_le, empreinte_chaine")
