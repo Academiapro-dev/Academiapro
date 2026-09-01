@@ -143,6 +143,119 @@ function taux(acceptes: number, refuses: number) {
 // ⚠️ LES NEUF FAMILLES DE COMPTAGE PARTENT ENSEMBLE, et chacune interroge
 // ses cinq tables ensemble : quarante-cinq requetes lancees d un coup, au
 // lieu de quarante-cinq attentes enchainees.
+// 🆕 LES COMPTEURS PAR PRODUIT — 02/09.
+//
+// L ecran affichait un bloc par campagne, mais la route ne renvoyait
+// jamais `campagnes` : le bloc ne s est donc JAMAIS affiche. Defaut
+// silencieux, decouvert en ajoutant les trois nouveaux produits.
+//
+// LES CINQ PRODUITS. Les deux premiers ont des bases de prospection ; les
+// trois autres n existent que dans la table crm, ou chaque fiche porte sa
+// colonne campagne. On compte donc les deux origines, et on additionne.
+const BASES_DE = {
+  academiapro: ["organismes", "qualiopi", "interim"],
+  mrcomptable: ["cabinets"],
+  mysterllc: [],
+  mrcrm: [],
+  mrlms: [],
+};
+
+async function compterCampagnes() {
+  const cles = Object.keys(BASES_DE);
+
+  // ⚠️ TOUS LES COMPTAGES PARTENT ENSEMBLE. Une boucle `for` avec `await`
+  // a l interieur est exactement la forme qui a produit la lenteur du
+  // 31/08 — ne pas la reintroduire ici.
+  const resultats = await Promise.all(
+    cles.map(async function (cle) {
+      const bases = (BASES_DE as any)[cle] as string[];
+
+      const [depuisBases, depuisCrm] = await Promise.all([
+        Promise.all(
+          bases.map(async function (b) {
+            const { count } = await supabase
+              .from(TABLES[b])
+              .select("id", { count: "exact", head: true })
+              .not("linkedin_le", "is", null)
+              .neq("linkedin_statut", "ecarte");
+            return count || 0;
+          })
+        ),
+        (async function () {
+          const { count } = await supabase
+            .from("crm")
+            .select("id", { count: "exact", head: true })
+            .eq("campagne", cle)
+            .not("linkedin_le", "is", null)
+            .neq("linkedin_statut", "ecarte");
+          return count || 0;
+        })(),
+      ]);
+
+      const [acceptes, refuses] = await Promise.all([
+        (async function () {
+          const parTable = await Promise.all(
+            bases.map(async function (b) {
+              const { count } = await supabase
+                .from(TABLES[b])
+                .select("id", { count: "exact", head: true })
+                .in("linkedin_statut", ACCEPTES.concat(RELANCES));
+              return count || 0;
+            }).concat([
+              (async function () {
+                const { count } = await supabase
+                  .from("crm")
+                  .select("id", { count: "exact", head: true })
+                  .eq("campagne", cle)
+                  .in("linkedin_statut", ACCEPTES.concat(RELANCES));
+                return count || 0;
+              })(),
+            ])
+          );
+          return parTable.reduce(function (s: number, n: number) { return s + n; }, 0);
+        })(),
+        (async function () {
+          const parTable = await Promise.all(
+            bases.map(async function (b) {
+              const { count } = await supabase
+                .from(TABLES[b])
+                .select("id", { count: "exact", head: true })
+                .eq("linkedin_statut", "refuse");
+              return count || 0;
+            }).concat([
+              (async function () {
+                const { count } = await supabase
+                  .from("crm")
+                  .select("id", { count: "exact", head: true })
+                  .eq("campagne", cle)
+                  .eq("linkedin_statut", "refuse");
+                return count || 0;
+              })(),
+            ])
+          );
+          return parTable.reduce(function (s: number, n: number) { return s + n; }, 0);
+        })(),
+      ]);
+
+      const invites = depuisBases.reduce(function (s: number, n: number) { return s + n; }, 0) + depuisCrm;
+
+      return {
+        cle: cle,
+        valeur: {
+          invites: invites,
+          acceptes: acceptes,
+          refuses: refuses,
+          taux: taux(acceptes, refuses),
+        },
+      };
+    })
+  );
+
+  const par: any = {};
+  for (const r of resultats) par[r.cle] = r.valeur;
+  return par;
+}
+
 async function compteurs() {
   const [
     jour,
@@ -155,6 +268,7 @@ async function compteurs() {
     refuses,
     ecartes,
     en_file,
+    campagnes,
   ] = await Promise.all([
     compterDepuis(debutDuJour()),
     compterDepuis(ilYaSeptJours()),
@@ -166,6 +280,7 @@ async function compteurs() {
     compterStatuts(["refuse"]),
     compterStatuts(["ecarte"]),
     compterEnFile(),
+    compterCampagnes(),
   ]);
 
   // 🚨 « ACCEPTEES » COMPTE AUSSI LES RELANCEES — corrige le 18/08.
@@ -186,6 +301,7 @@ async function compteurs() {
     accepte_note, accepte_nu,
     relances, refuses, ecartes,
     en_file,
+    campagnes,
     taux_note: taux(accepte_note, 0) === null ? null : taux(accepte_note + relances * 0, refuses),
     taux_global: taux(acceptees, refuses),
     plafond_jour: PLAFOND_JOUR,
