@@ -3,50 +3,81 @@ import { useState, useEffect } from "react";
 import Guide from "../../../components/Guide";
 
 const LIBELLE_C: any = {
-  "1": "1 · Entreprises pour la formation de leurs salariés",
-  "2a": "2a · Contrats d'apprentissage",
-  "2b": "2b · Contrats de professionnalisation",
-  "2c": "2c · Promotion ou reconversion par alternance",
-  "2d": "2d · Projets de transition professionnelle",
-  "2e": "2e · Compte personnel de formation",
-  "2f": "2f · Dispositifs personnes en recherche d'emploi",
-  "2g": "2g · Dispositifs travailleurs non salariés",
-  "2h": "2h · Plan de développement des compétences",
-  "3": "3 · Pouvoirs publics pour leurs agents",
-  "4": "4 · Instances européennes",
-  "5": "5 · État",
-  "6": "6 · Conseils régionaux",
-  "7": "7 · France Travail",
-  "8": "8 · Autres ressources publiques",
-  "9": "9 · Personnes à titre individuel et à leurs frais",
-  "10": "10 · Autres organismes de formation",
-  "11": "11 · Autres produits",
+  "1": "1 \u00b7 Entreprises pour la formation de leurs salari\u00e9s",
+  "2a": "2a \u00b7 Contrats d'apprentissage",
+  "2b": "2b \u00b7 Contrats de professionnalisation",
+  "2c": "2c \u00b7 Promotion ou reconversion par alternance",
+  "2d": "2d \u00b7 Projets de transition professionnelle",
+  "2e": "2e \u00b7 Compte personnel de formation",
+  "2f": "2f \u00b7 Dispositifs personnes en recherche d'emploi",
+  "2g": "2g \u00b7 Dispositifs travailleurs non salari\u00e9s",
+  "2h": "2h \u00b7 Plan de d\u00e9veloppement des comp\u00e9tences",
+  "3": "3 \u00b7 Pouvoirs publics pour leurs agents",
+  "4": "4 \u00b7 Instances europ\u00e9ennes",
+  "5": "5 \u00b7 \u00c9tat",
+  "6": "6 \u00b7 Conseils r\u00e9gionaux",
+  "7": "7 \u00b7 France Travail",
+  "8": "8 \u00b7 Autres ressources publiques",
+  "9": "9 \u00b7 Personnes \u00e0 titre individuel et \u00e0 leurs frais",
+  "10": "10 \u00b7 Autres organismes de formation",
+  "11": "11 \u00b7 Autres produits",
 };
 
 const LIBELLE_F1: any = {
-  a: "a · Salariés d'employeurs privés hors apprentis",
-  b: "b · Apprentis",
-  c: "c · Personnes en recherche d'emploi",
-  d: "d · Particuliers à leurs propres frais",
-  e: "e · Autres stagiaires",
+  a: "a \u00b7 Salari\u00e9s d'employeurs priv\u00e9s hors apprentis",
+  b: "b \u00b7 Apprentis",
+  c: "c \u00b7 Personnes en recherche d'emploi",
+  d: "d \u00b7 Particuliers \u00e0 leurs propres frais",
+  e: "e \u00b7 Autres stagiaires",
 };
 
 const LIBELLE_F3: any = {
-  a: "a · Formations visant un titre enregistré au RNCP",
-  b: "b · Formations visant une certification au répertoire spécifique",
-  c: "c · CQP non enregistré",
-  d: "d · Autres formations professionnelles",
-  e: "e · Bilans de compétences",
-  f: "f · Accompagnement à la VAE",
+  a: "a \u00b7 Formations visant un titre enregistr\u00e9 au RNCP",
+  b: "b \u00b7 Formations visant une certification au r\u00e9pertoire sp\u00e9cifique",
+  c: "c \u00b7 CQP non enregistr\u00e9",
+  d: "d \u00b7 Autres formations professionnelles",
+  e: "e \u00b7 Bilans de comp\u00e9tences",
+  f: "f \u00b7 Accompagnement \u00e0 la VAE",
+};
+
+// LES SPECIALITES NSF DU CADRE F-4 — ajout du 01/09.
+//
+// Ce cadre etait le seul appele sans table de libelles : il affichait le
+// code nu — « 413 » — au milieu de cadres qui donnent tous le code ET son
+// intitule. L organisme qui recopie son bilan ne connait pas les codes par
+// coeur : les nommer est precisement le service rendu. Meme table que
+// l ecran « Mes formations », a l identique.
+const LIBELLE_F4: any = {
+  "326": "326 \u00b7 Informatique, num\u00e9rique, intelligence artificielle",
+  "320": "320 \u00b7 Communication, image, multim\u00e9dia",
+  "312": "312 \u00b7 Commerce, vente, marketing",
+  "310": "310 \u00b7 Gestion, management, entreprise",
+  "313": "313 \u00b7 Finance, banque, assurance",
+  "314": "314 \u00b7 Comptabilit\u00e9, gestion financi\u00e8re",
+  "315": "315 \u00b7 Ressources humaines",
+  "128": "128 \u00b7 Droit, sciences politiques",
+  "331": "331 \u00b7 Sant\u00e9, soins",
+  "332": "332 \u00b7 Travail social, accompagnement",
+  "333": "333 \u00b7 Enseignement, formation",
+  "334": "334 \u00b7 Accueil, h\u00f4tellerie, tourisme, restauration",
+  "336": "336 \u00b7 Coiffure, esth\u00e9tique, bien-\u00eatre corporel",
+  "136": "136 \u00b7 Langues vivantes",
+  "135": "135 \u00b7 Langues et civilisations anciennes",
+  "413": "413 \u00b7 D\u00e9veloppement personnel, relationnel, gestion du stress",
+  "414": "414 \u00b7 Organisation, gestion du temps, m\u00e9thodes de travail",
+  "411": "411 \u00b7 Pratiques sportives",
+  "343": "343 \u00b7 Nettoyage, s\u00e9curit\u00e9, services aux personnes",
+  "230": "230 \u00b7 B\u00e2timent, travaux publics",
+  "200": "200 \u00b7 Technologies industrielles",
 };
 
 const LIBELLE_MANQUE: any = {
   sans_dispositif: "sans dispositif de financement",
   sans_statut: "sans statut de stagiaire",
   sans_prix: "sans prix de vente",
-  sans_formation: "sans formation rattachée",
-  sans_duree: "sans durée connue",
-  sans_code_nsf: "sans code de spécialité",
+  sans_formation: "sans formation rattach\u00e9e",
+  sans_duree: "sans dur\u00e9e connue",
+  sans_code_nsf: "sans code de sp\u00e9cialit\u00e9",
 };
 
 export default function PageBilan() {
@@ -103,7 +134,7 @@ export default function PageBilan() {
           const j = await r.json();
           detail = j.erreur || detail;
         } catch (e) {}
-        setErreur("Génération impossible : " + detail);
+        setErreur("G\u00e9n\u00e9ration impossible : " + detail);
         setPdfEnCours(false);
         return;
       }
@@ -118,13 +149,13 @@ export default function PageBilan() {
       document.body.removeChild(a);
       window.URL.revokeObjectURL(url);
     } catch (e: any) {
-      setErreur("Génération impossible : " + String(e));
+      setErreur("G\u00e9n\u00e9ration impossible : " + String(e));
     }
     setPdfEnCours(false);
   }
 
   function euros(n: number) {
-    return (Number(n) || 0).toLocaleString("fr-FR") + " €";
+    return (Number(n) || 0).toLocaleString("fr-FR") + " \u20ac";
   }
 
   const CADRE: any = {
@@ -180,7 +211,7 @@ export default function PageBilan() {
                 {libelles[k] || k}
               </span>
               <span style={{ color: "rgba(255,255,255,0.55)", fontSize: "14px" }}>
-                {v.stagiaires} stagiaire(s) · {v.heures} h
+                {v.stagiaires}{" stagiaire(s) \u00b7 "}{v.heures}{" h"}
               </span>
               {avecMontant && (
                 <span style={{ color: "#c8a96e", fontSize: "14px", fontWeight: "bold", minWidth: "110px", textAlign: "right" }}>
@@ -202,14 +233,14 @@ export default function PageBilan() {
     <div style={CADRE}>
       <div style={{ maxWidth: "1000px", margin: "0 auto" }}>
         <a href="/organisme" style={{ color: "#c8a96e", fontSize: "14px", textDecoration: "none" }}>
-          ← Retour au tableau de bord
+          {"\u2190 Retour au tableau de bord"}
         </a>
 
         <p style={{ color: "#c8a96e", fontSize: "12px", letterSpacing: "3px", margin: "22px 0 8px" }}>
           CERFA 10443*17
         </p>
         <h1 style={{ color: "#fff", fontSize: "30px", margin: "0 0 6px" }}>
-          Bilan pédagogique et financier
+          {"Bilan p\u00e9dagogique et financier"}
         </h1>
 
         <div style={{ marginTop: "18px" }}>
@@ -217,12 +248,12 @@ export default function PageBilan() {
         </div>
 
         <div style={{ display: "flex", gap: "12px", alignItems: "center", margin: "18px 0 24px", flexWrap: "wrap" }}>
-          <button onClick={() => charger(annee - 1)} style={BOUTON}>← {annee - 1}</button>
+          <button onClick={() => charger(annee - 1)} style={BOUTON}>{"\u2190 "}{annee - 1}</button>
           <span style={{ color: "#c8a96e", fontSize: "19px", fontWeight: "bold" }}>{annee}</span>
-          <button onClick={() => charger(annee + 1)} style={BOUTON}>{annee + 1} →</button>
+          <button onClick={() => charger(annee + 1)} style={BOUTON}>{annee + 1}{" \u2192"}</button>
 
           <button onClick={telecharger} disabled={pdfEnCours || !d} style={{ ...PLEIN, opacity: pdfEnCours || !d ? 0.5 : 1 }}>
-            {pdfEnCours ? "Génération…" : "Télécharger le bilan"}
+            {pdfEnCours ? "G\u00e9n\u00e9ration\u2026" : "T\u00e9l\u00e9charger le bilan"}
           </button>
         </div>
 
@@ -230,7 +261,7 @@ export default function PageBilan() {
 
         {chargement ? (
           <div style={CARTE}>
-            <p style={{ color: "rgba(255,255,255,0.6)", margin: 0 }}>Calcul en cours…</p>
+            <p style={{ color: "rgba(255,255,255,0.6)", margin: 0 }}>{"Calcul en cours\u2026"}</p>
           </div>
         ) : !d ? null : (
           <>
@@ -239,24 +270,24 @@ export default function PageBilan() {
                 {d.avertissement}
               </p>
               <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "13px", margin: "10px 0 0" }}>
-                Télédéclaration sur monactiviteformation.emploi.gouv.fr, avant le 30 avril.
+                {"T\u00e9l\u00e9d\u00e9claration sur monactiviteformation.emploi.gouv.fr, avant le 30 avril."}
               </p>
             </div>
 
             {manques.length > 0 && (
               <div style={{ ...CARTE, border: "1px solid rgba(232,131,106,0.5)" }}>
                 <h2 style={{ color: "#e8836a", fontSize: "17px", margin: "0 0 12px" }}>
-                  À compléter avant de déclarer
+                  {"\u00c0 compl\u00e9ter avant de d\u00e9clarer"}
                 </h2>
                 {manques.map(function (k) {
                   return (
                     <p key={k} style={{ color: "rgba(255,255,255,0.75)", fontSize: "14px", margin: "0 0 6px" }}>
-                      {d.a_completer[k]} inscription(s) {LIBELLE_MANQUE[k] || k}
+                      {d.a_completer[k]}{" inscription(s) "}{LIBELLE_MANQUE[k] || k}
                     </p>
                   );
                 })}
                 <a href="/organisme/stagiaires" style={{ color: "#c8a96e", fontSize: "14px" }}>
-                  Compléter le registre des stagiaires
+                  {"Compl\u00e9ter le registre des stagiaires"}
                 </a>
               </div>
             )}
@@ -284,27 +315,27 @@ export default function PageBilan() {
               </div>
             </div>
 
-            {bloc("Cadre C · Origine des produits hors taxes", d.cadre_c, LIBELLE_C, true)}
+            {bloc("Cadre C \u00b7 Origine des produits hors taxes", d.cadre_c, LIBELLE_C, true)}
 
             {d.cadre_c_total_2 && d.cadre_c_total_2.montant > 0 && (
               <div style={{ ...CARTE, marginTop: "-6px" }}>
                 <p style={{ color: "rgba(255,255,255,0.75)", fontSize: "14px", margin: 0 }}>
-                  Ligne 2 · Total des produits provenant des organismes gestionnaires (lignes 2a à 2h) :{" "}
+                  {"Ligne 2 \u00b7 Total des produits provenant des organismes gestionnaires (lignes 2a \u00e0 2h) : "}
                   <strong style={{ color: "#c8a96e" }}>{euros(d.cadre_c_total_2.montant)}</strong>
                 </p>
               </div>
             )}
 
-            {bloc("Cadre F-1 · Type de stagiaires", d.cadre_f1, LIBELLE_F1, false)}
-            {bloc("Cadre F-3 · Objectif général des prestations", d.cadre_f3, LIBELLE_F3, false)}
-            {bloc("Cadre F-4 · Spécialités de formation", d.cadre_f4, {}, false)}
+            {bloc("Cadre F-1 \u00b7 Type de stagiaires", d.cadre_f1, LIBELLE_F1, false)}
+            {bloc("Cadre F-3 \u00b7 Objectif g\u00e9n\u00e9ral des prestations", d.cadre_f3, LIBELLE_F3, false)}
+            {bloc("Cadre F-4 \u00b7 Sp\u00e9cialit\u00e9s de formation", d.cadre_f4, LIBELLE_F4, false)}
 
             <div style={CARTE}>
               <h2 style={{ color: "#c8a96e", fontSize: "17px", margin: "0 0 12px" }}>
-                Cadre B · Formation à distance
+                {"Cadre B \u00b7 Formation \u00e0 distance"}
               </h2>
               <p style={{ color: "rgba(255,255,255,0.75)", fontSize: "14px", margin: 0 }}>
-                Répondre OUI : les formations sont dispensées en ligne, en tout ou partie.
+                {"R\u00e9pondre OUI : les formations sont dispens\u00e9es en ligne, en tout ou partie."}
               </p>
             </div>
           </>
