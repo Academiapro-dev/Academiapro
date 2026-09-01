@@ -89,7 +89,7 @@ export default function PageImporter() {
     <div style={CADRE}>
       <div style={{ maxWidth: "800px", margin: "0 auto" }}>
         <a href={"/organisme/stagiaires" + suffixe()} style={{ color: "#c8a96e", fontSize: "14px", textDecoration: "none" }}>
-          ← Retour au registre
+          {"\u2190 Retour au registre"}
         </a>
 
         <p style={{ color: "#c8a96e", fontSize: "12px", letterSpacing: "3px", margin: "22px 0 8px" }}>
@@ -97,7 +97,7 @@ export default function PageImporter() {
         </p>
         <h1 style={{ color: "#fff", fontSize: "29px", margin: "0 0 6px" }}>Importer mes stagiaires</h1>
         <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "14px", marginTop: 0 }}>
-          Jusqu a cinq cents lignes par import
+          {"Jusqu'\u00e0 cinq cents lignes par import"}
         </p>
 
         <div style={{ ...CARTE, marginTop: "26px" }}>
@@ -107,7 +107,7 @@ export default function PageImporter() {
               email ; nom ; formation ; statut ; financeur ; dispositif
             </p>
             <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "13px", margin: 0, lineHeight: "1.7" }}>
-              Seule la premiere colonne est obligatoire. Exemple :
+              {"Seule la premi\u00e8re colonne est obligatoire. Exemple :"}
             </p>
             <p style={{ color: "#c8a96e", fontSize: "12.5px", margin: "8px 0 0", fontFamily: "monospace", lineHeight: "1.7", wordBreak: "break-all" }}>
               marie.dupont@exemple.fr ; Marie Dupont ; F028 ; salarie_prive ; entreprise ; plan_developpement
@@ -124,7 +124,7 @@ export default function PageImporter() {
 
           {nomFichier && (
             <p style={{ color: "#4caf50", fontSize: "13px", margin: "-6px 0 14px" }}>
-              {nomFichier} · {contenu.split(/\r?\n/).filter(function (l) { return l.trim(); }).length} ligne(s) lue(s)
+              {nomFichier}{" \u00b7 "}{contenu.split(/\r?\n/).filter(function (l) { return l.trim(); }).length}{" ligne(s) lue(s)"}
             </p>
           )}
 
@@ -146,8 +146,7 @@ export default function PageImporter() {
           </button>
 
           <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px", margin: "12px 0 0", lineHeight: "1.7" }}>
-            Point-virgule, virgule ou tabulation : les trois fonctionnent. Une ligne d en-tete est
-            ignoree. Une adresse deja au registre est mise a jour, jamais dupliquee.
+            {"Point-virgule, virgule ou tabulation : les trois fonctionnent. Une ligne d'en-t\u00eate est ignor\u00e9e. Une adresse d\u00e9j\u00e0 au registre est mise \u00e0 jour, jamais dupliqu\u00e9e."}
           </p>
         </div>
 
@@ -160,7 +159,7 @@ export default function PageImporter() {
         {resultat && resultat.inscrits > 0 && (
           <div style={{ ...CARTE, border: "1px solid rgba(76,175,80,0.5)" }}>
             <p style={{ color: "#4caf50", fontSize: "17px", fontWeight: "bold", margin: "0 0 8px" }}>
-              {resultat.inscrits} stagiaire(s) inscrit(s)
+              {resultat.inscrits}{" stagiaire(s) inscrit(s)"}
             </p>
             <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "14px", margin: "0 0 14px", lineHeight: "1.75" }}>
               {resultat.message}
@@ -169,7 +168,7 @@ export default function PageImporter() {
               href={"/organisme/stagiaires" + suffixe()}
               style={{ display: "inline-block", background: "#c8a96e", color: "#050508", padding: "12px 24px", borderRadius: "8px", textDecoration: "none", fontWeight: "bold", fontSize: "15px" }}
             >
-              Voir le registre et envoyer les acces
+              {"Voir le registre et envoyer les acc\u00e8s"}
             </a>
           </div>
         )}
@@ -177,13 +176,13 @@ export default function PageImporter() {
         {resultat && resultat.rejets && resultat.rejets.length > 0 && (
           <div style={CARTE}>
             <h2 style={{ color: "#e8a33d", fontSize: "16px", margin: "0 0 12px" }}>
-              {resultat.rejetes} ligne(s) ecartee(s)
+              {resultat.rejetes}{" ligne(s) \u00e9cart\u00e9e(s)"}
             </h2>
             {resultat.rejets.map(function (r: any, i: number) {
               return (
                 <div key={i} style={{ padding: "9px 0", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
                   <p style={{ color: "rgba(255,255,255,0.75)", fontSize: "13px", margin: 0, wordBreak: "break-all" }}>
-                    <span style={{ color: "rgba(255,255,255,0.4)" }}>Ligne {r.ligne} · </span>
+                    <span style={{ color: "rgba(255,255,255,0.4)" }}>{"Ligne "}{r.ligne}{" \u00b7 "}</span>
                     {r.valeur}
                   </p>
                   <p style={{ color: "#e8a33d", fontSize: "12.5px", margin: "3px 0 0" }}>{r.motif}</p>
@@ -191,8 +190,7 @@ export default function PageImporter() {
               );
             })}
             <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "13px", margin: "14px 0 0", lineHeight: "1.7" }}>
-              Corrigez ces lignes dans votre fichier et relancez l import : les stagiaires deja
-              inscrits ne seront pas dupliques.
+              {"Corrigez ces lignes dans votre fichier et relancez l'import : les stagiaires d\u00e9j\u00e0 inscrits ne seront pas dupliqu\u00e9s."}
             </p>
           </div>
         )}
