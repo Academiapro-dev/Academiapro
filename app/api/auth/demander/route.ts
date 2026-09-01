@@ -44,6 +44,21 @@ const FENETRE_EMAIL_MS = 15 * 60 * 1000;
 const MAX_PAR_IP = 10;
 const FENETRE_IP_MS = 60 * 60 * 1000;
 
+// 🚨 MYSTERLLC AJOUTE LE 01/09, ET SON ABSENCE AVAIT UNE CONSEQUENCE
+// VISIBLE PAR LE PREMIER CLIENT.
+//
+// CE QUI SE PASSAIT. marqueDe() ne trouvait pas mysterllc.com dans cette
+// table et retombait sur AcadeMIA Pro. Un gestionnaire de LLC qui demandait
+// son lien depuis mysterllc.com recevait donc un courriel AU NOM D ACADEMIA
+// PRO, avec un lien vers academiapro.fr — et atterrissait sur un tableau de
+// bord parlant de formations et d apprenants.
+//
+// Constate par Jacques le 01/09 : « imagine que ce soit un nouveau client,
+// quelle ne serait pas ma surprise d atterrir sur un autre site internet ».
+//
+// ⚠️ TOUTE NOUVELLE MARQUE DOIT ETRE AJOUTEE ICI **ET** DANS
+// /api/auth/valider. Les deux tables sont distinctes et rien ne les relie :
+// n en corriger qu une deplace le defaut sans le supprimer.
 const MARQUES: Record<string, { site: string; nom: string; expediteur: string; espace: string }> = {
   "academiapro.fr": {
     site: "https://academiapro.fr",
@@ -68,6 +83,21 @@ const MARQUES: Record<string, { site: string; nom: string; expediteur: string; e
     nom: "Mr. Comptable",
     expediteur: "Mr. Comptable <contact@mrcomptable.fr>",
     espace: "votre espace de travail",
+  },
+  // ⚠️ L EXPEDITEUR EST LU DANS COMPLIANCE_EXPEDITEUR quand la variable
+  // existe : elle est deja posee sur Vercel et verifiee chez Resend. La
+  // valeur en dur ne sert que de repli.
+  "mysterllc.com": {
+    site: "https://mysterllc.com",
+    nom: "MysterLLC",
+    expediteur: process.env.COMPLIANCE_EXPEDITEUR || "MysterLLC <contact@mysterllc.com>",
+    espace: "votre portefeuille de sociétés",
+  },
+  "www.mysterllc.com": {
+    site: "https://mysterllc.com",
+    nom: "MysterLLC",
+    expediteur: process.env.COMPLIANCE_EXPEDITEUR || "MysterLLC <contact@mysterllc.com>",
+    espace: "votre portefeuille de sociétés",
   },
 };
 
@@ -150,7 +180,15 @@ export async function POST(req: Request) {
       );
     }
 
-    const lien = site + "/api/auth/valider?jeton=" + encodeURIComponent(jeton);
+    // 🚨 LE DOMAINE VOYAGE AVEC LE LIEN — 01/09.
+    //
+    // Le lien porte desormais le domaine d origine en parametre. Sans lui,
+    // /api/auth/valider ne pourrait pas savoir d ou venait la demande : il
+    // lit l en-tete host, qui est celui du domaine SUR LEQUEL ON CLIQUE —
+    // le meme, en principe, mais rien ne le garantit si le courriel est
+    // ouvert autrement.
+    const lien = site + "/api/auth/valider?jeton=" + encodeURIComponent(jeton)
+      + "&marque=" + encodeURIComponent(marque.site);
 
     const resend = new Resend(cle);
     const envoi = await resend.emails.send({
