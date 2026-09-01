@@ -59,7 +59,7 @@ export default function PageDocuments() {
 
   async function produire(type: string) {
     if (!choisi) {
-      setErreur("Choisissez d abord un stagiaire.");
+      setErreur("Choisissez d'abord un stagiaire.");
       return;
     }
     setOccupe(type);
@@ -93,7 +93,7 @@ export default function PageDocuments() {
       document.body.removeChild(lien);
       window.URL.revokeObjectURL(url);
 
-      setMessage((types[type] || type) + " produit et enregistre au registre.");
+      setMessage((types[type] || type) + " produit et enregistr\u00e9 au registre.");
       await charger();
     } catch (e: any) {
       setErreur("Document non produit : " + String(e));
@@ -113,7 +113,7 @@ export default function PageDocuments() {
       });
       const data = await r.json();
       if (data.ok) {
-        setMessage("Demande de signature envoyee a " + data.destinataire + ".");
+        setMessage("Demande de signature envoy\u00e9e \u00e0 " + data.destinataire + ".");
       } else {
         setErreur(data.erreur || "Envoi impossible.");
       }
@@ -163,13 +163,13 @@ export default function PageDocuments() {
   };
 
   const AIDE: any = {
-    convention: "A signer avant le debut de la formation. Indicateurs 4 et 9.",
-    devis: "Proposition chiffree, valable trente jours. Indicateur 1.",
-    convocation: "Confirme l inscription et explique l acces. Indicateur 9.",
-    programme: "Les neuf elements exiges par le guide de lecture. Indicateur 1.",
-    attestation: "A remettre en fin de parcours. Article L. 6353-1 du Code du travail.",
-    emargement: "Traces d assiduite horodatees, valables pour une formation a distance.",
-    livret: "Reglement, referent handicap, voie de reclamation. Indicateurs 9, 26 et 31.",
+    convention: "\u00c0 signer avant le d\u00e9but de la formation. Indicateurs 4 et 9.",
+    devis: "Proposition chiffr\u00e9e, valable trente jours. Indicateur 1.",
+    convocation: "Confirme l'inscription et explique l'acc\u00e8s. Indicateur 9.",
+    programme: "Les neuf \u00e9l\u00e9ments exig\u00e9s par le guide de lecture. Indicateur 1.",
+    attestation: "\u00c0 remettre en fin de parcours. Article L. 6353-1 du Code du travail.",
+    emargement: "Traces d'assiduit\u00e9 horodat\u00e9es, valables pour une formation \u00e0 distance.",
+    livret: "R\u00e8glement, r\u00e9f\u00e9rent handicap, voie de r\u00e9clamation. Indicateurs 9, 26 et 31.",
   };
 
   const A_SIGNER = ["convention", "devis"];
@@ -182,7 +182,7 @@ export default function PageDocuments() {
     <div style={CADRE}>
       <div style={{ maxWidth: "1000px", margin: "0 auto" }}>
         <a href="/organisme" style={{ color: "#c8a96e", fontSize: "14px", textDecoration: "none" }}>
-          ← Retour au tableau de bord
+          {"\u2190 Retour au tableau de bord"}
         </a>
 
         <p style={{ color: "#c8a96e", fontSize: "12px", letterSpacing: "3px", margin: "22px 0 8px" }}>
@@ -190,24 +190,24 @@ export default function PageDocuments() {
         </p>
         <h1 style={{ color: "#fff", fontSize: "30px", margin: "0 0 6px" }}>Mes documents</h1>
         <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "14px", marginTop: 0 }}>
-          {documents.length} emis · {nbSignes} signe(s) electroniquement
+          {documents.length}{" \u00e9mis \u00b7 "}{nbSignes}{" sign\u00e9(s) \u00e9lectroniquement"}
         </p>
 
         <div style={{ ...CARTE, marginTop: "26px" }}>
           <h2 style={{ color: "#c8a96e", fontSize: "18px", margin: "0 0 12px" }}>Pour quel stagiaire ?</h2>
           <select value={choisi} onChange={(e) => setChoisi(e.target.value)} style={CHAMP}>
-            <option value="">— choisir un stagiaire —</option>
+            <option value="">{"\u2014 choisir un stagiaire \u2014"}</option>
             {stagiaires.map(function (s) {
               return (
                 <option key={s.id} value={s.email}>
-                  {s.email}{s.nom ? " — " + s.nom : ""}{s.formation_code ? " (" + s.formation_code + ")" : ""}
+                  {s.email}{s.nom ? " \u2014 " + s.nom : ""}{s.formation_code ? " (" + s.formation_code + ")" : ""}
                 </option>
               );
             })}
           </select>
           {stagiaires.length === 0 && !chargement && (
             <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "14px", margin: "12px 0 0" }}>
-              Aucun stagiaire au registre. <a href="/organisme/stagiaires" style={{ color: "#c8a96e" }}>En inscrire un</a>.
+              {"Aucun stagiaire au registre. "}<a href="/organisme/stagiaires" style={{ color: "#c8a96e" }}>En inscrire un</a>.
             </p>
           )}
         </div>
@@ -235,7 +235,7 @@ export default function PageDocuments() {
           })}
         </div>
 
-        <h2 style={{ color: "#c8a96e", fontSize: "18px", margin: "0 0 14px" }}>Documents deja emis</h2>
+        <h2 style={{ color: "#c8a96e", fontSize: "18px", margin: "0 0 14px" }}>{"Documents d\u00e9j\u00e0 \u00e9mis"}</h2>
 
         {chargement ? (
           <div style={CARTE}>
@@ -244,7 +244,7 @@ export default function PageDocuments() {
         ) : documents.length === 0 ? (
           <div style={CARTE}>
             <p style={{ color: "rgba(255,255,255,0.6)", margin: 0, fontSize: "15px" }}>
-              Aucun document emis pour le moment.
+              {"Aucun document \u00e9mis pour le moment."}
             </p>
           </div>
         ) : (
@@ -259,14 +259,14 @@ export default function PageDocuments() {
                       {types[d.type] || d.type}
                     </h3>
                     <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "13px", margin: 0, wordBreak: "break-all" }}>
-                      {d.reference} · {d.stagiaire_email}
-                      {" · emis le " + new Date(d.emis_le).toLocaleDateString("fr-FR")}
+                      {d.reference}{" \u00b7 "}{d.stagiaire_email}
+                      {" \u00b7 \u00e9mis le " + new Date(d.emis_le).toLocaleDateString("fr-FR")}
                     </p>
                   </div>
 
                   {signature && (
                     <span style={{ color: "#4caf50", fontSize: "13px", fontWeight: "bold" }}>
-                      Signe le {new Date(signature.signe_le).toLocaleDateString("fr-FR")}
+                      {"Sign\u00e9 le " + new Date(signature.signe_le).toLocaleDateString("fr-FR")}
                     </span>
                   )}
                 </div>
@@ -274,7 +274,7 @@ export default function PageDocuments() {
                 {signature ? (
                   <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "12px", margin: "10px 0 0", fontFamily: "monospace", wordBreak: "break-all" }}>
                     {signature.empreinte_sha256}
-                    {signature.intacte === false ? " — SCEAU ALTERE" : ""}
+                    {signature.intacte === false ? " \u2014 SCEAU ALT\u00c9R\u00c9" : ""}
                   </p>
                 ) : signable ? (
                   <div style={{ marginTop: "12px" }}>
@@ -286,7 +286,7 @@ export default function PageDocuments() {
                       {occupe === "signer-" + d.reference ? "Envoi..." : "Faire signer"}
                     </button>
                     <span style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px", marginLeft: "10px" }}>
-                      un lien de signature sera envoye au stagiaire
+                      {"un lien de signature sera envoy\u00e9 au stagiaire"}
                     </span>
                   </div>
                 ) : null}
