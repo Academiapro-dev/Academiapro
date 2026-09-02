@@ -153,7 +153,7 @@ export async function GET(req: NextRequest) {
     if (url.searchParams.get("vue") === "document") {
       const reference = String(url.searchParams.get("reference") || "").trim();
       if (!reference) {
-        return NextResponse.json({ ok: false, erreur: "Document non precise." }, { status: 400 });
+        return NextResponse.json({ ok: false, erreur: "Document non précisé." }, { status: 400 });
       }
 
       const doc = await documentDe(reference);
@@ -191,10 +191,10 @@ export async function GET(req: NextRequest) {
         vous_pouvez_signer: peutSigner(doc, session) && typeSignable(doc),
         // ⚠️ DIT AVANT LA SIGNATURE, PAS APRES.
         avertissement: typeSignable(doc)
-          ? "Signature electronique simple au sens du reglement eIDAS."
-          : "Ce type de document ne se signe pas electroniquement : il exige"
-            + " une signature manuscrite ou la procedure propre a"
-            + " l administration concernee.",
+          ? "Signature électronique simple au sens du règlement eIDAS."
+          : "Ce type de document ne se signe pas électroniquement : il exige"
+            + " une signature manuscrite ou la procédure propre à"
+            + " l'administration concernée.",
       });
     }
 
@@ -222,7 +222,7 @@ export async function GET(req: NextRequest) {
     }
     if (!tenant) {
       return NextResponse.json(
-        { ok: false, erreur: "Aucun portefeuille rattache a votre compte." },
+        { ok: false, erreur: "Aucun portefeuille rattaché à votre compte." },
         { status: 403 }
       );
     }
@@ -348,15 +348,15 @@ async function envoyerCode(doc: any) {
   const html =
     '<div style="font-family:Georgia,serif;max-width:520px;margin:0 auto;color:#1a1a1a;line-height:1.7">' +
     '<p style="color:#a07840;font-size:13px;letter-spacing:2px;margin:0 0 6px">SIGNATURE ELECTRONIQUE</p>' +
-    '<h1 style="color:#1a1a2e;font-size:22px;margin:0 0 16px">Votre code de verification</h1>' +
-    "<p>Vous vous appretez a signer le document <strong>" + doc.reference +
+    '<h1 style="color:#1a1a2e;font-size:22px;margin:0 0 16px">Votre code de vérification</h1>' +
+    "<p>Vous vous apprêtez à signer le document <strong>" + doc.reference +
     "</strong>. Saisissez ce code sur la page de signature :</p>" +
     '<p style="font-size:34px;letter-spacing:10px;font-weight:bold;color:#1a1a2e;' +
     'background:#f5f1e8;padding:18px 24px;border-radius:8px;text-align:center;margin:24px 0">' +
     code + "</p>" +
-    "<p>Ce code est valable " + VALIDITE_CODE_MIN + " minutes et ne sert qu une fois.</p>" +
-    '<p style="font-size:14px;color:#666">Si vous n etes pas a l origine de cette demande, ' +
-    "ignorez ce message : aucune signature ne sera enregistree sans ce code.</p>" +
+    "<p>Ce code est valable " + VALIDITE_CODE_MIN + " minutes et ne sert qu'une fois.</p>" +
+    '<p style="font-size:14px;color:#666">Si vous n'êtes pas à l'origine de cette demande, ' +
+    "ignorez ce message : aucune signature ne sera enregistrée sans ce code.</p>" +
     '<p style="font-size:13px;color:#999;margin-top:26px">MysterLLC — mysterllc.com</p>' +
     "</div>";
 
@@ -369,14 +369,14 @@ async function envoyerCode(doc: any) {
     body: JSON.stringify({
       from: expediteur,
       to: [destinataire],
-      subject: "Code de verification - signature du document " + doc.reference,
+      subject: "Code de vérification — signature du document " + doc.reference,
       html: html,
     }),
   });
 
   if (!r.ok) {
     return NextResponse.json(
-      { ok: false, erreur: "L envoi du code a echoue. Reessayez." },
+      { ok: false, erreur: "L'envoi du code a échoué. Réessayez." },
       { status: 500 }
     );
   }
@@ -386,7 +386,7 @@ async function envoyerCode(doc: any) {
     envoye: true,
     email: destinataire,
     validite_minutes: VALIDITE_CODE_MIN,
-    message: "Un code a six chiffres vient d etre envoye a " + destinataire + ".",
+    message: "Un code à six chiffres vient d'être envoyé à " + destinataire + ".",
   });
 }
 
@@ -400,17 +400,17 @@ export async function POST(req: NextRequest) {
     // ⚠️ SANS SESSION_SECRET, LE SCEAU NE VAUT RIEN. On refuse de signer
     // plutot que de produire une preuve invalidable.
     if (!process.env.SESSION_SECRET) {
-      return NextResponse.json({ ok: false, erreur: "Configuration incomplete." }, { status: 500 });
+      return NextResponse.json({ ok: false, erreur: "Configuration incomplète." }, { status: 500 });
     }
 
     const b = await req.json().catch(function () { return null; });
     if (!b) {
-      return NextResponse.json({ ok: false, erreur: "Requete illisible" }, { status: 400 });
+      return NextResponse.json({ ok: false, erreur: "Requête illisible." }, { status: 400 });
     }
 
     const reference = String(b.document_reference || "").trim();
     if (!reference) {
-      return NextResponse.json({ ok: false, erreur: "Document non precise." }, { status: 400 });
+      return NextResponse.json({ ok: false, erreur: "Document non précisé." }, { status: 400 });
     }
 
     const doc = await documentDe(reference);
@@ -424,10 +424,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           ok: false,
-          erreur: "Ce document ne se signe pas electroniquement. Les formulaires"
-            + " destines a l'administration americaine exigent une signature"
-            + " manuscrite ou la procedure propre a l'IRS : imprimez-le, signez-le,"
-            + " et deposez-le selon la voie prevue.",
+          erreur: "Ce document ne se signe pas électroniquement. Les formulaires"
+            + " destinés à l'administration américaine exigent une signature"
+            + " manuscrite ou la procédure propre à l'IRS : imprimez-le, signez-le,"
+            + " et déposez-le selon la voie prévue.",
           type: doc.doc_type,
         },
         { status: 400 }
@@ -440,7 +440,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           ok: false,
-          erreur: "Seul le signataire designe peut signer ce document. Il est etabli"
+          erreur: "Seul le signataire désigné peut signer ce document. Il est établi"
             + " au nom de " + doc.signataire_email
             + " : connectez-vous avec ce compte pour le signer.",
           signataire: doc.signataire_email,
@@ -472,7 +472,7 @@ export async function POST(req: NextRequest) {
 
     if (deja) {
       return NextResponse.json(
-        { ok: false, erreur: "Vous avez deja signe ce document." },
+        { ok: false, erreur: "Vous avez déjà signé ce document." },
         { status: 409 }
       );
     }
@@ -488,7 +488,7 @@ export async function POST(req: NextRequest) {
 
     if (!attendu) {
       return NextResponse.json(
-        { ok: false, erreur: "Demandez d abord votre code de verification." },
+        { ok: false, erreur: "Demandez d'abord votre code de vérification." },
         { status: 400 }
       );
     }
@@ -502,7 +502,7 @@ export async function POST(req: NextRequest) {
 
     if (new Date(attendu.expire_le).getTime() < Date.now()) {
       return NextResponse.json(
-        { ok: false, erreur: "Ce code a expire. Demandez-en un nouveau." },
+        { ok: false, erreur: "Ce code a expiré. Demandez-en un nouveau." },
         { status: 400 }
       );
     }
@@ -537,8 +537,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           ok: false,
-          erreur: "Le document n a pas encore ete archive. Generez-le et deposez-le"
-            + " avant de le faire signer : une signature sans document archive ne"
+          erreur: "Le document n'a pas encore été archivé. Générez-le et déposez-le"
+            + " avant de le faire signer : une signature sans document archivé ne"
             + " prouverait rien.",
         },
         { status: 409 }
@@ -560,7 +560,7 @@ export async function POST(req: NextRequest) {
     // kilo-octets ; au-dela, c est qu on tente d y glisser autre chose.
     if (trace && trace.length > 400000) {
       return NextResponse.json(
-        { ok: false, erreur: "Le trace de signature est trop volumineux." },
+        { ok: false, erreur: "Le tracé de signature est trop volumineux." },
         { status: 400 }
       );
     }
@@ -633,9 +633,9 @@ export async function POST(req: NextRequest) {
       signataire: signataire,
       verifie_par_code: true,
       avertissement:
-        "Signature electronique simple au sens du reglement eIDAS. Elle n est ni"
-        + " avancee ni qualifiee : elle est opposable entre les parties, elle ne"
-        + " vaut pas verification d identite.",
+        "Signature électronique simple au sens du règlement eIDAS. Elle n'est ni"
+        + " avancée ni qualifiée : elle est opposable entre les parties, elle ne"
+        + " vaut pas vérification d'identité.",
     });
   } catch (e: any) {
     return NextResponse.json({ ok: false, erreur: String(e) }, { status: 500 });
