@@ -259,6 +259,17 @@ export default function NavBar() {
           <a href="/admin/compliance/ma-societe" style={{ color: "#c8a96e", border: "1px solid rgba(200,169,110,0.45)", padding: "8px 16px", borderRadius: "8px", textDecoration: "none", fontWeight: "bold", fontSize: "14px", whiteSpace: "nowrap" }}>
             {"Ma soci\u00e9t\u00e9"}
           </a>
+          {/* 🆕 SE DECONNECTER — 02/09. Constate en test reel : aucun bouton
+              ne permettait de quitter la session sur mysterllc.com. Un
+              gestionnaire qui voulait verifier le parcours d un client
+              restait connecte malgre lui. Deux boutons distincts, decision
+              de Jacques : « Ma societe » garde sa fonction, celui-ci ne
+              fait que deconnecter. Montre seulement en session. */}
+          {connecte && (
+            <a href="/api/auth/deconnexion" style={{ color: "rgba(255,255,255,0.55)", border: "1px solid rgba(255,255,255,0.2)", padding: "8px 16px", borderRadius: "8px", textDecoration: "none", fontSize: "14px", whiteSpace: "nowrap" }}>
+              {"Se d\u00e9connecter"}
+            </a>
+          )}
         </div>
       </header>
     );
