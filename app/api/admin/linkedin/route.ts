@@ -358,9 +358,22 @@ function compteursApresInvitation(avant: any) {
 // LES COLONNES DIFFERENT SELON LA TABLE. Les quatre bases de prospection
 // portent raison_sociale, siren, code_postal ; la table crm porte nom et
 // organisme. Demander les mauvaises colonnes ferait echouer la requete.
+// 🆕 `campagne` FIGURE DESORMAIS SUR LES QUATRE BASES — 02/09.
+//
+// Une fiche de prospection tire normalement son produit de sa table. Mais
+// une fiche mal classee doit pouvoir etre rattachee au bon produit, comme
+// une fiche manuelle. La colonne est donc lue ici, et elle PRIME sur la
+// base quand elle est renseignee (voir campagneDe() cote ecran).
+//
+// ⚠️ EXIGE LE SQL SUIVANT, A PASSER AVANT DE DEPLOYER CE FICHIER :
+//   alter table public.prospects_organismes add column if not exists campagne text;
+//   alter table public.prospects_qualiopi   add column if not exists campagne text;
+//   alter table public.prospects_interim    add column if not exists campagne text;
+//   alter table public.prospects_cabinets   add column if not exists campagne text;
+// Sans elles, toute lecture de ces tables echouerait.
 const COLONNES_PROSPECTS =
   "id, raison_sociale, ville, code_postal, siren, dirigeant_prenom, dirigeant_nom, " +
-  "linkedin, email, telephone, site_web, linkedin_le, linkedin_relance_le, linkedin_statut, notes";
+  "linkedin, email, telephone, site_web, linkedin_le, linkedin_relance_le, linkedin_statut, notes, campagne";
 
 const COLONNES_CRM =
   "id, nom, organisme, ville, dirigeant_prenom, dirigeant_nom, campagne, " +
@@ -532,12 +545,38 @@ async function lister(statuts: string[], limite: number, colonneTri?: string, re
   // envoyes ». `recent` inverse pour « Mes invitations ».
   const croissant = recent !== true;
 
+  // 🚨 LA TABLE crm MANQUAIT — CORRIGE LE 02/09.
+  //
+  // LE DEFAUT, TROUVE PAR JACQUES : « les fiches que j ai rentrees en
+  // dehors de mon listing n apparaissent pas ». Cette boucle ne parcourait
+  // que Object.keys(TABLES), c est-a-dire LES QUATRE BASES DE PROSPECTION.
+  // La table crm, ou vivent TOUTES les fiches saisies a la main, n y etait
+  // pas.
+  //
+  // CONSEQUENCE : des qu une fiche manuelle recevait un statut — invitee,
+  // acceptee, relancee — elle DISPARAISSAIT de l ecran. Elle restait en
+  // base, intacte, mais aucune liste ne la remontait. Trois fiches du
+  // 02/09 (Cecile Doronzo, Naim Riffi, Joris Shehadeh) etaient ainsi
+  // introuvables alors qu elles portaient le statut relance.
+  //
+  // ⚠️ listerEnFile() interrogeait deja crm : c est pour cela que les
+  // fiches SANS statut s affichaient bien dans « En attente d invitation ».
+  // Le trou ne touchait que celles qui avaient avance.
+  const SOURCES = Object.keys(TABLES).concat(["manuel"]);
+
   const parTable = await Promise.all(
-    Object.keys(TABLES).map(async function (cle) {
-      const { data } = await supabase
-        .from(TABLES[cle])
+    SOURCES.map(async function (cle) {
+      const table = cle === "manuel" ? "crm" : TABLES[cle];
+      let q = supabase
+        .from(table)
         .select(colonnesDe(cle))
-        .in("linkedin_statut", statuts)
+        .in("linkedin_statut", statuts);
+
+      // La table crm porte aussi des fiches d autres origines : on ne
+      // remonte que celles nees de la prospection LinkedIn.
+      if (cle === "manuel") q = q.eq("source", "linkedin");
+
+      const { data } = await q
         .order(tri, { ascending: croissant })
         .limit(limite);
       return (data || []).map(function (l: any) { return uniformiser(l, cle); });
