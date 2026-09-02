@@ -31,11 +31,21 @@ export default function ConnexionPage() {
   // propose rien de faux a personne.
   const [surMysterLLC, setSurMysterLLC] = useState(false);
 
+  // 🆕 LA PAGE DE RETOUR — 02/09. Quand une page protegee renvoie ici avec
+  // ?retour=/chemin, ce chemin est transmis a /api/auth/demander, qui le
+  // glisse dans le lien du courriel ; /api/auth/valider y renvoie apres la
+  // connexion. Constate en test reel sur la signature MysterLLC : sans
+  // cela, le signataire atterrissait sur le portefeuille au lieu de
+  // retrouver son document. Seul un chemin relatif est retenu.
+  const [retour, setRetour] = useState("");
+
   useEffect(() => {
     try {
       const params = new URLSearchParams(window.location.search);
       const code = params.get("erreur");
       if (code) setErreur(MESSAGES[code] || MESSAGES.technique);
+      const r = String(params.get("retour") || "").trim();
+      if (r && r.charAt(0) === "/" && r.indexOf("//") !== 0) setRetour(r);
     } catch (e) {}
 
     try {
@@ -55,7 +65,7 @@ export default function ConnexionPage() {
       const res = await fetch("/api/auth/demander", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: propre }),
+        body: JSON.stringify({ email: propre, retour: retour || undefined }),
       });
       const data = await res.json();
       if (data.success) {
