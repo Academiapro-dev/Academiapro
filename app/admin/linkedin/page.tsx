@@ -2634,6 +2634,27 @@ export default function PageLinkedin() {
           })}
         </div>
 
+        {/* 🆕 LE PRODUIT DE LA FICHE — 02/09.
+            LE CAS QUI L A IMPOSE : une fiche saisie hors listing s est
+            enregistree en AcadeMIA Pro alors que le contact est
+            expert-comptable. La fiche annoncait « TOUT EST MODIFIABLE »
+            mais le produit, lui, ne l etait pas — et c est lui qui decide
+            du message que la personne recevra.
+            ⚠️ CHANGER ICI CHANGE LE MESSAGE : texteDe() lit la campagne. */}
+        <span style={LIBELLE}>Le produit de cette fiche</span>
+        <select
+          value={campagneDe({ ...vals, base: cle, campagne: vals.campagne })}
+          onChange={(e) => poserChamp(cle, "campagne", e.target.value)}
+          style={{ ...CHAMP, marginBottom: "6px" }}
+        >
+          {ORDRE_PRODUITS.map(function (k: string) {
+            return <option key={k} value={k}>{PRODUITS[k].nom}</option>;
+          })}
+        </select>
+        <p style={{ color: "rgba(255,255,255,0.35)", fontSize: "12.5px", lineHeight: "1.7", margin: "0 0 13px" }}>
+          {produit(campagneDe({ ...vals, base: cle, campagne: vals.campagne })).resume}
+        </p>
+
         <span style={LIBELLE}>Votre observation</span>
         <textarea
           value={vals.notes !== undefined ? vals.notes : ""}
