@@ -83,16 +83,16 @@ export default function PageBalance() {
         </a>
 
         <p style={{ color: "#c8a96e", fontSize: "12px", letterSpacing: "3px", margin: "22px 0 8px" }}>
-          COMPTABILITE
+          COMPTABILITÉ
         </p>
         <h1 style={{ color: "#fff", fontSize: "29px", margin: "0 0 6px" }}>
-          {compte ? "Grand livre" : vue === "journal" ? "Livre journal" : "Balance generale"}
+          {compte ? "Grand livre" : vue === "journal" ? "Livre journal" : "Balance générale"}
         </h1>
         <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "14px", marginTop: 0 }}>
           {compte
-            ? "Le detail d un compte, avec son solde progressif"
+            ? "Le détail d'un compte, avec son solde progressif"
             : vue === "journal"
-              ? "Les ecritures dans l ordre chronologique, piece par piece"
+              ? "Les écritures dans l'ordre chronologique, pièce par pièce"
               : "Un compte par ligne, ses totaux et son solde"}
         </p>
 
@@ -126,19 +126,19 @@ export default function PageBalance() {
               <p style={{ color: "#c8a96e", fontSize: "13px", margin: "0 0 3px", fontFamily: "monospace" }}>{d.compte.numero}</p>
               <h2 style={{ color: "#fff", fontSize: "19px", margin: "0 0 8px" }}>{d.compte.libelle}</h2>
               <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "14.5px", margin: 0 }}>
-                Debit {euros(d.compte.debit) || "0,00"} · Credit {euros(d.compte.credit) || "0,00"} ·{" "}
+                Débit {euros(d.compte.debit) || "0,00"} · Crédit {euros(d.compte.credit) || "0,00"} ·{" "}
                 <strong style={{ color: d.compte.solde >= 0 ? "#c8a96e" : "#e8a33d" }}>
                   Solde {d.compte.solde.toLocaleString("fr-FR", { minimumFractionDigits: 2 })}
-                  {d.compte.solde >= 0 ? " debiteur" : " crediteur"}
+                  {d.compte.solde >= 0 ? " débiteur" : " créditeur"}
                 </strong>
               </p>
             </div>
 
             <div style={{ border: "1px solid rgba(200,169,110,0.25)", borderRadius: "12px", overflow: "hidden" }}>
               <div style={{ display: "grid", gridTemplateColumns: "0.9fr 1.9fr 0.8fr 0.8fr 0.9fr", background: "rgba(200,169,110,0.12)", padding: "12px 14px", fontSize: "12px", color: "#c8a96e", fontWeight: "bold" }}>
-                <span>Date</span><span>Libelle</span>
-                <span style={{ textAlign: "right" }}>Debit</span>
-                <span style={{ textAlign: "right" }}>Credit</span>
+                <span>Date</span><span>Libellé</span>
+                <span style={{ textAlign: "right" }}>Débit</span>
+                <span style={{ textAlign: "right" }}>Crédit</span>
                 <span style={{ textAlign: "right" }}>Solde</span>
               </div>
               {d.mouvements.map(function (m: any, i: number) {
@@ -201,7 +201,7 @@ export default function PageBalance() {
                       <div>
                         <p style={{ color: "#c8a96e", fontSize: "12.5px", margin: "0 0 3px" }}>
                           {e.ecriture_num} · {e.journal_code}
-                          {e.piece_ref ? " · piece " + e.piece_ref : ""}
+                          {e.piece_ref ? " · pièce " + e.piece_ref : ""}
                         </p>
                         <h3 style={{ color: "#fff", fontSize: "15.5px", margin: 0 }}>{e.libelle}</h3>
                       </div>
@@ -230,8 +230,8 @@ export default function PageBalance() {
 
                     <p style={{ color: e.equilibree ? "rgba(255,255,255,0.4)" : "#e8836a", fontSize: "12.5px", margin: "10px 0 0" }}>
                       {e.equilibree
-                        ? "Equilibree · " + euros(e.debit)
-                        : "DESEQUILIBREE · debit " + euros(e.debit) + " credit " + euros(e.credit)}
+                        ? "Équilibrée · " + euros(e.debit)
+                        : "DÉSÉQUILIBRÉE · débit " + euros(e.debit) + " crédit " + euros(e.credit)}
                     </p>
                   </div>
                 );
@@ -242,11 +242,11 @@ export default function PageBalance() {
           <>
             <div style={{ ...CARTE, border: d.totaux.equilibre ? "1px solid rgba(76,175,80,0.45)" : "1px solid rgba(232,131,106,0.5)" }}>
               <p style={{ color: d.totaux.equilibre ? "#4caf50" : "#e8836a", fontSize: "16px", fontWeight: "bold", margin: "0 0 6px" }}>
-                {d.totaux.equilibre ? "Balance equilibree" : "BALANCE DESEQUILIBREE"}
+                {d.totaux.equilibre ? "Balance équilibrée" : "BALANCE DÉSÉQUILIBRÉE"}
               </p>
               <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "14px", margin: 0, lineHeight: "1.7" }}>
-                Debit {euros(d.totaux.debit)} · Credit {euros(d.totaux.credit)}
-                {!d.totaux.equilibre ? " · ecart de " + euros(d.totaux.ecart) : ""}
+                Débit {euros(d.totaux.debit)} · Crédit {euros(d.totaux.credit)}
+                {!d.totaux.equilibre ? " · écart de " + euros(d.totaux.ecart) : ""}
                 <br />
                 {d.totaux.nb_comptes} compte(s) sur {d.totaux.nb_lignes} ligne(s), exercice du{" "}
                 {new Date(d.periode.debut).toLocaleDateString("fr-FR")} au{" "}
@@ -276,8 +276,8 @@ export default function PageBalance() {
             <div style={{ border: "1px solid rgba(200,169,110,0.25)", borderRadius: "12px", overflow: "hidden" }}>
               <div style={{ display: "grid", gridTemplateColumns: "0.9fr 2.2fr 0.9fr 0.9fr 1fr", background: "rgba(200,169,110,0.12)", padding: "12px 14px", fontSize: "12px", color: "#c8a96e", fontWeight: "bold" }}>
                 <span>Compte</span><span>Libelle</span>
-                <span style={{ textAlign: "right" }}>Debit</span>
-                <span style={{ textAlign: "right" }}>Credit</span>
+                <span style={{ textAlign: "right" }}>Débit</span>
+                <span style={{ textAlign: "right" }}>Crédit</span>
                 <span style={{ textAlign: "right" }}>Solde</span>
               </div>
               {d.balance.map(function (c: any) {
