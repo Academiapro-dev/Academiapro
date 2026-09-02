@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ ok: false, erreur: "Reserve a l'administrateur." }, { status: 403 });
   }
 
-  const clientId = process.env.LINKEDIN_CLIENT_ID || "";
+  const clientId = (process.env.LINKEDIN_CLIENT_ID || "").trim();
   if (!clientId) {
     return NextResponse.json({ ok: false, erreur: "LINKEDIN_CLIENT_ID absente." }, { status: 500 });
   }
