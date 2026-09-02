@@ -65,6 +65,20 @@ function echec(site: string, motif: string) {
 
 // Chaque profil entre chez lui.
 function accueilDuProfil(email: string, profil: string | null, role: string | null, site: string): string {
+  // 🚨 SUR MYSTERLLC, TOUT LE MONDE ENTRE PAR LE PORTEFEUILLE — corrige le 02/09.
+  //
+  // CE QUI SE PASSAIT, CONSTATE EN TEST REEL : l administrateur atterrissait
+  // sur /admin/compliance, l ancienne page « Conformite internationale »
+  // d avant le portefeuille, qui reste sur « Chargement... ». Un signataire
+  // sans societe tombait dans le cas generique, /dashboard — une page
+  // AcadeMIA qui n existe pas sur mysterllc.com : 404. Aucun client ne
+  // pouvait donc se connecter a MysterLLC, quel que soit le navigateur.
+  //
+  // MysterLLC n a qu un seul espace, le portefeuille. C est la porte pour
+  // tous, gestionnaire comme client. Le parametre `retour` du lien, quand
+  // il existe, reste prioritaire (voir GET plus bas).
+  if (site === "https://mysterllc.com") return "/admin/compliance/entites";
+
   // 🚨 L ADMINISTRATEUR ENTRE PAR LA PORTE OU IL A FRAPPE — corrige le 01/09.
   //
   // LE DEFAUT : l administrateur etait renvoye sur /admin quel que soit le
@@ -76,7 +90,6 @@ function accueilDuProfil(email: string, profil: string | null, role: string | nu
   // ce qui empeche Jacques de verifier empeche aussi de voir ce qu ils
   // voient.
   if (ADMINS.indexOf(email) >= 0) {
-    if (site === "https://mysterllc.com") return "/admin/compliance";
     if (site === "https://mrcomptable.fr") return "/admin/compliance/tableau-de-bord";
     return "/admin";
   }
