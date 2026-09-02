@@ -92,9 +92,11 @@ export async function GET(req: NextRequest) {
   if (!rJeton.ok || !jeton.access_token) {
     console.error("[linkedin/rappel] jeton :", rJeton.status, JSON.stringify(jeton).slice(0, 300));
     return page("Échange du code refusé",
-      "<p>LinkedIn n'a pas rendu de jeton (HTTP " + rJeton.status + "). "
-      + "Vérifiez que l'adresse de retour déclarée dans l'application est exactement "
-      + "<code>" + RETOUR + "</code>, puis recommencez.</p>", 502);
+      "<p>LinkedIn n'a pas rendu de jeton (HTTP " + rJeton.status + ").</p>"
+      + "<p>Réponse de LinkedIn : <code>" + echappe(JSON.stringify(jeton).slice(0, 300)) + "</code></p>"
+      + "<p><code>invalid_client</code> = Client ID ou Client Secret refusé dans Vercel ; "
+      + "<code>invalid_redirect_uri</code> = adresse de retour différente de "
+      + "<code>" + RETOUR + "</code> dans l'application.</p>", 502);
   }
 
   const maintenant = Date.now();
