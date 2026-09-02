@@ -45,7 +45,7 @@ const supabase = createClient(
 function autorise(req: NextRequest): boolean {
   const session = sessionCourante();
   if (session && ADMINS.indexOf(session.email) >= 0) return true;
-  const cle = process.env.LINKEDIN_CLE_PUBLICATION || "";
+  const cle = (process.env.LINKEDIN_CLE_PUBLICATION || "").trim();
   const recue = req.headers.get("x-cle-publication") || "";
   return !!cle && recue === cle;
 }
