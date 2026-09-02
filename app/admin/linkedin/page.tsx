@@ -2995,17 +2995,46 @@ export default function PageLinkedin() {
             <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "16px" }}>
               {BASES.map(function (b) {
                 const actif = base === b.cle;
-                const cab = estCabinet(b.cle);
+                const f = produit(produitDeBase(b.cle) || "academiapro");
                 return (
                   <button key={b.cle} onClick={() => setBase(b.cle)}
                     style={{
                       ...BOUTON, borderRadius: "20px", padding: "8px 16px", fontSize: "13px",
-                      background: actif ? (cab ? COMPTABLE : OR) : "rgba(255,255,255,0.06)",
-                      color: actif ? "#050508" : (cab ? COMPTABLE : "rgba(255,255,255,0.6)"),
-                      border: actif ? "none" : "1px solid " + (cab ? "rgba(79,195,247,0.4)" : "rgba(200,169,110,0.35)"),
+                      background: actif ? f.couleur : "rgba(255,255,255,0.06)",
+                      color: actif ? "#050508" : f.couleur,
+                      border: actif ? "none" : "1px solid " + f.couleur + "66",
                       fontWeight: actif ? "bold" : "normal",
                     }}>
                     {b.nom}
+                  </button>
+                );
+              })}
+
+              {/* 🆕 LES TROIS PRODUITS SANS BASE DE PROSPECTION — 02/09.
+                  ⚠️ POURQUOI ILS SONT ICI, ET LA REMARQUE DE JACQUES QUI L A
+                  IMPOSE : « toutes les pastilles existent dans toutes les
+                  colonnes, sauf dans la colonne inviter » — or c est
+                  precisement la que le flux COMMENCE. Un tri qui n existe
+                  qu en aval ne fait jamais entrer personne : les listes des
+                  trois nouveaux produits seraient restees vides pour
+                  toujours.
+                  Ces pastilles servent la FILE D ATTENTE du produit : les
+                  profils ranges a la main, qui attendent d etre invites. */}
+              {ORDRE_PRODUITS.filter(function (cle: string) {
+                return (PRODUITS[cle].bases || []).length === 0;
+              }).map(function (cle: string) {
+                const f = PRODUITS[cle];
+                const actif = base === cle;
+                return (
+                  <button key={cle} onClick={() => setBase(cle)}
+                    style={{
+                      ...BOUTON, borderRadius: "20px", padding: "8px 16px", fontSize: "13px",
+                      background: actif ? f.couleur : "rgba(255,255,255,0.06)",
+                      color: actif ? "#050508" : f.couleur,
+                      border: actif ? "none" : "1px dashed " + f.couleur + "66",
+                      fontWeight: actif ? "bold" : "normal",
+                    }}>
+                    {f.nom}
                   </button>
                 );
               })}
@@ -3013,12 +3042,15 @@ export default function PageLinkedin() {
 
             {/* Le rappel de la campagne en cours, pour qu on ne se trompe
                 jamais de produit en ouvrant un profil. */}
+            {/* La pastille selectionnee est soit une base de prospection,
+                soit directement un produit : les deux mènent au meme
+                bandeau. */}
             <p style={{
-              color: produit(produitDeBase(base) || "academiapro").couleur,
+              color: produit(PRODUITS[base] ? base : (produitDeBase(base) || "academiapro")).couleur,
               fontSize: "12.5px", lineHeight: "1.7", margin: "0 0 16px",
             }}>
-              {"Campagne " + produit(produitDeBase(base) || "academiapro").nom + " \u2014 "}
-              {produit(produitDeBase(base) || "academiapro").resume}
+              {"Campagne " + produit(PRODUITS[base] ? base : (produitDeBase(base) || "academiapro")).nom + " \u2014 "}
+              {produit(PRODUITS[base] ? base : (produitDeBase(base) || "academiapro")).resume}
             </p>
 
             {charge && !fiche ? (
