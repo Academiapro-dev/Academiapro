@@ -111,6 +111,27 @@ function marqueDe(req: Request) {
   return MARQUES[hote] || MARQUES["academiapro.fr"];
 }
 
+// 🆕 LA PAGE DE RETOUR VOYAGE AVEC LE LIEN — 02/09.
+//
+// CONSTATE EN TEST REEL : un signataire MysterLLC clique « Lire et signer »,
+// tombe sur « connectez-vous », se connecte, et atterrit... sur le
+// portefeuille, sans plus aucun rapport avec le document qu il devait
+// signer. Il doit retrouver le courriel initial et recliquer.
+//
+// Le chemin demande par la page d origine est transmis a /api/auth/valider
+// dans le parametre `retour`, qu elle sait deja lire. Seuls les chemins
+// RELATIFS sont acceptes — memes regles que la-bas : sans ce controle, un
+// lien forge serait une redirection ouverte, utile au hameconnage.
+function retourSur(brut: any): string {
+  const chemin = String(brut || "").trim();
+  if (!chemin) return "";
+  if (chemin.charAt(0) !== "/") return "";
+  if (chemin.indexOf("//") === 0) return "";
+  if (chemin.indexOf("\\") >= 0) return "";
+  if (chemin.length > 500) return "";
+  return chemin;
+}
+
 export async function POST(req: Request) {
   try {
     const cle = process.env.RESEND_API_KEY || "";
@@ -132,6 +153,7 @@ export async function POST(req: Request) {
 
     const corps = await req.json().catch(() => ({}));
     const email = String(corps.email || "").toLowerCase().trim();
+    const retour = retourSur(corps.retour);
     if (!email || email.indexOf("@") < 1 || email.indexOf(".") < 0) {
       return NextResponse.json({ success: false, error: "Adresse email invalide" }, { status: 400 });
     }
@@ -188,7 +210,8 @@ export async function POST(req: Request) {
     // le meme, en principe, mais rien ne le garantit si le courriel est
     // ouvert autrement.
     const lien = site + "/api/auth/valider?jeton=" + encodeURIComponent(jeton)
-      + "&marque=" + encodeURIComponent(marque.site);
+      + "&marque=" + encodeURIComponent(marque.site)
+      + (retour ? "&retour=" + encodeURIComponent(retour) : "");
 
     const resend = new Resend(cle);
     const envoi = await resend.emails.send({
