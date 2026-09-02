@@ -362,7 +362,7 @@ async function envoyerCode(doc: any) {
     'background:#f5f1e8;padding:18px 24px;border-radius:8px;text-align:center;margin:24px 0">' +
     code + "</p>" +
     "<p>Ce code est valable " + VALIDITE_CODE_MIN + " minutes et ne sert qu'une fois.</p>" +
-    '<p style="font-size:14px;color:#666">Si vous n'êtes pas à l'origine de cette demande, ' +
+    '<p style="font-size:14px;color:#666">Si vous n\'êtes pas à l\'origine de cette demande, ' +
     "ignorez ce message : aucune signature ne sera enregistrée sans ce code.</p>" +
     '<p style="font-size:13px;color:#999;margin-top:26px">MysterLLC — mysterllc.com</p>' +
     "</div>";
