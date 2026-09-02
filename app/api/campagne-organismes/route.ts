@@ -91,10 +91,40 @@ function jetonDesinscription(email: string): string {
     .update(email.toLowerCase()).digest("hex").slice(0, 32);
 }
 
+// 🚨 LA SALUTATION UTILISAIT LE NOM DE FAMILLE — CORRIGE LE 02/09.
+//
+// CE QUI SE PASSAIT. La fonction lisait `dirigeant_nom`, pas le prenom.
+// Virginie Bruno a donc recu « Bonjour BRUNO », et a repondu « STOP —
+// merci de supprimer toutes nos coordonnees de vos bases de donnees ».
+// Ce n etait pas un cas particulier : TOUT destinataire dont le nom etait
+// connu recevait son patronyme en salutation. Rien ne signe un envoi
+// automatise mal fait aussi surement.
+//
+// CE QUI EST FAIT MAINTENANT, dans cet ordre :
+//   1. Le PRENOM s il existe — « Bonjour Virginie, ». C est la bonne
+//      formule, et la seule qui vaille sur un premier courriel.
+//   2. « Bonjour, » sinon. Neutre, jamais faux, parfaitement acceptable
+//      en ouverture professionnelle.
+//
+// ⚠️ ON N ECRIT PLUS JAMAIS LE NOM DE FAMILLE SEUL. « Bonjour Bruno »
+// fait passer un nom pour un prenom ; « Monsieur Bruno » suppose un genre
+// que la base ne connait pas — et se tromper de civilite est pire que de
+// n en mettre aucune.
+//
+// ⚠️ 3 145 FICHES DE prospects_organismes N ONT NI PRENOM NI NOM :
+// elles partent donc avec « Bonjour, ». C est voulu.
 function salutationDe(o: any): string {
-  return o.dirigeant_nom
-    ? "Bonjour " + String(o.dirigeant_nom).trim() + ","
-    : "Bonjour,";
+  const prenom = String(o.dirigeant_prenom || "").trim();
+
+  // Un prenom d une seule lettre est une initiale, pas un prenom :
+  // « Bonjour V, » serait pire que « Bonjour, ».
+  if (prenom.length >= 2) {
+    const propre = prenom.charAt(0).toUpperCase()
+      + prenom.slice(1).toLowerCase();
+    return "Bonjour " + propre + ",";
+  }
+
+  return "Bonjour,";
 }
 
 // Le pied de page, identique aux deux vagues : signature et desinscription.
@@ -331,7 +361,10 @@ export async function GET(req: NextRequest) {
   const { data: cibles, error: errLecture } = await appliquerFiltre(
     supabase
       .from("prospects_organismes")
-      .select("id, email, raison_sociale, dirigeant_nom, nb_envois"),
+      // ⚠️ `dirigeant_prenom` EST INDISPENSABLE ICI — 02/09. Sans lui, la
+      // salutation retombe sur « Bonjour, » pour TOUT LE MONDE, meme quand
+      // le prenom existe en base. La colonne n etait pas demandee.
+      .select("id, email, raison_sociale, dirigeant_prenom, dirigeant_nom, nb_envois"),
     vague)
     .order("id", { ascending: true })
     .limit(lot);
