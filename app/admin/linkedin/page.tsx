@@ -467,6 +467,10 @@ export default function PageLinkedin() {
   // defaut, celui d avant cet ajout.
   const [filtreProduit, setFiltreProduit] = useState("tous");
 
+  // Quelle pastille a ete touchee : son menu de produits est ouvert.
+  // Une seule a la fois — ouvrir la suivante referme la precedente.
+  const [ouvrirCampagne, setOuvrirCampagne] = useState("");
+
   const [fiche, setFiche] = useState<any>(null);
   const [restant, setRestant] = useState(0);
   const [epuise, setEpuise] = useState(false);
@@ -1443,19 +1447,83 @@ export default function PageLinkedin() {
   // la table crm — pas dans sa base d origine, qui est toujours « manuel ».
   // Sans cette colonne, un expert-comptable trouve sur LinkedIn recevait le
   // message des organismes : le bilan pedagogique et les 560 formations.
+  // 🆕 LA CAMPAGNE POSEE A LA MAIN PRIME SUR LA BASE — 02/09.
+  //
+  // LE CAS QUI L A IMPOSE : une fiche saisie hors listing s est enregistree
+  // en AcadeMIA Pro alors que le contact est expert-comptable. Sans moyen
+  // de la corriger, elle aurait recu le message des organismes de
+  // formation — exactement ce que le cloisonnement des campagnes sert a
+  // eviter.
+  //
+  // La colonne `campagne` est donc lue EN PREMIER, quelle que soit
+  // l origine de la fiche. A defaut, la base decide comme avant : une
+  // fiche jamais corrigee garde le comportement d hier.
   function campagneDe(l: any): string {
-    if (l.base === "manuel") {
-      const c = String(l.campagne || "academiapro").toLowerCase();
-      return PRODUITS[c] ? c : "academiapro";
-    }
+    const c = String(l.campagne || "").toLowerCase();
+    if (c && PRODUITS[c]) return c;
+    if (l.base === "manuel") return "academiapro";
     return produitDeBase(l.base) || "academiapro";
   }
 
-  function etiquetteCampagne(l: any) {
+  // Change le produit d une fiche, et rien d autre.
+  //
+  // ⚠️ LE MESSAGE SUIT LA FICHE : texteDe() lit campagneDe(), donc le
+  // message deja prepare se reecrit tout seul dans la voix du bon produit
+  // des que la campagne change. C est le but — envoyer le texte AcadeMIA a
+  // un cabinet comptable serait pire que de ne rien envoyer.
+  async function changerCampagne(l: any, cle: string) {
+    if (!PRODUITS[cle]) return;
+    if (campagneDe(l) === cle) { setOuvrirCampagne(""); return; }
+
+    setErreur("");
+    setOuvrirCampagne("");
+
+    // L affichage suit immediatement : la pastille change de couleur sans
+    // attendre le serveur. En cas d echec, on remet l ancienne valeur.
+    const avant = l.campagne;
+    l.campagne = cle;
+    setLignes(function (anciennes: any[]) { return anciennes.slice(); });
+
+    try {
+      const d = await appeler({
+        action: "modifier",
+        base: l.base || "manuel",
+        id: l.id,
+        campagne: cle,
+      });
+      if (!d.ok) {
+        l.campagne = avant;
+        setLignes(function (anciennes: any[]) { return anciennes.slice(); });
+        setErreur(d.erreur || "Changement impossible.");
+      } else {
+        setMessage("Fiche rattachee a " + PRODUITS[cle].nom + ".");
+      }
+    } catch (e: any) {
+      l.campagne = avant;
+      setLignes(function (anciennes: any[]) { return anciennes.slice(); });
+      setErreur("Changement impossible : " + String(e));
+    }
+  }
+
+  // 🆕 LA PASTILLE EST CLIQUABLE — 02/09.
+  //
+  // Un appui deplie les cinq produits ; on touche le bon, la fiche change
+  // de campagne et le message se reecrit dans la voix de ce produit.
+  //
+  // MEME GESTE QUE « OU EN EST CE CONTACT » juste en dessous, ou l on
+  // touche une etape pour y amener la fiche. Rien de nouveau a apprendre.
+  //
+  // `cliquable` vaut false la ou la pastille n est qu une legende — la
+  // liste des bases dans l onglet Inviter, par exemple, ou il n y a pas de
+  // fiche a rattacher.
+  function etiquetteCampagne(l: any, cliquable?: boolean) {
     const f = produit(campagneDe(l));
     const manuelle = l.base === "manuel";
+    const modifiable = cliquable !== false && !!l.id;
+    const cle = String(l.id || "") + "-" + (l.base || "");
+    const ouvert = ouvrirCampagne === cle;
 
-    return (
+    const pastille = (
       <span style={{
         display: "inline-block", marginLeft: "8px", padding: "2px 9px",
         borderRadius: "20px", fontSize: "11px", letterSpacing: "0.5px",
@@ -1465,8 +1533,70 @@ export default function PageLinkedin() {
         // ne vient d aucune base de prospection.
         border: (manuelle ? "1px dashed " : "1px solid ") + f.couleur + "8c",
         verticalAlign: "middle",
+        cursor: modifiable ? "pointer" : "default",
       }}>
-        {f.nom}
+        {f.nom}{modifiable ? " \u25be" : ""}
+      </span>
+    );
+
+    if (!modifiable) return pastille;
+
+    return (
+      <span style={{ position: "relative", display: "inline-block", verticalAlign: "middle" }}>
+        <span onClick={function (e: any) {
+          e.stopPropagation();
+          setOuvrirCampagne(ouvert ? "" : cle);
+        }}>
+          {pastille}
+        </span>
+
+        {ouvert && (
+          <span style={{
+            position: "absolute", top: "26px", left: "8px", zIndex: 60,
+            background: "#0d0d16",
+            border: "1px solid rgba(255,255,255,0.18)",
+            borderRadius: "10px", padding: "8px 0",
+            minWidth: "185px",
+            boxShadow: "0 8px 28px rgba(0,0,0,0.6)",
+            display: "block",
+          }}>
+            <span style={{
+              display: "block", padding: "3px 14px 9px", fontSize: "10.5px",
+              letterSpacing: "1.5px", color: "rgba(255,255,255,0.4)",
+            }}>
+              RATTACHER A
+            </span>
+
+            {ORDRE_PRODUITS.map(function (k: string) {
+              const p = PRODUITS[k];
+              const courant = campagneDe(l) === k;
+              return (
+                <span key={k}
+                  onClick={function (e: any) {
+                    e.stopPropagation();
+                    changerCampagne(l, k);
+                  }}
+                  style={{
+                    display: "block", padding: "8px 14px", fontSize: "13px",
+                    color: courant ? "#fff" : p.couleur,
+                    background: courant ? p.couleur + "33" : "transparent",
+                    cursor: "pointer",
+                    fontWeight: courant ? "bold" : "normal",
+                  }}>
+                  {courant ? "\u2713 " : ""}{p.nom}
+                </span>
+              );
+            })}
+
+            <span style={{
+              display: "block", padding: "9px 14px 3px", fontSize: "11px",
+              lineHeight: "1.6", color: "rgba(255,255,255,0.35)",
+              borderTop: "1px solid rgba(255,255,255,0.08)", marginTop: "6px",
+            }}>
+              Le message se réécrira dans la voix du produit choisi.
+            </span>
+          </span>
+        )}
       </span>
     );
   }
@@ -1759,7 +1889,7 @@ export default function PageLinkedin() {
                             <div key={b.cle + "-" + l.id} style={{ padding: "11px 13px", background: "rgba(255,255,255,0.03)", border: "1px solid " + (enDouble ? "rgba(232,163,61,0.45)" : "rgba(255,255,255,0.08)"), borderRadius: "8px", marginBottom: "7px" }}>
                               <div style={{ color: "#fff", fontSize: "14.5px", fontWeight: "bold" }}>
                                 {capitaliser(l.raison_sociale) || "—"}
-                                {etiquetteCampagne({ base: b.cle })}
+                                {etiquetteCampagne({ base: b.cle }, false)}
                               </div>
                               <div style={{ color: OR, fontSize: "13px", marginTop: "2px" }}>
                                 {nomComplet || "dirigeant inconnu"}
@@ -2977,6 +3107,28 @@ export default function PageLinkedin() {
                         ✓ Invité sans note
                       </button>
                     </div>
+
+                    {/* 🆕 « IL A DEJA ACCEPTE » — 02/09.
+                        LE CAS QUI L A IMPOSE : une fiche prise en capture
+                        d ecran chez quelqu un qui avait accepte l invitation
+                        depuis longtemps. Les deux boutons du dessus la
+                        rangeaient en « invitee », et il fallait ensuite la
+                        faire avancer a la main. Jacques passait donc par
+                        « Messages envoyes » pour revenir en arriere — un
+                        detour qui laissait la fiche en `relance` en base.
+                        ⚠️ CE BOUTON NE CONSOMME PAS LE PLAFOND : aucune
+                        invitation ne part, elle est deja acceptee. Il reste
+                        donc actif meme quand le quota du jour est atteint. */}
+                    <div style={{ display: "flex", gap: "9px", flexWrap: "wrap", marginTop: "9px" }}>
+                      <button onClick={() => ajouter("accepte_nu")} disabled={charge}
+                        style={{ flex: "1 1 200px", background: "rgba(200,169,110,0.15)", color: OR, border: "1px solid rgba(200,169,110,0.45)", borderRadius: "9px", padding: "14px", fontSize: "13.5px", fontWeight: "bold", fontFamily: "Georgia,serif", cursor: "pointer" }}>
+                        ✓ A déjà accepté mon invitation
+                      </button>
+                    </div>
+                    <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "12px", lineHeight: "1.7", margin: "8px 0 0" }}>
+                      La fiche entre directement dans « À écrire », prête à recevoir son
+                      message. Ne consomme pas le plafond du jour.
+                    </p>
                     {depasse && (
                       <p style={{ color: ORANGE, fontSize: "12.5px", lineHeight: "1.7", margin: "10px 0 0" }}>
                         Plafond du jour atteint. Ces deux boutons restent actifs : si
