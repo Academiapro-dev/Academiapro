@@ -212,9 +212,9 @@ export default function PageSaisie() {
         <p style={{ color: "#c8a96e", fontSize: "12px", letterSpacing: "3px", margin: "22px 0 8px" }}>
           COMPTABILITE
         </p>
-        <h1 style={{ color: "#fff", fontSize: "29px", margin: "0 0 6px" }}>Saisie des ecritures</h1>
+        <h1 style={{ color: "#fff", fontSize: "29px", margin: "0 0 6px" }}>Saisie des écritures</h1>
         <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "14px", marginTop: 0 }}>
-          En partie double — le total au debit egale toujours le total au credit
+          En partie double — le total au débit égale toujours le total au crédit
         </p>
 
         <div style={{ ...CARTE, marginTop: "24px" }}>
@@ -246,16 +246,16 @@ export default function PageSaisie() {
                 <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={CHAMP} />
               </div>
               <div style={{ flex: "1 1 160px" }}>
-                <span style={LIBELLE}>Piece de reference</span>
-                <input value={piece} onChange={(e) => setPiece(e.target.value)} placeholder="reference du justificatif" style={CHAMP} />
+                <span style={LIBELLE}>Pièce de référence</span>
+                <input value={piece} onChange={(e) => setPiece(e.target.value)} placeholder="référence du justificatif" style={CHAMP} />
               </div>
             </div>
 
-            <span style={LIBELLE}>Libelle de l ecriture</span>
+            <span style={LIBELLE}>Libellé de l'écriture</span>
             <input
               value={libelle}
               onChange={(e) => setLibelle(e.target.value)}
-              placeholder="ce que dit la piece, en clair"
+              placeholder="ce que dit la pièce, en clair"
               style={CHAMP}
             />
 
@@ -307,13 +307,13 @@ export default function PageSaisie() {
                     <input
                       value={l.libelle}
                       onChange={(e) => poser(i, "libelle", e.target.value)}
-                      placeholder="libelle propre a la ligne, facultatif"
+                      placeholder="libellé propre à la ligne, facultatif"
                       style={CHAMP}
                     />
 
                     <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
                       <div style={{ flex: "1 1 140px" }}>
-                        <span style={LIBELLE}>Debit</span>
+                        <span style={LIBELLE}>Débit</span>
                         <input
                           value={l.debit}
                           onChange={(e) => poser(i, "debit", e.target.value)}
@@ -322,7 +322,7 @@ export default function PageSaisie() {
                         />
                       </div>
                       <div style={{ flex: "1 1 140px" }}>
-                        <span style={LIBELLE}>Credit</span>
+                        <span style={LIBELLE}>Crédit</span>
                         <input
                           value={l.credit}
                           onChange={(e) => poser(i, "credit", e.target.value)}
@@ -341,10 +341,10 @@ export default function PageSaisie() {
             <div style={{ background: equilibre ? "rgba(76,175,80,0.1)" : "rgba(232,163,61,0.1)", border: "1px solid " + (equilibre ? "rgba(76,175,80,0.4)" : "rgba(232,163,61,0.4)"), borderRadius: "10px", padding: "14px 16px", marginBottom: "14px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "10px" }}>
                 <span style={{ color: "rgba(255,255,255,0.75)", fontSize: "14px" }}>
-                  Debit {euros(totalDebit)} · Credit {euros(totalCredit)}
+                  Débit {euros(totalDebit)} · Crédit {euros(totalCredit)}
                 </span>
                 <span style={{ color: equilibre ? "#4caf50" : "#e8a33d", fontSize: "14px", fontWeight: "bold" }}>
-                  {equilibre ? "Equilibre" : "Ecart de " + euros(Math.abs(ecart))}
+                  {equilibre ? "Équilibré" : "Écart de " + euros(Math.abs(ecart))}
                 </span>
               </div>
             </div>
@@ -354,7 +354,7 @@ export default function PageSaisie() {
               disabled={occupe !== "" || !pret}
               style={{ background: occupe !== "" || !pret ? "rgba(200,169,110,0.3)" : "#c8a96e", color: occupe !== "" || !pret ? "#8a8a8a" : "#050508", padding: "15px 30px", borderRadius: "8px", border: "none", cursor: occupe !== "" || !pret ? "default" : "pointer", fontWeight: "bold", fontSize: "16px", fontFamily: "Georgia,serif", width: "100%" }}
             >
-              {occupe === "enr" ? "Enregistrement..." : "Enregistrer l ecriture"}
+              {occupe === "enr" ? "Enregistrement..." : "Enregistrer l'écriture"}
             </button>
 
             <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px", margin: "12px 0 0", lineHeight: "1.7" }}>
@@ -418,8 +418,8 @@ export default function PageSaisie() {
 
                     <p style={{ color: e.equilibree ? "#4caf50" : "#e8836a", fontSize: "12.5px", margin: "10px 0 0" }}>
                       {e.equilibree
-                        ? "Equilibree · " + euros(e.debit)
-                        : "DESEQUILIBREE · debit " + euros(e.debit) + " credit " + euros(e.credit)}
+                        ? "Équilibrée · " + euros(e.debit)
+                        : "DÉSÉQUILIBRÉE · débit " + euros(e.debit) + " crédit " + euros(e.credit)}
                     </p>
                   </div>
                 );
