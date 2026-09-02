@@ -50,6 +50,19 @@ function autorise(req: NextRequest): boolean {
   return !!cle && recue === cle;
 }
 
+// GET — les vingt dernieres publications, pour l ecran d administration.
+export async function GET(req: NextRequest) {
+  if (!autorise(req)) {
+    return NextResponse.json({ ok: false, erreur: "Acces refuse." }, { status: 403 });
+  }
+  const { data } = await supabase
+    .from("linkedin_publications")
+    .select("id, produit, texte, url, post_urn, statut_http, publie_le")
+    .order("publie_le", { ascending: false })
+    .limit(20);
+  return NextResponse.json({ ok: true, publications: data || [] });
+}
+
 export async function POST(req: NextRequest) {
   if (!autorise(req)) {
     return NextResponse.json({ ok: false, erreur: "Acces refuse." }, { status: 403 });
