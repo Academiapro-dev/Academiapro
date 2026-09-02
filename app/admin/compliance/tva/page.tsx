@@ -110,11 +110,11 @@ export default function PageTVA() {
         </a>
 
         <p style={{ color: "#c8a96e", fontSize: "12px", letterSpacing: "3px", margin: "22px 0 8px" }}>
-          COMPTABILITE
+          COMPTABILITÉ
         </p>
-        <h1 style={{ color: "#fff", fontSize: "29px", margin: "0 0 6px" }}>Declaration de TVA</h1>
+        <h1 style={{ color: "#fff", fontSize: "29px", margin: "0 0 6px" }}>Déclaration de TVA</h1>
         <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "14px", marginTop: 0 }}>
-          Calculee depuis les ecritures du dossier
+          Calculée depuis les écritures du dossier
         </p>
 
         <div style={{ ...CARTE, marginTop: "24px" }}>
@@ -144,7 +144,7 @@ export default function PageTVA() {
           <>
             {d.formulaire === "CA3" && (
               <div style={{ display: "flex", gap: "12px", alignItems: "center", marginBottom: "18px", flexWrap: "wrap" }}>
-                <button onClick={() => decaler(-1)} style={BOUTON}>← mois precedent</button>
+                <button onClick={() => decaler(-1)} style={BOUTON}>← mois précédent</button>
                 <span style={{ color: "#c8a96e", fontSize: "17px", fontWeight: "bold" }}>{d.periode.libelle}</span>
                 <button onClick={() => decaler(1)} style={BOUTON}>mois suivant →</button>
               </div>
@@ -160,24 +160,24 @@ export default function PageTVA() {
               </p>
               <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "14px", margin: 0 }}>
                 {d.tva.a_decaisser > 0
-                  ? "TVA a decaisser pour " + d.periode.libelle
-                  : "Credit de TVA a reporter"}
+                  ? "TVA à décaisser pour " + d.periode.libelle
+                  : "Crédit de TVA à reporter"}
               </p>
             </div>
 
             <div style={CARTE}>
-              <h2 style={{ color: "#c8a96e", fontSize: "17px", margin: "0 0 10px" }}>Le detail</h2>
-              <Ligne nom="TVA collectee sur les ventes" montant={d.tva.collectee} />
+              <h2 style={{ color: "#c8a96e", fontSize: "17px", margin: "0 0 10px" }}>Le détail</h2>
+              <Ligne nom="TVA collectée sur les ventes" montant={d.tva.collectee} />
               {d.tva.intracommunautaire_due > 0 && (
                 <Ligne nom="TVA intracommunautaire due" montant={d.tva.intracommunautaire_due} />
               )}
-              <Ligne nom="TVA deductible sur biens et services" montant={d.tva.deductible_biens_services} sens="moins" />
-              <Ligne nom="TVA deductible sur immobilisations" montant={d.tva.deductible_immobilisations} sens="moins" />
+              <Ligne nom="TVA déductible sur biens et services" montant={d.tva.deductible_biens_services} sens="moins" />
+              <Ligne nom="TVA déductible sur immobilisations" montant={d.tva.deductible_immobilisations} sens="moins" />
               {d.tva.credit_anterieur_reporte > 0 && (
-                <Ligne nom="Credit anterieur reporte" montant={d.tva.credit_anterieur_reporte} sens="moins" />
+                <Ligne nom="Crédit antérieur reporté" montant={d.tva.credit_anterieur_reporte} sens="moins" />
               )}
               <Ligne
-                nom={d.tva.a_decaisser > 0 ? "TVA A DECAISSER" : "CREDIT A REPORTER"}
+                nom={d.tva.a_decaisser > 0 ? "TVA À DÉCAISSER" : "CRÉDIT À REPORTER"}
                 montant={d.tva.a_decaisser > 0 ? d.tva.a_decaisser : d.tva.credit_a_reporter}
                 fort
               />
@@ -191,8 +191,8 @@ export default function PageTVA() {
               <div style={{ ...CARTE, border: d.controle.liquidation_passee ? "1px solid rgba(76,175,80,0.4)" : "1px solid rgba(232,163,61,0.45)" }}>
                 <p style={{ color: d.controle.liquidation_passee ? "#4caf50" : "#e8a33d", fontSize: "14.5px", margin: "0 0 12px", lineHeight: "1.8" }}>
                   {d.controle.liquidation_passee
-                    ? "Ecriture de liquidation passee : le compte 445510 porte bien " + euros(d.controle.solde_compte_445510) + "."
-                    : "L ecriture de liquidation n a pas ete passee. Le compte 445510 porte "
+                    ? "Écriture de liquidation passée : le compte 445510 porte bien " + euros(d.controle.solde_compte_445510) + "."
+                    : "L'écriture de liquidation n'a pas été passée. Le compte 445510 porte "
                       + euros(d.controle.solde_compte_445510) + " alors que le calcul donne "
                       + euros(d.tva.a_decaisser) + "."}
                 </p>
@@ -203,7 +203,7 @@ export default function PageTVA() {
                     disabled={occupe}
                     style={{ background: occupe ? "rgba(200,169,110,0.3)" : "#c8a96e", color: occupe ? "#8a8a8a" : "#050508", padding: "13px 26px", borderRadius: "8px", border: "none", cursor: "pointer", fontWeight: "bold", fontSize: "15px", fontFamily: "Georgia,serif" }}
                   >
-                    {occupe ? "Passage de l ecriture..." : "Passer l ecriture de liquidation"}
+                    {occupe ? "Passage de l'écriture..." : "Passer l'écriture de liquidation"}
                   </button>
                 )}
               </div>
@@ -212,9 +212,9 @@ export default function PageTVA() {
             {d.detail_comptes.length > 0 && (
               <div style={{ border: "1px solid rgba(200,169,110,0.25)", borderRadius: "12px", overflow: "hidden", marginBottom: "16px" }}>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 2.2fr 1fr 1fr", background: "rgba(200,169,110,0.12)", padding: "12px 16px", fontSize: "12.5px", color: "#c8a96e", fontWeight: "bold" }}>
-                  <span>Compte</span><span>Libelle</span>
-                  <span style={{ textAlign: "right" }}>Debit</span>
-                  <span style={{ textAlign: "right" }}>Credit</span>
+                  <span>Compte</span><span>Libellé</span>
+                  <span style={{ textAlign: "right" }}>Débit</span>
+                  <span style={{ textAlign: "right" }}>Crédit</span>
                 </div>
                 {d.detail_comptes.map(function (c: any) {
                   return (
