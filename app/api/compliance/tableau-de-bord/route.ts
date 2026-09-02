@@ -160,13 +160,18 @@ export async function GET(req: NextRequest) {
       const francais = estFrancais(s);
 
       // L ordre de priorite : ce qui bloque d abord, ce qui traine ensuite.
+      //
+      // 🆕 CES PHRASES SONT AFFICHEES TELLES QUELLES sur l ecran « Mes
+      // dossiers », sous le nom de chaque societe. Elles etaient les seules
+      // lignes non accentuees d un ecran montre aux cabinets comptables —
+      // corrige le 02/09.
       let priorite = 0;
       const raisons: string[] = [];
-      if (!equilibre && p.lignes > 0) { priorite = priorite + 100; raisons.push("balance desequilibree"); }
-      if (tvaAtraiter) { priorite = priorite + 50; raisons.push("TVA du mois non liquidee"); }
-      if (p.relevesOuverts > 0) { priorite = priorite + 20; raisons.push(p.relevesOuverts + " ligne(s) de releve a rapprocher"); }
-      if (sansPiece > 0) { priorite = priorite + 5; raisons.push(sansPiece + " ecriture(s) sans piece"); }
-      if (dormant && p.lignes > 0) { priorite = priorite + 10; raisons.push("aucune ecriture depuis plus de 40 jours"); }
+      if (!equilibre && p.lignes > 0) { priorite = priorite + 100; raisons.push("balance déséquilibrée"); }
+      if (tvaAtraiter) { priorite = priorite + 50; raisons.push("TVA du mois non liquidée"); }
+      if (p.relevesOuverts > 0) { priorite = priorite + 20; raisons.push(p.relevesOuverts + " ligne(s) de relevé à rapprocher"); }
+      if (sansPiece > 0) { priorite = priorite + 5; raisons.push(sansPiece + " écriture(s) sans pièce"); }
+      if (dormant && p.lignes > 0) { priorite = priorite + 10; raisons.push("aucune écriture depuis plus de 40 jours"); }
 
       // On ne reclame un SIREN qu a une societe francaise : une societe
       // etrangere n est pas immatriculee au registre francais.
