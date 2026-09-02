@@ -60,6 +60,18 @@ export default function PageSignature({ params }: any) {
   const [occupe, setOccupe] = useState(false);
   const [signe, setSigne] = useState<any>(null);
 
+  // 🆕 SANS SESSION, OU AVEC LA MAUVAISE — 02/09.
+  //
+  // CONSTATE EN TEST REEL. Le lien du courriel s ouvre dans le navigateur
+  // integre de Gmail, qui n a aucune session : la page disait
+  // « Connectez-vous. » en rouge, et rien d autre. Le signataire n avait
+  // aucun bouton, aucun chemin. Meme chose quand la session est celle d une
+  // autre personne : « connectez-vous avec ce compte », sans porte.
+  //
+  // La porte, c est /connexion?retour=<cette page> : apres le clic dans le
+  // courriel de connexion, /api/auth/valider ramene ici, sur ce document.
+  const [nonConnecte, setNonConnecte] = useState(false);
+
   // L instant ou le document a ete ouvert : il entre dans le dossier de
   // preuve et montre que le signataire a eu le temps de lire.
   const ouvertLe = useRef<string>(new Date().toISOString());
@@ -118,6 +130,7 @@ export default function PageSignature({ params }: any) {
         + encodeURIComponent(reference));
       const d = await r.json();
       if (d.ok) setDoc(d);
+      else if (r.status === 401) setNonConnecte(true);
       else setErreur(d.erreur || "Lecture impossible.");
     } catch (e: any) {
       setErreur("Lecture impossible : " + String(e));
@@ -275,6 +288,10 @@ export default function PageSignature({ params }: any) {
     boxSizing: "border-box",
   };
 
+  // Le chemin de cette page, pour y revenir apres la connexion.
+  const lienConnexion = "/connexion?retour="
+    + encodeURIComponent("/compliance/signature/" + reference);
+
   // ---- LA SIGNATURE EST FAITE ----
   if (signe) {
     return (
@@ -336,6 +353,17 @@ export default function PageSignature({ params }: any) {
           <div style={CARTE}>
             <p style={{ color: "rgba(255,255,255,0.6)", margin: 0 }}>Chargement…</p>
           </div>
+        ) : nonConnecte ? (
+          <div style={{ ...CARTE, border: "1px solid rgba(232,163,61,0.5)" }}>
+            <p style={{ color: "#e8a33d", fontSize: "14.5px", lineHeight: "1.85", margin: "0 0 18px" }}>
+              Pour lire et signer ce document, connectez-vous avec l&apos;adresse
+              à laquelle il vous a été envoyé. Vous recevrez un lien de
+              connexion, sans mot de passe, et vous reviendrez directement ici.
+            </p>
+            <a href={lienConnexion} style={{ ...BOUTON, display: "inline-block", textDecoration: "none" }}>
+              Se connecter
+            </a>
+          </div>
         ) : !doc ? null : !doc.signable ? (
           <div style={{ ...CARTE, border: "1px solid rgba(232,163,61,0.5)" }}>
             <p style={{ color: "#e8a33d", fontSize: "14.5px", lineHeight: "1.85", margin: 0 }}>
@@ -344,10 +372,37 @@ export default function PageSignature({ params }: any) {
           </div>
         ) : !doc.vous_pouvez_signer ? (
           <div style={{ ...CARTE, border: "1px solid rgba(232,163,61,0.5)" }}>
-            <p style={{ color: "#e8a33d", fontSize: "14.5px", lineHeight: "1.85", margin: 0 }}>
+            <p style={{ color: "#e8a33d", fontSize: "14.5px", lineHeight: "1.85", margin: "0 0 18px" }}>
               Ce document est établi au nom de {doc.signataire}. Seule cette
               personne peut le signer : connectez-vous avec ce compte.
             </p>
+            <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+              <a href={lienConnexion} style={{ ...BOUTON, display: "inline-block", textDecoration: "none" }}>
+                Se connecter avec ce compte
+              </a>
+              {/* Le gestionnaire qui a produit le document peut le LIRE sans
+                  pouvoir le signer : la route l y autorise, l ecran ne le
+                  proposait pas. */}
+              {doc.lien_lecture && (
+                <a
+                  href={doc.lien_lecture}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{
+                    display: "inline-block",
+                    padding: "14px 28px",
+                    borderRadius: "9px",
+                    border: "1px solid rgba(200,169,110,0.45)",
+                    color: OR,
+                    textDecoration: "none",
+                    fontSize: "15px",
+                    fontFamily: "Georgia,serif",
+                  }}
+                >
+                  Lire le document
+                </a>
+              )}
+            </div>
           </div>
         ) : (
           <>
