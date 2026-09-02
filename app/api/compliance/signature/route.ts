@@ -74,12 +74,19 @@ const TYPES_SIGNABLES = [
   "devis",
 ];
 
+// 🚨 CE TEXTE EST CELUI QUE LE SIGNATAIRE LIT A L ECRAN, AU CARACTERE PRES —
+// aligne le 02/09. Il entre dans le sceau : ce qui est prouve doit etre
+// exactement ce qui a ete accepte. La page de signature affiche la meme
+// chaine ; toute modification se fait DES DEUX COTES.
+//
+// ⚠️ Les signatures deja posees restent valides : la verification relit le
+// texte stocke dans chaque ligne, jamais cette constante.
 const CONSENTEMENT =
   "En cochant cette case et en validant, je reconnais avoir lu le document, " +
-  "j en accepte les termes, et j appose ma signature electronique. Je reconnais " +
-  "que cette signature a la meme valeur que ma signature manuscrite entre les parties. " +
-  "Je confirme etre le titulaire de l adresse electronique a laquelle le code de " +
-  "verification a ete adresse.";
+  "j'en accepte les termes, et j'appose ma signature électronique. Je reconnais " +
+  "que cette signature a la même valeur que ma signature manuscrite entre les parties. " +
+  "Je confirme être le titulaire de l'adresse électronique à laquelle le code de " +
+  "vérification a été adressé.";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
