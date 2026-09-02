@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { createHash } from "crypto";
 import { sessionCourante } from "../../../../lib/session";
+import { origineLegitime } from "../../../../lib/origine";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -11,16 +12,6 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
-
-function origineLegitime(req: NextRequest): boolean {
-  const origine = req.headers.get("origin") || "";
-  const referent = req.headers.get("referer") || "";
-  return (
-    origine.includes("academiapro.fr") || referent.includes("academiapro.fr") ||
-    origine.includes("vercel.app") || referent.includes("vercel.app") ||
-    origine.includes("localhost") || referent.includes("localhost")
-  );
-}
 
 // L organisme vient du JETON SIGNE session_academia. Avec l ancien cookie
 // sb_user, un cookie forge permettait de deposer des pieces dans le coffre
