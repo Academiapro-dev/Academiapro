@@ -4,6 +4,7 @@ import { PDFDocument, StandardFonts, PDFName, PDFDict } from "pdf-lib";
 import fs from "fs/promises";
 import path from "path";
 import { sessionCourante } from "../../../../../lib/session";
+import { origineLegitime } from "../../../../../lib/origine";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -36,16 +37,6 @@ const CERFA = "public/cerfa/3916_5173.pdf";
 // sert qu a choisir un compte PARMI CEUX DU TENANT DE LA SESSION, puisque
 // la requete filtre d abord sur tenant_id.
 // ---------------------------------------------------------------------------
-
-function origineLegitime(req: NextRequest): boolean {
-  const origine = req.headers.get("origin") || "";
-  const referent = req.headers.get("referer") || "";
-  return (
-    origine.includes("academiapro.fr") || referent.includes("academiapro.fr") ||
-    origine.includes("vercel.app") || referent.includes("vercel.app") ||
-    origine.includes("localhost") || referent.includes("localhost")
-  );
-}
 
 function jour(d: string | null): string {
   if (!d) return "";
