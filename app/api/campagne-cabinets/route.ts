@@ -91,14 +91,36 @@ function jetonDesinscription(email: string): string {
     .update(email.toLowerCase()).digest("hex").slice(0, 32);
 }
 
-// La table porte le prenom et le nom dans DEUX colonnes distinctes, a la
-// difference de prospects_organismes. On s en sert pour une salutation
-// naturelle, et on retombe sur « Bonjour, » si l une des deux manque.
+// 🚨 LA SALUTATION — REVUE LE 02/09, APRES L INCIDENT DES ORGANISMES.
+//
+// CE QUI SE PASSAIT ICI. Deux formes, toutes deux fautives :
+//   « Bonjour Virginie Bruno, » — le nom complet en salutation sonne
+//   administratif, pas comme un courriel entre professionnels.
+//   « Bonjour Bruno, » quand le prenom manquait — c est exactement la
+//   formule qui a fait repondre « STOP » a Virginie Bruno le 02/09 : son
+//   patronyme lui a ete servi comme un prenom.
+//
+// LA REGLE RETENUE, LA MEME QUE POUR LES ORGANISMES :
+//   1. Le PRENOM SEUL s il existe — « Bonjour Virginie, ».
+//   2. « Bonjour, » sinon. Neutre, jamais faux.
+//
+// ⚠️ ON N ECRIT JAMAIS LE NOM DE FAMILLE SEUL, et on ne devine JAMAIS la
+// civilite : la base ne connait pas le genre du contact, et se tromper de
+// « Monsieur » est pire que de n en mettre aucun.
+//
+// ⚠️ LA CAMPAGNE CABINETS PART LE 25 SEPTEMBRE, 5 courriels par jour.
+// Ce defaut aurait touche chaque envoi.
 function salutationDe(o: any): string {
   const prenom = String(o.dirigeant_prenom || "").trim();
-  const nom = String(o.dirigeant_nom || "").trim();
-  if (prenom && nom) return "Bonjour " + prenom + " " + nom + ",";
-  if (nom) return "Bonjour " + nom + ",";
+
+  // Une initiale n est pas un prenom : « Bonjour V, » serait pire que
+  // « Bonjour, ».
+  if (prenom.length >= 2) {
+    const propre = prenom.charAt(0).toUpperCase()
+      + prenom.slice(1).toLowerCase();
+    return "Bonjour " + propre + ",";
+  }
+
   return "Bonjour,";
 }
 
