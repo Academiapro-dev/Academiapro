@@ -94,6 +94,9 @@ export async function GET(req: NextRequest) {
     return page("Échange du code refusé",
       "<p>LinkedIn n'a pas rendu de jeton (HTTP " + rJeton.status + ").</p>"
       + "<p>Réponse de LinkedIn : <code>" + echappe(JSON.stringify(jeton).slice(0, 300)) + "</code></p>"
+      + "<p>Ce que le serveur lit dans Vercel : Client ID de <strong>" + clientId.length
+      + "</strong> caractères, Client Secret de <strong>" + secret.length + "</strong> caractères "
+      + "(0 = variable absente ou mal nommée, ou non cochée pour Production).</p>"
       + "<p><code>invalid_client</code> = Client ID ou Client Secret refusé dans Vercel ; "
       + "<code>invalid_redirect_uri</code> = adresse de retour différente de "
       + "<code>" + RETOUR + "</code> dans l'application.</p>", 502);
