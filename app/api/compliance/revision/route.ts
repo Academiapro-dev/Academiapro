@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
   try {
     const id = (req.nextUrl.searchParams.get("societe_id") || "").trim();
     if (!id) {
-      return NextResponse.json({ ok: false, erreur: "Dossier non precise." }, { status: 400 });
+      return NextResponse.json({ ok: false, erreur: "Dossier non précisé." }, { status: 400 });
     }
 
     // LE BARRAGE : la revision expose toutes les faiblesses d un dossier.
@@ -105,42 +105,45 @@ export async function GET(req: NextRequest) {
       anomalies.push({ gravite: gravite, titre: titre, detail: detail, geste: geste });
     }
 
+    // 🆕 LES LIBELLES D ANOMALIES SONT AFFICHES TELS QUELS sur l ecran de
+    // revision, sous les yeux d un expert-comptable. Accentues le 02/09.
+
     const ecart = r2(debitTotal - creditTotal);
     if (Math.abs(ecart) > 0.01) {
-      signaler("grave", "Balance desequilibree",
-        "Debit " + euros(debitTotal) + " contre credit " + euros(creditTotal) + ", ecart de " + euros(ecart) + ".",
-        "Cherchez l ecriture fautive dans le journal avant toute autre chose.");
+      signaler("grave", "Balance déséquilibrée",
+        "Débit " + euros(debitTotal) + " contre crédit " + euros(creditTotal) + ", écart de " + euros(ecart) + ".",
+        "Cherchez l'écriture fautive dans le journal avant toute autre chose.");
     }
 
     for (const num of Object.keys(comptes)) {
       if (num.startsWith("471") || num.startsWith("472") || num.startsWith("467")) {
         const s = solde(num);
         if (Math.abs(s) > 0.005) {
-          signaler("grave", "Compte d attente non solde",
+          signaler("grave", "Compte d'attente non soldé",
             "Le compte " + num + " porte encore " + euros(s) + ".",
-            "Affectez ces montants a leur compte definitif.");
+            "Affectez ces montants à leur compte définitif.");
         }
       }
     }
 
     const caisse = solde("530000");
     if (caisse < -0.005) {
-      signaler("grave", "Caisse creditrice",
-        "La caisse presente un solde de " + euros(caisse) + ", ce qui est impossible.",
-        "Une depense a ete enregistree sans son alimentation, ou un encaissement manque.");
+      signaler("grave", "Caisse créditrice",
+        "La caisse présente un solde de " + euros(caisse) + ", ce qui est impossible.",
+        "Une dépense a été enregistrée sans son alimentation, ou un encaissement manque.");
     }
 
     const clients = solde("411000");
     if (clients < -0.005) {
-      signaler("moyen", "Clients crediteurs",
-        "Le compte clients presente un solde crediteur de " + euros(clients) + ".",
-        "Avances recues ou avoirs non affectes : verifiez le lettrage.");
+      signaler("moyen", "Clients créditeurs",
+        "Le compte clients présente un solde créditeur de " + euros(clients) + ".",
+        "Avances reçues ou avoirs non affectés : vérifiez le lettrage.");
     }
     const fournisseurs = solde("401000");
     if (fournisseurs > 0.005) {
-      signaler("moyen", "Fournisseurs debiteurs",
-        "Le compte fournisseurs presente un solde debiteur de " + euros(fournisseurs) + ".",
-        "Acomptes verses ou double reglement : verifiez le lettrage.");
+      signaler("moyen", "Fournisseurs débiteurs",
+        "Le compte fournisseurs présente un solde débiteur de " + euros(fournisseurs) + ".",
+        "Acomptes versés ou double règlement : vérifiez le lettrage.");
     }
 
     const aDecaisser = r2(-solde("445510"));
@@ -148,18 +151,18 @@ export async function GET(req: NextRequest) {
     const deductible = r2(solde("445660") + solde("445620"));
     const attendu = r2(collectee - deductible);
     if (collectee > 0.005 && Math.abs(r2(aDecaisser - attendu)) > 1) {
-      signaler("moyen", "TVA incoherente",
-        "La collectee moins la deductible donne " + euros(attendu)
+      signaler("moyen", "TVA incohérente",
+        "La collectée moins la déductible donne " + euros(attendu)
         + " alors que le compte 445510 porte " + euros(aDecaisser) + ".",
-        "Passez ou corrigez l ecriture de liquidation depuis l ecran TVA.");
+        "Passez ou corrigez l'écriture de liquidation depuis l'écran TVA.");
     }
 
     for (const num of Object.keys(comptes)) {
       const c = comptes[num];
       if (c.ouvertes >= 10) {
         signaler("faible", "Lettrage en retard",
-          "Le compte " + num + " compte " + c.ouvertes + " mouvements non lettres.",
-          "Lettrez ce compte : son solde n est pas exploitable en l etat.");
+          "Le compte " + num + " compte " + c.ouvertes + " mouvements non lettrés.",
+          "Lettrez ce compte : son solde n'est pas exploitable en l'état.");
       }
     }
 
@@ -172,9 +175,9 @@ export async function GET(req: NextRequest) {
       .limit(1000);
 
     if ((releves || []).length > 0) {
-      signaler("moyen", "Banque non rapprochee",
-        (releves || []).length + " ligne(s) de releve sans ecriture correspondante.",
-        "Passez par le rapprochement bancaire avant de cloturer.");
+      signaler("moyen", "Banque non rapprochée",
+        (releves || []).length + " ligne(s) de relevé sans écriture correspondante.",
+        "Passez par le rapprochement bancaire avant de clôturer.");
     }
 
     const { data: immos } = await supabase
@@ -189,22 +192,22 @@ export async function GET(req: NextRequest) {
     });
 
     if ((immos || []).length > 0 && !dotationPassee) {
-      signaler("moyen", "Dotation aux amortissements non passee",
-        (immos || []).length + " bien(s) immobilises, aucune ecriture de dotation sur l exercice.",
-        "Passez la dotation depuis l ecran des immobilisations.");
+      signaler("moyen", "Dotation aux amortissements non passée",
+        (immos || []).length + " bien(s) immobilisés, aucune écriture de dotation sur l'exercice.",
+        "Passez la dotation depuis l'écran des immobilisations.");
     }
 
     const uniques = Array.from(new Set(sansPiece));
     if (uniques.length > 0) {
-      signaler("faible", "Ecritures sans reference de piece",
-        uniques.length + " ecriture(s) n ont aucune reference de piece.",
-        "Une piece manquante est le premier reproche d un controleur.");
+      signaler("faible", "Écritures sans référence de pièce",
+        uniques.length + " écriture(s) n'ont aucune référence de pièce.",
+        "Une pièce manquante est le premier reproche d'un contrôleur.");
     }
 
     if (horsPlan.length > 0) {
       signaler("faible", "Comptes absents du plan",
-        horsPlan.length + " compte(s) mouvementes ne figurent pas au plan : " + horsPlan.slice(0, 8).join(", ") + ".",
-        "Ajoutez-les au plan comptable pour qu ils portent un libelle stable.");
+        horsPlan.length + " compte(s) mouvementés ne figurent pas au plan : " + horsPlan.slice(0, 8).join(", ") + ".",
+        "Ajoutez-les au plan comptable pour qu'ils portent un libellé stable.");
     }
 
     const resultatBenefice = r2(-solde("120000"));
@@ -214,9 +217,9 @@ export async function GET(req: NextRequest) {
         .filter(function (n) { return n.charAt(0) === "7"; })
         .reduce(function (s, n) { return r2(s - solde(n)); }, 0);
       if (Math.abs(produits) > 0.005) {
-        signaler("faible", "Exercice non cloture",
+        signaler("faible", "Exercice non clôturé",
           "Les comptes de gestion sont encore ouverts.",
-          "C est normal en cours d exercice ; a la cloture, passez par l ecran dedie.");
+          "C'est normal en cours d'exercice ; à la clôture, passez par l'écran dédié.");
       }
     }
 
