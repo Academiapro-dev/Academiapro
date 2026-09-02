@@ -94,19 +94,6 @@ const LOGO_COMPTABLE = "/IMG_4100.jpeg";
 // Le format carre (IMG_4722.jpeg) servira au favicon et a l Open Graph.
 const LOGO_MYSTERLLC = "/IMG_4723.jpeg";
 
-// 🆕 LA BANNIERE ACADEMIA PRO — 02/09.
-//
-// La vitrine affichait « AcadémIA Pro » en TEXTE, alors que Mr. Comptable
-// et MysterLLC portent leur banniere. Trois produits, deux traitements :
-// l incoherence se voyait des qu on passait d un espace a l autre.
-//
-// Format large (2752 x 441), fond noir, logo + nom + base line integres
-// dans l image — donc RIEN A ECRIRE A COTE (lecon HebrewPro v3 : un texte
-// pose pres d un logo s etire en colonne illisible sur mobile).
-//
-// Le carre IMG_4913.png sert au favicon et a l Open Graph, pas ici.
-const LOGO_ACADEMIA = "/IMG_4912.png";
-
 function estComptable(chemin) {
   for (const p of CHEMINS_COMPTABLE) {
     if (chemin === p || chemin.indexOf(p + "/") === 0) return true;
@@ -319,25 +306,8 @@ export default function NavBar() {
   // ---- Vitrine AcadémIA Pro ---------------------------------------------
   return (
     <header style={barre}>
-      {/* Montage identique a Mr. Comptable et MysterLLC : largeur
-          controlee, jamais etiree, bord rogne d un cheveu pour fondre le
-          fond de l image dans le noir de la barre. */}
-      <a
-        href="/"
-        style={{ display: "block", textDecoration: "none", flexShrink: 0, overflow: "hidden", lineHeight: 0 }}
-      >
-        <img
-          src={LOGO_ACADEMIA}
-          alt="Acad\u00e9mIA Pro"
-          style={{
-            width: "340px",
-            maxWidth: "38vw",
-            height: "auto",
-            display: "block",
-            margin: "-4px",
-            clipPath: "inset(4px)",
-          }}
-        />
+      <a href="/" style={lienMarque}>
+        {"Acad\u00e9mIA Pro"}
       </a>
       <nav style={{ display: "flex", gap: "20px", flexWrap: "wrap", justifyContent: "center", alignItems: "center" }}>
         <a href={"/catalogue?lang=" + langue} style={lienMenu}>{t("formations")}</a>
