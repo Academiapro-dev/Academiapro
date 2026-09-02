@@ -450,6 +450,23 @@ export default function PageLinkedin() {
   const [onglet, setOnglet] = useState("inviter");
   const [base, setBase] = useState("organismes");
 
+  // 🆕 LE FILTRE PAR PRODUIT — 02/09.
+  //
+  // LE MANQUE, VU PAR JACQUES : « je ne peux pas basculer sur MysterLLC,
+  // ni sur Mr. CRM, ni sur Mr. LMS ». Les pastilles du haut choisissent une
+  // BASE DE PROSPECTION — et les trois nouveaux produits n en ont pas, par
+  // construction : leurs prospects se saisissent a la main. Leurs fiches
+  // existaient donc, mais se noyaient dans les listes sans qu on puisse les
+  // rassembler.
+  //
+  // 🚨 UNE FONCTIONNALITE N EST PAS FINIE TANT QU ON NE PEUT PAS RETROUVER
+  // CE QU ELLE A CREE. C est deja la lecon du defaut n°21 du journal —
+  // l ecran qu on ne trouvait qu en tapant son adresse.
+  //
+  // « tous » n est pas un produit : c est l absence de filtre, l etat par
+  // defaut, celui d avant cet ajout.
+  const [filtreProduit, setFiltreProduit] = useState("tous");
+
   const [fiche, setFiche] = useState<any>(null);
   const [restant, setRestant] = useState(0);
   const [epuise, setEpuise] = useState(false);
@@ -987,10 +1004,17 @@ export default function PageLinkedin() {
   }
 
   const filtrees = useMemo(function () {
+    // 🆕 LE PRODUIT D ABORD, LE TEXTE ENSUITE — 02/09. Les deux filtres se
+    // combinent : chercher « Dupont » dans les fiches MysterLLC rend les
+    // Dupont de MysterLLC, pas tous les Dupont.
+    const parProduit = filtreProduit === "tous"
+      ? lignes
+      : lignes.filter(function (l: any) { return campagneDe(l) === filtreProduit; });
+
     const q = aplatir(recherche);
-    if (!q) return lignes;
+    if (!q) return parProduit;
     const mots = q.split(/\s+/).filter(Boolean);
-    return lignes.filter(function (l: any) {
+    return parProduit.filter(function (l: any) {
       const foin = aplatir(
         (l.dirigeant_prenom || "") + " " +
         (l.dirigeant_nom || "") + " " +
@@ -1003,7 +1027,7 @@ export default function PageLinkedin() {
       );
       return mots.every(function (m: string) { return foin.indexOf(m) >= 0; });
     });
-  }, [lignes, recherche]);
+  }, [lignes, recherche, filtreProduit]);
 
   // ---------- LE MODE ENCHAINEMENT ----------
 
@@ -1925,9 +1949,62 @@ export default function PageLinkedin() {
     );
   }
 
+  // 🆕 LES PASTILLES DE PRODUIT — 02/09.
+  //
+  // DUPLIQUEES A L IDENTIQUE sur les pastilles de bases de l onglet
+  // Inviter : meme forme, meme comportement, meme facon de marquer l actif.
+  // Rien n a ete invente ici — le mecanisme est eprouve, on le reutilise.
+  //
+  // Chaque pastille porte SON COMPTE : on voit d un coup d oeil combien de
+  // fiches chaque produit represente dans la liste ouverte, et une pastille
+  // a zero se grise plutot que de disparaitre — sa presence dit que le
+  // produit existe, son grise dit qu il est vide.
+  function pastillesProduit() {
+    const total = lignes.length;
+
+    return (
+      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "12px" }}>
+        <button onClick={() => setFiltreProduit("tous")}
+          style={{
+            ...BOUTON, borderRadius: "20px", padding: "7px 15px", fontSize: "12.5px",
+            background: filtreProduit === "tous" ? "rgba(255,255,255,0.16)" : "rgba(255,255,255,0.05)",
+            color: filtreProduit === "tous" ? "#fff" : "rgba(255,255,255,0.55)",
+            border: filtreProduit === "tous" ? "none" : "1px solid rgba(255,255,255,0.2)",
+            fontWeight: filtreProduit === "tous" ? "bold" : "normal",
+          }}>
+          {"Tous · " + total}
+        </button>
+
+        {ORDRE_PRODUITS.map(function (cle: string) {
+          const f = PRODUITS[cle];
+          const combien = lignes.filter(function (l: any) {
+            return campagneDe(l) === cle;
+          }).length;
+          const actif = filtreProduit === cle;
+          const vide = combien === 0;
+
+          return (
+            <button key={cle} onClick={() => setFiltreProduit(cle)}
+              style={{
+                ...BOUTON, borderRadius: "20px", padding: "7px 15px", fontSize: "12.5px",
+                background: actif ? f.couleur : "rgba(255,255,255,0.05)",
+                color: actif ? "#050508" : (vide ? "rgba(255,255,255,0.3)" : f.couleur),
+                border: actif ? "none" : "1px solid " + (vide ? "rgba(255,255,255,0.15)" : f.couleur + "66"),
+                fontWeight: actif ? "bold" : "normal",
+                opacity: vide && !actif ? 0.6 : 1,
+              }}>
+              {f.nom + " · " + combien}
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
+
   function barreRecherche() {
     return (
       <div style={{ marginBottom: "16px" }}>
+        {pastillesProduit()}
         <div style={{ display: "flex", gap: "9px", flexWrap: "wrap", alignItems: "center" }}>
           <input
             value={recherche}
@@ -1941,11 +2018,15 @@ export default function PageLinkedin() {
             </button>
           )}
         </div>
-        {recherche && (
+        {(recherche || filtreProduit !== "tous") && (
           <p style={{ color: filtrees.length === 0 ? "#e8836a" : "rgba(255,255,255,0.5)", fontSize: "13px", margin: "9px 0 0" }}>
             {filtrees.length === 0
-              ? "Aucune fiche ne correspond à « " + recherche + " »."
-              : filtrees.length + " fiche(s) sur " + lignes.length}
+              ? (recherche
+                  ? "Aucune fiche ne correspond à « " + recherche + " »"
+                    + (filtreProduit !== "tous" ? " dans " + produit(filtreProduit).nom : "") + "."
+                  : "Aucune fiche pour " + produit(filtreProduit).nom + " pour le moment.")
+              : filtrees.length + " fiche(s) sur " + lignes.length
+                + (filtreProduit !== "tous" ? " · " + produit(filtreProduit).nom : "")}
           </p>
         )}
       </div>
