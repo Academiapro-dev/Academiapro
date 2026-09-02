@@ -3,15 +3,15 @@ import { useState, useEffect } from "react";
 
 const VERDICTS: any = {
   sain: { texte: "Dossier sain", couleur: "#4caf50" },
-  a_surveiller: { texte: "Quelques points a surveiller", couleur: "#c8a96e" },
-  a_corriger: { texte: "Des corrections sont necessaires", couleur: "#e8a33d" },
+  a_surveiller: { texte: "Quelques points à surveiller", couleur: "#c8a96e" },
+  a_corriger: { texte: "Des corrections sont nécessaires", couleur: "#e8a33d" },
   bloquant: { texte: "Anomalies bloquantes", couleur: "#e8836a" },
 };
 
 const GRAVITES: any = {
   grave: { texte: "Bloquant", couleur: "#e8836a" },
-  moyen: { texte: "A corriger", couleur: "#e8a33d" },
-  faible: { texte: "A surveiller", couleur: "#c8a96e" },
+  moyen: { texte: "À corriger", couleur: "#e8a33d" },
+  faible: { texte: "À surveiller", couleur: "#c8a96e" },
 };
 
 export default function PageRevision() {
@@ -73,11 +73,11 @@ export default function PageRevision() {
         </a>
 
         <p style={{ color: "#c8a96e", fontSize: "12px", letterSpacing: "3px", margin: "22px 0 8px" }}>
-          COMPTABILITE
+          COMPTABILITÉ
         </p>
-        <h1 style={{ color: "#fff", fontSize: "29px", margin: "0 0 6px" }}>Dossier de revision</h1>
+        <h1 style={{ color: "#fff", fontSize: "29px", margin: "0 0 6px" }}>Dossier de révision</h1>
         <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "14px", marginTop: 0 }}>
-          Les controles de coherence, avant de cloturer ou de declarer
+          Les contrôles de cohérence, avant de clôturer ou de déclarer
         </p>
 
         <div style={{ ...CARTE, marginTop: "24px" }}>
@@ -93,7 +93,7 @@ export default function PageRevision() {
         {erreur && <p style={{ color: "#e8836a", fontSize: "15px" }}>{erreur}</p>}
 
         {chargement ? (
-          <div style={CARTE}><p style={{ color: "rgba(255,255,255,0.6)", margin: 0 }}>Controles en cours...</p></div>
+          <div style={CARTE}><p style={{ color: "rgba(255,255,255,0.6)", margin: 0 }}>Contrôles en cours…</p></div>
         ) : !d ? null : (
           <>
             <div style={{ ...CARTE, border: "2px solid " + v.couleur }}>
@@ -106,19 +106,19 @@ export default function PageRevision() {
                 {v.texte}
               </p>
               <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "14px", margin: 0, lineHeight: "1.7" }}>
-                {d.nb_lignes} ecriture(s) sur {d.nb_comptes} compte(s) ·{" "}
-                {d.equilibre ? "balance equilibree a " + euros(d.debit) : "BALANCE DESEQUILIBREE"}
+                {d.nb_lignes} écriture(s) sur {d.nb_comptes} compte(s) ·{" "}
+                {d.equilibre ? "balance équilibrée à " + euros(d.debit) : "BALANCE DÉSÉQUILIBRÉE"}
                 <br />
                 {d.total === 0
-                  ? "Aucune anomalie relevee."
-                  : d.graves + " bloquante(s), " + d.moyennes + " a corriger, " + d.faibles + " a surveiller."}
+                  ? "Aucune anomalie relevée."
+                  : d.graves + " bloquante(s), " + d.moyennes + " à corriger, " + d.faibles + " à surveiller."}
               </p>
             </div>
 
             {d.anomalies.length === 0 ? (
               <div style={{ ...CARTE, border: "1px solid rgba(76,175,80,0.45)" }}>
                 <p style={{ color: "#4caf50", fontSize: "15px", margin: 0, lineHeight: "1.8" }}>
-                  Les onze controles passent. Le dossier peut etre cloture ou declare en l etat.
+                  Les onze contrôles passent. Le dossier peut être clôturé ou déclaré en l'état.
                 </p>
               </div>
             ) : (
@@ -145,9 +145,9 @@ export default function PageRevision() {
 
             <div style={{ ...CARTE, background: "rgba(200,169,110,0.05)", marginTop: "20px" }}>
               <p style={{ color: "rgba(255,255,255,0.65)", fontSize: "13.5px", margin: 0, lineHeight: "1.8" }}>
-                Ces controles ne remplacent pas le jugement de l expert-comptable : ils reperent
-                ce qui se verifie mecaniquement. La qualification d une charge, l appreciation
-                d une provision ou le rattachement d un produit restent son affaire.
+                Ces contrôles ne remplacent pas le jugement de l'expert-comptable : ils repèrent
+                ce qui se vérifie mécaniquement. La qualification d'une charge, l'appréciation
+                d'une provision ou le rattachement d'un produit restent son affaire.
               </p>
             </div>
           </>
