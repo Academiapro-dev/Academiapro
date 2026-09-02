@@ -103,6 +103,31 @@ const COLONNES_GLOBALES = [
   "telephone",
 ];
 
+// 🚨 LA FILE MANUELLE MANQUAIT A LA RECHERCHE — CORRIGE LE 02/09.
+//
+// LE DEFAUT, TROUVE PAR JACQUES : trois fiches saisies a la main le 02/09
+// (Cecile Doronzo, Naim Riffi, Joris Shehadeh) etaient introuvables.
+// « Chercher partout » n interrogeait QUE les quatre bases de prospection :
+// la table crm — ou vivent TOUTES les fiches ajoutees depuis une capture
+// d ecran LinkedIn — n en faisait pas partie.
+//
+// La promesse du bandeau etait donc fausse : il annonce « votre file
+// LinkedIn et les bases de prospection sont interrogees d un coup », alors
+// que la file, justement, ne l etait pas.
+//
+// ⚠️ LES COLONNES DIFFERENT. La table crm porte `nom` et `organisme` la ou
+// les bases portent `dirigeant_nom` et `raison_sociale`. Chercher les
+// mauvaises colonnes ferait echouer la requete en silence.
+const COLONNES_GLOBALES_CRM = [
+  "nom",
+  "organisme",
+  "ville",
+  "email",
+  "dirigeant_nom",
+  "dirigeant_prenom",
+  "telephone",
+];
+
 // Le profil LinkedIn n existe pas partout : il est ajoute a la volee.
 function clauseOu(terme: string, avecLinkedin: boolean): string {
   const propre = terme.replace(/[,%()]/g, " ").trim();
@@ -110,6 +135,13 @@ function clauseOu(terme: string, avecLinkedin: boolean): string {
     ? COLONNES_GLOBALES.concat(["linkedin"])
     : COLONNES_GLOBALES;
   return colonnes
+    .map(function (c) { return c + ".ilike.%" + propre + "%"; })
+    .join(",");
+}
+
+function clauseOuCrm(terme: string): string {
+  const propre = terme.replace(/[,%()]/g, " ").trim();
+  return COLONNES_GLOBALES_CRM.concat(["linkedin"])
     .map(function (c) { return c + ".ilike.%" + propre + "%"; })
     .join(",");
 }
@@ -160,6 +192,68 @@ async function chercherDans(cle: string, terme: string): Promise<any> {
     porte_linkedin: !!b.linkedin,
     trouves: count || 0,
     lignes: data || [],
+    erreur: null,
+  };
+}
+
+// LA FILE MANUELLE. Les fiches saisies depuis une capture d ecran
+// LinkedIn : elles n ont pas de SIREN et portent d autres noms de
+// colonnes, mais l ecran attend le meme format que les bases. On les
+// uniformise ici plutot que de compliquer l affichage.
+async function chercherDansCrm(terme: string): Promise<any> {
+  const { data, count, error } = await supabase
+    .from("crm")
+    .select(
+      "id, nom, organisme, ville, dirigeant_prenom, dirigeant_nom, email, "
+      + "telephone, campagne, statut, linkedin, linkedin_le, linkedin_statut",
+      { count: "exact" }
+    )
+    .eq("source", "linkedin")
+    .or(clauseOuCrm(terme))
+    .order("id", { ascending: true })
+    .range(0, 19);
+
+  if (error) {
+    return {
+      cle: "manuel",
+      titre: "Ma file LinkedIn",
+      cible: "Fiches saisies a la main",
+      porte_linkedin: true,
+      trouves: 0,
+      lignes: [],
+      erreur: error.message,
+    };
+  }
+
+  const lignes = (data || []).map(function (l: any) {
+    return {
+      id: l.id,
+      raison_sociale: l.organisme || l.nom || "-",
+      siren: null,
+      ville: l.ville,
+      code_postal: null,
+      dirigeant_prenom: l.dirigeant_prenom || l.nom,
+      dirigeant_nom: l.dirigeant_nom || "",
+      email: l.email,
+      telephone: l.telephone,
+      statut: l.statut,
+      envoye_le: null,
+      desabonne: false,
+      dropcontact_le: null,
+      linkedin: l.linkedin,
+      linkedin_le: l.linkedin_le,
+      linkedin_statut: l.linkedin_statut,
+      campagne: l.campagne,
+    };
+  });
+
+  return {
+    cle: "manuel",
+    titre: "Ma file LinkedIn",
+    cible: "Fiches saisies a la main",
+    porte_linkedin: true,
+    trouves: count || 0,
+    lignes: lignes,
     erreur: null,
   };
 }
@@ -343,8 +437,13 @@ export async function GET(req: NextRequest) {
     // rend rapide. Deux caracteres minimum, sans quoi elle rendrait la
     // moitie des bases.
     //
-    // ⚠️ LES QUATRE BASES SONT INTERROGEES ENSEMBLE, non l une apres
-    // l autre : la recherche allait a la vitesse de la somme des quatre.
+    // ⚠️ LES QUATRE BASES ET LA FILE MANUELLE SONT INTERROGEES ENSEMBLE,
+    // non l une apres l autre : la recherche allait a la vitesse de la
+    // somme des quatre.
+    //
+    // 🆕 02/09 : la file manuelle est enfin du lot. Sans elle, une fiche
+    // saisie a la main restait introuvable — le bandeau promettait
+    // pourtant de l interroger.
     if (global) {
       if (global.length < 2) {
         return NextResponse.json({
@@ -354,7 +453,9 @@ export async function GET(req: NextRequest) {
       }
 
       const resultats = await Promise.all(
-        Object.keys(BASES).map(function (cle) { return chercherDans(cle, global); })
+        Object.keys(BASES)
+          .map(function (cle) { return chercherDans(cle, global); })
+          .concat([chercherDansCrm(global)])
       );
 
       const total = resultats.reduce(function (s: number, r: any) {
