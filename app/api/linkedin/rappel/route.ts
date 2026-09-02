@@ -66,8 +66,8 @@ export async function GET(req: NextRequest) {
       + "<a href=\"/api/linkedin/connexion\" style=\"color:#c8a96e\">/api/linkedin/connexion</a>.</p>", 400);
   }
 
-  const clientId = process.env.LINKEDIN_CLIENT_ID || "";
-  const secret = process.env.LINKEDIN_CLIENT_SECRET || "";
+  const clientId = (process.env.LINKEDIN_CLIENT_ID || "").trim();
+  const secret = (process.env.LINKEDIN_CLIENT_SECRET || "").trim();
   if (!clientId || !secret) {
     return page("Configuration incomplète",
       "<p>LINKEDIN_CLIENT_ID ou LINKEDIN_CLIENT_SECRET manque dans Vercel.</p>", 500);
