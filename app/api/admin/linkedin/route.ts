@@ -429,7 +429,52 @@ function uniformiser(l: any, cle: string) {
 
 // La fiche suivante et le nombre restant : deux requetes independantes,
 // lancees ensemble.
+// 🆕 LES PRODUITS SANS BASE DE PROSPECTION — 02/09.
+//
+// MysterLLC, Mr. CRM et Mr. LMS n ont aucune table d open data : leurs
+// cibles ne sont dans aucun fichier NAF ni SIREN. Leurs prospects se
+// reperent sur LinkedIn et se rangent a la main dans la table crm, ou
+// chaque fiche porte sa colonne campagne.
+//
+// 🚨 POURQUOI CES CLES SONT ACCEPTEES ICI. Sans elles, l onglet Inviter
+// n aurait jamais servi une seule fiche de ces trois produits — et leurs
+// listes seraient restees vides pour toujours, faute d entree. Le tri
+// doit exister LA OU LE FLUX COMMENCE, pas seulement en aval.
+const PRODUITS_SANS_BASE = ["mysterllc", "mrcrm", "mrlms"];
+
 async function suivante(base: string) {
+  // Un produit sans base : on sert sa file d attente, prise dans la table
+  // crm et filtree sur sa campagne.
+  if (PRODUITS_SANS_BASE.indexOf(base) >= 0) {
+    const [lecture, comptage] = await Promise.all([
+      supabase
+        .from("crm")
+        .select(COLONNES_CRM)
+        .eq("campagne", base)
+        .not("linkedin", "is", null)
+        .is("linkedin_le", null)
+        .or("linkedin_statut.is.null,linkedin_statut.neq.ecarte")
+        .order("id", { ascending: true })
+        .limit(1),
+      supabase
+        .from("crm")
+        .select("id", { count: "exact", head: true })
+        .eq("campagne", base)
+        .not("linkedin", "is", null)
+        .is("linkedin_le", null)
+        .or("linkedin_statut.is.null,linkedin_statut.neq.ecarte"),
+    ]);
+
+    if (lecture.error) return { erreur: lecture.error.message };
+    if (!lecture.data || lecture.data.length === 0) return { fiche: null, epuise: true };
+
+    // La fiche est uniformisee comme une fiche manuelle : c est bien la
+    // table crm qu elle vient, et sa campagne doit la suivre.
+    const f: any = uniformiser(lecture.data[0], "manuel");
+    f.campagne = base;
+    return { fiche: f, restant: comptage.count || 0 };
+  }
+
   const table = TABLES[base];
   if (!table) return { erreur: "Base inconnue." };
 
