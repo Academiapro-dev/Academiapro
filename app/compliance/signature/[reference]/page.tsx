@@ -537,13 +537,18 @@ export default function PageSignature({ params }: any) {
                   onChange={(e) => setAccepte(e.target.checked)}
                   style={{ marginTop: "4px", width: "18px", height: "18px", flexShrink: 0 }}
                 />
+                {/* 🚨 MEME TEXTE, AU CARACTERE PRES, QUE LA CONSTANTE
+                    CONSENTEMENT DE /api/compliance/signature — aligne le
+                    02/09. C est ce texte-la qui entre dans le sceau : ce qui
+                    est prouve doit etre exactement ce qui a ete lu. */}
                 <span style={{ color: "rgba(255,255,255,0.7)", fontSize: "13.5px", lineHeight: "1.8" }}>
-                  Je reconnais avoir lu le document, j&apos;en accepte les
-                  termes, et j&apos;appose ma signature électronique. Je
-                  reconnais que cette signature a la même valeur que ma
-                  signature manuscrite entre les parties. Je confirme être le
-                  titulaire de l&apos;adresse électronique à laquelle le code
-                  de vérification a été adressé.
+                  En cochant cette case et en validant, je reconnais avoir lu
+                  le document, j&apos;en accepte les termes, et j&apos;appose ma
+                  signature électronique. Je reconnais que cette signature a
+                  la même valeur que ma signature manuscrite entre les
+                  parties. Je confirme être le titulaire de l&apos;adresse
+                  électronique à laquelle le code de vérification a été
+                  adressé.
                 </span>
               </label>
 
