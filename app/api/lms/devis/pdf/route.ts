@@ -26,7 +26,7 @@ const supabase = createClient(
 // avec n importe quels montants. Ici, seul le jeton circule.
 //
 // 🚨 LE CALCUL EST LE MEME QUE DANS /api/lms/devis. Les deux routes lisent
-// `lms_tarifs` et appliquent la meme formule : un ecart entre l ecran et le
+// `tarifs` et appliquent la meme formule : un ecart entre l ecran et le
 // PDF serait pire qu une erreur partout, car le client ne saurait plus
 // lequel croire. TOUTE MODIFICATION DE CE CALCUL SE FAIT DANS LES DEUX
 // FICHIERS, DANS LE MEME MOUVEMENT.
@@ -34,6 +34,10 @@ const supabase = createClient(
 // ⚠️ AUCUN TOTAL ANNUEL. Le devis se presente en cout par stagiaire.
 // Regle de Jacques du 03/09.
 // ══════════════════════════════════════════════════════════════════════════
+
+// La table `tarifs` sert toutes les marques ; cette route ne lit que les
+// lignes de Mr LMS.
+const PRODUIT = "lms";
 
 const EMETTEUR = {
   nom: "ACADÉMIA PRO LLC",
@@ -171,9 +175,14 @@ export async function GET(req: NextRequest) {
       );
     }
 
+    // ⚠️ LA TABLE `tarifs` EST COMMUNE A TOUS LES PRODUITS : le filtre sur
+    // `produit` est OBLIGATOIRE. Sans lui, ce devis imprimerait aussi les
+    // abonnements de Mr CRM. Une requete PostgREST sans filtre rend tout,
+    // et personne ne le voit.
     const { data: lignes } = await supabase
-      .from("lms_tarifs")
+      .from("tarifs")
       .select("offre, poste, libelle, montant, pourcentage, seuil_min, seuil_max, optionnel")
+      .eq("produit", PRODUIT)
       .limit(200);
 
     const offre = p.offre === "avec_catalogue" ? "avec_catalogue" : "sans_catalogue";
