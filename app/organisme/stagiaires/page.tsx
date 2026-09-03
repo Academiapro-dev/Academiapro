@@ -37,6 +37,36 @@ const LIBELLE_DISPOSITIF: any = {
   public_autre: "Autres ressources publiques",
 };
 
+// ══════════════════════════════════════════════════════════════════════════
+// LA SORTIE DECLAREE — DECISION DE JACQUES DU 03/09.
+//
+// La facturation clot AUTOMATIQUEMENT un parcours dont tous les modules
+// sont valides. Mais un stagiaire qui ABANDONNE ne validera jamais rien de
+// plus : sans geste de l organisme, il resterait facture indefiniment,
+// contre la promesse du devis.
+//
+// D ou ces deux boutons. DEUX MOTIFS DISTINCTS, ET NON UN SEUL : le bilan
+// pedagogique et financier demande les abandons separement des sorties
+// normales. Confondre les deux ferait perdre l information a la source.
+//
+// Les deux valeurs ecrites ici sont reconnues par `estTermine()` de la page
+// de facturation. ⚠️ NE PAS EN INVENTER UNE TROISIEME SANS L Y AJOUTER :
+// un statut inconnu compte comme ACTIF, et le stagiaire resterait facture
+// alors que l organisme croirait l avoir sorti.
+const SORTIES = [
+  { valeur: "termine", bouton: "Parcours terminé", question: "Marquer le parcours de EMAIL comme terminé ?" },
+  { valeur: "abandon", bouton: "Abandon", question: "Déclarer l'abandon de EMAIL ?" },
+];
+
+const LIBELLE_SORTIE: any = {
+  termine: "Parcours terminé",
+  abandon: "Abandon déclaré",
+};
+
+function estSorti(statut: any): boolean {
+  return statut === "termine" || statut === "abandon";
+}
+
 export default function PageStagiaires() {
   const [apprenants, setApprenants] = useState<any[]>([]);
   const [payeurs, setPayeurs] = useState<string[]>([]);
@@ -205,6 +235,28 @@ export default function PageStagiaires() {
     }
   }
 
+  // CLORE UN PARCOURS. On passe par le meme PATCH que les autres champs :
+  // c est `statut` qu on ecrit, et la facturation le lit au prochain
+  // affichage — rien n est calcule ici.
+  //
+  // LA CONFIRMATION EST OBLIGATOIRE : clore un stagiaire le retire de la
+  // facturation du mois. Un clic malheureux se verrait sur la facture.
+  async function clore(id: string, email: string, motif: string, question: string) {
+    if (!confirm(question.replace("EMAIL", email))) return;
+    await modifier(id, "statut", motif);
+    setMessage(email + " — " + (LIBELLE_SORTIE[motif] || motif) + ". Ce stagiaire n'est plus facturé.");
+  }
+
+  // ROUVRIR. Le statut repart a vide : aucune valeur de fin n y figure
+  // plus, donc la facturation le compte de nouveau comme actif. On ne
+  // reecrit PAS « invitation_envoyee » — on ne sait pas si l acces avait
+  // ete envoye, et l inventer effacerait une information vraie.
+  async function rouvrir(id: string, email: string) {
+    if (!confirm("Remettre " + email + " en parcours ? Il sera de nouveau facturé.")) return;
+    await modifier(id, "statut", "");
+    setMessage(email + " est de nouveau en parcours.");
+  }
+
   function ouvrir(a: any) {
     if (ouverte === a.id) {
       setOuverte("");
@@ -285,6 +337,7 @@ export default function PageStagiaires() {
 
   const commences = apprenants.filter(function (a) { return (a.modules_valides || 0) > 0; }).length;
   const aInviter = apprenants.filter(function (a) { return a.statut === "invite"; }).length;
+  const nbSortis = apprenants.filter(function (a) { return estSorti(a.statut); }).length;
 
   return (
     <div style={CADRE}>
@@ -299,6 +352,7 @@ export default function PageStagiaires() {
         <h1 style={{ color: "#fff", fontSize: "30px", margin: "0 0 6px" }}>Mes stagiaires</h1>
         <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "14px", marginTop: 0 }}>
           {apprenants.length} inscrit(s) · {commences} ont commencé · {chiffre.toLocaleString("fr-FR")} € déclarés
+          {nbSortis > 0 ? " · " + nbSortis + " sorti(s) de parcours" : ""}
           {incomplets > 0 ? " · " + incomplets + " fiche(s) incomplète(s) pour le bilan" : ""}
         </p>
 
@@ -418,15 +472,21 @@ export default function PageStagiaires() {
             const invite = a.statut === "invitation_envoyee";
             const complet = a.statut_stagiaire && a.payeur;
             const enModification = ouverte === a.id;
+            const sorti = estSorti(a.statut);
 
             return (
-              <div key={a.id} style={{ ...CARTE, padding: "18px 22px", marginBottom: "12px", border: complet ? "1px solid rgba(200,169,110,0.25)" : "1px solid rgba(232,131,106,0.4)" }}>
+              <div key={a.id} style={{ ...CARTE, padding: "18px 22px", marginBottom: "12px", opacity: sorti ? 0.62 : 1, border: sorti ? "1px solid rgba(76,175,80,0.35)" : complet ? "1px solid rgba(200,169,110,0.25)" : "1px solid rgba(232,131,106,0.4)" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "10px" }}>
                   <div style={{ flex: "1 1 260px" }}>
                     <p style={{ color: "#fff", fontSize: "16px", margin: "0 0 4px", wordBreak: "break-all" }}>
                       {a.email}
                       {a.nom ? <span style={{ color: "rgba(255,255,255,0.45)" }}> — {a.nom}</span> : null}
                     </p>
+                    {sorti && (
+                      <p style={{ color: "#4caf50", fontSize: "13px", margin: "0 0 4px", fontWeight: "bold" }}>
+                        {LIBELLE_SORTIE[a.statut]} · n&apos;est plus facturé
+                      </p>
+                    )}
                     <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px", margin: 0 }}>
                       {a.formation_code || "aucune formation"}
                       {a.prix_vente ? " · " + Number(a.prix_vente).toLocaleString("fr-FR") + " €" : ""}
@@ -541,6 +601,32 @@ export default function PageStagiaires() {
                   >
                     {invitationEnCours === a.id ? "Envoi…" : invite ? "Renvoyer" : "Envoyer l'accès"}
                   </button>
+
+                  {/* 🆕 SORTIE DECLAREE — 03/09. Les deux boutons ne
+                      s affichent que sur un stagiaire encore en parcours ;
+                      un stagiaire deja sorti n a qu un bouton, celui qui le
+                      remet en parcours. */}
+                  {!sorti &&
+                    SORTIES.map(function (s) {
+                      return (
+                        <button
+                          key={s.valeur}
+                          onClick={() => clore(a.id, a.email, s.valeur, s.question)}
+                          style={{ background: "none", border: "1px solid rgba(76,175,80,0.45)", color: "#4caf50", padding: "7px 16px", borderRadius: "20px", cursor: "pointer", fontSize: "13px", fontFamily: "Georgia,serif" }}
+                        >
+                          {s.bouton}
+                        </button>
+                      );
+                    })}
+
+                  {sorti && (
+                    <button
+                      onClick={() => rouvrir(a.id, a.email)}
+                      style={{ background: "none", border: "1px solid rgba(200,169,110,0.45)", color: "#c8a96e", padding: "7px 16px", borderRadius: "20px", cursor: "pointer", fontSize: "13px", fontFamily: "Georgia,serif" }}
+                    >
+                      Remettre en parcours
+                    </button>
+                  )}
 
                   <button
                     onClick={() => retirer(a.id, a.email)}
