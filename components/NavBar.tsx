@@ -124,6 +124,30 @@ const PAGES_PUBLIQUES_MRLMS = [
   "/devis",
 ];
 
+// LES PAGES PUBLIQUES DE MRCRM.FR.
+//
+// Meme montage que Mr LMS et Mr Comptable : le middleware sert /mrcrm/devis
+// sous mrcrm.fr/devis, et le chemin vu ici est alors « /devis ». On teste
+// donc le DOMAINE et cette liste.
+//
+// ⚠️ /connexion N Y FIGURE PAS : sur mrcrm.fr, l ecran de connexion porte
+// la barre Mr CRM, comme sur les autres domaines de la maison.
+//
+// ⚠️ TOUTE NOUVELLE PAGE DE VITRINE DOIT ETRE AJOUTEE ICI, sinon elle
+// heritera de la barre de travail par-dessus son propre en-tete.
+const PAGES_PUBLIQUES_MRCRM = [
+  "/",
+  "/devis",
+];
+
+function estPagePubliqueMrCRM(chemin) {
+  for (const p of PAGES_PUBLIQUES_MRCRM) {
+    if (chemin === p) return true;
+    if (p !== "/" && chemin.indexOf(p + "/") === 0) return true;
+  }
+  return false;
+}
+
 function estPagePubliqueMrLMS(chemin) {
   for (const p of PAGES_PUBLIQUES_MRLMS) {
     if (chemin === p) return true;
@@ -157,6 +181,18 @@ const LOGO_MYSTERLLC = "/IMG_4723.jpeg";
 // caracteres. Partout ailleurs — titre du site, sitemap, devis — c est
 // « Mr LMS » qui doit etre ecrit.
 const LOGO_MRLMS = "/mrlms-banniere.jpeg.png";
+
+// 🆕 MR CRM — 03/09. Meme montage : la banniere porte le nom ET la base
+// line « Savoir qui rappeler, et quoi lui dire », donc rien n est ecrit a
+// cote. Le carre (mrcrm-logo.png) sert au favicon et a l Open Graph.
+//
+// ⚠️ CES DEUX FICHIERS N ONT PAS DE DOUBLE EXTENSION, contrairement a ceux
+// de Mr LMS : ils ont ete deposes sans etre renommes. Ne pas ajouter de
+// « .png » de plus par analogie.
+//
+// ⚠️ LE NOM S ECRIT « Mr CRM », SANS POINT. L image porte « Mr.CRM » : c est
+// un dessin. Partout ailleurs — titre, sitemap, devis, factures — Mr CRM.
+const LOGO_MRCRM = "/mrcrm-banniere.png";
 
 function estComptable(chemin) {
   for (const p of CHEMINS_COMPTABLE) {
@@ -226,6 +262,7 @@ export default function NavBar() {
   const surMrComptable = hote.indexOf("mrcomptable.fr") >= 0;
   const surMysterLLC = hote.indexOf("mysterllc.com") >= 0;
   const surMrLMS = hote.indexOf("mrlms.fr") >= 0;
+  const surMrCRM = hote.indexOf("mrcrm.fr") >= 0;
 
   if (chemin.indexOf("/of/") === 0) return null;
   if (chemin === "/comptable" || chemin.indexOf("/comptable/") === 0) return null;
@@ -246,6 +283,13 @@ export default function NavBar() {
   // « /devis »).
   if (chemin === "/mrlms" || chemin.indexOf("/mrlms/") === 0) return null;
   if (surMrLMS && estPagePubliqueMrLMS(chemin)) return null;
+
+  // 🆕 MEME REGLE POUR MR CRM — 03/09. Deux tests, parce qu il y a deux
+  // facons d atteindre ces pages : par leur chemin interne (/mrcrm/devis,
+  // depuis academiapro.fr) ou par le domaine (mrcrm.fr/devis, reecrit par
+  // le middleware — le chemin vu ici est alors « /devis »).
+  if (chemin === "/mrcrm" || chemin.indexOf("/mrcrm/") === 0) return null;
+  if (surMrCRM && estPagePubliqueMrCRM(chemin)) return null;
 
   // 🚨 L ECRAN DE SIGNATURE N A PAS DE BARRE — 01/09.
   //
@@ -299,6 +343,52 @@ export default function NavBar() {
   // ⚠️ CETTE BARRE EST PLACEE AVANT CELLE DE MYSTERLLC. L ordre compte :
   // les deux produits partagent des ecrans, et le premier test qui repond
   // l emporte.
+  // ---- Espace de travail Mr CRM ------------------------------------------
+  //
+  // 🆕 MR CRM — 03/09. Le CRM devient un produit vendu separement : son
+  // domaine, sa marque, sa barre.
+  //
+  // 🚨 LA REGLE EST LE DOMAINE, ET RIEN QUE LE DOMAINE. Aucun chemin ne
+  // declenche cette barre. L ecran /admin/linkedin est le CRM d AcadéMIA
+  // Pro vu depuis academiapro.fr : y poser la barre Mr CRM ferait
+  // apparaitre une marque tierce dans l administration de la maison.
+  // Sur mrcrm.fr, en revanche, TOUTE page la porte.
+  if (surMrCRM) {
+    return (
+      <header style={{ ...barre, padding: "0 30px", background: "#000" }}>
+        <a
+          href="/admin/linkedin"
+          style={{ display: "block", textDecoration: "none", flexShrink: 0, overflow: "hidden", lineHeight: 0 }}
+        >
+          <img
+            src={LOGO_MRCRM}
+            alt="Mr CRM"
+            style={{
+              width: "400px",
+              maxWidth: "40vw",
+              height: "auto",
+              display: "block",
+              margin: "-4px",
+              clipPath: "inset(4px)",
+            }}
+          />
+        </a>
+        <nav style={{ display: "flex", gap: "18px", flexWrap: "wrap", justifyContent: "center" }}>
+          <a href="/admin/linkedin" style={lienMenu}>Mes contacts</a>
+          <a href="/admin/linkedin-publier" style={lienMenu}>Publier</a>
+          <a href="/admin/compliance/signatures" style={lienMenu}>Signatures</a>
+        </nav>
+        <div style={{ display: "flex", gap: "10px", alignItems: "center", flexShrink: 0 }}>
+          {connecte && (
+            <a href="/api/auth/deconnexion" style={{ color: "rgba(255,255,255,0.55)", border: "1px solid rgba(255,255,255,0.2)", padding: "8px 16px", borderRadius: "8px", textDecoration: "none", fontSize: "14px", whiteSpace: "nowrap" }}>
+              {"Se d\u00e9connecter"}
+            </a>
+          )}
+        </div>
+      </header>
+    );
+  }
+
   if (surMrLMS) {
     return (
       <header style={{ ...barre, padding: "0 30px", background: "#000" }}>
