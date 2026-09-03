@@ -112,12 +112,17 @@ export default function PageMrLMS() {
   return (
     <div style={CADRE}>
       {/* ---- EN-TETE ---- */}
+      {/* 🚨 LA BANNIERE EST AU FORMAT 4:1. A 380 px elle paraissait perdue
+          dans une bande noire, decalee a gauche : la marque, qui est la
+          premiere chose lue, y semblait accessoire. Elle occupe desormais
+          la largeur disponible, plafonnee a 560 px pour ne pas se pixeliser,
+          et l en-tete est aere. */}
       <header style={{ borderBottom: "1px solid rgba(200,169,110,0.15)", background: "#000" }}>
-        <div style={{ ...SECTION, display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 24px" }}>
+        <div style={{ ...SECTION, display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 24px", gap: "16px" }}>
           <img
             src="/mrlms-banniere.jpeg.png"
             alt="Mr LMS"
-            style={{ width: "380px", maxWidth: "52vw", height: "auto", display: "block", margin: "-4px", clipPath: "inset(4px)" }}
+            style={{ width: "560px", maxWidth: "62vw", height: "auto", display: "block", margin: "-4px", clipPath: "inset(4px)" }}
           />
           <a href="/connexion" style={{ color: OR, border: "1px solid rgba(200,169,110,0.45)", padding: "9px 18px", borderRadius: "8px", textDecoration: "none", fontSize: "14px", whiteSpace: "nowrap", flexShrink: 0 }}>
             Se connecter
