@@ -159,6 +159,78 @@ export async function GET(req: NextRequest) {
       prixDe[c.formation_code] = Number(c.prix_vente_public) || 0;
     }
 
+    // ══════════════════════════════════════════════════════════════════════
+    // 🚨 LES HEURES DECLAREES SONT CELLES REELLEMENT SUIVIES — 03/09.
+    //
+    // LE DEFAUT, ET IL PORTAIT SUR UN DOCUMENT OFFICIEL. Cette route
+    // additionnait la DUREE THEORIQUE de la formation pour chaque inscrit :
+    // `heuresTotal = heuresTotal + duree`. Un stagiaire ayant valide 2
+    // modules sur 80 d une formation de 120 heures faisait donc declarer
+    // 120 heures a l organisme, au lieu des 3 qu il avait suivies.
+    //
+    // Les heures sont le chiffre central du Cerfa : c est sur elles que
+    // porte un controle. Surdeclarer n avantage personne et expose
+    // l organisme, qui ne pouvait meme pas s en apercevoir.
+    //
+    // LA REGLE : heures = duree x modules valides / modules au plan. Le
+    // rapport se lit dans `lms_plans` (le plan) et `progression_apprenants`
+    // (ce qui est valide) — les memes tables que la cloture de parcours de
+    // la facturation, pour que les deux ecrans racontent la meme histoire.
+    //
+    // ⚠️ UN PLAN VIDE NE PERMET AUCUNE MESURE. Plutot que d ecrire zero —
+    // ce qui ferait disparaitre une activite reelle du bilan — on garde la
+    // duree theorique ET on la signale dans « À completer ». L organisme
+    // voit alors qu il declare une estimation, et sait quoi corriger.
+    //
+    // ⚠️ LES FORMATIONS PROPRES DE L ORGANISME vivent dans `organisme_cours`
+    // et n ont pas de plan dans `lms_plans` : elles tombent dans ce cas.
+    // ══════════════════════════════════════════════════════════════════════
+    const codesInscrits: string[] = [];
+    for (const i of inscrits || []) {
+      const c = i.formation_code || "";
+      if (c && codesInscrits.indexOf(c) < 0) codesInscrits.push(c);
+    }
+
+    const modulesAuPlan: any = {};
+    if (codesInscrits.length > 0) {
+      const { data: plan } = await supabase
+        .from("lms_plans")
+        .select("formation_code")
+        .in("formation_code", codesInscrits)
+        .limit(20000);
+
+      for (const p of plan || []) {
+        modulesAuPlan[p.formation_code] = (modulesAuPlan[p.formation_code] || 0) + 1;
+      }
+    }
+
+    const { data: progression } = await supabase
+      .from("progression_apprenants")
+      .select("user_email, formation_code, module_cle")
+      .eq("tenant_id", tenant)
+      .eq("statut", "valide")
+      .limit(20000);
+
+    // Un module valide deux fois ne compte qu une fois : on retient les
+    // cles distinctes, pas le nombre de lignes.
+    const clesValidees: any = {};
+    for (const p of progression || []) {
+      const cle = String(p.user_email || "").toLowerCase().trim() + "|" + (p.formation_code || "");
+      if (!clesValidees[cle]) clesValidees[cle] = new Set<string>();
+      clesValidees[cle].add(String(p.module_cle || ""));
+    }
+
+    function heuresSuivies(email: any, code: string, duree: number) {
+      const auPlan = modulesAuPlan[code] || 0;
+      if (!duree) return { heures: 0, mesure: true };
+      if (auPlan <= 0) return { heures: duree, mesure: false };
+
+      const jeu = clesValidees[String(email || "").toLowerCase().trim() + "|" + code];
+      const valides = jeu ? jeu.size : 0;
+      const part = Math.min(valides, auPlan) / auPlan;
+      return { heures: Math.round(duree * part * 10) / 10, mesure: true };
+    }
+
     const cadreC: any = {};
     const cadreF1: any = {};
     const cadreF3: any = {};
@@ -166,6 +238,7 @@ export async function GET(req: NextRequest) {
 
     const stagiaires = new Set<string>();
     let heuresTotal = 0;
+    let heuresTheoriques = 0;
     let produitsTotal = 0;
 
     const aCompleter = {
@@ -175,21 +248,28 @@ export async function GET(req: NextRequest) {
       sans_formation: 0,
       sans_duree: 0,
       sans_code_nsf: 0,
+      sans_plan: 0,
     };
 
     for (const i of inscrits || []) {
       stagiaires.add(i.email);
 
-      const fiche = infoDe[i.formation_code || ""] || {};
+      const code = i.formation_code || "";
+      const fiche = infoDe[code] || {};
       const duree = heuresDe(fiche.duree);
       if (!i.formation_code) aCompleter.sans_formation = aCompleter.sans_formation + 1;
       if (!duree) aCompleter.sans_duree = aCompleter.sans_duree + 1;
 
       let prix = Number(i.prix_vente);
-      if (!prix || isNaN(prix)) prix = prixDe[i.formation_code || ""] || 0;
+      if (!prix || isNaN(prix)) prix = prixDe[code] || 0;
       if (!prix) aCompleter.sans_prix = aCompleter.sans_prix + 1;
 
-      heuresTotal = heuresTotal + duree;
+      const suivi = heuresSuivies(i.email, code, duree);
+      const heures = suivi.heures;
+      if (!suivi.mesure) aCompleter.sans_plan = aCompleter.sans_plan + 1;
+
+      heuresTotal = heuresTotal + heures;
+      heuresTheoriques = heuresTheoriques + duree;
       produitsTotal = produitsTotal + prix;
 
       // Cadre C
@@ -200,22 +280,25 @@ export async function GET(req: NextRequest) {
           aCompleter.sans_dispositif = aCompleter.sans_dispositif + 1;
         }
       }
-      ajouter(cadreC, ligneC, 1, duree, prix);
+      ajouter(cadreC, ligneC, 1, heures, prix);
 
       // Cadre F-1
       const ligneF1 = LIGNE_F1[i.statut_stagiaire || ""] || "e";
       if (!i.statut_stagiaire) aCompleter.sans_statut = aCompleter.sans_statut + 1;
-      ajouter(cadreF1, ligneF1, 1, duree, prix);
+      ajouter(cadreF1, ligneF1, 1, heures, prix);
 
       // Cadre F-3
       const ligneF3 = LIGNE_F3[fiche.objectif || ""] || "d";
-      ajouter(cadreF3, ligneF3, 1, duree, prix);
+      ajouter(cadreF3, ligneF3, 1, heures, prix);
 
       // Cadre F-4 : specialites, par code NSF si connu, sinon par domaine.
       const specialite = fiche.code_nsf || fiche.domaine || "non_renseigne";
       if (!fiche.code_nsf) aCompleter.sans_code_nsf = aCompleter.sans_code_nsf + 1;
-      ajouter(cadreF4, specialite, 1, duree, prix);
+      ajouter(cadreF4, specialite, 1, heures, prix);
     }
+
+    heuresTotal = Math.round(heuresTotal * 10) / 10;
+    heuresTheoriques = Math.round(heuresTheoriques * 10) / 10;
 
     // Total du cadre C ligne 2 : somme des lignes 2a a 2h.
     const total2 = vide();
@@ -258,6 +341,10 @@ export async function GET(req: NextRequest) {
       stagiaires_distincts: stagiaires.size,
       inscriptions: (inscrits || []).length,
       heures_total: heuresTotal,
+      // LES HEURES THEORIQUES SONT RENVOYEES A PART, jamais melangees aux
+      // heures declarees : elles servent a montrer l ecart entre ce qui
+      // etait prevu et ce qui a ete suivi. Le Cerfa demande le second.
+      heures_theoriques: heuresTheoriques,
       modules_valides: (valides || []).length,
       a_completer: aCompleter,
     });
