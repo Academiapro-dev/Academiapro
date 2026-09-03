@@ -68,6 +68,26 @@ const LIBELLE_F1: any = {
   e: "e Autres stagiaires",
 };
 
+// 🚨 LE CADRE F-3 DU PDF NE CONNAISSAIT QUE TROIS LIGNES SUR SIX — 03/09.
+//
+// L imprime classait par une condition en cascade : « rncp » -> a,
+// « rs » -> b, TOUT LE RESTE -> d. Un bilan de competences (e) et un
+// accompagnement a la VAE (f) tombaient donc en « autres formations
+// professionnelles », alors que l ecran, lui, les rangeait correctement :
+// les deux documents ne racontaient pas la meme chose sur le meme cadre.
+//
+// La table est desormais la MEME QUE CELLE DE /api/organisme/bilan, et
+// c est la seule chose qui garantit que l ecran et l imprime concordent.
+// ⚠️ TOUTE LIGNE AJOUTEE ICI DOIT L ETRE DANS LES DEUX FICHIERS.
+const LIGNE_F3: any = {
+  rncp: "a",
+  rs: "b",
+  cqp_non_enregistre: "c",
+  autre_formation: "d",
+  bilan_competences: "e",
+  vae: "f",
+};
+
 const LIBELLE_F3: any = {
   a: "a Titre enregistré au RNCP",
   b: "b Certification au répertoire spécifique",
@@ -118,11 +138,20 @@ const LIBELLE_F4: any = {
 // d autres ecrans affichent la duree telle quelle, « 200h minimum » perdrait
 // son sens, et « 120 » sans unite serait pire. On lit les chiffres, on
 // laisse la donnee tranquille.
+//
+// 🆕 03/09 : LES DECIMALES ET LES VIRGULES SONT DESORMAIS LUES. Cette
+// version cherchait `\d+` et coupait au premier separateur : « 7,5h »
+// donnait 7 ici et 7,5 sur l ecran, dont la fonction, elle, les gerait.
+// Le code est maintenant IDENTIQUE a celui de /api/organisme/bilan.
 function heuresDe(valeur: any): number {
   if (valeur === null || valeur === undefined) return 0;
-  if (typeof valeur === "number") return isNaN(valeur) ? 0 : valeur;
-  const trouve = String(valeur).match(/\d+/);
-  return trouve ? parseInt(trouve[0], 10) : 0;
+  const direct = Number(valeur);
+  if (!isNaN(direct) && direct > 0) return direct;
+
+  const m = String(valeur).replace(",", ".").match(/[\d.]+/);
+  if (!m) return 0;
+  const n = Number(m[0]);
+  return isNaN(n) || n <= 0 ? 0 : n;
 }
 
 // pdf-lib encode en WinAnsi : les lettres accentuees francaises passent
@@ -138,6 +167,13 @@ function ascii(t: any): string {
     .replace(/\u00b7/g, "-")
     .replace(/[\u2026]/g, "...")
     .replace(/[^\x20-\xFF]/g, " ");
+}
+
+// Une heure decimale s ecrit avec une virgule en francais, et sans
+// decimale inutile : « 3 h », « 7,5 h ».
+function heuresTexte(n: number): string {
+  const v = Math.round((Number(n) || 0) * 10) / 10;
+  return v.toLocaleString("fr-FR");
 }
 
 export async function GET(req: NextRequest) {
@@ -194,13 +230,83 @@ export async function GET(req: NextRequest) {
       .eq("tenant_id", tenant)
       .maybeSingle();
 
+    // ══════════════════════════════════════════════════════════════════════
+    // 🚨 LES HEURES IMPRIMEES SONT CELLES REELLEMENT SUIVIES — 03/09.
+    //
+    // MEME DEFAUT QUE LA ROUTE DE L ECRAN, ET SUR LE MEME DOCUMENT. Ce
+    // fichier additionnait la DUREE THEORIQUE pour chaque inscrit : un
+    // stagiaire ayant valide 2 modules sur 80 d une formation de 120 heures
+    // faisait imprimer 120 heures. C est l imprime que l organisme pose a
+    // cote de son clavier pour remplir Mon Activite Formation : le chiffre
+    // faux serait recopie tel quel dans la declaration.
+    //
+    // LA REGLE, IDENTIQUE A CELLE DE /api/organisme/bilan :
+    //   heures = duree x modules valides / modules au plan
+    //
+    // ⚠️ LES DEUX FICHIERS DOIVENT RESTER D ACCORD. Un ecart entre l ecran
+    // et l imprime est pire qu un chiffre faux partout : l organisme ne sait
+    // plus lequel croire. Toute modification de ce calcul se fait ICI ET
+    // DANS L AUTRE ROUTE, dans le meme mouvement.
+    //
+    // ⚠️ UN PLAN VIDE NE PERMET AUCUNE MESURE : on garde la duree theorique
+    // et on l annonce dans le recapitulatif, plutot que d ecrire zero et de
+    // faire disparaitre une activite reelle.
+    // ══════════════════════════════════════════════════════════════════════
+    const codesInscrits: string[] = [];
+    for (const i of inscrits || []) {
+      const c = i.formation_code || "";
+      if (c && codesInscrits.indexOf(c) < 0) codesInscrits.push(c);
+    }
+
+    const modulesAuPlan: any = {};
+    if (codesInscrits.length > 0) {
+      const { data: plan } = await supabase
+        .from("lms_plans")
+        .select("formation_code")
+        .in("formation_code", codesInscrits)
+        .limit(20000);
+
+      for (const p of plan || []) {
+        modulesAuPlan[p.formation_code] = (modulesAuPlan[p.formation_code] || 0) + 1;
+      }
+    }
+
+    const { data: progression } = await supabase
+      .from("progression_apprenants")
+      .select("user_email, formation_code, module_cle")
+      .eq("tenant_id", tenant)
+      .eq("statut", "valide")
+      .limit(20000);
+
+    // Un module valide deux fois ne compte qu une fois : on retient les
+    // cles distinctes, pas le nombre de lignes.
+    const clesValidees: any = {};
+    for (const p of progression || []) {
+      const cle = String(p.user_email || "").toLowerCase().trim() + "|" + (p.formation_code || "");
+      if (!clesValidees[cle]) clesValidees[cle] = new Set<string>();
+      clesValidees[cle].add(String(p.module_cle || ""));
+    }
+
+    function heuresSuivies(email: any, code: string, duree: number) {
+      const auPlan = modulesAuPlan[code] || 0;
+      if (!duree) return { heures: 0, mesure: true };
+      if (auPlan <= 0) return { heures: duree, mesure: false };
+
+      const jeu = clesValidees[String(email || "").toLowerCase().trim() + "|" + code];
+      const valides = jeu ? jeu.size : 0;
+      const part = Math.min(valides, auPlan) / auPlan;
+      return { heures: Math.round(duree * part * 10) / 10, mesure: true };
+    }
+
     const cadreC: any = {};
     const cadreF1: any = {};
     const cadreF3: any = {};
     const cadreF4: any = {};
     const stagiaires = new Set<string>();
     let heures = 0;
+    let heuresTheoriques = 0;
     let produits = 0;
+    let sansPlan = 0;
 
     function ajouter(cible: any, cle: string, h: number, m: number) {
       if (!cible[cle]) cible[cle] = { stagiaires: 0, heures: 0, montant: 0 };
@@ -211,20 +317,29 @@ export async function GET(req: NextRequest) {
 
     for (const i of inscrits || []) {
       stagiaires.add(i.email);
-      const fiche = infoDe[i.formation_code || ""] || {};
+      const code = i.formation_code || "";
+      const fiche = infoDe[code] || {};
       const duree = heuresDe(fiche.duree);
       let prix = Number(i.prix_vente);
-      if (!prix || isNaN(prix)) prix = prixDe[i.formation_code || ""] || 0;
+      if (!prix || isNaN(prix)) prix = prixDe[code] || 0;
 
-      heures = heures + duree;
+      const suivi = heuresSuivies(i.email, code, duree);
+      const h = suivi.heures;
+      if (!suivi.mesure) sansPlan = sansPlan + 1;
+
+      heures = heures + h;
+      heuresTheoriques = heuresTheoriques + duree;
       produits = produits + prix;
 
       const cC = (i.dispositif ? LIGNE_C[i.dispositif] : null) || LIGNE_C_PAR_PAYEUR[i.payeur || ""] || "11";
-      ajouter(cadreC, cC, duree, prix);
-      ajouter(cadreF1, LIGNE_F1[i.statut_stagiaire || ""] || "e", duree, prix);
-      ajouter(cadreF3, fiche.objectif === "rncp" ? "a" : fiche.objectif === "rs" ? "b" : "d", duree, prix);
-      ajouter(cadreF4, fiche.code_nsf || fiche.domaine || "non renseigne", duree, prix);
+      ajouter(cadreC, cC, h, prix);
+      ajouter(cadreF1, LIGNE_F1[i.statut_stagiaire || ""] || "e", h, prix);
+      ajouter(cadreF3, LIGNE_F3[fiche.objectif || ""] || "d", h, prix);
+      ajouter(cadreF4, fiche.code_nsf || fiche.domaine || "non renseigne", h, prix);
     }
+
+    heures = Math.round(heures * 10) / 10;
+    heuresTheoriques = Math.round(heuresTheoriques * 10) / 10;
 
     const pdf = await PDFDocument.create();
     const normal = await pdf.embedFont(StandardFonts.Helvetica);
@@ -255,6 +370,12 @@ export async function GET(req: NextRequest) {
       const largeur = normal.widthOfTextAtSize(ascii(droiteTexte), 10);
       page.drawText(ascii(droiteTexte), { x: 545 - largeur, y: y, size: 10, font: normal, color: vert });
       y = y - 16;
+    }
+
+    function note(t: string) {
+      saut(16);
+      page.drawText(ascii(t), { x: 55, y: y, size: 8.5, font: normal, color: gris });
+      y = y - 14;
     }
 
     function titreCadre(t: string) {
@@ -294,23 +415,34 @@ export async function GET(req: NextRequest) {
 
     titreCadre("F-1. TYPE DE STAGIAIRES");
     for (const k of Object.keys(cadreF1).sort()) {
-      ligne(LIBELLE_F1[k] || k, cadreF1[k].stagiaires + " stagiaire(s) - " + cadreF1[k].heures + " h");
+      ligne(LIBELLE_F1[k] || k, cadreF1[k].stagiaires + " stagiaire(s) - " + heuresTexte(cadreF1[k].heures) + " h");
     }
 
     titreCadre("F-3. OBJECTIF GÉNÉRAL DES PRESTATIONS");
     for (const k of Object.keys(cadreF3).sort()) {
-      ligne(LIBELLE_F3[k] || k, cadreF3[k].stagiaires + " stagiaire(s) - " + cadreF3[k].heures + " h");
+      ligne(LIBELLE_F3[k] || k, cadreF3[k].stagiaires + " stagiaire(s) - " + heuresTexte(cadreF3[k].heures) + " h");
     }
 
     titreCadre("F-4. SPÉCIALITÉS DE FORMATION");
     for (const k of Object.keys(cadreF4).sort()) {
-      ligne(LIBELLE_F4[k] || k, cadreF4[k].stagiaires + " stagiaire(s) - " + cadreF4[k].heures + " h");
+      ligne(LIBELLE_F4[k] || k, cadreF4[k].stagiaires + " stagiaire(s) - " + heuresTexte(cadreF4[k].heures) + " h");
     }
 
     titreCadre("RÉCAPITULATIF");
     ligne("Stagiaires distincts", String(stagiaires.size));
     ligne("Inscriptions", String((inscrits || []).length));
-    ligne("Total des heures suivies", String(heures));
+    ligne("Total des heures suivies", heuresTexte(heures) + " h");
+    note("Heures effectivement suivies : durée de la formation rapportée aux modules validés.");
+    if (heuresTheoriques > heures) {
+      ligne("Pour mémoire, heures prévues au programme", heuresTexte(heuresTheoriques) + " h");
+      note("L'écart correspond aux parcours en cours ou interrompus. Le formulaire attend les heures suivies.");
+    }
+    if (sansPlan > 0) {
+      note(
+        String(sansPlan) + " inscription(s) portent sur une formation sans plan de modules : "
+        + "leur durée prévue a été retenue faute de mesure possible."
+      );
+    }
 
     const pages = pdf.getPages();
     for (let i = 0; i < pages.length; i = i + 1) {
