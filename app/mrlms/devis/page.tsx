@@ -78,8 +78,16 @@ const PLEIN: any = {
   fontFamily: "Georgia,serif",
 };
 
+// 🚨 « 147,50 € » ET NON « 147,5 € » — 03/09. toLocaleString coupe le zero
+// final : sur un devis, un montant ampute d une decimale se remarque.
+// Les montants ronds restent sans decimale, ceux qui en ont en portent deux.
 function euros(n: any) {
-  return (Number(n) || 0).toLocaleString("fr-FR") + " €";
+  const v = Number(n) || 0;
+  const entier = Math.round(v * 100) % 100 === 0;
+  return v.toLocaleString("fr-FR", {
+    minimumFractionDigits: entier ? 0 : 2,
+    maximumFractionDigits: 2,
+  }) + " €";
 }
 
 // 🚨 « 1er », PAS « 1e ». Les bornes des paliers se construisent a partir
@@ -207,7 +215,7 @@ export default function PageDevisLMS() {
           <img
             src="/mrlms-banniere.jpeg.png"
             alt="Mr LMS"
-            style={{ width: "460px", maxWidth: "72vw", height: "auto", display: "block", margin: "-4px", clipPath: "inset(4px)" }}
+            style={{ width: "620px", maxWidth: "82vw", height: "auto", display: "block", margin: "-4px", clipPath: "inset(4px)" }}
           />
         </div>
       </header>
