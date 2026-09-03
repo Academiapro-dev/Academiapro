@@ -13,12 +13,23 @@ const VALIDITE_CODE_MIN = 15;
 const MAX_TENTATIVES = 5;
 const VALIDITE_LECTURE_S = 3600;
 
+// 🚨 CE TEXTE EST CELUI QUE LE SIGNATAIRE LIT A L ECRAN — la page l affiche
+// tel que la route le renvoie, il n existe qu ici. Il entre dans le sceau.
+// Accentue le 03/09 ; les signatures anterieures restent valides, la
+// verification relit le texte stocke dans chaque ligne.
 const CONSENTEMENT =
   "En cochant cette case et en validant, je reconnais avoir lu le document, " +
-  "j en accepte les termes, et j appose ma signature electronique. Je reconnais " +
-  "que cette signature a la meme valeur que ma signature manuscrite entre les parties. " +
-  "Je confirme etre le titulaire de l adresse electronique a laquelle le code de " +
-  "verification a ete adresse.";
+  "j'en accepte les termes, et j'appose ma signature électronique. Je reconnais " +
+  "que cette signature a la même valeur que ma signature manuscrite entre les parties. " +
+  "Je confirme être le titulaire de l'adresse électronique à laquelle le code de " +
+  "vérification a été adressé.";
+
+// 🚨 L EXPEDITEUR EST NEUTRE — 03/09. En marque blanche, l organisme revend
+// sous son nom : le courriel du code ne doit porter ni AcadeMIA ni aucune
+// autre marque. espaces-formations.fr est le domaine neutre verifie chez
+// Resend. Modifiable sans redeploiement par la variable SIGNATURE_EXPEDITEUR.
+const EXPEDITEUR = (process.env.SIGNATURE_EXPEDITEUR || "").trim()
+  || "Signature électronique <signature@espaces-formations.fr>";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
@@ -86,7 +97,7 @@ export async function GET(req: NextRequest) {
     if (url.searchParams.get("vue") === "document") {
       const reference = String(url.searchParams.get("reference") || "").trim();
       if (!reference) {
-        return NextResponse.json({ ok: false, erreur: "Document non precise." }, { status: 400 });
+        return NextResponse.json({ ok: false, erreur: "Document non précisé." }, { status: 400 });
       }
 
       const doc = await documentDe(reference);
@@ -146,7 +157,7 @@ export async function GET(req: NextRequest) {
     }
     if (!tenant) {
       return NextResponse.json(
-        { ok: false, erreur: "Aucun organisme rattache a votre compte." },
+        { ok: false, erreur: "Aucun organisme rattaché à votre compte." },
         { status: 403 }
       );
     }
@@ -246,7 +257,7 @@ async function envoyerCode(req: NextRequest, doc: any) {
   const destinataire = String(doc.stagiaire_email || "").toLowerCase().trim();
   if (!destinataire) {
     return NextResponse.json(
-      { ok: false, erreur: "Ce document ne porte aucune adresse de beneficiaire." },
+      { ok: false, erreur: "Ce document ne porte aucune adresse de bénéficiaire." },
       { status: 400 }
     );
   }
@@ -277,32 +288,32 @@ async function envoyerCode(req: NextRequest, doc: any) {
 
   const html =
     '<div style="font-family:Georgia,serif;max-width:520px;margin:0 auto;color:#1a1a1a;line-height:1.7">' +
-    '<p style="color:#0a3d2e;font-size:13px;letter-spacing:2px;margin:0 0 6px">SIGNATURE ELECTRONIQUE</p>' +
-    '<h1 style="color:#0a3d2e;font-size:22px;margin:0 0 16px">Votre code de verification</h1>' +
-    "<p>Vous vous appretez a signer le document <strong>" + doc.reference +
+    '<p style="color:#0a3d2e;font-size:13px;letter-spacing:2px;margin:0 0 6px">SIGNATURE ÉLECTRONIQUE</p>' +
+    '<h1 style="color:#0a3d2e;font-size:22px;margin:0 0 16px">Votre code de vérification</h1>' +
+    "<p>Vous vous apprêtez à signer le document <strong>" + doc.reference +
     "</strong>. Saisissez ce code sur la page de signature :</p>" +
     '<p style="font-size:34px;letter-spacing:10px;font-weight:bold;color:#0a3d2e;' +
     'background:#f5f1e8;padding:18px 24px;border-radius:8px;text-align:center;margin:24px 0">' +
     code + "</p>" +
-    "<p>Ce code est valable " + VALIDITE_CODE_MIN + " minutes et ne sert qu une fois.</p>" +
-    '<p style="font-size:14px;color:#666">Si vous n etes pas a l origine de cette demande, ' +
-    "ignorez ce message : aucune signature ne sera enregistree sans ce code.</p>" +
+    "<p>Ce code est valable " + VALIDITE_CODE_MIN + " minutes et ne sert qu'une fois.</p>" +
+    '<p style="font-size:14px;color:#666">Si vous n\'êtes pas à l\'origine de cette demande, ' +
+    "ignorez ce message : aucune signature ne sera enregistrée sans ce code.</p>" +
     "</div>";
 
   const r = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { Authorization: "Bearer " + cle, "Content-Type": "application/json" },
     body: JSON.stringify({
-      from: "AcadeMIA Pro <contact@academiapro.fr>",
+      from: EXPEDITEUR,
       to: [destinataire],
-      subject: "Code de verification - signature du document " + doc.reference,
+      subject: "Code de vérification — signature du document " + doc.reference,
       html: html,
     }),
   });
 
   if (!r.ok) {
     return NextResponse.json(
-      { ok: false, erreur: "L envoi du code a echoue. Reessayez." },
+      { ok: false, erreur: "L'envoi du code a échoué. Réessayez." },
       { status: 500 }
     );
   }
@@ -312,7 +323,7 @@ async function envoyerCode(req: NextRequest, doc: any) {
     envoye: true,
     email: destinataire,
     validite_minutes: VALIDITE_CODE_MIN,
-    message: "Un code a six chiffres vient d etre envoye a " + destinataire + ".",
+    message: "Un code à six chiffres vient d'être envoyé à " + destinataire + ".",
   });
 }
 
@@ -324,17 +335,17 @@ export async function POST(req: NextRequest) {
     }
 
     if (!process.env.SESSION_SECRET) {
-      return NextResponse.json({ ok: false, erreur: "Configuration incomplete." }, { status: 500 });
+      return NextResponse.json({ ok: false, erreur: "Configuration incomplète." }, { status: 500 });
     }
 
     const b = await req.json().catch(function () { return null; });
     if (!b) {
-      return NextResponse.json({ ok: false, erreur: "Requete illisible" }, { status: 400 });
+      return NextResponse.json({ ok: false, erreur: "Requête illisible." }, { status: 400 });
     }
 
     const reference = String(b.document_reference || "").trim();
     if (!reference) {
-      return NextResponse.json({ ok: false, erreur: "Document non precise." }, { status: 400 });
+      return NextResponse.json({ ok: false, erreur: "Document non précisé." }, { status: 400 });
     }
 
     const doc = await documentDe(reference);
@@ -348,8 +359,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           ok: false,
-          erreur: "Seul le beneficiaire du document peut le signer. Ce document est"
-            + " etabli au nom de " + doc.stagiaire_email
+          erreur: "Seul le bénéficiaire du document peut le signer. Ce document est"
+            + " établi au nom de " + doc.stagiaire_email
             + " : connectez-vous avec ce compte pour le signer.",
           beneficiaire: doc.stagiaire_email,
         },
@@ -362,8 +373,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           ok: false,
-          erreur: "Cette version a ete remplacee : une autre version de cet accord a deja"
-            + " ete signee (" + perimee + "). Ce lien n est plus valable.",
+          erreur: "Cette version a été remplacée : une autre version de cet accord a déjà"
+            + " été signée (" + perimee + "). Ce lien n'est plus valable.",
         },
         { status: 409 }
       );
@@ -392,7 +403,7 @@ export async function POST(req: NextRequest) {
 
     if (deja) {
       return NextResponse.json(
-        { ok: false, erreur: "Vous avez deja signe ce document." },
+        { ok: false, erreur: "Vous avez déjà signé ce document." },
         { status: 409 }
       );
     }
@@ -410,7 +421,7 @@ export async function POST(req: NextRequest) {
 
     if (!attendu) {
       return NextResponse.json(
-        { ok: false, erreur: "Demandez d abord votre code de verification." },
+        { ok: false, erreur: "Demandez d'abord votre code de vérification." },
         { status: 400 }
       );
     }
@@ -424,7 +435,7 @@ export async function POST(req: NextRequest) {
 
     if (new Date(attendu.expire_le).getTime() < Date.now()) {
       return NextResponse.json(
-        { ok: false, erreur: "Ce code a expire. Demandez-en un nouveau." },
+        { ok: false, erreur: "Ce code a expiré. Demandez-en un nouveau." },
         { status: 400 }
       );
     }
@@ -471,7 +482,7 @@ export async function POST(req: NextRequest) {
 
       if (!rPdf.ok) {
         return NextResponse.json(
-          { ok: false, erreur: "Le document n a pas pu etre archive. Signature interrompue." },
+          { ok: false, erreur: "Le document n'a pas pu être archivé. Signature interrompue." },
           { status: 500 }
         );
       }
@@ -513,7 +524,7 @@ export async function POST(req: NextRequest) {
     // kilo-octets ; au-dela, c est qu on tente d y glisser autre chose.
     if (trace && trace.length > 400000) {
       return NextResponse.json(
-        { ok: false, erreur: "Le trace de signature est trop volumineux." },
+        { ok: false, erreur: "Le tracé de signature est trop volumineux." },
         { status: 400 }
       );
     }
@@ -624,7 +635,7 @@ export async function POST(req: NextRequest) {
       verifie_par_code: true,
       variantes_annulees: annulees,
       avertissement:
-        "Signature electronique simple au sens du reglement eIDAS. Elle n est ni avancee ni qualifiee.",
+        "Signature électronique simple au sens du règlement eIDAS. Elle n'est ni avancée ni qualifiée.",
     });
   } catch (e: any) {
     return NextResponse.json({ ok: false, erreur: String(e) }, { status: 500 });
