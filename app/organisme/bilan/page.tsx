@@ -1,346 +1,470 @@
-"use client";
-import { useState, useEffect } from "react";
-import Guide from "../../../components/Guide";
+import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
+import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
+import { sessionCourante } from "../../../../../lib/session";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const maxDuration = 60;
+
+const ADMINS = ["contact@academiapro.fr"];
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL || "",
+  process.env.SUPABASE_SERVICE_ROLE_KEY || "",
+  {
+    global: {
+      fetch: function (url: any, options: any) {
+        return fetch(url, { ...(options || {}), cache: "no-store" });
+      },
+    },
+  }
+);
+
+const LIGNE_C: any = {
+  apprentissage: "2a", professionnalisation: "2b", reconversion_alternance: "2c",
+  transition_pro: "2d", cpf: "2e", demandeur_emploi: "2f",
+  travailleur_non_salarie: "2g", plan_developpement: "2h",
+  public_europe: "4", public_etat: "5", public_region: "6",
+  public_france_travail: "7", public_autre: "8",
+};
+
+const LIGNE_C_PAR_PAYEUR: any = {
+  entreprise: "1", cpf: "2e", opco: "2h", pouvoirs_publics: "8",
+  particulier: "9", organisme_formation: "10", fonds_propres: "11",
+};
 
 const LIBELLE_C: any = {
-  "1": "1 \u00b7 Entreprises pour la formation de leurs salari\u00e9s",
-  "2a": "2a \u00b7 Contrats d'apprentissage",
-  "2b": "2b \u00b7 Contrats de professionnalisation",
-  "2c": "2c \u00b7 Promotion ou reconversion par alternance",
-  "2d": "2d \u00b7 Projets de transition professionnelle",
-  "2e": "2e \u00b7 Compte personnel de formation",
-  "2f": "2f \u00b7 Dispositifs personnes en recherche d'emploi",
-  "2g": "2g \u00b7 Dispositifs travailleurs non salari\u00e9s",
-  "2h": "2h \u00b7 Plan de d\u00e9veloppement des comp\u00e9tences",
-  "3": "3 \u00b7 Pouvoirs publics pour leurs agents",
-  "4": "4 \u00b7 Instances europ\u00e9ennes",
-  "5": "5 \u00b7 \u00c9tat",
-  "6": "6 \u00b7 Conseils r\u00e9gionaux",
-  "7": "7 \u00b7 France Travail",
-  "8": "8 \u00b7 Autres ressources publiques",
-  "9": "9 \u00b7 Personnes \u00e0 titre individuel et \u00e0 leurs frais",
-  "10": "10 \u00b7 Autres organismes de formation",
-  "11": "11 \u00b7 Autres produits",
+  "1": "1  Entreprises pour la formation de leurs salariés",
+  "2a": "2a Contrats d'apprentissage",
+  "2b": "2b Contrats de professionnalisation",
+  "2c": "2c Promotion ou reconversion par alternance",
+  "2d": "2d Projets de transition professionnelle",
+  "2e": "2e Compte personnel de formation",
+  "2f": "2f Dispositifs personnes en recherche d'emploi",
+  "2g": "2g Dispositifs travailleurs non salariés",
+  "2h": "2h Plan de développement des compétences",
+  "3": "3  Pouvoirs publics pour leurs agents",
+  "4": "4  Instances européennes",
+  "5": "5  État",
+  "6": "6  Conseils régionaux",
+  "7": "7  France Travail",
+  "8": "8  Autres ressources publiques",
+  "9": "9  Personnes à titre individuel et à leurs frais",
+  "10": "10 Autres organismes de formation",
+  "11": "11 Autres produits",
+};
+
+const LIGNE_F1: any = {
+  salarie_prive: "a", apprenti: "b", recherche_emploi: "c",
+  particulier: "d", autre: "e",
 };
 
 const LIBELLE_F1: any = {
-  a: "a \u00b7 Salari\u00e9s d'employeurs priv\u00e9s hors apprentis",
-  b: "b \u00b7 Apprentis",
-  c: "c \u00b7 Personnes en recherche d'emploi",
-  d: "d \u00b7 Particuliers \u00e0 leurs propres frais",
-  e: "e \u00b7 Autres stagiaires",
+  a: "a Salariés d'employeurs privés hors apprentis",
+  b: "b Apprentis",
+  c: "c Personnes en recherche d'emploi",
+  d: "d Particuliers à leurs propres frais",
+  e: "e Autres stagiaires",
+};
+
+// 🚨 LE CADRE F-3 DU PDF NE CONNAISSAIT QUE TROIS LIGNES SUR SIX — 03/09.
+//
+// L imprime classait par une condition en cascade : « rncp » -> a,
+// « rs » -> b, TOUT LE RESTE -> d. Un bilan de competences (e) et un
+// accompagnement a la VAE (f) tombaient donc en « autres formations
+// professionnelles », alors que l ecran, lui, les rangeait correctement :
+// les deux documents ne racontaient pas la meme chose sur le meme cadre.
+//
+// La table est desormais la MEME QUE CELLE DE /api/organisme/bilan, et
+// c est la seule chose qui garantit que l ecran et l imprime concordent.
+// ⚠️ TOUTE LIGNE AJOUTEE ICI DOIT L ETRE DANS LES DEUX FICHIERS.
+const LIGNE_F3: any = {
+  rncp: "a",
+  rs: "b",
+  cqp_non_enregistre: "c",
+  autre_formation: "d",
+  bilan_competences: "e",
+  vae: "f",
 };
 
 const LIBELLE_F3: any = {
-  a: "a \u00b7 Formations visant un titre enregistr\u00e9 au RNCP",
-  b: "b \u00b7 Formations visant une certification au r\u00e9pertoire sp\u00e9cifique",
-  c: "c \u00b7 CQP non enregistr\u00e9",
-  d: "d \u00b7 Autres formations professionnelles",
-  e: "e \u00b7 Bilans de comp\u00e9tences",
-  f: "f \u00b7 Accompagnement \u00e0 la VAE",
+  a: "a Titre enregistré au RNCP",
+  b: "b Certification au répertoire spécifique",
+  c: "c CQP non enregistré",
+  d: "d Autres formations professionnelles",
+  e: "e Bilans de compétences",
+  f: "f Accompagnement à la VAE",
 };
 
-// LES SPECIALITES NSF DU CADRE F-4 — ajout du 01/09.
+// LES SPECIALITES NSF DU CADRE F-4.
 //
-// Ce cadre etait le seul appele sans table de libelles : il affichait le
-// code nu — « 413 » — au milieu de cadres qui donnent tous le code ET son
-// intitule. L organisme qui recopie son bilan ne connait pas les codes par
-// coeur : les nommer est precisement le service rendu. Meme table que
-// l ecran « Mes formations », a l identique.
+// Le PDF affichait le code nu, comme l ecran avant sa correction du 01/09 :
+// l organisme qui recopie son bilan ne connait pas les codes par coeur.
 const LIBELLE_F4: any = {
-  "326": "326 \u00b7 Informatique, num\u00e9rique, intelligence artificielle",
-  "320": "320 \u00b7 Communication, image, multim\u00e9dia",
-  "312": "312 \u00b7 Commerce, vente, marketing",
-  "310": "310 \u00b7 Gestion, management, entreprise",
-  "313": "313 \u00b7 Finance, banque, assurance",
-  "314": "314 \u00b7 Comptabilit\u00e9, gestion financi\u00e8re",
-  "315": "315 \u00b7 Ressources humaines",
-  "128": "128 \u00b7 Droit, sciences politiques",
-  "331": "331 \u00b7 Sant\u00e9, soins",
-  "332": "332 \u00b7 Travail social, accompagnement",
-  "333": "333 \u00b7 Enseignement, formation",
-  "334": "334 \u00b7 Accueil, h\u00f4tellerie, tourisme, restauration",
-  "336": "336 \u00b7 Coiffure, esth\u00e9tique, bien-\u00eatre corporel",
-  "136": "136 \u00b7 Langues vivantes",
-  "135": "135 \u00b7 Langues et civilisations anciennes",
-  "413": "413 \u00b7 D\u00e9veloppement personnel, relationnel, gestion du stress",
-  "414": "414 \u00b7 Organisation, gestion du temps, m\u00e9thodes de travail",
-  "411": "411 \u00b7 Pratiques sportives",
-  "343": "343 \u00b7 Nettoyage, s\u00e9curit\u00e9, services aux personnes",
-  "230": "230 \u00b7 B\u00e2timent, travaux publics",
-  "200": "200 \u00b7 Technologies industrielles",
+  "326": "326 Informatique, numérique, intelligence artificielle",
+  "320": "320 Communication, image, multimédia",
+  "312": "312 Commerce, vente, marketing",
+  "310": "310 Gestion, management, entreprise",
+  "313": "313 Finance, banque, assurance",
+  "314": "314 Comptabilité, gestion financière",
+  "315": "315 Ressources humaines",
+  "128": "128 Droit, sciences politiques",
+  "331": "331 Santé, soins",
+  "332": "332 Travail social, accompagnement",
+  "333": "333 Enseignement, formation",
+  "334": "334 Accueil, hôtellerie, tourisme, restauration",
+  "336": "336 Coiffure, esthétique, bien-être corporel",
+  "136": "136 Langues vivantes",
+  "135": "135 Langues et civilisations anciennes",
+  "413": "413 Développement personnel, relationnel, gestion du stress",
+  "414": "414 Organisation, gestion du temps, méthodes de travail",
+  "411": "411 Pratiques sportives",
+  "343": "343 Nettoyage, sécurité, services aux personnes",
+  "230": "230 Bâtiment, travaux publics",
+  "200": "200 Technologies industrielles",
 };
 
-const LIBELLE_MANQUE: any = {
-  sans_dispositif: "sans dispositif de financement",
-  sans_statut: "sans statut de stagiaire",
-  sans_prix: "sans prix de vente",
-  sans_formation: "sans formation rattach\u00e9e",
-  sans_duree: "sans dur\u00e9e connue",
-  sans_code_nsf: "sans code de sp\u00e9cialit\u00e9",
-};
+// 🚨 LA DUREE N EST PAS UN NOMBRE EN BASE — correction du 01/09.
+//
+// La colonne formations.duree est du texte, et elle est heterogene :
+// « 600h », « 120h », « 8h », « 200h minimum ». Number("600h") rend NaN,
+// donc l ancien code comptait ZERO HEURE pour toutes les formations : le
+// PDF affichait « 1 stagiaire(s) - 0 h » la ou l ecran montrait 600 h.
+// Une incoherence entre l ecran et le document telecharge, sur un etat
+// destine a preparer une declaration officielle.
+//
+// ⚠️ NE PAS « NETTOYER » LA COLONNE EN SQL pour contourner ce defaut :
+// d autres ecrans affichent la duree telle quelle, « 200h minimum » perdrait
+// son sens, et « 120 » sans unite serait pire. On lit les chiffres, on
+// laisse la donnee tranquille.
+//
+// 🆕 03/09 : LES DECIMALES ET LES VIRGULES SONT DESORMAIS LUES. Cette
+// version cherchait `\d+` et coupait au premier separateur : « 7,5h »
+// donnait 7 ici et 7,5 sur l ecran, dont la fonction, elle, les gerait.
+// Le code est maintenant IDENTIQUE a celui de /api/organisme/bilan.
+function heuresDe(valeur: any): number {
+  if (valeur === null || valeur === undefined) return 0;
+  const direct = Number(valeur);
+  if (!isNaN(direct) && direct > 0) return direct;
 
-export default function PageBilan() {
-  const [d, setD] = useState<any>(null);
-  const [annee, setAnnee] = useState(0);
-  const [chargement, setChargement] = useState(true);
-  const [erreur, setErreur] = useState("");
-  const [pdfEnCours, setPdfEnCours] = useState(false);
+  const m = String(valeur).replace(",", ".").match(/[\d.]+/);
+  if (!m) return 0;
+  const n = Number(m[0]);
+  return isNaN(n) || n <= 0 ? 0 : n;
+}
 
-  useEffect(function () {
-    charger(0);
-  }, []);
+// pdf-lib encode en WinAnsi : les lettres accentuees francaises passent
+// tres bien. Seuls quelques signes typographiques n y sont pas — on ne
+// retire QUE ceux-la, au lieu de depouiller tout le document de ses
+// accents comme le faisait la version precedente.
+function ascii(t: any): string {
+  return String(t === null || t === undefined ? "" : t)
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[\u201C\u201D]/g, '"')
+    .replace(/[\u2013\u2014]/g, "-")
+    .replace(/\u20ac/g, "EUR")
+    .replace(/\u00b7/g, "-")
+    .replace(/[\u2026]/g, "...")
+    .replace(/[^\x20-\xFF]/g, " ");
+}
 
-  function suffixe(a: number) {
-    let s = "";
-    try {
-      const t = new URLSearchParams(window.location.search).get("tenant");
-      if (t) s = "tenant=" + t;
-    } catch {}
-    if (a) s = s ? s + "&annee=" + a : "annee=" + a;
-    return s ? "?" + s : "";
-  }
+// Une heure decimale s ecrit avec une virgule en francais, et sans
+// decimale inutile : « 3 h », « 7,5 h ».
+function heuresTexte(n: number): string {
+  const v = Math.round((Number(n) || 0) * 10) / 10;
+  return v.toLocaleString("fr-FR");
+}
 
-  async function charger(a: number) {
-    setChargement(true);
-    setErreur("");
-    try {
-      const r = await fetch("/api/organisme/bilan" + suffixe(a));
-      const data = await r.json();
-      if (data.ok) {
-        setD(data);
-        setAnnee(data.annee);
-      } else {
-        setErreur(data.erreur || "Lecture impossible.");
-      }
-    } catch (e: any) {
-      setErreur("Lecture impossible : " + String(e));
+export async function GET(req: NextRequest) {
+  try {
+    const session = sessionCourante();
+    if (!session) {
+      return NextResponse.json({ ok: false, erreur: "Connectez-vous." }, { status: 401 });
     }
-    setChargement(false);
-  }
 
-  // LE PDF. Un organisme ne recopie pas des chiffres depuis un ecran : il
-  // imprime son etat, le pose a cote du clavier, et remplit le formulaire
-  // en ligne cadre par cadre.
-  async function telecharger() {
-    setPdfEnCours(true);
-    setErreur("");
-    try {
-      const r = await fetch("/api/organisme/bilan/pdf" + suffixe(annee));
+    const admin = ADMINS.indexOf(session.email) >= 0;
+    let tenant = session.tenantId;
+    if (!tenant && admin) tenant = new URL(req.url).searchParams.get("tenant");
 
-      if (!r.ok) {
-        let detail = "code " + r.status;
-        try {
-          const j = await r.json();
-          detail = j.erreur || detail;
-        } catch (e) {}
-        setErreur("G\u00e9n\u00e9ration impossible : " + detail);
-        setPdfEnCours(false);
-        return;
-      }
-
-      const blob = await r.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "bilan_pedagogique_" + annee + ".pdf";
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
-    } catch (e: any) {
-      setErreur("G\u00e9n\u00e9ration impossible : " + String(e));
+    if (!tenant) {
+      return NextResponse.json(
+        { ok: false, erreur: "Aucun organisme rattache a votre compte." },
+        { status: 403 }
+      );
     }
-    setPdfEnCours(false);
+
+    const brut = new URL(req.url).searchParams.get("annee");
+    const annee = brut && /^\d{4}$/.test(brut) ? parseInt(brut, 10) : new Date().getUTCFullYear();
+    const debut = new Date(Date.UTC(annee, 0, 1)).toISOString();
+    const fin = new Date(Date.UTC(annee + 1, 0, 1)).toISOString();
+
+    const { data: inscrits } = await supabase
+      .from("organisme_apprenants")
+      .select("email, formation_code, prix_vente, payeur, dispositif, statut_stagiaire")
+      .eq("tenant_id", tenant)
+      .gte("created_at", debut)
+      .lt("created_at", fin)
+      .limit(10000);
+
+    const { data: fiches } = await supabase
+      .from("formations")
+      .select("code, titre, duree, objectif, code_nsf, domaine")
+      .limit(1000);
+
+    const infoDe: any = {};
+    for (const f of fiches || []) infoDe[f.code] = f;
+
+    const { data: catalogue } = await supabase
+      .from("organisme_catalogue")
+      .select("formation_code, prix_vente_public")
+      .eq("tenant_id", tenant)
+      .limit(1000);
+
+    const prixDe: any = {};
+    for (const c of catalogue || []) prixDe[c.formation_code] = Number(c.prix_vente_public) || 0;
+
+    const { data: org } = await supabase
+      .from("organismes_formation")
+      .select("raison_sociale, numero_da, siret, adresse, telephone, email_contact")
+      .eq("tenant_id", tenant)
+      .maybeSingle();
+
+    // ══════════════════════════════════════════════════════════════════════
+    // 🚨 LES HEURES IMPRIMEES SONT CELLES REELLEMENT SUIVIES — 03/09.
+    //
+    // MEME DEFAUT QUE LA ROUTE DE L ECRAN, ET SUR LE MEME DOCUMENT. Ce
+    // fichier additionnait la DUREE THEORIQUE pour chaque inscrit : un
+    // stagiaire ayant valide 2 modules sur 80 d une formation de 120 heures
+    // faisait imprimer 120 heures. C est l imprime que l organisme pose a
+    // cote de son clavier pour remplir Mon Activite Formation : le chiffre
+    // faux serait recopie tel quel dans la declaration.
+    //
+    // LA REGLE, IDENTIQUE A CELLE DE /api/organisme/bilan :
+    //   heures = duree x modules valides / modules au plan
+    //
+    // ⚠️ LES DEUX FICHIERS DOIVENT RESTER D ACCORD. Un ecart entre l ecran
+    // et l imprime est pire qu un chiffre faux partout : l organisme ne sait
+    // plus lequel croire. Toute modification de ce calcul se fait ICI ET
+    // DANS L AUTRE ROUTE, dans le meme mouvement.
+    //
+    // ⚠️ UN PLAN VIDE NE PERMET AUCUNE MESURE : on garde la duree theorique
+    // et on l annonce dans le recapitulatif, plutot que d ecrire zero et de
+    // faire disparaitre une activite reelle.
+    // ══════════════════════════════════════════════════════════════════════
+    const codesInscrits: string[] = [];
+    for (const i of inscrits || []) {
+      const c = i.formation_code || "";
+      if (c && codesInscrits.indexOf(c) < 0) codesInscrits.push(c);
+    }
+
+    const modulesAuPlan: any = {};
+    if (codesInscrits.length > 0) {
+      const { data: plan } = await supabase
+        .from("lms_plans")
+        .select("formation_code")
+        .in("formation_code", codesInscrits)
+        .limit(20000);
+
+      for (const p of plan || []) {
+        modulesAuPlan[p.formation_code] = (modulesAuPlan[p.formation_code] || 0) + 1;
+      }
+    }
+
+    const { data: progression } = await supabase
+      .from("progression_apprenants")
+      .select("user_email, formation_code, module_cle")
+      .eq("tenant_id", tenant)
+      .eq("statut", "valide")
+      .limit(20000);
+
+    // Un module valide deux fois ne compte qu une fois : on retient les
+    // cles distinctes, pas le nombre de lignes.
+    const clesValidees: any = {};
+    for (const p of progression || []) {
+      const cle = String(p.user_email || "").toLowerCase().trim() + "|" + (p.formation_code || "");
+      if (!clesValidees[cle]) clesValidees[cle] = new Set<string>();
+      clesValidees[cle].add(String(p.module_cle || ""));
+    }
+
+    function heuresSuivies(email: any, code: string, duree: number) {
+      const auPlan = modulesAuPlan[code] || 0;
+      if (!duree) return { heures: 0, mesure: true };
+      if (auPlan <= 0) return { heures: duree, mesure: false };
+
+      const jeu = clesValidees[String(email || "").toLowerCase().trim() + "|" + code];
+      const valides = jeu ? jeu.size : 0;
+      const part = Math.min(valides, auPlan) / auPlan;
+      return { heures: Math.round(duree * part * 10) / 10, mesure: true };
+    }
+
+    const cadreC: any = {};
+    const cadreF1: any = {};
+    const cadreF3: any = {};
+    const cadreF4: any = {};
+    const stagiaires = new Set<string>();
+    let heures = 0;
+    let heuresTheoriques = 0;
+    let produits = 0;
+    let sansPlan = 0;
+
+    function ajouter(cible: any, cle: string, h: number, m: number) {
+      if (!cible[cle]) cible[cle] = { stagiaires: 0, heures: 0, montant: 0 };
+      cible[cle].stagiaires = cible[cle].stagiaires + 1;
+      cible[cle].heures = cible[cle].heures + h;
+      cible[cle].montant = cible[cle].montant + m;
+    }
+
+    for (const i of inscrits || []) {
+      stagiaires.add(i.email);
+      const code = i.formation_code || "";
+      const fiche = infoDe[code] || {};
+      const duree = heuresDe(fiche.duree);
+      let prix = Number(i.prix_vente);
+      if (!prix || isNaN(prix)) prix = prixDe[code] || 0;
+
+      const suivi = heuresSuivies(i.email, code, duree);
+      const h = suivi.heures;
+      if (!suivi.mesure) sansPlan = sansPlan + 1;
+
+      heures = heures + h;
+      heuresTheoriques = heuresTheoriques + duree;
+      produits = produits + prix;
+
+      const cC = (i.dispositif ? LIGNE_C[i.dispositif] : null) || LIGNE_C_PAR_PAYEUR[i.payeur || ""] || "11";
+      ajouter(cadreC, cC, h, prix);
+      ajouter(cadreF1, LIGNE_F1[i.statut_stagiaire || ""] || "e", h, prix);
+      ajouter(cadreF3, LIGNE_F3[fiche.objectif || ""] || "d", h, prix);
+      ajouter(cadreF4, fiche.code_nsf || fiche.domaine || "non renseigne", h, prix);
+    }
+
+    heures = Math.round(heures * 10) / 10;
+    heuresTheoriques = Math.round(heuresTheoriques * 10) / 10;
+
+    const pdf = await PDFDocument.create();
+    const normal = await pdf.embedFont(StandardFonts.Helvetica);
+    const gras = await pdf.embedFont(StandardFonts.HelveticaBold);
+    const vert = rgb(0.04, 0.24, 0.18);
+    const noir = rgb(0.1, 0.1, 0.1);
+    const gris = rgb(0.45, 0.45, 0.45);
+
+    let page = pdf.addPage([595, 842]);
+    let y = 800;
+
+    function saut(besoin: number) {
+      if (y - besoin < 60) {
+        page = pdf.addPage([595, 842]);
+        y = 800;
+      }
+    }
+
+    function ecrire(t: string, taille: number, police: any, couleur: any, decalage: number) {
+      saut(taille + 6);
+      page.drawText(ascii(t), { x: 50 + decalage, y: y, size: taille, font: police, color: couleur });
+      y = y - taille - 6;
+    }
+
+    function ligne(gaucheTexte: string, droiteTexte: string) {
+      saut(18);
+      page.drawText(ascii(gaucheTexte), { x: 55, y: y, size: 10, font: normal, color: noir });
+      const largeur = normal.widthOfTextAtSize(ascii(droiteTexte), 10);
+      page.drawText(ascii(droiteTexte), { x: 545 - largeur, y: y, size: 10, font: normal, color: vert });
+      y = y - 16;
+    }
+
+    function note(t: string) {
+      saut(16);
+      page.drawText(ascii(t), { x: 55, y: y, size: 8.5, font: normal, color: gris });
+      y = y - 14;
+    }
+
+    function titreCadre(t: string) {
+      y = y - 10;
+      saut(30);
+      page.drawRectangle({ x: 50, y: y - 4, width: 495, height: 20, color: rgb(0.93, 0.93, 0.9) });
+      page.drawText(ascii(t), { x: 55, y: y + 2, size: 11, font: gras, color: vert });
+      y = y - 28;
+    }
+
+    ecrire("BILAN PÉDAGOGIQUE ET FINANCIER", 17, gras, vert, 0);
+    ecrire("État préparatoire - Cerfa 10443*17 - année " + annee, 11, normal, gris, 0);
+    y = y - 8;
+
+    titreCadre("A. IDENTIFICATION DE L'ORGANISME");
+    ligne("Dénomination", (org && org.raison_sociale) || "-");
+    ligne("Numéro de déclaration d'activité", (org && org.numero_da) || "-");
+    ligne("SIRET", (org && org.siret) || "-");
+    ligne("Email de contact", (org && org.email_contact) || "-");
+
+    titreCadre("B. INFORMATIONS GÉNÉRALES");
+    ligne("Actions de formation à distance", "OUI");
+    ligne("Période", "01/01/" + annee + " au 31/12/" + annee);
+
+    titreCadre("C. ORIGINE DES PRODUITS (hors taxes)");
+    const clesC = Object.keys(cadreC).sort();
+    for (const k of clesC) {
+      ligne(LIBELLE_C[k] || k, cadreC[k].montant.toLocaleString("fr-FR") + " EUR");
+    }
+    let total2 = 0;
+    ["2a", "2b", "2c", "2d", "2e", "2f", "2g", "2h"].forEach(function (k) {
+      if (cadreC[k]) total2 = total2 + cadreC[k].montant;
+    });
+    if (total2 > 0) ligne("2  TOTAL organismes gestionnaires (2a à 2h)", total2.toLocaleString("fr-FR") + " EUR");
+    y = y - 4;
+    ligne("TOTAL DES PRODUITS", produits.toLocaleString("fr-FR") + " EUR");
+
+    titreCadre("F-1. TYPE DE STAGIAIRES");
+    for (const k of Object.keys(cadreF1).sort()) {
+      ligne(LIBELLE_F1[k] || k, cadreF1[k].stagiaires + " stagiaire(s) - " + heuresTexte(cadreF1[k].heures) + " h");
+    }
+
+    titreCadre("F-3. OBJECTIF GÉNÉRAL DES PRESTATIONS");
+    for (const k of Object.keys(cadreF3).sort()) {
+      ligne(LIBELLE_F3[k] || k, cadreF3[k].stagiaires + " stagiaire(s) - " + heuresTexte(cadreF3[k].heures) + " h");
+    }
+
+    titreCadre("F-4. SPÉCIALITÉS DE FORMATION");
+    for (const k of Object.keys(cadreF4).sort()) {
+      ligne(LIBELLE_F4[k] || k, cadreF4[k].stagiaires + " stagiaire(s) - " + heuresTexte(cadreF4[k].heures) + " h");
+    }
+
+    titreCadre("RÉCAPITULATIF");
+    ligne("Stagiaires distincts", String(stagiaires.size));
+    ligne("Inscriptions", String((inscrits || []).length));
+    ligne("Total des heures suivies", heuresTexte(heures) + " h");
+    note("Heures effectivement suivies : durée de la formation rapportée aux modules validés.");
+    if (heuresTheoriques > heures) {
+      ligne("Pour mémoire, heures prévues au programme", heuresTexte(heuresTheoriques) + " h");
+      note("L'écart correspond aux parcours en cours ou interrompus. Le formulaire attend les heures suivies.");
+    }
+    if (sansPlan > 0) {
+      note(
+        String(sansPlan) + " inscription(s) portent sur une formation sans plan de modules : "
+        + "leur durée prévue a été retenue faute de mesure possible."
+      );
+    }
+
+    const pages = pdf.getPages();
+    for (let i = 0; i < pages.length; i = i + 1) {
+      pages[i].drawText(
+        ascii(
+          "État préparatoire, non contractuel. La déclaration se fait sur monactiviteformation.emploi.gouv.fr. Page " +
+          (i + 1) + "/" + pages.length
+        ),
+        { x: 50, y: 32, size: 7.5, font: normal, color: gris }
+      );
+    }
+
+    const octets = await pdf.save();
+
+    return new NextResponse(Buffer.from(octets), {
+      status: 200,
+      headers: {
+        "Content-Type": "application/pdf",
+        "Content-Disposition": 'attachment; filename="bilan-pedagogique-' + annee + '.pdf"',
+      },
+    });
+  } catch (e: any) {
+    return NextResponse.json({ ok: false, erreur: String(e) }, { status: 500 });
   }
-
-  function euros(n: number) {
-    return (Number(n) || 0).toLocaleString("fr-FR") + " \u20ac";
-  }
-
-  const CADRE: any = {
-    minHeight: "100vh",
-    background: "#050508",
-    color: "#fff",
-    fontFamily: "Georgia, serif",
-    padding: "40px 20px",
-  };
-
-  const CARTE: any = {
-    background: "rgba(255,255,255,0.03)",
-    border: "1px solid rgba(200,169,110,0.25)",
-    borderRadius: "12px",
-    padding: "22px 26px",
-    marginBottom: "18px",
-  };
-
-  const BOUTON: any = {
-    background: "none",
-    border: "1px solid rgba(200,169,110,0.45)",
-    color: "#c8a96e",
-    padding: "9px 20px",
-    borderRadius: "20px",
-    cursor: "pointer",
-    fontSize: "14px",
-    fontFamily: "Georgia,serif",
-  };
-
-  const PLEIN: any = {
-    background: "#c8a96e",
-    color: "#050508",
-    border: "none",
-    padding: "13px 28px",
-    borderRadius: "8px",
-    cursor: "pointer",
-    fontSize: "15px",
-    fontWeight: "bold",
-    fontFamily: "Georgia,serif",
-  };
-
-  function bloc(titre: string, contenu: any, libelles: any, avecMontant: boolean) {
-    const cles = Object.keys(contenu || {}).sort();
-    if (cles.length === 0) return null;
-    return (
-      <div style={CARTE}>
-        <h2 style={{ color: "#c8a96e", fontSize: "17px", margin: "0 0 16px" }}>{titre}</h2>
-        {cles.map(function (k) {
-          const v = contenu[k];
-          return (
-            <div key={k} style={{ display: "flex", justifyContent: "space-between", gap: "12px", padding: "10px 0", borderBottom: "1px solid rgba(255,255,255,0.06)", flexWrap: "wrap" }}>
-              <span style={{ color: "rgba(255,255,255,0.75)", fontSize: "14px", flex: "1 1 260px" }}>
-                {libelles[k] || k}
-              </span>
-              <span style={{ color: "rgba(255,255,255,0.55)", fontSize: "14px" }}>
-                {v.stagiaires}{" stagiaire(s) \u00b7 "}{v.heures}{" h"}
-              </span>
-              {avecMontant && (
-                <span style={{ color: "#c8a96e", fontSize: "14px", fontWeight: "bold", minWidth: "110px", textAlign: "right" }}>
-                  {euros(v.montant)}
-                </span>
-              )}
-            </div>
-          );
-        })}
-      </div>
-    );
-  }
-
-  const manques = d && d.a_completer
-    ? Object.keys(d.a_completer).filter(function (k) { return d.a_completer[k] > 0; })
-    : [];
-
-  return (
-    <div style={CADRE}>
-      <div style={{ maxWidth: "1000px", margin: "0 auto" }}>
-        <a href="/organisme" style={{ color: "#c8a96e", fontSize: "14px", textDecoration: "none" }}>
-          {"\u2190 Retour au tableau de bord"}
-        </a>
-
-        <p style={{ color: "#c8a96e", fontSize: "12px", letterSpacing: "3px", margin: "22px 0 8px" }}>
-          CERFA 10443*17
-        </p>
-        <h1 style={{ color: "#fff", fontSize: "30px", margin: "0 0 6px" }}>
-          {"Bilan p\u00e9dagogique et financier"}
-        </h1>
-
-        <div style={{ marginTop: "18px" }}>
-          <Guide ecran="organisme.bilan" />
-        </div>
-
-        <div style={{ display: "flex", gap: "12px", alignItems: "center", margin: "18px 0 24px", flexWrap: "wrap" }}>
-          <button onClick={() => charger(annee - 1)} style={BOUTON}>{"\u2190 "}{annee - 1}</button>
-          <span style={{ color: "#c8a96e", fontSize: "19px", fontWeight: "bold" }}>{annee}</span>
-          <button onClick={() => charger(annee + 1)} style={BOUTON}>{annee + 1}{" \u2192"}</button>
-
-          <button onClick={telecharger} disabled={pdfEnCours || !d} style={{ ...PLEIN, opacity: pdfEnCours || !d ? 0.5 : 1 }}>
-            {pdfEnCours ? "G\u00e9n\u00e9ration\u2026" : "T\u00e9l\u00e9charger le bilan"}
-          </button>
-        </div>
-
-        {erreur && <p style={{ color: "#e8836a", fontSize: "15px" }}>{erreur}</p>}
-
-        {chargement ? (
-          <div style={CARTE}>
-            <p style={{ color: "rgba(255,255,255,0.6)", margin: 0 }}>{"Calcul en cours\u2026"}</p>
-          </div>
-        ) : !d ? null : (
-          <>
-            <div style={{ ...CARTE, background: "rgba(200,169,110,0.06)" }}>
-              <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "14px", margin: 0, lineHeight: "1.7" }}>
-                {d.avertissement}
-              </p>
-              <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "13px", margin: "10px 0 0" }}>
-                {"T\u00e9l\u00e9d\u00e9claration sur monactiviteformation.emploi.gouv.fr, avant le 30 avril."}
-              </p>
-            </div>
-
-            {manques.length > 0 && (
-              <div style={{ ...CARTE, border: "1px solid rgba(232,131,106,0.5)" }}>
-                <h2 style={{ color: "#e8836a", fontSize: "17px", margin: "0 0 12px" }}>
-                  {"\u00c0 compl\u00e9ter avant de d\u00e9clarer"}
-                </h2>
-                {manques.map(function (k) {
-                  return (
-                    <p key={k} style={{ color: "rgba(255,255,255,0.75)", fontSize: "14px", margin: "0 0 6px" }}>
-                      {d.a_completer[k]}{" inscription(s) "}{LIBELLE_MANQUE[k] || k}
-                    </p>
-                  );
-                })}
-                <a href="/organisme/stagiaires" style={{ color: "#c8a96e", fontSize: "14px" }}>
-                  {"Compl\u00e9ter le registre des stagiaires"}
-                </a>
-              </div>
-            )}
-
-            <div style={{ display: "flex", gap: "14px", flexWrap: "wrap", marginBottom: "18px" }}>
-              <div style={{ ...CARTE, flex: "1 1 160px", marginBottom: 0 }}>
-                <p style={{ color: "#c8a96e", fontSize: "24px", fontWeight: "bold", margin: "0 0 4px" }}>
-                  {d.stagiaires_distincts}
-                </p>
-                <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", margin: 0 }}>Stagiaires distincts</p>
-              </div>
-              <div style={{ ...CARTE, flex: "1 1 160px", marginBottom: 0 }}>
-                <p style={{ color: "#c8a96e", fontSize: "24px", fontWeight: "bold", margin: "0 0 4px" }}>
-                  {d.heures_total}
-                </p>
-                <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", margin: 0 }}>Heures suivies</p>
-              </div>
-              <div style={{ ...CARTE, flex: "1 1 160px", marginBottom: 0 }}>
-                <p style={{ color: "#c8a96e", fontSize: "24px", fontWeight: "bold", margin: "0 0 4px" }}>
-                  {euros(d.produits_total)}
-                </p>
-                <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", margin: 0 }}>
-                  Total des produits (cadre C)
-                </p>
-              </div>
-            </div>
-
-            {bloc("Cadre C \u00b7 Origine des produits hors taxes", d.cadre_c, LIBELLE_C, true)}
-
-            {d.cadre_c_total_2 && d.cadre_c_total_2.montant > 0 && (
-              <div style={{ ...CARTE, marginTop: "-6px" }}>
-                <p style={{ color: "rgba(255,255,255,0.75)", fontSize: "14px", margin: 0 }}>
-                  {"Ligne 2 \u00b7 Total des produits provenant des organismes gestionnaires (lignes 2a \u00e0 2h) : "}
-                  <strong style={{ color: "#c8a96e" }}>{euros(d.cadre_c_total_2.montant)}</strong>
-                </p>
-              </div>
-            )}
-
-            {bloc("Cadre F-1 \u00b7 Type de stagiaires", d.cadre_f1, LIBELLE_F1, false)}
-            {bloc("Cadre F-3 \u00b7 Objectif g\u00e9n\u00e9ral des prestations", d.cadre_f3, LIBELLE_F3, false)}
-            {bloc("Cadre F-4 \u00b7 Sp\u00e9cialit\u00e9s de formation", d.cadre_f4, LIBELLE_F4, false)}
-
-            <div style={CARTE}>
-              <h2 style={{ color: "#c8a96e", fontSize: "17px", margin: "0 0 12px" }}>
-                {"Cadre B \u00b7 Formation \u00e0 distance"}
-              </h2>
-              <p style={{ color: "rgba(255,255,255,0.75)", fontSize: "14px", margin: 0 }}>
-                {"R\u00e9pondre OUI : les formations sont dispens\u00e9es en ligne, en tout ou partie."}
-              </p>
-            </div>
-          </>
-        )}
-      </div>
-    </div>
-  );
 }
