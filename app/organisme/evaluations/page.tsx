@@ -60,6 +60,25 @@ export default function PageEvaluations() {
   const s = d ? (moment === "chaud" ? d.chaud : d.froid) : null;
   const liste = d ? (d.evaluations || []).filter(function (e: any) { return e.moment === moment; }) : [];
 
+  // 🚨 LE TAUX DE RETOUR SE CALCULE PAR MOMENT, PAS UNE FOIS POUR TOUTES.
+  //
+  // LE DEFAUT, CORRIGE LE 03/09 : la page affichait `d.taux_retour`, un
+  // chiffre unique renvoye par la route. En passant de « À chaud » a
+  // « À froid », le pourcentage ne bougeait pas alors que le libelle en
+  // dessous, lui, changeait. On lisait donc « 100 % · 0 sur 1 » : cent pour
+  // cent de retour, et zero reponse, sur le meme carreau.
+  //
+  // Le taux est desormais celui du moment affiche : les reponses de ce
+  // moment rapportees aux inscrits. Sans inscrit, il vaut null et la carte
+  // ecrit un tiret — JAMAIS ZERO POUR CENT NI CENT POUR CENT PAR DEFAUT.
+  //
+  // ⚠️ `d.taux_retour` N'EST PLUS LU. Si la route venait a le corriger de
+  // son cote, ne pas rebrancher l'affichage dessus sans verifier qu'il est
+  // bien ventile par moment.
+  const inscrits = d && typeof d.inscrits === "number" ? d.inscrits : 0;
+  const reponses = s && typeof s.nombre === "number" ? s.nombre : 0;
+  const tauxRetour = inscrits > 0 ? Math.round((reponses / inscrits) * 100) : null;
+
   return (
     <div style={CADRE}>
       <div style={{ maxWidth: "1000px", margin: "0 auto" }}>
@@ -68,15 +87,15 @@ export default function PageEvaluations() {
         </a>
 
         <p style={{ color: "#c8a96e", fontSize: "12px", letterSpacing: "3px", margin: "22px 0 8px" }}>
-          APPRECIATIONS DES STAGIAIRES
+          APPRÉCIATIONS DES STAGIAIRES
         </p>
-        <h1 style={{ color: "#fff", fontSize: "30px", margin: "0 0 6px" }}>Evaluations</h1>
+        <h1 style={{ color: "#fff", fontSize: "30px", margin: "0 0 6px" }}>Évaluations</h1>
         <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "14px", marginTop: 0 }}>
-          Indicateurs 30 et 32 du referentiel national qualite
+          Indicateurs 30 et 32 du référentiel national qualité
         </p>
 
         <div style={{ display: "flex", gap: "10px", margin: "24px 0 20px" }}>
-          {[["chaud", "A chaud"], ["froid", "A froid"]].map(function (m) {
+          {[["chaud", "À chaud"], ["froid", "À froid"]].map(function (m) {
             const actif = moment === m[0];
             return (
               <button
@@ -107,10 +126,10 @@ export default function PageEvaluations() {
               </div>
               <div style={{ ...CARTE, flex: "1 1 150px", marginBottom: 0 }}>
                 <p style={{ color: "#c8a96e", fontSize: "28px", fontWeight: "bold", margin: "0 0 4px" }}>
-                  {d.taux_retour !== null ? d.taux_retour + " %" : "—"}
+                  {tauxRetour !== null ? tauxRetour + " %" : "—"}
                 </p>
                 <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", margin: 0 }}>
-                  Taux de retour · {s.nombre} sur {d.inscrits}
+                  Taux de retour · {reponses} sur {inscrits}
                 </p>
               </div>
               <div style={{ ...CARTE, flex: "1 1 150px", marginBottom: 0 }}>
@@ -122,7 +141,7 @@ export default function PageEvaluations() {
             </div>
 
             <div style={CARTE}>
-              <h2 style={{ color: "#c8a96e", fontSize: "17px", margin: "0 0 14px" }}>Par critere</h2>
+              <h2 style={{ color: "#c8a96e", fontSize: "17px", margin: "0 0 14px" }}>Par critère</h2>
               {[
                 ["Contenu", s.contenu],
                 ["Accompagnement et corrections", s.accompagnement],
@@ -139,12 +158,23 @@ export default function PageEvaluations() {
               })}
             </div>
 
-            {d.taux_retour !== null && d.taux_retour < 50 && s.nombre > 0 && (
+            {tauxRetour !== null && tauxRetour < 50 && reponses > 0 && (
               <div style={{ ...CARTE, border: "1px solid rgba(232,131,106,0.5)" }}>
                 <p style={{ color: "#e8836a", fontSize: "15px", margin: 0, lineHeight: "1.7" }}>
-                  Votre taux de retour est de {d.taux_retour} %. Un auditeur ne se contente pas
-                  d une moyenne flatteuse : il regarde combien de stagiaires ont repondu. Relancez
-                  ceux qui n ont pas encore donne leur avis.
+                  Votre taux de retour {moment === "chaud" ? "à chaud" : "à froid"} est de{" "}
+                  {tauxRetour} %. Un auditeur ne se contente pas d&apos;une moyenne flatteuse : il
+                  regarde combien de stagiaires ont répondu. Relancez ceux qui n&apos;ont pas
+                  encore donné leur avis.
+                </p>
+              </div>
+            )}
+
+            {tauxRetour !== null && reponses === 0 && inscrits > 0 && (
+              <div style={{ ...CARTE, border: "1px solid rgba(232,163,61,0.5)" }}>
+                <p style={{ color: "#e8a33d", fontSize: "15px", margin: 0, lineHeight: "1.7" }}>
+                  Aucun de vos {inscrits} stagiaire(s) n&apos;a répondu au questionnaire{" "}
+                  {moment === "chaud" ? "à chaud" : "à froid"}. Les indicateurs 30 et 32 se
+                  démontrent par les réponses reçues, pas par l&apos;envoi du questionnaire.
                 </p>
               </div>
             )}
@@ -156,7 +186,7 @@ export default function PageEvaluations() {
             {liste.length === 0 ? (
               <div style={CARTE}>
                 <p style={{ color: "rgba(255,255,255,0.6)", margin: 0, fontSize: "15px" }}>
-                  Aucune evaluation {moment === "chaud" ? "a chaud" : "a froid"} pour le moment.
+                  Aucune évaluation {moment === "chaud" ? "à chaud" : "à froid"} pour le moment.
                 </p>
               </div>
             ) : (
@@ -175,7 +205,7 @@ export default function PageEvaluations() {
 
                     {[
                       ["Ce qui a servi", e.points_forts],
-                      ["A ameliorer", e.points_ameliorer],
+                      ["À améliorer", e.points_ameliorer],
                       ["Objectifs atteints", e.objectifs_atteints],
                       ["Mis en pratique", e.mise_en_pratique],
                       ["Autre", e.commentaire_libre],
