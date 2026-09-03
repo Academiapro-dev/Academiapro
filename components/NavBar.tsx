@@ -108,6 +108,17 @@ const LOGO_COMPTABLE = "/IMG_4100.jpeg";
 // Le format carre (IMG_4722.jpeg) servira au favicon et a l Open Graph.
 const LOGO_MYSTERLLC = "/IMG_4723.jpeg";
 
+// 🆕 MR LMS — 03/09. Meme montage que les deux autres marques : la banniere
+// porte le nom ET la base line « Vos stagiaires, de l inscription au bilan »,
+// donc rien n est ecrit a cote. Le format carre (mrlms-logo.png) servira au
+// favicon et a l Open Graph.
+//
+// ⚠️ LE NOM S ECRIT « Mr LMS », SANS POINT. Decision de Jacques du 03/09.
+// L image, elle, porte « Mr.LMS » : c est un dessin, pas une chaine de
+// caracteres. Partout ailleurs — titre du site, sitemap, devis — c est
+// « Mr LMS » qui doit etre ecrit.
+const LOGO_MRLMS = "/mrlms-banniere.jpeg";
+
 function estComptable(chemin) {
   for (const p of CHEMINS_COMPTABLE) {
     if (chemin === p || chemin.indexOf(p + "/") === 0) return true;
@@ -175,6 +186,7 @@ export default function NavBar() {
 
   const surMrComptable = hote.indexOf("mrcomptable.fr") >= 0;
   const surMysterLLC = hote.indexOf("mysterllc.com") >= 0;
+  const surMrLMS = hote.indexOf("mrlms.fr") >= 0;
 
   if (chemin.indexOf("/of/") === 0) return null;
   if (chemin === "/comptable" || chemin.indexOf("/comptable/") === 0) return null;
@@ -186,6 +198,13 @@ export default function NavBar() {
   // domaine (mysterllc.com/, reecrite par le middleware).
   if (chemin === "/mysterllc" || chemin.indexOf("/mysterllc/") === 0) return null;
   if (surMysterLLC && chemin === "/") return null;
+
+  // 🆕 MEME REGLE POUR LA VITRINE MR LMS — 03/09. Elle portera son propre
+  // en-tete quand elle existera. Tant que app/mrlms/page.tsx n est pas
+  // commitee, ces deux lignes ne s appliquent a rien : elles ne cassent
+  // rien et seront justes le jour ou la page arrive.
+  if (chemin === "/mrlms" || chemin.indexOf("/mrlms/") === 0) return null;
+  if (surMrLMS && chemin === "/") return null;
 
   // 🚨 L ECRAN DE SIGNATURE N A PAS DE BARRE — 01/09.
   //
@@ -223,6 +242,64 @@ export default function NavBar() {
     fontSize: "14px",
     whiteSpace: "nowrap",
   };
+
+  // ---- Espace de travail Mr LMS ------------------------------------------
+  //
+  // 🆕 MR LMS — 03/09. La plateforme de formation devient un produit vendu
+  // separement : son propre domaine, sa propre marque, sa propre barre.
+  //
+  // 🚨 LA REGLE EST LE DOMAINE, ET RIEN QUE LE DOMAINE. Contrairement a
+  // MysterLLC, AUCUN CHEMIN ne declenche cette barre. Les ecrans /organisme
+  // sont ceux de la marque blanche AcadéMIA Pro depuis academiapro.fr : y
+  // poser la barre Mr LMS ferait apparaitre une marque tierce dans l espace
+  // d un organisme, ce que la marque blanche interdit precisement.
+  // Sur mrlms.fr, en revanche, TOUTE page porte cette barre.
+  //
+  // ⚠️ CETTE BARRE EST PLACEE AVANT CELLE DE MYSTERLLC. L ordre compte :
+  // les deux produits partagent des ecrans, et le premier test qui repond
+  // l emporte.
+  if (surMrLMS) {
+    return (
+      <header style={{ ...barre, padding: "0 30px", background: "#000" }}>
+        <a
+          href="/organisme"
+          style={{ display: "block", textDecoration: "none", flexShrink: 0, overflow: "hidden", lineHeight: 0 }}
+        >
+          <img
+            src={LOGO_MRLMS}
+            alt="Mr LMS"
+            style={{
+              width: "400px",
+              maxWidth: "40vw",
+              height: "auto",
+              display: "block",
+              margin: "-4px",
+              clipPath: "inset(4px)",
+            }}
+          />
+        </a>
+        <nav style={{ display: "flex", gap: "18px", flexWrap: "wrap", justifyContent: "center" }}>
+          <a href="/organisme" style={lienMenu}>Tableau de bord</a>
+          <a href="/organisme/stagiaires" style={lienMenu}>Mes stagiaires</a>
+          <a href="/organisme/cours" style={lienMenu}>Mes formations</a>
+          <a href="/organisme/catalogue" style={lienMenu}>Catalogue</a>
+          <a href="/organisme/evaluations" style={lienMenu}>{"\u00c9valuations"}</a>
+          <a href="/organisme/bilan" style={lienMenu}>Bilan</a>
+          <a href="/organisme/signatures" style={lienMenu}>Signatures</a>
+        </nav>
+        <div style={{ display: "flex", gap: "10px", alignItems: "center", flexShrink: 0 }}>
+          <a href="/organisme/facturation" style={{ color: "#c8a96e", border: "1px solid rgba(200,169,110,0.45)", padding: "8px 16px", borderRadius: "8px", textDecoration: "none", fontWeight: "bold", fontSize: "14px", whiteSpace: "nowrap" }}>
+            Ma facturation
+          </a>
+          {connecte && (
+            <a href="/api/auth/deconnexion" style={{ color: "rgba(255,255,255,0.55)", border: "1px solid rgba(255,255,255,0.2)", padding: "8px 16px", borderRadius: "8px", textDecoration: "none", fontSize: "14px", whiteSpace: "nowrap" }}>
+              {"Se d\u00e9connecter"}
+            </a>
+          )}
+        </div>
+      </header>
+    );
+  }
 
   // ---- Espace de travail MysterLLC ---------------------------------------
   //
