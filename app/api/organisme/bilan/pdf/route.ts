@@ -199,13 +199,37 @@ export async function GET(req: NextRequest) {
     const debut = new Date(Date.UTC(annee, 0, 1)).toISOString();
     const fin = new Date(Date.UTC(annee + 1, 0, 1)).toISOString();
 
-    const { data: inscrits } = await supabase
+    // ══════════════════════════════════════════════════════════════════════
+    // 🚨 UNE ANNEE DE BILAN, C EST UNE ANNEE D ACTIVITE — 03/09.
+    //
+    // MEME CORRECTION QUE DANS /api/organisme/bilan, ET POUR LA MEME
+    // RAISON. Cette requete ne retenait que les inscriptions CREEES dans
+    // l annee : un stagiaire inscrit le 15 decembre 2025 et forme pendant
+    // 2026 ne figurait sur aucun imprime.
+    //
+    //   — LES PRODUITS suivent la DATE D INSCRIPTION : une vente se declare
+    //     l annee ou elle est faite.
+    //   — LES HEURES suivent les MODULES VALIDES DANS L ANNEE.
+    //   — UNE INSCRIPTION FIGURE AU BILAN si elle remplit l une OU l autre.
+    //
+    // ⚠️ L ECRAN ET L IMPRIME DOIVENT RESTER D ACCORD : toute modification
+    // de cette repartition se fait DANS LES DEUX FICHIERS.
+    // ══════════════════════════════════════════════════════════════════════
+    const { data: registre } = await supabase
       .from("organisme_apprenants")
-      .select("email, formation_code, prix_vente, payeur, dispositif, statut_stagiaire")
+      .select("email, formation_code, prix_vente, payeur, dispositif, statut_stagiaire, created_at")
       .eq("tenant_id", tenant)
-      .gte("created_at", debut)
-      .lt("created_at", fin)
-      .limit(10000);
+      .limit(20000);
+
+    const debutMs = new Date(debut).getTime();
+    const finMs = new Date(fin).getTime();
+
+    function dansAnnee(quand: any): boolean {
+      if (!quand) return false;
+      const t = new Date(quand).getTime();
+      if (isNaN(t)) return false;
+      return t >= debutMs && t < finMs;
+    }
 
     const { data: fiches } = await supabase
       .from("formations")
@@ -253,7 +277,7 @@ export async function GET(req: NextRequest) {
     // faire disparaitre une activite reelle.
     // ══════════════════════════════════════════════════════════════════════
     const codesInscrits: string[] = [];
-    for (const i of inscrits || []) {
+    for (const i of registre || []) {
       const c = i.formation_code || "";
       if (c && codesInscrits.indexOf(c) < 0) codesInscrits.push(c);
     }
@@ -271,20 +295,22 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // ⚠️ LA COLONNE S APPELLE `date_validation`, PAS `updated_at` : cette
+    // table ne porte pas la seconde, contrairement a `qcm_reponses`.
     const { data: progression } = await supabase
       .from("progression_apprenants")
-      .select("user_email, formation_code, module_cle")
+      .select("user_email, formation_code, module_cle, date_validation")
       .eq("tenant_id", tenant)
       .eq("statut", "valide")
-      .limit(20000);
+      .limit(50000);
 
-    // Un module valide deux fois ne compte qu une fois : on retient les
-    // cles distinctes, pas le nombre de lignes.
-    const clesValidees: any = {};
+    const validesAnnee: any = {};
+
     for (const p of progression || []) {
+      if (!dansAnnee(p.date_validation)) continue;
       const cle = String(p.user_email || "").toLowerCase().trim() + "|" + (p.formation_code || "");
-      if (!clesValidees[cle]) clesValidees[cle] = new Set<string>();
-      clesValidees[cle].add(String(p.module_cle || ""));
+      if (!validesAnnee[cle]) validesAnnee[cle] = new Set<string>();
+      validesAnnee[cle].add(String(p.module_cle || ""));
     }
 
     function heuresSuivies(email: any, code: string, duree: number) {
@@ -292,10 +318,15 @@ export async function GET(req: NextRequest) {
       if (!duree) return { heures: 0, mesure: true };
       if (auPlan <= 0) return { heures: duree, mesure: false };
 
-      const jeu = clesValidees[String(email || "").toLowerCase().trim() + "|" + code];
+      const jeu = validesAnnee[String(email || "").toLowerCase().trim() + "|" + code];
       const valides = jeu ? jeu.size : 0;
       const part = Math.min(valides, auPlan) / auPlan;
       return { heures: Math.round(duree * part * 10) / 10, mesure: true };
+    }
+
+    function aValideDansAnnee(email: any, code: string): boolean {
+      const jeu = validesAnnee[String(email || "").toLowerCase().trim() + "|" + code];
+      return !!jeu && jeu.size > 0;
     }
 
     const cadreC: any = {};
@@ -315,20 +346,39 @@ export async function GET(req: NextRequest) {
       cible[cle].montant = cible[cle].montant + m;
     }
 
-    for (const i of inscrits || []) {
-      stagiaires.add(i.email);
+    let inscriptionsRetenues = 0;
+    let reportees = 0;
+
+    for (const i of registre || []) {
       const code = i.formation_code || "";
+      const nouvelle = dansAnnee(i.created_at);
+      const active = code ? aValideDansAnnee(i.email, code) : false;
+
+      if (!nouvelle && !active) continue;
+
+      inscriptionsRetenues = inscriptionsRetenues + 1;
+      if (!nouvelle && active) reportees = reportees + 1;
+
+      stagiaires.add(i.email);
       const fiche = infoDe[code] || {};
       const duree = heuresDe(fiche.duree);
-      let prix = Number(i.prix_vente);
-      if (!prix || isNaN(prix)) prix = prixDe[code] || 0;
+
+      // Le produit ne se declare qu une fois, l annee de la vente.
+      let prix = 0;
+      if (nouvelle) {
+        prix = Number(i.prix_vente);
+        if (!prix || isNaN(prix)) prix = prixDe[code] || 0;
+      }
 
       const suivi = heuresSuivies(i.email, code, duree);
-      const h = suivi.heures;
-      if (!suivi.mesure) sansPlan = sansPlan + 1;
+      let h = suivi.heures;
+      if (!suivi.mesure) {
+        if (nouvelle) sansPlan = sansPlan + 1;
+        else h = 0;
+      }
 
       heures = heures + h;
-      heuresTheoriques = heuresTheoriques + duree;
+      if (nouvelle) heuresTheoriques = heuresTheoriques + duree;
       produits = produits + prix;
 
       const cC = (i.dispositif ? LIGNE_C[i.dispositif] : null) || LIGNE_C_PAR_PAYEUR[i.payeur || ""] || "11";
@@ -430,7 +480,11 @@ export async function GET(req: NextRequest) {
 
     titreCadre("RÉCAPITULATIF");
     ligne("Stagiaires distincts", String(stagiaires.size));
-    ligne("Inscriptions", String((inscrits || []).length));
+    ligne("Inscriptions retenues", String(inscriptionsRetenues));
+    if (reportees > 0) {
+      ligne("dont parcours ouverts une année antérieure", String(reportees));
+      note("Leurs heures figurent ici ; leur produit a été déclaré l'année de l'inscription.");
+    }
     ligne("Total des heures suivies", heuresTexte(heures) + " h");
     note("Heures effectivement suivies : durée de la formation rapportée aux modules validés.");
     if (heuresTheoriques > heures) {
