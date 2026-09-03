@@ -27,7 +27,7 @@ const supabase = createClient(
 // qui permet d afficher des prix sans les rendre publics : la doctrine
 // interdit un tarif en vitrine, pas un tarif donne apres l echange.
 //
-// 🚨 LES MONTANTS NE SONT JAMAIS ECRITS ICI. Ils se lisent dans `lms_tarifs`,
+// 🚨 LES MONTANTS NE SONT JAMAIS ECRITS ICI. Ils se lisent dans `tarifs`,
 // qui est LA SOURCE depuis le 03/09. Une grille recopiee dans du code se
 // desynchronise le jour ou un prix change — c est exactement ce qui est
 // arrive a la page de facturation, restee sur 35 % et un plancher de 30 €
@@ -103,10 +103,9 @@ function rangerTarifs(lignes: any[], offre: string) {
   // catalogue. Un lot qui s epuiserait sans revenir transformerait le
   // cadeau en piege l annee ou l organisme commence a s en servir.
   //
-  // ⚠️ CETTE GRILLE DEVRA VIVRE DANS UNE TABLE COMMUNE AUX PRODUITS. Elle
-  // est dans `lms_tarifs` pour que Mr LMS soit vendable des maintenant ;
-  // Mr CRM vendra le meme module. A faire avant le second produit qui
-  // l affiche, sinon deux grilles divergeront.
+  // ✅ CETTE GRILLE VIT DESORMAIS DANS LA TABLE COMMUNE `tarifs`, colonne
+  // `produit` : elle n existe qu une fois et sert Mr LMS comme Mr CRM. Un
+  // prix change a un seul endroit.
   // ══════════════════════════════════════════════════════════════════════
   const signature = poste("signature");
   const signatureOfferte = poste("signature_offerte");
@@ -176,10 +175,31 @@ async function lireProspect(jeton: string) {
   return data;
 }
 
+// ══════════════════════════════════════════════════════════════════════════
+// LA TABLE `tarifs` EST COMMUNE A TOUS LES PRODUITS — 03/09.
+//
+// POURQUOI ELLE REMPLACE `lms_tarifs`. La signature electronique se vend a
+// l identique dans Mr LMS et dans Mr CRM. Dupliquee dans deux tables, elle
+// aurait diverge au premier ajustement de prix — et personne ne l aurait vu
+// avant qu un client compare deux devis.
+//
+// La colonne `produit` isole les lignes de chaque marque : 'lms', 'crm'.
+// ⚠️ TOUTE REQUETE SUR CETTE TABLE DOIT FILTRER SUR `produit`. Sans ce
+// filtre, un devis LMS lirait les abonnements du CRM et inversement — une
+// requete PostgREST sans filtre rend tout, et personne ne le voit.
+//
+// ⚠️ `lms_tarifs` EXISTE ENCORE mais N EST PLUS LUE. Elle a servi de source
+// a la reprise ; elle sera supprimee quand la bascule aura tourne quelques
+// jours. Ne pas y ecrire : une modification faite la ne se verrait nulle
+// part.
+// ══════════════════════════════════════════════════════════════════════════
+const PRODUIT = "lms";
+
 async function lireTarifs() {
   const { data } = await supabase
-    .from("lms_tarifs")
+    .from("tarifs")
     .select("offre, poste, libelle, montant, pourcentage, unite, seuil_min, seuil_max, perimetre, optionnel, commentaire")
+    .eq("produit", PRODUIT)
     .limit(200);
   return data || [];
 }
