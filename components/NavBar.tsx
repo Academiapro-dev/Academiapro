@@ -193,21 +193,15 @@ const LOGO_MRLMS = "/mrlms-banniere.jpeg.png";
 // ⚠️ LE NOM S ECRIT « Mr CRM », SANS POINT. L image porte « Mr.CRM » : c est
 // un dessin. Partout ailleurs — titre, sitemap, devis, factures — Mr CRM.
 //
-// 🚨 L ESPACE DANS LE NOM DE FICHIER EST REEL — 03/09.
+// La banniere Mr CRM, deposee dans public/ le 03/09 puis RECADREE le meme
+// soir : le logo etait centre dans l image, il occupe desormais le premier
+// tiers, comme sur Mr LMS et MysterLLC. Une banniere dont le sujet est
+// centre laisse un grand vide a droite dans une barre alignee a gauche.
 //
-// Les fichiers deposes s appellent « mrcrm-banniere .png » et
-// « mrcrm-logo .png », AVEC UNE ESPACE AVANT LE POINT. Elle vient du
-// renommage sur iPad : effacer une extension y laisse souvent une espace.
-//
-// Dans une adresse web, cette espace s ecrit %20. LE CODE DOIT DONC PORTER
-// %20, pas l espace. Ecrire « /mrcrm-banniere.png » cherche un fichier qui
-// n existe pas, et l image ne s affiche pas — un carre vide a la place de
-// la marque, sans autre message.
-//
-// ⚠️ NE PAS « CORRIGER » CE %20 SANS RENOMMER LE FICHIER D ABORD.
-// C est la meme lecon que la double extension de Mr LMS : le code pointe
-// sur le nom REEL, jamais sur celui qu on aurait voulu.
-const LOGO_MRCRM = "/mrcrm-banniere%20.png";
+// ⚠️ LE FICHIER S APPELLE « mrcrm-banniere.png », SANS ESPACE ni double
+// extension — contrairement a la premiere version deposee et a celles de
+// Mr LMS. Verifier le nom reel avant de le changer.
+const LOGO_MRCRM = "/mrcrm-banniere.png";
 
 function estComptable(chemin) {
   for (const p of CHEMINS_COMPTABLE) {
