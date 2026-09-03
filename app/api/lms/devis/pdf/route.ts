@@ -39,6 +39,11 @@ const supabase = createClient(
 // lignes de Mr LMS.
 const PRODUIT = "lms";
 
+// ⚠️ LA DOUBLE EXTENSION EST REELLE : l image est un PNG renomme « .jpeg »
+// a tort, et iOS a retabli l extension. Ne pas la « corriger » ici sans
+// renommer le fichier d abord.
+const BANNIERE = "/mrlms-banniere.jpeg.png";
+
 const EMETTEUR = {
   nom: "ACADÉMIA PRO LLC",
   adresse: "30 N Gould St STE R, Sheridan, WY 82801, États-Unis",
@@ -156,6 +161,40 @@ function coutStagiaires(nb: number, paliers: any[]) {
   return { total: total, detail: detail };
 }
 
+// ══════════════════════════════════════════════════════════════════════════
+// LA BANNIERE EN EN-TETE DU PDF — 03/09.
+//
+// 🚨 REGLE GENERALE : TOUT PDF COMMERCIAL PORTE LA BANNIERE DE SA MARQUE.
+// Devis, propositions, documents envoyes a un prospect. Un devis sans marque
+// ressemble a un brouillon — et c est le premier document que le client
+// gardera.
+//
+// COMMENT L IMAGE ARRIVE ICI. Elle est chargee par son URL publique, et non
+// lue sur le disque : sur Vercel, les fichiers de public/ sont servis par le
+// CDN mais ne sont pas garantis dans le paquet de la fonction. L hote se lit
+// dans l en-tete de la requete, donc le meme code sert tous les domaines.
+//
+// ⚠️ L ECHEC DE CHARGEMENT NE DOIT JAMAIS EMPECHER LE DEVIS. Si l image ne
+// repond pas, le PDF se genere sans elle plutot que de rendre une erreur a
+// un prospect qui attend son document.
+// ══════════════════════════════════════════════════════════════════════════
+async function chargerBanniere(req: NextRequest, pdf: any) {
+  try {
+    const hote = req.headers.get("host") || "";
+    if (!hote) return null;
+    const protocole = hote.indexOf("localhost") >= 0 ? "http" : "https";
+    const url = protocole + "://" + hote + BANNIERE;
+
+    const r = await fetch(url, { cache: "no-store" });
+    if (!r.ok) return null;
+
+    const octets = new Uint8Array(await r.arrayBuffer());
+    return await pdf.embedPng(octets);
+  } catch (e) {
+    return null;
+  }
+}
+
 export async function GET(req: NextRequest) {
   try {
     const jeton = String(new URL(req.url).searchParams.get("jeton") || "").trim();
@@ -223,6 +262,17 @@ export async function GET(req: NextRequest) {
 
     let page = pdf.addPage([595, 842]);
     let y = 800;
+
+    // LA BANNIERE, EN PLEINE LARGEUR SOUS LA MARGE. Ratio conserve : une
+    // image etiree se remarque plus qu une image absente.
+    const banniere = await chargerBanniere(req, pdf);
+    if (banniere) {
+      const largeur = 495;
+      const hauteur = Math.round((banniere.height / banniere.width) * largeur);
+      y = y - hauteur;
+      page.drawImage(banniere, { x: 50, y: y, width: largeur, height: hauteur });
+      y = y - 22;
+    }
 
     function saut(besoin: number) {
       if (y - besoin < 70) {
