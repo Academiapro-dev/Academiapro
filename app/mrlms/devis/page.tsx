@@ -82,6 +82,14 @@ function euros(n: any) {
   return (Number(n) || 0).toLocaleString("fr-FR") + " €";
 }
 
+// 🚨 « 1er », PAS « 1e ». Les bornes des paliers se construisent a partir
+// d un nombre ; en francais, le premier est le seul a ne pas prendre « e ».
+// Le devis affichait « du 1e au 10e » — une faute sur le premier mot que
+// lit un prospect qui compare des offres.
+function ordinal(n: number): string {
+  return n === 1 ? "1er" : String(n) + "e";
+}
+
 // Les champs de la fiche, dans l ordre ou on les remplit. `obligatoire`
 // n est vrai que pour ce sans quoi un devis n a pas de destinataire.
 const CHAMPS = [
@@ -306,7 +314,7 @@ export default function PageDevisLMS() {
                       const utilise = devis.stagiaires >= p.min;
                       const borne = p.max === null
                         ? "au-delà du " + (p.min - 1) + "e"
-                        : "du " + p.min + "e au " + p.max + "e";
+                        : "du " + ordinal(p.min) + " au " + ordinal(p.max);
                       return (
                         <div key={i} style={{ display: "grid", gridTemplateColumns: "3fr 1fr", gap: "4px 12px", fontSize: "14px", padding: "4px 0" }}>
                           <span style={{ color: utilise ? "rgba(255,255,255,0.78)" : "rgba(255,255,255,0.35)" }}>
@@ -499,10 +507,36 @@ export default function PageDevisLMS() {
               <h2 style={{ color: OR, fontSize: "20px", margin: "0 0 6px" }}>
                 Votre activité
               </h2>
-              <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "14px", margin: "0 0 18px", lineHeight: "1.7" }}>
+              <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "14px", margin: "0 0 16px", lineHeight: "1.7" }}>
                 Une estimation suffit. Elle sert à chiffrer votre devis ; la facturation
                 suit ensuite vos stagiaires réels, mois par mois.
               </p>
+
+              {/* 🚨 LA DEGRESSIVITE SE DIT AVANT LA SAISIE, PAS APRES — 03/09.
+                  Remarque de Jacques : « il peut arreter avant meme de
+                  savoir ». Un organisme qui saisit cinquante stagiaires
+                  calcule de tete 50 x 49 € et ferme la page — alors qu a
+                  cinquante, quarante d entre eux sont deja a 39 €. Le
+                  chiffre le plus decourageant du formulaire etait affiche
+                  sans son remede. */}
+              {g && g.paliers && g.paliers.length > 1 && (
+                <div style={{ border: "1px solid rgba(200,169,110,0.35)", background: "rgba(200,169,110,0.05)", borderRadius: "10px", padding: "14px 16px", marginBottom: "18px" }}>
+                  <p style={{ color: OR, fontSize: "14px", margin: "0 0 10px", lineHeight: "1.6" }}>
+                    Le tarif par stagiaire baisse avec le nombre :
+                  </p>
+                  {g.paliers.map(function (p: any, i: number) {
+                    const borne = p.max === null
+                      ? "au-delà du " + (p.min - 1) + "e"
+                      : "du " + ordinal(p.min) + " au " + ordinal(p.max);
+                    return (
+                      <div key={i} style={{ display: "grid", gridTemplateColumns: "3fr 1fr", gap: "3px 12px", fontSize: "14px", padding: "3px 0" }}>
+                        <span style={{ color: "rgba(255,255,255,0.7)" }}>{borne}</span>
+                        <span style={{ color: OR, textAlign: "right" }}>{euros(p.prix)}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
 
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(230px,1fr))", gap: "14px" }}>
                 <div>
