@@ -60,6 +60,13 @@ function euros(n: any): string {
   return (Number(n) || 0).toLocaleString("fr-FR") + " EUR";
 }
 
+// 🚨 « 1er », PAS « 1e ». Meme correction que sur l ecran, le 03/09 : en
+// francais, le premier est le seul ordinal a ne pas prendre « e ».
+// ⚠️ L ECRAN ET LE PDF DOIVENT ECRIRE LA MEME CHOSE.
+function ordinal(n: number): string {
+  return n === 1 ? "1er" : String(n) + "e";
+}
+
 function rangerTarifs(lignes: any[], offre: string) {
   const dedans = (lignes || []).filter(function (l: any) { return l.offre === offre; });
 
@@ -314,7 +321,7 @@ export async function GET(req: NextRequest) {
     for (const pal of g.paliers) {
       const borne = pal.max === null
         ? "au-dela du " + (pal.min - 1) + "e"
-        : "du " + pal.min + "e au " + pal.max + "e";
+        : "du " + ordinal(pal.min) + " au " + ordinal(pal.max);
       ligne("Stagiaire actif, " + borne, euros(pal.prix) + " / stagiaire / mois");
     }
 
