@@ -21,6 +21,21 @@
 //
 // La barre generale s efface sur cette page (components/NavBar.tsx) : elle
 // porte son propre en-tete, comme les vitrines Mr LMS et MysterLLC.
+//
+// 🚨 L ESPACE DANS LE NOM DE FICHIER EST REEL — 03/09.
+//
+// Les fichiers deposes s appellent « mrcrm-banniere .png » et
+// « mrcrm-logo .png », AVEC UNE ESPACE AVANT LE POINT. Elle vient du
+// renommage sur iPad : effacer une extension y laisse souvent une espace.
+//
+// Dans une adresse web, cette espace s ecrit %20. LE CODE DOIT DONC PORTER
+// %20, pas l espace. Ecrire « /mrcrm-banniere.png » cherche un fichier qui
+// n existe pas, et l image ne s affiche pas — un carre vide a la place de
+// la marque, sans autre message.
+//
+// ⚠️ NE PAS « CORRIGER » CE %20 SANS RENOMMER LE FICHIER D ABORD.
+// C est la meme lecon que la double extension de Mr LMS : le code pointe
+// sur le nom REEL, jamais sur celui qu on aurait voulu.
 // ══════════════════════════════════════════════════════════════════════════
 
 export const metadata = {
@@ -113,7 +128,7 @@ export default function PageMrCRM() {
       <header style={{ borderBottom: "1px solid rgba(200,169,110,0.15)", background: "#000" }}>
         <div style={{ ...SECTION, display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 24px", gap: "16px" }}>
           <img
-            src="/mrcrm-banniere.png"
+            src="/mrcrm-banniere%20.png"
             alt="Mr CRM"
             style={{ width: "560px", maxWidth: "62vw", height: "auto", display: "block", margin: "-4px", clipPath: "inset(4px)" }}
           />
