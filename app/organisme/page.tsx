@@ -199,7 +199,27 @@ export default async function TableauDeBordOrganisme() {
   }).length;
 
   const inscrits = (registre || []).length;
-  const aInviter = (registre || []).filter(function (a: any) { return a.statut === "invite"; }).length;
+
+  // 🚨 L ALERTE « SANS ACCES » NE S AFFICHAIT JAMAIS — CORRIGE LE 03/09.
+  //
+  // Ce compte cherchait le statut « invite ». La base n ecrit pas cette
+  // valeur : quand l acces part, elle ecrit « invitation_envoyee ». Le
+  // compte valait donc toujours zero, et un organisme dont aucun stagiaire
+  // n avait recu son acces ne voyait aucune alerte.
+  //
+  // MEME CORRECTION QUE DANS « MES STAGIAIRES », ET PRISE DANS LE MEME SENS :
+  // a recu son acces celui qui porte « invitation_envoyee ». Tout autre
+  // statut compte comme EN ATTENTE. Les stagiaires sortis de parcours
+  // (« termine », « abandon ») sont exclus : on ne relance pas quelqu un
+  // dont le parcours est clos.
+  //
+  // ⚠️ SI UNE TROISIEME VALEUR DE SORTIE EST CREEE, L AJOUTER ICI, dans
+  // « Mes stagiaires » ET dans `estTermine()` de la facturation.
+  const SORTIS = ["termine", "abandon"];
+  const aInviter = (registre || []).filter(function (a: any) {
+    const st = a.statut || "";
+    return SORTIS.indexOf(st) < 0 && st !== "invitation_envoyee";
+  }).length;
   const incomplets = (registre || []).filter(function (a: any) { return !a.statut_stagiaire || !a.payeur; }).length;
   const ouvertes = (reclamations || []).filter(function (r: any) {
     return r.statut === "ouverte" || r.statut === "en_cours";
