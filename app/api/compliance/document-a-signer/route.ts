@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import crypto from "crypto";
+import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import { sessionCourante } from "../../../../lib/session";
 import { origineLegitime } from "../../../../lib/origine";
 import { marqueCompliance, MarqueCompliance } from "../../../../lib/marque-compliance";
@@ -73,52 +74,123 @@ function echappe(t: string): string {
     .replace(/>/g, "&gt;");
 }
 
-function documentHTML(titre: string, corps: string, societe: string, type: string, marque: MarqueCompliance): string {
-  const date = new Date().toLocaleDateString("fr-FR", {
-    year: "numeric", month: "long", day: "numeric",
-  });
+// ---------------------------------------------------------------------------
+// LE DOCUMENT EST UN PDF — 03/09, a la demande de Jacques.
+//
+// Jusqu ici le document a signer etait une page HTML. Un client qui
+// l ouvrait voyait une page web ; un PDF se telecharge, s imprime et
+// s archive tel quel chez lui, et c est ce qu il attend d un document
+// contractuel. pdf-lib est deja dans le projet (CERFA 3916).
+//
+// ⚠️ LES POLICES STANDARD DU PDF (Helvetica) NE CONNAISSENT QUE LES
+// CARACTERES LATINS COURANTS (WinAnsi) : accents, guillemets et tirets
+// francais passent ; un emoji ou un caractere exotique ferait echouer la
+// generation. Ils sont remplaces par un point d interrogation AVANT
+// l ecriture, plutot que de perdre tout le document.
+//
+// Le corps est decoupe en lignes a la largeur de la page et pagine.
+// ---------------------------------------------------------------------------
 
-  // ⚠️ LE CORPS EST ECHAPPE PUIS SES SAUTS DE LIGNE RESTITUES. Sans
-  // echappement, un texte contenant des balises casserait le document — ou
-  // pire, y glisserait du contenu que le signataire n aurait pas vu.
-  const paragraphes = echappe(corps)
-    .split("\n\n")
-    .map(function (p) { return "<p>" + p.replace(/\n/g, "<br/>") + "</p>"; })
-    .join("\n");
+function pourPdf(t: string): string {
+  return String(t || "").replace(/[^\x09\x0A\x0D\x20-\x7E\u00A0-\u00FF\u0152\u0153\u0160\u0161\u0178\u017D\u017E\u2013\u2014\u2018\u2019\u201C\u201D\u2026\u20AC]/g, "?");
+}
 
-  return `<!DOCTYPE html>
-<html lang="fr"><head><meta charset="UTF-8"><style>
-  body { font-family: Georgia, serif; color:#1a1a1a; padding:44px; max-width:760px; margin:0 auto; line-height:1.8; }
-  h1 { color:#1a1a2e; border-bottom:3px solid #c8a96e; padding-bottom:12px; font-size:24px; }
-  .meta { color:#666; font-size:13px; margin-bottom:28px; }
-  .corps { font-size:15px; }
-  .mention { background:#f5f1e8; border-left:4px solid #c8a96e; padding:14px 18px; margin-top:34px; font-size:13px; color:#555; }
-  .footer { margin-top:44px; font-size:12px; color:#888; border-top:1px solid #eee; padding-top:14px; }
-</style></head><body>
+async function documentPDF(titre: string, corps: string, societe: string, type: string, marque: MarqueCompliance): Promise<Uint8Array> {
+  const date = new Date().toLocaleDateString("fr-FR", { year: "numeric", month: "long", day: "numeric" });
 
-<h1>${echappe(titre)}</h1>
+  const pdf = await PDFDocument.create();
+  pdf.setTitle(pourPdf(titre));
+  pdf.setAuthor(pourPdf(marque.nom));
+  pdf.setSubject(pourPdf((LIBELLES[type] || type) + " — " + societe));
 
-<p class="meta">
-  ${echappe(LIBELLES[type] || type)} — ${echappe(societe)}<br/>
-  Document établi le ${date}
-</p>
+  const police = await pdf.embedFont(StandardFonts.Helvetica);
+  const gras = await pdf.embedFont(StandardFonts.HelveticaBold);
 
-<div class="corps">
-${paragraphes}
-</div>
+  const LARGEUR = 595.28;   // A4
+  const HAUTEUR = 841.89;
+  const MARGE = 56;
+  const LARGEUR_TEXTE = LARGEUR - 2 * MARGE;
+  const OR = rgb(0.784, 0.663, 0.431);
+  const NUIT = rgb(0.10, 0.10, 0.18);
+  const GRIS = rgb(0.40, 0.40, 0.40);
 
-<div class="mention">
-  Ce document est destiné à être signé électroniquement. La signature
-  électronique simple, au sens du règlement européen eIDAS, est opposable
-  entre les parties. Elle ne vaut pas vérification d'identité.
-</div>
+  let page = pdf.addPage([LARGEUR, HAUTEUR]);
+  let y = HAUTEUR - MARGE;
 
-<div class="footer">
-  ${echappe(marque.nom)} — document préparé le ${date}.<br/>
-  Une empreinte SHA-256 de ce fichier est conservée avec la signature :
-  toute modification ultérieure la rendrait invalide.
-</div>
-</body></html>`;
+  function nouvellePage() {
+    page = pdf.addPage([LARGEUR, HAUTEUR]);
+    y = HAUTEUR - MARGE;
+  }
+
+  // Coupe un paragraphe en lignes tenant dans la largeur utile.
+  function lignesDe(texte: string, fonte: any, taille: number, largeur: number): string[] {
+    const mots = pourPdf(texte).split(/\s+/).filter(function (m) { return m.length > 0; });
+    const lignes: string[] = [];
+    let ligne = "";
+    for (const mot of mots) {
+      const essai = ligne ? ligne + " " + mot : mot;
+      if (fonte.widthOfTextAtSize(essai, taille) <= largeur) {
+        ligne = essai;
+      } else {
+        if (ligne) lignes.push(ligne);
+        ligne = mot;
+      }
+    }
+    if (ligne) lignes.push(ligne);
+    return lignes;
+  }
+
+  function ecrire(texte: string, fonte: any, taille: number, couleur: any, interligne: number, largeur?: number, x?: number) {
+    const l = largeur || LARGEUR_TEXTE;
+    const gauche = x || MARGE;
+    for (const ligne of lignesDe(texte, fonte, taille, l)) {
+      if (y < MARGE + taille) nouvellePage();
+      page.drawText(ligne, { x: gauche, y: y, size: taille, font: fonte, color: couleur });
+      y = y - taille * interligne;
+    }
+  }
+
+  // ---- Titre ----
+  ecrire(titre, gras, 20, NUIT, 1.3);
+  y = y - 4;
+  page.drawLine({ start: { x: MARGE, y: y }, end: { x: LARGEUR - MARGE, y: y }, thickness: 2, color: OR });
+  y = y - 18;
+
+  // ---- Meta ----
+  ecrire((LIBELLES[type] || type) + " — " + societe, police, 10.5, GRIS, 1.4);
+  ecrire("Document établi le " + date, police, 10.5, GRIS, 1.4);
+  y = y - 16;
+
+  // ---- Corps ----
+  const paragraphes = String(corps || "").split(/\n\s*\n/);
+  for (const p of paragraphes) {
+    const sousLignes = p.split(/\n/);
+    for (const s of sousLignes) {
+      if (s.trim()) ecrire(s, police, 11.5, rgb(0.1, 0.1, 0.1), 1.5);
+    }
+    y = y - 8;
+  }
+
+  // ---- Mention eIDAS ----
+  y = y - 10;
+  if (y < MARGE + 80) nouvellePage();
+  const mention = "Ce document est destiné à être signé électroniquement. La signature électronique simple, au sens du règlement européen eIDAS, est opposable entre les parties. Elle ne vaut pas vérification d'identité.";
+  const lignesMention = lignesDe(mention, police, 9.5, LARGEUR_TEXTE - 24);
+  const hauteurMention = lignesMention.length * 9.5 * 1.5 + 20;
+  page.drawRectangle({ x: MARGE, y: y - hauteurMention + 12, width: LARGEUR_TEXTE, height: hauteurMention, color: rgb(0.961, 0.945, 0.910) });
+  page.drawRectangle({ x: MARGE, y: y - hauteurMention + 12, width: 3, height: hauteurMention, color: OR });
+  y = y - 6;
+  ecrire(mention, police, 9.5, GRIS, 1.5, LARGEUR_TEXTE - 24, MARGE + 14);
+  y = y - 24;
+
+  // ---- Pied ----
+  if (y < MARGE + 40) nouvellePage();
+  page.drawLine({ start: { x: MARGE, y: y }, end: { x: LARGEUR - MARGE, y: y }, thickness: 0.5, color: rgb(0.85, 0.85, 0.85) });
+  y = y - 14;
+  ecrire(marque.nom + " — document préparé le " + date + ".", police, 8.5, rgb(0.55, 0.55, 0.55), 1.5);
+  ecrire("Une empreinte SHA-256 de ce fichier est conservée avec la signature : toute modification ultérieure la rendrait invalide.", police, 8.5, rgb(0.55, 0.55, 0.55), 1.5);
+
+  return await pdf.save();
 }
 
 export async function POST(req: NextRequest) {
@@ -215,16 +287,16 @@ export async function POST(req: NextRequest) {
     const reference = "SIG-" + new Date().toISOString().slice(0, 10).replace(/-/g, "")
       + "-" + suffixe;
 
-    const html = documentHTML(titre, corps, societe, type, marque);
-    const octets = Buffer.from(html, "utf-8");
+    const pdfOctets = await documentPDF(titre, corps, societe, type, marque);
+    const octets = Buffer.from(pdfOctets);
     const empreinte = crypto.createHash("sha256").update(octets).digest("hex");
-    const chemin = tenantId + "/" + entiteId + "/" + reference + ".html";
+    const chemin = tenantId + "/" + entiteId + "/" + reference + ".pdf";
 
     // 🚨 L ARCHIVAGE D ABORD. Si le depot echoue, rien n est envoye : mieux
     // vaut aucun document qu un lien vers un fichier inexistant.
     const { error: eUp } = await supabase.storage
       .from(BUCKET)
-      .upload(chemin, octets, { contentType: "text/html", upsert: false });
+      .upload(chemin, octets, { contentType: "application/pdf", upsert: false });
 
     if (eUp) {
       console.error("[document-a-signer] depot :", eUp.message);
@@ -248,7 +320,7 @@ export async function POST(req: NextRequest) {
       file_hash: empreinte,
       pdf_octets: octets.length,
       size_bytes: octets.length,
-      mime_type: "text/html",
+      mime_type: "application/pdf",
       donnees: {
         signataire_nom: String(b.signataire_nom || "").trim() || null,
         prepare_par: session ? session.email : null,
