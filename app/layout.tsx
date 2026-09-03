@@ -39,7 +39,7 @@ const MARQUES: any = {
     descriptionCourte:
       "Vos stagiaires, de l'inscription au bilan",
     url: "https://mrlms.fr",
-    image: "/mrlms-banniere.jpeg",
+    image: "/mrlms-banniere.jpeg.png",
   },
   mysterllc: {
     nom: "MysterLLC",
@@ -75,7 +75,11 @@ const MARQUES: any = {
 
 // 🚨 LES IMAGES OUVERTES — public/og-academia.png (24/08),
 // public/og-mrcomptable.png et public/og-mysterllc.png (03/09), et la
-// banniere public/mrlms-banniere.jpeg pour Mr LMS.
+// banniere public/mrlms-banniere.jpeg.png pour Mr LMS.
+//
+// ⚠️ LA DOUBLE EXTENSION DE CE DERNIER EST REELLE : le fichier est un PNG
+// qui avait ete renomme « .jpeg » a tort, et iOS a retabli l extension.
+// Ne pas la « corriger » dans le code sans renommer le fichier d abord.
 //
 // Sans elles, le Post Inspector de LinkedIn repondait « No image found » et
 // la carte partait sans visuel : beaucoup moins visible dans le fil. Les
