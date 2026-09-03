@@ -60,8 +60,16 @@ function ascii(t: any): string {
     .replace(/[^\x20-\xFF]/g, " ");
 }
 
+// 🚨 DEUX DECIMALES QUAND IL Y EN A — 03/09. « 18,80 EUR » et non
+// « 18,8 EUR ». Les montants ronds restent sans decimale.
+// ⚠️ L ECRAN ET LE PDF DOIVENT ECRIRE LE MEME MONTANT.
 function euros(n: any): string {
-  return (Number(n) || 0).toLocaleString("fr-FR") + " EUR";
+  const v = Number(n) || 0;
+  const entier = Math.round(v * 100) % 100 === 0;
+  return v.toLocaleString("fr-FR", {
+    minimumFractionDigits: entier ? 0 : 2,
+    maximumFractionDigits: 2,
+  }) + " EUR";
 }
 
 // 🚨 « 1er », PAS « 1e ». Meme correction que sur l ecran, le 03/09 : en
