@@ -67,7 +67,16 @@ const PALIERS = [
 // on ne facture pas un stagiaire dont le parcours est termine ou abandonne,
 // et on ne cesse jamais de compter quelqu'un a cause d'un libelle qu'on
 // n'aurait pas prevu.
-const STATUTS_TERMINES = ["termine", "terminee", "termines", "abandon", "abandonne", "abandonnee", "annule", "annulee", "archive", "archivee"];
+//
+// 🚨 AU 03/09, LA SEULE VALEUR PRESENTE EN BASE EST `invitation_envoyee`.
+// AUCUN STATUT DE FIN N'EST ECRIT NULLE PART. Tant que rien n'ecrit l'un
+// de ces libelles a la fin d'un parcours, AUCUN STAGIAIRE NE SORTIRA JAMAIS
+// DE LA FACTURATION — ce qui contredit le devis, qui promet qu'un stagiaire
+// ayant termine ou abandonne n'est plus facture le mois suivant.
+// Le decompte est donc juste aujourd'hui (personne n'a fini) et deviendra
+// faux au premier parcours acheve. La liste ci-dessous est prete ; il reste
+// a decider CE QUI ECRIT LA FIN DE PARCOURS.
+const STATUTS_TERMINES = ["termine", "terminee", "termines", "fini", "finie", "cloture", "cloturee", "sorti", "sortie", "desinscrit", "desinscrite", "abandon", "abandonne", "abandonnee", "annule", "annulee", "archive", "archivee"];
 
 function estTermine(statut: any): boolean {
   if (!statut) return false;
@@ -190,17 +199,31 @@ export default async function PageFacturationClient() {
   const titreDe: any = {};
   for (const f of fiches || []) titreDe[f.code] = f.titre;
 
-  // QUELLE OFFRE. L'offre B donne acces au catalogue AcadémIA : son
-  // abonnement comprend l'accompagnement jusqu'au bilan pedagogique et
-  // financier, et une part de 40 % s'applique sur le catalogue. L'offre A
-  // porte les seules formations de l'organisme ; l'accompagnement y est
-  // une option. Sans valeur lisible, on retient l'offre A : c'est la moins
+  // QUELLE OFFRE. L'offre avec catalogue donne acces aux formations
+  // AcadémIA : son abonnement comprend l'accompagnement jusqu'au bilan
+  // pedagogique et financier, et une part de 40 % s'applique sur le
+  // catalogue. L'offre sans catalogue porte les seules formations de
+  // l'organisme ; l'accompagnement y est une option.
+  //
+  // 🚨 LES VALEURS REELLES DE LA COLONNE `offre` AU 03/09 SONT `pack` (7
+  // organismes) ET `crm` (1). Il n'y a NI « b » NI « catalogue » en base :
+  // une detection fondee sur ces mots n'aurait reconnu personne et aurait
+  // facture tout le monde sans part catalogue.
+  //   — `pack` : le pack marque blanche, catalogue AcadémIA compris.
+  //   — `crm` : sans catalogue.
+  // Les libelles `b` et `offre_b` restent acceptes : ce sont ceux du devis,
+  // et rien ne garantit qu'un futur enregistrement n'en portera pas.
+  //
+  // ⚠️ TOUTE NOUVELLE VALEUR D'OFFRE DONNANT ACCES AU CATALOGUE DOIT ETRE
+  // AJOUTEE ICI. Sans quoi la part de 40 % ne sera pas facturee, en silence.
+  // Sans valeur lisible, on retient l'offre sans catalogue : c'est la moins
   // couteuse, et une facture ne se gonfle pas sur une supposition.
+  const OFFRES_AVEC_CATALOGUE = ["pack", "b", "offre_b", "catalogue"];
+
   const valeurOffre = org && org.offre ? String(org.offre).toLowerCase().trim() : "";
   const avecCatalogue =
-    valeurOffre === "b" ||
-    valeurOffre.indexOf("catalogue") >= 0 ||
-    valeurOffre.indexOf("offre_b") >= 0;
+    OFFRES_AVEC_CATALOGUE.indexOf(valeurOffre) >= 0 ||
+    valeurOffre.indexOf("catalogue") >= 0;
 
   const accompagnement = avecCatalogue ? true : !!(org && org.gestion_souscrite);
   const optionFacturee = accompagnement && !avecCatalogue;
