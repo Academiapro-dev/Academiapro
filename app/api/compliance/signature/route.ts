@@ -311,7 +311,7 @@ export async function GET(req: NextRequest) {
 // 🚨 LE CODE PART A L ADRESSE INSCRITE SUR LE DOCUMENT, jamais a celle de
 // la session. Autrement, le gestionnaire recevrait les codes de ses propres
 // clients — et pourrait signer a leur place.
-async function envoyerCode(doc: any) {
+async function envoyerCode(req: NextRequest, doc: any) {
   const cle = process.env.RESEND_API_KEY || "";
   if (!cle) {
     return NextResponse.json({ ok: false, erreur: "RESEND_API_KEY absente" }, { status: 500 });
@@ -458,7 +458,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (b.action === "code") {
-      return await envoyerCode(doc);
+      return await envoyerCode(req, doc);
     }
 
     if (b.accepte !== true) {
