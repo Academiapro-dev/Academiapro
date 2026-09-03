@@ -353,13 +353,29 @@ export default function PageBilan() {
                 panne, et aurait pu recopier la duree du programme dans sa
                 declaration. */}
             <div style={{ ...CARTE, background: "rgba(200,169,110,0.05)" }}>
-              <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "14px", margin: 0, lineHeight: "1.75" }}>
-                {"Les heures comptees sont celles r\u00e9ellement suivies : la dur\u00e9e de chaque "}
-                {"formation est rapport\u00e9e aux modules valid\u00e9s par le stagiaire. Un parcours "}
+              <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "14px", margin: "0 0 10px", lineHeight: "1.75" }}>
+                {"Les heures compt\u00e9es sont celles r\u00e9ellement suivies : la dur\u00e9e de chaque "}
+                {"formation est rapport\u00e9e aux modules valid\u00e9s dans l'ann\u00e9e. Un parcours "}
                 {"en cours ou interrompu ne compte donc que pour ce qui a \u00e9t\u00e9 fait \u2014 c'est "}
                 {"ce que le formulaire attend."}
               </p>
+              <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13.5px", margin: 0, lineHeight: "1.75" }}>
+                {"Un parcours ouvert une ann\u00e9e et poursuivi la suivante appara\u00eet dans les "}
+                {"deux bilans : ses heures dans celui o\u00f9 elles ont \u00e9t\u00e9 suivies, son produit "}
+                {"dans celui de l'inscription."}
+              </p>
             </div>
+
+            {d.inscriptions_reportees > 0 && (
+              <div style={{ ...CARTE, background: "rgba(76,175,80,0.05)", border: "1px solid rgba(76,175,80,0.3)" }}>
+                <p style={{ color: "#4caf50", fontSize: "14px", margin: 0, lineHeight: "1.75" }}>
+                  {d.inscriptions_reportees}
+                  {" parcours ouvert(s) une ann\u00e9e ant\u00e9rieure ont \u00e9t\u00e9 poursuivis en "}
+                  {annee}{". Leurs heures sont compt\u00e9es ici ; leur produit a \u00e9t\u00e9 d\u00e9clar\u00e9 "}
+                  {"l'ann\u00e9e de l'inscription."}
+                </p>
+              </div>
+            )}
 
             {bloc("Cadre C \u00b7 Origine des produits hors taxes", d.cadre_c, LIBELLE_C, true)}
 
