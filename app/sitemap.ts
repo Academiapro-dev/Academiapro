@@ -67,6 +67,20 @@ const PAGES_MRCOMPTABLE = [
   "/contact", "/cgv", "/mentions",
 ];
 
+// LES PAGES PUBLIQUES DE mrlms.fr.
+//
+// 🚨 UNE SEULE PAGE AUJOURD HUI : la vitrine. Les ecrans du produit vivent
+// sous /organisme, derriere la session — une page que Google ne peut pas
+// atteindre n a aucune raison d etre declaree, et la declarer produirait
+// des erreurs d exploration dans la Search Console.
+//
+// ⚠️ A COMPLETER quand les autres pages publiques existeront (mentions,
+// CGV, contact, blog). Ne pas les inscrire avant qu elles soient creees :
+// une adresse morte dans un sitemap vaut moins que pas d adresse du tout.
+const PAGES_MRLMS = [
+  "",
+];
+
 // LES PAGES PUBLIQUES DE mysterllc.com.
 //
 // 🚨 LISTE VOLONTAIREMENT COURTE. Seules figurent ici les pages dont
@@ -83,6 +97,16 @@ const PAGES_MYSTERLLC = [
 // La marque, l adresse publique et les pages de chaque domaine.
 // `marqueBlog` est la valeur de la colonne `marque` dans la table `blog`.
 const MARQUES: any = {
+  mrlms: {
+    site: "https://mrlms.fr",
+    pages: PAGES_MRLMS,
+    // ⚠️ AUCUN ARTICLE SOUS CETTE MARQUE AUJOURD HUI. La valeur est prete :
+    // le jour ou un article Mr LMS est publie avec `marque = 'mrlms'`, il
+    // apparaitra ici sans autre modification.
+    marqueBlog: "mrlms",
+    formations: false,
+    traductions: false,
+  },
   mysterllc: {
     site: "https://www.mysterllc.com",
     pages: PAGES_MYSTERLLC,
@@ -112,6 +136,7 @@ async function marqueDemandee() {
     const hote = (entetes.get("host") || "").toLowerCase();
     if (hote.indexOf("mysterllc.com") >= 0) return MARQUES.mysterllc;
     if (hote.indexOf("mrcomptable.fr") >= 0) return MARQUES.mrcomptable;
+    if (hote.indexOf("mrlms.fr") >= 0) return MARQUES.mrlms;
   } catch (e) {
     // Hote illisible : on retombe sur AcadémIA Pro, le domaine principal.
   }
