@@ -155,10 +155,13 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: false, erreur: "Lien incomplet." }, { status: 400 });
     }
 
+    // ⚠️ FILTRE SUR `produit` OBLIGATOIRE : la table sert tous les
+    // produits depuis le 03/09.
     const { data: p } = await supabase
-      .from("lms_prospects")
+      .from("prospects_devis")
       .select("*")
       .eq("jeton", jeton)
+      .eq("produit", PRODUIT)
       .maybeSingle();
 
     if (!p) {
@@ -477,13 +480,14 @@ export async function GET(req: NextRequest) {
     // suivi : sans elle, on ne sait pas depuis quand un devis dort.
     if (!p.devis_envoye_le) {
       await supabase
-        .from("lms_prospects")
+        .from("prospects_devis")
         .update({
           devis_envoye_le: new Date().toISOString(),
           statut: "devis_envoye",
           updated_at: new Date().toISOString(),
         })
-        .eq("jeton", jeton);
+        .eq("jeton", jeton)
+        .eq("produit", PRODUIT);
     }
 
     const octets = await pdf.save();
