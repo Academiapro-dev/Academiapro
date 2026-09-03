@@ -31,6 +31,17 @@ import CookieBanner from "../components/CookieBanner";
 // ══════════════════════════════════════════════════════════════════════════
 
 const MARQUES: any = {
+  mrcrm: {
+    nom: "Mr CRM",
+    titre: "Mr CRM — Savoir qui rappeler, et quoi lui dire",
+    description:
+      "Vos contacts, vos relances et vos échanges au même endroit : appels, SMS, courriels, documents signés. Pour les indépendants comme pour les équipes.",
+    descriptionCourte:
+      "Savoir qui rappeler, et quoi lui dire",
+    url: "https://mrcrm.fr",
+    image: "/mrcrm-logo.png",
+    icone: "/mrcrm-logo.png",
+  },
   mrlms: {
     nom: "Mr LMS",
     titre: "Mr LMS — Vos stagiaires, de l'inscription au bilan",
@@ -110,6 +121,7 @@ function marqueDe(hote: string) {
   if (h.indexOf("mysterllc.com") >= 0) return MARQUES.mysterllc;
   if (h.indexOf("mrcomptable.fr") >= 0) return MARQUES.mrcomptable;
   if (h.indexOf("mrlms.fr") >= 0) return MARQUES.mrlms;
+  if (h.indexOf("mrcrm.fr") >= 0) return MARQUES.mrcrm;
   return MARQUES.academia;
 }
 
