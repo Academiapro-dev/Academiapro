@@ -31,6 +31,16 @@ import CookieBanner from "../components/CookieBanner";
 // ══════════════════════════════════════════════════════════════════════════
 
 const MARQUES: any = {
+  mrlms: {
+    nom: "Mr LMS",
+    titre: "Mr LMS — Vos stagiaires, de l'inscription au bilan",
+    description:
+      "La plateforme de formation des organismes : inscriptions, parcours, présences, évaluations, signature électronique et bilan pédagogique et financier.",
+    descriptionCourte:
+      "Vos stagiaires, de l'inscription au bilan",
+    url: "https://mrlms.fr",
+    image: "/mrlms-banniere.jpeg",
+  },
   mysterllc: {
     nom: "MysterLLC",
     titre: "MysterLLC — L'administratif de votre LLC : préparé, daté, rappelé",
@@ -63,25 +73,33 @@ const MARQUES: any = {
   },
 };
 
-// 🚨 LES TROIS IMAGES OUVERTES — public/og-academia.png (24/08),
-// public/og-mrcomptable.png et public/og-mysterllc.png (03/09).
+// 🚨 LES IMAGES OUVERTES — public/og-academia.png (24/08),
+// public/og-mrcomptable.png et public/og-mysterllc.png (03/09), et la
+// banniere public/mrlms-banniere.jpeg pour Mr LMS.
 //
 // Sans elles, le Post Inspector de LinkedIn repondait « No image found » et
-// la carte partait sans visuel : beaucoup moins visible dans le fil. Toutes
-// trois font 1200 x 630, le format attendu par LinkedIn, Facebook et X.
+// la carte partait sans visuel : beaucoup moins visible dans le fil. Les
+// trois premieres font 1200 x 630, le format attendu par LinkedIn, Facebook
+// et X.
+//
+// ⚠️ MR LMS UTILISE SA BANNIERE, QUI EST AU FORMAT LARGE. Elle s affichera
+// donc rognee sur une carte 1200 x 630. Une image dediee au bon format
+// reste a produire ; en attendant, une banniere rognee vaut mieux qu une
+// carte vide.
 //
 // ⚠️ LINKEDIN GARDE L IMAGE EN CACHE. Apres tout changement, repasser l URL
 // dans https://www.linkedin.com/post-inspector/ — sinon la carte continue
 // d afficher l ancienne pendant des jours.
 //
-// ⚠️ VERIFIER QUE LE FICHIER EXISTE AVANT D EN AJOUTER UN QUATRIEME : une
-// carte pointant vers une image absente part vide, ce qui est pire que pas
+// ⚠️ VERIFIER QUE LE FICHIER EXISTE AVANT D EN AJOUTER UN AUTRE : une carte
+// pointant vers une image absente part vide, ce qui est pire que pas
 // d image du tout.
 
 function marqueDe(hote: string) {
   const h = (hote || "").toLowerCase();
   if (h.indexOf("mysterllc.com") >= 0) return MARQUES.mysterllc;
   if (h.indexOf("mrcomptable.fr") >= 0) return MARQUES.mrcomptable;
+  if (h.indexOf("mrlms.fr") >= 0) return MARQUES.mrlms;
   return MARQUES.academia;
 }
 
