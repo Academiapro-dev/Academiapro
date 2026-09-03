@@ -21,15 +21,79 @@ const ACHAT = "https://academiapro.lemonsqueezy.com/checkout/buy/";
 const MISE_EN_SERVICE = "b000148c-61e4-4434-9be1-d0d3945cd703";
 const ABONNEMENT = "a10511ba-be2a-45f4-b340-2461efcbd4ac";
 
-// LE TENANT EST TRANSMIS AU PAIEMENT. Sans lui, le webhook devrait deviner
-// l organisme d apres l adresse de l acheteur — or rien ne garantit qu il
-// paie avec l adresse de contact de sa fiche.
-function lienAchat(variante: string, tenant: string, email: string): string {
-  return (
-    ACHAT + variante +
-    "?checkout%5Bcustom%5D%5Btenant%5D=" + encodeURIComponent(tenant) +
-    (email ? "&checkout%5Bemail%5D=" + encodeURIComponent(email) : "")
-  );
+// ════════════════════════════════════════════════════════════════════════
+// LA GRILLE DU 3 SEPTEMBRE 2026. ELLE REMPLACE TOUT CE QUI PRECEDE.
+//
+// 🚨 CE QUI A ETE SUPPRIME DE CETTE PAGE, ET NE DOIT PAS REVENIR :
+//   — le TARIF DE LANCEMENT a moitie prix (abonnement / 2 tant que
+//     `lancement_jusqu_au` portait une date). Il n'existe plus.
+//   — les 35 % DU PRIX DE VENTE de chaque formation du catalogue
+//     (`taux_prelevement`). Remplaces par 40 % du CHIFFRE D'AFFAIRES BRUT
+//     realise sur le catalogue, et seulement dans l'offre avec catalogue.
+//   — le PLANCHER DE 30 € PAR STAGIAIRE (`plancher_stagiaire`). Il n'y a
+//     plus de minimum par stagiaire : il y a un tarif par STAGIAIRE ACTIF,
+//     degressif par paliers.
+//
+// Les colonnes `taux_prelevement`, `plancher_stagiaire` et
+// `lancement_jusqu_au` existent encore dans `organismes_formation` mais NE
+// SONT PLUS LUES ICI. Ne pas les rebrancher.
+//
+// LA FACTURATION NE SE FAIT PLUS A L'INSCRIPTION MAIS AU STAGIAIRE ACTIF.
+// Un stagiaire actif est inscrit a au moins un parcours non termine au
+// cours du mois ; celui qui a termine ou abandonne n'est plus facture le
+// mois suivant. La degressivite porte sur le NOMBRE DE STAGIAIRES ACTIFS
+// DANS LE MOIS, pas sur un cumul annuel.
+//
+// ⚠️ CES MONTANTS DEVRONT ETRE LUS DANS `lms_tarifs` (12 lignes, projet
+// kpxrbwsbhmggoajtxzqn) QUAND MR LMS EXISTERA. Ils sont ici en clair, dans
+// un seul bloc, pour que la page cesse d'afficher l'ancienne formule des
+// aujourd'hui. Un seul endroit a changer le jour de la bascule.
+// ════════════════════════════════════════════════════════════════════════
+const MISE_EN_PLACE = 1500;
+const ABONNEMENT_BASE = 200;
+const OPTION_ACCOMPAGNEMENT = 180;
+const PART_CATALOGUE = 40;
+
+// Paliers du stagiaire actif, dans l'ordre. `jusqu_a` est le rang du
+// dernier stagiaire du palier ; null pour le dernier palier.
+const PALIERS = [
+  { jusqu_a: 10, prix: 49, libelle: "du 1er au 10e" },
+  { jusqu_a: 50, prix: 39, libelle: "du 11e au 50e" },
+  { jusqu_a: null as number | null, prix: 29, libelle: "au-dela du 50e" },
+];
+
+// STATUTS QUI SORTENT DU DECOMPTE. Tout autre statut — y compris vide,
+// inconnu ou absent — compte comme actif. Le sens de la regle est celui-ci :
+// on ne facture pas un stagiaire dont le parcours est termine ou abandonne,
+// et on ne cesse jamais de compter quelqu'un a cause d'un libelle qu'on
+// n'aurait pas prevu.
+const STATUTS_TERMINES = ["termine", "terminee", "termines", "abandon", "abandonne", "abandonnee", "annule", "annulee", "archive", "archivee"];
+
+function estTermine(statut: any): boolean {
+  if (!statut) return false;
+  const s = String(statut).toLowerCase().trim();
+  return STATUTS_TERMINES.indexOf(s) >= 0;
+}
+
+// COUT DES STAGIAIRES ACTIFS DU MOIS, PALIER PAR PALIER.
+function coutStagiaires(nb: number): { total: number; detail: any[] } {
+  const detail: any[] = [];
+  let total = 0;
+  let rangPrecedent = 0;
+
+  for (const p of PALIERS) {
+    const plafond = p.jusqu_a === null ? nb : Math.min(p.jusqu_a, nb);
+    const dans = Math.max(0, plafond - rangPrecedent);
+    if (dans > 0) {
+      const montant = dans * p.prix;
+      total = total + montant;
+      detail.push({ libelle: p.libelle, nombre: dans, prix: p.prix, montant: montant });
+    }
+    rangPrecedent = p.jusqu_a === null ? nb : p.jusqu_a;
+    if (rangPrecedent >= nb) break;
+  }
+
+  return { total: total, detail: detail };
 }
 
 const CADRE: any = {
@@ -52,6 +116,17 @@ function euros(n: any) {
   return (Number(n) || 0).toLocaleString("fr-FR") + " €";
 }
 
+// LE TENANT EST TRANSMIS AU PAIEMENT. Sans lui, le webhook devrait deviner
+// l organisme d apres l adresse de l acheteur — or rien ne garantit qu il
+// paie avec l adresse de contact de sa fiche.
+function lienAchat(variante: string, tenant: string, email: string): string {
+  return (
+    ACHAT + variante +
+    "?checkout%5Bcustom%5D%5Btenant%5D=" + encodeURIComponent(tenant) +
+    (email ? "&checkout%5Bemail%5D=" + encodeURIComponent(email) : "")
+  );
+}
+
 export default async function PageFacturationClient() {
   const session = sessionCourante();
 
@@ -72,7 +147,7 @@ export default async function PageFacturationClient() {
 
   const { data: org } = await supabase
     .from("organismes_formation")
-    .select("raison_sociale, abonnement_mensuel, taux_prelevement, plancher_stagiaire, lancement_jusqu_au, statut, frais_installation, email_contact, essai_jusqu_au")
+    .select("raison_sociale, offre, gestion_souscrite, statut, frais_installation, mise_en_service_facturee_le, email_contact, essai_jusqu_au")
     .eq("tenant_id", t)
     .maybeSingle();
 
@@ -80,15 +155,19 @@ export default async function PageFacturationClient() {
   const debut = new Date(Date.UTC(maintenant.getUTCFullYear(), maintenant.getUTCMonth(), 1));
   const fin = new Date(Date.UTC(maintenant.getUTCFullYear(), maintenant.getUTCMonth() + 1, 1));
 
-  const { data: inscriptions } = await supabase
+  // LES STAGIAIRES ACTIFS SE COMPTENT SUR TOUT LE REGISTRE, PAS SUR LES
+  // SEULES INSCRIPTIONS DU MOIS. Un stagiaire inscrit en juin et toujours
+  // en cours de parcours en septembre est actif en septembre. L'ancienne
+  // page ne regardait que `created_at` du mois : elle facturait l'entree,
+  // pas le suivi.
+  const { data: registre } = await supabase
     .from("organisme_apprenants")
-    .select("email, nom, formation_code, prix_vente, created_at")
+    .select("email, nom, formation_code, prix_vente, statut, created_at")
     .eq("tenant_id", t)
-    .gte("created_at", debut.toISOString())
-    .lt("created_at", fin.toISOString())
-    .order("created_at", { ascending: false })
-    .limit(2000);
+    .limit(5000);
 
+  // LE CATALOGUE SOUSCRIT SERT A DEUX CHOSES : distinguer les formations
+  // AcadémIA des formations propres a l'organisme, et calculer la part.
   const { data: catalogue } = await supabase
     .from("organisme_catalogue")
     .select("formation_code, prix_vente_public")
@@ -111,22 +190,27 @@ export default async function PageFacturationClient() {
   const titreDe: any = {};
   for (const f of fiches || []) titreDe[f.code] = f.titre;
 
-  const taux = org && org.taux_prelevement !== null && org.taux_prelevement !== undefined
-    ? Number(org.taux_prelevement)
-    : 35;
-  const plancher = org && org.plancher_stagiaire !== null && org.plancher_stagiaire !== undefined
-    ? Number(org.plancher_stagiaire)
-    : 30;
+  // QUELLE OFFRE. L'offre B donne acces au catalogue AcadémIA : son
+  // abonnement comprend l'accompagnement jusqu'au bilan pedagogique et
+  // financier, et une part de 40 % s'applique sur le catalogue. L'offre A
+  // porte les seules formations de l'organisme ; l'accompagnement y est
+  // une option. Sans valeur lisible, on retient l'offre A : c'est la moins
+  // couteuse, et une facture ne se gonfle pas sur une supposition.
+  const valeurOffre = org && org.offre ? String(org.offre).toLowerCase().trim() : "";
+  const avecCatalogue =
+    valeurOffre === "b" ||
+    valeurOffre.indexOf("catalogue") >= 0 ||
+    valeurOffre.indexOf("offre_b") >= 0;
 
-  const abonnementPlein = org ? Number(org.abonnement_mensuel) || 0 : 0;
-  const enLancement = org && org.lancement_jusqu_au
-    ? new Date(org.lancement_jusqu_au).getTime() >= debut.getTime()
-    : false;
-  const abonnement = enLancement ? Math.round(abonnementPlein / 2) : abonnementPlein;
+  const accompagnement = avecCatalogue ? true : !!(org && org.gestion_souscrite);
+  const optionFacturee = accompagnement && !avecCatalogue;
+  const abonnement = ABONNEMENT_BASE + (accompagnement ? OPTION_ACCOMPAGNEMENT : 0);
 
   const statut = org && org.statut ? String(org.statut) : "essai";
   const actif = statut === "actif";
-  const miseEnServiceReglee = org && Number(org.frais_installation) > 0;
+  const miseEnServiceReglee =
+    (org && Number(org.frais_installation) > 0) ||
+    !!(org && org.mise_en_service_facturee_le);
   const emailOrg = (org && org.email_contact) || session.email || "";
 
   // DUREE DE L ESSAI. Un essai sans fin n en est pas un : le client doit
@@ -137,49 +221,64 @@ export default async function PageFacturationClient() {
     : null;
   const essaiExpire = joursRestants !== null && joursRestants < 0;
 
-  const lignes: any[] = [];
-  let du = 0;
-  let propres = 0;
+  // LES STAGIAIRES ACTIFS DU MOIS, PAR PERSONNE ET NON PAR INSCRIPTION.
+  // Un stagiaire inscrit a trois parcours est un stagiaire, pas trois.
+  const actifsParEmail: any = {};
+  const termines: string[] = [];
 
-  for (const i of inscriptions || []) {
-    const code = i.formation_code || "";
+  for (const a of registre || []) {
+    const cle = String(a.email || "").toLowerCase().trim();
+    if (!cle) continue;
 
-    if (!code || !souscrites.has(code)) {
-      propres = propres + 1;
-      lignes.push({
-        email: i.email,
-        nom: i.nom,
-        code: code,
-        titre: code ? (titreDe[code] || code) : "sans formation",
-        prix: null,
-        du: 0,
-        motif: "votre propre formation",
-        quand: i.created_at,
-      });
+    if (estTermine(a.statut)) {
+      if (!actifsParEmail[cle] && termines.indexOf(cle) < 0) termines.push(cle);
       continue;
     }
 
-    let prix = Number(i.prix_vente) || 0;
-    if (!prix) prix = prixDe[code] || 0;
+    if (!actifsParEmail[cle]) {
+      actifsParEmail[cle] = { email: a.email, nom: a.nom, parcours: [] };
+    }
 
-    const part = Math.round(prix * taux) / 100;
-    const retenu = Math.max(part, plancher);
-    du = du + retenu;
-
-    lignes.push({
-      email: i.email,
-      nom: i.nom,
+    const code = a.formation_code || "";
+    actifsParEmail[cle].parcours.push({
       code: code,
-      titre: titreDe[code] || code,
-      prix: prix,
-      du: retenu,
-      motif: part < plancher ? "minimum par stagiaire" : taux + " % de " + euros(prix),
-      quand: i.created_at,
+      titre: code ? (titreDe[code] || code) : "sans formation",
+      catalogue: code ? souscrites.has(code) : false,
+      prix: Number(a.prix_vente) || prixDe[code] || 0,
+      quand: a.created_at,
     });
   }
 
-  du = Math.round(du * 100) / 100;
-  const total = Math.round((abonnement + du) * 100) / 100;
+  const stagiairesActifs = Object.values(actifsParEmail);
+  const nbActifs = stagiairesActifs.length;
+  const cout = coutStagiaires(nbActifs);
+
+  // LA PART CATALOGUE PORTE SUR LE CHIFFRE D'AFFAIRES BRUT DU MOIS, c'est
+  // a dire sur ce que l'organisme a vendu ce mois-ci sur les formations du
+  // catalogue AcadémIA. On retient donc les inscriptions CREEES dans le
+  // mois : c'est la vente qui declenche la part, pas le suivi.
+  let caCatalogue = 0;
+  const ventesCatalogue: any[] = [];
+
+  for (const a of registre || []) {
+    const code = a.formation_code || "";
+    if (!code || !souscrites.has(code)) continue;
+
+    const quand = a.created_at ? new Date(a.created_at).getTime() : 0;
+    if (!quand || quand < debut.getTime() || quand >= fin.getTime()) continue;
+
+    const prix = Number(a.prix_vente) || prixDe[code] || 0;
+    caCatalogue = caCatalogue + prix;
+    ventesCatalogue.push({
+      nom: a.nom || a.email,
+      titre: titreDe[code] || code,
+      prix: prix,
+    });
+  }
+
+  caCatalogue = Math.round(caCatalogue * 100) / 100;
+  const part = avecCatalogue ? Math.round(caCatalogue * PART_CATALOGUE) / 100 : 0;
+  const total = Math.round((abonnement + cout.total + part) * 100) / 100;
   const mois = maintenant.toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
 
   const BOUTON: any = {
@@ -235,12 +334,12 @@ export default async function PageFacturationClient() {
             <p style={{ color: "rgba(255,255,255,0.72)", fontSize: "14px", margin: "0 0 6px", lineHeight: "1.8" }}>
               {essaiExpire
                 ? "Vos données sont conservées : votre espace reprend là où vous l'avez laissé dès la souscription."
-                : "Votre espace fonctionne, mais rien n'est encore souscrit. Deux règlements ouvrent votre accès : la mise en service, une seule fois, puis l'abonnement mensuel."}
+                : "Votre espace fonctionne, mais rien n'est encore souscrit. Deux règlements ouvrent votre accès : la mise en place, une seule fois, puis l'abonnement mensuel."}
             </p>
 
             {!miseEnServiceReglee && (
               <a href={lienAchat(MISE_EN_SERVICE, t, emailOrg)} style={BOUTON}>
-                Régler la mise en service
+                Régler la mise en place
               </a>
             )}
 
@@ -252,8 +351,9 @@ export default async function PageFacturationClient() {
             </a>
 
             <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "12.5px", margin: "14px 0 0", lineHeight: "1.7" }}>
-              Sans engagement de durée, résiliable à tout moment. Le règlement est encaissé
-              par Lemon Squeezy, qui établit votre facture et applique la TVA de votre pays.
+              Sans engagement de durée, résiliable à tout moment avec un préavis d'un mois.
+              Le règlement est encaissé par Lemon Squeezy, qui établit votre facture et applique
+              la TVA de votre pays.
             </p>
           </div>
         )}
@@ -266,23 +366,45 @@ export default async function PageFacturationClient() {
           </div>
         )}
 
+        {!miseEnServiceReglee && (
+          <div style={{ ...CARTE, border: "1px solid rgba(200,169,110,0.45)" }}>
+            <p style={{ color: "rgba(255,255,255,0.75)", fontSize: "14px", margin: 0, lineHeight: "1.75" }}>
+              La mise en place — espace, import de vos formations, paramétrage et prise en main —
+              est facturée {euros(MISE_EN_PLACE)} une seule fois, à la signature. Elle n'est pas
+              reconduite.
+            </p>
+          </div>
+        )}
+
         <div style={{ display: "flex", gap: "14px", flexWrap: "wrap", margin: "24px 0" }}>
           <div style={{ ...CARTE, flex: "1 1 170px", marginBottom: 0 }}>
             <p style={{ color: "#c8a96e", fontSize: "24px", fontWeight: "bold", margin: "0 0 4px" }}>
               {euros(abonnement)}
             </p>
             <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", margin: 0 }}>
-              Abonnement{enLancement ? " · tarif de lancement" : ""}
+              Abonnement{accompagnement ? " · accompagnement compris" : ""}
             </p>
           </div>
           <div style={{ ...CARTE, flex: "1 1 170px", marginBottom: 0 }}>
             <p style={{ color: "#c8a96e", fontSize: "24px", fontWeight: "bold", margin: "0 0 4px" }}>
-              {euros(du)}
+              {euros(cout.total)}
             </p>
             <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", margin: 0 }}>
-              Sur le catalogue · {(inscriptions || []).length - propres} inscription(s)
+              {nbActifs} stagiaire(s) actif(s) ce mois
             </p>
           </div>
+
+          {avecCatalogue && (
+            <div style={{ ...CARTE, flex: "1 1 170px", marginBottom: 0 }}>
+              <p style={{ color: "#c8a96e", fontSize: "24px", fontWeight: "bold", margin: "0 0 4px" }}>
+                {euros(part)}
+              </p>
+              <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", margin: 0 }}>
+                Part catalogue · {PART_CATALOGUE} % de {euros(caCatalogue)}
+              </p>
+            </div>
+          )}
+
           <div style={{ ...CARTE, flex: "1 1 170px", marginBottom: 0, border: "1px solid rgba(200,169,110,0.5)" }}>
             <p style={{ color: "#4caf50", fontSize: "26px", fontWeight: "bold", margin: "0 0 4px" }}>
               {euros(total)}
@@ -293,52 +415,110 @@ export default async function PageFacturationClient() {
           </div>
         </div>
 
-        {enLancement && org && org.lancement_jusqu_au && (
-          <div style={{ ...CARTE, border: "1px solid rgba(200,169,110,0.45)" }}>
-            <p style={{ color: "rgba(255,255,255,0.75)", fontSize: "14px", margin: 0, lineHeight: "1.75" }}>
-              Vous bénéficiez du tarif de lancement jusqu'au{" "}
-              {new Date(org.lancement_jusqu_au).toLocaleDateString("fr-FR")}. Au-delà, l'abonnement
-              passera à {euros(abonnementPlein)} par mois, comme prévu à votre bon de commande.
+        <h2 style={{ color: "#c8a96e", fontSize: "18px", margin: "26px 0 14px" }}>
+          Votre abonnement
+        </h2>
+
+        <div style={{ border: "1px solid rgba(200,169,110,0.25)", borderRadius: "12px", overflow: "hidden", marginBottom: "20px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "3fr 1fr", background: "rgba(200,169,110,0.12)", padding: "13px 18px", fontSize: "12.5px", color: "#c8a96e", fontWeight: "bold" }}>
+            <span>Poste</span>
+            <span>Montant</span>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "3fr 1fr", padding: "12px 18px", borderTop: "1px solid rgba(255,255,255,0.06)", fontSize: "13.5px", color: "rgba(255,255,255,0.8)" }}>
+            <span>Espace, hébergement, support et mises à jour</span>
+            <span style={{ color: "#c8a96e", fontWeight: "bold" }}>{euros(ABONNEMENT_BASE)}</span>
+          </div>
+
+          {accompagnement && (
+            <div style={{ display: "grid", gridTemplateColumns: "3fr 1fr", padding: "12px 18px", borderTop: "1px solid rgba(255,255,255,0.06)", fontSize: "13.5px", color: "rgba(255,255,255,0.8)" }}>
+              <span>
+                Accompagnement jusqu'au bilan pédagogique et financier
+                {!optionFacturee && (
+                  <span style={{ color: "rgba(255,255,255,0.45)", fontSize: "12.5px" }}> · compris dans votre offre</span>
+                )}
+              </span>
+              <span style={{ color: "#c8a96e", fontWeight: "bold" }}>{euros(OPTION_ACCOMPAGNEMENT)}</span>
+            </div>
+          )}
+
+          {!accompagnement && (
+            <div style={{ display: "grid", gridTemplateColumns: "3fr 1fr", padding: "12px 18px", borderTop: "1px solid rgba(255,255,255,0.06)", fontSize: "13.5px", color: "rgba(255,255,255,0.5)" }}>
+              <span>Accompagnement jusqu'au bilan pédagogique et financier · non souscrit</span>
+              <span>{euros(OPTION_ACCOMPAGNEMENT)} en option</span>
+            </div>
+          )}
+        </div>
+
+        <h2 style={{ color: "#c8a96e", fontSize: "18px", margin: "26px 0 14px" }}>
+          Vos stagiaires actifs, palier par palier
+        </h2>
+
+        {nbActifs === 0 ? (
+          <div style={CARTE}>
+            <p style={{ color: "rgba(255,255,255,0.6)", margin: 0, fontSize: "15px" }}>
+              Aucun stagiaire actif ce mois-ci. Seul l'abonnement sera facturé.
             </p>
+          </div>
+        ) : (
+          <div style={{ border: "1px solid rgba(200,169,110,0.25)", borderRadius: "12px", overflow: "hidden" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr", background: "rgba(200,169,110,0.12)", padding: "13px 18px", fontSize: "12.5px", color: "#c8a96e", fontWeight: "bold" }}>
+              <span>Palier</span>
+              <span>Stagiaires</span>
+              <span>Tarif</span>
+              <span>Montant</span>
+            </div>
+
+            {cout.detail.map(function (d: any, i: number) {
+              return (
+                <div key={i} style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr", padding: "12px 18px", borderTop: "1px solid rgba(255,255,255,0.06)", fontSize: "13.5px", color: "rgba(255,255,255,0.8)", alignItems: "center" }}>
+                  <span>{d.libelle}</span>
+                  <span>{d.nombre}</span>
+                  <span style={{ color: "rgba(255,255,255,0.55)" }}>{euros(d.prix)} / mois</span>
+                  <span style={{ color: "#c8a96e", fontWeight: "bold" }}>{euros(d.montant)}</span>
+                </div>
+              );
+            })}
           </div>
         )}
 
-        {propres > 0 && (
-          <div style={{ ...CARTE, background: "rgba(76,175,80,0.06)", border: "1px solid rgba(76,175,80,0.3)" }}>
+        {termines.length > 0 && (
+          <div style={{ ...CARTE, background: "rgba(76,175,80,0.06)", border: "1px solid rgba(76,175,80,0.3)", marginTop: "16px" }}>
             <p style={{ color: "#4caf50", fontSize: "14px", margin: 0, lineHeight: "1.75" }}>
-              {propres} inscription(s) sur vos propres formations : elles ne vous coûtent rien.
-              Seules les formations de notre catalogue donnent lieu à une part.
+              {termines.length} stagiaire(s) ont terminé ou abandonné leur parcours : ils ne sont
+              plus facturés.
             </p>
           </div>
         )}
 
         <h2 style={{ color: "#c8a96e", fontSize: "18px", margin: "26px 0 14px" }}>
-          Le détail, inscription par inscription
+          Le détail, stagiaire par stagiaire
         </h2>
 
-        {lignes.length === 0 ? (
+        {nbActifs === 0 ? (
           <div style={CARTE}>
             <p style={{ color: "rgba(255,255,255,0.6)", margin: 0, fontSize: "15px" }}>
-              Aucune inscription ce mois-ci. Seul l'abonnement sera facturé.
+              Le détail apparaîtra dès la première inscription.
             </p>
           </div>
         ) : (
           <div style={{ border: "1px solid rgba(200,169,110,0.25)", borderRadius: "12px", overflow: "hidden" }}>
-            <div style={{ display: "grid", gridTemplateColumns: "2fr 2fr 1.4fr 0.9fr", background: "rgba(200,169,110,0.12)", padding: "13px 18px", fontSize: "12.5px", color: "#c8a96e", fontWeight: "bold" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "2fr 2.4fr 1fr", background: "rgba(200,169,110,0.12)", padding: "13px 18px", fontSize: "12.5px", color: "#c8a96e", fontWeight: "bold" }}>
               <span>Stagiaire</span>
-              <span>Formation</span>
-              <span>Calcul</span>
-              <span>Dû</span>
+              <span>Parcours en cours</span>
+              <span>Origine</span>
             </div>
 
-            {lignes.map(function (l: any, i: number) {
+            {stagiairesActifs.map(function (s: any, i: number) {
+              const duCatalogue = s.parcours.filter(function (p: any) { return p.catalogue; }).length;
               return (
-                <div key={i} style={{ display: "grid", gridTemplateColumns: "2fr 2fr 1.4fr 0.9fr", padding: "12px 18px", borderTop: "1px solid rgba(255,255,255,0.06)", fontSize: "13.5px", color: "rgba(255,255,255,0.8)", alignItems: "center" }}>
-                  <span style={{ wordBreak: "break-all" }}>{l.nom || l.email}</span>
-                  <span style={{ color: "rgba(255,255,255,0.6)" }}>{l.titre}</span>
-                  <span style={{ color: "rgba(255,255,255,0.45)", fontSize: "12.5px" }}>{l.motif}</span>
-                  <span style={{ color: l.du > 0 ? "#c8a96e" : "#4caf50", fontWeight: "bold" }}>
-                    {l.du > 0 ? euros(l.du) : "—"}
+                <div key={i} style={{ display: "grid", gridTemplateColumns: "2fr 2.4fr 1fr", padding: "12px 18px", borderTop: "1px solid rgba(255,255,255,0.06)", fontSize: "13.5px", color: "rgba(255,255,255,0.8)", alignItems: "center" }}>
+                  <span style={{ wordBreak: "break-all" }}>{s.nom || s.email}</span>
+                  <span style={{ color: "rgba(255,255,255,0.6)" }}>
+                    {s.parcours.map(function (p: any) { return p.titre; }).join(" · ")}
+                  </span>
+                  <span style={{ color: duCatalogue > 0 ? "#c8a96e" : "#4caf50", fontSize: "12.5px" }}>
+                    {duCatalogue > 0 ? "catalogue AcadémIA" : "vos formations"}
                   </span>
                 </div>
               );
@@ -346,16 +526,55 @@ export default async function PageFacturationClient() {
           </div>
         )}
 
+        {avecCatalogue && (
+          <div style={{ marginTop: "26px" }}>
+            <h2 style={{ color: "#c8a96e", fontSize: "18px", margin: "0 0 14px" }}>
+              Vos ventes sur le catalogue ce mois-ci
+            </h2>
+
+            {ventesCatalogue.length === 0 ? (
+              <div style={CARTE}>
+                <p style={{ color: "rgba(255,255,255,0.6)", margin: 0, fontSize: "15px" }}>
+                  Aucune vente sur le catalogue ce mois-ci. Aucune part n'est due.
+                </p>
+              </div>
+            ) : (
+              <div style={{ border: "1px solid rgba(200,169,110,0.25)", borderRadius: "12px", overflow: "hidden" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "2fr 2.4fr 1fr", background: "rgba(200,169,110,0.12)", padding: "13px 18px", fontSize: "12.5px", color: "#c8a96e", fontWeight: "bold" }}>
+                  <span>Stagiaire</span>
+                  <span>Formation du catalogue</span>
+                  <span>Votre prix</span>
+                </div>
+
+                {ventesCatalogue.map(function (v: any, i: number) {
+                  return (
+                    <div key={i} style={{ display: "grid", gridTemplateColumns: "2fr 2.4fr 1fr", padding: "12px 18px", borderTop: "1px solid rgba(255,255,255,0.06)", fontSize: "13.5px", color: "rgba(255,255,255,0.8)", alignItems: "center" }}>
+                      <span style={{ wordBreak: "break-all" }}>{v.nom}</span>
+                      <span style={{ color: "rgba(255,255,255,0.6)" }}>{v.titre}</span>
+                      <span style={{ color: "#c8a96e", fontWeight: "bold" }}>{euros(v.prix)}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
         <div style={{ ...CARTE, background: "rgba(200,169,110,0.05)", marginTop: "20px" }}>
           <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "14px", margin: "0 0 10px", lineHeight: "1.8" }}>
-            Comment se calcule votre facture : l'abonnement, plus {taux} % du prix de vente de
-            chaque formation de notre catalogue, avec un minimum de {euros(plancher)} par stagiaire
-            inscrit. Le plus élevé des deux est retenu.
+            Comment se calcule votre facture : l'abonnement mensuel, puis un montant par stagiaire
+            actif — {euros(49)} du 1er au 10e, {euros(39)} du 11e au 50e, {euros(29)} au-delà
+            {avecCatalogue ? ", et " + PART_CATALOGUE + " % du chiffre d'affaires brut réalisé sur les formations du catalogue AcadémIA" : ""}.
+          </p>
+          <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "14px", margin: "0 0 10px", lineHeight: "1.8" }}>
+            Un stagiaire actif est inscrit à au moins un parcours non terminé au cours du mois.
+            Celui qui a terminé ou abandonné n'est plus facturé le mois suivant. Un stagiaire
+            inscrit à plusieurs parcours compte pour un.
           </p>
           <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "13px", margin: 0, lineHeight: "1.8" }}>
-            Rien n'est dû sur les formations que vous créez. La facture est établie en fin de mois,
-            réglable à trente jours. Cette page est mise à jour en continu : vous n'avez aucune
-            déclaration à faire.
+            Rien n'est dû sur le chiffre d'affaires de vos propres formations. La facture est
+            établie en fin de mois, à terme échu, réglable à trente jours. Cette page est mise à
+            jour en continu : vous n'avez aucune déclaration à faire.
           </p>
         </div>
       </div>
