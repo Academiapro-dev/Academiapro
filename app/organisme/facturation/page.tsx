@@ -199,6 +199,87 @@ export default async function PageFacturationClient() {
   const titreDe: any = {};
   for (const f of fiches || []) titreDe[f.code] = f.titre;
 
+  // ══════════════════════════════════════════════════════════════════════
+  // LA FIN DE PARCOURS SE CALCULE, ELLE NE S'ECRIT PAS — DECISION DU 03/09.
+  //
+  // Le devis promet qu'un stagiaire ayant termine ou abandonne n'est plus
+  // facture le mois suivant. Or AUCUN STATUT DE FIN N'EXISTAIT EN BASE : la
+  // seule valeur presente etait `invitation_envoyee`. Sans regle, personne
+  // ne serait jamais sorti de la facturation.
+  //
+  // DEUX VOIES, LES DEUX RETENUES :
+  //   — AUTOMATIQUE, ici : un parcours est termine quand TOUS les modules
+  //     de son plan sont valides. Rien n'est ecrit en base ; le calcul se
+  //     refait a chaque affichage. Tant que la regle est jeune, on veut
+  //     pouvoir la corriger en changeant le code, pas en reparant des
+  //     lignes.
+  //   — DECLAREE, ailleurs : l'organisme marque lui-meme un abandon depuis
+  //     « Mes stagiaires ». Une decision humaine, elle, laisse une trace :
+  //     elle ecrit dans `organisme_apprenants.statut` et sort par
+  //     `estTermine()` plus bas.
+  //
+  // ⚠️ LE JOUR OU UN SECOND ECRAN AURA BESOIN DE CETTE INFORMATION — le
+  // bilan pedagogique et financier, par exemple — IL FAUDRA BASCULER VERS
+  // L'ECRITURE. Le calcul sera alors eprouve et on saura quoi ecrire.
+  //
+  // 🚨 UN PLAN VIDE NE CLOT RIEN. Une formation dont le plan n'a pas encore
+  // ete construit compte zero module : `termine` resterait vrai des la
+  // premiere validation, et le stagiaire sortirait de la facturation sans
+  // avoir rien fini. On exige donc STRICTEMENT PLUS DE ZERO MODULE AU PLAN.
+  // Meme regle pour les formations propres de l'organisme, qui vivent dans
+  // `organisme_cours` et non dans `lms_plans` : elles ne se cloturent que
+  // par la sortie declaree.
+  //
+  // `module_cle` vaut chapitre_num + "_" + module_num (« 1_2 », « 3_4 ») :
+  // la correspondance avec `lms_plans` est directe. Les trois types du plan
+  // — theorie, pratique, evaluation — comptent tous.
+  // ══════════════════════════════════════════════════════════════════════
+  const codesInscrits: string[] = [];
+  for (const a of registre || []) {
+    const c = a.formation_code || "";
+    if (c && codesInscrits.indexOf(c) < 0) codesInscrits.push(c);
+  }
+
+  const modulesAuPlan: any = {};
+  if (codesInscrits.length > 0) {
+    const { data: plan } = await supabase
+      .from("lms_plans")
+      .select("formation_code")
+      .in("formation_code", codesInscrits)
+      .limit(20000);
+
+    for (const p of plan || []) {
+      modulesAuPlan[p.formation_code] = (modulesAuPlan[p.formation_code] || 0) + 1;
+    }
+  }
+
+  const { data: progression } = await supabase
+    .from("progression_apprenants")
+    .select("user_email, formation_code, module_cle")
+    .eq("tenant_id", t)
+    .eq("statut", "valide")
+    .limit(20000);
+
+  // Un module valide deux fois ne compte qu'une fois : on retient les cles
+  // distinctes, pas le nombre de lignes.
+  const clesValidees: any = {};
+  for (const p of progression || []) {
+    const cle = String(p.user_email || "").toLowerCase().trim() + "|" + (p.formation_code || "");
+    if (!clesValidees[cle]) clesValidees[cle] = new Set<string>();
+    clesValidees[cle].add(String(p.module_cle || ""));
+  }
+
+  function avancement(email: string, code: string) {
+    const auPlan = modulesAuPlan[code] || 0;
+    const jeu = clesValidees[String(email || "").toLowerCase().trim() + "|" + code];
+    const valides = jeu ? jeu.size : 0;
+    return {
+      auPlan: auPlan,
+      valides: valides,
+      termine: auPlan > 0 && valides >= auPlan,
+    };
+  }
+
   // QUELLE OFFRE. L'offre avec catalogue donne acces aux formations
   // AcadémIA : son abonnement comprend l'accompagnement jusqu'au bilan
   // pedagogique et financier, et une part de 40 % s'applique sur le
@@ -245,16 +326,31 @@ export default async function PageFacturationClient() {
   const essaiExpire = joursRestants !== null && joursRestants < 0;
 
   // LES STAGIAIRES ACTIFS DU MOIS, PAR PERSONNE ET NON PAR INSCRIPTION.
-  // Un stagiaire inscrit a trois parcours est un stagiaire, pas trois.
+  // Un stagiaire inscrit a trois parcours est un stagiaire, pas trois. Il
+  // est actif tant qu'AU MOINS UN de ses parcours n'est pas termine : celui
+  // qui a fini sa premiere formation et en suit une seconde reste facture.
   const actifsParEmail: any = {};
-  const termines: string[] = [];
+  const sortis: any = {};
 
   for (const a of registre || []) {
     const cle = String(a.email || "").toLowerCase().trim();
     if (!cle) continue;
 
-    if (estTermine(a.statut)) {
-      if (!actifsParEmail[cle] && termines.indexOf(cle) < 0) termines.push(cle);
+    const code = a.formation_code || "";
+    const av = code ? avancement(a.email, code) : { auPlan: 0, valides: 0, termine: false };
+
+    // SORTIE DECLAREE d'abord : elle prime sur le calcul. Un organisme qui
+    // marque un abandon sait quelque chose que la progression ne dit pas.
+    const declare = estTermine(a.statut);
+
+    if (declare || av.termine) {
+      if (!sortis[cle]) {
+        sortis[cle] = {
+          email: a.email,
+          nom: a.nom,
+          motif: declare ? "sortie déclarée" : "parcours terminé",
+        };
+      }
       continue;
     }
 
@@ -262,16 +358,24 @@ export default async function PageFacturationClient() {
       actifsParEmail[cle] = { email: a.email, nom: a.nom, parcours: [] };
     }
 
-    const code = a.formation_code || "";
     actifsParEmail[cle].parcours.push({
       code: code,
       titre: code ? (titreDe[code] || code) : "sans formation",
       catalogue: code ? souscrites.has(code) : false,
       prix: Number(a.prix_vente) || prixDe[code] || 0,
       quand: a.created_at,
+      auPlan: av.auPlan,
+      valides: av.valides,
     });
   }
 
+  // Un stagiaire qui a un parcours fini ET un parcours en cours reste
+  // actif : on le retire de la liste des sortis.
+  for (const cle of Object.keys(actifsParEmail)) {
+    if (sortis[cle]) delete sortis[cle];
+  }
+
+  const listeSortis = Object.values(sortis);
   const stagiairesActifs = Object.values(actifsParEmail);
   const nbActifs = stagiairesActifs.length;
   const cout = coutStagiaires(nbActifs);
@@ -505,12 +609,19 @@ export default async function PageFacturationClient() {
           </div>
         )}
 
-        {termines.length > 0 && (
+        {listeSortis.length > 0 && (
           <div style={{ ...CARTE, background: "rgba(76,175,80,0.06)", border: "1px solid rgba(76,175,80,0.3)", marginTop: "16px" }}>
-            <p style={{ color: "#4caf50", fontSize: "14px", margin: 0, lineHeight: "1.75" }}>
-              {termines.length} stagiaire(s) ont terminé ou abandonné leur parcours : ils ne sont
-              plus facturés.
+            <p style={{ color: "#4caf50", fontSize: "14px", margin: "0 0 8px", lineHeight: "1.75" }}>
+              {listeSortis.length} stagiaire(s) ne sont plus facturés : leur parcours est terminé
+              ou a été clos.
             </p>
+            {listeSortis.map(function (x: any, i: number) {
+              return (
+                <p key={i} style={{ color: "rgba(255,255,255,0.6)", fontSize: "13.5px", margin: "0 0 3px", lineHeight: "1.6" }}>
+                  {x.nom || x.email} · {x.motif}
+                </p>
+              );
+            })}
           </div>
         )}
 
@@ -526,19 +637,29 @@ export default async function PageFacturationClient() {
           </div>
         ) : (
           <div style={{ border: "1px solid rgba(200,169,110,0.25)", borderRadius: "12px", overflow: "hidden" }}>
-            <div style={{ display: "grid", gridTemplateColumns: "2fr 2.4fr 1fr", background: "rgba(200,169,110,0.12)", padding: "13px 18px", fontSize: "12.5px", color: "#c8a96e", fontWeight: "bold" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "2fr 2.4fr 1fr 1fr", background: "rgba(200,169,110,0.12)", padding: "13px 18px", fontSize: "12.5px", color: "#c8a96e", fontWeight: "bold" }}>
               <span>Stagiaire</span>
               <span>Parcours en cours</span>
+              <span>Avancement</span>
               <span>Origine</span>
             </div>
 
             {stagiairesActifs.map(function (s: any, i: number) {
               const duCatalogue = s.parcours.filter(function (p: any) { return p.catalogue; }).length;
+              // L'AVANCEMENT DIT POURQUOI LE STAGIAIRE EST ENCORE FACTURE.
+              // Sans lui, l'organisme lit une ligne de facture sans pouvoir
+              // la contester : c'est exactement ce qu'on veut eviter.
+              const mesurables = s.parcours.filter(function (p: any) { return p.auPlan > 0; });
+              const valides = mesurables.reduce(function (n: number, p: any) { return n + p.valides; }, 0);
+              const auPlan = mesurables.reduce(function (n: number, p: any) { return n + p.auPlan; }, 0);
               return (
-                <div key={i} style={{ display: "grid", gridTemplateColumns: "2fr 2.4fr 1fr", padding: "12px 18px", borderTop: "1px solid rgba(255,255,255,0.06)", fontSize: "13.5px", color: "rgba(255,255,255,0.8)", alignItems: "center" }}>
+                <div key={i} style={{ display: "grid", gridTemplateColumns: "2fr 2.4fr 1fr 1fr", padding: "12px 18px", borderTop: "1px solid rgba(255,255,255,0.06)", fontSize: "13.5px", color: "rgba(255,255,255,0.8)", alignItems: "center" }}>
                   <span style={{ wordBreak: "break-all" }}>{s.nom || s.email}</span>
                   <span style={{ color: "rgba(255,255,255,0.6)" }}>
                     {s.parcours.map(function (p: any) { return p.titre; }).join(" · ")}
+                  </span>
+                  <span style={{ color: "rgba(255,255,255,0.55)", fontSize: "12.5px" }}>
+                    {auPlan > 0 ? valides + " / " + auPlan + " modules" : "—"}
                   </span>
                   <span style={{ color: duCatalogue > 0 ? "#c8a96e" : "#4caf50", fontSize: "12.5px" }}>
                     {duCatalogue > 0 ? "catalogue AcadémIA" : "vos formations"}
@@ -591,8 +712,9 @@ export default async function PageFacturationClient() {
           </p>
           <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "14px", margin: "0 0 10px", lineHeight: "1.8" }}>
             Un stagiaire actif est inscrit à au moins un parcours non terminé au cours du mois.
-            Celui qui a terminé ou abandonné n'est plus facturé le mois suivant. Un stagiaire
-            inscrit à plusieurs parcours compte pour un.
+            Un parcours est terminé lorsque tous ses modules sont validés, ou lorsque vous le
+            clôturez vous-même en cas d&apos;abandon. Un stagiaire inscrit à plusieurs parcours
+            compte pour un, et reste facturé tant qu&apos;il lui en reste un en cours.
           </p>
           <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "13px", margin: 0, lineHeight: "1.8" }}>
             Rien n'est dû sur le chiffre d'affaires de vos propres formations. La facture est
