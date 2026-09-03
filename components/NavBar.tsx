@@ -110,14 +110,22 @@ const LOGO_MYSTERLLC = "/IMG_4723.jpeg";
 
 // 🆕 MR LMS — 03/09. Meme montage que les deux autres marques : la banniere
 // porte le nom ET la base line « Vos stagiaires, de l inscription au bilan »,
-// donc rien n est ecrit a cote. Le format carre (mrlms-logo.png) servira au
-// favicon et a l Open Graph.
+// donc rien n est ecrit a cote. Le format carre servira au favicon.
+//
+// 🚨 LE NOM DU FICHIER PORTE UNE DOUBLE EXTENSION, ET C EST VOULU.
+// L image deposee est un PNG ; elle avait ete renommee « .jpeg » a tort, et
+// iOS a retabli la vraie extension en ajoutant « .png » derriere. Le fichier
+// s appelle donc reellement mrlms-banniere.jpeg.png dans public/.
+// LE CHEMIN ECRIT ICI DOIT CORRESPONDRE AU FICHIER, PAS A CE QU ON AURAIT
+// VOULU L APPELER : une image absente ne casse rien bruyamment, elle affiche
+// simplement un carre vide a la place de la marque.
+// Le carre est public/mrlms-logo.png.png, meme histoire.
 //
 // ⚠️ LE NOM S ECRIT « Mr LMS », SANS POINT. Decision de Jacques du 03/09.
 // L image, elle, porte « Mr.LMS » : c est un dessin, pas une chaine de
 // caracteres. Partout ailleurs — titre du site, sitemap, devis — c est
 // « Mr LMS » qui doit etre ecrit.
-const LOGO_MRLMS = "/mrlms-banniere.jpeg";
+const LOGO_MRLMS = "/mrlms-banniere.jpeg.png";
 
 function estComptable(chemin) {
   for (const p of CHEMINS_COMPTABLE) {
