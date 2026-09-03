@@ -221,7 +221,7 @@ export default function PageDevisCRM() {
       <header style={{ borderBottom: "1px solid rgba(200,169,110,0.15)", background: "#000", marginBottom: "34px" }}>
         <div style={{ ...SECTION, padding: "10px 22px" }}>
           <img
-            src="/mrcrm-banniere%20.png"
+            src="/mrcrm-banniere.png"
             alt="Mr CRM"
             style={{ width: "620px", maxWidth: "82vw", height: "auto", display: "block", margin: "-4px", clipPath: "inset(4px)" }}
           />
