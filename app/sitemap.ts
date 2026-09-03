@@ -81,6 +81,15 @@ const PAGES_MRLMS = [
   "",
 ];
 
+// LES PAGES PUBLIQUES DE mrcrm.fr.
+//
+// 🚨 UNE SEULE PAGE : la vitrine. Le formulaire de devis /devis N EST PAS
+// DECLARE, et ne doit pas l etre : il affiche des prix et n a de sens
+// qu avec un jeton. Meme regle que pour Mr LMS.
+const PAGES_MRCRM = [
+  "",
+];
+
 // LES PAGES PUBLIQUES DE mysterllc.com.
 //
 // 🚨 LISTE VOLONTAIREMENT COURTE. Seules figurent ici les pages dont
@@ -97,6 +106,13 @@ const PAGES_MYSTERLLC = [
 // La marque, l adresse publique et les pages de chaque domaine.
 // `marqueBlog` est la valeur de la colonne `marque` dans la table `blog`.
 const MARQUES: any = {
+  mrcrm: {
+    site: "https://mrcrm.fr",
+    pages: PAGES_MRCRM,
+    marqueBlog: "mrcrm",
+    formations: false,
+    traductions: false,
+  },
   mrlms: {
     site: "https://mrlms.fr",
     pages: PAGES_MRLMS,
@@ -137,6 +153,7 @@ async function marqueDemandee() {
     if (hote.indexOf("mysterllc.com") >= 0) return MARQUES.mysterllc;
     if (hote.indexOf("mrcomptable.fr") >= 0) return MARQUES.mrcomptable;
     if (hote.indexOf("mrlms.fr") >= 0) return MARQUES.mrlms;
+    if (hote.indexOf("mrcrm.fr") >= 0) return MARQUES.mrcrm;
   } catch (e) {
     // Hote illisible : on retombe sur AcadémIA Pro, le domaine principal.
   }
