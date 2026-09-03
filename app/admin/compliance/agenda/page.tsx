@@ -18,6 +18,23 @@ import { useEffect, useState } from "react";
 //
 // ⚠️ LE COURRIEL EST CELUI DU CLIENT FINAL, pas celui du gestionnaire :
 // c est lui qui doit reunir les pieces et deposer.
+//
+// ---- LA SOURCE ET LA DATE DE VERIFICATION — 04/09 ----------------------
+//
+// 🚨 CHAQUE LIGNE PEUT MONTRER D OU VIENT SON CHIFFRE. Un bouton
+// « Details » ouvre la precision de la regle, la penalite encourue, le lien
+// vers le site officiel de l Etat et la date a laquelle elle a ete
+// verifiee.
+//
+// POURQUOI. L outil annonce des dates et des montants a des gestionnaires
+// qui engagent leur responsabilite dessus. Ce qui les protege — et ce qui
+// protege l editeur — ce n est pas une clause de non-responsabilite : c est
+// de montrer la source et la date. Le client verifie en un clic, et il voit
+// tout de suite si la regle a ete controlee il y a un mois ou deux ans.
+//
+// ⚠️ LA MENTION INDICATIVE RESTE COURTE ET FACTUELLE. Un paragraphe
+// juridique en haut d ecran ne serait pas lu, et donnerait l impression
+// qu on se decharge. Une phrase, sous le tableau, suffit et se lit.
 // ---------------------------------------------------------------------------
 
 const VERT = "#0a3d2e";
@@ -29,6 +46,31 @@ function couleurDelai(jours: number, echue: boolean): string {
   if (jours <= 7) return ROUGE;
   if (jours <= 30) return AMBRE;
   return "#2e7d32";
+}
+
+// « 4 septembre 2026 » plutot que « 2026-09-04 » : c est une date lue par
+// un humain, pas un identifiant.
+function dateLisible(iso: string | null): string {
+  if (!iso) return "";
+  try {
+    return new Date(String(iso).slice(0, 10) + "T12:00:00").toLocaleDateString("fr-FR", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    });
+  } catch (e) {
+    return String(iso);
+  }
+}
+
+// Le domaine seul, pour que le lien reste lisible dans un tableau.
+function domaine(url: string | null): string {
+  if (!url) return "";
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch (e) {
+    return url;
+  }
 }
 
 export default function Agenda() {
@@ -47,6 +89,11 @@ export default function Agenda() {
   const [email, setEmail] = useState("");
   const [enCours, setEnCours] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+
+  // Le detail d une echeance : source, precision, penalite. Ouvert par
+  // identifiant d ECHEANCE, et non de societe : deux obligations d une meme
+  // societe n ont ni la meme source ni la meme penalite.
+  const [detail, setDetail] = useState<string | null>(null);
 
   async function charger(p: number, j: number, avecEchues: boolean) {
     setChargement(true);
@@ -260,6 +307,15 @@ export default function Agenda() {
                       {e.periode && (
                         <><br /><span style={{ fontSize: 13, color: "#666" }}>{e.periode}</span></>
                       )}
+                      {/* 🆕 LE MONTANT ANNONCE — 04/09. Il figurait dans la
+                          reponse sans jamais s afficher : un gestionnaire
+                          devait ouvrir la fiche pour savoir combien
+                          provisionner. */}
+                      {e.montant !== null && e.montant !== undefined && Number(e.montant) > 0 && (
+                        <><br /><span style={{ fontSize: 13, color: VERT, fontWeight: 600 }}>
+                          {Number(e.montant).toLocaleString("fr-FR")} {e.devise || "USD"}
+                        </span></>
+                      )}
                     </td>
                     <td style={{ padding: 10, textAlign: "center", fontSize: 14 }}>
                       {e.statut === "a_venir" ? "À venir"
@@ -274,7 +330,13 @@ export default function Agenda() {
                         <span style={{ color: AMBRE }}>non armée</span>
                       )}
                     </td>
-                    <td style={{ padding: 10, textAlign: "center" }}>
+                    <td style={{ padding: 10, textAlign: "center", whiteSpace: "nowrap" }}>
+                      <button
+                        onClick={() => setDetail(detail === e.id ? null : e.id)}
+                        style={{ ...styleBoutonClair, marginRight: 6, padding: "6px 10px", fontSize: 13 }}
+                      >
+                        {detail === e.id ? "Fermer" : "Détails"}
+                      </button>
                       <button
                         onClick={() => {
                           if (ouvert === e.entite_id) {
@@ -290,6 +352,52 @@ export default function Agenda() {
                       </button>
                     </td>
                   </tr>
+
+                  {/* ---- LE DETAIL DE LA REGLE ---- */}
+                  {/* 🚨 C EST ICI QUE L OUTIL MONTRE D OU VIENT SON CHIFFRE.
+                      La precision, la penalite, le lien officiel et la date
+                      de verification. Le gestionnaire n a plus a croire sur
+                      parole : il ouvre la source de l Etat en un clic. */}
+                  {detail === e.id && (
+                    <tr key={e.id + "-detail"} style={{ background: "#f4f7f5" }}>
+                      <td colSpan={6} style={{ padding: 18, borderBottom: "1px solid #e5e5e5" }}>
+                        {e.precision && (
+                          <p style={{ margin: "0 0 10px", fontSize: 14, lineHeight: 1.7, color: "#333" }}>
+                            {e.precision}
+                          </p>
+                        )}
+
+                        {e.penalite && (
+                          <p style={{ margin: "0 0 10px", fontSize: 14, lineHeight: 1.7, color: ROUGE }}>
+                            <strong>En cas de retard :</strong> {e.penalite}
+                          </p>
+                        )}
+
+                        <p style={{ margin: 0, fontSize: 13.5, color: "#555", lineHeight: 1.7 }}>
+                          {e.source_url ? (
+                            <>
+                              Source officielle :{" "}
+                              <a
+                                href={e.source_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{ color: VERT, fontWeight: 600 }}
+                              >
+                                {domaine(e.source_url)}
+                              </a>
+                            </>
+                          ) : (
+                            <span style={{ color: AMBRE }}>
+                              Source officielle non renseignée pour cette règle.
+                            </span>
+                          )}
+                          {e.verifie_le && (
+                            <> — vérifiée le {dateLisible(e.verifie_le)}.</>
+                          )}
+                        </p>
+                      </td>
+                    </tr>
+                  )}
 
                   {ouvert === e.entite_id && (
                     <tr key={e.id + "-armement"} style={{ background: "#f8f8f4" }}>
@@ -360,6 +468,22 @@ export default function Agenda() {
               Suivant →
             </button>
           </div>
+        )}
+
+        {/* ---- LA MENTION INDICATIVE ---- */}
+        {/* 🚨 COURTE ET FACTUELLE. Un paragraphe juridique ne serait pas lu
+            et donnerait l impression qu on se decharge. Une phrase, sous le
+            tableau, se lit et dit exactement ce qu il faut : d ou viennent
+            les chiffres, et a qui revient la verification finale. */}
+        {!chargement && echeances.length > 0 && (
+          <p style={{ marginTop: 28, fontSize: 13, color: "#777", lineHeight: 1.8, borderTop: "1px solid #e5e5e5", paddingTop: 16 }}>
+            Les dates et montants affichés proviennent des sites officiels des
+            administrations concernées, à la date de vérification indiquée sur
+            chaque échéance. Les règles peuvent évoluer : le lien vers la source
+            permet de les contrôler à tout moment. Cet outil facilite le suivi des
+            obligations ; il ne remplace pas l&apos;avis d&apos;un professionnel du
+            droit ou du chiffre.
+          </p>
         )}
       </div>
     </div>
