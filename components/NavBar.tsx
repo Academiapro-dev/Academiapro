@@ -225,7 +225,13 @@ export default function NavBar() {
   // mrcomptable.fr : le domaine impose la marque, seules les pages de
   // vitrine (qui portent leur propre en-tete) y echappent, via les
   // return null plus haut.
-  if (estCheminMysterLLC(chemin) || surMysterLLC) {
+  // 🚨 LE DOMAINE PRIME SUR LE CHEMIN — 03/09. Constate sur mrcomptable.fr :
+  // le registre des signatures (/admin/compliance/signatures) affichait la
+  // barre MysterLLC, logo « Vos LLC en regle » compris, au-dessus des lettres
+  // de mission d un cabinet. Les chemins partages (registre, preparation,
+  // agenda, portefeuille) ne portent la barre MysterLLC que si l on n est
+  // PAS sur mrcomptable.fr ; sur mysterllc.com, toute page la porte.
+  if (surMysterLLC || (estCheminMysterLLC(chemin) && !surMrComptable)) {
     return (
       <header style={{ ...barre, padding: "0 30px", background: "#000" }}>
         <a
@@ -304,11 +310,20 @@ export default function NavBar() {
           <a href="/admin/compliance/acces-clients" style={lienMenu}>Espaces clients</a>
           <a href="/admin/compliance/tva" style={lienMenu}>TVA</a>
           <a href="/admin/compliance/teledec" style={lienMenu}>{"T\u00e9l\u00e9transmissions"}</a>
+          {/* 🆕 03/09 : le circuit de signature (lettre de mission, devis)
+              est le meme module que MysterLLC ; il a maintenant sa place
+              dans la barre du cabinet. */}
+          <a href="/admin/compliance/signatures" style={lienMenu}>Signatures</a>
         </nav>
         <div style={{ display: "flex", gap: "10px", alignItems: "center", flexShrink: 0 }}>
           <a href="/admin/compliance/ma-societe" style={{ color: "#c8a96e", border: "1px solid rgba(200,169,110,0.45)", padding: "8px 16px", borderRadius: "8px", textDecoration: "none", fontWeight: "bold", fontSize: "14px", whiteSpace: "nowrap" }}>
             Mon cabinet
           </a>
+          {connecte && (
+            <a href="/api/auth/deconnexion" style={{ color: "rgba(255,255,255,0.55)", border: "1px solid rgba(255,255,255,0.2)", padding: "8px 16px", borderRadius: "8px", textDecoration: "none", fontSize: "14px", whiteSpace: "nowrap" }}>
+              {"Se d\u00e9connecter"}
+            </a>
+          )}
         </div>
       </header>
     );
