@@ -153,28 +153,32 @@ export async function middleware(request: NextRequest) {
   const hote = request.headers.get('host') || '';
   const h = hoteNu(hote);
 
-  // LE SITEMAP DE MR. COMPTABLE, AVANT TOUTE REECRITURE DE MARQUE.
+  // ════════════════════════════════════════════════════════════════════════
+  // 🚨 LES DEUX REECRITURES DE SITEMAP ONT ETE RETIREES — 03/09.
   //
-  // Ce fichier doit etre servi sur mrcomptable.fr lui-meme : Search Console
-  // refuse un sitemap heberge sur un autre domaine que la propriete. Sans
-  // cette regle, l adresse partait vers /comptable/sitemap-comptable.xml —
-  // qui n existe pas — et Google repondait « impossible de recuperer le
-  // sitemap ». La route vit sous /api parce qu un dossier portant un point
-  // dans son nom n est pas servi par Next.js.
-  if (chemin === '/sitemap-comptable.xml') {
-    const url = request.nextUrl.clone();
-    url.pathname = '/api/sitemap-comptable';
-    return NextResponse.rewrite(url);
-  }
-
-  // 🆕 LE SITEMAP DE MYSTERLLC — 01/09. Meme mecanisme, meme raison : le
-  // fichier doit etre servi sur mysterllc.com lui-meme, et un dossier
-  // portant un point dans son nom n est pas servi par Next.
-  if (chemin === '/sitemap-mysterllc.xml') {
-    const url = request.nextUrl.clone();
-    url.pathname = '/api/sitemap-mysterllc';
-    return NextResponse.rewrite(url);
-  }
+  // CE QU IL Y AVAIT ICI. Deux regles envoyaient /sitemap-comptable.xml et
+  // /sitemap-mysterllc.xml vers des routes dediees sous /api, chacune
+  // produisant le sitemap de sa marque.
+  //
+  // POURQUOI ELLES DISPARAISSENT. `app/sitemap.ts` lit desormais l en-tete
+  // `host` et sert, sous /sitemap.xml, les pages du domaine qui le demande.
+  // Les trois marques sont donc couvertes par UN SEUL FICHIER, a la SEULE
+  // adresse que Google cherche spontanement.
+  //
+  // Garder les deux montages aurait cree une divergence certaine : une page
+  // ajoutee dans l un, oubliee dans l autre, et deux sitemaps qui se
+  // contredisent sans que rien ne le signale. La route MysterLLC portait
+  // deja `https://mysterllc.com` sans `www`, c est a dire des adresses qui
+  // redirigent — exactement ce que Search Console refusait d indexer.
+  //
+  // ⚠️ /sitemap-comptable.xml ET /sitemap-mysterllc.xml REPONDENT DESORMAIS
+  // 404. Si ces adresses ont ete soumises dans Search Console, il faut les
+  // y remplacer par /sitemap.xml. Verifier aussi que robots.txt ne les
+  // annonce plus.
+  //
+  // ⚠️ LES DEUX ROUTES app/api/sitemap-comptable ET app/api/sitemap-mysterllc
+  // NE SONT PLUS ATTEIGNABLES et peuvent etre supprimees du depot.
+  // ════════════════════════════════════════════════════════════════════════
 
   // Une marque de la maison : la racine et les pages de vitrine partent vers
   // le dossier du produit. Le reste — connexion, espaces, administration —
@@ -195,6 +199,11 @@ export async function middleware(request: NextRequest) {
     // dans public/ partait vers /comptable/IMG_4100.jpeg, qui n existe pas :
     // la barre de Mr. Comptable affichait une image cassee. Un fichier n est
     // jamais une page de vitrine.
+    //
+    // 🆕 C EST AUSSI CE QUI LAISSE PASSER /sitemap.xml et /robots.txt : ils
+    // portent une extension, donc ils ne sont jamais reecrits vers le
+    // dossier du produit. C est pourquoi le sitemap unique fonctionne sur
+    // les trois domaines sans regle particuliere.
     //
     // 🚨 /compliance AJOUTE AUX RESERVES LE 01/09, ET SON ABSENCE AURAIT
     // CASSE LA SIGNATURE DEVANT UN CLIENT.
