@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import crypto from "crypto";
 import { sessionCourante } from "../../../../lib/session";
 import { origineLegitime } from "../../../../lib/origine";
+import { marqueCompliance, MarqueCompliance } from "../../../../lib/marque-compliance";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -72,7 +73,7 @@ function echappe(t: string): string {
     .replace(/>/g, "&gt;");
 }
 
-function documentHTML(titre: string, corps: string, societe: string, type: string): string {
+function documentHTML(titre: string, corps: string, societe: string, type: string, marque: MarqueCompliance): string {
   const date = new Date().toLocaleDateString("fr-FR", {
     year: "numeric", month: "long", day: "numeric",
   });
@@ -113,7 +114,7 @@ ${paragraphes}
 </div>
 
 <div class="footer">
-  MysterLLC — document préparé le ${date}.<br/>
+  ${echappe(marque.nom)} — document préparé le ${date}.<br/>
   Une empreinte SHA-256 de ce fichier est conservée avec la signature :
   toute modification ultérieure la rendrait invalide.
 </div>
@@ -135,6 +136,12 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    // 🚨 LA MARQUE VIENT DE L HOTE APPELANT — 03/09. Mr. Comptable et
+    // MysterLLC partagent cette route. Le document, le lien et le courriel
+    // portent la marque du site depuis lequel le gestionnaire ou le cabinet
+    // travaille — jamais l autre.
+    const marque = marqueCompliance(req);
+
     const b = await req.json().catch(function () { return {}; });
 
     const type = String(b.doc_type || "").trim();
@@ -208,7 +215,7 @@ export async function POST(req: NextRequest) {
     const reference = "SIG-" + new Date().toISOString().slice(0, 10).replace(/-/g, "")
       + "-" + suffixe;
 
-    const html = documentHTML(titre, corps, societe, type);
+    const html = documentHTML(titre, corps, societe, type, marque);
     const octets = Buffer.from(html, "utf-8");
     const empreinte = crypto.createHash("sha256").update(octets).digest("hex");
     const chemin = tenantId + "/" + entiteId + "/" + reference + ".html";
@@ -258,15 +265,15 @@ export async function POST(req: NextRequest) {
 
     // ---- LE LIEN DE SIGNATURE ----
     //
-    // ⚠️ IL POINTE SUR MYSTERLLC.COM. Un lien vers academiapro.fr enverrait
-    // le client d un gestionnaire de LLC sur une plateforme de formation —
-    // exactement le defaut corrige ce matin sur les liens de connexion.
-    const lien = "https://mysterllc.com/compliance/signature/"
+    // ⚠️ IL POINTE SUR LE SITE DE LA MARQUE APPELANTE. Un lien vers un
+    // autre site enverrait le client d un cabinet chez un gestionnaire de
+    // LLC, ou l inverse — le defaut corrige le 01/09 sur les liens de
+    // connexion, puis le 03/09 ici.
+    const lien = marque.site + "/compliance/signature/"
       + encodeURIComponent(reference);
 
     const cle = process.env.RESEND_API_KEY || "";
-    const expediteur = process.env.COMPLIANCE_EXPEDITEUR
-      || "MysterLLC <contact@mysterllc.com>";
+    const expediteur = marque.expediteur;
 
     const email: Record<string, unknown> = { destinataire: emailSignataire };
 
@@ -288,7 +295,7 @@ export async function POST(req: NextRequest) {
         "Lire et signer</a></p>" +
         '<p style="font-size:13px;color:#666">Si vous n\'attendiez pas ce document, ' +
         "ignorez ce message : aucune signature ne sera enregistrée sans votre action.</p>" +
-        '<p style="font-size:13px;color:#999;margin-top:26px">MysterLLC — mysterllc.com</p>' +
+        '<p style="font-size:13px;color:#999;margin-top:26px">' + echappe(marque.signature) + "</p>" +
         "</div>";
 
       try {
