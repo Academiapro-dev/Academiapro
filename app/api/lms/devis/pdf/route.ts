@@ -306,6 +306,11 @@ export async function GET(req: NextRequest) {
     }
 
     y = y - 4;
+    // 🚨 LA DEGRESSIVITE S ANNONCE, ELLE NE SE DEDUIT PAS. Sans cette
+    // phrase, les trois lignes qui suivent se lisent comme trois tarifs
+    // separes ; l organisme qui compte grandir ne voit pas ce qu il y
+    // gagnerait. Meme correction que sur l ecran, le 03/09.
+    paragraphe("Stagiaire actif, par mois - le tarif baisse avec le nombre :", 10, encre);
     for (const pal of g.paliers) {
       const borne = pal.max === null
         ? "au-dela du " + (pal.min - 1) + "e"
