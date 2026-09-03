@@ -329,6 +329,63 @@ export default function PageDevisLMS() {
                   </div>
                 )}
 
+                {/* ---- LA SIGNATURE ELECTRONIQUE ---- */}
+                {/* 🚨 LE PRIX RESTE AFFICHE MEME QUAND LE LOT EST OFFERT —
+                    03/09. « La signature est un cadeau, jamais un du. » Un
+                    lot compris sans montant a cote ne se retient pas : le
+                    prospect ne sait pas ce qu on lui donne, et l organisme
+                    qui envisage de partir ne sait pas ce qu il perdrait. */}
+                {devis.signature_unitaire > 0 && (
+                  <div style={{ borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: "14px", marginBottom: "16px" }}>
+                    <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13.5px", margin: "0 0 8px" }}>
+                      Signature électronique :
+                    </p>
+
+                    <div style={{ display: "grid", gridTemplateColumns: "3fr 1fr", gap: "4px 12px", fontSize: "14px", padding: "3px 0" }}>
+                      <span style={{ color: "rgba(255,255,255,0.7)" }}>À l&apos;unité</span>
+                      <span style={{ color: OR, textAlign: "right" }}>
+                        {euros(devis.signature_unitaire)}
+                      </span>
+                    </div>
+
+                    {devis.signature_lots && devis.signature_lots.map(function (l: any, i: number) {
+                      return (
+                        <div key={i} style={{ display: "grid", gridTemplateColumns: "3fr 1fr", gap: "4px 12px", fontSize: "14px", padding: "3px 0" }}>
+                          <span style={{ color: "rgba(255,255,255,0.7)" }}>
+                            Lot de {l.nombre} · {euros(l.unitaire)} l&apos;unité
+                          </span>
+                          <span style={{ color: OR, textAlign: "right" }}>{euros(l.prix)}</span>
+                        </div>
+                      );
+                    })}
+
+                    {devis.signatures_offertes > 0 && (
+                      <div style={{ marginTop: "12px", padding: "12px 14px", background: "rgba(76,175,80,0.07)", border: "1px solid rgba(76,175,80,0.35)", borderRadius: "9px" }}>
+                        <p style={{ color: "#4caf50", fontSize: "15px", margin: "0 0 5px", fontWeight: "bold" }}>
+                          {devis.signatures_offertes} signatures comprises chaque année
+                        </p>
+                        {/* 🚨 PAS DE « VALEUR X € » — 03/09. Chiffrer le
+                            cadeau le rapetisse : cinquante euros a cote d un
+                            abonnement de deux cents ne pese rien. Le prix a
+                            l unite et les lots sont juste au-dessus ; le
+                            prospect fait le calcul s il le veut, et il le
+                            fait a son avantage. */}
+                        <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "13.5px", margin: 0, lineHeight: "1.7" }}>
+                          Elles se renouvellent tant que votre offre est en cours. Au-delà,
+                          les signatures sont facturées à l&apos;unité ou par lot.
+                        </p>
+                      </div>
+                    )}
+
+                    {devis.signatures_offertes === 0 && (
+                      <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "13px", margin: "10px 0 0", lineHeight: "1.7" }}>
+                        Avec l&apos;option marque blanche, cent signatures sont comprises chaque
+                        année.
+                      </p>
+                    )}
+                  </div>
+                )}
+
                 {devis.stagiaires_detail.length > 0 && (
                   <div style={{ borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: "14px", marginBottom: "16px" }}>
                     <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13.5px", margin: "0 0 8px" }}>
