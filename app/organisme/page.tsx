@@ -97,9 +97,27 @@ export default async function TableauDeBordOrganisme() {
     ? await supabase.from("organisme_apprenants").select("email, statut, statut_stagiaire, payeur").eq("tenant_id", t).limit(5000)
     : vide;
 
-  const { data: catalogue } = t
-    ? await supabase.from("organisme_catalogue").select("formation_code").eq("tenant_id", t).eq("actif", true).limit(1000)
-    : vide;
+  // LE CATALOGUE, C'EST 560 FORMATIONS. DECISION DE JACQUES, 03/09.
+  //
+  // Cette carte annonce le catalogue AcadémIA, pas ce que l'organisme en a
+  // deja ouvert. Le chiffre se lit donc dans `formations`, avec les MEMES
+  // filtres que /api/formations/compte : actif=true et type_objet='formation'
+  // (les ateliers et les fiches desactivees sont hors compte).
+  //
+  // 🚨 JAMAIS ZERO. Si la lecture echoue, `nbCatalogue` reste null et la
+  // carte ecrit sa phrase SANS NOMBRE. Un catalogue annonce a zero pendant
+  // une demonstration serait pire que pas de chiffre du tout.
+  let nbCatalogue: number | null = null;
+  try {
+    const { count, error } = await supabase
+      .from("formations")
+      .select("code", { count: "exact", head: true })
+      .eq("actif", true)
+      .eq("type_objet", "formation");
+    if (!error && typeof count === "number") nbCatalogue = count;
+  } catch (e) {
+    nbCatalogue = null;
+  }
 
   const { data: coursPropres } = t
     ? await supabase.from("organisme_cours").select("id, publie").eq("tenant_id", t).limit(500)
@@ -204,11 +222,23 @@ export default async function TableauDeBordOrganisme() {
     ? Math.round((notesEval.reduce(function (a: number, b: number) { return a + b; }, 0) / notesEval.length) * 10) / 10
     : null;
 
-  // 🚨 PLUS AUCUN TARIF DE LANCEMENT. Cet ecran affichait « abonnement / 2 »
-  // des que la colonne lancement_jusqu_au portait une date. Supprime le 16/08
-  // sur decision de Jacques : le montant affiche est TOUJOURS le prix plein,
-  // ici comme dans la facturation et sur le bon de commande.
-  const abonnement = org ? Number(org.abonnement_mensuel) || 0 : 0;
+  // 🚨 PLUS AUCUN MONTANT SUR CET ECRAN — 03/09.
+  //
+  // Historique : le 16/08, le tarif de lancement (« abonnement / 2 ») a ete
+  // supprime, le montant affiche devenant toujours le prix plein.
+  // Le 03/09, le montant lui-meme est retire de la carte « Ma facturation ».
+  //
+  // DEUX RAISONS. La premiere : le tableau de bord est visible pendant une
+  // demonstration, et un prix lu avant l'echange contredit la doctrine
+  // commerciale — le tarif se donne apres, c'est ce qui produit le prospect.
+  // La seconde : « 390 € / mois + inscriptions » etait faux depuis la grille
+  // du 03/09 (abonnement 200 ou 380 €, puis facturation au STAGIAIRE ACTIF
+  // degressive, pas a l'inscription).
+  //
+  // ⚠️ SI UN MONTANT REVIENT UN JOUR ICI, IL DEVRA VENIR DE `lms_tarifs` ET
+  // DE LA FACTURATION REELLE DE L'ORGANISME, JAMAIS D'UNE CONSTANTE.
+  // La colonne abonnement_mensuel reste lue plus haut : d'autres ecrans s'en
+  // servent, et la retirer du select depasserait ce qui est demande ici.
 
   // PROFILS DU CLIENT. Sans profil declare, on suppose qu'il vend des
   // formations : c'est le cas de tous les comptes existants.
@@ -245,7 +275,7 @@ export default async function TableauDeBordOrganisme() {
         // /organisme/commander-formation existe encore dans le depot mais
         // n'est plus atteignable depuis cet ecran ; elle sera retiree
         // separement.
-        { pour: TOUS, href: "/organisme/catalogue", nom: "Catalogue AcadémIA", detail: (catalogue || []).length + " formation(s) ouverte(s)", alerte: "" },
+        { pour: TOUS, href: "/organisme/catalogue", nom: "Catalogue AcadémIA", detail: nbCatalogue !== null ? nbCatalogue + " formations prêtes à vendre" : "Des formations prêtes à vendre", alerte: "" },
         { pour: TOUS, href: "/organisme/seances", nom: "Classes virtuelles", detail: seancesAvenir > 0 ? seancesAvenir + " à venir" : (seances || []).length + " séance(s)", alerte: "" },
         { pour: TOUS, href: "/organisme/relances", nom: "Qui a décroché", detail: decroches > 0 ? decroches + " inactif(s)" : "tout le monde avance", alerte: decroches > 0 ? "à relancer" : "" },
         { pour: TOUS, href: "/organisme/importer", nom: "Importer une liste", detail: "jusqu'à 500 stagiaires", alerte: "" },
@@ -256,7 +286,7 @@ export default async function TableauDeBordOrganisme() {
       portes: [
         { pour: VENTE, href: "/organisme/crm", nom: "Mes prospects", detail: (prospects || []).length + " fiche(s)", alerte: aTraiter > 0 ? aTraiter + " à traiter" : "" },
         { pour: VENTE, href: "/organisme/portail", nom: "Ma page publique", detail: org && org.portail_actif ? "en ligne · /of/" + org.slug : "fermée", alerte: org && !org.portail_actif ? "à ouvrir" : "" },
-        { pour: VENTE, href: "/organisme/facturation", nom: "Ma facturation", detail: abonnement > 0 ? abonnement + " € / mois + inscriptions" : "en cours", alerte: "" },
+        { pour: VENTE, href: "/organisme/facturation", nom: "Ma facturation", detail: "Votre abonnement et vos stagiaires actifs · voir votre devis", alerte: "" },
       ],
     },
     {
