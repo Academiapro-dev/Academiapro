@@ -9,8 +9,8 @@ const LIBELLE_TYPE: any = {
   convocation: "Convocation",
   programme: "Programme de formation",
   attestation: "Attestation de fin de formation",
-  emargement: "Attestation d assiduite",
-  livret: "Livret d accueil",
+  emargement: "Attestation d'assiduité",
+  livret: "Livret d'accueil",
   soustraitance_contrat: "Contrat de sous-traitance",
   soustraitance_certificat: "Certificat Qualiopi du prestataire",
 };
@@ -31,6 +31,14 @@ export default function PageSignature({ params }: { params: { reference: string 
   const [occupe, setOccupe] = useState("");
   const [message, setMessage] = useState("");
   const [erreur, setErreur] = useState("");
+
+  // 🆕 SANS SESSION, OU AVEC LA MAUVAISE — 03/09, repris de MysterLLC.
+  // Le lien du courriel s ouvre souvent dans un navigateur sans session
+  // (Gmail integre) : la page disait « Connectez-vous. » sans aucune porte.
+  // La porte, c est /connexion?retour=<cette page> : apres le clic dans le
+  // courriel de connexion, /api/auth/valider ramene ici, sur ce document.
+  const [nonConnecte, setNonConnecte] = useState(false);
+  const lienConnexion = "/connexion?retour=" + encodeURIComponent("/signature/" + reference);
 
   // L heure d ouverture de la page est relevee : elle documente le temps
   // ecoule entre la mise a disposition du document et son acceptation.
@@ -88,7 +96,9 @@ export default function PageSignature({ params }: { params: { reference: string 
     try {
       const r = await fetch("/api/organisme/signature?vue=miennes");
       const data = await r.json();
-      if (data.ok) {
+      if (r.status === 401) {
+        setNonConnecte(true);
+      } else if (data.ok) {
         setConsentement(data.consentement || "");
         setEmail(data.email || "");
         const trouvee = (data.signatures || []).find(function (s: any) {
@@ -111,7 +121,8 @@ export default function PageSignature({ params }: { params: { reference: string 
         "/api/organisme/signature?vue=document&reference=" + encodeURIComponent(reference)
       );
       const data = await r.json();
-      if (data.ok) setDocument(data);
+      if (r.status === 401) setNonConnecte(true);
+      else if (data.ok) setDocument(data);
       else setErreur(data.erreur || "");
     } catch (e) {}
   }
@@ -189,7 +200,7 @@ export default function PageSignature({ params }: { params: { reference: string 
       const data = await r.json();
       if (data.ok) {
         setCodeEnvoye(true);
-        setMessage(data.message || "Code envoye.");
+        setMessage(data.message || "Code envoyé.");
       } else {
         setErreur(data.erreur || "Envoi impossible.");
       }
@@ -305,7 +316,7 @@ export default function PageSignature({ params }: { params: { reference: string 
     <div style={CADRE}>
       <div style={{ maxWidth: "680px", margin: "0 auto" }}>
         <p style={{ color: "#c8a96e", fontSize: "12px", letterSpacing: "3px", margin: "0 0 8px" }}>
-          SIGNATURE ELECTRONIQUE
+          SIGNATURE ÉLECTRONIQUE
         </p>
         <h1 style={{ color: "#fff", fontSize: "27px", margin: "0 0 10px" }}>
           Document {reference}
@@ -330,7 +341,7 @@ export default function PageSignature({ params }: { params: { reference: string 
             </h2>
             {document.contrepartie && (
               <p style={{ color: "#555", fontSize: "15px", margin: "0 0 16px", lineHeight: "1.7" }}>
-                Etabli avec {document.contrepartie}.
+                Établi avec {document.contrepartie}.
               </p>
             )}
 
@@ -355,8 +366,8 @@ export default function PageSignature({ params }: { params: { reference: string 
               </a>
             ) : (
               <p style={{ color: "#a33a2a", fontSize: "15px", margin: 0, lineHeight: "1.7" }}>
-                Le document n a pas pu etre affiche. Ne signez pas avant d en avoir pris
-                connaissance : demandez-en une copie a l expediteur.
+                Le document n&apos;a pas pu être affiché. Ne signez pas avant d&apos;en avoir pris
+                connaissance : demandez-en une copie à l&apos;expéditeur.
               </p>
             )}
 
@@ -369,10 +380,26 @@ export default function PageSignature({ params }: { params: { reference: string 
           </div>
         )}
 
-        {signature ? (
+        {nonConnecte ? (
+          <div style={{ ...CARTE, background: "#fdf8ee", border: "1px solid #e5d3a8" }}>
+            <h2 style={{ color: "#8a6d1f", fontSize: "19px", margin: "0 0 10px" }}>
+              Connectez-vous pour lire et signer
+            </h2>
+            <p style={{ color: "#5a4d2a", fontSize: "15px", margin: "0 0 18px", lineHeight: "1.75" }}>
+              Utilisez l&apos;adresse à laquelle ce document vous a été envoyé. Vous recevrez
+              un lien de connexion, sans mot de passe, et vous reviendrez directement ici.
+            </p>
+            <a
+              href={lienConnexion}
+              style={{ display: "inline-block", background: "#0a3d2e", color: "#ffffff", padding: "14px 26px", borderRadius: "8px", textDecoration: "none", fontSize: "16px", fontFamily: "Georgia,serif", fontWeight: "bold" }}
+            >
+              Se connecter
+            </a>
+          </div>
+        ) : signature ? (
           <div style={{ ...CARTE, background: "#f2f9f3", border: "1px solid #b8ddbd" }}>
             <p style={{ color: "#2e7d32", fontSize: "19px", fontWeight: "bold", margin: "0 0 14px" }}>
-              Document signe
+              Document signé
             </p>
 
             <p style={{ color: "#3a5a3d", fontSize: "15px", margin: "0 0 6px", lineHeight: "1.7" }}>
@@ -383,12 +410,12 @@ export default function PageSignature({ params }: { params: { reference: string 
 
             {(signature.code_verifie_le || signature.verifie_par_code) && (
               <p style={{ color: "#2e7d32", fontSize: "14px", margin: "10px 0 0", lineHeight: "1.7" }}>
-                Votre identite a ete verifiee par un code envoye a votre adresse electronique.
+                Votre identité a été vérifiée par un code envoyé à votre adresse électronique.
               </p>
             )}
 
             <p style={{ color: "#5a7a5d", fontSize: "13px", margin: "14px 0 0", lineHeight: "1.7", wordBreak: "break-all" }}>
-              Empreinte du document signe :<br />
+              Empreinte du document signé :<br />
               <span style={{ fontFamily: "monospace", fontSize: "12px" }}>
                 {signature.empreinte_sha256 || signature.empreinte}
               </span>
@@ -411,7 +438,7 @@ export default function PageSignature({ params }: { params: { reference: string 
                   fontWeight: "bold",
                 }}
               >
-                Telecharger le certificat
+                Télécharger le certificat
               </a>
 
               {document && document.lien_lecture && (
@@ -437,36 +464,42 @@ export default function PageSignature({ params }: { params: { reference: string 
             </div>
 
             <p style={{ color: "#6b8a6e", fontSize: "13px", margin: "18px 0 0", lineHeight: "1.7" }}>
-              Le document n a pas ete modifie par votre signature : son empreinte reste
-              identique. C est le certificat qui porte la preuve — conservez les deux
+              Le document n&apos;a pas été modifié par votre signature : son empreinte reste
+              identique. C&apos;est le certificat qui porte la preuve — conservez les deux
               ensemble.
             </p>
           </div>
         ) : !jePeuxSigner ? (
           <div style={{ ...CARTE, background: "#fdf8ee", border: "1px solid #e5d3a8" }}>
             <h2 style={{ color: "#8a6d1f", fontSize: "19px", margin: "0 0 10px" }}>
-              Ce document ne vous est pas destine
+              Ce document ne vous est pas destiné
             </h2>
             <p style={{ color: "#5a4d2a", fontSize: "15px", margin: "0 0 14px", lineHeight: "1.75" }}>
-              Il est etabli au nom de <strong>{beneficiaire || "une autre personne"}</strong>.
-              Seule cette personne peut le signer : c est ce qui donne sa valeur a la signature.
+              Il est établi au nom de <strong>{beneficiaire || "une autre personne"}</strong>.
+              Seule cette personne peut le signer : c&apos;est ce qui donne sa valeur à la signature.
             </p>
-            <p style={{ color: "#7a6a4a", fontSize: "14px", margin: 0, lineHeight: "1.75" }}>
+            <p style={{ color: "#7a6a4a", fontSize: "14px", margin: "0 0 18px", lineHeight: "1.75" }}>
               Vous pouvez lire le document ci-dessus. Pour le signer, connectez-vous avec le
-              compte correspondant a cette adresse.
+              compte correspondant à cette adresse.
             </p>
+            <a
+              href={lienConnexion}
+              style={{ display: "inline-block", background: "#0a3d2e", color: "#ffffff", padding: "14px 26px", borderRadius: "8px", textDecoration: "none", fontSize: "15px", fontFamily: "Georgia,serif", fontWeight: "bold" }}
+            >
+              Se connecter avec ce compte
+            </a>
           </div>
         ) : (
           <div style={CARTE}>
             {!codeEnvoye ? (
               <div>
                 <h2 style={{ color: "#0a3d2e", fontSize: "19px", margin: "0 0 10px" }}>
-                  Verification de votre identite
+                  Vérification de votre identité
                 </h2>
                 <p style={{ color: "#555", fontSize: "15px", margin: "0 0 20px", lineHeight: "1.75" }}>
-                  Avant de signer, nous verifions que vous etes bien le titulaire de
-                  l adresse <strong>{beneficiaire || email || "a laquelle ce lien a ete envoye"}</strong>.
-                  Un code a six chiffres va vous y etre adresse.
+                  Avant de signer, nous vérifions que vous êtes bien le titulaire de
+                  l&apos;adresse <strong>{beneficiaire || email || "à laquelle ce lien a été envoyé"}</strong>.
+                  Un code à six chiffres va vous y être adressé.
                 </p>
 
                 {bandeauErreur()}
@@ -480,8 +513,8 @@ export default function PageSignature({ params }: { params: { reference: string 
                 </button>
 
                 <p style={{ color: "#777", fontSize: "13px", margin: "16px 0 0", lineHeight: "1.7" }}>
-                  Cette verification renforce la valeur de votre signature : elle etablit que
-                  la personne qui signe controle bien cette adresse.
+                  Cette vérification renforce la valeur de votre signature : elle établit que
+                  la personne qui signe contrôle bien cette adresse.
                 </p>
               </div>
             ) : (
@@ -492,7 +525,7 @@ export default function PageSignature({ params }: { params: { reference: string 
                   </p>
                 )}
 
-                <span style={LIBELLE}>Le code recu par email</span>
+                <span style={LIBELLE}>Le code reçu par courriel</span>
                 <input
                   value={code}
                   onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
@@ -506,24 +539,24 @@ export default function PageSignature({ params }: { params: { reference: string 
                   disabled={occupe !== ""}
                   style={{ background: "none", border: "none", color: "#0a3d2e", cursor: "pointer", fontSize: "14px", textDecoration: "underline", padding: 0, marginBottom: "22px" }}
                 >
-                  Je n ai rien recu — renvoyer un code
+                  Je n&apos;ai rien reçu — renvoyer un code
                 </button>
 
-                <span style={LIBELLE}>Votre nom et prenom</span>
+                <span style={LIBELLE}>Votre nom et prénom</span>
                 <input value={nom} onChange={(e) => setNom(e.target.value)} style={CHAMP} />
 
-                <span style={LIBELLE}>Votre qualite (facultatif)</span>
+                <span style={LIBELLE}>Votre qualité (facultatif)</span>
                 <input
                   value={qualite}
                   onChange={(e) => setQualite(e.target.value)}
-                  placeholder="Stagiaire, gerant, responsable de formation..."
+                  placeholder="Stagiaire, gérant, responsable de formation…"
                   style={CHAMP}
                 />
 
                 <span style={LIBELLE}>Votre signature manuscrite (facultatif)</span>
                 <p style={{ color: "#777", fontSize: "13px", margin: "0 0 10px", lineHeight: "1.7" }}>
                   Tracez votre signature au doigt ou au stylet dans le cadre. Elle sera
-                  jointe a la preuve. Vous pouvez aussi signer sans trace : la case et le
+                  jointe à la preuve. Vous pouvez aussi signer sans tracé : la case et le
                   code suffisent.
                 </p>
                 <canvas
@@ -545,7 +578,7 @@ export default function PageSignature({ params }: { params: { reference: string 
                 />
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", margin: "8px 0 20px" }}>
                   <span style={{ color: aTrace ? "#2e7d32" : "#999", fontSize: "13px" }}>
-                    {aTrace ? "Trace releve — il sera scelle avec la signature." : "Aucun trace pour l instant."}
+                    {aTrace ? "Tracé relevé — il sera scellé avec la signature." : "Aucun tracé pour l'instant."}
                   </span>
                   <button
                     onClick={effacer}
@@ -612,14 +645,14 @@ export default function PageSignature({ params }: { params: { reference: string 
                 </button>
 
                 <p style={{ color: "#777", fontSize: "13px", margin: "16px 0 0", lineHeight: "1.7" }}>
-                  Au moment de votre signature, le document est archive tel quel et son empreinte
-                  numerique est calculee. La date, l heure de verification de votre code, votre
-                  adresse de connexion et le texte que vous acceptez sont enregistres avec elle.
+                  Au moment de votre signature, le document est archivé tel quel et son empreinte
+                  numérique est calculée. La date, l&apos;heure de vérification de votre code, votre
+                  adresse de connexion et le texte que vous acceptez sont enregistrés avec elle.
                 </p>
 
                 <p style={{ color: "#999", fontSize: "12px", margin: "12px 0 0", lineHeight: "1.6" }}>
-                  Signature electronique simple au sens du reglement europeen eIDAS. Elle n est
-                  ni avancee ni qualifiee.
+                  Signature électronique simple au sens du règlement européen eIDAS. Elle n&apos;est
+                  ni avancée ni qualifiée.
                 </p>
               </div>
             )}
