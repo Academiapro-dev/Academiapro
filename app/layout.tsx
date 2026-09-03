@@ -39,8 +39,8 @@ const MARQUES: any = {
     descriptionCourte:
       "Savoir qui rappeler, et quoi lui dire",
     url: "https://mrcrm.fr",
-    image: "/mrcrm-logo.png",
-    icone: "/mrcrm-logo.png",
+    image: "/mrcrm-logo%20.png",
+    icone: "/mrcrm-logo%20.png",
   },
   mrlms: {
     nom: "Mr LMS",
