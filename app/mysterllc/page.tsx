@@ -148,6 +148,33 @@ const ETAPES = [
   },
 ];
 
+// 🆕 LES SEPT ETATS COUVERTS — 04/09.
+//
+// 🚨 « SUIVI », JAMAIS « NOUS PROPOSONS UNE LLC ». MysterLLC ne constitue
+// aucune societe : il suit les obligations d une LLC deja constituee.
+// Ecrire « nous proposons une LLC dans sept Etats » ferait croire a un
+// service de creation, et le prospect serait decu des le premier echange.
+//
+// POURQUOI L ANNONCER. La plupart des outils de suivi ne couvrent que le
+// Wyoming et le Delaware. Sept Etats, chacun avec ses dates, ses montants
+// et ses penalites propres, est une raison de choisir celui-ci — et rien
+// sur la page ne le disait.
+//
+// ⚠️ CETTE LISTE DOIT CORRESPONDRE EXACTEMENT AUX REGLES PRESENTES DANS
+// `compliance_rules`. Annoncer un Etat sans regle en base donnerait un
+// client suivi pour le federal mais SANS AUCUNE ECHEANCE D ETAT, en
+// silence. Verifier en base avant d en ajouter un ici :
+//   select distinct etat_requis from compliance_rules where actif;
+const ETATS_COUVERTS = [
+  { code: "WY", nom: "Wyoming", note: "Rapport annuel au mois anniversaire" },
+  { code: "DE", nom: "Delaware", note: "Taxe annuelle au 1er juin, sans rapport" },
+  { code: "NM", nom: "Nouveau-Mexique", note: "Ni rapport annuel ni taxe de franchise" },
+  { code: "NV", nom: "Nevada", note: "Liste annuelle et licence d'État, ensemble" },
+  { code: "FL", nom: "Floride", note: "Rapport annuel au 1er mai, en ligne uniquement" },
+  { code: "TX", nom: "Texas", note: "Rapport public au 15 mai, même sans taxe due" },
+  { code: "MT", nom: "Montana", note: "Rapport annuel au 15 avril" },
+];
+
 export default function VitrineMysterLLC() {
   const section = {
     maxWidth: "1000px",
@@ -303,8 +330,8 @@ export default function VitrineMysterLLC() {
           <p style={chapo}>
             Les obligations s'appliquent selon la situation de chaque société.
             Une LLC du Delaware à membre expatrié ne verra jamais d'échéance
-            fiscale française ; une société du Wyoming verra son Annual
-            Report, les autres non.
+            fiscale française ; une société du Nouveau-Mexique n'aura aucun
+            rapport d'État à déposer, parce que cet État n'en exige pas.
           </p>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(290px,1fr))", gap: "18px" }}>
             {OBLIGATIONS.map((o) => (
@@ -320,6 +347,39 @@ export default function VitrineMysterLLC() {
             ))}
           </div>
         </div>
+      </div>
+
+      {/* ---- LES ETATS COUVERTS ---- */}
+      {/* 🚨 PLACEE APRES LA LISTE DES OBLIGATIONS, ET AVANT « comment cela
+          se passe ». Le prospect vient de lire ce qui est suivi ; la
+          question suivante est « et pour MON Etat ? ». */}
+      <div style={section}>
+        <h2 style={h2}>Sept États suivis, chacun avec ses règles</h2>
+        <p style={chapo}>
+          Les obligations d&apos;État ne se ressemblent pas d&apos;un État à
+          l&apos;autre : ni les dates, ni les montants, ni ce qui arrive en cas
+          d&apos;oubli. Chaque règle est reprise du site officiel de
+          l&apos;administration concernée, avec la date à laquelle elle a été
+          vérifiée — vous pouvez la contrôler depuis l&apos;outil.
+        </p>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(230px,1fr))", gap: "14px" }}>
+          {ETATS_COUVERTS.map((e) => (
+            <div key={e.code} style={{ ...carte, padding: "18px 20px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "10px", marginBottom: "7px" }}>
+                <strong style={{ color: OR, fontSize: "15.5px" }}>{e.nom}</strong>
+                <span style={{ color: "rgba(255,255,255,0.3)", fontSize: "12px" }}>{e.code}</span>
+              </div>
+              <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13.5px", lineHeight: "1.7", margin: 0 }}>
+                {e.note}
+              </p>
+            </div>
+          ))}
+        </div>
+        <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "13.5px", lineHeight: "1.8", marginTop: "22px", maxWidth: "680px" }}>
+          Une société constituée dans un autre État reste suivie pour ses
+          obligations fédérales ; ses échéances d&apos;État ne sont pas encore
+          couvertes. Dites-nous lequel vous intéresse.
+        </p>
       </div>
 
       {/* ---- COMMENT CA MARCHE ---- */}
