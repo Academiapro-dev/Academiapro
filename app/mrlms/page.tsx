@@ -115,7 +115,7 @@ export default function PageMrLMS() {
       <header style={{ borderBottom: "1px solid rgba(200,169,110,0.15)", background: "#000" }}>
         <div style={{ ...SECTION, display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 24px" }}>
           <img
-            src="/mrlms-banniere.jpeg"
+            src="/mrlms-banniere.jpeg.png"
             alt="Mr LMS"
             style={{ width: "380px", maxWidth: "52vw", height: "auto", display: "block", margin: "-4px", clipPath: "inset(4px)" }}
           />
