@@ -66,6 +66,24 @@ const supabase = createClient(
 // utiles et ne se deduisent pas l un de l autre : une seule societe muette
 // peut porter trente echeances. Le libelle a l ecran doit dire lequel est
 // lequel, sinon les chiffres paraissent incoherents.
+//
+// ---- LA SOURCE ET LA DATE DE VERIFICATION — 04/09 ----------------------
+//
+// 🚨 CHAQUE ECHEANCE PORTE DESORMAIS SA SOURCE OFFICIELLE ET LA DATE A
+// LAQUELLE LA REGLE A ETE VERIFIEE.
+//
+// POURQUOI. L outil annonce des dates et des montants a des gestionnaires
+// qui prennent des decisions dessus. Il n est ni avocat ni fiscaliste, et
+// il ne peut pas garantir qu un Etat n a pas change sa regle hier. Ce qui
+// protege reellement, ce n est pas une clause disant qu on n est
+// responsable de rien : c est de MONTRER D OU VIENT CHAQUE CHIFFRE ET
+// QUAND IL A ETE VU. Le client peut alors verifier lui-meme en un clic, et
+// il voit immediatement si la regle a ete controlee il y a un mois ou il y
+// a deux ans.
+//
+// ⚠️ `verifie_le` DOIT ETRE MIS A JOUR A CHAQUE RE-VERIFICATION D UNE
+// REGLE. Une date figee qui vieillit est pire qu aucune date : elle donne
+// une assurance que rien ne soutient.
 // ---------------------------------------------------------------------------
 
 const PAR_PAGE_DEFAUT = 100;
@@ -275,9 +293,14 @@ export async function GET(req: NextRequest) {
 
     // ---- LES TITRES DES OBLIGATIONS ----
     // Catalogue commun, petit et stable : une seule lecture suffit.
+    //
+    // 🚨 `source_url`, `verifie_le`, `filing_note` ET `penalty_note` SONT
+    // LUS ICI — 04/09. Ce sont eux qui permettent a l ecran de montrer d ou
+    // vient chaque chiffre. Sans la source, le gestionnaire doit croire
+    // l outil sur parole ; avec elle, il verifie en un clic.
     const { data: regles } = await supabase
       .from("compliance_rules")
-      .select("code, title, jurisdiction, channel")
+      .select("code, title, jurisdiction, channel, source_url, verifie_le, filing_note, penalty_note")
       .limit(500);
 
     const titres: any = {};
@@ -303,6 +326,13 @@ export async function GET(req: NextRequest) {
         rule_code: e.rule_code,
         juridiction: r.jurisdiction || null,
         canal: r.channel || null,
+        // La source officielle et la date a laquelle la regle a ete
+        // verifiee. Affichees telles quelles : on ne cache pas une regle
+        // ancienne, on la montre avec sa date.
+        source_url: r.source_url || null,
+        verifie_le: r.verifie_le || null,
+        precision: r.filing_note || null,
+        penalite: r.penalty_note || null,
         periode: e.period_label,
         due_date: e.due_date,
         jours: jours,
