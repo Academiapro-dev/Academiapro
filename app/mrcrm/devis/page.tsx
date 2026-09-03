@@ -79,8 +79,18 @@ const PLEIN: any = {
   fontFamily: "Georgia,serif",
 };
 
+// 🚨 « 18,80 € » ET NON « 18,8 € » — 03/09. toLocaleString coupe le zero
+// final : sur un devis, un montant ampute d une decimale se remarque, et
+// donne l impression d un calcul approximatif.
+// Les montants ronds restent sans decimale (« 49 € »), ceux qui en ont en
+// portent deux.
 function euros(n: any) {
-  return (Number(n) || 0).toLocaleString("fr-FR") + " €";
+  const v = Number(n) || 0;
+  const entier = Math.round(v * 100) % 100 === 0;
+  return v.toLocaleString("fr-FR", {
+    minimumFractionDigits: entier ? 0 : 2,
+    maximumFractionDigits: 2,
+  }) + " €";
 }
 
 // Les centimes comptent pour une minute ou un SMS : « 0,12 € » et non
@@ -213,7 +223,7 @@ export default function PageDevisCRM() {
           <img
             src="/mrcrm-banniere%20.png"
             alt="Mr CRM"
-            style={{ width: "460px", maxWidth: "72vw", height: "auto", display: "block", margin: "-4px", clipPath: "inset(4px)" }}
+            style={{ width: "620px", maxWidth: "82vw", height: "auto", display: "block", margin: "-4px", clipPath: "inset(4px)" }}
           />
         </div>
       </header>
