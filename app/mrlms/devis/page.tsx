@@ -290,6 +290,37 @@ export default function PageDevisLMS() {
                   )}
                 </div>
 
+                {/* 🚨 LA GRILLE COMPLETE, ET NON LE SEUL PALIER ATTEINT —
+                    03/09. Constate en test : a dix stagiaires, une seule
+                    ligne s affichait et RIEN NE DISAIT QUE LE PRIX BAISSE
+                    ENSUITE. Un organisme qui compte grandir ne voyait pas
+                    ce qu il gagnerait a le faire — c est pourtant l argument
+                    le plus fort de la grille. Les paliers non atteints sont
+                    montres en gris, celui qui s applique en clair. */}
+                {devis.paliers && devis.paliers.length > 0 && (
+                  <div style={{ borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: "14px", marginBottom: "16px" }}>
+                    <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13.5px", margin: "0 0 10px" }}>
+                      Stagiaire actif, par mois — le tarif baisse avec le nombre :
+                    </p>
+                    {devis.paliers.map(function (p: any, i: number) {
+                      const utilise = devis.stagiaires >= p.min;
+                      const borne = p.max === null
+                        ? "au-delà du " + (p.min - 1) + "e"
+                        : "du " + p.min + "e au " + p.max + "e";
+                      return (
+                        <div key={i} style={{ display: "grid", gridTemplateColumns: "3fr 1fr", gap: "4px 12px", fontSize: "14px", padding: "4px 0" }}>
+                          <span style={{ color: utilise ? "rgba(255,255,255,0.78)" : "rgba(255,255,255,0.35)" }}>
+                            {borne}
+                          </span>
+                          <span style={{ color: utilise ? OR : "rgba(255,255,255,0.35)", textAlign: "right", fontWeight: utilise ? "bold" : "normal" }}>
+                            {euros(p.prix)}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
                 {devis.stagiaires_detail.length > 0 && (
                   <div style={{ borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: "14px", marginBottom: "16px" }}>
                     <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13.5px", margin: "0 0 8px" }}>
@@ -305,6 +336,12 @@ export default function PageDevisLMS() {
                         </div>
                       );
                     })}
+                    <div style={{ display: "grid", gridTemplateColumns: "3fr 1fr", gap: "4px 12px", fontSize: "14px", paddingTop: "8px", marginTop: "5px", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                      <span style={{ color: "rgba(255,255,255,0.78)" }}>Total stagiaires, par mois</span>
+                      <span style={{ color: OR, textAlign: "right", fontWeight: "bold" }}>
+                        {euros(devis.stagiaires_total)}
+                      </span>
+                    </div>
                   </div>
                 )}
 
