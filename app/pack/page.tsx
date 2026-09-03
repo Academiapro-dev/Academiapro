@@ -1,4 +1,5 @@
-export const runtime = "nodejs";
+"use client";
+import { useEffect, useState } from "react";
 
 // LA PAGE DE VENTE DU PACK — LA PLUS IMPORTANTE DU SITE.
 //
@@ -13,6 +14,17 @@ export const runtime = "nodejs";
 // automatiquement notre propriete, sinon comment aurions-nous construit
 // 310 formations qui font partie de notre catalogue ». Aujourd hui 331,
 // demain 500, apres-demain 1 000.
+//
+// 🚨 LE NOMBRE DE FORMATIONS NE S ECRIT PLUS DANS CETTE PAGE — 03/09.
+// Il etait fige a 331 alors que le catalogue en compte 560 depuis le 24/08,
+// et le tableau de bord en annoncait 310 : trois chiffres pour la meme
+// chose, lus par le prospect avant qu il nous appelle. La page interroge
+// desormais /api/formations/compte, qui compte les formations ACTIVES en
+// base. Une formation ajoutee, et la page suit.
+//
+// ⚠️ TANT QUE LE COMPTE N EST PAS REVENU (ou s il echoue), LA PHRASE
+// S ECRIT SANS NOMBRE : « Des formations pretes a vendre ». Mieux vaut pas
+// de chiffre qu un chiffre faux ou un zero.
 //
 // LE MODELE EST CELUI DE LA SOUS-TRAITANCE DE CONTENU, et c est la pratique
 // du metier : l organisme vend l action, porte sa certification et sa
@@ -95,6 +107,22 @@ const PUCE: any = {
 };
 
 export default function PagePack() {
+  // null = pas encore connu (ou lecture impossible) : la page ecrit alors
+  // ses phrases sans nombre, jamais un zero.
+  const [nb, setNb] = useState<number | null>(null);
+
+  useEffect(function () {
+    let vivant = true;
+    fetch("/api/formations/compte", { cache: "no-store" })
+      .then(function (r) { return r.json(); })
+      .then(function (d) { if (vivant && d && d.ok && d.formations) setNb(d.formations); })
+      .catch(function () {});
+    return function () { vivant = false; };
+  }, []);
+
+  // « 560 » a l affichage, avec l espace insecable des milliers.
+  const chiffre = nb === null ? null : nb.toLocaleString("fr-FR");
+
   return (
     <div style={CADRE}>
       <div style={{ maxWidth: "900px", margin: "0 auto" }}>
@@ -102,20 +130,24 @@ export default function PagePack() {
           POUR LES ORGANISMES DE FORMATION
         </p>
         <h1 style={{ color: "#fff", fontSize: "34px", lineHeight: "1.3", margin: "0 0 16px" }}>
-          331 formations prêtes à vendre,<br />et tout l'administratif qui va avec
+          {chiffre ? chiffre + " formations prêtes à vendre," : "Des formations prêtes à vendre,"}<br />et tout l&apos;administratif qui va avec
         </h1>
         <p style={{ ...P, fontSize: "18px" }}>
-          Les logiciels de gestion vous donnent un outil. Nous vous donnons le contenu : trois
-          cent trente et une formations à distance, rédigées et corrigées, que vous proposez à vos
-          stagiaires dès demain sous votre nom. Avec la plateforme, les documents obligatoires et
-          votre bilan pédagogique préparé.
+          Les logiciels de gestion vous donnent un outil. Nous vous donnons le contenu :
+          {chiffre ? " " + chiffre + " formations" : " des formations"} à distance, rédigées et
+          corrigées, que vous proposez à vos stagiaires dès demain sous votre nom. Avec la
+          plateforme, les documents obligatoires et votre bilan pédagogique préparé.
         </p>
 
         <div style={{ ...CARTE, border: "2px solid " + OR, marginTop: "36px" }}>
           <h2 style={{ ...H2, fontSize: "18px", margin: "0 0 14px" }}>Ce que comprend le pack</h2>
 
-          <p style={PUCE}><span style={{ color: OR }}>·</span> Les 331 formations du catalogue, à vos prix</p>
-          <p style={PUCE}><span style={{ color: OR }}>·</span> Stagiaires illimités</p>
+          <p style={PUCE}><span style={{ color: OR }}>·</span> {chiffre ? "Les " + chiffre + " formations du catalogue, à vos prix" : "Les formations du catalogue, à vos prix"}</p>
+          {/* 🚨 « STAGIAIRES ILLIMITES » RETIRE LE 03/09. La grille tarifaire
+              arretee le meme jour facture le stagiaire actif (49 / 39 / 29 €
+              par mois selon le volume) : la promesse contredisait le devis,
+              et c est exactement la ligne qu un prospect releve. */}
+          <p style={PUCE}><span style={{ color: OR }}>·</span> Facturation au stagiaire actif, dégressive selon le volume</p>
           <p style={PUCE}><span style={{ color: OR }}>·</span> Correction des questionnaires par IA, erreur par erreur</p>
           <p style={PUCE}><span style={{ color: OR }}>·</span> Classes virtuelles avec présences horodatées</p>
           <p style={PUCE}><span style={{ color: OR }}>·</span> Vos documents administratifs, à votre en-tête</p>
