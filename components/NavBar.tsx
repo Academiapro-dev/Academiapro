@@ -22,12 +22,26 @@ const T = {
 // produit a qui ne le connait pas ; « Espace pro » ouvre la porte a qui est
 // deja client. Sans elle, un visiteur pouvait croire que la page reservee
 // etait tout ce qui existait.
+// 🚨 MR. COMPTABLE EST SORTI DU MENU — DECISION DE JACQUES DU 03/09.
+//
+// AcadéMIA Pro est LE PRODUIT FORMATION. Mr. Comptable est un logiciel de
+// comptabilite pour cabinets d expertise comptable : il n a rien a faire
+// dans le menu d une plateforme de formation, ou il brouillait la lecture
+// pour un organisme venu chercher un LMS.
+//
+// Le produit N EST PAS SUPPRIME : sa vitrine /comptable existe toujours,
+// mrcomptable.fr la sert sous son propre nom et sa propre barre, et le
+// return null plus bas continue d effacer cette barre-ci sur ses pages.
+// Seule l entree du menu disparait.
+//
+// ⚠️ MYSTERLLC N Y ENTRE PAS NON PLUS, POUR LA MEME RAISON. Le point avait
+// ete releve le matin du 03/09 comme une asymetrie ; la decision la resout
+// dans l autre sens. Les deux produits ont leur domaine.
 const SOLUTIONS = [
   { nom: "Pour les organismes de formation", href: "/pack" },
   { nom: "Mr. Qualiopi", href: "/qualiopi" },
   { nom: "Le CRM", href: "/crm" },
   { nom: "La plateforme d'apprentissage (LMS)", href: "/plateforme-apprentissage" },
-  { nom: "Mr. Comptable", href: "/comptable" },
 ];
 
 // L ESPACE DE TRAVAIL DU CABINET.
