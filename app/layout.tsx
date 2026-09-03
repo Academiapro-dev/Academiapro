@@ -39,7 +39,13 @@ const MARQUES: any = {
     descriptionCourte:
       "Vos stagiaires, de l'inscription au bilan",
     url: "https://mrlms.fr",
-    image: "/mrlms-banniere.jpeg.png",
+    // 🚨 LE CARRE, PAS LA BANNIERE. Une carte LinkedIn ou Facebook fait
+    // 1200 x 630 : une banniere 4:1 y serait rognee en haut et en bas, et le
+    // nom sortirait du cadre. Le logo carre, lui, se centre proprement.
+    // La banniere reste utilisee dans la barre et dans l en-tete de la
+    // vitrine, ou son format est le bon.
+    image: "/mrlms-logo.png.png",
+    icone: "/mrlms-logo.png.png",
   },
   mysterllc: {
     nom: "MysterLLC",
@@ -156,6 +162,19 @@ export async function generateMetadata(): Promise<Metadata> {
       statusBarStyle: "black-translucent",
       title: m.nom,
     },
+    // 🚨 L ICONE SUIT LA MARQUE — 03/09.
+    //
+    // LE DEFAUT : les trois domaines servaient /icon-192.png, l icone
+    // d AcadéMIA Pro. L onglet de mrlms.fr portait donc la marque d une
+    // ecole de formation, et un prospect qui gardait le site ouvert a cote
+    // d un autre voyait le mauvais nom.
+    //
+    // `icone` n est renseigne que pour les marques qui ont leur propre
+    // fichier ; les autres retombent sur l icone d AcadéMIA Pro, qui est la
+    // bonne pour elles.
+    icons: m.icone
+      ? { icon: m.icone, apple: m.icone, shortcut: m.icone }
+      : undefined,
     openGraph: ouverte,
     twitter: oiseau,
     // PROPRIETE DE mrcomptable.fr AUPRES DE GOOGLE.
@@ -210,7 +229,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }}
         />
         <link rel="manifest" href="/manifest.json" />
-        <link rel="apple-touch-icon" href="/icon-192.png" />
+        <link rel="apple-touch-icon" href={m.icone || "/icon-192.png"} />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <script dangerouslySetInnerHTML={{ __html: `
