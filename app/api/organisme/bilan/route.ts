@@ -128,16 +128,52 @@ export async function GET(req: NextRequest) {
     const debut = new Date(Date.UTC(annee, 0, 1)).toISOString();
     const fin = new Date(Date.UTC(annee + 1, 0, 1)).toISOString();
 
-    const { data: inscrits, error } = await supabase
+    // ══════════════════════════════════════════════════════════════════════
+    // 🚨 UNE ANNEE DE BILAN, C EST UNE ANNEE D ACTIVITE — 03/09.
+    //
+    // LE DEFAUT : cette requete ne retenait que les inscriptions CREEES dans
+    // l annee. Un stagiaire inscrit le 15 decembre 2025 et forme pendant
+    // tout 2026 n apparaissait NULLE PART : ni dans le bilan 2025, ou il
+    // n avait rien suivi, ni dans celui de 2026, ou il n etait pas inscrit.
+    // Son activite disparaissait purement et simplement de la declaration.
+    //
+    // LE REGISTRE ENTIER EST DESORMAIS LU, puis reparti selon ce que chaque
+    // inscription a produit dans l annee demandee :
+    //
+    //   — LES PRODUITS suivent la DATE D INSCRIPTION. Une vente se declare
+    //     l annee ou elle est faite ; c est la regle comptable, et elle ne
+    //     change pas parce que le stagiaire etudie l annee suivante.
+    //
+    //   — LES HEURES suivent les MODULES VALIDES DANS L ANNEE. Le Cerfa
+    //     demande les heures dispensees pendant l exercice : celles de 2025
+    //     appartiennent au bilan 2025, meme si le parcours se poursuit.
+    //
+    //   — UNE INSCRIPTION ENTRE DANS LE BILAN si elle remplit l une OU
+    //     l autre condition. Une inscription de decembre 2025 sans aucune
+    //     validation figure donc en 2025 pour son produit, et en 2026 pour
+    //     ses heures.
+    //
+    // ⚠️ LA LIMITE PASSE A 20000 : on ne lit plus une annee mais tout
+    // l historique. Au-dela, il faudra paginer.
+    // ══════════════════════════════════════════════════════════════════════
+    const { data: registre, error } = await supabase
       .from("organisme_apprenants")
       .select("email, formation_code, prix_vente, payeur, dispositif, statut_stagiaire, created_at")
       .eq("tenant_id", tenant)
-      .gte("created_at", debut)
-      .lt("created_at", fin)
-      .limit(10000);
+      .limit(20000);
 
     if (error) {
       return NextResponse.json({ ok: false, erreur: error.message }, { status: 500 });
+    }
+
+    const debutMs = new Date(debut).getTime();
+    const finMs = new Date(fin).getTime();
+
+    function dansAnnee(quand: any): boolean {
+      if (!quand) return false;
+      const t = new Date(quand).getTime();
+      if (isNaN(t)) return false;
+      return t >= debutMs && t < finMs;
     }
 
     const { data: fiches } = await supabase
@@ -186,7 +222,7 @@ export async function GET(req: NextRequest) {
     // et n ont pas de plan dans `lms_plans` : elles tombent dans ce cas.
     // ══════════════════════════════════════════════════════════════════════
     const codesInscrits: string[] = [];
-    for (const i of inscrits || []) {
+    for (const i of registre || []) {
       const c = i.formation_code || "";
       if (c && codesInscrits.indexOf(c) < 0) codesInscrits.push(c);
     }
@@ -204,31 +240,62 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // LA DATE DE VALIDATION EST LUE : c est elle qui range un module dans
+    // une annee. ⚠️ LA COLONNE S APPELLE `date_validation`, PAS
+    // `updated_at` — cette table ne porte pas la seconde, contrairement a
+    // `qcm_reponses`. Une lecture d `updated_at` renverrait `undefined`
+    // pour chaque ligne, et AUCUNE heure ne serait comptee.
     const { data: progression } = await supabase
       .from("progression_apprenants")
-      .select("user_email, formation_code, module_cle")
+      .select("user_email, formation_code, module_cle, date_validation")
       .eq("tenant_id", tenant)
       .eq("statut", "valide")
-      .limit(20000);
+      .limit(50000);
 
-    // Un module valide deux fois ne compte qu une fois : on retient les
-    // cles distinctes, pas le nombre de lignes.
-    const clesValidees: any = {};
+    // Deux jeux de cles distinctes : celles validees DANS L ANNEE, qui
+    // donnent les heures declarees, et toutes les validations, qui servent
+    // a savoir si l inscription a eu de l activite. Un module valide deux
+    // fois ne compte qu une fois.
+    const validesAnnee: any = {};
+    const validesTotal: any = {};
+
     for (const p of progression || []) {
       const cle = String(p.user_email || "").toLowerCase().trim() + "|" + (p.formation_code || "");
-      if (!clesValidees[cle]) clesValidees[cle] = new Set<string>();
-      clesValidees[cle].add(String(p.module_cle || ""));
+      const mod = String(p.module_cle || "");
+
+      if (!validesTotal[cle]) validesTotal[cle] = new Set<string>();
+      validesTotal[cle].add(mod);
+
+      if (dansAnnee(p.date_validation)) {
+        if (!validesAnnee[cle]) validesAnnee[cle] = new Set<string>();
+        validesAnnee[cle].add(mod);
+      }
     }
 
+    // 🚨 UN MODULE VALIDE SANS DATE NE SE RANGE DANS AUCUNE ANNEE. Il est
+    // compte dans `validesTotal` — l inscription est donc bien reconnue
+    // comme active — mais ses heures ne sont declarees nulle part. C est le
+    // choix prudent : mieux vaut sous-declarer une heure sans date que la
+    // porter au hasard sur un exercice.
     function heuresSuivies(email: any, code: string, duree: number) {
       const auPlan = modulesAuPlan[code] || 0;
       if (!duree) return { heures: 0, mesure: true };
+
+      const cle = String(email || "").toLowerCase().trim() + "|" + code;
+
+      // Sans plan, aucune mesure possible : la duree prevue est retenue,
+      // mais SEULEMENT si l inscription appartient bien a cette annee.
       if (auPlan <= 0) return { heures: duree, mesure: false };
 
-      const jeu = clesValidees[String(email || "").toLowerCase().trim() + "|" + code];
+      const jeu = validesAnnee[cle];
       const valides = jeu ? jeu.size : 0;
       const part = Math.min(valides, auPlan) / auPlan;
       return { heures: Math.round(duree * part * 10) / 10, mesure: true };
+    }
+
+    function aValideDansAnnee(email: any, code: string): boolean {
+      const jeu = validesAnnee[String(email || "").toLowerCase().trim() + "|" + code];
+      return !!jeu && jeu.size > 0;
     }
 
     const cadreC: any = {};
@@ -251,25 +318,49 @@ export async function GET(req: NextRequest) {
       sans_plan: 0,
     };
 
-    for (const i of inscrits || []) {
+    let inscriptionsRetenues = 0;
+    let reportees = 0;
+
+    for (const i of registre || []) {
+      const code = i.formation_code || "";
+      const nouvelle = dansAnnee(i.created_at);
+      const active = code ? aValideDansAnnee(i.email, code) : false;
+
+      // NI INSCRITE NI ACTIVE CETTE ANNEE : l inscription appartient a un
+      // autre exercice.
+      if (!nouvelle && !active) continue;
+
+      inscriptionsRetenues = inscriptionsRetenues + 1;
+      if (!nouvelle && active) reportees = reportees + 1;
+
       stagiaires.add(i.email);
 
-      const code = i.formation_code || "";
       const fiche = infoDe[code] || {};
       const duree = heuresDe(fiche.duree);
       if (!i.formation_code) aCompleter.sans_formation = aCompleter.sans_formation + 1;
       if (!duree) aCompleter.sans_duree = aCompleter.sans_duree + 1;
 
-      let prix = Number(i.prix_vente);
-      if (!prix || isNaN(prix)) prix = prixDe[code] || 0;
-      if (!prix) aCompleter.sans_prix = aCompleter.sans_prix + 1;
+      // LE PRODUIT NE SE DECLARE QU UNE FOIS, L ANNEE DE LA VENTE. Une
+      // inscription reportee apporte ses heures a cette annee, pas son
+      // chiffre d affaires : il a deja ete declare l annee de l inscription.
+      let prix = 0;
+      if (nouvelle) {
+        prix = Number(i.prix_vente);
+        if (!prix || isNaN(prix)) prix = prixDe[code] || 0;
+        if (!prix) aCompleter.sans_prix = aCompleter.sans_prix + 1;
+      }
 
+      // Sans plan, la duree prevue n est retenue que pour une inscription
+      // de l annee : la reporter chaque annee la compterait deux fois.
       const suivi = heuresSuivies(i.email, code, duree);
-      const heures = suivi.heures;
-      if (!suivi.mesure) aCompleter.sans_plan = aCompleter.sans_plan + 1;
+      let heures = suivi.heures;
+      if (!suivi.mesure) {
+        if (nouvelle) aCompleter.sans_plan = aCompleter.sans_plan + 1;
+        else heures = 0;
+      }
 
       heuresTotal = heuresTotal + heures;
-      heuresTheoriques = heuresTheoriques + duree;
+      if (nouvelle) heuresTheoriques = heuresTheoriques + duree;
       produitsTotal = produitsTotal + prix;
 
       // Cadre C
@@ -339,7 +430,11 @@ export async function GET(req: NextRequest) {
       cadre_f3: cadreF3,
       cadre_f4: cadreF4,
       stagiaires_distincts: stagiaires.size,
-      inscriptions: (inscrits || []).length,
+      inscriptions: inscriptionsRetenues,
+      // INSCRIPTIONS REPORTEES : entrees une annee anterieure, mais dont
+      // des modules ont ete valides cette annee-ci. Leurs heures comptent
+      // ici, leur produit non — il a ete declare a l inscription.
+      inscriptions_reportees: reportees,
       heures_total: heuresTotal,
       // LES HEURES THEORIQUES SONT RENVOYEES A PART, jamais melangees aux
       // heures declarees : elles servent a montrer l ecart entre ce qui
