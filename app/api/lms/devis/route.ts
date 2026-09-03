@@ -87,6 +87,45 @@ function rangerTarifs(lignes: any[], offre: string) {
   const bpf = poste("accompagnement_bpf");
   const part = poste("part_catalogue");
 
+  // ══════════════════════════════════════════════════════════════════════
+  // 🚨 LA SIGNATURE EST UN CADEAU, JAMAIS UN DU — DECISION DU 03/09.
+  //
+  // Le prix a l unite et les lots RESTENT AFFICHES dans tous les devis,
+  // meme quand un lot est compris. Un lot offert n a de valeur que si le
+  // prospect sait ce qu il vaut : « signature comprise » sans montant a
+  // cote ne se retient pas, et ne se reclame pas non plus le jour ou
+  // l organisme envisage de partir.
+  //
+  // ⚠️ NE JAMAIS ECRIRE « SIGNATURE COMPRISE » SANS LE PRIX A COTE.
+  //
+  // LE LOT COMPRIS SE RENOUVELLE CHAQUE ANNEE tant que l option qui le
+  // porte est souscrite — cent avec la marque blanche, trois cents avec le
+  // catalogue. Un lot qui s epuiserait sans revenir transformerait le
+  // cadeau en piege l annee ou l organisme commence a s en servir.
+  //
+  // ⚠️ CETTE GRILLE DEVRA VIVRE DANS UNE TABLE COMMUNE AUX PRODUITS. Elle
+  // est dans `lms_tarifs` pour que Mr LMS soit vendable des maintenant ;
+  // Mr CRM vendra le meme module. A faire avant le second produit qui
+  // l affiche, sinon deux grilles divergeront.
+  // ══════════════════════════════════════════════════════════════════════
+  const signature = poste("signature");
+  const signatureOfferte = poste("signature_offerte");
+
+  const lots = dedans
+    .filter(function (l: any) { return l.poste === "signature_lot"; })
+    .sort(function (a: any, b: any) { return (a.seuil_min || 0) - (b.seuil_min || 0); })
+    .map(function (l: any) {
+      const nombre = Number(l.seuil_min) || 0;
+      const prix = Number(l.montant) || 0;
+      return {
+        libelle: l.libelle,
+        nombre: nombre,
+        prix: prix,
+        // Le prix a l unite du lot : c est lui qui montre la remise.
+        unitaire: nombre > 0 ? Math.round((prix / nombre) * 100) / 100 : 0,
+      };
+    });
+
   return {
     mise_en_place: misePlace ? Number(misePlace.montant) || 0 : 0,
     abonnement: abonnement ? Number(abonnement.montant) || 0 : 0,
@@ -97,6 +136,11 @@ function rangerTarifs(lignes: any[], offre: string) {
     accompagnement_bpf_optionnel: bpf ? !!bpf.optionnel : false,
     part_catalogue: part ? Number(part.pourcentage) || 0 : 0,
     paliers: paliers,
+    signature_unitaire: signature ? Number(signature.montant) || 0 : 0,
+    signature_lots: lots,
+    signatures_offertes: signatureOfferte ? Number(signatureOfferte.seuil_min) || 0 : 0,
+    signatures_offertes_libelle: signatureOfferte ? signatureOfferte.libelle : "",
+    signatures_offertes_commentaire: signatureOfferte ? signatureOfferte.commentaire || "" : "",
   };
 }
 
@@ -316,6 +360,18 @@ export async function POST(req: NextRequest) {
         accompagnement_bpf_compris: offre === "avec_catalogue",
         part_catalogue: g.part_catalogue,
         paliers: g.paliers,
+
+        // LA SIGNATURE. Le lot compris n est acquis que si l option qui le
+        // porte est souscrite : sans marque blanche, l organisme paie ses
+        // signatures a l unite ou par lot. Le prix reste renvoye dans TOUS
+        // les cas — c est lui qui donne sa valeur au lot offert.
+        signature_unitaire: g.signature_unitaire,
+        signature_lots: g.signature_lots,
+        signatures_offertes: (offre === "avec_catalogue" || maj.marque_blanche)
+          ? g.signatures_offertes
+          : 0,
+        signatures_offertes_commentaire: g.signatures_offertes_commentaire,
+
         stagiaires: nbActifs,
         stagiaires_detail: cout.detail,
         stagiaires_total: cout.total,
