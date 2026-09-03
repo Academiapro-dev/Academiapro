@@ -166,11 +166,23 @@ function coutStagiaires(nb: number, paliers: any[]) {
   return { total: total, detail: detail };
 }
 
+// 🚨 LA TABLE `prospects_devis` SERT LES DEVIS DE TOUS LES PRODUITS —
+// 03/09. Elle s appelait `lms_prospects` ; renommee pour que Mr LMS et
+// Mr CRM y logent leurs fiches sans duplication.
+//
+// ⚠️ NE PAS LA CONFONDRE avec les contacts d un client de Mr CRM : ceux-la
+// vivent dans les tables du CRM. Ici, ce sont LES PROSPECTS DE LA MAISON,
+// ceux a qui un devis a ete envoye.
+//
+// ⚠️ LE FILTRE SUR `produit` EST OBLIGATOIRE : un jeton LMS ouvert sur le
+// formulaire CRM afficherait la mauvaise grille. Le jeton est unique, mais
+// c est le produit qui dit quel devis fabriquer.
 async function lireProspect(jeton: string) {
   const { data } = await supabase
-    .from("lms_prospects")
+    .from("prospects_devis")
     .select("*")
     .eq("jeton", jeton)
+    .eq("produit", PRODUIT)
     .maybeSingle();
   return data;
 }
@@ -323,8 +335,11 @@ export async function POST(req: NextRequest) {
     // document.
     if (!prospect.numero_devis) {
       const annee = new Date().getUTCFullYear();
+      // LE NUMERO EST GLOBAL, TOUTES MARQUES CONFONDUES : deux devis ne
+      // peuvent pas porter le meme numero, meme s ils viennent de produits
+      // differents. Pas de filtre sur `produit` ici, volontairement.
       const { count } = await supabase
-        .from("lms_prospects")
+        .from("prospects_devis")
         .select("id", { count: "exact", head: true })
         .not("numero_devis", "is", null);
       const rang = (typeof count === "number" ? count : 0) + 1;
@@ -332,9 +347,10 @@ export async function POST(req: NextRequest) {
     }
 
     const { error } = await supabase
-      .from("lms_prospects")
+      .from("prospects_devis")
       .update(maj)
-      .eq("jeton", jeton);
+      .eq("jeton", jeton)
+      .eq("produit", PRODUIT);
 
     if (error) {
       return NextResponse.json({ ok: false, erreur: error.message }, { status: 500 });
