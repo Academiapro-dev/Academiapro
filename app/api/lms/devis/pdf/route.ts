@@ -92,6 +92,25 @@ function rangerTarifs(lignes: any[], offre: string) {
   const bpf = poste("accompagnement_bpf");
   const part = poste("part_catalogue");
 
+  // 🚨 LA SIGNATURE EST UN CADEAU, JAMAIS UN DU — 03/09. Le prix et les
+  // lots s impriment MEME QUAND UN LOT EST COMPRIS : c est ce qui donne sa
+  // valeur au geste. Ne jamais ecrire « signature comprise » sans montant.
+  const signature = poste("signature");
+  const signatureOfferte = poste("signature_offerte");
+
+  const lots = dedans
+    .filter(function (l: any) { return l.poste === "signature_lot"; })
+    .sort(function (a: any, b: any) { return (a.seuil_min || 0) - (b.seuil_min || 0); })
+    .map(function (l: any) {
+      const nombre = Number(l.seuil_min) || 0;
+      const prix = Number(l.montant) || 0;
+      return {
+        nombre: nombre,
+        prix: prix,
+        unitaire: nombre > 0 ? Math.round((prix / nombre) * 100) / 100 : 0,
+      };
+    });
+
   return {
     mise_en_place: misePlace ? Number(misePlace.montant) || 0 : 0,
     abonnement: abonnement ? Number(abonnement.montant) || 0 : 0,
@@ -99,6 +118,9 @@ function rangerTarifs(lignes: any[], offre: string) {
     accompagnement_bpf: bpf ? Number(bpf.montant) || 0 : 0,
     part_catalogue: part ? Number(part.pourcentage) || 0 : 0,
     paliers: paliers,
+    signature_unitaire: signature ? Number(signature.montant) || 0 : 0,
+    signature_lots: lots,
+    signatures_offertes: signatureOfferte ? Number(signatureOfferte.seuil_min) || 0 : 0,
   };
 }
 
@@ -332,6 +354,57 @@ export async function GET(req: NextRequest) {
       + "La degressivite s'applique au nombre de stagiaires actifs dans le mois.",
       9, gris
     );
+
+    // ── LA SIGNATURE ELECTRONIQUE ──────────────────────────────────────────
+    // 🚨 LE PRIX S IMPRIME MEME QUAND LE LOT EST COMPRIS. « La signature est
+    // un cadeau, jamais un du » : un lot offert sans montant a cote ne se
+    // retient pas, et ne se regrette pas non plus.
+    if (g.signature_unitaire > 0) {
+      titreCadre("SIGNATURE ELECTRONIQUE");
+
+      const offertes = avecCatalogue || p.marque_blanche ? g.signatures_offertes : 0;
+
+      if (offertes > 0) {
+        // 🚨 PAS DE « VALEUR X EUR » — 03/09. Chiffrer le cadeau le
+        // rapetisse : cinquante euros a cote d un abonnement de deux cents
+        // ne pese rien. Le prix a l unite et les lots suivent ; le prospect
+        // fait le calcul s il le veut.
+        ligne(String(offertes) + " signatures comprises chaque annee", "comprises", true);
+        y = y - 2;
+        paragraphe(
+          "Elles se renouvellent tant que votre offre est en cours. Au-dela, les signatures "
+          + "sont facturees a l'unite ou par lot, aux tarifs ci-dessous.",
+          9, gris
+        );
+        y = y - 4;
+      }
+
+      ligne("A l'unite", euros(g.signature_unitaire));
+      for (const l of g.signature_lots) {
+        ligne("Lot de " + l.nombre + " signatures - " + euros(l.unitaire) + " l'unite",
+              euros(l.prix));
+      }
+
+      y = y - 4;
+      paragraphe(
+        "Un credit par signature apposee : trois signataires sur un meme document consomment "
+        + "trois credits. Les credits achetes sont valables un an a compter de l'achat.",
+        9, gris
+      );
+      y = y - 2;
+      // 🚨 DESCRIPTION FACTUELLE, AUCUNE QUALIFICATION JURIDIQUE. Decision
+      // de Jacques du 03/09 : on decrit ce que la fonction produit, on ne
+      // dit pas ce qu elle vaut devant un juge, et on ne nomme personne.
+      paragraphe(
+        "Chaque signature produit un dossier de preuve : identite du signataire verifiee par "
+        + "courriel, code a six chiffres, trace manuscrit horodate, consentement scelle, "
+        + "empreinte cryptographique et chainage au registre. Il s'agit d'une signature "
+        + "electronique simple, integree a la plateforme : le document part depuis le dossier "
+        + "du stagiaire et y revient signe. Pour un acte exigeant une signature qualifiee, "
+        + "recourez a un prestataire agree.",
+        9, gris
+      );
+    }
 
     // ⚠️ LECTURE EN COUT PAR STAGIAIRE, JAMAIS EN TOTAL ANNUEL.
     if (coutParStagiaire !== null) {
