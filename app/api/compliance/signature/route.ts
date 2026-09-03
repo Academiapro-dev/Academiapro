@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import crypto from "crypto";
 import { sessionCourante } from "../../../../lib/session";
+import { marqueCompliance } from "../../../../lib/marque-compliance";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -348,13 +349,14 @@ async function envoyerCode(doc: any) {
     return NextResponse.json({ ok: false, erreur: error.message }, { status: 500 });
   }
 
-  // ⚠️ LES COULEURS SONT CELLES DE MYSTERLLC, pas celles d AcadeMIA. Un
-  // courriel aux couleurs d une autre marque trahirait le cloisonnement
-  // exige par Jacques : aucune mention d AcadeMIA sur les surfaces
-  // MysterLLC.
+  // ⚠️ LA MARQUE VIENT DE L HOTE APPELANT — 03/09. Mr. Comptable et
+  // MysterLLC partagent cette route : un client de cabinet recoit son code
+  // aux couleurs de Mr. Comptable, un gestionnaire de LLC aux couleurs de
+  // MysterLLC. Aucune mention d AcadeMIA sur aucune des deux.
+  const marque = marqueCompliance(req);
   const html =
     '<div style="font-family:Georgia,serif;max-width:520px;margin:0 auto;color:#1a1a1a;line-height:1.7">' +
-    '<p style="color:#a07840;font-size:13px;letter-spacing:2px;margin:0 0 6px">SIGNATURE ELECTRONIQUE</p>' +
+    '<p style="color:#a07840;font-size:13px;letter-spacing:2px;margin:0 0 6px">SIGNATURE ÉLECTRONIQUE</p>' +
     '<h1 style="color:#1a1a2e;font-size:22px;margin:0 0 16px">Votre code de vérification</h1>' +
     "<p>Vous vous apprêtez à signer le document <strong>" + doc.reference +
     "</strong>. Saisissez ce code sur la page de signature :</p>" +
@@ -364,11 +366,10 @@ async function envoyerCode(doc: any) {
     "<p>Ce code est valable " + VALIDITE_CODE_MIN + " minutes et ne sert qu'une fois.</p>" +
     '<p style="font-size:14px;color:#666">Si vous n\'êtes pas à l\'origine de cette demande, ' +
     "ignorez ce message : aucune signature ne sera enregistrée sans ce code.</p>" +
-    '<p style="font-size:13px;color:#999;margin-top:26px">MysterLLC — mysterllc.com</p>' +
+    '<p style="font-size:13px;color:#999;margin-top:26px">' + marque.signature + "</p>" +
     "</div>";
 
-  const expediteur = process.env.COMPLIANCE_EXPEDITEUR
-    || "MysterLLC <contact@mysterllc.com>";
+  const expediteur = marque.expediteur;
 
   const r = await fetch("https://api.resend.com/emails", {
     method: "POST",
