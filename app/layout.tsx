@@ -39,6 +39,7 @@ const MARQUES: any = {
     descriptionCourte:
       "L'administratif de votre LLC : préparé, daté, rappelé",
     url: "https://www.mysterllc.com",
+    image: "/og-mysterllc.png",
   },
   mrcomptable: {
     nom: "Mr. Comptable",
@@ -48,6 +49,7 @@ const MARQUES: any = {
     descriptionCourte:
       "Logiciel comptable pour cabinets d'expertise comptable",
     url: "https://mrcomptable.fr",
+    image: "/og-mrcomptable.png",
   },
   academia: {
     nom: "AcadémIA Pro",
@@ -57,23 +59,24 @@ const MARQUES: any = {
     descriptionCourte:
       "Plateforme de formation professionnelle — 560 formations sur quinze domaines",
     url: "https://academiapro.fr",
-    // 🚨 L IMAGE OUVERTE — ajoutee le 24/08.
-    //
-    // Sans elle, le Post Inspector de LinkedIn repondait « No image found »
-    // et la carte partait sans visuel : beaucoup moins visible dans le fil.
-    // Le fichier vit dans public/og-academia.png, 1200 x 630, le format
-    // attendu par LinkedIn, Facebook et X.
-    //
-    // ATTENTION : LinkedIn garde l image en cache. Apres tout changement,
-    // repasser l URL dans https://www.linkedin.com/post-inspector/
-    //
-    // ⚠️ LES DEUX AUTRES MARQUES N ONT PAS D IMAGE OUVERTE. Aucun fichier
-    // og-mysterllc.png ni og-mrcomptable.png n existe dans public/ : les
-    // referencer ferait partir une carte vers une image absente, pire que
-    // pas d image du tout. A creer en 1200 x 630 quand Jacques le decide.
     image: "/og-academia.png",
   },
 };
+
+// 🚨 LES TROIS IMAGES OUVERTES — public/og-academia.png (24/08),
+// public/og-mrcomptable.png et public/og-mysterllc.png (03/09).
+//
+// Sans elles, le Post Inspector de LinkedIn repondait « No image found » et
+// la carte partait sans visuel : beaucoup moins visible dans le fil. Toutes
+// trois font 1200 x 630, le format attendu par LinkedIn, Facebook et X.
+//
+// ⚠️ LINKEDIN GARDE L IMAGE EN CACHE. Apres tout changement, repasser l URL
+// dans https://www.linkedin.com/post-inspector/ — sinon la carte continue
+// d afficher l ancienne pendant des jours.
+//
+// ⚠️ VERIFIER QUE LE FICHIER EXISTE AVANT D EN AJOUTER UN QUATRIEME : une
+// carte pointant vers une image absente part vide, ce qui est pire que pas
+// d image du tout.
 
 function marqueDe(hote: string) {
   const h = (hote || "").toLowerCase();
