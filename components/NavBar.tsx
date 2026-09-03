@@ -101,6 +101,37 @@ const PAGES_PUBLIQUES_COMPTABLE = [
   "/mentions",
 ];
 
+// LES PAGES PUBLIQUES DE MRLMS.FR.
+//
+// 🚨 MEME PIEGE QUE POUR MRCOMPTABLE.FR : tester le chemin interne ne suffit
+// pas. Le middleware sert /mrlms/devis sous mrlms.fr/devis, et le chemin vu
+// ici est alors « /devis ». On teste donc le DOMAINE et la liste ci-dessous.
+//
+// CONSTATE EN TEST REEL LE 03/09 : la page de devis affichait la banniere
+// DEUX FOIS — celle de la barre, et celle de son propre en-tete — et la
+// barre proposait « Tableau de bord », « Mes stagiaires » et « Ma
+// facturation » a un prospect qui n a pas encore de compte. Un formulaire
+// de devis ne doit presenter qu une seule chose a faire.
+//
+// ⚠️ /connexion N Y FIGURE PAS, ET C EST VOULU : sur mrlms.fr, l ecran de
+// connexion porte la barre Mr LMS, comme sur mysterllc.com. C est la marque
+// du domaine qui doit accueillir celui qui se connecte.
+//
+// ⚠️ TOUTE NOUVELLE PAGE DE VITRINE DOIT ETRE AJOUTEE ICI, sinon elle
+// heritera de la barre de travail par-dessus son propre en-tete.
+const PAGES_PUBLIQUES_MRLMS = [
+  "/",
+  "/devis",
+];
+
+function estPagePubliqueMrLMS(chemin) {
+  for (const p of PAGES_PUBLIQUES_MRLMS) {
+    if (chemin === p) return true;
+    if (p !== "/" && chemin.indexOf(p + "/") === 0) return true;
+  }
+  return false;
+}
+
 const LOGO_COMPTABLE = "/IMG_4100.jpeg";
 
 // La banniere MysterLLC deposee dans public/ le 31/08 : format large 4:1,
@@ -207,12 +238,14 @@ export default function NavBar() {
   if (chemin === "/mysterllc" || chemin.indexOf("/mysterllc/") === 0) return null;
   if (surMysterLLC && chemin === "/") return null;
 
-  // 🆕 MEME REGLE POUR LA VITRINE MR LMS — 03/09. Elle portera son propre
-  // en-tete quand elle existera. Tant que app/mrlms/page.tsx n est pas
-  // commitee, ces deux lignes ne s appliquent a rien : elles ne cassent
-  // rien et seront justes le jour ou la page arrive.
+  // 🆕 LA BARRE S EFFACE SUR LES PAGES DE VITRINE MR LMS — 03/09.
+  //
+  // Deux tests, parce qu il y a deux facons d atteindre ces pages : par leur
+  // chemin interne (/mrlms/devis, depuis academiapro.fr) ou par le domaine
+  // (mrlms.fr/devis, reecrit par le middleware — le chemin vu ici est alors
+  // « /devis »).
   if (chemin === "/mrlms" || chemin.indexOf("/mrlms/") === 0) return null;
-  if (surMrLMS && chemin === "/") return null;
+  if (surMrLMS && estPagePubliqueMrLMS(chemin)) return null;
 
   // 🚨 L ECRAN DE SIGNATURE N A PAS DE BARRE — 01/09.
   //
