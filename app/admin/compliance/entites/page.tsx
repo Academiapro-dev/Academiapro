@@ -41,18 +41,49 @@ const STYLE_LIBELLE: any = {
   fontSize: 14,
 };
 
+// ══════════════════════════════════════════════════════════════════════════
+// LES ETATS DE CONSTITUTION — REVU LE 04/09.
+//
+// 🚨 LE ROYAUME-UNI A ETE RETIRE. Une Ltd britannique N EST PAS UNE LLC :
+// elle n a ni Form 5472, ni registered agent, ni rapport d Etat americain.
+// Le choisir donnait un suivi entierement faux — des obligations
+// americaines sur une societe qui n en a aucune. Le produit s appelle
+// MysterLLC ; il suit des LLC.
+// ⚠️ NE PAS LE REMETTRE. Si le suivi des societes britanniques devient un
+// jour un sujet, c est un autre produit, avec ses propres regles.
+//
+// 🚨 `couvert` DIT SI LES REGLES D ETAT EXISTENT EN BASE.
+//
+// POURQUOI CE DRAPEAU EXISTE. La Californie et New York sont des Etats
+// americains ou une LLC se constitue tout a fait, et leurs obligations
+// FEDERALES — Form 5472, 7004, BOI, 1040-NR — sont suivies normalement :
+// le federal ne depend pas de l Etat. Mais aucune regle d Etat n est encore
+// en base pour eux. Sans avertissement, un gestionnaire creerait sa societe
+// et ne verrait JAMAIS d echeance d Etat, SANS QU AUCUNE ERREUR NE LE
+// SIGNALE. Il se croirait suivi.
+//
+// ⚠️ CETTE LISTE DOIT SUIVRE `compliance_rules`. Avant de passer un Etat a
+// `couvert: true`, verifier que ses regles existent vraiment :
+//   select distinct etat_requis from compliance_rules where actif;
+// Sept Etats couverts au 04/09 : WY, DE, NM, NV, FL, TX, MT.
+// ══════════════════════════════════════════════════════════════════════════
 const ETATS = [
-  { code: "WY", libelle: "Wyoming (WY)" },
-  { code: "DE", libelle: "Delaware (DE)" },
-  { code: "FL", libelle: "Floride (FL)" },
-  { code: "TX", libelle: "Texas (TX)" },
-  { code: "NM", libelle: "Nouveau-Mexique (NM)" },
-  { code: "NV", libelle: "Nevada (NV)" },
-  { code: "CA", libelle: "Californie (CA)" },
-  { code: "NY", libelle: "New York (NY)" },
-  { code: "GB", libelle: "Royaume-Uni (GB)" },
-  { code: "AUTRE", libelle: "Autre — à préciser en notes" },
+  { code: "WY", libelle: "Wyoming (WY)", couvert: true },
+  { code: "DE", libelle: "Delaware (DE)", couvert: true },
+  { code: "NM", libelle: "Nouveau-Mexique (NM)", couvert: true },
+  { code: "NV", libelle: "Nevada (NV)", couvert: true },
+  { code: "FL", libelle: "Floride (FL)", couvert: true },
+  { code: "TX", libelle: "Texas (TX)", couvert: true },
+  { code: "MT", libelle: "Montana (MT)", couvert: true },
+  { code: "CA", libelle: "Californie (CA)", couvert: false },
+  { code: "NY", libelle: "New York (NY)", couvert: false },
+  { code: "AUTRE", libelle: "Autre État — à préciser en notes", couvert: false },
 ];
+
+function etatCouvert(code: string): boolean {
+  const e = ETATS.find(function (x) { return x.code === code; });
+  return e ? e.couvert : false;
+}
 
 const RESIDENCES = [
   { code: "", libelle: "— Non renseignée —" },
@@ -268,16 +299,45 @@ export default function Entites() {
               Exactement comme sur les documents officiels, majuscules comprises.
             </p>
 
-            <span style={STYLE_LIBELLE}>État ou pays de constitution (obligatoire)</span>
+            <span style={STYLE_LIBELLE}>État de constitution (obligatoire)</span>
             <select value={formationState} onChange={(e) => setFormationState(e.target.value)}
               style={STYLE_CHAMP}>
               {ETATS.map((e) => (
-                <option key={e.code} value={e.code}>{e.libelle}</option>
+                <option key={e.code} value={e.code}>
+                  {e.libelle}{e.couvert ? "" : " — échéances d'État non couvertes"}
+                </option>
               ))}
             </select>
-            <p style={{ marginTop: -12, marginBottom: 16, fontSize: 13, color: "#666" }}>
-              Les échéances déclaratives dépendent de ce choix.
-            </p>
+
+            {/* 🚨 L AVERTISSEMENT S AFFICHE A LA SELECTION, PAS APRES.
+                Un gestionnaire qui choisit la Californie doit savoir TOUT DE
+                SUITE que seules les obligations federales seront suivies.
+                Le decouvrir plus tard, c est le decouvrir en cherchant une
+                echeance qui ne viendra jamais. */}
+            {formationState && !etatCouvert(formationState) ? (
+              <div style={{
+                marginTop: -8,
+                marginBottom: 16,
+                padding: "12px 14px",
+                background: "#fdf6e8",
+                border: "1px solid #d9b866",
+                borderRadius: 6,
+                fontSize: 13.5,
+                lineHeight: 1.7,
+                color: "#5a4520",
+              }}>
+                <strong>Échéances d&apos;État non couvertes pour cet État.</strong> Les
+                obligations fédérales — Form 5472, 7004, BOI, 1040-NR — sont
+                suivies normalement : elles ne dépendent pas de l&apos;État. En
+                revanche, le rapport annuel, la taxe de franchise et l&apos;agent
+                enregistré propres à cet État ne sont pas encore en base et
+                n&apos;apparaîtront pas dans l&apos;agenda.
+              </div>
+            ) : (
+              <p style={{ marginTop: -12, marginBottom: 16, fontSize: 13, color: "#666" }}>
+                Les échéances déclaratives dépendent de ce choix.
+              </p>
+            )}
 
             <span style={STYLE_LIBELLE}>Date de constitution</span>
             <input type="date" value={formationDate}
