@@ -70,11 +70,18 @@ const HOTES_CONNUS = ['academiapro.fr', 'www.academiapro.fr', 'localhost'];
 // vivent sous /admin/compliance et fonctionnent des maintenant depuis ce
 // domaine (connexion comprise), car les chemins reserves ne sont pas
 // reecrits.
+// 🆕 MR LMS — AJOUTE LE 03/09. La plateforme de formation devient un produit
+// vendu separement, sous son propre domaine. La vitrine /mrlms doit exister
+// dans app/mrlms/page.tsx : sans elle, la racine de mrlms.fr repond « page
+// introuvable ». Les ecrans du produit, eux, vivent sous /organisme et
+// fonctionnent depuis ce domaine, car ce chemin est reserve plus bas.
 const MARQUES: Record<string, string> = {
   'mrcomptable.fr': '/comptable',
   'www.mrcomptable.fr': '/comptable',
   'mysterllc.com': '/mysterllc',
   'www.mysterllc.com': '/mysterllc',
+  'mrlms.fr': '/mrlms',
+  'www.mrlms.fr': '/mrlms',
 };
 
 const NOM_COOKIE_SESSION = 'session_academia';
@@ -217,7 +224,15 @@ export async function middleware(request: NextRequest) {
     // ⚠️ TOUT NOUVEL ECRAN PUBLIC HORS VITRINE DOIT ETRE AJOUTE ICI. Un
     // chemin oublie n echoue pas bruyamment : il est simplement reecrit
     // ailleurs, et rend « page introuvable » sans expliquer pourquoi.
-    const RESERVES = ['/admin', '/api', '/connexion', '/comptable', '/mysterllc', '/compliance', '/of', '/maintenance', '/_next'];
+    // 🚨 /organisme AJOUTE AUX RESERVES LE 03/09, EN MEME TEMPS QUE MR LMS.
+    //
+    // Sans cette reserve, mrlms.fr/organisme/stagiaires partirait vers
+    // /mrlms/organisme/stagiaires — qui n existe pas. TOUS LES ECRANS DU
+    // PRODUIT seraient injoignables depuis son propre domaine : un client
+    // se connectant sur mrlms.fr tomberait sur « page introuvable » juste
+    // apres avoir saisi son mot de passe. C est exactement l incident que
+    // /compliance a evite le 01/09 pour MysterLLC.
+    const RESERVES = ['/admin', '/api', '/connexion', '/comptable', '/mysterllc', '/mrlms', '/organisme', '/compliance', '/of', '/maintenance', '/_next'];
     const estFichier = chemin.lastIndexOf('.') > chemin.lastIndexOf('/');
     if (!estFichier && !correspond(chemin, RESERVES)) {
       const url = request.nextUrl.clone();
