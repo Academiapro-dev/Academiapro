@@ -336,8 +336,28 @@ export default function PageStagiaires() {
   };
 
   const commences = apprenants.filter(function (a) { return (a.modules_valides || 0) > 0; }).length;
-  const aInviter = apprenants.filter(function (a) { return a.statut === "invite"; }).length;
   const nbSortis = apprenants.filter(function (a) { return estSorti(a.statut); }).length;
+
+  // 🚨 LA BANNIERE NE S AFFICHAIT JAMAIS — CORRIGE LE 03/09.
+  //
+  // Ce compte cherchait le statut « invite ». La base n ecrit pas cette
+  // valeur : quand l acces part, elle ecrit « invitation_envoyee ». Aucune
+  // fiche ne portant « invite », le compte valait toujours zero et le
+  // bandeau « n ont pas encore recu leur acces » restait invisible — alors
+  // meme que le bouton « Envoyer l acces » s affichait, lui, correctement
+  // sur chaque fiche.
+  //
+  // LA REGLE EST DESORMAIS PRISE A L ENVERS, et c est ce qui la rend sure :
+  // a recu son acces celui qui porte « invitation_envoyee ». Tout autre
+  // statut — vide, absent, ou une valeur future qu on n aurait pas prevue —
+  // compte comme EN ATTENTE. Un stagiaire relance a tort perd une minute ;
+  // un stagiaire oublie ne commence jamais sa formation.
+  //
+  // Les sortis sont exclus : on ne relance pas quelqu un dont le parcours
+  // est clos.
+  const aInviter = apprenants.filter(function (a) {
+    return !estSorti(a.statut) && a.statut !== "invitation_envoyee";
+  }).length;
 
   return (
     <div style={CADRE}>
