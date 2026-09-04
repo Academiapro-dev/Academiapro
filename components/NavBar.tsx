@@ -146,6 +146,13 @@ const PAGES_PUBLIQUES_MRLMS = [
   "/bilan-pedagogique-et-financier",
   "/marque-blanche",
   "/catalogue",
+  // 🆕 /contact AJOUTE LE 04/09, EN MEME TEMPS QUE LA PAGE.
+  //
+  // POURQUOI ELLE EXISTE. Le bouton « Demander une presentation » envoyait
+  // le prospect sur academiapro.fr/contact : autre marque, autre menu. Un
+  // prospect venu chercher la plateforme vendue seule y decouvrait le
+  // catalogue, ce que la separation des produits vise a eviter.
+  "/contact",
 ];
 
 // LES PAGES PUBLIQUES DE MRCRM.FR.
