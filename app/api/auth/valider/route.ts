@@ -27,6 +27,17 @@ const SITES: Record<string, string> = {
   "www.mrcomptable.fr": "https://mrcomptable.fr",
   "mysterllc.com": "https://mysterllc.com",
   "www.mysterllc.com": "https://mysterllc.com",
+
+  // 🚨 MR LMS ET MR CRM AJOUTES LE 04/09, EN MEME TEMPS QUE DANS
+  // /api/auth/demander. Les corriger separement deplacerait le defaut sans
+  // le supprimer : le courriel partirait aux couleurs de Mr LMS, et la
+  // validation renverrait quand meme sur academiapro.fr.
+  // ⚠️ AVEC www : ces deux domaines redirigent vers www, et la valeur doit
+  // correspondre EXACTEMENT a celle posee par /api/auth/demander.
+  "mrlms.fr": "https://www.mrlms.fr",
+  "www.mrlms.fr": "https://www.mrlms.fr",
+  "mrcrm.fr": "https://www.mrcrm.fr",
+  "www.mrcrm.fr": "https://www.mrcrm.fr",
 };
 
 // Les seuls domaines vers lesquels on accepte de rediriger. Sans cette
@@ -35,6 +46,12 @@ const SITES_CONNUS = [
   "https://academiapro.fr",
   "https://mrcomptable.fr",
   "https://mysterllc.com",
+  // 🆕 04/09. ⚠️ SANS CES DEUX LIGNES, le parametre `marque` pose par
+  // /api/auth/demander serait rejete et la validation retomberait sur
+  // l en-tete host — donc sur academiapro.fr si le courriel est ouvert
+  // depuis un navigateur qui n a pas garde le domaine d origine.
+  "https://www.mrlms.fr",
+  "https://www.mrcrm.fr",
 ];
 
 function siteDe(req: Request): string {
@@ -91,6 +108,13 @@ function accueilDuProfil(email: string, profil: string | null, role: string | nu
   // voient.
   if (ADMINS.indexOf(email) >= 0) {
     if (site === "https://mrcomptable.fr") return "/admin/compliance/tableau-de-bord";
+    // 🆕 MR LMS ET MR CRM — 04/09. Sans ces deux lignes, Jacques se
+    // connectant depuis mrlms.fr atterrissait sur /admin, le tableau de
+    // bord AcadeMIA : impossible de verifier ce que voit un client, et
+    // impossible de faire une demonstration sur le bon domaine. Meme
+    // raison que pour Mr. Comptable juste au-dessus.
+    if (site === "https://www.mrlms.fr") return "/organisme";
+    if (site === "https://www.mrcrm.fr") return "/admin/linkedin";
     return "/admin";
   }
   if (role === "stagiaire") return "/dashboard";
