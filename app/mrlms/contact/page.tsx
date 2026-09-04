@@ -148,6 +148,11 @@ export default function ContactMrLMS() {
             flexShrink: 0 }}>
             <a href={SITE + "/fonctionnalites"} style={LIEN_ENTETE}>Fonctions</a>
             <a href={SITE + "/blog"} style={LIEN_ENTETE}>Blog</a>
+            {/* 🆕 « CONTACT » FIGURE MEME SUR LA PAGE DE CONTACT — 04/09.
+                Le menu est le meme sur toutes les pages, sans exception :
+                une entree qui disparait selon l endroit ou l on se trouve
+                donne l impression d un site incoherent. */}
+            <a href={SITE + "/contact"} style={LIEN_ENTETE}>Contact</a>
             <a href="/connexion" style={{ color: OR,
               border: "1px solid rgba(200,169,110,0.45)",
               padding: "9px 18px", borderRadius: "8px",
@@ -272,6 +277,9 @@ export default function ContactMrLMS() {
             {"  ·  "}
             <a href={SITE + "/blog"} style={{ color: OR_PALE,
               textDecoration: "none" }}>Blog</a>
+            {"  ·  "}
+            <a href={SITE + "/contact"} style={{ color: OR_PALE,
+              textDecoration: "none" }}>Contact</a>
             {"  ·  "}
             <a href={LEGAL + "/mentions-legales"} style={{ color: OR_PALE,
               textDecoration: "none" }}>Mentions légales</a>
