@@ -23,6 +23,7 @@
 // ⚠️ `pret` PASSE A true QUAND LA PAGE EST CREEE ET DEPLOYEE, jamais avant.
 // Une carte sans lien reste lisible ; un lien vers une page absente rend
 // « page introuvable » a un prospect.
+// 🆕 LES QUATRE PAGES SONT CREEES : les quatre cartes sont cliquables.
 //
 // 🚨 AUCUN PRIX, aucun concurrent nomme, aucune statistique non verifiee,
 // aucun temoignage.
@@ -89,28 +90,28 @@ const PAGES = [
   {
     titre: "Vos contacts, au même endroit",
     chemin: "/contacts",
-    pret: false,
+    pret: true,
     texte:
       "Chaque personne porte sa fiche : coordonnées, origine, notes, et l'historique de ce que vous lui avez écrit. Vous cherchez par nom, par adresse ou par étape, et vous retrouvez ce que vous cherchez.",
   },
   {
     titre: "Qui relancer, et avec quels mots",
     chemin: "/relances",
-    pret: false,
+    pret: true,
     texte:
       "L'outil vous dit qui attend une réponse et depuis combien de temps. Une relance vous est proposée, que vous relisez avant qu'elle parte. Vous pouvez aussi armer la relance automatique fiche par fiche.",
   },
   {
     titre: "Où en sont vos affaires",
     chemin: "/suivi-des-ventes",
-    pret: false,
+    pret: true,
     texte:
       "Prospect, contacté, intéressé, client, perdu. Vous voyez ce qui avance et ce qui dort. Chaque perte porte son motif, et les motifs se regroupent : vous savez pourquoi vous perdez.",
   },
   {
     titre: "Signer en ligne",
     chemin: "/signature-electronique",
-    pret: false,
+    pret: true,
     texte:
       "Devis et contrats se signent en ligne. Chaque signature produit un dossier de preuve horodaté et une ligne au registre.",
   },
