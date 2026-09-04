@@ -10,7 +10,7 @@ export const maxDuration = 60;
 // LINKEDIN — PUBLIER SUR LA PAGE D UN PRODUIT — 02/09.
 //
 // POST { produit, texte, url?, titre? }
-//   produit : academiapro | mrcomptable | mysterllc | hebrewpro
+//   produit : le code d une ligne de `linkedin_pages`
 //   texte   : le corps du post, tel qu il s affichera
 //   url     : facultatif — l article a partager (carte de lien sous le texte)
 //   titre   : facultatif — titre de la carte de lien
@@ -29,13 +29,34 @@ export const maxDuration = 60;
 // « echec » sur un post pourtant publie.
 //
 // ⚠️ LIMITES DU NIVEAU « DEVELOPMENT » : quelques centaines d appels par
-// jour pour l application. Quatre pages, quelques posts par jour : sans
+// jour pour l application. Quelques pages, quelques posts par jour : sans
 // effet ici.
 // ---------------------------------------------------------------------------
 
 const VERSION_LINKEDIN = "202607";
 const ADMINS = ["contact@academiapro.fr"];
-const PRODUITS = ["academiapro", "mrcomptable", "mysterllc", "hebrewpro"];
+
+// ══════════════════════════════════════════════════════════════════════════
+// 🚨 LA LISTE DES PRODUITS N EST PLUS ECRITE ICI — 04/09.
+//
+// LE DEFAUT, ET IL ETAIT SILENCIEUX. Un tableau en dur portait les quatre
+// produits d origine. La page Mr LMS a ete creee sur LinkedIn, inseree dans
+// `linkedin_pages`, et elle n apparaissait NULLE PART : ni dans le choix de
+// l ecran, ni comme produit accepte par cette route. Ajouter une page en
+// base ne servait a rien, et rien ne le signalait.
+//
+// C est la regle de la maison prise en defaut : UN CONTENU AFFICHE NE
+// S ECRIT PAS DANS LE CODE, IL SE LIT EN BASE. La table `linkedin_pages`
+// EST la liste des pages ; il n y a pas de seconde liste a tenir a jour.
+//
+// ⚠️ NE PAS REINTRODUIRE DE TABLEAU EN DUR. Pour ajouter une page :
+//   insert into linkedin_pages (organisation_id, nom, produit, mis_a_jour_le)
+//   values ('<id LinkedIn>', '<nom>', '<code>', now());
+// et elle apparait, sans qu une ligne de code change.
+//
+// ⚠️ LE CONTROLE DU PRODUIT SE FAIT PAR LA LECTURE DE LA PAGE, plus bas :
+// un produit sans ligne en base est refuse la, avec un message clair.
+// ══════════════════════════════════════════════════════════════════════════
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
@@ -50,17 +71,33 @@ function autorise(req: NextRequest): boolean {
   return !!cle && recue === cle;
 }
 
-// GET — les vingt dernieres publications, pour l ecran d administration.
+// GET — les pages disponibles et les vingt dernieres publications.
+//
+// ⚠️ LES PAGES SONT RENVOYEES ICI, ET L ECRAN LES AFFICHE TELLES QUELLES.
+// C est ce qui garantit qu une page ajoutee en base apparait aussitot, sans
+// qu on touche au code.
 export async function GET(req: NextRequest) {
   if (!autorise(req)) {
     return NextResponse.json({ ok: false, erreur: "Acces refuse." }, { status: 403 });
   }
+
+  const { data: pages } = await supabase
+    .from("linkedin_pages")
+    .select("produit, nom")
+    .order("nom", { ascending: true })
+    .limit(100);
+
   const { data } = await supabase
     .from("linkedin_publications")
     .select("id, produit, texte, url, post_urn, statut_http, publie_le")
     .order("publie_le", { ascending: false })
     .limit(20);
-  return NextResponse.json({ ok: true, publications: data || [] });
+
+  return NextResponse.json({
+    ok: true,
+    pages: pages || [],
+    publications: data || [],
+  });
 }
 
 export async function POST(req: NextRequest) {
@@ -74,8 +111,8 @@ export async function POST(req: NextRequest) {
   const url = String(b.url || "").trim();
   const titre = String(b.titre || "").trim();
 
-  if (PRODUITS.indexOf(produit) < 0) {
-    return NextResponse.json({ ok: false, erreur: "Produit inconnu : " + produit }, { status: 400 });
+  if (!produit) {
+    return NextResponse.json({ ok: false, erreur: "Aucune page choisie." }, { status: 400 });
   }
   if (!texte) {
     return NextResponse.json({ ok: false, erreur: "Le texte est vide." }, { status: 400 });
@@ -85,6 +122,8 @@ export async function POST(req: NextRequest) {
   }
 
   // ---- LA PAGE ----
+  // C est cette lecture qui valide le produit : un code sans ligne en base
+  // est refuse ici, avec un message qui dit quoi faire.
   const { data: pageLi } = await supabase
     .from("linkedin_pages")
     .select("organisation_id, nom")
@@ -100,6 +139,11 @@ export async function POST(req: NextRequest) {
   }
 
   // ---- LE JETON ----
+  //
+  // ⚠️ UN JETON NE CONNAIT QUE LES PAGES EXISTANTES AU MOMENT DE SON
+  // EMISSION. Une page creee apres coup sera refusee par LinkedIn avec un
+  // 403, meme si elle figure en base : il faut repasser par
+  // /api/linkedin/connexion pour emettre un jeton qui la porte.
   const { data: jeton } = await supabase
     .from("linkedin_jetons")
     .select("access_token, expire_le")
@@ -175,9 +219,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, produit: produit, page: pageLi.nom, post: postUrn });
   }
 
+  // 🚨 UN 403 SUR UNE PAGE RECENTE VIENT PRESQUE TOUJOURS DU JETON, pas de
+  // la page. Le message le dit, sinon on cherche du cote de la page pendant
+  // que la cause est ailleurs.
+  const indice = statut === 403
+    ? " Si cette page a ete creee apres l emission du jeton, repassez par /api/linkedin/connexion pour en emettre un qui la porte."
+    : "";
+
   console.error("[linkedin/publier]", produit, statut, reponseTexte);
   return NextResponse.json(
-    { ok: false, erreur: "LinkedIn a refuse la publication (HTTP " + statut + ").", detail: reponseTexte },
+    {
+      ok: false,
+      erreur: "LinkedIn a refuse la publication (HTTP " + statut + ")." + indice,
+      detail: reponseTexte,
+    },
     { status: 502 }
   );
 }
