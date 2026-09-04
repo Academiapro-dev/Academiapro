@@ -119,9 +119,14 @@ const PAGES_PUBLIQUES_COMPTABLE = [
 //
 // ⚠️ TOUTE NOUVELLE PAGE DE VITRINE DOIT ETRE AJOUTEE ICI, sinon elle
 // heritera de la barre de travail par-dessus son propre en-tete.
+//
+// 🆕 /blog AJOUTE LE 04/09 : l index et les articles du blog Mr LMS
+// (app/mrlms/blog) portent leur propre en-tete, comme la vitrine et le
+// devis. Le test par prefixe couvre /blog/<slug>.
 const PAGES_PUBLIQUES_MRLMS = [
   "/",
   "/devis",
+  "/blog",
 ];
 
 // LES PAGES PUBLIQUES DE MRCRM.FR.
@@ -135,9 +140,14 @@ const PAGES_PUBLIQUES_MRLMS = [
 //
 // ⚠️ TOUTE NOUVELLE PAGE DE VITRINE DOIT ETRE AJOUTEE ICI, sinon elle
 // heritera de la barre de travail par-dessus son propre en-tete.
+//
+// 🆕 /blog AJOUTE LE 04/09 : l index et les articles du blog Mr CRM
+// (app/mrcrm/blog) portent leur propre en-tete. Le test par prefixe
+// couvre /blog/<slug>.
 const PAGES_PUBLIQUES_MRCRM = [
   "/",
   "/devis",
+  "/blog",
 ];
 
 function estPagePubliqueMrCRM(chemin) {
