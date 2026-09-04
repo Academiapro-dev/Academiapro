@@ -283,21 +283,10 @@ export default function PageDevisCRM() {
                     À l&apos;usage, en plus de l&apos;abonnement :
                   </p>
 
-                  {devis.telephonie_disponible && (
-                    <div style={{ display: "grid", gridTemplateColumns: "3fr 1fr", gap: "4px 12px", fontSize: "14px", padding: "3px 0" }}>
-                      <span style={{ color: "rgba(255,255,255,0.7)" }}>
-                        Appel sortant, à la minute
-                      </span>
-                      <span style={{ color: OR, textAlign: "right" }}>
-                        {centimes(devis.telephonie)}
-                      </span>
-                    </div>
-                  )}
-
-                  <div style={{ display: "grid", gridTemplateColumns: "3fr 1fr", gap: "4px 12px", fontSize: "14px", padding: "3px 0" }}>
-                    <span style={{ color: "rgba(255,255,255,0.7)" }}>SMS envoyé</span>
-                    <span style={{ color: OR, textAlign: "right" }}>{centimes(devis.sms)}</span>
-                  </div>
+                  {/* ⚠️ LES LIGNES « Appel sortant, a la minute » ET
+                      « SMS envoye » ONT ETE RETIREES LE 04/09 : ces deux
+                      fonctions n existent pas. Il ne reste ici que la
+                      signature electronique, qui elle fonctionne. */}
 
                   <div style={{ display: "grid", gridTemplateColumns: "3fr 1fr", gap: "4px 12px", fontSize: "14px", padding: "3px 0" }}>
                     <span style={{ color: "rgba(255,255,255,0.7)" }}>Signature électronique</span>
@@ -319,34 +308,10 @@ export default function PageDevisCRM() {
                   )}
                 </div>
 
-                {/* ---- L ESTIMATION D USAGE ---- */}
-                {(devis.cout_telephonie > 0 || devis.cout_sms > 0) && (
-                  <div style={{ borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: "14px", marginBottom: "16px" }}>
-                    <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13.5px", margin: "0 0 8px" }}>
-                      Sur la base de votre estimation mensuelle :
-                    </p>
-                    {devis.cout_telephonie > 0 && (
-                      <div style={{ display: "grid", gridTemplateColumns: "3fr 1fr", gap: "4px 12px", fontSize: "14px", padding: "3px 0" }}>
-                        <span style={{ color: "rgba(255,255,255,0.7)" }}>
-                          {devis.minutes} minutes d&apos;appel
-                        </span>
-                        <span style={{ color: OR, textAlign: "right" }}>
-                          {euros(devis.cout_telephonie)}
-                        </span>
-                      </div>
-                    )}
-                    {devis.cout_sms > 0 && (
-                      <div style={{ display: "grid", gridTemplateColumns: "3fr 1fr", gap: "4px 12px", fontSize: "14px", padding: "3px 0" }}>
-                        <span style={{ color: "rgba(255,255,255,0.7)" }}>
-                          {devis.sms_nombre} SMS
-                        </span>
-                        <span style={{ color: OR, textAlign: "right" }}>
-                          {euros(devis.cout_sms)}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                )}
+                {/* ⚠️ L ESTIMATION D USAGE — « X minutes d appel » et
+                    « X SMS » — A ETE RETIREE LE 04/09. Ces deux fonctions
+                    n existent pas dans l outil. Voir le commentaire du bloc
+                    de saisie, plus bas. */}
 
                 {/* 🚨 LE COUT PAR UTILISATEUR, JAMAIS UN TOTAL ANNUEL. */}
                 {devis.cout_par_utilisateur !== null && (
@@ -454,92 +419,33 @@ export default function PageDevisCRM() {
               </div>
             </div>
 
-            {/* ---- LES USAGES ---- */}
-            <div style={CARTE}>
-              <h2 style={{ color: OR, fontSize: "20px", margin: "0 0 6px" }}>
-                Appels et SMS
-              </h2>
-              <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "14px", margin: "0 0 18px", lineHeight: "1.7" }}>
-                Ces deux services se paient à ce que vous consommez. Une estimation
-                suffit ; votre facture suivra votre usage réel.
-              </p>
+            {/* 🚨🚨 LE BLOC DE SAISIE « APPELS ET SMS » A ETE RETIRE — 04/09.
 
-              {/* 🚨 LA TELEPHONIE N APPARAIT QUE POUR UN CLIENT EUROPEEN.
-                  Regle du 03/09 : les appels partent d un numero europeen,
-                  et hors EEA la minute coute sept fois plus cher. */}
-              {europeen && tarifs && tarifs.equipe.telephonie_disponible ? (
-                <div style={{ marginBottom: "18px" }}>
-                  <label style={{ display: "flex", gap: "11px", alignItems: "flex-start", cursor: "pointer", marginBottom: "10px" }}>
-                    <input
-                      type="checkbox"
-                      checked={!!f.telephonie}
-                      onChange={function (e) { modifier("telephonie", e.target.checked); }}
-                      style={{ marginTop: "4px", width: "17px", height: "17px", flexShrink: 0 }}
-                    />
-                    <span>
-                      <span style={{ color: "#fff", fontSize: "15px" }}>
-                        Appeler depuis l&apos;outil — {centimes(tarifs.equipe.telephonie)} la minute
-                      </span>
-                      <span style={{ display: "block", color: "rgba(255,255,255,0.5)", fontSize: "13.5px", lineHeight: "1.7", marginTop: "3px" }}>
-                        Le numéro composé, la durée et l&apos;enregistrement s&apos;inscrivent
-                        sur la fiche du contact.
-                      </span>
-                    </span>
-                  </label>
+                CE QU IL FAISAIT. Deux cases a cocher — « Appeler depuis
+                l outil, 0,12 € la minute » et « Envoyer des SMS, 0,09 € le
+                message » — chacune suivie d un champ d estimation
+                mensuelle. Le devis chiffrait ensuite ces consommations.
 
-                  {f.telephonie && (
-                    <div style={{ maxWidth: "300px", marginLeft: "28px" }}>
-                      <label style={ETIQUETTE}>Minutes par mois, en moyenne</label>
-                      <input
-                        type="number"
-                        min={0}
-                        value={f.minutes_estimees || ""}
-                        onChange={function (e) { modifier("minutes_estimees", e.target.value); }}
-                        style={CHAMP}
-                      />
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "13.5px", margin: "0 0 18px", lineHeight: "1.7" }}>
-                  La téléphonie intégrée est disponible pour les clients établis dans
-                  l&apos;Espace économique européen.
-                </p>
-              )}
+                POURQUOI IL DISPARAIT. CES DEUX FONCTIONS N EXISTENT PAS.
+                Verifie dans le code le 04/09 : dans le CRM, le numero est
+                un lien `tel:` qui compose sur le telephone, l adresse un
+                lien `mailto:` qui ouvre la messagerie. Rien ne revient
+                dans l outil ; il n y a ni journal d appels, ni SMS.
+                La vitrine a ete corrigee le meme jour, mais le devis les
+                vendait encore : un client qui cochait une case achetait
+                une fonction que personne ne pouvait livrer.
 
-              <div>
-                <label style={{ display: "flex", gap: "11px", alignItems: "flex-start", cursor: "pointer", marginBottom: "10px" }}>
-                  <input
-                    type="checkbox"
-                    checked={!!f.sms}
-                    onChange={function (e) { modifier("sms", e.target.checked); }}
-                    style={{ marginTop: "4px", width: "17px", height: "17px", flexShrink: 0 }}
-                  />
-                  <span>
-                    <span style={{ color: "#fff", fontSize: "15px" }}>
-                      Envoyer des SMS — {tarifs ? centimes(tarifs.equipe.sms) : ""} le message
-                    </span>
-                    <span style={{ display: "block", color: "rgba(255,255,255,0.5)", fontSize: "13.5px", lineHeight: "1.7", marginTop: "3px" }}>
-                      Rappels de rendez-vous, relances, confirmations. Les réponses
-                      reviennent sur la fiche.
-                    </span>
-                  </span>
-                </label>
+                ⚠️ LA GRILLE RESTE EN BASE, INTACTE. Les lignes
+                `telephonie`, `telephonie_lot`, `sms` et `sms_lot` de la
+                table `tarifs` (produit = 'crm') n ont PAS ete supprimees :
+                prix arretes, marges calculees, tout est pret pour le jour
+                ou la fonction sera construite — au premier client qui la
+                demande, decision de Jacques du 04/09.
 
-                {f.sms && (
-                  <div style={{ maxWidth: "300px", marginLeft: "28px" }}>
-                    <label style={ETIQUETTE}>SMS par mois, en moyenne</label>
-                    <input
-                      type="number"
-                      min={0}
-                      value={f.sms_estimes || ""}
-                      onChange={function (e) { modifier("sms_estimes", e.target.value); }}
-                      style={CHAMP}
-                    />
-                  </div>
-                )}
-              </div>
-            </div>
+                ⚠️ POUR LES REMETTRE, LE JOUR VENU : restaurer ce bloc, les
+                deux lignes du recapitulatif et le bloc d estimation, tous
+                trois signales plus haut. NE RIEN REMETTRE AVANT QUE LE
+                CODE DE LA TELEPHONIE EXISTE. */}
 
             <div style={{ textAlign: "center", marginTop: "26px" }}>
               <button onClick={enregistrer} disabled={envoi} style={{ ...PLEIN, opacity: envoi ? 0.5 : 1 }}>
