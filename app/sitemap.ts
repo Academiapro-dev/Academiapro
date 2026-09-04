@@ -116,8 +116,17 @@ const PAGES_MRCRM = [
 // ⚠️ A COMPLETER : les autres pages publiques de MysterLLC (mentions, CGV,
 // contact, pages d Etat a venir) doivent etre ajoutees ICI au fur et a
 // mesure de leur creation. Ne pas les inscrire avant qu elles existent.
+// 🆕 HUIT PAGES CREEES LE 04/09 : le sommaire des fonctions, cinq pages de
+// fonction, la page des sept Etats et la page de contact. Le site n avait
+// qu une vitrine jusque-la.
+//
+// ⚠️ LES DATES ET LES MONTANTS DE LA PAGE /etats DOIVENT CORRESPONDRE AUX
+// REGLES DE `compliance_rules`. Verifier avant toute modification :
+//   select distinct etat_requis from compliance_rules where actif;
 const PAGES_MYSTERLLC = [
-  "", "/blog",
+  "", "/blog", "/contact", "/fonctionnalites",
+  "/portefeuille", "/agenda", "/formulaires",
+  "/relances", "/etats", "/signature-electronique",
 ];
 
 // La marque, l adresse publique et les pages de chaque domaine.
