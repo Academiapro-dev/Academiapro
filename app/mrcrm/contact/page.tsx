@@ -149,8 +149,11 @@ export default function ContactMrCRM() {
           </a>
           <nav style={{ display: "flex", alignItems: "center", gap: "18px",
             flexShrink: 0 }}>
-            <a href={SITE + "/fonctionnalites"} style={LIEN_ENTETE}>Fonctions</a>
+            {/* ⚠️ PAS DE « FONCTIONS » : les pages de fonction de Mr CRM
+                n existent pas encore. Un lien vers une page absente rend
+                « page introuvable » a un prospect. */}
             <a href={SITE + "/blog"} style={LIEN_ENTETE}>Blog</a>
+            <a href={SITE + "/contact"} style={LIEN_ENTETE}>Contact</a>
             <a href="/connexion" style={{ color: OR,
               border: "1px solid rgba(200,169,110,0.45)",
               padding: "9px 18px", borderRadius: "8px",
@@ -270,11 +273,11 @@ export default function ContactMrCRM() {
             <a href={SITE + "/"} style={{ color: OR_PALE,
               textDecoration: "none" }}>Accueil</a>
             {"  ·  "}
-            <a href={SITE + "/fonctionnalites"} style={{ color: OR_PALE,
-              textDecoration: "none" }}>Fonctions</a>
-            {"  ·  "}
             <a href={SITE + "/blog"} style={{ color: OR_PALE,
               textDecoration: "none" }}>Blog</a>
+            {"  ·  "}
+            <a href={SITE + "/contact"} style={{ color: OR_PALE,
+              textDecoration: "none" }}>Contact</a>
             {"  ·  "}
             <a href={LEGAL + "/mentions-legales"} style={{ color: OR_PALE,
               textDecoration: "none" }}>Mentions légales</a>
