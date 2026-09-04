@@ -147,6 +147,13 @@ export default function PageMrLMS() {
             style={{ width: "560px", maxWidth: "62vw", height: "auto", display: "block", margin: "-4px", clipPath: "inset(4px)" }}
           />
           <nav style={{ display: "flex", alignItems: "center", gap: "18px", flexShrink: 0 }}>
+            {/* 🆕 « FONCTIONS » AJOUTE LE 04/09. Les huit pages de fonction
+                existaient sans qu aucun lien n y mene : elles etaient
+                deployees et invisibles. Un ecran livre sans son lien
+                n existe pas pour le visiteur. */}
+            <a href={SITE + "/fonctionnalites"} style={{ color: "rgba(255,255,255,0.75)", textDecoration: "none", fontSize: "14px", whiteSpace: "nowrap" }}>
+              Fonctions
+            </a>
             <a href={SITE + "/blog"} style={{ color: "rgba(255,255,255,0.75)", textDecoration: "none", fontSize: "14px", whiteSpace: "nowrap" }}>
               Blog
             </a>
@@ -290,6 +297,8 @@ export default function PageMrLMS() {
             Mr LMS — une solution ACADÉMIA PRO LLC
           </p>
           <p style={{ margin: 0 }}>
+            <a href={SITE + "/fonctionnalites"} style={{ color: OR_PALE, textDecoration: "none" }}>Fonctions</a>
+            {"  ·  "}
             <a href={SITE + "/blog"} style={{ color: OR_PALE, textDecoration: "none" }}>Blog</a>
             {"  ·  "}
             <a href={LEGAL + "/mentions-legales"} style={{ color: OR_PALE, textDecoration: "none" }}>Mentions légales</a>
