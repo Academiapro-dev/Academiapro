@@ -22,6 +22,26 @@
 // La barre generale s efface sur cette page (components/NavBar.tsx) : elle
 // porte son propre en-tete, comme les vitrines Mr LMS et MysterLLC.
 //
+// 🚨 TOUT LIEN HORS VITRINE EST ABSOLU — CORRIGE LE 04/09.
+//
+// LE DEFAUT, CONSTATE PAR JACQUES EN TEST REEL SUR MR LMS, identique ici.
+// Les boutons « Demander une presentation » et le pied pointaient sur
+// /contact, /cgv, /mentions-legales, /politique-confidentialite. Sur
+// mrcrm.fr, le middleware reecrit tout chemin non reserve vers le dossier
+// du produit : /contact devenait /mrcrm/contact, qui n existe pas.
+//
+// CES PAGES EXISTENT SUR academiapro.fr, declarees dans son sitemap, et
+// valent pour toutes les solutions de la maison. Elles sont donc appelees
+// en absolu. Le jour ou Mr CRM aura sa propre page de contact, la
+// constante CONTACT change ici et nulle part ailleurs.
+//
+// 🆕 LIEN « BLOG » DANS L EN-TETE ET LE PIED — 04/09. Le blog
+// (app/mrcrm/blog) existait sans qu aucun lien n y mene.
+// ══════════════════════════════════════════════════════════════════════════
+
+const SITE = "https://www.mrcrm.fr";
+const LEGAL = "https://academiapro.fr";
+const CONTACT = LEGAL + "/contact";
 
 
 export const metadata = {
@@ -118,9 +138,17 @@ export default function PageMrCRM() {
             alt="Mr CRM"
             style={{ width: "560px", maxWidth: "62vw", height: "auto", display: "block", margin: "-4px", clipPath: "inset(4px)" }}
           />
-          <a href="/connexion" style={{ color: OR, border: "1px solid rgba(200,169,110,0.45)", padding: "9px 18px", borderRadius: "8px", textDecoration: "none", fontSize: "14px", whiteSpace: "nowrap", flexShrink: 0 }}>
-            Se connecter
-          </a>
+          <nav style={{ display: "flex", alignItems: "center", gap: "18px", flexShrink: 0 }}>
+            <a href={SITE + "/blog"} style={{ color: "rgba(255,255,255,0.75)", textDecoration: "none", fontSize: "14px", whiteSpace: "nowrap" }}>
+              Blog
+            </a>
+            <a href={CONTACT} style={{ color: "rgba(255,255,255,0.75)", textDecoration: "none", fontSize: "14px", whiteSpace: "nowrap" }}>
+              Contact
+            </a>
+            <a href="/connexion" style={{ color: OR, border: "1px solid rgba(200,169,110,0.45)", padding: "9px 18px", borderRadius: "8px", textDecoration: "none", fontSize: "14px", whiteSpace: "nowrap" }}>
+              Se connecter
+            </a>
+          </nav>
         </div>
       </header>
 
@@ -137,7 +165,7 @@ export default function PageMrCRM() {
           courriels et documents signés se rangent tout seuls sur la bonne fiche,
           pour que rien ne dépende de ce dont vous vous souvenez.
         </p>
-        <a href="/contact" style={BOUTON}>Demander une présentation</a>
+        <a href={CONTACT} style={BOUTON}>Demander une présentation</a>
       </section>
 
       {/* ---- CE QUI EST FAIT ---- */}
@@ -234,7 +262,7 @@ export default function PageMrCRM() {
             Une présentation d&apos;une heure, sur vos propres contacts. Nous suivons
             ensemble un client du premier appel au document signé.
           </p>
-          <a href="/contact" style={BOUTON}>Demander une présentation</a>
+          <a href={CONTACT} style={BOUTON}>Demander une présentation</a>
           <a href="/connexion" style={{ ...BOUTON_CLAIR, marginLeft: "12px" }}>
             J&apos;ai déjà un compte
           </a>
@@ -248,13 +276,15 @@ export default function PageMrCRM() {
             Mr CRM — une solution ACADÉMIA PRO LLC
           </p>
           <p style={{ margin: 0 }}>
-            <a href="/mentions-legales" style={{ color: OR_PALE, textDecoration: "none" }}>Mentions légales</a>
+            <a href={SITE + "/blog"} style={{ color: OR_PALE, textDecoration: "none" }}>Blog</a>
             {"  ·  "}
-            <a href="/cgv" style={{ color: OR_PALE, textDecoration: "none" }}>CGV</a>
+            <a href={LEGAL + "/mentions-legales"} style={{ color: OR_PALE, textDecoration: "none" }}>Mentions légales</a>
             {"  ·  "}
-            <a href="/politique-confidentialite" style={{ color: OR_PALE, textDecoration: "none" }}>Confidentialité</a>
+            <a href={LEGAL + "/cgv"} style={{ color: OR_PALE, textDecoration: "none" }}>CGV</a>
             {"  ·  "}
-            <a href="/contact" style={{ color: OR_PALE, textDecoration: "none" }}>Contact</a>
+            <a href={LEGAL + "/politique-confidentialite"} style={{ color: OR_PALE, textDecoration: "none" }}>Confidentialité</a>
+            {"  ·  "}
+            <a href={CONTACT} style={{ color: OR_PALE, textDecoration: "none" }}>Contact</a>
           </p>
         </div>
       </footer>
