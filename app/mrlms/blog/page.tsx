@@ -45,6 +45,10 @@ const SITE = "https://www.mrlms.fr";
 const MARQUE = "mrlms";
 const LEGAL = "https://academiapro.fr";
 
+// 🆕 LE CONTACT EST CELUI DE MR LMS — 04/09. La page existe
+// (app/mrlms/contact/page.tsx) : le prospect ne quitte plus la marque.
+const CONTACT = SITE + "/contact";
+
 export const metadata = {
   title: "Blog — Mr LMS | La plateforme de formation des organismes",
   description:
@@ -88,6 +92,13 @@ const SECTION: any = {
   maxWidth: "1000px",
   margin: "0 auto",
   padding: "0 24px",
+};
+
+const LIEN_ENTETE: any = {
+  color: "rgba(255,255,255,0.75)",
+  textDecoration: "none",
+  fontSize: "14px",
+  whiteSpace: "nowrap",
 };
 
 function clientLecture() {
@@ -146,13 +157,26 @@ export default async function BlogMrLMS() {
                 display: "block", margin: "-4px", clipPath: "inset(4px)" }}
             />
           </a>
-          <a href="/connexion" style={{ color: OR,
-            border: "1px solid rgba(200,169,110,0.45)",
-            padding: "9px 18px", borderRadius: "8px",
-            textDecoration: "none", fontSize: "14px",
-            whiteSpace: "nowrap", flexShrink: 0 }}>
-            Se connecter
-          </a>
+          {/* 🚨 LE MEME MENU SUR TOUTES LES PAGES — 04/09.
+              Cette page avait ete ecrite avant les autres : son en-tete ne
+              portait que « Se connecter ». Le visiteur qui arrivait sur un
+              article n avait aucun moyen de rejoindre les fonctions ni le
+              contact. Un menu qui change d une page a l autre donne
+              l impression d un site inacheve.
+              ⚠️ TOUTE PAGE PUBLIQUE DE MR LMS PORTE CES QUATRE ENTREES. */}
+          <nav style={{ display: "flex", alignItems: "center", gap: "18px",
+            flexShrink: 0 }}>
+            <a href={SITE + "/fonctionnalites"} style={LIEN_ENTETE}>Fonctions</a>
+            <a href={SITE + "/blog"} style={LIEN_ENTETE}>Blog</a>
+            <a href={CONTACT} style={LIEN_ENTETE}>Contact</a>
+            <a href="/connexion" style={{ color: OR,
+              border: "1px solid rgba(200,169,110,0.45)",
+              padding: "9px 18px", borderRadius: "8px",
+              textDecoration: "none", fontSize: "14px",
+              whiteSpace: "nowrap" }}>
+              Se connecter
+            </a>
+          </nav>
         </div>
       </header>
 
@@ -228,6 +252,12 @@ export default async function BlogMrLMS() {
           <p style={{ margin: 0 }}>
             <a href={SITE + "/"} style={{ color: OR_PALE,
               textDecoration: "none" }}>Accueil</a>
+            {"  ·  "}
+            <a href={SITE + "/fonctionnalites"} style={{ color: OR_PALE,
+              textDecoration: "none" }}>Fonctions</a>
+            {"  ·  "}
+            <a href={CONTACT} style={{ color: OR_PALE,
+              textDecoration: "none" }}>Contact</a>
             {"  ·  "}
             <a href={LEGAL + "/mentions-legales"} style={{ color: OR_PALE,
               textDecoration: "none" }}>Mentions légales</a>
