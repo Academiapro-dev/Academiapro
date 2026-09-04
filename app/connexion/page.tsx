@@ -29,7 +29,16 @@ export default function ConnexionPage() {
   // window n existe pas cote serveur. Tant qu il n est pas connu, on
   // affiche la version neutre — c est le defaut le plus sur, puisqu il ne
   // propose rien de faux a personne.
-  const [surMysterLLC, setSurMysterLLC] = useState(false);
+  // 🆕 ETENDU A MR LMS ET MR CRM — 04/09. Le defaut du 31/08 n avait ete
+  // corrige que pour MysterLLC ; les deux domaines crees le 03/09 le
+  // reproduisaient a l identique. Un organisme de formation qui ouvre son
+  // compte sur mrlms.fr lisait « S'inscrire — espace comptabilité », et un
+  // independant sur mrcrm.fr se voyait proposer un catalogue de formations.
+  //
+  // ⚠️ TOUT NOUVEAU DOMAINE DOIT ETRE AJOUTE DANS `SANS_INSCRIPTION`
+  // ci-dessous. La liste ne couvre que les marques dont l inscription ne
+  // passe PAS par le parcours comptable.
+  const [sansInscription, setSansInscription] = useState(false);
 
   // 🆕 LA PAGE DE RETOUR — 02/09. Quand une page protegee renvoie ici avec
   // ?retour=/chemin, ce chemin est transmis a /api/auth/demander, qui le
@@ -49,7 +58,13 @@ export default function ConnexionPage() {
     } catch (e) {}
 
     try {
-      setSurMysterLLC(window.location.hostname.toLowerCase().indexOf("mysterllc.com") >= 0);
+      const hote = window.location.hostname.toLowerCase();
+      const SANS_INSCRIPTION = ["mysterllc.com", "mrlms.fr", "mrcrm.fr"];
+      let trouve = false;
+      for (const d of SANS_INSCRIPTION) {
+        if (hote.indexOf(d) >= 0) trouve = true;
+      }
+      setSansInscription(trouve);
     } catch (e) {}
   }, []);
 
@@ -147,12 +162,15 @@ export default function ConnexionPage() {
             {loading ? "Envoi en cours…" : "Recevoir mon lien de connexion"}
           </button>
 
-          {/* ⚠️ LE BAS DE CARTE NE S AFFICHE PAS SUR MYSTERLLC.COM.
-              Aucune inscription en ligne n y est ouverte : les comptes des
-              gestionnaires se creent au cas par cas apres entretien. Une
-              porte d inscription libre y serait donc une promesse fausse,
-              en plus d etre celle d un autre produit. */}
-          {!surMysterLLC && (
+          {/* ⚠️ LE BAS DE CARTE NE S AFFICHE PAS SUR MYSTERLLC.COM,
+              MRLMS.FR NI MRCRM.FR.
+              Aucune inscription en ligne n y est ouverte : les comptes se
+              creent au cas par cas apres entretien. Une porte d inscription
+              libre y serait donc une promesse fausse, en plus d etre celle
+              d un autre produit — « espace comptabilité » et « catalogue »
+              n ont aucun sens pour un gestionnaire de LLC, un organisme de
+              formation ou un independant qui suit ses clients. */}
+          {!sansInscription && (
             <>
               <div style={{ height: "1px", background: "rgba(200,169,110,0.2)", margin: "28px 0 22px" }} />
 
