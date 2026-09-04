@@ -95,10 +95,16 @@ const PAGES_MRLMS = [
 // il affiche des prix, n a de sens qu avec un jeton, et porte deja
 // `robots: noindex`. Meme regle que pour Mr LMS.
 //
-// ⚠️ LES PAGES DE FONCTION DE MR CRM N EXISTENT PAS ENCORE. Ne les
-// declarer qu une fois creees et verifiees en ligne.
+// 🆕 LES QUATRE PAGES DE FONCTION ET LEUR SOMMAIRE, crees le 04/09.
+//
+// ⚠️ ELLES DECRIVENT CE QUE L OUTIL FAIT, PAS CE QU IL FERA. Les appels,
+// les SMS et les courriels rattaches ont ete retires de la vitrine le
+// meme jour : ils n existent pas. Ne pas creer de page a leur sujet avant
+// que le code existe.
 const PAGES_MRCRM = [
-  "", "/blog", "/contact",
+  "", "/blog", "/contact", "/fonctionnalites",
+  "/contacts", "/relances", "/suivi-des-ventes",
+  "/signature-electronique",
 ];
 
 // LES PAGES PUBLIQUES DE mysterllc.com.
