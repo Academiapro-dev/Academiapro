@@ -170,6 +170,36 @@ const PAGES_PUBLIQUES_MRLMS = [
 // 🆕 /blog AJOUTE LE 04/09 : l index et les articles du blog Mr CRM
 // (app/mrcrm/blog) portent leur propre en-tete. Le test par prefixe
 // couvre /blog/<slug>.
+// LES PAGES PUBLIQUES DE MYSTERLLC.COM — 04/09.
+//
+// 🚨 ELLES N EXISTAIENT PAS AVANT CE JOUR : le site n avait qu une vitrine,
+// et la barre s effacait sur elle grace au test `surMysterLLC && chemin ===
+// "/"` plus bas. Les huit pages creees le 04/09 auraient donc affiche la
+// barre de travail MysterLLC — portefeuille, agenda, signatures —
+// par-dessus leur propre en-tete, a un visiteur sans compte.
+//
+// ⚠️ TOUTE NOUVELLE PAGE DE VITRINE DOIT ETRE AJOUTEE ICI LE JOUR MEME.
+const PAGES_PUBLIQUES_MYSTERLLC = [
+  "/",
+  "/fonctionnalites",
+  "/portefeuille",
+  "/agenda",
+  "/formulaires",
+  "/relances",
+  "/etats",
+  "/signature-electronique",
+  "/blog",
+  "/contact",
+];
+
+function estPagePubliqueMysterLLC(chemin) {
+  for (const p of PAGES_PUBLIQUES_MYSTERLLC) {
+    if (chemin === p) return true;
+    if (p !== "/" && chemin.indexOf(p + "/") === 0) return true;
+  }
+  return false;
+}
+
 const PAGES_PUBLIQUES_MRCRM = [
   "/",
   "/devis",
@@ -331,7 +361,10 @@ export default function NavBar() {
   // demandees par leur chemin interne (/mysterllc) ou par la racine du
   // domaine (mysterllc.com/, reecrite par le middleware).
   if (chemin === "/mysterllc" || chemin.indexOf("/mysterllc/") === 0) return null;
-  if (surMysterLLC && chemin === "/") return null;
+  // 🆕 04/09 : la vitrine n est plus la seule page publique du domaine.
+  // Les huit pages creees ce jour portent leur propre en-tete ; sans ce
+  // test, la barre de travail s afficherait par-dessus.
+  if (surMysterLLC && estPagePubliqueMysterLLC(chemin)) return null;
 
   // 🆕 LA BARRE S EFFACE SUR LES PAGES DE VITRINE MR LMS — 03/09.
   //
