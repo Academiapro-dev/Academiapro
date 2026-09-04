@@ -123,10 +123,29 @@ const PAGES_PUBLIQUES_COMPTABLE = [
 // 🆕 /blog AJOUTE LE 04/09 : l index et les articles du blog Mr LMS
 // (app/mrlms/blog) portent leur propre en-tete, comme la vitrine et le
 // devis. Le test par prefixe couvre /blog/<slug>.
+//
+// 🆕🆕 LES PAGES DE FONCTION AJOUTEES LE 04/09.
+//
+// LE DEFAUT QU ELLES EVITENT. Elles ont ete deployees AVANT d etre
+// inscrites ici : sur mrlms.fr, chacune affichait la barre de travail
+// (« Mes stagiaires », « Ma facturation ») PAR-DESSUS son propre en-tete,
+// et proposait a un visiteur sans compte des ecrans reserves.
+//
+// ⚠️ TOUTE NOUVELLE PAGE DE VITRINE DOIT ETRE AJOUTEE ICI LE JOUR MEME OU
+// ELLE EST CREEE. Une page livree sans sa ligne ici n echoue pas
+// bruyamment : elle s affiche mal, et personne ne le voit avant un test.
 const PAGES_PUBLIQUES_MRLMS = [
   "/",
   "/devis",
   "/blog",
+  "/fonctionnalites",
+  "/parcours",
+  "/stagiaires",
+  "/evaluations",
+  "/signature-electronique",
+  "/bilan-pedagogique-et-financier",
+  "/marque-blanche",
+  "/catalogue",
 ];
 
 // LES PAGES PUBLIQUES DE MRCRM.FR.
