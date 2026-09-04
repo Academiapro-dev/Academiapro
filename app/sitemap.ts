@@ -69,25 +69,27 @@ const PAGES_MRCOMPTABLE = [
 
 // LES PAGES PUBLIQUES DE mrlms.fr.
 //
-// 🚨 UNE SEULE PAGE AUJOURD HUI : la vitrine. Les ecrans du produit vivent
-// sous /organisme, derriere la session — une page que Google ne peut pas
-// atteindre n a aucune raison d etre declaree, et la declarer produirait
-// des erreurs d exploration dans la Search Console.
+// La vitrine et l index du blog (app/mrlms/blog/page.tsx, cree le 04/09).
+// Les ecrans du produit vivent sous /organisme, derriere la session — une
+// page que Google ne peut pas atteindre n a aucune raison d etre declaree.
+// Le devis /devis N EST PAS DECLARE : il affiche des prix et n a de sens
+// qu avec un jeton.
 //
-// ⚠️ A COMPLETER quand les autres pages publiques existeront (mentions,
-// CGV, contact, blog). Ne pas les inscrire avant qu elles soient creees :
+// ⚠️ A COMPLETER quand d autres pages publiques existeront (mentions,
+// CGV, contact). Ne pas les inscrire avant qu elles soient creees :
 // une adresse morte dans un sitemap vaut moins que pas d adresse du tout.
 const PAGES_MRLMS = [
-  "",
+  "", "/blog",
 ];
 
 // LES PAGES PUBLIQUES DE mrcrm.fr.
 //
-// 🚨 UNE SEULE PAGE : la vitrine. Le formulaire de devis /devis N EST PAS
-// DECLARE, et ne doit pas l etre : il affiche des prix et n a de sens
-// qu avec un jeton. Meme regle que pour Mr LMS.
+// La vitrine et l index du blog (app/mrcrm/blog/page.tsx, cree le 04/09).
+// Le formulaire de devis /devis N EST PAS DECLARE, et ne doit pas l etre :
+// il affiche des prix et n a de sens qu avec un jeton. Meme regle que pour
+// Mr LMS.
 const PAGES_MRCRM = [
-  "",
+  "", "/blog",
 ];
 
 // LES PAGES PUBLIQUES DE mysterllc.com.
@@ -105,20 +107,28 @@ const PAGES_MYSTERLLC = [
 
 // La marque, l adresse publique et les pages de chaque domaine.
 // `marqueBlog` est la valeur de la colonne `marque` dans la table `blog`.
+//
+// 🚨 mrlms.fr ET mrcrm.fr S ECRIVENT AVEC www — CORRIGE LE 04/09.
+//
+// Les deux domaines redirigent vers www. Le sitemap declarait pourtant
+// https://mrlms.fr/... et https://mrcrm.fr/... : des adresses qui
+// repondent par une redirection, ce que Search Console refuse d indexer.
+// C est exactement le defaut de la canonique MysterLLC, encore ouvert
+// la-bas ; ici il est corrige avant la premiere soumission. Les pages de
+// blog des deux produits portent la meme adresse, avec www.
 const MARQUES: any = {
   mrcrm: {
-    site: "https://mrcrm.fr",
+    site: "https://www.mrcrm.fr",
     pages: PAGES_MRCRM,
     marqueBlog: "mrcrm",
     formations: false,
     traductions: false,
   },
   mrlms: {
-    site: "https://mrlms.fr",
+    site: "https://www.mrlms.fr",
     pages: PAGES_MRLMS,
-    // ⚠️ AUCUN ARTICLE SOUS CETTE MARQUE AUJOURD HUI. La valeur est prete :
-    // le jour ou un article Mr LMS est publie avec `marque = 'mrlms'`, il
-    // apparaitra ici sans autre modification.
+    // Les articles publies avec `marque = 'mrlms'` remontent ici sans
+    // autre modification, servis par app/mrlms/blog/[slug]/page.tsx.
     marqueBlog: "mrlms",
     formations: false,
     traductions: false,
