@@ -103,6 +103,59 @@ function expediteurValide(brut: any): string | null {
   return t;
 }
 
+// ══════════════════════════════════════════════════════════════════════════
+// LA LECTURE : LE SOLDE ET LE JOURNAL — 04/09.
+//
+// L ecran a besoin de deux choses avant meme qu un SMS parte : combien de
+// credits il reste, et ce qui a deja ete envoye. Les mettre ici plutot que
+// dans une route separee evite un fichier de plus, et surtout garantit que
+// LE MEME FILTRE PAR ORGANISME s applique a la lecture et a l ecriture.
+//
+// 🚨 LE JOURNAL EST FILTRE SUR LE TENANT DE LA SESSION, jamais sur un
+// identifiant venu de la requete. Un client qui passerait le tenant d un
+// autre dans l adresse ne verrait rien de plus : la valeur est lue dans le
+// cookie signe, pas dans ce qu il envoie.
+// ══════════════════════════════════════════════════════════════════════════
+export async function GET() {
+  try {
+    const email = emailDeSession();
+    const tenant = tenantDeSession();
+    if (!email || !tenant) {
+      return NextResponse.json(
+        { ok: false, erreur: "Vous devez être connecté." },
+        { status: 401 }
+      );
+    }
+
+    const { data: orga } = await supabase
+      .from("organismes_formation")
+      .select("raison_sociale, sms_expediteur, sms_credits")
+      .eq("tenant_id", tenant)
+      .limit(1)
+      .maybeSingle();
+
+    const { data: journal } = await supabase
+      .from("sms_envoyes")
+      .select("id, destinataire, message, statut, created_at")
+      .eq("tenant_id", tenant)
+      .order("created_at", { ascending: false })
+      .limit(50);
+
+    return NextResponse.json({
+      ok: true,
+      expediteur: orga ? orga.sms_expediteur || null : null,
+      credits: orga ? Number(orga.sms_credits || 0) : 0,
+      journal: journal || [],
+    });
+  } catch (e: any) {
+    console.error("[organisme/sms] GET :", String(e));
+    return NextResponse.json(
+      { ok: false, erreur: "Lecture impossible." },
+      { status: 500 }
+    );
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
     const email = emailDeSession();
