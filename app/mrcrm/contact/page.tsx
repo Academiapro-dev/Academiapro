@@ -149,9 +149,15 @@ export default function ContactMrCRM() {
           </a>
           <nav style={{ display: "flex", alignItems: "center", gap: "18px",
             flexShrink: 0 }}>
-            {/* ⚠️ PAS DE « FONCTIONS » : les pages de fonction de Mr CRM
-                n existent pas encore. Un lien vers une page absente rend
-                « page introuvable » a un prospect. */}
+            {/* 🚨 LE MEME MENU SUR TOUTES LES PAGES, SANS EXCEPTION —
+                04/09. Cette page avait ete ecrite avant que /fonctionnalites
+                existe : son en-tete n en portait pas le lien. Un menu qui
+                change d une page a l autre donne l impression d un site
+                inacheve, et le visiteur ne sait plus ou il peut aller.
+                ⚠️ TOUTE PAGE PUBLIQUE PORTE EXACTEMENT LES MEMES ENTREES. */}
+            {/* 🆕 « FONCTIONS » AJOUTE LE 04/09 : les cinq pages de
+                fonction de Mr CRM existent desormais. */}
+            <a href={SITE + "/fonctionnalites"} style={LIEN_ENTETE}>Fonctions</a>
             <a href={SITE + "/blog"} style={LIEN_ENTETE}>Blog</a>
             <a href={SITE + "/contact"} style={LIEN_ENTETE}>Contact</a>
             <a href="/connexion" style={{ color: OR,
