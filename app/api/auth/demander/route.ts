@@ -99,6 +99,56 @@ const MARQUES: Record<string, { site: string; nom: string; expediteur: string; e
     expediteur: process.env.COMPLIANCE_EXPEDITEUR || "MysterLLC <contact@mysterllc.com>",
     espace: "votre portefeuille de sociétés",
   },
+
+  // 🚨 MR LMS ET MR CRM AJOUTES LE 04/09 — LEUR ABSENCE ETAIT VISIBLE.
+  //
+  // CE QUI SE PASSAIT, CONSTATE PAR JACQUES EN TEST REEL : une demande de
+  // lien depuis mrlms.fr ne trouvait pas le domaine dans cette table et
+  // retombait sur AcadeMIA Pro. Le courriel partait AU NOM D ACADEMIA PRO,
+  // avec un lien vers academiapro.fr — le client atterrissait sur un autre
+  // site que celui ou il venait de saisir son adresse. Exactement le
+  // defaut corrige pour MysterLLC le 01/09, jamais etendu aux deux
+  // domaines crees le 03/09.
+  //
+  // 🚨 LE SITE PORTE `www`, ET C EST INDISPENSABLE. mrlms.fr et mrcrm.fr
+  // REDIRIGENT vers www. Un lien sans www subirait une redirection avant
+  // d atteindre /api/auth/valider ; le jeton y survit en principe, mais
+  // rien ne le garantit selon le client de messagerie. On envoie
+  // directement a la bonne adresse.
+  // ⚠️ mysterllc.com est declare SANS www plus haut et fonctionne : ne pas
+  // y toucher sans test. Cette valeur est comparee telle quelle dans
+  // /api/auth/valider (SITES_CONNUS et accueilDuProfil).
+  //
+  // ⚠️ L EXPEDITEUR RESTE contact@academiapro.fr. mrlms.fr et mrcrm.fr NE
+  // SONT PAS VERIFIES CHEZ RESEND : un envoi depuis ces domaines serait
+  // refuse et le client ne recevrait rien. Le NOM affiche porte bien la
+  // marque — c est ce que le destinataire lit en premier. Le jour ou les
+  // domaines seront verifies, changer l adresse ici, et nulle part
+  // ailleurs.
+  "mrlms.fr": {
+    site: "https://www.mrlms.fr",
+    nom: "Mr LMS",
+    expediteur: "Mr LMS <contact@academiapro.fr>",
+    espace: "votre plateforme de formation",
+  },
+  "www.mrlms.fr": {
+    site: "https://www.mrlms.fr",
+    nom: "Mr LMS",
+    expediteur: "Mr LMS <contact@academiapro.fr>",
+    espace: "votre plateforme de formation",
+  },
+  "mrcrm.fr": {
+    site: "https://www.mrcrm.fr",
+    nom: "Mr CRM",
+    expediteur: "Mr CRM <contact@academiapro.fr>",
+    espace: "vos contacts",
+  },
+  "www.mrcrm.fr": {
+    site: "https://www.mrcrm.fr",
+    nom: "Mr CRM",
+    expediteur: "Mr CRM <contact@academiapro.fr>",
+    espace: "vos contacts",
+  },
 };
 
 const supabase = createClient(
