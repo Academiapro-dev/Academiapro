@@ -174,6 +174,11 @@ const PAGES_PUBLIQUES_MRCRM = [
   "/",
   "/devis",
   "/blog",
+  // 🆕 /contact AJOUTE LE 04/09, EN MEME TEMPS QUE LA PAGE
+  // (app/mrcrm/contact/page.tsx). Sans cette ligne, la barre de travail
+  // Mr CRM s afficherait par-dessus l en-tete de la page de contact, et
+  // proposerait « Mes contacts » et « Publier » a un prospect sans compte.
+  "/contact",
 ];
 
 function estPagePubliqueMrCRM(chemin) {
