@@ -44,12 +44,40 @@ import type { Metadata } from "next";
 // dette de plus.
 //
 // LE MIDDLEWARE sert cette page sur la racine de mysterllc.com. La NavBar
-// s efface ici : la banniere du logo tient lieu d en-tete.
+// s efface ici : la page porte son propre en-tete.
+//
+// 🚨🚨 DEUX DEFAUTS GRAVES CORRIGES LE 04/09.
+//
+// 1. AUCUN MENU. La banniere etait centree, seule, sans un lien. Le site
+//    n avait qu une page et le visiteur ne pouvait aller nulle part.
+//
+// 2. LES DEUX BOUTONS OUVRAIENT UN `mailto:`. Sur un appareil sans
+//    messagerie configuree, un lien mailto NE FAIT RIEN DU TOUT : le
+//    visiteur clique, rien ne se passe, il repart. Ils pointent desormais
+//    sur app/mysterllc/contact/page.tsx, un vrai formulaire.
+//    ⛔ NE JAMAIS REMETTRE DE `mailto:` COMME SEUL MOYEN DE CONTACT.
 // ---------------------------------------------------------------------------
 
 const OR = "#c8a96e";
+const OR_PALE = "rgba(200,169,110,0.75)";
 const NUIT = "#050508";
 const BANNIERE = "/IMG_4723.jpeg";
+
+// 🆕 LE SITE ET SES PAGES — 04/09.
+//
+// 🚨 AVEC www. mysterllc.com redirige vers www.mysterllc.com : une adresse
+// sans www repond par une redirection, ce que Search Console refuse
+// d indexer. La canonique de cette page, plus bas, portait encore l adresse
+// sans www — c est corrige.
+const SITE = "https://www.mysterllc.com";
+const LEGAL = "https://academiapro.fr";
+
+const LIEN_ENTETE: any = {
+  color: "rgba(255,255,255,0.75)",
+  textDecoration: "none",
+  fontSize: "14px",
+  whiteSpace: "nowrap",
+};
 
 export const metadata: Metadata = {
   title: "MysterLLC — vos LLC en règle, sans y penser",
@@ -65,13 +93,13 @@ export const metadata: Metadata = {
     title: "MysterLLC — vos LLC en règle, sans y penser",
     description:
       "Le suivi des obligations américaines pour les gestionnaires de LLC.",
-    url: "https://mysterllc.com",
+    url: SITE,
     siteName: "MysterLLC",
-    images: [{ url: "https://mysterllc.com" + BANNIERE, width: 1200, height: 300 }],
+    images: [{ url: SITE + BANNIERE, width: 1200, height: 300 }],
     locale: "fr_FR",
     type: "website",
   },
-  alternates: { canonical: "https://mysterllc.com" },
+  alternates: { canonical: SITE },
 };
 
 // Une obligation suivie par l outil. Le libelle dit CE QUI EST EN JEU, pas
@@ -207,13 +235,37 @@ export default function VitrineMysterLLC() {
   return (
     <div style={{ backgroundColor: NUIT, minHeight: "100vh", color: "#fff" }}>
 
-      {/* ---- EN-TETE : LA BANNIERE TIENT LIEU DE LOGO ET DE TITRE ---- */}
-      <header style={{ background: "#000", padding: "0 24px", textAlign: "center" }}>
-        <img
-          src={BANNIERE}
-          alt="MysterLLC — vos LLC en règle, sans y penser"
-          style={{ width: "760px", maxWidth: "100%", height: "auto", display: "inline-block" }}
-        />
+      {/* ---- EN-TETE ---- LE MEME SUR TOUTES LES PAGES DU SITE.
+          🚨 IL N Y AVAIT AUCUN MENU jusqu au 04/09 : la banniere etait
+          centree, seule, sans un seul lien. Un visiteur arrivait, lisait, et
+          ne pouvait aller nulle part. Le site n avait d ailleurs qu une page.
+          ⚠️ TOUTE PAGE PUBLIQUE DE MYSTERLLC PORTE CES CINQ ENTREES. */}
+      <header style={{ borderBottom: "1px solid rgba(200,169,110,0.15)",
+        background: "#000" }}>
+        <div style={{ maxWidth: "1000px", margin: "0 auto", display: "flex",
+          justifyContent: "space-between", alignItems: "center",
+          padding: "10px 24px", gap: "16px" }}>
+          <a href={SITE + "/"} style={{ display: "block", lineHeight: 0, flexShrink: 0 }}>
+            <img
+              src={BANNIERE}
+              alt="MysterLLC — vos LLC en règle, sans y penser"
+              style={{ width: "520px", maxWidth: "58vw", height: "auto",
+                display: "block", margin: "-4px", clipPath: "inset(4px)" }}
+            />
+          </a>
+          <nav style={{ display: "flex", alignItems: "center", gap: "18px", flexShrink: 0 }}>
+            <a href={SITE + "/fonctionnalites"} style={LIEN_ENTETE}>Fonctions</a>
+            <a href={SITE + "/etats"} style={LIEN_ENTETE}>États</a>
+            <a href={SITE + "/blog"} style={LIEN_ENTETE}>Blog</a>
+            <a href={SITE + "/contact"} style={LIEN_ENTETE}>Contact</a>
+            <a href="/connexion" style={{ color: OR,
+              border: "1px solid rgba(200,169,110,0.45)", padding: "9px 18px",
+              borderRadius: "8px", textDecoration: "none", fontSize: "14px",
+              whiteSpace: "nowrap" }}>
+              Se connecter
+            </a>
+          </nav>
+        </div>
       </header>
 
       {/* ---- LA PROMESSE ---- */}
@@ -237,7 +289,7 @@ export default function VitrineMysterLLC() {
           vous signez, vous déposez.
         </p>
         <a
-          href="mailto:contact@mysterllc.com?subject=MysterLLC%20—%20demande%20de%20présentation"
+          href={SITE + "/contact"}
           style={{
             display: "inline-block",
             background: "linear-gradient(135deg,#c8a96e,#a07840)",
@@ -483,7 +535,7 @@ export default function VitrineMysterLLC() {
           proposition et une présentation de l'outil.
         </p>
         <a
-          href="mailto:contact@mysterllc.com?subject=MysterLLC%20—%20demande%20de%20présentation"
+          href={SITE + "/contact"}
           style={{
             display: "inline-block",
             background: "linear-gradient(135deg,#c8a96e,#a07840)",
@@ -504,12 +556,23 @@ export default function VitrineMysterLLC() {
       </div>
 
       {/* ---- PIED DE PAGE ---- */}
-      <footer style={{ background: "#000", padding: "34px 24px", textAlign: "center", borderTop: "1px solid rgba(200,169,110,0.15)" }}>
-        <p style={{ color: "rgba(255,255,255,0.3)", fontSize: "12.5px", lineHeight: "1.9", margin: 0 }}>
-          MysterLLC — 30 N Gould St, Sheridan, WY 82801, États-Unis.<br />
-          Les montants et échéances cités sont ceux en vigueur à la date de
-          publication et ne constituent pas un conseil fiscal.
-        </p>
+      <footer style={{ background: "#000", padding: "34px 24px", borderTop: "1px solid rgba(200,169,110,0.15)" }}>
+        <div style={{ maxWidth: "1000px", margin: "0 auto", color: "rgba(255,255,255,0.4)", fontSize: "13px", lineHeight: "1.8", textAlign: "center" }}>
+          <p style={{ margin: "0 0 6px" }}>
+            MysterLLC — une solution ACADÉMIA PRO LLC
+          </p>
+          <p style={{ margin: 0 }}>
+            <a href={SITE + "/fonctionnalites"} style={{ color: OR_PALE, textDecoration: "none" }}>Fonctions</a>
+            {"  ·  "}
+            <a href={SITE + "/etats"} style={{ color: OR_PALE, textDecoration: "none" }}>États</a>
+            {"  ·  "}
+            <a href={SITE + "/blog"} style={{ color: OR_PALE, textDecoration: "none" }}>Blog</a>
+            {"  ·  "}
+            <a href={SITE + "/contact"} style={{ color: OR_PALE, textDecoration: "none" }}>Contact</a>
+            {"  ·  "}
+            <a href={LEGAL + "/mentions-legales"} style={{ color: OR_PALE, textDecoration: "none" }}>Mentions légales</a>
+          </p>
+        </div>
       </footer>
 
     </div>
