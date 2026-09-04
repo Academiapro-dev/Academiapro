@@ -119,34 +119,44 @@ const MARQUES: Record<string, { site: string; nom: string; expediteur: string; e
   // y toucher sans test. Cette valeur est comparee telle quelle dans
   // /api/auth/valider (SITES_CONNUS et accueilDuProfil).
   //
-  // ⚠️ L EXPEDITEUR RESTE contact@academiapro.fr. mrlms.fr et mrcrm.fr NE
-  // SONT PAS VERIFIES CHEZ RESEND : un envoi depuis ces domaines serait
-  // refuse et le client ne recevrait rien. Le NOM affiche porte bien la
-  // marque — c est ce que le destinataire lit en premier. Le jour ou les
-  // domaines seront verifies, changer l adresse ici, et nulle part
-  // ailleurs.
+  // 🆕 LES DOMAINES ONT ETE VERIFIES CHEZ RESEND LE 04/09 : chaque marque
+  // ecrit depuis SA PROPRE ADRESSE. Un client qui recoit son lien de
+  // connexion voit « Mr LMS <contact@mrlms.fr> » — la marque est coherente
+  // de bout en bout, de la page ou il a saisi son adresse jusqu au nom de
+  // l expediteur dans sa boite.
+  //
+  // ⚠️ CES ADRESSES NE FONCTIONNENT QUE PARCE QUE LES DOMAINES SONT
+  // VERIFIES. Un envoi depuis un domaine non verifie est REFUSE par Resend
+  // et le client ne recoit rien — sans que rien ne le signale ailleurs que
+  // dans les journaux Vercel. Ne jamais ecrire ici une adresse dont le
+  // domaine n est pas verifie.
+  //
+  // ⚠️ CE SONT DES ADRESSES D ENVOI. Elles n ont pas de boite de reception
+  // chez OVH : une reponse a ce courriel se perdrait. Si un jour les
+  // clients repondent, il faudra soit creer la boite, soit poser un
+  // `reply_to` sur contact@academiapro.fr.
   "mrlms.fr": {
     site: "https://www.mrlms.fr",
     nom: "Mr LMS",
-    expediteur: "Mr LMS <contact@academiapro.fr>",
+    expediteur: "Mr LMS <contact@mrlms.fr>",
     espace: "votre plateforme de formation",
   },
   "www.mrlms.fr": {
     site: "https://www.mrlms.fr",
     nom: "Mr LMS",
-    expediteur: "Mr LMS <contact@academiapro.fr>",
+    expediteur: "Mr LMS <contact@mrlms.fr>",
     espace: "votre plateforme de formation",
   },
   "mrcrm.fr": {
     site: "https://www.mrcrm.fr",
     nom: "Mr CRM",
-    expediteur: "Mr CRM <contact@academiapro.fr>",
+    expediteur: "Mr CRM <contact@mrcrm.fr>",
     espace: "vos contacts",
   },
   "www.mrcrm.fr": {
     site: "https://www.mrcrm.fr",
     nom: "Mr CRM",
-    expediteur: "Mr CRM <contact@academiapro.fr>",
+    expediteur: "Mr CRM <contact@mrcrm.fr>",
     espace: "vos contacts",
   },
 };
