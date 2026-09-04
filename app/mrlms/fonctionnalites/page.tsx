@@ -175,6 +175,13 @@ export default function PageFonctionsMrLMS() {
           </a>
           <nav style={{ display: "flex", alignItems: "center", gap: "18px",
             flexShrink: 0 }}>
+            {/* 🚨 LE MEME MENU SUR TOUTES LES PAGES, SANS EXCEPTION —
+                04/09. Cette page avait ete ecrite avant que /fonctionnalites
+                existe : son en-tete n en portait pas le lien. Un menu qui
+                change d une page a l autre donne l impression d un site
+                inacheve, et le visiteur ne sait plus ou il peut aller.
+                ⚠️ TOUTE PAGE PUBLIQUE PORTE EXACTEMENT LES MEMES ENTREES. */}
+            <a href={SITE + "/fonctionnalites"} style={LIEN_ENTETE}>Fonctions</a>
             <a href={SITE + "/blog"} style={LIEN_ENTETE}>Blog</a>
             <a href={CONTACT} style={LIEN_ENTETE}>Contact</a>
             <a href="/connexion" style={{ color: OR,
