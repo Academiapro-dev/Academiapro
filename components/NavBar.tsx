@@ -179,6 +179,14 @@ const PAGES_PUBLIQUES_MRCRM = [
   // Mr CRM s afficherait par-dessus l en-tete de la page de contact, et
   // proposerait « Mes contacts » et « Publier » a un prospect sans compte.
   "/contact",
+  // 🆕 LES PAGES DE FONCTION — 04/09, ajoutees le jour meme de leur
+  // creation. Sans ces lignes, chacune afficherait la barre de travail
+  // par-dessus son propre en-tete.
+  "/fonctionnalites",
+  "/contacts",
+  "/relances",
+  "/suivi-des-ventes",
+  "/signature-electronique",
 ];
 
 function estPagePubliqueMrCRM(chemin) {
@@ -424,7 +432,10 @@ export default function NavBar() {
           />
         </a>
         <nav style={{ display: "flex", gap: "18px", flexWrap: "wrap", justifyContent: "center" }}>
-          <a href="/admin/linkedin" style={lienMenu}>Mes contacts</a>
+          {/* 🆕 « CRM » PLUTOT QUE « MES CONTACTS » — 04/09, demande de
+              Jacques : « mes contacts n invite pas a rentrer dans la
+              fonction CRM ». L ecran est le meme. */}
+          <a href="/admin/linkedin" style={lienMenu}>CRM</a>
           <a href="/admin/linkedin-publier" style={lienMenu}>Publier</a>
           <a href="/admin/compliance/signatures" style={lienMenu}>Signatures</a>
         </nav>
