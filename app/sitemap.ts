@@ -69,27 +69,36 @@ const PAGES_MRCOMPTABLE = [
 
 // LES PAGES PUBLIQUES DE mrlms.fr.
 //
-// La vitrine et l index du blog (app/mrlms/blog/page.tsx, cree le 04/09).
+// La vitrine, le blog, les six pages de fonction et la page de contact,
+// toutes creees le 04/09 et verifiees en ligne.
+//
 // Les ecrans du produit vivent sous /organisme, derriere la session — une
 // page que Google ne peut pas atteindre n a aucune raison d etre declaree.
-// Le devis /devis N EST PAS DECLARE : il affiche des prix et n a de sens
-// qu avec un jeton.
+// Le devis /devis N EST PAS DECLARE : il affiche des prix, n a de sens
+// qu avec un jeton, et porte deja `robots: noindex`.
 //
-// ⚠️ A COMPLETER quand d autres pages publiques existeront (mentions,
-// CGV, contact). Ne pas les inscrire avant qu elles soient creees :
-// une adresse morte dans un sitemap vaut moins que pas d adresse du tout.
+// ⚠️ NE PAS AJOUTER /marque-blanche NI /catalogue : ces deux pages sont
+// annoncees dans le sommaire des fonctions mais N EXISTENT PAS ENCORE. Une
+// adresse morte dans un sitemap produit une erreur d exploration dans
+// Search Console, ce qui est pire que de ne rien declarer.
 const PAGES_MRLMS = [
-  "", "/blog",
+  "", "/blog", "/contact", "/fonctionnalites",
+  "/parcours", "/stagiaires", "/evaluations",
+  "/signature-electronique", "/bilan-pedagogique-et-financier",
 ];
 
 // LES PAGES PUBLIQUES DE mrcrm.fr.
 //
-// La vitrine et l index du blog (app/mrcrm/blog/page.tsx, cree le 04/09).
+// La vitrine, le blog et la page de contact, creees le 04/09.
+//
 // Le formulaire de devis /devis N EST PAS DECLARE, et ne doit pas l etre :
-// il affiche des prix et n a de sens qu avec un jeton. Meme regle que pour
-// Mr LMS.
+// il affiche des prix, n a de sens qu avec un jeton, et porte deja
+// `robots: noindex`. Meme regle que pour Mr LMS.
+//
+// ⚠️ LES PAGES DE FONCTION DE MR CRM N EXISTENT PAS ENCORE. Ne les
+// declarer qu une fois creees et verifiees en ligne.
 const PAGES_MRCRM = [
-  "", "/blog",
+  "", "/blog", "/contact",
 ];
 
 // LES PAGES PUBLIQUES DE mysterllc.com.
