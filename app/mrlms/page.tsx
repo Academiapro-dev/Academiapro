@@ -45,7 +45,13 @@
 
 const SITE = "https://www.mrlms.fr";
 const LEGAL = "https://academiapro.fr";
-const CONTACT = LEGAL + "/contact";
+// 🚨 LE CONTACT EST CELUI DE MR LMS — CORRIGE LE 04/09.
+//
+// Il pointait sur academiapro.fr/contact tant que la page de contact
+// Mr LMS n existait pas. Elle existe depuis le 04/09
+// (app/mrlms/contact/page.tsx) : le prospect reste desormais sur la marque
+// ou il est arrive, et son message part avec « [Mr LMS] » en sujet.
+const CONTACT = SITE + "/contact";
 
 export const metadata = {
   title: "Mr LMS — Vos stagiaires, de l'inscription au bilan",
