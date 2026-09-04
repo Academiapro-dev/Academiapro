@@ -114,7 +114,10 @@ function accueilDuProfil(email: string, profil: string | null, role: string | nu
     // impossible de faire une demonstration sur le bon domaine. Meme
     // raison que pour Mr. Comptable juste au-dessus.
     if (site === "https://www.mrlms.fr") return "/organisme";
-    if (site === "https://www.mrcrm.fr") return "/admin/linkedin";
+    // ⚠️ /organisme/crm ET NON /admin/linkedin — corrige le 04/09. Voir
+    // le commentaire de la porte par defaut, plus bas : /admin est reserve
+    // a l administrateur, un client y recevait « Page introuvable ».
+    if (site === "https://www.mrcrm.fr") return "/organisme/crm";
     return "/admin";
   }
   if (role === "stagiaire") return "/dashboard";
@@ -145,7 +148,23 @@ function accueilDuProfil(email: string, profil: string | null, role: string | nu
   // avant meme le cas administrateur : sur ce domaine, tout le monde entre
   // par le portefeuille.
   if (site === "https://www.mrlms.fr") return "/organisme";
-  if (site === "https://www.mrcrm.fr") return "/admin/linkedin";
+  // 🚨 /organisme/crm, PAS /admin/linkedin — CORRIGE LE 04/09.
+  //
+  // MON ERREUR, CONSTATEE EN TEST REEL PAR JACQUES. J avais pris la
+  // destination dans la barre Mr CRM sans verifier qu un client y avait
+  // acces. Or /admin est reserve par le middleware a la seule adresse
+  // contact@academiapro.fr : le client se connectait, la barre
+  // s affichait, et la page repondait « Page introuvable » — servie en
+  // texte brut, donc Safari proposait de telecharger « linkedin.txt ».
+  //
+  // /admin/linkedin est de surcroit l ecran de prospection de Jacques :
+  // 69 000 entreprises, ses invitations LinkedIn, son quota. Aucun client
+  // ne doit y entrer.
+  //
+  // /organisme/crm est l espace prevu pour eux depuis l origine —
+  // l en-tete de app/admin/crm/page.tsx le dit : « Les prospects des
+  // organismes clients restent sur /organisme/crm ».
+  if (site === "https://www.mrcrm.fr") return "/organisme/crm";
 
   return "/dashboard";
 }
