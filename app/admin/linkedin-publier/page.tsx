@@ -15,24 +15,32 @@ import { useState, useEffect } from "react";
 // ⚠️ LE TEXTE PART TEL QUEL. LinkedIn conserve les retours a la ligne ;
 // il ne rend ni le gras ni les liens dans le corps — un lien dans le texte
 // reste du texte. Le lien de la carte est le champ « Lien de l article ».
+//
+// ---- LES PAGES SE LISENT EN BASE — 04/09 -------------------------------
+//
+// 🚨 LE DEFAUT CORRIGE. La liste des pages etait ECRITE EN DUR dans ce
+// fichier. La page Mr LMS, creee sur LinkedIn et inseree dans
+// `linkedin_pages`, n apparaissait donc pas ici : ajouter une page en base
+// ne servait a rien, et rien ne le signalait.
+//
+// Elle vient desormais de la route, qui lit `linkedin_pages`. Une page
+// ajoutee en base apparait a la prochaine ouverture de l ecran.
+//
+// ⚠️ NE PAS REINTRODUIRE DE TABLEAU EN DUR ICI. C est la regle de la
+// maison : un contenu affiche se lit en base, jamais dans le code.
 // ---------------------------------------------------------------------------
 
 const OR = "#c8a96e";
 const NUIT = "#050508";
 
-const PRODUITS = [
-  { code: "academiapro", nom: "AcadéMIA Pro" },
-  { code: "mrcomptable", nom: "Mr. Comptable" },
-  { code: "mysterllc", nom: "MysterLLC" },
-  { code: "hebrewpro", nom: "HebrewPro AI" },
-];
-
 export default function PageLinkedIn() {
-  const [produit, setProduit] = useState("academiapro");
+  const [pages, setPages] = useState<any[]>([]);
+  const [produit, setProduit] = useState("");
   const [texte, setTexte] = useState("");
   const [url, setUrl] = useState("");
   const [titre, setTitre] = useState("");
   const [occupe, setOccupe] = useState(false);
+  const [chargement, setChargement] = useState(true);
   const [message, setMessage] = useState("");
   const [erreur, setErreur] = useState("");
   const [historique, setHistorique] = useState<any[]>([]);
@@ -41,18 +49,39 @@ export default function PageLinkedIn() {
     try {
       const r = await fetch("/api/linkedin/publier", { cache: "no-store" });
       const d = await r.json();
-      if (d.ok) setHistorique(d.publications || []);
+      if (d.ok) {
+        setHistorique(d.publications || []);
+        const liste = d.pages || [];
+        setPages(liste);
+        // La premiere page devient le choix par defaut, mais seulement si
+        // aucun choix n a encore ete fait : sinon un rechargement apres
+        // publication ramenerait le formulaire sur la mauvaise page.
+        setProduit(function (avant) {
+          if (avant) return avant;
+          return liste.length > 0 ? liste[0].produit : "";
+        });
+      }
     } catch (e) {}
+    setChargement(false);
   }
 
   useEffect(function () { chargerHistorique(); }, []);
+
+  function nomDe(code: string): string {
+    const p = pages.find(function (x: any) { return x.produit === code; });
+    return p ? p.nom : code;
+  }
 
   async function publier() {
     if (!texte.trim()) {
       setErreur("Le texte est vide.");
       return;
     }
-    if (!window.confirm("Publier maintenant sur la page " + (PRODUITS.find(function (p) { return p.code === produit; })?.nom || produit) + " ?")) {
+    if (!produit) {
+      setErreur("Aucune page choisie.");
+      return;
+    }
+    if (!window.confirm("Publier maintenant sur la page " + nomDe(produit) + " ?")) {
       return;
     }
     setOccupe(true);
@@ -120,11 +149,23 @@ export default function PageLinkedIn() {
 
         <div style={CARTE}>
           <label style={{ color: OR, fontSize: "12.5px", display: "block", marginBottom: "5px" }}>Page</label>
-          <select value={produit} onChange={(e) => setProduit(e.target.value)} style={CHAMP}>
-            {PRODUITS.map(function (p) {
-              return <option key={p.code} value={p.code}>{p.nom}</option>;
-            })}
-          </select>
+
+          {/* La liste vient de `linkedin_pages`. Si elle est vide, on le dit
+              plutot que d afficher un menu sans option — le message indique
+              quoi faire. */}
+          {chargement ? (
+            <p style={{ color: "rgba(255,255,255,0.45)", margin: "0 0 14px" }}>Chargement des pages…</p>
+          ) : pages.length === 0 ? (
+            <p style={{ color: "#e8836a", margin: "0 0 14px", lineHeight: "1.7" }}>
+              Aucune page en base. Ajoutez-en une dans la table linkedin_pages.
+            </p>
+          ) : (
+            <select value={produit} onChange={(e) => setProduit(e.target.value)} style={CHAMP}>
+              {pages.map(function (p: any) {
+                return <option key={p.produit} value={p.produit}>{p.nom}</option>;
+              })}
+            </select>
+          )}
 
           <label style={{ color: OR, fontSize: "12.5px", display: "block", marginBottom: "5px" }}>Texte du post</label>
           <textarea
@@ -146,13 +187,13 @@ export default function PageLinkedIn() {
 
           <button
             onClick={publier}
-            disabled={occupe || !texte.trim()}
+            disabled={occupe || !texte.trim() || !produit}
             style={{
               background: "linear-gradient(135deg,#c8a96e,#a07840)",
               color: NUIT, border: "none", borderRadius: "9px", padding: "14px 28px",
               fontSize: "15px", fontWeight: "bold", fontFamily: "Georgia,serif",
-              cursor: occupe || !texte.trim() ? "not-allowed" : "pointer",
-              opacity: occupe || !texte.trim() ? 0.5 : 1, width: "100%",
+              cursor: occupe || !texte.trim() || !produit ? "not-allowed" : "pointer",
+              opacity: occupe || !texte.trim() || !produit ? 0.5 : 1, width: "100%",
             }}
           >
             {occupe ? "Publication…" : "Publier maintenant"}
