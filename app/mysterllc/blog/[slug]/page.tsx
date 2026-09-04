@@ -5,13 +5,30 @@ import { notFound } from "next/navigation";
 // ---------------------------------------------------------------------------
 // ARTICLE DU BLOG MYSTERLLC — 01/09.
 //
-// Ne sert QUE les articles de marque « mysterllc » : un slug academiapro ou
-// mrcomptable renvoie 404 ici. C est ce filtre qui garantit qu aucun contenu
+// Ne sert QUE les articles de marque « mysterllc » : un slug d une autre
+// marque renvoie 404 ici. C est ce filtre qui garantit qu aucun contenu
 // d une autre marque n apparaisse sur ce domaine.
 //
-// LA CANONIQUE EST SANS PREFIXE. Le middleware sert cette page sous
-// mysterllc.com/blog/{slug} : c est cette adresse que le sitemap declare et
-// que le visiteur voit.
+// 🆕 TROIS CORRECTIONS LE 04/09.
+//
+// 1. AUCUN EN-TETE, AUCUN MENU. Un article est souvent la premiere page vue
+//    par quelqu un venu d une recherche. Il lisait, et ne pouvait aller
+//    nulle part : ni voir les fonctions, ni ecrire. Le site n avait
+//    d ailleurs qu une seule page jusqu a ce jour.
+//
+// 2. LE BOUTON OUVRAIT UN `mailto:`. Sur un appareil sans messagerie
+//    configuree, un lien mailto NE FAIT RIEN DU TOUT : le lecteur clique,
+//    rien ne se passe, il repart. Il pointe desormais sur
+//    app/mysterllc/contact/page.tsx, un vrai formulaire.
+//    ⛔ NE JAMAIS REMETTRE DE `mailto:` COMME SEUL MOYEN DE CONTACT.
+//
+// 3. `SITE` VALAIT « https://mysterllc.com », SANS www, alors que le
+//    domaine redirige vers www. La canonique designait donc une adresse qui
+//    repond par une redirection, ce que Search Console refuse d indexer.
+//
+// ⚠️ POUR QUE LA BARRE DE TRAVAIL NE S AFFICHE PAS par-dessus l en-tete de
+// cette page, /blog figure dans PAGES_PUBLIQUES_MYSTERLLC de
+// components/NavBar.tsx — le test par prefixe couvre /blog/<slug>.
 //
 // 🚨 LES DEUX DEFAUTS CORRIGES LE 26/08 SUR MR. COMPTABLE SONT REPRIS ICI,
 // et il ne faut pas les reintroduire :
@@ -36,8 +53,27 @@ import { notFound } from "next/navigation";
 export const revalidate = 3600;
 
 const OR = "#c8a96e";
+const OR_PALE = "rgba(200,169,110,0.75)";
 const NOIR = "#050508";
-const SITE = "https://mysterllc.com";
+const SITE = "https://www.mysterllc.com";
+const LEGAL = "https://academiapro.fr";
+
+// ⚠️ VERIFIER LE NOM REEL AVANT DE LE CHANGER : le fichier s appelle
+// IMG_4723.jpeg, il n a pas ete renomme.
+const BANNIERE = "/IMG_4723.jpeg";
+
+const SECTION: any = {
+  maxWidth: "1000px",
+  margin: "0 auto",
+  padding: "0 24px",
+};
+
+const LIEN_ENTETE: any = {
+  color: "rgba(255,255,255,0.75)",
+  textDecoration: "none",
+  fontSize: "14px",
+  whiteSpace: "nowrap",
+};
 
 function clientLecture() {
   return createClient(
@@ -196,12 +232,6 @@ export default async function ArticleMysterLLC({ params }: any) {
 
   const blocs = enBlocs(article.contenu || "");
 
-  const section: any = {
-    maxWidth: "760px",
-    margin: "0 auto",
-    padding: "0 24px",
-  };
-
   // LES PUCES CONSECUTIVES SONT REGROUPEES EN UNE VRAIE LISTE.
   const rendu: any[] = [];
   let i = 0;
@@ -272,11 +302,43 @@ export default async function ArticleMysterLLC({ params }: any) {
   }
 
   return (
-    <main style={{ minHeight: "100vh", background: NOIR, color: "#fff",
-      fontFamily: "Georgia, serif", paddingTop: "70px",
-      paddingBottom: "90px" }}>
+    <div style={{ minHeight: "100vh", background: NOIR, color: "#fff",
+      fontFamily: "Georgia, serif" }}>
 
-      <div style={section}>
+      {/* ---- EN-TETE ---- LE MEME SUR TOUTES LES PAGES DU SITE. */}
+      <header style={{ borderBottom: "1px solid rgba(200,169,110,0.15)",
+        background: "#000" }}>
+        <div style={{ ...SECTION, display: "flex",
+          justifyContent: "space-between", alignItems: "center",
+          padding: "10px 24px", gap: "16px" }}>
+          <a href={SITE + "/"} style={{ display: "block", lineHeight: 0,
+            flexShrink: 0 }}>
+            <img
+              src={BANNIERE}
+              alt="MysterLLC"
+              style={{ width: "520px", maxWidth: "58vw", height: "auto",
+                display: "block", margin: "-4px", clipPath: "inset(4px)" }}
+            />
+          </a>
+          <nav style={{ display: "flex", alignItems: "center", gap: "18px",
+            flexShrink: 0 }}>
+            <a href={SITE + "/fonctionnalites"} style={LIEN_ENTETE}>Fonctions</a>
+            <a href={SITE + "/etats"} style={LIEN_ENTETE}>États</a>
+            <a href={SITE + "/blog"} style={LIEN_ENTETE}>Blog</a>
+            <a href={SITE + "/contact"} style={LIEN_ENTETE}>Contact</a>
+            <a href="/connexion" style={{ color: OR,
+              border: "1px solid rgba(200,169,110,0.45)",
+              padding: "9px 18px", borderRadius: "8px",
+              textDecoration: "none", fontSize: "14px",
+              whiteSpace: "nowrap" }}>
+              Se connecter
+            </a>
+          </nav>
+        </div>
+      </header>
+
+      <main style={{ maxWidth: "760px", margin: "0 auto",
+        padding: "70px 24px 90px" }}>
         {/* ⚠️ LIEN ABSOLU, comme sur la liste. Le middleware sert cette page
             depuis mysterllc.com ; un lien relatif renverrait vers le blog
             AcadéMIA Pro si l article est ouvert depuis academiapro.fr. */}
@@ -304,9 +366,15 @@ export default async function ArticleMysterLLC({ params }: any) {
           borderTop: "1px solid rgba(200,169,110,0.2)",
           paddingTop: "30px" }}>
           {/* MysterLLC n a pas de parcours d inscription en ligne : les
-              comptes se créent après entretien. Le bouton mène donc au
-              contact, pas à une page qui n existe pas. */}
-          <a href="mailto:contact@mysterllc.com?subject=MysterLLC%20—%20demande%20de%20présentation"
+              comptes se créent après entretien. Le bouton mène donc à la
+              page de contact — et non plus à un lien mailto, qui ne fait
+              rien sur un appareil sans messagerie configurée. */}
+          <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "15px",
+            lineHeight: "1.8", margin: "0 0 18px" }}>
+            MysterLLC suit les obligations américaines de vos sociétés :
+            agenda des échéances, formulaires pré-remplis, relances.
+          </p>
+          <a href={SITE + "/contact"}
             style={{ display: "inline-block", background: OR,
               color: NOIR, padding: "15px 30px", borderRadius: "9px",
               textDecoration: "none", fontWeight: "bold",
@@ -314,7 +382,37 @@ export default async function ArticleMysterLLC({ params }: any) {
             Demander une présentation
           </a>
         </div>
-      </div>
-    </main>
+      </main>
+
+      {/* ---- PIED ---- Pages legales sur academiapro.fr, en absolu. */}
+      <footer style={{ borderTop: "1px solid rgba(200,169,110,0.15)",
+        padding: "26px 0" }}>
+        <div style={{ ...SECTION, color: "rgba(255,255,255,0.4)",
+          fontSize: "13px", lineHeight: "1.8" }}>
+          <p style={{ margin: "0 0 6px" }}>
+            MysterLLC — une solution ACADÉMIA PRO LLC
+          </p>
+          <p style={{ margin: 0 }}>
+            <a href={SITE + "/"} style={{ color: OR_PALE,
+              textDecoration: "none" }}>Accueil</a>
+            {"  ·  "}
+            <a href={SITE + "/fonctionnalites"} style={{ color: OR_PALE,
+              textDecoration: "none" }}>Fonctions</a>
+            {"  ·  "}
+            <a href={SITE + "/etats"} style={{ color: OR_PALE,
+              textDecoration: "none" }}>États</a>
+            {"  ·  "}
+            <a href={SITE + "/blog"} style={{ color: OR_PALE,
+              textDecoration: "none" }}>Blog</a>
+            {"  ·  "}
+            <a href={SITE + "/contact"} style={{ color: OR_PALE,
+              textDecoration: "none" }}>Contact</a>
+            {"  ·  "}
+            <a href={LEGAL + "/mentions-legales"} style={{ color: OR_PALE,
+              textDecoration: "none" }}>Mentions légales</a>
+          </p>
+        </div>
+      </footer>
+    </div>
   );
 }
