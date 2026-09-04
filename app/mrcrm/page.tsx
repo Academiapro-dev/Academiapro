@@ -13,11 +13,26 @@
 // 🚨 AUCUNE PROMESSE QUE LE DEVIS NE TIENDRAIT PAS. Pas de « illimite »,
 // pas de statistique, pas de temoignage, aucun concurrent nomme.
 //
-// ⚠️ LA TELEPHONIE N EST PROPOSEE QU AUX CLIENTS EUROPEENS. Regle du
-// 03/09 : les appels partent toujours d un numero europeen. Hors EEA, la
-// minute coute sept fois plus cher et l option ne doit pas apparaitre au
-// devis. La vitrine reste donc prudente sur ce point : elle decrit la
-// fonction sans promettre une couverture mondiale.
+// 🚨🚨 LES APPELS, LES SMS ET LES COURRIELS RATTACHES ONT ETE RETIRES DE
+// CETTE PAGE — 04/09.
+//
+// CE QU ELLE ANNONCAIT, ECRIT LE 03/09 : « vous appelez d un clic, le
+// numero compose et la duree s inscrivent au journal », « les SMS partent
+// du meme endroit », « les echanges se rangent sur la fiche du contact ».
+//
+// CE QUE LE CODE FAIT, VERIFIE LE 04/09 : le numero est un lien `tel:` qui
+// compose sur le telephone, l adresse un lien `mailto:` qui ouvre la
+// messagerie. Rien ne revient dans l outil. Il n y a ni journal d appels,
+// ni SMS, ni courriels rattaches.
+//
+// La telephonie ne sera construite qu au premier client qui coche
+// l option — decision de Jacques du 04/09. ⚠️ NE RIEN REECRIRE ICI SUR CE
+// SUJET AVANT QUE LE CODE EXISTE. Une promesse de vitrine doit survivre a
+// l ouverture de l outil, pas seulement a la lecture du devis.
+//
+// ⚠️ QUAND LA TELEPHONIE EXISTERA : elle ne sera proposee qu aux clients
+// europeens. Les appels partent toujours d un numero europeen ; hors EEA la
+// minute coute sept fois plus cher et l option n apparait pas au devis.
 //
 // La barre generale s efface sur cette page (components/NavBar.tsx) : elle
 // porte son propre en-tete, comme les vitrines Mr LMS et MysterLLC.
@@ -112,14 +127,14 @@ const CE_QUI_EST_FAIT = [
       "L'historique complet est sur la fiche : ce qui a été dit au dernier appel, ce qui a été promis, ce qui a été envoyé. Vous reprenez la conversation là où elle s'est arrêtée.",
   },
   {
-    titre: "Appels et SMS depuis la fiche",
+    titre: "Une relance vous est proposée",
     texte:
-      "Vous appelez d'un clic, le numéro composé et la durée s'inscrivent au journal. Les SMS partent du même endroit et reviennent au même endroit.",
+      "À partir de ce que porte la fiche, un texte de relance vous est proposé. Vous le relisez, vous le corrigez, et vous décidez de l'envoyer. Rien ne part sans que vous l'ayez lu.",
   },
   {
-    titre: "Vos courriels rattachés",
+    titre: "La relance automatique, fiche par fiche",
     texte:
-      "Les échanges se rangent sur la fiche du contact. Vous cherchez une réponse reçue il y a trois mois sans quitter l'outil.",
+      "Vous armez la relance automatique sur les fiches que vous choisissez, jamais globalement. Une fiche armée est signalée dans la liste.",
   },
   {
     titre: "Devis et contrats signés en ligne",
@@ -145,6 +160,11 @@ export default function PageMrCRM() {
             style={{ width: "560px", maxWidth: "62vw", height: "auto", display: "block", margin: "-4px", clipPath: "inset(4px)" }}
           />
           <nav style={{ display: "flex", alignItems: "center", gap: "18px", flexShrink: 0 }}>
+            {/* 🆕 « FONCTIONS » AJOUTE LE 04/09, en meme temps que les
+                quatre pages de fonction. */}
+            <a href={SITE + "/fonctionnalites"} style={{ color: "rgba(255,255,255,0.75)", textDecoration: "none", fontSize: "14px", whiteSpace: "nowrap" }}>
+              Fonctions
+            </a>
             <a href={SITE + "/blog"} style={{ color: "rgba(255,255,255,0.75)", textDecoration: "none", fontSize: "14px", whiteSpace: "nowrap" }}>
               Blog
             </a>
@@ -222,12 +242,12 @@ export default function PageMrCRM() {
             À L&apos;USAGE
           </p>
           <h2 style={{ color: "#fff", fontSize: "24px", margin: "0 0 14px" }}>
-            Appels, SMS et signatures
+            La signature électronique
           </h2>
           <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "16px", lineHeight: "1.8", margin: "0 0 12px" }}>
-            La téléphonie, les SMS et la signature électronique se paient à
-            l&apos;usage, en plus de l&apos;abonnement. Vous ne payez que ce que vous
-            consommez, et vous voyez le détail sur votre facture.
+            La signature électronique se paie à l&apos;usage, en plus de
+            l&apos;abonnement. Vous ne payez que ce que vous consommez, et
+            vous voyez le détail sur votre facture.
           </p>
           <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "15px", lineHeight: "1.8", margin: 0 }}>
             Chaque signature produit un dossier de preuve horodaté : identité
@@ -282,6 +302,8 @@ export default function PageMrCRM() {
             Mr CRM — une solution ACADÉMIA PRO LLC
           </p>
           <p style={{ margin: 0 }}>
+            <a href={SITE + "/fonctionnalites"} style={{ color: OR_PALE, textDecoration: "none" }}>Fonctions</a>
+            {"  ·  "}
             <a href={SITE + "/blog"} style={{ color: OR_PALE, textDecoration: "none" }}>Blog</a>
             {"  ·  "}
             <a href={LEGAL + "/mentions-legales"} style={{ color: OR_PALE, textDecoration: "none" }}>Mentions légales</a>
