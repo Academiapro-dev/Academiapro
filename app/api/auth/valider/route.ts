@@ -122,6 +122,31 @@ function accueilDuProfil(email: string, profil: string | null, role: string | nu
   if (profil === "vend_formations") return "/organisme";
   if (profil === "forme_salaries") return "/organisme";
   if (profil === "devenir_of") return "/admin/qualiopi";
+
+  // 🚨 SUR MR LMS ET MR CRM, PERSONNE NE TOMBE SUR /dashboard — 04/09.
+  //
+  // CE QUI SE PASSAIT, CONSTATE EN TEST REEL PAR JACQUES. Une adresse sans
+  // profil renseigne — ni cabinet_comptable, ni vend_formations, ni
+  // forme_salaries, ni devenir_of — tombait dans le cas generique et
+  // atterrissait sur /dashboard. Or cette page est un ecran AcadeMIA : sur
+  // mrlms.fr et mrcrm.fr elle N EXISTE PAS. Le client se connectait
+  // correctement, la barre de travail s affichait, et le contenu rendait
+  // « 404 — This page could not be found ».
+  //
+  // ⚠️ CE N EST PAS UN CAS DE BORD. Un organisme dont le profil n a pas
+  // encore ete renseigne — le plus probable au tout premier client — passe
+  // exactement par la. Il se serait connecte pour la premiere fois sur une
+  // page introuvable.
+  //
+  // Chaque domaine a donc sa porte par defaut, et c est la meme que celle
+  // de son administrateur plus haut : l espace unique du produit.
+  // ⚠️ TOUT NOUVEAU DOMAINE DOIT AVOIR SA LIGNE ICI, sans quoi il
+  // reproduira ce defaut. MysterLLC est traite tout en haut de la fonction,
+  // avant meme le cas administrateur : sur ce domaine, tout le monde entre
+  // par le portefeuille.
+  if (site === "https://www.mrlms.fr") return "/organisme";
+  if (site === "https://www.mrcrm.fr") return "/admin/linkedin";
+
   return "/dashboard";
 }
 
