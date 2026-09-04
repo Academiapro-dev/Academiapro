@@ -23,7 +23,29 @@
 // La barre generale s efface sur cette page (components/NavBar.tsx) : la
 // page porte son propre en-tete, comme les vitrines Mr Comptable et
 // MysterLLC.
+//
+// 🚨 TOUT LIEN HORS VITRINE EST ABSOLU — CORRIGE LE 04/09.
+//
+// LE DEFAUT, CONSTATE PAR JACQUES EN TEST REEL. Les boutons « Demander une
+// presentation » et le pied pointaient sur /contact, /cgv, /mentions-legales,
+// /politique-confidentialite. Sur mrlms.fr, le middleware reecrit tout
+// chemin non reserve vers le dossier du produit : /contact devenait
+// /mrlms/contact, qui n existe pas. Le premier bouton de la vitrine menait
+// a « page introuvable ».
+//
+// CES PAGES EXISTENT SUR academiapro.fr, declarees dans son sitemap, et
+// valent pour toutes les solutions de la maison. Elles sont donc appelees
+// en absolu. Le jour ou Mr LMS aura sa propre page de contact, la
+// constante CONTACT change ici et nulle part ailleurs.
+//
+// 🆕 LIEN « BLOG » DANS L EN-TETE ET LE PIED — 04/09. Le blog
+// (app/mrlms/blog) existait sans qu aucun lien n y mene : un visiteur ne
+// pouvait pas le trouver, et Google ne l aurait vu que par le sitemap.
 // ══════════════════════════════════════════════════════════════════════════
+
+const SITE = "https://www.mrlms.fr";
+const LEGAL = "https://academiapro.fr";
+const CONTACT = LEGAL + "/contact";
 
 export const metadata = {
   title: "Mr LMS — Vos stagiaires, de l'inscription au bilan",
@@ -124,9 +146,17 @@ export default function PageMrLMS() {
             alt="Mr LMS"
             style={{ width: "560px", maxWidth: "62vw", height: "auto", display: "block", margin: "-4px", clipPath: "inset(4px)" }}
           />
-          <a href="/connexion" style={{ color: OR, border: "1px solid rgba(200,169,110,0.45)", padding: "9px 18px", borderRadius: "8px", textDecoration: "none", fontSize: "14px", whiteSpace: "nowrap", flexShrink: 0 }}>
-            Se connecter
-          </a>
+          <nav style={{ display: "flex", alignItems: "center", gap: "18px", flexShrink: 0 }}>
+            <a href={SITE + "/blog"} style={{ color: "rgba(255,255,255,0.75)", textDecoration: "none", fontSize: "14px", whiteSpace: "nowrap" }}>
+              Blog
+            </a>
+            <a href={CONTACT} style={{ color: "rgba(255,255,255,0.75)", textDecoration: "none", fontSize: "14px", whiteSpace: "nowrap" }}>
+              Contact
+            </a>
+            <a href="/connexion" style={{ color: OR, border: "1px solid rgba(200,169,110,0.45)", padding: "9px 18px", borderRadius: "8px", textDecoration: "none", fontSize: "14px", whiteSpace: "nowrap" }}>
+              Se connecter
+            </a>
+          </nav>
         </div>
       </header>
 
@@ -144,7 +174,7 @@ export default function PageMrLMS() {
           présences, évaluations, réclamations, documents signés, bilan pédagogique
           et financier.
         </p>
-        <a href="/contact" style={BOUTON}>Demander une présentation</a>
+        <a href={CONTACT} style={BOUTON}>Demander une présentation</a>
       </section>
 
       {/* ---- CE QUI EST FAIT ---- */}
@@ -246,7 +276,7 @@ export default function PageMrLMS() {
             Une présentation d&apos;une heure, sur vos propres cas. Nous parcourons
             ensemble un parcours complet, du premier inscrit au bilan.
           </p>
-          <a href="/contact" style={BOUTON}>Demander une présentation</a>
+          <a href={CONTACT} style={BOUTON}>Demander une présentation</a>
           <a href="/connexion" style={{ ...BOUTON_CLAIR, marginLeft: "12px" }}>
             J&apos;ai déjà un compte
           </a>
@@ -260,13 +290,15 @@ export default function PageMrLMS() {
             Mr LMS — une solution ACADÉMIA PRO LLC
           </p>
           <p style={{ margin: 0 }}>
-            <a href="/mentions-legales" style={{ color: OR_PALE, textDecoration: "none" }}>Mentions légales</a>
+            <a href={SITE + "/blog"} style={{ color: OR_PALE, textDecoration: "none" }}>Blog</a>
             {"  ·  "}
-            <a href="/cgv" style={{ color: OR_PALE, textDecoration: "none" }}>CGV</a>
+            <a href={LEGAL + "/mentions-legales"} style={{ color: OR_PALE, textDecoration: "none" }}>Mentions légales</a>
             {"  ·  "}
-            <a href="/politique-confidentialite" style={{ color: OR_PALE, textDecoration: "none" }}>Confidentialité</a>
+            <a href={LEGAL + "/cgv"} style={{ color: OR_PALE, textDecoration: "none" }}>CGV</a>
             {"  ·  "}
-            <a href="/contact" style={{ color: OR_PALE, textDecoration: "none" }}>Contact</a>
+            <a href={LEGAL + "/politique-confidentialite"} style={{ color: OR_PALE, textDecoration: "none" }}>Confidentialité</a>
+            {"  ·  "}
+            <a href={CONTACT} style={{ color: OR_PALE, textDecoration: "none" }}>Contact</a>
           </p>
         </div>
       </footer>
