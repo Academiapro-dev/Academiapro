@@ -41,7 +41,13 @@
 
 const SITE = "https://www.mrcrm.fr";
 const LEGAL = "https://academiapro.fr";
-const CONTACT = LEGAL + "/contact";
+// 🚨 LE CONTACT EST CELUI DE MR CRM — CORRIGE LE 04/09.
+//
+// Il pointait sur academiapro.fr/contact tant que la page de contact
+// Mr CRM n existait pas. Elle existe depuis le 04/09
+// (app/mrcrm/contact/page.tsx) : le prospect reste desormais sur la marque
+// ou il est arrive, et son message part avec « [Mr CRM] » en sujet.
+const CONTACT = SITE + "/contact";
 
 
 export const metadata = {
