@@ -444,11 +444,37 @@ export default function NavBar() {
   // Pro vu depuis academiapro.fr : y poser la barre Mr CRM ferait
   // apparaitre une marque tierce dans l administration de la maison.
   // Sur mrcrm.fr, en revanche, TOUTE page la porte.
+  //
+  // 🚨🚨 LA BARRE MENAIT AUX OUTILS DE L EDITEUR — CORRIGE LE 04/09.
+  //
+  // CE QU ELLE PROPOSAIT. « CRM » pointait sur /admin/linkedin, « Publier »
+  // sur /admin/linkedin-publier. Ce sont les ecrans de PROSPECTION DE
+  // JACQUES : les 69 000 entreprises des quatre bases froides, les
+  // invitations envoyees depuis SON compte LinkedIn, SON quota
+  // hebdomadaire. Et /admin est reserve par le middleware a la seule
+  // adresse contact@academiapro.fr.
+  //
+  // CE QUE VOYAIT UN CLIENT, constate en test reel le 04/09 : il se
+  // connectait correctement, la barre s affichait, et chaque onglet
+  // repondait « Page introuvable ». Pire, la reponse du middleware est du
+  // texte brut : Safari la traitait comme un fichier et proposait de
+  // telecharger « linkedin.txt ».
+  //
+  // OU VA UN CLIENT MAINTENANT. Sur /organisme/crm, l espace prevu pour
+  // les clients depuis l origine — l en-tete de app/admin/crm/page.tsx le
+  // dit noir sur blanc : « Les prospects des organismes clients restent
+  // sur /organisme/crm ». Fiches, recherche, relances redigees, relance
+  // automatique, cinq etapes de vente, motifs de perte, import de liste.
+  // Chaque client n y voit que ses propres fiches.
+  //
+  // ⛔ NE JAMAIS REMETTRE /admin/linkedin NI /admin/linkedin-publier DANS
+  // CETTE BARRE. Ce sont les outils de l editeur, et la base de prospection
+  // de Jacques ne doit apparaitre chez aucun client.
   if (surMrCRM) {
     return (
       <header style={{ ...barre, padding: "0 30px", background: "#000" }}>
         <a
-          href="/admin/linkedin"
+          href="/organisme/crm"
           style={{ display: "block", textDecoration: "none", flexShrink: 0, overflow: "hidden", lineHeight: 0 }}
         >
           <img
@@ -465,12 +491,15 @@ export default function NavBar() {
           />
         </a>
         <nav style={{ display: "flex", gap: "18px", flexWrap: "wrap", justifyContent: "center" }}>
-          {/* 🆕 « CRM » PLUTOT QUE « MES CONTACTS » — 04/09, demande de
-              Jacques : « mes contacts n invite pas a rentrer dans la
-              fonction CRM ». L ecran est le meme. */}
-          <a href="/admin/linkedin" style={lienMenu}>CRM</a>
-          <a href="/admin/linkedin-publier" style={lienMenu}>Publier</a>
-          <a href="/admin/compliance/signatures" style={lienMenu}>Signatures</a>
+          {/* ⚠️ TROIS ENTREES, TOUTES ACCESSIBLES A UN CLIENT CONNECTE.
+              /organisme est un chemin a session simple dans le middleware
+              (CHEMINS_ELEVE), pas un chemin d administration : tout
+              utilisateur connecte y entre, et n y voit que ses donnees.
+              ⚠️ AVANT D AJOUTER UNE ENTREE ICI, VERIFIER QU ELLE N EST PAS
+              SOUS /admin — sinon le client aura « Page introuvable ». */}
+          <a href="/organisme/crm" style={lienMenu}>Mon CRM</a>
+          <a href="/organisme/facturation" style={lienMenu}>Ma facturation</a>
+          <a href="/organisme/signatures" style={lienMenu}>Signatures</a>
         </nav>
         <div style={{ display: "flex", gap: "10px", alignItems: "center", flexShrink: 0 }}>
           {connecte && (
