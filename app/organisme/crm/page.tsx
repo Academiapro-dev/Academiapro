@@ -71,9 +71,93 @@ export default function PageCRM() {
   const [contenu, setContenu] = useState("");
   const [rejets, setRejets] = useState<any[]>([]);
 
+  // ══════════════════════════════════════════════════════════════════════
+  // L ENVOI DE SMS — 04/09.
+  //
+  // 🚨 CE QU IL Y AVAIT AVANT : le numero etait un lien `tel:`, rien de
+  // plus. Il compose sur le telephone de celui qui clique, et RIEN NE
+  // REVIENT DANS L OUTIL — ni trace, ni journal. La vitrine et le devis
+  // annoncaient pourtant les SMS : ils ont ete nettoyes le 04/09, et cette
+  // fonction est ce qui permettra de les remettre.
+  //
+  // ⚠️ LE LIEN `tel:` RESTE, et c est voulu : appeler depuis son telephone
+  // marche, et rien ne le remplace tant que la telephonie n existe pas.
+  // ⛔ NE PAS ECRIRE QUE L APPEL EST JOURNALISE : il ne l est pas.
+  //
+  // ⚠️ LES CREDITS SONT LUS AU CHARGEMENT, PUIS MIS A JOUR PAR LA REPONSE
+  // DE CHAQUE ENVOI. Ne pas les recalculer ici : la route est seule a
+  // decompter, et c est elle qui rend le solde exact.
+  // ══════════════════════════════════════════════════════════════════════
+  const [smsCredits, setSmsCredits] = useState(0);
+  const [smsExpediteur, setSmsExpediteur] = useState("");
+  const [smsFiche, setSmsFiche] = useState("");
+  const [smsTexte, setSmsTexte] = useState("");
+  const [smsJournal, setSmsJournal] = useState<any[]>([]);
+  const [smsMessage, setSmsMessage] = useState("");
+
   useEffect(function () {
     charger();
   }, []);
+
+  // 🚨 UN SMS DE PLUS DE 160 CARACTERES COMPTE POUR PLUSIEURS. L operateur
+  // le decoupe en morceaux de 153 et facture chacun. Le compte est affiche
+  // AVANT l envoi pour que la depense ne soit jamais une surprise.
+  // ⚠️ MEME REGLE QUE DANS LA ROUTE : si l une change, changer l autre.
+  function smsMorceaux(t: string) {
+    const n = String(t || "").length;
+    if (n <= 160) return 1;
+    return Math.ceil(n / 153);
+  }
+
+  async function envoyerSms(p: any) {
+    const numero = String(p.telephone || "").trim();
+    if (!numero) {
+      setSmsMessage("Cette fiche ne porte aucun numéro.");
+      return;
+    }
+    const texte = smsTexte.trim();
+    if (texte.length < 2) {
+      setSmsMessage("Écrivez votre message avant de l'envoyer.");
+      return;
+    }
+
+    setOccupe("sms-" + p.email);
+    setSmsMessage("");
+    try {
+      const r = await fetch("/api/organisme/sms", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          numero: numero,
+          message: texte,
+          origine: "crm",
+        }),
+      });
+      const d = await r.json();
+
+      if (d && d.ok) {
+        // Le solde vient de la route, jamais d un calcul local.
+        setSmsCredits(Number(d.credits_restants || 0));
+        setSmsTexte("");
+        setSmsFiche("");
+        setSmsMessage(d.message || "Message envoyé.");
+        // Le journal se recharge pour que l envoi y apparaisse.
+        try {
+          const rs = await fetch("/api/organisme/sms");
+          const ds = await rs.json();
+          if (ds && ds.ok && Array.isArray(ds.journal)) setSmsJournal(ds.journal);
+        } catch (e) {}
+      } else {
+        setSmsMessage((d && d.erreur) || "Le message n'est pas parti.");
+        if (d && typeof d.credits_restants === "number") {
+          setSmsCredits(Number(d.credits_restants));
+        }
+      }
+    } catch (e: any) {
+      setSmsMessage("Le message n'est pas parti : " + String(e));
+    }
+    setOccupe("");
+  }
 
   function suffixe(sep: string) {
     try {
@@ -106,6 +190,18 @@ export default function PageCRM() {
 
       const m = await appeler({ action: "motifs_perte" });
       if (m && Array.isArray(m.motifs)) setMotifs(m);
+
+      // Le solde de SMS et le journal. ⚠️ En cas d echec on ne bloque
+      // rien : le CRM doit s ouvrir meme si cette lecture ne repond pas.
+      try {
+        const rs = await fetch("/api/organisme/sms");
+        const ds = await rs.json();
+        if (ds && ds.ok) {
+          setSmsCredits(Number(ds.credits || 0));
+          setSmsExpediteur(String(ds.expediteur || ""));
+          setSmsJournal(Array.isArray(ds.journal) ? ds.journal : []);
+        }
+      } catch (e) {}
     } catch (e: any) {
       setErreur("Lecture impossible : " + String(e));
     }
@@ -1052,6 +1148,28 @@ export default function PageCRM() {
                         : p.relance_auto ? "🔔 Relance auto armée" : "🔕 Relance auto désarmée"}
                     </button>
 
+                    {/* 🆕 ENVOYER UN SMS — 04/09.
+                        ⚠️ LE BOUTON N APPARAIT QUE SI LA FICHE PORTE UN
+                        NUMERO. Le proposer sans numero produirait une
+                        erreur que le client ne peut pas corriger depuis
+                        cet ecran.
+                        ⚠️ ET PAS SUR UNE FICHE DESINSCRITE : quelqu un qui
+                        a demande a ne plus recevoir de messages ne doit
+                        pas en recevoir par un autre canal. */}
+                    {p.telephone && !p.desinscrit && (
+                      <button
+                        onClick={() => {
+                          setSmsFiche(smsFiche === p.email ? "" : p.email);
+                          setSmsTexte("");
+                          setSmsMessage("");
+                        }}
+                        disabled={occupe !== ""}
+                        style={{ ...BOUTON, color: "#7fb3ff", borderColor: "rgba(127,179,255,0.4)" }}
+                      >
+                        {smsFiche === p.email ? "Fermer le SMS" : "Envoyer un SMS"}
+                      </button>
+                    )}
+
                     {etape !== "client" && (
                       <button
                         onClick={() => setInscrire({ ...inscrire, [p.email]: !enInscription })}
@@ -1082,6 +1200,52 @@ export default function PageCRM() {
                       <span style={{ color: "rgba(255,255,255,0.35)", fontSize: "12px", alignSelf: "center" }}>
                         vu le {new Date(p.derniere_interaction).toLocaleDateString("fr-FR")}
                       </span>
+                    )}
+                  </div>
+                )}
+
+                {/* ---- LE PANNEAU D ENVOI DE SMS ---- 04/09.
+                    🚨 LE COMPTE DE CARACTERES ET LE NOMBRE DE SMS SONT
+                    AFFICHES PENDANT LA SAISIE. Au-dela de 160 caracteres
+                    l operateur decoupe le message et facture chaque
+                    morceau : le client doit le voir AVANT d envoyer, pas
+                    le decouvrir sur sa facture.
+                    ⚠️ LE NOM D EXPEDITEUR EST RAPPELE : c est lui que le
+                    destinataire verra a la place du numero. */}
+                {smsFiche === p.email && (
+                  <div style={{ marginTop: "14px", paddingTop: "12px", borderTop: "1px solid rgba(127,179,255,0.25)" }}>
+                    <p style={{ color: "#7fb3ff", fontSize: "13px", margin: "0 0 8px" }}>
+                      SMS à {p.telephone}
+                      {smsExpediteur
+                        ? " · il s'affichera sous le nom « " + smsExpediteur + " »"
+                        : " · votre nom d'expéditeur n'est pas encore réglé"}
+                    </p>
+                    <textarea
+                      value={smsTexte}
+                      onChange={(e) => setSmsTexte(e.target.value)}
+                      placeholder="Votre message…"
+                      style={{ ...CHAMP, minHeight: "90px", width: "100%", boxSizing: "border-box", fontFamily: "Georgia,serif" }}
+                    />
+                    <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap", marginTop: "8px" }}>
+                      <button
+                        onClick={() => envoyerSms(p)}
+                        disabled={occupe !== "" || smsTexte.trim().length < 2}
+                        style={{ ...BOUTON, background: "#7fb3ff", color: "#050508", border: "none", fontWeight: "bold" }}
+                      >
+                        {occupe === "sms-" + p.email ? "Envoi…" : "Envoyer"}
+                      </button>
+                      <span style={{ color: "rgba(255,255,255,0.45)", fontSize: "12.5px" }}>
+                        {smsTexte.length} caractère(s)
+                        {smsTexte.length > 160
+                          ? " · " + smsMorceaux(smsTexte) + " SMS décomptés"
+                          : " · 1 SMS"}
+                        {" · il vous reste " + smsCredits + " crédit(s)"}
+                      </span>
+                    </div>
+                    {smsMessage && (
+                      <p style={{ color: smsMessage.indexOf("envoyé") >= 0 ? "#4caf50" : "#e8836a", fontSize: "13px", margin: "8px 0 0", lineHeight: "1.6" }}>
+                        {smsMessage}
+                      </p>
                     )}
                   </div>
                 )}
