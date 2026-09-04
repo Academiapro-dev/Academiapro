@@ -30,6 +30,19 @@
 // SUJET AVANT QUE LE CODE EXISTE. Une promesse de vitrine doit survivre a
 // l ouverture de l outil, pas seulement a la lecture du devis.
 //
+// 🚨🚨 DEUX PHRASES AVAIENT ETE OUBLIEES — corrigees le 04/09 au soir.
+//
+// Les six cartes avaient bien ete nettoyees le matin, mais PAS le
+// PARAGRAPHE D ACCROCHE juste au-dessus, ni la DESCRIPTION des
+// metadonnees. Les deux annoncaient encore « Appels, SMS, courriels et
+// documents signes se rangent tout seuls sur la bonne fiche ». Jacques
+// l a vu en ouvrant simplement la page.
+//
+// ⚠️ LA LECON : quand une promesse est retiree, elle se cherche DANS TOUT
+// LE FICHIER — accroche, cartes, metadonnees, pied. Corriger le bloc
+// evident et s arreter la laisse la promesse en haut de page, a l endroit
+// que le visiteur lit en premier.
+//
 // ⚠️ QUAND LA TELEPHONIE EXISTERA : elle ne sera proposee qu aux clients
 // europeens. Les appels partent toujours d un numero europeen ; hors EEA la
 // minute coute sept fois plus cher et l option n apparait pas au devis.
@@ -68,7 +81,7 @@ const CONTACT = SITE + "/contact";
 export const metadata = {
   title: "Mr CRM — Savoir qui rappeler, et quoi lui dire",
   description:
-    "Vos contacts, vos relances et vos échanges au même endroit : appels, SMS, courriels, documents signés. Pour les indépendants comme pour les équipes.",
+    "Vos contacts, vos relances et vos échanges au même endroit : historique, relances rédigées, documents signés. Pour les indépendants comme pour les équipes.",
 };
 
 const OR = "#c8a96e";
@@ -179,6 +192,9 @@ export default function PageMrCRM() {
       </header>
 
       {/* ---- ACCROCHE ---- */}
+      {/* 🚨 CETTE PHRASE ANNONCAIT ENCORE « Appels, SMS, courriels » alors
+          que les cartes avaient ete corrigees. C est le premier texte que
+          lit un visiteur : ce qu on y ecrit engage plus que le reste. */}
       <section style={{ ...SECTION, paddingTop: "70px", paddingBottom: "50px" }}>
         <p style={{ color: OR, fontSize: "12px", letterSpacing: "3px", margin: "0 0 14px" }}>
           POUR LES INDÉPENDANTS ET LES ÉQUIPES
@@ -187,9 +203,9 @@ export default function PageMrCRM() {
           Savoir qui rappeler, et quoi lui dire
         </h1>
         <p style={{ color: "rgba(255,255,255,0.72)", fontSize: "18px", lineHeight: "1.8", margin: "0 0 32px", maxWidth: "760px" }}>
-          Vos contacts, vos échanges et vos relances au même endroit. Appels, SMS,
-          courriels et documents signés se rangent tout seuls sur la bonne fiche,
-          pour que rien ne dépende de ce dont vous vous souvenez.
+          Vos contacts, vos échanges et vos relances au même endroit. Ce qui a
+          été dit, ce qui a été promis, ce qui a été signé reste sur la bonne
+          fiche, pour que rien ne dépende de ce dont vous vous souvenez.
         </p>
         <a href={CONTACT} style={BOUTON}>Demander une présentation</a>
       </section>
@@ -286,7 +302,7 @@ export default function PageMrCRM() {
           </h2>
           <p style={{ color: "rgba(255,255,255,0.65)", fontSize: "16px", lineHeight: "1.8", margin: "0 0 24px" }}>
             Une présentation d&apos;une heure, sur vos propres contacts. Nous suivons
-            ensemble un client du premier appel au document signé.
+            ensemble un client du premier échange au document signé.
           </p>
           <a href={CONTACT} style={BOUTON}>Demander une présentation</a>
           <a href="/connexion" style={{ ...BOUTON_CLAIR, marginLeft: "12px" }}>
