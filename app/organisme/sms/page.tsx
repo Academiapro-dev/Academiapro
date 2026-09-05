@@ -47,6 +47,7 @@ const FOND = "#050508";
 
 export default function PageSmsOrganisme() {
   const [numero, setNumero] = useState("");
+  const [nomFiche, setNomFiche] = useState("");
   const [message, setMessage] = useState("");
   const [occupe, setOccupe] = useState(false);
   const [resultat, setResultat] = useState<any>(null);
@@ -58,6 +59,32 @@ export default function PageSmsOrganisme() {
 
   useEffect(function () {
     charger();
+
+    // 🆕 LE NUMERO PEUT VENIR DE L ADRESSE — 05/09.
+    //
+    // Depuis une fiche du CRM, un lien « SMS » ouvre cet ecran avec le
+    // numero et le nom deja poses : ?numero=0612345678&nom=Dupont
+    //
+    // 🚨 POURQUOI PAR L ADRESSE ET NON PAR UN PANNEAU DANS LE CRM. Une
+    // premiere tentative, le 04/09, avait ajoute un panneau de saisie
+    // directement dans app/organisme/crm/page.tsx — un fichier de 1 152
+    // lignes qui fonctionnait. Resultat : PAGE BLANCHE, avec un build
+    // Vercel VERT et des delimiteurs equilibres. Le CRM a du etre restaure.
+    //
+    // Ici, le CRM ne recoit qu un lien : rien qui puisse s executer au
+    // mauvais moment. Tout le travail se fait dans cet ecran-ci.
+    //
+    // ⚠️ LE NUMERO N EST PAS VALIDE ICI. La route s en charge — elle
+    // normalise « +33 6 12 34 56 78 » comme « 06 12 34 56 78 » — et elle
+    // seule refuse ce qui est illisible. Un controle en double se
+    // desynchronise toujours.
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const n = String(params.get("numero") || "").trim();
+      const nom = String(params.get("nom") || "").trim();
+      if (n) setNumero(n.slice(0, 30));
+      if (nom) setNomFiche(nom.slice(0, 80));
+    } catch (e) {}
   }, []);
 
   async function charger() {
@@ -163,6 +190,15 @@ export default function PageSmsOrganisme() {
           consomme un crédit — deux ou plus si le message dépasse 160
           caractères.
         </p>
+
+        {/* Quand on arrive depuis une fiche, on rappelle a qui on ecrit :
+            le numero seul ne dit rien, et une erreur de destinataire ne se
+            rattrape pas une fois le message parti. */}
+        {nomFiche && (
+          <p style={{ color: OR, fontSize: "15px", margin: "-14px 0 24px", lineHeight: "1.7" }}>
+            Message à <strong>{nomFiche}</strong>
+          </p>
+        )}
 
         {/* ---- L ETAT DU COMPTE ----
             Affiche AVANT le formulaire : le client doit savoir ce dont il
