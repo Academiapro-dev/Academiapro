@@ -896,7 +896,17 @@ export default function PageCRM() {
                         </td>
                         <td style={TD}>
                           {p.telephone
-                            ? <a href={"tel:" + appelable(p.telephone)} style={{ color: "#c8a96e", textDecoration: "none" }}>{p.telephone}</a>
+                            ? <>
+                                <a href={"tel:" + appelable(p.telephone)} style={{ color: "#c8a96e", textDecoration: "none" }}>{p.telephone}</a>
+                                {!p.desinscrit && (
+                                  <a
+                                    href={"/organisme/sms?numero=" + encodeURIComponent(p.telephone) + "&nom=" + encodeURIComponent(p.nom || p.email || "")}
+                                    style={{ color: "#7fb3ff", textDecoration: "none", marginLeft: "8px", fontSize: "12px" }}
+                                  >
+                                    SMS
+                                  </a>
+                                )}
+                              </>
                             : <span style={{ color: "rgba(255,255,255,0.25)" }}>—</span>}
                         </td>
                         <td style={TD}>{p.formation_interesse || "—"}</td>
@@ -955,6 +965,33 @@ export default function PageCRM() {
                       {p.formation_interesse ? " · " + p.formation_interesse : ""}
                       {p.source ? " · " + p.source : ""}
                     </p>
+
+                    {/* 🆕 ENVOYER UN SMS — 05/09.
+                        🚨 UN SIMPLE LIEN, PAS UN PANNEAU. Une premiere
+                        tentative le 04/09 avait ajoute ici un formulaire
+                        complet — etats, fonction d envoi, compteur de
+                        caracteres. Resultat : PAGE BLANCHE sur tout le CRM.
+                        ⚠️ LE BUILD VERCEL ETAIT VERT et les delimiteurs
+                        equilibres : l erreur etait a l EXECUTION, invisible
+                        dans les journaux. Le fichier a du etre restaure
+                        depuis le commit du 14/08.
+
+                        Ici, rien ne s execute : un lien porte le numero et
+                        le nom vers app/organisme/sms/page.tsx, qui fait
+                        tout le travail. Si cet ecran-la casse un jour, le
+                        CRM continue de fonctionner.
+
+                        ⚠️ PAS DE LIEN SUR UNE FICHE DESINSCRITE. Quelqu un
+                        qui a demande a ne plus recevoir de messages ne doit
+                        pas en recevoir par un autre canal. */}
+                    {p.telephone && !p.desinscrit && (
+                      <a
+                        href={"/organisme/sms?numero=" + encodeURIComponent(p.telephone) + "&nom=" + encodeURIComponent(p.nom || p.email || "")}
+                        style={{ color: "#7fb3ff", fontSize: "13px", textDecoration: "none", display: "inline-block", marginTop: "6px" }}
+                      >
+                        Envoyer un SMS →
+                      </a>
+                    )}
                     {p.desinscrit && (
                       <p style={{ color: "#e8836a", fontSize: "13px", margin: "6px 0 0" }}>
                         Désinscrit — ne reçoit plus de messages
