@@ -61,6 +61,30 @@ export default function PageCRM() {
   const [tableau, setTableau] = useState(false);
   const [cherche, setCherche] = useState("");
 
+  // ══════════════════════════════════════════════════════════════════════
+  // LA MEME MECANIQUE QUE LE CRM DE L EDITEUR — 05/09.
+  //
+  // Demande de Jacques : « il n y a pas tout le raffinement qui a ete
+  // travaille et eprouve sur le CRM AcadéMIA Pro ». Ce qui est repris ici,
+  // c est la MECANIQUE — filtres pratiques, recherche etendue, pagination,
+  // colonnes — JAMAIS les donnees. Les 69 515 entreprises des quatre bases
+  // froides et les campagnes par marque sont celles de l editeur : elles
+  // n ont pas d equivalent chez un client, qui part de zero ou importe sa
+  // propre liste.
+  //
+  // 🚨 DEUX ETATS PRESENTATIONNELS, RIEN D AUTRE. Aucun appel reseau
+  // nouveau, aucune fonction appelee au chargement. Le 04/09, un ajout
+  // plus ambitieux dans ce fichier avait rendu la page blanche avec un
+  // build vert : ici, tout ce qui est ajoute se calcule a partir de
+  // `prospects` deja charge.
+  //
+  // ⚠️ `page` REPART A 1 A CHAQUE CHANGEMENT DE FILTRE OU DE RECHERCHE,
+  // dans les gestionnaires eux-memes. Rester en page 12 d une liste qui
+  // n en a plus que 2 afficherait une page vide.
+  // ══════════════════════════════════════════════════════════════════════
+  const [filtre2, setFiltre2] = useState("");
+  const [page, setPage] = useState(1);
+
   const [nom, setNom] = useState("");
   const [email, setEmail] = useState("");
   const [telephone, setTelephone] = useState("");
@@ -498,12 +522,51 @@ export default function PageCRM() {
     ? prospects.filter(function (p) { return (p.statut || "prospect") === filtre; })
     : prospects;
 
+  // LA RECHERCHE PORTE SUR TOUT CE QUI IDENTIFIE UNE PERSONNE : nom,
+  // adresse, telephone, organisme, ville, dirigeant, formation, notes.
+  // Comme sur le CRM de l editeur, ou l on cherche « nom, ville, adresse ou
+  // SIREN ». Un client qui se souvient d une ville ou d un bout de numero
+  // doit retrouver la fiche.
   const recherche = cherche.trim().toLowerCase();
-  const affiches = recherche
+  const parRecherche = recherche
     ? parEtape.filter(function (p) {
-        return (String(p.nom || "") + " " + String(p.email || "") + " " + String(p.formation_interesse || "")).toLowerCase().indexOf(recherche) >= 0;
+        const texte = [
+          p.nom, p.email, p.telephone, p.organisme, p.ville,
+          p.dirigeant_prenom, p.dirigeant_nom, p.formation_interesse,
+          p.source, p.notes,
+        ].map(function (v) { return String(v || ""); }).join(" ").toLowerCase();
+        return texte.indexOf(recherche) >= 0;
       })
     : parEtape;
+
+  // LES FILTRES PRATIQUES, repris du CRM de l editeur : ce qu on cherche
+  // quand on a une action a faire, pas une etape a lire.
+  const FILTRES_PRATIQUES = [
+    { cle: "avec_tel", nom: "Avec téléphone" },
+    { cle: "sans_tel", nom: "Sans téléphone" },
+    { cle: "jamais_relances", nom: "Jamais relancés" },
+    { cle: "armees", nom: "Relance armée" },
+    { cle: "desinscrits", nom: "Désinscrits" },
+  ];
+  const parFiltre2 = filtre2
+    ? parRecherche.filter(function (p) {
+        if (filtre2 === "avec_tel") return !!p.telephone;
+        if (filtre2 === "sans_tel") return !p.telephone;
+        if (filtre2 === "jamais_relances") return !p.relance_le;
+        if (filtre2 === "armees") return !!p.relance_auto;
+        if (filtre2 === "desinscrits") return !!p.desinscrit;
+        return true;
+      })
+    : parRecherche;
+
+  // LA PAGINATION. Cinquante fiches par page : au-dela, la page devient
+  // lente a afficher et impossible a parcourir. Le compteur dit combien de
+  // fiches repondent aux filtres, pas seulement combien sont a l ecran.
+  const PAR_PAGE = 50;
+  const totalFiltre = parFiltre2.length;
+  const nbPages = Math.max(1, Math.ceil(totalFiltre / PAR_PAGE));
+  const pageCourante = Math.min(Math.max(1, page), nbPages);
+  const affiches = parFiltre2.slice((pageCourante - 1) * PAR_PAGE, pageCourante * PAR_PAGE);
 
   const regroupes = motifsRegroupes();
   const totalMotifs = regroupes.reduce(function (s, m) { return s + m.nombre; }, 0);
@@ -628,7 +691,7 @@ export default function PageCRM() {
 
         <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "14px" }}>
           <button
-            onClick={() => setFiltre("")}
+            onClick={() => { setFiltre(""); setPage(1); }}
             style={{ padding: "9px 16px", borderRadius: "20px", border: "none", cursor: "pointer", background: filtre === "" ? "#c8a96e" : "rgba(255,255,255,0.06)", color: filtre === "" ? "#050508" : "rgba(255,255,255,0.6)", fontSize: "13.5px", fontFamily: "Georgia,serif", fontWeight: filtre === "" ? "bold" : "normal" }}
           >
             Tous · {prospects.length}
@@ -638,7 +701,7 @@ export default function PageCRM() {
             return (
               <button
                 key={e.cle}
-                onClick={() => setFiltre(e.cle)}
+                onClick={() => { setFiltre(e.cle); setPage(1); }}
                 style={{ padding: "9px 16px", borderRadius: "20px", border: "none", cursor: "pointer", background: actif ? "#c8a96e" : "rgba(255,255,255,0.06)", color: actif ? "#050508" : "rgba(255,255,255,0.6)", fontSize: "13.5px", fontFamily: "Georgia,serif", fontWeight: actif ? "bold" : "normal" }}
               >
                 {e.nom} · {compte[e.cle]}
@@ -647,11 +710,28 @@ export default function PageCRM() {
           })}
         </div>
 
+        {/* ---- LES FILTRES PRATIQUES ---- Une seconde rangee, plus discrete
+            que les etapes : ce sont des filtres d action, pas de lecture. */}
+        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "14px" }}>
+          {FILTRES_PRATIQUES.map(function (f) {
+            const actif = filtre2 === f.cle;
+            return (
+              <button
+                key={f.cle}
+                onClick={() => { setFiltre2(actif ? "" : f.cle); setPage(1); }}
+                style={{ padding: "7px 14px", borderRadius: "20px", cursor: "pointer", background: actif ? "rgba(200,169,110,0.2)" : "transparent", color: actif ? "#c8a96e" : "rgba(255,255,255,0.45)", border: actif ? "1px solid rgba(200,169,110,0.6)" : "1px solid rgba(255,255,255,0.14)", fontSize: "12.5px", fontFamily: "Georgia,serif" }}
+              >
+                {f.nom}
+              </button>
+            );
+          })}
+        </div>
+
         <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginBottom: "14px", alignItems: "center" }}>
           <input
             value={cherche}
-            onChange={(e) => setCherche(e.target.value)}
-            placeholder="Chercher un nom, une adresse, une formation"
+            onChange={(e) => { setCherche(e.target.value); setPage(1); }}
+            placeholder="Chercher un nom, un téléphone, une ville, un organisme, une formation…"
             style={{ ...CHAMP, flex: "1 1 260px", marginBottom: 0, fontSize: "14px", padding: "10px 13px" }}
           />
           <button
@@ -660,6 +740,35 @@ export default function PageCRM() {
           >
             {tableau ? "Vue détaillée" : "Vue tableau"}
           </button>
+        </div>
+
+        {/* ---- LE COMPTEUR ET LA PAGINATION ---- Comme sur le CRM de
+            l editeur : « N ligne(s) · page x/y ». Les fleches
+            n apparaissent que s il y a plus d une page. */}
+        <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap", marginBottom: "14px", color: "rgba(255,255,255,0.45)", fontSize: "13px" }}>
+          <span>
+            {totalFiltre} fiche(s)
+            {totalFiltre !== prospects.length ? " sur " + prospects.length : ""}
+            {nbPages > 1 ? " · page " + pageCourante + "/" + nbPages : ""}
+          </span>
+          {nbPages > 1 && (
+            <>
+              <button
+                onClick={() => setPage(Math.max(1, pageCourante - 1))}
+                disabled={pageCourante <= 1}
+                style={{ ...BOUTON, padding: "6px 14px", fontSize: "13px", opacity: pageCourante <= 1 ? 0.35 : 1 }}
+              >
+                ← Précédente
+              </button>
+              <button
+                onClick={() => setPage(Math.min(nbPages, pageCourante + 1))}
+                disabled={pageCourante >= nbPages}
+                style={{ ...BOUTON, padding: "6px 14px", fontSize: "13px", opacity: pageCourante >= nbPages ? 0.35 : 1 }}
+              >
+                Suivante →
+              </button>
+            </>
+          )}
         </div>
 
         <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginBottom: "18px" }}>
@@ -864,10 +973,12 @@ export default function PageCRM() {
           /* ---------- VUE TABLEAU ---------- */
           <div>
             <div style={{ overflowX: "auto", overflowY: "auto", maxHeight: "70vh", border: "1px solid rgba(200,169,110,0.2)", borderRadius: "10px", background: "#12121f" }}>
-              <table style={{ borderCollapse: "collapse", width: "100%", minWidth: "1150px" }}>
+              <table style={{ borderCollapse: "collapse", width: "100%", minWidth: "1400px" }}>
                 <thead>
                   <tr>
                     <th style={TH}>Nom</th>
+                    <th style={TH}>Organisme</th>
+                    <th style={TH}>Ville</th>
                     <th style={TH}>Adresse e-mail</th>
                     <th style={TH}>Téléphone</th>
                     <th style={TH}>Formation</th>
@@ -891,6 +1002,8 @@ export default function PageCRM() {
                         <td style={{ ...TD, color: "#fff", fontWeight: "bold", maxWidth: "220px", overflow: "hidden", textOverflow: "ellipsis" }}>
                           {p.nom || "—"}
                         </td>
+                        <td style={{ ...TD, maxWidth: "200px", overflow: "hidden", textOverflow: "ellipsis" }}>{p.organisme || "—"}</td>
+                        <td style={TD}>{p.ville || "—"}</td>
                         <td style={TD}>
                           <a href={"mailto:" + p.email} style={{ color: "#c8a96e", textDecoration: "none" }}>{p.email}</a>
                         </td>
@@ -939,7 +1052,7 @@ export default function PageCRM() {
               </table>
             </div>
             <p style={{ color: "rgba(255,255,255,0.35)", fontSize: "12.5px", margin: "12px 0 0", lineHeight: "1.6" }}>
-              {affiches.length} fiche(s) affichée(s). Repassez en vue détaillée pour analyser un
+              {totalFiltre} fiche(s) affichée(s). Repassez en vue détaillée pour analyser un
               prospect, rédiger une relance ou l'inscrire au registre.
             </p>
           </div>
@@ -962,6 +1075,8 @@ export default function PageCRM() {
                     <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "13px", margin: 0, wordBreak: "break-all" }}>
                       {p.email}
                       {p.telephone ? " · " + p.telephone : ""}
+                      {p.organisme ? " · " + p.organisme : ""}
+                      {p.ville ? " · " + p.ville : ""}
                       {p.formation_interesse ? " · " + p.formation_interesse : ""}
                       {p.source ? " · " + p.source : ""}
                     </p>
