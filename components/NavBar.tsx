@@ -498,6 +498,14 @@ export default function NavBar() {
               ⚠️ AVANT D AJOUTER UNE ENTREE ICI, VERIFIER QU ELLE N EST PAS
               SOUS /admin — sinon le client aura « Page introuvable ». */}
           <a href="/organisme/crm" style={lienMenu}>Mon CRM</a>
+          {/* 🆕 « SMS » AJOUTE LE 05/09, en meme temps que l ecran
+              app/organisme/sms/page.tsx. Sans cette entree, la fonction
+              existait mais ne s atteignait qu en tapant l adresse a la
+              main : autant dire qu elle n existait pas.
+              ⚠️ L ecran refuse l envoi tant que `sms_expediteur` n est pas
+              regle sur l organisme, et tant que les credits manquent. Il
+              le dit clairement plutot que de laisser deviner. */}
+          <a href="/organisme/sms" style={lienMenu}>SMS</a>
           <a href="/organisme/facturation" style={lienMenu}>Ma facturation</a>
           <a href="/organisme/signatures" style={lienMenu}>Signatures</a>
         </nav>
