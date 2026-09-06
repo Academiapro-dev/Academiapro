@@ -186,6 +186,26 @@ export default function PageCRM() {
   // ══════════════════════════════════════════════════════════════════════
   const [onglet, setOnglet] = useState("contacts");
 
+  // ══════════════════════════════════════════════════════════════════════
+  // LE METIER DU CLIENT — 06/09.
+  //
+  // 🚨 UN SEUL CRM POUR DES METIERS DIFFERENTS. Cabinet comptable,
+  // organisme de formation, agence d interim : le meme ecran les sert
+  // tous. Certaines actions n ont pourtant de sens que chez l un d eux.
+  //
+  // ⚠️ « INSCRIRE AU REGISTRE » CREE UN STAGIAIRE. Le proposer a un
+  // cabinet comptable serait absurde ; le renommer sans changer l action
+  // serait pire — le bouton ferait autre chose que ce qu il annonce.
+  // Il ne s affiche donc que pour un organisme de formation.
+  //
+  // ⚠️ EN L ABSENCE DE PROFIL, ON N AFFICHE PAS. Un client dont le profil
+  // n est pas renseigne verra un ecran sans cette action plutot qu un
+  // bouton qui echouerait — c est le defaut le plus sur.
+  // ══════════════════════════════════════════════════════════════════════
+  const [profils, setProfils] = useState<string[]>([]);
+  const formeDesStagiaires = profils.indexOf("vend_formations") >= 0
+    || profils.indexOf("forme_salaries") >= 0;
+
   const [nom, setNom] = useState("");
   const [email, setEmail] = useState("");
   const [telephone, setTelephone] = useState("");
@@ -239,6 +259,7 @@ export default function PageCRM() {
         const rc = await fetch("/api/organisme/champs", { cache: "no-store" });
         const dc = await rc.json();
         if (dc && dc.ok && Array.isArray(dc.champs)) setColonnes(dc.champs);
+        if (dc && dc.ok && Array.isArray(dc.profils)) setProfils(dc.profils);
       } catch (e) {}
 
       try {
@@ -1430,7 +1451,7 @@ export default function PageCRM() {
           <input
             value={cherche}
             onChange={(e) => { setCherche(e.target.value); setPage(1); }}
-            placeholder="Chercher un nom, un téléphone, une ville, un organisme, une formation…"
+            placeholder="Chercher un nom, un téléphone, une ville, un organisme…"
             style={{ ...CHAMP, flex: "1 1 260px", marginBottom: 0, fontSize: "14px", padding: "10px 13px" }}
           />
           <button
@@ -1611,8 +1632,18 @@ export default function PageCRM() {
                 <input value={telephone} onChange={(e) => setTelephone(e.target.value)} style={CHAMP} />
               </div>
               <div style={{ flex: "1 1 160px" }}>
-                <span style={LIBELLE}>Formation qui l'intéresse</span>
-                <input value={formation} onChange={(e) => setFormation(e.target.value)} placeholder="F028" style={CHAMP} />
+                {/* ⚠️ LIBELLE NEUTRE — 06/09. La colonne s appelle
+                    `formation_interesse` en base, mais l ecran sert aussi
+                    des cabinets et des agences : « ce qui l interesse »
+                    vaut pour tous, et la donnee reste au meme endroit.
+                    ⛔ NE PAS RENOMMER LA COLONNE : elle est lue par
+                    /api/organisme/convertir et par l export. */}
+                <span style={LIBELLE}>
+                  {formeDesStagiaires ? "Formation qui l'intéresse" : "Ce qui l'intéresse"}
+                </span>
+                <input value={formation} onChange={(e) => setFormation(e.target.value)}
+                  placeholder={formeDesStagiaires ? "F028" : "Bilan annuel, mission…"}
+                  style={CHAMP} />
               </div>
               <div style={{ flex: "1 1 160px" }}>
                 <span style={LIBELLE}>Comment il vous a trouvé</span>
@@ -2446,7 +2477,14 @@ export default function PageCRM() {
                         : p.relance_auto ? "🔔 Relance auto armée" : "🔕 Relance auto désarmée"}
                     </button>
 
-                    {etape !== "client" && (
+                    {/* 🚨 RESERVE AUX ORGANISMES DE FORMATION — 06/09.
+                        Ce bouton appelle /api/organisme/convertir, qui
+                        cree un STAGIAIRE et une inscription au registre.
+                        Chez un cabinet comptable ou une agence d interim,
+                        l action n a aucun sens : on ne l affiche pas.
+                        ⛔ NE PAS SE CONTENTER DE LE RENOMMER : le libelle
+                        changerait, l action non. */}
+                    {formeDesStagiaires && etape !== "client" && (
                       <button
                         onClick={() => setInscrire({ ...inscrire, [p.email]: !enInscription })}
                         style={{ ...BOUTON, background: "#c8a96e", color: "#050508", border: "none", fontWeight: "bold" }}
