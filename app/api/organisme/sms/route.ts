@@ -66,6 +66,79 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || ""
 );
 
+// ══════════════════════════════════════════════════════════════════════════
+// 🚨 LES SMS NE PARTENT QU EN EUROPE — 06/09.
+//
+// POURQUOI. Le SMS est facture 0,09 € au client, quel que soit le pays.
+// Or un SMS vers un mobile hors Espace economique europeen coute plusieurs
+// fois ce prix chez l operateur : chaque envoi lointain se solderait par
+// une perte, sans que personne le voie avant la facture.
+//
+// C est la meme regle que pour la telephonie, deja inscrite dans la table
+// `tarifs` (colonne `perimetre = 'eea'`) mais jamais appliquee faute de
+// code a proteger. La route SMS, elle, existe : la regle s applique ici.
+//
+// ⚠️ LA LISTE PORTE LES INDICATIFS, PAS LES PAYS. C est ce que le numero
+// donne. Les vingt-sept de l Union, plus l Islande, le Liechtenstein, la
+// Norvege — qui forment l EEE avec elle — et la Suisse, qui n en fait pas
+// partie mais dont les tarifs mobiles sont equivalents et les echanges
+// commerciaux constants avec la France.
+//
+// ⚠️ ROYAUME-UNI (44) EXCLU. Depuis le retrait de l Union, ses tarifs
+// mobiles ont quitte le regime europeen. L y remettre par habitude
+// couterait sans qu on s en apercoive.
+//
+// 🚨 SI CETTE LISTE CHANGE, VERIFIER `tarifs` : les lignes `sms` et
+// `sms_lot` portent `perimetre`, et les deux doivent dire la meme chose.
+// ══════════════════════════════════════════════════════════════════════════
+const INDICATIFS_EEA = [
+  "33",  // France
+  "32",  // Belgique
+  "352", // Luxembourg
+  "41",  // Suisse — hors EEE, tarifs equivalents
+  "49",  // Allemagne
+  "31",  // Pays-Bas
+  "34",  // Espagne
+  "351", // Portugal
+  "39",  // Italie
+  "43",  // Autriche
+  "353", // Irlande
+  "45",  // Danemark
+  "46",  // Suede
+  "358", // Finlande
+  "47",  // Norvege
+  "354", // Islande
+  "423", // Liechtenstein
+  "48",  // Pologne
+  "420", // Tchequie
+  "421", // Slovaquie
+  "36",  // Hongrie
+  "40",  // Roumanie
+  "359", // Bulgarie
+  "385", // Croatie
+  "386", // Slovenie
+  "370", // Lituanie
+  "371", // Lettonie
+  "372", // Estonie
+  "30",  // Grece
+  "357", // Chypre
+  "356", // Malte
+];
+
+// ⚠️ ON COMPARE DU PLUS LONG AU PLUS COURT. « 33 » est le prefixe de
+// « 350 » (Gibraltar) : sans ce tri, un numero gibraltarien passerait pour
+// francais. Les indicatifs a trois chiffres doivent etre essayes d abord.
+const INDICATIFS_TRIES = INDICATIFS_EEA.slice().sort(function (a, b) {
+  return b.length - a.length;
+});
+
+function estEuropeen(numero: string): boolean {
+  for (const i of INDICATIFS_TRIES) {
+    if (numero.indexOf(i) === 0) return true;
+  }
+  return false;
+}
+
 // LE NUMERO AU FORMAT INTERNATIONAL, SANS PLUS NI ESPACES.
 //
 // Brevo attend 33612345678. Les numeros importes arrivent en
@@ -199,6 +272,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { ok: false, erreur: "Ce numéro n'est pas lisible : "
           + String(b.numero).slice(0, 30) },
+        { status: 400 }
+      );
+    }
+
+    // 🚨 LE REFUS EST ICI, AVANT TOUT DECOMPTE. Verifier apres avoir
+    // debite les credits obligerait a les rendre — et un rendu qui echoue
+    // laisse un client debite pour un message jamais parti.
+    if (!estEuropeen(numero)) {
+      return NextResponse.json(
+        {
+          ok: false,
+          erreur: "Ce numéro n'est pas européen. Les SMS ne partent que "
+            + "vers l'Europe et la Suisse : ailleurs, le coût dépasse "
+            + "largement le prix facturé.",
+        },
         { status: 400 }
       );
     }
