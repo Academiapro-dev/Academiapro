@@ -79,6 +79,10 @@
     {
       "path": "/api/cron/campagnes-en-attente",
       "schedule": "30 8 * * 1"
+    },
+    {
+      "path": "/api/cron/rappels-du-jour",
+      "schedule": "0 7 * * 1,2,3,4,5"
     }
   ]
 }
