@@ -203,6 +203,26 @@ export default function PageCRM() {
   // bouton qui echouerait — c est le defaut le plus sur.
   // ══════════════════════════════════════════════════════════════════════
   const [profils, setProfils] = useState<string[]>([]);
+
+  // ══════════════════════════════════════════════════════════════════════
+  // LA TELEPHONIE — 06/09.
+  //
+  // 🚨 DEUX JAMBES, ET C EST CE QUI SURPREND AU DEPART. Le client n a pas
+  // de standard : il travaille avec son telephone. On n appelle donc pas
+  // « depuis l ordinateur » — SON telephone sonne d abord, il decroche, et
+  // le contact est appele aussitot.
+  //
+  // ⚠️ LE BOUTON NE S AFFICHE QUE SI LA TELEPHONIE EST REGLEE sur
+  // l organisme : un numero d appel et du credit. Sans cela, le proposer
+  // produirait une erreur que le client ne peut pas corriger lui-meme.
+  //
+  // ⚠️ LE LIEN `tel:` RESTE A COTE. Appeler depuis son propre telephone
+  // marche toujours, ne coute rien a l organisme, et reste le geste le
+  // plus rapide. On ajoute une possibilite, on n en retire aucune.
+  // ══════════════════════════════════════════════════════════════════════
+  const [telActive, setTelActive] = useState(false);
+  const [monPoste, setMonPoste] = useState("");
+  const [appelEnCours, setAppelEnCours] = useState("");
   const formeDesStagiaires = profils.indexOf("vend_formations") >= 0
     || profils.indexOf("forme_salaries") >= 0;
 
@@ -260,6 +280,10 @@ export default function PageCRM() {
         const dc = await rc.json();
         if (dc && dc.ok && Array.isArray(dc.champs)) setColonnes(dc.champs);
         if (dc && dc.ok && Array.isArray(dc.profils)) setProfils(dc.profils);
+        if (dc && dc.ok) {
+          setTelActive(!!dc.tel_active);
+          if (dc.tel_numero) setMonPoste(String(dc.tel_numero));
+        }
       } catch (e) {}
 
       try {
@@ -522,6 +546,40 @@ export default function PageCRM() {
         return { ...a, [email]: Array.isArray(d.appels) ? d.appels : [] };
       });
     } catch (e) {}
+  }
+
+  // 🚨 L APPEL NE CREE PAS LA LIGNE DE JOURNAL ICI : c est la route qui
+  // s en charge, avant meme de composer. Si l appel echoue en cours de
+  // route, la trace existe deja — mieux vaut une ligne en erreur qu un
+  // appel dont on ignore tout.
+  async function appeler_contact(p: any) {
+    if (!p.telephone) return;
+    setAppelEnCours(p.email);
+    setMessage("");
+    setErreur("");
+    try {
+      const r = await fetch("/api/organisme/appeler", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          numero: p.telephone,
+          fiche_email: p.email,
+          mon_numero: monPoste,
+        }),
+      });
+      const d = await r.json();
+      if (d && d.ok) {
+        setMessage(d.message || "Votre téléphone va sonner.");
+        // ⚠️ LE JOURNAL SE RECHARGE : la ligne vient d etre creee par la
+        // route, avec son etat « sonne ».
+        if (appels[p.email]) await chargerAppels(p.email);
+      } else {
+        setErreur((d && d.erreur) || "L'appel n'a pas pu être lancé.");
+      }
+    } catch (e: any) {
+      setErreur("L'appel n'a pas pu être lancé : " + String(e));
+    }
+    setAppelEnCours("");
   }
 
   async function enregistrerAppel(p: any) {
@@ -1999,6 +2057,29 @@ export default function PageCRM() {
                             cursor: "pointer", textDecoration: "underline", padding: 0 }}>
                           {appelOuvert === p.email ? "Fermer le journal" : "Noter un appel"}
                         </button>
+
+                        {/* 🚨 APPELER DEPUIS L OUTIL — 06/09.
+                            Le telephone du client sonne d abord ; quand il
+                            decroche, le contact est appele avec le numero
+                            de l organisme affiche.
+                            ⚠️ N APPARAIT QUE SI LA TELEPHONIE EST REGLEE :
+                            un numero d appel et du credit. Sans cela, le
+                            bouton produirait une erreur que le client ne
+                            peut pas corriger lui-meme.
+                            ⚠️ PAS SUR UNE FICHE DESINSCRITE : quelqu un qui
+                            a demande a ne plus etre contacte ne doit pas
+                            l etre par un autre canal. */}
+                        {telActive && !p.desinscrit && (
+                          <button
+                            onClick={() => appeler_contact(p)}
+                            disabled={appelEnCours !== ""}
+                            style={{ background: "none", border: "none", color: "#4caf50",
+                              fontSize: "13px", fontFamily: "Georgia,serif",
+                              cursor: "pointer", textDecoration: "underline",
+                              padding: 0, marginLeft: "12px" }}>
+                            {appelEnCours === p.email ? "Appel en cours…" : "Appeler"}
+                          </button>
+                        )}
 
                         {appelOuvert === p.email && (
                           <div style={{ marginTop: "10px", padding: "12px 14px",
