@@ -43,7 +43,7 @@ const CONTACT = SITE + "/contact";
 export const metadata = {
   title: "Les fonctions — Mr LMS | La plateforme de formation des organismes",
   description:
-    "Parcours et modules, suivi des stagiaires, évaluations à chaud et à froid, réclamations, signature électronique, bilan pédagogique et financier.",
+    "Parcours et modules, suivi des stagiaires, évaluations à chaud et à froid, réclamations, SMS et appels, signature électronique, bilan pédagogique et financier.",
   alternates: {
     canonical: SITE + "/fonctionnalites",
   },
@@ -122,6 +122,36 @@ const PAGES = [
     pret: false,
     texte:
       "Chaque réclamation est enregistrée avec sa réponse et l'action corrective décidée. Le registre se tient à mesure que vous répondez, sans document à rouvrir.",
+  },
+  // ══════════════════════════════════════════════════════════════════════
+  // LE SMS ET LES APPELS — AJOUTES LE 06/09.
+  //
+  // 🚨 CE QU ON PEUT ECRIRE, ET RIEN DE PLUS. Le SMS part reellement de la
+  // plateforme, sous le nom de l organisme, et se consigne. L appel, lui,
+  // se lance depuis une fiche : le telephone de l organisme sonne d abord,
+  // il decroche, et son correspondant est appele. Ecrire « appelez d un
+  // clic » ferait attendre autre chose que ce qui arrive.
+  //
+  // ⚠️ CES DEUX FONCTIONS SE PAIENT A L USAGE, en plus de l abonnement.
+  // La page ne porte aucun prix — la regle n a pas change — mais elle ne
+  // doit pas laisser croire qu elles sont comprises.
+  //
+  // ⚠️ EUROPE ET SUISSE SEULEMENT. Ne jamais ecrire « partout dans le
+  // monde » : hors de ce perimetre, les deux sont refuses.
+  // ══════════════════════════════════════════════════════════════════════
+  {
+    titre: "Le SMS à vos stagiaires",
+    chemin: "/sms",
+    pret: false,
+    texte:
+      "Prévenir d'un changement de salle, rappeler une séance du lendemain : le message part sous le nom de votre organisme et reste consigné. À l'usage, en plus de l'abonnement, vers l'Europe et la Suisse.",
+  },
+  {
+    titre: "Ce qui s'est dit au téléphone",
+    chemin: "/telephone",
+    pret: false,
+    texte:
+      "Vous appelez depuis la fiche d'un stagiaire : votre téléphone sonne, vous décrochez, votre correspondant est appelé et votre numéro s'affiche chez lui. La durée et ce qui a été dit restent sur la fiche.",
   },
   {
     titre: "La signature électronique",
