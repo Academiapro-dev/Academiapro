@@ -85,6 +85,27 @@ export default function PageCRM() {
   const [filtre2, setFiltre2] = useState("");
   const [page, setPage] = useState(1);
 
+  // ══════════════════════════════════════════════════════════════════════
+  // LES COLONNES PERSONNALISEES — 06/09.
+  //
+  // Chaque organisme definit les informations qu il suit sur ses fiches,
+  // depuis /organisme/colonnes : un cabinet comptable « A jour de ses
+  // pieces », une agence d interim « Disponible » et « Fin de mission ».
+  //
+  // 🚨 CES CHAMPS SONT SAISIS, JAMAIS CALCULES. Mr CRM ne connait aucun
+  // metier : contrairement a Mr. Comptable, ou « Pieces manquantes » se
+  // deduit des ecritures, il n y a rien ici a partir de quoi deduire quoi
+  // que ce soit. ⚠️ NE PAS ESSAYER DE LES REMPLIR AUTOMATIQUEMENT.
+  //
+  // ⚠️ LA DEFINITION ET LES VALEURS SONT SEPAREES. `colonnes` porte ce que
+  // l organisme a defini ; chaque fiche porte ses valeurs dans sa colonne
+  // `champs`. Une colonne retiree ne detruit aucune valeur — elle cesse
+  // seulement d etre affichee.
+  // ══════════════════════════════════════════════════════════════════════
+  const [colonnes, setColonnes] = useState<any[]>([]);
+  const [editChamps, setEditChamps] = useState("");
+  const [valeurs, setValeurs] = useState<any>({});
+
   const [nom, setNom] = useState("");
   const [email, setEmail] = useState("");
   const [telephone, setTelephone] = useState("");
@@ -130,6 +151,15 @@ export default function PageCRM() {
 
       const m = await appeler({ action: "motifs_perte" });
       if (m && Array.isArray(m.motifs)) setMotifs(m);
+
+      // Les colonnes definies par l organisme. ⚠️ En cas d echec on ne
+      // bloque rien : le CRM doit s ouvrir meme si cette lecture ne
+      // repond pas — les colonnes sont un confort, pas le coeur.
+      try {
+        const rc = await fetch("/api/organisme/champs", { cache: "no-store" });
+        const dc = await rc.json();
+        if (dc && dc.ok && Array.isArray(dc.champs)) setColonnes(dc.champs);
+      } catch (e) {}
     } catch (e: any) {
       setErreur("Lecture impossible : " + String(e));
     }
@@ -169,6 +199,46 @@ export default function PageCRM() {
       setErreur("Enregistrement impossible : " + String(e));
     }
     setOccupe("");
+  }
+
+  // 🚨 L ENREGISTREMENT PASSE PAR `upsert`, QUI CHERCHE PAR ADRESSE.
+  // Une fiche sans adresse ne peut donc pas etre modifiee — le bloc de
+  // saisie ne s affiche pas dans ce cas, plutot que d echouer apres coup.
+  //
+  // ⚠️ ON N ENVOIE QUE `email` ET `champs`. upsert_prospect ecrit ce qu on
+  // lui donne et laisse le reste en base : envoyer la fiche entiere
+  // risquerait d ecraser une valeur modifiee ailleurs entre-temps.
+  async function enregistrerChamps(p: any) {
+    setOccupe("champs-" + p.email);
+    setMessage("");
+    setErreur("");
+    try {
+      const d = await appeler({
+        action: "upsert",
+        data: { email: p.email, champs: valeurs },
+      });
+      if (d && d.succes) {
+        p.champs = valeurs;
+        setProspects(function (anciens: any[]) { return anciens.slice(); });
+        setEditChamps("");
+        setMessage("Fiche enregistrée.");
+      } else {
+        setErreur((d && d.erreur) || "Enregistrement impossible.");
+      }
+    } catch (e: any) {
+      setErreur("Enregistrement impossible : " + String(e));
+    }
+    setOccupe("");
+  }
+
+  // Ce qu une colonne affiche sur une fiche, selon son type.
+  function valeurLisible(c: any, v: any) {
+    if (v === null || v === undefined || v === "") return "—";
+    if (c.type === "case") return v ? "oui" : "non";
+    if (c.type === "date") {
+      try { return new Date(v).toLocaleDateString("fr-FR"); } catch (e) { return String(v); }
+    }
+    return String(v);
   }
 
   async function importer() {
@@ -740,6 +810,15 @@ export default function PageCRM() {
           >
             {tableau ? "Vue détaillée" : "Vue tableau"}
           </button>
+          {/* ⚠️ LE LIEN EST DISCRET ET TOUJOURS PRESENT. Un reglage qu on
+              ne trouve pas n existe pas — c est la lecon de la pastille de
+              campagne, restee invisible du 02 au 06/09 faute d un mot
+              ecrit en clair. */}
+          <a href="/organisme/colonnes"
+            style={{ color: "rgba(200,169,110,0.75)", fontSize: "13px",
+              textDecoration: "underline", whiteSpace: "nowrap" }}>
+            Mes colonnes
+          </a>
         </div>
 
         {/* ---- LE COMPTEUR ET LA PAGINATION ---- Comme sur le CRM de
@@ -988,6 +1067,13 @@ export default function PageCRM() {
                     <th style={TH}>Relance auto</th>
                     <th style={TH}>Motif de perte</th>
                     <th style={TH}>Dernier contact</th>
+                    {/* 🆕 LES COLONNES DE L ORGANISME — 06/09. Elles
+                        s ajoutent A LA FIN : l ordre des colonnes connues
+                        ne bouge pas, et quelqu un qui lit ce tableau tous
+                        les jours n a rien a reapprendre. */}
+                    {colonnes.map(function (c: any) {
+                      return <th key={c.cle} style={TH}>{c.libelle}</th>;
+                    })}
                   </tr>
                 </thead>
                 <tbody>
@@ -1045,6 +1131,18 @@ export default function PageCRM() {
                         <td style={{ ...TD, color: "rgba(255,255,255,0.45)" }}>
                           {jolieDate(p.derniere_interaction) || "—"}
                         </td>
+                        {colonnes.map(function (c: any) {
+                          const v = (p.champs || {})[c.cle];
+                          const rempli = v !== null && v !== undefined && v !== "";
+                          return (
+                            <td key={c.cle} style={{ ...TD,
+                              color: c.type === "case" && v
+                                ? "#4caf50"
+                                : rempli ? "rgba(255,255,255,0.7)" : "rgba(255,255,255,0.25)" }}>
+                              {valeurLisible(c, v)}
+                            </td>
+                          );
+                        })}
                       </tr>
                     );
                   })}
@@ -1111,6 +1209,95 @@ export default function PageCRM() {
                       <p style={{ color: "#e8836a", fontSize: "13px", margin: "6px 0 0" }}>
                         Désinscrit — ne reçoit plus de messages
                       </p>
+                    )}
+
+                    {/* ══════════════════════════════════════════════════
+                        LES COLONNES PERSONNALISEES SUR LA FICHE — 06/09.
+
+                        🚨 ELLES NE S AFFICHENT QUE SI L ORGANISME EN A
+                        DEFINI. Un client qui n a rien regle ne voit rien
+                        de nouveau, et son ecran ne change pas d un pouce.
+
+                        ⚠️ ET SEULEMENT SUR UNE FICHE QUI PORTE UNE
+                        ADRESSE : l enregistrement passe par `upsert`, qui
+                        cherche la fiche PAR SON ADRESSE. Sans elle, la
+                        sauvegarde echouerait apres coup — mieux vaut ne
+                        pas proposer la saisie.
+                        ══════════════════════════════════════════════════ */}
+                    {colonnes.length > 0 && p.email && (
+                      <div style={{ marginTop: "10px", paddingTop: "10px",
+                        borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                        {editChamps === p.email ? (
+                          <div>
+                            {colonnes.map(function (c: any) {
+                              return (
+                                <div key={c.cle} style={{ marginBottom: "10px" }}>
+                                  <span style={{ ...LIBELLE, marginBottom: "4px" }}>{c.libelle}</span>
+                                  {c.type === "case" ? (
+                                    <button
+                                      onClick={() => setValeurs({ ...valeurs, [c.cle]: !valeurs[c.cle] })}
+                                      style={{
+                                        padding: "8px 16px", borderRadius: "8px",
+                                        fontSize: "13.5px", fontFamily: "Georgia,serif",
+                                        cursor: "pointer",
+                                        background: valeurs[c.cle] ? "rgba(76,175,80,0.18)" : "transparent",
+                                        color: valeurs[c.cle] ? "#4caf50" : "rgba(255,255,255,0.4)",
+                                        border: "1px solid " + (valeurs[c.cle] ? "rgba(76,175,80,0.5)" : "rgba(255,255,255,0.14)"),
+                                      }}>
+                                      {valeurs[c.cle] ? "✓ Oui" : "Non"}
+                                    </button>
+                                  ) : (
+                                    <input
+                                      type={c.type === "date" ? "date" : "text"}
+                                      value={valeurs[c.cle] || ""}
+                                      onChange={(e) => setValeurs({ ...valeurs, [c.cle]: e.target.value })}
+                                      style={{ ...CHAMP, marginBottom: 0, padding: "9px 12px", fontSize: "14px" }}
+                                    />
+                                  )}
+                                </div>
+                              );
+                            })}
+                            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "10px" }}>
+                              <button
+                                onClick={() => enregistrerChamps(p)}
+                                disabled={occupe !== ""}
+                                style={{ ...BOUTON, background: "#c8a96e", color: "#050508",
+                                  border: "none", fontWeight: "bold" }}>
+                                {occupe === "champs-" + p.email ? "…" : "Enregistrer"}
+                              </button>
+                              <button onClick={() => setEditChamps("")} style={BOUTON}>
+                                Annuler
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div style={{ display: "flex", gap: "10px", flexWrap: "wrap",
+                            alignItems: "center" }}>
+                            {colonnes.map(function (c: any) {
+                              const v = (p.champs || {})[c.cle];
+                              const rempli = v !== null && v !== undefined && v !== "";
+                              return (
+                                <span key={c.cle} style={{ fontSize: "12.5px",
+                                  color: rempli ? "rgba(255,255,255,0.7)" : "rgba(255,255,255,0.25)" }}>
+                                  {c.libelle} : <strong style={{
+                                    color: c.type === "case" && v ? "#4caf50" : "inherit",
+                                  }}>{valeurLisible(c, v)}</strong>
+                                </span>
+                              );
+                            })}
+                            <button
+                              onClick={() => {
+                                setEditChamps(p.email);
+                                setValeurs({ ...(p.champs || {}) });
+                              }}
+                              style={{ background: "none", border: "none", color: "#c8a96e",
+                                fontSize: "12.5px", fontFamily: "Georgia,serif",
+                                cursor: "pointer", textDecoration: "underline", padding: 0 }}>
+                              Modifier
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     )}
                     {p.relance_le && (
                       <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "12.5px", margin: "4px 0 0" }}>
