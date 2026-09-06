@@ -371,9 +371,27 @@ function compteursApresInvitation(avant: any) {
 //   alter table public.prospects_interim    add column if not exists campagne text;
 //   alter table public.prospects_cabinets   add column if not exists campagne text;
 // Sans elles, toute lecture de ces tables echouerait.
+// 🆕 `produits` AJOUTE AUX QUATRE BASES LE 06/09, ET SON ABSENCE ETAIT
+// INVISIBLE.
+//
+// CE QUI SE PASSAIT. La colonne n existait que sur `crm`. Quand l ecran
+// enregistrait un produit secondaire sur une fiche venue d une base de
+// prospection, Postgres refusait la colonne inconnue — et la parade de
+// l action « modifier » (plus bas) retirait le champ fautif, refaisait
+// l ecriture sans lui, et repondait OK.
+//
+// 🚨 AUCUNE ERREUR NE REMONTAIT. Le produit paraissait coche a l ecran
+// jusqu au rechargement, puis disparaissait. Jacques l a constate le 06/09 :
+// « ni mr lms ». La parade, ecrite pour eviter qu une colonne manquante ne
+// fasse tout echouer, transformait ici une erreur en perte silencieuse.
+//
+// ⚠️ ECRIRE NE SUFFIT PAS : IL FAUT AUSSI LIRE. La colonne est desormais
+// sur les cinq tables (migration du 06/09), mais tant qu elle ne figure pas
+// dans cette liste, la route ne la renvoie pas et l ecran ne voit jamais ce
+// qui a ete enregistre.
 const COLONNES_PROSPECTS =
   "id, raison_sociale, ville, code_postal, siren, dirigeant_prenom, dirigeant_nom, " +
-  "linkedin, email, telephone, site_web, linkedin_le, linkedin_relance_le, linkedin_statut, notes, campagne";
+  "linkedin, email, telephone, site_web, linkedin_le, linkedin_relance_le, linkedin_statut, notes, campagne, produits";
 
 // 🆕 `produits` AJOUTE LE 06/09. La colonne porte les produits SECONDAIRES
 // d une fiche et la date du message envoye sous chacun :
@@ -418,6 +436,8 @@ const MODIFIABLES_PROSPECTS = [
   // Ajoutes le 01/09 : l administrateur corrige aussi l avancement.
   "linkedin_statut", "linkedin_le", "linkedin_relance_le", "score",
   "statut", "envoye_le", "desabonne",
+  // 🆕 06/09 : les produits secondaires, desormais sur les quatre bases.
+  "produits",
 ];
 
 const MODIFIABLES_CRM = [
