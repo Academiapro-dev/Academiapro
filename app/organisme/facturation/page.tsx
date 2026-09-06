@@ -226,8 +226,7 @@ async function facturationMrCrm(t: string) {
           Ma facturation
         </h1>
         <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "14px", margin: "0 0 24px", lineHeight: "1.7" }}>
-          Votre abonnement est un forfait mensuel. Il ne dépend pas de ce que
-          vous en faites, seulement du nombre de personnes qui l&apos;utilisent.
+          Une licence, un utilisateur. Plus vous en avez, moins chacune coûte.
         </p>
 
         {org && org.statut === "actif" && (
@@ -296,6 +295,67 @@ async function facturationMrCrm(t: string) {
             n&apos;y a aucun module payant.
           </p>
         </div>
+
+        {/* ══════════════════════════════════════════════════════════════
+            LES PALIERS — 06/09.
+
+            🚨 LE DEFAUT CORRIGE ICI : l ecran affichait 19 € sans dire
+            qu il existe autre chose. Un client qui grandit ne savait pas
+            qu il pouvait passer a cinq ou dix licences, ni ce que cela
+            lui couterait.
+
+            🚨 LE PRIX A LA LICENCE EST CE QUI REND LA GRILLE LISIBLE.
+            « 99 € » ne dit rien ; « 9,90 € la licence au lieu de 19 € »
+            se compare d un coup d oeil, et montre ou est l interet.
+
+            ⚠️ LE PALIER COURANT EST MIS EN AVANT, les autres restent
+            visibles : masquer ce qu on n a pas empeche de voir ou l on
+            pourrait aller. */}
+        <h2 style={{ color: "#c8a96e", fontSize: "18px", margin: "28px 0 12px" }}>
+          Les licences
+        </h2>
+        <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+          {abonnements.map(function (a: any) {
+            const nb = Number(a.seuil_max) || 1;
+            const prix = Number(a.montant) || 0;
+            const unitaire = nb > 0 ? prix / nb : prix;
+            const courant = palier && a.offre === palier.offre;
+            return (
+              <div key={a.offre} style={{
+                flex: "1 1 190px", padding: "16px 18px", borderRadius: "10px",
+                background: courant ? "rgba(200,169,110,0.1)" : "rgba(255,255,255,0.025)",
+                border: courant
+                  ? "2px solid rgba(200,169,110,0.6)"
+                  : "1px solid rgba(200,169,110,0.18)",
+              }}>
+                <p style={{ color: "#fff", fontSize: "20px", fontWeight: "bold",
+                  margin: "0 0 3px" }}>
+                  {nb} licence{nb > 1 ? "s" : ""}
+                </p>
+                <p style={{ color: "#c8a96e", fontSize: "17px", margin: "0 0 3px" }}>
+                  {euros(prix)} <span style={{ fontSize: "13px", color: "rgba(255,255,255,0.5)" }}>par mois</span>
+                </p>
+                <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "12.5px", margin: 0 }}>
+                  {unitaire.toFixed(2).replace(".", ",")} € la licence
+                </p>
+                {courant && (
+                  <p style={{ color: "#c8a96e", fontSize: "12.5px",
+                    margin: "8px 0 0", fontWeight: "bold" }}>
+                    Votre formule
+                  </p>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {prixSup > 0 && (
+          <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "13.5px",
+            margin: "12px 0 0", lineHeight: "1.75" }}>
+            Au-delà de dix licences, chaque licence supplémentaire est à{" "}
+            {euros(prixSup)} par mois.
+          </p>
+        )}
 
         {/* ---- CE QUI SE PAIE A L USAGE ----
             ⚠️ PRESENTE A PART, ET PAS COMME UNE LIGNE DE FACTURE : ces
