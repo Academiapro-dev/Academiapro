@@ -1258,6 +1258,28 @@ export default function PageCRM() {
               textDecoration: "underline", whiteSpace: "nowrap" }}>
             Mes campagnes
           </a>
+          {/* ══════════════════════════════════════════════════════════════
+              L EXPORT — 06/09.
+
+              🚨 IL TIENT UNE PROMESSE ECRITE SUR LA VITRINE : « Vos
+              donnees vous appartiennent et vous sont restituees sur
+              demande, dans un format exploitable. » C etait, jusqu au
+              06/09, la seule promesse publique que l outil ne tenait pas.
+
+              ⚠️ UN LIEN, PAS UN APPEL. La route rend un fichier avec un
+              en-tete `Content-Disposition` : le navigateur le telecharge
+              tout seul. Passer par fetch obligerait a reconstruire le
+              telechargement a la main, pour rien.
+
+              ⚠️ `download` NE SUFFIT PAS ET N EST PAS POSE : le nom du
+              fichier vient de la route, avec sa date. Le forcer ici le
+              figerait a une valeur qui vieillirait.
+              ══════════════════════════════════════════════════════════════ */}
+          <a href="/api/organisme/export?quoi=contacts"
+            style={{ color: "rgba(200,169,110,0.75)", fontSize: "13px",
+              textDecoration: "underline", whiteSpace: "nowrap" }}>
+            Exporter
+          </a>
         </div>
 
         {/* ---- LE COMPTEUR ET LA PAGINATION ---- Comme sur le CRM de
