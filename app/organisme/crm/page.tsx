@@ -138,6 +138,28 @@ export default function PageCRM() {
   const [ecritMessage, setEcritMessage] = useState("");
   const [copie, setCopie] = useState("");
 
+  // ══════════════════════════════════════════════════════════════════════
+  // LE JOURNAL D APPELS — 06/09.
+  //
+  // 🚨 CE N EST PAS DE LA TELEPHONIE. Le numero reste un lien `tel:` qui
+  // compose sur le telephone ; rien ne revient tout seul. Le client note
+  // ce qui s est dit APRES avoir raccroche.
+  //
+  // POURQUOI QUAND MEME. La vitrine annoncait « appels rattaches a la
+  // fiche » — promesse retiree le 04/09 faute de code. Ceci la tient sans
+  // abonnement : ce qui a ete dit au dernier appel figure sur la fiche, et
+  // c est ce qu on cherche en la rouvrant.
+  //
+  // ⚠️ LES APPELS SE CHARGENT A LA DEMANDE, fiche par fiche. Les charger
+  // tous au demarrage ferait une lecture inutile sur des centaines de
+  // fiches dont on n ouvrira qu une.
+  // ══════════════════════════════════════════════════════════════════════
+  const [appelOuvert, setAppelOuvert] = useState("");
+  const [appels, setAppels] = useState<any>({});
+  const [aResultat, setAResultat] = useState("");
+  const [aDuree, setADuree] = useState("");
+  const [aNotesAppel, setANotesAppel] = useState("");
+
   const [nom, setNom] = useState("");
   const [email, setEmail] = useState("");
   const [telephone, setTelephone] = useState("");
@@ -419,6 +441,63 @@ export default function PageCRM() {
       setProspects(function (anciens: any[]) { return anciens.slice(); });
       setErreur("Enregistrement impossible : " + String(e));
     }
+  }
+
+  const RESULTATS_APPEL = [
+    { cle: "repondu", nom: "A répondu", couleur: "#4caf50" },
+    { cle: "absent", nom: "Absent", couleur: "rgba(255,255,255,0.45)" },
+    { cle: "rappeler", nom: "À rappeler", couleur: "#e8a33d" },
+    { cle: "refus", nom: "Ne veut pas", couleur: "#e8836a" },
+  ];
+
+  async function chargerAppels(email: string) {
+    try {
+      const r = await fetch("/api/organisme/appels?fiche=" + encodeURIComponent(email),
+        { cache: "no-store" });
+      const d = await r.json();
+      if (d && d.ok) setAppels(function (a: any) {
+        return { ...a, [email]: Array.isArray(d.appels) ? d.appels : [] };
+      });
+    } catch (e) {}
+  }
+
+  async function enregistrerAppel(p: any) {
+    if (!aResultat) {
+      setErreur("Indiquez comment l'appel s'est terminé.");
+      return;
+    }
+    setOccupe("appel-" + p.email);
+    setMessage("");
+    setErreur("");
+    try {
+      const r = await fetch("/api/organisme/appels", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "creer",
+          fiche_email: p.email,
+          numero: p.telephone || "",
+          resultat: aResultat,
+          duree_min: aDuree,
+          notes: aNotesAppel,
+        }),
+      });
+      const d = await r.json();
+      if (d && d.ok) {
+        setAResultat(""); setADuree(""); setANotesAppel("");
+        setAppelOuvert("");
+        await chargerAppels(p.email);
+        // La fiche vient d etre touchee : la date remonte, comme en base.
+        p.derniere_interaction = new Date().toISOString();
+        setProspects(function (anciens: any[]) { return anciens.slice(); });
+        setMessage("Appel enregistré.");
+      } else {
+        setErreur((d && d.erreur) || "Enregistrement impossible.");
+      }
+    } catch (e: any) {
+      setErreur("Enregistrement impossible : " + String(e));
+    }
+    setOccupe("");
   }
 
   // Ce qu une colonne affiche sur une fiche, selon son type.
@@ -1499,6 +1578,137 @@ export default function PageCRM() {
                       >
                         Envoyer un SMS →
                       </a>
+                    )}
+
+                    {/* ══════════════════════════════════════════════════
+                        LE JOURNAL D APPELS — 06/09.
+
+                        ⚠️ NE S AFFICHE QUE SI LA FICHE PORTE UN NUMERO ET
+                        UNE ADRESSE : le numero parce qu il n y a rien a
+                        journaliser sans lui, l adresse parce que c est
+                        elle qui identifie la fiche cote serveur.
+                        ══════════════════════════════════════════════════ */}
+                    {p.telephone && p.email && (
+                      <div style={{ marginTop: "8px" }}>
+                        <button
+                          onClick={() => {
+                            const ouvre = appelOuvert !== p.email;
+                            setAppelOuvert(ouvre ? p.email : "");
+                            setAResultat(""); setADuree(""); setANotesAppel("");
+                            if (ouvre && !appels[p.email]) chargerAppels(p.email);
+                          }}
+                          style={{ background: "none", border: "none", color: "#c8a96e",
+                            fontSize: "13px", fontFamily: "Georgia,serif",
+                            cursor: "pointer", textDecoration: "underline", padding: 0 }}>
+                          {appelOuvert === p.email ? "Fermer le journal" : "Noter un appel"}
+                        </button>
+
+                        {appelOuvert === p.email && (
+                          <div style={{ marginTop: "10px", padding: "12px 14px",
+                            background: "rgba(255,255,255,0.025)",
+                            border: "1px solid rgba(255,255,255,0.08)",
+                            borderRadius: "9px" }}>
+
+                            {/* ---- CE QUI EST DEJA NOTE ----
+                                ⚠️ AFFICHE AVANT LE FORMULAIRE : on rouvre
+                                une fiche pour savoir ce qui a ete dit, pas
+                                pour saisir. */}
+                            {(appels[p.email] || []).length > 0 && (
+                              <div style={{ marginBottom: "14px" }}>
+                                {(appels[p.email] || []).map(function (a: any) {
+                                  const r = RESULTATS_APPEL.filter(function (x) {
+                                    return x.cle === a.resultat;
+                                  })[0];
+                                  return (
+                                    <div key={a.id} style={{ padding: "7px 0",
+                                      borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+                                      <p style={{ margin: "0 0 3px", fontSize: "13px",
+                                        color: "rgba(255,255,255,0.7)" }}>
+                                        <span style={{ color: r ? r.couleur : "inherit" }}>
+                                          {r ? r.nom : a.resultat}
+                                        </span>
+                                        {a.duree_min ? " · " + a.duree_min + " min" : ""}
+                                        <span style={{ color: "rgba(255,255,255,0.35)", marginLeft: "8px" }}>
+                                          {a.appele_le
+                                            ? new Date(a.appele_le).toLocaleDateString("fr-FR")
+                                            : ""}
+                                        </span>
+                                      </p>
+                                      {a.notes && (
+                                        <p style={{ margin: 0, fontSize: "12.5px",
+                                          color: "rgba(255,255,255,0.45)", lineHeight: "1.6" }}>
+                                          {a.notes}
+                                        </p>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+
+                            {/* ---- NOTER UN APPEL ---- */}
+                            <span style={{ ...LIBELLE, marginBottom: "6px" }}>
+                              Comment cela s&apos;est terminé
+                            </span>
+                            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap",
+                              marginBottom: "12px" }}>
+                              {RESULTATS_APPEL.map(function (x) {
+                                const actif = aResultat === x.cle;
+                                return (
+                                  <button key={x.cle} onClick={() => setAResultat(x.cle)}
+                                    style={{
+                                      padding: "8px 14px", borderRadius: "20px",
+                                      fontSize: "12.5px", fontFamily: "Georgia,serif",
+                                      cursor: "pointer",
+                                      background: actif ? x.couleur + "26" : "transparent",
+                                      color: actif ? x.couleur : "rgba(255,255,255,0.4)",
+                                      border: "1px solid " + (actif ? x.couleur + "8c" : "rgba(255,255,255,0.14)"),
+                                    }}>
+                                    {x.nom}
+                                  </button>
+                                );
+                              })}
+                            </div>
+
+                            <div style={{ display: "flex", gap: "10px", flexWrap: "wrap",
+                              alignItems: "flex-end", marginBottom: "10px" }}>
+                              <div style={{ flex: "0 1 130px" }}>
+                                <span style={{ ...LIBELLE, marginBottom: "4px" }}>
+                                  Durée (min)
+                                </span>
+                                <input
+                                  value={aDuree}
+                                  onChange={(e) => setADuree(e.target.value)}
+                                  placeholder="5"
+                                  inputMode="numeric"
+                                  style={{ ...CHAMP, marginBottom: 0, padding: "9px 12px", fontSize: "14px" }}
+                                />
+                              </div>
+                            </div>
+
+                            <span style={{ ...LIBELLE, marginBottom: "4px" }}>
+                              Ce qui a été dit
+                            </span>
+                            <textarea
+                              value={aNotesAppel}
+                              onChange={(e) => setANotesAppel(e.target.value)}
+                              rows={3}
+                              placeholder="Ce qu'il a demandé, ce que vous avez promis…"
+                              style={{ ...CHAMP, fontSize: "14px", lineHeight: "1.6" }}
+                            />
+
+                            <button
+                              onClick={() => enregistrerAppel(p)}
+                              disabled={occupe !== "" || !aResultat}
+                              style={{ ...BOUTON,
+                                background: !aResultat ? "rgba(200,169,110,0.25)" : "#c8a96e",
+                                color: !aResultat ? "#8a8a8a" : "#050508",
+                                border: "none", fontWeight: "bold" }}>
+                              {occupe === "appel-" + p.email ? "…" : "Enregistrer cet appel"}
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     )}
                     {p.desinscrit && (
                       <p style={{ color: "#e8836a", fontSize: "13px", margin: "6px 0 0" }}>
