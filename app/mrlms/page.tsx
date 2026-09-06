@@ -124,6 +124,26 @@ const CE_QUI_EST_FAIT = [
     texte:
       "Chaque réclamation est enregistrée avec sa réponse et l'action corrective décidée. Le registre se tient tout seul, à mesure que vous répondez.",
   },
+  // ══════════════════════════════════════════════════════════════════════
+  // LE SMS ET LES APPELS — AJOUTES LE 06/09.
+  //
+  // 🚨 CES DEUX FONCTIONS EXISTENT REELLEMENT. Le SMS part de la
+  // plateforme sous le nom de l organisme (route /api/organisme/sms,
+  // eprouvee le 05/09) ; l appel se lance depuis une fiche, le telephone
+  // de l organisme sonne d abord, puis son correspondant.
+  //
+  // ⚠️ NE PAS ECRIRE « appelez d un clic » : ce n est pas ce qui se passe,
+  // et un prospect qui l attend serait decu au premier essai.
+  // ⚠️ NE PAS ECRIRE « partout dans le monde » : hors Europe et Suisse,
+  // les deux sont refuses.
+  // ⚠️ AUCUN PRIX ICI — la regle de la vitrine n a pas change. Mais la
+  // phrase dit « a l usage » pour qu on ne croie pas que c est compris.
+  // ══════════════════════════════════════════════════════════════════════
+  {
+    titre: "Le SMS et les appels",
+    texte:
+      "Prévenir d'un changement de salle, rappeler une séance : le message part sous le nom de votre organisme. Vous appelez depuis la fiche d'un stagiaire, et ce qui s'est dit y reste. Ces deux fonctions se paient à l'usage.",
+  },
   {
     titre: "La signature électronique",
     texte:
