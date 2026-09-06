@@ -572,6 +572,18 @@ export default function PageLinkedin() {
   // Forme : "identifiant-de-fiche|produit", vide sinon.
   const [ecritProduit, setEcritProduit] = useState("");
 
+  // 🆕 L AJOUT D UN PRODUIT SUR UNE FICHE EXISTANTE — 06/09.
+  //
+  // 🚨 LE MANQUE QU IL COMBLE. Les produits secondaires ne se choisissaient
+  // qu A LA CREATION de la fiche. Les 108 fiches deja traitees ne pouvaient
+  // donc pas en recevoir : il aurait fallu les supprimer et les recreer —
+  // exactement le defaut qu on venait de corriger pour la campagne.
+  //
+  // Jacques, le 06/09 : « pourquoi ne pas aller directement sur fiches a
+  // qui on a deja envoye un message pour rajouter une autre campagne ».
+  // Retient la cle de la fiche dont le choix est deplie, vide sinon.
+  const [ajoutProduit, setAjoutProduit] = useState("");
+
   // 🆕 LA REGULARISATION DATEE — 30/08. Repliee par defaut ; la date
   // proposee est hier, le cas le plus frequent.
   const [regulOuverte, setRegulOuverte] = useState(false);
@@ -1498,6 +1510,50 @@ export default function PageLinkedin() {
     return produitsDe(l).filter(function (x: any) {
       return !x.envoye && x.jours === 0;
     });
+  }
+
+  // 🆕 AJOUTER OU RETIRER UN PRODUIT SUR UNE FICHE EXISTANTE — 06/09.
+  //
+  // ⚠️ AJOUTER POSE `null` : le produit est retenu, aucun message n est
+  // encore parti sous ce nom. C est cette valeur nulle que l ecran et le
+  // cron lisent comme « en attente ».
+  //
+  // ⚠️ ON NE RETIRE PAS UN PRODUIT DEJA ENVOYE. Sa date est une trace : la
+  // supprimer ferait croire que le message n est jamais parti, et il
+  // repartirait une seconde fois. Le bouton n est pas propose dans ce cas.
+  async function basculerProduit(l: any, cle: string) {
+    const avant = l.produits && typeof l.produits === "object" ? { ...l.produits } : {};
+
+    if (avant[cle]) {
+      setErreur("Le message " + (PRODUITS[cle] ? PRODUITS[cle].nom : cle)
+        + " est deja parti : ce produit ne peut plus etre retire.");
+      return;
+    }
+
+    const neuf: any = { ...avant };
+    if (cle in neuf) delete neuf[cle];
+    else neuf[cle] = null;
+
+    l.produits = neuf;
+    setLignes(function (anciennes: any[]) { return anciennes.slice(); });
+
+    try {
+      const d = await appeler({
+        action: "modifier",
+        base: l.base || "manuel",
+        id: l.id,
+        produits: neuf,
+      });
+      if (!d.ok) {
+        l.produits = avant;
+        setLignes(function (anciennes: any[]) { return anciennes.slice(); });
+        setErreur(d.erreur || "Enregistrement impossible.");
+      }
+    } catch (e: any) {
+      l.produits = avant;
+      setLignes(function (anciennes: any[]) { return anciennes.slice(); });
+      setErreur("Enregistrement impossible : " + String(e));
+    }
   }
 
   // 🚨 MARQUER UN PRODUIT SECONDAIRE COMME ENVOYE.
@@ -4077,15 +4133,88 @@ export default function PageLinkedin() {
                             Une fiche a une seule campagne n affiche rien,
                             et son parcours ne change pas d un pouce.
                             ══════════════════════════════════════════════ */}
-                        {onglet === "envoyes" && produitsDe(l).length > 0 && (
+                        {/* 🚨 L ENCADRE S AFFICHE MEME SI LA FICHE NE PORTE
+                            AUCUN PRODUIT — corrige le 06/09. Il ne
+                            paraissait qu au-dela de zero produit : une
+                            fiche ancienne n avait donc AUCUN moyen d en
+                            recevoir un, puisque le choix n existait qu a la
+                            creation. Le bouton d ajout doit etre atteignable
+                            depuis n importe quelle fiche. */}
+                        {onglet === "envoyes" && (
                           <div style={{ marginTop: "12px", padding: "12px 14px",
                             background: "rgba(255,255,255,0.025)",
                             border: "1px solid rgba(255,255,255,0.08)",
                             borderRadius: "9px" }}>
-                            <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "12px",
-                              margin: "0 0 9px", letterSpacing: "0.5px" }}>
-                              AUTRES PRODUITS RETENUS
-                            </p>
+                            <div style={{ display: "flex", justifyContent: "space-between",
+                              alignItems: "center", gap: "10px", flexWrap: "wrap",
+                              marginBottom: "9px" }}>
+                              <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "12px",
+                                margin: 0, letterSpacing: "0.5px" }}>
+                                AUTRES PRODUITS RETENUS
+                              </p>
+                              <button
+                                onClick={() => {
+                                  setAjoutProduit(ajoutProduit === cleDe(l) ? "" : cleDe(l));
+                                }}
+                                style={{
+                                  background: "transparent", border: "none",
+                                  color: "#c8a96e", fontSize: "12.5px",
+                                  fontFamily: "Georgia,serif", cursor: "pointer",
+                                  padding: "2px 0", textDecoration: "underline",
+                                }}>
+                                {ajoutProduit === cleDe(l) ? "Fermer" : "Ajouter un produit"}
+                              </button>
+                            </div>
+
+                            {/* ---- LE CHOIX DES PRODUITS ----
+                                ⚠️ LA CAMPAGNE PRINCIPALE N Y FIGURE PAS :
+                                elle a deja sa pastille en haut de fiche.
+                                L y remettre ferait envoyer deux fois le
+                                meme message.
+                                ⚠️ UN PRODUIT DEJA ENVOYE EST AFFICHE MAIS
+                                INERTE : sa date est une trace, la retirer
+                                le ferait repartir une seconde fois. */}
+                            {ajoutProduit === cleDe(l) && (
+                              <div style={{ marginBottom: "12px" }}>
+                                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                                  {ORDRE_PRODUITS.filter(function (cle: string) {
+                                    return cle !== campagneDe(l);
+                                  }).map(function (cle: string) {
+                                    const f2 = PRODUITS[cle];
+                                    const p2 = l.produits || {};
+                                    const retenu = cle in p2;
+                                    const parti = !!p2[cle];
+                                    return (
+                                      <button key={cle}
+                                        onClick={() => basculerProduit(l, cle)}
+                                        style={{
+                                          padding: "7px 13px", borderRadius: "20px",
+                                          fontSize: "12.5px", fontFamily: "Georgia,serif",
+                                          cursor: parti ? "default" : "pointer",
+                                          opacity: parti ? 0.45 : 1,
+                                          background: retenu ? f2.couleur + "26" : "transparent",
+                                          color: retenu ? f2.couleur : "rgba(255,255,255,0.4)",
+                                          border: "1px solid " + (retenu ? f2.couleur + "8c" : "rgba(255,255,255,0.14)"),
+                                        }}>
+                                        {parti ? "✓ " : retenu ? "✓ " : ""}{f2.nom}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                                <p style={{ color: "rgba(255,255,255,0.35)", fontSize: "12px",
+                                  lineHeight: "1.7", margin: "9px 0 0" }}>
+                                  Sept jours entre deux messages à la même personne.
+                                  Un produit déjà envoyé ne peut plus être retiré.
+                                </p>
+                              </div>
+                            )}
+
+                            {produitsDe(l).length === 0 && ajoutProduit !== cleDe(l) && (
+                              <p style={{ color: "rgba(255,255,255,0.3)", fontSize: "12.5px",
+                                margin: 0, lineHeight: "1.7" }}>
+                                Aucun autre produit retenu pour cette personne.
+                              </p>
+                            )}
                             {produitsDe(l).map(function (x: any) {
                               const enEcriture = ecritProduit === cleDe(l) + "|" + x.cle;
                               return (
