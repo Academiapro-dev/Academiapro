@@ -71,6 +71,10 @@
     {
       "path": "/api/cron/relances-echeances",
       "schedule": "0 9 * * 1,2,3,4,5"
+    },
+    {
+      "path": "/api/cron/produits-en-attente",
+      "schedule": "15 8 * * 1"
     }
   ]
 }
