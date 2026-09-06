@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { headers } from "next/headers";
 import { sessionCourante } from "../../../lib/session";
 
 export const runtime = "nodejs";
@@ -136,6 +137,236 @@ function lienAchat(variante: string, tenant: string, email: string): string {
   );
 }
 
+// ══════════════════════════════════════════════════════════════════════════
+// LA FACTURATION MR CRM — 06/09.
+//
+// 🚨 ELLE N A RIEN A VOIR AVEC CELLE DE MR LMS. Pas de mise en place, pas
+// de stagiaires, pas de catalogue : un forfait mensuel selon le nombre
+// d utilisateurs, et c est tout.
+//
+// ⚠️ LES SMS ET LES APPELS N Y FIGURENT PAS COMME POSTES A FACTURER : ils
+// se paient D AVANCE par credits, depuis /organisme/credits. Les faire
+// apparaitre ici laisserait croire a une facture de fin de mois qui ne
+// viendra jamais.
+//
+// ⚠️ LA GRILLE EST LUE EN BASE, jamais ecrite ici. Une grille recopiee
+// dans du code finit toujours par mentir.
+// ══════════════════════════════════════════════════════════════════════════
+async function facturationMrCrm(t: string) {
+  const { data: org } = await supabase
+    .from("organismes_formation")
+    .select("raison_sociale, offre, nb_utilisateurs, statut, email_contact, "
+      + "sms_credits, minutes_credits, sms_expediteur, tel_numero")
+    .eq("tenant_id", t)
+    .maybeSingle();
+
+  const { data: lignes } = await supabase
+    .from("tarifs")
+    .select("offre, poste, libelle, montant, seuil_min, seuil_max")
+    .eq("produit", "crm")
+    .in("poste", ["abonnement", "utilisateur_sup", "signature"]);
+
+  const utilisateurs = Math.max(1, Number(org && org.nb_utilisateurs) || 1);
+
+  // 🚨 LE PALIER SE DEDUIT DE L EFFECTIF, PAS DE LA COLONNE `offre`.
+  //
+  // ⚠️ POURQUOI. `offre` peut avoir ete posee a la main et ne plus
+  // correspondre au nombre d utilisateurs reellement rattaches. Le palier
+  // qui compte est celui que l effectif impose : c est ce que le client
+  // verifiera lui-meme en comptant ses collaborateurs.
+  const abonnements = (lignes || [])
+    .filter(function (l: any) { return l.poste === "abonnement"; })
+    .sort(function (a: any, b: any) {
+      return (Number(a.seuil_max) || 9999) - (Number(b.seuil_max) || 9999);
+    });
+
+  let palier: any = null;
+  for (const a of abonnements) {
+    const max = Number(a.seuil_max) || 9999;
+    if (utilisateurs <= max) { palier = a; break; }
+  }
+  // Au-dela du dernier palier, on garde le plus haut et l on facture les
+  // utilisateurs supplementaires a l unite.
+  if (!palier && abonnements.length > 0) palier = abonnements[abonnements.length - 1];
+
+  const base = palier ? Number(palier.montant) || 0 : 0;
+  const plafond = palier ? (Number(palier.seuil_max) || 0) : 0;
+
+  const ligneSup = (lignes || []).filter(function (l: any) {
+    return l.poste === "utilisateur_sup";
+  })[0];
+  const prixSup = ligneSup ? Number(ligneSup.montant) || 0 : 0;
+
+  // ⚠️ LES UTILISATEURS SUPPLEMENTAIRES NE SE COMPTENT QUE SI L ON DEPASSE
+  // LE DERNIER PALIER. En dessous, le forfait couvre tout le monde.
+  const sup = plafond > 0 && utilisateurs > plafond ? utilisateurs - plafond : 0;
+  const coutSup = sup * prixSup;
+  const total = base + coutSup;
+
+  const signature = (lignes || []).filter(function (l: any) {
+    return l.poste === "signature";
+  })[0];
+
+  const smsCredits = Number(org && org.sms_credits) || 0;
+  const minutes = Math.floor((Number(org && org.minutes_credits) || 0) / 60);
+
+  const mois = new Date().toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
+
+  return (
+    <div style={CADRE}>
+      <div style={{ maxWidth: "900px", margin: "0 auto" }}>
+        <a href="/organisme/crm" style={{ color: "#c8a96e", fontSize: "14px", textDecoration: "none" }}>
+          &larr; Retour à mes contacts
+        </a>
+
+        <p style={{ color: "#c8a96e", fontSize: "12px", letterSpacing: "3px", margin: "22px 0 8px" }}>
+          EN COURS · {String(mois).toUpperCase()}
+        </p>
+        <h1 style={{ color: "#fff", fontSize: "30px", margin: "0 0 6px" }}>
+          Ma facturation
+        </h1>
+        <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "14px", margin: "0 0 24px", lineHeight: "1.7" }}>
+          Votre abonnement est un forfait mensuel. Il ne dépend pas de ce que
+          vous en faites, seulement du nombre de personnes qui l&apos;utilisent.
+        </p>
+
+        {org && org.statut === "actif" && (
+          <div style={{ ...CARTE, borderColor: "rgba(76,175,80,0.4)",
+            background: "rgba(76,175,80,0.05)" }}>
+            <p style={{ color: "#4caf50", fontSize: "15px", margin: 0, lineHeight: "1.7" }}>
+              Votre abonnement est actif. Vous n&apos;avez rien à faire.
+            </p>
+          </div>
+        )}
+
+        {/* ---- LE FORFAIT ---- */}
+        <div style={{ display: "flex", gap: "14px", flexWrap: "wrap", margin: "20px 0" }}>
+          <div style={{ ...CARTE, flex: "1 1 200px", marginBottom: 0 }}>
+            <p style={{ color: "#c8a96e", fontSize: "26px", fontWeight: "bold", margin: "0 0 4px" }}>
+              {euros(total)}
+            </p>
+            <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", margin: 0 }}>
+              Par mois, hors taxes
+            </p>
+          </div>
+          <div style={{ ...CARTE, flex: "1 1 200px", marginBottom: 0 }}>
+            <p style={{ color: "#c8a96e", fontSize: "26px", fontWeight: "bold", margin: "0 0 4px" }}>
+              {utilisateurs}
+            </p>
+            <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", margin: 0 }}>
+              utilisateur{utilisateurs > 1 ? "s" : ""}
+              {plafond > 0 && utilisateurs <= plafond
+                ? " · jusqu'à " + plafond + " compris"
+                : ""}
+            </p>
+          </div>
+        </div>
+
+        {/* ---- LE DETAIL ---- */}
+        <h2 style={{ color: "#c8a96e", fontSize: "18px", margin: "28px 0 12px" }}>
+          Votre abonnement
+        </h2>
+        <div style={CARTE}>
+          <div style={{ display: "grid", gridTemplateColumns: "3fr 1fr",
+            gap: "8px 12px", fontSize: "15px" }}>
+            <span style={{ color: "rgba(255,255,255,0.75)" }}>
+              {palier ? palier.libelle : "Abonnement"}
+            </span>
+            <span style={{ color: "#c8a96e", textAlign: "right" }}>{euros(base)}</span>
+
+            {sup > 0 && (
+              <>
+                <span style={{ color: "rgba(255,255,255,0.75)" }}>
+                  {sup} utilisateur{sup > 1 ? "s" : ""} au-delà de {plafond}
+                  <span style={{ color: "rgba(255,255,255,0.4)" }}>
+                    {" · " + euros(prixSup) + " chacun"}
+                  </span>
+                </span>
+                <span style={{ color: "#c8a96e", textAlign: "right" }}>{euros(coutSup)}</span>
+              </>
+            )}
+          </div>
+
+          {/* 🚨 CE QUI EST COMPRIS SE DIT, sans quoi le client croit payer
+              un socle et decouvrir des options ensuite. */}
+          <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px",
+            margin: "16px 0 0", lineHeight: "1.75" }}>
+            Fiches, étapes, filtres, recherche, relances, colonnes,
+            campagnes, journal d&apos;appels et export sont compris. Il
+            n&apos;y a aucun module payant.
+          </p>
+        </div>
+
+        {/* ---- CE QUI SE PAIE A L USAGE ----
+            ⚠️ PRESENTE A PART, ET PAS COMME UNE LIGNE DE FACTURE : ces
+            credits se paient D AVANCE. Les melanger au forfait laisserait
+            croire a une facture de fin de mois qui ne viendra jamais. */}
+        <h2 style={{ color: "#c8a96e", fontSize: "18px", margin: "28px 0 12px" }}>
+          Vos crédits
+        </h2>
+        <div style={CARTE}>
+          <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "14px",
+            margin: "0 0 14px", lineHeight: "1.75" }}>
+            Les SMS, les appels et les signatures se paient à l&apos;usage,
+            par crédits achetés d&apos;avance. Ils ne figurent pas sur votre
+            facture mensuelle.
+          </p>
+
+          <div style={{ display: "grid", gridTemplateColumns: "3fr 1fr",
+            gap: "8px 12px", fontSize: "15px" }}>
+            <span style={{ color: "rgba(255,255,255,0.75)" }}>
+              SMS restants
+              {!org || !org.sms_expediteur ? (
+                <span style={{ color: "#e8a33d", fontSize: "13px" }}>
+                  {" "}· expéditeur non réglé
+                </span>
+              ) : null}
+            </span>
+            <span style={{ color: smsCredits > 0 ? "#4caf50" : "#e8836a", textAlign: "right" }}>
+              {smsCredits}
+            </span>
+
+            <span style={{ color: "rgba(255,255,255,0.75)" }}>
+              Minutes d&apos;appel restantes
+              {!org || !org.tel_numero ? (
+                <span style={{ color: "#e8a33d", fontSize: "13px" }}>
+                  {" "}· numéro non réglé
+                </span>
+              ) : null}
+            </span>
+            <span style={{ color: minutes > 0 ? "#4caf50" : "#e8836a", textAlign: "right" }}>
+              {minutes}
+            </span>
+
+            {signature && (
+              <>
+                <span style={{ color: "rgba(255,255,255,0.75)" }}>
+                  Signature électronique, à l&apos;unité
+                </span>
+                <span style={{ color: "#c8a96e", textAlign: "right" }}>
+                  {euros(signature.montant)}
+                </span>
+              </>
+            )}
+          </div>
+
+          <p style={{ margin: "16px 0 0" }}>
+            <a href="/organisme/credits" style={{ color: "#c8a96e", fontSize: "14px", fontWeight: "bold" }}>
+              Commander des crédits &rarr;
+            </a>
+          </p>
+        </div>
+
+        <p style={{ color: "rgba(255,255,255,0.35)", fontSize: "13px",
+          lineHeight: "1.8", marginTop: "20px" }}>
+          Montants hors taxes. Pour ajouter ou retirer des utilisateurs,
+          écrivez-nous : le palier suit l&apos;effectif.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export default async function PageFacturationClient() {
   const session = sessionCourante();
 
@@ -153,6 +384,35 @@ export default async function PageFacturationClient() {
   }
 
   const t = session.tenantId;
+
+  // ══════════════════════════════════════════════════════════════════════
+  // 🚨 MR CRM N EST PAS MR LMS — CORRIGE LE 06/09.
+  //
+  // LE DEFAUT. Cet ecran est servi par mrlms.fr ET par mrcrm.fr : un seul
+  // fichier, un seul chemin. Il n avait jamais ete adapte, et un client
+  // Mr CRM voyait la facturation d un organisme de formation — 380 € par
+  // mois, 1 500 € de mise en place, des stagiaires actifs, une part
+  // catalogue. Rien de tout cela n existe chez Mr CRM.
+  //
+  // ⚠️ MR CRM N A AUCUNE MISE EN PLACE. Les 1 500 € sont pour Mr LMS seul.
+  // ⚠️ MR CRM N A NI STAGIAIRES NI CATALOGUE : son abonnement se compte en
+  // UTILISATEURS, et les SMS et appels se paient d avance par credits.
+  //
+  // 🚨 RETURN ANTICIPE, PAS DE BRANCHES DANS TOUT LE FICHIER. Le code LMS
+  // qui suit fonctionne et n est pas touche : s il fallait le parsemer de
+  // conditions, chaque correction future porterait sur deux produits a la
+  // fois.
+  //
+  // ⚠️ LE DOMAINE SE LIT DANS L EN-TETE `host`. Le middleware reecrit le
+  // chemin, mais l en-tete reste celui que le navigateur a envoye — c est
+  // la seule facon de savoir sous quelle marque on est servi.
+  // ══════════════════════════════════════════════════════════════════════
+  const entetes: any = await headers();
+  const hote = String(entetes.get("host") || "").toLowerCase();
+
+  if (hote.indexOf("mrcrm.fr") >= 0) {
+    return await facturationMrCrm(t);
+  }
 
   const { data: org } = await supabase
     .from("organismes_formation")
