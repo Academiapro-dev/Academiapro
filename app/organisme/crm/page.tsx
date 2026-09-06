@@ -1017,6 +1017,33 @@ export default function PageCRM() {
   // LA PAGINATION. Cinquante fiches par page : au-dela, la page devient
   // lente a afficher et impossible a parcourir. Le compteur dit combien de
   // fiches repondent aux filtres, pas seulement combien sont a l ecran.
+  // ══════════════════════════════════════════════════════════════════════
+  // CE QU IL Y A A FAIRE AUJOURD HUI — 06/09.
+  //
+  // 🚨 UN FILTRE QU ON NE PENSE PAS A TOUCHER N EXISTE PAS. « A rappeler
+  // aujourd hui » repond a la premiere question de la journee, mais il
+  // fallait le chercher parmi neuf autres. Le compte s affiche donc en
+  // HAUT DE L ECRAN, la ou on regarde en arrivant.
+  //
+  // ⚠️ IL INCLUT LES RAPPELS EN RETARD. Un rappel prevu hier et oublie
+  // doit rester visible : le masquer parce que sa date est passee, c est
+  // le perdre definitivement.
+  // ⚠️ MEME CALCUL QUE LE FILTRE `rappel_du_jour`. Si l un change, changer
+  // l autre — deux comptes qui divergent feraient douter des deux.
+  // ══════════════════════════════════════════════════════════════════════
+  const jourCourant = (function () {
+    const d = new Date();
+    return d.getFullYear() + "-"
+      + String(d.getMonth() + 1).padStart(2, "0") + "-"
+      + String(d.getDate()).padStart(2, "0");
+  })();
+
+  const rappelsDuJour = prospects.filter(function (p: any) {
+    const a = dernierAppel[String(p.email || "")];
+    if (!a || a.resultat !== "rappeler" || !a.rappeler_le) return false;
+    return String(a.rappeler_le).slice(0, 10) <= jourCourant;
+  }).length;
+
   const PAR_PAGE = 50;
   const totalFiltre = parFiltre2.length;
   const nbPages = Math.max(1, Math.ceil(totalFiltre / PAR_PAGE));
@@ -1091,6 +1118,28 @@ export default function PageCRM() {
         <div style={{ marginTop: "18px" }}>
           <Guide ecran="crm.prospects" />
         </div>
+
+        {/* 🚨 EN PREMIER, ET SEULEMENT S IL Y A QUELQUE CHOSE A FAIRE.
+            Une carte a zero tous les matins deviendrait un decor qu on ne
+            lit plus — et le jour ou elle porte un chiffre, on ne la verrait
+            pas davantage. */}
+        {rappelsDuJour > 0 && (
+          <div
+            onClick={() => { setFiltre2("rappel_du_jour"); setPage(1); }}
+            style={{ ...CARTE, marginTop: "24px", marginBottom: 0,
+              borderColor: "rgba(232,163,61,0.5)",
+              background: "rgba(232,163,61,0.07)", cursor: "pointer" }}>
+            <p style={{ color: "#e8a33d", fontSize: "17px", margin: 0, lineHeight: "1.6" }}>
+              <strong>{rappelsDuJour}</strong> personne{rappelsDuJour > 1 ? "s" : ""} à
+              rappeler aujourd&apos;hui
+            </p>
+            <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px",
+              margin: "5px 0 0", lineHeight: "1.6" }}>
+              Touchez pour n&apos;afficher que celles-là. Les rappels des jours
+              précédents y figurent aussi.
+            </p>
+          </div>
+        )}
 
         {stats && (
           <div style={{ display: "flex", gap: "14px", flexWrap: "wrap", margin: "24px 0" }}>
