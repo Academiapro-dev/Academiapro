@@ -160,6 +160,18 @@ export default function PageCRM() {
   const [aDuree, setADuree] = useState("");
   const [aNotesAppel, setANotesAppel] = useState("");
 
+  // 🆕 LE DERNIER APPEL DE CHAQUE FICHE — 06/09.
+  //
+  // 🚨 CHARGE EN UNE SEULE LECTURE, au demarrage. Le journal complet se lit
+  // fiche par fiche a la demande ; mais pour FILTRER « a rappeler » il faut
+  // connaitre l etat de toutes les fiches d un coup — sinon le filtre ne
+  // pourrait porter que sur celles deja ouvertes.
+  //
+  // ⚠️ ON NE GARDE QUE LE DERNIER APPEL PAR FICHE. C est lui qui dit ou on
+  // en est : un contact marque « a rappeler » il y a un mois puis
+  // « a repondu » hier n est plus a rappeler.
+  const [dernierAppel, setDernierAppel] = useState<any>({});
+
   const [nom, setNom] = useState("");
   const [email, setEmail] = useState("");
   const [telephone, setTelephone] = useState("");
@@ -219,6 +231,22 @@ export default function PageCRM() {
         const rp = await fetch("/api/organisme/campagnes", { cache: "no-store" });
         const dp = await rp.json();
         if (dp && dp.ok && Array.isArray(dp.campagnes)) setCampagnes(dp.campagnes);
+      } catch (e) {}
+
+      // Le journal recent, pour connaitre l etat d appel de chaque fiche.
+      // ⚠️ LA ROUTE REND LES APPELS DU PLUS RECENT AU PLUS ANCIEN : le
+      // premier rencontre pour une fiche est donc le dernier en date.
+      try {
+        const ra = await fetch("/api/organisme/appels", { cache: "no-store" });
+        const da = await ra.json();
+        if (da && da.ok && Array.isArray(da.appels)) {
+          const parFiche: any = {};
+          for (const a of da.appels) {
+            if (!a.fiche_email) continue;
+            if (!parFiche[a.fiche_email]) parFiche[a.fiche_email] = a;
+          }
+          setDernierAppel(parFiche);
+        }
       } catch (e) {}
     } catch (e: any) {
       setErreur("Lecture impossible : " + String(e));
@@ -487,6 +515,14 @@ export default function PageCRM() {
         setAResultat(""); setADuree(""); setANotesAppel("");
         setAppelOuvert("");
         await chargerAppels(p.email);
+        // ⚠️ L ETAT VISIBLE SUR LA LISTE DOIT SUIVRE, sans quoi une fiche
+        // qu on vient de marquer « a rappeler » n apparaitrait dans le
+        // filtre qu au prochain chargement.
+        if (d.appel) {
+          setDernierAppel(function (a: any) {
+            return { ...a, [p.email]: d.appel };
+          });
+        }
         // La fiche vient d etre touchee : la date remonte, comme en base.
         p.derniere_interaction = new Date().toISOString();
         setProspects(function (anciens: any[]) { return anciens.slice(); });
@@ -886,6 +922,10 @@ export default function PageCRM() {
     { cle: "jamais_relances", nom: "Jamais relancés" },
     { cle: "armees", nom: "Relance armée" },
     { cle: "desinscrits", nom: "Désinscrits" },
+    // 🆕 06/09 : l etat d appel. « A rappeler » est le plus utile de tous —
+    // c est la liste de ce qu on doit faire aujourd hui.
+    { cle: "a_rappeler", nom: "À rappeler" },
+    { cle: "jamais_appeles", nom: "Jamais appelés" },
   ]
     // ══════════════════════════════════════════════════════════════════
     // 🆕 LES FILTRES DES COLONNES PERSONNALISEES — 06/09.
@@ -929,6 +969,13 @@ export default function PageCRM() {
         if (filtre2 === "jamais_relances") return !p.relance_le;
         if (filtre2 === "armees") return !!p.relance_auto;
         if (filtre2 === "desinscrits") return !!p.desinscrit;
+        if (filtre2 === "a_rappeler") {
+          const a = dernierAppel[String(p.email || "")];
+          return !!a && a.resultat === "rappeler";
+        }
+        if (filtre2 === "jamais_appeles") {
+          return !dernierAppel[String(p.email || "")];
+        }
 
         // Les colonnes de l organisme, reconnaissables a leur prefixe.
         if (filtre2.indexOf("c:") === 0) {
@@ -1590,6 +1637,26 @@ export default function PageCRM() {
                         ══════════════════════════════════════════════════ */}
                     {p.telephone && p.email && (
                       <div style={{ marginTop: "8px" }}>
+                        {/* 🚨 L ETAT SE LIT SANS OUVRIR LE JOURNAL. Un
+                            contact « a rappeler » doit se voir en
+                            parcourant la liste : c est l information qu on
+                            cherche, et l ouvrir fiche par fiche pour la
+                            trouver reviendrait a ne jamais la voir. */}
+                        {dernierAppel[p.email] && (
+                          <span style={{ marginRight: "12px", fontSize: "12.5px",
+                            color: (RESULTATS_APPEL.filter(function (x) {
+                              return x.cle === dernierAppel[p.email].resultat;
+                            })[0] || { couleur: "rgba(255,255,255,0.4)" }).couleur }}>
+                            {(RESULTATS_APPEL.filter(function (x) {
+                              return x.cle === dernierAppel[p.email].resultat;
+                            })[0] || { nom: dernierAppel[p.email].resultat }).nom}
+                            <span style={{ color: "rgba(255,255,255,0.3)", marginLeft: "6px" }}>
+                              {dernierAppel[p.email].appele_le
+                                ? new Date(dernierAppel[p.email].appele_le).toLocaleDateString("fr-FR")
+                                : ""}
+                            </span>
+                          </span>
+                        )}
                         <button
                           onClick={() => {
                             const ouvre = appelOuvert !== p.email;
