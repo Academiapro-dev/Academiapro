@@ -506,6 +506,14 @@ export default function NavBar() {
               regle sur l organisme, et tant que les credits manquent. Il
               le dit clairement plutot que de laisser deviner. */}
           <a href="/organisme/sms" style={lienMenu}>SMS</a>
+          {/* 🆕 « TELEPHONE » AJOUTE LE 06/09, en meme temps que la
+              telephonie. L ecran montre le solde de minutes et le journal
+              complet des appels — le journal par fiche existe deja dans le
+              CRM, mais fiche par fiche : on ne pouvait pas compter ce
+              qu on avait consomme sans ouvrir trente fiches.
+              ⚠️ L APPEL SE LANCE DEPUIS UNE FICHE, pas depuis cet ecran :
+              un numero compose sans contexte ne sert a rien. */}
+          <a href="/organisme/telephone" style={lienMenu}>Téléphone</a>
           <a href="/organisme/facturation" style={lienMenu}>Ma facturation</a>
           <a href="/organisme/signatures" style={lienMenu}>Signatures</a>
         </nav>
