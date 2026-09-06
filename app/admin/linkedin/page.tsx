@@ -564,6 +564,14 @@ export default function PageLinkedin() {
   // corrige, dans l autre sens.
   const [aMotif, setAMotif] = useState("");
 
+  // 🆕 LE PRODUIT SECONDAIRE EN COURS D ECRITURE — 06/09.
+  //
+  // Quand on prepare le message d un produit secondaire, la fiche garde sa
+  // campagne principale : c est SEULEMENT le texte affiche qui change de
+  // voix. Cet etat retient lequel, le temps de l ecriture.
+  // Forme : "identifiant-de-fiche|produit", vide sinon.
+  const [ecritProduit, setEcritProduit] = useState("");
+
   // 🆕 LA REGULARISATION DATEE — 30/08. Repliee par defaut ; la date
   // proposee est hier, le cas le plus frequent.
   const [regulOuverte, setRegulOuverte] = useState(false);
@@ -1413,6 +1421,125 @@ export default function PageLinkedin() {
 
   function avecNoteDe(l: any) {
     return l.linkedin_statut === "invite" || l.linkedin_statut === "accepte";
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
+  // LES PRODUITS SECONDAIRES D UNE FICHE — 06/09.
+  //
+  // 🚨 SEPT JOURS ENTRE DEUX MESSAGES A LA MEME PERSONNE. Decision de
+  // Jacques du 06/09, le meme delai que ses relances. Ecrire deux fois en
+  // trois jours a quelqu un qui vient d accepter une invitation se lit
+  // comme du harcelement, quel que soit le produit.
+  //
+  // ⚠️ LE DELAI COURT DEPUIS LE DERNIER MESSAGE, QUEL QU IL SOIT — le
+  // premier comme celui d un autre produit. On prend donc la date la plus
+  // RECENTE parmi toutes. Compter produit par produit laisserait partir
+  // trois messages le meme jour, un par produit.
+  //
+  // ⚠️ LA COLONNE `produits` N EXISTE QUE SUR LA TABLE `crm`. Une fiche
+  // venue d une base de prospection n en a pas : la fonction rend une
+  // liste vide, et rien ne s affiche. C est voulu — une fiche de base
+  // froide porte un seul produit, celui de sa base.
+  // ══════════════════════════════════════════════════════════════════════
+  const DELAI_ENTRE_MESSAGES = 7;
+
+  // La date du dernier message envoye a cette personne, tous produits
+  // confondus. Rend null si aucun n est jamais parti.
+  function dernierMessageDe(l: any): number | null {
+    let plusRecent: number | null = null;
+
+    function retenir(d: any) {
+      if (!d) return;
+      try {
+        const t = new Date(d).getTime();
+        if (!isNaN(t) && (plusRecent === null || t > plusRecent)) plusRecent = t;
+      } catch (e) {}
+    }
+
+    retenir(l.linkedin_relance_le);
+    const p = l.produits;
+    if (p && typeof p === "object") {
+      for (const cle of Object.keys(p)) retenir(p[cle]);
+    }
+    return plusRecent;
+  }
+
+  // Les produits secondaires d une fiche, avec leur etat.
+  //   envoye : le message est deja parti sous ce produit
+  //   jours  : ce qu il reste a attendre (0 = pret a ecrire)
+  function produitsDe(l: any): any[] {
+    const p = l.produits;
+    if (!p || typeof p !== "object") return [];
+
+    const dernier = dernierMessageDe(l);
+    const attente = dernier === null
+      ? 0
+      : Math.max(0, DELAI_ENTRE_MESSAGES
+          - Math.floor((Date.now() - dernier) / 86400000));
+
+    const sortie: any[] = [];
+    for (const cle of ORDRE_PRODUITS) {
+      if (!(cle in p)) continue;
+      if (cle === campagneDe(l)) continue;
+      sortie.push({
+        cle: cle,
+        nom: PRODUITS[cle] ? PRODUITS[cle].nom : cle,
+        couleur: PRODUITS[cle] ? PRODUITS[cle].couleur : "#c8a96e",
+        envoye: !!p[cle],
+        envoye_le: p[cle] || null,
+        jours: attente,
+      });
+    }
+    return sortie;
+  }
+
+  // Ceux qui attendent encore leur message, delai echu.
+  function produitsPrets(l: any): any[] {
+    return produitsDe(l).filter(function (x: any) {
+      return !x.envoye && x.jours === 0;
+    });
+  }
+
+  // 🚨 MARQUER UN PRODUIT SECONDAIRE COMME ENVOYE.
+  //
+  // ⚠️ ON N ECRIT PAS DANS `linkedin_relance_le` : cette colonne porte le
+  // message de la campagne PRINCIPALE, et l ecraser ferait disparaitre la
+  // fiche des compteurs de « Messages envoyes ». La date va dans la
+  // colonne `produits`, a la cle du produit.
+  //
+  // ⚠️ L AFFICHAGE SUIT IMMEDIATEMENT, avant la reponse du serveur. En cas
+  // d echec, on remet la valeur d avant : sans cela, un produit
+  // resterait marque envoye alors que rien n est parti.
+  async function marquerProduitEnvoye(l: any, cle: string) {
+    const avant = l.produits && typeof l.produits === "object" ? { ...l.produits } : {};
+    const neuf: any = { ...avant };
+    neuf[cle] = new Date().toISOString();
+
+    l.produits = neuf;
+    setLignes(function (anciennes: any[]) { return anciennes.slice(); });
+    setEcritProduit("");
+
+    try {
+      const d = await appeler({
+        action: "modifier",
+        base: l.base || "manuel",
+        id: l.id,
+        produits: neuf,
+      });
+      if (!d.ok) {
+        l.produits = avant;
+        setLignes(function (anciennes: any[]) { return anciennes.slice(); });
+        setErreur(d.erreur || "Enregistrement impossible.");
+      } else {
+        const nom = PRODUITS[cle] ? PRODUITS[cle].nom : cle;
+        setMessage("Message " + nom + " marque envoye. Prochain produit dans "
+          + DELAI_ENTRE_MESSAGES + " jours.");
+      }
+    } catch (e: any) {
+      l.produits = avant;
+      setLignes(function (anciennes: any[]) { return anciennes.slice(); });
+      setErreur("Enregistrement impossible : " + String(e));
+    }
   }
 
   // Le nom affiche partout : capitalise, jamais en capitales brutes.
@@ -3929,6 +4056,118 @@ export default function PageLinkedin() {
                               }}>
                               Marqué par erreur ? Remettre en attente
                             </button>
+                          </div>
+                        )}
+
+                        {/* ══════════════════════════════════════════════
+                            LES PRODUITS SECONDAIRES — 06/09.
+
+                            🚨 CE QUE CE BLOC MONTRE : les autres produits
+                            retenus pour cette personne au moment de sa
+                            creation, et ou chacun en est. Sans lui, on
+                            cochait des produits que plus rien ne
+                            rappelait — la fonction existait sans servir.
+
+                            ⚠️ IL NE S AFFICHE QUE DANS « Messages
+                            envoyes ». Ailleurs, le premier message n est
+                            pas encore parti : proposer le second n aurait
+                            aucun sens.
+
+                            ⚠️ ET SEULEMENT SI LA FICHE PORTE DES PRODUITS.
+                            Une fiche a une seule campagne n affiche rien,
+                            et son parcours ne change pas d un pouce.
+                            ══════════════════════════════════════════════ */}
+                        {onglet === "envoyes" && produitsDe(l).length > 0 && (
+                          <div style={{ marginTop: "12px", padding: "12px 14px",
+                            background: "rgba(255,255,255,0.025)",
+                            border: "1px solid rgba(255,255,255,0.08)",
+                            borderRadius: "9px" }}>
+                            <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "12px",
+                              margin: "0 0 9px", letterSpacing: "0.5px" }}>
+                              AUTRES PRODUITS RETENUS
+                            </p>
+                            {produitsDe(l).map(function (x: any) {
+                              const enEcriture = ecritProduit === cleDe(l) + "|" + x.cle;
+                              return (
+                                <div key={x.cle} style={{ marginBottom: "8px" }}>
+                                  <div style={{ display: "flex", gap: "9px",
+                                    alignItems: "center", flexWrap: "wrap" }}>
+                                    <span style={{
+                                      padding: "2px 9px", borderRadius: "20px",
+                                      fontSize: "11px", background: x.couleur + "26",
+                                      color: x.couleur,
+                                      border: "1px solid " + x.couleur + "8c",
+                                    }}>
+                                      {x.nom}
+                                    </span>
+
+                                    {x.envoye ? (
+                                      <span style={{ color: "rgba(255,255,255,0.35)", fontSize: "12px" }}>
+                                        écrit le {jolieDate(x.envoye_le)}
+                                      </span>
+                                    ) : x.jours > 0 ? (
+                                      /* ⚠️ LE DELAI SE COMPTE DEPUIS LE
+                                         DERNIER MESSAGE, quel qu il soit :
+                                         sans cela, trois produits
+                                         partiraient le meme jour. */
+                                      <span style={{ color: "rgba(255,255,255,0.35)", fontSize: "12px" }}>
+                                        dans {x.jours} jour{x.jours > 1 ? "s" : ""}
+                                      </span>
+                                    ) : (
+                                      <button
+                                        onClick={() => {
+                                          setEcritProduit(enEcriture ? "" : cleDe(l) + "|" + x.cle);
+                                        }}
+                                        style={{
+                                          background: "transparent",
+                                          border: "1px solid " + x.couleur + "66",
+                                          color: x.couleur, borderRadius: "7px",
+                                          padding: "5px 12px", fontSize: "12.5px",
+                                          fontFamily: "Georgia,serif", cursor: "pointer",
+                                        }}>
+                                        {enEcriture ? "Fermer" : "Écrire ce message"}
+                                      </button>
+                                    )}
+                                  </div>
+
+                                  {/* Le message dans la voix du produit.
+                                      ⚠️ LA FICHE NE CHANGE PAS DE CAMPAGNE :
+                                      seul le TEXTE affiche change. La
+                                      campagne principale reste celle du
+                                      premier message, et l historique avec
+                                      elle. */}
+                                  {enEcriture && (
+                                    <div style={{ marginTop: "9px" }}>
+                                      <textarea
+                                        value={secondMessage(l.dirigeant_prenom, x.cle)}
+                                        readOnly
+                                        rows={5}
+                                        style={{ ...CHAMP, width: "100%",
+                                          boxSizing: "border-box", fontSize: "13px",
+                                          lineHeight: "1.65", marginBottom: "8px" }}
+                                      />
+                                      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                                        <button
+                                          onClick={() => copier(
+                                            secondMessage(l.dirigeant_prenom, x.cle),
+                                            cleDe(l) + "|" + x.cle
+                                          )}
+                                          style={{ ...BOUTON, flex: "1 1 160px", fontSize: "13px" }}>
+                                          {copie === cleDe(l) + "|" + x.cle ? "Copié" : "Copier le message"}
+                                        </button>
+                                        <button
+                                          onClick={() => marquerProduitEnvoye(l, x.cle)}
+                                          style={{ ...BOUTON, flex: "1 1 160px", fontSize: "13px",
+                                            background: x.couleur, color: "#050508",
+                                            border: "none", fontWeight: "bold" }}>
+                                          Message envoyé
+                                        </button>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
                           </div>
                         )}
 
