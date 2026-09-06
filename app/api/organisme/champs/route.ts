@@ -127,6 +127,10 @@ export async function GET() {
     organisme: orga.raison_sociale || "",
     tel_active: telNumero.length > 0 && minutes >= 60,
     tel_numero: telNumero || null,
+    // 🆕 LE SOLDE EXACT, POUR L ECRAN /organisme/telephone — 06/09.
+    // ⚠️ EN SECONDES, comme en base : Plivo facture a la seconde, et
+    // arrondir ici ferait diverger l affichage du decompte reel.
+    tel_credits_sec: minutes,
   });
 }
 
