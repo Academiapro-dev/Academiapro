@@ -354,16 +354,27 @@ function messageRelance(prenom: string, societe: string, nbFormations: number, c
     // LLC, voici ce qui m a manque ». Elle ne parlait qu a ceux qui en ont
     // deja une. Or Jacques l a fait remarquer : « quelqu un qui possede une
     // LLC reste tres discret, il n aime pas qu on lui dise qu il a fait ca
-    // pour ne pas payer les impots ». Cette cible ne se signale pas, et on
-    // ne peut donc pas la viser a coup sur.
+    // pour ne pas payer les impots ». Cette cible ne se signale pas.
     //
     // ⚠️ LA DERNIERE PHRASE — « de pres ou de loin » — EST LE PIVOT. Elle
     // laisse repondre celui qui a une societe comme celui qui y pense, sans
     // qu aucun des deux ait a se declarer.
     //
-    // ⚠️ LES DEUX MONTANTS SONT LA POUR ETRE VERIFIES. La Floride et le
-    // 5472 sont les deux chiffres qui frappent ; les citer donne au lecteur
-    // de quoi controler ce qu on avance.
+    // 🆕 CORRIGE LE 06/09 APRES VERIFICATION DE L ECRAN REEL. Le message
+    // disait que la plateforme SUIVAIT les obligations. Elle fait plus :
+    // elle PREREMPLIT les documents. Sur la fiche d une societe, quatre
+    // boutons produisent l Annual Report de l Etat, le Form 5472, le 1120
+    // pro forma, le 7004, et le CERFA 3916 en PDF officiel.
+    // ⚠️ NE PAS SOUS-VENDRE CE QUI EXISTE : c est ce qui distingue cet
+    // outil d un simple calendrier d echeances.
+    //
+    // ⚠️ LE 3916 EST L ANGLE QUE PERSONNE N A. Un Francais avec une LLC a
+    // un compte bancaire americain, donc l obligation de le declarer —
+    // article 1649 A du CGI, 1 500 € par compte omis. Les prestataires de
+    // creation n en parlent jamais.
+    //
+    // ⚠️ LES TROIS MONTANTS SONT VERIFIABLES. Les citer donne au lecteur de
+    // quoi controler ce qu on avance.
     return salut
       + "Merci d'avoir accepté mon invitation.\n\n"
       + "Créer une société américaine est simple. Ce qui l'est moins, c'est "
@@ -374,11 +385,15 @@ function messageRelance(prenom: string, societe: string, nbFormations: number, c
       + "réponse, je tombais sur des sources contradictoires ou sur des "
       + "prestataires qui vendaient la création et se désintéressaient de la "
       + "suite.\n\n"
-      + "C'est pour ça que j'ai développé une plateforme qui suit ces "
-      + "obligations état par état — dates, montants, document à déposer — "
-      + "chaque règle sourcée officiellement. L'oubli se paie cher : 400 "
-      + "dollars en Floride dès le lendemain de l'échéance, 25 000 dollars "
-      + "pour un formulaire 5472 non déposé.\n\n"
+      + "C'est pour ça que j'ai développé une plateforme qui ne se contente "
+      + "pas de rappeler les échéances : elle prépare les documents. Le "
+      + "rapport annuel de l'État, le formulaire 5472 et son 1120, "
+      + "l'extension 7004 si vous avez besoin de temps, et le CERFA 3916 "
+      + "pour votre compte bancaire américain — préremplis à partir de votre "
+      + "société.\n\n"
+      + "L'oubli se paie cher : 25 000 dollars pour un 5472 non déposé, "
+      + "1 500 euros par compte étranger non déclaré, 400 dollars en Floride "
+      + "dès le lendemain de l'échéance.\n\n"
       + "Si le sujet vous concerne, de près ou de loin, j'échange volontiers "
       + "un quart d'heure avec vous.\n\n"
       + "Bien à vous,\nJacques Lalou\nmysterllc.com";
