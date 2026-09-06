@@ -56,13 +56,53 @@ const CHAMPS_PROSPECT = [
 
 const OFFRES = ["sans_catalogue", "avec_catalogue"];
 
+// ══════════════════════════════════════════════════════════════════════════
+// LE PERIMETRE EUROPEEN — 06/09, repris a l identique de /api/mrcrm/devis.
+//
+// 🚨 LA TELEPHONIE NE SE PROPOSE QU A UN PROSPECT EUROPEEN. Hors EEA, la
+// minute coute jusqu a sept fois le prix facture : chaque appel serait une
+// perte seche. Mieux vaut ne rien proposer que refuser ensuite.
+//
+// ⚠️ UN PAYS NON RENSEIGNE EST TRAITE COMME EUROPEEN. On ne retire pas une
+// option avant de savoir : le prospect corrigera son pays, et l option
+// disparaitra d elle-meme s il n y a pas droit.
+//
+// ⚠️ LE ROYAUME-UNI FIGURE ICI mais PAS dans la liste des indicatifs SMS.
+// La difference est voulue et n est pas une incoherence : ici il s agit du
+// pays du CLIENT — d ou part l appel, et l origination britannique reste a
+// tarif europeen. Dans la route SMS, il s agit du DESTINATAIRE, et un
+// mobile britannique a quitte le regime europeen depuis le Brexit.
+// ══════════════════════════════════════════════════════════════════════════
+const PAYS_EEA = [
+  "france", "allemagne", "autriche", "belgique", "bulgarie", "chypre",
+  "croatie", "danemark", "espagne", "estonie", "finlande", "grece",
+  "hongrie", "irlande", "islande", "italie", "lettonie", "liechtenstein",
+  "lituanie", "luxembourg", "malte", "norvege", "pays-bas", "pologne",
+  "portugal", "roumanie", "slovaquie", "slovenie", "suede", "tchequie",
+  "republique tcheque", "suisse", "royaume-uni",
+];
+
+function sansAccent(t: string): string {
+  return String(t || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+function estEuropeen(pays: any): boolean {
+  const p = sansAccent(String(pays || ""));
+  if (!p) return true;
+  return PAYS_EEA.indexOf(p) >= 0;
+}
+
 function texte(v: any, max: number): string {
   return String(v === null || v === undefined ? "" : v).trim().slice(0, max);
 }
 
 // LA GRILLE, RANGEE POUR ETRE LUE. Chaque poste devient une entree simple ;
 // les paliers de stagiaires restent une liste ordonnee.
-function rangerTarifs(lignes: any[], offre: string) {
+function rangerTarifs(lignes: any[], offre: string, europeen: boolean) {
   const dedans = (lignes || []).filter(function (l: any) { return l.offre === offre; });
 
   function poste(nom: string) {
@@ -125,6 +165,42 @@ function rangerTarifs(lignes: any[], offre: string) {
       };
     });
 
+  // ══════════════════════════════════════════════════════════════════════
+  // LE SMS ET LES APPELS — AJOUTES A LA GRILLE LMS LE 06/09.
+  //
+  // MEMES PRIX QUE MR CRM : meme fournisseur, meme cout. Les faire diverger
+  // creerait deux verites a maintenir pour un gain nul.
+  //
+  // 🚨 LA TELEPHONIE PORTE `perimetre = 'eea'`. Hors Europe, la minute
+  // coute jusqu a sept fois le prix facture : la ligne n est renvoyee que
+  // pour un prospect europeen, et l ecran ne l affiche pas aux autres.
+  // Proposer une option qu on refusera ensuite est pire que ne rien
+  // proposer.
+  //
+  // ⚠️ LE SMS, LUI, PORTE `perimetre = 'tous'` DANS LA TABLE mais la route
+  // d envoi refuse les numeros hors Europe. La difference est voulue :
+  // c est le DESTINATAIRE qui est limite, pas le client. Un organisme
+  // suisse ou belge achete des SMS comme un francais.
+  // ══════════════════════════════════════════════════════════════════════
+  function lotsDe(nom: string) {
+    return dedans
+      .filter(function (l: any) { return l.poste === nom; })
+      .sort(function (a: any, b: any) { return (a.seuil_min || 0) - (b.seuil_min || 0); })
+      .map(function (l: any) {
+        const nombre = Number(l.seuil_min) || 0;
+        const prix = Number(l.montant) || 0;
+        return {
+          libelle: l.libelle,
+          nombre: nombre,
+          prix: prix,
+          unitaire: nombre > 0 ? Math.round((prix / nombre) * 10000) / 10000 : 0,
+        };
+      });
+  }
+
+  const sms = poste("sms");
+  const tel = poste("telephonie");
+
   return {
     mise_en_place: misePlace ? Number(misePlace.montant) || 0 : 0,
     abonnement: abonnement ? Number(abonnement.montant) || 0 : 0,
@@ -140,6 +216,14 @@ function rangerTarifs(lignes: any[], offre: string) {
     signatures_offertes: signatureOfferte ? Number(signatureOfferte.seuil_min) || 0 : 0,
     signatures_offertes_libelle: signatureOfferte ? signatureOfferte.libelle : "",
     signatures_offertes_commentaire: signatureOfferte ? signatureOfferte.commentaire || "" : "",
+
+    sms: sms ? Number(sms.montant) || 0 : 0,
+    sms_lots: lotsDe("sms_lot"),
+    sms_disponible: !!sms,
+
+    telephonie: europeen && tel ? Number(tel.montant) || 0 : 0,
+    telephonie_lots: europeen ? lotsDe("telephonie_lot") : [],
+    telephonie_disponible: europeen && !!tel,
   };
 }
 
@@ -238,6 +322,9 @@ export async function GET(req: NextRequest) {
     }
 
     const lignes = await lireTarifs();
+    // ⚠️ CALCULE AVANT LA REPONSE : sans lui, la telephonie serait proposee
+    // a un prospect hors Europe, ou l appel serait refuse.
+    const europeen = estEuropeen(prospect.pays);
 
     return NextResponse.json({
       ok: true,
@@ -259,10 +346,16 @@ export async function GET(req: NextRequest) {
         duree_moyenne_mois: prospect.duree_moyenne_mois || 3,
         statut: prospect.statut || "invite",
         numero_devis: prospect.numero_devis || "",
+        // 🆕 06/09 : les deux options d usage. Memes colonnes que Mr CRM —
+        // `prospects_devis` est commune aux deux produits.
+        telephonie: !!prospect.telephonie,
+        sms: !!prospect.sms,
+        minutes_estimees: prospect.minutes_estimees || 0,
+        sms_estimes: prospect.sms_estimes || 0,
       },
       tarifs: {
-        sans_catalogue: rangerTarifs(lignes, "sans_catalogue"),
-        avec_catalogue: rangerTarifs(lignes, "avec_catalogue"),
+        sans_catalogue: rangerTarifs(lignes, "sans_catalogue", europeen),
+        avec_catalogue: rangerTarifs(lignes, "avec_catalogue", europeen),
       },
     });
   } catch (e: any) {
@@ -327,6 +420,26 @@ export async function POST(req: NextRequest) {
     const duree = parseInt(String(corps.duree_moyenne_mois || ""), 10);
     maj.duree_moyenne_mois = isNaN(duree) || duree < 1 ? null : Math.min(duree, 60);
 
+    // ══════════════════════════════════════════════════════════════════
+    // LES DEUX OPTIONS D USAGE — 06/09.
+    //
+    // 🚨 LA TELEPHONIE EST FORCEE A FAUX HORS EUROPE, meme si la case
+    // arrive cochee. Le controle est DANS LA ROUTE, pas seulement dans
+    // l ecran : un prospect qui change son pays apres avoir coche
+    // garderait sinon une option qu on lui refuserait ensuite.
+    //
+    // ⚠️ LES ESTIMATIONS SONT BORNEES. Une valeur aberrante ne casserait
+    // rien, mais produirait un devis a six chiffres qui ferait fuir.
+    // ══════════════════════════════════════════════════════════════════
+    maj.telephonie = estEuropeen(maj.pays || prospect.pays) && corps.telephonie === true;
+    maj.sms = corps.sms === true;
+
+    const mn = parseInt(String(corps.minutes_estimees || ""), 10);
+    maj.minutes_estimees = isNaN(mn) || mn < 0 ? 0 : Math.min(mn, 1000000);
+
+    const nbSms = parseInt(String(corps.sms_estimes || ""), 10);
+    maj.sms_estimes = isNaN(nbSms) || nbSms < 0 ? 0 : Math.min(nbSms, 1000000);
+
     if ((prospect.statut || "invite") === "invite") maj.statut = "renseigne";
 
     // LE NUMERO DE DEVIS EST ATTRIBUE UNE FOIS, ET NE BOUGE PLUS. Un devis
@@ -358,7 +471,8 @@ export async function POST(req: NextRequest) {
 
     // LE DEVIS EST RECALCULE ICI, A PARTIR DE LA BASE.
     const lignes = await lireTarifs();
-    const g = rangerTarifs(lignes, offre);
+    const europeen = estEuropeen(maj.pays || prospect.pays);
+    const g = rangerTarifs(lignes, offre, europeen);
 
     const nbActifs = maj.stagiaires_estimes || 0;
     const cout = coutStagiaires(nbActifs, g.paliers);
@@ -407,6 +521,24 @@ export async function POST(req: NextRequest) {
           ? g.signatures_offertes
           : 0,
         signatures_offertes_commentaire: g.signatures_offertes_commentaire,
+
+        // ⚠️ LES DEUX OPTIONS N ENTRENT PAS DANS `mensuel_total` : elles se
+        // paient a l usage, et un total qui les inclurait ferait croire a
+        // un engagement mensuel ferme. Le devis les presente a part.
+        telephonie_disponible: g.telephonie_disponible,
+        telephonie: g.telephonie,
+        telephonie_lots: g.telephonie_lots,
+        telephonie_active: maj.telephonie,
+        minutes: maj.minutes_estimees,
+        cout_telephonie: Math.round(
+          (maj.telephonie ? maj.minutes_estimees * g.telephonie : 0) * 100) / 100,
+
+        sms: g.sms,
+        sms_lots: g.sms_lots,
+        sms_actif: maj.sms,
+        sms_nombre: maj.sms_estimes,
+        cout_sms: Math.round(
+          (maj.sms ? maj.sms_estimes * g.sms : 0) * 100) / 100,
 
         stagiaires: nbActifs,
         stagiaires_detail: cout.detail,
