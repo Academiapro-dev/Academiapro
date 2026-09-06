@@ -362,18 +362,63 @@ export default async function ArticleMysterLLC({ params }: any) {
 
         {rendu}
 
+        {/* ══════════════════════════════════════════════════════════════
+            LE BLOC DE FIN D ARTICLE — REECRIT LE 06/09.
+
+            🚨 IL EST ICI ET NON DANS CHAQUE ARTICLE. Un seul endroit a
+            modifier : tout article present et futur le porte
+            automatiquement, sans qu on ait a le recopier.
+
+            🚨 EN FIN D ARTICLE, JAMAIS AU DEBUT. Le lecteur arrive d un
+            moteur avec une question ; lui proposer quelque chose avant de
+            lui repondre le fait partir. A la fin, il a obtenu sa reponse et
+            vu qu on maitrise le sujet.
+
+            ⚠️ CE QUE DISAIT L ANCIEN TEXTE : « suit les obligations,
+            agenda, formulaires pre-remplis, relances ». Exact mais plat —
+            une liste de fonctions, pas une promesse.
+
+            🚨 CE QU IL DIT MAINTENANT, ET C EST LE POINT DE JACQUES (06/09) :
+            la charge administrative est PRISE EN CHARGE, jusqu a
+            l expert-comptable qui n a plus qu a controler et deposer.
+            ⛔ NE JAMAIS ECRIRE QUE LA PLATEFORME DEPOSE LES DOCUMENTS :
+            c est le professionnel qui les transmet aux administrations.
+            Le dire autrement serait promettre une conformite qu on ne
+            garantit pas.
+            ══════════════════════════════════════════════════════════════ */}
         <div style={{ marginTop: "50px",
           borderTop: "1px solid rgba(200,169,110,0.2)",
           paddingTop: "30px" }}>
+          <p style={{ color: OR, fontSize: "12px", letterSpacing: "3px",
+            margin: "0 0 14px" }}>
+            MYSTERLLC
+          </p>
+          <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "16px",
+            lineHeight: "1.85", margin: "0 0 16px" }}>
+            Toute cette charge administrative — savoir ce qui est dû, à
+            quelle date, sous quelle forme, et préparer chaque document —
+            MysterLLC la prend à votre place.
+          </p>
+          <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "15px",
+            lineHeight: "1.85", margin: "0 0 16px" }}>
+            La plateforme suit vos échéances état par état et au niveau
+            fédéral, avec les montants et la source officielle de chaque
+            règle. Elle prépare les documents préremplis à partir des
+            informations de votre société : rapport annuel, formulaire 5472,
+            1120 pro forma, 7004, et le CERFA 3916 pour votre compte
+            bancaire.
+          </p>
+          <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "15px",
+            lineHeight: "1.85", margin: "0 0 24px" }}>
+            Vous n&apos;avez plus qu&apos;à les transmettre à votre
+            expert-comptable, qui les contrôle, les valide et les dépose
+            auprès des administrations. Il reçoit un dossier constitué au
+            lieu d&apos;une liste de questions.
+          </p>
           {/* MysterLLC n a pas de parcours d inscription en ligne : les
               comptes se créent après entretien. Le bouton mène donc à la
               page de contact — et non plus à un lien mailto, qui ne fait
               rien sur un appareil sans messagerie configurée. */}
-          <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "15px",
-            lineHeight: "1.8", margin: "0 0 18px" }}>
-            MysterLLC suit les obligations américaines de vos sociétés :
-            agenda des échéances, formulaires pré-remplis, relances.
-          </p>
           <a href={SITE + "/contact"}
             style={{ display: "inline-block", background: OR,
               color: NOIR, padding: "15px 30px", borderRadius: "9px",
