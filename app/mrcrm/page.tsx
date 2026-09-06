@@ -25,10 +25,31 @@
 // messagerie. Rien ne revient dans l outil. Il n y a ni journal d appels,
 // ni SMS, ni courriels rattaches.
 //
-// La telephonie ne sera construite qu au premier client qui coche
-// l option — decision de Jacques du 04/09. ⚠️ NE RIEN REECRIRE ICI SUR CE
-// SUJET AVANT QUE LE CODE EXISTE. Une promesse de vitrine doit survivre a
-// l ouverture de l outil, pas seulement a la lecture du devis.
+// 🆕🆕 LA TELEPHONIE EXISTE DEPUIS LE 06/09 — la mention revient.
+//
+// CE QUI A ETE CONSTRUIT : /api/organisme/appeler (lance l appel via
+// Plivo), /api/organisme/appeler/repondre (met les deux en relation),
+// /api/organisme/appeler/fin (recoit la duree et decompte le credit), et
+// le bouton « Appeler » sur chaque fiche du CRM.
+//
+// 🚨 DEUX JAMBES, ET LA VITRINE DOIT LE DIRE. Le client n a pas de
+// standard : SON telephone sonne d abord, il decroche, et le contact est
+// appele. Ecrire « appelez d un clic » sans le dire ferait attendre autre
+// chose que ce qui arrive.
+//
+// ⚠️ LE NUMERO AFFICHE CHEZ LE CONTACT EST CELUI DE L ORGANISME, pas celui
+// de Plivo : c est ce qui fait qu on rappelle.
+//
+// ⚠️ LA TELEPHONIE N EST PAS COMPRISE DANS L ABONNEMENT : elle se paie a
+// la minute, comme le dit le devis. La vitrine ne porte aucun prix — la
+// regle n a pas change.
+//
+// 🚨 CE QU ON NE PEUT TOUJOURS PAS ECRIRE : « appels illimites », « standard
+// telephonique », « votre numero professionnel inclus ». Le numero se
+// regle a la mise en place, et chaque minute se decompte d un credit.
+//
+// ⚠️ HORS EUROPE, LES APPELS SONT REFUSES — meme regle que pour les SMS.
+// Ne pas ecrire « appelez partout dans le monde ».
 //
 // 🆕🆕 LE JOURNAL D APPELS EXISTE DEPUIS LE 06/09 — la mention revient.
 //
@@ -159,6 +180,11 @@ const CE_QUI_EST_FAIT = [
     titre: "Ce qui s'est dit au téléphone",
     texte:
       "Après un appel, vous notez en deux gestes comment il s'est terminé et ce qui a été dit. La fiche s'en souvient : la prochaine fois que vous l'ouvrez, vous savez où vous en étiez.",
+  },
+  {
+    titre: "Appeler depuis la fiche",
+    texte:
+      "Vous cliquez, votre téléphone sonne, et votre correspondant est appelé aussitôt — votre numéro s'affiche chez lui, pas un numéro inconnu. La durée s'inscrit au journal sans que vous ayez rien à noter.",
   },
   {
     titre: "Une relance vous est proposée",
