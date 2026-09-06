@@ -159,6 +159,7 @@ export default function PageCRM() {
   const [aResultat, setAResultat] = useState("");
   const [aDuree, setADuree] = useState("");
   const [aNotesAppel, setANotesAppel] = useState("");
+  const [aRappelLe, setARappelLe] = useState("");
 
   // 🆕 LE DERNIER APPEL DE CHAQUE FICHE — 06/09.
   //
@@ -508,11 +509,12 @@ export default function PageCRM() {
           resultat: aResultat,
           duree_min: aDuree,
           notes: aNotesAppel,
+          rappeler_le: aRappelLe,
         }),
       });
       const d = await r.json();
       if (d && d.ok) {
-        setAResultat(""); setADuree(""); setANotesAppel("");
+        setAResultat(""); setADuree(""); setANotesAppel(""); setARappelLe("");
         setAppelOuvert("");
         await chargerAppels(p.email);
         // ⚠️ L ETAT VISIBLE SUR LA LISTE DOIT SUIVRE, sans quoi une fiche
@@ -924,6 +926,10 @@ export default function PageCRM() {
     { cle: "desinscrits", nom: "Désinscrits" },
     // 🆕 06/09 : l etat d appel. « A rappeler » est le plus utile de tous —
     // c est la liste de ce qu on doit faire aujourd hui.
+    // 🚨 LE FILTRE LE PLUS UTILE DU CRM : ce qu il y a a faire aujourd hui.
+    // Il retient les rappels dont la date est passee OU tombe aujourd hui —
+    // un rappel oublie hier ne doit pas disparaitre de la liste.
+    { cle: "rappel_du_jour", nom: "À rappeler aujourd'hui" },
     { cle: "a_rappeler", nom: "À rappeler" },
     { cle: "jamais_appeles", nom: "Jamais appelés" },
   ]
@@ -972,6 +978,19 @@ export default function PageCRM() {
         if (filtre2 === "a_rappeler") {
           const a = dernierAppel[String(p.email || "")];
           return !!a && a.resultat === "rappeler";
+        }
+        if (filtre2 === "rappel_du_jour") {
+          const a = dernierAppel[String(p.email || "")];
+          if (!a || a.resultat !== "rappeler" || !a.rappeler_le) return false;
+          // ⚠️ COMPARAISON EN TEXTE, PAS EN DATE. `rappeler_le` est une
+          // date sans heure ; la convertir en objet Date la ramenerait a
+          // minuit UTC, et un rappel du jour disparaitrait le matin en
+          // heure francaise.
+          const aujourdhui = new Date();
+          const jour = aujourdhui.getFullYear() + "-"
+            + String(aujourdhui.getMonth() + 1).padStart(2, "0") + "-"
+            + String(aujourdhui.getDate()).padStart(2, "0");
+          return String(a.rappeler_le).slice(0, 10) <= jour;
         }
         if (filtre2 === "jamais_appeles") {
           return !dernierAppel[String(p.email || "")];
@@ -1661,7 +1680,7 @@ export default function PageCRM() {
                           onClick={() => {
                             const ouvre = appelOuvert !== p.email;
                             setAppelOuvert(ouvre ? p.email : "");
-                            setAResultat(""); setADuree(""); setANotesAppel("");
+                            setAResultat(""); setADuree(""); setANotesAppel(""); setARappelLe("");
                             if (ouvre && !appels[p.email]) chargerAppels(p.email);
                           }}
                           style={{ background: "none", border: "none", color: "#c8a96e",
@@ -1695,6 +1714,10 @@ export default function PageCRM() {
                                           {r ? r.nom : a.resultat}
                                         </span>
                                         {a.duree_min ? " · " + a.duree_min + " min" : ""}
+                                        {a.rappeler_le
+                                          ? " · rappeler le "
+                                            + new Date(a.rappeler_le).toLocaleDateString("fr-FR")
+                                          : ""}
                                         <span style={{ color: "rgba(255,255,255,0.35)", marginLeft: "8px" }}>
                                           {a.appele_le
                                             ? new Date(a.appele_le).toLocaleDateString("fr-FR")
@@ -1751,6 +1774,28 @@ export default function PageCRM() {
                                   style={{ ...CHAMP, marginBottom: 0, padding: "9px 12px", fontSize: "14px" }}
                                 />
                               </div>
+                              {/* 🆕 LA DATE DE RAPPEL — 06/09.
+                                  ⚠️ ELLE N APPARAIT QUE POUR « A rappeler ».
+                                  La proposer sur « a repondu » ferait
+                                  remonter une fiche que personne n attend,
+                                  et le filtre du jour perdrait son sens.
+                                  ⚠️ ELLE RESTE FACULTATIVE : on note
+                                  souvent « a rappeler » sans savoir encore
+                                  quand. La fiche reste alors dans le filtre
+                                  general. */}
+                              {aResultat === "rappeler" && (
+                                <div style={{ flex: "0 1 180px" }}>
+                                  <span style={{ ...LIBELLE, marginBottom: "4px" }}>
+                                    Rappeler le (facultatif)
+                                  </span>
+                                  <input
+                                    type="date"
+                                    value={aRappelLe}
+                                    onChange={(e) => setARappelLe(e.target.value)}
+                                    style={{ ...CHAMP, marginBottom: 0, padding: "9px 12px", fontSize: "14px" }}
+                                  />
+                                </div>
+                              )}
                             </div>
 
                             <span style={{ ...LIBELLE, marginBottom: "4px" }}>
