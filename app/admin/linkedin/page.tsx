@@ -528,9 +528,41 @@ export default function PageLinkedin() {
   const [aOrganisme, setAOrganisme] = useState("");
   const [aVille, setAVille] = useState("");
   const [aNotes, setANotes] = useState("");
-  // La campagne d une fiche saisie a la main. Elle decide du message qui
-  // partira apres acceptation : il n existe aucun autre moyen de le savoir.
-  const [aCampagne, setACampagne] = useState("academiapro");
+  // ══════════════════════════════════════════════════════════════════════
+  // 🚨 PLUS DE CAMPAGNE PAR DEFAUT — CORRIGE LE 06/09.
+  //
+  // LE DEFAUT, DECRIT PAR JACQUES : « des fois j oublie de selectionner si
+  // c est Monsieur comptable ou si c est AcadeMIA et je me suis fait avoir
+  // plusieurs fois ». Ce champ demarrait sur « academiapro » : le premier
+  // bouton paraissait choisi, rien ne signalait qu on n avait rien decide,
+  // et la fiche partait en AcadeMIA en silence.
+  //
+  // CE QUE CELA COUTE : la campagne decide du MESSAGE envoye apres
+  // acceptation. Un expert-comptable classe en AcadeMIA recoit le message
+  // des organismes de formation. La faute se voit a la reception, et ne se
+  // rattrape pas.
+  //
+  // La valeur part donc VIDE : aucun bouton actif, et le bouton
+  // d enregistrement reste inerte tant que rien n est touche. La route
+  // refuse de son cote — un ecran peut etre contourne, pas la regle.
+  // ══════════════════════════════════════════════════════════════════════
+  const [aCampagne, setACampagne] = useState("");
+
+  // 🆕 LES PRODUITS SECONDAIRES — 06/09.
+  //
+  // Un cabinet comptable achete Mr. Comptable, mais peut aussi vouloir
+  // Mr. CRM pour suivre ses clients, et MysterLLC s il en a qui ont une
+  // societe americaine. La campagne PRINCIPALE decide du premier message ;
+  // ceux-ci attendent leur tour, sept jours entre deux messages a la meme
+  // personne.
+  const [aProduits, setAProduits] = useState<string[]>([]);
+
+  // 🆕 CE QUE LA CAPTURE A PROPOSE — 06/09. Affiche sous le selecteur pour
+  // que Jacques voie SUR QUOI la proposition se fonde, et la corrige si
+  // elle est fausse. ⚠️ LA LECTURE PROPOSE, ELLE NE DECIDE PAS : un
+  // classement automatique et silencieux reproduirait le defaut qu on
+  // corrige, dans l autre sens.
+  const [aMotif, setAMotif] = useState("");
 
   // 🆕 LA REGULARISATION DATEE — 30/08. Repliee par defaut ; la date
   // proposee est hier, le cas le plus frequent.
@@ -825,7 +857,28 @@ export default function PageLinkedin() {
         if (d.linkedin) setALien(d.linkedin);
         if (d.observation) setANotes(d.observation);
 
+        // 🆕 LA CAMPAGNE PROPOSEE PAR LA LECTURE — 06/09.
+        //
+        // La capture montre le metier : c est la meme image qui dit
+        // « expert-comptable » et qui donne le nom. Le selecteur se
+        // remplit, et le motif s affiche dessous pour que la proposition
+        // soit verifiable d un coup d oeil.
+        //
+        // ⚠️ RIEN N EST POSE SI LA LECTURE N A PAS TRANCHE. La route rend
+        // une chaine vide quand le metier n est pas lisible : le selecteur
+        // reste alors vide et Jacques doit choisir, ce qui est le
+        // comportement voulu.
+        if (d.campagne) setACampagne(d.campagne);
+        if (Array.isArray(d.produits)) setAProduits(d.produits);
+        setAMotif(String(d.motif || ""));
+
         let mot = "Capture lue.";
+        if (d.campagne) {
+          mot += " Campagne proposée : " + produit(d.campagne).nom
+            + " — vérifiez avant d'enregistrer.";
+        } else {
+          mot += " Le métier n'était pas lisible : choisissez la campagne.";
+        }
         if (!d.linkedin) {
           mot += " L'adresse du profil n'était pas visible : touchez les trois points "
             + "sur LinkedIn, puis « Copier le lien vers le profil », et collez-la.";
@@ -1149,6 +1202,13 @@ export default function PageLinkedin() {
       setErreur("Collez l'adresse complète du profil LinkedIn.");
       return;
     }
+    // 🚨 LA CAMPAGNE EST OBLIGATOIRE — 06/09. Le libelle portait deja une
+    // etoile, mais rien ne la verifiait : c est ce silence qui a fait
+    // partir des fiches en AcadeMIA sans qu on l ait voulu.
+    if (!aCampagne) {
+      setErreur("Choisissez la campagne : c'est elle qui décide du message envoyé après acceptation.");
+      return;
+    }
     setCharge(true);
     setErreur("");
     setMessage("");
@@ -1162,6 +1222,7 @@ export default function PageLinkedin() {
         ville: aVille,
         notes: aNotes,
         campagne: aCampagne,
+        produits: aProduits,
       });
       if (d.ok) {
         setMessage((d.message || "Profil enregistré.")
@@ -1169,7 +1230,11 @@ export default function PageLinkedin() {
         setCompteurs(d.compteurs || null);
         setCreee(d.ajoute || null);
         setANom(""); setALien(""); setAOrganisme(""); setAVille(""); setANotes("");
-        setACampagne("academiapro");
+        // ⚠️ ON REPART SUR RIEN, pas sur AcadeMIA : la fiche suivante doit
+        // etre classee elle aussi, et non heriter du choix precedent.
+        setACampagne("");
+        setAProduits([]);
+        setAMotif("");
         setAjout(false);
       } else {
         setErreur(d.erreur || "Enregistrement impossible.");
@@ -1535,7 +1600,21 @@ export default function PageLinkedin() {
         verticalAlign: "middle",
         cursor: modifiable ? "pointer" : "default",
       }}>
-        {f.nom}{modifiable ? " \u25be" : ""}
+        {f.nom}
+        {/* 🚨 « CHANGER » PLUTOT QU UN CHEVRON SEUL — 06/09.
+            Jacques, le 06/09 : « lorsque je me trompais de statut, il
+            m etait impossible de changer de statut a travers la fiche que
+            j ouvrais donc la seule solution pour moi c etait d annuler
+            cette fiche et de creer une nouvelle ».
+            OR LE CHANGEMENT EXISTAIT DEPUIS LE 02/09. Seul un petit
+            chevron « ▾ » le signalait, et il se lisait comme une
+            decoration. ⚠️ UNE FONCTION QUE PERSONNE NE VOIT N EXISTE PAS :
+            le mot est ecrit en toutes lettres. */}
+        {modifiable ? (
+          <span style={{ opacity: 0.75, marginLeft: "5px", fontSize: "10px" }}>
+            · changer ▾
+          </span>
+        ) : null}
       </span>
     );
 
@@ -3023,10 +3102,82 @@ export default function PageLinkedin() {
                       );
                     })}
                   </div>
-                  <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "12.5px",
-                    lineHeight: "1.7", margin: "0 0 18px" }}>
-                    {produit(aCampagne).resume}
-                  </p>
+                  {/* 🚨 LE RESUME NE S AFFICHE QUE SI UNE CAMPAGNE EST
+                      CHOISIE. Avant le 06/09, produit("") retombait sur
+                      AcadeMIA Pro : la ligne annoncait « recevra le message
+                      sur le bilan pedagogique » alors que RIEN n avait ete
+                      choisi. C est cet affichage rassurant qui masquait
+                      l oubli. */}
+                  {aCampagne ? (
+                    <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "12.5px",
+                      lineHeight: "1.7", margin: "0 0 8px" }}>
+                      {produit(aCampagne).resume}
+                    </p>
+                  ) : (
+                    <p style={{ color: "#e8a33d", fontSize: "12.5px",
+                      lineHeight: "1.7", margin: "0 0 8px" }}>
+                      Aucune campagne choisie. C&apos;est elle qui décide du message
+                      envoyé après acceptation.
+                    </p>
+                  )}
+
+                  {/* Le motif de la lecture : sur quoi la proposition se
+                      fonde. Il disparait des que Jacques change de campagne
+                      a la main — il ne decrirait plus le choix affiche. */}
+                  {aMotif && aCampagne ? (
+                    <p style={{ color: "rgba(255,255,255,0.35)", fontSize: "12px",
+                      lineHeight: "1.6", margin: "0 0 14px", fontStyle: "italic" }}>
+                      Lecture de la capture : {aMotif}
+                    </p>
+                  ) : null}
+
+                  {/* ---- LES PRODUITS SECONDAIRES ---- 06/09.
+                      🚨 CE QU ILS SONT : les autres produits qu on pourra
+                      proposer a cette personne PLUS TARD. La campagne
+                      principale part la premiere ; ceux-ci attendent sept
+                      jours entre deux messages, et le cron du lundi 8 h les
+                      remonte dans « A ecrire » quand leur tour vient.
+                      ⚠️ LA CAMPAGNE PRINCIPALE N EST PAS PROPOSEE ICI : elle
+                      a deja sa rangee au-dessus. L y remettre ferait envoyer
+                      deux fois le meme message. */}
+                  {aCampagne ? (
+                    <>
+                      <span style={LIBELLE}>Et plus tard ? (facultatif)</span>
+                      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap",
+                        marginBottom: "8px" }}>
+                        {ORDRE_PRODUITS.filter(function (cle: string) {
+                          return cle !== aCampagne;
+                        }).map(function (cle: string) {
+                          const f = PRODUITS[cle];
+                          const actif = aProduits.indexOf(cle) >= 0;
+                          return (
+                            <button key={cle}
+                              onClick={function () {
+                                setAProduits(actif
+                                  ? aProduits.filter(function (x: string) { return x !== cle; })
+                                  : aProduits.concat([cle]));
+                              }}
+                              style={{
+                                padding: "8px 14px", borderRadius: "20px",
+                                fontSize: "12.5px", fontFamily: "Georgia,serif",
+                                cursor: "pointer",
+                                background: actif ? f.couleur + "26" : "transparent",
+                                color: actif ? f.couleur : "rgba(255,255,255,0.4)",
+                                border: "1px solid " + (actif ? f.couleur + "8c" : "rgba(255,255,255,0.14)"),
+                              }}>
+                              {actif ? "✓ " : ""}{f.nom}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <p style={{ color: "rgba(255,255,255,0.35)", fontSize: "12px",
+                        lineHeight: "1.7", margin: "0 0 18px" }}>
+                        {aProduits.length === 0
+                          ? "Aucun autre produit retenu. Vous pourrez en ajouter plus tard sur la fiche."
+                          : "Ces produits attendront leur tour : sept jours entre deux messages à la même personne."}
+                      </p>
+                    </>
+                  ) : <div style={{ marginBottom: "10px" }} />}
 
                   <span style={LIBELLE}>Nom du contact *</span>
                   <input value={aNom} onChange={(e) => setANom(e.target.value)}
