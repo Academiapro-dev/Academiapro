@@ -173,6 +173,19 @@ export default function PageCRM() {
   // « a repondu » hier n est plus a rappeler.
   const [dernierAppel, setDernierAppel] = useState<any>({});
 
+  // ══════════════════════════════════════════════════════════════════════
+  // LES ONGLETS — 06/09.
+  //
+  // Meme decoupage que l ecran de l editeur : ce qu on regarde le matin,
+  // ce qu on travaille, ce qu on ajoute. Tout etait jusqu ici sur une
+  // seule page, ce qui obligeait a faire defiler pour atteindre la liste.
+  //
+  // ⚠️ TROIS ONGLETS, PAS SIX. L editeur en a six parce qu il a quatre
+  // bases froides, des apprenants et une analyse IA. Un client n a rien
+  // de tout cela : en ajouter d autres creerait des ecrans vides.
+  // ══════════════════════════════════════════════════════════════════════
+  const [onglet, setOnglet] = useState("contacts");
+
   const [nom, setNom] = useState("");
   const [email, setEmail] = useState("");
   const [telephone, setTelephone] = useState("");
@@ -1188,11 +1201,35 @@ export default function PageCRM() {
           <Guide ecran="crm.prospects" />
         </div>
 
+        {/* ---- LES ONGLETS ---- 06/09. Meme barre que chez l editeur. */}
+        <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", margin: "20px 0 0" }}>
+          {[
+            { id: "tableau", nom: "📊 Tableau de bord" },
+            { id: "contacts", nom: "👥 Mes contacts" },
+            { id: "ajouter", nom: "➕ Ajouter" },
+          ].map(function (o) {
+            const actif = onglet === o.id;
+            return (
+              <button key={o.id} onClick={() => setOnglet(o.id)}
+                style={{
+                  padding: "9px 18px", borderRadius: "8px", border: "none",
+                  background: actif ? "#c8a96e" : "rgba(255,255,255,0.08)",
+                  color: actif ? "#050508" : "#fff",
+                  cursor: "pointer", whiteSpace: "nowrap",
+                  fontSize: "14px", fontFamily: "Georgia,serif",
+                  fontWeight: actif ? "bold" : "normal",
+                }}>
+                {o.nom}
+              </button>
+            );
+          })}
+        </div>
+
         {/* 🚨 EN PREMIER, ET SEULEMENT S IL Y A QUELQUE CHOSE A FAIRE.
             Une carte a zero tous les matins deviendrait un decor qu on ne
             lit plus — et le jour ou elle porte un chiffre, on ne la verrait
             pas davantage. */}
-        {rappelsDuJour > 0 && (
+        {onglet === "tableau" && rappelsDuJour > 0 && (
           <div
             onClick={() => { setFiltre2("rappel_du_jour"); setPage(1); }}
             style={{ ...CARTE, marginTop: "24px", marginBottom: 0,
@@ -1210,7 +1247,7 @@ export default function PageCRM() {
           </div>
         )}
 
-        {stats && (
+        {onglet === "tableau" && stats && (
           <div style={{ display: "flex", gap: "14px", flexWrap: "wrap", margin: "24px 0" }}>
             <div style={{ ...CARTE, flex: "1 1 140px", marginBottom: 0 }}>
               <p style={{ color: "#c8a96e", fontSize: "24px", fontWeight: "bold", margin: "0 0 4px" }}>{stats.total || 0}</p>
@@ -1236,7 +1273,7 @@ export default function PageCRM() {
         )}
 
         {/* ---------- POURQUOI VOUS PERDEZ DES AFFAIRES ---------- */}
-        {regroupes.length > 0 && (
+        {onglet === "tableau" && regroupes.length > 0 && (
           <div style={{ ...CARTE, border: "1px solid rgba(232,131,106,0.3)" }}>
             <h2 style={{ color: "#e8836a", fontSize: "16px", margin: "0 0 4px" }}>
               Pourquoi vous perdez des affaires
@@ -1278,7 +1315,7 @@ export default function PageCRM() {
             revient a tout. Meme geste que chez l editeur, ou l on choisit
             sa base d un appui.
             ══════════════════════════════════════════════════════════════ */}
-        {cartes.length > 0 && (
+        {onglet === "contacts" && cartes.length > 0 && (
           <div style={{ margin: "24px 0 14px" }}>
             <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "stretch" }}>
               {cartes.map(function (r: any) {
@@ -1346,6 +1383,7 @@ export default function PageCRM() {
           </div>
         )}
 
+        {onglet === "contacts" && (
         <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "14px" }}>
           <button
             onClick={() => { setFiltre(""); setPage(1); }}
@@ -1366,9 +1404,11 @@ export default function PageCRM() {
             );
           })}
         </div>
+        )}
 
         {/* ---- LES FILTRES PRATIQUES ---- Une seconde rangee, plus discrete
             que les etapes : ce sont des filtres d action, pas de lecture. */}
+        {onglet === "contacts" && (
         <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "14px" }}>
           {FILTRES_PRATIQUES.map(function (f) {
             const actif = filtre2 === f.cle;
@@ -1383,7 +1423,9 @@ export default function PageCRM() {
             );
           })}
         </div>
+        )}
 
+        {onglet === "contacts" && (
         <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginBottom: "14px", alignItems: "center" }}>
           <input
             value={cherche}
@@ -1434,10 +1476,12 @@ export default function PageCRM() {
             Exporter
           </a>
         </div>
+        )}
 
         {/* ---- LE COMPTEUR ET LA PAGINATION ---- Comme sur le CRM de
             l editeur : « N ligne(s) · page x/y ». Les fleches
             n apparaissent que s il y a plus d une page. */}
+        {onglet === "contacts" && (
         <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap", marginBottom: "14px", color: "rgba(255,255,255,0.45)", fontSize: "13px" }}>
           <span>
             {totalFiltre} fiche(s)
@@ -1464,6 +1508,13 @@ export default function PageCRM() {
           )}
         </div>
 
+        )}
+
+        {/* ⚠️ LA RANGEE D ACTIONS VIT DANS « AJOUTER ». Les trois boutons
+            ouvrent des formulaires places juste dessous : les separer de
+            leur formulaire obligerait a changer d onglet apres avoir
+            clique. */}
+        {onglet === "ajouter" && (
         <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginBottom: "18px" }}>
           <button
             onClick={() => { setFormulaire(!formulaire); setImportOuvert(false); setCampagne(null); }}
@@ -1485,8 +1536,9 @@ export default function PageCRM() {
             {occupe === "campagne" ? "Préparation…" : campagne ? "Fermer la campagne" : "Relancer mes prospects"}
           </button>
         </div>
+        )}
 
-        {campagne && (
+        {onglet === "ajouter" && campagne && (
           <div style={{ ...CARTE, border: "1px solid rgba(200,169,110,0.5)" }}>
             <h2 style={{ color: "#c8a96e", fontSize: "19px", margin: "0 0 10px" }}>
               {campagne.nombre} prospect(s) seront relancé(s)
@@ -1540,7 +1592,7 @@ export default function PageCRM() {
           </div>
         )}
 
-        {formulaire && (
+        {onglet === "ajouter" && formulaire && (
           <div style={{ ...CARTE, border: "1px solid rgba(200,169,110,0.5)" }}>
             <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
               <div style={{ flex: "1 1 200px" }}>
@@ -1642,7 +1694,7 @@ export default function PageCRM() {
           </div>
         )}
 
-        {importOuvert && (
+        {onglet === "ajouter" && importOuvert && (
           <div style={{ ...CARTE, border: "1px solid rgba(200,169,110,0.5)" }}>
             <span style={LIBELLE}>Ordre des colonnes</span>
             <p style={{ color: "rgba(255,255,255,0.75)", fontSize: "13px", margin: "0 0 6px", fontFamily: "monospace", lineHeight: "1.7" }}>
@@ -1699,7 +1751,11 @@ export default function PageCRM() {
           </div>
         )}
 
-        {chargement ? (
+        {/* ---- LA LISTE DES FICHES ---- Elle vit dans « Mes contacts ».
+            ⚠️ ELLE RESTE MONTEE : la sortir de l onglet la ferait
+            disparaitre du tableau de bord, ou l on ne travaille pas les
+            fiches une par une. */}
+        {onglet === "contacts" && (chargement ? (
           <div style={CARTE}>
             <p style={{ color: "rgba(255,255,255,0.6)", margin: 0 }}>Chargement…</p>
           </div>
@@ -2483,7 +2539,7 @@ export default function PageCRM() {
               </div>
             );
           })
-        )}
+        ))}
       </div>
     </div>
   );
