@@ -283,10 +283,25 @@ export default function PageDevisCRM() {
                     À l&apos;usage, en plus de l&apos;abonnement :
                   </p>
 
-                  {/* ⚠️ LES LIGNES « Appel sortant, a la minute » ET
-                      « SMS envoye » ONT ETE RETIREES LE 04/09 : ces deux
-                      fonctions n existent pas. Il ne reste ici que la
-                      signature electronique, qui elle fonctionne. */}
+                  {/* ⚠️ RESTAUREES LE 06/09 : les deux fonctions existent.
+                      L appel ne s affiche que pour un prospect europeen —
+                      ailleurs il serait refuse, et l annoncer serait une
+                      promesse vide. */}
+                  {devis.telephonie_disponible && (
+                    <div style={{ display: "grid", gridTemplateColumns: "3fr 1fr", gap: "4px 12px", fontSize: "14px", padding: "3px 0" }}>
+                      <span style={{ color: "rgba(255,255,255,0.7)" }}>
+                        Appel sortant, à la minute
+                      </span>
+                      <span style={{ color: OR, textAlign: "right" }}>
+                        {centimes(devis.telephonie)}
+                      </span>
+                    </div>
+                  )}
+
+                  <div style={{ display: "grid", gridTemplateColumns: "3fr 1fr", gap: "4px 12px", fontSize: "14px", padding: "3px 0" }}>
+                    <span style={{ color: "rgba(255,255,255,0.7)" }}>SMS envoyé</span>
+                    <span style={{ color: OR, textAlign: "right" }}>{centimes(devis.sms)}</span>
+                  </div>
 
                   <div style={{ display: "grid", gridTemplateColumns: "3fr 1fr", gap: "4px 12px", fontSize: "14px", padding: "3px 0" }}>
                     <span style={{ color: "rgba(255,255,255,0.7)" }}>Signature électronique</span>
@@ -308,10 +323,37 @@ export default function PageDevisCRM() {
                   )}
                 </div>
 
-                {/* ⚠️ L ESTIMATION D USAGE — « X minutes d appel » et
-                    « X SMS » — A ETE RETIREE LE 04/09. Ces deux fonctions
-                    n existent pas dans l outil. Voir le commentaire du bloc
-                    de saisie, plus bas. */}
+                {/* ---- L ESTIMATION D USAGE ---- Restauree le 06/09.
+                    ⚠️ ELLE NE S AFFICHE QUE SI QUELQUE CHOSE A ETE COCHE :
+                    une ligne a zero euro n apprend rien et alourdit le
+                    devis. */}
+                {(devis.cout_telephonie > 0 || devis.cout_sms > 0) && (
+                  <div style={{ borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: "14px", marginBottom: "16px" }}>
+                    <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13.5px", margin: "0 0 8px" }}>
+                      Sur la base de votre estimation mensuelle :
+                    </p>
+                    {devis.cout_telephonie > 0 && (
+                      <div style={{ display: "grid", gridTemplateColumns: "3fr 1fr", gap: "4px 12px", fontSize: "14px", padding: "3px 0" }}>
+                        <span style={{ color: "rgba(255,255,255,0.7)" }}>
+                          {devis.minutes} minutes d&apos;appel
+                        </span>
+                        <span style={{ color: OR, textAlign: "right" }}>
+                          {euros(devis.cout_telephonie)}
+                        </span>
+                      </div>
+                    )}
+                    {devis.cout_sms > 0 && (
+                      <div style={{ display: "grid", gridTemplateColumns: "3fr 1fr", gap: "4px 12px", fontSize: "14px", padding: "3px 0" }}>
+                        <span style={{ color: "rgba(255,255,255,0.7)" }}>
+                          {devis.sms_nombre} SMS
+                        </span>
+                        <span style={{ color: OR, textAlign: "right" }}>
+                          {euros(devis.cout_sms)}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* 🚨 LE COUT PAR UTILISATEUR, JAMAIS UN TOTAL ANNUEL. */}
                 {devis.cout_par_utilisateur !== null && (
@@ -419,33 +461,129 @@ export default function PageDevisCRM() {
               </div>
             </div>
 
-            {/* 🚨🚨 LE BLOC DE SAISIE « APPELS ET SMS » A ETE RETIRE — 04/09.
+            {/* ══════════════════════════════════════════════════════════
+                LES APPELS ET LES SMS — RESTAURES LE 06/09.
 
-                CE QU IL FAISAIT. Deux cases a cocher — « Appeler depuis
-                l outil, 0,12 € la minute » et « Envoyer des SMS, 0,09 € le
-                message » — chacune suivie d un champ d estimation
-                mensuelle. Le devis chiffrait ensuite ces consommations.
+                🚨 RETIRES LE 04/09 PARCE QUE LE CODE N EXISTAIT PAS : le
+                numero n etait qu un lien `tel:`, rien ne partait de
+                l outil. Un client qui cochait une case achetait une
+                fonction que personne ne pouvait livrer.
 
-                POURQUOI IL DISPARAIT. CES DEUX FONCTIONS N EXISTENT PAS.
-                Verifie dans le code le 04/09 : dans le CRM, le numero est
-                un lien `tel:` qui compose sur le telephone, l adresse un
-                lien `mailto:` qui ouvre la messagerie. Rien ne revient
-                dans l outil ; il n y a ni journal d appels, ni SMS.
-                La vitrine a ete corrigee le meme jour, mais le devis les
-                vendait encore : un client qui cochait une case achetait
-                une fonction que personne ne pouvait livrer.
+                CE QUI EXISTE DEPUIS LE 06/09 :
+                  SMS   — /api/organisme/sms, ecran /organisme/sms, lien
+                          sur chaque fiche, journal, credits. Eprouve.
+                  APPEL — /api/organisme/appeler et ses deux webhooks,
+                          bouton sur la fiche, duree mesuree, credit
+                          decompte a la seconde.
 
-                ⚠️ LA GRILLE RESTE EN BASE, INTACTE. Les lignes
-                `telephonie`, `telephonie_lot`, `sms` et `sms_lot` de la
-                table `tarifs` (produit = 'crm') n ont PAS ete supprimees :
-                prix arretes, marges calculees, tout est pret pour le jour
-                ou la fonction sera construite — au premier client qui la
-                demande, decision de Jacques du 04/09.
+                ⚠️ LES DEUX SONT REFUSES HORS EUROPE. La liste des
+                indicatifs vit dans /api/organisme/sms et dans
+                /api/organisme/appeler — si l une change, changer l autre.
+                La colonne `perimetre` de `tarifs` porte la meme regle :
+                `telephonie` et `telephonie_lot` valent 'eea'.
 
-                ⚠️ POUR LES REMETTRE, LE JOUR VENU : restaurer ce bloc, les
-                deux lignes du recapitulatif et le bloc d estimation, tous
-                trois signales plus haut. NE RIEN REMETTRE AVANT QUE LE
-                CODE DE LA TELEPHONIE EXISTE. */}
+                ⚠️ LA TELEPHONIE NE S AFFICHE QUE POUR UN PROSPECT
+                EUROPEEN. La route rend `telephonie_disponible: false`
+                sinon, et la case ne doit pas apparaitre : proposer une
+                option qu on refusera ensuite est pire que ne rien
+                proposer.
+                ══════════════════════════════════════════════════════════ */}
+            <div style={CARTE}>
+              <h2 style={{ color: OR, fontSize: "20px", margin: "0 0 6px" }}>
+                Appels et SMS
+              </h2>
+              <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "14px",
+                lineHeight: "1.75", margin: "0 0 18px" }}>
+                Ces deux options se paient à l&apos;usage, en plus de
+                l&apos;abonnement. Vous ne payez que ce que vous consommez.
+              </p>
+
+              {/* ---- LES APPELS ---- */}
+              {devis && devis.telephonie_disponible && (
+                <div style={{ marginBottom: "18px" }}>
+                  <label style={{ display: "flex", gap: "10px", alignItems: "flex-start",
+                    cursor: "pointer" }}>
+                    <input
+                      type="checkbox"
+                      checked={!!f.telephonie}
+                      onChange={function (e) { modifier("telephonie", e.target.checked); }}
+                      style={{ marginTop: "4px", width: "18px", height: "18px" }}
+                    />
+                    <span>
+                      <span style={{ color: "#fff", fontSize: "15.5px" }}>
+                        Appeler depuis l&apos;outil
+                      </span>
+                      <span style={{ display: "block", color: "rgba(255,255,255,0.5)",
+                        fontSize: "13.5px", lineHeight: "1.7", marginTop: "3px" }}>
+                        Votre téléphone sonne, vous décrochez, votre correspondant
+                        est appelé aussitôt — votre numéro s&apos;affiche chez lui.
+                        La durée s&apos;inscrit au journal.
+                      </span>
+                    </span>
+                  </label>
+
+                  {f.telephonie && (
+                    <div style={{ marginTop: "10px", marginLeft: "28px", maxWidth: "300px" }}>
+                      <label style={ETIQUETTE}>Minutes par mois, à peu près</label>
+                      <input
+                        type="number"
+                        min={0}
+                        value={f.minutes_estimees || ""}
+                        onChange={function (e) { modifier("minutes_estimees", e.target.value); }}
+                        placeholder="200"
+                        style={CHAMP}
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ---- LES SMS ---- */}
+              <div>
+                <label style={{ display: "flex", gap: "10px", alignItems: "flex-start",
+                  cursor: "pointer" }}>
+                  <input
+                    type="checkbox"
+                    checked={!!f.sms}
+                    onChange={function (e) { modifier("sms", e.target.checked); }}
+                    style={{ marginTop: "4px", width: "18px", height: "18px" }}
+                  />
+                  <span>
+                    <span style={{ color: "#fff", fontSize: "15.5px" }}>
+                      Envoyer des SMS
+                    </span>
+                    <span style={{ display: "block", color: "rgba(255,255,255,0.5)",
+                      fontSize: "13.5px", lineHeight: "1.7", marginTop: "3px" }}>
+                      Depuis une fiche ou depuis l&apos;écran dédié, sous le nom
+                      de votre organisme. Chaque envoi est consigné.
+                    </span>
+                  </span>
+                </label>
+
+                {f.sms && (
+                  <div style={{ marginTop: "10px", marginLeft: "28px", maxWidth: "300px" }}>
+                    <label style={ETIQUETTE}>SMS par mois, à peu près</label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={f.sms_estimes || ""}
+                      onChange={function (e) { modifier("sms_estimes", e.target.value); }}
+                      placeholder="100"
+                      style={CHAMP}
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* ⚠️ LA REGLE EUROPEENNE EST DITE ICI, PAS SEULEMENT DANS
+                  LE CODE. Un client qui decouvre le refus au premier appel
+                  vers l etranger le vivrait comme une panne. */}
+              <p style={{ color: "rgba(255,255,255,0.35)", fontSize: "12.5px",
+                lineHeight: "1.7", margin: "16px 0 0" }}>
+                Appels et SMS partent vers l&apos;Europe et la Suisse. Au-delà,
+                le coût dépasse largement le prix facturé : ils sont refusés.
+              </p>
+            </div>
 
             <div style={{ textAlign: "center", marginTop: "26px" }}>
               <button onClick={enregistrer} disabled={envoi} style={{ ...PLEIN, opacity: envoi ? 0.5 : 1 }}>
