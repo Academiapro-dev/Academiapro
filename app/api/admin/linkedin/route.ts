@@ -375,8 +375,15 @@ const COLONNES_PROSPECTS =
   "id, raison_sociale, ville, code_postal, siren, dirigeant_prenom, dirigeant_nom, " +
   "linkedin, email, telephone, site_web, linkedin_le, linkedin_relance_le, linkedin_statut, notes, campagne";
 
+// 🆕 `produits` AJOUTE LE 06/09. La colonne porte les produits SECONDAIRES
+// d une fiche et la date du message envoye sous chacun :
+//   {"mrcrm": null, "mysterllc": "2026-09-12T08:00:00Z"}
+// La colonne `campagne` reste celle du produit PRINCIPAL, qui decide du
+// premier message. ⚠️ ELLE N EXISTE QUE SUR `crm` : les quatre bases de
+// prospection ne l ont pas, et n en ont pas besoin — une fiche de base
+// froide porte un seul produit, celui de sa base.
 const COLONNES_CRM =
-  "id, nom, organisme, ville, dirigeant_prenom, dirigeant_nom, campagne, " +
+  "id, nom, organisme, ville, dirigeant_prenom, dirigeant_nom, campagne, produits, " +
   "linkedin, email, telephone, linkedin_le, linkedin_relance_le, linkedin_statut, notes";
 
 function colonnesDe(cle: string): string {
@@ -420,6 +427,8 @@ const MODIFIABLES_CRM = [
   // Ajoutes le 01/09 : l administrateur corrige aussi l avancement.
   "linkedin_statut", "linkedin_le", "linkedin_relance_le", "score",
   "statut", "campagne", "source", "pays", "motif_perte", "relance_auto",
+  // 🆕 06/09 : les produits secondaires, et la date d envoi de chacun.
+  "produits",
 ];
 
 function modifiablesDe(cle: string): string[] {
@@ -654,6 +663,16 @@ export async function POST(req: NextRequest) {
         if (v === null || v === "") {
           champs[cle] = null;
         } else if (typeof v === "boolean" || typeof v === "number") {
+          champs[cle] = v;
+        } else if (typeof v === "object") {
+          // 🆕 LES OBJETS PASSENT TELS QUELS — 06/09.
+          //
+          // 🚨 SANS CETTE BRANCHE, `produits` ETAIT DETRUIT SILENCIEUSEMENT.
+          // propre() rend une CHAINE : un objet y devenait « [object
+          // Object] », que Postgres refuse sur une colonne jsonb — ou pire,
+          // accepte comme du texte. La colonne existe depuis le 06/09 et
+          // porte la liste des produits secondaires : elle doit arriver
+          // intacte.
           champs[cle] = v;
         } else {
           const valeur = propre(v, cle === "notes" ? 4000 : 300);
@@ -1033,6 +1052,65 @@ export async function POST(req: NextRequest) {
         );
       }
 
+      // ══════════════════════════════════════════════════════════════════
+      // 🚨 LA CAMPAGNE EST OBLIGATOIRE — CORRIGE LE 06/09.
+      //
+      // LE DEFAUT. L ecran affichait « Pour quelle campagne ? * » —
+      // l etoile annoncant un champ obligatoire — MAIS RIEN NE LE
+      // VERIFIAIT. La valeur demarrait sur « academiapro » et la route
+      // recopiait `body.campagne || "academiapro"`. Une fiche validee sans
+      // y toucher partait donc en AcadeMIA en silence.
+      //
+      // CE QUE CELA COUTAIT, dit par Jacques : « je me suis fait avoir
+      // plusieurs fois ». La campagne decide du MESSAGE envoye apres
+      // acceptation : un expert-comptable classe en AcadeMIA recoit le
+      // message des organismes de formation. La faute se voit a la
+      // reception, et ne se rattrape pas.
+      //
+      // ⚠️ LE CONTROLE EST ICI, PAS SEULEMENT DANS L ECRAN. Un ecran peut
+      // etre contourne, et un autre appelant — un import, un futur cron —
+      // n aurait aucune raison de le reproduire. La regle appartient a la
+      // route.
+      // ══════════════════════════════════════════════════════════════════
+      const PRODUITS_CONNUS = ["academiapro", "mrcomptable", "mysterllc", "mrcrm", "mrlms"];
+      const campagneChoisie = String(body.campagne || "").trim().toLowerCase();
+
+      if (!campagneChoisie) {
+        return NextResponse.json(
+          { ok: false, erreur: "Choisissez la campagne avant d enregistrer : c est elle qui decide du message envoye." },
+          { status: 400 }
+        );
+      }
+      if (PRODUITS_CONNUS.indexOf(campagneChoisie) < 0) {
+        return NextResponse.json(
+          { ok: false, erreur: "Campagne inconnue : " + campagneChoisie },
+          { status: 400 }
+        );
+      }
+
+      // 🆕 LES PRODUITS SECONDAIRES — 06/09.
+      //
+      // Un cabinet comptable achete Mr. Comptable, mais peut aussi vouloir
+      // Mr. CRM pour suivre ses clients, et MysterLLC s il en a qui ont une
+      // societe americaine. Ces produits attendent leur tour : SEPT JOURS
+      // entre deux messages a la meme personne, envoyes par le cron du
+      // lundi 8 h.
+      //
+      // ⚠️ CHAQUE PRODUIT PORTE SA DATE, pas seulement sa presence. C est
+      // elle qui dit ce qui est deja parti et ce qui reste a envoyer. `null`
+      // signifie « pertinent, jamais envoye ».
+      // ⚠️ LA CAMPAGNE PRINCIPALE EST EXCLUE de cette liste : elle a deja sa
+      // colonne. L y laisser ferait envoyer deux fois le meme message.
+      const produitsSecondaires: any = {};
+      if (Array.isArray(body.produits)) {
+        for (const x of body.produits) {
+          const c = String(x || "").trim().toLowerCase();
+          if (PRODUITS_CONNUS.indexOf(c) < 0) continue;
+          if (c === campagneChoisie) continue;
+          produitsSecondaires[c] = null;
+        }
+      }
+
       // Le doublon et les compteurs se verifient ENSEMBLE : les deux
       // lectures sont independantes.
       const [dejaR, avant] = await Promise.all([
@@ -1107,7 +1185,23 @@ export async function POST(req: NextRequest) {
         source: "linkedin",
         statut: statutCrm[mode],
         score: scoreDe[mode],
-        campagne: String(body.campagne || "academiapro").toLowerCase(),
+        // 🚨 PLUS DE CAMPAGNE PAR DEFAUT — CORRIGE LE 06/09.
+        //
+        // LE DEFAUT, DECRIT PAR JACQUES : « des fois j oublie de
+        // selectionner si c est Monsieur comptable ou si c est AcadeMIA et
+        // je me suis fait avoir plusieurs fois ». La valeur retombait ici
+        // sur « academiapro » : une fiche validee sans choix partait en
+        // AcadeMIA SANS UN MOT, et l expert-comptable recevait le message
+        // des organismes de formation.
+        //
+        // ⚠️ LE CONTROLE EST PLUS HAUT, avant l insertion : la route refuse
+        // desormais une campagne absente ou inconnue. Ce champ ne fait plus
+        // que recopier une valeur deja verifiee.
+        campagne: campagneChoisie,
+        // 🆕 LES PRODUITS SECONDAIRES — 06/09. Chacun a null : aucun message
+        // n a encore ete envoye sous ce produit. Le cron du lundi 8 h y
+        // posera la date.
+        produits: produitsSecondaires,
         notes: propre(body.notes, 4000) ||
           "Profil trouve sur LinkedIn et ajoute a la main. Aucune adresse connue : " +
           "le joindre par la messagerie LinkedIn.",
