@@ -337,6 +337,99 @@ export default function PageDevisLMS() {
                   </div>
                 )}
 
+                {/* ══════════════════════════════════════════════════════
+                    LES APPELS ET LES SMS, AU RECAPITULATIF — 06/09.
+
+                    ⚠️ AFFICHES MEME SI L OPTION N EST PAS COCHEE. Le
+                    prospect doit savoir ce qu il pourra prendre plus tard :
+                    une option qu on ne decouvre qu apres avoir signe donne
+                    l impression d avoir ete mal renseigne.
+
+                    ⚠️ LES LOTS MONTRENT LEUR PRIX A L UNITE. C est lui qui
+                    rend la remise lisible — « 240 € » ne dit rien, « 0,08 €
+                    la minute » se compare.
+                    ══════════════════════════════════════════════════════ */}
+                {(devis.telephonie_disponible || devis.sms > 0) && (
+                  <div style={{ borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: "14px", marginBottom: "16px" }}>
+                    <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13.5px", margin: "0 0 8px" }}>
+                      Appels et SMS, à l&apos;usage :
+                    </p>
+
+                    {devis.telephonie_disponible && (
+                      <>
+                        <div style={{ display: "grid", gridTemplateColumns: "3fr 1fr", gap: "4px 12px", fontSize: "14px", padding: "3px 0" }}>
+                          <span style={{ color: "rgba(255,255,255,0.7)" }}>
+                            Appel sortant, à la minute
+                          </span>
+                          <span style={{ color: OR, textAlign: "right" }}>
+                            {euros(devis.telephonie)}
+                          </span>
+                        </div>
+                        {devis.telephonie_lots && devis.telephonie_lots.map(function (l: any, i: number) {
+                          return (
+                            <div key={"t" + i} style={{ display: "grid", gridTemplateColumns: "3fr 1fr", gap: "4px 12px", fontSize: "14px", padding: "3px 0" }}>
+                              <span style={{ color: "rgba(255,255,255,0.7)" }}>
+                                Lot de {l.nombre} minutes · {euros(l.unitaire)} la minute
+                              </span>
+                              <span style={{ color: OR, textAlign: "right" }}>{euros(l.prix)}</span>
+                            </div>
+                          );
+                        })}
+                      </>
+                    )}
+
+                    {devis.sms > 0 && (
+                      <>
+                        <div style={{ display: "grid", gridTemplateColumns: "3fr 1fr", gap: "4px 12px", fontSize: "14px", padding: "3px 0" }}>
+                          <span style={{ color: "rgba(255,255,255,0.7)" }}>SMS envoyé</span>
+                          <span style={{ color: OR, textAlign: "right" }}>{euros(devis.sms)}</span>
+                        </div>
+                        {devis.sms_lots && devis.sms_lots.map(function (l: any, i: number) {
+                          return (
+                            <div key={"s" + i} style={{ display: "grid", gridTemplateColumns: "3fr 1fr", gap: "4px 12px", fontSize: "14px", padding: "3px 0" }}>
+                              <span style={{ color: "rgba(255,255,255,0.7)" }}>
+                                Lot de {l.nombre} SMS · {euros(l.unitaire)} l&apos;unité
+                              </span>
+                              <span style={{ color: OR, textAlign: "right" }}>{euros(l.prix)}</span>
+                            </div>
+                          );
+                        })}
+                      </>
+                    )}
+
+                    {/* L ESTIMATION, seulement si quelque chose a ete coche.
+                        ⚠️ Une ligne a zero euro n apprend rien et alourdit
+                        le devis. */}
+                    {(devis.cout_telephonie > 0 || devis.cout_sms > 0) && (
+                      <div style={{ marginTop: "12px", paddingTop: "10px", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                        <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "13px", margin: "0 0 6px" }}>
+                          Sur la base de votre estimation mensuelle :
+                        </p>
+                        {devis.cout_telephonie > 0 && (
+                          <div style={{ display: "grid", gridTemplateColumns: "3fr 1fr", gap: "4px 12px", fontSize: "14px", padding: "3px 0" }}>
+                            <span style={{ color: "rgba(255,255,255,0.7)" }}>
+                              {devis.minutes} minutes d&apos;appel
+                            </span>
+                            <span style={{ color: OR, textAlign: "right" }}>
+                              {euros(devis.cout_telephonie)}
+                            </span>
+                          </div>
+                        )}
+                        {devis.cout_sms > 0 && (
+                          <div style={{ display: "grid", gridTemplateColumns: "3fr 1fr", gap: "4px 12px", fontSize: "14px", padding: "3px 0" }}>
+                            <span style={{ color: "rgba(255,255,255,0.7)" }}>
+                              {devis.sms_nombre} SMS
+                            </span>
+                            <span style={{ color: OR, textAlign: "right" }}>
+                              {euros(devis.cout_sms)}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* ---- LA SIGNATURE ELECTRONIQUE ---- */}
                 {/* 🚨 LE PRIX RESTE AFFICHE MEME QUAND LE LOT EST OFFERT —
                     03/09. « La signature est un cadeau, jamais un du. » Un
@@ -625,6 +718,121 @@ export default function PageDevisLMS() {
                   />
                 </div>
               </div>
+            </div>
+
+            {/* ══════════════════════════════════════════════════════════
+                LES APPELS ET LES SMS — 06/09.
+
+                🚨 CES DEUX FONCTIONS EXISTENT ET SONT PARTAGEES AVEC
+                MR CRM : ce sont les memes ecrans, sous /organisme. Un
+                organisme previent d un changement de salle par SMS,
+                rappelle un stagiaire avant sa session, et garde ce qui
+                s est dit au telephone sur sa fiche.
+
+                ⚠️ ELLES SE PAIENT A L USAGE, en plus de l abonnement.
+                Elles n entrent pas dans le total mensuel : un total qui
+                les inclurait ferait croire a un engagement ferme.
+
+                ⚠️ LA TELEPHONIE NE S AFFICHE QUE POUR UN PROSPECT
+                EUROPEEN. La route rend `telephonie_disponible: false`
+                sinon. Proposer une option qu on refusera ensuite est pire
+                que ne rien proposer.
+                ══════════════════════════════════════════════════════════ */}
+            <div style={CARTE}>
+              <h2 style={{ color: OR, fontSize: "20px", margin: "0 0 6px" }}>
+                Appels et SMS
+              </h2>
+              <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "14px",
+                lineHeight: "1.75", margin: "0 0 18px" }}>
+                Prévenir d&apos;un changement de salle, rappeler une séance,
+                garder ce qui s&apos;est dit au téléphone. Ces deux options se
+                paient à l&apos;usage, en plus de l&apos;abonnement.
+              </p>
+
+              {devis && devis.telephonie_disponible && (
+                <div style={{ marginBottom: "18px" }}>
+                  <label style={{ display: "flex", gap: "10px", alignItems: "flex-start",
+                    cursor: "pointer" }}>
+                    <input
+                      type="checkbox"
+                      checked={!!f.telephonie}
+                      onChange={function (e) { modifier("telephonie", e.target.checked); }}
+                      style={{ marginTop: "4px", width: "18px", height: "18px" }}
+                    />
+                    <span>
+                      <span style={{ color: "#fff", fontSize: "15.5px" }}>
+                        Appeler depuis l&apos;outil
+                      </span>
+                      <span style={{ display: "block", color: "rgba(255,255,255,0.5)",
+                        fontSize: "13.5px", lineHeight: "1.7", marginTop: "3px" }}>
+                        Votre téléphone sonne, vous décrochez, votre stagiaire est
+                        appelé aussitôt — votre numéro s&apos;affiche chez lui. La
+                        durée s&apos;inscrit au journal.
+                      </span>
+                    </span>
+                  </label>
+
+                  {f.telephonie && (
+                    <div style={{ marginTop: "10px", marginLeft: "28px", maxWidth: "300px" }}>
+                      <label style={ETIQUETTE}>Minutes par mois, à peu près</label>
+                      <input
+                        type="number"
+                        min={0}
+                        value={f.minutes_estimees || ""}
+                        onChange={function (e) { modifier("minutes_estimees", e.target.value); }}
+                        placeholder="200"
+                        style={CHAMP}
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div>
+                <label style={{ display: "flex", gap: "10px", alignItems: "flex-start",
+                  cursor: "pointer" }}>
+                  <input
+                    type="checkbox"
+                    checked={!!f.sms}
+                    onChange={function (e) { modifier("sms", e.target.checked); }}
+                    style={{ marginTop: "4px", width: "18px", height: "18px" }}
+                  />
+                  <span>
+                    <span style={{ color: "#fff", fontSize: "15.5px" }}>
+                      Envoyer des SMS
+                    </span>
+                    <span style={{ display: "block", color: "rgba(255,255,255,0.5)",
+                      fontSize: "13.5px", lineHeight: "1.7", marginTop: "3px" }}>
+                      Depuis la fiche d&apos;un stagiaire ou depuis l&apos;écran
+                      dédié, sous le nom de votre organisme. Chaque envoi est
+                      consigné.
+                    </span>
+                  </span>
+                </label>
+
+                {f.sms && (
+                  <div style={{ marginTop: "10px", marginLeft: "28px", maxWidth: "300px" }}>
+                    <label style={ETIQUETTE}>SMS par mois, à peu près</label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={f.sms_estimes || ""}
+                      onChange={function (e) { modifier("sms_estimes", e.target.value); }}
+                      placeholder="100"
+                      style={CHAMP}
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* ⚠️ LA REGLE EUROPEENNE EST DITE ICI, PAS SEULEMENT DANS
+                  LE CODE. Un organisme qui decouvre le refus au premier
+                  envoi vers l etranger le vivrait comme une panne. */}
+              <p style={{ color: "rgba(255,255,255,0.35)", fontSize: "12.5px",
+                lineHeight: "1.7", margin: "16px 0 0" }}>
+                Appels et SMS partent vers l&apos;Europe et la Suisse. Au-delà,
+                le coût dépasse largement le prix facturé : ils sont refusés.
+              </p>
             </div>
 
             <div style={{ textAlign: "center", marginTop: "26px" }}>
