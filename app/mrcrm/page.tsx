@@ -30,6 +30,22 @@
 // SUJET AVANT QUE LE CODE EXISTE. Une promesse de vitrine doit survivre a
 // l ouverture de l outil, pas seulement a la lecture du devis.
 //
+// 🆕🆕 LE JOURNAL D APPELS EXISTE DEPUIS LE 06/09 — la mention revient.
+//
+// Table `crm_appels`, route /api/organisme/appels, saisie sur chaque fiche
+// du CRM : apres un appel, le client note comment il s est termine (a
+// repondu, absent, a rappeler, ne veut pas), la duree et ce qui a ete dit.
+// Deux filtres en decoulent : « A rappeler » et « Jamais appeles ».
+//
+// 🚨 CE QU ON PEUT ECRIRE, ET CE QU ON NE PEUT PAS. La fiche GARDE ce qui
+// s est dit — c est vrai, et c est ce que dit la carte. Elle ne dit PAS
+// que l appel part de l outil, ni que la duree se mesure toute seule : le
+// numero reste un lien `tel:` qui compose sur le telephone, et c est le
+// client qui note.
+// ⛔ NE PAS ECRIRE « appelez d un clic », « la duree s inscrit au journal »
+// ni « les appels se rangent tout seuls ». Ce serait a nouveau une
+// promesse que l outil ne tient pas.
+//
 // 🚨🚨 DEUX PHRASES AVAIENT ETE OUBLIEES — corrigees le 04/09 au soir.
 //
 // Les six cartes avaient bien ete nettoyees le matin, mais PAS le
@@ -140,6 +156,11 @@ const CE_QUI_EST_FAIT = [
       "L'historique complet est sur la fiche : ce qui a été dit au dernier appel, ce qui a été promis, ce qui a été envoyé. Vous reprenez la conversation là où elle s'est arrêtée.",
   },
   {
+    titre: "Ce qui s'est dit au téléphone",
+    texte:
+      "Après un appel, vous notez en deux gestes comment il s'est terminé et ce qui a été dit. La fiche s'en souvient : la prochaine fois que vous l'ouvrez, vous savez où vous en étiez.",
+  },
+  {
     titre: "Une relance vous est proposée",
     texte:
       "À partir de ce que porte la fiche, un texte de relance vous est proposé. Vous le relisez, vous le corrigez, et vous décidez de l'envoyer. Rien ne part sans que vous l'ayez lu.",
@@ -204,8 +225,9 @@ export default function PageMrCRM() {
         </h1>
         <p style={{ color: "rgba(255,255,255,0.72)", fontSize: "18px", lineHeight: "1.8", margin: "0 0 32px", maxWidth: "760px" }}>
           Vos contacts, vos échanges et vos relances au même endroit. Ce qui a
-          été dit, ce qui a été promis, ce qui a été signé reste sur la bonne
-          fiche, pour que rien ne dépende de ce dont vous vous souvenez.
+          été dit au téléphone, ce qui a été promis, ce qui a été signé reste
+          sur la bonne fiche, pour que rien ne dépende de ce dont vous vous
+          souvenez.
         </p>
         <a href={CONTACT} style={BOUTON}>Demander une présentation</a>
       </section>
