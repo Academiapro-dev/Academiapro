@@ -348,36 +348,42 @@ function messageRelance(prenom: string, societe: string, nbFormations: number, c
   // faire — et non de ce que l outil sait faire. Aucune promesse fiscale,
   // aucun conseil : l outil prepare, date et rappelle, rien de plus.
   if (k === "mysterllc") {
+    // 🚨 CE MESSAGE NE PRESUPPOSE PAS QUE LE LECTEUR A DEJA UNE LLC.
+    //
+    // POURQUOI — 06/09. Une premiere version s ouvrait sur « j ai cree ma
+    // LLC, voici ce qui m a manque ». Elle ne parlait qu a ceux qui en ont
+    // deja une. Or Jacques l a fait remarquer : « quelqu un qui possede une
+    // LLC reste tres discret, il n aime pas qu on lui dise qu il a fait ca
+    // pour ne pas payer les impots ». Cette cible ne se signale pas, et on
+    // ne peut donc pas la viser a coup sur.
+    //
+    // ⚠️ LA DERNIERE PHRASE — « de pres ou de loin » — EST LE PIVOT. Elle
+    // laisse repondre celui qui a une societe comme celui qui y pense, sans
+    // qu aucun des deux ait a se declarer.
+    //
+    // ⚠️ LES DEUX MONTANTS SONT LA POUR ETRE VERIFIES. La Floride et le
+    // 5472 sont les deux chiffres qui frappent ; les citer donne au lecteur
+    // de quoi controler ce qu on avance.
     return salut
       + "Merci d'avoir accepté mon invitation.\n\n"
-      + "J'ai créé ma LLC il y a quelque temps, et je me suis vite aperçu de "
-      + "ce qui manquait : des informations claires, fiables, et surtout un "
-      + "calendrier. Chaque fois que je cherchais une réponse, je tombais sur "
-      + "des sources contradictoires ou sur des prestataires qui vendaient la "
-      + "création et se désintéressaient de la suite. Ce flou finit par créer "
-      + "une inquiétude permanente — on ne sait jamais si on a oublié quelque "
-      + "chose.\n\n"
-      + "C'est pour combler ce manque que j'ai développé cette plateforme. "
-      + "Elle suit vos obligations état par état et au niveau fédéral — "
-      + "rapport annuel, taxe de franchise, agent enregistré, formulaire 5472 "
-      + "— avec les dates, les montants et le document à déposer, chaque "
-      + "règle sourcée officiellement.\n\n"
-      + "Ce qui coûte cher dans ces sociétés, ce n'est pas la création : c'est "
-      + "l'échéance qu'on découvre en retard. Le formulaire 5472, obligatoire "
-      + "pour toute LLC détenue par un non-résident, expose à 25 000 dollars "
-      + "de pénalité s'il n'est pas déposé. En Floride, 400 dollars tombent "
-      + "dès le lendemain de la date limite, sans réduction possible. Au "
-      + "Texas, l'oubli d'un formulaire à zéro dollar peut faire tomber la "
-      + "protection de responsabilité.\n\n"
-      + "L'intérêt est là : vous êtes prévenu à temps, vous savez quoi déposer "
-      + "et où, et vous n'y pensez plus le reste de l'année.\n\n"
-      + "Si vous avez une LLC, je vous montre volontiers ce que cela donne sur "
-      + "la vôtre.\n\n"
+      + "Créer une société américaine est simple. Ce qui l'est moins, c'est "
+      + "ce qui vient après : des obligations annuelles qui diffèrent d'un "
+      + "État à l'autre, des formulaires fédéraux à dates fixes, et très peu "
+      + "d'informations fiables quand on cherche depuis la France.\n\n"
+      + "J'en ai fait l'expérience moi-même. Chaque fois que je cherchais une "
+      + "réponse, je tombais sur des sources contradictoires ou sur des "
+      + "prestataires qui vendaient la création et se désintéressaient de la "
+      + "suite.\n\n"
+      + "C'est pour ça que j'ai développé une plateforme qui suit ces "
+      + "obligations état par état — dates, montants, document à déposer — "
+      + "chaque règle sourcée officiellement. L'oubli se paie cher : 400 "
+      + "dollars en Floride dès le lendemain de l'échéance, 25 000 dollars "
+      + "pour un formulaire 5472 non déposé.\n\n"
+      + "Si le sujet vous concerne, de près ou de loin, j'échange volontiers "
+      + "un quart d'heure avec vous.\n\n"
       + "Bien à vous,\nJacques Lalou\nmysterllc.com";
   }
 
-  // MR. CRM. Le catalogue arrive en fin de message, en une ligne, comme une
-  // possibilite — le prospect est venu pour un suivi commercial.
   if (k === "mrcrm") {
     return salut
       + "Merci d'avoir accepté mon invitation.\n\n"
