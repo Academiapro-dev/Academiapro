@@ -617,7 +617,42 @@ export default function PageCRM() {
     { cle: "jamais_relances", nom: "Jamais relancés" },
     { cle: "armees", nom: "Relance armée" },
     { cle: "desinscrits", nom: "Désinscrits" },
-  ];
+  ]
+    // ══════════════════════════════════════════════════════════════════
+    // 🆕 LES FILTRES DES COLONNES PERSONNALISEES — 06/09.
+    //
+    // 🚨 SANS EUX, LES COLONNES NE SERVAIENT A RIEN. Un cabinet qui note
+    // « A jour de ses pieces » sur trois cents fiches doit pouvoir
+    // afficher d un geste ceux qui ne le sont pas — sinon il a saisi une
+    // information qu il ne peut plus retrouver.
+    //
+    // DEUX FILTRES PAR COLONNE, ET LEUR SENS DEPEND DU TYPE :
+    //   CASE          — « A jour : oui » / « A jour : non »
+    //   DATE ET TEXTE — « Rempli » / « Vide », c est ce qu on cherche :
+    //                   quelles fiches attendent encore l information.
+    //
+    // ⚠️ POUR UNE CASE, « NON » COUVRE AUSSI LES FICHES JAMAIS RENSEIGNEES.
+    // Une case vide et une case decochee disent la meme chose au client :
+    // ce n est pas fait. Les separer produirait deux filtres presque
+    // identiques dont aucun ne repond a sa question.
+    //
+    // ⚠️ LA CLE PORTE UN PREFIXE `c:` : elle ne peut donc jamais entrer en
+    // collision avec les cinq filtres connus, quel que soit le nom donne
+    // par le client a sa colonne.
+    // ══════════════════════════════════════════════════════════════════
+    .concat(colonnes.reduce(function (liste: any[], c: any) {
+      if (c.type === "case") {
+        return liste.concat([
+          { cle: "c:" + c.cle + ":oui", nom: c.libelle + " : oui" },
+          { cle: "c:" + c.cle + ":non", nom: c.libelle + " : non" },
+        ]);
+      }
+      return liste.concat([
+        { cle: "c:" + c.cle + ":rempli", nom: c.libelle + " rempli" },
+        { cle: "c:" + c.cle + ":vide", nom: c.libelle + " vide" },
+      ]);
+    }, []));
+
   const parFiltre2 = filtre2
     ? parRecherche.filter(function (p) {
         if (filtre2 === "avec_tel") return !!p.telephone;
@@ -625,6 +660,21 @@ export default function PageCRM() {
         if (filtre2 === "jamais_relances") return !p.relance_le;
         if (filtre2 === "armees") return !!p.relance_auto;
         if (filtre2 === "desinscrits") return !!p.desinscrit;
+
+        // Les colonnes de l organisme, reconnaissables a leur prefixe.
+        if (filtre2.indexOf("c:") === 0) {
+          const morceaux = filtre2.split(":");
+          const cle = morceaux[1];
+          const mode = morceaux[2];
+          const v = (p.champs || {})[cle];
+          const rempli = v !== null && v !== undefined && v !== "";
+          if (mode === "oui") return v === true;
+          if (mode === "non") return v !== true;
+          if (mode === "rempli") return rempli;
+          if (mode === "vide") return !rempli;
+          return true;
+        }
+
         return true;
       })
     : parRecherche;
