@@ -129,6 +129,15 @@ export default function PageCRM() {
   const [aCampagne, setACampagne] = useState("");
   const [ajoutProduit, setAjoutProduit] = useState("");
 
+  // 🆕 LE MESSAGE EN COURS D ECRITURE — 06/09.
+  //
+  // Sans lui, une campagne marquee « a ecrire » ne donnait rien a ecrire :
+  // le client voyait qu il devait agir, sans savoir quoi envoyer. Le texte
+  // vit sur la campagne (ecrit une fois), le prenom s insere ici.
+  // Forme : "adresse|campagne", vide sinon.
+  const [ecritMessage, setEcritMessage] = useState("");
+  const [copie, setCopie] = useState("");
+
   const [nom, setNom] = useState("");
   const [email, setEmail] = useState("");
   const [telephone, setTelephone] = useState("");
@@ -349,6 +358,61 @@ export default function PageCRM() {
         p.produits = avant;
         setProspects(function (anciens: any[]) { return anciens.slice(); });
         setErreur((d && d.erreur) || "Enregistrement impossible.");
+      }
+    } catch (e: any) {
+      p.produits = avant;
+      setProspects(function (anciens: any[]) { return anciens.slice(); });
+      setErreur("Enregistrement impossible : " + String(e));
+    }
+  }
+
+  // 🚨 LE MESSAGE VIENT DE LA CAMPAGNE, JAMAIS DE LA FICHE. Il est ecrit
+  // une seule fois dans /organisme/campagnes : c est ce qui permet
+  // d ecrire a trente contacts sans rien retaper.
+  //
+  // ⚠️ {prenom} EST LE SEUL REMPLACEMENT. En ajouter d autres obligerait le
+  // client a retenir une liste de codes — et un code oublie s afficherait
+  // tel quel dans le message envoye.
+  function messageDe(p: any, cle: string): string {
+    const c = campagnes.filter(function (x: any) { return x.cle === cle; })[0];
+    if (!c || !c.message) return "";
+    const prenom = String(p.nom || "").trim().split(" ")[0] || "";
+    return String(c.message).split("{prenom}").join(prenom);
+  }
+
+  function copier(t: string, cle: string) {
+    try {
+      navigator.clipboard.writeText(t);
+      setCopie(cle);
+      setTimeout(function () { setCopie(""); }, 2500);
+    } catch (e) {
+      setErreur("Copie impossible — sélectionnez le texte à la main.");
+    }
+  }
+
+  // 🚨 MARQUER UNE CAMPAGNE COMME ENVOYEE.
+  //
+  // ⚠️ LA DATE VA DANS `produits`, PAS DANS `relance_le`. Cette derniere
+  // porte la relance de la campagne principale : l ecraser fausserait les
+  // compteurs et le calcul du delai.
+  async function marquerProduitEnvoye(p: any, cle: string) {
+    const avant = p.produits && typeof p.produits === "object" ? { ...p.produits } : {};
+    const neuf: any = { ...avant };
+    neuf[cle] = new Date().toISOString();
+
+    p.produits = neuf;
+    setProspects(function (anciens: any[]) { return anciens.slice(); });
+    setEcritMessage("");
+
+    try {
+      const d = await appeler({ action: "upsert", data: { email: p.email, produits: neuf } });
+      if (!d || !d.succes) {
+        p.produits = avant;
+        setProspects(function (anciens: any[]) { return anciens.slice(); });
+        setErreur((d && d.erreur) || "Enregistrement impossible.");
+      } else {
+        setMessage("Message marqué envoyé. Prochaine campagne dans "
+          + DELAI_ENTRE_MESSAGES + " jours.");
       }
     } catch (e: any) {
       p.produits = avant;
@@ -1468,18 +1532,30 @@ export default function PageCRM() {
                             </span>
                           )}
                           {produitsDe(p).map(function (x: any) {
+                            // 🚨 UNE CAMPAGNE PRETE EST CLIQUABLE. Avant, la
+                            // pastille disait « a ecrire » sans donner le
+                            // texte : le client savait qu il devait agir,
+                            // sans savoir quoi envoyer.
+                            const pret = !x.envoye && x.jours === 0;
+                            const ouvert = ecritMessage === p.email + "|" + x.cle;
                             return (
-                              <span key={x.cle} style={{
-                                padding: "2px 10px", borderRadius: "20px", fontSize: "12px",
-                                background: "transparent", color: x.couleur,
-                                border: "1px dashed " + x.couleur + "8c",
-                                opacity: x.envoye ? 0.5 : 1,
-                              }}>
+                              <span key={x.cle}
+                                onClick={pret
+                                  ? function () { setEcritMessage(ouvert ? "" : p.email + "|" + x.cle); }
+                                  : undefined}
+                                style={{
+                                  padding: "2px 10px", borderRadius: "20px", fontSize: "12px",
+                                  background: ouvert ? x.couleur + "26" : "transparent",
+                                  color: x.couleur,
+                                  border: "1px dashed " + x.couleur + "8c",
+                                  opacity: x.envoye ? 0.5 : 1,
+                                  cursor: pret ? "pointer" : "default",
+                                }}>
                                 {x.nom}
                                 <span style={{ opacity: 0.7, marginLeft: "6px", fontSize: "11px" }}>
                                   {x.envoye
                                     ? "envoyé"
-                                    : x.jours > 0 ? "dans " + x.jours + " j" : "à écrire"}
+                                    : x.jours > 0 ? "dans " + x.jours + " j" : "à écrire ▾"}
                                 </span>
                               </span>
                             );
@@ -1492,6 +1568,62 @@ export default function PageCRM() {
                             {ajoutProduit === p.email ? "Fermer" : "Autres campagnes"}
                           </button>
                         </div>
+
+                        {/* ---- LE MESSAGE DE LA CAMPAGNE ----
+                            ⚠️ IL EST EN LECTURE SEULE. Le modifier ici ne
+                            servirait a rien : il est ecrit une fois sur la
+                            campagne, et c est ce qui permet d ecrire a
+                            trente contacts sans rien retaper. Pour le
+                            changer, on passe par « Mes campagnes ». */}
+                        {produitsDe(p).filter(function (x: any) {
+                          return ecritMessage === p.email + "|" + x.cle;
+                        }).map(function (x: any) {
+                          const texte = messageDe(p, x.cle);
+                          return (
+                            <div key={x.cle} style={{ marginTop: "9px", padding: "12px 14px",
+                              background: "rgba(255,255,255,0.025)",
+                              border: "1px solid " + x.couleur + "40",
+                              borderRadius: "9px" }}>
+                              {texte ? (
+                                <>
+                                  <textarea
+                                    value={texte}
+                                    readOnly
+                                    rows={5}
+                                    style={{ ...CHAMP, width: "100%", boxSizing: "border-box",
+                                      fontSize: "13px", lineHeight: "1.65", marginBottom: "8px" }}
+                                  />
+                                  <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                                    <button
+                                      onClick={() => copier(texte, p.email + "|" + x.cle)}
+                                      style={{ ...BOUTON, flex: "1 1 150px", fontSize: "13px" }}>
+                                      {copie === p.email + "|" + x.cle ? "Copié" : "Copier le message"}
+                                    </button>
+                                    <button
+                                      onClick={() => marquerProduitEnvoye(p, x.cle)}
+                                      style={{ ...BOUTON, flex: "1 1 150px", fontSize: "13px",
+                                        background: x.couleur, color: "#050508",
+                                        border: "none", fontWeight: "bold" }}>
+                                      Message envoyé
+                                    </button>
+                                  </div>
+                                </>
+                              ) : (
+                                /* ⚠️ UNE CAMPAGNE SANS TEXTE NE PEUT RIEN
+                                   ENVOYER. On le dit, et on renvoie la ou
+                                   il s ecrit — plutot que d afficher un
+                                   cadre vide. */
+                                <p style={{ color: "#e8a33d", fontSize: "13px",
+                                  margin: 0, lineHeight: "1.7" }}>
+                                  Aucun message n&apos;est écrit pour cette campagne.{" "}
+                                  <a href="/organisme/campagnes" style={{ color: "#c8a96e" }}>
+                                    L&apos;écrire maintenant
+                                  </a>
+                                </p>
+                              )}
+                            </div>
+                          );
+                        })}
 
                         {ajoutProduit === p.email && (
                           <div style={{ marginTop: "9px", padding: "10px 12px",
