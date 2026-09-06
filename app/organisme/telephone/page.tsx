@@ -68,6 +68,21 @@ export default function PageTelephone() {
   // l affiche en minutes, qui est ce que le client achete.
   const minutes = Math.floor(credits / 60);
 
+  // 🚨 L AVERTISSEMENT DE SOLDE BAS — 06/09.
+  //
+  // MEME SEUIL QUE LE CRON /api/cron/credits-bas. ⚠️ SI L UN CHANGE,
+  // CHANGER L AUTRE : un client averti par courriel qui ne verrait rien
+  // sur l ecran douterait de l un comme de l autre.
+  //
+  // ⚠️ CINQUANTE MINUTES, PAS DIX. Le credit suit le virement : a dix
+  // minutes restantes, l avertissement arriverait trop tard pour servir.
+  //
+  // 🚨 ON N OFFRE RIEN D AVANCE. Jacques, le 06/09 : une avance « ouvre
+  // une faille dans la strategie ». La reponse au delai n est pas un
+  // cadeau, c est de prevenir a temps.
+  const SEUIL_MINUTES = 50;
+  const soldeBas = numero !== "" && minutes <= SEUIL_MINUTES;
+
   const CADRE: any = {
     minHeight: "100vh", background: FOND, color: "#fff",
     fontFamily: "Georgia, serif", padding: "40px 20px",
@@ -96,6 +111,30 @@ export default function PageTelephone() {
           « Appeler ». Votre téléphone sonne, vous décrochez, et votre
           correspondant est appelé aussitôt.
         </p>
+
+        {/* ---- LE SOLDE BAS ----
+            ⚠️ EN PREMIER, ET SEULEMENT S IL Y A LIEU. Un encadre permanent
+            deviendrait un decor qu on ne lit plus — et le jour ou il compte
+            vraiment, on ne le verrait pas davantage. */}
+        {charge && soldeBas && (
+          <div style={{ ...CARTE, borderColor: "rgba(232,163,61,0.5)",
+            background: "rgba(232,163,61,0.07)" }}>
+            <p style={{ color: "#e8a33d", fontSize: "16px", margin: "0 0 6px", lineHeight: "1.6" }}>
+              Il vous reste <strong>{minutes} minute{minutes > 1 ? "s" : ""}</strong>.
+            </p>
+            {/* 🚨 LE DELAI EST DIT FRANCHEMENT, ET LA SOLUTION AVEC. Cacher
+                que le credit suit le virement ferait decouvrir l attente au
+                pire moment — celui ou le client a besoin d appeler. */}
+            <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "14px", margin: 0, lineHeight: "1.75" }}>
+              Commandez maintenant pour ne pas être interrompu. Avec un
+              virement instantané — gratuit et proposé par toutes les banques
+              européennes — vos crédits sont ajoutés dans la journée.{" "}
+              <a href="/organisme/credits" style={{ color: OR, fontWeight: "bold" }}>
+                Commander des minutes &rarr;
+              </a>
+            </p>
+          </div>
+        )}
 
         {/* ---- L ETAT DU COMPTE ----
             ⚠️ AFFICHE AVANT LE JOURNAL : ce qu on vient chercher ici, c est
