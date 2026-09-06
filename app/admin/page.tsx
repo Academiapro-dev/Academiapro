@@ -33,6 +33,17 @@ const GROUPES = [
     titre: "Facturation",
     liens: [
       { nom: "Facturation", href: "/admin/facturation" },
+      // 🆕 06/09 — LES COMMANDES DE CREDITS SMS ET MINUTES.
+      //
+      // 🚨 SANS CE LIEN, L ECRAN N EXISTE PAS. Il porte le SEUL geste du
+      // code qui ajoute reellement des credits a un organisme : tant qu il
+      // n est pas fait, un client qui a paye n a rien recu.
+      //
+      // ⚠️ EN B2B LE REGLEMENT SE FAIT PAR VIREMENT : le client commande,
+      // Jacques facture, et credite a reception. Rien n est automatique, et
+      // c est voulu — crediter a la commande reviendrait a livrer avant
+      // d etre paye.
+      { nom: "Commandes de crédits", href: "/admin/credits" },
     ],
   },
   {
@@ -82,6 +93,13 @@ export default function AdminPage() {
   const [erreur, setErreur] = useState("");
   const [chargement, setChargement] = useState(true);
 
+  // 🆕 LES COMMANDES DE CREDITS EN ATTENTE — 06/09.
+  //
+  // ⚠️ AFFICHEES SUR LE LIEN LUI-MEME, pas dans une carte separee. Une
+  // commande payee et non creditee est un client qui attend : elle doit se
+  // voir en arrivant, sans avoir a ouvrir l ecran.
+  const [credits, setCredits] = useState(0);
+
   useEffect(function () { charger(); }, []);
 
   async function charger() {
@@ -99,6 +117,19 @@ export default function AdminPage() {
     } catch (e: any) {
       setErreur(String(e));
     }
+
+    // ⚠️ DANS SON PROPRE ESSAI : si les commandes echouent, les
+    // indicateurs doivent quand meme s afficher.
+    try {
+      const rc = await fetch("/api/admin/credits", { cache: "no-store" });
+      const dc = await rc.json();
+      if (dc && dc.ok && Array.isArray(dc.commandes)) {
+        setCredits(dc.commandes.filter(function (c: any) {
+          return c.statut === "commandee" || c.statut === "facturee";
+        }).length);
+      }
+    } catch (e) {}
+
     setChargement(false);
   }
 
@@ -155,6 +186,28 @@ export default function AdminPage() {
           <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "15px", margin: "0" }}>Vue globale · CA · Apprenants · Formations · Séances</p>
         </div>
 
+        {/* 🚨 CE QUI ATTEND UNE ACTION SE VOIT EN HAUT — 06/09.
+            Une commande payee et non creditee est un client qui attend.
+            ⚠️ N APPARAIT QUE S IL Y A QUELQUE CHOSE A FAIRE : un encadre a
+            zero tous les matins deviendrait un decor qu on ne lit plus. */}
+        {credits > 0 && (
+          <a href="/admin/credits" style={{
+            display: "block", textDecoration: "none",
+            background: "rgba(232,163,61,0.07)",
+            border: "1px solid rgba(232,163,61,0.5)",
+            borderRadius: "12px", padding: "16px 22px", marginBottom: "24px",
+          }}>
+            <p style={{ color: "#e8a33d", fontSize: "16px", margin: 0, lineHeight: "1.6" }}>
+              <strong>{credits}</strong> commande{credits > 1 ? "s" : ""} de
+              crédits à traiter
+            </p>
+            <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px",
+              margin: "4px 0 0", lineHeight: "1.6" }}>
+              À facturer, ou à créditer si le virement est arrivé.
+            </p>
+          </a>
+        )}
+
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "20px" }}>
           {CARTES.map((i) => (
             <div key={i.titre} style={carte}>
@@ -195,7 +248,16 @@ export default function AdminPage() {
             <div style={{ height: "1px", background: "rgba(200,169,110,0.25)", marginBottom: "20px" }} />
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: "14px" }}>
               {g.liens.map((l) => (
-                <a key={l.nom} href={l.href} style={bouton}>{l.nom}</a>
+                <a key={l.nom} href={l.href} style={bouton}>
+                  {l.nom}
+                  {/* La pastille suit le lien : on voit ce qui attend sans
+                      avoir a se souvenir de l encadre du haut. */}
+                  {l.href === "/admin/credits" && credits > 0 && (
+                    <span style={{ color: "#e8a33d", marginLeft: "8px", fontSize: "13px" }}>
+                      · {credits}
+                    </span>
+                  )}
+                </a>
               ))}
             </div>
           </div>
