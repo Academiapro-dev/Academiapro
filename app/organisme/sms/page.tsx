@@ -223,6 +223,19 @@ export default function PageSmsOrganisme() {
                 seulement. Écrivez-nous pour le faire poser.
               </p>
             )}
+
+            {/* 🚨 LE LIEN VERS LA COMMANDE, TOUJOURS PRESENT — 06/09.
+                ⚠️ Y COMPRIS QUAND L EXPEDITEUR N EST PAS REGLE : un
+                organisme peut commander ses SMS pendant qu on lui pose son
+                nom d expediteur. Attendre l un pour l autre ferait perdre
+                les deux.
+                ⚠️ ET Y COMPRIS QUAND LE SOLDE EST BON : on renouvelle avant
+                d etre a zero, pas apres. */}
+            <p style={{ margin: "12px 0 0" }}>
+              <a href="/organisme/credits" style={{ color: OR, fontSize: "14px" }}>
+                Commander des SMS &rarr;
+              </a>
+            </p>
           </div>
         )}
 
@@ -276,7 +289,13 @@ export default function PageSmsOrganisme() {
           {charge && expediteur && credits < morceaux && (
             <p style={{ color: "#e8836a", fontSize: "13px", margin: "12px 0 0", lineHeight: "1.7" }}>
               Crédits insuffisants : ce message en consomme {morceaux} et il
-              vous en reste {credits}. Écrivez-nous pour en ajouter.
+              vous en reste {credits}.{" "}
+              {/* ⚠️ ON RENVOIE VERS LA COMMANDE, PAS VERS UN COURRIEL. Un
+                  client bloque doit pouvoir se debloquer lui-meme : lui
+                  demander d ecrire ajoute un delai pour rien. */}
+              <a href="/organisme/credits" style={{ color: OR }}>
+                Commander des SMS &rarr;
+              </a>
             </p>
           )}
         </div>
