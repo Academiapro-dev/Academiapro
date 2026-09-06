@@ -149,6 +149,21 @@ export default function PageSmsOrganisme() {
 
   const pret = expediteur !== "" && credits >= morceaux;
 
+  // 🚨 L AVERTISSEMENT DE SOLDE BAS — 06/09.
+  //
+  // MEME SEUIL QUE LE CRON /api/cron/credits-bas. ⚠️ SI L UN CHANGE,
+  // CHANGER L AUTRE : un client averti par courriel qui ne verrait rien
+  // sur l ecran douterait de l un comme de l autre.
+  //
+  // ⚠️ CINQUANTE, PAS CINQ. Le credit suit le virement : a cinq SMS
+  // restants, l avertissement arriverait trop tard pour servir.
+  //
+  // 🚨 ON N OFFRE RIEN D AVANCE. Jacques, le 06/09 : une avance « ouvre
+  // une faille dans la strategie ». La reponse au delai n est pas un
+  // cadeau, c est de prevenir a temps.
+  const SEUIL_SMS = 50;
+  const soldeBas = expediteur !== "" && credits <= SEUIL_SMS;
+
   const CADRE: any = {
     minHeight: "100vh", background: FOND, color: "#fff",
     fontFamily: "Georgia, serif", padding: "40px 20px",
@@ -198,6 +213,30 @@ export default function PageSmsOrganisme() {
           <p style={{ color: OR, fontSize: "15px", margin: "-14px 0 24px", lineHeight: "1.7" }}>
             Message à <strong>{nomFiche}</strong>
           </p>
+        )}
+
+        {/* ---- LE SOLDE BAS ----
+            ⚠️ EN PREMIER, ET SEULEMENT S IL Y A LIEU. Un encadre permanent
+            deviendrait un decor qu on ne lit plus — et le jour ou il compte
+            vraiment, on ne le verrait pas davantage. */}
+        {charge && soldeBas && (
+          <div style={{ ...CARTE, borderColor: "rgba(232,163,61,0.5)",
+            background: "rgba(232,163,61,0.07)" }}>
+            <p style={{ color: "#e8a33d", fontSize: "16px", margin: "0 0 6px", lineHeight: "1.6" }}>
+              Il vous reste <strong>{credits} SMS</strong>.
+            </p>
+            {/* 🚨 LE DELAI EST DIT FRANCHEMENT, ET LA SOLUTION AVEC. Cacher
+                que le credit suit le virement ferait decouvrir l attente au
+                pire moment — celui ou le client a besoin d ecrire. */}
+            <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "14px", margin: 0, lineHeight: "1.75" }}>
+              Commandez maintenant pour ne pas être interrompu. Avec un
+              virement instantané — gratuit et proposé par toutes les banques
+              européennes — vos crédits sont ajoutés dans la journée.{" "}
+              <a href="/organisme/credits" style={{ color: OR, fontWeight: "bold" }}>
+                Commander des SMS &rarr;
+              </a>
+            </p>
+          </div>
         )}
 
         {/* ---- L ETAT DU COMPTE ----
