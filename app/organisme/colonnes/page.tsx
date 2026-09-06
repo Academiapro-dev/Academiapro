@@ -48,6 +48,11 @@ const EXEMPLES = [
     { libelle: "Fin de mission", type: "date" },
     { libelle: "Qualification", type: "texte" },
   ] },
+  { metier: "Suivi de sociétés américaines", champs: [
+    { libelle: "Rapport annuel déposé", type: "case" },
+    { libelle: "Prochaine échéance", type: "date" },
+    { libelle: "État de constitution", type: "texte" },
+  ] },
 ];
 
 const TYPES = [
