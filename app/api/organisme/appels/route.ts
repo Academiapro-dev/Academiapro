@@ -53,7 +53,7 @@ export async function GET(req: NextRequest) {
 
   let q = supabase
     .from("crm_appels")
-    .select("id, fiche_email, numero, sens, duree_min, resultat, notes, appele_le, saisi_par")
+    .select("id, fiche_email, numero, sens, duree_min, resultat, notes, appele_le, saisi_par, rappeler_le")
     .eq("tenant_id", c.tenant)
     .order("appele_le", { ascending: false });
 
@@ -116,8 +116,15 @@ export async function POST(req: NextRequest) {
         resultat: resultat,
         notes: String(body.notes || "").slice(0, 2000) || null,
         saisi_par: c.email,
+        // 🆕 LA DATE DE RAPPEL — 06/09. Facultative : on peut noter
+        // « a rappeler » sans savoir encore quand.
+        // ⚠️ ELLE NE VAUT QUE POUR CE RESULTAT. La poser sur un appel
+        // « a repondu » ferait remonter une fiche que personne n attend.
+        rappeler_le: (resultat === "rappeler" && body.rappeler_le)
+          ? String(body.rappeler_le).slice(0, 10)
+          : null,
       })
-      .select("id, fiche_email, numero, sens, duree_min, resultat, notes, appele_le, saisi_par")
+      .select("id, fiche_email, numero, sens, duree_min, resultat, notes, appele_le, saisi_par, rappeler_le")
       .maybeSingle();
 
     if (error) {
