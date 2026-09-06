@@ -120,6 +120,18 @@ export default function PageTelephone() {
                 décrocherait. Écrivez-nous pour le faire poser.
               </p>
             )}
+
+            {/* 🚨 LE LIEN VERS LA COMMANDE, TOUJOURS PRESENT — 06/09.
+                ⚠️ Y COMPRIS QUAND LE NUMERO N EST PAS REGLE : un organisme
+                peut commander ses minutes pendant qu on lui pose son
+                numero. Attendre l un pour l autre ferait perdre les deux.
+                ⚠️ ET Y COMPRIS QUAND LE SOLDE EST BON : on renouvelle avant
+                d etre a zero, pas apres. */}
+            <p style={{ margin: "12px 0 0" }}>
+              <a href="/organisme/credits" style={{ color: OR, fontSize: "14px" }}>
+                Commander des minutes &rarr;
+              </a>
+            </p>
           </div>
         )}
 
