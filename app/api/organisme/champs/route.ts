@@ -71,19 +71,48 @@ export async function GET() {
   const c: any = await contexte();
   if (c.erreur) return NextResponse.json({ ok: false, erreur: c.erreur }, { status: c.code });
 
-  const { data, error } = await supabase
-    .from("crm_champs")
-    .select("id, cle, libelle, type, rang, actif")
-    .eq("tenant_id", c.tenant)
-    .eq("actif", true)
-    .order("rang", { ascending: true });
+  // 🆕 LE PROFIL DE L ORGANISME EST RENVOYE AVEC LES COLONNES — 06/09.
+  //
+  // POURQUOI ICI. Le CRM appelle deja cette route au chargement : y
+  // joindre le profil evite un appel de plus pour une donnee qui tient en
+  // un mot.
+  //
+  // 🚨 A QUOI IL SERT. Certaines actions n ont de sens que pour un metier.
+  // « Inscrire au registre » cree un STAGIAIRE : proposer ce bouton a un
+  // cabinet comptable serait absurde, et le renommer sans changer l action
+  // serait pire — le bouton ferait autre chose que ce qu il annonce.
+  // L ecran s en sert pour n afficher que ce qui a un sens chez le client.
+  //
+  // ⚠️ `profils` EST UN TABLEAU : un organisme peut vendre des formations
+  // ET former ses salaries. On renvoie la liste telle quelle.
+  const [champsR, orgaR] = await Promise.all([
+    supabase
+      .from("crm_champs")
+      .select("id, cle, libelle, type, rang, actif")
+      .eq("tenant_id", c.tenant)
+      .eq("actif", true)
+      .order("rang", { ascending: true }),
+    supabase
+      .from("organismes_formation")
+      .select("profils, raison_sociale")
+      .eq("tenant_id", c.tenant)
+      .limit(1)
+      .maybeSingle(),
+  ]);
 
-  if (error) {
-    console.error("[organisme/champs] GET : " + error.message);
+  if (champsR.error) {
+    console.error("[organisme/champs] GET : " + champsR.error.message);
     return NextResponse.json({ ok: false, erreur: "Lecture impossible." }, { status: 500 });
   }
 
-  return NextResponse.json({ ok: true, champs: data || [] });
+  const orga: any = orgaR.data || {};
+
+  return NextResponse.json({
+    ok: true,
+    champs: champsR.data || [],
+    profils: Array.isArray(orga.profils) ? orga.profils : [],
+    organisme: orga.raison_sociale || "",
+  });
 }
 
 // ---- CREER, RENOMMER, SUPPRIMER ----
