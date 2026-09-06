@@ -555,6 +555,30 @@ export default function NavBar() {
           <a href="/organisme/catalogue" style={lienMenu}>Catalogue</a>
           <a href="/organisme/evaluations" style={lienMenu}>{"\u00c9valuations"}</a>
           <a href="/organisme/bilan" style={lienMenu}>Bilan</a>
+          {/* ══════════════════════════════════════════════════════════════
+              SMS ET TELEPHONE AJOUTES A MR LMS — 06/09.
+
+              🚨 LES ECRANS EXISTAIENT DEJA, ET N ETAIENT PAS ATTEIGNABLES.
+              app/organisme/sms, app/organisme/telephone et
+              app/organisme/crm sont les MEMES FICHIERS que ceux servis
+              sous mrcrm.fr : un seul deploiement, un seul code. Mais c est
+              la barre qui donne acces aux ecrans, et celle de Mr LMS ne
+              les portait pas.
+
+              ⚠️ UN ECRAN QU ON N ATTEINT QU EN TAPANT SON ADRESSE EST UN
+              ECRAN QUI N EXISTE PAS. C est ce qui s etait passe pour le
+              SMS jusqu au 05/09, et pour /admin/linkedin avant le 17/08.
+
+              ⚠️ POURQUOI CES TROIS-LA ET PAS LES AUTRES. Un organisme de
+              formation previent d un changement de salle par SMS, rappelle
+              un stagiaire avant sa session, et suit ses prospects avant
+              qu ils s inscrivent. Les colonnes personnalisees et les
+              campagnes restent atteignables depuis le CRM, ou elles ont
+              leur place — les mettre ici surchargerait la barre.
+              ══════════════════════════════════════════════════════════════ */}
+          <a href="/organisme/crm" style={lienMenu}>Prospects</a>
+          <a href="/organisme/sms" style={lienMenu}>SMS</a>
+          <a href="/organisme/telephone" style={lienMenu}>{"T\u00e9l\u00e9phone"}</a>
           <a href="/organisme/signatures" style={lienMenu}>Signatures</a>
         </nav>
         <div style={{ display: "flex", gap: "10px", alignItems: "center", flexShrink: 0 }}>
