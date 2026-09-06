@@ -386,20 +386,40 @@ export default async function ArticleMysterLLC({ params }: any) {
             Le dire autrement serait promettre une conformite qu on ne
             garantit pas.
             ══════════════════════════════════════════════════════════════ */}
-        <div style={{ marginTop: "50px",
-          borderTop: "1px solid rgba(200,169,110,0.2)",
-          paddingTop: "30px" }}>
+        {/* 🆕 MISE EN VALEUR — 06/09.
+
+            LE DEFAUT CONSTATE A L ECRAN : le bloc avait exactement
+            l apparence de l article — meme fond, meme taille, meme couleur.
+            L oeil ne voyait pas qu on changeait de registre, et la
+            proposition passait pour un paragraphe de plus.
+
+            CE QUI LE DISTINGUE MAINTENANT :
+            - un fond legerement eclairci et une bordure doree : c est un
+              encadre, pas la suite du texte
+            - la premiere phrase en 19px et en blanc — c est elle qui porte
+              la promesse, elle doit se lire avant tout le reste
+            - le trait de separation au-dessus est plus marque
+
+            ⚠️ SANS EXCES POUR AUTANT. Un bloc criard sur un article de fond
+            decredibiliserait ce qui precede : le lecteur vient d apprendre
+            quelque chose, il ne doit pas avoir l impression d etre tombe
+            dans une publicite. */}
+        <div style={{ marginTop: "56px",
+          background: "rgba(200,169,110,0.06)",
+          border: "1px solid rgba(200,169,110,0.35)",
+          borderRadius: "14px",
+          padding: "32px 34px" }}>
           <p style={{ color: OR, fontSize: "12px", letterSpacing: "3px",
-            margin: "0 0 14px" }}>
+            margin: "0 0 18px" }}>
             MYSTERLLC
           </p>
-          <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "16px",
-            lineHeight: "1.85", margin: "0 0 16px" }}>
+          <p style={{ color: "#fff", fontSize: "19px",
+            lineHeight: "1.7", margin: "0 0 20px" }}>
             Toute cette charge administrative — savoir ce qui est dû, à
             quelle date, sous quelle forme, et préparer chaque document —
             MysterLLC la prend à votre place.
           </p>
-          <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "15px",
+          <p style={{ color: "rgba(255,255,255,0.65)", fontSize: "15px",
             lineHeight: "1.85", margin: "0 0 16px" }}>
             La plateforme suit vos échéances état par état et au niveau
             fédéral, avec les montants et la source officielle de chaque
@@ -408,12 +428,21 @@ export default async function ArticleMysterLLC({ params }: any) {
             1120 pro forma, 7004, et le CERFA 3916 pour votre compte
             bancaire.
           </p>
-          <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "15px",
-            lineHeight: "1.85", margin: "0 0 24px" }}>
+          {/* ⚠️ « OU A L ADMINISTRATION DIRECTEMENT » — AJOUTE LE 06/09.
+              Aucun texte americain n impose de passer par un professionnel
+              pour deposer un 5472, un 1120 ou un rapport annuel d Etat :
+              le proprietaire peut le faire lui-meme. Ecrire que
+              l expert-comptable est OBLIGATOIRE serait faux, et ajouterait
+              un frein imaginaire.
+              ⛔ NE JAMAIS ECRIRE QUE LA PLATEFORME DEPOSE LES DOCUMENTS :
+              elle les prepare, le depot appartient au titulaire ou a son
+              conseil. */}
+          <p style={{ color: "rgba(255,255,255,0.65)", fontSize: "15px",
+            lineHeight: "1.85", margin: "0 0 26px" }}>
             Vous n&apos;avez plus qu&apos;à les transmettre à votre
-            expert-comptable, qui les contrôle, les valide et les dépose
-            auprès des administrations. Il reçoit un dossier constitué au
-            lieu d&apos;une liste de questions.
+            expert-comptable pour contrôle, ou à les déposer vous-même
+            auprès des administrations. Dans les deux cas, le dossier est
+            constitué.
           </p>
           {/* MysterLLC n a pas de parcours d inscription en ligne : les
               comptes se créent après entretien. Le bouton mène donc à la
