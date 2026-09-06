@@ -94,7 +94,7 @@ export async function GET() {
       .order("rang", { ascending: true }),
     supabase
       .from("organismes_formation")
-      .select("profils, raison_sociale")
+      .select("profils, raison_sociale, tel_numero, minutes_credits")
       .eq("tenant_id", c.tenant)
       .limit(1)
       .maybeSingle(),
@@ -107,11 +107,26 @@ export async function GET() {
 
   const orga: any = orgaR.data || {};
 
+  // 🆕 L ETAT DE LA TELEPHONIE — 06/09.
+  //
+  // ⚠️ DEUX CONDITIONS, ET LES DEUX SONT NECESSAIRES : un numero d appel
+  // (c est lui qui s affiche chez la personne appelee) et du credit. Sans
+  // l un ou l autre, l ecran n affiche pas le bouton plutot que de laisser
+  // le client se heurter a une erreur qu il ne peut pas corriger.
+  //
+  // ⚠️ ON NE RENVOIE PAS LE SOLDE EXACT ICI, seulement s il reste de quoi
+  // appeler. Le detail se lit sur la facturation ; l ecran n en a pas
+  // besoin pour decider d afficher un bouton.
+  const telNumero = String(orga.tel_numero || "").trim();
+  const minutes = Number(orga.minutes_credits || 0);
+
   return NextResponse.json({
     ok: true,
     champs: champsR.data || [],
     profils: Array.isArray(orga.profils) ? orga.profils : [],
     organisme: orga.raison_sociale || "",
+    tel_active: telNumero.length > 0 && minutes >= 60,
+    tel_numero: telNumero || null,
   });
 }
 
