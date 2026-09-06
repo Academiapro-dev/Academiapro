@@ -995,6 +995,16 @@ export default function PageCRM() {
         if (filtre2 === "jamais_appeles") {
           return !dernierAppel[String(p.email || "")];
         }
+        // ⚠️ LE PREFIXE `k:` DISTINGUE LE FILTRE PAR CAMPAGNE des filtres
+        // connus et des colonnes personnalisees (`c:`). Sans prefixe, une
+        // campagne nommee « Desinscrits » entrerait en collision.
+        if (filtre2.indexOf("k:") === 0) {
+          const cle = filtre2.slice(2);
+          if (cle === "__sans__") {
+            return !p.campagne || !campagnes.some(function (c: any) { return c.cle === p.campagne; });
+          }
+          return p.campagne === cle;
+        }
 
         // Les colonnes de l organisme, reconnaissables a leur prefixe.
         if (filtre2.indexOf("c:") === 0) {
@@ -1043,6 +1053,65 @@ export default function PageCRM() {
     if (!a || a.resultat !== "rappeler" || !a.rappeler_le) return false;
     return String(a.rappeler_le).slice(0, 10) <= jourCourant;
   }).length;
+
+  // ══════════════════════════════════════════════════════════════════════
+  // LA VUE D ENSEMBLE — 06/09.
+  //
+  // Jacques, le 06/09 : « le client veut une vision globale, il veut pas
+  // des petits morceaux visuels ».
+  //
+  // 🚨 CE QUE CE BLOC REPRODUIT : les cartes qui coiffent l ecran de
+  // l editeur (app/admin/crm/page.tsx, onglet Prospection), avec leurs
+  // compteurs et la ligne de total.
+  //
+  // ⚠️ CHEZ L EDITEUR, UNE CARTE = UNE BASE FROIDE. Les quatre bases
+  // — organismes Qualiopi, non certifies, interim, cabinets — sont a
+  // Jacques et ne doivent apparaitre chez aucun client.
+  // ⚠️ CHEZ LE CLIENT, UNE CARTE = UNE CAMPAGNE. C est le seul decoupage
+  // qu il possede, et il le definit lui-meme depuis /organisme/campagnes.
+  //
+  // ⚠️ LES COMPTEURS SE CALCULENT SUR `prospects`, DEJA CHARGE. Aucune
+  // lecture nouvelle : chez l editeur, ce resume coutait quarante
+  // comptages sur des tables de dizaines de milliers de lignes, et c est
+  // ce qui rendait l ecran lent avant la correction du 01/09. Ici les
+  // fiches sont en memoire, le calcul est immediat.
+  // ══════════════════════════════════════════════════════════════════════
+  function compteursDe(liste: any[]) {
+    return {
+      total: liste.length,
+      avec_email: liste.filter(function (x: any) { return !!x.email; }).length,
+      avec_telephone: liste.filter(function (x: any) { return !!x.telephone; }).length,
+      contactes: liste.filter(function (x: any) {
+        const e = x.statut || "prospect";
+        return e !== "prospect";
+      }).length,
+      a_contacter: liste.filter(function (x: any) {
+        return (x.statut || "prospect") === "prospect";
+      }).length,
+      a_rappeler: liste.filter(function (x: any) {
+        const a = dernierAppel[String(x.email || "")];
+        return !!a && a.resultat === "rappeler";
+      }).length,
+    };
+  }
+
+  // Une carte par campagne, plus une pour les fiches sans campagne — sans
+  // quoi le total des cartes ne correspondrait pas au total general, et
+  // des fiches deviendraient invisibles dans cette vue.
+  const cartes = campagnes.map(function (c: any) {
+    const liste = prospects.filter(function (x: any) { return x.campagne === c.cle; });
+    return { cle: c.cle, titre: c.libelle, couleur: c.couleur, ...compteursDe(liste) };
+  });
+
+  const sansCampagne = prospects.filter(function (x: any) {
+    return !x.campagne || !campagnes.some(function (c: any) { return c.cle === x.campagne; });
+  });
+  if (sansCampagne.length > 0) {
+    cartes.push({
+      cle: "__sans__", titre: "Sans campagne", couleur: "rgba(255,255,255,0.35)",
+      ...compteursDe(sansCampagne),
+    });
+  }
 
   const PAR_PAGE = 50;
   const totalFiltre = parFiltre2.length;
@@ -1190,6 +1259,90 @@ export default function PageCRM() {
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {/* ══════════════════════════════════════════════════════════════
+            LA VUE D ENSEMBLE — 06/09.
+
+            🚨 Jacques, le 06/09 : « le client veut une vision globale, il
+            veut pas des petits morceaux visuels ». Ce sont les cartes qui
+            coiffent l ecran de l editeur, reproduites ici avec les
+            campagnes du client au lieu des quatre bases froides.
+
+            ⚠️ ELLES NE S AFFICHENT QUE SI DES CAMPAGNES EXISTENT. Un
+            client qui n en a defini aucune garde son ecran tel quel : une
+            rangee de cartes toutes identiques n apprendrait rien.
+
+            ⚠️ TOUCHER UNE CARTE FILTRE LA LISTE, et la toucher a nouveau
+            revient a tout. Meme geste que chez l editeur, ou l on choisit
+            sa base d un appui.
+            ══════════════════════════════════════════════════════════════ */}
+        {cartes.length > 0 && (
+          <div style={{ margin: "24px 0 14px" }}>
+            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "stretch" }}>
+              {cartes.map(function (r: any) {
+                const actif = filtre2 === "k:" + r.cle;
+                return (
+                  <div
+                    key={r.cle}
+                    onClick={() => {
+                      setFiltre2(actif ? "" : "k:" + r.cle);
+                      setPage(1);
+                    }}
+                    style={{
+                      flex: "1 1 200px", cursor: "pointer", borderRadius: "9px",
+                      padding: "10px 13px",
+                      background: actif ? r.couleur + "20" : "rgba(255,255,255,0.03)",
+                      border: actif
+                        ? "2px solid " + r.couleur
+                        : "1px solid rgba(200,169,110,0.15)",
+                    }}>
+                    <div style={{ display: "flex", justifyContent: "space-between",
+                      alignItems: "baseline", gap: "8px" }}>
+                      <span style={{ color: actif ? r.couleur : "rgba(255,255,255,0.75)",
+                        fontSize: "13px", fontWeight: "bold" }}>
+                        {r.titre}
+                      </span>
+                      <span style={{ color: "#fff", fontSize: "17px", fontWeight: "bold" }}>
+                        {r.total}
+                      </span>
+                    </div>
+                    <div style={{ color: "rgba(255,255,255,0.5)", fontSize: "11.5px",
+                      marginTop: "4px" }}>
+                      {r.avec_email} adresse(s) · {r.avec_telephone} tél.
+                    </div>
+                    <div style={{ color: "rgba(255,255,255,0.4)", fontSize: "11.5px",
+                      marginTop: "2px" }}>
+                      {r.contactes} contacté(s)
+                      {r.a_contacter > 0 ? " · " + r.a_contacter + " à contacter" : ""}
+                    </div>
+                    {/* ⚠️ LES RAPPELS EN TETE DE CARTE : c est l action du
+                        jour, elle doit se voir sans ouvrir la campagne. */}
+                    {r.a_rappeler > 0 && (
+                      <div style={{ color: "#e8a33d", fontSize: "11.5px", marginTop: "2px" }}>
+                        {r.a_rappeler} à rappeler
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* LA LIGNE DE TOTAL, comme chez l editeur : « 69 514
+                entreprises dans les quatre bases ». Elle dit d un coup
+                l ampleur de ce qu on regarde. */}
+            <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "12px",
+              margin: "12px 0 0" }}>
+              {prospects.length} contact(s)
+              {campagnes.length > 0
+                ? " dans " + campagnes.length + " campagne"
+                  + (campagnes.length > 1 ? "s" : "")
+                : ""}
+              {sansCampagne.length > 0
+                ? " · " + sansCampagne.length + " sans campagne"
+                : ""}
+            </p>
           </div>
         )}
 
