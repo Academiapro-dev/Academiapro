@@ -1767,7 +1767,39 @@ export default function PageLinkedin() {
   function etiquetteCampagne(l: any, cliquable?: boolean) {
     const f = produit(campagneDe(l));
     const manuelle = l.base === "manuel";
-    const modifiable = cliquable !== false && !!l.id;
+
+    // ══════════════════════════════════════════════════════════════════
+    // 🚨🚨 « CHANGER » DISPARAIT UNE FOIS LE MESSAGE PARTI — 06/09.
+    //
+    // LE DANGER, VU PAR JACQUES LE JOUR MEME OU LA FONCTION EST DEVENUE
+    // VISIBLE : « on peut tres bien revenir sur AcadeMIA par exemple, et
+    // sans s en rendre compte, renvoyer le meme message qu on a deja
+    // envoye deux semaines plus tot ; le prospect aura le sentiment qu on
+    // le harcele ».
+    //
+    // Il a raison, et c est le risque le plus concret de tout ce montage.
+    // Le destinataire ne voit pas une erreur de logiciel : il voit deux
+    // fois le meme texte, a quinze jours d intervalle.
+    //
+    // 🚨 DEUX GESTES QU IL FALLAIT SEPARER :
+    //   CORRIGER  — « je m etais trompe, ce n etait pas AcadeMIA ». Utile
+    //               TANT QUE RIEN N EST PARTI ; l ancienne valeur n a
+    //               aucun interet.
+    //   ENCHAINER — « le message AcadeMIA est parti, je passe a Mr. CRM ».
+    //               La campagne d origine COMPTE : elle dit ce qui a deja
+    //               ete envoye.
+    //
+    // « changer » ne sert QUE le premier. Des que `linkedin_relance_le`
+    // porte une date, il disparait et seul « Ajouter un produit » reste —
+    // celui-la garde la campagne d origine et ajoute le nouveau produit a
+    // cote, avec sa propre date.
+    //
+    // ⚠️ NE PAS REOUVRIR « changer » APRES ENVOI, quelle que soit la
+    // demande. Ce n est pas un confort retire : c est la seule chose qui
+    // empeche materiellement le double envoi.
+    // ══════════════════════════════════════════════════════════════════
+    const dejaEcrit = !!l.linkedin_relance_le;
+    const modifiable = cliquable !== false && !!l.id && !dejaEcrit;
     const cle = String(l.id || "") + "-" + (l.base || "");
     const ouvert = ouvrirCampagne === cle;
 
@@ -4176,6 +4208,21 @@ export default function PageLinkedin() {
                                 le ferait repartir une seconde fois. */}
                             {ajoutProduit === cleDe(l) && (
                               <div style={{ marginBottom: "12px" }}>
+                                {/* 🚨 CE QUI EST DEJA PARTI, RAPPELE EN
+                                    TETE. Sans cette ligne, on ne voit que
+                                    les produits qu on peut ajouter, et rien
+                                    ne dit lequel a deja recu son message.
+                                    C est precisement l oubli qui ferait
+                                    renvoyer deux fois le meme texte. */}
+                                {l.linkedin_relance_le && (
+                                  <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "12.5px",
+                                    lineHeight: "1.7", margin: "0 0 9px" }}>
+                                    Message <strong style={{ color: produit(campagneDe(l)).couleur }}>
+                                      {produit(campagneDe(l)).nom}
+                                    </strong> déjà envoyé le {jolieDate(l.linkedin_relance_le)}.
+                                    Cette campagne ne peut plus être choisie.
+                                  </p>
+                                )}
                                 <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
                                   {ORDRE_PRODUITS.filter(function (cle: string) {
                                     return cle !== campagneDe(l);
