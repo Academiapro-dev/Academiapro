@@ -106,6 +106,29 @@ export default function PageCRM() {
   const [editChamps, setEditChamps] = useState("");
   const [valeurs, setValeurs] = useState<any>({});
 
+  // ══════════════════════════════════════════════════════════════════════
+  // LES CAMPAGNES DE L ORGANISME — 06/09.
+  //
+  // MEME MECANIQUE QUE CHEZ L EDITEUR, AUTRES CAMPAGNES. Sur
+  // /admin/linkedin, les cinq produits sont ecrits en dur — ce sont les
+  // marques de la maison. Ici, le client definit les siennes depuis
+  // /organisme/campagnes : un cabinet comptable « Bilan », « TVA »,
+  // « Paie ».
+  //
+  // 🚨 LA CAMPAGNE DECIDE DU MESSAGE, et elle est OBLIGATOIRE a la
+  // creation d une fiche. Chez l editeur, le champ demarrait sur
+  // « academiapro » et rien ne verifiait le choix : des fiches partaient
+  // en AcadeMIA en silence, et Jacques s en est « fait avoir plusieurs
+  // fois ». On ne reproduit pas le defaut ici.
+  //
+  // ⚠️ SAUF SI AUCUNE CAMPAGNE N EST DEFINIE. Un client qui n en a creee
+  // aucune ne doit pas etre empeche d ajouter un contact : le champ
+  // n apparait pas, et la fiche se cree sans campagne.
+  // ══════════════════════════════════════════════════════════════════════
+  const [campagnes, setCampagnes] = useState<any[]>([]);
+  const [aCampagne, setACampagne] = useState("");
+  const [ajoutProduit, setAjoutProduit] = useState("");
+
   const [nom, setNom] = useState("");
   const [email, setEmail] = useState("");
   const [telephone, setTelephone] = useState("");
@@ -160,6 +183,12 @@ export default function PageCRM() {
         const dc = await rc.json();
         if (dc && dc.ok && Array.isArray(dc.champs)) setColonnes(dc.champs);
       } catch (e) {}
+
+      try {
+        const rp = await fetch("/api/organisme/campagnes", { cache: "no-store" });
+        const dp = await rp.json();
+        if (dp && dp.ok && Array.isArray(dp.campagnes)) setCampagnes(dp.campagnes);
+      } catch (e) {}
     } catch (e: any) {
       setErreur("Lecture impossible : " + String(e));
     }
@@ -169,6 +198,13 @@ export default function PageCRM() {
   async function ajouter() {
     if (email.indexOf("@") < 1) {
       setErreur("Indiquez un email valable.");
+      return;
+    }
+    // 🚨 LA CAMPAGNE EST OBLIGATOIRE — mais seulement si l organisme en a
+    // defini. Chez l editeur, ce controle manquait : la valeur retombait
+    // sur AcadeMIA et des fiches partaient mal classees en silence.
+    if (campagnes.length > 0 && !aCampagne) {
+      setErreur("Choisissez la campagne : c'est elle qui décide du message envoyé.");
       return;
     }
     setOccupe("ajout");
@@ -185,11 +221,15 @@ export default function PageCRM() {
           source: source,
           statut: "prospect",
           notes: notes,
+          campagne: aCampagne || null,
         },
       });
       if (data.succes) {
         setMessage("Prospect enregistré, score " + data.score + " sur 100.");
         setNom(""); setEmail(""); setTelephone(""); setFormation(""); setNotes("");
+        // ⚠️ ON REPART SUR RIEN : la fiche suivante doit etre classee elle
+        // aussi, et non heriter du choix precedent.
+        setACampagne("");
         setFormulaire(false);
         await charger();
       } else {
@@ -229,6 +269,92 @@ export default function PageCRM() {
       setErreur("Enregistrement impossible : " + String(e));
     }
     setOccupe("");
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
+  // LES PRODUITS SECONDAIRES — 06/09, meme mecanique que chez l editeur.
+  //
+  // Une fiche porte sa campagne PRINCIPALE dans `campagne`, et les autres
+  // campagnes pertinentes dans `produits`, chacune avec la date du message
+  // envoye sous elle — ou null s il ne l a pas encore ete.
+  //
+  // 🚨 SEPT JOURS ENTRE DEUX MESSAGES A LA MEME PERSONNE, et le delai court
+  // depuis le DERNIER message quel qu il soit. Compter campagne par
+  // campagne laisserait partir trois messages le meme jour, et le contact
+  // ne verrait pas une erreur de logiciel : il verrait du harcelement.
+  // ⚠️ MEME REGLE QUE DANS app/admin/linkedin/page.tsx. Si l une change,
+  // changer l autre.
+  // ══════════════════════════════════════════════════════════════════════
+  const DELAI_ENTRE_MESSAGES = 7;
+
+  function campagneDe(p: any) {
+    const cle = String(p.campagne || "");
+    return campagnes.filter(function (c: any) { return c.cle === cle; })[0] || null;
+  }
+
+  function dernierMessageDe(p: any): number | null {
+    let recent: number | null = null;
+    function retenir(d: any) {
+      if (!d) return;
+      const t = new Date(d).getTime();
+      if (!isNaN(t) && (recent === null || t > recent)) recent = t;
+    }
+    retenir(p.relance_le);
+    const x = p.produits;
+    if (x && typeof x === "object") {
+      for (const k of Object.keys(x)) retenir(x[k]);
+    }
+    return recent;
+  }
+
+  function produitsDe(p: any): any[] {
+    const x = p.produits;
+    if (!x || typeof x !== "object") return [];
+    const dernier = dernierMessageDe(p);
+    const attente = dernier === null
+      ? 0
+      : Math.max(0, DELAI_ENTRE_MESSAGES - Math.floor((Date.now() - dernier) / 86400000));
+
+    const sortie: any[] = [];
+    for (const c of campagnes) {
+      if (!(c.cle in x)) continue;
+      if (c.cle === p.campagne) continue;
+      sortie.push({
+        cle: c.cle, nom: c.libelle, couleur: c.couleur,
+        envoye: !!x[c.cle], envoye_le: x[c.cle] || null, jours: attente,
+      });
+    }
+    return sortie;
+  }
+
+  // ⚠️ ON N ECRIT QUE `email` ET `produits` : upsert ecrit ce qu on lui
+  // donne et laisse le reste en base. Envoyer la fiche entiere risquerait
+  // d ecraser une valeur modifiee ailleurs entre-temps.
+  async function basculerProduit(p: any, cle: string) {
+    const avant = p.produits && typeof p.produits === "object" ? { ...p.produits } : {};
+    if (avant[cle]) {
+      setErreur("Le message de cette campagne est déjà parti : elle ne peut plus être retirée.");
+      return;
+    }
+    const neuf: any = { ...avant };
+    if (cle in neuf) delete neuf[cle];
+    else neuf[cle] = null;
+
+    p.produits = neuf;
+    setProspects(function (anciens: any[]) { return anciens.slice(); });
+
+    try {
+      const d = await appeler({ action: "upsert", data: { email: p.email, produits: neuf } });
+      if (!d || !d.succes) {
+        p.produits = avant;
+        setProspects(function (anciens: any[]) { return anciens.slice(); });
+        setErreur((d && d.erreur) || "Enregistrement impossible.");
+      }
+    } catch (e: any) {
+      p.produits = avant;
+      setProspects(function (anciens: any[]) { return anciens.slice(); });
+      setErreur("Enregistrement impossible : " + String(e));
+    }
   }
 
   // Ce qu une colonne affiche sur une fiche, selon son type.
@@ -869,6 +995,11 @@ export default function PageCRM() {
               textDecoration: "underline", whiteSpace: "nowrap" }}>
             Mes colonnes
           </a>
+          <a href="/organisme/campagnes"
+            style={{ color: "rgba(200,169,110,0.75)", fontSize: "13px",
+              textDecoration: "underline", whiteSpace: "nowrap" }}>
+            Mes campagnes
+          </a>
         </div>
 
         {/* ---- LE COMPTEUR ET LA PAGINATION ---- Comme sur le CRM de
@@ -1009,6 +1140,56 @@ export default function PageCRM() {
                 </select>
               </div>
             </div>
+
+            {/* ══════════════════════════════════════════════════════════
+                LA CAMPAGNE — 06/09.
+
+                🚨 AUCUNE VALEUR PAR DEFAUT. Chez l editeur, le champ
+                demarrait sur « academiapro » : le premier bouton
+                paraissait choisi, rien ne signalait qu on n avait rien
+                decide, et la fiche partait mal classee en silence. Jacques
+                s en est « fait avoir plusieurs fois ». On ne reproduit pas
+                ce defaut.
+
+                ⚠️ LE BLOC N APPARAIT QUE SI DES CAMPAGNES EXISTENT. Un
+                client qui n en a defini aucune ajoute ses contacts comme
+                avant — rien ne l en empeche. */}
+            {campagnes.length > 0 && (
+              <>
+                <span style={LIBELLE}>Pour quelle campagne ? *</span>
+                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "8px" }}>
+                  {campagnes.map(function (c: any) {
+                    const actif = aCampagne === c.cle;
+                    return (
+                      <button key={c.cle} onClick={() => setACampagne(c.cle)}
+                        style={{
+                          padding: "10px 16px", borderRadius: "9px",
+                          fontSize: "13.5px", fontFamily: "Georgia,serif",
+                          cursor: "pointer", fontWeight: actif ? "bold" : "normal",
+                          background: actif ? c.couleur : "rgba(255,255,255,0.05)",
+                          color: actif ? "#050508" : c.couleur,
+                          border: actif ? "none" : "1px solid " + c.couleur + "66",
+                        }}>
+                        {c.libelle}
+                      </button>
+                    );
+                  })}
+                </div>
+                {!aCampagne && (
+                  <p style={{ color: "#e8a33d", fontSize: "12.5px",
+                    lineHeight: "1.7", margin: "0 0 14px" }}>
+                    Aucune campagne choisie. C&apos;est elle qui décide du
+                    message envoyé.
+                  </p>
+                )}
+                {aCampagne && (
+                  <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "12.5px",
+                    lineHeight: "1.7", margin: "0 0 14px" }}>
+                    Ce contact recevra le message de cette campagne.
+                  </p>
+                )}
+              </>
+            )}
 
             <span style={LIBELLE}>Notes</span>
             <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} style={CHAMP} />
@@ -1259,6 +1440,96 @@ export default function PageCRM() {
                       <p style={{ color: "#e8836a", fontSize: "13px", margin: "6px 0 0" }}>
                         Désinscrit — ne reçoit plus de messages
                       </p>
+                    )}
+
+                    {/* ══════════════════════════════════════════════════
+                        LA CAMPAGNE ET LES SUIVANTES — 06/09.
+
+                        🚨 LA CAMPAGNE PRINCIPALE NE SE CHANGE PLUS UNE
+                        FOIS LE MESSAGE PARTI. Chez l editeur, elle restait
+                        modifiable : on pouvait revenir dessus et renvoyer
+                        le meme texte deux semaines plus tard. Jacques :
+                        « le prospect aura le sentiment qu on le harcele ».
+                        Apres envoi, on AJOUTE une campagne, on ne remplace
+                        pas — l historique reste entier.
+                        ══════════════════════════════════════════════════ */}
+                    {campagnes.length > 0 && p.email && (
+                      <div style={{ marginTop: "8px" }}>
+                        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap",
+                          alignItems: "center" }}>
+                          {campagneDe(p) && (
+                            <span style={{
+                              padding: "2px 10px", borderRadius: "20px", fontSize: "12px",
+                              background: campagneDe(p).couleur + "26",
+                              color: campagneDe(p).couleur,
+                              border: "1px solid " + campagneDe(p).couleur + "8c",
+                            }}>
+                              {campagneDe(p).libelle}
+                            </span>
+                          )}
+                          {produitsDe(p).map(function (x: any) {
+                            return (
+                              <span key={x.cle} style={{
+                                padding: "2px 10px", borderRadius: "20px", fontSize: "12px",
+                                background: "transparent", color: x.couleur,
+                                border: "1px dashed " + x.couleur + "8c",
+                                opacity: x.envoye ? 0.5 : 1,
+                              }}>
+                                {x.nom}
+                                <span style={{ opacity: 0.7, marginLeft: "6px", fontSize: "11px" }}>
+                                  {x.envoye
+                                    ? "envoyé"
+                                    : x.jours > 0 ? "dans " + x.jours + " j" : "à écrire"}
+                                </span>
+                              </span>
+                            );
+                          })}
+                          <button
+                            onClick={() => setAjoutProduit(ajoutProduit === p.email ? "" : p.email)}
+                            style={{ background: "none", border: "none", color: "#c8a96e",
+                              fontSize: "12.5px", fontFamily: "Georgia,serif",
+                              cursor: "pointer", textDecoration: "underline", padding: 0 }}>
+                            {ajoutProduit === p.email ? "Fermer" : "Autres campagnes"}
+                          </button>
+                        </div>
+
+                        {ajoutProduit === p.email && (
+                          <div style={{ marginTop: "9px", padding: "10px 12px",
+                            background: "rgba(255,255,255,0.025)",
+                            border: "1px solid rgba(255,255,255,0.08)",
+                            borderRadius: "9px" }}>
+                            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                              {campagnes.filter(function (c: any) {
+                                return c.cle !== p.campagne;
+                              }).map(function (c: any) {
+                                const x = p.produits || {};
+                                const retenu = c.cle in x;
+                                const parti = !!x[c.cle];
+                                return (
+                                  <button key={c.cle}
+                                    onClick={() => basculerProduit(p, c.cle)}
+                                    style={{
+                                      padding: "7px 13px", borderRadius: "20px",
+                                      fontSize: "12.5px", fontFamily: "Georgia,serif",
+                                      cursor: parti ? "default" : "pointer",
+                                      opacity: parti ? 0.45 : 1,
+                                      background: retenu ? c.couleur + "26" : "transparent",
+                                      color: retenu ? c.couleur : "rgba(255,255,255,0.4)",
+                                      border: "1px solid " + (retenu ? c.couleur + "8c" : "rgba(255,255,255,0.14)"),
+                                    }}>
+                                    {retenu ? "✓ " : ""}{c.libelle}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                            <p style={{ color: "rgba(255,255,255,0.35)", fontSize: "12px",
+                              lineHeight: "1.7", margin: "9px 0 0" }}>
+                              Sept jours entre deux messages à la même personne.
+                              Une campagne déjà envoyée ne peut plus être retirée.
+                            </p>
+                          </div>
+                        )}
+                      </div>
                     )}
 
                     {/* ══════════════════════════════════════════════════
