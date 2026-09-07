@@ -45,6 +45,11 @@ const EXPEDITEUR = "Jacques Lalou <jacques@contact-pro.academiapro.fr>";
 const REPONSE = "contact@academiapro.fr";
 const SITE = "https://academiapro.fr";
 
+// 🚨 mrlms.fr REDIRIGE VERS www — l adresse sans www ferait un saut
+// supplementaire, et un lien qui rebondit est un signal de moins bonne
+// qualite pour les filtres.
+const SITE_LMS = "https://www.mrlms.fr";
+
 // LE LOT PAR DEFAUT COMMANDE LE CRON.
 //
 // Vercel appelle une adresse fixe : un cron ne peut pas porter de
@@ -140,6 +145,8 @@ function habillage(o: any, texte: string): string {
     + "Jacques Lalou<br/>"
     + "Fondateur — AcadéMIA Pro<br/>"
     + "<a href=\"" + SITE + "\" style=\"color:#8a6d3b\">academiapro.fr</a>"
+    + " &middot; "
+    + "<a href=\"" + SITE_LMS + "\" style=\"color:#8a6d3b\">mrlms.fr</a>"
     + "</p>";
 
   return texte.replace(/\n/g, "<br/>")
@@ -154,25 +161,48 @@ function habillage(o: any, texte: string): string {
 
 // ─────────────────────────────────────────────────────────────────────
 // PREMIERE VAGUE — LE BILAN PEDAGOGIQUE ET FINANCIER.
+//
+// 🆕 07/09 — LE COURRIER PORTE DESORMAIS LES DEUX LOGICIELS.
+//
+// POURQUOI. Mr LMS vise les organismes qui ont deja leurs contenus et ne
+// veulent que la plateforme ; AcadeMIA Pro vise ceux qui veulent aussi le
+// catalogue. Ce sont les MEMES destinataires. Deux campagnes distinctes
+// auraient envoye deux courriers du meme expediteur aux memes organismes.
+//
+// 🚨 UN SEUL COURRIER, DEUX LOGICIELS, UNE SEULE CAMPAGNE. La campagne
+// Mr LMS n existe pas et ne doit pas etre creee : elle ferait doublon.
+//
+// ⚠️ LE DESTINATAIRE NE CHOISIT PAS DANS LE COURRIER. On lui donne le
+// critere — il a ses formations, ou il veut en proposer davantage — et il
+// se reconnait. Demander de choisir entre deux marques inconnues fait
+// fermer le message.
+//
+// ⚠️ « Vous êtes certifié Qualiopi » A ETE RETIRE. La base ne garantit pas
+// que chaque destinataire l est, et se tromper des la deuxieme ligne coute
+// la lecture. Le BPF reste l entree : il concerne tout organisme declare.
 // ─────────────────────────────────────────────────────────────────────
 function messagePremiereVague(o: any, nbFormations: number): string {
   const texte =
     salutationDe(o) + "\n\n"
     + "Je m'appelle Jacques Lalou, je dirige AcadéMIA Pro.\n\n"
-    + "Vous êtes certifié Qualiopi. Vous savez donc que le bilan "
-    + "pédagogique et financier n'est pas une formalité de fin d'année : "
-    + "c'est le moment où l'on vérifie que tout ce qui a été fait pendant "
-    + "douze mois se tient. Et qu'un dossier incomplet peut coûter la "
+    + "Le bilan pédagogique et financier n'est pas une formalité de fin "
+    + "d'année : c'est le moment où l'on vérifie que tout ce qui a été fait "
+    + "pendant douze mois se tient. Et un dossier incomplet peut coûter la "
     + "certification.\n\n"
-    + "Notre plateforme produit ces éléments au fil de l'eau. Le registre, "
-    + "les présences, les évaluations, le suivi des stagiaires s'alimentent "
-    + "à mesure que vos sessions se déroulent. Au moment du bilan, les "
-    + "données sont là — vous vérifiez et vous signez.\n\n"
-    + "Elle donne aussi accès à un catalogue de " + nbFormations
-    + " formations que vous pouvez proposer sous votre propre nom, en "
-    + "marque blanche.\n\n"
-    + "Si le sujet vous parle, répondez-moi simplement : je vous montre en "
-    + "quinze minutes ce que ça donne sur un dossier réel.";
+    + "Nous éditons deux logiciels pour les organismes de formation.\n\n"
+    + "Mr LMS est la plateforme. Le registre, les présences, les "
+    + "évaluations, le suivi des stagiaires s'alimentent à mesure que vos "
+    + "sessions se déroulent. Au moment du bilan, les données sont là — "
+    + "vous vérifiez et vous signez. Elle porte votre nom et vos "
+    + "couleurs.\n\n"
+    + "AcadéMIA Pro, c'est la même plateforme, avec un catalogue de "
+    + nbFormations + " formations prêtes à diffuser sous votre propre nom. "
+    + "Pour ceux qui veulent élargir leur offre sans produire les contenus "
+    + "eux-mêmes.\n\n"
+    + "Vous avez déjà vos formations, ou vous cherchez à en proposer "
+    + "davantage : selon le cas, ce n'est pas le même outil.\n\n"
+    + "Répondez-moi simplement, je vous montre en quinze minutes ce que ça "
+    + "donne sur un dossier réel.";
 
   return habillage(o, texte);
 }
