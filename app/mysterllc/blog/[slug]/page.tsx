@@ -444,17 +444,56 @@ export default async function ArticleMysterLLC({ params }: any) {
             auprès des administrations. Dans les deux cas, le dossier est
             constitué.
           </p>
-          {/* MysterLLC n a pas de parcours d inscription en ligne : les
-              comptes se créent après entretien. Le bouton mène donc à la
-              page de contact — et non plus à un lien mailto, qui ne fait
-              rien sur un appareil sans messagerie configurée. */}
-          <a href={SITE + "/contact"}
-            style={{ display: "inline-block", background: OR,
-              color: NOIR, padding: "15px 30px", borderRadius: "9px",
-              textDecoration: "none", fontWeight: "bold",
-              fontSize: "16px" }}>
-            Demander une présentation
-          </a>
+          {/* ══════════════════════════════════════════════════════════════
+              🆕 DEUX PORTES — 07/09, EN MEME TEMPS QUE LA LANDING PAGE.
+
+              LE LECTEUR ARRIVE D UN MOTEUR DE RECHERCHE. Il ne connait ni
+              la marque ni le produit, et il n a rien demande. « Demander
+              une presentation » suppose un entretien : c est beaucoup pour
+              quelqu un qui vient de lire un article, et le blog etait le
+              SEUL canal de MysterLLC — tout ce qui se perd ici se perd
+              entierement.
+
+              🚨 LE RECAPITULATIF NE COUTE QU UNE ADRESSE, ET IL DONNE
+              QUELQUE CHOSE. Il mene a /llc, qui envoie les echeances de
+              l Etat choisi et alimente `prospects_llc` — la seule base de
+              prospects MysterLLC qui existe, puisque cette cible ne se
+              constitue pas en liste froide : « quelqu un qui possede une
+              LLC reste tres discret » (Jacques, 07/09).
+
+              ⚠️ « DEMANDER UNE PRESENTATION » N EST PAS RETIRE. Il reste a
+              cote, en bouton borde : celui qui est deja convaincu ne doit
+              pas etre oblige de passer par le formulaire.
+
+              ⚠️ LES DEUX LIENS SONT ABSOLUS. Le middleware sert cette page
+              depuis mysterllc.com ; un lien relatif renverrait ailleurs si
+              l article est ouvert depuis academiapro.fr.
+
+              ⚠️ flexWrap SUR LE CONTENEUR : sur un telephone, les deux
+              boutons passent l un sous l autre au lieu de deborder.
+
+              MysterLLC n a pas de parcours d inscription en ligne : les
+              comptes se creent apres entretien. Le bouton de contact mene
+              donc a la page de contact — et non a un lien mailto, qui ne
+              fait rien sur un appareil sans messagerie configuree.
+              ══════════════════════════════════════════════════════════════ */}
+          <div style={{ display: "flex", gap: "12px", flexWrap: "wrap",
+            alignItems: "center" }}>
+            <a href={SITE + "/llc"}
+              style={{ display: "inline-block", background: OR,
+                color: NOIR, padding: "15px 30px", borderRadius: "9px",
+                textDecoration: "none", fontWeight: "bold",
+                fontSize: "16px" }}>
+              Recevoir vos échéances
+            </a>
+            <a href={SITE + "/contact"}
+              style={{ display: "inline-block",
+                border: "1px solid rgba(200,169,110,0.5)",
+                color: OR, padding: "14px 28px", borderRadius: "9px",
+                textDecoration: "none", fontSize: "16px" }}>
+              Demander une présentation
+            </a>
+          </div>
         </div>
       </main>
 
