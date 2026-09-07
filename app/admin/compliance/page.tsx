@@ -628,10 +628,19 @@ export default function ComplianceDashboard() {
             route /api/compliance/depenses qui verifie qu il appartient bien
             au client de la session — cet ecran ne fait que le passer.
             ══════════════════════════════════════════════════════════════ */}
-        {entiteId && (
+        {/* ⚠️ ON S APPUIE SUR `tenant.id` ET NON SUR `entiteId` — 07/09.
+            Le lien etait conditionne a `entiteId`, et il ne s affichait
+            pas : cette variable peut rester vide selon ce que renvoie la
+            route, alors que `tenant` — la societe elle-meme — est toujours
+            chargee des que la page affiche quelque chose. C est d ailleurs
+            elle qui porte le nom en haut de l ecran.
+            ⚠️ `entiteId` GARDE SON ROLE AILLEURS : les generations de
+            formulaires le transmettent. On ne le remplace pas, on cesse
+            seulement d en dependre pour un simple lien. */}
+        {tenant && tenant.id && (
           <p style={{ fontSize: 14, marginTop: 0, marginBottom: 14 }}>
             <a
-              href={"/compliance/comptabilite?societe=" + encodeURIComponent(entiteId)}
+              href={"/compliance/comptabilite?societe=" + encodeURIComponent(String(tenant.id))}
               style={{ color: VERT, fontWeight: "bold" }}
             >
               Tenir la comptabilité de cette société &rarr;
