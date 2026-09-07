@@ -84,7 +84,7 @@ const BANNIERE = "/IMG_4723.jpeg";
 // Quelqu un qui coche celle-ci est un prospect, pas un curieux.
 const SITUATIONS = [
   { code: "propre", texte: "J'ai ma propre LLC" },
-  { code: "portefeuille", texte: "J'en suis plusieurs, pour des clients" },
+  { code: "portefeuille", texte: "Je gère des LLC pour des clients" },
   { code: "projet", texte: "Je n'en ai pas encore, j'y réfléchis" },
 ];
 
@@ -345,6 +345,22 @@ export default function ContactMysterLLC() {
                   <label style={labelStyle}>Combien, à peu près ?</label>
                   <input type="text" style={champStyle} value={societes}
                     onChange={function (e) { setSocietes(e.target.value); }} />
+                  {/* 🚨 LE MALENTENDU QUE CETTE PHRASE EVITE — 07/09.
+                      Jacques : « pour eviter qu il y ait un petit malin qui
+                      dise nous aussi on est client puisqu on a une LLC, et
+                      qui utilise 300 comptabilites dans une seule licence ».
+                      Quelqu un qui gere trente LLC pour trente clients peut
+                      croire qu un seul abonnement les couvre toutes. Le
+                      dire ici coute une ligne ; le decouvrir a l entretien
+                      coute la vente.
+                      ⚠️ AUCUN PRIX. La tarification se discute au vu du
+                      portefeuille, et l ancrer d avance ferait perdre
+                      l information que le prospect donne lui-meme. */}
+                  <p style={{ color: "rgba(255,255,255,0.42)",
+                    fontSize: "12.5px", lineHeight: "1.65",
+                    margin: "8px 0 0" }}>
+                    Le suivi se compte par société, pas par client.
+                  </p>
                 </div>
               )}
 
