@@ -1,10 +1,42 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { limiter, ipDe } from "../../../../lib/limiteur";
-import crypto from "crypto";
+import { verifierMdp } from "../securite/route";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🚨🚨 LA VERIFICATION DU MOT DE PASSE EST DESORMAIS PARTAGEE — 07/09.
+//
+// CE QUI S EST PASSE. Le 31/08, le hachage du mot de passe est passe de
+// SHA-256 a scrypt (voir app/api/admin/securite/route.ts). La fonction
+// `verifierMdp` de ce fichier reconnait les deux formats et migre
+// automatiquement un ancien hachage des la premiere verification reussie.
+//
+// MAIS CETTE ROUTE RECALCULAIT LE SHA-256 EN LIGNE, dans son propre code.
+// Elle ne connaissait pas scrypt. Des que la migration a eu lieu, elle a
+// repondu « Non autorise » a tout enregistrement de depense — alors que
+// l ecran de connexion continuait de fonctionner, puisqu il passe par
+// /api/admin/compta qui, lui, importe la bonne fonction.
+//
+// ⚠️ LE COMMENTAIRE DE securite/route.ts AFFIRMAIT DEJA QUE CETTE ROUTE
+// IMPORTAIT `verifierMdp`. C etait faux. Le changement du 31/08 a ete
+// fait a moitie : la fonction commune a ete ecrite, une seule des trois
+// routes l a adoptee.
+//
+// ⛔ NE JAMAIS REECRIRE `parametres_securite.hash` A LA MAIN pour
+// « reparer » une de ces routes. Cela fonctionne quelques minutes, puis
+// `verifierMdp` detecte l ancien format a la reconnexion suivante et le
+// remigre en scrypt : la panne revient sans qu on comprenne pourquoi.
+// La seule facon legitime de changer ce mot de passe est l onglet
+// « Mot de passe » de l ecran, qui passe par /api/admin/securite.
+//
+// ⛔ NE JAMAIS RECALCULER UN HACHAGE ICI. Trois routes demandent ce mot
+// de passe — compta, analyser-justificatif et celle-ci — et elles doivent
+// toutes appeler `verifierMdp`, sinon la prochaine evolution du format en
+// cassera deux sur trois.
+// ═══════════════════════════════════════════════════════════════════════
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -15,11 +47,10 @@ export async function POST(req: NextRequest) {
   if (!limiter(ipDe(req), "depense", 10, 600000)) { return NextResponse.json({ error: "Trop de tentatives, reessayez dans quelques minutes" }, { status: 429 }); }
   try {
     // Securite : mot de passe compta + origine du site
-    const mdp = req.headers.get("x-mdp-compta") || "";
-    const { data: sec } = await supabase.from("parametres_securite")
-      .select("hash, sel").eq("cle", "mdp_admin").single();
-    const hashOk = sec ? crypto.createHash("sha256").update(mdp + sec.sel).digest("hex") === sec.hash : false;
-    if (!hashOk) {
+    //
+    // 🚨 LA MEME FONCTION QUE /api/admin/compta. Elle accepte scrypt et
+    // SHA-256, et migre l ancien format toute seule.
+    if (!(await verifierMdp(req.headers.get("x-mdp-compta") || ""))) {
       return NextResponse.json({ error: "Non autorise" }, { status: 401 });
     }
     const origine = (req.headers.get("origin") || "") + (req.headers.get("referer") || "");
@@ -55,6 +86,13 @@ export async function POST(req: NextRequest) {
     const trimestre = d.getFullYear() + "-T" + (Math.floor(d.getMonth() / 3) + 1);
 
     // Upload du justificatif (optionnel) - chemin relatif comme les 17 existantes
+    //
+    // ⚠️ LE JUSTIFICATIF RESTE FACULTATIF, ET C EST VOULU : certaines
+    // depenses n en ont pas. Mais SI un fichier est fourni et que son
+    // envoi echoue, la route s arrete AVANT d inserer la ligne — une
+    // depense sans son justificatif alors qu on croyait l avoir joint
+    // est pire qu une depense non enregistree, parce qu on ne s en
+    // apercoit que des mois plus tard.
     let pdf_url: string | null = null;
     if (fichier && fichier.size > 0) {
       const bytes = Buffer.from(await fichier.arrayBuffer());
