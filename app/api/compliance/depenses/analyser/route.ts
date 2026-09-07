@@ -65,13 +65,28 @@ export async function POST(req: NextRequest) {
     const societeId = String(fd.get("societe") || "");
     const { data: societe } = await supabase
       .from("compliance_tenants")
-      .select("id")
+      .select("id, forfait")
       .eq("id", societeId)
       .eq("tenant_id", tenant)
       .limit(1)
       .maybeSingle();
     if (!societe) {
       return NextResponse.json({ ok: false, erreur: "Société introuvable." }, { status: 404 });
+    }
+
+    // 🚨 LE FORFAIT DECIDE ICI AUSSI — 07/09. La lecture d un justificatif
+    // par IA fait partie du forfait Comptabilite. Sans ce controle, une
+    // societe a 49 € consommerait des appels payants sans y avoir droit,
+    // simplement en appelant l adresse.
+    if (societe.forfait !== "comptabilite") {
+      return NextResponse.json(
+        {
+          ok: false,
+          erreur: "Cette société est au forfait Suivi. La lecture des "
+            + "justificatifs fait partie du forfait Suivi et comptabilité.",
+        },
+        { status: 403 }
+      );
     }
 
     const fichier = fd.get("fichier") as File | null;
