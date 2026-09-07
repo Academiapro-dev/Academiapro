@@ -80,13 +80,42 @@ async function societeDuClient(entiteId: string, tenant: string) {
   if (!entiteId) return null;
   const { data } = await supabase
     .from("compliance_tenants")
-    .select("id, label, legal_name, formation_state, tenant_id")
+    .select("id, label, legal_name, formation_state, tenant_id, forfait")
     .eq("id", entiteId)
     .eq("tenant_id", tenant)
     .limit(1)
     .maybeSingle();
   return data || null;
 }
+
+// ══════════════════════════════════════════════════════════════════════════
+// 🚨 LE FORFAIT DECIDE DE L ACCES A LA COMPTABILITE — 07/09.
+//
+// Deux forfaits en base (`tarifs`, produit 'mysterllc') :
+//   suivi         49 €/mois — echeances, formulaires preremplis, relances
+//   comptabilite  99 €/mois — tout le suivi, PLUS la saisie des depenses
+//
+// Sans ce controle, une societe a 49 € accedait a la comptabilite comme
+// une societe a 99 € : la difference de prix ne reposait sur rien.
+//
+// ⚠️ LE CONTROLE EST DANS LA ROUTE, PAS SEULEMENT DANS L ECRAN. Un ecran
+// qui masque un bouton n empeche personne d appeler l adresse directement.
+//
+// ⚠️ UNE SOCIETE SANS FORFAIT EST TRAITEE COMME « suivi ». Elle n a rien
+// souscrit : lui ouvrir la comptabilite reviendrait a offrir le forfait le
+// plus cher a celui qui n en a pris aucun.
+//
+// ⚠️ LE MESSAGE DIT QUOI FAIRE. « Non autorise » laisserait le client
+// croire a un defaut ; on nomme le forfait qui ouvre la fonction.
+// ══════════════════════════════════════════════════════════════════════════
+function comptabiliteOuverte(societe: any): boolean {
+  return societe && societe.forfait === "comptabilite";
+}
+
+const REFUS_FORFAIT = "Cette société est au forfait Suivi. La tenue de la "
+  + "comptabilité — dépenses, justificatifs, compte courant d'associé — "
+  + "fait partie du forfait Suivi et comptabilité. Écrivez-nous pour "
+  + "changer de forfait.";
 
 // ---- LIRE ----
 export async function GET(req: NextRequest) {
@@ -99,6 +128,21 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(
       { ok: false, erreur: "Société introuvable." },
       { status: 404 }
+    );
+  }
+
+  // 🚨 LE FORFAIT EST VERIFIE AVANT TOUTE LECTURE. On rend 403 avec le
+  // nom de la societe et son forfait : l ecran peut ainsi afficher un
+  // message utile plutot qu une page vide.
+  if (!comptabiliteOuverte(societe)) {
+    return NextResponse.json(
+      {
+        ok: false,
+        erreur: REFUS_FORFAIT,
+        forfait: societe.forfait || null,
+        societe: { id: societe.id, label: societe.label },
+      },
+      { status: 403 }
     );
   }
 
@@ -231,6 +275,16 @@ export async function POST(req: NextRequest) {
   const societe = await societeDuClient(String(b.societe || ""), c.tenant);
   if (!societe) {
     return NextResponse.json({ ok: false, erreur: "Société introuvable." }, { status: 404 });
+  }
+
+  // ⚠️ MEME CONTROLE EN ECRITURE. Sans lui, une societe au forfait Suivi
+  // ne verrait rien mais pourrait quand meme ajouter des depenses en
+  // appelant la route directement.
+  if (!comptabiliteOuverte(societe)) {
+    return NextResponse.json(
+      { ok: false, erreur: REFUS_FORFAIT, forfait: societe.forfait || null },
+      { status: 403 }
+    );
   }
 
   // ---- AJOUTER UNE DEPENSE ----
