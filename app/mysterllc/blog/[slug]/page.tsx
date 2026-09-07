@@ -113,6 +113,24 @@ export async function generateMetadata({ params }: any) {
       description: article.extrait || "",
       url: SITE + "/blog/" + article.slug,
       siteName: "MysterLLC",
+      // 🆕 L IMAGE DE PARTAGE — 07/09.
+      //
+      // 🚨 SANS ELLE, UN LIEN PARTAGE SUR LINKEDIN N A PAS D APERCU. Le
+      // reseau cherche une image declaree ; n en trouvant aucune, il
+      // affiche un rectangle vide ou pioche au hasard dans la page. Un
+      // post sans visuel est nettement moins vu, et c est le canal
+      // principal de MysterLLC.
+      //
+      // ⚠️ MEME IMAGE QUE LA VITRINE, VOLONTAIREMENT : elle existe, elle
+      // est verifiee, et le nom du fichier est celui du disque
+      // (IMG_4723.jpeg, jamais renomme).
+      //
+      // ⚠️ LE FORMAT EST LARGE (4:1). Les reseaux preferent un rapport
+      // proche de 1,91:1 et rogneront un peu en haut et en bas. La
+      // banniere reste lisible ainsi — le nom et la base line sont au
+      // centre. Si un visuel par article est produit un jour, c est ici
+      // qu il se declare.
+      images: [{ url: SITE + BANNIERE, width: 1200, height: 300 }],
       locale: "fr_FR",
       type: "article",
     },
