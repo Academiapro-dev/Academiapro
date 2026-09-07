@@ -603,6 +603,45 @@ export default function ComplianceDashboard() {
           <strong>Le Form 5472 est dû au 15 avril.</strong> Son dépôt tardif ou omis
           coûte 25 000 USD par société et par an, quelle que soit l'activité.
         </p>
+
+        {/* ══════════════════════════════════════════════════════════════
+            LE LIEN VERS LA COMPTABILITE — 07/09.
+
+            🚨 CE LIEN MANQUAIT, ET C ETAIT UNE PROMESSE D ECRAN NON TENUE.
+            Le paragraphe ci-dessus annonce depuis toujours que « les
+            montants se recalculent automatiquement depuis les depenses
+            marquees comme avances personnelles » — alors qu il n existait
+            NULLE PART ou les marquer pour une societe MysterLLC.
+
+            La table `depenses` porte `entite_id` depuis le debut, avec une
+            cle etrangere vers `compliance_tenants`. Zero ligne l utilisait
+            au 07/09 : la brique existait, elle n etait pas branchee.
+
+            ⚠️ LE COMPTE COURANT D ASSOCIE EST CE QUI ALIMENTE LE 5472. Sans
+            depenses saisies, le formulaire se preremplit a partir de ce que
+            le client DECLARE. Avec elles, a partir de ce qui s est PASSE
+            SUR LE COMPTE, piece a l appui. Jacques, le 07/09 : « l avantage
+            de s occuper de la comptabilite, c est de s assurer de la
+            veracite de la declaration du formulaire 5472 ».
+
+            ⚠️ L IDENTIFIANT DE LA SOCIETE EST TRANSMIS TEL QUEL. C est la
+            route /api/compliance/depenses qui verifie qu il appartient bien
+            au client de la session — cet ecran ne fait que le passer.
+            ══════════════════════════════════════════════════════════════ */}
+        {entiteId && (
+          <p style={{ fontSize: 14, marginTop: 0, marginBottom: 14 }}>
+            <a
+              href={"/compliance/comptabilite?societe=" + encodeURIComponent(entiteId)}
+              style={{ color: VERT, fontWeight: "bold" }}
+            >
+              Tenir la comptabilité de cette société &rarr;
+            </a>
+            <span style={{ color: "#555", marginLeft: 8 }}>
+              — dépenses, justificatifs et compte courant d'associé.
+            </span>
+          </p>
+        )}
+
         <button
           onClick={() => genererIRS("f5472")}
           disabled={irsLoading !== null}
