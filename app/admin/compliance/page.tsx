@@ -637,18 +637,34 @@ export default function ComplianceDashboard() {
             ⚠️ `entiteId` GARDE SON ROLE AILLEURS : les generations de
             formulaires le transmettent. On ne le remplace pas, on cesse
             seulement d en dependre pour un simple lien. */}
+        {/* 🚨 MIS EN EVIDENCE — 07/09. Le lien etait en 14 px, de la meme
+            taille et de la meme couleur que le texte autour : Jacques ne
+            l a vu qu apres l avoir cherche. « Il faut une loupe pour le
+            voir. » Il porte maintenant un encadre, un fond vert pale et un
+            texte de 17 px — c est une ACTION, pas une phrase de plus. */}
         {tenant && tenant.id && (
-          <p style={{ fontSize: 14, marginTop: 0, marginBottom: 14 }}>
-            <a
-              href={"/compliance/comptabilite?societe=" + encodeURIComponent(String(tenant.id))}
-              style={{ color: VERT, fontWeight: "bold" }}
-            >
+          <a
+            href={"/compliance/comptabilite?societe=" + encodeURIComponent(String(tenant.id))}
+            style={{
+              display: "block",
+              margin: "0 0 18px",
+              padding: "16px 20px",
+              background: "rgba(10,61,46,0.07)",
+              border: "2px solid " + VERT,
+              borderRadius: 10,
+              textDecoration: "none",
+            }}
+          >
+            <span style={{ display: "block", color: VERT, fontSize: 17,
+              fontWeight: "bold", marginBottom: 4 }}>
               Tenir la comptabilité de cette société &rarr;
-            </a>
-            <span style={{ color: "#555", marginLeft: 8 }}>
-              — dépenses, justificatifs et compte courant d'associé.
             </span>
-          </p>
+            <span style={{ display: "block", color: "#555", fontSize: 14,
+              lineHeight: 1.6 }}>
+              Dépenses, justificatifs lus automatiquement, compte courant
+              d&apos;associé. C&apos;est ce qui alimente le Form 5472.
+            </span>
+          </a>
         )}
 
         <button
