@@ -185,11 +185,45 @@ export async function GET(req: NextRequest) {
 }
 
 // ---- ECRIRE ----
+//
+// 🆕 DEUX FORMATS ACCEPTES — 07/09.
+//
+// ⚠️ L AJOUT AVEC JUSTIFICATIF ARRIVE EN `multipart/form-data` : c est le
+// seul moyen de faire passer un fichier. Les autres actions — rembourser,
+// supprimer — arrivent en JSON, comme avant. On lit l en-tete pour savoir
+// lequel, plutot que d imposer un format a l ecran.
+//
+// 🚨 LE FICHIER EST TELEVERSE AVANT L INSERTION, et si le televersement
+// echoue, RIEN N EST ENREGISTRE. Une depense sans sa piece alors que le
+// client croit l avoir jointe, c est exactement le trou de justificatif
+// qu on cherche a eviter.
 export async function POST(req: NextRequest) {
   const c: any = await contexte();
   if (c.erreur) return NextResponse.json({ ok: false, erreur: c.erreur }, { status: c.code });
 
-  const b = await req.json().catch(function () { return null; });
+  let b: any = null;
+  let fichier: File | null = null;
+
+  const typeContenu = String(req.headers.get("content-type") || "");
+  if (typeContenu.indexOf("multipart/form-data") >= 0) {
+    const fd = await req.formData().catch(function () { return null; });
+    if (!fd) {
+      return NextResponse.json({ ok: false, erreur: "Formulaire illisible." }, { status: 400 });
+    }
+    b = {};
+    fd.forEach(function (v: any, k: string) {
+      if (k === "fichier") return;
+      b[k] = String(v);
+    });
+    // Les booleens arrivent en texte depuis un formulaire.
+    b.avance_perso = b.avance_perso === "true";
+    b.recurrente = b.recurrente === "true";
+    const f = fd.get("fichier");
+    if (f && typeof f === "object" && (f as any).size > 0) fichier = f as File;
+  } else {
+    b = await req.json().catch(function () { return null; });
+  }
+
   if (!b || !b.action) {
     return NextResponse.json({ ok: false, erreur: "Action manquante." }, { status: 400 });
   }
@@ -217,7 +251,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // ⚠️ CATEGORIE ET DEVISE SONT RAMENEES A LA LISTE. Une valeur libre 
+    // ⚠️ CATEGORIE ET DEVISE SONT RAMENEES A LA LISTE. Une valeur libre
     // casserait les regroupements par categorie et le total par devise.
     const categorie = CATEGORIES.indexOf(String(b.categorie)) >= 0
       ? String(b.categorie) : "Autre";
@@ -226,6 +260,47 @@ export async function POST(req: NextRequest) {
 
     const date = String(b.date_depense || "").slice(0, 10)
       || new Date().toISOString().slice(0, 10);
+
+    // ---- LE JUSTIFICATIF ----
+    //
+    // ⚠️ MEME BUCKET ET MEME FORME DE CHEMIN QUE LA COMPTABILITE D ACADEMIA
+    // (`documents-comptables`, `Depenses/<annee>/<horodatage>_<nom>`). Un
+    // seul endroit, une seule regle de rangement : l export et la lecture
+    // des pieces fonctionnent a l identique pour les deux.
+    //
+    // ⚠️ LE CHEMIN PORTE LA SOCIETE. Sans cela, deux clients qui televersent
+    // « facture.pdf » la meme seconde se marcheraient dessus.
+    let cheminPiece: string | null = null;
+    if (fichier) {
+      if (fichier.size > 8 * 1024 * 1024) {
+        return NextResponse.json(
+          { ok: false, erreur: "Fichier trop lourd (8 Mo maximum)." },
+          { status: 400 }
+        );
+      }
+      const octets = Buffer.from(await fichier.arrayBuffer());
+      const nomPropre = String(fichier.name || "piece")
+        .replace(/[^a-zA-Z0-9._-]/g, "_")
+        .slice(0, 80);
+      const annee = String(date).slice(0, 4);
+      cheminPiece = "Depenses/" + annee + "/" + societe.id.slice(0, 8)
+        + "_" + Date.now() + "_" + nomPropre;
+
+      const { error: eUp } = await supabase.storage
+        .from("documents-comptables")
+        .upload(cheminPiece, octets, {
+          contentType: fichier.type || "application/octet-stream",
+          upsert: false,
+        });
+
+      if (eUp) {
+        console.error("[compliance/depenses] televersement : " + eUp.message);
+        return NextResponse.json(
+          { ok: false, erreur: "Le justificatif n'a pas pu être enregistré. Réessayez." },
+          { status: 500 }
+        );
+      }
+    }
 
     const { data, error } = await supabase
       .from("depenses")
@@ -245,7 +320,7 @@ export async function POST(req: NextRequest) {
         recurrente: b.recurrente === true,
         date_depense: date,
         trimestre: trimestreDe(date),
-        pdf_url: String(b.pdf_url || "") || null,
+        pdf_url: cheminPiece,
       })
       .select("id, fournisseur, categorie, montant_ttc, devise, avance_perso, "
         + "recurrente, date_depense, trimestre, pdf_url")
@@ -257,6 +332,40 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({ ok: true, depense: data });
+  }
+
+  // ---- OUVRIR UNE PIECE ----
+  //
+  // ⚠️ LE BUCKET EST PRIVE : les pieces ne s ouvrent que par URL signee,
+  // valable cinq minutes. On verifie que la depense appartient bien a la
+  // societe du client avant de signer quoi que ce soit.
+  if (b.action === "ouvrir_piece") {
+    const id = String(b.id || "");
+    const { data: dep } = await supabase
+      .from("depenses")
+      .select("pdf_url")
+      .eq("id", id)
+      .eq("entite_id", societe.id)
+      .limit(1)
+      .maybeSingle();
+
+    if (!dep || !dep.pdf_url) {
+      return NextResponse.json({ ok: false, erreur: "Aucune pièce sur cette dépense." }, { status: 404 });
+    }
+
+    let chemin = String(dep.pdf_url);
+    if (chemin.indexOf("documents-comptables/") === 0) {
+      chemin = chemin.slice("documents-comptables/".length);
+    }
+
+    const { data: signee, error: eS } = await supabase.storage
+      .from("documents-comptables")
+      .createSignedUrl(chemin, 300);
+
+    if (eS || !signee) {
+      return NextResponse.json({ ok: false, erreur: "Pièce indisponible." }, { status: 404 });
+    }
+    return NextResponse.json({ ok: true, url: signee.signedUrl });
   }
 
   // ---- MARQUER UNE AVANCE REMBOURSEE ----
