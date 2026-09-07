@@ -645,6 +645,15 @@ export default function NavBar() {
               exactement le defaut signale par Jacques le 17/08 sur l ecran
               LinkedIn. */}
           <a href="/admin/compliance/signatures" style={lienMenu}>Signatures</a>
+          {/* 🆕 L ABONNEMENT — 07/09. L ecran /compliance/abonnement montre
+              le forfait de chaque societe et le total du portefeuille.
+              🚨 LE FORFAIT EST PAR SOCIETE : un gestionnaire qui suit trois
+              LLC paie trois fois. Sans cet ecran, il decouvre le total sur
+              sa premiere facture.
+              ⚠️ NE PAS CONFONDRE avec /api/compliance/facturation, qui
+              produit les documents legaux — devis, factures, numerotation
+              continue. Celui-ci dit seulement ce qu on paie. */}
+          <a href="/compliance/abonnement" style={lienMenu}>Abonnement</a>
         </nav>
         <div style={{ display: "flex", gap: "10px", alignItems: "center", flexShrink: 0 }}>
           <a href="/admin/compliance/ma-societe" style={{ color: "#c8a96e", border: "1px solid rgba(200,169,110,0.45)", padding: "8px 16px", borderRadius: "8px", textDecoration: "none", fontWeight: "bold", fontSize: "14px", whiteSpace: "nowrap" }}>
