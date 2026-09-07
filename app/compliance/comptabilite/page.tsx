@@ -54,6 +54,12 @@ export default function PageComptabiliteSociete() {
   const [erreur, setErreur] = useState("");
   const [formulaire, setFormulaire] = useState(false);
 
+  // 🚨 LE REFUS DE FORFAIT N EST PAS UNE ERREUR — 07/09. Une societe au
+  // forfait Suivi n a pas la comptabilite : ce n est pas une panne, c est
+  // ce qu elle a souscrit. On l affiche autrement qu un message rouge, et
+  // on n affiche ni le formulaire ni la liste.
+  const [refusForfait, setRefusForfait] = useState(false);
+
   // Le formulaire de saisie.
   const [fournisseur, setFournisseur] = useState("");
   const [montant, setMontant] = useState("");
@@ -125,6 +131,10 @@ export default function PageComptabiliteSociete() {
           setCategorie(d.categories[0]);
         }
       } else if (d && d.erreur) {
+        if (d.forfait !== undefined) {
+          setRefusForfait(true);
+          setSociete(d.societe || null);
+        }
         setErreur(d.erreur);
       }
     } catch (e: any) {
@@ -344,7 +354,29 @@ export default function PageComptabiliteSociete() {
           au formulaire 5472.
         </p>
 
-        {erreur && (
+        {/* ---- LE FORFAIT NE COUVRE PAS LA COMPTABILITE ----
+            ⚠️ EN AMBRE, PAS EN ROUGE. Le client n a pas fait d erreur : il
+            a souscrit le forfait Suivi. Un message rouge lui ferait croire
+            a une panne. */}
+        {refusForfait && (
+          <div style={{ ...CARTE, borderColor: "rgba(232,163,61,0.5)",
+            background: "rgba(232,163,61,0.07)" }}>
+            <p style={{ color: "#e8a33d", fontSize: "16px", margin: "0 0 8px",
+              lineHeight: "1.6" }}>
+              Forfait Suivi
+            </p>
+            <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "14.5px",
+              margin: "0 0 16px", lineHeight: "1.8" }}>
+              {erreur}
+            </p>
+            <a href="/compliance/abonnement"
+              style={{ color: OR, fontSize: "14px", fontWeight: "bold" }}>
+              Voir les forfaits &rarr;
+            </a>
+          </div>
+        )}
+
+        {erreur && !refusForfait && (
           <div style={{ ...CARTE, border: "1px solid rgba(232,131,106,0.5)" }}>
             <p style={{ color: "#e8836a", fontSize: "14.5px", margin: 0, lineHeight: "1.7" }}>
               {erreur}
@@ -361,7 +393,7 @@ export default function PageComptabiliteSociete() {
         {/* ---- LE COMPTE COURANT ----
             🚨 EN PREMIER : c est le chiffre que le client vient chercher,
             et celui qui alimente le 5472. */}
-        {charge && societe && (
+        {charge && societe && !refusForfait && (
           <div style={{ display: "flex", gap: "14px", flexWrap: "wrap", marginBottom: "20px" }}>
             <div style={{ ...CARTE, flex: "1 1 260px", marginBottom: 0,
               borderColor: "rgba(177,140,255,0.45)" }}>
@@ -431,7 +463,7 @@ export default function PageComptabiliteSociete() {
         )}
 
         {/* ---- AJOUTER ---- */}
-        {charge && societe && (
+        {charge && societe && !refusForfait && (
           <div style={{ marginBottom: "18px" }}>
             <button onClick={() => setFormulaire(!formulaire)}
               style={{ ...BOUTON, background: formulaire ? "transparent" : OR,
@@ -683,7 +715,7 @@ export default function PageComptabiliteSociete() {
           </div>
         )}
 
-        {charge && societe && depenses.length === 0 && (
+        {charge && societe && !refusForfait && depenses.length === 0 && (
           <div style={CARTE}>
             <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "14.5px",
               margin: 0, lineHeight: "1.75" }}>
