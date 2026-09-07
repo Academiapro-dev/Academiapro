@@ -190,6 +190,23 @@ const PAGES_PUBLIQUES_MYSTERLLC = [
   "/signature-electronique",
   "/blog",
   "/contact",
+  // 🆕 /llc AJOUTE LE 07/09, LE JOUR MEME DE LA PAGE.
+  //
+  // C EST LA LANDING PAGE DE LA PUBLICITE (app/mysterllc/llc). Elle recoit
+  // un visiteur qui ne connait ni la marque ni le produit, et son principe
+  // est de N OFFRIR AUCUNE SORTIE : pas de menu, un seul lien vers les
+  // mentions legales, et un formulaire.
+  //
+  // 🚨 SANS CETTE LIGNE, LA BARRE DE TRAVAIL S AFFICHE PAR-DESSUS —
+  // constate a l ecran le 07/09 : Portefeuille, Agenda, Tableau de bord,
+  // Signatures, Abonnement, Ma societe. Sept sorties sur la page qui ne
+  // devait pas en avoir, et six d entre elles menant a des ecrans reserves.
+  //
+  // ⚠️ LE CHEMIN VU ICI EST « /llc », PAS « /mysterllc/llc ». Le test
+  // `chemin.indexOf("/mysterllc/") === 0` plus bas ne suffit donc pas :
+  // le middleware a deja reecrit quand la barre s execute. C est le meme
+  // piege que pour /devis sur mrlms.fr et mrcrm.fr.
+  "/llc",
 ];
 
 function estPagePubliqueMysterLLC(chemin) {
