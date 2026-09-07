@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
 export const runtime = "nodejs";
-export const dynamic = "force-dynamic"; 
+export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 // LA BASE DES AGENCES IMMOBILIERES.
@@ -61,7 +61,20 @@ export const maxDuration = 60;
 //    propre plafond de dix mille. Ce n est pas fait ici — a decider.
 // ═══════════════════════════════════════════════════════════════════════
 
-const NAF = "6831Z";
+// 🚨 LE POINT EST OBLIGATOIRE — CORRIGE LE 07/09.
+//
+// La route envoyait « 6831Z » et l annuaire repondait 400 Bad Request des
+// la page 1. La documentation officielle donne l exemple « 56.10A » : le
+// code NAF se transmet AVEC son point, comme l INSEE l ecrit.
+//
+// ⚠️ VERIFIE DIRECTEMENT DANS LE NAVIGATEUR avant correction :
+// recherche-entreprises.api.gouv.fr/search?activite_principale=68.31Z
+// rend du JSON, la meme sans le point rend 400.
+//
+// ⛔ NE JAMAIS RECOPIER UN CODE NAF DEPUIS UN SITE D ANNUAIRE : la plupart
+// l ecrivent sans point (6831Z), et c est justement la forme que l API
+// refuse.
+const NAF = "68.31Z";
 const PAR_PAGE = 25;
 
 // 🚨 LE PLAFOND DUR DE L ANNUAIRE : 10 000 resultats / 25 par page.
