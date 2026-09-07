@@ -31,6 +31,32 @@ import { useState } from "react";
 //
 // 🚨 TOUT LIEN HORS VITRINE EST ABSOLU. Sur mysterllc.com, le middleware
 // reecrit tout chemin non reserve vers /mysterllc.
+//
+// ══════════════════════════════════════════════════════════════════════════
+// 🆕 LA PAGE ACCUEILLE DESORMAIS LES TROIS SITUATIONS — 07/09.
+//
+// LE DEFAUT CONSTATE A L ECRAN. Le seul champ de qualification demandait
+// « Combien de societes suivez-vous ? ». Cette question ne s adresse qu au
+// gestionnaire qui suit un portefeuille pour le compte d autrui. Or la
+// vitrine parle a DEUX PUBLICS depuis le 01/09, et le blog en amene un
+// troisieme : celui qui n a pas encore de LLC.
+//
+// 🚨 CE QU ELLE PRODUISAIT. Un dirigeant qui possede SA propre LLC
+// repondait « une » et comprenait qu il n etait pas le bon client. Celui
+// qui hesite encore n avait aucune reponse possible.
+//
+// CE QUI CHANGE : un choix a trois branches remplace le champ libre. Le
+// nombre de societes n est demande QUE si l on gere un portefeuille — c est
+// l information qui fixe le prix, et elle n a de sens que dans ce cas.
+//
+// ⚠️ RIEN N EST RETIRE. Le « combien » existe toujours, il apparait quand
+// il veut dire quelque chose. Le sujet transmis a /api/contact porte la
+// situation, ce qui permet de repondre avec le bon discours des la
+// premiere lecture.
+//
+// ⚠️ LE CHOIX RESTE FACULTATIF. Un champ obligatoire de plus fait perdre
+// des envois ; sans reponse, le sujet retombe sur « Demande de
+// presentation », comme avant.
 // ══════════════════════════════════════════════════════════════════════════
 
 const SITE = "https://www.mysterllc.com";
@@ -45,6 +71,22 @@ const FOND = "#050508";
 // ⚠️ VERIFIER LE NOM REEL AVANT DE LE CHANGER : le fichier s appelle
 // IMG_4723.jpeg, il n a pas ete renomme.
 const BANNIERE = "/IMG_4723.jpeg";
+
+// LES TROIS SITUATIONS.
+//
+// ⚠️ L ORDRE COMPTE. Le proprietaire d une seule LLC vient en premier :
+// c est le public que le blog amene, et le plus nombreux. Le gestionnaire
+// de portefeuille etait seul jusqu au 07/09 ; il reste, en deuxieme.
+//
+// 🚨 « Je n en ai pas encore » N EST PAS UNE CASE POUR LA FORME. C est
+// l angle trouve par Jacques le 07/09 : ce qui retient avant la creation
+// est exactement ce qui pese apres — les obligations qu on ne connait pas.
+// Quelqu un qui coche celle-ci est un prospect, pas un curieux.
+const SITUATIONS = [
+  { code: "propre", texte: "J'ai ma propre LLC" },
+  { code: "portefeuille", texte: "J'en suis plusieurs, pour des clients" },
+  { code: "projet", texte: "Je n'en ai pas encore, j'y réfléchis" },
+];
 
 const SECTION: any = {
   maxWidth: "1000px",
@@ -82,12 +124,37 @@ export default function ContactMysterLLC() {
   const [prenom, setPrenom] = useState("");
   const [nom, setNom] = useState("");
   const [email, setEmail] = useState("");
+  const [situation, setSituation] = useState("");
   const [societes, setSocietes] = useState("");
   const [message, setMessage] = useState("");
 
   const [envoi, setEnvoi] = useState(false);
   const [parti, setParti] = useState(false);
   const [erreur, setErreur] = useState("");
+
+  // LE SUJET TRANSMIS A LA ROUTE.
+  //
+  // 🚨 IL DOIT SUFFIRE A REPONDRE SANS OUVRIR LE MESSAGE. Le discours n est
+  // pas le meme selon la situation : au gestionnaire on parle de
+  // portefeuille et de prix par societe, au proprietaire de ses propres
+  // echeances, a celui qui hesite de ce qui l attend s il se lance.
+  //
+  // ⚠️ LE NOMBRE N EST REPRIS QUE POUR UN PORTEFEUILLE : ailleurs il vaut
+  // « une » et n apprend rien.
+  function sujetDe() {
+    if (situation === "portefeuille") {
+      return societes.trim() !== ""
+        ? "Portefeuille — " + societes.trim() + " sociétés"
+        : "Portefeuille de sociétés";
+    }
+    if (situation === "propre") {
+      return "Propriétaire d'une LLC";
+    }
+    if (situation === "projet") {
+      return "Projet de création";
+    }
+    return "Demande de présentation";
+  }
 
   async function envoyer() {
     setErreur("");
@@ -103,10 +170,7 @@ export default function ContactMysterLLC() {
 
     setEnvoi(true);
     try {
-      // LE NOMBRE DE SOCIETES EST PLACE DANS LE SUJET. C est l information
-      // qui compte le plus pour repondre : le prix se fixe au vu de la
-      // taille du portefeuille. La route attend produit, prenom, nom,
-      // email, sujet et message.
+      // La route attend produit, prenom, nom, email, sujet et message.
       const r = await fetch("/api/contact", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -115,7 +179,7 @@ export default function ContactMysterLLC() {
           prenom: prenom,
           nom: nom,
           email: email,
-          sujet: societes ? "Demande — " + societes : "Demande de présentation",
+          sujet: sujetDe(),
           message: message,
         }),
       });
@@ -130,6 +194,24 @@ export default function ContactMysterLLC() {
       setErreur("Votre message n'a pas pu être transmis. Écrivez-nous à " + ADRESSE + ".");
     }
     setEnvoi(false);
+  }
+
+  // Le style d une pastille de situation, selon qu elle est choisie ou non.
+  function pastille(code: string) {
+    const actif = situation === code;
+    return {
+      background: actif
+        ? "rgba(200,169,110,0.16)"
+        : "rgba(255,255,255,0.03)",
+      border: "1px solid "
+        + (actif ? "rgba(200,169,110,0.65)" : "rgba(200,169,110,0.22)"),
+      borderRadius: "8px",
+      padding: "12px 14px",
+      color: actif ? OR : "rgba(255,255,255,0.7)",
+      fontSize: "14px",
+      cursor: "pointer",
+      marginBottom: "8px",
+    } as any;
   }
 
   return (
@@ -183,10 +265,15 @@ export default function ContactMysterLLC() {
             margin: "0 0 12px", lineHeight: "1.3" }}>
             Demander une présentation
           </h1>
+          {/* 🆕 LE SOUS-TITRE NE SUPPOSE PLUS UN PORTEFEUILLE — 07/09.
+              Il disait « sur vos propres sociétés », au pluriel : celui qui
+              n en a qu une, ou aucune, lisait que ce n était pas pour lui.
+              ⚠️ « une société » AU SINGULIER : la démonstration se fait sur
+              une seule, réelle ou non, et cela suffit à tout montrer. */}
           <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "15px",
             margin: 0, lineHeight: "1.7" }}>
-            Une heure, sur vos propres sociétés. Nous en déclarons une et
-            déroulons ce qui en sort — agenda, formulaires, relances.
+            Une heure, sur votre situation réelle. Nous déclarons une société
+            et déroulons ce qui en sort — agenda, formulaires, relances.
           </p>
         </div>
 
@@ -225,11 +312,41 @@ export default function ContactMysterLLC() {
                   onChange={function (e) { setEmail(e.target.value); }} />
               </div>
 
+              {/* 🆕 LES TROIS SITUATIONS — 07/09, en remplacement du champ
+                  « Combien de sociétés suivez-vous ? ».
+                  ⚠️ ON PEUT SE DECOCHER : cliquer sur son propre choix le
+                  retire. Quelqu un qui a cliqué par erreur ne doit pas
+                  rester enfermé dans une réponse fausse. */}
               <div style={{ marginBottom: "20px" }}>
-                <label style={labelStyle}>Combien de sociétés suivez-vous ?</label>
-                <input type="text" style={champStyle} value={societes}
-                  onChange={function (e) { setSocietes(e.target.value); }} />
+                <label style={labelStyle}>Où en êtes-vous ?</label>
+                {SITUATIONS.map(function (s) {
+                  return (
+                    <div
+                      key={s.code}
+                      onClick={function () {
+                        setSituation(situation === s.code ? "" : s.code);
+                        if (s.code !== "portefeuille") setSocietes("");
+                      }}
+                      style={pastille(s.code)}
+                    >
+                      {s.texte}
+                    </div>
+                  );
+                })}
               </div>
+
+              {/* ⚠️ LE NOMBRE N APPARAIT QUE POUR UN PORTEFEUILLE. C est
+                  l information qui fixe le prix — la tarification dépend du
+                  nombre de sociétés suivies — et elle n a de sens que là.
+                  Demandée à tout le monde, elle disqualifiait celui qui n en
+                  a qu une. */}
+              {situation === "portefeuille" && (
+                <div style={{ marginBottom: "20px" }}>
+                  <label style={labelStyle}>Combien, à peu près ?</label>
+                  <input type="text" style={champStyle} value={societes}
+                    onChange={function (e) { setSocietes(e.target.value); }} />
+                </div>
+              )}
 
               <div style={{ marginBottom: "20px" }}>
                 <label style={labelStyle}>Votre message</label>
