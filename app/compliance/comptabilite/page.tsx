@@ -65,6 +65,31 @@ export default function PageComptabiliteSociete() {
   const [avance, setAvance] = useState(true);
   const [recurrente, setRecurrente] = useState(false);
 
+  // ══════════════════════════════════════════════════════════════════════
+  // LE JUSTIFICATIF ET SA LECTURE — 07/09.
+  //
+  // 🚨 C EST LA BRIQUE QUI MANQUAIT, et Jacques l a vue tout de suite : un
+  // formulaire de depense sans piece jointe ramene au declaratif. Avec la
+  // piece, le montant vient du document, pas de la memoire.
+  //
+  // DEUX ETAPES, VOLONTAIREMENT SEPAREES :
+  //   1. « Analyser » — l IA lit la photo ou le PDF et PREREMPLIT le
+  //      formulaire. Rien n est enregistre.
+  //   2. « Enregistrer » — le client a verifie, corrige si besoin, et
+  //      valide. Le fichier part avec.
+  //
+  // ⚠️ POURQUOI NE PAS ENREGISTRER DIRECTEMENT APRES LECTURE. Une photo
+  // floue, un montant HT pris pour du TTC, une devise mal lue : l IA se
+  // trompe parfois, et une erreur ici finit dans le 5472. Le client doit
+  // voir ce qui a ete lu avant que ca compte.
+  //
+  // ⚠️ LES IMAGES SONT COMPRESSEES AVANT ENVOI, comme sur l ecran
+  // d AcadeMIA : une photo de telephone pese 4 a 8 Mo, la route en refuse
+  // plus de 4 pour l analyse. On ramene a 1600 px, ce qui reste lisible.
+  // ══════════════════════════════════════════════════════════════════════
+  const [fichier, setFichier] = useState<any>(null);
+  const [analyse, setAnalyse] = useState("");
+
   useEffect(function () {
     // ⚠️ L IDENTIFIANT VIENT DE L ADRESSE. On le lit une fois au montage,
     // puis on charge. Sans lui, l ecran ne peut rien afficher.
@@ -133,6 +158,74 @@ export default function PageComptabiliteSociete() {
     return false;
   }
 
+  // La compression d une image, reprise de l ecran d AcadeMIA. Un PDF
+  // passe tel quel : on ne sait pas le reduire sans le degrader.
+  async function comprimer(f: any): Promise<any> {
+    if (!f || !String(f.type || "").startsWith("image/")) return f;
+    return new Promise(function (resolve) {
+      try {
+        const img = new Image();
+        const url = URL.createObjectURL(f);
+        img.onload = function () {
+          const maxDim = 1600;
+          let w = img.width, h = img.height;
+          if (w > maxDim || h > maxDim) {
+            const ratio = Math.min(maxDim / w, maxDim / h);
+            w = Math.round(w * ratio); h = Math.round(h * ratio);
+          }
+          const canvas = document.createElement("canvas");
+          canvas.width = w; canvas.height = h;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) { resolve(f); return; }
+          ctx.drawImage(img, 0, 0, w, h);
+          canvas.toBlob(function (blob: any) {
+            URL.revokeObjectURL(url);
+            if (!blob) { resolve(f); return; }
+            resolve(new File([blob], f.name.replace(/\.[^.]+$/, "") + ".jpg",
+              { type: "image/jpeg" }));
+          }, "image/jpeg", 0.85);
+        };
+        img.onerror = function () { resolve(f); };
+        img.src = url;
+      } catch (e) {
+        resolve(f);
+      }
+    });
+  }
+
+  async function analyser() {
+    if (!fichier) return;
+    setAnalyse("encours");
+    setErreur("");
+    try {
+      const f = await comprimer(fichier);
+      const data = new FormData();
+      data.append("fichier", f);
+      data.append("societe", societeId);
+      const r = await fetch("/api/compliance/depenses/analyser", { method: "POST", body: data });
+      const d = await r.json();
+      if (d && d.ok && d.extrait) {
+        const x = d.extrait;
+        // ⚠️ ON NE REMPLIT QUE CE QUI A ETE LU. Un null laisse le champ
+        // tel quel : le client garde ce qu il avait deja saisi.
+        if (x.fournisseur) setFournisseur(String(x.fournisseur));
+        if (x.montant_ttc !== null && x.montant_ttc !== undefined) setMontant(String(x.montant_ttc));
+        if (x.devise && devises.indexOf(x.devise) >= 0) setDevise(x.devise);
+        if (x.date_depense) setDate(String(x.date_depense).slice(0, 10));
+        if (x.pays_fournisseur) setPays(String(x.pays_fournisseur).toUpperCase().slice(0, 2));
+        if (x.categorie && categories.indexOf(x.categorie) >= 0) setCategorie(x.categorie);
+        if (x.description) setDescription(String(x.description));
+        setAnalyse("ok");
+      } else {
+        setAnalyse("");
+        setErreur((d && d.erreur) || "Lecture impossible.");
+      }
+    } catch (e: any) {
+      setAnalyse("");
+      setErreur("Lecture impossible : " + String(e));
+    }
+  }
+
   async function ajouter() {
     if (fournisseur.trim().length < 2) {
       setErreur("Indiquez le fournisseur.");
@@ -142,24 +235,65 @@ export default function PageComptabiliteSociete() {
       setErreur("Indiquez un montant.");
       return;
     }
-    const ok = await agir({
-      action: "ajouter",
-      fournisseur: fournisseur.trim(),
-      montant_ttc: Number(montant),
-      devise: devise,
-      categorie: categorie,
-      pays_fournisseur: pays,
-      date_depense: date,
-      description: description.trim(),
-      avance_perso: avance,
-      recurrente: recurrente,
-    }, "Dépense enregistrée.");
 
-    if (ok) {
-      setFournisseur("");
-      setMontant("");
-      setDescription("");
-      setFormulaire(false);
+    // 🚨 L AJOUT PART EN formData, PAS EN JSON : c est le seul moyen de
+    // joindre le fichier. Les autres actions restent en JSON.
+    setOccupe("ajouter");
+    setMessage("");
+    setErreur("");
+    try {
+      const data = new FormData();
+      data.append("action", "ajouter");
+      data.append("societe", societeId);
+      data.append("fournisseur", fournisseur.trim());
+      data.append("montant_ttc", String(Number(montant)));
+      data.append("devise", devise);
+      data.append("categorie", categorie);
+      data.append("pays_fournisseur", pays);
+      data.append("date_depense", date);
+      data.append("description", description.trim());
+      data.append("avance_perso", avance ? "true" : "false");
+      data.append("recurrente", recurrente ? "true" : "false");
+      if (fichier) {
+        // ⚠️ ON ENVOIE L ORIGINAL POUR L ARCHIVAGE, PAS LA VERSION
+        // COMPRESSEE. La compression sert a l analyse ; la piece
+        // conservee doit etre le document tel qu il a ete recu.
+        data.append("fichier", fichier);
+      }
+
+      const r = await fetch("/api/compliance/depenses", { method: "POST", body: data });
+      const d = await r.json();
+      if (d && d.ok) {
+        setMessage(fichier ? "Dépense et justificatif enregistrés." : "Dépense enregistrée.");
+        setFournisseur("");
+        setMontant("");
+        setDescription("");
+        setFichier(null);
+        setAnalyse("");
+        setFormulaire(false);
+        await charger(societeId);
+      } else {
+        setErreur((d && d.erreur) || "Enregistrement impossible.");
+      }
+    } catch (e: any) {
+      setErreur("Enregistrement impossible : " + String(e));
+    }
+    setOccupe("");
+  }
+
+  async function ouvrirPiece(id: string) {
+    setErreur("");
+    try {
+      const r = await fetch("/api/compliance/depenses", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "ouvrir_piece", id: id, societe: societeId }),
+      });
+      const d = await r.json();
+      if (d && d.ok && d.url) window.open(d.url, "_blank");
+      else setErreur((d && d.erreur) || "Pièce indisponible.");
+    } catch (e: any) {
+      setErreur("Pièce indisponible : " + String(e));
     }
   }
 
@@ -311,6 +445,51 @@ export default function PageComptabiliteSociete() {
 
         {formulaire && (
           <div style={CARTE}>
+            {/* ---- LE JUSTIFICATIF, EN PREMIER ----
+                🚨 IL EST PLACE AVANT LES CHAMPS, pas apres. Le geste naturel
+                est : je photographie la facture, l outil lit, je verifie.
+                Le mettre en bas inviterait a tout saisir a la main puis a
+                joindre — l inverse de ce qu on veut. */}
+            <div style={{ padding: "14px 16px", marginBottom: "18px",
+              background: "rgba(79,195,247,0.06)",
+              border: "1px dashed rgba(79,195,247,0.4)", borderRadius: "10px" }}>
+              <span style={{ ...LIBELLE, color: "#4fc3f7" }}>
+                Justificatif — photo ou PDF
+              </span>
+              <input
+                type="file"
+                accept="image/*,application/pdf"
+                onChange={(e) => {
+                  const f = e.target.files && e.target.files[0] ? e.target.files[0] : null;
+                  setFichier(f);
+                  setAnalyse("");
+                }}
+                style={{ color: "#fff", fontSize: "14px", marginBottom: "10px" }}
+              />
+              {fichier && (
+                <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
+                  <button onClick={analyser} disabled={analyse === "encours"}
+                    style={{ ...BOUTON, borderColor: "rgba(79,195,247,0.5)", color: "#4fc3f7",
+                      background: analyse === "encours" ? "rgba(79,195,247,0.15)" : "transparent" }}>
+                    {analyse === "encours" ? "Lecture en cours…" : "Lire le document et remplir"}
+                  </button>
+                  {analyse === "ok" && (
+                    <span style={{ color: "#4caf50", fontSize: "13px" }}>
+                      Champs remplis — vérifiez et complétez si besoin.
+                    </span>
+                  )}
+                </div>
+              )}
+              {!fichier && (
+                <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "12.5px",
+                  margin: 0, lineHeight: "1.6" }}>
+                  Joignez la facture ou le reçu : l&apos;outil lit le montant,
+                  la date et le fournisseur, et vous n&apos;avez plus qu&apos;à
+                  vérifier.
+                </p>
+              )}
+            </div>
+
             <div style={{ display: "flex", gap: "14px", flexWrap: "wrap" }}>
               <div style={{ flex: "1 1 240px" }}>
                 <span style={LIBELLE}>Fournisseur *</span>
@@ -463,6 +642,15 @@ export default function PageComptabiliteSociete() {
                       <span style={{ color: "#e8a33d", fontSize: "12.5px" }}>
                         sans justificatif
                       </span>
+                    )}
+                    {d.pdf_url && (
+                      <button
+                        onClick={() => ouvrirPiece(d.id)}
+                        style={{ background: "none", border: "none", color: "#4fc3f7",
+                          fontSize: "12.5px", fontFamily: "Georgia,serif",
+                          cursor: "pointer", textDecoration: "underline", padding: 0 }}>
+                        Voir la pièce
+                      </button>
                     )}
                     {d.avance_perso && !d.rembourse && (
                       <button
