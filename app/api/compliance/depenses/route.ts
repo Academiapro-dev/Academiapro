@@ -217,7 +217,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // ⚠️ CATEGORIE ET DEVISE SONT RAMENEES A LA LISTE. Une valeur libre
+    // ⚠️ CATEGORIE ET DEVISE SONT RAMENEES A LA LISTE. Une valeur libre 
     // casserait les regroupements par categorie et le total par devise.
     const categorie = CATEGORIES.indexOf(String(b.categorie)) >= 0
       ? String(b.categorie) : "Autre";
