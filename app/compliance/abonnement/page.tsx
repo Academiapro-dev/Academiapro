@@ -6,7 +6,7 @@ const FOND = "#050508";
 const VERT = "#4caf50";  
 
 // ══════════════════════════════════════════════════════════════════════════
-// L ABONNEMENT MYSTERLLC — ECRAN CLIENT — 07/09.
+// L ABONNEMENT MYSTERLLC — ECRAN CLIENT — 07/09, PALIERS LE 08/09.
 //
 // ⚠️ CET ECRAN VIT SOUS /compliance/abonnement, PAS /facturation : une
 // route /api/compliance/facturation existe deja et produit les documents
@@ -18,13 +18,18 @@ const VERT = "#4caf50";
 // fois. L ecran doit le montrer sans ambiguite, sinon la premiere facture
 // surprend.
 //
+// 🆕 LE PRIX BAISSE AVEC LE NOMBRE DE SOCIETES — 08/09. Quatre paliers,
+// de 99 € a 49 €. Le palier atteint s applique a TOUTES les societes, pas
+// seulement a celles au-dela du seuil.
+// ⚠️ CONSEQUENCE A CONNAITRE : passer de cinq a six societes FAIT BAISSER
+// la facture, de 495 € a 474 €. C est voulu, c est simple a comprendre,
+// et c est un argument — mais il ne faut pas s en etonner.
+//
 // ⚠️ LES SOCIETES SANS FORFAIT SONT AFFICHEES A PART. Une societe ajoutee
 // au portefeuille mais pas encore souscrite ne se facture pas — et le
 // client doit voir laquelle, pour la souscrire ou la retirer.
-//
-// ⚠️ LA GRILLE EST RAPPELEE EN BAS. Un client au forfait Suivi doit voir
-// ce que la Comptabilite apporte : c est la seule facon qu il y pense le
-// jour ou il en a besoin.
+// 🚨 MAIS ELLES COMPTENT DANS LE VOLUME qui decide du palier : le
+// portefeuille entier fait le prix.
 //
 // ⚠️ AUCUN PRIX N EST ECRIT ICI. Tout vient de `tarifs`, produit
 // 'mysterllc'. Une grille recopiee dans un ecran finit toujours par
@@ -40,6 +45,8 @@ export default function PageFacturationMysterLLC() {
   const [grille, setGrille] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
   const [sansForfait, setSansForfait] = useState(0);
+  const [prochain, setProchain] = useState<any>(null);
+  const [volume, setVolume] = useState(0);
   const [charge, setCharge] = useState(false);
   const [erreur, setErreur] = useState("");
 
@@ -56,6 +63,8 @@ export default function PageFacturationMysterLLC() {
         setGrille(Array.isArray(d.grille) ? d.grille : []);
         setTotal(Number(d.total || 0));
         setSansForfait(Number(d.nb_sans_forfait || 0));
+        setProchain(d.prochain_palier || null);
+        setVolume(Number(d.volume || 0));
       } else if (d && d.erreur) {
         setErreur(d.erreur);
       }
@@ -125,6 +134,28 @@ export default function PageFacturationMysterLLC() {
                 société{facturees.length > 1 ? "s" : ""} suivie{facturees.length > 1 ? "s" : ""}
               </p>
             </div>
+          </div>
+        )}
+
+        {/* ---- LE PROCHAIN PALIER ----
+            🚨 LE SEUL ENDROIT OU LE CLIENT APPREND QU IL A INTERET A
+            CONFIER PLUS DE SOCIETES. Sans cette ligne, la degressivite
+            existe mais personne ne la voit — et elle n a ete posee que
+            pour cela. */}
+        {charge && !erreur && prochain && (
+          <div style={{ ...CARTE, borderColor: "rgba(76,175,80,0.45)",
+            background: "rgba(76,175,80,0.07)" }}>
+            <p style={{ color: VERT, fontSize: "15.5px", margin: "0 0 6px",
+              lineHeight: "1.7" }}>
+              À partir de <strong>{prochain.a_partir_de} sociétés</strong>, le
+              forfait Suivi et comptabilité passe de {euros(prochain.montant_actuel)} à{" "}
+              <strong>{euros(prochain.montant)}</strong> par mois et par société.
+            </p>
+            <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13.5px",
+              margin: 0, lineHeight: "1.75" }}>
+              Le nouveau prix s&apos;applique à toutes vos sociétés, pas
+              seulement aux suivantes.
+            </p>
           </div>
         )}
 
@@ -208,7 +239,10 @@ export default function PageFacturationMysterLLC() {
         {/* ---- LA GRILLE ----
             ⚠️ RAPPELEE MEME QUAND TOUT EST SOUSCRIT : un client au Suivi
             doit voir ce que la Comptabilite apporte, sinon il n y pensera
-            pas le jour ou il en aura besoin. */}
+            pas le jour ou il en aura besoin.
+            🚨 LA ROUTE NE RENVOIE QU UN PALIER PAR OFFRE — celui qui
+            s applique. Afficher les quatre donnerait quatre cartes au meme
+            titre, et le client se demanderait laquelle le concerne. */}
         {charge && grille.length > 0 && (
           <>
             <h2 style={{ color: OR, fontSize: "18px", margin: "28px 0 12px" }}>
@@ -238,6 +272,13 @@ export default function PageFacturationMysterLLC() {
                     <p style={{ color: OR, fontSize: "14.5px", margin: "0 0 8px" }}>
                       {g.offre === "comptabilite" ? "Suivi et comptabilité" : "Suivi"}
                     </p>
+                    {/* Le palier qui s applique, quand il y en a plusieurs. */}
+                    {g.offre === "comptabilite" && Number(g.seuil_max) < 9999 && (
+                      <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "12.5px",
+                        margin: "0 0 8px" }}>
+                        Votre palier : {g.seuil_min} à {g.seuil_max} sociétés
+                      </p>
+                    )}
                     <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "13px",
                       margin: 0, lineHeight: "1.7" }}>
                       {g.commentaire}
