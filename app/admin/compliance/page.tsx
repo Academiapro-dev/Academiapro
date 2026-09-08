@@ -17,6 +17,19 @@ import { useEffect, useState } from "react";
 // ⚠️ L IDENTIFIANT VENANT DE L ADRESSE N EST PAS UNE AUTORISATION : c est
 // la route qui verifie qu il appartient bien a l organisme de la session.
 // Cet ecran ne fait que le transmettre.
+//
+// 🆕 LE DEPOT A L IRS PAR FAX — 08/09. Decision de Jacques : la plateforme
+// depose. Trois gestes, dans l encadre « Depot a l IRS » :
+//   1. Preparer : hache le 1120 et le 5472 generes, cree l ACCUSE DE
+//      LECTURE (document-a-signer) qui porte leurs empreintes, l envoie au
+//      titulaire pour signature, et le lie aux deux PDF (transmettre/lier).
+//   2. Le titulaire signe, avec son trace manuscrit (ecran de signature).
+//   3. Transmettre : la route verifie la signature et les empreintes, pose
+//      le trace sur la ligne « Signature of officer » du 1120, aplatit,
+//      fusionne, faxe au 855-887-7737, archive.
+// ⚠️ LES CHEMINS DES DEUX PDF VIENNENT DE LA GENERATION FAITE DANS CETTE
+// PAGE (data.path) : il faut generer les deux AVANT de preparer. Apres un
+// rechargement, il faut regenerer — les chemins ne sont pas conserves.
 // ---------------------------------------------------------------------------
 
 const PNL_YEAR = 2026;
@@ -108,6 +121,14 @@ export default function ComplianceDashboard() {
   // La liste des champs d un CERFA, relevee a la demande. Elle ne sert
   // qu au reglage des chemins de remplissage.
   const [champsListe, setChampsListe] = useState<string | null>(null);
+
+  // ---- LE DEPOT A L IRS PAR FAX — 08/09 ----
+  const [chemin1120, setChemin1120] = useState<string | null>(null);
+  const [chemin5472, setChemin5472] = useState<string | null>(null);
+  const [refAccuse, setRefAccuse] = useState<string>("");
+  const [depotLoading, setDepotLoading] = useState<string | null>(null);
+  const [depotMsg, setDepotMsg] = useState<string | null>(null);
+  const [depotDetail, setDepotDetail] = useState<string | null>(null);
 
   async function charger(id: string, entite: string | null) {
     setLoading(true);
@@ -234,6 +255,10 @@ export default function ComplianceDashboard() {
         }
         setIrsMsg(msg);
         setIrsUrl(data.url || null);
+        // Le chemin au coffre sert au depot : c est ce fichier-la, et aucun
+        // autre, qui sera hache, signe et transmis.
+        if (formulaire === "f5472") setChemin5472(data.path || null);
+        else setChemin1120(data.path || null);
       } else {
         setIrsMsg("Erreur : " + (data.error || "inconnue"));
       }
@@ -241,6 +266,127 @@ export default function ComplianceDashboard() {
       setIrsMsg("Erreur : " + String(e));
     }
     setIrsLoading(null);
+  }
+
+  // ---- LE DEPOT : ETAPE 1, PREPARER ET FAIRE SIGNER ----
+  //
+  // Trois appels enchaines. Si l un echoue, on s arrete et on le dit :
+  // un accuse cree mais non lie ne peut pas etre transmis, la route
+  // transmettre le refuserait.
+  async function preparerDepot() {
+    if (!tenantId || !chemin1120 || !chemin5472) return;
+    setDepotLoading("preparer");
+    setDepotMsg(null);
+    setDepotDetail(null);
+    try {
+      const r1 = await fetch("/api/compliance/transmettre", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "preparer",
+          entite_id: entiteId,
+          year: PNL_YEAR,
+          chemin_1120: chemin1120,
+          chemin_5472: chemin5472,
+        }),
+      });
+      const d1 = await r1.json();
+      if (!d1.success) {
+        setDepotMsg("Erreur : " + (d1.error || "inconnue"));
+        setDepotLoading(null);
+        return;
+      }
+      if (!d1.pret) {
+        setDepotMsg(
+          "Impossible de préparer le dépôt : " + d1.depenses_sans_justificatif +
+          " dépense(s) de " + PNL_YEAR + " sans justificatif. Complétez-les dans la comptabilité, puis recommencez."
+        );
+        const det = (d1.depenses_sans_justificatif_detail || [])
+          .map((x: any) => (x.date_depense || "") + " — " + (x.fournisseur || ""))
+          .join("\n");
+        setDepotDetail(det || null);
+        setDepotLoading(null);
+        return;
+      }
+      const das = d1.document_a_signer || {};
+      if (!das.signataire_email) {
+        setDepotMsg("Erreur : la société n'a pas d'adresse de contact (email_contact). Renseignez-la avant de préparer le dépôt.");
+        setDepotLoading(null);
+        return;
+      }
+
+      const r2 = await fetch("/api/compliance/document-a-signer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(das),
+      });
+      const d2 = await r2.json();
+      if (!d2.success || !d2.reference) {
+        setDepotMsg("Erreur à la création de l'accusé : " + (d2.error || "inconnue"));
+        setDepotLoading(null);
+        return;
+      }
+
+      const r3 = await fetch("/api/compliance/transmettre", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "lier",
+          entite_id: entiteId,
+          year: PNL_YEAR,
+          reference: d2.reference,
+          chemin_1120: chemin1120,
+          chemin_5472: chemin5472,
+        }),
+      });
+      const d3 = await r3.json();
+      if (!d3.success) {
+        setDepotMsg("Accusé " + d2.reference + " créé mais non rattaché aux formulaires : " + (d3.error || "inconnue") + ". Recommencez.");
+        setDepotLoading(null);
+        return;
+      }
+
+      setRefAccuse(d2.reference);
+      const em = d2.email || {};
+      let msg = "Accusé de lecture " + d2.reference + " créé et rattaché aux deux formulaires.";
+      msg += em.envoye === true
+        ? " Lien de signature envoyé à " + das.signataire_email + "."
+        : " ATTENTION : le courriel n'est PAS parti (" + (em.raison || "cause inconnue") + "). Lien : " + (d2.lien || "");
+      msg += " Dès qu'il est signé avec le tracé manuscrit, transmettez.";
+      setDepotMsg(msg);
+      charger(tenantId, entiteId);
+    } catch (e: any) {
+      setDepotMsg("Erreur : " + String(e));
+    }
+    setDepotLoading(null);
+  }
+
+  // ---- LE DEPOT : ETAPE 2, TRANSMETTRE ----
+  async function transmettreDepot() {
+    if (!tenantId || !refAccuse.trim()) return;
+    setDepotLoading("transmettre");
+    setDepotMsg(null);
+    setDepotDetail(null);
+    try {
+      const r = await fetch("/api/compliance/transmettre", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "transmettre", entite_id: entiteId, reference: refAccuse.trim() }),
+      });
+      const d = await r.json();
+      if (d.success) {
+        setDepotMsg(
+          "Transmis à l'IRS par fax — " + d.pages + " pages, identifiant " + d.fax_id +
+          ". L'accusé de transmission sera enregistré au coffre à la réception du statut."
+        );
+        charger(tenantId, entiteId);
+      } else {
+        setDepotMsg("Erreur : " + (d.error || "inconnue"));
+      }
+    } catch (e: any) {
+      setDepotMsg("Erreur : " + String(e));
+    }
+    setDepotLoading(null);
   }
 
   async function generer3916() {
@@ -694,6 +840,91 @@ export default function ComplianceDashboard() {
           s'applique.
         </p>
 
+        {irsMsg && (
+          <p style={{ marginTop: 10, color: irsMsg.indexOf("Erreur") === 0 ? "#c62828" : VERT }}>
+            {irsMsg}
+          </p>
+        )}
+        {irsUrl && (
+          <p style={{ marginTop: 6 }}>
+            <a href={irsUrl} target="_blank" rel="noreferrer" style={{ color: VERT, fontWeight: "bold" }}>
+              Ouvrir le PDF généré
+            </a>
+            <span style={{ color: "#666", fontSize: 13 }}> (lien valable 1 heure)</span>
+          </p>
+        )}
+
+        {/* ══════════════════════════════════════════════════════════════
+            LE DEPOT A L IRS PAR FAX — 08/09.
+
+            🚨 C EST UNE ACTION, DONC UN ENCADRE. Deux boutons, dans l ordre
+            du parcours. Le premier ne s allume qu une fois les deux PDF
+            generes dans cette page ; le second qu une fois la reference de
+            l accuse connue. La route transmettre refuse tout ce qui
+            manque : accuse non signe, sans trace, formulaires modifies.
+            ══════════════════════════════════════════════════════════════ */}
+        <div style={{
+          margin: "18px 0",
+          padding: "16px 20px",
+          background: "rgba(10,61,46,0.07)",
+          border: "2px solid " + VERT,
+          borderRadius: 10,
+        }}>
+          <span style={{ display: "block", color: VERT, fontSize: 17, fontWeight: "bold", marginBottom: 6 }}>
+            Dépôt à l&apos;IRS par fax — 1120 pro forma + 5472
+          </span>
+          <p style={{ fontSize: 14, color: "#555", margin: "0 0 12px", lineHeight: 1.6 }}>
+            1. Générez le 1120 et le 5472 ci-dessus. 2. Préparez le dépôt : le
+            titulaire reçoit l&apos;accusé de lecture à signer, avec son tracé
+            manuscrit. 3. Une fois signé, transmettez : le tracé est posé sur la
+            ligne « Signature of officer », les deux formulaires partent en un
+            seul fax au numéro de l&apos;instruction officielle, l&apos;accusé de
+            transmission est archivé au coffre.
+          </p>
+          <p style={{ fontSize: 13, color: "#8a1c1c", margin: "0 0 12px", lineHeight: 1.6 }}>
+            L&apos;IRS attend une signature manuscrite sur le 1120. Le tracé au doigt
+            ou au stylet est reproduit tel quel ; le titulaire choisit ce mode en
+            connaissance de cause, et la responsabilité du contenu lui appartient.
+          </p>
+          <p style={{ fontSize: 13, color: "#555", margin: "0 0 12px" }}>
+            1120 : <strong style={{ color: chemin1120 ? VERT : "#c62828" }}>{chemin1120 ? "généré" : "à générer"}</strong>
+            {" · "}
+            5472 : <strong style={{ color: chemin5472 ? VERT : "#c62828" }}>{chemin5472 ? "généré" : "à générer"}</strong>
+          </p>
+          <button
+            onClick={preparerDepot}
+            disabled={depotLoading !== null || !chemin1120 || !chemin5472}
+            style={{ ...styleBouton, opacity: (!chemin1120 || !chemin5472) ? 0.5 : 1 }}
+          >
+            {depotLoading === "preparer" ? "Préparation…" : "Préparer le dépôt et faire signer"}
+          </button>
+          <div style={{ marginTop: 8 }}>
+            <input
+              value={refAccuse}
+              onChange={(e) => setRefAccuse(e.target.value)}
+              placeholder="Référence de l'accusé signé (SIG-…)"
+              style={{ padding: "10px 12px", fontSize: 14, border: "1px solid #bbb", borderRadius: 6, width: 280, marginRight: 10, marginBottom: 10 }}
+            />
+            <button
+              onClick={transmettreDepot}
+              disabled={depotLoading !== null || !refAccuse.trim()}
+              style={{ ...styleBouton, opacity: !refAccuse.trim() ? 0.5 : 1 }}
+            >
+              {depotLoading === "transmettre" ? "Transmission…" : "Transmettre à l'IRS"}
+            </button>
+          </div>
+          {depotMsg && (
+            <p style={{ marginTop: 10, marginBottom: 0, color: depotMsg.indexOf("Erreur") === 0 || depotMsg.indexOf("Impossible") === 0 || depotMsg.indexOf("ATTENTION") !== -1 ? "#c62828" : VERT }}>
+              {depotMsg}
+            </p>
+          )}
+          {depotDetail && (
+            <pre style={{ background: "#fff4f4", border: "1px solid #f0c0c0", color: "#8a1c1c", padding: 12, borderRadius: 6, fontSize: 13, whiteSpace: "pre-wrap", wordBreak: "break-word", marginBottom: 0 }}>
+              {depotDetail}
+            </pre>
+          )}
+        </div>
+
         {/* Outil de reglage : releve les noms de champs du CERFA. Il ne sert
             qu a corriger les chemins de remplissage et ne touche a aucune
             donnee. A retirer une fois la cartographie stabilisee. */}
@@ -729,20 +960,6 @@ export default function ComplianceDashboard() {
           >
             {champsListe}
           </pre>
-        )}
-
-        {irsMsg && (
-          <p style={{ marginTop: 10, color: irsMsg.indexOf("Erreur") === 0 ? "#c62828" : VERT }}>
-            {irsMsg}
-          </p>
-        )}
-        {irsUrl && (
-          <p style={{ marginTop: 6 }}>
-            <a href={irsUrl} target="_blank" rel="noreferrer" style={{ color: VERT, fontWeight: "bold" }}>
-              Ouvrir le PDF généré
-            </a>
-            <span style={{ color: "#666", fontSize: 13 }}> (lien valable 1 heure)</span>
-          </p>
         )}
 
         {/* Le message du 7004 s affiche ici, sous le bouton qui l a
@@ -1102,10 +1319,11 @@ export default function ComplianceDashboard() {
           lineHeight: 1.7,
           color: "#555",
         }}>
-          <strong>Les formulaires IRS ne se signent pas ici.</strong> Le 5472,
-          le 1120 et le 7004 exigent une signature manuscrite ou la procédure
-          propre à l&apos;IRS. Ce qui se signe électroniquement, ce sont les
-          documents contractuels entre vous et votre client.
+          <strong>Les formulaires IRS ne se signent pas ici.</strong> Ce qui se
+          signe électroniquement, c&apos;est l&apos;accusé de lecture qui les
+          accompagne : le tracé manuscrit apposé sur l&apos;accusé est reproduit
+          sur la ligne « Signature of officer » du 1120 au moment de la
+          transmission par fax.
         </div>
 
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12 }}>
