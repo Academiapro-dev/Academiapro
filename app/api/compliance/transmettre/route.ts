@@ -309,6 +309,15 @@ async function transmettre(req: NextRequest, tenantId: string, entite: any, body
   }
   const numeroTest = (process.env.FAX_NUMERO_TEST || "").trim();
   const destinataire = numeroTest || FAX_IRS;
+  // Sinch exige un numero emetteur rattache au projet (Numbers, capacite
+  // Fax). Sans lui : 422 « No From number ». Constate le 08/09.
+  const emetteur = (process.env.SINCH_FAX_FROM || "").trim();
+  if (!emetteur) {
+    return NextResponse.json(
+      { error: "Transmission non configuree : SINCH_FAX_FROM absente (numero de fax emetteur achete chez Sinch, format +1...)." },
+      { status: 503 }
+    );
+  }
 
   const reference = String(body.reference || "").trim();
   if (!reference) return NextResponse.json({ error: "Reference de l'accuse manquante." }, { status: 400 });
@@ -435,6 +444,7 @@ async function transmettre(req: NextRequest, tenantId: string, entite: any, body
 
   const fd = new FormData();
   fd.append("to", destinataire);
+  fd.append("from", emetteur);
   fd.append("file", new Blob([octetsEnvoi], { type: "application/pdf" }), "depot-1120-5472.pdf");
   fd.append("callbackUrl", callback);
   fd.append("callbackUrlContentType", "application/json");
@@ -465,6 +475,7 @@ async function transmettre(req: NextRequest, tenantId: string, entite: any, body
     mode_test: !!numeroTest,
     fax_id: faxId,
     numero: destinataire,
+    emetteur,
     envoye_le: new Date().toISOString(),
     envoye_par: sessionEmail,
     chemin_envoi: cheminEnvoi,
