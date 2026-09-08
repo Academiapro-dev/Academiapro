@@ -55,6 +55,17 @@ export const dynamic = "force-dynamic";
 // ⚠️ SI AUCUN PALIER NE CORRESPOND — table incomplete, seuils qui laissent
 // un trou — on retient le dernier palier connu plutot que zero. Facturer
 // zero par erreur ne se remarque jamais ; un montant trop eleve, si.
+//
+// 🚨🚨 LA GRILLE COMPLETE EST RENVOYEE, PAS SEULEMENT LE PALIER EN COURS.
+// Jacques, le 08/09 : « en tant que client, je sais que a partir de six
+// societes je paye moins cher, mais rien ne m indique qu a partir de vingt
+// societes je paye 49 € par mois ».
+//
+// C est le defaut de la premiere version : elle annoncait le palier
+// SUIVANT et s arretait la. Un gestionnaire qui envisage d en confier
+// vingt ne pouvait pas calculer son cout — donc il ne pouvait pas decider.
+// ⛔ NE JAMAIS MASQUER LES PALIERS LOINTAINS : ce sont eux qui font
+// reflechir celui qui a un portefeuille a confier.
 // ══════════════════════════════════════════════════════════════════════════
 
 const supabase = createClient(
@@ -155,15 +166,30 @@ export async function GET() {
     };
   });
 
-  // ⚠️ LA GRILLE MONTREE AU CLIENT NE REPREND QU UN PALIER PAR OFFRE :
-  // celui qui s applique a lui. Afficher les quatre donnerait quatre
-  // cartes au meme titre, et le client se demanderait laquelle le
-  // concerne. Les paliers suivants sont annonces a part, plus bas.
+  // LA GRILLE MONTREE AU CLIENT : UN PALIER PAR OFFRE, celui qui
+  // s applique a lui. C est ce qu il paie aujourd hui.
   const grille: any[] = [];
   for (const offre of ["suivi", "comptabilite"]) {
     const p = palierPour(paliersParOffre[offre], volume);
     if (p) grille.push(p);
   }
+
+  // 🚨 ET LA GRILLE COMPLETE DES PALIERS, en plus.
+  //
+  // Chaque ligne porte `actuel: true` si c est celle qui s applique, et le
+  // cout mensuel total qu elle representerait au seuil ou elle commence.
+  // ⚠️ CE COUT EST CALCULE AU SEUIL D ENTREE DU PALIER, pas au volume du
+  // client : il repond a la question « combien si j en avais tant ? ».
+  const paliersCompta = (paliersParOffre["comptabilite"] || []).map(
+    function (p: any) {
+      return {
+        seuil_min: p.seuil_min,
+        seuil_max: p.seuil_max,
+        montant: p.montant,
+        actuel: volume >= p.seuil_min && volume <= p.seuil_max,
+        total_au_seuil: Math.round(p.montant * p.seuil_min * 100) / 100,
+      };
+    });
 
   // 🆕 CE QUE COUTERAIT LE PALIER SUIVANT.
   //
@@ -171,10 +197,10 @@ export async function GET() {
   // seul endroit ou le client apprend qu il a interet a confier plus de
   // societes — et c est precisement ce qu on cherche.
   let prochainPalier: any = null;
-  const paliersCompta = paliersParOffre["comptabilite"] || [];
-  const actuel = palierPour(paliersCompta, volume);
+  const brutCompta = paliersParOffre["comptabilite"] || [];
+  const actuel = palierPour(brutCompta, volume);
   if (actuel) {
-    for (const p of paliersCompta) {
+    for (const p of brutCompta) {
       if (p.seuil_min > volume && p.montant < actuel.montant) {
         prochainPalier = {
           a_partir_de: p.seuil_min,
@@ -195,5 +221,6 @@ export async function GET() {
     nb_sans_forfait: nbSansForfait,
     volume: volume,
     prochain_palier: prochainPalier,
+    paliers_comptabilite: paliersCompta,
   });
 }
