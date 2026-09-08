@@ -46,6 +46,7 @@ export default function PageFacturationMysterLLC() {
   const [total, setTotal] = useState(0);
   const [sansForfait, setSansForfait] = useState(0);
   const [prochain, setProchain] = useState<any>(null);
+  const [paliers, setPaliers] = useState<any[]>([]);
   const [volume, setVolume] = useState(0);
   const [charge, setCharge] = useState(false);
   const [erreur, setErreur] = useState("");
@@ -64,6 +65,7 @@ export default function PageFacturationMysterLLC() {
         setTotal(Number(d.total || 0));
         setSansForfait(Number(d.nb_sans_forfait || 0));
         setProchain(d.prochain_palier || null);
+        setPaliers(Array.isArray(d.paliers_comptabilite) ? d.paliers_comptabilite : []);
         setVolume(Number(d.volume || 0));
       } else if (d && d.erreur) {
         setErreur(d.erreur);
@@ -157,6 +159,75 @@ export default function PageFacturationMysterLLC() {
               seulement aux suivantes.
             </p>
           </div>
+        )}
+
+        {/* ---- TOUS LES PALIERS ----
+            🚨 LA GRILLE ENTIERE, PAS SEULEMENT LE PALIER SUIVANT.
+            Jacques, le 08/09 : « je sais qu a partir de six societes je
+            paye moins cher, mais rien ne m indique qu a partir de vingt
+            societes je paye 49 € par mois ».
+            Celui qui a un portefeuille a confier doit pouvoir calculer son
+            cout AVANT de decider. Masquer les paliers lointains revient a
+            lui cacher la seule raison qu il aurait de venir. */}
+        {charge && !erreur && paliers.length > 1 && (
+          <>
+            <h2 style={{ color: OR, fontSize: "18px", margin: "26px 0 10px" }}>
+              Le prix baisse avec le nombre de sociétés
+            </h2>
+            <div style={CARTE}>
+              {paliers.map(function (p: any, i: number) {
+                const borne = Number(p.seuil_max) >= 9999
+                  ? "À partir de " + p.seuil_min + " sociétés"
+                  : "De " + p.seuil_min + " à " + p.seuil_max + " sociétés";
+                return (
+                  <div key={p.seuil_min} style={{
+                    display: "flex", justifyContent: "space-between",
+                    alignItems: "baseline", gap: "12px", flexWrap: "wrap",
+                    padding: "11px 12px",
+                    borderRadius: "8px",
+                    marginBottom: i < paliers.length - 1 ? "4px" : 0,
+                    background: p.actuel ? "rgba(200,169,110,0.12)" : "transparent",
+                    border: p.actuel
+                      ? "1px solid rgba(200,169,110,0.5)"
+                      : "1px solid transparent",
+                  }}>
+                    <span style={{
+                      color: p.actuel ? "#fff" : "rgba(255,255,255,0.6)",
+                      fontSize: "15px",
+                    }}>
+                      {borne}
+                      {p.actuel && (
+                        <span style={{ color: OR, fontSize: "12.5px", marginLeft: "10px" }}>
+                          votre palier
+                        </span>
+                      )}
+                    </span>
+                    <span style={{
+                      color: p.actuel ? OR : "rgba(255,255,255,0.6)",
+                      fontSize: "16px", fontWeight: p.actuel ? "bold" : "normal",
+                      whiteSpace: "nowrap",
+                    }}>
+                      {euros(p.montant)}
+                      <span style={{ color: "rgba(255,255,255,0.4)", fontSize: "12.5px",
+                        marginLeft: "6px" }}>
+                        / mois et par société
+                      </span>
+                    </span>
+                  </div>
+                );
+              })}
+              <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "13px",
+                margin: "12px 0 0", lineHeight: "1.75" }}>
+                Le palier atteint s&apos;applique à toutes vos sociétés, pas
+                seulement à celles qui dépassent le seuil. Les sociétés sans
+                forfait comptent dans le total.
+              </p>
+              <p style={{ color: "rgba(255,255,255,0.35)", fontSize: "12.5px",
+                margin: "6px 0 0", lineHeight: "1.75" }}>
+                Le forfait Suivi reste au même prix quel que soit le nombre.
+              </p>
+            </div>
+          </>
         )}
 
         {/* ---- LE DETAIL, SOCIETE PAR SOCIETE ---- */}
