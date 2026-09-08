@@ -74,8 +74,28 @@ import type { Metadata } from "next";
 // 3. « avec la date a laquelle elle a ete verifiee — vous pouvez la
 //    controler depuis l outil » : la phrase porte sur les REGLES D ETAT,
 //    et les 14 regles d Etat ont toutes source_url et verifie_le. Elle
-//    reste. ⚠️ Les 11 regles federales, francaises et europeennes n ont
-//    ni source ni date (mesure du 08/09) : a completer en base, pas ici.
+//    reste. Les 11 regles federales, francaises et europeennes ont ete
+//    sourcees le 08/09 dans la journee : 25 sur 25.
+//
+// 🆕 08/09, apres-midi — SECTION « LE COTE FRANCE ».
+//
+// LE SEUL ARGUMENT QUE PERSONNE D AUTRE N A. Le concurrent direct
+// (logiciel americain, 119 $/an/LLC) ne connait que l IRS. Les cabinets
+// francais font le cote americain en honoraires. Personne ne tient, dans
+// le meme agenda, le 5472 au 15 avril et le 3916 en mai. La page n en
+// disait pas un mot. Section ajoutee entre « Ce que l outil suit » et
+// « Sept Etats ».
+//
+// CE QUI EST ECRIT EST CE QUI A ETE MESURE LE 08/09 :
+//   - fiche_3916 : 8 documents dans compliance_documents (fiche HTML
+//     « 2042 + 3916 »). C est une FICHE DE PREPARATION, pas un CERFA
+//     pre-rempli — le 3916 se remplit en ligne dans la declaration de
+//     revenus, il n y a pas de PDF a deposer. Le mot est « preparee ».
+//   - qualification : question Q9, reponse par defaut fondee sur
+//     CE 12 nov. 2025, n° 502894, Carmejane LLC.
+//   - echeances francaises : regles FR_2042, FR_2065_LIASSE, FR_3916,
+//     FR_CFE, FR_3916BIS (123 bis), toutes sourcees.
+// ⛔ PAS DE 2047 : elle n existe pas dans l outil. Ne pas l ecrire.
 // ---------------------------------------------------------------------------
 
 const OR = "#c8a96e";
@@ -194,6 +214,36 @@ const ETAPES = [
     texte:
       "Cinq paliers, de soixante jours à la veille. Rien ne part sans votre "
       + "accord, société par société.",
+  },
+];
+
+// 🆕 LE COTE FRANCE — 08/09.
+// ⛔ RIEN ICI QUI NE SORTE PAS DE L OUTIL. Voir le journal de tete.
+const COTE_FRANCE = [
+  {
+    nom: "Le formulaire 3916, préparé",
+    texte:
+      "Un résident français déclare chaque année les comptes qu'il détient à "
+      + "l'étranger — celui de sa LLC en fait partie. L'outil prépare la fiche "
+      + "3916 avec les cases de la déclaration de revenus, depuis ce qu'il sait "
+      + "déjà de la société. Vous la recopiez, vous déclarez.",
+  },
+  {
+    nom: "La qualification de la structure",
+    texte:
+      "Depuis l'arrêt du Conseil d'État du 12 novembre 2025 (n° 502894, "
+      + "Carmejane LLC), une LLC à responsabilité limitée est en principe une "
+      + "société de capitaux au regard du droit français. L'outil pose la "
+      + "question, retient cette réponse par défaut et en déduit les obligations "
+      + "françaises qui s'appliquent.",
+  },
+  {
+    nom: "Les échéances françaises, dans le même agenda",
+    texte:
+      "Déclaration de revenus, résultats à l'impôt sur les sociétés si le siège "
+      + "de direction est en France, cotisation foncière si une activité y est "
+      + "exercée, participation d'au moins 10 % dans une entité étrangère. "
+      + "Chaque règle porte sa source officielle et sa date de vérification.",
   },
 ];
 
@@ -449,6 +499,28 @@ export default function VitrineMysterLLC() {
               </div>
             ))}
           </div>
+        </div>
+      </div>
+
+      {/* ---- LE COTE FRANCE — 08/09 ---- */}
+      <div style={section}>
+        <h2 style={h2}>Le côté France</h2>
+        <p style={chapo}>
+          Une LLC détenue par un résident français relève de deux
+          administrations. Les outils américains n&apos;en connaissent
+          qu&apos;une. Celui-ci tient les deux, dans le même agenda.
+        </p>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(290px,1fr))", gap: "18px" }}>
+          {COTE_FRANCE.map((c) => (
+            <div key={c.nom} style={carte}>
+              <strong style={{ color: OR, fontSize: "15.5px", display: "block", marginBottom: "10px" }}>
+                {c.nom}
+              </strong>
+              <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "14px", lineHeight: "1.75", margin: 0 }}>
+                {c.texte}
+              </p>
+            </div>
+          ))}
         </div>
       </div>
 
