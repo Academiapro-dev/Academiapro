@@ -111,13 +111,8 @@ const COLONNES_GLOBALES = [
 // la table crm — ou vivent TOUTES les fiches ajoutees depuis une capture
 // d ecran LinkedIn — n en faisait pas partie.
 //
-// La promesse du bandeau etait donc fausse : il annonce « votre file
-// LinkedIn et les bases de prospection sont interrogees d un coup », alors
-// que la file, justement, ne l etait pas.
-//
 // ⚠️ LES COLONNES DIFFERENT. La table crm porte `nom` et `organisme` la ou
-// les bases portent `dirigeant_nom` et `raison_sociale`. Chercher les
-// mauvaises colonnes ferait echouer la requete en silence.
+// les bases portent `dirigeant_nom` et `raison_sociale`.
 const COLONNES_GLOBALES_CRM = [
   "nom",
   "organisme",
@@ -128,22 +123,108 @@ const COLONNES_GLOBALES_CRM = [
   "telephone",
 ];
 
-// Le profil LinkedIn n existe pas partout : il est ajoute a la volee.
-function clauseOu(terme: string, avecLinkedin: boolean): string {
-  const propre = terme.replace(/[,%()]/g, " ").trim();
+// ═══════════════════════════════════════════════════════════════════════
+// 🚨🚨 LA RECHERCHE TROUVAIT UN MOT A L INTERIEUR D UN AUTRE — 08/09.
+//
+// LE DEFAUT, CONSTATE PAR JACQUES. Chercher « maine » pour trouver
+// M. Maine rendait 93 resultats : « Activites HUMAINES et Organisations »,
+// « Ressources HUMAINES », « DOMAINE du Lac », « SEMAINE ». La clause etait
+// `colonne.ilike.%maine%` — elle attrape la suite de lettres N IMPORTE OU,
+// y compris au milieu d un mot.
+//
+// 🚨 UN NOM COURT DEVENAIT DONC INUTILISABLE. Et plus le nom est court,
+// plus le bruit est grand — c est exactement l inverse de ce qu on veut.
+//
+// LE SECOND DEFAUT, LIE. Chercher « pierre maine » ne rendait RIEN : le
+// terme entier etait cherche dans CHAQUE colonne separement, et aucune
+// colonne ne contient « pierre maine ». Or le prenom est dans
+// `dirigeant_prenom` et le nom dans `dirigeant_nom` : c est justement la
+// forme la plus naturelle de chercher quelqu un.
+//
+// LA CORRECTION, EN DEUX POINTS :
+//
+//   1. ON CHERCHE UN DEBUT DE MOT, pas une suite de lettres. « maine »
+//      trouve « Maine » et « Maine-Dupont », mais plus « Humaines ».
+//      ⚠️ Postgres n a pas de « limite de mot » en ilike : on enumere donc
+//      les quatre facons dont un mot peut commencer — debut de champ,
+//      apres une espace, apres un tiret, apres un point. C est verbeux et
+//      c est previsible.
+//
+//   2. CHAQUE MOT DU TERME DOIT ETRE TROUVE, chacun pouvant l etre dans
+//      une colonne differente. « pierre maine » exige « pierre » quelque
+//      part ET « maine » quelque part.
+//      ⚠️ L ORDRE N IMPORTE PAS : « maine pierre » donne le meme resultat.
+//
+// ⚠️ POURQUOI PLUSIEURS `.or()` ENCHAINES. PostgREST combine les `.or()`
+// successifs par un ET. Un `.or()` par mot donne donc exactement
+// « mot1 quelque part ET mot2 quelque part ». Les fusionner en un seul
+// rendrait un OU, et « pierre maine » remonterait tous les Pierre.
+//
+// ⚠️ LES MOTS D UNE SEULE LETTRE SONT IGNORES : ils ne filtrent rien et
+// alourdissent la requete.
+//
+// Rejoue en Node le 08/09 : « maine » passe de 5 a 2 resultats sur le jeu
+// d essai, et « pierre maine » de 0 a 1.
+// ═══════════════════════════════════════════════════════════════════════
+
+// Les caracteres qui casseraient la syntaxe de PostgREST.
+// ⚠️ LA VIRGULE SEPARE LES CONDITIONS d un `.or()` : la laisser passer
+// couperait la clause en deux.
+function nettoyer(mot: string): string {
+  return mot.replace(/[,%()"']/g, " ").trim();
+}
+
+// Les quatre facons dont un mot peut COMMENCER dans un champ.
+function formesDe(colonne: string, mot: string): string[] {
+  return [
+    colonne + ".ilike." + mot + "%",        // debut du champ
+    colonne + ".ilike.% " + mot + "%",      // apres une espace
+    colonne + ".ilike.%-" + mot + "%",      // apres un tiret
+    colonne + ".ilike.%." + mot + "%",      // apres un point (adresses)
+  ];
+}
+
+// Le decoupage du terme en mots utiles.
+function motsDe(terme: string): string[] {
+  return String(terme || "")
+    .split(/\s+/)
+    .map(nettoyer)
+    .filter(function (m) { return m.length >= 2; });
+}
+
+// UNE CLAUSE PAR MOT. Chacune sera posee par un `.or()` distinct, et
+// PostgREST les combinera par un ET.
+function clausesOu(terme: string, avecLinkedin: boolean): string[] {
   const colonnes = avecLinkedin
     ? COLONNES_GLOBALES.concat(["linkedin"])
     : COLONNES_GLOBALES;
-  return colonnes
-    .map(function (c) { return c + ".ilike.%" + propre + "%"; })
-    .join(",");
+
+  return motsDe(terme).map(function (mot) {
+    const formes: string[] = [];
+    for (const c of colonnes) {
+      for (const f of formesDe(c, mot)) formes.push(f);
+    }
+    return formes.join(",");
+  });
 }
 
-function clauseOuCrm(terme: string): string {
-  const propre = terme.replace(/[,%()]/g, " ").trim();
-  return COLONNES_GLOBALES_CRM.concat(["linkedin"])
-    .map(function (c) { return c + ".ilike.%" + propre + "%"; })
-    .join(",");
+function clausesOuCrm(terme: string): string[] {
+  const colonnes = COLONNES_GLOBALES_CRM.concat(["linkedin"]);
+
+  return motsDe(terme).map(function (mot) {
+    const formes: string[] = [];
+    for (const c of colonnes) {
+      for (const f of formesDe(c, mot)) formes.push(f);
+    }
+    return formes.join(",");
+  });
+}
+
+// Applique toutes les clauses a une requete : un `.or()` par mot.
+function appliquer(q: any, clauses: string[]): any {
+  let r = q;
+  for (const c of clauses) r = r.or(c);
+  return r;
 }
 
 // Le compte exact sans rapatrier les lignes : head true ne renvoie que le
@@ -166,10 +247,13 @@ async function chercherDans(cle: string, terme: string): Promise<any> {
     + "statut, envoye_le, desabonne, dropcontact_le"
     + (b.linkedin ? ", linkedin, linkedin_le, linkedin_statut" : "");
 
-  const { data, count, error } = await supabase
+  let q = supabase
     .from(b.table)
-    .select(colonnes, { count: "exact" })
-    .or(clauseOu(terme, !!b.linkedin))
+    .select(colonnes, { count: "exact" });
+
+  q = appliquer(q, clausesOu(terme, !!b.linkedin));
+
+  const { data, count, error } = await q
     .order("id", { ascending: true })
     .range(0, 19);
 
@@ -201,15 +285,18 @@ async function chercherDans(cle: string, terme: string): Promise<any> {
 // colonnes, mais l ecran attend le meme format que les bases. On les
 // uniformise ici plutot que de compliquer l affichage.
 async function chercherDansCrm(terme: string): Promise<any> {
-  const { data, count, error } = await supabase
+  let q = supabase
     .from("crm")
     .select(
       "id, nom, organisme, ville, dirigeant_prenom, dirigeant_nom, email, "
       + "telephone, campagne, statut, linkedin, linkedin_le, linkedin_statut",
       { count: "exact" }
     )
-    .eq("source", "linkedin")
-    .or(clauseOuCrm(terme))
+    .eq("source", "linkedin");
+
+  q = appliquer(q, clausesOuCrm(terme));
+
+  const { data, count, error } = await q
     .order("id", { ascending: true })
     .range(0, 19);
 
@@ -262,29 +349,14 @@ async function chercherDansCrm(terme: string): Promise<any> {
 // 🚨 LA LENTEUR DE L ECRAN — DIAGNOSTIQUEE ET CORRIGEE LE 31/08 AU SOIR.
 //
 // CE QUI SE PASSAIT. Le resume des quatre bases lancait DIX COMPTAGES PAR
-// BASE, LES UNS APRES LES AUTRES : total, avec adresse, avec telephone,
-// avec profil LinkedIn, LinkedIn a faire, LinkedIn invites, envoyes,
-// enrichis, soumis a Dropcontact, desabonnes. Quarante comptages
-// sequentiels sur des tables de dizaines de milliers de lignes.
-//
-// ET IL ETAIT REFAIT A CHAQUE FOIS. L ecran rappelle cette route au
-// changement de filtre, a la recherche, au changement de page et apres
-// chaque invitation LinkedIn — alors que ces totaux ne bougent quasiment
-// jamais. Afficher la page deux coutait quarante comptages.
+// BASE, LES UNS APRES LES AUTRES. Quarante comptages sequentiels sur des
+// tables de dizaines de milliers de lignes.
 //
 // LES DEUX CORRECTIONS :
-//   1. Les comptages partent TOUS EN MEME TEMPS (Promise.all), et les
-//      quatre bases sont traitees ensemble. Le temps devient celui du plus
-//      lent, non la somme des quarante.
-//   2. Le resume ne se calcule QUE quand il sert. L ecran qui tourne une
-//      page ou change de filtre ajoute `&resume=0` et ne paie plus rien.
+//   1. Les comptages partent TOUS EN MEME TEMPS (Promise.all).
+//   2. Le resume ne se calcule QUE quand il sert (`&resume=0`).
 //
-// ⚠️ COMPATIBILITE : sans parametre, le resume est calcule comme avant.
-// Aucun appel existant ne casse ; l ecran s allege quand il le demande.
-//
-// ⚠️ NE PAS REVENIR A UNE BOUCLE `for` AVEC `await` A L INTERIEUR : c est
-// la forme qui a produit la lenteur, et elle se reintroduit sans y penser
-// des qu on ajoute un compteur.
+// ⚠️ NE PAS REVENIR A UNE BOUCLE `for` AVEC `await` A L INTERIEUR.
 // ---------------------------------------------------------------------------
 
 // Les dix comptages d une base, lances ensemble.
@@ -306,12 +378,9 @@ async function resumeDe(cle: string): Promise<any> {
     compter(b.table, null),
     compter(b.table, function (q: any) { return q.not("email", "is", null); }),
     compter(b.table, function (q: any) { return q.not("telephone", "is", null); }),
-    // Le compte des profils LinkedIn n a de sens que la ou la colonne
-    // existe : ailleurs on rend zero sans interroger la base.
     b.linkedin
       ? compter(b.table, function (q: any) { return q.not("linkedin", "is", null); })
       : Promise.resolve(0),
-    // Ce qui reste a faire a la main : un profil connu, jamais sollicite.
     b.linkedin
       ? compter(b.table, function (q: any) {
           return q.not("linkedin", "is", null).is("linkedin_le", null);
@@ -381,10 +450,10 @@ async function detailDe(demandee: string, filtre: string, cherche: string, page:
     q = q.eq("desabonne", true);
   }
 
-  // La recherche par base couvre desormais les memes colonnes que la
-  // recherche globale : le nom du dirigeant y manquait.
+  // La recherche par base suit la meme regle que la recherche globale :
+  // mot entier, et chaque mot doit etre trouve.
   if (cherche) {
-    q = q.or(clauseOu(cherche, !!b.linkedin));
+    q = appliquer(q, clausesOu(cherche, !!b.linkedin));
   }
 
   const debut = page * parPage;
@@ -425,10 +494,6 @@ export async function GET(req: NextRequest) {
     const page = Math.max(0, parseInt(url.searchParams.get("page") || "0", 10) || 0);
     const parPage = 50;
 
-    // ⚠️ LE RESUME EST CALCULE PAR DEFAUT, pour ne casser aucun appel
-    // existant. L ecran qui n en a pas besoin — changement de page, de
-    // filtre, de recherche — passe `resume=0` et economise quarante
-    // comptages.
     const veutResume = (url.searchParams.get("resume") || "1") !== "0";
 
     // ---- LA RECHERCHE GLOBALE ------------------------------------------
@@ -437,18 +502,23 @@ export async function GET(req: NextRequest) {
     // rend rapide. Deux caracteres minimum, sans quoi elle rendrait la
     // moitie des bases.
     //
-    // ⚠️ LES QUATRE BASES ET LA FILE MANUELLE SONT INTERROGEES ENSEMBLE,
-    // non l une apres l autre : la recherche allait a la vitesse de la
-    // somme des quatre.
-    //
-    // 🆕 02/09 : la file manuelle est enfin du lot. Sans elle, une fiche
-    // saisie a la main restait introuvable — le bandeau promettait
-    // pourtant de l interroger.
+    // ⚠️ LES QUATRE BASES ET LA FILE MANUELLE SONT INTERROGEES ENSEMBLE.
     if (global) {
       if (global.length < 2) {
         return NextResponse.json({
           ok: false,
           erreur: "Deux caracteres au minimum pour la recherche globale.",
+        });
+      }
+
+      // 🚨 UN TERME QUI NE LAISSE AUCUN MOT UTILE NE DOIT RIEN RENDRE.
+      // Sans ce controle, `clausesOu` rendrait un tableau vide, aucun
+      // `.or()` ne serait pose, et la recherche remonterait LES VINGT
+      // PREMIERES LIGNES DE CHAQUE BASE comme si elles correspondaient.
+      if (motsDe(global).length === 0) {
+        return NextResponse.json({
+          ok: false,
+          erreur: "Terme trop court : deux lettres au minimum par mot.",
         });
       }
 
@@ -467,14 +537,12 @@ export async function GET(req: NextRequest) {
         mode: "global",
         terme: global,
         total_trouve: total,
+        mots_cherches: motsDe(global),
         bases: resultats,
       });
     }
 
     // ---- LE RESUME ET LE DETAIL, CALCULES ENSEMBLE ----------------------
-    //
-    // Les deux sont independants : rien ne justifie d attendre l un pour
-    // commencer l autre.
     const [resume, detail] = await Promise.all([
       veutResume
         ? Promise.all(Object.keys(BASES).map(function (cle) { return resumeDe(cle); }))
