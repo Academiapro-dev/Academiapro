@@ -56,6 +56,26 @@ import type { Metadata } from "next";
 //    visiteur clique, rien ne se passe, il repart. Ils pointent desormais
 //    sur app/mysterllc/contact/page.tsx, un vrai formulaire.
 //    ⛔ NE JAMAIS REMETTRE DE `mailto:` COMME SEUL MOYEN DE CONTACT.
+//
+// 🆕 08/09 — TROIS CORRECTIONS APRES LECTURE DE LA CONCURRENCE.
+//
+// 1. BOI FinCEN. La page disait « a deposer en ligne ». La regle en base
+//    (FINCEN_BOI, on_demand) dit : entites domestiques US exemptees depuis
+//    2025. La vitrine contredisait l outil. Corrige.
+//
+// 2. LE FORFAIT COMPTABILITE N ETAIT PAS SUR LA PAGE. Depenses avec
+//    justificatif, lecture du justificatif par l outil, compte courant
+//    d associe par devise, 5472 prepare depuis les pieces : tout existe
+//    (app/api/compliance/depenses, /depenses/analyser,
+//    app/compliance/comptabilite) et rien ne le disait. C est le seul
+//    terrain ou l outil fait ce que le concurrent direct anglophone ne
+//    fait pas. Section « Deux forfaits » ajoutee. SANS PRIX.
+//
+// 3. « avec la date a laquelle elle a ete verifiee — vous pouvez la
+//    controler depuis l outil » : la phrase porte sur les REGLES D ETAT,
+//    et les 14 regles d Etat ont toutes source_url et verifie_le. Elle
+//    reste. ⚠️ Les 11 regles federales, francaises et europeennes n ont
+//    ni source ni date (mesure du 08/09) : a completer en base, pas ici.
 // ---------------------------------------------------------------------------
 
 const OR = "#c8a96e";
@@ -121,10 +141,11 @@ const OBLIGATIONS = [
   },
   {
     nom: "BOI FinCEN",
-    quand: "selon la date de constitution",
+    quand: "statut suivi",
     enjeu:
-      "Déclaration des bénéficiaires effectifs, à déposer en ligne. "
-      + "L'outil prépare la fiche, vous déposez.",
+      "Les LLC constituées aux États-Unis en sont exemptées depuis 2025. "
+      + "Le statut reste suivi : si l'obligation revient, la fiche se "
+      + "prépare et vous déposez.",
   },
   {
     nom: "Annual Report",
@@ -173,6 +194,36 @@ const ETAPES = [
     texte:
       "Cinq paliers, de soixante jours à la veille. Rien ne part sans votre "
       + "accord, société par société.",
+  },
+];
+
+// 🆕 LES DEUX FORFAITS — 08/09.
+//
+// 🚨 DEUX CONTENUS, PAS DEUX PRIX DU MEME SERVICE. Le Suivi porte les
+// echeances, les formulaires et les relances. La Comptabilite ajoute ce
+// qui permet de PREPARER le 5472 depuis des pieces et non depuis une
+// saisie de fin d annee. Chaque ligne ci-dessous correspond a un ecran
+// qui existe. ⛔ NE RIEN Y AJOUTER QUI N EXISTE PAS. ⛔ AUCUN PRIX.
+const FORFAITS = [
+  {
+    nom: "Suivi",
+    chapeau: "Les obligations, tenues.",
+    points: [
+      "Toutes les échéances de chaque société, sur un seul agenda.",
+      "Les formulaires officiels pré-remplis depuis la fiche de la société.",
+      "Les relances, armées société par société.",
+      "La signature électronique, avec son dossier de preuve.",
+    ],
+  },
+  {
+    nom: "Comptabilité",
+    chapeau: "Le Suivi, et les comptes dont le Form 5472 a besoin.",
+    points: [
+      "Chaque dépense de la société enregistrée avec son justificatif.",
+      "Le justificatif est lu par l'outil, qui pré-remplit la dépense : vous vérifiez, vous validez.",
+      "Le compte courant d'associé tenu par devise, jamais converti.",
+      "Le Form 5472 préparé à partir des pièces de l'année, pas d'une reconstitution en avril.",
+    ],
   },
 ];
 
@@ -457,6 +508,36 @@ export default function VitrineMysterLLC() {
             </div>
           ))}
         </div>
+      </div>
+
+      {/* ---- LES DEUX FORFAITS — 08/09 ---- */}
+      <div style={section}>
+        <h2 style={h2}>Deux forfaits, deux contenus</h2>
+        <p style={chapo}>
+          Le premier tient les échéances. Le second tient aussi les comptes
+          que le Form 5472 réclame — au fil de l&apos;année, pièce par pièce.
+        </p>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(290px,1fr))", gap: "18px" }}>
+          {FORFAITS.map((f) => (
+            <div key={f.nom} style={carte}>
+              <strong style={{ color: OR, fontSize: "17px", display: "block", marginBottom: "4px" }}>
+                {f.nom}
+              </strong>
+              <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "13.5px", margin: "0 0 14px" }}>
+                {f.chapeau}
+              </p>
+              <ul style={{ margin: 0, paddingLeft: "18px", color: "rgba(255,255,255,0.6)", fontSize: "14px", lineHeight: "1.8" }}>
+                {f.points.map((pt) => (
+                  <li key={pt}>{pt}</li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+        <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "13.5px", lineHeight: "1.8", marginTop: "22px", maxWidth: "680px" }}>
+          Le tarif de chaque forfait dépend du nombre de sociétés suivies. Il
+          se lit dans la proposition, pas ici.
+        </p>
       </div>
 
       {/* ---- CE QUI EST DIT FRANCHEMENT ---- */}
