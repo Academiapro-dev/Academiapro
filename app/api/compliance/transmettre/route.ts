@@ -447,9 +447,14 @@ async function transmettre(req: NextRequest, tenantId: string, entite: any, body
       headers: { Authorization: "Basic " + Buffer.from(cle + ":" + secret).toString("base64") },
       body: fd,
     });
-    reponse = await r.json().catch(() => null);
-    if (r.ok && reponse && reponse.id) {
-      faxId = String(reponse.id);
+    // On garde TOUJOURS le code HTTP et le texte brut : un 401 ou un 404
+    // ne renvoie pas de JSON, et sans cela la cause reste invisible.
+    const texte = await r.text().catch(() => "");
+    let json: any = null;
+    try { json = texte ? JSON.parse(texte) : null; } catch { json = null; }
+    reponse = { http: r.status, corps: json ?? texte.slice(0, 600) };
+    if (r.ok && json && json.id) {
+      faxId = String(json.id);
     }
   } catch (e: unknown) {
     reponse = { erreur: e instanceof Error ? e.message : String(e) };
@@ -497,7 +502,12 @@ async function transmettre(req: NextRequest, tenantId: string, entite: any, body
 
   if (!faxId) {
     return NextResponse.json(
-      { error: "Le prestataire de fax a refuse l'envoi. Le document assemble est archive ; rien n'est parti.", transmission },
+      {
+        error: "Le prestataire de fax a refuse l'envoi (HTTP " + (reponse && reponse.http ? reponse.http : "?") + "). "
+          + "Le document assemble est archive ; rien n'est parti. Detail : "
+          + (reponse && reponse.corps ? (typeof reponse.corps === "string" ? reponse.corps : JSON.stringify(reponse.corps)).slice(0, 300) : "aucun"),
+        transmission,
+      },
       { status: 502 }
     );
   }
