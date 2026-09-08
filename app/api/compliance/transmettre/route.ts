@@ -54,10 +54,20 @@ export const dynamic = "force-dynamic";
 // ⚠️ CETTE ROUTE NE MODIFIE NI f5472/generate, NI f1120/generate, NI
 // document-a-signer, NI signature. Elle travaille sur des COPIES.
 //
-// ⚠️ LE PRESTATAIRE : Phaxio (Sinch), API v2.1, 0,07 $ la page, sans
-// abonnement. Sans PHAXIO_API_KEY et PHAXIO_API_SECRET dans Vercel, la
-// route repond « transmission non configuree » et ne fait rien — comme
-// Plivo pour la telephonie.
+// ⚠️ LE PRESTATAIRE : Sinch Fax API v3 (ex-Phaxio ; l inscription Phaxio
+// renvoie desormais sur dashboard.sinch.com, constate le 08/09). Sans
+// abonnement, a la page. Sans SINCH_PROJECT_ID, SINCH_ACCESS_KEY et
+// SINCH_ACCESS_SECRET dans Vercel, la route repond « transmission non
+// configuree » et ne fait rien — comme Plivo pour la telephonie.
+//
+// ⚠️ LE TEST SANS FACTURATION : Sinch simule tout vers +19898989898.
+// Si FAX_NUMERO_TEST est presente dans Vercel, le fax part a CE numero
+// au lieu de l IRS. ⛔ LA RETIRER AVANT LE PREMIER VRAI DEPOT. La reponse
+// dit toujours a quel numero le fax est parti.
+//
+// ⚠️ LE RETOUR (webhook) : Sinch v3 ne signe pas ses appels. La route
+// statut est protegee par un jeton dans l adresse de rappel
+// (FAX_CALLBACK_TOKEN, une chaine longue que Jacques choisit).
 // ---------------------------------------------------------------------------
 
 const supabase = createClient(
@@ -67,7 +77,7 @@ const supabase = createClient(
 
 const BUCKET_DOCS = "compliance-docs";
 const FAX_IRS = "+18558877737";
-const PHAXIO_URL = "https://api.phaxio.com/v2.1/faxes";
+const SINCH_URL = "https://fax.api.sinch.com/v3/projects/";
 const DOC_TYPE_DEPOT = "depot_irs_fax";
 const TYPE_ACCUSE = "accuse_lecture";
 
@@ -281,14 +291,24 @@ async function lier(tenantId: string, entite: any, body: any) {
 
 // ---- ACTION 3 : TRANSMETTRE ----
 async function transmettre(req: NextRequest, tenantId: string, entite: any, body: any, sessionEmail: string) {
-  const cle = process.env.PHAXIO_API_KEY || "";
-  const secret = process.env.PHAXIO_API_SECRET || "";
-  if (!cle || !secret) {
+  const projet = (process.env.SINCH_PROJECT_ID || "").trim();
+  const cle = (process.env.SINCH_ACCESS_KEY || "").trim();
+  const secret = (process.env.SINCH_ACCESS_SECRET || "").trim();
+  const jetonRappel = (process.env.FAX_CALLBACK_TOKEN || "").trim();
+  if (!projet || !cle || !secret) {
     return NextResponse.json(
-      { error: "Transmission non configuree : PHAXIO_API_KEY et PHAXIO_API_SECRET absentes." },
+      { error: "Transmission non configuree : SINCH_PROJECT_ID, SINCH_ACCESS_KEY ou SINCH_ACCESS_SECRET absente." },
       { status: 503 }
     );
   }
+  if (!jetonRappel) {
+    return NextResponse.json(
+      { error: "Transmission non configuree : FAX_CALLBACK_TOKEN absente (le retour de statut ne serait pas protege)." },
+      { status: 503 }
+    );
+  }
+  const numeroTest = (process.env.FAX_NUMERO_TEST || "").trim();
+  const destinataire = numeroTest || FAX_IRS;
 
   const reference = String(body.reference || "").trim();
   if (!reference) return NextResponse.json({ error: "Reference de l'accuse manquante." }, { status: 400 });
@@ -410,35 +430,36 @@ async function transmettre(req: NextRequest, tenantId: string, entite: any, body
 
   // ---- L ENVOI ----
   const hote = req.headers.get("host") || "";
-  const callback = "https://" + hote + "/api/compliance/transmettre/statut?ref=" + encodeURIComponent(reference);
+  const callback = "https://" + hote + "/api/compliance/transmettre/statut?ref="
+    + encodeURIComponent(reference) + "&cle=" + encodeURIComponent(jetonRappel);
 
   const fd = new FormData();
-  fd.append("to", FAX_IRS);
+  fd.append("to", destinataire);
   fd.append("file", new Blob([octetsEnvoi], { type: "application/pdf" }), "depot-1120-5472.pdf");
-  fd.append("callback_url", callback);
-  fd.append("header_text", "Foreign-owned U.S. DE - " + (entite.legal_name || entite.label));
-  fd.append("tag[reference]", reference);
+  fd.append("callbackUrl", callback);
+  fd.append("callbackUrlContentType", "application/json");
 
   let reponse: any = null;
   let faxId: string | null = null;
   try {
-    const r = await fetch(PHAXIO_URL, {
+    const r = await fetch(SINCH_URL + encodeURIComponent(projet) + "/faxes", {
       method: "POST",
       headers: { Authorization: "Basic " + Buffer.from(cle + ":" + secret).toString("base64") },
       body: fd,
     });
     reponse = await r.json().catch(() => null);
-    if (r.ok && reponse && reponse.success && reponse.data && reponse.data.id) {
-      faxId = String(reponse.data.id);
+    if (r.ok && reponse && reponse.id) {
+      faxId = String(reponse.id);
     }
   } catch (e: unknown) {
     reponse = { erreur: e instanceof Error ? e.message : String(e) };
   }
 
   const transmission = {
-    prestataire: "phaxio",
+    prestataire: "sinch_fax_v3",
+    mode_test: !!numeroTest,
     fax_id: faxId,
-    numero: FAX_IRS,
+    numero: destinataire,
     envoye_le: new Date().toISOString(),
     envoye_par: sessionEmail,
     chemin_envoi: cheminEnvoi,
@@ -488,7 +509,10 @@ async function transmettre(req: NextRequest, tenantId: string, entite: any, body
     pages: nbPages,
     chemin_envoi: cheminEnvoi,
     sha_envoi: shaEnvoi,
-    message: "Transmis au " + FAX_IRS + ". L'accuse de transmission sera enregistre a la reception du statut.",
+    mode_test: !!numeroTest,
+    numero: destinataire,
+    message: (numeroTest ? "MODE TEST — envoye au numero de simulation " : "Transmis a l'IRS au ") + destinataire
+      + ". L'accuse de transmission sera enregistre a la reception du statut.",
   });
 }
 
