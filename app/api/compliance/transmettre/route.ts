@@ -43,6 +43,17 @@ export const dynamic = "force-dynamic";
 //      document envoye et son empreinte ;
 //   4. chaque depense de l exercice porte son justificatif, sinon refus.
 //
+// 🆕 09/09 — L ETAT DU DEPOT EST CONSERVE EN BASE (compliance_depots, une
+// ligne par societe et par exercice). Jacques, 09/09 : « donner l acces a
+// l utilisateur en appuyant simplement sur le bouton [...] de maniere
+// simple ». Hier le parcours oubliait tout au rechargement de la page.
+// Deux actions de plus : `etat` (l ecran lit ou il en est) et `noter`
+// (l ecran enregistre les chemins des PDF qu il vient de generer).
+// Statuts : a_generer → genere → accuse_envoye → signe → transmis →
+// accuse_recu. Le passage a « signe » est CALCULE a la lecture : on
+// regarde compliance_signatures, on ne demande pas a l ecran de signature
+// de nous prevenir.
+//
 // TROIS ACTIONS, PARCE QUE L ACCUSE DOIT PORTER LES EMPREINTES :
 //   preparer    : hache les deux PDF deja generes, rend le texte de
 //                 l accuse a faire signer (l ecran appelle ensuite
@@ -146,6 +157,94 @@ function imageDuTrace(trace: string): { octets: Buffer; type: "png" | "jpg" } | 
     else return null;
   }
   return { octets, type };
+}
+
+// ---- L ETAT DU DEPOT EN BASE ----
+async function lireEtat(tenantId: string, entiteId: string, year: number) {
+  const { data } = await supabase
+    .from("compliance_depots")
+    .select("*")
+    .eq("tenant_id", tenantId)
+    .eq("entite_id", entiteId)
+    .eq("tax_year", year)
+    .maybeSingle();
+  return data || null;
+}
+
+async function ecrireEtat(tenantId: string, entiteId: string, year: number, champs: Record<string, unknown>) {
+  const { error } = await supabase
+    .from("compliance_depots")
+    .upsert(
+      { tenant_id: tenantId, entite_id: entiteId, tax_year: year, ...champs, maj_le: new Date().toISOString() },
+      { onConflict: "entite_id,tax_year" }
+    );
+  if (error) console.error("[transmettre] etat :", error.message);
+}
+
+// ---- ACTION 0 : ETAT ----
+//
+// Ce que l ecran lit au chargement. Le statut « signe » est deduit de
+// compliance_signatures, jamais stocke a l aveugle.
+async function etat(tenantId: string, entite: any, body: any) {
+  const year = Number(body.year) || new Date().getFullYear();
+  const e = await lireEtat(tenantId, entite.id, year);
+  if (!e) {
+    return NextResponse.json({ success: true, year, statut: "a_generer", chemin_1120: null, chemin_5472: null, reference_accuse: null });
+  }
+  let statut = e.statut;
+  if (statut === "accuse_envoye" && e.reference_accuse) {
+    const { data: sig } = await supabase
+      .from("compliance_signatures")
+      .select("id, trace_sha256")
+      .eq("document_reference", e.reference_accuse)
+      .eq("annulee", false)
+      .limit(1)
+      .maybeSingle();
+    if (sig) {
+      statut = "signe";
+      await ecrireEtat(tenantId, entite.id, year, { statut });
+    }
+  }
+  return NextResponse.json({
+    success: true,
+    year,
+    statut,
+    chemin_1120: e.chemin_1120,
+    chemin_5472: e.chemin_5472,
+    reference_accuse: e.reference_accuse,
+    fax_id: e.fax_id,
+    transmis_le: e.transmis_le,
+  });
+}
+
+// ---- ACTION 0 bis : NOTER ----
+//
+// L ecran vient de generer un PDF ; il enregistre son chemin. Le chemin
+// est verifie comme partout : tenant/entite/forme/.
+async function noter(tenantId: string, entite: any, body: any) {
+  const year = Number(body.year) || new Date().getFullYear();
+  const champs: Record<string, unknown> = {};
+  const c1120 = String(body.chemin_1120 || "").trim();
+  const c5472 = String(body.chemin_5472 || "").trim();
+  if (c1120) {
+    if (!cheminAutorise(c1120, tenantId, entite.id, "1120")) return NextResponse.json({ error: "Chemin du 1120 invalide." }, { status: 400 });
+    champs.chemin_1120 = c1120;
+  }
+  if (c5472) {
+    if (!cheminAutorise(c5472, tenantId, entite.id, "5472")) return NextResponse.json({ error: "Chemin du 5472 invalide." }, { status: 400 });
+    champs.chemin_5472 = c5472;
+  }
+  const actuel = await lireEtat(tenantId, entite.id, year);
+  const a1120 = champs.chemin_1120 || (actuel && actuel.chemin_1120);
+  const a5472 = champs.chemin_5472 || (actuel && actuel.chemin_5472);
+  // Regenerer un formulaire remet le depot au debut : l accuse precedent
+  // ne porte plus les bonnes empreintes.
+  champs.statut = a1120 && a5472 ? "genere" : "a_generer";
+  champs.reference_accuse = null;
+  champs.fax_id = null;
+  champs.transmis_le = null;
+  await ecrireEtat(tenantId, entite.id, year, champs);
+  return NextResponse.json({ success: true, year, statut: champs.statut, chemin_1120: a1120 || null, chemin_5472: a5472 || null });
 }
 
 // ---- LA SOCIETE DE LA SESSION ----
@@ -285,6 +384,10 @@ async function lier(tenantId: string, entite: any, body: any) {
     .eq("id", doc.id);
 
   if (eUp) return NextResponse.json({ error: "Enregistrement : " + eUp.message }, { status: 500 });
+
+  await ecrireEtat(tenantId, entite.id, year, {
+    chemin_1120: chemin1120, chemin_5472: chemin5472, reference_accuse: reference, statut: "accuse_envoye",
+  });
 
   return NextResponse.json({ success: true, reference, depot });
 }
@@ -511,6 +614,12 @@ async function transmettre(req: NextRequest, tenantId: string, entite: any, body
     donnees: { transmission, accuse_reference: reference, signature_id: sig.id },
   });
 
+  if (faxId) {
+    await ecrireEtat(tenantId, entite.id, Number(depot.year) || new Date().getFullYear(), {
+      reference_accuse: reference, statut: "transmis", fax_id: faxId, transmis_le: transmission.envoye_le,
+    });
+  }
+
   if (!faxId) {
     return NextResponse.json(
       {
@@ -553,11 +662,13 @@ export async function POST(req: NextRequest) {
     const entite = await entiteDeLaSession(tenantId, String(body.entite_id || "").trim());
     if (!entite) return NextResponse.json({ error: "Societe introuvable." }, { status: 404 });
 
+    if (action === "etat") return await etat(tenantId, entite, body);
+    if (action === "noter") return await noter(tenantId, entite, body);
     if (action === "preparer") return await preparer(tenantId, entite, body);
     if (action === "lier") return await lier(tenantId, entite, body);
     if (action === "transmettre") return await transmettre(req, tenantId, entite, body, session ? session.email : "");
 
-    return NextResponse.json({ error: "Action inconnue : preparer, lier ou transmettre." }, { status: 400 });
+    return NextResponse.json({ error: "Action inconnue : etat, noter, preparer, lier ou transmettre." }, { status: 400 });
   } catch (e: unknown) {
     console.error("[transmettre] exception :", e instanceof Error ? e.message : String(e));
     return NextResponse.json({ error: "Erreur serveur." }, { status: 500 });
