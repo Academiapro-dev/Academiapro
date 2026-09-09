@@ -58,6 +58,13 @@ const NF = "Page1[0].NameFieldsReadOrder[0].";
 // ⚠️ CETTE ROUTE ET f5472/generate SONT JUMELLES. Le motif du 31/08 s est
 // produit deux fois : un defaut corrige dans l une, oublie dans l autre.
 // TOUTE MODIFICATION ICI DOIT ETRE REPORTEE LA-BAS, ET RECIPROQUEMENT.
+//
+// ---- 🆕 09/09 — LIGNE D « TOTAL ASSETS » --------------------------------
+//
+// La route y ecrivait le TOTAL DES AVANCES (totalUsd). L actif total d une
+// societe n est pas la somme des avances de son membre. Le mapping porte
+// `f1120_total_assets_usd` : c est cette colonne qui est ecrite, et rien si
+// elle est vide. Meme correction que la ligne 1c du 5472, le meme jour.
 // ---------------------------------------------------------------------------
 
 function money(n: number | null | undefined): string {
@@ -227,7 +234,8 @@ export async function POST(req: NextRequest) {
     // ---- PAGE 1 : B, C, D directement sous Page1 ----
     setText("Page1[0].f1_11[0]", m.ri_ein);
     setText("Page1[0].f1_12[0]", dateIRS(m.ri_date_incorp));
-    setText("Page1[0].f1_13[0]", money(totalUsd));
+    // 🆕 09/09 : D = l actif total du mapping, jamais le total des avances.
+    setText("Page1[0].f1_13[0]", money(m.f1120_total_assets_usd));
 
     if (m.f1120_initial_return) cocher("Page1[0].c1_6[0]");
 
@@ -279,6 +287,7 @@ export async function POST(req: NextRequest) {
         taux_eur_usd: taux,
         taux_valide: m.taux_valide,
         total_usd: totalUsd,
+        total_assets: m.f1120_total_assets_usd ?? null,
       },
       controle: {
         adresse: [m.adr_rue, m.adr_suite, m.adr_ville, m.adr_etat, m.adr_pays, m.adr_zip],
