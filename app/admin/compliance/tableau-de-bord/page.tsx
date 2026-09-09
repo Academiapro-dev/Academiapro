@@ -35,6 +35,8 @@ const OUTILS = [
     { nom: "Clôture", href: "/admin/compliance/cloture" },
     { nom: "Verrouillage", href: "/admin/compliance/verrouillage" },
     { nom: "Annexes", href: "/admin/compliance/annexes" },
+    // 🆕 09/09 : les comptes annuels presentes.
+    { nom: "Plaquette", href: "/admin/compliance/plaquette" },
   ]},
   { titre: "Liasse fiscale", liens: [
     { nom: "Établir la liasse", href: "/admin/compliance/liasse" },
