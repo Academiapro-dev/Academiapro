@@ -27,9 +27,14 @@ import { useEffect, useState } from "react";
 //   3. Transmettre : la route verifie la signature et les empreintes, pose
 //      le trace sur la ligne « Signature of officer » du 1120, aplatit,
 //      fusionne, faxe au 855-887-7737, archive.
-// ⚠️ LES CHEMINS DES DEUX PDF VIENNENT DE LA GENERATION FAITE DANS CETTE
-// PAGE (data.path) : il faut generer les deux AVANT de preparer. Apres un
-// rechargement, il faut regenerer — les chemins ne sont pas conserves.
+// 🆕 09/09 — UN SEUL BOUTON, UN ETAT EN BASE. Jacques : « donner l acces a
+// l utilisateur en appuyant simplement sur le bouton [...] de maniere
+// simple ». L etat du depot (compliance_depots) est lu au chargement
+// (transmettre?action=etat) : chemins, reference, statut. Le bouton fait
+// TOUJOURS l etape suivante : generer les deux formulaires → preparer et
+// faire signer → (attendre la signature) → transmettre. Rien n est perdu
+// au rechargement. Les boutons de generation separes restent au-dessus
+// pour qui veut regenerer un formulaire seul.
 // ---------------------------------------------------------------------------
 
 const PNL_YEAR = 2026;
@@ -129,6 +134,10 @@ export default function ComplianceDashboard() {
   const [depotLoading, setDepotLoading] = useState<string | null>(null);
   const [depotMsg, setDepotMsg] = useState<string | null>(null);
   const [depotDetail, setDepotDetail] = useState<string | null>(null);
+  // L etat lu en base : a_generer, genere, accuse_envoye, signe, transmis,
+  // accuse_recu, echec_fax.
+  const [depotStatut, setDepotStatut] = useState<string>("a_generer");
+  const [depotFaxId, setDepotFaxId] = useState<string | null>(null);
 
   async function charger(id: string, entite: string | null) {
     setLoading(true);
@@ -145,6 +154,7 @@ export default function ComplianceDashboard() {
         setDocuments(data.documents || []);
         setEntiteId(data.entite_id || null);
         setNbEntites(data.nb_entites || 1);
+        await lireEtatDepot(data.entite_id || entite);
       }
       const rp = await fetch("/api/compliance/pnl?year=" + PNL_YEAR);
       const dp = await rp.json();
@@ -159,6 +169,27 @@ export default function ComplianceDashboard() {
       setErreur(String(e));
     }
     setLoading(false);
+  }
+
+  // ---- L ETAT DU DEPOT, LU EN BASE ----
+  async function lireEtatDepot(ent: string | null) {
+    try {
+      const r = await fetch("/api/compliance/transmettre", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "etat", entite_id: ent, year: PNL_YEAR }),
+      });
+      const d = await r.json();
+      if (d.success) {
+        setDepotStatut(d.statut || "a_generer");
+        setChemin1120(d.chemin_1120 || null);
+        setChemin5472(d.chemin_5472 || null);
+        setRefAccuse(d.reference_accuse || "");
+        setDepotFaxId(d.fax_id || null);
+      }
+    } catch (e) {
+      // L etat n est qu un confort : son absence ne bloque pas la page.
+    }
   }
 
   useEffect(() => {
@@ -259,6 +290,20 @@ export default function ComplianceDashboard() {
         // autre, qui sera hache, signe et transmis.
         if (formulaire === "f5472") setChemin5472(data.path || null);
         else setChemin1120(data.path || null);
+        // Le chemin est conserve en base : un rechargement ne le perd plus.
+        if (data.path) {
+          const rn = await fetch("/api/compliance/transmettre", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              action: "noter", entite_id: entiteId, year: PNL_YEAR,
+              chemin_1120: formulaire === "f1120" ? data.path : undefined,
+              chemin_5472: formulaire === "f5472" ? data.path : undefined,
+            }),
+          });
+          const dn = await rn.json();
+          if (dn.success) setDepotStatut(dn.statut || "genere");
+        }
       } else {
         setIrsMsg("Erreur : " + (data.error || "inconnue"));
       }
@@ -347,6 +392,7 @@ export default function ComplianceDashboard() {
       }
 
       setRefAccuse(d2.reference);
+      setDepotStatut("accuse_envoye");
       const em = d2.email || {};
       let msg = "Accusé de lecture " + d2.reference + " créé et rattaché aux deux formulaires.";
       msg += em.envoye === true
@@ -376,9 +422,12 @@ export default function ComplianceDashboard() {
       const d = await r.json();
       if (d.success) {
         setDepotMsg(
-          "Transmis à l'IRS par fax — " + d.pages + " pages, identifiant " + d.fax_id +
+          (d.mode_test ? "MODE TEST — envoyé au numéro de simulation " + d.numero : "Transmis à l'IRS par fax") +
+          " — " + d.pages + " pages, identifiant " + d.fax_id +
           ". L'accusé de transmission sera enregistré au coffre à la réception du statut."
         );
+        setDepotStatut("transmis");
+        setDepotFaxId(d.fax_id || null);
         charger(tenantId, entiteId);
       } else {
         setDepotMsg("Erreur : " + (d.error || "inconnue"));
@@ -387,6 +436,92 @@ export default function ComplianceDashboard() {
       setDepotMsg("Erreur : " + String(e));
     }
     setDepotLoading(null);
+  }
+
+  // ---- LE BOUTON UNIQUE : L ETAPE SUIVANTE, QUELLE QU ELLE SOIT ----
+  //
+  // a_generer     → generer le 5472 puis le 1120 (les deux chemins notes)
+  // genere        → preparer l accuse et l envoyer a signer
+  // accuse_envoye → relire l etat (la signature est detectee en base)
+  // signe         → transmettre
+  // transmis      → relire l etat (l accuse du prestataire arrive par webhook)
+  async function etapeSuivante() {
+    if (!tenantId) return;
+    if (depotStatut === "a_generer" || !chemin1120 || !chemin5472) {
+      setDepotLoading("generer");
+      setDepotMsg(null);
+      try {
+        for (const f of ["f5472", "f1120"] as const) {
+          const r = await fetch("/api/compliance/" + f + "/generate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ entite_id: entiteId, year: PNL_YEAR }),
+          });
+          const d = await r.json();
+          if (!d.success || !d.path) {
+            setDepotMsg("Erreur à la génération du " + (f === "f5472" ? "5472" : "1120") + " : " + (d.error || "inconnue"));
+            setDepotLoading(null);
+            return;
+          }
+          if (f === "f5472") setChemin5472(d.path); else setChemin1120(d.path);
+          await fetch("/api/compliance/transmettre", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              action: "noter", entite_id: entiteId, year: PNL_YEAR,
+              chemin_1120: f === "f1120" ? d.path : undefined,
+              chemin_5472: f === "f5472" ? d.path : undefined,
+            }),
+          });
+        }
+        setDepotStatut("genere");
+        setDepotMsg("Les deux formulaires sont générés. Cliquez à nouveau pour préparer l'accusé et l'envoyer à signer.");
+      } catch (e: any) {
+        setDepotMsg("Erreur : " + String(e));
+      }
+      setDepotLoading(null);
+      return;
+    }
+    if (depotStatut === "genere") { await preparerDepot(); return; }
+    if (depotStatut === "accuse_envoye") {
+      setDepotLoading("etat");
+      await lireEtatDepot(entiteId);
+      setDepotLoading(null);
+      setDepotMsg("En attente de la signature du titulaire (référence " + refAccuse + "). Dès qu'il a signé, ce bouton devient « Transmettre ».");
+      return;
+    }
+    if (depotStatut === "signe") { await transmettreDepot(); return; }
+    setDepotLoading("etat");
+    await lireEtatDepot(entiteId);
+    setDepotLoading(null);
+  }
+
+  function libelleEtape(): string {
+    if (depotLoading === "generer") return "Génération des deux formulaires…";
+    if (depotLoading === "preparer") return "Préparation de l'accusé…";
+    if (depotLoading === "transmettre") return "Transmission…";
+    if (depotLoading === "etat") return "Vérification…";
+    if (depotStatut === "a_generer" || !chemin1120 || !chemin5472) return "1. Générer les formulaires";
+    if (depotStatut === "genere") return "2. Préparer le dépôt et faire signer";
+    if (depotStatut === "accuse_envoye") return "3. Vérifier la signature";
+    if (depotStatut === "signe") return "4. Transmettre à l'IRS";
+    if (depotStatut === "transmis") return "Actualiser le statut";
+    if (depotStatut === "accuse_recu") return "Dépôt terminé";
+    if (depotStatut === "echec_fax") return "Réessayer la transmission";
+    return "Continuer";
+  }
+
+  function libelleStatut(): string {
+    switch (depotStatut) {
+      case "a_generer": return "Aucun formulaire généré pour " + PNL_YEAR + ".";
+      case "genere": return "Formulaires générés, accusé de lecture à préparer.";
+      case "accuse_envoye": return "Accusé " + refAccuse + " envoyé, en attente de la signature du titulaire.";
+      case "signe": return "Accusé " + refAccuse + " signé. Prêt à transmettre.";
+      case "transmis": return "Transmis (fax " + (depotFaxId || "") + "), en attente de l'accusé de transmission.";
+      case "accuse_recu": return "Déposé — accusé de transmission archivé au coffre (fax " + (depotFaxId || "") + ").";
+      case "echec_fax": return "La transmission a échoué chez le prestataire.";
+      default: return depotStatut;
+    }
   }
 
   async function generer3916() {
@@ -886,33 +1021,38 @@ export default function ComplianceDashboard() {
             ou au stylet est reproduit tel quel ; le titulaire choisit ce mode en
             connaissance de cause, et la responsabilité du contenu lui appartient.
           </p>
-          <p style={{ fontSize: 13, color: "#555", margin: "0 0 12px" }}>
-            1120 : <strong style={{ color: chemin1120 ? VERT : "#c62828" }}>{chemin1120 ? "généré" : "à générer"}</strong>
-            {" · "}
-            5472 : <strong style={{ color: chemin5472 ? VERT : "#c62828" }}>{chemin5472 ? "généré" : "à générer"}</strong>
+          <p style={{ fontSize: 14, margin: "0 0 12px", color: depotStatut === "accuse_recu" ? "#2e7d32" : depotStatut === "echec_fax" ? "#c62828" : "#1a1a1a" }}>
+            <strong>Où en est le dépôt {PNL_YEAR} :</strong> {libelleStatut()}
           </p>
+          {/* UN SEUL BOUTON. Il fait l etape suivante et son libelle la nomme.
+              Grise seulement quand tout est termine. */}
           <button
-            onClick={preparerDepot}
-            disabled={depotLoading !== null || !chemin1120 || !chemin5472}
-            style={{ ...styleBouton, opacity: (!chemin1120 || !chemin5472) ? 0.5 : 1 }}
+            onClick={etapeSuivante}
+            disabled={depotLoading !== null || depotStatut === "accuse_recu"}
+            style={{ ...styleBouton, fontSize: 16, padding: "14px 24px", opacity: depotStatut === "accuse_recu" ? 0.5 : 1 }}
           >
-            {depotLoading === "preparer" ? "Préparation…" : "Préparer le dépôt et faire signer"}
+            {libelleEtape()}
           </button>
-          <div style={{ marginTop: 8 }}>
-            <input
-              value={refAccuse}
-              onChange={(e) => setRefAccuse(e.target.value)}
-              placeholder="Référence de l'accusé signé (SIG-…)"
-              style={{ padding: "10px 12px", fontSize: 14, border: "1px solid #bbb", borderRadius: 6, width: 280, marginRight: 10, marginBottom: 10 }}
-            />
-            <button
-              onClick={transmettreDepot}
-              disabled={depotLoading !== null || !refAccuse.trim()}
-              style={{ ...styleBouton, opacity: !refAccuse.trim() ? 0.5 : 1 }}
-            >
-              {depotLoading === "transmettre" ? "Transmission…" : "Transmettre à l'IRS"}
-            </button>
-          </div>
+          {/* Secours : transmettre un accuse dont on connait la reference,
+              par exemple signe avant la mise en place de l etat en base. */}
+          <details style={{ marginTop: 8 }}>
+            <summary style={{ cursor: "pointer", color: "#555", fontSize: 13 }}>Transmettre à partir d&apos;une référence d&apos;accusé</summary>
+            <div style={{ marginTop: 8 }}>
+              <input
+                value={refAccuse}
+                onChange={(e) => setRefAccuse(e.target.value)}
+                placeholder="SIG-…"
+                style={{ padding: "10px 12px", fontSize: 14, border: "1px solid #bbb", borderRadius: 6, width: 280, marginRight: 10, marginBottom: 10 }}
+              />
+              <button
+                onClick={transmettreDepot}
+                disabled={depotLoading !== null || !refAccuse.trim()}
+                style={{ ...styleLien, opacity: !refAccuse.trim() ? 0.5 : 1 }}
+              >
+                {depotLoading === "transmettre" ? "Transmission…" : "Transmettre cet accusé"}
+              </button>
+            </div>
+          </details>
           {depotMsg && (
             <p style={{ marginTop: 10, marginBottom: 0, color: depotMsg.indexOf("Erreur") === 0 || depotMsg.indexOf("Impossible") === 0 || depotMsg.indexOf("ATTENTION") !== -1 ? "#c62828" : VERT }}>
               {depotMsg}
