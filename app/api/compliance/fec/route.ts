@@ -45,6 +45,141 @@ function champ(s: string | null): string {
   return String(s).replace(/[|\r\n\t]/g, " ").trim();
 }
 
+// ══════════════════════════════════════════════════════════════════════════
+// 🆕 LE CONTROLE DU FEC AVANT ENVOI — 09/09.
+//
+// L export ne verifiait qu une chose : l equilibre global. L outil officiel
+// de l administration (Test Compta Demat) rejette pour bien d autres
+// raisons, et un FEC rejete au controle fiscal coute au cabinet sa
+// credibilite. Ce controle reproduit les verifications connues de l article
+// A.47 A-1 du LPF et de l outil de test :
+//   - champs obligatoires renseignes (JournalCode, EcritureNum,
+//     EcritureDate, CompteNum, CompteLib, EcritureLib, ValidDate) ;
+//   - CompteNum d au moins trois caracteres, commencant par un chiffre ;
+//   - chaque ECRITURE (meme journal + meme numero) equilibree a elle seule ;
+//   - aucune ligne portant a la fois un debit et un credit, ni aucun des deux ;
+//   - dates dans l exercice ; PieceDate au plus tard a EcritureDate ;
+//   - DateLet presente si et seulement si EcritureLet l est ;
+//   - ValidDate au plus tot a EcritureDate ;
+//   - numerotation croissante par journal dans l ordre des dates ;
+//   - caracteres interdits (pipe, retour a la ligne) dans les libelles ;
+//   - equilibre global.
+// Chaque anomalie porte une gravite : « rejet » (le fichier sera refuse)
+// ou « avertissement » (accepte mais suspect).
+//
+// ?controle=1 rend la liste en JSON SANS produire le fichier. L export
+// reste tel qu il etait ; il ajoute seulement l en-tete X-Rejets.
+// ══════════════════════════════════════════════════════════════════════════
+function controlerFec(lignes: any[], debut: string, fin: string) {
+  const anomalies: Array<{ gravite: "rejet" | "avertissement"; code: string; detail: string; nb: number }> = [];
+  function ajouter(gravite: "rejet" | "avertissement", code: string, detail: string, nb: number) {
+    if (nb > 0) anomalies.push({ gravite, code, detail, nb });
+  }
+
+  let sansJournal = 0, sansNum = 0, sansDate = 0, sansCompte = 0, sansCompteLib = 0, sansLib = 0, sansValid = 0;
+  let compteCourt = 0, debitEtCredit = 0, niDebitNiCredit = 0, horsExercice = 0, pieceApres = 0;
+  let letSansDate = 0, dateSansLet = 0, validAvant = 0, caracteres = 0;
+  const parEcriture: any = {};
+  const parJournal: any = {};
+  let totalDebit = 0, totalCredit = 0;
+
+  for (const l of lignes) {
+    const d = Number(l.debit) || 0;
+    const c = Number(l.credit) || 0;
+    totalDebit += d; totalCredit += c;
+    const jc = String(l.journal_code || "").trim();
+    const num = String(l.ecriture_num || "").trim();
+    const date = String(l.ecriture_date || "").slice(0, 10);
+    const compte = String(l.compte_num || "").trim();
+
+    if (!jc) sansJournal++;
+    if (!num) sansNum++;
+    if (!date) sansDate++;
+    if (!compte) sansCompte++;
+    else if (compte.length < 3 || !/^[0-9]/.test(compte)) compteCourt++;
+    if (!String(l.compte_lib || "").trim()) sansCompteLib++;
+    if (!String(l.ecriture_lib || "").trim()) sansLib++;
+    if (!l.valid_date) sansValid++;
+    if (d > 0 && c > 0) debitEtCredit++;
+    if (d === 0 && c === 0) niDebitNiCredit++;
+    if (date && (date < debut || date > fin)) horsExercice++;
+    if (l.piece_date && date && String(l.piece_date).slice(0, 10) > date) pieceApres++;
+    if (l.lettrage && !l.date_lettrage) letSansDate++;
+    if (!l.lettrage && l.date_lettrage) dateSansLet++;
+    if (l.valid_date && date && String(l.valid_date).slice(0, 10) < date) validAvant++;
+    for (const t of [l.journal_lib, l.compte_lib, l.ecriture_lib, l.piece_ref, l.comp_aux_lib]) {
+      if (t && /[|\r\n]/.test(String(t))) { caracteres++; break; }
+    }
+
+    const cle = jc + "|" + num;
+    if (!parEcriture[cle]) parEcriture[cle] = { debit: 0, credit: 0, date };
+    parEcriture[cle].debit += d;
+    parEcriture[cle].credit += c;
+
+    if (!parJournal[jc]) parJournal[jc] = [];
+    parJournal[jc].push({ num, date });
+  }
+
+  let ecrituresDesequilibrees = 0;
+  const exemples: string[] = [];
+  for (const cle of Object.keys(parEcriture)) {
+    const e = parEcriture[cle];
+    if (Math.abs(Math.round((e.debit - e.credit) * 100) / 100) > 0.01) {
+      ecrituresDesequilibrees++;
+      if (exemples.length < 5) exemples.push(cle.split("|")[1] || cle);
+    }
+  }
+
+  let nonChronologique = 0;
+  for (const jc of Object.keys(parJournal)) {
+    const liste = parJournal[jc].slice().sort(function (a: any, b: any) { return a.num < b.num ? -1 : a.num > b.num ? 1 : 0; });
+    let derniereDate = "";
+    const vus = new Set<string>();
+    for (const x of liste) {
+      if (vus.has(x.num)) continue;
+      vus.add(x.num);
+      if (derniereDate && x.date < derniereDate) nonChronologique++;
+      if (x.date > derniereDate) derniereDate = x.date;
+    }
+  }
+
+  const ecart = Math.round((totalDebit - totalCredit) * 100) / 100;
+
+  ajouter("rejet", "equilibre_global", "Le fichier n'est pas équilibré : écart de " + montantFec(ecart) + ".", Math.abs(ecart) > 0.01 ? 1 : 0);
+  ajouter("rejet", "ecriture_desequilibree", "Écriture(s) déséquilibrée(s) à elle(s) seule(s)" + (exemples.length ? " : " + exemples.join(", ") : "") + ".", ecrituresDesequilibrees);
+  ajouter("rejet", "journal_code_vide", "Ligne(s) sans code journal.", sansJournal);
+  ajouter("rejet", "ecriture_num_vide", "Ligne(s) sans numéro d'écriture.", sansNum);
+  ajouter("rejet", "ecriture_date_vide", "Ligne(s) sans date d'écriture.", sansDate);
+  ajouter("rejet", "compte_vide", "Ligne(s) sans numéro de compte.", sansCompte);
+  ajouter("rejet", "compte_court", "Compte(s) de moins de trois caractères ou ne commençant pas par un chiffre.", compteCourt);
+  ajouter("rejet", "compte_lib_vide", "Ligne(s) sans libellé de compte.", sansCompteLib);
+  ajouter("rejet", "ecriture_lib_vide", "Ligne(s) sans libellé d'écriture.", sansLib);
+  ajouter("rejet", "valid_date_vide", "Ligne(s) sans date de validation : une écriture non validée n'a pas sa place dans un FEC.", sansValid);
+  ajouter("rejet", "debit_et_credit", "Ligne(s) portant à la fois un débit et un crédit.", debitEtCredit);
+  ajouter("rejet", "hors_exercice", "Ligne(s) datées hors de l'exercice " + debut + " → " + fin + ".", horsExercice);
+  ajouter("rejet", "caracteres_interdits", "Libellé(s) contenant un pipe ou un retour à la ligne (nettoyés à l'export, mais à corriger à la source).", caracteres);
+  ajouter("avertissement", "ni_debit_ni_credit", "Ligne(s) à zéro des deux côtés.", niDebitNiCredit);
+  ajouter("avertissement", "piece_apres_ecriture", "Pièce(s) datée(s) après l'écriture.", pieceApres);
+  ajouter("avertissement", "lettrage_sans_date", "Lettrage(s) sans date de lettrage.", letSansDate);
+  ajouter("avertissement", "date_sans_lettrage", "Date(s) de lettrage sans code de lettrage.", dateSansLet);
+  ajouter("avertissement", "valid_avant_ecriture", "Date(s) de validation antérieure(s) à l'écriture.", validAvant);
+  ajouter("avertissement", "non_chronologique", "Écriture(s) dont le numéro ne suit pas l'ordre des dates dans son journal.", nonChronologique);
+
+  const rejets = anomalies.filter(function (a) { return a.gravite === "rejet"; }).length;
+  return {
+    lignes: lignes.length,
+    ecritures: Object.keys(parEcriture).length,
+    journaux: Object.keys(parJournal).length,
+    debit: Math.round(totalDebit * 100) / 100,
+    credit: Math.round(totalCredit * 100) / 100,
+    ecart,
+    rejets,
+    avertissements: anomalies.length - rejets,
+    verdict: rejets > 0 ? "rejete" : anomalies.length > 0 ? "accepte_avec_reserves" : "conforme",
+    anomalies,
+  };
+}
+
 export async function GET(req: NextRequest) {
   try {
     // LA VRAIE SESSION, PAS UN COOKIE. Se contenter de constater la presence
@@ -62,6 +197,7 @@ export async function GET(req: NextRequest) {
     // dans un meme FEC serait une faute grave.
     const codeDemande = (req.nextUrl.searchParams.get("societe") || "").trim().toUpperCase();
     const idDemande = (req.nextUrl.searchParams.get("societe_id") || "").trim();
+    const modeControle = req.nextUrl.searchParams.get("controle") === "1";
 
     // dossiersAutorises rend TOUJOURS une liste : les dossiers de l organisme
     // de la session, restreints a ceux confies au collaborateur. Un dossier
@@ -184,9 +320,22 @@ export async function GET(req: NextRequest) {
           error: "Aucune ecriture pour " + dossier.raison_sociale
             + " entre le " + debut + " et le " + fin + ".",
           dossier: dossier.code,
+          ok: false,
         },
         { status: 404 }
       );
+    }
+
+    // 🆕 LE CONTROLE, toujours calcule ; rendu seul en mode controle.
+    const controle = controlerFec(lignes, debut, fin);
+
+    if (modeControle) {
+      return NextResponse.json({
+        ok: true,
+        dossier: { code: dossier.code, raison_sociale: dossier.raison_sociale },
+        exercice: { debut, fin },
+        ...controle,
+      });
     }
 
     // CONTROLE D EQUILIBRE. Un FEC desequilibre est rejete par l administration.
@@ -260,6 +409,7 @@ export async function GET(req: NextRequest) {
         "X-Nb-Lignes": String(lignes.length),
         "X-Dossier": champ(dossier.code),
         "X-Equilibre": Math.abs(ecart) <= 0.01 ? "oui" : "non",
+        "X-Rejets": String(controle.rejets),
       },
     });
   } catch (e: any) {
