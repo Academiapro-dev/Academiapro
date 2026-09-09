@@ -51,11 +51,31 @@ const supabase = createClient(
 // confiance. Les deux chiffres sont desormais SEPARES — `envoyees` ne
 // compte que les envois reels, `simulees` compte l essai. Le champ
 // `envoyees` vaut donc toujours 0 en mode essai, ce qui est la verite.
+//
+// ---- 🆕 09/09 — LE SMS, EN PLUS DU COURRIEL, SUR LES DEUX DERNIERS PALIERS
+//
+// Decision de Jacques du 08/09 : « on rajoutera le SMS ». Un courriel a
+// J-60 suffit ; a J-7 et J-1, un SMS en plus : c est le moment ou le
+// courriel dort dans une boite et ou 25 000 $ se jouent.
+//
+// REGLES :
+//   - le SMS ne part qu aux paliers J-7 et J-1 (PALIERS_SMS) ;
+//   - seulement si la societe porte un `telephone_contact` (colonne ajoutee
+//     le 09/09), europeen — memes indicatifs que /api/organisme/sms ;
+//   - seulement apres que le courriel du meme palier est parti ;
+//   - expediteur BREVO : MYSTERLLC_SMS_EXPEDITEUR (11 caracteres max, lettres
+//     et chiffres ; a declarer chez Brevo) — sans lui, pas de SMS, le
+//     courriel suffit ; sans BREVO_API_KEY non plus ;
+//   - trace dans compliance_relances avec canal = 'sms', pour que
+//     dejaRelancee() le voie comme n importe quelle relance ;
+//   - 160 caracteres maximum, texte coupe si besoin.
+// L essai (?essai=1) simule aussi le SMS et le dit.
 // ---------------------------------------------------------------------------
 
 // Les paliers de relance, en jours avant l echeance. Ils sont espaces : le
 // premier laisse le temps de reunir les pieces, le dernier est un rappel.
 const PALIERS = [60, 30, 15, 7, 1];
+const PALIERS_SMS = [7, 1];
 
 // Tolerance : le cron tourne une fois par jour, mais un retard d execution
 // ne doit pas faire sauter un palier. On relance si l echeance tombe dans
@@ -72,6 +92,42 @@ const PLAFOND_PAR_ORGANISME = 200;
 
 const EXPEDITEUR = process.env.COMPLIANCE_EXPEDITEUR
   || "Suivi des echeances <contact@academiapro.fr>";
+
+const URL_BREVO = "https://api.brevo.com/v3/transactionalSMS/sms";
+const INDICATIFS_EEA = ["33", "32", "352", "41", "49", "31", "34", "351", "39", "43", "353", "45", "46", "358", "47", "354", "423", "48", "420", "421", "36", "40", "359", "385", "386", "370", "371", "372", "30", "357", "356"]
+  .sort(function (a, b) { return b.length - a.length; });
+
+function numeroPropre(brut: string): string | null {
+  let t = String(brut || "").replace(/[^0-9+]/g, "");
+  if (!t) return null;
+  if (t.indexOf("+") === 0) t = t.slice(1);
+  else if (t.indexOf("00") === 0) t = t.slice(2);
+  else if (t.indexOf("0") === 0) t = "33" + t.slice(1);
+  if (/^33[1-9]\d{8}$/.test(t)) return t;
+  if (/^\d{8,15}$/.test(t)) return t;
+  return null;
+}
+function estEuropeen(numero: string): boolean {
+  for (const i of INDICATIFS_EEA) if (numero.indexOf(i) === 0) return true;
+  return false;
+}
+function expediteurSms(): string | null {
+  const t = String(process.env.MYSTERLLC_SMS_EXPEDITEUR || "").trim();
+  return /^[A-Za-z0-9]{3,11}$/.test(t) ? t : null;
+}
+
+async function envoyerSms(numero: string, texte: string): Promise<{ ok: boolean; detail: string }> {
+  const cle = process.env.BREVO_API_KEY || "";
+  const exp = expediteurSms();
+  if (!cle || !exp) return { ok: false, detail: "SMS non configure" };
+  const r = await fetch(URL_BREVO, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "api-key": cle, accept: "application/json" },
+    body: JSON.stringify({ type: "transactional", sender: exp, recipient: numero, content: texte.slice(0, 160) }),
+  });
+  const t = await r.text();
+  return { ok: r.ok, detail: t.slice(0, 300) };
+}
 
 function jourISO(d: Date): string {
   return d.toISOString().slice(0, 10);
@@ -197,7 +253,7 @@ export async function GET(req: NextRequest) {
     while (true) {
       const { data, error } = await supabase
         .from("compliance_tenants")
-        .select("id, tenant_id, label, legal_name, email_contact, relance_auto")
+        .select("id, tenant_id, label, legal_name, email_contact, relance_auto, telephone_contact")
         .eq("relance_auto", true)
         .not("email_contact", "is", null)
         .order("id", { ascending: true })
@@ -316,6 +372,7 @@ export async function GET(req: NextRequest) {
     let totalEnvoyees = 0;
     let totalSimulees = 0;
     let totalIgnorees = 0;
+    let totalSms = 0;
 
     for (const ech of echeances) {
       if ((Date.now() - debut) / 1000 > 240) {
@@ -375,6 +432,14 @@ export async function GET(req: NextRequest) {
         + "<p>Si cette echeance a deja ete traitee, vous pouvez ignorer ce message.</p>"
         + "<p>Bien cordialement.</p>";
 
+      // 🆕 Le SMS : seulement aux deux derniers paliers, seulement avec un
+      // numero europeen et un expediteur configure.
+      const numeroSms = PALIERS_SMS.indexOf(palier) >= 0 && entite.telephone_contact
+        ? numeroPropre(String(entite.telephone_contact)) : null;
+      const smsPossible = !!(numeroSms && estEuropeen(numeroSms) && expediteurSms() && process.env.BREVO_API_KEY);
+      const texteSms = (entite.label + " : " + titre + " avant le " + jolieDate(ech.due_date)
+        + " (J-" + palier + "). Un depot hors delai expose a des penalites. Voir votre espace MysterLLC.").slice(0, 160);
+
       if (essai) {
         resultats.push({
           societe: entite.label,
@@ -382,6 +447,7 @@ export async function GET(req: NextRequest) {
           destinataire: entite.email_contact,
           echeance: ech.due_date,
           palier: "J-" + palier,
+          sms: smsPossible ? "simule vers " + numeroSms : "non",
           statut: "essai, rien envoye",
         });
         // Le plafond par organisme est bien simule, sinon l essai ne
@@ -404,6 +470,7 @@ export async function GET(req: NextRequest) {
         jours_avant: palier,
         statut: resultat.ok ? "envoyee" : "echec",
         motif_echec: resultat.ok ? null : String(resultat.detail).slice(0, 500),
+        canal: "email",
       });
 
       if (resultat.ok) {
@@ -418,12 +485,35 @@ export async function GET(req: NextRequest) {
           envoye_le: new Date().toISOString(),
           statut: "envoyee",
         });
+
+        // 🆕 Le SMS part APRES le courriel, jamais a sa place.
+        let smsStatut = "non";
+        if (smsPossible && numeroSms) {
+          const rs = await envoyerSms(numeroSms, texteSms);
+          await supabase.from("compliance_relances").insert({
+            tenant_id: entite.tenant_id,
+            entite_id: entite.id,
+            deadline_id: ech.id,
+            rule_code: ech.rule_code,
+            destinataire: numeroSms,
+            objet: "SMS J-" + palier,
+            corps: texteSms,
+            jours_avant: palier,
+            statut: rs.ok ? "envoyee" : "echec",
+            motif_echec: rs.ok ? null : String(rs.detail).slice(0, 500),
+            canal: "sms",
+          });
+          if (rs.ok) { totalSms++; smsStatut = "envoye vers " + numeroSms; }
+          else { smsStatut = "echec"; console.error("[cron/relances-echeances] SMS :", rs.detail); }
+        }
+
         resultats.push({
           societe: entite.label,
           obligation: titre,
           destinataire: entite.email_contact,
           echeance: ech.due_date,
           palier: "J-" + palier,
+          sms: smsStatut,
         });
       } else {
         totalIgnorees++;
@@ -444,6 +534,7 @@ export async function GET(req: NextRequest) {
       societes_armees: entites.length,
       echeances_examinees: echeances.length,
       envoyees: totalEnvoyees,
+      sms_envoyes: totalSms,
       simulees: totalSimulees,
       ignorees: totalIgnorees,
       secondes: Math.round((Date.now() - debut) / 1000),
