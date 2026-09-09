@@ -217,6 +217,42 @@ async function etat(tenantId: string, entite: any, body: any) {
   });
 }
 
+// ---- ACTION 0 ter : DOCUMENT ----
+//
+// Le client veut VOIR ce qui est parti, signe. On rend un lien temporaire
+// (1 h) vers le PDF assemble et transmis, range dans compliance_documents
+// sous doc_type depot_irs_fax avec la reference de l accuse. Jacques,
+// 09/09 : « le client voudra voir son document qui est bien signe pour
+// etre tranquille ».
+async function document(tenantId: string, entite: any, body: any) {
+  const year = Number(body.year) || new Date().getFullYear();
+  const e = await lireEtat(tenantId, entite.id, year);
+  const reference = String(body.reference || (e && e.reference_accuse) || "").trim();
+  if (!reference) return NextResponse.json({ error: "Aucun depot pour cet exercice." }, { status: 404 });
+  const { data: doc } = await supabase
+    .from("compliance_documents")
+    .select("storage_path, pdf_sha256, uploaded_at, donnees")
+    .eq("tenant_id", tenantId)
+    .eq("entite_id", entite.id)
+    .eq("reference", reference)
+    .eq("doc_type", DOC_TYPE_DEPOT)
+    .order("uploaded_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!doc || !doc.storage_path) return NextResponse.json({ error: "Aucun document transmis pour cet accuse." }, { status: 404 });
+  const { data: signe } = await supabase.storage.from(BUCKET_DOCS).createSignedUrl(doc.storage_path, 3600);
+  if (!signe || !signe.signedUrl) return NextResponse.json({ error: "Lien impossible." }, { status: 500 });
+  const tr = doc.donnees && doc.donnees.transmission ? doc.donnees.transmission : {};
+  return NextResponse.json({
+    success: true,
+    url: signe.signedUrl,
+    empreinte: doc.pdf_sha256,
+    transmis_le: tr.envoye_le || doc.uploaded_at,
+    pages: tr.pages || null,
+    statut: tr.statut || null,
+  });
+}
+
 // ---- ACTION 0 bis : NOTER ----
 //
 // L ecran vient de generer un PDF ; il enregistre son chemin. Le chemin
@@ -664,11 +700,12 @@ export async function POST(req: NextRequest) {
 
     if (action === "etat") return await etat(tenantId, entite, body);
     if (action === "noter") return await noter(tenantId, entite, body);
+    if (action === "document") return await document(tenantId, entite, body);
     if (action === "preparer") return await preparer(tenantId, entite, body);
     if (action === "lier") return await lier(tenantId, entite, body);
     if (action === "transmettre") return await transmettre(req, tenantId, entite, body, session ? session.email : "");
 
-    return NextResponse.json({ error: "Action inconnue : etat, noter, preparer, lier ou transmettre." }, { status: 400 });
+    return NextResponse.json({ error: "Action inconnue : etat, noter, document, preparer, lier ou transmettre." }, { status: 400 });
   } catch (e: unknown) {
     console.error("[transmettre] exception :", e instanceof Error ? e.message : String(e));
     return NextResponse.json({ error: "Erreur serveur." }, { status: 500 });
