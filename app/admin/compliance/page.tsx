@@ -496,6 +496,29 @@ export default function ComplianceDashboard() {
     setDepotLoading(null);
   }
 
+  // Le document transmis, signe, ouvert en un clic (lien valable 1 h).
+  async function voirDocumentTransmis() {
+    if (!tenantId) return;
+    setDepotLoading("document");
+    try {
+      const r = await fetch("/api/compliance/transmettre", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "document", entite_id: entiteId, year: PNL_YEAR, reference: refAccuse || undefined }),
+      });
+      const d = await r.json();
+      if (d.success && d.url) {
+        window.open(d.url, "_blank", "noopener");
+        setDepotMsg("Document transmis ouvert dans un nouvel onglet — " + (d.pages || "") + " pages, empreinte " + String(d.empreinte || "").slice(0, 16) + "…");
+      } else {
+        setDepotMsg("Erreur : " + (d.error || "inconnue"));
+      }
+    } catch (e: any) {
+      setDepotMsg("Erreur : " + String(e));
+    }
+    setDepotLoading(null);
+  }
+
   function libelleEtape(): string {
     if (depotLoading === "generer") return "Génération des deux formulaires…";
     if (depotLoading === "preparer") return "Préparation de l'accusé…";
@@ -1033,6 +1056,15 @@ export default function ComplianceDashboard() {
           >
             {libelleEtape()}
           </button>
+          {(depotStatut === "transmis" || depotStatut === "accuse_recu") && (
+            <button
+              onClick={voirDocumentTransmis}
+              disabled={depotLoading !== null}
+              style={{ ...styleLien, fontSize: 16, padding: "14px 24px" }}
+            >
+              {depotLoading === "document" ? "…" : "Voir le document signé et transmis"}
+            </button>
+          )}
           {/* Secours : transmettre un accuse dont on connait la reference,
               par exemple signe avant la mise en place de l etat en base. */}
           <details style={{ marginTop: 8 }}>
