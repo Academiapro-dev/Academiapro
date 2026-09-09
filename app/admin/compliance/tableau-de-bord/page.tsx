@@ -43,6 +43,8 @@ const OUTILS = [
     { nom: "Liasse 2033", href: "/admin/compliance/liasse-2033" },
     { nom: "Liasse 2050", href: "/admin/compliance/liasse-2050" },
     { nom: "Liasse 2065", href: "/admin/compliance/liasse-2065" },
+    // 🆕 09/09 : BNC, declaration controlee.
+    { nom: "Liasse 2035", href: "/admin/compliance/liasse-2035" },
     { nom: "Télétransmissions", href: "/admin/compliance/teledec" },
   ]},
   { titre: "Le cabinet", liens: [
