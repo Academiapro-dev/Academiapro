@@ -87,10 +87,10 @@ const TYPE_ACCUSE = "accuse_lecture";
 //   « Date » : x 272
 //   champ « Title » : topmostSubform[0].Page1[0].f1_58[0]
 //   marge du haut, libre : y ~ 778
-const SIGN_X = 78;
-const SIGN_Y = 76;
-const SIGN_LARGEUR_MAX = 180;
-const SIGN_HAUTEUR_MAX = 22;
+const SIGN_X = 100;
+const SIGN_Y = 70;
+const SIGN_LARGEUR_MAX = 150;
+const SIGN_HAUTEUR_MAX = 30;
 const DATE_X = 274;
 const DATE_Y = 92;
 const MENTION_Y = 778;
