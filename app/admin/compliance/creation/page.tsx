@@ -182,9 +182,19 @@ export default function PageCreation() {
         {st === "oa_a_signer" && (
           <div style={{ border: "2px solid " + OR, borderRadius: 8, padding: 18, marginBottom: 20 }}>
             <h2 style={{ color: OR, fontSize: 18, marginTop: 0 }}>8. L'Operating Agreement</h2>
-            <p style={{ fontSize: 14, color: "#555" }}>EIN : <strong>{c.ein}</strong>. Le pacte de la société se prépare depuis les Documents à signer (type « convention ») ; reportez ici la référence SIG-… une fois signé.</p>
-            <input value={saisie.oa || ""} onChange={(e) => setSaisie({ ...saisie, oa: e.target.value })} placeholder="SIG-…" style={CHAMP} />
-            <button onClick={() => poster("/api/compliance/creation", { action: "oa", oa_reference: saisie.oa })} disabled={occupe !== "" || !saisie.oa} style={BOUTON}>8. Operating Agreement signé</button>
+            <p style={{ fontSize: 14, color: "#555" }}>EIN : <strong>{c.ein}</strong>. Le pacte de la société (LLC à membre unique) est préparé depuis un modèle et envoyé à signer au titulaire ; la signature le rattache au dossier.</p>
+            {!c.oa_reference && <button onClick={async () => {
+              setOccupe("oa"); setMsg("");
+              try {
+                const r1 = await fetch("/api/compliance/operating-agreement", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ entite_id: d.entite.id }) });
+                const d1 = await r1.json(); if (!d1.success) { setMsg("Erreur : " + (d1.error || "inconnue")); setOccupe(""); return; }
+                const r2 = await fetch("/api/compliance/document-a-signer", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(d1.document_a_signer) });
+                const d2 = await r2.json(); if (!d2.success || !d2.reference) { setMsg("Erreur : " + (d2.error || "inconnue")); setOccupe(""); return; }
+                await poster("/api/compliance/creation", { action: "oa", oa_reference: d2.reference });
+                setMsg("Operating Agreement " + d2.reference + " envoyé à signer à " + d1.document_a_signer.signataire_email + ".");
+              } catch (e: any) { setMsg("Erreur : " + String(e)); }
+              setOccupe("");
+            }} disabled={occupe !== ""} style={BOUTON}>{occupe === "oa" ? "…" : "8. Préparer et faire signer l'Operating Agreement"}</button>}
           </div>
         )}
 
