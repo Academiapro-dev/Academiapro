@@ -217,6 +217,7 @@ export default function PageStagiaires() {
         body: JSON.stringify({
           id: id,
           nom: brouillon.nom !== undefined ? brouillon.nom : undefined,
+          telephone: brouillon.telephone !== undefined ? brouillon.telephone : undefined,
           formation_code: brouillon.formation_code !== undefined ? brouillon.formation_code : undefined,
           prix_vente: brouillon.prix_vente !== undefined ? brouillon.prix_vente : undefined,
         }),
@@ -266,6 +267,7 @@ export default function PageStagiaires() {
     setOuverte(a.id);
     setBrouillon({
       nom: a.nom || "",
+      telephone: a.telephone || "",
       formation_code: a.formation_code || "",
       prix_vente: a.prix_vente !== null && a.prix_vente !== undefined ? String(a.prix_vente) : "",
     });
@@ -507,6 +509,11 @@ export default function PageStagiaires() {
                         {LIBELLE_SORTIE[a.statut]} · n&apos;est plus facturé
                       </p>
                     )}
+                    {/* 🆕 09/09 : le telephone sert au rappel SMS de la veille
+                        de chaque seance. Sans lui, le rappel part par courriel. */}
+                    <p style={{ color: a.telephone ? "rgba(255,255,255,0.55)" : "rgba(232,131,106,0.8)", fontSize: "13px", margin: "0 0 4px" }}>
+                      {a.telephone ? a.telephone + " · rappel SMS la veille de chaque séance" : "Sans téléphone · rappel de séance par courriel"}
+                    </p>
                     <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px", margin: 0 }}>
                       {a.formation_code || "aucune formation"}
                       {a.prix_vente ? " · " + Number(a.prix_vente).toLocaleString("fr-FR") + " €" : ""}
@@ -533,6 +540,15 @@ export default function PageStagiaires() {
                           value={brouillon.nom}
                           onChange={(e) => setBrouillon({ ...brouillon, nom: e.target.value })}
                           placeholder="Marie Dupont"
+                          style={CHAMP}
+                        />
+                      </div>
+                      <div style={{ flex: "1 1 180px" }}>
+                        <span style={LIBELLE}>Téléphone (rappel SMS la veille)</span>
+                        <input
+                          value={brouillon.telephone}
+                          onChange={(e) => setBrouillon({ ...brouillon, telephone: e.target.value })}
+                          placeholder="06 12 34 56 78"
                           style={CHAMP}
                         />
                       </div>
