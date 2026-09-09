@@ -63,6 +63,14 @@ export default function MaSociete() {
   const [memberResidence, setMemberResidence] = useState("FR");
   const [notes, setNotes] = useState("");
 
+  // 🆕 09/09 : le contact des relances (courriel, SMS a J-7 et J-1,
+  // interrupteur), modifiable a tout moment par le titulaire.
+  const [emailContact, setEmailContact] = useState("");
+  const [telephoneContact, setTelephoneContact] = useState("");
+  const [relanceAuto, setRelanceAuto] = useState(false);
+  const [contactEnCours, setContactEnCours] = useState(false);
+  const [contactMsg, setContactMsg] = useState<string | null>(null);
+
   async function charger() {
     setChargement(true);
     try {
@@ -70,6 +78,11 @@ export default function MaSociete() {
       const d = await r.json();
       if (d.success) {
         setSociete(d.societe);
+        if (d.societe) {
+          setEmailContact(d.societe.email_contact || "");
+          setTelephoneContact(d.societe.telephone_contact || "");
+          setRelanceAuto(d.societe.relance_auto === true);
+        }
       } else {
         setMsg("Erreur : " + (d.error || "inconnue"));
       }
@@ -106,6 +119,8 @@ export default function MaSociete() {
           principal_office_address: principalOffice.trim() || null,
           member_residence: memberResidence,
           notes: notes.trim() || null,
+          email_contact: emailContact.trim() || null,
+          telephone_contact: telephoneContact.trim() || null,
         }),
       });
       const d = await r.json();
@@ -127,6 +142,29 @@ export default function MaSociete() {
       setMsg("Erreur : " + String(e));
     }
     setEnCours(false);
+  }
+
+  async function enregistrerContact() {
+    setContactEnCours(true);
+    setContactMsg(null);
+    try {
+      const r = await fetch("/api/compliance/onboarding", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          entite_id: societe ? societe.id : undefined,
+          email_contact: emailContact.trim(),
+          telephone_contact: telephoneContact.trim(),
+          relance_auto: relanceAuto,
+        }),
+      });
+      const d = await r.json();
+      if (d.success) setContactMsg("Contact enregistre." + (relanceAuto ? " Les relances sont armees." : " Les relances sont desarmees."));
+      else setContactMsg("Erreur : " + (d.error || "inconnue"));
+    } catch (e) {
+      setContactMsg("Erreur : " + String(e));
+    }
+    setContactEnCours(false);
   }
 
   return (
@@ -167,6 +205,34 @@ export default function MaSociete() {
               Votre societe est enregistree. Pour modifier ces informations,
               contactez le support.
             </p>
+
+            {/* 🆕 09/09 : le contact des relances, modifiable ici. */}
+            <div style={{ border: "2px solid #0a3d2e", borderRadius: 10, padding: 18, margin: "24px 0" }}>
+              <h2 style={{ color: "#0a3d2e", fontSize: 18, marginTop: 0 }}>Contact et relances</h2>
+              <p style={{ fontSize: 14, color: "#555", marginTop: 0 }}>
+                Les relances d'echeance partent a cette adresse ; a J-7 et J-1, un SMS part aussi a ce
+                numero s'il est renseigne. C'est aussi l'adresse qui recoit les documents a signer.
+              </p>
+              <span style={STYLE_LIBELLE}>Adresse electronique de contact</span>
+              <input value={emailContact} onChange={(e) => setEmailContact(e.target.value)} placeholder="vous@exemple.fr" style={STYLE_CHAMP} />
+              <span style={STYLE_LIBELLE}>Telephone mobile (SMS a J-7 et J-1)</span>
+              <input value={telephoneContact} onChange={(e) => setTelephoneContact(e.target.value)} placeholder="06 12 34 56 78" style={STYLE_CHAMP} />
+              <label style={{ display: "block", fontSize: 15, marginBottom: 16, cursor: "pointer" }}>
+                <input type="checkbox" checked={relanceAuto} onChange={(e) => setRelanceAuto(e.target.checked)} />{" "}
+                Relances automatiques armees (J-60, J-30, J-15, J-7, J-1)
+              </label>
+              <button
+                onClick={enregistrerContact}
+                disabled={contactEnCours}
+                style={{ background: "#0a3d2e", color: "#ffffff", border: "none", padding: "12px 20px", borderRadius: 6, cursor: "pointer", fontSize: 15, fontWeight: 600 }}
+              >
+                {contactEnCours ? "Enregistrement..." : "Enregistrer le contact"}
+              </button>
+              {contactMsg && (
+                <p style={{ marginTop: 12, color: contactMsg.indexOf("Erreur") === 0 ? "#c62828" : "#0a3d2e" }}>{contactMsg}</p>
+              )}
+            </div>
+
             <p style={{ marginTop: 24 }}>
               <a href="/admin/compliance" style={{ color: "#0a3d2e" }}>
                 Aller au tableau de bord
@@ -270,6 +336,23 @@ export default function MaSociete() {
                 <option key={r.code} value={r.code}>{r.libelle}</option>
               ))}
             </select>
+
+            {/* 🆕 09/09 : le contact des relances, des la creation. */}
+            <span style={STYLE_LIBELLE}>Adresse electronique de contact (relances et documents a signer)</span>
+            <input
+              value={emailContact}
+              onChange={(e) => setEmailContact(e.target.value)}
+              placeholder="vous@exemple.fr"
+              style={STYLE_CHAMP}
+            />
+
+            <span style={STYLE_LIBELLE}>Telephone mobile (SMS a J-7 et J-1, facultatif)</span>
+            <input
+              value={telephoneContact}
+              onChange={(e) => setTelephoneContact(e.target.value)}
+              placeholder="06 12 34 56 78"
+              style={STYLE_CHAMP}
+            />
 
             <span style={STYLE_LIBELLE}>Notes</span>
             <textarea
