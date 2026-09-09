@@ -7,6 +7,26 @@ export default function PageEvaluations() {
   const [chargement, setChargement] = useState(true);
   const [erreur, setErreur] = useState("");
 
+  // ══════════════════════════════════════════════════════════════════════
+  // LE REGISTRE D AMELIORATION CONTINUE — 09/09 (indicateur 32).
+  //
+  // Les evaluations disaient ce que pensent les stagiaires ; rien ne
+  // disait ce que l organisme EN A FAIT. Un auditeur demande les deux.
+  // Chaque ligne relie un constat a une decision, un responsable, une
+  // echeance et un statut. Une decision ne s efface pas : elle se marque
+  // faite ou abandonnee. Route : /api/organisme/ameliorations.
+  // ══════════════════════════════════════════════════════════════════════
+  const [ameliorations, setAmeliorations] = useState<any[]>([]);
+  const [ouvertes, setOuvertes] = useState(0);
+  const [formSource, setFormSource] = useState("evaluation");
+  const [formConstat, setFormConstat] = useState("");
+  const [formDecision, setFormDecision] = useState("");
+  const [formResponsable, setFormResponsable] = useState("");
+  const [formEcheance, setFormEcheance] = useState("");
+  const [formFormation, setFormFormation] = useState("");
+  const [occupeAmelio, setOccupeAmelio] = useState("");
+  const [messageAmelio, setMessageAmelio] = useState("");
+
   useEffect(function () {
     charger();
   }, []);
@@ -31,8 +51,97 @@ export default function PageEvaluations() {
     } catch (e: any) {
       setErreur("Lecture impossible : " + String(e));
     }
+    await chargerAmeliorations();
     setChargement(false);
   }
+
+  async function chargerAmeliorations() {
+    try {
+      const r = await fetch("/api/organisme/ameliorations" + suffixe());
+      const data = await r.json();
+      if (data.ok) {
+        setAmeliorations(data.ameliorations || []);
+        setOuvertes(data.ouvertes || 0);
+      }
+    } catch (e) {
+      // Le registre est un complement : son absence n empeche pas de lire
+      // les evaluations.
+    }
+  }
+
+  // Pre-remplir le constat depuis un retour de stagiaire : c est le geste
+  // qui relie l indicateur 30 au 32.
+  function decidezDepuis(e: any) {
+    const morceaux: string[] = [];
+    if (e.points_ameliorer) morceaux.push(e.points_ameliorer);
+    if (e.commentaire_libre) morceaux.push(e.commentaire_libre);
+    setFormSource("evaluation");
+    setFormFormation(e.formation_code || "");
+    setFormConstat((morceaux.join(" — ") || "Retour de " + e.stagiaire_email).slice(0, 2000));
+    setMessageAmelio("");
+    try {
+      const cible = document.getElementById("registre-ameliorations");
+      if (cible) cible.scrollIntoView({ behavior: "smooth" });
+    } catch (x) {}
+  }
+
+  async function enregistrerDecision() {
+    if (!formConstat.trim() || !formDecision.trim()) return;
+    setOccupeAmelio("nouvelle");
+    setMessageAmelio("");
+    try {
+      const r = await fetch("/api/organisme/ameliorations" + suffixe(), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          source: formSource,
+          formation_code: formFormation,
+          constat: formConstat,
+          decision: formDecision,
+          responsable: formResponsable,
+          echeance: formEcheance,
+        }),
+      });
+      const data = await r.json();
+      if (data.ok) {
+        setMessageAmelio("Décision enregistrée au registre.");
+        setFormConstat("");
+        setFormDecision("");
+        setFormResponsable("");
+        setFormEcheance("");
+        setFormFormation("");
+        await chargerAmeliorations();
+      } else {
+        setMessageAmelio("Erreur : " + (data.erreur || "inconnue"));
+      }
+    } catch (e: any) {
+      setMessageAmelio("Erreur : " + String(e));
+    }
+    setOccupeAmelio("");
+  }
+
+  async function changerStatutDecision(id: string, statut: string) {
+    setOccupeAmelio(id);
+    setMessageAmelio("");
+    try {
+      const r = await fetch("/api/organisme/ameliorations" + suffixe(), {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: id, statut: statut }),
+      });
+      const data = await r.json();
+      if (data.ok) await chargerAmeliorations();
+      else setMessageAmelio("Erreur : " + (data.erreur || "inconnue"));
+    } catch (e: any) {
+      setMessageAmelio("Erreur : " + String(e));
+    }
+    setOccupeAmelio("");
+  }
+
+  const LIBELLE_SOURCE: any = { evaluation: "Évaluation", reclamation: "Réclamation", audit: "Audit", autre: "Autre" };
+  const LIBELLE_STATUT_AMELIO: any = { a_faire: "À faire", en_cours: "En cours", fait: "Fait", abandonne: "Abandonné" };
+  const CHAMP_A: any = { width: "100%", padding: "11px 12px", borderRadius: "8px", border: "1px solid rgba(200,169,110,0.3)", background: "rgba(255,255,255,0.05)", color: "#fff", fontSize: "15px", fontFamily: "Georgia,serif", boxSizing: "border-box", marginBottom: "12px" };
+  const LIBELLE_A: any = { display: "block", color: "#c8a96e", fontSize: "13px", marginBottom: "6px" };
 
   const CADRE: any = {
     minHeight: "100vh",
@@ -220,9 +329,120 @@ export default function PageEvaluations() {
                       );
                     })}
 
-                    <p style={{ color: "rgba(255,255,255,0.3)", fontSize: "12px", margin: "10px 0 0" }}>
-                      {new Date(e.created_at).toLocaleDateString("fr-FR")}
-                    </p>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "8px", marginTop: "10px" }}>
+                      <p style={{ color: "rgba(255,255,255,0.3)", fontSize: "12px", margin: 0 }}>
+                        {new Date(e.created_at).toLocaleDateString("fr-FR")}
+                      </p>
+                      <button
+                        onClick={() => decidezDepuis(e)}
+                        style={{ background: "none", border: "1px solid rgba(200,169,110,0.45)", color: "#c8a96e", padding: "6px 14px", borderRadius: "20px", cursor: "pointer", fontSize: "13px", fontFamily: "Georgia,serif" }}
+                      >
+                        En tirer une décision
+                      </button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+
+            {/* ══════════════════════════════════════════════════════════
+                LE REGISTRE D AMELIORATION CONTINUE — 09/09 (indicateur 32).
+                Ce que l organisme a decide a partir des retours. C est ce
+                qu un auditeur lit apres les evaluations.
+                ══════════════════════════════════════════════════════════ */}
+            <h2 id="registre-ameliorations" style={{ color: "#c8a96e", fontSize: "18px", margin: "34px 0 6px" }}>
+              Ce que vous en avez fait
+            </h2>
+            <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "14px", margin: "0 0 14px", lineHeight: "1.6" }}>
+              Indicateur 32 : les retours produisent des décisions, et le registre les garde.
+              {ouvertes > 0 ? " " + ouvertes + " décision(s) en cours." : ""}
+            </p>
+
+            <div style={CARTE}>
+              <h3 style={{ color: "#c8a96e", fontSize: "16px", margin: "0 0 12px" }}>Enregistrer une décision</h3>
+              <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+                <div style={{ flex: "1 1 160px" }}>
+                  <span style={LIBELLE_A}>Déclenchée par</span>
+                  <select value={formSource} onChange={(e) => setFormSource(e.target.value)} style={CHAMP_A}>
+                    {["evaluation", "reclamation", "audit", "autre"].map(function (x) {
+                      return <option key={x} value={x}>{LIBELLE_SOURCE[x]}</option>;
+                    })}
+                  </select>
+                </div>
+                <div style={{ flex: "1 1 160px" }}>
+                  <span style={LIBELLE_A}>Formation (code, facultatif)</span>
+                  <input value={formFormation} onChange={(e) => setFormFormation(e.target.value)} placeholder="F028" style={CHAMP_A} />
+                </div>
+              </div>
+              <span style={LIBELLE_A}>Le constat</span>
+              <textarea value={formConstat} onChange={(e) => setFormConstat(e.target.value)} rows={2} placeholder="Ce que les retours disent" style={CHAMP_A} />
+              <span style={LIBELLE_A}>La décision</span>
+              <textarea value={formDecision} onChange={(e) => setFormDecision(e.target.value)} rows={2} placeholder="Ce que vous changez" style={CHAMP_A} />
+              <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+                <div style={{ flex: "1 1 200px" }}>
+                  <span style={LIBELLE_A}>Qui s&apos;en charge</span>
+                  <input value={formResponsable} onChange={(e) => setFormResponsable(e.target.value)} placeholder="Nom" style={CHAMP_A} />
+                </div>
+                <div style={{ flex: "1 1 160px" }}>
+                  <span style={LIBELLE_A}>Pour quand</span>
+                  <input type="date" value={formEcheance} onChange={(e) => setFormEcheance(e.target.value)} style={{ ...CHAMP_A, colorScheme: "dark" }} />
+                </div>
+              </div>
+              <button
+                onClick={enregistrerDecision}
+                disabled={occupeAmelio !== "" || !formConstat.trim() || !formDecision.trim()}
+                style={{ background: occupeAmelio !== "" || !formConstat.trim() || !formDecision.trim() ? "rgba(200,169,110,0.3)" : "#c8a96e", color: occupeAmelio !== "" || !formConstat.trim() || !formDecision.trim() ? "#8a8a8a" : "#050508", padding: "13px 26px", borderRadius: "8px", border: "none", cursor: "pointer", fontWeight: "bold", fontSize: "15px", fontFamily: "Georgia,serif" }}
+              >
+                {occupeAmelio === "nouvelle" ? "Enregistrement…" : "Enregistrer au registre"}
+              </button>
+              {messageAmelio && (
+                <p style={{ color: messageAmelio.indexOf("Erreur") === 0 ? "#e8836a" : "#4caf50", fontSize: "14px", margin: "12px 0 0" }}>{messageAmelio}</p>
+              )}
+            </div>
+
+            {ameliorations.length === 0 ? (
+              <div style={CARTE}>
+                <p style={{ color: "rgba(255,255,255,0.6)", margin: 0, fontSize: "15px" }}>
+                  Aucune décision enregistrée. Le registre reste vide tant que rien n&apos;y est écrit — un auditeur le verra tel quel.
+                </p>
+              </div>
+            ) : (
+              ameliorations.map(function (a: any) {
+                const clos = a.statut === "fait" || a.statut === "abandonne";
+                return (
+                  <div key={a.id} style={{ ...CARTE, opacity: clos ? 0.7 : 1, border: a.statut === "fait" ? "1px solid rgba(76,175,80,0.35)" : CARTE.border }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "8px", marginBottom: "10px" }}>
+                      <span style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px" }}>
+                        {LIBELLE_SOURCE[a.source] || a.source}
+                        {a.formation_code ? " · " + a.formation_code : ""}
+                        {" · "}{new Date(a.created_at).toLocaleDateString("fr-FR")}
+                        {a.responsable ? " · " + a.responsable : ""}
+                        {a.echeance ? " · pour le " + new Date(a.echeance).toLocaleDateString("fr-FR") : ""}
+                      </span>
+                      <span style={{ color: a.statut === "fait" ? "#4caf50" : a.statut === "abandonne" ? "rgba(255,255,255,0.4)" : "#e8a33d", fontSize: "13px", fontWeight: "bold" }}>
+                        {LIBELLE_STATUT_AMELIO[a.statut] || a.statut}
+                        {a.fait_le ? " le " + new Date(a.fait_le).toLocaleDateString("fr-FR") : ""}
+                      </span>
+                    </div>
+                    <p style={{ color: "#c8a96e", fontSize: "13px", margin: "0 0 3px" }}>Constat</p>
+                    <p style={{ color: "rgba(255,255,255,0.8)", fontSize: "15px", margin: "0 0 10px", lineHeight: "1.7" }}>{a.constat}</p>
+                    <p style={{ color: "#c8a96e", fontSize: "13px", margin: "0 0 3px" }}>Décision</p>
+                    <p style={{ color: "rgba(255,255,255,0.8)", fontSize: "15px", margin: "0 0 10px", lineHeight: "1.7" }}>{a.decision}</p>
+                    {!clos && (
+                      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                        {a.statut === "a_faire" && (
+                          <button onClick={() => changerStatutDecision(a.id, "en_cours")} disabled={occupeAmelio !== ""} style={{ background: "none", border: "1px solid rgba(200,169,110,0.45)", color: "#c8a96e", padding: "7px 16px", borderRadius: "20px", cursor: "pointer", fontSize: "13px", fontFamily: "Georgia,serif" }}>
+                            En cours
+                          </button>
+                        )}
+                        <button onClick={() => changerStatutDecision(a.id, "fait")} disabled={occupeAmelio !== ""} style={{ background: "none", border: "1px solid rgba(76,175,80,0.45)", color: "#4caf50", padding: "7px 16px", borderRadius: "20px", cursor: "pointer", fontSize: "13px", fontFamily: "Georgia,serif" }}>
+                          Marquer fait
+                        </button>
+                        <button onClick={() => changerStatutDecision(a.id, "abandonne")} disabled={occupeAmelio !== ""} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.45)", padding: "7px 10px", cursor: "pointer", fontSize: "13px", fontFamily: "Georgia,serif" }}>
+                          Abandonner
+                        </button>
+                      </div>
+                    )}
                   </div>
                 );
               })
