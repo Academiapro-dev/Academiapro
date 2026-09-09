@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { PDFDocument, StandardFonts } from "pdf-lib";
+import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import { createClient } from "@supabase/supabase-js";
 import { sessionCourante } from "../../../../../lib/session";
 // 🚨 LE CONTROLE D ORIGINE EST DESORMAIS PARTAGE — 01/09.
@@ -80,6 +80,23 @@ const P = "topmostSubform[0].";
 // ⚠️ CETTE ROUTE ET f1120/generate SONT JUMELLES. Le motif du 31/08 s est
 // produit deux fois : un defaut corrige dans l une, oublie dans l autre.
 // TOUTE MODIFICATION ICI DOIT ETRE REPORTEE LA-BAS, ET RECIPROQUEMENT.
+//
+// ---- 🆕 09/09 — DEUX CORRECTIONS DE CONTENU, AVANT LE PREMIER VRAI DEPOT ----
+//
+// 1. LIGNE 1c « TOTAL ASSETS ». La route y ecrivait le TOTAL DES AVANCES
+//    (totalUsd). L actif total d une societe n est pas la somme des avances
+//    de son membre. Le mapping porte `ri_total_assets_usd` depuis le
+//    debut : c est cette colonne qui est ecrite, et rien si elle est vide.
+//    Le total des avances reste sur 1f, 1h et Part IV (ligne 17b / 22),
+//    ou il a sa place.
+//
+// 2. PART V. Une entite disregarded detenue par un etranger decrit dans la
+//    Part V, SUR UNE FEUILLE JOINTE, les apports et distributions de son
+//    membre (instruction 5472, rev. 12-2024). La route ne cochait pas la
+//    case (c2_6) et ne joignait rien. Desormais : la case est cochee des
+//    qu il y a au moins une avance, et une page « Part V — Statement » est
+//    ajoutee au PDF, listant chaque avance (date, fournisseur, montant,
+//    devise) et le total en dollars au taux du mapping.
 // ---------------------------------------------------------------------------
 
 function money(n: number | null | undefined): string {
@@ -105,6 +122,11 @@ function coupeAdresse(v: unknown): { rue: string; villeEtatZip: string } {
     rue: s.slice(0, i).trim(),
     villeEtatZip: s.slice(i + 1).trim(),
   };
+}
+
+// Les polices standard du PDF ne connaissent que le latin courant.
+function pourPdf(t: string): string {
+  return String(t || "").replace(/[\u202F\u00A0]/g, " ").replace(/[^\x20-\x7E\u00A0-\u00FF]/g, "?");
 }
 
 export async function POST(req: NextRequest) {
@@ -200,13 +222,14 @@ export async function POST(req: NextRequest) {
     // portefeuille du gestionnaire.
     const { data: dep, error: eDep } = await supabase
       .from("depenses")
-      .select("montant_ttc, devise, date_depense")
+      .select("montant_ttc, devise, date_depense, fournisseur")
       .eq("tenant_id", tenantId)
       .eq("entite_id", entiteId)
       .eq("avance_perso", true)
       .eq("rembourse", false)
       .gte("date_depense", year + "-01-01")
       .lte("date_depense", year + "-12-31")
+      .order("date_depense", { ascending: true })
       .limit(5000);
 
     if (eDep) {
@@ -262,7 +285,8 @@ export async function POST(req: NextRequest) {
     setText("Page1[0].Line1a[0].f1_6[0]", adr.rue);
     setText("Page1[0].Line1a[0].f1_7[0]", adr.villeEtatZip);
     setText("Page1[0].f1_8[0]", m.ri_ein);
-    setText("Page1[0].f1_9[0]", money(totalUsd));
+    // 🆕 09/09 : 1c = l actif total du mapping, jamais le total des avances.
+    setText("Page1[0].f1_9[0]", money(m.ri_total_assets_usd));
     setText("Page1[0].f1_10[0]", m.ri_business_activity);
     setText("Page1[0].f1_11[0]", m.ri_naics);
     setText("Page1[0].Line1f_ReadOrder[0].f1_12[0]", money(totalUsd));
@@ -301,12 +325,48 @@ export async function POST(req: NextRequest) {
     setText("Page2[0].f2_19[0]", money(totalUsd));
     setText("Page2[0].f2_24[0]", money(totalUsd));
 
+    // ---- PAGE 2 : Part V (transactions d une DE) — 🆕 09/09 ----
+    // La case c2_6 est cochee des qu il y a une avance, et la feuille
+    // jointe est ajoutee en fin de document.
+    if (m.ri_is_foreign_owned_de && nbAvances > 0) check("Page2[0].PartV[0].c2_6[0]");
+
     // ---- PAGE 3 : Part VII (tout No = index [1]) ----
     for (let i = 1; i <= 12; i++) {
       check("Page3[0].c3_" + i + "[1]");
     }
 
     form.updateFieldAppearances(font);
+
+    // ---- LA FEUILLE JOINTE DE LA PART V — 🆕 09/09 ----
+    if (m.ri_is_foreign_owned_de && nbAvances > 0) {
+      const gras = await doc.embedFont(StandardFonts.HelveticaBold);
+      const L = 612, H = 792, M = 54;
+      let page = doc.addPage([L, H]);
+      let y = H - M;
+      const ligne = (t: string, f: any, s: number) => {
+        if (y < M + 20) { page = doc.addPage([L, H]); y = H - M; }
+        page.drawText(pourPdf(t), { x: M, y, size: s, font: f, color: rgb(0, 0, 0) });
+        y -= s * 1.5;
+      };
+      ligne("Form 5472 — Part V — Attached statement", gras, 12);
+      ligne("Reporting corporation: " + String(m.ri_name || "") + (m.ri_ein ? "   EIN " + m.ri_ein : ""), font, 10);
+      ligne("Tax year " + year + " — Foreign-owned U.S. DE", font, 10);
+      y -= 6;
+      ligne("Reportable transactions between the disregarded entity and its foreign owner (Regulations section 1.482-1(i)(7)):", font, 10);
+      ligne("contributions to the entity by its sole member, in the form of expenses paid personally on behalf of the entity.", font, 10);
+      y -= 6;
+      ligne("Date          Payee                                   Amount        Currency", gras, 9.5);
+      for (const d of dep ?? []) {
+        const date = dateIRS(d.date_depense).padEnd(14);
+        const payee = String(d.fournisseur || "").slice(0, 38).padEnd(40);
+        const montant = money(Number(d.montant_ttc) || 0).padStart(12);
+        ligne(date + payee + montant + "   " + String(d.devise || "USD").toUpperCase(), font, 9);
+      }
+      y -= 6;
+      ligne("Total contributions, converted to U.S. dollars at " + taux + " USD per EUR: $ " + money(totalUsd), gras, 10);
+      ligne("Distributions from the entity to the member during the tax year: none recorded.", font, 10);
+    }
+
     const bytes = await doc.save();
 
     // ---- Rangement au coffre prive ----
@@ -347,6 +407,8 @@ export async function POST(req: NextRequest) {
         taux_eur_usd: taux,
         taux_valide: m.taux_valide,
         total_usd: totalUsd,
+        total_assets: m.ri_total_assets_usd ?? null,
+        part_v: !!(m.ri_is_foreign_owned_de && nbAvances > 0),
       },
       controle: {
         rue: adr.rue,
