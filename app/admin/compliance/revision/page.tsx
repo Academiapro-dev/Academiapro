@@ -52,6 +52,10 @@ export default function PageRevision() {
   const [nvPointMontant, setNvPointMontant] = useState("");
   const [nvDiligence, setNvDiligence] = useState("");
 
+  // 🆕 09/09 : le controle du FEC avant envoi (/api/compliance/fec?controle=1).
+  const [fec, setFec] = useState<any>(null);
+  const [fecOccupe, setFecOccupe] = useState(false);
+
   useEffect(function () {
     (async function () {
       try {
@@ -84,6 +88,20 @@ export default function PageRevision() {
     }
     await chargerDossierRevision();
     setChargement(false);
+  }
+
+  async function controlerFec() {
+    setFecOccupe(true);
+    setFec(null);
+    try {
+      const r = await fetch("/api/compliance/fec?societe_id=" + dossier + "&controle=1");
+      const data = await r.json();
+      if (data.ok) setFec(data);
+      else setFec({ erreur: data.error || data.erreur || "Contrôle impossible." });
+    } catch (e: any) {
+      setFec({ erreur: String(e) });
+    }
+    setFecOccupe(false);
   }
 
   async function chargerDossierRevision() {
@@ -410,6 +428,40 @@ export default function PageRevision() {
                 )}
               </>
             )}
+
+            {/* ══════════ LE CONTROLE DU FEC — 09/09 ══════════ */}
+            <h2 style={{ color: "#c8a96e", fontSize: "18px", margin: "30px 0 6px" }}>Le FEC, avant de l&apos;envoyer</h2>
+            <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "14px", margin: "0 0 12px", lineHeight: "1.6" }}>
+              Les vérifications de l&apos;outil de test de l&apos;administration, passées sur les écritures de l&apos;exercice, sans produire le fichier.
+            </p>
+            <div style={CARTE}>
+              <button onClick={controlerFec} disabled={fecOccupe} style={{ ...PETIT, background: "#c8a96e", color: "#050508", borderRadius: "8px", padding: "11px 22px", fontSize: "15px" }}>
+                {fecOccupe ? "Contrôle en cours…" : "Contrôler le FEC de l'exercice"}
+              </button>
+              {fec && fec.erreur && <p style={{ color: "#e8836a", fontSize: "14px", margin: "12px 0 0" }}>{fec.erreur}</p>}
+              {fec && !fec.erreur && (
+                <div style={{ marginTop: "14px" }}>
+                  <p style={{ color: fec.verdict === "conforme" ? "#4caf50" : fec.verdict === "rejete" ? "#e8836a" : "#e8a33d", fontSize: "18px", fontWeight: "bold", margin: "0 0 6px" }}>
+                    {fec.verdict === "conforme" ? "Conforme : aucun motif de rejet" : fec.verdict === "rejete" ? "Serait rejeté : " + fec.rejets + " motif(s)" : "Accepté avec " + fec.avertissements + " réserve(s)"}
+                  </p>
+                  <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "13.5px", margin: "0 0 12px" }}>
+                    {fec.lignes} ligne(s), {fec.ecritures} écriture(s), {fec.journaux} journal(aux) · débit {euros(fec.debit)}, crédit {euros(fec.credit)}
+                  </p>
+                  {(fec.anomalies || []).map(function (a: any) {
+                    return (
+                      <p key={a.code} style={{ color: a.gravite === "rejet" ? "#e8836a" : "#e8a33d", fontSize: "14px", margin: "0 0 6px", lineHeight: "1.6" }}>
+                        <strong>{a.gravite === "rejet" ? "Rejet" : "Réserve"}</strong> · {a.nb} · {a.detail}
+                      </p>
+                    );
+                  })}
+                  {fec.verdict !== "rejete" && (
+                    <a href={"/api/compliance/fec?societe_id=" + dossier} style={{ ...PETIT, display: "inline-block", textDecoration: "none", marginTop: "8px" }}>
+                      Télécharger le FEC
+                    </a>
+                  )}
+                </div>
+              )}
+            </div>
 
             <div style={{ ...CARTE, background: "rgba(200,169,110,0.05)", marginTop: "20px" }}>
               <p style={{ color: "rgba(255,255,255,0.65)", fontSize: "13.5px", margin: 0, lineHeight: "1.8" }}>
