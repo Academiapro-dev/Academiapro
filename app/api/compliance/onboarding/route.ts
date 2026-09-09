@@ -115,6 +115,9 @@ export async function POST(req: NextRequest) {
     if (body.mailing_address) ligne.mailing_address = body.mailing_address;
     if (body.principal_office_address) ligne.principal_office_address = body.principal_office_address;
     if (body.notes) ligne.notes = body.notes;
+    // 🆕 09/09 : le contact des relances, saisi des la creation.
+    if (body.email_contact) ligne.email_contact = String(body.email_contact).toLowerCase().trim();
+    if (body.telephone_contact) ligne.telephone_contact = String(body.telephone_contact).replace(/[^0-9+ .\-()]/g, "").trim().slice(0, 30);
 
     if (body.formation_date) {
       const mois = Number(String(body.formation_date).slice(5, 7));
@@ -184,5 +187,62 @@ export async function POST(req: NextRequest) {
       { error: e instanceof Error ? e.message : String(e) },
       { status: 500 }
     );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 🆕 PATCH — 09/09 : LE CONTACT DES RELANCES, MODIFIABLE PAR LE TITULAIRE.
+//
+// Trois champs, et seulement ceux-la : email_contact (ou partent les
+// courriels de relance et l accuse de lecture a signer), telephone_contact
+// (ou partent les SMS a J-7 et J-1), relance_auto (l interrupteur). Le reste
+// de la fiche (denomination, Etat, date) reste au support : ces valeurs
+// pilotent les echeances et ne se changent pas d un clic.
+//
+// Le tenant vient de la session ; l entite modifiee est celle du tenant.
+// Avec plusieurs societes, `entite_id` designe laquelle — et elle doit
+// appartenir au tenant.
+// ---------------------------------------------------------------------------
+export async function PATCH(req: NextRequest) {
+  if (!origineLegitime(req)) {
+    return NextResponse.json({ error: "Acces refuse" }, { status: 403 });
+  }
+  const { id: userId, tenantId } = await utilisateurDeLaSession();
+  if (!userId || !tenantId) {
+    return NextResponse.json({ error: "Vous devez etre connecte, avec une societe rattachee." }, { status: 401 });
+  }
+
+  try {
+    const body = await req.json().catch(() => ({}));
+    const modifications: Record<string, unknown> = {};
+
+    if (body.email_contact !== undefined) {
+      const e = String(body.email_contact || "").toLowerCase().trim();
+      if (e && (e.indexOf("@") < 1 || e.indexOf(".") < 3)) {
+        return NextResponse.json({ error: "Adresse electronique illisible." }, { status: 400 });
+      }
+      modifications.email_contact = e || null;
+    }
+    if (body.telephone_contact !== undefined) {
+      const t = String(body.telephone_contact || "").replace(/[^0-9+ .\-()]/g, "").trim().slice(0, 30);
+      modifications.telephone_contact = t || null;
+    }
+    if (body.relance_auto !== undefined) {
+      modifications.relance_auto = body.relance_auto === true;
+    }
+    if (Object.keys(modifications).length === 0) {
+      return NextResponse.json({ error: "Rien a modifier." }, { status: 400 });
+    }
+
+    let q = supabase.from("compliance_tenants").update(modifications).eq("tenant_id", tenantId);
+    if (body.entite_id) q = q.eq("id", String(body.entite_id));
+    const { data, error } = await q.select("id, email_contact, telephone_contact, relance_auto");
+
+    if (error) return NextResponse.json({ error: "Modification: " + error.message }, { status: 500 });
+    if (!data || data.length === 0) return NextResponse.json({ error: "Societe introuvable." }, { status: 404 });
+
+    return NextResponse.json({ success: true, societes: data });
+  } catch (e: unknown) {
+    return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });
   }
 }
