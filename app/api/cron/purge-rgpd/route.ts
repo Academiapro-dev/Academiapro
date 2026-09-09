@@ -50,10 +50,13 @@ function borne(): string {
   return d.toISOString();
 }
 
+// Vercel passe le secret en en-tete ; un humain qui verifie depuis Safari
+// le passe dans l adresse (?cle=...). Meme valeur, deux portes.
 function autorise(req: NextRequest): boolean {
   const secret = (process.env.CRON_SECRET || "").trim();
   if (!secret) return true;
-  return req.headers.get("authorization") === "Bearer " + secret;
+  if (req.headers.get("authorization") === "Bearer " + secret) return true;
+  return new URL(req.url).searchParams.get("cle") === secret;
 }
 
 export async function GET(req: NextRequest) {
