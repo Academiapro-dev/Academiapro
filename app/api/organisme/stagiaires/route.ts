@@ -111,9 +111,11 @@ export async function GET(req: NextRequest) {
       );
     }
 
+    // 🆕 09/09 : `telephone` lu avec le reste. Il sert au rappel SMS de la
+    // veille de chaque seance (cron rappel-seances).
     const { data: registre, error } = await supabase
       .from("organisme_apprenants")
-      .select("id, email, nom, statut, payeur, dispositif, statut_stagiaire, formation_code, prix_vente, created_at")
+      .select("id, email, nom, telephone, statut, payeur, dispositif, statut_stagiaire, formation_code, prix_vente, created_at")
       .eq("tenant_id", tenant)
       .order("created_at", { ascending: false })
       .limit(2000);
@@ -318,6 +320,15 @@ export async function PATCH(req: NextRequest) {
     // par une simple adresse restait anonyme jusqu au bout.
     if (corps.nom !== undefined) {
       modifications.nom = corps.nom ? String(corps.nom).trim().slice(0, 200) : null;
+    }
+
+    // 🆕 LE TELEPHONE — 09/09. Il sert au rappel SMS de la veille de chaque
+    // seance (cron rappel-seances). Sans lui, le stagiaire recoit le rappel
+    // par courriel. On garde chiffres, +, espaces, points, tirets et
+    // parentheses ; la mise au format international se fait a l envoi.
+    if (corps.telephone !== undefined) {
+      const t = String(corps.telephone || "").replace(/[^0-9+ .\-()]/g, "").trim().slice(0, 30);
+      modifications.telephone = t || null;
     }
 
     if (corps.payeur !== undefined) {
