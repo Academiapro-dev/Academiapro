@@ -94,5 +94,13 @@ export async function POST(req: NextRequest) {
       .eq("id", d.id);
   }
 
+  // L etat du depot (compliance_depots) suit : accuse recu, ou echec.
+  if (accuse.fax_id) {
+    await supabase
+      .from("compliance_depots")
+      .update({ statut: succes ? "accuse_recu" : "echec_fax", maj_le: new Date().toISOString() })
+      .eq("fax_id", accuse.fax_id);
+  }
+
   return NextResponse.json({ ok: true, statut }, { status: 200 });
 }
