@@ -48,6 +48,9 @@ const OUTILS = [
     { nom: "CRM et relances", href: "/admin/compliance/crm" },
     { nom: "Ma société", href: "/admin/compliance/ma-societe" },
     { nom: "Mes collaborateurs", href: "/admin/compliance/collaborateurs" },
+    // 🆕 09/09 : deux portes de gestion interne du cabinet.
+    { nom: "Lettres de mission", href: "/admin/compliance/lettres-mission" },
+    { nom: "Temps passés", href: "/admin/compliance/temps" },
     { nom: "Paie", href: "/admin/compliance/paie" },
     { nom: "Conformité internationale", href: "/admin/compliance" },
   ]},
