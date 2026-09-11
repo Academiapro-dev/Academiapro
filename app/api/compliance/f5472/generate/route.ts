@@ -1,7 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { PDFDocument, StandardFonts } from "pdf-lib";
+import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import { createClient } from "@supabase/supabase-js";
 import { sessionCourante } from "../../../../../lib/session";
+// 🚨 LE CONTROLE D ORIGINE EST DESORMAIS PARTAGE — 01/09.
+//
+// Cette route avait deja recu mysterllc.com le 31/08 : elle fonctionnait.
+// Mais elle gardait SA PROPRE COPIE de la fonction, ce qui annulait
+// l interet du fichier partage — la prochaine marque aurait ete oubliee
+// ici comme ailleurs.
+//
+// ⚠️ NE PAS REDEFINIR origineLegitime ICI.
+import { origineLegitime } from "../../../../../lib/origine";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -42,22 +51,53 @@ const P = "topmostSubform[0].";
 // organisme ne correspond a aucune ligne — elle est donc introuvable, et
 // rien ne fuit.
 //
-// ⚠️ LE MAPPING ET LES DEPENSES SUIVENT L ENTITE, pas seulement le tenant :
-// sans cela, cinquante societes d un meme gestionnaire produiraient
-// cinquante formulaires identiques, remplis avec les chiffres de la
-// premiere. Des montants faux sur une declaration IRS sont pires qu une
-// absence de declaration.
+// ---- DEFAUT 4, TROUVE A L AUDIT DU SOIR — 31/08 -------------------------
+//
+// 🚨 LE REPLI SILENCIEUX PRODUISAIT DES MONTANTS FAUX. La lecture du
+// mapping et celle des depenses tentaient d abord un filtre par entite,
+// puis RETOMBAIENT sur un filtre par tenant seul en cas d echec. Ce repli
+// avait ete ecrit parce que la colonne entite_id pouvait ne pas exister
+// encore sur ces tables.
+//
+// CE QU IL PRODUISAIT : si le filtre par entite echouait pour une raison
+// quelconque, le formulaire de la societe A etait rempli avec LES AVANCES
+// DE TOUT LE PORTEFEUILLE. Aucune erreur, aucun avertissement — un PDF
+// d apparence normale, avec des chiffres qui ne correspondent a rien.
+//
+// POURQUOI C EST PIRE QU UNE PANNE : une declaration IRS qui ne part pas
+// se remarque. Une declaration qui part avec les chiffres d une autre
+// societe se decouvre au controle, des annees plus tard.
+//
+// LA COLONNE entite_id EXISTE SUR LES CINQ TABLES DU MODULE, verifie en
+// base le 31/08 (information_schema.columns). LE REPLI EST DONC SUPPRIME :
+// un echec de lecture est desormais une erreur franche, pas un chemin
+// cache.
+//
+// ⚠️ NE PAS LE REINTRODUIRE. Un repli qui change le PERIMETRE des donnees
+// n est pas une securite, c est une source de faux silencieux. Un repli
+// n est acceptable que s il produit le MEME resultat par un autre moyen.
+//
+// ⚠️ CETTE ROUTE ET f1120/generate SONT JUMELLES. Le motif du 31/08 s est
+// produit deux fois : un defaut corrige dans l une, oublie dans l autre.
+// TOUTE MODIFICATION ICI DOIT ETRE REPORTEE LA-BAS, ET RECIPROQUEMENT.
+//
+// ---- 🆕 09/09 — DEUX CORRECTIONS DE CONTENU, AVANT LE PREMIER VRAI DEPOT ----
+//
+// 1. LIGNE 1c « TOTAL ASSETS ». La route y ecrivait le TOTAL DES AVANCES
+//    (totalUsd). L actif total d une societe n est pas la somme des avances
+//    de son membre. Le mapping porte `ri_total_assets_usd` depuis le
+//    debut : c est cette colonne qui est ecrite, et rien si elle est vide.
+//    Le total des avances reste sur 1f, 1h et Part IV (ligne 17b / 22),
+//    ou il a sa place.
+//
+// 2. PART V. Une entite disregarded detenue par un etranger decrit dans la
+//    Part V, SUR UNE FEUILLE JOINTE, les apports et distributions de son
+//    membre (instruction 5472, rev. 12-2024). La route ne cochait pas la
+//    case (c2_6) et ne joignait rien. Desormais : la case est cochee des
+//    qu il y a au moins une avance, et une page « Part V — Statement » est
+//    ajoutee au PDF, listant chaque avance (date, fournisseur, montant,
+//    devise) et le total en dollars au taux du mapping.
 // ---------------------------------------------------------------------------
-
-function origineLegitime(req: NextRequest): boolean {
-  const origine = req.headers.get("origin") || "";
-  const referent = req.headers.get("referer") || "";
-  return (
-    origine.includes("academiapro.fr") || referent.includes("academiapro.fr") ||
-    origine.includes("vercel.app") || referent.includes("vercel.app") ||
-    origine.includes("localhost") || referent.includes("localhost")
-  );
-}
 
 function money(n: number | null | undefined): string {
   if (n === null || n === undefined) return "";
@@ -82,6 +122,11 @@ function coupeAdresse(v: unknown): { rue: string; villeEtatZip: string } {
     rue: s.slice(0, i).trim(),
     villeEtatZip: s.slice(i + 1).trim(),
   };
+}
+
+// Les polices standard du PDF ne connaissent que le latin courant.
+function pourPdf(t: string): string {
+  return String(t || "").replace(/[\u202F\u00A0]/g, " ").replace(/[^\x20-\x7E\u00A0-\u00FF]/g, "?");
 }
 
 export async function POST(req: NextRequest) {
@@ -140,13 +185,11 @@ export async function POST(req: NextRequest) {
 
     // ---- LE MAPPING DE CETTE SOCIETE ----
     //
-    // La table porte tenant_id ; on retient le mapping propre a l entite
-    // quand la colonne existe, sinon celui du tenant. Le double filtre est
-    // tente d abord, avec repli : la colonne entite_id peut ne pas encore
-    // exister sur cette table selon l etat de la migration.
-    let mapping: any = null;
-
-    const essaiEntite = await supabase
+    // 🚨 LE DOUBLE FILTRE EST OBLIGATOIRE, SANS REPLI. tenant_id borne a
+    // l organisme, entite_id borne a la societe. Prendre le mapping du
+    // tenant seul rendrait le meme formulaire pour toutes les societes du
+    // portefeuille.
+    const { data: mapping, error: eMap } = await supabase
       .from("compliance_5472_mapping")
       .select("*")
       .eq("tenant_id", tenantId)
@@ -154,26 +197,17 @@ export async function POST(req: NextRequest) {
       .eq("tax_year", year)
       .maybeSingle();
 
-    if (!essaiEntite.error && essaiEntite.data) {
-      mapping = essaiEntite.data;
-    } else {
-      const { data: m, error: eMap } = await supabase
-        .from("compliance_5472_mapping")
-        .select("*")
-        .eq("tenant_id", tenantId)
-        .eq("tax_year", year)
-        .maybeSingle();
-
-      if (eMap) {
-        console.error("[f5472] lecture mapping :", eMap.message);
-        return NextResponse.json({ error: "Lecture du mapping impossible." }, { status: 500 });
-      }
-      mapping = m;
+    if (eMap) {
+      console.error("[f5472] lecture mapping :", eMap.message);
+      return NextResponse.json({ error: "Lecture du mapping impossible." }, { status: 500 });
     }
 
     if (!mapping) {
       return NextResponse.json(
-        { error: "Aucun mapping 5472 pour " + entite.label + " sur l'exercice " + year + "." },
+        {
+          error: "Aucun mapping 5472 pour " + entite.label + " sur l'exercice " + year
+            + ". Renseignez-le avant de generer le formulaire.",
+        },
         { status: 404 }
       );
     }
@@ -182,41 +216,25 @@ export async function POST(req: NextRequest) {
 
     // ---- RECALCUL DES AVANCES DU MEMBRE ----
     //
-    // ⚠️ LE FILTRE tenant_id EST INDISPENSABLE : sans lui, cette lecture
-    // additionnait les avances de TOUS les clients. Le filtre par entite
-    // est ajoute quand la colonne existe, pour qu un gestionnaire ne voie
-    // pas les memes chiffres sur toutes ses societes.
-    let requeteDep = supabase
+    // 🚨 LE DOUBLE FILTRE EST OBLIGATOIRE ICI AUSSI, ET C EST LE PLUS
+    // SENSIBLE : ces montants partent sur une declaration fiscale
+    // americaine. Sans le filtre par entite, la somme porterait sur tout le
+    // portefeuille du gestionnaire.
+    const { data: dep, error: eDep } = await supabase
       .from("depenses")
-      .select("montant_ttc, devise, date_depense")
+      .select("montant_ttc, devise, date_depense, fournisseur")
       .eq("tenant_id", tenantId)
+      .eq("entite_id", entiteId)
       .eq("avance_perso", true)
       .eq("rembourse", false)
       .gte("date_depense", year + "-01-01")
       .lte("date_depense", year + "-12-31")
+      .order("date_depense", { ascending: true })
       .limit(5000);
 
-    let dep: any[] | null = null;
-    const essaiDep = await requeteDep.eq("entite_id", entiteId);
-
-    if (!essaiDep.error) {
-      dep = essaiDep.data;
-    } else {
-      const { data: d2, error: eDep2 } = await supabase
-        .from("depenses")
-        .select("montant_ttc, devise, date_depense")
-        .eq("tenant_id", tenantId)
-        .eq("avance_perso", true)
-        .eq("rembourse", false)
-        .gte("date_depense", year + "-01-01")
-        .lte("date_depense", year + "-12-31")
-        .limit(5000);
-
-      if (eDep2) {
-        console.error("[f5472] lecture depenses :", eDep2.message);
-        return NextResponse.json({ error: "Lecture des depenses impossible." }, { status: 500 });
-      }
-      dep = d2;
+    if (eDep) {
+      console.error("[f5472] lecture depenses :", eDep.message);
+      return NextResponse.json({ error: "Lecture des depenses impossible." }, { status: 500 });
     }
 
     const taux = Number(m.taux_eur_usd) || 1;
@@ -267,7 +285,8 @@ export async function POST(req: NextRequest) {
     setText("Page1[0].Line1a[0].f1_6[0]", adr.rue);
     setText("Page1[0].Line1a[0].f1_7[0]", adr.villeEtatZip);
     setText("Page1[0].f1_8[0]", m.ri_ein);
-    setText("Page1[0].f1_9[0]", money(totalUsd));
+    // 🆕 09/09 : 1c = l actif total du mapping, jamais le total des avances.
+    setText("Page1[0].f1_9[0]", money(m.ri_total_assets_usd));
     setText("Page1[0].f1_10[0]", m.ri_business_activity);
     setText("Page1[0].f1_11[0]", m.ri_naics);
     setText("Page1[0].Line1f_ReadOrder[0].f1_12[0]", money(totalUsd));
@@ -306,12 +325,48 @@ export async function POST(req: NextRequest) {
     setText("Page2[0].f2_19[0]", money(totalUsd));
     setText("Page2[0].f2_24[0]", money(totalUsd));
 
+    // ---- PAGE 2 : Part V (transactions d une DE) — 🆕 09/09 ----
+    // La case c2_6 est cochee des qu il y a une avance, et la feuille
+    // jointe est ajoutee en fin de document.
+    if (m.ri_is_foreign_owned_de && nbAvances > 0) check("Page2[0].PartV[0].c2_6[0]");
+
     // ---- PAGE 3 : Part VII (tout No = index [1]) ----
     for (let i = 1; i <= 12; i++) {
       check("Page3[0].c3_" + i + "[1]");
     }
 
     form.updateFieldAppearances(font);
+
+    // ---- LA FEUILLE JOINTE DE LA PART V — 🆕 09/09 ----
+    if (m.ri_is_foreign_owned_de && nbAvances > 0) {
+      const gras = await doc.embedFont(StandardFonts.HelveticaBold);
+      const L = 612, H = 792, M = 54;
+      let page = doc.addPage([L, H]);
+      let y = H - M;
+      const ligne = (t: string, f: any, s: number) => {
+        if (y < M + 20) { page = doc.addPage([L, H]); y = H - M; }
+        page.drawText(pourPdf(t), { x: M, y, size: s, font: f, color: rgb(0, 0, 0) });
+        y -= s * 1.5;
+      };
+      ligne("Form 5472 — Part V — Attached statement", gras, 12);
+      ligne("Reporting corporation: " + String(m.ri_name || "") + (m.ri_ein ? "   EIN " + m.ri_ein : ""), font, 10);
+      ligne("Tax year " + year + " — Foreign-owned U.S. DE", font, 10);
+      y -= 6;
+      ligne("Reportable transactions between the disregarded entity and its foreign owner (Regulations section 1.482-1(i)(7)):", font, 10);
+      ligne("contributions to the entity by its sole member, in the form of expenses paid personally on behalf of the entity.", font, 10);
+      y -= 6;
+      ligne("Date          Payee                                   Amount        Currency", gras, 9.5);
+      for (const d of dep ?? []) {
+        const date = dateIRS(d.date_depense).padEnd(14);
+        const payee = String(d.fournisseur || "").slice(0, 38).padEnd(40);
+        const montant = money(Number(d.montant_ttc) || 0).padStart(12);
+        ligne(date + payee + montant + "   " + String(d.devise || "USD").toUpperCase(), font, 9);
+      }
+      y -= 6;
+      ligne("Total contributions, converted to U.S. dollars at " + taux + " USD per EUR: $ " + money(totalUsd), gras, 10);
+      ligne("Distributions from the entity to the member during the tax year: none recorded.", font, 10);
+    }
+
     const bytes = await doc.save();
 
     // ---- Rangement au coffre prive ----
@@ -352,6 +407,8 @@ export async function POST(req: NextRequest) {
         taux_eur_usd: taux,
         taux_valide: m.taux_valide,
         total_usd: totalUsd,
+        total_assets: m.ri_total_assets_usd ?? null,
+        part_v: !!(m.ri_is_foreign_owned_de && nbAvances > 0),
       },
       controle: {
         rue: adr.rue,
