@@ -6,7 +6,8 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 // ══════════════════════════════════════════════════════════════════════════
-// L ABONNEMENT MYSTERLLC — 07/09, PALIERS AJOUTES LE 08/09.
+// L ABONNEMENT MYSTERLLC — 07/09, PALIERS AJOUTES LE 08/09, OFFRE
+// « CREATION » AJOUTEE LE 11/09.
 //
 // ⚠️ POURQUOI « abonnement » ET NON « facturation ». Une route
 // /api/compliance/facturation EXISTE DEJA (703 lignes) : elle gere les
@@ -21,51 +22,21 @@ export const dynamic = "force-dynamic";
 // on est client puisqu on a une LLC, et qui utilise 300 comptabilites dans
 // une seule licence ».
 //
-// ══════════════════════════════════════════════════════════════════════════
-// 🆕 LES PALIERS DEGRESSIFS — 08/09.
-//
-// POURQUOI. Le gestionnaire qui suit un portefeuille refacture ses clients
-// au prix du marche — de 1 400 a 1 500 € par societe et par an chez un
-// cabinet. A 99 € par mois sans degressivite, sa marge se reduit a mesure
-// qu il prend des dossiers : il n a aucun interet a en confier davantage.
-// Jacques, le 08/09 : « la seule chose qui pourrait le faire changer
-// d avis, c est qu il trouve un interet financier et une tranquillite ».
-//
 // LA GRILLE, EN BASE, dans `tarifs` (produit 'mysterllc', poste
 // 'abonnement') avec `seuil_min` et `seuil_max` :
+//   suivi          49 €, sans palier — LLC existante, sans comptabilite
 //   comptabilite   1 a 5    99 €     6 a 10   79 €
 //                 11 a 25   59 €     au-dela  49 €
-//   suivi          49 €, sans palier
+//   🆕 creation   109 €, sans palier — la LLC creee par MysterLLC (agent,
+//                 statuts, EIN, Operating Agreement, banque) + suivi +
+//                 comptabilite. Decision Jacques du 11/09.
 //
 // 🚨 LE PALIER SE CALCULE SUR LE NOMBRE DE SOCIETES DU CLIENT, PAS SUR
-// CELLES QUI ONT LE MEME FORFAIT. Celui qui suit vingt societes en tient
-// vingt, quelle que soit la formule de chacune : c est son portefeuille
-// qui fait le volume, pas la repartition.
-//
-// 🚨 LE MEME PRIX POUR TOUTES. Un palier atteint s applique a la
-// TOTALITE des societes, pas seulement a celles au-dela du seuil. C est
-// plus simple a comprendre et plus simple a facturer — et surtout, une
-// facture ou deux societes identiques portent deux montants differents
-// provoque toujours un appel.
-//
-// ⛔ NE JAMAIS RECOPIER CES MONTANTS DANS LE CODE. Une grille ecrite dans
-// un ecran ou dans une route finit toujours par diverger de celle qui
-// facture. Tout vient de `tarifs`.
-//
-// ⚠️ SI AUCUN PALIER NE CORRESPOND — table incomplete, seuils qui laissent
-// un trou — on retient le dernier palier connu plutot que zero. Facturer
-// zero par erreur ne se remarque jamais ; un montant trop eleve, si.
-//
-// 🚨🚨 LA GRILLE COMPLETE EST RENVOYEE, PAS SEULEMENT LE PALIER EN COURS.
-// Jacques, le 08/09 : « en tant que client, je sais que a partir de six
-// societes je paye moins cher, mais rien ne m indique qu a partir de vingt
-// societes je paye 49 € par mois ».
-//
-// C est le defaut de la premiere version : elle annoncait le palier
-// SUIVANT et s arretait la. Un gestionnaire qui envisage d en confier
-// vingt ne pouvait pas calculer son cout — donc il ne pouvait pas decider.
-// ⛔ NE JAMAIS MASQUER LES PALIERS LOINTAINS : ce sont eux qui font
-// reflechir celui qui a un portefeuille a confier.
+// CELLES QUI ONT LE MEME FORFAIT. 🚨 LE MEME PRIX POUR TOUTES.
+// ⛔ NE JAMAIS RECOPIER CES MONTANTS DANS LE CODE. Tout vient de `tarifs`.
+// ⚠️ SI AUCUN PALIER NE CORRESPOND, on retient le dernier palier connu.
+// 🚨🚨 LA GRILLE COMPLETE EST RENVOYEE, PAS SEULEMENT LE PALIER EN COURS
+// (Jacques, 08/09).
 // ══════════════════════════════════════════════════════════════════════════
 
 const supabase = createClient(
@@ -73,11 +44,9 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || ""
 );
 
-// LE PALIER QUI S APPLIQUE A UN NOMBRE DE SOCIETES DONNE.
-//
-// Les paliers d une offre sont ranges du plus petit seuil au plus grand.
-// On prend le premier dans lequel le nombre tombe. Faute de quoi, le
-// dernier — voir le commentaire ci-dessus.
+// Les offres, dans l ordre ou l ecran les montre.
+const OFFRES = ["suivi", "comptabilite", "creation"];
+
 function palierPour(paliers: any[], nombre: number): any {
   if (!paliers || paliers.length === 0) return null;
   for (const p of paliers) {
@@ -117,10 +86,6 @@ export async function GET() {
     return NextResponse.json({ ok: false, erreur: "Lecture impossible." }, { status: 500 });
   }
 
-  // 🚨 UNE OFFRE PORTE PLUSIEURS PALIERS. L ancienne version ecrivait
-  // `grille[t.offre] = t`, ce qui ECRASAIT a chaque tour : avec quatre
-  // lignes « comptabilite », seule la derniere survivait — 49 € au lieu
-  // de 99 pour tout le monde, sans que rien ne le signale.
   const paliersParOffre: any = {};
   for (const t of tarifsR.data || []) {
     if (!paliersParOffre[t.offre]) paliersParOffre[t.offre] = [];
@@ -135,11 +100,6 @@ export async function GET() {
   }
 
   const societes = societesR.data || [];
-
-  // 🚨 LE VOLUME, C EST LE PORTEFEUILLE ENTIER — y compris les societes
-  // sans forfait. Elles ne se facturent pas, mais elles comptent : le
-  // gestionnaire qui en ajoute une vingtieme ne doit pas voir son prix
-  // remonter parce que trois d entre elles attendent leur souscription.
   const volume = societes.length;
 
   let total = 0;
@@ -148,10 +108,8 @@ export async function GET() {
   const lignes = societes.map(function (s: any) {
     const paliers = s.forfait ? paliersParOffre[s.forfait] : null;
     const p = paliers ? palierPour(paliers, volume) : null;
-
     if (p) total = total + p.montant;
     else nbSansForfait++;
-
     return {
       id: s.id,
       label: s.label,
@@ -166,20 +124,13 @@ export async function GET() {
     };
   });
 
-  // LA GRILLE MONTREE AU CLIENT : UN PALIER PAR OFFRE, celui qui
-  // s applique a lui. C est ce qu il paie aujourd hui.
+  // LA GRILLE MONTREE AU CLIENT : UN PALIER PAR OFFRE, celui qui s applique.
   const grille: any[] = [];
-  for (const offre of ["suivi", "comptabilite"]) {
+  for (const offre of OFFRES) {
     const p = palierPour(paliersParOffre[offre], volume);
     if (p) grille.push(p);
   }
 
-  // 🚨 ET LA GRILLE COMPLETE DES PALIERS, en plus.
-  //
-  // Chaque ligne porte `actuel: true` si c est celle qui s applique, et le
-  // cout mensuel total qu elle representerait au seuil ou elle commence.
-  // ⚠️ CE COUT EST CALCULE AU SEUIL D ENTREE DU PALIER, pas au volume du
-  // client : il repond a la question « combien si j en avais tant ? ».
   const paliersCompta = (paliersParOffre["comptabilite"] || []).map(
     function (p: any) {
       return {
@@ -191,22 +142,13 @@ export async function GET() {
       };
     });
 
-  // 🆕 CE QUE COUTERAIT LE PALIER SUIVANT.
-  //
-  // ⚠️ ON NE L AFFICHE QUE S IL EXISTE ET S IL EST MOINS CHER. C est le
-  // seul endroit ou le client apprend qu il a interet a confier plus de
-  // societes — et c est precisement ce qu on cherche.
   let prochainPalier: any = null;
   const brutCompta = paliersParOffre["comptabilite"] || [];
   const actuel = palierPour(brutCompta, volume);
   if (actuel) {
     for (const p of brutCompta) {
       if (p.seuil_min > volume && p.montant < actuel.montant) {
-        prochainPalier = {
-          a_partir_de: p.seuil_min,
-          montant: p.montant,
-          montant_actuel: actuel.montant,
-        };
+        prochainPalier = { a_partir_de: p.seuil_min, montant: p.montant, montant_actuel: actuel.montant };
         break;
       }
     }
