@@ -344,59 +344,50 @@ function messageRelance(prenom: string, societe: string, nbFormations: number, c
       + "Bien à vous,\nJacques Lalou\nmrcomptable.fr";
   }
 
-  // MYSTERLLC. Le ton part de ce qui retient les gens — la peur de mal
-  // faire — et non de ce que l outil sait faire. Aucune promesse fiscale,
-  // aucun conseil : l outil prepare, date et rappelle, rien de plus.
+  // MYSTERLLC — MESSAGE VALIDE PAR JACQUES LE 13/09, POUR LES CABINETS.
+  //
+  // CE QUI CHANGE. La version precedente parlait au TITULAIRE d une LLC
+  // (« j en ai fait l experience moi-meme », « votre compte bancaire
+  // americain »). Or les prospects tagues MysterLLC dans ce CRM sont des
+  // EXPERTS-COMPTABLES : le message doit leur ouvrir une porte
+  // commerciale vers l international, pas leur vendre un suivi personnel.
+  // Jacques, 13/09 : « permettre a un expert-comptable de lui donner une
+  // ouverture commerciale vers l international ».
+  //
+  // ⚠️ PAS DE PRIX (doctrine), PAS DE CONCURRENT NOMME, PAS DE PROMESSE
+  // ABSOLUE. Chaque phrase decrit une fonction qui existe : qualification
+  // Carmejane, depenses par devise, 5472/1120 transmis par fax avec
+  // preuve, relances courriel + SMS, creation A→Z (construite, en cours
+  // d epreuve), marque blanche « sur demande » (decidee, non construite).
+  //
+  // ⚠️ MR COMPTABLE EN UNE PHRASE, pas un second argumentaire : le cabinet
+  // qui l a ecarte ne doit pas sentir qu on le lui revend ; « le mien ou
+  // un autre » garde la porte ouverte dans les deux cas.
   if (k === "mysterllc") {
-    // 🚨 CE MESSAGE NE PRESUPPOSE PAS QUE LE LECTEUR A DEJA UNE LLC.
-    //
-    // POURQUOI — 06/09. Une premiere version s ouvrait sur « j ai cree ma
-    // LLC, voici ce qui m a manque ». Elle ne parlait qu a ceux qui en ont
-    // deja une. Or Jacques l a fait remarquer : « quelqu un qui possede une
-    // LLC reste tres discret, il n aime pas qu on lui dise qu il a fait ca
-    // pour ne pas payer les impots ». Cette cible ne se signale pas.
-    //
-    // ⚠️ LA DERNIERE PHRASE — « de pres ou de loin » — EST LE PIVOT. Elle
-    // laisse repondre celui qui a une societe comme celui qui y pense, sans
-    // qu aucun des deux ait a se declarer.
-    //
-    // 🆕 CORRIGE LE 06/09 APRES VERIFICATION DE L ECRAN REEL. Le message
-    // disait que la plateforme SUIVAIT les obligations. Elle fait plus :
-    // elle PREREMPLIT les documents. Sur la fiche d une societe, quatre
-    // boutons produisent l Annual Report de l Etat, le Form 5472, le 1120
-    // pro forma, le 7004, et le CERFA 3916 en PDF officiel.
-    // ⚠️ NE PAS SOUS-VENDRE CE QUI EXISTE : c est ce qui distingue cet
-    // outil d un simple calendrier d echeances.
-    //
-    // ⚠️ LE 3916 EST L ANGLE QUE PERSONNE N A. Un Francais avec une LLC a
-    // un compte bancaire americain, donc l obligation de le declarer —
-    // article 1649 A du CGI, 1 500 € par compte omis. Les prestataires de
-    // creation n en parlent jamais.
-    //
-    // ⚠️ LES TROIS MONTANTS SONT VERIFIABLES. Les citer donne au lecteur de
-    // quoi controler ce qu on avance.
     return salut
-      + "Merci d'avoir accepté mon invitation.\n\n"
-      + "Créer une société américaine est simple. Ce qui l'est moins, c'est "
-      + "ce qui vient après : des obligations annuelles qui diffèrent d'un "
-      + "État à l'autre, des formulaires fédéraux à dates fixes, et très peu "
-      + "d'informations fiables quand on cherche depuis la France.\n\n"
-      + "J'en ai fait l'expérience moi-même. Chaque fois que je cherchais une "
-      + "réponse, je tombais sur des sources contradictoires ou sur des "
-      + "prestataires qui vendaient la création et se désintéressaient de la "
-      + "suite.\n\n"
-      + "C'est pour ça que j'ai développé une plateforme qui ne se contente "
-      + "pas de rappeler les échéances : elle prépare les documents. Le "
-      + "rapport annuel de l'État, le formulaire 5472 et son 1120, "
-      + "l'extension 7004 si vous avez besoin de temps, et le CERFA 3916 "
-      + "pour votre compte bancaire américain — préremplis à partir de votre "
-      + "société.\n\n"
-      + "L'oubli se paie cher : 25 000 dollars pour un 5472 non déposé, "
-      + "1 500 euros par compte étranger non déclaré, 400 dollars en Floride "
-      + "dès le lendemain de l'échéance.\n\n"
-      + "Si le sujet vous concerne, de près ou de loin, j'échange volontiers "
-      + "un quart d'heure avec vous.\n\n"
-      + "Bien à vous,\nJacques Lalou\nmysterllc.com";
+      + "En complément de Mr Comptable, qui couvre la production comptable "
+      + "selon la réglementation française, je vous présente MysterLLC : une "
+      + "plateforme conçue pour les cabinets dont les clients envisagent de "
+      + "créer une LLC américaine, ou en détiennent déjà une.\n\n"
+      + "Pour le client qui veut se lancer : la création accompagnée de A à Z "
+      + "— agent enregistré, statuts, demande du numéro fiscal transmise par "
+      + "la plateforme, pacte de société signé électroniquement, ouverture du "
+      + "compte bancaire suivie jusqu'au bout — avec, à chaque étape, l'état "
+      + "du dossier et la preuve de ce qui a été fait.\n\n"
+      + "Pour le client qui a déjà sa société : la qualification côté français "
+      + "selon la jurisprudence récente, les dépenses et le compte courant "
+      + "tenus par devise avec chaque justificatif rattaché, les formulaires "
+      + "américains annuels préparés, signés et transmis par la plateforme à "
+      + "l'administration américaine avec la preuve d'envoi archivée, et les "
+      + "échéances des deux côtés rappelées par courriel et SMS.\n\n"
+      + "Ce que ça change pour votre cabinet" + chez + " : vous accompagnez ces "
+      + "projets sans embaucher ni vous former à la fiscalité américaine, vous "
+      + "facturez une offre internationale, et vous gardez votre outil de "
+      + "production pour le reste — le mien ou un autre. Plusieurs sociétés "
+      + "sous un même accès, présentation à vos couleurs sur demande.\n\n"
+      + "Si vous souhaitez le voir sur un dossier, réel ou fictif, je vous "
+      + "montre le parcours en une séance.\n\n"
+      + "Bien cordialement,\nJacques Lalou\nmrcomptable.fr · mysterllc.com";
   }
 
   if (k === "mrcrm") {
