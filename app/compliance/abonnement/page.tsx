@@ -3,41 +3,36 @@ import { useState, useEffect } from "react";
 
 const OR = "#c8a96e";
 const FOND = "#050508";
-const VERT = "#4caf50";  
+const VERT = "#4caf50";
 
 // ══════════════════════════════════════════════════════════════════════════
-// L ABONNEMENT MYSTERLLC — ECRAN CLIENT — 07/09, PALIERS LE 08/09.
+// L ABONNEMENT MYSTERLLC — ECRAN CLIENT — 07/09, PALIERS LE 08/09, OFFRE
+// « CREATION » LE 11/09.
 //
 // ⚠️ CET ECRAN VIT SOUS /compliance/abonnement, PAS /facturation : une
 // route /api/compliance/facturation existe deja et produit les documents
-// legaux (devis, factures, mandats, numerotation continue). Ici on montre
-// seulement ce que le client paie chaque mois.
+// legaux. Ici on montre seulement ce que le client paie chaque mois.
 //
 // 🚨 UNE LIGNE PAR SOCIETE, ET C EST LE POINT. Le forfait se compte par
-// LLC, pas par client : un gestionnaire qui suit trois societes paie trois
-// fois. L ecran doit le montrer sans ambiguite, sinon la premiere facture
-// surprend.
+// LLC, pas par client.
 //
-// 🆕 LE PRIX BAISSE AVEC LE NOMBRE DE SOCIETES — 08/09. Quatre paliers,
-// de 99 € a 49 €. Le palier atteint s applique a TOUTES les societes, pas
-// seulement a celles au-dela du seuil.
-// ⚠️ CONSEQUENCE A CONNAITRE : passer de cinq a six societes FAIT BAISSER
-// la facture, de 495 € a 474 €. C est voulu, c est simple a comprendre,
-// et c est un argument — mais il ne faut pas s en etonner.
-//
-// ⚠️ LES SOCIETES SANS FORFAIT SONT AFFICHEES A PART. Une societe ajoutee
-// au portefeuille mais pas encore souscrite ne se facture pas — et le
-// client doit voir laquelle, pour la souscrire ou la retirer.
-// 🚨 MAIS ELLES COMPTENT DANS LE VOLUME qui decide du palier : le
-// portefeuille entier fait le prix.
+// 🆕 LE PRIX BAISSE AVEC LE NOMBRE DE SOCIETES — 08/09 (comptabilite).
+// 🆕 TROIS OFFRES — 11/09 : Suivi (LLC existante, sans comptabilite),
+// Suivi et comptabilite, et Creation (la LLC creee par MysterLLC : agent,
+// statuts, EIN, Operating Agreement, banque + suivi + comptabilite).
 //
 // ⚠️ AUCUN PRIX N EST ECRIT ICI. Tout vient de `tarifs`, produit
-// 'mysterllc'. Une grille recopiee dans un ecran finit toujours par
-// diverger de celle qui facture.
+// 'mysterllc'. Seuls les LIBELLES des offres sont ici.
 // ══════════════════════════════════════════════════════════════════════════
 
 function euros(n: any) {
   return (Number(n) || 0).toFixed(2).replace(".", ",") + " €";
+}
+
+function libelleOffre(offre: string): string {
+  if (offre === "comptabilite") return "Suivi et comptabilité";
+  if (offre === "creation") return "Création, suivi et comptabilité";
+  return "Suivi";
 }
 
 export default function PageFacturationMysterLLC() {
@@ -117,7 +112,6 @@ export default function PageFacturationMysterLLC() {
           </div>
         )}
 
-        {/* ---- LE TOTAL ---- */}
         {charge && !erreur && (
           <div style={{ display: "flex", gap: "14px", flexWrap: "wrap", marginBottom: "22px" }}>
             <div style={{ ...CARTE, flex: "1 1 220px", marginBottom: 0 }}>
@@ -139,11 +133,6 @@ export default function PageFacturationMysterLLC() {
           </div>
         )}
 
-        {/* ---- LE PROCHAIN PALIER ----
-            🚨 LE SEUL ENDROIT OU LE CLIENT APPREND QU IL A INTERET A
-            CONFIER PLUS DE SOCIETES. Sans cette ligne, la degressivite
-            existe mais personne ne la voit — et elle n a ete posee que
-            pour cela. */}
         {charge && !erreur && prochain && (
           <div style={{ ...CARTE, borderColor: "rgba(76,175,80,0.45)",
             background: "rgba(76,175,80,0.07)" }}>
@@ -161,14 +150,6 @@ export default function PageFacturationMysterLLC() {
           </div>
         )}
 
-        {/* ---- TOUS LES PALIERS ----
-            🚨 LA GRILLE ENTIERE, PAS SEULEMENT LE PALIER SUIVANT.
-            Jacques, le 08/09 : « je sais qu a partir de six societes je
-            paye moins cher, mais rien ne m indique qu a partir de vingt
-            societes je paye 49 € par mois ».
-            Celui qui a un portefeuille a confier doit pouvoir calculer son
-            cout AVANT de decider. Masquer les paliers lointains revient a
-            lui cacher la seule raison qu il aurait de venir. */}
         {charge && !erreur && paliers.length > 1 && (
           <>
             <h2 style={{ color: OR, fontSize: "18px", margin: "26px 0 10px" }}>
@@ -224,13 +205,12 @@ export default function PageFacturationMysterLLC() {
               </p>
               <p style={{ color: "rgba(255,255,255,0.35)", fontSize: "12.5px",
                 margin: "6px 0 0", lineHeight: "1.75" }}>
-                Le forfait Suivi reste au même prix quel que soit le nombre.
+                Les forfaits Suivi et Création restent au même prix quel que soit le nombre.
               </p>
             </div>
           </>
         )}
 
-        {/* ---- LE DETAIL, SOCIETE PAR SOCIETE ---- */}
         {charge && facturees.length > 0 && (
           <>
             <h2 style={{ color: OR, fontSize: "18px", margin: "0 0 12px" }}>
@@ -262,12 +242,15 @@ export default function PageFacturationMysterLLC() {
                     </div>
                     <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "13px",
                       margin: "4px 0 0", lineHeight: "1.6" }}>
-                      {s.forfait === "comptabilite"
-                        ? "Suivi et comptabilité"
-                        : "Suivi"}
-                      {s.forfait === "comptabilite" && (
+                      {libelleOffre(s.forfait)}
+                      {(s.forfait === "comptabilite" || s.forfait === "creation") && (
                         <span style={{ color: "#b18cff", marginLeft: "8px" }}>
                           · dépenses et justificatifs compris
+                        </span>
+                      )}
+                      {s.forfait === "creation" && (
+                        <span style={{ color: VERT, marginLeft: "8px" }}>
+                          · création accompagnée de A à Z
                         </span>
                       )}
                     </p>
@@ -278,10 +261,6 @@ export default function PageFacturationMysterLLC() {
           </>
         )}
 
-        {/* ---- LES SOCIETES SANS FORFAIT ----
-            ⚠️ AFFICHEES A PART, EN AMBRE. Elles ne se facturent pas, mais
-            elles ne sont pas suivies non plus : leurs echeances passeront
-            sans que personne ne soit prevenu. Le client doit le savoir. */}
         {charge && enAttente.length > 0 && (
           <div style={{ ...CARTE, borderColor: "rgba(232,163,61,0.5)",
             background: "rgba(232,163,61,0.07)" }}>
@@ -307,13 +286,6 @@ export default function PageFacturationMysterLLC() {
           </div>
         )}
 
-        {/* ---- LA GRILLE ----
-            ⚠️ RAPPELEE MEME QUAND TOUT EST SOUSCRIT : un client au Suivi
-            doit voir ce que la Comptabilite apporte, sinon il n y pensera
-            pas le jour ou il en aura besoin.
-            🚨 LA ROUTE NE RENVOIE QU UN PALIER PAR OFFRE — celui qui
-            s applique. Afficher les quatre donnerait quatre cartes au meme
-            titre, et le client se demanderait laquelle le concerne. */}
         {charge && grille.length > 0 && (
           <>
             <h2 style={{ color: OR, fontSize: "18px", margin: "28px 0 12px" }}>
@@ -326,7 +298,7 @@ export default function PageFacturationMysterLLC() {
                 });
                 return (
                   <div key={g.offre} style={{
-                    flex: "1 1 280px", padding: "18px 20px", borderRadius: "10px",
+                    flex: "1 1 260px", padding: "18px 20px", borderRadius: "10px",
                     background: utilise ? "rgba(200,169,110,0.1)" : "rgba(255,255,255,0.025)",
                     border: utilise
                       ? "2px solid rgba(200,169,110,0.6)"
@@ -341,9 +313,8 @@ export default function PageFacturationMysterLLC() {
                       </span>
                     </p>
                     <p style={{ color: OR, fontSize: "14.5px", margin: "0 0 8px" }}>
-                      {g.offre === "comptabilite" ? "Suivi et comptabilité" : "Suivi"}
+                      {libelleOffre(g.offre)}
                     </p>
-                    {/* Le palier qui s applique, quand il y en a plusieurs. */}
                     {g.offre === "comptabilite" && Number(g.seuil_max) < 9999 && (
                       <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "12.5px",
                         margin: "0 0 8px" }}>
