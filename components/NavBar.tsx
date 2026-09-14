@@ -554,6 +554,11 @@ export default function NavBar() {
               retrouve ici. Sans cette entree, le client ne verrait jamais
               ce qu il a en cours. */}
           <a href="/organisme/affaires" style={lienMenu}>Affaires</a>
+          {/* 🆕 « TACHES » AJOUTE LE 14/09, en meme temps que l ecran
+              (app/organisme/taches/page.tsx). C est la liste qu on ouvre le
+              matin : sans entree dans la barre, elle n existerait que pour
+              qui connait l adresse. */}
+          <a href="/organisme/taches" style={lienMenu}>Tâches</a>
           <a href="/organisme/agenda" style={lienMenu}>Agenda</a>
           <a href="/organisme/facturation" style={lienMenu}>Ma facturation</a>
           <a href="/organisme/signatures" style={lienMenu}>Signatures</a>
