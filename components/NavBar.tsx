@@ -234,6 +234,14 @@ const PAGES_PUBLIQUES_MRCRM = [
   "/relances",
   "/suivi-des-ventes",
   "/signature-electronique",
+  // 🆕 LES DEUX DOCUMENTS LEGAUX — 14/09, ajoutes le jour meme de leur
+  // creation (app/mrcrm/confidentialite, app/mrcrm/cgv).
+  // 🚨 CES DEUX ADRESSES SONT DECLAREES CHEZ GOOGLE : ce sont elles que
+  // l ecran de consentement de l agenda montre au client. Une page qui
+  // porterait la barre de travail d un espace client par-dessus un
+  // document public ferait mauvais effet la ou Google regarde.
+  "/confidentialite",
+  "/cgv",
 ];
 
 function estPagePubliqueMrCRM(chemin) {
