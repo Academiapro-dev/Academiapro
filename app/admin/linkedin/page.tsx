@@ -387,7 +387,12 @@ function messageRelance(prenom: string, societe: string, nbFormations: number, c
       + "sous un même accès, présentation à vos couleurs sur demande.\n\n"
       + "Si vous souhaitez le voir sur un dossier, réel ou fictif, je vous "
       + "montre le parcours en une séance.\n\n"
-      + "Bien cordialement,\nJacques Lalou\nmrcomptable.fr · mysterllc.com";
+      // ⚠️ UN SEUL LIEN, ET C EST VOULU — 14/09. LinkedIn transforme le
+      // premier domaine du message en CARTE D APERCU avec l image Open
+      // Graph du site. Avec « mrcomptable.fr · mysterllc.com », c est le
+      // logo Mr Comptable qui s affichait sous un message consacre a
+      // MysterLLC. Mr Comptable reste nomme dans la premiere phrase.
+      + "Bien cordialement,\nJacques Lalou\nmysterllc.com";
   }
 
   if (k === "mrcrm") {
