@@ -1344,6 +1344,28 @@ export default function PageLinkedin() {
     setMessage("");
   }
 
+  // 🆕 14/09 — LA SERIE SUIT LE FILTRE.
+  //
+  // LE DEFAUT, VU PAR JACQUES : il lance la serie, puis clique un produit
+  // pour la restreindre — et le decompte reste le meme (« 1 / 191 »). La
+  // serie etait figee sur la liste du moment ou elle avait demarre :
+  // changer le filtre ne la touchait plus, et les fiches des autres
+  // produits restaient dedans.
+  //
+  // Desormais, changer de produit (ou de recherche) pendant une serie la
+  // REFAIT sur la liste filtree, en repartant de la premiere fiche. Si le
+  // filtre ne laisse plus rien, la serie s arrete proprement.
+  useEffect(function () {
+    if (!serie) return;
+    if (filtrees.length === 0) { quitterSerie(); return; }
+    setSerie(filtrees.slice());
+    setRang(0);
+    setFaits(0);
+    setCopieSerie(false);
+    setOuvertSerie(false);
+    setTexteSerie(texteDe(filtrees[0], onglet === "envoyes"));
+  }, [filtreProduit]);
+
   function quitterSerie() {
     setSerie(null);
     setRang(0);
