@@ -14,7 +14,15 @@ import { useEffect, useState } from "react";
 // fuseau (« 2026-09-15T10:00 »). Envoyee telle quelle, elle serait lue en
 // UTC par le serveur : un rendez-vous de 10 h tomberait a 12 h dans
 // l agenda. On la convertit donc ICI, dans le navigateur, ou l heure locale
-// du client est connue — new Date(valeur).toISOString().
+// du client est connue — new Date(valeur).toISOString(). Verifie le 14/09 :
+// 10 h saisies, 10 h dans l agenda.
+// ⚠️ LE MESSAGE DE CONFIRMATION EST ECRIT ICI AUSSI, pour la meme raison :
+// celui du serveur annoncait 08:00 pour un rendez-vous de 10:00 (Vercel
+// vit en UTC). Defaut constate a l ecran le 14/09.
+//
+// 🚨 LA COULEUR DU TEXTE EST IMPOSEE. Le site est en theme sombre : sans
+// `color` explicite, les etiquettes heritent du blanc et DISPARAISSENT sur
+// le cadre blanc. Defaut constate a l ecran le 14/09.
 //
 // 🚨 AUCUN INVITE SANS QUE CE SOIT DEMANDE. La case « prévenir le client »
 // est decochee : la cocher envoie un courriel Google au prospect. Elle
@@ -113,7 +121,12 @@ export default function RendezVousPage() {
       });
       const j = await r.json();
       if (j.ok) {
-        setMessage(j.message || "Rendez-vous ajouté à votre agenda.");
+        setMessage(
+          "Rendez-vous ajouté à votre agenda le " +
+          d0.toLocaleDateString("fr-FR") + " à " +
+          d0.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }) + "." +
+          (inviter && emailFiche ? " Une invitation a été envoyée à " + emailFiche + "." : "")
+        );
         setLien(j.lien || "");
       } else {
         setErreur(j.erreur || "Le rendez-vous n'a pas été posé.");
@@ -130,6 +143,7 @@ export default function RendezVousPage() {
     padding: 20,
     marginTop: 18,
     background: "#fff",
+    color: "#1a1a1a",
   } as const;
 
   const champ = {
@@ -140,21 +154,29 @@ export default function RendezVousPage() {
     border: "1px solid #c9c9c9",
     marginTop: 6,
     boxSizing: "border-box",
+    background: "#fff",
+    color: "#1a1a1a",
   } as const;
 
-  const etiquette = { display: "block", marginTop: 16, fontWeight: 600, fontSize: 15 } as const;
+  const etiquette = {
+    display: "block",
+    marginTop: 16,
+    fontWeight: 600,
+    fontSize: 15,
+    color: "#1a1a1a",
+  } as const;
 
   return (
     <div style={{ maxWidth: 780, margin: "0 auto", padding: "32px 20px", fontFamily: "system-ui, -apple-system, sans-serif" }}>
       <h1 style={{ fontSize: 26, marginBottom: 6 }}>Prendre un rendez-vous</h1>
-      <p style={{ color: "#555", marginTop: 0, lineHeight: 1.5 }}>
+      <p style={{ color: "#888", marginTop: 0, lineHeight: 1.5 }}>
         {nomFiche
           ? "Le rendez-vous sera posé dans votre agenda Google, avec les coordonnées de " + nomFiche + "."
           : "Le rendez-vous sera posé dans votre agenda Google."}
       </p>
 
       {message ? (
-        <div style={{ background: "#eef7ee", border: "1px solid #bcd9bc", borderRadius: 8, padding: "12px 14px", marginTop: 16 }}>
+        <div style={{ background: "#eef7ee", border: "1px solid #bcd9bc", borderRadius: 8, padding: "12px 14px", marginTop: 16, color: "#1a1a1a" }}>
           {message}
           {lien ? (
             <>
@@ -168,7 +190,7 @@ export default function RendezVousPage() {
       ) : null}
 
       {erreur ? (
-        <div style={{ background: "#fdecec", border: "1px solid #efb9b9", borderRadius: 8, padding: "12px 14px", marginTop: 16 }}>
+        <div style={{ background: "#fdecec", border: "1px solid #efb9b9", borderRadius: 8, padding: "12px 14px", marginTop: 16, color: "#7a1c1c" }}>
           {erreur}
         </div>
       ) : null}
@@ -220,7 +242,7 @@ export default function RendezVousPage() {
           </label>
 
           {emailFiche ? (
-            <label style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 18, fontSize: 15 }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 18, fontSize: 15, color: "#1a1a1a" }}>
               <input type="checkbox" checked={inviter} onChange={function (e) { setInviter(e.target.checked); }} style={{ width: 18, height: 18 }} />
               <span>Prévenir {nomFiche || "le client"} par courriel ({emailFiche})</span>
             </label>
