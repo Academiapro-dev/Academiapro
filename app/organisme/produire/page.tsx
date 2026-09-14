@@ -117,10 +117,21 @@ export default function PageProduire() {
     setOccupe("");
   }
 
+  // 🚨 14/09 — RIEN NE PART SANS ADRESSE, ET ON LE DIT AVANT.
+  //
+  // LE DEFAUT, VU A L ESSAI : un document produit pour une fiche sans
+  // adresse partait quand meme ; la page de signature affichait « ce
+  // document est etabli au nom de null » et personne ne pouvait le signer.
+  // Un document orphelin vaut moins que pas de document du tout.
+  const adresseSignature = String((produit && produit.destinataire) || valeurs.email || "").trim();
+
   async function faireSigner() {
     if (!produit || !produit.reference) return;
-    const dest = produit.destinataire || valeurs.email || "";
-    if (!dest) { setErreur("Aucune adresse pour envoyer la signature : renseignez le champ email."); return; }
+    const dest = adresseSignature;
+    if (dest.indexOf("@") < 1) {
+      setErreur("Ce document n'a pas d'adresse de destinataire : la fiche n'en porte pas, et le champ « email » n'a pas été rempli. Renseignez une adresse ci-dessous, puis produisez le document à nouveau.");
+      return;
+    }
     setOccupe("signer"); setMessage(""); setErreur("");
     try {
       const r = await fetch("/api/organisme/faire-signer" + suffixe(), {
@@ -262,7 +273,11 @@ export default function PageProduire() {
                   Ouvrir le PDF
                 </a>
               )}
-              <button onClick={faireSigner} disabled={occupe !== ""} style={SECOND}>
+              <button
+                onClick={faireSigner}
+                disabled={occupe !== "" || adresseSignature.indexOf("@") < 1}
+                style={{ ...SECOND, opacity: adresseSignature.indexOf("@") < 1 ? 0.45 : 1 }}
+              >
                 {occupe === "signer" ? "Envoi…" : "Envoyer à signer"}
               </button>
               {/* 🆕 14/09 — LE DOCUMENT AVEC LA SIGNATURE MANUSCRITE.
@@ -280,11 +295,20 @@ export default function PageProduire() {
                 Voir le document signé
               </a>
             </div>
-            <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px", margin: "14px 0 0", lineHeight: 1.7 }}>
-              Le document est archivé et inscrit au registre. La demande de signature part
-              à {produit.destinataire || valeurs.email || "l'adresse du client"} ; la preuve
-              est conservée dans vos signatures.
-            </p>
+            {adresseSignature.indexOf("@") < 1 ? (
+              <p style={{ color: "#e8a33d", fontSize: "13.5px", margin: "14px 0 0", lineHeight: 1.7 }}>
+                Ce document ne peut pas partir à la signature : aucune adresse électronique.
+                La fiche de ce client n&apos;en porte pas. Ajoutez-lui une adresse dans le CRM,
+                ou utilisez un modèle comportant un champ <span style={{ color: OR }}>{"{{email}}"}</span>,
+                puis produisez le document à nouveau. Le PDF reste disponible et archivé.
+              </p>
+            ) : (
+              <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px", margin: "14px 0 0", lineHeight: 1.7 }}>
+                Le document est archivé et inscrit au registre. La demande de signature part
+                à {adresseSignature} ; la preuve est conservée dans vos signatures, et le tracé
+                manuscrit s&apos;affichera sur le document signé.
+              </p>
+            )}
           </div>
         )}
       </div>
