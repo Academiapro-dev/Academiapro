@@ -2173,6 +2173,20 @@ export default function PageCRM() {
                       Noter une tâche →
                     </a>
 
+                    {/* 🆕 AJOUTER UN BIEN — 14/09.
+                        Le contact devient le PROPRIETAIRE du bien : c est lui
+                        qu on relancera, a qui on rendra compte, et qui
+                        signera le mandat. Partir de la fiche evite de le
+                        saisir deux fois — et un proprietaire saisi deux fois
+                        est un proprietaire perdu une fois sur deux. */}
+                    <a
+                      href={"/organisme/biens?fiche=" + encodeURIComponent(String(p.id || p.email || ""))
+                        + "&nom=" + encodeURIComponent(p.nom || p.organisme || "")}
+                      style={{ color: "#c8a96e", fontSize: "13px", textDecoration: "none", display: "inline-block", marginTop: "6px", marginLeft: "14px" }}
+                    >
+                      Ajouter un bien →
+                    </a>
+
                     {/* 🆕 INSCRIRE DANS UNE SEQUENCE — 14/09.
                         ⚠️ N APPARAIT QUE SI DES SEQUENCES EXISTENT et que
                         la fiche n est ni desinscrite ni perdue : proposer
