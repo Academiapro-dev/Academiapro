@@ -566,6 +566,12 @@ export default function NavBar() {
               qui ne coute rien. La masquer supposerait de savoir de quel
               metier est le client — ce que la base ne dit pas encore. */}
           <a href="/organisme/biens" style={lienMenu}>Biens</a>
+          {/* 🆕 « MANDATS » AJOUTE LE 14/09 — les mandats et LE REGISTRE
+              (app/organisme/mandats/page.tsx). Le registre des mandats est
+              une obligation du decret 72-678 art. 73, controlable par la CCI
+              et la DGCCRF : il doit s atteindre en un clic, pas en tapant
+              une adresse. */}
+          <a href="/organisme/mandats" style={lienMenu}>Mandats</a>
           <a href="/organisme/agenda" style={lienMenu}>Agenda</a>
           <a href="/organisme/facturation" style={lienMenu}>Ma facturation</a>
           <a href="/organisme/signatures" style={lienMenu}>Signatures</a>
