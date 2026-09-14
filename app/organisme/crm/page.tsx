@@ -2158,6 +2158,21 @@ export default function PageCRM() {
                       Ouvrir une affaire →
                     </a>
 
+                    {/* 🆕 NOTER UNE TACHE — 14/09.
+                        « Rappeler lundi », « envoyer le devis » : ce qui se
+                        note en dix secondes pendant qu on a la fiche sous les
+                        yeux. La tache part rattachee au contact, on la
+                        retrouve dans « Taches ».
+                        ⚠️ PAS DE CONDITION SUR LA DESINSCRIPTION : une tache
+                        n envoie rien a personne. */}
+                    <a
+                      href={"/organisme/taches?fiche=" + encodeURIComponent(String(p.id || p.email || ""))
+                        + "&nom=" + encodeURIComponent(p.organisme || p.nom || "")}
+                      style={{ color: "#c8a96e", fontSize: "13px", textDecoration: "none", display: "inline-block", marginTop: "6px", marginLeft: "14px" }}
+                    >
+                      Noter une tâche →
+                    </a>
+
                     {/* 🆕 INSCRIRE DANS UNE SEQUENCE — 14/09.
                         ⚠️ N APPARAIT QUE SI DES SEQUENCES EXISTENT et que
                         la fiche n est ni desinscrite ni perdue : proposer
