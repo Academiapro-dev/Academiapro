@@ -319,13 +319,21 @@ function motInvitation(prenom: string, cle?: string) {
 // qui lit un argumentaire de catalogue comprend qu on lui vend autre chose.
 //
 // ⚠️ AUCUNE MENTION DE PRODUCTION SUR DEMANDE cote organismes (17/08).
-function messageRelance(prenom: string, societe: string, nbFormations: number, cle?: string) {
+// ⚠️ `base` A ETE AJOUTEE LE 14/09 pour distinguer, sur MysterLLC, un
+// CABINET d un TITULAIRE de LLC : les deux ne lisent pas le meme message.
+// Elle est facultative : sans elle, on retombe sur la version cabinet,
+// qui etait la seule avant ce jour.
+function messageRelance(prenom: string, societe: string, nbFormations: number, cle?: string, base?: any) {
   const p = capitaliser(prenom);
   const s = capitaliser(societe);
   const salut = (p ? "Bonjour " + p : "Bonjour") + ",\n\n";
   const chez = s ? " chez " + s : "";
   const combien = nbFormations > 0 ? String(nbFormations) : "plusieurs centaines de";
   const k = String(cle || "academiapro");
+  // Un cabinet se reconnait a sa base de prospection ; a defaut de base
+  // (fiche saisie a la main), on regarde l intitule de la societe.
+  const cabinet = estCabinet(base)
+    || /comptab|expertise|audit|fiduciaire|conseil/i.test(String(societe || ""));
 
   if (k === "mrcomptable") {
     return salut
@@ -363,6 +371,45 @@ function messageRelance(prenom: string, societe: string, nbFormations: number, c
   // ⚠️ MR COMPTABLE EN UNE PHRASE, pas un second argumentaire : le cabinet
   // qui l a ecarte ne doit pas sentir qu on le lui revend ; « le mien ou
   // un autre » garde la porte ouverte dans les deux cas.
+  // 🆕 14/09 — DEUX MESSAGES MYSTERLLC, SELON QUI EST EN FACE.
+  //
+  // LE DEFAUT : tout prospect tague MysterLLC recevait le texte ecrit pour
+  // les CABINETS (« ce que ca change pour votre cabinet »). Un titulaire de
+  // LLC, lui, n a pas de cabinet et pas de clients : il a SA societe.
+  //
+  // Le tri se fait sur la fiche : estCabinet() reconnait un cabinet a sa
+  // base (prospects_cabinets) ou a son intitule. Tout le reste est traite
+  // comme un titulaire — c est le cas le plus frequent hors campagne
+  // cabinets, et le message y reste juste meme pour un conseil ou une
+  // agence, puisqu il parle de « votre société » sans rien supposer
+  // d autre.
+  if (k === "mysterllc" && !cabinet) {
+    return salut
+      + "Je vous présente MysterLLC : une plateforme pour les titulaires "
+      + "français d'une LLC américaine — et pour ceux qui envisagent d'en "
+      + "créer une.\n\n"
+      + "Si votre société existe déjà : les formulaires américains annuels "
+      + "sont préparés à partir de vos pièces, vous les relisez, vous les "
+      + "signez, et la plateforme les transmet elle-même à l'administration "
+      + "américaine — la preuve d'envoi et l'accusé de transmission sont "
+      + "archivés avec le document exact qui est parti. Côté français, les "
+      + "obligations qui vous concernent sont suivies aussi : déclaration "
+      + "des comptes à l'étranger, qualification de la société selon la "
+      + "jurisprudence récente, échéances locales. Chaque règle renvoie à sa "
+      + "source officielle, avec sa date.\n\n"
+      + "Si elle reste à créer : l'agent enregistré, les statuts, la demande "
+      + "du numéro fiscal transmise par nos soins, le pacte de société signé "
+      + "électroniquement, l'ouverture du compte bancaire suivie jusqu'au "
+      + "bout — à chaque étape, vous voyez où en est le dossier, ce qui a "
+      + "été envoyé, et ce qu'on attend.\n\n"
+      + "Vos dépenses se saisissent en photographiant le justificatif ; le "
+      + "compte courant d'associé est tenu par devise. Et vous êtes prévenu "
+      + "avant chaque échéance, par courriel et par SMS.\n\n"
+      + "Si vous voulez voir ce que cela donne sur votre situation, je vous "
+      + "montre le parcours en une séance.\n\n"
+      + "Bien cordialement,\nJacques Lalou\nmysterllc.com";
+  }
+
   if (k === "mysterllc") {
     return salut
       + "Je vous présente MysterLLC : une plateforme conçue pour ceux qui "
@@ -1327,7 +1374,7 @@ export default function PageLinkedin() {
     const cle = second ? (String(l.linkedin_produit || "") || campagneDe(l)) : campagneDe(l);
     return second
       ? secondMessage(l.dirigeant_prenom, cle)
-      : messageRelance(l.dirigeant_prenom, l.raison_sociale, nbFormations, cle);
+      : messageRelance(l.dirigeant_prenom, l.raison_sociale, nbFormations, cle, l.base);
   }
 
   function demarrerSerie() {
