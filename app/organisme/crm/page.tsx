@@ -1514,9 +1514,14 @@ export default function PageCRM() {
           />
           <button
             onClick={() => setTableau(!tableau)}
-            style={{ ...BOUTON, padding: "10px 20px", background: tableau ? "#c8a96e" : "none", color: tableau ? "#050508" : "#c8a96e", border: tableau ? "none" : BOUTON.border, fontWeight: tableau ? "bold" : "normal" }}
+            style={{ ...BOUTON, padding: "10px 20px", background: tableau ? "#c8a96e" : "none", color: tableau ? "#050508" : "#c8a96e", border: tableau ? "none" : BOUTON.border, fontWeight: "bold" }}
           >
-            {tableau ? "Vue détaillée" : "Vue tableau"}
+            {/* 🆕 14/09 — UN SEUL LIBELLE, EN GRAS, DANS LES DEUX SENS.
+                « Vue tableau » ne disait pas ce qu on y gagnait, et le
+                libelle qui changeait au retour (« Vue detaillee ») faisait
+                croire a deux boutons differents. Jacques : « pas
+                representatif d un ensemble de tous les prospects ». */}
+            {"Tous mes prospects"}
           </button>
           {/* ⚠️ LE LIEN EST DISCRET ET TOUJOURS PRESENT. Un reglage qu on
               ne trouve pas n existe pas — c est la lecon de la pastille de
