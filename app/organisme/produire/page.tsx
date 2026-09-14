@@ -137,6 +137,15 @@ export default function PageProduire() {
     setOccupe("");
   }
 
+  // 🚨 14/09 — LA FICHE SE DESIGNE PAR SON IDENTIFIANT, PAS PAR SON EMAIL.
+  //
+  // LE DEFAUT, VU A L ESSAI : la fiche d Estelle Caro etait bien trouvee
+  // par la recherche, mais AUCUN champ ne se remplissait. Motif : beaucoup
+  // de fiches de ce CRM viennent de LinkedIn et n ont PAS d adresse
+  // electronique (`email` est nul en base). Chercher la fiche par son
+  // email ne rendait donc rien.
+  // ⚠️ L identifiant existe toujours ; l email reste accepte par la route
+  // pour les fiches qui en ont un.
   function nomFiche(f: any): string {
     const bouts = [f.nom || [f.dirigeant_prenom, f.dirigeant_nom].filter(Boolean).join(" "), f.organisme, f.email].filter(Boolean);
     return bouts.join(" · ") || "(sans nom)";
@@ -200,7 +209,7 @@ export default function PageProduire() {
           <select value={fiche} onChange={(e) => setFiche(e.target.value)} style={CHAMP}>
             <option value="">— sans fiche, tout saisir à la main —</option>
             {fichesFiltrees.map(function (f: any) {
-              return <option key={f.email} value={f.email}>{nomFiche(f)}</option>;
+              return <option key={f.id || f.email} value={f.id || f.email}>{nomFiche(f)}</option>;
             })}
           </select>
           <p style={{ color: "rgba(255,255,255,0.35)", fontSize: "12.5px", margin: "-4px 0 0" }}>
