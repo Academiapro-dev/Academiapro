@@ -1876,6 +1876,11 @@ export default function PageCRM() {
                     <th style={TH}>Relance auto</th>
                     <th style={TH}>Motif de perte</th>
                     <th style={TH}>Dernier contact</th>
+                    {/* 🆕 14/09 — UNE COLONNE « DOCUMENT » DANS LE TABLEAU.
+                        Le lien existait dans la fiche depliee, mais c est
+                        le tableau qu on garde ouvert toute la journee :
+                        un geste qui n y figure pas n existe pas. */}
+                    <th style={TH}>Document</th>
                     {/* 🆕 LES COLONNES DE L ORGANISME — 06/09. Elles
                         s ajoutent A LA FIN : l ordre des colonnes connues
                         ne bouge pas, et quelqu un qui lit ce tableau tous
@@ -1939,6 +1944,14 @@ export default function PageCRM() {
                         </td>
                         <td style={{ ...TD, color: "rgba(255,255,255,0.45)" }}>
                           {jolieDate(p.derniere_interaction) || "—"}
+                        </td>
+                        <td style={TD}>
+                          <a
+                            href={"/organisme/produire?fiche=" + encodeURIComponent(String(p.id || p.email || ""))}
+                            style={{ color: "#c8a96e", textDecoration: "none" }}
+                          >
+                            Produire
+                          </a>
                         </td>
                         {colonnes.map(function (c: any) {
                           const v = (p.champs || {})[c.cle];
