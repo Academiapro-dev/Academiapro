@@ -2015,6 +2015,28 @@ export default function PageCRM() {
                       </a>
                     )}
 
+                    {/* 🆕 PRODUIRE UN DOCUMENT — 14/09.
+                        🚨 LE CHEMIN NATUREL EST CELUI-CI. Jacques : « pour
+                        avoir le nom du prospect, la route que je prendrai
+                        c est Mon CRM ». On part donc de la fiche, pas d un
+                        ecran ou l on rechoisit le client : l identifiant
+                        part dans l adresse et le document s ouvre avec le
+                        client deja rempli.
+                        ⚠️ MEME FORME QUE LE LIEN SMS, ET POUR LA MEME
+                        RAISON : un simple lien, rien qui s execute ici. Un
+                        formulaire ajoute dans ce fichier le 04/09 avait
+                        rendu tout le CRM blanc, avec un build vert.
+                        ⚠️ PAS DE CONDITION SUR L ADRESSE : un mandat se
+                        produit et s imprime meme pour un contact sans
+                        courriel ; c est l ENVOI A SIGNER qui l exige, et
+                        l ecran de production le dit. */}
+                    <a
+                      href={"/organisme/produire?fiche=" + encodeURIComponent(String(p.id || p.email || ""))}
+                      style={{ color: "#c8a96e", fontSize: "13px", textDecoration: "none", display: "inline-block", marginTop: "6px", marginLeft: p.telephone && !p.desinscrit ? "14px" : "0" }}
+                    >
+                      Produire un document →
+                    </a>
+
                     {/* ══════════════════════════════════════════════════
                         LE JOURNAL D APPELS — 06/09.
 
