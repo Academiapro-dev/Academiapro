@@ -2116,6 +2116,29 @@ export default function PageCRM() {
                       Produire un document →
                     </a>
 
+                    {/* 🆕 PRENDRE UN RENDEZ-VOUS — 14/09.
+                        Meme chemin que « Produire un document » : on part de
+                        la fiche, l ecran s ouvre avec le prospect deja connu.
+                        L adresse porte aussi le nom et le courriel — le nom
+                        pour le titre propose, le courriel pour la case
+                        « prévenir le client », qui n apparait pas sans lui.
+                        🚨 UN SIMPLE LIEN, rien qui s execute ici : voir la
+                        note du lien ci-dessus (un formulaire ajoute dans ce
+                        fichier le 04/09 avait rendu tout le CRM blanc).
+                        ⚠️ PAS DE LIEN SUR UNE FICHE DESINSCRITE : inviter
+                        par courriel quelqu un qui a demande a ne plus rien
+                        recevoir serait exactement ce qu il a refuse. */}
+                    {!p.desinscrit && (
+                      <a
+                        href={"/organisme/rendez-vous?fiche=" + encodeURIComponent(String(p.id || p.email || ""))
+                          + "&nom=" + encodeURIComponent(p.nom || "")
+                          + "&email=" + encodeURIComponent(p.email || "")}
+                        style={{ color: "#c8a96e", fontSize: "13px", textDecoration: "none", display: "inline-block", marginTop: "6px", marginLeft: "14px" }}
+                      >
+                        Prendre un rendez-vous →
+                      </a>
+                    )}
+
                     {/* 🆕 INSCRIRE DANS UNE SEQUENCE — 14/09.
                         ⚠️ N APPARAIT QUE SI DES SEQUENCES EXISTENT et que
                         la fiche n est ni desinscrite ni perdue : proposer
