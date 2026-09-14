@@ -49,6 +49,10 @@
       "schedule": "0 7 * * *"
     },
     {
+      "path": "/api/cron/sequences",
+      "schedule": "10 7 * * *"
+    },
+    {
       "path": "/api/traiter-commandes",
       "schedule": "*/5 * * * *"
     },
