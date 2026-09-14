@@ -2139,6 +2139,25 @@ export default function PageCRM() {
                       </a>
                     )}
 
+                    {/* 🆕 OUVRIR UNE AFFAIRE — 14/09.
+                        Le manque n°1 face aux CRM generalistes : une
+                        opportunite chiffree, avec un montant et une date de
+                        signature esperee. Elle se cree ICI, depuis la
+                        personne concernee, et se retrouve ensuite dans
+                        « Affaires ».
+                        ⚠️ PAS DE CONDITION SUR LA DESINSCRIPTION : ne plus
+                        vouloir de messages n empeche pas d avoir une affaire
+                        en cours. Ce n est pas un envoi.
+                        🚨 UN SIMPLE LIEN, comme les trois au-dessus : rien ne
+                        s execute dans ce fichier. */}
+                    <a
+                      href={"/organisme/affaires?fiche=" + encodeURIComponent(String(p.id || p.email || ""))
+                        + "&nom=" + encodeURIComponent(p.organisme || p.nom || "")}
+                      style={{ color: "#c8a96e", fontSize: "13px", textDecoration: "none", display: "inline-block", marginTop: "6px", marginLeft: "14px" }}
+                    >
+                      Ouvrir une affaire →
+                    </a>
+
                     {/* 🆕 INSCRIRE DANS UNE SEQUENCE — 14/09.
                         ⚠️ N APPARAIT QUE SI DES SEQUENCES EXISTENT et que
                         la fiche n est ni desinscrite ni perdue : proposer
