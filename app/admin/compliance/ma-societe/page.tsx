@@ -233,6 +233,28 @@ export default function MaSociete() {
               )}
             </div>
 
+            {/* 🆕 14/09 — L ACCES AU PARCOURS DE CREATION.
+                L ecran /admin/compliance/creation existait depuis le 10/09
+                mais AUCUN LIEN N Y MENAIT : il fallait taper l adresse.
+                Un ecran qu on ne voit pas n existe pas. */}
+            <a
+              href={"/admin/compliance/creation" + (societe && societe.id ? "?entite_id=" + encodeURIComponent(String(societe.id)) : "")}
+              style={{
+                display: "block", margin: "0 0 18px", padding: "16px 20px",
+                background: "rgba(10,61,46,0.07)", border: "2px solid #0a3d2e",
+                borderRadius: 10, textDecoration: "none",
+              }}
+            >
+              <span style={{ display: "block", color: "#0a3d2e", fontSize: 17, fontWeight: "bold", marginBottom: 4 }}>
+                Suivre la création de la société &rarr;
+              </span>
+              <span style={{ display: "block", color: "#555", fontSize: 14, lineHeight: 1.6 }}>
+                Agent enregistré, statuts, demande du numéro fiscal (EIN) envoyée à
+                l&apos;administration, pacte de société signé, ouverture du compte
+                bancaire. Chaque étape avec sa date et sa preuve.
+              </span>
+            </a>
+
             <p style={{ marginTop: 24 }}>
               <a href="/admin/compliance" style={{ color: "#0a3d2e" }}>
                 Aller au tableau de bord
