@@ -265,6 +265,20 @@ export default function PageProduire() {
               <button onClick={faireSigner} disabled={occupe !== ""} style={SECOND}>
                 {occupe === "signer" ? "Envoi…" : "Envoyer à signer"}
               </button>
+              {/* 🆕 14/09 — LE DOCUMENT AVEC LA SIGNATURE MANUSCRITE.
+                  La route rend une copie du document ou le trace du client
+                  est dessine au-dessus de sa ligne. L original archive ne
+                  bouge pas : c est lui que l empreinte de la preuve
+                  designe. Le bouton repond « pas encore signé » tant que
+                  personne n a signé — c est la reponse juste. */}
+              <a
+                href={"/api/organisme/document-signe?reference=" + encodeURIComponent(produit.reference)}
+                target="_blank"
+                rel="noreferrer"
+                style={{ ...SECOND, textDecoration: "none", display: "inline-block" }}
+              >
+                Voir le document signé
+              </a>
             </div>
             <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px", margin: "14px 0 0", lineHeight: 1.7 }}>
               Le document est archivé et inscrit au registre. La demande de signature part
