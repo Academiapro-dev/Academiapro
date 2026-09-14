@@ -301,6 +301,14 @@ export async function POST(req: NextRequest) {
     page.drawLine({ start: { x: 50, y: y }, end: { x: 250, y: y }, thickness: 0.7, color: gris });
     page.drawLine({ start: { x: 330, y: y }, end: { x: 530, y: y }, thickness: 0.7, color: gris });
 
+    // 🆕 14/09 — ON RETIENT OU EST LA LIGNE DU CLIENT.
+    //
+    // C est ce qui permettra d apposer le TRACE MANUSCRIT exactement
+    // au-dessus, quand le document sera signe (/api/organisme/document-signe).
+    // Sans cette position, le trace se poserait au jugé et tomberait sur le
+    // texte des documents longs.
+    const positionSignature = { page: pdf.getPages().indexOf(page), x: 330, y: y };
+
     y = y - 34;
     saut(150);
     page.drawLine({ start: { x: 50, y: y }, end: { x: 545, y: y }, thickness: 0.5, color: gris });
@@ -349,6 +357,7 @@ export async function POST(req: NextRequest) {
       pdf_octets: octets.length,
       donnees: {
         modele_id: modele.id, modele_code: modele.code, modele_titre: modele.titre,
+        signature_position: positionSignature,
         fiche_id: fiche ? fiche.id : null, fiche_email: fiche ? fiche.email : null,
         valeurs: valeurs, champs_manquants: manquants,
       },
