@@ -531,6 +531,16 @@ export default function NavBar() {
               ⚠️ L APPEL SE LANCE DEPUIS UNE FICHE, pas depuis cet ecran :
               un numero compose sans contexte ne sert a rien. */}
           <a href="/organisme/telephone" style={lienMenu}>Téléphone</a>
+          {/* 🆕 « AGENDA » AJOUTE LE 14/09, en meme temps que la connexion
+              a Google Agenda (app/organisme/agenda/page.tsx). C est la
+              SEULE porte : sans cette entree, le client ne peut pas relier
+              son agenda, et le bouton « Prendre un rendez-vous » des fiches
+              repondrait « aucun agenda connecte » sans dire ou aller.
+              ⚠️ L ecran de prise de rendez-vous (/organisme/rendez-vous)
+              n est PAS dans la barre : il s ouvre depuis une fiche, avec le
+              prospect en parametre. Un rendez-vous sans fiche n a pas de
+              contexte — meme raison que pour l appel. */}
+          <a href="/organisme/agenda" style={lienMenu}>Agenda</a>
           <a href="/organisme/facturation" style={lienMenu}>Ma facturation</a>
           <a href="/organisme/signatures" style={lienMenu}>Signatures</a>
         </nav>
