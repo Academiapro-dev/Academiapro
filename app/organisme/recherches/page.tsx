@@ -107,7 +107,17 @@ export default function PageRecherches() {
       );
       const d = await rep.json();
       if (d.ok) {
-        setRappro(r);
+        // ⚠️ LE NOM DU CONTACT MANQUE SUR UNE RECHERCHE QUI VIENT D ETRE
+        // CREEE : la route de creation rend la ligne brute, sans le nom
+        // rattache. On le reprend de la recherche renvoyee par le
+        // rapprochement, sinon de ce que l ecran sait deja. Defaut releve a
+        // l essai du 14/09 — le panneau affichait « Ce contact ».
+        const complet = {
+          ...r,
+          contact: r.contact || (d.recherche && d.recherche.contact) || nomFiche || "",
+          telephone: r.telephone || (d.recherche && d.recherche.telephone) || null,
+        };
+        setRappro(complet);
         setBiens(d.biens || []);
         setEcartes(d.ecartes || {});
         setDejaProposes(d.deja_proposes || 0);
@@ -213,7 +223,7 @@ export default function PageRecherches() {
             <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", flexWrap: "wrap" }}>
               <div>
                 <h2 style={{ color: "#fff", fontSize: "20px", margin: "0 0 3px" }}>
-                  {rappro.contact || "Ce contact"}
+                  {rappro.contact || rappro.intitule || "Cette recherche"}
                   {rappro.telephone ? <span style={{ color: OR, fontSize: "15px", fontWeight: "normal" }}> · {rappro.telephone}</span> : null}
                 </h2>
                 <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "13.5px", margin: 0 }}>
