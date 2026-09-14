@@ -1245,9 +1245,20 @@ export default function PageLinkedin() {
     // 🆕 LE PRODUIT D ABORD, LE TEXTE ENSUITE — 02/09. Les deux filtres se
     // combinent : chercher « Dupont » dans les fiches MysterLLC rend les
     // Dupont de MysterLLC, pas tous les Dupont.
+    // 🆕 14/09 — DANS « MESSAGES ENVOYES », LE FILTRE PORTE SUR CE QUI A
+    // ETE ENVOYE, pas sur la campagne actuelle de la fiche. Sans cela, une
+    // fiche contactee pour AcadeMIA puis retaguee Mr CRM apparaissait dans
+    // les relances Mr CRM et recevait « Je vous avais presente notre CRM ».
+    // Pour les fiches anterieures au 14/09 (sans linkedin_produit), on
+    // retombe sur la campagne : c est tout ce qu on sait d elles.
+    const produitEnvoye = function (l: any): string {
+      return String(l.linkedin_produit || "") || campagneDe(l);
+    };
     const parProduit = filtreProduit === "tous"
       ? lignes
-      : lignes.filter(function (l: any) { return campagneDe(l) === filtreProduit; });
+      : lignes.filter(function (l: any) {
+          return (onglet === "envoyes" ? produitEnvoye(l) : campagneDe(l)) === filtreProduit;
+        });
 
     const q = aplatir(recherche);
     if (!q) return parProduit;
@@ -1265,7 +1276,7 @@ export default function PageLinkedin() {
       );
       return mots.every(function (m: string) { return foin.indexOf(m) >= 0; });
     });
-  }, [lignes, recherche, filtreProduit]);
+  }, [lignes, recherche, filtreProduit, onglet]);
 
   // ---------- LE MODE ENCHAINEMENT ----------
 
@@ -1282,7 +1293,11 @@ export default function PageLinkedin() {
   // ecrasait tout produit qui n en avait pas — les trois campagnes ajoutees
   // le 02/09 auraient toutes recu le message des organismes.
   function texteDe(l: any, second: boolean) {
-    const cle = campagneDe(l);
+    // 🆕 14/09 — POUR UNE RELANCE, LE TEXTE SUIT LE PRODUIT REELLEMENT
+    // ENVOYE : « Je vous avais presente notre catalogue » n a de sens que
+    // si c est bien ce qu on a presente. Pour un premier message, la
+    // campagne de la fiche decide, comme avant.
+    const cle = second ? (String(l.linkedin_produit || "") || campagneDe(l)) : campagneDe(l);
     return second
       ? secondMessage(l.dirigeant_prenom, cle)
       : messageRelance(l.dirigeant_prenom, l.raison_sociale, nbFormations, cle);
@@ -1351,9 +1366,30 @@ export default function PageLinkedin() {
     avancer(serie, rang + 1);
 
     try {
-      const d = await appeler({ base: l.base || base, id: l.id, statut: "relance" });
+      // 🆕 14/09 — ON ENREGISTRE LE PRODUIT DU MESSAGE ENVOYE.
+      //
+      // LE DEFAUT, TROUVE PAR JACQUES : la seconde relance prenait TOUS les
+      // prospects deja contactes (314) et leur appliquait le produit
+      // AFFICHE A L ECRAN. Un prospect contacte pour AcadeMIA recevait donc
+      // une relance qui commence par « Je vous avais presente notre CRM ».
+      // Rien ne gardait trace de ce qui avait ete envoye : la campagne de
+      // la fiche peut changer apres coup, et elle change.
+      //
+      // Desormais chaque envoi ecrit `linkedin_produit` ; la seconde
+      // relance filtre dessus. ⚠️ Les 314 fiches d avant n ont pas cette
+      // colonne : elles retombent sur leur campagne (comportement
+      // precedent), et se corrigent d elles-memes au prochain envoi.
+      const d = await appeler({
+        base: l.base || base, id: l.id, statut: "relance",
+        linkedin_produit: campagneDe(l),
+      });
       if (d.ok) {
         setCompteurs(d.compteurs || null);
+        setLignes(function (anc: any[]) {
+          return anc.map(function (x: any) {
+            return cleDe(x) === cleDe(l) ? { ...x, linkedin_produit: campagneDe(l) } : x;
+          });
+        });
       } else {
         setErreur("Une fiche n'a pas pu être enregistrée ("
           + (d.erreur || "cause inconnue")
@@ -1893,6 +1929,20 @@ export default function PageLinkedin() {
     l.campagne = cle;
     setLignes(function (anciennes: any[]) { return anciennes.slice(); });
 
+    // 🆕 14/09 — LE TEXTE DE LA SERIE SE REECRIT AUSSITOT.
+    //
+    // LE DEFAUT, VU PAR JACQUES : en pleine serie, il rattache une fiche a
+    // un autre produit ; le bandeau affiche le nouveau (« MESSAGE MR. CRM »)
+    // mais LE TEXTE RESTE CELUI DE L ANCIEN — il fallait rafraichir la page
+    // pour qu il suive. Le commentaire d en dessous promettait que « le
+    // message se reecrit tout seul » : c etait vrai pour la fiche depliee,
+    // pas pour la serie, ou le texte est fige dans un etat.
+    if (serie && serie[rang] && cleDe(serie[rang]) === cleDe(l)) {
+      setTexteSerie(texteDe({ ...l, campagne: cle }, onglet === "envoyes"));
+      setCopieSerie(false);
+      setOuvertSerie(false);
+    }
+
     try {
       const d = await appeler({
         action: "modifier",
@@ -1903,6 +1953,9 @@ export default function PageLinkedin() {
       if (!d.ok) {
         l.campagne = avant;
         setLignes(function (anciennes: any[]) { return anciennes.slice(); });
+        if (serie && serie[rang] && cleDe(serie[rang]) === cleDe(l)) {
+          setTexteSerie(texteDe({ ...l, campagne: avant }, onglet === "envoyes"));
+        }
         setErreur(d.erreur || "Changement impossible.");
       } else {
         setMessage("Fiche rattachee a " + PRODUITS[cle].nom + ".");
