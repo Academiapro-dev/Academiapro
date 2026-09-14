@@ -20,6 +20,25 @@ import { useState, useEffect } from "react";
 // ⚠️ LE PREVISIONNEL EST UNE ESTIMATION : la somme des affaires ouvertes
 // ponderee par leur probabilite. L ecran le dit, sinon quelqu un le prend
 // pour du chiffre d affaires.
+//
+// 🚨 TROIS DEFAUTS RELEVES PAR JACQUES A L ESSAI DU 14/09, CORRIGES ICI :
+//   1. LES COLONNES DE SAISIE N AVAIENT PAS D ETIQUETTE. Trois cases « 1 »,
+//      « 0 », « 20 » sans rien au-dessus : une fois la ligne remplie, plus
+//      personne ne sait laquelle est la quantite. Un texte d invite qui
+//      disparait des qu on tape ne remplace pas une etiquette.
+//   2. L AFFAIRE DISPARAISSAIT QUAND ON LA GAGNAIT. Le pipeline ne montre
+//      que les affaires ouvertes ; en la gagnant, elle sortait des colonnes
+//      et le client ne la retrouvait plus. On bascule desormais TOUT SEUL
+//      sur l affichage complet des qu une affaire se ferme.
+//   3. LE TTC N ETAIT NULLE PART. Le HT sert au pilotage, le TTC est ce que
+//      le client paiera : les deux se lisent.
+//
+// ⚠️ LA TVA RESTE SUR LA LIGNE, a 20 % par defaut. Mr CRM est vendu a des
+// organismes, cabinets et agences FRANCAIS, qui facturent leurs clients
+// francais avec TVA. Le 0 % sert aux cas reels : client professionnel dans
+// un autre pays de l UE (autoliquidation), client hors UE, vendeur en
+// franchise en base, activite exoneree. Ne pas raisonner depuis le cas de
+// l editeur, dont la LLC facture hors taxes : ce n est pas celui du client.
 // ══════════════════════════════════════════════════════════════════════════
 
 const OR = "#c8a96e";
@@ -161,7 +180,18 @@ export default function PageAffaires() {
         body: JSON.stringify({ action: "etape", id: ouverte.id, etape: etape, motif_perte: motif || undefined }),
       });
       const d = await r.json();
-      if (d.ok) { setMessage(d.message); await ouvrir(ouverte.id); await charger(fermees); }
+      if (d.ok) {
+        setMessage(d.message);
+        // 🚨 UNE AFFAIRE QUI SE FERME NE DOIT PAS DISPARAITRE SOUS LES YEUX
+        // de celui qui vient de la fermer. Les colonnes ne montrent que
+        // l ouvert : on ouvre donc l affichage complet, tout seul, et on le
+        // dit. Defaut releve a l essai du 14/09.
+        const ferme = etape === "gagnee" || etape === "perdue";
+        const vue = ferme ? true : fermees;
+        if (ferme && !fermees) setFermees(true);
+        await ouvrir(ouverte.id);
+        await charger(vue);
+      }
       else setErreur(d.erreur || "Déplacement impossible.");
     } catch (e: any) { setErreur("Déplacement impossible : " + String(e)); }
     setOccupe("");
@@ -176,8 +206,15 @@ export default function PageAffaires() {
   // Le total affiche PENDANT la saisie, avant meme d enregistrer : sans
   // lui, on tape trois lignes a l aveugle et on decouvre le montant apres.
   let totalHt = 0;
-  for (const l of lignes) totalHt += (Number(l.quantite) || 0) * (Number(l.prix_unitaire) || 0);
+  let totalTva = 0;
+  for (const l of lignes) {
+    const ligneHt = (Number(l.quantite) || 0) * (Number(l.prix_unitaire) || 0);
+    totalHt += ligneHt;
+    totalTva += ligneHt * ((Number(l.tva_taux) || 0) / 100);
+  }
   totalHt = Math.round(totalHt * 100) / 100;
+  totalTva = Math.round(totalTva * 100) / 100;
+  const totalTtc = Math.round((totalHt + totalTva) * 100) / 100;
 
   const colonnes = fermees ? ["qualification", "proposition", "negociation", "gagnee", "perdue"] : OUVERTES;
 
@@ -318,7 +355,27 @@ export default function PageAffaires() {
             </div>
 
             {/* Les lignes */}
-            <h3 style={{ color: OR, fontSize: "15px", margin: "20px 0 10px" }}>Ce qui est chiffré</h3>
+            <h3 style={{ color: OR, fontSize: "15px", margin: "20px 0 4px" }}>Ce qui est chiffré</h3>
+            <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "12.5px", margin: "0 0 12px", lineHeight: 1.7 }}>
+              Le montant de l&apos;affaire est la somme de ces lignes. Mettez 0 en TVA
+              pour un client hors taxes — professionnel d&apos;un autre pays de l&apos;Union
+              européenne, client hors Union, ou activité exonérée.
+            </p>
+
+            {/* 🚨 LES ETIQUETTES DE COLONNES. Sans elles, trois cases « 57 »,
+                « 110 », « 20 » ne disent rien une fois remplies. Elles
+                restent visibles meme quand la ligne est saisie, ce qu un
+                simple texte d invite ne fait pas. */}
+            {lignes.length > 0 && (
+              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "4px" }}>
+                <div style={{ flex: "2 1 220px", fontSize: "12.5px", color: "rgba(255,255,255,0.55)" }}>Désignation</div>
+                <div style={{ flex: "0 1 80px", fontSize: "12.5px", color: "rgba(255,255,255,0.55)" }}>Quantité</div>
+                <div style={{ flex: "0 1 110px", fontSize: "12.5px", color: "rgba(255,255,255,0.55)" }}>Prix unitaire HT</div>
+                <div style={{ flex: "0 1 80px", fontSize: "12.5px", color: "rgba(255,255,255,0.55)" }}>TVA %</div>
+                <div style={{ flex: "0 1 92px" }} />
+              </div>
+            )}
+
             {lignes.map(function (l: any, i: number) {
               return (
                 <div key={i} style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "flex-end", marginBottom: "6px" }}>
@@ -351,11 +408,17 @@ export default function PageAffaires() {
               + Ajouter une ligne
             </button>
 
-            <p style={{ color: "#fff", fontSize: "17px", margin: "16px 0 10px", fontWeight: "bold" }}>
+            <p style={{ color: "#fff", fontSize: "17px", margin: "16px 0 4px", fontWeight: "bold" }}>
               Total : {euros(totalHt)} HT
-              <span style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px", fontWeight: "normal" }}>
-                {" "}· enregistré : {euros(ouverte.montant_ht)} HT
+              <span style={{ color: OR, fontWeight: "normal" }}>
+                {" "}· TVA {euros(totalTva)} · {euros(totalTtc)} TTC
               </span>
+            </p>
+            <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "12.5px", margin: "0 0 12px" }}>
+              Enregistré : {euros(ouverte.montant_ht)} HT · {euros(ouverte.montant_ttc)} TTC
+              {Math.abs(totalHt - (Number(ouverte.montant_ht) || 0)) > 0.009
+                ? " — le chiffrage à l'écran n'est pas encore enregistré."
+                : ""}
             </p>
 
             <button onClick={enregistrerLignes} disabled={occupe !== ""} style={BOUTON}>
