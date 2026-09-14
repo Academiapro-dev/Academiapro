@@ -1146,7 +1146,34 @@ export default function PageLinkedin() {
         : "a_relancer";
       const d = await appeler({ action: action });
       if (d.ok) {
-        setLignes(d.lignes || []);
+        // 🚨 14/09 — LES FICHES DU CRM ARRIVENT EN DOUBLE, ET IL FAUT LES
+        // ECARTER ICI.
+        //
+        // LE DEFAUT, TROUVE PAR JACQUES : l onglet annoncait « Messages
+        // envoyes · 191 » et la serie disait « 1 / 314 ». L ecart n etait
+        // pas un compteur faux : c est la LISTE qui portait des doublons.
+        // Cote route, lister() parcourt Object.keys(TABLES) PUIS y ajoute
+        // « manuel » — alors que TABLES contient deja manuel → la table crm
+        // est lue deux fois, et chaque fiche saisie a la main apparait deux
+        // fois. 191 relances reelles + 123 fiches du CRM en double = 314.
+        //
+        // 🚨 CE N ETAIT PAS QU UN CHIFFRE : dans une serie, chaque fiche du
+        // CRM revenait une seconde fois, donc le meme prospect recevait
+        // DEUX FOIS le meme message.
+        //
+        // ⚠️ LA CORRECTION DE FOND EST DANS LA ROUTE (une ligne : SOURCES
+        // doit valoir Object.keys(TABLES), sans le concat). Tant qu elle
+        // n est pas faite, cette deduplication protege l ecran ET la serie.
+        const brutes = d.lignes || [];
+        const vues: any = {};
+        const uniques: any[] = [];
+        for (const l of brutes) {
+          const k = cleDe(l);
+          if (vues[k]) continue;
+          vues[k] = true;
+          uniques.push(l);
+        }
+        setLignes(uniques);
         setCompteurs(d.compteurs || null);
       } else setErreur(d.erreur || "Lecture impossible.");
     } catch (e: any) {
