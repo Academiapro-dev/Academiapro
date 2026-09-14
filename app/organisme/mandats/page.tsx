@@ -73,6 +73,9 @@ export default function PageMandats() {
   const [occupe, setOccupe] = useState("");
   const [message, setMessage] = useState("");
   const [erreur, setErreur] = useState("");
+  // Quand la route sait ou envoyer le client, l ecran pose le lien : un
+  // message qui dit quoi faire sans dire ou est un message a moitie ecrit.
+  const [allerA, setAllerA] = useState("");
 
   useEffect(function () {
     const p = new URLSearchParams(window.location.search);
@@ -122,10 +125,14 @@ export default function PageMandats() {
       const d = await r.json();
       if (d.ok) {
         setMessage(d.message);
+        setAllerA("");
         setCreation(false); setBienId(""); setNotes("");
         await charger(vueRegistre);
         if (d.mandat) setOuvert(d.mandat);
-      } else setErreur(d.erreur || "Création impossible.");
+      } else {
+        setErreur(d.erreur || "Création impossible.");
+        setAllerA(d.aller_a || "");
+      }
     } catch (e: any) { setErreur("Création impossible : " + String(e)); }
     setOccupe("");
   }
@@ -169,7 +176,17 @@ export default function PageMandats() {
         </p>
 
         {message && <p style={{ color: VERT, fontSize: "15px", fontWeight: "bold" }}>{message}</p>}
-        {erreur && <p style={{ color: ROUGE, fontSize: "15px" }}>{erreur}</p>}
+        {erreur && (
+          <p style={{ color: ROUGE, fontSize: "15px", lineHeight: 1.7 }}>
+            {erreur}
+            {allerA ? (
+              <>
+                {" "}
+                <a href={allerA} style={{ color: OR }}>Ouvrir mon portefeuille →</a>
+              </>
+            ) : null}
+          </p>
+        )}
 
         {!vueRegistre && !chargement && (
           <div style={{ display: "flex", gap: "14px", flexWrap: "wrap", margin: "18px 0" }}>
