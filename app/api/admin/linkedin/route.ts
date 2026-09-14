@@ -574,24 +574,26 @@ async function lister(statuts: string[], limite: number, colonneTri?: string, re
   // envoyes ». `recent` inverse pour « Mes invitations ».
   const croissant = recent !== true;
 
-  // 🚨 LA TABLE crm MANQUAIT — CORRIGE LE 02/09.
+  // 🚨 CHAQUE TABLE UNE SEULE FOIS — CORRIGE LE 14/09.
   //
-  // LE DEFAUT, TROUVE PAR JACQUES : « les fiches que j ai rentrees en
-  // dehors de mon listing n apparaissent pas ». Cette boucle ne parcourait
-  // que Object.keys(TABLES), c est-a-dire LES QUATRE BASES DE PROSPECTION.
-  // La table crm, ou vivent TOUTES les fiches saisies a la main, n y etait
-  // pas.
+  // LE DEFAUT, TROUVE PAR JACQUES : l onglet annoncait « Messages
+  // envoyes · 191 » et la serie disait « 1 / 314 ». La ligne etait :
+  //     Object.keys(TABLES).concat(["manuel"])
+  // Or TABLES CONTIENT DEJA « manuel » (qui pointe sur crm). La table crm
+  // etait donc lue DEUX FOIS, et chaque fiche saisie a la main apparaissait
+  // en double : 191 relances reelles + 123 fiches du CRM = 314.
   //
-  // CONSEQUENCE : des qu une fiche manuelle recevait un statut — invitee,
-  // acceptee, relancee — elle DISPARAISSAIT de l ecran. Elle restait en
-  // base, intacte, mais aucune liste ne la remontait. Trois fiches du
-  // 02/09 (Cecile Doronzo, Naim Riffi, Joris Shehadeh) etaient ainsi
-  // introuvables alors qu elles portaient le statut relance.
+  // 🚨 CE N ETAIT PAS QU UN CHIFFRE FAUX. Dans une serie d envois, chaque
+  // fiche du CRM revenait une seconde fois — le meme prospect recevait
+  // DEUX FOIS le meme message.
   //
-  // ⚠️ listerEnFile() interrogeait deja crm : c est pour cela que les
-  // fiches SANS statut s affichaient bien dans « En attente d invitation ».
-  // Le trou ne touchait que celles qui avaient avance.
-  const SOURCES = Object.keys(TABLES).concat(["manuel"]);
+  // L ajout venait du 02/09 : la table crm manquait alors reellement, mais
+  // elle avait ete ajoutee AUSSI dans TABLES. Les deux corrections se sont
+  // superposees.
+  //
+  // ⚠️ NE PAS REMETTRE LE concat. Si une source manque un jour, l ajouter
+  // dans TABLES — c est la seule liste qui fait foi.
+  const SOURCES = Object.keys(TABLES);
 
   const parTable = await Promise.all(
     SOURCES.map(async function (cle) {
