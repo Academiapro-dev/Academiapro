@@ -401,6 +401,26 @@ export default function PageBiens() {
               {occupe === "enr" ? "Enregistrement…" : "Enregistrer le bien"}
             </button>
 
+            {/* 🆕 ETABLIR UN MANDAT — 14/09.
+                🚨 SEULEMENT SUR UN BIEN DEJA ENREGISTRE : un mandat porte sur
+                un bien identifie, et un bien qui n existe pas encore en base
+                ne peut pas en porter.
+                ⚠️ LE MANDAT REPREND LE PROPRIETAIRE, LE PRIX ET LES
+                HONORAIRES DU BIEN : c est pour cela qu on part d ici et
+                jamais d un ecran vide. */}
+            {formulaire.id && (
+              <a
+                href={"/organisme/mandats?bien=" + encodeURIComponent(String(formulaire.id))
+                  + "&nom=" + encodeURIComponent(
+                    [LIB_TYPE[formulaire.type_bien] || "", formulaire.ville || "", formulaire.reference ? "réf. " + formulaire.reference : ""]
+                      .filter(Boolean).join(" · ")
+                  )}
+                style={{ ...SECOND, marginLeft: "12px", display: "inline-block", textDecoration: "none" }}
+              >
+                Établir un mandat →
+              </a>
+            )}
+
             {formulaire.id && (
               <>
                 <h3 style={{ color: OR, fontSize: "15px", margin: "24px 0 10px" }}>Où en est ce bien ?</h3>
