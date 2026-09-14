@@ -66,10 +66,21 @@ export default function PageEcheances() {
         setTotalRetard(d.total_retard || 0);
       } else setErreur(d.erreur || "Lecture impossible.");
 
-      // Les factures sans echeancier, pour en proposer un.
-      const rf = await fetch("/api/organisme/factures");
-      const df = await rf.json();
-      if (df && (df.ok || Array.isArray(df.factures))) setFactures(df.factures || []);
+      // 🚨 LA ROUTE S APPELLE « facture », AU SINGULIER — 14/09.
+      //
+      // Un premier jet appelait /api/organisme/factures : la route n existe
+      // pas, Next rendait une page d erreur en HTML, et la lecture du JSON
+      // echouait sur « SyntaxError ». Toute la page affichait alors une
+      // erreur, alors que seul le menu des factures manquait.
+      // ⚠️ ELLE EST DANS SON PROPRE try : une facturation indisponible ne
+      // doit pas empecher de voir ses echeances.
+      try {
+        const rf = await fetch("/api/organisme/facture");
+        const df = await rf.json();
+        const liste = df && (df.factures || df.lignes || df.donnees);
+        if (Array.isArray(liste)) setFactures(liste);
+        else if (Array.isArray(df)) setFactures(df);
+      } catch (e) {}
     } catch (e: any) { setErreur("Lecture impossible : " + String(e)); }
     setChargement(false);
   }
