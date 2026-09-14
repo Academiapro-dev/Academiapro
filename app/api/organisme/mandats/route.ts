@@ -220,9 +220,13 @@ export async function POST(req: NextRequest) {
       if (r.data) { mandantId = r.data.id; mandantEmail = r.data.email || null; }
     }
     if (!mandantId) {
+      // ⚠️ UN REFUS DOIT DIRE OU ALLER. « Renseignez le proprietaire » laissait
+      // chercher : le champ est sur la fiche du bien, pas ici. Defaut releve
+      // par Jacques a l essai du 14/09.
       return NextResponse.json({
         ok: false,
-        erreur: "Le mandant doit être un contact de votre CRM. Renseignez le propriétaire du bien.",
+        erreur: "Ce bien n'a pas de propriétaire. Ouvrez-le dans votre portefeuille et rattachez-lui un contact du CRM, ou repartez de la fiche du contact avec « Ajouter un bien ».",
+        aller_a: "/organisme/biens",
       }, { status: 400 });
     }
 
