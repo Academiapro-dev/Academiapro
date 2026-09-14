@@ -205,6 +205,20 @@ export default function PageCRM() {
   const [profils, setProfils] = useState<string[]>([]);
 
   // ══════════════════════════════════════════════════════════════════════
+  // LES SEQUENCES DE RELANCE — 14/09.
+  //
+  // 🚨 ON INSCRIT FICHE PAR FICHE, ET C EST VOULU. Rien ne part sur toute
+  // la base : le client choisit qui suit quelle sequence. C est la
+  // difference entre relancer et harceler, et c est la regle validee par
+  // Jacques.
+  // ⚠️ UN SIMPLE APPEL, PAS UN FORMULAIRE. Meme prudence que pour le SMS
+  // et les documents : ce fichier a deja rendu tout le CRM blanc le 04/09
+  // avec un build vert. On charge une liste, on poste, rien de plus.
+  // ══════════════════════════════════════════════════════════════════════
+  const [sequences, setSequences] = useState<any[]>([]);
+  const [seqOuverte, setSeqOuverte] = useState("");
+
+  // ══════════════════════════════════════════════════════════════════════
   // LA TELEPHONIE — 06/09.
   //
   // 🚨 DEUX JAMBES, ET C EST CE QUI SURPREND AU DEPART. Le client n a pas
@@ -283,6 +297,17 @@ export default function PageCRM() {
         if (dc && dc.ok) {
           setTelActive(!!dc.tel_active);
           if (dc.tel_numero) setMonPoste(String(dc.tel_numero));
+        }
+      } catch (e) {}
+
+      // Les sequences actives, pour le menu de la fiche. ⚠️ Un echec ne
+      // bloque rien : le CRM doit s ouvrir meme si cette lecture ne repond
+      // pas.
+      try {
+        const rs = await fetch("/api/organisme/sequences", { cache: "no-store" });
+        const ds = await rs.json();
+        if (ds && ds.ok && Array.isArray(ds.sequences)) {
+          setSequences(ds.sequences.filter(function (x: any) { return x.actif; }));
         }
       } catch (e) {}
 
@@ -783,6 +808,42 @@ export default function PageCRM() {
         await charger();
       } else {
         setErreur(data.erreur || "Inscription impossible.");
+      }
+    } catch (e: any) {
+      setErreur("Inscription impossible : " + String(e));
+    }
+    setOccupe("");
+  }
+
+  // 🚨 LES REFUS SE DISENT. La route ecarte une fiche desinscrite, perdue,
+  // cliente, ou deja dans une sequence : sans message, le client croirait
+  // que rien ne s est passe.
+  async function inscrireDansSequence(p: any, sequenceId: string) {
+    setOccupe("seq-" + p.email);
+    setMessage("");
+    setErreur("");
+    setSeqOuverte("");
+    try {
+      const r = await fetch("/api/organisme/sequences", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "inscrire",
+          sequence_id: sequenceId,
+          fiches: [String(p.id || p.email || "")],
+        }),
+      });
+      const d = await r.json();
+      if (d.ok) {
+        if ((d.inscrits || []).length > 0) {
+          setMessage("Inscrit dans la séquence. La première étape part le "
+            + new Date(d.inscrits[0].prochaine_le).toLocaleDateString("fr-FR") + ".");
+        } else {
+          const r0 = (d.refuses || [])[0];
+          setErreur("Non inscrit : " + ((r0 && r0.motif) || "raison inconnue") + ".");
+        }
+      } else {
+        setErreur(d.erreur || "Inscription impossible.");
       }
     } catch (e: any) {
       setErreur("Inscription impossible : " + String(e));
@@ -2054,6 +2115,59 @@ export default function PageCRM() {
                     >
                       Produire un document →
                     </a>
+
+                    {/* 🆕 INSCRIRE DANS UNE SEQUENCE — 14/09.
+                        ⚠️ N APPARAIT QUE SI DES SEQUENCES EXISTENT et que
+                        la fiche n est ni desinscrite ni perdue : proposer
+                        un geste qui sera refuse est pire que ne rien
+                        proposer. */}
+                    {sequences.length > 0 && !p.desinscrit && etape !== "perdu" && etape !== "client" && (
+                      <span style={{ display: "inline-block", marginLeft: "14px" }}>
+                        <button
+                          onClick={() => setSeqOuverte(seqOuverte === p.email ? "" : p.email)}
+                          disabled={occupe !== ""}
+                          style={{ background: "none", border: "none", color: "#c8a96e",
+                            fontSize: "13px", fontFamily: "Georgia,serif", cursor: "pointer",
+                            textDecoration: "none", padding: 0 }}>
+                          {occupe === "seq-" + p.email ? "…" : seqOuverte === p.email ? "Fermer" : "Mettre en séquence →"}
+                        </button>
+                      </span>
+                    )}
+
+                    {seqOuverte === p.email && (
+                      <div style={{ marginTop: "9px", padding: "12px 14px",
+                        background: "rgba(255,255,255,0.025)",
+                        border: "1px solid rgba(200,169,110,0.3)", borderRadius: "9px" }}>
+                        <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px",
+                          margin: "0 0 9px", lineHeight: 1.7 }}>
+                          Dans quelle séquence ? Elle s&apos;arrêtera d&apos;elle-même dès
+                          que {String(p.nom || "ce contact").split(" ")[0]} répond.
+                        </p>
+                        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                          {sequences.map(function (sq: any) {
+                            const et = Array.isArray(sq.etapes) ? sq.etapes : [];
+                            return (
+                              <button key={sq.id}
+                                onClick={() => inscrireDansSequence(p, sq.id)}
+                                disabled={occupe !== ""}
+                                style={{ ...BOUTON, fontSize: "12.5px", padding: "8px 14px",
+                                  textAlign: "left" }}>
+                                {sq.nom}
+                                <span style={{ opacity: 0.65, marginLeft: "7px", fontSize: "11.5px" }}>
+                                  {et.length} étape(s)
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <p style={{ color: "rgba(255,255,255,0.35)", fontSize: "12px",
+                          margin: "9px 0 0", lineHeight: 1.7 }}>
+                          <a href="/organisme/sequences" style={{ color: "#c8a96e" }}>
+                            Gérer mes séquences
+                          </a>
+                        </p>
+                      </div>
+                    )}
 
                     {/* ══════════════════════════════════════════════════
                         LE JOURNAL D APPELS — 06/09.
