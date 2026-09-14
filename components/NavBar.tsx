@@ -559,6 +559,13 @@ export default function NavBar() {
               matin : sans entree dans la barre, elle n existerait que pour
               qui connait l adresse. */}
           <a href="/organisme/taches" style={lienMenu}>Tâches</a>
+          {/* 🆕 « BIENS » AJOUTE LE 14/09 — le portefeuille immobilier
+              (app/organisme/biens/page.tsx).
+              ⚠️ L ENTREE EST LA POUR TOUS LES CLIENTS Mr CRM, agences ou
+              non : un cabinet qui n a pas de biens verra un ecran vide, ce
+              qui ne coute rien. La masquer supposerait de savoir de quel
+              metier est le client — ce que la base ne dit pas encore. */}
+          <a href="/organisme/biens" style={lienMenu}>Biens</a>
           <a href="/organisme/agenda" style={lienMenu}>Agenda</a>
           <a href="/organisme/facturation" style={lienMenu}>Ma facturation</a>
           <a href="/organisme/signatures" style={lienMenu}>Signatures</a>
