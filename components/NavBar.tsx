@@ -572,6 +572,11 @@ export default function NavBar() {
               et la DGCCRF : il doit s atteindre en un clic, pas en tapant
               une adresse. */}
           <a href="/organisme/mandats" style={lienMenu}>Mandats</a>
+          {/* 🆕 « ACQUEREURS » AJOUTE LE 14/09 — le rapprochement
+              (app/organisme/recherches/page.tsx). C est l ecran qui repond a
+              « qui j appelle ce matin, et pour quel bien » : la seule chose
+              qu un CRM immobilier fait et qu un generaliste ne fait pas. */}
+          <a href="/organisme/recherches" style={lienMenu}>Acquéreurs</a>
           <a href="/organisme/agenda" style={lienMenu}>Agenda</a>
           <a href="/organisme/facturation" style={lienMenu}>Ma facturation</a>
           <a href="/organisme/signatures" style={lienMenu}>Signatures</a>
