@@ -548,6 +548,12 @@ export default function NavBar() {
               n est PAS dans la barre : il s ouvre depuis une fiche, avec le
               prospect en parametre. Un rendez-vous sans fiche n a pas de
               contexte — meme raison que pour l appel. */}
+          {/* 🆕 « AFFAIRES » AJOUTE LE 14/09, en meme temps que le pipeline
+              (app/organisme/affaires/page.tsx). C est la seule porte vers le
+              pipeline : une affaire se cree depuis une fiche, mais se
+              retrouve ici. Sans cette entree, le client ne verrait jamais
+              ce qu il a en cours. */}
+          <a href="/organisme/affaires" style={lienMenu}>Affaires</a>
           <a href="/organisme/agenda" style={lienMenu}>Agenda</a>
           <a href="/organisme/facturation" style={lienMenu}>Ma facturation</a>
           <a href="/organisme/signatures" style={lienMenu}>Signatures</a>
