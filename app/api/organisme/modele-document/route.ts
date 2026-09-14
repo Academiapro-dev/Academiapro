@@ -103,6 +103,19 @@ function valeursDeLaFiche(f: any): any {
   return v;
 }
 
+// Une fiche du CRM, par son adresse ou par son identifiant.
+// ⚠️ L ADRESSE D ABORD : c est la cle que l ecran connait.
+async function lireFiche(tenant: string, cle: string): Promise<any> {
+  const c = String(cle || "").trim();
+  if (!c) return null;
+  if (c.indexOf("@") > 0) {
+    const r = await supabase.from("crm").select("*").eq("tenant_id", tenant).eq("email", c.toLowerCase()).maybeSingle();
+    return r.data || null;
+  }
+  const r = await supabase.from("crm").select("*").eq("tenant_id", tenant).eq("id", c).maybeSingle();
+  return r.data || null;
+}
+
 function tenantDe(req: NextRequest, session: any): string | null {
   const admin = session && ADMINS.indexOf(session.email) >= 0;
   let tenant = session ? session.tenantId : null;
@@ -132,11 +145,13 @@ export async function GET(req: NextRequest) {
 
   if (!modele) return NextResponse.json({ ok: false, erreur: "Modèle introuvable." }, { status: 404 });
 
-  let fiche: any = null;
-  if (ficheId) {
-    const r = await supabase.from("crm").select("*").eq("id", ficheId).eq("tenant_id", tenant).maybeSingle();
-    fiche = r.data;
-  }
+  // 🚨 LA FICHE SE RETROUVE PAR SON ADRESSE — 14/09.
+  //
+  // LE CRM DU CLIENT IDENTIFIE UNE FICHE PAR SON EMAIL, pas par un
+  // identifiant : c est ce que fait upsert_prospect, et c est ce que
+  // l ecran manipule. Chercher par `id` ne rendait rien. On accepte les
+  // deux, l adresse d abord.
+  const fiche = await lireFiche(tenant, ficheId);
 
   const connues = valeursDeLaFiche(fiche);
   connues.date = jour();
@@ -146,7 +161,7 @@ export async function GET(req: NextRequest) {
     return { cle: c.cle, libelle: c.libelle, valeur: valeur || "", rempli: !!valeur };
   });
 
-  return NextResponse.json({ ok: true, modele: { id: modele.id, titre: modele.titre }, fiche: fiche ? { id: fiche.id, nom: fiche.nom, email: fiche.email } : null, champs: champs });
+  return NextResponse.json({ ok: true, modele: { id: modele.id, titre: modele.titre }, fiche: fiche ? { id: fiche.id, cle: fiche.email, nom: fiche.nom, email: fiche.email } : null, champs: champs });
 }
 
 // ---- PRODUIRE LE PDF ----
@@ -169,11 +184,7 @@ export async function POST(req: NextRequest) {
 
     if (!modele) return NextResponse.json({ ok: false, erreur: "Modèle introuvable." }, { status: 404 });
 
-    let fiche: any = null;
-    if (b.fiche_id) {
-      const r = await supabase.from("crm").select("*").eq("id", String(b.fiche_id)).eq("tenant_id", tenant).maybeSingle();
-      fiche = r.data;
-    }
+    const fiche = await lireFiche(tenant, String(b.fiche_id || b.fiche || ""));
 
     // Les valeurs de la fiche, completees par celles saisies a l ecran.
     // ⚠️ LA SAISIE PRIME : si le client corrige une adresse, c est la sienne
@@ -333,7 +344,8 @@ export async function POST(req: NextRequest) {
       pdf_octets: octets.length,
       donnees: {
         modele_id: modele.id, modele_code: modele.code, modele_titre: modele.titre,
-        fiche_id: fiche ? fiche.id : null, valeurs: valeurs, champs_manquants: manquants,
+        fiche_id: fiche ? fiche.id : null, fiche_email: fiche ? fiche.email : null,
+        valeurs: valeurs, champs_manquants: manquants,
       },
     });
 
