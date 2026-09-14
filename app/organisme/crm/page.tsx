@@ -2187,6 +2187,22 @@ export default function PageCRM() {
                       Ajouter un bien →
                     </a>
 
+                    {/* 🆕 CE QU IL CHERCHE — 14/09.
+                        Les criteres de l acquereur : type, secteur, budget,
+                        surface. Ils servent au rapprochement avec le
+                        portefeuille — c est ce qui dit, le matin, qui
+                        appeler pour quel bien.
+                        ⚠️ PLUSIEURS RECHERCHES PAR CONTACT sont possibles
+                        (decision du 14/09) : un investisseur cherche souvent
+                        deux choses a la fois. */}
+                    <a
+                      href={"/organisme/recherches?fiche=" + encodeURIComponent(String(p.id || p.email || ""))
+                        + "&nom=" + encodeURIComponent(p.nom || p.organisme || "")}
+                      style={{ color: "#c8a96e", fontSize: "13px", textDecoration: "none", display: "inline-block", marginTop: "6px", marginLeft: "14px" }}
+                    >
+                      Ce qu&apos;il cherche →
+                    </a>
+
                     {/* 🆕 INSCRIRE DANS UNE SEQUENCE — 14/09.
                         ⚠️ N APPARAIT QUE SI DES SEQUENCES EXISTENT et que
                         la fiche n est ni desinscrite ni perdue : proposer
