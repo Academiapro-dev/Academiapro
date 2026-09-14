@@ -31,12 +31,22 @@ export default function PageProduire() {
   const [valeurs, setValeurs] = useState<any>({});
   const [produit, setProduit] = useState<any>(null);
 
+  const [cherche, setCherche] = useState("");
   const [chargement, setChargement] = useState(true);
   const [occupe, setOccupe] = useState("");
   const [message, setMessage] = useState("");
   const [erreur, setErreur] = useState("");
 
-  useEffect(function () { charger(); }, []);
+  useEffect(function () {
+    charger();
+    // 🆕 OUVERTURE DEPUIS UNE FICHE — 14/09. /organisme/produire?fiche=<email>
+    // arrive avec le client deja choisi : c est le chemin naturel, depuis
+    // le CRM plutot que depuis un menu.
+    try {
+      const f = new URLSearchParams(window.location.search).get("fiche");
+      if (f) setFiche(f);
+    } catch (e) {}
+  }, []);
   useEffect(function () { if (modele) preparer(); }, [modele, fiche]);
 
   function suffixe(q?: string) {
@@ -56,11 +66,18 @@ export default function PageProduire() {
       if (d1.ok) setModeles((d1.modeles || []).filter(function (m: any) { return m.actif; }));
       else setErreur(d1.erreur || "Lecture impossible.");
 
-      // Les fiches du CRM du client. La route crm existe deja et rend la
-      // liste bornee au tenant de la session.
-      const r2 = await fetch("/api/organisme/crm" + suffixe());
+      // 🚨 LES FICHES VIENNENT DE /api/crm, ACTION « prospects » — 14/09.
+      //
+      // C est la route que l ecran du CRM utilise lui-meme. Un premier jet
+      // appelait /api/organisme/crm, qui n existe pas : le menu des
+      // clients restait vide sans rien dire.
+      const r2 = await fetch("/api/crm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "prospects" }),
+      });
       const d2 = await r2.json();
-      if (d2.ok) setFiches(d2.fiches || d2.prospects || d2.lignes || []);
+      if (Array.isArray(d2)) setFiches(d2);
     } catch (e: any) {
       setErreur("Lecture impossible : " + String(e));
     }
@@ -125,6 +142,17 @@ export default function PageProduire() {
     return bouts.join(" · ") || "(sans nom)";
   }
 
+  // La recherche porte sur tout ce qui identifie une personne, comme dans
+  // le CRM : nom, adresse, telephone, organisme, ville.
+  const q = cherche.trim().toLowerCase();
+  const fichesFiltrees = q
+    ? fiches.filter(function (f: any) {
+        const t = [f.nom, f.email, f.telephone, f.organisme, f.ville, f.dirigeant_prenom, f.dirigeant_nom]
+          .map(function (v: any) { return String(v || ""); }).join(" ").toLowerCase();
+        return t.indexOf(q) >= 0;
+      })
+    : fiches;
+
   const aRemplir = champs.filter(function (c: any) { return !c.rempli; });
   const remplis = champs.filter(function (c: any) { return c.rempli; });
 
@@ -159,12 +187,25 @@ export default function PageProduire() {
           )}
 
           <span style={{ fontSize: "14px", color: "rgba(255,255,255,0.6)" }}>2. Pour quel client ?</span>
+          {/* 🆕 LA RECHERCHE AVANT LE MENU — 14/09. Jacques : « pour avoir
+              le nom du prospect il faut aller sur Mon CRM ». Avec trois
+              cents fiches, derouler un menu ne marche pas : on tape deux
+              lettres du nom, de la ville ou de l organisme. */}
+          <input
+            value={cherche}
+            onChange={(e) => setCherche(e.target.value)}
+            placeholder="Chercher un nom, un organisme, une ville…"
+            style={{ ...CHAMP, marginBottom: "8px" }}
+          />
           <select value={fiche} onChange={(e) => setFiche(e.target.value)} style={CHAMP}>
             <option value="">— sans fiche, tout saisir à la main —</option>
-            {fiches.map(function (f: any) {
-              return <option key={f.id} value={f.id}>{nomFiche(f)}</option>;
+            {fichesFiltrees.map(function (f: any) {
+              return <option key={f.email} value={f.email}>{nomFiche(f)}</option>;
             })}
           </select>
+          <p style={{ color: "rgba(255,255,255,0.35)", fontSize: "12.5px", margin: "-4px 0 0" }}>
+            {fichesFiltrees.length} fiche(s){cherche ? " trouvée(s)" : ""} sur {fiches.length}.
+          </p>
         </div>
 
         {modele && champs.length > 0 && (
