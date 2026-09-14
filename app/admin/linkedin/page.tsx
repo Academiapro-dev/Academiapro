@@ -365,10 +365,10 @@ function messageRelance(prenom: string, societe: string, nbFormations: number, c
   // un autre » garde la porte ouverte dans les deux cas.
   if (k === "mysterllc") {
     return salut
-      + "En complément de Mr Comptable, qui couvre la production comptable "
-      + "selon la réglementation française, je vous présente MysterLLC : une "
-      + "plateforme conçue pour les cabinets dont les clients envisagent de "
-      + "créer une LLC américaine, ou en détiennent déjà une.\n\n"
+      + "Je vous présente MysterLLC : une plateforme conçue pour ceux qui "
+      + "accompagnent des entrepreneurs — cabinets comptables, conseils, "
+      + "agences — dont les clients envisagent de créer une LLC américaine, "
+      + "ou en détiennent déjà une.\n\n"
       + "Pour le client qui veut se lancer : la création accompagnée de A à Z "
       + "— agent enregistré, statuts, demande du numéro fiscal transmise par "
       + "la plateforme, pacte de société signé électroniquement, ouverture du "
@@ -383,8 +383,8 @@ function messageRelance(prenom: string, societe: string, nbFormations: number, c
       + "Ce que ça change pour votre cabinet" + chez + " : vous accompagnez ces "
       + "projets sans embaucher ni vous former à la fiscalité américaine, vous "
       + "facturez une offre internationale, et vous gardez votre outil de "
-      + "production pour le reste — le mien ou un autre. Plusieurs sociétés "
-      + "sous un même accès, présentation à vos couleurs sur demande.\n\n"
+      + "production pour le reste. Plusieurs sociétés sous un même accès, "
+      + "présentation à vos couleurs sur demande.\n\n"
       + "Si vous souhaitez le voir sur un dossier, réel ou fictif, je vous "
       + "montre le parcours en une séance.\n\n"
       // ⚠️ UN SEUL LIEN, ET C EST VOULU — 14/09. LinkedIn transforme le
@@ -451,21 +451,150 @@ function messageRelance(prenom: string, societe: string, nbFormations: number, c
     + "Bien à vous,\nJacques Lalou\nacademiapro.fr";
 }
 
-// LA SECONDE RELANCE. Meme squelette pour tous les produits — seuls le mot
-// qui designe l outil et le domaine changent. Elle ne reargumente pas :
-// elle donne une porte de sortie, et propose de montrer plutot que de dire.
+// ══════════════════════════════════════════════════════════════════════════
+// LA SECONDE RELANCE — REECRITE LE 14/09, VALIDEE PAR JACQUES.
+//
+// CE QUI CHANGE. L ancienne relance etait la MEME pour tous les produits :
+// « mon message precedent est peut-etre passe inapercu », « si le sujet ne
+// vous concerne pas, dites-le-moi », « si vous etes curieux ». Trois
+// defauts : elle rappelait qu on avait ete ignore, elle offrait la porte de
+// sortie avant d avoir donne une raison de rester, et elle ne disait RIEN
+// DE NEUF — donc aucune raison de relancer.
+//
+// LE PRINCIPE RETENU (Jacques, 14/09) : une relance apporte UN SUJET
+// NOUVEAU, un produit complementaire de celui deja presente. Le prospect
+// ne se sent pas relance, il se sent informe. Un courrier par produit :
+//   academiapro → le LMS seul (pour qui a deja ses propres formations)
+//   mrlms       → Mr CRM (trouver les stagiaires, pas seulement les former)
+//   mrcrm       → le catalogue AcadeMIA (le contenu, pas l outil)
+//   mrcomptable → MysterLLC (l international, en complement)
+//   mysterllc   → la creation A→Z (la nouveaute)
+//
+// ⚠️ CHAQUE TEXTE NE PROMET QUE CE QUI EXISTE. Pas de licence par poste
+// pour Mr CRM : la grille EST par licence — la phrase exacte est « toutes
+// les fonctions comprises quel que soit le nombre de licences », ce qui est
+// vrai (tous les paliers gardent toutes les fonctions).
+// ⚠️ UN SEUL DOMAINE EN SIGNATURE : LinkedIn transforme le premier lien en
+// carte d apercu ; deux domaines faisaient apparaitre le mauvais logo.
+// ══════════════════════════════════════════════════════════════════════════
 function secondMessage(prenom: string, cle?: string) {
   const p = capitaliser(prenom);
-  const f = produit(cle);
-  const quoi = String(cle || "") === "academiapro" || String(cle || "") === "mrlms"
-    ? "la plateforme"
-    : "l'outil";
+  const salut = (p ? "Bonjour " + p : "Bonjour") + ",\n\n";
+  const k = String(cle || "");
 
-  return (p ? "Bonjour " + p : "Bonjour") + ",\n\n"
-    + "Je me permets un mot, mon message précédent est peut-être passé inaperçu.\n\n"
-    + "Si le sujet ne vous concerne pas, dites-le-moi simplement, je n'insisterai pas.\n\n"
-    + "Et si vous êtes curieux de voir à quoi ressemble " + quoi + ", je peux vous ouvrir "
-    + "un accès pour que vous jugiez par vous-même — sans engagement d'aucune sorte.\n\n"
+  // ACADEMIA PRO → le LMS seul. Beaucoup d organismes ont leurs propres
+  // formations : ce qui leur manque est l espace, pas le contenu.
+  if (k === "academiapro") {
+    return salut
+      + "Je vous avais présenté notre catalogue de formations. Je reviens vers "
+      + "vous pour une autre raison : beaucoup d'organismes nous disent avoir "
+      + "d'abord besoin d'un LMS — l'espace de formation lui-même — plutôt que "
+      + "du contenu, parce qu'ils ont déjà leurs propres formations.\n\n"
+      + "C'est exactement ce que nous proposons : votre espace à vos couleurs, "
+      + "sur votre adresse, sans rien qui rappelle notre marque. Vos stagiaires "
+      + "s'y connectent, suivent vos modules, signent leur émargement ; vous "
+      + "éditez vos conventions, vos attestations, votre bilan pédagogique et "
+      + "financier. Les évaluations à chaud et à froid, le registre des "
+      + "réclamations et la trace de vos décisions sont tenus comme un auditeur "
+      + "Qualiopi les demande. Et vos stagiaires reçoivent un rappel par SMS ou "
+      + "par courriel la veille de chaque séance.\n\n"
+      + "Le catalogue reste disponible si vous voulez élargir votre offre, mais "
+      + "il n'est pas obligatoire.\n\n"
+      + "Si vous voulez voir l'espace tel que vos stagiaires le verront, je vous "
+      + "l'ouvre le temps d'un essai.\n\n"
+      + "Bien à vous,\nJacques Lalou\nmrlms.fr";
+  }
+
+  // MR LMS → MR CRM. Former ne manque pas ; trouver les stagiaires, si.
+  if (k === "mrlms") {
+    return salut
+      + "Je vous avais parlé de Mr LMS, votre espace de formation à vos couleurs. "
+      + "Un sujet revient souvent ensuite, et c'est rarement celui qu'on attend : "
+      + "ce n'est pas de former qui manque, c'est de trouver les stagiaires.\n\n"
+      + "Mr CRM est fait pour ça. Vos prospects dans une seule fiche, avec ce que "
+      + "vous leur avez dit et quand. Vous les appelez depuis la fiche — votre "
+      + "numéro s'affiche chez eux, pas le nôtre. Vous leur envoyez un SMS sous "
+      + "votre nom d'expéditeur. Vous leur faites signer un devis "
+      + "électroniquement. Et vous voyez, chaque matin, qui est à rappeler "
+      + "aujourd'hui.\n\n"
+      + "Toutes les fonctions sont comprises quel que soit le nombre de licences : "
+      + "rien n'est réservé à une formule supérieure.\n\n"
+      + "Si vous voulez l'essayer sur vos propres contacts, je vous ouvre un "
+      + "accès.\n\n"
+      + "Bien à vous,\nJacques Lalou\nmrcrm.fr";
+  }
+
+  // MR CRM → LE CATALOGUE. L outil etait le sujet ; le contenu est le neuf.
+  if (k === "mrcrm") {
+    return salut
+      + "Je vous avais présenté notre CRM. Je reviens sur un autre sujet, qui "
+      + "intéresse les organismes de formation : le contenu.\n\n"
+      + "Nous produisons notre propre catalogue de formations, prêtes à vendre "
+      + "sous votre marque : vous les proposez à vos clients sans les écrire, "
+      + "sans les tourner, sans les mettre à jour. Vos stagiaires les suivent "
+      + "dans votre espace, à vos couleurs, et vous gardez la relation "
+      + "commerciale.\n\n"
+      + "C'est une façon d'élargir votre offre sans embaucher ni produire, et de "
+      + "répondre oui à une demande que vous auriez refusée.\n\n"
+      + "Si vous voulez voir ce que contient le catalogue, je vous l'ouvre.\n\n"
+      + "Bien à vous,\nJacques Lalou\nacademiapro.fr";
+  }
+
+  // MR COMPTABLE → MYSTERLLC. Le cabinet peut dire oui a l international.
+  if (k === "mrcomptable") {
+    return salut
+      + "En complément de Mr Comptable, qui couvre la production comptable selon "
+      + "la réglementation française, je vous présente MysterLLC : une plateforme "
+      + "conçue pour les cabinets dont les clients envisagent de créer une LLC "
+      + "américaine, ou en détiennent déjà une.\n\n"
+      + "Pour le client qui veut se lancer : la création accompagnée de A à Z — "
+      + "agent enregistré, statuts, demande du numéro fiscal transmise par la "
+      + "plateforme, pacte de société signé électroniquement, ouverture du compte "
+      + "bancaire suivie jusqu'au bout — avec, à chaque étape, l'état du dossier "
+      + "et la preuve de ce qui a été fait.\n\n"
+      + "Pour le client qui a déjà sa société : la qualification côté français "
+      + "selon la jurisprudence récente, les dépenses et le compte courant tenus "
+      + "par devise avec chaque justificatif rattaché, les formulaires américains "
+      + "annuels préparés, signés et transmis par la plateforme à l'administration "
+      + "américaine avec la preuve d'envoi archivée, et les échéances des deux "
+      + "côtés rappelées par courriel et SMS.\n\n"
+      + "Ce que ça change pour votre cabinet : vous accompagnez ces projets sans "
+      + "embaucher ni vous former à la fiscalité américaine, vous facturez une "
+      + "offre internationale, et vous gardez votre outil de production pour le "
+      + "reste — le mien ou un autre. Plusieurs sociétés sous un même accès, "
+      + "présentation à vos couleurs sur demande.\n\n"
+      + "Si vous souhaitez le voir sur un dossier, réel ou fictif, je vous montre "
+      + "le parcours en une séance.\n\n"
+      + "Bien cordialement,\nJacques Lalou\nmysterllc.com";
+  }
+
+  // MYSTERLLC → LA CREATION A→Z. La nouveaute la plus demandee.
+  if (k === "mysterllc") {
+    return salut
+      + "Je vous avais parlé du suivi de votre LLC américaine : échéances, "
+      + "formulaires annuels, déclarations françaises.\n\n"
+      + "Il y a du nouveau, et c'est ce que les titulaires demandaient le plus : "
+      + "la plateforme accompagne désormais la création elle-même. Le choix de "
+      + "l'agent enregistré, les statuts, la demande du numéro fiscal transmise "
+      + "par nos soins, le pacte de société signé électroniquement, l'ouverture "
+      + "du compte bancaire suivie jusqu'au bout. À chaque étape, vous voyez où "
+      + "en est le dossier, ce qui a été envoyé, et ce qu'on attend — y compris "
+      + "quand c'est l'administration qui prend son temps.\n\n"
+      + "Pour une société déjà créée, rien ne change : le suivi et le dépôt des "
+      + "formulaires continuent comme avant.\n\n"
+      + "Si vous voulez voir le parcours, je vous le montre en une séance.\n\n"
+      + "Bien à vous,\nJacques Lalou\nmysterllc.com";
+  }
+
+  // Repli : un produit sans relance dediee (hebrewpro, ou une marque a venir).
+  // ⚠️ Ne pas laisser ce texte devenir la relance par defaut de tout le
+  // monde : ecrire le sujet nouveau du produit des qu il en a un.
+  const f = produit(cle);
+  return salut
+    + "Je reviens vers vous avec une précision utile : l'outil a évolué depuis "
+    + "mon message, et ce que vous auriez pu juger incomplet ne l'est plus.\n\n"
+    + "Si vous voulez le voir par vous-même, je vous ouvre un accès le temps "
+    + "d'un essai.\n\n"
     + "Bien à vous,\nJacques Lalou\n" + f.domaine;
 }
 
