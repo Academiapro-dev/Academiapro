@@ -108,9 +108,11 @@ function valeursDeLaFiche(f: any): any {
 async function lireFiche(tenant: string, cle: string): Promise<any> {
   const c = String(cle || "").trim();
   if (!c) return null;
+  // ⚠️ L IDENTIFIANT D ABORD. Beaucoup de fiches venues de LinkedIn n ont
+  // pas d adresse electronique : l email ne peut donc pas etre la cle.
   if (c.indexOf("@") > 0) {
     const r = await supabase.from("crm").select("*").eq("tenant_id", tenant).eq("email", c.toLowerCase()).maybeSingle();
-    return r.data || null;
+    if (r.data) return r.data;
   }
   const r = await supabase.from("crm").select("*").eq("tenant_id", tenant).eq("id", c).maybeSingle();
   return r.data || null;
@@ -208,7 +210,10 @@ export async function POST(req: NextRequest) {
       return "____________";
     });
 
-    const destinataire = String(b.email || (fiche && fiche.email) || "").trim().toLowerCase();
+    // ⚠️ UNE FICHE SANS ADRESSE NE PEUT PAS RECEVOIR DE SIGNATURE. Le
+    // document se produit quand meme — c est la saisie {{email}} du modele,
+    // ou l envoi manuel, qui fournira l adresse le moment venu.
+    const destinataire = String(b.email || valeurs.email || (fiche && fiche.email) || "").trim().toLowerCase();
 
     const { data: o } = await supabase
       .from("organismes_formation")
