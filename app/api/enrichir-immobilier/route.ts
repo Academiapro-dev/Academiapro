@@ -478,6 +478,7 @@ export async function GET(req: NextRequest) {
 
   let pagesTraitees = 0;
   let lignesEnvoyees = 0;
+  let effectifsEcrits = 0;
   let sirenSansDirigeant = 0;
   let arret = "nombre de pages atteint";
   const incidents: any[] = [];
@@ -523,6 +524,11 @@ export async function GET(req: NextRequest) {
       // 🚨 UNE SEULE ECRITURE POUR TOUTE LA PAGE. C est ce qui rend le cron
       // possible : vingt-cinq ecritures separees mettaient 78 secondes sur
       // 40 pages, la coupure de Vercel est a 60.
+      //
+      // ⚠️ `ignoreDuplicates: true` PROTEGE L EXISTANT : une ligne deja en
+      // base garde son adresse, son site, son LinkedIn — tout ce que
+      // Dropcontact a coute. On ne la reecrit JAMAIS avec des colonnes
+      // vides venues de l annuaire.
       const { error } = await supabase
         .from("prospects_immobilier")
         .upsert(lignes, { onConflict: "siren", ignoreDuplicates: true });
@@ -534,6 +540,42 @@ export async function GET(req: NextRequest) {
       }
 
       lignesEnvoyees += lignes.length;
+
+      // 🚨🚨 L EFFECTIF DOIT ETRE ECRIT MEME SUR UNE LIGNE DEJA CONNUE.
+      //
+      // LE DEFAUT CONSTATE LE 15/09 : l upsert ci-dessus ignore les lignes
+      // existantes — c est ce qu on veut pour les adresses — mais du coup
+      // AUCUNE des 23 184 lignes deja collectees ne recevait sa tranche
+      // d effectif. L essai sur le 69 a rendu « ajoutes: 0 » et zero taille
+      // ecrite : la donnee arrivait de l annuaire et se perdait.
+      //
+      // ⚠️ POURQUOI C EST SANS DANGER : `effectif_code` et `taille` viennent
+      // EXCLUSIVEMENT de l annuaire. Aucune autre source ne les alimente,
+      // rien de paye ne peut etre ecrase, et une entreprise qui grandit doit
+      // justement voir sa tranche changer.
+      // ⚠️ ON N ECRIT QUE LES LIGNES QUI ONT UN EFFECTIF : inutile de poser
+      // « inconnu » sur une ligne qui l est deja.
+      // 🚨 GROUPE PAR TRANCHE, PAS UNE ECRITURE PAR LIGNE. Vingt-cinq
+      // ecritures par page feraient 10 000 ecritures par departement : le
+      // cron ne tiendrait pas, exactement comme le defaut n° 4 plus haut.
+      // Il n existe que seize codes d effectif : une page ne demande donc
+      // JAMAIS plus de seize ecritures, et le plus souvent trois ou quatre.
+      const parTranche: any = {};
+      for (const l of lignes) {
+        if (!l.effectif_code) continue;
+        const k = String(l.effectif_code);
+        if (!parTranche[k]) parTranche[k] = { taille: l.taille, sirens: [] };
+        parTranche[k].sirens.push(l.siren);
+      }
+
+      for (const code of Object.keys(parTranche)) {
+        const g = parTranche[code];
+        await supabase
+          .from("prospects_immobilier")
+          .update({ effectif_code: code, taille: g.taille })
+          .in("siren", g.sirens);
+        effectifsEcrits += g.sirens.length;
+      }
     }
 
     // 🚨 SI LA PAGE N A RIEN APPORTE, LA POSITION N AVANCERAIT PAS.
@@ -571,6 +613,7 @@ export async function GET(req: NextRequest) {
     derniere_page: page - 1,
     prochaine_page: page > PAGE_MAX ? null : page,
     lignes_envoyees: lignesEnvoyees,
+    effectifs_ecrits: effectifsEcrits,
     sans_dirigeant: sirenSansDirigeant,
     ajoutes: ajoutes,
     total_en_base: apres.valeur,
