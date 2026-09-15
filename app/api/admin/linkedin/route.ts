@@ -23,11 +23,22 @@ const supabase = createClient(
 // LinkedIn, dont 118 DEJA INVITES — verifie en base. Mais elle ne figurait
 // pas ici : aucun compteur ne les voyait, aucune liste ne les rendait,
 // aucune acceptation ni aucun refus ne pouvait etre marque.
+//
+// 🆕 LES AGENCES IMMOBILIERES — AJOUTEES LE 15/09, EXACTEMENT POUR LA MEME
+// RAISON QUE LES CABINETS LE 01/09. La table prospects_immobilier porte
+// 25 491 lignes dont 737 profils LinkedIn, collectees departement par
+// departement. Sans cette entree, l ecran affiche bien le bouton « Agences
+// immobilieres » — la liste des bases vit cote ecran — mais la route ne
+// rend rien : aucun compteur, aucune fiche, aucune invitation possible.
+// ⚠️ LA LECON EST LA MEME QU IL Y A DEUX SEMAINES : DEUX LISTES A TENIR,
+// une cote ecran (BASES) et une ici (TABLES). Ajouter une base dans l une
+// sans l autre donne un ecran qui promet et une route qui ne repond pas.
 const TABLES: any = {
   organismes: "prospects_organismes",
   qualiopi: "prospects_qualiopi",
   interim: "prospects_interim",
   cabinets: "prospects_cabinets",
+  immobilier: "prospects_immobilier",
   manuel: "crm",
 };
 
@@ -175,7 +186,10 @@ const BASES_DE = {
   academiapro: ["organismes", "qualiopi", "interim"],
   mrcomptable: ["cabinets"],
   mysterllc: [],
-  mrcrm: [],
+  // 🆕 15/09 : les agences immobilieres relevent de Mr CRM. C est la cible
+  // arretee le 13/09, et les briques metier — biens, mandats, registre,
+  // rapprochement acquereur — ont ete construites et eprouvees pour elles.
+  mrcrm: ["immobilier"],
   mrlms: [],
 };
 
