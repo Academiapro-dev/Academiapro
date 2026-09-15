@@ -172,7 +172,12 @@ export default function ComplianceDashboard() {
   }
 
   // ---- L ETAT DU DEPOT, LU EN BASE ----
-  async function lireEtatDepot(ent: string | null) {
+  // ⚠️ RENVOIE LE STATUT LU — 15/09. Les `setState` de React ne sont pas
+  // immediats : celui qui appelle cette fonction ne peut pas lire
+  // `depotStatut` juste apres, il lirait l ancienne valeur. Sans ce retour,
+  // le message d aide restait bloque sur « en attente de la signature »
+  // alors que l etat affiche juste au-dessus disait « signe ».
+  async function lireEtatDepot(ent: string | null): Promise<string | null> {
     try {
       const r = await fetch("/api/compliance/transmettre", {
         method: "POST",
@@ -186,10 +191,12 @@ export default function ComplianceDashboard() {
         setChemin5472(d.chemin_5472 || null);
         setRefAccuse(d.reference_accuse || "");
         setDepotFaxId(d.fax_id || null);
+        return d.statut || "a_generer";
       }
     } catch (e) {
       // L etat n est qu un confort : son absence ne bloque pas la page.
     }
+    return null;
   }
 
   useEffect(() => {
@@ -485,9 +492,20 @@ export default function ComplianceDashboard() {
     if (depotStatut === "genere") { await preparerDepot(); return; }
     if (depotStatut === "accuse_envoye") {
       setDepotLoading("etat");
-      await lireEtatDepot(entiteId);
+      // 🚨 ON DIT CE QUE L ON VIENT DE LIRE, pas ce qu on croyait savoir.
+      // Le message etait ecrit en dur : il annonçait une attente de
+      // signature meme quand le titulaire venait de signer, en
+      // contradiction avec l etat affiche juste au-dessus. Defaut releve
+      // par Jacques a l essai du 15/09.
+      const lu = await lireEtatDepot(entiteId);
       setDepotLoading(null);
-      setDepotMsg("En attente de la signature du titulaire (référence " + refAccuse + "). Dès qu'il a signé, ce bouton devient « Transmettre ».");
+      if (lu === "signe") {
+        setDepotMsg("Accusé " + refAccuse + " signé. Cliquez à nouveau pour transmettre à l'IRS.");
+      } else if (lu === "transmis" || lu === "accuse_recu") {
+        setDepotMsg("Le dépôt est déjà parti.");
+      } else {
+        setDepotMsg("En attente de la signature du titulaire (référence " + refAccuse + "). Dès qu'il a signé, ce bouton devient « Transmettre ».");
+      }
       return;
     }
     if (depotStatut === "signe") { await transmettreDepot(); return; }
