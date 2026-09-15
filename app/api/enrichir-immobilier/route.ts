@@ -20,8 +20,8 @@ export const maxDuration = 300;
 // c est Dropcontact qui les trouvera ensuite, dans une seconde route.
 //
 // LA ROUTE TOURNE EN CRON, sans intervention. Elle retient ou elle s est
-// arretee dans la colonne `vague`, enchaine plusieurs pages par appel, et
-// s arrete d elle-meme au plafond de l annuaire.
+// arretee dans la table `collecte_zones`, enchaine plusieurs pages par
+// appel, et s arrete d elle-meme au plafond de l annuaire.
 //
 // ═══════════════════════════════════════════════════════════════════════
 // 🚨 CINQ DEFAUTS CORRIGES — 07/09. TOUS CONSTATES EN EXECUTION REELLE.
@@ -83,10 +83,9 @@ export const maxDuration = 300;
 // une. C est exactement ce que la doctrine interdit. La route prend donc le
 // premier departement non termine de la liste, toute seule.
 //
-// 🚨 `zone` MEMORISE L ORIGINE DE CHAQUE LIGNE. La position de reprise vit
-// dans `vague`, mais une page 3 du departement 75 n a rien a voir avec la
-// page 3 de la collecte nationale. Sans `zone`, la reprise melangerait les
-// deux et sauterait des pages entieres.
+// 🚨 `zone` MEMORISE L ORIGINE DE CHAQUE LIGNE, pour savoir d ou elle
+// vient. Mais LA POSITION DE REPRISE NE VIT PLUS DANS LES DONNEES : elle
+// est dans `collecte_zones`, une ligne par zone.
 //   zone = null  → la collecte nationale du 07/09
 //   zone = '75'  → la collecte du departement 75
 //
@@ -95,11 +94,22 @@ export const maxDuration = 300;
 // `ignoreDuplicates` la reconnait et l ignore — et la ligne garde son
 // adresse, donc aucun credit Dropcontact n est consomme deux fois.
 //
-// ⚠️ UN DEPARTEMENT EPUISE SE MARQUE. Quand une page ne rend plus rien, on
-// pose `vague = PAGE_MAX` sur une ligne de la zone : le passage suivant
-// voit le plafond et passe au departement d apres. SANS CE MARQUAGE, LA
-// ROUTE RELIRAIT INDEFINIMENT LA PREMIERE PAGE DU MEME DEPARTEMENT — c est
-// exactement le defaut n° 2 ci-dessus, sous une autre forme.
+// ═══════════════════════════════════════════════════════════════════════
+// 🚨🚨 SIXIEME DEFAUT — CORRIGE LE 15/09. LE PLUS INSTRUCTIF DE TOUS.
+//
+// LA PREMIERE VERSION du decoupage par departement deduisait « ce
+// departement est-il termine ? » d un calcul sur les donnees : le maximum
+// de `vague` parmi les lignes portant cette zone. Constat a l essai : la
+// route repartait indefiniment sur Paris, deja collecte jusqu au plafond.
+//
+// ⛔ C EST EXACTEMENT LE DEFAUT N° 2 CI-DESSUS, REPRODUIT SOUS UNE AUTRE
+// FORME, dans un fichier qui le documentait deja. La lecon n avait pas ete
+// appliquee, elle avait seulement ete ecrite.
+//
+// LA REGLE, DEFINITIVEMENT : LA POSITION D UN TRAVAIL SE STOCKE, ELLE NE SE
+// DEDUIT PAS. Elle vit dans `collecte_zones` — une ligne par zone, qui dit
+// ou on en est, si c est fini, et quand. Aucune interpretation possible.
+// ═══════════════════════════════════════════════════════════════════════
 // ═══════════════════════════════════════════════════════════════════════
 
 // LES DEPARTEMENTS, DANS L ORDRE DE COLLECTE.
@@ -127,6 +137,10 @@ const DEPARTEMENTS = [
 // ...search?activite_principale=68.31Z rend du JSON,
 // la meme sans le point rend 400.
 const NAF = "68.31Z";
+
+// 🚨 LE NOM DE LA BASE DANS `collecte_zones`. La table est prevue pour
+// plusieurs bases de prospection : c est cette cle qui les separe.
+const BASE = "immobilier";
 
 // 🚨 VINGT-CINQ EST LE MAXIMUM DE L ANNUAIRE. Ce n est pas un reglage :
 // per_page=50 est refuse.
@@ -203,36 +217,56 @@ function pause(ms: number) {
   return new Promise(function (r) { setTimeout(r, ms); });
 }
 
-// LA PAGE SUIVANTE, LUE SUR LA COLONNE `vague` DANS SA ZONE.
+// LA PAGE SUIVANTE, LUE DANS `collecte_zones`.
 //
-// ⚠️ `vague` PORTE LE NUMERO DE LA PAGE qui a apporte la ligne. Le maximum
-// dit donc la derniere page traitee, quel que soit le nombre de lignes
-// reellement ecrites.
-// 🚨 LA POSITION SE LIT DANS SA PROPRE ZONE : `is null` pour la collecte
-// nationale, `eq` pour un departement. Melanger les deux ferait sauter des
-// pages entieres.
+// 🚨 UNE ZONE DECLAREE TERMINEE REND PAGE_MAX + 1 : la boucle s arrete
+// aussitot et le cron passe a la suivante. C est ce qui empeche de relire
+// indefiniment un departement deja epuise.
 async function pageSuivante(zone: string | null): Promise<number> {
-  let q = supabase
-    .from("prospects_immobilier")
-    .select("vague")
-    .not("vague", "is", null);
+  const cle = zone || "national";
+  const { data } = await supabase
+    .from("collecte_zones")
+    .select("derniere_page, terminee")
+    .eq("base", BASE)
+    .eq("zone", cle)
+    .maybeSingle();
 
-  q = zone ? q.eq("zone", zone) : q.is("zone", null);
+  if (!data) return 1;
+  if (data.terminee) return PAGE_MAX + 1;
+  return Number(data.derniere_page || 0) + 1;
+}
 
-  const { data } = await q.order("vague", { ascending: false }).limit(1);
-
-  const derniere = (data && data[0] && Number(data[0].vague)) || 0;
-  return derniere + 1;
+// ENREGISTRER LA POSITION. Une seule ecriture, une seule verite.
+async function poserPosition(zone: string | null, page: number, terminee: boolean, vues: number) {
+  const cle = zone || "national";
+  await supabase.from("collecte_zones").upsert({
+    base: BASE,
+    zone: cle,
+    derniere_page: page,
+    terminee: terminee,
+    lignes_vues: vues,
+    maj_le: new Date().toISOString(),
+  }, { onConflict: "base,zone" });
 }
 
 // LE PROCHAIN DEPARTEMENT A TRAITER.
 //
 // 🚨 C EST CE QUI PERMET AU CRON DE TOURNER SEUL : on prend le premier
-// departement dont la collecte n est pas terminee.
+// departement que la table ne declare pas termine. UNE SEULE REQUETE, pas
+// cent — la version precedente en faisait une par departement, ce qui
+// coutait plusieurs secondes avant meme de commencer a collecter.
 async function prochainDepartement(): Promise<string | null> {
+  const { data } = await supabase
+    .from("collecte_zones")
+    .select("zone")
+    .eq("base", BASE)
+    .eq("terminee", true);
+
+  const finis: any = {};
+  for (const l of (data || [])) finis[String(l.zone)] = true;
+
   for (const dep of DEPARTEMENTS) {
-    const suivante = await pageSuivante(dep);
-    if (suivante <= PAGE_MAX) return dep;
+    if (!finis[dep]) return dep;
   }
   return null;
 }
@@ -245,28 +279,12 @@ async function prochainDepartement(): Promise<string | null> {
 // ⚠️ SI LA ZONE N A AUCUNE LIGNE (departement sans aucune agence, cas des
 // tres petits DOM), on ecrit une ligne temoin : sans elle, la position ne
 // pourrait pas se poser et le departement bloquerait la file.
-async function marquerEpuise(zone: string): Promise<void> {
-  const { data } = await supabase
-    .from("prospects_immobilier")
-    .select("siren")
-    .eq("zone", zone)
-    .limit(1);
-
-  if (data && data[0]) {
-    await supabase
-      .from("prospects_immobilier")
-      .update({ vague: PAGE_MAX })
-      .eq("siren", data[0].siren);
-    return;
-  }
-
-  await supabase.from("prospects_immobilier").upsert([{
-    siren: "ZONE-" + zone,
-    raison_sociale: "(zone sans resultat — temoin de position)",
-    zone: zone,
-    vague: PAGE_MAX,
-    statut: "sans_email",
-  }], { onConflict: "siren", ignoreDuplicates: true });
+// ⚠️ PLUS DE LIGNE TEMOIN, PLUS DE BRICOLAGE. La fin d une zone s ecrit
+// dans `collecte_zones`, comme tout le reste. La version precedente
+// inventait une fausse ligne de prospect pour porter la position — une
+// donnee fabriquee dans une base de prospects, ce qui n a rien a y faire.
+async function marquerEpuise(zone: string | null, page: number, vues: number): Promise<void> {
+  await poserPosition(zone, page, true, vues);
 }
 
 // LA REPARTITION PAR TAILLE — pour savoir a qui on parle avant d ecrire.
@@ -420,12 +438,19 @@ export async function GET(req: NextRequest) {
       .select("id", { count: "exact", head: true })
       .not("email", "is", null);
 
-    // Ou en est la collecte par departement.
+    // Ou en est la collecte, lu dans la table — une seule requete.
     const dep = await prochainDepartement();
-    const faits: string[] = [];
-    for (const d of DEPARTEMENTS) {
-      const s = await pageSuivante(d);
-      if (s > 1) faits.push(d + " (page " + (s - 1) + ")");
+    const { data: zones } = await supabase
+      .from("collecte_zones")
+      .select("zone, derniere_page, terminee")
+      .eq("base", BASE)
+      .order("terminee", { ascending: false });
+
+    const terminees: string[] = [];
+    const encours: string[] = [];
+    for (const z of (zones || [])) {
+      if (z.terminee) terminees.push(String(z.zone));
+      else encours.push(String(z.zone) + " (page " + z.derniere_page + ")");
     }
 
     return NextResponse.json({
@@ -434,9 +459,9 @@ export async function GET(req: NextRequest) {
       erreur_comptage: total.erreur,
       avec_dirigeant: avecDirigeant,
       avec_email: avecEmail,
-      collecte_nationale_derniere_page: (await pageSuivante(null)) - 1,
       prochain_departement: dep,
-      departements_commences: faits,
+      zones_terminees: terminees,
+      zones_en_cours: encours,
       departements_restants: dep ? DEPARTEMENTS.length - DEPARTEMENTS.indexOf(dep) : 0,
       page_maximum: PAGE_MAX,
       plafond_par_zone: PAGE_MAX * PAR_PAGE,
@@ -486,7 +511,10 @@ export async function GET(req: NextRequest) {
   while (pagesTraitees < aFaire) {
     // 🚨 ARRET PROPRE AU PLAFOND.
     if (page > PAGE_MAX) {
-      arret = "plafond de la zone atteint";
+      // 🚨 LE PLAFOND EST UNE FIN, PAS UNE PANNE : on le declare, sinon le
+      // cron reviendrait sur cette zone tous les jours pour rien.
+      await marquerEpuise(zone, PAGE_MAX, lignesEnvoyees);
+      arret = "plafond de la zone atteint — zone terminee";
       break;
     }
 
@@ -507,9 +535,9 @@ export async function GET(req: NextRequest) {
     const resultats = (lecture.data && lecture.data.results) || [];
 
     if (resultats.length === 0) {
-      // 🚨 LA ZONE EST EPUISEE : on le marque, sinon le prochain passage
-      // relirait la meme page indefiniment.
-      if (zone) await marquerEpuise(zone);
+      // 🚨 LA ZONE EST EPUISEE : on l ecrit dans la table, sinon le prochain
+      // passage relirait la meme page indefiniment.
+      await marquerEpuise(zone, page - 1, lignesEnvoyees);
       arret = "aucun resultat — la zone " + (zone || "nationale") + " est complete";
       break;
     }
@@ -578,20 +606,15 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // 🚨 SI LA PAGE N A RIEN APPORTE, LA POSITION N AVANCERAIT PAS.
+    // 🚨 LA POSITION S ECRIT A CHAQUE PAGE, DANS SA PROPRE TABLE.
     //
-    // Quand les vingt-cinq resultats sont deja en base — cas TRES frequent
-    // sur les departements, puisque la collecte nationale les a deja vus —
-    // aucune ligne n est ecrite, donc aucune ne porte `vague = page`, et le
-    // prochain appel relirait la meme page.
-    // ⚠️ ON POSE DONC LA POSITION SUR LA PREMIERE LIGNE DE LA PAGE, meme si
-    // elle vient du national : c est sa zone et sa vague qu on met a jour.
-    if (lignes.length > 0) {
-      await supabase
-        .from("prospects_immobilier")
-        .update({ vague: page, zone: zone })
-        .eq("siren", lignes[0].siren);
-    }
+    // C est ce qui remplace tout l ancien bricolage : plus de `vague`
+    // reecrite sur une ligne de prospect au hasard, plus de position
+    // deduite d un maximum. La page qu on vient de lire est ecrite, point.
+    // ⚠️ MEME SI LA PAGE N A RIEN APPORTE — cas TRES frequent sur les
+    // departements, puisque la collecte nationale a deja vu ces agences.
+    // C etait exactement la cause du defaut du 15/09.
+    await poserPosition(zone, page, false, lignesEnvoyees);
 
     pagesTraitees++;
     page++;
