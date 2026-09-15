@@ -308,6 +308,7 @@ async function traiter(nom: string, combien: number, depart: number): Promise<an
   let trouve = 0;
   let sansRien = 0;
   let injoignables = 0;
+  let traites = 0;
   const exemples: any[] = [];
 
   for (const l of lignes) {
@@ -337,17 +338,19 @@ async function traiter(nom: string, combien: number, depart: number): Promise<an
     }
 
     await supabase.from(table).update(maj).eq("id", l.id);
+    traites++;
     await pause(PAUSE_MS);
   }
 
   return {
     table: table,
-    sites_examines: lignes.length,
+    sites_examines: traites,
     adresses_trouvees: trouve,
     sans_adresse_visible: sansRien,
     sites_injoignables: injoignables,
-    taux: lignes.length > 0 ? Math.round(trouve * 1000 / lignes.length) / 10 + " %" : "—",
+    taux: traites > 0 ? Math.round(trouve * 1000 / traites) / 10 + " %" : "—",
     exemples: exemples,
+    epuise: lignes.length < combien,
   };
 }
 
@@ -396,13 +399,62 @@ export async function GET(req: NextRequest) {
   const vise = String(p.get("table") || "").trim();
   const aTraiter = vise && TABLES[vise] ? [vise] : Object.keys(TABLES);
 
+  // ON ENCHAINE LES LOTS TANT QU IL RESTE DU TEMPS - CORRIGE LE 15/09.
+  //
+  // LE DEFAUT : la route traitait UN lot de 120 sites et rendait la main.
+  // Sur 5 341 sites a lire, a raison d un passage par nuit, la collecte
+  // aurait pris SIX SEMAINES. Le calcul n avait jamais ete fait : le lot
+  // avait ete regle sur la duree d un passage, sans le rapporter au total.
+  //
+  // C EST LA MEME ERREUR QUE SUR LA COLLECTE DEPARTEMENTALE, CORRIGEE DEUX
+  // HEURES PLUS TOT LE MEME JOUR - « un departement par nuit, c est 99
+  // nuits ». Le raisonnement etait fait, ecrit en commentaire dans un
+  // fichier livre le matin meme, et il n a pas ete rejoue ici.
+  //
+  // LA REGLE, DESORMAIS : QUAND UNE ROUTE TRAITE UNE FILE, ELLE VIDE LA
+  // FILE TANT QU ELLE A DU TEMPS. Le garde-fou de duree commande, jamais un
+  // compteur de lots.
   const resultats: any[] = [];
+  const cumul: any = {};
+
   for (const nom of aTraiter) {
-    if (Date.now() - depart > DUREE_MAX_MS) break;
-    const r = await traiter(nom, combien, depart);
-    if (!r.info) resultats.push(r);
+    while (Date.now() - depart < DUREE_MAX_MS) {
+      const r = await traiter(nom, combien, depart);
+      if (r.info) break;
+      if (r.erreur) { resultats.push(r); break; }
+
+      // On additionne les lots d une meme base plutot que d empiler dix
+      // lignes de compte rendu identiques.
+      if (!cumul[nom]) {
+        cumul[nom] = {
+          table: r.table, sites_examines: 0, adresses_trouvees: 0,
+          sans_adresse_visible: 0, sites_injoignables: 0, exemples: [],
+        };
+      }
+      const c = cumul[nom];
+      c.sites_examines += r.sites_examines;
+      c.adresses_trouvees += r.adresses_trouvees;
+      c.sans_adresse_visible += r.sans_adresse_visible;
+      c.sites_injoignables += r.sites_injoignables;
+      for (const e of (r.exemples || [])) {
+        if (c.exemples.length < 10) c.exemples.push(e);
+      }
+
+      // Rien n a ete traite, ou la base est finie : on sort.
+      if (r.sites_examines === 0 || r.epuise) break;
+    }
+
+    if (cumul[nom]) {
+      const c = cumul[nom];
+      c.taux = c.sites_examines > 0
+        ? Math.round(c.adresses_trouvees * 1000 / c.sites_examines) / 10 + " %"
+        : "—";
+      resultats.push(c);
+    }
+
     // Une base visee explicitement s arrete la ; sinon on enchaine.
     if (vise) break;
+    if (Date.now() - depart > DUREE_MAX_MS) break;
   }
 
   if (resultats.length === 0) {
