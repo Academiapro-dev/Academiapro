@@ -219,7 +219,23 @@ export async function POST(req: NextRequest) {
   // INCOMPLET AU SENS DE LA LOI. ⛔ A AJOUTER AVANT LE PREMIER BULLETIN
   // REEL : deux colonnes sur compta_societes, siret et code_ape.
   if (societe && societe.adresse) { ecrire(societe.adresse, 40, 8.5, police, NOIR); y -= 11; }
-  if (societe && societe.siren) { ecrire("SIREN " + societe.siren, 40, 8.5, police, NOIR); y -= 11; }
+  if (societe && (societe.code_postal || societe.ville)) {
+    ecrire((societe.code_postal || "") + " " + (societe.ville || ""), 40, 8.5, police, NOIR);
+    y -= 11;
+  }
+  // 🚨 SIRET ET CODE APE SONT DES MENTIONS OBLIGATOIRES (art. R3243-1).
+  // ⚠️ LE SIRET IDENTIFIE L ETABLISSEMENT, le SIREN l entreprise : sur un
+  // bulletin, c est l etablissement qui compte. On affiche le SIREN en
+  // repli, faute de mieux, mais un bulletin sans SIRET reste INCOMPLET AU
+  // SENS DE LA LOI.
+  if (societe && societe.siret) {
+    ecrire("SIRET " + societe.siret, 40, 8.5, police, NOIR); y -= 11;
+  } else if (societe && societe.siren) {
+    ecrire("SIREN " + societe.siren + " (SIRET a renseigner)", 40, 8.5, police, NOIR); y -= 11;
+  }
+  if (societe && societe.code_ape) {
+    ecrire("APE " + societe.code_ape, 40, 8.5, police, NOIR); y -= 11;
+  }
 
   // Le salarie, a droite
   const yBas = y;
@@ -335,11 +351,32 @@ export async function POST(req: NextRequest) {
   ecrire("TOTAL DES COTISATIONS", 40, 9, gras, NOIR);
   droite(euros(calcul.total_salarial), 460, 9, gras, NOIR);
   droite(euros(calcul.total_patronal), 555, 9, gras, NOIR);
-  y -= 18;
+  y -= 12;
+
+  // 🚨 LA REDUCTION S IMPUTE SUR LES COTISATIONS PATRONALES UNIQUEMENT.
+  // Elle diminue le cout employeur, jamais le net du salarie.
+  if (calcul.rgdu && calcul.rgdu > 0) {
+    ecrire("Reduction generale degressive unique", 40, 8, police, NOIR);
+    if (calcul.rgdu_detail && calcul.rgdu_detail.coefficient) {
+      droite("coef. " + String(calcul.rgdu_detail.coefficient), 360, 8, police, GRIS);
+    }
+    droite("- " + euros(calcul.rgdu), 555, 8, police, NOIR);
+    y -= 11;
+    ecrire("Total patronal apres reduction", 40, 8.5, gras, NOIR);
+    droite(euros(calcul.total_patronal_apres_rgdu), 555, 8.5, gras, NOIR);
+    y -= 12;
+  }
+  y -= 6;
   ligne();
   y -= 15;
 
   // ---- LES TOTAUX ----
+  // 🚨 MENTION OBLIGATOIRE DEPUIS 2023. Le montant net social sert de
+  // reference aux prestations sociales : RSA, prime d activite. Il ne se
+  // confond ni avec le net imposable ni avec le net a payer.
+  ecrire("Montant net social", 40, 9, gras, NOIR);
+  droite(euros(calcul.net_social), 555, 9, gras, NOIR);
+  y -= 13;
   ecrire("Net imposable", 40, 9, police, NOIR);
   droite(euros(calcul.net_imposable), 555, 9, police, NOIR);
   y -= 12;
@@ -367,6 +404,9 @@ export async function POST(req: NextRequest) {
   ecrire("sans limitation de duree.", 40, 7, police, GRIS);
   y -= 11;
   ecrire("Pour connaitre vos droits : www.mesdroitssociaux.gouv.fr", 40, 7, police, GRIS);
+  y -= 9;
+  // 🚨 LA MENTION QUI ACCOMPAGNE LE MONTANT NET SOCIAL, exigee avec lui.
+  ecrire("Le montant net social est le revenu pris en compte pour le calcul de vos prestations sociales.", 40, 7, police, GRIS);
 
   const octets = Buffer.from(await pdf.save());
   const sha = crypto.createHash("sha256").update(octets).digest("hex");
@@ -407,6 +447,8 @@ export async function POST(req: NextRequest) {
       cout_employeur: calcul.cout_employeur,
       ifm: calcul.ifm,
       iccp: calcul.iccp,
+      rgdu: calcul.rgdu,
+      net_social: calcul.net_social,
       detail: calcul,
       chemin_pdf: chemin,
       sha256: sha,
