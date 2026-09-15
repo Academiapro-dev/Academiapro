@@ -64,12 +64,64 @@ export const maxDuration = 300;
 //    ecrit : la position est acquise, le prochain passage reprendra la.
 // ═══════════════════════════════════════════════════════════════════════
 //
-// ⚠️ SUR ENVIRON TRENTE MILLE AGENCES, ON N EN AURA QUE DIX MILLE. C est
-// une limite de l API, pas un reglage : « cette API sert a trouver une
-// entreprise, pas a aspirer un secteur ». Pour aller au-dela, il faudrait
-// relancer la meme collecte en decoupant par departement
-// (`departement=`), chaque decoupage ayant son propre plafond de dix mille.
-// NON FAIT ICI — a decider.
+// ═══════════════════════════════════════════════════════════════════════
+// 🆕 LE DECOUPAGE PAR DEPARTEMENT — 15/09. C est ce qui etait note ici
+// comme « a decider » : c est decide, et c est fait.
+//
+// LE CONSTAT. La collecte nationale du 07/09 a rendu 10 000 agences sur les
+// ~30 000 que compte le code 68.31Z. Ce n est pas un reglage : l annuaire
+// plafonne a 10 000 resultats cumules par requete, page 400 comprise.
+//
+// LA SOLUTION, VERIFIEE LE 15/09 : le parametre `departement` accepte un
+// code a deux ou trois chiffres, et CHAQUE DEPARTEMENT A SON PROPRE
+// PLAFOND DE 10 000. Aucun departement francais n approche ce chiffre pour
+// les agences immobilieres : la collecte devient complete.
+//
+// 🚨 LA ROUTE CHOISIT ELLE-MEME LE PROCHAIN DEPARTEMENT. Un cron Vercel
+// appelle une adresse fixe et ne porte aucun parametre : si le departement
+// devait etre passe a la main, il faudrait lancer cent adresses une par
+// une. C est exactement ce que la doctrine interdit. La route prend donc le
+// premier departement non termine de la liste, toute seule.
+//
+// 🚨 `zone` MEMORISE L ORIGINE DE CHAQUE LIGNE. La position de reprise vit
+// dans `vague`, mais une page 3 du departement 75 n a rien a voir avec la
+// page 3 de la collecte nationale. Sans `zone`, la reprise melangerait les
+// deux et sauterait des pages entieres.
+//   zone = null  → la collecte nationale du 07/09
+//   zone = '75'  → la collecte du departement 75
+//
+// ⚠️ LES DOUBLONS SONT NORMAUX ET SANS DANGER : une agence deja collectee
+// au national reviendra dans son departement. L upsert par SIREN avec
+// `ignoreDuplicates` la reconnait et l ignore — et la ligne garde son
+// adresse, donc aucun credit Dropcontact n est consomme deux fois.
+//
+// ⚠️ UN DEPARTEMENT EPUISE SE MARQUE. Quand une page ne rend plus rien, on
+// pose `vague = PAGE_MAX` sur une ligne de la zone : le passage suivant
+// voit le plafond et passe au departement d apres. SANS CE MARQUAGE, LA
+// ROUTE RELIRAIT INDEFINIMENT LA PREMIERE PAGE DU MEME DEPARTEMENT — c est
+// exactement le defaut n° 2 ci-dessus, sous une autre forme.
+// ═══════════════════════════════════════════════════════════════════════
+
+// LES DEPARTEMENTS, DANS L ORDRE DE COLLECTE.
+//
+// ⚠️ LA CORSE S ECRIT 2A ET 2B, jamais 20. Les DOM tiennent sur trois
+// chiffres. Ecrire « 20 » ferait rater deux departements entiers sans que
+// rien ne le signale.
+// ⚠️ L ORDRE N EST PAS NEUTRE : les departements les plus denses en agences
+// viennent d abord, pour que les premiers passages rapportent le plus.
+const DEPARTEMENTS = [
+  "75", "13", "69", "06", "33", "31", "44", "59", "34", "83",
+  "92", "93", "94", "77", "78", "91", "95",
+  "30", "35", "38", "42", "45", "49", "56", "57", "60", "62",
+  "63", "64", "66", "67", "68", "74", "76", "80", "84", "85",
+  "17", "21", "25", "26", "27", "28", "29", "2A", "2B",
+  "01", "02", "03", "04", "05", "07", "08", "09", "10", "11",
+  "12", "14", "15", "16", "18", "19", "22", "23", "24",
+  "32", "36", "37", "39", "40", "41", "43", "46", "47", "48",
+  "50", "51", "52", "53", "54", "55", "58", "61", "65", "70",
+  "71", "72", "73", "79", "81", "82", "86", "87", "88", "89", "90",
+  "971", "972", "973", "974", "976",
+];
 
 // 🚨 LE POINT EST OBLIGATOIRE. Verifie dans le navigateur le 07/09 :
 // ...search?activite_principale=68.31Z rend du JSON,
@@ -88,13 +140,7 @@ const PAGE_MAX = 400;
 //
 // 🚨 C EST CETTE VALEUR QUI COMMANDE LE CRON. Vercel appelle une adresse
 // fixe ; un cron ne porte pas de parametre. C est donc ici qu on regle le
-// rythme, comme LOT_PAR_DEFAUT dans campagne-organismes.
-//
-// 🚨 400 PAGES = TOUTE LA COLLECTE EN UN SEUL PASSAGE. C est le plafond de
-// l annuaire lui-meme : au-dela il n y a plus rien a lire.
-// Mesure du minutage : environ 750 ms par page en ecriture groupee, soit
-// 300 secondes pour les 400. Le garde-fou de duree arrete avant, et le
-// passage du lendemain termine ce qui reste.
+// rythme.
 // ⚠️ LE DEBIT RESTE SOUS LA LIMITE : 750 ms par page = 1,3 appel par
 // seconde, l annuaire en accepte sept.
 const PAGES_PAR_APPEL = 400;
@@ -128,21 +174,70 @@ function pause(ms: number) {
   return new Promise(function (r) { setTimeout(r, ms); });
 }
 
-// LA PAGE SUIVANTE, LUE SUR LA COLONNE `vague`.
+// LA PAGE SUIVANTE, LUE SUR LA COLONNE `vague` DANS SA ZONE.
 //
 // ⚠️ `vague` PORTE LE NUMERO DE LA PAGE qui a apporte la ligne. Le maximum
 // dit donc la derniere page traitee, quel que soit le nombre de lignes
-// reellement ecrites — c est exactement ce qui manquait.
-async function pageSuivante(): Promise<number> {
-  const { data } = await supabase
+// reellement ecrites.
+// 🚨 LA POSITION SE LIT DANS SA PROPRE ZONE : `is null` pour la collecte
+// nationale, `eq` pour un departement. Melanger les deux ferait sauter des
+// pages entieres.
+async function pageSuivante(zone: string | null): Promise<number> {
+  let q = supabase
     .from("prospects_immobilier")
     .select("vague")
-    .not("vague", "is", null)
-    .order("vague", { ascending: false })
-    .limit(1);
+    .not("vague", "is", null);
+
+  q = zone ? q.eq("zone", zone) : q.is("zone", null);
+
+  const { data } = await q.order("vague", { ascending: false }).limit(1);
 
   const derniere = (data && data[0] && Number(data[0].vague)) || 0;
   return derniere + 1;
+}
+
+// LE PROCHAIN DEPARTEMENT A TRAITER.
+//
+// 🚨 C EST CE QUI PERMET AU CRON DE TOURNER SEUL : on prend le premier
+// departement dont la collecte n est pas terminee.
+async function prochainDepartement(): Promise<string | null> {
+  for (const dep of DEPARTEMENTS) {
+    const suivante = await pageSuivante(dep);
+    if (suivante <= PAGE_MAX) return dep;
+  }
+  return null;
+}
+
+// MARQUER UN DEPARTEMENT COMME EPUISE.
+//
+// 🚨 SANS CELA, LA ROUTE RELIT LA MEME PAGE INDEFINIMENT. Quand une page ne
+// rend plus rien, aucune ligne nouvelle ne porte la position : on la pose
+// donc a la main, au plafond, sur une ligne de la zone.
+// ⚠️ SI LA ZONE N A AUCUNE LIGNE (departement sans aucune agence, cas des
+// tres petits DOM), on ecrit une ligne temoin : sans elle, la position ne
+// pourrait pas se poser et le departement bloquerait la file.
+async function marquerEpuise(zone: string): Promise<void> {
+  const { data } = await supabase
+    .from("prospects_immobilier")
+    .select("siren")
+    .eq("zone", zone)
+    .limit(1);
+
+  if (data && data[0]) {
+    await supabase
+      .from("prospects_immobilier")
+      .update({ vague: PAGE_MAX })
+      .eq("siren", data[0].siren);
+    return;
+  }
+
+  await supabase.from("prospects_immobilier").upsert([{
+    siren: "ZONE-" + zone,
+    raison_sociale: "(zone sans resultat — temoin de position)",
+    zone: zone,
+    vague: PAGE_MAX,
+    statut: "sans_email",
+  }], { onConflict: "siren", ignoreDuplicates: true });
 }
 
 // LE COMPTE EN BASE, AVEC SON ERREUR EVENTUELLE.
@@ -164,10 +259,16 @@ async function compter(): Promise<any> {
 }
 
 // UNE PAGE DE L ANNUAIRE, AVEC UNE SECONDE TENTATIVE SUR 429.
-async function lirePage(page: number): Promise<any> {
+//
+// ⚠️ `departement` EST LE NOM EXACT DU PARAMETRE, verifie le 15/09 dans la
+// documentation de l API. Il accepte deux ou trois chiffres, et une liste
+// separee par des virgules — on n en passe qu un a la fois, pour que chacun
+// ait son propre plafond de 10 000.
+async function lirePage(page: number, departement: string | null): Promise<any> {
   const url = "https://recherche-entreprises.api.gouv.fr/search"
     + "?activite_principale=" + encodeURIComponent(NAF)
     + "&etat_administratif=A"
+    + (departement ? "&departement=" + encodeURIComponent(departement) : "")
     + "&page=" + page
     + "&per_page=" + PAR_PAGE;
 
@@ -199,7 +300,7 @@ async function lirePage(page: number): Promise<any> {
 // ⚠️ LE DEDOUBLONNAGE INTERNE EST NECESSAIRE : deux resultats de la meme
 // page peuvent porter le meme SIREN, et Postgres refuse d affecter deux
 // fois la meme ligne dans un seul INSERT.
-function lignesDe(resultats: any[], page: number): any[] {
+function lignesDe(resultats: any[], page: number, zone: string | null): any[] {
   const vus: any = {};
   const lignes: any[] = [];
 
@@ -232,8 +333,10 @@ function lignesDe(resultats: any[], page: number): any[] {
       code_postal: propre(siege.code_postal),
       dirigeant_prenom: prenom,
       dirigeant_nom: nom,
-      // 🚨 LA MEMOIRE DE POSITION.
+      // 🚨 LA MEMOIRE DE POSITION — page ET zone. L une sans l autre ne veut
+      // rien dire : la page 3 du 75 n est pas la page 3 du national.
       vague: page,
+      zone: zone,
       statut: "a_enrichir",
     });
   }
@@ -263,7 +366,13 @@ export async function GET(req: NextRequest) {
       .select("id", { count: "exact", head: true })
       .not("email", "is", null);
 
-    const suivante = await pageSuivante();
+    // Ou en est la collecte par departement.
+    const dep = await prochainDepartement();
+    const faits: string[] = [];
+    for (const d of DEPARTEMENTS) {
+      const s = await pageSuivante(d);
+      if (s > 1) faits.push(d + " (page " + (s - 1) + ")");
+    }
 
     return NextResponse.json({
       mode: "mesure, aucune ecriture",
@@ -271,12 +380,12 @@ export async function GET(req: NextRequest) {
       erreur_comptage: total.erreur,
       avec_dirigeant: avecDirigeant,
       avec_email: avecEmail,
-      derniere_page_traitee: suivante - 1,
-      prochaine_page: suivante,
-      pages_restantes: Math.max(0, PAGE_MAX - (suivante - 1)),
-      pages_par_appel: PAGES_PAR_APPEL,
+      collecte_nationale_derniere_page: (await pageSuivante(null)) - 1,
+      prochain_departement: dep,
+      departements_commences: faits,
+      departements_restants: dep ? DEPARTEMENTS.length - DEPARTEMENTS.indexOf(dep) : 0,
       page_maximum: PAGE_MAX,
-      plafond_annuaire: PAGE_MAX * PAR_PAGE,
+      plafond_par_zone: PAGE_MAX * PAR_PAGE,
     });
   }
 
@@ -285,11 +394,30 @@ export async function GET(req: NextRequest) {
   // Le nombre de pages a enchainer. Le cron n en passe aucun : c est
   // PAGES_PAR_APPEL qui commande.
   const demandePages = Number(req.nextUrl.searchParams.get("pages") || 0);
-  const aFaire = demandePages > 0 && demandePages <= 100
+  const aFaire = demandePages > 0 && demandePages <= 400
     ? demandePages : PAGES_PAR_APPEL;
 
+  // 🚨 LE DEPARTEMENT : celui demande, sinon le premier non termine.
+  // `?departement=national` force la reprise de la collecte sans filtre —
+  // elle est terminee, mais on garde la porte.
+  const demandeDep = (req.nextUrl.searchParams.get("departement") || "").trim();
+  let zone: string | null;
+  if (demandeDep === "national") {
+    zone = null;
+  } else if (demandeDep) {
+    zone = demandeDep;
+  } else {
+    zone = await prochainDepartement();
+    if (!zone) {
+      return NextResponse.json({
+        arret: "tous les departements sont collectes — il n y a plus rien a lire",
+        total_en_base: (await compter()).valeur,
+      });
+    }
+  }
+
   const demandeePage = Number(req.nextUrl.searchParams.get("page") || 0);
-  let page = demandeePage > 0 ? demandeePage : await pageSuivante();
+  let page = demandeePage > 0 ? demandeePage : await pageSuivante(zone);
 
   const avant = await compter();
 
@@ -302,7 +430,7 @@ export async function GET(req: NextRequest) {
   while (pagesTraitees < aFaire) {
     // 🚨 ARRET PROPRE AU PLAFOND.
     if (page > PAGE_MAX) {
-      arret = "plafond de l annuaire atteint — la collecte est terminee";
+      arret = "plafond de la zone atteint";
       break;
     }
 
@@ -312,7 +440,7 @@ export async function GET(req: NextRequest) {
       break;
     }
 
-    const lecture = await lirePage(page);
+    const lecture = await lirePage(page, zone);
 
     if (!lecture.ok) {
       arret = "annuaire a repondu " + lecture.statut;
@@ -323,11 +451,14 @@ export async function GET(req: NextRequest) {
     const resultats = (lecture.data && lecture.data.results) || [];
 
     if (resultats.length === 0) {
-      arret = "aucun resultat — la base est complete";
+      // 🚨 LA ZONE EST EPUISEE : on le marque, sinon le prochain passage
+      // relirait la meme page indefiniment.
+      if (zone) await marquerEpuise(zone);
+      arret = "aucun resultat — la zone " + (zone || "nationale") + " est complete";
       break;
     }
 
-    const lignes = lignesDe(resultats, page);
+    const lignes = lignesDe(resultats, page, zone);
 
     for (const l of lignes) {
       if (!l.dirigeant_nom) sirenSansDirigeant++;
@@ -352,17 +483,17 @@ export async function GET(req: NextRequest) {
 
     // 🚨 SI LA PAGE N A RIEN APPORTE, LA POSITION N AVANCERAIT PAS.
     //
-    // Quand les vingt-cinq resultats sont deja en base, aucune ligne n est
-    // ecrite — donc aucune ne porte `vague = page`, et le prochain appel
-    // relirait la meme page. On pose alors la position sur la premiere
-    // ligne venue.
-    // ⚠️ CE CAS EST NORMAL DES LA SECONDE EXECUTION D UNE MEME PAGE.
+    // Quand les vingt-cinq resultats sont deja en base — cas TRES frequent
+    // sur les departements, puisque la collecte nationale les a deja vus —
+    // aucune ligne n est ecrite, donc aucune ne porte `vague = page`, et le
+    // prochain appel relirait la meme page.
+    // ⚠️ ON POSE DONC LA POSITION SUR LA PREMIERE LIGNE DE LA PAGE, meme si
+    // elle vient du national : c est sa zone et sa vague qu on met a jour.
     if (lignes.length > 0) {
       await supabase
         .from("prospects_immobilier")
-        .update({ vague: page })
-        .eq("siren", lignes[0].siren)
-        .is("vague", null);
+        .update({ vague: page, zone: zone })
+        .eq("siren", lignes[0].siren);
     }
 
     pagesTraitees++;
@@ -379,6 +510,7 @@ export async function GET(req: NextRequest) {
     : null;
 
   return NextResponse.json({
+    zone: zone || "nationale",
     arret: arret,
     pages_traitees: pagesTraitees,
     derniere_page: page - 1,
