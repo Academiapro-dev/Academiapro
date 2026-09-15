@@ -188,8 +188,30 @@ function messagePremiereVague(o: any): string {
     + "figurent, sans ressaisie. Et vos factures sortent au même format.\n\n"
     + "Le reste suit la même logique. Tenue, lettrage, rapprochement "
     + "bancaire, déclarations et liasse, facturation de vos honoraires et "
-    + "prévisionnel de trésorerie sur douze semaines. Un seul prix, sans "
-    + "module en supplément, sans engagement de durée.\n\n"
+    + "prévisionnel de trésorerie sur douze semaines.\n\n"
+    // 🆕 LA PAIE ET LA DSN — AJOUTEES LE 15/09, DECISION DE JACQUES.
+    //
+    // ⚠️ ELLES N EXISTENT PAS ENCORE. La construction est decidee depuis le
+    // 08/09 (ni MyUnisoft, ni Pennylane, ni Cegid Loop ne font la paie
+    // eux-memes : c est la differenciation de Mr Comptable), mais AUCUN
+    // bulletin n est sorti a ce jour.
+    //
+    // 🚨 D OU LA FORMULE « ARRIVENT PROCHAINEMENT », ET RIEN D AUTRE. C est
+    // la meme regle que la diffusion d annonces de Mr CRM, tranchee par
+    // Jacques le 14/09 : on annonce ce qui vient, on ne pretend jamais que
+    // c est deja la. Le raisonnement de Jacques, 15/09 : « on s est protege
+    // en disant que cette fonctionnalite allait arriver bientot, il n y a
+    // donc aucun mensonge et aucune pression a avoir meme si j avais des
+    // clients tout de suite ».
+    // ⛔ JAMAIS DE DATE. ⛔ NE JAMAIS ECRIRE « incluses » ou « disponibles »
+    // tant que le premier bulletin n est pas sorti ET CONTROLE AU CENTIME
+    // contre un bulletin reel.
+    // ⚠️ « pas de second logiciel, pas de second contrat » est l argument
+    // qui porte : c est precisement ce que les autres facturent a part.
+    + "La paie et la DSN arrivent prochainement, dans le même abonnement : "
+    + "pas de second logiciel, pas de second contrat.\n\n"
+    + "Un seul prix, sans module en supplément, sans engagement de "
+    + "durée.\n\n"
     + "Si le sujet vous parle, répondez-moi simplement : je vous montre en "
     + "quinze minutes ce que ça donne sur un dossier réel.";
 
