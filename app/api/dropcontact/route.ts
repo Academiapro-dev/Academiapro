@@ -74,9 +74,18 @@ const TABLES: any = {
 };
 
 // COMBIEN DE LIGNES PAR LOT.
-// ⚠️ Dropcontact accepte de gros lots, mais un lot rate est un lot perdu.
-// 250 se traite vite et se releve en une fois.
-const LOT = 250;
+//
+// 🚨 5 000 — DECISION DE JACQUES DU 15/09. Ses mots : « je ne vais pas
+// t ecouter, je vais monter a 5 000 », et « ok mais 1 fois, pas 20 fois ».
+// Seize passages a la main pour 4 000 credits contredisaient frontalement
+// sa doctrine : tout automatiser, ne jamais lui faire repeter un geste que
+// la machine peut faire.
+// ⚠️ Claude a signale le risque une fois — un lot mal apparie se reprend a
+// 5 000 lignes au lieu de 250 — puis a applique.
+// ⚠️ LE LOT PEUT SE REGLER PAR L ADRESSE : ?lot=500 borne ce passage-ci
+// sans toucher au fichier. Utile pour un essai prudent apres une
+// modification de la route.
+const LOT = 5000;
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
@@ -142,8 +151,9 @@ async function mesurer(): Promise<any> {
 // ─────────────────────────────────────────────────────────────────────
 // MODE ENVOI.
 // ─────────────────────────────────────────────────────────────────────
-async function envoyer(nom: string): Promise<any> {
+async function envoyer(nom: string, taille?: number): Promise<any> {
   const table = TABLES[nom];
+  const combien = (taille && taille > 0) ? Math.min(taille, 10000) : LOT;
 
   // 🚨 ON N ENVOIE QUE CE QUI A UN PRENOM ET UN NOM. Sans eux, Dropcontact
   // ne trouve rien.
@@ -157,7 +167,7 @@ async function envoyer(nom: string): Promise<any> {
     .is("email", null)
     .is("dropcontact_lot", null)
     .order("id", { ascending: true })
-    .limit(LOT);
+    .limit(combien);
 
   if (error) return { table: table, erreur: error.message };
   if (!lignes || lignes.length === 0) {
@@ -415,8 +425,12 @@ export async function GET(req: NextRequest) {
   if (p.get("envoyer") === "1") {
     // ⚠️ UNE SEULE TABLE PAR ENVOI, la premiere qui a du travail. Envoyer
     // sur les deux consommerait deux lots dans le meme appel.
+    // ?lot=N borne ce passage-ci, sans toucher au fichier.
+    const demandeLot = parseInt(String(p.get("lot") || ""), 10);
+    const taille = isFinite(demandeLot) && demandeLot > 0 ? demandeLot : undefined;
+
     for (const nom of aTraiter) {
-      const r = await envoyer(nom);
+      const r = await envoyer(nom, taille);
       if (!r.info) return NextResponse.json({ mode: "envoi", resultat: r });
     }
     return NextResponse.json({ mode: "envoi", info: "rien a envoyer nulle part" });
