@@ -48,23 +48,63 @@ const TABLES: any = {
 };
 
 // COMBIEN DE SITES PAR PASSAGE.
-// ⚠️ CHAQUE SITE DEMANDE DEUX A QUATRE LECTURES (l accueil, puis la page
-// contact). A une seconde par site en moyenne, 200 sites tiennent dans les
-// 270 secondes du garde-fou.
-const LOT = 200;
+//
+// 🚨 RAMENE DE 200 A 120 LE 15/09, EN MEME TEMPS QUE L ELARGISSEMENT DES
+// CHEMINS. Un site qui donne son adresse sur l accueil coute une lecture ;
+// un site muet en coute desormais VINGT-DEUX. Mesure de l essai : 25 sites
+// en 49 secondes avec 5 chemins — les sites muets etaient deja la moitie du
+// temps. Avec 22 chemins, le meme lot depasserait le garde-fou.
+// ⚠️ LE GARDE-FOU DE DUREE TRANCHE DE TOUTE FACON : si le lot ne passe pas,
+// la route rend la main et le passage suivant reprend. Ce nombre n est
+// qu un confort pour que le compte rendu arrive.
+const LOT = 120;
 
 // LES PAGES OU L ADRESSE SE TROUVE, DANS L ORDRE DE PROBABILITE.
-// ⚠️ ON COMMENCE PAR L ACCUEIL : beaucoup de sites d agence mettent leur
-// adresse dans le pied de page, present sur toutes les pages. Quand elle y
-// est, on s arrete la et on economise trois lectures.
-const CHEMINS = ["", "/contact", "/nous-contacter", "/contactez-nous", "/mentions-legales"];
+//
+// ⚠️ ON COMMENCE PAR L ACCUEIL : beaucoup de sites mettent leur adresse
+// dans le pied de page, present sur toutes les pages. Quand elle y est, on
+// s arrete la et on economise toutes les autres lectures.
+//
+// 🚨 LA LISTE A ETE ELARGIE LE 15/09, A LA DEMANDE DE JACQUES : « ajouter
+// le chemin, meme si le taux ne se justifie pas, on va pas refuser
+// d envoyer 10 ou 15 % de messages ». Un chemin de plus ne coute QUE sur
+// les sites muets — des qu une adresse du bon domaine est trouvee, la
+// boucle s arrete. Les sites qui donnent vite ne paient pas pour les autres.
+//
+// ⚠️ L ORDRE EST CELUI DE LA PROBABILITE, pas de l alphabet : chaque
+// chemin teste avant le bon est une lecture perdue sur les sites muets.
+// ⚠️ LES VARIANTES AVEC ET SANS TIRET EXISTENT TOUTES LES DEUX dans la
+// nature (`/nous-contacter` et `/nouscontacter`), et les generateurs de
+// sites anglophones laissent souvent `/contact-us` meme sur un site
+// francais.
+const CHEMINS = [
+  // Le pied de page, sur l accueil.
+  "",
+  // Les pages de contact, de la plus frequente a la plus rare.
+  "/contact", "/contacts", "/contact.html", "/contact.php",
+  "/nous-contacter", "/contactez-nous", "/contact-us",
+  "/nous-joindre", "/coordonnees",
+  // Les pages de presentation : l adresse y figure souvent, et l equipe
+  // encore plus souvent — c est la qu on trouve un prenom plutot qu un
+  // « contact@ ».
+  "/agence", "/notre-agence", "/qui-sommes-nous", "/a-propos",
+  "/equipe", "/notre-equipe", "/l-equipe",
+  // Les mentions legales : obligatoires en France, et elles DOIVENT porter
+  // un moyen de contact. C est le dernier recours, mais c est le plus sur
+  // quand il repond.
+  "/mentions-legales", "/mentions-legales.html", "/mentions_legales",
+  "/legal", "/informations-legales",
+];
 
 // LE DELAI AVANT D ABANDONNER UN SITE, EN MILLISECONDES.
 // 🚨 SANS CE DELAI, UN SEUL SITE MORT BLOQUE TOUT LE PASSAGE. Certains
 // serveurs acceptent la connexion et ne repondent jamais : la lecture
 // resterait ouverte jusqu a ce que Vercel coupe, et le compte rendu serait
 // perdu avec elle.
-const DELAI_MS = 6000;
+// 🚨 RAMENE DE 6 A 4 SECONDES LE 15/09. Avec vingt-deux chemins, un site
+// qui accepte la connexion sans jamais repondre couterait 132 secondes a
+// lui seul — la moitie du passage pour UNE ligne.
+const DELAI_MS = 4000;
 
 const PAUSE_MS = 120;
 const DUREE_MAX_MS = 260000;
@@ -213,10 +253,20 @@ async function explorer(origine: string): Promise<any> {
 
   const trouvees: string[] = [];
   let pagesLues = 0;
+  let echecs = 0;
 
   for (const chemin of CHEMINS) {
     const html = await lire(origine + chemin);
-    if (!html) continue;
+
+    if (!html) {
+      echecs++;
+      // 🚨 UN SITE QUI NE REPOND PAS TROIS FOIS DE SUITE DES LE DEPART EST
+      // MORT. Inutile de lui demander vingt-deux pages : le domaine est
+      // expire, le serveur est eteint, ou il nous refuse. On passe.
+      if (echecs >= 3 && pagesLues === 0) break;
+      continue;
+    }
+
     pagesLues++;
 
     for (const a of adressesDe(html)) {
