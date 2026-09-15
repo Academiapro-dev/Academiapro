@@ -60,6 +60,13 @@ const BASES = [
   { cle: "qualiopi", nom: "Organismes NON certifiés" },
   { cle: "interim", nom: "Agences d'intérim" },
   { cle: "cabinets", nom: "Cabinets comptables" },
+  // 🆕 15/09 — LES AGENCES IMMOBILIERES, cinquieme base.
+  // 23 184 lignes collectees departement par departement, dont 737 profils
+  // LinkedIn. Elles relevent de Mr CRM : c est la cible arretee le 13/09.
+  // ⚠️ LA ROUTE DOIT CONNAITRE CETTE CLE AUSSI. Si la liste ne rend rien
+  // pour « immobilier », c est que TABLES, cote /api/admin/linkedin, ne la
+  // contient pas encore — a verifier avant de chercher ailleurs.
+  { cle: "immobilier", nom: "Agences immobilières" },
 ];
 
 // ---------------------------------------------------------------------------
@@ -123,9 +130,14 @@ const PRODUITS: any = {
   mrcrm: {
     nom: "Mr. CRM",
     couleur: VIOLET_PRODUIT,
-    domaine: "academiapro.fr",
-    bases: [],
-    resume: "Cette fiche recevra le message sur le suivi commercial, catalogue en option.",
+    // 🆕 15/09 : le domaine propre de Mr CRM. Il pointait sur academiapro.fr
+    // alors que la marque a son site — et LinkedIn fabrique sa carte
+    // d apercu a partir du premier domaine du message.
+    domaine: "mrcrm.fr",
+    // 🆕 15/09 : les agences immobilieres relevent de Mr CRM. Une fiche
+    // issue de cette base porte le produit sans qu on ait rien a saisir.
+    bases: ["immobilier"],
+    resume: "Cette fiche recevra le message sur le suivi commercial — version métier si c'est une agence immobilière.",
   },
   mrlms: {
     nom: "Mr. LMS",
@@ -161,6 +173,27 @@ function produit(cle: any): any {
 // elle rend desormais sa reponse depuis la table des produits.
 function estCabinet(base: any): boolean {
   return produitDeBase(base) === "mrcomptable";
+}
+
+// 🆕 15/09 — RECONNAITRE UNE AGENCE IMMOBILIERE.
+//
+// POURQUOI. Mr CRM se vend a deux publics tres differents : n importe
+// quelle PME qui suit des prospects, et les agences immobilieres, qui ont
+// un metier reglemente — mandats, registre numerote, rapprochement
+// acquereur. Leur servir le message generique, c est leur dire qu on ne
+// connait pas leur metier ; servir le message immobilier a une PME, c est
+// parler d un metier qui n est pas le sien. Les deux textes existent donc.
+//
+// ⚠️ DEUX FACONS DE RECONNAITRE, ET LA BASE PRIME. Une fiche venue de
+// prospects_immobilier EST une agence, quel que soit son intitule (beaucoup
+// s appellent « SARL Dupont » sans un mot d immobilier). A defaut de base —
+// fiche saisie a la main — on regarde l intitule.
+// ⚠️ « immo » SEUL SUFFIT : Immoconseil, Immoplus, Century Immo. Le mot
+// entier n apparait pas toujours.
+function estImmobilier(base: any, societe?: any): boolean {
+  if (String(base || "") === "immobilier") return true;
+  return /immobil|immo\b|agence immo|transaction|syndic|gestion locative/i
+    .test(String(societe || ""));
 }
 
 // LES CHAMPS DE LA FICHE COMPLETE, ET ILS DIFFERENT SELON LA TABLE.
@@ -442,6 +475,56 @@ function messageRelance(prenom: string, societe: string, nbFormations: number, c
       + "Bien cordialement,\nJacques Lalou\nmysterllc.com";
   }
 
+  // 🆕 MR CRM — VERSION AGENCE IMMOBILIERE, 15/09.
+  //
+  // LA STRUCTURE EST CELLE QUE JACQUES A ARRETEE POUR LE COURRIEL DU 14/09 :
+  // LE COMMUN D ABORD — ce que tout professionnel reconnait — LE METIER
+  // ENSUITE. Ses mots : « ratisser large sans tomber dans le piege de ne pas
+  // paraitre specifique aux agences immobilieres ». Un message qui ouvre sur
+  // le registre est jete par celui qui n en tient pas ; un message qui n en
+  // parle jamais n accroche personne.
+  //
+  // 🚨 LA DIFFUSION D ANNONCES SE DIT « PROCHAINEMENT » — decision de
+  // Jacques du 14/09, apres une objection de Claude et un arbitrage clair :
+  // un editeur inconnu qui commence par enumerer ce qu il ne fait pas se
+  // fait classer en trois secondes. ⛔ JAMAIS DE DATE : une echeance ecrite
+  // devient une dette au bout de trois mois. ⛔ NE PAS ROUVRIR CE DEBAT.
+  //
+  // ⚠️ CHAQUE FONCTION CITEE EXISTE ET A ETE EPROUVEE A L ECRAN LE 14/09 :
+  // biens, mandats numerotes, registre chronologique, rapprochement
+  // acquereur, affaires chiffrees, taches, agenda. Rien n est promis ici qui
+  // ne soit en ligne — sauf la diffusion, annoncee comme a venir.
+  if (k === "mrcrm" && estImmobilier(base, societe)) {
+    return salut
+      + "Merci d'avoir accepté mon invitation.\n\n"
+      + "J'ai développé un outil de suivi commercial, et une partie a été "
+      + "construite pour les agences immobilières.\n\n"
+      + "Le commun d'abord : chaque contact suit un chemin simple — à "
+      + "contacter, contacté, intéressé, client — et vous le déplacez d'un "
+      + "geste. Ce qui s'est dit au téléphone, ce que vous avez promis, la "
+      + "date à laquelle rappeler : tout reste sur sa fiche. Les relances "
+      + "partent toutes seules tant que la personne n'a pas répondu, et "
+      + "s'arrêtent dès qu'elle le fait.\n\n"
+      + "Le métier ensuite. Vos biens portent leurs diagnostics, et le DPE "
+      + "qui approche de ses dix ans vous est signalé avant qu'un acquéreur "
+      + "ne le remarque. Vos mandats sont numérotés par la plateforme, dans "
+      + "l'ordre, sans trou — c'est le registre lui-même, pas une copie du "
+      + "registre. L'irrévocabilité de plus de trois mois sur un exclusif "
+      + "est refusée à la saisie, et le délai de rétractation est calculé "
+      + "quand la signature a lieu hors de l'agence.\n\n"
+      + "Et quand un acquéreur cherche quelque chose, l'outil vous dit quels "
+      + "biens de votre portefeuille lui correspondent — et lesquels vous lui "
+      + "avez déjà proposés, pour ne pas les lui présenter deux fois.\n\n"
+      + "La diffusion vers les portails arrivera prochainement.\n\n"
+      + "Si vous voulez voir à quoi cela ressemble sur vos propres mandats, "
+      + "je vous montre en trente minutes.\n\n"
+      + "Bien à vous,\nJacques Lalou\nmrcrm.fr";
+  }
+
+  // MR CRM — VERSION GENERIQUE. Toute PME qui suit des prospects : conseil,
+  // artisan, agence, indépendant. ⚠️ ELLE NE PARLE D AUCUN METIER, et c est
+  // voulu : citer un secteur qui n est pas celui du lecteur coute plus cher
+  // que de n en citer aucun.
   if (k === "mrcrm") {
     return salut
       + "Merci d'avoir accepté mon invitation.\n\n"
