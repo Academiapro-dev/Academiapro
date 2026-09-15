@@ -44,6 +44,15 @@ export const maxDuration = 300;
 // `"siren": true` — c est une option d ENRICHISSEMENT, pas une donnee
 // d entree.
 //
+// 🚨 LE SITE WEB EST ENVOYE QUAND ON L A — 15/09. Dropcontact le dit
+// lui-meme : il enrichit a partir du prenom, du nom ET de la societe, et il
+// RECOMMANDE d ajouter le site web de l entreprise. Le premier passage sur
+// prospects_immobilier, sans site, n a rendu que 6,3 % d adresses ; le
+// retour a en revanche livre 1 612 sites web. Ce second passage les
+// reutilise : c est le meme credit, avec bien plus a se mettre sous la dent.
+// ⚠️ ORDRE DE PRIORITE DANS L ENVOI : les lignes QUI ONT UN SITE d abord.
+// A credits egaux, elles rapportent le plus.
+//
 // 🚨 LE RAPPROCHEMENT AU RETOUR SE FAIT PAR LA POSITION, PLUS PAR LE SIREN.
 // Puisqu on ne peut plus envoyer notre SIREN, il n y a plus de reference a
 // nous dans la reponse. Dropcontact rend une ligne par ligne envoyee, avec
@@ -135,6 +144,15 @@ async function mesurer(): Promise<any> {
       .from(table).select("id", { count: "exact", head: true })
       .not("email", "is", null);
 
+    // Ce que le second passage peut reprendre : un site web, pas d adresse.
+    const { count: avecSiteSansEmail } = await supabase
+      .from(table).select("id", { count: "exact", head: true })
+      .not("dirigeant_nom", "is", null)
+      .not("dirigeant_prenom", "is", null)
+      .not("site_web", "is", null)
+      .neq("site_web", "")
+      .is("email", null);
+
     etat.push({
       table: table,
       total: total,
@@ -142,6 +160,7 @@ async function mesurer(): Promise<any> {
       a_envoyer: aEnvoyer,
       en_attente_de_releve: enAttente,
       avec_email: avecEmail,
+      a_reprendre_avec_site: avecSiteSansEmail,
     });
   }
 
@@ -151,27 +170,40 @@ async function mesurer(): Promise<any> {
 // ─────────────────────────────────────────────────────────────────────
 // MODE ENVOI.
 // ─────────────────────────────────────────────────────────────────────
-async function envoyer(nom: string, taille?: number): Promise<any> {
+async function envoyer(nom: string, taille?: number, avecSite?: boolean): Promise<any> {
   const table = TABLES[nom];
   const combien = (taille && taille > 0) ? Math.min(taille, 10000) : LOT;
 
   // 🚨 ON N ENVOIE QUE CE QUI A UN PRENOM ET UN NOM. Sans eux, Dropcontact
-  // ne trouve rien.
-  // ⚠️ ET RIEN QUI SOIT DEJA PARTI : `dropcontact_lot is null`.
+  // ne trouve rien. Et jamais une ligne qui a deja son adresse.
   // 🚨 L ORDRE — order("id") — EST LA SEULE REFERENCE AU RETOUR.
-  const { data: lignes, error } = await supabase
+  //
+  // ⚠️ DEUX MODES DE SELECTION :
+  //   ?site=1  → seulement les lignes QUI ONT UN SITE WEB, meme si elles
+  //              sont deja passees une fois. C est le second passage, celui
+  //              qui rapporte : Dropcontact travaille bien mieux avec un
+  //              site qu avec un nom seul.
+  //   defaut   → les lignes jamais envoyees (`dropcontact_lot is null`).
+  let q = supabase
     .from(table)
-    .select("id, siren, raison_sociale, dirigeant_prenom, dirigeant_nom, ville")
+    .select("id, siren, raison_sociale, dirigeant_prenom, dirigeant_nom, ville, site_web")
     .not("dirigeant_nom", "is", null)
     .not("dirigeant_prenom", "is", null)
-    .is("email", null)
-    .is("dropcontact_lot", null)
+    .is("email", null);
+
+  if (avecSite) {
+    q = q.not("site_web", "is", null).neq("site_web", "");
+  } else {
+    q = q.is("dropcontact_lot", null);
+  }
+
+  const { data: lignes, error } = await q
     .order("id", { ascending: true })
     .limit(combien);
 
   if (error) return { table: table, erreur: error.message };
   if (!lignes || lignes.length === 0) {
-    return { table: table, info: "rien a envoyer" };
+    return { table: table, info: avecSite ? "aucune ligne avec site a reprendre" : "rien a envoyer" };
   }
 
   // LE FORMAT ATTENDU PAR DROPCONTACT — TROIS CHAMPS, PAS UN DE PLUS.
@@ -179,11 +211,17 @@ async function envoyer(nom: string, taille?: number): Promise<any> {
   // 15/09 : `siren`, `city` et `country` dans les lignes suffisaient a tout
   // bloquer. Le SIREN se demande a la racine, par `siren: true`.
   const donnees = lignes.map(function (l: any) {
-    return {
+    const ligne: any = {
       first_name: propre(l.dirigeant_prenom),
       last_name: propre(l.dirigeant_nom),
       company: propre(l.raison_sociale),
     };
+    // ⚠️ `website` EST ACCEPTE, contrairement a `siren`, `city` et
+    // `country`. C est le seul champ supplementaire que Dropcontact prend,
+    // et c est celui qui change tout.
+    const site = propre(l.site_web);
+    if (site) ligne.website = site;
+    return ligne;
   });
 
   let reponse: any = null;
@@ -224,6 +262,9 @@ async function envoyer(nom: string, taille?: number): Promise<any> {
     .from(table)
     .update({ dropcontact_lot: String(lot), dropcontact_le: new Date().toISOString() })
     .in("id", ids);
+  // ⚠️ LE LOT ECRASE LE PRECEDENT sur un second passage. C est voulu : la
+  // releve cherche les lignes du DERNIER lot, et une ligne ne peut etre en
+  // attente que d un seul resultat a la fois.
 
   if (errMarque) {
     return {
@@ -429,9 +470,12 @@ export async function GET(req: NextRequest) {
     const demandeLot = parseInt(String(p.get("lot") || ""), 10);
     const taille = isFinite(demandeLot) && demandeLot > 0 ? demandeLot : undefined;
 
+    // ?site=1 reprend les lignes qui ont un site web, meme deja envoyees.
+    const avecSite = p.get("site") === "1";
+
     for (const nom of aTraiter) {
-      const r = await envoyer(nom, taille);
-      if (!r.info) return NextResponse.json({ mode: "envoi", resultat: r });
+      const r = await envoyer(nom, taille, avecSite);
+      if (!r.info) return NextResponse.json({ mode: avecSite ? "envoi (site web)" : "envoi", resultat: r });
     }
     return NextResponse.json({ mode: "envoi", info: "rien a envoyer nulle part" });
   }
