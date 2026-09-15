@@ -239,15 +239,41 @@ async function document(tenantId: string, entite: any, body: any) {
     .order("uploaded_at", { ascending: false })
     .limit(1)
     .maybeSingle();
-  if (!doc || !doc.storage_path) return NextResponse.json({ error: "Aucun document transmis pour cet accuse." }, { status: 404 });
-  const { data: signe } = await supabase.storage.from(BUCKET_DOCS).createSignedUrl(doc.storage_path, 3600);
+  // ⚠️ SECOURS — 15/09 : si la ligne d index manque (cas des depots
+  // anterieurs a la correction de l index unique), on retrouve le document
+  // par le chemin garde dans la transmission de l accuse de lecture. Le
+  // fichier, lui, n a jamais ete perdu.
+  let chemin = doc && doc.storage_path ? String(doc.storage_path) : "";
+  let empreinte = doc && doc.pdf_sha256 ? String(doc.pdf_sha256) : "";
+  let donneesDoc: any = doc && doc.donnees ? doc.donnees : null;
+
+  if (!chemin) {
+    const { data: accuse } = await supabase
+      .from("compliance_documents")
+      .select("storage_path, pdf_sha256, uploaded_at, donnees")
+      .eq("tenant_id", tenantId)
+      .eq("entite_id", entite.id)
+      .eq("reference", reference)
+      .order("uploaded_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const tr = accuse && accuse.donnees && accuse.donnees.transmission ? accuse.donnees.transmission : null;
+    if (tr && tr.chemin_envoi) {
+      chemin = String(tr.chemin_envoi);
+      empreinte = String(tr.sha_envoi || "");
+      donneesDoc = accuse ? accuse.donnees : null;
+    }
+  }
+
+  if (!chemin) return NextResponse.json({ error: "Aucun document transmis pour cet accuse." }, { status: 404 });
+  const { data: signe } = await supabase.storage.from(BUCKET_DOCS).createSignedUrl(chemin, 3600);
   if (!signe || !signe.signedUrl) return NextResponse.json({ error: "Lien impossible." }, { status: 500 });
-  const tr = doc.donnees && doc.donnees.transmission ? doc.donnees.transmission : {};
+  const tr = donneesDoc && donneesDoc.transmission ? donneesDoc.transmission : {};
   return NextResponse.json({
     success: true,
     url: signe.signedUrl,
-    empreinte: doc.pdf_sha256,
-    transmis_le: tr.envoye_le || doc.uploaded_at,
+    empreinte: empreinte || tr.sha_envoi || null,
+    transmis_le: tr.envoye_le || (doc ? doc.uploaded_at : null),
     pages: tr.pages || null,
     statut: tr.statut || null,
   });
@@ -631,7 +657,14 @@ async function transmettre(req: NextRequest, tenantId: string, entite: any, body
     .update({ donnees: { ...donnees, transmission } })
     .eq("id", doc.id);
 
-  await supabase.from("compliance_documents").insert({
+  // 🚨 CET INSERT DOIT ETRE VERIFIE. Le 15/09, il echouait EN SILENCE : un
+  // index unique portait sur `reference` seule, or l accuse de lecture
+  // occupe deja cette reference. Resultat — le fax partait, le document
+  // etait archive au coffre, mais « Voir le document signe et transmis »
+  // repondait « Aucun document transmis pour cet accuse ».
+  // L index a ete corrige (reference + doc_type), et l erreur est desormais
+  // REMONTEE : un archivage qui echoue doit se voir, pas se deviner.
+  const { error: eIndex } = await supabase.from("compliance_documents").insert({
     tenant_id: tenantId,
     entite_id: entite.id,
     rule_code: "US_5472_1120",
@@ -668,6 +701,10 @@ async function transmettre(req: NextRequest, tenantId: string, entite: any, body
     );
   }
 
+  // ⚠️ SI L INDEXATION A ECHOUE, ON LE DIT DANS LA MEME REPONSE. Le fax est
+  // parti — on ne va pas faire croire a un echec — mais le document ne sera
+  // pas retrouvable par « Voir le document signe et transmis », et cela doit
+  // se savoir tout de suite, pas trois semaines plus tard.
   return NextResponse.json({
     success: true,
     reference,
@@ -677,8 +714,13 @@ async function transmettre(req: NextRequest, tenantId: string, entite: any, body
     sha_envoi: shaEnvoi,
     mode_test: !!numeroTest,
     numero: destinataire,
+    archivage_indexe: !eIndex,
+    avertissement_archivage: eIndex
+      ? "Le document est bien archive au coffre (" + cheminEnvoi + ") mais son indexation a echoue : " + eIndex.message
+      : undefined,
     message: (numeroTest ? "MODE TEST — envoye au numero de simulation " : "Transmis a l'IRS au ") + destinataire
-      + ". L'accuse de transmission sera enregistre a la reception du statut.",
+      + ". L'accuse de transmission sera enregistre a la reception du statut."
+      + (eIndex ? " ⚠️ Le document est archive mais non indexe : prevenez le support." : ""),
   });
 }
 
