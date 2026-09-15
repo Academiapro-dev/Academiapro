@@ -211,13 +211,15 @@ export async function POST(req: NextRequest) {
   y -= 13;
   ecrire(societe ? societe.raison_sociale : "", 40, 10, gras, NOIR);
   y -= 12;
+  // ⚠️ compta_societes PORTE L ADRESSE EN UN SEUL CHAMP, et un SIREN — pas
+  // un SIRET, pas de code APE, pas de ville separee. Le bulletin affiche
+  // donc ce qui existe.
+  // 🚨 LE SIRET ET LE CODE APE SONT DES MENTIONS OBLIGATOIRES (art.
+  // R3243-1). Tant que compta_societes ne les porte pas, le bulletin est
+  // INCOMPLET AU SENS DE LA LOI. ⛔ A AJOUTER AVANT LE PREMIER BULLETIN
+  // REEL : deux colonnes sur compta_societes, siret et code_ape.
   if (societe && societe.adresse) { ecrire(societe.adresse, 40, 8.5, police, NOIR); y -= 11; }
-  if (societe && (societe.code_postal || societe.ville)) {
-    ecrire((societe.code_postal || "") + " " + (societe.ville || ""), 40, 8.5, police, NOIR);
-    y -= 11;
-  }
-  if (societe && societe.siret) { ecrire("SIRET " + societe.siret, 40, 8.5, police, NOIR); y -= 11; }
-  if (societe && societe.code_ape) { ecrire("APE " + societe.code_ape, 40, 8.5, police, NOIR); y -= 11; }
+  if (societe && societe.siren) { ecrire("SIREN " + societe.siren, 40, 8.5, police, NOIR); y -= 11; }
 
   // Le salarie, a droite
   const yBas = y;
