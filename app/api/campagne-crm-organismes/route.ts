@@ -48,7 +48,16 @@ const PLAFOND_ENVOIS = 2;
 // de l insistance ; revenir trois mois plus tard se lit comme une nouvelle
 // prise de contact. Entre-temps, sa situation a change — et l echeance de
 // la facture electronique aussi.
-const DELAI_ENTRE_VAGUES = 90;
+// 🚨 TRENTE JOURS — DECISION DE JACQUES DU 15/09. C etait quatre-vingt-dix.
+// Ses mots : « une fois dans le mois, c est pas derangeant ».
+// ⚠️ CLAUDE A OBJECTE UNE FOIS : trois semaines a un mois est le rythme qui
+// fait cliquer « spam » plutot que « se desinscrire », et une plainte pese
+// bien plus lourd qu une desinscription — elle abime la reputation du
+// domaine, donc aussi les liens de connexion qui partent du meme endroit.
+// Jacques a tranche : « il faut vendre ». APPLIQUE, NE PAS ROUVRIR.
+// ⚠️ CE QUI REND CE RYTHME TENABLE : chaque vague parle d un AUTRE PRODUIT.
+// Ce n est pas une relance, c est une autre offre.
+const DELAI_ENTRE_VAGUES = 30;
 
 function clientAdmin() {
   return createClient(
