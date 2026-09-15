@@ -862,6 +862,29 @@ export default function ComplianceDashboard() {
           </div>
         )}
 
+        {/* 🆕 LE PARCOURS DE CREATION — AJOUTE LE 15/09.
+            L ecran /admin/compliance/creation existait depuis le 10/09 mais
+            AUCUNE TUILE N Y MENAIT : il fallait taper l adresse a la main,
+            avec l identifiant complet de la societe en parametre. Defaut
+            constate a l essai du 15/09, qui a bloque le demarrage du test.
+            ⚠️ LE PARAMETRE S APPELLE `entite_id`, pas `entite` : l ecran
+            lit exactement ce nom, et un autre le laisse sur la premiere
+            societe du portefeuille. */}
+        {tenant && (
+          <div style={{ border: "2px solid " + VERT, borderRadius: 8, padding: 16, marginBottom: 24 }}>
+            <a
+              href={"/admin/compliance/creation?entite_id=" + encodeURIComponent(String(tenant.id))}
+              style={{ color: VERT, fontSize: 18, fontWeight: "bold", textDecoration: "none" }}
+            >
+              Suivre la création de cette société &rarr;
+            </a>
+            <p style={{ margin: "6px 0 0", fontSize: 14, color: "#555" }}>
+              Agent enregistré, statuts, SS-4, numéro fiscal, Operating Agreement,
+              compte bancaire : onze étapes, un bouton à la fois.
+            </p>
+          </div>
+        )}
+
         <h2 style={{ color: VERT, fontSize: 20 }}>Wyoming</h2>
         <button onClick={genererAnnualReport} disabled={genLoading} style={styleBouton}>
           {genLoading ? "Génération…" : "Générer la fiche Annual Report 2027"}
