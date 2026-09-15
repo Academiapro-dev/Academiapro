@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 // ═══════════════════════════════════════════════════════════════════════
-// L ENRICHISSEMENT PAR DROPCONTACT — 08/09/2026.
+// L ENRICHISSEMENT PAR DROPCONTACT — 08/09/2026, corrige le 15/09.
 //
 // CE QU IL APPORTE. L Annuaire des Entreprises donne le SIREN, la raison
 // sociale, la ville et le dirigeant. Il NE DONNE NI SITE WEB NI ADRESSE
@@ -27,10 +27,31 @@ export const maxDuration = 300;
 // le credit est consomme pour rien.
 //
 // 🚨 SANS PRENOM ET NOM DE DIRIGEANT, DROPCONTACT NE TROUVE RIEN. Les
-// lignes qui n en ont pas sont ecartees AVANT l envoi, pour ne pas
-// consommer de credit inutilement.
+// lignes qui n en ont pas sont ecartees AVANT l envoi.
 //   prospects_ecommerce  : 10 788 exploitables sur 20 000
-//   prospects_immobilier :  9 002 exploitables sur 10 000
+//   prospects_immobilier :  8 964 exploitables sur 10 000 (mesure 15/09)
+//
+// ⚠️ JACQUES, 15/09 : le credit n est decompte QUE si la ligne est
+// effectivement enrichie. Un pre-filtrage « pour economiser des credits »
+// n a donc pas d objet — on envoie, et Dropcontact tranche.
+//
+// 🚨🚨 LES CHAMPS ACCEPTES DANS CHAQUE LIGNE SONT PEU NOMBREUX — corrige le
+// 15/09 apres un refus « Request contains unrecognized fields » (HTTP 400,
+// aucun credit consomme, tout le lot rejete). Dropcontact n accepte que :
+//     first_name · last_name · full_name · company · website · email
+// ⛔ NI `siren`, NI `city`, NI `country` DANS LES LIGNES : c est ce qui
+// faisait echouer le lot entier. Le SIREN se demande AU NIVEAU RACINE, par
+// `"siren": true` — c est une option d ENRICHISSEMENT, pas une donnee
+// d entree.
+//
+// 🚨 LE RAPPROCHEMENT AU RETOUR SE FAIT PAR LA POSITION, PLUS PAR LE SIREN.
+// Puisqu on ne peut plus envoyer notre SIREN, il n y a plus de reference a
+// nous dans la reponse. Dropcontact rend une ligne par ligne envoyee, avec
+// son `index`. On relit donc les lignes du lot DANS LE MEME ORDRE QU A
+// L ENVOI — `order("id", ascending)` des deux cotes — et on apparie index
+// par index. ⚠️ SI L ORDRE CHANGEAIT D UN SEUL COTE, LES ADRESSES IRAIENT
+// AUX MAUVAISES LIGNES : ne jamais toucher a un `order("id")` sans toucher
+// a l autre.
 //
 // ⚠️ LE CREDIT EST LA RESSOURCE RARE. 4 000 par mois au 14/09. Le lot par
 // defaut est volontairement petit : mieux vaut plusieurs passages qu un
@@ -43,7 +64,7 @@ const API_RELEVE = "https://api.dropcontact.io/batch/";
 // LES TABLES TRAITEES, DANS L ORDRE.
 //
 // ⚠️ L ORDRE COMPTE : c est celui dans lequel les credits seront
-// consommes. `immobilier` d abord — 9 002 dirigeants sur 10 000, le
+// consommes. `immobilier` d abord — 8 964 dirigeants sur 10 000, le
 // meilleur rendement, et la campagne Mr CRM est la plus proche.
 const ORDRE = ["immobilier", "ecommerce"];
 
@@ -125,8 +146,9 @@ async function envoyer(nom: string): Promise<any> {
   const table = TABLES[nom];
 
   // 🚨 ON N ENVOIE QUE CE QUI A UN PRENOM ET UN NOM. Sans eux, Dropcontact
-  // ne trouve rien et le credit est consomme pour rien.
+  // ne trouve rien.
   // ⚠️ ET RIEN QUI SOIT DEJA PARTI : `dropcontact_lot is null`.
+  // 🚨 L ORDRE — order("id") — EST LA SEULE REFERENCE AU RETOUR.
   const { data: lignes, error } = await supabase
     .from(table)
     .select("id, siren, raison_sociale, dirigeant_prenom, dirigeant_nom, ville")
@@ -142,18 +164,15 @@ async function envoyer(nom: string): Promise<any> {
     return { table: table, info: "rien a envoyer" };
   }
 
-  // LE FORMAT ATTENDU PAR DROPCONTACT.
-  // ⚠️ `siren` EST NOTRE CLE DE RAPPROCHEMENT AU RETOUR. Dropcontact rend
-  // les lignes dans le meme ordre, mais on ne s y fie pas : on renvoie
-  // notre propre reference dans chaque ligne.
+  // LE FORMAT ATTENDU PAR DROPCONTACT — TROIS CHAMPS, PAS UN DE PLUS.
+  // 🚨 TOUT CHAMP INCONNU FAIT REFUSER LE LOT ENTIER (HTTP 400). Verifie le
+  // 15/09 : `siren`, `city` et `country` dans les lignes suffisaient a tout
+  // bloquer. Le SIREN se demande a la racine, par `siren: true`.
   const donnees = lignes.map(function (l: any) {
     return {
       first_name: propre(l.dirigeant_prenom),
       last_name: propre(l.dirigeant_nom),
       company: propre(l.raison_sociale),
-      siren: propre(l.siren),
-      city: propre(l.ville),
-      country: "France",
     };
   });
 
@@ -177,7 +196,7 @@ async function envoyer(nom: string): Promise<any> {
     catch { return { table: table, erreur: "reponse illisible : " + texte.slice(0, 200) }; }
 
     if (!r.ok) {
-      return { table: table, erreur: "HTTP " + r.status, detail: texte.slice(0, 200) };
+      return { table: table, erreur: "HTTP " + r.status, detail: texte.slice(0, 300) };
     }
   } catch (e: any) {
     return { table: table, erreur: String(e && e.message ? e.message : e) };
@@ -267,15 +286,46 @@ async function relever(nom: string): Promise<any> {
       continue;
     }
 
+    // 🚨 LES LIGNES DU LOT, DANS LE MEME ORDRE QU A L ENVOI. C est la seule
+    // facon de savoir a qui appartient la ligne n° 37 de la reponse.
+    const { data: dedans } = await supabase
+      .from(table)
+      .select("id, siren")
+      .eq("dropcontact_lot", lot)
+      .order("id", { ascending: true });
+
+    if (!dedans || dedans.length === 0) {
+      resultats.push({ lot: lot, erreur: "lot introuvable en base" });
+      continue;
+    }
+
+    // ⚠️ SI LES DEUX COMPTES NE CORRESPONDENT PAS, ON NE DEVINE PAS. Ecrire
+    // une adresse sur la mauvaise societe est pire que ne rien ecrire.
+    if (reponse.data.length !== dedans.length) {
+      resultats.push({
+        lot: lot,
+        erreur: "nombre de lignes different",
+        rendues: reponse.data.length,
+        attendues: dedans.length,
+        avertissement: "AUCUNE ECRITURE — rapprochement par position impossible",
+      });
+      continue;
+    }
+
     let ecrites = 0;
     let sansEmail = 0;
 
-    for (const d of reponse.data) {
-      const siren = propre(d.siren);
-      if (!siren) { sansEmail++; continue; }
+    for (let i = 0; i < reponse.data.length; i++) {
+      const d = reponse.data[i];
+
+      // Dropcontact rend un `index` : on s en sert quand il est la, de la
+      // position sinon.
+      const position = (d && typeof d.index === "number") ? d.index : i;
+      const ligne = dedans[position];
+      if (!ligne) { sansEmail++; continue; }
 
       // L adresse : Dropcontact rend une liste, la premiere est la
-      // meilleure. ⚠️ ON NE PREND QUE CELLES QU IL DIT FIABLES.
+      // meilleure.
       let email: string | null = null;
       if (Array.isArray(d.email) && d.email.length > 0) {
         const premier = d.email[0];
@@ -296,8 +346,11 @@ async function relever(nom: string): Promise<any> {
       if (tel) maj.telephone = tel;
       if (li) maj.linkedin = li;
 
+      // 🚨 ON ECRIT PAR L ID DE LA LIGNE, jamais par le SIREN : deux
+      // etablissements d une meme societe partagent le SIREN, et l adresse
+      // irait sur les deux.
       const { error } = await supabase
-        .from(table).update(maj).eq("siren", siren);
+        .from(table).update(maj).eq("id", ligne.id);
 
       if (!error && email) ecrites++;
     }
