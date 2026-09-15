@@ -81,6 +81,22 @@
       "schedule": "0 10 * * 1,2,3,4,5"
     },
     {
+      "path": "/api/campagne-immobilier",
+      "schedule": "30 8 * * 1,2,3,4,5"
+    },
+    {
+      "path": "/api/campagne-lms",
+      "schedule": "0 9 * * 1,2,3,4,5"
+    },
+    {
+      "path": "/api/campagne-crm-organismes",
+      "schedule": "30 9 * * 1,2,3,4,5"
+    },
+    {
+      "path": "/api/campagne-mysterllc",
+      "schedule": "30 10 * * 1,2,3,4,5"
+    },
+    {
       "path": "/api/cron/publier-linkedin",
       "schedule": "30 10 * * *"
     },
