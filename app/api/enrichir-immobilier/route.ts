@@ -164,6 +164,35 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || ""
 );
 
+// 🆕 LA TAILLE DE L ENTREPRISE — 15/09.
+//
+// L annuaire rend `tranche_effectif_salarie`, un code officiel de l INSEE.
+// On le garde TEL QUEL dans `effectif_code`, et on en tire une lecture
+// simple dans `taille` — pour filtrer un envoi sans avoir a se souvenir des
+// codes.
+//
+// 🚨 « 00 » SIGNIFIE ZERO SALARIE, PAS « INCONNU ». C est le cas le plus
+// frequent chez les agents immobiliers independants. Le vrai « non
+// renseigne » est « NN ».
+// ⚠️ LE SEUIL PME S ARRETE A 249 SALARIES : definition europeenne, pas un
+// choix. Au-dela commence l ETI.
+// ⚠️ ON GARDE LES DEUX COLONNES : si la grille change un jour, `taille` se
+// recalcule depuis `effectif_code` sans recollecter quoi que ce soit.
+const TAILLES: any = {
+  NN: "inconnu",
+  "00": "independant", "01": "independant",
+  "02": "tpe", "03": "tpe",
+  "11": "pme", "12": "pme", "21": "pme", "22": "pme", "31": "pme",
+  "32": "eti", "41": "eti", "42": "eti", "51": "eti",
+  "52": "ge", "53": "ge",
+};
+
+function tailleDe(code: any): string {
+  const c = String(code || "").trim().toUpperCase();
+  if (!c) return "inconnu";
+  return TAILLES[c] || "inconnu";
+}
+
 function propre(v: any): string | null {
   if (v === null || v === undefined) return null;
   const t = String(v).trim();
@@ -238,6 +267,21 @@ async function marquerEpuise(zone: string): Promise<void> {
     vague: PAGE_MAX,
     statut: "sans_email",
   }], { onConflict: "siren", ignoreDuplicates: true });
+}
+
+// LA REPARTITION PAR TAILLE — pour savoir a qui on parle avant d ecrire.
+// ⚠️ Une base majoritairement « independant » ne justifie pas un message qui
+// parle d equipe : c est ce que ce compte rend visible.
+async function repartitionTaille(): Promise<any> {
+  const sortie: any = {};
+  for (const t of ["independant", "tpe", "pme", "eti", "ge", "inconnu"]) {
+    const { count } = await supabase
+      .from("prospects_immobilier")
+      .select("id", { count: "exact", head: true })
+      .eq("taille", t);
+    if (count) sortie[t] = count;
+  }
+  return sortie;
 }
 
 // LE COMPTE EN BASE, AVEC SON ERREUR EVENTUELLE.
@@ -326,6 +370,14 @@ function lignesDe(resultats: any[], page: number, zone: string | null): any[] {
 
     const siege = e.siege || {};
 
+    // 🚨 LA TRANCHE D EFFECTIF ARRIVE AVEC LE RESULTAT, GRATUITEMENT. Elle
+    // ne coute rien de plus a collecter, et elle evite a Jacques de taper
+    // une etiquette « PME » a la main sur des milliers de fiches.
+    // ⚠️ ELLE PEUT ETRE SUR L UNITE LEGALE OU SUR LE SIEGE selon les
+    // enregistrements : on prend la premiere des deux qui reponde.
+    const effectif = propre(e.tranche_effectif_salarie)
+      || propre(siege.tranche_effectif_salarie);
+
     lignes.push({
       siren: siren,
       raison_sociale: propre(e.nom_complet) || propre(e.nom_raison_sociale),
@@ -333,6 +385,8 @@ function lignesDe(resultats: any[], page: number, zone: string | null): any[] {
       code_postal: propre(siege.code_postal),
       dirigeant_prenom: prenom,
       dirigeant_nom: nom,
+      effectif_code: effectif,
+      taille: tailleDe(effectif),
       // 🚨 LA MEMOIRE DE POSITION — page ET zone. L une sans l autre ne veut
       // rien dire : la page 3 du 75 n est pas la page 3 du national.
       vague: page,
@@ -386,6 +440,7 @@ export async function GET(req: NextRequest) {
       departements_restants: dep ? DEPARTEMENTS.length - DEPARTEMENTS.indexOf(dep) : 0,
       page_maximum: PAGE_MAX,
       plafond_par_zone: PAGE_MAX * PAR_PAGE,
+      repartition_taille: await repartitionTaille(),
     });
   }
 
