@@ -60,10 +60,16 @@ const SITE = "https://mrcomptable.fr";
 
 // PALIERS : 5 par jour, puis 10, 20, 50. Modifier ce chiffre suffit.
 // Le domaine contact-pro.mrcomptable.fr n a JAMAIS envoye : on demarre bas.
-const LOT_PAR_DEFAUT = 5;
+// 🚨 PASSAGE A 10 LE 15/09, demande de Jacques. contact-pro.mrcomptable.fr
+// envoie sans incident ; c est le palier suivant, jamais saute.
+const LOT_PAR_DEFAUT = 10;
 
 // LE NOMBRE MAXIMUM DE SOLLICITATIONS PAR PROSPECT.
-const PLAFOND_ENVOIS = 2;
+// 🚨 PORTE A TROIS LE 15/09 : la sequence cabinets compte trois vagues.
+//   1  Mr Comptable  la corvee des justificatifs
+//   2  MysterLLC     l ouverture a l international  (campagne-mysterllc)
+//   3  Mr Comptable  les heures non facturees
+const PLAFOND_ENVOIS = 3;
 
 // LE DELAI MINIMUM ENTRE DEUX VAGUES, EN JOURS.
 //
@@ -193,7 +199,10 @@ function messagePremiereVague(o: any): string {
 // un silence poli ; un message qui pose une question obtient une reponse.
 // ⚠️ AUCUN CONCURRENT NOMME, AUCUNE STATISTIQUE INVENTEE.
 // ─────────────────────────────────────────────────────────────────────
-function messageSecondeVague(o: any): string {
+// 🚨 CE TEXTE N A PAS CHANGE D UN MOT LE 15/09 — il a change de NUMERO.
+// Il etait la vague 2 ; il devient la vague 3, parce que MysterLLC vient
+// s intercaler. Jacques : « hors de question de les remplacer ».
+function messageTroisiemeVague(o: any): string {
   const texte =
     salutationDe(o) + "\n\n"
     + "Je vous avais écrit il y a quelques mois au sujet de Mr. Comptable, "
@@ -218,13 +227,15 @@ function messageSecondeVague(o: any): string {
   return habillage(o, texte);
 }
 
+// ⚠️ LA VAGUE 2 EST PORTEE PAR campagne-mysterllc : elle n a pas de sujet
+// ici.
 const SUJETS: any = {
   1: "La corvee que personne ne facture",
-  2: "Les heures que votre cabinet ne facture pas",
+  3: "Les heures que votre cabinet ne facture pas",
 };
 
 function messageDe(o: any, vague: number): string {
-  return vague === 2 ? messageSecondeVague(o) : messagePremiereVague(o);
+  return vague === 3 ? messageTroisiemeVague(o) : messagePremiereVague(o);
 }
 
 async function envoyer(destinataire: string, sujet: string, html: string) {
@@ -251,7 +262,7 @@ async function envoyer(destinataire: string, sujet: string, html: string) {
 }
 
 // La date limite au-dela de laquelle une seconde vague se justifie.
-function dateLimiteVagueDeux(): string {
+function dateLimiteVagueSuivante(): string {
   return new Date(Date.now() - DELAI_ENTRE_VAGUES * 86400000).toISOString();
 }
 
@@ -271,11 +282,12 @@ function appliquerFiltre(q: any, vague: number): any {
     .not("email", "is", null)
     .lt("nb_envois", PLAFOND_ENVOIS);
 
-  if (vague === 2) {
+  if (vague === 3) {
+    // 🚨 LA VAGUE 3 SUIT LA VAGUE 2 — celle de MysterLLC — pas la 1.
     sortie = sortie
-      .eq("vague_envoi", 1)
+      .eq("vague_envoi", 2)
       .eq("statut", "envoye")
-      .lt("envoye_le", dateLimiteVagueDeux());
+      .lt("envoye_le", dateLimiteVagueSuivante());
   } else {
     sortie = sortie
       .eq("statut", "enrichi")
@@ -304,8 +316,10 @@ export async function GET(req: NextRequest) {
   // LA VAGUE. Par defaut 1 : le cron quotidien reste sur la premiere.
   // La seconde se declenche a la main — ?vague=2 — le jour ou la reserve
   // de premiers contacts sera epuisee.
+  // ⚠️ CETTE ROUTE NE PORTE QUE LES VAGUES 1 ET 3. La vague 2 est portee
+  // par campagne-mysterllc, avec son expediteur et sa cadence.
   const vagueDemandee = Number(req.nextUrl.searchParams.get("vague") || 1);
-  const vague = vagueDemandee === 2 ? 2 : 1;
+  const vague = vagueDemandee === 3 ? 3 : 1;
 
   // MODE MESURE : ?compter=1 ne lit que la reserve et n envoie RIEN.
   if (req.nextUrl.searchParams.get("compter") === "1") {
@@ -317,9 +331,9 @@ export async function GET(req: NextRequest) {
       supabase.from("prospects_cabinets")
         .select("id", { count: "exact", head: true }), 1);
 
-    const { count: vague2 } = await appliquerFiltre(
+    const { count: vague3 } = await appliquerFiltre(
       supabase.from("prospects_cabinets")
-        .select("id", { count: "exact", head: true }), 2);
+        .select("id", { count: "exact", head: true }), 3);
 
     // Ceux qui ont recu le premier message mais dont le delai n est pas
     // encore ecoule : la reserve de demain, pour ainsi dire.
@@ -328,7 +342,7 @@ export async function GET(req: NextRequest) {
       .select("id", { count: "exact", head: true })
       .eq("vague_envoi", 1)
       .eq("desabonne", false)
-      .gte("envoye_le", dateLimiteVagueDeux());
+      .gte("envoye_le", dateLimiteVagueSuivante());
 
     const { count: epuises } = await supabase
       .from("prospects_cabinets")
@@ -344,8 +358,8 @@ export async function GET(req: NextRequest) {
       mode: "mesure, aucun envoi",
       total_cabinets: total || 0,
       premiere_vague_a_faire: vague1 || 0,
-      seconde_vague_a_faire: vague2 || 0,
-      seconde_vague_en_attente_du_delai: enAttente || 0,
+      troisieme_vague_a_faire: vague3 || 0,
+      troisieme_vague_en_attente: enAttente || 0,
       delai_entre_vagues_jours: DELAI_ENTRE_VAGUES,
       plafond_atteint: epuises || 0,
       desabonnes: desabonnes || 0,
@@ -387,7 +401,7 @@ export async function GET(req: NextRequest) {
     // ⚠️ LA CONDITION SUR LE STATUT EST CELLE DE LA VAGUE. En vague 2, la
     // ligne est en 'envoye' et non en 'enrichi' : filtrer sur 'enrichi'
     // ferait echouer tous les marquages en silence.
-    const statutAttendu = vague === 2 ? "envoye" : "enrichi";
+    const statutAttendu = vague === 3 ? "envoye" : "enrichi";
 
     const { error: errMarque } = await supabase
       .from("prospects_cabinets")
