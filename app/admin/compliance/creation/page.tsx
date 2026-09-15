@@ -53,6 +53,35 @@ export default function PageCreation() {
     setOccupe("");
   }
 
+  // 🚨 GENERER ENREGISTRE D ABORD — corrige le 15/09.
+  // Le bouton « 3. Generer le SS-4 » appelait la generation SANS envoyer les
+  // champs saisis : la route lisait ce qui etait en base, c est-a-dire rien,
+  // et repondait « Le nom du responsable (ligne 7a) est obligatoire » alors
+  // que le champ etait rempli SOUS LES YEUX de l utilisateur. Il fallait
+  // deviner qu un bouton « Enregistrer » separe existait.
+  // ⚠️ UN BOUTON QUI DIT « GENERER » DOIT GENERER. Le bouton « Enregistrer »
+  // reste, pour qui veut poser ses champs et revenir plus tard.
+  async function enregistrerEtGenererSS4() {
+    setOccupe("ss4"); setMsg("");
+    try {
+      const r1 = await fetch("/api/compliance/creation", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "champs", entite_id: d.entite.id, ...f }),
+      });
+      const d1 = await r1.json();
+      if (!d1.success) { setMsg("Erreur : " + (d1.error || "enregistrement impossible")); setOccupe(""); return; }
+
+      const r2 = await fetch("/api/compliance/ss4/generate", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ entite_id: d.entite.id }),
+      });
+      const d2 = await r2.json();
+      if (d2.success) { if (d2.message) setMsg(d2.message); await charger(); }
+      else setMsg("Erreur : " + (d2.error || "inconnue"));
+    } catch (e: any) { setMsg("Erreur : " + String(e)); }
+    setOccupe("");
+  }
+
   async function preparerEtSigner() {
     setOccupe("prep"); setMsg("");
     try {
@@ -81,7 +110,7 @@ export default function PageCreation() {
   function bouton() {
     if (st === "agent_a_choisir") return null;
     if (st === "statuts_a_deposer") return null;
-    if (st === "ss4_a_generer") return <button onClick={() => poster("/api/compliance/ss4/generate", {})} disabled={occupe !== "" || !f.responsable_nom} style={{ ...BOUTON, opacity: !f.responsable_nom ? 0.5 : 1 }}>{occupe ? "…" : "3. Générer le SS-4"}</button>;
+    if (st === "ss4_a_generer") return <button onClick={enregistrerEtGenererSS4} disabled={occupe !== "" || !f.responsable_nom} style={{ ...BOUTON, opacity: !f.responsable_nom ? 0.5 : 1 }}>{occupe ? "…" : "3. Générer le SS-4"}</button>;
     if (st === "ss4_genere") return <button onClick={preparerEtSigner} disabled={occupe !== ""} style={BOUTON}>{occupe ? "…" : "4. Préparer l'accusé et faire signer"}</button>;
     if (st === "ss4_accuse_envoye") return <button onClick={() => charger()} style={BOUTON}>5. Vérifier la signature</button>;
     if (st === "ss4_signe") return <button onClick={() => poster("/api/compliance/ss4/transmettre", { action: "transmettre" })} disabled={occupe !== ""} style={BOUTON}>{occupe ? "…" : "6. Transmettre le SS-4 à l'IRS"}</button>;
