@@ -137,6 +137,19 @@ async function calculer(contratId: string, periode: string): Promise<any> {
   if (errC) return { erreur: errC.message };
   if (!contrat) return { erreur: "contrat introuvable" };
 
+  // ---- LA SOCIETE ----
+  // 🚨 L EFFECTIF COMMANDE DEUX CHOSES : le taux et l assiette du FNAL, et
+  // le Tdelta de la RGDU. Inconnu, il vaut 0 — donc « moins de 50 » — et
+  // la reserve le dit franchement.
+  const { data: societe } = await supabase
+    .from("compta_societes")
+    .select("effectif")
+    .eq("id", contrat.societe_id)
+    .maybeSingle();
+
+  const effectif = societe && societe.effectif ? Number(societe.effectif) : 0;
+  const effectifConnu = !!(societe && societe.effectif);
+
   // ---- LES PARAMETRES DE LA PERIODE ----
   const plafond = await parametre("PMSS", periode);
   const dureeMensuelle = await parametre("DUREE_MENSUELLE", periode);
@@ -275,9 +288,13 @@ async function calculer(contratId: string, periode: string): Promise<any> {
     if (c.categorie && c.categorie !== contrat.categorie) continue;
     if (c.type_contrat && c.type_contrat !== contrat.type_contrat) continue;
 
-    // ⚠️ LES DEUX LIGNES FNAL SONT EXCLUSIVES : l effectif tranche. Tant
-    // que l effectif n est pas connu, on prend celle des moins de 50.
-    if (c.code === "FNAL_50PLUS") continue;
+    // 🚨 LES DEUX LIGNES FNAL SONT EXCLUSIVES : l effectif tranche.
+    // ⚠️ SANS EFFECTIF CONNU, on prend celle des moins de 50 — et on le
+    // SIGNALE dans les reserves plutot que de le taire : sur une entreprise
+    // plus grande, la cotisation serait sous-evaluee et l URSSAF
+    // reclamerait la difference.
+    if (c.code === "FNAL_MOINS50" && effectif >= 50) continue;
+    if (c.code === "FNAL_50PLUS" && effectif < 50) continue;
 
     // ⚠️ LA CET N EST DUE QUE SI LA REMUNERATION DEPASSE UN PLAFOND.
     if (c.code === "CET" && brutTotal <= plafond) continue;
@@ -316,6 +333,88 @@ async function calculer(contratId: string, periode: string): Promise<any> {
   totalPatronal = cts(totalPatronal);
   csgNonDeductible = cts(csgNonDeductible);
 
+  // ═══════════════════════════════════════════════════════════════════
+  // ---- LA REDUCTION GENERALE DEGRESSIVE UNIQUE (RGDU) ----
+  //
+  // 🚨 DEPUIS LE 1er JANVIER 2026, elle remplace l ancienne reduction
+  // Fillon ET les deux bandeaux maladie et famille. C est pourquoi les taux
+  // reduits de maladie (7 %) et d allocations familiales (3,45 %) ont
+  // disparu : ils sont absorbes ici.
+  //
+  // LA FORMULE :
+  //   C = Tmin + ( Tdelta x [ (1/2) x (3 x SMIC annuel / remuneration
+  //       annuelle brute - 1) ] ^ P )
+  //
+  // 🚨🚨 LE SMIC DE REFERENCE EST GELE A SA VALEUR DU 1er JANVIER, pour
+  // toute l annee, MEME APRES LA REVALORISATION DE JUIN. Deux valeurs de
+  // SMIC coexistent donc sur le meme bulletin : 12,31 pour payer le
+  // salarie, 12,02 pour calculer la reduction.
+  // ⛔ UTILISER LE SMIC COURANT ICI SUR-EVALUE LA REDUCTION, et l URSSAF
+  // reclame la difference. C est l une des deux premieres causes de
+  // redressement sur ce dispositif.
+  //
+  // ⚠️ LE CALCUL EST ANNUEL PAR NATURE, mais s applique mois par mois. Ici
+  // on raisonne SUR LE MOIS, en comparant au SMIC mensuel de reference :
+  // c est l approximation retenue tant que le cumul annuel n est pas tenu.
+  // ⛔ SUR UN SALAIRE VARIABLE, CETTE APPROXIMATION DERIVE. Le cumul annuel
+  // est a construire avant le premier bulletin reel.
+  // ═══════════════════════════════════════════════════════════════════
+  let rgdu = 0;
+  let rgduDetail: any = null;
+
+  const tmin = await parametre("RGDU_TMIN", periode);
+  const tdelta = await parametre(
+    effectif >= 50 ? "RGDU_TDELTA_50PLUS" : "RGDU_TDELTA_MOINS50", periode);
+  const expo = await parametre("RGDU_P", periode);
+  const seuil = await parametre("RGDU_SEUIL_SMIC", periode);
+  const smicRef = await parametre("RGDU_SMIC_REFERENCE", periode);
+
+  if (tmin !== null && tdelta !== null && expo !== null
+      && seuil !== null && smicRef !== null && dureeMensuelle) {
+
+    const smicMensuelRef = smicRef * dureeMensuelle;
+    const plafondEligibilite = smicMensuelRef * seuil;
+
+    if (brutTotal > 0 && brutTotal < plafondEligibilite) {
+      // Le crochet de la formule, borne entre 0 et 1.
+      let crochet = 0.5 * (seuil * smicMensuelRef / brutTotal - 1);
+      if (crochet < 0) crochet = 0;
+      if (crochet > 1) crochet = 1;
+
+      let coef = tmin + tdelta * Math.pow(crochet, expo);
+
+      // ⚠️ LE COEFFICIENT NE PEUT PAS DEPASSER Tmin + Tdelta.
+      const coefMax = tmin + tdelta;
+      if (coef > coefMax) coef = coefMax;
+      if (coef < 0) coef = 0;
+
+      rgdu = cts(brutTotal * coef);
+
+      rgduDetail = {
+        coefficient: Math.round(coef * 10000) / 10000,
+        smic_horaire_reference: smicRef,
+        smic_mensuel_reference: cts(smicMensuelRef),
+        plafond_eligibilite: cts(plafondEligibilite),
+        effectif_retenu: effectif,
+        tdelta_retenu: tdelta,
+        montant: rgdu,
+      };
+    } else {
+      rgduDetail = {
+        coefficient: 0,
+        motif: brutTotal >= plafondEligibilite
+          ? "remuneration superieure a " + seuil + " SMIC de reference ("
+            + cts(plafondEligibilite) + " EUR)"
+          : "brut nul",
+        plafond_eligibilite: cts(plafondEligibilite),
+      };
+    }
+  }
+
+  // 🚨 LA REDUCTION S IMPUTE SUR LES COTISATIONS PATRONALES, jamais sur les
+  // salariales. Elle diminue le cout employeur, pas le net du salarie.
+  const totalPatronalApresRgdu = cts(totalPatronal - rgdu);
+
   // ---- LES TOTAUX ----
   //
   // 🚨 LE NET IMPOSABLE REPREND LA CSG NON DEDUCTIBLE ET LA CRDS. Elles
@@ -323,7 +422,9 @@ async function calculer(contratId: string, periode: string): Promise<any> {
   // le net imposable est SUPERIEUR au net avant impot.
   const netAvantImpot = cts(brutTotal - totalSalarial + nonSoumis);
   const netImposable = cts(brutTotal - totalSalarial + csgNonDeductible);
-  const coutEmployeur = cts(brutTotal + totalPatronal);
+  // ⚠️ LE COUT EMPLOYEUR EST NET DE LA REDUCTION : c est ce que l entreprise
+  // debourse reellement.
+  const coutEmployeur = cts(brutTotal + totalPatronalApresRgdu);
 
   // ⚠️ LE PRELEVEMENT A LA SOURCE N EST PAS CALCULE ICI : son taux est
   // transmis par l administration fiscale dans le compte rendu metier de
@@ -331,6 +432,26 @@ async function calculer(contratId: string, periode: string): Promise<any> {
   // saisit a la main si besoin.
   const prelevementSource = 0;
   const netAPayer = cts(netAvantImpot - prelevementSource);
+
+  // ---- LE MONTANT NET SOCIAL ----
+  //
+  // 🚨 MENTION OBLIGATOIRE SUR LE BULLETIN DEPUIS 2023, et declaree en DSN
+  // depuis 2024. Il sert de reference aux prestations sociales : RSA, prime
+  // d activite. Un salarie qui declare un mauvais montant net social voit
+  // ses droits mal calcules.
+  //
+  // ⚠️ IL NE SE CONFOND NI AVEC LE NET IMPOSABLE NI AVEC LE NET A PAYER.
+  // Sa definition : le brut, diminue des cotisations et contributions
+  // SOCIALES OBLIGATOIRES a la charge du salarie. Il n en deduit pas le
+  // prelevement a la source, et il REINTEGRE la part patronale des
+  // garanties complementaires (mutuelle, prevoyance).
+  //
+  // ⛔ CE CALCUL EST UNE APPROXIMATION TANT QUE LA MUTUELLE ET LA PREVOYANCE
+  // NE SONT PAS GEREES : elles n existent pas encore dans paie_cotisations,
+  // donc rien n est a reintegrer, et le montant coincide ici avec le net
+  // avant impot hors elements non soumis. A REPRENDRE le jour ou une
+  // garantie complementaire sera ajoutee.
+  const netSocial = cts(brutTotal - totalSalarial);
 
   return {
     contrat: {
@@ -357,21 +478,33 @@ async function calculer(contratId: string, periode: string): Promise<any> {
 
     total_salarial: totalSalarial,
     total_patronal: totalPatronal,
+    rgdu: rgdu,
+    rgdu_detail: rgduDetail,
+    total_patronal_apres_rgdu: totalPatronalApresRgdu,
     net_imposable: netImposable,
+    net_social: netSocial,
     net_avant_impot: netAvantImpot,
     prelevement_source: prelevementSource,
     net_a_payer: netAPayer,
     cout_employeur: coutEmployeur,
 
     // ⚠️ CE QUI RESTE A FAIRE, DIT FRANCHEMENT PLUTOT QUE TU.
-    reserves: [
-      "Les taux doivent etre recoupes sur boss.gouv.fr avant tout bulletin reel.",
-      "Le taux AT/MP n est pas applique : il est propre a chaque entreprise (notifie par la CARSAT).",
-      "Le versement mobilite n est pas applique : il depend de la commune.",
-      "La reduction generale degressive unique (RGDU) n est pas calculee.",
-      "Le prelevement a la source est a zero : son taux vient du retour DSN.",
-      "Aucune convention collective n est traitee (paie_conventions).",
-    ],
+    // ⚠️ CE QUI RESTE A FAIRE, DIT FRANCHEMENT PLUTOT QUE TU.
+    reserves: (function () {
+      const r = [
+        "Les taux doivent etre recoupes sur boss.gouv.fr avant tout bulletin reel.",
+        "Le taux AT/MP n est pas applique : il est propre a chaque entreprise (notifie par la CARSAT).",
+        "Le versement mobilite n est pas applique : il depend de la commune.",
+        "Le prelevement a la source est a zero : son taux vient du retour DSN.",
+        "Aucune convention collective n est traitee (paie_conventions).",
+        "La RGDU est calculee sur le mois, pas sur le cumul annuel : sur un salaire variable, l approximation derive.",
+        "Le montant net social ne reintegre aucune garantie complementaire : mutuelle et prevoyance n existent pas encore.",
+      ];
+      if (!effectifConnu) {
+        r.unshift("🚨 EFFECTIF INCONNU pour cette societe : le FNAL et le Tdelta de la RGDU sont ceux des MOINS DE 50 SALARIES. Si l entreprise est plus grande, la cotisation est sous-evaluee et la reduction sur-evaluee.");
+      }
+      return r;
+    })(),
   };
 }
 
