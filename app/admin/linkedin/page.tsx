@@ -3942,19 +3942,30 @@ export default function PageLinkedin() {
                 );
               })}
 
-              {/* 🆕 LES TROIS PRODUITS SANS BASE DE PROSPECTION — 02/09.
+              {/* LES PRODUITS, POUR ATTEINDRE LES FICHES RANGEES A LA MAIN.
                   ⚠️ POURQUOI ILS SONT ICI, ET LA REMARQUE DE JACQUES QUI L A
-                  IMPOSE : « toutes les pastilles existent dans toutes les
-                  colonnes, sauf dans la colonne inviter » — or c est
-                  precisement la que le flux COMMENCE. Un tri qui n existe
-                  qu en aval ne fait jamais entrer personne : les listes des
-                  trois nouveaux produits seraient restees vides pour
-                  toujours.
+                  IMPOSE LE 02/09 : « toutes les pastilles existent dans
+                  toutes les colonnes, sauf dans la colonne inviter » — or
+                  c est precisement la que le flux COMMENCE. Un tri qui
+                  n existe qu en aval ne fait jamais entrer personne.
                   Ces pastilles servent la FILE D ATTENTE du produit : les
-                  profils ranges a la main, qui attendent d etre invites. */}
-              {ORDRE_PRODUITS.filter(function (cle: string) {
-                return (PRODUITS[cle].bases || []).length === 0;
-              }).map(function (cle: string) {
+                  profils ranges a la main, qui attendent d etre invites.
+
+                  🚨🚨 DEFAUT CORRIGE LE 15/09, REPERE PAR JACQUES A L ECRAN.
+                  Le filtre etait `bases.length === 0` : un produit
+                  n apparaissait QUE tant qu il n avait aucune base de
+                  prospection. Le jour ou Mr CRM a recu la base immobilier,
+                  sa pastille a DISPARU — et avec elle le seul acces aux DIX
+                  FICHES saisies a la main sous cette campagne, toutes en
+                  cours de relance. Elles etaient devenues injoignables sans
+                  qu aucun message ne le signale.
+                  ⚠️ UN PRODUIT RESTE ATTEIGNABLE, QU IL AIT UNE BASE OU NON.
+                  Avoir une base de prospection ne supprime pas les fiches
+                  rangees a la main : les deux origines coexistent.
+                  ⚠️ LA LECON : UN FILTRE QUI DEPEND D UNE AUTRE DONNEE SE
+                  CASSE LE JOUR OU CETTE DONNEE CHANGE. Ici, ajouter une base
+                  a fait disparaitre un bouton a l autre bout de l ecran. */}
+              {ORDRE_PRODUITS.map(function (cle: string) {
                 const f = PRODUITS[cle];
                 const actif = base === cle;
                 return (
