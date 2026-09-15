@@ -67,17 +67,41 @@ const SITE_LMS = "https://www.mrlms.fr";
 // D ENVOI, pas en volume cumule. On ne saute jamais un palier — 5 puis 10
 // puis 20 puis 50 — et on ne monte que si les echecs sont restes a zero.
 // PALIER SUIVANT : 20, vers le 10/09, et seulement apres la meme mesure.
-const LOT_PAR_DEFAUT = 10;
+// 🚨 PASSAGE A 20 LE 15/09, demande de Jacques. Le domaine
+// contact-pro.academiapro.fr envoie depuis le 13 aout sans un seul echec.
+// C est le palier prevu : 5, 10, 20, 50 — on ne saute jamais.
+const LOT_PAR_DEFAUT = 20;
 
 // LE NOMBRE MAXIMUM DE SOLLICITATIONS PAR PROSPECT.
-const PLAFOND_ENVOIS = 2;
+//
+// 🚨 PORTE A QUATRE LE 15/09 — la sequence compte desormais quatre vagues,
+// et chacune apporte UN SUJET NOUVEAU, jamais le meme texte reformule :
+//   1  le catalogue AcadeMIA Pro      (existait)
+//   2  Mr LMS — la plateforme seule   🆕
+//   3  Mr CRM — trouver les stagiaires 🆕
+//   4  le bilan pedagogique           (etait la vague 2)
+//
+// ⚠️ LE RAISONNEMENT DE JACQUES, 15/09 : les trois produits s adressent au
+// meme organisme et se COMPLETENT — le catalogue, la plateforme, le suivi
+// commercial. « On ne met pas tout dans un meme melange, c est structure. »
+// La separation est elle-meme un argument.
+// ⛔ AUCUN TEXTE EXISTANT N A ETE REMPLACE : l ancienne vague 2 devient la
+// vague 4, mot pour mot. « Hors de question de les remplacer. »
+
+const PLAFOND_ENVOIS = 4;
 
 // LE DELAI MINIMUM ENTRE DEUX VAGUES, EN JOURS.
 //
-// 🚨 QUATRE-VINGT-DIX JOURS. Revenir trop tot vers quelqu un qui n a pas
-// repondu se lit comme de l insistance ; revenir trois mois plus tard se
-// lit comme une nouvelle prise de contact.
-const DELAI_ENTRE_VAGUES = 90;
+// 🚨 TRENTE JOURS — DECISION DE JACQUES DU 15/09. C etait quatre-vingt-dix.
+// Ses mots : « une fois dans le mois, c est pas derangeant ».
+// ⚠️ CLAUDE A OBJECTE UNE FOIS : trois semaines a un mois est le rythme qui
+// fait cliquer « spam » plutot que « se desinscrire », et une plainte pese
+// bien plus lourd qu une desinscription — elle abime la reputation du
+// domaine, donc aussi les liens de connexion qui partent du meme endroit.
+// Jacques a tranche : « il faut vendre ». APPLIQUE, NE PAS ROUVRIR.
+// ⚠️ CE QUI REND CE RYTHME TENABLE : chaque vague parle d un AUTRE PRODUIT.
+// Ce n est pas quatre relances, c est quatre offres.
+const DELAI_ENTRE_VAGUES = 30;
 
 function clientAdmin() {
   return createClient(
@@ -223,7 +247,11 @@ function messagePremiereVague(o: any, nbFormations: number): string {
 // ⚠️ « le catalogue de l Editeur est evolutif » est la SEULE formule
 // autorisee : il n existe aucune production sur demande.
 // ─────────────────────────────────────────────────────────────────────
-function messageSecondeVague(o: any, nbFormations: number): string {
+// 🚨 CE TEXTE N A PAS CHANGE D UN MOT LE 15/09 — il a change de NUMERO.
+// Il etait la vague 2 ; il devient la vague 4 de la sequence, parce que
+// Mr LMS et Mr CRM viennent s intercaler. Jacques : « hors de question de
+// les remplacer ».
+function messageQuatriemeVague(o: any, nbFormations: number): string {
   const texte =
     salutationDe(o) + "\n\n"
     + "Je vous avais écrit il y a quelques mois au sujet d'AcadéMIA Pro. "
@@ -245,14 +273,17 @@ function messageSecondeVague(o: any, nbFormations: number): string {
   return habillage(o, texte);
 }
 
+// ⚠️ LES NUMEROS SONT CEUX DE LA SEQUENCE VUE PAR LE PROSPECT, pas ceux de
+// cette route. Les vagues 2 et 3 sont portees par campagne-lms et
+// campagne-crm-organismes : elles n ont pas de sujet ici.
 const SUJETS: any = {
   1: "Votre BPF de l'an prochain se prepare cette annee",
-  2: "La demande que vous avez du refuser le mois dernier",
+  4: "La demande que vous avez du refuser le mois dernier",
 };
 
 function messageDe(o: any, vague: number, nbFormations: number): string {
-  return vague === 2
-    ? messageSecondeVague(o, nbFormations)
+  return vague === 4
+    ? messageQuatriemeVague(o, nbFormations)
     : messagePremiereVague(o, nbFormations);
 }
 
@@ -279,7 +310,7 @@ async function envoyer(destinataire: string, sujet: string, html: string) {
   return { ok: r.ok, statut: r.status, reponse: data };
 }
 
-function dateLimiteVagueDeux(): string {
+function dateLimiteVagueSuivante(): string {
   return new Date(Date.now() - DELAI_ENTRE_VAGUES * 86400000).toISOString();
 }
 
@@ -294,11 +325,14 @@ function appliquerFiltre(q: any, vague: number): any {
     .not("email", "is", null)
     .lt("nb_envois", PLAFOND_ENVOIS);
 
-  if (vague === 2) {
+  if (vague === 4) {
+    // 🚨 LA VAGUE 4 SUIT LA VAGUE 3 — celle de Mr CRM — pas la 1. Un
+    // organisme doit avoir recu le catalogue, la plateforme PUIS le CRM
+    // avant de recevoir ce dernier message.
     sortie = sortie
-      .eq("vague_envoi", 1)
+      .eq("vague_envoi", 3)
       .eq("statut", "envoye")
-      .lt("envoye_le", dateLimiteVagueDeux());
+      .lt("envoye_le", dateLimiteVagueSuivante());
   } else {
     sortie = sortie
       .eq("statut", "enrichi")
@@ -325,8 +359,11 @@ export async function GET(req: NextRequest) {
   const supabase = clientAdmin();
 
   // LA VAGUE. Par defaut 1 : le cron quotidien reste sur la premiere.
+  // ⚠️ CETTE ROUTE NE PORTE QUE LES VAGUES 1 ET 4. Les vagues 2 (Mr LMS) et
+  // 3 (Mr CRM) sont portees par leurs propres routes, avec leur expediteur
+  // et leur cadence.
   const vagueDemandee = Number(req.nextUrl.searchParams.get("vague") || 1);
-  const vague = vagueDemandee === 2 ? 2 : 1;
+  const vague = vagueDemandee === 4 ? 4 : 1;
 
   // 🚨 24/08 — LE COMPTAGE ANNONCAIT 580 FORMATIONS AU LIEU DE 560.
   //
@@ -351,16 +388,16 @@ export async function GET(req: NextRequest) {
       supabase.from("prospects_organismes")
         .select("id", { count: "exact", head: true }), 1);
 
-    const { count: vague2 } = await appliquerFiltre(
+    const { count: vague4 } = await appliquerFiltre(
       supabase.from("prospects_organismes")
-        .select("id", { count: "exact", head: true }), 2);
+        .select("id", { count: "exact", head: true }), 4);
 
     const { count: enAttente } = await supabase
       .from("prospects_organismes")
       .select("id", { count: "exact", head: true })
       .eq("vague_envoi", 1)
       .eq("desabonne", false)
-      .gte("envoye_le", dateLimiteVagueDeux());
+      .gte("envoye_le", dateLimiteVagueSuivante());
 
     const { count: epuises } = await supabase
       .from("prospects_organismes")
@@ -377,8 +414,8 @@ export async function GET(req: NextRequest) {
       total_organismes: total || 0,
       formations_annoncees: nbFormations || 0,
       premiere_vague_a_faire: vague1 || 0,
-      seconde_vague_a_faire: vague2 || 0,
-      seconde_vague_en_attente_du_delai: enAttente || 0,
+      quatrieme_vague_a_faire: vague4 || 0,
+      quatrieme_vague_en_attente: enAttente || 0,
       delai_entre_vagues_jours: DELAI_ENTRE_VAGUES,
       plafond_atteint: epuises || 0,
       desabonnes: desabonnes || 0,
@@ -422,7 +459,7 @@ export async function GET(req: NextRequest) {
     //
     // ⚠️ LA CONDITION SUR LE STATUT EST CELLE DE LA VAGUE. En vague 2, la
     // ligne est en 'envoye' et non en 'enrichi'.
-    const statutAttendu = vague === 2 ? "envoye" : "enrichi";
+    const statutAttendu = vague === 4 ? "envoye" : "enrichi";
 
     const { error: errMarque } = await supabase
       .from("prospects_organismes")
