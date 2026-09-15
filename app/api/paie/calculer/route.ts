@@ -57,6 +57,33 @@ export const maxDuration = 60;
 //    premiere chose qu un salarie mefiant recalcule.
 // ═══════════════════════════════════════════════════════════════════════
 
+// LES COTISATIONS QUE LA RGDU PEUT REDUIRE.
+//
+// 🚨 LA REDUCTION NE PEUT PAS DEPASSER CE QUI EST EFFECTIVEMENT DU SUR CES
+// COTISATIONS-LA. C est une limite legale, pas un garde-fou de confort :
+// une reduction superieure est un trop-deduit que l URSSAF reclame.
+//
+// ⚠️ CE QUI N EST PAS DANS LA LISTE, ET POURQUOI :
+//   · AGS         hors champ
+//   · CSA         hors champ
+//   · CET, APEC   hors champ
+//   · CSG, CRDS   ce sont des contributions SALARIALES
+// ⚠️ LE FNAL Y EST, ainsi que la retraite complementaire (part patronale) :
+// c est la nouveaute de la RGDU par rapport a l ancienne reduction Fillon.
+const ELIGIBLES_RGDU = [
+  "MALADIE",
+  "VIEILLESSE_PLAF",
+  "VIEILLESSE_DEPLAF",
+  "ALLOC_FAM",
+  "CHOMAGE",
+  "FNAL_MOINS50",
+  "FNAL_50PLUS",
+  "RETRAITE_C_T1",
+  "RETRAITE_C_T2",
+  "CEG_T1",
+  "CEG_T2",
+];
+
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
   process.env.SUPABASE_SERVICE_ROLE_KEY || ""
@@ -281,6 +308,7 @@ async function calculer(contratId: string, periode: string): Promise<any> {
   let totalSalarial = 0;
   let totalPatronal = 0;
   let csgNonDeductible = 0;
+  let patronalEligible = 0;
 
   for (const c of (cotisations || [])) {
     // ⚠️ CERTAINES COTISATIONS NE CONCERNENT QU UNE CATEGORIE (APEC pour
@@ -317,6 +345,15 @@ async function calculer(contratId: string, periode: string): Promise<any> {
       csgNonDeductible += partSal;
     }
 
+    // 🚨 LES COTISATIONS DANS LE CHAMP DE LA RGDU. La reduction ne peut pas
+    // depasser ce qui est effectivement du sur CES cotisations-la.
+    // ⚠️ L AGS N EN FAIT PAS PARTIE, ni la CSA, ni la CET, ni l APEC. Les
+    // inclure gonflerait le plafond et laisserait passer une reduction
+    // superieure a ce que la loi autorise.
+    if (ELIGIBLES_RGDU.indexOf(String(c.code)) >= 0) {
+      patronalEligible += partPat;
+    }
+
     lignesCotis.push({
       code: c.code,
       libelle: c.libelle,
@@ -326,12 +363,14 @@ async function calculer(contratId: string, periode: string): Promise<any> {
       taux_patronal: Number(c.taux_patronal),
       part_salariale: partSal,
       part_patronale: partPat,
+      eligible_rgdu: ELIGIBLES_RGDU.indexOf(String(c.code)) >= 0,
     });
   }
 
   totalSalarial = cts(totalSalarial);
   totalPatronal = cts(totalPatronal);
   csgNonDeductible = cts(csgNonDeductible);
+  patronalEligible = cts(patronalEligible);
 
   // ═══════════════════════════════════════════════════════════════════
   // ---- LA REDUCTION GENERALE DEGRESSIVE UNIQUE (RGDU) ----
@@ -388,7 +427,17 @@ async function calculer(contratId: string, periode: string): Promise<any> {
       if (coef > coefMax) coef = coefMax;
       if (coef < 0) coef = 0;
 
-      rgdu = cts(brutTotal * coef);
+      const calcule = cts(brutTotal * coef);
+
+      // 🚨🚨 LE PLAFOND LEGAL : LA REDUCTION NE PEUT PAS DEPASSER LES
+      // COTISATIONS QU ELLE REDUIT.
+      //
+      // Le coefficient s applique au brut, mais ce qu on deduit ne peut pas
+      // exceder ce qui est reellement du sur les cotisations eligibles. Le
+      // cas se produit sur les tres bas salaires, ou le coefficient est a
+      // son maximum : sans ce plafond, on deduirait plus que ce qu on doit,
+      // et l URSSAF reclamerait la difference — avec majorations.
+      rgdu = Math.min(calcule, patronalEligible);
 
       rgduDetail = {
         coefficient: Math.round(coef * 10000) / 10000,
@@ -397,6 +446,9 @@ async function calculer(contratId: string, periode: string): Promise<any> {
         plafond_eligibilite: cts(plafondEligibilite),
         effectif_retenu: effectif,
         tdelta_retenu: tdelta,
+        calcule_sur_le_brut: calcule,
+        cotisations_eligibles: patronalEligible,
+        plafonne: calcule > patronalEligible,
         montant: rgdu,
       };
     } else {
