@@ -75,6 +75,20 @@ function euros(n: any): string {
   return v.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+// LES TAUX HORAIRES, A QUATRE DECIMALES QUAND ILS EN ONT.
+//
+// 🚨 UN TAUX ARRONDI A DEUX DECIMALES REND LE BULLETIN INVERIFIABLE. Une
+// heure supplementaire a 12,31 majoree de 25 % vaut 15,3875 : imprime
+// « 15,39 », le salarie qui multiplie 4 x 15,39 trouve 61,56 alors que la
+// ligne annonce 61,55. Un ecart d un centime suffit a faire douter de tout
+// le bulletin.
+// ⚠️ ON N AJOUTE PAS DE DECIMALES INUTILES : 12,31 reste « 12,31 ».
+function taux(n: any): string {
+  const v = Number(n || 0);
+  const d = Math.round(v * 100) === Math.round(v * 10000) / 100 ? 2 : 4;
+  return v.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: d });
+}
+
 function moisDe(periode: string): string {
   const MOIS = ["janvier", "fevrier", "mars", "avril", "mai", "juin",
     "juillet", "aout", "septembre", "octobre", "novembre", "decembre"];
@@ -289,7 +303,7 @@ export async function POST(req: NextRequest) {
   for (const l of (calcul.lignes_brut || [])) {
     ecrire(l.libelle, 40, 8.5, police, NOIR);
     if (l.quantite !== null && l.quantite !== undefined) droite(euros(l.quantite), 340, 8.5, police, NOIR);
-    if (l.taux !== null && l.taux !== undefined) droite(euros(l.taux), 420, 8.5, police, NOIR);
+    if (l.taux !== null && l.taux !== undefined) droite(taux(l.taux), 420, 8.5, police, NOIR);
     droite(euros(l.montant), 555, 8.5, police, NOIR);
     y -= 11;
   }
