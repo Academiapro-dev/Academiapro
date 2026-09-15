@@ -481,6 +481,8 @@ export async function GET(req: NextRequest) {
   // `?departement=national` force la reprise de la collecte sans filtre —
   // elle est terminee, mais on garde la porte.
   const demandeDep = (req.nextUrl.searchParams.get("departement") || "").trim();
+  // ⚠️ `let` ET NON `const` : la zone change en cours de route quand on
+  // enchaine les departements.
   let zone: string | null;
   if (demandeDep === "national") {
     zone = null;
@@ -508,14 +510,41 @@ export async function GET(req: NextRequest) {
   let arret = "nombre de pages atteint";
   const incidents: any[] = [];
 
+  // 🆕 PLUSIEURS DEPARTEMENTS PAR PASSAGE — 15/09.
+  //
+  // POURQUOI. Un departement par nuit, c est 99 nuits pour finir la France,
+  // soit plus de trois mois. Or la plupart des departements sont epuises en
+  // trente ou quarante pages — une vingtaine de secondes. Seuls Paris et
+  // quelques grandes metropoles vont au plafond. Avec les 270 secondes
+  // disponibles, on en fait huit a dix par passage : la collecte entiere
+  // tient en une dizaine de nuits.
+  //
+  // ⚠️ LE GARDE-FOU DE DUREE COMMANDE, PAS UN COMPTEUR DE DEPARTEMENTS. On
+  // enchaine tant qu il reste du temps ; des qu il n y en a plus, on rend la
+  // main PROPREMENT, position ecrite. Le lendemain reprend exactement la.
+  // ⚠️ UN DEPARTEMENT DEMANDE EXPLICITEMENT NE DECLENCHE PAS L ENCHAINEMENT :
+  // quand une zone precise est visee, c est celle-la qu on veut, pas neuf
+  // autres derriere.
+  const enchainer = !demandeDep && !demandeePage;
+  const zonesFaites: any[] = [];
+  let lignesZone = 0;
+
   while (pagesTraitees < aFaire) {
     // 🚨 ARRET PROPRE AU PLAFOND.
     if (page > PAGE_MAX) {
       // 🚨 LE PLAFOND EST UNE FIN, PAS UNE PANNE : on le declare, sinon le
       // cron reviendrait sur cette zone tous les jours pour rien.
-      await marquerEpuise(zone, PAGE_MAX, lignesEnvoyees);
-      arret = "plafond de la zone atteint — zone terminee";
-      break;
+      await marquerEpuise(zone, PAGE_MAX, lignesZone);
+      zonesFaites.push({ zone: zone || "national", pages: page - 1, lignes: lignesZone, fin: "plafond" });
+
+      if (!enchainer) { arret = "plafond de la zone atteint — zone terminee"; break; }
+
+      const suivante = await prochainDepartement();
+      if (!suivante) { arret = "toute la France est collectee"; break; }
+      zone = suivante;
+      page = await pageSuivante(zone);
+      lignesZone = 0;
+      continue;
     }
 
     // 🚨 ON REND LA MAIN AVANT QUE VERCEL COUPE.
@@ -537,9 +566,21 @@ export async function GET(req: NextRequest) {
     if (resultats.length === 0) {
       // 🚨 LA ZONE EST EPUISEE : on l ecrit dans la table, sinon le prochain
       // passage relirait la meme page indefiniment.
-      await marquerEpuise(zone, page - 1, lignesEnvoyees);
-      arret = "aucun resultat — la zone " + (zone || "nationale") + " est complete";
-      break;
+      await marquerEpuise(zone, page - 1, lignesZone);
+      zonesFaites.push({ zone: zone || "national", pages: page - 1, lignes: lignesZone, fin: "epuisee" });
+
+      if (!enchainer) {
+        arret = "aucun resultat — la zone " + (zone || "nationale") + " est complete";
+        break;
+      }
+
+      // 🚨 ON ENCHAINE SUR LE DEPARTEMENT SUIVANT, tant qu il reste du temps.
+      const suivante = await prochainDepartement();
+      if (!suivante) { arret = "toute la France est collectee"; break; }
+      zone = suivante;
+      page = await pageSuivante(zone);
+      lignesZone = 0;
+      continue;
     }
 
     const lignes = lignesDe(resultats, page, zone);
@@ -568,6 +609,7 @@ export async function GET(req: NextRequest) {
       }
 
       lignesEnvoyees += lignes.length;
+      lignesZone += lignes.length;
 
       // 🚨🚨 L EFFECTIF DOIT ETRE ECRIT MEME SUR UNE LIGNE DEJA CONNUE.
       //
@@ -631,6 +673,7 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({
     zone: zone || "nationale",
+    zones_terminees_ce_passage: zonesFaites,
     arret: arret,
     pages_traitees: pagesTraitees,
     derniere_page: page - 1,
