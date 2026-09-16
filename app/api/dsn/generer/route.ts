@@ -522,79 +522,6 @@ export async function POST(req: NextRequest) {
     ecrire("S21.G00.11.025", societe.spst_identifiant);
   }
 
-  // ═══════════════════════════════════════════════════════════════════
-  // ══ S21.G00.85 — LES LIEUX DE TRAVAIL ET ETABLISSEMENTS UTILISATEURS ══
-  //
-  // 🚨🚨 CE BLOC EST INDISPENSABLE A L INTERIM, et son absence a produit
-  // trois anomalies d un coup :
-  //   · « contrat de mission sans preciser le lieu de travail »
-  //   · « identifiant d etablissement utilisateur sans etablissement
-  //     utilisateur associe »
-  //   · « absence de la rubrique S21.G00.40.019 »
-  //
-  // ⚠️ SA PLACE EST ICI, enfant de l etablissement, AVANT les individus.
-  // Ecrit apres le contrat — ce que nous avons fait au premier essai — il
-  // faisait ignorer toute la suite du fichier.
-  //
-  // 🚨 UN SEUL BLOC PAR LIEU, meme si dix interimaires y travaillent : les
-  // contrats s y rattachent par leur rubrique 40.019, qui porte le meme
-  // identifiant. C est pourquoi on dedoublonne sur le SIRET.
-  // ═══════════════════════════════════════════════════════════════════
-  const lieuxVus: string[] = [];
-  for (const b0 of bulletins) {
-    const c0: any = (b0 as any).paie_contrats;
-    if (!c0) continue;
-    const sir = q(c0.eu_siret).replace(/\D/g, "");
-    if (sir.length !== 14 || !cleLuhnValide(sir)) continue;
-    if (lieuxVus.indexOf(sir) >= 0) continue;
-    lieuxVus.push(sir);
-
-    // 🚨🚨 LE BLOC 85 SE REMPLIT EN ENTIER OU PAS DU TOUT.
-    //
-    // Incomplet, il a fait rejeter LES TROIS SALARIES d un coup : dsn-val a
-    // compte « 0 salarie » sur un fichier qui en portait trois, et les
-    // quinze anomalies du rapport venaient toutes de ce seul bloc.
-    //
-    // ⚠️ SANS NATURE JURIDIQUE, LE SIRET EST REFUSE. Le cahier (page 318)
-    // autorise le SIRET en 85.001 — mais la regle CCH-12 ne le valide que
-    // si 85.010 vaut « 01 - Etablissement ». Sans cette rubrique, dsn-val
-    // ne sait pas qu il regarde un etablissement immatricule, et repond
-    // « vous avez renseigne un SIRET, ceci n est pas admis ».
-    //
-    // ⚠️ LE CODE INSEE DE LA COMMUNE (85.011) EST OBLIGATOIRE des lors
-    // qu aucun code pays n est declare. Ce n est pas le code postal : c est
-    // lui qui rattache le lieu a son autorite de transport, donc au taux de
-    // versement mobilite qui sera reclame.
-    //
-    // ⛔ SI L UNE DE CES DONNEES MANQUE, ON N ECRIT PAS LE BLOC : un bloc 85
-    // incomplet coute plus cher que pas de bloc du tout, puisqu il emporte
-    // tous les salaries avec lui.
-    const natureJur = q(c0.eu_nature_juridique) || "01";
-    const insee = q(c0.eu_code_insee);
-    const cpLieu = q(c0.eu_code_postal);
-
-    if (!insee || !cpLieu || !q(c0.eu_adresse) || !q(c0.eu_ville)) {
-      anomalies.push("Lieu de travail " + sir + " : adresse, code postal, "
-        + "ville ou code INSEE manquant. ⛔ LE BLOC S21.G00.85 N'EST PAS "
-        + "DÉCLARÉ — un bloc incomplet ferait rejeter tous les salariés. "
-        + "Compléter le contrat (colonnes eu_adresse, eu_code_postal, "
-        + "eu_ville, eu_code_insee).");
-      lieuxVus.pop();
-      continue;
-    }
-
-    ecrire("S21.G00.85.001", sir);
-    // ⚠️ LE CODE APE DU LIEU DE TRAVAIL, PAS CELUI DE L EMPLOYEUR : c est
-    // l activite reelle exercee sur place qui compte pour le risque.
-    if (q(c0.eu_code_ape)) ecrire("S21.G00.85.002", c0.eu_code_ape);
-    ecrire("S21.G00.85.003", c0.eu_adresse);
-    ecrire("S21.G00.85.004", cpLieu);
-    ecrire("S21.G00.85.005", c0.eu_ville);
-    // ⛔ PAS DE CODE PAYS (85.006) POUR UN LIEU EN FRANCE : code postal et
-    // code pays s excluent, exactement comme sur l adresse du salarie.
-    ecrire("S21.G00.85.010", natureJur);
-    ecrire("S21.G00.85.011", insee);
-  }
 
   let totalBrut = 0;
   let totalCotisations = 0;
@@ -1324,6 +1251,88 @@ export async function POST(req: NextRequest) {
 
     totalBrut += Number(b.brut || 0);
     totalCotisations += Number(b.total_salarial || 0) + Number(b.total_patronal || 0);
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // ══ S21.G00.85 — LES LIEUX DE TRAVAIL ET ETABLISSEMENTS UTILISATEURS ══
+  //
+  // 🚨🚨 SA PLACE EST ICI, APRES TOUS LES INDIVIDUS. C est la troisieme
+  // place essayee, et cette fois la regle est explicite : les sous-groupes
+  // d un meme parent se suivent dans l ORDRE CROISSANT DE LEUR NUMERO. Sous
+  // l etablissement viennent d abord les individus (30), et le lieu de
+  // travail (85) ferme la marche.
+  //
+  // CE QUE LES DEUX PLACES PRECEDENTES ONT COUTE :
+  //   · APRES LE CONTRAT : « sous-groupe S21.G00.51 non attendu apres
+  //     S21.G00.85.001 » — la remuneration, les assiettes et les
+  //     cotisations etaient ignorees.
+  //   · AVANT LES INDIVIDUS : « sous-groupe S21.G00.30 non attendu apres
+  //     S21.G00.85.011 » — les trois salaries disparaissaient d un coup, et
+  //     dsn-val annoncait « Nombre de salaries : 0 » sur un fichier qui en
+  //     portait trois.
+  //
+  // ⚠️ LA REFERENCE N IMPOSE PAS L ORDRE : la rubrique 40.019 de chaque
+  // contrat designe un lieu decrit PLUS BAS dans le fichier, et c est
+  // normal. Un identifiant se rattache, il ne se lit pas de haut en bas.
+  //
+  // ⚠️ CE BLOC SE REMPLIT EN ENTIER OU PAS DU TOUT : sans nature juridique
+  // le SIRET est refuse, et sans code INSEE la commune n est pas situee.
+  // Un bloc 85 incomplet emporte tous les salaries avec lui.
+  // ═══════════════════════════════════════════════════════════════════
+  const lieuxVus: string[] = [];
+  for (const b0 of bulletins) {
+    const c0: any = (b0 as any).paie_contrats;
+    if (!c0) continue;
+    const sir = q(c0.eu_siret).replace(/\D/g, "");
+    if (sir.length !== 14 || !cleLuhnValide(sir)) continue;
+    if (lieuxVus.indexOf(sir) >= 0) continue;
+    lieuxVus.push(sir);
+
+    // 🚨🚨 LE BLOC 85 SE REMPLIT EN ENTIER OU PAS DU TOUT.
+    //
+    // Incomplet, il a fait rejeter LES TROIS SALARIES d un coup : dsn-val a
+    // compte « 0 salarie » sur un fichier qui en portait trois, et les
+    // quinze anomalies du rapport venaient toutes de ce seul bloc.
+    //
+    // ⚠️ SANS NATURE JURIDIQUE, LE SIRET EST REFUSE. Le cahier (page 318)
+    // autorise le SIRET en 85.001 — mais la regle CCH-12 ne le valide que
+    // si 85.010 vaut « 01 - Etablissement ». Sans cette rubrique, dsn-val
+    // ne sait pas qu il regarde un etablissement immatricule, et repond
+    // « vous avez renseigne un SIRET, ceci n est pas admis ».
+    //
+    // ⚠️ LE CODE INSEE DE LA COMMUNE (85.011) EST OBLIGATOIRE des lors
+    // qu aucun code pays n est declare. Ce n est pas le code postal : c est
+    // lui qui rattache le lieu a son autorite de transport, donc au taux de
+    // versement mobilite qui sera reclame.
+    //
+    // ⛔ SI L UNE DE CES DONNEES MANQUE, ON N ECRIT PAS LE BLOC : un bloc 85
+    // incomplet coute plus cher que pas de bloc du tout, puisqu il emporte
+    // tous les salaries avec lui.
+    const natureJur = q(c0.eu_nature_juridique) || "01";
+    const insee = q(c0.eu_code_insee);
+    const cpLieu = q(c0.eu_code_postal);
+
+    if (!insee || !cpLieu || !q(c0.eu_adresse) || !q(c0.eu_ville)) {
+      anomalies.push("Lieu de travail " + sir + " : adresse, code postal, "
+        + "ville ou code INSEE manquant. ⛔ LE BLOC S21.G00.85 N'EST PAS "
+        + "DÉCLARÉ — un bloc incomplet ferait rejeter tous les salariés. "
+        + "Compléter le contrat (colonnes eu_adresse, eu_code_postal, "
+        + "eu_ville, eu_code_insee).");
+      lieuxVus.pop();
+      continue;
+    }
+
+    ecrire("S21.G00.85.001", sir);
+    // ⚠️ LE CODE APE DU LIEU DE TRAVAIL, PAS CELUI DE L EMPLOYEUR : c est
+    // l activite reelle exercee sur place qui compte pour le risque.
+    if (q(c0.eu_code_ape)) ecrire("S21.G00.85.002", c0.eu_code_ape);
+    ecrire("S21.G00.85.003", c0.eu_adresse);
+    ecrire("S21.G00.85.004", cpLieu);
+    ecrire("S21.G00.85.005", c0.eu_ville);
+    // ⛔ PAS DE CODE PAYS (85.006) POUR UN LIEU EN FRANCE : code postal et
+    // code pays s excluent, exactement comme sur l adresse du salarie.
+    ecrire("S21.G00.85.010", natureJur);
+    ecrire("S21.G00.85.011", insee);
   }
 
   // ══ S90 — LE TOTAL DE L ENVOI ══
