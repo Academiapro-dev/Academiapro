@@ -752,6 +752,22 @@ export async function POST(req: NextRequest) {
     ecrire("S21.G00.40.018", q(ct.regime_maladie) || "200");
     ecrire("S21.G00.40.020", q(ct.regime_vieillesse) || "200");
 
+    // 🚨 LE MOTIF DE RECOURS (40.021) SE PLACE ICI, entre le regime
+    // vieillesse (020) et le travailleur a l etranger (024). L ordre
+    // croissant des rubriques n est pas une elegance : dsn-val cesse de
+    // lire un bloc des qu il revient en arriere, et ignore tout ce qui
+    // suit. Nous l avons paye trois fois aujourd hui.
+    // ⚠️ LE MOTIF DE RECOURS EST UN CODE (40.021), pas un libelle.
+    if (q(ct.type_contrat) === "mission" || q(ct.type_contrat) === "cdd") {
+      const codeMotif = await code("S21.G00.40.021", q(ct.motif_recours), periode);
+      if (codeMotif) ecrire("S21.G00.40.021", codeMotif);
+      else {
+        anomalies.push(qui + " : motif de recours « " + q(ct.motif_recours)
+          + " » sans code DSN (S21.G00.40.021). ⛔ NON DÉCLARÉ — obligatoire "
+          + "sur un contrat de mission ou un CDD.");
+      }
+    }
+
     // ⚠️ TRAVAILLEUR A L ETRANGER : 01 detache, 02 expatrie, 03 frontalier,
     // 99 non concerne.
     ecrire("S21.G00.40.024", q(ct.travailleur_etranger) || "99");
@@ -766,25 +782,6 @@ export async function POST(req: NextRequest) {
 
     ecrire("S21.G00.40.039", q(ct.regime_at) || "200");
 
-    // 🚨 LA PERIODE D ESSAI EST OBLIGATOIRE pour les CDI et les CDD de plus
-    // de six mois depuis le cahier technique 2026.
-    if (ct.essai_duree_jours) {
-      ecrire("S21.G00.40.082", String(ct.essai_duree_jours));
-    } else if (q(ct.type_contrat) === "cdi") {
-      anomalies.push(qui + " : durée de période d'essai absente "
-        + "(S21.G00.40.082), obligatoire pour un CDI.");
-    }
-
-    // ⚠️ LE MOTIF DE RECOURS EST UN CODE (40.021), pas un libelle.
-    if (q(ct.type_contrat) === "mission" || q(ct.type_contrat) === "cdd") {
-      const codeMotif = await code("S21.G00.40.021", q(ct.motif_recours), periode);
-      if (codeMotif) ecrire("S21.G00.40.021", codeMotif);
-      else {
-        anomalies.push(qui + " : motif de recours « " + q(ct.motif_recours)
-          + " » sans code DSN (S21.G00.40.021). ⛔ NON DÉCLARÉ — obligatoire "
-          + "sur un contrat de mission ou un CDD.");
-      }
-    }
 
     // ═══════════════════════════════════════════════════════════════
     // 🚨🚨 LE RISQUE ACCIDENT DU TRAVAIL ET L ETABLISSEMENT UTILISATEUR
@@ -837,6 +834,15 @@ export async function POST(req: NextRequest) {
           + siretEu + " » ne respecte pas la clé de Luhn (S21.G00.40.046). "
           + "⛔ NON DÉCLARÉ.");
       }
+    }
+
+    // 🚨 LA PERIODE D ESSAI EST OBLIGATOIRE pour les CDI et les CDD de plus
+    // de six mois depuis le cahier technique 2026.
+    if (ct.essai_duree_jours) {
+      ecrire("S21.G00.40.082", String(ct.essai_duree_jours));
+    } else if (q(ct.type_contrat) === "cdi") {
+      anomalies.push(qui + " : durée de période d'essai absente "
+        + "(S21.G00.40.082), obligatoire pour un CDI.");
     }
 
     // ⚠️ PRORATISATION DU PLAFOND DE SECURITE SOCIALE a hauteur de la
