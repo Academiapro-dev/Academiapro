@@ -652,11 +652,22 @@ export async function POST(req: NextRequest) {
     // fichier ecrivait « 35.00 » dans la rubrique de l unite.
     const uniteQuotite = await code("S21.G00.40.011", "heure", periode);
     if (uniteQuotite) ecrire("S21.G00.40.011", uniteQuotite);
-    if (dureeMensuelleRef > 0) ecrire("S21.G00.40.012", montantDsn(dureeMensuelleRef));
-    if (ct.duree_hebdo) {
-      // La quotite du contrat, ramenee au mois comme la reference.
-      const quotiteMois = Number(ct.duree_hebdo) * 52 / 12;
-      ecrire("S21.G00.40.013", montantDsn(Math.round(quotiteMois * 100) / 100));
+    // 🚨 LES DEUX QUOTITES SE MESURENT DANS LA MEME UNITE ET DEPUIS LA MEME
+    // SOURCE. La reference de l entreprise vient de paie_parametres
+    // (151,67 h) ; celle du contrat s en deduit au prorata de la duree
+    // hebdomadaire. Calculer l une par 52/12 et l autre autrement ferait
+    // diverger deux valeurs censees etre comparables — et la comparaison
+    // est precisement ce que l organisme regarde pour savoir si le salarie
+    // est a temps plein ou partiel.
+    if (dureeMensuelleRef > 0) {
+      ecrire("S21.G00.40.012", montantDsn(dureeMensuelleRef));
+
+      // ⚠️ 35 HEURES EST LA DUREE LEGALE : un contrat a 35 h est a temps
+      // plein, donc sa quotite EGALE la reference. En dessous, elle est
+      // proportionnelle.
+      const hebdo = ct.duree_hebdo ? Number(ct.duree_hebdo) : 35;
+      const quotite = dureeMensuelleRef * Math.min(hebdo, 35) / 35;
+      ecrire("S21.G00.40.013", montantDsn(Math.round(quotite * 100) / 100));
     }
 
     // 🚨 L IDCC VA ICI, PAS EN 40.009.
@@ -669,6 +680,27 @@ export async function POST(req: NextRequest) {
     } else if (q(ct.type_contrat) === "cdi") {
       anomalies.push(qui + " : durée de période d'essai absente "
         + "(S21.G00.40.082), obligatoire pour un CDI.");
+    }
+
+    // 🚨🚨 L IDENTIFIANT DU LIEU DE TRAVAIL S ECRIT AVANT LE MOTIF DE
+    // RECOURS. Les rubriques d un bloc se suivent dans l ORDRE CROISSANT :
+    // 019 puis 021. Le fichier precedent les inversait — une anomalie que
+    // dsn-val n a pas eu l occasion de signaler, puisque tout ce bloc etait
+    // deja invalide par ailleurs.
+    //
+    // ⚠️ ET SON SIRET EST CONTROLE : celui du jeu d essai,
+    // 98765432400019, a une cle de Luhn fausse — la meme erreur que sur le
+    // SIRET de la societe. Un identifiant de lieu de travail invalide fait
+    // rejeter le bloc contrat.
+    if (q(ct.type_contrat) === "mission" && q(ct.eu_siret)) {
+      const siretEu = q(ct.eu_siret).replace(/\D/g, "");
+      if (siretEu.length === 14 && cleLuhnValide(siretEu)) {
+        ecrire("S21.G00.40.019", siretEu);
+      } else {
+        anomalies.push(qui + " : le SIRET de l'entreprise utilisatrice « "
+          + siretEu + " » ne respecte pas la clé de Luhn (S21.G00.40.019). "
+          + "⛔ NON DÉCLARÉ.");
+      }
     }
 
     // ⚠️ LE MOTIF DE RECOURS EST UN CODE (40.021), pas un libelle.
@@ -706,10 +738,8 @@ export async function POST(req: NextRequest) {
     // rattache par sa rubrique 40.019.
     // ⛔ TANT QUE CETTE PLACE N EST PAS CONFIRMEE PAR dsn-val, ON NE
     // L ECRIT PAS : une rubrique absente coute une anomalie, un bloc mal
-    // place en coute vingt.
-    if (q(ct.type_contrat) === "mission" && q(ct.eu_siret)) {
-      ecrire("S21.G00.40.019", q(ct.eu_siret));
-    }
+    // place en coute vingt. L identifiant du lieu de travail (40.019) est
+    // ecrit plus haut, a sa place dans l ordre des rubriques.
 
     // ══ S21.G00.51 — LA REMUNERATION ══
     const debutPeriode = dateDsn(periode);
