@@ -584,13 +584,36 @@ export async function POST(req: NextRequest) {
     ecrire("S21.G00.30.008", s.adresse);
     ecrire("S21.G00.30.009", q(s.code_postal));
     ecrire("S21.G00.30.010", s.ville);
+
+    // 🚨 « FR » EST INTERDIT COMME CODE PAYS. dsn-val : la table ISO
+    // 3166-1-A2 exclut explicitement FR, GP, MQ, RE, YT… Pour une adresse
+    // en France, la rubrique 30.011 RESTE VIDE — le code pays ne sert
+    // qu aux adresses etrangeres, et il est alors exclusif du code postal.
+    const paysSalarie = q(s.pays).toUpperCase();
+    const PAYS_FR = ["FR","GP","BL","MF","MQ","GF","RE","PM","YT","WF","PF","NC","MC"];
+    if (paysSalarie.length === 2 && PAYS_FR.indexOf(paysSalarie) < 0) {
+      ecrire("S21.G00.30.011", paysSalarie);
+    }
+
+    // 🚨 LA CODIFICATION UE (30.013) EST OBLIGATOIRE : elle classe l origine
+    // du salarie au regard des frontieres. 01 France, 02 UE, 03 EEE,
+    // 04 reste du monde.
+    ecrire("S21.G00.30.013", q(s.codification_ue) || "01");
+
+    // 🚨 LE DEPARTEMENT DE NAISSANCE (30.014) SE LIT DANS LE NIR : ses
+    // positions 6 et 7. « 99 » designe une naissance a l etranger, et
+    // n est alors valide qu accompagne du code pays de naissance (30.015).
+    const deptNaissance = nirComplet.length >= 7 ? nirComplet.slice(5, 7) : "";
+    if (deptNaissance) {
+      ecrire("S21.G00.30.014", deptNaissance);
+      if (deptNaissance === "99") {
+        ecrire("S21.G00.30.015", q(s.pays_naissance) || "99");
+      }
+    }
     // 🚨 S21.G00.30.011 EST UN CODE PAYS SUR DEUX CARACTERES (« C 2 2 »,
     // cahier page 95). Le premier fichier ecrivait « France » : six
     // caracteres, bloc rejete. On normalise plutot que de faire confiance a
     // la donnee saisie.
-    const paysSal = q(s.pays).toUpperCase();
-    ecrire("S21.G00.30.011", paysSal.length === 2 ? paysSal : "FR");
-
     if (!q(s.adresse) || !q(s.code_postal) || !q(s.ville)) {
       anomalies.push(qui + " : adresse incomplète (S21.G00.30.008 à 010).");
     }
@@ -664,6 +687,12 @@ export async function POST(req: NextRequest) {
 
     ecrire("S21.G00.40.006", ct.intitule_poste);
     ecrire("S21.G00.40.007", natureContrat || "");
+
+    // 🚨 DISPOSITIF DE POLITIQUE PUBLIQUE (40.008) — obligatoire. « 99 »
+    // pour un contrat ordinaire : la nomenclature sert surtout aux
+    // contrats aides et aux apprentissages.
+    ecrire("S21.G00.40.008", q(ct.dispositif_public) || "99");
+
     ecrire("S21.G00.40.009", numeroContrat);
     if (ct.date_fin) ecrire("S21.G00.40.010", dateDsn(ct.date_fin));
 
@@ -689,8 +718,53 @@ export async function POST(req: NextRequest) {
       ecrire("S21.G00.40.013", montantDsn(Math.round(quotite * 100) / 100));
     }
 
+    // ═══════════════════════════════════════════════════════════════
+    // 🚨🚨 LES TREIZE RUBRIQUES OBLIGATOIRES DU CONTRAT
+    //
+    // dsn-val les a toutes reclamees d un coup, une fois le bloc enfin lu.
+    // Elles decrivent la situation administrative du salarie : de quel
+    // regime il releve pour la maladie, la vieillesse, les accidents du
+    // travail, s il a un ou plusieurs employeurs, s il travaille a temps
+    // plein, s il est detache a l etranger.
+    //
+    // ⚠️ AUCUNE N EST UN CALCUL : ce sont des etats de fait, et les valeurs
+    // retenues ci-dessous sont celles du cas ordinaire — salarie de droit
+    // prive, en France, a temps plein, au regime general, employeur unique.
+    // Le jour ou un client sortira de ce cas, ces valeurs devront venir de
+    // la fiche du contrat, pas d une constante.
+    // ═══════════════════════════════════════════════════════════════
+
+    // ⚠️ MODALITE D EXERCICE DU TEMPS DE TRAVAIL : 10 temps plein,
+    // 20 temps partiel. Elle se deduit de la duree hebdomadaire.
+    const tempsPlein = !ct.duree_hebdo || Number(ct.duree_hebdo) >= 35;
+    ecrire("S21.G00.40.014", tempsPlein ? "10" : "20");
+
+    // ⚠️ COMPLEMENT DE BASE AU REGIME OBLIGATOIRE : 01 regime local
+    // Alsace-Moselle, 99 non applicable.
+    ecrire("S21.G00.40.016", q(ct.regime_alsace_moselle) || "99");
+
     // 🚨 L IDCC VA ICI, PAS EN 40.009.
     ecrire("S21.G00.40.017", q(ct.idcc) ? String(ct.idcc).padStart(4, "0") : "9999");
+
+    // ⚠️ LES TROIS REGIMES DE BASE : maladie (CNAM), vieillesse (CNAV),
+    // accidents du travail (CNAM). « 200 » est le regime general dans les
+    // trois nomenclatures.
+    ecrire("S21.G00.40.018", q(ct.regime_maladie) || "200");
+    ecrire("S21.G00.40.020", q(ct.regime_vieillesse) || "200");
+
+    // ⚠️ TRAVAILLEUR A L ETRANGER : 01 detache, 02 expatrie, 03 frontalier,
+    // 99 non concerne.
+    ecrire("S21.G00.40.024", q(ct.travailleur_etranger) || "99");
+
+    // ⚠️ STATUT D EMPLOI : 04 non statutaire, pour un salarie de droit prive.
+    ecrire("S21.G00.40.026", q(ct.statut_emploi) || "04");
+
+    // ⚠️ EMPLOIS ET EMPLOYEURS MULTIPLES : 01 unique, 02 multiples,
+    // 03 situation non connue.
+    ecrire("S21.G00.40.036", q(ct.emplois_multiples) || "01");
+    ecrire("S21.G00.40.037", q(ct.employeurs_multiples) || "01");
+
+    ecrire("S21.G00.40.039", q(ct.regime_at) || "200");
 
     // 🚨 LA PERIODE D ESSAI EST OBLIGATOIRE pour les CDI et les CDD de plus
     // de six mois depuis le cahier technique 2026.
@@ -701,23 +775,55 @@ export async function POST(req: NextRequest) {
         + "(S21.G00.40.082), obligatoire pour un CDI.");
     }
 
-    // 🚨🚨 L IDENTIFIANT DU LIEU DE TRAVAIL S ECRIT AVANT LE MOTIF DE
-    // RECOURS. Les rubriques d un bloc se suivent dans l ORDRE CROISSANT :
-    // 019 puis 021. Le fichier precedent les inversait — une anomalie que
-    // dsn-val n a pas eu l occasion de signaler, puisque tout ce bloc etait
-    // deja invalide par ailleurs.
+    // ═══════════════════════════════════════════════════════════════
+    // 🚨🚨 LE RISQUE ACCIDENT DU TRAVAIL ET L ETABLISSEMENT UTILISATEUR
     //
-    // ⚠️ ET SON SIRET EST CONTROLE : celui du jeu d essai,
-    // 98765432400019, a une cle de Luhn fausse — la meme erreur que sur le
-    // SIRET de la societe. Un identifiant de lieu de travail invalide fait
-    // rejeter le bloc contrat.
-    if (q(ct.type_contrat) === "mission" && q(ct.eu_siret)) {
-      const siretEu = q(ct.eu_siret).replace(/\D/g, "");
-      if (siretEu.length === 14 && cleLuhnValide(siretEu)) {
-        ecrire("S21.G00.40.019", siretEu);
+    // dsn-val a livre la regle qui lie les deux, et elle est stricte :
+    // « si S21.G00.40.046 est renseignee, alors le code risque accident du
+    // travail S21.G00.40.040 doit etre egal a 745BD, 745BE ou 752EE ».
+    // Ce sont les codes risque du TRAVAIL TEMPORAIRE — l intérim a ses
+    // propres taux, plus eleves, parce que la sinistralite y est plus forte.
+    //
+    // 🚨 ET L ENTREPRISE UTILISATRICE VA EN 40.046, PAS EN 40.019.
+    // La 40.019 designe un lieu de travail qui doit exister comme bloc 85 ;
+    // la 40.046 designe l etablissement utilisateur d un interimaire. Nous
+    // confondions les deux depuis le debut.
+    //
+    // ⚠️ LE TAUX AT (40.043) DEVIENT ALORS OBLIGATOIRE : il n est interdit
+    // que si le code risque vaut « 999ZZ ». Il vient de paie_taux_societe,
+    // la meme source que le bulletin — ainsi la declaration et le bulletin
+    // ne peuvent pas diverger.
+    // ═══════════════════════════════════════════════════════════════
+    // ⚠️ LE TAUX AT/MP VIENT DU MEME ENDROIT QUE LE BULLETIN : le detail du
+    // calcul, ou le moteur a range la ligne AT_MP avec son taux. Le relire
+    // ailleurs ferait diverger la declaration et le bulletin.
+    let tauxAtMp = 0;
+    for (const l of (detail.lignes_cotisations || [])) {
+      if (q(l.code) === "AT_MP") tauxAtMp = Number(l.taux_patronal || 0);
+    }
+
+    const estMission = q(ct.type_contrat) === "mission";
+    const siretEu = q(ct.eu_siret).replace(/\D/g, "");
+
+    if (estMission && siretEu.length === 14 && cleLuhnValide(siretEu)) {
+      ecrire("S21.G00.40.040", q(ct.code_risque_at) || "745BD");
+      if (tauxAtMp > 0) ecrire("S21.G00.40.043", montantDsn(tauxAtMp));
+      ecrire("S21.G00.40.046", siretEu);
+    } else {
+      // ⚠️ HORS INTERIM, LE CODE RISQUE VIENT DE LA NOTIFICATION CARSAT.
+      // « 999ZZ » signifie « sans code risque » et INTERDIT alors de
+      // declarer un taux — c est la seule combinaison valide tant que le
+      // vrai code n est pas renseigne.
+      const codeRisque = q(ct.code_risque_at) || q(societe.code_risque_at);
+      if (codeRisque) {
+        ecrire("S21.G00.40.040", codeRisque);
+        if (tauxAtMp > 0) ecrire("S21.G00.40.043", montantDsn(tauxAtMp));
       } else {
+        ecrire("S21.G00.40.040", "999ZZ");
+      }
+      if (estMission && siretEu) {
         anomalies.push(qui + " : le SIRET de l'entreprise utilisatrice « "
-          + siretEu + " » ne respecte pas la clé de Luhn (S21.G00.40.019). "
+          + siretEu + " » ne respecte pas la clé de Luhn (S21.G00.40.046). "
           + "⛔ NON DÉCLARÉ.");
       }
     }
@@ -732,6 +838,21 @@ export async function POST(req: NextRequest) {
           + "sur un contrat de mission ou un CDD.");
       }
     }
+
+    // ⚠️ PRORATISATION DU PLAFOND DE SECURITE SOCIALE a hauteur de la
+    // quotite de travail : elle ne s applique pas a un temps plein.
+    ecrire("S21.G00.40.084", tempsPlein ? "02" : "01");
+
+    // ═══════════════════════════════════════════════════════════════
+    // ══ S21.G00.71 — LA RETRAITE COMPLEMENTAIRE ══
+    //
+    // 🚨 CONTROLE CST-02 : ce sous-groupe est obligatoire apres le contrat.
+    // « RUAA » designe le regime unifie Agirc-Arrco — coherent avec le code
+    // de cotisation 131 que nous declarons plus bas. Les deux doivent dire
+    // la meme chose, sinon l organisme recoit une cotisation pour un regime
+    // auquel le salarie n est pas rattache.
+    // ═══════════════════════════════════════════════════════════════
+    ecrire("S21.G00.71.002", q(ct.regime_retraite_c) || "RUAA");
 
     // ═══════════════════════════════════════════════════════════════
     // ══ S21.G00.85 — LE LIEU DE TRAVAIL / ETABLISSEMENT UTILISATEUR ══
@@ -793,6 +914,25 @@ export async function POST(req: NextRequest) {
     ecrire("S21.G00.50.006", montantDsn(0));
     ecrire("S21.G00.50.007", "13");
     ecrire("S21.G00.50.009", montantDsn(b.prelevement_source));
+    // 🚨 LE MONTANT SOUMIS AU PAS (50.013) EST OBLIGATOIRE : c est l assiette
+    // sur laquelle l administration calculera le prelevement, et elle n est
+    // pas le net verse mais le NET IMPOSABLE.
+    ecrire("S21.G00.50.013", montantDsn(b.net_imposable));
+
+    // ═══════════════════════════════════════════════════════════════
+    // ══ S21.G00.58 — LE MONTANT NET SOCIAL ══
+    //
+    // 🚨 CONTROLE CCH-14 : un versement date du mois declare exige un bloc
+    // enfant « Element de revenu calcule en net » de type « 03 - Montant
+    // net social ». C est la meme valeur que celle imprimee sur le
+    // bulletin, et elle sert de reference aux prestations sociales.
+    // ⚠️ SI ELLE DIFFERE ENTRE LE BULLETIN ET LA DSN, c est le salarie qui
+    // voit ses droits mal calcules.
+    // ═══════════════════════════════════════════════════════════════
+    ecrire("S21.G00.58.001", debutPeriode);
+    ecrire("S21.G00.58.002", finPeriode);
+    ecrire("S21.G00.58.003", "03");
+    ecrire("S21.G00.58.004", montantDsn(b.net_social));
 
     // ══ S21.G00.51 — LA REMUNERATION ══
     const codeBrut = await code("S21.G00.51.011", "brut", periode);
@@ -803,6 +943,10 @@ export async function POST(req: NextRequest) {
     // melangees.
     ecrire("S21.G00.51.010", numeroContrat);
     ecrire("S21.G00.51.011", codeBrut || "001");
+    // ⚠️ LE NOMBRE D HEURES (51.012) ACCOMPAGNE LA REMUNERATION BRUTE :
+    // c est lui qui permet a l organisme de rapporter le montant a un
+    // volume de travail, et donc de verifier le respect du SMIC.
+    if (dureeMensuelleRef > 0) ecrire("S21.G00.51.012", montantDsn(dureeMensuelleRef));
     ecrire("S21.G00.51.013", montantDsn(b.brut));
 
     // ═══════════════════════════════════════════════════════════════
