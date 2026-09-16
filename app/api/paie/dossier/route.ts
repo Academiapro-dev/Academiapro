@@ -514,6 +514,213 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // ═══════════════════════════════════════════════════════════════════
+    // ══ LES CONGES PRIS ══
+    //
+    // 🚨 JUSQU ICI LE COMPTEUR NE SAVAIT QU ACQUERIR. Un cabinet dont le
+    // salarie pose une semaine n avait aucun endroit ou le saisir : le
+    // solde montait indefiniment, et le bulletin affichait des droits que
+    // le salarie avait deja consommes.
+    //
+    // ⚠️ LA VUE paie_conges_solde CONNAISSAIT DEJA les trois mouvements —
+    // acquisition, prise, paiement. C est la saisie qui manquait, pas le
+    // socle : verifier avant de construire evite de refaire ce qui existe.
+    // ═══════════════════════════════════════════════════════════════════
+    if (action === "conges") {
+      const contratId = String(c.contrat_id || "");
+      if (!contratId) {
+        return NextResponse.json({ erreur: "contrat manquant." }, { status: 400 });
+      }
+
+      const { data: mouvements, error } = await supabase
+        .from("paie_conges")
+        .select("*")
+        .eq("contrat_id", contratId)
+        .order("periode", { ascending: false });
+      if (error) return NextResponse.json({ erreur: error.message }, { status: 500 });
+
+      const { data: solde } = await supabase
+        .from("paie_conges_solde")
+        .select("*")
+        .eq("contrat_id", contratId);
+
+      return NextResponse.json({
+        success: true,
+        mouvements: mouvements || [],
+        solde: (solde && solde[0]) || null,
+      });
+    }
+
+    if (action === "poser_conges") {
+      const contratId = String(c.contrat_id || "");
+      const periode = String(c.periode || "");
+      const jours = Number(c.jours || 0);
+
+      if (!contratId || !periode) {
+        return NextResponse.json({ erreur: "contrat ou période manquant." },
+          { status: 400 });
+      }
+      // ⚠️ UN NOMBRE DE JOURS NUL OU NEGATIF N A PAS DE SENS : une reprise de
+      // jours se fait par un mouvement distinct, pas par une prise negative.
+      if (!(jours > 0)) {
+        return NextResponse.json({
+          erreur: "le nombre de jours doit être supérieur à zéro.",
+        }, { status: 400 });
+      }
+
+      const { data: ct } = await supabase
+        .from("paie_contrats")
+        .select("*, paie_salaries(nom, prenom)")
+        .eq("id", contratId)
+        .maybeSingle();
+      if (!ct) {
+        return NextResponse.json({ erreur: "contrat introuvable." },
+          { status: 404 });
+      }
+
+      // 🚨 SEUL LE CDI ACQUIERT DES CONGES, donc seul le CDI en prend.
+      // Sur une mission ou un CDD, ils sont compenses par l ICCP versee
+      // chaque mois : poser une prise y creerait un solde negatif.
+      if (String(ct.type_contrat) !== "cdi") {
+        return NextResponse.json({
+          erreur: "ce contrat ne cumule pas de congés : ils sont compensés "
+            + "par l'indemnité compensatrice versée chaque mois. La prise de "
+            + "congés ne concerne que les CDI.",
+        }, { status: 400 });
+      }
+
+      const annee = Number(periode.slice(0, 4));
+      const mois = Number(periode.slice(5, 7));
+      const debutRef = (mois >= 6 ? annee : annee - 1) + "-06-01";
+
+      // ⛔ ON NE POSE PAS PLUS DE JOURS QUE LE SOLDE. Un solde negatif est
+      // toujours une erreur de saisie, et il se decouvre des mois plus tard,
+      // au solde de tout compte.
+      const { data: soldeAvant } = await supabase
+        .from("paie_conges_solde")
+        .select("solde")
+        .eq("contrat_id", contratId)
+        .eq("periode_ref", debutRef)
+        .maybeSingle();
+
+      const disponible = Number((soldeAvant as any)?.solde || 0);
+      if (jours > disponible) {
+        return NextResponse.json({
+          erreur: "solde insuffisant : " + jours.toFixed(2) + " jour(s) "
+            + "demandé(s) pour " + disponible.toFixed(2) + " disponible(s) "
+            + "sur la période ouverte au " + debutRef + ".",
+        }, { status: 400 });
+      }
+
+      // ═══════════════════════════════════════════════════════════════
+      // 🚨🚨 LA VALORISATION COMPARE DEUX METHODES ET RETIENT LA PLUS
+      // FAVORABLE AU SALARIE (art. L3141-24).
+      //
+      // ⛔ N EN APPLIQUER QU UNE SEULE EST UN MOTIF DE REDRESSEMENT ET DE
+      // RAPPEL DE SALAIRE. Les deux se calculent, les deux se gardent en
+      // base, et c est la plus elevee qui est retenue — la loi ne laisse
+      // pas le choix a l employeur.
+      //
+      //   · MAINTIEN DE SALAIRE : ce que le salarie aurait gagne en
+      //     travaillant, soit son salaire mensuel rapporte aux jours pris.
+      //   · REGLE DU DIXIEME : un dixieme de la remuneration brute de la
+      //     periode de reference, pour la totalite des droits (30 jours
+      //     ouvrables), rapporte aux jours pris.
+      //
+      // ⚠️ LE DIXIEME EST SOUVENT PLUS FAVORABLE quand le salarie a touche
+      // des primes ou des heures supplementaires dans l annee : c est
+      // precisement ce que la regle protege.
+      // ═══════════════════════════════════════════════════════════════
+      const JOURS_OUVRABLES_MOIS = 26;   // 6 jours par semaine, moyenne mensuelle
+      const DROITS_ANNUELS = 30;         // 2,5 j x 12, en jours ouvrables
+
+      const salaireMensuel = Number(ct.salaire_mensuel || 0);
+      const maintien = salaireMensuel > 0
+        ? (salaireMensuel / JOURS_OUVRABLES_MOIS) * jours
+        : 0;
+
+      // ⚠️ LA REMUNERATION DE REFERENCE NE COMPTE QUE LES BULLETINS EMIS :
+      // un brouillon n a pas ete remis, il ne peut pas fonder un droit.
+      const { data: bulletinsRef } = await supabase
+        .from("paie_bulletins")
+        .select("brut, periode")
+        .eq("contrat_id", contratId)
+        .eq("statut", "emis")
+        .gte("periode", debutRef);
+
+      let brutRef = 0;
+      for (const b of (bulletinsRef || [])) brutRef += Number((b as any).brut || 0);
+      const dixieme = (brutRef / 10) * (jours / DROITS_ANNUELS);
+
+      const retenue = Math.max(maintien, dixieme);
+
+      const { error: ePose } = await supabase.from("paie_conges").insert({
+        tenant_id: ct.tenant_id,
+        societe_id: ct.societe_id,
+        contrat_id: contratId,
+        periode_ref: debutRef,
+        unite: "ouvrables",
+        periode: periode,
+        type_mouvement: "prise",
+        jours: jours,
+        valeur_maintien: Math.round(maintien * 100) / 100,
+        valeur_dixieme: Math.round(dixieme * 100) / 100,
+        valeur_retenue: Math.round(retenue * 100) / 100,
+        notes: "Prise saisie le " + new Date().toISOString().slice(0, 10)
+          + " — méthode retenue : "
+          + (maintien >= dixieme ? "maintien de salaire" : "règle du dixième"),
+      });
+      if (ePose) {
+        return NextResponse.json({ erreur: ePose.message }, { status: 500 });
+      }
+
+      return NextResponse.json({
+        success: true,
+        jours: jours,
+        maintien: Math.round(maintien * 100) / 100,
+        dixieme: Math.round(dixieme * 100) / 100,
+        retenue: Math.round(retenue * 100) / 100,
+        methode: maintien >= dixieme ? "maintien de salaire" : "règle du dixième",
+        solde_restant: Math.round((disponible - jours) * 100) / 100,
+        message: jours.toFixed(2) + " jour(s) posé(s). Indemnité retenue : "
+          + retenue.toFixed(2) + " € ("
+          + (maintien >= dixieme ? "maintien de salaire" : "règle du dixième")
+          + ", la plus favorable). Solde restant : "
+          + (disponible - jours).toFixed(2) + " jour(s).",
+      });
+    }
+
+    if (action === "supprimer_conges") {
+      const id = String(c.id || "");
+      if (!id) return NextResponse.json({ erreur: "identifiant manquant." },
+        { status: 400 });
+
+      // ⛔ UNE ACQUISITION NE SE SUPPRIME PAS A LA MAIN : elle est liee a un
+      // bulletin emis, et l effacer ferait disparaitre un droit sans trace.
+      // Seule une prise saisie par erreur se retire.
+      const { data: mvt } = await supabase
+        .from("paie_conges")
+        .select("type_mouvement")
+        .eq("id", id)
+        .maybeSingle();
+
+      if (!mvt) return NextResponse.json({ erreur: "mouvement introuvable." },
+        { status: 404 });
+      if (String((mvt as any).type_mouvement) !== "prise") {
+        return NextResponse.json({
+          erreur: "seule une prise de congés peut être retirée. Une "
+            + "acquisition découle d'un bulletin émis : elle ne se supprime "
+            + "pas à la main.",
+        }, { status: 400 });
+      }
+
+      const { error: eDel } = await supabase
+        .from("paie_conges").delete().eq("id", id);
+      if (eDel) return NextResponse.json({ erreur: eDel.message }, { status: 500 });
+
+      return NextResponse.json({ success: true, message: "Prise retirée." });
+    }
+
     return NextResponse.json({ erreur: "action inconnue : " + action }, { status: 400 });
 
   } catch (e: any) {
