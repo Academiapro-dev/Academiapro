@@ -360,6 +360,20 @@ export async function POST(req: NextRequest) {
   let totalCotisations = 0;
   let totalReductions = 0;
 
+  // ⚠️ LA DUREE MENSUELLE DE REFERENCE sert a la quotite de travail du
+  // contrat. Elle vit dans paie_parametres, a la date de la periode.
+  let dureeMensuelleRef = 0;
+  {
+    const { data: dm } = await supabase
+      .from("paie_parametres").select("valeur")
+      .eq("code", "DUREE_MENSUELLE")
+      .lte("date_effet", periode)
+      .or("date_fin.is.null,date_fin.gte." + periode)
+      .order("date_effet", { ascending: false })
+      .limit(1).maybeSingle();
+    if (dm) dureeMensuelleRef = Number(dm.valeur);
+  }
+
   // ══ S21.G00.30 — CHAQUE SALARIE ══
   for (const b of bulletins) {
     const ct = b.paie_contrats || {};
@@ -402,7 +416,12 @@ export async function POST(req: NextRequest) {
     ecrire("S21.G00.30.008", s.adresse);
     ecrire("S21.G00.30.009", q(s.code_postal));
     ecrire("S21.G00.30.010", s.ville);
-    ecrire("S21.G00.30.011", q(s.pays) || "FR");
+    // 🚨 S21.G00.30.011 EST UN CODE PAYS SUR DEUX CARACTERES (« C 2 2 »,
+    // cahier page 95). Le premier fichier ecrivait « France » : six
+    // caracteres, bloc rejete. On normalise plutot que de faire confiance a
+    // la donnee saisie.
+    const paysSal = q(s.pays).toUpperCase();
+    ecrire("S21.G00.30.011", paysSal.length === 2 ? paysSal : "FR");
 
     if (!q(s.adresse) || !q(s.code_postal) || !q(s.ville)) {
       anomalies.push(qui + " : adresse incomplète (S21.G00.30.008 à 010).");
@@ -414,59 +433,91 @@ export async function POST(req: NextRequest) {
       ecrire("S21.G00.30.030", societe.spst_identifiant);
     }
 
+    // ═══════════════════════════════════════════════════════════════
     // ══ S21.G00.40 — LE CONTRAT ══
+    //
+    // 🚨🚨 16/09 — TOUTES LES RUBRIQUES DE CE BLOC ETAIENT MAL PLACEES.
+    // Relues une par une dans le cahier technique, page 180 :
+    //     40.002  Statut du salarie (CONVENTIONNEL, categorie socio-pro)
+    //     40.003  Code statut categoriel Retraite Complementaire
+    //     40.004  Code PCS-ESE (profession et categorie socioprofessionnelle)
+    //     40.006  Libelle de l emploi
+    //     40.007  Nature du contrat
+    //     40.009  NUMERO DU CONTRAT        ← on y ecrivait l IDCC
+    //     40.010  Date de fin previsionnelle
+    //     40.011  UNITE DE MESURE de la quotite (un code : 10 = heure)
+    //     40.012  Quotite de reference de l entreprise
+    //     40.013  Quotite de travail du contrat  ← la valeur en heures
+    //     40.017  CODE CONVENTION COLLECTIVE     ← c est la que va l IDCC
+    //     40.019  Identifiant du LIEU DE TRAVAIL ← on y ecrivait l id contrat
+    //     40.021  MOTIF DE RECOURS               ← on ecrivait un libelle
+    //     40.022  Caisse professionnelle de conges payes ← on y mettait le
+    //             SIRET de l entreprise utilisatrice
+    //
+    // ⚠️ AUCUNE DE CES ERREURS NE SE VOYAIT A LA LECTURE : le fichier avait
+    // l air propre, chaque ligne etait bien formee, les montants justes.
+    // C est la NATURE de chaque rubrique qui etait fausse.
+    // ═══════════════════════════════════════════════════════════════
+
+    // 🚨 LE NUMERO DU CONTRAT — vingt caracteres, stable, sans tirets.
+    const numeroContrat = String(ct.id).replace(/-/g, "").slice(0, 20);
+
     const natureContrat = await code("S21.G00.40.007", q(ct.type_contrat), periode);
     if (!natureContrat) {
       anomalies.push(qui + " : aucun code DSN pour le type de contrat « "
-        + q(ct.type_contrat) + " » (S21.G00.40.007). "
-        + "⛔ NON DÉCLARÉ. Ajouter la correspondance dans dsn_codes — "
-        + "01 CDI, 02 CDD, 07 contrat de travail temporaire.");
+        + q(ct.type_contrat) + " » (S21.G00.40.007). ⛔ NON DÉCLARÉ.");
     }
 
-    // 🆕🚨 16/09 — LE STATUT CONVENTIONNEL NE S ECRIT PLUS EN DUR.
-    //
-    // DEFAUT TROUVE EN LISANT LA TABLE OFFICIELLE : le generateur posait
-    // « 03 » faute de valeur saisie. Or 03 = CADRE DIRIGEANT
-    // (art. L.3111-2). Tout salarie sans statut renseigne — donc tous —
-    // etait declare cadre dirigeant. Le cariste de l essai en faisait
-    // partie.
-    //   01 Non-cadre · 02 Cadre (article 4) · 03 Cadre dirigeant
-    //   04 Article 4 bis (assimile cadre retraite)
-    // ⚠️ CE CODE COMMANDE LE REGIME DE RETRAITE COMPLEMENTAIRE et les
-    // obligations de prevoyance : c est tout sauf anodin.
-    // 🚨 IL SE DEDUIT DE LA CATEGORIE DU CONTRAT, par une correspondance en
-    // base — comme les taux, comme les nomenclatures.
+    // 🚨 LE STATUT CONVENTIONNEL EST UNE CATEGORIE SOCIO-PROFESSIONNELLE,
+    // pas « cadre / non-cadre » : 07 pour un ouvrier, 04 pour un cadre,
+    // 03 pour un cadre dirigeant. Le « 03 » ecrit en dur auparavant
+    // declarait donc tout le monde CADRE DIRIGEANT.
     let statutConv = q(ct.statut_conventionnel);
     if (!statutConv) {
       statutConv = (await code("S21.G00.40.002", q(ct.categorie), periode)) || "";
     }
     if (!statutConv) {
       anomalies.push(qui + " : statut conventionnel introuvable pour la "
-        + "catégorie « " + q(ct.categorie) + " » (S21.G00.40.002). "
-        + "⛔ NON DÉCLARÉ — ne jamais poser « 03 » par défaut, c'est "
-        + "« cadre dirigeant ».");
+        + "catégorie « " + q(ct.categorie) + " » (S21.G00.40.002). ⛔ NON DÉCLARÉ.");
     }
+
+    // 🚨 LA DISTINCTION CADRE / NON-CADRE A SA PROPRE RUBRIQUE (40.003).
+    // Controle CCH-11 : si elle vaut « 01 - cadre », le statut conventionnel
+    // doit valoir 03, 04 ou 08.
+    const statutRc = await code("S21.G00.40.003",
+      q(ct.categorie) === "cadre" ? "rc_cadre" : "rc_non_cadre", periode);
 
     ecrire("S21.G00.40.001", dateDsn(ct.date_debut));
     ecrire("S21.G00.40.002", statutConv);
-    ecrire("S21.G00.40.007", natureContrat || "");
-    ecrire("S21.G00.40.009", q(ct.idcc) ? String(ct.idcc).padStart(4, "0") : "9999");
+    if (statutRc) ecrire("S21.G00.40.003", statutRc);
 
-    // ⚠️ LA QUOTITE DE TRAVAIL : le nombre d heures du contrat rapporte a
-    // la duree de reference. Elle sert au calcul des droits.
-    if (ct.quotite_travail) {
-      ecrire("S21.G00.40.011", montantDsn(ct.quotite_travail));
-    } else if (ct.duree_hebdo) {
-      ecrire("S21.G00.40.011", montantDsn(ct.duree_hebdo));
+    // ⚠️ LE CODE PCS-ESE EST OBLIGATOIRE et n existe pas encore chez nous :
+    // c est la nomenclature INSEE des professions. On le signale plutot que
+    // d inventer un code.
+    if (q(ct.pcs_ese)) ecrire("S21.G00.40.004", q(ct.pcs_ese));
+    else {
+      anomalies.push(qui + " : code PCS-ESE absent (S21.G00.40.004) — "
+        + "nomenclature INSEE des professions, rubrique obligatoire.");
     }
 
-    // 🆕 L IDENTIFIANT DU CONTRAT — vingt caracteres maximum.
-    // ⚠️ LE PREMIER FICHIER COUPAIT L UUID BRUT, TIRETS COMPRIS
-    // (« 99d1ad6c-f20b-421b-9 ») : trois caracteres sur vingt etaient des
-    // tirets, donc de l identifiant perdu pour rien. En retirant les tirets
-    // d abord, les vingt caracteres sont vingt chiffres hexadecimaux — assez
-    // pour que deux contrats ne puissent pas se confondre.
-    ecrire("S21.G00.40.019", String(ct.id).replace(/-/g, "").slice(0, 20));
+    ecrire("S21.G00.40.006", ct.intitule_poste);
+    ecrire("S21.G00.40.007", natureContrat || "");
+    ecrire("S21.G00.40.009", numeroContrat);
+    if (ct.date_fin) ecrire("S21.G00.40.010", dateDsn(ct.date_fin));
+
+    // ⚠️ L UNITE DE MESURE EST UN CODE, LA QUOTITE UN NOMBRE. Le premier
+    // fichier ecrivait « 35.00 » dans la rubrique de l unite.
+    const uniteQuotite = await code("S21.G00.40.011", "heure", periode);
+    if (uniteQuotite) ecrire("S21.G00.40.011", uniteQuotite);
+    if (dureeMensuelleRef > 0) ecrire("S21.G00.40.012", montantDsn(dureeMensuelleRef));
+    if (ct.duree_hebdo) {
+      // La quotite du contrat, ramenee au mois comme la reference.
+      const quotiteMois = Number(ct.duree_hebdo) * 52 / 12;
+      ecrire("S21.G00.40.013", montantDsn(Math.round(quotiteMois * 100) / 100));
+    }
+
+    // 🚨 L IDCC VA ICI, PAS EN 40.009.
+    ecrire("S21.G00.40.017", q(ct.idcc) ? String(ct.idcc).padStart(4, "0") : "9999");
 
     // 🚨 LA PERIODE D ESSAI EST OBLIGATOIRE pour les CDI et les CDD de plus
     // de six mois depuis le cahier technique 2026.
@@ -474,13 +525,34 @@ export async function POST(req: NextRequest) {
       ecrire("S21.G00.40.082", String(ct.essai_duree_jours));
     } else if (q(ct.type_contrat) === "cdi") {
       anomalies.push(qui + " : durée de période d'essai absente "
-        + "(S21.G00.40.082), obligatoire pour un CDI depuis le cahier "
-        + "technique 2026.");
+        + "(S21.G00.40.082), obligatoire pour un CDI.");
     }
 
-    // ⚠️ POUR UN CONTRAT DE MISSION, L ENTREPRISE UTILISATRICE se declare.
+    // ⚠️ LE MOTIF DE RECOURS EST UN CODE (40.021), pas un libelle.
+    if (q(ct.type_contrat) === "mission" || q(ct.type_contrat) === "cdd") {
+      const codeMotif = await code("S21.G00.40.021", q(ct.motif_recours), periode);
+      if (codeMotif) ecrire("S21.G00.40.021", codeMotif);
+      else {
+        anomalies.push(qui + " : motif de recours « " + q(ct.motif_recours)
+          + " » sans code DSN (S21.G00.40.021). ⛔ NON DÉCLARÉ — obligatoire "
+          + "sur un contrat de mission ou un CDD.");
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // ══ S21.G00.85 — LE LIEU DE TRAVAIL / ETABLISSEMENT UTILISATEUR ══
+    //
+    // 🚨 C EST ICI QUE SE DECLARE L ENTREPRISE UTILISATRICE D UN CONTRAT DE
+    // MISSION — la rubrique s appelle « Identifiant du lieu de travail ou de
+    // l etablissement utilisateur ». Le premier fichier mettait son SIRET en
+    // 40.022, qui est la caisse professionnelle de conges payes, et se
+    // servait du bloc 85 pour ecrire des montants nets.
+    // ⚠️ LE CONTRAT LE REFERENCE PAR SA RUBRIQUE 40.019.
+    // ═══════════════════════════════════════════════════════════════
     if (q(ct.type_contrat) === "mission" && q(ct.eu_siret)) {
-      ecrire("S21.G00.40.022", q(ct.eu_siret));
+      ecrire("S21.G00.40.019", q(ct.eu_siret));
+      ecrire("S21.G00.85.001", q(ct.eu_siret));
+      if (q(ct.eu_adresse)) ecrire("S21.G00.85.003", ct.eu_adresse);
     }
 
     // ══ S21.G00.51 — LA REMUNERATION ══
@@ -490,6 +562,10 @@ export async function POST(req: NextRequest) {
     const codeBrut = await code("S21.G00.51.011", "brut", periode);
     ecrire("S21.G00.51.001", debutPeriode);
     ecrire("S21.G00.51.002", finPeriode);
+    // ⚠️ 51.010 RATTACHE LA REMUNERATION AU CONTRAT : sans lui, un salarie
+    // qui a deux contrats dans la meme entreprise voit ses remunerations
+    // melangees.
+    ecrire("S21.G00.51.010", numeroContrat);
     ecrire("S21.G00.51.011", codeBrut || "001");
     ecrire("S21.G00.51.013", montantDsn(b.brut));
 
@@ -582,6 +658,8 @@ export async function POST(req: NextRequest) {
       ecrire("S21.G00.78.002", debutPeriode);
       ecrire("S21.G00.78.003", finPeriode);
       ecrire("S21.G00.78.004", montantDsn(grp.assiette));
+      // ⚠️ 78.006 RATTACHE L ASSIETTE AU CONTRAT, meme raison qu en 51.010.
+      ecrire("S21.G00.78.006", numeroContrat);
 
       // ═══════════════════════════════════════════════════════════
       // ══ LA REDUCTION GENERALE, SOUS L ASSIETTE DEPLAFONNEE ══
@@ -675,23 +753,37 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // ══ S21.G00.70 — LE PRELEVEMENT A LA SOURCE ══
+    // ═══════════════════════════════════════════════════════════════
+    // ══ S21.G00.50 — LE VERSEMENT INDIVIDU ══
+    //
+    // 🚨🚨 16/09 — LES DEUX BLOCS PRECEDENTS N EXISTAIENT PAS POUR CA.
+    //   · S21.G00.70 est le bloc AFFILIATION PREVOYANCE (code option du
+    //     salarie, nombre d ayants droit) : rien a voir avec l impot.
+    //   · S21.G00.85 est le bloc LIEU DE TRAVAIL : ses rubriques 003 a 006
+    //     attendent une voie, un code postal, une localite, un code pays.
+    //     Nous y ecrivions un net imposable et un net a payer.
+    //
+    // LE VERSEMENT, C EST CE BLOC-CI (cahier, bloc S21.G00.50) :
+    //     50.001  Date de versement
+    //     50.002  Remuneration nette fiscale
+    //     50.003  Numero de versement
+    //     50.004  Montant net verse
+    //     50.006  Taux de prelevement a la source
+    //     50.007  Type du taux de prelevement a la source
+    //     50.009  Montant de prelevement a la source
     //
     // ⚠️ LE TAUX VIENT DU COMPTE RENDU METIER DE LA DSN PRECEDENTE. Tant
     // qu aucune DSN n a ete deposee, il n y en a pas : on declare le taux
-    // neutre (« 13 »), ce qui est la regle pour un salarie dont
-    // l administration n a pas encore transmis de taux.
-    // ⚠️ 70.001 EST LE TAUX, 70.004 LE MONTANT. Le premier fichier ecrivait
-    // un montant dans la rubrique du taux, par une expression qui valait
-    // zero dans tous les cas.
-    ecrire("S21.G00.70.001", montantDsn(0));
-    ecrire("S21.G00.70.002", "13");
-    ecrire("S21.G00.70.004", montantDsn(b.prelevement_source));
-
-    // ══ S21.G00.85 — LE VERSEMENT ══
-    ecrire("S21.G00.85.001", finPeriode);
-    ecrire("S21.G00.85.002", montantDsn(b.net_imposable));
-    ecrire("S21.G00.85.003", montantDsn(b.net_a_payer));
+    // neutre, ce qui est la regle pour un salarie dont l administration n a
+    // pas encore transmis de taux.
+    // ═══════════════════════════════════════════════════════════════
+    ecrire("S21.G00.50.001", finPeriode);
+    ecrire("S21.G00.50.002", montantDsn(b.net_imposable));
+    ecrire("S21.G00.50.003", "1");
+    ecrire("S21.G00.50.004", montantDsn(b.net_a_payer));
+    ecrire("S21.G00.50.006", montantDsn(0));
+    ecrire("S21.G00.50.007", "13");
+    ecrire("S21.G00.50.009", montantDsn(b.prelevement_source));
 
     totalBrut += Number(b.brut || 0);
     totalCotisations += Number(b.total_salarial || 0) + Number(b.total_patronal || 0);
