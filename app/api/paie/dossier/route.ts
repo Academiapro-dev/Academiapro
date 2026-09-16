@@ -258,9 +258,71 @@ export async function POST(req: NextRequest) {
         .eq("statut", "brouillon");
 
       if (error) return NextResponse.json({ erreur: error.message }, { status: 500 });
+
+      // ═══════════════════════════════════════════════════════════════
+      // 🚨 L ACQUISITION DES CONGES SE POSE ICI, A L EMISSION — PAS AU
+      // CALCUL.
+      //
+      // POURQUOI : le calcul peut etre relance dix fois avant que le
+      // bulletin soit juste. Si l acquisition etait posee a chaque calcul,
+      // le salarie aurait dix fois ses droits. L emission, elle, n arrive
+      // qu une fois : c est le seul moment sur.
+      //
+      // ⚠️ SEUL LE CDI EST CONCERNE : sur une mission ou un CDD, les conges
+      // sont compenses par l ICCP, pas acquis.
+      // ⚠️ ON VERIFIE QU IL N Y A PAS DEJA UNE ACQUISITION POUR CE MOIS :
+      // un bulletin rectificatif ne doit pas redonner les jours.
+      // ═══════════════════════════════════════════════════════════════
+      let congesPoses = false;
+
+      const { data: bull } = await supabase
+        .from("paie_bulletins")
+        .select("periode, tenant_id, societe_id, contrat_id, paie_contrats(type_contrat)")
+        .eq("id", b.id)
+        .maybeSingle();
+
+      if (bull && bull.paie_contrats
+          && (bull.paie_contrats as any).type_contrat === "cdi") {
+
+        const p = String(bull.periode);
+        const annee = Number(p.slice(0, 4));
+        const mois = Number(p.slice(5, 7));
+        const debutRef = (mois >= 6 ? annee : annee - 1) + "-06-01";
+
+        const { data: deja } = await supabase
+          .from("paie_conges")
+          .select("id")
+          .eq("contrat_id", bull.contrat_id)
+          .eq("periode", p)
+          .eq("type_mouvement", "acquisition")
+          .maybeSingle();
+
+        if (!deja) {
+          // 🚨 2,5 JOURS OUVRABLES PAR MOIS TRAVAILLE. Sur une annee
+          // complete : 30 jours ouvrables, soit cinq semaines.
+          const { error: eConges } = await supabase.from("paie_conges").insert({
+            tenant_id: bull.tenant_id,
+            societe_id: bull.societe_id,
+            contrat_id: bull.contrat_id,
+            periode_ref: debutRef,
+            unite: "ouvrables",
+            periode: p,
+            type_mouvement: "acquisition",
+            jours: 2.5,
+            bulletin_id: b.id,
+            notes: "Acquisition automatique a l emission du bulletin " + b.numero,
+          });
+          // ⚠️ L ERREUR EST REMONTEE, pas avalee : des droits a conges qui
+          // ne s inscrivent pas se decouvrent des mois plus tard.
+          if (!eConges) congesPoses = true;
+        }
+      }
+
       return NextResponse.json({
         success: true,
-        message: "Bulletin " + b.numero + " emis. Il ne peut plus etre modifie.",
+        conges_acquis: congesPoses ? 2.5 : 0,
+        message: "Bulletin " + b.numero + " emis. Il ne peut plus etre modifie."
+          + (congesPoses ? " 2,5 jours de conges ont ete acquis." : ""),
       });
     }
 
