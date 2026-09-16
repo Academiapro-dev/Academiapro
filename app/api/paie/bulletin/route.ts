@@ -91,6 +91,20 @@ function ascii(v: any): string {
 }
 
 // Les montants a la francaise : 1 234,56
+// 🚨 UNE DATE LUE PAR UN SALARIE S ECRIT EN FRANCAIS.
+// Le bulletin affichait « jusqu au 2026-11-30 », le format de la base de
+// donnees, au milieu d un document par ailleurs entierement en francais.
+// ⚠️ CE N EST PAS UN DETAIL D ESTHETIQUE : un salarie qui lit une date
+// qu il ne reconnait pas se demande si le reste du bulletin le concerne.
+// ⛔ ET LA DSN, ELLE, GARDE SON PROPRE FORMAT (JJMMAAAA sans separateur) :
+// les deux ne se melangent pas.
+function dateFr(d: any): string {
+  const v = String(d || "").slice(0, 10);
+  const m = v.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return v;
+  return m[3] + "/" + m[2] + "/" + m[1];
+}
+
 function euros(n: any): string {
   const v = Number(n || 0);
   return v.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -385,7 +399,7 @@ export async function POST(req: NextRequest) {
     }
   } else if (contrat.type_contrat === "cdd") {
     ecrire("Contrat à durée déterminée"
-      + (contrat.date_fin ? " - jusqu'au " + String(contrat.date_fin).slice(0, 10) : ""),
+      + (contrat.date_fin ? " - jusqu'au " + dateFr(contrat.date_fin) : ""),
       40, 8.5, police, NOIR);
     y -= 11;
   } else if (contrat.type_contrat === "cdi") {
@@ -562,7 +576,9 @@ export async function POST(req: NextRequest) {
     droite("Pris", 420, 8, gras, GRIS);
     droite("Solde", 555, 8, gras, GRIS);
     y -= 11;
-    ecrire("Période du " + String(calcul.conges.periode_reference).slice(0, 10)
+    // ⚠️ LA MEME REGLE VAUT ICI : la periode de reference des conges est lue
+    // par le salarie, elle s ecrit donc en francais.
+    ecrire("Période du " + dateFr(calcul.conges.periode_reference)
       + " (en jours " + calcul.conges.unite + ")", 40, 8, police, NOIR);
     droite(euros(calcul.conges.acquis), 320, 8, police, NOIR);
     droite(euros(calcul.conges.pris), 420, 8, police, NOIR);
