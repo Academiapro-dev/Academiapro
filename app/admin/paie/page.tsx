@@ -97,6 +97,10 @@ export default function PagePaie() {
   const [elements, setElements] = useState<any[]>([]);
   const [calcul, setCalcul] = useState<any>(null);
   const [bulletins, setBulletins] = useState<any[]>([]);
+  // ⚠️ LES CONGES NE CONCERNENT QUE LE CDI : sur une mission ou un CDD ils
+  // sont compenses par l ICCP, et ce bloc reste invisible.
+  const [conges, setConges] = useState<any>(null);
+  const [joursPris, setJoursPris] = useState("");
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
   const [occupe, setOccupe] = useState("");
@@ -133,10 +137,14 @@ export default function PagePaie() {
 
   async function ouvrir(c: any) {
     setChoisi(c); setCalcul(null); setMsg(""); setErr("");
+    setConges(null); setJoursPris("");
     const d = await appeler({ action: "elements", contrat_id: c.id, periode: periode });
     if (d.success) setElements(d.elements);
     const b = await appeler({ action: "bulletins", contrat_id: c.id });
     if (b.success) setBulletins(b.bulletins);
+    // ⚠️ SEUL LE CDI A UN COMPTEUR : inutile d interroger la base pour les
+    // autres, et le bloc resterait vide a l ecran.
+    if (c.type_contrat === "cdi") chargerConges(c.id);
   }
 
   async function changerPeriode(p: string) {
@@ -254,6 +262,39 @@ export default function PagePaie() {
     const d = await appeler({ action: "voir_bulletin", id: id });
     if (d.success && d.url) window.open(d.url, "_blank");
     else setErr(d.erreur || "ouverture impossible");
+  }
+
+  async function chargerConges(id: string) {
+    const d = await appeler({ action: "conges", contrat_id: id });
+    if (d && d.success) setConges(d);
+  }
+
+  async function poserConges() {
+    const j = Number(String(joursPris).replace(",", "."));
+    if (!(j > 0)) { setErr("Indiquez un nombre de jours supérieur à zéro."); return; }
+
+    setOccupe("conges");
+    const d = await appeler({
+      action: "poser_conges",
+      contrat_id: choisi.id,
+      periode: periode + "-01",
+      jours: j,
+    });
+    setOccupe("");
+    if (!d) return;
+    if (d.erreur) { setErr(d.erreur); return; }
+    setMsg(d.message);
+    setJoursPris("");
+    chargerConges(choisi.id);
+  }
+
+  async function retirerPrise(id: string) {
+    if (!confirm("Retirer cette prise de congés ?")) return;
+    setOccupe("conges");
+    const d = await appeler({ action: "supprimer_conges", id: id });
+    setOccupe("");
+    if (d && d.success) { setMsg(d.message); chargerConges(choisi.id); }
+    else if (d && d.erreur) setErr(d.erreur);
   }
 
   async function emettre(b: any) {
@@ -854,6 +895,104 @@ export default function PagePaie() {
                           color: "rgba(255,255,255,0.45)", margin: "0 0 3px" }}>
                           {r}
                         </p>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ═══════════════════════════════════════════════════════
+                ══ LES CONGES PAYES ══
+                🚨 LE COMPTEUR NE SAVAIT QU ACQUERIR. Un salarie qui pose
+                une semaine n avait aucun endroit ou etre saisi : le solde
+                montait indefiniment et le bulletin annoncait des droits
+                deja consommes.
+                ⚠️ LA VALORISATION EST AFFICHEE EN ENTIER — maintien,
+                dixieme, et celle qui est retenue. La loi impose de retenir
+                la plus favorable (art. L3141-24) ; montrer les deux permet
+                au cabinet de le verifier plutot que de nous croire.
+                ═══════════════════════════════════════════════════════ */}
+            {choisi && choisi.type_contrat === "cdi" && conges && (
+              <div style={CADRE}>
+                <h3 style={{ color: OR, fontSize: "16px", marginTop: 0 }}>
+                  Congés payés
+                </h3>
+
+                {conges.solde ? (
+                  <p style={{ fontSize: "14px", marginTop: 0 }}>
+                    Période ouverte le {String(conges.solde.periode_ref).slice(0, 10)}
+                    {" — "}
+                    <strong>{Number(conges.solde.acquis).toFixed(2)}</strong> acquis,{" "}
+                    <strong>{Number(conges.solde.pris).toFixed(2)}</strong> pris,{" "}
+                    solde <strong style={{ color: OR }}>
+                      {Number(conges.solde.solde).toFixed(2)}
+                    </strong> jour(s) ouvrable(s).
+                  </p>
+                ) : (
+                  <p style={{ fontSize: "13.5px", color: "rgba(255,255,255,0.55)",
+                    marginTop: 0 }}>
+                    Aucun droit acquis pour l&apos;instant. Les congés s&apos;acquièrent
+                    à l&apos;émission de chaque bulletin, à raison de 2,5 jours
+                    ouvrables par mois.
+                  </p>
+                )}
+
+                <div style={{ display: "flex", gap: "10px", alignItems: "flex-end",
+                  flexWrap: "wrap", marginTop: "12px" }}>
+                  <div>
+                    <span style={LIB}>Jours pris en {periode}</span>
+                    <input value={joursPris}
+                      onChange={(e: any) => setJoursPris(e.target.value)}
+                      placeholder="ex. 5" style={{ ...CHAMP, width: "120px" }} />
+                  </div>
+                  <button onClick={poserConges} disabled={occupe !== ""}
+                    style={SECOND}>
+                    {occupe === "conges" ? "…" : "Poser ces congés"}
+                  </button>
+                </div>
+
+                {conges.mouvements && conges.mouvements.length > 0 && (
+                  <div style={{ marginTop: "14px" }}>
+                    {conges.mouvements.map(function (m: any) {
+                      const prise = m.type_mouvement === "prise";
+                      return (
+                        <div key={m.id} style={{ display: "flex",
+                          justifyContent: "space-between", padding: "7px 0",
+                          borderTop: "1px solid rgba(255,255,255,0.07)",
+                          fontSize: "13px" }}>
+                          <span>
+                            <span style={{ color: prise ? ROUGE : VERT }}>
+                              {prise ? "−" : "+"}{Number(m.jours).toFixed(2)} j
+                            </span>
+                            <span style={{ marginLeft: "10px",
+                              color: "rgba(255,255,255,0.55)" }}>
+                              {String(m.periode).slice(0, 7)}
+                              {" · "}{prise ? "prise" : "acquisition"}
+                            </span>
+                            {/* ⚠️ LES DEUX METHODES SONT MONTREES, pas
+                                seulement le resultat : c est ce qui permet
+                                de justifier le montant devant un controle. */}
+                            {prise && m.valeur_retenue != null && (
+                              <span style={{ marginLeft: "10px", fontSize: "12px",
+                                color: "rgba(255,255,255,0.45)" }}>
+                                maintien {Number(m.valeur_maintien).toFixed(2)} €
+                                {" · "}dixième {Number(m.valeur_dixieme).toFixed(2)} €
+                                {" · retenu "}
+                                <strong style={{ color: OR }}>
+                                  {Number(m.valeur_retenue).toFixed(2)} €
+                                </strong>
+                              </span>
+                            )}
+                          </span>
+                          {prise && (
+                            <button onClick={() => retirerPrise(m.id)}
+                              style={{ background: "none", border: "none",
+                                color: ROUGE, cursor: "pointer", fontSize: "12px" }}>
+                              retirer
+                            </button>
+                          )}
+                        </div>
                       );
                     })}
                   </div>
