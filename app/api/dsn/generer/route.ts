@@ -494,72 +494,109 @@ export async function POST(req: NextRequest) {
     ecrire("S21.G00.51.013", montantDsn(b.brut));
 
     // ═══════════════════════════════════════════════════════════════
-    // ══ S21.G00.78 — LES BASES ASSUJETTIES ══
+    // ══ S21.G00.78 / 79 / 81 — LES ASSIETTES ET LEURS COTISATIONS ══
     //
-    // 🚨 C EST LE RAPPROCHEMENT AVEC CE QU ON VERSE A L URSSAF. Chaque
-    // assiette du bulletin doit apparaitre ici, sinon l organisme ne peut
-    // pas verifier que le versement correspond a la declaration.
+    // 🚨🚨 16/09, APRES LECTURE DU CAHIER TECHNIQUE : LA HIERARCHIE SE LIT
+    // DANS L ORDRE DES LIGNES. Un bloc « Cotisation individuelle -
+    // S21.G00.81 » est ENFANT du bloc « Base assujettie - S21.G00.78 » qui
+    // le precede. Le generateur ecrivait toutes les bases, puis toutes les
+    // cotisations : elles se rattachaient donc TOUTES a la derniere base
+    // ecrite — la CSG. Une cotisation maladie declaree sous l assiette CSG
+    // est un rejet assure.
     //
-    // 🆕 LE CLASSEMENT EST CORRIGE : le test cherchait « PLAF » n importe ou
-    // dans le code, donc VIEILLESSE_DEPLAF etait classee plafonnee. On
-    // teste desormais la FIN du code.
+    // 🚨 ON ECRIT DESORMAIS, ASSIETTE PAR ASSIETTE : la base, puis ses
+    // composants, puis ses cotisations. C est la structure que la norme
+    // attend, et elle seule.
+    //
+    // ⚠️ PLUSIEURS COTISATIONS INTERNES PEUVENT PARTAGER UN MEME CODE DSN :
+    // la CSG deductible et la non deductible sont toutes deux le code 072,
+    // la retraite complementaire et la CEG sont toutes deux le 131. ON LES
+    // ADDITIONNE au lieu d ecrire deux lignes — declarer deux fois le meme
+    // code sous la meme assiette fait rejeter la declaration.
     // ═══════════════════════════════════════════════════════════════
-    const assiettes: any = {};
+    const parAssiette: any = {};
+    let patronaleT1 = 0;
+
     for (const l of (detail.lignes_cotisations || [])) {
-      const cd = q(l.code);
-      let t = "brut";
-      if (cd.indexOf("CSG") === 0 || cd === "CRDS") t = "csg";
-      else if (cd.slice(-5) === "_PLAF") t = "plafonne";
-      if (!assiettes[t] || Number(l.base) > assiettes[t]) assiettes[t] = Number(l.base);
-    }
+      const interne = q(l.code);
+      const montant = Number(l.part_salariale || 0) + Number(l.part_patronale || 0);
 
-    // ⚠️ L ORDRE COMPTE : la base deplafonnee (« brut ») s ecrit en premier
-    // parce que c est sous elle que se rattache la reduction generale.
-    const ordreAssiettes = ["brut", "plafonne", "csg"];
-    for (const t of ordreAssiettes) {
-      if (assiettes[t] === undefined) continue;
+      // ⚠️ UNE COTISATION A ZERO NE SE DECLARE PAS : l AT/MP sans taux
+      // renseigne n a rien a dire a l URSSAF.
+      if (montant === 0) continue;
 
-      const codeBase = await code("S21.G00.78.001", t, periode);
-      if (!codeBase) {
-        anomalies.push("Aucun code DSN pour l'assiette « " + t
-          + " » (S21.G00.78.001). ⛔ AJOUTER LA CORRESPONDANCE.");
+      const { data: corr } = await supabase
+        .from("dsn_codes")
+        .select("code, base_rattachement")
+        .eq("rubrique", "S21.G00.81.001")
+        .eq("correspondance", interne)
+        .lte("date_effet", periode)
+        .or("date_fin.is.null,date_fin.gte." + periode)
+        .order("date_effet", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (!corr || !corr.code) {
+        anomalies.push("Aucun code DSN pour la cotisation « " + interne
+          + " » (" + montantDsn(montant) + " EUR). ⛔ NON DÉCLARÉE. "
+          + "Renseigner la correspondance dans dsn_codes depuis le cahier "
+          + "technique NEODeS.");
         continue;
       }
-      ecrire("S21.G00.78.001", codeBase);
+      if (!corr.base_rattachement) {
+        anomalies.push("La cotisation « " + interne + " » (code " + corr.code
+          + ") n'a pas de base de rattachement dans dsn_codes. ⛔ NON "
+          + "DÉCLARÉE : on ne devine pas sous quelle assiette la ranger.");
+        continue;
+      }
+
+      const bAss = String(corr.base_rattachement);
+      if (!parAssiette[bAss]) parAssiette[bAss] = { assiette: 0, codes: {} };
+
+      // ⚠️ L ASSIETTE DE LA BASE EST LA PLUS GRANDE DE SES COTISATIONS :
+      // toutes celles rangees sous une meme base portent la meme assiette.
+      if (Number(l.base) > parAssiette[bAss].assiette) {
+        parAssiette[bAss].assiette = Number(l.base);
+      }
+
+      if (!parAssiette[bAss].codes[corr.code]) {
+        parAssiette[bAss].codes[corr.code] = { montant: 0, base: Number(l.base) };
+      }
+      parAssiette[bAss].codes[corr.code].montant += montant;
+
+      // 🚨 CONTROLE SIG-18 DU CAHIER : tout bloc « 131 - regime unifie
+      // Agirc-Arrco » doit etre accompagne d un bloc « 142 - part patronale
+      // tranche T1 ». On cumule la part patronale pour l ecrire ensuite.
+      if (corr.code === "131") patronaleT1 += Number(l.part_patronale || 0);
+    }
+
+    // ⚠️ L ORDRE DES ASSIETTES : la deplafonnee en premier, parce que c est
+    // sous elle que se rattache la reduction generale (controle CCH-17).
+    const ordreAssiettes = ["03", "02", "04", "07"];
+
+    for (const bAss of ordreAssiettes) {
+      const grp = parAssiette[bAss];
+      if (!grp) continue;
+
+      ecrire("S21.G00.78.001", bAss);
       ecrire("S21.G00.78.002", debutPeriode);
       ecrire("S21.G00.78.003", finPeriode);
-      ecrire("S21.G00.78.004", montantDsn(assiettes[t]));
+      ecrire("S21.G00.78.004", montantDsn(grp.assiette));
 
       // ═══════════════════════════════════════════════════════════
       // ══ LA REDUCTION GENERALE, SOUS L ASSIETTE DEPLAFONNEE ══
       //
-      // 🚨🚨 LE DEFAUT LE PLUS COUTEUX DU PREMIER FICHIER : elle
-      // n apparaissait NULLE PART. 387,53 EUR pour un seul salarie. Sans
-      // elle, l URSSAF reclame la totalite des cotisations patronales —
-      // tous les mois, pour chaque salarie.
-      //
-      // 🚨 ELLE SE DECLARE EN DEUX BLOCS, verifie le 16/09 sur trois
-      // sources concordantes (net-entreprises fiche 2379, guide URSSAF,
-      // fiche de gestion MSA) :
-      //   · 018 — part imputee sur la securite sociale et le chomage ;
-      //   · 106 — part imputee sur la retraite complementaire.
-      // Les deux se rattachent a la base « 03 - assiette brute
-      // deplafonnee », et le montant s ecrit EN NEGATIF.
-      //
-      // ⚠️ LA CLE DE VENTILATION RETENUE est la proportion des cotisations
-      // patronales eligibles de chaque famille. C est la repartition la
-      // plus defendable a partir de ce que nous calculons.
-      // ⛔ A RECOUPER : l URSSAF publie une cle de repartition propre a la
-      // RGDU, et elle peut differer de cette proportion.
-      //
-      // ⚠️ UN BLOC S21.G00.79.001 = '01' EST OBLIGATOIRE AVEC LE CODE 018 :
-      // il porte le montant du SMIC retenu pour le calcul. Sans lui, la
-      // declaration part en anomalie.
+      // 🚨 CONTROLE CCH-17, mot pour mot : les codes 018 et 106 exigent un
+      // bloc « Composant de base assujettie - S21.G00.79 » de type « 01 -
+      // Montant du SMIC retenu » rattache au MEME bloc parent portant
+      // « 03 - Assiette brute deplafonnee ».
+      // 🚨 CONTROLE CCH-16 : l assiette ET le montant sont obligatoires sur
+      // ces deux codes.
+      // ⚠️ LE MONTANT S ECRIT EN NEGATIF : c est une reduction.
       // ═══════════════════════════════════════════════════════════
-      if (t === "brut" && Number(detail.rgdu || 0) > 0) {
+      if (bAss === "03" && Number(detail.rgdu || 0) > 0) {
         const rgdu = Number(detail.rgdu);
 
-        // On separe les cotisations patronales eligibles en deux familles.
         let eligibleRetraite = 0;
         let eligibleAutres = 0;
         for (const l of (detail.lignes_cotisations || [])) {
@@ -570,21 +607,17 @@ export async function POST(req: NextRequest) {
         }
         const totalEligible = eligibleRetraite + eligibleAutres;
 
-        // ⚠️ SI RIEN N EST ELIGIBLE, LA REDUCTION N A PAS DE SUPPORT : on ne
-        // l ecrit pas, et on le dit. Ecrire une reduction sans cotisation a
-        // reduire est un rejet assure.
         if (totalEligible <= 0) {
           anomalies.push(qui + " : réduction générale de " + montantDsn(rgdu)
             + " EUR sans cotisation éligible à réduire. ⛔ NON DÉCLARÉE.");
         } else {
-          // 🚨 ON ARRONDIT UNE SEULE PART ET ON DEDUIT L AUTRE : ainsi la
-          // somme des deux fait EXACTEMENT la reduction du bulletin. Deux
-          // arrondis independants laisseraient un centime d ecart, et un
-          // centime d ecart entre la paie et la DSN se voit au controle.
+          // 🚨 ON ARRONDIT UNE SEULE PART ET ON DEDUIT L AUTRE : la somme
+          // des deux fait EXACTEMENT la reduction du bulletin. Deux arrondis
+          // independants laisseraient un centime d ecart entre la paie et la
+          // declaration, et ce centime se voit au controle.
           const partRetraite = Math.round(rgdu * eligibleRetraite / totalEligible * 100) / 100;
           const partAutres = Math.round((rgdu - partRetraite) * 100) / 100;
 
-          // Le composant de base assujettie : le SMIC retenu pour le calcul.
           const codeSmic = await code("S21.G00.79.001", "smic_rgdu", periode);
           const smicRetenu = detail.rgdu_detail
             ? Number(detail.rgdu_detail.smic_mensuel_reference || 0) : 0;
@@ -594,7 +627,7 @@ export async function POST(req: NextRequest) {
             ecrire("S21.G00.79.004", montantDsn(smicRetenu));
           } else {
             anomalies.push(qui + " : montant du SMIC retenu pour la réduction "
-              + "générale absent (S21.G00.79). ⛔ OBLIGATOIRE AVEC LE CODE 018.");
+              + "générale absent (S21.G00.79). ⛔ OBLIGATOIRE — contrôle CCH-17.");
           }
 
           const code018 = await code("S21.G00.81.001", "rgdu_secu", periode);
@@ -602,65 +635,44 @@ export async function POST(req: NextRequest) {
 
           if (code018 && partAutres !== 0) {
             ecrire("S21.G00.81.001", code018);
-            ecrire("S21.G00.81.003", montantDsn(assiettes[t]));
+            ecrire("S21.G00.81.003", montantDsn(grp.assiette));
             ecrire("S21.G00.81.004", montantDsn(-partAutres));
           }
           if (code106 && partRetraite !== 0) {
             ecrire("S21.G00.81.001", code106);
-            ecrire("S21.G00.81.003", montantDsn(assiettes[t]));
+            ecrire("S21.G00.81.003", montantDsn(grp.assiette));
             ecrire("S21.G00.81.004", montantDsn(-partRetraite));
           }
           if (!code018 || !code106) {
-            anomalies.push("Codes de réduction générale absents de dsn_codes "
-              + "(rgdu_secu / rgdu_retraite). ⛔ LA RÉDUCTION DE "
-              + montantDsn(rgdu) + " EUR N'EST PAS DÉCLARÉE : l'URSSAF "
-              + "réclamera la totalité des cotisations.");
+            anomalies.push("Codes de réduction générale absents de dsn_codes. "
+              + "⛔ LA RÉDUCTION DE " + montantDsn(rgdu) + " EUR N'EST PAS "
+              + "DÉCLARÉE : l'URSSAF réclamera la totalité des cotisations.");
           } else {
             totalReductions += rgdu;
           }
         }
       }
-    }
 
-    // ═══════════════════════════════════════════════════════════════
-    // ══ S21.G00.81 — LES COTISATIONS, UNE PAR UNE ══
-    //
-    // 🚨 OBLIGATOIRE DEPUIS LA PHASE 3 : chaque cotisation doit etre
-    // ventilee individuellement, pour que chaque organisme recoive
-    // directement ce qui lui est du.
-    //
-    // 🚨🚨 LE CODE ATTENDU EST CELUI DE LA NORME, PAS LE NOTRE. Le premier
-    // fichier ecrivait « MALADIE », « CSG_DED », « AT_MP » : quatorze
-    // lignes non conformes. La norme attend des codes numeriques — 040
-    // pour l assurance chomage, 048 pour l AGS, 072 pour la CSG
-    // partiellement deductible, 131 pour le regime unifie Agirc-Arrco…
-    //
-    // ⛔ ON N ECRIT PLUS UN CODE NON TRADUIT. Une ligne inconnue fait
-    // rejeter la declaration entiere ; une ligne absente signalee en
-    // anomalie se corrige avant le depot. Chaque correspondance se
-    // renseigne dans dsn_codes au fur et a mesure, depuis le cahier
-    // technique.
-    // ═══════════════════════════════════════════════════════════════
-    for (const l of (detail.lignes_cotisations || [])) {
-      const interne = q(l.code);
-      const montant = Number(l.part_salariale || 0) + Number(l.part_patronale || 0);
+      // ══ LES COTISATIONS DE CETTE ASSIETTE ══
+      const listeCodes = Object.keys(grp.codes).sort();
+      for (const cd of listeCodes) {
+        ecrire("S21.G00.81.001", cd);
+        ecrire("S21.G00.81.003", montantDsn(grp.codes[cd].base));
+        ecrire("S21.G00.81.004", montantDsn(grp.codes[cd].montant));
 
-      // ⚠️ UNE COTISATION A ZERO NE SE DECLARE PAS : l AT/MP sans taux
-      // renseigne n a rien a dire a l URSSAF.
-      if (montant === 0) continue;
-
-      const codeDsn = await code("S21.G00.81.001", interne, periode);
-      if (!codeDsn) {
-        anomalies.push("Aucun code DSN pour la cotisation « " + interne
-          + " » (" + montantDsn(montant) + " EUR). ⛔ NON DÉCLARÉE. "
-          + "Renseigner la correspondance dans dsn_codes depuis le cahier "
-          + "technique NEODeS.");
-        continue;
+        // 🚨 SIG-18 : le bloc 142 accompagne obligatoirement le 131.
+        if (cd === "131" && patronaleT1 > 0) {
+          const code142 = await code("S21.G00.81.001", "agirc_part_patronale_t1", periode);
+          if (code142) {
+            ecrire("S21.G00.81.001", code142);
+            ecrire("S21.G00.81.003", montantDsn(grp.codes[cd].base));
+            ecrire("S21.G00.81.004", montantDsn(patronaleT1));
+          } else {
+            anomalies.push("Code 142 (part patronale Agirc-Arrco T1) absent de "
+              + "dsn_codes. ⛔ OBLIGATOIRE avec le code 131 — contrôle SIG-18.");
+          }
+        }
       }
-
-      ecrire("S21.G00.81.001", codeDsn);
-      ecrire("S21.G00.81.003", montantDsn(l.base));
-      ecrire("S21.G00.81.004", montantDsn(montant));
     }
 
     // ══ S21.G00.70 — LE PRELEVEMENT A LA SOURCE ══
