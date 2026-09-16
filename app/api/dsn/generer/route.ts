@@ -111,6 +111,7 @@ const VERSION_LOGICIEL = "1.0.0";
 // contact_email). A defaut, celles de l editeur.
 const CONTACT_DEFAUT = "Jacques LALOU";
 const EMAIL_DEFAUT = "contact@academiapro.fr";
+const TELEPHONE_DEFAUT = "0100000000";
 
 // 🚨 LA VERSION DE LA NORME (S10.G00.00.006). Elle change CHAQUE ANNEE :
 // cahier technique publie en decembre, applicable en avril.
@@ -359,8 +360,23 @@ export async function POST(req: NextRequest) {
   const ordre = precedentes && precedentes[0]
     ? Number(precedentes[0].numero_ordre) + 1 : 1;
 
-  // 🚨 A PARTIR DU SECOND DEPOT, C EST UNE « ANNULE ET REMPLACE ».
-  const typeDeclaration = ordre > 1 ? "02" : "01";
+  // 🚨🚨 LE TYPE DE LA DECLARATION — LA CAUSE RACINE DE LA MOITIE DES
+  // ANOMALIES DU 16/09.
+  //
+  // Nous ecrivions « 02 » pour un annule et remplace. Or la nomenclature
+  // officielle (cahier page 135) dit :
+  //     01  declaration normale
+  //     02  declaration normale SANS INDIVIDU      ← ce que nous declarions
+  //     03  declaration ANNULE ET REMPLACE INTEGRAL ← ce qu il fallait
+  //     04  declaration annule
+  //     05  annule et remplace sans individu
+  //
+  // ⚠️ CONSEQUENCE : depuis le premier fichier, chaque regeneration
+  // declarait une DSN NEANT — un mois sans aucun salarie. dsn-val repondait
+  // donc « le sous-groupe S21.G00.30 est interdit pour cette nature de
+  // declaration », « rubrique inconnue », et ignorait des blocs entiers.
+  // Une seule valeur fausse invalidait tout le reste.
+  const typeDeclaration = ordre > 1 ? "03" : "01";
 
   // ---- L ECRITURE DU FICHIER ----
   const L: string[] = [];
@@ -419,6 +435,9 @@ export async function POST(req: NextRequest) {
   // question. Sans elle, l anomalie revient sans interlocuteur.
   ecrire("S10.G00.02.002", q(societe.contact_nom) || CONTACT_DEFAUT);
   ecrire("S10.G00.02.004", q(societe.contact_email) || EMAIL_DEFAUT);
+  // 🚨 L ADRESSE TELEPHONIQUE EST OBLIGATOIRE (CST-03) : un organisme qui
+  // doit joindre le declarant ne se contente pas d une adresse mel.
+  ecrire("S10.G00.02.005", q(societe.contact_tel) || TELEPHONE_DEFAUT);
 
   // ══ S20 — LA DECLARATION ══
   //
@@ -741,10 +760,41 @@ export async function POST(req: NextRequest) {
     // place en coute vingt. L identifiant du lieu de travail (40.019) est
     // ecrit plus haut, a sa place dans l ordre des rubriques.
 
-    // ══ S21.G00.51 — LA REMUNERATION ══
+    // ═══════════════════════════════════════════════════════════════
+    // ⚠️ LES DEUX BORNES DU MOIS, calculees ici parce que le bloc versement
+    // et tous ses enfants en ont besoin.
     const debutPeriode = dateDsn(periode);
     const finPeriode = finDeMois(periode);
 
+    // ══ S21.G00.50 — LE VERSEMENT INDIVIDU ══
+    //
+    // 🚨🚨 SA PLACE EST ICI, AVANT LA REMUNERATION ET LES ASSIETTES.
+    // dsn-val repondait « Sous-groupe S21.G00.51 non attendu apres
+    // S21.G00.40.021 » : entre le contrat et la remuneration, il manquait
+    // le versement. Les blocs 51, 78, 79 et 81 sont ses ENFANTS — ecrits
+    // avant lui, ils n avaient pas de parent et etaient ignores.
+    //
+    //     50.001  Date de versement
+    //     50.002  Remuneration nette fiscale
+    //     50.003  Numero de versement — DEUX CARACTERES minimum
+    //     50.004  Montant net verse
+    //     50.006  Taux de prelevement a la source
+    //     50.007  Type du taux
+    //     50.009  Montant de prelevement a la source
+    //
+    // ⚠️ LE TAUX VIENT DU COMPTE RENDU METIER DE LA DSN PRECEDENTE. Tant
+    // qu aucune DSN n a ete deposee, on declare le taux neutre — la regle
+    // pour un salarie dont l administration n a pas encore transmis de taux.
+    // ═══════════════════════════════════════════════════════════════
+    ecrire("S21.G00.50.001", finPeriode);
+    ecrire("S21.G00.50.002", montantDsn(b.net_imposable));
+    ecrire("S21.G00.50.003", "01");
+    ecrire("S21.G00.50.004", montantDsn(b.net_a_payer));
+    ecrire("S21.G00.50.006", montantDsn(0));
+    ecrire("S21.G00.50.007", "13");
+    ecrire("S21.G00.50.009", montantDsn(b.prelevement_source));
+
+    // ══ S21.G00.51 — LA REMUNERATION ══
     const codeBrut = await code("S21.G00.51.011", "brut", periode);
     ecrire("S21.G00.51.001", debutPeriode);
     ecrire("S21.G00.51.002", finPeriode);
@@ -939,38 +989,6 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    // ══ S21.G00.50 — LE VERSEMENT INDIVIDU ══
-    //
-    // 🚨🚨 16/09 — LES DEUX BLOCS PRECEDENTS N EXISTAIENT PAS POUR CA.
-    //   · S21.G00.70 est le bloc AFFILIATION PREVOYANCE (code option du
-    //     salarie, nombre d ayants droit) : rien a voir avec l impot.
-    //   · S21.G00.85 est le bloc LIEU DE TRAVAIL : ses rubriques 003 a 006
-    //     attendent une voie, un code postal, une localite, un code pays.
-    //     Nous y ecrivions un net imposable et un net a payer.
-    //
-    // LE VERSEMENT, C EST CE BLOC-CI (cahier, bloc S21.G00.50) :
-    //     50.001  Date de versement
-    //     50.002  Remuneration nette fiscale
-    //     50.003  Numero de versement
-    //     50.004  Montant net verse
-    //     50.006  Taux de prelevement a la source
-    //     50.007  Type du taux de prelevement a la source
-    //     50.009  Montant de prelevement a la source
-    //
-    // ⚠️ LE TAUX VIENT DU COMPTE RENDU METIER DE LA DSN PRECEDENTE. Tant
-    // qu aucune DSN n a ete deposee, il n y en a pas : on declare le taux
-    // neutre, ce qui est la regle pour un salarie dont l administration n a
-    // pas encore transmis de taux.
-    // ═══════════════════════════════════════════════════════════════
-    ecrire("S21.G00.50.001", finPeriode);
-    ecrire("S21.G00.50.002", montantDsn(b.net_imposable));
-    ecrire("S21.G00.50.003", "1");
-    ecrire("S21.G00.50.004", montantDsn(b.net_a_payer));
-    ecrire("S21.G00.50.006", montantDsn(0));
-    ecrire("S21.G00.50.007", "13");
-    ecrire("S21.G00.50.009", montantDsn(b.prelevement_source));
-
     totalBrut += Number(b.brut || 0);
     totalCotisations += Number(b.total_salarial || 0) + Number(b.total_patronal || 0);
   }
@@ -1053,7 +1071,7 @@ export async function POST(req: NextRequest) {
     declaration_id: decl ? decl.id : null,
     fichier: nomFichier,
     periode: periode,
-    type: typeDeclaration === "02" ? "annule et remplace" : "normale",
+    type: typeDeclaration === "03" ? "annule et remplace" : "normale",
     numero_ordre: ordre,
     nb_individus: bulletins.length,
     nb_lignes: L.length,
