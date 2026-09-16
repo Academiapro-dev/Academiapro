@@ -492,6 +492,47 @@ async function calculer(contratId: string, periode: string): Promise<any> {
   // salariales. Elle diminue le cout employeur, pas le net du salarie.
   const totalPatronalApresRgdu = cts(totalPatronal - rgdu);
 
+  // ═══════════════════════════════════════════════════════════════════
+  // ---- LES CONGES PAYES ----
+  //
+  // 🚨 MENTION OBLIGATOIRE SUR LE BULLETIN (art. R3243-1) : le salarie doit
+  // voir ce qu il a acquis et ce qu il lui reste. C est la premiere chose
+  // qu il regarde apres son net.
+  //
+  // ⚠️ SEUL LE CDI EST CONCERNE. Sur un contrat de mission ou un CDD, les
+  // conges ne sont pas pris : ils sont COMPENSES mois par mois par l ICCP.
+  // Afficher un compteur sur ces contrats serait faux.
+  //
+  // ⚠️ ON LIT LE SOLDE, ON NE L ECRIT PAS ICI. L acquisition du mois est
+  // posee au moment ou le bulletin est EMIS, pas a chaque calcul : sinon
+  // un recalcul doublerait les droits du salarie.
+  let conges: any = null;
+
+  if (contrat.type_contrat === "cdi") {
+    // La periode de reference court du 1er juin au 31 mai.
+    const annee = Number(periode.slice(0, 4));
+    const mois = Number(periode.slice(5, 7));
+    const debutRef = (mois >= 6 ? annee : annee - 1) + "-06-01";
+
+    const { data: solde } = await supabase
+      .from("paie_conges_solde")
+      .select("acquis, pris, payes, solde, unite")
+      .eq("contrat_id", contratId)
+      .eq("periode_ref", debutRef)
+      .maybeSingle();
+
+    conges = {
+      periode_reference: debutRef,
+      unite: solde ? solde.unite : "ouvrables",
+      acquis: solde ? Number(solde.acquis) : 0,
+      pris: solde ? Number(solde.pris) : 0,
+      solde: solde ? Number(solde.solde) : 0,
+      // 🚨 2,5 JOURS OUVRABLES PAR MOIS TRAVAILLE — soit 30 jours, cinq
+      // semaines, sur une annee complete.
+      acquisition_du_mois: 2.5,
+    };
+  }
+
   // ---- LES TOTAUX ----
   //
   // 🚨 LE NET IMPOSABLE REPREND LA CSG NON DEDUCTIBLE ET LA CRDS. Elles
@@ -560,6 +601,7 @@ async function calculer(contratId: string, periode: string): Promise<any> {
     total_patronal_apres_rgdu: totalPatronalApresRgdu,
     net_imposable: netImposable,
     net_social: netSocial,
+    conges: conges,
     net_avant_impot: netAvantImpot,
     prelevement_source: prelevementSource,
     net_a_payer: netAPayer,
@@ -575,7 +617,7 @@ async function calculer(contratId: string, periode: string): Promise<any> {
         "Le prelevement a la source est a zero : son taux vient du retour DSN.",
         "Aucune convention collective n est traitee (paie_conventions).",
         "La RGDU est calculee sur le mois, pas sur le cumul annuel : sur un salaire variable, l approximation derive.",
-        "Les conges payes d un CDI ne sont pas suivis : ni compteur d acquisition, ni valorisation a la prise.",
+        "Les conges payes sont comptes, mais leur VALORISATION A LA PRISE n est pas calculee : il faudra comparer le maintien de salaire et la regle du dixieme, et retenir le plus favorable (art. L3141-24).",
         "Le montant net social ne reintegre aucune garantie complementaire : mutuelle et prevoyance n existent pas encore.",
       ];
       // 🚨 LE CDI N A PAS D INDEMNITE DE PRECARITE — c est normal, et c est
@@ -583,10 +625,8 @@ async function calculer(contratId: string, periode: string): Promise<any> {
       // ses conges payes s acquierent mois par mois et se valorisent a la
       // prise : ce suivi n existe pas encore.
       if (contrat.type_contrat === "cdi") {
-        r.unshift("CDI : aucune indemnite de precarite, c est normal. "
-          + "⚠️ MAIS LE COMPTEUR DE CONGES PAYES N EXISTE PAS ENCORE — "
-          + "2,5 jours ouvrables par mois travaille, a valoriser a la prise "
-          + "selon la regle la plus favorable (maintien ou dixieme).");
+        r.unshift("CDI : aucune indemnite de precarite, c est normal — "
+          + "les conges se prennent au lieu d etre compenses.");
       }
       if (!effectifConnu) {
         r.unshift("🚨 EFFECTIF INCONNU pour cette societe : le FNAL et le Tdelta de la RGDU sont ceux des MOINS DE 50 SALARIES. Si l entreprise est plus grande, la cotisation est sous-evaluee et la reduction sur-evaluee.");
