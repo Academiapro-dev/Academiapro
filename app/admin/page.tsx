@@ -51,6 +51,23 @@ const GROUPES = [
     liens: [
       { nom: "Dépenses et justificatifs", href: "/admin/comptabilite" },
       { nom: "Mr. Comptable", href: "/admin/mr-comptable" },
+      // 🆕 16/09 — LA PAIE ET LA DSN.
+      //
+      // 🚨 SANS CES DEUX LIENS, LES ECRANS N EXISTENT PAS. Ils tournent
+      // depuis la nuit du 15 au 16/09, mais aucune tuile n y menait : il
+      // fallait taper l adresse a la main. C est EXACTEMENT le defaut qui a
+      // bloque l essai de MysterLLC le 15/09 au matin, ou l ecran de
+      // creation existait depuis le 10/09 sans aucune porte d entree.
+      //
+      // ⚠️ LES DEUX ECRANS DEMANDENT LA CLE CRON_SECRET a l ouverture. Ce
+      // n est pas un defaut : ils portent des donnees nominatives de
+      // salaries (numero de securite sociale, salaire, adresse).
+      //
+      // ⚠️ L ORDRE DES DEUX TUILES SUIT L ORDRE DU TRAVAIL : on calcule et
+      // on emet les bulletins d abord, on declare ensuite. La DSN ne prend
+      // que les bulletins EMIS.
+      { nom: "Paie et bulletins", href: "/admin/paie" },
+      { nom: "DSN — déclarations sociales", href: "/admin/dsn" },
     ],
   },
   {
