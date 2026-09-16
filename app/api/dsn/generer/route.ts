@@ -775,6 +775,17 @@ export async function POST(req: NextRequest) {
         + "(S21.G00.40.082), obligatoire pour un CDI.");
     }
 
+    // ⚠️ LE MOTIF DE RECOURS EST UN CODE (40.021), pas un libelle.
+    if (q(ct.type_contrat) === "mission" || q(ct.type_contrat) === "cdd") {
+      const codeMotif = await code("S21.G00.40.021", q(ct.motif_recours), periode);
+      if (codeMotif) ecrire("S21.G00.40.021", codeMotif);
+      else {
+        anomalies.push(qui + " : motif de recours « " + q(ct.motif_recours)
+          + " » sans code DSN (S21.G00.40.021). ⛔ NON DÉCLARÉ — obligatoire "
+          + "sur un contrat de mission ou un CDD.");
+      }
+    }
+
     // ═══════════════════════════════════════════════════════════════
     // 🚨🚨 LE RISQUE ACCIDENT DU TRAVAIL ET L ETABLISSEMENT UTILISATEUR
     //
@@ -825,17 +836,6 @@ export async function POST(req: NextRequest) {
         anomalies.push(qui + " : le SIRET de l'entreprise utilisatrice « "
           + siretEu + " » ne respecte pas la clé de Luhn (S21.G00.40.046). "
           + "⛔ NON DÉCLARÉ.");
-      }
-    }
-
-    // ⚠️ LE MOTIF DE RECOURS EST UN CODE (40.021), pas un libelle.
-    if (q(ct.type_contrat) === "mission" || q(ct.type_contrat) === "cdd") {
-      const codeMotif = await code("S21.G00.40.021", q(ct.motif_recours), periode);
-      if (codeMotif) ecrire("S21.G00.40.021", codeMotif);
-      else {
-        anomalies.push(qui + " : motif de recours « " + q(ct.motif_recours)
-          + " » sans code DSN (S21.G00.40.021). ⛔ NON DÉCLARÉ — obligatoire "
-          + "sur un contrat de mission ou un CDD.");
       }
     }
 
@@ -919,20 +919,10 @@ export async function POST(req: NextRequest) {
     // pas le net verse mais le NET IMPOSABLE.
     ecrire("S21.G00.50.013", montantDsn(b.net_imposable));
 
-    // ═══════════════════════════════════════════════════════════════
-    // ══ S21.G00.58 — LE MONTANT NET SOCIAL ══
-    //
-    // 🚨 CONTROLE CCH-14 : un versement date du mois declare exige un bloc
-    // enfant « Element de revenu calcule en net » de type « 03 - Montant
-    // net social ». C est la meme valeur que celle imprimee sur le
-    // bulletin, et elle sert de reference aux prestations sociales.
-    // ⚠️ SI ELLE DIFFERE ENTRE LE BULLETIN ET LA DSN, c est le salarie qui
-    // voit ses droits mal calcules.
-    // ═══════════════════════════════════════════════════════════════
-    ecrire("S21.G00.58.001", debutPeriode);
-    ecrire("S21.G00.58.002", finPeriode);
-    ecrire("S21.G00.58.003", "03");
-    ecrire("S21.G00.58.004", montantDsn(b.net_social));
+    // ⚠️ LE BLOC S21.G00.58 (montant net social) EST ECRIT PLUS BAS, apres
+    // la remuneration et les assiettes : les sous-groupes d un meme parent
+    // se suivent dans l ordre croissant de leur numero — 50, puis 51, puis
+    // 58, puis 78. Ecrit ici, il precedait le 51 et cassait cet ordre.
 
     // ══ S21.G00.51 — LA REMUNERATION ══
     const codeBrut = await code("S21.G00.51.011", "brut", periode);
@@ -948,6 +938,21 @@ export async function POST(req: NextRequest) {
     // volume de travail, et donc de verifier le respect du SMIC.
     if (dureeMensuelleRef > 0) ecrire("S21.G00.51.012", montantDsn(dureeMensuelleRef));
     ecrire("S21.G00.51.013", montantDsn(b.brut));
+
+    // ═══════════════════════════════════════════════════════════════
+    // ══ S21.G00.58 — LE MONTANT NET SOCIAL ══
+    //
+    // 🚨 CONTROLE CCH-14 : un versement date du mois declare exige un bloc
+    // enfant « Element de revenu calcule en net » de type « 03 - Montant
+    // net social ». C est la meme valeur que celle imprimee sur le
+    // bulletin, et elle sert de reference aux prestations sociales.
+    // ⚠️ SI ELLE DIFFERE ENTRE LE BULLETIN ET LA DSN, c est le salarie qui
+    // voit ses droits mal calcules.
+    // ═══════════════════════════════════════════════════════════════
+    ecrire("S21.G00.58.001", debutPeriode);
+    ecrire("S21.G00.58.002", finPeriode);
+    ecrire("S21.G00.58.003", "03");
+    ecrire("S21.G00.58.004", montantDsn(b.net_social));
 
     // ═══════════════════════════════════════════════════════════════
     // ══ S21.G00.78 / 79 / 81 — LES ASSIETTES ET LEURS COTISATIONS ══
