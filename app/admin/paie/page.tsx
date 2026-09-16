@@ -445,6 +445,20 @@ export default function PagePaie() {
                     <input value={f.intitule_poste || ""} style={CHAMP}
                       onChange={(ev) => setF({ ...f, intitule_poste: ev.target.value })} />
                   </div>
+                  <div style={{ flex: "0 1 150px" }}>
+                    {/* 🚨 LE CODE PCS-ESE EST UNE RUBRIQUE OBLIGATOIRE DE LA
+                        DSN (S21.G00.40.004). Il decrit le METIER selon la
+                        nomenclature INSEE, independamment du nom qu on donne
+                        au poste : « cariste » et « agent logistique » peuvent
+                        etre le meme PCS-ESE.
+                        ⚠️ IL EST SENSIBLE A LA CASSE : « 653a », pas « 653A ».
+                        C est l une des deux seules rubriques de la norme dans
+                        ce cas. */}
+                    <span style={LIB}>Code PCS-ESE (INSEE, ex. 653a)</span>
+                    <input value={f.pcs_ese || ""} style={CHAMP}
+                      placeholder="653a"
+                      onChange={(ev) => setF({ ...f, pcs_ese: ev.target.value })} />
+                  </div>
                   <div style={{ flex: "1 1 140px" }}>
                     <span style={LIB}>Taux horaire</span>
                     <input value={f.salaire_horaire || ""} style={CHAMP}
