@@ -669,7 +669,14 @@ export async function POST(req: NextRequest) {
     // EN FRANCE — a la difference du code pays de l ADRESSE, ou « FR » est
     // au contraire interdit. Les deux rubriques se ressemblent et obeissent
     // a des regles opposees.
-    ecrire("S21.G00.30.015", q(s.pays_naissance) || "FR");
+    // 🚨 LE CODE PAYS DE NAISSANCE TIENT EN DEUX CARACTERES (table ISO
+    // 3166-1-A2), comme celui de l adresse. La colonne du salarie contient
+    // parfois le LIBELLE (« France »), qui serait refuse sur la longueur.
+    // ⚠️ ON NE GARDE LA VALEUR QUE SI ELLE FAIT DEJA DEUX CARACTERES ;
+    // sinon on retombe sur FR, puisque le departement de naissance nous dit
+    // deja qu il s agit d une naissance en France.
+    const paysNaiss = q(s.pays_naissance).toUpperCase();
+    ecrire("S21.G00.30.015", paysNaiss.length === 2 ? paysNaiss : "FR");
     // 🚨 S21.G00.30.011 EST UN CODE PAYS SUR DEUX CARACTERES (« C 2 2 »,
     // cahier page 95). Le premier fichier ecrivait « France » : six
     // caracteres, bloc rejete. On normalise plutot que de faire confiance a
@@ -810,6 +817,23 @@ export async function POST(req: NextRequest) {
     // accidents du travail (CNAM). « 200 » est le regime general dans les
     // trois nomenclatures.
     ecrire("S21.G00.40.018", q(ct.regime_maladie) || "200");
+
+    // 🚨 L IDENTIFIANT DU LIEU DE TRAVAIL (40.019) S ECRIT ICI, entre le
+    // regime maladie (018) et le regime vieillesse (020). Il etait ecrit
+    // plus bas, avec le risque AT — donc APRES la rubrique 039, et l ordre
+    // croissant etait rompu : dsn-val cesse alors de lire le bloc.
+    //
+    // ⚠️ POUR UN INTERIMAIRE, LE LIEU DE TRAVAIL EST L ENTREPRISE
+    // UTILISATRICE : c est la qu il travaille reellement. Les rubriques 019
+    // et 046 portent le meme SIRET sans dire la meme chose — l une designe
+    // le lieu, l autre l employeur d accueil — et le bloc 85 le decrit.
+    const estMission = q(ct.type_contrat) === "mission";
+    const siretEu = q(ct.eu_siret).replace(/\D/g, "");
+    const missionValide = estMission && siretEu.length === 14
+      && cleLuhnValide(siretEu);
+
+    if (missionValide) ecrire("S21.G00.40.019", siretEu);
+
     ecrire("S21.G00.40.020", q(ct.regime_vieillesse) || "200");
 
     // 🚨 LE MOTIF DE RECOURS (40.021) SE PLACE ICI, entre le regime
@@ -870,19 +894,7 @@ export async function POST(req: NextRequest) {
       if (q(l.code) === "AT_MP") tauxAtMp = Number(l.taux_patronal || 0);
     }
 
-    const estMission = q(ct.type_contrat) === "mission";
-    const siretEu = q(ct.eu_siret).replace(/\D/g, "");
-
-    if (estMission && siretEu.length === 14 && cleLuhnValide(siretEu)) {
-      // 🚨 L IDENTIFIANT DU LIEU DE TRAVAIL (40.019) DOIT ETRE ECRIT, et il
-      // doit correspondre a un bloc 85 present dans la declaration.
-      // dsn-val : « vous avez declare un contrat de mission sans preciser le
-      // lieu de travail de cette mission ».
-      // ⚠️ POUR UN INTERIMAIRE, LE LIEU DE TRAVAIL EST L ENTREPRISE
-      // UTILISATRICE — c est la qu il travaille reellement. Les rubriques
-      // 019 et 046 portent donc le meme SIRET, mais elles ne disent pas la
-      // meme chose : l une designe le lieu, l autre l employeur d accueil.
-      ecrire("S21.G00.40.019", siretEu);
+    if (missionValide) {
       ecrire("S21.G00.40.040", q(ct.code_risque_at) || "745BD");
       if (tauxAtMp > 0) ecrire("S21.G00.40.043", montantDsn(tauxAtMp));
       ecrire("S21.G00.40.046", siretEu);
@@ -964,9 +976,25 @@ export async function POST(req: NextRequest) {
       if (d1.getDate() < d0.getDate()) mois -= 1;
       if (mois < 0) mois = 0;
 
+      // 🚨🚨 UNE ANCIENNETE NULLE EST INTERDITE. Le cahier, rubrique
+      // 86.003 : « la valeur retenue pour le code type d expression de
+      // l anciennete doit permettre d exprimer une anciennete NON NULLE ».
+      //
+      // ⚠️ UN SALARIE EMBAUCHE LE MOIS MEME A ZERO MOIS D ANCIENNETE — et
+      // c est arithmetiquement juste. La norme demande alors de CHANGER
+      // D UNITE plutot que de declarer zero : on compte en JOURS.
+      // C est exactement pourquoi la rubrique 86.002 existe.
+      const joursAnciennete = Math.max(1, Math.round(
+        (d1.getTime() - d0.getTime()) / 86400000) + 1);
+
       ecrire("S21.G00.86.001", "07");
-      ecrire("S21.G00.86.002", "02");           // unite : mois
-      ecrire("S21.G00.86.003", String(mois));
+      if (mois >= 1) {
+        ecrire("S21.G00.86.002", "02");          // unite : mois
+        ecrire("S21.G00.86.003", String(mois));
+      } else {
+        ecrire("S21.G00.86.002", "01");          // unite : jours
+        ecrire("S21.G00.86.003", String(joursAnciennete));
+      }
       ecrire("S21.G00.86.005", numeroContrat);
     }
 
