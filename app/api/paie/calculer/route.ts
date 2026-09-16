@@ -762,9 +762,26 @@ async function calculer(contratId: string, periode: string): Promise<any> {
         "Le prélèvement à la source est à zéro : son taux vient du retour DSN.",
         "Aucune convention collective n'est traitée (paie_conventions).",
         "La RGDU est calculée sur le mois, pas sur le cumul annuel : sur un salaire variable, l'approximation dérive.",
-        "Les congés payés sont comptés, mais leur VALORISATION À LA PRISE n'est pas calculée : il faudra comparer le maintien de salaire et la règle du dixième, et retenir le plus favorable (art. L3141-24).",
         "Le montant net social ne réintègre aucune garantie complémentaire : mutuelle et prévoyance n'existent pas encore.",
       ];
+
+      // 🚨 LA RESERVE SUR LES CONGES NE CONCERNE QUE LE CDI.
+      //
+      // Elle s affichait sur les trois types de contrat, et elle etait
+      // FAUSSE sur deux d entre eux : un contrat de mission et un CDD
+      // n ACQUIERENT PAS de conges — ils les compensent par l ICCP, versee
+      // chaque mois sur le bulletin. Parler de leur « valorisation a la
+      // prise » n a aucun sens la, et un cabinet comptable le voit tout de
+      // suite.
+      //
+      // ⚠️ UNE RESERVE FAUSSE COUTE PLUS CHER QU UNE RESERVE ABSENTE : elle
+      // fait douter de toutes les autres, y compris des vraies.
+      if (contrat.type_contrat === "cdi") {
+        r.push("Les congés payés sont comptés, mais leur VALORISATION À LA "
+          + "PRISE n'est pas calculée : il faudra comparer le maintien de "
+          + "salaire et la règle du dixième, et retenir le plus favorable "
+          + "(art. L3141-24).");
+      }
       // 🚨 LE CDI N A PAS D INDEMNITE DE PRECARITE — c est normal, et c est
       // dit pour que personne ne cherche une ligne manquante. En revanche,
       // ses conges payes s acquierent mois par mois et se valorisent a la
