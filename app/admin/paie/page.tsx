@@ -1,7 +1,7 @@
 "use client";
 
 // ═══════════════════════════════════════════════════════════════════════
-// L ECRAN DE PAIE — 15/09/2026
+// L ECRAN DE PAIE — 15/09/2026, corrige le 16/09
 //
 // Trois temps : choisir un contrat, saisir ce qui s est passe ce mois-ci,
 // sortir le bulletin.
@@ -13,6 +13,10 @@
 // 🚨 LE BULLETIN SORT EN BROUILLON. Il ne devient « emis » que par un geste
 // separe, et ce geste est irreversible. C est la meme regle que le registre
 // des mandats : ce qui est sorti est sorti.
+//
+// 🚨 UN SEUL BULLETIN PAR CONTRAT ET PAR MOIS (decision de Jacques,
+// 16/09). Recalculer REECRIT le brouillon du mois ; si le mois est deja
+// emis, le bouton ouvre un RECTIFICATIF qui annulera le precedent.
 //
 // ⚠️ LE SALAIRE DE BASE NE SE SAISIT PAS : il se calcule depuis le taux
 // horaire du contrat et la duree mensuelle. On ne pose ici QUE ce qui sort
@@ -136,7 +140,7 @@ export default function PagePaie() {
   }
 
   async function changerPeriode(p: string) {
-    setPeriode(p); setCalcul(null);
+    setPeriode(p); setCalcul(null); setMsg("");
     if (!choisi) return;
     const d = await appeler({ action: "elements", contrat_id: choisi.id, periode: p });
     if (d.success) setElements(d.elements);
@@ -163,8 +167,9 @@ export default function PagePaie() {
   }
 
   async function retirer(id: string) {
-    setOccupe("retirer");
-    await appeler({ action: "supprimer_element", id: id });
+    setErr(""); setOccupe("retirer");
+    const d = await appeler({ action: "supprimer_element", id: id });
+    if (!d.success) setErr(d.erreur || "suppression impossible");
     setCalcul(null);
     const l = await appeler({ action: "elements", contrat_id: choisi.id, periode: periode });
     if (l.success) setElements(l.elements);
@@ -172,6 +177,8 @@ export default function PagePaie() {
   }
 
   // 🚨 LE CALCUL S AFFICHE AVANT LE PDF.
+  // ⚠️ IL NE CREE RIEN : ni bulletin, ni rectificatif. Sinon chaque clic
+  // fabriquerait un document de plus — le defaut du 16/09.
   async function calculer() {
     setErr(""); setMsg(""); setOccupe("calcul");
     const r = await fetch("/api/paie/calculer?contrat=" + encodeURIComponent(choisi.id)
@@ -182,7 +189,28 @@ export default function PagePaie() {
     setOccupe("");
   }
 
+  // 🆕 16/09 — CE QUI EXISTE DEJA POUR LE MOIS AFFICHE, pour que le bouton
+  // annonce ce qu il va faire AVANT d etre clique. Un bouton qui dit
+  // « Sortir le PDF » alors qu il ouvre un rectificatif est un piege.
+  const duMois = bulletins.filter(function (b: any) {
+    return String(b.periode).slice(0, 7) === periode.slice(0, 7);
+  });
+  const brouillonDuMois = duMois.filter(function (b: any) {
+    return b.statut === "brouillon";
+  })[0] || null;
+  const emisDuMois = duMois.filter(function (b: any) {
+    return b.statut === "emis";
+  })[0] || null;
+
   async function genererBulletin() {
+    // ⚠️ ON PREVIENT AVANT D OUVRIR UN RECTIFICATIF : ce n est pas le meme
+    // geste que sortir un premier bulletin, et il annulera un document deja
+    // remis au salarie.
+    if (!brouillonDuMois && emisDuMois) {
+      if (!confirm("Le bulletin " + emisDuMois.numero + " de ce mois est déjà émis.\n\n"
+        + "Un bulletin RECTIFICATIF va être ouvert. Il annulera et remplacera le "
+        + emisDuMois.numero + " au moment de son émission.\n\nContinuer ?")) return;
+    }
     setErr(""); setOccupe("bulletin");
     const r = await fetch("/api/paie/bulletin?secret=" + encodeURIComponent(secret), {
       method: "POST",
@@ -205,17 +233,22 @@ export default function PagePaie() {
     else setErr(d.erreur || "ouverture impossible");
   }
 
-  async function emettre(id: string, numero: string) {
+  async function emettre(b: any) {
     // ⚠️ ON DEMANDE CONFIRMATION : le geste est irreversible.
-    if (!confirm("Émettre le bulletin " + numero + " ?\n\n"
-      + "Il ne pourra plus être modifié. Une correction se fera par un "
-      + "bulletin rectificatif.")) return;
+    const avertissement = b.type_bulletin === "rectificatif" && b.rectifie_numero
+      ? "Émettre le bulletin rectificatif " + b.numero + " ?\n\n"
+        + "Il ANNULERA définitivement le bulletin " + b.rectifie_numero + "."
+      : "Émettre le bulletin " + b.numero + " ?\n\n"
+        + "Il ne pourra plus être modifié. Une correction se fera par un "
+        + "bulletin rectificatif.";
+    if (!confirm(avertissement)) return;
+
     setOccupe("emettre");
-    const d = await appeler({ action: "emettre", id: id });
+    const d = await appeler({ action: "emettre", id: b.id });
     if (d.success) {
       setMsg(d.message);
-      const b = await appeler({ action: "bulletins", contrat_id: choisi.id });
-      if (b.success) setBulletins(b.bulletins);
+      const l = await appeler({ action: "bulletins", contrat_id: choisi.id });
+      if (l.success) setBulletins(l.bulletins);
     } else setErr(d.erreur || "émission impossible");
     setOccupe("");
   }
@@ -309,7 +342,9 @@ export default function PagePaie() {
                       onChange={(ev) => setF({ ...f, nom: ev.target.value })} />
                   </div>
                   <div style={{ flex: "1 1 200px" }}>
-                    <span style={LIB}>Numéro de sécurité sociale</span>
+                    {/* 🚨 LA CLE EST CONTROLEE A L ENREGISTREMENT. Un numero
+                        dont la cle est fausse fait REJETER la DSN entiere. */}
+                    <span style={LIB}>Numéro de sécurité sociale (15 chiffres, clé comprise)</span>
                     <input value={f.numero_secu || ""} style={CHAMP}
                       onChange={(ev) => setF({ ...f, numero_secu: ev.target.value })} />
                   </div>
@@ -460,6 +495,25 @@ export default function PagePaie() {
                 <input type="month" value={periode.slice(0, 7)} style={CHAMP}
                   onChange={(ev) => changerPeriode(ev.target.value + "-01")} />
               </div>
+
+              {/* 🆕 16/09 — CE QUI EXISTE DEJA POUR CE MOIS SE VOIT ICI,
+                  avant tout clic. Un seul bulletin par mois : autant dire
+                  tout de suite lequel c est. */}
+              {emisDuMois && (
+                <p style={{ margin: "12px 0 0", fontSize: "12.5px", color: VERT,
+                  lineHeight: "1.6" }}>
+                  Le bulletin {emisDuMois.numero} de ce mois est déjà émis. Les
+                  éléments ne peuvent plus être modifiés — une correction passe
+                  par un bulletin rectificatif.
+                </p>
+              )}
+              {brouillonDuMois && (
+                <p style={{ margin: "12px 0 0", fontSize: "12.5px", color: OR,
+                  lineHeight: "1.6" }}>
+                  Un brouillon existe pour ce mois ({brouillonDuMois.numero}) :
+                  le recalcul le remplacera.
+                </p>
+              )}
             </div>
 
             {/* ---- LES ELEMENTS DU MOIS ---- */}
@@ -542,7 +596,10 @@ export default function PagePaie() {
               </button>
               {calcul && (
                 <button onClick={genererBulletin} disabled={occupe !== ""} style={SECOND}>
-                  {occupe === "bulletin" ? "…" : "Sortir le PDF"}
+                  {occupe === "bulletin" ? "…"
+                    : (!brouillonDuMois && emisDuMois) ? "Ouvrir un rectificatif"
+                    : brouillonDuMois ? "Refaire le PDF du brouillon"
+                    : "Sortir le PDF"}
                 </button>
               )}
             </div>
@@ -590,13 +647,14 @@ export default function PagePaie() {
                   <span>− {euros(calcul.total_salarial)} €</span>
                 </div>
 
-                {calcul.rgdu > 0 && (
-                  <div style={{ display: "flex", justifyContent: "space-between",
-                    padding: "4px 0", fontSize: "13.5px", color: VERT }}>
-                    <span>Réduction générale sur les cotisations patronales</span>
-                    <span>− {euros(calcul.rgdu)} €</span>
-                  </div>
-                )}
+                {/* 🚨🚨 LA REDUCTION PATRONALE N EST PLUS ICI — 16/09.
+                    DEFAUT TROUVE A L ESSAI : elle etait affichee entre les
+                    cotisations salariales et le net a payer, comme si elle
+                    entrait dans le calcul du net. Un salarie qui soustrayait
+                    les deux lignes du brut trouvait 1 360,66 EUR au lieu de
+                    1 995,24. Elle appartient au bloc employeur, et a lui
+                    seul : elle diminue le cout de l entreprise, jamais le
+                    net du salarie. */}
 
                 <div style={{ display: "flex", justifyContent: "space-between",
                   padding: "12px 0", marginTop: "8px", fontSize: "17px",
@@ -613,8 +671,41 @@ export default function PagePaie() {
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between",
                   fontSize: "12.5px", color: "rgba(255,255,255,0.5)" }}>
-                  <span>Coût total employeur</span>
-                  <span>{euros(calcul.cout_employeur)} €</span>
+                  <span>Net imposable</span>
+                  <span>{euros(calcul.net_imposable)} €</span>
+                </div>
+
+                {/* ---- CE QUE PAIE L EMPLOYEUR, A PART ---- */}
+                <div style={{ marginTop: "16px", paddingTop: "12px",
+                  borderTop: "1px solid rgba(255,255,255,0.12)" }}>
+                  <p style={{ fontSize: "12px", color: OR, margin: "0 0 6px" }}>
+                    Côté employeur
+                  </p>
+                  <div style={{ display: "flex", justifyContent: "space-between",
+                    padding: "3px 0", fontSize: "13px" }}>
+                    <span>Cotisations patronales</span>
+                    <span>{euros(calcul.total_patronal)} €</span>
+                  </div>
+                  {calcul.rgdu > 0 && (
+                    <div style={{ display: "flex", justifyContent: "space-between",
+                      padding: "3px 0", fontSize: "13px", color: VERT }}>
+                      <span>Réduction générale dégressive unique
+                        {calcul.rgdu_detail && calcul.rgdu_detail.coefficient ? (
+                          <span style={{ color: "rgba(255,255,255,0.4)",
+                            marginLeft: "8px", fontSize: "11.5px" }}>
+                            coef. {calcul.rgdu_detail.coefficient}
+                          </span>
+                        ) : null}
+                      </span>
+                      <span>− {euros(calcul.rgdu)} €</span>
+                    </div>
+                  )}
+                  <div style={{ display: "flex", justifyContent: "space-between",
+                    padding: "6px 0 0", fontSize: "14px", fontWeight: "bold",
+                    borderTop: "1px solid rgba(255,255,255,0.08)", marginTop: "6px" }}>
+                    <span>Coût total employeur</span>
+                    <span>{euros(calcul.cout_employeur)} €</span>
+                  </div>
                 </div>
 
                 {/* 🚨 LES RESERVES S AFFICHENT. Un calcul qui tait ce qu il ne
@@ -643,21 +734,33 @@ export default function PagePaie() {
               <div style={CADRE}>
                 <h3 style={{ color: OR, fontSize: "16px", marginTop: 0 }}>Bulletins</h3>
                 {bulletins.map(function (b: any) {
+                  const annule = b.statut === "annule";
                   return (
                     <div key={b.id} style={{ display: "flex",
                       justifyContent: "space-between", alignItems: "center",
                       flexWrap: "wrap", gap: "8px", padding: "9px 0",
+                      opacity: annule ? 0.55 : 1,
                       borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
                       <span style={{ fontSize: "13.5px" }}>
-                        {b.numero}
+                        <span style={{ textDecoration: annule ? "line-through" : "none" }}>
+                          {b.numero}
+                        </span>
                         <span style={{ color: "rgba(255,255,255,0.45)",
                           marginLeft: "10px", fontSize: "12.5px" }}>
                           {String(b.periode).slice(0, 7)}
                         </span>
                         <span style={{ marginLeft: "10px", fontSize: "11.5px",
-                          color: b.statut === "emis" ? VERT : OR }}>
-                          {b.statut === "emis" ? "émis" : "brouillon"}
+                          color: b.statut === "emis" ? VERT
+                            : annule ? ROUGE : OR }}>
+                          {b.statut === "emis" ? "émis"
+                            : annule ? "annulé et remplacé" : "brouillon"}
                         </span>
+                        {b.type_bulletin === "rectificatif" && (
+                          <span style={{ marginLeft: "10px", fontSize: "11.5px",
+                            color: "rgba(255,255,255,0.45)" }}>
+                            rectificatif{b.rectifie_numero ? " du " + b.rectifie_numero : ""}
+                          </span>
+                        )}
                       </span>
                       <span>
                         <span style={{ fontSize: "13.5px", marginRight: "12px" }}>
@@ -668,8 +771,11 @@ export default function PagePaie() {
                             cursor: "pointer", fontSize: "12.5px" }}>
                           ouvrir
                         </button>
-                        {b.statut !== "emis" && (
-                          <button onClick={() => emettre(b.id, b.numero)}
+                        {/* ⚠️ NI UN BULLETIN EMIS NI UN BULLETIN ANNULE NE
+                            PEUVENT ETRE EMIS : le bouton disparait, et la
+                            route refuse de son cote. */}
+                        {b.statut === "brouillon" && (
+                          <button onClick={() => emettre(b)}
                             style={{ background: "none", border: "none", color: VERT,
                               cursor: "pointer", fontSize: "12.5px", marginLeft: "10px" }}>
                             émettre
