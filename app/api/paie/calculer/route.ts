@@ -177,6 +177,32 @@ async function calculer(contratId: string, periode: string): Promise<any> {
   const effectif = societe && societe.effectif ? Number(societe.effectif) : 0;
   const effectifConnu = !!(societe && societe.effectif);
 
+  // ---- LES TAUX PROPRES A CETTE SOCIETE ----
+  //
+  // 🚨 L AT/MP ET LE VERSEMENT MOBILITE NE SONT PAS LES MEMES POUR TOUT LE
+  // MONDE. L AT/MP est notifie chaque annee par la CARSAT selon l activite
+  // et la sinistralite ; le versement mobilite depend de la commune du lieu
+  // de travail et n est du qu a partir de onze salaries dans le ressort.
+  // ⛔ AUCUNE VALEUR PAR DEFAUT N EST APPLIQUEE : un taux invente, meme
+  // plausible, donne un bulletin faux et un redressement. Quand le taux
+  // manque, la cotisation vaut zero et la reserve le dit.
+  const tauxSociete: any = {};
+  const { data: tauxPropres } = await supabase
+    .from("paie_taux_societe")
+    .select("code, taux, ressort")
+    .eq("societe_id", contrat.societe_id)
+    .lte("date_effet", periode)
+    .or("date_fin.is.null,date_fin.gte." + periode)
+    .order("date_effet", { ascending: false });
+
+  for (const t of (tauxPropres || [])) {
+    // ⚠️ LE PREMIER GAGNE : la requete est triee par date d effet
+    // decroissante, donc c est le taux en vigueur a la periode.
+    if (!tauxSociete[String(t.code)]) {
+      tauxSociete[String(t.code)] = Number(t.taux);
+    }
+  }
+
   // ---- LES PARAMETRES DE LA PERIODE ----
   const plafond = await parametre("PMSS", periode);
   const dureeMensuelle = await parametre("DUREE_MENSUELLE", periode);
@@ -355,8 +381,20 @@ async function calculer(contratId: string, periode: string): Promise<any> {
     const base = assiette(String(c.assiette_type), brutTotal, plafond);
     if (base <= 0) continue;
 
+    // 🚨 L AT/MP ET LE VERSEMENT MOBILITE PORTENT UN TAUX A ZERO EN BASE :
+    // le vrai taux est propre a la societe. On le substitue ici.
+    let tPat = Number(c.taux_patronal);
+    if (tauxSociete[String(c.code)] !== undefined) {
+      tPat = tauxSociete[String(c.code)];
+    }
+
+    // ⚠️ LE VERSEMENT MOBILITE N EST DU QU A PARTIR DE ONZE SALARIES dans
+    // le ressort de l autorite organisatrice. En dessous, il est nul meme
+    // si un taux est renseigne.
+    if (String(c.code) === "VERSEMENT_MOBILITE" && effectif < 11) tPat = 0;
+
     const partSal = cts(base * Number(c.taux_salarial) / 100);
-    const partPat = cts(base * Number(c.taux_patronal) / 100);
+    const partPat = cts(base * tPat / 100);
 
     if (partSal === 0 && partPat === 0) continue;
 
@@ -385,7 +423,7 @@ async function calculer(contratId: string, periode: string): Promise<any> {
       famille: c.famille,
       base: cts(base),
       taux_salarial: Number(c.taux_salarial),
-      taux_patronal: Number(c.taux_patronal),
+      taux_patronal: tPat,
       part_salariale: partSal,
       part_patronale: partPat,
       eligible_rgdu: ELIGIBLES_RGDU.indexOf(String(c.code)) >= 0,
@@ -612,8 +650,7 @@ async function calculer(contratId: string, periode: string): Promise<any> {
     reserves: (function () {
       const r = [
         "Les taux doivent etre recoupes sur boss.gouv.fr avant tout bulletin reel.",
-        "Le taux AT/MP n est pas applique : il est propre a chaque entreprise (notifie par la CARSAT).",
-        "Le versement mobilite n est pas applique : il depend de la commune.",
+        "Les conges payes sont comptes, mais leur VALORISATION A LA PRISE n est pas calculee.",
         "Le prelevement a la source est a zero : son taux vient du retour DSN.",
         "Aucune convention collective n est traitee (paie_conventions).",
         "La RGDU est calculee sur le mois, pas sur le cumul annuel : sur un salaire variable, l approximation derive.",
@@ -627,6 +664,21 @@ async function calculer(contratId: string, periode: string): Promise<any> {
       if (contrat.type_contrat === "cdi") {
         r.unshift("CDI : aucune indemnite de precarite, c est normal — "
           + "les conges se prennent au lieu d etre compenses.");
+      }
+      // 🚨 LES DEUX TAUX PROPRES A LA SOCIETE, DITS FRANCHEMENT QUAND ILS
+      // MANQUENT : leur absence n est pas visible sur le bulletin — la
+      // ligne vaut simplement zero — et c est exactement ce qui se
+      // decouvre au controle.
+      if (tauxSociete["AT_MP"] === undefined) {
+        r.unshift("🚨 AUCUN TAUX AT/MP pour cette societe : la cotisation vaut ZERO. "
+          + "Elle est OBLIGATOIRE. Le taux se lit sur la notification annuelle de la "
+          + "CARSAT ou sur le compte AT/MP de net-entreprises, puis se renseigne dans "
+          + "paie_taux_societe. ⛔ NE JAMAIS INVENTER UNE VALEUR.");
+      }
+      if (effectif >= 11 && tauxSociete["VERSEMENT_MOBILITE"] === undefined) {
+        r.unshift("⚠️ La societe compte " + effectif + " salaries : le versement "
+          + "mobilite est probablement du, mais aucun taux n est renseigne. "
+          + "Il depend de la COMMUNE DU LIEU DE TRAVAIL.");
       }
       if (!effectifConnu) {
         r.unshift("🚨 EFFECTIF INCONNU pour cette societe : le FNAL et le Tdelta de la RGDU sont ceux des MOINS DE 50 SALARIES. Si l entreprise est plus grande, la cotisation est sous-evaluee et la reduction sur-evaluee.");
