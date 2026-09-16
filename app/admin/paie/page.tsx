@@ -146,15 +146,38 @@ export default function PagePaie() {
     if (d.success) setElements(d.elements);
   }
 
+  // 🆕 16/09 — LE TAUX MAJORE SE CALCULE TOUT SEUL.
+  //
+  // 🚨 DOCTRINE : ne jamais faire taper a la main ce que l application sait
+  // calculer. Une heure supplementaire a 25 % vaut le taux horaire du
+  // contrat majore d un quart — la machine connait les deux.
+  // ⚠️ UN TAUX SAISI L EMPORTE TOUJOURS : certaines conventions majorent
+  // autrement, et c est alors une negociation, pas un calcul.
+  function tauxMajore(): number | null {
+    if (!choisi || !choisi.salaire_horaire) return null;
+    const base = Number(choisi.salaire_horaire);
+    if (e.type_element === "heures_sup_25") return Math.round(base * 1.25 * 10000) / 10000;
+    if (e.type_element === "heures_sup_50") return Math.round(base * 1.5 * 10000) / 10000;
+    return null;
+  }
+
   async function ajouterElement() {
     setErr(""); setOccupe("element");
     const t = TYPES_ELEMENT.filter(function (x) { return x.cle === e.type_element; })[0];
+
+    // ⚠️ ON NE CALCULE QUE SI LE CHAMP EST VIDE.
+    let taux = e.taux;
+    if (!taux && !e.montant) {
+      const auto = tauxMajore();
+      if (auto !== null) taux = String(auto);
+    }
+
     const d = await appeler({
       action: "ajouter_element",
       contrat_id: choisi.id, periode: periode,
       type_element: e.type_element,
       libelle: e.libelle || (t ? t.nom : "Élément"),
-      quantite: e.quantite, taux: e.taux, montant: e.montant,
+      quantite: e.quantite, taux: taux, montant: e.montant,
       soumis_cotisations: t ? t.soumis : true,
     });
     if (d.success) {
@@ -347,6 +370,56 @@ export default function PagePaie() {
                     <span style={LIB}>Numéro de sécurité sociale (15 chiffres, clé comprise)</span>
                     <input value={f.numero_secu || ""} style={CHAMP}
                       onChange={(ev) => setF({ ...f, numero_secu: ev.target.value })} />
+                  </div>
+
+                  {/* ═══════════════════════════════════════════════════
+                      🆕🚨 16/09 — LES CHAMPS QUE LA DSN EXIGE ET QUE CET
+                      ECRAN N AVAIT PAS.
+
+                      Le premier fichier DSN est sorti sans date de
+                      naissance ni adresse : rubriques OBLIGATOIRES, rejet
+                      assure. La route les acceptait depuis le debut, mais
+                      l ecran ne les demandait pas — on ne pouvait donc PAS
+                      saisir ce que la declaration reclame.
+                      ⚠️ LA LECON : un champ absent de l ecran n existe pas,
+                      meme si la base et la route le prevoient.
+                      ═══════════════════════════════════════════════════ */}
+                  <div style={{ flex: "1 1 160px" }}>
+                    <span style={LIB}>Date de naissance (obligatoire en DSN)</span>
+                    <input type="date" value={f.date_naissance || ""} style={CHAMP}
+                      onChange={(ev) => setF({ ...f, date_naissance: ev.target.value })} />
+                  </div>
+                  <div style={{ flex: "0 1 130px" }}>
+                    {/* ⚠️ LE SEXE SE DEDUIT DU PREMIER CHIFFRE DU NUMERO DE
+                        SECURITE SOCIALE (1 homme, 2 femme). Le champ n est
+                        la que pour les cas ou les deux different. */}
+                    <span style={LIB}>Sexe</span>
+                    <select value={f.sexe || ""} style={CHAMP}
+                      onChange={(ev) => setF({ ...f, sexe: ev.target.value })}>
+                      <option value="">Depuis le n° sécu</option>
+                      <option value="M">Homme</option>
+                      <option value="F">Femme</option>
+                    </select>
+                  </div>
+                  <div style={{ flex: "1 1 240px" }}>
+                    <span style={LIB}>Adresse (obligatoire en DSN)</span>
+                    <input value={f.adresse || ""} style={CHAMP}
+                      onChange={(ev) => setF({ ...f, adresse: ev.target.value })} />
+                  </div>
+                  <div style={{ flex: "0 1 120px" }}>
+                    <span style={LIB}>Code postal</span>
+                    <input value={f.code_postal || ""} style={CHAMP}
+                      onChange={(ev) => setF({ ...f, code_postal: ev.target.value })} />
+                  </div>
+                  <div style={{ flex: "1 1 160px" }}>
+                    <span style={LIB}>Ville</span>
+                    <input value={f.ville || ""} style={CHAMP}
+                      onChange={(ev) => setF({ ...f, ville: ev.target.value })} />
+                  </div>
+                  <div style={{ flex: "1 1 200px" }}>
+                    <span style={LIB}>Lieu de naissance</span>
+                    <input value={f.lieu_naissance || ""} style={CHAMP}
+                      onChange={(ev) => setF({ ...f, lieu_naissance: ev.target.value })} />
                   </div>
                   <div style={{ flex: "1 1 160px" }}>
                     <span style={LIB}>Type de contrat</span>
@@ -573,9 +646,17 @@ export default function PagePaie() {
                   <input value={e.quantite || ""} style={CHAMP}
                     onChange={(ev) => setE({ ...e, quantite: ev.target.value })} />
                 </div>
-                <div style={{ flex: "0 1 100px" }}>
-                  <span style={LIB}>Taux</span>
+                <div style={{ flex: "0 1 130px" }}>
+                  {/* ⚠️ L ETIQUETTE DIT CE QUE VAUDRA LE CHAMP LAISSE VIDE :
+                      un calcul invisible inquiete plus qu il ne soulage. */}
+                  <span style={LIB}>
+                    Taux
+                    {tauxMajore() !== null && !e.taux && (
+                      <span style={{ color: OR }}> · {tauxMajore()}</span>
+                    )}
+                  </span>
                   <input value={e.taux || ""} style={CHAMP}
+                    placeholder={tauxMajore() !== null ? String(tauxMajore()) : ""}
                     onChange={(ev) => setE({ ...e, taux: ev.target.value })} />
                 </div>
                 <div style={{ flex: "0 1 110px" }}>
