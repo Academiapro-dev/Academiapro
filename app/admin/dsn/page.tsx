@@ -440,7 +440,12 @@ export default function PageDsn() {
 
               <div style={{ display: "flex", flexWrap: "wrap", gap: "8px",
                 marginTop: "12px" }}>
-                {m.emis > 0 && (!d || d.statut === "brouillon") && (
+                {/* 🆕🚨 16/09 — UN ECRAN NE PROPOSE PAS CE QU IL VIENT
+                    D INTERDIRE. Le bouton restait actif sous le message
+                    « la DSN ne peut pas etre generee » : cliquer dessus
+                    donnait un refus previsible, et un ecran qui interdit et
+                    propose en meme temps ne veut plus rien dire. */}
+                {m.siret && m.emis > 0 && (!d || d.statut === "brouillon") && (
                   <button onClick={() => generer(m)} disabled={occupe !== ""}
                     style={BOUTON}>
                     {occupe === "generer" + m.periode ? "…"
@@ -448,7 +453,7 @@ export default function PageDsn() {
                   </button>
                 )}
 
-                {m.emis > 0 && d && (d.statut === "deposee" || d.statut === "acceptee") && (
+                {m.siret && m.emis > 0 && d && (d.statut === "deposee" || d.statut === "acceptee") && (
                   <button onClick={() => generer(m)} disabled={occupe !== ""}
                     style={SECOND}>
                     Générer un annule et remplace
