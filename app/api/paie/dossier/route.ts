@@ -203,6 +203,10 @@ export async function POST(req: NextRequest) {
           eu_siret: propre(c.eu_siret),
           eu_adresse: propre(c.eu_adresse),
           motif_recours: propre(c.motif_recours),
+          // 🚨 RUBRIQUE OBLIGATOIRE EN DSN (S21.G00.40.004), et SENSIBLE A
+          // LA CASSE : on ne met pas en majuscules comme on le fait pour le
+          // nom de famille. « 653a » et « 653A » ne sont pas le meme code.
+          pcs_ese: propre(c.pcs_ese),
           motif_detail: propre(c.motif_detail),
           poste_chez_eu: propre(c.poste_chez_eu),
           ifm_due: c.ifm_due === false ? false : true,
