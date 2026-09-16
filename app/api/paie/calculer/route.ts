@@ -273,12 +273,39 @@ async function calculer(contratId: string, periode: string): Promise<any> {
   let brutSoumis = 0;
   let nonSoumis = 0;
 
-  // Le salaire de base, s il n est pas deja dans les elements.
-  const aDesHeures = (elements || []).some(function (e: any) {
-    return String(e.type_element).indexOf("heures") === 0;
+  // ═══════════════════════════════════════════════════════════════════
+  // LE SALAIRE DE BASE
+  //
+  // 🚨🚨 DEFAUT TROUVE A L ESSAI DU 16/09, ET C EST LE PLUS GRAVE DU
+  // MOTEUR : le test portait sur `indexOf("heures") === 0`, donc AJOUTER
+  // DES HEURES SUPPLEMENTAIRES SUPPRIMAIT LE SALAIRE NORMAL DU MOIS.
+  // Julien DUBOIS, 151,67 h a 13,50 EUR, sortait a 163,35 EUR de brut au
+  // lieu de 2 210,90 : ses 2 047,55 EUR de salaire avaient disparu.
+  //
+  // ⚠️ ET LE BULLETIN AVAIT L AIR JUSTE. Toutes les lignes etaient
+  // coherentes entre elles, les cotisations calculees sur le bon brut, le
+  // net egal au brut moins les retenues. Seul le salaire manquait. C est
+  // exactement le genre de defaut qu on ne voit pas en relisant, seulement
+  // en comparant a ce qu on attendait.
+  //
+  // ⚠️ POURQUOI IL NE S ETAIT PAS VU SUR THOMAS MARTIN : ses heures
+  // normales avaient ete saisies A LA MAIN dans les elements, donc le
+  // salaire de base etait bien la — pose par la saisie, pas par le moteur.
+  //
+  // LA REGLE JUSTE : le salaire de base se pose des qu aucun element ne
+  // represente les HEURES NORMALES du mois. Une heure supplementaire, une
+  // absence, une prime ne le remplacent pas — elles s y ajoutent ou s en
+  // retranchent. C est ainsi que fonctionne tout bulletin.
+  // ═══════════════════════════════════════════════════════════════════
+  const aDesHeuresNormales = (elements || []).some(function (e: any) {
+    const t = String(e.type_element || "");
+    // ⚠️ ON RECONNAIT LES HEURES NORMALES, PAS « TOUT CE QUI COMMENCE PAR
+    // HEURES » : heures_sup_25, heures_sup_50, heures_absence ne sont PAS
+    // le salaire du mois.
+    return t === "heures" || t === "heures_normales" || t === "salaire_base";
   });
 
-  if (!aDesHeures) {
+  if (!aDesHeuresNormales) {
     // ⚠️ MENSUEL D ABORD, HORAIRE ENSUITE. Un contrat porte l un ou
     // l autre ; en interim c est presque toujours l horaire.
     let base = 0;
@@ -292,7 +319,10 @@ async function calculer(contratId: string, periode: string): Promise<any> {
       quantite = Number(dureeMensuelle);
       taux = Number(contrat.salaire_horaire);
       base = quantite * taux;
-      libelle = "Salaire de base (" + quantite + " h)";
+      // ⚠️ VIRGULE FRANCAISE, PAS POINT : ce libelle part sur le bulletin
+      // remis au salarie. « 151.67 h » n est pas une ecriture francaise.
+      libelle = "Salaire de base (" + quantite.toLocaleString("fr-FR",
+        { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " h)";
     }
 
     if (base > 0) {
