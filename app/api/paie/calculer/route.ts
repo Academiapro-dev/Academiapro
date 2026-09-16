@@ -3,7 +3,42 @@ import { NextRequest, NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
+export const fetchCache = "force-no-store";
 export const maxDuration = 60;
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🆕🚨 16/09 — LE CALCUL NE SE MET JAMAIS EN RESERVE
+//
+// DEFAUT TROUVE A L ESSAI, ET IL EST PLUS GRAVE QU IL N EN A L AIR : apres
+// avoir corrige les libelles EN BASE, l ecran continuait de rendre les
+// anciens. La base etait juste, le code etait juste — c est la couche de
+// cache de Vercel, DEVANT la fonction, qui resservait une reponse calculee
+// avant la correction.
+//
+// ⚠️ `force-dynamic` NE SUFFIT PAS : il empeche Next de pre-rendre la
+// route, il n empeche pas un intermediaire de garder sa reponse. Il faut
+// le dire dans les EN-TETES de la reponse elle-meme.
+// ⚠️ AJOUTER `?v=2` A L ADRESSE NE CONTOURNE QUE SAFARI. Sur un cache
+// serveur, la nouvelle adresse est simplement mise en reserve a son tour :
+// c est ce qui a fait perdre trois essais.
+//
+// 🚨 LES LIBELLES N ETAIENT QUE LA PARTIE VISIBLE. Le meme cache aurait
+// resservi un MONTANT : changer un taux en base et recalculer aurait rendu
+// l ancien bulletin, sans qu aucun ecran ne le signale. Sur une paie, c est
+// un redressement.
+//
+// ⛔ CES QUATRE LIGNES ET LES EN-TETES `sansCache()` NE SE RETIRENT PAS.
+// ═══════════════════════════════════════════════════════════════════════
+
+// ⚠️ TROIS EN-TETES, PAS UN : `Cache-Control` pour ce qui respecte la norme
+// actuelle, `Pragma` et `Expires` pour les intermediaires plus anciens qui
+// l ignorent. Un seul des trois laisse passer certains caches.
+const SANS_CACHE: Record<string, string> = {
+  "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+  "Pragma": "no-cache",
+  "Expires": "0",
+};
 
 // ═══════════════════════════════════════════════════════════════════════
 // LE MOTEUR DE PAIE — 15/09/2026, corrige le 16/09
@@ -737,7 +772,8 @@ export async function GET(req: NextRequest) {
   const p = req.nextUrl.searchParams;
   const secret = p.get("secret") || req.headers.get("authorization")?.replace("Bearer ", "");
   if (!process.env.CRON_SECRET || secret !== process.env.CRON_SECRET) {
-    return NextResponse.json({ erreur: "non autorise" }, { status: 401 });
+    return NextResponse.json({ erreur: "non autorise" },
+      { status: 401, headers: SANS_CACHE });
   }
 
   const contratId = String(p.get("contrat") || "").trim();
@@ -745,7 +781,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       erreur: "preciser ?contrat=<id> et ?periode=AAAA-MM-01",
       exemple: "/api/paie/calculer?contrat=<uuid>&periode=2026-09-01&secret=...",
-    }, { status: 400 });
+    }, { status: 400, headers: SANS_CACHE });
   }
 
   // ⚠️ LA PERIODE EST TOUJOURS LE PREMIER DU MOIS : deux bulletins du meme
@@ -758,14 +794,17 @@ export async function GET(req: NextRequest) {
   if (!/^\d{4}-\d{2}-01$/.test(periode)) {
     return NextResponse.json({
       erreur: "la periode doit etre le premier du mois, au format AAAA-MM-01",
-    }, { status: 400 });
+    }, { status: 400, headers: SANS_CACHE });
   }
 
   try {
     const r = await calculer(contratId, periode);
-    if (r.erreur) return NextResponse.json(r, { status: 400 });
-    return NextResponse.json(r);
+    if (r.erreur) return NextResponse.json(r, { status: 400, headers: SANS_CACHE });
+    // 🚨 LA REPONSE QUI COMPTE : c est celle-la qu un cache garderait, et
+    // c est un bulletin de paie. Elle ne se met jamais en reserve.
+    return NextResponse.json(r, { headers: SANS_CACHE });
   } catch (e: any) {
-    return NextResponse.json({ erreur: String(e) }, { status: 500 });
+    return NextResponse.json({ erreur: String(e) },
+      { status: 500, headers: SANS_CACHE });
   }
 }
