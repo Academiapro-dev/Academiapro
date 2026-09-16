@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 // ═══════════════════════════════════════════════════════════════════════
-// LE BULLETIN DE PAIE EN PDF — 15/09/2026
+// LE BULLETIN DE PAIE EN PDF — 15/09/2026, corrige le 16/09
 //
 // Il prend le calcul rendu par /api/paie/calculer, le met en page, l archive
 // au coffre et ENREGISTRE LE BULLETIN EN BASE.
@@ -23,6 +23,32 @@ export const maxDuration = 60;
 // indefendable.
 //
 // ═══════════════════════════════════════════════════════════════════════
+// 🆕🚨 16/09 — UN SEUL BULLETIN PAR CONTRAT ET PAR MOIS
+//
+// DEFAUT TROUVE A L ESSAI, ET C EST LE PLUS GRAVE DE LA NUIT : chaque appel
+// de cette route creait un NOUVEAU bulletin. Trois PDF sortis pour Thomas
+// MARTIN en septembre, TROIS EMIS, tous a 1 995,24 EUR. La DSN ne lit que
+// les bulletins emis : elle aurait declare 5 985,72 EUR de brut et trois
+// fois les cotisations.
+//
+// LA REGLE, ARBITREE PAR JACQUES LE 16/09 :
+//   · un BROUILLON existe deja pour ce mois  → ON LE REECRIT. Meme numero,
+//     meme chemin, le PDF est remplace au coffre.
+//   · un bulletin EMIS existe deja           → on ouvre un RECTIFICATIF :
+//     nouveau numero, statut brouillon, qui pointe celui qu il corrige.
+//     Il ANNULERA le precedent au moment de son emission.
+//   · rien n existe                          → bulletin normal.
+//
+// ⚠️ LE RECTIFICATIF NAIT ICI, PAS AU CALCUL. « Calculer » ne fait
+// qu afficher : s il creait un rectificatif, chaque clic en fabriquerait un
+// et on retomberait exactement sur le defaut qu on repare.
+//
+// 🚨 LE GARDE-FOU EST AUSSI EN BASE — deux index uniques partiels sur
+// (contrat_id, periode), l un pour les brouillons, l autre pour les emis.
+// Une regle qui ne vit que dans une route se contourne par un second
+// onglet ou un appel direct.
+// ═══════════════════════════════════════════════════════════════════════
+//
 // 🚨 LES MENTIONS OBLIGATOIRES — article R3243-1 du code du travail.
 //
 // Leur absence est sanctionnee, et un bulletin incomplet ne fait pas preuve
@@ -37,15 +63,8 @@ export const maxDuration = 60;
 //   · le brut, les cotisations par famille, le net imposable, le net a payer
 //   · la date de paiement, les conges payes
 //   · 🚨 LA MENTION DE CONSERVATION SANS LIMITATION DE DUREE
-//   · 🚨 LA MENTION DU PORTAIL mesdroitssociaux.gouv.fr — obligatoire
-//     depuis 2017
-//
-// ⚠️ DEPUIS 2025, LE « MONTANT NET SOCIAL » EST OBLIGATOIRE. Il sert de
-// reference aux prestations sociales (RSA, prime d activite). Il ne se
-// confond ni avec le net imposable ni avec le net a payer.
-// ⛔ IL N EST PAS CALCULE ICI : sa definition exclut certaines cotisations
-// de prevoyance, et le faire a moitie serait pire que de ne pas le faire.
-// A TRAITER AVANT LE PREMIER BULLETIN REEL.
+//   · 🚨 LA MENTION DU PORTAIL mesdroitssociaux.gouv.fr
+//   · 🚨 LE MONTANT NET SOCIAL, obligatoire depuis 2023
 // ═══════════════════════════════════════════════════════════════════════
 
 const supabase = createClient(
@@ -57,8 +76,10 @@ const BUCKET = "documents-signes";
 
 // ⚠️ pdf-lib N ACCEPTE QUE LE LATIN-1 avec les polices standard. Les
 // caracteres hors de cette table — guillemets courbes, tirets longs,
-// espaces insecables — font PLANTER la generation au lieu de s afficher mal.
-// On les remplace avant d ecrire.
+// espaces insecables, emoji — font PLANTER la generation au lieu de
+// s afficher mal. On les remplace avant d ecrire.
+// 🚨 LES LETTRES ACCENTUEES, ELLES, PASSENT : elles sont dans le latin-1.
+// C est pourquoi le bulletin peut et doit etre ecrit en francais correct.
 function ascii(v: any): string {
   return String(v === null || v === undefined ? "" : v)
     .replace(/\u2019|\u2018/g, "'")
@@ -90,8 +111,8 @@ function taux(n: any): string {
 }
 
 function moisDe(periode: string): string {
-  const MOIS = ["janvier", "fevrier", "mars", "avril", "mai", "juin",
-    "juillet", "aout", "septembre", "octobre", "novembre", "decembre"];
+  const MOIS = ["janvier", "février", "mars", "avril", "mai", "juin",
+    "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
   const p = periode.split("-");
   return MOIS[Number(p[1]) - 1] + " " + p[0];
 }
@@ -101,6 +122,9 @@ function moisDe(periode: string): string {
 // 🚨 IL EST ATTRIBUE PAR LA ROUTE, JAMAIS SAISI. Meme regle que les mandats
 // immobiliers : un numero saisi a la main finit par avoir des trous ou des
 // doublons, et c est exactement ce qu un controle cherche.
+// ⚠️ LES BULLETINS ANNULES COMPTENT DANS LA NUMEROTATION : on ne reutilise
+// jamais un numero sorti, sinon deux documents differents porteraient le
+// meme identifiant.
 async function numeroSuivant(tenantId: string, societeId: string, periode: string): Promise<string> {
   const annee = periode.slice(0, 4);
   const { data } = await supabase
@@ -138,6 +162,36 @@ export async function POST(req: NextRequest) {
       erreur: "contrat_id et periode (AAAA-MM-01) sont obligatoires",
     }, { status: 400 });
   }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // ---- QUE FAIT-ON DE CE QUI EXISTE DEJA POUR CE MOIS ? ----
+  //
+  // 🚨 CE BLOC SE LIT AVANT TOUT LE RESTE. Il decide si on reecrit, si on
+  // ouvre un rectificatif, ou si c est un premier bulletin — et le PDF
+  // lui-meme change de titre selon la reponse.
+  // ⚠️ ON LIT TOUS LES BULLETINS DU MOIS, y compris les annules : le
+  // numero suivant doit en tenir compte.
+  // ═══════════════════════════════════════════════════════════════════
+  const { data: existants, error: eLect } = await supabase
+    .from("paie_bulletins")
+    .select("id, numero, statut, chemin_pdf, type_bulletin, rectifie_id")
+    .eq("contrat_id", contratId)
+    .eq("periode", periode)
+    .order("numero", { ascending: true });
+
+  if (eLect) {
+    return NextResponse.json({
+      erreur: "lecture des bulletins du mois impossible : " + eLect.message,
+    }, { status: 500 });
+  }
+
+  const brouillon = (existants || []).filter(function (b: any) {
+    return b.statut === "brouillon";
+  })[0] || null;
+
+  const emisActif = (existants || []).filter(function (b: any) {
+    return b.statut === "emis";
+  })[0] || null;
 
   // ---- LE CALCUL ----
   // 🚨 ON NE RECALCULE PAS ICI : on appelle le moteur, seul endroit ou le
@@ -183,6 +237,17 @@ export async function POST(req: NextRequest) {
     else convention = "IDCC " + contrat.idcc;
   }
 
+  // ---- LE ROLE DE CE BULLETIN ----
+  const estRectificatif = !brouillon && !!emisActif;
+  const reecriture = !!brouillon;
+
+  const numero = brouillon
+    ? String(brouillon.numero)
+    : await numeroSuivant(contrat.tenant_id, contrat.societe_id, periode);
+
+  const chemin = contrat.tenant_id + "/" + contrat.societe_id
+    + "/paie/" + periode.slice(0, 4) + "/bulletin-" + numero + ".pdf";
+
   // ---- LE PDF ----
   const pdf = await PDFDocument.create();
   let page = pdf.addPage([595, 842]);                // A4
@@ -191,6 +256,7 @@ export async function POST(req: NextRequest) {
 
   const NOIR = rgb(0.1, 0.1, 0.1);
   const GRIS = rgb(0.45, 0.45, 0.45);
+  const ROUGE = rgb(0.68, 0.16, 0.16);
   const TRAIT = rgb(0.8, 0.8, 0.8);
 
   let y = 800;
@@ -212,10 +278,34 @@ export async function POST(req: NextRequest) {
     });
   };
 
+  // 🆕 16/09 — COUPER UN LIBELLE TROP LONG PLUTOT QUE DE LE LAISSER
+  // CHEVAUCHER LA COLONNE SUIVANTE.
+  // ⚠️ AVEC CINQ COLONNES DE CHIFFRES, la place du libelle se reduit :
+  // « Fonds national d'aide au logement - moins de 50 salariés » ne tient
+  // plus. Un texte qui deborde sur un montant rend le bulletin illisible
+  // exactement la ou il doit etre le plus clair.
+  const couper = function (txt: string, f: any, taille: number, largeur: number): string {
+    let t = ascii(txt);
+    if (f.widthOfTextAtSize(t, taille) <= largeur) return t;
+    while (t.length > 1 && f.widthOfTextAtSize(t + "...", taille) > largeur) {
+      t = t.slice(0, -1);
+    }
+    return t + "...";
+  };
+
   // ---- EN-TETE ----
-  ecrire("BULLETIN DE PAIE", 40, 16, gras, NOIR);
-  droite("Periode : " + moisDe(periode), 555, 11, gras, NOIR);
-  y -= 22;
+  // 🆕 16/09 — LE TITRE DIT CE QUE LE DOCUMENT EST. Un rectificatif qui
+  // ressemble a un bulletin ordinaire se classe comme un bulletin
+  // ordinaire, et le salarie garde les deux sans savoir lequel vaut.
+  ecrire(estRectificatif ? "BULLETIN DE PAIE RECTIFICATIF" : "BULLETIN DE PAIE",
+    40, 16, gras, estRectificatif ? ROUGE : NOIR);
+  droite("Période : " + moisDe(periode), 555, 11, gras, NOIR);
+  y -= 13;
+  if (estRectificatif) {
+    ecrire("Annule et remplace le bulletin " + String(emisActif.numero), 40, 8, police, ROUGE);
+  }
+  droite("N° " + numero, 555, 8, police, GRIS);
+  y -= 9;
   ligne();
   y -= 18;
 
@@ -225,13 +315,6 @@ export async function POST(req: NextRequest) {
   y -= 13;
   ecrire(societe ? societe.raison_sociale : "", 40, 10, gras, NOIR);
   y -= 12;
-  // ⚠️ compta_societes PORTE L ADRESSE EN UN SEUL CHAMP, et un SIREN — pas
-  // un SIRET, pas de code APE, pas de ville separee. Le bulletin affiche
-  // donc ce qui existe.
-  // 🚨 LE SIRET ET LE CODE APE SONT DES MENTIONS OBLIGATOIRES (art.
-  // R3243-1). Tant que compta_societes ne les porte pas, le bulletin est
-  // INCOMPLET AU SENS DE LA LOI. ⛔ A AJOUTER AVANT LE PREMIER BULLETIN
-  // REEL : deux colonnes sur compta_societes, siret et code_ape.
   if (societe && societe.adresse) { ecrire(societe.adresse, 40, 8.5, police, NOIR); y -= 11; }
   if (societe && (societe.code_postal || societe.ville)) {
     ecrire((societe.code_postal || "") + " " + (societe.ville || ""), 40, 8.5, police, NOIR);
@@ -239,22 +322,32 @@ export async function POST(req: NextRequest) {
   }
   // 🚨 SIRET ET CODE APE SONT DES MENTIONS OBLIGATOIRES (art. R3243-1).
   // ⚠️ LE SIRET IDENTIFIE L ETABLISSEMENT, le SIREN l entreprise : sur un
-  // bulletin, c est l etablissement qui compte. On affiche le SIREN en
-  // repli, faute de mieux, mais un bulletin sans SIRET reste INCOMPLET AU
-  // SENS DE LA LOI.
+  // bulletin, c est l etablissement qui compte.
+  //
+  // 🆕🚨 16/09 — QUAND ILS MANQUENT, LE BULLETIN LE DIT EN ROUGE.
+  // DEFAUT TROUVE A L ESSAI : le bloc employeur etait simplement VIDE de
+  // ces deux mentions, et rien ne le signalait. Un bulletin muet laisse
+  // croire qu il est complet. ⛔ AcadeMIA Pro LLC, societe americaine, n a
+  // ni SIRET ni code APE : elle ne peut pas etablir un bulletin francais
+  // valable, et c est exactement ce que le document doit afficher.
   if (societe && societe.siret) {
     ecrire("SIRET " + societe.siret, 40, 8.5, police, NOIR); y -= 11;
   } else if (societe && societe.siren) {
-    ecrire("SIREN " + societe.siren + " (SIRET a renseigner)", 40, 8.5, police, NOIR); y -= 11;
+    ecrire("SIREN " + societe.siren, 40, 8.5, police, NOIR); y -= 10;
+    ecrire("SIRET manquant - mention obligatoire (art. R3243-1)", 40, 7, police, ROUGE); y -= 11;
+  } else {
+    ecrire("SIRET manquant - mention obligatoire (art. R3243-1)", 40, 7, police, ROUGE); y -= 11;
   }
   if (societe && societe.code_ape) {
     ecrire("APE " + societe.code_ape, 40, 8.5, police, NOIR); y -= 11;
+  } else {
+    ecrire("Code APE manquant - mention obligatoire", 40, 7, police, ROUGE); y -= 11;
   }
 
   // Le salarie, a droite
   const yBas = y;
   y = yEmployeur;
-  ecrire("SALARIE", 320, 8, gras, GRIS);
+  ecrire("SALARIÉ", 320, 8, gras, GRIS);
   y -= 13;
   ecrire((salarie.prenom || "") + " " + (salarie.nom || ""), 320, 10, gras, NOIR);
   y -= 12;
@@ -266,7 +359,9 @@ export async function POST(req: NextRequest) {
   // ⚠️ LE NUMERO DE SECURITE SOCIALE FIGURE SUR LE BULLETIN, mais jamais
   // dans une liste a l ecran.
   if (salarie.numero_secu) {
-    ecrire("N secu " + salarie.numero_secu, 320, 8.5, police, NOIR); y -= 11;
+    ecrire("N° sécu " + salarie.numero_secu, 320, 8.5, police, NOIR); y -= 11;
+  } else {
+    ecrire("N° sécu manquant - rejet DSN assuré", 320, 7, police, ROUGE); y -= 11;
   }
 
   y = Math.min(yBas, y) - 8;
@@ -275,7 +370,7 @@ export async function POST(req: NextRequest) {
 
   // ---- EMPLOI ET CONVENTION ----
   ecrire("Emploi : " + (contrat.intitule_poste || ""), 40, 8.5, police, NOIR);
-  droite("Categorie : " + (contrat.categorie === "cadre" ? "Cadre" : "Non cadre"), 555, 8.5, police, NOIR);
+  droite("Catégorie : " + (contrat.categorie === "cadre" ? "Cadre" : "Non cadre"), 555, 8.5, police, NOIR);
   y -= 11;
   // 🚨 MENTION OBLIGATOIRE.
   ecrire("Convention collective : " + convention, 40, 8.5, police, NOIR);
@@ -288,29 +383,37 @@ export async function POST(req: NextRequest) {
       ecrire("Motif de recours : " + contrat.motif_recours, 40, 8.5, police, GRIS);
       y -= 11;
     }
+  } else if (contrat.type_contrat === "cdd") {
+    ecrire("Contrat à durée déterminée"
+      + (contrat.date_fin ? " - jusqu'au " + String(contrat.date_fin).slice(0, 10) : ""),
+      40, 8.5, police, NOIR);
+    y -= 11;
+  } else if (contrat.type_contrat === "cdi") {
+    ecrire("Contrat à durée indéterminée", 40, 8.5, police, NOIR);
+    y -= 11;
   }
   y -= 4;
   ligne();
   y -= 14;
 
   // ---- LE BRUT ----
-  ecrire("ELEMENTS DE REMUNERATION", 40, 8, gras, GRIS);
+  ecrire("ÉLÉMENTS DE RÉMUNÉRATION", 40, 8, gras, GRIS);
   droite("Base", 340, 8, gras, GRIS);
   droite("Taux", 420, 8, gras, GRIS);
   droite("Montant", 555, 8, gras, GRIS);
   y -= 13;
 
   for (const l of (calcul.lignes_brut || [])) {
-    ecrire(l.libelle, 40, 8.5, police, NOIR);
+    ecrire(couper(l.libelle, police, 8.5, 250), 40, 8.5, police, NOIR);
     if (l.quantite !== null && l.quantite !== undefined) droite(euros(l.quantite), 340, 8.5, police, NOIR);
     if (l.taux !== null && l.taux !== undefined) droite(taux(l.taux), 420, 8.5, police, NOIR);
     droite(euros(l.montant), 555, 8.5, police, NOIR);
     y -= 11;
   }
 
-  // ---- LES INDEMNITES DE MISSION ----
+  // ---- LES INDEMNITES DE FIN DE CONTRAT ----
   for (const l of (calcul.lignes_mission || [])) {
-    ecrire(l.libelle, 40, 8.5, police, NOIR);
+    ecrire(couper(l.libelle, police, 8.5, 250), 40, 8.5, police, NOIR);
     if (l.base) droite(euros(l.base), 340, 8.5, police, NOIR);
     if (l.taux) droite(euros(l.taux) + " %", 420, 8.5, police, NOIR);
     droite(euros(l.montant), 555, 8.5, police, NOIR);
@@ -326,11 +429,21 @@ export async function POST(req: NextRequest) {
   ligne();
   y -= 14;
 
+  // ═══════════════════════════════════════════════════════════════════
   // ---- LES COTISATIONS ----
+  //
+  // 🆕🚨 16/09 — CINQ COLONNES, PAS QUATRE. DEFAUT TROUVE A L ESSAI : une
+  // seule colonne « Taux » existait, et elle ne portait que le taux
+  // SALARIAL. Neuf lignes patronales sur treize affichaient donc un montant
+  // sans aucune explication : maladie 303,36 EUR sorti de nulle part.
+  // ⚠️ UN BULLETIN DOIT ETRE REFAISABLE A LA MAIN par qui le lit. Une base,
+  // un taux, un montant — des deux cotes.
+  // ═══════════════════════════════════════════════════════════════════
   ecrire("COTISATIONS ET CONTRIBUTIONS", 40, 8, gras, GRIS);
-  droite("Base", 300, 8, gras, GRIS);
-  droite("Taux", 360, 8, gras, GRIS);
-  droite("Part salariale", 460, 8, gras, GRIS);
+  droite("Base", 285, 8, gras, GRIS);
+  droite("Taux sal.", 345, 8, gras, GRIS);
+  droite("Part salariale", 420, 8, gras, GRIS);
+  droite("Taux pat.", 480, 8, gras, GRIS);
   droite("Part patronale", 555, 8, gras, GRIS);
   y -= 13;
 
@@ -351,11 +464,25 @@ export async function POST(req: NextRequest) {
       y -= 3;
     }
 
-    ecrire(c.libelle, 40, 8, police, NOIR);
-    droite(euros(c.base), 300, 8, police, NOIR);
-    droite(c.taux_salarial > 0 ? euros(c.taux_salarial) + " %" : "", 360, 8, police, NOIR);
-    droite(c.part_salariale > 0 ? euros(c.part_salariale) : "", 460, 8, police, NOIR);
-    droite(c.part_patronale > 0 ? euros(c.part_patronale) : "", 555, 8, police, NOIR);
+    // 🚨 L ALERTE SE LIT A COTE DU LIBELLE, EN ROUGE. Une cotisation
+    // obligatoire a zero doit se voir : c est ce qui se decouvre au
+    // controle, pas a la lecture.
+    if (c.alerte) {
+      const l1 = couper(c.libelle, police, 8, 150);
+      ecrire(l1, 40, 8, police, NOIR);
+      const largeur = police.widthOfTextAtSize(ascii(l1), 8);
+      ecrire(couper("(" + c.alerte + ")", police, 6.5, 195 - largeur),
+        40 + largeur + 4, 6.5, police, ROUGE);
+    } else {
+      ecrire(couper(c.libelle, police, 8, 195), 40, 8, police, NOIR);
+    }
+
+    droite(euros(c.base), 285, 8, police, NOIR);
+    droite(c.taux_salarial > 0 ? euros(c.taux_salarial) + " %" : "", 345, 8, police, NOIR);
+    droite(c.part_salariale > 0 ? euros(c.part_salariale) : "", 420, 8, police, NOIR);
+    droite(c.taux_patronal > 0 ? euros(c.taux_patronal) + " %" : "", 480, 8, police, NOIR);
+    droite(c.part_patronale > 0 ? euros(c.part_patronale)
+      : (c.alerte ? "0,00" : ""), 555, 8, police, c.alerte ? ROUGE : NOIR);
     y -= 10;
   }
 
@@ -363,20 +490,20 @@ export async function POST(req: NextRequest) {
   ligne();
   y -= 13;
   ecrire("TOTAL DES COTISATIONS", 40, 9, gras, NOIR);
-  droite(euros(calcul.total_salarial), 460, 9, gras, NOIR);
+  droite(euros(calcul.total_salarial), 420, 9, gras, NOIR);
   droite(euros(calcul.total_patronal), 555, 9, gras, NOIR);
   y -= 12;
 
   // 🚨 LA REDUCTION S IMPUTE SUR LES COTISATIONS PATRONALES UNIQUEMENT.
   // Elle diminue le cout employeur, jamais le net du salarie.
   if (calcul.rgdu && calcul.rgdu > 0) {
-    ecrire("Reduction generale degressive unique", 40, 8, police, NOIR);
+    ecrire("Réduction générale dégressive unique (part employeur)", 40, 8, police, NOIR);
     if (calcul.rgdu_detail && calcul.rgdu_detail.coefficient) {
-      droite("coef. " + String(calcul.rgdu_detail.coefficient), 360, 8, police, GRIS);
+      droite("coef. " + String(calcul.rgdu_detail.coefficient), 480, 8, police, GRIS);
     }
     droite("- " + euros(calcul.rgdu), 555, 8, police, NOIR);
     y -= 11;
-    ecrire("Total patronal apres reduction", 40, 8.5, gras, NOIR);
+    ecrire("Total patronal après réduction", 40, 8.5, gras, NOIR);
     droite(euros(calcul.total_patronal_apres_rgdu), 555, 8.5, gras, NOIR);
     y -= 12;
   }
@@ -394,25 +521,30 @@ export async function POST(req: NextRequest) {
   ecrire("Net imposable", 40, 9, police, NOIR);
   droite(euros(calcul.net_imposable), 555, 9, police, NOIR);
   y -= 12;
-  ecrire("Net a payer avant impot sur le revenu", 40, 9, police, NOIR);
+  ecrire("Net à payer avant impôt sur le revenu", 40, 9, police, NOIR);
   droite(euros(calcul.net_avant_impot), 555, 9, police, NOIR);
   y -= 12;
-  ecrire("Prelevement a la source", 40, 9, police, NOIR);
+  // 🆕 16/09 — LE PRELEVEMENT A LA SOURCE DIT POURQUOI IL EST A ZERO.
+  // ⚠️ UNE LIGNE « 0,00 » SANS EXPLICATION laisse croire a un salarie non
+  // imposable. Le taux personnalise vient du compte rendu metier de la DSN
+  // precedente : sans depot, pas de taux.
+  ecrire("Prélèvement à la source", 40, 9, police, NOIR);
+  if (calcul.prelevement_mention) {
+    const l = police.widthOfTextAtSize(ascii("Prélèvement à la source"), 9);
+    ecrire("(" + calcul.prelevement_mention + ")", 40 + l + 6, 7, police, GRIS);
+  }
   droite("- " + euros(calcul.prelevement_source), 555, 9, police, NOIR);
   y -= 15;
 
-  ecrire("NET A PAYER", 40, 12, gras, NOIR);
+  ecrire("NET À PAYER", 40, 12, gras, NOIR);
   droite(euros(calcul.net_a_payer) + " EUR", 555, 12, gras, NOIR);
   y -= 16;
-  ecrire("Cout total employeur", 40, 8, police, GRIS);
+  ecrire("Coût total employeur", 40, 8, police, GRIS);
   droite(euros(calcul.cout_employeur), 555, 8, police, GRIS);
   y -= 20;
   ligne();
   y -= 12;
 
-  // ---- LES MENTIONS OBLIGATOIRES ----
-  // 🚨 LES DEUX SONT EXIGEES PAR LE CODE DU TRAVAIL. Leur absence est
-  // sanctionnee.
   // ═══════════════════════════════════════════════════════════════════
   // 🚨 LES CONGES PAYES — MENTION OBLIGATOIRE (art. R3243-1).
   //
@@ -425,12 +557,12 @@ export async function POST(req: NextRequest) {
     y -= 4;
     ligne();
     y -= 12;
-    ecrire("CONGES PAYES", 40, 8, gras, GRIS);
+    ecrire("CONGÉS PAYÉS", 40, 8, gras, GRIS);
     droite("Acquis", 320, 8, gras, GRIS);
     droite("Pris", 420, 8, gras, GRIS);
     droite("Solde", 555, 8, gras, GRIS);
     y -= 11;
-    ecrire("Periode du " + String(calcul.conges.periode_reference).slice(0, 10)
+    ecrire("Période du " + String(calcul.conges.periode_reference).slice(0, 10)
       + " (en jours " + calcul.conges.unite + ")", 40, 8, police, NOIR);
     droite(euros(calcul.conges.acquis), 320, 8, police, NOIR);
     droite(euros(calcul.conges.pris), 420, 8, police, NOIR);
@@ -438,11 +570,11 @@ export async function POST(req: NextRequest) {
     y -= 14;
   }
 
-  ecrire("Dans votre interet et pour vous aider a faire valoir vos droits, conservez ce bulletin de paie", 40, 7, police, GRIS);
+  ecrire("Dans votre intérêt et pour vous aider à faire valoir vos droits, conservez ce bulletin de paie", 40, 7, police, GRIS);
   y -= 9;
-  ecrire("sans limitation de duree.", 40, 7, police, GRIS);
+  ecrire("sans limitation de durée.", 40, 7, police, GRIS);
   y -= 11;
-  ecrire("Pour connaitre vos droits : www.mesdroitssociaux.gouv.fr", 40, 7, police, GRIS);
+  ecrire("Pour connaître vos droits : www.mesdroitssociaux.gouv.fr", 40, 7, police, GRIS);
   y -= 9;
   // 🚨 LA MENTION QUI ACCOMPAGNE LE MONTANT NET SOCIAL, exigee avec lui.
   ecrire("Le montant net social est le revenu pris en compte pour le calcul de vos prestations sociales.", 40, 7, police, GRIS);
@@ -450,14 +582,17 @@ export async function POST(req: NextRequest) {
   const octets = Buffer.from(await pdf.save());
   const sha = crypto.createHash("sha256").update(octets).digest("hex");
 
+  // ═══════════════════════════════════════════════════════════════════
   // ---- ARCHIVAGE ET ENREGISTREMENT ----
-  const numero = await numeroSuivant(contrat.tenant_id, contrat.societe_id, periode);
-  const chemin = contrat.tenant_id + "/" + contrat.societe_id
-    + "/paie/" + periode.slice(0, 4) + "/bulletin-" + numero + ".pdf";
-
+  //
+  // ⚠️ `upsert` SUIT LE ROLE DU BULLETIN : on remplace le PDF d un
+  // brouillon qu on reecrit, jamais celui d un bulletin deja sorti.
+  // 🚨 UN BULLETIN EMIS GARDE SON PDF POUR TOUJOURS : c est le document
+  // remis au salarie, et un rectificatif ne l efface pas, il s ajoute.
+  // ═══════════════════════════════════════════════════════════════════
   const { error: eUp } = await supabase.storage
     .from(BUCKET)
-    .upload(chemin, octets, { contentType: "application/pdf", upsert: false });
+    .upload(chemin, octets, { contentType: "application/pdf", upsert: reecriture });
 
   if (eUp) {
     return NextResponse.json({
@@ -465,51 +600,101 @@ export async function POST(req: NextRequest) {
     }, { status: 500 });
   }
 
-  // 🚨 L INSERT EST VERIFIE. Lecon du 15/09 sur compliance_documents : un
-  // insert Supabase non verifie echoue EN SILENCE, et le defaut ne se
-  // decouvre que des semaines plus tard.
-  const { data: bulletin, error: eIns } = await supabase
-    .from("paie_bulletins")
-    .insert({
-      tenant_id: contrat.tenant_id,
-      societe_id: contrat.societe_id,
-      contrat_id: contratId,
-      periode: periode,
-      numero: numero,
-      brut: calcul.brut_total,
-      total_salarial: calcul.total_salarial,
-      total_patronal: calcul.total_patronal,
-      net_imposable: calcul.net_imposable,
-      net_avant_impot: calcul.net_avant_impot,
-      prelevement_source: calcul.prelevement_source,
-      net_a_payer: calcul.net_a_payer,
-      cout_employeur: calcul.cout_employeur,
-      ifm: calcul.ifm,
-      iccp: calcul.iccp,
-      rgdu: calcul.rgdu,
-      net_social: calcul.net_social,
-      detail: calcul,
-      chemin_pdf: chemin,
-      sha256: sha,
-      statut: "brouillon",
-    })
-    .select()
-    .maybeSingle();
+  const valeurs: any = {
+    tenant_id: contrat.tenant_id,
+    societe_id: contrat.societe_id,
+    contrat_id: contratId,
+    periode: periode,
+    numero: numero,
+    brut: calcul.brut_total,
+    total_salarial: calcul.total_salarial,
+    total_patronal: calcul.total_patronal,
+    net_imposable: calcul.net_imposable,
+    net_avant_impot: calcul.net_avant_impot,
+    prelevement_source: calcul.prelevement_source,
+    net_a_payer: calcul.net_a_payer,
+    cout_employeur: calcul.cout_employeur,
+    ifm: calcul.ifm,
+    iccp: calcul.iccp,
+    rgdu: calcul.rgdu,
+    net_social: calcul.net_social,
+    detail: calcul,
+    chemin_pdf: chemin,
+    sha256: sha,
+    statut: "brouillon",
+    type_bulletin: estRectificatif ? "rectificatif" : "normal",
+    rectifie_id: estRectificatif ? emisActif.id : null,
+  };
 
-  if (eIns) {
-    return NextResponse.json({
-      erreur: "le PDF est archive (" + chemin + ") mais son enregistrement a echoue : " + eIns.message,
-    }, { status: 500 });
+  let bulletin: any = null;
+
+  if (reecriture) {
+    // 🚨 ON REECRIT LE BROUILLON EXISTANT — meme ligne, meme numero.
+    // ⚠️ ON NE TOUCHE NI A type_bulletin NI A rectifie_id : si ce brouillon
+    // etait deja un rectificatif, il le reste. Les ecraser ferait perdre le
+    // lien vers le bulletin corrige, et le rectificatif n annulerait plus
+    // rien a l emission.
+    delete valeurs.type_bulletin;
+    delete valeurs.rectifie_id;
+
+    const { data: maj, error: eMaj } = await supabase
+      .from("paie_bulletins")
+      .update(valeurs)
+      .eq("id", brouillon.id)
+      .eq("statut", "brouillon")
+      .select()
+      .maybeSingle();
+
+    if (eMaj) {
+      return NextResponse.json({
+        erreur: "le PDF est archive (" + chemin + ") mais la mise a jour du bulletin a echoue : " + eMaj.message,
+      }, { status: 500 });
+    }
+    bulletin = maj;
+  } else {
+    // 🚨 L INSERT EST VERIFIE. Lecon du 15/09 sur compliance_documents : un
+    // insert Supabase non verifie echoue EN SILENCE, et le defaut ne se
+    // decouvre que des semaines plus tard.
+    const { data: ins, error: eIns } = await supabase
+      .from("paie_bulletins")
+      .insert(valeurs)
+      .select()
+      .maybeSingle();
+
+    if (eIns) {
+      return NextResponse.json({
+        erreur: "le PDF est archive (" + chemin + ") mais son enregistrement a echoue : " + eIns.message,
+      }, { status: 500 });
+    }
+    bulletin = ins;
   }
 
   const { data: signe } = await supabase.storage
     .from(BUCKET).createSignedUrl(chemin, 3600);
+
+  // ⚠️ LE MESSAGE DIT CE QUI VIENT DE SE PASSER, pas seulement que ca a
+  // marche. Reecrire un brouillon et ouvrir un rectificatif ne sont pas le
+  // meme geste, et celui qui clique doit savoir lequel il a fait.
+  let message = "";
+  if (estRectificatif) {
+    message = "Bulletin RECTIFICATIF " + numero + " en brouillon. "
+      + "Il annulera le bulletin " + String(emisActif.numero) + " au moment de son émission.";
+  } else if (reecriture) {
+    message = "Bulletin " + numero + " recalculé (le brouillon du mois a été remplacé). "
+      + "⛔ Il ne sera « émis » qu'après contrôle au centime.";
+  } else {
+    message = "Bulletin " + numero + " généré en BROUILLON. "
+      + "⛔ Il ne sera « émis » qu'après contrôle au centime contre un bulletin réel.";
+  }
 
   return NextResponse.json({
     success: true,
     numero: numero,
     periode: periode,
     bulletin_id: bulletin ? bulletin.id : null,
+    type_bulletin: estRectificatif ? "rectificatif" : "normal",
+    rectifie: estRectificatif ? String(emisActif.numero) : null,
+    reecriture: reecriture,
     brut: calcul.brut_total,
     net_a_payer: calcul.net_a_payer,
     cout_employeur: calcul.cout_employeur,
@@ -518,7 +703,6 @@ export async function POST(req: NextRequest) {
     url: signe ? signe.signedUrl : null,
     statut: "brouillon",
     reserves: calcul.reserves,
-    message: "Bulletin " + numero + " genere en BROUILLON. "
-      + "⛔ Il ne sera « emis » qu apres controle au centime contre un bulletin reel.",
+    message: message,
   });
 }
