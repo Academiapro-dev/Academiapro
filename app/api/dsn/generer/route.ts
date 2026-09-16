@@ -973,6 +973,27 @@ export async function POST(req: NextRequest) {
     // nous, et la derniere : l ordre ci-dessous est celui de la norme.
     // ═══════════════════════════════════════════════════════════════
 
+    // ═══════════════════════════════════════════════════════════════
+    // ══ S21.G00.71 — LA RETRAITE COMPLEMENTAIRE ══
+    //
+    // 🚨🚨 SA PLACE EST JUSTE APRES LE CONTRAT, et dsn-val l a dit deux
+    // fois : « sous-groupe S21.G00.71 ABSENT APRES S21.G00.40 » et « non
+    // attendu apres S21.G00.58.004 ».
+    //
+    // ⚠️ POURQUOI : LE BLOC 71 EST ENFANT DU CONTRAT, tandis que le
+    // versement (50) est enfant de l INDIVIDU. Ils ne sont pas freres, donc
+    // la regle de l ordre croissant ne les compare pas — c est la
+    // hierarchie qui commande, et elle place 71 sous 40.
+    // 🚨 L ORDRE CROISSANT NE VAUT QU ENTRE FRERES. Je l avais applique a
+    // des blocs de niveaux differents, ce qui a coute un passage.
+    //
+    // ⚠️ CONTROLE CCH-17 : un salarie declare « 04 - non cadre » en statut
+    // categoriel EXIGE un bloc 71 portant RETA, RUAA ou CAVEC. Sans lui, la
+    // declaration ne dit pas a quelle caisse de retraite complementaire le
+    // salarie est rattache — et personne ne peut lui ouvrir de droits.
+    // ═══════════════════════════════════════════════════════════════
+    ecrire("S21.G00.71.002", q(ct.regime_retraite_c) || "RUAA");
+
     // ══ S21.G00.50 — LE VERSEMENT INDIVIDU ══
     //
     // 🚨🚨 SA PLACE EST ICI, AVANT LA REMUNERATION ET LES ASSIETTES.
@@ -1027,24 +1048,43 @@ export async function POST(req: NextRequest) {
     // (S21.G00.53), ecrit plus haut, pas dans la remuneration.
     ecrire("S21.G00.51.013", montantDsn(b.brut));
 
-
     // ═══════════════════════════════════════════════════════════════
-    // ═══════════════════════════════════════════════════════════════
-    // ══ S21.G00.53 — L ACTIVITE ══
+    // ══ LA SECONDE REMUNERATION — TYPE 002, ET LE BLOC ACTIVITE ══
     //
-    // 🚨 CONTROLE CCH-15 : des lors que l unite de mesure de la quotite est
-    // « 10 - heure » ou « 12 - journee », au moins un bloc Activite est
-    // exige. C est lui qui porte le VOLUME REELLEMENT TRAVAILLE du mois —
-    // la ou nous avions tente, a tort, de le mettre dans la remuneration.
-    // ⚠️ TYPE 01 = travail remunere. Le type 02 sert aux absences, qui ne
-    // sont pas encore traitees.
+    // 🚨🚨 LE BLOC ACTIVITE NE PEUT VIVRE QUE SOUS UNE REMUNERATION DE
+    // TYPE « 002 - salaire brut servant aux calculs des droits de
+    // l Assurance chomage ». dsn-val, controle CCH-11 : sous un bloc 51 de
+    // type 001, il est refuse.
+    //
+    // ⚠️ IL FAUT DONC DEUX BLOCS REMUNERATION, et c est la pratique de tous
+    // les editeurs :
+    //   · 001 — la remuneration brute non plafonnee, celle des cotisations
+    //   · 002 — l assiette qui ouvre les droits au chomage, sous laquelle
+    //     se declare le volume de travail
+    // Les deux portent le meme montant tant qu il n y a ni prime exclue de
+    // l assiette chomage ni plafonnement.
+    //
+    // 🚨 C EST LE VOLUME DE TRAVAIL QUI FONDE LES DROITS : France Travail
+    // calcule l allocation sur ces heures autant que sur ce montant. Les
+    // omettre prive le salarie d une partie de ses droits, et cela ne se
+    // voit qu au moment ou il en a besoin.
     // ═══════════════════════════════════════════════════════════════
+    ecrire("S21.G00.51.001", debutPeriode);
+    ecrire("S21.G00.51.002", finPeriode);
+    ecrire("S21.G00.51.010", numeroContrat);
+    ecrire("S21.G00.51.011", "002");
+    ecrire("S21.G00.51.013", montantDsn(b.brut));
+
+    // ⚠️ TYPE 01 = travail remunere, unite 10 = heure. Le type 02 sert aux
+    // absences, qui ne sont pas encore traitees.
     if (dureeMensuelleRef > 0) {
       ecrire("S21.G00.53.001", "01");
       ecrire("S21.G00.53.002", montantDsn(dureeMensuelleRef));
       ecrire("S21.G00.53.003", "10");
     }
 
+
+    // ═══════════════════════════════════════════════════════════════
     // ═══════════════════════════════════════════════════════════════
     // ══ S21.G00.58 — LE MONTANT NET SOCIAL ══
     //
@@ -1060,15 +1100,6 @@ export async function POST(req: NextRequest) {
     ecrire("S21.G00.58.003", "03");
     ecrire("S21.G00.58.004", montantDsn(b.net_social));
 
-    // ══ S21.G00.71 — LA RETRAITE COMPLEMENTAIRE ══
-    //
-    // 🚨 CONTROLE CST-02 : ce sous-groupe est obligatoire apres le contrat.
-    // « RUAA » designe le regime unifie Agirc-Arrco — coherent avec le code
-    // de cotisation 131 que nous declarons plus bas. Les deux doivent dire
-    // la meme chose, sinon l organisme recoit une cotisation pour un regime
-    // auquel le salarie n est pas rattache.
-    // ═══════════════════════════════════════════════════════════════
-    ecrire("S21.G00.71.002", q(ct.regime_retraite_c) || "RUAA");
 
     // ══ S21.G00.78 / 79 / 81 — LES ASSIETTES ET LEURS COTISATIONS ══
     //
