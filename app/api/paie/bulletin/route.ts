@@ -413,6 +413,31 @@ export async function POST(req: NextRequest) {
   // ---- LES MENTIONS OBLIGATOIRES ----
   // 🚨 LES DEUX SONT EXIGEES PAR LE CODE DU TRAVAIL. Leur absence est
   // sanctionnee.
+  // ═══════════════════════════════════════════════════════════════════
+  // 🚨 LES CONGES PAYES — MENTION OBLIGATOIRE (art. R3243-1).
+  //
+  // Le salarie doit voir ce qu il a acquis et ce qu il lui reste. C est la
+  // premiere chose qu il regarde apres son net.
+  // ⚠️ SEUL LE CDI L AFFICHE : sur une mission ou un CDD, les conges sont
+  // compenses par l ICCP, et un compteur y serait faux.
+  // ═══════════════════════════════════════════════════════════════════
+  if (calcul.conges) {
+    y -= 4;
+    ligne();
+    y -= 12;
+    ecrire("CONGES PAYES", 40, 8, gras, GRIS);
+    droite("Acquis", 320, 8, gras, GRIS);
+    droite("Pris", 420, 8, gras, GRIS);
+    droite("Solde", 555, 8, gras, GRIS);
+    y -= 11;
+    ecrire("Periode du " + String(calcul.conges.periode_reference).slice(0, 10)
+      + " (en jours " + calcul.conges.unite + ")", 40, 8, police, NOIR);
+    droite(euros(calcul.conges.acquis), 320, 8, police, NOIR);
+    droite(euros(calcul.conges.pris), 420, 8, police, NOIR);
+    droite(euros(calcul.conges.solde), 555, 8, gras, NOIR);
+    y -= 14;
+  }
+
   ecrire("Dans votre interet et pour vous aider a faire valoir vos droits, conservez ce bulletin de paie", 40, 7, police, GRIS);
   y -= 9;
   ecrire("sans limitation de duree.", 40, 7, police, GRIS);
