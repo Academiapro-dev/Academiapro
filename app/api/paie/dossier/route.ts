@@ -6,11 +6,11 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 // ═══════════════════════════════════════════════════════════════════════
-// LA GESTION DE LA PAIE — 15/09/2026
+// LA GESTION DE LA PAIE — 15/09/2026, corrigee le 16/09
 //
 // Une seule route pour tout ce qui n est pas le calcul : lister les
 // contrats, ajouter un salarie, ouvrir un contrat, saisir les heures du
-// mois, lister les bulletins.
+// mois, lister et emettre les bulletins.
 //
 // 🚨 LE CALCUL N EST PAS ICI. Il vit dans /api/paie/calculer, et nulle part
 // ailleurs. Deux calculs a deux endroits finissent toujours par diverger —
@@ -26,6 +26,65 @@ function propre(v: any): string | null {
   if (v === null || v === undefined) return null;
   const t = String(v).trim();
   return t.length > 0 ? t : null;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🆕🚨 16/09 — LE CONTROLE DE LA CLE DU NUMERO DE SECURITE SOCIALE
+//
+// DEFAUT TROUVE A L ESSAI : le jeu d essai portait 1 92 04 99 999 999 42.
+// La cle exacte de ce numero est 82. Rien ne l avait signale, et la
+// DECLARATION AURAIT ETE REJETEE — apres la date limite de depot, donc avec
+// une penalite de retard.
+//
+// LA REGLE : cle = 97 - (les treize premiers chiffres modulo 97).
+// ⚠️ LA CORSE FAIT EXCEPTION : le departement s ecrit 2A ou 2B, et se
+// remplace par 19 et 18 AVANT le calcul. Sans cela, tous les numeros corses
+// seraient declares faux.
+// ⚠️ ON UTILISE BigInt : treize chiffres depassent la precision exacte d un
+// nombre JavaScript ordinaire, et le modulo rendrait un resultat faux sur
+// certains numeros — donc un refus incomprehensible sur un numero valide.
+//
+// 🚨 ON REFUSE A LA SAISIE PLUTOT QUE DE SIGNALER APRES COUP. Meme regle
+// que l entreprise utilisatrice sur un contrat de mission, et que
+// l irrevocabilite des mandats immobiliers.
+// ═══════════════════════════════════════════════════════════════════════
+function controlerNir(brut: string): { ok: boolean; message?: string; propre?: string } {
+  const n = String(brut).replace(/[^0-9AaBb]/g, "").toUpperCase();
+
+  if (n.length !== 15) {
+    return {
+      ok: false,
+      message: "le numéro de sécurité sociale doit comporter 15 chiffres "
+        + "(13 pour le numéro, 2 pour la clé). Celui-ci en compte " + n.length + ".",
+    };
+  }
+
+  const corps = n.slice(0, 13);
+  const cleSaisie = Number(n.slice(13));
+
+  // ⚠️ 2A ET 2B NE PEUVENT APPARAITRE QU EN POSITION 6-7 (le departement).
+  const pourCalcul = corps.replace("2A", "19").replace("2B", "18");
+  if (!/^\d{13}$/.test(pourCalcul)) {
+    return { ok: false, message: "le numéro de sécurité sociale contient un caractère inattendu." };
+  }
+
+  const attendue = 97 - Number(BigInt(pourCalcul) % 97n);
+
+  if (attendue !== cleSaisie) {
+    return {
+      ok: false,
+      message: "la clé du numéro de sécurité sociale est fausse : "
+        + "elle devrait être " + String(attendue).padStart(2, "0")
+        + ", et non " + String(cleSaisie).padStart(2, "0") + ". "
+        + "⛔ Un numéro dont la clé est fausse fait REJETER la DSN.",
+    };
+  }
+
+  // Remis en forme lisible : 1 92 04 99 999 999 42
+  const f = n.slice(0, 1) + " " + n.slice(1, 3) + " " + n.slice(3, 5) + " "
+    + n.slice(5, 7) + " " + n.slice(7, 10) + " " + n.slice(10, 13) + " " + n.slice(13);
+
+  return { ok: true, propre: f };
 }
 
 export async function POST(req: NextRequest) {
@@ -80,13 +139,24 @@ export async function POST(req: NextRequest) {
         }, { status: 400 });
       }
 
+      // 🚨 LE NUMERO DE SECURITE SOCIALE EST CONTROLE AVANT D ETRE ECRIT.
+      // ⚠️ IL EST LAISSE FACULTATIF A LA SAISIE — on peut embaucher avant
+      // de l avoir — mais des qu il est donne, il doit etre juste.
+      let nirPropre: string | null = null;
+      const nirSaisi = propre(c.numero_secu);
+      if (nirSaisi) {
+        const v = controlerNir(nirSaisi);
+        if (!v.ok) return NextResponse.json({ erreur: v.message }, { status: 400 });
+        nirPropre = v.propre || nirSaisi;
+      }
+
       const { data: sal, error: eSal } = await supabase
         .from("paie_salaries")
         .insert({
           tenant_id: soc.tenant_id, societe_id: societeId,
           nom: nom.toUpperCase(), prenom: prenom,
           sexe: propre(c.sexe), date_naissance: propre(c.date_naissance),
-          numero_secu: propre(c.numero_secu),
+          numero_secu: nirPropre,
           adresse: propre(c.adresse), code_postal: propre(c.code_postal),
           ville: propre(c.ville), email: propre(c.email),
         })
@@ -143,7 +213,7 @@ export async function POST(req: NextRequest) {
 
       return NextResponse.json({
         success: true, contrat_id: ctr.id,
-        message: prenom + " " + nom.toUpperCase() + " est enregistre avec son contrat.",
+        message: prenom + " " + nom.toUpperCase() + " est enregistré avec son contrat.",
       });
     }
 
@@ -173,6 +243,27 @@ export async function POST(req: NextRequest) {
         .eq("id", contratId).maybeSingle();
       if (!ctr) return NextResponse.json({ erreur: "contrat introuvable" }, { status: 404 });
 
+      // 🆕 16/09 — ON REFUSE D AJOUTER UN ELEMENT SUR UN MOIS DEJA EMIS.
+      // ⚠️ SINON LE BULLETIN REMIS AU SALARIE ET LA BASE NE DISENT PLUS LA
+      // MEME CHOSE : les heures changent, le document non. La correction
+      // passe par un bulletin rectificatif, jamais par une retouche
+      // silencieuse des heures.
+      const { data: emis } = await supabase
+        .from("paie_bulletins")
+        .select("numero")
+        .eq("contrat_id", contratId)
+        .eq("periode", periode)
+        .eq("statut", "emis")
+        .maybeSingle();
+
+      if (emis) {
+        return NextResponse.json({
+          erreur: "le bulletin " + emis.numero + " de ce mois est déjà émis : "
+            + "ses éléments ne peuvent plus changer. Pour corriger, sortez un "
+            + "bulletin rectificatif — il annulera celui-ci.",
+        }, { status: 400 });
+      }
+
       // ⚠️ LE MONTANT SE CALCULE quand quantite et taux sont donnes : on ne
       // fait pas taper ce que la machine sait faire.
       let montant = c.montant ? Number(c.montant) : 0;
@@ -190,7 +281,7 @@ export async function POST(req: NextRequest) {
       });
 
       if (error) return NextResponse.json({ erreur: error.message }, { status: 500 });
-      return NextResponse.json({ success: true, message: "Element ajoute." });
+      return NextResponse.json({ success: true, message: "Élément ajouté." });
     }
 
     // ---- SUPPRIMER UN ELEMENT ----
@@ -198,22 +289,56 @@ export async function POST(req: NextRequest) {
     // ⚠️ UN ELEMENT SE SUPPRIME TANT QUE LE BULLETIN N EST PAS EMIS. Apres,
     // c est un bulletin rectificatif qu il faut.
     if (action === "supprimer_element") {
+      const { data: el } = await supabase
+        .from("paie_elements").select("contrat_id, periode")
+        .eq("id", propre(c.id)).maybeSingle();
+
+      if (el) {
+        const { data: emis } = await supabase
+          .from("paie_bulletins")
+          .select("numero")
+          .eq("contrat_id", el.contrat_id)
+          .eq("periode", el.periode)
+          .eq("statut", "emis")
+          .maybeSingle();
+
+        if (emis) {
+          return NextResponse.json({
+            erreur: "le bulletin " + emis.numero + " de ce mois est déjà émis : "
+              + "ses éléments ne peuvent plus être retirés.",
+          }, { status: 400 });
+        }
+      }
+
       const { error } = await supabase
         .from("paie_elements").delete().eq("id", propre(c.id));
       if (error) return NextResponse.json({ erreur: error.message }, { status: 500 });
-      return NextResponse.json({ success: true, message: "Element retire." });
+      return NextResponse.json({ success: true, message: "Élément retiré." });
     }
 
     // ---- LES BULLETINS D UN CONTRAT ----
+    // 🆕 16/09 — ON REND AUSSI LE TYPE ET LE LIEN DE RECTIFICATION : l ecran
+    // doit pouvoir dire « rectificatif, remplace le 2026-00003 ».
     if (action === "bulletins") {
       const { data, error } = await supabase
         .from("paie_bulletins")
-        .select("id, numero, periode, brut, net_a_payer, cout_employeur, statut, chemin_pdf, emis_le")
+        .select("id, numero, periode, brut, net_a_payer, cout_employeur, statut, "
+          + "chemin_pdf, emis_le, type_bulletin, rectifie_id, annule_le")
         .eq("contrat_id", propre(c.contrat_id))
-        .order("periode", { ascending: false });
+        .order("periode", { ascending: false })
+        .order("numero", { ascending: false });
 
       if (error) return NextResponse.json({ erreur: error.message }, { status: 500 });
-      return NextResponse.json({ success: true, bulletins: data || [] });
+
+      // ⚠️ ON REMPLACE L IDENTIFIANT PAR LE NUMERO LISIBLE : un uuid a
+      // l ecran n apprend rien a personne.
+      const parId: any = {};
+      for (const b of (data || [])) parId[b.id] = b.numero;
+      const enrichis = (data || []).map(function (b: any) {
+        return { ...b, rectifie_numero: b.rectifie_id ? (parId[b.rectifie_id] || null) : null };
+      });
+
+      return NextResponse.json({ success: true, bulletins: enrichis });
     }
 
     // ---- OUVRIR UN BULLETIN ----
@@ -233,31 +358,80 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true, url: signe.signedUrl });
     }
 
+    // ═══════════════════════════════════════════════════════════════════
     // ---- EMETTRE UN BULLETIN ----
     //
     // 🚨 C EST LE POINT DE NON-RETOUR. Un bulletin emis ne se modifie plus,
     // ne repasse jamais en brouillon, et ne se supprime pas. Il se corrige
     // par un rectificatif. Meme regle que les mandats immobiliers.
+    //
+    // 🆕🚨 16/09 — UN RECTIFICATIF ANNULE LE BULLETIN QU IL CORRIGE, ET
+    // L ORDRE DES DEUX GESTES N EST PAS NEGOCIABLE : on annule l ancien
+    // D ABORD, on emet le nouveau ENSUITE. L index unique en base
+    // n autorise qu un seul bulletin emis par contrat et par mois — dans
+    // l autre ordre, il refuserait l emission, et il aurait raison.
+    // ═══════════════════════════════════════════════════════════════════
     if (action === "emettre") {
       const { data: b } = await supabase
-        .from("paie_bulletins").select("id, numero, statut")
+        .from("paie_bulletins")
+        .select("id, numero, statut, type_bulletin, rectifie_id, periode, "
+          + "tenant_id, societe_id, contrat_id")
         .eq("id", propre(c.id)).maybeSingle();
 
       if (!b) return NextResponse.json({ erreur: "bulletin introuvable" }, { status: 404 });
+
       if (b.statut === "emis") {
         return NextResponse.json({
-          erreur: "le bulletin " + b.numero + " est deja emis. Pour le corriger, "
-            + "il faut etablir un bulletin rectificatif.",
+          erreur: "le bulletin " + b.numero + " est déjà émis. Pour le corriger, "
+            + "recalculez le mois : un bulletin rectificatif sera ouvert.",
         }, { status: 400 });
       }
 
-      const { error } = await supabase
+      if (b.statut === "annule") {
+        return NextResponse.json({
+          erreur: "le bulletin " + b.numero + " a été annulé et remplacé. "
+            + "Il ne peut plus être émis.",
+        }, { status: 400 });
+      }
+
+      // ---- 1. ANNULER LE BULLETIN RECTIFIE ----
+      let annule: string | null = null;
+      if (b.type_bulletin === "rectificatif" && b.rectifie_id) {
+        const { data: anc, error: eAnn } = await supabase
+          .from("paie_bulletins")
+          .update({ statut: "annule", annule_le: new Date().toISOString() })
+          .eq("id", b.rectifie_id)
+          .eq("statut", "emis")
+          .select("numero")
+          .maybeSingle();
+
+        // 🚨 SI L ANCIEN N A PAS PU ETRE ANNULE, ON N EMET PAS. Deux
+        // bulletins emis sur le meme mois, c est une double declaration en
+        // DSN — exactement le defaut du 16/09.
+        if (eAnn) {
+          return NextResponse.json({
+            erreur: "impossible d'annuler le bulletin corrigé : " + eAnn.message
+              + ". ⛔ Rien n'a été émis.",
+          }, { status: 500 });
+        }
+        annule = anc ? String(anc.numero) : null;
+      }
+
+      // ---- 2. EMETTRE ----
+      const { data: maj, error } = await supabase
         .from("paie_bulletins")
         .update({ statut: "emis", emis_le: new Date().toISOString() })
         .eq("id", b.id)
-        .eq("statut", "brouillon");
+        .eq("statut", "brouillon")
+        .select("id")
+        .maybeSingle();
 
       if (error) return NextResponse.json({ erreur: error.message }, { status: 500 });
+      if (!maj) {
+        return NextResponse.json({
+          erreur: "l'émission n'a rien modifié : le bulletin n'était plus en brouillon.",
+        }, { status: 409 });
+      }
 
       // ═══════════════════════════════════════════════════════════════
       // 🚨 L ACQUISITION DES CONGES SE POSE ICI, A L EMISSION — PAS AU
@@ -274,6 +448,7 @@ export async function POST(req: NextRequest) {
       // un bulletin rectificatif ne doit pas redonner les jours.
       // ═══════════════════════════════════════════════════════════════
       let congesPoses = false;
+      let congesErreur: string | null = null;
 
       const { data: bull } = await supabase
         .from("paie_bulletins")
@@ -312,17 +487,26 @@ export async function POST(req: NextRequest) {
             bulletin_id: b.id,
             notes: "Acquisition automatique a l emission du bulletin " + b.numero,
           });
-          // ⚠️ L ERREUR EST REMONTEE, pas avalee : des droits a conges qui
-          // ne s inscrivent pas se decouvrent des mois plus tard.
-          if (!eConges) congesPoses = true;
+          // 🆕 16/09 — L ERREUR EST REMONTEE A L ECRAN, plus seulement
+          // ignoree : des droits a conges qui ne s inscrivent pas se
+          // decouvrent des mois plus tard, quand le salarie les reclame.
+          if (eConges) congesErreur = eConges.message;
+          else congesPoses = true;
         }
+      }
+
+      let message = "Bulletin " + b.numero + " émis. Il ne peut plus être modifié.";
+      if (annule) message += " Le bulletin " + annule + " est annulé et remplacé.";
+      if (congesPoses) message += " 2,5 jours de congés ont été acquis.";
+      if (congesErreur) {
+        message += " ⛔ ATTENTION : l'acquisition des congés a échoué (" + congesErreur + ").";
       }
 
       return NextResponse.json({
         success: true,
         conges_acquis: congesPoses ? 2.5 : 0,
-        message: "Bulletin " + b.numero + " emis. Il ne peut plus etre modifie."
-          + (congesPoses ? " 2,5 jours de conges ont ete acquis." : ""),
+        annule: annule,
+        message: message,
       });
     }
 
