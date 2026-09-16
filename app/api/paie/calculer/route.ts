@@ -346,6 +346,75 @@ async function calculer(contratId: string, periode: string): Promise<any> {
     else brutSoumis += m;
   }
 
+  // ═══════════════════════════════════════════════════════════════════
+  // ══ LES CONGES PRIS DANS LE MOIS ══
+  //
+  // 🚨 DEUX LIGNES, PAS UNE. Un bulletin qui porte des conges affiche
+  // toujours la RETENUE pour absence et l INDEMNITE qui la remplace :
+  //   · en maintien de salaire, les deux s annulent exactement, et le
+  //     salarie voit qu il n a rien perdu ;
+  //   · quand la regle du dixieme est plus favorable, l indemnite depasse
+  //     la retenue, et la difference apparait a l ecran.
+  //
+  // ⚠️ N AFFICHER QUE LE SOLDE NET RENDRAIT LA REGLE INVISIBLE. Or c est
+  // precisement ce qu un salarie et un controleur veulent verifier : que
+  // la methode la plus favorable a bien ete retenue (art. L3141-24).
+  //
+  // ⚠️ LE MONTANT VIENT DE paie_conges, CALCULE A LA SAISIE. Le recalculer
+  // ici ferait diverger le bulletin de ce qui est en base — et c est la
+  // base qui fait foi, puisqu elle garde les deux methodes.
+  // ═══════════════════════════════════════════════════════════════════
+  let congesDuMois = 0;
+  let indemniteConges = 0;
+
+  if (contrat.type_contrat === "cdi") {
+    const { data: prises } = await supabase
+      .from("paie_conges")
+      .select("jours, valeur_retenue, valeur_maintien, valeur_dixieme")
+      .eq("contrat_id", contratId)
+      .eq("periode", periode)
+      .eq("type_mouvement", "prise");
+
+    let joursPris = 0;
+    let methodeDixieme = false;
+    for (const pr of (prises || [])) {
+      joursPris += Number((pr as any).jours || 0);
+      indemniteConges += Number((pr as any).valeur_retenue || 0);
+      if (Number((pr as any).valeur_dixieme || 0)
+          > Number((pr as any).valeur_maintien || 0)) methodeDixieme = true;
+    }
+
+    if (joursPris > 0) {
+      congesDuMois = joursPris;
+
+      // ⚠️ LA RETENUE SE CALCULE SUR LA MEME BASE QUE LE MAINTIEN — le
+      // salaire mensuel rapporte aux jours ouvrables. Une autre base ferait
+      // apparaitre un ecart la ou il n y en a pas.
+      const JOURS_OUVRABLES_MOIS = 26;
+      const retenue = cts(
+        (Number(contrat.salaire_mensuel || 0) / JOURS_OUVRABLES_MOIS) * joursPris);
+
+      lignesBrut.push({
+        libelle: "Absence congés payés",
+        quantite: joursPris,
+        taux: null,
+        montant: -retenue,
+      });
+      lignesBrut.push({
+        libelle: "Indemnité de congés payés"
+          + (methodeDixieme ? " (règle du dixième)" : " (maintien de salaire)"),
+        quantite: joursPris,
+        taux: null,
+        montant: cts(indemniteConges),
+      });
+
+      // 🚨 L INDEMNITE EST SOUMISE A COTISATIONS, comme le salaire qu elle
+      // remplace. Seule la DIFFERENCE modifie le brut : en maintien, elle
+      // est nulle et le brut ne bouge pas.
+      brutSoumis += cts(indemniteConges) - retenue;
+    }
+  }
+
   brutSoumis = cts(brutSoumis);
 
   // ---- LES INDEMNITES DE FIN DE MISSION ----
@@ -746,6 +815,8 @@ async function calculer(contratId: string, periode: string): Promise<any> {
     net_imposable: netImposable,
     net_social: netSocial,
     conges: conges,
+    conges_pris_du_mois: congesDuMois,
+    indemnite_conges: cts(indemniteConges),
     net_avant_impot: netAvantImpot,
     prelevement_source: prelevementSource,
     prelevement_mention: prelevementMention,
