@@ -765,22 +765,23 @@ async function calculer(contratId: string, periode: string): Promise<any> {
         "Le montant net social ne réintègre aucune garantie complémentaire : mutuelle et prévoyance n'existent pas encore.",
       ];
 
-      // 🚨 LA RESERVE SUR LES CONGES NE CONCERNE QUE LE CDI.
+      // ✅ LA VALORISATION DES CONGES EST CALCULEE DEPUIS LE 16/09 : les
+      // deux methodes — maintien de salaire et regle du dixieme — sont
+      // comparees a chaque prise, et la plus favorable est retenue, comme
+      // l impose l article L3141-24. La reserve qui disait le contraire a
+      // ete retiree.
       //
-      // Elle s affichait sur les trois types de contrat, et elle etait
-      // FAUSSE sur deux d entre eux : un contrat de mission et un CDD
-      // n ACQUIERENT PAS de conges — ils les compensent par l ICCP, versee
-      // chaque mois sur le bulletin. Parler de leur « valorisation a la
-      // prise » n a aucun sens la, et un cabinet comptable le voit tout de
-      // suite.
-      //
-      // ⚠️ UNE RESERVE FAUSSE COUTE PLUS CHER QU UNE RESERVE ABSENTE : elle
-      // fait douter de toutes les autres, y compris des vraies.
+      // ⚠️ CE QUI RESTE VRAI, ET QUI MERITE D ETRE DIT : la regle du
+      // dixieme se calcule sur la remuneration de la periode de reference,
+      // donc sur les BULLETINS DEJA EMIS. Sur un salarie entre en cours
+      // d annee, ou dont les premiers bulletins ont ete produits ailleurs,
+      // elle est sous-evaluee tant que l historique n est pas complet.
       if (contrat.type_contrat === "cdi") {
-        r.push("Les congés payés sont comptés, mais leur VALORISATION À LA "
-          + "PRISE n'est pas calculée : il faudra comparer le maintien de "
-          + "salaire et la règle du dixième, et retenir le plus favorable "
-          + "(art. L3141-24).");
+        r.push("Les congés sont valorisés en comparant le maintien de salaire "
+          + "et la règle du dixième, la plus favorable étant retenue. ⚠️ Le "
+          + "dixième se calcule sur les bulletins déjà émis : il est "
+          + "sous-évalué tant que l'historique de la période de référence "
+          + "est incomplet.");
       }
       // 🚨 LE CDI N A PAS D INDEMNITE DE PRECARITE — c est normal, et c est
       // dit pour que personne ne cherche une ligne manquante. En revanche,
