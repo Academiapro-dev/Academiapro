@@ -549,13 +549,51 @@ export async function POST(req: NextRequest) {
     if (lieuxVus.indexOf(sir) >= 0) continue;
     lieuxVus.push(sir);
 
+    // 🚨🚨 LE BLOC 85 SE REMPLIT EN ENTIER OU PAS DU TOUT.
+    //
+    // Incomplet, il a fait rejeter LES TROIS SALARIES d un coup : dsn-val a
+    // compte « 0 salarie » sur un fichier qui en portait trois, et les
+    // quinze anomalies du rapport venaient toutes de ce seul bloc.
+    //
+    // ⚠️ SANS NATURE JURIDIQUE, LE SIRET EST REFUSE. Le cahier (page 318)
+    // autorise le SIRET en 85.001 — mais la regle CCH-12 ne le valide que
+    // si 85.010 vaut « 01 - Etablissement ». Sans cette rubrique, dsn-val
+    // ne sait pas qu il regarde un etablissement immatricule, et repond
+    // « vous avez renseigne un SIRET, ceci n est pas admis ».
+    //
+    // ⚠️ LE CODE INSEE DE LA COMMUNE (85.011) EST OBLIGATOIRE des lors
+    // qu aucun code pays n est declare. Ce n est pas le code postal : c est
+    // lui qui rattache le lieu a son autorite de transport, donc au taux de
+    // versement mobilite qui sera reclame.
+    //
+    // ⛔ SI L UNE DE CES DONNEES MANQUE, ON N ECRIT PAS LE BLOC : un bloc 85
+    // incomplet coute plus cher que pas de bloc du tout, puisqu il emporte
+    // tous les salaries avec lui.
+    const natureJur = q(c0.eu_nature_juridique) || "01";
+    const insee = q(c0.eu_code_insee);
+    const cpLieu = q(c0.eu_code_postal);
+
+    if (!insee || !cpLieu || !q(c0.eu_adresse) || !q(c0.eu_ville)) {
+      anomalies.push("Lieu de travail " + sir + " : adresse, code postal, "
+        + "ville ou code INSEE manquant. ⛔ LE BLOC S21.G00.85 N'EST PAS "
+        + "DÉCLARÉ — un bloc incomplet ferait rejeter tous les salariés. "
+        + "Compléter le contrat (colonnes eu_adresse, eu_code_postal, "
+        + "eu_ville, eu_code_insee).");
+      lieuxVus.pop();
+      continue;
+    }
+
     ecrire("S21.G00.85.001", sir);
     // ⚠️ LE CODE APE DU LIEU DE TRAVAIL, PAS CELUI DE L EMPLOYEUR : c est
     // l activite reelle exercee sur place qui compte pour le risque.
     if (q(c0.eu_code_ape)) ecrire("S21.G00.85.002", c0.eu_code_ape);
-    if (q(c0.eu_adresse)) ecrire("S21.G00.85.003", c0.eu_adresse);
-    if (q(c0.eu_code_postal)) ecrire("S21.G00.85.004", c0.eu_code_postal);
-    if (q(c0.eu_ville)) ecrire("S21.G00.85.005", c0.eu_ville);
+    ecrire("S21.G00.85.003", c0.eu_adresse);
+    ecrire("S21.G00.85.004", cpLieu);
+    ecrire("S21.G00.85.005", c0.eu_ville);
+    // ⛔ PAS DE CODE PAYS (85.006) POUR UN LIEU EN FRANCE : code postal et
+    // code pays s excluent, exactement comme sur l adresse du salarie.
+    ecrire("S21.G00.85.010", natureJur);
+    ecrire("S21.G00.85.011", insee);
   }
 
   let totalBrut = 0;
