@@ -277,7 +277,11 @@ export default function PagePaie() {
     const d = await appeler({
       action: "poser_conges",
       contrat_id: choisi.id,
-      periode: periode + "-01",
+      // 🚨 LA PERIODE PORTE DEJA SON JOUR : moisCourant() rend « 2026-09-01 ».
+      // Y ajouter « -01 » donnait « 2026-09-01-01 », que Postgres refuse.
+      // ⚠️ TOUTES LES AUTRES ACTIONS L ENVOIENT TELLE QUELLE — il suffisait
+      // de regarder comment elles font plutot que de supposer.
+      periode: periode,
       jours: j,
     });
     setOccupe("");
@@ -921,7 +925,9 @@ export default function PagePaie() {
 
                 {conges.solde ? (
                   <p style={{ fontSize: "14px", marginTop: 0 }}>
-                    Période ouverte le {String(conges.solde.periode_ref).slice(0, 10)}
+                    Période ouverte le {String(conges.solde.periode_ref).slice(8, 10)
+                      + "/" + String(conges.solde.periode_ref).slice(5, 7)
+                      + "/" + String(conges.solde.periode_ref).slice(0, 4)}
                     {" — "}
                     <strong>{Number(conges.solde.acquis).toFixed(2)}</strong> acquis,{" "}
                     <strong>{Number(conges.solde.pris).toFixed(2)}</strong> pris,{" "}
@@ -941,7 +947,9 @@ export default function PagePaie() {
                 <div style={{ display: "flex", gap: "10px", alignItems: "flex-end",
                   flexWrap: "wrap", marginTop: "12px" }}>
                   <div>
-                    <span style={LIB}>Jours pris en {periode}</span>
+                    {/* ⚠️ LE MOIS S AFFICHE EN CLAIR : « 2026-09-01 » est un
+                        format de base de donnees, pas une date qu on lit. */}
+                    <span style={LIB}>Jours pris en {String(periode).slice(0, 7)}</span>
                     <input value={joursPris}
                       onChange={(e: any) => setJoursPris(e.target.value)}
                       placeholder="ex. 5" style={{ ...CHAMP, width: "120px" }} />
