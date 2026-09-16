@@ -478,13 +478,20 @@ export async function POST(req: NextRequest) {
   // « code postal plus court que 5 » sur la 005 ou figurait « Lyon ».
   ecrire("S21.G00.06.001", siret.slice(0, 9));
   ecrire("S21.G00.06.002", siret.slice(9));
-  ecrire("S21.G00.06.003", q(societe.code_ape));
+  // ⚠️ LE CODE APE N EST PAS ECRIT ICI. dsn-val repond « rubrique inconnue
+  // dans la norme » sur 06.003 comme sur 11.002, alors que le cahier
+  // technique les nomme « Code APEN » et « Code APET ». Le cahier et l outil
+  // de controle se contredisent — comme sur la version de norme.
+  // ⛔ TANT QUE CE DESACCORD N EST PAS TRANCHE, ON NE LES ECRIT PAS : une
+  // rubrique absente vaut mieux qu une rubrique refusee.
+  // 🚨 LE CODE APE RESTE DECLARE dans le bloc 85 (rubrique 85.002), accepte.
   ecrire("S21.G00.06.004", societe.adresse);
   ecrire("S21.G00.06.005", q(societe.code_postal));
   ecrire("S21.G00.06.006", societe.ville);
 
   if (!q(societe.code_ape)) {
-    anomalies.push("Code APE absent (S21.G00.06.003) — mention obligatoire.");
+    anomalies.push("Code APE absent — il est déclaré dans le bloc lieu de "
+      + "travail (S21.G00.85.002).");
   }
 
   // ══ S21.G00.11 — L ETABLISSEMENT ══
@@ -497,7 +504,6 @@ export async function POST(req: NextRequest) {
   // en 11.025, sur l ETABLISSEMENT — pas en 30.030 sur l individu, ou
   // nous l ecrivions.
   ecrire("S21.G00.11.001", siret.slice(9));
-  ecrire("S21.G00.11.002", q(societe.code_ape));
   ecrire("S21.G00.11.003", societe.adresse);
   ecrire("S21.G00.11.004", q(societe.code_postal));
   ecrire("S21.G00.11.005", societe.ville);
@@ -514,6 +520,42 @@ export async function POST(req: NextRequest) {
 
   if (q(societe.spst_identifiant)) {
     ecrire("S21.G00.11.025", societe.spst_identifiant);
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // ══ S21.G00.85 — LES LIEUX DE TRAVAIL ET ETABLISSEMENTS UTILISATEURS ══
+  //
+  // 🚨🚨 CE BLOC EST INDISPENSABLE A L INTERIM, et son absence a produit
+  // trois anomalies d un coup :
+  //   · « contrat de mission sans preciser le lieu de travail »
+  //   · « identifiant d etablissement utilisateur sans etablissement
+  //     utilisateur associe »
+  //   · « absence de la rubrique S21.G00.40.019 »
+  //
+  // ⚠️ SA PLACE EST ICI, enfant de l etablissement, AVANT les individus.
+  // Ecrit apres le contrat — ce que nous avons fait au premier essai — il
+  // faisait ignorer toute la suite du fichier.
+  //
+  // 🚨 UN SEUL BLOC PAR LIEU, meme si dix interimaires y travaillent : les
+  // contrats s y rattachent par leur rubrique 40.019, qui porte le meme
+  // identifiant. C est pourquoi on dedoublonne sur le SIRET.
+  // ═══════════════════════════════════════════════════════════════════
+  const lieuxVus: string[] = [];
+  for (const b0 of bulletins) {
+    const c0: any = (b0 as any).paie_contrats;
+    if (!c0) continue;
+    const sir = q(c0.eu_siret).replace(/\D/g, "");
+    if (sir.length !== 14 || !cleLuhnValide(sir)) continue;
+    if (lieuxVus.indexOf(sir) >= 0) continue;
+    lieuxVus.push(sir);
+
+    ecrire("S21.G00.85.001", sir);
+    // ⚠️ LE CODE APE DU LIEU DE TRAVAIL, PAS CELUI DE L EMPLOYEUR : c est
+    // l activite reelle exercee sur place qui compte pour le risque.
+    if (q(c0.eu_code_ape)) ecrire("S21.G00.85.002", c0.eu_code_ape);
+    if (q(c0.eu_adresse)) ecrire("S21.G00.85.003", c0.eu_adresse);
+    if (q(c0.eu_code_postal)) ecrire("S21.G00.85.004", c0.eu_code_postal);
+    if (q(c0.eu_ville)) ecrire("S21.G00.85.005", c0.eu_ville);
   }
 
   let totalBrut = 0;
@@ -581,6 +623,15 @@ export async function POST(req: NextRequest) {
     // dsn-val : « Presence de la rubrique interdite S21.G00.30.007 ». Elle
     // ne vaut que pour les personnes nees a l etranger, et se double alors
     // du code pays de naissance (30.015).
+    // 🚨 LE DEPARTEMENT DE NAISSANCE SE LIT DANS LE NIR : positions 6 et 7.
+    // Il est calcule ICI parce que le lieu de naissance (30.007) en depend
+    // et doit s ecrire AVANT l adresse (30.008) — l ordre croissant des
+    // rubriques ne souffre aucune exception.
+    const deptNaissance = nirComplet.length >= 7 ? nirComplet.slice(5, 7) : "";
+    if (deptNaissance && deptNaissance !== "99") {
+      ecrire("S21.G00.30.007", s.lieu_naissance);
+    }
+
     ecrire("S21.G00.30.008", s.adresse);
     ecrire("S21.G00.30.009", q(s.code_postal));
     ecrire("S21.G00.30.010", s.ville);
@@ -600,16 +651,25 @@ export async function POST(req: NextRequest) {
     // 04 reste du monde.
     ecrire("S21.G00.30.013", q(s.codification_ue) || "01");
 
-    // 🚨 LE DEPARTEMENT DE NAISSANCE (30.014) SE LIT DANS LE NIR : ses
-    // positions 6 et 7. « 99 » designe une naissance a l etranger, et
-    // n est alors valide qu accompagne du code pays de naissance (30.015).
-    const deptNaissance = nirComplet.length >= 7 ? nirComplet.slice(5, 7) : "";
-    if (deptNaissance) {
-      ecrire("S21.G00.30.014", deptNaissance);
-      if (deptNaissance === "99") {
-        ecrire("S21.G00.30.015", q(s.pays_naissance) || "99");
-      }
-    }
+    // 🚨🚨 LES TROIS RUBRIQUES DE NAISSANCE VONT ENSEMBLE.
+    //
+    // ⚠️ J AVAIS RETIRE LE LIEU DE NAISSANCE au deuxieme passage, parce que
+    // dsn-val le disait « rubrique interdite ». Il l etait — mais dans le
+    // contexte d une DSN NEANT, ou aucun individu n est attendu. Une fois
+    // le type de declaration corrige, il redevient OBLIGATOIRE.
+    // 🚨 LA LECON : une anomalie lue dans un fichier par ailleurs invalide
+    // peut dire le contraire de la regle. Ne jamais corriger sur une seule
+    // anomalie sans regarder si le fichier tient debout par ailleurs.
+    //
+    // LA REGLE, elle, est simple : si le departement de naissance vaut
+    // autre chose que « 99 », le LIEU de naissance est obligatoire ; et le
+    // CODE PAYS de naissance l est dans tous les cas.
+    if (deptNaissance) ecrire("S21.G00.30.014", deptNaissance);
+    // ⚠️ LE CODE PAYS DE NAISSANCE EST OBLIGATOIRE MEME POUR UNE NAISSANCE
+    // EN FRANCE — a la difference du code pays de l ADRESSE, ou « FR » est
+    // au contraire interdit. Les deux rubriques se ressemblent et obeissent
+    // a des regles opposees.
+    ecrire("S21.G00.30.015", q(s.pays_naissance) || "FR");
     // 🚨 S21.G00.30.011 EST UN CODE PAYS SUR DEUX CARACTERES (« C 2 2 »,
     // cahier page 95). Le premier fichier ecrivait « France » : six
     // caracteres, bloc rejete. On normalise plutot que de faire confiance a
@@ -814,6 +874,15 @@ export async function POST(req: NextRequest) {
     const siretEu = q(ct.eu_siret).replace(/\D/g, "");
 
     if (estMission && siretEu.length === 14 && cleLuhnValide(siretEu)) {
+      // 🚨 L IDENTIFIANT DU LIEU DE TRAVAIL (40.019) DOIT ETRE ECRIT, et il
+      // doit correspondre a un bloc 85 present dans la declaration.
+      // dsn-val : « vous avez declare un contrat de mission sans preciser le
+      // lieu de travail de cette mission ».
+      // ⚠️ POUR UN INTERIMAIRE, LE LIEU DE TRAVAIL EST L ENTREPRISE
+      // UTILISATRICE — c est la qu il travaille reellement. Les rubriques
+      // 019 et 046 portent donc le meme SIRET, mais elles ne disent pas la
+      // meme chose : l une designe le lieu, l autre l employeur d accueil.
+      ecrire("S21.G00.40.019", siretEu);
       ecrire("S21.G00.40.040", q(ct.code_risque_at) || "745BD");
       if (tauxAtMp > 0) ecrire("S21.G00.40.043", montantDsn(tauxAtMp));
       ecrire("S21.G00.40.046", siretEu);
@@ -850,6 +919,22 @@ export async function POST(req: NextRequest) {
     ecrire("S21.G00.40.084", tempsPlein ? "02" : "01");
 
     // ═══════════════════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════════════
+    // ══ S21.G00.53 — L ACTIVITE ══
+    //
+    // 🚨 CONTROLE CCH-15 : des lors que l unite de mesure de la quotite est
+    // « 10 - heure » ou « 12 - journee », au moins un bloc Activite est
+    // exige. C est lui qui porte le VOLUME REELLEMENT TRAVAILLE du mois —
+    // la ou nous avions tente, a tort, de le mettre dans la remuneration.
+    // ⚠️ TYPE 01 = travail remunere. Le type 02 sert aux absences, qui ne
+    // sont pas encore traitees.
+    // ═══════════════════════════════════════════════════════════════
+    if (dureeMensuelleRef > 0) {
+      ecrire("S21.G00.53.001", "01");
+      ecrire("S21.G00.53.002", montantDsn(dureeMensuelleRef));
+      ecrire("S21.G00.53.003", "10");
+    }
+
     // ══ S21.G00.71 — LA RETRAITE COMPLEMENTAIRE ══
     //
     // 🚨 CONTROLE CST-02 : ce sous-groupe est obligatoire apres le contrat.
@@ -859,6 +944,31 @@ export async function POST(req: NextRequest) {
     // auquel le salarie n est pas rattache.
     // ═══════════════════════════════════════════════════════════════
     ecrire("S21.G00.71.002", q(ct.regime_retraite_c) || "RUAA");
+
+    // ═══════════════════════════════════════════════════════════════
+    // ══ S21.G00.86 — L ANCIENNETE ══
+    //
+    // 🚨 CONTROLE CCH-14 : une anciennete de type « 07 - anciennete dans
+    // l entreprise » est OBLIGATOIRE sur un CDI, un CDD, un contrat de
+    // mission et plusieurs autres natures. Elle sert aux droits
+    // conventionnels — primes d anciennete, preavis, indemnites.
+    // ⚠️ ELLE SE COMPTE DEPUIS LA DATE DE DEBUT DU CONTRAT, en mois entiers
+    // revolus a la fin de la periode declaree.
+    // ═══════════════════════════════════════════════════════════════
+    if (q(ct.date_debut)) {
+      const d0 = new Date(String(ct.date_debut));
+      const d1 = new Date(Number(periode.slice(0, 4)),
+        Number(periode.slice(5, 7)), 0);
+      let mois = (d1.getFullYear() - d0.getFullYear()) * 12
+        + (d1.getMonth() - d0.getMonth());
+      if (d1.getDate() < d0.getDate()) mois -= 1;
+      if (mois < 0) mois = 0;
+
+      ecrire("S21.G00.86.001", "07");
+      ecrire("S21.G00.86.002", "02");           // unite : mois
+      ecrire("S21.G00.86.003", String(mois));
+      ecrire("S21.G00.86.005", numeroContrat);
+    }
 
     // ═══════════════════════════════════════════════════════════════
     // ══ S21.G00.85 — LE LIEU DE TRAVAIL / ETABLISSEMENT UTILISATEUR ══
@@ -939,10 +1049,12 @@ export async function POST(req: NextRequest) {
     // melangees.
     ecrire("S21.G00.51.010", numeroContrat);
     ecrire("S21.G00.51.011", codeBrut || "001");
-    // ⚠️ LE NOMBRE D HEURES (51.012) ACCOMPAGNE LA REMUNERATION BRUTE :
-    // c est lui qui permet a l organisme de rapporter le montant a un
-    // volume de travail, et donc de verifier le respect du SMIC.
-    if (dureeMensuelleRef > 0) ecrire("S21.G00.51.012", montantDsn(dureeMensuelleRef));
+    // 🚨 LE NOMBRE D HEURES EST INTERDIT ICI, ET C ETAIT MON ERREUR.
+    // dsn-val, controle SIG-13 : « vous avez renseigne un nombre d heures
+    // dans un bloc relatif a la remuneration brute non plafonnee. Cela
+    // n est pas autorise. »
+    // ⚠️ LE VOLUME DE TRAVAIL SE DECLARE DANS LE BLOC ACTIVITE
+    // (S21.G00.53), ecrit plus haut, pas dans la remuneration.
     ecrire("S21.G00.51.013", montantDsn(b.brut));
 
     // ═══════════════════════════════════════════════════════════════
