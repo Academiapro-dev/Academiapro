@@ -417,13 +417,38 @@ export async function POST(req: NextRequest) {
     // ══ S21.G00.40 — LE CONTRAT ══
     const natureContrat = await code("S21.G00.40.007", q(ct.type_contrat), periode);
     if (!natureContrat) {
-      anomalies.push("Aucun code DSN pour le type de contrat « "
+      anomalies.push(qui + " : aucun code DSN pour le type de contrat « "
         + q(ct.type_contrat) + " » (S21.G00.40.007). "
-        + "⛔ AJOUTER LA CORRESPONDANCE DANS dsn_codes.");
+        + "⛔ NON DÉCLARÉ. Ajouter la correspondance dans dsn_codes — "
+        + "01 CDI, 02 CDD, 07 contrat de travail temporaire.");
+    }
+
+    // 🆕🚨 16/09 — LE STATUT CONVENTIONNEL NE S ECRIT PLUS EN DUR.
+    //
+    // DEFAUT TROUVE EN LISANT LA TABLE OFFICIELLE : le generateur posait
+    // « 03 » faute de valeur saisie. Or 03 = CADRE DIRIGEANT
+    // (art. L.3111-2). Tout salarie sans statut renseigne — donc tous —
+    // etait declare cadre dirigeant. Le cariste de l essai en faisait
+    // partie.
+    //   01 Non-cadre · 02 Cadre (article 4) · 03 Cadre dirigeant
+    //   04 Article 4 bis (assimile cadre retraite)
+    // ⚠️ CE CODE COMMANDE LE REGIME DE RETRAITE COMPLEMENTAIRE et les
+    // obligations de prevoyance : c est tout sauf anodin.
+    // 🚨 IL SE DEDUIT DE LA CATEGORIE DU CONTRAT, par une correspondance en
+    // base — comme les taux, comme les nomenclatures.
+    let statutConv = q(ct.statut_conventionnel);
+    if (!statutConv) {
+      statutConv = (await code("S21.G00.40.002", q(ct.categorie), periode)) || "";
+    }
+    if (!statutConv) {
+      anomalies.push(qui + " : statut conventionnel introuvable pour la "
+        + "catégorie « " + q(ct.categorie) + " » (S21.G00.40.002). "
+        + "⛔ NON DÉCLARÉ — ne jamais poser « 03 » par défaut, c'est "
+        + "« cadre dirigeant ».");
     }
 
     ecrire("S21.G00.40.001", dateDsn(ct.date_debut));
-    ecrire("S21.G00.40.002", q(ct.statut_conventionnel) || "03");
+    ecrire("S21.G00.40.002", statutConv);
     ecrire("S21.G00.40.007", natureContrat || "");
     ecrire("S21.G00.40.009", q(ct.idcc) ? String(ct.idcc).padStart(4, "0") : "9999");
 
