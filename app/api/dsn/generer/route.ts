@@ -797,7 +797,17 @@ export async function POST(req: NextRequest) {
     const missionValide = estMission && siretEu.length === 14
       && cleLuhnValide(siretEu);
 
-    if (missionValide) ecrire("S21.G00.40.019", siretEu);
+    // 🚨 L IDENTIFIANT DU LIEU DE TRAVAIL EST OBLIGATOIRE POUR TOUS LES
+    // CONTRATS, pas seulement pour l interim. dsn-val : « absence de la
+    // rubrique S21.G00.40.019 » sur le CDI comme sur le CDD.
+    //
+    // ⚠️ POUR UN SALARIE ORDINAIRE, LE LIEU DE TRAVAIL EST L ETABLISSEMENT
+    // QUI L EMPLOIE : la rubrique reprend alors le SIRET de la societe.
+    // Pour un interimaire, c est l entreprise utilisatrice — c est la qu il
+    // travaille reellement, et c est elle qui porte le risque.
+    // ⛔ ET CE QUI EST DECLARE ICI DOIT EXISTER EN BLOC 85 : les deux se
+    // repondent, sinon la declaration est rejetee.
+    ecrire("S21.G00.40.019", missionValide ? siretEu : siret);
 
     ecrire("S21.G00.40.020", q(ct.regime_vieillesse) || "200");
 
@@ -882,13 +892,24 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 🚨 LA PERIODE D ESSAI EST OBLIGATOIRE pour les CDI et les CDD de plus
-    // de six mois depuis le cahier technique 2026.
-    if (ct.essai_duree_jours) {
-      ecrire("S21.G00.40.082", String(ct.essai_duree_jours));
-    } else if (q(ct.type_contrat) === "cdi") {
-      anomalies.push(qui + " : durée de période d'essai absente "
-        + "(S21.G00.40.082), obligatoire pour un CDI.");
+    // 🚨 LA PERIODE D ESSAI NE SE DECLARE QUE TANT QU ELLE COURT.
+    //
+    // dsn-val, sur le CDI de janvier avec 60 jours d essai : « presence de
+    // la rubrique interdite S21.G00.40.082 ». Le cahier la dit obligatoire
+    // — elle l est, mais seulement pendant l essai. Une fois le delai
+    // ecoule, la declarer n a plus de sens et devient une faute.
+    //
+    // ⚠️ LE CALCUL SE FAIT A LA FIN DU MOIS DECLARE : si l essai se termine
+    // avant, la rubrique disparait d elle-meme au mois suivant.
+    if (ct.essai_duree_jours && q(ct.date_debut)) {
+      const debutC = new Date(String(ct.date_debut));
+      const finEssai = new Date(debutC.getTime()
+        + Number(ct.essai_duree_jours) * 86400000);
+      const finMois = new Date(Number(periode.slice(0, 4)),
+        Number(periode.slice(5, 7)), 0);
+      if (finEssai >= finMois) {
+        ecrire("S21.G00.40.082", String(ct.essai_duree_jours));
+      }
     }
 
     // ⚠️ PRORATISATION DU PLAFOND DE SECURITE SOCIALE a hauteur de la
@@ -896,72 +917,7 @@ export async function POST(req: NextRequest) {
     ecrire("S21.G00.40.084", tempsPlein ? "02" : "01");
 
     // ═══════════════════════════════════════════════════════════════
-    // ═══════════════════════════════════════════════════════════════
-    // ══ S21.G00.53 — L ACTIVITE ══
-    //
-    // 🚨 CONTROLE CCH-15 : des lors que l unite de mesure de la quotite est
-    // « 10 - heure » ou « 12 - journee », au moins un bloc Activite est
-    // exige. C est lui qui porte le VOLUME REELLEMENT TRAVAILLE du mois —
-    // la ou nous avions tente, a tort, de le mettre dans la remuneration.
-    // ⚠️ TYPE 01 = travail remunere. Le type 02 sert aux absences, qui ne
-    // sont pas encore traitees.
-    // ═══════════════════════════════════════════════════════════════
-    if (dureeMensuelleRef > 0) {
-      ecrire("S21.G00.53.001", "01");
-      ecrire("S21.G00.53.002", montantDsn(dureeMensuelleRef));
-      ecrire("S21.G00.53.003", "10");
-    }
 
-    // ══ S21.G00.71 — LA RETRAITE COMPLEMENTAIRE ══
-    //
-    // 🚨 CONTROLE CST-02 : ce sous-groupe est obligatoire apres le contrat.
-    // « RUAA » designe le regime unifie Agirc-Arrco — coherent avec le code
-    // de cotisation 131 que nous declarons plus bas. Les deux doivent dire
-    // la meme chose, sinon l organisme recoit une cotisation pour un regime
-    // auquel le salarie n est pas rattache.
-    // ═══════════════════════════════════════════════════════════════
-    ecrire("S21.G00.71.002", q(ct.regime_retraite_c) || "RUAA");
-
-    // ═══════════════════════════════════════════════════════════════
-    // ══ S21.G00.86 — L ANCIENNETE ══
-    //
-    // 🚨 CONTROLE CCH-14 : une anciennete de type « 07 - anciennete dans
-    // l entreprise » est OBLIGATOIRE sur un CDI, un CDD, un contrat de
-    // mission et plusieurs autres natures. Elle sert aux droits
-    // conventionnels — primes d anciennete, preavis, indemnites.
-    // ⚠️ ELLE SE COMPTE DEPUIS LA DATE DE DEBUT DU CONTRAT, en mois entiers
-    // revolus a la fin de la periode declaree.
-    // ═══════════════════════════════════════════════════════════════
-    if (q(ct.date_debut)) {
-      const d0 = new Date(String(ct.date_debut));
-      const d1 = new Date(Number(periode.slice(0, 4)),
-        Number(periode.slice(5, 7)), 0);
-      let mois = (d1.getFullYear() - d0.getFullYear()) * 12
-        + (d1.getMonth() - d0.getMonth());
-      if (d1.getDate() < d0.getDate()) mois -= 1;
-      if (mois < 0) mois = 0;
-
-      // 🚨🚨 UNE ANCIENNETE NULLE EST INTERDITE. Le cahier, rubrique
-      // 86.003 : « la valeur retenue pour le code type d expression de
-      // l anciennete doit permettre d exprimer une anciennete NON NULLE ».
-      //
-      // ⚠️ UN SALARIE EMBAUCHE LE MOIS MEME A ZERO MOIS D ANCIENNETE — et
-      // c est arithmetiquement juste. La norme demande alors de CHANGER
-      // D UNITE plutot que de declarer zero : on compte en JOURS.
-      // C est exactement pourquoi la rubrique 86.002 existe.
-      const joursAnciennete = Math.max(1, Math.round(
-        (d1.getTime() - d0.getTime()) / 86400000) + 1);
-
-      ecrire("S21.G00.86.001", "07");
-      if (mois >= 1) {
-        ecrire("S21.G00.86.002", "02");          // unite : mois
-        ecrire("S21.G00.86.003", String(mois));
-      } else {
-        ecrire("S21.G00.86.002", "01");          // unite : jours
-        ecrire("S21.G00.86.003", String(joursAnciennete));
-      }
-      ecrire("S21.G00.86.005", numeroContrat);
-    }
 
     // ═══════════════════════════════════════════════════════════════
     // ══ S21.G00.85 — LE LIEU DE TRAVAIL / ETABLISSEMENT UTILISATEUR ══
@@ -995,6 +951,27 @@ export async function POST(req: NextRequest) {
     // et tous ses enfants en ont besoin.
     const debutPeriode = dateDsn(periode);
     const finPeriode = finDeMois(periode);
+
+    // ═══════════════════════════════════════════════════════════════
+    // 🚨🚨 L ORDRE DES SOUS-GROUPES DU CONTRAT — LA REGLE, ENFIN COMPLETE
+    //
+    // Sous un meme parent, les sous-groupes se suivent dans l ORDRE
+    // CROISSANT DE LEUR NUMERO, sans exception :
+    //     40 contrat · 50 versement · 51 remuneration · 53 activite
+    //     58 net social · 71 retraite complementaire · 78 assiettes
+    //     (avec 79 et 81) · 86 anciennete
+    //
+    // ⚠️ J AVAIS ECRIT 53, 71 ET 86 JUSTE APRES LE CONTRAT, avant le
+    // versement. dsn-val a repondu « sous-groupe S21.G00.50 non attendu
+    // apres S21.G00.86.005 » et « S21.G00.53 non attendu apres
+    // S21.G00.40.084 » : l activite etait ignoree, d ou l anomalie sur
+    // l unite de mesure de la quotite, et la remuneration ne se rattachait
+    // plus au versement.
+    //
+    // ⛔ UNE SEULE INVERSION FAIT TOMBER TOUT CE QUI SUIT DANS LE BLOC.
+    // C est la troisieme fois de la journee que cette regle se rappelle a
+    // nous, et la derniere : l ordre ci-dessous est celui de la norme.
+    // ═══════════════════════════════════════════════════════════════
 
     // ══ S21.G00.50 — LE VERSEMENT INDIVIDU ══
     //
@@ -1050,6 +1027,24 @@ export async function POST(req: NextRequest) {
     // (S21.G00.53), ecrit plus haut, pas dans la remuneration.
     ecrire("S21.G00.51.013", montantDsn(b.brut));
 
+
+    // ═══════════════════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════════════
+    // ══ S21.G00.53 — L ACTIVITE ══
+    //
+    // 🚨 CONTROLE CCH-15 : des lors que l unite de mesure de la quotite est
+    // « 10 - heure » ou « 12 - journee », au moins un bloc Activite est
+    // exige. C est lui qui porte le VOLUME REELLEMENT TRAVAILLE du mois —
+    // la ou nous avions tente, a tort, de le mettre dans la remuneration.
+    // ⚠️ TYPE 01 = travail remunere. Le type 02 sert aux absences, qui ne
+    // sont pas encore traitees.
+    // ═══════════════════════════════════════════════════════════════
+    if (dureeMensuelleRef > 0) {
+      ecrire("S21.G00.53.001", "01");
+      ecrire("S21.G00.53.002", montantDsn(dureeMensuelleRef));
+      ecrire("S21.G00.53.003", "10");
+    }
+
     // ═══════════════════════════════════════════════════════════════
     // ══ S21.G00.58 — LE MONTANT NET SOCIAL ══
     //
@@ -1065,7 +1060,16 @@ export async function POST(req: NextRequest) {
     ecrire("S21.G00.58.003", "03");
     ecrire("S21.G00.58.004", montantDsn(b.net_social));
 
+    // ══ S21.G00.71 — LA RETRAITE COMPLEMENTAIRE ══
+    //
+    // 🚨 CONTROLE CST-02 : ce sous-groupe est obligatoire apres le contrat.
+    // « RUAA » designe le regime unifie Agirc-Arrco — coherent avec le code
+    // de cotisation 131 que nous declarons plus bas. Les deux doivent dire
+    // la meme chose, sinon l organisme recoit une cotisation pour un regime
+    // auquel le salarie n est pas rattache.
     // ═══════════════════════════════════════════════════════════════
+    ecrire("S21.G00.71.002", q(ct.regime_retraite_c) || "RUAA");
+
     // ══ S21.G00.78 / 79 / 81 — LES ASSIETTES ET LEURS COTISATIONS ══
     //
     // 🚨🚨 16/09, APRES LECTURE DU CAHIER TECHNIQUE : LA HIERARCHIE SE LIT
@@ -1249,6 +1253,47 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // ═══════════════════════════════════════════════════════════════
+    // ══ S21.G00.86 — L ANCIENNETE ══
+    //
+    // 🚨 CONTROLE CCH-14 : une anciennete de type « 07 - anciennete dans
+    // l entreprise » est OBLIGATOIRE sur un CDI, un CDD, un contrat de
+    // mission et plusieurs autres natures. Elle sert aux droits
+    // conventionnels — primes d anciennete, preavis, indemnites.
+    // ⚠️ ELLE SE COMPTE DEPUIS LA DATE DE DEBUT DU CONTRAT, en mois entiers
+    // revolus a la fin de la periode declaree.
+    // ═══════════════════════════════════════════════════════════════
+    if (q(ct.date_debut)) {
+      const d0 = new Date(String(ct.date_debut));
+      const d1 = new Date(Number(periode.slice(0, 4)),
+        Number(periode.slice(5, 7)), 0);
+      let mois = (d1.getFullYear() - d0.getFullYear()) * 12
+        + (d1.getMonth() - d0.getMonth());
+      if (d1.getDate() < d0.getDate()) mois -= 1;
+      if (mois < 0) mois = 0;
+
+      // 🚨🚨 UNE ANCIENNETE NULLE EST INTERDITE. Le cahier, rubrique
+      // 86.003 : « la valeur retenue pour le code type d expression de
+      // l anciennete doit permettre d exprimer une anciennete NON NULLE ».
+      //
+      // ⚠️ UN SALARIE EMBAUCHE LE MOIS MEME A ZERO MOIS D ANCIENNETE — et
+      // c est arithmetiquement juste. La norme demande alors de CHANGER
+      // D UNITE plutot que de declarer zero : on compte en JOURS.
+      // C est exactement pourquoi la rubrique 86.002 existe.
+      const joursAnciennete = Math.max(1, Math.round(
+        (d1.getTime() - d0.getTime()) / 86400000) + 1);
+
+      ecrire("S21.G00.86.001", "07");
+      if (mois >= 1) {
+        ecrire("S21.G00.86.002", "02");          // unite : mois
+        ecrire("S21.G00.86.003", String(mois));
+      } else {
+        ecrire("S21.G00.86.002", "01");          // unite : jours
+        ecrire("S21.G00.86.003", String(joursAnciennete));
+      }
+      ecrire("S21.G00.86.005", numeroContrat);
+    }
+
     totalBrut += Number(b.brut || 0);
     totalCotisations += Number(b.total_salarial || 0) + Number(b.total_patronal || 0);
   }
@@ -1279,7 +1324,31 @@ export async function POST(req: NextRequest) {
   // le SIRET est refuse, et sans code INSEE la commune n est pas situee.
   // Un bloc 85 incomplet emporte tous les salaries avec lui.
   // ═══════════════════════════════════════════════════════════════════
+  // 🚨 L ETABLISSEMENT EMPLOYEUR EST LUI-MEME UN LIEU DE TRAVAIL : tous les
+  // salaries qui ne sont pas en mission y travaillent, et leur rubrique
+  // 40.019 le designe. Il doit donc figurer en bloc 85 comme les autres.
   const lieuxVus: string[] = [];
+
+  if (bulletins.some(function (b0: any) {
+    const c0: any = (b0 as any).paie_contrats;
+    return !c0 || q(c0.type_contrat) !== "mission" || !q(c0.eu_siret);
+  })) {
+    lieuxVus.push(siret);
+    ecrire("S21.G00.85.001", siret);
+    if (q(societe.code_ape)) ecrire("S21.G00.85.002", societe.code_ape);
+    ecrire("S21.G00.85.003", societe.adresse);
+    ecrire("S21.G00.85.004", q(societe.code_postal));
+    ecrire("S21.G00.85.005", societe.ville);
+    ecrire("S21.G00.85.010", "01");
+    // ⚠️ LE CODE INSEE DE LA COMMUNE DU SIEGE : sans lui le bloc est rejete.
+    if (q(societe.code_insee)) ecrire("S21.G00.85.011", societe.code_insee);
+    else {
+      anomalies.push("Code INSEE de la commune absent pour l'établissement "
+        + "employeur (S21.G00.85.011). ⛔ LE BLOC LIEU DE TRAVAIL SERA "
+        + "REJETÉ. Renseigner compta_societes.code_insee.");
+    }
+  }
+
   for (const b0 of bulletins) {
     const c0: any = (b0 as any).paie_contrats;
     if (!c0) continue;
