@@ -15,6 +15,20 @@
 // ⚠️ LE CONTROLE dsn-val EST MANUEL : l outil officiel se telecharge et
 // tourne sur le poste. La plateforme ne peut que demander confirmation
 // qu il a ete passe, et le consigner.
+//
+// ═══════════════════════════════════════════════════════════════════════
+// 🆕🚨 16/09 — « AUCUN BULLETIN » NE SE DIT PLUS SANS SE JUSTIFIER
+//
+// Au premier essai, l ecran annoncait « 0 mois avec des bulletins » alors
+// que la base en portait trois, dont un emis. Aucun message, aucune piste :
+// impossible de savoir si la reponse etait « il n y a rien » ou « je n ai
+// pas pu lire ». Trois allers-retours ont ete perdus a cette seule
+// question.
+//
+// ⚠️ UN ECRAN VIDE DOIT DIRE POURQUOI IL EST VIDE. Le compte de lecture
+// rendu par la route s affiche desormais sous le message : combien de
+// bulletins lus, combien d annules ecartes, combien de mois construits.
+// Trois chiffres qui repondent en une seconde.
 // ═══════════════════════════════════════════════════════════════════════
 
 import { useState, useEffect } from "react";
@@ -86,6 +100,8 @@ export default function PageDsn() {
   const [err, setErr] = useState("");
   const [occupe, setOccupe] = useState("");
   const [detail, setDetail] = useState<any>(null);
+  // 🆕 CE QUE LA ROUTE A REELLEMENT LU.
+  const [diag, setDiag] = useState<any>(null);
 
   useEffect(function () {
     const s = sessionStorage.getItem("paie_secret") || "";
@@ -96,6 +112,9 @@ export default function PageDsn() {
     const cle = s || secret;
     const r = await fetch("/api/dsn/dossier?secret=" + encodeURIComponent(cle), {
       method: "POST",
+      // ⚠️ `no-store` COTE NAVIGATEUR AUSSI : la route porte deja ses
+      // en-tetes, mais rien n empeche Safari de garder sa propre copie.
+      cache: "no-store",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(corps),
     });
@@ -107,8 +126,12 @@ export default function PageDsn() {
     const d = await appeler({ action: "etat" }, s);
     if (d.success) {
       setMois(d.mois); setSocietes(d.societes);
+      setDiag(d.diagnostic || null);
       if (s) sessionStorage.setItem("paie_secret", s);
-    } else setErr(d.erreur || "chargement impossible");
+    } else {
+      setErr((d.erreur || "chargement impossible")
+        + (d.ou ? " (table : " + d.ou + ")" : ""));
+    }
     setOccupe("");
   }
 
@@ -116,6 +139,7 @@ export default function PageDsn() {
     setErr(""); setMsg(""); setOccupe("generer" + m.periode);
     const r = await fetch("/api/dsn/generer?secret=" + encodeURIComponent(secret), {
       method: "POST",
+      cache: "no-store",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ societe_id: m.societe_id, periode: m.periode }),
     });
@@ -208,10 +232,19 @@ export default function PageDsn() {
         <h1 style={{ color: OR, fontSize: "26px", marginBottom: "4px" }}>
           Déclaration sociale nominative
         </h1>
-        <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "13px",
-          marginBottom: "10px" }}>
-          {mois.length} mois avec des bulletins
-        </p>
+        <div style={{ display: "flex", alignItems: "baseline", gap: "14px",
+          flexWrap: "wrap", marginBottom: "10px" }}>
+          <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "13px", margin: 0 }}>
+            {mois.length} mois avec des bulletins
+          </p>
+          {/* ⚠️ RECHARGER SANS QUITTER L ECRAN : un bulletin emis dans
+              l autre onglet ne se voit pas tout seul. */}
+          <button onClick={() => charger()} disabled={occupe !== ""}
+            style={{ background: "none", border: "none", color: OR,
+              cursor: "pointer", fontSize: "12.5px", padding: 0 }}>
+            {occupe === "charger" ? "…" : "recharger"}
+          </button>
+        </div>
 
         {/* 🚨 LE RAPPEL QUI EVITE LA PENALITE. */}
         <div style={{ ...CADRE, borderLeft: "3px solid " + OR }}>
@@ -305,14 +338,44 @@ export default function PageDsn() {
           </div>
         )}
 
-        {/* ---- LES MOIS ---- */}
+        {/* ═══════════════════════════════════════════════════════════════
+            ---- QUAND IL N Y A RIEN, DIRE POURQUOI ----
+
+            🚨 « Aucun bulletin » peut vouloir dire deux choses opposees :
+            il n y en a vraiment pas, ou la lecture n a rien rendu. Les
+            trois chiffres ci-dessous tranchent sans qu il faille ouvrir la
+            base.
+            ⚠️ SI `bulletins_lus` EST A ZERO alors que la base en porte, le
+            defaut est dans la lecture — pas dans les donnees.
+            ═══════════════════════════════════════════════════════════════ */}
         {mois.length === 0 && !occupe && (
-          <p style={{ fontSize: "14px", color: "rgba(255,255,255,0.45)" }}>
-            Aucun bulletin pour l&apos;instant. La DSN se construit à partir des
-            bulletins émis.
-          </p>
+          <div style={CADRE}>
+            <p style={{ fontSize: "14px", color: "rgba(255,255,255,0.55)",
+              margin: "0 0 10px", lineHeight: "1.6" }}>
+              Aucun mois à déclarer. La DSN se construit à partir des
+              bulletins <strong>émis</strong> — un brouillon n&apos;a pas été
+              remis au salarié, et un bulletin annulé ne compte plus.
+            </p>
+            {diag && (
+              <p style={{ fontSize: "12px", color: "rgba(255,255,255,0.45)",
+                margin: 0, lineHeight: "1.7" }}>
+                Ce que la lecture a rendu : <strong>{diag.bulletins_lus}</strong> bulletin(s)
+                lu(s), dont <strong>{diag.annules_ignores}</strong> annulé(s) écarté(s) ·
+                <strong> {diag.societes_lues}</strong> société(s) ·
+                <strong> {diag.declarations_lues}</strong> déclaration(s) ·
+                <strong> {diag.mois_construits}</strong> mois construit(s).
+              </p>
+            )}
+            {!diag && (
+              <p style={{ fontSize: "12px", color: ROUGE, margin: 0 }}>
+                La route n&apos;a rendu aucun compte de lecture : elle n&apos;est
+                pas à jour.
+              </p>
+            )}
+          </div>
         )}
 
+        {/* ---- LES MOIS ---- */}
         {mois.map(function (m: any) {
           const d = m.declaration;
           const soc = societes.filter(function (s: any) {
@@ -354,6 +417,18 @@ export default function PageDsn() {
                 {" · "}brut {euros(m.brut)} €
                 {" · "}à déposer avant le {dateLimite(m.periode, eff)}
               </p>
+
+              {/* 🚨 SANS SIRET, AUCUNE DSN N EST POSSIBLE : c est
+                  l identifiant de l etablissement declarant. Autant le dire
+                  avant le clic plutot qu apres. */}
+              {!m.siret && (
+                <p style={{ margin: "8px 0 0", fontSize: "12.5px", color: ROUGE,
+                  lineHeight: "1.6" }}>
+                  Cette société n&apos;a pas de SIRET : la DSN ne peut pas être
+                  générée. Une société étrangère ne peut pas être établissement
+                  déclarant en France.
+                </p>
+              )}
 
               {/* ⛔ LA DSN NE PREND QUE LES BULLETINS EMIS. */}
               {m.emis === 0 && (
