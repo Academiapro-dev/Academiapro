@@ -610,7 +610,13 @@ export default function PagePaie() {
               </h3>
               <p style={{ fontSize: "12.5px", color: "rgba(255,255,255,0.5)",
                 lineHeight: "1.6", marginTop: 0 }}>
-                Le salaire de base se calcule tout seul depuis le taux horaire.
+                {/* 🚨 LE TEXTE SUIT LE CONTRAT. Il annoncait « depuis le taux
+                    horaire » a un salarie paye au mois : celui qui lit croit
+                    devoir saisir des heures, et se demande ou. Un CDI se paie
+                    au mois, une mission a l heure — l ecran doit dire lequel. */}
+                Le salaire de base se calcule tout seul depuis {choisi && Number(choisi.salaire_mensuel) > 0
+                  ? "le salaire mensuel du contrat"
+                  : "le taux horaire"}.
                 N&apos;ajoutez ici que ce qui sort de l&apos;ordinaire.
               </p>
 
@@ -698,6 +704,37 @@ export default function PagePaie() {
                 </button>
               )}
             </div>
+
+            {/* ═══════════════════════════════════════════════════════════
+                🚨 UN BULLETIN SORTI N EST PAS UN BULLETIN EMIS.
+                Defaut trouve a l essai du CDI le 16/09 : le bulletin porte
+                un numero, il est imprime, il est remis — et il reste
+                MODIFIABLE. Rien a l ecran ne disait qu une etape restait.
+                ⚠️ CE QUI EN DEPEND : l acquisition des conges payes se pose
+                A L EMISSION. Un bulletin qui reste en brouillon ne donne
+                aucun jour au salarie, et personne ne s en apercoit avant
+                qu il les reclame.
+                ═══════════════════════════════════════════════════════════ */}
+            {brouillonDuMois && (
+              <div style={{ marginTop: "14px", padding: "12px 14px",
+                border: "1px solid rgba(212,175,110,0.35)", borderRadius: "8px",
+                background: "rgba(212,175,110,0.06)", fontSize: "13px",
+                lineHeight: 1.55 }}>
+                <strong style={{ color: OR }}>Ce bulletin est encore un brouillon.</strong>
+                {" "}Il peut être recalculé autant que nécessaire. Tant qu&apos;il
+                n&apos;est pas émis, il ne compte pas dans la DSN et
+                {choisi && choisi.type_contrat === "cdi"
+                  ? " aucun jour de congé n'est acquis."
+                  : " il n'est pas définitif."}
+                <button onClick={() => emettre(brouillonDuMois)}
+                  disabled={occupe !== ""}
+                  style={{ marginLeft: "12px", background: "none",
+                    border: "1px solid " + VERT, color: VERT, borderRadius: "6px",
+                    padding: "5px 12px", cursor: "pointer", fontSize: "12.5px" }}>
+                  {occupe === "emettre" ? "…" : "Émettre ce bulletin"}
+                </button>
+              </div>
+            )}
 
             {calcul && (
               <div style={CADRE}>
