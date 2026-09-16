@@ -253,7 +253,23 @@ async function calculer(contratId: string, periode: string): Promise<any> {
   let iccp = 0;
   const lignesMission: any[] = [];
 
-  if (contrat.type_contrat === "mission") {
+  // 🚨 LE CDD A DROIT LUI AUSSI A UNE INDEMNITE DE FIN DE CONTRAT — 10 % de
+  // la remuneration totale brute, article L1243-8 du code du travail. Elle
+  // porte un autre nom (« prime de precarite ») mais elle obeit a la meme
+  // regle que l IFM de l interim, et l ICCP la suit de la meme facon.
+  //
+  // ⚠️ LES CAS OU ELLE N EST PAS DUE DIFFERENT UN PEU DE CEUX DE L INTERIM :
+  // emploi saisonnier ou d usage, contrat conclu avec un jeune pendant ses
+  // vacances scolaires, refus par le salarie d un CDI au meme poste,
+  // rupture anticipee a son initiative, faute grave, force majeure.
+  // C est `ifm_due` qui porte la decision, et le motif est ecrit a cote.
+  //
+  // 🚨 LE CDI N A NI L UNE NI L AUTRE : pas d indemnite de precarite, et
+  // les conges payes sont pris, pas compenses mois par mois.
+  const aIndemnitesFinContrat = contrat.type_contrat === "mission"
+    || contrat.type_contrat === "cdd";
+
+  if (aIndemnitesFinContrat) {
     const { data: regles } = await supabase
       .from("paie_regles_mission")
       .select("*")
@@ -266,7 +282,8 @@ async function calculer(contratId: string, periode: string): Promise<any> {
       // mission, contrat saisonnier, faute grave… Le contrat le dit.
       if (r.code === "IFM" && contrat.ifm_due === false) {
         lignesMission.push({
-          libelle: r.libelle + " — non due",
+          libelle: (contrat.type_contrat === "cdd"
+            ? "Indemnite de fin de contrat" : r.libelle) + " — non due",
           montant: 0,
           motif: contrat.ifm_motif_non_due || "non due",
         });
@@ -281,9 +298,17 @@ async function calculer(contratId: string, periode: string): Promise<any> {
       if (r.code === "IFM") ifm = montant;
       if (r.code === "ICCP") iccp = montant;
 
+      // ⚠️ LE LIBELLE SUIT LE CONTRAT. Sur un CDD, « indemnite de fin de
+      // mission » serait faux : le salarie n est pas interimaire, et un
+      // bulletin qui se trompe de vocabulaire fait douter du reste.
+      let libelle = r.libelle;
+      if (contrat.type_contrat === "cdd" && r.code === "IFM") {
+        libelle = "Indemnite de fin de contrat (prime de precarite)";
+      }
+
       lignesMission.push({
         code: r.code,
-        libelle: r.libelle,
+        libelle: libelle,
         base: base,
         taux: Number(r.taux),
         montant: montant,
@@ -550,8 +575,19 @@ async function calculer(contratId: string, periode: string): Promise<any> {
         "Le prelevement a la source est a zero : son taux vient du retour DSN.",
         "Aucune convention collective n est traitee (paie_conventions).",
         "La RGDU est calculee sur le mois, pas sur le cumul annuel : sur un salaire variable, l approximation derive.",
+        "Les conges payes d un CDI ne sont pas suivis : ni compteur d acquisition, ni valorisation a la prise.",
         "Le montant net social ne reintegre aucune garantie complementaire : mutuelle et prevoyance n existent pas encore.",
       ];
+      // 🚨 LE CDI N A PAS D INDEMNITE DE PRECARITE — c est normal, et c est
+      // dit pour que personne ne cherche une ligne manquante. En revanche,
+      // ses conges payes s acquierent mois par mois et se valorisent a la
+      // prise : ce suivi n existe pas encore.
+      if (contrat.type_contrat === "cdi") {
+        r.unshift("CDI : aucune indemnite de precarite, c est normal. "
+          + "⚠️ MAIS LE COMPTEUR DE CONGES PAYES N EXISTE PAS ENCORE — "
+          + "2,5 jours ouvrables par mois travaille, a valoriser a la prise "
+          + "selon la regle la plus favorable (maintien ou dixieme).");
+      }
       if (!effectifConnu) {
         r.unshift("🚨 EFFECTIF INCONNU pour cette societe : le FNAL et le Tdelta de la RGDU sont ceux des MOINS DE 50 SALARIES. Si l entreprise est plus grande, la cotisation est sous-evaluee et la reduction sur-evaluee.");
       }
