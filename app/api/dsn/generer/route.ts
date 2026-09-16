@@ -106,27 +106,32 @@ const VERSION_LOGICIEL = "1.0.0";
 
 // 🚨 LA VERSION DE LA NORME (S10.G00.00.006). Elle change CHAQUE ANNEE :
 // cahier technique publie en decembre, applicable en avril.
-// ⚠️ LE FORMAT EST « PnnVmm » — P26V01 pour 2026. Le fichier precedent
-// portait « 2601 », qui est la forme abregee qu on trouve sur des sites
-// secondaires, pas celle du cahier technique.
-// ⛔ A CONFIRMER DANS dsn-val AVANT TOUT DEPOT REEL.
+// ✅ VERIFIE AU CAHIER, page 129 : « P26V01 - Annee 2026 Version 1 »,
+// format impose X [6,6] — exactement six caracteres. Le « 2601 » du premier
+// fichier venait d un site tiers et aurait ete rejete sur la longueur.
+// ⛔ A CHANGER CHAQUE ANNEE : P27V01 quand la norme 2027 s appliquera.
 const NORME = "P26V01";
 
 // 🚨 CODE ENVOI DU FICHIER D ESSAI OU REEL — S10.G00.00.005.
-// ⚠️ « 01 » = ESSAI, « 02 » = REEL. C est dans ce sens, et pas l inverse :
-// verifie le 16/09 dans le cahier technique NEODeS. En essai, le bilan des
-// controles est rendu quel que soit le resultat et AUCUNE donnee n est
-// conservee par les organismes.
+// ✅ VERIFIE AU CAHIER, page 129 : « 01 - envoi fichier test », « 02 - envoi
+// fichier reel ». C est dans ce sens, et pas l inverse. En essai, le bilan
+// des controles est rendu quel que soit le resultat et AUCUNE donnee n est
+// conservee par les organismes — le nombre d envois n est pas limite.
 // ⛔ NE PASSER A « 02 » QUE LE JOUR D UN VRAI DEPOT.
 const ENVOI = "01";
 
-// ⚠️ POINT DE DEPOT — S10.G00.00.007. « 01 » pour net-entreprises (regime
-// general). ⛔ A CONFIRMER DANS dsn-val.
+// POINT DE DEPOT — S10.G00.00.007.
+// ✅ VERIFIE AU CAHIER, page 129 : « 01 - Net-entreprises », « 02 - MSA ».
+// ⚠️ LA MSA CONCERNE LE REGIME AGRICOLE. Un employeur agricole depose chez
+// elle, pas chez net-entreprises : le jour ou un client releve de la MSA,
+// cette valeur devra suivre la societe et non le logiciel.
 const POINT_DEPOT = "01";
 
-// ⚠️ TYPE DE L ENVOI — S10.G00.00.008. Il distingue un envoi normal d un
-// envoi ne contenant que des declarations « sans individu ».
-// ⛔ A CONFIRMER DANS dsn-val.
+// TYPE DE L ENVOI — S10.G00.00.008.
+// ✅ VERIFIE AU CAHIER, page 129 : « 01 - envoi normal », « 02 - envoi
+// neant ». Le second ne vaut QUE si toutes les declarations du fichier sont
+// sans individu — un mois sans aucun salarie. Ce n est jamais notre cas ici,
+// puisqu on ne genere qu a partir de bulletins emis.
 const TYPE_ENVOI = "01";
 
 // 🚨 LES CODES DE COTISATION QUI RELEVENT DE LA RETRAITE COMPLEMENTAIRE.
@@ -868,12 +873,12 @@ export async function POST(req: NextRequest) {
 
     // 🚨 CE QUI RESTE AVANT UN DEPOT REEL, DIT FRANCHEMENT.
     avant_depot: [
-      "⛔ PASSER LE FICHIER DANS dsn-val (outil officiel) : aucune DSN ne se dépose sans ce contrôle.",
-      "⛔ RECOUPER LES CODES sur dsn-info.fr : ils portent tous verifie = false dans dsn_codes.",
+      "⛔ PASSER LE FICHIER DANS dsn-val (outil officiel) : aucune DSN ne se dépose sans ce contrôle. "
+        + "Il se télécharge sur net-entreprises.fr et tourne sur un ORDINATEUR, pas dans le navigateur.",
       "L'envoi est en MODE ESSAI (S10.G00.00.005 = 01). Passer à 02 pour un dépôt réel.",
-      "Le point de dépôt (007), le type d'envoi (008) et la version de norme « " + NORME + " » sont à confirmer dans dsn-val.",
-      "Le taux de prélèvement à la source est neutre : le vrai taux vient du compte rendu métier.",
+      "Le taux de prélèvement à la source est neutre : le vrai taux vient du compte rendu métier de la DSN précédente.",
       "La clé de ventilation de la réduction générale entre les codes 018 et 106 est proportionnelle aux cotisations éligibles — à recouper avec la règle URSSAF.",
+      "Le code PCS-ESE de chaque contrat vient de la nomenclature INSEE : un code faux ne fait pas rejeter la déclaration, il fausse le rattachement conventionnel.",
     ],
     message: "Fichier DSN généré en BROUILLON. "
       + (anomalies.length > 0
