@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 // ═══════════════════════════════════════════════════════════════════════
-// LE MOTEUR DE PAIE — 15/09/2026
+// LE MOTEUR DE PAIE — 15/09/2026, corrige le 16/09
 //
 // Il prend un contrat et une periode, et rend un bulletin : le brut, chaque
 // ligne de cotisation avec son assiette et son taux, le net imposable, le
@@ -67,6 +67,7 @@ export const maxDuration = 60;
 //   · AGS         hors champ
 //   · CSA         hors champ
 //   · CET, APEC   hors champ
+//   · AT/MP       hors champ — la RGDU ne le reduit pas
 //   · CSG, CRDS   ce sont des contributions SALARIALES
 // ⚠️ LE FNAL Y EST, ainsi que la retraite complementaire (part patronale) :
 // c est la nouveaute de la RGDU par rapport a l ancienne reduction Fillon.
@@ -83,6 +84,17 @@ const ELIGIBLES_RGDU = [
   "CEG_T1",
   "CEG_T2",
 ];
+
+// 🆕 16/09 — LES COTISATIONS QUI S AFFICHENT MEME A ZERO.
+//
+// 🚨 DEFAUT TROUVE A L ESSAI : l AT/MP DISPARAISSAIT PUREMENT ET SIMPLEMENT
+// du bulletin quand aucun taux n etait renseigne, parce que la ligne valait
+// zero des deux cotes. Un bulletin francais sans ligne accidents du travail
+// n est pas un bulletin incomplet a l oeil : il est SILENCIEUX. Personne ne
+// cherche une ligne qu il ne sait pas manquante.
+// ⚠️ ELLE S AFFICHE DONC A ZERO, AVEC SON ALERTE, jusqu a ce que le taux
+// CARSAT soit renseigne dans paie_taux_societe.
+const TOUJOURS_VISIBLES = ["AT_MP"];
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
@@ -295,6 +307,24 @@ async function calculer(contratId: string, periode: string): Promise<any> {
   const aIndemnitesFinContrat = contrat.type_contrat === "mission"
     || contrat.type_contrat === "cdd";
 
+  // 🆕🚨 16/09 — LE LIBELLE DE L INDEMNITE SE DECIDE ICI, PAS EN BASE.
+  //
+  // DEFAUT TROUVE A L ESSAI : le bulletin d un INTERIMAIRE portait
+  // « Indemnite de fin de mission (prime de precarite) ». La prime de
+  // precarite est le vocabulaire du CDD ; sur une mission, c est
+  // l indemnite de fin de mission, et rien d autre.
+  // ⚠️ POURQUOI ICI ET PAS EN BASE : la regle de calcul est commune aux
+  // deux contrats (10 % du brut), seul le MOT change — et le mot depend du
+  // contrat, que seule cette fonction connait. La base garde donc un
+  // libelle neutre.
+  // 🚨 UN BULLETIN QUI SE TROMPE DE VOCABULAIRE FAIT DOUTER DU RESTE.
+  function libelleIndemnite(code: string, defaut: string): string {
+    if (code !== "IFM") return defaut;
+    return contrat.type_contrat === "cdd"
+      ? "Indemnité de fin de contrat (prime de précarité)"
+      : "Indemnité de fin de mission";
+  }
+
   if (aIndemnitesFinContrat) {
     const { data: regles } = await supabase
       .from("paie_regles_mission")
@@ -308,8 +338,8 @@ async function calculer(contratId: string, periode: string): Promise<any> {
       // mission, contrat saisonnier, faute grave… Le contrat le dit.
       if (r.code === "IFM" && contrat.ifm_due === false) {
         lignesMission.push({
-          libelle: (contrat.type_contrat === "cdd"
-            ? "Indemnite de fin de contrat" : r.libelle) + " — non due",
+          code: r.code,
+          libelle: libelleIndemnite(r.code, r.libelle) + " — non due",
           montant: 0,
           motif: contrat.ifm_motif_non_due || "non due",
         });
@@ -324,17 +354,9 @@ async function calculer(contratId: string, periode: string): Promise<any> {
       if (r.code === "IFM") ifm = montant;
       if (r.code === "ICCP") iccp = montant;
 
-      // ⚠️ LE LIBELLE SUIT LE CONTRAT. Sur un CDD, « indemnite de fin de
-      // mission » serait faux : le salarie n est pas interimaire, et un
-      // bulletin qui se trompe de vocabulaire fait douter du reste.
-      let libelle = r.libelle;
-      if (contrat.type_contrat === "cdd" && r.code === "IFM") {
-        libelle = "Indemnite de fin de contrat (prime de precarite)";
-      }
-
       lignesMission.push({
         code: r.code,
-        libelle: libelle,
+        libelle: libelleIndemnite(r.code, r.libelle),
         base: base,
         taux: Number(r.taux),
         montant: montant,
@@ -384,6 +406,10 @@ async function calculer(contratId: string, periode: string): Promise<any> {
     // 🚨 L AT/MP ET LE VERSEMENT MOBILITE PORTENT UN TAUX A ZERO EN BASE :
     // le vrai taux est propre a la societe. On le substitue ici.
     let tPat = Number(c.taux_patronal);
+    const tauxPropreManquant = (String(c.code) === "AT_MP"
+      || String(c.code) === "VERSEMENT_MOBILITE")
+      && tauxSociete[String(c.code)] === undefined;
+
     if (tauxSociete[String(c.code)] !== undefined) {
       tPat = tauxSociete[String(c.code)];
     }
@@ -396,7 +422,11 @@ async function calculer(contratId: string, periode: string): Promise<any> {
     const partSal = cts(base * Number(c.taux_salarial) / 100);
     const partPat = cts(base * tPat / 100);
 
-    if (partSal === 0 && partPat === 0) continue;
+    // 🆕 16/09 — UNE LIGNE A ZERO DES DEUX COTES DISPARAIT, SAUF CELLES QUI
+    // DOIVENT SE VOIR MEME VIDES. Voir TOUJOURS_VISIBLES en tete de
+    // fichier : l AT/MP absente du bulletin ne se remarque pas.
+    if (partSal === 0 && partPat === 0
+        && TOUJOURS_VISIBLES.indexOf(String(c.code)) < 0) continue;
 
     totalSalarial += partSal;
     totalPatronal += partPat;
@@ -410,9 +440,9 @@ async function calculer(contratId: string, periode: string): Promise<any> {
 
     // 🚨 LES COTISATIONS DANS LE CHAMP DE LA RGDU. La reduction ne peut pas
     // depasser ce qui est effectivement du sur CES cotisations-la.
-    // ⚠️ L AGS N EN FAIT PAS PARTIE, ni la CSA, ni la CET, ni l APEC. Les
-    // inclure gonflerait le plafond et laisserait passer une reduction
-    // superieure a ce que la loi autorise.
+    // ⚠️ L AGS N EN FAIT PAS PARTIE, ni la CSA, ni la CET, ni l APEC, ni
+    // l AT/MP. Les inclure gonflerait le plafond et laisserait passer une
+    // reduction superieure a ce que la loi autorise.
     if (ELIGIBLES_RGDU.indexOf(String(c.code)) >= 0) {
       patronalEligible += partPat;
     }
@@ -427,6 +457,13 @@ async function calculer(contratId: string, periode: string): Promise<any> {
       part_salariale: partSal,
       part_patronale: partPat,
       eligible_rgdu: ELIGIBLES_RGDU.indexOf(String(c.code)) >= 0,
+      // 🆕 16/09 — L ALERTE VOYAGE AVEC LA LIGNE, pour que le bulletin et
+      // l ecran disent la meme chose sans avoir a le redeviner chacun.
+      alerte: tauxPropreManquant
+        ? (String(c.code) === "AT_MP"
+          ? "taux à renseigner — notification CARSAT"
+          : "taux à renseigner — commune du lieu de travail")
+        : null,
     });
   }
 
@@ -544,6 +581,7 @@ async function calculer(contratId: string, periode: string): Promise<any> {
   // ⚠️ ON LIT LE SOLDE, ON NE L ECRIT PAS ICI. L acquisition du mois est
   // posee au moment ou le bulletin est EMIS, pas a chaque calcul : sinon
   // un recalcul doublerait les droits du salarie.
+  // ═══════════════════════════════════════════════════════════════════
   let conges: any = null;
 
   if (contrat.type_contrat === "cdi") {
@@ -584,9 +622,12 @@ async function calculer(contratId: string, periode: string): Promise<any> {
 
   // ⚠️ LE PRELEVEMENT A LA SOURCE N EST PAS CALCULE ICI : son taux est
   // transmis par l administration fiscale dans le compte rendu metier de
-  // la DSN. Tant que la DSN n est pas branchee, il reste a zero et se
-  // saisit a la main si besoin.
+  // la DSN. Tant que la DSN n est pas branchee, il reste a zero.
+  // 🆕 16/09 — ET LE BULLETIN LE DIT. Une ligne « Prelevement a la source
+  // 0,00 » sans explication laisse croire a un salarie non imposable ;
+  // c est un taux NEUTRE en attente du retour de l administration.
   const prelevementSource = 0;
+  const prelevementMention = "taux neutre — en attente du retour DSN";
   const netAPayer = cts(netAvantImpot - prelevementSource);
 
   // ---- LE MONTANT NET SOCIAL ----
@@ -642,46 +683,50 @@ async function calculer(contratId: string, periode: string): Promise<any> {
     conges: conges,
     net_avant_impot: netAvantImpot,
     prelevement_source: prelevementSource,
+    prelevement_mention: prelevementMention,
     net_a_payer: netAPayer,
     cout_employeur: coutEmployeur,
 
     // ⚠️ CE QUI RESTE A FAIRE, DIT FRANCHEMENT PLUTOT QUE TU.
-    // ⚠️ CE QUI RESTE A FAIRE, DIT FRANCHEMENT PLUTOT QUE TU.
+    // 🆕 16/09 — LES RESERVES SONT ACCENTUEES ET DEDOUBLONNEES : la
+    // valorisation des conges y figurait DEUX FOIS, en court puis en long.
+    // Une liste qui se repete est une liste qu on cesse de lire.
     reserves: (function () {
       const r = [
-        "Les taux doivent etre recoupes sur boss.gouv.fr avant tout bulletin reel.",
-        "Les conges payes sont comptes, mais leur VALORISATION A LA PRISE n est pas calculee.",
-        "Le prelevement a la source est a zero : son taux vient du retour DSN.",
-        "Aucune convention collective n est traitee (paie_conventions).",
-        "La RGDU est calculee sur le mois, pas sur le cumul annuel : sur un salaire variable, l approximation derive.",
-        "Les conges payes sont comptes, mais leur VALORISATION A LA PRISE n est pas calculee : il faudra comparer le maintien de salaire et la regle du dixieme, et retenir le plus favorable (art. L3141-24).",
-        "Le montant net social ne reintegre aucune garantie complementaire : mutuelle et prevoyance n existent pas encore.",
+        "Les taux doivent être recoupés sur boss.gouv.fr avant tout bulletin réel.",
+        "Le prélèvement à la source est à zéro : son taux vient du retour DSN.",
+        "Aucune convention collective n'est traitée (paie_conventions).",
+        "La RGDU est calculée sur le mois, pas sur le cumul annuel : sur un salaire variable, l'approximation dérive.",
+        "Les congés payés sont comptés, mais leur VALORISATION À LA PRISE n'est pas calculée : il faudra comparer le maintien de salaire et la règle du dixième, et retenir le plus favorable (art. L3141-24).",
+        "Le montant net social ne réintègre aucune garantie complémentaire : mutuelle et prévoyance n'existent pas encore.",
       ];
       // 🚨 LE CDI N A PAS D INDEMNITE DE PRECARITE — c est normal, et c est
       // dit pour que personne ne cherche une ligne manquante. En revanche,
       // ses conges payes s acquierent mois par mois et se valorisent a la
       // prise : ce suivi n existe pas encore.
       if (contrat.type_contrat === "cdi") {
-        r.unshift("CDI : aucune indemnite de precarite, c est normal — "
-          + "les conges se prennent au lieu d etre compenses.");
+        r.unshift("CDI : aucune indemnité de précarité, c'est normal — "
+          + "les congés se prennent au lieu d'être compensés.");
       }
       // 🚨 LES DEUX TAUX PROPRES A LA SOCIETE, DITS FRANCHEMENT QUAND ILS
       // MANQUENT : leur absence n est pas visible sur le bulletin — la
       // ligne vaut simplement zero — et c est exactement ce qui se
       // decouvre au controle.
       if (tauxSociete["AT_MP"] === undefined) {
-        r.unshift("🚨 AUCUN TAUX AT/MP pour cette societe : la cotisation vaut ZERO. "
+        r.unshift("🚨 AUCUN TAUX AT/MP pour cette société : la cotisation vaut ZÉRO. "
           + "Elle est OBLIGATOIRE. Le taux se lit sur la notification annuelle de la "
           + "CARSAT ou sur le compte AT/MP de net-entreprises, puis se renseigne dans "
           + "paie_taux_societe. ⛔ NE JAMAIS INVENTER UNE VALEUR.");
       }
       if (effectif >= 11 && tauxSociete["VERSEMENT_MOBILITE"] === undefined) {
-        r.unshift("⚠️ La societe compte " + effectif + " salaries : le versement "
-          + "mobilite est probablement du, mais aucun taux n est renseigne. "
-          + "Il depend de la COMMUNE DU LIEU DE TRAVAIL.");
+        r.unshift("⚠️ La société compte " + effectif + " salariés : le versement "
+          + "mobilité est probablement dû, mais aucun taux n'est renseigné. "
+          + "Il dépend de la COMMUNE DU LIEU DE TRAVAIL.");
       }
       if (!effectifConnu) {
-        r.unshift("🚨 EFFECTIF INCONNU pour cette societe : le FNAL et le Tdelta de la RGDU sont ceux des MOINS DE 50 SALARIES. Si l entreprise est plus grande, la cotisation est sous-evaluee et la reduction sur-evaluee.");
+        r.unshift("🚨 EFFECTIF INCONNU pour cette société : le FNAL et le Tdelta de la "
+          + "RGDU sont ceux des MOINS DE 50 SALARIÉS. Si l'entreprise est plus grande, "
+          + "la cotisation est sous-évaluée et la réduction sur-évaluée.");
       }
       return r;
     })(),
