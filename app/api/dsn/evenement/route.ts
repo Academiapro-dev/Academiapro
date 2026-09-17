@@ -69,15 +69,51 @@ export const maxDuration = 60;
 // derniere paie : sans bulletin, il n a rien a declarer, et le generateur
 // le refuse plutot que d ecrire des zeros.
 //
-// ⛔ CE QUI RESTE A EPROUVER, DIT FRANCHEMENT : la place exacte de la paie
-// dans un FCTU (blocs 51, 53, 58, 78, 79, 81, 86) est reprise de la
-// mensuelle, ou dsn-val l a validee. Il n a pas encore pu la juger ici : il
-// s arretait au bloc 50 absent. Ce qu il refusera se retirera d un coup.
+// ═══════════════════════════════════════════════════════════════════════
+// 🆕🚨 17/09, DEUXIEME PASSAGE — DE VINGT-HUIT ANOMALIES A DIX-SEPT, ET
+// CETTE FOIS IL N Y A PLUS RIEN QUI MANQUE : IL Y A DU TROP
+//
+// Les sept causes du premier passage ont toutes disparu, avec les deux
+// controles de coherence (CCH-11 et CCH-13) qui n etaient que leurs
+// consequences. Ce que dsn-val dit maintenant est d une autre nature : la
+// paie reprise de la mensuelle en declare PLUS que ce qu un FCTU accepte.
+//
+// LES QUATRE CAUSES, TELLES QUE dsn-val LES A DITES :
+//   1. LE BLOC 50 EST REDUIT A L IDENTIFICATION DU VERSEMENT. Six rubriques
+//      y sont INTERDITES (CST-04) : 002, 004, 006, 007, 009 et 013 — le net
+//      fiscal, le net verse et tout le prelevement a la source. Une
+//      rubrique y est OBLIGATOIRE et manquait (CST-03) : 50.020, le mois de
+//      la DSN mensuelle de rattachement.
+//      ⚠️ LA LOGIQUE : le FCTU est lu par France Travail, qui calcule des
+//      droits sur des salaires BRUTS et des volumes de travail. Le net et
+//      l impot ne le regardent pas — ils restent dans la mensuelle, que lit
+//      l administration fiscale.
+//   2. LE BLOC 58, montant net social, est INTERDIT (CST-02) : « le
+//      sous-groupe S21.G00.58 est interdit pour cette nature ».
+//   3. LE BLOC 79, composant de base assujettie, est INTERDIT (CST-02).
+//   4. LA RUBRIQUE 78.006, numero du contrat, est INTERDITE dans chaque
+//      assiette. Un FCTU ne porte qu UN contrat : le rattachement n a pas a
+//      etre redit.
+//
+// 🚨 LA REDUCTION GENERALE SORT DU FCTU AVEC LE BLOC 79. Dans la mensuelle,
+// le controle CCH-17 exige que les codes 018 et 106 s appuient sur un bloc
+// 79 « montant du SMIC retenu ». Ce bloc etant interdit ici, les declarer
+// reviendrait a ecrire deux cotisations dont le controle reclame un appui
+// qu on n a pas le droit de fournir. La reduction generale est une affaire
+// entre l employeur et l URSSAF : elle se declare dans la mensuelle, et la
+// mensuelle seulement.
+//
+// ⚠️ CE QUE dsn-val A ACCEPTE SANS RIEN DIRE, ET QUI EST DONC ACQUIS : le
+// contrat complet, le bloc 62 avec ses deux nouvelles rubriques, le bloc 63
+// a « 90 », le bloc 71, les QUATRE remunerations (001, 003, 010, 002),
+// l activite, les assiettes et leurs cotisations, l anciennete, le lieu de
+// travail. L ordre des blocs n a souleve aucune remarque.
 //
 // ⚠️ LE SIGNALEMENT D ARRET DE TRAVAIL N EST PAS ENCORE PASSE DANS dsn-val.
-// Il recoit ici ce qui vaut pour tout signalement (causes 1, 2, 3 et 7),
-// pas la paie : un arret ne declare pas de remuneration, les indemnites se
-// calculent sur les mensuelles deja deposees.
+// Il recoit ici ce qui vaut pour tout signalement (contrat complet, bloc 71,
+// lieu de travail, rubriques S20 interdites), pas la paie : un arret ne
+// declare pas de remuneration, les indemnites se calculent sur les
+// mensuelles deja deposees.
 // ═══════════════════════════════════════════════════════════════════════
 
 const NOM_LOGICIEL = "Mr Comptable";
@@ -90,12 +126,6 @@ const TELEPHONE_DEFAUT = "0100000000";
 // ✅ 17/09 — P26V01 EST ACCEPTEE PAR dsn-val 2026.1.0.16 a jour.
 // ⛔ NE PLUS Y TOUCHER avant le cahier technique 2027 (P27V01).
 const NORME = "P26V01";
-
-// LES CODES DE COTISATION QUI RELEVENT DE LA RETRAITE COMPLEMENTAIRE — la
-// reduction generale se ventile entre deux codes DSN selon cette liste.
-// ⚠️ MEME LISTE QUE DANS LA MENSUELLE : les deux fichiers doivent ventiler
-// la meme reduction de la meme facon.
-const RETRAITE_COMPLEMENTAIRE = ["RETRAITE_C_T1", "RETRAITE_C_T2", "CEG_T1", "CEG_T2"];
 
 // 🆕 LES MOTIFS DE RUPTURE QUI N OUVRENT AUCUN PREAVIS. Pour eux, le bloc 63
 // se declare « 90 - pas de clause de preavis applicable », sans dates.
@@ -276,7 +306,7 @@ export async function POST(req: NextRequest) {
     const dateFinContrat = q((ev as any).date_fin) || dateEv;
 
     // ═══════════════════════════════════════════════════════════════════
-    // 🆕🚨 LA DERNIERE PAIE — POUR UNE FIN DE CONTRAT SEULEMENT
+    // 🚨 LA DERNIERE PAIE — POUR UNE FIN DE CONTRAT SEULEMENT
     //
     // Le FCTU porte le dernier bulletin du contrat. On cherche celui du mois
     // de la fin ; a defaut, le plus recent qui le precede — et on le DIT.
@@ -364,10 +394,10 @@ export async function POST(req: NextRequest) {
       L.push(ref + ",'" + v + "'");
     };
 
-    // 🆕 UN BLOC QUI SE REPETE REPART DE SA PREMIERE RUBRIQUE, et c est
-    // normal : quatre remunerations, quatre assiettes, quinze cotisations.
-    // Le garde-fou ci-dessus les prendrait pour un retour en arriere. On lui
-    // dit donc, a chaque nouvelle occurrence, qu un bloc neuf commence.
+    // UN BLOC QUI SE REPETE REPART DE SA PREMIERE RUBRIQUE, et c est normal :
+    // quatre remunerations, quatre assiettes, quinze cotisations. Le
+    // garde-fou ci-dessus les prendrait pour un retour en arriere. On lui dit
+    // donc, a chaque nouvelle occurrence, qu un bloc neuf commence.
     const ouvrir = function (bloc: string) {
       delete dernierePar[bloc];
     };
@@ -410,7 +440,7 @@ export async function POST(req: NextRequest) {
       + String(aujourdhui.getMonth() + 1).padStart(2, "0")
       + String(aujourdhui.getFullYear());
 
-    // 🆕⛔ DEUX RUBRIQUES ONT ETE RETIREES D ICI — dsn-val, controle CST-04 :
+    // ⛔ DEUX RUBRIQUES ONT ETE RETIREES D ICI — dsn-val, controle CST-04 :
     // « Presence de la rubrique interdite S20.G00.05.005 », et la meme chose
     // pour la 05.008. Le « mois principal declare » et le « champ de la
     // declaration » appartiennent a la mensuelle. Un signalement porte sur
@@ -487,16 +517,17 @@ export async function POST(req: NextRequest) {
     // ═══════════════════════════════════════════════════════════════════
     // ── S21.G00.40 — LE CONTRAT, EN ENTIER ──
     //
-    // 🆕🚨 DIX-NEUF RUBRIQUES RECLAMEES PAR dsn-val D UN COUP (CST-03) :
+    // 🚨 DIX-NEUF RUBRIQUES RECLAMEES PAR dsn-val D UN COUP (CST-03) :
     //   002 003 004 006 007 008 011 012 013 014 016 017 018 019 020 024 026
     //   036 037
     // Ce sont les memes que dans la mensuelle, ecrites de la meme facon et
     // depuis les memes sources : un contrat ne peut pas se decrire de deux
     // manieres selon le fichier qui le porte.
+    // ✅ DEUXIEME PASSAGE : ce bloc n a plus souleve aucune remarque.
     //
     // ⚠️ LA DATE DE FIN PREVISIONNELLE (010) ET LE MOTIF DE RECOURS (021)
     // SUIVENT LA NATURE DU CONTRAT, pas celle de la declaration : un CDD les
-    // porte partout ou il est decrit.
+    // porte partout ou il est decrit. dsn-val les a acceptes.
     //
     // ⛔ QUATRE RUBRIQUES DE LA MENSUELLE NE SONT PAS REPRISES : 039, 040, 043
     // et 046. dsn-val ne les a pas citees parmi les absentes — elles ne sont
@@ -635,6 +666,7 @@ export async function POST(req: NextRequest) {
     // celui des numeros : le 71 vient donc APRES l evenement, pas juste
     // apres le contrat comme dans la mensuelle — ou il n a pas de frere
     // plus petit que lui.
+    // ✅ DEUXIEME PASSAGE : dsn-val a accepte cet ordre.
     // ═══════════════════════════════════════════════════════════════════
 
     if (estArret) {
@@ -687,7 +719,7 @@ export async function POST(req: NextRequest) {
       // ⚠️ LE DERNIER JOUR PAYE AU SALAIRE HABITUEL n est pas toujours la
       // date de fin : un preavis non effectue mais paye les separe.
       //
-      // 🆕 DEUX RUBRIQUES RECLAMEES PAR dsn-val (CST-03) :
+      // DEUX RUBRIQUES RECLAMEES PAR dsn-val (CST-03), ET ACCEPTEES :
       //   · 62.008 « Transaction en cours » — 01 oui, 02 non. Une
       //     transaction est un accord signe APRES la rupture pour eviter un
       //     proces ; ses sommes retardent l indemnisation. Elle est RARE, et
@@ -710,11 +742,11 @@ export async function POST(req: NextRequest) {
       // ═══════════════════════════════════════════════════════════════
       // ── S21.G00.63 — LE PREAVIS ──
       //
-      // 🆕🚨 CE BLOC EST OBLIGATOIRE MEME QUAND IL N Y A PAS DE PREAVIS —
+      // 🚨 CE BLOC EST OBLIGATOIRE MEME QUAND IL N Y A PAS DE PREAVIS —
       // dsn-val : « sous-groupe S21.G00.63 absent apres S21.G00.62 ». Il se
       // declare alors « 90 - pas de clause de preavis applicable », et la
       // consigne officielle precise que les deux dates NE SE RENSEIGNENT
-      // PAS dans ce cas.
+      // PAS dans ce cas. ✅ dsn-val l a accepte ainsi.
       //
       // ⛔ POUR UN LICENCIEMENT OU UNE DEMISSION, LE PREAVIS SE SAISIT : le
       // type (effectue et paye, non effectue et paye, non effectue et non
@@ -745,24 +777,31 @@ export async function POST(req: NextRequest) {
 
     // ── S21.G00.71 — LA RETRAITE COMPLEMENTAIRE ──
     //
-    // 🆕🚨 dsn-val : « sous-groupe S21.G00.71 absent apres S21.G00.40 ».
+    // 🚨 dsn-val : « sous-groupe S21.G00.71 absent apres S21.G00.40 ».
     // CONTROLE CCH-17 : un salarie declare « 04 - non cadre » en statut
     // categoriel EXIGE un bloc 71 portant RETA, RUAA ou CAVEC — quelle que
     // soit la nature de la declaration.
     ecrire("S21.G00.71.002", q(ct.regime_retraite_c) || "RUAA");
 
     // ═══════════════════════════════════════════════════════════════════
-    // 🆕🚨 LA DERNIERE PAIE — BLOCS 50, 51, 53, 58, 78, 79, 81 ET 86
+    // 🚨 LA DERNIERE PAIE, TELLE QU UN FCTU L ACCEPTE — BLOCS 50, 51, 53,
+    // 78, 81 ET 86
     //
-    // dsn-val : « sous-groupe S21.G00.50 absent apres S21.G00.30 ».
-    //
-    // ⚠️ TOUT CE QUI SUIT EST REPRIS DE LA MENSUELLE, A L IDENTIQUE : memes
-    // rubriques, meme ordre, memes sources. La mensuelle est passee dans
-    // dsn-val sans anomalie, et le FCTU declare LA MEME PAIE — les deux
-    // fichiers ne doivent pas pouvoir diverger d un centime.
+    // 🆕 CE N EST PAS LA PAIE DE LA MENSUELLE RECOPIEE : le deuxieme passage
+    // dans dsn-val l a montre. Un FCTU est lu par France Travail, qui
+    // calcule des droits sur des salaires BRUTS et des volumes de travail.
+    // Il porte donc les remunerations, l activite, les assiettes et leurs
+    // cotisations — et RIEN de ce qui regarde le net, l impot ou la
+    // reduction generale :
+    //   · bloc 50 reduit a l identification du versement
+    //   · bloc 58 (net social) INTERDIT
+    //   · bloc 79 (SMIC de la reduction generale) INTERDIT, et avec lui les
+    //     codes 018 et 106 qui s appuient dessus
+    //   · rubrique 78.006 (numero du contrat) INTERDITE
     //
     // 🚨 IL NE RECALCULE RIEN. Il lit `detail`, la photographie du calcul
-    // gardee dans le bulletin emis.
+    // gardee dans le bulletin emis : les montants declares ici sont, au
+    // centime, ceux de la mensuelle du meme mois.
     //
     // ⛔ UN ARRET DE TRAVAIL NE PORTE PAS CES BLOCS : il ne declare pas de
     // paie, les indemnites se calculent sur les mensuelles deja deposees.
@@ -780,21 +819,26 @@ export async function POST(req: NextRequest) {
       const debutPeriode = dateDsn(periode);
       const finPeriode = finDeMois(periode);
 
-      // ── S21.G00.50 — LE VERSEMENT ──
+      // ── S21.G00.50 — LE VERSEMENT, REDUIT A SON IDENTIFICATION ──
+      //
+      // 🆕🚨 TROIS RUBRIQUES, PAS NEUF. dsn-val, deuxieme passage :
+      //   · INTERDITES (CST-04) : 50.002 net fiscal, 50.004 net verse,
+      //     50.006 / 007 / 009 / 013 tout le prelevement a la source ;
+      //   · OBLIGATOIRE ET ABSENTE (CST-03) : 50.020, le mois de la DSN
+      //     mensuelle de rattachement.
+      // ⚠️ LA 50.020 DIT A QUELLE MENSUELLE CE VERSEMENT APPARTIENT : c est
+      // elle qui porte le net et l impot. Le FCTU y renvoie au lieu de les
+      // redire — deux declarations du meme net finiraient par differer.
+      // Son format est celui de la 62.020, que dsn-val a acceptee.
       ecrire("S21.G00.50.001", finPeriode);
-      ecrire("S21.G00.50.002", montantDsn(b.net_imposable));
       ecrire("S21.G00.50.003", "01");
-      ecrire("S21.G00.50.004", montantDsn(b.net_a_payer));
-      ecrire("S21.G00.50.006", montantDsn(0));
-      ecrire("S21.G00.50.007", "13");          // taux neutre
-      ecrire("S21.G00.50.009", montantDsn(b.prelevement_source));
-      ecrire("S21.G00.50.013", montantDsn(b.net_imposable));
+      ecrire("S21.G00.50.020", debutPeriode);
 
       // ── S21.G00.51 — LES QUATRE REMUNERATIONS ──
       //
       // 001 brut non plafonne · 003 salaire retabli · 010 salaire de base,
       // et la 002 EN DERNIER parce qu elle seule porte un enfant, le bloc
-      // activite (53).
+      // activite (53). ✅ dsn-val les a acceptees toutes les quatre.
       // ⛔ LE TYPE 003 NE SE MET PAS A ZERO : sans absence, il est egal au
       // brut. Il sert au calcul des indemnites journalieres.
       const remuneration = function (typeRem: string, montant: number) {
@@ -833,17 +877,16 @@ export async function POST(req: NextRequest) {
         ecrire("S21.G00.53.003", "10");
       }
 
-      // ── S21.G00.58 — LE MONTANT NET SOCIAL ──
-      ecrire("S21.G00.58.001", debutPeriode);
-      ecrire("S21.G00.58.002", finPeriode);
-      ecrire("S21.G00.58.003", "03");
-      ecrire("S21.G00.58.004", montantDsn(b.net_social));
+      // ⛔ PAS DE BLOC S21.G00.58 ICI — dsn-val : « le sous-groupe S21.G00.58
+      // est interdit pour cette nature ». Le montant net social sert aux
+      // prestations sous conditions de ressources ; il se declare dans la
+      // mensuelle, que lisent les organismes qui les versent.
 
-      // ── S21.G00.78 / 79 / 81 — LES ASSIETTES ET LEURS COTISATIONS ──
+      // ── S21.G00.78 / 81 — LES ASSIETTES ET LEURS COTISATIONS ──
       //
       // 🚨 LA HIERARCHIE SE LIT DANS L ORDRE DES LIGNES : une cotisation (81)
       // est enfant de l assiette (78) qui la precede. On ecrit donc assiette
-      // par assiette — la base, ses composants, ses cotisations.
+      // par assiette — la base, puis ses cotisations.
       // ⚠️ PLUSIEURS COTISATIONS INTERNES PARTAGENT UN MEME CODE DSN (les
       // deux CSG sont le 072) : ON LES ADDITIONNE.
       const parAssiette: any = {};
@@ -904,62 +947,22 @@ export async function POST(req: NextRequest) {
         const grp = parAssiette[bAss];
         if (!grp) continue;
 
+        // 🆕⛔ LA RUBRIQUE 78.006, NUMERO DU CONTRAT, N EST PLUS ECRITE —
+        // dsn-val : « Presence de la rubrique interdite S21.G00.78.006 »,
+        // une fois par assiette. Dans la mensuelle elle rattache l assiette
+        // a l un des contrats du salarie ; un FCTU n en porte qu un seul.
         ouvrir("S21.G00.78");
         ecrire("S21.G00.78.001", bAss);
         ecrire("S21.G00.78.002", debutPeriode);
         ecrire("S21.G00.78.003", finPeriode);
         ecrire("S21.G00.78.004", montantDsn(grp.assiette));
-        ecrire("S21.G00.78.006", numeroContrat);
 
-        // LA REDUCTION GENERALE, SOUS L ASSIETTE DEPLAFONNEE — CCH-17 : les
-        // codes 018 et 106 exigent un bloc 79 « montant du SMIC retenu »
-        // sous la meme assiette 03. LE MONTANT S ECRIT EN NEGATIF.
-        if (bAss === "03" && Number(detail.rgdu || 0) > 0) {
-          const rgdu = Number(detail.rgdu);
-          let eligibleRetraite = 0;
-          let eligibleAutres = 0;
-          for (const l of (detail.lignes_cotisations || [])) {
-            if (!l.eligible_rgdu) continue;
-            const pat = Number(l.part_patronale || 0);
-            if (RETRAITE_COMPLEMENTAIRE.indexOf(q(l.code)) >= 0) eligibleRetraite += pat;
-            else eligibleAutres += pat;
-          }
-          const totalEligible = eligibleRetraite + eligibleAutres;
-
-          if (totalEligible <= 0) {
-            anomalies.push(qui + " : réduction générale de " + montantDsn(rgdu)
-              + " EUR sans cotisation éligible à réduire. ⛔ NON DÉCLARÉE.");
-          } else {
-            // ON ARRONDIT UNE SEULE PART ET ON DEDUIT L AUTRE : la somme des
-            // deux fait EXACTEMENT la reduction du bulletin.
-            const partRetraite = Math.round(rgdu * eligibleRetraite / totalEligible * 100) / 100;
-            const partAutres = Math.round((rgdu - partRetraite) * 100) / 100;
-
-            const codeSmic = await code("S21.G00.79.001", "smic_rgdu");
-            const smicRetenu = detail.rgdu_detail
-              ? Number(detail.rgdu_detail.smic_mensuel_reference || 0) : 0;
-
-            if (codeSmic && smicRetenu > 0) {
-              ouvrir("S21.G00.79");
-              ecrire("S21.G00.79.001", codeSmic);
-              ecrire("S21.G00.79.004", montantDsn(smicRetenu));
-            } else {
-              anomalies.push(qui + " : montant du SMIC retenu pour la réduction "
-                + "générale absent (S21.G00.79). ⛔ OBLIGATOIRE — contrôle "
-                + "CCH-17.");
-            }
-
-            const code018 = await code("S21.G00.81.001", "rgdu_secu");
-            const code106 = await code("S21.G00.81.001", "rgdu_retraite");
-            if (code018 && partAutres !== 0) cotisation(code018, grp.assiette, -partAutres);
-            if (code106 && partRetraite !== 0) cotisation(code106, grp.assiette, -partRetraite);
-            if (!code018 || !code106) {
-              anomalies.push("Codes de réduction générale absents de dsn_codes. "
-                + "⛔ LA RÉDUCTION DE " + montantDsn(rgdu) + " EUR N'EST PAS "
-                + "DÉCLARÉE.");
-            }
-          }
-        }
+        // 🆕⛔ NI BLOC 79, NI REDUCTION GENERALE — dsn-val : « le sous-groupe
+        // S21.G00.79 est interdit pour cette nature ». Dans la mensuelle, le
+        // controle CCH-17 veut que les codes 018 et 106 s appuient sur ce
+        // bloc. Les ecrire ici sans lui, c est declarer deux cotisations
+        // dont le controle reclame un appui qu on n a pas le droit de
+        // fournir. LA REDUCTION GENERALE RESTE DANS LA MENSUELLE.
 
         const listeCodes = Object.keys(grp.codes).sort();
         for (const cd of listeCodes) {
@@ -1007,10 +1010,10 @@ export async function POST(req: NextRequest) {
     // ═══════════════════════════════════════════════════════════════════
     // ── S21.G00.85 — LE LIEU DE TRAVAIL ──
     //
-    // 🆕🚨 dsn-val, controle CCH-11 de la rubrique 40.019 : le lieu designe
+    // 🚨 dsn-val, controle CCH-11 de la rubrique 40.019 : le lieu designe
     // par le contrat doit exister en bloc 85. SA PLACE EST APRES L INDIVIDU,
     // comme dans la mensuelle : il est enfant de l etablissement, et entre
-    // freres le 85 ferme la marche.
+    // freres le 85 ferme la marche. ✅ dsn-val l a accepte la.
     //
     // ⚠️ CE BLOC SE REMPLIT EN ENTIER OU PAS DU TOUT : sans nature juridique
     // le SIRET est refuse, et sans code INSEE la commune n est pas situee.
