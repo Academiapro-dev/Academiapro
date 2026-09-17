@@ -21,6 +21,31 @@
 // ⚠️ LE SALAIRE DE BASE NE SE SAISIT PAS : il se calcule depuis le taux
 // horaire du contrat et la duree mensuelle. On ne pose ici QUE ce qui sort
 // de l ordinaire — heures supplementaires, primes, absences.
+//
+// ═══════════════════════════════════════════════════════════════════════
+// 🆕🚨 17/09 — LES SIGNALEMENTS, APRES LEUR PASSAGE DANS dsn-val
+//
+// Les trois fichiers DSN passent l outil officiel. Mais l arret de travail
+// n y est arrive qu avec trois donnees AJOUTEES A LA MAIN EN BASE, parce que
+// cet ecran ne les demandait pas :
+//   · la date de fin previsionnelle — le champ existait, il etait facultatif
+//   · le BIC — le champ existait, il etait facultatif
+//   · la date de fin de subrogation — LE CHAMP N EXISTAIT PAS
+// ⚠️ LA MEME LECON QUE LE 16/09, mot pour mot : un champ absent de l ecran
+// n existe pas, meme si la base et la route le prevoient. La route acceptait
+// `subro_fin` depuis le premier jour.
+//
+// TROIS AUTRES DEFAUTS, TOUS VUS PAR JACQUES EN SE SERVANT DE L ECRAN :
+//   1. LE FORMULAIRE VIDE, pose juste au-dessus de la liste, SEMBLAIT PILOTER
+//      LES LIGNES DU DESSOUS. Il a cru qu une case decochee changeait un
+//      arret deja enregistre. Le formulaire et la liste portent desormais
+//      chacun leur titre, et une phrase dit que l un ne modifie pas l autre.
+//   2. LA LISTE NE MONTRAIT PAS CE QUI AVAIT ETE ENREGISTRE : ni la fin de
+//      l arret, ni celle de la subrogation. Impossible de verifier une saisie
+//      sans aller lire la base. Chaque ligne dit maintenant ce qu elle porte,
+//      et signale EN ROUGE ce qui lui manque.
+//   3. LE FICHIER GENERE N AVAIT AUCUNE SORTIE : il fallait une requete SQL
+//      pour le recuperer. Il se telecharge et se partage depuis sa ligne.
 // ═══════════════════════════════════════════════════════════════════════
 
 import { useState, useEffect } from "react";
@@ -55,6 +80,10 @@ const SECOND: any = {
   ...BOUTON, background: "transparent", color: OR,
   border: "1px solid " + OR, fontWeight: "normal",
 };
+const LIEN: any = {
+  background: "none", border: "none", cursor: "pointer", fontSize: "12.5px",
+  fontFamily: "Georgia,serif", padding: 0,
+};
 
 // Les six motifs legaux de recours au travail temporaire.
 // 🚨 IL N EN EXISTE PAS D AUTRE (art. L1251-6). « Surcroit de travail »
@@ -78,6 +107,15 @@ const TYPES_ELEMENT = [
   { cle: "absence_injustifiee", nom: "Absence injustifiée", soumis: true },
 ];
 
+// 🆕 LE SIGNALEMENT VIDE, ECRIT UNE SEULE FOIS. Il etait recopie a deux
+// endroits — a l ouverture et apres l enregistrement : ajouter un champ a
+// l un sans l autre aurait laisse une valeur fantome dans le formulaire.
+const EV_VIDE: any = {
+  type_evenement: "arret", motif: "", date_debut: "", date_fin: "",
+  dernier_jour_travaille: "", subrogation: false, iban: "", bic: "",
+  subro_fin: "", date_notification: "", dernier_jour_paye: "",
+};
+
 function moisCourant(): string {
   const d = new Date();
   return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-01";
@@ -86,6 +124,39 @@ function moisCourant(): string {
 function euros(n: any): string {
   return Number(n || 0).toLocaleString("fr-FR",
     { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+// 🆕 UNE DATE DE LA BASE, RENDUE LISIBLE : « 2026-09-24 » devient
+// « 24/09/2026 ». Vide quand il n y a rien — l appelant decide quoi dire.
+function jma(d: any): string {
+  const t = String(d || "");
+  if (t.length < 10) return "";
+  return t.slice(8, 10) + "/" + t.slice(5, 7) + "/" + t.slice(0, 4);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🆕🚨🚨 LE FICHIER SE TELECHARGE EN ISO 8859-1, PAS EN UTF-8
+//
+// C EST LE PIEGE LE PLUS COUTEUX DE LA DSN, et il se rejoue ICI : le
+// navigateur, laisse a lui-meme, ecrit tout fichier texte en UTF-8. Un « é »
+// y tient sur deux octets ; la norme n en attend qu un. « 12 rue de la
+// République » suffit a faire REJETER LA DECLARATION ENTIERE.
+//
+// ⚠️ LE GENERATEUR MENSUEL LE FAIT COTE SERVEUR (Buffer « latin1 »). Le
+// signalement, lui, est garde en base comme un texte : c est donc au moment
+// de le sortir qu il faut le convertir, caractere par caractere.
+//
+// ⛔ LE GENERATEUR NE LAISSE PASSER QUE DES CARACTERES DE CETTE TABLE (sa
+// fonction `latin`). Si l un d eux en sortait malgre tout, on ecrit « ? » :
+// un caractere faux se voit, un octet en trop casse tout sans rien montrer.
+// ═══════════════════════════════════════════════════════════════════════
+function octetsLatin1(texte: string): any {
+  const o = new Uint8Array(texte.length);
+  for (let i = 0; i < texte.length; i++) {
+    const c = texte.charCodeAt(i);
+    o[i] = c <= 255 ? c : 63;
+  }
+  return o;
 }
 
 export default function PagePaie() {
@@ -105,11 +176,10 @@ export default function PagePaie() {
   // ⚠️ LES SIGNALEMENTS CONCERNENT TOUS LES CONTRATS, pas seulement le CDI :
   // un interimaire tombe malade comme un autre, et toute mission finit.
   const [evenements, setEvenements] = useState<any>(null);
-  const [ev, setEv] = useState<any>({
-    type_evenement: "arret", motif: "", date_debut: "", date_fin: "",
-    dernier_jour_travaille: "", subrogation: false, iban: "", bic: "",
-    date_notification: "", dernier_jour_paye: "",
-  });
+  const [ev, setEv] = useState<any>(Object.assign({}, EV_VIDE));
+  // 🆕 LE PARTAGE N EXISTE PAS PARTOUT : iOS le propose, un navigateur de
+  // bureau rarement. On ne montre le lien que la ou il marche.
+  const [partagePossible, setPartagePossible] = useState(false);
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
   const [occupe, setOccupe] = useState("");
@@ -122,6 +192,8 @@ export default function PagePaie() {
   useEffect(function () {
     const s = sessionStorage.getItem("paie_secret") || "";
     if (s) { setSecret(s); charger(s); }
+    const nav: any = typeof navigator !== "undefined" ? navigator : null;
+    setPartagePossible(!!(nav && nav.share && nav.canShare));
   }, []);
 
   async function appeler(corps: any, s?: string): Promise<any> {
@@ -148,6 +220,10 @@ export default function PagePaie() {
     setChoisi(c); setCalcul(null); setMsg(""); setErr("");
     setConges(null); setJoursPris("");
     setEvenements(null);
+    // 🆕 LE FORMULAIRE REPART A VIDE QUAND ON CHANGE DE SALARIE : sinon un
+    // arret a moitie saisi pour l un s enregistrerait sur le contrat de
+    // l autre.
+    setEv(Object.assign({}, EV_VIDE));
     const d = await appeler({ action: "elements", contrat_id: c.id, periode: periode });
     if (d.success) setElements(d.elements);
     const b = await appeler({ action: "bulletins", contrat_id: c.id });
@@ -280,10 +356,40 @@ export default function PagePaie() {
     if (d && d.success) setEvenements(d);
   }
 
+  // ═══════════════════════════════════════════════════════════════════
+  // 🆕🚨 CE QUE LA NORME EXIGE D UN ARRET SE RECLAME A LA SAISIE.
+  //
+  // dsn-val, 17/09 : la date de fin previsionnelle est OBLIGATOIRE, et en
+  // subrogation l IBAN, le BIC et la date de fin de subrogation vont
+  // ENSEMBLE. L arret d essai avait ete enregistre sans trois d entre eux,
+  // et c est une requete SQL qui a du les ajouter.
+  //
+  // ⚠️ C EST AU MOMENT DE LA SAISIE QUE LE CABINET A L AVIS D ARRET ET LE
+  // RELEVE D IDENTITE BANCAIRE SOUS LES YEUX. Le lui reclamer a la
+  // generation, cinq jours plus tard, c est lui faire rechercher un papier.
+  //
+  // ⛔ CE CONTROLE-CI N EST QU UN CONFORT : il evite un aller-retour au
+  // serveur. LE VRAI GARDE-FOU EST DANS LA ROUTE, qui refuse de son cote —
+  // un ecran ne protege de rien, il se contourne.
+  // ═══════════════════════════════════════════════════════════════════
   async function ajouterEvenement() {
     if (!ev.motif || !ev.date_debut) {
       setErr("Le motif et la date de début sont obligatoires."); return;
     }
+    if (ev.type_evenement === "arret") {
+      if (!ev.date_fin) {
+        setErr("La date de fin prévisionnelle de l'arrêt est obligatoire : "
+          + "c'est celle que porte l'avis d'arrêt du médecin. Sans elle, la "
+          + "CPAM rejette le signalement.");
+        return;
+      }
+      if (ev.subrogation && (!ev.iban || !ev.bic || !ev.subro_fin)) {
+        setErr("En subrogation, l'IBAN, le BIC et la date de fin de "
+          + "subrogation sont obligatoires tous les trois.");
+        return;
+      }
+    }
+    setErr(""); setMsg("");
     setOccupe("evenement");
     const d = await appeler(Object.assign({
       action: "ajouter_evenement", contrat_id: choisi.id,
@@ -292,15 +398,12 @@ export default function PagePaie() {
     if (!d) return;
     if (d.erreur) { setErr(d.erreur); return; }
     setMsg(d.message);
-    setEv({
-      type_evenement: "arret", motif: "", date_debut: "", date_fin: "",
-      dernier_jour_travaille: "", subrogation: false, iban: "", bic: "",
-      date_notification: "", dernier_jour_paye: "",
-    });
+    setEv(Object.assign({}, EV_VIDE));
     chargerEvenements(choisi.id);
   }
 
   async function genererSignalement(id: string) {
+    setErr(""); setMsg("");
     setOccupe("signalement");
     let d: any = null;
     try {
@@ -319,6 +422,64 @@ export default function PagePaie() {
     // avec anomalie ne doit pas ressembler a un succes.
     if (d.anomalies && d.anomalies.length > 0) setErr(d.anomalies.join(" · "));
     chargerEvenements(id && choisi ? choisi.id : id);
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // 🆕 LE FICHIER D UN SIGNALEMENT, ENFIN SORTI DE LA BASE.
+  //
+  // Le generateur le gardait dans `paie_evenements.fichier` et rien ne le
+  // rendait : le 17/09, chaque passage dans dsn-val a commence par une
+  // requete SQL. La liste le recoit deja avec chaque evenement — il ne
+  // manquait que le geste pour le sortir.
+  //
+  // ⚠️ SON NOM DIT CE QU IL EST : la nature, le salarie, la date. Le 17/09,
+  // deux fichiers successifs portaient le meme nom et c est l ANCIEN qui est
+  // reparti dans dsn-val — dix-sept anomalies deja corrigees, relues pour
+  // rien.
+  // ═══════════════════════════════════════════════════════════════════
+  function nomSignalement(x: any): string {
+    const s = choisi && choisi.paie_salaries ? String(choisi.paie_salaries.nom || "") : "";
+    const nom = s.replace(/[^A-Za-z0-9]/g, "").toUpperCase() || "SALARIE";
+    const arret = x.type_evenement === "arret";
+    const d = String((arret ? x.date_debut : (x.date_fin || x.date_debut)) || "")
+      .slice(0, 10).replace(/-/g, "");
+    return (arret ? "ARRET" : "FCTU") + "-" + nom + "-" + d + ".txt";
+  }
+
+  function telechargerSignalement(x: any) {
+    if (!x || !x.fichier) { setErr("Ce signalement n'a pas encore été généré."); return; }
+    const blob = new Blob([octetsLatin1(String(x.fichier))], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = nomSignalement(x);
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
+  }
+
+  // ⚠️ LE PARTAGE EST CE QUI MANQUAIT SUR UN IPAD : il ouvre la feuille
+  // d iOS, et de la le fichier part dans Dropbox, WhatsApp ou un courriel —
+  // donc vers l ordinateur ou tourne dsn-val, sans passer par « Fichiers ».
+  // ⛔ S IL ECHOUE OU S IL N EXISTE PAS, ON RETOMBE SUR LE TELECHARGEMENT :
+  // un geste qui ne fait rien est pire qu un geste plus lent.
+  async function partagerSignalement(x: any) {
+    if (!x || !x.fichier) { setErr("Ce signalement n'a pas encore été généré."); return; }
+    const nav: any = navigator;
+    try {
+      const fichier: any = new File([octetsLatin1(String(x.fichier))],
+        nomSignalement(x), { type: "text/plain" });
+      if (nav.canShare && nav.canShare({ files: [fichier] })) {
+        await nav.share({ files: [fichier], title: nomSignalement(x) });
+        return;
+      }
+    } catch (e: any) {
+      // ⚠️ FERMER LA FEUILLE DE PARTAGE N EST PAS UNE ERREUR : iOS la
+      // signale comme un abandon, et il n y a rien a en dire.
+      if (e && e.name === "AbortError") return;
+    }
+    telechargerSignalement(x);
   }
 
   async function retirerEvenement(id: string) {
@@ -1095,8 +1256,17 @@ export default function PagePaie() {
                   journalières, le second remplace l&apos;attestation employeur.
                 </p>
 
+                {/* 🆕 LE FORMULAIRE PORTE SON NOM. Pose sans titre au-dessus
+                    de la liste, il semblait piloter les lignes du dessous :
+                    Jacques a cru qu une case decochee ici changeait un arret
+                    deja enregistre. */}
+                <p style={{ fontSize: "13px", color: OR, margin: "16px 0 0",
+                  fontWeight: "bold" }}>
+                  Nouveau signalement
+                </p>
+
                 <div style={{ display: "flex", gap: "10px", flexWrap: "wrap",
-                  alignItems: "flex-end", marginTop: "12px" }}>
+                  alignItems: "flex-end", marginTop: "10px" }}>
                   <div>
                     <span style={LIB}>Nature</span>
                     <select value={ev.type_evenement} style={CHAMP}
@@ -1150,7 +1320,12 @@ export default function PagePaie() {
 
                   {ev.type_evenement === "arret" && (
                     <div>
-                      <span style={LIB}>Fin prévisionnelle</span>
+                      {/* 🆕🚨 OBLIGATOIRE — dsn-val, 17/09 : « absence de la
+                          rubrique S21.G00.60.003 ». C est la date que porte
+                          l avis d arret du medecin. ELLE NE SE DEVINE PAS :
+                          on ne prolonge ni ne raccourcit un arret a sa
+                          place. */}
+                      <span style={LIB}>Fin prévisionnelle (obligatoire)</span>
                       <input type="date" value={ev.date_fin} style={CHAMP}
                         onChange={(x: any) => setEv(Object.assign({}, ev,
                           { date_fin: x.target.value }))} />
@@ -1183,8 +1358,12 @@ export default function PagePaie() {
                     </label>
                     {ev.subrogation && (
                       <>
+                        {/* 🆕🚨 EN SUBROGATION, TROIS DONNEES VONT ENSEMBLE —
+                            dsn-val, controle CCH-11 : l IBAN, le BIC et la
+                            date de fin. Les deux premieres sont sur le meme
+                            releve d identite bancaire. */}
                         <div>
-                          <span style={LIB}>IBAN de l&apos;employeur</span>
+                          <span style={LIB}>IBAN de l&apos;employeur (obligatoire)</span>
                           <input value={ev.iban}
                             placeholder="FR76 …"
                             style={{ ...CHAMP, minWidth: "240px" }}
@@ -1192,14 +1371,40 @@ export default function PagePaie() {
                               { iban: x.target.value }))} />
                         </div>
                         <div>
-                          <span style={LIB}>BIC</span>
+                          <span style={LIB}>BIC (obligatoire)</span>
                           <input value={ev.bic} style={CHAMP}
                             onChange={(x: any) => setEv(Object.assign({}, ev,
                               { bic: x.target.value }))} />
                         </div>
+                        <div>
+                          {/* ⚠️ CE N EST PAS LA FIN DE L ARRET : c est la fin
+                              de la periode pendant laquelle l employeur
+                              MAINTIENT LE SALAIRE, que fixe la convention
+                              collective — souvent moins longtemps que
+                              l arret. Passee cette date, la CPAM verse au
+                              salarie.
+                              ⛔ ON NE LA PRE-REMPLIT PAS avec la fin de
+                              l arret : declarer une subrogation trop
+                              longue, c est percevoir des indemnites qui
+                              reviennent au salarie. */}
+                          <span style={LIB}>Fin de subrogation (obligatoire)</span>
+                          <input type="date" value={ev.subro_fin} style={CHAMP}
+                            onChange={(x: any) => setEv(Object.assign({}, ev,
+                              { subro_fin: x.target.value }))} />
+                        </div>
                       </>
                     )}
                   </div>
+                )}
+
+                {ev.type_evenement === "arret" && ev.subrogation && (
+                  <p style={{ fontSize: "12px", color: "rgba(255,255,255,0.45)",
+                    margin: "8px 0 0", lineHeight: "1.6" }}>
+                    La fin de subrogation est la fin du maintien de salaire prévu
+                    par la convention collective, pas forcément celle de
+                    l&apos;arrêt. Passé cette date, la CPAM verse les indemnités
+                    au salarié.
+                  </p>
                 )}
 
                 <button onClick={ajouterEvenement} disabled={occupe !== ""}
@@ -1208,10 +1413,32 @@ export default function PagePaie() {
                 </button>
 
                 {evenements.evenements && evenements.evenements.length > 0 && (
-                  <div style={{ marginTop: "16px" }}>
+                  <div style={{ marginTop: "22px", paddingTop: "14px",
+                    borderTop: "1px solid rgba(255,255,255,0.12)" }}>
+                    {/* 🆕 LA LISTE PORTE SON NOM ELLE AUSSI, et dit que le
+                        formulaire du dessus ne la modifie pas. */}
+                    <p style={{ fontSize: "13px", color: OR, margin: 0,
+                      fontWeight: "bold" }}>
+                      Signalements enregistrés
+                    </p>
+                    <p style={{ fontSize: "12px", color: "rgba(255,255,255,0.45)",
+                      margin: "4px 0 8px", lineHeight: "1.6" }}>
+                      Le formulaire ci-dessus sert à en saisir un nouveau : il ne
+                      modifie pas ceux de cette liste. Pour corriger un
+                      signalement, retirez-le puis saisissez-le de nouveau.
+                    </p>
                     {evenements.evenements.map(function (x: any) {
                       const arret = x.type_evenement === "arret";
                       const depose = x.statut === "depose";
+                      // 🆕🚨 CE QUI MANQUE A UN ARRET SE VOIT SUR SA LIGNE, EN
+                      // ROUGE, avant meme de le generer. Un arret saisi avant
+                      // le 17/09 peut encore etre incomplet : la liste le
+                      // dit, au lieu de laisser la CPAM le decouvrir.
+                      const manques: string[] = [];
+                      if (arret && !x.date_fin) manques.push("fin prévisionnelle");
+                      if (arret && x.subrogation && !x.subro_fin) manques.push("fin de subrogation");
+                      if (arret && x.subrogation && !x.iban) manques.push("IBAN");
+                      if (arret && x.subrogation && !x.bic) manques.push("BIC");
                       return (
                         <div key={x.id} style={{
                           padding: "9px 0", fontSize: "13px",
@@ -1223,30 +1450,54 @@ export default function PagePaie() {
                               {arret ? "Arrêt" : "Fin de contrat"}
                             </strong>
                             <span style={{ marginLeft: "10px" }}>
-                              {String(x.date_debut).slice(8, 10)}/
-                              {String(x.date_debut).slice(5, 7)}/
-                              {String(x.date_debut).slice(0, 4)}
+                              {arret
+                                ? "du " + jma(x.date_debut)
+                                  + (x.date_fin ? " au " + jma(x.date_fin) : "")
+                                : "le " + jma(x.date_fin || x.date_debut)}
                             </span>
                             <span style={{ marginLeft: "10px",
                               color: "rgba(255,255,255,0.55)" }}>
                               {x.motif}
-                              {x.subrogation ? " · subrogation" : ""}
+                              {x.subrogation
+                                ? " · subrogation"
+                                  + (x.subro_fin ? " jusqu'au " + jma(x.subro_fin) : "")
+                                : (arret ? " · sans subrogation" : "")}
                               {" · "}{x.statut}
                             </span>
+                            {manques.length > 0 && (
+                              <span style={{ display: "block", marginTop: "3px",
+                                color: ROUGE, fontSize: "12px" }}>
+                                Il manque : {manques.join(", ")}. La CPAM rejettera
+                                ce signalement — retirez-le et saisissez-le de
+                                nouveau.
+                              </span>
+                            )}
                           </span>
-                          <span style={{ display: "flex", gap: "12px" }}>
+                          <span style={{ display: "flex", gap: "12px",
+                            alignItems: "baseline", flexWrap: "wrap" }}>
                             <button onClick={() => genererSignalement(x.id)}
                               disabled={occupe !== ""}
-                              style={{ background: "none", border: "none",
-                                color: VERT, cursor: "pointer",
-                                fontSize: "12.5px" }}>
+                              style={{ ...LIEN, color: VERT }}>
                               {occupe === "signalement" ? "…" : "générer"}
                             </button>
+                            {/* 🆕 LE FICHIER SORT D ICI. Les deux liens
+                                n apparaissent qu une fois le signalement
+                                genere : avant, il n y a rien a sortir. */}
+                            {x.fichier && (
+                              <button onClick={() => telechargerSignalement(x)}
+                                style={{ ...LIEN, color: OR }}>
+                                télécharger
+                              </button>
+                            )}
+                            {x.fichier && partagePossible && (
+                              <button onClick={() => partagerSignalement(x)}
+                                style={{ ...LIEN, color: OR }}>
+                                partager
+                              </button>
+                            )}
                             {!depose && (
                               <button onClick={() => retirerEvenement(x.id)}
-                                style={{ background: "none", border: "none",
-                                  color: ROUGE, cursor: "pointer",
-                                  fontSize: "12.5px" }}>
+                                style={{ ...LIEN, color: ROUGE }}>
                                 retirer
                               </button>
                             )}
