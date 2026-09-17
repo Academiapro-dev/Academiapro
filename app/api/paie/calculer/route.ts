@@ -648,9 +648,67 @@ async function calculer(contratId: string, periode: string): Promise<any> {
     const smicMensuelRef = smicRef * dureeMensuelle;
     const plafondEligibilite = smicMensuelRef * seuil;
 
-    if (brutTotal > 0 && brutTotal < plafondEligibilite) {
+    // ═══════════════════════════════════════════════════════════════════
+    // 🚨🚨 LA REGULARISATION PROGRESSIVE — LE CALCUL SUR CUMUL ANNUEL
+    //
+    // ⚠️ LA REDUCTION EST ANNUELLE PAR NATURE, meme si elle se verse chaque
+    // mois. La calculer mois par mois est une approximation qui DERIVE des
+    // que le salaire varie : une prime en decembre fait perdre en une fois
+    // une reduction accordee tout au long de l annee, et l URSSAF reclame
+    // la difference avec majorations. C est l une des deux premieres causes
+    // de redressement sur ce dispositif.
+    //
+    // LA METHODE, celle que l URSSAF recommande :
+    //   1. cumuler le brut depuis le debut de l annee (ou de l embauche)
+    //   2. cumuler le SMIC de reference sur le meme nombre de mois
+    //   3. appliquer la formule a ces CUMULS — on obtient la reduction
+    //      due depuis le debut
+    //   4. en retrancher ce qui a deja ete accorde : le reste est la
+    //      reduction du mois
+    //
+    // 🚨 LA REDUCTION DU MOIS PEUT ETRE NEGATIVE, et c est voulu. Quand un
+    // salarie touche une prime qui le fait sortir du champ, on reprend le
+    // trop-percu du mois meme plutot que d attendre un controle. Une
+    // regularisation a la baisse coute moins cher qu un redressement.
+    //
+    // ⚠️ LE CUMUL NE COMPTE QUE LES BULLETINS EMIS : un brouillon n a pas
+    // ete remis au salarie, il ne peut pas fonder un droit.
+    // ═══════════════════════════════════════════════════════════════════
+    const anneeCourante = periode.slice(0, 4);
+    const debutAnnee = anneeCourante + "-01-01";
+
+    const { data: anterieurs } = await supabase
+      .from("paie_bulletins")
+      .select("brut, periode, detail")
+      .eq("contrat_id", contratId)
+      .eq("statut", "emis")
+      .gte("periode", debutAnnee)
+      .lt("periode", periode)
+      .order("periode", { ascending: true });
+
+    let brutCumul = brutTotal;
+    let rgduDejaAccordee = 0;
+    let moisCumules = 1;
+
+    for (const ant of (anterieurs || [])) {
+      brutCumul += Number((ant as any).brut || 0);
+      const d: any = (ant as any).detail;
+      rgduDejaAccordee += Number((d && d.rgdu) || 0);
+      moisCumules += 1;
+    }
+
+    brutCumul = cts(brutCumul);
+    rgduDejaAccordee = cts(rgduDejaAccordee);
+
+    // ⚠️ LE SMIC DE REFERENCE SE CUMULE SUR LE MEME NOMBRE DE MOIS que le
+    // brut : comparer un brut de neuf mois a un SMIC d un mois n aurait
+    // aucun sens et rendrait tout le monde ineligible.
+    const smicCumul = smicMensuelRef * moisCumules;
+    const plafondCumul = smicCumul * seuil;
+
+    if (brutCumul > 0 && brutCumul < plafondCumul) {
       // Le crochet de la formule, borne entre 0 et 1.
-      let crochet = 0.5 * (seuil * smicMensuelRef / brutTotal - 1);
+      let crochet = 0.5 * (seuil * smicCumul / brutCumul - 1);
       if (crochet < 0) crochet = 0;
       if (crochet > 1) crochet = 1;
 
@@ -661,7 +719,9 @@ async function calculer(contratId: string, periode: string): Promise<any> {
       if (coef > coefMax) coef = coefMax;
       if (coef < 0) coef = 0;
 
-      const calcule = cts(brutTotal * coef);
+      // La reduction due depuis le debut de l annee, puis celle du mois.
+      const dueDepuisDebut = cts(brutCumul * coef);
+      const calcule = cts(dueDepuisDebut - rgduDejaAccordee);
 
       // 🚨🚨 LE PLAFOND LEGAL : LA REDUCTION NE PEUT PAS DEPASSER LES
       // COTISATIONS QU ELLE REDUIT.
@@ -671,7 +731,10 @@ async function calculer(contratId: string, periode: string): Promise<any> {
       // cas se produit sur les tres bas salaires, ou le coefficient est a
       // son maximum : sans ce plafond, on deduirait plus que ce qu on doit,
       // et l URSSAF reclamerait la difference — avec majorations.
-      rgdu = Math.min(calcule, patronalEligible);
+      // ⚠️ LE PLAFOND NE JOUE QUE SUR UNE REDUCTION POSITIVE : une
+      // regularisation a la baisse n est pas une deduction, c est une
+      // reprise, et elle n a pas de plafond.
+      rgdu = calcule > 0 ? Math.min(calcule, patronalEligible) : calcule;
 
       rgduDetail = {
         coefficient: Math.round(coef * 10000) / 10000,
@@ -684,6 +747,15 @@ async function calculer(contratId: string, periode: string): Promise<any> {
         cotisations_eligibles: patronalEligible,
         plafonne: calcule > patronalEligible,
         montant: rgdu,
+        // ⚠️ LA PHOTOGRAPHIE DU CUMUL : elle permet de refaire le calcul
+        // devant un controleur sans rouvrir les bulletins precedents.
+        methode: "régularisation progressive (cumul annuel)",
+        mois_cumules: moisCumules,
+        brut_cumule: brutCumul,
+        smic_cumule: cts(smicCumul),
+        due_depuis_debut: dueDepuisDebut,
+        deja_accordee: rgduDejaAccordee,
+        regularisation: calcule < 0,
       };
     } else {
       rgduDetail = {
@@ -832,7 +904,7 @@ async function calculer(contratId: string, periode: string): Promise<any> {
         "Les taux doivent être recoupés sur boss.gouv.fr avant tout bulletin réel.",
         "Le prélèvement à la source est à zéro : son taux vient du retour DSN.",
         "Aucune convention collective n'est traitée (paie_conventions).",
-        "La RGDU est calculée sur le mois, pas sur le cumul annuel : sur un salaire variable, l'approximation dérive.",
+        "La RGDU est calculée en régularisation progressive sur le cumul annuel, méthode recommandée par l'URSSAF : une prime en fin d'année est régularisée le mois même plutôt que de créer un rappel.",
         "Le montant net social ne réintègre aucune garantie complémentaire : mutuelle et prévoyance n'existent pas encore.",
       ];
 
