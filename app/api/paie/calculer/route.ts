@@ -377,9 +377,15 @@ async function calculer(contratId: string, periode: string): Promise<any> {
 
     let joursPris = 0;
     let methodeDixieme = false;
+    let maintienStocke = 0;
+
     for (const pr of (prises || [])) {
       joursPris += Number((pr as any).jours || 0);
       indemniteConges += Number((pr as any).valeur_retenue || 0);
+      // 🚨 LA RETENUE SE LIT EN BASE, ELLE NE SE RECALCULE PAS.
+      // `valeur_maintien` EST le montant du maintien de salaire, fige au
+      // moment de la prise. C est exactement ce qu il faut retenir.
+      maintienStocke += Number((pr as any).valeur_maintien || 0);
       if (Number((pr as any).valeur_dixieme || 0)
           > Number((pr as any).valeur_maintien || 0)) methodeDixieme = true;
     }
@@ -387,12 +393,28 @@ async function calculer(contratId: string, periode: string): Promise<any> {
     if (joursPris > 0) {
       congesDuMois = joursPris;
 
-      // ⚠️ LA RETENUE SE CALCULE SUR LA MEME BASE QUE LE MAINTIEN — le
-      // salaire mensuel rapporte aux jours ouvrables. Une autre base ferait
-      // apparaitre un ecart la ou il n y en a pas.
-      const JOURS_OUVRABLES_MOIS = 26;
-      const retenue = cts(
-        (Number(contrat.salaire_mensuel || 0) / JOURS_OUVRABLES_MOIS) * joursPris);
+      // ═══════════════════════════════════════════════════════════════
+      // 🚨🚨 DEFAUT TROUVE A L ESSAI DU 17/09, ET IL COUTAIT DE L ARGENT.
+      //
+      // La retenue etait RECALCULEE au salaire courant, tandis que
+      // l indemnite venait de la base, figee a la saisie de la prise. Des
+      // que le salaire du contrat changeait, les deux ne s annulaient plus.
+      //
+      // MESURE : salaire passe de 2 400 a 1 700 EUR, un jour pris —
+      // retenue 65,38, indemnite 92,31. VINGT-SIX EUROS VERSES SANS
+      // RAISON, sur une ligne que personne ne relit.
+      //
+      // ⚠️ LA CORRECTION EST DE LIRE, PAS DE CALCULER : `valeur_maintien`
+      // EST le maintien de salaire, fige au moment de la prise. Les deux
+      // lignes viennent donc de la meme source et de la meme date.
+      //   · en maintien : retenue = indemnite, elles s annulent exactement
+      //   · avec le dixieme : l indemnite depasse, et la difference se voit
+      //
+      // ⛔ ET UNE PRISE DE JANVIER GARDE SA VALEUR DE JANVIER, ce qui est
+      // la regle : on ne revalorise pas un conge deja pris parce que le
+      // salaire a augmente depuis.
+      // ═══════════════════════════════════════════════════════════════
+      const retenue = cts(maintienStocke);
 
       lignesBrut.push({
         libelle: "Absence congés payés",
