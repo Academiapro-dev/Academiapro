@@ -32,6 +32,30 @@ export const maxDuration = 60;
 // ⛔ CE QUI CHANGE : la NATURE de la declaration (S20.G00.05.001) vaut 02
 // pour un arret et 07 pour une fin de contrat, au lieu de 01. Et le bloc
 // individu ne porte QUE le salarie concerne — pas tout l effectif.
+//
+// ═══════════════════════════════════════════════════════════════════════
+// 🆕🚨 17/09, APRES-MIDI — CE QUE LA DSN MENSUELLE A APPRIS, REPORTE ICI
+//
+// La mensuelle est passee dans dsn-val sans aucune anomalie au neuvieme
+// essai. Ce generateur-la avait ete ecrit AVANT ces corrections, et il
+// partage la meme structure : meme entreprise, meme etablissement, meme
+// individu, meme contrat. Trois enseignements s y appliquent donc mot pour
+// mot, et ils sont repris ci-dessous plutot qu attendus d un rejet :
+//
+//   1. LES CODES APEN (06.003) ET APET (11.002) SONT OBLIGATOIRES. Une
+//      premiere installation de dsn-val les disait « rubrique inconnue » —
+//      elle refusait aussi la version de norme, donc elle ne jugeait pas
+//      avec les tables 2026. Celle qui accepte P26V01 les RECLAME.
+//   2. P26V01 EST LA BONNE VERSION DE NORME, et elle est acceptee.
+//   3. LE FICHIER SORT EN « .txt », pas en « .dsn » : iOS ne telecharge
+//      pas cette seconde extension.
+//
+// ⚠️ CE QUI RESTE A EPROUVER : le bloc contrat (S21.G00.40) ne porte ici
+// que la date de debut et le numero. Dans la mensuelle, dsn-val en a
+// reclame TREIZE de plus d un coup. Un signalement n attend pas forcement
+// les memes — la norme allege certains blocs selon la nature — et rien ne
+// permet de le deduire depuis ma place. C EST dsn-val QUI LE DIRA, et ce
+// sera corrige en une fois, pas rubrique par rubrique.
 // ═══════════════════════════════════════════════════════════════════════
 
 const NOM_LOGICIEL = "Mr Comptable";
@@ -41,8 +65,10 @@ const CONTACT_DEFAUT = "Jacques LALOU";
 const EMAIL_DEFAUT = "contact@academiapro.fr";
 const TELEPHONE_DEFAUT = "0100000000";
 
-// ⚠️ MEME RESERVE QUE SUR LA DSN MENSUELLE : dsn-val refuse P26V01 alors
-// que le cahier l impose. Le desaccord n est pas tranche.
+// ✅ 17/09 — P26V01 EST ACCEPTEE PAR dsn-val 2026.1.0.16 a jour. La reserve
+// qui figurait ici est levee : le cahier technique avait raison, c est une
+// installation de l outil qui ne jugeait pas avec les tables de 2026.
+// ⛔ NE PLUS Y TOUCHER avant le cahier technique 2027 (P27V01).
 const NORME = "P26V01";
 
 function q(v: any): string {
@@ -74,6 +100,15 @@ function dateDsn(v: any): string {
 
 function montantDsn(v: any): string {
   return Number(v || 0).toFixed(2);
+}
+
+// 🆕 LE CODE APE AU FORMAT DSN : quatre chiffres et une lettre, SANS LE
+// POINT. L INSEE l ecrit « 78.20Z », la norme attend « 7820Z ».
+// ⚠️ UNE VALEUR QUI N A PAS CETTE FORME REND UNE CHAINE VIDE : elle n est
+// alors pas ecrite, et l appelant la signale.
+function apeDsn(v: any): string {
+  const a = q(v).replace(/[^0-9A-Za-z]/g, "").toUpperCase();
+  return /^\d{4}[A-Z]$/.test(a) ? a : "";
 }
 
 function latin(v: any): string {
@@ -189,6 +224,22 @@ export async function POST(req: NextRequest) {
     // organisme — la CPAM pour l un, France Travail pour l autre.
     const nature = estArret ? "02" : "07";
 
+    // 🆕 LE CODE APE, NORMALISE UNE FOIS POUR LES DEUX RUBRIQUES QUI LE
+    // PORTENT — celle de l entreprise (06.003) et celle de l etablissement
+    // (11.002). Une societe a un seul etablissement porte le meme aux deux.
+    const codeApe = apeDsn((societe as any).code_ape);
+    if (!codeApe) {
+      anomalies.push(q((societe as any).code_ape)
+        ? "Code APE « " + q((societe as any).code_ape) + " » mal formé : il "
+          + "s'écrit sur quatre chiffres et une lettre (7820Z). ⛔ NON DÉCLARÉ "
+          + "— les rubriques S21.G00.06.003 et S21.G00.11.002 sont "
+          + "obligatoires, LE SIGNALEMENT SERA REJETÉ. Corriger "
+          + "compta_societes.code_ape."
+        : "Code APE absent. ⛔ Les rubriques S21.G00.06.003 (APEN) et "
+          + "S21.G00.11.002 (APET) sont obligatoires : LE SIGNALEMENT SERA "
+          + "REJETÉ. Renseigner compta_societes.code_ape.");
+    }
+
     // ── S10 — L ENVOI ET L EMETTEUR ──
     ecrire("S10.G00.00.001", NOM_LOGICIEL);
     ecrire("S10.G00.00.002", NOM_EDITEUR);
@@ -233,11 +284,17 @@ export async function POST(req: NextRequest) {
     // ── S21.G00.06 / 11 — ENTREPRISE ET ETABLISSEMENT ──
     ecrire("S21.G00.06.001", siret.slice(0, 9));
     ecrire("S21.G00.06.002", siret.slice(9));
+    // 🆕🚨 LE CODE APEN — dsn-val sur la mensuelle : « CST-03 / Absence de la
+    // rubrique S21.G00.06.003 ». Il decrit l activite de L ENTREPRISE.
+    ecrire("S21.G00.06.003", codeApe);
     ecrire("S21.G00.06.004", (societe as any).adresse);
     ecrire("S21.G00.06.005", q((societe as any).code_postal));
     ecrire("S21.G00.06.006", (societe as any).ville);
 
     ecrire("S21.G00.11.001", siret.slice(9));
+    // 🆕🚨 LE CODE APET — meme controle, meme histoire. Il decrit l activite
+    // de L ETABLISSEMENT, celui qui declare.
+    ecrire("S21.G00.11.002", codeApe);
     ecrire("S21.G00.11.003", (societe as any).adresse);
     ecrire("S21.G00.11.004", q((societe as any).code_postal));
     ecrire("S21.G00.11.005", (societe as any).ville);
@@ -258,6 +315,24 @@ export async function POST(req: NextRequest) {
     const sal: any = (ct as any).paie_salaries;
     const nirComplet = q(sal.numero_secu).replace(/[^0-9AaBb]/g, "").toUpperCase();
     const nir = nirComplet.slice(0, 13);
+    const qui = q(sal.prenom) + " " + q(sal.nom);
+
+    // 🆕 LES RUBRIQUES OBLIGATOIRES DE L INDIVIDU SE SIGNALENT QUAND ELLES
+    // MANQUENT. Sans ce controle, la rubrique vide n est pas ecrite et rien
+    // ne le dit : le fichier a l air propre et revient rejete.
+    if (nirComplet.length < 13) {
+      anomalies.push(qui + " : numéro de sécurité sociale absent ou "
+        + "incomplet (S21.G00.30.001). ⛔ LE SIGNALEMENT SERA REJETÉ.");
+    }
+    if (!dateDsn(sal.date_naissance)) {
+      anomalies.push(qui + " : date de naissance absente "
+        + "(S21.G00.30.006). ⛔ RUBRIQUE OBLIGATOIRE.");
+    }
+    if (!sexeDsn(sal.sexe, nirComplet)) {
+      anomalies.push(qui + " : sexe indéterminé (S21.G00.30.005) — ni saisi, "
+        + "ni déductible du numéro de sécurité sociale. ⛔ RUBRIQUE "
+        + "OBLIGATOIRE.");
+    }
 
     ecrire("S21.G00.30.001", nir);
     ecrire("S21.G00.30.002", sal.nom);
@@ -278,6 +353,12 @@ export async function POST(req: NextRequest) {
     ecrire("S21.G00.30.015", paysNaiss.length === 2 ? paysNaiss : "FR");
 
     // ── S21.G00.40 — LE CONTRAT ──
+    //
+    // ⚠️ CE BLOC EST VOLONTAIREMENT MINIMAL : la date de debut identifie le
+    // contrat aupres de l organisme, le numero le relie a la mensuelle.
+    // La mensuelle en ecrit vingt-sept, mais elle les declare pour COTISER ;
+    // un signalement, lui, ne fait que designer le contrat concerne. Ce que
+    // dsn-val reclamera en plus sera ajoute apres son passage, d un coup.
     const numeroContrat = String((ct as any).id).replace(/-/g, "").slice(0, 20);
     ecrire("S21.G00.40.001", dateDsn((ct as any).date_debut));
     ecrire("S21.G00.40.009", numeroContrat);
@@ -371,9 +452,15 @@ export async function POST(req: NextRequest) {
     L.push("S90.G00.90.002,'1'");
 
     const contenu = L.join("\r\n") + "\r\n";
+
+    // 🆕 L EXTENSION EST « .txt », COMME CELLE DE LA MENSUELLE.
+    // ⚠️ ESSAYE EN « .dsn » LE 17/09 : SAFARI NE LE TELECHARGE PAS. iOS ne
+    // connait pas cette extension et le bouton reste sans effet.
+    // ✅ EN « .txt », il se telecharge ; dans dsn-val, il suffit de passer le
+    // filtre de la fenetre d ouverture sur « Tous les fichiers ».
     const nomFichier = "DSN-" + siret + "-"
       + (estArret ? "ARRET" : "FCTU") + "-"
-      + dateEv.replace(/-/g, "") + ".dsn";
+      + dateEv.replace(/-/g, "") + ".txt";
 
     const { error: eMaj } = await supabase
       .from("paie_evenements")
@@ -388,7 +475,7 @@ export async function POST(req: NextRequest) {
       nom_fichier: nomFichier,
       nature: nature,
       type: estArret ? "arrêt de travail" : "fin de contrat",
-      salarie: q(sal.prenom) + " " + q(sal.nom),
+      salarie: qui,
       lignes: L.length,
       contenu: contenu,
       anomalies: anomalies,
@@ -400,6 +487,8 @@ export async function POST(req: NextRequest) {
           + (estArret
             ? "les indemnités journalières du salarié sont retardées."
             : "l'ancien salarié ne peut pas ouvrir ses droits au chômage."),
+        "Le bloc contrat (S21.G00.40) ne porte que la date de début et le "
+          + "numéro : ce que dsn-val réclamera en plus reste à ajouter.",
         "Le canal de transmission n'est pas branché : le fichier se dépose "
           + "à la main sur net-entreprises.",
       ],
