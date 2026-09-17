@@ -101,6 +101,15 @@ export default function PagePaie() {
   // sont compenses par l ICCP, et ce bloc reste invisible.
   const [conges, setConges] = useState<any>(null);
   const [joursPris, setJoursPris] = useState("");
+
+  // ⚠️ LES SIGNALEMENTS CONCERNENT TOUS LES CONTRATS, pas seulement le CDI :
+  // un interimaire tombe malade comme un autre, et toute mission finit.
+  const [evenements, setEvenements] = useState<any>(null);
+  const [ev, setEv] = useState<any>({
+    type_evenement: "arret", motif: "", date_debut: "", date_fin: "",
+    dernier_jour_travaille: "", subrogation: false, iban: "", bic: "",
+    date_notification: "", dernier_jour_paye: "",
+  });
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
   const [occupe, setOccupe] = useState("");
@@ -138,6 +147,7 @@ export default function PagePaie() {
   async function ouvrir(c: any) {
     setChoisi(c); setCalcul(null); setMsg(""); setErr("");
     setConges(null); setJoursPris("");
+    setEvenements(null);
     const d = await appeler({ action: "elements", contrat_id: c.id, periode: periode });
     if (d.success) setElements(d.elements);
     const b = await appeler({ action: "bulletins", contrat_id: c.id });
@@ -145,6 +155,7 @@ export default function PagePaie() {
     // ⚠️ SEUL LE CDI A UN COMPTEUR : inutile d interroger la base pour les
     // autres, et le bloc resterait vide a l ecran.
     if (c.type_contrat === "cdi") chargerConges(c.id);
+    chargerEvenements(c.id);
   }
 
   async function changerPeriode(p: string) {
@@ -262,6 +273,61 @@ export default function PagePaie() {
     const d = await appeler({ action: "voir_bulletin", id: id });
     if (d.success && d.url) window.open(d.url, "_blank");
     else setErr(d.erreur || "ouverture impossible");
+  }
+
+  async function chargerEvenements(id: string) {
+    const d = await appeler({ action: "evenements", contrat_id: id });
+    if (d && d.success) setEvenements(d);
+  }
+
+  async function ajouterEvenement() {
+    if (!ev.motif || !ev.date_debut) {
+      setErr("Le motif et la date de début sont obligatoires."); return;
+    }
+    setOccupe("evenement");
+    const d = await appeler(Object.assign({
+      action: "ajouter_evenement", contrat_id: choisi.id,
+    }, ev));
+    setOccupe("");
+    if (!d) return;
+    if (d.erreur) { setErr(d.erreur); return; }
+    setMsg(d.message);
+    setEv({
+      type_evenement: "arret", motif: "", date_debut: "", date_fin: "",
+      dernier_jour_travaille: "", subrogation: false, iban: "", bic: "",
+      date_notification: "", dernier_jour_paye: "",
+    });
+    chargerEvenements(choisi.id);
+  }
+
+  async function genererSignalement(id: string) {
+    setOccupe("signalement");
+    let d: any = null;
+    try {
+      const r = await fetch("/api/dsn/evenement", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cle: secret, evenement_id: id }),
+      });
+      d = await r.json();
+    } catch (e: any) { setErr(String(e)); }
+    setOccupe("");
+    if (!d) return;
+    if (d.erreur) { setErr(d.erreur); return; }
+    setMsg(d.message + " — " + d.nom_fichier + " (" + d.lignes + " lignes)");
+    // ⚠️ LES ANOMALIES PASSENT EN ERREUR, pas en message : un signalement
+    // avec anomalie ne doit pas ressembler a un succes.
+    if (d.anomalies && d.anomalies.length > 0) setErr(d.anomalies.join(" · "));
+    chargerEvenements(id && choisi ? choisi.id : id);
+  }
+
+  async function retirerEvenement(id: string) {
+    if (!confirm("Retirer ce signalement ?")) return;
+    setOccupe("evenement");
+    const d = await appeler({ action: "supprimer_evenement", id: id });
+    setOccupe("");
+    if (d && d.success) { setMsg(d.message); chargerEvenements(choisi.id); }
+    else if (d && d.erreur) setErr(d.erreur);
   }
 
   async function chargerConges(id: string) {
@@ -1000,6 +1066,191 @@ export default function PagePaie() {
                               retirer
                             </button>
                           )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ═══════════════════════════════════════════════════════
+                ══ LES SIGNALEMENTS D EVENEMENT ══
+                🚨 CINQ JOURS POUR LES DEUX. Un arret signale en retard,
+                c est un salarie qui n est pas paye ; une fin de contrat
+                en retard, c est un chomage qui ne s ouvre pas.
+                ⚠️ LE MOTIF VIENT DE LA BASE, avec son code de la norme :
+                une fin de CDD declaree en licenciement economique ouvre
+                les mauvais droits.
+                ═══════════════════════════════════════════════════════ */}
+            {choisi && evenements && (
+              <div style={CADRE}>
+                <h3 style={{ color: OR, fontSize: "16px", marginTop: 0 }}>
+                  Signalements d&apos;événement
+                </h3>
+                <p style={{ fontSize: "13px", color: "rgba(255,255,255,0.55)",
+                  marginTop: 0 }}>
+                  Arrêt de travail et fin de contrat se déposent dans les
+                  cinq jours. Le premier déclenche les indemnités
+                  journalières, le second remplace l&apos;attestation employeur.
+                </p>
+
+                <div style={{ display: "flex", gap: "10px", flexWrap: "wrap",
+                  alignItems: "flex-end", marginTop: "12px" }}>
+                  <div>
+                    <span style={LIB}>Nature</span>
+                    <select value={ev.type_evenement} style={CHAMP}
+                      onChange={(x: any) => setEv(Object.assign({}, ev, {
+                        type_evenement: x.target.value, motif: "" }))}>
+                      <option value="arret">Arrêt de travail</option>
+                      <option value="fin_contrat">Fin de contrat</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <span style={LIB}>Motif</span>
+                    <select value={ev.motif} style={CHAMP}
+                      onChange={(x: any) => setEv(Object.assign({}, ev,
+                        { motif: x.target.value }))}>
+                      <option value="">— choisir —</option>
+                      {(ev.type_evenement === "arret"
+                        ? evenements.motifs_arret
+                        : evenements.motifs_fin || []).map(function (m: any) {
+                        return (
+                          <option key={m.code} value={m.correspondance}>
+                            {m.libelle}
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </div>
+
+                  <div>
+                    <span style={LIB}>
+                      {ev.type_evenement === "arret"
+                        ? "Début de l'arrêt" : "Date de fin"}
+                    </span>
+                    <input type="date" value={ev.date_debut} style={CHAMP}
+                      onChange={(x: any) => setEv(Object.assign({}, ev,
+                        { date_debut: x.target.value }))} />
+                  </div>
+
+                  {ev.type_evenement === "arret" && (
+                    <div>
+                      {/* ⚠️ CE N EST PAS TOUJOURS LA VEILLE DE L ARRET : le
+                          salarie peut avoir travaille le matin. C est ce
+                          jour qui fixe le depart du delai de carence. */}
+                      <span style={LIB}>Dernier jour travaillé</span>
+                      <input type="date" value={ev.dernier_jour_travaille}
+                        style={CHAMP}
+                        onChange={(x: any) => setEv(Object.assign({}, ev,
+                          { dernier_jour_travaille: x.target.value }))} />
+                    </div>
+                  )}
+
+                  {ev.type_evenement === "arret" && (
+                    <div>
+                      <span style={LIB}>Fin prévisionnelle</span>
+                      <input type="date" value={ev.date_fin} style={CHAMP}
+                        onChange={(x: any) => setEv(Object.assign({}, ev,
+                          { date_fin: x.target.value }))} />
+                    </div>
+                  )}
+
+                  {ev.type_evenement === "fin_contrat" && (
+                    <div>
+                      <span style={LIB}>Date de notification</span>
+                      <input type="date" value={ev.date_notification}
+                        style={CHAMP}
+                        onChange={(x: any) => setEv(Object.assign({}, ev,
+                          { date_notification: x.target.value }))} />
+                    </div>
+                  )}
+                </div>
+
+                {/* 🚨 LA SUBROGATION DECIDE QUI TOUCHE LES INDEMNITES.
+                    Quand l employeur maintient le salaire, il les percoit
+                    a la place du salarie — et doit donner son IBAN. */}
+                {ev.type_evenement === "arret" && (
+                  <div style={{ marginTop: "12px", display: "flex",
+                    gap: "10px", alignItems: "flex-end", flexWrap: "wrap" }}>
+                    <label style={{ fontSize: "13px", display: "flex",
+                      alignItems: "center", gap: "7px", cursor: "pointer" }}>
+                      <input type="checkbox" checked={ev.subrogation}
+                        onChange={(x: any) => setEv(Object.assign({}, ev,
+                          { subrogation: x.target.checked }))} />
+                      L&apos;employeur maintient le salaire (subrogation)
+                    </label>
+                    {ev.subrogation && (
+                      <>
+                        <div>
+                          <span style={LIB}>IBAN de l&apos;employeur</span>
+                          <input value={ev.iban}
+                            placeholder="FR76 …"
+                            style={{ ...CHAMP, minWidth: "240px" }}
+                            onChange={(x: any) => setEv(Object.assign({}, ev,
+                              { iban: x.target.value }))} />
+                        </div>
+                        <div>
+                          <span style={LIB}>BIC</span>
+                          <input value={ev.bic} style={CHAMP}
+                            onChange={(x: any) => setEv(Object.assign({}, ev,
+                              { bic: x.target.value }))} />
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
+
+                <button onClick={ajouterEvenement} disabled={occupe !== ""}
+                  style={{ ...SECOND, marginTop: "12px" }}>
+                  {occupe === "evenement" ? "…" : "Enregistrer ce signalement"}
+                </button>
+
+                {evenements.evenements && evenements.evenements.length > 0 && (
+                  <div style={{ marginTop: "16px" }}>
+                    {evenements.evenements.map(function (x: any) {
+                      const arret = x.type_evenement === "arret";
+                      const depose = x.statut === "depose";
+                      return (
+                        <div key={x.id} style={{
+                          padding: "9px 0", fontSize: "13px",
+                          borderTop: "1px solid rgba(255,255,255,0.07)",
+                          display: "flex", justifyContent: "space-between",
+                          gap: "10px", flexWrap: "wrap" }}>
+                          <span>
+                            <strong style={{ color: arret ? ROUGE : OR }}>
+                              {arret ? "Arrêt" : "Fin de contrat"}
+                            </strong>
+                            <span style={{ marginLeft: "10px" }}>
+                              {String(x.date_debut).slice(8, 10)}/
+                              {String(x.date_debut).slice(5, 7)}/
+                              {String(x.date_debut).slice(0, 4)}
+                            </span>
+                            <span style={{ marginLeft: "10px",
+                              color: "rgba(255,255,255,0.55)" }}>
+                              {x.motif}
+                              {x.subrogation ? " · subrogation" : ""}
+                              {" · "}{x.statut}
+                            </span>
+                          </span>
+                          <span style={{ display: "flex", gap: "12px" }}>
+                            <button onClick={() => genererSignalement(x.id)}
+                              disabled={occupe !== ""}
+                              style={{ background: "none", border: "none",
+                                color: VERT, cursor: "pointer",
+                                fontSize: "12.5px" }}>
+                              {occupe === "signalement" ? "…" : "générer"}
+                            </button>
+                            {!depose && (
+                              <button onClick={() => retirerEvenement(x.id)}
+                                style={{ background: "none", border: "none",
+                                  color: ROUGE, cursor: "pointer",
+                                  fontSize: "12.5px" }}>
+                                retirer
+                              </button>
+                            )}
+                          </span>
                         </div>
                       );
                     })}
