@@ -15,6 +15,27 @@ export const maxDuration = 60;
 // 🚨 LE CALCUL N EST PAS ICI. Il vit dans /api/paie/calculer, et nulle part
 // ailleurs. Deux calculs a deux endroits finissent toujours par diverger —
 // et sur un bulletin, diverger veut dire un redressement.
+//
+// ═══════════════════════════════════════════════════════════════════════
+// 🆕🚨 17/09 — L ARRET DE TRAVAIL SE VERROUILLE A LA SAISIE
+//
+// Les trois fichiers DSN passent l outil officiel. Mais l arret de travail
+// n y est arrive qu avec trois donnees ajoutees A LA MAIN en base : cette
+// route laissait enregistrer un arret que la CPAM aurait rejete.
+//
+// CE QUE dsn-val EXIGE, ET QUE LA ROUTE REFUSE DESORMAIS D IGNORER :
+//   · la DATE DE FIN PREVISIONNELLE de l arret (S21.G00.60.003)
+//   · EN SUBROGATION, quatre donnees qui vont ensemble — debut, FIN, IBAN et
+//     BIC (controle CCH-11). L IBAN seul etait deja reclame.
+//
+// ⚠️ L ECRAN LE RECLAME AUSSI, MAIS UN ECRAN NE PROTEGE DE RIEN : il se
+// contourne, et demain un autre ecran ou un import appellera cette route.
+// C est ici que la regle tient.
+//
+// 🚨 ET L IBAN EST CONTROLE PAR SA CLE, comme le numero de securite
+// sociale. Un IBAN faux ne fait pas rejeter le signalement : il envoie les
+// indemnites journalieres SUR UN COMPTE QUI N EXISTE PAS, et l employeur qui
+// a maintenu le salaire attend un virement qui ne viendra jamais.
 // ═══════════════════════════════════════════════════════════════════════
 
 const supabase = createClient(
@@ -85,6 +106,81 @@ function controlerNir(brut: string): { ok: boolean; message?: string; propre?: s
     + n.slice(5, 7) + " " + n.slice(7, 10) + " " + n.slice(10, 13) + " " + n.slice(13);
 
   return { ok: true, propre: f };
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🆕🚨 17/09 — LE CONTROLE DE LA CLE DE L IBAN
+//
+// LA REGLE (norme ISO 13616) : on reporte les quatre premiers caracteres a
+// la fin, on remplace chaque lettre par son rang (A = 10, B = 11… Z = 35),
+// et le nombre obtenu, divise par 97, doit laisser un reste de 1.
+//
+// ⚠️ LE NOMBRE A PLUS DE TRENTE CHIFFRES : on ne le construit pas. On fait
+// la division chiffre apres chiffre, en ne gardant que le reste — c est la
+// division posee de l ecole, et elle ne deborde jamais.
+//
+// ⚠️ UN IBAN FRANCAIS COMPTE VINGT-SEPT CARACTERES. Un chiffre oublie se
+// voit tout de suite a la longueur : on le dit avant meme de calculer la
+// cle, parce que « la cle est fausse » n aide personne a trouver l oubli.
+//
+// 🚨 POURQUOI ICI : un IBAN faux ne fait PAS rejeter le signalement. La
+// CPAM l accepte, et verse les indemnites journalieres sur un compte qui
+// n existe pas. L erreur ne se decouvre qu au virement manquant.
+// ═══════════════════════════════════════════════════════════════════════
+function controlerIban(brut: string): { ok: boolean; message?: string; propre?: string } {
+  const s = String(brut).replace(/\s/g, "").toUpperCase();
+
+  if (!/^[A-Z]{2}\d{2}[A-Z0-9]{10,30}$/.test(s)) {
+    return {
+      ok: false,
+      message: "l'IBAN n'a pas la forme attendue : deux lettres pour le pays, "
+        + "deux chiffres de clé, puis le numéro de compte (FR76 …).",
+    };
+  }
+  if (s.slice(0, 2) === "FR" && s.length !== 27) {
+    return {
+      ok: false,
+      message: "un IBAN français compte 27 caractères. Celui-ci en compte "
+        + s.length + " : un caractère a probablement été oublié ou doublé.",
+    };
+  }
+
+  const retourne = s.slice(4) + s.slice(0, 4);
+  let reste = 0;
+  for (let i = 0; i < retourne.length; i++) {
+    const rang = String(parseInt(retourne[i], 36));   // 0-9 tel quel, A = 10 … Z = 35
+    for (let k = 0; k < rang.length; k++) {
+      reste = (reste * 10 + Number(rang[k])) % 97;
+    }
+  }
+
+  if (reste !== 1) {
+    return {
+      ok: false,
+      message: "la clé de l'IBAN est fausse : un caractère a été mal recopié. "
+        + "⛔ Les indemnités journalières partiraient sur un compte qui "
+        + "n'existe pas. Vérifier l'IBAN sur le relevé d'identité bancaire.",
+    };
+  }
+
+  return { ok: true, propre: s };
+}
+
+// LE BIC : huit ou onze caracteres — quatre lettres pour la banque, deux
+// pour le pays, deux pour la place, et trois facultatifs pour l agence.
+// ⚠️ IL N A PAS DE CLE : on ne peut controler que sa FORME. C est peu, mais
+// cela arrete un BIC tronque ou colle a la place de l IBAN.
+function controlerBic(brut: string): { ok: boolean; message?: string; propre?: string } {
+  const s = String(brut).replace(/\s/g, "").toUpperCase();
+  if (!/^[A-Z]{4}[A-Z]{2}[A-Z0-9]{2}([A-Z0-9]{3})?$/.test(s)) {
+    return {
+      ok: false,
+      message: "le BIC n'a pas la forme attendue : 8 ou 11 caractères, dont "
+        + "les six premiers sont des lettres (BNPAFRPP, BDFEFRPPCCT…). "
+        + "Celui-ci en compte " + s.length + ".",
+    };
+  }
+  return { ok: true, propre: s };
 }
 
 export async function POST(req: NextRequest) {
@@ -738,6 +834,9 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ erreur: "contrat manquant." }, { status: 400 });
       }
 
+      // ⚠️ `fichier` EST RENDU AVEC LE RESTE, et c est voulu : l ecran s en
+      // sert pour telecharger et partager le signalement genere. Le retirer
+      // de cette lecture ferait disparaitre les deux liens sans un message.
       const { data, error } = await supabase
         .from("paie_evenements")
         .select("*")
@@ -806,18 +905,119 @@ export async function POST(req: NextRequest) {
         }, { status: 400 });
       }
 
-      // 🚨 LA SUBROGATION SANS IBAN EST REFUSEE A LA SAISIE plutot qu a la
-      // generation : c est le moment ou le cabinet a le document sous les
-      // yeux. Plus tard, il faudra le rechercher.
-      const subro = c.subrogation === true;
-      if (type === "arret" && subro && !String(c.iban || "").trim()) {
-        return NextResponse.json({
-          erreur: "subrogation demandée sans IBAN. ⛔ Sans lui, les "
-            + "indemnités journalières seraient versées au salarié alors "
-            + "que l'employeur maintient son salaire.",
-        }, { status: 400 });
+      const subro = type === "arret" && c.subrogation === true;
+      const dateFin = String(c.date_fin || "").trim();
+      const dernierJour = String(c.dernier_jour_travaille || "").trim();
+      const subroDebut = String(c.subro_debut || "").trim();
+      const subroFin = String(c.subro_fin || "").trim();
+      let ibanPropre: string | null = null;
+      let bicPropre: string | null = null;
+
+      if (type === "arret") {
+        // ⛔ UN ARRET NE PEUT PAS COMMENCER AVANT LE CONTRAT QU IL SUSPEND.
+        if (dateDebut < String((ct as any).date_debut).slice(0, 10)) {
+          return NextResponse.json({
+            erreur: "l'arrêt commence avant le début du contrat ("
+              + String((ct as any).date_debut).slice(0, 10) + ").",
+          }, { status: 400 });
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        // 🆕🚨 LA DATE DE FIN PREVISIONNELLE EST OBLIGATOIRE — dsn-val,
+        // 17/09 : « CST-03 / Absence de la rubrique S21.G00.60.003 ».
+        //
+        // C est la date que porte l avis d arret du medecin. Sans elle, la
+        // CPAM ne sait pas jusqu a quand indemniser, et rejette.
+        // ⛔ ELLE NE SE DEVINE PAS ET NE SE REMPLIT PAS PAR DEFAUT : on ne
+        // prolonge ni ne raccourcit un arret de travail a la place d un
+        // medecin.
+        // ═══════════════════════════════════════════════════════════════
+        if (!dateFin) {
+          return NextResponse.json({
+            erreur: "la date de fin prévisionnelle de l'arrêt est obligatoire : "
+              + "c'est celle que porte l'avis d'arrêt du médecin. ⛔ Sans elle, "
+              + "la CPAM rejette le signalement et les indemnités "
+              + "journalières ne partent pas.",
+          }, { status: 400 });
+        }
+        // ⚠️ UNE FIN AVANT LE DEBUT EST TOUJOURS UNE FAUTE DE FRAPPE — le
+        // mois ou l annee. Elle passerait dsn-val, qui ne compare pas les
+        // deux dates, et c est la CPAM qui la renverrait.
+        if (dateFin < dateDebut) {
+          return NextResponse.json({
+            erreur: "la fin prévisionnelle de l'arrêt (" + dateFin
+              + ") précède son début (" + dateDebut + ").",
+          }, { status: 400 });
+        }
+        if (dernierJour && dernierJour > dateDebut) {
+          return NextResponse.json({
+            erreur: "le dernier jour travaillé (" + dernierJour
+              + ") est postérieur au début de l'arrêt (" + dateDebut + ").",
+          }, { status: 400 });
+        }
       }
 
+      // ═══════════════════════════════════════════════════════════════
+      // 🚨 LA SUBROGATION SE SAISIT EN ENTIER OU PAS DU TOUT.
+      //
+      // Elle etait deja refusee sans IBAN, a la saisie plutot qu a la
+      // generation : c est le moment ou le cabinet a le document sous les
+      // yeux. Plus tard, il faudra le rechercher.
+      //
+      // 🆕 17/09 — dsn-val, controle CCH-11 : l IBAN NE SUFFIT PAS. Il va
+      // avec le BIC et avec la DATE DE FIN DE SUBROGATION. Les trois se
+      // reclament ensemble, et l IBAN comme le BIC sont controles.
+      //
+      // ⚠️ LA FIN DE SUBROGATION N EST PAS LA FIN DE L ARRET : elle borne la
+      // periode pendant laquelle l employeur MAINTIENT LE SALAIRE, que fixe
+      // la convention collective. ⛔ ON NE LA REMPLIT DONC PAS PAR DEFAUT
+      // AVEC LA FIN DE L ARRET — declarer une subrogation trop longue, c est
+      // percevoir des indemnites qui reviennent au salarie.
+      // ═══════════════════════════════════════════════════════════════
+      if (subro) {
+        if (!String(c.iban || "").trim()) {
+          return NextResponse.json({
+            erreur: "subrogation demandée sans IBAN. ⛔ Sans lui, les "
+              + "indemnités journalières seraient versées au salarié alors "
+              + "que l'employeur maintient son salaire.",
+          }, { status: 400 });
+        }
+        const vIban = controlerIban(String(c.iban));
+        if (!vIban.ok) {
+          return NextResponse.json({ erreur: vIban.message }, { status: 400 });
+        }
+        ibanPropre = vIban.propre || null;
+
+        if (!String(c.bic || "").trim()) {
+          return NextResponse.json({
+            erreur: "subrogation demandée sans BIC. Il est obligatoire avec "
+              + "l'IBAN, et figure sur le même relevé d'identité bancaire.",
+          }, { status: 400 });
+        }
+        const vBic = controlerBic(String(c.bic));
+        if (!vBic.ok) {
+          return NextResponse.json({ erreur: vBic.message }, { status: 400 });
+        }
+        bicPropre = vBic.propre || null;
+
+        if (!subroFin) {
+          return NextResponse.json({
+            erreur: "subrogation demandée sans date de fin. Elle est "
+              + "obligatoire : c'est la fin du maintien de salaire prévu par la "
+              + "convention collective, pas forcément celle de l'arrêt.",
+          }, { status: 400 });
+        }
+        if (subroFin < (subroDebut || dateDebut)) {
+          return NextResponse.json({
+            erreur: "la fin de subrogation (" + subroFin + ") précède son début ("
+              + (subroDebut || dateDebut) + ").",
+          }, { status: 400 });
+        }
+      }
+
+      // ⚠️ SANS SUBROGATION, RIEN DE LA SUBROGATION NE S ENREGISTRE. Une case
+      // cochee puis decochee laisse un IBAN dans le formulaire : l ecrire en
+      // base ferait croire, a la relecture, a une subrogation oubliee.
       const { data: cree, error: eIns } = await supabase
         .from("paie_evenements")
         .insert({
@@ -827,13 +1027,13 @@ export async function POST(req: NextRequest) {
           type_evenement: type,
           motif: motif,
           date_debut: dateDebut,
-          date_fin: String(c.date_fin || "") || null,
-          dernier_jour_travaille: String(c.dernier_jour_travaille || "") || null,
+          date_fin: dateFin || null,
+          dernier_jour_travaille: dernierJour || null,
           subrogation: subro,
-          subro_debut: String(c.subro_debut || "") || null,
-          subro_fin: String(c.subro_fin || "") || null,
-          iban: String(c.iban || "").replace(/\s/g, "") || null,
-          bic: String(c.bic || "").trim() || null,
+          subro_debut: subro ? (subroDebut || null) : null,
+          subro_fin: subro ? subroFin : null,
+          iban: subro ? ibanPropre : null,
+          bic: subro ? bicPropre : null,
           date_notification: String(c.date_notification || "") || null,
           dernier_jour_paye: String(c.dernier_jour_paye || "") || null,
           statut: "brouillon",
