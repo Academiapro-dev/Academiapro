@@ -893,6 +893,94 @@ async function calculer(contratId: string, periode: string): Promise<any> {
   // La sortir du total puis la rededuire donnerait le meme resultat par un
   // chemin plus long — et le jour ou quelqu un modifie l un sans l autre,
   // le montant devient faux.
+  // ═══════════════════════════════════════════════════════════════════
+  // ══ LE SALAIRE MINIMUM CONVENTIONNEL ══
+  //
+  // 🚨 C EST UN CONTROLE, PAS UN CALCUL : il ne modifie aucun montant, il
+  // signale. Un salaire sous le minimum de branche est un rappel de
+  // salaire assorti de dommages-interets, et il se decouvre des annees
+  // plus tard — souvent au depart du salarie.
+  //
+  // ⚠️ LE SMIC PRIME TOUJOURS. Quand le minimum conventionnel lui est
+  // inferieur, c est le SMIC qui s applique : un minimum de branche ne
+  // descend jamais en dessous. Le controle retient donc LE PLUS ELEVE
+  // DES DEUX.
+  //
+  // ⛔ CE QUE CE CONTROLE NE FAIT PAS : il compare le SALAIRE DE BASE, pas
+  // le brut. Les primes exceptionnelles, les heures supplementaires et
+  // les avantages en nature n entrent pas dans l assiette du minimum
+  // conventionnel — les y inclure masquerait un salaire insuffisant.
+  // ═══════════════════════════════════════════════════════════════════
+  let minimumConventionnel: any = null;
+
+  if (contrat.idcc && contrat.coefficient) {
+    const { data: regles } = await supabase
+      .from("paie_conventions_regles")
+      .select("*")
+      .eq("idcc", Number(contrat.idcc))
+      .lte("date_effet", periode)
+      .or("date_fin.is.null,date_fin.gte." + periode);
+
+    // ⚠️ LA CATEGORIE COMMANDE LA FORMULE : un ETAM a une indemnite
+    // speciale que le cadre n a pas. Se tromper de categorie fausse le
+    // minimum de plusieurs centaines d euros.
+    const cat = String(contrat.categorie) === "cadre" ? "cadre" : "etam";
+    const lire = function (nom: string): number | null {
+      for (const r of (regles || [])) {
+        if (String((r as any).regle) !== nom) continue;
+        const c = (r as any).categorie;
+        if (c === null || c === undefined || String(c) === cat) {
+          return Number((r as any).valeur_num);
+        }
+      }
+      return null;
+    };
+
+    const valeurPoint = lire("valeur_point");
+    const indemniteSpec = lire("indemnite_speciale") || 0;
+
+    if (valeurPoint !== null) {
+      const minConv = cts(Number(contrat.coefficient) * valeurPoint
+        + (cat === "etam" ? indemniteSpec : 0));
+
+      // ⚠️ LE SMIC MENSUEL COURANT — celui qui paie (12,31 depuis juin),
+      // PAS celui de la RGDU, gele a 12,02 pour toute l annee. Les deux
+      // coexistent en base, et les confondre fausserait le plancher.
+      const smicMensuel = cts(await parametre("SMIC_MENSUEL", periode) || 0);
+
+      const planche = Math.max(minConv, smicMensuel);
+      const base = Number(contrat.salaire_mensuel || 0);
+
+      minimumConventionnel = {
+        idcc: contrat.idcc,
+        coefficient: contrat.coefficient,
+        position: contrat.position_conv || null,
+        categorie: cat,
+        valeur_point: valeurPoint,
+        indemnite_speciale: cat === "etam" ? indemniteSpec : 0,
+        minimum_conventionnel: minConv,
+        smic_mensuel: smicMensuel,
+        plancher_retenu: planche,
+        salaire_de_base: cts(base),
+        respecte: base >= planche,
+        ecart: cts(base - planche),
+      };
+
+      // 🚨 L ALERTE VOYAGE AVEC LE RESULTAT, dans `minimumConventionnel`.
+      // L ecran et le bulletin la lisent de la : un calculateur ne doit pas
+      // dependre d une liste d anomalies qui vit ailleurs.
+      if (base > 0 && base < planche) {
+        minimumConventionnel.alerte = "⛔ SALAIRE INFÉRIEUR AU MINIMUM : "
+          + cts(base).toFixed(2) + " € pour un plancher de "
+          + planche.toFixed(2) + " € (coefficient "
+          + contrat.coefficient + ", IDCC " + contrat.idcc
+          + "). Écart de " + (planche - base).toFixed(2)
+          + " € par mois. ⚠️ RAPPEL DE SALAIRE EXIGIBLE, avec les "
+          + "cotisations et les congés payés recalculés dessus.";
+      }
+    }
+  }
+
   const netSocial = cts(
     brutTotal
     + complementairePatronale
@@ -928,6 +1016,7 @@ async function calculer(contratId: string, periode: string): Promise<any> {
     rgdu_detail: rgduDetail,
     total_patronal_apres_rgdu: totalPatronalApresRgdu,
     net_imposable: netImposable,
+    minimum_conventionnel: minimumConventionnel,
     net_social: netSocial,
     // ⚠️ LA PHOTOGRAPHIE DE LA REINTEGRATION : elle permet de justifier le
     // montant net social devant un salarie qui demande pourquoi il differe
@@ -956,10 +1045,17 @@ async function calculer(contratId: string, periode: string): Promise<any> {
       const r = [
         "Les taux doivent être recoupés sur boss.gouv.fr avant tout bulletin réel.",
         "Le prélèvement à la source est à zéro : son taux vient du retour DSN.",
-        "Aucune convention collective n'est traitée (paie_conventions).",
+        "Le salaire minimum conventionnel est contrôlé quand le contrat porte un coefficient. ⚠️ Les valeurs de point ne sont pas encore recoupées sur Légifrance, et les autres règles de branche — prime de vacances, maintien de salaire en maladie, congés d'ancienneté — ne sont pas appliquées.",
         "La RGDU est calculée en régularisation progressive sur le cumul annuel, méthode recommandée par l'URSSAF : une prime en fin d'année est régularisée le mois même plutôt que de créer un rappel.",
         "Le montant net social réintègre la part patronale des garanties complémentaires (arrêté du 31 janvier 2023). ⚠️ Les taux de mutuelle et de prévoyance sont propres à chaque contrat collectif : tant qu'ils ne sont pas renseignés pour la société, ces lignes n'apparaissent pas.",
       ];
+
+      // 🚨 UNE ALERTE DE MINIMUM CONVENTIONNEL PASSE EN TETE DES RESERVES.
+      // Ce n est pas une reserve parmi d autres : c est un salaire
+      // illegal, et il doit se voir avant tout le reste.
+      if (minimumConventionnel && minimumConventionnel.alerte) {
+        r.unshift(minimumConventionnel.alerte);
+      }
 
       // ✅ LA VALORISATION DES CONGES EST CALCULEE DEPUIS LE 16/09 : les
       // deux methodes — maintien de salaire et regle du dixieme — sont
