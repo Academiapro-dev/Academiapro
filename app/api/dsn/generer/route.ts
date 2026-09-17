@@ -1639,8 +1639,21 @@ export async function POST(req: NextRequest) {
   const sha = crypto.createHash("sha256").update(octets).digest("hex");
 
   // ---- ARCHIVAGE ----
+  // 🆕 L EXTENSION EST « .txt », ET C EST UN CHOIX D USAGE, PAS DE NORME.
+  //
+  // La norme ne dit rien de l extension : le fichier est du texte, et
+  // net-entreprises le prend tel quel. Deux usages s opposent donc :
+  //   · « .dsn » — la fenetre d ouverture de dsn-val filtre sur ce nom, le
+  //     fichier apparait sans rien regler ;
+  //   · « .txt » — l iPad sait le telecharger.
+  // ⚠️ ESSAYE EN « .dsn » LE 17/09 : SAFARI NE LE TELECHARGE PAS. iOS ne
+  // connait pas cette extension et le bouton reste sans effet. Le fichier
+  // devenait alors inaccessible depuis le seul appareil qui le genere.
+  // ✅ EN « .txt », IL SE TELECHARGE. Dans dsn-val, il suffit de passer le
+  // filtre de la fenetre d ouverture sur « Tous les fichiers » — un reglage,
+  // une fois, contre un fichier hors de portee a chaque generation.
   const nomFichier = "DSN-" + siret + "-" + moisDsn(periode)
-    + "-" + String(ordre).padStart(2, "0") + ".dsn";
+    + "-" + String(ordre).padStart(2, "0") + ".txt";
   const chemin = q(societe.tenant_id) + "/" + societeId + "/dsn/"
     + periode.slice(0, 4) + "/" + nomFichier;
 
