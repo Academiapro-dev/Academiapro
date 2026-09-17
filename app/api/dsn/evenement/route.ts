@@ -13,7 +13,7 @@ export const maxDuration = 60;
 // La DSN mensuelle raconte le mois ecoule. Les SIGNALEMENTS racontent ce
 // qui arrive maintenant, et ils ont leurs propres delais :
 //
-//   · ARRET DE TRAVAIL — nature 02, a envoyer DANS LES CINQ JOURS. C est
+//   · ARRET DE TRAVAIL — nature 04, a envoyer DANS LES CINQ JOURS. C est
 //     lui qui declenche les indemnites journalieres. En retard, le salarie
 //     n est pas paye.
 //   · FIN DE CONTRAT (FCTU) — nature 07, cinq jours egalement. Il REMPLACE
@@ -130,11 +130,48 @@ export const maxDuration = 60;
 // mois-la ou au precedent. Un nom ne dit pas un format — c est l outil ou le
 // cahier qui le disent.
 //
-// ⚠️ LE SIGNALEMENT D ARRET DE TRAVAIL N EST PAS ENCORE PASSE DANS dsn-val.
-// Il recoit ici ce qui vaut pour tout signalement (contrat complet, bloc 71,
-// lieu de travail, rubriques S20 interdites), pas la paie : un arret ne
-// declare pas de remuneration, les indemnites se calculent sur les
-// mensuelles deja deposees.
+// ═══════════════════════════════════════════════════════════════════════
+// 🆕🚨🚨 17/09, L ARRET DE TRAVAIL DANS dsn-val — QUARANTE ET UNE ANOMALIES, ET
+// UNE SECONDE IDEE FAUSSE A RETIRER
+//
+// ⛔ J AVAIS DONNE A L ARRET TOUT CE QUE dsn-val RECLAMAIT POUR LA FIN DE
+// CONTRAT, en ecrivant que cela valait « pour tout signalement ». C ETAIT
+// UNE DEDUCTION, ET ELLE EST FAUSSE : CHAQUE NATURE A SA PROPRE STRUCTURE.
+// Le FCTU remplace l attestation employeur et porte le contrat entier et
+// la derniere paie. L arret de travail, lui, ne sert qu a une chose : dire a
+// la CPAM QUI est arrete, DEPUIS QUAND, et A QUI verser les indemnites.
+//
+// CE QUI EST INTERDIT DANS UN ARRET (CST-04 et CST-02), ET QU ON N ECRIT
+// DONC PLUS :
+//   · S20.G00.05.010, la devise
+//   · 06.003 a 06.006 : code APEN et adresse de l entreprise
+//   · 11.002 et 11.022 : code APET et convention collective
+//   · 30.005, 007, 008, 009, 010, 013, 014, 015 : sexe, adresse et donnees
+//     de naissance du salarie — il ne reste que le NIR, le nom, le prenom
+//     et la date de naissance
+//   · VINGT RUBRIQUES DU CONTRAT : il ne reste que la date de debut (40.001)
+//     et le numero (40.009)
+//   · le bloc 71, retraite complementaire
+//   · le bloc 85, lieu de travail
+// ⚠️ LA RUBRIQUE 40.019 N A PAS ETE DITE INTERDITE, mais elle est
+// « conditionnelle » et son controle CCH-11 exige un bloc 85 — lequel EST
+// interdit ici. On ne l ecrit pas : une rubrique facultative qui appelle un
+// bloc defendu ne peut que couter une anomalie.
+//
+// CE QUI MANQUAIT :
+//   · LE BLOC S20.G00.07, « contact chez le declare ». Facultatif dans une
+//     mensuelle ou un FCTU, il est OBLIGATOIRE dans un arret de travail :
+//     c est la personne que la CPAM appelle quand l attestation pose
+//     question. Quatre rubriques : nom, telephone, adresse mel, et le TYPE
+//     du contact — « 01 », contact pour les indemnites journalieres.
+//   · 60.003, LA DATE DE FIN PREVISIONNELLE de l arret : OBLIGATOIRE.
+//   · EN CAS DE SUBROGATION, la date de fin de subrogation (60.006) et le
+//     BIC (60.008) — le controle CCH-11 les exige avec l IBAN.
+//
+// 🚨 CES TROIS DONNEES SE SAISISSENT, et l ecran laissait enregistrer un
+// arret sans elles. LE GENERATEUR LES RECLAME DESORMAIS UNE PAR UNE plutot
+// que de produire un fichier que la CPAM rejettera — et un arret rejete,
+// c est un salarie dont les indemnites ne partent pas.
 // ═══════════════════════════════════════════════════════════════════════
 
 const NOM_LOGICIEL = "Mr Comptable";
@@ -318,10 +355,29 @@ export async function POST(req: NextRequest) {
     const type = q((ev as any).type_evenement);
     const estArret = type === "arret";
 
-    // ⚠️ LA NATURE DIT DE QUEL SIGNALEMENT IL S AGIT : 02 arret de travail,
+    // ⚠️ LA NATURE DIT DE QUEL SIGNALEMENT IL S AGIT : 04 arret de travail,
     // 07 fin de contrat. C est elle qui aiguille le fichier vers le bon
     // organisme — la CPAM pour l un, France Travail pour l autre.
-    const nature = estArret ? "02" : "07";
+    //
+    // 🆕🚨 L ARRET DE TRAVAIL EST LA NATURE « 04 », PAS « 02 ». Nous ecrivions
+    // « 02 » depuis le premier jour, et la passation le repetait. dsn-val,
+    // premier passage de l arret, a repondu cinq anomalies qui n en font
+    // qu une : « la declaration est impossible a identifier » (CV12). Il ne
+    // savait pas quel fichier il lisait — il a donc compte ZERO salarie et
+    // reclame des blocs au hasard. SA LISTE DES NATURES, LUE A L ECRAN :
+    //     01 DSN mensuelle
+    //     04 signalement Arret de travail
+    //     05 signalement Reprise suite a arret de travail
+    //     07 signalement Fin du contrat de travail unique
+    //     08 signalement Amorcage des donnees variables
+    //     09 DSN de substitution
+    //     10 signalement Declaration prealable a l embauche
+    // ⛔ « 02 » ET « 03 » N EXISTENT PAS. Un fichier depose avec cette nature
+    // n aurait ete reconnu par aucun organisme : la CPAM n aurait jamais recu
+    // l arret, et le salarie n aurait pas touche ses indemnites.
+    // ⚠️ LA NATURE « 05 » EXISTE AUSSI ET N EST PAS ENCORE PRODUITE ICI : la
+    // REPRISE du travail se signale quand elle a lieu avant la date prevue.
+    const nature = estArret ? "04" : "07";
 
     const dateEv = q((ev as any).date_debut);
     const dateFinContrat = q((ev as any).date_fin) || dateEv;
@@ -423,8 +479,11 @@ export async function POST(req: NextRequest) {
       delete dernierePar[bloc];
     };
 
+    // ⚠️ LE CODE APE NE S ECRIT QUE DANS UN FCTU : on ne le reclame donc que
+    // la. Le signaler absent sur un arret serait crier au loup pour une
+    // rubrique que ce fichier n a pas le droit de porter.
     const codeApe = apeDsn(societe.code_ape);
-    if (!codeApe) {
+    if (!codeApe && !estArret) {
       anomalies.push(q(societe.code_ape)
         ? "Code APE « " + q(societe.code_ape) + " » mal formé : il s'écrit sur "
           + "quatre chiffres et une lettre (7820Z). ⛔ NON DÉCLARÉ — les "
@@ -471,18 +530,71 @@ export async function POST(req: NextRequest) {
     ecrire("S20.G00.05.003", "11");            // fraction 1 sur 1
     ecrire("S20.G00.05.004", "1");
     ecrire("S20.G00.05.007", dateConstitution);
-    ecrire("S20.G00.05.010", "01");            // euro
+    // 🆕⛔ LA DEVISE (05.010) EST INTERDITE DANS UN ARRET DE TRAVAIL — dsn-val,
+    // CST-04. Un arret ne porte aucun montant : il n a pas de devise. Le
+    // FCTU, qui declare une paie, la garde.
+    if (!estArret) ecrire("S20.G00.05.010", "01");   // euro
+
+    // ── S20.G00.07 — LE CONTACT CHEZ LE DECLARE ──
+    //
+    // 🆕🚨 OBLIGATOIRE DANS UN ARRET DE TRAVAIL — dsn-val : « sous-groupe
+    // S20.G00.07 absent apres S20.G00.05 ». La norme le dit facultatif pour
+    // une mensuelle ou un FCTU, et obligatoire (une ou deux fois) pour un
+    // arret ou une reprise.
+    // ⚠️ CE N EST PAS LE CONTACT DE L EMETTEUR (S10.G00.02), qui designe celui
+    // qui ENVOIE le fichier — un cabinet comptable, souvent. Celui-ci est
+    // chez L EMPLOYEUR : c est lui que la CPAM joint pour une attestation
+    // de salaire. Les deux peuvent etre la meme personne, ils ne disent pas
+    // la meme chose.
+    // ⛔ ON NE L AJOUTE PAS AU FCTU : il y est facultatif, et le FCTU est
+    // passe dans dsn-val sans lui. On ne touche pas a un fichier valide.
+    if (estArret) {
+      ecrire("S20.G00.07.001", q(societe.contact_nom) || CONTACT_DEFAUT);
+      ecrire("S20.G00.07.002", q(societe.contact_tel) || TELEPHONE_DEFAUT);
+      ecrire("S20.G00.07.003", q(societe.contact_email) || EMAIL_DEFAUT);
+
+      // 🆕🚨 LE TYPE DU CONTACT (07.004) EST OBLIGATOIRE — dsn-val, second
+      // passage de l arret : « CST-03 / Absence de la rubrique S20.G00.07.004 ».
+      // C etait la DERNIERE anomalie du fichier. Il dit A QUEL ORGANISME ce
+      // contact est destine. SA LISTE, LUE A L ECRAN :
+      //     01 contact chez le declare pour les IJ
+      //     02 … pour les fins de contrats de travail (France Travail)
+      //     03 … pour les acteurs statistiques (DARES, INSEE…)
+      //     04 … recouvrant les cotisations de Securite sociale (Urssaf, MSA)
+      //     05 … pour le recouvrement des cotisations (retraite compl. et autres)
+      //     06 contact sur l identification des salaries (NIR)
+      //     07 contact sur l identification de l etablissement (SIRET)
+      //     08 contextualisable a l ensemble des organismes
+      //     09 contact chez l etablissement centralisateur pour les IJ
+      //     13 contact chez le declare pour les aides versees par l ASP
+      // ✅ POUR UN ARRET DE TRAVAIL, C EST « 01 » : les IJ sont les indemnites
+      // journalieres, et c est precisement ce que ce signalement declenche.
+      // ⚠️ LE « 09 » NE VAUT QUE POUR UNE ENTREPRISE QUI CENTRALISE la gestion
+      // des arrets de plusieurs etablissements dans un seul. Ce n est pas un
+      // choix par defaut : il designerait un etablissement qui n est pas celui
+      // du salarie.
+      // ⛔ JE L AVAIS LAISSEE DE COTE EXPRES au passage precedent : je n en
+      // connaissais pas les valeurs, et une valeur inventee aurait ete refusee
+      // sans rien m apprendre. Absente, elle a fait afficher sa liste.
+      ecrire("S20.G00.07.004", "01");
+    }
 
     // ── S21.G00.06 / 11 — ENTREPRISE ET ETABLISSEMENT ──
     ecrire("S21.G00.06.001", siret.slice(0, 9));
     ecrire("S21.G00.06.002", siret.slice(9));
-    ecrire("S21.G00.06.003", codeApe);         // APEN, obligatoire
-    ecrire("S21.G00.06.004", societe.adresse);
-    ecrire("S21.G00.06.005", q(societe.code_postal));
-    ecrire("S21.G00.06.006", societe.ville);
+    // 🆕⛔ DANS UN ARRET, L ENTREPRISE N EST QUE SON SIREN ET SON NIC : le code
+    // APEN et l adresse (06.003 a 06.006) y sont INTERDITS — dsn-val, CST-04.
+    if (!estArret) {
+      ecrire("S21.G00.06.003", codeApe);       // APEN, obligatoire
+      ecrire("S21.G00.06.004", societe.adresse);
+      ecrire("S21.G00.06.005", q(societe.code_postal));
+      ecrire("S21.G00.06.006", societe.ville);
+    }
 
     ecrire("S21.G00.11.001", siret.slice(9));
-    ecrire("S21.G00.11.002", codeApe);         // APET, obligatoire
+    // 🆕⛔ LE CODE APET (11.002) EST INTERDIT DANS UN ARRET — l adresse de
+    // l etablissement, elle, y reste permise.
+    if (!estArret) ecrire("S21.G00.11.002", codeApe);   // APET, obligatoire
     ecrire("S21.G00.11.003", societe.adresse);
     ecrire("S21.G00.11.004", q(societe.code_postal));
     ecrire("S21.G00.11.005", societe.ville);
@@ -490,8 +602,9 @@ export async function POST(req: NextRequest) {
     // 🚨 L IDCC DU CONTRAT PRIME SUR CELUI DE LA SOCIETE. Une entreprise
     // peut relever d une convention et employer un salarie sous une autre —
     // c est le cas de Thomas BERNARD, en 1486 dans une societe a 2378.
+    // 🆕⛔ LA CONVENTION COLLECTIVE (11.022) EST INTERDITE DANS UN ARRET.
     const idcc = q(ct.idcc) || q(societe.idcc);
-    if (idcc) ecrire("S21.G00.11.022", String(idcc).padStart(4, "0"));
+    if (idcc && !estArret) ecrire("S21.G00.11.022", String(idcc).padStart(4, "0"));
 
     // ── S21.G00.30 — L INDIVIDU ──
     //
@@ -511,7 +624,7 @@ export async function POST(req: NextRequest) {
       anomalies.push(qui + " : date de naissance absente "
         + "(S21.G00.30.006). ⛔ RUBRIQUE OBLIGATOIRE.");
     }
-    if (!sexeDsn(sal.sexe, nirComplet)) {
+    if (!estArret && !sexeDsn(sal.sexe, nirComplet)) {
       anomalies.push(qui + " : sexe indéterminé (S21.G00.30.005) — ni saisi, "
         + "ni déductible du numéro de sécurité sociale. ⛔ RUBRIQUE "
         + "OBLIGATOIRE.");
@@ -520,20 +633,26 @@ export async function POST(req: NextRequest) {
     ecrire("S21.G00.30.001", nir);
     ecrire("S21.G00.30.002", sal.nom);
     ecrire("S21.G00.30.004", sal.prenom);
-    ecrire("S21.G00.30.005", sexeDsn(sal.sexe, nirComplet));
+    // 🆕⛔ DANS UN ARRET, LE SALARIE TIENT EN QUATRE RUBRIQUES : NIR, nom,
+    // prenom, date de naissance. Le sexe, l adresse et les donnees de
+    // naissance (005, 007 a 010, 013 a 015) y sont INTERDITS — dsn-val,
+    // CST-04, huit fois. La CPAM connait deja son assure : le NIR suffit.
+    if (!estArret) ecrire("S21.G00.30.005", sexeDsn(sal.sexe, nirComplet));
     ecrire("S21.G00.30.006", dateDsn(sal.date_naissance));
 
-    const deptNaissance = nirComplet.length >= 7 ? nirComplet.slice(5, 7) : "";
-    if (deptNaissance && deptNaissance !== "99") {
-      ecrire("S21.G00.30.007", sal.lieu_naissance);
+    if (!estArret) {
+      const deptNaissance = nirComplet.length >= 7 ? nirComplet.slice(5, 7) : "";
+      if (deptNaissance && deptNaissance !== "99") {
+        ecrire("S21.G00.30.007", sal.lieu_naissance);
+      }
+      ecrire("S21.G00.30.008", sal.adresse);
+      ecrire("S21.G00.30.009", q(sal.code_postal));
+      ecrire("S21.G00.30.010", sal.ville);
+      ecrire("S21.G00.30.013", q(sal.codification_ue) || "01");
+      if (deptNaissance) ecrire("S21.G00.30.014", deptNaissance);
+      const paysNaiss = q(sal.pays_naissance).toUpperCase();
+      ecrire("S21.G00.30.015", paysNaiss.length === 2 ? paysNaiss : "FR");
     }
-    ecrire("S21.G00.30.008", sal.adresse);
-    ecrire("S21.G00.30.009", q(sal.code_postal));
-    ecrire("S21.G00.30.010", sal.ville);
-    ecrire("S21.G00.30.013", q(sal.codification_ue) || "01");
-    if (deptNaissance) ecrire("S21.G00.30.014", deptNaissance);
-    const paysNaiss = q(sal.pays_naissance).toUpperCase();
-    ecrire("S21.G00.30.015", paysNaiss.length === 2 ? paysNaiss : "FR");
 
     // ═══════════════════════════════════════════════════════════════════
     // ── S21.G00.40 — LE CONTRAT, EN ENTIER ──
@@ -556,48 +675,11 @@ export async function POST(req: NextRequest) {
     // ═══════════════════════════════════════════════════════════════════
     const numeroContrat = String(ct.id).replace(/-/g, "").slice(0, 20);
 
-    const natureContrat = await code("S21.G00.40.007", q(ct.type_contrat));
-    if (!natureContrat) {
-      anomalies.push(qui + " : aucun code DSN pour le type de contrat « "
-        + q(ct.type_contrat) + " » (S21.G00.40.007). ⛔ NON DÉCLARÉ.");
-    }
-
-    let statutConv = q(ct.statut_conventionnel);
-    if (!statutConv) {
-      statutConv = (await code("S21.G00.40.002", q(ct.categorie))) || "";
-    }
-    if (!statutConv) {
-      anomalies.push(qui + " : statut conventionnel introuvable pour la "
-        + "catégorie « " + q(ct.categorie) + " » (S21.G00.40.002). ⛔ NON "
-        + "DÉCLARÉ.");
-    }
-
-    const statutRc = await code("S21.G00.40.003",
-      q(ct.categorie) === "cadre" ? "rc_cadre" : "rc_non_cadre");
-    if (!statutRc) {
-      anomalies.push(qui + " : statut catégoriel de retraite complémentaire "
-        + "introuvable (S21.G00.40.003). ⛔ NON DÉCLARÉ.");
-    }
-
-    // LA DUREE MENSUELLE DE REFERENCE — meme source que la mensuelle.
+    // 🆕🚨 CE QUI EST CALCULE ICI SERT AUX DEUX NATURES, ce qui est LU EN BASE ET
+    // ECRIT plus bas ne sert qu au FCTU. Les declarations sont donc remontees
+    // hors du bloc conditionnel : le versement, l activite et le lieu de
+    // travail en ont besoin plus loin.
     let dureeMensuelleRef = 0;
-    {
-      const { data: dm } = await supabase
-        .from("paie_parametres").select("valeur")
-        .eq("code", "DUREE_MENSUELLE")
-        .lte("date_effet", periode)
-        .or("date_fin.is.null,date_fin.gte." + periode)
-        .order("date_effet", { ascending: false })
-        .limit(1).maybeSingle();
-      if (dm) dureeMensuelleRef = Number((dm as any).valeur);
-    }
-    if (dureeMensuelleRef <= 0) {
-      anomalies.push("Durée mensuelle de référence introuvable dans "
-        + "paie_parametres (DUREE_MENSUELLE). ⛔ Les quotités du contrat "
-        + "(S21.G00.40.012 et 013) NE SONT PAS DÉCLARÉES — elles sont "
-        + "obligatoires.");
-    }
-
     const estMission = q(ct.type_contrat) === "mission";
     const siretEu = q(ct.eu_siret).replace(/\D/g, "");
     const missionValide = estMission && siretEu.length === 14
@@ -605,57 +687,112 @@ export async function POST(req: NextRequest) {
     const lieuTravail = missionValide ? siretEu : siret;
     const tempsPlein = !ct.duree_hebdo || Number(ct.duree_hebdo) >= 35;
 
-    ecrire("S21.G00.40.001", dateDsn(ct.date_debut));
-    ecrire("S21.G00.40.002", statutConv);
-    if (statutRc) ecrire("S21.G00.40.003", statutRc);
-    if (q(ct.pcs_ese)) ecrire("S21.G00.40.004", q(ct.pcs_ese));
-    else {
-      anomalies.push(qui + " : code PCS-ESE absent (S21.G00.40.004) — "
-        + "nomenclature INSEE des professions, rubrique obligatoire.");
-    }
-    if (!q(ct.intitule_poste)) {
-      anomalies.push(qui + " : libellé de l'emploi absent (S21.G00.40.006). "
-        + "⛔ RUBRIQUE OBLIGATOIRE.");
-    }
-    ecrire("S21.G00.40.006", ct.intitule_poste);
-    ecrire("S21.G00.40.007", natureContrat || "");
-    ecrire("S21.G00.40.008", q(ct.dispositif_public) || "99");
-    ecrire("S21.G00.40.009", numeroContrat);
-    if (ct.date_fin) ecrire("S21.G00.40.010", dateDsn(ct.date_fin));
-
-    const uniteQuotite = await code("S21.G00.40.011", "heure");
-    if (uniteQuotite) ecrire("S21.G00.40.011", uniteQuotite);
-    else {
-      anomalies.push("Unité de mesure de la quotité sans code DSN "
-        + "(S21.G00.40.011). ⛔ NON DÉCLARÉE — rubrique obligatoire.");
-    }
-    if (dureeMensuelleRef > 0) {
-      ecrire("S21.G00.40.012", montantDsn(dureeMensuelleRef));
-      const hebdo = ct.duree_hebdo ? Number(ct.duree_hebdo) : 35;
-      const quotite = dureeMensuelleRef * Math.min(hebdo, 35) / 35;
-      ecrire("S21.G00.40.013", montantDsn(Math.round(quotite * 100) / 100));
-    }
-    ecrire("S21.G00.40.014", tempsPlein ? "10" : "20");
-    ecrire("S21.G00.40.016", q(ct.regime_alsace_moselle) || "99");
-    ecrire("S21.G00.40.017", q(ct.idcc) ? String(ct.idcc).padStart(4, "0") : "9999");
-    ecrire("S21.G00.40.018", q(ct.regime_maladie) || "200");
-    ecrire("S21.G00.40.019", lieuTravail);
-    ecrire("S21.G00.40.020", q(ct.regime_vieillesse) || "200");
-
-    if (q(ct.type_contrat) === "mission" || q(ct.type_contrat) === "cdd") {
-      const codeRecours = await code("S21.G00.40.021", q(ct.motif_recours));
-      if (codeRecours) ecrire("S21.G00.40.021", codeRecours);
-      else {
-        anomalies.push(qui + " : motif de recours « " + q(ct.motif_recours)
-          + " » sans code DSN (S21.G00.40.021). ⛔ NON DÉCLARÉ — obligatoire "
-          + "sur un contrat de mission ou un CDD.");
+    if (estArret) {
+      // 🆕⛔ DANS UN ARRET DE TRAVAIL, LE CONTRAT TIENT EN DEUX RUBRIQUES : sa
+      // date de debut et son numero. dsn-val a declare INTERDITES les vingt
+      // autres (CST-04) — statut, emploi, nature, quotites, convention,
+      // regimes… La CPAM n indemnise pas un contrat, elle indemnise un assure :
+      // il lui suffit de savoir DE QUEL contrat l arret suspend l execution.
+      // ⚠️ ON N INTERROGE MEME PAS LA BASE pour les codes du contrat : chercher
+      // un code qu on n ecrira pas, c est s exposer a signaler son absence
+      // pour rien.
+      ecrire("S21.G00.40.001", dateDsn(ct.date_debut));
+      ecrire("S21.G00.40.009", numeroContrat);
+    } else {
+      const natureContrat = await code("S21.G00.40.007", q(ct.type_contrat));
+      if (!natureContrat) {
+        anomalies.push(qui + " : aucun code DSN pour le type de contrat « "
+          + q(ct.type_contrat) + " » (S21.G00.40.007). ⛔ NON DÉCLARÉ.");
       }
-    }
 
-    ecrire("S21.G00.40.024", q(ct.travailleur_etranger) || "99");
-    ecrire("S21.G00.40.026", q(ct.statut_emploi) || "04");
-    ecrire("S21.G00.40.036", q(ct.emplois_multiples) || "01");
-    ecrire("S21.G00.40.037", q(ct.employeurs_multiples) || "01");
+      let statutConv = q(ct.statut_conventionnel);
+      if (!statutConv) {
+        statutConv = (await code("S21.G00.40.002", q(ct.categorie))) || "";
+      }
+      if (!statutConv) {
+        anomalies.push(qui + " : statut conventionnel introuvable pour la "
+          + "catégorie « " + q(ct.categorie) + " » (S21.G00.40.002). ⛔ NON "
+          + "DÉCLARÉ.");
+      }
+
+      const statutRc = await code("S21.G00.40.003",
+        q(ct.categorie) === "cadre" ? "rc_cadre" : "rc_non_cadre");
+      if (!statutRc) {
+        anomalies.push(qui + " : statut catégoriel de retraite complémentaire "
+          + "introuvable (S21.G00.40.003). ⛔ NON DÉCLARÉ.");
+      }
+
+      // LA DUREE MENSUELLE DE REFERENCE — meme source que la mensuelle.
+      {
+        const { data: dm } = await supabase
+          .from("paie_parametres").select("valeur")
+          .eq("code", "DUREE_MENSUELLE")
+          .lte("date_effet", periode)
+          .or("date_fin.is.null,date_fin.gte." + periode)
+          .order("date_effet", { ascending: false })
+          .limit(1).maybeSingle();
+        if (dm) dureeMensuelleRef = Number((dm as any).valeur);
+      }
+      if (dureeMensuelleRef <= 0) {
+        anomalies.push("Durée mensuelle de référence introuvable dans "
+          + "paie_parametres (DUREE_MENSUELLE). ⛔ Les quotités du contrat "
+          + "(S21.G00.40.012 et 013) NE SONT PAS DÉCLARÉES — elles sont "
+          + "obligatoires.");
+      }
+
+
+      ecrire("S21.G00.40.001", dateDsn(ct.date_debut));
+      ecrire("S21.G00.40.002", statutConv);
+      if (statutRc) ecrire("S21.G00.40.003", statutRc);
+      if (q(ct.pcs_ese)) ecrire("S21.G00.40.004", q(ct.pcs_ese));
+      else {
+        anomalies.push(qui + " : code PCS-ESE absent (S21.G00.40.004) — "
+          + "nomenclature INSEE des professions, rubrique obligatoire.");
+      }
+      if (!q(ct.intitule_poste)) {
+        anomalies.push(qui + " : libellé de l'emploi absent (S21.G00.40.006). "
+          + "⛔ RUBRIQUE OBLIGATOIRE.");
+      }
+      ecrire("S21.G00.40.006", ct.intitule_poste);
+      ecrire("S21.G00.40.007", natureContrat || "");
+      ecrire("S21.G00.40.008", q(ct.dispositif_public) || "99");
+      ecrire("S21.G00.40.009", numeroContrat);
+      if (ct.date_fin) ecrire("S21.G00.40.010", dateDsn(ct.date_fin));
+
+      const uniteQuotite = await code("S21.G00.40.011", "heure");
+      if (uniteQuotite) ecrire("S21.G00.40.011", uniteQuotite);
+      else {
+        anomalies.push("Unité de mesure de la quotité sans code DSN "
+          + "(S21.G00.40.011). ⛔ NON DÉCLARÉE — rubrique obligatoire.");
+      }
+      if (dureeMensuelleRef > 0) {
+        ecrire("S21.G00.40.012", montantDsn(dureeMensuelleRef));
+        const hebdo = ct.duree_hebdo ? Number(ct.duree_hebdo) : 35;
+        const quotite = dureeMensuelleRef * Math.min(hebdo, 35) / 35;
+        ecrire("S21.G00.40.013", montantDsn(Math.round(quotite * 100) / 100));
+      }
+      ecrire("S21.G00.40.014", tempsPlein ? "10" : "20");
+      ecrire("S21.G00.40.016", q(ct.regime_alsace_moselle) || "99");
+      ecrire("S21.G00.40.017", q(ct.idcc) ? String(ct.idcc).padStart(4, "0") : "9999");
+      ecrire("S21.G00.40.018", q(ct.regime_maladie) || "200");
+      ecrire("S21.G00.40.019", lieuTravail);
+      ecrire("S21.G00.40.020", q(ct.regime_vieillesse) || "200");
+
+      if (q(ct.type_contrat) === "mission" || q(ct.type_contrat) === "cdd") {
+        const codeRecours = await code("S21.G00.40.021", q(ct.motif_recours));
+        if (codeRecours) ecrire("S21.G00.40.021", codeRecours);
+        else {
+          anomalies.push(qui + " : motif de recours « " + q(ct.motif_recours)
+            + " » sans code DSN (S21.G00.40.021). ⛔ NON DÉCLARÉ — obligatoire "
+            + "sur un contrat de mission ou un CDD.");
+        }
+      }
+
+      ecrire("S21.G00.40.024", q(ct.travailleur_etranger) || "99");
+      ecrire("S21.G00.40.026", q(ct.statut_emploi) || "04");
+      ecrire("S21.G00.40.036", q(ct.emplois_multiples) || "01");
+      ecrire("S21.G00.40.037", q(ct.employeurs_multiples) || "01");
+    }
 
     // ⚠️ LE MOTIF DE L EVENEMENT EST UN CODE DE LA NORME, lu en base. Le
     // deviner ferait declarer une fin de CDD comme un licenciement
@@ -707,22 +844,55 @@ export async function POST(req: NextRequest) {
       ecrire("S21.G00.60.001", codeMotif);
       ecrire("S21.G00.60.002", dateDsn((ev as any).dernier_jour_travaille
         || (ev as any).date_debut));
+
+      // 🆕🚨 LA DATE DE FIN PREVISIONNELLE EST OBLIGATOIRE — dsn-val : « CST-03 /
+      // Absence de la rubrique S21.G00.60.003 ». C est la date portee sur
+      // l avis d arret du medecin. Sans elle, la CPAM ne sait pas jusqu a
+      // quand indemniser.
+      // ⛔ ELLE NE SE DEVINE PAS : on ne prolonge ni ne raccourcit un arret
+      // de travail a la place d un medecin. Si elle manque, on le DIT.
       if (q((ev as any).date_fin)) {
         ecrire("S21.G00.60.003", dateDsn((ev as any).date_fin));
+      } else {
+        anomalies.push("⛔ DATE DE FIN PRÉVISIONNELLE DE L'ARRÊT ABSENTE "
+          + "(S21.G00.60.003). Elle est OBLIGATOIRE : LE SIGNALEMENT SERA "
+          + "REJETÉ et les indemnités journalières ne partiront pas. C'est la "
+          + "date portée sur l'avis d'arrêt du médecin.");
       }
       ecrire("S21.G00.60.004", (ev as any).subrogation ? "01" : "02");
 
       if ((ev as any).subrogation) {
+        // 🆕🚨 EN SUBROGATION, QUATRE RUBRIQUES VONT ENSEMBLE : debut, FIN, IBAN
+        // et BIC. dsn-val, controle CCH-11, a reclame la date de fin (60.006)
+        // et le BIC (60.008) qui manquaient.
+        // ⚠️ LA DATE DE FIN DE SUBROGATION N EST PAS CELLE DE L ARRET : elle
+        // borne la periode pendant laquelle l employeur MAINTIENT LE SALAIRE —
+        // ce que fixe la convention collective, souvent moins longtemps que
+        // l arret lui-meme. Passee cette date, la CPAM verse au salarie.
+        // ⛔ ON NE LA REMPLACE PAS PAR LA FIN DE L ARRET : declarer une
+        // subrogation trop longue, c est percevoir des indemnites qui
+        // reviennent au salarie.
         ecrire("S21.G00.60.005", dateDsn((ev as any).subro_debut
           || (ev as any).date_debut));
         if (q((ev as any).subro_fin)) {
           ecrire("S21.G00.60.006", dateDsn((ev as any).subro_fin));
+        } else {
+          anomalies.push("⛔ SUBROGATION SANS DATE DE FIN (S21.G00.60.006). Elle "
+            + "est OBLIGATOIRE dès que l'employeur maintient le salaire : c'est "
+            + "la fin de la période de maintien prévue par la convention "
+            + "collective, pas forcément celle de l'arrêt.");
         }
         // ⛔ SANS IBAN, LES INDEMNITES NE PEUVENT PAS ETRE VERSEES a
         // l employeur : la subrogation est declaree mais inopérante.
         if (q((ev as any).iban)) {
           ecrire("S21.G00.60.007", q((ev as any).iban).replace(/\s/g, ""));
-          if (q((ev as any).bic)) ecrire("S21.G00.60.008", (ev as any).bic);
+          if (q((ev as any).bic)) {
+            ecrire("S21.G00.60.008", q((ev as any).bic).replace(/\s/g, "").toUpperCase());
+          } else {
+            anomalies.push("⛔ SUBROGATION SANS BIC (S21.G00.60.008). Il est "
+              + "OBLIGATOIRE avec l'IBAN — contrôle CCH-11. Il figure sur le "
+              + "même relevé d'identité bancaire.");
+          }
         } else {
           anomalies.push("⛔ SUBROGATION DÉCLARÉE SANS IBAN : les indemnités "
             + "journalières ne pourront pas être versées à l'employeur. "
@@ -802,7 +972,11 @@ export async function POST(req: NextRequest) {
     // CONTROLE CCH-17 : un salarie declare « 04 - non cadre » en statut
     // categoriel EXIGE un bloc 71 portant RETA, RUAA ou CAVEC — quelle que
     // soit la nature de la declaration.
-    ecrire("S21.G00.71.002", q(ct.regime_retraite_c) || "RUAA");
+    // 🆕⛔ ET IL EST INTERDIT DANS UN ARRET DE TRAVAIL — dsn-val : « le
+    // sous-groupe S21.G00.71 est interdit pour cette nature de declaration
+    // (DSN SIGNAL ARRET TRAVAIL) ». Le controle CCH-17 ne joue donc pas la :
+    // il s appuie sur la rubrique 40.003, elle-meme interdite dans un arret.
+    if (!estArret) ecrire("S21.G00.71.002", q(ct.regime_retraite_c) || "RUAA");
 
     // ═══════════════════════════════════════════════════════════════════
     // 🚨 LA DERNIERE PAIE, TELLE QU UN FCTU L ACCEPTE — BLOCS 50, 51, 53,
@@ -1051,7 +1225,12 @@ export async function POST(req: NextRequest) {
     // ⚠️ CE BLOC SE REMPLIT EN ENTIER OU PAS DU TOUT : sans nature juridique
     // le SIRET est refuse, et sans code INSEE la commune n est pas situee.
     // ═══════════════════════════════════════════════════════════════════
-    if (missionValide) {
+    // 🆕⛔ CE BLOC EST INTERDIT DANS UN ARRET DE TRAVAIL — dsn-val : « le
+    // sous-groupe S21.G00.85 est interdit pour cette nature ». Et c est
+    // coherent : l arret ne porte pas la rubrique 40.019 qui y renvoie.
+    if (estArret) {
+      // rien : un arret de travail ne decrit aucun lieu de travail.
+    } else if (missionValide) {
       const insee = q(ct.eu_code_insee);
       const cpLieu = q(ct.eu_code_postal);
       if (!insee || !cpLieu || !q(ct.eu_adresse) || !q(ct.eu_ville)) {
@@ -1130,8 +1309,8 @@ export async function POST(req: NextRequest) {
             ? "les indemnités journalières du salarié sont retardées."
             : "l'ancien salarié ne peut pas ouvrir ses droits au chômage."),
         estArret
-          ? "Le signalement d'arrêt de travail n'est pas encore passé dans "
-            + "dsn-val."
+          ? "La date de fin prévisionnelle, la fin de subrogation et le BIC "
+            + "sont obligatoires : l'écran doit encore les exiger à la saisie."
           : "Le préavis ne se saisit pas encore à l'écran : seuls les motifs "
             + "sans préavis (fin de CDD, fin de mission, fin d'essai, rupture "
             + "conventionnelle) peuvent être déposés.",
