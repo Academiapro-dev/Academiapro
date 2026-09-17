@@ -508,10 +508,18 @@ export async function POST(req: NextRequest) {
   ecrire("S21.G00.11.004", q(societe.code_postal));
   ecrire("S21.G00.11.005", societe.ville);
 
-  // ⚠️ L IDCC DE L ETABLISSEMENT : celui de la societe, a defaut celui du
-  // premier contrat. Sans lui, la declaration part en anomalie.
-  const idccEtab = q(societe.idcc)
-    || q((bulletins[0] as any)?.paie_contrats?.idcc) || "";
+  // 🚨 L IDCC DU CONTRAT PRIME SUR CELUI DE LA SOCIETE. Une entreprise peut
+  // relever d une convention et employer un salarie sous une autre — c est
+  // le cas d une societe de travail temporaire (2378) dont les permanents
+  // relevent d une autre branche.
+  // ⚠️ DECLARER LA MAUVAISE CONVENTION rattache le salarie a la mauvaise
+  // branche, et avec elle a de mauvais droits conventionnels.
+  // ⛔ CE CHOIX EST UNE APPROXIMATION : la rubrique 11.022 porte la
+  // convention de L ETABLISSEMENT, une seule pour tous. Quand les salaries
+  // relevent de conventions differentes, c est la rubrique 40.017 de chaque
+  // contrat qui fait foi — et elle est deja ecrite, salarie par salarie.
+  const idccEtab = q((bulletins[0] as any)?.paie_contrats?.idcc)
+    || q(societe.idcc) || "";
   if (idccEtab) ecrire("S21.G00.11.022", String(idccEtab).padStart(4, "0"));
   else {
     anomalies.push("Code convention collective principale absent "
