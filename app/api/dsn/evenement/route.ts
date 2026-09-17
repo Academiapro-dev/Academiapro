@@ -242,7 +242,12 @@ export async function POST(req: NextRequest) {
     ecrire("S21.G00.11.004", q((societe as any).code_postal));
     ecrire("S21.G00.11.005", (societe as any).ville);
 
-    const idcc = q((societe as any).idcc) || q((ct as any).idcc);
+    // 🚨 L IDCC DU CONTRAT PRIME SUR CELUI DE LA SOCIETE. Une entreprise
+    // peut relever d une convention et employer un salarie sous une autre —
+    // c est le cas de Thomas BERNARD, en 1486 dans une societe a 2378.
+    // ⚠️ DECLARER LA MAUVAISE CONVENTION fausse le rattachement du salarie
+    // a sa branche, et avec lui ses droits conventionnels.
+    const idcc = q((ct as any).idcc) || q((societe as any).idcc);
     if (idcc) ecrire("S21.G00.11.022", String(idcc).padStart(4, "0"));
 
     // ── S21.G00.30 — L INDIVIDU ──
