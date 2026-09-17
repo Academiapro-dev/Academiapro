@@ -721,6 +721,183 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true, message: "Prise retirée." });
     }
 
+    // ═══════════════════════════════════════════════════════════════════
+    // ══ LES SIGNALEMENTS D EVENEMENT ══
+    //
+    // 🚨 DEUX EVENEMENTS, DEUX DELAIS DE CINQ JOURS :
+    //   · l ARRET DE TRAVAIL declenche les indemnites journalieres
+    //   · la FIN DE CONTRAT remplace l attestation employeur depuis 2022
+    //
+    // ⚠️ CE NE SONT PAS DES DOCUMENTS DE CONFORT. Un arret signale en
+    // retard, c est un salarie qui n est pas paye ; une fin de contrat en
+    // retard, c est un chomage qui ne s ouvre pas.
+    // ═══════════════════════════════════════════════════════════════════
+    if (action === "evenements") {
+      const contratId = String(c.contrat_id || "");
+      if (!contratId) {
+        return NextResponse.json({ erreur: "contrat manquant." }, { status: 400 });
+      }
+
+      const { data, error } = await supabase
+        .from("paie_evenements")
+        .select("*")
+        .eq("contrat_id", contratId)
+        .order("date_debut", { ascending: false });
+      if (error) return NextResponse.json({ erreur: error.message }, { status: 500 });
+
+      // ⚠️ LES MOTIFS VIENNENT DE LA BASE, avec leur code de la norme. Les
+      // ecrire en dur dans l ecran ferait diverger les deux le jour ou un
+      // code change — et un motif faux ouvre les mauvais droits.
+      const { data: motifs } = await supabase
+        .from("dsn_codes")
+        .select("rubrique, code, libelle, correspondance")
+        .in("rubrique", ["S21.G00.60.001", "S21.G00.62.002"])
+        .is("date_fin", null)
+        .not("correspondance", "is", null)
+        .order("code", { ascending: true });
+
+      return NextResponse.json({
+        success: true,
+        evenements: data || [],
+        motifs_arret: (motifs || []).filter(function (m: any) {
+          return m.rubrique === "S21.G00.60.001";
+        }),
+        motifs_fin: (motifs || []).filter(function (m: any) {
+          return m.rubrique === "S21.G00.62.002";
+        }),
+      });
+    }
+
+    if (action === "ajouter_evenement") {
+      const contratId = String(c.contrat_id || "");
+      const type = String(c.type_evenement || "");
+      const motif = String(c.motif || "");
+      const dateDebut = String(c.date_debut || "");
+
+      if (!contratId || !type || !motif || !dateDebut) {
+        return NextResponse.json({
+          erreur: "contrat, type, motif et date de début sont obligatoires.",
+        }, { status: 400 });
+      }
+      if (type !== "arret" && type !== "fin_contrat") {
+        return NextResponse.json({
+          erreur: "type inconnu : « arret » ou « fin_contrat » attendu.",
+        }, { status: 400 });
+      }
+
+      const { data: ct } = await supabase
+        .from("paie_contrats")
+        .select("*")
+        .eq("id", contratId)
+        .maybeSingle();
+      if (!ct) {
+        return NextResponse.json({ erreur: "contrat introuvable." },
+          { status: 404 });
+      }
+
+      // ⛔ UNE FIN DE CONTRAT NE PEUT PAS PRECEDER SON DEBUT. Le cas se
+      // produit sur une faute de frappe d annee, et il passe inapercu
+      // jusqu au rejet par France Travail.
+      if (type === "fin_contrat" && String(c.date_fin || dateDebut)
+          < String((ct as any).date_debut)) {
+        return NextResponse.json({
+          erreur: "la date de fin est antérieure au début du contrat ("
+            + String((ct as any).date_debut).slice(0, 10) + ").",
+        }, { status: 400 });
+      }
+
+      // 🚨 LA SUBROGATION SANS IBAN EST REFUSEE A LA SAISIE plutot qu a la
+      // generation : c est le moment ou le cabinet a le document sous les
+      // yeux. Plus tard, il faudra le rechercher.
+      const subro = c.subrogation === true;
+      if (type === "arret" && subro && !String(c.iban || "").trim()) {
+        return NextResponse.json({
+          erreur: "subrogation demandée sans IBAN. ⛔ Sans lui, les "
+            + "indemnités journalières seraient versées au salarié alors "
+            + "que l'employeur maintient son salaire.",
+        }, { status: 400 });
+      }
+
+      const { data: cree, error: eIns } = await supabase
+        .from("paie_evenements")
+        .insert({
+          tenant_id: (ct as any).tenant_id,
+          societe_id: (ct as any).societe_id,
+          contrat_id: contratId,
+          type_evenement: type,
+          motif: motif,
+          date_debut: dateDebut,
+          date_fin: String(c.date_fin || "") || null,
+          dernier_jour_travaille: String(c.dernier_jour_travaille || "") || null,
+          subrogation: subro,
+          subro_debut: String(c.subro_debut || "") || null,
+          subro_fin: String(c.subro_fin || "") || null,
+          iban: String(c.iban || "").replace(/\s/g, "") || null,
+          bic: String(c.bic || "").trim() || null,
+          date_notification: String(c.date_notification || "") || null,
+          dernier_jour_paye: String(c.dernier_jour_paye || "") || null,
+          statut: "brouillon",
+        })
+        .select()
+        .maybeSingle();
+      if (eIns) {
+        return NextResponse.json({ erreur: eIns.message }, { status: 500 });
+      }
+
+      // ⚠️ LE DELAI SE COMPTE DES LA SAISIE, pas depuis la generation.
+      const debut = new Date(dateDebut);
+      const limite = new Date(debut.getTime() + 5 * 86400000);
+      const jours = Math.ceil(
+        (limite.getTime() - Date.now()) / 86400000);
+
+      return NextResponse.json({
+        success: true,
+        evenement: cree,
+        message: (type === "arret" ? "Arrêt" : "Fin de contrat")
+          + " enregistré. "
+          + (jours < 0
+            ? "⚠️ DÉLAI DÉPASSÉ de " + Math.abs(jours) + " jour(s) : "
+              + "le signalement aurait dû partir le "
+              + limite.toISOString().slice(8, 10) + "/"
+              + limite.toISOString().slice(5, 7) + "."
+            : "À déposer avant le "
+              + limite.toISOString().slice(8, 10) + "/"
+              + limite.toISOString().slice(5, 7) + " ("
+              + jours + " jour(s))."),
+      });
+    }
+
+    if (action === "supprimer_evenement") {
+      const id = String(c.id || "");
+      if (!id) return NextResponse.json({ erreur: "identifiant manquant." },
+        { status: 400 });
+
+      // ⛔ UN SIGNALEMENT DEPOSE NE SE SUPPRIME PAS : il a ete transmis, et
+      // l effacer ici ne l efface pas chez l organisme. Une correction
+      // passe par un signalement d annulation.
+      const { data: ev } = await supabase
+        .from("paie_evenements")
+        .select("statut")
+        .eq("id", id)
+        .maybeSingle();
+
+      if (!ev) return NextResponse.json({ erreur: "événement introuvable." },
+        { status: 404 });
+      if (String((ev as any).statut) === "depose") {
+        return NextResponse.json({
+          erreur: "ce signalement a été déposé : il ne peut plus être "
+            + "supprimé. Une correction passe par un signalement "
+            + "d'annulation auprès de l'organisme.",
+        }, { status: 400 });
+      }
+
+      const { error: eDel } = await supabase
+        .from("paie_evenements").delete().eq("id", id);
+      if (eDel) return NextResponse.json({ erreur: eDel.message }, { status: 500 });
+
+      return NextResponse.json({ success: true, message: "Signalement retiré." });
+    }
+
     return NextResponse.json({ erreur: "action inconnue : " + action }, { status: 400 });
 
   } catch (e: any) {
