@@ -110,6 +110,18 @@ export const maxDuration = 120;
 // fichier ne juge pas ce fichier avec les bonnes tables. Tant que
 // S10.G00.00.006 est en anomalie, AUCUN des autres verdicts n est sur.
 // C EST L INSTALLATION QUI ACCEPTE P26V01 QUI FAIT FOI.
+//
+// ═══════════════════════════════════════════════════════════════════════
+// 🆕🚨 17/09 — LE PASSAGE 9 : DE DIX-HUIT ANOMALIES A UNE SEULE
+//
+// Il ne restait que S21.G00.51.011 / CCH-11. Le controle, lu en entier
+// dans le journal de maintenance de la norme et dans le guide URSSAF :
+// pour un contrat et un versement individu donnes, QUATRE types de
+// remuneration sont requis — 001, 002, 003 et 010. Nous n en ecrivions
+// que deux. Voir la section des remunerations plus bas.
+//
+// ⛔ LE MESSAGE DE dsn-val ETAIT TRONQUE A L ECRAN juste apres « 002 - ».
+// La suite se lisait dans la norme, pas dans une deduction.
 // ═══════════════════════════════════════════════════════════════════════
 
 const supabase = createClient(
@@ -282,6 +294,48 @@ function sexeDsn(sexeSaisi: any, nir: string): string | null {
 function apeDsn(v: any): string {
   const a = q(v).replace(/[^0-9A-Za-z]/g, "").toUpperCase();
   return /^\d{4}[A-Z]$/.test(a) ? a : "";
+}
+
+// 🆕🚨 LE SALAIRE DE BASE D UN BULLETIN — pour la remuneration de type 010.
+//
+// ⛔ CE N EST PAS LE BRUT. Un CDD a 2 100 EUR de salaire porte 2 541,00 EUR
+// de brut une fois ajoutees l indemnite de fin de contrat et celle de
+// conges payes. Declarer le brut en « salaire de base » serait faux pour
+// lui, et personne ne le verrait : les deux montants se ressemblent.
+//
+// ⚠️ ON LE LIT DANS LE BULLETIN, PAS DANS LE CONTRAT : le generateur declare
+// ce qui a ete remis au salarie. Le contrat peut avoir change depuis
+// (augmentation), le bulletin emis, lui, ne bouge plus.
+//
+// LA RECHERCHE, DANS L ORDRE :
+//   1. la ligne du brut dont le libelle commence par « Salaire de base »
+//      ou « Heures normales » — les deux ecritures du calculateur, la
+//      seconde pour un salarie paye a l heure ;
+//   2. a defaut, la PREMIERE ligne du brut : c est la place du salaire de
+//      base sur un bulletin. Le repli est SIGNALE, avec le libelle retenu ;
+//   3. a defaut, le salaire mensuel du contrat, SIGNALE lui aussi ;
+//   4. sinon rien : on n invente pas un salaire de base.
+function salaireDeBaseDsn(detail: any, ct: any): { montant: number; repli: string } | null {
+  const lignes: any[] = Array.isArray(detail && detail.lignes_brut) ? detail.lignes_brut : [];
+  const norm = function (v: any): string {
+    return q(v).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  };
+  for (const l of lignes) {
+    const lib = norm(l && l.libelle);
+    if (lib.indexOf("salaire de base") === 0 || lib.indexOf("heures normales") === 0) {
+      return { montant: Number(l.montant || 0), repli: "" };
+    }
+  }
+  if (lignes.length > 0 && Number(lignes[0].montant || 0) > 0) {
+    return {
+      montant: Number(lignes[0].montant),
+      repli: "première ligne du brut « " + q(lignes[0].libelle) + " »",
+    };
+  }
+  if (Number(ct && ct.salaire_mensuel || 0) > 0) {
+    return { montant: Number(ct.salaire_mensuel), repli: "salaire mensuel du contrat" };
+  }
+  return null;
 }
 
 // LIRE UN CODE DE LA NORME depuis notre correspondance.
@@ -1111,20 +1165,81 @@ export async function POST(req: NextRequest) {
     ecrire("S21.G00.51.013", montantDsn(b.brut));
 
     // ═══════════════════════════════════════════════════════════════
-    // ══ LA SECONDE REMUNERATION — TYPE 002, ET LE BLOC ACTIVITE ══
+    // ══ 🆕 LES REMUNERATIONS 003 ET 010 — REQUISES PAR LE CONTROLE CCH-11 ══
+    //
+    // 🚨🚨 dsn-val, passage 9, la derniere anomalie du fichier : « vous
+    // avez declare un contrat et un versement individu, sans renseigner de
+    // remuneration de type 001, 002… ». Le message etait tronque a l ecran.
+    // LE CONTROLE EN ENTIER (journal de maintenance de la norme, guide
+    // URSSAF de declaration en DSN) : pour un contrat dont la nature n est
+    // pas « 93 » et un versement individu donnes, les remunerations de type
+    //     001 - Remuneration brute non plafonnee
+    //     002 - Salaire brut servant aux droits de l Assurance chomage
+    //     003 - Salaire retabli - reconstitue
+    //     010 - Salaire de base
+    // SONT TOUTES LES QUATRE REQUISES. Nous n ecrivions que 001 et 002.
+    //
+    // ⛔ LE TYPE 003 NE SE MET PAS A ZERO QUAND IL N Y A PAS D ABSENCE.
+    // Le salaire retabli est ce que le salarie AURAIT touche s il avait
+    // travaille tout le mois. Il est renseigne TOUS LES MOIS : sans absence,
+    // il est strictement egal au brut reel. Le « 0.00 » que prevoit la
+    // norme ne vaut que pour une remuneration reellement nulle.
+    // 🚨 CE MONTANT SERT A L ASSURANCE MALADIE POUR CALCULER LES INDEMNITES
+    // JOURNALIERES. Un zero ici, et le salarie qui tombe malade trois mois
+    // plus tard voit ses indemnites calculees sur un salaire nul.
+    // ⚠️ LE JOUR OU LE BULLETIN TRAITERA L ABSENCE MALADIE (retenue et
+    // maintien), ce montant devra venir du calcul reconstitue, PAS du brut :
+    // c est precisement le mois de l absence que les deux different.
+    //
+    // ⚠️ L ORDRE DES QUATRE BLOCS : 001, 003, 010, et la 002 EN DERNIER. La
+    // norme n impose aucun ordre entre les types, mais la 002 est la seule a
+    // porter un enfant — le bloc activite (53). Ecrite en dernier, elle
+    // evite de redescendre puis remonter d un niveau au milieu des
+    // remunerations.
+    // ═══════════════════════════════════════════════════════════════
+    ecrire("S21.G00.51.001", debutPeriode);
+    ecrire("S21.G00.51.002", finPeriode);
+    ecrire("S21.G00.51.010", numeroContrat);
+    ecrire("S21.G00.51.011", "003");
+    ecrire("S21.G00.51.013", montantDsn(b.brut));
+
+    const base010 = salaireDeBaseDsn(detail, ct);
+    if (base010) {
+      ecrire("S21.G00.51.001", debutPeriode);
+      ecrire("S21.G00.51.002", finPeriode);
+      ecrire("S21.G00.51.010", numeroContrat);
+      ecrire("S21.G00.51.011", "010");
+      ecrire("S21.G00.51.013", montantDsn(base010.montant));
+      if (base010.repli) {
+        anomalies.push(qui + " : le salaire de base déclaré (S21.G00.51, type 010) "
+          + "vient d'un repli — " + base010.repli + ", soit "
+          + montantDsn(base010.montant) + " EUR. Aucune ligne « Salaire de base » "
+          + "ni « Heures normales » n'a été trouvée sur le bulletin. À VÉRIFIER.");
+      }
+    } else {
+      anomalies.push(qui + " : salaire de base introuvable, ni sur le bulletin ni "
+        + "sur le contrat. ⛔ LA RÉMUNÉRATION DE TYPE 010 N'EST PAS DÉCLARÉE — "
+        + "elle est obligatoire (contrôle CCH-11), LA DÉCLARATION SERA REJETÉE.");
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // ══ LA REMUNERATION DE TYPE 002, ET LE BLOC ACTIVITE ══
     //
     // 🚨🚨 LE BLOC ACTIVITE NE PEUT VIVRE QUE SOUS UNE REMUNERATION DE
     // TYPE « 002 - salaire brut servant aux calculs des droits de
     // l Assurance chomage ». dsn-val, controle CCH-11 : sous un bloc 51 de
     // type 001, il est refuse.
     //
-    // ⚠️ IL FAUT DONC DEUX BLOCS REMUNERATION, et c est la pratique de tous
-    // les editeurs :
+    // ⚠️ LA 001 ET LA 002 NE DISENT PAS LA MEME CHOSE :
     //   · 001 — la remuneration brute non plafonnee, celle des cotisations
     //   · 002 — l assiette qui ouvre les droits au chomage, sous laquelle
     //     se declare le volume de travail
     // Les deux portent le meme montant tant qu il n y a ni prime exclue de
     // l assiette chomage ni plafonnement.
+    // ⛔ RESERVE : la norme veut que les primes et indemnites (fin de
+    // contrat, fin de mission, conges payes) soient declarees en bloc
+    // S21.G00.52 et SORTIES de la 002. Ce bloc n existe pas encore ici.
+    // dsn-val ne le reclame pas, France Travail le lira.
     //
     // 🚨 C EST LE VOLUME DE TRAVAIL QUI FONDE LES DROITS : France Travail
     // calcule l allocation sur ces heures autant que sur ce montant. Les
@@ -1595,6 +1710,8 @@ export async function POST(req: NextRequest) {
       "Le taux de prélèvement à la source est neutre : le vrai taux vient du compte rendu métier de la DSN précédente.",
       "La clé de ventilation de la réduction générale entre les codes 018 et 106 est proportionnelle aux cotisations éligibles — à recouper avec la règle URSSAF.",
       "Le code PCS-ESE de chaque contrat vient de la nomenclature INSEE : un code faux ne fait pas rejeter la déclaration, il fausse le rattachement conventionnel.",
+      "Les primes et indemnités (fin de contrat, fin de mission, congés payés) ne sont pas encore déclarées en bloc S21.G00.52 : elles restent comprises dans la rémunération de type 002.",
+      "Le salaire rétabli (type 003) est égal au brut : exact tant qu'aucune absence n'est traitée sur le bulletin, à reprendre avec le maintien de salaire en maladie.",
     ],
     message: "Fichier DSN généré en BROUILLON. "
       + (anomalies.length > 0
