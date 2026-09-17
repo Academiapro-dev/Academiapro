@@ -82,8 +82,9 @@ export const maxDuration = 60;
 //   1. LE BLOC 50 EST REDUIT A L IDENTIFICATION DU VERSEMENT. Six rubriques
 //      y sont INTERDITES (CST-04) : 002, 004, 006, 007, 009 et 013 — le net
 //      fiscal, le net verse et tout le prelevement a la source. Une
-//      rubrique y est OBLIGATOIRE et manquait (CST-03) : 50.020, le mois de
-//      la DSN mensuelle de rattachement.
+//      rubrique y est OBLIGATOIRE et manquait (CST-03) : 50.020, le
+//      rattachement a la DSN mensuelle (une enumeration, voir le troisieme
+//      passage plus bas).
 //      ⚠️ LA LOGIQUE : le FCTU est lu par France Travail, qui calcule des
 //      droits sur des salaires BRUTS et des volumes de travail. Le net et
 //      l impot ne le regardent pas — ils restent dans la mensuelle, que lit
@@ -108,6 +109,26 @@ export const maxDuration = 60;
 // a « 90 », le bloc 71, les QUATRE remunerations (001, 003, 010, 002),
 // l activite, les assiettes et leurs cotisations, l anciennete, le lieu de
 // travail. L ordre des blocs n a souleve aucune remarque.
+//
+// ═══════════════════════════════════════════════════════════════════════
+// 🆕🚨 17/09, TROISIEME PASSAGE — DE DIX-SEPT ANOMALIES A UNE SEULE
+//
+// Les quatre causes du deuxieme passage ont disparu. Il restait :
+//   S21.G00.50.020 / CSL-11 — « contient une valeur hors de la liste de
+//   valeurs autorisees ». Nous y ecrivions « 01092026 ».
+//
+// ⛔ J AVAIS DEDUIT SON FORMAT DE SON NOM. La rubrique s appelle « Mois de la
+// DSN mensuelle de rattachement », sa voisine 62.020 s appelle « Mois de la
+// DSN mensuelle portant les derniers elements » et s ecrit comme une date :
+// j en avais conclu que celle-ci aussi. ELLE EST UNE ENUMERATION, et dsn-val
+// en donne les deux valeurs :
+//     01 - elements de la DSN mensuelle portant les derniers elements
+//          declares dans le FCTU
+//     02 - elements de la declaration PRECEDANT cette DSN mensuelle
+// 🚨 DEUX RUBRIQUES AU NOM PRESQUE IDENTIQUE, DEUX NATURES DIFFERENTES : la
+// 62.020 DIT quel est le mois, la 50.020 dit si le versement APPARTIENT a ce
+// mois-la ou au precedent. Un nom ne dit pas un format — c est l outil ou le
+// cahier qui le disent.
 //
 // ⚠️ LE SIGNALEMENT D ARRET DE TRAVAIL N EST PAS ENCORE PASSE DANS dsn-val.
 // Il recoit ici ce qui vaut pour tout signalement (contrat complet, bloc 71,
@@ -829,10 +850,22 @@ export async function POST(req: NextRequest) {
       // ⚠️ LA 50.020 DIT A QUELLE MENSUELLE CE VERSEMENT APPARTIENT : c est
       // elle qui porte le net et l impot. Le FCTU y renvoie au lieu de les
       // redire — deux declarations du meme net finiraient par differer.
-      // Son format est celui de la 62.020, que dsn-val a acceptee.
+      //
+      // 🆕🚨 C EST UNE ENUMERATION, PAS UNE DATE — dsn-val, troisieme passage,
+      // controle CSL-11. Ses deux valeurs :
+      //   01 - le versement appartient a la mensuelle designee en 62.020,
+      //        celle qui porte les derniers elements du FCTU
+      //   02 - il appartient a la declaration QUI LA PRECEDE
+      // ⚠️ ICI C EST TOUJOURS « 01 », ET CE N EST PAS UN RACCOURCI : le mois
+      // ecrit en 62.020 EST celui du bulletin repris dans ce bloc 50. Les deux
+      // viennent de la meme variable, ils ne peuvent pas diverger.
+      // ⛔ LA VALEUR « 02 » NE SERVIRA QUE LE JOUR OU UN FCTU PORTERA DEUX
+      // VERSEMENTS — le dernier mois et celui d avant, quand aucun des deux
+      // n a encore ete depose dans une mensuelle. Ce generateur n en porte
+      // qu un : il ne faudra pas l oublier en lui en ajoutant un second.
       ecrire("S21.G00.50.001", finPeriode);
       ecrire("S21.G00.50.003", "01");
-      ecrire("S21.G00.50.020", debutPeriode);
+      ecrire("S21.G00.50.020", "01");
 
       // ── S21.G00.51 — LES QUATRE REMUNERATIONS ──
       //
