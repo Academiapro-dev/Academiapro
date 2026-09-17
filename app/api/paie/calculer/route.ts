@@ -591,6 +591,9 @@ async function calculer(contratId: string, periode: string): Promise<any> {
       part_salariale: partSal,
       part_patronale: partPat,
       eligible_rgdu: ELIGIBLES_RGDU.indexOf(String(c.code)) >= 0,
+      // ⚠️ LE MARQUEUR SUIT LA LIGNE JUSQU AU NET SOCIAL : c est lui qui
+      // dit ce qui se reintegre, plutot qu une reconnaissance au libelle.
+      garantie_complementaire: (c as any).garantie_complementaire === true,
       // 🆕 16/09 — L ALERTE VOYAGE AVEC LA LIGNE, pour que le bulletin et
       // l ecran disent la meme chose sans avoir a le redeviner chacun.
       alerte: tauxPropreManquant
@@ -849,12 +852,52 @@ async function calculer(contratId: string, periode: string): Promise<any> {
   // prelevement a la source, et il REINTEGRE la part patronale des
   // garanties complementaires (mutuelle, prevoyance).
   //
-  // ⛔ CE CALCUL EST UNE APPROXIMATION TANT QUE LA MUTUELLE ET LA PREVOYANCE
-  // NE SONT PAS GEREES : elles n existent pas encore dans paie_cotisations,
-  // donc rien n est a reintegrer, et le montant coincide ici avec le net
-  // avant impot hors elements non soumis. A REPRENDRE le jour ou une
-  // garantie complementaire sera ajoutee.
-  const netSocial = cts(brutTotal - totalSalarial);
+  // ═══════════════════════════════════════════════════════════════════
+  // 🚨🚨 LA REINTEGRATION DES GARANTIES COMPLEMENTAIRES
+  //
+  // L arrete du 31 janvier 2023 donne la formule exacte :
+  //
+  //   MNS = brut
+  //       + part PATRONALE des garanties complementaires
+  //       − cotisations sociales obligatoires salariales
+  //       − part SALARIALE des garanties complementaires
+  //
+  // ⚠️ LA PART PATRONALE S AJOUTE AU BRUT, ce qui surprend au premier
+  // regard. La raison : elle est un avantage reellement percu par le
+  // salarie — l employeur paie a sa place une couverture dont il
+  // beneficie. Les prestations sociales en tiennent compte.
+  //
+  // ⛔ SANS CETTE REINTEGRATION, LE NET SOCIAL EST FAUX des qu une
+  // entreprise a une mutuelle — c est-a-dire presque toujours, la
+  // complementaire sante etant obligatoire depuis 2016. Et un net social
+  // faux fait mal calculer le RSA et la prime d activite du salarie, sans
+  // que personne ne s en apercoive avant qu il en fasse la demande.
+  //
+  // 🚨 LES DEUX PARTS SE COMPENSENT EN PARTIE : sur une mutuelle partagee
+  // a parts egales, l effet net est proche de zero. Ce n est pas une
+  // raison de les omettre — des que le partage est inegal, l ecart
+  // apparait, et c est le cas de la plupart des contrats collectifs.
+  // ═══════════════════════════════════════════════════════════════════
+  let complementairePatronale = 0;
+  let complementaireSalariale = 0;
+
+  for (const l of lignesCotis) {
+    if ((l as any).garantie_complementaire === true) {
+      complementairePatronale += Number((l as any).part_patronale || 0);
+      complementaireSalariale += Number((l as any).part_salariale || 0);
+    }
+  }
+
+  // ⚠️ LA PART SALARIALE N EST PAS RETRANCHEE UNE SECONDE FOIS : elle est
+  // deja comprise dans `totalSalarial`, comme toute cotisation salariale.
+  // La sortir du total puis la rededuire donnerait le meme resultat par un
+  // chemin plus long — et le jour ou quelqu un modifie l un sans l autre,
+  // le montant devient faux.
+  const netSocial = cts(
+    brutTotal
+    + complementairePatronale
+    - totalSalarial
+  );
 
   return {
     contrat: {
@@ -886,6 +929,16 @@ async function calculer(contratId: string, periode: string): Promise<any> {
     total_patronal_apres_rgdu: totalPatronalApresRgdu,
     net_imposable: netImposable,
     net_social: netSocial,
+    // ⚠️ LA PHOTOGRAPHIE DE LA REINTEGRATION : elle permet de justifier le
+    // montant net social devant un salarie qui demande pourquoi il differe
+    // de son net a payer.
+    net_social_detail: {
+      brut: brutTotal,
+      complementaire_patronale_reintegree: cts(complementairePatronale),
+      complementaire_salariale: cts(complementaireSalariale),
+      cotisations_salariales: totalSalarial,
+      montant: netSocial,
+    },
     conges: conges,
     conges_pris_du_mois: congesDuMois,
     indemnite_conges: cts(indemniteConges),
@@ -905,7 +958,7 @@ async function calculer(contratId: string, periode: string): Promise<any> {
         "Le prélèvement à la source est à zéro : son taux vient du retour DSN.",
         "Aucune convention collective n'est traitée (paie_conventions).",
         "La RGDU est calculée en régularisation progressive sur le cumul annuel, méthode recommandée par l'URSSAF : une prime en fin d'année est régularisée le mois même plutôt que de créer un rappel.",
-        "Le montant net social ne réintègre aucune garantie complémentaire : mutuelle et prévoyance n'existent pas encore.",
+        "Le montant net social réintègre la part patronale des garanties complémentaires (arrêté du 31 janvier 2023). ⚠️ Les taux de mutuelle et de prévoyance sont propres à chaque contrat collectif : tant qu'ils ne sont pas renseignés pour la société, ces lignes n'apparaissent pas.",
       ];
 
       // ✅ LA VALORISATION DES CONGES EST CALCULEE DEPUIS LE 16/09 : les
