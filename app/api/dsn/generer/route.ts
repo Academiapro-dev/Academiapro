@@ -89,6 +89,27 @@ export const maxDuration = 120;
 //
 // 7. ⚠️ LE CODE ENVOI D ESSAI : 01 = ESSAI, 02 = REEL. La passation disait
 //    l inverse, et sur la mauvaise rubrique.
+//
+// ═══════════════════════════════════════════════════════════════════════
+// 🆕🚨 17/09 — LE PASSAGE 8, LE PREMIER SUR UN dsn-val QUI ACCEPTE P26V01
+//
+// Les sept premiers passages ont ete juges par une installation de dsn-val
+// qui REFUSAIT la version de norme P26V01. Le huitieme l a ete par une
+// installation a jour, qui l ACCEPTE — et qui ne rend pas le meme verdict
+// sur trois points :
+//
+//   · S10.G00.00.006 'P26V01'  →  acceptee. L anomalie des sept premiers
+//     passages a disparu sans que le fichier ait change.
+//   · S21.G00.06.003 (APEN) et S21.G00.11.002 (APET)  →  « CST-03 / Absence
+//     de la rubrique ». L ancienne installation les disait « inconnues »,
+//     et nous les avions retirees. ELLES SONT OBLIGATOIRES.
+//   · S21.G00.40.084  →  « CV10 / Rubrique inconnue dans la norme ». Elle
+//     est retiree.
+//
+// ⛔ LA LECON : un outil de controle qui refuse la version de norme du
+// fichier ne juge pas ce fichier avec les bonnes tables. Tant que
+// S10.G00.00.006 est en anomalie, AUCUN des autres verdicts n est sur.
+// C EST L INSTALLATION QUI ACCEPTE P26V01 QUI FAIT FOI.
 // ═══════════════════════════════════════════════════════════════════════
 
 const supabase = createClient(
@@ -118,17 +139,18 @@ const TELEPHONE_DEFAUT = "0100000000";
 // ✅ VERIFIE AU CAHIER, page 129 : « P26V01 - Annee 2026 Version 1 »,
 // format impose X [6,6] — exactement six caracteres.
 //
-// ⚠️⚠️ MAIS dsn-val 2026.1.0.16 LA REFUSE : « contient une valeur hors de
-// la liste de valeurs autorisees ». Le cahier technique et l outil de
-// controle ne disent donc pas la meme chose — probablement parce que le
-// journal de maintenance n° 1, applicable depuis juillet 2026, a fait
-// evoluer cette liste.
-// ⛔ A TRANCHER AU PROCHAIN PASSAGE DANS dsn-val : essayer P26V02 si
-// P26V01 est encore refusee. C est la seule anomalie du rapport que le
-// cahier technique ne permet pas de resoudre.
+//
+// ⚠️ L HISTOIRE DE CETTE VALEUR : une premiere installation de dsn-val l a
+// refusee sept fois de suite (« valeur hors de la liste de valeurs
+// autorisees »), et P26V02 essayee a sa place l etait tout autant.
+// ✅ 17/09, PASSAGE 8 : une installation a jour de dsn-val 2026.1.0.16
+// L ACCEPTE. Le cahier technique avait raison, c est la premiere
+// installation qui ne jugeait pas avec les tables de la norme 2026.
+// ⛔ NE PLUS Y TOUCHER avant le cahier technique 2027 (P27V01).
 const NORME = "P26V01";
 
 // 🚨 CODE ENVOI DU FICHIER D ESSAI OU REEL — S10.G00.00.005.
+
 // ✅ VERIFIE AU CAHIER, page 129 : « 01 - envoi fichier test », « 02 - envoi
 // fichier reel ». C est dans ce sens, et pas l inverse. En essai, le bilan
 // des controles est rendu quel que soit le resultat et AUCUNE donnee n est
@@ -249,6 +271,17 @@ function sexeDsn(sexeSaisi: any, nir: string): string | null {
     if (nir[0] === "2") return "02";
   }
   return null;
+}
+
+// 🆕 LE CODE APE AU FORMAT DSN : cinq caracteres, quatre chiffres et une
+// lettre, SANS LE POINT. L INSEE l ecrit « 78.20Z », la norme attend
+// « 7820Z ». On normalise plutot que de faire confiance a la saisie.
+// ⚠️ UNE VALEUR QUI N A PAS CETTE FORME REND UNE CHAINE VIDE : elle n est
+// alors pas ecrite, et l appelant la signale — un code APE faux fait
+// rejeter le bloc qui le porte.
+function apeDsn(v: any): string {
+  const a = q(v).replace(/[^0-9A-Za-z]/g, "").toUpperCase();
+  return /^\d{4}[A-Z]$/.test(a) ? a : "";
 }
 
 // LIRE UN CODE DE LA NORME depuis notre correspondance.
@@ -476,22 +509,33 @@ export async function POST(req: NextRequest) {
   //     015  Code convention collective applicable
   // ⚠️ dsn-val a signale « Rubrique inconnue dans la norme » sur la 003 et
   // « code postal plus court que 5 » sur la 005 ou figurait « Lyon ».
+  const codeApe = apeDsn(societe.code_ape);
+
   ecrire("S21.G00.06.001", siret.slice(0, 9));
   ecrire("S21.G00.06.002", siret.slice(9));
-  // ⚠️ LE CODE APE N EST PAS ECRIT ICI. dsn-val repond « rubrique inconnue
-  // dans la norme » sur 06.003 comme sur 11.002, alors que le cahier
-  // technique les nomme « Code APEN » et « Code APET ». Le cahier et l outil
-  // de controle se contredisent — comme sur la version de norme.
-  // ⛔ TANT QUE CE DESACCORD N EST PAS TRANCHE, ON NE LES ECRIT PAS : une
-  // rubrique absente vaut mieux qu une rubrique refusee.
-  // 🚨 LE CODE APE RESTE DECLARE dans le bloc 85 (rubrique 85.002), accepte.
+  // 🆕🚨 LE CODE APEN (06.003) EST OBLIGATOIRE — dsn-val, passage 8 :
+  // « CST-03 / Absence de la rubrique S21.G00.06.003 ».
+  // ⚠️ NOUS L AVIONS RETIRE parce qu une premiere installation de dsn-val
+  // le disait « rubrique inconnue dans la norme », sur 06.003 comme sur
+  // 11.002. Cette installation refusait aussi P26V01 : elle ne jugeait pas
+  // avec les tables de la norme 2026. Celle qui accepte P26V01 reclame les
+  // deux rubriques, et le cahier technique les nomme — les deux s accordent.
+  // APEN = l activite de l ENTREPRISE, APET = celle de l ETABLISSEMENT. Une
+  // societe a un seul etablissement porte le meme code aux deux endroits.
+  ecrire("S21.G00.06.003", codeApe);
   ecrire("S21.G00.06.004", societe.adresse);
   ecrire("S21.G00.06.005", q(societe.code_postal));
   ecrire("S21.G00.06.006", societe.ville);
 
-  if (!q(societe.code_ape)) {
-    anomalies.push("Code APE absent — il est déclaré dans le bloc lieu de "
-      + "travail (S21.G00.85.002).");
+  if (!codeApe) {
+    anomalies.push(q(societe.code_ape)
+      ? "Code APE « " + q(societe.code_ape) + " » mal formé : il s'écrit sur "
+        + "quatre chiffres et une lettre (7820Z). ⛔ NON DÉCLARÉ — les "
+        + "rubriques S21.G00.06.003 et S21.G00.11.002 sont obligatoires, LA "
+        + "DÉCLARATION SERA REJETÉE. Corriger compta_societes.code_ape."
+      : "Code APE absent. ⛔ Les rubriques S21.G00.06.003 (APEN) et "
+        + "S21.G00.11.002 (APET) sont obligatoires : LA DÉCLARATION SERA "
+        + "REJETÉE. Renseigner compta_societes.code_ape.");
   }
 
   // ══ S21.G00.11 — L ETABLISSEMENT ══
@@ -504,6 +548,10 @@ export async function POST(req: NextRequest) {
   // en 11.025, sur l ETABLISSEMENT — pas en 30.030 sur l individu, ou
   // nous l ecrivions.
   ecrire("S21.G00.11.001", siret.slice(9));
+  // 🆕🚨 LE CODE APET (11.002) EST OBLIGATOIRE — dsn-val, passage 8 :
+  // « CST-03 / Absence de la rubrique S21.G00.11.002 ». Meme histoire que
+  // le code APEN du bloc 06, racontee plus haut.
+  ecrire("S21.G00.11.002", codeApe);
   ecrire("S21.G00.11.003", societe.adresse);
   ecrire("S21.G00.11.004", q(societe.code_postal));
   ecrire("S21.G00.11.005", societe.ville);
@@ -920,9 +968,15 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // ⚠️ PRORATISATION DU PLAFOND DE SECURITE SOCIALE a hauteur de la
-    // quotite de travail : elle ne s applique pas a un temps plein.
-    ecrire("S21.G00.40.084", tempsPlein ? "02" : "01");
+    // 🆕⛔ LA RUBRIQUE S21.G00.40.084 A ETE RETIREE LE 17/09.
+    //
+    // Nous y declarions la proratisation du plafond de securite sociale
+    // (« 02 » pour un temps plein). dsn-val, passage 8, sur les trois
+    // contrats : « CV10 / Rubrique inconnue dans la norme ».
+    // ⚠️ UNE RUBRIQUE INCONNUE NE SE CORRIGE PAS, ELLE SE RETIRE : il n y a
+    // pas de bonne valeur a y mettre. La derniere rubrique du contrat est
+    // donc la periode d essai (40.082) quand elle court, sinon le risque
+    // accident du travail.
 
     // ═══════════════════════════════════════════════════════════════
 
@@ -1374,7 +1428,7 @@ export async function POST(req: NextRequest) {
   })) {
     lieuxVus.push(siret);
     ecrire("S21.G00.85.001", siret);
-    if (q(societe.code_ape)) ecrire("S21.G00.85.002", societe.code_ape);
+    ecrire("S21.G00.85.002", codeApe);
     ecrire("S21.G00.85.003", societe.adresse);
     ecrire("S21.G00.85.004", q(societe.code_postal));
     ecrire("S21.G00.85.005", societe.ville);
@@ -1433,7 +1487,8 @@ export async function POST(req: NextRequest) {
     ecrire("S21.G00.85.001", sir);
     // ⚠️ LE CODE APE DU LIEU DE TRAVAIL, PAS CELUI DE L EMPLOYEUR : c est
     // l activite reelle exercee sur place qui compte pour le risque.
-    if (q(c0.eu_code_ape)) ecrire("S21.G00.85.002", c0.eu_code_ape);
+    // 🆕 Normalise comme celui de l employeur : « 52.10B » devient « 5210B ».
+    ecrire("S21.G00.85.002", apeDsn(c0.eu_code_ape));
     ecrire("S21.G00.85.003", c0.eu_adresse);
     ecrire("S21.G00.85.004", cpLieu);
     ecrire("S21.G00.85.005", c0.eu_ville);
