@@ -10,7 +10,11 @@ export const fetchCache = "force-no-store";
 export const maxDuration = 120;
 
 // ═══════════════════════════════════════════════════════════════════════
-// LE DEPOT DE LA DSN — 18/09/2026, version 1
+// LE DEPOT DE LA DSN — 18/09/2026, version 2
+//
+// 🆕 VERSION 2 : le depot retrouve et enregistre L IDENTIFIANT DE FLUX, par
+// le service « lister-depots ». La version 1 ne le gardait pas, et la
+// route des retours n aurait donc rien pu rattacher. Voir `releverIdflux`.
 //
 // Cette route fait quatre choses, et rien d autre :
 //   ?action=essai                    eprouve la cle de chiffrement, sans
@@ -109,11 +113,13 @@ const ADRESSES = {
   general: {
     authentification: "https://services.net-entreprises.fr/authentifier/1.0/",
     depot: "https://depot.dsnrg.net-entreprises.fr/deposer-dsn/2.0/",
+    depots: "https://consultation.dsnrg.net-entreprises.fr/lister-depots/2.0/",
     service: "25",
   },
   agricole: {
     authentification: "https://services.net-entreprises.fr/authentifier/1.0/",
     depot: "https://depot.dsnra.net-entreprises.fr/deposer-dsn/2.0/",
+    depots: "https://consultation.dsnra.net-entreprises.fr/lister-depots/2.0/",
     service: "26",
   },
 };
@@ -414,6 +420,79 @@ function nombreDeDeclarations(texte: string): number {
   return m ? m.length : 0;
 }
 
+// ---------------------------------------------------------------------
+// 🆕 18/09 — RETROUVER L IDENTIFIANT DE FLUX D UN DEPOT
+//
+// 🚨 POURQUOI : la route des retours (app/api/dsn/retours/route.ts)
+// rattache chaque retour a sa declaration PAR L IDENTIFIANT DE FLUX. Sans
+// lui, les accuses, bilans et comptes rendus arrivent sans qu on sache a
+// quelle declaration ils repondent.
+//
+// ⛔ ON NE LE LIT PAS DANS L ACCUSE : le guide n en donne pas la forme
+// (« AEE au format JSON », et rien d autre). Deviner un nom de champ, c est
+// refaire les deductions fausses du 17/09.
+//
+// ✅ ON PASSE PAR LE SERVICE DOCUMENTE, section 3.3 : « lister-depots »
+// rend, pour le declarant, la liste de ses depots avec leur idflux, leur
+// date et leur statut. La forme est donnee par le guide.
+//
+// LA METHODE : on releve la liste AVANT le depot, on la releve APRES, et
+// l identifiant qui est apparu entre les deux est le notre.
+// ⚠️ S IL EN APPARAIT ZERO OU PLUSIEURS, ON NE CHOISIT PAS : on laisse
+// l identifiant vide et on le dit. Un cabinet qui depose pour deux societes
+// a la meme seconde donnerait deux nouveaux identifiants, et en attribuer
+// un au hasard rattacherait les retours de l une a l autre.
+//
+// ⚠️ LE FUSEAU N EST PAS DIT PAR LE GUIDE. On demande donc large : trois
+// heures en arriere, sans borne de fin (« si la date de fin n est pas
+// precisee, c est la date du systeme qui est prise en compte »). La plage
+// permise pour ce service est de 24 heures.
+// ---------------------------------------------------------------------
+function enTableau(v: any): any[] {
+  if (v === null || v === undefined) return [];
+  return Array.isArray(v) ? v : [v];
+}
+
+function horodatage(d: Date): string {
+  const p = (n: number) => String(n).padStart(2, "0");
+  return String(d.getFullYear()) + p(d.getMonth() + 1) + p(d.getDate())
+    + p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds());
+}
+
+async function releverIdflux(adresseDepots: string, jeton: string): Promise<string[] | null> {
+  const depuis = new Date(Date.now() - 3 * 3600 * 1000);
+  const garde = new AbortController();
+  const minuterie = setTimeout(() => garde.abort(), DELAI_AUTH_MS);
+  try {
+    const rep = await fetch(adresseDepots + horodatage(depuis), {
+      method: "GET",
+      headers: { "Authorization": "DSNLogin jeton=" + jeton, "User-Agent": USER_AGENT },
+      redirect: "manual",
+      cache: "no-store",
+      signal: garde.signal,
+    });
+    // ⚠️ `null` VEUT DIRE « JE N AI PAS PU LIRE », pas « il n y a rien » :
+    // la difference compte, car une liste vide AVANT le depot est normale.
+    if (rep.status !== 200) return null;
+    const corps: any = await rep.json();
+    const racine = corps && corps.depots ? corps.depots : corps;
+    const liste: string[] = [];
+    // Le guide montre « declarant » et « depot » tantot en objet, tantot en
+    // tableau : on normalise.
+    for (const decl of enTableau(racine && racine.declarant ? racine.declarant : null)) {
+      for (const dep of enTableau(decl && decl.depot ? decl.depot : null)) {
+        const id = String((dep && dep.idflux) || "").trim();
+        if (id) liste.push(id);
+      }
+    }
+    return liste;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(minuterie);
+  }
+}
+
 // ═══════════════════════════════════════════════════════════════════════
 // POST — ENREGISTRER LES IDENTIFIANTS D UN CLIENT
 //
@@ -558,7 +637,7 @@ export async function GET(req: NextRequest) {
 
     return reponse({
       route: "dsn/deposer",
-      version: 1,
+      version: 2,
       cle_presente: !!brut,
       cle_longueur_octets: octets,
       cle_utilisable: !!cle,
@@ -743,6 +822,12 @@ export async function GET(req: NextRequest) {
       .update({ verifie_le: new Date().toISOString(), dernier_echec: null, maj_le: new Date().toISOString() })
       .eq("id", ouvert.acces.id);
 
+    // 🆕 LA LISTE DES DEPOTS, RELEVEE AVANT : voir `releverIdflux`.
+    // ⚠️ UN ECHEC DE CE RELEVE N EMPECHE PAS LE DEPOT : l identifiant de
+    // flux sert a ranger les retours, pas a declarer. On deposera quand
+    // meme, et on dira que l identifiant n a pas pu etre retrouve.
+    const idfluxAvant = await releverIdflux(conf.depots, jeton.jeton);
+
     // ---- LE DEPOT ----
     // ⚠️ GZIP OBLIGATOIRE sur toute requete a corps sauf l authentification.
     const comprime = zlib.gzipSync(octets);
@@ -805,10 +890,40 @@ export async function GET(req: NextRequest) {
     const typeRetour = accepte ? "accuse_enregistrement"
       : (envoiRep.code === 422 ? "avis_rejet" : "erreur_depot");
 
+    // 🆕 L IDENTIFIANT DE FLUX : celui qui est apparu entre les deux releves.
+    let idflux: string | null = null;
+    let idfluxNote: string | null = null;
+    if (accepte || envoiRep.code === 422) {
+      const idfluxApres = jeton.jeton ? await releverIdflux(conf.depots, jeton.jeton) : null;
+      if (idfluxAvant === null || idfluxApres === null) {
+        idfluxNote = "L'identifiant de flux n'a pas pu être relevé : la liste des dépôts "
+          + "n'a pas répondu. Les retours de ce dépôt arriveront sans être rattachés.";
+      } else {
+        const nouveaux = idfluxApres.filter(function (x) { return idfluxAvant.indexOf(x) < 0; });
+        if (nouveaux.length === 1) {
+          idflux = nouveaux[0];
+        } else if (nouveaux.length === 0) {
+          idfluxNote = "Aucun nouveau dépôt n'apparaît encore dans la liste de net-entreprises : "
+            + "l'identifiant de flux n'est pas connu pour l'instant.";
+        } else {
+          idfluxNote = nouveaux.length + " dépôts sont apparus en même temps pour ce déclarant : "
+            + "impossible de dire lequel est celui-ci sans risquer de rattacher les retours "
+            + "d'une société à une autre. L'identifiant est laissé vide.";
+        }
+      }
+    }
+
     const { data: retour } = await supabase.from("dsn_retours").insert({
       tenant_id: decl.tenant_id || null,
       societe_id: decl.societe_id,
       depot_reference: decl.id,
+      declaration_id: decl.id,
+      idflux: idflux,
+      // ⚠️ La nature « 10 » est celle de l accuse d enregistrement ET de
+      // l avis de rejet (section 6) : meme cle que ce que la route des
+      // retours rangera, donc pas de doublon quand elle repassera.
+      nature: (accepte || envoiRep.code === 422) ? "10" : null,
+      statut: accepte ? "OK" : (envoiRep.code === 422 ? "KO" : null),
       type_retour: typeRetour,
       contenu: envoiRep.corps || null,
       traite: false,
@@ -825,6 +940,8 @@ export async function GET(req: NextRequest) {
         // ne passe a « deposee » que pour un envoi reel.
         statut: envoi.code === "02" ? "deposee" : decl.statut,
         deposee_le: new Date().toISOString(),
+        // 🆕 Sans lui, les retours ne peuvent pas etre rattaches.
+        idflux: idflux,
         maj_le: new Date().toISOString(),
       }).eq("id", decl.id);
     }
@@ -840,6 +957,8 @@ export async function GET(req: NextRequest) {
       octets_avant_compression: octets.length,
       sha256: sha,
       retour_id: retour ? retour.id : null,
+      idflux: idflux,
+      idflux_note: idfluxNote,
       type_retour: typeRetour,
       // L accuse est garde en entier dans dsn_retours ; ici, un extrait.
       retour_extrait: extrait(envoiRep.corps, 1200),
@@ -856,7 +975,7 @@ export async function GET(req: NextRequest) {
   // ───────────────────────────────────────────────────────────────────
   return reponse({
     route: "dsn/deposer",
-    version: 1,
+    version: 2,
     actions: {
       essai: "?action=essai — éprouve la clé de chiffrement, sans identifiants",
       etat: "?action=etat&societe=<uuid>",
