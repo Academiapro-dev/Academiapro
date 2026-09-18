@@ -149,6 +149,32 @@ export default function PageDsn() {
     if (s) { setSecret(s); charger(s); }
   }, []);
 
+  // 🆕🚨 18/09, CORRIGE APRES ESSAI — D OU VIENT LE SIRET.
+  //
+  // Le bloc des acces ne s affichait pas : je le construisais a partir de
+  // `societes`, en supposant que chaque societe y portait son SIRET. ELLE NE
+  // LE PORTE PAS. Dans cet ecran, le SIRET est porte PAR LE MOIS (`m.siret`),
+  // et c est ce que fait le code d origine depuis le debut.
+  //
+  // ⛔ NE PAS SUPPOSER LA FORME D UNE DONNEE : les trois champs utilises ici
+  // — societe_id, societe, siret — sont ceux que l ecran lit deja ailleurs,
+  // donc ils sont surs.
+  //
+  // Une societe apparait autant de fois qu elle a de mois : on la garde une
+  // seule fois, a sa premiere apparition.
+  function societesDeclarantes(): any[] {
+    const vues: any = {};
+    const liste: any[] = [];
+    for (let i = 0; i < mois.length; i++) {
+      const m = mois[i];
+      if (!m.siret) continue;
+      if (vues[m.societe_id]) continue;
+      vues[m.societe_id] = true;
+      liste.push({ id: m.societe_id, nom: m.societe, siret: m.siret });
+    }
+    return liste;
+  }
+
   async function appeler(corps: any, s?: string): Promise<any> {
     const cle = s || secret;
     const r = await fetch("/api/dsn/dossier?secret=" + encodeURIComponent(cle), {
@@ -172,7 +198,16 @@ export default function PageDsn() {
       // 🆕 L etat des acces suit le chargement, pour toutes les societes
       // d un coup : sinon il faudrait un clic par societe pour savoir si
       // le depot en ligne est possible.
-      chargerAcces(d.societes || [], s);
+      // ⚠️ LA MEME SOURCE QUE L AFFICHAGE : les mois, pas `societes`.
+      const vues: any = {};
+      const pourAcces: any[] = [];
+      for (let i = 0; i < (d.mois || []).length; i++) {
+        const m = d.mois[i];
+        if (!m.siret || vues[m.societe_id]) continue;
+        vues[m.societe_id] = true;
+        pourAcces.push({ id: m.societe_id, nom: m.societe, siret: m.siret });
+      }
+      chargerAcces(pourAcces, s);
     } else {
       setErr((d.erreur || "chargement impossible")
         + (d.ou ? " (table : " + d.ou + ")" : ""));
@@ -227,7 +262,7 @@ export default function PageDsn() {
       setMsg(d.message);
       // 🚨 LE MOT DE PASSE EST EFFACE DE L ECRAN DES QU IL EST PARTI.
       setSaisie({ ...saisie, [soc.id]: { ...f, motdepasse: "" } });
-      await chargerAcces(societes);
+      await chargerAcces(societesDeclarantes());
       // Enchainement naturel : on vient de le saisir, on l eprouve.
       await testerAcces(soc, true);
     } else {
@@ -249,7 +284,7 @@ export default function PageDsn() {
     if (d.success) setMsg("Accès vérifiés : net-entreprises a accepté la connexion.");
     else setErr(d.erreur || d.lecture || "vérification impossible");
 
-    await chargerAcces(societes);
+    await chargerAcces(societesDeclarantes());
     setOccupe("");
   }
 
@@ -450,7 +485,7 @@ export default function PageDsn() {
             ⛔ LE MOT DE PASSE NE SE REAFFICHE JAMAIS. Il est chiffre a
             l arrivee ; on ne peut que le remplacer.
             ═══════════════════════════════════════════════════════════════ */}
-        {societes.filter(function (s: any) { return !!s.siret; }).length > 0 && (
+        {societesDeclarantes().length > 0 && (
           <div style={CADRE}>
             <h3 style={{ color: OR, fontSize: "15px", margin: "0 0 4px" }}>
               Accès à net-entreprises
@@ -463,8 +498,7 @@ export default function PageDsn() {
               s&apos;affichera plus, il pourra seulement être remplacé.
             </p>
 
-            {societes.filter(function (s: any) { return !!s.siret; })
-              .map(function (soc: any) {
+            {societesDeclarantes().map(function (soc: any) {
                 const a = acces[soc.id] || {};
                 const f = saisie[soc.id] || {};
                 const deplie = ouvert === soc.id;
@@ -476,7 +510,7 @@ export default function PageDsn() {
                       alignItems: "baseline", flexWrap: "wrap", gap: "8px" }}>
                       <div>
                         <strong style={{ fontSize: "14.5px" }}>
-                          {soc.raison_sociale || soc.nom || soc.siret}
+                          {soc.nom || soc.siret}
                         </strong>
                         <span style={{ fontSize: "12px", marginLeft: "10px",
                           color: a.enregistre
@@ -563,7 +597,7 @@ export default function PageDsn() {
                     )}
                   </div>
                 );
-              })}
+            })}
           </div>
         )}
 
