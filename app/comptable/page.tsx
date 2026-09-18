@@ -432,9 +432,17 @@ export default function AccueilComptable() {
           <div style={ligneTarif}>
             <span style={nomTarif}>
               Dossier supplémentaire
+              {/* 🚨 18/09 — LE MOT « DOSSIER » SE DEFINIT ICI. Le visiteur
+                  lit « 15 € le dossier » sans savoir ce que cela recouvre :
+                  un document ? un bulletin ? une declaration ? Jacques a
+                  donne la formulation lui-meme — c est une COMPTABILITE,
+                  vue des deux cotes du marche. */}
               <span style={sousTarif}>
-                Pour un cabinet, une holding ou un groupe qui tient plusieurs sociétés.
-                Un dossier sans aucune écriture dans le mois n&apos;est pas facturé.
+                Un dossier, c&apos;est une comptabilité : la vôtre si vous êtes
+                indépendant ou président de SASU, celle de chacun de vos clients
+                si vous êtes un cabinet. Le premier est compris dans
+                l&apos;abonnement. Un dossier sans aucune écriture dans le mois
+                n&apos;est pas facturé.
               </span>
             </span>
             <span style={prixTarif}>15 € / mois</span>
