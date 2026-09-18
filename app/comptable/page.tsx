@@ -2,13 +2,13 @@ import Link from "next/link";
 import { FONCTIONS } from "./fonctions";
 
 export const metadata = {
-  title: "Mr. Comptable — Comptabilité, paie et déclarations, à partir de 0 €",
+  title: "Mr. Comptable — Comptabilité, paie, URSSAF et déclarations",
   description:
-    "Tenue, TVA, liasse fiscale, factures électroniques, bulletins de paie et DSN. Pour une entreprise qui tient ses comptes comme pour un cabinet qui en tient cinquante. Tarifs affichés, sans engagement.",
+    "Tenue, TVA, liasse fiscale, factures électroniques, bulletins de salaire et déclarations à l'URSSAF. Pour une entreprise qui tient ses comptes comme pour un cabinet qui en tient cinquante. Tarifs affichés, sans engagement.",
   openGraph: {
-    title: "Mr. Comptable — Comptabilité, paie et déclarations, à partir de 0 €",
+    title: "Mr. Comptable — Comptabilité, paie, URSSAF et déclarations",
     description:
-      "Tenue, TVA, liasse fiscale, factures électroniques, bulletins de paie et DSN. Tarifs affichés, sans engagement.",
+      "Tenue, TVA, liasse fiscale, factures électroniques, bulletins de salaire et déclarations à l'URSSAF. Tarifs affichés, sans engagement.",
     url: "https://mrcomptable.fr",
     siteName: "Mr. Comptable",
     locale: "fr_FR",
@@ -36,6 +36,19 @@ export const metadata = {
 //      affiche est une arme face a un concurrent qui renvoie vers son
 //      equipe commerciale.
 //
+// 🚨🚨 TROIS REGLES POSEES PAR JACQUES LE 18/09, A NE PAS DEFAIRE :
+//
+//   · ON NE PARLE JAMAIS DES CONCURRENTS. Ses mots : « ne pas parler des
+//     autres, ne pas dire les autres c est cher, nous on n est pas cher ».
+//     Un encart comparait ce que facture un cabinet au bulletin : RETIRE.
+//     La page dit ce que Mr. Comptable fait, et rien d autre.
+//
+//   · « COMPTABILITE COMPLETE », jamais « vos comptes » : « vos comptes »
+//     ne dit rien du perimetre.
+//
+//   · TOUS LES TARIFS S AFFICHENT, AUCUN N EST OMIS. Le prix de la piece
+//     lue au-dela du quota manquait : il est a 0,20 EUR.
+//
 // ⚠️ CE QUI N A PAS BOUGE, ET QU IL NE FAUT PAS DEFAIRE : la couleur OR,
 // la police Georgia, le menu deroulant alimente par ./fonctions.ts (une
 // page par sujet, jamais une ancre, pour le referencement), le domaine
@@ -57,8 +70,20 @@ export const metadata = {
 // dsn-val est un outil de CONTROLE que chacun peut telecharger, pas une
 // homologation.
 //
-// ELLE NE PROMET PAS LE DEPOT AUTOMATIQUE DE LA DSN : aujourd hui le
-// fichier se produit ici et se depose sur net-entreprises. C est ecrit.
+// ELLE NE PROMET PAS LE DEPOT AUTOMATIQUE DE LA DSN : le bloc des
+// declarations sociales dit que le fichier se depose sur le compte
+// net-entreprises du client. Une ligne, dans la description du produit.
+//
+// 🚨🚨 MAIS ELLE NE PROCLAME RIEN DE TOUT CELA DANS UNE SECTION A PART.
+// Une premiere version portait un pave « CE QUE NOUS NE SOMMES PAS » —
+// ni agrees, ni homologues, ni certifies, nous ne tenons pas vos comptes,
+// le depot automatique est en preparation. RETIRE LE 18/09 : sur une page
+// de vente, trois paragraphes de negations sapent la confiance qu on vient
+// de construire, et AUCUN concurrent ne fait cela — ni Pennylane, ni Indy,
+// ni macompta. Personne ne confond un logiciel avec un cabinet.
+// ⛔ LA PRECAUTION EST DANS CE QU ON N ECRIT PAS, PAS DANS CE QU ON
+// PROCLAME. Il suffit de ne jamais ecrire « nous tenons votre
+// comptabilite » — ce que la page ne fait nulle part.
 // ═══════════════════════════════════════════════════════════════════════
 
 const OR = "#c8a96e";
@@ -82,9 +107,9 @@ const CE_QUE_FAIT: any[] = [
       "CDI, CDD avec prime de précarité, contrat de mission avec indemnité de fin de mission. Heures supplémentaires, congés payés avec la méthode la plus favorable au salarié, réduction générale de cotisations calculée sur le cumul de l'année, montant net social.",
   },
   {
-    titre: "Les déclarations sociales",
+    titre: "L'URSSAF et les déclarations sociales",
     texte:
-      "La DSN mensuelle, le signalement de fin de contrat qui remplace l'attestation employeur, et le signalement d'arrêt de travail qui déclenche les indemnités journalières. Les trois se produisent depuis les bulletins, sans ressaisie.",
+      "La déclaration sociale nominative part chaque mois depuis vos bulletins : cotisations URSSAF, retraite, chômage, prélèvement à la source. S'y ajoutent le signalement de fin de contrat et celui d'arrêt de travail. Vous déposez le fichier sur votre compte net-entreprises.",
   },
   {
     titre: "Les déclarations fiscales",
@@ -264,37 +289,17 @@ export default function AccueilComptable() {
           COMPTABILITÉ, PAIE ET DÉCLARATIONS
         </p>
         <h1 style={{ fontSize: "42px", lineHeight: "1.25", margin: "0 0 22px", maxWidth: "800px" }}>
-          Vos comptes, votre paie et vos déclarations dans un seul outil
+          Comptabilité complète, paie et déclarations dans un seul outil
         </h1>
         <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "18px", lineHeight: "1.75", maxWidth: "700px", margin: "0 0 36px" }}>
           Pour une entreprise qui tient ses propres comptes comme pour un cabinet
           qui en tient cinquante. Tenue, TVA, liasse fiscale, factures
-          électroniques, bulletins de salaire et DSN. À partir de 0 € par mois,
-          sans engagement de durée.
+          électroniques, bulletins de salaire et déclarations à l&apos;URSSAF.
+          À partir de 0 € par mois, sans engagement de durée.
         </p>
         <div style={{ display: "flex", gap: "14px", flexWrap: "wrap" }}>
           <Link href="/comptable/inscription" style={bouton}>Ouvrir mon espace</Link>
           <a href="#tarifs" style={boutonPale}>Voir les tarifs</a>
-        </div>
-      </section>
-
-      {/* Ce que le visiteur paie aujourd hui. Les chiffres sont des ordres
-          de grandeur du marche, donnes comme tels. */}
-      <section style={{ ...section, paddingBottom: "70px" }}>
-        <div style={{ ...carte, borderColor: "rgba(200,169,110,0.4)", padding: "34px" }}>
-          <h2 style={{ color: OR, fontSize: "13px", letterSpacing: "3px", margin: "0 0 16px" }}>
-            CE QUE COÛTE LA PAIE AUJOURD&apos;HUI
-          </h2>
-          <p style={{ color: "rgba(255,255,255,0.75)", fontSize: "16px", lineHeight: "1.8", margin: "0 0 14px", maxWidth: "790px" }}>
-            Un cabinet facture couramment entre 20 et 35 € le bulletin de salaire.
-            Pour trois salariés, cela représente entre 720 et 1 260 € par an, rien
-            que pour les fiches de paie — avant la tenue, la TVA et la liasse.
-          </p>
-          <p style={{ color: "rgba(255,255,255,0.75)", fontSize: "16px", lineHeight: "1.8", margin: 0, maxWidth: "790px" }}>
-            Et la déclaration sociale nominative tombe tous les mois : une erreur de
-            structure et le fichier est rejeté, une erreur de calcul et l&apos;URSSAF
-            redresse. C&apos;est précisément ce que Mr. Comptable prend en charge.
-          </p>
         </div>
       </section>
 
@@ -445,6 +450,17 @@ export default function AccueilComptable() {
             <span style={prixTarif}>15 € / mois</span>
           </div>
 
+          <div style={ligneTarif}>
+            <span style={nomTarif}>
+              Pièce lue au-delà des cinquante comprises
+              <span style={sousTarif}>
+                Facture, note de frais ou justificatif déposé et comptabilisé
+                automatiquement
+              </span>
+            </span>
+            <span style={prixTarif}>0,20 € la pièce</span>
+          </div>
+
           <div style={{ ...ligneTarif, borderBottom: "none" }}>
             <span style={nomTarif}>
               Paie et déclarations sociales
@@ -547,34 +563,6 @@ export default function AccueilComptable() {
           <Link href="/comptable/facture-electronique" style={{ color: OR, fontSize: "15px", textDecoration: "none", borderBottom: "1px solid rgba(200,169,110,0.4)" }}>
             Tout ce qu&apos;il faut savoir sur la facture électronique →
           </Link>
-        </div>
-      </section>
-
-      {/* 🚨 LA RESERVE. Elle devient indispensable maintenant que la vitrine
-          s adresse a des ENTREPRISES et non plus aux seuls cabinets : un
-          dirigeant doit comprendre que c est LUI qui tient ses comptes. */}
-      <section style={{ ...section, paddingBottom: "70px" }}>
-        <div style={{ ...carte, background: "rgba(200,169,110,0.06)", borderColor: "rgba(200,169,110,0.3)" }}>
-          <h2 style={{ color: OR, fontSize: "13px", letterSpacing: "3px", margin: "0 0 14px" }}>
-            CE QUE NOUS NE SOMMES PAS
-          </h2>
-          <p style={{ color: "rgba(255,255,255,0.72)", fontSize: "15.5px", lineHeight: "1.8", margin: "0 0 14px", maxWidth: "810px" }}>
-            Mr. Comptable est un logiciel, pas un cabinet d&apos;expertise comptable. Nous
-            ne tenons pas votre comptabilité et nous n&apos;attestons pas vos comptes :
-            c&apos;est vous qui les tenez, avec notre outil. Seul un expert-comptable
-            inscrit à l&apos;Ordre peut tenir la comptabilité d&apos;autrui et attester des
-            comptes.
-          </p>
-          <p style={{ color: "rgba(255,255,255,0.72)", fontSize: "15.5px", lineHeight: "1.8", margin: "0 0 14px", maxWidth: "810px" }}>
-            Nous ne sommes ni agréés, ni homologués, ni certifiés par une
-            administration. Nos déclarations passent l&apos;outil de contrôle de
-            net-entreprises, ce qui est vérifiable, mais ne constitue pas un label.
-          </p>
-          <p style={{ color: "rgba(255,255,255,0.72)", fontSize: "15.5px", lineHeight: "1.8", margin: 0, maxWidth: "810px" }}>
-            Le dépôt de la déclaration sociale nominative se fait aujourd&apos;hui depuis
-            votre compte net-entreprises : nous produisons le fichier, vous le
-            déposez. Le dépôt automatique est en préparation.
-          </p>
         </div>
       </section>
 
