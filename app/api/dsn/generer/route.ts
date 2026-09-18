@@ -237,16 +237,25 @@ const TYPE_ENVOI = "01";
 
 // 🚨 LE TYPE DE TAUX DE PRELEVEMENT A LA SOURCE — S21.G00.50.007.
 //
-// « 13 » est le taux neutre, celui qui s applique tant que l administration
-// n a pas transmis de taux personnel au declarant. Il est LEGAL et c est la
-// valeur par defaut de tout nouveau salarie.
+// LA RUBRIQUE PORTE LE CODE DU BAREME APPLIQUE :
+//     01  taux PERSONNALISE, transmis par la DGFiP
+//     13  bareme non personnalise — metropole
+//     23  bareme non personnalise — autre situation geographique
+//     33  bareme non personnalise — autre situation geographique
+//
+// « 13 » est donc le taux neutre de metropole, celui qui s applique tant
+// que l administration n a pas transmis de taux personnel. Il est LEGAL et
+// c est la valeur par defaut de tout nouveau salarie.
+//
+// ⚠️ POUR UN SALARIE HORS METROPOLE, « 13 » EST FAUX. Les codes 23 et 33
+// existent pour les autres situations geographiques, mais JE N AI PAS LU
+// a quel territoire chacun correspond. Le generateur garde donc « 13 » ET
+// SIGNALE le cas quand l adresse du salarie est en 97x ou 98x.
 //
 // ⛔ LA VALEUR DU TAUX PERSONNALISE N EST PAS ECRITE ICI, ET C EST VOULU :
-// je ne l ai pas lue dans le cahier technique. L inventer ferait declarer
-// un type de taux faux — la declaration passerait, et le prelevement du
-// salarie serait mal qualifie aupres de la DGFiP.
-// → elle se lit dans dsn_codes, correspondance « taux_pas_personnalise ».
-//   Tant qu elle n y est pas, le generateur garde le taux neutre ET LE DIT.
+// elle vit dans dsn_codes, correspondance « taux_pas_personnalise », posee
+// le 18/09 avec verifie = false — deux sources secondaires concordantes, pas
+// le cahier technique lui-meme.
 const TYPE_TAUX_NEUTRE = "13";
 
 // 🚨 LES CODES DE COTISATION QUI RELEVENT DE LA RETRAITE COMPLEMENTAIRE.
@@ -421,21 +430,27 @@ function salaireDeBaseDsn(detail: any, ct: any): { montant: number; repli: strin
 // que son taux reel, et la difference ne lui revient qu a sa declaration
 // de revenus suivante : c est pour cela que le compte rendu metier doit
 // etre depouille des qu il arrive.
-function tauxPasDe(s: any, periode: string): { taux: number; personnalise: boolean } {
+function tauxPasDe(s: any, periode: string): { taux: number; personnalise: boolean; identifiantCrm: string } {
+  const vide = { taux: 0, personnalise: false, identifiantCrm: "" };
+
   const taux = Number(s && s.taux_pas);
-  if (!(taux > 0)) return { taux: 0, personnalise: false };
+  if (!(taux > 0)) return vide;
 
   // ⚠️ SANS DATE D EFFET, ON N APPLIQUE PAS LE TAUX. Un taux sans date est
   // un taux dont on ignore depuis quand il vaut : le supposer applicable
   // au mois declare serait deviner.
   const effet = q(s.taux_pas_date_effet);
-  if (!effet) return { taux: 0, personnalise: false };
+  if (!effet) return vide;
 
   // La comparaison porte sur le PREMIER JOUR du mois declare : un taux qui
   // prend effet en cours de mois ne s applique qu au mois suivant.
-  if (effet > periode) return { taux: 0, personnalise: false };
+  if (effet > periode) return vide;
 
-  return { taux: taux, personnalise: true };
+  return {
+    taux: taux,
+    personnalise: true,
+    identifiantCrm: q(s.taux_pas_identifiant_crm),
+  };
 }
 
 // LIRE UN CODE DE LA NORME depuis notre correspondance.
@@ -1289,6 +1304,26 @@ export async function POST(req: NextRequest) {
     if (pas.personnalise && codeTauxPersonnalise) {
       ecrire("S21.G00.50.006", montantDsn(pas.taux));
       ecrire("S21.G00.50.007", codeTauxPersonnalise);
+
+      // 🆕🚨 S21.G00.50.008 — L IDENTIFIANT DU COMPTE RENDU METIER.
+      //
+      // Elle ne se renseigne QUE sur un taux personnalise, et elle dit DE
+      // QUEL compte rendu le taux a ete tire. C est ce qui permet a la DGFiP
+      // de rattacher le prelevement a la transmission qui l a fonde.
+      // ⚠️ SANS ELLE, LE TAUX EST DECLARE SANS SA SOURCE. Le fichier passe,
+      // mais l administration ne peut plus verifier d ou vient le taux
+      // applique au salarie.
+      if (pas.identifiantCrm) {
+        ecrire("S21.G00.50.008", pas.identifiantCrm);
+      } else {
+        anomalies.push(qui + " : taux personnalisé de " + montantDsn(pas.taux)
+          + " % déclaré SANS l'identifiant du compte rendu métier "
+          + "(S21.G00.50.008). ⚠️ La DGFiP ne pourra pas rattacher ce taux à "
+          + "la transmission qui l'a fourni. Renseigner "
+          + "paie_salaries.taux_pas_identifiant_crm, il figure dans le compte "
+          + "rendu d'où le taux a été repris.");
+      }
+
       nbTauxPersonnalises++;
     } else {
       ecrire("S21.G00.50.006", montantDsn(0));
@@ -1301,6 +1336,25 @@ export async function POST(req: NextRequest) {
           + "⚠️ LE TAUX NEUTRE A ÉTÉ DÉCLARÉ À LA PLACE — le salarié paiera "
           + "plus que son taux réel ce mois-ci. Renseigner la correspondance "
           + "« taux_pas_personnalise » depuis le cahier technique.");
+      }
+
+      // 🆕🚨 LE BAREME NEUTRE DEPEND DE LA SITUATION GEOGRAPHIQUE.
+      //
+      // « 13 » est le bareme de METROPOLE. Les codes 23 et 33 existent pour
+      // les autres situations geographiques — mais je n ai pas lu a quel
+      // territoire chacun correspond, et l inventer ferait prelever au
+      // salarie un montant calcule sur le mauvais bareme.
+      // ⚠️ ON GARDE « 13 » ET ON LE DIT : un taux legalement defendable et
+      // une anomalie visible valent mieux qu une valeur devinee.
+      const cpSalarie = q(s.code_postal);
+      if (cpSalarie.length >= 2 && (cpSalarie.slice(0, 2) === "97"
+          || cpSalarie.slice(0, 2) === "98")) {
+        anomalies.push(qui + " : adresse hors métropole (code postal "
+          + cpSalarie + ") et taux neutre déclaré au barème « 13 », qui est "
+          + "celui de la métropole. ⚠️ Les barèmes 23 et 33 existent pour les "
+          + "autres situations géographiques — la correspondance exacte n'a "
+          + "PAS été vérifiée au cahier technique. À trancher avant tout "
+          + "dépôt réel concernant ce salarié.");
       }
     }
 
