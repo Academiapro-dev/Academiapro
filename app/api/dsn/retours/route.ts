@@ -9,7 +9,36 @@ export const fetchCache = "force-no-store";
 export const maxDuration = 300;
 
 // ═══════════════════════════════════════════════════════════════════════
-// LES RETOURS DE LA DSN — 18/09/2026, version 1
+// LES RETOURS DE LA DSN — 18/09/2026, version 2
+//
+// 🆕 VERSION 2 — LE PASSAGE DE FOND, PAR LE CRON
+//
+// Un cron Vercel ne porte AUCUN parametre : il appelle l adresse nue, avec
+// l en-tete « Authorization: Bearer <CRON_SECRET> ». C est a cet en-tete
+// qu on le reconnait. Un appel nu venu de Safari (cle dans l adresse) rend
+// toujours le mode d emploi.
+//
+// 🚨🚨 LE PASSAGE DE FOND NE TOUCHE QU AUX ACCES DEJA VERIFIES, ET S ARRETE
+// AU PREMIER REFUS.
+//
+// Net-entreprises BLOQUE un compte « a cause de plusieurs tentatives
+// d authentification infructueuses » (section 9.1.1, code 403). Un cron
+// qui reessaierait toutes les heures un mot de passe perime ou faux
+// BLOQUERAIT LE COMPTE DU CLIENT en une journee — et avec lui tous ses
+// depots, y compris ceux qu il fait a la main sur le site.
+//
+// LA REGLE, donc :
+//   - jamais verifie (verifie_le vide)      → le cron n y touche pas
+//   - dernier essai refuse (dernier_echec)  → le cron n y touche plus
+//   Dans les deux cas, c est l utilisateur qui relance, depuis l ecran :
+//   « Tester mes acces » ou « remplacer ». Un succes efface le refus, et
+//   le cron reprend tout seul.
+// ⚠️ Un appel qui NOMME une societe (&societe=…) vient d un humain : il
+// vaut un « Tester mes acces », et il est tente une fois.
+//
+// ⚠️ Cette regle ecarte aussi TEST DSN SAS, dont les identifiants sont
+// fictifs : sans elle, le cron enverrait un faux mot de passe a
+// net-entreprises vingt-quatre fois par jour.
 //
 // Deposer ne suffit pas. Ce sont les RETOURS qui disent si la declaration
 // est passee, et ce sont eux qui rapportent des donnees qu on ne peut
@@ -709,7 +738,12 @@ export async function GET(req: NextRequest) {
   if (!autorise(req)) return reponse({ erreur: "non autorise" }, 401);
 
   const p = req.nextUrl.searchParams;
-  const action = String(p.get("action") || "");
+
+  // 🆕 L APPEL DU CRON : adresse nue, cle dans l en-tete et non dans
+  // l adresse. Voir l en-tete du fichier.
+  const parCron = !p.get("action") && !p.get("secret")
+    && !!req.headers.get("authorization");
+  const action = parCron ? "rafraichir" : String(p.get("action") || "");
 
   // ---- ESSAI : rien n est appele chez net-entreprises ----
   if (action === "essai") {
@@ -729,7 +763,7 @@ export async function GET(req: NextRequest) {
 
     return reponse({
       route: "dsn/retours",
-      version: 1,
+      version: 2,
       cle_de_chiffrement: cleDeChiffrement() ? "utilisable" : "ABSENTE OU MAUVAISE",
       table_dsn_retours: eR ? "INTROUVABLE : " + eR.message : "présente",
       retours_en_base: eR ? null : (nRetours || 0),
@@ -867,21 +901,37 @@ export async function GET(req: NextRequest) {
     const une = uuid(p.get("societe"));
 
     let societes: any[] = [];
+    let jamaisVerifies = 0;
+    let enRefus = 0;
     if (une) {
       const { data } = await supabase.from("compta_societes")
         .select("id, dsn_retours_curseur").eq("id", une).maybeSingle();
       if (!data) return reponse({ erreur: "société inconnue" }, 404);
       societes = [data];
     } else {
-      // ⚠️ AUCUN PARAMETRE POUR LE CRON : la route choisit elle-meme les
-      // societes qui ont des acces actifs.
+      // ⚠️ AUCUN PARAMETRE POUR LE CRON : la route choisit elle-meme.
+      // 🚨 SEULEMENT LES ACCES VERIFIES ET SANS REFUS — voir l en-tete : un
+      // cron qui reessaie un mauvais mot de passe bloque le compte du client.
       const { data: acces } = await supabase.from("dsn_acces")
-        .select("societe_id").eq("portail", "net-entreprises").eq("actif", true);
-      const ids = (acces || []).map(function (a: any) { return a.societe_id; });
+        .select("societe_id, verifie_le, dernier_echec")
+        .eq("portail", "net-entreprises").eq("actif", true);
+
+      const tous = acces || [];
+      const bons = tous.filter(function (a: any) { return !!a.verifie_le && !a.dernier_echec; });
+      jamaisVerifies = tous.filter(function (a: any) { return !a.verifie_le; }).length;
+      enRefus = tous.filter(function (a: any) { return !!a.verifie_le && !!a.dernier_echec; }).length;
+
+      const ids = bons.map(function (a: any) { return a.societe_id; });
       if (ids.length === 0) {
         return reponse({
-          success: true, societes: 0,
-          message: "Aucune société n'a d'accès net-entreprises enregistrés : rien à rapatrier.",
+          success: true, societes: 0, par_cron: parCron,
+          // ⚠️ UN PASSAGE A VIDE DIT POURQUOI IL EST VIDE.
+          acces_jamais_verifies: jamaisVerifies,
+          acces_en_refus: enRefus,
+          message: tous.length === 0
+            ? "Aucune société n'a d'accès net-entreprises enregistrés : rien à rapatrier."
+            : "Aucun accès vérifié et sans refus : le passage de fond n'appelle pas "
+              + "net-entreprises. Il reprendra après un « Tester mes accès » réussi.",
         }, 200);
       }
       const { data } = await supabase.from("compta_societes")
@@ -900,6 +950,9 @@ export async function GET(req: NextRequest) {
     return reponse({
       success: resultats.every(function (r) { return r.fait; }),
       societes: resultats.length,
+      par_cron: parCron,
+      acces_jamais_verifies: jamaisVerifies,
+      acces_en_refus: enRefus,
       retours_ranges: total,
       // 🚨 LE RETARD EST DIT : sans lui, on croirait etre a jour alors que
       // le curseur a trois jours de retard et qu il rattrape une heure par
@@ -911,10 +964,11 @@ export async function GET(req: NextRequest) {
 
   return reponse({
     route: "dsn/retours",
-    version: 1,
+    version: 2,
     actions: {
       essai: "?action=essai",
-      rafraichir: "?action=rafraichir (toutes) ou &societe=<uuid>",
+      rafraichir: "?action=rafraichir (accès vérifiés seulement) ou &societe=<uuid>",
+      cron: "adresse nue + en-tête Authorization : passage de fond, toutes les heures",
       flux: "?action=flux&declaration=<uuid>",
       liste: "?action=liste&societe=<uuid>",
     },
