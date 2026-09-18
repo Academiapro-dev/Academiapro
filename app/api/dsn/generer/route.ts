@@ -122,6 +122,38 @@ export const maxDuration = 120;
 //
 // ⛔ LE MESSAGE DE dsn-val ETAIT TRONQUE A L ECRAN juste apres « 002 - ».
 // La suite se lisait dans la norme, pas dans une deduction.
+//
+// ═══════════════════════════════════════════════════════════════════════
+// 🆕🚨 18/09 — TROIS VALEURS SORTENT DU CODE ET ENTRENT DANS LA BASE
+//
+// Trois choses etaient ecrites EN DUR dans ce fichier alors qu elles
+// varient d une societe a l autre, et d un salarie a l autre. Tant
+// qu elles y restaient, aucun depot reel n etait possible sans modifier le
+// code — et le modifier pour un client l aurait change pour tous.
+//
+//   1. LE MODE D ENVOI (S10.G00.00.005). Il valait « 01 », c est-a-dire
+//      ESSAI. Une DSN reelle exige « 02 ». Tant que ce « 01 » etait dans le
+//      code, tout depot partait, etait accepte — et ne declarait rien.
+//      ⛔ ET CE N EST PAS UN REGLAGE GLOBAL : une societe peut etre en
+//      essai pendant que trois autres declarent pour de vrai.
+//      → vient desormais de compta_societes.dsn_mode.
+//
+//   2. LE POINT DE DEPOT (S10.G00.00.007). Il valait « 01 »,
+//      net-entreprises. Un employeur AGRICOLE depose a la MSA, valeur
+//      « 02 » — et le fichier partait chez le mauvais destinataire.
+//      → vient desormais de compta_societes.dsn_regime.
+//
+//   3. LE TAUX DE PRELEVEMENT A LA SOURCE (S21.G00.50.006 et 007). Il
+//      valait 0 au taux neutre pour TOUT LE MONDE. Le taux neutre est la
+//      regle legale tant que l administration n a pas transmis de taux
+//      personnel — mais il fait prelever au salarie PLUS que son taux
+//      reel, et la difference ne lui revient qu a sa declaration de
+//      revenus suivante.
+//      → vient desormais de paie_salaries.taux_pas, avec sa date d effet.
+//
+// ⚠️ LES COLONNES ONT ETE POSEES LE 18/09 et sont vides : le comportement
+// est donc IDENTIQUE a celui d avant tant que personne ne les remplit.
+// Rien ne change pour les fichiers deja valides.
 // ═══════════════════════════════════════════════════════════════════════
 
 const supabase = createClient(
@@ -144,13 +176,23 @@ const VERSION_LOGICIEL = "1.0.0";
 // contact_email). A defaut, celles de l editeur.
 const CONTACT_DEFAUT = "Jacques LALOU";
 const EMAIL_DEFAUT = "contact@academiapro.fr";
+
+// 🚨🚨 CE NUMERO EST INVENTE, ET C EST UN PROBLEME.
+//
+// Il passe dsn-val, qui ne controle que la forme — dix chiffres. Mais
+// c est le numero qu un organisme compose quand une declaration pose
+// question : la CPAM sur un arret de travail, France Travail sur une fin
+// de contrat. Personne ne repondra jamais.
+//
+// ⚠️ IL N EST PLUS SILENCIEUX : quand le generateur retombe dessus, il le
+// SIGNALE en anomalie. Renseigner compta_societes.contact_tel le fait
+// disparaitre.
 const TELEPHONE_DEFAUT = "0100000000";
 
 // 🚨 LA VERSION DE LA NORME (S10.G00.00.006). Elle change CHAQUE ANNEE :
 // cahier technique publie en decembre, applicable en avril.
 // ✅ VERIFIE AU CAHIER, page 129 : « P26V01 - Annee 2026 Version 1 »,
 // format impose X [6,6] — exactement six caracteres.
-//
 //
 // ⚠️ L HISTOIRE DE CETTE VALEUR : une premiere installation de dsn-val l a
 // refusee sept fois de suite (« valeur hors de la liste de valeurs
@@ -162,20 +204,29 @@ const TELEPHONE_DEFAUT = "0100000000";
 const NORME = "P26V01";
 
 // 🚨 CODE ENVOI DU FICHIER D ESSAI OU REEL — S10.G00.00.005.
-
+//
 // ✅ VERIFIE AU CAHIER, page 129 : « 01 - envoi fichier test », « 02 - envoi
 // fichier reel ». C est dans ce sens, et pas l inverse. En essai, le bilan
 // des controles est rendu quel que soit le resultat et AUCUNE donnee n est
 // conservee par les organismes — le nombre d envois n est pas limite.
-// ⛔ NE PASSER A « 02 » QUE LE JOUR D UN VRAI DEPOT.
-const ENVOI = "01";
+//
+// 🆕 18/09 — CE N EST PLUS UNE CONSTANTE, C EST UNE COLONNE.
+// compta_societes.dsn_mode vaut 'test' (defaut) ou 'reel'. Une societe
+// nouvellement creee est donc en essai tant que personne n a decide le
+// contraire — et le generateur le dit a chaque fichier.
+const ENVOI_TEST = "01";
+const ENVOI_REEL = "02";
 
 // POINT DE DEPOT — S10.G00.00.007.
 // ✅ VERIFIE AU CAHIER, page 129 : « 01 - Net-entreprises », « 02 - MSA ».
-// ⚠️ LA MSA CONCERNE LE REGIME AGRICOLE. Un employeur agricole depose chez
-// elle, pas chez net-entreprises : le jour ou un client releve de la MSA,
-// cette valeur devra suivre la societe et non le logiciel.
-const POINT_DEPOT = "01";
+//
+// 🆕 18/09 — IL SUIT DESORMAIS LE REGIME DE LA SOCIETE.
+// ⚠️ LA MSA CONCERNE LE REGIME AGRICOLE, et ce n est pas un detail : le
+// fichier part chez un autre destinataire, et plusieurs rubriques changent.
+// Un employeur agricole dont le fichier part chez net-entreprises ne
+// declare rien du tout.
+const DEPOT_NET_ENTREPRISES = "01";
+const DEPOT_MSA = "02";
 
 // TYPE DE L ENVOI — S10.G00.00.008.
 // ✅ VERIFIE AU CAHIER, page 129 : « 01 - envoi normal », « 02 - envoi
@@ -183,6 +234,20 @@ const POINT_DEPOT = "01";
 // sans individu — un mois sans aucun salarie. Ce n est jamais notre cas ici,
 // puisqu on ne genere qu a partir de bulletins emis.
 const TYPE_ENVOI = "01";
+
+// 🚨 LE TYPE DE TAUX DE PRELEVEMENT A LA SOURCE — S21.G00.50.007.
+//
+// « 13 » est le taux neutre, celui qui s applique tant que l administration
+// n a pas transmis de taux personnel au declarant. Il est LEGAL et c est la
+// valeur par defaut de tout nouveau salarie.
+//
+// ⛔ LA VALEUR DU TAUX PERSONNALISE N EST PAS ECRITE ICI, ET C EST VOULU :
+// je ne l ai pas lue dans le cahier technique. L inventer ferait declarer
+// un type de taux faux — la declaration passerait, et le prelevement du
+// salarie serait mal qualifie aupres de la DGFiP.
+// → elle se lit dans dsn_codes, correspondance « taux_pas_personnalise ».
+//   Tant qu elle n y est pas, le generateur garde le taux neutre ET LE DIT.
+const TYPE_TAUX_NEUTRE = "13";
 
 // 🚨 LES CODES DE COTISATION QUI RELEVENT DE LA RETRAITE COMPLEMENTAIRE.
 // La reduction generale se ventile entre deux codes DSN, et c est cette
@@ -338,6 +403,41 @@ function salaireDeBaseDsn(detail: any, ct: any): { montant: number; repli: strin
   return null;
 }
 
+// 🆕🚨 LE TAUX DE PRELEVEMENT A LA SOURCE D UN SALARIE, A LA DATE DECLAREE.
+//
+// LA REGLE, ET POURQUOI ELLE TIENT EN UNE DATE :
+//
+// Le taux personnel d un salarie arrive dans le compte rendu metier que
+// net-entreprises renvoie APRES un depot. Il porte une date d effet, et
+// cette date n est pas decorative : un taux recu en octobre ne s applique
+// pas aux bulletins de septembre deja emis.
+//
+// ⛔ APPLIQUER UN TAUX RETROACTIVEMENT SERAIT UNE FAUTE : le bulletin remis
+// au salarie porte un prelevement, la declaration en porterait un autre, et
+// c est la difference que l administration regarde.
+//
+// ⚠️ SANS TAUX CONNU, LE TAUX NEUTRE EST LA REGLE — pas un pis-aller. Il
+// est prevu par la loi pour ce cas precis. Mais il preleve au salarie plus
+// que son taux reel, et la difference ne lui revient qu a sa declaration
+// de revenus suivante : c est pour cela que le compte rendu metier doit
+// etre depouille des qu il arrive.
+function tauxPasDe(s: any, periode: string): { taux: number; personnalise: boolean } {
+  const taux = Number(s && s.taux_pas);
+  if (!(taux > 0)) return { taux: 0, personnalise: false };
+
+  // ⚠️ SANS DATE D EFFET, ON N APPLIQUE PAS LE TAUX. Un taux sans date est
+  // un taux dont on ignore depuis quand il vaut : le supposer applicable
+  // au mois declare serait deviner.
+  const effet = q(s.taux_pas_date_effet);
+  if (!effet) return { taux: 0, personnalise: false };
+
+  // La comparaison porte sur le PREMIER JOUR du mois declare : un taux qui
+  // prend effet en cours de mois ne s applique qu au mois suivant.
+  if (effet > periode) return { taux: 0, personnalise: false };
+
+  return { taux: taux, personnalise: true };
+}
+
 // LIRE UN CODE DE LA NORME depuis notre correspondance.
 async function code(rubrique: string, correspondance: string, periode: string): Promise<string | null> {
   const { data } = await supabase
@@ -411,6 +511,19 @@ export async function POST(req: NextRequest) {
         + "⛔ LA DÉCLARATION SERAIT REJETÉE.",
     }, { status: 400 });
   }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // 🆕🚨 LE MODE D ENVOI ET LE POINT DE DEPOT — LUS SUR LA SOCIETE
+  //
+  // ⚠️ TOUTE AUTRE VALEUR QUE 'reel' EST TRAITEE COMME UN ESSAI. C est le
+  // sens de la prudence : une faute de frappe dans la colonne ne doit pas
+  // faire partir une declaration reelle par accident.
+  // ═══════════════════════════════════════════════════════════════════
+  const modeReel = q(societe.dsn_mode).toLowerCase() === "reel";
+  const envoi = modeReel ? ENVOI_REEL : ENVOI_TEST;
+
+  const regimeAgricole = q(societe.dsn_regime).toLowerCase() === "agricole";
+  const pointDepot = regimeAgricole ? DEPOT_MSA : DEPOT_NET_ENTREPRISES;
 
   // ---- LES BULLETINS EMIS DU MOIS ----
   const { data: bulletins, error: eBul } = await supabase
@@ -488,9 +601,9 @@ export async function POST(req: NextRequest) {
   // ⚠️ 004 — code de conformite en pre-controle : conditionnel, delivre par
   // le GIP-MDS apres homologation. Tant qu il n existe pas, on ne l ecrit
   // pas : une rubrique inventee vaut moins qu une rubrique absente.
-  ecrire("S10.G00.00.005", ENVOI);             // essai (01) ou reel (02)
+  ecrire("S10.G00.00.005", envoi);             // essai (01) ou reel (02)
   ecrire("S10.G00.00.006", NORME);             // version de la norme
-  ecrire("S10.G00.00.007", POINT_DEPOT);       // point de depot
+  ecrire("S10.G00.00.007", pointDepot);        // net-entreprises ou MSA
   ecrire("S10.G00.00.008", TYPE_ENVOI);        // type de l envoi
 
   // ══ S10.G00.01 — L EMETTEUR ══
@@ -524,7 +637,21 @@ export async function POST(req: NextRequest) {
   ecrire("S10.G00.02.004", q(societe.contact_email) || EMAIL_DEFAUT);
   // 🚨 L ADRESSE TELEPHONIQUE EST OBLIGATOIRE (CST-03) : un organisme qui
   // doit joindre le declarant ne se contente pas d une adresse mel.
-  ecrire("S10.G00.02.005", q(societe.contact_tel) || TELEPHONE_DEFAUT);
+  const telContact = q(societe.contact_tel) || TELEPHONE_DEFAUT;
+  ecrire("S10.G00.02.005", telContact);
+
+  // 🆕🚨 LE NUMERO INVENTE NE PASSE PLUS EN SILENCE — 18/09.
+  //
+  // « 0100000000 » a la bonne forme, donc dsn-val l accepte. Mais c est le
+  // numero que la CPAM composera pour une question sur un arret de travail,
+  // et que France Travail composera sur une fin de contrat. Personne ne
+  // repondra, et le dossier du salarie attendra.
+  if (telContact === TELEPHONE_DEFAUT) {
+    anomalies.push("Le téléphone du contact déclaré est le numéro par défaut "
+      + "« " + TELEPHONE_DEFAUT + " », qui n'existe pas. ⚠️ C'est le numéro "
+      + "que la CPAM ou France Travail composera en cas de question sur un "
+      + "salarié. Renseigner compta_societes.contact_tel.");
+  }
 
   // ══ S20 — LA DECLARATION ══
   //
@@ -637,6 +764,11 @@ export async function POST(req: NextRequest) {
   let totalCotisations = 0;
   let totalReductions = 0;
 
+  // 🆕 LE COMPTE DES TAUX PERSONNALISES, pour le rendre a l appelant :
+  // c est le seul moyen de savoir, sans ouvrir le fichier, si le compte
+  // rendu metier a bien ete depouille.
+  let nbTauxPersonnalises = 0;
+
   // ⚠️ LA DUREE MENSUELLE DE REFERENCE sert a la quotite de travail du
   // contrat. Elle vit dans paie_parametres, a la date de la periode.
   let dureeMensuelleRef = 0;
@@ -650,6 +782,12 @@ export async function POST(req: NextRequest) {
       .limit(1).maybeSingle();
     if (dm) dureeMensuelleRef = Number(dm.valeur);
   }
+
+  // 🆕 LE CODE DU TYPE DE TAUX PERSONNALISE, lu une seule fois pour tout le
+  // fichier. Voir le commentaire de TYPE_TAUX_NEUTRE : cette valeur n est
+  // pas ecrite en dur parce qu elle n a pas ete lue au cahier technique.
+  const codeTauxPersonnalise = await code("S21.G00.50.007",
+    "taux_pas_personnalise", periode);
 
   // ══ S21.G00.30 — CHAQUE SALARIE ══
   for (const b of bulletins) {
@@ -1125,17 +1263,47 @@ export async function POST(req: NextRequest) {
     //     50.006  Taux de prelevement a la source
     //     50.007  Type du taux
     //     50.009  Montant de prelevement a la source
-    //
-    // ⚠️ LE TAUX VIENT DU COMPTE RENDU METIER DE LA DSN PRECEDENTE. Tant
-    // qu aucune DSN n a ete deposee, on declare le taux neutre — la regle
-    // pour un salarie dont l administration n a pas encore transmis de taux.
     // ═══════════════════════════════════════════════════════════════
     ecrire("S21.G00.50.001", finPeriode);
     ecrire("S21.G00.50.002", montantDsn(b.net_imposable));
     ecrire("S21.G00.50.003", "01");
     ecrire("S21.G00.50.004", montantDsn(b.net_a_payer));
-    ecrire("S21.G00.50.006", montantDsn(0));
-    ecrire("S21.G00.50.007", "13");
+
+    // ═══════════════════════════════════════════════════════════════
+    // 🆕🚨 LE TAUX DE PRELEVEMENT A LA SOURCE — 18/09
+    //
+    // Il valait 0 au taux neutre pour tout le monde, en dur. Il vient
+    // desormais du salarie, avec sa date d effet.
+    //
+    // ⚠️ DEUX CAS, ET UN SEUL EST ECRIT :
+    //   · un taux personnel connu ET applicable au mois declare → on ecrit
+    //     ce taux, avec son type ;
+    //   · tout le reste → taux neutre, valeur legale et sans risque.
+    //
+    // ⛔ LE TYPE DU TAUX PERSONNALISE N EST PAS INVENTE. S il manque dans
+    // dsn_codes, le generateur GARDE LE TAUX NEUTRE et le signale : mieux
+    // vaut un prelevement legalement correct qu un type de taux devine.
+    // ═══════════════════════════════════════════════════════════════
+    const pas = tauxPasDe(s, periode);
+
+    if (pas.personnalise && codeTauxPersonnalise) {
+      ecrire("S21.G00.50.006", montantDsn(pas.taux));
+      ecrire("S21.G00.50.007", codeTauxPersonnalise);
+      nbTauxPersonnalises++;
+    } else {
+      ecrire("S21.G00.50.006", montantDsn(0));
+      ecrire("S21.G00.50.007", TYPE_TAUX_NEUTRE);
+
+      if (pas.personnalise && !codeTauxPersonnalise) {
+        anomalies.push(qui + " : un taux de prélèvement à la source de "
+          + montantDsn(pas.taux) + " % est enregistré, mais le code du type "
+          + "de taux personnalisé est absent de dsn_codes (S21.G00.50.007). "
+          + "⚠️ LE TAUX NEUTRE A ÉTÉ DÉCLARÉ À LA PLACE — le salarié paiera "
+          + "plus que son taux réel ce mois-ci. Renseigner la correspondance "
+          + "« taux_pas_personnalise » depuis le cahier technique.");
+      }
+    }
+
     ecrire("S21.G00.50.009", montantDsn(b.prelevement_source));
     // 🚨 LE MONTANT SOUMIS AU PAS (50.013) EST OBLIGATOIRE : c est l assiette
     // sur laquelle l administration calculera le prelevement, et elle n est
@@ -1261,7 +1429,6 @@ export async function POST(req: NextRequest) {
     }
 
 
-    // ═══════════════════════════════════════════════════════════════
     // ═══════════════════════════════════════════════════════════════
     // ══ S21.G00.58 — LE MONTANT NET SOCIAL ══
     //
@@ -1652,8 +1819,15 @@ export async function POST(req: NextRequest) {
   // ✅ EN « .txt », IL SE TELECHARGE. Dans dsn-val, il suffit de passer le
   // filtre de la fenetre d ouverture sur « Tous les fichiers » — un reglage,
   // une fois, contre un fichier hors de portee a chaque generation.
+  //
+  // 🆕 18/09 — LE NOM DIT LE MODE. Un fichier d essai et un fichier reel se
+  // ressemblent trait pour trait ; seul le « 01 » ou « 02 » de la rubrique
+  // S10.G00.00.005 les separe, et personne ne le lit. Le nom porte donc la
+  // mention « ESSAI » tant que la societe n est pas en mode reel — ainsi on
+  // ne depose pas un essai en croyant deposer la vraie declaration.
+  const mentionMode = modeReel ? "" : "-ESSAI";
   const nomFichier = "DSN-" + siret + "-" + moisDsn(periode)
-    + "-" + String(ordre).padStart(2, "0") + ".txt";
+    + "-" + String(ordre).padStart(2, "0") + mentionMode + ".txt";
   const chemin = q(societe.tenant_id) + "/" + societeId + "/dsn/"
     + periode.slice(0, 4) + "/" + nomFichier;
 
@@ -1699,14 +1873,65 @@ export async function POST(req: NextRequest) {
   const { data: signe } = await supabase.storage
     .from(BUCKET).createSignedUrl(chemin, 3600);
 
+  // 🆕 CE QUI RESTE AVANT UN DEPOT REEL. La liste s adapte au mode : dire
+  // « passer en 02 » a quelqu un qui y est deja est du bruit, et le bruit
+  // fait ignorer le reste.
+  const avantDepot: string[] = [];
+
+  avantDepot.push("⛔ PASSER LE FICHIER DANS dsn-val (outil officiel) : aucune "
+    + "DSN ne se dépose sans ce contrôle. Il se télécharge sur "
+    + "net-entreprises.fr et tourne sur un ORDINATEUR, pas dans le navigateur.");
+
+  if (modeReel) {
+    avantDepot.push("🚨 CE FICHIER EST EN MODE RÉEL (S10.G00.00.005 = 02) : "
+      + "une fois déposé, il déclare pour de vrai. Le mode vient de "
+      + "compta_societes.dsn_mode.");
+  } else {
+    avantDepot.push("Ce fichier est en MODE ESSAI (S10.G00.00.005 = 01) : il "
+      + "peut être déposé autant de fois que voulu, aucune donnée n'est "
+      + "conservée par les organismes et RIEN N'EST DÉCLARÉ. Passer "
+      + "compta_societes.dsn_mode à « reel » pour un vrai dépôt.");
+  }
+
+  if (regimeAgricole) {
+    avantDepot.push("Le point de dépôt est la MSA (S10.G00.00.007 = 02), "
+      + "régime agricole.");
+  }
+
+  if (nbTauxPersonnalises === 0) {
+    avantDepot.push("Aucun taux de prélèvement à la source personnalisé : tous "
+      + "les salariés sont au taux neutre. Les vrais taux arrivent dans le "
+      + "compte rendu métier après le premier dépôt, à reporter dans "
+      + "paie_salaries.taux_pas avec leur date d'effet.");
+  } else {
+    avantDepot.push(nbTauxPersonnalises + " salarié(s) au taux personnalisé, "
+      + (bulletins.length - nbTauxPersonnalises) + " au taux neutre.");
+  }
+
+  avantDepot.push("La clé de ventilation de la réduction générale entre les "
+    + "codes 018 et 106 est proportionnelle aux cotisations éligibles — à "
+    + "recouper avec la règle URSSAF.");
+  avantDepot.push("Le code PCS-ESE de chaque contrat vient de la nomenclature "
+    + "INSEE : un code faux ne fait pas rejeter la déclaration, il fausse le "
+    + "rattachement conventionnel.");
+  avantDepot.push("Les primes et indemnités (fin de contrat, fin de mission, "
+    + "congés payés) ne sont pas encore déclarées en bloc S21.G00.52 : elles "
+    + "restent comprises dans la rémunération de type 002.");
+  avantDepot.push("Le salaire rétabli (type 003) est égal au brut : exact tant "
+    + "qu'aucune absence n'est traitée sur le bulletin, à reprendre avec le "
+    + "maintien de salaire en maladie.");
+
   return NextResponse.json({
     success: true,
     declaration_id: decl ? decl.id : null,
     fichier: nomFichier,
     periode: periode,
     type: typeDeclaration === "03" ? "annule et remplace" : "normale",
+    mode: modeReel ? "RÉEL" : "essai",
+    point_depot: regimeAgricole ? "MSA" : "net-entreprises",
     numero_ordre: ordre,
     nb_individus: bulletins.length,
+    nb_taux_personnalises: nbTauxPersonnalises,
     nb_lignes: L.length,
     total_brut: Math.round(totalBrut * 100) / 100,
     total_cotisations: Math.round((totalCotisations - totalReductions) * 100) / 100,
@@ -1714,19 +1939,9 @@ export async function POST(req: NextRequest) {
     sha256: sha,
     url: signe ? signe.signedUrl : null,
     anomalies: anomalies,
-
-    // 🚨 CE QUI RESTE AVANT UN DEPOT REEL, DIT FRANCHEMENT.
-    avant_depot: [
-      "⛔ PASSER LE FICHIER DANS dsn-val (outil officiel) : aucune DSN ne se dépose sans ce contrôle. "
-        + "Il se télécharge sur net-entreprises.fr et tourne sur un ORDINATEUR, pas dans le navigateur.",
-      "L'envoi est en MODE ESSAI (S10.G00.00.005 = 01). Passer à 02 pour un dépôt réel.",
-      "Le taux de prélèvement à la source est neutre : le vrai taux vient du compte rendu métier de la DSN précédente.",
-      "La clé de ventilation de la réduction générale entre les codes 018 et 106 est proportionnelle aux cotisations éligibles — à recouper avec la règle URSSAF.",
-      "Le code PCS-ESE de chaque contrat vient de la nomenclature INSEE : un code faux ne fait pas rejeter la déclaration, il fausse le rattachement conventionnel.",
-      "Les primes et indemnités (fin de contrat, fin de mission, congés payés) ne sont pas encore déclarées en bloc S21.G00.52 : elles restent comprises dans la rémunération de type 002.",
-      "Le salaire rétabli (type 003) est égal au brut : exact tant qu'aucune absence n'est traitée sur le bulletin, à reprendre avec le maintien de salaire en maladie.",
-    ],
-    message: "Fichier DSN généré en BROUILLON. "
+    avant_depot: avantDepot,
+    message: "Fichier DSN généré en BROUILLON, mode "
+      + (modeReel ? "RÉEL" : "essai") + ". "
       + (anomalies.length > 0
         ? "⚠️ " + anomalies.length + " anomalie(s) à corriger avant tout dépôt."
         : "Aucune anomalie détectée à la génération."),
