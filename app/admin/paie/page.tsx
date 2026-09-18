@@ -177,6 +177,17 @@ export default function PagePaie() {
   // un interimaire tombe malade comme un autre, et toute mission finit.
   const [evenements, setEvenements] = useState<any>(null);
   const [ev, setEv] = useState<any>(Object.assign({}, EV_VIDE));
+  // 🆕🚨 18/09 — LE MESSAGE D ERREUR S AFFICHE A COTE DU BOUTON QUI L A
+  // PROVOQUE. Jusqu ici il partait dans le bandeau du HAUT de la page, alors
+  // que « Enregistrer ce signalement » est TOUT EN BAS : on touchait, rien ne
+  // bougeait sous les yeux, et il fallait remonter pour comprendre. Jacques
+  // l a vu a l ecran le 17/09 au soir.
+  // ⚠️ LE BANDEAU DU HAUT RESTE POUR LE RESTE DE LA PAGE (calcul, bulletins,
+  // conges) : c est ce bloc-ci qui etait trop loin, pas les autres.
+  const [errEv, setErrEv] = useState("");
+  // 🆕 LA LIGNE EN COURS DE MODIFICATION. Vide = on saisit un nouveau
+  // signalement ; sinon, le formulaire corrige celui-la.
+  const [modifie, setModifie] = useState<any>(null);
   // 🆕 LE PARTAGE N EXISTE PAS PARTOUT : iOS le propose, un navigateur de
   // bureau rarement. On ne montre le lien que la ou il marche.
   const [partagePossible, setPartagePossible] = useState(false);
@@ -224,6 +235,7 @@ export default function PagePaie() {
     // arret a moitie saisi pour l un s enregistrerait sur le contrat de
     // l autre.
     setEv(Object.assign({}, EV_VIDE));
+    setErrEv(""); setModifie(null);
     const d = await appeler({ action: "elements", contrat_id: c.id, periode: periode });
     if (d.success) setElements(d.elements);
     const b = await appeler({ action: "bulletins", contrat_id: c.id });
@@ -373,37 +385,118 @@ export default function PagePaie() {
   // un ecran ne protege de rien, il se contourne.
   // ═══════════════════════════════════════════════════════════════════
   async function ajouterEvenement() {
+    // 🆕 TOUS LES MESSAGES DE CE BLOC PASSENT PAR `errEv`, affiche juste
+    // au-dessus du bouton. Aucun ne part plus dans le bandeau du haut.
     if (!ev.motif || !ev.date_debut) {
-      setErr("Le motif et la date de début sont obligatoires."); return;
+      setErrEv("Le motif et la date de début sont obligatoires."); return;
     }
     if (ev.type_evenement === "arret") {
       if (!ev.date_fin) {
-        setErr("La date de fin prévisionnelle de l'arrêt est obligatoire : "
+        setErrEv("La date de fin prévisionnelle de l'arrêt est obligatoire : "
           + "c'est celle que porte l'avis d'arrêt du médecin. Sans elle, la "
           + "CPAM rejette le signalement.");
         return;
       }
       if (ev.subrogation && (!ev.iban || !ev.bic || !ev.subro_fin)) {
-        setErr("En subrogation, l'IBAN, le BIC et la date de fin de "
+        setErrEv("En subrogation, l'IBAN, le BIC et la date de fin de "
           + "subrogation sont obligatoires tous les trois.");
         return;
       }
     }
-    setErr(""); setMsg("");
+    setErrEv(""); setErr(""); setMsg("");
     setOccupe("evenement");
+
+    // ═══════════════════════════════════════════════════════════════════
+    // 🆕🚨 18/09 — « MODIFIER » EST UN RETRAIT SUIVI D UNE SAISIE, FAIT PAR
+    // LA MACHINE PLUTOT QUE PAR LA MAIN.
+    //
+    // ⚠️ LA ROUTE NE SAIT PAS METTRE A JOUR UN SIGNALEMENT : elle n a qu un
+    // `ajouter_evenement` et un `supprimer_evenement`. Plutot que d inventer
+    // une troisieme action non eprouvee, on enchaine les deux existantes —
+    // celles qui sont deja passees par tous leurs controles.
+    //
+    // ⛔ L ORDRE COMPTE, ET IL EST CELUI-CI : ON ENREGISTRE D ABORD, ON
+    // RETIRE ENSUITE. Dans l autre sens, une saisie refusee par la route
+    // (IBAN faux, date incoherente) aurait deja fait disparaitre l ancien
+    // signalement : on perdrait la donnee en croyant la corriger.
+    // ⚠️ Pendant un instant les deux coexistent ; si le retrait echoue, on le
+    // DIT et la liste montre les deux lignes — un doublon visible vaut mieux
+    // qu une disparition silencieuse.
+    // ⛔ UN SIGNALEMENT DEPOSE NE SE MODIFIE PAS : le bouton n existe pas sur
+    // ces lignes-la, et la route refuserait le retrait de son cote.
+    // ═══════════════════════════════════════════════════════════════════
+    const aRetirer = modifie ? String(modifie.id) : "";
+
     const d = await appeler(Object.assign({
       action: "ajouter_evenement", contrat_id: choisi.id,
     }, ev));
+    if (!d || d.erreur) {
+      setOccupe("");
+      if (d && d.erreur) setErrEv(d.erreur);
+      return;
+    }
+
+    let message = d.message;
+    if (aRetirer) {
+      const r = await appeler({ action: "supprimer_evenement", id: aRetirer });
+      if (r && r.erreur) {
+        setErrEv("⛔ Le nouveau signalement est enregistré, mais l'ancien n'a "
+          + "pas pu être retiré (" + r.erreur + "). LA LISTE EN CONTIENT DEUX : "
+          + "retirez l'ancien à la main.");
+      } else {
+        message = "Signalement modifié. " + message;
+      }
+    }
+
     setOccupe("");
-    if (!d) return;
-    if (d.erreur) { setErr(d.erreur); return; }
-    setMsg(d.message);
+    setMsg(message);
     setEv(Object.assign({}, EV_VIDE));
+    setModifie(null);
     chargerEvenements(choisi.id);
   }
 
+  // 🆕 REPRENDRE UN SIGNALEMENT DANS LE FORMULAIRE.
+  //
+  // ⚠️ LES DATES DE LA BASE ARRIVENT EN « 2026-09-24T00:00:00 » ou en
+  // « 2026-09-24 » selon la colonne : un champ `type="date"` n accepte QUE
+  // les dix premiers caracteres. Les passer tels quels laisserait le champ
+  // vide sans rien dire, et la modification perdrait la date.
+  function modifierEvenement(x: any) {
+    const d10 = function (v: any) { return String(v || "").slice(0, 10); };
+    setEv({
+      type_evenement: String(x.type_evenement || "arret"),
+      motif: String(x.motif || ""),
+      date_debut: d10(x.date_debut),
+      date_fin: d10(x.date_fin),
+      dernier_jour_travaille: d10(x.dernier_jour_travaille),
+      subrogation: x.subrogation === true,
+      iban: String(x.iban || ""),
+      bic: String(x.bic || ""),
+      subro_fin: d10(x.subro_fin),
+      date_notification: d10(x.date_notification),
+      dernier_jour_paye: d10(x.dernier_jour_paye),
+    });
+    setModifie(x);
+    setErrEv(""); setErr(""); setMsg("");
+    // ⚠️ LE FORMULAIRE EST AU-DESSUS DE LA LISTE : sans cela, on touche
+    // « modifier » et rien ne bouge a l ecran — le meme defaut que le message
+    // d erreur perdu en haut de page.
+    if (typeof document !== "undefined") {
+      const cible = document.getElementById("nouveau-signalement");
+      if (cible && cible.scrollIntoView) {
+        cible.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    }
+  }
+
+  function annulerModification() {
+    setEv(Object.assign({}, EV_VIDE));
+    setModifie(null);
+    setErrEv("");
+  }
+
   async function genererSignalement(id: string) {
-    setErr(""); setMsg("");
+    setErr(""); setErrEv(""); setMsg("");
     setOccupe("signalement");
     let d: any = null;
     try {
@@ -413,14 +506,14 @@ export default function PagePaie() {
         body: JSON.stringify({ cle: secret, evenement_id: id }),
       });
       d = await r.json();
-    } catch (e: any) { setErr(String(e)); }
+    } catch (e: any) { setErrEv(String(e)); }
     setOccupe("");
     if (!d) return;
-    if (d.erreur) { setErr(d.erreur); return; }
+    if (d.erreur) { setErrEv(d.erreur); return; }
     setMsg(d.message + " — " + d.nom_fichier + " (" + d.lignes + " lignes)");
     // ⚠️ LES ANOMALIES PASSENT EN ERREUR, pas en message : un signalement
     // avec anomalie ne doit pas ressembler a un succes.
-    if (d.anomalies && d.anomalies.length > 0) setErr(d.anomalies.join(" · "));
+    if (d.anomalies && d.anomalies.length > 0) setErrEv(d.anomalies.join(" · "));
     chargerEvenements(id && choisi ? choisi.id : id);
   }
 
@@ -447,7 +540,7 @@ export default function PagePaie() {
   }
 
   function telechargerSignalement(x: any) {
-    if (!x || !x.fichier) { setErr("Ce signalement n'a pas encore été généré."); return; }
+    if (!x || !x.fichier) { setErrEv("Ce signalement n'a pas encore été généré."); return; }
     const blob = new Blob([octetsLatin1(String(x.fichier))], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -465,7 +558,7 @@ export default function PagePaie() {
   // ⛔ S IL ECHOUE OU S IL N EXISTE PAS, ON RETOMBE SUR LE TELECHARGEMENT :
   // un geste qui ne fait rien est pire qu un geste plus lent.
   async function partagerSignalement(x: any) {
-    if (!x || !x.fichier) { setErr("Ce signalement n'a pas encore été généré."); return; }
+    if (!x || !x.fichier) { setErrEv("Ce signalement n'a pas encore été généré."); return; }
     const nav: any = navigator;
     try {
       const fichier: any = new File([octetsLatin1(String(x.fichier))],
@@ -484,11 +577,15 @@ export default function PagePaie() {
 
   async function retirerEvenement(id: string) {
     if (!confirm("Retirer ce signalement ?")) return;
-    setOccupe("evenement");
+    setErrEv(""); setOccupe("evenement");
+    // ⚠️ SI ON RETIRE CELUI QU ON EST EN TRAIN DE MODIFIER, le formulaire
+    // repart a vide : sans cela, « Enregistrer » recreerait la ligne qu on
+    // vient de supprimer.
+    if (modifie && String(modifie.id) === String(id)) annulerModification();
     const d = await appeler({ action: "supprimer_evenement", id: id });
     setOccupe("");
     if (d && d.success) { setMsg(d.message); chargerEvenements(choisi.id); }
-    else if (d && d.erreur) setErr(d.erreur);
+    else if (d && d.erreur) setErrEv(d.erreur);
   }
 
   async function chargerConges(id: string) {
@@ -1260,10 +1357,29 @@ export default function PagePaie() {
                     de la liste, il semblait piloter les lignes du dessous :
                     Jacques a cru qu une case decochee ici changeait un arret
                     deja enregistre. */}
-                <p style={{ fontSize: "13px", color: OR, margin: "16px 0 0",
-                  fontWeight: "bold" }}>
-                  Nouveau signalement
+                {/* 🆕 LE TITRE DIT CE QUE FAIT LE FORMULAIRE. En modification,
+                    il change de couleur et de mot : c est le seul endroit ou
+                    l on peut voir, d un coup d oeil, qu on corrige une ligne
+                    existante au lieu d en creer une. */}
+                <p id="nouveau-signalement"
+                  style={{ fontSize: "13px", color: modifie ? VERT : OR,
+                    margin: "16px 0 0", fontWeight: "bold" }}>
+                  {modifie
+                    ? "Modification du signalement « "
+                      + (modifie.type_evenement === "arret" ? "Arrêt" : "Fin de contrat")
+                      + " " + jma(modifie.type_evenement === "arret"
+                        ? modifie.date_debut : (modifie.date_fin || modifie.date_debut))
+                      + " »"
+                    : "Nouveau signalement"}
                 </p>
+                {modifie && (
+                  <p style={{ fontSize: "12px", color: "rgba(255,255,255,0.45)",
+                    margin: "4px 0 0", lineHeight: "1.6" }}>
+                    Les champs sont remplis avec ce qui a été enregistré.
+                    Corrigez ce qu&apos;il faut, puis validez : l&apos;ancien
+                    signalement sera retiré et remplacé par celui-ci.
+                  </p>
+                )}
 
                 <div style={{ display: "flex", gap: "10px", flexWrap: "wrap",
                   alignItems: "flex-end", marginTop: "10px" }}>
@@ -1407,10 +1523,34 @@ export default function PagePaie() {
                   </p>
                 )}
 
-                <button onClick={ajouterEvenement} disabled={occupe !== ""}
-                  style={{ ...SECOND, marginTop: "12px" }}>
-                  {occupe === "evenement" ? "…" : "Enregistrer ce signalement"}
-                </button>
+                {/* 🆕🚨 LE MESSAGE EST ICI, AU-DESSUS DU BOUTON — 18/09.
+                    Il partait dans le bandeau du haut de la page : on touchait
+                    « Enregistrer », rien ne bougeait sous les yeux, et il
+                    fallait remonter toute la fiche pour lire le refus. */}
+                {errEv && (
+                  <p style={{ color: ROUGE, fontSize: "13px", lineHeight: "1.6",
+                    margin: "14px 0 0", padding: "10px 12px",
+                    border: "1px solid rgba(229,115,115,0.4)", borderRadius: "8px",
+                    background: "rgba(229,115,115,0.07)" }}>
+                    {errEv}
+                  </p>
+                )}
+
+                <div style={{ display: "flex", gap: "10px", alignItems: "center",
+                  flexWrap: "wrap", marginTop: "12px" }}>
+                  <button onClick={ajouterEvenement} disabled={occupe !== ""}
+                    style={SECOND}>
+                    {occupe === "evenement" ? "…"
+                      : modifie ? "Enregistrer la modification"
+                      : "Enregistrer ce signalement"}
+                  </button>
+                  {modifie && (
+                    <button onClick={annulerModification} disabled={occupe !== ""}
+                      style={{ ...LIEN, color: "rgba(255,255,255,0.55)" }}>
+                      annuler la modification
+                    </button>
+                  )}
+                </div>
 
                 {evenements.evenements && evenements.evenements.length > 0 && (
                   <div style={{ marginTop: "22px", paddingTop: "14px",
@@ -1424,8 +1564,8 @@ export default function PagePaie() {
                     <p style={{ fontSize: "12px", color: "rgba(255,255,255,0.45)",
                       margin: "4px 0 8px", lineHeight: "1.6" }}>
                       Le formulaire ci-dessus sert à en saisir un nouveau : il ne
-                      modifie pas ceux de cette liste. Pour corriger un
-                      signalement, retirez-le puis saisissez-le de nouveau.
+                      modifie pas ceux de cette liste, sauf si vous touchez
+                      « modifier » sur l&apos;un d&apos;eux.
                     </p>
                     {evenements.evenements.map(function (x: any) {
                       const arret = x.type_evenement === "arret";
@@ -1493,6 +1633,20 @@ export default function PagePaie() {
                               <button onClick={() => partagerSignalement(x)}
                                 style={{ ...LIEN, color: OR }}>
                                 partager
+                              </button>
+                            )}
+                            {/* 🆕 « MODIFIER » — Jacques l a cherche le 17/09.
+                                ⛔ PAS SUR UN SIGNALEMENT DEPOSE : il a ete
+                                transmis a l organisme, le corriger ici ne le
+                                corrigerait pas la-bas. */}
+                            {!depose && (
+                              <button onClick={() => modifierEvenement(x)}
+                                disabled={occupe !== ""}
+                                style={{ ...LIEN,
+                                  color: modifie && String(modifie.id) === String(x.id)
+                                    ? VERT : OR }}>
+                                {modifie && String(modifie.id) === String(x.id)
+                                  ? "en cours de modification" : "modifier"}
                               </button>
                             )}
                             {!depose && (
