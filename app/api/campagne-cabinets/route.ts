@@ -189,29 +189,47 @@ function messagePremiereVague(o: any): string {
     + "Le reste suit la même logique. Tenue, lettrage, rapprochement "
     + "bancaire, déclarations et liasse, facturation de vos honoraires et "
     + "prévisionnel de trésorerie sur douze semaines.\n\n"
-    // 🆕 LA PAIE ET LA DSN — AJOUTEES LE 15/09, DECISION DE JACQUES.
+
+    // ═══════════════════════════════════════════════════════════════════
+    // 🚨 LA PAIE ET LA DSN — RECRITES LE 18/09. ELLES SONT DISPONIBLES.
     //
-    // ⚠️ ELLES N EXISTENT PAS ENCORE. La construction est decidee depuis le
-    // 08/09 (ni MyUnisoft, ni Pennylane, ni Cegid Loop ne font la paie
-    // eux-memes : c est la differenciation de Mr Comptable), mais AUCUN
-    // bulletin n est sorti a ce jour.
+    // CE QUI Y ETAIT ECRIT JUSQU AU 18/09, ET POURQUOI IL A FALLU TOUT
+    // CHANGER PLUTOT QUE REMPLACER UN MOT :
     //
-    // 🚨 D OU LA FORMULE « ARRIVENT PROCHAINEMENT », ET RIEN D AUTRE. C est
-    // la meme regle que la diffusion d annonces de Mr CRM, tranchee par
-    // Jacques le 14/09 : on annonce ce qui vient, on ne pretend jamais que
-    // c est deja la. Le raisonnement de Jacques, 15/09 : « on s est protege
-    // en disant que cette fonctionnalite allait arriver bientot, il n y a
-    // donc aucun mensonge et aucune pression a avoir meme si j avais des
-    // clients tout de suite ».
-    // ⛔ JAMAIS DE DATE. ⛔ NE JAMAIS ECRIRE « incluses » ou « disponibles »
-    // tant que le premier bulletin n est pas sorti ET CONTROLE AU CENTIME
-    // contre un bulletin reel.
-    // ⚠️ « pas de second logiciel, pas de second contrat » est l argument
-    // qui porte : c est precisement ce que les autres facturent a part.
-    + "La paie et la DSN arrivent prochainement, dans le même abonnement : "
-    + "pas de second logiciel, pas de second contrat.\n\n"
-    + "Un seul prix, sans module en supplément, sans engagement de "
-    + "durée.\n\n"
+    //   « La paie et la DSN arrivent PROCHAINEMENT, DANS LE MEME
+    //     ABONNEMENT : pas de second logiciel, pas de second contrat. »
+    //   « UN SEUL PRIX, SANS MODULE EN SUPPLEMENT, sans engagement. »
+    //
+    // Ces deux phrases etaient justes tant que la paie n existait pas.
+    // Elles deviennent FAUSSES le jour ou elle se vend : la paie est une
+    // OPTION a 19 EUR par mois, plus le bulletin. Remplacer « prochainement »
+    // par « disponible » aurait donc promis une paie comprise dans
+    // l abonnement — et le premier cabinet qui souscrit l aurait decouvert
+    // sur sa facture.
+    //
+    // ⛔ « UN SEUL PRIX, SANS MODULE EN SUPPLEMENT » EST SUPPRIME. Cette
+    // phrase ne peut pas coexister avec une option payante.
+    //
+    // ✅ CE QUI RESTE VRAI ET QUI PORTE : « dans le meme logiciel, sans
+    // second contrat ». C est l argument reel — les concurrents font passer
+    // la paie par un autre editeur et un autre contrat.
+    //
+    // 🚨 LES TARIFS SONT ECRITS EN ENTIER — decision de Jacques du 18/09 :
+    // les prix sont competitifs, donc ils s affichent. Un cabinet qui lit un
+    // prix decide ; un cabinet qui lit « sur devis » repousse.
+    // ⚠️ LES QUATRE CHIFFRES DOIVENT RESTER D ACCORD AVEC LA PAGE /comptable
+    // ET AVEC LA FACTURATION. Si l un change, les trois endroits changent.
+    // ═══════════════════════════════════════════════════════════════════
+    + "La paie et les déclarations à l'URSSAF sont désormais disponibles : "
+    + "les bulletins de salaire, la DSN mensuelle, le signalement de fin de "
+    + "contrat et celui d'arrêt de travail. Dans le même logiciel, sans "
+    + "second contrat.\n\n"
+    + "Les tarifs sont affichés, sans devis : 49 € par mois pour le cabinet, "
+    + "15 € par dossier client et par collaborateur supplémentaire, 10 € le "
+    + "dossier pendant six mois pour tout nouveau cabinet. La paie s'ajoute "
+    + "en option à 19 € par mois, plus le bulletin — de 12 € à 3 € selon le "
+    + "nombre de salariés.\n\n"
+
     + "Si le sujet vous parle, répondez-moi simplement : je vous montre en "
     + "quinze minutes ce que ça donne sur un dossier réel.";
 
@@ -233,6 +251,9 @@ function messagePremiereVague(o: any): string {
 // 🚨 CE TEXTE N A PAS CHANGE D UN MOT LE 15/09 — il a change de NUMERO.
 // Il etait la vague 2 ; il devient la vague 3, parce que MysterLLC vient
 // s intercaler. Jacques : « hors de question de les remplacer ».
+// 🚨 IL N A PAS CHANGE NON PLUS LE 18/09, ET C EST VOULU. Cette vague ne
+// vend pas une fonctionnalite : elle parle du temps rendu au cabinet. Y
+// coller les tarifs de la paie casserait le seul message qui porte.
 function messageTroisiemeVague(o: any): string {
   const texte =
     salutationDe(o) + "\n\n"
