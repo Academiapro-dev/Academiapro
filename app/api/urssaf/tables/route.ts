@@ -8,7 +8,18 @@ export const fetchCache = "force-no-store";
 export const maxDuration = 300;
 
 // ═══════════════════════════════════════════════════════════════════════
-// LES TABLES DE REFERENCE DE L URSSAF — 18/09/2026, version 1
+// LES TABLES DE REFERENCE DE L URSSAF — 18/09/2026, version 2
+//
+// 🆕 VERSION 2, APRES LE PREMIER DEPOT DES FICHIERS — deux choses que le
+// depot reel a montrees et que la version 1 n aurait pas supportees :
+//
+// 1. 🚨 iOS RENOMME LES FICHIERS AU TELECHARGEMENT. Les tirets bas
+//    deviennent des points : `tableUrssaf_20260618.csv` arrive sous le nom
+//    `tableUrssaf.20260618.csv`. La date se lit donc apres un point, un
+//    tiret bas OU un tiret. ⛔ NE PAS EXIGER UN NOM EXACT : on ne maitrise
+//    pas ce que l appareil fait du nom.
+// 2. LES FICHIERS PEUVENT ETRE A LA RACINE DU BUCKET plutot que dans le
+//    dossier. On cherche donc dans le dossier, puis a la racine.
 //
 //   ?action=essai        dit ce qu elle trouve dans le bucket, SANS ECRIRE
 //   ?action=importer     importe les quatre tables
@@ -144,10 +155,25 @@ function dateExcel(v: string): string | null {
 // livraison et sert a effacer la precedente.
 // ⚠️ tauxVMRR-01012026.xlsx porte JJMMAAAA, les CSV portent AAAAMMJJ.
 function dateDuNom(nom: string): string | null {
-  const a = nom.match(/_(\d{4})(\d{2})(\d{2})\./);
-  if (a) return a[1] + "-" + a[2] + "-" + a[3];
-  const b = nom.match(/-(\d{2})(\d{2})(\d{4})\./);
-  if (b) return b[3] + "-" + b[2] + "-" + b[1];
+  // AAAAMMJJ apres un point, un tiret bas ou un tiret — voir l en-tete :
+  // iOS remplace les tirets bas par des points.
+  const a = nom.match(/[._-](\d{4})(\d{2})(\d{2})(?=[._-])/);
+  if (a) {
+    const mois = Number(a[2]);
+    const jour = Number(a[3]);
+    if (mois >= 1 && mois <= 12 && jour >= 1 && jour <= 31) {
+      return a[1] + "-" + a[2] + "-" + a[3];
+    }
+  }
+  // JJMMAAAA — la forme du fichier VMRR (tauxVMRR-01012026.xlsx).
+  const b = nom.match(/[._-](\d{2})(\d{2})(\d{4})(?=[._-])/);
+  if (b) {
+    const jour = Number(b[1]);
+    const mois = Number(b[2]);
+    if (mois >= 1 && mois <= 12 && jour >= 1 && jour <= 31) {
+      return b[3] + "-" + b[2] + "-" + b[1];
+    }
+  }
   return null;
 }
 
@@ -178,21 +204,40 @@ function lignesTabulees(octets: Buffer): string[][] {
 // LE BUCKET
 // ---------------------------------------------------------------------
 
-type Trouve = { nom: string; taille: number; source_date: string | null };
+type Trouve = { nom: string; chemin: string; taille: number; source_date: string | null };
 
-async function listerFichiers(): Promise<Trouve[]> {
+async function listerUn(prefixe: string): Promise<Trouve[]> {
   const { data, error } = await supabase.storage.from(BUCKET)
-    .list(DOSSIER, { limit: 100 });
+    .list(prefixe, { limit: 200 });
   if (error || !data) return [];
   return data
-    .filter(function (f: any) { return f.name && f.name.indexOf(".") > 0; })
+    .filter(function (f: any) {
+      // Un dossier n a pas de metadata : on ne garde que les fichiers.
+      return f.name && f.name.indexOf(".") > 0 && f.metadata;
+    })
     .map(function (f: any) {
       return {
         nom: f.name,
+        chemin: prefixe ? prefixe + "/" + f.name : f.name,
         taille: (f.metadata && f.metadata.size) || 0,
         source_date: dateDuNom(f.name),
       };
     });
+}
+
+// 🆕 On regarde d abord dans le dossier, puis a la racine du bucket : les
+// fichiers deposes a la main atterrissent souvent a la racine.
+async function listerFichiers(): Promise<Trouve[]> {
+  const dedans = await listerUn(DOSSIER);
+  const racine = await listerUn("");
+  const vus: Record<string, boolean> = {};
+  const sortie: Trouve[] = [];
+  for (const f of dedans.concat(racine)) {
+    if (vus[f.nom]) continue;
+    vus[f.nom] = true;
+    sortie.push(f);
+  }
+  return sortie;
 }
 
 // On reconnait chaque table au DEBUT du nom, pas au nom entier : il porte
@@ -205,9 +250,8 @@ function chercher(fichiers: Trouve[], debut: string): Trouve | null {
   return null;
 }
 
-async function telecharger(nom: string): Promise<Buffer | null> {
-  const { data, error } = await supabase.storage.from(BUCKET)
-    .download(DOSSIER + "/" + nom);
+async function telecharger(chemin: string): Promise<Buffer | null> {
+  const { data, error } = await supabase.storage.from(BUCKET).download(chemin);
   if (error || !data) return null;
   return Buffer.from(await data.arrayBuffer());
 }
@@ -436,7 +480,7 @@ export async function GET(req: NextRequest) {
         ? { table: t.table, erreur: error.message }
         : { table: t.table, lignes: count || 0, livraison: une ? une.source_date : null };
     }
-    return reponse({ route: "urssaf/tables", version: 1, etat: etat }, 200);
+    return reponse({ route: "urssaf/tables", version: 2, etat: etat }, 200);
   }
 
   // ---- ESSAI : ce qu on trouve dans le bucket, SANS RIEN ECRIRE ----
@@ -458,7 +502,7 @@ export async function GET(req: NextRequest) {
       // On lit le fichier pour de vrai, mais on n ecrit rien : c est le
       // seul moyen de savoir si l encodage et les dates sont bien lus
       // AVANT de toucher a la base.
-      const octets = await telecharger(f.nom);
+      const octets = await telecharger(f.chemin);
       let compte = 0;
       let apercu: any = null;
       let souci: string | null = null;
@@ -478,7 +522,7 @@ export async function GET(req: NextRequest) {
 
       vus.push({
         quoi: t.quoi,
-        fichier: f.nom,
+        fichier: f.chemin,
         octets: f.taille,
         livraison: f.source_date,
         replis_sur_le_fichier_courant: replis || undefined,
@@ -490,8 +534,8 @@ export async function GET(req: NextRequest) {
 
     return reponse({
       route: "urssaf/tables",
-      version: 1,
-      bucket: BUCKET + "/" + DOSSIER,
+      version: 2,
+      bucket: BUCKET + " (dossier « " + DOSSIER + " » ou racine)",
       fichiers_dans_le_dossier: fichiers.map(function (f) { return f.nom; }),
       tables: vus,
       manquants: manquants,
@@ -524,7 +568,7 @@ export async function GET(req: NextRequest) {
         continue;
       }
 
-      const octets = await telecharger(f.nom);
+      const octets = await telecharger(f.chemin);
       if (!octets) {
         resultats.push({ quoi: t.quoi, fait: false, erreur: "téléchargement impossible" });
         continue;
@@ -553,7 +597,7 @@ export async function GET(req: NextRequest) {
 
       if ((dejaLa || 0) > 0 && p.get("refaire") !== "oui") {
         resultats.push({
-          quoi: t.quoi, fait: false, fichier: f.nom, livraison: f.source_date,
+          quoi: t.quoi, fait: false, fichier: f.chemin, livraison: f.source_date,
           erreur: "Cette livraison est déjà en base (" + dejaLa + " lignes). "
             + "Pour la réimporter malgré tout, ajouter &refaire=oui.",
         });
@@ -568,7 +612,7 @@ export async function GET(req: NextRequest) {
       resultats.push({
         quoi: t.quoi,
         fait: !r.erreur,
-        fichier: f.nom,
+        fichier: f.chemin,
         livraison: f.source_date,
         lignes_lues: lignes.length,
         lignes_inserees: r.inseres,
@@ -583,7 +627,7 @@ export async function GET(req: NextRequest) {
 
     return reponse({
       route: "urssaf/tables",
-      version: 1,
+      version: 2,
       success: resultats.every(function (r) { return r.fait; }),
       resultats: resultats,
     }, 200);
@@ -591,7 +635,7 @@ export async function GET(req: NextRequest) {
 
   return reponse({
     route: "urssaf/tables",
-    version: 1,
+    version: 2,
     ou_deposer_les_fichiers: BUCKET + "/" + DOSSIER,
     source: SOURCE,
     actions: {
