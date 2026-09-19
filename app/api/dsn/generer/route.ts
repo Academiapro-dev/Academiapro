@@ -11,6 +11,41 @@ export const maxDuration = 120;
 // ═══════════════════════════════════════════════════════════════════════
 // LE GENERATEUR DE DSN MENSUELLE — 16/09/2026, corrige le meme jour
 //
+// 🆕🚨 19/09 — VERSION 3 : LE BORDEREAU URSSAF, ET LA SCISSION DES
+// COTISATIONS MALADIE ET ALLOCATIONS FAMILIALES
+//
+// ✅ EPROUVE : fichier d essai de 542 lignes passe dans dsn-val 2026.1.0.16,
+// ZERO ANOMALIE. C est ce fichier qui a fixe la place des blocs 20, 22 et
+// 23 — entre l etablissement et le premier individu — et confirme que les
+// codes 907 et 102 sont admis.
+//
+// CE QUI CHANGE, ET POURQUOI
+//
+// 1. 🚨 LA MALADIE ET LES ALLOCATIONS FAMILIALES SE DECLARENT EN DEUX
+//    LIGNES CHACUNE. Guide URSSAF v5.1, page 34, mot pour mot : « a compter
+//    de la periode d emploi de janvier 2026 l employeur eligible a la
+//    Reduction Generale doit NECESSAIREMENT ET QUELLE QUE SOIT LA
+//    REMUNERATION utiliser les CTP 635 (complement maladie — equivalence DI
+//    bloc 81 code 907) et 430 (complement AF — equivalence DI bloc 81
+//    code 102) ».
+//    Autrement dit : la maladie ne s ecrit pas en une ligne a 13 %, mais
+//    en 075 (7 %) plus 907 (6 %) ; les allocations familiales en 074
+//    (3,45 %) plus 102 (1,80 %).
+//    ⛔ dsn-val NE PEUT PAS VOIR CE DEFAUT : il controle la structure, pas
+//    la ventilation. C est l URSSAF qui rapproche ensuite le CTP 635 de la
+//    somme des codes 907, et qui emet un avis d anomalie chaque mois quand
+//    ils ne concordent pas. Un editeur a livre ce defaut en 2022 : anomalie
+//    a chaque depot, chez chaque client.
+//
+// 2. 🚨 LE BORDEREAU (blocs 20, 22 et 23) : ce que l employeur doit a
+//    l URSSAF, en lignes agregees. Sans lui, la DSN decrit les salaries
+//    mais ne declare aucune cotisation.
+//
+// ⚠️ LES DEUX SE TIENNENT : l URSSAF exige depuis 2022 l equivalence entre
+// l agrege et le nominatif. Le generateur calcule donc le bordereau A
+// PARTIR des memes cumuls que les blocs 78 — jamais par un calcul parallele,
+// qui finirait par diverger.
+//
 // Il prend un mois et une societe, lit les bulletins EMIS de ce mois, et
 // ecrit le fichier au format NEODeS.
 //
@@ -262,6 +297,75 @@ const TYPE_TAUX_NEUTRE = "13";
 // La reduction generale se ventile entre deux codes DSN, et c est cette
 // liste qui decide de quel cote va chaque euro.
 const RETRAITE_COMPLEMENTAIRE = ["RETRAITE_C_T1", "RETRAITE_C_T2", "CEG_T1", "CEG_T2"];
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🆕 LE SOCLE DE CTP D UN EMPLOYEUR ORDINAIRE — bordereau, bloc S21.G00.23
+//
+// Chaque ligne dit : quel code type de personnel, quel qualifiant
+// d assiette, et sur quelle assiette du nominatif il se calcule.
+// ⚠️ LES ASSIETTES SONT CELLES DES BLOCS 78, cumulees sur tous les
+// salaries — c est ce qui garantit l equivalence agrege / nominatif.
+//
+// 🚨 LE QUALIFIANT : « 921 » pour une assiette plafonnee, « 920 » pour
+// toutes les autres (guide URSSAF, §1.3).
+// 🚨 LE TAUX (23.003) NE SE DECLARE QUE POUR TROIS COTISATIONS : accident
+// du travail, versement mobilite, bonus-malus. Aucune autre.
+// 🚨 LE MONTANT DE COTISATION N EST PAS RENSEIGNE sur les CTP de cotisation
+// du socle : seule l assiette l est. Le montant ne s ecrit que sur les CTP
+// de deduction, de format F — la reduction generale.
+// ⚠️ LES TAUX NE FIGURENT PAS ICI : ils vivent dans urssaf_ctp, avec leur
+// date d effet. Le generateur controle que chaque CTP y existe et n est pas
+// cloture a la periode declaree.
+// ═══════════════════════════════════════════════════════════════════════
+const CTP_SOCLE: { ctp: string; qualifiant: string; assiette: string; tauxAt?: boolean }[] = [
+  // Le regime general, en deux lignes : le taux AT est porte par la 920.
+  { ctp: "100", qualifiant: "920", assiette: "03", tauxAt: true },
+  { ctp: "100", qualifiant: "921", assiette: "02" },
+  // CSG-CRDS : sur l assiette abattue, celle des blocs 78 de type 04.
+  { ctp: "260", qualifiant: "920", assiette: "04" },
+  // FNAL des moins de cinquante salaries : plafonne.
+  { ctp: "332", qualifiant: "921", assiette: "02" },
+  // Les deux complements, obligatoires depuis janvier 2026.
+  { ctp: "430", qualifiant: "920", assiette: "03" },
+  { ctp: "635", qualifiant: "920", assiette: "03" },
+  // Chomage et AGS : sur l assiette de l assurance chomage (type 07).
+  { ctp: "772", qualifiant: "920", assiette: "07" },
+  { ctp: "937", qualifiant: "920", assiette: "07" },
+];
+
+// 🚨 LE FNAL DES CINQUANTE SALARIES ET PLUS est un autre CTP, sur la
+// totalite et non sur le plafond.
+const CTP_FNAL_50PLUS = "236";
+
+// 🚨 LA REDUCTION GENERALE — deux codes, et le choix n est pas indifferent.
+// Guide URSSAF, page 33 :
+//   668  reduction generale ETENDUE : regime general ET assurance chomage.
+//        C est le cas general, celui d un employeur dont l URSSAF recouvre
+//        le chomage.
+//   671  reduction generale SANS CHOMAGE : pour les employeurs dont la
+//        contribution d assurance chomage n est PAS recouvree par l URSSAF.
+// ⚠️ LE MONTANT S ECRIT EN POSITIF au bordereau — « au niveau agrege, le
+// CTP porte le signe » — alors qu il est negatif au nominatif.
+// 🚨 IL DOIT EGALER LA SOMME DES CODES 018, ET ELLE SEULE : le code 106,
+// part Agirc-Arrco, ne regarde pas l URSSAF.
+const CTP_RGDU_AVEC_CHOMAGE = "668";
+const CTP_RGDU_SANS_CHOMAGE = "671";
+
+// 🚨 LES COTISATIONS QUI SE SCINDENT EN BASE ET COMPLEMENT (voir l en-tete).
+// Le taux du complement est lu dans urssaf_ctp a la periode declaree — il
+// n est pas ecrit ici, il changerait sans qu on le sache.
+const SCISSIONS = [
+  { codeBase: "075", codeComplement: "907", ctpComplement: "635", quoi: "maladie" },
+  { codeBase: "074", codeComplement: "102", ctpComplement: "430", quoi: "allocations familiales" },
+];
+
+// 🚨 LES MONTANTS DU BORDEREAU SONT ARRONDIS A L EURO — assiettes comprises.
+// Guide URSSAF §1.6 : « tous les montants des blocs Cotisation agregee
+// doivent etre arrondis a l euro le plus proche ». Le reste de la DSN est au
+// centime. ⚠️ Ils s ecrivent quand meme avec deux decimales : « 7582.00 ».
+function euroDsn(v: number): string {
+  return Math.round(Number(v || 0)).toFixed(2);
+}
 
 function q(v: any): string {
   if (v === null || v === undefined) return "";
@@ -803,6 +907,31 @@ export async function POST(req: NextRequest) {
   // pas ecrite en dur parce qu elle n a pas ete lue au cahier technique.
   const codeTauxPersonnalise = await code("S21.G00.50.007",
     "taux_pas_personnalise", periode);
+
+  // ═══════════════════════════════════════════════════════════════════
+  // 🆕 LA PLACE DU BORDEREAU EST RESERVEE ICI.
+  //
+  // 🚨 Les blocs 20, 22 et 23 sont enfants de l ETABLISSEMENT, comme les
+  // individus. Entre freres, l ordre est croissant : 20 et 22 passent donc
+  // AVANT le bloc 30. Place apres, tout ce qui suit serait ignore — c est
+  // ce qui est arrive trois fois au bloc 85.
+  // ✅ CONFIRME PAR dsn-val sur le fichier d essai du 19/09 : zero anomalie.
+  //
+  // ⚠️ MAIS SON CONTENU SE CALCULE SUR LES INDIVIDUS, qui viennent apres.
+  // On retient donc la position, on cumule pendant la boucle, et on insere
+  // les lignes a leur place une fois les salaries ecrits. Deux passes sur
+  // les bulletins donneraient deux calculs a garder d accord ; une seule
+  // passe et une insertion ne peuvent pas diverger.
+  // ═══════════════════════════════════════════════════════════════════
+  const posBordereau = L.length;
+
+  // Les assiettes cumulees, par type de bloc 78 : c est la matiere du
+  // bordereau, et elle vient des memes chiffres que le nominatif.
+  const assiettesCumulees: Record<string, number> = {};
+  // La somme des codes 018 — la part de reduction qui revient a l URSSAF.
+  let rgduUrssaf = 0;
+  // Ce que l employeur doit reellement a l URSSAF, pour les blocs 20 et 22.
+  let duUrssaf = 0;
 
   // ══ S21.G00.30 — CHAQUE SALARIE ══
   for (const b of bulletins) {
@@ -1583,6 +1712,10 @@ export async function POST(req: NextRequest) {
       const grp = parAssiette[bAss];
       if (!grp) continue;
 
+      // 🆕 LE CUMUL QUI NOURRIT LE BORDEREAU : la meme valeur que celle
+      // ecrite au nominatif, jamais un calcul parallele.
+      assiettesCumulees[bAss] = (assiettesCumulees[bAss] || 0) + Number(grp.assiette || 0);
+
       ecrire("S21.G00.78.001", bAss);
       ecrire("S21.G00.78.002", debutPeriode);
       ecrire("S21.G00.78.003", finPeriode);
@@ -1644,6 +1777,9 @@ export async function POST(req: NextRequest) {
             ecrire("S21.G00.81.001", code018);
             ecrire("S21.G00.81.003", montantDsn(grp.assiette));
             ecrire("S21.G00.81.004", montantDsn(-partAutres));
+            // 🆕 LE BORDEREAU DOIT PORTER EXACTEMENT CETTE SOMME.
+            rgduUrssaf += partAutres;
+            duUrssaf -= partAutres;
           }
           if (code106 && partRetraite !== 0) {
             ecrire("S21.G00.81.001", code106);
@@ -1660,12 +1796,76 @@ export async function POST(req: NextRequest) {
         }
       }
 
+      // ═══════════════════════════════════════════════════════════
+      // 🆕🚨 LA SCISSION DE LA MALADIE ET DES ALLOCATIONS FAMILIALES
+      //
+      // Voir l en-tete du fichier : depuis janvier 2026, ces deux
+      // cotisations se declarent en DEUX lignes — la base et le
+      // complement — et l URSSAF rapproche chaque complement du CTP
+      // correspondant au bordereau.
+      //
+      // ⚠️ LE COMPLEMENT SE CALCULE AU TAUX DU CTP, PAS PAR SOUSTRACTION
+      // D UN TAUX SUPPOSE : c est la table urssaf_ctp qui porte le taux,
+      // avec sa date d effet. La base est ce qui reste.
+      // ⛔ SI LE TAUX N EST PAS TROUVE, ON NE SCINDE PAS et on le dit :
+      // une ligne entiere sous le mauvais code vaut mieux que deux lignes
+      // fausses, et l anomalie dit quoi corriger.
+      // ═══════════════════════════════════════════════════════════
+      for (const sc of SCISSIONS) {
+        const ligne = grp.codes[sc.codeBase];
+        if (!ligne) continue;
+
+        const { data: ctpc } = await supabase
+          .from("urssaf_ctp")
+          .select("taux_deplafonne, libelle")
+          .eq("code", sc.ctpComplement)
+          .lte("date_effet", periode)
+          .or("date_fin.is.null,date_fin.gte." + periode)
+          .order("date_effet", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        const tauxc = ctpc ? Number(ctpc.taux_deplafonne || 0) : 0;
+        if (tauxc <= 0) {
+          anomalies.push("Le taux du CTP " + sc.ctpComplement + " (complément "
+            + sc.quoi + ") est introuvable dans urssaf_ctp pour " + periode
+            + ". ⛔ LA COTISATION N'EST PAS SCINDÉE : l'URSSAF signalera une "
+            + "incohérence entre le bordereau et les données individuelles. "
+            + "Importer la table des codes types de personnel.");
+          continue;
+        }
+
+        const complement = Math.round(ligne.base * tauxc) / 100;
+        const reste = Math.round((ligne.montant - complement) * 100) / 100;
+
+        // ⚠️ UN COMPLEMENT PLUS GROS QUE LA COTISATION veut dire que le taux
+        // du bulletin n est pas celui qu on croit. On ne scinde pas.
+        if (reste < 0) {
+          anomalies.push(qui + " : le complément " + sc.quoi + " calculé au taux "
+            + "du CTP " + sc.ctpComplement + " (" + tauxc.toFixed(2) + " %) dépasse "
+            + "la cotisation du bulletin. ⛔ NON SCINDÉE — vérifier le taux dans "
+            + "paie_cotisations.");
+          continue;
+        }
+
+        ligne.montant = reste;
+        grp.codes[sc.codeComplement] = { montant: complement, base: ligne.base };
+      }
+
       // ══ LES COTISATIONS DE CETTE ASSIETTE ══
       const listeCodes = Object.keys(grp.codes).sort();
       for (const cd of listeCodes) {
         ecrire("S21.G00.81.001", cd);
         ecrire("S21.G00.81.003", montantDsn(grp.codes[cd].base));
         ecrire("S21.G00.81.004", montantDsn(grp.codes[cd].montant));
+
+        // 🆕 CE QUI EST DU A L URSSAF : tout sauf la retraite complementaire,
+        // qui releve de l Agirc-Arrco et se verse ailleurs.
+        // ⚠️ LE CODE 142 EST UNE PART DEJA COMPTEE DANS LE 131 : l ajouter
+        // compterait deux fois la meme cotisation.
+        if (cd !== "131" && cd !== "142" && cd !== "106") {
+          duUrssaf += Number(grp.codes[cd].montant || 0);
+        }
 
         // 🚨 SIG-18 : le bloc 142 accompagne obligatoirement le 131.
         if (cd === "131" && patronaleT1 > 0) {
@@ -1725,6 +1925,190 @@ export async function POST(req: NextRequest) {
 
     totalBrut += Number(b.brut || 0);
     totalCotisations += Number(b.total_salarial || 0) + Number(b.total_patronal || 0);
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // 🆕🚨 LE BORDEREAU URSSAF — BLOCS 20, 22 ET 23
+  //
+  // Il s insere a la place reservee plus haut, avant le premier individu.
+  // ✅ Cette place a ete confirmee par dsn-val le 19/09 : zero anomalie sur
+  // un fichier de 542 lignes.
+  //
+  // ⛔ ON NE L ECRIT PAS DU TOUT PLUTOT QUE DE L ECRIRE FAUX. Sans
+  // l organisme de rattachement, on ne sait pas a qui la declaration
+  // s adresse : un bordereau adresse au mauvais organisme est pire qu un
+  // bordereau absent, parce qu il a l air juste.
+  // ═══════════════════════════════════════════════════════════════════
+  // ⚠️ LES BORNES DU MOIS, recalculees ici : celles de la boucle des
+  // salaries vivent dans son bloc et ne sont plus visibles a ce niveau.
+  const debutMois = dateDsn(periode);
+  const finMois = finDeMois(periode);
+
+  const B: string[] = [];
+  const ecrireB = function (ref: string, valeur: any) {
+    const v = latin(valeur);
+    if (v === "") return;
+    B.push(ref + ",'" + v + "'");
+  };
+
+  {
+    const codification = q(societe.urssaf_codification);
+    let siretUrssaf = "";
+
+    if (codification) {
+      const { data: org } = await supabase
+        .from("urssaf_organismes")
+        .select("siret, denomination")
+        .eq("codification", codification)
+        .maybeSingle();
+      // 🚨 L IDENTIFIANT DE L ORGANISME EST LE SIRET DE L URSSAF, pas sa
+      // codification. Guide URSSAF, rubrique 81.002 : « Siret de l Urssaf ».
+      // La codification (U827) sert a le retrouver dans la table.
+      if (org && q(org.siret)) siretUrssaf = q(org.siret).replace(/\D/g, "");
+      else {
+        anomalies.push("La codification URSSAF « " + codification + " » de la "
+          + "société est introuvable dans urssaf_organismes. ⛔ LE BORDEREAU "
+          + "N'EST PAS DÉCLARÉ. Importer la table des Urssaf, ou corriger "
+          + "compta_societes.urssaf_codification.");
+      }
+    } else {
+      anomalies.push("L'URSSAF de rattachement de la société n'est pas renseignée "
+        + "(compta_societes.urssaf_codification, par exemple « U827 » pour "
+        + "Rhône-Alpes). ⛔ LE BORDEREAU N'EST PAS DÉCLARÉ : sans lui, la DSN "
+        + "décrit les salariés mais ne déclare aucune cotisation à l'URSSAF.");
+    }
+
+    if (siretUrssaf) {
+      const duArrondi = Math.round(duUrssaf);
+
+      // ══ S21.G00.20 — LE VERSEMENT A L ORGANISME ══
+      //
+      // ⚠️ POUR L URSSAF, LE SEUL MODE DE PAIEMENT ADMIS EST « 05 -
+      // prelevement SEPA ».
+      // ⛔ ON N INVENTE PAS D IBAN : sans lui, le bloc du versement n est pas
+      // ecrit et l anomalie le dit. Un IBAN faux ferait echouer le
+      // prelevement, et l employeur serait en retard de paiement sans le
+      // savoir.
+      const iban = q(societe.iban_prelevement).replace(/\s/g, "").toUpperCase();
+      const bic = q(societe.bic_prelevement).replace(/\s/g, "").toUpperCase();
+
+      if (iban && bic) {
+        ecrireB("S21.G00.20.001", siretUrssaf);
+        if (q(societe.urssaf_entite_affectation)) {
+          ecrireB("S21.G00.20.002", societe.urssaf_entite_affectation);
+        }
+        ecrireB("S21.G00.20.003", bic);
+        ecrireB("S21.G00.20.004", iban);
+        ecrireB("S21.G00.20.005", euroDsn(duArrondi));
+        ecrireB("S21.G00.20.006", debutMois);
+        ecrireB("S21.G00.20.007", finMois);
+        ecrireB("S21.G00.20.010", "05");
+      } else {
+        anomalies.push("Coordonnées bancaires absentes : le bloc « Versement "
+          + "organisme de protection sociale » (S21.G00.20) n'est pas déclaré. "
+          + "Renseigner compta_societes.iban_prelevement et bic_prelevement — "
+          + "c'est le compte d'où l'URSSAF prélèvera " + euroDsn(duArrondi) + " EUR.");
+      }
+
+      // ══ S21.G00.22 — LE BORDEREAU DE COTISATION DUE ══
+      //
+      // ⚠️ UN BORDEREAU NE PORTE QU UN SEUL MOIS CIVIL.
+      ecrireB("S21.G00.22.001", siretUrssaf);
+      if (q(societe.urssaf_entite_affectation)) {
+        ecrireB("S21.G00.22.002", societe.urssaf_entite_affectation);
+      }
+      ecrireB("S21.G00.22.003", debutMois);
+      ecrireB("S21.G00.22.004", finMois);
+      ecrireB("S21.G00.22.005", euroDsn(duArrondi));
+
+      // ══ S21.G00.23 — LES COTISATIONS AGREGEES, UNE LIGNE PAR CTP ══
+      //
+      // 🚨 LE TAUX AT VIENT DU MEME ENDROIT QUE LE BULLETIN : paie_taux_societe.
+      // Le relire ailleurs ferait diverger la declaration et la paie.
+      let tauxAtSociete = 0;
+      {
+        const { data: tx } = await supabase
+          .from("paie_taux_societe")
+          .select("taux")
+          .eq("societe_id", societeId)
+          .eq("code", "AT_MP")
+          .lte("date_effet", periode)
+          .or("date_fin.is.null,date_fin.gte." + periode)
+          .order("date_effet", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (tx) tauxAtSociete = Number(tx.taux || 0);
+      }
+
+      // ⚠️ LE FNAL DEPEND DE L EFFECTIF : sous cinquante salaries il est
+      // plafonne (CTP 332), au-dela il porte sur la totalite (CTP 236).
+      const effectif = Number(societe.effectif || 0);
+      const socle = CTP_SOCLE.map(function (r) {
+        if (r.ctp === "332" && effectif >= 50) {
+          return { ctp: CTP_FNAL_50PLUS, qualifiant: "920", assiette: "03", tauxAt: false };
+        }
+        return r;
+      });
+
+      for (const regle of socle) {
+        const assiette = assiettesCumulees[regle.assiette] || 0;
+        // ⚠️ UNE ASSIETTE NULLE NE SE DECLARE PAS : aucun salarie n y cotise.
+        if (assiette <= 0) continue;
+
+        // 🚨 ON CONTROLE QUE LE CTP EXISTE ET N EST PAS CLOTURE. Un CTP clos
+        // ne se declare plus, et la table porte sa date de fin.
+        const { data: ctp } = await supabase
+          .from("urssaf_ctp")
+          .select("code, libelle")
+          .eq("code", regle.ctp)
+          .lte("date_effet", periode)
+          .or("date_fin.is.null,date_fin.gte." + periode)
+          .order("date_effet", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (!ctp) {
+          anomalies.push("Le code type de personnel " + regle.ctp + " n'existe pas "
+            + "dans urssaf_ctp à la période " + periode + ", ou il est clôturé. "
+            + "⛔ CETTE LIGNE DU BORDEREAU N'EST PAS DÉCLARÉE.");
+          continue;
+        }
+
+        ecrireB("S21.G00.23.001", regle.ctp);
+        ecrireB("S21.G00.23.002", regle.qualifiant);
+        // 🚨 SEULS TROIS TAUX SE DECLARENT : accident du travail, versement
+        // mobilite, bonus-malus. Aucun autre — guide URSSAF §1.3.
+        if (regle.tauxAt && tauxAtSociete > 0) {
+          ecrireB("S21.G00.23.003", montantDsn(tauxAtSociete));
+        }
+        ecrireB("S21.G00.23.004", euroDsn(assiette));
+        // ⛔ PAS DE MONTANT DE COTISATION sur les CTP du socle : la fiche 1
+        // du guide ne renseigne que l assiette.
+      }
+
+      // ══ LA REDUCTION GENERALE ══
+      //
+      // 🚨 LE MONTANT EST POSITIF ICI et negatif au nominatif : « au niveau
+      // agrege, le CTP porte le signe ».
+      // 🚨 IL EGALE LA SOMME DES CODES 018, ET RIEN D AUTRE : le code 106,
+      // part Agirc-Arrco, ne regarde pas l URSSAF.
+      if (rgduUrssaf > 0) {
+        // ⚠️ LE CHOIX DU CTP DEPEND DE QUI RECOUVRE LE CHOMAGE. L URSSAF le
+        // recouvre pour le cas general — c est notre situation des lors que
+        // la cotisation chomage figure au bulletin.
+        const chomageUrssaf = (assiettesCumulees["07"] || 0) > 0;
+        const ctpRgdu = chomageUrssaf ? CTP_RGDU_AVEC_CHOMAGE : CTP_RGDU_SANS_CHOMAGE;
+
+        ecrireB("S21.G00.23.001", ctpRgdu);
+        ecrireB("S21.G00.23.002", "921");
+        ecrireB("S21.G00.23.005", euroDsn(rgduUrssaf));
+      }
+
+      // 🆕 L INSERTION A LA PLACE RESERVEE, avant le premier individu.
+      if (B.length > 0) {
+        L.splice(posBordereau, 0, ...B);
+      }
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════════
