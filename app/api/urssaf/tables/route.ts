@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import zlib from "zlib";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -8,7 +9,28 @@ export const fetchCache = "force-no-store";
 export const maxDuration = 300;
 
 // ═══════════════════════════════════════════════════════════════════════
-// LES TABLES DE REFERENCE DE L URSSAF — 18/09/2026, version 2
+// LES TABLES DE REFERENCE DE L URSSAF — 18/09/2026, version 3
+//
+// 🆕 VERSION 3 — LIRE UN VRAI FICHIER EXCEL
+//
+// Le fichier VMRR porte l extension .xlsx et c en est vraiment un : une
+// archive compressee contenant du XML. La version 2 le lisait comme du
+// texte, parce que le fichier transmis a Claude avait ete converti en
+// chemin ; le fichier depose dans le bucket, lui, est le vrai (560 Ko
+// contre 40 Ko). Resultat : zero ligne lue.
+//
+// ⛔ AUCUNE BIBLIOTHEQUE N A ETE AJOUTEE AU PROJET pour cela : Node sait
+// decompresser (zlib), et un .xlsx n est qu un ZIP contenant du XML. Le
+// lecteur tient dans ce fichier — voir `lireClasseur`.
+//
+// 🚨🚨 LE PIEGE DU POURCENTAGE
+// Dans un tableur, « 0,15 % » est le plus souvent RANGE COMME 0,0015, avec
+// un simple format d affichage en pourcentage. Lire la valeur brute
+// donnerait donc un taux CENT FOIS TROP FAIBLE — et le versement mobilite
+// serait sous-declare sans qu aucun message ne le signale.
+// ⛔ ON NE DEVINE PAS : on lit `xl/styles.xml`, on regarde le format
+// applique a la cellule, et on multiplie par cent uniquement quand ce
+// format est un pourcentage.
 //
 // 🆕 VERSION 2, APRES LE PREMIER DEPOT DES FICHIERS — deux choses que le
 // depot reel a montrees et que la version 1 n aurait pas supportees :
@@ -184,6 +206,164 @@ function lignesCsv(octets: Buffer): string[][] {
   for (const ligne of texte.split(/\r?\n/)) {
     if (!ligne.trim()) continue;
     sortie.push(ligne.split(";"));
+  }
+  return sortie;
+}
+
+// ---------------------------------------------------------------------
+// LIRE UN CLASSEUR .xlsx SANS BIBLIOTHEQUE
+//
+// Un .xlsx est une archive ZIP. On y cherche trois pieces :
+//   xl/worksheets/sheet1.xml  les cellules
+//   xl/sharedStrings.xml      le texte, range a part et reference par
+//                             numero (t="s")
+//   xl/styles.xml             les formats, pour reconnaitre un pourcentage
+// ---------------------------------------------------------------------
+
+// Parcourt les entrees du ZIP et rend le contenu de celles qui nous
+// interessent. On lit les en-tetes locaux, un par un.
+function ouvrirZip(octets: Buffer): Record<string, string> {
+  const sortie: Record<string, string> = {};
+  let i = 0;
+  while (i + 30 <= octets.length) {
+    if (octets.readUInt32LE(i) !== 0x04034b50) break;   // « PK\x03\x04 »
+    const methode = octets.readUInt16LE(i + 8);
+    let compresse = octets.readUInt32LE(i + 18);
+    let brut = octets.readUInt32LE(i + 22);
+    const tailleNom = octets.readUInt16LE(i + 26);
+    const tailleExtra = octets.readUInt16LE(i + 28);
+    const nom = octets.slice(i + 30, i + 30 + tailleNom).toString("utf8");
+    const debut = i + 30 + tailleNom + tailleExtra;
+
+    // ⚠️ Quand le bit 3 est pose, les tailles ne sont PAS dans l en-tete :
+    // elles suivent les donnees. On retrouve alors la fin en cherchant
+    // l en-tete suivant.
+    const drapeaux = octets.readUInt16LE(i + 6);
+    if ((drapeaux & 0x08) !== 0 && compresse === 0) {
+      let j = debut;
+      while (j + 4 <= octets.length && octets.readUInt32LE(j) !== 0x08074b50) j++;
+      compresse = j - debut;
+      brut = 0;
+    }
+
+    const donnees = octets.slice(debut, debut + compresse);
+    if (nom === "xl/worksheets/sheet1.xml" || nom === "xl/sharedStrings.xml"
+      || nom === "xl/styles.xml") {
+      try {
+        sortie[nom] = methode === 0
+          ? donnees.toString("utf8")
+          : zlib.inflateRawSync(donnees).toString("utf8");
+      } catch {
+        // Une piece illisible n empeche pas de lire les autres.
+      }
+    }
+
+    i = debut + compresse + ((drapeaux & 0x08) !== 0 ? 16 : 0);
+    if (compresse === 0 && brut === 0 && (drapeaux & 0x08) === 0) i = debut;
+  }
+  return sortie;
+}
+
+function sansEchappement(v: string): string {
+  return v.replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, "&");
+}
+
+// Le texte est range a part : chaque <si> est une chaine, eventuellement
+// coupee en plusieurs <t> quand elle porte plusieurs mises en forme.
+function lireChaines(xml: string): string[] {
+  const sortie: string[] = [];
+  const blocs = xml.match(/<si>[\s\S]*?<\/si>/g) || [];
+  for (const b of blocs) {
+    let t = "";
+    const morceaux = b.match(/<t[^>]*>([\s\S]*?)<\/t>/g) || [];
+    for (const m of morceaux) {
+      const v = m.match(/<t[^>]*>([\s\S]*?)<\/t>/);
+      if (v) t += v[1];
+    }
+    sortie.push(sansEchappement(t));
+  }
+  return sortie;
+}
+
+// 🚨 QUELS STYLES SONT DES POURCENTAGES.
+// Les formats 9 (« 0% ») et 10 (« 0.00% ») sont predefinis ; les autres
+// sont declares dans <numFmts> et reconnus au caractere « % ».
+function stylesEnPourcent(xml: string): Record<number, boolean> {
+  const pourcent: Record<number, boolean> = { 9: true, 10: true };
+  const perso = xml.match(/<numFmt[^>]*\/>/g) || [];
+  for (const f of perso) {
+    const id = f.match(/numFmtId="(\d+)"/);
+    const code = f.match(/formatCode="([^"]*)"/);
+    if (id && code && sansEchappement(code[1]).indexOf("%") >= 0) {
+      pourcent[Number(id[1])] = true;
+    }
+  }
+
+  const sortie: Record<number, boolean> = {};
+  const bloc = xml.match(/<cellXfs[^>]*>[\s\S]*?<\/cellXfs>/);
+  if (!bloc) return sortie;
+  const xfs = bloc[0].match(/<xf[^>]*>/g) || [];
+  for (let i = 0; i < xfs.length; i++) {
+    const id = xfs[i].match(/numFmtId="(\d+)"/);
+    if (id && pourcent[Number(id[1])]) sortie[i] = true;
+  }
+  return sortie;
+}
+
+// La colonne d une cellule : « B12 » → 1 (A = 0).
+function colonneDe(ref: string): number {
+  const m = String(ref || "").match(/^([A-Z]+)/);
+  if (!m) return -1;
+  let n = 0;
+  for (const c of m[1]) n = n * 26 + (c.charCodeAt(0) - 64);
+  return n - 1;
+}
+
+// Rend les lignes du classeur, chaque cellule deja convertie en texte.
+// ⚠️ UNE CELLULE VIDE N APPARAIT PAS DANS LE XML : on remplit les trous,
+// sinon les colonnes se decalent et on lit un code postal comme un taux.
+function lireClasseur(octets: Buffer): string[][] {
+  const pieces = ouvrirZip(octets);
+  const feuille = pieces["xl/worksheets/sheet1.xml"];
+  if (!feuille) return [];
+
+  const chaines = pieces["xl/sharedStrings.xml"] ? lireChaines(pieces["xl/sharedStrings.xml"]) : [];
+  const pourcent = pieces["xl/styles.xml"] ? stylesEnPourcent(pieces["xl/styles.xml"]) : {};
+
+  const sortie: string[][] = [];
+  const lignes = feuille.match(/<row[^>]*>[\s\S]*?<\/row>/g) || [];
+
+  for (const ligne of lignes) {
+    const cellules: string[] = [];
+    const brutes = ligne.match(/<c[^>]*(?:\/>|>[\s\S]*?<\/c>)/g) || [];
+    for (const c of brutes) {
+      const ref = c.match(/r="([A-Z]+\d+)"/);
+      const colonne = ref ? colonneDe(ref[1]) : cellules.length;
+      while (cellules.length < colonne) cellules.push("");
+
+      const type = c.match(/t="([^"]*)"/);
+      const style = c.match(/s="(\d+)"/);
+      const valeur = c.match(/<v>([\s\S]*?)<\/v>/);
+      const texte = c.match(/<is>[\s\S]*?<t[^>]*>([\s\S]*?)<\/t>[\s\S]*?<\/is>/);
+
+      let v = "";
+      if (type && type[1] === "s" && valeur) {
+        v = chaines[Number(valeur[1])] || "";
+      } else if (type && type[1] === "inlineStr" && texte) {
+        v = sansEchappement(texte[1]);
+      } else if (valeur) {
+        v = sansEchappement(valeur[1]);
+        // 🚨 LE POURCENTAGE : 0,0015 affiche « 0,15 % ». On remet le taux
+        // a l echelle de ce que l URSSAF publie.
+        if (style && pourcent[Number(style[1])]) {
+          const n = Number(v);
+          if (!isNaN(n)) v = String(n * 100);
+        }
+      }
+      cellules.push(v);
+    }
+    sortie.push(cellules);
   }
   return sortie;
 }
@@ -396,7 +576,11 @@ function lireTransport(octets: Buffer, sourceDate: string): any[] {
 // Communes concernées / Code commune INSEE / code partenaire / Taux VMRR /
 // Date de début d'effet / Date de fin d'effet
 function lireVmrr(octets: Buffer, sourceDate: string): any[] {
-  const lignes = lignesTabulees(octets);
+  // 🆕 ON RECONNAIT LE FORMAT AU CONTENU, PAS A L EXTENSION : un vrai
+  // classeur commence par « PK ». Le meme fichier peut arriver en texte
+  // tabule selon la maniere dont il a ete telecharge.
+  const estClasseur = octets.length > 4 && octets[0] === 0x50 && octets[1] === 0x4b;
+  const lignes = estClasseur ? lireClasseur(octets) : lignesTabulees(octets);
   const sortie: any[] = [];
   const vus: Record<string, boolean> = {};
 
@@ -480,7 +664,7 @@ export async function GET(req: NextRequest) {
         ? { table: t.table, erreur: error.message }
         : { table: t.table, lignes: count || 0, livraison: une ? une.source_date : null };
     }
-    return reponse({ route: "urssaf/tables", version: 2, etat: etat }, 200);
+    return reponse({ route: "urssaf/tables", version: 3, etat: etat }, 200);
   }
 
   // ---- ESSAI : ce qu on trouve dans le bucket, SANS RIEN ECRIRE ----
@@ -534,7 +718,7 @@ export async function GET(req: NextRequest) {
 
     return reponse({
       route: "urssaf/tables",
-      version: 2,
+      version: 3,
       bucket: BUCKET + " (dossier « " + DOSSIER + " » ou racine)",
       fichiers_dans_le_dossier: fichiers.map(function (f) { return f.nom; }),
       tables: vus,
@@ -627,7 +811,7 @@ export async function GET(req: NextRequest) {
 
     return reponse({
       route: "urssaf/tables",
-      version: 2,
+      version: 3,
       success: resultats.every(function (r) { return r.fait; }),
       resultats: resultats,
     }, 200);
@@ -635,7 +819,7 @@ export async function GET(req: NextRequest) {
 
   return reponse({
     route: "urssaf/tables",
-    version: 2,
+    version: 3,
     ou_deposer_les_fichiers: BUCKET + "/" + DOSSIER,
     source: SOURCE,
     actions: {
