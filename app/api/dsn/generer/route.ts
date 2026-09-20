@@ -1610,6 +1610,41 @@ export async function POST(req: NextRequest) {
         } else {
           ecrire("S21.G00.62.001", dateDsn(dateRupture));
           ecrire("S21.G00.62.002", motifRup);
+
+          // ═══════════════════════════════════════════════════════════
+          // 🆕🚨 20/09 — LE DERNIER JOUR TRAVAILLE, POUR UNE MISSION
+          //
+          // dsn-val, controle CCH-14, sur la fin de mission de Julien :
+          // « Vous avez declare la valeur "03 - Contrat de mission
+          // (contrat de travail temporaire)" au niveau de la rubrique
+          // Nature du contrat » — et la 62.006 manquait.
+          //
+          // ⛔ CETTE REGLE DEPEND DE LA NATURE DU CONTRAT, et c est ce qui
+          // l avait masquee : le premier essai portait sur un CDD, ou la
+          // rubrique n est pas reclamee. Une regle eprouvee sur un seul
+          // type de contrat n est pas une regle eprouvee.
+          //
+          // ⚠️ CE N EST PAS LA DATE DE FIN : c est le dernier jour paye au
+          // salaire habituel, qui peut etre anterieur — un salarie en
+          // arret jusqu a la fin de son contrat, par exemple. On prend
+          // donc la valeur saisie, et la date de rupture seulement a
+          // defaut.
+          // ═══════════════════════════════════════════════════════════
+          const natureContrat = q(ct.type_contrat).toLowerCase();
+          const estMissionRup = natureContrat === "mission";
+          const dernierJour = q(rup.dernier_jour_travaille);
+
+          if (dernierJour) {
+            ecrire("S21.G00.62.006", dateDsn(dernierJour));
+          } else if (estMissionRup) {
+            // Obligatoire ici : plutot que de laisser la declaration etre
+            // rejetee, on retombe sur la date de rupture et on le dit.
+            ecrire("S21.G00.62.006", dateDsn(dateRupture));
+            anomalies.push(qui + " : le dernier jour travaillé et payé au "
+              + "salaire habituel (S21.G00.62.006) n'était pas renseigné. "
+              + "⚠️ La date de fin de contrat a été déclarée à sa place — "
+              + "elle est fausse si le salarié a cessé d'être payé avant.");
+          }
         }
       }
     }
