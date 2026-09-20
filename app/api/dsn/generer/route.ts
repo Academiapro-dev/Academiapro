@@ -763,6 +763,10 @@ export async function POST(req: NextRequest) {
   const arretsParContrat: Record<string, any[]> = {};
   const rupturesParContrat: Record<string, any> = {};
   let arretsLectureEchec = "";
+  // 🆕 Ce qui doit se relire avant le depot, sans etre une anomalie. La liste
+  // `avantDepot` n existe qu en fin de generation : on retient ici, on verse
+  // la-bas.
+  const notesArrets: string[] = [];
   {
     const finMoisIso = new Date(Number(periode.slice(0, 4)),
       Number(periode.slice(5, 7)), 0).toISOString().slice(0, 10);
@@ -802,9 +806,39 @@ export async function POST(req: NextRequest) {
 
         if (String(ev.type_evenement) !== "arret") continue;
 
-        // Un arret clos avant le debut du mois ne concerne pas ce mois.
-        const fin = q(ev.date_fin);
-        if (fin && fin < periode) continue;
+        // ═══════════════════════════════════════════════════════════
+        // 🆕🚨 20/09 — QUELS MOIS PORTENT UN ARRET ? LA REGLE EST LUE.
+        //
+        // Source : « Gestion des arrets de travail », GIP-MDS, mise a jour
+        // du 17/02/2023 —
+        // https://www.net-entreprises.fr/media/documentation/gestion-arret-de-travail-dsn.pdf
+        //   · « Le bloc Arret de travail – S21.G00.60 doit etre vehicule
+        //     sur TOUS LES MOIS DE L ABSENCE. »
+        //   · la date et le motif de reprise sont portes par la mensuelle
+        //     DU MOIS OU LA REPRISE A LIEU — dans tous les exemples, y
+        //     compris pour une reprise a la date prevue.
+        //
+        // ⚠️ UN ARRET CONCERNE DONC LE MOIS s il a commence avant la fin du
+        // mois ET si la reprise tombe le 1er du mois ou apres. La reprise
+        // est celle qui est saisie (anticipee), sinon LE LENDEMAIN de la fin
+        // prevue : tous les exemples du document font ainsi (fin le 08/10,
+        // reprise le 09/10).
+        // ⛔ L ANCIENNE REGLE (« clos avant le debut du mois ») AVAIT DEUX
+        // TROUS : un salarie revenu par anticipation restait declare en
+        // arret les mois suivants jusqu a la fin prevue ; et une reprise
+        // tombant le 1er du mois n etait declaree nulle part.
+        // ═══════════════════════════════════════════════════════════
+        const finArret = q(ev.date_fin);
+        let repriseEff = q((ev as any).reprise_date);
+        if (!repriseEff && finArret) {
+          const dFin = new Date(finArret + "T00:00:00Z");
+          dFin.setUTCDate(dFin.getUTCDate() + 1);
+          repriseEff = dFin.toISOString().slice(0, 10);
+        }
+        if (repriseEff && repriseEff < periode) continue;
+
+        (ev as any)._reprise_effective = repriseEff;
+        (ev as any)._reprise_dans_le_mois = !!repriseEff && repriseEff <= finMoisIso;
         if (!arretsParContrat[cle]) arretsParContrat[cle] = [];
         arretsParContrat[cle].push(ev);
       }
@@ -1567,20 +1601,36 @@ export async function POST(req: NextRequest) {
     // ═══════════════════════════════════════════════════════════════
 
     // ═══════════════════════════════════════════════════════════════
-    // 🆕 20/09 — ══ S21.G00.60 — L ARRET DE TRAVAIL ══
+    // 🆕🚨 20/09 — ══ S21.G00.60 — L ARRET DE TRAVAIL, DANS LA MENSUELLE ══
     //
-    // 🚨 SA PLACE EST ICI : enfant du contrat, et AVANT le bloc 71 —
-    // entre freres, 60 precede 71. Le fichier d essai de 587 lignes a
-    // ete valide par dsn-val a cette place exacte, zero anomalie.
+    // 🚨 SA PLACE : enfant du contrat, AVANT le bloc 71 — entre freres, 60
+    // precede 71. Validee par dsn-val (fichier de 587 lignes).
     //
-    // LES HUIT RUBRIQUES, telles que dsn-val les a acceptees :
-    //   001 motif · 002 date du dernier jour travaille · 003 date de fin
-    //   previsionnelle · 004 subrogation · puis, EN SUBROGATION SEULEMENT,
-    //   005 debut · 006 fin · 007 IBAN · 008 BIC.
-    // 🚨 LES QUATRE RUBRIQUES DE SUBROGATION VONT ENSEMBLE : l une sans
-    // les autres est refusee.
-    // ⚠️ LA FIN DE SUBROGATION N EST PAS LA FIN DE L ARRET : c est la fin
-    // du maintien de salaire. ⛔ ELLE NE SE PRE-REMPLIT PAS.
+    // CE QUE LA MENSUELLE PORTE — lu dans « Gestion des arrets de travail »
+    // (GIP-MDS, 17/02/2023), et NON deduit du signalement :
+    //     001 motif · 002 dernier jour travaille · 003 fin previsionnelle
+    //     010 date de la reprise · 011 motif de la reprise — LE MOIS OU LA
+    //         REPRISE A LIEU, meme quand elle se fait a la date prevue.
+    //
+    // ⛔ PAS DE SUBROGATION ICI. Le document est formel : les rubriques 004
+    // a 008 « sont a renseigner uniquement dans le signalement ». Depuis la
+    // norme P21V01 la mensuelle les ACCEPTE — c est pourquoi dsn-val n avait
+    // rien dit sur notre premier jet — mais « cette possibilite ne doit etre
+    // exploitee que dans le cadre d un temps partiel therapeutique ».
+    // 🚨 LECON : dsn-val dit ce qui est PERMIS par la structure, pas ce qui
+    // est ATTENDU par la consigne. Un fichier qui passe n est pas un fichier
+    // juste.
+    //
+    // 🚨 LE DERNIER JOUR TRAVAILLE N EST PAS LE PREMIER JOUR DE L ARRET.
+    // C est LA VEILLE (fiche 2694 : « le dernier jour travaille correspond a
+    // la veille de la date de debut de la prescription »), sauf si le
+    // salarie est venu travailler ce jour-la — et alors il se SAISIT. Le
+    // premier jet ecrivait la date de debut : il declarait donc, pour chaque
+    // arret, que le salarie avait travaille le jour meme. « Le dernier jour
+    // travaille conditionne les 3, voire 12 mois de salaires pris en compte
+    // pour le calcul de l IJ » — le corriger exige un annule et remplace.
+    // ⛔ LA MENSUELLE ET LE SIGNALEMENT DOIVENT PORTER LA MEME DATE : la
+    // meme regle est ecrite dans /api/dsn/evenement.
     // ═══════════════════════════════════════════════════════════════
     for (const ev of (arretsParContrat[String(ct.id)] || [])) {
       const motifBrut = q(ev.motif);
@@ -1614,30 +1664,55 @@ export async function POST(req: NextRequest) {
         continue;
       }
 
+      // ---- LE DERNIER JOUR TRAVAILLE ----
+      let djt = q(ev.dernier_jour_travaille);
+      if (!djt) {
+        const dDeb = new Date(debutArret + "T00:00:00Z");
+        dDeb.setUTCDate(dDeb.getUTCDate() - 1);
+        djt = dDeb.toISOString().slice(0, 10);
+        // ⚠️ UN ARRET QUI COMMENCE LE PREMIER JOUR DU CONTRAT n a pas de
+        // veille travaillee : la norme controle le dernier jour travaille
+        // contre le debut du contrat. On retombe alors sur le jour meme.
+        const debutContrat = q(ct.date_debut);
+        if (debutContrat && djt < debutContrat) djt = debutArret;
+        notesArrets.push(qui + " : le dernier jour travaillé de l'arrêt du "
+          + dateDsn(debutArret) + " n'est pas saisi — la VEILLE a été "
+          + "déclarée. ⚠️ Si le salarié est venu travailler le jour où "
+          + "l'arrêt commence, le saisir : cette date fixe le calcul des "
+          + "indemnités journalières.");
+      }
+
       ecrire("S21.G00.60.001", motif);
-      ecrire("S21.G00.60.002", dateDsn(debutArret));
+      ecrire("S21.G00.60.002", dateDsn(djt));
       ecrire("S21.G00.60.003", dateDsn(finPrev));
 
-      const subro = ev.subrogation === true;
-      ecrire("S21.G00.60.004", subro ? "01" : "02");
+      // ---- LA REPRISE, LE MOIS OU ELLE A LIEU ----
+      if ((ev as any)._reprise_dans_le_mois) {
+        const anticipee = !!q((ev as any).reprise_date);
+        const motifRep = q((ev as any).reprise_motif);
 
-      if (subro) {
-        const sDeb = q(ev.subro_debut) || debutArret;
-        const sFin = q(ev.subro_fin);
-        const iban = q(ev.iban);
-        const bic = q(ev.bic);
+        ecrire("S21.G00.60.010", dateDsn((ev as any)._reprise_effective));
+        ecrire("S21.G00.60.011",
+          (motifRep === "01" || motifRep === "02" || motifRep === "03")
+            ? motifRep : "01");
 
-        // 🚨 LES QUATRE OU AUCUNE.
-        if (sFin && iban && bic) {
-          ecrire("S21.G00.60.005", dateDsn(sDeb));
-          ecrire("S21.G00.60.006", dateDsn(sFin));
-          ecrire("S21.G00.60.007", iban);
-          ecrire("S21.G00.60.008", bic);
-        } else {
-          anomalies.push(qui + " : subrogation annoncée mais incomplète "
-            + "(il faut la date de fin de maintien, l'IBAN et le BIC). "
-            + "⛔ Les coordonnées ne sont PAS déclarées : la caisse versera "
-            + "les indemnités au salarié et non à l'employeur.");
+        // 🚨 UNE REPRISE DEDUITE SE RELIT. Sans date saisie, on declare le
+        // retour au lendemain de la fin prevue. Si l arret a ete PROLONGE et
+        // que la prolongation n a pas ete saisie, on declare une reprise qui
+        // n a pas eu lieu.
+        if (!anticipee) {
+          notesArrets.push(qui + " : reprise déclarée le "
+            + dateDsn((ev as any)._reprise_effective) + ", lendemain de la fin "
+            + "prévue de l'arrêt. ⛔ SI L'ARRÊT A ÉTÉ PROLONGÉ, corriger sa "
+            + "date de fin AVANT de déposer : la prolongation ne se signale "
+            + "pas à part, elle passe par cette date.");
+        }
+        // ⚠️ LE TEMPS PARTIEL THERAPEUTIQUE N EST PAS TRAITE : il demande un
+        // bloc S21.G00.66 enfant de l arret, qui n existe pas ici.
+        if (motifRep === "02" || motif === "15") {
+          anomalies.push(qui + " : temps partiel thérapeutique. ⛔ Le bloc "
+            + "S21.G00.66 qu'il exige n'est PAS produit : cette situation se "
+            + "déclare à la main pour l'instant.");
         }
       }
     }
@@ -2905,6 +2980,9 @@ export async function POST(req: NextRequest) {
   // « passer en 02 » a quelqu un qui y est deja est du bruit, et le bruit
   // fait ignorer le reste.
   const avantDepot: string[] = [];
+
+  // 🆕 20/09 — ce que les arrets de travail demandent de relire.
+  for (const n of notesArrets) avantDepot.push(n);
 
   avantDepot.push("⛔ PASSER LE FICHIER DANS dsn-val (outil officiel) : aucune "
     + "DSN ne se dépose sans ce contrôle. Il se télécharge sur "
