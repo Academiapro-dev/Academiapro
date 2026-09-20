@@ -1519,6 +1519,32 @@ export async function POST(req: NextRequest) {
         if (tauxAtMp > 0) ecrire("S21.G00.40.043", montantDsn(tauxAtMp));
       } else {
         ecrire("S21.G00.40.040", "999ZZ");
+
+        // ═══════════════════════════════════════════════════════════
+        // 🆕🚨 20/09 — COTISER A L AT SANS CODE RISQUE EST INCOHERENT
+        //
+        // « 999ZZ » declare que l etablissement n a PAS de code risque.
+        // Si le bulletin porte malgre tout une cotisation accident du
+        // travail, les deux se contredisent : l URSSAF rapproche le code
+        // risque du taux applique, et un taux sans code risque ne se
+        // rattache a rien.
+        // ⛔ LE CODE RISQUE NE S INVENTE PAS : il est notifie par la CARSAT,
+        // comme le taux. On declare donc ce qu on sait — 999ZZ — et on dit
+        // que la situation doit etre reglee avant le depot.
+        // ═══════════════════════════════════════════════════════════
+        const cotiseAt = (Array.isArray(detail && detail.lignes_cotisations)
+          ? detail.lignes_cotisations : []).some(function (l: any) {
+            return q(l && l.code).toUpperCase() === "AT_MP"
+              && Number(l.part_patronale || 0) > 0;
+          });
+
+        if (cotiseAt) {
+          anomalies.push(qui + " : le contrat déclare « 999ZZ — sans code "
+            + "risque » alors que le bulletin porte une cotisation accident "
+            + "du travail. ⛔ LES DEUX SE CONTREDISENT. Le code risque figure "
+            + "sur la notification annuelle de la CARSAT, à côté du taux : "
+            + "le renseigner sur le contrat.");
+        }
       }
       if (estMission && siretEu) {
         anomalies.push(qui + " : le SIRET de l'entreprise utilisatrice « "
