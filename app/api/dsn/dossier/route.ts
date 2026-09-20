@@ -266,7 +266,7 @@ export async function POST(req: NextRequest) {
       const { data: volet, error: eVolet } = await supabase
         .from("compta_societes")
         .select("id, urssaf_codification, urssaf_entite_affectation, "
-          + "iban_prelevement, bic_prelevement");
+          + "iban_prelevement, bic_prelevement, vm_assujetti, code_insee, effectif");
 
       if (eVolet) {
         urssafLecture = "colonnes URSSAF illisibles : " + eVolet.message;
@@ -357,6 +357,17 @@ export async function POST(req: NextRequest) {
           bic_prelevement: v.bic_prelevement || "",
           urssaf_denomination: org ? org.denomination : "",
           urssaf_siret: org ? org.siret : "",
+          // 🆕 20/09 — L ASSUJETTISSEMENT AU VERSEMENT MOBILITE.
+          // ⚠️ TROIS ETATS, PAS DEUX : `null` veut dire « personne n a
+          // repondu », et ce n est pas la meme chose que « non ». Une case
+          // a cocher les confondrait, et le moteur de paie, lui, les
+          // distingue : sans reponse la cotisation vaut zero ET une
+          // reserve s affiche.
+          vm_assujetti: v.vm_assujetti === true ? true
+            : v.vm_assujetti === false ? false : null,
+          vm_code_insee: v.code_insee || "",
+          vm_effectif: v.effectif === null || v.effectif === undefined
+            ? null : Number(v.effectif),
         };
       });
 
@@ -505,6 +516,34 @@ export async function POST(req: NextRequest) {
       if (eU) return json({ erreur: "enregistrement impossible : " + eU.message }, 500);
       // 🚨 UN UPDATE QUI NE TROUVE RIEN N EST PAS UNE REUSSITE.
       if (!maj) return json({ erreur: "rien n'a été modifié." }, 409);
+
+      // ═════════════════════════════════════════════════════════════════
+      // 🆕 20/09 — L ASSUJETTISSEMENT AU VERSEMENT MOBILITE, A PART
+      //
+      // ⚠️ DANS SA PROPRE ECRITURE, ET SEULEMENT SI L ECRAN L A ENVOYE.
+      // Mise dans l update ci-dessus, une colonne absente ferait echouer
+      // TOUT l enregistrement : la societe se retrouverait sans URSSAF ni
+      // IBAN alors que l utilisateur vient de les saisir. Ici, au pire,
+      // cette seule valeur n est pas gardee, et on le dit.
+      //
+      // 🚨 TROIS ETATS. `null` n est pas `false` : il veut dire que
+      // personne n a repondu, et le moteur de paie s abstient alors de
+      // calculer plutot que de decider a la place de l employeur.
+      // ═════════════════════════════════════════════════════════════════
+      if (c.vm_assujetti !== undefined) {
+        const valeur = c.vm_assujetti === true ? true
+          : c.vm_assujetti === false ? false : null;
+
+        const { error: eVm } = await supabase
+          .from("compta_societes")
+          .update({ vm_assujetti: valeur })
+          .eq("id", societeId);
+
+        if (eVm) {
+          avertissements.push("L'assujettissement au versement mobilité n'a "
+            + "pas pu être enregistré (" + eVm.message + ") : le reste l'a été.");
+        }
+      }
 
       // ---- CE QU ON REPOND ----
       let message = "";
