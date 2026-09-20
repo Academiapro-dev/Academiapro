@@ -664,6 +664,60 @@ export async function POST(req: NextRequest) {
     }, { status: 400 });
   }
 
+  // ═══════════════════════════════════════════════════════════════════
+  // 🆕🚨 20/09 — LES ARRETS DE TRAVAIL DU MOIS
+  //
+  // 🚨 UN ARRET SE SIGNALE DANS LES CINQ JOURS, ET IL SE RETROUVE AUSSI
+  // DANS LA MENSUELLE DU MOIS. Les deux ne se remplacent pas : le
+  // signalement ouvre les indemnites journalieres, la mensuelle porte la
+  // trace de l absence dans la carriere du salarie.
+  // ⛔ JUSQU ICI LA MENSUELLE L IGNORAIT : un arret signale n apparaissait
+  // nulle part dans la declaration du mois.
+  //
+  // ⚠️ ON PREND LES ARRETS QUI CHEVAUCHENT LE MOIS, pas seulement ceux qui
+  // y commencent : un arret ouvert le 28 aout et clos le 10 septembre
+  // concerne les deux mois.
+  // ⛔ CE QUI N EST PAS VERIFIE : si un arret qui court sur trois mois se
+  // redeclare a l identique chaque mois, ou seulement au premier. La norme
+  // n a pas ete lue sur ce point — a eprouver quand un tel cas se
+  // presentera.
+  //
+  // ⚠️ LECTURE TOLERANTE : si la table n est pas lisible, la DSN se genere
+  // quand meme et l anomalie le dit. Une brique en moins ne doit pas
+  // empecher de declarer les salaires.
+  // ═══════════════════════════════════════════════════════════════════
+  const arretsParContrat: Record<string, any[]> = {};
+  let arretsLectureEchec = "";
+  {
+    const finMoisIso = new Date(Number(periode.slice(0, 4)),
+      Number(periode.slice(5, 7)), 0).toISOString().slice(0, 10);
+
+    const { data: evts, error: eEvt } = await supabase
+      .from("paie_evenements")
+      .select("*")
+      .eq("societe_id", societeId)
+      .eq("type_evenement", "arret")
+      .lte("date_debut", finMoisIso)
+      .order("date_debut");
+
+    if (eEvt) {
+      // ⚠️ La liste des anomalies n existe pas encore a ce stade : on
+      // retient le message et on le pousse plus bas, des qu elle est la.
+      arretsLectureEchec = "Les arrêts de travail n'ont pas pu être lus ("
+        + eEvt.message + ") : s'il y en a eu ce mois-ci, ils NE SONT PAS "
+        + "déclarés dans cette mensuelle.";
+    } else {
+      for (const ev of (evts || [])) {
+        // Un arret clos avant le debut du mois ne concerne pas ce mois.
+        const fin = q(ev.date_fin);
+        if (fin && fin < periode) continue;
+        const cle = String(ev.contrat_id);
+        if (!arretsParContrat[cle]) arretsParContrat[cle] = [];
+        arretsParContrat[cle].push(ev);
+      }
+    }
+  }
+
   // ---- LE NUMERO D ORDRE ----
   // ⚠️ IL S INCREMENTE A CHAQUE DEPOT DU MEME MOIS : c est lui qui dit
   // quelle version fait foi.
@@ -706,6 +760,8 @@ export async function POST(req: NextRequest) {
   };
 
   const anomalies: string[] = [];
+  // 🆕 20/09 — l echec de lecture des arrets, retenu plus haut.
+  if (arretsLectureEchec) anomalies.push(arretsLectureEchec);
 
   // ═══════════════════════════════════════════════════════════════════
   // ══ S10 — L ENVOI ══
@@ -1416,6 +1472,82 @@ export async function POST(req: NextRequest) {
     // C est la troisieme fois de la journee que cette regle se rappelle a
     // nous, et la derniere : l ordre ci-dessous est celui de la norme.
     // ═══════════════════════════════════════════════════════════════
+
+    // ═══════════════════════════════════════════════════════════════
+    // 🆕 20/09 — ══ S21.G00.60 — L ARRET DE TRAVAIL ══
+    //
+    // 🚨 SA PLACE EST ICI : enfant du contrat, et AVANT le bloc 71 —
+    // entre freres, 60 precede 71. Le fichier d essai de 587 lignes a
+    // ete valide par dsn-val a cette place exacte, zero anomalie.
+    //
+    // LES HUIT RUBRIQUES, telles que dsn-val les a acceptees :
+    //   001 motif · 002 date du dernier jour travaille · 003 date de fin
+    //   previsionnelle · 004 subrogation · puis, EN SUBROGATION SEULEMENT,
+    //   005 debut · 006 fin · 007 IBAN · 008 BIC.
+    // 🚨 LES QUATRE RUBRIQUES DE SUBROGATION VONT ENSEMBLE : l une sans
+    // les autres est refusee.
+    // ⚠️ LA FIN DE SUBROGATION N EST PAS LA FIN DE L ARRET : c est la fin
+    // du maintien de salaire. ⛔ ELLE NE SE PRE-REMPLIT PAS.
+    // ═══════════════════════════════════════════════════════════════
+    for (const ev of (arretsParContrat[String(ct.id)] || [])) {
+      const motifBrut = q(ev.motif);
+      const debutArret = q(ev.date_debut);
+      const finPrev = q(ev.date_fin);
+
+      // 🚨 LE MOTIF EST EN CLAIR EN BASE (« maladie »), PAS EN CODE. La
+      // norme attend « 01 ». La correspondance vit dans dsn_codes, comme
+      // partout ailleurs. ⛔ NE JAMAIS ECRIRE LE LIBELLE : la ligne serait
+      // rejetee, et inventer un code serait pire.
+      let motif = "";
+      if (motifBrut) {
+        motif = (await code("S21.G00.60.001", motifBrut, periode)) || "";
+        // Un motif deja saisi sous sa forme normalisee passe tel quel.
+        if (!motif && /^[0-9]{2}$/.test(motifBrut)) motif = motifBrut;
+      }
+
+      if (!motif) {
+        anomalies.push(qui + " : le motif d'arrêt « " + motifBrut + " » n'a "
+          + "pas de correspondance dans dsn_codes (S21.G00.60.001). "
+          + "⛔ L'ARRÊT N'EST PAS DÉCLARÉ dans cette mensuelle.");
+        continue;
+      }
+
+      // ⛔ DEUX DATES SONT OBLIGATOIRES : sans elles, la ligne serait
+      // rejetee. On prefere ne rien ecrire et le dire.
+      if (!debutArret || !finPrev) {
+        anomalies.push(qui + " : arrêt de travail incomplet (date de début "
+          + "ou date de fin prévisionnelle manquante) — ⛔ NON DÉCLARÉ dans "
+          + "cette mensuelle. Le compléter dans l'écran de paie.");
+        continue;
+      }
+
+      ecrire("S21.G00.60.001", motif);
+      ecrire("S21.G00.60.002", dateDsn(debutArret));
+      ecrire("S21.G00.60.003", dateDsn(finPrev));
+
+      const subro = ev.subrogation === true;
+      ecrire("S21.G00.60.004", subro ? "01" : "02");
+
+      if (subro) {
+        const sDeb = q(ev.subro_debut) || debutArret;
+        const sFin = q(ev.subro_fin);
+        const iban = q(ev.iban);
+        const bic = q(ev.bic);
+
+        // 🚨 LES QUATRE OU AUCUNE.
+        if (sFin && iban && bic) {
+          ecrire("S21.G00.60.005", dateDsn(sDeb));
+          ecrire("S21.G00.60.006", dateDsn(sFin));
+          ecrire("S21.G00.60.007", iban);
+          ecrire("S21.G00.60.008", bic);
+        } else {
+          anomalies.push(qui + " : subrogation annoncée mais incomplète "
+            + "(il faut la date de fin de maintien, l'IBAN et le BIC). "
+            + "⛔ Les coordonnées ne sont PAS déclarées : la caisse versera "
+            + "les indemnités au salarié et non à l'employeur.");
+        }
+      }
+    }
 
     // ═══════════════════════════════════════════════════════════════
     // ══ S21.G00.71 — LA RETRAITE COMPLEMENTAIRE ══
