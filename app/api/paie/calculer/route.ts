@@ -210,6 +210,83 @@ async function tauxVersementMobilite(insee: string, periode: string): Promise<an
 // 🚨 « A LA DATE », PAS « LA DERNIERE VALEUR ». Un bulletin de mars 2026 se
 // calcule avec le SMIC de janvier (12,02), pas celui de juin (12,31). C est
 // toute la raison d etre des dates d effet.
+// ═══════════════════════════════════════════════════════════════════════
+// 🆕🚨 20/09 — LE MAINTIEN DE SALAIRE EN MALADIE : LE CALCUL, SANS LA BASE
+//
+// Fonction PURE : elle ne lit rien, elle calcule. C est ce qui permet de
+// l eprouver sur des cas chiffres sans toucher a un seul bulletin.
+//
+// LE PRINCIPE, commun a la loi et aux conventions :
+//   1. l employeur maintient un POURCENTAGE du salaire que l absence a
+//      retire — 100 % puis 80 % en Syntec, 90 % puis 66,66 % selon la loi ;
+//   2. ce pourcentage s entend INDEMNITES JOURNALIERES COMPRISES : on en
+//      deduit donc les IJSS brutes des jours couverts ;
+//   3. le salarie ne peut jamais toucher plus qu en travaillant : la
+//      deduction est bornee par le maintien, jamais l inverse.
+//
+// 🚨 DEUX CALENDRIERS SE CROISENT. Le salaire se retient en jours
+// TRAVAILLES (lundi-vendredi), les IJSS se versent en jours CALENDAIRES,
+// samedi et dimanche compris. Le rang d un jour dans l arret — qui decide
+// de la carence et du palier — se compte en jours calendaires depuis le
+// PREMIER JOUR DE L ARRET, pas depuis le debut du mois.
+// ═══════════════════════════════════════════════════════════════════════
+type RegleMaintien = {
+  ancienneteMois: number; carenceJours: number;
+  jours1: number; taux1: number; jours2: number; taux2: number;
+  origine: string;
+};
+
+function maintienSalaire(p: {
+  debutArret: string; d1: string; d2: string;
+  retenue: number; joursAbs: number; ancienneteMois: number;
+  regle: RegleMaintien; ijJour: number; ijssCarence: number;
+}) {
+  const res = { droit: false, raison: "", maintien: 0, ijss: 0,
+    joursIjss: 0, jours1: 0, jours2: 0 };
+
+  if (p.ancienneteMois < p.regle.ancienneteMois) {
+    res.raison = "ancienneté de " + p.ancienneteMois + " mois à la date de "
+      + "l'arrêt, " + p.regle.ancienneteMois + " exigés (" + p.regle.origine + ")";
+    return res;
+  }
+  if (p.joursAbs <= 0 || p.retenue <= 0) return res;
+  res.droit = true;
+
+  const parJour = p.retenue / p.joursAbs;
+  const t0 = new Date(p.debutArret + "T00:00:00Z").getTime();
+  const d = new Date(p.d1 + "T00:00:00Z");
+  const f = new Date(p.d2 + "T00:00:00Z").getTime();
+  let maintien = 0;
+  let ijss = 0;
+
+  while (d.getTime() <= f) {
+    const rang = Math.round((d.getTime() - t0) / 86400000);   // 0 = 1er jour
+    let taux = 0;
+    const r = rang - p.regle.carenceJours;
+    if (r >= 0 && r < p.regle.jours1) taux = p.regle.taux1;
+    else if (r >= p.regle.jours1 && r < p.regle.jours1 + p.regle.jours2) taux = p.regle.taux2;
+
+    const jour = d.getUTCDay();
+    if (taux > 0 && jour >= 1 && jour <= 5) {
+      maintien += parJour * taux / 100;
+      if (taux === p.regle.taux1) res.jours1 += 1; else res.jours2 += 1;
+    }
+    // Les IJSS des jours COUVERTS par le maintien se deduisent, week-end
+    // compris ; celles des jours non couverts restent au salarie.
+    if (taux > 0 && rang >= p.ijssCarence) {
+      ijss += p.ijJour;
+      res.joursIjss += 1;
+    }
+    d.setUTCDate(d.getUTCDate() + 1);
+  }
+
+  res.maintien = Math.round(maintien * 100) / 100;
+  // ⛔ LA DEDUCTION NE DEPASSE JAMAIS LE MAINTIEN : le complement de
+  // l employeur peut etre nul, il n est jamais negatif.
+  res.ijss = Math.min(Math.round(ijss * 100) / 100, res.maintien);
+  return res;
+}
+
 async function parametre(code: string, periode: string): Promise<number | null> {
   const { data } = await supabase
     .from("paie_parametres")
@@ -699,17 +776,215 @@ async function calculer(contratId: string, periode: string): Promise<any> {
         evenement_id: (a as any).id, motif: (a as any).motif,
         debut: d1, fin: d2, jours: joursAbs, heures: heuresAbs,
         heures_du_mois: heuresMois, retenue: retenue,
+        debut_arret: debA, subrogation: (a as any).subrogation === true,
       });
 
       notesArret.push("Arrêt de travail du " + jjmm(d1) + " au " + jjmm(d2)
         + " : " + heuresAbs.toLocaleString("fr-FR") + " h retenues sur "
         + heuresMois.toLocaleString("fr-FR") + " h (méthode des heures "
-        + "réelles, horaire supposé réparti du lundi au vendredi). "
-        + "⛔ LE MAINTIEN DE SALAIRE N'EST PAS CALCULÉ : si le salarié y a "
-        + "droit — un an d'ancienneté selon la loi, souvent mieux selon la "
-        + "convention —, le complément de l'employeur MANQUE sur ce bulletin.");
+        + "réelles, horaire supposé réparti du lundi au vendredi).");
     }
     retenueArrets = cts(retenueArrets);
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // 🆕🚨 20/09 — ══ LE MAINTIEN DE SALAIRE ══
+  //
+  // LA REGLE VIENT DE LA BASE quand la convention en porte une
+  // (`paie_conventions_regles`, regles `maintien_*`), SINON DE LA LOI :
+  // articles L1226-1 et D1226-1 a D1226-8 du code du travail — un an
+  // d anciennete, sept jours de carence, 90 % pendant 30 jours puis les
+  // deux tiers pendant 30 jours, chaque duree allongee de dix jours par
+  // periode entiere de cinq ans d anciennete, dans la limite de 90 jours.
+  //
+  // CE QUE CE CALCUL NE FAIT PAS, ET QU IL DIT :
+  //   · il ne traite que la MALADIE ORDINAIRE. L accident du travail, la
+  //     maladie professionnelle, la maternite et la paternite ont d autres
+  //     indemnites journalieres et d autres conditions ;
+  //   · il ne compte pas les arrets DEJA INDEMNISES sur douze mois, qui
+  //     s imputent sur les durees ;
+  //   · il maintient le BRUT. La Syntec garantit le NET habituel : l ecart
+  //     est faible mais il existe, et il se regle par iteration ;
+  //   · LES IJSS SONT ESTIMEES. Leur montant exact est notifie par la
+  //     caisse : l ecart se regularise sur le bulletin suivant.
+  // ═══════════════════════════════════════════════════════════════════
+  const maintiens: any[] = [];
+
+  if (absencesArret.length > 0) {
+    const catM = String(contrat.categorie) === "cadre" ? "cadre" : "etam";
+
+    const { data: reglesM } = await supabase
+      .from("paie_conventions_regles")
+      .select("*")
+      .eq("idcc", Number(contrat.idcc) || 0)
+      .like("regle", "maintien%")
+      .lte("date_effet", periode)
+      .or("date_fin.is.null,date_fin.gte." + periode);
+
+    const lireM = function (nom: string): number | null {
+      for (const r of (reglesM || [])) {
+        if (String((r as any).regle) !== nom) continue;
+        const c = (r as any).categorie;
+        if (c === null || c === undefined || String(c) === catM) {
+          return Number((r as any).valeur_num);
+        }
+      }
+      return null;
+    };
+
+    const ijssTaux = (await parametre("IJSS_TAUX", periode)) || 0;
+    const ijssPlafond = (await parametre("IJSS_PLAFOND_SMIC", periode)) || 0;
+    const ijssCarenceP = await parametre("IJSS_CARENCE_JOURS", periode);
+    const smicMens = (await parametre("SMIC_MENSUEL", periode)) || 0;
+
+    for (const ab of absencesArret) {
+      const motifAb = String(ab.motif || "");
+      if (motifAb !== "maladie" && motifAb !== "01") {
+        notesArret.push("⛔ MAINTIEN DE SALAIRE NON CALCULÉ pour l'arrêt du "
+          + ab.debut.slice(8, 10) + "/" + ab.debut.slice(5, 7) + " (motif « "
+          + motifAb.replace(/_/g, " ") + " ») : seule la maladie ordinaire "
+          + "est traitée. Accident du travail, maladie professionnelle, "
+          + "maternité et paternité obéissent à d'autres règles — le "
+          + "complément de l'employeur MANQUE sur ce bulletin s'il est dû.");
+        continue;
+      }
+
+      // ---- L ANCIENNETE, EN MOIS ENTIERS, A LA DATE DE L ARRET ----
+      const dc = String(contrat.date_debut || "").slice(0, 10);
+      let anc = 0;
+      if (dc) {
+        anc = (Number(ab.debut_arret.slice(0, 4)) - Number(dc.slice(0, 4))) * 12
+          + (Number(ab.debut_arret.slice(5, 7)) - Number(dc.slice(5, 7)));
+        if (Number(ab.debut_arret.slice(8, 10)) < Number(dc.slice(8, 10))) anc -= 1;
+        if (anc < 0) anc = 0;
+      }
+
+      // ---- LA REGLE : LA CONVENTION SI ELLE EN PORTE UNE, SINON LA LOI ----
+      let regle: RegleMaintien;
+      const convAnc = lireM("maintien_anciennete_mois");
+      if (convAnc !== null && lireM("maintien_100_jours") !== null) {
+        let j1 = lireM("maintien_100_jours") || 0;
+        let j2 = lireM("maintien_80_jours") || 0;
+        // ⚠️ SYNTEC, ETAM DE PLUS DE CINQ ANS : les durees s inversent
+        // (60 jours a 100 %, 30 a 80 %). Le total reste de 90 jours.
+        if (Number(contrat.idcc) === 1486 && catM === "etam" && anc >= 60) {
+          const t = j1; j1 = j2; j2 = t;
+        }
+        regle = { ancienneteMois: convAnc, carenceJours: lireM("maintien_carence_jours") || 0,
+          jours1: j1, taux1: 100, jours2: j2, taux2: 80,
+          origine: "convention " + contrat.idcc };
+        if (catM === "cadre") {
+          notesArret.push("⚠️ MAINTIEN DE SALAIRE D'UN CADRE : les durées "
+            + "appliquées (" + j1 + " jours à 100 %, " + j2 + " à 80 %) "
+            + "viennent d'une source secondaire et ne sont PAS vérifiées. "
+            + "Les lire dans le texte de la convention avant d'émettre.");
+        }
+      } else {
+        const tranches = Math.floor(Math.max(0, anc - 12) / 60);
+        const duree = Math.min(90, 30 + 10 * tranches);
+        regle = { ancienneteMois: 12, carenceJours: 7,
+          jours1: duree, taux1: 90, jours2: duree, taux2: 66.66,
+          origine: "régime légal, article L1226-1" };
+      }
+
+      // ---- LES IJSS, ESTIMEES ----
+      // Salaire journalier de base = trois derniers bruts / 91,25, plafonne.
+      const { data: derniers } = await supabase
+        .from("paie_bulletins")
+        .select("brut, periode")
+        .eq("contrat_id", contratId)
+        .eq("statut", "emis")
+        .lt("periode", ab.debut_arret.slice(0, 7) + "-01")
+        .order("periode", { ascending: false })
+        .limit(3);
+
+      let troisMois = 0;
+      let estimeContrat = false;
+      if ((derniers || []).length === 3) {
+        for (const b of (derniers || [])) troisMois += Number((b as any).brut || 0);
+      } else {
+        const bm = contrat.salaire_mensuel ? Number(contrat.salaire_mensuel)
+          : Number(contrat.salaire_horaire || 0) * Number(dureeMensuelle || 0);
+        troisMois = bm * 3;
+        estimeContrat = true;
+      }
+      const plafond3 = ijssPlafond * smicMens * 3;
+      if (plafond3 > 0 && troisMois > plafond3) troisMois = plafond3;
+      const ijJour = cts((troisMois / 91.25) * ijssTaux / 100);
+
+      const m = maintienSalaire({
+        debutArret: ab.debut_arret, d1: ab.debut, d2: ab.fin,
+        retenue: Number(ab.retenue), joursAbs: Number(ab.jours),
+        ancienneteMois: anc, regle: regle, ijJour: ijJour,
+        ijssCarence: ijssCarenceP === null ? 3 : ijssCarenceP,
+      });
+
+      if (!m.droit) {
+        notesArret.push("Pas de maintien de salaire pour l'arrêt du "
+          + ab.debut.slice(8, 10) + "/" + ab.debut.slice(5, 7) + " : "
+          + (m.raison || "aucun jour couvert") + ". Le salarié perçoit les "
+          + "seules indemnités journalières de la Sécurité sociale.");
+        continue;
+      }
+      if (m.maintien <= 0) {
+        notesArret.push("Maintien de salaire ouvert pour l'arrêt du "
+          + ab.debut.slice(8, 10) + "/" + ab.debut.slice(5, 7) + ", mais aucun "
+          + "jour du mois n'est couvert (carence de " + regle.carenceJours
+          + " jours, ou durée épuisée).");
+        continue;
+      }
+
+      lignesBrut.push({
+        libelle: "Maintien de salaire maladie (" + m.jours1 + " j à "
+          + regle.taux1 + " %" + (m.jours2 > 0
+            ? ", " + m.jours2 + " j à " + String(regle.taux2).replace(".", ",") + " %" : "")
+          + ")",
+        quantite: null, taux: null, montant: m.maintien,
+      });
+      lignesBrut.push({
+        libelle: "Indemnités journalières de Sécurité sociale déduites ("
+          + m.joursIjss + " j × " + ijJour.toLocaleString("fr-FR",
+            { minimumFractionDigits: 2 }) + " €, estimées)",
+        quantite: m.joursIjss, taux: ijJour, montant: -m.ijss,
+      });
+      brutSoumis += m.maintien - m.ijss;
+
+      // 🚨 EN SUBROGATION, L EMPLOYEUR AVANCE LES IJSS : il les percoit de la
+      // caisse et les reverse au salarie, NETTES de CSG (6,20 %) et de CRDS
+      // (0,50 %) que la caisse a deja prelevees. Elles ne sont pas du
+      // salaire : elles entrent dans le net, pas dans le brut cotise.
+      let ijssNettes = 0;
+      if (ab.subrogation) {
+        ijssNettes = cts(m.ijss * (1 - 0.067));
+        lignesBrut.push({
+          libelle: "Indemnités journalières reversées (subrogation), nettes "
+            + "de CSG et de CRDS",
+          quantite: null, taux: null, montant: ijssNettes,
+        });
+        nonSoumis += ijssNettes;
+      }
+
+      maintiens.push({
+        evenement_id: ab.evenement_id, regle: regle.origine,
+        anciennete_mois: anc, maintien: m.maintien, ijss_brutes: m.ijss,
+        ijss_nettes_reversees: ijssNettes, ij_jour: ijJour,
+        jours_ijss: m.joursIjss, subrogation: ab.subrogation,
+      });
+
+      notesArret.push("Maintien de salaire (" + regle.origine + ", "
+        + anc + " mois d'ancienneté) : " + m.maintien.toLocaleString("fr-FR",
+          { minimumFractionDigits: 2 }) + " € maintenus, "
+        + m.ijss.toLocaleString("fr-FR", { minimumFractionDigits: 2 })
+        + " € d'indemnités journalières déduites. ⚠️ LES IJSS SONT ESTIMÉES"
+        + (estimeContrat ? " SUR LE SALAIRE DU CONTRAT, faute de trois "
+          + "bulletins émis avant l'arrêt" : " sur les trois derniers bulletins")
+        + " : le décompte de la caisse fait foi, l'écart se régularise le "
+        + "mois suivant. Les arrêts déjà indemnisés sur douze mois ne sont "
+        + "pas imputés."
+        + (ab.subrogation ? " ⚠️ Subrogation : les indemnités reversées sont "
+          + "ajoutées au net à payer ; leur part imposable n'est PAS encore "
+          + "ajoutée au net imposable." : ""));
+    }
   }
 
   brutSoumis = cts(brutSoumis);
@@ -1354,6 +1629,7 @@ async function calculer(contratId: string, periode: string): Promise<any> {
     // calcule les indemnites journalieres dessus.
     absences: absencesArret,
     retenue_absences: retenueArrets,
+    maintiens: maintiens,
 
     lignes_mission: lignesMission,
     ifm: ifm,
