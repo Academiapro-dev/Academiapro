@@ -987,6 +987,11 @@ export async function POST(req: NextRequest) {
       const dernierJour = String(c.dernier_jour_travaille || "").trim();
       const subroDebut = String(c.subro_debut || "").trim();
       const subroFin = String(c.subro_fin || "").trim();
+      // 🆕 20/09 — la reprise n existe que sur un arret.
+      const repriseDate = type === "arret"
+        ? String(c.reprise_date || "").trim() : "";
+      const repriseMotif = repriseDate
+        ? (String(c.reprise_motif || "").trim() || "01") : "";
       let ibanPropre: string | null = null;
       let bicPropre: string | null = null;
 
@@ -1031,6 +1036,43 @@ export async function POST(req: NextRequest) {
             erreur: "le dernier jour travaillé (" + dernierJour
               + ") est postérieur au début de l'arrêt (" + dateDebut + ").",
           }, { status: 400 });
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        // 🆕🚨 20/09 — LA REPRISE ANTICIPEE, PORTEE PAR L ARRET
+        //
+        // Le signalement de reprise (nature 05) a ete valide par dsn-val le
+        // 20/09 : c est l arret, SANS la subrogation, plus la date et le
+        // motif de reprise.
+        // 🚨 ELLE NE SE DECLARE QUE SI ELLE EST ANTICIPEE — controle SIG-13 :
+        // une reprise posterieure a la fin prevue est refusee. Le refuser ICI,
+        // a la saisie, evite de decouvrir le rejet au moment de generer.
+        // ⛔ LES MOTIFS SONT TROIS, lus dans l enumeration de dsn-val. On n en
+        // accepte aucun autre.
+        // ═══════════════════════════════════════════════════════════════
+        if (repriseDate) {
+          if (repriseDate < dateDebut) {
+            return NextResponse.json({
+              erreur: "la reprise (" + repriseDate + ") précède le début de "
+                + "l'arrêt (" + dateDebut + ").",
+            }, { status: 400 });
+          }
+          if (repriseDate > dateFin) {
+            return NextResponse.json({
+              erreur: "la reprise (" + repriseDate + ") est postérieure à la fin "
+                + "prévue de l'arrêt (" + dateFin + "). ⛔ Il n'y a rien à "
+                + "signaler : une reprise ne se déclare que lorsqu'elle est "
+                + "ANTICIPÉE.",
+            }, { status: 400 });
+          }
+          if (repriseMotif !== "01" && repriseMotif !== "02"
+              && repriseMotif !== "03") {
+            return NextResponse.json({
+              erreur: "motif de reprise inconnu : 01 (normale), 02 (temps "
+                + "partiel thérapeutique) ou 03 (temps partiel pour raison "
+                + "personnelle).",
+            }, { status: 400 });
+          }
         }
       }
 
@@ -1106,6 +1148,10 @@ export async function POST(req: NextRequest) {
           date_debut: dateDebut,
           date_fin: dateFin || null,
           dernier_jour_travaille: dernierJour || null,
+          // 🆕 SANS DATE, PAS DE MOTIF : un motif orphelin ferait croire, a
+          // la relecture, a une reprise oubliee.
+          reprise_date: repriseDate || null,
+          reprise_motif: repriseDate ? repriseMotif : null,
           subrogation: subro,
           subro_debut: subro ? (subroDebut || null) : null,
           subro_fin: subro ? subroFin : null,
