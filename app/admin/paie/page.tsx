@@ -550,6 +550,29 @@ export default function PagePaie() {
   }
 
   // ═══════════════════════════════════════════════════════════════════
+  // 🆕🚨 20/09 — MARQUER UN SIGNALEMENT DEPOSE
+  //
+  // 🚨 C EST CE GESTE QUI FAIT AVANCER LE NUMERO D ORDRE, et rien d autre.
+  // Regenerer un signalement dix fois avant de l envoyer ne le fait pas
+  // bouger : ce sont dix essais du MEME signalement. Des le premier depot,
+  // le fichier suivant devient un « annule et remplace ».
+  // ⚠️ L ARRET ET SA REPRISE SE DEPOSENT SEPAREMENT : deux natures, deux
+  // compteurs, deux gestes.
+  // ═══════════════════════════════════════════════════════════════════
+  async function deposerSignalement(id: string, reprise?: boolean) {
+    setErr(""); setErrEv(""); setMsg("");
+    setOccupe(reprise ? "depot-reprise" : "depot");
+    const d = await appeler({
+      action: "deposer_evenement", id: id, reprise: reprise === true,
+    });
+    setOccupe("");
+    if (!d) return;
+    if (d.erreur) { setErrEv(d.erreur); return; }
+    setMsg(d.message);
+    chargerEvenements(choisi ? choisi.id : "");
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
   // 🆕 LE FICHIER D UN SIGNALEMENT, ENFIN SORTI DE LA BASE.
   //
   // Le generateur le gardait dans `paie_evenements.fichier` et rien ne le
@@ -1690,6 +1713,16 @@ export default function PagePaie() {
                                 ? " · reprise le " + jma(x.reprise_date)
                                 : ""}
                               {" · "}{x.statut}
+                              {/* 🚨 LE NUMERO D ORDRE SE VOIT : c est lui qui
+                                  dit si le prochain fichier sera un « annule
+                                  et remplace ». */}
+                              {Number(x.numero_ordre || 0) > 0
+                                ? " · déposé " + x.numero_ordre + " fois"
+                                : ""}
+                              {Number(x.numero_ordre_reprise || 0) > 0
+                                ? " · reprise déposée "
+                                  + x.numero_ordre_reprise + " fois"
+                                : ""}
                             </span>
                             {manques.length > 0 && (
                               <span style={{ display: "block", marginTop: "3px",
@@ -1721,6 +1754,27 @@ export default function PagePaie() {
                                 style={{ ...LIEN, color: VERT }}>
                                 {occupe === "reprise"
                                   ? "…" : "générer la reprise"}
+                              </button>
+                            )}
+                            {/* 🆕 20/09 — « DÉPOSÉ » FAIT AVANCER LE NUMERO
+                                D ORDRE. Le bouton n apparait qu une fois le
+                                fichier genere : sans lui, il n y a rien a
+                                transmettre. */}
+                            {x.fichier && (
+                              <button onClick={() => deposerSignalement(x.id)}
+                                disabled={occupe !== ""}
+                                style={{ ...LIEN, color: OR }}>
+                                {occupe === "depot" ? "…" : "déposé"}
+                              </button>
+                            )}
+                            {arret && x.reprise_date
+                              && Number(x.numero_ordre_reprise || 0) === 0
+                              && Number(x.numero_ordre || 0) > 0 && (
+                              <button onClick={() => deposerSignalement(x.id, true)}
+                                disabled={occupe !== ""}
+                                style={{ ...LIEN, color: OR }}>
+                                {occupe === "depot-reprise"
+                                  ? "…" : "reprise déposée"}
                               </button>
                             )}
                             {/* 🆕 LE FICHIER SORT D ICI. Les deux liens
