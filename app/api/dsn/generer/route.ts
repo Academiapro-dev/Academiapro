@@ -2094,6 +2094,12 @@ export async function POST(req: NextRequest) {
         parAssiette[bAss].codes[corr.code] = { montant: 0, base: Number(l.base) };
       }
       parAssiette[bAss].codes[corr.code].montant += montant;
+      // 🆕 20/09 — COMBIEN DE LIGNES DE BULLETIN ALIMENTENT CE CODE ?
+      // Le taux au nominatif (81.007) n a de sens que si une seule ligne
+      // l alimente : deux lignes de taux differents donneraient un taux
+      // moyen, qui n existe nulle part.
+      parAssiette[bAss].codes[corr.code].nb =
+        (parAssiette[bAss].codes[corr.code].nb || 0) + 1;
 
       // ═══════════════════════════════════════════════════════════════
       // 🆕 20/09 — LE VERSEMENT MOBILITE PORTE SA COMMUNE ET SON TAUX
@@ -2287,6 +2293,47 @@ export async function POST(req: NextRequest) {
         ecrire("S21.G00.81.001", cd);
         ecrire("S21.G00.81.003", montantDsn(grp.codes[cd].base));
         ecrire("S21.G00.81.004", montantDsn(grp.codes[cd].montant));
+
+        // ═══════════════════════════════════════════════════════════════
+        // 🆕🚨 20/09 — LE TAUX AU NOMINATIF (S21.G00.81.007)
+        //
+        // Le guide Urssaf le montre dans l attendu de chaque code, sauf pour
+        // les reductions, les exonerations et les cotisations forfaitaires.
+        // dsn-val l accepte a cette place, avec deux decimales (essai de 611
+        // lignes, zero anomalie).
+        //
+        // 🚨 MAIS dsn-val NE VERIFIE PAS QUE ASSIETTE × TAUX = MONTANT : il
+        // aurait accepte n importe quel taux. C est l URSSAF qui rapproche
+        // les trois ensuite, et un taux faux y declenche une anomalie A
+        // CHAQUE DEPOT, chez chaque client.
+        //
+        // ⛔ ON N ECRIT DONC LE TAUX QUE S IL RETOMBE AU CENTIME. Partout
+        // ailleurs on s abstient : une rubrique absente ne declenche rien,
+        // un taux faux declenche a chaque fois.
+        // LES CAS OU ON S ABSTIENT, ET POURQUOI :
+        //   · un code alimente par PLUSIEURS lignes de bulletin (le 076
+        //     agrege la part salariale et la part patronale de la vieillesse,
+        //     a deux taux differents) : le quotient serait un taux moyen qui
+        //     n existe dans aucun texte ;
+        //   · les codes 018 et 106, qui portent la reduction generale — le
+        //     guide les exclut expressement ;
+        //   · un montant nul, ou une assiette nulle : le quotient n aurait
+        //     pas de sens.
+        // ═══════════════════════════════════════════════════════════════
+        const baseCode = Number(grp.codes[cd].base || 0);
+        const montantCode = Number(grp.codes[cd].montant || 0);
+        const uneSeuleLigne = Number(grp.codes[cd].nb || 0) === 1;
+        const estReduction = cd === "018" || cd === "106";
+
+        if (uneSeuleLigne && !estReduction && baseCode > 0 && montantCode !== 0) {
+          const tauxCalcule = Math.round((montantCode / baseCode) * 10000) / 100;
+          // 🚨 LE CONTROLE : on refait le calcul DANS L AUTRE SENS et on
+          // n ecrit que si l ecart est inferieur au centime.
+          const verif = Math.round(baseCode * tauxCalcule) / 100;
+          if (Math.abs(verif - montantCode) <= 0.01 && tauxCalcule > 0) {
+            ecrire("S21.G00.81.007", montantDsn(tauxCalcule));
+          }
+        }
 
         // 🆕 20/09 — LA COMMUNE DU VERSEMENT MOBILITE, AU NOMINATIF.
         // ⚠️ ELLE NE S ECRIT QUE LA : le guide montre « Code INSEE commune
