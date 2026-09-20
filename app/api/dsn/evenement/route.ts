@@ -906,9 +906,28 @@ export async function POST(req: NextRequest) {
           + "REJETÉ et les indemnités journalières ne partiront pas. C'est la "
           + "date portée sur l'avis d'arrêt du médecin.");
       }
-      ecrire("S21.G00.60.004", (ev as any).subrogation ? "01" : "02");
+      // ═══════════════════════════════════════════════════════════════
+      // 🆕🚨 20/09 — LA SUBROGATION EST INTERDITE DANS UNE REPRISE
+      //
+      // dsn-val, sur le premier fichier de reprise sorti du generateur
+      // (49 lignes) : CINQ anomalies CST-04, une seule cause — « Presence
+      // de la rubrique interdite S21.G00.60.004 », et la meme chose pour
+      // les 005, 006, 007 et 008.
+      // La subrogation dit QUI PERCOIT LES INDEMNITES PENDANT L ARRET : elle
+      // a ete declaree dans le signalement d arret, la reprise n a pas a la
+      // repeter.
+      //
+      // ⛔ L ESSAI A LA MAIN NE L AVAIT PAS MONTRE : il avait ete reduit au
+      // minimum, sans subrogation. UN ESSAI MINIMAL NE REVELE QUE CE QU IL
+      // CONTIENT — c est la deuxieme fois de la journee, apres la fin de
+      // mission de Julien. Le fichier sorti du generateur, lui, porte le cas
+      // reel, et c est lui qui fait foi.
+      // ═══════════════════════════════════════════════════════════════
+      if (!estReprise) {
+        ecrire("S21.G00.60.004", (ev as any).subrogation ? "01" : "02");
+      }
 
-      if ((ev as any).subrogation) {
+      if ((ev as any).subrogation && !estReprise) {
         // 🆕🚨 EN SUBROGATION, QUATRE RUBRIQUES VONT ENSEMBLE : debut, FIN, IBAN
         // et BIC. dsn-val, controle CCH-11, a reclame la date de fin (60.006)
         // et le BIC (60.008) qui manquaient.
