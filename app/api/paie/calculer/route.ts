@@ -987,6 +987,49 @@ async function calculer(contratId: string, periode: string): Promise<any> {
     }
   }
 
+  // ═══════════════════════════════════════════════════════════════════
+  // 🆕🚨 20/09 — L ABSENCE CORRIGE LE SMIC DE LA REDUCTION GENERALE
+  //
+  // BOSS, allegements generaux, §850 : « la valeur du SMIC retenue pour les
+  // periodes au cours desquelles a lieu une absence est corrigee du rapport
+  // entre la remuneration due par l employeur au titre de ce mois et celle
+  // qui aurait ete due si le salarie n avait pas ete absent, apres
+  // deduction des elements de remuneration dont le montant n est pas
+  // proratise pour tenir compte de l absence. Les indemnites journalieres
+  // de securite sociale versees par subrogation ne sont pas prises en
+  // compte dans ce rapport. »
+  //
+  // 🚨 SANS CETTE CORRECTION, LA REDUCTION EXPLOSE. Un salarie a 2 100 EUR
+  // absent sept jours tombe a 1 732 EUR de brut : compare a un SMIC ENTIER,
+  // il semble paye sous le SMIC et recoit le coefficient MAXIMAL — 676 EUR
+  // de reduction au lieu de 284. L URSSAF reclame la difference, avec
+  // majorations. C est l absence qui a fait apparaitre ce defaut : avant
+  // elle, le moteur ne retenait jamais rien.
+  //
+  // LE RAPPORT SE PREND SUR LE SALAIRE DE BASE, le seul element ici que
+  // l absence proratise directement :
+  //     (base − retenue + maintien − IJSS deduites) / base
+  // Les IJSS sortent du numerateur parce qu elles ne sont pas une
+  // remuneration due par l employeur. La precarite et l indemnite de
+  // conges, proportionnelles au brut, suivent d elles-memes.
+  // ⚠️ MAINTIEN TOTAL SANS IJSS DEDUITES : le rapport vaut 1, rien ne bouge.
+  // ═══════════════════════════════════════════════════════════════════
+  let ratioAbsence = 1;
+  {
+    let baseRef = 0;
+    if (contrat.salaire_mensuel) baseRef = Number(contrat.salaire_mensuel);
+    else if (contrat.salaire_horaire && dureeMensuelle) {
+      baseRef = Number(contrat.salaire_horaire) * Number(dureeMensuelle);
+    }
+    if (baseRef > 0 && retenueArrets > 0) {
+      let du = baseRef - retenueArrets;
+      for (const mt of maintiens) {
+        du += Number(mt.maintien || 0) - Number(mt.ijss_brutes || 0);
+      }
+      ratioAbsence = Math.max(0, Math.min(1, du / baseRef));
+    }
+  }
+
   brutSoumis = cts(brutSoumis);
 
   // ---- LES INDEMNITES DE FIN DE MISSION ----
@@ -1313,11 +1356,21 @@ async function calculer(contratId: string, periode: string): Promise<any> {
     let rgduDejaAccordee = 0;
     let moisCumules = 1;
 
+    // 🆕 LE SMIC DE CE MOIS, corrige de l absence (BOSS §850).
+    const smicDuMois = cts(smicMensuelRef * ratioAbsence);
+    let smicAnterieurs = 0;
+
     for (const ant of (anterieurs || [])) {
       brutCumul += Number((ant as any).brut || 0);
       const d: any = (ant as any).detail;
       rgduDejaAccordee += Number((d && d.rgdu) || 0);
       moisCumules += 1;
+      // 🚨 CHAQUE MOIS PASSE GARDE LE SMIC QU IL A RETENU. Un mois d absence
+      // en mars doit peser son SMIC REDUIT dans le cumul de septembre, pas
+      // un SMIC entier. Les bulletins d avant cette correction n ont pas la
+      // valeur : ils comptent pour un SMIC plein, comme ils ont ete calcules.
+      const sm = d && d.rgdu_detail ? Number(d.rgdu_detail.smic_mensuel_reference || 0) : 0;
+      smicAnterieurs += sm > 0 ? sm : smicMensuelRef;
     }
 
     brutCumul = cts(brutCumul);
@@ -1326,7 +1379,7 @@ async function calculer(contratId: string, periode: string): Promise<any> {
     // ⚠️ LE SMIC DE REFERENCE SE CUMULE SUR LE MEME NOMBRE DE MOIS que le
     // brut : comparer un brut de neuf mois a un SMIC d un mois n aurait
     // aucun sens et rendrait tout le monde ineligible.
-    const smicCumul = smicMensuelRef * moisCumules;
+    const smicCumul = smicDuMois + smicAnterieurs;
     const plafondCumul = smicCumul * seuil;
 
     if (brutCumul > 0 && brutCumul < plafondCumul) {
@@ -1362,7 +1415,12 @@ async function calculer(contratId: string, periode: string): Promise<any> {
       rgduDetail = {
         coefficient: Math.round(coef * 10000) / 10000,
         smic_horaire_reference: smicRef,
-        smic_mensuel_reference: cts(smicMensuelRef),
+        // 🚨 C EST LE SMIC RETENU POUR CE MOIS, corrige de l absence : la DSN
+        // le declare tel quel en S21.G00.79.004, et le cumul des mois
+        // suivants le relit ici.
+        smic_mensuel_reference: smicDuMois,
+        smic_mensuel_plein: cts(smicMensuelRef),
+        ratio_absence: Math.round(ratioAbsence * 10000) / 10000,
         plafond_eligibilite: cts(plafondEligibilite),
         effectif_retenu: effectif,
         tdelta_retenu: tdelta,
@@ -1673,7 +1731,7 @@ async function calculer(contratId: string, periode: string): Promise<any> {
       const r = [
         "Les taux doivent être recoupés sur boss.gouv.fr avant tout bulletin réel.",
         "Le prélèvement à la source est à zéro : son taux vient du retour DSN.",
-        "Le salaire minimum conventionnel est contrôlé quand le contrat porte un coefficient. ⚠️ Les valeurs de point ne sont pas encore recoupées sur Légifrance, et les autres règles de branche — prime de vacances, maintien de salaire en maladie, congés d'ancienneté — ne sont pas appliquées.",
+        "Le salaire minimum conventionnel est contrôlé quand le contrat porte un coefficient. ⚠️ Les valeurs de point ne sont pas encore recoupées sur Légifrance, et deux règles de branche — la prime de vacances et les congés d'ancienneté — ne sont pas appliquées. Le maintien de salaire en maladie, lui, l'est.",
         "La RGDU est calculée en régularisation progressive sur le cumul annuel, méthode recommandée par l'URSSAF : une prime en fin d'année est régularisée le mois même plutôt que de créer un rappel.",
         "Le montant net social réintègre la part patronale des garanties complémentaires (arrêté du 31 janvier 2023). ⚠️ Les taux de mutuelle et de prévoyance sont propres à chaque contrat collectif : tant qu'ils ne sont pas renseignés pour la société, ces lignes n'apparaissent pas.",
       ];
@@ -1769,6 +1827,13 @@ async function calculer(contratId: string, periode: string): Promise<any> {
         r.unshift("🚨 EFFECTIF INCONNU pour cette société : le FNAL et le Tdelta de la "
           + "RGDU sont ceux des MOINS DE 50 SALARIÉS. Si l'entreprise est plus grande, "
           + "la cotisation est sous-évaluée et la réduction sur-évaluée.");
+      }
+      if (ratioAbsence < 1) {
+        r.unshift("Réduction générale : le SMIC du mois est corrigé de "
+          + "l'absence (rapport " + (Math.round(ratioAbsence * 10000) / 100)
+            .toLocaleString("fr-FR") + " %, BOSS §850). Sans cette "
+          + "correction, un salarié absent paraît payé sous le SMIC et "
+          + "reçoit une réduction trop forte.");
       }
       for (const n of notesArret) r.unshift(n);
       return r;
