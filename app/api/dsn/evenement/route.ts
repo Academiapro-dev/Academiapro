@@ -908,38 +908,6 @@ export async function POST(req: NextRequest) {
       }
       ecrire("S21.G00.60.004", (ev as any).subrogation ? "01" : "02");
 
-      // ═══════════════════════════════════════════════════════════════
-      // 🆕 LA REPRISE — DEUX RUBRIQUES DE PLUS, ET RIEN D AUTRE
-      //
-      // dsn-val, essai du 20/09 sur un fichier de nature 05 bati sur
-      // l arret : DEUX anomalies, pas une de plus — « CST-03 / Absence de
-      // la rubrique S21.G00.60.010 » et la meme pour la 60.011. La reprise
-      // est donc l arret, plus la date et le motif de reprise.
-      //
-      // LES TROIS MOTIFS, LUS DANS L ENUMERATION QUE dsn-val A AFFICHEE :
-      //     01  reprise normale
-      //     02  reprise temps partiel therapeutique
-      //     03  reprise temps partiel raison personnelle
-      // ⛔ ON N EN INVENTE PAS UN QUATRIEME : sans motif enregistre, on
-      // prend « 01 - reprise normale », qui est le cas ordinaire, et on le
-      // signale.
-      // ═══════════════════════════════════════════════════════════════
-      if (estReprise) {
-        ecrire("S21.G00.60.010", dateDsn((ev as any).reprise_date));
-
-        const motifRep = q((ev as any).reprise_motif);
-        if (motifRep === "01" || motifRep === "02" || motifRep === "03") {
-          ecrire("S21.G00.60.011", motifRep);
-        } else {
-          ecrire("S21.G00.60.011", "01");
-          anomalies.push("Motif de reprise non renseigné : « 01 - reprise "
-            + "normale » a été déclaré. ⚠️ Si le salarié reprend en temps "
-            + "partiel thérapeutique (02) ou pour raison personnelle (03), "
-            + "le corriger AVANT le dépôt — la CPAM en tire des droits "
-            + "différents.");
-        }
-      }
-
       if ((ev as any).subrogation) {
         // 🆕🚨 EN SUBROGATION, QUATRE RUBRIQUES VONT ENSEMBLE : debut, FIN, IBAN
         // et BIC. dsn-val, controle CCH-11, a reclame la date de fin (60.006)
@@ -978,6 +946,39 @@ export async function POST(req: NextRequest) {
             + "Renseigner l'IBAN sur l'événement.");
         }
       }
+
+      // ═══════════════════════════════════════════════════════════════
+      // 🆕 LA REPRISE — DEUX RUBRIQUES DE PLUS, ET RIEN D AUTRE
+      //
+      // dsn-val, essai du 20/09 sur un fichier de nature 05 bati sur
+      // l arret : DEUX anomalies, pas une de plus — « CST-03 / Absence de
+      // la rubrique S21.G00.60.010 » et la meme pour la 60.011. La reprise
+      // est donc l arret, plus la date et le motif de reprise.
+      //
+      // LES TROIS MOTIFS, LUS DANS L ENUMERATION QUE dsn-val A AFFICHEE :
+      //     01  reprise normale
+      //     02  reprise temps partiel therapeutique
+      //     03  reprise temps partiel raison personnelle
+      // ⛔ ON N EN INVENTE PAS UN QUATRIEME : sans motif enregistre, on
+      // prend « 01 - reprise normale », qui est le cas ordinaire, et on le
+      // signale.
+      // ═══════════════════════════════════════════════════════════════
+      if (estReprise) {
+        ecrire("S21.G00.60.010", dateDsn((ev as any).reprise_date));
+
+        const motifRep = q((ev as any).reprise_motif);
+        if (motifRep === "01" || motifRep === "02" || motifRep === "03") {
+          ecrire("S21.G00.60.011", motifRep);
+        } else {
+          ecrire("S21.G00.60.011", "01");
+          anomalies.push("Motif de reprise non renseigné : « 01 - reprise "
+            + "normale » a été déclaré. ⚠️ Si le salarié reprend en temps "
+            + "partiel thérapeutique (02) ou pour raison personnelle (03), "
+            + "le corriger AVANT le dépôt — la CPAM en tire des droits "
+            + "différents.");
+        }
+      }
+
     } else {
       // ═══════════════════════════════════════════════════════════════
       // ── S21.G00.62 — LA FIN DU CONTRAT ──
