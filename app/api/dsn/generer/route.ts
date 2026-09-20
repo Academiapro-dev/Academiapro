@@ -2094,12 +2094,17 @@ export async function POST(req: NextRequest) {
         parAssiette[bAss].codes[corr.code] = { montant: 0, base: Number(l.base) };
       }
       parAssiette[bAss].codes[corr.code].montant += montant;
-      // 🆕 20/09 — COMBIEN DE LIGNES DE BULLETIN ALIMENTENT CE CODE ?
-      // Le taux au nominatif (81.007) n a de sens que si une seule ligne
-      // l alimente : deux lignes de taux differents donneraient un taux
-      // moyen, qui n existe nulle part.
-      parAssiette[bAss].codes[corr.code].nb =
-        (parAssiette[bAss].codes[corr.code].nb || 0) + 1;
+      // 🆕 20/09 — COMBIEN DE PARTS ALIMENTENT CE CODE ?
+      //
+      // 🚨 ON COMPTE LES PARTS, PAS LES LIGNES. Une seule ligne de bulletin
+      // peut porter deux taux — la part salariale et la part patronale de la
+      // vieillesse plafonnee, 6,90 et 8,55 — dont on somme les montants. Les
+      // compter pour une donnait un taux de 15,45 %, qui n existe dans aucun
+      // texte. Le taux au nominatif n a de sens que s il en reste UNE.
+      const partsIci = (Number(l.part_salariale || 0) !== 0 ? 1 : 0)
+        + (Number(l.part_patronale || 0) !== 0 ? 1 : 0);
+      parAssiette[bAss].codes[corr.code].parts =
+        (parAssiette[bAss].codes[corr.code].parts || 0) + (partsIci || 1);
 
       // ═══════════════════════════════════════════════════════════════
       // 🆕 20/09 — LE VERSEMENT MOBILITE PORTE SA COMMUNE ET SON TAUX
@@ -2320,20 +2325,21 @@ export async function POST(req: NextRequest) {
         //   · un montant nul, ou une assiette nulle : le quotient n aurait
         //     pas de sens.
         // ═══════════════════════════════════════════════════════════════
+        // ⚠️ LE TAUX S ECRIT PLUS BAS, APRES LE CODE INSEE : dans un bloc,
+        // les rubriques se suivent EN ORDRE CROISSANT, et la 005 precede la
+        // 007. Ecrit ici, il passait avant la commune du versement mobilite
+        // et le fichier etait refuse.
         const baseCode = Number(grp.codes[cd].base || 0);
         const montantCode = Number(grp.codes[cd].montant || 0);
-        const uneSeuleLigne = Number(grp.codes[cd].nb || 0) === 1;
         const estReduction = cd === "018" || cd === "106";
 
-        if (uneSeuleLigne && !estReduction && baseCode > 0 && montantCode !== 0) {
-          const tauxCalcule = Math.round((montantCode / baseCode) * 10000) / 100;
-          // 🚨 LE CONTROLE : on refait le calcul DANS L AUTRE SENS et on
-          // n ecrit que si l ecart est inferieur au centime.
-          const verif = Math.round(baseCode * tauxCalcule) / 100;
-          if (Math.abs(verif - montantCode) <= 0.01 && tauxCalcule > 0) {
-            ecrire("S21.G00.81.007", montantDsn(tauxCalcule));
-          }
-        }
+        // 🚨 UN CODE ALIMENTE PAR PLUSIEURS COTISATIONS N A PAS DE TAUX
+        // UNIQUE. Le compteur `nb` comptait les LIGNES du bulletin — or une
+        // seule ligne peut porter DEUX taux, la part salariale et la part
+        // patronale, dont on somme les montants. Le 076 sortait ainsi a
+        // 15,45 % : c est 6,90 + 8,55, un nombre qui n existe dans aucun
+        // texte. On compte donc les PARTS, pas les lignes.
+        const uneSeulePart = Number(grp.codes[cd].parts || 0) === 1;
 
         // 🆕 20/09 — LA COMMUNE DU VERSEMENT MOBILITE, AU NOMINATIF.
         // ⚠️ ELLE NE S ECRIT QUE LA : le guide montre « Code INSEE commune
@@ -2371,6 +2377,26 @@ export async function POST(req: NextRequest) {
             + "de commune. ⛔ LA LIGNE DU CTP 900 SERA REJETÉE et une "
             + "régularisation sera attendue le mois suivant. Recalculer le "
             + "bulletin pour que la commune du lieu de travail y figure.");
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        // 🆕🚨 20/09 — LE TAUX AU NOMINATIF (S21.G00.81.007), EN DERNIER
+        //
+        // 🚨 dsn-val NE VERIFIE PAS QUE ASSIETTE × TAUX = MONTANT : il
+        // accepterait n importe quel taux (essai de 611 lignes, zero
+        // anomalie). C est l URSSAF qui rapproche les trois ensuite, et un
+        // taux faux y declenche une anomalie A CHAQUE DEPOT, chez chaque
+        // client.
+        // ⛔ ON N ECRIT DONC LE TAUX QUE S IL RETOMBE AU CENTIME, et
+        // seulement quand UNE SEULE PART alimente le code. Une rubrique
+        // absente ne declenche rien ; un taux faux declenche a chaque fois.
+        // ═══════════════════════════════════════════════════════════════
+        if (uneSeulePart && !estReduction && baseCode > 0 && montantCode !== 0) {
+          const tauxCalcule = Math.round((montantCode / baseCode) * 10000) / 100;
+          const verif = Math.round(baseCode * tauxCalcule) / 100;
+          if (Math.abs(verif - montantCode) <= 0.01 && tauxCalcule > 0) {
+            ecrire("S21.G00.81.007", montantDsn(tauxCalcule));
+          }
         }
 
         // 🆕 CE QUI EST DU A L URSSAF : tout sauf la retraite complementaire,
