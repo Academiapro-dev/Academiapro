@@ -573,9 +573,32 @@ export async function POST(req: NextRequest) {
     // declaration » appartiennent a la mensuelle. Un signalement porte sur
     // un EVENEMENT, date dans son propre bloc (60 ou 62), pas sur un mois.
     ecrire("S20.G00.05.001", nature);
-    ecrire("S20.G00.05.002", "01");            // declaration normale
+    // ═══════════════════════════════════════════════════════════════════
+    // 🆕🚨 20/09 — L ANNULE ET REMPLACE D UN SIGNALEMENT
+    //
+    // Un signalement depose puis corrige se renvoie EN ENTIER, avec :
+    //   · S20.G00.05.002 = « 03 - annule et remplace » au lieu de « 01 » ;
+    //   · S20.G00.05.004 = le numero d ordre, incremente.
+    // ⛔ AUCUNE RUBRIQUE NE DESIGNE LE FICHIER REMPLACE : dsn-val a valide
+    // un fichier 03/2 sans rien d autre (47 lignes, zero anomalie). C est le
+    // couple SIRET + nature + numero d ordre qui suffit a l organisme.
+    //
+    // 🚨 LE COMPTEUR COMPTE LES DEPOTS, PAS LES GENERATIONS. Regenerer trois
+    // fois avant de deposer ne doit pas faire sauter le numero : le premier
+    // fichier reellement transmis serait alors un « 03 » annulant un
+    // signalement qui n a jamais existe, et l organisme le rejetterait.
+    // ⚠️ L ARRET ET SA REPRISE ONT CHACUN LEUR COMPTEUR : ce sont deux
+    // declarations de natures differentes, leurs numeros d ordre ne se
+    // melangent pas.
+    // ═══════════════════════════════════════════════════════════════════
+    const dejaDeposes = Number(estReprise
+      ? (ev as any).numero_ordre_reprise
+      : (ev as any).numero_ordre) || 0;
+    const ordre = dejaDeposes + 1;
+
+    ecrire("S20.G00.05.002", dejaDeposes > 0 ? "03" : "01");
     ecrire("S20.G00.05.003", "11");            // fraction 1 sur 1
-    ecrire("S20.G00.05.004", "1");
+    ecrire("S20.G00.05.004", String(ordre));
     ecrire("S20.G00.05.007", dateConstitution);
     // 🆕⛔ LA DEVISE (05.010) EST INTERDITE DANS UN ARRET DE TRAVAIL — dsn-val,
     // CST-04. Un arret ne porte aucun montant : il n a pas de devise. Le
