@@ -557,6 +557,161 @@ async function calculer(contratId: string, periode: string): Promise<any> {
     }
   }
 
+  // ═══════════════════════════════════════════════════════════════════
+  // 🆕🚨 20/09 — ══ L ARRET DE TRAVAIL ENTRE DANS LA PAIE ══
+  //
+  // Jusqu ici l arret se SIGNALAIT et se DECLARAIT, mais le bulletin
+  // l ignorait : un salarie arrete dix jours etait paye son mois entier.
+  // L absence se saisissait a la main (« Absence maladie », un montant) —
+  // alors que l arret est deja en base, avec ses dates.
+  // ⛔ NE JAMAIS FAIRE TAPER CE QUE LA BASE SAIT DEJA.
+  //
+  // 🚨 LA METHODE : LES HEURES REELLES DU MOIS. La retenue vaut
+  //     salaire du mois × heures d absence / heures que le salarie aurait
+  //     travaillees ce mois-la
+  // C est la seule methode que la Cour de cassation tient pour exacte
+  // (Cass. soc., 11 fevrier 1982) : le trentieme ou les jours ouvres
+  // moyens retiennent trop certains mois et pas assez d autres.
+  //
+  // ⚠️ L HORAIRE EST SUPPOSE REPARTI DU LUNDI AU VENDREDI, a parts egales.
+  // Un temps partiel sur trois jours ou un travail du samedi demanderait un
+  // planning que le contrat ne porte pas : la reserve le dit.
+  // ⚠️ UN JOUR FERIE CHOME COMPTE COMME UN JOUR DU MOIS : il est paye comme
+  // s il avait ete travaille.
+  //
+  // 🚨 LA FIN DE L ABSENCE EST LA VEILLE DE LA REPRISE quand elle est
+  // saisie, sinon la fin prevue de l arret — la meme regle que la DSN, pour
+  // que le bulletin et la declaration parlent du meme arret.
+  //
+  // ⛔ LE MAINTIEN DE SALAIRE N EST PAS CALCULE ICI. Il depend de
+  // l anciennete (un an, article L1226-1), d un delai de carence, et de la
+  // convention collective qui fait souvent mieux. Le taire ferait croire le
+  // bulletin complet : la reserve le dit a chaque arret.
+  // ═══════════════════════════════════════════════════════════════════
+  const absencesArret: any[] = [];
+  let retenueArrets = 0;
+  const notesArret: string[] = [];
+
+  {
+    const an = Number(String(periode).slice(0, 4));
+    const mo = Number(String(periode).slice(5, 7));
+    const premierIso = String(periode).slice(0, 7) + "-01";
+    const dernierJour = new Date(Date.UTC(an, mo, 0)).getUTCDate();
+    const dernierIso = String(periode).slice(0, 7) + "-"
+      + (dernierJour < 10 ? "0" : "") + dernierJour;
+
+    const { data: arrets, error: eArr } = await supabase
+      .from("paie_evenements")
+      .select("*")
+      .eq("contrat_id", contratId)
+      .eq("type_evenement", "arret")
+      .lte("date_debut", dernierIso);
+
+    if (eArr) {
+      notesArret.push("🚨 Les arrêts de travail n'ont pas pu être lus ("
+        + eArr.message + ") : AUCUNE ABSENCE n'est retenue sur ce bulletin.");
+    }
+
+    // Les jours du lundi au vendredi entre deux dates ISO, bornes comprises.
+    const joursOuvres = function (deb: string, fin: string): number {
+      let n = 0;
+      const d = new Date(deb + "T00:00:00Z");
+      const f = new Date(fin + "T00:00:00Z");
+      while (d.getTime() <= f.getTime()) {
+        const j = d.getUTCDay();
+        if (j >= 1 && j <= 5) n += 1;
+        d.setUTCDate(d.getUTCDate() + 1);
+      }
+      return n;
+    };
+    const jjmm = function (iso: string): string {
+      return iso.slice(8, 10) + "/" + iso.slice(5, 7);
+    };
+
+    const saisieMain = (elements || []).some(function (e: any) {
+      return String(e.type_element || "") === "absence_maladie";
+    });
+
+    let baseMois = 0;
+    if (contrat.salaire_mensuel) baseMois = Number(contrat.salaire_mensuel);
+    else if (contrat.salaire_horaire && dureeMensuelle) {
+      baseMois = Number(contrat.salaire_horaire) * Number(dureeMensuelle);
+    }
+
+    const heuresJour = (Number(contrat.duree_hebdo) > 0
+      ? Number(contrat.duree_hebdo) : 35) / 5;
+    const joursDuMois = joursOuvres(premierIso, dernierIso);
+
+    for (const a of (arrets || [])) {
+      // Un arret annule ne retient rien.
+      if ((a as any).annule_le) continue;
+
+      const debA = String((a as any).date_debut || "").slice(0, 10);
+      let finA = String((a as any).date_fin || "").slice(0, 10);
+      const rep = String((a as any).reprise_date || "").slice(0, 10);
+      if (rep) {
+        const dr = new Date(rep + "T00:00:00Z");
+        dr.setUTCDate(dr.getUTCDate() - 1);
+        finA = dr.toISOString().slice(0, 10);
+      }
+      if (!debA || !finA) continue;
+
+      // La part de l arret qui tombe dans le mois.
+      const d1 = debA < premierIso ? premierIso : debA;
+      const d2 = finA > dernierIso ? dernierIso : finA;
+      if (d1 > d2) continue;
+
+      const joursAbs = joursOuvres(d1, d2);
+      if (joursAbs === 0) continue;
+
+      // ⛔ PAS DE DOUBLE RETENUE : une absence maladie tapee a la main ce
+      // mois-ci a deja retire le salaire.
+      if (saisieMain) {
+        notesArret.push("⚠️ Un arrêt de travail du " + jjmm(d1) + " au "
+          + jjmm(d2) + " est en base, mais une « Absence maladie » a été "
+          + "saisie à la main ce mois-ci : la retenue automatique n'a PAS été "
+          + "appliquée, pour ne pas retenir deux fois. Retirer la saisie "
+          + "manuelle pour laisser le calcul se faire.");
+        continue;
+      }
+      // ⚠️ PAYE AUX HEURES SAISIES : l absence ne se retient pas, elle n est
+      // simplement pas payee.
+      if (aDesHeuresNormales || baseMois <= 0 || joursDuMois === 0) continue;
+
+      const heuresAbs = cts(joursAbs * heuresJour);
+      const heuresMois = cts(joursDuMois * heuresJour);
+      const retenue = joursAbs >= joursDuMois
+        ? cts(baseMois)
+        : cts(baseMois * heuresAbs / heuresMois);
+
+      lignesBrut.push({
+        libelle: "Absence — arrêt de travail ("
+          + String((a as any).motif || "").replace(/_/g, " ") + ") du "
+          + jjmm(d1) + " au " + jjmm(d2),
+        quantite: heuresAbs,
+        taux: Math.round((baseMois / heuresMois) * 10000) / 10000,
+        montant: -retenue,
+      });
+      brutSoumis -= retenue;
+      retenueArrets += retenue;
+
+      absencesArret.push({
+        evenement_id: (a as any).id, motif: (a as any).motif,
+        debut: d1, fin: d2, jours: joursAbs, heures: heuresAbs,
+        heures_du_mois: heuresMois, retenue: retenue,
+      });
+
+      notesArret.push("Arrêt de travail du " + jjmm(d1) + " au " + jjmm(d2)
+        + " : " + heuresAbs.toLocaleString("fr-FR") + " h retenues sur "
+        + heuresMois.toLocaleString("fr-FR") + " h (méthode des heures "
+        + "réelles, horaire supposé réparti du lundi au vendredi). "
+        + "⛔ LE MAINTIEN DE SALAIRE N'EST PAS CALCULÉ : si le salarié y a "
+        + "droit — un an d'ancienneté selon la loi, souvent mieux selon la "
+        + "convention —, le complément de l'employeur MANQUE sur ce bulletin.");
+    }
+    retenueArrets = cts(retenueArrets);
+  }
+
   brutSoumis = cts(brutSoumis);
 
   // ---- LES INDEMNITES DE FIN DE MISSION ----
@@ -1193,6 +1348,13 @@ async function calculer(contratId: string, periode: string): Promise<any> {
     brut_soumis: brutSoumis,
     non_soumis: nonSoumis,
 
+    // 🆕 20/09 — CE QUE L ARRET DE TRAVAIL A RETENU. La DSN en a besoin : la
+    // remuneration de type 003 est le salaire RETABLI, c est-a-dire celui
+    // que le salarie aurait touche sans l absence. L assurance maladie
+    // calcule les indemnites journalieres dessus.
+    absences: absencesArret,
+    retenue_absences: retenueArrets,
+
     lignes_mission: lignesMission,
     ifm: ifm,
     iccp: iccp,
@@ -1332,6 +1494,7 @@ async function calculer(contratId: string, periode: string): Promise<any> {
           + "RGDU sont ceux des MOINS DE 50 SALARIÉS. Si l'entreprise est plus grande, "
           + "la cotisation est sous-évaluée et la réduction sur-évaluée.");
       }
+      for (const n of notesArret) r.unshift(n);
       return r;
     })(),
   };
