@@ -52,6 +52,32 @@
 // elle vaut « 02 » (envoi reel), la route refuse et le dit ; l ecran
 // demande alors une confirmation explicite avant de recommencer. Ainsi on
 // ne declare jamais pour de vrai en croyant faire un essai.
+//
+// ═══════════════════════════════════════════════════════════════════════
+// 🆕🚨 20/09 — LE RECOUVREMENT URSSAF SE SAISIT ICI, PLUS EN SQL
+//
+// Le bordereau URSSAF (blocs S21.G00.20, 22 et 23) a ete valide par
+// dsn-val le 20/09 : 535 lignes, zero anomalie. Il lui manquait deux
+// choses, qui se posaient a la main dans la base :
+//
+// 1. L URSSAF DE RATTACHEMENT. 🚨 AUCUN FICHIER PUBLIC NE DIT DE QUEL
+//    ORGANISME RELEVE UNE SOCIETE : les 36 URSSAF sont regionales, et la
+//    table ne donne aucune correspondance par departement. C est une
+//    donnee notifiee a l entreprise. ⛔ ELLE NE SE DEVINE PAS : un
+//    bordereau adresse au mauvais organisme est pire qu un bordereau
+//    absent. On la choisit dans la liste, on ne la tape pas.
+//
+// 2. L IBAN ET LE BIC DU COMPTE A PRELEVER. Sans eux, le bloc 20 n est pas
+//    ecrit du tout — le bordereau part, mais aucun prelevement n est
+//    demande.
+//    🚨 L IBAN EST VERIFIE PAR SA CLE AVANT D ETRE ENVOYE : une faute de
+//    frappe fait echouer le prelevement, et l URSSAF applique une
+//    majoration de retard. Le meme controle est refait par la route — le
+//    controle d un ecran ne prouve rien, on peut toujours appeler la route
+//    directement.
+//
+// ⚠️ CE QUI EST SAISI NE CHANGE AUCUN FICHIER DEJA GENERE : une DSN generee
+// est une photographie. Il faut regenerer pour que le bordereau apparaisse.
 // ═══════════════════════════════════════════════════════════════════════
 
 import { useState, useEffect } from "react";
@@ -114,6 +140,54 @@ function dateLimite(periode: string, effectif: number): string {
   return jour + " " + MOIS[mois - 1] + " " + annee;
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+// 🆕 20/09 — L IBAN : LE RENDRE LISIBLE, ET VERIFIER SA CLE
+//
+// 🚨 UN IBAN FAUX NE SE VOIT PAS A L OEIL. Sa cle de controle sert
+// exactement a ca : on deplace les quatre premiers caracteres a la fin, on
+// remplace chaque lettre par deux chiffres (A = 10 … Z = 35), et le reste
+// de la division par 97 doit valoir 1.
+//
+// ⚠️ LE NOMBRE EST TROP GRAND POUR UN ENTIER JAVASCRIPT : on le calcule
+// chiffre par chiffre en gardant le reste a chaque pas.
+//
+// ⛔ CE CONTROLE NE REMPLACE PAS CELUI DE LA ROUTE : il sert a le dire tout
+// de suite, sans aller-retour. La route le refait de son cote.
+// ═══════════════════════════════════════════════════════════════════════
+function ibanPropre(v: any): string {
+  return String(v || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+}
+
+// Par groupes de quatre, comme sur un relevé : c'est ainsi qu'on le relit.
+function ibanLisible(v: any): string {
+  const s = ibanPropre(v);
+  let sortie = "";
+  for (let i = 0; i < s.length; i += 4) sortie += (i ? " " : "") + s.substr(i, 4);
+  return sortie;
+}
+
+function cleIbanBonne(v: any): boolean {
+  const s = ibanPropre(v);
+  if (!/^[A-Z]{2}[0-9]{2}[A-Z0-9]{8,30}$/.test(s)) return false;
+  const reordonne = s.slice(4) + s.slice(0, 4);
+  let reste = 0;
+  for (let i = 0; i < reordonne.length; i++) {
+    const car = reordonne.charAt(i);
+    const chiffres = car >= "0" && car <= "9"
+      ? car
+      : String(car.charCodeAt(0) - 55);
+    for (let k = 0; k < chiffres.length; k++) {
+      reste = (reste * 10 + Number(chiffres.charAt(k))) % 97;
+    }
+  }
+  return reste === 1;
+}
+
+function bicBon(v: any): boolean {
+  const s = String(v || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  return /^[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?$/.test(s);
+}
+
 // Une date rendue par la base, affichee simplement.
 function quand(v: any): string {
   if (!v) return "";
@@ -143,6 +217,14 @@ export default function PageDsn() {
   // 🚨 LE RETOUR DU DEPOT, GARDE PAR MOIS : l accuse ou l avis de rejet
   // s affiche sous la declaration concernee, pas en haut de page.
   const [retour, setRetour] = useState<any>({});
+
+  // 🆕 20/09 — LE VOLET URSSAF.
+  // `organismes` : les 36 URSSAF lues en base. `urssafSaisie` : ce qui est
+  // en cours de frappe, par societe. `urssafOuvert` : quel formulaire est
+  // deplie.
+  const [organismes, setOrganismes] = useState<any[]>([]);
+  const [urssafSaisie, setUrssafSaisie] = useState<any>({});
+  const [urssafOuvert, setUrssafOuvert] = useState("");
 
   useEffect(function () {
     const s = sessionStorage.getItem("paie_secret") || "";
@@ -194,6 +276,10 @@ export default function PageDsn() {
     if (d.success) {
       setMois(d.mois); setSocietes(d.societes);
       setDiag(d.diagnostic || null);
+      // 🆕 LES 36 URSSAF, POUR LA LISTE DEROULANTE. Vide si la table n a
+      // pas ete importee : le bloc le dira au lieu de proposer un choix
+      // impossible.
+      setOrganismes(d.organismes || []);
       if (s) sessionStorage.setItem("paie_secret", s);
       // 🆕 L etat des acces suit le chargement, pour toutes les societes
       // d un coup : sinon il faudrait un clic par societe pour savoir si
@@ -285,6 +371,62 @@ export default function PageDsn() {
     else setErr(d.erreur || d.lecture || "vérification impossible");
 
     await chargerAcces(societesDeclarantes());
+    setOccupe("");
+  }
+
+  // ═════════════════════════════════════════════════════════════════════
+  // 🆕 20/09 — LE VOLET URSSAF D UNE SOCIETE
+  //
+  // Ce qui est enregistre se lit dans `societes` : la route le rend avec le
+  // reste, et l organisme y est deja resolu en denomination.
+  // ⚠️ `societesDeclarantes()` ne porte que id, nom et siret — c est voulu,
+  // elle vient des MOIS. Le volet, lui, vient de la societe.
+  // ═════════════════════════════════════════════════════════════════════
+  function voletUrssaf(id: string): any {
+    return societes.filter(function (s: any) { return s.id === id; })[0] || {};
+  }
+
+  // 🆕 20/09 — ENREGISTRER L ORGANISME ET LE COMPTE.
+  //
+  // ⚠️ ON ENVOIE LES QUATRE VALEURS ENSEMBLE, telles qu elles sont a
+  // l ecran : vider un champ vaut effacement. C est le seul comportement
+  // qui ne surprenne pas — ce qu on voit est ce qui sera enregistre.
+  async function enregistrerUrssaf(soc: any) {
+    const v = voletUrssaf(soc.id);
+    const f = urssafSaisie[soc.id] || {};
+
+    const codification = f.codification !== undefined
+      ? f.codification : (v.urssaf_codification || "");
+    const entite = f.entite !== undefined
+      ? f.entite : (v.urssaf_entite_affectation || "");
+    const iban = f.iban !== undefined ? f.iban : (v.iban_prelevement || "");
+    const bic = f.bic !== undefined ? f.bic : (v.bic_prelevement || "");
+
+    setErr(""); setMsg(""); setOccupe("urssaf" + soc.id);
+
+    const d = await appeler({
+      action: "urssaf",
+      societe_id: soc.id,
+      codification: codification,
+      entite: entite,
+      iban: ibanPropre(iban),
+      bic: bic,
+    });
+
+    if (d.success) {
+      let m = d.message || "Enregistré.";
+      // ⚠️ UN AVERTISSEMENT N EST PAS UN ECHEC, mais il doit se lire.
+      if ((d.avertissements || []).length > 0) {
+        m = m + " " + d.avertissements.join(" ");
+      }
+      setMsg(m);
+      setUrssafOuvert("");
+      // La saisie est oubliee : ce qui fait foi est ce que la base rend.
+      setUrssafSaisie({ ...urssafSaisie, [soc.id]: {} });
+      await charger();
+    } else {
+      setErr(d.erreur || "enregistrement impossible");
+    }
     setOccupe("");
   }
 
@@ -592,6 +734,209 @@ export default function PageDsn() {
                           style={{ ...BOUTON, marginTop: "12px",
                             opacity: (f.motdepasse || "") ? 1 : 0.4 }}>
                           {occupe === "acces" + soc.id ? "…" : "Enregistrer et vérifier"}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+            })}
+          </div>
+        )}
+
+        {/* ═══════════════════════════════════════════════════════════════
+            🆕 20/09 — LE RECOUVREMENT URSSAF
+
+            Deux choses, et elles ne se devinent ni l une ni l autre :
+            l organisme dont releve la societe, et le compte a prelever.
+
+            🚨 SANS ORGANISME, PAS DE BORDEREAU. Le generateur ecrit alors
+            la partie nominative seule et signale l absence — il ne choisit
+            pas une URSSAF au hasard.
+            🚨 SANS IBAN NI BIC, LE BORDEREAU PART MAIS AUCUN PRELEVEMENT
+            N EST DEMANDE : le paiement reste a faire autrement.
+            ═══════════════════════════════════════════════════════════════ */}
+        {societesDeclarantes().length > 0 && (
+          <div style={CADRE}>
+            <h3 style={{ color: OR, fontSize: "15px", margin: "0 0 4px" }}>
+              Recouvrement URSSAF
+            </h3>
+            <p style={{ fontSize: "12.5px", lineHeight: "1.6", margin: "0 0 14px",
+              color: "rgba(255,255,255,0.5)" }}>
+              L&apos;URSSAF dont dépend la société, et le compte sur lequel
+              elle prélève. L&apos;organisme figure sur les courriers de
+              l&apos;URSSAF ; il ne se déduit pas du département.
+            </p>
+
+            {/* ⚠️ UNE LISTE VIDE DOIT DIRE POURQUOI ELLE EST VIDE, plutot
+                que de laisser un choix impossible. */}
+            {organismes.length === 0 && (
+              <p style={{ fontSize: "12.5px", color: ROUGE, margin: "0 0 12px",
+                lineHeight: "1.6" }}>
+                La table des URSSAF est vide ou illisible : aucun organisme
+                ne peut être choisi. Elle s&apos;importe par
+                /api/urssaf/tables?action=importer.
+              </p>
+            )}
+
+            {societesDeclarantes().map(function (soc: any) {
+                const v = voletUrssaf(soc.id);
+                const f = urssafSaisie[soc.id] || {};
+                const deplie = urssafOuvert === soc.id;
+
+                // Ce qui est a l ecran : la frappe en cours si elle existe,
+                // sinon ce qui est enregistre.
+                const codification = f.codification !== undefined
+                  ? f.codification : (v.urssaf_codification || "");
+                const entite = f.entite !== undefined
+                  ? f.entite : (v.urssaf_entite_affectation || "");
+                const iban = f.iban !== undefined
+                  ? f.iban : (v.iban_prelevement || "");
+                const bic = f.bic !== undefined
+                  ? f.bic : (v.bic_prelevement || "");
+
+                const ibanSaisi = ibanPropre(iban);
+                const bicSaisi = String(bic || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+
+                // 🚨 LES TROIS RAISONS DE REFUSER LE BOUTON, chacune dite a
+                // l ecran juste au-dessus de lui.
+                const cleFausse = ibanSaisi !== "" && !cleIbanBonne(ibanSaisi);
+                const bicFaux = bicSaisi !== "" && !bicBon(bicSaisi);
+                const depareille = (ibanSaisi !== "") !== (bicSaisi !== "");
+                const empeche = cleFausse || bicFaux || depareille;
+
+                return (
+                  <div key={soc.id} style={{ paddingTop: "12px", marginTop: "12px",
+                    borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between",
+                      alignItems: "baseline", flexWrap: "wrap", gap: "8px" }}>
+                      <div>
+                        <strong style={{ fontSize: "14.5px" }}>
+                          {soc.nom || soc.siret}
+                        </strong>
+                        <span style={{ fontSize: "12px", marginLeft: "10px",
+                          color: v.urssaf_codification
+                            ? (v.iban_prelevement ? VERT : OR)
+                            : "rgba(255,255,255,0.45)" }}>
+                          {!v.urssaf_codification
+                            ? "aucune URSSAF renseignée"
+                            : (v.urssaf_denomination || v.urssaf_codification)
+                              + (v.iban_prelevement
+                                ? " · prélèvement sur " + ibanLisible(v.iban_prelevement)
+                                : " · sans prélèvement")}
+                        </span>
+                      </div>
+                      <button onClick={() => setUrssafOuvert(deplie ? "" : soc.id)}
+                        style={{ ...SECOND, padding: "6px 12px", fontSize: "12.5px" }}>
+                        {deplie ? "annuler"
+                          : v.urssaf_codification ? "modifier" : "renseigner"}
+                      </button>
+                    </div>
+
+                    {/* ⚠️ DIRE LA CONSEQUENCE, PAS SEULEMENT L ETAT. */}
+                    {!v.urssaf_codification && (
+                      <p style={{ margin: "8px 0 0", fontSize: "12px",
+                        color: "rgba(255,255,255,0.45)", lineHeight: "1.6" }}>
+                        Tant que l&apos;organisme manque, la DSN part sans son
+                        bordereau : les cotisations ne sont pas déclarées à
+                        l&apos;URSSAF.
+                      </p>
+                    )}
+                    {v.urssaf_codification && !v.iban_prelevement && (
+                      <p style={{ margin: "8px 0 0", fontSize: "12px",
+                        color: "rgba(255,255,255,0.45)", lineHeight: "1.6" }}>
+                        Le bordereau est déclaré, mais aucun prélèvement
+                        n&apos;est demandé : le paiement reste à faire par un
+                        autre moyen.
+                      </p>
+                    )}
+
+                    {deplie && (
+                      <div style={{ marginTop: "12px" }}>
+                        <div style={{ marginBottom: "10px" }}>
+                          <span style={LIB}>URSSAF de rattachement</span>
+                          <select style={CHAMP} value={codification}
+                            onChange={(ev) => setUrssafSaisie({ ...urssafSaisie,
+                              [soc.id]: { ...f, codification: ev.target.value } })}>
+                            <option value="">— aucune —</option>
+                            {organismes.map(function (o: any) {
+                              return (
+                                <option key={o.codification} value={o.codification}>
+                                  {o.denomination}
+                                  {o.ville ? " · " + o.ville : ""}
+                                </option>
+                              );
+                            })}
+                          </select>
+                        </div>
+
+                        <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+                          <div style={{ flex: "2 1 260px" }}>
+                            <span style={LIB}>IBAN du compte à prélever</span>
+                            <input style={{ ...CHAMP,
+                              borderColor: cleFausse ? ROUGE
+                                : "rgba(255,255,255,0.16)" }}
+                              value={ibanLisible(iban)}
+                              onChange={(ev) => setUrssafSaisie({ ...urssafSaisie,
+                                [soc.id]: { ...f, iban: ev.target.value } })} />
+                          </div>
+                          <div style={{ flex: "1 1 140px" }}>
+                            <span style={LIB}>BIC</span>
+                            <input style={{ ...CHAMP,
+                              borderColor: bicFaux ? ROUGE
+                                : "rgba(255,255,255,0.16)" }}
+                              value={bic}
+                              onChange={(ev) => setUrssafSaisie({ ...urssafSaisie,
+                                [soc.id]: { ...f, bic: ev.target.value } })} />
+                          </div>
+                        </div>
+
+                        <div style={{ marginTop: "10px" }}>
+                          <span style={LIB}>
+                            Entité d&apos;affectation (rarement utilisée)
+                          </span>
+                          <input style={CHAMP} value={entite}
+                            onChange={(ev) => setUrssafSaisie({ ...urssafSaisie,
+                              [soc.id]: { ...f, entite: ev.target.value } })} />
+                        </div>
+
+                        {/* 🚨 DIRE CE QUI CLOCHE, ET OU. Un bouton grisé sans
+                            explication fait perdre plus de temps qu un refus
+                            au moment du clic. */}
+                        {cleFausse && (
+                          <p style={{ margin: "10px 0 0", fontSize: "12px",
+                            color: ROUGE, lineHeight: "1.55" }}>
+                            La clé de contrôle de cet IBAN est fausse : il y a
+                            une erreur de saisie. Recopiez-le depuis un relevé.
+                          </p>
+                        )}
+                        {bicFaux && (
+                          <p style={{ margin: "10px 0 0", fontSize: "12px",
+                            color: ROUGE, lineHeight: "1.55" }}>
+                            Le BIC doit compter 8 ou 11 caractères.
+                          </p>
+                        )}
+                        {depareille && !cleFausse && !bicFaux && (
+                          <p style={{ margin: "10px 0 0", fontSize: "12px",
+                            color: ROUGE, lineHeight: "1.55" }}>
+                            L&apos;IBAN et le BIC se déclarent ensemble : il
+                            faut les deux, ou aucun des deux.
+                          </p>
+                        )}
+
+                        <p style={{ margin: "10px 0 0", fontSize: "11.5px",
+                          lineHeight: "1.6", color: "rgba(255,255,255,0.42)" }}>
+                          Ce qui est à l&apos;écran est ce qui sera enregistré :
+                          vider un champ l&apos;efface. Une DSN déjà générée ne
+                          change pas — il faut la regénérer pour que le
+                          bordereau y apparaisse.
+                        </p>
+
+                        <button
+                          onClick={() => enregistrerUrssaf(soc)}
+                          disabled={occupe !== "" || empeche}
+                          style={{ ...BOUTON, marginTop: "12px",
+                            opacity: empeche ? 0.4 : 1 }}>
+                          {occupe === "urssaf" + soc.id ? "…" : "Enregistrer"}
                         </button>
                       </div>
                     )}
