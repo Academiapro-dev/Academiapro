@@ -353,7 +353,48 @@ export async function POST(req: NextRequest) {
     }
 
     const type = q((ev as any).type_evenement);
-    const estArret = type === "arret";
+
+    // ═══════════════════════════════════════════════════════════════════
+    // 🆕🚨 20/09 — LA REPRISE (NATURE 05)
+    //
+    // La reprise NE S APPELLE PAS depuis un evenement a part : elle se
+    // rattache a SON arret, qui porte sa date et son motif. Un arret sans
+    // reprise n en a pas ; un arret avec reprise peut produire DEUX
+    // fichiers — le signalement d arret, puis celui de la reprise.
+    // ⛔ CREER UN EVENEMENT SEPARE AURAIT DUPLIQUE le NIR, le contrat et
+    // les dates de l arret, avec le risque qu ils divergent.
+    //
+    // ⚠️ ON NE DEMANDE UNE REPRISE QUE SI L APPELANT LE DIT (`reprise:
+    // true`) : le meme arret sert aux deux fichiers, et c est le geste de
+    // l utilisateur qui choisit lequel est genere.
+    //
+    // 🚨 LA REPRISE SE SIGNALE QUAND ELLE EST ANTICIPEE. dsn-val, controle
+    // SIG-13 : une date de reprise posterieure a la fin prevue de l arret
+    // est refusee. Reprendre a la date prevue n est pas un evenement — il
+    // n y a rien a signaler.
+    // ═══════════════════════════════════════════════════════════════════
+    const veutReprise = c.reprise === true;
+    const estArret = type === "arret" && !veutReprise;
+    const estReprise = type === "arret" && veutReprise;
+
+    if (estReprise) {
+      if (!q((ev as any).reprise_date)) {
+        return NextResponse.json({
+          erreur: "aucune date de reprise n'est renseignée sur cet arrêt. "
+            + "⛔ LE SIGNALEMENT DE REPRISE EST IMPOSSIBLE SANS ELLE.",
+        }, { status: 400 });
+      }
+      const finPrevue = q((ev as any).date_fin);
+      const dateRep = q((ev as any).reprise_date);
+      if (finPrevue && dateRep > finPrevue) {
+        return NextResponse.json({
+          erreur: "la reprise du " + dateRep + " est postérieure à la fin "
+            + "prévue de l'arrêt (" + finPrevue + "). ⛔ IL N'Y A RIEN À "
+            + "SIGNALER : la reprise ne se déclare que lorsqu'elle est "
+            + "ANTICIPÉE. Le contrôle SIG-13 la refuserait.",
+        }, { status: 400 });
+      }
+    }
 
     // ⚠️ LA NATURE DIT DE QUEL SIGNALEMENT IL S AGIT : 04 arret de travail,
     // 07 fin de contrat. C est elle qui aiguille le fichier vers le bon
@@ -377,7 +418,13 @@ export async function POST(req: NextRequest) {
     // l arret, et le salarie n aurait pas touche ses indemnites.
     // ⚠️ LA NATURE « 05 » EXISTE AUSSI ET N EST PAS ENCORE PRODUITE ICI : la
     // REPRISE du travail se signale quand elle a lieu avant la date prevue.
-    const nature = estArret ? "04" : "07";
+    // 04 arret · 05 reprise · 07 fin de contrat.
+    const nature = estReprise ? "05" : (estArret ? "04" : "07");
+
+    // ⚠️ L ARRET ET LA REPRISE ONT LA MEME STRUCTURE : partout ou le code
+    // distingue l arret du FCTU, la reprise suit l arret. Ce drapeau evite
+    // de reecrire vingt conditions.
+    const commeArret = estArret || estReprise;
 
     const dateEv = q((ev as any).date_debut);
     const dateFinContrat = q((ev as any).date_fin) || dateEv;
@@ -399,7 +446,7 @@ export async function POST(req: NextRequest) {
     // ═══════════════════════════════════════════════════════════════════
     let b: any = null;
     let bulletinDuMois = true;
-    if (!estArret) {
+    if (!commeArret) {
       const moisFin = dateFinContrat.slice(0, 7) + "-01";
       const { data: buls, error: eBul } = await supabase
         .from("paie_bulletins")
@@ -483,7 +530,7 @@ export async function POST(req: NextRequest) {
     // la. Le signaler absent sur un arret serait crier au loup pour une
     // rubrique que ce fichier n a pas le droit de porter.
     const codeApe = apeDsn(societe.code_ape);
-    if (!codeApe && !estArret) {
+    if (!codeApe && !commeArret) {
       anomalies.push(q(societe.code_ape)
         ? "Code APE « " + q(societe.code_ape) + " » mal formé : il s'écrit sur "
           + "quatre chiffres et une lettre (7820Z). ⛔ NON DÉCLARÉ — les "
@@ -533,7 +580,7 @@ export async function POST(req: NextRequest) {
     // 🆕⛔ LA DEVISE (05.010) EST INTERDITE DANS UN ARRET DE TRAVAIL — dsn-val,
     // CST-04. Un arret ne porte aucun montant : il n a pas de devise. Le
     // FCTU, qui declare une paie, la garde.
-    if (!estArret) ecrire("S20.G00.05.010", "01");   // euro
+    if (!commeArret) ecrire("S20.G00.05.010", "01");   // euro
 
     // ── S20.G00.07 — LE CONTACT CHEZ LE DECLARE ──
     //
@@ -548,7 +595,7 @@ export async function POST(req: NextRequest) {
     // la meme chose.
     // ⛔ ON NE L AJOUTE PAS AU FCTU : il y est facultatif, et le FCTU est
     // passe dans dsn-val sans lui. On ne touche pas a un fichier valide.
-    if (estArret) {
+    if (commeArret) {
       ecrire("S20.G00.07.001", q(societe.contact_nom) || CONTACT_DEFAUT);
       ecrire("S20.G00.07.002", q(societe.contact_tel) || TELEPHONE_DEFAUT);
       ecrire("S20.G00.07.003", q(societe.contact_email) || EMAIL_DEFAUT);
@@ -584,7 +631,7 @@ export async function POST(req: NextRequest) {
     ecrire("S21.G00.06.002", siret.slice(9));
     // 🆕⛔ DANS UN ARRET, L ENTREPRISE N EST QUE SON SIREN ET SON NIC : le code
     // APEN et l adresse (06.003 a 06.006) y sont INTERDITS — dsn-val, CST-04.
-    if (!estArret) {
+    if (!commeArret) {
       ecrire("S21.G00.06.003", codeApe);       // APEN, obligatoire
       ecrire("S21.G00.06.004", societe.adresse);
       ecrire("S21.G00.06.005", q(societe.code_postal));
@@ -594,7 +641,7 @@ export async function POST(req: NextRequest) {
     ecrire("S21.G00.11.001", siret.slice(9));
     // 🆕⛔ LE CODE APET (11.002) EST INTERDIT DANS UN ARRET — l adresse de
     // l etablissement, elle, y reste permise.
-    if (!estArret) ecrire("S21.G00.11.002", codeApe);   // APET, obligatoire
+    if (!commeArret) ecrire("S21.G00.11.002", codeApe);   // APET, obligatoire
     ecrire("S21.G00.11.003", societe.adresse);
     ecrire("S21.G00.11.004", q(societe.code_postal));
     ecrire("S21.G00.11.005", societe.ville);
@@ -604,7 +651,7 @@ export async function POST(req: NextRequest) {
     // c est le cas de Thomas BERNARD, en 1486 dans une societe a 2378.
     // 🆕⛔ LA CONVENTION COLLECTIVE (11.022) EST INTERDITE DANS UN ARRET.
     const idcc = q(ct.idcc) || q(societe.idcc);
-    if (idcc && !estArret) ecrire("S21.G00.11.022", String(idcc).padStart(4, "0"));
+    if (idcc && !commeArret) ecrire("S21.G00.11.022", String(idcc).padStart(4, "0"));
 
     // ── S21.G00.30 — L INDIVIDU ──
     //
@@ -624,7 +671,7 @@ export async function POST(req: NextRequest) {
       anomalies.push(qui + " : date de naissance absente "
         + "(S21.G00.30.006). ⛔ RUBRIQUE OBLIGATOIRE.");
     }
-    if (!estArret && !sexeDsn(sal.sexe, nirComplet)) {
+    if (!commeArret && !sexeDsn(sal.sexe, nirComplet)) {
       anomalies.push(qui + " : sexe indéterminé (S21.G00.30.005) — ni saisi, "
         + "ni déductible du numéro de sécurité sociale. ⛔ RUBRIQUE "
         + "OBLIGATOIRE.");
@@ -637,10 +684,10 @@ export async function POST(req: NextRequest) {
     // prenom, date de naissance. Le sexe, l adresse et les donnees de
     // naissance (005, 007 a 010, 013 a 015) y sont INTERDITS — dsn-val,
     // CST-04, huit fois. La CPAM connait deja son assure : le NIR suffit.
-    if (!estArret) ecrire("S21.G00.30.005", sexeDsn(sal.sexe, nirComplet));
+    if (!commeArret) ecrire("S21.G00.30.005", sexeDsn(sal.sexe, nirComplet));
     ecrire("S21.G00.30.006", dateDsn(sal.date_naissance));
 
-    if (!estArret) {
+    if (!commeArret) {
       const deptNaissance = nirComplet.length >= 7 ? nirComplet.slice(5, 7) : "";
       if (deptNaissance && deptNaissance !== "99") {
         ecrire("S21.G00.30.007", sal.lieu_naissance);
@@ -687,7 +734,7 @@ export async function POST(req: NextRequest) {
     const lieuTravail = missionValide ? siretEu : siret;
     const tempsPlein = !ct.duree_hebdo || Number(ct.duree_hebdo) >= 35;
 
-    if (estArret) {
+    if (commeArret) {
       // 🆕⛔ DANS UN ARRET DE TRAVAIL, LE CONTRAT TIENT EN DEUX RUBRIQUES : sa
       // date de debut et son numero. dsn-val a declare INTERDITES les vingt
       // autres (CST-04) — statut, emploi, nature, quotites, convention,
@@ -800,7 +847,7 @@ export async function POST(req: NextRequest) {
     const { data: codesMotif } = await supabase
       .from("dsn_codes")
       .select("*")
-      .eq("rubrique", estArret ? "S21.G00.60.001" : "S21.G00.62.002")
+      .eq("rubrique", commeArret ? "S21.G00.60.001" : "S21.G00.62.002")
       .is("date_fin", null);
 
     let codeMotif = "";
@@ -812,7 +859,7 @@ export async function POST(req: NextRequest) {
     if (!codeMotif) {
       anomalies.push("⛔ MOTIF « " + q((ev as any).motif) + " » SANS CODE DSN "
         + "actif pour la rubrique "
-        + (estArret ? "S21.G00.60.001" : "S21.G00.62.002")
+        + (commeArret ? "S21.G00.60.001" : "S21.G00.62.002")
         + ". Le signalement ne peut pas être déposé.");
     }
 
@@ -827,9 +874,9 @@ export async function POST(req: NextRequest) {
     // ✅ DEUXIEME PASSAGE : dsn-val a accepte cet ordre.
     // ═══════════════════════════════════════════════════════════════════
 
-    if (estArret) {
+    if (commeArret) {
       // ═══════════════════════════════════════════════════════════════
-      // ── S21.G00.60 — L ARRET DE TRAVAIL ──
+      // ── S21.G00.60 — L ARRET DE TRAVAIL, ET SA REPRISE ──
       //
       // 🚨 LA SUBROGATION DECIDE QUI TOUCHE LES INDEMNITES. Quand
       // l employeur maintient le salaire, il percoit les IJSS a la place
@@ -860,6 +907,38 @@ export async function POST(req: NextRequest) {
           + "date portée sur l'avis d'arrêt du médecin.");
       }
       ecrire("S21.G00.60.004", (ev as any).subrogation ? "01" : "02");
+
+      // ═══════════════════════════════════════════════════════════════
+      // 🆕 LA REPRISE — DEUX RUBRIQUES DE PLUS, ET RIEN D AUTRE
+      //
+      // dsn-val, essai du 20/09 sur un fichier de nature 05 bati sur
+      // l arret : DEUX anomalies, pas une de plus — « CST-03 / Absence de
+      // la rubrique S21.G00.60.010 » et la meme pour la 60.011. La reprise
+      // est donc l arret, plus la date et le motif de reprise.
+      //
+      // LES TROIS MOTIFS, LUS DANS L ENUMERATION QUE dsn-val A AFFICHEE :
+      //     01  reprise normale
+      //     02  reprise temps partiel therapeutique
+      //     03  reprise temps partiel raison personnelle
+      // ⛔ ON N EN INVENTE PAS UN QUATRIEME : sans motif enregistre, on
+      // prend « 01 - reprise normale », qui est le cas ordinaire, et on le
+      // signale.
+      // ═══════════════════════════════════════════════════════════════
+      if (estReprise) {
+        ecrire("S21.G00.60.010", dateDsn((ev as any).reprise_date));
+
+        const motifRep = q((ev as any).reprise_motif);
+        if (motifRep === "01" || motifRep === "02" || motifRep === "03") {
+          ecrire("S21.G00.60.011", motifRep);
+        } else {
+          ecrire("S21.G00.60.011", "01");
+          anomalies.push("Motif de reprise non renseigné : « 01 - reprise "
+            + "normale » a été déclaré. ⚠️ Si le salarié reprend en temps "
+            + "partiel thérapeutique (02) ou pour raison personnelle (03), "
+            + "le corriger AVANT le dépôt — la CPAM en tire des droits "
+            + "différents.");
+        }
+      }
 
       if ((ev as any).subrogation) {
         // 🆕🚨 EN SUBROGATION, QUATRE RUBRIQUES VONT ENSEMBLE : debut, FIN, IBAN
@@ -976,7 +1055,7 @@ export async function POST(req: NextRequest) {
     // sous-groupe S21.G00.71 est interdit pour cette nature de declaration
     // (DSN SIGNAL ARRET TRAVAIL) ». Le controle CCH-17 ne joue donc pas la :
     // il s appuie sur la rubrique 40.003, elle-meme interdite dans un arret.
-    if (!estArret) ecrire("S21.G00.71.002", q(ct.regime_retraite_c) || "RUAA");
+    if (!commeArret) ecrire("S21.G00.71.002", q(ct.regime_retraite_c) || "RUAA");
 
     // ═══════════════════════════════════════════════════════════════════
     // 🚨 LA DERNIERE PAIE, TELLE QU UN FCTU L ACCEPTE — BLOCS 50, 51, 53,
@@ -1228,8 +1307,9 @@ export async function POST(req: NextRequest) {
     // 🆕⛔ CE BLOC EST INTERDIT DANS UN ARRET DE TRAVAIL — dsn-val : « le
     // sous-groupe S21.G00.85 est interdit pour cette nature ». Et c est
     // coherent : l arret ne porte pas la rubrique 40.019 qui y renvoie.
-    if (estArret) {
-      // rien : un arret de travail ne decrit aucun lieu de travail.
+    if (commeArret) {
+      // rien : un arret de travail ni une reprise ne decrivent de lieu de
+      // travail.
     } else if (missionValide) {
       const insee = q(ct.eu_code_insee);
       const cpLieu = q(ct.eu_code_postal);
@@ -1279,8 +1359,8 @@ export async function POST(req: NextRequest) {
     // telecharge pas un « .dsn ». Dans dsn-val, passer le filtre de la
     // fenetre d ouverture sur « Tous les fichiers ».
     const nomFichier = "DSN-" + siret + "-"
-      + (estArret ? "ARRET" : "FCTU") + "-"
-      + (estArret ? dateEv : dateFinContrat).replace(/-/g, "") + ".txt";
+      + (estReprise ? "REPRISE" : (estArret ? "ARRET" : "FCTU")) + "-"
+      + (commeArret ? dateEv : dateFinContrat).replace(/-/g, "") + ".txt";
 
     const { error: eMaj } = await supabase
       .from("paie_evenements")
@@ -1294,7 +1374,8 @@ export async function POST(req: NextRequest) {
       success: true,
       nom_fichier: nomFichier,
       nature: nature,
-      type: estArret ? "arrêt de travail" : "fin de contrat",
+      type: estReprise ? "reprise du travail"
+        : (estArret ? "arrêt de travail" : "fin de contrat"),
       salarie: qui,
       bulletin: b ? q(b.numero) : null,
       lignes: L.length,
@@ -1305,10 +1386,10 @@ export async function POST(req: NextRequest) {
         "L'envoi est en MODE ESSAI (S10.G00.00.005 = 01). Passer à 02 pour "
           + "un dépôt réel.",
         "⚠️ DÉLAI LÉGAL DE CINQ JOURS : au-delà, "
-          + (estArret
+          + (commeArret
             ? "les indemnités journalières du salarié sont retardées."
             : "l'ancien salarié ne peut pas ouvrir ses droits au chômage."),
-        estArret
+        commeArret
           ? "La date de fin prévisionnelle, la fin de subrogation et le BIC "
             + "sont obligatoires : l'écran doit encore les exiger à la saisie."
           : "Le préavis ne se saisit pas encore à l'écran : seuls les motifs "
