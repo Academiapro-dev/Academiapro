@@ -944,6 +944,78 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // ═══════════════════════════════════════════════════════════════════
+    // 🆕🚨 20/09 — MARQUER UN SIGNALEMENT DEPOSE
+    //
+    // 🚨 C EST CE GESTE QUI INCREMENTE LE NUMERO D ORDRE. Tant qu un
+    // signalement n est pas depose, le regenerer produit le meme numero —
+    // c est voulu : trois essais avant l envoi ne sont qu un seul
+    // signalement.
+    // ⚠️ DES LE PREMIER DEPOT, le fichier suivant sera un « annule et
+    // remplace » (type 03), et c est exactement ce qu attend l organisme
+    // quand une date d arret change.
+    // ⛔ ON NE PEUT PAS DEPOSER CE QUI N A PAS ETE GENERE : sans fichier, il
+    // n y a rien a transmettre.
+    // ═══════════════════════════════════════════════════════════════════
+    if (action === "deposer_evenement") {
+      const idEv = String(c.id || "");
+      const estReprise = c.reprise === true;
+      if (!idEv) {
+        return NextResponse.json({ erreur: "signalement manquant." },
+          { status: 400 });
+      }
+
+      const { data: ev, error: eLec } = await supabase
+        .from("paie_evenements")
+        .select("id, type_evenement, fichier, numero_ordre, numero_ordre_reprise")
+        .eq("id", idEv)
+        .maybeSingle();
+
+      if (eLec) {
+        return NextResponse.json({ erreur: "lecture impossible : " + eLec.message },
+          { status: 500 });
+      }
+      if (!ev) {
+        return NextResponse.json({ erreur: "signalement introuvable." },
+          { status: 404 });
+      }
+      if (!String((ev as any).fichier || "").trim()) {
+        return NextResponse.json({
+          erreur: "ce signalement n'a pas encore été généré : il n'y a rien à "
+            + "déposer.",
+        }, { status: 400 });
+      }
+
+      const champ = estReprise ? "numero_ordre_reprise" : "numero_ordre";
+      const avant = Number((ev as any)[champ]) || 0;
+      const maj: any = { statut: "depose" };
+      maj[champ] = avant + 1;
+
+      const { data: fait, error: eMaj } = await supabase
+        .from("paie_evenements")
+        .update(maj)
+        .eq("id", idEv)
+        .select("id")
+        .maybeSingle();
+
+      if (eMaj) {
+        return NextResponse.json({ erreur: "enregistrement impossible : "
+          + eMaj.message }, { status: 500 });
+      }
+      if (!fait) {
+        return NextResponse.json({ erreur: "rien n'a été modifié." },
+          { status: 409 });
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: (estReprise ? "Reprise" : "Signalement")
+          + " marqué déposé (envoi n° " + (avant + 1) + "). "
+          + "⚠️ Le prochain fichier de ce type sera un « annule et remplace » "
+          + "portant le n° " + (avant + 2) + ".",
+      });
+    }
+
     if (action === "ajouter_evenement") {
       const contratId = String(c.contrat_id || "");
       const type = String(c.type_evenement || "");
