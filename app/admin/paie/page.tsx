@@ -1598,7 +1598,10 @@ export default function PagePaie() {
                 {ev.type_evenement === "arret" && (
                   <div style={{ display: "flex", gap: "10px", flexWrap: "wrap",
                     marginTop: "12px" }}>
-                    <div style={{ flex: "1 1 200px" }}>
+                    {/* ⚠️ LARGEUR BORNEE : sans `maxWidth`, le champ seul
+                        s etirait sur toute la ligne tant que le motif n etait
+                        pas affiche. */}
+                    <div style={{ flex: "1 1 200px", maxWidth: "260px" }}>
                       <span style={LIB}>Reprise anticipée le (facultatif)</span>
                       <input type="date" value={ev.reprise_date} style={CHAMP}
                         onChange={(x: any) => setEv(Object.assign({}, ev,
@@ -1620,13 +1623,15 @@ export default function PagePaie() {
                     )}
                   </div>
                 )}
-                {ev.type_evenement === "arret" && (
+                {/* ⚠️ L EXPLICATION NE S AFFICHE QU UNE FOIS LA DATE SAISIE :
+                    sur un formulaire vide, elle encombrait sans rien apprendre
+                    — la plupart des arrets vont a leur terme. */}
+                {ev.type_evenement === "arret" && ev.reprise_date && (
                   <p style={{ fontSize: "12px", color: "rgba(255,255,255,0.45)",
                     margin: "8px 0 0", lineHeight: "1.6" }}>
-                    À remplir seulement si le salarié revient AVANT la fin prévue
-                    de son arrêt : la reprise se signale alors à part, par
-                    « générer la reprise ». Un arrêt qui va à son terme ne se
-                    signale pas.
+                    La reprise se signale à part, par « générer la reprise »,
+                    et seulement parce qu&apos;elle est ANTICIPÉE. Un arrêt qui
+                    va à son terme ne se signale pas.
                   </p>
                 )}
 
@@ -1760,7 +1765,15 @@ export default function PagePaie() {
                                 D ORDRE. Le bouton n apparait qu une fois le
                                 fichier genere : sans lui, il n y a rien a
                                 transmettre. */}
-                            {x.fichier && (
+                            {/* 🚨 ON NE MARQUE PAS DEPOSE CE QU ON SAIT FAUX.
+                                `manques` porte les defauts visibles d un arret
+                                — IBAN, BIC, fin de subrogation.
+                                ⚠️ IL NE COUVRE PAS LA FIN DE CONTRAT : son
+                                defaut (aucun bulletin emis pour le mois de la
+                                rupture) n apparait qu a la generation. C est
+                                la ROUTE qui le refuse, et c est la bonne
+                                place — un controle d ecran s oublie. */}
+                            {x.fichier && manques.length === 0 && (
                               <button onClick={() => deposerSignalement(x.id)}
                                 disabled={occupe !== ""}
                                 style={{ ...LIEN, color: OR }}>
