@@ -520,51 +520,51 @@ function apeDsn(v: any): string {
 // libelle qu a defaut, en le signalant. ⚠️ A REPRENDRE quand le
 // calculateur posera un code sur ces lignes, comme pour le salaire de base.
 // ═══════════════════════════════════════════════════════════════════════
-function primesDsn(detail: any): { lignes: any[]; replis: string[] } {
-  const brut: any[] = Array.isArray(detail && detail.lignes_brut) ? detail.lignes_brut : [];
-  const norm = function (v: any): string {
-    return q(v).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-  };
+function primesDsn(detail: any, ct: any): { lignes: any[]; inconnues: string[] } {
+  // 🚨 LES INDEMNITES NE SONT PAS DANS `lignes_brut` — MESURE DU 20/09.
+  // Le premier jet les y cherchait et n en trouvait aucune : `lignes_brut`
+  // ne porte que le salaire, les heures supplementaires et le panier. Les
+  // indemnites de fin de contrat vivent dans `detail.lignes_mission`, et
+  // elles y portent DEJA UN CODE — « IFM » et « ICCP ».
+  // ⛔ C EST LA LECON DE LA JOURNEE : lire la donnee avant d ecrire le code
+  // qui la decoupe. Une supposition sur la forme d un JSON ne se voit pas,
+  // elle produit simplement un fichier ou il manque quelque chose.
+  const lignes: any[] = Array.isArray(detail && detail.lignes_mission)
+    ? detail.lignes_mission : [];
 
-  const lignes: any[] = [];
-  const replis: string[] = [];
+  const sortie: any[] = [];
+  const inconnues: string[] = [];
 
-  for (const l of brut) {
+  // ⚠️ LE MEME CODE « IFM » COUVRE DEUX TYPES DIFFERENTS, et c est la
+  // nature du contrat qui tranche :
+  //   · mission (interim) → 012, indemnite legale de fin de mission
+  //   · CDD               → 011, indemnite legale de fin de CDD
+  // Les declarer l un pour l autre rattacherait le salarie au mauvais
+  // dispositif aupres de France Travail.
+  const estMission = q(ct && ct.type_contrat).toLowerCase() === "mission";
+
+  for (const l of lignes) {
     const montant = Number(l && l.montant || 0);
     if (!(montant > 0)) continue;
 
-    // 1. LE CODE, QUAND IL EXISTE : c est la seule voie sure.
-    const codeLigne = q(l && (l as any).code_dsn).toUpperCase();
-    if (codeLigne === "011" || codeLigne === "012" || codeLigne === "020") {
-      lignes.push({ type: codeLigne, montant: montant, libelle: q(l.libelle) });
-      continue;
-    }
-
-    // 2. A DEFAUT, LE LIBELLE — et on le dit.
-    const lib = norm(l && l.libelle);
+    const code = q(l && l.code).toUpperCase();
     let type = "";
-    if (lib.indexOf("indemnite de fin de mission") >= 0
-      || lib.indexOf("fin de mission") >= 0) {
-      type = "012";
-    } else if (lib.indexOf("fin de contrat") >= 0
-      || lib.indexOf("precarite") >= 0) {
-      type = "011";
-    } else if (lib.indexOf("indemnite compensatrice de conges") >= 0
-      || lib.indexOf("indemnite de conges payes") >= 0) {
-      // ⚠️ « Indemnite de conges payes (maintien de salaire) » N EST PAS une
-      // indemnite compensatrice : c est la paie des conges PRIS, du travail
-      // remunere au sens de la 002. Elle reste dans la remuneration.
-      if (lib.indexOf("maintien") >= 0) continue;
-      type = "020";
-    }
+
+    if (code === "IFM") type = estMission ? "012" : "011";
+    else if (code === "ICCP") type = "020";
 
     if (type) {
-      lignes.push({ type: type, montant: montant, libelle: q(l.libelle) });
-      replis.push(q(l.libelle) + " → type " + type);
+      sortie.push({ type: type, montant: montant, libelle: q(l.libelle) });
+    } else {
+      // ⛔ ON N INVENTE PAS DE TYPE. Une ligne inconnue reste dans la
+      // remuneration et l anomalie la nomme : c est a un humain de dire
+      // sous quel type elle se declare.
+      inconnues.push(q(l.libelle) + " (code « " + code + " », "
+        + montant.toFixed(2) + " EUR)");
     }
   }
 
-  return { lignes: lignes, replis: replis };
+  return { lignes: sortie, inconnues: inconnues };
 }
 
 function salaireDeBaseDsn(detail: any, ct: any): { montant: number; repli: string } | null {
@@ -1948,7 +1948,7 @@ export async function POST(req: NextRequest) {
     // omettre prive le salarie d une partie de ses droits, et cela ne se
     // voit qu au moment ou il en a besoin.
     // ═══════════════════════════════════════════════════════════════
-    const primes = primesDsn(detail);
+    const primes = primesDsn(detail, ct);
     const totalPrimes = primes.lignes.reduce(function (s: number, p: any) {
       return s + Number(p.montant || 0);
     }, 0);
@@ -2001,11 +2001,11 @@ export async function POST(req: NextRequest) {
       ecrire("S21.G00.52.006", numeroContrat);
     }
 
-    if (primes.replis.length > 0) {
-      anomalies.push(qui + " : les primes déclarées en bloc S21.G00.52 ont été "
-        + "reconnues À LEUR LIBELLÉ, faute de code sur les lignes du bulletin ("
-        + primes.replis.join(" ; ") + "). ⚠️ Un libellé qui change casserait "
-        + "cette reconnaissance sans aucun message. À VÉRIFIER.");
+    if (primes.inconnues.length > 0) {
+      anomalies.push(qui + " : indemnité(s) sans type DSN connu — "
+        + primes.inconnues.join(" ; ") + ". ⛔ ELLE(S) NE SONT PAS DÉCLARÉES "
+        + "en bloc S21.G00.52 et restent dans la rémunération de type 002. "
+        + "Ajouter la correspondance avant le dépôt.");
     }
 
 
