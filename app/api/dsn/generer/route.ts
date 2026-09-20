@@ -493,6 +493,80 @@ function apeDsn(v: any): string {
 //      base sur un bulletin. Le repli est SIGNALE, avec le libelle retenu ;
 //   3. a defaut, le salaire mensuel du contrat, SIGNALE lui aussi ;
 //   4. sinon rien : on n invente pas un salaire de base.
+// ═══════════════════════════════════════════════════════════════════════
+// 🆕🚨 20/09 — LES PRIMES ET INDEMNITES DU BLOC S21.G00.52
+//
+// LA REGLE, LUE ET EPROUVEE :
+// « Tout element qui fait l objet d une declaration au niveau du bloc
+// Prime, gratification et indemnite – S21.G00.52 ne doit pas etre integre
+// au 002 – Salaire brut servant au calcul de l Assurance chomage »
+// (net-entreprises, fiche 2699). Les declarer sans les sortir de la 002
+// les compterait deux fois dans les droits au chomage.
+//
+// ⚠️ L ASSIETTE CHOMAGE DU BLOC 78, ELLE, NE BOUGE PAS : la meme fiche
+// precise que la 002 differe de la base assujettie de type 07. Ce sont
+// deux notions distinctes — l une ouvre des droits, l autre porte des
+// cotisations.
+//
+// LES CODES, LUS DANS L ENUMERATION QUE dsn-val A AFFICHEE :
+//   011  Indemnite legale de fin de CDD          (prime de precarite)
+//   012  Indemnite legale de fin de mission      (IFM d un interimaire)
+//   020  Indemnite compensatrice de conges payes
+//
+// ⛔ CE QUI EST FRAGILE, ET QUI EST DIT : le calculateur ne marque pas
+// encore ces lignes d un code — on les reconnait a leur LIBELLE. Un
+// libelle qui change casserait la declaration en silence. La fonction lit
+// donc d abord un code s il existe (`l.code`), et ne retombe sur le
+// libelle qu a defaut, en le signalant. ⚠️ A REPRENDRE quand le
+// calculateur posera un code sur ces lignes, comme pour le salaire de base.
+// ═══════════════════════════════════════════════════════════════════════
+function primesDsn(detail: any): { lignes: any[]; replis: string[] } {
+  const brut: any[] = Array.isArray(detail && detail.lignes_brut) ? detail.lignes_brut : [];
+  const norm = function (v: any): string {
+    return q(v).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  };
+
+  const lignes: any[] = [];
+  const replis: string[] = [];
+
+  for (const l of brut) {
+    const montant = Number(l && l.montant || 0);
+    if (!(montant > 0)) continue;
+
+    // 1. LE CODE, QUAND IL EXISTE : c est la seule voie sure.
+    const codeLigne = q(l && (l as any).code_dsn).toUpperCase();
+    if (codeLigne === "011" || codeLigne === "012" || codeLigne === "020") {
+      lignes.push({ type: codeLigne, montant: montant, libelle: q(l.libelle) });
+      continue;
+    }
+
+    // 2. A DEFAUT, LE LIBELLE — et on le dit.
+    const lib = norm(l && l.libelle);
+    let type = "";
+    if (lib.indexOf("indemnite de fin de mission") >= 0
+      || lib.indexOf("fin de mission") >= 0) {
+      type = "012";
+    } else if (lib.indexOf("fin de contrat") >= 0
+      || lib.indexOf("precarite") >= 0) {
+      type = "011";
+    } else if (lib.indexOf("indemnite compensatrice de conges") >= 0
+      || lib.indexOf("indemnite de conges payes") >= 0) {
+      // ⚠️ « Indemnite de conges payes (maintien de salaire) » N EST PAS une
+      // indemnite compensatrice : c est la paie des conges PRIS, du travail
+      // remunere au sens de la 002. Elle reste dans la remuneration.
+      if (lib.indexOf("maintien") >= 0) continue;
+      type = "020";
+    }
+
+    if (type) {
+      lignes.push({ type: type, montant: montant, libelle: q(l.libelle) });
+      replis.push(q(l.libelle) + " → type " + type);
+    }
+  }
+
+  return { lignes: lignes, replis: replis };
+}
+
 function salaireDeBaseDsn(detail: any, ct: any): { montant: number; repli: string } | null {
   const lignes: any[] = Array.isArray(detail && detail.lignes_brut) ? detail.lignes_brut : [];
   const norm = function (v: any): string {
@@ -1865,21 +1939,42 @@ export async function POST(req: NextRequest) {
     //     se declare le volume de travail
     // Les deux portent le meme montant tant qu il n y a ni prime exclue de
     // l assiette chomage ni plafonnement.
-    // ⛔ RESERVE : la norme veut que les primes et indemnites (fin de
-    // contrat, fin de mission, conges payes) soient declarees en bloc
-    // S21.G00.52 et SORTIES de la 002. Ce bloc n existe pas encore ici.
-    // dsn-val ne le reclame pas, France Travail le lira.
+    // ⛔ RESERVE LEVEE LE 20/09 : les primes et indemnites sont desormais
+    // declarees en bloc S21.G00.52 et SORTIES de la 002, conformement a la
+    // norme. Voir la fonction primesDsn en tete de fichier.
     //
     // 🚨 C EST LE VOLUME DE TRAVAIL QUI FONDE LES DROITS : France Travail
     // calcule l allocation sur ces heures autant que sur ce montant. Les
     // omettre prive le salarie d une partie de ses droits, et cela ne se
     // voit qu au moment ou il en a besoin.
     // ═══════════════════════════════════════════════════════════════
+    const primes = primesDsn(detail);
+    const totalPrimes = primes.lignes.reduce(function (s: number, p: any) {
+      return s + Number(p.montant || 0);
+    }, 0);
+
+    // ⚠️ LA 002 EST LE BRUT MOINS CE QUI PART EN BLOC 52.
+    // ⛔ ELLE NE PEUT PAS ETRE NEGATIVE : si les primes depassaient le brut,
+    // c est qu une ligne a ete mal reconnue. On ne declare alors aucune
+    // prime, et on le dit — mieux vaut la declaration d hier que des
+    // chiffres qui ne s additionnent pas.
+    let remu002 = Number(b.brut) - totalPrimes;
+    let primesRetenues = primes.lignes;
+
+    if (remu002 < 0) {
+      anomalies.push(qui + " : les primes et indemnités reconnues ("
+        + montantDsn(totalPrimes) + " EUR) dépassent le brut du bulletin ("
+        + montantDsn(b.brut) + " EUR). ⛔ AUCUNE N'EST DÉCLARÉE en bloc "
+        + "S21.G00.52 : une ligne a forcément été mal reconnue.");
+      primesRetenues = [];
+      remu002 = Number(b.brut);
+    }
+
     ecrire("S21.G00.51.001", debutPeriode);
     ecrire("S21.G00.51.002", finPeriode);
     ecrire("S21.G00.51.010", numeroContrat);
     ecrire("S21.G00.51.011", "002");
-    ecrire("S21.G00.51.013", montantDsn(b.brut));
+    ecrire("S21.G00.51.013", montantDsn(remu002));
 
     // ⚠️ TYPE 01 = travail remunere, unite 10 = heure. Le type 02 sert aux
     // absences, qui ne sont pas encore traitees.
@@ -1887,6 +1982,30 @@ export async function POST(req: NextRequest) {
       ecrire("S21.G00.53.001", "01");
       ecrire("S21.G00.53.002", montantDsn(dureeMensuelleRef));
       ecrire("S21.G00.53.003", "10");
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // 🆕 ══ S21.G00.52 — PRIMES, GRATIFICATIONS ET INDEMNITES ══
+    //
+    // 🚨 SA PLACE : apres la remuneration et son bloc activite, avant le
+    // net social. Entre freres, 51 < 52 < 58. Le fichier d essai de 602
+    // lignes a ete valide par dsn-val a cette place exacte.
+    // ⚠️ TROIS RUBRIQUES SUFFISENT : type, montant, numero de contrat. Les
+    // dates de rattachement sont conditionnelles — elles servent quand la
+    // prime se rattache a une periode autre que le mois declare, ce qui
+    // n est pas le cas ici.
+    // ═══════════════════════════════════════════════════════════════
+    for (const p of primesRetenues) {
+      ecrire("S21.G00.52.001", p.type);
+      ecrire("S21.G00.52.002", montantDsn(p.montant));
+      ecrire("S21.G00.52.006", numeroContrat);
+    }
+
+    if (primes.replis.length > 0) {
+      anomalies.push(qui + " : les primes déclarées en bloc S21.G00.52 ont été "
+        + "reconnues À LEUR LIBELLÉ, faute de code sur les lignes du bulletin ("
+        + primes.replis.join(" ; ") + "). ⚠️ Un libellé qui change casserait "
+        + "cette reconnaissance sans aucun message. À VÉRIFIER.");
     }
 
 
