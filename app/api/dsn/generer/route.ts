@@ -687,6 +687,7 @@ export async function POST(req: NextRequest) {
   // empecher de declarer les salaires.
   // ═══════════════════════════════════════════════════════════════════
   const arretsParContrat: Record<string, any[]> = {};
+  const rupturesParContrat: Record<string, any> = {};
   let arretsLectureEchec = "";
   {
     const finMoisIso = new Date(Number(periode.slice(0, 4)),
@@ -696,7 +697,6 @@ export async function POST(req: NextRequest) {
       .from("paie_evenements")
       .select("*")
       .eq("societe_id", societeId)
-      .eq("type_evenement", "arret")
       .lte("date_debut", finMoisIso)
       .order("date_debut");
 
@@ -708,10 +708,29 @@ export async function POST(req: NextRequest) {
         + "déclarés dans cette mensuelle.";
     } else {
       for (const ev of (evts || [])) {
+        const cle = String(ev.contrat_id);
+
+        // ═══════════════════════════════════════════════════════════
+        // 🆕 20/09 — LA FIN DE CONTRAT, DANS LE MOIS OU ELLE TOMBE
+        //
+        // 🚨 ELLE NE SE DECLARE QUE DANS LA MENSUELLE DU MOIS DE LA
+        // RUPTURE. dsn-val, controle SIG-13 : une date de fin hors du
+        // mois declare leve une anomalie. Une rupture de novembre n a
+        // donc rien a faire dans la declaration de septembre.
+        // ═══════════════════════════════════════════════════════════
+        if (String(ev.type_evenement) === "fin_contrat") {
+          const dr = q(ev.date_fin) || q(ev.date_debut);
+          if (dr && dr >= periode && dr <= finMoisIso) {
+            rupturesParContrat[cle] = ev;
+          }
+          continue;
+        }
+
+        if (String(ev.type_evenement) !== "arret") continue;
+
         // Un arret clos avant le debut du mois ne concerne pas ce mois.
         const fin = q(ev.date_fin);
         if (fin && fin < periode) continue;
-        const cle = String(ev.contrat_id);
         if (!arretsParContrat[cle]) arretsParContrat[cle] = [];
         arretsParContrat[cle].push(ev);
       }
@@ -1545,6 +1564,52 @@ export async function POST(req: NextRequest) {
             + "(il faut la date de fin de maintien, l'IBAN et le BIC). "
             + "⛔ Les coordonnées ne sont PAS déclarées : la caisse versera "
             + "les indemnités au salarié et non à l'employeur.");
+        }
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // 🆕 20/09 — ══ S21.G00.62 — LA FIN DU CONTRAT ══
+    //
+    // 🚨🚨 DANS LA MENSUELLE, DEUX RUBRIQUES ET PAS UNE DE PLUS : la date
+    // de fin (001) et le motif de rupture (002). ⛔ TOUT LE RESTE DU
+    // SIGNALEMENT Y EST INTERDIT, et dsn-val l a dit en toutes lettres
+    // sur le fichier d essai de 593 lignes :
+    //   · « le sous-groupe S21.G00.63 est interdit pour cette nature de
+    //     declaration (DSN Mensuelle) » — le preavis ne se declare que
+    //     dans le signalement de fin de contrat ;
+    //   · CST-04 sur 62.008, la transaction en cours ;
+    //   · CST-04 sur 62.020, le mois de la DSN portant le solde.
+    // Le fichier reduit a ces deux rubriques (589 lignes) est passe sans
+    // aucune anomalie.
+    //
+    // ⚠️ LA DATE DOIT TOMBER DANS LE MOIS DECLARE : le controle SIG-13
+    // refuse une rupture de novembre dans une declaration de septembre.
+    // C est pourquoi la selection se fait sur le mois, plus haut.
+    // ⚠️ LE SIGNALEMENT DE FIN DE CONTRAT RESTE DU : il part dans les cinq
+    // jours et porte le detail. La mensuelle n en garde que la trace.
+    // ═══════════════════════════════════════════════════════════════
+    {
+      const rup = rupturesParContrat[String(ct.id)];
+      if (rup) {
+        const dateRupture = q(rup.date_fin) || q(rup.date_debut);
+        const motifBrut = q(ct.motif_rupture_dsn) || q(rup.motif);
+
+        // 🚨 LE MOTIF PASSE PAR dsn_codes, comme celui de l arret : en base
+        // il vaut « fin_cdd », la norme attend « 031 ».
+        let motifRup = "";
+        if (motifBrut) {
+          motifRup = (await code("S21.G00.62.002", motifBrut, periode)) || "";
+          if (!motifRup && /^[0-9]{3}$/.test(motifBrut)) motifRup = motifBrut;
+        }
+
+        if (!motifRup) {
+          anomalies.push(qui + " : le motif de rupture « " + motifBrut
+            + " » n'a pas de correspondance dans dsn_codes (S21.G00.62.002). "
+            + "⛔ LA FIN DE CONTRAT N'EST PAS DÉCLARÉE dans cette mensuelle.");
+        } else {
+          ecrire("S21.G00.62.001", dateDsn(dateRupture));
+          ecrire("S21.G00.62.002", motifRup);
         }
       }
     }
