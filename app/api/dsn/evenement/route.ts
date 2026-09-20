@@ -912,8 +912,29 @@ export async function POST(req: NextRequest) {
       // lui qui fixe le point de depart du delai de carence.
       // ═══════════════════════════════════════════════════════════════
       ecrire("S21.G00.60.001", codeMotif);
-      ecrire("S21.G00.60.002", dateDsn((ev as any).dernier_jour_travaille
-        || (ev as any).date_debut));
+      // 🆕🚨 20/09 — LE DERNIER JOUR TRAVAILLE EST LA VEILLE DE L ARRET.
+      // Fiche consigne 2694 : « le dernier jour travaille correspond a la
+      // veille de la date de debut de la prescription ». Le premier jet
+      // ecrivait la date de DEBUT : il declarait donc que le salarie avait
+      // travaille le jour meme, ce qui n est vrai que s il est venu le matin
+      // avant de consulter — et dans ce cas la date SE SAISIT.
+      // 🚨 « Le dernier jour travaille conditionne les 3, voire 12 mois de
+      // salaires pris en compte pour le calcul de l IJ » : le corriger apres
+      // coup exige un annule et remplace.
+      // ⛔ MEME REGLE DANS LA MENSUELLE : les deux doivent porter la meme date.
+      let djtSig = q((ev as any).dernier_jour_travaille);
+      if (!djtSig) {
+        const dd = new Date(q((ev as any).date_debut) + "T00:00:00Z");
+        dd.setUTCDate(dd.getUTCDate() - 1);
+        djtSig = dd.toISOString().slice(0, 10);
+        const debutCt = q((ct as any)?.date_debut);
+        if (debutCt && djtSig < debutCt) djtSig = q((ev as any).date_debut);
+        anomalies.push("Dernier jour travaillé non saisi : LA VEILLE de "
+          + "l'arrêt a été déclarée. ⚠️ Si le salarié est venu travailler le "
+          + "jour où l'arrêt commence, le saisir — cette date fixe le calcul "
+          + "des indemnités journalières.");
+      }
+      ecrire("S21.G00.60.002", dateDsn(djtSig));
 
       // 🆕🚨 LA DATE DE FIN PREVISIONNELLE EST OBLIGATOIRE — dsn-val : « CST-03 /
       // Absence de la rubrique S21.G00.60.003 ». C est la date portee sur
@@ -1005,6 +1026,27 @@ export async function POST(req: NextRequest) {
       // prend « 01 - reprise normale », qui est le cas ordinaire, et on le
       // signale.
       // ═══════════════════════════════════════════════════════════════
+      // 🆕🚨 20/09 — LA REPRISE CONNUE D AVANCE SE PORTE PAR L ARRET.
+      // « Lorsque le declarant a connaissance de la reprise anticipee de
+      // l individu au moment de l envoi du signalement, ce dernier doit
+      // renseigner la date de la reprise reelle ainsi que le motif de reprise
+      // dans le signalement Arret de travail. […] Dans le cas ou la date et
+      // le motif de la reprise anticipee ont deja fait l objet d une
+      // declaration dans un signalement "arret de travail", cela ne doit pas
+      // donner lieu a un evenement "Reprise anticipee du travail". »
+      // ⛔ UN SIGNALEMENT DE REPRISE DEVIENT ALORS INUTILE — et en envoyer un
+      // ferait stopper les indemnites journalieres une seconde fois.
+      if (estArret && q((ev as any).reprise_date)) {
+        ecrire("S21.G00.60.010", dateDsn((ev as any).reprise_date));
+        const mr = q((ev as any).reprise_motif);
+        ecrire("S21.G00.60.011",
+          (mr === "01" || mr === "02" || mr === "03") ? mr : "01");
+        anomalies.push("La reprise du "
+          + dateDsn((ev as any).reprise_date) + " est portée par CE "
+          + "signalement d'arrêt. ⛔ NE PAS ENVOYER EN PLUS un signalement de "
+          + "reprise : la caisse stopperait les indemnités deux fois.");
+      }
+
       if (estReprise) {
         ecrire("S21.G00.60.010", dateDsn((ev as any).reprise_date));
 
