@@ -2088,7 +2088,16 @@ export async function POST(req: NextRequest) {
     ecrire("S21.G00.51.002", finPeriode);
     ecrire("S21.G00.51.010", numeroContrat);
     ecrire("S21.G00.51.011", "003");
-    ecrire("S21.G00.51.013", montantDsn(b.brut));
+    // 🆕🚨 20/09 — LE SALAIRE RETABLI VIENT DU BULLETIN, PLUS DU BRUT.
+    // Depuis que le moteur retient les arrets de travail, le bulletin porte
+    // `salaire_retabli` : ce que le salarie aurait touche sans l absence.
+    // ⚠️ UN BULLETIN D AVANT CETTE DATE N A PAS LA VALEUR : il n avait pas
+    // d absence non plus, et son brut fait foi.
+    // ⛔ JAMAIS INFERIEUR AU BRUT : un salaire « retabli » plus bas que le
+    // salaire verse n a pas de sens, et ferait baisser les indemnites.
+    const retabli = Number(detail && detail.salaire_retabli) || 0;
+    ecrire("S21.G00.51.013",
+      montantDsn(retabli > Number(b.brut) ? retabli : b.brut));
 
     const base010 = salaireDeBaseDsn(detail, ct);
     if (base010) {
