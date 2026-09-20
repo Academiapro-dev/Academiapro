@@ -145,6 +145,66 @@ function cts(x: number): number {
   return Math.round(Number((x + Number.EPSILON).toFixed(4)) * 100) / 100;
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+// 🆕 20/09 — LE TAUX DE VERSEMENT MOBILITE, LU PAR COMMUNE
+//
+// Jusqu ici il fallait le taper a la main dans `paie_taux_societe`. La
+// table des taux transport de l URSSAF le donne, commune par commune : la
+// doctrine est de le lire, pas de le faire saisir.
+//
+// 🚨 UNE COMMUNE PEUT AVOIR PLUSIEURS AUTORITES. Mesure du 19/09 : 76
+// communes portent deux lignes a la meme date, l une pour l autorite
+// organisatrice, l autre pour le syndicat mixte. LE TAUX APPLICABLE EST LA
+// SOMME. Exemple mesure : la commune 60002 porte 0,6 et 0,2 au 01/03/2019.
+//
+// ⚠️ ON NE PREND PAS SIMPLEMENT LA LIGNE LA PLUS RECENTE. Si l autorite a
+// change son taux en 2024 et le syndicat en 2019, ne garder que 2024
+// ferait disparaitre le syndicat. On regroupe donc PAR AUTORITE (le
+// libelle), on garde pour chacune sa ligne en vigueur a la periode, et on
+// additionne.
+//
+// 🚨 « A LA DATE DE LA PERIODE », comme partout ailleurs : un bulletin de
+// mars se calcule avec le taux de mars, pas avec celui d aujourd hui.
+// ═══════════════════════════════════════════════════════════════════════
+async function tauxVersementMobilite(insee: string, periode: string): Promise<any> {
+  if (!insee) return { taux: null, detail: [] };
+
+  const { data, error } = await supabase
+    .from("urssaf_vm_communes")
+    .select("code_insee, libelle, taux_aot, taux_syndicat, date_effet")
+    .eq("code_insee", insee)
+    .lte("date_effet", periode)
+    .order("date_effet", { ascending: false });
+
+  // ⚠️ UNE LECTURE QUI ECHOUE N EST PAS UN TAUX A ZERO. On rend `null` :
+  // le calcul s abstient et la reserve le dit, au lieu de facturer zero
+  // en silence.
+  if (error) return { taux: null, erreur: error.message, detail: [] };
+  if (!data || data.length === 0) return { taux: 0, detail: [], aucune: true };
+
+  // Pour chaque autorite, la ligne la plus recente qui precede la periode.
+  const parAutorite: any = {};
+  for (const l of data) {
+    const cle = String(l.libelle || "(sans libellé)");
+    if (!parAutorite[cle]) parAutorite[cle] = l;
+  }
+
+  let total = 0;
+  const detail: any[] = [];
+  for (const cle of Object.keys(parAutorite)) {
+    const l = parAutorite[cle];
+    const t = Number(l.taux_aot || 0) + Number(l.taux_syndicat || 0);
+    total += t;
+    detail.push({
+      autorite: cle,
+      taux: t,
+      depuis: String(l.date_effet).slice(0, 10),
+    });
+  }
+
+  return { taux: Math.round(total * 10000) / 10000, detail: detail };
+}
+
 // LIRE UN PARAMETRE A LA DATE DE LA PERIODE.
 //
 // 🚨 « A LA DATE », PAS « LA DERNIERE VALEUR ». Un bulletin de mars 2026 se
@@ -217,12 +277,72 @@ async function calculer(contratId: string, periode: string): Promise<any> {
   // la reserve le dit franchement.
   const { data: societe } = await supabase
     .from("compta_societes")
-    .select("effectif")
+    .select("effectif, code_insee")
     .eq("id", contrat.societe_id)
     .maybeSingle();
 
   const effectif = societe && societe.effectif ? Number(societe.effectif) : 0;
   const effectifConnu = !!(societe && societe.effectif);
+
+  // ═════════════════════════════════════════════════════════════════════
+  // 🆕 20/09 — L ASSUJETTISSEMENT AU VERSEMENT MOBILITE
+  //
+  // 🚨 IL NE SE CALCULE PAS. Le versement mobilite est du par les
+  // employeurs de onze salaries et plus dans le ressort d une autorite
+  // organisatrice — mais l effectif retenu est la MOYENNE ANNUELLE DE
+  // L ANNEE PRECEDENTE, et depuis 2020 le franchissement du seuil ne
+  // produit effet que s il est atteint CINQ ANNEES CIVILES CONSECUTIVES :
+  // l employeur devient redevable au 1er janvier de la sixieme.
+  // ⛔ NOUS N AVONS NI LA MOYENNE ANNUELLE NI CINQ ANS D HISTORIQUE. Un
+  // effectif instantane de douze ne prouve donc RIEN — ni dans un sens ni
+  // dans l autre.
+  //
+  // C est l employeur qui sait, comme pour l URSSAF de rattachement. Tant
+  // qu il n a pas repondu, la cotisation vaut ZERO et la reserve le dit :
+  // facturer un versement qui n est pas du coute de l argent au client,
+  // l oublier se rattrape par une regularisation.
+  //
+  // ⚠️ LECTURE SEPAREE ET TOLERANTE : si la colonne n existe pas encore,
+  // le calcul de paie continue. ⛔ NE JAMAIS METTRE CETTE COLONNE DANS LE
+  // SELECT PRINCIPAL : une colonne absente ferait echouer toute la lecture
+  // de la societe, donc tout le bulletin.
+  // ═════════════════════════════════════════════════════════════════════
+  let vmAssujetti: any = null;
+  let vmColonneAbsente = false;
+  {
+    const { data: vmSoc, error: eVm } = await supabase
+      .from("compta_societes")
+      .select("vm_assujetti")
+      .eq("id", contrat.societe_id)
+      .maybeSingle();
+    if (eVm) vmColonneAbsente = true;
+    else if (vmSoc && vmSoc.vm_assujetti !== null
+      && vmSoc.vm_assujetti !== undefined) {
+      vmAssujetti = vmSoc.vm_assujetti === true;
+    }
+  }
+
+  // ---- LA COMMUNE QUI COMMANDE LE TAUX ----
+  //
+  // 🚨 C EST LE LIEU DE TRAVAIL REEL, PAS LE SIEGE. La Cour de cassation
+  // l a rappele en 2025 sur les salaries itinerants : le rattachement
+  // administratif au siege ne vaut pas.
+  // ⚠️ TROIS SOURCES, DANS CET ORDRE, ET ON DIT LAQUELLE A SERVI : le
+  // contrat d abord, l entreprise utilisatrice ensuite pour une mission,
+  // l etablissement employeur en dernier recours.
+  let inseeVm = String(contrat.lieu_travail_insee || "").trim();
+  let origineInsee = "lieu de travail du contrat";
+  if (!inseeVm) {
+    inseeVm = String(contrat.eu_code_insee || "").trim();
+    origineInsee = "commune de l'entreprise utilisatrice";
+  }
+  if (!inseeVm) {
+    inseeVm = String((societe && societe.code_insee) || "").trim();
+    origineInsee = "commune de l'établissement employeur, faute de mieux";
+  }
+  if (!inseeVm) origineInsee = "";
+
+  const vmLu = await tauxVersementMobilite(inseeVm, periode);
 
   // ---- LES TAUX PROPRES A CETTE SOCIETE ----
   //
@@ -562,18 +682,59 @@ async function calculer(contratId: string, periode: string): Promise<any> {
     // 🚨 L AT/MP ET LE VERSEMENT MOBILITE PORTENT UN TAUX A ZERO EN BASE :
     // le vrai taux est propre a la societe. On le substitue ici.
     let tPat = Number(c.taux_patronal);
-    const tauxPropreManquant = (String(c.code) === "AT_MP"
-      || String(c.code) === "VERSEMENT_MOBILITE")
-      && tauxSociete[String(c.code)] === undefined;
+
+    // ⚠️ L AT/MP RESTE UNE SAISIE : il est notifie par la CARSAT selon la
+    // sinistralite de l etablissement, aucune table ne le donne.
+    const tauxPropreManquant = String(c.code) === "AT_MP"
+      && tauxSociete["AT_MP"] === undefined;
 
     if (tauxSociete[String(c.code)] !== undefined) {
       tPat = tauxSociete[String(c.code)];
     }
 
-    // ⚠️ LE VERSEMENT MOBILITE N EST DU QU A PARTIR DE ONZE SALARIES dans
-    // le ressort de l autorite organisatrice. En dessous, il est nul meme
-    // si un taux est renseigne.
-    if (String(c.code) === "VERSEMENT_MOBILITE" && effectif < 11) tPat = 0;
+    // ═════════════════════════════════════════════════════════════════
+    // 🆕 20/09 — LE VERSEMENT MOBILITE
+    //
+    // DEUX QUESTIONS DISTINCTES, ET IL FAUT LES DEUX :
+    //   1. la societe est-elle assujettie ? — elle seule le sait ;
+    //   2. quel est le taux ? — la table des communes le dit.
+    //
+    // ⚠️ UN TAUX SAISI DANS `paie_taux_societe` PRIME SUR LA TABLE : il
+    // couvre les cas que la table ne connait pas (taux notifie a part,
+    // situation derogatoire). C est la seule exception.
+    // ⛔ SANS REPONSE SUR L ASSUJETTISSEMENT, LA COTISATION VAUT ZERO :
+    // facturer un versement qui n est pas du coute de l argent au client ;
+    // l oublier se rattrape par une regularisation.
+    // ═════════════════════════════════════════════════════════════════
+    let alerteVm: string | null = null;
+
+    if (String(c.code) === "VERSEMENT_MOBILITE") {
+      const taille = effectifConnu ? effectif + " salarié(s) connus" : "effectif inconnu";
+
+      if (tauxSociete["VERSEMENT_MOBILITE"] === undefined) {
+        if (vmLu.taux === null) {
+          tPat = 0;
+          alerteVm = inseeVm
+            ? "taux introuvable — table des communes illisible"
+            : "aucune commune de travail connue — taux introuvable";
+        } else {
+          tPat = vmLu.taux;
+          if (vmLu.aucune) {
+            alerteVm = "commune " + inseeVm + " hors périmètre : aucun versement dû";
+          }
+        }
+      }
+
+      // L assujettissement tranche EN DERNIER : un taux existe toujours
+      // pour une commune desservie, mais il n est du que si la societe
+      // franchit le seuil dans la duree.
+      if (vmAssujetti !== true) {
+        tPat = 0;
+        alerteVm = vmAssujetti === false
+          ? "société non assujettie"
+          : "assujettissement non confirmé (" + taille + ")";
+      }
+    }
 
     const partSal = cts(base * Number(c.taux_salarial) / 100);
     const partPat = cts(base * tPat / 100);
@@ -618,11 +779,18 @@ async function calculer(contratId: string, periode: string): Promise<any> {
       garantie_complementaire: (c as any).garantie_complementaire === true,
       // 🆕 16/09 — L ALERTE VOYAGE AVEC LA LIGNE, pour que le bulletin et
       // l ecran disent la meme chose sans avoir a le redeviner chacun.
-      alerte: tauxPropreManquant
-        ? (String(c.code) === "AT_MP"
+      alerte: alerteVm
+        ? alerteVm
+        : (tauxPropreManquant
           ? "taux à renseigner — notification CARSAT"
-          : "taux à renseigner — commune du lieu de travail")
-        : null,
+          : null),
+      // 🆕 20/09 — LE CODE INSEE SUIT LA LIGNE DU VERSEMENT MOBILITE.
+      // 🚨 LA DSN LE RECLAMERA DEUX FOIS : en S21.G00.23.006 au bordereau
+      // et en S21.G00.81.005 au nominatif, obligatoirement, pour chaque
+      // commune au titre de laquelle le versement est du — « y compris en
+      // cas de similarite de taux » (guide Urssaf). Le porter ici evite
+      // d avoir a le retrouver au moment d ecrire le fichier.
+      insee: String(c.code) === "VERSEMENT_MOBILITE" && inseeVm ? inseeVm : null,
     });
   }
 
@@ -1115,10 +1283,49 @@ async function calculer(contratId: string, periode: string): Promise<any> {
           + "CARSAT ou sur le compte AT/MP de net-entreprises, puis se renseigne dans "
           + "paie_taux_societe. ⛔ NE JAMAIS INVENTER UNE VALEUR.");
       }
-      if (effectif >= 11 && tauxSociete["VERSEMENT_MOBILITE"] === undefined) {
-        r.unshift("⚠️ La société compte " + effectif + " salariés : le versement "
-          + "mobilité est probablement dû, mais aucun taux n'est renseigné. "
-          + "Il dépend de la COMMUNE DU LIEU DE TRAVAIL.");
+      // ═══════════════════════════════════════════════════════════════
+      // 🆕 20/09 — CE QUI SE DIT SUR LE VERSEMENT MOBILITE
+      //
+      // ⚠️ LA COTISATION VAUT ZERO DANS TROIS CAS TRES DIFFERENTS : la
+      // societe n est pas assujettie, elle l est mais personne ne l a
+      // confirme, ou la commune n est pas desservie. Un bulletin qui les
+      // confond ne permet pas de savoir s il faut agir.
+      // ═══════════════════════════════════════════════════════════════
+      if (vmColonneAbsente) {
+        r.unshift("⚠️ L'assujettissement au versement mobilité ne peut pas être "
+          + "lu (colonne vm_assujetti absente) : la cotisation vaut ZÉRO.");
+      } else if (vmAssujetti === null) {
+        r.unshift("⚠️ VERSEMENT MOBILITÉ NON CONFIRMÉ pour cette société : la "
+          + "cotisation vaut ZÉRO. Il est dû à partir de 11 salariés dans le "
+          + "ressort d'une autorité organisatrice, mais l'effectif retenu est la "
+          + "moyenne de l'année précédente, et le seuil doit être franchi cinq "
+          + "années de suite. "
+          + (effectifConnu ? "Effectif connu : " + effectif + ". " : "")
+          + "⛔ Cela ne se déduit pas : c'est à l'employeur de répondre.");
+      } else if (vmAssujetti === true) {
+        if (!inseeVm) {
+          r.unshift("🚨 SOCIÉTÉ ASSUJETTIE AU VERSEMENT MOBILITÉ, mais AUCUNE "
+            + "COMMUNE DE TRAVAIL n'est connue : la cotisation vaut ZÉRO. "
+            + "Renseigner le code INSEE du lieu de travail sur le contrat.");
+        } else if (vmLu.erreur) {
+          r.unshift("🚨 Versement mobilité : la table des taux par commune n'a "
+            + "pas pu être lue (" + vmLu.erreur + "). La cotisation vaut ZÉRO.");
+        } else if (vmLu.aucune) {
+          r.unshift("La commune " + inseeVm + " n'est dans aucun périmètre de "
+            + "versement mobilité : aucune cotisation n'est due. "
+            + "Source : table des taux transport de l'Urssaf.");
+        } else if (tauxSociete["VERSEMENT_MOBILITE"] !== undefined) {
+          r.unshift("Versement mobilité au taux saisi pour la société ("
+            + tauxSociete["VERSEMENT_MOBILITE"] + " %), qui prime sur la table "
+            + "des communes.");
+        } else {
+          const noms = (vmLu.detail || []).map(function (d: any) {
+            return d.autorite + " " + d.taux + " %";
+          }).join(" + ");
+          r.unshift("Versement mobilité : " + vmLu.taux + " % pour la commune "
+            + inseeVm + " (" + origineInsee + ")"
+            + (noms ? " — " + noms : "") + ".");
+        }
       }
       if (!effectifConnu) {
         r.unshift("🚨 EFFECTIF INCONNU pour cette société : le FNAL et le Tdelta de la "
