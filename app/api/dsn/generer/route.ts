@@ -856,22 +856,62 @@ export async function POST(req: NextRequest) {
   ecrire("S21.G00.11.004", q(societe.code_postal));
   ecrire("S21.G00.11.005", societe.ville);
 
-  // 🚨 L IDCC DU CONTRAT PRIME SUR CELUI DE LA SOCIETE. Une entreprise peut
-  // relever d une convention et employer un salarie sous une autre — c est
-  // le cas d une societe de travail temporaire (2378) dont les permanents
-  // relevent d une autre branche.
-  // ⚠️ DECLARER LA MAUVAISE CONVENTION rattache le salarie a la mauvaise
-  // branche, et avec elle a de mauvais droits conventionnels.
-  // ⛔ CE CHOIX EST UNE APPROXIMATION : la rubrique 11.022 porte la
-  // convention de L ETABLISSEMENT, une seule pour tous. Quand les salaries
-  // relevent de conventions differentes, c est la rubrique 40.017 de chaque
-  // contrat qui fait foi — et elle est deja ecrite, salarie par salarie.
-  const idccEtab = q((bulletins[0] as any)?.paie_contrats?.idcc)
-    || q(societe.idcc) || "";
+  // ═══════════════════════════════════════════════════════════════════
+  // 🆕🚨 20/09 — LA CONVENTION DE L ETABLISSEMENT NE DEPEND PLUS DE
+  // L ORDRE DES BULLETINS
+  //
+  // DEFAUT MESURE CE MATIN : la rubrique valait 2378 le matin et 1486
+  // l apres-midi, sur la MEME societe et le MEME mois. Elle etait prise
+  // sur le contrat du PREMIER bulletin du fichier, et l ordre des
+  // bulletins avait change — trois rectificatifs emis dans un autre ordre
+  // suffisaient a changer la branche declaree pour tout l etablissement.
+  // ⛔ UNE DONNEE DE L ETABLISSEMENT NE PEUT PAS DEPENDRE DE QUI A ETE
+  // PAYE EN PREMIER.
+  //
+  // L ORDRE RETENU, DU PLUS SUR AU MOINS SUR :
+  //   1. la convention de la societe, quand elle est renseignee — c est
+  //      elle que la rubrique attend ;
+  //   2. sinon, la convention la PLUS REPRESENTEE parmi les contrats du
+  //      mois, et a egalite le code le plus petit : deux generations du
+  //      meme mois donnent alors toujours le meme resultat.
+  //
+  // ⚠️ QUAND PLUSIEURS CONVENTIONS COEXISTENT, ON LE DIT. La 11.022 n en
+  // porte qu une, et c est la 40.017 de chaque contrat qui fait foi pour
+  // le salarie — elle est deja ecrite, contrat par contrat. Une societe de
+  // travail temporaire (2378) dont les permanents relevent d une autre
+  // branche est exactement ce cas.
+  // ═══════════════════════════════════════════════════════════════════
+  const idccParContrat: Record<string, number> = {};
+  for (const b of bulletins) {
+    const i = q((b as any)?.paie_contrats?.idcc);
+    if (i) idccParContrat[i] = (idccParContrat[i] || 0) + 1;
+  }
+  const idccPresents = Object.keys(idccParContrat).sort(function (a, b) {
+    // Le plus represente d abord ; a egalite, le code le plus petit.
+    if (idccParContrat[b] !== idccParContrat[a]) {
+      return idccParContrat[b] - idccParContrat[a];
+    }
+    return a < b ? -1 : 1;
+  });
+
+  const idccEtab = q(societe.idcc) || idccPresents[0] || "";
+
   if (idccEtab) ecrire("S21.G00.11.022", String(idccEtab).padStart(4, "0"));
   else {
     anomalies.push("Code convention collective principale absent "
       + "(S21.G00.11.022) — rubrique obligatoire de l'établissement.");
+  }
+
+  // ⚠️ LA RESERVE EST UTILE MEME QUAND LE FICHIER PASSE : dsn-val ne voit
+  // pas ce defaut-la, et la mauvaise branche rattache le salarie a de
+  // mauvais droits conventionnels.
+  if (!q(societe.idcc) && idccPresents.length > 1) {
+    anomalies.push("Plusieurs conventions collectives parmi les salariés ("
+      + idccPresents.join(", ") + ") et aucune n'est renseignée sur la "
+      + "société : l'établissement est déclaré sous " + idccEtab
+      + ", la plus représentée. Chaque salarié garde la sienne en "
+      + "S21.G00.40.017. ⚠️ Renseigner la convention de l'établissement "
+      + "pour lever ce choix par défaut.");
   }
 
   if (q(societe.spst_identifiant)) {
