@@ -986,6 +986,49 @@ export async function POST(req: NextRequest) {
         }, { status: 400 });
       }
 
+      // ═══════════════════════════════════════════════════════════════
+      // 🚨 ON NE MARQUE PAS DEPOSE UN SIGNALEMENT QU ON SAIT FAUX
+      //
+      // Une fin de contrat declare LA DERNIERE PAIE : France Travail calcule
+      // les droits dessus. Sans bulletin emis pour le mois de la rupture, le
+      // generateur prend le plus recent et le DIT — mais le fichier reste
+      // faux.
+      // ⛔ FAIRE AVANCER LE COMPTEUR LA-DESSUS OBLIGE A DEPOSER ENSUITE UN
+      // « ANNULE ET REMPLACE » QUI N ANNULE RIEN : le premier envoi n a
+      // jamais eu lieu. On refuse donc ici, et on dit quoi faire.
+      // ═══════════════════════════════════════════════════════════════
+      if (String((ev as any).type_evenement) === "fin_contrat") {
+        const { data: evc } = await supabase
+          .from("paie_evenements")
+          .select("contrat_id, date_fin, date_debut")
+          .eq("id", idEv)
+          .maybeSingle();
+
+        const dRup = String((evc as any)?.date_fin
+          || (evc as any)?.date_debut || "").slice(0, 10);
+        const moisRup = dRup ? dRup.slice(0, 7) + "-01" : "";
+
+        if (moisRup) {
+          const { data: bul } = await supabase
+            .from("paie_bulletins")
+            .select("numero")
+            .eq("contrat_id", (evc as any).contrat_id)
+            .eq("periode", moisRup)
+            .eq("statut", "emis")
+            .limit(1);
+
+          if (!bul || bul.length === 0) {
+            return NextResponse.json({
+              erreur: "aucun bulletin émis pour le mois de la fin du contrat ("
+                + dRup.slice(0, 7) + ") : le signalement déclare une paie qui "
+                + "n'est pas la dernière. ⛔ NON MARQUÉ DÉPOSÉ — émettre le "
+                + "dernier bulletin, regénérer, puis déposer. France Travail "
+                + "calcule les droits sur cette paie.",
+            }, { status: 400 });
+          }
+        }
+      }
+
       const champ = estReprise ? "numero_ordre_reprise" : "numero_ordre";
       const avant = Number((ev as any)[champ]) || 0;
       const maj: any = { statut: "depose" };
