@@ -495,15 +495,24 @@ export default function PagePaie() {
     setErrEv("");
   }
 
-  async function genererSignalement(id: string) {
+  // 🆕 20/09 — LE MEME ARRET PRODUIT DEUX FICHIERS.
+  //
+  // Le signalement d arret part dans les cinq jours ; celui de la REPRISE
+  // part ensuite, si le salarie revient AVANT la date prevue. Les deux se
+  // generent depuis le meme evenement, qui porte la date et le motif de
+  // reprise — c est le geste de l utilisateur qui choisit lequel.
+  // ⚠️ `reprise` doit valoir exactement `true` : la route ne genere une
+  // nature 05 qu a cette condition.
+  async function genererSignalement(id: string, reprise?: boolean) {
     setErr(""); setErrEv(""); setMsg("");
-    setOccupe("signalement");
+    setOccupe(reprise ? "reprise" : "signalement");
     let d: any = null;
     try {
       const r = await fetch("/api/dsn/evenement", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cle: secret, evenement_id: id }),
+        body: JSON.stringify({ cle: secret, evenement_id: id,
+          reprise: reprise === true }),
       });
       d = await r.json();
     } catch (e: any) { setErrEv(String(e)); }
@@ -534,9 +543,16 @@ export default function PagePaie() {
     const s = choisi && choisi.paie_salaries ? String(choisi.paie_salaries.nom || "") : "";
     const nom = s.replace(/[^A-Za-z0-9]/g, "").toUpperCase() || "SALARIE";
     const arret = x.type_evenement === "arret";
-    const d = String((arret ? x.date_debut : (x.date_fin || x.date_debut)) || "")
+    // 🆕 UN ARRET DONT LE FICHIER EST UNE REPRISE porte la nature 05 : on
+    // le lit dans le fichier lui-meme plutot que de le deduire, pour que le
+    // nom dise toujours ce que le fichier contient.
+    const estRep = arret
+      && String(x.fichier || "").indexOf("S20.G00.05.001,'05'") >= 0;
+    const d = String((estRep ? x.reprise_date
+      : (arret ? x.date_debut : (x.date_fin || x.date_debut))) || "")
       .slice(0, 10).replace(/-/g, "");
-    return (arret ? "ARRET" : "FCTU") + "-" + nom + "-" + d + ".txt";
+    return (estRep ? "REPRISE" : (arret ? "ARRET" : "FCTU"))
+      + "-" + nom + "-" + d + ".txt";
   }
 
   function telechargerSignalement(x: any) {
@@ -1602,6 +1618,9 @@ export default function PagePaie() {
                                 ? " · subrogation"
                                   + (x.subro_fin ? " jusqu'au " + jma(x.subro_fin) : "")
                                 : (arret ? " · sans subrogation" : "")}
+                              {arret && x.reprise_date
+                                ? " · reprise le " + jma(x.reprise_date)
+                                : ""}
                               {" · "}{x.statut}
                             </span>
                             {manques.length > 0 && (
@@ -1620,6 +1639,22 @@ export default function PagePaie() {
                               style={{ ...LIEN, color: VERT }}>
                               {occupe === "signalement" ? "…" : "générer"}
                             </button>
+                            {/* 🆕 20/09 — LA REPRISE.
+                                ⚠️ LE BOUTON N APPARAIT QUE SI LA REPRISE EST
+                                RENSEIGNEE sur l arret : sans date, il n y a
+                                rien a signaler, et un bouton qui refuse est
+                                pire qu un bouton absent.
+                                🚨 LA REPRISE NE SE SIGNALE QUE SI ELLE EST
+                                ANTICIPEE — reprendre a la date prevue n est
+                                pas un evenement. */}
+                            {arret && x.reprise_date && (
+                              <button onClick={() => genererSignalement(x.id, true)}
+                                disabled={occupe !== ""}
+                                style={{ ...LIEN, color: VERT }}>
+                                {occupe === "reprise"
+                                  ? "…" : "générer la reprise"}
+                              </button>
+                            )}
                             {/* 🆕 LE FICHIER SORT D ICI. Les deux liens
                                 n apparaissent qu une fois le signalement
                                 genere : avant, il n y a rien a sortir. */}
