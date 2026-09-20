@@ -837,6 +837,17 @@ export async function POST(req: NextRequest) {
         }
         if (repriseEff && repriseEff < periode) continue;
 
+        // 🆕🚨 20/09 — L ARRET ANNULE SE DECLARE UNE DERNIERE FOIS
+        // « Il faudra dans la DSN mensuelle suivante generer un bloc Arret
+        // de travail motif 99 - annulation, pour annuler l arret historise
+        // en base de donnees DSN » (GIP-MDS).
+        // ⛔ TANT QUE L ANNULATION N A PAS ETE DECLAREE, L ARRET RESTE DANS
+        // LE SYSTEME de la CPAM, meme s il est efface de chez nous. L effacer
+        // sans l annuler laisse le salarie avec un arret fantome.
+        // ⚠️ UNE FOIS L ANNULATION DECLAREE, l arret ne revient plus : c est
+        // le champ `annule_declare_le` qui le dit.
+        if (q((ev as any).annule_le) && q((ev as any).annule_declare_le)) continue;
+
         (ev as any)._reprise_effective = repriseEff;
         (ev as any)._reprise_dans_le_mois = !!repriseEff && repriseEff <= finMoisIso;
         if (!arretsParContrat[cle]) arretsParContrat[cle] = [];
@@ -1680,6 +1691,32 @@ export async function POST(req: NextRequest) {
           + "déclarée. ⚠️ Si le salarié est venu travailler le jour où "
           + "l'arrêt commence, le saisir : cette date fixe le calcul des "
           + "indemnités journalières.");
+      }
+
+      // ═══════════════════════════════════════════════════════════
+      // 🆕🚨 20/09 — L ANNULATION D UN ARRET (MOTIF 99)
+      //
+      // Deux blocs 60 de suite sous le meme contrat : l annulation de
+      // l arret historise, puis l arret tel qu il doit etre. Valide par
+      // dsn-val (fichier de 629 lignes, zero anomalie).
+      // 🚨 LES DATES DE L ANNULATION SONT CELLES DE L ARRET DEJA DECLARE,
+      // pas celles du nouveau : c est par elles que la CPAM retrouve
+      // l arret a supprimer de sa base.
+      // ⛔ UNE ERREUR SUR LE DERNIER JOUR TRAVAILLE NE SE CORRIGE PAS AINSI :
+      // elle exige un signalement « annule et remplace ». Le motif 99 sert
+      // a faire disparaitre un arret qui n aurait jamais du etre declare.
+      // ═══════════════════════════════════════════════════════════
+      const djtAnnule = q((ev as any).annule_djt);
+      const finAnnule = q((ev as any).annule_fin);
+      if (q((ev as any).annule_le) && djtAnnule && finAnnule) {
+        ecrire("S21.G00.60.001", "99");
+        ecrire("S21.G00.60.002", dateDsn(djtAnnule));
+        ecrire("S21.G00.60.003", dateDsn(finAnnule));
+        notesArrets.push(qui + " : l'arrêt déclaré du "
+          + dateDsn(djtAnnule) + " au " + dateDsn(finAnnule)
+          + " est ANNULÉ dans cette DSN (motif 99). ⚠️ C'est la seule "
+          + "déclaration qui le retire de la base de la CPAM : après ce "
+          + "dépôt, il ne sera plus répété.");
       }
 
       ecrire("S21.G00.60.001", motif);
