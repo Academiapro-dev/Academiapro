@@ -402,6 +402,14 @@ export default function PageDsn() {
     const iban = f.iban !== undefined ? f.iban : (v.iban_prelevement || "");
     const bic = f.bic !== undefined ? f.bic : (v.bic_prelevement || "");
 
+    // 🆕 20/09 — L ASSUJETTISSEMENT AU VERSEMENT MOBILITE.
+    // ⚠️ TROIS ETATS : true, false, et null pour « pas de réponse ». La
+    // saisie garde une chaine ("oui" / "non" / ""), convertie ici.
+    const vmBrut = f.vm !== undefined
+      ? f.vm
+      : (v.vm_assujetti === true ? "oui" : v.vm_assujetti === false ? "non" : "");
+    const vm = vmBrut === "oui" ? true : vmBrut === "non" ? false : null;
+
     setErr(""); setMsg(""); setOccupe("urssaf" + soc.id);
 
     const d = await appeler({
@@ -411,6 +419,7 @@ export default function PageDsn() {
       entite: entite,
       iban: ibanPropre(iban),
       bic: bic,
+      vm_assujetti: vm,
     });
 
     if (d.success) {
@@ -793,6 +802,10 @@ export default function PageDsn() {
                   ? f.iban : (v.iban_prelevement || "");
                 const bic = f.bic !== undefined
                   ? f.bic : (v.bic_prelevement || "");
+                const vmBrut = f.vm !== undefined
+                  ? f.vm
+                  : (v.vm_assujetti === true ? "oui"
+                    : v.vm_assujetti === false ? "non" : "");
 
                 const ibanSaisi = ibanPropre(iban);
                 const bicSaisi = String(bic || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
@@ -850,6 +863,25 @@ export default function PageDsn() {
                       </p>
                     )}
 
+                    {/* 🆕 20/09 — L ETAT DU VERSEMENT MOBILITE, TOUJOURS DIT.
+                        ⚠️ SANS REPONSE, LA COTISATION VAUT ZERO SUR CHAQUE
+                        BULLETIN, et rien ne le signale sur le bulletin
+                        lui-meme : une ligne absente ne se remarque pas. */}
+                    <p style={{ margin: "8px 0 0", fontSize: "12px",
+                      lineHeight: "1.6",
+                      color: v.vm_assujetti === null ? OR
+                        : "rgba(255,255,255,0.45)" }}>
+                      Versement mobilité :{" "}
+                      {v.vm_assujetti === true
+                        ? "assujettie — le taux est lu dans la table des communes"
+                        : v.vm_assujetti === false
+                          ? "non assujettie"
+                          : "sans réponse, la cotisation vaut zéro sur tous les bulletins"}
+                      {v.vm_effectif !== null && v.vm_effectif !== undefined
+                        ? " · " + v.vm_effectif + " salarié(s) connus"
+                        : ""}
+                    </p>
+
                     {deplie && (
                       <div style={{ marginTop: "12px" }}>
                         <div style={{ marginBottom: "10px" }}>
@@ -897,6 +929,41 @@ export default function PageDsn() {
                           <input style={CHAMP} value={entite}
                             onChange={(ev) => setUrssafSaisie({ ...urssafSaisie,
                               [soc.id]: { ...f, entite: ev.target.value } })} />
+                        </div>
+
+                        {/* ═══════════════════════════════════════════════
+                            🆕 20/09 — L ASSUJETTISSEMENT AU VERSEMENT
+                            MOBILITE
+
+                            🚨 IL NE SE CALCULE PAS. Le versement est dû à
+                            partir de onze salariés dans le ressort d'une
+                            autorité organisatrice, mais l'effectif retenu
+                            est la moyenne de l'année précédente, et depuis
+                            2020 le seuil doit être franchi cinq années de
+                            suite. Nous n'avons ni l'une ni l'autre.
+                            ⛔ TROIS CHOIX, PAS UNE CASE A COCHER : « sans
+                            réponse » doit rester distinct de « non ».
+                            ═══════════════════════════════════════════════ */}
+                        <div style={{ marginTop: "10px" }}>
+                          <span style={LIB}>
+                            Assujettie au versement mobilité ?
+                          </span>
+                          <select style={CHAMP} value={vmBrut}
+                            onChange={(ev) => setUrssafSaisie({ ...urssafSaisie,
+                              [soc.id]: { ...f, vm: ev.target.value } })}>
+                            <option value="">— sans réponse —</option>
+                            <option value="oui">Oui</option>
+                            <option value="non">Non</option>
+                          </select>
+                          <p style={{ margin: "6px 0 0", fontSize: "11.5px",
+                            lineHeight: "1.6", color: "rgba(255,255,255,0.42)" }}>
+                            Due à partir de 11 salariés dans une zone où elle
+                            est instituée. L&apos;effectif retenu est la moyenne
+                            de l&apos;année précédente, et le seuil doit être
+                            franchi cinq années de suite : l&apos;employeur le
+                            sait, la plateforme ne peut pas le déduire. Le taux,
+                            lui, est lu dans la table des communes.
+                          </p>
                         </div>
 
                         {/* 🚨 DIRE CE QUI CLOCHE, ET OU. Un bouton grisé sans
