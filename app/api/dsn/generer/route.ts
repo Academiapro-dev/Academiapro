@@ -767,6 +767,9 @@ export async function POST(req: NextRequest) {
   // `avantDepot` n existe qu en fin de generation : on retient ici, on verse
   // la-bas.
   const notesArrets: string[] = [];
+  // Dernier jour du mois declare, en ISO — sert a borner les periodes.
+  const finMoisDecl = new Date(Number(periode.slice(0, 4)),
+    Number(periode.slice(5, 7)), 0).toISOString().slice(0, 10);
   {
     const finMoisIso = new Date(Number(periode.slice(0, 4)),
       Number(periode.slice(5, 7)), 0).toISOString().slice(0, 10);
@@ -1744,12 +1747,55 @@ export async function POST(req: NextRequest) {
             + "date de fin AVANT de déposer : la prolongation ne se signale "
             + "pas à part, elle passe par cette date.");
         }
-        // ⚠️ LE TEMPS PARTIEL THERAPEUTIQUE N EST PAS TRAITE : il demande un
-        // bloc S21.G00.66 enfant de l arret, qui n existe pas ici.
-        if (motifRep === "02" || motif === "15") {
-          anomalies.push(qui + " : temps partiel thérapeutique. ⛔ Le bloc "
-            + "S21.G00.66 qu'il exige n'est PAS produit : cette situation se "
-            + "déclare à la main pour l'instant.");
+      }
+
+      // ═══════════════════════════════════════════════════════════
+      // 🆕🚨 20/09 — ══ S21.G00.66 — LE TEMPS PARTIEL THERAPEUTIQUE ══
+      //
+      // Enfant de l arret, TROIS RUBRIQUES, toutes obligatoires — dsn-val
+      // les a enumerees (CST-03 sur 002 et 003, CSL-03 sur le format de la
+      // 001) et a valide le fichier complet a 629 lignes :
+      //     001 date de debut du temps partiel dans le mois
+      //     002 date de fin dans le mois
+      //     003 MONTANT DE LA PERTE DE SALAIRE
+      //
+      // 🚨 C EST LA PERTE DE SALAIRE QUI COMPTE, pas le salaire verse : la
+      // CNAM calcule l indemnite complementaire dessus. Sans elle, le
+      // salarie ne touche rien.
+      // 🚨 LE TPT SE DECLARE CHAQUE MOIS OU IL COURT, « meme s il n y a
+      // qu un seul jour de TPT sur le mois » (fiche consigne 911), et les
+      // dates sont BORNEES AU MOIS DECLARE.
+      // ⚠️ SANS BLOC 66, LA CNAM NE RECOIT RIEN : la fiche 911 precise que
+      // la declaration de l arret « ne declenche aucune transmission des
+      // donnees a destination de la CNAM et de la MSA » s il n y a pas de
+      // bloc 66 dessous. Un TPT sans perte de salaire renseignee est donc
+      // inutile a declarer — mais il vaut mieux le dire que le taire.
+      // ⛔ LA PERTE DE SALAIRE NE SE CALCULE PAS ICI : elle depend du
+      // salaire qu aurait eu le salarie a temps plein, que le moteur de
+      // paie ne reconstitue pas encore. Elle se saisit.
+      // ═══════════════════════════════════════════════════════════
+      const estTpt = motif === "15" || motif === "16" || motif === "17"
+        || motif === "18" || q((ev as any).reprise_motif) === "02";
+
+      if (estTpt) {
+        const tptDeb = q((ev as any).tpt_debut) || debutArret;
+        const tptFin = q((ev as any).tpt_fin) || finPrev;
+        const perte = Number((ev as any).tpt_perte_salaire || 0);
+
+        // Les dates sont bornees au mois declare.
+        const dDeb = tptDeb < periode ? periode : tptDeb;
+        const dFin = tptFin > finMoisDecl ? finMoisDecl : tptFin;
+
+        if (perte > 0 && dDeb <= dFin) {
+          ecrire("S21.G00.66.001", dateDsn(dDeb));
+          ecrire("S21.G00.66.002", dateDsn(dFin));
+          ecrire("S21.G00.66.003", montantDsn(perte));
+        } else {
+          anomalies.push(qui + " : temps partiel thérapeutique déclaré sans "
+            + "MONTANT DE PERTE DE SALAIRE. ⛔ Le bloc S21.G00.66 n'est pas "
+            + "écrit, et sans lui la CNAM ne reçoit rien : le salarié ne "
+            + "touchera aucune indemnité complémentaire. Saisir la perte de "
+            + "salaire du mois.");
         }
       }
     }
