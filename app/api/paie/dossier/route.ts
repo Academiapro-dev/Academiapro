@@ -494,6 +494,72 @@ export async function POST(req: NextRequest) {
         }, { status: 400 });
       }
 
+      // ═══════════════════════════════════════════════════════════════
+      // 🆕🚨 20/09 — ON RECALCULE AVANT D EMETTRE. TOUJOURS.
+      //
+      // DEFAUT MESURE CE MATIN, ET IL EST GRAVE : l ecran affichait un
+      // cout employeur de 3 233,73 EUR — calcul frais, avec le versement
+      // mobilite et l AGS corrigee — pendant que la base gardait 3 181,64,
+      // calcule quatre jours plus tot. « Emettre » figeait la valeur
+      // ANCIENNE, et archivait le PDF ancien avec.
+      //
+      // ⛔ LE BULLETIN REMIS AU SALARIE NE PEUT PAS ETRE DIFFERENT DE CELUI
+      // QU ON VIENT DE LIRE A L ECRAN. Un taux corrige en base, une
+      // cotisation ajoutee, un parametre mis a jour : rien de tout cela
+      // n atteignait le bulletin tant qu on ne pensait pas a recalculer a
+      // la main. Personne ne peut deviner qu il faut le faire.
+      //
+      // ⚠️ ON APPELLE LA ROUTE DU BULLETIN, PAS LE MOTEUR : c est elle qui
+      // reecrit le brouillon ET regenere le PDF archive. Le calcul ne vit
+      // qu a un seul endroit, le PDF ne se fabrique qu a un seul endroit.
+      // ⚠️ ELLE CONSERVE type_bulletin ET rectifie_id sur un brouillon
+      // existant : un rectificatif reste un rectificatif, et le lien vers
+      // le bulletin qu il annule n est pas perdu.
+      // 🚨 SI LE RECALCUL ECHOUE, ON N EMET PAS. Emettre sur un calcul dont
+      // on ne sait rien serait pire que ne rien faire.
+      // ═══════════════════════════════════════════════════════════════
+      let avantCout: number | null = null;
+      let apresCout: number | null = null;
+
+      {
+        const { data: avant } = await supabase
+          .from("paie_bulletins")
+          .select("cout_employeur")
+          .eq("id", b.id)
+          .maybeSingle();
+        if (avant) avantCout = Number(avant.cout_employeur || 0);
+
+        const hote = req.headers.get("host") || "";
+        let recalcul: any = null;
+        try {
+          const rr = await fetch("https://" + hote + "/api/paie/bulletin?secret="
+            + encodeURIComponent(process.env.CRON_SECRET || ""), {
+            method: "POST",
+            cache: "no-store",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contrat_id: b.contrat_id,
+              periode: String(b.periode).slice(0, 10),
+            }),
+          });
+          recalcul = await rr.json();
+          if (!rr.ok || !recalcul || recalcul.erreur) {
+            return NextResponse.json({
+              erreur: "le bulletin n'a pas pu être recalculé avant émission : "
+                + ((recalcul && recalcul.erreur) || "erreur inconnue")
+                + ". ⛔ RIEN N'A ÉTÉ ÉMIS.",
+            }, { status: 400 });
+          }
+        } catch (e: any) {
+          return NextResponse.json({
+            erreur: "le bulletin n'a pas pu être recalculé avant émission ("
+              + String(e) + "). ⛔ RIEN N'A ÉTÉ ÉMIS.",
+          }, { status: 500 });
+        }
+
+        apresCout = Number(recalcul.cout_employeur || 0);
+      }
+
       // ---- 1. ANNULER LE BULLETIN RECTIFIE ----
       let annule: string | null = null;
       if (b.type_bulletin === "rectificatif" && b.rectifie_id) {
@@ -596,6 +662,17 @@ export async function POST(req: NextRequest) {
       }
 
       let message = "Bulletin " + b.numero + " émis. Il ne peut plus être modifié.";
+      // 🆕 20/09 — SI LE RECALCUL A CHANGE LE MONTANT, ON LE DIT.
+      // ⚠️ UN ECART N EST PAS UNE ERREUR : il veut dire qu un taux ou un
+      // paramètre a été corrigé en base depuis le dernier calcul, et que le
+      // bulletin émis en tient compte. Mais il doit se voir, sinon le coût
+      // employeur change sans que personne ne sache pourquoi.
+      if (avantCout !== null && apresCout !== null
+        && Math.abs(apresCout - avantCout) >= 0.01) {
+        message += " ⚠️ Recalculé avant émission : le coût employeur passe de "
+          + avantCout.toFixed(2) + " € à " + apresCout.toFixed(2)
+          + " € (un taux ou un paramètre a changé depuis le dernier calcul).";
+      }
       if (annule) message += " Le bulletin " + annule + " est annulé et remplacé.";
       if (congesPoses) message += " 2,5 jours de congés ont été acquis.";
       if (congesErreur) {
