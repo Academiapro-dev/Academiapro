@@ -1117,6 +1117,29 @@ async function calculer(contratId: string, periode: string): Promise<any> {
   // dans le brut cotise — ce ne sont pas des remboursements de frais.
   const brutTotal = cts(brutSoumis + ifm + iccp);
 
+  // ═══════════════════════════════════════════════════════════════════
+  // 🆕🚨 20/09 — LE SALAIRE RETABLI : CE QUE LE SALARIE AURAIT TOUCHE SANS
+  // L ABSENCE
+  //
+  // La DSN le declare chaque mois (remuneration de type 003), et
+  // l assurance maladie calcule les indemnites journalieres dessus. Sans
+  // absence il egale le brut ; le mois de l absence, il s en ecarte — et
+  // c est ce mois-la qu il sert.
+  // ⚠️ LA PRECARITE ET L INDEMNITE DE CONGES SUIVENT LE BRUT : on retablit
+  // donc dans la meme proportion, pour retrouver AU CENTIME le brut du mois
+  // complet (2 541,00 pour un salaire de 2 100 en CDD).
+  // ═══════════════════════════════════════════════════════════════════
+  let effetAbsence = retenueArrets;
+  for (const mt of maintiens) {
+    effetAbsence -= Number(mt.maintien || 0) - Number(mt.ijss_brutes || 0);
+  }
+  effetAbsence = cts(effetAbsence);
+  const salaireRetabli = effetAbsence <= 0
+    ? brutTotal
+    : (brutSoumis > 0
+      ? cts((brutSoumis + effetAbsence) * brutTotal / brutSoumis)
+      : effetAbsence);
+
   // ---- LES COTISATIONS ----
   const { data: cotisations } = await supabase
     .from("paie_cotisations")
@@ -1688,6 +1711,7 @@ async function calculer(contratId: string, periode: string): Promise<any> {
     absences: absencesArret,
     retenue_absences: retenueArrets,
     maintiens: maintiens,
+    salaire_retabli: salaireRetabli,
 
     lignes_mission: lignesMission,
     ifm: ifm,
