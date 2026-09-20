@@ -928,6 +928,12 @@ export async function POST(req: NextRequest) {
   // Les assiettes cumulees, par type de bloc 78 : c est la matiere du
   // bordereau, et elle vient des memes chiffres que le nominatif.
   const assiettesCumulees: Record<string, number> = {};
+  // 🆕 20/09 — LE VERSEMENT MOBILITE, CUMULE PAR COMMUNE.
+  // 🚨 PAR COMMUNE, PAS EN TOTAL : le CTP 900 se declare « pour chaque
+  // commune au titre de laquelle le versement mobilite est du, y compris en
+  // cas de similarite de taux » (guide Urssaf). Deux etablissements dans
+  // deux zones font deux lignes, meme si le taux est identique.
+  const vmParCommune: Record<string, { assiette: number; montant: number; taux: number }> = {};
   // La somme des codes 018 — la part de reduction qui revient a l URSSAF.
   let rgduUrssaf = 0;
   // Ce que l employeur doit reellement a l URSSAF, pour les blocs 20 et 22.
@@ -1698,6 +1704,32 @@ export async function POST(req: NextRequest) {
       }
       parAssiette[bAss].codes[corr.code].montant += montant;
 
+      // ═══════════════════════════════════════════════════════════════
+      // 🆕 20/09 — LE VERSEMENT MOBILITE PORTE SA COMMUNE ET SON TAUX
+      //
+      // 🚨 LE CODE INSEE EST OBLIGATOIRE, DEUX FOIS : en S21.G00.81.005 au
+      // nominatif et en S21.G00.23.006 au bordereau, « pour chaque commune
+      // au titre de laquelle le versement mobilite est du, Y COMPRIS EN CAS
+      // DE SIMILARITE DE TAUX » (guide Urssaf, §1.1). Le guide precise
+      // qu une ligne du CTP 900 rejetee faute de code commune oblige a
+      // regulariser le mois suivant.
+      //
+      // ⚠️ IL VIENT DU BULLETIN, pas d une deduction faite ici : c est le
+      // moteur de paie qui a choisi la commune — lieu de travail du
+      // contrat, sinon entreprise utilisatrice, sinon etablissement — et
+      // qui a lu le taux correspondant. ⛔ LE REDEVINER ICI, C EST
+      // RISQUER DE DECLARER UNE AUTRE COMMUNE QUE CELLE QUI A SERVI AU
+      // CALCUL.
+      // ⚠️ UN BULLETIN EMIS AVANT LE 20/09 NE PORTE PAS CE CHAMP : la
+      // ligne est alors declaree au nominatif sans sa commune, et
+      // l anomalie le dit au moment d ecrire le bordereau.
+      // ═══════════════════════════════════════════════════════════════
+      if (interne === "VERSEMENT_MOBILITE") {
+        const insee = q((l as any).insee);
+        if (insee) parAssiette[bAss].codes[corr.code].insee = insee;
+        parAssiette[bAss].codes[corr.code].tauxVm = Number(l.taux_patronal || 0);
+      }
+
       // 🚨 CONTROLE SIG-18 DU CAHIER : tout bloc « 131 - regime unifie
       // Agirc-Arrco » doit etre accompagne d un bloc « 142 - part patronale
       // tranche T1 ». On cumule la part patronale pour l ecrire ensuite.
@@ -1706,7 +1738,13 @@ export async function POST(req: NextRequest) {
 
     // ⚠️ L ORDRE DES ASSIETTES : la deplafonnee en premier, parce que c est
     // sous elle que se rattache la reduction generale (controle CCH-17).
-    const ordreAssiettes = ["03", "02", "04", "07"];
+    // 🆕 20/09 — « 57 - Assiette du versement mobilite » ferme la marche.
+    // 🚨 ELLE EST PROPRE AU VERSEMENT MOBILITE : le guide Urssaf range
+    // cette cotisation sous sa propre base assujettie, pas sous l assiette
+    // brute deplafonnee. ⛔ SANS CETTE LIGNE, LE GROUPE « 57 » SERAIT
+    // CALCULE PUIS JETE EN SILENCE — la cotisation disparaitrait du
+    // nominatif sans aucun message.
+    const ordreAssiettes = ["03", "02", "04", "07", "57"];
 
     for (const bAss of ordreAssiettes) {
       const grp = parAssiette[bAss];
@@ -1858,6 +1896,44 @@ export async function POST(req: NextRequest) {
         ecrire("S21.G00.81.001", cd);
         ecrire("S21.G00.81.003", montantDsn(grp.codes[cd].base));
         ecrire("S21.G00.81.004", montantDsn(grp.codes[cd].montant));
+
+        // 🆕 20/09 — LA COMMUNE DU VERSEMENT MOBILITE, AU NOMINATIF.
+        // ⚠️ ELLE NE S ECRIT QUE LA : le guide montre « Code INSEE commune
+        // (S21.G00.81.005) : non renseigne » dans l attendu de toutes les
+        // autres cotisations.
+        if (grp.codes[cd].insee) {
+          ecrire("S21.G00.81.005", grp.codes[cd].insee);
+
+          // 🆕 LE CUMUL PAR COMMUNE, QUI NOURRIT LE CTP 900 DU BORDEREAU.
+          // 🚨 UNE LIGNE PAR COMMUNE, jamais un total : deux etablissements
+          // dans deux zones se declarent separement, meme a taux egal.
+          const ins = String(grp.codes[cd].insee);
+          if (!vmParCommune[ins]) {
+            vmParCommune[ins] = { assiette: 0, montant: 0, taux: 0 };
+          }
+          vmParCommune[ins].assiette += Number(grp.codes[cd].base || 0);
+          vmParCommune[ins].montant += Number(grp.codes[cd].montant || 0);
+          // ⚠️ LE TAUX EST CELUI DE LA COMMUNE : il est le meme pour tous
+          // les salaries qui y travaillent. On garde le dernier vu, et on
+          // signale si deux taux differents apparaissent pour une meme
+          // commune — ce serait le signe d un bulletin calcule avant une
+          // mise a jour de la table.
+          const t = Number(grp.codes[cd].tauxVm || 0);
+          if (vmParCommune[ins].taux > 0 && t > 0
+            && Math.abs(vmParCommune[ins].taux - t) > 0.0001) {
+            anomalies.push("Deux taux de versement mobilité différents pour la "
+              + "commune " + ins + " (" + vmParCommune[ins].taux + " % et " + t
+              + " %). ⛔ Un bulletin a été calculé avant une mise à jour de la "
+              + "table des taux : le recalculer avant de déposer.");
+          }
+          if (t > 0) vmParCommune[ins].taux = t;
+        } else if (grp.codes[cd].tauxVm !== undefined) {
+          // 🚨 UN VERSEMENT MOBILITE SANS COMMUNE EST REJETE PAR L URSSAF.
+          anomalies.push(qui + " : versement mobilité déclaré sans code INSEE "
+            + "de commune. ⛔ LA LIGNE DU CTP 900 SERA REJETÉE et une "
+            + "régularisation sera attendue le mois suivant. Recalculer le "
+            + "bulletin pour que la commune du lieu de travail y figure.");
+        }
 
         // 🆕 CE QUI EST DU A L URSSAF : tout sauf la retraite complementaire,
         // qui releve de l Agirc-Arrco et se verse ailleurs.
@@ -2084,6 +2160,56 @@ export async function POST(req: NextRequest) {
         ecrireB("S21.G00.23.004", euroDsn(assiette));
         // ⛔ PAS DE MONTANT DE COTISATION sur les CTP du socle : la fiche 1
         // du guide ne renseigne que l assiette.
+      }
+
+      // ═══════════════════════════════════════════════════════════════
+      // 🆕 20/09 — LE VERSEMENT MOBILITE AU BORDEREAU : CTP 900
+      //
+      // 🚨 UNE LIGNE PAR COMMUNE, ET LE CODE INSEE EST OBLIGATOIRE. Le
+      // guide Urssaf : la rubrique 23.006 « est a renseigner de facon
+      // obligatoire des lors que l entreprise est assujettie au versement
+      // mobilite, et pour chaque commune au titre de laquelle le versement
+      // mobilite est du, y compris en cas de similarite de taux ». Une
+      // ligne rejetee faute de code commune oblige a regulariser le mois
+      // suivant.
+      // 🚨 LE TAUX SE DECLARE : le versement mobilite est l une des trois
+      // seules cotisations dont la rubrique 23.003 est attendue, avec
+      // l accident du travail et le bonus-malus.
+      // ⚠️ L ASSIETTE EST CELLE DES BLOCS 78 DE TYPE 57, ventilee par
+      // commune : c est l equivalence agrege / nominatif.
+      // ⚠️ LE VMRR (CTP 820) N EST PAS TRAITE ICI : il releve d une table
+      // regionale distincte, et aucune commune de l essai n y figure.
+      // ═══════════════════════════════════════════════════════════════
+      const communes = Object.keys(vmParCommune).sort();
+      if (communes.length > 0) {
+        const { data: ctp900 } = await supabase
+          .from("urssaf_ctp")
+          .select("code, libelle")
+          .eq("code", "900")
+          .lte("date_effet", periode)
+          .or("date_fin.is.null,date_fin.gte." + periode)
+          .order("date_effet", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (!ctp900) {
+          anomalies.push("Le code type de personnel 900 (versement mobilité) "
+            + "n'existe pas dans urssaf_ctp à la période " + periode + ", ou il "
+            + "est clôturé. ⛔ LE VERSEMENT MOBILITÉ N'EST PAS DÉCLARÉ AU "
+            + "BORDEREAU alors qu'il figure sur les bulletins.");
+        } else {
+          for (const ins of communes) {
+            const v = vmParCommune[ins];
+            if (v.assiette <= 0) continue;
+
+            ecrireB("S21.G00.23.001", "900");
+            // Le versement mobilite porte sur la totalite : qualifiant 920.
+            ecrireB("S21.G00.23.002", "920");
+            if (v.taux > 0) ecrireB("S21.G00.23.003", montantDsn(v.taux));
+            ecrireB("S21.G00.23.004", euroDsn(v.assiette));
+            ecrireB("S21.G00.23.006", ins);
+          }
+        }
       }
 
       // ══ LA REDUCTION GENERALE ══
