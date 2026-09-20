@@ -114,6 +114,11 @@ const EV_VIDE: any = {
   type_evenement: "arret", motif: "", date_debut: "", date_fin: "",
   dernier_jour_travaille: "", subrogation: false, iban: "", bic: "",
   subro_fin: "", date_notification: "", dernier_jour_paye: "",
+  // 🆕 20/09 — LA REPRISE ANTICIPEE, PORTEE PAR L ARRET LUI-MEME.
+  // ⛔ ELLE DOIT PASSER PAR LE FORMULAIRE : « modifier » est un retrait suivi
+  // d une saisie. Un champ que le formulaire ne porte pas DISPARAIT a la
+  // premiere modification, sans aucun message.
+  reprise_date: "", reprise_motif: "",
 };
 
 function moisCourant(): string {
@@ -402,6 +407,22 @@ export default function PagePaie() {
           + "subrogation sont obligatoires tous les trois.");
         return;
       }
+      // 🆕 20/09 — LA REPRISE NE SE SIGNALE QUE SI ELLE EST ANTICIPEE.
+      // dsn-val, controle SIG-13 : une reprise posterieure a la fin prevue
+      // de l arret est refusee. Reprendre a la date prevue n est pas un
+      // evenement — il n y a rien a declarer.
+      if (ev.reprise_date) {
+        if (ev.reprise_date < ev.date_debut) {
+          setErrEv("La reprise ne peut pas précéder le début de l'arrêt.");
+          return;
+        }
+        if (ev.date_fin && ev.reprise_date > ev.date_fin) {
+          setErrEv("La reprise est postérieure à la fin prévue de l'arrêt : il "
+            + "n'y a rien à signaler. Une reprise ne se déclare que "
+            + "lorsqu'elle est ANTICIPÉE. Videz la date de reprise.");
+          return;
+        }
+      }
     }
     setErrEv(""); setErr(""); setMsg("");
     setOccupe("evenement");
@@ -475,6 +496,8 @@ export default function PagePaie() {
       subro_fin: d10(x.subro_fin),
       date_notification: d10(x.date_notification),
       dernier_jour_paye: d10(x.dernier_jour_paye),
+      reprise_date: d10(x.reprise_date),
+      reprise_motif: String(x.reprise_motif || ""),
     });
     setModifie(x);
     setErrEv(""); setErr(""); setMsg("");
@@ -1536,6 +1559,51 @@ export default function PagePaie() {
                     par la convention collective, pas forcément celle de
                     l&apos;arrêt. Passé cette date, la CPAM verse les indemnités
                     au salarié.
+                  </p>
+                )}
+
+                {/* ═══════════════════════════════════════════════════════
+                    🆕 20/09 — LA REPRISE ANTICIPEE
+
+                    Elle se saisit SUR L ARRET : une reprise n existe pas
+                    sans lui, et la rattacher evite de recopier le salarie,
+                    le contrat et les dates dans un second evenement.
+                    ⚠️ FACULTATIVE : la plupart des arrets vont a leur terme,
+                    et il n y a alors rien a signaler.
+                    🚨 LES TROIS MOTIFS SONT CEUX QUE dsn-val A AFFICHES.
+                    ═══════════════════════════════════════════════════════ */}
+                {ev.type_evenement === "arret" && (
+                  <div style={{ display: "flex", gap: "10px", flexWrap: "wrap",
+                    marginTop: "12px" }}>
+                    <div style={{ flex: "1 1 200px" }}>
+                      <span style={LIB}>Reprise anticipée le (facultatif)</span>
+                      <input type="date" value={ev.reprise_date} style={CHAMP}
+                        onChange={(x: any) => setEv(Object.assign({}, ev,
+                          { reprise_date: x.target.value,
+                            reprise_motif: x.target.value
+                              ? (ev.reprise_motif || "01") : "" }))} />
+                    </div>
+                    {ev.reprise_date && (
+                      <div style={{ flex: "2 1 260px" }}>
+                        <span style={LIB}>Motif de la reprise</span>
+                        <select value={ev.reprise_motif || "01"} style={CHAMP}
+                          onChange={(x: any) => setEv(Object.assign({}, ev,
+                            { reprise_motif: x.target.value }))}>
+                          <option value="01">Reprise normale</option>
+                          <option value="02">Reprise à temps partiel thérapeutique</option>
+                          <option value="03">Reprise à temps partiel pour raison personnelle</option>
+                        </select>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {ev.type_evenement === "arret" && (
+                  <p style={{ fontSize: "12px", color: "rgba(255,255,255,0.45)",
+                    margin: "8px 0 0", lineHeight: "1.6" }}>
+                    À remplir seulement si le salarié revient AVANT la fin prévue
+                    de son arrêt : la reprise se signale alors à part, par
+                    « générer la reprise ». Un arrêt qui va à son terme ne se
+                    signale pas.
                   </p>
                 )}
 
