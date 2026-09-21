@@ -50,6 +50,27 @@ function propre(v: any): string | null {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
+// 🆕🚨 20/09 — UN NOMBRE SAISI A LA FRANCAISE
+//
+// ⛔ `Number("6,6")` NE VAUT PAS 6,6 : il vaut NaN, et `NaN || 0` vaut
+// zero. Un montant saisi avec une VIRGULE — ce que fait n importe quel
+// utilisateur francais, et ce que propose le clavier de l iPad — etait donc
+// SILENCIEUSEMENT REMPLACE PAR ZERO.
+// 🚨 LE DEFAUT NE SE VOYAIT PAS : la ligne s enregistrait, sans message,
+// avec un montant de 0,00 EUR. Trouve le 20/09 sur les titres-restaurant,
+// mais il touchait TOUS les elements variables depuis le debut.
+// ⚠️ ON ACCEPTE AUSSI LES ESPACES DES MILLIERS (« 1 234,56 ») et l espace
+// insecable que colle iOS.
+// ═══════════════════════════════════════════════════════════════════════
+function nombreFr(v: any): number | null {
+  if (v === null || v === undefined) return null;
+  const t = String(v).replace(/\u00A0|\u202F|\s/g, "").replace(",", ".").trim();
+  if (t.length === 0) return null;
+  const n = Number(t);
+  return isFinite(n) ? n : null;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
 // 🆕🚨 16/09 — LE CONTROLE DE LA CLE DU NUMERO DE SECURITE SOCIALE
 //
 // DEFAUT TROUVE A L ESSAI : le jeu d essai portait 1 92 04 99 999 999 42.
@@ -382,9 +403,9 @@ export async function POST(req: NextRequest) {
       const natureBrute = propre(c.type_element) || "prime";
       const SANS_CALCUL_AUTO = ["titres_restaurant", "avantage_repas"];
 
-      let montant = c.montant ? Number(c.montant) : 0;
-      const q = c.quantite ? Number(c.quantite) : null;
-      const t = c.taux ? Number(c.taux) : null;
+      let montant = nombreFr(c.montant) || 0;
+      const q = nombreFr(c.quantite);
+      const t = nombreFr(c.taux);
       if (!montant && q !== null && t !== null
           && SANS_CALCUL_AUTO.indexOf(natureBrute) < 0) {
         montant = Math.round(q * t * 100) / 100;
@@ -746,7 +767,7 @@ export async function POST(req: NextRequest) {
     if (action === "poser_conges") {
       const contratId = String(c.contrat_id || "");
       const periode = String(c.periode || "");
-      const jours = Number(c.jours || 0);
+      const jours = nombreFr(c.jours) || 0;
 
       if (!contratId || !periode) {
         return NextResponse.json({ erreur: "contrat ou période manquant." },
