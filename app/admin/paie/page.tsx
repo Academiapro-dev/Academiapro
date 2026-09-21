@@ -315,7 +315,14 @@ export default function PagePaie() {
       soumis_cotisations: t ? t.soumis : true,
     });
     if (d.success) {
-      setE({ type_element: "heures_sup_25" });
+      // 🆕🚨 20/09 — LA NATURE RESTE CELLE QU ON VIENT D UTILISER.
+      // ⛔ ELLE REVENAIT A « Heures supplementaires 25 % » apres chaque
+      // ajout. Trois essais perdus le 20/09 : la valeur etait saisie dans
+      // les bons champs, mais la nature avait deja change, et la ligne
+      // s enregistrait en heures supplementaires. RIEN NE LE SIGNALAIT.
+      // ⚠️ ON VIDE LES CHAMPS, PAS LA NATURE : on saisit rarement une seule
+      // ligne d une nature, et jamais deux natures differentes d affilee.
+      setE({ type_element: e.type_element });
       setCalcul(null);
       const l = await appeler({ action: "elements", contrat_id: choisi.id, periode: periode });
       if (l.success) setElements(l.elements);
