@@ -201,6 +201,8 @@ export default function PagePaie() {
   const [occupe, setOccupe] = useState("");
   // 🆕 20/09 — la prime de vacances Syntec : une obligation d ENTREPRISE.
   const [prime, setPrime] = useState<any>(null);
+  // 🆕 20/09 — les documents de fin de contrat.
+  const [finDoc, setFinDoc] = useState<any>(null);
   const [nouveau, setNouveau] = useState(false);
   const [f, setF] = useState<any>({ type_contrat: "mission", categorie: "non_cadre", duree_hebdo: 35 });
   const [e, setE] = useState<any>({ type_element: "heures_sup_25" });
@@ -573,6 +575,41 @@ export default function PagePaie() {
   // 🚨 LA DATE LIMITE EST LE 31 OCTOBRE : une prime versee apres ne remplit
   // pas l obligation, meme si le montant est bon.
   // ═══════════════════════════════════════════════════════════════════
+  // ═══════════════════════════════════════════════════════════════════
+  // 🆕🚨 20/09 — LE CERTIFICAT DE TRAVAIL ET LE REÇU POUR SOLDE DE TOUT
+  // COMPTE
+  //
+  // 🚨 ILS NE SE PRODUISENT QU UNE FOIS LE DERNIER BULLETIN EMIS : le reçu
+  // inventorie LES SOMMES VERSEES, et une somme qui n y figure pas n est
+  // pas couverte par l effet liberatoire de six mois.
+  // ⚠️ LA ROUTE REFUSE d elle-meme s il n y a aucun bulletin emis, et
+  // signale si le dernier n est pas celui du mois de la rupture.
+  // ═══════════════════════════════════════════════════════════════════
+  async function documentsFinContrat() {
+    if (!choisi) return;
+    setErr(""); setMsg(""); setFinDoc(null);
+    setOccupe("findoc");
+    let d: any = null;
+    try {
+      const r = await fetch("/api/paie/fin-contrat?secret="
+        + encodeURIComponent(secret), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contrat_id: choisi.id }),
+      });
+      d = await r.json();
+    } catch (e: any) {
+      setOccupe("");
+      setErr("appel impossible : " + String(e));
+      return;
+    }
+    setOccupe("");
+    if (!d) return;
+    if (d.erreur) { setErr(d.erreur); return; }
+    setFinDoc(d);
+    setMsg(d.message || "");
+  }
+
   async function chargerPrime() {
     if (!choisi || !choisi.societe_id) return;
     setErr(""); setMsg("");
@@ -1430,6 +1467,93 @@ export default function PagePaie() {
                 une fin de CDD declaree en licenciement economique ouvre
                 les mauvais droits.
                 ═══════════════════════════════════════════════════════ */}
+            {/* ═══════════════════════════════════════════════════════
+                🆕 LES DOCUMENTS DE FIN DE CONTRAT
+                ⚠️ LE BLOC N APPARAIT QUE SUR UN CONTRAT QUI A UNE FIN :
+                sur un CDI en cours, il n y a rien a remettre.
+                ═══════════════════════════════════════════════════════ */}
+            {choisi && (choisi.rompu_le || choisi.date_fin) && (
+              <div style={CADRE}>
+                <h3 style={{ color: OR, fontSize: "16px", marginTop: 0 }}>
+                  Documents de fin de contrat
+                </h3>
+                <p style={{ fontSize: "13px", color: "rgba(255,255,255,0.55)",
+                  marginTop: 0, lineHeight: "1.6" }}>
+                  Certificat de travail et reçu pour solde de tout compte, en un
+                  PDF de deux pages. Le reçu inventorie les sommes versées :
+                  émettre le dernier bulletin AVANT de le produire, car une
+                  somme qui n&apos;y figure pas n&apos;est pas couverte par
+                  l&apos;effet libératoire de six mois.
+                </p>
+
+                <button onClick={documentsFinContrat} disabled={occupe !== ""}
+                  style={{ ...BOUTON, marginTop: "4px" }}>
+                  {occupe === "findoc" ? "…" : "Produire les documents"}
+                </button>
+
+                {finDoc && (
+                  <div style={{ marginTop: "14px" }}>
+                    <p style={{ fontSize: "13px",
+                      color: "rgba(255,255,255,0.55)", margin: "0 0 10px" }}>
+                      {finDoc.salarie} · du {jma(finDoc.date_entree)} au{" "}
+                      {jma(finDoc.date_sortie)} · inventaire du bulletin{" "}
+                      {finDoc.bulletin_inventorie}
+                    </p>
+
+                    {(finDoc.postes || []).map((p: any, i: number) => (
+                      <div key={i} style={{ display: "flex",
+                        justifyContent: "space-between", padding: "5px 0",
+                        fontSize: "14px" }}>
+                        <span>{p.libelle}</span>
+                        <span>{euros(p.montant)}</span>
+                      </div>
+                    ))}
+                    {(finDoc.pour_memoire || []).map((p: any, i: number) => (
+                      <div key={"m" + i} style={{ display: "flex",
+                        justifyContent: "space-between", padding: "4px 0",
+                        fontSize: "12px", color: "rgba(255,255,255,0.5)" }}>
+                        <span>{p.libelle}</span>
+                        <span>{euros(p.montant)}</span>
+                      </div>
+                    ))}
+
+                    <div style={{ display: "flex",
+                      justifyContent: "space-between", padding: "8px 0",
+                      borderTop: "1px solid rgba(255,255,255,0.12)",
+                      marginTop: "6px", fontSize: "15px", color: OR }}>
+                      <span>Total net versé</span>
+                      <span>{euros(finDoc.total)}</span>
+                    </div>
+
+                    {/* 🚨 LA DATE AU-DELA DE LAQUELLE LE REÇU LIBERE : elle
+                        ne court qu a compter de la SIGNATURE du salarie. */}
+                    <p style={{ fontSize: "12px",
+                      color: "rgba(255,255,255,0.5)", marginTop: "8px",
+                      lineHeight: "1.6" }}>
+                      Libératoire six mois après la signature du salarié, soit
+                      vers le {jma(finDoc.liberatoire_le)} si elle intervient le
+                      jour de la sortie.
+                    </p>
+
+                    {finDoc.url && (
+                      <p style={{ marginTop: "10px" }}>
+                        <a href={finDoc.url} target="_blank" rel="noreferrer"
+                          style={{ ...LIEN, color: VERT, fontSize: "14px" }}>
+                          ouvrir le PDF
+                        </a>
+                      </p>
+                    )}
+
+                    {(finDoc.anomalies || []).map((a: string, i: number) => (
+                      <p key={"a" + i} style={{ fontSize: "12px",
+                        color: "rgba(255,255,255,0.45)", margin: "6px 0",
+                        lineHeight: "1.6" }}>{a}</p>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* ═══════════════════════════════════════════════════════
                 🆕 LA PRIME DE VACANCES — AU NIVEAU DE LA SOCIETE
                 ⚠️ Elle ne depend pas du contrat ouvert : elle est affichee
