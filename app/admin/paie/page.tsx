@@ -199,6 +199,8 @@ export default function PagePaie() {
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
   const [occupe, setOccupe] = useState("");
+  // 🆕 20/09 — la prime de vacances Syntec : une obligation d ENTREPRISE.
+  const [prime, setPrime] = useState<any>(null);
   const [nouveau, setNouveau] = useState(false);
   const [f, setF] = useState<any>({ type_contrat: "mission", categorie: "non_cadre", duree_hebdo: 35 });
   const [e, setE] = useState<any>({ type_element: "heures_sup_25" });
@@ -559,6 +561,31 @@ export default function PagePaie() {
   // ⚠️ L ARRET ET SA REPRISE SE DEPOSENT SEPAREMENT : deux natures, deux
   // compteurs, deux gestes.
   // ═══════════════════════════════════════════════════════════════════
+  // ═══════════════════════════════════════════════════════════════════
+  // 🆕🚨 20/09 — LA PRIME DE VACANCES SYNTEC (article 31)
+  //
+  // ⛔ CE N EST PAS UNE LIGNE DE BULLETIN, et c est pour cela qu elle
+  // s affiche ICI et non dans le calcul : l article 31 impose un montant
+  // GLOBAL a l entreprise — au moins 10 % de la masse des indemnites de
+  // conges payes de tous les salaries — et laisse la REPARTITION au choix
+  // de l employeur. Un logiciel qui la repartirait tout seul deciderait a
+  // sa place.
+  // 🚨 LA DATE LIMITE EST LE 31 OCTOBRE : une prime versee apres ne remplit
+  // pas l obligation, meme si le montant est bon.
+  // ═══════════════════════════════════════════════════════════════════
+  async function chargerPrime() {
+    if (!choisi || !choisi.societe_id) return;
+    setErr(""); setMsg("");
+    setOccupe("prime");
+    const d = await appeler({
+      action: "prime_vacances", societe_id: choisi.societe_id,
+    });
+    setOccupe("");
+    if (!d) return;
+    if (d.erreur) { setErr(d.erreur); return; }
+    setPrime(d);
+  }
+
   async function deposerSignalement(id: string, reprise?: boolean) {
     setErr(""); setErrEv(""); setMsg("");
     setOccupe(reprise ? "depot-reprise" : "depot");
@@ -1403,6 +1430,86 @@ export default function PagePaie() {
                 une fin de CDD declaree en licenciement economique ouvre
                 les mauvais droits.
                 ═══════════════════════════════════════════════════════ */}
+            {/* ═══════════════════════════════════════════════════════
+                🆕 LA PRIME DE VACANCES — AU NIVEAU DE LA SOCIETE
+                ⚠️ Elle ne depend pas du contrat ouvert : elle est affichee
+                depuis cette fiche parce que c est de la qu on travaille,
+                mais le montant porte sur TOUS les salaries de la societe.
+                ═══════════════════════════════════════════════════════ */}
+            {choisi && Number(choisi.idcc) === 1486 && (
+              <div style={CADRE}>
+                <h3 style={{ color: OR, fontSize: "16px", marginTop: 0 }}>
+                  Prime de vacances (convention Syntec, article 31)
+                </h3>
+                <p style={{ fontSize: "13px", color: "rgba(255,255,255,0.55)",
+                  marginTop: 0, lineHeight: "1.6" }}>
+                  Obligation de l&apos;entreprise, pas du bulletin : au moins
+                  10 % de la masse des indemnités de congés payés de
+                  l&apos;ensemble des salariés, dont une partie versée entre le
+                  1er mai et le 31 octobre. La répartition entre les salariés
+                  est libre.
+                </p>
+
+                <button onClick={chargerPrime} disabled={occupe !== ""}
+                  style={{ ...BOUTON, marginTop: "4px" }}>
+                  {occupe === "prime" ? "…" : "Calculer l'obligation"}
+                </button>
+
+                {prime && (
+                  <div style={{ marginTop: "14px" }}>
+                    <p style={{ fontSize: "13px", color: "rgba(255,255,255,0.55)",
+                      margin: "0 0 10px" }}>
+                      Exercice {prime.exercice ? prime.exercice.libelle : ""}
+                    </p>
+
+                    <div style={{ display: "flex", justifyContent: "space-between",
+                      padding: "6px 0", fontSize: "14px" }}>
+                      <span>Congés pris ({prime.jours_pris} j)</span>
+                      <span>{euros(prime.masse_conges_pris)}</span>
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between",
+                      padding: "6px 0", fontSize: "14px" }}>
+                      <span>Indemnités compensatrices</span>
+                      <span>{euros(prime.masse_indemnites_compensatrices)}</span>
+                    </div>
+
+                    {/* 🚨 LES DEUX ASSIETTES COTE A COTE : la jurisprudence
+                        n est pas unanime, et l ecart se voit. */}
+                    <div style={{ display: "flex", justifyContent: "space-between",
+                      padding: "8px 0", borderTop: "1px solid rgba(255,255,255,0.12)",
+                      marginTop: "6px", fontSize: "15px", color: OR }}>
+                      <span>Obligation, assiette large (Cass. 2023)</span>
+                      <span>{euros(prime.obligation_10_pct)}</span>
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between",
+                      padding: "6px 0", fontSize: "14px",
+                      color: "rgba(255,255,255,0.65)" }}>
+                      <span>Obligation, hors compensatrices</span>
+                      <span>{euros(prime.obligation_hors_compensatrices)}</span>
+                    </div>
+
+                    <div style={{ display: "flex", justifyContent: "space-between",
+                      padding: "6px 0", fontSize: "14px" }}>
+                      <span>Déjà versé entre mai et octobre</span>
+                      <span>{euros(prime.verse_entre_mai_et_octobre)}</span>
+                    </div>
+
+                    <p style={{ fontSize: "14px", marginTop: "12px",
+                      color: prime.reste_a_verser > 0 ? ROUGE : VERT,
+                      lineHeight: "1.6" }}>
+                      {prime.verdict}
+                    </p>
+
+                    {(prime.reserves || []).map((r: string, i: number) => (
+                      <p key={i} style={{ fontSize: "12px",
+                        color: "rgba(255,255,255,0.45)", margin: "6px 0",
+                        lineHeight: "1.6" }}>{r}</p>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             {choisi && evenements && (
               <div style={CADRE}>
                 <h3 style={{ color: OR, fontSize: "16px", marginTop: 0 }}>
