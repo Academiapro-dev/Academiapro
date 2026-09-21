@@ -366,15 +366,34 @@ export async function POST(req: NextRequest) {
 
       // ⚠️ LE MONTANT SE CALCULE quand quantite et taux sont donnes : on ne
       // fait pas taper ce que la machine sait faire.
+      //
+      // 🆕🚨 20/09 — SAUF POUR LES NATURES DONT LES TROIS CHAMPS NE SONT PAS
+      // « quantite x taux = montant ».
+      //
+      // Pour un titre-restaurant : quantite = nombre de titres, taux =
+      // valeur faciale, montant = PART PATRONALE PAR TITRE. La regle
+      // generale calculait 10 x 11 = 110 et ECRASAIT la part patronale de
+      // 6,60 EUR saisie. Le moteur lisait alors une part patronale de
+      // 110 EUR pour une valeur faciale de 11 EUR, soit 1 000 %, et
+      // reintegrait 1 100 EUR au brut.
+      // ⛔ LE DEFAUT ETAIT SILENCIEUX : aucun message, un bulletin faux.
+      // 🚨 UNE NATURE DONT LES CHAMPS CHANGENT DE SENS DOIT ETRE EXCLUE DU
+      // CALCUL AUTOMATIQUE, sinon la regle generale detruit la saisie.
+      const natureBrute = propre(c.type_element) || "prime";
+      const SANS_CALCUL_AUTO = ["titres_restaurant", "avantage_repas"];
+
       let montant = c.montant ? Number(c.montant) : 0;
       const q = c.quantite ? Number(c.quantite) : null;
       const t = c.taux ? Number(c.taux) : null;
-      if (!montant && q !== null && t !== null) montant = Math.round(q * t * 100) / 100;
+      if (!montant && q !== null && t !== null
+          && SANS_CALCUL_AUTO.indexOf(natureBrute) < 0) {
+        montant = Math.round(q * t * 100) / 100;
+      }
 
       const { error } = await supabase.from("paie_elements").insert({
         tenant_id: ctr.tenant_id, societe_id: ctr.societe_id,
         contrat_id: contratId, periode: periode,
-        type_element: propre(c.type_element) || "prime",
+        type_element: natureBrute,
         libelle: propre(c.libelle) || "Element",
         quantite: q, taux: t, montant: montant,
         soumis_cotisations: c.soumis_cotisations === false ? false : true,
