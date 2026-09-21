@@ -905,6 +905,191 @@ export async function POST(req: NextRequest) {
     // retard, c est un salarie qui n est pas paye ; une fin de contrat en
     // retard, c est un chomage qui ne s ouvre pas.
     // ═══════════════════════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════════════════
+    // 🆕🚨 20/09 — LA PRIME DE VACANCES SYNTEC (article 31)
+    //
+    // ⛔ CE N EST PAS UNE LIGNE DE BULLETIN. L article 31 fait peser sur
+    // l ENTREPRISE une obligation GLOBALE : verser au moins 10 % de la masse
+    // globale des indemnites de conges payes de TOUS les salaries, constatee
+    // au 31 mai. La repartition entre les salaries est libre — « au choix de
+    // l entreprise, en general egalitaire ».
+    // ⛔ ON NE PEUT DONC PAS LA CALCULER SALARIE PAR SALARIE dans le moteur
+    // de paie : ce serait poser une repartition que l employeur seul decide.
+    // CE QUI S AUTOMATISE : la masse, l obligation, ce qui a deja ete verse,
+    // et l alerte quand la date limite approche.
+    //
+    // 🚨 L EXERCICE VA DU 1er JUIN AU 31 MAI, comme la periode de reference
+    // des conges payes. « Constatee au 31 mai. »
+    // 🚨 UNE PARTIE AU MOINS DOIT ETRE VERSEE ENTRE LE 1er MAI ET LE
+    // 31 OCTOBRE. Une prime versee en decembre ne remplit pas l obligation.
+    // 🚨 TOUTE PRIME OU GRATIFICATION DE L ANNEE PEUT S Y SUBSTITUER, SAUF
+    // le 13e mois contractualise (Cass. soc. 27/05/1998, n°97-40.764), les
+    // titres-restaurant (14/02/1995), la prime d objectifs contractuelle
+    // (18/06/2008) et l indemnite de precarite des enqueteurs vacataires
+    // (avenant n°46 du 16/07/2021).
+    //
+    // ⚠️ DEUX ASSIETTES, UNE DIVERGENCE NON TRANCHEE — on rend LES DEUX :
+    //   · Cass. soc. 2023 : l assiette comprend TOUTES les indemnites de
+    //     conges payes versees dans l exercice, Y COMPRIS a ceux qui sont
+    //     partis en cours d annee ;
+    //   · une lecture d avocat en exclut les indemnites COMPENSATRICES.
+    // ⛔ NE PAS CHOISIR A LA PLACE DE JACQUES : l ecart est affiche.
+    // ═══════════════════════════════════════════════════════════════════
+    if (action === "prime_vacances") {
+      const societeId = String(c.societe_id || "");
+      if (!societeId) {
+        return NextResponse.json({ erreur: "société manquante." },
+          { status: 400 });
+      }
+
+      // L exercice : 1er juin → 31 mai. Sans annee donnee, celui qui court.
+      const auj = new Date();
+      let anFin = Number(c.exercice) || 0;
+      if (!anFin) {
+        anFin = auj.getUTCFullYear() + (auj.getUTCMonth() >= 5 ? 1 : 0);
+      }
+      const debutEx = (anFin - 1) + "-06-01";
+      const finEx = anFin + "-05-31";
+
+      const { data: soc } = await supabase
+        .from("compta_societes")
+        .select("id, nom, idcc")
+        .eq("id", societeId)
+        .maybeSingle();
+
+      // ---- LA MASSE DES INDEMNITES DE CONGES PAYES ----
+      // 1. les conges PRIS : la valeur reellement retenue sur le bulletin.
+      const { data: prises } = await supabase
+        .from("paie_conges")
+        .select("periode, jours, valeur_maintien, valeur_dixieme, valeur_retenue")
+        .eq("societe_id", societeId)
+        .eq("type_mouvement", "prise")
+        .gte("periode", debutEx)
+        .lte("periode", finEx);
+
+      let masseConges = 0;
+      let joursPris = 0;
+      for (const p of (prises || [])) {
+        // ⚠️ `valeur_retenue` EST CELLE QUI A ETE PAYEE : le moteur y a deja
+        // tranche entre maintien de salaire et dixieme. Les deux autres
+        // colonnes ne sont que les termes de la comparaison.
+        const v = Number((p as any).valeur_retenue || 0)
+          || Math.max(Number((p as any).valeur_maintien || 0),
+                      Number((p as any).valeur_dixieme || 0));
+        masseConges += v;
+        joursPris += Number((p as any).jours || 0);
+      }
+      masseConges = Math.round(masseConges * 100) / 100;
+
+      // 2. les indemnites COMPENSATRICES des contrats termines.
+      const { data: bulEx } = await supabase
+        .from("paie_bulletins")
+        .select("numero, periode, detail")
+        .eq("societe_id", societeId)
+        .eq("statut", "emis")
+        .gte("periode", debutEx)
+        .lte("periode", finEx);
+
+      let masseCompensatrices = 0;
+      let primesVersees = 0;
+      let primesDansLaFenetre = 0;
+      const detailPrimes: any[] = [];
+
+      for (const b of (bulEx || [])) {
+        const d: any = (b as any).detail || {};
+        masseCompensatrices += Number(d.iccp || 0);
+
+        // ---- CE QUI A DEJA ETE VERSE ----
+        // 🚨 ON NE COMPTE QUE CE QUI EST EXPLICITEMENT UNE PRIME DE VACANCES.
+        // ⛔ Imputer d office une autre prime reviendrait a decider d une
+        // substitution que l employeur seul peut invoquer.
+        for (const l of (Array.isArray(d.lignes_brut) ? d.lignes_brut : [])) {
+          const lib = String((l && l.libelle) || "").toLowerCase();
+          if (lib.indexOf("prime de vacances") < 0) continue;
+          const m = Number((l && l.montant) || 0);
+          if (m <= 0) continue;
+          primesVersees += m;
+          const mois = String((b as any).periode || "").slice(5, 7);
+          if (mois >= "05" && mois <= "10") primesDansLaFenetre += m;
+          detailPrimes.push({ bulletin: (b as any).numero,
+            periode: (b as any).periode, montant: m });
+        }
+      }
+      masseCompensatrices = Math.round(masseCompensatrices * 100) / 100;
+      primesVersees = Math.round(primesVersees * 100) / 100;
+      primesDansLaFenetre = Math.round(primesDansLaFenetre * 100) / 100;
+
+      const masseLarge = Math.round((masseConges + masseCompensatrices) * 100) / 100;
+      const obligation = Math.round(masseLarge * 10) / 100;
+      const obligationEtroite = Math.round(masseConges * 10) / 100;
+
+      const reserves: string[] = [];
+      if (Number(soc && (soc as any).idcc) !== 1486) {
+        reserves.push("⛔ CETTE SOCIÉTÉ N'EST PAS EN CONVENTION SYNTEC (IDCC "
+          + String((soc as any)?.idcc || "non renseigné") + ") : l'article 31 "
+          + "ne s'y applique pas. Le calcul est donné à titre indicatif.");
+      }
+      reserves.push("Deux assiettes coexistent et la jurisprudence n'est pas "
+        + "unanime : la Cour de cassation (2023) inclut les indemnités versées "
+        + "aux salariés partis en cours d'exercice, une lecture d'avocat en "
+        + "exclut les indemnités compensatrices. L'écart est de "
+        + (Math.round((obligation - obligationEtroite) * 100) / 100)
+          .toLocaleString("fr-FR", { minimumFractionDigits: 2 }) + " €.");
+      reserves.push("⛔ LA RÉPARTITION ENTRE LES SALARIÉS NE SE CALCULE PAS : "
+        + "l'article 31 la laisse au choix de l'entreprise, le plus souvent "
+        + "égalitaire. Cette route dit COMBIEN doit être versé, pas à qui.");
+      reserves.push("Une prime ou gratification déjà versée peut s'y "
+        + "substituer, SAUF un 13e mois contractualisé, les titres-restaurant, "
+        + "une prime d'objectifs contractuelle et l'indemnité de précarité des "
+        + "enquêteurs vacataires. ⚠️ Seules les lignes nommées « prime de "
+        + "vacances » sont comptées ici : une substitution se décide, elle ne "
+        + "se devine pas.");
+      if (joursPris === 0) {
+        reserves.push("⚠️ AUCUN CONGÉ PRIS n'est enregistré sur l'exercice : "
+          + "la masse est donc nulle ou incomplète. Les congés se saisissent "
+          + "dans la fiche de chaque contrat.");
+      }
+
+      const reste = Math.round((obligation - primesDansLaFenetre) * 100) / 100;
+      let verdict = "";
+      if (obligation <= 0) {
+        verdict = "Aucune indemnité de congés payés sur l'exercice : "
+          + "l'obligation est nulle pour l'instant.";
+      } else if (reste <= 0) {
+        verdict = "✅ Obligation remplie : "
+          + primesDansLaFenetre.toLocaleString("fr-FR",
+            { minimumFractionDigits: 2 }) + " € versés entre le 1er mai et le "
+          + "31 octobre, pour une obligation de "
+          + obligation.toLocaleString("fr-FR", { minimumFractionDigits: 2 })
+          + " €.";
+      } else {
+        verdict = "⛔ IL RESTE " + reste.toLocaleString("fr-FR",
+          { minimumFractionDigits: 2 }) + " € À VERSER avant le 31 octobre "
+          + anFin + ". Une prime versée après cette date ne remplit PAS "
+          + "l'obligation de l'article 31.";
+      }
+
+      return NextResponse.json({
+        success: true,
+        societe: (soc as any)?.nom || "",
+        idcc: (soc as any)?.idcc || null,
+        exercice: { debut: debutEx, fin: finEx, libelle: "juin " + (anFin - 1)
+          + " → mai " + anFin },
+        masse_conges_pris: masseConges,
+        jours_pris: Math.round(joursPris * 100) / 100,
+        masse_indemnites_compensatrices: masseCompensatrices,
+        masse_globale: masseLarge,
+        obligation_10_pct: obligation,
+        obligation_hors_compensatrices: obligationEtroite,
+        deja_verse: primesVersees,
+        verse_entre_mai_et_octobre: primesDansLaFenetre,
+        reste_a_verser: reste > 0 ? reste : 0,
+        detail_primes: detailPrimes,
+        verdict: verdict,
+        reserves: reserves,
+      });
+    }
+
     if (action === "evenements") {
       const contratId = String(c.contrat_id || "");
       if (!contratId) {
