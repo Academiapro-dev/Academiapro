@@ -162,6 +162,14 @@ export async function POST(req: NextRequest) {
 
   const dateEntree = String((contrat as any).date_debut || "").slice(0, 10);
 
+  const CATEGORIES: any = {
+    non_cadre: "non cadre", cadre: "cadre", etam: "ETAM",
+    agent_maitrise: "agent de maîtrise", employe: "employé",
+    ouvrier: "ouvrier", apprenti: "apprenti",
+  };
+  const catBrute = String((contrat as any).categorie || "");
+  const categorieFr = CATEGORIES[catBrute] || catBrute.replace(/_/g, " ");
+
   // ═══════════════════════════════════════════════════════════════════
   // ---- L INVENTAIRE DES SOMMES ----
   //
@@ -197,12 +205,33 @@ export async function POST(req: NextRequest) {
 
   const anomalies: string[] = [];
 
+  // ═══════════════════════════════════════════════════════════════════
+  // 🆕🚨 20/09 — ON REFUSE, ON N AVERTIT PAS
+  //
+  // Premier essai : le recu de Thomas inventoriait le salaire de SEPTEMBRE
+  // pour un contrat qui se termine le 30 NOVEMBRE — deux mois de salaire
+  // manquants — et la route se contentait d une anomalie a l ecran.
+  // ⛔ UN RECU POUR SOLDE DE TOUT COMPTE N EST PAS UN BROUILLON. Signe, il
+  // libere l employeur POUR LES SOMMES QUI Y SONT MENTIONNEES : en produire
+  // un qui ignore deux mois de salaire, c est fabriquer la preuve d un
+  // solde qui n a pas eu lieu. Un avertissement dans un coin de l ecran ne
+  // protege de rien — le document, lui, circule.
+  // 🚨 MEME REGLE QUE LA DSN : « ne jamais envoyer un fichier dont on sait
+  // deja qu il reviendra avec une anomalie ».
+  // ═══════════════════════════════════════════════════════════════════
   if (String(dernier.periode).slice(0, 7) !== dateSortie.slice(0, 7)) {
-    anomalies.push("⛔ LE DERNIER BULLETIN ÉMIS EST CELUI DE "
-      + String(dernier.periode).slice(0, 7) + ", alors que le contrat se "
-      + "termine en " + dateSortie.slice(0, 7) + ". Les sommes inventoriées "
-      + "ne sont PAS celles du solde : émettre le bulletin du mois de la "
-      + "rupture avant de remettre ce reçu.");
+    return NextResponse.json({
+      erreur: "le dernier bulletin émis est celui de "
+        + String(dernier.periode).slice(5, 7) + "/"
+        + String(dernier.periode).slice(0, 4) + ", alors que le contrat se "
+        + "termine le " + dateFr(dateSortie) + ". ⛔ LES DOCUMENTS NE SONT "
+        + "PAS PRODUITS : le reçu pour solde de tout compte inventorie les "
+        + "sommes versées, et signé il libère l'employeur POUR CELLES QUI Y "
+        + "FIGURENT. En établir un sans les derniers mois de salaire "
+        + "reviendrait à attester d'un solde qui n'a pas eu lieu. Émettre le "
+        + "bulletin de " + dateSortie.slice(5, 7) + "/"
+        + dateSortie.slice(0, 4) + " d'abord.",
+    }, { status: 400 });
   }
 
   const detail: any = dernier.detail || {};
@@ -313,7 +342,7 @@ export async function POST(req: NextRequest) {
   };
 
   const enTete = function () {
-    ecrire(String(societe ? societe.nom : ""), 40, 11, gras, NOIR);
+    ecrire(String(societe ? societe.raison_sociale || "" : ""), 40, 11, gras, NOIR);
     y -= 14;
     ecrire(String(societe ? societe.adresse || "" : ""), 40, 9, police, GRIS);
     y -= 11;
@@ -332,7 +361,7 @@ export async function POST(req: NextRequest) {
 
   // 🚨 « CONTIENT EXCLUSIVEMENT » (D1234-6) : rien d autre que ces mentions.
   paragraphe("Je soussigné, représentant la société "
-    + String(societe ? societe.nom : "") + ", certifie que :",
+    + String(societe ? societe.raison_sociale || "" : "") + ", certifie que :",
     40, 515, 10, police, NOIR);
   y -= 8;
 
@@ -357,8 +386,10 @@ export async function POST(req: NextRequest) {
   y -= 6;
 
   paragraphe("Emploi occupé : " + String((contrat as any).intitule_poste || "")
-    + (((contrat as any).categorie)
-      ? " (" + String((contrat as any).categorie) + ")" : "")
+    // 🚨 LA CATEGORIE VIENT DE LA BASE SOUS SA FORME TECHNIQUE
+    // (« non_cadre »). Un document remis au salarie s ecrit en francais :
+    // le PDF portait « Agent administratif (non_cadre) ».
+    + (categorieFr ? " (" + categorieFr + ")" : "")
     + ", du " + dateFr(dateEntree) + " au " + dateFr(dateSortie) + ".",
     40, 515, 10, police, NOIR);
   y -= 14;
@@ -405,7 +436,7 @@ export async function POST(req: NextRequest) {
   y -= 24;
 
   paragraphe("Je soussigné(e), pour solde de tout compte, reconnais avoir "
-    + "reçu de la société " + String(societe ? societe.nom : "")
+    + "reçu de la société " + String(societe ? societe.raison_sociale || "" : "")
     + " les sommes suivantes :", 40, 515, 10, police, NOIR);
   y -= 10;
 
