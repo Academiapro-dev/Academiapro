@@ -451,6 +451,40 @@ async function calculer(contratId: string, periode: string): Promise<any> {
   const plafond = await parametre("PMSS", periode);
   const dureeMensuelle = await parametre("DUREE_MENSUELLE", periode);
 
+  // ═══════════════════════════════════════════════════════════════════
+  // 🆕🚨 20/09 — LE TEMPS PARTIEL
+  //
+  // ⛔ JUSQU ICI LE MOTEUR SUPPOSAIT 35 HEURES A TOUT LE MONDE. Un salarie
+  // a 24 heures voyait son salaire de base calcule sur 151,67 h, et son
+  // SMIC de reference — celui de la reduction generale — pris a taux plein :
+  // paye moitie moins que le SMIC mensuel, il recevait le coefficient
+  // MAXIMAL de reduction. L URSSAF reclame la difference.
+  //
+  // 🚨 LA DUREE DU CONTRAT EST DANS `duree_hebdo`. La duree mensuelle
+  // correspondante vaut duree_hebdo x 52 / 12 — c est la conversion legale,
+  // celle qui donne 151,67 h pour 35 h.
+  // ⚠️ `quotite_travail` EXISTE AUSSI SUR LE CONTRAT : c est la quotite
+  // DECLAREE EN DSN (rubrique 40.013). On ne s en sert pas pour payer, elle
+  // peut etre renseignee sans que la duree le soit.
+  //
+  // 🚨 LA PROPORTION SERT PARTOUT OU LE PLEIN TEMPS SERT DE REFERENCE : le
+  // SMIC de la reduction generale, le plafond de securite sociale, le
+  // salaire minimum conventionnel. ⛔ ELLE NE S APPLIQUE PAS au salaire lui-
+  // meme quand il est deja mensuel : un temps partiel a 1 400 EUR est paye
+  // 1 400 EUR, pas 1 400 x 0,686.
+  // ═══════════════════════════════════════════════════════════════════
+  const dureeHebdo = Number(contrat.duree_hebdo) > 0
+    ? Number(contrat.duree_hebdo) : 0;
+  const dureeContratMois = dureeHebdo > 0
+    ? Math.round(dureeHebdo * 52 / 12 * 100) / 100
+    : Number(dureeMensuelle || 0);
+  // La proportion par rapport au plein temps, bornee : un forfait a 39 h ne
+  // doit pas majorer le SMIC de reference.
+  const proportionTemps = (dureeMensuelle && dureeContratMois > 0)
+    ? Math.min(1, dureeContratMois / Number(dureeMensuelle))
+    : 1;
+  const tempsPartiel = proportionTemps < 0.999;
+
   if (!plafond) {
     return {
       erreur: "aucun plafond de securite sociale connu pour " + periode
@@ -512,8 +546,10 @@ async function calculer(contratId: string, periode: string): Promise<any> {
 
     if (contrat.salaire_mensuel) {
       base = Number(contrat.salaire_mensuel);
-    } else if (contrat.salaire_horaire && dureeMensuelle) {
-      quantite = Number(dureeMensuelle);
+    } else if (contrat.salaire_horaire && dureeContratMois > 0) {
+      // 🚨 LA DUREE DU CONTRAT, PAS 151,67 h. Un contrat a 24 h payait
+      // 151,67 h : le salarie touchait un plein temps.
+      quantite = dureeContratMois;
       taux = Number(contrat.salaire_horaire);
       base = quantite * taux;
       // ⚠️ VIRGULE FRANCAISE, PAS POINT : ce libelle part sur le bulletin
@@ -715,8 +751,10 @@ async function calculer(contratId: string, periode: string): Promise<any> {
       baseMois = Number(contrat.salaire_horaire) * Number(dureeMensuelle);
     }
 
-    const heuresJour = (Number(contrat.duree_hebdo) > 0
-      ? Number(contrat.duree_hebdo) : 35) / 5;
+    // ⚠️ REPARTITION SUPPOSEE EGALE SUR CINQ JOURS. Un temps partiel
+    // reparti sur trois jours demanderait un planning que le contrat ne
+    // porte pas : la reserve le dit.
+    const heuresJour = (dureeHebdo > 0 ? dureeHebdo : 35) / 5;
     const joursDuMois = joursOuvres(premierIso, dernierIso);
 
     for (const a of (arrets || [])) {
@@ -1172,7 +1210,21 @@ async function calculer(contratId: string, periode: string): Promise<any> {
     // ⚠️ LA CET N EST DUE QUE SI LA REMUNERATION DEPASSE UN PLAFOND.
     if (c.code === "CET" && brutTotal <= plafond) continue;
 
-    const base = assiette(String(c.assiette_type), brutTotal, plafond);
+    // ═══════════════════════════════════════════════════════════════
+    // 🆕🚨 20/09 — LE PLAFOND DE SECURITE SOCIALE SUIT LE TEMPS PARTIEL
+    //
+    // Article R242-10 du code de la securite sociale : pour un salarie a
+    // temps partiel, le plafond est reduit dans la proportion de la duree
+    // du travail par rapport a la duree legale.
+    // ⛔ SANS CETTE REDUCTION, un temps partiel bien paye cotise a tort en
+    // tranche 1 sur la totalite de son salaire au lieu de basculer en
+    // tranche 2 : la retraite complementaire et la vieillesse plafonnee
+    // sont fausses dans les deux sens.
+    // ⚠️ CELA NE CONCERNE QUE LE PLAFOND : les assiettes deplafonnees ne
+    // bougent pas.
+    // ═══════════════════════════════════════════════════════════════
+    const plafondContrat = Number(plafond) * proportionTemps;
+    const base = assiette(String(c.assiette_type), brutTotal, plafondContrat);
     if (base <= 0) continue;
 
     // 🚨 L AT/MP ET LE VERSEMENT MOBILITE PORTENT UN TAUX A ZERO EN BASE :
@@ -1334,7 +1386,11 @@ async function calculer(contratId: string, periode: string): Promise<any> {
   if (tmin !== null && tdelta !== null && expo !== null
       && seuil !== null && smicRef !== null && dureeMensuelle) {
 
-    const smicMensuelRef = smicRef * dureeMensuelle;
+    // 🚨 LE SMIC DE REFERENCE SUIT LA DUREE DU CONTRAT (BOSS, allegements
+    // generaux) : pour un temps partiel, il est proratise. Sans cela un
+    // salarie a mi-temps paraitrait paye sous le SMIC et recevrait le
+    // coefficient maximal.
+    const smicMensuelRef = smicRef * dureeContratMois;
     const plafondEligibilite = smicMensuelRef * seuil;
 
     // ═══════════════════════════════════════════════════════════════════
@@ -1698,7 +1754,13 @@ async function calculer(contratId: string, periode: string): Promise<any> {
       idcc: contrat.idcc,
     },
     periode: periode,
-    parametres: { plafond: plafond, duree_mensuelle: dureeMensuelle },
+    parametres: { plafond: plafond, duree_mensuelle: dureeMensuelle,
+      // 🆕 Ce que le contrat retient vraiment, une fois le temps partiel
+      // pris en compte. La DSN et un contrôle URSSAF le relisent ici.
+      plafond_contrat: Math.round(Number(plafond) * proportionTemps * 100) / 100,
+      duree_hebdo: dureeHebdo,
+      duree_mensuelle_contrat: dureeContratMois,
+      proportion_temps: Math.round(proportionTemps * 10000) / 10000 },
 
     lignes_brut: lignesBrut,
     brut_soumis: brutSoumis,
@@ -1851,6 +1913,16 @@ async function calculer(contratId: string, periode: string): Promise<any> {
         r.unshift("🚨 EFFECTIF INCONNU pour cette société : le FNAL et le Tdelta de la "
           + "RGDU sont ceux des MOINS DE 50 SALARIÉS. Si l'entreprise est plus grande, "
           + "la cotisation est sous-évaluée et la réduction sur-évaluée.");
+      }
+      if (tempsPartiel) {
+        r.unshift("Temps partiel : " + dureeHebdo.toLocaleString("fr-FR")
+          + " h par semaine, soit " + dureeContratMois.toLocaleString("fr-FR")
+          + " h par mois (" + Math.round(proportionTemps * 1000) / 10
+          + " % d'un temps plein). Le SMIC de référence de la réduction "
+          + "générale et le plafond de Sécurité sociale sont proratisés "
+          + "d'autant. ⚠️ L'horaire est supposé réparti également sur cinq "
+          + "jours : une répartition sur trois jours fausserait les retenues "
+          + "d'absence.");
       }
       if (ratioAbsence < 1) {
         r.unshift("Réduction générale : le SMIC du mois est corrigé de "
