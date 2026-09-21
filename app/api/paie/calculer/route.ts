@@ -565,7 +565,175 @@ async function calculer(contratId: string, periode: string): Promise<any> {
     }
   }
 
+  // ═══════════════════════════════════════════════════════════════════
+  // 🆕🚨 20/09 — LES AVANTAGES EN NATURE ET LES TITRES-RESTAURANT
+  //
+  // Les parametres viennent de la base (`paie_parametres`), avec leur
+  // source et leur date : un barème qui change au 1er janvier ne doit pas
+  // se chercher dans le code.
+  //
+  // ⚠️ CE SONT DEUX MECANIQUES OPPOSEES, et les confondre est la faute la
+  // plus frequente sur un bulletin :
+  //
+  //   L AVANTAGE EN NATURE s AJOUTE au brut — il est du salaire, cotise et
+  //   imposable — puis se RETIRE du net, parce que le salarie l a recu en
+  //   repas et non en argent. Il monte donc les cotisations sans monter le
+  //   net a payer.
+  //
+  //   LE TITRE-RESTAURANT fait l inverse : la part patronale n est PAS du
+  //   salaire tant qu elle reste dans les limites, et seule la part
+  //   SALARIALE se retire du net. Hors des limites, la part patronale
+  //   redevient du salaire et rejoint le brut.
+  // ═══════════════════════════════════════════════════════════════════
+  const pAvRepas = await parametre("AVANTAGE_REPAS", periode);
+  const pAvNeglige = await parametre("AVANTAGE_REPAS_NEGLIGEABLE", periode);
+  const pTrPlafond = await parametre("TR_PLAFOND_EXO", periode);
+  const pTrMin = await parametre("TR_PART_MIN", periode);
+  const pTrMax = await parametre("TR_PART_MAX", periode);
+
+  const notesAvantages: string[] = [];
+
   for (const e of (elements || [])) {
+    const t = String(e.type_element || "");
+
+    // ─────────── L AVANTAGE EN NATURE NOURRITURE ───────────
+    if (t === "avantage_repas") {
+      if (pAvRepas === null) {
+        notesAvantages.push("⛔ AVANTAGE EN NATURE REPAS NON CALCULÉ : le "
+          + "barème AVANTAGE_REPAS est absent de la base pour cette période. "
+          + "La ligne n'a PAS été portée au bulletin.");
+        continue;
+      }
+      const nbRepas = Number(e.quantite || 0);
+      if (nbRepas <= 0) {
+        notesAvantages.push("⛔ AVANTAGE EN NATURE REPAS sans nombre de "
+          + "repas : la ligne n'a PAS été portée au bulletin.");
+        continue;
+      }
+
+      // La participation du salarie, saisie dans `taux` (par repas).
+      const partSalarie = Number(e.taux || 0);
+      const forfait = Number(pAvRepas);
+
+      // 🚨 L AVANTAGE PEUT ETRE NEGLIGE si le salarie paie au moins la
+      // moitie du forfait (URSSAF) : rien n est alors reintegre.
+      const seuilNeglige = forfait * (Number(pAvNeglige || 0) / 100);
+      if (partSalarie > 0 && partSalarie >= seuilNeglige) {
+        notesAvantages.push("Avantage en nature repas négligé : le salarié "
+          + "participe à hauteur de " + partSalarie.toLocaleString("fr-FR",
+            { minimumFractionDigits: 2 }) + " € par repas, soit au moins "
+          + "la moitié du forfait (" + seuilNeglige.toLocaleString("fr-FR",
+            { minimumFractionDigits: 2 }) + " €). Rien n'est réintégré, "
+          + "conformément à la doctrine URSSAF.");
+        continue;
+      }
+
+      // 🚨 LA PARTICIPATION DU SALARIE VIENT EN DEDUCTION DU FORFAIT.
+      const parRepas = Math.max(0, forfait - partSalarie);
+      const montantAv = cts(parRepas * nbRepas);
+      if (montantAv <= 0) continue;
+
+      lignesBrut.push({
+        libelle: "Avantage en nature nourriture (" + nbRepas + " repas à "
+          + parRepas.toLocaleString("fr-FR", { minimumFractionDigits: 2 })
+          + " EUR)",
+        quantite: nbRepas, taux: parRepas, montant: montantAv,
+      });
+      brutSoumis += montantAv;
+
+      // ⛔ ET ON LE RETIRE DU NET : le salarie a recu des repas, pas de
+      // l argent. Sans cette ligne, il serait paye deux fois.
+      lignesBrut.push({
+        libelle: "Avantage en nature nourriture, déduit du net",
+        quantite: null, taux: null, montant: -montantAv,
+      });
+      nonSoumis -= montantAv;
+
+      notesAvantages.push("Avantage en nature nourriture : " + nbRepas
+        + " repas à " + forfait.toLocaleString("fr-FR",
+          { minimumFractionDigits: 2 }) + " € (barème URSSAF "
+        + periode.slice(0, 4) + ")"
+        + (partSalarie > 0 ? ", moins " + partSalarie.toLocaleString("fr-FR",
+          { minimumFractionDigits: 2 }) + " € de participation du salarié" : "")
+        + ". ⚠️ LE FORFAIT EST UN MINIMUM : si la convention collective "
+        + "prévoit mieux, c'est elle qui sert d'assiette. ⚠️ L'avantage "
+        + "entre aussi dans la base de l'indemnité de congés payés "
+        + "(L3141-25) — ce n'est PAS encore fait.");
+      continue;
+    }
+
+    // ─────────── LES TITRES-RESTAURANT ───────────
+    if (t === "titres_restaurant") {
+      const nbTitres = Number(e.quantite || 0);
+      const valeurFaciale = Number(e.taux || 0);
+      // La part patronale par titre est saisie dans `montant`.
+      const partPatronale = Number(e.montant || 0);
+
+      if (nbTitres <= 0 || valeurFaciale <= 0 || partPatronale <= 0) {
+        notesAvantages.push("⛔ TITRES-RESTAURANT INCOMPLETS : il faut le "
+          + "nombre de titres, la valeur faciale et la part patronale par "
+          + "titre. La ligne n'a PAS été portée au bulletin.");
+        continue;
+      }
+
+      const pct = partPatronale / valeurFaciale * 100;
+      const partSalariale = cts((valeurFaciale - partPatronale) * nbTitres);
+
+      // 🚨 DEUX CONDITIONS CUMULATIVES : la part patronale doit rester dans
+      // la fourchette 50-60 % ET sous le plafond par titre. Si l une des
+      // deux tombe, la part patronale redevient du salaire.
+      let aReintegrer = 0;
+      if (pTrMin !== null && pTrMax !== null
+          && (pct < Number(pTrMin) || pct > Number(pTrMax))) {
+        // ⛔ HORS FOURCHETTE : la TOTALITE devient du salaire.
+        aReintegrer = cts(partPatronale * nbTitres);
+        notesAvantages.push("⛔ TITRES-RESTAURANT : la part patronale "
+          + "représente " + (Math.round(pct * 10) / 10).toLocaleString("fr-FR")
+          + " % de la valeur faciale, hors de la fourchette "
+          + pTrMin + "-" + pTrMax + " % exigée. LA TOTALITÉ de la "
+          + "participation patronale est réintégrée dans le brut et cotise.");
+      } else if (pTrPlafond !== null && partPatronale > Number(pTrPlafond)) {
+        // ⚠️ AU-DELA DU PLAFOND : seul l EXCEDENT est reintegre.
+        aReintegrer = cts((partPatronale - Number(pTrPlafond)) * nbTitres);
+        notesAvantages.push("⚠️ TITRES-RESTAURANT : la part patronale de "
+          + partPatronale.toLocaleString("fr-FR", { minimumFractionDigits: 2 })
+          + " € dépasse le plafond d'exonération de "
+          + Number(pTrPlafond).toLocaleString("fr-FR",
+            { minimumFractionDigits: 2 }) + " €. L'excédent ("
+          + aReintegrer.toLocaleString("fr-FR", { minimumFractionDigits: 2 })
+          + " €) est réintégré dans le brut.");
+      } else {
+        notesAvantages.push("Titres-restaurant : " + nbTitres + " titres de "
+          + valeurFaciale.toLocaleString("fr-FR", { minimumFractionDigits: 2 })
+          + " €, part patronale " + partPatronale.toLocaleString("fr-FR",
+            { minimumFractionDigits: 2 }) + " € ("
+          + (Math.round(pct * 10) / 10).toLocaleString("fr-FR")
+          + " %) — exonérée. Seule la part salariale est retenue sur le net.");
+      }
+
+      if (aReintegrer > 0) {
+        lignesBrut.push({
+          libelle: "Titres-restaurant, part patronale réintégrée",
+          quantite: nbTitres, taux: null, montant: aReintegrer,
+        });
+        brutSoumis += aReintegrer;
+      }
+
+      // 🚨 LA PART SALARIALE SE RETIENT SUR LE NET, jamais sur le brut :
+      // ce n est pas une cotisation, c est le prix des titres.
+      if (partSalariale > 0) {
+        lignesBrut.push({
+          libelle: "Titres-restaurant, part salariale (" + nbTitres
+            + " titres)",
+          quantite: nbTitres, taux: cts(valeurFaciale - partPatronale),
+          montant: -partSalariale,
+        });
+        nonSoumis -= partSalariale;
+      }
+      continue;
+    }
+
+    // ─────────── TOUS LES AUTRES ELEMENTS ───────────
     const m = cts(Number(e.montant || 0));
     lignesBrut.push({
       libelle: e.libelle,
@@ -1931,6 +2099,7 @@ async function calculer(contratId: string, periode: string): Promise<any> {
           + "correction, un salarié absent paraît payé sous le SMIC et "
           + "reçoit une réduction trop forte.");
       }
+      for (const n of notesAvantages) r.unshift(n);
       for (const n of notesArret) r.unshift(n);
       return r;
     })(),
