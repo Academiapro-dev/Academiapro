@@ -957,6 +957,34 @@ export async function POST(req: NextRequest) {
         .eq("id", societeId)
         .maybeSingle();
 
+      // ═══════════════════════════════════════════════════════════════
+      // 🆕🚨 20/09 — L IDCC EST PORTE PAR LE CONTRAT, PAS PAR LA SOCIETE
+      //
+      // La meme distinction qu en DSN pour la rubrique 11.022 : une societe
+      // peut n avoir aucun IDCC renseigne alors que TOUS ses contrats sont
+      // en Syntec. Chercher la convention sur la societe faisait dire au
+      // calcul « cette societe n est pas en convention Syntec » sur une
+      // societe qui l est.
+      // 🚨 ET L ARTICLE 31 VISE « L ENSEMBLE DES SALARIES » DE L ENTREPRISE
+      // SOUMISE A LA CONVENTION : des lors que l entreprise en releve, la
+      // masse porte sur TOUS ses salaries, y compris ceux dont le contrat
+      // releve d une autre convention. On regarde donc si AU MOINS UN
+      // contrat est en 1486, et on somme tout le monde.
+      // ═══════════════════════════════════════════════════════════════
+      const { data: ctsSoc } = await supabase
+        .from("paie_contrats")
+        .select("idcc")
+        .eq("societe_id", societeId);
+
+      let contratsSyntec = 0;
+      let contratsTotal = 0;
+      for (const ct of (ctsSoc || [])) {
+        contratsTotal += 1;
+        if (Number((ct as any).idcc) === 1486) contratsSyntec += 1;
+      }
+      const relevantSyntec = contratsSyntec > 0
+        || Number((soc as any)?.idcc) === 1486;
+
       // ---- LA MASSE DES INDEMNITES DE CONGES PAYES ----
       // 1. les conges PRIS : la valeur reellement retenue sur le bulletin.
       const { data: prises } = await supabase
@@ -1024,10 +1052,17 @@ export async function POST(req: NextRequest) {
       const obligationEtroite = Math.round(masseConges * 10) / 100;
 
       const reserves: string[] = [];
-      if (Number(soc && (soc as any).idcc) !== 1486) {
-        reserves.push("⛔ CETTE SOCIÉTÉ N'EST PAS EN CONVENTION SYNTEC (IDCC "
-          + String((soc as any)?.idcc || "non renseigné") + ") : l'article 31 "
-          + "ne s'y applique pas. Le calcul est donné à titre indicatif.");
+      if (!relevantSyntec) {
+        reserves.push("⛔ AUCUN CONTRAT DE CETTE SOCIÉTÉ N'EST EN CONVENTION "
+          + "SYNTEC (IDCC 1486) : l'article 31 ne s'y applique pas. Le calcul "
+          + "est donné à titre indicatif.");
+      } else if (contratsSyntec < contratsTotal) {
+        reserves.push("⚠️ " + contratsSyntec + " contrat(s) sur "
+          + contratsTotal + " relèvent de la Syntec. L'article 31 vise "
+          + "« l'ensemble des salariés » de l'entreprise : la masse ci-dessus "
+          + "porte sur TOUS les salariés, pas seulement sur ceux dont le "
+          + "contrat est en 1486. ⚠️ À VÉRIFIER si l'entreprise applique "
+          + "réellement plusieurs conventions.");
       }
       reserves.push("Deux assiettes coexistent et la jurisprudence n'est pas "
         + "unanime : la Cour de cassation (2023) inclut les indemnités versées "
@@ -1073,6 +1108,9 @@ export async function POST(req: NextRequest) {
         success: true,
         societe: (soc as any)?.nom || "",
         idcc: (soc as any)?.idcc || null,
+        contrats_syntec: contratsSyntec,
+        contrats_total: contratsTotal,
+        releve_de_syntec: relevantSyntec,
         exercice: { debut: debutEx, fin: finEx, libelle: "juin " + (anFin - 1)
           + " → mai " + anFin },
         masse_conges_pris: masseConges,
