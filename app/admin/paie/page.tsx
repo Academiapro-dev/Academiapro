@@ -105,7 +105,25 @@ const TYPES_ELEMENT = [
   { cle: "transport", nom: "Transport", soumis: false },
   { cle: "absence_maladie", nom: "Absence maladie", soumis: true },
   { cle: "absence_injustifiee", nom: "Absence injustifiée", soumis: true },
+  // 🆕 20/09 — DEUX NATURES QUI NE SE SAISISSENT PAS COMME LES AUTRES :
+  // leurs trois champs ne veulent pas dire la même chose, et l'écran le dit
+  // sous le formulaire dès qu'elles sont choisies.
+  { cle: "avantage_repas", nom: "Avantage en nature — repas", soumis: true },
+  { cle: "titres_restaurant", nom: "Titres-restaurant", soumis: false },
 ];
+
+// 🚨 CE QUE CHAQUE CHAMP VEUT DIRE POUR CES DEUX NATURES. Sans cette aide,
+// le même champ « Taux » signifierait la participation du salarié dans un
+// cas et la valeur faciale du titre dans l'autre : personne ne peut le
+// deviner, et une saisie inversée passe inaperçue sur le bulletin.
+const AIDE_ELEMENT: any = {
+  avantage_repas: "Quantité = nombre de repas fournis dans le mois. "
+    + "Taux = participation du salarié PAR REPAS (laisser vide s'il ne paie "
+    + "rien). Montant : ne rien mettre, le barème URSSAF s'applique.",
+  titres_restaurant: "Quantité = nombre de titres. Taux = valeur faciale "
+    + "d'un titre. Montant = part patronale PAR TITRE. La part salariale se "
+    + "déduit toute seule et se retient sur le net.",
+};
 
 // 🆕 LE SIGNALEMENT VIDE, ECRIT UNE SEULE FOIS. Il etait recopie a deux
 // endroits — a l ouverture et apres l enregistrement : ajouter un champ a
@@ -1183,6 +1201,13 @@ export default function PagePaie() {
                   Ajouter
                 </button>
               </div>
+
+              {AIDE_ELEMENT[e.type_element] && (
+                <p style={{ fontSize: "12px", color: OR, margin: "10px 0 0",
+                  lineHeight: "1.6" }}>
+                  {AIDE_ELEMENT[e.type_element]}
+                </p>
+              )}
             </div>
 
             {/* ---- LE CALCUL ---- */}
