@@ -357,7 +357,16 @@ export default function PagePaie() {
     if (b.success) setBulletins(b.bulletins);
     // ⚠️ SEUL LE CDI A UN COMPTEUR : inutile d interroger la base pour les
     // autres, et le bloc resterait vide a l ecran.
-    if (c.type_contrat === "cdi") chargerConges(c.id);
+    // 🆕🚨 22/09 — L APPRENTI A DES CONGES PAYES COMME TOUT SALARIE.
+    // ⛔ IL N EN AVAIT AUCUN : le compteur etait reserve au CDI, et
+    // l indemnite compensatrice au CDD et a la mission. Un apprenti n ayant
+    // ni l un ni l autre, ses conges payes disparaissaient purement et
+    // simplement. ⚠️ ET IL NE TOUCHE PAS D INDEMNITE DE PRECARITE : le
+    // contrat d apprentissage en est expressement exclu. Son solde se paie
+    // en indemnite compensatrice A LA FIN, pas mois par mois.
+    if (c.type_contrat === "cdi" || c.type_contrat === "apprentissage") {
+      chargerConges(c.id);
+    }
     chargerEvenements(c.id);
   }
 
@@ -916,7 +925,8 @@ export default function PagePaie() {
       // periode les jours d anciennete. Sans ce rappel, l ecran gardait
       // l ancien solde et il fallait recharger la page a la main pour voir
       // les jours arriver — on croyait le calcul rate alors qu il etait bon.
-      if (choisi.type_contrat === "cdi") chargerConges(choisi.id);
+      if (choisi.type_contrat === "cdi"
+        || choisi.type_contrat === "apprentissage") chargerConges(choisi.id);
     } else setErr(d.erreur || "émission impossible");
     setOccupe("");
   }
@@ -1382,7 +1392,8 @@ export default function PagePaie() {
                 <strong style={{ color: OR }}>Ce bulletin est encore un brouillon.</strong>
                 {" "}Il peut être recalculé autant que nécessaire. Tant qu&apos;il
                 n&apos;est pas émis, il ne compte pas dans la DSN et
-                {choisi && choisi.type_contrat === "cdi"
+                {choisi && (choisi.type_contrat === "cdi"
+                  || choisi.type_contrat === "apprentissage")
                   ? " aucun jour de congé n'est acquis."
                   : " il n'est pas définitif."}
                 <button onClick={() => emettre(brouillonDuMois)}
@@ -1531,7 +1542,8 @@ export default function PagePaie() {
                 la plus favorable (art. L3141-24) ; montrer les deux permet
                 au cabinet de le verifier plutot que de nous croire.
                 ═══════════════════════════════════════════════════════ */}
-            {choisi && choisi.type_contrat === "cdi" && conges && (
+            {choisi && (choisi.type_contrat === "cdi"
+              || choisi.type_contrat === "apprentissage") && conges && (
               <div style={CADRE}>
                 <h3 style={{ color: OR, fontSize: "16px", marginTop: 0 }}>
                   Congés payés
