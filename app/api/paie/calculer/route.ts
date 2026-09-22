@@ -662,6 +662,119 @@ async function calculer(contratId: string, periode: string): Promise<any> {
       continue;
     }
 
+    // ─────────── L AVANTAGE EN NATURE LOGEMENT ───────────
+    //
+    // 🚨 LE BAREME CROISE DEUX ENTREES : la remuneration brute du mois et
+    // le nombre de PIECES PRINCIPALES. Huit tranches, deux colonnes — une
+    // pour un logement d une seule piece, une par piece quand il y en a
+    // plusieurs. Les tranches valent 0,5 / 0,6 / 0,7 / 0,9 / 1,1 / 1,3 /
+    // 1,5 fois le plafond de securite sociale.
+    //
+    // ⚠️ SEULES LES PIECES DESTINEES AU SEJOUR OU AU SOMMEIL COMPTENT :
+    // salon et chambres. La cuisine, la salle d eau, les toilettes, les
+    // couloirs et les annexes sont EXCLUS. Une cuisine ouverte sur le
+    // sejour ne fait pas une piece de plus.
+    //
+    // 🚨 LA REMUNERATION DE REFERENCE EST LE BRUT HORS AVANTAGE EN NATURE.
+    // ⛔ SINON LE CALCUL TOURNE EN ROND : l avantage entre dans le brut, le
+    // brut determine la tranche, la tranche change l avantage.
+    //
+    // ⚠️ L EVALUATION PEUT CHANGER CHAQUE MOIS avec la remuneration. On ne
+    // prend PAS une moyenne annuelle avec regularisation : la doctrine
+    // l interdit expressement.
+    // ⚠️ LE FORFAIT COMPREND DEJA l eau, le gaz, l electricite, le
+    // chauffage et le garage (BOSS). La taxe d habitation et l assurance,
+    // elles, s AJOUTENT si l employeur les prend en charge — ce que ce
+    // calcul ne fait pas, et qu il signale.
+    if (t === "avantage_logement") {
+      const nbPieces = Number(e.quantite || 0);
+      if (nbPieces <= 0) {
+        notesAvantages.push("⛔ AVANTAGE EN NATURE LOGEMENT sans nombre de "
+          + "pièces principales : la ligne n'a PAS été portée au bulletin. "
+          + "Seules les pièces de séjour ou de sommeil comptent — cuisine, "
+          + "salle d'eau et WC sont exclus.");
+        continue;
+      }
+
+      // 🚨 LE BRUT DE REFERENCE : celui deja accumule, AVANT cet avantage.
+      const brutRef = cts(brutSoumis);
+
+      const { data: bareme } = await supabase
+        .from("paie_bareme_logement")
+        .select("*")
+        .lte("date_effet", periode)
+        .or("date_fin.is.null,date_fin.gte." + periode)
+        .lte("brut_min", brutRef)
+        .order("brut_min", { ascending: false })
+        .limit(1);
+
+      const tranche: any = (bareme || [])[0] || null;
+
+      if (!tranche) {
+        notesAvantages.push("⛔ AVANTAGE EN NATURE LOGEMENT NON CALCULÉ : "
+          + "aucune tranche du barème URSSAF ne correspond à un brut de "
+          + brutRef.toLocaleString("fr-FR", { minimumFractionDigits: 2 })
+          + " € pour cette période. La ligne n'a PAS été portée au bulletin.");
+        continue;
+      }
+
+      // ⚠️ UNE SEULE PIECE : la colonne « 1 piece ». PLUSIEURS : le montant
+      // par piece, MULTIPLIE par le nombre de pieces — pas la premiere
+      // colonne plus les suivantes.
+      const forfaitLog = nbPieces === 1
+        ? Number(tranche.montant_une_piece)
+        : cts(Number(tranche.montant_par_piece) * nbPieces);
+
+      // La participation du salarie (loyer verse), saisie dans `taux`.
+      const loyer = Number(e.taux || 0);
+      const montantLog = cts(Math.max(0, forfaitLog - loyer));
+
+      if (montantLog <= 0) {
+        notesAvantages.push("Avantage en nature logement négligé : le loyer "
+          + "versé par le salarié (" + loyer.toLocaleString("fr-FR",
+            { minimumFractionDigits: 2 }) + " €) atteint ou dépasse "
+          + "l'évaluation forfaitaire (" + forfaitLog.toLocaleString("fr-FR",
+            { minimumFractionDigits: 2 }) + " €). Rien n'est réintégré.");
+        continue;
+      }
+
+      lignesBrut.push({
+        libelle: "Avantage en nature logement (" + nbPieces + " pièce"
+          + (nbPieces > 1 ? "s" : "") + " principale"
+          + (nbPieces > 1 ? "s" : "") + ")",
+        quantite: nbPieces,
+        taux: nbPieces === 1 ? Number(tranche.montant_une_piece)
+          : Number(tranche.montant_par_piece),
+        montant: montantLog,
+      });
+      brutSoumis += montantLog;
+
+      // ⛔ ET ON LE RETIRE DU NET : le salarie a recu un logement, pas de
+      // l argent — meme mecanique que les repas.
+      lignesBrut.push({
+        libelle: "Avantage en nature logement, déduit du net",
+        quantite: null, taux: null, montant: -montantLog,
+      });
+      nonSoumis -= montantLog;
+
+      notesAvantages.push("Avantage en nature logement : "
+        + nbPieces + " pièce(s) principale(s), tranche " + tranche.rang
+        + " du barème URSSAF (brut de référence "
+        + brutRef.toLocaleString("fr-FR", { minimumFractionDigits: 2 })
+        + " €, hors avantages en nature), soit "
+        + forfaitLog.toLocaleString("fr-FR", { minimumFractionDigits: 2 })
+        + " €"
+        + (loyer > 0 ? " moins " + loyer.toLocaleString("fr-FR",
+          { minimumFractionDigits: 2 }) + " € de loyer versé" : "")
+        + ". ⚠️ LE FORFAIT COMPREND l'eau, le gaz, l'électricité, le "
+        + "chauffage et le garage. La taxe d'habitation et l'assurance, si "
+        + "l'employeur les prend en charge, S'AJOUTENT — ce n'est PAS "
+        + "calculé ici. ⚠️ L'évaluation au réel (valeur locative cadastrale) "
+        + "peut être plus avantageuse pour un logement de standing : elle "
+        + "n'est pas proposée.");
+      continue;
+    }
+
     // ─────────── LES TITRES-RESTAURANT ───────────
     if (t === "titres_restaurant") {
       const nbTitres = Number(e.quantite || 0);
