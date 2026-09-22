@@ -2391,6 +2391,32 @@ export async function POST(req: NextRequest) {
         (parAssiette[bAss].codes[corr.code].parts || 0) + (partsIci || 1);
 
       // ═══════════════════════════════════════════════════════════════
+      // 🆕🚨 22/09 — LE TAUX DU BAREME, GARDE A COTE DU MONTANT
+      //
+      // ⛔ DEFAUT TROUVE SUR LE PREMIER APPRENTI : plus bas, le taux
+      // declare etait RECONSTRUIT en divisant le montant par l assiette.
+      // Pour la CRDS de l apprenti — 1,01 EUR preleve sur 201,78 EUR, mais
+      // une assiette declaree de 1 118,95 — le quotient donnait 0,09 %, et
+      // comme 0,09 % de 1 118,95 retombe bien a 1,01, le garde-fou
+      // « il retombe au centime » laissait passer. LE CONTROLE VERIFIAIT LA
+      // COHERENCE DU QUOTIENT AVEC LUI-MEME, pas que le taux existe.
+      // 🚨 UN TAUX DE COTISATION EST UNE DONNEE DE REFERENTIEL : il se LIT
+      // dans le bareme, il ne se deduit jamais d une division. La CRDS vaut
+      // 0,50 %, quelle que soit l assiette sur laquelle elle a ete calculee.
+      // ⚠️ ON GARDE LE TAUX ET ON COMPTE LES VALEURS DISTINCTES : deux
+      // lignes au meme taux restent declarables, deux taux differents non.
+      const tauxLigne = Number(l.part_salariale || 0) !== 0
+        ? Number(l.taux_salarial || 0)
+        : Number(l.taux_patronal || 0);
+      const dejaVu = parAssiette[bAss].codes[corr.code].tauxBareme;
+      if (dejaVu === undefined) {
+        parAssiette[bAss].codes[corr.code].tauxBareme = tauxLigne;
+      } else if (Math.abs(dejaVu - tauxLigne) > 0.0001) {
+        // Deux taux differents sous le meme code : aucun ne le represente.
+        parAssiette[bAss].codes[corr.code].tauxBareme = -1;
+      }
+
+      // ═══════════════════════════════════════════════════════════════
       // 🆕 20/09 — LE VERSEMENT MOBILITE PORTE SA COMMUNE ET SON TAUX
       //
       // 🚨 LE CODE INSEE EST OBLIGATOIRE, DEUX FOIS : en S21.G00.81.005 au
@@ -2676,10 +2702,26 @@ export async function POST(req: NextRequest) {
         // absente ne declenche rien ; un taux faux declenche a chaque fois.
         // ═══════════════════════════════════════════════════════════════
         if (uneSeulePart && !estReduction && baseCode > 0 && montantCode !== 0) {
-          const tauxCalcule = Math.round((montantCode / baseCode) * 10000) / 100;
-          const verif = Math.round(baseCode * tauxCalcule) / 100;
-          if (Math.abs(verif - montantCode) <= 0.01 && tauxCalcule > 0) {
-            ecrire("S21.G00.81.007", montantDsn(tauxCalcule));
+          // 🆕🚨 22/09 — LE TAUX DECLARE EST CELUI DU BAREME, PAS UN QUOTIENT.
+          //
+          // On part du taux reel de la cotisation, puis on verifie qu il
+          // retombe au centime SUR L ASSIETTE QU ON DECLARE. Les deux
+          // conditions sont necessaires :
+          //   · le taux doit exister dans un texte — sinon l URSSAF ne le
+          //     reconnait pas ;
+          //   · il doit s accorder avec l assiette declaree — sinon le
+          //     rapprochement assiette x taux = montant echoue.
+          // ⛔ QUAND LES DEUX NE S ACCORDENT PAS, ON S ABSTIENT. C est le
+          // cas de l apprenti, dont l assiette declaree est le brut entier
+          // alors que la cotisation n a porte que sur la fraction excedant
+          // le seuil d exoneration : aucun taux ne peut relier les deux, et
+          // en inventer un serait pire que de n en mettre aucun.
+          const tauxBareme = Number(grp.codes[cd].tauxBareme);
+          if (tauxBareme > 0) {
+            const verif = Math.round(baseCode * tauxBareme) / 100;
+            if (Math.abs(verif - montantCode) <= 0.01) {
+              ecrire("S21.G00.81.007", montantDsn(tauxBareme));
+            }
           }
         }
 
