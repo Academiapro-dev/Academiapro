@@ -498,6 +498,32 @@ export async function POST(req: NextRequest) {
     droite(c.part_patronale > 0 ? euros(c.part_patronale)
       : (c.alerte ? "0,00" : ""), 555, 8, police, c.alerte ? ROUGE : NOIR);
     y -= 10;
+
+    // ═══════════════════════════════════════════════════════════════
+    // 🆕🚨 22/09 — QUAND LE SALARIE ET L EMPLOYEUR N ONT PAS LA MEME
+    // ASSIETTE, LE BULLETIN DOIT MONTRER LES DEUX
+    //
+    // ⛔ DEFAUT TROUVE SUR LE PREMIER BULLETIN D APPRENTI : la colonne
+    // « Base » portait 1 138,88 et la part salariale 13,72 a 6,80 % — or
+    // 6,80 % de 1 138,88 font 76,09. Le MONTANT etait juste (6,80 % des
+    // 201,78 EUR reellement soumis), c est la BASE AFFICHEE qui mentait.
+    // 🚨 UN BULLETIN QUI NE SE VERIFIE PAS LIGNE A LIGNE N EST PAS UN
+    // BULLETIN. Il est remis au salarie, oppose a l URSSAF, et produit en
+    // cas de litige : chaque montant doit pouvoir se refaire de tete.
+    // ⚠️ LA COLONNE « BASE » RESTE L ASSIETTE PATRONALE, qui vaut pour la
+    // grande majorite des lignes et pour tous les autres salaries. La
+    // difference se dit en dessous, en clair, plutot que d ajouter une
+    // sixieme colonne illisible sur une page A4.
+    // ⚠️ NULLE PARTOUT AILLEURS : `base_salariale` n est renseignee que
+    // lorsqu une exoneration reduit l assiette du salarie.
+    // ═══════════════════════════════════════════════════════════════
+    const baseSal = (c as any).base_salariale;
+    if (baseSal !== null && baseSal !== undefined
+        && Number(baseSal) !== Number(c.base)) {
+      ecrire("dont assiette salariale " + euros(Number(baseSal))
+        + " EUR apres exoneration apprenti", 48, 6.5, police, GRIS);
+      y -= 8;
+    }
   }
 
   y -= 3;
