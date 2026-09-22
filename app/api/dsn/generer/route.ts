@@ -1314,7 +1314,30 @@ export async function POST(req: NextRequest) {
     // 🚨 LE NUMERO DU CONTRAT — vingt caracteres, stable, sans tirets.
     const numeroContrat = String(ct.id).replace(/-/g, "").slice(0, 20);
 
-    const natureContrat = await code("S21.G00.40.007", q(ct.type_contrat), periode);
+    // ═══════════════════════════════════════════════════════════════
+    // 🆕🚨 22/09 — L APPRENTISSAGE N EST PAS UNE NATURE DE CONTRAT
+    //
+    // ⛔ C EST LE PIEGE DE CE BLOC, et il vaut d etre lu en entier.
+    // En DSN, la rubrique 40.007 ne connait que le CDI, le CDD, la mission
+    // et quelques formes maritimes : « apprentissage » n y figure PAS.
+    // Un apprenti est un CDD — ou un CDI — comme un autre, et c est la
+    // rubrique 40.008 « dispositif de politique publique » qui le designe
+    // comme apprenti.
+    // 🚨 NOTRE `type_contrat` VAUT « apprentissage » ET ECRASE DONC
+    // L INFORMATION CDD / CDI. On la retrouve sans rien saisir : un contrat
+    // qui porte une date de fin est a duree determinee, sinon il est a
+    // duree indeterminee. L apprentissage en CDI existe, c est pourquoi la
+    // question se pose vraiment.
+    // ⚠️ SANS CE BLOC, le generateur ne trouvait AUCUN code pour
+    // « apprentissage » et ecrivait l anomalie « ⛔ NON DECLARE » : le
+    // contrat partait sans nature, et dsn-val l aurait rejete.
+    // ═══════════════════════════════════════════════════════════════
+    const estApprenti = q(ct.type_contrat).toLowerCase() === "apprentissage";
+    const cleNature = estApprenti
+      ? (ct.date_fin ? "cdd" : "cdi")
+      : q(ct.type_contrat);
+
+    const natureContrat = await code("S21.G00.40.007", cleNature, periode);
     if (!natureContrat) {
       anomalies.push(qui + " : aucun code DSN pour le type de contrat « "
         + q(ct.type_contrat) + " » (S21.G00.40.007). ⛔ NON DÉCLARÉ.");
@@ -1358,7 +1381,36 @@ export async function POST(req: NextRequest) {
     // 🚨 DISPOSITIF DE POLITIQUE PUBLIQUE (40.008) — obligatoire. « 99 »
     // pour un contrat ordinaire : la nomenclature sert surtout aux
     // contrats aides et aux apprentissages.
-    ecrire("S21.G00.40.008", q(ct.dispositif_public) || "99");
+    //
+    // 🆕🚨 22/09 — POUR UN APPRENTI, C EST CETTE RUBRIQUE QUI LE DESIGNE,
+    // et l URSSAF en fait un point de controle : son absence ou sa fausse
+    // valeur est citee parmi les premiers motifs d anomalie sur les
+    // contrats d apprentissage.
+    //   64  entreprise artisanale ou de moins de 11 salaries (loi de 1979)
+    //   65  entreprise d au moins 11 salaries (loi de 1987)
+    //   81  secteur public (loi de 1992) — hors de notre perimetre
+    // ⚠️ LE SEUIL SE LIT SUR L EFFECTIF DEJA EN BASE, exactement comme le
+    // FNAL bascule du CTP 332 au 236 a cinquante salaries. Rien a saisir.
+    // ⛔ LE CRITERE EXACT DU 64 EST « ARTISANALE **OU** DE MOINS DE 11 » :
+    // une entreprise artisanale d au moins 11 salaries releve quand meme du
+    // 64, et son inscription au repertoire des metiers ne figure nulle part
+    // chez nous. On retient donc l effectif, et on le DIT — c est une
+    // reserve, pas une certitude.
+    // ⚠️ `dispositif_public` N EXISTE PAS dans paie_contrats : la lecture
+    // ci-dessous rend toujours vide aujourd hui. Elle est conservee pour le
+    // jour ou la colonne sera creee, et ne coute rien.
+    let dispositif = q((ct as any).dispositif_public);
+    if (!dispositif && estApprenti) {
+      const effectifSoc = Number(societe.effectif || 0);
+      dispositif = effectifSoc >= 11 ? "65" : "64";
+      anomalies.push(qui + " : apprenti déclaré avec le dispositif « "
+        + dispositif + " », déduit d'un effectif de " + effectifSoc
+        + " salarié(s). ⚠️ LE CRITÈRE LÉGAL DU CODE 64 EST « entreprise "
+        + "ARTISANALE OU de moins de 11 salariés » : une entreprise "
+        + "artisanale d'au moins 11 salariés relève elle aussi du 64. "
+        + "Vérifier l'inscription au répertoire des métiers.");
+    }
+    ecrire("S21.G00.40.008", dispositif || "99");
 
     ecrire("S21.G00.40.009", numeroContrat);
     if (ct.date_fin) ecrire("S21.G00.40.010", dateDsn(ct.date_fin));
