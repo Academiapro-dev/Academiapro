@@ -608,7 +608,21 @@ export async function POST(req: NextRequest) {
   // ═══════════════════════════════════════════════════════════════════
   const { error: eUp } = await supabase.storage
     .from(BUCKET)
-    .upload(chemin, octets, { contentType: "application/pdf", upsert: reecriture });
+    // ═══════════════════════════════════════════════════════════════
+    // 🆕🚨 22/09 — ON ECRASE TOUJOURS LE FICHIER DU MEME NOM
+    //
+    // `upsert` valait `reecriture`, c est-a-dire VRAI seulement quand un
+    // brouillon existait deja en base. Un PDF reste dans le bucket quand
+    // son bulletin est supprime : le nom etait alors pris, l archivage
+    // refuse avec « The resource already exists », et AUCUN BULLETIN
+    // N ETAIT CREE — donc pas de bouton « Emettre », sans que rien
+    // n explique pourquoi.
+    // ⛔ LE NOM DU FICHIER PORTE DEJA LE NUMERO DU BULLETIN : deux
+    // bulletins differents ne peuvent pas se marcher dessus. Ecraser un
+    // fichier de meme nom, c est refaire le PDF du meme bulletin — ce que
+    // « Sortir le PDF » est precisement cense faire.
+    // ═══════════════════════════════════════════════════════════════
+    .upload(chemin, octets, { contentType: "application/pdf", upsert: true });
 
   if (eUp) {
     return NextResponse.json({
