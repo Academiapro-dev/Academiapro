@@ -1985,7 +1985,7 @@ async function calculer(contratId: string, periode: string): Promise<any> {
       const r = [
         "Les taux doivent être recoupés sur boss.gouv.fr avant tout bulletin réel.",
         "Le prélèvement à la source est à zéro : son taux vient du retour DSN.",
-        "Le salaire minimum conventionnel est contrôlé quand le contrat porte un coefficient. ⚠️ Les valeurs de point ne sont pas encore recoupées sur Légifrance, et deux règles de branche — la prime de vacances et les congés d'ancienneté — ne sont pas appliquées. Le maintien de salaire en maladie, lui, l'est.",
+        "Le salaire minimum conventionnel est contrôlé quand le contrat porte un coefficient. ⚠️ Les valeurs de point ne sont pas encore recoupées sur Légifrance, et une règle de branche — la prime de vacances — n'est pas appliquée au bulletin. ⚠️ ELLE EST UNE OBLIGATION D'ENTREPRISE : la calculer depuis le bloc « Prime de vacances ». Le maintien de salaire en maladie et les congés d'ancienneté, eux, sont appliqués.",
         "La RGDU est calculée en régularisation progressive sur le cumul annuel, méthode recommandée par l'URSSAF : une prime en fin d'année est régularisée le mois même plutôt que de créer un rappel.",
         "Le montant net social réintègre la part patronale des garanties complémentaires (arrêté du 31 janvier 2023). ⚠️ Les taux de mutuelle et de prévoyance sont propres à chaque contrat collectif : tant qu'ils ne sont pas renseignés pour la société, ces lignes n'apparaissent pas.",
       ];
