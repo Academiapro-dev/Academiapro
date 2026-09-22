@@ -401,7 +401,10 @@ export async function POST(req: NextRequest) {
       // 🚨 UNE NATURE DONT LES CHAMPS CHANGENT DE SENS DOIT ETRE EXCLUE DU
       // CALCUL AUTOMATIQUE, sinon la regle generale detruit la saisie.
       const natureBrute = propre(c.type_element) || "prime";
-      const SANS_CALCUL_AUTO = ["titres_restaurant", "avantage_repas"];
+      // 🆕 22/09 — l avantage logement rejoint la liste : quantite = nombre
+      // de pieces, taux = loyer verse. Leur produit ne veut rien dire.
+      const SANS_CALCUL_AUTO = ["titres_restaurant", "avantage_repas",
+        "avantage_logement"];
 
       let montant = nombreFr(c.montant) || 0;
       const q = nombreFr(c.quantite);
