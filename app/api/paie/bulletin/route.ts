@@ -520,8 +520,11 @@ export async function POST(req: NextRequest) {
     const baseSal = (c as any).base_salariale;
     if (baseSal !== null && baseSal !== undefined
         && Number(baseSal) !== Number(c.base)) {
+      // ⚠️ AVEC LES ACCENTS : cette ligne est lue par le salarie. `ascii()`
+      // conserve tout le latin-1, donc rien n y fait obstacle — l ASCII pur
+      // ne concerne que le code, jamais un texte remis a quelqu un.
       ecrire("dont assiette salariale " + euros(Number(baseSal))
-        + " EUR apres exoneration apprenti", 48, 6.5, police, GRIS);
+        + " EUR apr\u00e8s exon\u00e9ration apprenti", 48, 6.5, police, GRIS);
       y -= 8;
     }
   }
