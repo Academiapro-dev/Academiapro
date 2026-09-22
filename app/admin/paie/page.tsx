@@ -792,6 +792,12 @@ export default function PagePaie() {
       setMsg(d.message);
       const l = await appeler({ action: "bulletins", contrat_id: choisi.id });
       if (l.success) setBulletins(l.bulletins);
+      // 🆕🚨 22/09 — RECHARGER AUSSI LES CONGES.
+      // L emission ACQUIERT des jours : les 2,5 mensuels, et une fois par
+      // periode les jours d anciennete. Sans ce rappel, l ecran gardait
+      // l ancien solde et il fallait recharger la page a la main pour voir
+      // les jours arriver — on croyait le calcul rate alors qu il etait bon.
+      if (choisi.type_contrat === "cdi") chargerConges(choisi.id);
     } else setErr(d.erreur || "émission impossible");
     setOccupe("");
   }
@@ -1460,6 +1466,18 @@ export default function PagePaie() {
                               {String(m.periode).slice(0, 7)}
                               {" · "}{prise ? "prise" : "acquisition"}
                             </span>
+                            {/* 🆕 22/09 — D OU VIENNENT CES JOURS.
+                                Une acquisition d anciennete ne se distingue
+                                pas d une acquisition mensuelle par son seul
+                                montant : un cabinet qui justifie un solde
+                                doit voir la difference sans ouvrir la base. */}
+                            {!prise
+                              && String(m.notes || "").indexOf("anciennete") >= 0 && (
+                              <span style={{ marginLeft: "10px", fontSize: "12px",
+                                color: OR }}>
+                                ancienneté (Syntec art. 5.1)
+                              </span>
+                            )}
                             {/* ⚠️ LES DEUX METHODES SONT MONTREES, pas
                                 seulement le resultat : c est ce qui permet
                                 de justifier le montant devant un controle. */}
