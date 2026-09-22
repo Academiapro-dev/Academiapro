@@ -110,6 +110,7 @@ const TYPES_ELEMENT = [
   // sous le formulaire dès qu'elles sont choisies.
   { cle: "avantage_repas", nom: "Avantage en nature — repas", soumis: true },
   { cle: "titres_restaurant", nom: "Titres-restaurant", soumis: false },
+  { cle: "avantage_logement", nom: "Avantage en nature — logement", soumis: true },
 ];
 
 // 🚨 CE QUE CHAQUE CHAMP VEUT DIRE POUR CES DEUX NATURES. Sans cette aide,
@@ -123,6 +124,10 @@ const AIDE_ELEMENT: any = {
   titres_restaurant: "Quantité = nombre de titres. Taux = valeur faciale "
     + "d'un titre. Montant = part patronale PAR TITRE. La part salariale se "
     + "déduit toute seule et se retient sur le net.",
+  avantage_logement: "Quantité = nombre de PIÈCES PRINCIPALES (séjour et "
+    + "chambres seulement ; cuisine, salle d'eau et WC sont exclus). "
+    + "Taux = loyer versé par le salarié, s'il en paie un. Montant : ne rien "
+    + "mettre, le barème URSSAF croise la tranche de salaire et les pièces.",
 };
 
 // 🆕 LE SIGNALEMENT VIDE, ECRIT UNE SEULE FOIS. Il etait recopie a deux
