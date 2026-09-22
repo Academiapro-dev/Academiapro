@@ -1140,6 +1140,34 @@ export default function PagePaie() {
                   </div>
                 </div>
 
+                {/* 🆕🚨 22/09 — LE FORFAIT EN JOURS DES CADRES.
+                    Un cadre au forfait jours n a pas d horaire : son contrat
+                    fixe un nombre de jours travailles dans l annee, 218 au
+                    plus. Renseigner ce champ change la DSN (unite « forfait
+                    jours » en 40.011, un nombre de jours en 40.013) et le
+                    bulletin, qui cesse de raisonner en heures.
+                    ⛔ LAISSER VIDE pour tout salarie a l horaire. */}
+                {(f.categorie === "cadre" || f.forfait_jours_annuel) && (
+                  <div style={{ marginTop: "14px", paddingTop: "14px",
+                    borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+                    <p style={{ fontSize: "12.5px",
+                      color: "rgba(255,255,255,0.55)", marginTop: 0,
+                      lineHeight: "1.6" }}>
+                      Forfait en jours : à ne remplir que si le contrat en
+                      prévoit un. Le salarié n&apos;a alors pas d&apos;horaire,
+                      et les heures supplémentaires n&apos;existent pas pour
+                      lui. Laisser vide pour un cadre à l&apos;horaire.
+                    </p>
+                    <div style={{ maxWidth: "260px" }}>
+                      <span style={LIB}>Jours travaillés par an (218 maximum)</span>
+                      <input value={f.forfait_jours_annuel || ""} style={CHAMP}
+                        inputMode="numeric" placeholder="ex. 218"
+                        onChange={(ev) => setF({ ...f,
+                          forfait_jours_annuel: ev.target.value })} />
+                    </div>
+                  </div>
+                )}
+
                 {/* 🆕🚨 22/09 — SANS CE CHAMP, LA DSN DE L APPRENTI EST REJETEE.
                     Controle CCH-11 : des que le dispositif « 64 » ou « 65 »
                     est declare, le niveau de diplome prepare devient
