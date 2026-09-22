@@ -114,6 +114,11 @@ const BUCKET = "documents-signes";
 const DOSSIER = "referentiels-urssaf";
 const SOURCE = "https://fichierdirect.declaration.urssaf.fr/TablesReference.htm";
 
+// 🆕 22/09 — Le tableur DIDA ne vient pas de la meme page : il est publie
+// sur le portail open data de l URSSAF, et c est le SEUL format qui
+// subsistera a partir de 2027 (guide URSSAF, paragraphe 1.2).
+const SOURCE_DIDA = "https://open.urssaf.fr/explore/dataset/equivalence-dida/";
+
 // Les lots d insertion. 15 577 lignes pour les taux transport : par 500,
 // cela fait 32 appels, largement dans les 300 secondes de la route.
 const LOT = 500;
@@ -176,6 +181,19 @@ function dateExcel(v: string): string | null {
 // La date de publication, lue dans le NOM du fichier : elle date la
 // livraison et sert a effacer la precedente.
 // ⚠️ tauxVMRR-01012026.xlsx porte JJMMAAAA, les CSV portent AAAAMMJJ.
+// 🆕 22/09 — LE JOUR DE L IMPORT, QUAND LE FICHIER NE PORTE PAS DE DATE.
+//
+// ⚠️ LES QUATRE FICHIERS DE LA PAGE URSSAF portent leur date de livraison
+// dans leur nom, et c est elle qui distingue une livraison de la suivante.
+// Le tableur DIDA vient du portail open data et s appelle simplement
+// « equivalence-dida.csv » : il n en a pas. On retombe alors sur le jour de
+// l import, ce qui suffit a l usage qu on en fait — remplacer entierement
+// la livraison precedente. ⛔ Consequence a connaitre : reimporter le meme
+// fichier deux jours de suite le remplace, sans que rien ne s en plaigne.
+function aujourdhui(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
 function dateDuNom(nom: string): string | null {
   // AAAAMMJJ apres un point, un tiret bas ou un tiret — voir l en-tete :
   // iOS remplace les tirets bas par des points.
@@ -207,6 +225,62 @@ function lignesCsv(octets: Buffer): string[][] {
     if (!ligne.trim()) continue;
     sortie.push(ligne.split(";"));
   }
+  return sortie;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🆕🚨 22/09 — LIRE UN CSV A GUILLEMETS, POUR LE TABLEUR DIDA
+//
+// ⛔ `lignesCsv` NE CONVIENT PAS A CE FICHIER, et s en servir le couperait
+// en silence. Trois differences, toutes fatales :
+//   · il est en UTF-8, pas en ISO 8859-1 — le lire en latin-1 rend du
+//     charabia sur chaque accent ;
+//   · ses champs sont entoures de GUILLEMETS DOUBLES ;
+//   · surtout, la colonne « Precisions complementaires » contient des
+//     RETOURS A LA LIGNE : 1 457 enregistrements tiennent sur 2 146 lignes
+//     physiques. Decouper sur les sauts de ligne casserait un
+//     enregistrement sur trois, et personne ne le verrait.
+//
+// Cet analyseur lit caractere par caractere et ne considere un separateur
+// — point-virgule ou saut de ligne — que HORS guillemets. Un guillemet
+// double a l interieur d un champ s ecrit deux fois, c est la convention.
+// ⚠️ LE MARQUEUR D ORDRE (BOM) EN TETE DE FICHIER se retire : sans cela le
+// premier titre de colonne porte un caractere invisible et ne s apparie
+// avec rien.
+// ═══════════════════════════════════════════════════════════════════════
+function csvGuillemets(octets: Buffer): string[][] {
+  let texte = new TextDecoder("utf-8").decode(octets);
+  if (texte.charCodeAt(0) === 0xFEFF) texte = texte.slice(1);
+
+  const sortie: string[][] = [];
+  let ligne: string[] = [];
+  let champ = "";
+  let dansGuillemets = false;
+
+  for (let i = 0; i < texte.length; i++) {
+    const c = texte[i];
+
+    if (dansGuillemets) {
+      if (c === '"') {
+        if (texte[i + 1] === '"') { champ += '"'; i++; }
+        else dansGuillemets = false;
+      } else champ += c;
+      continue;
+    }
+
+    if (c === '"') { dansGuillemets = true; continue; }
+    if (c === ";") { ligne.push(champ); champ = ""; continue; }
+    if (c === "\r") continue;
+    if (c === "\n") {
+      ligne.push(champ); champ = "";
+      if (ligne.some(function (x) { return x.trim() !== ""; })) sortie.push(ligne);
+      ligne = [];
+      continue;
+    }
+    champ += c;
+  }
+  ligne.push(champ);
+  if (ligne.some(function (x) { return x.trim() !== ""; })) sortie.push(ligne);
   return sortie;
 }
 
@@ -400,7 +474,7 @@ async function listerUn(prefixe: string): Promise<Trouve[]> {
         nom: f.name,
         chemin: prefixe ? prefixe + "/" + f.name : f.name,
         taille: (f.metadata && f.metadata.size) || 0,
-        source_date: dateDuNom(f.name),
+        source_date: dateDuNom(f.name) || aujourdhui(),
       };
     });
 }
@@ -609,6 +683,100 @@ function lireVmrr(octets: Buffer, sourceDate: string): any[] {
   return sortie;
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+// 🆕 22/09 — LE TABLEUR D EQUIVALENCE DIDA
+//
+// Code CTP;Libelle long;Format;Date d effet de la completude;
+// Code de base assujettie_DI_S21.G00.78.001;
+// Type de composant de base assujettie_DI_S21.G00.79.001;
+// Code de cotisation individuelle_DI_S21.G00.81.001; […]
+// Code de cotisation_DA_S21.G00.23.001;Qualifiant d assiette_DA_…23.002;
+// […] Precisions complementaires;Version du tableau
+//
+// 🚨 C EST LA TABLE QUI DIT CE QUE L URSSAF ATTEND, CTP PAR CTP : quelles
+// bases assujetties, quels codes de cotisation individuelle, quel
+// qualifiant d assiette. C est elle qui a tranche la declaration de
+// l apprenti le 22/09 — le CTP 726 porte « l assiette inferieure au seuil
+// d exoneration », et son usage impose celui du CTP 423.
+// ⚠️ UNE LIGNE PAR COMBINAISON : un meme CTP revient autant de fois qu il
+// a de codes de cotisation. Le CTP 726 en compte dix.
+// ⚠️ LES COLONNES SE TROUVENT PAR LEUR TITRE, jamais par leur rang : le
+// tableur en gagne a chaque version — le bloc 82 est arrive en 2026.
+// ═══════════════════════════════════════════════════════════════════════
+function lireDida(octets: Buffer, sourceDate: string): any[] {
+  const lignes = csvGuillemets(octets);
+  if (lignes.length < 2) return [];
+
+  const titres = (lignes[0] || []).map(function (t) {
+    return String(t || "").toLowerCase().trim();
+  });
+  function rang(fragment: string): number {
+    for (let i = 0; i < titres.length; i++) {
+      if (titres[i].indexOf(fragment.toLowerCase()) >= 0) return i;
+    }
+    return -1;
+  }
+  function val(l: string[], i: number): string | null {
+    if (i < 0) return null;
+    const v = nettoyer(l[i] || "");
+    return v === "" ? null : v;
+  }
+
+  const cCtp = rang("code ctp");
+  const cLib = rang("libell");
+  const cFmt = rang("format");
+  const cEffet = rang("date d'effet");
+  const c78 = rang("78.001");
+  const c79 = rang("79.001");
+  const c81 = rang("81.001");
+  const cTaux81 = rang("81.007");
+  const c23q = rang("23.002");
+  const c23t = rang("23.003");
+  const c23a = rang("23.004");
+  const c23m = rang("23.005");
+  const c23i = rang("23.006");
+  const cPrec = rang("précisions");
+  const cVer = rang("version");
+
+  const sortie: any[] = [];
+  for (let i = 1; i < lignes.length; i++) {
+    const l = lignes[i];
+    const ctp = val(l, cCtp);
+    if (!ctp) continue;
+
+    // ⚠️ LA DATE ARRIVE EN AAAA-MM-JJ dans ce fichier, contrairement aux
+    // autres tables URSSAF. On ne passe donc pas par `dateFr`.
+    const effet = val(l, cEffet);
+    const dateEffet = (effet && /^\d{4}-\d{2}-\d{2}$/.test(effet))
+      ? effet : (dateFr(effet || "") || null);
+    if (!dateEffet) continue;
+
+    sortie.push({
+      code_ctp: ctp,
+      libelle: val(l, cLib),
+      format: val(l, cFmt),
+      date_effet: dateEffet,
+      base_78: val(l, c78),
+      composant_79: val(l, c79),
+      code_81: val(l, c81),
+      taux_81: val(l, cTaux81),
+      qualifiant_23: val(l, c23q),
+      taux_23: val(l, c23t),
+      assiette_23: val(l, c23a),
+      montant_23: val(l, c23m),
+      insee_23: val(l, c23i),
+      precisions: val(l, cPrec),
+      version: val(l, cVer),
+      source_url: SOURCE_DIDA,
+      source_nom: "URSSAF, tableur d'équivalence DIDA (open.urssaf.fr)",
+      source_date: sourceDate,
+      verifie_le: sourceDate,
+      maj_le: new Date().toISOString(),
+    });
+  }
+  return sortie;
+}
+
 // ---------------------------------------------------------------------
 // LE CATALOGUE : quel fichier, quelle table, quelle lecture
 // ---------------------------------------------------------------------
@@ -642,6 +810,16 @@ const TABLES = [
     debut: "tauxVMRR",
     libelle: "Versement mobilité régional et rural",
     lire: lireVmrr,
+  },
+  {
+    // 🆕 22/09 — Le fichier sort du portail open data sous le nom
+    // « equivalence-dida.csv », SANS date dans son nom : la date de
+    // livraison retombe alors sur le jour de l import (voir plus bas).
+    quoi: "dida",
+    table: "urssaf_dida",
+    debut: "equivalence-dida",
+    libelle: "Équivalence données individuelles et agrégées (DIDA)",
+    lire: lireDida,
   },
 ];
 
