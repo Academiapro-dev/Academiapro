@@ -1140,6 +1140,47 @@ export default function PagePaie() {
                   </div>
                 </div>
 
+                {/* 🆕🚨 22/09 — SANS CE CHAMP, LA DSN DE L APPRENTI EST REJETEE.
+                    Controle CCH-11 : des que le dispositif « 64 » ou « 65 »
+                    est declare, le niveau de diplome prepare devient
+                    obligatoire. Il ne se deduit de rien — ni de l age, ni du
+                    poste : il figure sur le contrat signe avec le CFA.
+                    ⛔ A NE PAS CONFONDRE avec le « niveau » de la grille
+                    conventionnelle, qui va avec le coefficient. */}
+                {f.type_contrat === "apprentissage" && (
+                  <div style={{ marginTop: "14px", paddingTop: "14px",
+                    borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+                    <p style={{ fontSize: "12.5px", color: OR,
+                      marginTop: 0, lineHeight: "1.6" }}>
+                      Le niveau de diplôme préparé est obligatoire en DSN pour
+                      un apprenti : sans lui, la déclaration est rejetée. Il
+                      figure sur le contrat signé avec le CFA.
+                    </p>
+                    <p style={{ fontSize: "12.5px",
+                      color: "rgba(255,255,255,0.55)", lineHeight: "1.6" }}>
+                      Laisser le salaire mensuel vide : le barème légal
+                      s&apos;applique tout seul (article D6222-26), en
+                      pourcentage du SMIC selon l&apos;âge et l&apos;année
+                      d&apos;exécution. Un salaire saisi l&apos;emporte, car le
+                      barème est un minimum.
+                    </p>
+                    <div style={{ maxWidth: "420px" }}>
+                      <span style={LIB}>Niveau de diplôme préparé</span>
+                      <select value={f.niveau_diplome_prepare || ""} style={CHAMP}
+                        onChange={(ev) => setF({ ...f,
+                          niveau_diplome_prepare: ev.target.value })}>
+                        <option value="">— choisir —</option>
+                        <option value="03">03 — CAP, BEP</option>
+                        <option value="04">04 — Bac, brevet de technicien, brevet professionnel</option>
+                        <option value="05">05 — Bac+2 : BTS, DUT, licence 2</option>
+                        <option value="06">06 — Bac+3 et bac+4 : licence 3, licence pro, master 1</option>
+                        <option value="07">07 — Bac+5 : master 2, diplôme d&apos;ingénieur</option>
+                        <option value="08">08 — Bac+8 : doctorat</option>
+                      </select>
+                    </div>
+                  </div>
+                )}
+
                 {/* 🚨 SANS CES DEUX CHAMPS, LE CONTRAT EST REQUALIFIABLE. */}
                 {f.type_contrat === "mission" && (
                   <div style={{ marginTop: "14px", paddingTop: "14px",
