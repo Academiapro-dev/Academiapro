@@ -651,8 +651,16 @@ export async function POST(req: NextRequest) {
       // le salarie aurait dix fois ses droits. L emission, elle, n arrive
       // qu une fois : c est le seul moment sur.
       //
-      // ⚠️ SEUL LE CDI EST CONCERNE : sur une mission ou un CDD, les conges
-      // sont compenses par l ICCP, pas acquis.
+      // ⚠️ LE CDI ET L APPRENTISSAGE SONT CONCERNES : sur une mission ou un
+      // CDD, les conges sont compenses par l ICCP versee chaque mois, pas
+      // acquis.
+      // 🆕🚨 22/09 — L APPRENTI ETAIT OUBLIE, ET SES CONGES DISPARAISSAIENT.
+      // Il a droit a 2,5 jours par mois comme tout salarie, mais il ne
+      // touche AUCUNE indemnite de precarite : le contrat d apprentissage en
+      // est expressement exclu. N etant ni CDI ni CDD aux yeux de ce code,
+      // il n avait donc ni compteur ni compensation — ses conges payes
+      // n existaient nulle part. Son solde non pris se paie en indemnite
+      // compensatrice A LA FIN du contrat, pas mois par mois.
       // ⚠️ ON VERIFIE QU IL N Y A PAS DEJA UNE ACQUISITION POUR CE MOIS :
       // un bulletin rectificatif ne doit pas redonner les jours.
       // ═══════════════════════════════════════════════════════════════
@@ -665,8 +673,10 @@ export async function POST(req: NextRequest) {
         .eq("id", b.id)
         .maybeSingle();
 
-      if (bull && bull.paie_contrats
-          && (bull.paie_contrats as any).type_contrat === "cdi") {
+      const typeBull = bull && bull.paie_contrats
+        ? String((bull.paie_contrats as any).type_contrat) : "";
+
+      if (typeBull === "cdi" || typeBull === "apprentissage") {
 
         const p = String(bull.periode);
         const annee = Number(p.slice(0, 4));
@@ -894,14 +904,18 @@ export async function POST(req: NextRequest) {
           { status: 404 });
       }
 
-      // 🚨 SEUL LE CDI ACQUIERT DES CONGES, donc seul le CDI en prend.
-      // Sur une mission ou un CDD, ils sont compenses par l ICCP versee
-      // chaque mois : poser une prise y creerait un solde negatif.
-      if (String(ct.type_contrat) !== "cdi") {
+      // 🚨 QUI ACQUIERT DES CONGES EN PREND. Le CDI et l apprentissage les
+      // cumulent ; sur une mission ou un CDD ils sont compenses par l ICCP
+      // versee chaque mois, et y poser une prise creerait un solde negatif.
+      // 🆕 22/09 — L APPRENTI AJOUTE ICI EN MEME TEMPS QUE DANS
+      // L ACQUISITION : laisser les deux se contredire aurait donne un
+      // compteur qui se remplit sans jamais pouvoir se vider.
+      if (String(ct.type_contrat) !== "cdi"
+          && String(ct.type_contrat) !== "apprentissage") {
         return NextResponse.json({
           erreur: "ce contrat ne cumule pas de congés : ils sont compensés "
             + "par l'indemnité compensatrice versée chaque mois. La prise de "
-            + "congés ne concerne que les CDI.",
+            + "congés concerne les CDI et les contrats d'apprentissage.",
         }, { status: 400 });
       }
 
