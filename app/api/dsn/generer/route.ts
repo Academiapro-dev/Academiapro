@@ -337,6 +337,32 @@ const CTP_SOCLE: { ctp: string; qualifiant: string; assiette: string; tauxAt?: b
 // totalite et non sur le plafond.
 const CTP_FNAL_50PLUS = "236";
 
+// ═══════════════════════════════════════════════════════════════════════
+// 🆕🚨 22/09 — LES CTP DE L APPRENTI, LUS DANS LE TABLEUR DIDA DE L URSSAF
+//
+// Source : « Tableau equivalence donnees individuelles et agregees »,
+// open.urssaf.fr, jeu de donnees `equivalence-dida`, 1 457 enregistrements.
+// C est LA table qui dit, CTP par CTP, quelles bases assujetties et quels
+// codes de cotisation individuelle l URSSAF attend en face.
+//
+// 🚨 CE QUE LA FICHE DU CTP 726 DIT MOT POUR MOT : « Ils permettent de
+// declarer L ASSIETTE INFERIEURE AU SEUIL D EXONERATION. […] L utilisation
+// des CTP 726 ou 727 doit OBLIGATOIREMENT donner lieu a celle du CTP 423
+// (Chomage). »
+//
+// ⚠️ LE BORDEREAU SE COUPE EN DEUX, PAS LE NOMINATIF. Les deux CTP se
+// rattachent a la MEME base assujettie : leurs assiettes s additionnent
+// pour retrouver le brut du salarie (933,51 + 205,37 = 1 138,88). C est
+// pourquoi le bloc 78 garde le brut entier et n a pas a etre touche — le
+// principe d equivalence de l URSSAF reste satisfait.
+//   sous le seuil   CTP 726 (920 sur la base 03, 921 sur la base 02)
+//                   CTP 423 pour le chomage (base 07)
+//   au-dela         CTP 100 et CTP 772, les CTP ordinaires
+// ⛔ 727 ET 429 SONT LES EQUIVALENTS ALSACE-MOSELLE ET SECTEUR PUBLIC :
+// hors de notre perimetre tant qu aucun client n en releve.
+const CTP_APPRENTI_SOUS_SEUIL = "726";
+const CTP_APPRENTI_CHOMAGE = "423";
+
 // 🚨 LA REDUCTION GENERALE — deux codes, et le choix n est pas indifferent.
 // Guide URSSAF, page 33 :
 //   668  reduction generale ETENDUE : regime general ET assurance chomage.
@@ -1165,6 +1191,10 @@ export async function POST(req: NextRequest) {
   // Les assiettes cumulees, par type de bloc 78 : c est la matiere du
   // bordereau, et elle vient des memes chiffres que le nominatif.
   const assiettesCumulees: Record<string, number> = {};
+  // 🆕 22/09 — LA PART DES APPRENTIS SOUS LE SEUIL D EXONERATION, cumulee a
+  // part : elle sort du CTP 100 pour aller au CTP 726, et du 772 pour aller
+  // au 423. Vide tant qu aucun apprenti n est declare.
+  const assiettesApprenti: Record<string, number> = {};
   // 🆕 20/09 — LE VERSEMENT MOBILITE, CUMULE PAR COMMUNE.
   // 🚨 PAR COMMUNE, PAS EN TOTAL : le CTP 900 se declare « pour chaque
   // commune au titre de laquelle le versement mobilite est du, y compris en
@@ -1181,6 +1211,17 @@ export async function POST(req: NextRequest) {
     const ct = b.paie_contrats || {};
     const s = ct.paie_salaries || {};
     const detail = b.detail || {};
+
+    // 🆕🚨 22/09 — LE SEUIL D EXONERATION VIENT DU BULLETIN, PAS D UN CALCUL
+    // REFAIT ICI.
+    //
+    // 🚨 LE GENERATEUR NE RECALCULE JAMAIS UNE PAIE. Le moteur a deja
+    // determine le seuil de cet apprenti — son age, l annee de son contrat,
+    // sa quotite de travail, le SMIC du mois — et l a range dans le detail
+    // du bulletin. Le refaire ici, c est ouvrir la porte a deux resultats
+    // differents pour le meme salarie, et c est toujours la DSN qui aurait
+    // tort. ⚠️ Nul sur tout autre contrat.
+    const detailApprenti = (detail as any).apprentissage || null;
     const qui = q(s.prenom) + " " + q(s.nom);
 
     // 🚨 LE NIR EST LA CLE DE TOUTE LA DECLARATION. Sans lui, l organisme
@@ -2466,6 +2507,26 @@ export async function POST(req: NextRequest) {
       // ecrite au nominatif, jamais un calcul parallele.
       assiettesCumulees[bAss] = (assiettesCumulees[bAss] || 0) + Number(grp.assiette || 0);
 
+      // 🆕🚨 22/09 — LA PART DE L APPRENTI SOUS LE SEUIL PART AILLEURS.
+      //
+      // Elle reste dans `assiettesCumulees` — c est bien la meme base
+      // assujettie — mais on la note a part pour que le bordereau la
+      // retranche du CTP 100 et la porte au CTP 726, comme la table DIDA
+      // l exige. ⚠️ LE SEUIL EST BORNE PAR L ASSIETTE : sur les bases
+      // plafonnee et chomage, l assiette peut etre inferieure au seuil, et
+      // declarer plus que ce qui existe fausserait tout le bordereau.
+      // ⛔ LA CSG (base 04) EST EXCLUE : elle se declare au CTP 260 quelle
+      // que soit la fraction, et la table DIDA ne rattache aucune CSG au
+      // CTP 726.
+      if (detailApprenti && Number(detailApprenti.seuil_exoneration) > 0
+          && bAss !== "04") {
+        const part = Math.min(Number(grp.assiette || 0),
+          Number(detailApprenti.seuil_exoneration));
+        if (part > 0) {
+          assiettesApprenti[bAss] = (assiettesApprenti[bAss] || 0) + part;
+        }
+      }
+
       ecrire("S21.G00.78.001", bAss);
       ecrire("S21.G00.78.002", debutPeriode);
       ecrire("S21.G00.78.003", finPeriode);
@@ -2941,7 +3002,31 @@ export async function POST(req: NextRequest) {
       });
 
       for (const regle of socle) {
-        const assiette = assiettesCumulees[regle.assiette] || 0;
+        let assiette = assiettesCumulees[regle.assiette] || 0;
+
+        // 🆕🚨 22/09 — CE QUI EST SOUS LE SEUIL SORT DES CTP ORDINAIRES.
+        //
+        // La table DIDA de l URSSAF place la fraction exoneree sur le
+        // CTP 726 et son chomage sur le 423 : la laisser AUSSI sur le 100 et
+        // le 772 la compterait deux fois, et le bordereau ne s accorderait
+        // plus avec le nominatif. ⚠️ SEULS CES DEUX CTP SONT CONCERNES : le
+        // FNAL, les complements 430 et 635, l AGS et la CSG restent dus sur
+        // la totalite, sans distinguer la part exoneree — c est ce que dit
+        // la fiche de chacun.
+        if (regle.ctp === "100") {
+          // 🚨 L ARRONDI SE FAIT UNE SEULE FOIS, SUR LE TOTAL. Arrondir
+          // separement les deux parts donnait 934 + 6 979 = 7 913 pour un
+          // total de 7 912 : UN EURO DE PLUS QUE LE NOMINATIF, et
+          // l equivalence exigee par l URSSAF depuis 2022 tombait. On
+          // arrondit donc le total et la part exoneree, puis on DEDUIT le
+          // reste — la somme retombe alors exactement.
+          assiette = Math.round(assiette)
+            - Math.round(assiettesApprenti[regle.assiette] || 0);
+        } else if (regle.ctp === "772") {
+          assiette = Math.round(assiette) - Math.round(assiettesApprenti["07"] || 0);
+        }
+        if (assiette < 0) assiette = 0;
+
         // ⚠️ UNE ASSIETTE NULLE NE SE DECLARE PAS : aucun salarie n y cotise.
         if (assiette <= 0) continue;
 
@@ -2974,6 +3059,71 @@ export async function POST(req: NextRequest) {
         ecrireB("S21.G00.23.004", euroDsn(assiette));
         // ⛔ PAS DE MONTANT DE COTISATION sur les CTP du socle : la fiche 1
         // du guide ne renseigne que l assiette.
+      }
+
+      // ═══════════════════════════════════════════════════════════════
+      // 🆕🚨 22/09 — LES LIGNES DE L APPRENTI : CTP 726 ET CTP 423
+      //
+      // 🚨 LES DEUX VONT ENSEMBLE, la fiche du CTP 423 est formelle : « Ce
+      // CTP doit etre systematiquement renseigne des lors que le CTP 726 ou
+      // le CTP 727 sont utilises. » On ne declare donc jamais l un sans
+      // l autre, et une anomalie le dit si le chomage manque.
+      // ⚠️ LE TAUX AT SE PORTE ICI AUSSI, sur la ligne 920 : la fiche du
+      // CTP 726 precise que « le taux AT a utiliser est fixe par la CARSAT »,
+      // exactement comme pour le CTP 100.
+      // ⛔ CES LIGNES N EXISTENT QUE S IL Y A UN APPRENTI : le tableau reste
+      // vide pour tout autre employeur, et rien ne s ecrit.
+      // ═══════════════════════════════════════════════════════════════
+      const lignesApprenti: { ctp: string; qualifiant: string;
+        assiette: string; tauxAt?: boolean }[] = [
+        { ctp: CTP_APPRENTI_SOUS_SEUIL, qualifiant: "920", assiette: "03", tauxAt: true },
+        { ctp: CTP_APPRENTI_SOUS_SEUIL, qualifiant: "921", assiette: "02" },
+        { ctp: CTP_APPRENTI_CHOMAGE, qualifiant: "920", assiette: "07" },
+      ];
+
+      let apprentiDeclare = false;
+      let apprentiChomage = false;
+
+      for (const regle of lignesApprenti) {
+        const assiette = assiettesApprenti[regle.assiette] || 0;
+        if (assiette <= 0) continue;
+
+        const { data: ctp } = await supabase
+          .from("urssaf_ctp")
+          .select("code, libelle")
+          .eq("code", regle.ctp)
+          .lte("date_effet", periode)
+          .or("date_fin.is.null,date_fin.gte." + periode)
+          .order("date_effet", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (!ctp) {
+          anomalies.push("Le code type de personnel " + regle.ctp + " (apprenti) "
+            + "n'existe pas dans urssaf_ctp à la période " + periode + ", ou il "
+            + "est clôturé. ⛔ LA PART EXONÉRÉE DE L'APPRENTI N'EST PAS "
+            + "DÉCLARÉE : importer la table des codes types de personnel.");
+          continue;
+        }
+
+        ecrireB("S21.G00.23.001", regle.ctp);
+        ecrireB("S21.G00.23.002", regle.qualifiant);
+        if (regle.tauxAt && tauxAtSociete > 0) {
+          ecrireB("S21.G00.23.003", montantDsn(tauxAtSociete));
+        }
+        ecrireB("S21.G00.23.004", euroDsn(assiette));
+
+        if (regle.ctp === CTP_APPRENTI_SOUS_SEUIL) apprentiDeclare = true;
+        if (regle.ctp === CTP_APPRENTI_CHOMAGE) apprentiChomage = true;
+      }
+
+      // 🚨 LE COUPLE EST OBLIGATOIRE. Si le 726 part sans le 423, l URSSAF
+      // reclame la contribution chomage de l apprenti a l employeur.
+      if (apprentiDeclare && !apprentiChomage) {
+        anomalies.push("Le CTP " + CTP_APPRENTI_SOUS_SEUIL + " est déclaré sans "
+          + "le CTP " + CTP_APPRENTI_CHOMAGE + " : l'URSSAF exige que les deux "
+          + "aillent ensemble. ⛔ Vérifier que l'apprenti a bien une assiette "
+          + "d'assurance chômage (base assujettie de type 07).");
       }
 
       // ═══════════════════════════════════════════════════════════════
