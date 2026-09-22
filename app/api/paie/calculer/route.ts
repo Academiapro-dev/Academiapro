@@ -587,16 +587,42 @@ async function calculer(contratId: string, periode: string): Promise<any> {
   // meme quand il est deja mensuel : un temps partiel a 1 400 EUR est paye
   // 1 400 EUR, pas 1 400 x 0,686.
   // ═══════════════════════════════════════════════════════════════════
+  // ═══════════════════════════════════════════════════════════════════
+  // 🆕🚨 22/09 — LE FORFAIT EN JOURS
+  //
+  // 🚨 UN CADRE AU FORFAIT JOURS N A PAS D HORAIRE. Les articles L3121-58
+  // et suivants lui retirent les durees maximales quotidienne et
+  // hebdomadaire : son contrat fixe un NOMBRE DE JOURS travailles dans
+  // l annee, 218 au plus. Lui appliquer 151,67 heures n a aucun sens.
+  //
+  // CE QUE CELA CHANGE, ET CE QUE CELA NE CHANGE PAS :
+  //   · LE SALAIRE est forfaitaire et se paie en entier — on ne le calcule
+  //     pas par un taux horaire ;
+  //   · LE SMIC DE LA REDUCTION GENERALE ET LE PLAFOND restent ceux d un
+  //     TEMPS PLEIN : le forfait jours n est pas un temps partiel, et le
+  //     proratiser donnerait au cadre une reduction qu il n a pas ;
+  //   · LES HEURES SUPPLEMENTAIRES N EXISTENT PAS : une reserve le dit.
+  // ⚠️ IL EXISTE DES FORFAITS JOURS REDUITS (180 jours au lieu de 218).
+  // Le salaire y est proportionnellement plus bas, mais le plafond de
+  // securite sociale se proratise alors sur les JOURS, pas sur des heures
+  // que le contrat n a pas. Le moteur le signale et ne proratise rien :
+  // se tromper de sens ferait perdre des droits au salarie.
+  // ═══════════════════════════════════════════════════════════════════
+  const forfaitJoursAn = Number((contrat as any).forfait_jours_annuel || 0);
+  const auForfaitJours = forfaitJoursAn > 0;
+
   const dureeHebdo = Number(contrat.duree_hebdo) > 0
     ? Number(contrat.duree_hebdo) : 0;
-  const dureeContratMois = dureeHebdo > 0
-    ? Math.round(dureeHebdo * 52 / 12 * 100) / 100
-    : Number(dureeMensuelle || 0);
+  const dureeContratMois = (auForfaitJours || dureeHebdo <= 0)
+    ? Number(dureeMensuelle || 0)
+    : Math.round(dureeHebdo * 52 / 12 * 100) / 100;
   // La proportion par rapport au plein temps, bornee : un forfait a 39 h ne
   // doit pas majorer le SMIC de reference.
-  const proportionTemps = (dureeMensuelle && dureeContratMois > 0)
-    ? Math.min(1, dureeContratMois / Number(dureeMensuelle))
-    : 1;
+  // ⚠️ UN FORFAIT JOURS VAUT TOUJOURS 1 : voir ci-dessus.
+  const proportionTemps = auForfaitJours ? 1
+    : ((dureeMensuelle && dureeContratMois > 0)
+      ? Math.min(1, dureeContratMois / Number(dureeMensuelle))
+      : 1);
   const tempsPartiel = proportionTemps < 0.999;
 
   // ═══════════════════════════════════════════════════════════════════
@@ -776,6 +802,13 @@ async function calculer(contratId: string, periode: string): Promise<any> {
 
     if (contrat.salaire_mensuel) {
       base = Number(contrat.salaire_mensuel);
+    } else if (auForfaitJours) {
+      // ⛔ PAS DE TAUX HORAIRE SUR UN FORFAIT JOURS : le salaire est
+      // forfaitaire par definition. S il n est pas saisi, on ne l invente
+      // pas — la reserve le dit et le bulletin sort a zero, ce qui se voit.
+      base = 0;
+      libelle = "Salaire de base (forfait de " + forfaitJoursAn
+        + " jours par an)";
     } else if (contrat.salaire_horaire && dureeContratMois > 0) {
       // 🚨 LA DUREE DU CONTRAT, PAS 151,67 h. Un contrat a 24 h payait
       // 151,67 h : le salarie touchait un plein temps.
@@ -2472,6 +2505,34 @@ async function calculer(contratId: string, periode: string): Promise<any> {
         r.unshift(minimumConventionnel.alerte);
       }
 
+      // 🆕 22/09 — CE QUE LE FORFAIT JOURS APPORTE, ET CE QU IL NE FAIT PAS.
+      if (auForfaitJours) {
+        r.push("Forfait en jours : " + forfaitJoursAn + " jours par an. Le "
+          + "salaire est forfaitaire — il ne se calcule pas à l'heure — et le "
+          + "salarié n'est soumis à aucune durée maximale quotidienne ou "
+          + "hebdomadaire (L3121-58 et suivants). ⚠️ LES HEURES "
+          + "SUPPLÉMENTAIRES N'EXISTENT PAS sur un forfait jours : en saisir "
+          + "serait une erreur, et leur paiement ne régulariserait pas un "
+          + "forfait dépassé. Le SMIC de la réduction générale et le plafond "
+          + "de Sécurité sociale restent ceux d'un temps plein.");
+        if (forfaitJoursAn > 218) {
+          r.push("⛔ FORFAIT SUPÉRIEUR À 218 JOURS : le plafond légal est "
+            + "dépassé (L3121-64). Il faut un accord écrit de renonciation à "
+            + "des jours de repos et une majoration de salaire d'au moins "
+            + "10 % sur les jours excédentaires — non calculée ici.");
+        }
+        if (forfaitJoursAn < 218) {
+          r.push("⚠️ FORFAIT RÉDUIT (" + forfaitJoursAn + " jours) : le "
+            + "plafond de Sécurité sociale se proratise alors sur les JOURS, "
+            + "pas sur des heures que le contrat ne porte pas. Le moteur ne "
+            + "le proratise PAS et retient un plafond plein : faire vérifier "
+            + "ce bulletin.");
+        }
+        r.push("⚠️ LES JOURS DE REPOS (RTT) du forfait ne sont pas décomptés : "
+          + "le contrat ne porte pas de compteur. Un forfait dépassé se "
+          + "régularise par des jours de repos, jamais par un paiement.");
+      }
+
       // 🆕 22/09 — CE QUE L APPRENTISSAGE APPORTE, ET CE QU IL NE FAIT PAS.
       if (appr) {
         r.push("Apprenti : "
@@ -2670,3 +2731,4 @@ export async function GET(req: NextRequest) {
       { status: 500, headers: SANS_CACHE });
   }
 }
+
