@@ -1195,6 +1195,13 @@ export async function POST(req: NextRequest) {
   // part : elle sort du CTP 100 pour aller au CTP 726, et du 772 pour aller
   // au 423. Vide tant qu aucun apprenti n est declare.
   const assiettesApprenti: Record<string, number> = {};
+
+  // 🆕 22/09 — CE QUI A ETE ECRIT, pour le confronter a la table DIDA en
+  // fin de generation. `ctpDeclares` : les CTP portes au bordereau.
+  // `codes81Ecrits` : les couples « base assujettie / code de cotisation »
+  // rencontres au nominatif, tous salaries confondus.
+  const ctpDeclares: Record<string, boolean> = {};
+  const codes81Ecrits: Record<string, boolean> = {};
   // 🆕 20/09 — LE VERSEMENT MOBILITE, CUMULE PAR COMMUNE.
   // 🚨 PAR COMMUNE, PAS EN TOTAL : le CTP 900 se declare « pour chaque
   // commune au titre de laquelle le versement mobilite est du, y compris en
@@ -1495,10 +1502,45 @@ export async function POST(req: NextRequest) {
     ecrire("S21.G00.40.009", numeroContrat);
     if (ct.date_fin) ecrire("S21.G00.40.010", dateDsn(ct.date_fin));
 
+    // ═══════════════════════════════════════════════════════════════
+    // 🆕🚨 22/09 — LE FORFAIT EN JOURS NE SE MESURE PAS EN HEURES
+    //
+    // 🚨 UN CADRE AU FORFAIT JOURS N A PAS D HORAIRE. Son contrat fixe un
+    // NOMBRE DE JOURS travailles dans l annee — 218 au plus, articles
+    // L3121-58 et suivants — et le code du travail lui retire expressement
+    // les durees maximales quotidienne et hebdomadaire. Lui declarer
+    // « 151,67 heures » est donc faux deux fois : l unite et la valeur.
+    // ⚠️ LA RUBRIQUE 40.011 PORTE L UNITE : « 10 - heure » pour tout le
+    // monde, « 20 - forfait jours » ici. Et la 40.013 porte alors le
+    // NOMBRE DE JOURS DU MOIS, pas des heures.
+    // ⛔ LA 40.012, duree de reference de l entreprise, reste en heures :
+    // c est la reference de L ETABLISSEMENT, pas celle du salarie.
+    // ═══════════════════════════════════════════════════════════════
+    const forfaitJours = Number((ct as any).forfait_jours_annuel || 0) > 0;
+    const joursAnnuels = forfaitJours
+      ? Number((ct as any).forfait_jours_annuel) : 0;
+
+    if (forfaitJours && joursAnnuels > 218) {
+      anomalies.push(qui + " : forfait de " + joursAnnuels + " jours par an. "
+        + "⚠️ LE PLAFOND LEGAL EST DE 218 JOURS (article L3121-64). Au-delà, "
+        + "il faut un accord de renonciation à des jours de repos, et la "
+        + "rémunération majorée d'au moins 10 %.");
+    }
+
     // ⚠️ L UNITE DE MESURE EST UN CODE, LA QUOTITE UN NOMBRE. Le premier
     // fichier ecrivait « 35.00 » dans la rubrique de l unite.
-    const uniteQuotite = await code("S21.G00.40.011", "heure", periode);
+    // ⚠️ « forfait_jour » AU SINGULIER : c est la correspondance qui existe
+    // dans dsn_codes depuis l origine, verifiee. La chercher au pluriel ne
+    // rendait rien et le contrat serait parti sans unite de mesure.
+    const uniteQuotite = forfaitJours
+      ? (await code("S21.G00.40.011", "forfait_jour", periode))
+      : (await code("S21.G00.40.011", "heure", periode));
     if (uniteQuotite) ecrire("S21.G00.40.011", uniteQuotite);
+    else if (forfaitJours) {
+      anomalies.push(qui + " : aucun code DSN pour l'unité « forfait jours » "
+        + "(S21.G00.40.011). ⛔ NON DÉCLARÉE — renseigner la correspondance "
+        + "« forfait_jours » dans dsn_codes.");
+    }
     // 🚨 LES DEUX QUOTITES SE MESURENT DANS LA MEME UNITE ET DEPUIS LA MEME
     // SOURCE. La reference de l entreprise vient de paie_parametres
     // (151,67 h) ; celle du contrat s en deduit au prorata de la duree
@@ -1512,9 +1554,20 @@ export async function POST(req: NextRequest) {
       // ⚠️ 35 HEURES EST LA DUREE LEGALE : un contrat a 35 h est a temps
       // plein, donc sa quotite EGALE la reference. En dessous, elle est
       // proportionnelle.
-      const hebdo = ct.duree_hebdo ? Number(ct.duree_hebdo) : 35;
-      const quotite = dureeMensuelleRef * Math.min(hebdo, 35) / 35;
-      ecrire("S21.G00.40.013", montantDsn(Math.round(quotite * 100) / 100));
+      if (forfaitJours) {
+        // 🚨 LE NOMBRE DE JOURS DU MOIS, pas de l annee : la rubrique
+        // decrit la periode declaree. On divise le forfait annuel par
+        // douze, comme le salaire mensuel divise le salaire annuel.
+        ecrire("S21.G00.40.013",
+          montantDsn(Math.round(joursAnnuels / 12 * 100) / 100));
+      } else {
+        // ⚠️ 35 HEURES EST LA DUREE LEGALE : un contrat a 35 h est a temps
+        // plein, donc sa quotite EGALE la reference. En dessous, elle est
+        // proportionnelle.
+        const hebdo = ct.duree_hebdo ? Number(ct.duree_hebdo) : 35;
+        const quotite = dureeMensuelleRef * Math.min(hebdo, 35) / 35;
+        ecrire("S21.G00.40.013", montantDsn(Math.round(quotite * 100) / 100));
+      }
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -1535,7 +1588,12 @@ export async function POST(req: NextRequest) {
 
     // ⚠️ MODALITE D EXERCICE DU TEMPS DE TRAVAIL : 10 temps plein,
     // 20 temps partiel. Elle se deduit de la duree hebdomadaire.
-    const tempsPlein = !ct.duree_hebdo || Number(ct.duree_hebdo) >= 35;
+    // 🆕 22/09 — UN FORFAIT JOURS EST UN TEMPS PLEIN, quelle que soit la
+    // duree hebdomadaire eventuellement saisie : le salarie n est pas
+    // soumis a un horaire, donc jamais « a temps partiel » au sens de
+    // cette rubrique.
+    const tempsPlein = forfaitJours
+      || !ct.duree_hebdo || Number(ct.duree_hebdo) >= 35;
     ecrire("S21.G00.40.014", tempsPlein ? "10" : "20");
 
     // ⚠️ COMPLEMENT DE BASE AU REGIME OBLIGATOIRE : 01 regime local
@@ -2760,6 +2818,7 @@ export async function POST(req: NextRequest) {
       const listeCodes = Object.keys(grp.codes).sort();
       for (const cd of listeCodes) {
         ecrire("S21.G00.81.001", cd);
+        codes81Ecrits[bAss + "/" + cd] = true;
         ecrire("S21.G00.81.003", montantDsn(grp.codes[cd].base));
         ecrire("S21.G00.81.004", montantDsn(grp.codes[cd].montant));
 
@@ -3120,6 +3179,7 @@ export async function POST(req: NextRequest) {
         }
 
         ecrireB("S21.G00.23.001", regle.ctp);
+        ctpDeclares[regle.ctp] = true;
         ecrireB("S21.G00.23.002", regle.qualifiant);
         // 🚨 SEULS TROIS TAUX SE DECLARENT : accident du travail, versement
         // mobilite, bonus-malus. Aucun autre — guide URSSAF §1.3.
@@ -3177,6 +3237,7 @@ export async function POST(req: NextRequest) {
         }
 
         ecrireB("S21.G00.23.001", regle.ctp);
+        ctpDeclares[regle.ctp] = true;
         ecrireB("S21.G00.23.002", regle.qualifiant);
         if (regle.tauxAt && tauxAtSociete > 0) {
           ecrireB("S21.G00.23.003", montantDsn(tauxAtSociete));
@@ -3194,6 +3255,71 @@ export async function POST(req: NextRequest) {
           + "le CTP " + CTP_APPRENTI_CHOMAGE + " : l'URSSAF exige que les deux "
           + "aillent ensemble. ⛔ Vérifier que l'apprenti a bien une assiette "
           + "d'assurance chômage (base assujettie de type 07).");
+      }
+
+      // ═══════════════════════════════════════════════════════════════
+      // 🆕🚨 22/09 — LE CONTROLE PAR LA TABLE DIDA DE L URSSAF
+      //
+      // 🚨 CE BLOC N ECRIT RIEN DANS LE FICHIER. Il compare ce que le
+      // generateur vient de produire a ce que l URSSAF attend, et signale
+      // les ecarts en anomalie. C est un garde-fou, pas une source.
+      //
+      // POURQUOI IL EXISTE : jusqu ici, chaque cas de paie nouveau —
+      // l apprenti, demain le forfait jours ou une exoneration zonee —
+      // revelait son manque au mieux dans dsn-val, au pire chez l URSSAF,
+      // des mois plus tard, sous forme de redressement. La table DIDA dit
+      // noir sur blanc, pour chaque CTP, quelles bases assujetties et quels
+      // codes de cotisation individuelle doivent figurer en face. Autant
+      // le lui demander a chaque generation.
+      //
+      // ⚠️ IL SIGNALE, IL NE CORRIGE PAS. Un code attendu peut manquer pour
+      // une bonne raison — une cotisation a zero ne se declare pas, et
+      // l exoneration de l apprenti remplace la part salariale qu il aurait
+      // portee. C est au lecteur de trancher, pas au generateur.
+      // ⛔ IL NE SE DECLENCHE QUE SI LA TABLE EST EN BASE : sans elle, rien
+      // ne se passe et la generation suit son cours. On ne bloque jamais un
+      // depot sur l absence d un referentiel de controle.
+      // ═══════════════════════════════════════════════════════════════
+      const listeCtp = Object.keys(ctpDeclares);
+      if (listeCtp.length > 0) {
+        const { data: attendu } = await supabase
+          .from("urssaf_dida")
+          .select("code_ctp, base_78, code_81, precisions")
+          .in("code_ctp", listeCtp)
+          .lte("date_effet", periode);
+
+        if (attendu && attendu.length > 0) {
+          const manques: string[] = [];
+          const vus: Record<string, boolean> = {};
+
+          for (const a of attendu) {
+            const base = String((a as any).base_78 || "");
+            const code = String((a as any).code_81 || "");
+            if (!base || !code) continue;
+
+            // ⛔ LES CODES D EXONERATION ET DE REDUCTION NE SE RECLAMENT
+            // PAS : ils n existent que si le dispositif s applique, et leur
+            // absence est la situation normale de la plupart des salaries.
+            if (code === "001" || code === "002" || code === "003"
+              || code === "018" || code === "106") continue;
+
+            const cle = base + "/" + code;
+            if (codes81Ecrits[cle] || vus[cle]) continue;
+            vus[cle] = true;
+            manques.push("CTP " + (a as any).code_ctp + " → code " + code
+              + " sur la base " + base);
+          }
+
+          if (manques.length > 0) {
+            anomalies.push("⚠️ CONTRÔLE URSSAF (tableur d'équivalence DIDA) : "
+              + manques.length + " code(s) de cotisation attendu(s) ne figurent "
+              + "dans aucun bloc 81 — " + manques.slice(0, 8).join(" · ")
+              + (manques.length > 8 ? " · …" : "")
+              + ". ⚠️ CE N'EST PAS FORCÉMENT UNE ERREUR : une cotisation à zéro "
+              + "ne se déclare pas, et une exonération remplace la part qu'elle "
+              + "couvre. Mais c'est là que l'URSSAF regardera.");
+          }
+        }
       }
 
       // ═══════════════════════════════════════════════════════════════
