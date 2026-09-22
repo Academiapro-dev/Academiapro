@@ -1277,6 +1277,45 @@ export async function POST(req: NextRequest) {
     // deja qu il s agit d une naissance en France.
     const paysNaiss = q(s.pays_naissance).toUpperCase();
     ecrire("S21.G00.30.015", paysNaiss.length === 2 ? paysNaiss : "FR");
+
+    // ═══════════════════════════════════════════════════════════════
+    // 🆕🚨 22/09 — LE NIVEAU DE DIPLOME PREPARE (30.025), EXIGE DES
+    // QU ON DECLARE UN APPRENTI
+    //
+    // 🚨 CONTROLE CCH-11, appris de dsn-val : des que la rubrique 40.008
+    // porte « 64 » ou « 65 », cette rubrique-ci devient OBLIGATOIRE. Elle
+    // etait absente, et c etait la seule anomalie bloquante du fichier.
+    // ⚠️ ELLE VIT DANS LE BLOC INDIVIDU mais la donnee est portee par le
+    // CONTRAT : c est le contrat d apprentissage qui prepare un diplome.
+    // ⛔ ELLE NE SE DEDUIT DE RIEN. Ni l age, ni le poste, ni la convention
+    // ne disent quel diplome l apprenti prepare au CFA : cela figure sur le
+    // contrat signe avec l organisme de formation. Elle SE SAISIT, comme le
+    // code risque AT.
+    // ⛔ NE PAS CONFONDRE AVEC `paie_contrats.niveau`, qui est le niveau
+    // CONVENTIONNEL de la grille de classification (Syntec 2.1, 2.3…) et
+    // va avec le coefficient et la position. Les deux n ont rien a voir.
+    //
+    // L ENUMERATION, telle que dsn-val l a donnee :
+    //   03  CAP, BEP
+    //   04  bac, brevet de technicien, brevet professionnel
+    //   05  bac+2 : licence 2, BTS, DUT
+    //   06  bac+3 et bac+4 : licence 3, licence professionnelle, master 1
+    //   07  bac+5 : master 2, diplome d ingenieur
+    //   08  bac+8 : doctorat
+    // ═══════════════════════════════════════════════════════════════
+    const estApprentiInd = q(ct.type_contrat).toLowerCase() === "apprentissage";
+    if (estApprentiInd) {
+      const niveauDiplome = q((ct as any).niveau_diplome_prepare);
+      if (niveauDiplome) ecrire("S21.G00.30.025", niveauDiplome);
+      else {
+        anomalies.push(qui + " : apprenti sans niveau de diplôme préparé "
+          + "(S21.G00.30.025). ⛔ RUBRIQUE OBLIGATOIRE dès que le dispositif "
+          + "« 64 » ou « 65 » est déclaré (contrôle CCH-11) — la déclaration "
+          + "sera REJETÉE. Valeurs : 03 CAP-BEP · 04 bac · 05 bac+2 "
+          + "(BTS, DUT) · 06 bac+3 et bac+4 · 07 bac+5 · 08 doctorat. "
+          + "Elle figure sur le contrat signé avec le CFA.");
+      }
+    }
     // 🚨 S21.G00.30.011 EST UN CODE PAYS SUR DEUX CARACTERES (« C 2 2 »,
     // cahier page 95). Le premier fichier ecrivait « France » : six
     // caracteres, bloc rejete. On normalise plutot que de faire confiance a
