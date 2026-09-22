@@ -2409,14 +2409,36 @@ export async function POST(req: NextRequest) {
       const bAss = String(corr.base_rattachement);
       if (!parAssiette[bAss]) parAssiette[bAss] = { assiette: 0, codes: {} };
 
+      // ═══════════════════════════════════════════════════════════════
+      // 🆕🚨 22/09 — L ASSIETTE DECLAREE EST CELLE QUI A PORTE LA COTISATION
+      //
+      // ⛔ DEFAUT TROUVE SUR LE PREMIER APPRENTI : la CSG de Camille portait
+      // sur 201,78 EUR — la fraction excedant le seuil, apres abattement —
+      // mais le fichier declarait une assiette de 1 118,95, le brut abattu.
+      // Le montant etait juste, l assiette mentait, et c est exactement ce
+      // que l URSSAF rapproche : assiette x taux = montant.
+      // 🚨 QUAND UNE LIGNE N A QU UNE PART SALARIALE ET QUE L EXONERATION
+      // APPRENTI L A REDUITE, C EST CETTE ASSIETTE-LA QU ON DECLARE. Le
+      // moteur la range dans `base_salariale`, nulle partout ailleurs.
+      // ⚠️ ON NE LE FAIT QUE POUR LES LIGNES PUREMENT SALARIALES (CSG, CRDS).
+      // Sur une ligne a deux parts — la vieillesse plafonnee, par exemple —
+      // l employeur cotise bien sur le brut entier : reduire l assiette
+      // commune ferait disparaitre une cotisation patronale reellement due.
+      // ═══════════════════════════════════════════════════════════════
+      const partSalSeule = Number(l.part_salariale || 0) !== 0
+        && Number(l.part_patronale || 0) === 0;
+      const baseSalariale = (l as any).base_salariale;
+      const baseLigne = (partSalSeule && baseSalariale !== null
+        && baseSalariale !== undefined && Number(baseSalariale) > 0)
+        ? Number(baseSalariale) : Number(l.base);
+
       // ⚠️ L ASSIETTE DE LA BASE EST LA PLUS GRANDE DE SES COTISATIONS :
-      // toutes celles rangees sous une meme base portent la meme assiette.
-      if (Number(l.base) > parAssiette[bAss].assiette) {
-        parAssiette[bAss].assiette = Number(l.base);
+      if (baseLigne > parAssiette[bAss].assiette) {
+        parAssiette[bAss].assiette = baseLigne;
       }
 
       if (!parAssiette[bAss].codes[corr.code]) {
-        parAssiette[bAss].codes[corr.code] = { montant: 0, base: Number(l.base) };
+        parAssiette[bAss].codes[corr.code] = { montant: 0, base: baseLigne };
       }
       parAssiette[bAss].codes[corr.code].montant += montant;
       // 🆕 20/09 — COMBIEN DE PARTS ALIMENTENT CE CODE ?
@@ -2688,6 +2710,53 @@ export async function POST(req: NextRequest) {
       }
 
       // ══ LES COTISATIONS DE CETTE ASSIETTE ══
+      // ═══════════════════════════════════════════════════════════════
+      // 🆕🚨 22/09 — L EXONERATION DE L APPRENTI AU NOMINATIF : CODE 001 OU 002
+      //
+      // La table DIDA rattache au CTP 726 les codes de cotisation
+      // individuelle « 001 - exoneration de cotisations au titre de l emploi
+      // d un apprenti (loi de 1979) » et « 002 - (loi de 1987) », sur les
+      // bases 03 et 02 — et sa fiche precise : « il convient d utiliser le
+      // code de cotisation individuelle 001 ou 002 en fonction de la
+      // situation du salarie ». Le choix suit le dispositif du bloc 40 :
+      // 64 → 001, 65 → 002.
+      // 🚨 LE MONTANT EST CE QUE LE SALARIE N A PAS PAYE : la part salariale
+      // des cotisations URSSAF sur la fraction sous le seuil. Seule la
+      // vieillesse (code 076) en porte une ; la CSG est sur la base 04, que
+      // la DIDA ne rattache pas au 726, et la retraite complementaire
+      // releve de l Agirc-Arrco. Le montant se calcule ligne par ligne, au
+      // taux du bareme, sur min(assiette, seuil) — jamais en devinant.
+      // ⚠️ ECRIT EN NEGATIF, comme la reduction generale (code 018) que
+      // dsn-val accepte ainsi depuis le 18/09 : c est un montant qui se
+      // deduit. ⛔ Aucun taux en 81.007 : c est une exoneration, pas une
+      // cotisation, et le guide les exclut expressement.
+      // ═══════════════════════════════════════════════════════════════
+      if (detailApprenti && Number(detailApprenti.seuil_exoneration) > 0
+          && (bAss === "03" || bAss === "02")) {
+        const seuilApp = Number(detailApprenti.seuil_exoneration);
+        let exonere = 0;
+        let assietteExo = 0;
+        for (const l of (detail.lignes_cotisations || [])) {
+          if ((l as any).exoneration_apprenti !== true) continue;
+          if (Number(l.taux_salarial || 0) <= 0) continue;
+          const codeInterne = q(l.code).toUpperCase();
+          const surCetteBase = (bAss === "02" && codeInterne === "VIEILLESSE_PLAF")
+            || (bAss === "03" && codeInterne === "VIEILLESSE_DEPLAF");
+          if (!surCetteBase) continue;
+          const assietteL = Math.min(Number(l.base || 0), seuilApp);
+          if (assietteL <= 0) continue;
+          exonere += Math.round(assietteL * Number(l.taux_salarial)) / 100;
+          if (assietteL > assietteExo) assietteExo = assietteL;
+        }
+        if (exonere > 0) {
+          const codeExo = dispositif === "65" ? "002" : "001";
+          grp.codes[codeExo] = {
+            montant: -Math.round(exonere * 100) / 100,
+            base: assietteExo, parts: 1, tauxBareme: -1,
+          };
+        }
+      }
+
       const listeCodes = Object.keys(grp.codes).sort();
       for (const cd of listeCodes) {
         ecrire("S21.G00.81.001", cd);
@@ -2726,7 +2795,8 @@ export async function POST(req: NextRequest) {
         // et le fichier etait refuse.
         const baseCode = Number(grp.codes[cd].base || 0);
         const montantCode = Number(grp.codes[cd].montant || 0);
-        const estReduction = cd === "018" || cd === "106";
+        const estReduction = cd === "018" || cd === "106"
+          || cd === "001" || cd === "002" || cd === "003";
 
         // 🚨 UN CODE ALIMENTE PAR PLUSIEURS COTISATIONS N A PAS DE TAUX
         // UNIQUE. Le compteur `nb` comptait les LIGNES du bulletin — or une
