@@ -288,6 +288,21 @@ export async function POST(req: NextRequest) {
       // decouvrir au depot, meme regle que pour le contrat de mission
       // ci-dessous : un defaut qui bloque une declaration se signale au
       // moment ou il est reparable sans effort.
+      // 🆕🚨 22/09 — UN FORFAIT AU-DELA DE 218 JOURS EST ILLEGAL SANS
+      // ACCORD DE RENONCIATION (L3121-64). On le refuse a la saisie : le
+      // decouvrir sur un bulletin, c est le decouvrir trop tard.
+      if (c.forfait_jours_annuel) {
+        const fj = Math.round(nombreFr(c.forfait_jours_annuel) || 0);
+        if (fj > 0 && fj > 235) {
+          return NextResponse.json({
+            erreur: "un forfait de " + fj + " jours par an est hors de tout "
+              + "cadre légal : le plafond est de 218 jours, porté au plus à "
+              + "235 par accord de renonciation à des jours de repos, avec "
+              + "majoration de salaire d'au moins 10 %.",
+          }, { status: 400 });
+        }
+      }
+
       if (type === "apprentissage" && !propre(c.niveau_diplome_prepare)) {
         return NextResponse.json({
           erreur: "le niveau de diplôme préparé est obligatoire sur un contrat "
@@ -344,6 +359,11 @@ export async function POST(req: NextRequest) {
           // colonne `niveau`, qui porte le niveau de la grille
           // conventionnelle et va avec le coefficient.
           niveau_diplome_prepare: propre(c.niveau_diplome_prepare),
+          // 🆕 22/09 — Le forfait en jours : nul quand le contrat n en a
+          // pas. ⚠️ `nombreFr` accepte la virgule, mais un forfait est un
+          // nombre entier de jours : on arrondit plutot que de refuser.
+          forfait_jours_annuel: c.forfait_jours_annuel
+            ? Math.round(nombreFr(c.forfait_jours_annuel) || 0) || null : null,
           poste_chez_eu: propre(c.poste_chez_eu),
           ifm_due: c.ifm_due === false ? false : true,
         })
