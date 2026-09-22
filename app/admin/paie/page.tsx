@@ -1073,6 +1073,12 @@ export default function PagePaie() {
                       <option value="mission">Contrat de mission</option>
                       <option value="cdd">CDD</option>
                       <option value="cdi">CDI</option>
+                      {/* 🆕 22/09 — L APPRENTISSAGE. Sur ce contrat, laisser
+                          le salaire mensuel VIDE : le moteur applique le
+                          barème légal (D6222-26) depuis la date de naissance,
+                          la date de début et le SMIC. Un salaire saisi
+                          l'emporte toujours — le barème est un minimum. */}
+                      <option value="apprentissage">Apprentissage</option>
                     </select>
                   </div>
                   <div style={{ flex: "1 1 140px" }}>
@@ -1188,6 +1194,7 @@ export default function PagePaie() {
                     </div>
                     <span style={{ fontSize: "12px", color: OR }}>
                       {c.type_contrat === "mission" ? "Contrat de mission"
+                        : c.type_contrat === "apprentissage" ? "Apprentissage"
                         : c.type_contrat.toUpperCase()}
                     </span>
                   </div>
