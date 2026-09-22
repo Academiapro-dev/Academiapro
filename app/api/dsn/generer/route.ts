@@ -2600,6 +2600,30 @@ export async function POST(req: NextRequest) {
 
         ligne.montant = reste;
         grp.codes[sc.codeComplement] = { montant: complement, base: ligne.base };
+
+        // 🆕🚨 22/09 — LA SCISSION REFAIT LES DEUX TAUX
+        //
+        // ⛔ REGRESSION TROUVEE LE JOUR MEME : depuis que le taux declare
+        // est celui du bareme et non un quotient, les codes 074 et 075
+        // n ecrivaient plus rien. La raison tient a la scission : la LIGNE
+        // DU BULLETIN porte 13,00 % pour la maladie, que l on coupe ici en
+        // 075 a 7,00 % et 907 a 6,00 %. Comparer 13,00 % au montant du code
+        // scinde ne retombe evidemment pas, et le generateur s abstenait —
+        // huit taux justes ont ainsi disparu d un coup.
+        // 🚨 APRES UNE SCISSION, LE TAUX DE LA LIGNE N EST PLUS CELUI
+        // D AUCUN DES DEUX CODES. Le complement prend le taux du CTP, et le
+        // reste prend la difference : 13,26 - 6,00 = 7,26 pour la maladie
+        // quand le bulletin porte le taux plein.
+        // ⚠️ LE TAUX DU RESTE SE DEDUIT DU MONTANT ET DE LA BASE, mais ce
+        // n est PAS un quotient arbitraire : c est le taux du bareme moins
+        // celui du CTP, et le controle plus bas verifiera qu il retombe au
+        // centime avant de l ecrire.
+        const tauxAvant = Number(ligne.tauxBareme);
+        grp.codes[sc.codeComplement].tauxBareme = tauxc;
+        grp.codes[sc.codeComplement].parts = 1;
+        if (tauxAvant > 0) {
+          ligne.tauxBareme = Math.round((tauxAvant - tauxc) * 10000) / 10000;
+        }
       }
 
       // ══ LES COTISATIONS DE CETTE ASSIETTE ══
