@@ -163,6 +163,70 @@ function jma(d: any): string {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
+// 🆕🚨 22/09 — UN MESSAGE D ERREUR NE SE RECOPIE PAS TEL QUEL A L ECRAN
+//
+// Dans la nuit du 21 au 22/09, Supabase est tombee. La route a relaye le
+// corps de la reponse, et l ecran a affiche UNE PAGE CLOUDFLARE ENTIERE en
+// rouge — balises comprises, sur quinze ecrans de haut. Jacques ne pouvait
+// ni lire la cause, ni savoir s il devait reessayer ou appeler quelqu un.
+//
+// ⚠️ LE DEFAUT N ETAIT PAS LA PANNE : c est que l ecran ait pris pour un
+// message ce qui etait un DOCUMENT. Un message d erreur est destine a etre
+// LU : s il ne l est pas, il ne sert a rien.
+//
+// CE QUE FAIT CETTE FONCTION, dans l ordre :
+//   1. elle reconnait une panne d infrastructure (HTML, 5xx, delai depasse,
+//      connexion refusee) et la remplace par une phrase qui dit QUOI FAIRE ;
+//   2. a defaut, elle coupe tout message demesure a 400 caracteres, parce
+//      qu un message qu il faut faire defiler n est plus un message.
+// ⛔ ELLE NE MASQUE JAMAIS UN MESSAGE METIER : « le bulletin est deja
+// emis », « la date de reprise precede l arret » passent intacts. Ce sont
+// eux qui disent a l utilisateur ce qu il a fait de travers.
+// ═══════════════════════════════════════════════════════════════════════
+const PANNE_BASE = "La base de données ne répond pas pour le moment. "
+  + "Réessaie dans un instant — rien n'a été enregistré.";
+
+function lisible(m: any): string {
+  const t = String(m || "");
+  if (!t) return "";
+  const bas = t.toLowerCase();
+
+  // 1. UNE PAGE HTML N EST PAS UN MESSAGE. Cloudflare, Vercel et les
+  //    passerelles repondent par un document quand le serveur ne suit plus.
+  if (bas.indexOf("<!doctype") >= 0 || bas.indexOf("<html") >= 0
+    || bas.indexOf("<body") >= 0 || bas.indexOf("<head") >= 0) return PANNE_BASE;
+
+  // 2. LES SIGNATURES D UNE PANNE D INFRASTRUCTURE. Elles remontent telles
+  //    quelles depuis le reseau ou depuis la passerelle, en anglais, et ne
+  //    veulent rien dire pour qui fait de la paie.
+  const signes = [
+    "connection timed out", "error code 522", "522:", "error 522",
+    // ⛔ PAS DE CODE NU (« 502 », « 503 ») : un message metier porte des
+    // montants, et « net a payer 1 502 € » deviendrait une panne. On ne
+    // reconnait que des formes qui ne peuvent pas etre du francais.
+    "gateway time-out", "gateway timeout", "bad gateway",
+    "service unavailable", "cloudflare",
+    "fetch failed", "failed to fetch", "networkerror", "network error",
+    "econnrefused", "econnreset", "etimedout", "enotfound", "socket hang up",
+    "upstream connect error", "timeout exceeded", "canceling statement due to",
+    "too many connections", "remaining connection slots", "load failed",
+  ];
+  // ⛔ ON NE MET PAS « TypeError » DANS CETTE LISTE, meme si Safari en
+  // produit pendant une coupure : un vrai defaut de programmation en produit
+  // aussi, et il deviendrait invisible derriere « la base ne repond pas ».
+  // Un message rassurant sur un defaut reel coute plus cher qu un message
+  // technique sur une panne.
+  for (let i = 0; i < signes.length; i++) {
+    if (bas.indexOf(signes[i]) >= 0) return PANNE_BASE;
+  }
+
+  // 3. LE RESTE PASSE, MAIS SANS DEBORDER. Un message metier tient en deux
+  //    lignes ; au-dela, c est une trace technique qu on n a pas reconnue.
+  if (t.length > 400) return t.slice(0, 400) + " […]";
+  return t;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
 // 🆕🚨🚨 LE FICHIER SE TELECHARGE EN ISO 8859-1, PAS EN UTF-8
 //
 // C EST LE PIEGE LE PLUS COUTEUX DE LA DSN, et il se rejoue ICI : le
@@ -239,14 +303,33 @@ export default function PagePaie() {
     setPartagePossible(!!(nav && nav.share && nav.canShare));
   }, []);
 
+  // 🆕🚨 22/09 — TOUT PASSE PAR ICI, DONC TOUT SE PROTEGE ICI.
+  //
+  // ⛔ AVANT : `return await r.json()`. Quand la base est tombee, la route a
+  // repondu une PAGE HTML au lieu d un JSON ; `r.json()` a leve, et chaque
+  // appelant s est arrete au milieu — l indicateur « … » restait allume, et
+  // AUCUN MESSAGE n apparaissait. L ecran semblait mort.
+  // ⚠️ ON REND TOUJOURS UN OBJET, jamais une exception : les appelants
+  // testent `d.success` et `d.erreur`, ils n ont pas a se proteger chacun.
   async function appeler(corps: any, s?: string): Promise<any> {
     const cle = s || secret;
-    const r = await fetch("/api/paie/dossier?secret=" + encodeURIComponent(cle), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(corps),
-    });
-    return await r.json();
+    try {
+      const r = await fetch("/api/paie/dossier?secret=" + encodeURIComponent(cle), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(corps),
+      });
+      const texte = await r.text();
+      try {
+        return JSON.parse(texte);
+      } catch (e) {
+        // La reponse n est pas du JSON : c est une page d erreur servie a la
+        // place de la route. `lisible` la traduira en phrase.
+        return { success: false, erreur: texte || ("réponse illisible (" + r.status + ")") };
+      }
+    } catch (e: any) {
+      return { success: false, erreur: String(e && e.message ? e.message : e) };
+    }
   }
 
   async function charger(s?: string) {
@@ -278,8 +361,18 @@ export default function PagePaie() {
     chargerEvenements(c.id);
   }
 
+  // 🆕🚨 22/09 — CHANGER DE MOIS EFFACE LES MESSAGES DU MOIS PRECEDENT.
+  //
+  // ⛔ LE DEFAUT, VU A L ECRAN : un refus obtenu sur SEPTEMBRE — « le
+  // bulletin 2026-00004 de ce mois est déjà émis » — restait affiche en
+  // rouge apres le passage a OCTOBRE, ou aucun bulletin n existe. Le message
+  // parlait d un mois qu on ne regardait plus, et rien ne le disait.
+  // ⚠️ UN MESSAGE EST ATTACHE A CE QU ON REGARDE : des que ce qu on regarde
+  // change, il ne veut plus rien dire. Meme regle qu a l ouverture d un
+  // autre salarie, ou le formulaire repart a vide.
   async function changerPeriode(p: string) {
     setPeriode(p); setCalcul(null); setMsg("");
+    setErr(""); setErrEv(""); setFinDoc(null);
     if (!choisi) return;
     const d = await appeler({ action: "elements", contrat_id: choisi.id, periode: p });
     if (d.success) setElements(d.elements);
@@ -350,12 +443,22 @@ export default function PagePaie() {
   // fabriquerait un document de plus — le defaut du 16/09.
   async function calculer() {
     setErr(""); setMsg(""); setOccupe("calcul");
-    const r = await fetch("/api/paie/calculer?contrat=" + encodeURIComponent(choisi.id)
-      + "&periode=" + encodeURIComponent(periode)
-      + "&secret=" + encodeURIComponent(secret));
-    const d = await r.json();
-    if (d.erreur) setErr(d.erreur); else setCalcul(d);
+    // 🆕 22/09 — MEME PROTECTION QUE `appeler` : le calcul est l appel le
+    // plus long de l ecran, donc le premier a souffrir d une passerelle qui
+    // coupe. Sans ce garde-fou, l ecran restait sur « … » sans rien dire.
+    let d: any = null;
+    try {
+      const r = await fetch("/api/paie/calculer?contrat=" + encodeURIComponent(choisi.id)
+        + "&periode=" + encodeURIComponent(periode)
+        + "&secret=" + encodeURIComponent(secret));
+      const texte = await r.text();
+      try { d = JSON.parse(texte); }
+      catch (e) { d = { erreur: texte || ("réponse illisible (" + r.status + ")") }; }
+    } catch (e: any) {
+      d = { erreur: String(e && e.message ? e.message : e) };
+    }
     setOccupe("");
+    if (d && d.erreur) setErr(d.erreur); else setCalcul(d);
   }
 
   // 🆕 16/09 — CE QUI EXISTE DEJA POUR LE MOIS AFFICHE, pour que le bouton
@@ -381,18 +484,29 @@ export default function PagePaie() {
         + emisDuMois.numero + " au moment de son émission.\n\nContinuer ?")) return;
     }
     setErr(""); setOccupe("bulletin");
-    const r = await fetch("/api/paie/bulletin?secret=" + encodeURIComponent(secret), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ contrat_id: choisi.id, periode: periode }),
-    });
-    const d = await r.json();
-    if (d.success) {
+    // 🆕 22/09 — MEME PROTECTION QUE `appeler`. Ici elle compte double : le
+    // PDF est archive dans le bucket AVANT la reponse, donc une coupure de
+    // reseau peut laisser un document ecrit sans que l ecran le sache. Le
+    // message doit donc inviter a RECHARGER, pas a recliquer a l aveugle.
+    let d: any = null;
+    try {
+      const r = await fetch("/api/paie/bulletin?secret=" + encodeURIComponent(secret), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contrat_id: choisi.id, periode: periode }),
+      });
+      const texte = await r.text();
+      try { d = JSON.parse(texte); }
+      catch (e) { d = { erreur: texte || ("réponse illisible (" + r.status + ")") }; }
+    } catch (e: any) {
+      d = { erreur: String(e && e.message ? e.message : e) };
+    }
+    if (d && d.success) {
       setMsg(d.message);
       if (d.url) window.open(d.url, "_blank");
       const b = await appeler({ action: "bulletins", contrat_id: choisi.id });
       if (b.success) setBulletins(b.bulletins);
-    } else setErr(d.erreur || "génération impossible");
+    } else setErr((d && d.erreur) || "génération impossible");
     setOccupe("");
   }
 
@@ -840,7 +954,7 @@ export default function PagePaie() {
               Ouvrir
             </button>
           </div>
-          {err && <p style={{ color: ROUGE, fontSize: "13px" }}>{err}</p>}
+          {err && <p style={{ color: ROUGE, fontSize: "13px" }}>{lisible(err)}</p>}
         </div>
       </div>
     );
@@ -858,7 +972,7 @@ export default function PagePaie() {
         </p>
 
         {msg && <p style={{ color: VERT, fontSize: "14px", marginBottom: "14px" }}>{msg}</p>}
-        {err && <p style={{ color: ROUGE, fontSize: "14px", marginBottom: "14px" }}>{err}</p>}
+        {err && <p style={{ color: ROUGE, fontSize: "14px", marginBottom: "14px" }}>{lisible(err)}</p>}
 
         {/* ---- LA LISTE DES CONTRATS ---- */}
         {!choisi && (
@@ -1930,7 +2044,7 @@ export default function PagePaie() {
                     margin: "14px 0 0", padding: "10px 12px",
                     border: "1px solid rgba(229,115,115,0.4)", borderRadius: "8px",
                     background: "rgba(229,115,115,0.07)" }}>
-                    {errEv}
+                    {lisible(errEv)}
                   </p>
                 )}
 
