@@ -699,6 +699,106 @@ export async function POST(req: NextRequest) {
           if (eConges) congesErreur = eConges.message;
           else congesPoses = true;
         }
+
+        // ═══════════════════════════════════════════════════════════
+        // 🆕🚨 22/09 — LES CONGES D ANCIENNETE (Syntec, article 5.1)
+        //
+        // Un jour ouvre de plus a 5 ans d anciennete, deux a 10, trois a
+        // 15, quatre a 20. MEME BAREME POUR LES ETAM ET LES CADRES.
+        // 🚨 « L employeur doit les accorder d office, sans que le salarie
+        // ait a les reclamer. »
+        //
+        // 🚨🚨 LE PIEGE : CE SONT DES JOURS OUVRES, ET NOTRE COMPTEUR EST EN
+        // JOURS OUVRABLES. 25 jours ouvres valent 30 jours ouvrables : un
+        // jour ouvre vaut donc 1,2 jour ouvrable. Les ajouter tels quels
+        // ferait perdre au salarie UN CINQUIEME de son droit a chaque
+        // palier — et personne ne le verrait, le compteur resterait
+        // coherent avec lui-meme.
+        //
+        // ⚠️ UNE FOIS PAR PERIODE, PAS UNE FOIS PAR MOIS. Ils s acquierent
+        // en bloc a l ouverture de la periode de reference, contrairement
+        // aux 2,5 jours mensuels. On les pose au premier bulletin emis de
+        // la periode, et on verifie qu ils n y sont pas deja.
+        // ⚠️ L ANCIENNETE S APPRECIE A L OUVERTURE DE LA PERIODE, pas au
+        // mois courant : un salarie qui atteint 5 ans en mars ne gagne son
+        // jour qu au 1er juin suivant.
+        // ═══════════════════════════════════════════════════════════
+        const { data: ctAnc } = await supabase
+          .from("paie_contrats")
+          .select("date_debut, idcc")
+          .eq("id", bull.contrat_id)
+          .maybeSingle();
+
+        const dDebCt = String((ctAnc as any)?.date_debut || "").slice(0, 10);
+
+        if (dDebCt && Number((ctAnc as any)?.idcc) === 1486) {
+          // L anciennete EN ANNEES ENTIERES a l ouverture de la periode.
+          let ansAnc = Number(debutRef.slice(0, 4)) - Number(dDebCt.slice(0, 4));
+          const mmjjRef = debutRef.slice(5);
+          const mmjjCt = dDebCt.slice(5);
+          if (mmjjRef < mmjjCt) ansAnc -= 1;
+          if (ansAnc < 0) ansAnc = 0;
+
+          let palier = 0;
+          if (ansAnc >= 20) palier = 20;
+          else if (ansAnc >= 15) palier = 15;
+          else if (ansAnc >= 10) palier = 10;
+          else if (ansAnc >= 5) palier = 5;
+
+          if (palier > 0) {
+            const { data: regleAnc } = await supabase
+              .from("paie_conventions_regles")
+              .select("valeur_num")
+              .eq("idcc", 1486)
+              .eq("regle", "conges_anciennete_" + palier + "ans")
+              .lte("date_effet", p)
+              .or("date_fin.is.null,date_fin.gte." + p)
+              .maybeSingle();
+
+            const joursOuvres = Number((regleAnc as any)?.valeur_num || 0);
+
+            if (joursOuvres > 0) {
+              // ⛔ DEJA POSES POUR CETTE PERIODE DE REFERENCE ? On cherche
+              // sur la periode_ref, pas sur le mois : ils ne se donnent
+              // qu une fois par an.
+              const { data: dejaAnc } = await supabase
+                .from("paie_conges")
+                .select("id")
+                .eq("contrat_id", bull.contrat_id)
+                .eq("periode_ref", debutRef)
+                .eq("type_mouvement", "acquisition")
+                .like("notes", "%anciennete%")
+                .maybeSingle();
+
+              if (!dejaAnc) {
+                // 🚨 LA CONVERSION : 1 jour ouvre = 1,2 jour ouvrable.
+                const joursOuvrables = Math.round(joursOuvres * 1.2 * 100) / 100;
+
+                const { error: eAnc } = await supabase.from("paie_conges").insert({
+                  tenant_id: bull.tenant_id,
+                  societe_id: bull.societe_id,
+                  contrat_id: bull.contrat_id,
+                  periode_ref: debutRef,
+                  unite: "ouvrables",
+                  periode: p,
+                  type_mouvement: "acquisition",
+                  jours: joursOuvrables,
+                  bulletin_id: b.id,
+                  notes: "Conges d anciennete Syntec (article 5.1) : "
+                    + ansAnc + " ans revolus au " + debutRef + ", palier "
+                    + palier + " ans = " + joursOuvres + " jour(s) OUVRE(S), "
+                    + "soit " + joursOuvrables + " jour(s) ouvrable(s). "
+                    + "Poses une seule fois pour la periode.",
+                });
+
+                if (eAnc) {
+                  congesErreur = (congesErreur ? congesErreur + " · " : "")
+                    + "congés d'ancienneté : " + eAnc.message;
+                }
+              }
+            }
+          }
+        }
       }
 
       let message = "Bulletin " + b.numero + " émis. Il ne peut plus être modifié.";
