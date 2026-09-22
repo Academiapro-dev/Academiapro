@@ -146,6 +146,120 @@ function cts(x: number): number {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
+// 🆕🚨 22/09 — L APPRENTISSAGE
+//
+// Trois fonctions PURES : elles ne lisent rien, elles calculent. C est ce
+// qui permet de les eprouver sur des cas chiffres sans toucher a la base.
+//
+// 🚨 CE QU IL FAUT SAVOIR AVANT DE TOUCHER A CE BLOC, parce que trois
+// idees repandues sont FAUSSES depuis 2019 :
+//   ⛔ L ASSIETTE FORFAITAIRE N EXISTE PLUS. Depuis le 1er janvier 2019 les
+//      cotisations sont calculees sur le SALAIRE REEL de l apprenti.
+//   ⛔ L EMPLOYEUR N A PLUS D EXONERATION PROPRE (secteur prive). Il cotise
+//      comme pour n importe quel salarie et beneficie de la reduction
+//      generale — que le moteur calcule deja. RIEN A FAIRE COTE PATRONAL.
+//   ⛔ L EXONERATION SALARIALE N EST PLUS DE 79 %. Elle est de 50 % du SMIC
+//      pour tout contrat dont le PREMIER JOUR D EXECUTION est le 01/03/2025
+//      ou apres, et la CSG-CRDS est alors due sur la fraction excedentaire.
+//      Les contrats anterieurs gardent 79 % et une exoneration TOTALE de
+//      CSG-CRDS.
+// ═══════════════════════════════════════════════════════════════════════
+
+// ⚠️ LA DATE A PARTIR DE LAQUELLE LE SEUIL EST TOMBE A 50 %. Elle est en
+// dur parce que c est une date de reforme, pas un reglage : elle ne bougera
+// que si la loi change, et alors le code changera avec elle.
+const APPRENTI_BASCULE_50 = "2025-03-01";
+
+// L AGE RETENU POUR LE MOIS.
+//
+// 🚨 ARTICLE D6222-31 : la majoration liee a l age prend effet LE PREMIER
+// JOUR DU MOIS SUIVANT l anniversaire des 18, 21 ou 26 ans. Un apprenti qui
+// a 18 ans le 15 mars reste donc paye au taux des moins de 18 ans pour tout
+// le mois de mars, et passe au taux superieur le 1er avril.
+// ⚠️ CELA REVIENT EXACTEMENT A PRENDRE L AGE REVOLU AU PREMIER JOUR DU
+// MOIS — et c est pour cela que la regle, qui a l air compliquee, tient en
+// une ligne.
+function ageApprentiAuMois(dateNaissance: string, periode: string): number | null {
+  const n = String(dateNaissance || "");
+  const p = String(periode || "");
+  if (n.length < 10 || p.length < 10) return null;
+  const an = Number(n.slice(0, 4));
+  const mo = Number(n.slice(5, 7));
+  const jo = Number(n.slice(8, 10));
+  const ap = Number(p.slice(0, 4));
+  const mp = Number(p.slice(5, 7));
+  if (!an || !mo || !jo || !ap || !mp) return null;
+  // Le premier jour du mois de paie.
+  let age = ap - an;
+  if (mp < mo || (mp === mo && 1 < jo)) age -= 1;
+  return age >= 0 ? age : null;
+}
+
+// L ANNEE D EXECUTION DU CONTRAT.
+//
+// 🚨 ELLE AVANCE A LA DATE ANNIVERSAIRE DU CONTRAT, pas au 1er janvier ni a
+// la rentree scolaire. Un contrat commence le 01/09/2026 est en 1re annee
+// jusqu au 31/08/2027.
+// ⚠️ RETENUE AU PREMIER JOUR DU MOIS, deliberement. Quand l anniversaire du
+// contrat tombe en cours de mois, le mois est a cheval sur deux annees
+// d execution : le moteur ne tranche pas seul et POSE UNE RESERVE — un
+// prorata se decide, il ne se devine pas.
+// ⚠️ PLAFONNEE A 3 : le bareme legal ne va pas au-dela. Une quatrieme annee
+// (redoublement, cursus long) se paie au taux de la troisieme.
+function anneeExecutionApprenti(dateDebut: string, periode: string): number | null {
+  const d = String(dateDebut || "");
+  const p = String(periode || "");
+  if (d.length < 10 || p.length < 10) return null;
+  const ad = Number(d.slice(0, 4));
+  const md = Number(d.slice(5, 7));
+  const ap = Number(p.slice(0, 4));
+  const mp = Number(p.slice(5, 7));
+  if (!ad || !md || !ap || !mp) return null;
+  const moisEcoules = (ap - ad) * 12 + (mp - md);
+  if (moisEcoules < 0) return null;
+  const annee = Math.floor(moisEcoules / 12) + 1;
+  return Math.min(3, annee);
+}
+
+// L ANNIVERSAIRE DU CONTRAT TOMBE-T-IL EN COURS DE MOIS ?
+// Sert uniquement a poser la reserve : le mois est alors a cheval sur deux
+// taux, et le bulletin le dit plutot que de choisir en silence.
+function changementAnneeDansLeMois(dateDebut: string, periode: string): boolean {
+  const d = String(dateDebut || "");
+  const p = String(periode || "");
+  if (d.length < 10 || p.length < 10) return false;
+  const jd = Number(d.slice(8, 10));
+  if (jd <= 1) return false;
+  const md = Number(d.slice(5, 7));
+  const ad = Number(d.slice(0, 4));
+  const mp = Number(p.slice(5, 7));
+  const ap = Number(p.slice(0, 4));
+  // Meme mois calendaire que le debut, mais une annee au moins plus tard.
+  return mp === md && ap > ad;
+}
+
+// LE SEUIL D EXONERATION DU MOIS.
+//
+// 🚨 IL SE PRORATISE A LA DUREE DU TRAVAIL (BOSS, paragraphe 120) : un
+// apprenti a mi-temps n a pas droit au meme seuil en euros qu un apprenti a
+// plein temps, sans quoi il serait exonere sur la totalite de son salaire.
+// ⚠️ LE SMIC RETENU EST CELUI QUI PAIE (12,31 depuis juin 2026), PAS celui
+// de la reduction generale, gele a 12,02 pour l annee. Les deux coexistent
+// en base et les confondre fausserait le seuil de plusieurs dizaines
+// d euros.
+function seuilExoApprenti(p: {
+  smic_mensuel: number;
+  taux: number;
+  proportion_temps: number;
+}): number {
+  const s = Number(p.smic_mensuel || 0);
+  const t = Number(p.taux || 0);
+  const q = Number(p.proportion_temps || 1);
+  if (s <= 0 || t <= 0) return 0;
+  return cts(s * (t / 100) * (q > 0 ? q : 1));
+}
+
+// ═══════════════════════════════════════════════════════════════════════
 // 🆕 20/09 — LE TAUX DE VERSEMENT MOBILITE, LU PAR COMMUNE
 //
 // Jusqu ici il fallait le taper a la main dans `paie_taux_societe`. La
@@ -485,6 +599,122 @@ async function calculer(contratId: string, periode: string): Promise<any> {
     : 1;
   const tempsPartiel = proportionTemps < 0.999;
 
+  // ═══════════════════════════════════════════════════════════════════
+  // 🆕🚨 22/09 — L APPRENTI : SON MINIMUM LEGAL ET SON SEUIL D EXONERATION
+  //
+  // Tout ce qui suit ne sert QUE si le contrat est un apprentissage. Sur
+  // tout autre contrat, `appr` reste nul et rien ne change.
+  //
+  // 🚨 DEUX CHOSES SE DECIDENT ICI, ET ELLES SONT INDEPENDANTES :
+  //   1. COMBIEN IL DOIT ETRE PAYE — le bareme de l article D6222-26, en
+  //      pourcentage du SMIC selon l age et l annee d execution ;
+  //   2. CE QUI EST EXONERE — la fraction du salaire sous 50 % du SMIC
+  //      (79 % pour les contrats commences avant le 01/03/2025).
+  // ⛔ NE PAS LES CONFONDRE : un apprenti de 26 ans touche 100 % du SMIC et
+  // cotise pourtant sur la moitie de son salaire.
+  // ═══════════════════════════════════════════════════════════════════
+  const estApprenti = String(contrat.type_contrat || "") === "apprentissage";
+  let appr: any = null;
+  const notesApprenti: string[] = [];
+
+  if (estApprenti) {
+    const naissance = contrat.paie_salaries
+      ? String((contrat.paie_salaries as any).date_naissance || "") : "";
+    const age = ageApprentiAuMois(naissance, periode);
+    const annee = anneeExecutionApprenti(String(contrat.date_debut || ""), periode);
+    const smicMensuelCourant = Number(await parametre("SMIC_MENSUEL", periode)) || 0;
+
+    // ⚠️ LE SEUIL DEPEND DU CONTRAT, PAS DU MOIS DECLARE. Deux apprentis du
+    // meme employeur, le meme mois, peuvent avoir deux seuils differents
+    // selon la date a laquelle leur contrat a commence.
+    const ancienRegime = String(contrat.date_debut || "") < APPRENTI_BASCULE_50;
+    const tauxExo = Number(await parametre(
+      ancienRegime ? "APPRENTI_EXO_TAUX_AVANT_MARS_2025" : "APPRENTI_EXO_TAUX",
+      periode)) || 0;
+
+    let pourcentage: number | null = null;
+    let refConv = false;
+
+    if (age !== null && annee !== null) {
+      const { data: bareme } = await supabase
+        .from("paie_bareme_apprentissage")
+        .select("*")
+        .lte("date_effet", periode)
+        .or("date_fin.is.null,date_fin.gte." + periode)
+        .eq("annee_contrat", annee)
+        .order("age_min", { ascending: false });
+
+      for (const b of (bareme || [])) {
+        const mn = Number((b as any).age_min);
+        const mx = (b as any).age_max;
+        if (age < mn) continue;
+        if (mx !== null && mx !== undefined && age > Number(mx)) continue;
+        pourcentage = Number((b as any).pourcentage);
+        refConv = (b as any).reference_conventionnelle === true;
+        break;
+      }
+    }
+
+    // 🚨 LE POURCENTAGE PORTE SUR LE SMIC PRORATISE A LA DUREE DU CONTRAT.
+    // Un apprenti a 24 heures ne touche pas 53 % d un plein temps.
+    const assietteBareme = cts(smicMensuelCourant * proportionTemps);
+    const minimumLegal = pourcentage !== null
+      ? cts(assietteBareme * pourcentage / 100) : null;
+
+    appr = {
+      age: age,
+      annee_execution: annee,
+      pourcentage: pourcentage,
+      reference_conventionnelle: refConv,
+      smic_mensuel: smicMensuelCourant,
+      assiette_bareme: assietteBareme,
+      minimum_legal: minimumLegal,
+      ancien_regime: ancienRegime,
+      taux_exoneration: tauxExo,
+      seuil_exoneration: seuilExoApprenti({
+        smic_mensuel: smicMensuelCourant,
+        taux: tauxExo,
+        proportion_temps: proportionTemps,
+      }),
+      // Rempli plus bas, quand le brut est connu.
+      fraction_soumise: 0,
+      base_csg: 0,
+    };
+
+    if (age === null) {
+      notesApprenti.push("⛔ APPRENTI SANS DATE DE NAISSANCE : le barème "
+        + "légal ne peut pas être appliqué. Renseigner la date de naissance "
+        + "du salarié.");
+    }
+    if (annee === null) {
+      notesApprenti.push("⛔ APPRENTI SANS DATE DE DÉBUT DE CONTRAT "
+        + "exploitable : l'année d'exécution ne peut pas être déterminée.");
+    }
+    if (pourcentage === null && age !== null && annee !== null) {
+      notesApprenti.push("⛔ AUCUNE LIGNE DE BARÈME pour " + age + " ans en "
+        + "année " + annee + " : vérifier paie_bareme_apprentissage.");
+    }
+    if (tauxExo <= 0) {
+      notesApprenti.push("⛔ SEUIL D'EXONÉRATION APPRENTI ABSENT de "
+        + "paie_parametres pour cette période : aucune exonération n'a été "
+        + "appliquée, toutes les cotisations salariales sont comptées.");
+    }
+    if (changementAnneeDansLeMois(String(contrat.date_debut || ""), periode)) {
+      notesApprenti.push("⚠️ L'ANNIVERSAIRE DU CONTRAT TOMBE EN COURS DE "
+        + "MOIS : le mois est à cheval sur deux années d'exécution. Le "
+        + "moteur a retenu la situation du 1er du mois (année "
+        + annee + "). Un prorata entre les deux taux se décide, il ne se "
+        + "devine pas — l'ajuster à la main si l'employeur le pratique.");
+    }
+    if (refConv) {
+      notesApprenti.push("⚠️ À PARTIR DE 21 ANS le pourcentage porte sur le "
+        + "SMIC OU sur le salaire minimum conventionnel de l'emploi occupé "
+        + "s'il est supérieur (D6222-26). Le contrôle ci-dessous compare au "
+        + "SMIC : si la branche prévoit mieux, le minimum réel est plus "
+        + "élevé.");
+    }
+  }
+
   if (!plafond) {
     return {
       erreur: "aucun plafond de securite sociale connu pour " + periode
@@ -556,6 +786,20 @@ async function calculer(contratId: string, periode: string): Promise<any> {
       // remis au salarie. « 151.67 h » n est pas une ecriture francaise.
       libelle = "Salaire de base (" + quantite.toLocaleString("fr-FR",
         { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " h)";
+    } else if (appr && appr.minimum_legal !== null && appr.minimum_legal > 0) {
+      // 🆕🚨 22/09 — L APPRENTI SANS SALAIRE SAISI EST PAYE AU BAREME.
+      //
+      // 🚨 DOCTRINE : ne jamais faire taper a la main ce que l application
+      // sait calculer. Le minimum legal d un apprenti se deduit entierement
+      // de sa date de naissance, de la date de debut du contrat et du SMIC
+      // — la machine connait les trois.
+      // ⚠️ UN SALAIRE SAISI L EMPORTE TOUJOURS : le bareme est un MINIMUM,
+      // et un employeur peut payer davantage. C est pour cela que ce cas
+      // vient en DERNIER, apres le mensuel et l horaire.
+      base = Number(appr.minimum_legal);
+      libelle = "Salaire de base apprenti (" + appr.pourcentage + " % du SMIC"
+        + (appr.annee_execution ? ", année " + appr.annee_execution : "")
+        + (appr.age !== null ? ", " + appr.age + " ans" : "") + ")";
     }
 
     if (base > 0) {
@@ -1508,6 +1752,61 @@ async function calculer(contratId: string, periode: string): Promise<any> {
     const base = assiette(String(c.assiette_type), brutTotal, plafondContrat);
     if (base <= 0) continue;
 
+    // ═══════════════════════════════════════════════════════════════
+    // 🆕🚨 22/09 — L EXONERATION DE L APPRENTI NE TOUCHE QUE LE SALARIE
+    //
+    // 🚨 L EMPLOYEUR COTISE SUR LA TOTALITE DU BRUT. Depuis le 1er janvier
+    // 2019 il n a plus aucune exoneration propre dans le secteur prive :
+    // sa contrepartie est la reduction generale, calculee plus bas. C est
+    // pour cela qu il faut DEUX assiettes ici, et non une base reduite
+    // pour tout le monde — reduire la base commune ferait disparaitre des
+    // cotisations patronales reellement dues.
+    //
+    // LA REGLE SALARIALE : la fraction du brut inferieure ou egale au
+    // seuil est exoneree ; seul l excedent est cotise.
+    //   assiette salariale = brut - seuil, plancher zero
+    //   assiette CSG-CRDS  = (brut - seuil) x 98,25 %
+    // ⚠️ L ABATTEMENT DE 1,75 % S APPLIQUE A L EXCEDENT, PAS AU BRUT. Une
+    // source repandue donne (brut x 98,25 %) - seuil : c est FAUX et cela
+    // sur-evalue l assiette. Le BOSS, l Opco EP et la doctrine comptable
+    // donnent tous l autre ordre.
+    //
+    // ⛔ TROIS COTISATIONS NE SONT JAMAIS COUVERTES par l exoneration :
+    // la complementaire sante, la prevoyance et l APEC. Elles restent dues
+    // en entier, meme sous le seuil — c est pourquoi le net d un apprenti
+    // n egale pas toujours son brut.
+    // ⚠️ POUR LES CONTRATS COMMENCES AVANT LE 01/03/2025, la CSG et la
+    // CRDS sont TOTALEMENT exonerees, quel que soit le salaire.
+    // ═══════════════════════════════════════════════════════════════
+    let baseSal = base;
+    let exoApprentiLigne = false;
+
+    if (appr && appr.seuil_exoneration > 0 && Number(c.taux_salarial) !== 0) {
+      const horsExoneration = (c as any).garantie_complementaire === true
+        || String(c.code) === "APEC";
+
+      if (!horsExoneration) {
+        const excedent = Math.max(0, brutTotal - Number(appr.seuil_exoneration));
+        const estCsg = String(c.assiette_type) === "csg";
+
+        if (estCsg && appr.ancien_regime) {
+          // Ancien regime : CSG et CRDS entierement exonerees.
+          baseSal = 0;
+        } else if (estCsg) {
+          baseSal = assiette("csg", excedent, plafondContrat);
+        } else {
+          // ⚠️ SUR UN APPRENTI LE BRUT RESTE TOUJOURS TRES EN DESSOUS DU
+          // PLAFOND, donc `base` vaut le brut pour les assiettes plafonnees
+          // et zero en tranche 2 : retrancher le seuil de la base donne le
+          // meme resultat que de le retrancher du brut. Le jour ou un
+          // apprenti depasserait le plafond, la repartition exacte entre
+          // tranches n est pas tranchee par le BOSS — la reserve le dit.
+          baseSal = Math.max(0, base - Number(appr.seuil_exoneration));
+        }
+        exoApprentiLigne = true;
+      }
+    }
+
     // 🚨 L AT/MP ET LE VERSEMENT MOBILITE PORTENT UN TAUX A ZERO EN BASE :
     // le vrai taux est propre a la societe. On le substitue ici.
     let tPat = Number(c.taux_patronal);
@@ -1565,7 +1864,7 @@ async function calculer(contratId: string, periode: string): Promise<any> {
       }
     }
 
-    const partSal = cts(base * Number(c.taux_salarial) / 100);
+    const partSal = cts(baseSal * Number(c.taux_salarial) / 100);
     const partPat = cts(base * tPat / 100);
 
     // 🆕 16/09 — UNE LIGNE A ZERO DES DEUX COTES DISPARAIT, SAUF CELLES QUI
@@ -1598,6 +1897,13 @@ async function calculer(contratId: string, periode: string): Promise<any> {
       libelle: c.libelle,
       famille: c.famille,
       base: cts(base),
+      // 🆕 22/09 — L ASSIETTE SALARIALE QUAND ELLE DIFFERE DE L ASSIETTE
+      // PATRONALE. Sur un apprenti, le bulletin doit montrer les deux :
+      // une ligne ou l employeur cotise sur 1 200 EUR et le salarie sur
+      // 266 EUR est juste, mais elle est incomprehensible si l on n affiche
+      // qu un seul chiffre. Nulle partout ailleurs.
+      base_salariale: exoApprentiLigne ? cts(baseSal) : null,
+      exoneration_apprenti: exoApprentiLigne,
       taux_salarial: Number(c.taux_salarial),
       taux_patronal: tPat,
       part_salariale: partSal,
@@ -1951,7 +2257,50 @@ async function calculer(contratId: string, periode: string): Promise<any> {
   // ═══════════════════════════════════════════════════════════════════
   let minimumConventionnel: any = null;
 
-  if (contrat.idcc && contrat.coefficient) {
+  // ═══════════════════════════════════════════════════════════════════
+  // 🆕🚨 22/09 — L APPRENTI A SON PROPRE PLANCHER, ET CE N EST PAS LE SMIC
+  //
+  // ⛔ SANS CE BLOC, LE CONTROLE CI-DESSOUS AURAIT ALERTE SUR TOUS LES
+  // APPRENTIS : un apprenti de 17 ans touche legalement 27 % du SMIC, et
+  // le comparer au SMIC entier aurait affiche « SALAIRE INFERIEUR AU
+  // MINIMUM » sur chaque bulletin. Une alerte qui se declenche toujours est
+  // une alerte que personne ne lit — et le jour ou un vrai sous-paiement
+  // arrive, il passe inapercu.
+  // ⚠️ LE CONTROLE RESTE UN CONTROLE : il n ajuste aucun montant, il
+  // signale. Quand le contrat porte un salaire inferieur au bareme legal,
+  // c est un rappel de salaire exigible.
+  // ═══════════════════════════════════════════════════════════════════
+  if (appr && appr.minimum_legal !== null) {
+    const baseApp = Number(contrat.salaire_mensuel || 0) > 0
+      ? Number(contrat.salaire_mensuel)
+      : Number(appr.minimum_legal);
+    const planche = Number(appr.minimum_legal);
+
+    minimumConventionnel = {
+      idcc: contrat.idcc || null,
+      apprentissage: true,
+      age: appr.age,
+      annee_execution: appr.annee_execution,
+      pourcentage: appr.pourcentage,
+      smic_mensuel: appr.smic_mensuel,
+      minimum_conventionnel: null,
+      plancher_retenu: cts(planche),
+      salaire_de_base: cts(baseApp),
+      respecte: cts(baseApp) >= cts(planche),
+      ecart: cts(baseApp - planche),
+    };
+
+    if (cts(baseApp) < cts(planche)) {
+      minimumConventionnel.alerte = "⛔ SALAIRE D'APPRENTI INFÉRIEUR AU "
+        + "MINIMUM LÉGAL : " + cts(baseApp).toFixed(2) + " € pour un "
+        + "plancher de " + cts(planche).toFixed(2) + " € ("
+        + appr.pourcentage + " % du SMIC, "
+        + appr.age + " ans, année " + appr.annee_execution
+        + ", article D6222-26). Écart de "
+        + cts(planche - baseApp).toFixed(2) + " € par mois. ⚠️ RAPPEL DE "
+        + "SALAIRE EXIGIBLE, avec les cotisations recalculées dessus.";
+    }
+  } else if (contrat.idcc && contrat.coefficient) {
     const { data: regles } = await supabase
       .from("paie_conventions_regles")
       .select("*")
@@ -2019,6 +2368,17 @@ async function calculer(contratId: string, periode: string): Promise<any> {
     }
   }
 
+  // 🆕 22/09 — CE QUE L APPRENTI A REELLEMENT COTISE, une fois le brut
+  // connu. La DSN le relira : la fraction soumise est l assiette des
+  // cotisations salariales, et la base CSG celle du bloc 78 de type 04.
+  if (appr) {
+    appr.fraction_soumise = cts(Math.max(0,
+      brutTotal - Number(appr.seuil_exoneration)));
+    appr.base_csg = appr.ancien_regime
+      ? 0 : cts(appr.fraction_soumise * 0.9825);
+    appr.brut_retenu = cts(brutTotal);
+  }
+
   const netSocial = cts(
     brutTotal
     + complementairePatronale
@@ -2070,6 +2430,8 @@ async function calculer(contratId: string, periode: string): Promise<any> {
     total_patronal_apres_rgdu: totalPatronalApresRgdu,
     net_imposable: netImposable,
     minimum_conventionnel: minimumConventionnel,
+    // 🆕 22/09 — LE DETAIL DE L APPRENTISSAGE. Nul sur tout autre contrat.
+    apprentissage: appr,
     net_social: netSocial,
     // ⚠️ LA PHOTOGRAPHIE DE LA REINTEGRATION : elle permet de justifier le
     // montant net social devant un salarie qui demande pourquoi il differe
@@ -2109,6 +2471,55 @@ async function calculer(contratId: string, periode: string): Promise<any> {
       if (minimumConventionnel && minimumConventionnel.alerte) {
         r.unshift(minimumConventionnel.alerte);
       }
+
+      // 🆕 22/09 — CE QUE L APPRENTISSAGE APPORTE, ET CE QU IL NE FAIT PAS.
+      if (appr) {
+        r.push("Apprenti : "
+          + (appr.pourcentage !== null
+            ? appr.pourcentage + " % du SMIC (" + appr.age + " ans, année "
+              + appr.annee_execution + ", article D6222-26), soit "
+              + Number(appr.minimum_legal || 0).toFixed(2) + " € de minimum légal. "
+            : "")
+          + "Exonération de cotisations salariales sur la fraction jusqu'à "
+          + Number(appr.seuil_exoneration).toFixed(2) + " € ("
+          + appr.taux_exoneration + " % du SMIC"
+          + (appr.ancien_regime
+            ? ", contrat commencé avant le 01/03/2025"
+            : "") + ")"
+          + (appr.fraction_soumise > 0
+            ? " ; " + Number(appr.fraction_soumise).toFixed(2)
+              + " € restent soumis."
+            : " ; rien ne dépasse ce seuil, aucune cotisation salariale n'est due.")
+          + " ⚠️ L'employeur, lui, cotise sur la TOTALITÉ du brut : "
+          + "l'exonération patronale propre à l'apprentissage est supprimée "
+          + "depuis 2019, sa contrepartie est la réduction générale.");
+
+        r.push("⚠️ CE QUE LE CALCUL DE L'APPRENTI NE FAIT PAS : la "
+          + "majoration de 15 points d'un contrat court préparant un diplôme "
+          + "de même niveau (D6222-30), le maintien de la rémunération entre "
+          + "deux contrats successifs (D6222-29) et la base de 2e année d'une "
+          + "licence professionnelle en un an (D6222-32) ne sont pas "
+          + "appliqués : ils dépendent du parcours du salarié, que le "
+          + "contrat ne porte pas. Les saisir comme salaire mensuel sur le "
+          + "contrat s'ils s'appliquent.");
+
+        r.push("⚠️ LA COMPLÉMENTAIRE SANTÉ, LA PRÉVOYANCE ET L'APEC ne sont "
+          + "jamais couvertes par l'exonération : elles restent dues en "
+          + "entier, même sous le seuil. C'est pourquoi le net d'un apprenti "
+          + "n'égale pas toujours son brut.");
+
+        if (Number(appr.seuil_exoneration) > 0
+            && brutTotal > Number(plafond) * proportionTemps) {
+          r.push("⚠️ CE BRUT DÉPASSE LE PLAFOND DE SÉCURITÉ SOCIALE, ce qui "
+            + "est très inhabituel pour un apprenti : la répartition de la "
+            + "fraction exonérée entre la tranche 1 et la tranche 2 n'est pas "
+            + "tranchée par le BOSS. Faire vérifier ce bulletin.");
+        }
+      }
+
+      // 🆕 Les anomalies de saisie de l apprentissage, remontees telles
+      // quelles : elles disent ce qui manque en base.
+      for (const n of notesApprenti) r.push(n);
 
       // ✅ LA VALORISATION DES CONGES EST CALCULEE DEPUIS LE 16/09 : les
       // deux methodes — maintien de salaire et regle du dixieme — sont
