@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import crypto from "crypto";
+import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import { sessionCourante } from "../../../../lib/session";
 import { origineLegitime } from "../../../../lib/origine";
 
 export const runtime = "nodejs";
+export const maxDuration = 60;
 export const dynamic = "force-dynamic";
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -12,6 +15,19 @@ export const dynamic = "force-dynamic";
 // rattache au dossier de creation par creation?action=oa. Le texte est un
 // MODELE d usage courant (Wyoming, single-member LLC, disregarded
 // entity) : le titulaire le relit ; ce n est pas un avis juridique.
+//
+// 🆕 23/09 (soir) — LE PACTE DEVIENT UN DOCUMENT A PART ENTIERE. Il etait
+// ecrit dans l habillage de nos attestations (« Document etabli le… ») :
+// rien ne le distinguait d un formulaire maison, et il n avait AUCUNE LIGNE
+// DE SIGNATURE. Jacques : « ca doit etre pareil pour tout ». La regle,
+// commune a tous les documents :
+//   ATTESTATION (notre page, en francais) → LE VRAI DOCUMENT joint →
+//   la signature reportee sur LA LIGNE DE SIGNATURE DU VRAI DOCUMENT.
+// Le pacte est donc produit ici en PDF, en anglais, au format lettre US,
+// avec son bloc « MEMBER » ; il est range au coffre, puis joint a
+// l attestation par document-a-signer. La piece jointe DECLARE ELLE-MEME ou
+// se pose sa signature (annexes[].signature) : l affichage du document signe
+// y reporte le trace et la date.
 //
 // 🆕 23/09 — LE LIBELLE. Le type « convention » reste (il entre dans le
 // sceau de chaque signature, on n y touche pas), mais le document part avec
@@ -48,9 +64,78 @@ function corpsOA(e: any, c: any): string {
     "12. Entire agreement. This Agreement is the entire operating agreement of the Company and may be amended only in writing by the Member.",
     "",
     "IN WITNESS WHEREOF, the Member has executed this Agreement as of the date first written above. The electronic signature of this document by the Member constitutes execution.",
-    "",
-    "Member: " + membre,
   ].join("\n");
+}
+
+// Les caracteres que la police standard du PDF ne sait pas ecrire deviennent
+// « ? » plutot que de faire echouer le document.
+function pourPdf(t: unknown): string {
+  return String(t ?? "").replace(/[\u202F\u00A0]/g, " ").replace(/[^\x09\x0A\x0D\x20-\x7E\u00A0-\u00FF\u2013\u2014\u2018\u2019\u201C\u201D]/g, "?");
+}
+
+// ---- LE PACTE EN PDF, AVEC SON BLOC DE SIGNATURE ----
+// Rend le fichier et l emplacement de la signature : page (dans le pacte),
+// cadre du trace (x, y, l, h) et position de la date.
+async function pactePDF(e: any, c: any): Promise<{ octets: Uint8Array; signature: any }> {
+  const nom = e.legal_name || e.label;
+  const membre = c.responsable_nom || "the Member";
+  const pdf = await PDFDocument.create();
+  pdf.setTitle(pourPdf("Operating Agreement — " + nom));
+  const police = await pdf.embedFont(StandardFonts.TimesRoman);
+  const gras = await pdf.embedFont(StandardFonts.TimesRomanBold);
+  const L = 612, H = 792, M = 72, UTILE = L - 2 * M;
+  const NOIR = rgb(0, 0, 0);
+  let page = pdf.addPage([L, H]);
+  let y = H - M;
+  const nouvelle = function () { page = pdf.addPage([L, H]); y = H - M; };
+  const decoupe = function (texte: string, fonte: any, taille: number): string[] {
+    const mots = pourPdf(texte).split(/\s+/).filter(function (m) { return m.length > 0; });
+    const out: string[] = []; let l = "";
+    for (const mot of mots) {
+      const essai = l ? l + " " + mot : mot;
+      if (fonte.widthOfTextAtSize(essai, taille) <= UTILE) l = essai; else { if (l) out.push(l); l = mot; }
+    }
+    if (l) out.push(l);
+    return out;
+  };
+  const ecrire = function (texte: string, fonte: any, taille: number, centre?: boolean) {
+    for (const l of decoupe(texte, fonte, taille)) {
+      if (y < M + taille) nouvelle();
+      const x = centre ? (L - fonte.widthOfTextAtSize(l, taille)) / 2 : M;
+      page.drawText(l, { x: x, y: y, size: taille, font: fonte, color: NOIR });
+      y = y - taille * 1.45;
+    }
+  };
+
+  const lignes = corpsOA(e, c).split("\n");
+  // Les deux premieres lignes sont le titre, centrees.
+  ecrire(lignes[0], gras, 14, true);
+  ecrire(lignes[1], police, 11.5, true);
+  y = y - 14;
+  for (const l of lignes.slice(2)) {
+    if (!l.trim()) { y = y - 6; continue; }
+    ecrire(l, police, 11.5);
+    y = y - 4;
+  }
+
+  // ---- Le bloc de signature ----
+  if (y < M + 150) nouvelle();
+  y = y - 24;
+  ecrire("MEMBER:", gras, 11.5);
+  y = y - 40;
+  const ligneY = y;
+  page.drawLine({ start: { x: M, y: ligneY }, end: { x: M + 240, y: ligneY }, thickness: 0.8, color: NOIR });
+  const signature = { page: pdf.getPageCount() - 1, x: M + 4, y: ligneY + 2, l: 220, h: 34, date_x: M + 36, date_y: 0, date_format: "us_long" };
+  y = ligneY - 14;
+  page.drawText(pourPdf("Name: " + membre), { x: M, y: y, size: 11, font: police, color: NOIR });
+  y = y - 16;
+  page.drawText("Title: Sole Member", { x: M, y: y, size: 11, font: police, color: NOIR });
+  y = y - 16;
+  page.drawText("Date:", { x: M, y: y, size: 11, font: police, color: NOIR });
+  page.drawLine({ start: { x: M + 32, y: y - 2 }, end: { x: M + 240, y: y - 2 }, thickness: 0.6, color: NOIR });
+  signature.date_y = y;
+
+  return { octets: await pdf.save(), signature };
 }
 
 export async function POST(req: NextRequest) {
@@ -66,10 +151,30 @@ export async function POST(req: NextRequest) {
     const { data: c } = await supabase.from("compliance_creations").select("*").eq("entite_id", e.id).maybeSingle();
     if (!c) return NextResponse.json({ error: "Aucun dossier de création." }, { status: 404 });
     if (!e.email_contact) return NextResponse.json({ error: "Renseignez l'adresse de contact de la société : c'est elle qui signe." }, { status: 400 });
-    const corps = corpsOA(e, c);
+    // 🆕 23/09 (soir) — le pacte, produit et archive au coffre.
+    const nom = e.legal_name || e.label;
+    const membre = c.responsable_nom || "le membre";
+    const { octets, signature } = await pactePDF(e, c);
+    const sha = crypto.createHash("sha256").update(Buffer.from(octets)).digest("hex");
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const chemin = session.tenantId + "/" + e.id + "/oa/operating-agreement-" + stamp + ".pdf";
+    const { error: eUp } = await supabase.storage.from("compliance-docs").upload(chemin, Buffer.from(octets), { contentType: "application/pdf", upsert: false });
+    if (eUp) return NextResponse.json({ error: "Archivage du pacte impossible. Rien n'a été envoyé." }, { status: 500 });
+
+    // L attestation, en francais : ce qu on signe, et ce qui est joint.
+    const corps =
+      "Je soussigné(e), " + membre + ", membre unique de " + nom + ", déclare avoir lu l'Operating Agreement (le pacte de la société) "
+      + "reproduit à la suite de cette page, et l'adopter tel qu'il est rédigé.\n\n"
+      + "Le pacte est identifié par son empreinte SHA-256 : " + sha + "\n\n"
+      + "Ma signature électronique vaut signature de l'Operating Agreement. Son tracé est reporté sur la ligne « Member » du pacte, "
+      + "avec la date de signature.";
     return NextResponse.json({
-      success: true, corps,
-      document_a_signer: { doc_type: "convention", libelle: "Operating Agreement", titre: "Operating Agreement — " + (e.legal_name || e.label), corps, signataire_email: e.email_contact, entite_id: e.id },
+      success: true, corps, pacte_chemin: chemin, pacte_sha256: sha,
+      document_a_signer: {
+        doc_type: "convention", libelle: "Operating Agreement", titre: "Operating Agreement — " + nom, corps,
+        signataire_email: e.email_contact, entite_id: e.id,
+        annexes: [{ chemin, titre: "Operating Agreement — " + nom, signature }],
+      },
     });
   } catch (ex: unknown) {
     return NextResponse.json({ error: ex instanceof Error ? ex.message : String(ex) }, { status: 500 });
