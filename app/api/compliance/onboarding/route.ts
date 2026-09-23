@@ -73,6 +73,34 @@ function refusSession(u: UtilisateurSession, pour: string) {
   );
 }
 
+// 🚨 23/09 — LE CUL-DE-SAC DU CLIENT QUI ARRIVE AVEC UNE ADRESSE NEUVE.
+// La connexion ouvre une session signee pour l adresse qui a recu le lien,
+// SANS creer de compte dans auth.users. Or l enregistrement de la societe
+// exige ce compte (compliance_membres.user_id). Mesure du 23/09 :
+// contact@mysterllc.com connecte, 0 ligne dans auth.users, enregistrement
+// impossible. Tout nouveau client tombait dans ce trou.
+// ✅ Le compte nait ICI, au moment ou le client declare sa societe. La
+// session prouve deja que l adresse est la sienne : il a ouvert le lien
+// envoye dans cette boite.
+// ⚠️ Un compte cree entre-temps fait echouer createUser (« deja inscrit ») :
+// on relit donc TOUJOURS apres, et c est la relecture qui fait foi.
+async function creerCompte(email: string): Promise<{ id: string | null; erreur: string }> {
+  const adresse = String(email || "").toLowerCase().trim();
+  if (!adresse) return { id: null, erreur: "adresse absente de la session" };
+
+  const { error: eCreation } = await supabase.auth.admin.createUser({
+    email: adresse,
+    email_confirm: true,
+  });
+
+  const { data, error: eLecture } = await supabase.rpc("utilisateur_par_email", {
+    p_email: adresse,
+  });
+  if (eLecture) return { id: null, erreur: eLecture.message };
+  if (data) return { id: data as string, erreur: "" };
+  return { id: null, erreur: eCreation ? eCreation.message : "compte introuvable après création" };
+}
+
 // GET : l'utilisateur connecte a-t-il deja une societe ?
 export async function GET(req: NextRequest) {
   if (!origineLegitime(req)) {
@@ -81,6 +109,13 @@ export async function GET(req: NextRequest) {
 
   const u = await utilisateurDeLaSession();
   const { id, tenantId } = u;
+
+  // 🆕 23/09 — une adresse verifiee sans compte, c est un client qui arrive :
+  // il n a pas encore de societe. Ce n est PAS une erreur, et la page ne doit
+  // pas l accueillir par un message rouge. Son compte naitra a l enregistrement.
+  if (!id && !tenantId && u.raison === "compte_introuvable") {
+    return NextResponse.json({ success: true, a_une_societe: false, societe: null });
+  }
 
   if (!id) {
     return refusSession(u, "accéder à votre société");
@@ -110,7 +145,20 @@ export async function POST(req: NextRequest) {
   }
 
   const u = await utilisateurDeLaSession();
-  const { id: userId, tenantId: tenantExistant } = u;
+  let userId = u.id;
+  const tenantExistant = u.tenantId;
+
+  // 🆕 23/09 — le client qui arrive : son compte nait ici.
+  if (!userId && u.raison === "compte_introuvable") {
+    const cree = await creerCompte(u.detail);
+    if (!cree.id) {
+      return NextResponse.json(
+        { error: "Votre compte n'a pas pu être créé (" + cree.erreur + "). Réessayez dans un instant." },
+        { status: 500 }
+      );
+    }
+    userId = cree.id;
+  }
 
   if (!userId) {
     return refusSession(u, "enregistrer une société");
