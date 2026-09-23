@@ -34,6 +34,11 @@ export const dynamic = "force-dynamic";
 // accents (son en-tete « Accusé de lecture avant dépôt » s affichait bien).
 // ⛔ Les noms d actions (etat, preparer, lier, transmettre) restent tels
 // quels : ce sont des identifiants de code, pas du texte.
+//
+// 🆕 23/09 (soir) — LE SS-4 EST JOINT A L ACCUSE. L accuse faisait attester
+// l examen d un formulaire qu il ne contenait pas. « preparer » passe
+// desormais le SS-4 en piece jointe a document-a-signer, qui le reproduit a
+// la suite de l attestation, dans le meme fichier et sous la meme empreinte.
 // ⚠️ FAX_NUMERO_TEST (s il existe) detourne l envoi vers la simulation,
 // comme pour le 5472. A retirer avant un vrai envoi.
 // ══════════════════════════════════════════════════════════════════════════
@@ -115,14 +120,14 @@ export async function POST(req: NextRequest) {
       const corps =
         "Je soussigné(e), membre de " + societe + ", atteste avoir examiné le formulaire SS-4 (demande de numéro d'identification "
         + "d'employeur, EIN) préparé pour ma société, et je déclare que les informations qu'il contient sont, à ma connaissance, exactes et complètes.\n\n"
-        + "Le fichier examiné est identifié par son empreinte SHA-256 : " + sha + "\n\n"
+        + "Le formulaire examiné est reproduit à la suite de cette attestation ; il est identifié par son empreinte SHA-256 : " + sha + "\n\n"
         + "J'autorise sa transmission à l'Internal Revenue Service par fax, au numéro indiqué par l'instruction officielle du formulaire SS-4. "
         + "Je comprends que l'IRS répondra par fax au numéro de retour indiqué sur le formulaire, sous quelques jours ouvrés, et qu'une seconde "
         + "demande pour la même société serait refusée : je ne demanderai pas de nouvel envoi avant la réponse de l'IRS.\n\n"
         + "Le tracé de signature que j'appose sera reproduit sur la ligne « Signature » du formulaire SS-4 transmis ; je choisis ce mode de signature en connaissance de cause.";
       return NextResponse.json({
         success: true, sha_ss4: sha, chemin_ss4: cre.ss4_chemin,
-        document_a_signer: { doc_type: TYPE_ACCUSE, titre: "Accusé de lecture avant demande d'EIN — " + societe, corps, signataire_email: entite.email_contact || null, entite_id: entite.id },
+        document_a_signer: { doc_type: TYPE_ACCUSE, titre: "Accusé de lecture avant demande d'EIN — " + societe, corps, signataire_email: entite.email_contact || null, entite_id: entite.id, annexes: [{ chemin: cre.ss4_chemin, titre: "Formulaire SS-4 — demande d'EIN" }] },
         pret: !!entite.email_contact,
       });
     }
