@@ -330,7 +330,11 @@ export default function PageSignature({ params }: any) {
           SIGNATURE ÉLECTRONIQUE
         </p>
         <h1 style={{ color: "#fff", fontSize: "26px", margin: "0 0 26px" }}>
-          {doc && LIBELLE_TYPE[doc.type] ? LIBELLE_TYPE[doc.type] : "Document à signer"}
+          {/* 🆕 23/09 — le libelle du document l emporte sur celui du type :
+              le pacte de la societe part sous le type « convention » (qui
+              entre dans le sceau des signatures), mais s intitule
+              « Operating Agreement ». Sans libelle, rien ne change. */}
+          {doc && doc.libelle ? doc.libelle : doc && LIBELLE_TYPE[doc.type] ? LIBELLE_TYPE[doc.type] : "Document à signer"}
         </h1>
 
         {erreur && (
