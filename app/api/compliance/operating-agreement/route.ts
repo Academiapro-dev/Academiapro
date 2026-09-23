@@ -12,6 +12,11 @@ export const dynamic = "force-dynamic";
 // rattache au dossier de creation par creation?action=oa. Le texte est un
 // MODELE d usage courant (Wyoming, single-member LLC, disregarded
 // entity) : le titulaire le relit ; ce n est pas un avis juridique.
+//
+// 🆕 23/09 — LE LIBELLE. Le type « convention » reste (il entre dans le
+// sceau de chaque signature, on n y touche pas), mais le document part avec
+// le libelle « Operating Agreement » : il s affichait « Convention de
+// prestation » sur la page de signature et en tete du PDF.
 // ══════════════════════════════════════════════════════════════════════════
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
@@ -50,21 +55,21 @@ function corpsOA(e: any, c: any): string {
 
 export async function POST(req: NextRequest) {
   try {
-    if (!origineLegitime(req)) return NextResponse.json({ error: "Acces refuse" }, { status: 403 });
+    if (!origineLegitime(req)) return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
     const session = sessionCourante();
-    if (!session || !session.tenantId) return NextResponse.json({ error: "Session sans societe rattachee." }, { status: 401 });
+    if (!session || !session.tenantId) return NextResponse.json({ error: "Session sans société rattachée." }, { status: 401 });
     const b = await req.json().catch(() => ({}));
     let q = supabase.from("compliance_tenants").select("id, label, legal_name, formation_state, formation_date, principal_office_address, mailing_address, registered_agent_name, email_contact").eq("tenant_id", session.tenantId);
     if (b.entite_id) q = q.eq("id", String(b.entite_id));
     const { data: e } = await q.order("label").limit(1).maybeSingle();
-    if (!e) return NextResponse.json({ error: "Societe introuvable." }, { status: 404 });
+    if (!e) return NextResponse.json({ error: "Société introuvable." }, { status: 404 });
     const { data: c } = await supabase.from("compliance_creations").select("*").eq("entite_id", e.id).maybeSingle();
-    if (!c) return NextResponse.json({ error: "Aucun dossier de creation." }, { status: 404 });
-    if (!e.email_contact) return NextResponse.json({ error: "Renseignez l'adresse de contact de la societe : c'est elle qui signe." }, { status: 400 });
+    if (!c) return NextResponse.json({ error: "Aucun dossier de création." }, { status: 404 });
+    if (!e.email_contact) return NextResponse.json({ error: "Renseignez l'adresse de contact de la société : c'est elle qui signe." }, { status: 400 });
     const corps = corpsOA(e, c);
     return NextResponse.json({
       success: true, corps,
-      document_a_signer: { doc_type: "convention", titre: "Operating Agreement — " + (e.legal_name || e.label), corps, signataire_email: e.email_contact, entite_id: e.id },
+      document_a_signer: { doc_type: "convention", libelle: "Operating Agreement", titre: "Operating Agreement — " + (e.legal_name || e.label), corps, signataire_email: e.email_contact, entite_id: e.id },
     });
   } catch (ex: unknown) {
     return NextResponse.json({ error: ex instanceof Error ? ex.message : String(ex) }, { status: 500 });
