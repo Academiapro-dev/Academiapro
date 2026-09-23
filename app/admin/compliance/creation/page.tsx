@@ -14,6 +14,16 @@ const LIB: any = { display: "block", fontWeight: 600, fontSize: 14 };
 const BOUTON: any = { background: OR, color: "#fff", border: "none", padding: "14px 24px", borderRadius: 6, cursor: "pointer", fontSize: 16, fontWeight: 600 };
 const SECOND: any = { ...BOUTON, background: "#fff", color: OR, border: "1px solid " + OR, fontSize: 14, padding: "10px 18px" };
 
+// 🆕 23/09 — LES ETABLISSEMENTS PROPOSES A L ETAPE DU COMPTE BANCAIRE.
+// Choix de Jacques : Mercury et Airwallex. La video de demonstration promet
+// que nous indiquons les etablissements susceptibles d ouvrir un compte : la
+// promesse doit se retrouver a l ecran. ⛔ Jamais de garantie d ouverture :
+// chaque etablissement decide dossier par dossier.
+const ETABLISSEMENTS = [
+  { nom: "Mercury", note: "compte professionnel en ligne, pensé pour les jeunes sociétés américaines" },
+  { nom: "Airwallex", note: "comptes multidevises, pour encaisser et payer en dollars comme en euros" },
+];
+
 const ACTIVITES = [["other", "Autre (préciser)"], ["finance", "Finance et assurance"], ["real_estate", "Immobilier"], ["retail", "Commerce de détail"], ["wholesale_other", "Commerce de gros"], ["construction", "Construction"], ["manufacturing", "Fabrication"], ["transport", "Transport et entreposage"], ["accommodation", "Hébergement et restauration"], ["health", "Santé et action sociale"], ["rental", "Location"]];
 
 export default function PageCreation() {
@@ -201,7 +211,7 @@ export default function PageCreation() {
               <div style={{ marginTop: 16, borderTop: "1px solid #ddd", paddingTop: 12 }}>
                 <span style={LIB}>EIN reçu de l'IRS (saisie de secours, 9 chiffres)</span>
                 <input value={saisie.ein || ""} onChange={(e) => setSaisie({ ...saisie, ein: e.target.value })} placeholder="12-3456789" style={CHAMP} />
-                <button onClick={() => poster("/api/compliance/creation", { action: "ein", ein: saisie.ein })} disabled={occupe !== "" || !saisie.ein} style={SECOND}>7. EIN reçu</button>
+                <button onClick={() => poster("/api/compliance/creation", { action: "ein", ein: saisie.ein })} disabled={occupe !== "" || !saisie.ein} style={SECOND}>8. EIN reçu</button>
               </div>
             )}
           </div>
@@ -210,7 +220,7 @@ export default function PageCreation() {
         {/* ETAPE 8 : OPERATING AGREEMENT */}
         {st === "oa_a_signer" && (
           <div style={{ border: "2px solid " + OR, borderRadius: 8, padding: 18, marginBottom: 20 }}>
-            <h2 style={{ color: OR, fontSize: 18, marginTop: 0 }}>8. L'Operating Agreement</h2>
+            <h2 style={{ color: OR, fontSize: 18, marginTop: 0 }}>9. L'Operating Agreement</h2>
             <p style={{ fontSize: 14, color: "#555" }}>EIN : <strong>{c.ein}</strong>. Le pacte de la société (LLC à membre unique) est préparé depuis un modèle et envoyé à signer au titulaire ; la signature le rattache au dossier.</p>
             {!c.oa_reference && <button onClick={async () => {
               setOccupe("oa"); setMsg("");
@@ -223,20 +233,24 @@ export default function PageCreation() {
                 setMsg("Operating Agreement " + d2.reference + " envoyé à signer à " + d1.document_a_signer.signataire_email + ".");
               } catch (e: any) { setMsg("Erreur : " + String(e)); }
               setOccupe("");
-            }} disabled={occupe !== ""} style={BOUTON}>{occupe === "oa" ? "…" : "8. Préparer et faire signer l'Operating Agreement"}</button>}
+            }} disabled={occupe !== ""} style={BOUTON}>{occupe === "oa" ? "…" : "9. Préparer et faire signer l'Operating Agreement"}</button>}
           </div>
         )}
 
         {/* ETAPE 9 : BANQUE */}
         {st === "banque" && (
           <div style={{ border: "2px solid " + OR, borderRadius: 8, padding: 18, marginBottom: 20 }}>
-            <h2 style={{ color: OR, fontSize: 18, marginTop: 0 }}>9. Le compte bancaire</h2>
+            <h2 style={{ color: OR, fontSize: 18, marginTop: 0 }}>10. Le compte bancaire</h2>
             <p style={{ fontSize: 14, color: "#555" }}>Pièces à préparer : statuts déposés, lettre d'EIN, pièce d'identité du membre, justificatif d'adresse, Operating Agreement signé. Nous suivons l'ouverture avec vous jusqu'au compte actif.</p>
+            <p style={{ fontSize: 14, color: "#555", marginBottom: 6 }}>Établissements qui ouvrent couramment des comptes à des LLC détenues par des non-résidents — l'ouverture reste à leur appréciation, dossier par dossier :</p>
+            <ul style={{ fontSize: 14, color: "#1a1a1a", marginTop: 0, marginBottom: 14 }}>
+              {ETABLISSEMENTS.map(function (b) { return <li key={b.nom}><strong>{b.nom}</strong> — {b.note}</li>; })}
+            </ul>
             <span style={LIB}>Établissement</span>
             <input value={saisie.banque || ""} onChange={(e) => setSaisie({ ...saisie, banque: e.target.value })} style={CHAMP} />
             <span style={LIB}>Date d'ouverture</span>
             <input type="date" value={saisie.bdate || ""} onChange={(e) => setSaisie({ ...saisie, bdate: e.target.value })} style={CHAMP} />
-            <button onClick={() => poster("/api/compliance/creation", { action: "banque", banque_etablissement: saisie.banque, banque_ouverte_le: saisie.bdate })} disabled={occupe !== "" || !saisie.banque} style={BOUTON}>9. Compte ouvert</button>
+            <button onClick={() => poster("/api/compliance/creation", { action: "banque", banque_etablissement: saisie.banque, banque_ouverte_le: saisie.bdate })} disabled={occupe !== "" || !saisie.banque} style={BOUTON}>10. Compte ouvert</button>
           </div>
         )}
 
