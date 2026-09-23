@@ -58,8 +58,17 @@ const DATE_X = 345, DATE_Y = 46;
 const FAX_X = 436, FAX_Y = 38;
 
 function sha256(b: Buffer): string { return crypto.createHash("sha256").update(b).digest("hex"); }
-function dateIRS(d: Date): string {
-  return String(d.getUTCMonth() + 1).padStart(2, "0") + "/" + String(d.getUTCDate()).padStart(2, "0") + "/" + d.getUTCFullYear();
+// 🆕 23/09 (soir) — LA DATE A COTE DE LA SIGNATURE EST CELLE DE LA SIGNATURE.
+// Elle etait celle de l ENVOI : un client qui signe le lundi et dont le fax
+// part le mercredi aurait eu le mercredi a cote d une signature du lundi.
+// Invisible en test, ou tout se faisait le meme jour. Meme calcul que
+// l affichage du document signe (route signature) : jour de Paris, format
+// americain MM/DD/YYYY.
+function dateDeSignature(v: unknown): string {
+  try {
+    const d = v ? new Date(String(v)) : new Date();
+    return new Intl.DateTimeFormat("en-US", { timeZone: "Europe/Paris", month: "2-digit", day: "2-digit", year: "numeric" }).format(d);
+  } catch { return ""; }
 }
 function imageDuTrace(trace: string): { octets: Buffer; type: "png" | "jpg" } | null {
   const t = String(trace || "").trim(); if (!t) return null;
@@ -161,7 +170,7 @@ export async function POST(req: NextRequest) {
 
       const { data: doc } = await supabase.from("compliance_documents").select("id, donnees, signataire_email, pdf_sha256").eq("reference", reference).eq("tenant_id", tenantId).maybeSingle();
       if (!doc) return NextResponse.json({ error: "Accusé introuvable." }, { status: 404 });
-      const { data: sig } = await supabase.from("compliance_signatures").select("id, empreinte_sha256, trace_signature").eq("document_reference", reference).eq("annulee", false).order("signe_le", { ascending: false }).limit(1).maybeSingle();
+      const { data: sig } = await supabase.from("compliance_signatures").select("id, empreinte_sha256, trace_signature, signe_le").eq("document_reference", reference).eq("annulee", false).order("signe_le", { ascending: false }).limit(1).maybeSingle();
       if (!sig) return NextResponse.json({ error: "L'accusé n'est pas signé. Rien ne part sans sa signature." }, { status: 409 });
       if (doc.pdf_sha256 && sig.empreinte_sha256 !== doc.pdf_sha256) return NextResponse.json({ error: "La signature ne porte pas sur la version archivée de l'accusé." }, { status: 409 });
       const trace = imageDuTrace(sig.trace_signature || "");
@@ -177,7 +186,7 @@ export async function POST(req: NextRequest) {
       const img = trace.type === "png" ? await d.embedPng(trace.octets) : await d.embedJpg(trace.octets);
       const e = Math.min(SIGN_L / img.width, SIGN_H / img.height, 1);
       page.drawImage(img, { x: SIGN_X, y: SIGN_Y, width: img.width * e, height: img.height * e });
-      page.drawText(dateIRS(new Date()), { x: DATE_X, y: DATE_Y, size: 9, font: police, color: rgb(0, 0, 0) });
+      page.drawText(dateDeSignature(sig.signe_le), { x: DATE_X, y: DATE_Y, size: 9, font: police, color: rgb(0, 0, 0) });
       page.drawText(emetteur, { x: FAX_X, y: FAX_Y, size: 9, font: police, color: rgb(0, 0, 0) });
       const form = d.getForm(); form.updateFieldAppearances(police); form.flatten();
       const envoi = Buffer.from(await d.save());
