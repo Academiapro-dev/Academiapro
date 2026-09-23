@@ -26,6 +26,10 @@ const STYLE_LIBELLE = {
 const ETATS = [
   { code: "", libelle: "-- Choisir --" },
   { code: "WY", libelle: "Wyoming (WY)" },
+  // 🆕 23/09 — le Montana manquait, alors que la vitrine l annonce parmi les
+  // sept Etats suivis. Demande de Jacques. Ses echeances viennent des regles
+  // dont trig_formation_state = 'MT' : a verifier en base avant de le vendre.
+  { code: "MT", libelle: "Montana (MT)" },
   { code: "DE", libelle: "Delaware (DE)" },
   { code: "FL", libelle: "Floride (FL)" },
   { code: "TX", libelle: "Texas (TX)" },
