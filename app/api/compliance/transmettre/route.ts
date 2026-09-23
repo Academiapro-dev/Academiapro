@@ -228,7 +228,7 @@ async function document(tenantId: string, entite: any, body: any) {
   const year = Number(body.year) || new Date().getFullYear();
   const e = await lireEtat(tenantId, entite.id, year);
   const reference = String(body.reference || (e && e.reference_accuse) || "").trim();
-  if (!reference) return NextResponse.json({ error: "Aucun depot pour cet exercice." }, { status: 404 });
+  if (!reference) return NextResponse.json({ error: "Aucun dépôt pour cet exercice." }, { status: 404 });
   const { data: doc } = await supabase
     .from("compliance_documents")
     .select("storage_path, pdf_sha256, uploaded_at, donnees")
@@ -265,7 +265,7 @@ async function document(tenantId: string, entite: any, body: any) {
     }
   }
 
-  if (!chemin) return NextResponse.json({ error: "Aucun document transmis pour cet accuse." }, { status: 404 });
+  if (!chemin) return NextResponse.json({ error: "Aucun document transmis pour cet accusé." }, { status: 404 });
   const { data: signe } = await supabase.storage.from(BUCKET_DOCS).createSignedUrl(chemin, 3600);
   if (!signe || !signe.signedUrl) return NextResponse.json({ error: "Lien impossible." }, { status: 500 });
   const tr = donneesDoc && donneesDoc.transmission ? donneesDoc.transmission : {};
@@ -323,6 +323,12 @@ async function entiteDeLaSession(tenantId: string, entiteDemandee: string) {
 
 // ---- ACTION 1 : PREPARER ----
 //
+// 🆕 23/09 (soir) — LES FORMULAIRES SONT JOINTS A L ACCUSE. L accuse faisait
+// attester l examen du 1120 et du 5472 sans les contenir : le client
+// certifiait avoir examine ce qu on ne lui montrait pas. Ils partent
+// desormais en pieces jointes vers document-a-signer, qui les reproduit a la
+// suite de l attestation, sous la meme empreinte. Texte accentue au passage.
+//
 // Hache les deux PDF et rend le texte de l accuse de lecture. Le texte
 // contient les empreintes : ce que le client signe designe sans ambiguite
 // les deux fichiers qui partiront.
@@ -332,10 +338,10 @@ async function preparer(tenantId: string, entite: any, body: any) {
   const chemin5472 = String(body.chemin_5472 || "").trim();
 
   if (!cheminAutorise(chemin1120, tenantId, entite.id, "1120")) {
-    return NextResponse.json({ error: "Chemin du 1120 invalide pour cette societe." }, { status: 400 });
+    return NextResponse.json({ error: "Chemin du 1120 invalide pour cette société." }, { status: 400 });
   }
   if (!cheminAutorise(chemin5472, tenantId, entite.id, "5472")) {
-    return NextResponse.json({ error: "Chemin du 5472 invalide pour cette societe." }, { status: 400 });
+    return NextResponse.json({ error: "Chemin du 5472 invalide pour cette société." }, { status: 400 });
   }
 
   const [o1120, o5472] = await Promise.all([lireCoffre(chemin1120), lireCoffre(chemin5472)]);
@@ -357,23 +363,23 @@ async function preparer(tenantId: string, entite: any, body: any) {
     .limit(50);
 
   if (eDep) {
-    return NextResponse.json({ error: "Lecture des depenses : " + eDep.message }, { status: 500 });
+    return NextResponse.json({ error: "Lecture des dépenses : " + eDep.message }, { status: 500 });
   }
 
   const societe = entite.legal_name || entite.label;
   const corps =
-    "Je soussigne(e), membre de " + societe + ", atteste avoir examine le formulaire 1120 pro forma "
-    + "et le formulaire 5472 prepares pour l'exercice " + year + ", et je declare que les informations "
-    + "qu'ils contiennent sont, a ma connaissance, exactes et completes.\n\n"
-    + "Les fichiers que j'ai examines sont identifies par leur empreinte SHA-256 :\n"
+    "Je soussigné(e), membre de " + societe + ", atteste avoir examiné le formulaire 1120 pro forma "
+    + "et le formulaire 5472 préparés pour l'exercice " + year + ", et je déclare que les informations "
+    + "qu'ils contiennent sont, à ma connaissance, exactes et complètes.\n\n"
+    + "Les formulaires examinés sont reproduits à la suite de cette attestation ; ils sont identifiés par leur empreinte SHA-256 :\n"
     + "Form 1120 pro forma : " + sha1120 + "\n"
     + "Form 5472 : " + sha5472 + "\n\n"
-    + "J'autorise la transmission de ces deux formulaires, tels quels, a l'Internal Revenue Service "
-    + "par fax au numero indique dans l'instruction officielle du Form 5472 (855-887-7737, Ogden, PIN Unit). "
-    + "La plateforme transmet les documents tels que je les ai signes, sans en verifier le fond. "
-    + "La responsabilite de leur contenu m'appartient.\n\n"
-    + "Le trace de signature que j'appose sera reproduit sur la ligne « Signature of officer » du "
-    + "formulaire 1120 transmis. L'administration americaine indique qu'une signature manuscrite est "
+    + "J'autorise la transmission de ces deux formulaires, tels quels, à l'Internal Revenue Service "
+    + "par fax au numéro indiqué dans l'instruction officielle du Form 5472 (855-887-7737, Ogden, PIN Unit). "
+    + "La plateforme transmet les documents tels que je les ai signés, sans en vérifier le fond. "
+    + "La responsabilité de leur contenu m'appartient.\n\n"
+    + "Le tracé de signature que j'appose sera reproduit sur la ligne « Signature of officer » du "
+    + "formulaire 1120 transmis. L'administration américaine indique qu'une signature manuscrite est "
     + "attendue sur ce formulaire ; je choisis ce mode de signature en connaissance de cause.";
 
   return NextResponse.json({
@@ -387,10 +393,15 @@ async function preparer(tenantId: string, entite: any, body: any) {
     // Ce que l ecran passe a /api/compliance/document-a-signer.
     document_a_signer: {
       doc_type: TYPE_ACCUSE,
-      titre: "Accuse de lecture avant depot IRS " + year + " — " + societe,
+      titre: "Accusé de lecture avant dépôt IRS " + year + " — " + societe,
       corps,
       signataire_email: entite.email_contact || null,
       entite_id: entite.id,
+      // 🆕 23/09 — les deux formulaires, reproduits a la suite de l accuse.
+      annexes: [
+        { chemin: chemin1120, titre: "Form 1120 pro forma — exercice " + year },
+        { chemin: chemin5472, titre: "Form 5472 — exercice " + year },
+      ],
     },
     // S il en reste, l ecran ne propose pas la signature.
     depenses_sans_justificatif: (sansPiece || []).length,
@@ -410,9 +421,9 @@ async function lier(tenantId: string, entite: any, body: any) {
   const chemin5472 = String(body.chemin_5472 || "").trim();
   const year = Number(body.year) || new Date().getFullYear();
 
-  if (!reference) return NextResponse.json({ error: "Reference de l'accuse manquante." }, { status: 400 });
+  if (!reference) return NextResponse.json({ error: "Référence de l'accusé manquante." }, { status: 400 });
   if (!cheminAutorise(chemin1120, tenantId, entite.id, "1120") || !cheminAutorise(chemin5472, tenantId, entite.id, "5472")) {
-    return NextResponse.json({ error: "Chemins invalides pour cette societe." }, { status: 400 });
+    return NextResponse.json({ error: "Chemins invalides pour cette société." }, { status: 400 });
   }
 
   const { data: doc, error: eDoc } = await supabase
@@ -422,9 +433,9 @@ async function lier(tenantId: string, entite: any, body: any) {
     .eq("tenant_id", tenantId)
     .maybeSingle();
 
-  if (eDoc) return NextResponse.json({ error: "Lecture de l'accuse : " + eDoc.message }, { status: 500 });
+  if (eDoc) return NextResponse.json({ error: "Lecture de l'accusé : " + eDoc.message }, { status: 500 });
   if (!doc || doc.doc_type !== TYPE_ACCUSE || doc.entite_id !== entite.id) {
-    return NextResponse.json({ error: "Accuse de lecture introuvable pour cette societe." }, { status: 404 });
+    return NextResponse.json({ error: "Accusé de lecture introuvable pour cette société." }, { status: 404 });
   }
 
   const [o1120, o5472] = await Promise.all([lireCoffre(chemin1120), lireCoffre(chemin5472)]);
@@ -462,13 +473,13 @@ async function transmettre(req: NextRequest, tenantId: string, entite: any, body
   const jetonRappel = (process.env.FAX_CALLBACK_TOKEN || "").trim();
   if (!projet || !cle || !secret) {
     return NextResponse.json(
-      { error: "Transmission non configuree : SINCH_PROJECT_ID, SINCH_ACCESS_KEY ou SINCH_ACCESS_SECRET absente." },
+      { error: "Transmission non configurée : SINCH_PROJECT_ID, SINCH_ACCESS_KEY ou SINCH_ACCESS_SECRET absente." },
       { status: 503 }
     );
   }
   if (!jetonRappel) {
     return NextResponse.json(
-      { error: "Transmission non configuree : FAX_CALLBACK_TOKEN absente (le retour de statut ne serait pas protege)." },
+      { error: "Transmission non configurée : FAX_CALLBACK_TOKEN absente (le retour de statut ne serait pas protégé)." },
       { status: 503 }
     );
   }
@@ -479,13 +490,13 @@ async function transmettre(req: NextRequest, tenantId: string, entite: any, body
   const emetteur = (process.env.SINCH_FAX_FROM || "").trim();
   if (!emetteur) {
     return NextResponse.json(
-      { error: "Transmission non configuree : SINCH_FAX_FROM absente (numero de fax emetteur achete chez Sinch, format +1...)." },
+      { error: "Transmission non configurée : SINCH_FAX_FROM absente (numéro de fax émetteur acheté chez Sinch, format +1...)." },
       { status: 503 }
     );
   }
 
   const reference = String(body.reference || "").trim();
-  if (!reference) return NextResponse.json({ error: "Reference de l'accuse manquante." }, { status: 400 });
+  if (!reference) return NextResponse.json({ error: "Référence de l'accusé manquante." }, { status: 400 });
 
   // L accuse, borne au tenant et a la societe.
   const { data: doc, error: eDoc } = await supabase
@@ -495,21 +506,21 @@ async function transmettre(req: NextRequest, tenantId: string, entite: any, body
     .eq("tenant_id", tenantId)
     .maybeSingle();
 
-  if (eDoc) return NextResponse.json({ error: "Lecture de l'accuse : " + eDoc.message }, { status: 500 });
+  if (eDoc) return NextResponse.json({ error: "Lecture de l'accusé : " + eDoc.message }, { status: 500 });
   if (!doc || doc.doc_type !== TYPE_ACCUSE || doc.entite_id !== entite.id) {
-    return NextResponse.json({ error: "Accuse de lecture introuvable pour cette societe." }, { status: 404 });
+    return NextResponse.json({ error: "Accusé de lecture introuvable pour cette société." }, { status: 404 });
   }
 
   const donnees = doc.donnees && typeof doc.donnees === "object" ? doc.donnees : {};
   const depot = donnees.depot;
   if (!depot || !depot.chemin_1120 || !depot.chemin_5472) {
-    return NextResponse.json({ error: "Cet accuse n'est rattache a aucun formulaire. Appelez d'abord « lier »." }, { status: 409 });
+    return NextResponse.json({ error: "Cet accusé n'est rattaché à aucun formulaire. Appelez d'abord « lier »." }, { status: 409 });
   }
 
   // Deja transmis ? On ne faxe pas deux fois le meme accuse.
   if (donnees.transmission && donnees.transmission.fax_id) {
     return NextResponse.json(
-      { error: "Ces formulaires ont deja ete transmis (fax " + donnees.transmission.fax_id + ").", transmission: donnees.transmission },
+      { error: "Ces formulaires ont déjà été transmis (fax " + donnees.transmission.fax_id + ").", transmission: donnees.transmission },
       { status: 409 }
     );
   }
@@ -525,15 +536,15 @@ async function transmettre(req: NextRequest, tenantId: string, entite: any, body
     .maybeSingle();
 
   if (eSig) return NextResponse.json({ error: "Lecture de la signature : " + eSig.message }, { status: 500 });
-  if (!sig) return NextResponse.json({ error: "L'accuse de lecture n'est pas signe. Rien ne part sans sa signature." }, { status: 409 });
+  if (!sig) return NextResponse.json({ error: "L'accusé de lecture n'est pas signé. Rien ne part sans sa signature." }, { status: 409 });
   if (doc.pdf_sha256 && sig.empreinte_sha256 !== doc.pdf_sha256) {
-    return NextResponse.json({ error: "La signature ne porte pas sur la version archivee de l'accuse." }, { status: 409 });
+    return NextResponse.json({ error: "La signature ne porte pas sur la version archivée de l'accusé." }, { status: 409 });
   }
 
   const trace = imageDuTrace(sig.trace_signature || "");
   if (!trace) {
     return NextResponse.json(
-      { error: "La signature ne comporte pas de trace manuscrit. Le 1120 exige une signature sur la ligne « Signature of officer » : signez a nouveau en dessinant votre signature." },
+      { error: "La signature ne comporte pas de tracé manuscrit. Le 1120 exige une signature sur la ligne « Signature of officer » : signez à nouveau en dessinant votre signature." },
       { status: 409 }
     );
   }
@@ -543,7 +554,7 @@ async function transmettre(req: NextRequest, tenantId: string, entite: any, body
   if (!o1120 || !o5472) return NextResponse.json({ error: "Un des deux PDF est introuvable au coffre." }, { status: 404 });
   if (sha256(o1120) !== depot.sha_1120 || sha256(o5472) !== depot.sha_5472) {
     return NextResponse.json(
-      { error: "Les formulaires ont change depuis la signature. Regenerez l'accuse et faites-le signer a nouveau." },
+      { error: "Les formulaires ont changé depuis la signature. Régénérez l'accusé et faites-le signer à nouveau." },
       { status: 409 }
     );
   }
@@ -600,7 +611,7 @@ async function transmettre(req: NextRequest, tenantId: string, entite: any, body
   const { error: eUp } = await supabase.storage
     .from(BUCKET_DOCS)
     .upload(cheminEnvoi, octetsEnvoi, { contentType: "application/pdf", upsert: false });
-  if (eUp) return NextResponse.json({ error: "Archivage du document a transmettre impossible : " + eUp.message }, { status: 500 });
+  if (eUp) return NextResponse.json({ error: "Archivage du document à transmettre impossible : " + eUp.message }, { status: 500 });
 
   // ---- L ENVOI ----
   const hote = req.headers.get("host") || "";
@@ -669,7 +680,7 @@ async function transmettre(req: NextRequest, tenantId: string, entite: any, body
     entite_id: entite.id,
     rule_code: "US_5472_1120",
     doc_type: DOC_TYPE_DEPOT,
-    title: "Depot IRS par fax — 1120 pro forma + 5472 — " + depot.year,
+    title: "Dépôt IRS par fax — 1120 pro forma + 5472 — " + depot.year,
     version: 1,
     reference: reference,
     signataire_email: doc.signataire_email,
@@ -692,8 +703,8 @@ async function transmettre(req: NextRequest, tenantId: string, entite: any, body
   if (!faxId) {
     return NextResponse.json(
       {
-        error: "Le prestataire de fax a refuse l'envoi (HTTP " + (reponse && reponse.http ? reponse.http : "?") + "). "
-          + "Le document assemble est archive ; rien n'est parti. Detail : "
+        error: "Le prestataire de fax a refusé l'envoi (HTTP " + (reponse && reponse.http ? reponse.http : "?") + "). "
+          + "Le document assemblé est archivé ; rien n'est parti. Détail : "
           + (reponse && reponse.corps ? (typeof reponse.corps === "string" ? reponse.corps : JSON.stringify(reponse.corps)).slice(0, 300) : "aucun"),
         transmission,
       },
@@ -716,29 +727,29 @@ async function transmettre(req: NextRequest, tenantId: string, entite: any, body
     numero: destinataire,
     archivage_indexe: !eIndex,
     avertissement_archivage: eIndex
-      ? "Le document est bien archive au coffre (" + cheminEnvoi + ") mais son indexation a echoue : " + eIndex.message
+      ? "Le document est bien archivé au coffre (" + cheminEnvoi + ") mais son indexation a échoué : " + eIndex.message
       : undefined,
-    message: (numeroTest ? "MODE TEST — envoye au numero de simulation " : "Transmis a l'IRS au ") + destinataire
-      + ". L'accuse de transmission sera enregistre a la reception du statut."
-      + (eIndex ? " ⚠️ Le document est archive mais non indexe : prevenez le support." : ""),
+    message: (numeroTest ? "MODE TEST — envoyé au numéro de simulation " : "Transmis à l'IRS au ") + destinataire
+      + ". L'accusé de transmission sera enregistré à la réception du statut."
+      + (eIndex ? " ⚠️ Le document est archivé mais non indexé : prévenez le support." : ""),
   });
 }
 
 export async function POST(req: NextRequest) {
   try {
     if (!origineLegitime(req)) {
-      return NextResponse.json({ error: "Acces refuse" }, { status: 403 });
+      return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
     }
     const session = sessionCourante();
     const tenantId = session ? session.tenantId : null;
     if (!tenantId) {
-      return NextResponse.json({ error: "Session sans societe rattachee. Reconnectez-vous." }, { status: 401 });
+      return NextResponse.json({ error: "Session sans société rattachée. Reconnectez-vous." }, { status: 401 });
     }
 
     const body = await req.json().catch(() => ({}));
     const action = String(body.action || "").trim();
     const entite = await entiteDeLaSession(tenantId, String(body.entite_id || "").trim());
-    if (!entite) return NextResponse.json({ error: "Societe introuvable." }, { status: 404 });
+    if (!entite) return NextResponse.json({ error: "Société introuvable." }, { status: 404 });
 
     if (action === "etat") return await etat(tenantId, entite, body);
     if (action === "noter") return await noter(tenantId, entite, body);
