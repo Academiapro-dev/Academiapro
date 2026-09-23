@@ -145,6 +145,28 @@ function typeSignable(doc: any): boolean {
   return TYPES_SIGNABLES.indexOf(String(doc.doc_type || "")) >= 0;
 }
 
+// 🆕 23/09 — LE LIBELLE DU DOCUMENT. Le type (doc_type / document_type)
+// entre dans le sceau de chaque signature : on n y touche jamais. Le libelle
+// lisible — « Operating Agreement » plutot que « Convention de prestation » —
+// est range par document-a-signer dans compliance_documents.donnees.libelle
+// et rendu A COTE du type. Absent pour les documents plus anciens : la page
+// retombe alors sur le libelle de son type, comme avant.
+async function libellesDe(references: string[]): Promise<Record<string, string>> {
+  const refs = Array.from(new Set(references.filter(function (r) { return !!r; })));
+  const m: Record<string, string> = {};
+  for (let i = 0; i < refs.length; i += 200) {
+    const { data } = await supabase
+      .from("compliance_documents")
+      .select("reference, donnees")
+      .in("reference", refs.slice(i, i + 200));
+    for (const d of data || []) {
+      const l = d && d.donnees && typeof d.donnees === "object" ? (d.donnees as any).libelle : null;
+      if (l) m[String(d.reference)] = String(l);
+    }
+  }
+  return m;
+}
+
 export async function GET(req: NextRequest) {
   try {
     const session = sessionCourante();
@@ -191,6 +213,7 @@ export async function GET(req: NextRequest) {
         ok: true,
         reference: doc.reference,
         type: doc.doc_type,
+        libelle: donnees.libelle || null,
         titre: doc.title || donnees.titre || null,
         empreinte: doc.pdf_sha256 || doc.file_hash || null,
         lien_lecture: lien || null,
@@ -215,11 +238,12 @@ export async function GET(req: NextRequest) {
         .order("signe_le", { ascending: false })
         .limit(200);
 
+      const libellesMiennes = await libellesDe((data || []).map(function (s: any) { return s.document_reference; }));
       return NextResponse.json({
         ok: true,
         consentement: CONSENTEMENT,
         email: session.email,
-        signatures: data || [],
+        signatures: (data || []).map(function (s: any) { return { ...s, libelle: libellesMiennes[s.document_reference] || null }; }),
       });
     }
 
@@ -289,6 +313,10 @@ export async function GET(req: NextRequest) {
     });
 
     liste.reverse();
+
+    // 🆕 23/09 — le libelle s ajoute APRES le controle du sceau : il n y entre pas.
+    const libellesRegistre = await libellesDe(liste.map(function (s: any) { return s.document_reference; }));
+    for (const s of liste as any[]) s.libelle = libellesRegistre[s.document_reference] || null;
 
     return NextResponse.json({
       ok: true,
