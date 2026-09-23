@@ -27,6 +27,13 @@ export const dynamic = "force-dynamic";
 // SS4_FAX_RETOUR_ACTIF n est pas « 1 » (garde-fou, a poser dans Vercel
 // une fois la reception verifiee).
 // 🚨 JAMAIS DEUX ENVOIS pour la meme societe : ss4_fax_id bloque.
+// 🆕 23/09 — L ACCUSE ET TOUS LES MESSAGES PASSENT EN FRANCAIS ACCENTUE. Le
+// document presente a la signature etait entierement en ASCII (« Je
+// soussigne(e)… examine… numero… societe ») : vu a l ecran pendant le
+// tournage de la video de demonstration. Le generateur du PDF rend deja les
+// accents (son en-tete « Accusé de lecture avant dépôt » s affichait bien).
+// ⛔ Les noms d actions (etat, preparer, lier, transmettre) restent tels
+// quels : ce sont des identifiants de code, pas du texte.
 // ⚠️ FAX_NUMERO_TEST (s il existe) detourne l envoi vers la simulation,
 // comme pour le 5472. A retirer avant un vrai envoi.
 // ══════════════════════════════════════════════════════════════════════════
@@ -71,10 +78,10 @@ async function lireCoffre(chemin: string): Promise<Buffer | null> {
 
 export async function POST(req: NextRequest) {
   try {
-    if (!origineLegitime(req)) return NextResponse.json({ error: "Acces refuse" }, { status: 403 });
+    if (!origineLegitime(req)) return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
     const session = sessionCourante();
     const tenantId = session ? session.tenantId : null;
-    if (!tenantId) return NextResponse.json({ error: "Session sans societe rattachee. Reconnectez-vous." }, { status: 401 });
+    if (!tenantId) return NextResponse.json({ error: "Session sans société rattachée. Reconnectez-vous." }, { status: 401 });
 
     const body = await req.json().catch(() => ({}));
     const action = String(body.action || "").trim();
@@ -82,10 +89,10 @@ export async function POST(req: NextRequest) {
     let q = supabase.from("compliance_tenants").select("id, label, legal_name, email_contact, principal_office_address, mailing_address").eq("tenant_id", tenantId);
     if (body.entite_id) q = q.eq("id", String(body.entite_id));
     const { data: entite } = await q.order("label").limit(1).maybeSingle();
-    if (!entite) return NextResponse.json({ error: "Societe introuvable." }, { status: 404 });
+    if (!entite) return NextResponse.json({ error: "Société introuvable." }, { status: 404 });
 
     const { data: cre } = await supabase.from("compliance_creations").select("*").eq("tenant_id", tenantId).eq("entite_id", entite.id).maybeSingle();
-    if (!cre) return NextResponse.json({ error: "Aucun dossier de creation pour cette societe." }, { status: 404 });
+    if (!cre) return NextResponse.json({ error: "Aucun dossier de création pour cette société." }, { status: 404 });
 
     // ---- ETAT ----
     if (action === "etat") {
@@ -99,23 +106,23 @@ export async function POST(req: NextRequest) {
 
     // ---- PREPARER ----
     if (action === "preparer") {
-      if (!cre.ss4_chemin) return NextResponse.json({ error: "Generez d'abord le SS-4." }, { status: 409 });
-      if (cre.ss4_fax_id) return NextResponse.json({ error: "Le SS-4 a deja ete transmis (fax " + cre.ss4_fax_id + ")." }, { status: 409 });
+      if (!cre.ss4_chemin) return NextResponse.json({ error: "Générez d'abord le SS-4." }, { status: 409 });
+      if (cre.ss4_fax_id) return NextResponse.json({ error: "Le SS-4 a déjà été transmis (fax " + cre.ss4_fax_id + ")." }, { status: 409 });
       const pdf = await lireCoffre(cre.ss4_chemin);
       if (!pdf) return NextResponse.json({ error: "SS-4 introuvable au coffre." }, { status: 404 });
       const sha = sha256(pdf);
       const societe = entite.legal_name || entite.label;
       const corps =
-        "Je soussigne(e), membre de " + societe + ", atteste avoir examine le formulaire SS-4 (demande de numero d'identification "
-        + "d'employeur, EIN) prepare pour ma societe, et je declare que les informations qu'il contient sont, a ma connaissance, exactes et completes.\n\n"
-        + "Le fichier examine est identifie par son empreinte SHA-256 : " + sha + "\n\n"
-        + "J'autorise sa transmission a l'Internal Revenue Service par fax, au numero indique par l'instruction officielle du formulaire SS-4. "
-        + "Je comprends que l'IRS repondra par fax au numero de retour indique sur le formulaire, sous quelques jours ouvres, et qu'une seconde "
-        + "demande pour la meme societe serait refusee : je ne demanderai pas de nouvel envoi avant la reponse de l'IRS.\n\n"
-        + "Le trace de signature que j'appose sera reproduit sur la ligne « Signature » du formulaire SS-4 transmis ; je choisis ce mode de signature en connaissance de cause.";
+        "Je soussigné(e), membre de " + societe + ", atteste avoir examiné le formulaire SS-4 (demande de numéro d'identification "
+        + "d'employeur, EIN) préparé pour ma société, et je déclare que les informations qu'il contient sont, à ma connaissance, exactes et complètes.\n\n"
+        + "Le fichier examiné est identifié par son empreinte SHA-256 : " + sha + "\n\n"
+        + "J'autorise sa transmission à l'Internal Revenue Service par fax, au numéro indiqué par l'instruction officielle du formulaire SS-4. "
+        + "Je comprends que l'IRS répondra par fax au numéro de retour indiqué sur le formulaire, sous quelques jours ouvrés, et qu'une seconde "
+        + "demande pour la même société serait refusée : je ne demanderai pas de nouvel envoi avant la réponse de l'IRS.\n\n"
+        + "Le tracé de signature que j'appose sera reproduit sur la ligne « Signature » du formulaire SS-4 transmis ; je choisis ce mode de signature en connaissance de cause.";
       return NextResponse.json({
         success: true, sha_ss4: sha, chemin_ss4: cre.ss4_chemin,
-        document_a_signer: { doc_type: TYPE_ACCUSE, titre: "Accuse de lecture avant demande d'EIN — " + societe, corps, signataire_email: entite.email_contact || null, entite_id: entite.id },
+        document_a_signer: { doc_type: TYPE_ACCUSE, titre: "Accusé de lecture avant demande d'EIN — " + societe, corps, signataire_email: entite.email_contact || null, entite_id: entite.id },
         pret: !!entite.email_contact,
       });
     }
@@ -123,11 +130,11 @@ export async function POST(req: NextRequest) {
     // ---- LIER ----
     if (action === "lier") {
       const reference = String(body.reference || "").trim();
-      if (!reference) return NextResponse.json({ error: "Reference manquante." }, { status: 400 });
+      if (!reference) return NextResponse.json({ error: "Référence manquante." }, { status: 400 });
       const pdf = cre.ss4_chemin ? await lireCoffre(cre.ss4_chemin) : null;
       if (!pdf) return NextResponse.json({ error: "SS-4 introuvable au coffre." }, { status: 404 });
       const { data: doc } = await supabase.from("compliance_documents").select("id, doc_type, donnees").eq("reference", reference).eq("tenant_id", tenantId).eq("entite_id", entite.id).maybeSingle();
-      if (!doc || doc.doc_type !== TYPE_ACCUSE) return NextResponse.json({ error: "Accuse introuvable pour cette societe." }, { status: 404 });
+      if (!doc || doc.doc_type !== TYPE_ACCUSE) return NextResponse.json({ error: "Accusé introuvable pour cette société." }, { status: 404 });
       const donnees = doc.donnees && typeof doc.donnees === "object" ? doc.donnees : {};
       await supabase.from("compliance_documents").update({ donnees: { ...donnees, depot: { formulaire: "ss4", chemin_ss4: cre.ss4_chemin, sha_ss4: sha256(pdf), lie_le: new Date().toISOString() } } }).eq("id", doc.id);
       await supabase.from("compliance_creations").update({ ss4_reference_accuse: reference, ss4_sha256: sha256(pdf), statut: "ss4_accuse_envoye", maj_le: new Date().toISOString() }).eq("id", cre.id);
@@ -138,26 +145,26 @@ export async function POST(req: NextRequest) {
     if (action === "transmettre") {
       const projet = (process.env.SINCH_PROJECT_ID || "").trim(), cle = (process.env.SINCH_ACCESS_KEY || "").trim(), secret = (process.env.SINCH_ACCESS_SECRET || "").trim();
       const jeton = (process.env.FAX_CALLBACK_TOKEN || "").trim(), emetteur = (process.env.SINCH_FAX_FROM || "").trim();
-      if (!projet || !cle || !secret || !jeton || !emetteur) return NextResponse.json({ error: "Transmission non configuree (variables Sinch)." }, { status: 503 });
+      if (!projet || !cle || !secret || !jeton || !emetteur) return NextResponse.json({ error: "Transmission non configurée (variables Sinch)." }, { status: 503 });
       const numeroTest = (process.env.FAX_NUMERO_TEST || "").trim();
       if (!numeroTest && (process.env.SS4_FAX_RETOUR_ACTIF || "").trim() !== "1") {
-        return NextResponse.json({ error: "Le numero de fax de retour n'est pas encore configure en reception chez Sinch (SS4_FAX_RETOUR_ACTIF). Sans lui, l'EIN renvoye par l'IRS serait perdu. Rien n'est parti." }, { status: 503 });
+        return NextResponse.json({ error: "Le numéro de fax de retour n'est pas encore configuré en réception chez Sinch (SS4_FAX_RETOUR_ACTIF). Sans lui, l'EIN renvoyé par l'IRS serait perdu. Rien n'est parti." }, { status: 503 });
       }
-      if (cre.ss4_fax_id) return NextResponse.json({ error: "Deja transmis (fax " + cre.ss4_fax_id + "). L'IRS refuse les doublons." }, { status: 409 });
+      if (cre.ss4_fax_id) return NextResponse.json({ error: "Déjà transmis (fax " + cre.ss4_fax_id + "). L'IRS refuse les doublons." }, { status: 409 });
       const reference = String(cre.ss4_reference_accuse || body.reference || "").trim();
-      if (!reference) return NextResponse.json({ error: "Aucun accuse rattache. Appelez d'abord « preparer » puis « lier »." }, { status: 409 });
+      if (!reference) return NextResponse.json({ error: "Aucun accusé rattaché. Appelez d'abord « preparer » puis « lier »." }, { status: 409 });
 
       const { data: doc } = await supabase.from("compliance_documents").select("id, donnees, signataire_email, pdf_sha256").eq("reference", reference).eq("tenant_id", tenantId).maybeSingle();
-      if (!doc) return NextResponse.json({ error: "Accuse introuvable." }, { status: 404 });
+      if (!doc) return NextResponse.json({ error: "Accusé introuvable." }, { status: 404 });
       const { data: sig } = await supabase.from("compliance_signatures").select("id, empreinte_sha256, trace_signature").eq("document_reference", reference).eq("annulee", false).order("signe_le", { ascending: false }).limit(1).maybeSingle();
-      if (!sig) return NextResponse.json({ error: "L'accuse n'est pas signe. Rien ne part sans sa signature." }, { status: 409 });
-      if (doc.pdf_sha256 && sig.empreinte_sha256 !== doc.pdf_sha256) return NextResponse.json({ error: "La signature ne porte pas sur la version archivee de l'accuse." }, { status: 409 });
+      if (!sig) return NextResponse.json({ error: "L'accusé n'est pas signé. Rien ne part sans sa signature." }, { status: 409 });
+      if (doc.pdf_sha256 && sig.empreinte_sha256 !== doc.pdf_sha256) return NextResponse.json({ error: "La signature ne porte pas sur la version archivée de l'accusé." }, { status: 409 });
       const trace = imageDuTrace(sig.trace_signature || "");
-      if (!trace) return NextResponse.json({ error: "La signature ne comporte pas de trace manuscrit : signez a nouveau en dessinant." }, { status: 409 });
+      if (!trace) return NextResponse.json({ error: "La signature ne comporte pas de tracé manuscrit : signez à nouveau en dessinant." }, { status: 409 });
 
       const pdf = cre.ss4_chemin ? await lireCoffre(cre.ss4_chemin) : null;
       if (!pdf) return NextResponse.json({ error: "SS-4 introuvable au coffre." }, { status: 404 });
-      if (cre.ss4_sha256 && sha256(pdf) !== cre.ss4_sha256) return NextResponse.json({ error: "Le SS-4 a change depuis la signature. Recommencez la preparation." }, { status: 409 });
+      if (cre.ss4_sha256 && sha256(pdf) !== cre.ss4_sha256) return NextResponse.json({ error: "Le SS-4 a changé depuis la signature. Recommencez la préparation." }, { status: 409 });
 
       const d = await PDFDocument.load(pdf, { ignoreEncryption: true });
       const police = await d.embedFont(StandardFonts.Helvetica);
@@ -198,8 +205,8 @@ export async function POST(req: NextRequest) {
       await supabase.from("compliance_documents").insert({ tenant_id: tenantId, entite_id: entite.id, rule_code: "US_EIN", doc_type: "depot_irs_fax", title: "Demande d'EIN par fax — SS-4 — " + (entite.legal_name || entite.label), version: 1, reference, signataire_email: doc.signataire_email, storage_path: cheminEnvoi, pdf_chemin: cheminEnvoi, pdf_sha256: shaEnvoi, file_hash: shaEnvoi, pdf_octets: envoi.length, size_bytes: envoi.length, mime_type: "application/pdf", donnees: { transmission, accuse_reference: reference, signature_id: sig.id } });
       if (faxId) await supabase.from("compliance_creations").update({ ss4_fax_id: faxId, ss4_transmis_le: transmission.envoye_le, statut: "ss4_transmis", maj_le: new Date().toISOString() }).eq("id", cre.id);
 
-      if (!faxId) return NextResponse.json({ error: "Le prestataire a refuse l'envoi (HTTP " + (reponse && reponse.http ? reponse.http : "?") + "). Rien n'est parti.", transmission }, { status: 502 });
-      return NextResponse.json({ success: true, fax_id: faxId, numero: destinataire, mode_test: !!numeroTest, chemin_envoi: cheminEnvoi, message: (numeroTest ? "MODE TEST — envoye au numero de simulation " : "SS-4 transmis a l'IRS au ") + destinataire + ". L'EIN reviendra par fax au " + emetteur + " sous quelques jours ouvres." });
+      if (!faxId) return NextResponse.json({ error: "Le prestataire a refusé l'envoi (HTTP " + (reponse && reponse.http ? reponse.http : "?") + "). Rien n'est parti.", transmission }, { status: 502 });
+      return NextResponse.json({ success: true, fax_id: faxId, numero: destinataire, mode_test: !!numeroTest, chemin_envoi: cheminEnvoi, message: (numeroTest ? "MODE TEST — envoyé au numéro de simulation " : "SS-4 transmis à l'IRS au ") + destinataire + ". L'EIN reviendra par fax au " + emetteur + " sous quelques jours ouvrés." });
     }
 
     return NextResponse.json({ error: "Action inconnue : etat, preparer, lier ou transmettre." }, { status: 400 });
