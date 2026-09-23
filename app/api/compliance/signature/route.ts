@@ -201,6 +201,13 @@ async function libellesDe(references: string[]): Promise<Record<string, string>>
 const SS4_SIGN = { x: 100, y: 44, l: 150, h: 26, dateX: 345, dateY: 46 };
 const F1120_SIGN = { x: 100, y: 70, l: 150, h: 30, dateX: 274, dateY: 92, titreX: 330 };
 
+// 🆕 23/09 (soir) — la date longue a l americaine : « September 23, 2026 ».
+function dateUSLongue(v: unknown): string {
+  try {
+    return new Intl.DateTimeFormat("en-US", { timeZone: "Europe/Paris", month: "long", day: "numeric", year: "numeric" }).format(new Date(String(v)));
+  } catch { return ""; }
+}
+
 function dateUS(v: unknown): string {
   try {
     const d = new Date(String(v));
@@ -254,7 +261,19 @@ async function documentSigne(doc: any, sig: any, original: Uint8Array): Promise<
     for (const a of annexes) {
       const n = Number(a && a.pages) || 0;
       const titreA = String((a && a.titre) || "");
-      if (n > 0 && debut < nbPagesDocument) {
+      const declaree = a && a.signature && typeof a.signature === "object" ? a.signature : null;
+      if (n > 0 && declaree && Number.isInteger(declaree.page) && declaree.page >= 0 && declaree.page < n && debut + declaree.page < nbPagesDocument) {
+        // 🆕 23/09 (soir) — LA PIECE A DECLARE OU SE POSE SA SIGNATURE : c est
+        // la regle generale, valable pour toute piece jointe future.
+        const pd = pdf.getPage(debut + declaree.page);
+        poser(pd, Number(declaree.x), Number(declaree.y), Number(declaree.l), Number(declaree.h));
+        if (typeof declaree.date_x === "number" && typeof declaree.date_y === "number") {
+          pd.drawText(declaree.date_format === "us" ? dateUS(sig.signe_le) : dateUSLongue(sig.signe_le), { x: declaree.date_x, y: declaree.date_y, size: 11, font: police, color: rgb(0, 0, 0) });
+        }
+        reports.push("la ligne de signature de « " + titreA + " »");
+      } else if (n > 0 && debut < nbPagesDocument) {
+        // Les pieces plus anciennes, sans declaration : SS-4 et 1120 reconnus
+        // a leur titre, aux coordonnees de la transmission.
         const p = pdf.getPage(debut);
         if (/SS-4/i.test(titreA)) {
           poser(p, SS4_SIGN.x, SS4_SIGN.y, SS4_SIGN.l, SS4_SIGN.h);
