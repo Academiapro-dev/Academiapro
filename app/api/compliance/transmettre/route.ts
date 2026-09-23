@@ -112,10 +112,18 @@ function sha256(b: Buffer): string {
   return crypto.createHash("sha256").update(b).digest("hex");
 }
 
-function dateIRS(d: Date): string {
-  const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
-  const jj = String(d.getUTCDate()).padStart(2, "0");
-  return mm + "/" + jj + "/" + d.getUTCFullYear();
+
+// 🆕 23/09 (soir) — LA DATE A COTE DE LA SIGNATURE EST CELLE DE LA SIGNATURE.
+// Elle etait celle de l ENVOI : un client qui signe le lundi et dont le fax
+// part le mercredi aurait eu le mercredi a cote d une signature du lundi.
+// Invisible en test, ou tout se faisait le meme jour. Meme calcul que
+// l affichage du document signe (route signature) : jour de Paris, format
+// americain MM/DD/YYYY.
+function dateDeSignature(v: unknown): string {
+  try {
+    const d = v ? new Date(String(v)) : new Date();
+    return new Intl.DateTimeFormat("en-US", { timeZone: "Europe/Paris", month: "2-digit", day: "2-digit", year: "numeric" }).format(d);
+  } catch { return ""; }
 }
 
 // Un chemin du coffre n est accepte que s il appartient a la societe de la
@@ -575,7 +583,7 @@ async function transmettre(req: NextRequest, tenantId: string, entite: any, body
   page1.drawImage(img, { x: SIGN_X, y: SIGN_Y, width: img.width * echelle, height: img.height * echelle });
 
   // La date du jour et le titre du signataire.
-  page1.drawText(dateIRS(new Date()), { x: DATE_X, y: DATE_Y, size: 9, font: police, color: rgb(0, 0, 0) });
+  page1.drawText(dateDeSignature(sig.signe_le), { x: DATE_X, y: DATE_Y, size: 9, font: police, color: rgb(0, 0, 0) });
   try {
     form1120.getTextField(CHAMP_TITLE).setText(TITRE_SIGNATAIRE);
   } catch {
