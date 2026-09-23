@@ -244,13 +244,24 @@ export async function POST(req: NextRequest) {
     }
 
     // Generation des echeances.
-    // Signature reelle verifiee : compliance_generate_deadlines(p_tenant_id uuid, p_year integer)
+    // 🚨 23/09 — L ANCIENNE FONCTION NE MARCHAIT PLUS.
+    // compliance_generate_deadlines raisonne PAR CLIENT
+    // (on conflict (tenant_id, rule_code, period_label)), or depuis le
+    // portefeuille l unicite porte sur la SOCIETE (index
+    // compliance_deadlines_entite_rule_period_key). PostgreSQL refusait :
+    // « no unique or exclusion constraint matching the ON CONFLICT » — et
+    // AUCUN nouveau client n obtenait d echeances. Elle n ecrivait meme pas
+    // entite_id.
+    // Mesure du 23/09 : les 33 echeances en base portent TOUTES une societe.
+    // Elles viennent de la fonction par societe, deja en place : c est elle
+    // qu on appelle.
+    // Signature reelle verifiee : compliance_generer_echeances_entite(p_entite_id uuid, p_annee integer)
     const anneeCible = new Date().getFullYear() + 1;
     const echeances: Record<string, unknown> = { tente: true, annee: anneeCible };
     try {
-      const { error: eGen } = await supabase.rpc("compliance_generate_deadlines", {
-        p_tenant_id: societe.tenant_id,
-        p_year: anneeCible,
+      const { error: eGen } = await supabase.rpc("compliance_generer_echeances_entite", {
+        p_entite_id: societe.id,
+        p_annee: anneeCible,
       });
       if (eGen) {
         echeances.generees = false;
