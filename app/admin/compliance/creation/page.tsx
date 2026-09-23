@@ -227,13 +227,24 @@ export default function PageCreation() {
               try {
                 const r1 = await fetch("/api/compliance/operating-agreement", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ entite_id: d.entite.id }) });
                 const d1 = await r1.json(); if (!d1.success) { setMsg("Erreur : " + (d1.error || "inconnue")); setOccupe(""); return; }
+                // 🆕 23/09 — comme pour l accuse du SS-4 : pas de signataire,
+                // pas d envoi ; et un courriel qui n est pas parti se dit.
+                if (!d1.document_a_signer || !d1.document_a_signer.signataire_email) { setMsg("Erreur : renseignez l'adresse de contact de la société (Ma société) : c'est elle qui signe."); setOccupe(""); return; }
                 const r2 = await fetch("/api/compliance/document-a-signer", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(d1.document_a_signer) });
                 const d2 = await r2.json(); if (!d2.success || !d2.reference) { setMsg("Erreur : " + (d2.error || "inconnue")); setOccupe(""); return; }
                 await poster("/api/compliance/creation", { action: "oa", oa_reference: d2.reference });
-                setMsg("Operating Agreement " + d2.reference + " envoyé à signer à " + d1.document_a_signer.signataire_email + ".");
+                const em = d2.email || {};
+                setMsg("Operating Agreement " + d2.reference + " envoyé à signer à " + d1.document_a_signer.signataire_email + (em.envoye === true ? "." : " — ATTENTION : le courriel n'est pas parti. Lien : " + (d2.lien || "")));
               } catch (e: any) { setMsg("Erreur : " + String(e)); }
               setOccupe("");
             }} disabled={occupe !== ""} style={BOUTON}>{occupe === "oa" ? "…" : "9. Préparer et faire signer l'Operating Agreement"}</button>}
+            {/* 🆕 23/09 — ENVOYE, PAS ENCORE SIGNE : l etape reste ouverte et se
+                coche d elle-meme a la signature (la route la constate au
+                chargement). Le bouton ne fait que recharger. */}
+            {c.oa_reference && <>
+              <p style={{ color: "#b26a00", fontWeight: 600 }}>Signature en attente — Operating Agreement {c.oa_reference} envoyé au titulaire. L'étape se cochera d'elle-même dès qu'il sera signé.</p>
+              <button onClick={() => charger()} disabled={occupe !== ""} style={BOUTON}>9. Vérifier la signature</button>
+            </>}
           </div>
         )}
 
