@@ -38,6 +38,25 @@ export const dynamic = "force-dynamic";
 // ⚠️ LE LIEN PART A L ADRESSE DU CLIENT, JAMAIS A CELLE DE LA SESSION.
 // C est ce qui fait que la preuve porte le nom de celui qui s engage, et
 // non de celui qui a prepare le document.
+//
+// 🆕 23/09 — LES PIECES JOINTES. Jusqu ici, un accuse de lecture faisait
+// ecrire au client « j atteste avoir examine le formulaire » en designant
+// ce formulaire par sa seule empreinte : LE FORMULAIRE N ETAIT PAS DANS LE
+// DOCUMENT SIGNE. Le client certifiait avoir examine ce qu on ne lui
+// montrait pas. Vu par Jacques sur le SS-4, puis sur le 1120 et le 5472.
+// Desormais l appelant passe `annexes` : [{ chemin, titre }]. Les PDF sont
+// lus au coffre (compliance-docs), aplatis, et REPRODUITS A LA SUITE DE
+// L ATTESTATION, dans un seul fichier. L empreinte conservee avec la
+// signature couvre donc l attestation ET les formulaires.
+// ⛔ Un chemin recu n est pas une autorisation : il doit commencer par
+// tenant/societe de la session, finir en .pdf, et ne rien remonter.
+// ⛔ Les formulaires IRS restent non signables ICI : ils sont joints pour
+// etre LUS ; ce qui se signe, c est l attestation qui les precede.
+//
+// 🆕 23/09 — LE LIBELLE. Le pacte de la societe partait sous le type
+// « convention » et s affichait « Convention de prestation ». L appelant
+// peut desormais passer `libelle`, qui remplace celui du type dans le
+// document et reste range dans donnees.libelle.
 // ---------------------------------------------------------------------------
 
 const supabase = createClient(
@@ -67,6 +86,12 @@ const LIBELLES: Record<string, string> = {
   devis: "Devis",
 };
 
+// 🆕 23/09 — LES PIECES JOINTES : ou elles se lisent, et leurs bornes.
+const BUCKET_ANNEXES = "compliance-docs";
+const ANNEXES_MAX = 4;
+const ANNEXE_OCTETS_MAX = 8 * 1024 * 1024;
+type Annexe = { chemin: string; titre: string; octets: Uint8Array; pages: number; sha256: string };
+
 function echappe(t: string): string {
   return String(t || "")
     .replace(/&/g, "&amp;")
@@ -95,13 +120,13 @@ function pourPdf(t: string): string {
   return String(t || "").replace(/[^\x09\x0A\x0D\x20-\x7E\u00A0-\u00FF\u0152\u0153\u0160\u0161\u0178\u017D\u017E\u2013\u2014\u2018\u2019\u201C\u201D\u2026\u20AC]/g, "?");
 }
 
-async function documentPDF(titre: string, corps: string, societe: string, type: string, marque: MarqueCompliance): Promise<Uint8Array> {
+async function documentPDF(titre: string, corps: string, societe: string, libelle: string, marque: MarqueCompliance, pieces: { titre: string; pages: number }[]): Promise<Uint8Array> {
   const date = new Date().toLocaleDateString("fr-FR", { year: "numeric", month: "long", day: "numeric" });
 
   const pdf = await PDFDocument.create();
   pdf.setTitle(pourPdf(titre));
   pdf.setAuthor(pourPdf(marque.nom));
-  pdf.setSubject(pourPdf((LIBELLES[type] || type) + " — " + societe));
+  pdf.setSubject(pourPdf(libelle + " — " + societe));
 
   const police = await pdf.embedFont(StandardFonts.Helvetica);
   const gras = await pdf.embedFont(StandardFonts.HelveticaBold);
@@ -157,7 +182,7 @@ async function documentPDF(titre: string, corps: string, societe: string, type: 
   y = y - 18;
 
   // ---- Meta ----
-  ecrire((LIBELLES[type] || type) + " — " + societe, police, 10.5, GRIS, 1.4);
+  ecrire(libelle + " — " + societe, police, 10.5, GRIS, 1.4);
   ecrire("Document établi le " + date, police, 10.5, GRIS, 1.4);
   y = y - 16;
 
@@ -168,6 +193,17 @@ async function documentPDF(titre: string, corps: string, societe: string, type: 
     for (const s of sousLignes) {
       if (s.trim()) ecrire(s, police, 11.5, rgb(0.1, 0.1, 0.1), 1.5);
     }
+    y = y - 8;
+  }
+
+  // ---- 🆕 23/09 — Les pieces jointes, annoncees avant la mention ----
+  if (pieces.length > 0) {
+    y = y - 6;
+    ecrire("PIÈCES JOINTES", gras, 10, OR, 1.6);
+    for (const p of pieces) {
+      ecrire("— " + p.titre + " (" + (p.pages === 1 ? "1 page" : p.pages + " pages") + ")", police, 11, rgb(0.1, 0.1, 0.1), 1.5);
+    }
+    ecrire("Elles sont reproduites à la suite de ce document et en font partie : l'empreinte conservée avec la signature couvre l'ensemble.", police, 10, GRIS, 1.5);
     y = y - 8;
   }
 
@@ -193,16 +229,32 @@ async function documentPDF(titre: string, corps: string, societe: string, type: 
   return await pdf.save();
 }
 
+// 🆕 23/09 — REPRODUIRE LES PIECES A LA SUITE DE L ATTESTATION.
+// Chaque formulaire est aplati avant la copie : ses champs deviennent du
+// contenu de page, lisible dans toute visionneuse. Un formulaire sans champ,
+// ou deja aplati, est copie tel quel.
+async function joindreAnnexes(principal: Uint8Array, annexes: Annexe[]): Promise<Uint8Array> {
+  if (annexes.length === 0) return principal;
+  const doc = await PDFDocument.load(principal);
+  for (const a of annexes) {
+    const source = await PDFDocument.load(a.octets, { ignoreEncryption: true });
+    try { source.getForm().flatten(); } catch (e) { /* sans champ ou non aplatissable : les apparences restent */ }
+    const pages = await doc.copyPages(source, source.getPageIndices());
+    for (const p of pages) doc.addPage(p);
+  }
+  return await doc.save();
+}
+
 export async function POST(req: NextRequest) {
   if (!origineLegitime(req)) {
-    return NextResponse.json({ error: "Acces refuse" }, { status: 403 });
+    return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }
 
   const session = sessionCourante();
   const tenantId = session ? session.tenantId : null;
   if (!tenantId) {
     return NextResponse.json(
-      { error: "Session sans societe rattachee. Reconnectez-vous." },
+      { error: "Session sans société rattachée. Reconnectez-vous." },
       { status: 401 }
     );
   }
@@ -226,9 +278,9 @@ export async function POST(req: NextRequest) {
     if (TYPES_SIGNABLES.indexOf(type) < 0) {
       return NextResponse.json(
         {
-          error: "Ce type de document ne se signe pas electroniquement. Les"
-            + " formulaires destines a l'administration americaine exigent une"
-            + " signature manuscrite ou la procedure propre a l'IRS.",
+          error: "Ce type de document ne se signe pas électroniquement. Les"
+            + " formulaires destinés à l'administration américaine exigent une"
+            + " signature manuscrite ou la procédure propre à l'IRS.",
         },
         { status: 400 }
       );
@@ -270,13 +322,48 @@ export async function POST(req: NextRequest) {
 
     if (!entite) {
       return NextResponse.json(
-        { error: entiteDemandee ? "Societe introuvable." : "Aucune societe enregistree." },
+        { error: entiteDemandee ? "Société introuvable." : "Aucune société enregistrée." },
         { status: 404 }
       );
     }
 
     const entiteId = entite.id;
     const societe = entite.legal_name || entite.label;
+
+    // ---- 🆕 23/09 — LES PIECES JOINTES ----
+    // Lues et verifiees AVANT tout archivage : une piece refusee n envoie
+    // rien, et le client ne recoit jamais une attestation amputee.
+    const annexesDemandees: any[] = Array.isArray(b.annexes) ? b.annexes : [];
+    if (annexesDemandees.length > ANNEXES_MAX) {
+      return NextResponse.json({ error: "Trop de pièces jointes (" + ANNEXES_MAX + " au plus). Rien n'a été envoyé." }, { status: 400 });
+    }
+    const annexes: Annexe[] = [];
+    const prefixe = tenantId + "/" + entiteId + "/";
+    for (const a of annexesDemandees) {
+      const chemin = String((a && a.chemin) || "").trim();
+      const titreA = String((a && a.titre) || "").trim().slice(0, 120) || "Pièce jointe";
+      if (!chemin.startsWith(prefixe) || !chemin.toLowerCase().endsWith(".pdf") || chemin.indexOf("..") >= 0) {
+        return NextResponse.json({ error: "Pièce jointe refusée (" + titreA + ") : elle n'appartient pas à cette société. Rien n'a été envoyé." }, { status: 400 });
+      }
+      const { data: fichier, error: eLec } = await supabase.storage.from(BUCKET_ANNEXES).download(chemin);
+      if (eLec || !fichier) {
+        return NextResponse.json({ error: "Pièce jointe introuvable au coffre : " + titreA + ". Rien n'a été envoyé." }, { status: 404 });
+      }
+      const octetsA = new Uint8Array(await fichier.arrayBuffer());
+      if (octetsA.length > ANNEXE_OCTETS_MAX) {
+        return NextResponse.json({ error: "Pièce jointe trop lourde : " + titreA + ". Rien n'a été envoyé." }, { status: 400 });
+      }
+      let nbPages = 0;
+      try {
+        nbPages = (await PDFDocument.load(octetsA, { ignoreEncryption: true })).getPageCount();
+      } catch (e) {
+        return NextResponse.json({ error: "Pièce jointe illisible : " + titreA + ". Rien n'a été envoyé." }, { status: 400 });
+      }
+      annexes.push({ chemin, titre: titreA, octets: octetsA, pages: nbPages, sha256: crypto.createHash("sha256").update(octetsA).digest("hex") });
+    }
+
+    // 🆕 23/09 — le libelle passe par l appelant l emporte sur celui du type.
+    const libelle = String(b.libelle || "").trim().slice(0, 80) || LIBELLES[type] || type;
 
     // ---- LA REFERENCE ----
     //
@@ -287,7 +374,14 @@ export async function POST(req: NextRequest) {
     const reference = "SIG-" + new Date().toISOString().slice(0, 10).replace(/-/g, "")
       + "-" + suffixe;
 
-    const pdfOctets = await documentPDF(titre, corps, societe, type, marque);
+    let pdfOctets: Uint8Array;
+    try {
+      const attestation = await documentPDF(titre, corps, societe, libelle, marque, annexes.map(function (a) { return { titre: a.titre, pages: a.pages }; }));
+      pdfOctets = await joindreAnnexes(attestation, annexes);
+    } catch (e: unknown) {
+      console.error("[document-a-signer] assemblage :", e instanceof Error ? e.message : String(e));
+      return NextResponse.json({ error: "Assemblage du document impossible. Rien n'a été envoyé." }, { status: 500 });
+    }
     const octets = Buffer.from(pdfOctets);
     const empreinte = crypto.createHash("sha256").update(octets).digest("hex");
     const chemin = tenantId + "/" + entiteId + "/" + reference + ".pdf";
@@ -301,7 +395,7 @@ export async function POST(req: NextRequest) {
     if (eUp) {
       console.error("[document-a-signer] depot :", eUp.message);
       return NextResponse.json(
-        { error: "Archivage impossible. Le document n'a pas ete envoye." },
+        { error: "Archivage impossible. Le document n'a pas été envoyé." },
         { status: 500 }
       );
     }
@@ -324,6 +418,8 @@ export async function POST(req: NextRequest) {
       donnees: {
         signataire_nom: String(b.signataire_nom || "").trim() || null,
         prepare_par: session ? session.email : null,
+        libelle,
+        annexes: annexes.map(function (a) { return { chemin: a.chemin, titre: a.titre, pages: a.pages, sha256: a.sha256 }; }),
       },
     });
 
@@ -361,6 +457,9 @@ export async function POST(req: NextRequest) {
         echappe(societe) + "</strong>.</p>" +
         "<p>Vous pourrez le lire entièrement avant de signer. Un code de " +
         "vérification à six chiffres vous sera envoyé au moment de la signature.</p>" +
+        (annexes.length > 0
+          ? "<p>Il comprend, à sa suite, les pièces qu'il désigne : " + annexes.map(function (a) { return echappe(a.titre); }).join(", ") + ".</p>"
+          : "") +
         '<p style="text-align:center;margin:28px 0">' +
         '<a href="' + lien + '" style="display:inline-block;background:#c8a96e;color:#050508;' +
         'padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:bold">' +
@@ -404,6 +503,8 @@ export async function POST(req: NextRequest) {
       empreinte: empreinte,
       societe: entite.label,
       type: type,
+      libelle: libelle,
+      annexes: annexes.map(function (a) { return { titre: a.titre, pages: a.pages }; }),
       email: email,
     });
   } catch (e: unknown) {
