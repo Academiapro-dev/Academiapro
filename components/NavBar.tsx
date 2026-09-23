@@ -207,6 +207,13 @@ const PAGES_PUBLIQUES_MYSTERLLC = [
   // le middleware a deja reecrit quand la barre s execute. C est le meme
   // piege que pour /devis sur mrlms.fr et mrcrm.fr.
   "/llc",
+  // 🆕 /comment-ca-marche AJOUTE LE 24/09, LE LENDEMAIN DE LA PAGE.
+  //
+  // La page de la video de demonstration et de sa synthese
+  // (app/mysterllc/comment-ca-marche). Oubliee le jour de sa creation :
+  // la barre de travail s affichait par-dessus son propre en-tete, meme
+  // pour un visiteur sans compte (constate en navigation privee le 24/09).
+  "/comment-ca-marche",
 ];
 
 function estPagePubliqueMysterLLC(chemin) {
