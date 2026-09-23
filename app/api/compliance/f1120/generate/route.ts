@@ -80,6 +80,18 @@ function dateIRS(v: unknown): string {
   return p[1] + "/" + p[2] + "/" + p[0];
 }
 
+// 🆕 23/09 — le nom lisible des cases, pour dire laquelle deborde.
+const CASES_1120: Record<string, string> = {
+  "Page1[0].NameFieldsReadOrder[0].f1_4[0]": "nom de la société",
+  "Page1[0].NameFieldsReadOrder[0].f1_5[0]": "rue",
+  "Page1[0].NameFieldsReadOrder[0].f1_6[0]": "complément d'adresse",
+  "Page1[0].NameFieldsReadOrder[0].f1_7[0]": "ville",
+  "Page1[0].NameFieldsReadOrder[0].f1_8[0]": "État",
+  "Page1[0].NameFieldsReadOrder[0].f1_9[0]": "pays",
+  "Page1[0].NameFieldsReadOrder[0].f1_10[0]": "ZIP",
+  "Page4[0].f4_32[0]": "pays (Schedule K, question 7)",
+};
+
 export async function POST(req: NextRequest) {
   const journal: string[] = [];
 
@@ -205,10 +217,37 @@ export async function POST(req: NextRequest) {
     const font = await doc.embedFont(StandardFonts.Helvetica);
     const form = doc.getForm();
 
+    // 🆕 23/09 — FAIRE TENIR LE TEXTE DANS SA CASE. Sur le SS-4, la ligne 10
+    // portait « Online consultin » : une case a taille de police fixe coupe ce
+    // qui depasse, et c est ce que l IRS lirait. Meme protection ici : apres
+    // chaque saisie, la police est REDUITE (jusqu a 6 points) si le texte
+    // deborde. Un texte court garde sa taille d origine. Une taille 0 veut
+    // dire « automatique » : pdf-lib ajuste deja. Les cases sur plusieurs
+    // lignes reviennent a la ligne d elles-memes : on n y touche pas.
+    const tropLongs: string[] = [];
+    const ajuster = (champ: any, chemin: string, texte: string) => {
+      try {
+        if (typeof champ.isMultiline === "function" && champ.isMultiline()) return;
+        const da = String(champ.acroField.getDefaultAppearance() || "");
+        const m = da.match(/(\d+(?:\.\d+)?)\s+Tf/);
+        const origine = m ? Number(m[1]) : 0;
+        if (!origine) return;
+        const rect = champ.acroField.getWidgets()[0].getRectangle();
+        const utile = rect.width - 4;
+        if (font.widthOfTextAtSize(texte, origine) <= utile) return;
+        let t = origine;
+        while (t > 6 && font.widthOfTextAtSize(texte, t) > utile) t = t - 0.25;
+        champ.setFontSize(t);
+        if (font.widthOfTextAtSize(texte, t) > utile) tropLongs.push(chemin);
+      } catch { /* taille d origine conservee */ }
+    };
     const setText = (chemin: string, valeur: unknown) => {
       if (valeur === null || valeur === undefined || valeur === "") return;
       try {
-        form.getTextField(P + chemin).setText(String(valeur));
+        const champ = form.getTextField(P + chemin);
+        const texte = String(valeur);
+        champ.setText(texte);
+        ajuster(champ, chemin, texte);
       } catch (e: unknown) {
         journal.push("TEXTE " + chemin + " : " + (e instanceof Error ? e.message : String(e)));
       }
@@ -298,6 +337,13 @@ export async function POST(req: NextRequest) {
       },
       nb_avertissements: journal.length,
       avertissements: journal,
+      // 🆕 23/09 — un texte qui ne tient pas dans sa case, meme en petit.
+      champs_trop_longs: tropLongs,
+      message: tropLongs.length > 0
+        ? "ATTENTION : un texte ne tient pas dans sa case du 1120, même en petits caractères ("
+          + tropLongs.map(function (c) { return CASES_1120[c] || c; }).join(", ")
+          + "). Raccourcissez-le et générez le formulaire à nouveau."
+        : undefined,
       note: "PDF fictif - taux provisoire, qualification non validee par fiscaliste",
     });
   } catch (e: unknown) {
