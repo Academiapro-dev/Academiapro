@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { sessionCourante } from "../../../../lib/session";
+import {
+  sessionCourante,
+  fabriquerJetonSession,
+  NOM_COOKIE_SESSION,
+  DUREE_COOKIE_SECONDES,
+} from "../../../../lib/session";
 import { origineLegitime } from "../../../../lib/origine";
 
 export const runtime = "nodejs";
@@ -101,6 +106,28 @@ async function creerCompte(email: string): Promise<{ id: string | null; erreur: 
   return { id: null, erreur: eCreation ? eCreation.message : "compte introuvable après création" };
 }
 
+// 🚨 23/09 — LE CLIENT ENFERME DANS LE FORMULAIRE.
+// Le middleware renvoie toute page de l espace vers « Ma société » tant que
+// la session ne porte pas de societe (charge.tid). Or la session avait ete
+// ouverte AVANT que la societe existe : elle n en portait aucune. Apres
+// l enregistrement, chaque bouton ramenait au formulaire, « Se déconnecter »
+// compris, et la seule issue etait une reconnexion que rien n expliquait.
+// Mesure du 23/09 : Jacques enferme, sur le parcours d un nouveau client.
+// ✅ La session est REEMISE avec la societe : a l enregistrement (POST), et
+// pour toute session deja coincee, a la prochaine ouverture de la page (GET).
+// Le role porte est celui du rattachement (compliance_membres.role).
+function poserSession(reponse: NextResponse, email: string, tenantId: string, role: string | null) {
+  const jeton = fabriquerJetonSession(email, tenantId, role);
+  reponse.cookies.set(NOM_COOKIE_SESSION, jeton, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: DUREE_COOKIE_SECONDES,
+  });
+  return reponse;
+}
+
 // GET : l'utilisateur connecte a-t-il deja une societe ?
 export async function GET(req: NextRequest) {
   if (!origineLegitime(req)) {
@@ -122,6 +149,32 @@ export async function GET(req: NextRequest) {
   }
 
   if (!tenantId) {
+    // 🆕 23/09 — LA SESSION OUVERTE AVANT LA SOCIETE SE REPARE ICI.
+    // Un seul rattachement actif : c est sa societe, on la remet dans la
+    // session. Plusieurs : on ne choisit pas a sa place, rien ne change.
+    const { data: membres } = await supabase
+      .from("compliance_membres")
+      .select("tenant_id, role")
+      .eq("user_id", id)
+      .eq("actif", true)
+      .limit(2);
+
+    if (membres && membres.length === 1 && membres[0].tenant_id) {
+      const tid = String(membres[0].tenant_id);
+      const { data: soc, error: eSoc } = await supabase
+        .from("compliance_tenants")
+        .select("*")
+        .eq("tenant_id", tid)
+        .maybeSingle();
+
+      if (!eSoc && soc) {
+        const s = sessionCourante();
+        const reponse = NextResponse.json({ success: true, a_une_societe: true, societe: soc, session_mise_a_jour: true });
+        if (s && s.email) poserSession(reponse, s.email, tid, membres[0].role ? String(membres[0].role) : null);
+        return reponse;
+      }
+    }
+
     return NextResponse.json({ success: true, a_une_societe: false, societe: null });
   }
 
@@ -274,14 +327,18 @@ export async function POST(req: NextRequest) {
       echeances.raison = e instanceof Error ? e.message : String(e);
     }
 
-    return NextResponse.json({
+    // 🆕 23/09 — la session porte desormais la societe : plus de reconnexion.
+    const reponse = NextResponse.json({
       success: true,
       tenant_id: societe.tenant_id,
       label: societe.label,
       legal_name: societe.legal_name,
       echeances,
-      note: "Reconnectez-vous pour que votre société soit prise en compte dans votre session.",
+      session_mise_a_jour: true,
     });
+    const s = sessionCourante();
+    if (s && s.email) poserSession(reponse, s.email, String(societe.tenant_id), "proprietaire");
+    return reponse;
   } catch (e: unknown) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : String(e) },
