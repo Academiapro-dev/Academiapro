@@ -37,9 +37,12 @@ import Formulaire from "./Formulaire";
 // seuls montants cites sont ceux des textes officiels, deja presents sur la
 // vitrine et sourcés dans `compliance_rules`.
 //
-// ⛔ NE JAMAIS ECRIRE QUE LA PLATEFORME DEPOSE. Elle prepare, le membre
-// relit, signe et depose — ou le fait deposer par qui il veut. Aucun texte
-// americain n impose de passer par un professionnel.
+// 🆕 23/09 — LA PLATEFORME TRANSMET DESORMAIS. Le SS-4, le 1120 et le 5472
+// partent a l IRS par fax une fois signes par le membre, et la creation de
+// la LLC est accompagnee pas a pas. La page le dit (quatrieme geste).
+// ⛔ Rien ne part sans la signature du membre : c est ce que dit le chapeau.
+// ⛔ Toujours aucun lien de sortie, y compris vers la video : cette page
+// sert la publicite, la video vit sur /comment-ca-marche.
 // ---------------------------------------------------------------------------
 
 const OR = "#c8a96e";
@@ -104,7 +107,7 @@ const OUBLIS = [
   },
 ];
 
-// CE QUE L OUTIL FAIT, DIT EN TROIS GESTES.
+// CE QUE L OUTIL FAIT, DIT EN QUATRE GESTES (trois jusqu au 23/09).
 //
 // ⚠️ CHAQUE PHRASE DECRIT UNE FONCTION QUI EXISTE. Une promesse de vitrine
 // doit survivre a l ouverture de l outil.
@@ -120,14 +123,21 @@ const GESTES = [
     titre: "Les formulaires sortent pré-remplis",
     texte:
       "Les PDF officiels de l'IRS, remplis depuis la fiche de la société. "
-      + "Vous relisez, vous signez, et vous les déposez vous-même — ou vous "
-      + "les confiez à qui vous voulez.",
+      + "Vous relisez et signez en ligne ; le SS-4, le 1120 et le 5472 sont "
+      + "ensuite transmis à l'IRS par fax.",
   },
   {
     titre: "Vous êtes prévenu avant",
     texte:
       "Cinq paliers de rappel, de soixante jours à la veille. Rien ne part "
       + "sans que vous l'ayez armé, société par société.",
+  },
+  {
+    titre: "Et si vous la créez",
+    texte:
+      "La création tient en onze étapes : agent enregistré, statuts, EIN, "
+      + "pacte de la société, compte bancaire. Chaque document est préparé, "
+      + "signé en ligne, puis transmis.",
   },
 ];
 
@@ -265,7 +275,7 @@ export default function LandingLLC() {
       <div style={section}>
         <h2 style={h2}>Ce que fait MysterLLC</h2>
         <p style={chapo}>
-          Trois gestes, et rien qui se fasse dans votre dos.
+          Quatre gestes, et rien qui se fasse dans votre dos.
         </p>
         <div style={{ display: "grid", gap: "16px" }}>
           {GESTES.map(function (g, i) {
