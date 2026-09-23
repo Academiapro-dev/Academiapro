@@ -53,6 +53,15 @@ export const dynamic = "force-dynamic";
 // ⛔ Les formulaires IRS restent non signables ICI : ils sont joints pour
 // etre LUS ; ce qui se signe, c est l attestation qui les precede.
 //
+// 🆕 23/09 (soir) — LE CADRE « SIGNATURE DU TITULAIRE ». Un document signe
+// doit montrer la signature LA OU ELLE SE POSE. Les formulaires IRS ont leur
+// ligne ; nos documents (attestation, Operating Agreement, mandat) n avaient
+// aucun emplacement. Un cadre est dessine en fin de texte, et sa position
+// (page, x, y, largeur, hauteur) est rangee dans donnees.zone_signature :
+// l affichage du document signe (route signature, vue=signe) y reporte le
+// trace. Le fichier archive, lui, garde le cadre VIDE : c est ce fichier-la
+// que le client signe et dont l empreinte fait preuve.
+//
 // 🆕 23/09 — LE LIBELLE. Le pacte de la societe partait sous le type
 // « convention » et s affichait « Convention de prestation ». L appelant
 // peut desormais passer `libelle`, qui remplace celui du type dans le
@@ -120,7 +129,9 @@ function pourPdf(t: string): string {
   return String(t || "").replace(/[^\x09\x0A\x0D\x20-\x7E\u00A0-\u00FF\u0152\u0153\u0160\u0161\u0178\u017D\u017E\u2013\u2014\u2018\u2019\u201C\u201D\u2026\u20AC]/g, "?");
 }
 
-async function documentPDF(titre: string, corps: string, societe: string, libelle: string, marque: MarqueCompliance, pieces: { titre: string; pages: number }[]): Promise<Uint8Array> {
+type ZoneSignature = { page: number; x: number; y: number; largeur: number; hauteur: number };
+
+async function documentPDF(titre: string, corps: string, societe: string, libelle: string, marque: MarqueCompliance, pieces: { titre: string; pages: number }[], zone: { valeur: ZoneSignature | null }): Promise<Uint8Array> {
   const date = new Date().toLocaleDateString("fr-FR", { year: "numeric", month: "long", day: "numeric" });
 
   const pdf = await PDFDocument.create();
@@ -205,6 +216,20 @@ async function documentPDF(titre: string, corps: string, societe: string, libell
     }
     ecrire("Elles sont reproduites à la suite de ce document et en font partie : l'empreinte conservée avec la signature couvre l'ensemble.", police, 10, GRIS, 1.5);
     y = y - 8;
+  }
+
+  // ---- 🆕 23/09 — Le cadre « Signature du titulaire » ----
+  // Il reste VIDE dans le fichier archive ; sa position est rendue a
+  // l appelant pour que le document signe y reporte le trace.
+  {
+    const HAUTEUR_CADRE = 70, LARGEUR_CADRE = 240;
+    if (y < MARGE + HAUTEUR_CADRE + 40) nouvellePage();
+    y = y - 4;
+    ecrire("SIGNATURE DU TITULAIRE", gras, 9, OR, 1.6);
+    const bas = y - HAUTEUR_CADRE + 6;
+    page.drawRectangle({ x: MARGE, y: bas, width: LARGEUR_CADRE, height: HAUTEUR_CADRE, borderColor: rgb(0.80, 0.80, 0.80), borderWidth: 0.75 });
+    zone.valeur = { page: pdf.getPageCount() - 1, x: MARGE, y: bas, largeur: LARGEUR_CADRE, hauteur: HAUTEUR_CADRE };
+    y = bas - 16;
   }
 
   // ---- Mention eIDAS ----
@@ -375,8 +400,9 @@ export async function POST(req: NextRequest) {
       + "-" + suffixe;
 
     let pdfOctets: Uint8Array;
+    const zone: { valeur: ZoneSignature | null } = { valeur: null };
     try {
-      const attestation = await documentPDF(titre, corps, societe, libelle, marque, annexes.map(function (a) { return { titre: a.titre, pages: a.pages }; }));
+      const attestation = await documentPDF(titre, corps, societe, libelle, marque, annexes.map(function (a) { return { titre: a.titre, pages: a.pages }; }), zone);
       pdfOctets = await joindreAnnexes(attestation, annexes);
     } catch (e: unknown) {
       console.error("[document-a-signer] assemblage :", e instanceof Error ? e.message : String(e));
@@ -420,6 +446,7 @@ export async function POST(req: NextRequest) {
         prepare_par: session ? session.email : null,
         libelle,
         annexes: annexes.map(function (a) { return { chemin: a.chemin, titre: a.titre, pages: a.pages, sha256: a.sha256 }; }),
+        zone_signature: zone.valeur,
       },
     });
 
