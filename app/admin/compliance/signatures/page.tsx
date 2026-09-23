@@ -223,7 +223,9 @@ export default function RegistreSignatures() {
                     <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "10px" }}>
                       <div style={{ flex: "1 1 260px" }}>
                         <h3 style={{ color: "#fff", fontSize: "16px", margin: "0 0 3px" }}>
-                          {LIBELLE_TYPE[s.document_type] || s.document_type}
+                          {/* 🆕 23/09 — le libelle du document (ex. « Operating
+                              Agreement ») l emporte sur celui du type. */}
+                          {s.libelle || LIBELLE_TYPE[s.document_type] || s.document_type}
                         </h3>
                         <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "13px", margin: 0, wordBreak: "break-all" }}>
                           {s.document_reference} · {s.signataire_nom || s.signataire_email}
@@ -247,6 +249,7 @@ export default function RegistreSignatures() {
                       </div>
                     </div>
 
+                    <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "14px" }}>
                     <button
                       onClick={() => setOuvert({ ...ouvert, [s.id]: !estOuvert })}
                       style={{
@@ -258,11 +261,34 @@ export default function RegistreSignatures() {
                         cursor: "pointer",
                         fontSize: "13px",
                         fontFamily: "Georgia,serif",
-                        marginTop: "14px",
                       }}
                     >
                       {estOuvert ? "Fermer le dossier de preuve" : "Dossier de preuve"}
                     </button>
+                    {/* 🆕 23/09 — VOIR LE DOCUMENT SIGNE, pour TOUT document :
+                        le document tel qu il a ete signe, suivi de son
+                        certificat. Pas sur une signature annulee. */}
+                    {!s.annulee && (
+                      <a
+                        href={"/api/compliance/signature?vue=signe&reference=" + encodeURIComponent(s.document_reference)}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{
+                          background: OR,
+                          border: "1px solid " + OR,
+                          color: "#050508",
+                          padding: "7px 15px",
+                          borderRadius: "20px",
+                          fontSize: "13px",
+                          fontFamily: "Georgia,serif",
+                          textDecoration: "none",
+                          display: "inline-block",
+                        }}
+                      >
+                        Voir le document signé
+                      </a>
+                    )}
+                    </div>
 
                     {estOuvert && (
                       <div style={{ marginTop: "16px", paddingTop: "14px", borderTop: "1px solid rgba(255,255,255,0.08)" }}>
