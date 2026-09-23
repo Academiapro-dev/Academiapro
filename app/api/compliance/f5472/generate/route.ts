@@ -129,6 +129,25 @@ function pourPdf(t: string): string {
   return String(t || "").replace(/[\u202F\u00A0]/g, " ").replace(/[^\x20-\x7E\u00A0-\u00FF]/g, "?");
 }
 
+// 🆕 23/09 — le nom lisible des cases, pour dire laquelle deborde.
+const CASES_5472: Record<string, string> = {
+  "Page1[0].Line1a[0].f1_5[0]": "nom de la société",
+  "Page1[0].Line1a[0].f1_6[0]": "rue",
+  "Page1[0].Line1a[0].f1_7[0]": "ville, État et ZIP",
+  "Page1[0].f1_10[0]": "activité",
+  "Page1[0].f1_16[0]": "pays de constitution",
+  "Page1[0].f1_18[0]": "pays de résidence",
+  "Page1[0].f1_19[0]": "pays d'activité",
+  "Page1[0].f1_20[0]": "actionnaire étranger",
+  "Page1[0].f1_24[0]": "pays d'activité de l'actionnaire",
+  "Page1[0].f1_25[0]": "nationalité de l'actionnaire",
+  "Page1[0].f1_26[0]": "pays de résidence de l'actionnaire",
+  "Page2[0].f2_1[0]": "partie liée",
+  "Page2[0].f2_5[0]": "activité de la partie liée",
+  "Page2[0].f2_7[0]": "pays d'activité de la partie liée",
+  "Page2[0].f2_8[0]": "pays de résidence de la partie liée",
+};
+
 export async function POST(req: NextRequest) {
   try {
     if (!origineLegitime(req)) {
@@ -263,12 +282,42 @@ export async function POST(req: NextRequest) {
     const font = await doc.embedFont(StandardFonts.Helvetica);
     const form = doc.getForm();
 
+    // 🆕 23/09 — FAIRE TENIR LE TEXTE DANS SA CASE. Sur le SS-4, la ligne 10
+    // portait « Online consultin » : une case a taille de police fixe coupe ce
+    // qui depasse, et c est ce que l IRS lirait. Meme protection ici : apres
+    // chaque saisie, la police est REDUITE (jusqu a 6 points) si le texte
+    // deborde. Un texte court garde sa taille d origine. Une taille 0 veut
+    // dire « automatique » : pdf-lib ajuste deja. Les cases sur plusieurs
+    // lignes reviennent a la ligne d elles-memes : on n y touche pas.
+    const tropLongs: string[] = [];
+    const ajuster = (champ: any, chemin: string, texte: string) => {
+      try {
+        if (typeof champ.isMultiline === "function" && champ.isMultiline()) return;
+        const da = String(champ.acroField.getDefaultAppearance() || "");
+        const m = da.match(/(\d+(?:\.\d+)?)\s+Tf/);
+        const origine = m ? Number(m[1]) : 0;
+        if (!origine) return;
+        const rect = champ.acroField.getWidgets()[0].getRectangle();
+        const utile = rect.width - 4;
+        if (font.widthOfTextAtSize(texte, origine) <= utile) return;
+        let t = origine;
+        while (t > 6 && font.widthOfTextAtSize(texte, t) > utile) t = t - 0.25;
+        champ.setFontSize(t);
+        if (font.widthOfTextAtSize(texte, t) > utile) tropLongs.push(chemin);
+      } catch { /* taille d origine conservee */ }
+    };
+    // 🆕 23/09 — une case absente n est plus ignoree en silence (regle du
+    // 22/07 : aucune erreur invisible) : elle est listee dans la reponse.
+    const absents: string[] = [];
     const setText = (path: string, value: unknown) => {
       if (value === null || value === undefined || value === "") return;
       try {
-        form.getTextField(P + path).setText(String(value));
+        const champ = form.getTextField(P + path);
+        const texte = String(value);
+        champ.setText(texte);
+        ajuster(champ, path, texte);
       } catch {
-        // champ absent : on ignore silencieusement
+        absents.push(path);
       }
     };
 
@@ -415,6 +464,14 @@ export async function POST(req: NextRequest) {
         ville_etat_zip: adr.villeEtatZip,
         date_incorp_irs: dateIRS(m.ri_date_incorp),
       },
+      // 🆕 23/09 — ce qui n a pas pu s ecrire correctement.
+      champs_absents: absents,
+      champs_trop_longs: tropLongs,
+      message: tropLongs.length > 0
+        ? "ATTENTION : un texte ne tient pas dans sa case du 5472, même en petits caractères ("
+          + tropLongs.map(function (c) { return CASES_5472[c] || c; }).join(", ")
+          + "). Raccourcissez-le et générez le formulaire à nouveau."
+        : undefined,
       note: "PDF fictif - taux provisoire, qualification non validee par fiscaliste",
     });
   } catch (e: unknown) {
