@@ -19,9 +19,19 @@ export const dynamic = "force-dynamic";
 //              → statut ss4_a_generer
 //   ein      : ein, ein_recu_le (saisie de secours si le fax entrant n est
 //              pas encore branche) → statut oa_a_signer
-//   oa       : oa_reference (SIG-…) → statut banque
+//   oa       : oa_reference (SIG-…) — le statut RESTE oa_a_signer. C est
+//              la signature qui fait avancer : le GET la cherche en base et
+//              passe a banque, avec oa_signe_le = date de la signature.
 //   banque   : banque_etablissement, banque_ouverte_le → statut active
 // Le tenant vient de la session ; l entite est bornee au tenant.
+//
+// 🆕 23/09 — L OPERATING AGREEMENT SE COCHAIT SANS ETRE SIGNE. L action
+// « oa » ecrivait oa_signe_le A L HEURE DE L ENVOI et passait aussitot au
+// compte bancaire : l etape « Faire signer le pacte » etait cochee quatre
+// secondes apres le clic, alors que l etape 10 exige un Operating Agreement
+// signe. Vu en filmant la video de demonstration. Desormais l envoi garde
+// l etape ouverte, et le GET la ferme quand une signature non annulee existe
+// sur la reference — comme l accuse du SS-4 (ss4/transmettre, action etat).
 // ══════════════════════════════════════════════════════════════════════════
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
@@ -52,16 +62,28 @@ async function entiteDe(tenantId: string, entiteId: string) {
 
 export async function GET(req: NextRequest) {
   try {
-    if (!origineLegitime(req)) return NextResponse.json({ error: "Acces refuse" }, { status: 403 });
+    if (!origineLegitime(req)) return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
     const session = sessionCourante();
-    if (!session || !session.tenantId) return NextResponse.json({ error: "Session sans societe rattachee." }, { status: 401 });
+    if (!session || !session.tenantId) return NextResponse.json({ error: "Session sans société rattachée." }, { status: 401 });
     const entite = await entiteDe(session.tenantId, (req.nextUrl.searchParams.get("entite_id") || "").trim());
-    if (!entite) return NextResponse.json({ error: "Societe introuvable." }, { status: 404 });
+    if (!entite) return NextResponse.json({ error: "Société introuvable." }, { status: 404 });
 
     let { data: cre } = await supabase.from("compliance_creations").select("*").eq("entite_id", entite.id).maybeSingle();
     if (!cre) {
       const ins = await supabase.from("compliance_creations").insert({ tenant_id: session.tenantId, entite_id: entite.id, agent_prestataire: entite.registered_agent_name || null, date_debut: entite.formation_date || null }).select("*").maybeSingle();
       cre = ins.data;
+    }
+    // 🆕 23/09 — L OPERATING AGREEMENT SE COCHE A LA SIGNATURE, PAS A L ENVOI.
+    // La date retenue est celle de la signature ; a defaut d en lire une,
+    // celle du constat.
+    if (cre && cre.statut === "oa_a_signer" && cre.oa_reference && !cre.oa_signe_le) {
+      const { data: sig } = await supabase.from("compliance_signatures").select("*").eq("document_reference", cre.oa_reference).eq("annulee", false).limit(1).maybeSingle();
+      if (sig) {
+        const s: any = sig;
+        const signeLe = s.signe_le || s.signed_at || s.created_at || s.cree_le || new Date().toISOString();
+        const maj = await supabase.from("compliance_creations").update({ oa_signe_le: signeLe, statut: "banque", maj_le: new Date().toISOString() }).eq("id", cre.id).select("*").maybeSingle();
+        if (maj.data) cre = maj.data;
+      }
     }
     const { data: agents } = await supabase.from("agents_partenaires").select("*").eq("etat", entite.formation_state || "").eq("actif", true).order("tarif_achat_usd");
     const idx = ETAPES.findIndex(function (e) { return e.code === (cre ? cre.statut : "agent_a_choisir"); });
@@ -73,12 +95,12 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    if (!origineLegitime(req)) return NextResponse.json({ error: "Acces refuse" }, { status: 403 });
+    if (!origineLegitime(req)) return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
     const session = sessionCourante();
-    if (!session || !session.tenantId) return NextResponse.json({ error: "Session sans societe rattachee." }, { status: 401 });
+    if (!session || !session.tenantId) return NextResponse.json({ error: "Session sans société rattachée." }, { status: 401 });
     const b = await req.json().catch(() => ({}));
     const entite = await entiteDe(session.tenantId, String(b.entite_id || "").trim());
-    if (!entite) return NextResponse.json({ error: "Societe introuvable." }, { status: 404 });
+    if (!entite) return NextResponse.json({ error: "Société introuvable." }, { status: 404 });
     const { data: cre } = await supabase.from("compliance_creations").select("*").eq("entite_id", entite.id).maybeSingle();
     if (!cre) return NextResponse.json({ error: "Ouvrez d'abord le dossier (GET)." }, { status: 404 });
 
@@ -103,7 +125,11 @@ export async function POST(req: NextRequest) {
       m.ein = ein.slice(0, 2) + "-" + ein.slice(2); m.ein_recu_le = new Date().toISOString(); m.statut = "oa_a_signer";
       await supabase.from("compliance_5472_mapping").update({ ri_ein: m.ein, f1120_ein: m.ein }).eq("entite_id", entite.id).eq("tenant_id", session.tenantId);
     } else if (action === "oa") {
-      m.oa_reference = texte(b.oa_reference, 60); m.oa_signe_le = new Date().toISOString(); m.statut = "banque";
+      if (cre.statut !== "oa_a_signer") return NextResponse.json({ error: "L'Operating Agreement n'est pas l'étape en cours." }, { status: 409 });
+      m.oa_reference = texte(b.oa_reference, 60);
+      if (!m.oa_reference) return NextResponse.json({ error: "Référence du document manquante." }, { status: 400 });
+      // Le statut reste oa_a_signer : c est la signature qui fera avancer.
+      m.oa_signe_le = null;
     } else if (action === "banque") {
       m.banque_etablissement = texte(b.banque_etablissement, 120); m.banque_ouverte_le = dateOuNull(b.banque_ouverte_le) || new Date().toISOString().slice(0, 10); m.statut = "active";
     } else return NextResponse.json({ error: "Action inconnue." }, { status: 400 });
