@@ -7,12 +7,15 @@
 // boutons ouvrant un lien `mailto:` qui ne fait rien sur un appareil sans
 // messagerie configuree.
 //
-// 🚨 « SUIVI », JAMAIS « NOUS PROPOSONS UNE LLC ». MysterLLC ne constitue
-// aucune societe : il suit les obligations d une LLC deja constituee.
+// 🆕 23/09 — L OUTIL A GRANDI, LA PAGE SUIT. Il accompagne desormais la
+// creation (parcours en onze etapes) et transmet a l IRS, par fax, le SS-4,
+// le 1120 et le 5472 une fois signes. Jacques : « il le propose et il le
+// fait ». La carte « La creation de votre LLC » ouvre /comment-ca-marche
+// (video et synthese). La rubrique « Ce que l outil ne fait pas » est
+// retiree : on ne parle que de ce qu il fait (regle de Jacques du 23/09).
 //
 // ⛔ NE PAS SE PRESENTER COMME UN CONSEIL JURIDIQUE OU FISCAL. L outil
-// montre, prepare et rappelle ; le depot et la responsabilite restent au
-// dirigeant.
+// prepare, fait signer, transmet et rappelle.
 //
 // ⚠️ `pret` PASSE A true QUAND LA PAGE EST CREEE ET DEPLOYEE, jamais avant.
 // ══════════════════════════════════════════════════════════════════════════
@@ -23,7 +26,7 @@ const LEGAL = "https://academiapro.fr";
 export const metadata = {
   title: "Les fonctions — MysterLLC",
   description:
-    "Portefeuille, agenda des échéances, formulaires pré-remplis, relances armées société par société, signature électronique.",
+    "Création de LLC pas à pas, portefeuille, agenda des échéances, formulaires pré-remplis et transmis, relances armées société par société, signature électronique.",
   alternates: {
     canonical: SITE + "/fonctionnalites",
   },
@@ -88,6 +91,14 @@ const H2: any = {
 };
 
 const PAGES = [
+  // 🆕 23/09 — la creation, en tete : c est le parcours que montre la video.
+  {
+    titre: "La création de votre LLC",
+    chemin: "/comment-ca-marche",
+    pret: true,
+    texte:
+      "Onze étapes, de l'agent enregistré à la société active. Chaque document est préparé, signé en ligne, puis transmis. La vidéo montre le parcours complet.",
+  },
   {
     titre: "Votre portefeuille",
     chemin: "/portefeuille",
@@ -107,7 +118,7 @@ const PAGES = [
     chemin: "/formulaires",
     pret: true,
     texte:
-      "Les PDF officiels sortent pré-remplis depuis la fiche de la société. Vous relisez, vous signez, vous déposez.",
+      "Les PDF officiels sortent pré-remplis depuis la fiche de la société. Vous relisez et signez en ligne ; le SS-4, le 1120 et le 5472 sont ensuite transmis à l'IRS par fax.",
   },
   {
     titre: "Les relances",
@@ -184,8 +195,9 @@ export default function PageFonctionsMysterLLC() {
         <p style={{ color: "rgba(255,255,255,0.72)", fontSize: "17px",
           lineHeight: "1.8", maxWidth: "740px", margin: "0 0 44px" }}>
           Chaque LLC porte ses propres obligations américaines, à des dates
-          différentes selon son État et la résidence de son membre. Voici
-          comment l&apos;outil les tient.
+          différentes selon son État et la résidence de son membre. De la
+          création aux échéances de chaque année, voici comment l&apos;outil
+          les tient.
         </p>
 
         <div style={{ display: "grid",
@@ -227,14 +239,6 @@ export default function PageFonctionsMysterLLC() {
           })}
         </div>
 
-        <h2 style={H2}>Ce que l&apos;outil ne fait pas</h2>
-        <p style={P}>
-          Il ne constitue aucune société, ne dépose rien à votre place et ne
-          remplace pas un professionnel du droit ou du chiffre. Il montre ce
-          qui arrive, prépare les documents et vous prévient avant
-          l&apos;échéance. Vous relisez, vous signez, vous déposez.
-        </p>
-
         {/* ---- APPEL ---- Vers la page de contact du domaine, jamais un
             lien mailto : sur un appareil sans messagerie configuree, un
             mailto ne fait rien du tout, et le visiteur repart. */}
@@ -273,6 +277,9 @@ export default function PageFonctionsMysterLLC() {
             {"  ·  "}
             <a href={SITE + "/fonctionnalites"} style={{ color: OR_PALE,
               textDecoration: "none" }}>Fonctions</a>
+            {"  ·  "}
+            <a href={SITE + "/comment-ca-marche"} style={{ color: OR_PALE,
+              textDecoration: "none" }}>Comment ça marche</a>
             {"  ·  "}
             <a href={SITE + "/etats"} style={{ color: OR_PALE,
               textDecoration: "none" }}>États</a>
