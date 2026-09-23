@@ -180,7 +180,34 @@ async function libellesDe(references: string[]): Promise<Record<string, string>>
 // preuve. Le certificat la CITE et verifie, a l ouverture, que le fichier
 // archive est toujours identique a l octet pres a celui qui a ete signe.
 // Memes droits que la lecture : le signataire, son gestionnaire, un admin.
+//
+// 🆕 23/09 (soir) — LE TRACE REPORTE LA OU IL SE POSE. Jacques : « la
+// signature devrait etre egalement la », sur la ligne « Signature » du SS-4.
+// Le document signe reporte desormais le trace :
+//   - sur le SS-4 joint : ligne « Signature », date a cote — aux MEMES
+//     coordonnees que la transmission (ss4/transmettre) ;
+//   - sur le 1120 joint : ligne « Signature of officer », date et « Member »
+//     — memes coordonnees que transmettre ;
+//   - dans le cadre « Signature du titulaire » des documents qui en ont un
+//     (donnees.zone_signature, pose par document-a-signer depuis le 23/09).
+// Les pieces jointes se retrouvent par donnees.annexes (titres et nombres de
+// pages, dans l ordre) : elles suivent les pages de l attestation.
+// ⛔ Le report se fait sur une COPIE ; le certificat le dit, et verifie que
+// le fichier archive est intact.
 // ---------------------------------------------------------------------------
+
+// Les coordonnees de la transmission — a garder identiques a ss4/transmettre
+// et a transmettre (1120).
+const SS4_SIGN = { x: 100, y: 44, l: 150, h: 26, dateX: 345, dateY: 46 };
+const F1120_SIGN = { x: 100, y: 70, l: 150, h: 30, dateX: 274, dateY: 92, titreX: 330 };
+
+function dateUS(v: unknown): string {
+  try {
+    const d = new Date(String(v));
+    const p = new Intl.DateTimeFormat("en-US", { timeZone: "Europe/Paris", month: "2-digit", day: "2-digit", year: "numeric" }).format(d);
+    return p;
+  } catch { return ""; }
+}
 
 function pourPdfCertificat(t: unknown): string {
   return String(t ?? "").replace(/[^\x09\x0A\x0D\x20-\x7E\u00A0-\u00FF\u0152\u0153\u0160\u0161\u0178\u017D\u017E\u2013\u2014\u2018\u2019\u201C\u201D\u2026\u20AC]/g, "?");
@@ -198,6 +225,51 @@ async function documentSigne(doc: any, sig: any, original: Uint8Array): Promise<
   const nbPagesDocument = pdf.getPageCount();
   const police = await pdf.embedFont(StandardFonts.Helvetica);
   const gras = await pdf.embedFont(StandardFonts.HelveticaBold);
+
+  // ---- 🆕 23/09 (soir) — LE TRACE, REPORTE LA OU IL SE POSE ----
+  const donneesDoc = doc.donnees && typeof doc.donnees === "object" ? doc.donnees : {};
+  const traceBrut = String(sig.trace_signature || "");
+  const mTrace = traceBrut.match(/^data:image\/png;base64,(.+)$/);
+  let imageTrace: any = null;
+  if (mTrace) { try { imageTrace = await pdf.embedPng(Buffer.from(mTrace[1], "base64")); } catch { imageTrace = null; } }
+  const reports: string[] = [];
+  function poser(page: any, x: number, y: number, l: number, h: number) {
+    if (!imageTrace) return;
+    const e = Math.min(l / imageTrace.width, h / imageTrace.height, 1);
+    page.drawImage(imageTrace, { x: x, y: y, width: imageTrace.width * e, height: imageTrace.height * e });
+  }
+  // a. le cadre « Signature du titulaire » du document lui-meme
+  const zone = donneesDoc.zone_signature;
+  if (zone && typeof zone.page === "number" && zone.page >= 0 && zone.page < nbPagesDocument) {
+    const p = pdf.getPage(zone.page);
+    if (imageTrace) poser(p, zone.x + 8, zone.y + 16, zone.largeur - 16, zone.hauteur - 24);
+    p.drawText(pourPdfCertificat("Signé électroniquement le " + dateHeureParis(sig.signe_le).replace(" (heure de Paris)", "")), { x: zone.x + 8, y: zone.y + 5, size: 7.5, font: police, color: rgb(0.35, 0.35, 0.35) });
+    reports.push("le cadre « Signature du titulaire »");
+  }
+  // b. les formulaires joints, sur leur propre ligne de signature
+  const annexes: any[] = Array.isArray(donneesDoc.annexes) ? donneesDoc.annexes : [];
+  const pagesAnnexes = annexes.reduce(function (t: number, a: any) { return t + (Number(a && a.pages) || 0); }, 0);
+  let debut = nbPagesDocument - pagesAnnexes;
+  if (debut >= 1) {
+    for (const a of annexes) {
+      const n = Number(a && a.pages) || 0;
+      const titreA = String((a && a.titre) || "");
+      if (n > 0 && debut < nbPagesDocument) {
+        const p = pdf.getPage(debut);
+        if (/SS-4/i.test(titreA)) {
+          poser(p, SS4_SIGN.x, SS4_SIGN.y, SS4_SIGN.l, SS4_SIGN.h);
+          p.drawText(dateUS(sig.signe_le), { x: SS4_SIGN.dateX, y: SS4_SIGN.dateY, size: 9, font: police, color: rgb(0, 0, 0) });
+          reports.push("la ligne « Signature » du SS-4");
+        } else if (/1120/.test(titreA)) {
+          poser(p, F1120_SIGN.x, F1120_SIGN.y, F1120_SIGN.l, F1120_SIGN.h);
+          p.drawText(dateUS(sig.signe_le), { x: F1120_SIGN.dateX, y: F1120_SIGN.dateY, size: 9, font: police, color: rgb(0, 0, 0) });
+          p.drawText("Member", { x: F1120_SIGN.titreX, y: F1120_SIGN.dateY, size: 9, font: police, color: rgb(0, 0, 0) });
+          reports.push("la ligne « Signature of officer » du 1120");
+        }
+      }
+      debut = debut + n;
+    }
+  }
   const LARGEUR = 595.28, HAUTEUR = 841.89, MARGE = 56, UTILE = LARGEUR - 2 * MARGE;
   const OR = rgb(0.784, 0.663, 0.431), NUIT = rgb(0.10, 0.10, 0.18), GRIS = rgb(0.40, 0.40, 0.40), VERT = rgb(0.0, 0.50, 0.25), ROUGE = rgb(0.78, 0.16, 0.16);
   const page = pdf.addPage([LARGEUR, HAUTEUR]);
@@ -256,17 +328,18 @@ async function documentSigne(doc: any, sig: any, original: Uint8Array): Promise<
   const conforme = empreinteArchive === String(sig.empreinte_sha256 || "") && empreinteArchive === String(doc.pdf_sha256 || doc.file_hash || "");
   ecrire("CONTRÔLE À L'OUVERTURE", gras, 8.5, OR, 1.5);
   ecrire(conforme
-    ? "Conforme : les pages qui précèdent sont identiques, à l'octet près, au document qui a été signé."
+    ? "Conforme : le fichier archivé est identique, à l'octet près, à celui qui a été signé."
     : "NON CONFORME : le fichier archivé ne correspond plus à l'empreinte signée. Prévenez le support.",
     gras, 10.5, conforme ? VERT : ROUGE, 1.45);
+  if (reports.length > 0) {
+    ecrire("Pour la lecture, le tracé de signature est reporté sur " + reports.join(" et sur ") + ", là où il est apposé à la transmission. L'empreinte ci-dessus est celle du fichier signé, avant ce report.", police, 9.5, GRIS, 1.45);
+  }
   y = y - 10;
 
   ecrire("TRACÉ DE SIGNATURE", gras, 8.5, OR, 1.5);
-  const trace = String(sig.trace_signature || "");
-  const m = trace.match(/^data:image\/png;base64,(.+)$/);
-  if (m) {
+  if (imageTrace) {
     try {
-      const image = await pdf.embedPng(Buffer.from(m[1], "base64"));
+      const image = imageTrace;
       const echelle = Math.min(260 / image.width, 110 / image.height, 1);
       const w = image.width * echelle, h = image.height * echelle;
       page.drawRectangle({ x: MARGE, y: y - h - 8, width: w + 16, height: h + 16, color: rgb(0.99, 0.98, 0.96), borderColor: rgb(0.85, 0.85, 0.85), borderWidth: 0.5 });
