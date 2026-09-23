@@ -138,7 +138,11 @@ export default function PageCreation() {
         {/* LE CHEMIN */}
         <div style={{ margin: "20px 0 28px" }}>
           {d.etapes.map(function (e: any, i: number) {
-            const fait = i < idx, encours = i === idx;
+            // 🆕 23/09 — la derniere etape, « Societe active », se coche quand
+            // la societe l est : elle restait orange avec son numero, comme
+            // si elle etait encore en cours.
+            const terminee = st === "active" && i === idx;
+            const fait = i < idx || terminee, encours = i === idx && !terminee;
             return (
               <div key={e.code} style={{ display: "flex", gap: 12, alignItems: "flex-start", padding: "8px 0", borderLeft: "3px solid " + (fait ? OR : encours ? "#b26a00" : "#ddd"), paddingLeft: 14, opacity: fait || encours ? 1 : 0.55 }}>
                 <span style={{ width: 22, height: 22, borderRadius: 11, background: fait ? OR : encours ? "#b26a00" : "#ddd", color: "#fff", fontSize: 12, display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{fait ? "✓" : i + 1}</span>
@@ -271,6 +275,27 @@ export default function PageCreation() {
           </div>
         )}
         {st === "ein_recu" && <button onClick={() => poster("/api/compliance/creation", { action: "champs" })} style={BOUTON}>Continuer</button>}
+
+        {/* 🆕 23/09 — LES DOCUMENTS SIGNES, un bouton chacun. Chaque bouton
+            ouvre le document tel qu il a ete signe, suivi de son certificat.
+            L accuse du SS-4 compte comme signe des que l etape « Signature en
+            attente » est passee ; le pacte, des que sa signature est datee. */}
+        {(function () {
+          const iAccuse = (d.etapes || []).findIndex(function (e: any) { return e.code === "ss4_accuse_envoye"; });
+          const accuseSigne = !!c.ss4_reference_accuse && iAccuse >= 0 && d.etape_index > iAccuse;
+          const pacteSigne = !!c.oa_reference && !!c.oa_signe_le;
+          if (!accuseSigne && !pacteSigne) return null;
+          const lien = function (ref: string) { return "/api/compliance/signature?vue=signe&reference=" + encodeURIComponent(ref); };
+          return (
+            <div style={{ marginTop: 24, paddingTop: 16, borderTop: "1px solid #ddd" }}>
+              <h2 style={{ color: OR, fontSize: 16, marginTop: 0 }}>Documents signés</h2>
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                {accuseSigne && <a href={lien(c.ss4_reference_accuse)} target="_blank" rel="noreferrer" style={{ ...SECOND, textDecoration: "none", display: "inline-block" }}>Voir l'accusé du SS-4 signé</a>}
+                {pacteSigne && <a href={lien(c.oa_reference)} target="_blank" rel="noreferrer" style={{ ...SECOND, textDecoration: "none", display: "inline-block" }}>Voir l'Operating Agreement signé</a>}
+              </div>
+            </div>
+          );
+        })()}
       </div>
     </div>
   );
