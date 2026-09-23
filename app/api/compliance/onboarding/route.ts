@@ -16,31 +16,74 @@ const supabase = createClient(
 // sb_user, un cookie forge permettait de rattacher une societe au compte
 // d un autre utilisateur. Le jeton ne portant que l email, l identifiant
 // est retrouve en base via la fonction utilisateur_par_email.
-async function utilisateurDeLaSession(): Promise<{ id: string | null; tenantId: string | null }> {
+//
+// 🚨 23/09 — TROIS CAUSES, UN SEUL MESSAGE : C ETAIT LE DEFAUT.
+// Sans session, avec une session dont l email ne correspond a aucun compte,
+// ou sur une erreur de la base, la route repondait la meme chose :
+// « Vous devez etre connecte ». L erreur de la base etait meme AVALEE.
+// Jacques s est reconnecte et le message est revenu a l identique : il
+// mentait, et rien ne permettait de savoir pourquoi.
+// ✅ La fonction rend desormais la RAISON, et chaque cas a son message.
+// ⛔ LES CODES DE STATUT NE CHANGENT PAS (401 partout, comme avant) : une
+// page qui teste le statut continue de fonctionner a l identique.
+type RaisonSansUtilisateur = "sans_session" | "compte_introuvable" | "erreur_base";
+type UtilisateurSession = {
+  id: string | null;
+  tenantId: string | null;
+  raison: RaisonSansUtilisateur | null;
+  detail: string;
+};
+
+async function utilisateurDeLaSession(): Promise<UtilisateurSession> {
   const session = sessionCourante();
-  if (!session || !session.email) return { id: null, tenantId: null };
+  if (!session || !session.email) {
+    return { id: null, tenantId: null, raison: "sans_session", detail: "" };
+  }
 
   const { data, error } = await supabase.rpc("utilisateur_par_email", {
     p_email: session.email,
   });
 
-  if (error) return { id: null, tenantId: session.tenantId };
-  return { id: (data as string) || null, tenantId: session.tenantId };
+  if (error) {
+    return { id: null, tenantId: session.tenantId, raison: "erreur_base", detail: error.message };
+  }
+  if (!data) {
+    return { id: null, tenantId: session.tenantId, raison: "compte_introuvable", detail: session.email };
+  }
+  return { id: data as string, tenantId: session.tenantId, raison: null, detail: "" };
+}
+
+// Le message rendu a l utilisateur quand aucun compte n est reconnu.
+function refusSession(u: UtilisateurSession, pour: string) {
+  if (u.raison === "erreur_base") {
+    return NextResponse.json(
+      { error: "La vérification de votre compte a échoué (" + u.detail + "). Réessayez dans un instant." },
+      { status: 401 }
+    );
+  }
+  if (u.raison === "compte_introuvable") {
+    return NextResponse.json(
+      { error: "Vous êtes connecté avec l'adresse " + u.detail + ", mais aucun compte ne lui correspond. Contactez le support." },
+      { status: 401 }
+    );
+  }
+  return NextResponse.json(
+    { error: "Votre session a expiré ou vous n'êtes pas connecté. Reconnectez-vous pour " + pour + "." },
+    { status: 401 }
+  );
 }
 
 // GET : l'utilisateur connecte a-t-il deja une societe ?
 export async function GET(req: NextRequest) {
   if (!origineLegitime(req)) {
-    return NextResponse.json({ error: "Acces refuse" }, { status: 403 });
+    return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }
 
-  const { id, tenantId } = await utilisateurDeLaSession();
+  const u = await utilisateurDeLaSession();
+  const { id, tenantId } = u;
 
   if (!id) {
-    return NextResponse.json(
-      { error: "Vous devez etre connecte." },
-      { status: 401 }
-    );
+    return refusSession(u, "accéder à votre société");
   }
 
   if (!tenantId) {
@@ -54,7 +97,7 @@ export async function GET(req: NextRequest) {
     .maybeSingle();
 
   if (error) {
-    return NextResponse.json({ error: "Lecture societe: " + error.message }, { status: 500 });
+    return NextResponse.json({ error: "Lecture de la société : " + error.message }, { status: 500 });
   }
 
   return NextResponse.json({ success: true, a_une_societe: !!data, societe: data });
@@ -63,21 +106,19 @@ export async function GET(req: NextRequest) {
 // POST : creation de la societe du nouveau client
 export async function POST(req: NextRequest) {
   if (!origineLegitime(req)) {
-    return NextResponse.json({ error: "Acces refuse" }, { status: 403 });
+    return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }
 
-  const { id: userId, tenantId: tenantExistant } = await utilisateurDeLaSession();
+  const u = await utilisateurDeLaSession();
+  const { id: userId, tenantId: tenantExistant } = u;
 
   if (!userId) {
-    return NextResponse.json(
-      { error: "Vous devez etre connecte pour enregistrer une societe." },
-      { status: 401 }
-    );
+    return refusSession(u, "enregistrer une société");
   }
 
   if (tenantExistant) {
     return NextResponse.json(
-      { error: "Une societe est deja rattachee a ce compte." },
+      { error: "Une société est déjà rattachée à ce compte." },
       { status: 409 }
     );
   }
@@ -93,10 +134,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Le nom d'usage est obligatoire." }, { status: 400 });
     }
     if (!legalName) {
-      return NextResponse.json({ error: "La denomination legale est obligatoire." }, { status: 400 });
+      return NextResponse.json({ error: "La dénomination légale est obligatoire." }, { status: 400 });
     }
     if (!formationState) {
-      return NextResponse.json({ error: "L'Etat ou pays de constitution est obligatoire." }, { status: 400 });
+      return NextResponse.json({ error: "L'État ou pays de constitution est obligatoire." }, { status: 400 });
     }
 
     const ligne: Record<string, unknown> = {
@@ -132,7 +173,7 @@ export async function POST(req: NextRequest) {
 
     if (eIns) {
       return NextResponse.json(
-        { error: "Creation de la societe: " + eIns.message },
+        { error: "Création de la société : " + eIns.message },
         { status: 500 }
       );
     }
@@ -147,7 +188,7 @@ export async function POST(req: NextRequest) {
     if (eMembre) {
       return NextResponse.json(
         {
-          error: "Societe creee mais rattachement echoue: " + eMembre.message,
+          error: "Société créée, mais son rattachement à votre compte a échoué : " + eMembre.message,
           tenant_id: societe.tenant_id,
         },
         { status: 500 }
@@ -180,7 +221,7 @@ export async function POST(req: NextRequest) {
       label: societe.label,
       legal_name: societe.legal_name,
       echeances,
-      note: "Reconnectez-vous pour que votre societe soit prise en compte dans votre session.",
+      note: "Reconnectez-vous pour que votre société soit prise en compte dans votre session.",
     });
   } catch (e: unknown) {
     return NextResponse.json(
@@ -205,11 +246,15 @@ export async function POST(req: NextRequest) {
 // ---------------------------------------------------------------------------
 export async function PATCH(req: NextRequest) {
   if (!origineLegitime(req)) {
-    return NextResponse.json({ error: "Acces refuse" }, { status: 403 });
+    return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }
-  const { id: userId, tenantId } = await utilisateurDeLaSession();
-  if (!userId || !tenantId) {
-    return NextResponse.json({ error: "Vous devez etre connecte, avec une societe rattachee." }, { status: 401 });
+  const u = await utilisateurDeLaSession();
+  const { id: userId, tenantId } = u;
+  if (!userId) {
+    return refusSession(u, "modifier votre contact");
+  }
+  if (!tenantId) {
+    return NextResponse.json({ error: "Aucune société n'est encore rattachée à votre compte." }, { status: 401 });
   }
 
   try {
@@ -219,7 +264,7 @@ export async function PATCH(req: NextRequest) {
     if (body.email_contact !== undefined) {
       const e = String(body.email_contact || "").toLowerCase().trim();
       if (e && (e.indexOf("@") < 1 || e.indexOf(".") < 3)) {
-        return NextResponse.json({ error: "Adresse electronique illisible." }, { status: 400 });
+        return NextResponse.json({ error: "Adresse électronique illisible." }, { status: 400 });
       }
       modifications.email_contact = e || null;
     }
@@ -231,15 +276,15 @@ export async function PATCH(req: NextRequest) {
       modifications.relance_auto = body.relance_auto === true;
     }
     if (Object.keys(modifications).length === 0) {
-      return NextResponse.json({ error: "Rien a modifier." }, { status: 400 });
+      return NextResponse.json({ error: "Rien à modifier." }, { status: 400 });
     }
 
     let q = supabase.from("compliance_tenants").update(modifications).eq("tenant_id", tenantId);
     if (body.entite_id) q = q.eq("id", String(body.entite_id));
     const { data, error } = await q.select("id, email_contact, telephone_contact, relance_auto");
 
-    if (error) return NextResponse.json({ error: "Modification: " + error.message }, { status: 500 });
-    if (!data || data.length === 0) return NextResponse.json({ error: "Societe introuvable." }, { status: 404 });
+    if (error) return NextResponse.json({ error: "Modification : " + error.message }, { status: 500 });
+    if (!data || data.length === 0) return NextResponse.json({ error: "Société introuvable." }, { status: 404 });
 
     return NextResponse.json({ success: true, societes: data });
   } catch (e: unknown) {
