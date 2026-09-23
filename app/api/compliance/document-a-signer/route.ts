@@ -99,7 +99,24 @@ const LIBELLES: Record<string, string> = {
 const BUCKET_ANNEXES = "compliance-docs";
 const ANNEXES_MAX = 4;
 const ANNEXE_OCTETS_MAX = 8 * 1024 * 1024;
-type Annexe = { chemin: string; titre: string; octets: Uint8Array; pages: number; sha256: string };
+type Annexe = { chemin: string; titre: string; octets: Uint8Array; pages: number; sha256: string; signature: any };
+
+// 🆕 23/09 (soir) — UNE PIECE JOINTE PEUT DECLARER OU SE POSE SA SIGNATURE :
+// { page (dans la piece), x, y, l, h, date_x?, date_y?, date_format? }.
+// L affichage du document signe y reporte le trace. Tout est borne : une
+// valeur absurde est ignoree plutot que de faire echouer l envoi.
+function signatureDeclaree(v: any, pages: number): any {
+  if (!v || typeof v !== "object") return null;
+  const n = function (x: any) { const f = Number(x); return isFinite(f) && f >= 0 && f <= 2000 ? f : null; };
+  const page = Number(v.page);
+  if (!Number.isInteger(page) || page < 0 || page >= pages) return null;
+  const x = n(v.x), y = n(v.y), l = n(v.l), h = n(v.h);
+  if (x === null || y === null || !l || !h) return null;
+  const sortie: any = { page, x, y, l, h };
+  const dx = n(v.date_x), dy = n(v.date_y);
+  if (dx !== null && dy !== null) { sortie.date_x = dx; sortie.date_y = dy; sortie.date_format = v.date_format === "us" ? "us" : "us_long"; }
+  return sortie;
+}
 
 function echappe(t: string): string {
   return String(t || "")
@@ -384,7 +401,7 @@ export async function POST(req: NextRequest) {
       } catch (e) {
         return NextResponse.json({ error: "Pièce jointe illisible : " + titreA + ". Rien n'a été envoyé." }, { status: 400 });
       }
-      annexes.push({ chemin, titre: titreA, octets: octetsA, pages: nbPages, sha256: crypto.createHash("sha256").update(octetsA).digest("hex") });
+      annexes.push({ chemin, titre: titreA, octets: octetsA, pages: nbPages, sha256: crypto.createHash("sha256").update(octetsA).digest("hex"), signature: signatureDeclaree(a && a.signature, nbPages) });
     }
 
     // 🆕 23/09 — le libelle passe par l appelant l emporte sur celui du type.
@@ -445,7 +462,7 @@ export async function POST(req: NextRequest) {
         signataire_nom: String(b.signataire_nom || "").trim() || null,
         prepare_par: session ? session.email : null,
         libelle,
-        annexes: annexes.map(function (a) { return { chemin: a.chemin, titre: a.titre, pages: a.pages, sha256: a.sha256 }; }),
+        annexes: annexes.map(function (a) { return { chemin: a.chemin, titre: a.titre, pages: a.pages, sha256: a.sha256, signature: a.signature }; }),
         zone_signature: zone.valeur,
       },
     });
