@@ -129,7 +129,19 @@ export default function PageSignature({ params }: any) {
       const r = await fetch("/api/compliance/signature?vue=document&reference="
         + encodeURIComponent(reference));
       const d = await r.json();
-      if (d.ok) setDoc(d);
+      if (d.ok) {
+        setDoc(d);
+        // 🆕 23/09 — deja signe : on montre l ecran « signe » et son bouton,
+        // plutot qu un formulaire qui echouerait a la derniere etape.
+        if (d.deja_signe) {
+          setSigne({
+            empreinte: d.empreinte,
+            signe_le: d.signe_le,
+            deja: true,
+            avertissement: "Signature électronique simple au sens du règlement eIDAS. Elle n'est ni avancée ni qualifiée : elle est opposable entre les parties, elle ne vaut pas vérification d'identité.",
+          });
+        }
+      }
       else if (r.status === 401) setNonConnecte(true);
       else setErreur(d.erreur || "Lecture impossible.");
     } catch (e: any) {
@@ -309,6 +321,23 @@ export default function PageSignature({ params }: any) {
               dossier de preuve a été constitué : empreinte du document,
               date, heure, adresse de connexion et code vérifié.
             </p>
+            {signe.deja && signe.signe_le && (
+              <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "13px", margin: "0 0 16px" }}>
+                Signé le {new Date(signe.signe_le).toLocaleString("fr-FR", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}.
+              </p>
+            )}
+            {/* 🆕 23/09 — VOIR LE DOCUMENT SIGNE : le document, puis une page
+                « Certificat de signature » (trace, date, code verifie,
+                empreinte). Fabrique a la demande ; l original archive ne
+                change pas. */}
+            <a
+              href={"/api/compliance/signature?vue=signe&reference=" + encodeURIComponent(reference)}
+              target="_blank"
+              rel="noreferrer"
+              style={{ ...BOUTON, display: "inline-block", textDecoration: "none", margin: "0 0 22px" }}
+            >
+              Voir le document signé
+            </a>
             <p style={{ color: "rgba(255,255,255,0.35)", fontSize: "12px", lineHeight: "1.8", margin: 0, wordBreak: "break-all" }}>
               Empreinte du document signé<br />
               <span style={{ fontFamily: "monospace" }}>{signe.empreinte}</span>
