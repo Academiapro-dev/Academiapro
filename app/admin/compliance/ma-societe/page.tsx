@@ -132,7 +132,11 @@ export default function MaSociete() {
           m += " ATTENTION : les échéances n'ont pas pu être générées (" +
             (d.echeances?.raison || "cause inconnue") + ").";
         }
-        m += " Déconnectez-vous et reconnectez-vous pour accéder à votre tableau de bord.";
+        // 🆕 23/09 — la route remet la societe dans la session : plus de
+        // reconnexion a demander. Le conseil ne reste qu en secours.
+        if (!d.session_mise_a_jour) {
+          m += " Déconnectez-vous et reconnectez-vous pour accéder à votre tableau de bord.";
+        }
         setMsg(m);
         charger();
       } else {
