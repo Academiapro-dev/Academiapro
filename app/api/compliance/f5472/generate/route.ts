@@ -125,8 +125,11 @@ function coupeAdresse(v: unknown): { rue: string; villeEtatZip: string } {
 }
 
 // Les polices standard du PDF ne connaissent que le latin courant.
+// 🆕 23/09 — les tirets et guillemets typographiques sont autorises : la
+// police standard du PDF (WinAnsi) les ecrit. Ils sortaient en « ? » sur la
+// feuille jointe de la Part V (« Form 5472 ? Part V ? Attached statement »).
 function pourPdf(t: string): string {
-  return String(t || "").replace(/[\u202F\u00A0]/g, " ").replace(/[^\x20-\x7E\u00A0-\u00FF]/g, "?");
+  return String(t || "").replace(/[\u202F\u00A0]/g, " ").replace(/[^\x20-\x7E\u00A0-\u00FF\u2013\u2014\u2018\u2019\u201C\u201D]/g, "?");
 }
 
 // 🆕 23/09 — le nom lisible des cases, pour dire laquelle deborde.
