@@ -24,8 +24,9 @@
 const SITE = "https://www.mysterllc.com";
 const LEGAL = "https://academiapro.fr";
 
-// L identifiant YouTube de la video — a renseigner des qu elle est en ligne.
-const VIDEO_YOUTUBE = "";
+// L identifiant YouTube de la video, en ligne depuis le 24/09 (non
+// repertoriee) : https://youtu.be/VBw9hQ2XR5M
+const VIDEO_YOUTUBE = "VBw9hQ2XR5M";
 
 export const metadata = {
   title: "Comment ça marche — MysterLLC",
