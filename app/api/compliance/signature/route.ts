@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import crypto from "crypto";
+import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import { sessionCourante } from "../../../../lib/session";
 import { marqueCompliance } from "../../../../lib/marque-compliance";
 
@@ -167,6 +168,134 @@ async function libellesDe(references: string[]): Promise<Record<string, string>>
   return m;
 }
 
+// ---------------------------------------------------------------------------
+// 🆕 23/09 — VOIR LE DOCUMENT SIGNE. Demande de Jacques : apres le code, la
+// signature restait abstraite pour le client — « il envoie le code, OK, mais
+// ca reste abstrait ». Un bouton lui montre desormais ce qu il a signe.
+//
+// CE QUE PRODUIT ?vue=signe&reference=… : le PDF ARCHIVE, tel quel, suivi
+// d une page « Certificat de signature » (trace, nom, date et heure, code
+// verifie, empreinte). Il est fabrique A LA DEMANDE et n est jamais range :
+// ⛔ L ORIGINAL ARCHIVE N EST PAS MODIFIE — son empreinte est celle de la
+// preuve. Le certificat la CITE et verifie, a l ouverture, que le fichier
+// archive est toujours identique a l octet pres a celui qui a ete signe.
+// Memes droits que la lecture : le signataire, son gestionnaire, un admin.
+// ---------------------------------------------------------------------------
+
+function pourPdfCertificat(t: unknown): string {
+  return String(t ?? "").replace(/[^\x09\x0A\x0D\x20-\x7E\u00A0-\u00FF\u0152\u0153\u0160\u0161\u0178\u017D\u017E\u2013\u2014\u2018\u2019\u201C\u201D\u2026\u20AC]/g, "?");
+}
+
+function dateHeureParis(v: unknown): string {
+  if (!v) return "—";
+  try {
+    return new Date(String(v)).toLocaleString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" }) + " (heure de Paris)";
+  } catch { return String(v); }
+}
+
+async function documentSigne(doc: any, sig: any, original: Uint8Array): Promise<Uint8Array> {
+  const pdf = await PDFDocument.load(original, { ignoreEncryption: true });
+  const nbPagesDocument = pdf.getPageCount();
+  const police = await pdf.embedFont(StandardFonts.Helvetica);
+  const gras = await pdf.embedFont(StandardFonts.HelveticaBold);
+  const LARGEUR = 595.28, HAUTEUR = 841.89, MARGE = 56, UTILE = LARGEUR - 2 * MARGE;
+  const OR = rgb(0.784, 0.663, 0.431), NUIT = rgb(0.10, 0.10, 0.18), GRIS = rgb(0.40, 0.40, 0.40), VERT = rgb(0.0, 0.50, 0.25), ROUGE = rgb(0.78, 0.16, 0.16);
+  const page = pdf.addPage([LARGEUR, HAUTEUR]);
+  let y = HAUTEUR - MARGE;
+
+  function lignes(texte: string, fonte: any, taille: number, largeur: number): string[] {
+    const mots = pourPdfCertificat(texte).split(/\s+/).filter(function (m) { return m.length > 0; });
+    const out: string[] = []; let l = "";
+    for (const mot of mots) {
+      const essai = l ? l + " " + mot : mot;
+      if (fonte.widthOfTextAtSize(essai, taille) <= largeur) l = essai;
+      else {
+        if (l) out.push(l);
+        // un mot plus large que la ligne (une empreinte) se coupe au caractere
+        let reste = mot;
+        while (fonte.widthOfTextAtSize(reste, taille) > largeur) {
+          let n = reste.length;
+          while (n > 1 && fonte.widthOfTextAtSize(reste.slice(0, n), taille) > largeur) n--;
+          out.push(reste.slice(0, n)); reste = reste.slice(n);
+        }
+        l = reste;
+      }
+    }
+    if (l) out.push(l);
+    return out;
+  }
+  function ecrire(texte: string, fonte: any, taille: number, couleur: any, interligne?: number) {
+    for (const l of lignes(texte, fonte, taille, UTILE)) {
+      page.drawText(l, { x: MARGE, y: y, size: taille, font: fonte, color: couleur });
+      y = y - taille * (interligne || 1.5);
+    }
+  }
+  function rubrique(libelle: string, valeur: string) {
+    ecrire(libelle.toUpperCase(), gras, 8.5, OR, 1.5);
+    ecrire(valeur || "—", police, 11, NUIT, 1.45);
+    y = y - 6;
+  }
+
+  const donnees = doc.donnees && typeof doc.donnees === "object" ? doc.donnees : {};
+  const libelle = donnees.libelle || LIBELLES_CERTIFICAT[String(doc.doc_type || "")] || "Document";
+
+  ecrire("CERTIFICAT DE SIGNATURE", gras, 18, NUIT, 1.3);
+  y = y - 2;
+  page.drawLine({ start: { x: MARGE, y: y }, end: { x: LARGEUR - MARGE, y: y }, thickness: 2, color: OR });
+  y = y - 20;
+
+  rubrique("Document signé", (doc.title || libelle) + " (" + (nbPagesDocument === 1 ? "1 page" : nbPagesDocument + " pages") + ", reproduites avant ce certificat)");
+  rubrique("Référence", String(doc.reference || ""));
+  const qui = [sig.signataire_nom, sig.signataire_qualite].filter(function (x: any) { return !!x; }).join(", ");
+  rubrique("Signataire", (qui ? qui + " — " : "") + String(sig.signataire_email || ""));
+  rubrique("Signé le", dateHeureParis(sig.signe_le));
+  rubrique("Code de vérification", sig.code_verifie_le ? "envoyé à l'adresse du signataire et vérifié le " + dateHeureParis(sig.code_verifie_le) : "—");
+  rubrique("Empreinte SHA-256 du document signé", String(sig.empreinte_sha256 || ""));
+
+  const empreinteArchive = crypto.createHash("sha256").update(original).digest("hex");
+  const conforme = empreinteArchive === String(sig.empreinte_sha256 || "") && empreinteArchive === String(doc.pdf_sha256 || doc.file_hash || "");
+  ecrire("CONTRÔLE À L'OUVERTURE", gras, 8.5, OR, 1.5);
+  ecrire(conforme
+    ? "Conforme : les pages qui précèdent sont identiques, à l'octet près, au document qui a été signé."
+    : "NON CONFORME : le fichier archivé ne correspond plus à l'empreinte signée. Prévenez le support.",
+    gras, 10.5, conforme ? VERT : ROUGE, 1.45);
+  y = y - 10;
+
+  ecrire("TRACÉ DE SIGNATURE", gras, 8.5, OR, 1.5);
+  const trace = String(sig.trace_signature || "");
+  const m = trace.match(/^data:image\/png;base64,(.+)$/);
+  if (m) {
+    try {
+      const image = await pdf.embedPng(Buffer.from(m[1], "base64"));
+      const echelle = Math.min(260 / image.width, 110 / image.height, 1);
+      const w = image.width * echelle, h = image.height * echelle;
+      page.drawRectangle({ x: MARGE, y: y - h - 8, width: w + 16, height: h + 16, color: rgb(0.99, 0.98, 0.96), borderColor: rgb(0.85, 0.85, 0.85), borderWidth: 0.5 });
+      page.drawImage(image, { x: MARGE + 8, y: y - h, width: w, height: h });
+      y = y - h - 26;
+    } catch {
+      ecrire("(tracé enregistré, illisible pour l'affichage)", police, 10, GRIS);
+    }
+  } else {
+    ecrire("Aucun tracé : la signature a été donnée par le code de vérification seul.", police, 10, GRIS);
+  }
+  y = y - 8;
+
+  ecrire("Signature électronique simple au sens du règlement européen eIDAS. Elle n'est ni avancée ni qualifiée : elle est opposable entre les parties, elle ne vaut pas vérification d'identité.", police, 9, GRIS, 1.5);
+  y = y - 6;
+  ecrire("Ce certificat est établi à la demande, le " + dateHeureParis(new Date().toISOString()) + ". Il n'entre pas dans l'empreinte : il la cite. L'original signé reste archivé tel quel.", police, 8.5, rgb(0.55, 0.55, 0.55), 1.5);
+
+  return await pdf.save();
+}
+
+const LIBELLES_CERTIFICAT: Record<string, string> = {
+  mandat: "Mandat de gestion",
+  lettre_mission: "Lettre de mission",
+  autorisation_depot: "Autorisation de dépôt",
+  accuse_lecture: "Accusé de lecture avant dépôt",
+  convention: "Convention de prestation",
+  devis: "Devis",
+};
+
 export async function GET(req: NextRequest) {
   try {
     const session = sessionCourante();
@@ -175,6 +304,47 @@ export async function GET(req: NextRequest) {
     }
 
     const url = new URL(req.url);
+
+    // 🆕 23/09 — LE DOCUMENT SIGNE, AVEC SON CERTIFICAT (voir plus haut).
+    if (url.searchParams.get("vue") === "signe") {
+      const reference = String(url.searchParams.get("reference") || "").trim();
+      if (!reference) {
+        return NextResponse.json({ ok: false, erreur: "Document non précisé." }, { status: 400 });
+      }
+      const doc = await documentDe(reference);
+      if (!doc) {
+        return NextResponse.json({ ok: false, erreur: "Document introuvable." }, { status: 404 });
+      }
+      if (!peutLire(doc, session)) {
+        return NextResponse.json({ ok: false, erreur: "Ce document ne vous concerne pas." }, { status: 403 });
+      }
+      const { data: sig } = await supabase
+        .from("compliance_signatures")
+        .select("*")
+        .eq("document_reference", reference)
+        .eq("annulee", false)
+        .order("signe_le", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (!sig) {
+        return NextResponse.json({ ok: false, erreur: "Ce document n'est pas encore signé." }, { status: 404 });
+      }
+      const chemin = doc.pdf_chemin || doc.storage_path || "";
+      const { data: fichier } = chemin ? await supabase.storage.from(BUCKET).download(chemin) : { data: null };
+      if (!fichier) {
+        return NextResponse.json({ ok: false, erreur: "Le document archivé est introuvable." }, { status: 404 });
+      }
+      const original = new Uint8Array(await fichier.arrayBuffer());
+      const octets = await documentSigne(doc, sig, original);
+      return new NextResponse(Buffer.from(octets), {
+        status: 200,
+        headers: {
+          "Content-Type": "application/pdf",
+          "Content-Disposition": "inline; filename=\"" + reference + "-signe.pdf\"",
+          "Cache-Control": "no-store",
+        },
+      });
+    }
 
     // LECTURE DU DOCUMENT AVANT SIGNATURE. On ne peut pas demander a
     // quelqu un de reconnaitre avoir lu un texte qu on ne lui montre pas :
@@ -209,8 +379,23 @@ export async function GET(req: NextRequest) {
         if (signe && signe.signedUrl) lien = signe.signedUrl;
       }
 
+      // 🆕 23/09 — DEJA SIGNE ? Un client qui rouvre le lien du courriel
+      // retombait sur le formulaire de signature. La page affiche desormais
+      // l ecran « signe » avec le bouton du document signe.
+      const { data: dejaSigne } = await supabase
+        .from("compliance_signatures")
+        .select("signe_le, empreinte_sha256")
+        .eq("document_reference", doc.reference)
+        .eq("signataire_email", String(session.email || "").toLowerCase())
+        .eq("annulee", false)
+        .order("signe_le", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
       return NextResponse.json({
         ok: true,
+        deja_signe: !!dejaSigne,
+        signe_le: dejaSigne ? dejaSigne.signe_le : null,
         reference: doc.reference,
         type: doc.doc_type,
         libelle: donnees.libelle || null,
