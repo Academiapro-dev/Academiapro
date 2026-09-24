@@ -140,24 +140,25 @@ export async function POST(req: NextRequest) {
       .eq("tax_year", year)
       .maybeSingle();
 
-    if (!essaiEntite.error && essaiEntite.data) {
-      m = essaiEntite.data;
-    } else {
-      const { data: m2 } = await supabase
-        .from("compliance_5472_mapping")
-        .select("*")
-        .eq("tenant_id", tenantId)
-        .eq("tax_year", year)
-        .maybeSingle();
-      m = m2;
+    // ⛔ REPLI SUPPRIME — 24/09. Quand la fiche de la societe manquait, la
+    // route prenait LA fiche de l organisme pour l exercice, sans filtre de
+    // societe. Chez un partenaire qui suit plusieurs LLC, le 7004 d une
+    // societe pouvait porter l EIN d une AUTRE. Regle du 31/08 : « un repli
+    // qui change le perimetre des donnees n est pas une securite, c est une
+    // source de faux silencieux ». Pas de fiche = pas de 7004, et on dit
+    // quoi faire.
+    if (essaiEntite.error) {
+      console.error("[f7004] lecture de la fiche :", essaiEntite.error.message);
+      return NextResponse.json({ error: "Lecture de la fiche annuelle impossible." }, { status: 500 });
     }
+    m = essaiEntite.data;
 
     const ein = m ? m.ri_ein : null;
     if (!ein) {
       return NextResponse.json(
         {
-          error: "Aucun EIN enregistre pour " + entite.label + " sur l'exercice " + year
-            + ". Le Form 7004 ne peut pas etre depose sans EIN.",
+          error: "Aucun EIN enregistré pour " + entite.label + " sur l'exercice " + year
+            + ". Complétez d'abord la fiche annuelle : le Form 7004 ne peut pas être déposé sans EIN.",
         },
         { status: 400 }
       );
@@ -360,13 +361,19 @@ export async function POST(req: NextRequest) {
     setText(["Page1[0].f1_9[0]"], CODE_FORMULAIRE_1120.charAt(0));
     setText(["Page1[0].f1_10[0]"], CODE_FORMULAIRE_1120.charAt(1));
 
-    // Ligne 2 : societe etrangere sans etablissement aux Etats-Unis.
+    // ⛔ LIGNE 2 : NE PLUS LA COCHER — CORRIGE LE 24/09.
     //
-    // ⚠️ CETTE CASE EST CELLE QUI COMPTE POUR UNE LLC A MEMBRE ETRANGER.
-    // Elle indique a l IRS que l entite n a pas de bureau sur le sol
-    // americain — situation de la quasi-totalite des dossiers d un
-    // gestionnaire pour non-residents.
-    cocher(["Page1[0].c1_1[0]"]);
+    // Elle etait cochee, avec l idee qu une LLC a membre etranger n a pas de
+    // bureau aux Etats-Unis. C est faux : la ligne 2 vise une SOCIETE
+    // ETRANGERE (qui depose un 1120-F, au 15 du sixieme mois). Une LLC du
+    // Wyoming ou du Delaware est une entite AMERICAINE ; detenue par un
+    // etranger, elle depose un 1120 pro forma au 15 avril, code 12. Cocher
+    // la ligne 2 contredisait le code 12 du meme formulaire.
+    // Source : Instructions for Form 7004 (12/2025), Part II, line 2.
+    //
+    // 🚨 CE QUI LA REMPLACE : la mention « Foreign-owned U.S. DE » en tete
+    // du formulaire (Instructions for Form 5472 : « "Foreign-owned U.S. DE"
+    // should be written across the top of Form 7004 »). Voir plus bas.
 
     // 🚨 LIGNE 5a — L ANNEE CIVILE, DESSINEE SUR LA PAGE.
     //
@@ -437,6 +444,28 @@ export async function POST(req: NextRequest) {
         "Annee civile (f1_11) : "
         + (e instanceof Error ? e.message : String(e))
       );
+    }
+
+    // 🚨 « Foreign-owned U.S. DE » EN TETE DU FORMULAIRE — 24/09.
+    // Exige par les instructions du Form 5472 pour le 7004 d une LLC detenue
+    // par un etranger, comme sur le 1120 pro forma. Ecrit dans la marge du
+    // haut, centre, pour ne recouvrir aucune case.
+    try {
+      const gras = await doc.embedFont(StandardFonts.HelveticaBold);
+      const page1 = doc.getPage(0);
+      const { width: largeurPage, height: hauteurPage } = page1.getSize();
+      const mention = "Foreign-owned U.S. DE";
+      const tailleMention = 11;
+      const largeurMention = gras.widthOfTextAtSize(mention, tailleMention);
+      page1.drawText(mention, {
+        x: (largeurPage - largeurMention) / 2,
+        y: hauteurPage - 16,
+        size: tailleMention,
+        font: gras,
+      });
+      journal.push("Mention « Foreign-owned U.S. DE » posee en tete de page 1");
+    } catch (e) {
+      journal.push("Mention Foreign-owned U.S. DE : " + (e instanceof Error ? e.message : String(e)));
     }
 
     form.updateFieldAppearances(font);
