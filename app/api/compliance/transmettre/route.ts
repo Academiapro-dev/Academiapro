@@ -79,6 +79,23 @@ export const dynamic = "force-dynamic";
 // ⚠️ LE RETOUR (webhook) : Sinch v3 ne signe pas ses appels. La route
 // statut est protegee par un jeton dans l adresse de rappel
 // (FAX_CALLBACK_TOKEN, une chaine longue que Jacques choisit).
+//
+// 🆕 24/09 — LE FORM 7004 PART PAR LE MEME CHEMIN. Jacques : « on fait la
+// meme chose pour le 7004 ». Trois actions a lui : preparer_7004, lier_7004,
+// transmettre_7004, et son etat dans les colonnes *_7004 de
+// compliance_depots (la ligne est celle du depot du 1120 : une par societe
+// et par exercice). ⛔ ELLES NE TOUCHENT PAS AU DEPOT DU 1120.
+// Ce qui change par rapport au 1120 :
+//   - le 7004 N A PAS DE LIGNE DE SIGNATURE et l IRS n en demande pas
+//     (Instructions for Form 7004 : « No signature is required on this
+//     form »). Le titulaire signe l ACCUSE DE LECTURE, qui vaut son accord
+//     pour l envoi ; aucun trace n est pose sur le formulaire, et aucun
+//     trace manuscrit n est exige ;
+//   - meme numero de fax : les instructions du 5472 demandent au DE detenu
+//     par un etranger d envoyer son 7004 « to the fax number or mailing
+//     address identified earlier » (855-887-7737) ;
+//   - le PDF vient de f7004/generate, qui note lui-meme son chemin dans
+//     compliance_depots.chemin_7004.
 // ---------------------------------------------------------------------------
 
 const supabase = createClient(
@@ -128,7 +145,7 @@ function dateDeSignature(v: unknown): string {
 
 // Un chemin du coffre n est accepte que s il appartient a la societe de la
 // session : tenant/entite/... . Un chemin recu n est jamais une autorisation.
-function cheminAutorise(chemin: string, tenantId: string, entiteId: string, forme: "1120" | "5472"): boolean {
+function cheminAutorise(chemin: string, tenantId: string, entiteId: string, forme: "1120" | "5472" | "7004"): boolean {
   const prefixe = tenantId + "/" + entiteId + "/" + forme + "/";
   return chemin.startsWith(prefixe) && chemin.endsWith(".pdf") && chemin.indexOf("..") < 0;
 }
@@ -197,7 +214,7 @@ async function etat(tenantId: string, entite: any, body: any) {
   const year = Number(body.year) || new Date().getFullYear();
   const e = await lireEtat(tenantId, entite.id, year);
   if (!e) {
-    return NextResponse.json({ success: true, year, statut: "a_generer", chemin_1120: null, chemin_5472: null, reference_accuse: null });
+    return NextResponse.json({ success: true, year, statut: "a_generer", chemin_1120: null, chemin_5472: null, reference_accuse: null, statut_7004: "a_generer", chemin_7004: null, reference_accuse_7004: null });
   }
   let statut = e.statut;
   if (statut === "accuse_envoye" && e.reference_accuse) {
@@ -213,6 +230,22 @@ async function etat(tenantId: string, entite: any, body: any) {
       await ecrireEtat(tenantId, entite.id, year, { statut });
     }
   }
+  // 🆕 24/09 — L ETAT DU 7004, calcule de la meme facon : « signe » se
+  // deduit de compliance_signatures.
+  let statut7004 = e.statut_7004 || (e.chemin_7004 ? "genere" : "a_generer");
+  if (statut7004 === "accuse_envoye" && e.reference_accuse_7004) {
+    const { data: sig7004 } = await supabase
+      .from("compliance_signatures")
+      .select("id")
+      .eq("document_reference", e.reference_accuse_7004)
+      .eq("annulee", false)
+      .limit(1)
+      .maybeSingle();
+    if (sig7004) {
+      statut7004 = "signe";
+      await ecrireEtat(tenantId, entite.id, year, { statut_7004: statut7004 });
+    }
+  }
   return NextResponse.json({
     success: true,
     year,
@@ -222,6 +255,11 @@ async function etat(tenantId: string, entite: any, body: any) {
     reference_accuse: e.reference_accuse,
     fax_id: e.fax_id,
     transmis_le: e.transmis_le,
+    statut_7004: statut7004,
+    chemin_7004: e.chemin_7004 || null,
+    reference_accuse_7004: e.reference_accuse_7004 || null,
+    fax_id_7004: e.fax_id_7004 || null,
+    transmis_7004_le: e.transmis_7004_le || null,
   });
 }
 
@@ -743,6 +781,291 @@ async function transmettre(req: NextRequest, tenantId: string, entite: any, body
   });
 }
 
+// ===========================================================================
+// 🆕 24/09 — LE FORM 7004 : PREPARER, LIER, TRANSMETTRE.
+// ===========================================================================
+
+async function preparer7004(tenantId: string, entite: any, body: any) {
+  const year = Number(body.year) || new Date().getFullYear();
+  const e = await lireEtat(tenantId, entite.id, year);
+  const chemin7004 = String(body.chemin_7004 || (e && e.chemin_7004) || "").trim();
+  if (!chemin7004) {
+    return NextResponse.json({ error: "Générez d'abord le Form 7004 : aucun PDF n'est noté pour l'exercice " + year + "." }, { status: 409 });
+  }
+  if (!cheminAutorise(chemin7004, tenantId, entite.id, "7004")) {
+    return NextResponse.json({ error: "Chemin du 7004 invalide pour cette société." }, { status: 400 });
+  }
+  const o7004 = await lireCoffre(chemin7004);
+  if (!o7004) return NextResponse.json({ error: "Le 7004 est introuvable au coffre. Régénérez-le." }, { status: 404 });
+  const sha7004 = sha256(o7004);
+
+  const societe = entite.legal_name || entite.label;
+  const corps =
+    "Je soussigné(e), membre de " + societe + ", atteste avoir examiné le formulaire 7004 préparé pour "
+    + "l'exercice " + year + " : il demande à l'Internal Revenue Service la prolongation automatique de six mois "
+    + "du délai de dépôt du formulaire 1120 pro forma et du formulaire 5472.\n\n"
+    + "Le formulaire examiné est reproduit à la suite de cette attestation ; il est identifié par son empreinte SHA-256 :\n"
+    + "Form 7004 : " + sha7004 + "\n\n"
+    + "J'autorise la transmission de ce formulaire, tel quel, à l'Internal Revenue Service par fax au numéro "
+    + "indiqué dans l'instruction officielle du Form 5472 (855-887-7737, Ogden). La plateforme transmet le document "
+    + "tel que je l'ai signé, sans en vérifier le fond. La responsabilité de son contenu m'appartient.\n\n"
+    + "Le Form 7004 ne comporte pas de ligne de signature : l'administration américaine n'en demande pas. "
+    + "Ma signature porte sur la présente attestation.";
+
+  return NextResponse.json({
+    success: true,
+    societe: entite.label,
+    year,
+    chemin_7004: chemin7004,
+    sha_7004: sha7004,
+    document_a_signer: {
+      doc_type: TYPE_ACCUSE,
+      libelle: "Accusé de lecture avant dépôt du Form 7004",
+      titre: "Accusé de lecture avant dépôt IRS du Form 7004 " + year + " — " + societe,
+      corps,
+      signataire_email: entite.email_contact || null,
+      entite_id: entite.id,
+      // ⚠️ PAS DE « 1120 » NI DE « SS-4 » DANS CE TITRE : la route de
+      // signature reconnait les anciennes pieces a leur titre et y poserait
+      // le trace. Le 7004 ne declare aucune zone de signature : rien n est
+      // pose sur lui.
+      annexes: [{ chemin: chemin7004, titre: "Form 7004 — exercice " + year }],
+    },
+  });
+}
+
+async function lier7004(tenantId: string, entite: any, body: any) {
+  const reference = String(body.reference || "").trim();
+  const chemin7004 = String(body.chemin_7004 || "").trim();
+  const year = Number(body.year) || new Date().getFullYear();
+
+  if (!reference) return NextResponse.json({ error: "Référence de l'accusé manquante." }, { status: 400 });
+  if (!cheminAutorise(chemin7004, tenantId, entite.id, "7004")) {
+    return NextResponse.json({ error: "Chemin du 7004 invalide pour cette société." }, { status: 400 });
+  }
+
+  const { data: doc, error: eDoc } = await supabase
+    .from("compliance_documents")
+    .select("id, doc_type, donnees, entite_id")
+    .eq("reference", reference)
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
+  if (eDoc) return NextResponse.json({ error: "Lecture de l'accusé : " + eDoc.message }, { status: 500 });
+  if (!doc || doc.doc_type !== TYPE_ACCUSE || doc.entite_id !== entite.id) {
+    return NextResponse.json({ error: "Accusé de lecture introuvable pour cette société." }, { status: 404 });
+  }
+
+  const o7004 = await lireCoffre(chemin7004);
+  if (!o7004) return NextResponse.json({ error: "Le 7004 est introuvable au coffre." }, { status: 404 });
+
+  const donnees = doc.donnees && typeof doc.donnees === "object" ? doc.donnees : {};
+  const depot = { year, forme: "7004", chemin_7004: chemin7004, sha_7004: sha256(o7004), lie_le: new Date().toISOString() };
+  const { error: eUp } = await supabase
+    .from("compliance_documents")
+    .update({ donnees: { ...donnees, depot } })
+    .eq("id", doc.id);
+  if (eUp) return NextResponse.json({ error: "Enregistrement : " + eUp.message }, { status: 500 });
+
+  await ecrireEtat(tenantId, entite.id, year, {
+    chemin_7004: chemin7004, reference_accuse_7004: reference, statut_7004: "accuse_envoye",
+    fax_id_7004: null, transmis_7004_le: null,
+  });
+  return NextResponse.json({ success: true, reference, depot });
+}
+
+async function transmettre7004(req: NextRequest, tenantId: string, entite: any, body: any, sessionEmail: string) {
+  const projet = (process.env.SINCH_PROJECT_ID || "").trim();
+  const cle = (process.env.SINCH_ACCESS_KEY || "").trim();
+  const secret = (process.env.SINCH_ACCESS_SECRET || "").trim();
+  const jetonRappel = (process.env.FAX_CALLBACK_TOKEN || "").trim();
+  if (!projet || !cle || !secret) {
+    return NextResponse.json({ error: "Transmission non configurée : SINCH_PROJECT_ID, SINCH_ACCESS_KEY ou SINCH_ACCESS_SECRET absente." }, { status: 503 });
+  }
+  if (!jetonRappel) {
+    return NextResponse.json({ error: "Transmission non configurée : FAX_CALLBACK_TOKEN absente (le retour de statut ne serait pas protégé)." }, { status: 503 });
+  }
+  const numeroTest = (process.env.FAX_NUMERO_TEST || "").trim();
+  const destinataire = numeroTest || FAX_IRS;
+  const emetteur = (process.env.SINCH_FAX_FROM || "").trim();
+  if (!emetteur) {
+    return NextResponse.json({ error: "Transmission non configurée : SINCH_FAX_FROM absente (numéro de fax émetteur acheté chez Sinch, format +1...)." }, { status: 503 });
+  }
+
+  const year = Number(body.year) || new Date().getFullYear();
+  const e = await lireEtat(tenantId, entite.id, year);
+  const reference = String(body.reference || (e && e.reference_accuse_7004) || "").trim();
+  if (!reference) return NextResponse.json({ error: "Aucun accusé de lecture pour le 7004 : préparez d'abord le dépôt." }, { status: 400 });
+
+  const { data: doc, error: eDoc } = await supabase
+    .from("compliance_documents")
+    .select("id, doc_type, donnees, entite_id, signataire_email, pdf_sha256")
+    .eq("reference", reference)
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
+  if (eDoc) return NextResponse.json({ error: "Lecture de l'accusé : " + eDoc.message }, { status: 500 });
+  if (!doc || doc.doc_type !== TYPE_ACCUSE || doc.entite_id !== entite.id) {
+    return NextResponse.json({ error: "Accusé de lecture introuvable pour cette société." }, { status: 404 });
+  }
+
+  const donnees = doc.donnees && typeof doc.donnees === "object" ? doc.donnees : {};
+  const depot = donnees.depot;
+  if (!depot || depot.forme !== "7004" || !depot.chemin_7004) {
+    return NextResponse.json({ error: "Cet accusé n'est rattaché à aucun Form 7004." }, { status: 409 });
+  }
+  if (donnees.transmission && donnees.transmission.fax_id) {
+    return NextResponse.json(
+      { error: "Ce Form 7004 a déjà été transmis (fax " + donnees.transmission.fax_id + ").", transmission: donnees.transmission },
+      { status: 409 }
+    );
+  }
+
+  const { data: sig, error: eSig } = await supabase
+    .from("compliance_signatures")
+    .select("id, signe_le, empreinte_sha256")
+    .eq("document_reference", reference)
+    .eq("annulee", false)
+    .order("signe_le", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (eSig) return NextResponse.json({ error: "Lecture de la signature : " + eSig.message }, { status: 500 });
+  if (!sig) return NextResponse.json({ error: "L'accusé de lecture n'est pas signé. Rien ne part sans sa signature." }, { status: 409 });
+  if (doc.pdf_sha256 && sig.empreinte_sha256 !== doc.pdf_sha256) {
+    return NextResponse.json({ error: "La signature ne porte pas sur la version archivée de l'accusé." }, { status: 409 });
+  }
+
+  const o7004 = await lireCoffre(depot.chemin_7004);
+  if (!o7004) return NextResponse.json({ error: "Le 7004 est introuvable au coffre." }, { status: 404 });
+  if (sha256(o7004) !== depot.sha_7004) {
+    return NextResponse.json(
+      { error: "Le Form 7004 a changé depuis la signature. Préparez à nouveau le dépôt et faites-le signer." },
+      { status: 409 }
+    );
+  }
+
+  // Le 7004 part tel qu il a ete signe : champs figes, rien n est ajoute
+  // (la mention « Foreign-owned U.S. DE » est deja posee par le generateur).
+  const doc7004 = await PDFDocument.load(o7004);
+  const police = await doc7004.embedFont(StandardFonts.Helvetica);
+  try {
+    const form = doc7004.getForm();
+    form.updateFieldAppearances(police);
+    form.flatten();
+  } catch { /* sans champ : les apparences restent */ }
+  doc7004.setTitle("Form 7004 — " + (entite.legal_name || entite.label) + " — " + depot.year);
+
+  const octetsEnvoi = Buffer.from(await doc7004.save());
+  const shaEnvoi = sha256(octetsEnvoi);
+  const nbPages = doc7004.getPageCount();
+
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const cheminEnvoi = tenantId + "/" + entite.id + "/depot/" + depot.year + "/depot-7004-" + stamp + ".pdf";
+  const { error: eUp } = await supabase.storage
+    .from(BUCKET_DOCS)
+    .upload(cheminEnvoi, octetsEnvoi, { contentType: "application/pdf", upsert: false });
+  if (eUp) return NextResponse.json({ error: "Archivage du document à transmettre impossible : " + eUp.message }, { status: 500 });
+
+  const hote = req.headers.get("host") || "";
+  const callback = "https://" + hote + "/api/compliance/transmettre/statut?ref="
+    + encodeURIComponent(reference) + "&cle=" + encodeURIComponent(jetonRappel);
+
+  const fd = new FormData();
+  fd.append("to", destinataire);
+  fd.append("from", emetteur);
+  fd.append("file", new Blob([octetsEnvoi], { type: "application/pdf" }), "depot-7004.pdf");
+  fd.append("callbackUrl", callback);
+  fd.append("callbackUrlContentType", "application/json");
+
+  let reponse: any = null;
+  let faxId: string | null = null;
+  try {
+    const r = await fetch(SINCH_URL + encodeURIComponent(projet) + "/faxes", {
+      method: "POST",
+      headers: { Authorization: "Basic " + Buffer.from(cle + ":" + secret).toString("base64") },
+      body: fd,
+    });
+    const texte = await r.text().catch(() => "");
+    let json: any = null;
+    try { json = texte ? JSON.parse(texte) : null; } catch { json = null; }
+    reponse = { http: r.status, corps: json ?? texte.slice(0, 600) };
+    if (r.ok && json && json.id) faxId = String(json.id);
+  } catch (err: unknown) {
+    reponse = { erreur: err instanceof Error ? err.message : String(err) };
+  }
+
+  const transmission = {
+    prestataire: "sinch_fax_v3",
+    forme: "7004",
+    mode_test: !!numeroTest,
+    fax_id: faxId,
+    numero: destinataire,
+    emetteur,
+    envoye_le: new Date().toISOString(),
+    envoye_par: sessionEmail,
+    chemin_envoi: cheminEnvoi,
+    sha_envoi: shaEnvoi,
+    pages: nbPages,
+    statut: faxId ? "en_cours" : "echec_envoi",
+    reponse_prestataire: reponse,
+  };
+
+  await supabase
+    .from("compliance_documents")
+    .update({ donnees: { ...donnees, transmission } })
+    .eq("id", doc.id);
+
+  const { error: eIndex } = await supabase.from("compliance_documents").insert({
+    tenant_id: tenantId,
+    entite_id: entite.id,
+    rule_code: "US_7004",
+    doc_type: DOC_TYPE_DEPOT,
+    title: "Dépôt IRS par fax — Form 7004 — " + depot.year,
+    version: 1,
+    reference: reference,
+    signataire_email: doc.signataire_email,
+    storage_path: cheminEnvoi,
+    pdf_chemin: cheminEnvoi,
+    pdf_sha256: shaEnvoi,
+    file_hash: shaEnvoi,
+    pdf_octets: octetsEnvoi.length,
+    size_bytes: octetsEnvoi.length,
+    mime_type: "application/pdf",
+    donnees: { transmission, accuse_reference: reference, signature_id: sig.id },
+  });
+
+  if (faxId) {
+    await ecrireEtat(tenantId, entite.id, Number(depot.year) || year, {
+      reference_accuse_7004: reference, statut_7004: "transmis", fax_id_7004: faxId, transmis_7004_le: transmission.envoye_le,
+    });
+  }
+
+  if (!faxId) {
+    return NextResponse.json(
+      {
+        error: "Le prestataire de fax a refusé l'envoi (HTTP " + (reponse && reponse.http ? reponse.http : "?") + "). "
+          + "Le document est archivé ; rien n'est parti. Détail : "
+          + (reponse && reponse.corps ? (typeof reponse.corps === "string" ? reponse.corps : JSON.stringify(reponse.corps)).slice(0, 300) : "aucun"),
+        transmission,
+      },
+      { status: 502 }
+    );
+  }
+
+  return NextResponse.json({
+    success: true,
+    reference,
+    fax_id: faxId,
+    pages: nbPages,
+    chemin_envoi: cheminEnvoi,
+    sha_envoi: shaEnvoi,
+    mode_test: !!numeroTest,
+    numero: destinataire,
+    archivage_indexe: !eIndex,
+    message: (numeroTest ? "MODE TEST — Form 7004 envoyé au numéro de simulation " : "Form 7004 transmis à l'IRS au ") + destinataire
+      + ". L'accusé de transmission sera enregistré à la réception du statut."
+      + (eIndex ? " ⚠️ Le document est archivé mais non indexé : prévenez le support." : ""),
+  });
+}
+
 export async function POST(req: NextRequest) {
   try {
     if (!origineLegitime(req)) {
@@ -765,8 +1088,12 @@ export async function POST(req: NextRequest) {
     if (action === "preparer") return await preparer(tenantId, entite, body);
     if (action === "lier") return await lier(tenantId, entite, body);
     if (action === "transmettre") return await transmettre(req, tenantId, entite, body, session ? session.email : "");
+    // 🆕 24/09 — le Form 7004.
+    if (action === "preparer_7004") return await preparer7004(tenantId, entite, body);
+    if (action === "lier_7004") return await lier7004(tenantId, entite, body);
+    if (action === "transmettre_7004") return await transmettre7004(req, tenantId, entite, body, session ? session.email : "");
 
-    return NextResponse.json({ error: "Action inconnue : etat, noter, document, preparer, lier ou transmettre." }, { status: 400 });
+    return NextResponse.json({ error: "Action inconnue : etat, noter, document, preparer, lier, transmettre, preparer_7004, lier_7004 ou transmettre_7004." }, { status: 400 });
   } catch (e: unknown) {
     console.error("[transmettre] exception :", e instanceof Error ? e.message : String(e));
     return NextResponse.json({ error: "Erreur serveur." }, { status: 500 });
