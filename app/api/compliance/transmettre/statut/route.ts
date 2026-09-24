@@ -100,6 +100,14 @@ export async function POST(req: NextRequest) {
       .from("compliance_depots")
       .update({ statut: succes ? "accuse_recu" : "echec_fax", maj_le: new Date().toISOString() })
       .eq("fax_id", accuse.fax_id);
+    // 🆕 24/09 — LE FORM 7004 a son propre numero de fax (fax_id_7004) et
+    // son propre statut : le retour d un fax 7004 ne doit jamais toucher a
+    // l etat du depot du 1120, et inversement. Chaque mise a jour ne vise
+    // que la colonne qui porte CE numero de fax.
+    await supabase
+      .from("compliance_depots")
+      .update({ statut_7004: succes ? "accuse_recu" : "echec_fax", maj_le: new Date().toISOString() })
+      .eq("fax_id_7004", accuse.fax_id);
   }
 
   return NextResponse.json({ ok: true, statut }, { status: 200 });
