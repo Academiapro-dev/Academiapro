@@ -441,9 +441,104 @@ export async function POST(req: NextRequest) {
     const nomSignataire = [d.prenoms, d.nom_patronymique].filter(Boolean).join(" ");
     poserTexte("a84", nomSignataire);
 
+    // ---- LE 3916 PART A LA SIGNATURE — 24/09 ----
+    // Avec `archiver: true`, le PDF n est pas telecharge : il est archive au
+    // coffre et la route rend le document a faire signer (meme regle que le
+    // 1120 : attestation en francais, puis le vrai 3916 joint a la suite, la
+    // signature reportee sur SA ligne « Signature(s) »).
+    // « Fait a » porte la ville du declarant ; « le » reste vide dans le
+    // fichier archive : la date est celle de la SIGNATURE, ecrite par la
+    // route de signature au moment ou il signe (format francais).
+    const archiver = body.archiver === true;
+    if (archiver) poserTexte("a82", d.adresse_ville);
+
     form.updateFieldAppearances(police);
 
     const sortie = await pdfDoc.save();
+
+    if (archiver) {
+      if (!entiteDuCompte) {
+        return NextResponse.json(
+          { ok: false, erreur: "Ce compte n'est rattaché à aucune société : il ne peut pas partir à la signature." },
+          { status: 400 }
+        );
+      }
+      // L adresse du CLIENT, jamais celle de la session : c est lui qui signe.
+      const { data: fiche } = await supabase
+        .from("compliance_tenants")
+        .select("*")
+        .eq("tenant_id", tenantId)
+        .eq("id", entiteDuCompte)
+        .maybeSingle();
+      const emailSignataire = String((fiche && fiche.email_contact) || "").trim().toLowerCase();
+      if (!emailSignataire) {
+        return NextResponse.json(
+          { ok: false, erreur: "La société n'a pas d'adresse de contact (email_contact). Renseignez-la avant de faire signer le 3916." },
+          { status: 400 }
+        );
+      }
+
+      const anneeDecl = String(c.exercice || new Date().getFullYear());
+      const cheminArchive = tenantId + "/" + entiteDuCompte + "/3916_" + anneeDecl + "_"
+        + String(c.id || "compte").slice(0, 8) + "_" + Date.now() + ".pdf";
+      const { error: eUp } = await supabase.storage
+        .from("compliance-docs")
+        .upload(cheminArchive, Buffer.from(sortie), { contentType: "application/pdf", upsert: true });
+      if (eUp) {
+        console.error("[f3916/generate-pdf] archivage :", eUp.message);
+        return NextResponse.json(
+          { ok: false, erreur: "Archivage du 3916 impossible. Rien n'a été envoyé." },
+          { status: 500 }
+        );
+      }
+
+      const nomComplet = nomSignataire || "le membre";
+      const societeNom = raisonSociale || "la société";
+      const ouverture = c.date_ouverture
+        ? ", ouvert le " + jour(c.date_ouverture) + "/" + mois(c.date_ouverture) + "/" + annee(c.date_ouverture)
+        : "";
+      const descCompte = [c.organisme_nom, c.numero_compte ? "n° " + c.numero_compte : "", c.devise]
+        .filter(Boolean).join(" — ") + ouverture;
+      const corps = [
+        "Je soussigné(e), " + nomComplet + ", membre de " + societeNom + ", déclare au titre de l'année "
+          + anneeDecl + " le compte ouvert à l'étranger décrit dans le formulaire n° 3916 reproduit à la suite de cette attestation :",
+        descCompte + ".",
+        "Modalité de détention : " + (optCac4 === "b"
+          ? "bénéficiaire d'une procuration sur le compte de la société (cadres 3.2 et 6.2 du formulaire)."
+          : "titulaire en propre du compte (cadre 3.2 du formulaire)."),
+        "J'atteste avoir examiné ce formulaire et que les informations qu'il contient sont, à ma connaissance, exactes et complètes.",
+        "Ma signature est reportée sur la ligne « Signature(s) » du formulaire, avec la date de ce jour.",
+        "Ce formulaire accompagne ma déclaration de revenus : il se joint à la déclaration papier n° 2042, ou se recopie dans le parcours en ligne sur impots.gouv.fr.",
+      ].join("\n\n");
+
+      // OU SE POSE LA SIGNATURE SUR LE 3916 (page 4, index 3), en points PDF
+      // depuis le bas a gauche. Releve sur le CERFA le 24/09 :
+      //   la signature sous l intitule « Signature(s) : » ;
+      //   la date sur la ligne « le … » (champ a83, x 398-515, y 401-417).
+      const signature3916 = { page: 3, x: 285, y: 228, l: 190, h: 65, date_x: 402, date_y: 405, date_format: "fr" };
+
+      return NextResponse.json({
+        ok: true,
+        chemin: cheminArchive,
+        document_a_signer: {
+          doc_type: "accuse_lecture",
+          libelle: "Déclaration 3916 — compte à l'étranger",
+          titre: "Déclaration 3916 " + anneeDecl + " — " + societeNom,
+          corps,
+          signataire_email: emailSignataire,
+          signataire_nom: nomComplet,
+          entite_id: entiteDuCompte,
+          annexes: [
+            {
+              chemin: cheminArchive,
+              titre: "Formulaire n° 3916 — " + (c.organisme_nom || "compte à l'étranger"),
+              signature: signature3916,
+            },
+          ],
+        },
+        avertissements,
+      });
+    }
 
     if (body.controle === true) {
       return NextResponse.json({
