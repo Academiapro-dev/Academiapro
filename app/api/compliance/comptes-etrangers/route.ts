@@ -61,6 +61,77 @@ async function entiteAutorisee(tenantId: string, entiteId: string): Promise<stri
   return data ? data.id : null;
 }
 
+// ---------------------------------------------------------------------------
+// LES TROIS LISTES DE LA BASE — 24/09.
+//
+// 🚨 LE DEFAUT. La table n admet que ces valeurs (contraintes CHECK), et les
+// trois colonnes sont NOT NULL :
+//   type_compte  bancaire | actifs_numeriques | contrat_capitalisation
+//   caractere    personnel | professionnel
+//   titulaire    personne_physique | entite
+// L ancienne ecriture `body.x || null` envoyait NULL quand l ecran ne
+// transmettait rien, et la valeur brute de l ecran sinon. Dans les deux cas
+// la base pouvait refuser la ligne, et l ecran n affichait qu
+// « Enregistrement impossible », sans la raison (vu le 24/09 sur Meridian).
+//
+// CE QUI EST FAIT. Chaque valeur est ramenee a la liste de la base. Une
+// valeur ABSENTE prend la valeur par defaut de la colonne. Une valeur
+// PRESENTE mais inconnue est REFUSEE avec son nom : ⛔ jamais de repli
+// silencieux, un compte mal classe fausserait le 3916.
+// ---------------------------------------------------------------------------
+function normaliser(v: unknown): string {
+  return String(v ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+function typeCompteBase(v: unknown): string | null {
+  const s = normaliser(v);
+  if (!s) return "bancaire";
+  if (s.includes("numer") || s.includes("crypto")) return "actifs_numeriques";
+  if (s.includes("capitalis") || s.includes("assurance")) return "contrat_capitalisation";
+  if (s.includes("banc") || s.includes("banque") || s.includes("courant")) return "bancaire";
+  return null;
+}
+
+function caractereBase(v: unknown): string | null {
+  const s = normaliser(v);
+  if (!s) return "professionnel";
+  if (s.includes("perso") || s.includes("priv")) return "personnel";
+  if (s.includes("pro")) return "professionnel";
+  return null;
+}
+
+function titulaireBase(v: unknown): string | null {
+  const s = normaliser(v);
+  if (!s) return "personne_physique";
+  if (s.includes("entit") || s.includes("soci") || s.includes("llc")) return "entite";
+  if (s.includes("physique") || s.includes("personne") || s.includes("membre")) return "personne_physique";
+  return null;
+}
+
+// Traduit le refus de la base en une phrase lisible a l ecran.
+// ⚠️ Le message technique complet reste dans les journaux et dans `detail`.
+function raisonLisible(err: { code?: string; message: string }): string {
+  const m = err.message || "";
+  if (err.code === "23502") {
+    const col = (m.match(/column "([^"]+)"/) || [])[1];
+    return "un champ obligatoire est vide" + (col ? " (" + col + ")" : "") + ".";
+  }
+  if (err.code === "23514") {
+    if (m.includes("type_compte")) return "le type de compte n'est pas admis.";
+    if (m.includes("caractere_compte")) return "la nature du compte n'est pas admise.";
+    if (m.includes("caractere")) return "le caractère du compte n'est pas admis.";
+    if (m.includes("titulaire")) return "le titulaire déclaré n'est pas admis.";
+    return "une valeur n'est pas admise.";
+  }
+  if (err.code === "23503") return "la société de rattachement n'existe plus.";
+  if (err.code === "22007" || err.code === "22008") return "une date n'est pas valide.";
+  return m || "raison inconnue.";
+}
+
 // Liste des comptes d'un exercice, pour une societe donnee.
 export async function GET(req: NextRequest) {
   if (!origineLegitime(req)) {
@@ -138,10 +209,33 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
 
     if (!body.designation) {
-      return NextResponse.json({ error: "La designation est obligatoire" }, { status: 400 });
+      return NextResponse.json({ error: "La désignation est obligatoire." }, { status: 400 });
     }
     if (!body.organisme_nom) {
-      return NextResponse.json({ error: "Le nom de l'organisme est obligatoire" }, { status: 400 });
+      return NextResponse.json({ error: "Le nom de l'organisme est obligatoire." }, { status: 400 });
+    }
+
+    // ---- LES TROIS LISTES DE LA BASE (voir en tete de fichier) ----
+    const typeCompte = typeCompteBase(body.type_compte);
+    if (!typeCompte) {
+      return NextResponse.json(
+        { error: "Type de compte non reconnu : « " + String(body.type_compte) + " »." },
+        { status: 400 }
+      );
+    }
+    const caractere = caractereBase(body.caractere);
+    if (!caractere) {
+      return NextResponse.json(
+        { error: "Caractère du compte non reconnu : « " + String(body.caractere) + " »." },
+        { status: 400 }
+      );
+    }
+    const titulaire = titulaireBase(body.titulaire);
+    if (!titulaire) {
+      return NextResponse.json(
+        { error: "Titulaire non reconnu : « " + String(body.titulaire) + " »." },
+        { status: 400 }
+      );
     }
 
     // ---- LA SOCIETE DE RATTACHEMENT ----
@@ -184,8 +278,8 @@ export async function POST(req: NextRequest) {
       tenant_id: tenantId,
       entite_id: entiteId,
       designation: body.designation,
-      type_compte: body.type_compte || null,
-      caractere: body.caractere || null,
+      type_compte: typeCompte,
+      caractere,
       organisme_nom: body.organisme_nom,
       organisme_adresse: body.organisme_adresse || null,
       organisme_pays: body.organisme_pays || null,
@@ -193,7 +287,7 @@ export async function POST(req: NextRequest) {
       date_ouverture: body.date_ouverture || null,
       date_cloture: body.date_cloture || null,
       devise: body.devise || null,
-      titulaire: body.titulaire || null,
+      titulaire,
       titulaire_precision: body.titulaire_precision || null,
       valide_par_fiscaliste: body.valide_par_fiscaliste === true,
       notes: body.notes || null,
@@ -207,8 +301,11 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (error) {
-      console.error("[comptes-etrangers] insertion :", error.message);
-      return NextResponse.json({ error: "Enregistrement impossible." }, { status: 500 });
+      console.error("[comptes-etrangers] insertion :", error.code, error.message);
+      return NextResponse.json(
+        { error: "Enregistrement impossible : " + raisonLisible(error), detail: error.message },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json({ success: true, compte: data });
