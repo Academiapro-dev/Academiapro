@@ -72,6 +72,11 @@ function decouperAdresse(v: unknown): {
 
 export async function POST(req: NextRequest) {
   const journal: string[] = [];
+  // 🆕 24/09 — CE QUI S EST BIEN PASSE N EST PAS UN AVERTISSEMENT. Le
+  // journal melait les deux, et le tableau de bord affichait « 2 champ(s)
+  // non trouve(s) » sur un 7004 parfaitement rempli (l annee dessinee et la
+  // mention « Foreign-owned U.S. DE » etaient comptees comme des manques).
+  const notes: string[] = [];
 
   if (!origineLegitime(req)) {
     return NextResponse.json({ error: "Acces refuse" }, { status: 403 });
@@ -434,7 +439,7 @@ export async function POST(req: NextRequest) {
         font: font,
       });
 
-      journal.push(
+      notes.push(
         "Annee civile : « " + String(year).slice(2)
         + " » dessinee sur la page aux coordonnees du champ f1_11 ("
         + Math.round(rect.x) + ", " + Math.round(rect.y) + ")"
@@ -463,7 +468,7 @@ export async function POST(req: NextRequest) {
         size: tailleMention,
         font: gras,
       });
-      journal.push("Mention « Foreign-owned U.S. DE » posee en tete de page 1");
+      notes.push("Mention « Foreign-owned U.S. DE » posee en tete de page 1");
     } catch (e) {
       journal.push("Mention Foreign-owned U.S. DE : " + (e instanceof Error ? e.message : String(e)));
     }
@@ -522,7 +527,8 @@ export async function POST(req: NextRequest) {
         ein: ein,
         adresse: [adr.rue, adr.ville, adr.etat, adr.pays, adr.zip],
         code_formulaire: CODE_FORMULAIRE_1120,
-        societe_etrangere_sans_etablissement_us: true,
+        // 24/09 : la ligne 2 n est plus cochee (voir plus haut).
+        societe_etrangere_sans_etablissement_us: false,
       },
       echeances: {
         depot_extension_avant: limiteDepot,
@@ -530,6 +536,7 @@ export async function POST(req: NextRequest) {
       },
       nb_avertissements: journal.length,
       avertissements: journal,
+      notes,
       note: "Le Form 7004 doit etre depose AVANT le " + limiteDepot
         + ". Il reporte le depot, pas le paiement.",
     });
