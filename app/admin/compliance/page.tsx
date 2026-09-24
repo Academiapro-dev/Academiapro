@@ -142,6 +142,13 @@ export default function ComplianceDashboard() {
   // accuse_recu, echec_fax.
   const [depotStatut, setDepotStatut] = useState<string>("a_generer");
   const [depotFaxId, setDepotFaxId] = useState<string | null>(null);
+  // 🆕 24/09 — le depot du Form 7004, suivi a part de celui du 1120.
+  const [statut7004, setStatut7004] = useState<string>("a_generer");
+  const [ref7004, setRef7004] = useState<string>("");
+  const [fax7004, setFax7004] = useState<string | null>(null);
+  const [depot7004Loading, setDepot7004Loading] = useState<string | null>(null);
+  const [depot7004Msg, setDepot7004Msg] = useState<string | null>(null);
+  const [depot7004Lien, setDepot7004Lien] = useState<string | null>(null);
 
   async function charger(id: string, entite: string | null) {
     setLoading(true);
@@ -195,6 +202,9 @@ export default function ComplianceDashboard() {
         setChemin5472(d.chemin_5472 || null);
         setRefAccuse(d.reference_accuse || "");
         setDepotFaxId(d.fax_id || null);
+        setStatut7004(d.statut_7004 || "a_generer");
+        setRef7004(d.reference_accuse_7004 || "");
+        setFax7004(d.fax_id_7004 || null);
         return d.statut || "a_generer";
       }
     } catch (e) {
@@ -731,7 +741,166 @@ export default function ComplianceDashboard() {
   // ⚠️ IL DOIT ETRE DEPOSE AVANT L ECHEANCE D ORIGINE. Un 7004 envoye apres
   // le 15 avril ne vaut rien : l extension previent le retard, elle ne le
   // rattrape pas. C est pourquoi la reponse rappelle les deux dates.
+  // ---- 🆕 24/09 — LE DEPOT DU FORM 7004 ----
+  //
+  // Meme parcours que le 1120 : generer, preparer l accuse et le faire
+  // signer, verifier la signature, transmettre par fax. Le 7004 ne porte
+  // pas de signature (l IRS n en demande pas) : le titulaire signe
+  // l attestation qui le precede. UN SEUL BOUTON, qui fait l etape suivante.
+  async function preparer7004() {
+    if (!tenantId) return;
+    setDepot7004Loading("preparer");
+    setDepot7004Msg(null);
+    setDepot7004Lien(null);
+    try {
+      const r1 = await fetch("/api/compliance/transmettre", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "preparer_7004", entite_id: entiteId, year: PNL_YEAR }),
+      });
+      const d1 = await r1.json();
+      if (!d1.success) {
+        setDepot7004Msg("Erreur : " + (d1.error || "inconnue"));
+        setDepot7004Loading(null);
+        return;
+      }
+      const das = d1.document_a_signer || {};
+      if (!das.signataire_email) {
+        setDepot7004Msg("Erreur : la société n'a pas d'adresse de contact (email_contact). Renseignez-la avant de préparer le dépôt.");
+        setDepot7004Loading(null);
+        return;
+      }
+      const r2 = await fetch("/api/compliance/document-a-signer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(das),
+      });
+      const d2 = await r2.json();
+      if (!d2.success || !d2.reference) {
+        setDepot7004Msg("Erreur à la création de l'accusé : " + (d2.error || "inconnue"));
+        setDepot7004Loading(null);
+        return;
+      }
+      const r3 = await fetch("/api/compliance/transmettre", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "lier_7004", entite_id: entiteId, year: PNL_YEAR, reference: d2.reference, chemin_7004: d1.chemin_7004 }),
+      });
+      const d3 = await r3.json();
+      if (!d3.success) {
+        setDepot7004Msg("Accusé " + d2.reference + " créé mais non rattaché au 7004 : " + (d3.error || "inconnue") + ". Recommencez.");
+        setDepot7004Loading(null);
+        return;
+      }
+      setRef7004(d2.reference);
+      setStatut7004("accuse_envoye");
+      const em = d2.email || {};
+      let msg = "Accusé de lecture " + d2.reference + " créé et rattaché au Form 7004.";
+      msg += em.envoye === true
+        ? " Lien de signature envoyé à " + das.signataire_email + "."
+        : " ATTENTION : le courriel n'est PAS parti (" + (em.raison || "cause inconnue") + ").";
+      setDepot7004Msg(msg);
+      setDepot7004Lien(d2.lien || null);
+    } catch (e: any) {
+      setDepot7004Msg("Erreur : " + String(e));
+    }
+    setDepot7004Loading(null);
+  }
+
+  async function transmettre7004() {
+    if (!tenantId) return;
+    setDepot7004Loading("transmettre");
+    setDepot7004Msg(null);
+    try {
+      const r = await fetch("/api/compliance/transmettre", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "transmettre_7004", entite_id: entiteId, year: PNL_YEAR, reference: ref7004 || undefined }),
+      });
+      const d = await r.json();
+      if (d.success) {
+        setStatut7004("transmis");
+        setFax7004(d.fax_id || null);
+        setDepot7004Msg(d.message || "Form 7004 transmis.");
+        setDepot7004Lien(null);
+      } else {
+        setDepot7004Msg("Erreur : " + (d.error || "inconnue"));
+      }
+    } catch (e: any) {
+      setDepot7004Msg("Erreur : " + String(e));
+    }
+    setDepot7004Loading(null);
+  }
+
+  async function voir7004Transmis() {
+    if (!tenantId || !ref7004) return;
+    setDepot7004Loading("document");
+    try {
+      const r = await fetch("/api/compliance/transmettre", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "document", entite_id: entiteId, year: PNL_YEAR, reference: ref7004 }),
+      });
+      const d = await r.json();
+      if (d.success && d.url) {
+        window.open(d.url, "_blank", "noopener");
+        setDepot7004Msg("Form 7004 transmis ouvert dans un nouvel onglet — " + (d.pages || "") + " page(s), empreinte " + String(d.empreinte || "").slice(0, 16) + "…");
+      } else {
+        setDepot7004Msg("Erreur : " + (d.error || "inconnue"));
+      }
+    } catch (e: any) {
+      setDepot7004Msg("Erreur : " + String(e));
+    }
+    setDepot7004Loading(null);
+  }
+
+  async function etapeSuivante7004() {
+    if (statut7004 === "a_generer") { await genererExtension(); return; }
+    if (statut7004 === "genere" || statut7004 === "echec_fax") { await preparer7004(); return; }
+    if (statut7004 === "signe") { await transmettre7004(); return; }
+    // accuse_envoye, transmis : on relit l etat (la signature et le retour
+    // du fax sont detectes en base).
+    setDepot7004Loading("etat");
+    const avant = statut7004;
+    await lireEtatDepot(entiteId);
+    setDepot7004Loading(null);
+    if (avant === "accuse_envoye") {
+      setDepot7004Msg("Statut relu. Si le titulaire a signé, le bouton propose maintenant « 4. Transmettre à l'IRS ».");
+    } else if (avant === "transmis") {
+      setDepot7004Msg("Statut relu.");
+    }
+  }
+
+  function libelleEtape7004(): string {
+    if (depot7004Loading === "preparer") return "Préparation de l'accusé…";
+    if (depot7004Loading === "transmettre") return "Transmission…";
+    if (depot7004Loading === "etat") return "Vérification…";
+    if (autreLoading === "7004") return "Génération du Form 7004…";
+    if (statut7004 === "a_generer") return "1. Générer le Form 7004";
+    if (statut7004 === "genere") return "2. Préparer le dépôt et faire signer";
+    if (statut7004 === "accuse_envoye") return "3. Vérifier la signature";
+    if (statut7004 === "signe") return "4. Transmettre à l'IRS";
+    if (statut7004 === "transmis") return "Actualiser le statut";
+    if (statut7004 === "accuse_recu") return "Dépôt terminé";
+    if (statut7004 === "echec_fax") return "Réessayer : préparer un nouveau dépôt";
+    return "Continuer";
+  }
+
+  function libelleStatut7004(): string {
+    switch (statut7004) {
+      case "a_generer": return "Form 7004 à générer.";
+      case "genere": return "Form 7004 généré, à faire signer.";
+      case "accuse_envoye": return "Accusé " + ref7004 + " envoyé, en attente de la signature du titulaire.";
+      case "signe": return "Accusé signé : le Form 7004 peut partir.";
+      case "transmis": return "Transmis par fax" + (fax7004 ? " (fax " + fax7004 + ")" : "") + ", en attente de l'accusé de transmission.";
+      case "accuse_recu": return "Dépôt terminé : l'accusé de transmission est archivé.";
+      case "echec_fax": return "Le fax n'est pas passé. Préparez un nouveau dépôt.";
+      default: return statut7004;
+    }
+  }
+
   async function genererExtension() {
+
     if (!tenantId) return;
     setAutreLoading("7004");
     setAutreMsg(null);
@@ -1281,6 +1450,58 @@ export default function ComplianceDashboard() {
             )}
           </p>
         )}
+
+        {/* ---- 🆕 24/09 — LE DEPOT DU FORM 7004 PAR FAX ---- */}
+        <div style={{
+          margin: "18px 0",
+          padding: "16px 20px",
+          background: "rgba(10,61,46,0.07)",
+          border: "2px solid " + VERT,
+          borderRadius: 10,
+        }}>
+          <span style={{ display: "block", color: VERT, fontSize: 17, fontWeight: "bold", marginBottom: 6 }}>
+            Dépôt à l&apos;IRS par fax — Form 7004
+          </span>
+          <p style={{ fontSize: 14, color: "#555", margin: "0 0 12px", lineHeight: 1.6 }}>
+            1. Générez le 7004. 2. Préparez le dépôt : le titulaire reçoit
+            l&apos;accusé de lecture à signer, avec le 7004 joint. Le 7004 ne se
+            signe pas lui-même : l&apos;IRS n&apos;en demande pas. 3. Une fois
+            l&apos;accusé signé, transmettez : le 7004 part par fax au numéro de
+            l&apos;instruction officielle, avant le 15 avril, et l&apos;accusé de
+            transmission est archivé au coffre.
+          </p>
+          <p style={{ fontSize: 14, margin: "0 0 12px", color: statut7004 === "accuse_recu" ? "#2e7d32" : statut7004 === "echec_fax" ? "#c62828" : "#1a1a1a" }}>
+            <strong>Où en est le 7004 {PNL_YEAR} :</strong> {libelleStatut7004()}
+          </p>
+          <button
+            onClick={etapeSuivante7004}
+            disabled={depot7004Loading !== null || autreLoading !== null || statut7004 === "accuse_recu"}
+            style={{ ...styleBouton, fontSize: 16, padding: "14px 24px", opacity: statut7004 === "accuse_recu" ? 0.5 : 1 }}
+          >
+            {libelleEtape7004()}
+          </button>
+          {(statut7004 === "transmis" || statut7004 === "accuse_recu") && (
+            <button
+              onClick={voir7004Transmis}
+              disabled={depot7004Loading !== null}
+              style={{ ...styleLien, fontSize: 16, padding: "14px 24px" }}
+            >
+              {depot7004Loading === "document" ? "…" : "Voir le 7004 transmis"}
+            </button>
+          )}
+          {depot7004Msg && (
+            <p style={{ marginTop: 10, marginBottom: 0, color: depot7004Msg.indexOf("Erreur") === 0 || depot7004Msg.indexOf("ATTENTION") !== -1 ? "#c62828" : VERT }}>
+              {depot7004Msg}
+            </p>
+          )}
+          {depot7004Lien && (
+            <p style={{ marginTop: 4, marginBottom: 0 }}>
+              <a href={depot7004Lien} style={{ color: VERT, fontWeight: "bold" }}>
+                Ouvrir la page de signature →
+              </a>
+            </p>
+          )}
+        </div>
 
         {/* Le bloc 3916 ne concerne QUE les residents fiscaux francais.
             L afficher a un expatrie serait au mieux inutile, au pire
