@@ -114,7 +114,13 @@ function signatureDeclaree(v: any, pages: number): any {
   if (x === null || y === null || !l || !h) return null;
   const sortie: any = { page, x, y, l, h };
   const dx = n(v.date_x), dy = n(v.date_y);
-  if (dx !== null && dy !== null) { sortie.date_x = dx; sortie.date_y = dy; sortie.date_format = v.date_format === "us" ? "us" : "us_long"; }
+  // 🆕 24/09 — trois formats : « us » (09/24/2026), « fr » (24/09/2026, pour
+  // le 3916), et par defaut « us_long » (September 24, 2026).
+  if (dx !== null && dy !== null) {
+    sortie.date_x = dx;
+    sortie.date_y = dy;
+    sortie.date_format = v.date_format === "us" ? "us" : v.date_format === "fr" ? "fr" : "us_long";
+  }
   return sortie;
 }
 
