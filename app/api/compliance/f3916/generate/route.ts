@@ -1,344 +1,470 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { PDFDocument, StandardFonts, PDFName, PDFDict } from "pdf-lib";
+import fs from "fs/promises";
+import path from "path";
 import { sessionCourante } from "../../../../../lib/session";
-// 🚨 LE CONTROLE D ORIGINE EST DESORMAIS PARTAGE — 01/09.
-// La fonction etait recopiee dans chaque route, chacune avec sa propre
-// liste de domaines. mysterllc.com n avait ete ajoute qu a deux d entre
-// elles : ouvrir un dossier depuis mysterllc.com rendait « Acces refuse ».
-// ⚠️ NE PAS REDEFINIR origineLegitime ICI. Une copie locale reintroduirait
-// exactement le defaut que ce fichier partage supprime.
 import { origineLegitime } from "../../../../../lib/origine";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
 export const dynamic = "force-dynamic";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+const CERFA = "public/cerfa/3916_5173.pdf";
 
-// 🚨 L EXPEDITEUR NE DOIT PAS ETRE CELUI D UN AUTRE PRODUIT — 31/08.
+// ---------------------------------------------------------------------------
+// 🚨 CORRIGE LE 31/08 — LA ROUTE LA PLUS EXPOSEE DU MODULE, ET SA JUMELLE
+// f3916/generate ETAIT DEJA JUSTE. La meme erreur qu a f5472/generate, dans
+// deux fichiers voisins : a chaque fois, l une des deux versions a ete
+// corrigee et l autre oubliee.
 //
-// CE FICHIER ENVOYAIT DEPUIS contact@hebrewproai.com, le domaine du beit
-// midrash. Une fiche fiscale qui arrive de la fait douter de tout le reste,
-// et un destinataire attentif y verrait un signe d amateurisme — ou pire,
-// une tentative d hameconnage.
+// LE DEFAUT. Aucune session n etait exigee, et le tenant_id etait pris DANS
+// LE CORPS DE LA REQUETE. Il suffisait donc de poster { tenant_id: "..." }
+// pour obtenir le CERFA 3916 rempli d une autre personne.
 //
-// ⚠️ LA VARIABLE COMPLIANCE_EXPEDITEUR EST RENSEIGNEE DANS VERCEL depuis le
-// 31/08 : MysterLLC <contact@mysterllc.com>, verifie chez Resend. Le repli
-// ci-dessous ne sert plus que si la variable venait a disparaitre.
-const EXPEDITEUR = process.env.COMPLIANCE_EXPEDITEUR
-  || "Suivi des echeances <contact@academiapro.fr>";
+// CE QUE CE PDF CONTIENT, ET C EST LA QUE C EST GRAVE : la table
+// compliance_declarant porte le NOM PATRONYMIQUE, LES PRENOMS, LA DATE ET
+// LE LIEU DE NAISSANCE et L ADRESSE PERSONNELLE du declarant. S y ajoutent
+// ses COMPTES BANCAIRES A L ETRANGER avec leurs numeros et leur organisme.
+//
+// Ce ne sont pas seulement des donnees fiscales : ce sont des donnees
+// personnelles au sens du RGPD, et de quoi usurper une identite. Un
+// identifiant devine ou apercu suffisait.
+//
+// LA REGLE, LA MEME QUE PARTOUT : le tenant vient de la SESSION, jamais de
+// la requete. Ce que le navigateur envoie n est jamais une autorisation.
+//
+// ⚠️ compte_id RESTE LU DANS LE CORPS — c est normal et sans danger : il ne
+// sert qu a choisir un compte PARMI CEUX DU TENANT DE LA SESSION, puisque
+// la requete filtre d abord sur tenant_id.
+// ---------------------------------------------------------------------------
 
-function fr(v: unknown): string {
-  if (v === null || v === undefined || v === "") return "—";
-  return String(v);
+function jour(d: string | null): string {
+  if (!d) return "";
+  return d.slice(8, 10);
+}
+function mois(d: string | null): string {
+  if (!d) return "";
+  return d.slice(5, 7);
+}
+function annee(d: string | null): string {
+  if (!d) return "";
+  return d.slice(0, 4);
+}
+// ---------------------------------------------------------------------------
+// LES ACCENTS SONT GARDES — 24/09.
+//
+// ⛔ L ANCIENNE FONCTION sansAccent RETIRAIT TOUT CE QUI N ETAIT PAS ASCII :
+// le 3916 de Meridian portait « 15/03/1980 a Lyon » et « Rue de la
+// Republique ». Un formulaire de l administration francaise sans accents fait
+// amateur, et le lieu de naissance est une donnee d identite.
+//
+// La police Helvetica du PDF encode tout le latin-1 (e accent aigu, a accent
+// grave, c cedille, guillemets francais...). Seuls les caracteres HORS
+// latin-1 posaient probleme : ils sont ramenes a leur equivalent (apostrophe
+// typographique -> apostrophe, tiret long -> tiret, oe lie -> oe), ou, a
+// defaut, a leur lettre sans accent. Rien ne peut donc faire echouer le PDF.
+// ---------------------------------------------------------------------------
+function texteCerfa(v: any): string {
+  if (v === null || v === undefined) return "";
+  const s = String(v)
+    .normalize("NFC")
+    .replace(/[\u2018\u2019\u02BC]/g, "'")
+    .replace(/[\u201C\u201D]/g, '"')
+    .replace(/[\u2013\u2014]/g, "-")
+    .replace(/\u2026/g, "...")
+    .replace(/\u0153/g, "oe")
+    .replace(/\u0152/g, "OE")
+    .replace(/[\u00A0\u202F]/g, " ");
+  let sortie = "";
+  for (const ch of s) {
+    if (/[\x20-\x7E\u00A1-\u00FF]/.test(ch)) {
+      sortie += ch;
+    } else {
+      sortie += ch.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^\x20-\x7E]/g, "");
+    }
+  }
+  return sortie.trim();
 }
 
-function dateFR(v: unknown): string {
-  if (!v) return "—";
-  const s = String(v).slice(0, 10);
-  const p = s.split("-");
-  if (p.length !== 3) return s;
-  return p[2] + "/" + p[1] + "/" + p[0];
-}
-
-function ficheHTML(comptes: any[], annee: number, tousValides: boolean, societe: string): string {
-  const date = new Date().toLocaleDateString("fr-FR", { year: "numeric", month: "long", day: "numeric" });
-
-  const blocs = comptes.map((c, i) => `
-<h2>Compte ${i + 1} : ${fr(c.designation)}</h2>
-<table>
-  <tr><td class="label">Désignation du compte</td><td>${fr(c.designation)}</td></tr>
-  <tr><td class="label">Type de compte</td><td>${fr(c.type_compte)}</td></tr>
-  <tr><td class="label">Caractère</td><td>${fr(c.caractere)}</td></tr>
-  <tr><td class="label">Organisme gestionnaire</td><td>${fr(c.organisme_nom)}</td></tr>
-  <tr><td class="label">Adresse de l'organisme</td><td>${fr(c.organisme_adresse)}</td></tr>
-  <tr><td class="label">Pays de l'organisme</td><td>${fr(c.organisme_pays)}</td></tr>
-  <tr><td class="label">Numéro de compte</td><td>${fr(c.numero_compte)}</td></tr>
-  <tr><td class="label">Date d'ouverture</td><td>${dateFR(c.date_ouverture)}</td></tr>
-  <tr><td class="label">Date de clôture</td><td>${dateFR(c.date_cloture)}</td></tr>
-  <tr><td class="label">Devise</td><td>${fr(c.devise)}</td></tr>
-  <tr><td class="label">Titulaire déclaré</td><td>${fr(c.titulaire)}</td></tr>
-  <tr><td class="label">Précision sur le titulaire</td><td>${fr(c.titulaire_precision)}</td></tr>
-  <tr><td class="label">Validé par un fiscaliste</td><td>${c.valide_par_fiscaliste ? "OUI" : "NON — à faire valider"}</td></tr>
-  ${c.notes ? '<tr><td class="label">Notes</td><td>' + fr(c.notes) + "</td></tr>" : ""}
-</table>`).join("\n");
-
-  const avertissement = tousValides ? "" : `
-<div class="alerte">
-  <strong>À faire valider :</strong> au moins un compte n'a pas encore été validé par un
-  fiscaliste. Point de forme à confirmer : le formulaire distingue le compte
-  <em>détenu</em> du compte <em>détenu par une entité dont vous êtes bénéficiaire</em>.
-  Pour une Single-Member LLC transparente, l'administration accepte généralement le
-  titulaire personne physique, mais faites confirmer avant dépôt.
-</div>`;
-
-  return `<!DOCTYPE html>
-<html lang="fr"><head><meta charset="UTF-8"><style>
-  body { font-family: Georgia, serif; color:#1a1a1a; padding:40px; max-width:800px; margin:0 auto; }
-  h1 { color:#0a3d2e; border-bottom:3px solid #0a3d2e; padding-bottom:10px; }
-  h2 { color:#0a3d2e; margin-top:28px; font-size:18px; }
-  table { width:100%; border-collapse:collapse; margin:16px 0; }
-  td { padding:10px; border:1px solid #ccc; vertical-align:top; }
-  td.label { background:#f4f4f0; font-weight:bold; width:38%; }
-  .alerte { background:#fff8e1; border-left:4px solid #c8a96e; padding:12px 16px; margin:16px 0; }
-  .fondement { background:#f0f5f2; border-left:4px solid #0a3d2e; padding:12px 16px; margin:16px 0; }
-  .etape { background:#f4f4f0; border-left:4px solid #0a3d2e; padding:12px 16px; margin:16px 0; }
-  ol { line-height:1.8; }
-  .footer { margin-top:40px; font-size:12px; color:#666; border-top:1px solid #eee; padding-top:12px; }
-</style></head><body>
-
-<h1>Fiche de préparation — Déclaration 2042 et formulaire 3916 — ${annee}</h1>
-<p>Société concernée : <strong>${fr(societe)}</strong></p>
-<p>Document de préparation généré le ${date}. Recopiez ces informations dans votre
-déclaration de revenus sur impots.gouv.fr.</p>
-
-<div class="fondement">
-  <strong>Fondement de l'obligation — article 1649 A du CGI :</strong> les personnes
-  physiques domiciliées en France doivent déclarer l'ensemble des comptes ouverts,
-  détenus, utilisés ou sous procuration à l'étranger. Même lorsque le compte est
-  formellement au nom d'une LLC américaine, deux situations engagent le déclarant à
-  titre personnel : (1) une Single-Member LLC est généralement traitée comme une
-  entité transparente par le droit fiscal français, assimilant avoirs et activité
-  directement à son propriétaire ; (2) le gérant / membre unique habilité à faire
-  fonctionner le compte dispose d'un droit d'utilisation ou d'une procuration
-  effective. Pénalité en cas d'omission : 1 500 € par compte et par an.
-</div>
-
-<h2>Déclaration 2042 — ce qui change</h2>
-
-<div class="etape">
-  <strong>Une seule case à cocher.</strong> Votre déclaration de revenus reste
-  celle d'un particulier. Le seul ajout lié à la société est la case
-  <strong>8UU</strong> de la 2042, qui ouvre l'annexe 3916.
-</div>
-
-<table>
-  <tr><td class="label">Formulaire</td><td>2042 — déclaration de revenus (particulier)</td></tr>
-  <tr><td class="label">Case à cocher</td><td><strong>8UU</strong> — Comptes ouverts, utilisés ou clos à l'étranger</td></tr>
-  <tr><td class="label">Annexe déclenchée</td><td>3916 / 3916-bis (détaillée ci-dessous)</td></tr>
-  <tr><td class="label">Échéance</td><td>Mai ${annee + 1}</td></tr>
-</table>
-
-<h2>Comment déclarer, étape par étape</h2>
-<ol>
-  <li>Ouvrir votre déclaration de revenus sur impots.gouv.fr.</li>
-  <li>Cocher la case <strong>8UU</strong> de la déclaration principale 2042
-      (&laquo; Comptes ouverts, utilisés ou clos à l'étranger &raquo;).</li>
-  <li>Remplir l'annexe <strong>n&deg; 3916 / 3916-bis</strong> pour chaque compte
-      étranger, avec les informations du tableau ci-dessous.</li>
-  <li>Indiquer que vous agissez au titre de représentant légal / bénéficiaire effectif
-      ou titulaire d'un droit d'utilisation pour le compte de la société.</li>
-</ol>
-
-<h2>Comptes à déclarer pour ${annee} : ${comptes.length}</h2>
-${comptes.length === 0 ? "<p>Aucun compte enregistré pour cet exercice.</p>" : blocs}
-
-${avertissement}
-
-<div class="footer">
-  Fiche de préparation 2042 + 3916 ${annee} — ${date}<br/>
-  Ce document est une aide à la saisie et ne constitue pas un dépôt officiel.
-</div>
-</body></html>`;
+// L adresse d une LLC americaine, avec son pays. Le formulaire demande
+// « n°, rue, ville et pays » ; la fiche annuelle ecrit l adresse sans pays.
+function avecPays(adresse: any, pays: string): string {
+  const a = texteCerfa(adresse);
+  if (!a) return "";
+  if (/(unis|usa|u\.s\.a|united states)/i.test(a)) return a;
+  return a + ", " + pays;
 }
 
 export async function POST(req: NextRequest) {
-  if (!origineLegitime(req)) {
-    return NextResponse.json({ error: "Acces refuse" }, { status: 403 });
-  }
-
-  // L organisme ET l adresse email viennent du JETON SIGNE session_academia.
-  // Avec l ancien cookie sb_user, un cookie forge faisait generer la fiche
-  // des comptes etrangers d un autre organisme ET l expediait a l attaquant.
-  const session = sessionCourante();
-  const tenantId = session ? session.tenantId : null;
-  const emailSession = session ? session.email : null;
-  if (!tenantId) {
-    return NextResponse.json(
-      { error: "Session sans société rattachée. Reconnectez-vous." },
-      { status: 401 }
-    );
-  }
-
+  const avertissements: string[] = [];
   try {
-    const body = await req.json().catch(() => ({} as any));
-    const annee = Number(body.year) || new Date().getFullYear();
-    const entiteDemandee = String(body.entite_id || "").trim();
-
-    // ---- LA SOCIETE CONCERNEE ----
-    //
-    // 🚨 L IDENTIFIANT RECU N EST PAS UNE AUTORISATION. Il est cherche AVEC
-    // le filtre tenant_id de la session : une societe d un autre
-    // gestionnaire est simplement introuvable.
-    let requeteEntite = supabase
-      .from("compliance_tenants")
-      .select("id, label, legal_name, fr_tax_resident")
-      .eq("tenant_id", tenantId);
-
-    if (entiteDemandee) {
-      requeteEntite = requeteEntite.eq("id", entiteDemandee);
+    if (!origineLegitime(req)) {
+      return NextResponse.json({ ok: false, erreur: "Acces refuse" }, { status: 403 });
     }
 
-    const { data: entite, error: eEntite } = await requeteEntite
-      .order("label", { ascending: true })
-      .limit(1)
-      .maybeSingle();
-
-    if (eEntite) {
-      console.error("[f3916] lecture entite :", eEntite.message);
-      return NextResponse.json({ error: "Lecture impossible." }, { status: 500 });
-    }
-
-    if (!entite) {
+    // L ORGANISME VIENT DE LA SESSION SIGNEE, ET DE NULLE PART AILLEURS.
+    // Un tenant_id present dans le corps de la requete est desormais IGNORE.
+    const session = sessionCourante();
+    const tenantId = session ? session.tenantId : null;
+    if (!tenantId) {
       return NextResponse.json(
-        { error: entiteDemandee ? "Société introuvable." : "Aucune société enregistrée." },
-        { status: 404 }
+        { ok: false, erreur: "Session sans societe rattachee. Reconnectez-vous." },
+        { status: 401 }
       );
     }
 
-    const entiteId = entite.id;
+    const body = await req.json().catch(() => ({}));
+    const compteId = body.compte_id;
 
-    // ⚠️ LE 3916 NE CONCERNE QUE LES RESIDENTS FISCAUX FRANCAIS. Le generer
-    // pour un expatrie produirait un document sans objet — et sur un marche
-    // ou les clients ont precisement quitte la France, ce serait plus qu une
-    // maladresse.
-    if (entite.fr_tax_resident === false) {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!url || !key) {
+      return NextResponse.json(
+        { ok: false, erreur: "Variables Supabase absentes" },
+        { status: 500 }
+      );
+    }
+    const supabase = createClient(url, key);
+
+    // -----------------------------------------------------------------------
+    // UNE SOCIETE, SON COMPTE, SON DECLARANT — 24/09.
+    //
+    // ⛔ AVANT : le declarant etait lu PAR ORGANISME SEUL (le premier venu), et
+    // les comptes aussi. Chez un partenaire qui suit plusieurs LLC, le 3916
+    // d une societe pouvait porter l identite du declarant d une AUTRE.
+    //
+    // MAINTENANT : on part du COMPTE (choisi par compte_id, ou le seul de la
+    // societe), et le declarant est celui de LA SOCIETE DE CE COMPTE
+    // (compliance_declarant.entite_id, ecrit par la fiche annuelle).
+    // ⛔ AUCUN REPLI QUI CHANGE LE PERIMETRE : pas de declarant pour cette
+    // societe = pas de 3916, avec un message qui dit quoi faire.
+    // Seule tolerance : un compte ANCIEN, sans societe, dans un organisme qui
+    // n a qu UN declarant — il n y a alors aucune ambiguite.
+    // -----------------------------------------------------------------------
+    const entiteDemandee = String(body.entite_id || body.entite || "").trim();
+    let societe: any = null;
+    if (entiteDemandee) {
+      const { data: e } = await supabase
+        .from("compliance_tenants")
+        .select("id, label, legal_name")
+        .eq("tenant_id", tenantId)
+        .eq("id", entiteDemandee)
+        .maybeSingle();
+      if (!e) {
+        return NextResponse.json({ ok: false, erreur: "Société introuvable." }, { status: 404 });
+      }
+      societe = e;
+    }
+
+    let requete = supabase
+      .from("compliance_comptes_etrangers")
+      .select("*")
+      .eq("tenant_id", tenantId)
+      .limit(50);
+
+    // Le filtre sur tenant_id vient AVANT celui sur l identifiant du compte :
+    // un compte_id appartenant a un autre organisme ne rend donc rien.
+    if (societe) requete = requete.eq("entite_id", societe.id);
+    if (compteId) requete = requete.eq("id", compteId);
+
+    const { data: comptes, error: errCpt } = await requete;
+
+    if (errCpt) {
+      console.error("[f3916/generate-pdf] lecture comptes :", errCpt.message);
+      return NextResponse.json(
+        { ok: false, erreur: "Lecture des comptes étrangers impossible." },
+        { status: 500 }
+      );
+    }
+    if (!comptes || comptes.length === 0) {
       return NextResponse.json(
         {
-          error: entite.label + " n'est pas rattachée à un résident fiscal français : "
-            + "le formulaire 3916 ne s'applique pas.",
+          ok: false,
+          erreur:
+            "Aucun compte étranger enregistré. Saisissez d'abord le compte dans « Comptes à l'étranger ».",
+        },
+        { status: 404 }
+      );
+    }
+    if (comptes.length > 1 && !compteId) {
+      return NextResponse.json(
+        {
+          ok: false,
+          erreur:
+            "Plusieurs comptes trouvés. La notice impose une déclaration par compte : précisez compte_id.",
+          comptes: comptes.map((c: any) => ({
+            id: c.id,
+            designation: c.designation,
+            organisme: c.organisme_nom,
+          })),
         },
         { status: 400 }
       );
     }
+    const c = comptes[0];
 
-    // ---- LES COMPTES DE CETTE SOCIETE ----
-    //
-    // Le filtre par entite est tente d abord ; sans la colonne, on retombe
-    // sur le tenant, qui reste la barriere de cloisonnement.
-    let liste: any[] = [];
+    const entiteDuCompte: string | null = c.entite_id || (societe ? societe.id : null);
+    let d: any = null;
 
-    const essai = await supabase
-      .from("compliance_comptes_etrangers")
-      .select("*")
-      .eq("tenant_id", tenantId)
-      .eq("entite_id", entiteId)
-      .eq("exercice", annee)
-      .order("date_ouverture", { ascending: true })
-      .limit(500);
-
-    if (!essai.error) {
-      liste = essai.data || [];
-    } else {
-      const { data: c2, error: eLect } = await supabase
-        .from("compliance_comptes_etrangers")
+    if (entiteDuCompte) {
+      const { data: decl, error: errDecl } = await supabase
+        .from("compliance_declarant")
         .select("*")
         .eq("tenant_id", tenantId)
-        .eq("exercice", annee)
-        .order("date_ouverture", { ascending: true })
-        .limit(500);
-
-      if (eLect) {
-        console.error("[f3916] lecture comptes :", eLect.message);
-        return NextResponse.json({ error: "Lecture des comptes impossible." }, { status: 500 });
+        .eq("entite_id", entiteDuCompte)
+        .limit(1);
+      if (errDecl) {
+        console.error("[f3916/generate-pdf] lecture declarant :", errDecl.message);
+        return NextResponse.json(
+          { ok: false, erreur: "Lecture de la fiche déclarant impossible." },
+          { status: 500 }
+        );
       }
-      liste = c2 || [];
-    }
-
-    const tousValides = liste.length > 0 && liste.every((c: any) => c.valide_par_fiscaliste);
-    const html = ficheHTML(liste, annee, tousValides, entite.legal_name || entite.label);
-
-    const { data: ver } = await supabase.rpc("compliance_next_doc_version", {
-      p_tenant_id: tenantId,
-      p_doc_type: "fiche_3916",
-    });
-    const version = ver || 1;
-
-    // Le chemin porte l identifiant de la SOCIETE : sans cela, deux
-    // societes d un meme gestionnaire ecraseraient mutuellement leur fiche.
-    const chemin = tenantId + "/" + entiteId + "/3916_" + annee + "_v" + version + ".html";
-
-    const { error: upErr } = await supabase.storage
-      .from("compliance-docs")
-      .upload(chemin, html, { contentType: "text/html", upsert: true });
-
-    if (upErr) {
-      console.error("[f3916] depot au coffre :", upErr.message);
-      return NextResponse.json({ error: "Dépôt au coffre impossible." }, { status: 500 });
-    }
-
-    // 🚨 entite_id EST INDISPENSABLE ICI. Le tableau de bord filtre les
-    // documents dessus depuis le 31/08 : une fiche enregistree sans lui
-    // serait deposee au coffre mais INVISIBLE a l ecran, sans qu aucune
-    // erreur ne le signale.
-    await supabase.from("compliance_documents").insert({
-      tenant_id: tenantId,
-      entite_id: entiteId,
-      rule_code: "FR_3916",
-      doc_type: "fiche_3916",
-      title: "Fiche 2042 + 3916 comptes étrangers " + annee + " — " + entite.label,
-      version: version,
-      storage_path: "compliance-docs/" + chemin,
-      mime_type: "text/html",
-    });
-
-    const email: Record<string, unknown> = { tente: true, destinataire: emailSession };
-
-    if (!emailSession) {
-      email.envoye = false;
-      email.raison = "Aucune adresse électronique dans la session";
-    } else if (!process.env.RESEND_API_KEY) {
-      email.envoye = false;
-      email.raison = "RESEND_API_KEY absente des variables d'environnement Vercel";
-    } else {
-      try {
-        const rMail = await fetch("https://api.resend.com/emails", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: "Bearer " + process.env.RESEND_API_KEY,
+      d = decl && decl.length > 0 ? decl[0] : null;
+      if (!d) {
+        return NextResponse.json(
+          {
+            ok: false,
+            erreur:
+              "Aucun déclarant pour cette société. Complétez d'abord la fiche annuelle : c'est elle qui porte l'identité du membre.",
           },
-          body: JSON.stringify({
-            from: EXPEDITEUR,
-            to: [emailSession],
-            subject: "Fiche 2042 + 3916 " + annee + " — " + entite.label
-              + " — " + liste.length + " compte(s)",
-            html: html,
-          }),
-        });
-        const corps = await rMail.text();
-        email.statut_http = rMail.status;
-        if (rMail.ok) {
-          email.envoye = true;
-        } else {
-          email.envoye = false;
-          email.raison = "Resend a refusé l'envoi";
-          email.reponse = corps.slice(0, 500);
-        }
-      } catch (e: unknown) {
-        email.envoye = false;
-        email.raison = "Appel à Resend impossible";
-        email.reponse = e instanceof Error ? e.message : String(e);
+          { status: 404 }
+        );
       }
+      if (!societe) {
+        const { data: e } = await supabase
+          .from("compliance_tenants")
+          .select("id, label, legal_name")
+          .eq("tenant_id", tenantId)
+          .eq("id", entiteDuCompte)
+          .maybeSingle();
+        societe = e || null;
+      }
+    } else {
+      const { data: decl, error: errDecl } = await supabase
+        .from("compliance_declarant")
+        .select("*")
+        .eq("tenant_id", tenantId)
+        .limit(2);
+      if (errDecl) {
+        console.error("[f3916/generate-pdf] lecture declarant :", errDecl.message);
+        return NextResponse.json(
+          { ok: false, erreur: "Lecture de la fiche déclarant impossible." },
+          { status: 500 }
+        );
+      }
+      if (!decl || decl.length === 0) {
+        return NextResponse.json(
+          { ok: false, erreur: "Aucun déclarant enregistré. Complétez d'abord la fiche annuelle." },
+          { status: 404 }
+        );
+      }
+      if (decl.length > 1) {
+        return NextResponse.json(
+          {
+            ok: false,
+            erreur:
+              "Ce compte n'est rattaché à aucune société. Supprimez-le et ressaisissez-le depuis « Comptes à l'étranger ».",
+          },
+          { status: 400 }
+        );
+      }
+      d = decl[0];
     }
 
-    return NextResponse.json({
-      success: true,
-      tenant_id: tenantId,
-      entite_id: entiteId,
-      societe: entite.label,
-      annee,
-      version,
-      nb_comptes: liste.length,
-      tous_valides: tousValides,
-      path: chemin,
-      email,
+    const chemin = path.join(process.cwd(), CERFA);
+    let octets: Buffer;
+    try {
+      octets = await fs.readFile(chemin);
+    } catch (e: any) {
+      console.error("[f3916/generate-pdf] CERFA introuvable :", e.message);
+      return NextResponse.json(
+        { ok: false, erreur: "Le formulaire CERFA est introuvable sur le serveur." },
+        { status: 500 }
+      );
+    }
+
+    const pdfDoc = await PDFDocument.load(octets);
+    const form = pdfDoc.getForm();
+    const police = await pdfDoc.embedFont(StandardFonts.Helvetica);
+
+    const controle: Record<string, string> = {};
+
+    const poserTexte = (nom: string, valeur: any) => {
+      const v = texteCerfa(valeur);
+      if (!v) return;
+      try {
+        form.getTextField(nom).setText(v);
+        controle[nom] = v;
+      } catch (e: any) {
+        avertissements.push("Champ texte " + nom + " : " + e.message);
+      }
+    };
+
+    const poserCase = (nom: string, etat: string) => {
+      if (!etat) return;
+      try {
+        const champ = form.getField(nom);
+        const acro = (champ as any).acroField;
+        const widgets = acro.getWidgets();
+        const cible = PDFName.of(etat);
+        const off = PDFName.of("Off");
+
+        let trouve = false;
+
+        for (const w of widgets) {
+          let etats: string[] = [];
+          const ap = w.dict.get(PDFName.of("AP"));
+          if (ap instanceof PDFDict) {
+            const n = ap.get(PDFName.of("N"));
+            if (n instanceof PDFDict) {
+              etats = n.keys().map((k: any) => String(k));
+            }
+          }
+          if (etats.indexOf("/" + etat) >= 0) {
+            w.dict.set(PDFName.of("AS"), cible);
+            trouve = true;
+          } else {
+            w.dict.set(PDFName.of("AS"), off);
+          }
+        }
+
+        acro.dict.set(PDFName.of("V"), trouve ? cible : off);
+
+        controle[nom] = etat + (trouve ? " (coche)" : " (ETAT INTROUVABLE)");
+        if (!trouve) {
+          avertissements.push("Case " + nom + " : aucun widget ne porte l'etat /" + etat);
+        }
+      } catch (e: any) {
+        avertissements.push("Case " + nom + " : " + e.message);
+      }
+    };
+
+    const naiss = d.date_naissance
+      ? jour(d.date_naissance) + "/" + mois(d.date_naissance) + "/" + annee(d.date_naissance)
+      : "";
+
+    poserTexte("a1", d.nom_patronymique);
+    poserTexte("a2", d.prenoms);
+    poserTexte("a3", naiss + (d.lieu_naissance ? " à " + d.lieu_naissance : ""));
+    poserTexte(
+      "a4",
+      [d.adresse_rue, d.adresse_code_postal, d.adresse_ville].filter(Boolean).join(" ")
+    );
+    poserTexte("a5", d.adresse_pays || "France");
+
+    const typeVersCac2: Record<string, string> = {
+      bancaire: "a",
+      actifs_numeriques: "b",
+      contrat_capitalisation: "c",
+    };
+    const optCac2 = typeVersCac2[c.type_compte];
+    if (optCac2) poserCase("CAC2", optCac2);
+    else avertissements.push("type_compte inconnu : " + c.type_compte);
+
+    poserTexte("a13", c.numero_compte);
+
+    const caractereCompteVersCac3: Record<string, string> = {
+      courant: "a",
+      epargne: "b",
+      autres: "c",
+    };
+    const optCac3 = caractereCompteVersCac3[c.caractere_compte || "courant"];
+    if (optCac3) poserCase("CAC3", optCac3);
+    else avertissements.push("caractere_compte inconnu : " + c.caractere_compte);
+
+    poserTexte("a15", jour(c.date_ouverture));
+    poserTexte("a16", mois(c.date_ouverture));
+    poserTexte("a17", annee(c.date_ouverture));
+    poserTexte("a18", jour(c.date_cloture));
+    poserTexte("a19", mois(c.date_cloture));
+    poserTexte("a20", annee(c.date_cloture));
+
+    poserTexte("a21", c.organisme_nom);
+    poserTexte("a23", [c.organisme_adresse, c.organisme_pays].filter(Boolean).join(", "));
+
+    // ---- 3.2 MODALITES DE DETENTION — 24/09 ----
+    //
+    // ⛔ AVANT : le reglage general de la fiche declarant (modalite_detention)
+    // passait AVANT le choix fait sur le compte. Meridian, declare « titulaire :
+    // l entite (la societe) », sortait coche « Titulaire en propre ».
+    // MAINTENANT : le choix du COMPTE decide ; le reglage general ne sert que
+    // si le compte n en porte pas.
+    //   personne_physique -> a  Titulaire en propre
+    //   entite            -> b  Beneficiaire d une procuration (cadre 6)
+    const titulaireVersCac4: Record<string, string> = {
+      personne_physique: "a",
+      entite: "b",
+    };
+    const optCac4 = titulaireVersCac4[c.titulaire] || d.modalite_detention || "a";
+    poserCase("CAC4", optCac4);
+
+    const caractereVersCac6: Record<string, string> = {
+      personnel: "a",
+      professionnel: "b",
+    };
+    const optCac6 = caractereVersCac6[c.caractere] || d.usage_compte || "b";
+    poserCase("CAC6", optCac6);
+
+    // La societe : celle de la fiche declarant, a defaut celle de la base.
+    const raisonSociale =
+      d.entreprise_raison_sociale || (societe ? societe.legal_name || societe.label : "");
+    const formeJuridique = d.entreprise_forme_juridique || "02";
+    // L adresse de la societe porte son pays (« n°, rue, ville et pays »).
+    const adresseSociete = avecPays(d.entreprise_adresse, "États-Unis");
+
+    // ---- 5. USAGE DU COMPTE ----
+    poserTexte("a37", raisonSociale);
+    poserTexte("a38", formeJuridique);
+    poserTexte("a39", d.entreprise_siret);
+    // ⚠️ La premiere ligne (a40) chevauche l intitule imprime « Adresse du
+    // lieu d exercice de l activite » : l adresse va sur la ligne pointillee
+    // du dessous (a41). Constate au rendu le 24/09.
+    poserTexte("a41", adresseSociete);
+
+    // ---- 6.2 LE TITULAIRE EST UNE PERSONNE MORALE — 24/09 ----
+    // La notice : « Si le declarant est le beneficiaire d une procuration
+    // [...] vous devez remplir egalement les rubriques prevues au cadre 6
+    // (6.2 si le titulaire est une personne morale) ». Ce cadre n etait
+    // rempli nulle part.
+    //   a50 raison sociale · a51 forme juridique · a52 SIRET · a53 siege
+    if (optCac4 === "b") {
+      poserTexte("a50", raisonSociale);
+      poserTexte("a51", formeJuridique);
+      poserTexte("a52", d.entreprise_siret);
+      poserTexte("a53", adresseSociete);
+    }
+
+    // ---- PAGE 4, LE BLOC DE SIGNATURE ----
+    // Le nom du titulaire ou du beneficiaire de la procuration se preremplit.
+    // « Fait a » et « le » restent vides : ils appartiennent au signataire.
+    const nomSignataire = [d.prenoms, d.nom_patronymique].filter(Boolean).join(" ");
+    poserTexte("a84", nomSignataire);
+
+    form.updateFieldAppearances(police);
+
+    const sortie = await pdfDoc.save();
+
+    if (body.controle === true) {
+      return NextResponse.json({
+        ok: true,
+        compte: c.designation,
+        champs_remplis: controle,
+        avertissements,
+      });
+    }
+
+    return new NextResponse(Buffer.from(sortie), {
+      status: 200,
+      headers: {
+        "Content-Type": "application/pdf",
+        "Content-Disposition":
+          'attachment; filename="3916_' + (c.designation || "compte") + '.pdf"',
+        "X-Avertissements": String(avertissements.length),
+      },
     });
   } catch (e: any) {
-    console.error("[f3916] exception :", String(e && e.message ? e.message : e));
-    return NextResponse.json({ error: "Erreur serveur." }, { status: 500 });
+    console.error("[f3916/generate-pdf] exception :", e.message);
+    return NextResponse.json({ ok: false, erreur: "Erreur serveur." }, { status: 500 });
   }
 }
