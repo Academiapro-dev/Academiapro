@@ -938,11 +938,14 @@ export default function ComplianceDashboard() {
         <h2 style={{ color: VERT, fontSize: 20, marginTop: 32 }}>
           Formulaires IRS {PNL_YEAR}
         </h2>
+        {/* 🆕 24/09 — LA PHRASE « Documents fictifs tant que la qualification
+            du compte courant n a pas ete validee par un CPA » EST RETIREE. Elle
+            decrivait la situation d AcademIA Pro LLC, pas celle d un client,
+            et elle s affichait a l ecran de la video de demonstration. Regle de
+            Jacques du 23/09 : on ne parle que de ce que l outil fait. */}
         <p style={{ fontSize: 14, color: "#555", marginTop: 0 }}>
-          Documents fictifs tant que la qualification du compte courant n'a pas été
-          validée par un CPA américain et que le taux de change officiel de l'IRS
-          n'est pas publié. Les montants se recalculent automatiquement depuis les
-          dépenses marquées comme avances personnelles.
+          Les montants se recalculent automatiquement depuis les dépenses marquées
+          comme avances personnelles.
         </p>
         <p style={{ fontSize: 14, color: "#8a1c1c", marginTop: 0 }}>
           <strong>Le Form 5472 est dû au 15 avril.</strong> Son dépôt tardif ou omis
@@ -973,6 +976,38 @@ export default function ComplianceDashboard() {
             route /api/compliance/depenses qui verifie qu il appartient bien
             au client de la session — cet ecran ne fait que le passer.
             ══════════════════════════════════════════════════════════════ */}
+        {/* 🆕 24/09 — LA FICHE ANNUELLE. Les quatre formulaires lisent une
+            fiche par societe et par exercice, et AUCUN ECRAN NE LA CREAIT :
+            celle d AcademIA Pro LLC avait ete ecrite en base a la main en
+            juillet. Un nouveau client obtenait « Aucun mapping 5472 » au
+            premier clic. Ce lien mene a l ecran qui la remplit ; il passe
+            avant les boutons, parce qu il se fait avant eux. */}
+        {tenant && tenant.id && (
+          <a
+            href={"/admin/compliance/fiche-annuelle?entite=" + encodeURIComponent(String(tenant.id))
+              + "&annee=" + PNL_YEAR}
+            style={{
+              display: "block",
+              margin: "0 0 14px",
+              padding: "16px 20px",
+              background: "#ffffff",
+              border: "2px solid " + VERT,
+              borderRadius: 10,
+              textDecoration: "none",
+            }}
+          >
+            <span style={{ display: "block", color: VERT, fontSize: 17,
+              fontWeight: "bold", marginBottom: 4 }}>
+              Compléter la fiche annuelle {PNL_YEAR} &rarr;
+            </span>
+            <span style={{ display: "block", color: "#555", fontSize: 14,
+              lineHeight: 1.6 }}>
+              La société, son membre et l&apos;exercice : une seule saisie pour le
+              5472, le 1120, le 7004 et le 3916.
+            </span>
+          </a>
+        )}
+
         {/* ⚠️ ON S APPUIE SUR `tenant.id` ET NON SUR `entiteId` — 07/09.
             Le lien etait conditionne a `entiteId`, et il ne s affichait
             pas : cette variable peut rester vide selon ce que renvoie la
@@ -1203,6 +1238,14 @@ export default function ComplianceDashboard() {
             <p style={{ fontSize: 14, color: "#555", marginTop: 0 }}>
               Article 1649 A du CGI : tout compte ouvert, détenu, utilisé ou sous procuration
               à l'étranger doit être déclaré. Pénalité d'omission : 1 500 € par compte et par an.
+            </p>
+            {/* 🆕 24/09 — le declarant du 3916 se renseigne dans la fiche annuelle. */}
+            <p style={{ fontSize: 14, color: "#555", marginTop: 0 }}>
+              Le déclarant est le membre enregistré dans la{" "}
+              <a href={"/admin/compliance/fiche-annuelle?entite=" + encodeURIComponent(String(tenant.id))
+                + "&annee=" + PNL_YEAR} style={{ color: VERT, fontWeight: "bold" }}>
+                fiche annuelle
+              </a>.
             </p>
             <p style={{ fontSize: 15, marginTop: 0 }}>
               Comptes enregistrés pour {PNL_YEAR} :{" "}
