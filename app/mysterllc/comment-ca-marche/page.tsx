@@ -253,7 +253,11 @@ export default function PageCommentCaMarche() {
           <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "14px",
             margin: "0 0 10px" }}>
             Le parcours complet, écran par écran — 25 minutes. Ce qui suit le
-            résume.
+            résume. La suite, les déclarations de chaque année, est aussi en
+            vidéo :{" "}
+            <a href={SITE + "/formulaires"} style={{ color: OR }}>
+              les déclarations annuelles de A à Z
+            </a>.
           </p>
         )}
 
@@ -321,6 +325,30 @@ export default function PageCommentCaMarche() {
             );
           })}
         </div>
+
+        {/* ---- 🆕 24/09 — LA DEUXIEME VIDEO ---- Les declarations annuelles
+            ont leur propre video, sur la page des formulaires. */}
+        <a href={SITE + "/formulaires"}
+          style={{ ...CARTE, display: "block", marginTop: "16px",
+            textDecoration: "none", borderColor: "rgba(200,169,110,0.6)" }}>
+          <span style={{ color: OR, fontSize: "12px", letterSpacing: "2px",
+            display: "block", marginBottom: "8px" }}>
+            EN VIDÉO — 21 MINUTES
+          </span>
+          <strong style={{ color: "#fff", fontSize: "18px",
+            display: "block", marginBottom: "8px" }}>
+            Les déclarations annuelles de A à Z
+          </strong>
+          <span style={{ color: "rgba(255,255,255,0.7)", fontSize: "15px",
+            lineHeight: "1.75", display: "block" }}>
+            La fiche annuelle, la facture scannée, le 5472 et le 1120 signés et
+            transmis à l&apos;IRS, puis le formulaire 3916 préparé et signé.
+          </span>
+          <span style={{ color: OR, fontSize: "15px", display: "block",
+            marginTop: "10px" }}>
+            Voir la vidéo &rarr;
+          </span>
+        </a>
 
         {/* ---- APPEL ---- Vers la page de contact du domaine, jamais un
             lien mailto. */}
