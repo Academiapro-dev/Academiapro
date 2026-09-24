@@ -182,8 +182,20 @@ function messagePremiereVague(o: any): string {
     + "facturez une offre internationale, et vous gardez votre outil de "
     + "production pour le reste. Plusieurs sociétés sous un même accès, "
     + "présentation à vos couleurs sur demande.\n\n"
-    + "Si vous souhaitez le voir sur un dossier, réel ou fictif, je vous "
-    + "montre le parcours en une séance.";
+    // 🆕 24/09 — LES DEUX VIDEOS DE DEMONSTRATION. Jacques : « un outil de
+    // demonstration sans que je sois moi oblige de faire la demonstration ».
+    // Les liens pointent vers les PAGES du site, qui portent la video, sa
+    // synthese et le bouton de contact — jamais vers YouTube seul.
+    + "Le parcours complet est en vidéo, écran par écran, sur une société "
+    + "de démonstration :\n"
+    + "— la création d'une LLC de A à Z : "
+    + "<a href=\"" + SITE + "/comment-ca-marche\" style=\"color:#8a6d3b\">"
+    + "mysterllc.com/comment-ca-marche</a>\n"
+    + "— les déclarations de chaque année, jusqu'à la transmission à l'IRS : "
+    + "<a href=\"" + SITE + "/formulaires\" style=\"color:#8a6d3b\">"
+    + "mysterllc.com/formulaires</a>\n\n"
+    + "Si vous souhaitez en parler sur un dossier précis, répondez "
+    + "simplement à ce message.";
 
   return habillage(o, texte);
 }
@@ -193,9 +205,11 @@ function messageSecondeVague(o: any): string {
   return messagePremiereVague(o);
 }
 
+// 🆕 24/09 — LE SUJET AVEC SES ACCENTS : il est lu par le destinataire
+// (regle de Jacques : tout texte destine a un tiers s ecrit accentue).
 const SUJETS: any = {
-  1: "Une offre internationale, sans vous former a la fiscalite americaine",
-  2: "Une offre internationale, sans vous former a la fiscalite americaine",
+  1: "Une offre internationale, sans vous former à la fiscalité américaine",
+  2: "Une offre internationale, sans vous former à la fiscalité américaine",
 };
 
 function messageDe(o: any, vague: number): string {
