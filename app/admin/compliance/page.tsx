@@ -113,6 +113,10 @@ export default function ComplianceDashboard() {
   const [f3916Msg, setF3916Msg] = useState<string | null>(null);
 
   const [pdfLoading, setPdfLoading] = useState(false);
+  // 🆕 24/09 — la signature du 3916.
+  const [sig3916Loading, setSig3916Loading] = useState(false);
+  const [sig3916Msg, setSig3916Msg] = useState<string | null>(null);
+  const [sig3916Lien, setSig3916Lien] = useState<string | null>(null);
   const [pdfMsg, setPdfMsg] = useState<string | null>(null);
   const [pdfControle, setPdfControle] = useState<string | null>(null);
 
@@ -669,6 +673,57 @@ export default function ComplianceDashboard() {
       setPdfMsg("Erreur : " + String(e));
     }
     setPdfLoading(false);
+  }
+
+  // ---- 🆕 24/09 — FAIRE SIGNER LE 3916 ----
+  //
+  // Meme regle que le 1120 : une attestation en francais, le vrai 3916 joint
+  // a la suite, la signature reportee sur la ligne « Signature(s) » de la
+  // page 4 avec la date de la signature. Deux appels enchaines :
+  //   1. generate-pdf (archiver) : remplit le 3916, l archive au coffre, et
+  //      rend le document a faire signer ;
+  //   2. document-a-signer : assemble, archive, envoie le lien au client.
+  // Si l un echoue, on s arrete et on le dit.
+  async function faireSigner3916() {
+    if (!tenantId) return;
+    setSig3916Loading(true);
+    setSig3916Msg(null);
+    setSig3916Lien(null);
+    try {
+      const r1 = await fetch("/api/compliance/f3916/generate-pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ entite_id: entiteId, archiver: true }),
+      });
+      const d1 = await r1.json();
+      if (!d1.ok || !d1.document_a_signer) {
+        setSig3916Msg("Erreur : " + (d1.erreur || "préparation du 3916 impossible"));
+        setSig3916Loading(false);
+        return;
+      }
+      const das = d1.document_a_signer;
+      const r2 = await fetch("/api/compliance/document-a-signer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(das),
+      });
+      const d2 = await r2.json();
+      if (!d2.success || !d2.reference) {
+        setSig3916Msg("Erreur à la création du document à signer : " + (d2.error || "inconnue"));
+        setSig3916Loading(false);
+        return;
+      }
+      const em = d2.email || {};
+      let msg = "3916 prêt à signer (référence " + d2.reference + ").";
+      msg += em.envoye === true
+        ? " Lien de signature envoyé à " + das.signataire_email + "."
+        : " ATTENTION : le courriel n'est PAS parti (" + (em.raison || "cause inconnue") + ").";
+      setSig3916Msg(msg);
+      setSig3916Lien(d2.lien || null);
+    } catch (e: any) {
+      setSig3916Msg("Erreur : " + String(e));
+    }
+    setSig3916Loading(false);
   }
 
   // ---- LE FORM 7004 : EXTENSION DE DELAI ----
@@ -1283,6 +1338,22 @@ export default function ComplianceDashboard() {
               <button onClick={telecharger3916Pdf} disabled={pdfLoading} style={styleBouton}>
                 {pdfLoading ? "…" : "Télécharger le PDF pré-rempli"}
               </button>
+              {/* 🆕 24/09 — la signature du 3916 */}
+              <button onClick={faireSigner3916} disabled={sig3916Loading} style={styleBouton}>
+                {sig3916Loading ? "Préparation…" : "Faire signer le 3916"}
+              </button>
+              {sig3916Msg && (
+                <p style={{ marginTop: 10, color: sig3916Msg.indexOf("Erreur") === 0 || sig3916Msg.indexOf("ATTENTION") !== -1 ? "#c62828" : VERT }}>
+                  {sig3916Msg}
+                </p>
+              )}
+              {sig3916Lien && (
+                <p style={{ marginTop: 4 }}>
+                  <a href={sig3916Lien} style={{ color: VERT, fontWeight: "bold" }}>
+                    Ouvrir la page de signature →
+                  </a>
+                </p>
+              )}
               {pdfMsg && (
                 <p style={{ marginTop: 10, color: pdfMsg.indexOf("Erreur") === 0 ? "#c62828" : VERT }}>
                   {pdfMsg}
