@@ -504,6 +504,32 @@ export async function POST(req: NextRequest) {
       mime_type: "application/pdf",
     });
 
+    // 🆕 24/09 — LE 7004 GENERE EST NOTE POUR SON DEPOT PAR FAX, sur la ligne
+    // de compliance_depots de la societe et de l exercice (celle du depot du
+    // 1120). Un 7004 regenere repart de zero : il faudra le faire signer a
+    // nouveau, comme pour le 1120. ⛔ Rien ici ne touche aux colonnes du 1120.
+    // D abord une mise a jour ; si la ligne n existe pas encore, on la cree
+    // avec le statut du 1120 a « a_generer », sa valeur de depart.
+    const etat7004 = {
+      chemin_7004: chemin, statut_7004: "genere", reference_accuse_7004: null,
+      fax_id_7004: null, transmis_7004_le: null, maj_le: new Date().toISOString(),
+    };
+    const { data: ligneDepot, error: eDepot } = await supabase
+      .from("compliance_depots")
+      .update(etat7004)
+      .eq("tenant_id", tenantId)
+      .eq("entite_id", entiteId)
+      .eq("tax_year", year)
+      .select("entite_id");
+    if (eDepot) {
+      journal.push("Etat du depot du 7004 non enregistre : " + eDepot.message);
+    } else if (!ligneDepot || ligneDepot.length === 0) {
+      const { error: eCree } = await supabase
+        .from("compliance_depots")
+        .insert({ tenant_id: tenantId, entite_id: entiteId, tax_year: year, statut: "a_generer", ...etat7004 });
+      if (eCree) journal.push("Etat du depot du 7004 non enregistre : " + eCree.message);
+    }
+
     const { data: signed } = await supabase.storage
       .from("compliance-docs")
       .createSignedUrl(chemin, 3600);
