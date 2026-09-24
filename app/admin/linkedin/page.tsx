@@ -438,8 +438,15 @@ function messageRelance(prenom: string, societe: string, nbFormations: number, c
       + "Vos dépenses se saisissent en photographiant le justificatif ; le "
       + "compte courant d'associé est tenu par devise. Et vous êtes prévenu "
       + "avant chaque échéance, par courriel et par SMS.\n\n"
-      + "Si vous voulez voir ce que cela donne sur votre situation, je vous "
-      + "montre le parcours en une séance.\n\n"
+      // 🆕 24/09 — LES DEUX VIDEOS. Meme domaine que la signature :
+      // la carte d apercu de LinkedIn reste celle de MysterLLC.
+      + "Le parcours complet est en vidéo, écran par écran, sur une société "
+      + "de démonstration :\n"
+      + "— la création d'une LLC de A à Z : https://www.mysterllc.com/comment-ca-marche\n"
+      + "— les déclarations de chaque année, jusqu'à la transmission à l'IRS : "
+      + "https://www.mysterllc.com/formulaires\n\n"
+      + "Si vous voulez en parler sur votre situation, répondez simplement "
+      + "à ce message.\n\n"
       + "Bien cordialement,\nJacques Lalou\nmysterllc.com";
   }
 
@@ -465,9 +472,17 @@ function messageRelance(prenom: string, societe: string, nbFormations: number, c
       + "facturez une offre internationale, et vous gardez votre outil de "
       + "production pour le reste. Plusieurs sociétés sous un même accès, "
       + "présentation à vos couleurs sur demande.\n\n"
-      + "Si vous souhaitez le voir sur un dossier, réel ou fictif, je vous "
-      + "montre le parcours en une séance.\n\n"
-      // ⚠️ UN SEUL LIEN, ET C EST VOULU — 14/09. LinkedIn transforme le
+      // 🆕 24/09 — LES DEUX VIDEOS. Meme domaine que la signature :
+      // la carte d apercu de LinkedIn reste celle de MysterLLC.
+      + "Le parcours complet est en vidéo, écran par écran, sur une société "
+      + "de démonstration :\n"
+      + "— la création d'une LLC de A à Z : https://www.mysterllc.com/comment-ca-marche\n"
+      + "— les déclarations de chaque année, jusqu'à la transmission à l'IRS : "
+      + "https://www.mysterllc.com/formulaires\n\n"
+      + "Si vous souhaitez en parler sur un dossier précis, répondez "
+      + "simplement à ce message.\n\n"
+      // ⚠️ UN SEUL DOMAINE, ET C EST VOULU — 14/09 (les liens des videos,
+      // 24/09, sont sur le meme domaine). LinkedIn transforme le
       // premier domaine du message en CARTE D APERCU avec l image Open
       // Graph du site. Avec « mrcomptable.fr · mysterllc.com », c est le
       // logo Mr Comptable qui s affichait sous un message consacre a
@@ -693,8 +708,15 @@ function secondMessage(prenom: string, cle?: string) {
       + "offre internationale, et vous gardez votre outil de production pour le "
       + "reste — le mien ou un autre. Plusieurs sociétés sous un même accès, "
       + "présentation à vos couleurs sur demande.\n\n"
-      + "Si vous souhaitez le voir sur un dossier, réel ou fictif, je vous montre "
-      + "le parcours en une séance.\n\n"
+      // 🆕 24/09 — LES DEUX VIDEOS. Meme domaine que la signature :
+      // la carte d apercu de LinkedIn reste celle de MysterLLC.
+      + "Le parcours complet est en vidéo, écran par écran, sur une société "
+      + "de démonstration :\n"
+      + "— la création d'une LLC de A à Z : https://www.mysterllc.com/comment-ca-marche\n"
+      + "— les déclarations de chaque année, jusqu'à la transmission à l'IRS : "
+      + "https://www.mysterllc.com/formulaires\n\n"
+      + "Si vous souhaitez en parler sur un dossier précis, répondez "
+      + "simplement à ce message.\n\n"
       + "Bien cordialement,\nJacques Lalou\nmysterllc.com";
   }
 
@@ -712,7 +734,15 @@ function secondMessage(prenom: string, cle?: string) {
       + "quand c'est l'administration qui prend son temps.\n\n"
       + "Pour une société déjà créée, rien ne change : le suivi et le dépôt des "
       + "formulaires continuent comme avant.\n\n"
-      + "Si vous voulez voir le parcours, je vous le montre en une séance.\n\n"
+      // 🆕 24/09 — LES DEUX VIDEOS. Meme domaine que la signature :
+      // la carte d apercu de LinkedIn reste celle de MysterLLC.
+      + "Le parcours complet est en vidéo, écran par écran, sur une société "
+      + "de démonstration :\n"
+      + "— la création d'une LLC de A à Z : https://www.mysterllc.com/comment-ca-marche\n"
+      + "— les déclarations de chaque année, jusqu'à la transmission à l'IRS : "
+      + "https://www.mysterllc.com/formulaires\n\n"
+      + "Si vous voulez en parler sur votre situation, répondez simplement "
+      + "à ce message.\n\n"
       + "Bien à vous,\nJacques Lalou\nmysterllc.com";
   }
 
