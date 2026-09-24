@@ -216,6 +216,15 @@ function dateUS(v: unknown): string {
   } catch { return ""; }
 }
 
+// 🆕 24/09 — la date a la francaise : « 24/09/2026 ». Le 3916 est un
+// formulaire de l administration francaise ; sa ligne « le … » attend le
+// jour avant le mois. Heure de Paris, comme les deux autres formats.
+function dateFR(v: unknown): string {
+  try {
+    return new Intl.DateTimeFormat("fr-FR", { timeZone: "Europe/Paris", day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(String(v)));
+  } catch { return ""; }
+}
+
 function pourPdfCertificat(t: unknown): string {
   return String(t ?? "").replace(/[^\x09\x0A\x0D\x20-\x7E\u00A0-\u00FF\u0152\u0153\u0160\u0161\u0178\u017D\u017E\u2013\u2014\u2018\u2019\u201C\u201D\u2026\u20AC]/g, "?");
 }
@@ -268,7 +277,10 @@ async function documentSigne(doc: any, sig: any, original: Uint8Array): Promise<
         const pd = pdf.getPage(debut + declaree.page);
         poser(pd, Number(declaree.x), Number(declaree.y), Number(declaree.l), Number(declaree.h));
         if (typeof declaree.date_x === "number" && typeof declaree.date_y === "number") {
-          pd.drawText(declaree.date_format === "us" ? dateUS(sig.signe_le) : dateUSLongue(sig.signe_le), { x: declaree.date_x, y: declaree.date_y, size: 11, font: police, color: rgb(0, 0, 0) });
+          const dateEcrite = declaree.date_format === "us" ? dateUS(sig.signe_le)
+            : declaree.date_format === "fr" ? dateFR(sig.signe_le)
+            : dateUSLongue(sig.signe_le);
+          pd.drawText(dateEcrite, { x: declaree.date_x, y: declaree.date_y, size: 11, font: police, color: rgb(0, 0, 0) });
         }
         reports.push("la ligne de signature de « " + titreA + " »");
       } else if (n > 0 && debut < nbPagesDocument) {
