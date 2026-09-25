@@ -982,9 +982,9 @@ async function calculer(contratId: string, periode: string): Promise<any> {
         + (partSalarie > 0 ? ", moins " + partSalarie.toLocaleString("fr-FR",
           { minimumFractionDigits: 2 }) + " € de participation du salarié" : "")
         + ". ⚠️ LE FORFAIT EST UN MINIMUM : si la convention collective "
-        + "prévoit mieux, c'est elle qui sert d'assiette. ⚠️ L'avantage "
-        + "entre aussi dans la base de l'indemnité de congés payés "
-        + "(L3141-25) — ce n'est PAS encore fait.");
+        + "prévoit mieux, c'est elle qui sert d'assiette. L'avantage entre "
+        + "aussi dans l'indemnité de congés payés (L3141-25) : il est ajouté "
+        + "au maintien de salaire au moment où les congés sont posés.");
       continue;
     }
 
@@ -1207,7 +1207,11 @@ async function calculer(contratId: string, periode: string): Promise<any> {
   let congesDuMois = 0;
   let indemniteConges = 0;
 
-  if (contrat.type_contrat === "cdi") {
+  // 🆕🚨 25/09 — L APPRENTI AUSSI. Depuis le 22/09, la route dossier lui
+  // fait acquerir ET poser des conges, mais le bulletin ne lisait que ceux
+  // d un CDI : ses conges poses n apparaissaient nulle part. Trouve le
+  // 25/09 en relisant la pose des conges.
+  if (contrat.type_contrat === "cdi" || contrat.type_contrat === "apprentissage") {
     const { data: prises } = await supabase
       .from("paie_conges")
       .select("jours, valeur_retenue, valeur_maintien, valeur_dixieme")
@@ -1217,6 +1221,7 @@ async function calculer(contratId: string, periode: string): Promise<any> {
 
     let joursPris = 0;
     let methodeDixieme = false;
+    let avecAvantage = false;
     let maintienStocke = 0;
 
     for (const pr of (prises || [])) {
@@ -1226,8 +1231,15 @@ async function calculer(contratId: string, periode: string): Promise<any> {
       // `valeur_maintien` EST le montant du maintien de salaire, fige au
       // moment de la prise. C est exactement ce qu il faut retenir.
       maintienStocke += Number((pr as any).valeur_maintien || 0);
-      if (Number((pr as any).valeur_dixieme || 0)
-          > Number((pr as any).valeur_maintien || 0)) methodeDixieme = true;
+      // 🆕 25/09 — LA METHODE SE LIT SUR LA VALEUR RETENUE. Depuis que
+      // l avantage nourriture s ajoute au maintien (L3141-25), le maintien
+      // stocke est le salaire SEUL : un dixieme superieur au salaire seul
+      // ne veut plus dire que c est lui qui a ete retenu.
+      const vr = Number((pr as any).valeur_retenue || 0);
+      const vm = Number((pr as any).valeur_maintien || 0);
+      const vd = Number((pr as any).valeur_dixieme || 0);
+      if (vd > vm && Math.abs(vr - vd) < 0.01) methodeDixieme = true;
+      if (vr > Math.max(vm, vd) + 0.005) avecAvantage = true;
     }
 
     if (joursPris > 0) {
@@ -1264,7 +1276,9 @@ async function calculer(contratId: string, periode: string): Promise<any> {
       });
       lignesBrut.push({
         libelle: "Indemnité de congés payés"
-          + (methodeDixieme ? " (règle du dixième)" : " (maintien de salaire)"),
+          + (methodeDixieme ? " (règle du dixième)"
+            : avecAvantage ? " (maintien de salaire, avantage nourriture compris)"
+            : " (maintien de salaire)"),
         quantite: joursPris,
         taux: null,
         montant: cts(indemniteConges),
