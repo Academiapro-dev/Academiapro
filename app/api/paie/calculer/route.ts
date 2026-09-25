@@ -652,10 +652,11 @@ async function calculer(contratId: string, periode: string): Promise<any> {
   //     proratiser donnerait au cadre une reduction qu il n a pas ;
   //   · LES HEURES SUPPLEMENTAIRES N EXISTENT PAS : une reserve le dit.
   // ⚠️ IL EXISTE DES FORFAITS JOURS REDUITS (180 jours au lieu de 218).
-  // Le salaire y est proportionnellement plus bas, mais le plafond de
-  // securite sociale se proratise alors sur les JOURS, pas sur des heures
-  // que le contrat n a pas. Le moteur le signale et ne proratise rien :
-  // se tromper de sens ferait perdre des droits au salarie.
+  // 🆕 25/09 — LE SMIC DE LA REDUCTION GENERALE y est reduit dans le
+  // rapport jours / 218 (D241-7, obligatoire) : voir le calcul de la
+  // reduction. LE PLAFOND, lui, reste plein : le reduire est une faculte
+  // soumise au consentement du salarie (BOSS §830), que le contrat ne
+  // porte pas.
   // ═══════════════════════════════════════════════════════════════════
   const forfaitJoursAn = Number((contrat as any).forfait_jours_annuel || 0);
   const auForfaitJours = forfaitJoursAn > 0;
@@ -2168,7 +2169,18 @@ async function calculer(contratId: string, periode: string): Promise<any> {
     // generaux) : pour un temps partiel, il est proratise. Sans cela un
     // salarie a mi-temps paraitrait paye sous le SMIC et recevrait le
     // coefficient maximal.
-    const smicMensuelRef = smicRef * dureeContratMois;
+    // 🆕🚨 25/09 — LE FORFAIT JOURS REDUIT CORRIGE LE SMIC (article D241-7
+    // du code de la securite sociale, decret 2014-1688) : pour un salarie
+    // au forfait de moins de 218 jours, le SMIC de reference est multiplie
+    // par jours du forfait / 218. C est OBLIGATOIRE. Jusqu au 25/09 le
+    // moteur gardait un SMIC plein : la reduction etait SUREVALUEE — le
+    // premier motif de redressement sur ce dispositif.
+    // ⚠️ LE PLAFOND DE SECURITE SOCIALE, LUI, N EST PAS TOUCHE : sa
+    // proratisation sur les jours est une FACULTE qui exige le consentement
+    // du salarie (BOSS, assiette generale, §830). Une reserve le dit.
+    const proportionForfaitReduit = (auForfaitJours && forfaitJoursAn > 0 && forfaitJoursAn < 218)
+      ? forfaitJoursAn / 218 : 1;
+    const smicMensuelRef = smicRef * dureeContratMois * proportionForfaitReduit;
     const plafondEligibilite = smicMensuelRef * seuil;
 
     // ═══════════════════════════════════════════════════════════════════
@@ -2674,8 +2686,9 @@ async function calculer(contratId: string, periode: string): Promise<any> {
           + "hebdomadaire (L3121-58 et suivants). ⚠️ LES HEURES "
           + "SUPPLÉMENTAIRES N'EXISTENT PAS sur un forfait jours : en saisir "
           + "serait une erreur, et leur paiement ne régulariserait pas un "
-          + "forfait dépassé. Le SMIC de la réduction générale et le plafond "
-          + "de Sécurité sociale restent ceux d'un temps plein.");
+          + "forfait dépassé."
+          + (forfaitJoursAn >= 218 ? " Le SMIC de la réduction générale et le "
+            + "plafond de Sécurité sociale restent ceux d'un temps plein." : ""));
         if (forfaitJoursAn > 218) {
           r.push("⛔ FORFAIT SUPÉRIEUR À 218 JOURS : le plafond légal est "
             + "dépassé (L3121-64). Il faut un accord écrit de renonciation à "
@@ -2683,11 +2696,17 @@ async function calculer(contratId: string, periode: string): Promise<any> {
             + "10 % sur les jours excédentaires — non calculée ici.");
         }
         if (forfaitJoursAn < 218) {
-          r.push("⚠️ FORFAIT RÉDUIT (" + forfaitJoursAn + " jours) : le "
-            + "plafond de Sécurité sociale se proratise alors sur les JOURS, "
-            + "pas sur des heures que le contrat ne porte pas. Le moteur ne "
-            + "le proratise PAS et retient un plafond plein : faire vérifier "
-            + "ce bulletin.");
+          const smicReduit = Math.round(Number(smicRef || 0)
+            * Number(dureeMensuelle || 0) * forfaitJoursAn / 218 * 100) / 100;
+          r.push("FORFAIT RÉDUIT (" + forfaitJoursAn + " jours) : le SMIC de "
+            + "référence de la réduction générale est réduit dans le rapport "
+            + forfaitJoursAn + "/218"
+            + (smicReduit > 0 ? ", soit " + smicReduit.toLocaleString("fr-FR",
+              { minimumFractionDigits: 2 }) + " € par mois" : "")
+            + " (article D241-7 du code de la sécurité sociale). ⚠️ Le plafond "
+            + "de Sécurité sociale reste plein : il peut être réduit dans le "
+            + "même rapport, mais seulement avec le consentement du salarié "
+            + "(BOSS, assiette générale, §830) — ce n'est pas fait ici.");
         }
         r.push("⚠️ LES JOURS DE REPOS (RTT) du forfait ne sont pas décomptés : "
           + "le contrat ne porte pas de compteur. Un forfait dépassé se "
