@@ -1357,6 +1357,14 @@ async function calculer(contratId: string, periode: string): Promise<any> {
     else if (contrat.salaire_horaire && dureeMensuelle) {
       baseMois = Number(contrat.salaire_horaire) * Number(dureeMensuelle);
     }
+    // 🆕🚨 25/09 — L APPRENTI PAYE AU BAREME N A NI SALAIRE MENSUEL NI
+    // SALAIRE HORAIRE SUR SON CONTRAT : baseMois restait a zero, et ses
+    // arrets de travail etaient IGNORES EN SILENCE (ni retenue, ni maintien,
+    // ni indemnites journalieres). Trouve le 25/09 en eprouvant le maintien
+    // sur Camille. Son salaire de reference est le minimum du bareme.
+    if (baseMois <= 0 && appr && appr.minimum_legal !== null && Number(appr.minimum_legal) > 0) {
+      baseMois = Number(appr.minimum_legal);
+    }
 
     // ⚠️ REPARTITION SUPPOSEE EGALE SUR CINQ JOURS. Un temps partiel
     // reparti sur trois jours demanderait un planning que le contrat ne
@@ -1398,7 +1406,16 @@ async function calculer(contratId: string, periode: string): Promise<any> {
       }
       // ⚠️ PAYE AUX HEURES SAISIES : l absence ne se retient pas, elle n est
       // simplement pas payee.
-      if (aDesHeuresNormales || baseMois <= 0 || joursDuMois === 0) continue;
+      if (aDesHeuresNormales || joursDuMois === 0) continue;
+      // ⛔ PLUS JAMAIS EN SILENCE : un arret en base sans salaire de
+      // reference pour le retenir, cela se dit sur le bulletin.
+      if (baseMois <= 0) {
+        notesArret.push("🚨 Un arrêt de travail du " + jjmm(d1) + " au " + jjmm(d2)
+          + " est en base, mais le contrat ne porte aucun salaire de référence "
+          + "(ni mensuel, ni horaire) : la retenue et le maintien n'ont PAS été "
+          + "calculés. Renseigner le salaire du contrat.");
+        continue;
+      }
 
       const heuresAbs = cts(joursAbs * heuresJour);
       const heuresMois = cts(joursDuMois * heuresJour);
@@ -1605,8 +1622,12 @@ async function calculer(contratId: string, periode: string): Promise<any> {
       if ((derniers || []).length === 3) {
         for (const b of (derniers || [])) troisMois += Number((b as any).brut || 0);
       } else {
-        const bm = contrat.salaire_mensuel ? Number(contrat.salaire_mensuel)
+        let bm = contrat.salaire_mensuel ? Number(contrat.salaire_mensuel)
           : Number(contrat.salaire_horaire || 0) * Number(dureeMensuelle || 0);
+        // 🆕 25/09 — l apprenti paye au bareme : son minimum legal.
+        if (bm <= 0 && appr && appr.minimum_legal !== null && Number(appr.minimum_legal) > 0) {
+          bm = Number(appr.minimum_legal);
+        }
         troisMois = bm * 3;
         estimeContrat = true;
       }
