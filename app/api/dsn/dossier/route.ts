@@ -274,6 +274,39 @@ export async function POST(req: NextRequest) {
         for (const v of (volet || [])) urssafParSociete[v.id] = v;
       }
 
+      // 🆕 25/09 — LE TAUX AT/MP NOTIFIE PAR LA CARSAT, PAR SOCIETE.
+      // On retient le taux EN VIGUEUR AUJOURD HUI ; a defaut, le plus
+      // recent. ⛔ Une lecture qui echoue ne bloque pas l ecran : elle se
+      // dit dans `diagnostic`, comme le volet URSSAF.
+      const atParSociete: any = {};
+      let atLecture = "";
+      {
+        const aujourdhui = new Date().toISOString().slice(0, 10);
+        const { data: tauxAt, error: eAt } = await supabase
+          .from("paie_taux_societe")
+          .select("societe_id, taux, date_effet, date_fin, notifie_le, source")
+          .eq("code", "AT_MP")
+          .order("date_effet", { ascending: false });
+        if (eAt) {
+          atLecture = "taux AT/MP illisibles : " + eAt.message;
+        } else {
+          for (const t of (tauxAt || [])) {
+            const sid = String((t as any).societe_id);
+            const deb = String((t as any).date_effet || "").slice(0, 10);
+            const fin = (t as any).date_fin ? String((t as any).date_fin).slice(0, 10) : "";
+            const enVigueur = deb <= aujourdhui && (!fin || fin >= aujourdhui);
+            const deja = atParSociete[sid];
+            if (!deja || (enVigueur && !deja.en_vigueur)) {
+              atParSociete[sid] = {
+                taux: Number((t as any).taux), date_effet: deb, date_fin: fin || null,
+                notifie_le: (t as any).notifie_le ? String((t as any).notifie_le).slice(0, 10) : null,
+                source: (t as any).source || "", en_vigueur: enVigueur,
+              };
+            }
+          }
+        }
+      }
+
       let organismes: any[] = [];
       let organismesLecture = "";
 
@@ -368,6 +401,8 @@ export async function POST(req: NextRequest) {
           vm_code_insee: v.code_insee || "",
           vm_effectif: v.effectif === null || v.effectif === undefined
             ? null : Number(v.effectif),
+          // 🆕 25/09 — le taux AT/MP en vigueur, ou null s il manque.
+          at: atParSociete[s.id] || null,
         };
       });
 
@@ -392,6 +427,7 @@ export async function POST(req: NextRequest) {
           organismes_lus: organismes.length,
           urssaf_lecture: urssafLecture,
           organismes_lecture: organismesLecture,
+          at_lecture: atLecture,
         },
       });
     }
@@ -578,6 +614,126 @@ export async function POST(req: NextRequest) {
           bic: bic,
         },
       });
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // 🆕🚨 25/09 — ENREGISTRER LE TAUX AT/MP NOTIFIE PAR LA CARSAT
+    //
+    // Jusqu au 25/09, ce taux ne se saisissait NULLE PART a l ecran : il
+    // fallait l ecrire en base par SQL. Un cabinet ne pouvait donc pas faire
+    // la paie d un client sans nous — or il est obligatoire sur chaque
+    // bulletin, et sans lui la cotisation vaut zero.
+    //
+    // CE QUI EST ECRIT, dans `paie_taux_societe`, sous la forme deja en
+    // base (code « AT_MP », meme libelle) :
+    //   · un taux a une date d effet (le 1er janvier le plus souvent) ;
+    //   · s il existe deja un taux a CETTE date, il est corrige ;
+    //   · sinon une ligne est ajoutee, et le taux precedent encore ouvert
+    //     est CLOS la veille : chaque bulletin prend le taux de son mois,
+    //     comme le lit le moteur de paie.
+    // ⛔ CONTROLES : un taux entre 0 et 40 % (une faute de frappe comme
+    // « 210 » pour 2,10 se refuse), une date au format AAAA-MM-JJ.
+    // ═══════════════════════════════════════════════════════════════════
+    if (action === "taux_at") {
+      const societeId = q(c.societe_id);
+      if (!societeId) return json({ erreur: "société manquante." }, 400);
+
+      const { data: soc, error: eS } = await supabase
+        .from("compta_societes")
+        .select("id, tenant_id, raison_sociale")
+        .eq("id", societeId)
+        .maybeSingle();
+      if (eS) return json({ erreur: "lecture impossible : " + eS.message }, 500);
+      if (!soc) return json({ erreur: "société introuvable." }, 404);
+
+      const taux = Number(q(c.taux).replace(/\s|%/g, "").replace(",", "."));
+      if (!isFinite(taux) || !(taux > 0) || taux > 40) {
+        return json({ erreur: "taux illisible ou hors limites : indiquez le taux "
+          + "de la notification CARSAT en pourcentage, par exemple 2,10." }, 400);
+      }
+      const dateEffet = q(c.date_effet).slice(0, 10);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(dateEffet)) {
+        return json({ erreur: "date d'effet manquante ou illisible." }, 400);
+      }
+      const notifieLe = /^\d{4}-\d{2}-\d{2}$/.test(q(c.notifie_le).slice(0, 10))
+        ? q(c.notifie_le).slice(0, 10) : null;
+
+      const jour = new Date();
+      const saisiLe = String(jour.getDate()).padStart(2, "0") + "/"
+        + String(jour.getMonth() + 1).padStart(2, "0") + "/" + jour.getFullYear();
+      const source = "Notification CARSAT, saisie à l'écran le " + saisiLe;
+
+      const { data: existants, error: eE } = await supabase
+        .from("paie_taux_societe")
+        .select("id, date_effet, date_fin")
+        .eq("societe_id", societeId)
+        .eq("code", "AT_MP")
+        .order("date_effet", { ascending: true });
+      if (eE) return json({ erreur: "lecture des taux impossible : " + eE.message }, 500);
+
+      const liste = (existants || []).map(function (x: any) {
+        return { id: x.id, debut: String(x.date_effet).slice(0, 10),
+          fin: x.date_fin ? String(x.date_fin).slice(0, 10) : "" };
+      });
+      const veille = function (iso: string): string {
+        const d = new Date(iso + "T00:00:00Z");
+        d.setUTCDate(d.getUTCDate() - 1);
+        return d.toISOString().slice(0, 10);
+      };
+
+      const memeDate = liste.filter(function (x) { return x.debut === dateEffet; })[0];
+      let message = "";
+
+      if (memeDate) {
+        const { error: eU } = await supabase
+          .from("paie_taux_societe")
+          .update({ taux: taux, source: source, notifie_le: notifieLe })
+          .eq("id", memeDate.id);
+        if (eU) return json({ erreur: "enregistrement impossible : " + eU.message }, 500);
+        message = "Taux AT/MP corrigé : " + taux.toLocaleString("fr-FR",
+          { minimumFractionDigits: 2 }) + " % à compter du " + dateEffet.split("-").reverse().join("/") + ".";
+      } else {
+        // Le taux suivant, s il en existe un, borne le nouveau.
+        const suivant = liste.filter(function (x) { return x.debut > dateEffet; })[0];
+        const { error: eI } = await supabase
+          .from("paie_taux_societe")
+          .insert({
+            tenant_id: soc.tenant_id,
+            societe_id: societeId,
+            code: "AT_MP",
+            libelle: "Accidents du travail et maladies professionnelles",
+            taux: taux,
+            ressort: null,
+            date_effet: dateEffet,
+            date_fin: suivant ? veille(suivant.debut) : null,
+            source: source,
+            notifie_le: notifieLe,
+          });
+        if (eI) return json({ erreur: "enregistrement impossible : " + eI.message }, 500);
+
+        // Le precedent encore ouvert a cette date est clos la veille.
+        const precedents = liste.filter(function (x) {
+          return x.debut < dateEffet && (!x.fin || x.fin >= dateEffet);
+        });
+        for (const pr of precedents) {
+          const { error: eC } = await supabase
+            .from("paie_taux_societe")
+            .update({ date_fin: veille(dateEffet) })
+            .eq("id", pr.id);
+          if (eC) {
+            return json({ erreur: "le nouveau taux est enregistré, mais l'ancien n'a "
+              + "pas pu être clos (" + eC.message + ") : les deux se chevauchent." }, 500);
+          }
+        }
+        message = "Taux AT/MP enregistré : " + taux.toLocaleString("fr-FR",
+          { minimumFractionDigits: 2 }) + " % à compter du "
+          + dateEffet.split("-").reverse().join("/") + "."
+          + (precedents.length > 0 ? " Le taux précédent s'arrête la veille." : "")
+          + " Il s'applique aux bulletins de ce mois et des suivants.";
+      }
+
+      return json({ success: true, message: message,
+        at: { taux: taux, date_effet: dateEffet, notifie_le: notifieLe } });
     }
 
     // ---- OUVRIR LE FICHIER ----
