@@ -1003,7 +1003,36 @@ export async function POST(req: NextRequest) {
       const JOURS_OUVRABLES_MOIS = 26;   // 6 jours par semaine, moyenne mensuelle
       const DROITS_ANNUELS = 30;         // 2,5 j x 12, en jours ouvrables
 
-      const salaireMensuel = Number(ct.salaire_mensuel || 0);
+      let salaireMensuel = Number(ct.salaire_mensuel || 0);
+      // 🆕🚨 25/09 — L APPRENTI PAYE AU BAREME n a pas de salaire mensuel sur
+      // son contrat : le maintien valait ZERO, et ses conges etaient payes au
+      // seul dixieme, sans rien retenir. Son salaire de reference est le
+      // minimum du bareme, lu sur son dernier bulletin emis.
+      let noteBareme = "";
+      if (!(salaireMensuel > 0) && String(ct.type_contrat) === "apprentissage") {
+        const { data: dernier } = await supabase
+          .from("paie_bulletins")
+          .select("periode, detail")
+          .eq("contrat_id", contratId)
+          .eq("statut", "emis")
+          .lte("periode", periode)
+          .order("periode", { ascending: false })
+          .limit(1);
+        const d0: any = (dernier || [])[0];
+        const mini = d0 && d0.detail && d0.detail.apprentissage
+          ? Number(d0.detail.apprentissage.minimum_legal || 0) : 0;
+        if (mini > 0) {
+          salaireMensuel = mini;
+        } else {
+          return NextResponse.json({
+            erreur: "salaire de référence introuvable pour cet apprenti : émettez "
+              + "d'abord un bulletin, ou renseignez son salaire mensuel sur le "
+              + "contrat, avant de poser ses congés.",
+          }, { status: 400 });
+        }
+        noteBareme = " Salaire de référence de l'apprenti : " + mini.toFixed(2)
+          + " € (barème légal, dernier bulletin émis).";
+      }
       const maintien = salaireMensuel > 0
         ? (salaireMensuel / JOURS_OUVRABLES_MOIS) * jours
         : 0;
@@ -1021,7 +1050,80 @@ export async function POST(req: NextRequest) {
       for (const b of (bulletinsRef || [])) brutRef += Number((b as any).brut || 0);
       const dixieme = (brutRef / 10) * (jours / DROITS_ANNUELS);
 
-      const retenue = Math.max(maintien, dixieme);
+      // ═══════════════════════════════════════════════════════════════
+      // 🆕 25/09 — L AVANTAGE EN NATURE DANS L INDEMNITE (art. L3141-25)
+      //
+      // « Pour la fixation de l indemnite de conge, il est tenu compte des
+      // avantages accessoires et des prestations en nature dont le salarie
+      // ne continuerait pas a jouir pendant la duree de son conge. »
+      //   · LES REPAS : le salarie ne les prend pas pendant ses conges. Leur
+      //     valeur s ajoute au MAINTIEN, au meme prorata que le salaire
+      //     (valeur mensuelle / 26 jours ouvrables x jours pris).
+      //   · LE LOGEMENT : il le garde pendant ses conges. Rien a ajouter.
+      //   · LA REGLE DU DIXIEME en tient deja compte : l avantage est dans le
+      //     brut des bulletins de la periode de reference.
+      // La valeur mensuelle vient du dernier element « avantage_repas » du
+      // contrat, au mois des conges ou avant, valorise comme au bulletin :
+      // forfait URSSAF moins la participation du salarie, et rien si
+      // l avantage est neglige (participation d au moins la moitie du
+      // forfait).
+      // ⚠️ `valeur_maintien` RESTE LE SALAIRE SEUL : c est ce que la ligne
+      // « Absence conges payes » retient. L avantage n entre que dans
+      // `valeur_retenue`, l indemnite versee — sinon il serait retenu et
+      // verse a la fois, et le salarie ne toucherait rien pour ses repas.
+      // ═══════════════════════════════════════════════════════════════
+      let avantageConges = 0;
+      let noteAvantage = "";
+      {
+        const { data: elRepas } = await supabase
+          .from("paie_elements")
+          .select("periode, quantite, taux")
+          .eq("contrat_id", contratId)
+          .eq("type_element", "avantage_repas")
+          .lte("periode", periode)
+          .order("periode", { ascending: false })
+          .limit(1);
+        const el: any = (elRepas || [])[0];
+        if (el && Number(el.quantite) > 0) {
+          const dateP = String(periode).slice(0, 7) + "-01";
+          const { data: params } = await supabase
+            .from("paie_parametres")
+            .select("code, valeur, date_effet, date_fin")
+            .in("code", ["AVANTAGE_REPAS", "AVANTAGE_REPAS_NEGLIGEABLE"])
+            .lte("date_effet", dateP)
+            .order("date_effet", { ascending: false });
+          const lire = function (code: string): number | null {
+            for (const pr of (params || [])) {
+              if ((pr as any).code !== code) continue;
+              const fin = (pr as any).date_fin ? String((pr as any).date_fin).slice(0, 10) : "";
+              if (fin && fin < dateP) continue;
+              return Number((pr as any).valeur);
+            }
+            return null;
+          };
+          const forfait = lire("AVANTAGE_REPAS");
+          const pctNeglige = lire("AVANTAGE_REPAS_NEGLIGEABLE") || 0;
+          const part = Number(el.taux || 0);
+          if (forfait === null || !(forfait > 0)) {
+            noteAvantage = " ⚠️ Le barème AVANTAGE_REPAS manque en base : l'avantage "
+              + "nourriture n'a pas pu être ajouté à l'indemnité.";
+          } else if (part > 0 && part >= forfait * pctNeglige / 100) {
+            noteAvantage = " Avantage nourriture négligé (participation d'au moins "
+              + "la moitié du forfait) : rien à ajouter.";
+          } else {
+            const parRepas = Math.max(0, forfait - part);
+            const mensuel = parRepas * Number(el.quantite);
+            avantageConges = (mensuel / JOURS_OUVRABLES_MOIS) * jours;
+            noteAvantage = " Avantage nourriture ajouté au maintien : "
+              + (Math.round(avantageConges * 100) / 100).toFixed(2) + " € ("
+              + Number(el.quantite) + " repas par mois à " + parRepas.toFixed(2)
+              + " €, art. L3141-25).";
+          }
+        }
+      }
+      const maintienTotal = maintien + avantageConges;
+
+      const retenue = Math.max(maintienTotal, dixieme);
 
       const { error: ePose } = await supabase.from("paie_conges").insert({
         tenant_id: ct.tenant_id,
@@ -1037,7 +1139,8 @@ export async function POST(req: NextRequest) {
         valeur_retenue: Math.round(retenue * 100) / 100,
         notes: "Prise saisie le " + new Date().toISOString().slice(0, 10)
           + " — méthode retenue : "
-          + (maintien >= dixieme ? "maintien de salaire" : "règle du dixième"),
+          + (maintienTotal >= dixieme ? "maintien de salaire" : "règle du dixième")
+          + noteAvantage + noteBareme,
       });
       if (ePose) {
         return NextResponse.json({ erreur: ePose.message }, { status: 500 });
@@ -1049,12 +1152,13 @@ export async function POST(req: NextRequest) {
         maintien: Math.round(maintien * 100) / 100,
         dixieme: Math.round(dixieme * 100) / 100,
         retenue: Math.round(retenue * 100) / 100,
-        methode: maintien >= dixieme ? "maintien de salaire" : "règle du dixième",
+        avantage_nature: Math.round(avantageConges * 100) / 100,
+        methode: maintienTotal >= dixieme ? "maintien de salaire" : "règle du dixième",
         solde_restant: Math.round((disponible - jours) * 100) / 100,
         message: jours.toFixed(2) + " jour(s) posé(s). Indemnité retenue : "
           + retenue.toFixed(2) + " € ("
-          + (maintien >= dixieme ? "maintien de salaire" : "règle du dixième")
-          + ", la plus favorable). Solde restant : "
+          + (maintienTotal >= dixieme ? "maintien de salaire" : "règle du dixième")
+          + ", la plus favorable)." + noteAvantage + " Solde restant : "
           + (disponible - jours).toFixed(2) + " jour(s).",
       });
     }
