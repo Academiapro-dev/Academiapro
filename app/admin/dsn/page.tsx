@@ -225,6 +225,10 @@ export default function PageDsn() {
   const [organismes, setOrganismes] = useState<any[]>([]);
   const [urssafSaisie, setUrssafSaisie] = useState<any>({});
   const [urssafOuvert, setUrssafOuvert] = useState("");
+  // 🆕 25/09 — LE TAUX AT/MP : ce qui est en cours de frappe, par societe,
+  // et quel formulaire est deplie.
+  const [atSaisie, setAtSaisie] = useState<any>({});
+  const [atOuvert, setAtOuvert] = useState("");
 
   useEffect(function () {
     const s = sessionStorage.getItem("paie_secret") || "";
@@ -384,6 +388,36 @@ export default function PageDsn() {
   // ═════════════════════════════════════════════════════════════════════
   function voletUrssaf(id: string): any {
     return societes.filter(function (s: any) { return s.id === id; })[0] || {};
+  }
+
+  // ═════════════════════════════════════════════════════════════════════
+  // 🆕🚨 25/09 — ENREGISTRER LE TAUX AT/MP NOTIFIE PAR LA CARSAT
+  //
+  // Jusqu au 25/09 il ne se saisissait nulle part a l ecran : il fallait
+  // l ecrire en base. Il est obligatoire sur chaque bulletin, et sans lui
+  // la cotisation vaut zero. La route controle la valeur (0 a 40 %) et
+  // clot le taux precedent la veille de la nouvelle date d effet.
+  // ═════════════════════════════════════════════════════════════════════
+  async function enregistrerTauxAt(soc: any) {
+    const f = atSaisie[soc.id] || {};
+    const annee = new Date().getFullYear();
+    setErr(""); setMsg(""); setOccupe("at" + soc.id);
+    const d = await appeler({
+      action: "taux_at",
+      societe_id: soc.id,
+      taux: f.taux || "",
+      date_effet: f.date_effet || (annee + "-01-01"),
+      notifie_le: f.notifie_le || "",
+    });
+    if (d.success) {
+      setMsg(d.message || "Enregistré.");
+      setAtOuvert("");
+      setAtSaisie({ ...atSaisie, [soc.id]: {} });
+      await charger();
+    } else {
+      setErr(d.erreur || "enregistrement impossible");
+    }
+    setOccupe("");
   }
 
   // 🆕 20/09 — ENREGISTRER L ORGANISME ET LE COMPTE.
@@ -881,6 +915,79 @@ export default function PageDsn() {
                         ? " · " + v.vm_effectif + " salarié(s) connus"
                         : ""}
                     </p>
+
+                    {/* ═══════════════════════════════════════════════════
+                        🆕🚨 25/09 — LE TAUX ACCIDENTS DU TRAVAIL
+                        ⚠️ TOUJOURS DIT, comme le versement mobilité : sans
+                        taux, la cotisation vaut zéro sur chaque bulletin.
+                        ═══════════════════════════════════════════════════ */}
+                    <div style={{ margin: "8px 0 0", display: "flex",
+                      justifyContent: "space-between", alignItems: "baseline",
+                      flexWrap: "wrap", gap: "8px" }}>
+                      <p style={{ margin: 0, fontSize: "12px", lineHeight: "1.6",
+                        color: v.at ? "rgba(255,255,255,0.45)" : ROUGE }}>
+                        Taux accidents du travail :{" "}
+                        {v.at
+                          ? Number(v.at.taux).toLocaleString("fr-FR",
+                              { minimumFractionDigits: 2 }) + " % depuis le "
+                            + String(v.at.date_effet).split("-").reverse().join("/")
+                            + (String(v.at.source || "").indexOf("ESSAI") >= 0
+                              ? " — valeur d'essai" : "")
+                            + (v.at.en_vigueur ? "" : " — pas encore en vigueur")
+                          : "aucun, la cotisation vaut zéro sur tous les bulletins"}
+                      </p>
+                      <button onClick={() => setAtOuvert(atOuvert === soc.id ? "" : soc.id)}
+                        style={{ ...SECOND, padding: "4px 10px", fontSize: "12px" }}>
+                        {atOuvert === soc.id ? "annuler"
+                          : v.at ? "nouveau taux" : "saisir le taux"}
+                      </button>
+                    </div>
+
+                    {atOuvert === soc.id && (function () {
+                      const fa = atSaisie[soc.id] || {};
+                      const annee = new Date().getFullYear();
+                      return (
+                        <div style={{ marginTop: "10px" }}>
+                          <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+                            <div style={{ flex: "1 1 120px" }}>
+                              <span style={LIB}>Taux notifié (%)</span>
+                              <input style={CHAMP} inputMode="decimal"
+                                placeholder="ex. 2,10" value={fa.taux || ""}
+                                onChange={(ev) => setAtSaisie({ ...atSaisie,
+                                  [soc.id]: { ...fa, taux: ev.target.value } })} />
+                            </div>
+                            <div style={{ flex: "1 1 150px" }}>
+                              <span style={LIB}>À compter du</span>
+                              <input style={CHAMP} type="date"
+                                value={fa.date_effet || (annee + "-01-01")}
+                                onChange={(ev) => setAtSaisie({ ...atSaisie,
+                                  [soc.id]: { ...fa, date_effet: ev.target.value } })} />
+                            </div>
+                            <div style={{ flex: "1 1 150px" }}>
+                              <span style={LIB}>Notifié le (facultatif)</span>
+                              <input style={CHAMP} type="date"
+                                value={fa.notifie_le || ""}
+                                onChange={(ev) => setAtSaisie({ ...atSaisie,
+                                  [soc.id]: { ...fa, notifie_le: ev.target.value } })} />
+                            </div>
+                          </div>
+                          <p style={{ margin: "6px 0 0", fontSize: "11.5px",
+                            lineHeight: "1.6", color: "rgba(255,255,255,0.42)" }}>
+                            Le taux figure sur la notification annuelle de la
+                            CARSAT, ou sur le compte AT/MP de net-entreprises.
+                            Il s&apos;applique aux bulletins du mois indiqué et
+                            des suivants ; le taux précédent s&apos;arrête la
+                            veille. Un bulletin déjà émis ne change pas.
+                          </p>
+                          <button onClick={() => enregistrerTauxAt(soc)}
+                            disabled={occupe !== "" || !String(fa.taux || "").trim()}
+                            style={{ ...BOUTON, marginTop: "10px",
+                              opacity: String(fa.taux || "").trim() ? 1 : 0.4 }}>
+                            {occupe === "at" + soc.id ? "…" : "Enregistrer le taux"}
+                          </button>
+                        </div>
+                      );
+                    })()}
 
                     {deplie && (
                       <div style={{ marginTop: "12px" }}>
