@@ -1905,8 +1905,10 @@ export async function POST(req: NextRequest) {
         // contre le debut du contrat. On retombe alors sur le jour meme.
         const debutContrat = q(ct.date_debut);
         if (debutContrat && djt < debutContrat) djt = debutArret;
+        // 🆕 25/09 — la date se lit JJ/MM/AAAA : « 10092026 » est le format
+        // du fichier, pas celui d un texte destine a un lecteur.
         notesArrets.push(qui + " : le dernier jour travaillé de l'arrêt du "
-          + dateDsn(debutArret) + " n'est pas saisi — la VEILLE a été "
+          + debutArret.split("-").reverse().join("/") + " n'est pas saisi — la VEILLE a été "
           + "déclarée. ⚠️ Si le salarié est venu travailler le jour où "
           + "l'arrêt commence, le saisir : cette date fixe le calcul des "
           + "indemnités journalières.");
@@ -3303,6 +3305,16 @@ export async function POST(req: NextRequest) {
             if (code === "001" || code === "002" || code === "003"
               || code === "018" || code === "106") continue;
 
+            // 🆕 25/09 — NI LES CODES QUE LA TABLE RESERVE A UN CAS
+            // PARTICULIER. Sa colonne « precisions » le dit en toutes
+            // lettres : « Il convient d'utiliser le code de cotisation 073
+            // en cas d'intéressement ». La table liste tout ce qui PEUT se
+            // rattacher a un CTP, pas seulement ce qui DOIT y figurer : un
+            // code conditionnel absent est la situation normale. Trouve le
+            // 25/09 — l alerte du 073 etait une fausse alerte.
+            const precision = String((a as any).precisions || "");
+            if (/en cas d['’e]/i.test(precision)) continue;
+
             const cle = base + "/" + code;
             if (codes81Ecrits[cle] || vus[cle]) continue;
             vus[cle] = true;
@@ -3641,12 +3653,11 @@ export async function POST(req: NextRequest) {
   avantDepot.push("Le code PCS-ESE de chaque contrat vient de la nomenclature "
     + "INSEE : un code faux ne fait pas rejeter la déclaration, il fausse le "
     + "rattachement conventionnel.");
-  avantDepot.push("Les primes et indemnités (fin de contrat, fin de mission, "
-    + "congés payés) ne sont pas encore déclarées en bloc S21.G00.52 : elles "
-    + "restent comprises dans la rémunération de type 002.");
-  avantDepot.push("Le salaire rétabli (type 003) est égal au brut : exact tant "
-    + "qu'aucune absence n'est traitée sur le bulletin, à reprendre avec le "
-    + "maintien de salaire en maladie.");
+  // 🆕 25/09 — DEUX RESERVES PERIMEES RETIREES : elles affirmaient que les
+  // primes n etaient pas declarees en bloc 52 et que le salaire retabli
+  // valait le brut. Les deux sont faits depuis le 20/09 (bloc 52 lu dans
+  // detail.lignes_mission, type 003 lu dans detail.salaire_retabli). Une
+  // reserve fausse est pire que pas de reserve : elle fait douter du vrai.
 
   return NextResponse.json({
     success: true,
