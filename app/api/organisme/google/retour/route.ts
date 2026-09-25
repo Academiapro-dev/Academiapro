@@ -24,6 +24,10 @@ export const dynamic = "force-dynamic";
 // ⚠️ SI GOOGLE NE REND PAS DE refresh_token, on refuse la connexion et on
 // le dit. Un compte sans jeton durable cesse de fonctionner au bout d une
 // heure, et le client ne comprendrait pas pourquoi.
+//
+// 🆕 25/09 — LES DEUX JETONS SONT CHIFFRES AVANT D ETRE ENREGISTRES (voir
+// cleJetons plus bas). La route evenement les dechiffre au moment de s en
+// servir. ⛔ Sans cle de chiffrement, rien n est enregistre.
 // ══════════════════════════════════════════════════════════════════════════
 
 const supabase = createClient(
@@ -33,6 +37,39 @@ const supabase = createClient(
 
 function sceau(charge: string): string {
   return crypto.createHmac("sha256", process.env.SESSION_SECRET || "").update(charge).digest("hex");
+}
+
+// ---- 🆕 25/09 — LES JETONS GOOGLE SONT CHIFFRES ----
+//
+// La politique de confidentialite de Mr CRM le dit, et Google l a relue :
+// « les jetons d acces delivres par Google sont conserves chiffres ».
+// Jusqu au 25/09, c etait FAUX : ils etaient ecrits en clair dans
+// organisme_google. Desormais : AES-256-GCM, comme les mots de passe
+// net-entreprises de la DSN.
+//   · la cle vient de GOOGLE_CLE_CHIFFREMENT, a defaut de
+//     DSN_CLE_CHIFFREMENT (deja presente dans Vercel) ; elle est passee
+//     dans SHA-256 pour donner toujours 32 octets, quel que soit son format ;
+//   · forme stockee : « g1:<iv>:<marque>:<chiffre> », en base 64 ;
+//   · un jeton SANS le prefixe « g1: » est un ancien jeton en clair, ecrit
+//     avant le 25/09 : il est lu tel quel, puis rechiffre au premier usage.
+// ⛔ SI LA CLE MANQUE, ON N ECRIT RIEN EN CLAIR : on refuse.
+// ⛔ SI LA CLE EST PERDUE, les jetons deviennent illisibles : chaque client
+// devra reconnecter son agenda (rien d autre n est perdu).
+function cleJetons(): Buffer | null {
+  const brut = (process.env.GOOGLE_CLE_CHIFFREMENT || process.env.DSN_CLE_CHIFFREMENT || "").trim();
+  if (!brut) return null;
+  return crypto.createHash("sha256").update(brut).digest();
+}
+
+function chiffrerJeton(clair: string | null | undefined): string | null {
+  if (!clair) return null;
+  const cle = cleJetons();
+  if (!cle) return null;
+  const iv = crypto.randomBytes(12);
+  const c = crypto.createCipheriv("aes-256-gcm", cle, iv);
+  const chiffre = Buffer.concat([c.update(String(clair), "utf8"), c.final()]);
+  const marque = c.getAuthTag();
+  return "g1:" + iv.toString("base64") + ":" + marque.toString("base64") + ":" + chiffre.toString("base64");
 }
 
 function page(titre: string, texte: string, ok: boolean): NextResponse {
@@ -118,11 +155,24 @@ export async function GET(req: NextRequest) {
 
   const expire = new Date(Date.now() + ((Number(jetons.expires_in) || 3600) - 60) * 1000).toISOString();
 
+  // 🆕 25/09 — CHIFFRES AVANT D ETRE GARDES. Sans cle, on refuse : un jeton
+  // en clair dans la base, c est l agenda du client a la portee de quiconque
+  // lirait la table.
+  const accesChiffre = chiffrerJeton(jetons.access_token);
+  const durableChiffre = chiffrerJeton(jetons.refresh_token);
+  if (!accesChiffre || !durableChiffre) {
+    return page(
+      "Configuration incomplète",
+      "La clé de chiffrement des jetons est absente de ce serveur. Par précaution, rien n'a été enregistré.",
+      false
+    );
+  }
+
   const { error } = await supabase.from("organisme_google").upsert({
     tenant_id: tenant,
     email: compte || null,
-    access_token: jetons.access_token,
-    refresh_token: jetons.refresh_token,
+    access_token: accesChiffre,
+    refresh_token: durableChiffre,
     expire_le: expire,
     calendar_id: "primary",
     actif: true,
