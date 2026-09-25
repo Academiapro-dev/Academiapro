@@ -500,7 +500,12 @@ function assiette(type: string, brut: number, plafond: number): number {
 }
 
 // LE CALCUL COMPLET.
-async function calculer(contratId: string, periode: string): Promise<any> {
+// 🆕 25/09 — `opts` sert au PLAFONNEMENT DU MAINTIEN AU NET (voir GET) :
+//   · sansArrets : le meme mois calcule comme si le salarie avait travaille
+//   · reductionMaintien : ce que le maintien doit perdre pour ne pas depasser
+//     ce net. Sans `opts`, rien ne change.
+async function calculer(contratId: string, periode: string,
+    opts?: { sansArrets?: boolean; reductionMaintien?: number }): Promise<any> {
   // ---- LE CONTRAT ----
   const { data: contrat, error: errC } = await supabase
     .from("paie_contrats")
@@ -1387,7 +1392,9 @@ async function calculer(contratId: string, periode: string): Promise<any> {
     const heuresJour = (dureeHebdo > 0 ? dureeHebdo : 35) / 5;
     const joursDuMois = joursOuvres(premierIso, dernierIso);
 
-    for (const a of (arrets || [])) {
+    // 🆕 25/09 — calcul « comme s il avait travaille » : aucun arret.
+    const arretsRetenus: any[] = (opts && opts.sansArrets) ? [] : (arrets || []);
+    for (const a of arretsRetenus) {
       // Un arret annule ne retient rien.
       if ((a as any).annule_le) continue;
 
@@ -1487,6 +1494,8 @@ async function calculer(contratId: string, periode: string): Promise<any> {
   //     caisse : l ecart se regularise sur le bulletin suivant.
   // ═══════════════════════════════════════════════════════════════════
   const maintiens: any[] = [];
+  // 🆕 25/09 — ce qui reste a retirer du maintien pour le plafonner au net.
+  let resteReduction = Math.max(0, Number((opts && opts.reductionMaintien) || 0));
   // 🆕 25/09 — LA PART IMPOSABLE DES IJSS VERSEES PAR SUBROGATION, qui entre
   // dans le net imposable (voir plus bas, et les totaux).
   let ijssImposables = 0;
@@ -1687,6 +1696,23 @@ async function calculer(contratId: string, periode: string): Promise<any> {
       });
       brutSoumis += m.maintien - m.ijss;
 
+      // 🆕🚨 25/09 — LE PLAFONNEMENT AU NET HABITUEL (voir GET). Le
+      // complement de l employeur (maintien moins IJSS deduites) est reduit
+      // de ce qui ferait gagner au salarie PLUS qu en travaillant. Il ne
+      // devient jamais negatif.
+      let plafonnement = 0;
+      if (resteReduction > 0) {
+        plafonnement = cts(Math.min(resteReduction, Math.max(0, m.maintien - m.ijss)));
+        if (plafonnement > 0) {
+          lignesBrut.push({
+            libelle: "Plafonnement du maintien au salaire net habituel",
+            quantite: null, taux: null, montant: -plafonnement,
+          });
+          brutSoumis -= plafonnement;
+          resteReduction = cts(resteReduction - plafonnement);
+        }
+      }
+
       // 🚨 EN SUBROGATION, L EMPLOYEUR AVANCE LES IJSS : il les percoit de la
       // caisse et les reverse au salarie, NETTES de CSG (6,20 %) et de CRDS
       // (0,50 %) que la caisse a deja prelevees. Elles ne sont pas du
@@ -1717,7 +1743,8 @@ async function calculer(contratId: string, periode: string): Promise<any> {
 
       maintiens.push({
         evenement_id: ab.evenement_id, regle: regle.origine,
-        anciennete_mois: anc, maintien: m.maintien, ijss_brutes: m.ijss,
+        anciennete_mois: anc, maintien: cts(m.maintien - plafonnement), ijss_brutes: m.ijss,
+        plafonnement: plafonnement,
         ijss_nettes_reversees: ijssNettes, ij_jour: ijJour,
         ijss_imposables: ijssImposablesArret,
         jours_ijss: m.joursIjss, subrogation: ab.subrogation,
@@ -2901,8 +2928,69 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const r = await calculer(contratId, periode);
+    let r = await calculer(contratId, periode);
     if (r.erreur) return NextResponse.json(r, { status: 400, headers: SANS_CACHE });
+
+    // ═══════════════════════════════════════════════════════════════════
+    // 🆕🚨 25/09 — LE MAINTIEN EST PLAFONNE AU NET HABITUEL
+    //
+    // Article D1226-5 du code du travail : le maintien ne doit pas conduire
+    // a verser au salarie, toutes sommes confondues, plus que ce qu il
+    // aurait percu s il avait continue a travailler. La Syntec dit de meme :
+    // a hauteur de ce qu il aurait percu, NET de toute charge.
+    // Pourquoi c est depasse sans ce plafond : les IJSS ne supportent que
+    // 6,70 % de CSG et de CRDS, le salaire environ 22 % de cotisations. Un
+    // maintien a 100 % du BRUT, IJSS deduites en brut puis reversees en net,
+    // fait gagner au salarie plus en arret qu au travail. MESURE du 25/09 :
+    // Camille, deux arrets en subrogation, 1 104,02 nets contre 1 096,08
+    // sans arret.
+    // LA METHODE : on calcule le meme mois SANS les arrets (le net
+    // habituel), on compare au net avec les arrets (plus les IJSS versees
+    // directement par la caisse, hors subrogation), et on retire l excedent
+    // du maintien. Comme retirer du brut retire aussi des cotisations, on
+    // itere jusqu au centime (quatre passes au plus).
+    // ═══════════════════════════════════════════════════════════════════
+    const aDuMaintien = Array.isArray(r.maintiens)
+      && r.maintiens.some(function (mt: any) { return Number(mt.maintien || 0) > 0; });
+    if (aDuMaintien) {
+      const habituel = await calculer(contratId, periode, { sansArrets: true });
+      if (!habituel.erreur) {
+        const netHabituel = Number(habituel.net_a_payer || 0);
+        const recu = function (x: any): number {
+          let horsSubrogation = 0;
+          for (const mt of (x.maintiens || [])) {
+            if (!mt.subrogation) horsSubrogation += Number(mt.ijss_brutes || 0) * (1 - 0.067);
+          }
+          return Number(x.net_a_payer || 0) + horsSubrogation;
+        };
+        let excedent = Math.round((recu(r) - netHabituel) * 100) / 100;
+        let reduction = 0;
+        for (let passe = 0; passe < 4 && excedent > 0.005; passe++) {
+          const brutT = Number(r.brut_total || 0);
+          let t = brutT > 0 ? Number(r.total_salarial || 0) / brutT : 0.22;
+          if (!(t > 0 && t < 0.6)) t = 0.22;
+          reduction = Math.round((reduction + excedent / (1 - t)) * 100) / 100;
+          const r2 = await calculer(contratId, periode, { reductionMaintien: reduction });
+          if (r2.erreur) break;
+          r = r2;
+          excedent = Math.round((recu(r) - netHabituel) * 100) / 100;
+        }
+        if (reduction > 0 && Array.isArray(r.reserves)) {
+          r.reserves.unshift("Maintien de salaire plafonné au net habituel (article "
+            + "D1226-5 du code du travail) : sans arrêt, le salarié aurait touché "
+            + netHabituel.toLocaleString("fr-FR", { minimumFractionDigits: 2 })
+            + " € nets ; le complément de l'employeur est réduit de "
+            + reduction.toLocaleString("fr-FR", { minimumFractionDigits: 2 })
+            + " € brut pour ne pas le dépasser"
+            + (excedent < -0.005 ? " (écart résiduel de "
+              + Math.abs(excedent).toLocaleString("fr-FR", { minimumFractionDigits: 2 })
+              + " € en faveur du plafond, dû aux arrondis)" : "")
+            + ". Les indemnités journalières versées directement par la caisse "
+            + "sont comptées dans ce plafond.");
+        }
+        r.plafonnement_net = { net_habituel: netHabituel, reduction: reduction, excedent_residuel: excedent };
+      }
+    }
     // 🚨 LA REPONSE QUI COMPTE : c est celle-la qu un cache garderait, et
     // c est un bulletin de paie. Elle ne se met jamais en reserve.
     return NextResponse.json(r, { headers: SANS_CACHE });
