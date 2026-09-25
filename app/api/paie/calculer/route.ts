@@ -2822,8 +2822,9 @@ async function calculer(contratId: string, periode: string,
       if (tauxSociete["AT_MP"] === undefined) {
         r.unshift("🚨 AUCUN TAUX AT/MP pour cette société : la cotisation vaut ZÉRO. "
           + "Elle est OBLIGATOIRE. Le taux se lit sur la notification annuelle de la "
-          + "CARSAT ou sur le compte AT/MP de net-entreprises, puis se renseigne dans "
-          + "paie_taux_societe. ⛔ NE JAMAIS INVENTER UNE VALEUR.");
+          + "CARSAT ou sur le compte AT/MP de net-entreprises, puis se saisit sur "
+          + "l'écran DSN, bloc « Recouvrement URSSAF », ligne « Taux accidents du "
+          + "travail ». ⛔ NE JAMAIS INVENTER UNE VALEUR.");
       }
       // ═══════════════════════════════════════════════════════════════
       // 🆕 20/09 — CE QUI SE DIT SUR LE VERSEMENT MOBILITE
