@@ -401,6 +401,55 @@ function maintienSalaire(p: {
   return res;
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+// 🆕 25/09 — LES ARRETS DEJA INDEMNISES SUR DOUZE MOIS
+//
+// Article D1226-4 du code du travail : pour le calcul des indemnites, « il
+// est tenu compte des indemnites deja percues par l interesse durant les
+// douze mois anterieurs, de telle sorte que, si plusieurs absences pour
+// maladie ou accident ont ete indemnisees au cours de ces douze mois, la
+// duree totale d indemnisation ne depasse pas celle applicable ».
+// Jusqu au 25/09, chaque arret repartait de zero : un salarie arrete trois
+// fois dans l annee touchait trois fois la duree pleine.
+//
+// FONCTION PURE : on lui donne les arrets precedents (debut, fin, et si le
+// salarie avait droit au maintien a leur date) et elle rend le nombre de
+// jours CALENDAIRES deja indemnises dans les douze mois qui precedent le
+// premier jour de l arret en cours. Chaque arret subit sa propre carence ;
+// le total ne depasse jamais la duree totale de la regle.
+// ⚠️ Seuls les arrets du MEME CONTRAT sont lus : un arret indemnise sous
+// un contrat precedent chez le meme employeur n est pas compte (reserve).
+// ═══════════════════════════════════════════════════════════════════════
+function joursDejaIndemnises(p: {
+  debutArret: string;
+  anterieurs: { debut: string; fin: string; droit: boolean }[];
+  carenceJours: number;
+  total: number;
+}): number {
+  const jour = 86400000;
+  const tArret = new Date(p.debutArret + "T00:00:00Z").getTime();
+  const fenetre = new Date(p.debutArret + "T00:00:00Z");
+  fenetre.setUTCFullYear(fenetre.getUTCFullYear() - 1);
+  const tFenetre = fenetre.getTime();
+  const tries = p.anterieurs.slice().sort(function (a, b) { return a.debut < b.debut ? -1 : 1; });
+  let consommes = 0;
+  for (const a of tries) {
+    if (!a.droit || !a.debut || !a.fin) continue;
+    const t0 = new Date(a.debut + "T00:00:00Z").getTime();
+    let tf = new Date(a.fin + "T00:00:00Z").getTime();
+    if (isNaN(t0) || isNaN(tf)) continue;
+    if (tf >= tArret) tf = tArret - jour;          // jamais au-dela de la veille de l arret en cours
+    for (let t = t0; t <= tf; t += jour) {
+      if (consommes >= p.total) return consommes;
+      const rang = Math.round((t - t0) / jour);
+      if (rang < p.carenceJours) continue;          // la carence de CET arret
+      if (t < tFenetre) continue;                   // hors des douze mois
+      consommes += 1;
+    }
+  }
+  return Math.min(consommes, p.total);
+}
+
 async function parametre(code: string, periode: string): Promise<number | null> {
   const { data } = await supabase
     .from("paie_parametres")
@@ -1397,14 +1446,18 @@ async function calculer(contratId: string, periode: string): Promise<any> {
   //   · il ne traite que la MALADIE ORDINAIRE. L accident du travail, la
   //     maladie professionnelle, la maternite et la paternite ont d autres
   //     indemnites journalieres et d autres conditions ;
-  //   · il ne compte pas les arrets DEJA INDEMNISES sur douze mois, qui
-  //     s imputent sur les durees ;
+  //   · 🆕 25/09 — les arrets DEJA INDEMNISES sur douze mois sont desormais
+  //     imputes sur les durees (article D1226-4), mais seulement ceux du
+  //     MEME contrat ;
   //   · il maintient le BRUT. La Syntec garantit le NET habituel : l ecart
   //     est faible mais il existe, et il se regle par iteration ;
   //   · LES IJSS SONT ESTIMEES. Leur montant exact est notifie par la
   //     caisse : l ecart se regularise sur le bulletin suivant.
   // ═══════════════════════════════════════════════════════════════════
   const maintiens: any[] = [];
+  // 🆕 25/09 — LA PART IMPOSABLE DES IJSS VERSEES PAR SUBROGATION, qui entre
+  // dans le net imposable (voir plus bas, et les totaux).
+  let ijssImposables = 0;
 
   if (absencesArret.length > 0) {
     const catM = String(contrat.categorie) === "cadre" ? "cadre" : "etam";
@@ -1483,6 +1536,59 @@ async function calculer(contratId: string, periode: string): Promise<any> {
           origine: "régime légal, article L1226-1" };
       }
 
+      // ---- 🆕 25/09 — LES ARRETS DEJA INDEMNISES SUR DOUZE MOIS ----
+      // (article D1226-4, voir joursDejaIndemnises). Ils s imputent d abord
+      // sur le premier palier, puis sur le second.
+      {
+        const { data: anterieurs } = await supabase
+          .from("paie_evenements")
+          .select("id, motif, date_debut, date_fin, reprise_date, annule_le")
+          .eq("contrat_id", contratId)
+          .eq("type_evenement", "arret")
+          .lt("date_debut", ab.debut_arret)
+          .order("date_debut", { ascending: true });
+        const liste: { debut: string; fin: string; droit: boolean }[] = [];
+        for (const a0 of (anterieurs || [])) {
+          if ((a0 as any).annule_le) continue;
+          if ((a0 as any).id === ab.evenement_id) continue;
+          const mot0 = String((a0 as any).motif || "");
+          if (mot0 !== "maladie" && mot0 !== "01") continue;
+          const deb0 = String((a0 as any).date_debut || "").slice(0, 10);
+          let fin0 = String((a0 as any).date_fin || "").slice(0, 10);
+          if ((a0 as any).reprise_date) {
+            const r0 = new Date(String((a0 as any).reprise_date).slice(0, 10) + "T00:00:00Z");
+            r0.setUTCDate(r0.getUTCDate() - 1);
+            const veille = r0.toISOString().slice(0, 10);
+            if (!fin0 || veille < fin0) fin0 = veille;
+          }
+          // Le salarie avait-il droit au maintien a la date de CET arret ?
+          let anc0 = 0;
+          if (dc && deb0) {
+            anc0 = (Number(deb0.slice(0, 4)) - Number(dc.slice(0, 4))) * 12
+              + (Number(deb0.slice(5, 7)) - Number(dc.slice(5, 7)));
+            if (Number(deb0.slice(8, 10)) < Number(dc.slice(8, 10))) anc0 -= 1;
+          }
+          liste.push({ debut: deb0, fin: fin0, droit: anc0 >= regle.ancienneteMois });
+        }
+        const consommes = joursDejaIndemnises({
+          debutArret: ab.debut_arret, anterieurs: liste,
+          carenceJours: regle.carenceJours, total: regle.jours1 + regle.jours2,
+        });
+        if (consommes > 0) {
+          const pris1 = Math.min(regle.jours1, consommes);
+          const pris2 = Math.min(regle.jours2, consommes - pris1);
+          regle = { ...regle, jours1: regle.jours1 - pris1, jours2: regle.jours2 - pris2 };
+          notesArret.push("Arrêts de maladie déjà indemnisés dans les douze mois "
+            + "précédant celui du " + ab.debut_arret.slice(8, 10) + "/"
+            + ab.debut_arret.slice(5, 7) + "/" + ab.debut_arret.slice(0, 4) + " : "
+            + consommes + " jour(s) imputé(s) sur les durées de maintien (article "
+            + "D1226-4 du code du travail). Il reste " + regle.jours1 + " jour(s) à "
+            + regle.taux1 + " % et " + regle.jours2 + " à "
+            + String(regle.taux2).replace(".", ",") + " %. ⚠️ Seuls les arrêts de "
+            + "ce contrat sont comptés.");
+        }
+      }
+
       // ---- LES IJSS, ESTIMEES ----
       // Salaire journalier de base = trois derniers bruts / 91,25, plafonne.
       const { data: derniers } = await supabase
@@ -1550,6 +1656,17 @@ async function calculer(contratId: string, periode: string): Promise<any> {
       // (0,50 %) que la caisse a deja prelevees. Elles ne sont pas du
       // salaire : elles entrent dans le net, pas dans le brut cotise.
       let ijssNettes = 0;
+      // 🆕 25/09 — LEUR PART IMPOSABLE. Les IJSS maladie sont imposables pour
+      // leur montant BRUT diminue de la seule CSG deductible (3,80 %), soit
+      // 96,2 % du brut (la CSG non deductible, 2,40 %, et la CRDS, 0,50 %,
+      // restent imposables). En subrogation, c est l EMPLOYEUR qui les verse :
+      // elles entrent donc dans le net imposable du bulletin. Sans
+      // subrogation, la caisse les declare elle-meme : on n y touche pas.
+      // Source : assurance maladie (ameli), « somme a declarer = brut des IJ
+      // × 96,2 % ». ⚠️ Exception : les IJ d une affection de longue duree
+      // (ALD) ne sont pas imposables — le moteur ne le sait pas, une reserve
+      // le dit.
+      let ijssImposablesArret = 0;
       if (ab.subrogation) {
         ijssNettes = cts(m.ijss * (1 - 0.067));
         lignesBrut.push({
@@ -1558,12 +1675,15 @@ async function calculer(contratId: string, periode: string): Promise<any> {
           quantite: null, taux: null, montant: ijssNettes,
         });
         nonSoumis += ijssNettes;
+        ijssImposablesArret = cts(m.ijss * 0.962);
+        ijssImposables += ijssImposablesArret;
       }
 
       maintiens.push({
         evenement_id: ab.evenement_id, regle: regle.origine,
         anciennete_mois: anc, maintien: m.maintien, ijss_brutes: m.ijss,
         ijss_nettes_reversees: ijssNettes, ij_jour: ijJour,
+        ijss_imposables: ijssImposablesArret,
         jours_ijss: m.joursIjss, subrogation: ab.subrogation,
       });
 
@@ -1575,11 +1695,14 @@ async function calculer(contratId: string, periode: string): Promise<any> {
         + (estimeContrat ? " SUR LE SALAIRE DU CONTRAT, faute de trois "
           + "bulletins émis avant l'arrêt" : " sur les trois derniers bulletins")
         + " : le décompte de la caisse fait foi, l'écart se régularise le "
-        + "mois suivant. Les arrêts déjà indemnisés sur douze mois ne sont "
-        + "pas imputés."
-        + (ab.subrogation ? " ⚠️ Subrogation : les indemnités reversées sont "
-          + "ajoutées au net à payer ; leur part imposable n'est PAS encore "
-          + "ajoutée au net imposable." : ""));
+        + "mois suivant."
+        + (ab.subrogation ? " Subrogation : les indemnités reversées sont "
+          + "ajoutées au net à payer, et leur part imposable ("
+          + ijssImposablesArret.toLocaleString("fr-FR", { minimumFractionDigits: 2 })
+          + " €, soit le brut diminué de la CSG déductible de 3,80 %) est "
+          + "ajoutée au net imposable. ⚠️ Si l'arrêt relève d'une affection de "
+          + "longue durée (ALD), ces indemnités ne sont pas imposables : la "
+          + "part imposable est alors à retirer." : ""));
     }
   }
 
@@ -2201,7 +2324,9 @@ async function calculer(contratId: string, periode: string): Promise<any> {
   // sont retenues sur le salaire mais restent imposables : c est pourquoi
   // le net imposable est SUPERIEUR au net avant impot.
   const netAvantImpot = cts(brutTotal - totalSalarial + nonSoumis);
-  const netImposable = cts(brutTotal - totalSalarial + csgNonDeductible);
+  // 🆕 25/09 — ET LA PART IMPOSABLE DES IJSS VERSEES PAR SUBROGATION.
+  ijssImposables = cts(ijssImposables);
+  const netImposable = cts(brutTotal - totalSalarial + csgNonDeductible + ijssImposables);
   // ⚠️ LE COUT EMPLOYEUR EST NET DE LA REDUCTION : c est ce que l entreprise
   // debourse reellement.
   const coutEmployeur = cts(brutTotal + totalPatronalApresRgdu);
@@ -2447,6 +2572,7 @@ async function calculer(contratId: string, periode: string): Promise<any> {
     absences: absencesArret,
     retenue_absences: retenueArrets,
     maintiens: maintiens,
+    ijss_imposables: ijssImposables,
     salaire_retabli: salaireRetabli,
 
     lignes_mission: lignesMission,
