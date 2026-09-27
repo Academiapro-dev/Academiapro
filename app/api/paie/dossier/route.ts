@@ -358,8 +358,11 @@ export async function POST(req: NextRequest) {
           // « 2 400 » donnaient NaN avec Number(). `nombreFr` les accepte.
           salaire_horaire: c.salaire_horaire ? (nombreFr(c.salaire_horaire) || null) : null,
           salaire_mensuel: c.salaire_mensuel ? (nombreFr(c.salaire_mensuel) || null) : null,
-          // 🆕 28/09 — pas de duree du travail pour un mandataire social.
-          duree_hebdo: type === "mandat_social" ? null
+          // 🆕 28/09 — UN MANDATAIRE N A PAS DE DUREE DU TRAVAIL, mais la
+          // colonne est NOT NULL en base (refus a l essai du 28/09) : on garde
+          // 35, que le moteur ignore pour un mandat social (jamais de temps
+          // partiel, ni d heures, ni de retenue d absence automatique).
+          duree_hebdo: type === "mandat_social" ? 35
             : (c.duree_hebdo ? (nombreFr(c.duree_hebdo) || 35) : 35),
           eu_raison_sociale: propre(c.eu_raison_sociale),
           eu_siret: propre(c.eu_siret),
@@ -385,7 +388,14 @@ export async function POST(req: NextRequest) {
         })
         .select().maybeSingle();
 
-      if (eCtr) return NextResponse.json({ erreur: eCtr.message }, { status: 500 });
+      // 🆕 28/09 — UN CONTRAT REFUSE NE LAISSE PLUS DE SALARIE ORPHELIN.
+      // Le salarie etait deja ecrit : a l essai du 28/09, le refus du contrat
+      // a laisse « Paul DUPRE » sans contrat, et un second essai en aurait
+      // cree un deuxieme.
+      if (eCtr) {
+        await supabase.from("paie_salaries").delete().eq("id", sal.id);
+        return NextResponse.json({ erreur: eCtr.message + " — rien n'a été enregistré." }, { status: 500 });
+      }
 
       return NextResponse.json({
         success: true, contrat_id: ctr.id,
