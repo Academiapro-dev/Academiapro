@@ -1071,6 +1071,13 @@ async function calculer(contratId: string, periode: string,
   // et les acomptes deja verses (retenus sur le net).
   let hsBrut = 0;
   let hsHeures = 0;
+  // 🆕 28/09 — les heures COMPLEMENTAIRES du temps partiel, comptees aussi a
+  // part : memes reduction salariale, exoneration d impot et SMIC de la
+  // reduction generale que les heures supplementaires, mais PAS de deduction
+  // forfaitaire patronale (article L241-18 : heures supplementaires
+  // seulement ; BOSS, exonerations heures supplementaires et complementaires).
+  let hcHeures = 0;
+  let hcBrut = 0;
   let acomptes = 0;
   let indemniteRupture = 0;
   // 🆕 27/09 soir — LES SOMMES NON SOUMISES QUE L EMPLOYEUR DEBOURSE (panier,
@@ -1365,15 +1372,17 @@ async function calculer(contratId: string, periode: string,
     // l exoneration d impot et a la deduction forfaitaire patronale.
     // 🆕 28/09 — pas d heures supplementaires pour un mandataire : payees,
     // elles sont une remuneration ordinaire, sans reduction ni exoneration.
-    if ((t === "heures_sup_25" || t === "heures_sup_50") && estMandat) {
-      notesMandat.push("⚠️ Des « heures supplémentaires » sont saisies sur un mandat social : "
+    const estHc = t === "heures_comp_10" || t === "heures_comp_25";
+    if ((t === "heures_sup_25" || t === "heures_sup_50" || estHc) && estMandat) {
+      notesMandat.push("⚠️ Des heures « supplémentaires » ou « complémentaires » sont saisies sur un mandat social : "
         + "un mandataire n'a pas de durée du travail. Elles sont payées comme une rémunération "
         + "ordinaire, sans réduction de cotisations, sans exonération d'impôt ni déduction "
         + "patronale.");
     }
-    if ((t === "heures_sup_25" || t === "heures_sup_50") && e.soumis_cotisations !== false && !estMandat) {
+    if ((t === "heures_sup_25" || t === "heures_sup_50" || estHc) && e.soumis_cotisations !== false && !estMandat) {
       hsBrut += m;
       hsHeures += Number(e.quantite || 0);
+      if (estHc) { hcHeures += Number(e.quantite || 0); hcBrut += m; }
     }
     // 🆕 27/09 soir — `hors_brut` : la ligne s affiche SOUS les cotisations,
     // pas au-dessus du « Salaire brut » ou elle n entre pas (essai 5 du
@@ -1412,6 +1421,46 @@ async function calculer(contratId: string, periode: string,
   // ici ferait diverger le bulletin de ce qui est en base — et c est la
   // base qui fait foi, puisqu elle garde les deux methodes.
   // ═══════════════════════════════════════════════════════════════════
+  // ═══════════════════════════════════════════════════════════════════
+  // 🆕🚨 28/09 — LES HEURES COMPLEMENTAIRES : CE QUI SE CONTROLE
+  //   · elles n existent que sur un TEMPS PARTIEL : sur un temps plein, ce
+  //     sont des heures supplementaires ;
+  //   · majoration de 10 % dans la limite du dixieme de la duree du
+  //     contrat (article L3123-8 du code du travail), 25 % au-dela a defaut
+  //     d accord (L3123-29) ; le tiers de la duree est le plafond absolu
+  //     (L3123-20, par accord) ;
+  //   · elles ne peuvent pas porter la duree au niveau de la duree legale :
+  //     sinon, requalification possible en temps plein (L3123-9).
+  // ═══════════════════════════════════════════════════════════════════
+  const notesHc: string[] = [];
+  if (hcHeures > 0) {
+    const f2 = function (n: number): string { return (Math.round(n * 100) / 100).toLocaleString("fr-FR"); };
+    if (!tempsPartiel) {
+      notesHc.push("⛔ Des heures COMPLÉMENTAIRES sont saisies sur un contrat à temps plein : ce sont "
+        + "des heures SUPPLÉMENTAIRES (majoration de 25 % puis 50 %, déduction patronale). "
+        + "Corriger la nature de l'élément.");
+    } else {
+      const dixieme = dureeContratMois / 10;
+      const tiers = dureeContratMois / 3;
+      let note = "Heures complémentaires : " + f2(hcHeures) + " h pour un contrat de "
+        + f2(dureeContratMois) + " h par mois. Majoration de 10 % jusqu'au dixième ("
+        + f2(dixieme) + " h), 25 % au-delà à défaut d'accord (articles L3123-8 et L3123-29 du "
+        + "code du travail). Réduction de cotisations et exonération d'impôt comme les heures "
+        + "supplémentaires ; PAS de déduction forfaitaire patronale.";
+      if (hcHeures > tiers + 0.001) {
+        note = "⛔ " + note + " 🚨 " + f2(hcHeures) + " h dépassent le TIERS de la durée du contrat ("
+          + f2(tiers) + " h), plafond absolu même par accord (L3123-20).";
+      } else if (hcHeures > dixieme + 0.001) {
+        note += " ⚠️ Au-delà du dixième, un accord de branche ou d'entreprise doit le permettre (L3123-20).";
+      }
+      if (dureeContratMois + hcHeures >= Number(dureeMensuelle || 151.67) - 0.001) {
+        note += " 🚨 Avec ces heures, le salarié atteint la durée légale : le contrat peut être "
+          + "requalifié en temps plein (L3123-9).";
+      }
+      notesHc.push(note);
+    }
+  }
+
   let congesDuMois = 0;
   let indemniteConges = 0;
 
@@ -3024,7 +3073,8 @@ async function calculer(contratId: string, periode: string,
     // 🆕 27/09 soir — les euros a deux decimales : « 17,9 € » s affichait
     // (essai 4 du 27/09). Un montant se lit « 17,90 € » sur un bulletin.
     const eur2 = { minimumFractionDigits: 2, maximumFractionDigits: 2 };
-    notesHs.push("Heures supplémentaires : " + hsHeures.toLocaleString("fr-FR") + " h payées "
+    notesHs.push((hcHeures > 0 ? (hcHeures < hsHeures ? "Heures supplémentaires et complémentaires : " : "Heures complémentaires : ")
+      : "Heures supplémentaires : ") + hsHeures.toLocaleString("fr-FR") + " h payées "
       + cts(hsBrut).toLocaleString("fr-FR", eur2) + " €. Réduction de cotisations salariales de "
       + reductionHs.toLocaleString("fr-FR", eur2) + " € (taux "
       + (Math.round(tauxReductionHs * 10000) / 100).toLocaleString("fr-FR") + " %, au plus 11,31 %) ; "
@@ -3248,7 +3298,8 @@ async function calculer(contratId: string, periode: string,
   // 🆕 27/09 soir — le SMIC augmente des heures supplementaires, dit.
   if (hsHeures > 0 && rgduDetail && Number(rgduDetail.smic_heures_supplementaires || 0) > 0) {
     notesHs.push("Réduction générale : le SMIC du mois est augmenté des "
-      + hsHeures.toLocaleString("fr-FR") + " h supplémentaires payées, au taux normal et sans "
+      + hsHeures.toLocaleString("fr-FR") + (hcHeures > 0 ? " h supplémentaires ou complémentaires" : " h supplémentaires")
+      + " payées, au taux normal et sans "
       + "leur majoration (" + Number(rgduDetail.smic_heures_supplementaires).toLocaleString("fr-FR",
         { minimumFractionDigits: 2 }) + " €, article D241-7 du code de la sécurité sociale).");
   }
@@ -3265,7 +3316,9 @@ async function calculer(contratId: string, periode: string,
   // cotisations patronales restantes.
   // ═══════════════════════════════════════════════════════════════════
   let deductionHs = 0;
-  if (hsHeures > 0) {
+  // 🆕 28/09 — les heures complementaires n y ouvrent pas droit.
+  const heuresSupSeules = Math.max(0, hsHeures - hcHeures);
+  if (heuresSupSeules > 0) {
     if (!effectifConnu) {
       notesHs.push("⚠️ Déduction forfaitaire patronale sur heures supplémentaires non appliquée : "
         + "l'effectif de la société n'est pas renseigné.");
@@ -3275,8 +3328,8 @@ async function calculer(contratId: string, periode: string,
         notesHs.push("⛔ Déduction forfaitaire patronale sur heures supplémentaires non appliquée : "
           + "son montant par heure est absent de la base pour cette période.");
       } else {
-        deductionHs = cts(Math.min(hsHeures * Number(parHeure), Math.max(0, totalPatronal - rgdu)));
-        notesHs.push("Déduction forfaitaire patronale : " + hsHeures.toLocaleString("fr-FR")
+        deductionHs = cts(Math.min(heuresSupSeules * Number(parHeure), Math.max(0, totalPatronal - rgdu)));
+        notesHs.push("Déduction forfaitaire patronale : " + heuresSupSeules.toLocaleString("fr-FR")
           + " h × " + Number(parHeure).toLocaleString("fr-FR", { minimumFractionDigits: 2 })
           + " € = " + deductionHs.toLocaleString("fr-FR", { minimumFractionDigits: 2 })
           + " € (" + (effectif < 20 ? "moins de 20 salariés" : "20 salariés et plus") + ").");
@@ -3712,6 +3765,7 @@ async function calculer(contratId: string, periode: string,
     // 🆕 27/09 — les heures supplementaires et l acompte.
     heures_sup: hsBrut > 0 ? {
       brut: cts(hsBrut), heures: hsHeures, taux_reduction: Math.round(tauxReductionHs * 10000) / 100,
+      heures_complementaires: hcHeures, brut_complementaires: cts(hcBrut),
       reduction_salariale: reductionHs, exonere_ir: hsExonereIr, csg_deductible_reintegree: csgDedHs,
       deduction_patronale: deductionHs,
     } : null,
@@ -3979,6 +4033,7 @@ async function calculer(contratId: string, periode: string,
       for (const n of notesAvantages) r.unshift(n);
       // 🆕 27/09 — les heures supplementaires, la mutuelle et la prevoyance.
       for (const n of notesHs) r.unshift(n);
+      for (const n of notesHc) r.unshift(n);
       for (const n of notesGaranties) r.unshift(n);
       for (const n of notesFin) r.unshift(n);
       for (const n of notesArret) r.unshift(n);
