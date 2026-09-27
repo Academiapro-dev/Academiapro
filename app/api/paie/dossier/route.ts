@@ -286,10 +286,10 @@ export async function POST(req: NextRequest) {
       // 🆕 28/09 — LES TYPES ADMIS, contrôlés : la colonne n'a aucune
       // contrainte en base, une faute de frappe créerait un contrat que le
       // moteur ne reconnaîtrait pas.
-      if (["mission", "cdd", "cdi", "apprentissage", "mandat_social", "stage"].indexOf(type) < 0) {
+      if (["mission", "cdd", "cdi", "apprentissage", "mandat_social", "stage", "professionnalisation"].indexOf(type) < 0) {
         return NextResponse.json({
           erreur: "type de contrat inconnu : « " + type + " ». Types admis : mission, cdd, "
-            + "cdi, apprentissage, mandat_social, stage.",
+            + "cdi, apprentissage, mandat_social, stage, professionnalisation.",
         }, { status: 400 });
       }
 
@@ -393,7 +393,12 @@ export async function POST(req: NextRequest) {
           forfait_jours_annuel: c.forfait_jours_annuel
             ? Math.round(nombreFr(c.forfait_jours_annuel) || 0) || null : null,
           poste_chez_eu: propre(c.poste_chez_eu),
-          ifm_due: (type === "mandat_social" || type === "stage" || c.ifm_due === false) ? false : true,
+          ifm_due: (type === "mandat_social" || type === "stage" || type === "professionnalisation"
+            || c.ifm_due === false) ? false : true,
+          // 🆕 28/09 — titulaire d un bac professionnel ou plus (minimum legal
+          // du contrat de professionnalisation). Ecrit SEULEMENT pour ce
+          // type : la colonne n existe qu apres le SQL du 28/09.
+          ...(type === "professionnalisation" ? { qualification_niveau4: c.qualification_niveau4 === true } : {}),
         })
         .select().maybeSingle();
 
@@ -479,6 +484,9 @@ export async function POST(req: NextRequest) {
         if (t === null) maj.idcc = null;
         else if (!/^\d{1,4}$/.test(t)) refus.push("l'IDCC est un nombre de 1 à 4 chiffres (1486 pour Syntec, 2378 pour le travail temporaire).");
         else maj.idcc = Number(t);
+      }
+      if (donne("qualification_niveau4") && typeCt === "professionnalisation") {
+        maj.qualification_niveau4 = c.qualification_niveau4 === true;
       }
       if (donne("lieu_travail_insee")) {
         const t = propre(c.lieu_travail_insee);
@@ -581,7 +589,7 @@ export async function POST(req: NextRequest) {
       // ---- UN SALAIRE, TOUJOURS (sauf apprenti paye au bareme) ----
       const sm = donne("salaire_mensuel") ? maj.salaire_mensuel : (ct as any).salaire_mensuel;
       const sh = donne("salaire_horaire") ? maj.salaire_horaire : (ct as any).salaire_horaire;
-      if (typeCt !== "apprentissage" && !(Number(sm) > 0) && !(Number(sh) > 0)) {
+      if (typeCt !== "apprentissage" && typeCt !== "professionnalisation" && !(Number(sm) > 0) && !(Number(sh) > 0)) {
         refus.push("il faut un salaire mensuel ou un taux horaire.");
       }
 
@@ -1069,7 +1077,7 @@ export async function POST(req: NextRequest) {
       const typeBull = bull && bull.paie_contrats
         ? String((bull.paie_contrats as any).type_contrat) : "";
 
-      if (typeBull === "cdi" || typeBull === "apprentissage") {
+      if (typeBull === "cdi" || typeBull === "apprentissage" || typeBull === "professionnalisation") {
 
         const p = String(bull.periode);
         const annee = Number(p.slice(0, 4));
@@ -1378,7 +1386,8 @@ export async function POST(req: NextRequest) {
       // L ACQUISITION : laisser les deux se contredire aurait donne un
       // compteur qui se remplit sans jamais pouvoir se vider.
       if (String(ct.type_contrat) !== "cdi"
-          && String(ct.type_contrat) !== "apprentissage") {
+          && String(ct.type_contrat) !== "apprentissage"
+          && String(ct.type_contrat) !== "professionnalisation") {
         return NextResponse.json({
           erreur: "ce contrat ne cumule pas de congés : ils sont compensés "
             + "par l'indemnité compensatrice versée chaque mois. La prise de "
@@ -1437,7 +1446,8 @@ export async function POST(req: NextRequest) {
       // seul dixieme, sans rien retenir. Son salaire de reference est le
       // minimum du bareme, lu sur son dernier bulletin emis.
       let noteBareme = "";
-      if (!(salaireMensuel > 0) && String(ct.type_contrat) === "apprentissage") {
+      if (!(salaireMensuel > 0) && (String(ct.type_contrat) === "apprentissage"
+          || String(ct.type_contrat) === "professionnalisation")) {
         const { data: dernier } = await supabase
           .from("paie_bulletins")
           .select("periode, detail")
@@ -1448,7 +1458,9 @@ export async function POST(req: NextRequest) {
           .limit(1);
         const d0: any = (dernier || [])[0];
         const mini = d0 && d0.detail && d0.detail.apprentissage
-          ? Number(d0.detail.apprentissage.minimum_legal || 0) : 0;
+          ? Number(d0.detail.apprentissage.minimum_legal || 0)
+          : (d0 && d0.detail && d0.detail.professionnalisation
+            ? Number(d0.detail.professionnalisation.minimum_legal || 0) : 0);
         if (mini > 0) {
           salaireMensuel = mini;
         } else {
