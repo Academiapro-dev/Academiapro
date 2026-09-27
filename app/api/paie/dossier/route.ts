@@ -286,10 +286,10 @@ export async function POST(req: NextRequest) {
       // 🆕 28/09 — LES TYPES ADMIS, contrôlés : la colonne n'a aucune
       // contrainte en base, une faute de frappe créerait un contrat que le
       // moteur ne reconnaîtrait pas.
-      if (["mission", "cdd", "cdi", "apprentissage", "mandat_social"].indexOf(type) < 0) {
+      if (["mission", "cdd", "cdi", "apprentissage", "mandat_social", "stage"].indexOf(type) < 0) {
         return NextResponse.json({
           erreur: "type de contrat inconnu : « " + type + " ». Types admis : mission, cdd, "
-            + "cdi, apprentissage, mandat_social.",
+            + "cdi, apprentissage, mandat_social, stage.",
         }, { status: 400 });
       }
 
@@ -311,6 +311,15 @@ export async function POST(req: NextRequest) {
               + "majoration de salaire d'au moins 10 %.",
           }, { status: 400 });
         }
+      }
+
+      // 🆕 28/09 — UNE CONVENTION DE STAGE A TOUJOURS UNE FIN : c est elle qui
+      // dit si le stage depasse deux mois, donc si la gratification est due.
+      if (type === "stage" && !propre(c.date_fin)) {
+        return NextResponse.json({
+          erreur: "la date de fin est obligatoire pour un stage : elle figure sur la convention de "
+            + "stage, et c'est elle qui dit si la gratification est obligatoire (plus de deux mois).",
+        }, { status: 400 });
       }
 
       if (type === "apprentissage" && !propre(c.niveau_diplome_prepare)) {
@@ -384,7 +393,7 @@ export async function POST(req: NextRequest) {
           forfait_jours_annuel: c.forfait_jours_annuel
             ? Math.round(nombreFr(c.forfait_jours_annuel) || 0) || null : null,
           poste_chez_eu: propre(c.poste_chez_eu),
-          ifm_due: (type === "mandat_social" || c.ifm_due === false) ? false : true,
+          ifm_due: (type === "mandat_social" || type === "stage" || c.ifm_due === false) ? false : true,
         })
         .select().maybeSingle();
 
@@ -506,7 +515,8 @@ export async function POST(req: NextRequest) {
         const t = propre(c.date_fin);
         if (!dateOk(t)) refus.push("date de fin : format AAAA-MM-JJ.");
         else if (t && debut && t < debut) refus.push("la date de fin précède le début du contrat.");
-        else if (!t && (typeCt === "cdd" || typeCt === "mission")) refus.push("un " + (typeCt === "cdd" ? "CDD" : "contrat de mission") + " doit garder une date de fin.");
+        else if (!t && (typeCt === "cdd" || typeCt === "mission" || typeCt === "stage")) refus.push("un "
+          + (typeCt === "cdd" ? "CDD" : typeCt === "stage" ? "stage" : "contrat de mission") + " doit garder une date de fin.");
         else maj.date_fin = t;
       }
 
