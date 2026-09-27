@@ -900,6 +900,43 @@ export async function POST(req: NextRequest) {
         }
 
         // ═══════════════════════════════════════════════════════════
+        // 🆕🚨 27/09 — LES CONGES PAYES A LA FIN DU CONTRAT : le bulletin
+        // de sortie les paie en indemnite compensatrice (detail.iccp_cdi) ;
+        // l emission les SOLDE au compteur, pour qu ils ne soient pas payes
+        // deux fois. Une fois par bulletin.
+        // ═══════════════════════════════════════════════════════════
+        {
+          const { data: bd } = await supabase
+            .from("paie_bulletins").select("detail").eq("id", b.id).maybeSingle();
+          const ic: any = bd && (bd as any).detail ? (bd as any).detail.iccp_cdi : null;
+          if (ic && Number(ic.jours) > 0) {
+            const { data: dejaPaye } = await supabase
+              .from("paie_conges")
+              .select("id")
+              .eq("bulletin_id", b.id)
+              .eq("type_mouvement", "paiement")
+              .maybeSingle();
+            if (!dejaPaye) {
+              const { error: ePay } = await supabase.from("paie_conges").insert({
+                tenant_id: bull.tenant_id,
+                societe_id: bull.societe_id,
+                contrat_id: bull.contrat_id,
+                periode_ref: debutRef,
+                unite: "ouvrables",
+                periode: p,
+                type_mouvement: "paiement",
+                jours: Number(ic.jours),
+                valeur_retenue: Number(ic.montant || 0),
+                bulletin_id: b.id,
+                notes: "Indemnite compensatrice de fin de contrat, bulletin " + b.numero,
+              });
+              if (ePay) congesErreur = (congesErreur ? congesErreur + " ; " : "")
+                + "solde des congés payés non enregistré (" + ePay.message + ")";
+            }
+          }
+        }
+
+        // ═══════════════════════════════════════════════════════════
         // 🆕🚨 22/09 — LES CONGES D ANCIENNETE (Syntec, article 5.1)
         //
         // Un jour ouvre de plus a 5 ans d anciennete, deux a 10, trois a
