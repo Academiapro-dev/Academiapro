@@ -734,6 +734,27 @@ async function calculer(contratId: string, periode: string,
   // creation, et le moteur suit la categorie du contrat.
   // ═══════════════════════════════════════════════════════════════════
   const estMandat = String(contrat.type_contrat || "") === "mandat_social";
+  // ═══════════════════════════════════════════════════════════════════
+  // 🆕🚨 28/09 — LE STAGIAIRE (type « stage », convention de stage)
+  //
+  // Source : urssaf.fr, « Accueillir un stagiaire etudiant » (lue le
+  // 28/09). La gratification est exoneree de cotisations et de CSG-CRDS
+  // dans la limite d une FRANCHISE : 15 % du plafond horaire de la
+  // securite sociale × heures de stage du mois (4,50 € de l heure en
+  // 2026, `STAGE_FRANCHISE_HORAIRE`). Au-dela, la fraction excedentaire
+  // cotise : maladie et allocations familiales a taux plein, vieillesse,
+  // FNAL, CSA, accidents du travail, CSG-CRDS — sans reduction generale.
+  // JAMAIS : retraite complementaire, assurance chomage, AGS, contribution
+  // au dialogue social (le stagiaire n est pas salarie).
+  // La gratification est obligatoire au-dela de deux mois de stage, au
+  // moins egale a la franchise (article L124-6 du code de l education).
+  // Elle est exoneree d impot dans la limite du SMIC annuel (article 81
+  // bis du CGI).
+  // ═══════════════════════════════════════════════════════════════════
+  const estStage = String(contrat.type_contrat || "") === "stage";
+  // 🆕 28/09 — hors du salariat : ni heures supplementaires, ni maintien,
+  // ni indemnite de rupture, ni reduction generale, ni minimum de salaire.
+  const horsSalariat = estMandat || estStage;
   const notesMandat: string[] = [];
 
   const dureeHebdo = Number(contrat.duree_hebdo) > 0
@@ -984,7 +1005,7 @@ async function calculer(contratId: string, periode: string,
     // ⚠️ MENSUEL D ABORD, HORAIRE ENSUITE. Un contrat porte l un ou
     // l autre ; en interim c est presque toujours l horaire.
     let base = 0;
-    let libelle = "Salaire de base";
+    let libelle = estStage ? "Gratification de stage" : "Salaire de base";
     let quantite = null;
     let taux = null;
 
@@ -1380,13 +1401,15 @@ async function calculer(contratId: string, periode: string,
     // 🆕 28/09 — pas d heures supplementaires pour un mandataire : payees,
     // elles sont une remuneration ordinaire, sans reduction ni exoneration.
     const estHc = t === "heures_comp_10" || t === "heures_comp_25";
-    if ((t === "heures_sup_25" || t === "heures_sup_50" || estHc) && estMandat) {
-      notesMandat.push("⚠️ Des heures « supplémentaires » ou « complémentaires » sont saisies sur un mandat social : "
-        + "un mandataire n'a pas de durée du travail. Elles sont payées comme une rémunération "
+    if ((t === "heures_sup_25" || t === "heures_sup_50" || estHc) && horsSalariat) {
+      notesMandat.push("⚠️ Des heures « supplémentaires » ou « complémentaires » sont saisies sur "
+        + (estStage ? "un stage" : "un mandat social") + " : "
+        + (estStage ? "un stagiaire n'est pas salarié. " : "un mandataire n'a pas de durée du travail. ")
+        + "Elles sont payées comme une rémunération "
         + "ordinaire, sans réduction de cotisations, sans exonération d'impôt ni déduction "
         + "patronale.");
     }
-    if ((t === "heures_sup_25" || t === "heures_sup_50" || estHc) && e.soumis_cotisations !== false && !estMandat) {
+    if ((t === "heures_sup_25" || t === "heures_sup_50" || estHc) && e.soumis_cotisations !== false && !horsSalariat) {
       hsBrut += m;
       hsHeures += Number(e.quantite || 0);
       if (estHc) { hcHeures += Number(e.quantite || 0); hcBrut += m; }
@@ -1439,6 +1462,72 @@ async function calculer(contratId: string, periode: string,
   //   · elles ne peuvent pas porter la duree au niveau de la duree legale :
   //     sinon, requalification possible en temps plein (L3123-9).
   // ═══════════════════════════════════════════════════════════════════
+  // ═══════════════════════════════════════════════════════════════════
+  // 🆕🚨 28/09 — LA GRATIFICATION DU STAGIAIRE : LA FRANCHISE
+  // Tout ce qui a ete porte au brut jusqu ici (gratification, primes) est
+  // la gratification. La franchise (horaire × heures de stage du mois)
+  // passe sous les cotisations, non soumise ; seul l excedent reste dans le
+  // brut et cotise.
+  // ═══════════════════════════════════════════════════════════════════
+  let stage: any = null;
+  if (estStage) {
+    const horaire = await parametre("STAGE_FRANCHISE_HORAIRE", periode);
+    const heuresJourStage = (dureeHebdo > 0 ? dureeHebdo : 35) / joursTravail.length;
+    const heuresStage = cts(joursTravailEmploi * heuresJourStage);
+    const gratif = cts(brutSoumis);
+    const eur = { minimumFractionDigits: 2, maximumFractionDigits: 2 };
+    let franchise = 0;
+    if (horaire === null) {
+      notesMandat.push("⛔ FRANCHISE DE COTISATIONS DU STAGIAIRE NON APPLIQUÉE : le montant horaire "
+        + "(STAGE_FRANCHISE_HORAIRE) est absent de la base pour cette période — toute la "
+        + "gratification cotise.");
+    } else {
+      franchise = cts(Math.min(gratif, Number(horaire) * heuresStage));
+    }
+    if (franchise > 0) {
+      lignesBrut.push({
+        libelle: "Franchise de cotisations (" + Number(horaire).toLocaleString("fr-FR", eur) + " € × "
+          + heuresStage.toLocaleString("fr-FR") + " h de stage)",
+        quantite: heuresStage, taux: Number(horaire), montant: -franchise,
+      });
+      brutSoumis = cts(brutSoumis - franchise);
+      lignesBrut.push({
+        libelle: "Gratification en franchise de cotisations",
+        quantite: null, taux: null, montant: franchise, hors_brut: true,
+      });
+      nonSoumis += franchise;
+      nonSoumisEmployeur += franchise;
+    }
+    // La gratification est obligatoire au-dela de deux mois de stage.
+    const dDebS = String(contrat.date_debut || "").slice(0, 10);
+    const dFinS = String(contrat.date_fin || "").slice(0, 10);
+    let plusDeDeuxMois: boolean | null = null;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dDebS) && /^\d{4}-\d{2}-\d{2}$/.test(dFinS)) {
+      const lim = new Date(dDebS + "T00:00:00Z");
+      lim.setUTCMonth(lim.getUTCMonth() + 2);
+      plusDeDeuxMois = dFinS >= lim.toISOString().slice(0, 10);
+    }
+    const minimum = horaire !== null ? cts(Number(horaire) * heuresStage) : null;
+    if (minimum !== null && gratif + 0.005 < minimum && plusDeDeuxMois !== false) {
+      notesMandat.unshift((plusDeDeuxMois ? "🚨 " : "⚠️ ") + "Gratification de "
+        + gratif.toLocaleString("fr-FR", eur) + " € INFÉRIEURE au minimum légal de "
+        + minimum.toLocaleString("fr-FR", eur) + " € (" + Number(horaire).toLocaleString("fr-FR", eur)
+        + " € × " + heuresStage.toLocaleString("fr-FR") + " h, article L124-6 du code de l'éducation)"
+        + (plusDeDeuxMois ? " : le stage dépasse deux mois, la gratification est obligatoire."
+          : " : obligatoire si le stage dépasse deux mois — la date de fin n'est pas renseignée."));
+    }
+    notesMandat.push("Stage : gratification de " + gratif.toLocaleString("fr-FR", eur) + " € pour "
+      + heuresStage.toLocaleString("fr-FR") + " h de stage (horaire réparti sur les jours du contrat). "
+      + "Franchise de cotisations : " + franchise.toLocaleString("fr-FR", eur) + " € ; "
+      + cts(brutSoumis).toLocaleString("fr-FR", eur) + " € au-delà, qui cotisent (maladie et allocations "
+      + "familiales à taux plein, vieillesse, FNAL, CSA, accidents du travail, CSG-CRDS), sans "
+      + "réduction générale, ni retraite complémentaire, ni assurance chômage, ni AGS (urssaf.fr). "
+      + "⚠️ Les heures de stage sont celles du contrat : une absence qui réduit la présence se "
+      + "saisit pour que la franchise suive.");
+    stage = { gratification: gratif, heures: heuresStage, franchise: franchise,
+      soumise: cts(brutSoumis), minimum: minimum, plus_de_deux_mois: plusDeDeuxMois };
+  }
+
   const notesHc: string[] = [];
   if (hcHeures > 0) {
     const f2 = function (n: number): string { return (Math.round(n * 100) / 100).toLocaleString("fr-FR"); };
@@ -1659,13 +1748,17 @@ async function calculer(contratId: string, periode: string,
     // touche les indemnites journalieres de la caisse, et ce que la societe
     // lui verse pendant l arret se decide par les associes, pas par le code
     // du travail : une absence se saisit a la main si elle doit etre retenue.
-    if (estMandat && (arrets || []).some(function (a: any) { return !a.annule_le; })) {
-      notesMandat.push("Arrêt de travail en base sur un mandat social : aucune retenue ni aucun "
-        + "maintien automatique (le code du travail ne s'applique pas au mandataire). Il perçoit "
-        + "les indemnités journalières de la caisse ; si sa rémunération doit baisser pendant "
-        + "l'arrêt, c'est une décision des associés, à saisir comme élément.");
+    if (horsSalariat && (arrets || []).some(function (a: any) { return !a.annule_le; })) {
+      notesMandat.push(estStage
+        ? "Arrêt en base sur un stage : aucune retenue ni aucun maintien automatique (le stagiaire "
+          + "n'est pas salarié). Si la gratification doit baisser pendant l'absence, c'est la "
+          + "convention de stage qui le dit : à saisir comme élément."
+        : "Arrêt de travail en base sur un mandat social : aucune retenue ni aucun "
+          + "maintien automatique (le code du travail ne s'applique pas au mandataire). Il perçoit "
+          + "les indemnités journalières de la caisse ; si sa rémunération doit baisser pendant "
+          + "l'arrêt, c'est une décision des associés, à saisir comme élément.");
     }
-    const arretsRetenus: any[] = ((opts && opts.sansArrets) || estMandat) ? [] : (arrets || []);
+    const arretsRetenus: any[] = ((opts && opts.sansArrets) || horsSalariat) ? [] : (arrets || []);
     for (const a of arretsRetenus) {
       // Un arret annule ne retient rien.
       if ((a as any).annule_le) continue;
@@ -2520,8 +2613,8 @@ async function calculer(contratId: string, periode: string,
   // 🆕 28/09 — UNE INDEMNITE DE FIN DE MANDAT N EST PAS UNE INDEMNITE DE
   // LICENCIEMENT : son regime (revocation, depart force, article 80
   // duodecies du CGI) est propre. Elle n est PAS portee au bulletin.
-  if (indemniteRupture > 0 && estMandat) {
-    notesMandat.unshift("⛔ INDEMNITÉ DE RUPTURE SAISIE SUR UN MANDAT SOCIAL : "
+  if (indemniteRupture > 0 && horsSalariat) {
+    notesMandat.unshift("⛔ INDEMNITÉ DE RUPTURE SAISIE SUR " + (estStage ? "UN STAGE" : "UN MANDAT SOCIAL") + " : "
       + indemniteRupture.toLocaleString("fr-FR", { minimumFractionDigits: 2 })
       + " € NON PORTÉS au bulletin. Une indemnité de cessation de mandat obéit à un régime "
       + "propre (révocation ou départ forcé), que le moteur ne calcule pas. Retirer l'élément "
@@ -2762,7 +2855,7 @@ async function calculer(contratId: string, periode: string,
   let patronalSante = 0;
   const notesGaranties: string[] = [];
   {
-    const { data: garanties, error: eG } = await supabase
+    const { data: garantiesLues, error: eG } = await supabase
       .from("paie_garanties_societe")
       .select("nature, categorie, mode, montant, taux, part_patronale_pct, organisme")
       .eq("societe_id", contrat.societe_id)
@@ -2772,6 +2865,9 @@ async function calculer(contratId: string, periode: string,
       notesGaranties.push("⛔ La mutuelle et la prévoyance de la société n'ont pas pu être lues ("
         + eG.message + ") : aucune ligne portée.");
     }
+    // 🆕 28/09 — la mutuelle et la prevoyance de la societe ne couvrent pas
+    // un stagiaire (il n est pas salarie).
+    const garanties = estStage ? [] : (garantiesLues || []);
     const estCadre = String(contrat.categorie || "") === "cadre";
     const plafondMois = Number(plafond) * proportionTemps * proportionPlafond;
     for (const g of (garanties || [])) {
@@ -2806,7 +2902,7 @@ async function calculer(contratId: string, periode: string,
     }
     patronalGaranties = cts(patronalGaranties);
     patronalSante = cts(patronalSante);
-    if (lignesGaranties.length === 0 && !eG) {
+    if (lignesGaranties.length === 0 && !eG && !estStage) {
       // 🆕 28/09 — pour un mandataire sans contrat de travail, l obligation
       // de complementaire sante (qui vise les salaries) ne s applique pas.
       notesGaranties.push(estMandat
@@ -2834,7 +2930,11 @@ async function calculer(contratId: string, periode: string,
     // plus grande, la cotisation serait sous-evaluee et l URSSAF
     // reclamerait la difference.
     // 🆕 28/09 — NI CHOMAGE NI AGS pour un mandataire social.
-    if (estMandat && (String(c.code) === "CHOMAGE" || String(c.code) === "AGS")) continue;
+    if (horsSalariat && (String(c.code) === "CHOMAGE" || String(c.code) === "AGS")) continue;
+    // 🆕 28/09 — le stagiaire : ni retraite complementaire, ni CET, ni APEC,
+    // ni contribution au dialogue social, ni garanties complementaires.
+    if (estStage && (/^(RETRAITE_C|CEG|CET|APEC|DIALOGUE)/.test(String(c.code))
+      || (c as any).garantie_complementaire === true)) continue;
 
     if (c.code === "FNAL_MOINS50" && effectif >= 50) continue;
     if (c.code === "FNAL_50PLUS" && effectif < 50) continue;
@@ -3243,14 +3343,16 @@ async function calculer(contratId: string, periode: string,
   const smicRef = await parametre("RGDU_SMIC_REFERENCE", periode);
 
   // 🆕 28/09 — LE MANDATAIRE EST HORS DU CHAMP DE LA REDUCTION GENERALE.
-  if (estMandat) {
+  if (horsSalariat) {
     rgduDetail = {
       coefficient: 0,
-      motif: "mandataire social : hors du champ de la réduction générale (pas d'affiliation à l'assurance chômage)",
+      motif: estStage
+        ? "stagiaire : réduction générale non applicable (urssaf.fr)"
+        : "mandataire social : hors du champ de la réduction générale (pas d'affiliation à l'assurance chômage)",
     };
   }
 
-  if (!estMandat && tmin !== null && tdelta !== null && expo !== null
+  if (!horsSalariat && tmin !== null && tdelta !== null && expo !== null
       && seuil !== null && smicRef !== null && dureeMensuelle) {
 
     // 🚨 LE SMIC DE REFERENCE SUIT LA DUREE DU CONTRAT (BOSS, allegements
@@ -3517,7 +3619,30 @@ async function calculer(contratId: string, periode: string,
   // 🆕 27/09 soir — L INDEMNITE DE RUPTURE : sa part soumise a cotisations
   // est deja dans le brut ; on ajoute la difference avec sa part imposable
   // (nulle dans le cas courant), et la CSG deductible qui ne l est pas.
-  const netImposable = cts(brutTotal - totalSalarial + csgNonDeductible + ijssImposables
+  // 🆕 28/09 — LE STAGIAIRE : gratification exoneree d impot dans la limite
+  // du SMIC annuel (article 81 bis du CGI), cumulee sur l annee.
+  let stageExonereIr = 0;
+  if (estStage && stage) {
+    const an = String(periode).slice(0, 4);
+    const smicJanvier = await parametre("SMIC_MENSUEL", an + "-01-01");
+    const { data: gratifAnt } = await supabase
+      .from("paie_bulletins").select("detail")
+      .eq("contrat_id", contratId).eq("statut", "emis")
+      .gte("periode", an + "-01-01").lt("periode", periode);
+    let cumul = 0;
+    for (const b of (gratifAnt || [])) {
+      const d0: any = (b as any).detail;
+      if (d0 && d0.stage && d0.stage.gratification) cumul += Number(d0.stage.gratification);
+    }
+    const reste = smicJanvier !== null ? Math.max(0, Number(smicJanvier) * 12 - cumul) : 0;
+    const gratif = Number(stage.gratification || 0);
+    const part = gratif > 0 ? Math.min(1, reste / gratif) : 0;
+    const imposableAvant = brutTotal - totalSalarial + csgNonDeductible;
+    stageExonereIr = cts(Math.max(0, imposableAvant) * part);
+    stage.exoneree_ir = stageExonereIr;
+    stage.smic_annuel = smicJanvier !== null ? cts(Number(smicJanvier) * 12) : null;
+  }
+  const netImposable = cts(brutTotal - totalSalarial + csgNonDeductible + ijssImposables - stageExonereIr
     - hsExonereIr + patronalSante + irImposableRupture - rupturePartSoumise + csgDedRuptureNonDed);
   // ⚠️ LE COUT EMPLOYEUR EST NET DE LA REDUCTION : c est ce que l entreprise
   // debourse reellement.
@@ -3734,7 +3859,7 @@ async function calculer(contratId: string, periode: string,
         + cts(planche - baseApp).toFixed(2) + " € par mois. ⚠️ RAPPEL DE "
         + "SALAIRE EXIGIBLE, avec les cotisations recalculées dessus.";
     }
-  } else if (contrat.idcc && contrat.coefficient && !estMandat) {
+  } else if (contrat.idcc && contrat.coefficient && !horsSalariat) {
     const { data: regles } = await supabase
       .from("paie_conventions_regles")
       .select("*")
@@ -3898,6 +4023,8 @@ async function calculer(contratId: string, periode: string,
     // 🆕 27/09 — la fin d un CDI : conges non pris et indemnite de rupture.
     iccp_cdi: iccpCdi > 0 ? finCdi : null,
     rupture: rupture,
+    // 🆕 28/09 — la gratification du stagiaire (franchise, minimum, impot).
+    stage: stage,
     net_a_payer: netAPayer,
     cout_employeur: coutEmployeur,
     // 🆕 27/09 soir — la part du cout employeur hors brut et hors cotisations.
@@ -4044,6 +4171,15 @@ async function calculer(contratId: string, periode: string,
         r.unshift("CDI : aucune indemnité de précarité, c'est normal — "
           + "les congés se prennent au lieu d'être compensés.");
       }
+      // 🆕 28/09 — LE STAGE, DIT EN TETE.
+      if (estStage) {
+        for (const n of notesMandat.slice().reverse()) r.unshift(n);
+        r.unshift("Convention de stage : le stagiaire n'est pas salarié. Ni congés payés, ni heures "
+          + "supplémentaires, ni maintien en maladie, ni mutuelle collective ; gratification exonérée "
+          + "d'impôt dans la limite du SMIC annuel (article 81 bis du CGI). ⛔ Sa DSN n'est pas encore "
+          + "adaptée (nature « convention de stage ») : ne pas déposer de DSN réelle pour ce stagiaire "
+          + "avant ce point. ⚠️ Le montant net social n'intègre pas la part en franchise (à vérifier).");
+      }
       // 🆕 28/09 — LE MANDAT SOCIAL, DIT EN TETE.
       if (estMandat) {
         for (const n of notesMandat.slice().reverse()) r.unshift(n);
@@ -4164,7 +4300,7 @@ async function calculer(contratId: string, periode: string,
       // 🆕 28/09 — pour un mandataire, les reserves qui ne le concernent pas
       // (reduction generale, minimum conventionnel, maintien, conges) sont
       // retirees : elles laissaient croire le contraire de la note du mandat.
-      if (estMandat) {
+      if (horsSalariat) {
         return r.filter(function (x: string) {
           return !/^La RGDU est calculée|^Le salaire minimum conventionnel est contrôlé/.test(x);
         });
