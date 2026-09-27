@@ -1158,8 +1158,14 @@ export default function PagePaie() {
                   </div>
                   <div style={{ flex: "1 1 160px" }}>
                     <span style={LIB}>Type de contrat</span>
+                    {/* 🆕 28/09 — LE MANDAT SOCIAL passe la categorie en « cadre »
+                        et vide la duree hebdomadaire : un mandataire n a pas de
+                        duree du travail, et la retraite complementaire le traite
+                        en principe comme un cadre. */}
                     <select value={f.type_contrat} style={CHAMP}
-                      onChange={(ev) => setF({ ...f, type_contrat: ev.target.value })}>
+                      onChange={(ev) => setF(ev.target.value === "mandat_social"
+                        ? { ...f, type_contrat: ev.target.value, categorie: "cadre", duree_hebdo: "" }
+                        : { ...f, type_contrat: ev.target.value })}>
                       <option value="mission">Contrat de mission</option>
                       <option value="cdd">CDD</option>
                       <option value="cdi">CDI</option>
@@ -1169,6 +1175,11 @@ export default function PagePaie() {
                           la date de début et le SMIC. Un salaire saisi
                           l'emporte toujours — le barème est un minimum. */}
                       <option value="apprentissage">Apprentissage</option>
+                      {/* 🆕 28/09 — LE DIRIGEANT ASSIMILE SALARIE : president de
+                          SAS ou SASU, gerant minoritaire de SARL, remunere au
+                          titre de son mandat. Ni chomage, ni AGS, ni reduction
+                          generale, ni conges payes. */}
+                      <option value="mandat_social">Mandat social (dirigeant assimilé salarié)</option>
                     </select>
                   </div>
                   <div style={{ flex: "1 1 140px" }}>
@@ -1354,6 +1365,7 @@ export default function PagePaie() {
                     <span style={{ fontSize: "12px", color: OR }}>
                       {c.type_contrat === "mission" ? "Contrat de mission"
                         : c.type_contrat === "apprentissage" ? "Apprentissage"
+                        : c.type_contrat === "mandat_social" ? "Mandat social"
                         : c.type_contrat.toUpperCase()}
                     </span>
                   </div>
@@ -2006,7 +2018,10 @@ export default function PagePaie() {
                 ⚠️ LE BLOC N APPARAIT QUE SUR UN CONTRAT QUI A UNE FIN :
                 sur un CDI en cours, il n y a rien a remettre.
                 ═══════════════════════════════════════════════════════ */}
-            {choisi && (choisi.rompu_le || choisi.date_fin) && (
+            {/* 🆕 28/09 — pas de certificat de travail ni de reçu pour solde
+                de tout compte pour un mandataire : il n a pas de contrat de
+                travail. */}
+            {choisi && (choisi.rompu_le || choisi.date_fin) && choisi.type_contrat !== "mandat_social" && (
               <div style={CADRE}>
                 <h3 style={{ color: OR, fontSize: "16px", marginTop: 0 }}>
                   Documents de fin de contrat
