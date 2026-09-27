@@ -229,6 +229,10 @@ export default function PageDsn() {
   // et quel formulaire est deplie.
   const [atSaisie, setAtSaisie] = useState<any>({});
   const [atOuvert, setAtOuvert] = useState("");
+  // 🆕 27/09 — la mutuelle et la prevoyance : formulaire ouvert, saisie, arret.
+  const [garOuvert, setGarOuvert] = useState("");
+  const [garSaisie, setGarSaisie] = useState<any>({});
+  const [garFin, setGarFin] = useState<any>({ id: "", date: "" });
 
   useEffect(function () {
     const s = sessionStorage.getItem("paie_secret") || "";
@@ -417,6 +421,30 @@ export default function PageDsn() {
     } else {
       setErr(d.erreur || "enregistrement impossible");
     }
+    setOccupe("");
+  }
+
+  // 🆕 27/09 — ENREGISTRER OU ARRETER UNE GARANTIE (mutuelle, prevoyance).
+  async function enregistrerGarantie(soc: any) {
+    const f = garSaisie;
+    setErr(""); setMsg(""); setOccupe("gar" + soc.id);
+    const d = await appeler({
+      action: "garantie", societe_id: soc.id,
+      nature: f.nature || "sante", categorie: f.categorie || "tous", mode: f.mode || "forfait",
+      montant: f.montant || "", taux: f.taux || "",
+      part_patronale_pct: f.part_patronale_pct === undefined || f.part_patronale_pct === "" ? "50" : f.part_patronale_pct,
+      organisme: f.organisme || "", date_effet: f.date_effet || (new Date().toISOString().slice(0, 7) + "-01"),
+    });
+    if (d.success) { setMsg(d.message || "Enregistré."); setGarOuvert(""); setGarSaisie({}); await charger(); }
+    else setErr(d.erreur || "enregistrement impossible");
+    setOccupe("");
+  }
+  async function arreterGarantie() {
+    if (!garFin.id || !garFin.date) return;
+    setErr(""); setMsg(""); setOccupe("garfin");
+    const d = await appeler({ action: "garantie_fin", id: garFin.id, date_fin: garFin.date });
+    if (d.success) { setMsg(d.message || "Arrêtée."); setGarFin({ id: "", date: "" }); await charger(); }
+    else setErr(d.erreur || "enregistrement impossible");
     setOccupe("");
   }
 
@@ -985,6 +1013,140 @@ export default function PageDsn() {
                               opacity: String(fa.taux || "").trim() ? 1 : 0.4 }}>
                             {occupe === "at" + soc.id ? "…" : "Enregistrer le taux"}
                           </button>
+                        </div>
+                      );
+                    })()}
+
+                    {/* ═══════════════════════════════════════════════════
+                        🆕🚨 27/09 — LA MUTUELLE ET LA PREVOYANCE
+                        La complémentaire santé est obligatoire dans toute
+                        entreprise : sans elle, la ligne est en rouge.
+                        ═══════════════════════════════════════════════════ */}
+                    {(function () {
+                      const liste: any[] = v.garanties || [];
+                      const nomMode: any = { forfait: "forfait mensuel", pct_pmss: "% du plafond", pct_brut: "% du brut", pct_tranche_a: "% de la tranche A" };
+                      const nomCat: any = { tous: "tous les salariés", cadre: "cadres", non_cadre: "non-cadres" };
+                      const aSante = liste.some(function (g: any) { return g.nature === "sante"; });
+                      const f = garSaisie;
+                      return (
+                        <div style={{ marginTop: "10px" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between",
+                            alignItems: "baseline", flexWrap: "wrap", gap: "8px" }}>
+                            <p style={{ margin: 0, fontSize: "12px", lineHeight: "1.6",
+                              color: aSante ? "rgba(255,255,255,0.45)" : ROUGE }}>
+                              Mutuelle et prévoyance : {liste.length === 0
+                                ? "aucune — la complémentaire santé est obligatoire"
+                                : liste.length + " contrat(s)"}
+                            </p>
+                            <button onClick={() => { setGarOuvert(garOuvert === soc.id ? "" : soc.id); setGarSaisie({}); }}
+                              style={{ ...SECOND, padding: "4px 10px", fontSize: "12px" }}>
+                              {garOuvert === soc.id ? "annuler" : "ajouter"}
+                            </button>
+                          </div>
+                          {liste.map(function (g: any) {
+                            return (
+                              <div key={g.id} style={{ fontSize: "12px", lineHeight: "1.6",
+                                color: "rgba(255,255,255,0.55)", display: "flex",
+                                justifyContent: "space-between", gap: "8px", flexWrap: "wrap" }}>
+                                <span>
+                                  {g.nature === "sante" ? "Santé" : "Prévoyance"}
+                                  {g.organisme ? " (" + g.organisme + ")" : ""} · {nomCat[g.categorie] || g.categorie} ·{" "}
+                                  {g.mode === "forfait"
+                                    ? Number(g.montant).toLocaleString("fr-FR", { minimumFractionDigits: 2 }) + " € par mois"
+                                    : Number(g.taux).toLocaleString("fr-FR") + " " + (nomMode[g.mode] || g.mode)}
+                                  {" · employeur " + Number(g.part_patronale_pct).toLocaleString("fr-FR") + " %"}
+                                  {" · depuis le " + String(g.date_effet).slice(0, 10).split("-").reverse().join("/")}
+                                  {g.date_fin ? " · jusqu'au " + String(g.date_fin).slice(0, 10).split("-").reverse().join("/") : ""}
+                                </span>
+                                {garFin.id === g.id ? (
+                                  <span style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                                    <input type="date" value={garFin.date} style={{ ...CHAMP, width: "auto", padding: "4px 6px" }}
+                                      onChange={(ev) => setGarFin({ id: g.id, date: ev.target.value })} />
+                                    <button onClick={arreterGarantie} disabled={occupe !== "" || !garFin.date}
+                                      style={{ ...SECOND, padding: "4px 10px", fontSize: "12px" }}>confirmer</button>
+                                  </span>
+                                ) : (
+                                  <button onClick={() => setGarFin({ id: g.id, date: "" })}
+                                    style={{ ...SECOND, padding: "2px 8px", fontSize: "11.5px" }}>arrêter</button>
+                                )}
+                              </div>
+                            );
+                          })}
+                          {garOuvert === soc.id && (
+                            <div style={{ marginTop: "10px" }}>
+                              <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+                                <div style={{ flex: "1 1 160px" }}>
+                                  <span style={LIB}>Garantie</span>
+                                  <select style={CHAMP} value={f.nature || "sante"}
+                                    onChange={(ev) => setGarSaisie({ ...f, nature: ev.target.value })}>
+                                    <option value="sante">Complémentaire santé</option>
+                                    <option value="prevoyance">Prévoyance</option>
+                                  </select>
+                                </div>
+                                <div style={{ flex: "1 1 160px" }}>
+                                  <span style={LIB}>Salariés couverts</span>
+                                  <select style={CHAMP} value={f.categorie || "tous"}
+                                    onChange={(ev) => setGarSaisie({ ...f, categorie: ev.target.value })}>
+                                    <option value="tous">Tous les salariés</option>
+                                    <option value="cadre">Cadres</option>
+                                    <option value="non_cadre">Non-cadres</option>
+                                  </select>
+                                </div>
+                                <div style={{ flex: "1 1 200px" }}>
+                                  <span style={LIB}>Calcul de la cotisation</span>
+                                  <select style={CHAMP} value={f.mode || "forfait"}
+                                    onChange={(ev) => setGarSaisie({ ...f, mode: ev.target.value })}>
+                                    <option value="forfait">Forfait mensuel en euros</option>
+                                    <option value="pct_pmss">% du plafond de la Sécurité sociale</option>
+                                    <option value="pct_brut">% du salaire brut</option>
+                                    <option value="pct_tranche_a">% de la tranche A</option>
+                                  </select>
+                                </div>
+                              </div>
+                              <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "6px" }}>
+                                {(f.mode || "forfait") === "forfait" ? (
+                                  <div style={{ flex: "1 1 160px" }}>
+                                    <span style={LIB}>Cotisation totale par mois (€)</span>
+                                    <input style={CHAMP} inputMode="decimal" placeholder="ex. 80"
+                                      value={f.montant || ""} onChange={(ev) => setGarSaisie({ ...f, montant: ev.target.value })} />
+                                  </div>
+                                ) : (
+                                  <div style={{ flex: "1 1 160px" }}>
+                                    <span style={LIB}>Taux total (%)</span>
+                                    <input style={CHAMP} inputMode="decimal" placeholder="ex. 1,50"
+                                      value={f.taux || ""} onChange={(ev) => setGarSaisie({ ...f, taux: ev.target.value })} />
+                                  </div>
+                                )}
+                                <div style={{ flex: "1 1 130px" }}>
+                                  <span style={LIB}>Part employeur (%)</span>
+                                  <input style={CHAMP} inputMode="decimal" placeholder="50"
+                                    value={f.part_patronale_pct === undefined ? "50" : f.part_patronale_pct}
+                                    onChange={(ev) => setGarSaisie({ ...f, part_patronale_pct: ev.target.value })} />
+                                </div>
+                                <div style={{ flex: "1 1 160px" }}>
+                                  <span style={LIB}>Organisme (facultatif)</span>
+                                  <input style={CHAMP} value={f.organisme || ""}
+                                    onChange={(ev) => setGarSaisie({ ...f, organisme: ev.target.value })} />
+                                </div>
+                                <div style={{ flex: "1 1 150px" }}>
+                                  <span style={LIB}>À compter du</span>
+                                  <input style={CHAMP} type="date"
+                                    value={f.date_effet || (new Date().toISOString().slice(0, 7) + "-01")}
+                                    onChange={(ev) => setGarSaisie({ ...f, date_effet: ev.target.value })} />
+                                </div>
+                              </div>
+                              <p style={{ margin: "6px 0 0", fontSize: "11.5px", lineHeight: "1.6",
+                                color: "rgba(255,255,255,0.42)" }}>
+                                La cotisation figure sur le contrat collectif ou l&apos;appel de cotisation de
+                                l&apos;organisme : indiquez le total, part du salarié et part de l&apos;employeur
+                                comprises. L&apos;employeur paie au moins 50 % de la complémentaire santé.
+                              </p>
+                              <button onClick={() => enregistrerGarantie(soc)} disabled={occupe !== ""}
+                                style={{ ...BOUTON, marginTop: "8px" }}>
+                                {occupe === "gar" + soc.id ? "…" : "Enregistrer la garantie"}
+                              </button>
+                            </div>
+                          )}
                         </div>
                       );
                     })()}
