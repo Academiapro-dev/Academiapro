@@ -950,6 +950,36 @@ async function calculer(contratId: string, periode: string,
     }
   }
 
+  // ═══════════════════════════════════════════════════════════════════
+  // 🆕🚨 28/09 — LE CONTRAT DE PROFESSIONNALISATION (type « professionnalisation »)
+  //
+  // Remuneration minimale (articles D6325-14 et D6325-15 du code du
+  // travail), en pourcentage du SMIC, selon l age (revolu au 1er du mois,
+  // comme l apprenti) et la qualification a l entree :
+  //   · moins de 21 ans : 55 % — 65 % pour un titulaire d un bac pro ou plus ;
+  //   · 21 a 25 ans : 70 % — 80 % ;
+  //   · 26 ans et plus : le SMIC, ou 85 % du minimum conventionnel s il
+  //     est superieur (ce second terme n est pas controle — reserve).
+  // Cotisations de droit commun, reduction generale comprise ; en CDD, PAS
+  // d indemnite de fin de contrat (article L1243-10). Conges payes comme un
+  // CDI. ⚠️ L exoneration patronale propre aux demandeurs d emploi de 45 ans
+  // et plus n est pas appliquee (reserve).
+  // ═══════════════════════════════════════════════════════════════════
+  const estPro = String(contrat.type_contrat || "") === "professionnalisation";
+  let pro: any = null;
+  const notesPro: string[] = [];
+  if (estPro) {
+    const naissanceP = contrat.paie_salaries ? String((contrat.paie_salaries as any).date_naissance || "") : "";
+    const ageP = ageApprentiAuMois(naissanceP, periode);
+    const smicP = Number(await parametre("SMIC_MENSUEL", periode)) || 0;
+    const niveau4 = (contrat as any).qualification_niveau4 === true;
+    let pct: number | null = null;
+    if (ageP !== null) pct = ageP < 21 ? (niveau4 ? 65 : 55) : ageP < 26 ? (niveau4 ? 80 : 70) : 100;
+    const minimumP = pct !== null ? cts(smicP * proportionTemps * pct / 100) : null;
+    pro = { age: ageP, qualification_niveau4: niveau4, pourcentage: pct, smic_mensuel: smicP, minimum_legal: minimumP };
+    if (ageP === null) notesPro.push("⛔ CONTRAT DE PROFESSIONNALISATION SANS DATE DE NAISSANCE : le minimum légal ne peut pas être contrôlé.");
+  }
+
   if (!plafond) {
     return {
       erreur: "aucun plafond de securite sociale connu pour " + periode
@@ -1028,6 +1058,12 @@ async function calculer(contratId: string, periode: string,
       // remis au salarie. « 151.67 h » n est pas une ecriture francaise.
       libelle = "Salaire de base (" + quantite.toLocaleString("fr-FR",
         { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " h)";
+    } else if (pro && pro.minimum_legal !== null && pro.minimum_legal > 0) {
+      // 🆕 28/09 — un contrat de professionnalisation sans salaire saisi est
+      // paye au minimum legal ; un salaire saisi l emporte toujours.
+      base = Number(pro.minimum_legal);
+      libelle = "Salaire de base contrat de professionnalisation (" + pro.pourcentage + " % du SMIC"
+        + (pro.age !== null ? ", " + pro.age + " ans" : "") + ")";
     } else if (appr && appr.minimum_legal !== null && appr.minimum_legal > 0) {
       // 🆕🚨 22/09 — L APPRENTI SANS SALAIRE SAISI EST PAYE AU BAREME.
       //
@@ -1578,6 +1614,32 @@ async function calculer(contratId: string, periode: string,
   // passe sous les cotisations, non soumise ; seul l excedent reste dans le
   // brut et cotise.
   // ═══════════════════════════════════════════════════════════════════
+  // 🆕 28/09 — LE CONTROLE DU MINIMUM DU CONTRAT DE PROFESSIONNALISATION :
+  // sur le salaire du contrat (proratise au mois), comme pour l apprenti.
+  if (pro && pro.minimum_legal !== null) {
+    const payeP = Number(contrat.salaire_mensuel || 0) > 0 ? Number(contrat.salaire_mensuel)
+      : (Number(contrat.salaire_horaire || 0) > 0 ? Number(contrat.salaire_horaire) * dureeContratMois : Number(pro.minimum_legal));
+    const minP = Number(pro.minimum_legal);
+    const eurP = { minimumFractionDigits: 2, maximumFractionDigits: 2 };
+    if (payeP + 0.005 < minP) {
+      notesPro.unshift("🚨 SALAIRE INFÉRIEUR AU MINIMUM LÉGAL du contrat de professionnalisation : "
+        + payeP.toLocaleString("fr-FR", eurP) + " € pour " + minP.toLocaleString("fr-FR", eurP) + " € ("
+        + pro.pourcentage + " % du SMIC à " + pro.age + " ans"
+        + (pro.qualification_niveau4 ? ", titulaire d'un bac professionnel ou plus" : "")
+        + ", articles D6325-14 et D6325-15 du code du travail). Rappel de salaire exigible.");
+    }
+    notesPro.push("Contrat de professionnalisation : minimum légal " + minP.toLocaleString("fr-FR", eurP)
+      + " € (" + pro.pourcentage + " % du SMIC" + (pro.age !== null ? ", " + pro.age + " ans" : "")
+      + (pro.qualification_niveau4 ? ", bac professionnel ou plus" : "") + ")"
+      + (pro.age !== null && pro.age >= 26 ? " ⚠️ À 26 ans et plus, le minimum est aussi 85 % du salaire minimum "
+        + "conventionnel s'il est supérieur au SMIC : non contrôlé ici." : "")
+      + " Cotisations de droit commun, réduction générale comprise ; en CDD, pas d'indemnité de fin de contrat "
+      + "(article L1243-10). ⚠️ L'exonération patronale propre aux demandeurs d'emploi de 45 ans et plus n'est "
+      + "pas appliquée. ⛔ La DSN du contrat de professionnalisation n'est pas encore adaptée (dispositif de "
+      + "politique publique) : ne pas déposer de DSN réelle avant ce point.");
+    pro.salaire_contrat = cts(payeP);
+  }
+
   let stage: any = null;
   if (estStage) {
     const horaire = await parametre("STAGE_FRANCHISE_HORAIRE", periode);
@@ -1673,7 +1735,7 @@ async function calculer(contratId: string, periode: string,
   // fait acquerir ET poser des conges, mais le bulletin ne lisait que ceux
   // d un CDI : ses conges poses n apparaissaient nulle part. Trouve le
   // 25/09 en relisant la pose des conges.
-  if (contrat.type_contrat === "cdi" || contrat.type_contrat === "apprentissage") {
+  if (contrat.type_contrat === "cdi" || contrat.type_contrat === "apprentissage" || estPro) {
     const { data: prises } = await supabase
       .from("paie_conges")
       .select("jours, valeur_retenue, valeur_maintien, valeur_dixieme")
@@ -2599,7 +2661,7 @@ async function calculer(contratId: string, periode: string,
     return f;
   })();
   const finDansLeMois = !!finContrat && finContrat >= moisPremier && finContrat <= moisDernier;
-  if (finDansLeMois && (typeFin === "cdi" || typeFin === "apprentissage")) {
+  if (finDansLeMois && (typeFin === "cdi" || typeFin === "apprentissage" || typeFin === "professionnalisation")) {
     const { data: mvts } = await supabase
       .from("paie_conges")
       .select("periode, periode_ref, type_mouvement, jours")
@@ -3690,7 +3752,7 @@ async function calculer(contratId: string, periode: string,
   // ═══════════════════════════════════════════════════════════════════
   let conges: any = null;
 
-  if (contrat.type_contrat === "cdi") {
+  if (contrat.type_contrat === "cdi" || estPro) {
     // La periode de reference court du 1er juin au 31 mai.
     const annee = Number(periode.slice(0, 4));
     const mois = Number(periode.slice(5, 7));
@@ -4136,6 +4198,8 @@ async function calculer(contratId: string, periode: string,
     stage: stage,
     // 🆕 28/09 — l avantage en nature vehicule du mois.
     vehicule: vehiculeDetail,
+    // 🆕 28/09 — le contrat de professionnalisation (age, taux, minimum).
+    professionnalisation: pro,
     net_a_payer: netAPayer,
     cout_employeur: coutEmployeur,
     // 🆕 27/09 soir — la part du cout employeur hors brut et hors cotisations.
@@ -4267,7 +4331,7 @@ async function calculer(contratId: string, periode: string,
       // donc sur les BULLETINS DEJA EMIS. Sur un salarie entre en cours
       // d annee, ou dont les premiers bulletins ont ete produits ailleurs,
       // elle est sous-evaluee tant que l historique n est pas complet.
-      if (contrat.type_contrat === "cdi") {
+      if (contrat.type_contrat === "cdi" || estPro) {
         r.push("Les congés sont valorisés en comparant le maintien de salaire "
           + "et la règle du dixième, la plus favorable étant retenue. ⚠️ Le "
           + "dixième se calcule sur les bulletins déjà émis : il est "
@@ -4404,6 +4468,8 @@ async function calculer(contratId: string, periode: string,
       for (const n of notesAvantages) r.unshift(n);
       // 🆕 28/09 — le vehicule de fonction.
       for (const n of notesVehicule) r.unshift(n);
+      // 🆕 28/09 — le contrat de professionnalisation.
+      for (const n of notesPro.slice().reverse()) r.unshift(n);
       // 🆕 27/09 — les heures supplementaires, la mutuelle et la prevoyance.
       for (const n of notesHs) r.unshift(n);
       for (const n of notesHc) r.unshift(n);
