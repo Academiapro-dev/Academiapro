@@ -283,6 +283,16 @@ export async function POST(req: NextRequest) {
 
       const type = propre(c.type_contrat) || "mission";
 
+      // 🆕 28/09 — LES TYPES ADMIS, contrôlés : la colonne n'a aucune
+      // contrainte en base, une faute de frappe créerait un contrat que le
+      // moteur ne reconnaîtrait pas.
+      if (["mission", "cdd", "cdi", "apprentissage", "mandat_social"].indexOf(type) < 0) {
+        return NextResponse.json({
+          erreur: "type de contrat inconnu : « " + type + " ». Types admis : mission, cdd, "
+            + "cdi, apprentissage, mandat_social.",
+        }, { status: 400 });
+      }
+
       // 🆕🚨 22/09 — UN APPRENTI SANS NIVEAU DE DIPLOME PREPARE VOIT SA DSN
       // REJETEE (controle CCH-11). On refuse a la saisie plutot que de le
       // decouvrir au depot, meme regle que pour le contrat de mission
@@ -340,11 +350,15 @@ export async function POST(req: NextRequest) {
           type_contrat: type,
           date_debut: propre(c.date_debut), date_fin: propre(c.date_fin),
           intitule_poste: propre(c.intitule_poste) || "A preciser",
-          categorie: propre(c.categorie) || "non_cadre",
+          // 🆕 28/09 — un mandat social est en principe « cadre » pour la
+          // retraite complementaire.
+          categorie: propre(c.categorie) || (type === "mandat_social" ? "cadre" : "non_cadre"),
           idcc: c.idcc ? Number(c.idcc) : null,
           salaire_horaire: c.salaire_horaire ? Number(c.salaire_horaire) : null,
           salaire_mensuel: c.salaire_mensuel ? Number(c.salaire_mensuel) : null,
-          duree_hebdo: c.duree_hebdo ? Number(c.duree_hebdo) : 35,
+          // 🆕 28/09 — pas de duree du travail pour un mandataire social.
+          duree_hebdo: type === "mandat_social" ? null
+            : (c.duree_hebdo ? Number(c.duree_hebdo) : 35),
           eu_raison_sociale: propre(c.eu_raison_sociale),
           eu_siret: propre(c.eu_siret),
           eu_adresse: propre(c.eu_adresse),
@@ -365,7 +379,7 @@ export async function POST(req: NextRequest) {
           forfait_jours_annuel: c.forfait_jours_annuel
             ? Math.round(nombreFr(c.forfait_jours_annuel) || 0) || null : null,
           poste_chez_eu: propre(c.poste_chez_eu),
-          ifm_due: c.ifm_due === false ? false : true,
+          ifm_due: (type === "mandat_social" || c.ifm_due === false) ? false : true,
         })
         .select().maybeSingle();
 
