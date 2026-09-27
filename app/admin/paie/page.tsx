@@ -113,6 +113,8 @@ const TYPES_ELEMENT = [
   { cle: "avantage_logement", nom: "Avantage en nature — logement", soumis: true },
   // 🆕 27/09 — l'avance déjà versée au salarié, retenue sur le net.
   { cle: "acompte", nom: "Acompte déjà versé", soumis: false },
+  // 🆕 27/09 — l'indemnité de licenciement ou de rupture conventionnelle.
+  { cle: "indemnite_rupture", nom: "Indemnité de licenciement ou de rupture conventionnelle", soumis: false },
 ];
 
 // 🚨 CE QUE CHAQUE CHAMP VEUT DIRE POUR CES DEUX NATURES. Sans cette aide,
@@ -126,6 +128,11 @@ const AIDE_ELEMENT: any = {
   titres_restaurant: "Quantité = nombre de titres. Taux = valeur faciale "
     + "d'un titre. Montant = part patronale PAR TITRE. La part salariale se "
     + "déduit toute seule et se retient sur le net.",
+  indemnite_rupture: "Montant = indemnité versée au départ (licenciement, ou indemnité "
+    + "spécifique de rupture conventionnelle). Le moteur calcule le minimum légal, le signale "
+    + "si le montant est inférieur, et applique le régime : exonérée de cotisations, CSG-CRDS "
+    + "au-delà du minimum légal, contribution patronale de 40 % en rupture conventionnelle. "
+    + "Le motif de rupture du contrat doit être renseigné. Quantité et taux : ne rien mettre.",
   acompte: "Montant = somme déjà versée au salarié ce mois-ci, en avance sur son "
     + "salaire. Elle se retient sur le net à payer ; elle ne change ni le brut, ni "
     + "les cotisations, ni le net imposable. Quantité et taux : ne rien mettre.",
