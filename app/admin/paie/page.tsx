@@ -1708,7 +1708,13 @@ export default function PagePaie() {
                   Le calcul, avant de sortir le document
                 </h3>
 
-                {(calcul.lignes_brut || []).map(function (l: any, i: number) {
+                {/* 🆕 27/09 soir — LES LIGNES QUI N ENTRENT PAS DANS LE BRUT
+                    (acompte, retenue des titres-restaurant, avantage deduit du
+                    net, indemnites non soumises, IJ reversees) s affichent SOUS
+                    les cotisations. Au-dessus du « Salaire brut », l acompte
+                    faisait lire 2 400 − 300 = 2 400 (essai 5 du 27/09). */}
+                {(calcul.lignes_brut || []).filter(function (l: any) { return !l.hors_brut; })
+                  .map(function (l: any, i: number) {
                   return (
                     <div key={i} style={{ display: "flex", justifyContent: "space-between",
                       padding: "4px 0", fontSize: "13.5px" }}>
@@ -1744,6 +1750,19 @@ export default function PagePaie() {
                   <span>Cotisations salariales</span>
                   <span>− {euros(calcul.total_salarial)} €</span>
                 </div>
+
+                {/* 🆕 27/09 soir — les sommes hors brut, entre les cotisations
+                    et le net : brut − cotisations + ces lignes = net avant impôt. */}
+                {(calcul.lignes_brut || []).filter(function (l: any) { return !!l.hors_brut; })
+                  .map(function (l: any, i: number) {
+                  return (
+                    <div key={"h" + i} style={{ display: "flex", justifyContent: "space-between",
+                      padding: "4px 0", fontSize: "13.5px" }}>
+                      <span>{l.libelle}</span>
+                      <span>{euros(l.montant)} €</span>
+                    </div>
+                  );
+                })}
 
                 {/* 🚨🚨 LA REDUCTION PATRONALE N EST PLUS ICI — 16/09.
                     DEFAUT TROUVE A L ESSAI : elle etait affichee entre les
@@ -1817,6 +1836,16 @@ export default function PagePaie() {
                       padding: "3px 0", fontSize: "13px", color: VERT }}>
                       <span>Déduction forfaitaire sur heures supplémentaires</span>
                       <span>− {euros(calcul.deduction_hs)} €</span>
+                    </div>
+                  )}
+                  {/* 🆕 27/09 soir — ce que l employeur paie hors brut (indemnite
+                      de rupture non soumise, panier, transport) : le cout total
+                      le compte, la ligne le montre. */}
+                  {calcul.non_soumis_employeur > 0 && (
+                    <div style={{ display: "flex", justifyContent: "space-between",
+                      padding: "3px 0", fontSize: "13px" }}>
+                      <span>Indemnités et frais non soumis versés</span>
+                      <span>{euros(calcul.non_soumis_employeur)} €</span>
                     </div>
                   )}
                   <div style={{ display: "flex", justifyContent: "space-between",
