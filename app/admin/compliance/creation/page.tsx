@@ -15,13 +15,35 @@ const BOUTON: any = { background: OR, color: "#fff", border: "none", padding: "1
 const SECOND: any = { ...BOUTON, background: "#fff", color: OR, border: "1px solid " + OR, fontSize: 14, padding: "10px 18px" };
 
 // 🆕 23/09 — LES ETABLISSEMENTS PROPOSES A L ETAPE DU COMPTE BANCAIRE.
-// Choix de Jacques : Mercury et Airwallex. La video de demonstration promet
-// que nous indiquons les etablissements susceptibles d ouvrir un compte : la
-// promesse doit se retrouver a l ecran. ⛔ Jamais de garantie d ouverture :
-// chaque etablissement decide dossier par dossier.
+// La video de demonstration promet que nous indiquons les etablissements
+// susceptibles d ouvrir un compte : la promesse doit se retrouver a l ecran.
+// ⛔ Jamais de garantie d ouverture : chaque etablissement decide dossier par
+// dossier.
+// 🆕 27/09 — LA LISTE ELARGIE, DEMANDE DE JACQUES : « donner un maximum de
+// choix ». Liste fournie par Jacques, TRIEE par Claude sur un critere : un
+// resident francais qui detient une LLC du Wyoming peut-il ouvrir le compte
+// A DISTANCE, sans numero de securite sociale americain ? Sources lues le
+// 27/09 (pages d aide des etablissements quand elles existent).
+//   RETENUS  Mercury, Relay, Airwallex, Wise Business, Revolut Business (a
+//            confirmer aupres de Revolut : retours contradictoires).
+//   A PART   Stripe et Payoneer : encaissement, PAS des comptes bancaires.
+//   ECARTES  Brex (reserve aux societes financees), Rho (adresse ou SSN
+//            americains), Lili (la France n est pas dans ses pays en direct,
+//            seulement via ses partenaires de creation), Chase, Bank of
+//            America, Wells Fargo (visite en agence ou SSN).
+// ⛔ AUCUNE PROMESSE CHIFFREE (frais, delais) : les conditions changent sans
+// preavis, une phrase fausse retomberait sur nous.
 const ETABLISSEMENTS = [
-  { nom: "Mercury", note: "compte professionnel en ligne, pensé pour les jeunes sociétés américaines" },
-  { nom: "Airwallex", note: "comptes multidevises, pour encaisser et payer en dollars comme en euros" },
+  { nom: "Mercury", site: "https://mercury.com", note: "compte professionnel en ligne, ouvert aux fondateurs qui vivent hors des États-Unis. L'adresse d'activité à donner est votre adresse personnelle en France : celle de l'agent enregistré est refusée" },
+  { nom: "Relay", site: "https://relayfi.com", note: "compte professionnel en ligne avec sous-comptes ; passeport demandé, adresse physique obligatoire (ni boîte postale, ni domiciliation virtuelle)" },
+  { nom: "Airwallex", site: "https://www.airwallex.com", note: "comptes multidevises, pour encaisser et payer en dollars comme en euros ; demande les statuts et la lettre d'EIN au nom exact de la société" },
+  { nom: "Wise Business", site: "https://wise.com", note: "coordonnées bancaires américaines et multidevises ; établissement de paiement et non banque : les soldes ne sont pas garantis par la FDIC" },
+  { nom: "Revolut Business", site: "https://www.revolut.com/business", note: "compte multidevises ; l'ouverture pour une société américaine détenue depuis l'étranger est à confirmer auprès de Revolut" },
+];
+// 🆕 27/09 — POUR ENCAISSER, EN PLUS DU COMPTE : ce ne sont pas des banques.
+const ENCAISSEMENT = [
+  { nom: "Stripe", site: "https://stripe.com", note: "encaisse les paiements par carte de vos clients et les verse sur l'un des comptes ci-dessus" },
+  { nom: "Payoneer", site: "https://www.payoneer.com", note: "reçoit les paiements des places de marché (Amazon, Upwork…) ; un complément, pas un compte bancaire" },
 ];
 
 const ACTIVITES = [["other", "Autre (préciser)"], ["finance", "Finance et assurance"], ["real_estate", "Immobilier"], ["retail", "Commerce de détail"], ["wholesale_other", "Commerce de gros"], ["construction", "Construction"], ["manufacturing", "Fabrication"], ["transport", "Transport et entreposage"], ["accommodation", "Hébergement et restauration"], ["health", "Santé et action sociale"], ["rental", "Location"]];
@@ -256,13 +278,21 @@ export default function PageCreation() {
         {st === "banque" && (
           <div style={{ border: "2px solid " + OR, borderRadius: 8, padding: 18, marginBottom: 20 }}>
             <h2 style={{ color: OR, fontSize: 18, marginTop: 0 }}>10. Le compte bancaire</h2>
-            <p style={{ fontSize: 14, color: "#555" }}>Pièces à préparer : statuts déposés, lettre d'EIN, pièce d'identité du membre, justificatif d'adresse, Operating Agreement signé. Nous suivons l'ouverture avec vous jusqu'au compte actif.</p>
-            <p style={{ fontSize: 14, color: "#555", marginBottom: 6 }}>Établissements qui ouvrent couramment des comptes à des LLC détenues par des non-résidents — l'ouverture reste à leur appréciation, dossier par dossier :</p>
-            <ul style={{ fontSize: 14, color: "#1a1a1a", marginTop: 0, marginBottom: 14 }}>
-              {ETABLISSEMENTS.map(function (b) { return <li key={b.nom}><strong>{b.nom}</strong> — {b.note}</li>; })}
+            <p style={{ fontSize: 14, color: "#555" }}>Pièces à préparer : les statuts déposés (Articles of Organization), la lettre d'EIN (CP 575 ou 147C), l'Operating Agreement signé — il se télécharge plus bas, dans « Documents signés » —, le passeport du membre et un justificatif récent de son adresse personnelle. Nous suivons l'ouverture avec vous jusqu'au compte actif.</p>
+            <p style={{ fontSize: 14, color: "#555", marginBottom: 6 }}>Établissements qui ouvrent à distance des comptes à des LLC détenues par des non-résidents — l'ouverture reste à leur appréciation, dossier par dossier :</p>
+            <ul style={{ fontSize: 14, color: "#1a1a1a", marginTop: 0, marginBottom: 10 }}>
+              {ETABLISSEMENTS.map(function (b) { return <li key={b.nom} style={{ marginBottom: 4 }}><a href={b.site} target="_blank" rel="noopener noreferrer" style={{ color: OR, fontWeight: 700 }}>{b.nom}</a> — {b.note}</li>; })}
             </ul>
+            <p style={{ fontSize: 14, color: "#555", marginBottom: 6 }}>Pour encaisser vos ventes, en plus du compte :</p>
+            <ul style={{ fontSize: 14, color: "#1a1a1a", marginTop: 0, marginBottom: 10 }}>
+              {ENCAISSEMENT.map(function (b) { return <li key={b.nom} style={{ marginBottom: 4 }}><a href={b.site} target="_blank" rel="noopener noreferrer" style={{ color: OR, fontWeight: 700 }}>{b.nom}</a> — {b.note}</li>; })}
+            </ul>
+            <p style={{ fontSize: 14, color: "#555", background: "#faf6ec", borderLeft: "3px solid " + OR, padding: "8px 12px", marginBottom: 14 }}>Notre conseil : ouvrez deux comptes auprès de deux établissements différents. Ces établissements ont durci leurs contrôles pour les LLC de non-résidents ; si l'un d'eux gèle ou ferme un compte, l'activité continue sur l'autre.</p>
             <span style={LIB}>Établissement</span>
-            <input value={saisie.banque || ""} onChange={(e) => setSaisie({ ...saisie, banque: e.target.value })} style={CHAMP} />
+            <input list="etablissements-bancaires" value={saisie.banque || ""} onChange={(e) => setSaisie({ ...saisie, banque: e.target.value })} style={CHAMP} placeholder="Choisissez dans la liste ou saisissez un autre établissement" />
+            <datalist id="etablissements-bancaires">
+              {ETABLISSEMENTS.map(function (b) { return <option key={b.nom} value={b.nom} />; })}
+            </datalist>
             <span style={LIB}>Date d'ouverture</span>
             <input type="date" value={saisie.bdate || ""} onChange={(e) => setSaisie({ ...saisie, bdate: e.target.value })} style={CHAMP} />
             <button onClick={() => poster("/api/compliance/creation", { action: "banque", banque_etablissement: saisie.banque, banque_ouverte_le: saisie.bdate })} disabled={occupe !== "" || !saisie.banque} style={BOUTON}>10. Compte ouvert</button>
