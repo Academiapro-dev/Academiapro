@@ -1069,6 +1069,113 @@ async function calculer(contratId: string, periode: string,
   }
 
   // ═══════════════════════════════════════════════════════════════════
+  // 🆕🚨 28/09 — L AVANTAGE EN NATURE VEHICULE (porte sur le CONTRAT)
+  //
+  // Un vehicule mis a disposition pour un usage prive dure des mois : il se
+  // decrit une fois sur le contrat (`paie_contrats.vehicule`, saisi dans
+  // « modifier le contrat ») et l avantage se calcule seul chaque mois.
+  // L EVALUATION FORFAITAIRE (arrete du 25 fevrier 2025 ; BOSS, avantages
+  // en nature), par an, pour un vehicule mis a disposition depuis le
+  // 01/02/2025 :
+  //   · achete, moins de 5 ans : 15 % du prix d achat TTC (20 % si
+  //     l employeur paie le carburant) ; 5 ans et plus : 10 % (15 %) ;
+  //   · loue : 50 % du cout global annuel TTC — location, entretien,
+  //     assurance (67 % avec le carburant).
+  // Avant le 01/02/2025 : 9 % (12 %), 6 % (9 %), 30 % (40 %).
+  // ELECTRIQUE : l electricite n entre pas dans l avantage (taux « sans
+  // carburant ») ; abattement de 70 % s il est eco-score et mis a
+  // disposition du 01/02/2025 au 31/12/2027, plafonne par an
+  // (`AEN_VE_PLAFOND_70`) ; de 50 % pour une mise a disposition du
+  // 01/01/2020 au 31/01/2025 (`AEN_VE_PLAFOND_50`).
+  // La participation mensuelle du salarie se deduit. Le mois incomplet
+  // (mise a disposition, restitution, entree, sortie) se proratise aux
+  // jours calendaires.
+  // ⚠️ L evaluation AU REEL n est pas proposee (une reserve le dit).
+  // ═══════════════════════════════════════════════════════════════════
+  const notesVehicule: string[] = [];
+  let vehiculeDetail: any = null;
+  {
+    let v: any = (contrat as any).vehicule;
+    if (typeof v === "string") { try { v = JSON.parse(v); } catch { v = null; } }
+    if (v && typeof v === "object" && Number(v.valeur) > 0) {
+      const eurV = { minimumFractionDigits: 2, maximumFractionDigits: 2 };
+      const dispo = String(v.mis_a_disposition_le || "").slice(0, 10);
+      const rendu = String(v.fin || "").slice(0, 10);
+      // Les jours du mois ou le vehicule est a disposition, dans l emploi.
+      let dV = debutEmploi;
+      let fV = finEmploi;
+      if (/^\d{4}-\d{2}-\d{2}$/.test(dispo) && dispo > dV) dV = dispo;
+      if (/^\d{4}-\d{2}-\d{2}$/.test(rendu) && rendu < fV) fV = rendu;
+      const joursV = fV >= dV
+        ? Math.round((Date.parse(fV + "T00:00:00Z") - Date.parse(dV + "T00:00:00Z")) / 86400000) + 1 : 0;
+      const partMois = joursCalendairesMois > 0 ? Math.min(1, joursV / joursCalendairesMois) : 0;
+      if (partMois > 0) {
+        const nouveau = !dispo || dispo >= "2025-02-01";
+        const location = String(v.mode || "achat") === "location";
+        const electrique = v.electrique === true;
+        const carburant = v.carburant === true && !electrique;
+        let plus5 = false;
+        const achat = String(v.achat_le || "").slice(0, 10);
+        if (!location && /^\d{4}-\d{2}-\d{2}$/.test(achat)) {
+          const cinq = new Date(achat + "T00:00:00Z");
+          cinq.setUTCFullYear(cinq.getUTCFullYear() + 5);
+          plus5 = cinq.toISOString().slice(0, 10) <= moisPremier;
+        }
+        let taux = 0;
+        if (location) taux = nouveau ? (carburant ? 67 : 50) : (carburant ? 40 : 30);
+        else if (plus5) taux = nouveau ? (carburant ? 15 : 10) : (carburant ? 9 : 6);
+        else taux = nouveau ? (carburant ? 20 : 15) : (carburant ? 12 : 9);
+        const annuel = Number(v.valeur) * taux / 100;
+        let abattement = 0;
+        let origineAb = "";
+        if (electrique) {
+          if (nouveau && v.eco_score === true && (!dispo || dispo <= "2027-12-31")) {
+            const pl = await parametre("AEN_VE_PLAFOND_70", periode);
+            if (pl === null) notesVehicule.push("⛔ Abattement du véhicule électrique NON appliqué : son plafond (AEN_VE_PLAFOND_70) est absent de la base.");
+            else { abattement = Math.min(annuel * 0.70, Number(pl)); origineAb = "70 %, plafonné à " + Number(pl).toLocaleString("fr-FR", eurV) + " € par an"; }
+          } else if (!nouveau && dispo >= "2020-01-01") {
+            const pl = await parametre("AEN_VE_PLAFOND_50", periode);
+            if (pl === null) notesVehicule.push("⛔ Abattement du véhicule électrique NON appliqué : son plafond (AEN_VE_PLAFOND_50) est absent de la base.");
+            else { abattement = Math.min(annuel * 0.50, Number(pl)); origineAb = "50 %, plafonné à " + Number(pl).toLocaleString("fr-FR", eurV) + " € par an"; }
+          } else if (nouveau && v.eco_score !== true) {
+            notesVehicule.push("⚠️ Véhicule électrique non éco-scoré : pas d'abattement (il faut le score environnemental du bonus écologique).");
+          }
+        }
+        const mensuelPlein = (annuel - abattement) / 12;
+        const participation = Math.max(0, Number(v.participation || 0));
+        const montantV = cts(Math.max(0, mensuelPlein * partMois - participation));
+        vehiculeDetail = { taux: taux, annuel: cts(annuel), abattement: cts(abattement),
+          mensuel: cts(mensuelPlein), part_du_mois: Math.round(partMois * 10000) / 10000,
+          participation: participation, montant: montantV, regime: nouveau ? "depuis le 01/02/2025" : "avant le 01/02/2025" };
+        if (montantV > 0) {
+          lignesBrut.push({
+            libelle: "Avantage en nature véhicule (" + (location ? "location" : "achat") + ", "
+              + taux + " %" + (electrique && abattement > 0 ? ", électrique" : "") + ")",
+            quantite: null, taux: null, montant: montantV,
+          });
+          brutSoumis += montantV;
+          lignesBrut.push({
+            libelle: "Avantage en nature véhicule, déduit du net",
+            quantite: null, taux: null, montant: -montantV, hors_brut: true,
+          });
+          nonSoumis -= montantV;
+        }
+        notesVehicule.push("Avantage en nature véhicule : " + (location ? "location, coût global annuel " : "achat, prix TTC ")
+          + Number(v.valeur).toLocaleString("fr-FR", eurV) + " € × " + taux + " %"
+          + (carburant ? " (carburant payé par l'employeur)" : "")
+          + " = " + cts(annuel).toLocaleString("fr-FR", eurV) + " € par an"
+          + (abattement > 0 ? ", moins l'abattement électrique de " + cts(abattement).toLocaleString("fr-FR", eurV) + " € (" + origineAb + ")" : "")
+          + ", soit " + cts(mensuelPlein).toLocaleString("fr-FR", eurV) + " € par mois"
+          + (partMois < 1 ? " × " + (Math.round(partMois * 10000) / 100).toLocaleString("fr-FR") + " % du mois" : "")
+          + (participation > 0 ? ", moins " + participation.toLocaleString("fr-FR", eurV) + " € de participation du salarié" : "")
+          + " → " + montantV.toLocaleString("fr-FR", eurV) + " € (arrêté du 25 février 2025, "
+          + (nouveau ? "mise à disposition depuis le 01/02/2025" : "mise à disposition avant le 01/02/2025") + "). "
+          + "⚠️ Évaluation forfaitaire : l'évaluation au réel, parfois plus favorable, n'est pas proposée.");
+      }
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
   // 🆕🚨 20/09 — LES AVANTAGES EN NATURE ET LES TITRES-RESTAURANT
   //
   // Les parametres viennent de la base (`paie_parametres`), avec leur
@@ -1219,7 +1326,9 @@ async function calculer(contratId: string, periode: string,
       }
 
       // 🚨 LE BRUT DE REFERENCE : celui deja accumule, AVANT cet avantage.
-      const brutRef = cts(brutSoumis);
+      // 🆕 28/09 — et hors l avantage vehicule, deja porte au brut : la
+      // tranche se lit sur la remuneration HORS avantages en nature.
+      const brutRef = cts(brutSoumis - (vehiculeDetail ? Number(vehiculeDetail.montant || 0) : 0));
 
       const { data: bareme } = await supabase
         .from("paie_bareme_logement")
@@ -4025,6 +4134,8 @@ async function calculer(contratId: string, periode: string,
     rupture: rupture,
     // 🆕 28/09 — la gratification du stagiaire (franchise, minimum, impot).
     stage: stage,
+    // 🆕 28/09 — l avantage en nature vehicule du mois.
+    vehicule: vehiculeDetail,
     net_a_payer: netAPayer,
     cout_employeur: coutEmployeur,
     // 🆕 27/09 soir — la part du cout employeur hors brut et hors cotisations.
@@ -4291,6 +4402,8 @@ async function calculer(contratId: string, periode: string,
           + "reçoit une réduction trop forte.");
       }
       for (const n of notesAvantages) r.unshift(n);
+      // 🆕 28/09 — le vehicule de fonction.
+      for (const n of notesVehicule) r.unshift(n);
       // 🆕 27/09 — les heures supplementaires, la mutuelle et la prevoyance.
       for (const n of notesHs) r.unshift(n);
       for (const n of notesHc) r.unshift(n);
