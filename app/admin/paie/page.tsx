@@ -111,6 +111,8 @@ const TYPES_ELEMENT = [
   { cle: "avantage_repas", nom: "Avantage en nature — repas", soumis: true },
   { cle: "titres_restaurant", nom: "Titres-restaurant", soumis: false },
   { cle: "avantage_logement", nom: "Avantage en nature — logement", soumis: true },
+  // 🆕 27/09 — l'avance déjà versée au salarié, retenue sur le net.
+  { cle: "acompte", nom: "Acompte déjà versé", soumis: false },
 ];
 
 // 🚨 CE QUE CHAQUE CHAMP VEUT DIRE POUR CES DEUX NATURES. Sans cette aide,
@@ -124,6 +126,9 @@ const AIDE_ELEMENT: any = {
   titres_restaurant: "Quantité = nombre de titres. Taux = valeur faciale "
     + "d'un titre. Montant = part patronale PAR TITRE. La part salariale se "
     + "déduit toute seule et se retient sur le net.",
+  acompte: "Montant = somme déjà versée au salarié ce mois-ci, en avance sur son "
+    + "salaire. Elle se retient sur le net à payer ; elle ne change ni le brut, ni "
+    + "les cotisations, ni le net imposable. Quantité et taux : ne rien mettre.",
   avantage_logement: "Quantité = nombre de PIÈCES PRINCIPALES (séjour et "
     + "chambres seulement ; cuisine, salle d'eau et WC sont exclus). "
     + "Taux = loyer versé par le salarié, s'il en paie un. Montant : ne rien "
@@ -261,6 +266,8 @@ export default function PagePaie() {
   const [calcul, setCalcul] = useState<any>(null);
   // 🆕 27/09 — les jours travailles en cours de modification (null = ferme).
   const [joursSaisie, setJoursSaisie] = useState<number[] | null>(null);
+  // 🆕 27/09 — le taux personnalise de prelevement en cours de saisie.
+  const [pasSaisie, setPasSaisie] = useState<any>(null);
   const [bulletins, setBulletins] = useState<any[]>([]);
   // ⚠️ LES CONGES NE CONCERNENT QUE LE CDI : sur une mission ou un CDD ils
   // sont compenses par l ICCP, et ce bloc reste invisible.
@@ -368,6 +375,34 @@ export default function PagePaie() {
     setOccupe("");
   }
 
+  // 🆕 27/09 — LE TAUX PERSONNALISE DE PRELEVEMENT A LA SOURCE (vide =
+  // retour a la grille du taux non personnalise).
+  async function enregistrerPas(effacer?: boolean) {
+    if (!choisi || !pasSaisie) return;
+    setErr(""); setMsg(""); setOccupe("pas");
+    const d = await appeler({
+      action: "taux_pas", contrat_id: choisi.id,
+      taux: effacer ? "" : (pasSaisie.taux || ""),
+      date_effet: pasSaisie.date_effet || "",
+      identifiant_crm: pasSaisie.identifiant_crm || "",
+    });
+    if (d && d.success) {
+      setMsg(d.message || "Enregistré.");
+      const sal = { ...(choisi.paie_salaries || {}),
+        taux_pas: effacer ? null : String(pasSaisie.taux || "").replace(",", "."),
+        taux_pas_date_effet: effacer ? null : (pasSaisie.date_effet || null),
+        taux_pas_identifiant_crm: effacer ? null : (pasSaisie.identifiant_crm || null) };
+      const maj = { ...choisi, paie_salaries: sal };
+      setChoisi(maj);
+      setContrats(contrats.map(function (x: any) { return x.id === maj.id ? maj : x; }));
+      setPasSaisie(null);
+      setCalcul(null);
+    } else {
+      setErr(lisible(d && d.erreur ? d.erreur : "enregistrement impossible"));
+    }
+    setOccupe("");
+  }
+
   async function charger(s?: string) {
     setErr(""); setOccupe("charger");
     const d = await appeler({ action: "contrats" }, s);
@@ -382,6 +417,7 @@ export default function PagePaie() {
     setChoisi(c); setCalcul(null); setMsg(""); setErr("");
     setConges(null); setJoursPris("");
     setJoursSaisie(null);
+    setPasSaisie(null);
     setEvenements(null);
     // 🆕 LE FORMULAIRE REPART A VIDE QUAND ON CHANGE DE SALARIE : sinon un
     // arret a moitie saisi pour l un s enregistrerait sur le contrat de
@@ -1424,6 +1460,80 @@ export default function PagePaie() {
                 );
               })()}
 
+              {/* ═══════════════════════════════════════════════════════
+                  🆕 27/09 — LE TAUX DE PRELEVEMENT A LA SOURCE
+                  Sans taux personnalisé saisi, la grille officielle du taux
+                  non personnalisé s'applique : le bulletin le dit.
+                  ═══════════════════════════════════════════════════════ */}
+              {(function () {
+                const sal: any = choisi.paie_salaries || {};
+                const perso = sal.taux_pas !== null && sal.taux_pas !== undefined && String(sal.taux_pas) !== "";
+                return (
+                  <div style={{ marginTop: "10px" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between",
+                      alignItems: "baseline", flexWrap: "wrap", gap: "8px" }}>
+                      <p style={{ margin: 0, fontSize: "12.5px", lineHeight: "1.6",
+                        color: "rgba(255,255,255,0.55)" }}>
+                        Prélèvement à la source :{" "}
+                        {perso
+                          ? "taux personnalisé " + Number(sal.taux_pas).toLocaleString("fr-FR") + " %"
+                            + (sal.taux_pas_date_effet ? " depuis le "
+                              + String(sal.taux_pas_date_effet).slice(0, 10).split("-").reverse().join("/") : "")
+                          : "taux non personnalisé (grille officielle), faute de taux personnalisé saisi"}
+                      </p>
+                      <button onClick={() => setPasSaisie(pasSaisie ? null : {
+                          taux: perso ? String(sal.taux_pas).replace(".", ",") : "",
+                          date_effet: sal.taux_pas_date_effet ? String(sal.taux_pas_date_effet).slice(0, 10) : "",
+                          identifiant_crm: sal.taux_pas_identifiant_crm || "" })}
+                        style={{ ...LIEN, color: OR }}>
+                        {pasSaisie ? "annuler" : (perso ? "modifier" : "saisir le taux personnalisé")}
+                      </button>
+                    </div>
+                    {pasSaisie && (
+                      <div style={{ marginTop: "8px" }}>
+                        <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+                          <div style={{ flex: "1 1 110px" }}>
+                            <span style={LIB}>Taux (%)</span>
+                            <input style={CHAMP} inputMode="decimal" placeholder="ex. 7,5"
+                              value={pasSaisie.taux}
+                              onChange={(ev) => setPasSaisie({ ...pasSaisie, taux: ev.target.value })} />
+                          </div>
+                          <div style={{ flex: "1 1 150px" }}>
+                            <span style={LIB}>À compter du</span>
+                            <input style={CHAMP} type="date" value={pasSaisie.date_effet}
+                              onChange={(ev) => setPasSaisie({ ...pasSaisie, date_effet: ev.target.value })} />
+                          </div>
+                          <div style={{ flex: "1 1 180px" }}>
+                            <span style={LIB}>Identifiant du compte rendu (facultatif)</span>
+                            <input style={CHAMP} value={pasSaisie.identifiant_crm}
+                              onChange={(ev) => setPasSaisie({ ...pasSaisie, identifiant_crm: ev.target.value })} />
+                          </div>
+                        </div>
+                        <p style={{ margin: "6px 0 0", fontSize: "11.5px", lineHeight: "1.6",
+                          color: "rgba(255,255,255,0.42)" }}>
+                          Le taux figure dans le compte rendu de la DSN, ou sur le tableau de
+                          bord net-entreprises. Il s&apos;applique aux prochains calculs ; un
+                          bulletin déjà émis ne change pas.
+                        </p>
+                        <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "8px" }}>
+                          <button onClick={() => enregistrerPas(false)}
+                            disabled={occupe !== "" || !String(pasSaisie.taux || "").trim()}
+                            style={{ ...BOUTON, opacity: String(pasSaisie.taux || "").trim() ? 1 : 0.4 }}>
+                            {occupe === "pas" ? "…" : "Enregistrer le taux"}
+                          </button>
+                          {perso && (
+                            <button onClick={() => enregistrerPas(true)} disabled={occupe !== ""}
+                              style={SECOND}>
+                              Revenir à la grille
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
               {/* 🆕 16/09 — CE QUI EXISTE DEJA POUR CE MOIS SE VOIT ICI,
                   avant tout clic. Un seul bulletin par mois : autant dire
                   tout de suite lequel c est. */}
@@ -1645,6 +1755,19 @@ export default function PagePaie() {
                   <span>{euros(calcul.net_a_payer)} €</span>
                 </div>
 
+                {/* 🆕 27/09 — le prelevement a la source, calcule desormais. */}
+                <div style={{ display: "flex", justifyContent: "space-between",
+                  fontSize: "12.5px", color: "rgba(255,255,255,0.5)", gap: "12px" }}>
+                  <span>Prélèvement à la source, déjà déduit du net à payer
+                    {calcul.prelevement_mention ? " — " + calcul.prelevement_mention : ""}</span>
+                  <span>{euros(calcul.prelevement_source || 0)} €</span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between",
+                  fontSize: "12.5px", color: "rgba(255,255,255,0.5)" }}>
+                  <span>Net à payer avant impôt</span>
+                  <span>{euros(calcul.net_avant_impot)} €</span>
+                </div>
+
                 <div style={{ display: "flex", justifyContent: "space-between",
                   fontSize: "12.5px", color: "rgba(255,255,255,0.5)" }}>
                   <span>Montant net social</span>
@@ -1679,6 +1802,14 @@ export default function PagePaie() {
                         ) : null}
                       </span>
                       <span>− {euros(calcul.rgdu)} €</span>
+                    </div>
+                  )}
+                  {/* 🆕 27/09 — la deduction forfaitaire sur heures supplementaires. */}
+                  {calcul.deduction_hs > 0 && (
+                    <div style={{ display: "flex", justifyContent: "space-between",
+                      padding: "3px 0", fontSize: "13px", color: VERT }}>
+                      <span>Déduction forfaitaire sur heures supplémentaires</span>
+                      <span>− {euros(calcul.deduction_hs)} €</span>
                     </div>
                   )}
                   <div style={{ display: "flex", justifyContent: "space-between",
