@@ -1211,11 +1211,31 @@ export default function PagePaie() {
                       placeholder="653a"
                       onChange={(ev) => setF({ ...f, pcs_ese: ev.target.value })} />
                   </div>
+                  {/* 🆕🚨 28/09 — LE SALAIRE MENSUEL ET LA DUREE SE SAISISSENT A
+                      L ECRAN. Jusqu ici le formulaire n offrait que le taux
+                      horaire : un CDI paye au mois (le cas le plus courant) et
+                      un temps partiel ne se creaient que par SQL. Trouve en
+                      preparant l essai du mandat social sur une fiche neuve.
+                      ⚠️ L UN OU L AUTRE : un salaire mensuel l emporte sur le
+                      taux horaire dans le moteur. */}
                   <div style={{ flex: "1 1 140px" }}>
-                    <span style={LIB}>Taux horaire</span>
+                    <span style={LIB}>Salaire mensuel brut</span>
+                    <input value={f.salaire_mensuel || ""} style={CHAMP} placeholder="ex. 2 400"
+                      onChange={(ev) => setF({ ...f, salaire_mensuel: ev.target.value })} />
+                  </div>
+                  <div style={{ flex: "1 1 140px" }}>
+                    <span style={LIB}>ou taux horaire</span>
                     <input value={f.salaire_horaire || ""} style={CHAMP}
                       onChange={(ev) => setF({ ...f, salaire_horaire: ev.target.value })} />
                   </div>
+                  {f.type_contrat !== "mandat_social" && (
+                    <div style={{ flex: "1 1 120px" }}>
+                      <span style={LIB}>Heures par semaine</span>
+                      <input value={f.duree_hebdo === undefined || f.duree_hebdo === null ? "" : f.duree_hebdo}
+                        style={CHAMP} placeholder="35"
+                        onChange={(ev) => setF({ ...f, duree_hebdo: ev.target.value })} />
+                    </div>
+                  )}
                   <div style={{ flex: "1 1 140px" }}>
                     <span style={LIB}>Catégorie</span>
                     <select value={f.categorie} style={CHAMP}
