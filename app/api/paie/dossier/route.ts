@@ -404,6 +404,179 @@ export async function POST(req: NextRequest) {
     }
 
     // ═══════════════════════════════════════════════════════════════════
+    // 🆕🚨 28/09 — LES MOTIFS DE RUPTURE, POUR L ECRAN
+    // Lus dans `dsn_codes` (rubrique 62.002 de la DSN, codes en vigueur et
+    // verifies) : aucune valeur de referentiel n est ecrite en dur ici.
+    // ═══════════════════════════════════════════════════════════════════
+    if (action === "motifs_rupture") {
+      const { data, error } = await supabase
+        .from("dsn_codes")
+        .select("code, libelle")
+        .ilike("rubrique", "%62.002%")
+        .is("date_fin", null)
+        .eq("verifie", true)
+        .order("code", { ascending: true });
+      if (error) return NextResponse.json({ erreur: error.message }, { status: 500 });
+      const vus: any = {};
+      const motifs = (data || [])
+        .filter(function (m: any) { if (vus[String(m.code)]) return false; vus[String(m.code)] = true; return true; })
+        .map(function (m: any) { return { code: String(m.code), libelle: String(m.libelle || "") }; });
+      return NextResponse.json({ success: true, motifs: motifs });
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // 🆕🚨 28/09 — MODIFIER UN CONTRAT EXISTANT
+    //
+    // Jusqu au 28/09, aucun ecran ne changeait un contrat : une augmentation,
+    // un passage a temps partiel, un coefficient, un lieu de travail, une
+    // date de fin — et surtout une RUPTURE (date et motif, lus par le moteur
+    // et par la DSN) — ne passaient que par SQL. Trouve en preparant l essai
+    // du mandat social sur une fiche neuve.
+    // CE QUI SE CONTROLE : montants (virgule francaise), heures (48 au plus),
+    // forfait (235 jours au plus), code INSEE (5 caracteres, pas un code
+    // postal), dates dans le contrat, motif de rupture existant et ouvert
+    // dans la DSN, un salaire (mensuel ou horaire) sauf apprenti au bareme.
+    // ⛔ LE TYPE DE CONTRAT NE CHANGE PAS : changer de type, c est un nouveau
+    // contrat. ⚠️ Un bulletin deja emis ne change pas : seuls les calculs a
+    // venir lisent les nouvelles valeurs.
+    // ═══════════════════════════════════════════════════════════════════
+    if (action === "modifier_contrat") {
+      const contratId = propre(c.contrat_id);
+      if (!contratId) return NextResponse.json({ erreur: "contrat manquant" }, { status: 400 });
+      const { data: ct, error: eCt } = await supabase
+        .from("paie_contrats").select("*").eq("id", contratId).maybeSingle();
+      if (eCt) return NextResponse.json({ erreur: eCt.message }, { status: 500 });
+      if (!ct) return NextResponse.json({ erreur: "contrat introuvable" }, { status: 404 });
+
+      const typeCt = String((ct as any).type_contrat || "");
+      const maj: any = {};
+      const refus: string[] = [];
+      const donne = function (k: string): boolean { return Object.prototype.hasOwnProperty.call(c, k); };
+      const dateOk = function (x: string | null): boolean { return x === null || /^\d{4}-\d{2}-\d{2}$/.test(x); };
+      const debut = String((ct as any).date_debut || "").slice(0, 10);
+
+      if (donne("intitule_poste")) maj.intitule_poste = propre(c.intitule_poste) || "A preciser";
+      if (donne("pcs_ese")) maj.pcs_ese = propre(c.pcs_ese);
+      if (donne("position_conv")) maj.position_conv = propre(c.position_conv);
+      if (donne("coefficient")) maj.coefficient = propre(c.coefficient);
+      if (donne("categorie")) {
+        const cat = propre(c.categorie) || "non_cadre";
+        if (cat !== String((ct as any).categorie || "") && ["cadre", "non_cadre"].indexOf(cat) < 0) {
+          refus.push("catégorie inconnue : « " + cat + " » (cadre ou non cadre).");
+        } else maj.categorie = cat;
+      }
+      if (donne("idcc")) {
+        const t = propre(c.idcc);
+        if (t === null) maj.idcc = null;
+        else if (!/^\d{1,4}$/.test(t)) refus.push("l'IDCC est un nombre de 1 à 4 chiffres (1486 pour Syntec, 2378 pour le travail temporaire).");
+        else maj.idcc = Number(t);
+      }
+      if (donne("lieu_travail_insee")) {
+        const t = propre(c.lieu_travail_insee);
+        if (t === null) maj.lieu_travail_insee = null;
+        else if (!/^[0-9][0-9AB][0-9]{3}$/i.test(t)) refus.push("le lieu de travail est le code INSEE de la commune, 5 caractères (69382 pour Lyon 2e) — pas le code postal.");
+        else maj.lieu_travail_insee = t.toUpperCase();
+      }
+      const montant = function (k: string, libelle: string): void {
+        if (!donne(k)) return;
+        const t = propre(c[k]);
+        if (t === null) { maj[k] = null; return; }
+        const v = nombreFr(t);
+        if (v === null || v < 0) { refus.push(libelle + " : « " + t + " » n'est pas un montant."); return; }
+        maj[k] = v;
+      };
+      montant("salaire_mensuel", "Salaire mensuel");
+      montant("salaire_horaire", "Taux horaire");
+      if (donne("duree_hebdo") && typeCt !== "mandat_social") {
+        const t = propre(c.duree_hebdo);
+        const v = t === null ? 35 : nombreFr(t);
+        if (v === null || v <= 0 || v > 48) refus.push("heures par semaine : plus de 0 et 48 au plus (durée maximale légale).");
+        else maj.duree_hebdo = v;
+      }
+      if (donne("forfait_jours_annuel")) {
+        const t = propre(c.forfait_jours_annuel);
+        if (t === null) maj.forfait_jours_annuel = null;
+        else {
+          const v = Math.round(nombreFr(t) || 0);
+          if (!(v > 0) || v > 235) refus.push("forfait en jours : de 1 à 235 jours par an (218 sans accord de renonciation à des jours de repos).");
+          else maj.forfait_jours_annuel = v;
+        }
+      }
+      if (donne("date_fin")) {
+        const t = propre(c.date_fin);
+        if (!dateOk(t)) refus.push("date de fin : format AAAA-MM-JJ.");
+        else if (t && debut && t < debut) refus.push("la date de fin précède le début du contrat.");
+        else if (!t && (typeCt === "cdd" || typeCt === "mission")) refus.push("un " + (typeCt === "cdd" ? "CDD" : "contrat de mission") + " doit garder une date de fin.");
+        else maj.date_fin = t;
+      }
+
+      // ---- LA RUPTURE : date et motif, ou les deux vides pour l annuler ----
+      if (donne("rompu_le") || donne("motif_rupture_dsn")) {
+        const r = donne("rompu_le") ? propre(c.rompu_le)
+          : ((ct as any).rompu_le ? String((ct as any).rompu_le).slice(0, 10) : null);
+        const m = donne("motif_rupture_dsn") ? propre(c.motif_rupture_dsn)
+          : ((ct as any).motif_rupture_dsn ? String((ct as any).motif_rupture_dsn) : null);
+        if (!dateOk(r)) refus.push("date de rupture : format AAAA-MM-JJ.");
+        else if (r === null) { maj.rompu_le = null; maj.motif_rupture_dsn = null; }
+        else {
+          if (debut && r < debut) refus.push("la date de rupture précède le début du contrat.");
+          if (m) {
+            const { data: mt } = await supabase
+              .from("dsn_codes").select("code")
+              .ilike("rubrique", "%62.002%").is("date_fin", null).eq("verifie", true)
+              .eq("code", m).limit(1);
+            if (!mt || mt.length === 0) refus.push("motif de rupture « " + m + " » inconnu ou fermé dans la DSN.");
+          } else if (typeCt !== "mandat_social") {
+            refus.push("une rupture exige son motif : il part dans la DSN (signalement de fin de contrat).");
+          }
+          maj.rompu_le = r;
+          maj.motif_rupture_dsn = m;
+        }
+      }
+
+      // ---- UN SALAIRE, TOUJOURS (sauf apprenti paye au bareme) ----
+      const sm = donne("salaire_mensuel") ? maj.salaire_mensuel : (ct as any).salaire_mensuel;
+      const sh = donne("salaire_horaire") ? maj.salaire_horaire : (ct as any).salaire_horaire;
+      if (typeCt !== "apprentissage" && !(Number(sm) > 0) && !(Number(sh) > 0)) {
+        refus.push("il faut un salaire mensuel ou un taux horaire.");
+      }
+
+      if (refus.length > 0) {
+        return NextResponse.json({ erreur: refus.join(" ") + " Rien n'a été enregistré." }, { status: 400 });
+      }
+      if (Object.keys(maj).length === 0) {
+        return NextResponse.json({ success: true, contrat: ct, message: "Rien à changer." });
+      }
+      maj.maj_le = new Date().toISOString();
+
+      const { data: nv, error: eMaj } = await supabase
+        .from("paie_contrats")
+        .update(maj)
+        .eq("id", contratId)
+        .select("*, paie_salaries(nom, prenom, taux_pas, taux_pas_date_effet, taux_pas_identifiant_crm)")
+        .maybeSingle();
+      if (eMaj) return NextResponse.json({ erreur: eMaj.message + " — rien n'a été enregistré." }, { status: 500 });
+
+      // ⚠️ Une rupture posee APRES des bulletins deja emis : ils sont a annuler.
+      let avertissement = "";
+      if (maj.rompu_le) {
+        const moisRupture = String(maj.rompu_le).slice(0, 7) + "-01";
+        const { data: apres } = await supabase
+          .from("paie_bulletins").select("numero")
+          .eq("contrat_id", contratId).eq("statut", "emis").gt("periode", moisRupture);
+        if (apres && apres.length > 0) {
+          avertissement = " ⚠️ " + apres.length + " bulletin(s) déjà émis pour un mois postérieur à la "
+            + "rupture : à annuler par rectificatif.";
+        }
+      }
+      return NextResponse.json({
+        success: true, contrat: nv,
+        message: "Contrat enregistré. Les bulletins déjà émis ne changent pas ; les calculs à venir "
+          + "utilisent ces valeurs." + avertissement,
+      });
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
     // 🆕 27/09 — LES JOURS TRAVAILLES DANS LA SEMAINE (repartition)
     //
     // Pour un temps partiel sur moins de cinq jours (ou un samedi
