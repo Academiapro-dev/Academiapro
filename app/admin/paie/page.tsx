@@ -515,7 +515,7 @@ export default function PagePaie() {
     // simplement. ⚠️ ET IL NE TOUCHE PAS D INDEMNITE DE PRECARITE : le
     // contrat d apprentissage en est expressement exclu. Son solde se paie
     // en indemnite compensatrice A LA FIN, pas mois par mois.
-    if (c.type_contrat === "cdi" || c.type_contrat === "apprentissage") {
+    if (c.type_contrat === "cdi" || c.type_contrat === "apprentissage" || c.type_contrat === "professionnalisation") {
       chargerConges(c.id);
     }
     chargerEvenements(c.id);
@@ -1086,7 +1086,7 @@ export default function PagePaie() {
       // l ancien solde et il fallait recharger la page a la main pour voir
       // les jours arriver — on croyait le calcul rate alors qu il etait bon.
       if (choisi.type_contrat === "cdi"
-        || choisi.type_contrat === "apprentissage") chargerConges(choisi.id);
+        || choisi.type_contrat === "apprentissage" || choisi.type_contrat === "professionnalisation") chargerConges(choisi.id);
     } else setErr(d.erreur || "émission impossible");
     setOccupe("");
   }
@@ -1265,6 +1265,9 @@ export default function PagePaie() {
                           se calcule sur les heures du mois. Date de fin
                           obligatoire (celle de la convention de stage). */}
                       <option value="stage">Convention de stage (gratification)</option>
+                      {/* 🆕 28/09 — LE CONTRAT DE PROFESSIONNALISATION : salaire
+                          mensuel vide = minimum légal (âge et qualification). */}
+                      <option value="professionnalisation">Contrat de professionnalisation</option>
                     </select>
                   </div>
                   <div style={{ flex: "1 1 140px" }}>
@@ -1371,6 +1374,16 @@ export default function PagePaie() {
                     poste : il figure sur le contrat signe avec le CFA.
                     ⛔ A NE PAS CONFONDRE avec le « niveau » de la grille
                     conventionnelle, qui va avec le coefficient. */}
+                {/* 🆕 28/09 — la qualification a l entree du contrat de
+                    professionnalisation : elle releve le minimum legal. */}
+                {f.type_contrat === "professionnalisation" && (
+                  <label style={{ display: "flex", gap: "8px", alignItems: "center", marginTop: "12px", fontSize: "13px" }}>
+                    <input type="checkbox" checked={!!f.qualification_niveau4}
+                      onChange={(ev) => setF({ ...f, qualification_niveau4: ev.target.checked })} />
+                    Titulaire d'un bac professionnel (ou d'un titre de même niveau) ou plus — laisser le salaire
+                    mensuel vide pour appliquer le minimum légal
+                  </label>
+                )}
                 {f.type_contrat === "apprentissage" && (
                   <div style={{ marginTop: "14px", paddingTop: "14px",
                     borderTop: "1px solid rgba(255,255,255,0.08)" }}>
@@ -1472,6 +1485,7 @@ export default function PagePaie() {
                         : c.type_contrat === "apprentissage" ? "Apprentissage"
                         : c.type_contrat === "mandat_social" ? "Mandat social"
                         : c.type_contrat === "stage" ? "Stage"
+                        : c.type_contrat === "professionnalisation" ? "Professionnalisation"
                         : c.type_contrat.toUpperCase()}
                     </span>
                   </div>
@@ -1523,6 +1537,7 @@ export default function PagePaie() {
                   : choisi.type_contrat === "apprentissage" ? "Apprentissage"
                   : choisi.type_contrat === "mandat_social" ? "Mandat social"
                   : choisi.type_contrat === "stage" ? "Convention de stage"
+                  : choisi.type_contrat === "professionnalisation" ? "Contrat de professionnalisation"
                   : String(choisi.type_contrat || "").toUpperCase();
                 const dateFr = function (x: any): string { return String(x || "").slice(0, 10).split("-").reverse().join("/"); };
                 const morceaux: string[] = [typeLib];
@@ -2000,7 +2015,7 @@ export default function PagePaie() {
                 {" "}Il peut être recalculé autant que nécessaire. Tant qu&apos;il
                 n&apos;est pas émis, il ne compte pas dans la DSN et
                 {choisi && (choisi.type_contrat === "cdi"
-                  || choisi.type_contrat === "apprentissage")
+                  || choisi.type_contrat === "apprentissage" || choisi.type_contrat === "professionnalisation")
                   ? " aucun jour de congé n'est acquis."
                   : " il n'est pas définitif."}
                 <button onClick={() => emettre(brouillonDuMois)}
@@ -2200,7 +2215,7 @@ export default function PagePaie() {
                 au cabinet de le verifier plutot que de nous croire.
                 ═══════════════════════════════════════════════════════ */}
             {choisi && (choisi.type_contrat === "cdi"
-              || choisi.type_contrat === "apprentissage") && conges && (
+              || choisi.type_contrat === "apprentissage" || choisi.type_contrat === "professionnalisation") && conges && (
               <div style={CADRE}>
                 <h3 style={{ color: OR, fontSize: "16px", marginTop: 0 }}>
                   Congés payés
