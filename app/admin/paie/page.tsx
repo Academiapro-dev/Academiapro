@@ -302,6 +302,9 @@ export default function PagePaie() {
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
   const [occupe, setOccupe] = useState("");
+  // 🆕 28/09 — la modification du contrat, et la liste des motifs de rupture.
+  const [contratSaisie, setContratSaisie] = useState<any>(null);
+  const [motifsRupture, setMotifsRupture] = useState<any[]>([]);
   // 🆕 20/09 — la prime de vacances Syntec : une obligation d ENTREPRISE.
   const [prime, setPrime] = useState<any>(null);
   // 🆕 20/09 — les documents de fin de contrat.
@@ -410,6 +413,52 @@ export default function PagePaie() {
     setOccupe("");
   }
 
+  // ═══════════════════════════════════════════════════════════════════
+  // 🆕🚨 28/09 — MODIFIER LE CONTRAT (salaire, heures, coefficient, lieu de
+  // travail, fin prevue, rupture). Jusqu ici : SQL seulement.
+  // ═══════════════════════════════════════════════════════════════════
+  async function ouvrirContrat() {
+    if (!choisi) return;
+    if (contratSaisie) { setContratSaisie(null); return; }
+    const v = function (x: any): string { return x === null || x === undefined ? "" : String(x); };
+    setContratSaisie({
+      intitule_poste: v(choisi.intitule_poste), pcs_ese: v(choisi.pcs_ese),
+      categorie: v(choisi.categorie) || "non_cadre", idcc: v(choisi.idcc),
+      coefficient: v(choisi.coefficient), position_conv: v(choisi.position_conv),
+      lieu_travail_insee: v(choisi.lieu_travail_insee),
+      salaire_mensuel: v(choisi.salaire_mensuel).replace(".", ","),
+      salaire_horaire: v(choisi.salaire_horaire).replace(".", ","),
+      duree_hebdo: v(choisi.duree_hebdo).replace(".", ","),
+      forfait_jours_annuel: v(choisi.forfait_jours_annuel),
+      date_fin: v(choisi.date_fin).slice(0, 10),
+      rompu_le: v(choisi.rompu_le).slice(0, 10),
+      motif_rupture_dsn: v(choisi.motif_rupture_dsn),
+    });
+    if (motifsRupture.length === 0) {
+      const d = await appeler({ action: "motifs_rupture" });
+      if (d && d.success) setMotifsRupture(d.motifs || []);
+    }
+  }
+
+  async function enregistrerContrat() {
+    if (!choisi || !contratSaisie) return;
+    setErr(""); setMsg(""); setOccupe("contrat");
+    const corps: any = { action: "modifier_contrat", contrat_id: choisi.id, ...contratSaisie };
+    if (choisi.type_contrat === "mandat_social") delete corps.duree_hebdo;
+    const d = await appeler(corps);
+    if (d && d.success && d.contrat) {
+      setMsg(d.message || "Contrat enregistré.");
+      const maj = { ...choisi, ...d.contrat };
+      setChoisi(maj);
+      setContrats(contrats.map(function (x: any) { return x.id === maj.id ? maj : x; }));
+      setContratSaisie(null);
+      setCalcul(null);
+    } else {
+      setErr(lisible(d && d.erreur ? d.erreur : "enregistrement impossible"));
+    }
+    setOccupe("");
+  }
+
   async function charger(s?: string) {
     setErr(""); setOccupe("charger");
     const d = await appeler({ action: "contrats" }, s);
@@ -422,6 +471,7 @@ export default function PagePaie() {
 
   async function ouvrir(c: any) {
     setChoisi(c); setCalcul(null); setMsg(""); setErr("");
+    setContratSaisie(null);
     setConges(null); setJoursPris("");
     setJoursSaisie(null);
     setPasSaisie(null);
@@ -1425,6 +1475,123 @@ export default function PagePaie() {
                 <input type="month" value={periode.slice(0, 7)} style={CHAMP}
                   onChange={(ev) => changerPeriode(ev.target.value + "-01")} />
               </div>
+
+              {/* ═══════════════════════════════════════════════════════
+                  🆕🚨 28/09 — LE CONTRAT, MODIFIABLE A L ECRAN
+                  Augmentation, passage a temps partiel, coefficient, lieu de
+                  travail, fin prevue, rupture : tout passait par SQL. Un
+                  bulletin deja emis ne change pas.
+                  ═══════════════════════════════════════════════════════ */}
+              {(function () {
+                const typeLib = choisi.type_contrat === "mission" ? "Contrat de mission"
+                  : choisi.type_contrat === "apprentissage" ? "Apprentissage"
+                  : choisi.type_contrat === "mandat_social" ? "Mandat social"
+                  : String(choisi.type_contrat || "").toUpperCase();
+                const dateFr = function (x: any): string { return String(x || "").slice(0, 10).split("-").reverse().join("/"); };
+                const morceaux: string[] = [typeLib];
+                if (Number(choisi.salaire_mensuel) > 0) morceaux.push(euros(choisi.salaire_mensuel) + " € par mois");
+                else if (Number(choisi.salaire_horaire) > 0) morceaux.push(euros(choisi.salaire_horaire) + " € de l'heure");
+                if (choisi.forfait_jours_annuel) morceaux.push("forfait de " + choisi.forfait_jours_annuel + " jours par an");
+                else if (choisi.type_contrat !== "mandat_social") {
+                  morceaux.push(String(Number(choisi.duree_hebdo) > 0 ? Number(choisi.duree_hebdo) : 35).replace(".", ",") + " h par semaine");
+                }
+                morceaux.push(choisi.categorie === "cadre" ? "cadre" : "non cadre");
+                if (choisi.coefficient) morceaux.push("coefficient " + choisi.coefficient);
+                if (choisi.lieu_travail_insee) morceaux.push("lieu de travail " + choisi.lieu_travail_insee);
+                if (choisi.date_fin) morceaux.push("fin prévue le " + dateFr(choisi.date_fin));
+                if (choisi.rompu_le) {
+                  morceaux.push((choisi.type_contrat === "mandat_social" ? "fin du mandat le " : "rupture le ")
+                    + dateFr(choisi.rompu_le) + (choisi.motif_rupture_dsn ? " (motif " + choisi.motif_rupture_dsn + ")" : ""));
+                }
+                const cs = contratSaisie;
+                const champ = function (cle: string, libelle: string, largeur: string, attrs?: any) {
+                  return (
+                    <div style={{ flex: "1 1 " + largeur }}>
+                      <span style={LIB}>{libelle}</span>
+                      <input value={cs[cle] || ""} style={CHAMP} {...(attrs || {})}
+                        onChange={(ev) => setContratSaisie({ ...cs, [cle]: ev.target.value })} />
+                    </div>
+                  );
+                };
+                return (
+                  <div style={{ marginTop: "14px" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between",
+                      alignItems: "baseline", flexWrap: "wrap", gap: "8px" }}>
+                      <p style={{ margin: 0, fontSize: "12.5px", lineHeight: "1.6",
+                        color: "rgba(255,255,255,0.55)" }}>
+                        Contrat : {morceaux.join(" · ")}
+                      </p>
+                      <button onClick={ouvrirContrat} style={{ ...LIEN, color: OR }}>
+                        {cs ? "annuler" : "modifier le contrat"}
+                      </button>
+                    </div>
+                    {cs && (
+                      <div style={{ marginTop: "10px", padding: "12px",
+                        border: "1px solid rgba(255,255,255,0.1)", borderRadius: "8px" }}>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: "10px" }}>
+                          {champ("intitule_poste", "Poste", "200px")}
+                          {champ("pcs_ese", "Code PCS-ESE", "120px")}
+                          <div style={{ flex: "1 1 140px" }}>
+                            <span style={LIB}>Catégorie</span>
+                            <select value={cs.categorie} style={CHAMP}
+                              onChange={(ev) => setContratSaisie({ ...cs, categorie: ev.target.value })}>
+                              <option value="non_cadre">Non cadre</option>
+                              <option value="cadre">Cadre</option>
+                            </select>
+                          </div>
+                          {champ("idcc", "IDCC", "100px")}
+                          {champ("coefficient", "Coefficient", "100px")}
+                          {champ("position_conv", "Position", "100px")}
+                          {champ("lieu_travail_insee", "Lieu de travail (code INSEE)", "170px", { placeholder: "ex. 69382" })}
+                          {champ("salaire_mensuel", "Salaire mensuel brut", "140px")}
+                          {champ("salaire_horaire", "ou taux horaire", "120px")}
+                          {choisi.type_contrat !== "mandat_social"
+                            && champ("duree_hebdo", "Heures par semaine", "120px", { placeholder: "35" })}
+                          {cs.categorie === "cadre" && choisi.type_contrat !== "mandat_social"
+                            && champ("forfait_jours_annuel", "Forfait (jours par an)", "150px", { placeholder: "vide si à l'horaire" })}
+                          <div style={{ flex: "1 1 150px" }}>
+                            <span style={LIB}>Fin prévue</span>
+                            <input type="date" value={cs.date_fin || ""} style={CHAMP}
+                              onChange={(ev) => setContratSaisie({ ...cs, date_fin: ev.target.value })} />
+                          </div>
+                        </div>
+                        <p style={{ margin: "14px 0 6px", fontSize: "12.5px", color: OR }}>
+                          {choisi.type_contrat === "mandat_social" ? "Fin du mandat" : "Rupture du contrat"}
+                        </p>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: "10px" }}>
+                          <div style={{ flex: "1 1 170px" }}>
+                            <span style={LIB}>{choisi.type_contrat === "mandat_social"
+                              ? "Fin du mandat le" : "Date de rupture (dernier jour du contrat)"}</span>
+                            <input type="date" value={cs.rompu_le || ""} style={CHAMP}
+                              onChange={(ev) => setContratSaisie({ ...cs, rompu_le: ev.target.value })} />
+                          </div>
+                          {choisi.type_contrat !== "mandat_social" && (
+                            <div style={{ flex: "2 1 260px" }}>
+                              <span style={LIB}>Motif (il part dans la DSN)</span>
+                              <select value={cs.motif_rupture_dsn || ""} style={CHAMP}
+                                onChange={(ev) => setContratSaisie({ ...cs, motif_rupture_dsn: ev.target.value })}>
+                                <option value="">— choisir —</option>
+                                {motifsRupture.map(function (m: any) {
+                                  return <option key={m.code} value={m.code}>{m.code} — {m.libelle}</option>;
+                                })}
+                              </select>
+                            </div>
+                          )}
+                        </div>
+                        <p style={{ margin: "10px 0 0", fontSize: "11.5px", lineHeight: "1.6",
+                          color: "rgba(255,255,255,0.42)" }}>
+                          Les bulletins déjà émis ne changent pas : les calculs à venir utilisent
+                          ces valeurs. Pour annuler une rupture, vider sa date et enregistrer.
+                        </p>
+                        <button onClick={enregistrerContrat} disabled={occupe !== ""}
+                          style={{ ...BOUTON, marginTop: "10px" }}>
+                          {occupe === "contrat" ? "…" : "Enregistrer le contrat"}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
 
               {/* ═══════════════════════════════════════════════════════
                   🆕 27/09 — LES JOURS TRAVAILLES DANS LA SEMAINE
