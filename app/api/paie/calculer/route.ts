@@ -350,10 +350,37 @@ type RegleMaintien = {
   origine: string;
 };
 
+// ═══════════════════════════════════════════════════════════════════════
+// 🆕 27/09 — LES JOURS TRAVAILLES DANS LA SEMAINE
+//
+// Colonne `paie_contrats.jours_travailles` : les jours de la semaine, en
+// chiffres separes par des virgules, a la maniere de getUTCDay (0 = dimanche,
+// 1 = lundi … 6 = samedi). Vide = du lundi au vendredi, comme avant.
+// POURQUOI : la retenue d une absence se fait aux heures reelles (salaire du
+// mois × heures d absence / heures du mois). Un salarie a 24 h sur trois
+// jours travaille 8 h ces jours-la et 0 h les autres : supposer cinq jours
+// retenait trop peu un jour travaille et quelque chose un jour non travaille.
+// ═══════════════════════════════════════════════════════════════════════
+const NOMS_JOURS = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
+
+function joursTravailContrat(contrat: any): number[] {
+  const brut = String((contrat && contrat.jours_travailles) || "").trim();
+  if (!brut) return [1, 2, 3, 4, 5];
+  const vus: number[] = [];
+  for (const morceau of brut.split(/[^0-9]+/)) {
+    if (!morceau) continue;
+    const n = Number(morceau);
+    if (n >= 0 && n <= 6 && vus.indexOf(n) < 0) vus.push(n);
+  }
+  vus.sort(function (a, b) { return a - b; });
+  return vus.length > 0 ? vus : [1, 2, 3, 4, 5];
+}
+
 function maintienSalaire(p: {
   debutArret: string; d1: string; d2: string;
   retenue: number; joursAbs: number; ancienneteMois: number;
   regle: RegleMaintien; ijJour: number; ijssCarence: number;
+  joursTravail?: number[];
 }) {
   const res = { droit: false, raison: "", maintien: 0, ijss: 0,
     joursIjss: 0, jours1: 0, jours2: 0 };
@@ -381,7 +408,8 @@ function maintienSalaire(p: {
     else if (r >= p.regle.jours1 && r < p.regle.jours1 + p.regle.jours2) taux = p.regle.taux2;
 
     const jour = d.getUTCDay();
-    if (taux > 0 && jour >= 1 && jour <= 5) {
+    // 🆕 27/09 — les jours TRAVAILLES du contrat, pas forcement lundi-vendredi.
+    if (taux > 0 && (p.joursTravail || [1, 2, 3, 4, 5]).indexOf(jour) >= 0) {
       maintien += parJour * taux / 100;
       if (taux === p.regle.taux1) res.jours1 += 1; else res.jours2 += 1;
     }
@@ -679,6 +707,9 @@ async function calculer(contratId: string, periode: string,
       ? Math.min(1, dureeContratMois / Number(dureeMensuelle))
       : 1);
   const tempsPartiel = proportionTemps < 0.999;
+  // 🆕 27/09 — les jours travailles du contrat (voir joursTravailContrat).
+  const joursTravail = joursTravailContrat(contrat);
+  const repartitionParDefaut = !String((contrat as any).jours_travailles || "").trim();
 
   // ═══════════════════════════════════════════════════════════════════
   // 🆕🚨 22/09 — L APPRENTI : SON MINIMUM LEGAL ET SON SEUIL D EXONERATION
@@ -1313,9 +1344,10 @@ async function calculer(contratId: string, periode: string,
   // (Cass. soc., 11 fevrier 1982) : le trentieme ou les jours ouvres
   // moyens retiennent trop certains mois et pas assez d autres.
   //
-  // ⚠️ L HORAIRE EST SUPPOSE REPARTI DU LUNDI AU VENDREDI, a parts egales.
-  // Un temps partiel sur trois jours ou un travail du samedi demanderait un
-  // planning que le contrat ne porte pas : la reserve le dit.
+  // ⚠️ L HORAIRE EST REPARTI A PARTS EGALES SUR LES JOURS TRAVAILLES DU
+  // CONTRAT (🆕 27/09, colonne `jours_travailles`), du lundi au vendredi a
+  // defaut. Un samedi travaille ou un temps partiel sur trois jours se
+  // renseigne sur la fiche du contrat.
   // ⚠️ UN JOUR FERIE CHOME COMPTE COMME UN JOUR DU MOIS : il est paye comme
   // s il avait ete travaille.
   //
@@ -1352,14 +1384,16 @@ async function calculer(contratId: string, periode: string,
         + eArr.message + ") : AUCUNE ABSENCE n'est retenue sur ce bulletin.");
     }
 
-    // Les jours du lundi au vendredi entre deux dates ISO, bornes comprises.
+    // Les jours TRAVAILLES entre deux dates ISO, bornes comprises.
+    // 🆕 27/09 — ceux du contrat (`jours_travailles`), a defaut du lundi au
+    // vendredi.
     const joursOuvres = function (deb: string, fin: string): number {
       let n = 0;
       const d = new Date(deb + "T00:00:00Z");
       const f = new Date(fin + "T00:00:00Z");
       while (d.getTime() <= f.getTime()) {
         const j = d.getUTCDay();
-        if (j >= 1 && j <= 5) n += 1;
+        if (joursTravail.indexOf(j) >= 0) n += 1;
         d.setUTCDate(d.getUTCDate() + 1);
       }
       return n;
@@ -1386,10 +1420,11 @@ async function calculer(contratId: string, periode: string,
       baseMois = Number(appr.minimum_legal);
     }
 
-    // ⚠️ REPARTITION SUPPOSEE EGALE SUR CINQ JOURS. Un temps partiel
-    // reparti sur trois jours demanderait un planning que le contrat ne
-    // porte pas : la reserve le dit.
-    const heuresJour = (dureeHebdo > 0 ? dureeHebdo : 35) / 5;
+    // 🆕 27/09 — L HORAIRE EST REPARTI A PARTS EGALES SUR LES JOURS
+    // TRAVAILLES DU CONTRAT (cinq par defaut). Des heures inegales d un jour
+    // a l autre ne sont pas gerees : cas rare, la reserve du temps partiel
+    // le dit.
+    const heuresJour = (dureeHebdo > 0 ? dureeHebdo : 35) / joursTravail.length;
     const joursDuMois = joursOuvres(premierIso, dernierIso);
 
     // 🆕 25/09 — calcul « comme s il avait travaille » : aucun arret.
@@ -1466,7 +1501,10 @@ async function calculer(contratId: string, periode: string,
       notesArret.push("Arrêt de travail du " + jjmm(d1) + " au " + jjmm(d2)
         + " : " + heuresAbs.toLocaleString("fr-FR") + " h retenues sur "
         + heuresMois.toLocaleString("fr-FR") + " h (méthode des heures "
-        + "réelles, horaire supposé réparti du lundi au vendredi).");
+        + "réelles, horaire " + (repartitionParDefaut
+          ? "supposé réparti du lundi au vendredi"
+          : "réparti sur : " + joursTravail.map(function (j) { return NOMS_JOURS[j]; }).join(", "))
+        + ").");
     }
     retenueArrets = cts(retenueArrets);
   }
@@ -1664,6 +1702,7 @@ async function calculer(contratId: string, periode: string,
         retenue: Number(ab.retenue), joursAbs: Number(ab.jours),
         ancienneteMois: anc, regle: regle, ijJour: ijJour,
         ijssCarence: ijssCarenceP === null ? 3 : ijssCarenceP,
+        joursTravail: joursTravail,
       });
 
       if (!m.droit) {
@@ -2881,9 +2920,18 @@ async function calculer(contratId: string, periode: string,
           + " h par mois (" + Math.round(proportionTemps * 1000) / 10
           + " % d'un temps plein). Le SMIC de référence de la réduction "
           + "générale et le plafond de Sécurité sociale sont proratisés "
-          + "d'autant. ⚠️ L'horaire est supposé réparti également sur cinq "
-          + "jours : une répartition sur trois jours fausserait les retenues "
-          + "d'absence.");
+          + "d'autant. "
+          + (repartitionParDefaut
+            ? "⚠️ Les jours travaillés ne sont pas renseignés sur le contrat : "
+              + "l'horaire est supposé réparti du lundi au vendredi. Si le "
+              + "salarié travaille moins de cinq jours, les renseigner sur sa "
+              + "fiche (« Jours travaillés dans la semaine »), sinon les "
+              + "retenues d'absence seront fausses."
+            : "Horaire réparti sur : "
+              + joursTravail.map(function (j) { return NOMS_JOURS[j]; }).join(", ")
+              + " (" + (Math.round(dureeHebdo / joursTravail.length * 100) / 100)
+                .toLocaleString("fr-FR") + " h par jour). Des heures différentes "
+              + "d'un jour à l'autre ne sont pas gérées."));
       }
       if (ratioAbsence < 1) {
         r.unshift("Réduction générale : le SMIC du mois est corrigé de "
