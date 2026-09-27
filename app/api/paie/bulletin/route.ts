@@ -417,8 +417,18 @@ export async function POST(req: NextRequest) {
   droite("Montant", 555, 8, gras, GRIS);
   y -= 13;
 
+  // 🆕 27/09 soir — LES LIGNES HORS BRUT (acompte, retenue des titres-
+  // restaurant, avantage deduit du net, indemnites non soumises, IJ
+  // reversees) ne s ecrivent plus ici : au-dessus du SALAIRE BRUT, elles
+  // faisaient une addition fausse a la lecture. Elles viennent apres les
+  // cotisations (voir plus bas).
   for (const l of (calcul.lignes_brut || [])) {
-    ecrire(couper(l.libelle, police, 8.5, 250), 40, 8.5, police, NOIR);
+    if (l.hors_brut) continue;
+    // 🆕 27/09 soir — sans base ni taux, le libelle prend la place des deux
+    // colonnes : « Indemnité spécifique de rupture conventionnelle (part
+    // soumise à cotisations) » sortait coupe.
+    const larg = (l.quantite === null || l.quantite === undefined) && (l.taux === null || l.taux === undefined) ? 400 : 250;
+    ecrire(couper(l.libelle, police, 8.5, larg), 40, 8.5, police, NOIR);
     if (l.quantite !== null && l.quantite !== undefined) droite(euros(l.quantite), 340, 8.5, police, NOIR);
     if (l.taux !== null && l.taux !== undefined) droite(taux(l.taux), 420, 8.5, police, NOIR);
     droite(euros(l.montant), 555, 8.5, police, NOIR);
@@ -492,8 +502,12 @@ export async function POST(req: NextRequest) {
     }
 
     droite(euros(c.base), 285, 8, police, NOIR);
-    droite(c.taux_salarial > 0 ? euros(c.taux_salarial) + " %" : "", 345, 8, police, NOIR);
-    droite(c.part_salariale > 0 ? euros(c.part_salariale) : "", 420, 8, police, NOIR);
+    // 🆕 27/09 soir — UNE PART NEGATIVE S ECRIT AUSSI : la reduction de
+    // cotisations salariales sur heures supplementaires (−17,90 €) etait
+    // invisible, et le total des cotisations ne se retrouvait plus en
+    // additionnant les lignes.
+    droite(Number(c.taux_salarial || 0) !== 0 ? euros(c.taux_salarial) + " %" : "", 345, 8, police, NOIR);
+    droite(Number(c.part_salariale || 0) !== 0 ? euros(c.part_salariale) : "", 420, 8, police, NOIR);
     droite(c.taux_patronal > 0 ? euros(c.taux_patronal) + " %" : "", 480, 8, police, NOIR);
     droite(c.part_patronale > 0 ? euros(c.part_patronale)
       : (c.alerte ? "0,00" : ""), 555, 8, police, c.alerte ? ROUGE : NOIR);
@@ -546,6 +560,15 @@ export async function POST(req: NextRequest) {
     }
     droite("- " + euros(calcul.rgdu), 555, 8, police, NOIR);
     y -= 11;
+  }
+  // 🆕 27/09 soir — LA DEDUCTION FORFAITAIRE SUR HEURES SUPPLEMENTAIRES : le
+  // total patronal apres reduction la retirait deja, sans ligne pour le dire.
+  if (calcul.deduction_hs && calcul.deduction_hs > 0) {
+    ecrire("Déduction forfaitaire sur heures supplémentaires (part employeur)", 40, 8, police, NOIR);
+    droite("- " + euros(calcul.deduction_hs), 555, 8, police, NOIR);
+    y -= 11;
+  }
+  if ((calcul.rgdu && calcul.rgdu > 0) || (calcul.deduction_hs && calcul.deduction_hs > 0)) {
     ecrire("Total patronal après réduction", 40, 8.5, gras, NOIR);
     droite(euros(calcul.total_patronal_apres_rgdu), 555, 8.5, gras, NOIR);
     y -= 12;
@@ -553,6 +576,40 @@ export async function POST(req: NextRequest) {
   y -= 6;
   ligne();
   y -= 15;
+
+  // ═══════════════════════════════════════════════════════════════════
+  // 🆕 27/09 soir — LES SOMMES HORS BRUT, APRES LES COTISATIONS
+  //
+  // Salaire brut − cotisations salariales + ces lignes = net à payer avant
+  // impôt : le bulletin se refait ligne à ligne.
+  // ═══════════════════════════════════════════════════════════════════
+  const horsBrut = (calcul.lignes_brut || []).filter(function (l: any) { return !!l.hors_brut; });
+  if (horsBrut.length > 0) {
+    if (y < 160) {
+      page = pdf.addPage([595, 842]);
+      y = 800;
+    }
+    ecrire("ÉLÉMENTS NON SOUMIS ET RETENUES SUR LE NET", 40, 8, gras, GRIS);
+    droite("Base", 340, 8, gras, GRIS);
+    droite("Taux", 420, 8, gras, GRIS);
+    droite("Montant", 555, 8, gras, GRIS);
+    y -= 13;
+    for (const l of horsBrut) {
+      if (y < 120) {
+        page = pdf.addPage([595, 842]);
+        y = 800;
+      }
+      const largH = (l.quantite === null || l.quantite === undefined) && (l.taux === null || l.taux === undefined) ? 400 : 250;
+      ecrire(couper(l.libelle, police, 8.5, largH), 40, 8.5, police, NOIR);
+      if (l.quantite !== null && l.quantite !== undefined) droite(euros(l.quantite), 340, 8.5, police, NOIR);
+      if (l.taux !== null && l.taux !== undefined) droite(taux(l.taux), 420, 8.5, police, NOIR);
+      droite(euros(l.montant), 555, 8.5, police, NOIR);
+      y -= 11;
+    }
+    y -= 4;
+    ligne();
+    y -= 15;
+  }
 
   // ---- LES TOTAUX ----
   // 🚨 MENTION OBLIGATOIRE DEPUIS 2023. Le montant net social sert de
@@ -584,6 +641,13 @@ export async function POST(req: NextRequest) {
   y -= 16;
   ecrire("Coût total employeur", 40, 8, police, GRIS);
   droite(euros(calcul.cout_employeur), 555, 8, police, GRIS);
+  // 🆕 27/09 soir — le cout total compte les sommes non soumises que
+  // l employeur verse (indemnite de rupture exclue des cotisations, panier…).
+  if (calcul.non_soumis_employeur && calcul.non_soumis_employeur > 0) {
+    y -= 10;
+    ecrire("dont indemnités et frais non soumis versés", 48, 7, police, GRIS);
+    droite(euros(calcul.non_soumis_employeur), 555, 7, police, GRIS);
+  }
   y -= 20;
   ligne();
   y -= 12;
