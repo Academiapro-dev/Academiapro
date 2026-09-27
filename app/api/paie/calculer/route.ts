@@ -1036,6 +1036,12 @@ async function calculer(contratId: string, periode: string,
   let hsHeures = 0;
   let acomptes = 0;
   let indemniteRupture = 0;
+  // 🆕 27/09 soir — LES SOMMES NON SOUMISES QUE L EMPLOYEUR DEBOURSE (panier,
+  // transport, part non soumise d une indemnite de rupture). Elles ne sont ni
+  // du brut ni des cotisations, mais elles font partie du cout de
+  // l entreprise : le cout total employeur les compte (essai 7 du 27/09 —
+  // une indemnite de 500 € n y figurait pas).
+  let nonSoumisEmployeur = 0;
 
   for (const e of (elements || [])) {
     const t = String(e.type_element || "");
@@ -1089,7 +1095,7 @@ async function calculer(contratId: string, periode: string,
       // l argent. Sans cette ligne, il serait paye deux fois.
       lignesBrut.push({
         libelle: "Avantage en nature nourriture, déduit du net",
-        quantite: null, taux: null, montant: -montantAv,
+        quantite: null, taux: null, montant: -montantAv, hors_brut: true,
       });
       nonSoumis -= montantAv;
 
@@ -1197,7 +1203,7 @@ async function calculer(contratId: string, periode: string,
       // l argent — meme mecanique que les repas.
       lignesBrut.push({
         libelle: "Avantage en nature logement, déduit du net",
-        quantite: null, taux: null, montant: -montantLog,
+        quantite: null, taux: null, montant: -montantLog, hors_brut: true,
       });
       nonSoumis -= montantLog;
 
@@ -1283,7 +1289,7 @@ async function calculer(contratId: string, periode: string,
           libelle: "Titres-restaurant, part salariale (" + nbTitres
             + " titres)",
           quantite: nbTitres, taux: cts(valeurFaciale - partPatronale),
-          montant: -partSalariale,
+          montant: -partSalariale, hors_brut: true,
         });
         nonSoumis -= partSalariale;
       }
@@ -1307,7 +1313,7 @@ async function calculer(contratId: string, periode: string,
         lignesBrut.push({
           libelle: "Acompte déjà versé" + (e.libelle && String(e.libelle) !== "Element"
             && String(e.libelle).toLowerCase().indexOf("acompte") < 0 ? " (" + e.libelle + ")" : ""),
-          quantite: null, taux: null, montant: -a,
+          quantite: null, taux: null, montant: -a, hors_brut: true,
         });
         nonSoumis -= a;
         acomptes += a;
@@ -1324,15 +1330,22 @@ async function calculer(contratId: string, periode: string,
       hsBrut += m;
       hsHeures += Number(e.quantite || 0);
     }
+    // 🆕 27/09 soir — `hors_brut` : la ligne s affiche SOUS les cotisations,
+    // pas au-dessus du « Salaire brut » ou elle n entre pas (essai 5 du
+    // 27/09 : l acompte sous le brut faisait lire 2 400 − 300 = 2 400).
     lignesBrut.push({
       libelle: e.libelle,
       quantite: e.quantite ? Number(e.quantite) : null,
       taux: e.taux ? Number(e.taux) : null,
       montant: m,
+      hors_brut: e.soumis_cotisations === false,
     });
     // 🚨 UN ELEMENT NON SOUMIS N ENTRE PAS DANS LE BRUT COTISE, mais il
     // entre dans le net a payer. Confondre les deux donne un redressement.
-    if (e.soumis_cotisations === false) nonSoumis += m;
+    if (e.soumis_cotisations === false) {
+      nonSoumis += m;
+      if (m > 0) nonSoumisEmployeur += m;
+    }
     else brutSoumis += m;
   }
 
@@ -1609,6 +1622,10 @@ async function calculer(contratId: string, periode: string,
         debut: d1, fin: d2, jours: joursAbs, heures: heuresAbs,
         heures_du_mois: heuresMois, retenue: retenue,
         debut_arret: debA, subrogation: (a as any).subrogation === true,
+        // 🆕 27/09 soir — la periode de subrogation, pour reverser les IJ
+        // percues par l employeur meme sans maintien de salaire.
+        subro_debut: String((a as any).subro_debut || "").slice(0, 10),
+        subro_fin: String((a as any).subro_fin || "").slice(0, 10),
       });
 
       notesArret.push("Arrêt de travail du " + jjmm(d1) + " au " + jjmm(d2)
@@ -1645,6 +1662,10 @@ async function calculer(contratId: string, periode: string,
   //     caisse : l ecart se regularise sur le bulletin suivant.
   // ═══════════════════════════════════════════════════════════════════
   const maintiens: any[] = [];
+  // 🆕 27/09 soir — les IJ reversees en subrogation SANS maintien (voir plus
+  // bas). Hors de `maintiens` : elles ne touchent ni le rapport d absence de
+  // la reduction generale ni le plafonnement au net.
+  const ijSansMaintien: any[] = [];
   // 🆕 25/09 — ce qui reste a retirer du maintien pour le plafonner au net.
   let resteReduction = Math.max(0, Number((opts && opts.reductionMaintien) || 0));
   // 🆕 25/09 — LA PART IMPOSABLE DES IJSS VERSEES PAR SUBROGATION, qui entre
@@ -1686,7 +1707,11 @@ async function calculer(contratId: string, periode: string,
           + motifAb.replace(/_/g, " ") + " ») : seule la maladie ordinaire "
           + "est traitée. Accident du travail, maladie professionnelle, "
           + "maternité et paternité obéissent à d'autres règles — le "
-          + "complément de l'employeur MANQUE sur ce bulletin s'il est dû.");
+          + "complément de l'employeur MANQUE sur ce bulletin s'il est dû."
+          + (ab.subrogation ? " 🚨 L'arrêt est en SUBROGATION : les indemnités "
+            + "journalières que la caisse verse à l'employeur doivent être "
+            + "reversées au salarié — elles ne sont PAS calculées pour ce motif, "
+            + "les ajouter à la main (élément non soumis)." : ""));
         continue;
       }
 
@@ -1818,18 +1843,87 @@ async function calculer(contratId: string, periode: string,
         joursTravail: joursTravail,
       });
 
+      // ═══════════════════════════════════════════════════════════════
+      // 🆕🚨 27/09 soir — LA SUBROGATION SANS MAINTIEN DE SALAIRE
+      //
+      // Trouve a l essai 2 du 27/09 (Thomas, 0 mois d anciennete, arret en
+      // subrogation) : faute de maintien, le bulletin ne reversait RIEN. Or
+      // la subrogation declaree fait verser les indemnites journalieres A
+      // L EMPLOYEUR : le salarie ne les voyait jamais.
+      // LA REGLE : la subrogation suppose que l employeur verse au moins les
+      // indemnites qu il percoit a la place du salarie (article R323-11 du
+      // code de la securite sociale). Sans maintien, il les reverse donc
+      // telles quelles : jours calendaires indemnises du mois (apres la
+      // carence de la caisse), dans la periode de subrogation, nets de CSG
+      // et de CRDS (6,70 %) ; leur part imposable (96,2 % du brut) entre
+      // dans le net imposable, comme avec un maintien.
+      // ⚠️ Estimees, comme toutes les IJ du moteur : le decompte de la caisse
+      // fait foi, l ecart se regularise le mois suivant.
+      // ═══════════════════════════════════════════════════════════════
+      const reverserSansMaintien = function (motifNote: string) {
+        const carenceCaisse = ijssCarenceP === null ? 3 : Number(ijssCarenceP);
+        const t0 = Date.parse(ab.debut_arret + "T00:00:00Z");
+        const dj = new Date(ab.debut + "T00:00:00Z");
+        const fj = Date.parse(ab.fin + "T00:00:00Z");
+        let joursIj = 0;
+        while (dj.getTime() <= fj) {
+          const iso = dj.toISOString().slice(0, 10);
+          const rang = Math.round((dj.getTime() - t0) / 86400000);
+          if (rang >= carenceCaisse
+              && (!ab.subro_debut || iso >= ab.subro_debut)
+              && (!ab.subro_fin || iso <= ab.subro_fin)) joursIj += 1;
+          dj.setUTCDate(dj.getUTCDate() + 1);
+        }
+        const brutes = cts(joursIj * ijJour);
+        if (brutes <= 0) {
+          notesArret.push(motifNote + " Subrogation : aucun jour du mois n'ouvre "
+            + "droit aux indemnités journalières (carence de la caisse de "
+            + carenceCaisse + " jours), rien n'est reversé.");
+          return;
+        }
+        const nettes = cts(brutes * (1 - 0.067));
+        const imposables = cts(brutes * 0.962);
+        lignesBrut.push({
+          libelle: "Indemnités journalières reversées (subrogation, sans maintien de "
+            + "salaire), nettes de CSG et de CRDS (" + joursIj + " j × "
+            + ijJour.toLocaleString("fr-FR", { minimumFractionDigits: 2 }) + " €, estimées)",
+          quantite: joursIj, taux: ijJour, montant: nettes, hors_brut: true,
+        });
+        nonSoumis += nettes;
+        ijssImposables += imposables;
+        ijSansMaintien.push({
+          evenement_id: ab.evenement_id, jours: joursIj, ij_jour: ijJour,
+          ijss_brutes: brutes, ijss_nettes_reversees: nettes, ijss_imposables: imposables,
+        });
+        notesArret.push(motifNote + " 🚨 L'arrêt est en SUBROGATION : la caisse verse "
+          + "les indemnités journalières à l'employeur, qui les reverse ici ("
+          + joursIj + " jour(s) × " + ijJour.toLocaleString("fr-FR", { minimumFractionDigits: 2 })
+          + " €, soit " + nettes.toLocaleString("fr-FR", { minimumFractionDigits: 2 })
+          + " € nets de CSG et de CRDS ; " + imposables.toLocaleString("fr-FR",
+            { minimumFractionDigits: 2 }) + " € ajoutés au net imposable). ⚠️ Montant "
+          + "ESTIMÉ" + (estimeContrat ? " sur le salaire du contrat" : " sur les trois derniers "
+            + "bulletins") + " : le décompte de la caisse fait foi. ⚠️ La subrogation "
+          + "suppose un maintien au moins égal aux indemnités (article R323-11 du code "
+          + "de la sécurité sociale) : si l'employeur ne maintient rien, vérifier "
+          + "qu'elle devait bien être déclarée.");
+      };
+
       if (!m.droit) {
-        notesArret.push("Pas de maintien de salaire pour l'arrêt du "
+        const note = "Pas de maintien de salaire pour l'arrêt du "
           + ab.debut.slice(8, 10) + "/" + ab.debut.slice(5, 7) + " : "
-          + (m.raison || "aucun jour couvert") + ". Le salarié perçoit les "
-          + "seules indemnités journalières de la Sécurité sociale.");
+          + (m.raison || "aucun jour couvert") + ".";
+        if (ab.subrogation) reverserSansMaintien(note);
+        else notesArret.push(note + " Le salarié perçoit les seules indemnités "
+          + "journalières de la Sécurité sociale.");
         continue;
       }
       if (m.maintien <= 0) {
-        notesArret.push("Maintien de salaire ouvert pour l'arrêt du "
+        const note = "Maintien de salaire ouvert pour l'arrêt du "
           + ab.debut.slice(8, 10) + "/" + ab.debut.slice(5, 7) + ", mais aucun "
           + "jour du mois n'est couvert (carence de " + regle.carenceJours
-          + " jours, ou durée épuisée).");
+          + " jours, ou durée épuisée).";
+        if (ab.subrogation) reverserSansMaintien(note);
+        else notesArret.push(note);
         continue;
       }
 
@@ -1886,7 +1980,7 @@ async function calculer(contratId: string, periode: string,
         lignesBrut.push({
           libelle: "Indemnités journalières reversées (subrogation), nettes "
             + "de CSG et de CRDS",
-          quantite: null, taux: null, montant: ijssNettes,
+          quantite: null, taux: null, montant: ijssNettes, hors_brut: true,
         });
         nonSoumis += ijssNettes;
         ijssImposablesArret = cts(m.ijss * 0.962);
@@ -2145,39 +2239,89 @@ async function calculer(contratId: string, periode: string,
     }
   }
 
-  const brutTotal = cts(brutSoumis + ifm + iccp);
+  // 🆕 27/09 soir — `let` : la part d une indemnite de rupture soumise a
+  // cotisations s y ajoute plus bas.
+  let brutTotal = cts(brutSoumis + ifm + iccp);
 
   // ═══════════════════════════════════════════════════════════════════
   // 🆕🚨 27/09 — 2. L INDEMNITE DE LICENCIEMENT OU DE RUPTURE
   // CONVENTIONNELLE (element « indemnite_rupture », montant saisi)
+  // 🆕🚨 27/09 soir — REECRIT APRES L ESSAI 7, qui a trouve trois defauts :
+  // minimum legal de 383,53 € au lieu de 450 €, part imposable non cotisee,
+  // contribution patronale de 200 € au lieu de 180 €.
   //
-  //   · LE MINIMUM LEGAL (L1234-9, R1234-2) : 1/4 de mois de salaire par
-  //     annee d anciennete jusqu a 10 ans, 1/3 au-dela, sur le plus
-  //     favorable de la moyenne des 12 ou des 3 derniers mois ; 8 mois
-  //     d anciennete au moins. Calcule pour controle et pour le regime.
-  //   · LE REGIME (simplifie, cas courant) : exoneree de cotisations dans
-  //     la limite de 2 PASS ; CSG-CRDS sur la part au-dela du minimum
-  //     legal, sans abattement ; exoneree d impot dans la limite du plus
-  //     eleve du minimum legal et de la moitie de l indemnite (6 PASS au
-  //     plus) ;
+  //   · L ANCIENNETE SE COMPTE EN MOIS COMPLETS : « en cas d annee
+  //     incomplete, l indemnite est calculee proportionnellement au nombre
+  //     de mois complets » (article R1234-1 du code du travail). Le moteur
+  //     comptait des jours (283 / 365,25).
+  //   · LE SALAIRE DE REFERENCE (article R1234-4) : le plus favorable de la
+  //     moyenne des 12 derniers mois (de tous les mois s il y en a moins) et
+  //     de celle des 3 derniers, SANS LE MOIS DE LA RUPTURE — le moteur
+  //     melait le mois de depart (1 560 €, indemnite de conges comprise) a
+  //     septembre (2 400 €). Lus sur les bulletins emis ; a defaut, le
+  //     salaire du contrat.
+  //   · MINIMUM LEGAL (L1234-9, R1234-2) : 1/4 de mois par annee jusqu a
+  //     10 ans, 1/3 au-dela ; 8 mois d anciennete exiges pour un
+  //     licenciement, pas pour une rupture conventionnelle (l indemnite
+  //     specifique est due au prorata).
+  //   · IMPOT (article 80 duodecies du CGI) : exoneree jusqu au montant
+  //     legal, ou jusqu au plus eleve de deux fois la remuneration annuelle
+  //     brute de l annee precedente et de la moitie de l indemnite, dans la
+  //     limite de 6 plafonds annuels.
+  //   · COTISATIONS (BOSS, indemnites de rupture) : exclues de l assiette
+  //     POUR LEUR SEULE PART NON IMPOSABLE, dans la limite de 2 plafonds
+  //     annuels. Le reste est cotise comme du salaire — il entre dans le
+  //     brut. Au-dela de 10 plafonds, tout est cotise.
+  //   · CSG-CRDS (article L136-1-1 III 5°) : exoneree dans la limite du
+  //     moins eleve du montant legal et de la part exclue des cotisations ;
+  //     le reste est soumis, sans abattement. La CSG deductible n est
+  //     deductible que sur la part soumise a cotisations ou imposable
+  //     (BOFiP BOI-RSA-BASE-30-30 §100) : au-dela, elle est reintegree.
   //   · RUPTURE CONVENTIONNELLE (motif 043) : contribution patronale de
   //     40 % (fin de contrat depuis le 01/01/2026 ; 30 % avant) sur la part
-  //     exoneree de cotisations (`CONTRIBUTION_PATRONALE_RC`, CTP 719).
-  // ⚠️ Non geres : l indemnite conventionnelle plus favorable (a saisir en
-  // montant), la part au-dela de 2 PASS soumise a cotisations, le plafond
-  // de 2 fois la remuneration annuelle, la mise a la retraite.
+  //     EXCLUE DES COTISATIONS (`CONTRIBUTION_PATRONALE_RC`, CTP 719).
+  // ⚠️ Non geres : l indemnite conventionnelle plus favorable (le moteur ne
+  // connait que le minimum legal), la mise a la retraite, la reconstitution
+  // des mois incomplets ou d absence dans le salaire de reference.
   // ═══════════════════════════════════════════════════════════════════
   let csgBaseRupture = 0;
   let irImposableRupture = 0;
   let contributionRc = 0;
+  let rupturePartSoumise = 0;
   const rupture: any = indemniteRupture > 0 ? { montant: indemniteRupture } : null;
   if (indemniteRupture > 0) {
     const motif = String((contrat as any).motif_rupture_dsn || (contrat as any).motif_rupture || "");
     const estRc = motif === "043";
+    const nomIndemnite = estRc ? "Indemnité spécifique de rupture conventionnelle" : "Indemnité de licenciement";
+    const eur = { minimumFractionDigits: 2, maximumFractionDigits: 2 };
     const dDeb = String(contrat.date_debut || "").slice(0, 10);
     const dFin = finContrat || moisDernier;
-    const moisAnc = dDeb ? Math.max(0, (Date.parse(dFin + "T00:00:00Z") - Date.parse(dDeb + "T00:00:00Z")) / 86400000 / 30.4375) : 0;
-    const annees = moisAnc / 12;
+
+    // ---- L ANCIENNETE, EN MOIS COMPLETS ----
+    // Le n-ieme mois est complet quand la veille de la n-ieme date
+    // anniversaire mensuelle est atteinte (05/01 → 04/10 = 9 mois).
+    let moisComplets = 0;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dDeb) && dFin >= dDeb) {
+      const y0 = Number(dDeb.slice(0, 4));
+      const m0 = Number(dDeb.slice(5, 7));
+      const j0 = Number(dDeb.slice(8, 10));
+      const veilleAnniversaire = function (n: number): string {
+        const an = y0 + Math.floor((m0 - 1 + n) / 12);
+        const mo = (m0 - 1 + n) % 12;
+        const dernier = new Date(Date.UTC(an, mo + 1, 0)).getUTCDate();
+        const d = new Date(Date.UTC(an, mo, Math.min(j0, dernier)));
+        d.setUTCDate(d.getUTCDate() - 1);
+        return d.toISOString().slice(0, 10);
+      };
+      let n = (Number(dFin.slice(0, 4)) - y0) * 12 + (Number(dFin.slice(5, 7)) - m0);
+      if (n < 0) n = 0;
+      while (n > 0 && veilleAnniversaire(n) > dFin) n -= 1;
+      while (veilleAnniversaire(n + 1) <= dFin) n += 1;
+      moisComplets = n;
+    }
+    const annees = moisComplets / 12;
+
+    // ---- LE SALAIRE DE REFERENCE, SANS LE MOIS DE LA RUPTURE ----
     const { data: derniers } = await supabase
       .from("paie_bulletins")
       .select("brut, periode")
@@ -2186,50 +2330,132 @@ async function calculer(contratId: string, periode: string,
       .lt("periode", periode)
       .order("periode", { ascending: false })
       .limit(12);
-    const bruts = (derniers || []).map(function (x: any) { return Number(x.brut || 0); });
-    bruts.unshift(brutTotal);   // le mois de la rupture compte
-    const moy12 = bruts.slice(0, 12).reduce(function (a: number, b: number) { return a + b; }, 0) / Math.max(1, Math.min(12, bruts.length));
-    const moy3 = bruts.slice(0, 3).reduce(function (a: number, b: number) { return a + b; }, 0) / Math.max(1, Math.min(3, bruts.length));
-    const salRef = Math.max(moy12, moy3);
-    const legal = moisAnc >= 8
+    const bruts = (derniers || [])
+      .map(function (x: any) { return Number(x.brut || 0); })
+      .filter(function (b: number) { return b > 0; });
+    let salRef = 0;
+    let origineRef = "";
+    if (bruts.length > 0) {
+      const n12 = Math.min(12, bruts.length);
+      const n3 = Math.min(3, bruts.length);
+      const moy12 = bruts.slice(0, n12).reduce(function (a: number, b: number) { return a + b; }, 0) / n12;
+      const moy3 = bruts.slice(0, n3).reduce(function (a: number, b: number) { return a + b; }, 0) / n3;
+      salRef = Math.max(moy12, moy3);
+      origineRef = moy3 >= moy12
+        ? "moyenne des " + n3 + " dernier(s) mois émis"
+        : "moyenne des " + n12 + " dernier(s) mois émis";
+    } else {
+      let mensuelRef = Number(contrat.salaire_mensuel || 0);
+      if (!(mensuelRef > 0) && contrat.salaire_horaire) mensuelRef = Number(contrat.salaire_horaire) * dureeContratMois;
+      if (!(mensuelRef > 0) && appr && appr.minimum_legal) mensuelRef = Number(appr.minimum_legal);
+      salRef = mensuelRef;
+      origineRef = "salaire du contrat, faute de bulletin émis avant ce mois";
+    }
+
+    const ouvreDroit = estRc || moisComplets >= 8;
+    const legal = ouvreDroit
       ? cts(salRef / 4 * Math.min(annees, 10) + salRef / 3 * Math.max(0, annees - 10)) : 0;
+
+    // ---- DEUX FOIS LA REMUNERATION ANNUELLE BRUTE DE L ANNEE PRECEDENTE ----
+    const anPrec = Number(periode.slice(0, 4)) - 1;
+    const { data: bulletinsN1 } = await supabase
+      .from("paie_bulletins")
+      .select("brut")
+      .eq("contrat_id", contratId)
+      .eq("statut", "emis")
+      .gte("periode", anPrec + "-01-01")
+      .lt("periode", (anPrec + 1) + "-01-01");
+    let remN1 = 0;
+    for (const b1 of (bulletinsN1 || [])) remN1 += Number((b1 as any).brut || 0);
+    remN1 = cts(remN1);
+
+    // ---- LE REGIME ----
     const pass = await parametre("PASS", periode);
-    const deuxPass = pass !== null ? 2 * Number(pass) : Infinity;
-    const exoCotis = Math.min(indemniteRupture, deuxPass);
-    rupture.exoneree_cotisations = cts(exoCotis);
-    csgBaseRupture = cts(Math.max(0, indemniteRupture - legal));
-    const exoIr = Math.min(Math.max(legal, indemniteRupture / 2), pass !== null ? 6 * Number(pass) : Infinity);
-    irImposableRupture = cts(Math.max(0, indemniteRupture - exoIr));
-    rupture.legal = legal; rupture.salaire_reference = cts(salRef); rupture.anciennete_annees = Math.round(annees * 100) / 100;
-    rupture.base_csg = csgBaseRupture; rupture.imposable = irImposableRupture; rupture.rupture_conventionnelle = estRc;
+    const passN = pass !== null ? Number(pass) : null;
+    const plafond6 = passN !== null ? 6 * passN : Infinity;
+    const plafond2 = passN !== null ? 2 * passN : Infinity;
+    const au10Pass = passN !== null && indemniteRupture > 10 * passN;
+    let nonImposable = Math.max(legal, Math.min(Math.max(2 * remN1, indemniteRupture / 2), plafond6));
+    nonImposable = cts(Math.min(indemniteRupture, nonImposable));
+    const exclue = au10Pass ? 0 : cts(Math.min(nonImposable, plafond2));
+    rupturePartSoumise = cts(indemniteRupture - exclue);
+    const csgExo = au10Pass ? 0 : Math.min(legal, exclue);
+    csgBaseRupture = cts(Math.max(0, indemniteRupture - csgExo));
+    irImposableRupture = cts(Math.max(0, indemniteRupture - nonImposable));
+
+    rupture.rupture_conventionnelle = estRc;
+    rupture.anciennete_mois = moisComplets;
+    rupture.anciennete_annees = Math.round(annees * 100) / 100;
+    rupture.salaire_reference = cts(salRef);
+    rupture.origine_salaire_reference = origineRef;
+    rupture.legal = legal;
+    rupture.remuneration_annee_precedente = remN1;
+    rupture.exoneree_ir = nonImposable;
+    rupture.exoneree_cotisations = exclue;
+    rupture.soumise_cotisations = rupturePartSoumise;
+    rupture.base_csg = csgBaseRupture;
+    rupture.imposable = irImposableRupture;
+
     if (estRc) {
       const tRc = await parametre("CONTRIBUTION_PATRONALE_RC", dFin);
       if (tRc === null) {
         notesFin.push("⛔ Contribution patronale sur la rupture conventionnelle non calculée : son taux est absent de la base.");
       } else {
-        contributionRc = cts(exoCotis * Number(tRc) / 100);
+        contributionRc = cts(exclue * Number(tRc) / 100);
         rupture.contribution_patronale = contributionRc;
         rupture.taux_contribution = Number(tRc);
       }
     }
-    lignesBrut.push({
-      libelle: (estRc ? "Indemnité spécifique de rupture conventionnelle" : "Indemnité de licenciement")
-        + " (non soumise à cotisations)",
-      quantite: null, taux: null, montant: indemniteRupture,
-    });
-    nonSoumis += indemniteRupture;
-    if (indemniteRupture < legal) {
-      notesFin.push("🚨 L'indemnité saisie (" + indemniteRupture.toLocaleString("fr-FR", { minimumFractionDigits: 2 })
-        + " €) est INFÉRIEURE au minimum légal calculé (" + legal.toLocaleString("fr-FR", { minimumFractionDigits: 2 })
-        + " € : " + (Math.round(annees * 100) / 100).toLocaleString("fr-FR") + " an(s) d'ancienneté, salaire de référence "
-        + cts(salRef).toLocaleString("fr-FR", { minimumFractionDigits: 2 }) + " €). À corriger avant d'émettre.");
+
+    // ⚠️ DEUX LIGNES QUAND IL LE FAUT : la part soumise entre dans le brut
+    // (elle cotise comme du salaire) ; la part exclue se lit sous les
+    // cotisations, avec les autres sommes non soumises.
+    if (rupturePartSoumise > 0) {
+      lignesBrut.push({
+        libelle: nomIndemnite + " (part soumise à cotisations)",
+        quantite: null, taux: null, montant: rupturePartSoumise,
+      });
+      brutSoumis = cts(brutSoumis + rupturePartSoumise);
+      brutTotal = cts(brutTotal + rupturePartSoumise);
     }
-    notesFin.push((estRc ? "Rupture conventionnelle" : "Indemnité de licenciement") + " : minimum légal "
-      + legal.toLocaleString("fr-FR", { minimumFractionDigits: 2 }) + " € ; CSG-CRDS sur "
-      + csgBaseRupture.toLocaleString("fr-FR", { minimumFractionDigits: 2 }) + " € ; imposable "
-      + irImposableRupture.toLocaleString("fr-FR", { minimumFractionDigits: 2 }) + " €"
-      + (estRc && contributionRc > 0 ? " ; contribution patronale de " + contributionRc.toLocaleString("fr-FR", { minimumFractionDigits: 2 }) + " €" : "")
-      + ". ⚠️ Régime simplifié : indemnité conventionnelle plus favorable, part au-delà de 2 plafonds annuels et mise à la retraite non gérées."
+    if (exclue > 0) {
+      lignesBrut.push({
+        libelle: nomIndemnite + (rupturePartSoumise > 0
+          ? " (part non soumise à cotisations)" : " (non soumise à cotisations)"),
+        quantite: null, taux: null, montant: exclue, hors_brut: true,
+      });
+      nonSoumis += exclue;
+      nonSoumisEmployeur += exclue;
+    }
+
+    if (indemniteRupture < legal) {
+      notesFin.push("🚨 L'indemnité saisie (" + indemniteRupture.toLocaleString("fr-FR", eur)
+        + " €) est INFÉRIEURE au minimum légal calculé (" + legal.toLocaleString("fr-FR", eur)
+        + " € : " + moisComplets + " mois complets d'ancienneté, salaire de référence "
+        + cts(salRef).toLocaleString("fr-FR", eur) + " €). À corriger avant d'émettre.");
+    }
+    notesFin.push((estRc ? "Rupture conventionnelle" : "Indemnité de licenciement") + " : "
+      + moisComplets + " mois complets d'ancienneté (article R1234-1 du code du travail), salaire "
+      + "de référence " + cts(salRef).toLocaleString("fr-FR", eur) + " € (" + origineRef
+      + "), minimum légal " + legal.toLocaleString("fr-FR", eur) + " €"
+      + (!ouvreDroit ? " (moins de 8 mois d'ancienneté : pas d'indemnité légale de licenciement)" : "")
+      + ". Exonérée d'impôt : " + nonImposable.toLocaleString("fr-FR", eur) + " € ; exclue des "
+      + "cotisations : " + exclue.toLocaleString("fr-FR", eur) + " € ; soumise à cotisations : "
+      + rupturePartSoumise.toLocaleString("fr-FR", eur) + " € ; CSG-CRDS sur "
+      + csgBaseRupture.toLocaleString("fr-FR", eur) + " € (sans abattement) ; imposable "
+      + irImposableRupture.toLocaleString("fr-FR", eur) + " €"
+      + (estRc && contributionRc > 0 ? " ; contribution patronale de "
+        + contributionRc.toLocaleString("fr-FR", eur) + " € sur la part exclue des cotisations" : "")
+      + (au10Pass ? ". 🚨 Indemnité supérieure à 10 plafonds annuels : entièrement soumise à "
+        + "cotisations et à CSG-CRDS" : "")
+      + ". ⚠️ Le moteur ne connaît que le minimum LÉGAL : si la convention collective prévoit "
+      + "mieux, le seuil d'exonération de CSG-CRDS est plus haut. Deux fois la rémunération "
+      + "annuelle de l'année précédente est lue sur les bulletins émis de ce contrat ("
+      + remN1.toLocaleString("fr-FR", eur) + " €). La mise à la retraite n'est pas gérée."
+      + (csgBaseRupture > rupturePartSoumise ? " ⚠️ Montant net social : seule la part soumise "
+        + "à cotisations y entre ; la part soumise à la seule CSG ("
+        + cts(csgBaseRupture - rupturePartSoumise).toLocaleString("fr-FR", eur)
+        + " €) n'y est pas ajoutée — à vérifier." : "")
       + (motif ? "" : " ⚠️ Le motif de rupture du contrat n'est pas renseigné : traité comme un licenciement."));
   }
 
@@ -2383,7 +2609,12 @@ async function calculer(contratId: string, periode: string,
     // 🆕 27/09 — et en jours calendaires en cas d entree ou de sortie en
     // cours de mois (proportionPlafond).
     const plafondContrat = Number(plafond) * proportionTemps * proportionPlafond;
-    const base = assiette(String(c.assiette_type), brutTotal, plafondContrat);
+    // 🆕 27/09 soir — LA CSG-CRDS NE PREND PAS DEUX FOIS L INDEMNITE DE
+    // RUPTURE : sa part soumise a cotisations est dans le brut, mais sa CSG
+    // se calcule sans abattement dans `csgBaseRupture` (ajoutee plus bas).
+    const estAssietteCsg = String(c.assiette_type) === "csg";
+    const brutCsg = cts(brutTotal - rupturePartSoumise);
+    const base = assiette(String(c.assiette_type), estAssietteCsg ? brutCsg : brutTotal, plafondContrat);
     if (base <= 0) continue;
 
     // ═══════════════════════════════════════════════════════════════
@@ -2425,8 +2656,8 @@ async function calculer(contratId: string, periode: string,
         || String(c.code) === "APEC";
 
       if (!horsExoneration) {
-        const excedent = Math.max(0, brutTotal - Number(appr.seuil_exoneration));
         const estCsg = String(c.assiette_type) === "csg";
+        const excedent = Math.max(0, (estCsg ? brutCsg : brutTotal) - Number(appr.seuil_exoneration));
 
         if (estCsg && appr.ancien_regime) {
           // Ancien regime : CSG et CRDS entierement exonerees.
@@ -2593,9 +2824,9 @@ async function calculer(contratId: string, periode: string,
         totalPatronal += fs;
       }
     }
-    notesGaranties.push("Mutuelle et prévoyance : part patronale de " + patronalGaranties.toLocaleString("fr-FR")
+    notesGaranties.push("Mutuelle et prévoyance : part patronale de " + patronalGaranties.toLocaleString("fr-FR", { minimumFractionDigits: 2 })
       + " € ajoutée à l'assiette de la CSG-CRDS" + (apprentiGaranties ? " (sauf apprenti)" : "")
-      + (patronalSante > 0 ? " ; part patronale santé de " + patronalSante.toLocaleString("fr-FR")
+      + (patronalSante > 0 ? " ; part patronale santé de " + patronalSante.toLocaleString("fr-FR", { minimumFractionDigits: 2 })
         + " € réintégrée au net imposable" : "") + ". ⚠️ Les limites d'exclusion d'assiette (6 % du plafond "
       + "+ 1,5 % de la rémunération, etc.) ne sont pas contrôlées.");
   }
@@ -2616,6 +2847,19 @@ async function calculer(contratId: string, periode: string,
   totalPatronal = cts(totalPatronal);
   csgNonDeductible = cts(csgNonDeductible);
   patronalEligible = cts(patronalEligible);
+
+  // 🆕 27/09 soir — LA CSG DEDUCTIBLE SUR LA PART DE L INDEMNITE DE RUPTURE
+  // QUI N EST NI COTISEE NI IMPOSABLE n est pas deductible (BOFiP
+  // BOI-RSA-BASE-30-30 §100) : elle revient au net imposable.
+  let csgDedRuptureNonDed = 0;
+  if (csgBaseRupture > rupturePartSoumise) {
+    let tCsgDed = 0;
+    for (const l of lignesCotis) {
+      if (String((l as any).code || "") === "CSG_DED") tCsgDed = Number((l as any).taux_salarial || 0);
+    }
+    csgDedRuptureNonDed = cts((csgBaseRupture - rupturePartSoumise) * tCsgDed / 100);
+    if (rupture) rupture.csg_deductible_reintegree = csgDedRuptureNonDed;
+  }
 
   // ═══════════════════════════════════════════════════════════════════
   // 🆕🚨 27/09 — LES HEURES SUPPLEMENTAIRES : REDUCTION SALARIALE ET
@@ -2695,17 +2939,20 @@ async function calculer(contratId: string, periode: string,
       const reste = Math.max(0, Number(plafondIr) - cumul);
       if (exonere > reste) {
         notesHs.push("Exonération d'impôt des heures supplémentaires plafonnée : "
-          + Number(plafondIr).toLocaleString("fr-FR") + " € par an, dont "
-          + cts(cumul).toLocaleString("fr-FR") + " € déjà exonérés cette année.");
+          + Number(plafondIr).toLocaleString("fr-FR", { minimumFractionDigits: 2 }) + " € par an, dont "
+          + cts(cumul).toLocaleString("fr-FR", { minimumFractionDigits: 2 }) + " € déjà exonérés cette année.");
         exonere = reste;
       }
     }
     hsExonereIr = cts(exonere);
+    // 🆕 27/09 soir — les euros a deux decimales : « 17,9 € » s affichait
+    // (essai 4 du 27/09). Un montant se lit « 17,90 € » sur un bulletin.
+    const eur2 = { minimumFractionDigits: 2, maximumFractionDigits: 2 };
     notesHs.push("Heures supplémentaires : " + hsHeures.toLocaleString("fr-FR") + " h payées "
-      + cts(hsBrut).toLocaleString("fr-FR") + " €. Réduction de cotisations salariales de "
-      + reductionHs.toLocaleString("fr-FR") + " € (taux "
+      + cts(hsBrut).toLocaleString("fr-FR", eur2) + " €. Réduction de cotisations salariales de "
+      + reductionHs.toLocaleString("fr-FR", eur2) + " € (taux "
       + (Math.round(tauxReductionHs * 10000) / 100).toLocaleString("fr-FR") + " %, au plus 11,31 %) ; "
-      + hsExonereIr.toLocaleString("fr-FR") + " € de rémunération nette exonérés d'impôt, retirés "
+      + hsExonereIr.toLocaleString("fr-FR", eur2) + " € de rémunération nette exonérés d'impôt, retirés "
       + "du net imposable (la CSG sur ces heures n'est déductible d'aucun autre revenu).");
   }
 
@@ -2811,7 +3058,14 @@ async function calculer(contratId: string, periode: string,
     let moisCumules = 1;
 
     // 🆕 LE SMIC DE CE MOIS, corrige de l absence (BOSS §850).
-    const smicDuMois = cts(smicMensuelRef * ratioAbsence);
+    // 🆕🚨 27/09 soir — ET AUGMENTE DES HEURES SUPPLEMENTAIRES PAYEES, au taux
+    // normal, sans leur majoration (article D241-7 du code de la securite
+    // sociale : le SMIC est « majore du nombre d heures complementaires ou
+    // supplementaires, sans prise en compte des majorations »). Trouve a
+    // l essai 4 du 27/09 : 8 h payees, reduction de 409,94 € au lieu
+    // d environ 476 € — l employeur perdait 66 € d allegement ce mois-la.
+    const smicHs = cts(smicRef * hsHeures);
+    const smicDuMois = cts(smicMensuelRef * ratioAbsence + smicHs);
     let smicAnterieurs = 0;
 
     for (const ant of (anterieurs || [])) {
@@ -2874,6 +3128,9 @@ async function calculer(contratId: string, periode: string,
         // suivants le relit ici.
         smic_mensuel_reference: smicDuMois,
         smic_mensuel_plein: cts(smicMensuelRef),
+        // 🆕 27/09 soir — la part du SMIC due aux heures supplementaires.
+        heures_supplementaires: hsHeures,
+        smic_heures_supplementaires: smicHs,
         ratio_absence: Math.round(ratioAbsence * 10000) / 10000,
         plafond_eligibilite: cts(plafondEligibilite),
         effectif_retenu: effectif,
@@ -2902,6 +3159,14 @@ async function calculer(contratId: string, periode: string,
         plafond_eligibilite: cts(plafondEligibilite),
       };
     }
+  }
+
+  // 🆕 27/09 soir — le SMIC augmente des heures supplementaires, dit.
+  if (hsHeures > 0 && rgduDetail && Number(rgduDetail.smic_heures_supplementaires || 0) > 0) {
+    notesHs.push("Réduction générale : le SMIC du mois est augmenté des "
+      + hsHeures.toLocaleString("fr-FR") + " h supplémentaires payées, au taux normal et sans "
+      + "leur majoration (" + Number(rgduDetail.smic_heures_supplementaires).toLocaleString("fr-FR",
+        { minimumFractionDigits: 2 }) + " €, article D241-7 du code de la sécurité sociale).");
   }
 
   // 🚨 LA REDUCTION S IMPUTE SUR LES COTISATIONS PATRONALES, jamais sur les
@@ -2988,11 +3253,19 @@ async function calculer(contratId: string, periode: string,
   ijssImposables = cts(ijssImposables);
   // 🆕 27/09 — ET LES HEURES SUPPLEMENTAIRES : leur remuneration nette
   // imposable exoneree sort du net imposable (plafond annuel compris).
+  // 🆕 27/09 soir — L INDEMNITE DE RUPTURE : sa part soumise a cotisations
+  // est deja dans le brut ; on ajoute la difference avec sa part imposable
+  // (nulle dans le cas courant), et la CSG deductible qui ne l est pas.
   const netImposable = cts(brutTotal - totalSalarial + csgNonDeductible + ijssImposables
-    - hsExonereIr + patronalSante + irImposableRupture);
+    - hsExonereIr + patronalSante + irImposableRupture - rupturePartSoumise + csgDedRuptureNonDed);
   // ⚠️ LE COUT EMPLOYEUR EST NET DE LA REDUCTION : c est ce que l entreprise
   // debourse reellement.
-  const coutEmployeur = cts(brutTotal + totalPatronalApresRgdu);
+  // 🆕 27/09 soir — ET IL COMPTE LES SOMMES NON SOUMISES QU ELLE PAIE : la
+  // part exclue d une indemnite de rupture, un panier, un remboursement de
+  // transport. Les indemnites journalieres reversees (payees par la caisse),
+  // les acomptes et les retenues n en font pas partie.
+  nonSoumisEmployeur = cts(nonSoumisEmployeur);
+  const coutEmployeur = cts(brutTotal + totalPatronalApresRgdu + nonSoumisEmployeur);
 
   // ═══════════════════════════════════════════════════════════════════
   // 🆕🚨 27/09 — LE PRELEVEMENT A LA SOURCE, ENFIN CALCULE
@@ -3314,6 +3587,7 @@ async function calculer(contratId: string, periode: string,
     absences: absencesArret,
     retenue_absences: retenueArrets,
     maintiens: maintiens,
+    ij_sans_maintien: ijSansMaintien,
     ijss_imposables: ijssImposables,
     salaire_retabli: salaireRetabli,
 
@@ -3364,6 +3638,8 @@ async function calculer(contratId: string, periode: string,
     rupture: rupture,
     net_a_payer: netAPayer,
     cout_employeur: coutEmployeur,
+    // 🆕 27/09 soir — la part du cout employeur hors brut et hors cotisations.
+    non_soumis_employeur: nonSoumisEmployeur,
 
     // ⚠️ CE QUI RESTE A FAIRE, DIT FRANCHEMENT PLUTOT QUE TU.
     // 🆕 16/09 — LES RESERVES SONT ACCENTUEES ET DEDOUBLONNEES : la
@@ -3382,7 +3658,11 @@ async function calculer(contratId: string, periode: string,
               : "")),
         "Le salaire minimum conventionnel est contrôlé quand le contrat porte un coefficient. ⚠️ Les valeurs de point ne sont pas encore recoupées sur Légifrance, et une règle de branche — la prime de vacances — n'est pas appliquée au bulletin. ⚠️ ELLE EST UNE OBLIGATION D'ENTREPRISE : la calculer depuis le bloc « Prime de vacances ». Le maintien de salaire en maladie et les congés d'ancienneté, eux, sont appliqués.",
         "La RGDU est calculée en régularisation progressive sur le cumul annuel, méthode recommandée par l'URSSAF : une prime en fin d'année est régularisée le mois même plutôt que de créer un rappel.",
-        "Le montant net social réintègre la part patronale des garanties complémentaires (arrêté du 31 janvier 2023). ⚠️ Les taux de mutuelle et de prévoyance sont propres à chaque contrat collectif : tant qu'ils ne sont pas renseignés pour la société, ces lignes n'apparaissent pas.",
+        // 🆕 27/09 soir — la seconde phrase (« tant qu ils ne sont pas
+        // renseignes… ces lignes n apparaissent pas ») est retiree : la
+        // mutuelle et la prevoyance se saisissent a l ecran DSN depuis le
+        // 27/09, et l alerte rouge dit deja quand elles manquent.
+        "Le montant net social réintègre la part patronale des garanties complémentaires (arrêté du 31 janvier 2023).",
       ];
 
       // 🚨 UNE ALERTE DE MINIMUM CONVENTIONNEL PASSE EN TETE DES RESERVES.
