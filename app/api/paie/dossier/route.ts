@@ -377,6 +377,58 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // ═══════════════════════════════════════════════════════════════════
+    // 🆕 27/09 — LES JOURS TRAVAILLES DANS LA SEMAINE (repartition)
+    //
+    // Pour un temps partiel sur moins de cinq jours (ou un samedi
+    // travaille) : la retenue d une absence se fait aux heures reelles, il
+    // faut donc savoir quels jours le salarie travaille. Colonne
+    // `paie_contrats.jours_travailles`, jours en chiffres separes par des
+    // virgules (0 = dimanche, 1 = lundi … 6 = samedi), lue par le moteur.
+    // ⛔ Au moins un jour. Un bulletin deja emis ne change pas : seuls les
+    // calculs a venir en tiennent compte.
+    // ═══════════════════════════════════════════════════════════════════
+    if (action === "repartition") {
+      const contratId = propre(c.contrat_id);
+      if (!contratId) return NextResponse.json({ erreur: "contrat manquant" }, { status: 400 });
+      const liste: number[] = [];
+      for (const v of (Array.isArray(c.jours) ? c.jours : [])) {
+        const n = Number(v);
+        if (Number.isInteger(n) && n >= 0 && n <= 6 && liste.indexOf(n) < 0) liste.push(n);
+      }
+      liste.sort(function (x, y) { return x - y; });
+      if (liste.length === 0) {
+        return NextResponse.json({ erreur: "cochez au moins un jour travaillé." }, { status: 400 });
+      }
+      const { data: ct, error: eL } = await supabase
+        .from("paie_contrats")
+        .select("id, duree_hebdo, forfait_jours_annuel")
+        .eq("id", contratId)
+        .maybeSingle();
+      if (eL) return NextResponse.json({ erreur: eL.message }, { status: 500 });
+      if (!ct) return NextResponse.json({ erreur: "contrat introuvable" }, { status: 404 });
+
+      const { error: eU } = await supabase
+        .from("paie_contrats")
+        .update({ jours_travailles: liste.join(","), maj_le: new Date().toISOString() })
+        .eq("id", contratId);
+      if (eU) return NextResponse.json({ erreur: eU.message }, { status: 500 });
+
+      const noms = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
+      const hebdo = Number((ct as any).duree_hebdo) > 0 ? Number((ct as any).duree_hebdo) : 35;
+      const parJour = Math.round(hebdo / liste.length * 100) / 100;
+      return NextResponse.json({
+        success: true,
+        jours_travailles: liste.join(","),
+        message: "Jours travaillés enregistrés : "
+          + liste.map(function (j) { return noms[j]; }).join(", ")
+          + ((ct as any).forfait_jours_annuel
+            ? " (forfait en jours : sans effet sur le calcul, qui ne compte pas d'heures)."
+            : ", soit " + parJour.toLocaleString("fr-FR") + " h par jour. Les retenues d'absence "
+              + "des prochains calculs en tiennent compte ; un bulletin déjà émis ne change pas."),
+      });
+    }
+
     // ---- LES ELEMENTS D UN MOIS ----
     if (action === "elements") {
       const { data, error } = await supabase
