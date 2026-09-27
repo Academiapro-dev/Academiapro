@@ -442,6 +442,18 @@ export default function PagePaie() {
       date_fin: v(choisi.date_fin).slice(0, 10),
       rompu_le: v(choisi.rompu_le).slice(0, 10),
       motif_rupture_dsn: v(choisi.motif_rupture_dsn),
+      // 🆕 28/09 — le vehicule de fonction (null = aucun).
+      vehicule: choisi.vehicule ? {
+        mode: v(choisi.vehicule.mode) || "achat",
+        valeur: v(choisi.vehicule.valeur).replace(".", ","),
+        achat_le: v(choisi.vehicule.achat_le).slice(0, 10),
+        mis_a_disposition_le: v(choisi.vehicule.mis_a_disposition_le).slice(0, 10),
+        fin: v(choisi.vehicule.fin).slice(0, 10),
+        carburant: choisi.vehicule.carburant === true,
+        electrique: choisi.vehicule.electrique === true,
+        eco_score: choisi.vehicule.eco_score === true,
+        participation: v(choisi.vehicule.participation).replace(".", ","),
+      } : null,
     });
     if (motifsRupture.length === 0) {
       const d = await appeler({ action: "motifs_rupture" });
@@ -1522,6 +1534,7 @@ export default function PagePaie() {
                 }
                 morceaux.push(choisi.categorie === "cadre" ? "cadre" : "non cadre");
                 if (choisi.coefficient) morceaux.push("coefficient " + choisi.coefficient);
+                if (choisi.vehicule) morceaux.push("véhicule de fonction");
                 if (choisi.lieu_travail_insee) morceaux.push("lieu de travail " + choisi.lieu_travail_insee);
                 if (choisi.date_fin) morceaux.push("fin prévue le " + dateFr(choisi.date_fin));
                 if (choisi.rompu_le) {
@@ -1580,6 +1593,80 @@ export default function PagePaie() {
                               onChange={(ev) => setContratSaisie({ ...cs, date_fin: ev.target.value })} />
                           </div>
                         </div>
+                        {/* 🆕 28/09 — LE VEHICULE DE FONCTION : l avantage en
+                            nature se calcule seul chaque mois (forfait de
+                            l arrete du 25 fevrier 2025). */}
+                        <p style={{ margin: "14px 0 6px", fontSize: "12.5px", color: OR }}>
+                          Véhicule de fonction (usage privé)
+                        </p>
+                        <label style={{ fontSize: "13px", display: "flex", gap: "8px", alignItems: "center" }}>
+                          <input type="checkbox" checked={!!cs.vehicule}
+                            onChange={(ev) => setContratSaisie({ ...cs, vehicule: ev.target.checked
+                              ? { mode: "achat", valeur: "", achat_le: "", mis_a_disposition_le: "", fin: "",
+                                  carburant: false, electrique: false, eco_score: false, participation: "" }
+                              : null })} />
+                          Un véhicule est mis à disposition, avec usage privé
+                        </label>
+                        {cs.vehicule && (function () {
+                          const vv = cs.vehicule;
+                          const majV = function (k: string, val: any) {
+                            setContratSaisie({ ...cs, vehicule: { ...vv, [k]: val } });
+                          };
+                          return (
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: "10px", marginTop: "8px" }}>
+                              <div style={{ flex: "1 1 130px" }}>
+                                <span style={LIB}>Véhicule</span>
+                                <select value={vv.mode} style={CHAMP} onChange={(ev) => majV("mode", ev.target.value)}>
+                                  <option value="achat">Acheté par l'employeur</option>
+                                  <option value="location">Loué par l'employeur</option>
+                                </select>
+                              </div>
+                              <div style={{ flex: "1 1 170px" }}>
+                                <span style={LIB}>{vv.mode === "location"
+                                  ? "Coût global annuel TTC (loyers, entretien, assurance)" : "Prix d'achat TTC"}</span>
+                                <input value={vv.valeur || ""} style={CHAMP} onChange={(ev) => majV("valeur", ev.target.value)} />
+                              </div>
+                              {vv.mode === "achat" && (
+                                <div style={{ flex: "1 1 140px" }}>
+                                  <span style={LIB}>Date d'achat</span>
+                                  <input type="date" value={vv.achat_le || ""} style={CHAMP} onChange={(ev) => majV("achat_le", ev.target.value)} />
+                                </div>
+                              )}
+                              <div style={{ flex: "1 1 140px" }}>
+                                <span style={LIB}>Mis à disposition le</span>
+                                <input type="date" value={vv.mis_a_disposition_le || ""} style={CHAMP}
+                                  onChange={(ev) => majV("mis_a_disposition_le", ev.target.value)} />
+                              </div>
+                              <div style={{ flex: "1 1 140px" }}>
+                                <span style={LIB}>Restitué le (vide sinon)</span>
+                                <input type="date" value={vv.fin || ""} style={CHAMP} onChange={(ev) => majV("fin", ev.target.value)} />
+                              </div>
+                              <div style={{ flex: "1 1 150px" }}>
+                                <span style={LIB}>Participation du salarié par mois</span>
+                                <input value={vv.participation || ""} style={CHAMP} placeholder="0"
+                                  onChange={(ev) => majV("participation", ev.target.value)} />
+                              </div>
+                              <div style={{ flex: "1 1 100%", display: "flex", gap: "16px", flexWrap: "wrap", fontSize: "13px" }}>
+                                <label style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                                  <input type="checkbox" checked={!!vv.electrique} onChange={(ev) => majV("electrique", ev.target.checked)} />
+                                  100 % électrique
+                                </label>
+                                {vv.electrique ? (
+                                  <label style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                                    <input type="checkbox" checked={!!vv.eco_score} onChange={(ev) => majV("eco_score", ev.target.checked)} />
+                                    éco-scoré (éligible au bonus écologique)
+                                  </label>
+                                ) : (
+                                  <label style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                                    <input type="checkbox" checked={!!vv.carburant} onChange={(ev) => majV("carburant", ev.target.checked)} />
+                                    carburant personnel payé par l'employeur
+                                  </label>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })()}
+
                         <p style={{ margin: "14px 0 6px", fontSize: "12.5px", color: OR }}>
                           {choisi.type_contrat === "mandat_social" ? "Fin du mandat" : "Rupture du contrat"}
                         </p>
