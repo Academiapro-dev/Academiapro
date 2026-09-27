@@ -354,11 +354,13 @@ export async function POST(req: NextRequest) {
           // retraite complementaire.
           categorie: propre(c.categorie) || (type === "mandat_social" ? "cadre" : "non_cadre"),
           idcc: c.idcc ? Number(c.idcc) : null,
-          salaire_horaire: c.salaire_horaire ? Number(c.salaire_horaire) : null,
-          salaire_mensuel: c.salaire_mensuel ? Number(c.salaire_mensuel) : null,
+          // 🆕 28/09 — LA VIRGULE ET LES ESPACES FRANCAIS : « 19,78 » ou
+          // « 2 400 » donnaient NaN avec Number(). `nombreFr` les accepte.
+          salaire_horaire: c.salaire_horaire ? (nombreFr(c.salaire_horaire) || null) : null,
+          salaire_mensuel: c.salaire_mensuel ? (nombreFr(c.salaire_mensuel) || null) : null,
           // 🆕 28/09 — pas de duree du travail pour un mandataire social.
           duree_hebdo: type === "mandat_social" ? null
-            : (c.duree_hebdo ? Number(c.duree_hebdo) : 35),
+            : (c.duree_hebdo ? (nombreFr(c.duree_hebdo) || 35) : 35),
           eu_raison_sociale: propre(c.eu_raison_sociale),
           eu_siret: propre(c.eu_siret),
           eu_adresse: propre(c.eu_adresse),
