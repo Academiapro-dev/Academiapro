@@ -307,6 +307,24 @@ export async function POST(req: NextRequest) {
         }
       }
 
+      // 🆕 27/09 — LA MUTUELLE ET LA PREVOYANCE EN VIGUEUR, PAR SOCIETE.
+      const garantiesParSociete: any = {};
+      let garantiesLecture = "";
+      {
+        const aujourdhui = new Date().toISOString().slice(0, 10);
+        const { data: gar, error: eGar } = await supabase
+          .from("paie_garanties_societe")
+          .select("id, societe_id, nature, categorie, mode, montant, taux, part_patronale_pct, organisme, reference_contrat, date_effet, date_fin")
+          .or("date_fin.is.null,date_fin.gte." + aujourdhui)
+          .order("date_effet", { ascending: true });
+        if (eGar) garantiesLecture = "mutuelle et prévoyance illisibles : " + eGar.message;
+        else for (const g of (gar || [])) {
+          const sid = String((g as any).societe_id);
+          if (!garantiesParSociete[sid]) garantiesParSociete[sid] = [];
+          garantiesParSociete[sid].push(g);
+        }
+      }
+
       let organismes: any[] = [];
       let organismesLecture = "";
 
@@ -403,6 +421,8 @@ export async function POST(req: NextRequest) {
             ? null : Number(v.effectif),
           // 🆕 25/09 — le taux AT/MP en vigueur, ou null s il manque.
           at: atParSociete[s.id] || null,
+          // 🆕 27/09 — la mutuelle et la prevoyance en vigueur ou a venir.
+          garanties: garantiesParSociete[s.id] || [],
         };
       });
 
@@ -428,6 +448,7 @@ export async function POST(req: NextRequest) {
           urssaf_lecture: urssafLecture,
           organismes_lecture: organismesLecture,
           at_lecture: atLecture,
+          garanties_lecture: garantiesLecture,
         },
       });
     }
@@ -734,6 +755,62 @@ export async function POST(req: NextRequest) {
 
       return json({ success: true, message: message,
         at: { taux: taux, date_effet: dateEffet, notifie_le: notifieLe } });
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // 🆕🚨 27/09 — LA MUTUELLE ET LA PREVOYANCE DE LA SOCIETE
+    // Elles ne se saisissaient nulle part. Chaque contrat collectif se
+    // declare une fois, avec sa date d effet ; « arreter » le clot. Le moteur
+    // de paie les lit pour chaque bulletin du mois.
+    // ═══════════════════════════════════════════════════════════════════
+    if (action === "garantie") {
+      const societeId = q(c.societe_id);
+      if (!societeId) return json({ erreur: "société manquante." }, 400);
+      const { data: soc, error: eS } = await supabase
+        .from("compta_societes").select("id, tenant_id").eq("id", societeId).maybeSingle();
+      if (eS) return json({ erreur: "lecture impossible : " + eS.message }, 500);
+      if (!soc) return json({ erreur: "société introuvable." }, 404);
+
+      const nature = q(c.nature);
+      const categorie = q(c.categorie) || "tous";
+      const mode = q(c.mode) || "forfait";
+      if (["sante", "prevoyance"].indexOf(nature) < 0) return json({ erreur: "choisissez santé ou prévoyance." }, 400);
+      if (["tous", "cadre", "non_cadre"].indexOf(categorie) < 0) return json({ erreur: "catégorie inconnue." }, 400);
+      if (["forfait", "pct_pmss", "pct_brut", "pct_tranche_a"].indexOf(mode) < 0) return json({ erreur: "mode de calcul inconnu." }, 400);
+      const nb = function (v: any): number { return Number(String(v === undefined || v === null ? "" : v).replace(/\s|%|€/g, "").replace(",", ".")); };
+      const montant = mode === "forfait" ? nb(c.montant) : null;
+      const taux = mode !== "forfait" ? nb(c.taux) : null;
+      if (mode === "forfait" && !(montant !== null && isFinite(montant) && montant > 0 && montant < 2000)) {
+        return json({ erreur: "indiquez la cotisation mensuelle totale en euros (part salarié + part employeur)." }, 400);
+      }
+      if (mode !== "forfait" && !(taux !== null && isFinite(taux) && taux > 0 && taux < 20)) {
+        return json({ erreur: "indiquez le taux total en pourcentage (part salarié + part employeur)." }, 400);
+      }
+      const pct = nb(c.part_patronale_pct);
+      if (!(isFinite(pct) && pct >= 0 && pct <= 100)) return json({ erreur: "part employeur illisible : un pourcentage entre 0 et 100." }, 400);
+      const dateEffet = q(c.date_effet).slice(0, 10);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(dateEffet)) return json({ erreur: "date d'effet manquante ou illisible." }, 400);
+
+      const { error: eI } = await supabase.from("paie_garanties_societe").insert({
+        tenant_id: soc.tenant_id, societe_id: societeId, nature: nature, categorie: categorie,
+        mode: mode, montant: montant, taux: taux, part_patronale_pct: pct,
+        organisme: q(c.organisme) || null, reference_contrat: q(c.reference_contrat) || null,
+        date_effet: dateEffet,
+      });
+      if (eI) return json({ erreur: "enregistrement impossible : " + eI.message }, 500);
+      return json({ success: true, message: (nature === "sante" ? "Complémentaire santé" : "Prévoyance")
+        + " enregistrée à compter du " + dateEffet.split("-").reverse().join("/")
+        + ". Elle s'applique aux bulletins de ce mois et des suivants ; un bulletin déjà émis ne change pas." });
+    }
+
+    if (action === "garantie_fin") {
+      const id = q(c.id);
+      const dateFin = q(c.date_fin).slice(0, 10);
+      if (!id) return json({ erreur: "garantie manquante." }, 400);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(dateFin)) return json({ erreur: "date de fin illisible." }, 400);
+      const { error: eU } = await supabase.from("paie_garanties_societe").update({ date_fin: dateFin }).eq("id", id);
+      if (eU) return json({ erreur: "enregistrement impossible : " + eU.message }, 500);
+      return json({ success: true, message: "Garantie arrêtée au " + dateFin.split("-").reverse().join("/") + "." });
     }
 
     // ---- OUVRIR LE FICHIER ----
