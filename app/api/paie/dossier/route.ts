@@ -756,11 +756,13 @@ export async function POST(req: NextRequest) {
       // un bulletin rectificatif ne doit pas redonner les jours.
       // ═══════════════════════════════════════════════════════════════
       let congesPoses = false;
+      // 🆕 27/09 — le nombre de jours reellement acquis (2,5 ou moins).
+      let congesAcquisJours = 2.5;
       let congesErreur: string | null = null;
 
       const { data: bull } = await supabase
         .from("paie_bulletins")
-        .select("periode, tenant_id, societe_id, contrat_id, paie_contrats(type_contrat)")
+        .select("periode, tenant_id, societe_id, contrat_id, paie_contrats(type_contrat, date_debut, date_fin, rompu_le)")
         .eq("id", b.id)
         .maybeSingle();
 
@@ -785,6 +787,42 @@ export async function POST(req: NextRequest) {
         if (!deja) {
           // 🚨 2,5 JOURS OUVRABLES PAR MOIS TRAVAILLE. Sur une annee
           // complete : 30 jours ouvrables, soit cinq semaines.
+          // 🆕🚨 27/09 — UN MOIS INCOMPLET (entree ou sortie en cours de
+          // mois) N EN DONNE QU UNE PARTIE : un mois de travail effectif
+          // equivaut a 24 jours ouvrables (article L3141-4). On compte les
+          // jours ouvrables (lundi a samedi) de la periode d emploi du mois,
+          // et l acquisition vaut 2,5 × ce nombre / 24, sans depasser 2,5.
+          // Jusqu au 27/09, un salarie entre le 28 acquerait 2,5 jours.
+          let joursAcquis = 2.5;
+          let noteAcquis = "";
+          {
+            const ctb: any = bull.paie_contrats || {};
+            const premier = p.slice(0, 7) + "-01";
+            const dFin = new Date(premier + "T00:00:00Z");
+            dFin.setUTCMonth(dFin.getUTCMonth() + 1);
+            dFin.setUTCDate(0);
+            const dernier = dFin.toISOString().slice(0, 10);
+            let deb = premier;
+            let fin = dernier;
+            const dd = String(ctb.date_debut || "").slice(0, 10);
+            if (/^\d{4}-\d{2}-\d{2}$/.test(dd) && dd > deb) deb = dd;
+            for (const x of [String(ctb.date_fin || "").slice(0, 10), String(ctb.rompu_le || "").slice(0, 10)]) {
+              if (/^\d{4}-\d{2}-\d{2}$/.test(x) && x < fin) fin = x;
+            }
+            if (deb > premier || fin < dernier) {
+              let ouvrables = 0;
+              const d = new Date(deb + "T00:00:00Z");
+              const f = new Date(fin + "T00:00:00Z").getTime();
+              while (d.getTime() <= f) {
+                if (d.getUTCDay() !== 0) ouvrables += 1;
+                d.setUTCDate(d.getUTCDate() + 1);
+              }
+              joursAcquis = Math.round(Math.min(2.5, 2.5 * ouvrables / 24) * 100) / 100;
+              noteAcquis = " — mois incomplet (du " + deb.split("-").reverse().join("/")
+                + " au " + fin.split("-").reverse().join("/") + ", " + ouvrables
+                + " jours ouvrables sur 24 pour un mois, article L3141-4)";
+            }
+          }
           const { error: eConges } = await supabase.from("paie_conges").insert({
             tenant_id: bull.tenant_id,
             societe_id: bull.societe_id,
@@ -793,15 +831,15 @@ export async function POST(req: NextRequest) {
             unite: "ouvrables",
             periode: p,
             type_mouvement: "acquisition",
-            jours: 2.5,
+            jours: joursAcquis,
             bulletin_id: b.id,
-            notes: "Acquisition automatique a l emission du bulletin " + b.numero,
+            notes: "Acquisition automatique a l emission du bulletin " + b.numero + noteAcquis,
           });
           // 🆕 16/09 — L ERREUR EST REMONTEE A L ECRAN, plus seulement
           // ignoree : des droits a conges qui ne s inscrivent pas se
           // decouvrent des mois plus tard, quand le salarie les reclame.
           if (eConges) congesErreur = eConges.message;
-          else congesPoses = true;
+          else { congesPoses = true; congesAcquisJours = joursAcquis; }
         }
 
         // ═══════════════════════════════════════════════════════════
@@ -918,14 +956,15 @@ export async function POST(req: NextRequest) {
           + " € (un taux ou un paramètre a changé depuis le dernier calcul).";
       }
       if (annule) message += " Le bulletin " + annule + " est annulé et remplacé.";
-      if (congesPoses) message += " 2,5 jours de congés ont été acquis.";
+      if (congesPoses) message += " " + congesAcquisJours.toLocaleString("fr-FR")
+        + " jour(s) de congés acquis" + (congesAcquisJours < 2.5 ? " (mois incomplet)." : ".");
       if (congesErreur) {
         message += " ⛔ ATTENTION : l'acquisition des congés a échoué (" + congesErreur + ").";
       }
 
       return NextResponse.json({
         success: true,
-        conges_acquis: congesPoses ? 2.5 : 0,
+        conges_acquis: congesPoses ? congesAcquisJours : 0,
         annule: annule,
         message: message,
       });
