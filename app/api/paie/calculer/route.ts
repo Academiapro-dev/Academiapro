@@ -694,6 +694,33 @@ async function calculer(contratId: string, periode: string,
   const forfaitJoursAn = Number((contrat as any).forfait_jours_annuel || 0);
   const auForfaitJours = forfaitJoursAn > 0;
 
+  // ═══════════════════════════════════════════════════════════════════
+  // 🆕🚨 28/09 — LE DIRIGEANT ASSIMILE SALARIE (type « mandat_social »)
+  //
+  // President ou directeur general de SAS, SASU ou SA, gerant minoritaire
+  // ou egalitaire de SARL, remunere au titre de son MANDAT, sans contrat
+  // de travail. Il releve du regime general (article L311-3 du code de la
+  // securite sociale) : maladie, vieillesse, allocations familiales,
+  // accidents du travail, CSG-CRDS, retraite complementaire, prelevement
+  // a la source — comme un salarie. CE QUI CHANGE :
+  //   · NI ASSURANCE CHOMAGE NI AGS : « les mandataires sociaux ne sont pas
+  //     concernes, meme s ils sont affilies au regime general en tant que
+  //     salaries assimiles » (urssaf.fr, assurance chomage et AGS), sauf
+  //     contrat de travail distinct examine par France Travail ;
+  //   · PAS DE REDUCTION GENERALE : elle ne vise que les salaries pour
+  //     lesquels l employeur est tenu d adherer a l assurance chomage
+  //     (urssaf.fr, reduction generale degressive unique) ;
+  //   · PAS DE CODE DU TRAVAIL : ni duree du travail (donc ni temps partiel
+  //     ni heures supplementaires), ni conges payes, ni maintien de salaire
+  //     en maladie, ni SMIC, ni minimum conventionnel, ni indemnite de
+  //     licenciement. Sa remuneration est fixee par les associes.
+  // ⚠️ La retraite complementaire le traite en principe comme un cadre
+  // (APEC, prevoyance cadre) : la categorie « cadre » est proposee a la
+  // creation, et le moteur suit la categorie du contrat.
+  // ═══════════════════════════════════════════════════════════════════
+  const estMandat = String(contrat.type_contrat || "") === "mandat_social";
+  const notesMandat: string[] = [];
+
   const dureeHebdo = Number(contrat.duree_hebdo) > 0
     ? Number(contrat.duree_hebdo) : 0;
   const dureeContratMois = (auForfaitJours || dureeHebdo <= 0)
@@ -702,7 +729,9 @@ async function calculer(contratId: string, periode: string,
   // La proportion par rapport au plein temps, bornee : un forfait a 39 h ne
   // doit pas majorer le SMIC de reference.
   // ⚠️ UN FORFAIT JOURS VAUT TOUJOURS 1 : voir ci-dessus.
-  const proportionTemps = auForfaitJours ? 1
+  // 🆕 28/09 — un mandataire n a pas de duree du travail : jamais de
+  // temps partiel.
+  const proportionTemps = (auForfaitJours || estMandat) ? 1
     : ((dureeMensuelle && dureeContratMois > 0)
       ? Math.min(1, dureeContratMois / Number(dureeMensuelle))
       : 1);
@@ -1326,7 +1355,15 @@ async function calculer(contratId: string, periode: string,
     // 🆕 27/09 — LES HEURES SUPPLEMENTAIRES SONT COMPTEES A PART : elles
     // ouvrent droit a la reduction de cotisations salariales, a
     // l exoneration d impot et a la deduction forfaitaire patronale.
-    if ((t === "heures_sup_25" || t === "heures_sup_50") && e.soumis_cotisations !== false) {
+    // 🆕 28/09 — pas d heures supplementaires pour un mandataire : payees,
+    // elles sont une remuneration ordinaire, sans reduction ni exoneration.
+    if ((t === "heures_sup_25" || t === "heures_sup_50") && estMandat) {
+      notesMandat.push("⚠️ Des « heures supplémentaires » sont saisies sur un mandat social : "
+        + "un mandataire n'a pas de durée du travail. Elles sont payées comme une rémunération "
+        + "ordinaire, sans réduction de cotisations, sans exonération d'impôt ni déduction "
+        + "patronale.");
+    }
+    if ((t === "heures_sup_25" || t === "heures_sup_50") && e.soumis_cotisations !== false && !estMandat) {
       hsBrut += m;
       hsHeures += Number(e.quantite || 0);
     }
@@ -1554,7 +1591,17 @@ async function calculer(contratId: string, periode: string,
     const joursDuMois = joursOuvres(premierIso, dernierIso);
 
     // 🆕 25/09 — calcul « comme s il avait travaille » : aucun arret.
-    const arretsRetenus: any[] = (opts && opts.sansArrets) ? [] : (arrets || []);
+    // 🆕 28/09 — LE MANDATAIRE : ni retenue automatique ni maintien. Il
+    // touche les indemnites journalieres de la caisse, et ce que la societe
+    // lui verse pendant l arret se decide par les associes, pas par le code
+    // du travail : une absence se saisit a la main si elle doit etre retenue.
+    if (estMandat && (arrets || []).some(function (a: any) { return !a.annule_le; })) {
+      notesMandat.push("Arrêt de travail en base sur un mandat social : aucune retenue ni aucun "
+        + "maintien automatique (le code du travail ne s'applique pas au mandataire). Il perçoit "
+        + "les indemnités journalières de la caisse ; si sa rémunération doit baisser pendant "
+        + "l'arrêt, c'est une décision des associés, à saisir comme élément.");
+    }
+    const arretsRetenus: any[] = ((opts && opts.sansArrets) || estMandat) ? [] : (arrets || []);
     for (const a of arretsRetenus) {
       // Un arret annule ne retient rien.
       if ((a as any).annule_le) continue;
@@ -2289,6 +2336,17 @@ async function calculer(contratId: string, periode: string,
   let contributionRc = 0;
   let rupturePartSoumise = 0;
   const rupture: any = indemniteRupture > 0 ? { montant: indemniteRupture } : null;
+  // 🆕 28/09 — UNE INDEMNITE DE FIN DE MANDAT N EST PAS UNE INDEMNITE DE
+  // LICENCIEMENT : son regime (revocation, depart force, article 80
+  // duodecies du CGI) est propre. Elle n est PAS portee au bulletin.
+  if (indemniteRupture > 0 && estMandat) {
+    notesMandat.unshift("⛔ INDEMNITÉ DE RUPTURE SAISIE SUR UN MANDAT SOCIAL : "
+      + indemniteRupture.toLocaleString("fr-FR", { minimumFractionDigits: 2 })
+      + " € NON PORTÉS au bulletin. Une indemnité de cessation de mandat obéit à un régime "
+      + "propre (révocation ou départ forcé), que le moteur ne calcule pas. Retirer l'élément "
+      + "et faire établir le montant et son régime par l'expert-comptable.");
+    indemniteRupture = 0;
+  }
   if (indemniteRupture > 0) {
     const motif = String((contrat as any).motif_rupture_dsn || (contrat as any).motif_rupture || "");
     const estRc = motif === "043";
@@ -2568,8 +2626,15 @@ async function calculer(contratId: string, periode: string,
     patronalGaranties = cts(patronalGaranties);
     patronalSante = cts(patronalSante);
     if (lignesGaranties.length === 0 && !eG) {
-      notesGaranties.push("⚠️ Aucune mutuelle ni prévoyance n'est renseignée pour la société (écran DSN, "
-        + "bloc « Recouvrement URSSAF ») : la complémentaire santé est obligatoire dans toute entreprise.");
+      // 🆕 28/09 — pour un mandataire sans contrat de travail, l obligation
+      // de complementaire sante (qui vise les salaries) ne s applique pas.
+      notesGaranties.push(estMandat
+        ? "Aucune mutuelle ni prévoyance n'est renseignée pour la société : pour un mandataire "
+          + "social sans contrat de travail, la complémentaire santé collective n'est pas "
+          + "obligatoire ; si le contrat de la société le couvre, la saisir (écran DSN, bloc "
+          + "« Recouvrement URSSAF »)."
+        : "⚠️ Aucune mutuelle ni prévoyance n'est renseignée pour la société (écran DSN, "
+          + "bloc « Recouvrement URSSAF ») : la complémentaire santé est obligatoire dans toute entreprise.");
     }
   }
   const apprentiGaranties = String(contrat.type_contrat || "") === "apprentissage";
@@ -2587,6 +2652,9 @@ async function calculer(contratId: string, periode: string,
     // SIGNALE dans les reserves plutot que de le taire : sur une entreprise
     // plus grande, la cotisation serait sous-evaluee et l URSSAF
     // reclamerait la difference.
+    // 🆕 28/09 — NI CHOMAGE NI AGS pour un mandataire social.
+    if (estMandat && (String(c.code) === "CHOMAGE" || String(c.code) === "AGS")) continue;
+
     if (c.code === "FNAL_MOINS50" && effectif >= 50) continue;
     if (c.code === "FNAL_50PLUS" && effectif < 50) continue;
 
@@ -2992,7 +3060,15 @@ async function calculer(contratId: string, periode: string,
   const seuil = await parametre("RGDU_SEUIL_SMIC", periode);
   const smicRef = await parametre("RGDU_SMIC_REFERENCE", periode);
 
-  if (tmin !== null && tdelta !== null && expo !== null
+  // 🆕 28/09 — LE MANDATAIRE EST HORS DU CHAMP DE LA REDUCTION GENERALE.
+  if (estMandat) {
+    rgduDetail = {
+      coefficient: 0,
+      motif: "mandataire social : hors du champ de la réduction générale (pas d'affiliation à l'assurance chômage)",
+    };
+  }
+
+  if (!estMandat && tmin !== null && tdelta !== null && expo !== null
       && seuil !== null && smicRef !== null && dureeMensuelle) {
 
     // 🚨 LE SMIC DE REFERENCE SUIT LA DUREE DU CONTRAT (BOSS, allegements
@@ -3473,7 +3549,7 @@ async function calculer(contratId: string, periode: string,
         + cts(planche - baseApp).toFixed(2) + " € par mois. ⚠️ RAPPEL DE "
         + "SALAIRE EXIGIBLE, avec les cotisations recalculées dessus.";
     }
-  } else if (contrat.idcc && contrat.coefficient) {
+  } else if (contrat.idcc && contrat.coefficient && !estMandat) {
     const { data: regles } = await supabase
       .from("paie_conventions_regles")
       .select("*")
@@ -3781,6 +3857,21 @@ async function calculer(contratId: string, periode: string,
       if (contrat.type_contrat === "cdi") {
         r.unshift("CDI : aucune indemnité de précarité, c'est normal — "
           + "les congés se prennent au lieu d'être compensés.");
+      }
+      // 🆕 28/09 — LE MANDAT SOCIAL, DIT EN TETE.
+      if (estMandat) {
+        for (const n of notesMandat.slice().reverse()) r.unshift(n);
+        r.unshift("Mandat social (dirigeant assimilé salarié) : régime général de sécurité "
+          + "sociale et retraite complémentaire comme un salarié, mais NI assurance chômage NI "
+          + "AGS (urssaf.fr), et PAS de réduction générale, réservée aux salariés affiliés à "
+          + "l'assurance chômage. Ni congés payés, ni heures supplémentaires, ni maintien de "
+          + "salaire, ni SMIC : sa rémunération est fixée par les associés."
+          + (String(contrat.categorie || "") !== "cadre"
+            ? " ⚠️ La retraite complémentaire traite en principe le mandataire comme un cadre "
+              + "(APEC, prévoyance cadre) : le contrat n'est pas en catégorie « cadre », à vérifier."
+            : "")
+          + " ⛔ Sa DSN n'est pas encore adaptée (nature de contrat « mandat social ») : ne pas "
+          + "déposer de DSN réelle pour ce dirigeant avant ce point.");
       }
       // 🚨 LES DEUX TAUX PROPRES A LA SOCIETE, DITS FRANCHEMENT QUAND ILS
       // MANQUENT : leur absence n est pas visible sur le bulletin — la
