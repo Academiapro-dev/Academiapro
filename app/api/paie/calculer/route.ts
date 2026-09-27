@@ -514,6 +514,14 @@ function assiette(type: string, brut: number, plafond: number): number {
       if (brut <= plafond) return 0;
       return Math.min(brut, plafond * 8) - plafond;
 
+    // 🆕 28/09 — TRANCHES A ET B : jusqu a 4 plafonds. C est l assiette de
+    // l APEC (0,06 % sur la remuneration dans la limite de 4 fois le plafond
+    // de la securite sociale). En base, l APEC portait « tranche_b » : un
+    // cadre paye sous le plafond ne la payait pas du tout (essai du
+    // president, 28/09).
+    case "tranches_a_b":
+      return Math.min(brut, plafond * 4);
+
     // 🚨 CSG : 98,25 % du brut dans la limite de 4 plafonds, 100 % au-dela.
     // L abattement de 1,75 % represente les frais professionnels.
     case "csg": {
@@ -3974,6 +3982,14 @@ async function calculer(contratId: string, periode: string,
       for (const n of notesGaranties) r.unshift(n);
       for (const n of notesFin) r.unshift(n);
       for (const n of notesArret) r.unshift(n);
+      // 🆕 28/09 — pour un mandataire, les reserves qui ne le concernent pas
+      // (reduction generale, minimum conventionnel, maintien, conges) sont
+      // retirees : elles laissaient croire le contraire de la note du mandat.
+      if (estMandat) {
+        return r.filter(function (x: string) {
+          return !/^La RGDU est calculée|^Le salaire minimum conventionnel est contrôlé/.test(x);
+        });
+      }
       return r;
     })(),
   };
