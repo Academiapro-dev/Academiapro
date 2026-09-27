@@ -381,6 +381,10 @@ function maintienSalaire(p: {
   retenue: number; joursAbs: number; ancienneteMois: number;
   regle: RegleMaintien; ijJour: number; ijssCarence: number;
   joursTravail?: number[];
+  // 🆕 28/09 — IJ propres a la nature de l arret (accident du travail :
+  // 60 % puis 80 %, sans carence ; maternite : chaque jour). Absente : la
+  // regle de la maladie (ijJour apres ijssCarence), inchangee.
+  ijFn?: (rang: number) => number;
 }) {
   const res = { droit: false, raison: "", maintien: 0, ijss: 0,
     joursIjss: 0, jours1: 0, jours2: 0 };
@@ -415,7 +419,10 @@ function maintienSalaire(p: {
     }
     // Les IJSS des jours COUVERTS par le maintien se deduisent, week-end
     // compris ; celles des jours non couverts restent au salarie.
-    if (taux > 0 && rang >= p.ijssCarence) {
+    if (p.ijFn) {
+      const v = taux > 0 ? p.ijFn(rang) : 0;
+      if (v > 0) { ijss += v; res.joursIjss += 1; }
+    } else if (taux > 0 && rang >= p.ijssCarence) {
       ijss += p.ijJour;
       res.joursIjss += 1;
     }
@@ -1805,13 +1812,47 @@ async function calculer(contratId: string, periode: string,
 
     for (const ab of absencesArret) {
       const motifAb = String(ab.motif || "");
-      if (motifAb !== "maladie" && motifAb !== "01") {
+      // ═══════════════════════════════════════════════════════════════
+      // 🆕🚨 28/09 — LA NATURE DE L ARRET : maladie, accident du travail,
+      // maladie professionnelle, accident de trajet, maternite, paternite.
+      // Le motif vient de la table des codes DSN (60.001) : code ou
+      // correspondance, les deux sont reconnus.
+      //   · ACCIDENT DU TRAVAIL ET MALADIE PROFESSIONNELLE : maintien legal
+      //     des le premier jour, sans carence (article D1226-3 du code du
+      //     travail) ; IJ de la caisse sans carence, 60 % du salaire
+      //     journalier (brut du mois civil precedent / 30,42, plafonne a
+      //     0,834 % du plafond annuel) les 28 premiers jours, 80 % ensuite,
+      //     dans la limite du gain journalier net (79 %) — articles R433-1,
+      //     R433-3 et R433-4 du code de la securite sociale ; imposables
+      //     pour moitie.
+      //   · ACCIDENT DE TRAJET : IJ de l accident du travail, mais maintien
+      //     de l employeur avec la carence de la maladie (D1226-3 exclut le
+      //     trajet).
+      //   · MATERNITE ET PATERNITE : pas de maintien legal ; IJ de la caisse
+      //     sans carence = salaire journalier de base (3 derniers mois,
+      //     chacun plafonne au plafond mensuel, / 91,25) diminue de 21 % ;
+      //     un maintien s applique si la convention en porte un en base
+      //     (regles maintien_maternite_* ou maintien_paternite_*).
+      // ═══════════════════════════════════════════════════════════════
+      const mn = motifAb.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      const nature = (mn === "01" || (/maladie/.test(mn) && !/profession/.test(mn))) ? "maladie"
+        : (mn === "02" || /matern/.test(mn)) ? "maternite"
+        : (mn === "03" || /patern/.test(mn)) ? "paternite"
+        : (mn === "04" || /trajet/.test(mn)) ? "trajet"
+        : (mn === "05" || /profession/.test(mn)) ? "mp"
+        : (mn === "06" || (/accident/.test(mn) && /travail/.test(mn))) ? "at"
+        : "autre";
+      const nomNature: any = { maladie: "maladie", maternite: "maternité", paternite: "paternité",
+        trajet: "accident de trajet", mp: "maladie professionnelle", at: "accident du travail" };
+      const regimeAt = nature === "at" || nature === "mp" || nature === "trajet";
+      const regimeNaissance = nature === "maternite" || nature === "paternite";
+      if (nature === "autre") {
         notesArret.push("⛔ MAINTIEN DE SALAIRE NON CALCULÉ pour l'arrêt du "
           + ab.debut.slice(8, 10) + "/" + ab.debut.slice(5, 7) + " (motif « "
-          + motifAb.replace(/_/g, " ") + " ») : seule la maladie ordinaire "
-          + "est traitée. Accident du travail, maladie professionnelle, "
-          + "maternité et paternité obéissent à d'autres règles — le "
-          + "complément de l'employeur MANQUE sur ce bulletin s'il est dû."
+          + motifAb.replace(/_/g, " ") + " ») : sont traités la maladie, l'accident du "
+          + "travail, la maladie professionnelle, l'accident de trajet, la maternité et la "
+          + "paternité. Ce motif-ci (temps partiel thérapeutique, deuil…) obéit à d'autres "
+          + "règles — le complément de l'employeur MANQUE sur ce bulletin s'il est dû."
           + (ab.subrogation ? " 🚨 L'arrêt est en SUBROGATION : les indemnités "
             + "journalières que la caisse verse à l'employeur doivent être "
             + "reversées au salarié — elles ne sont PAS calculées pour ce motif, "
@@ -1857,6 +1898,27 @@ async function calculer(contratId: string, periode: string,
           origine: "régime légal, article L1226-1" };
       }
 
+      // 🆕 28/09 — ACCIDENT DU TRAVAIL ET MALADIE PROFESSIONNELLE : jamais de
+      // carence pour le complement de l employeur (D1226-3).
+      if (nature === "at" || nature === "mp") {
+        regle = { ...regle, carenceJours: 0, origine: regle.origine + ", sans carence (accident du travail, D1226-3)" };
+      }
+      // 🆕 28/09 — MATERNITE, PATERNITE : aucun maintien legal ; seule une
+      // regle de la convention, en base, en ouvre un.
+      let sansRegleNaissance = false;
+      if (regimeNaissance) {
+        const pre = "maintien_" + nature + "_";
+        const aN = lireM(pre + "anciennete_mois");
+        const jN = lireM(pre + "jours");
+        const tN = lireM(pre + "taux");
+        if (aN !== null && jN !== null) {
+          regle = { ancienneteMois: aN, carenceJours: 0, jours1: jN, taux1: tN !== null ? tN : 100,
+            jours2: 0, taux2: 0, origine: "convention " + contrat.idcc + " (" + nomNature[nature] + ")" };
+        } else {
+          sansRegleNaissance = true;
+        }
+      }
+
       // ---- 🆕 25/09 — LES ARRETS DEJA INDEMNISES SUR DOUZE MOIS ----
       // (article D1226-4, voir joursDejaIndemnises). Ils s imputent d abord
       // sur le premier palier, puis sur le second.
@@ -1873,7 +1935,12 @@ async function calculer(contratId: string, periode: string,
           if ((a0 as any).annule_le) continue;
           if ((a0 as any).id === ab.evenement_id) continue;
           const mot0 = String((a0 as any).motif || "");
-          if (mot0 !== "maladie" && mot0 !== "01") continue;
+          // 🆕 28/09 — « maladie ou accident » (D1226-4) : la maternite et la
+          // paternite ne s imputent pas.
+          const mn0 = mot0.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+          if (mn0 === "02" || mn0 === "03" || /matern|patern/.test(mn0)) continue;
+          if (!(mn0 === "01" || mn0 === "04" || mn0 === "05" || mn0 === "06"
+            || /maladie|accident|trajet/.test(mn0))) continue;
           const deb0 = String((a0 as any).date_debut || "").slice(0, 10);
           let fin0 = String((a0 as any).date_fin || "").slice(0, 10);
           if ((a0 as any).reprise_date) {
@@ -1937,15 +2004,68 @@ async function calculer(contratId: string, periode: string,
       }
       const plafond3 = ijssPlafond * smicMens * 3;
       if (plafond3 > 0 && troisMois > plafond3) troisMois = plafond3;
-      const ijJour = cts((troisMois / 91.25) * ijssTaux / 100);
+      let ijJour = cts((troisMois / 91.25) * ijssTaux / 100);
 
-      const m = maintienSalaire({
-        debutArret: ab.debut_arret, d1: ab.debut, d2: ab.fin,
-        retenue: Number(ab.retenue), joursAbs: Number(ab.jours),
-        ancienneteMois: anc, regle: regle, ijJour: ijJour,
-        ijssCarence: ijssCarenceP === null ? 3 : ijssCarenceP,
-        joursTravail: joursTravail,
-      });
+      // 🆕 28/09 — LES IJ PROPRES A LA NATURE DE L ARRET.
+      let ijFn: ((rang: number) => number) | undefined = undefined;
+      let noteIj = "";
+      let partImposableIj = 0.962;
+      if (regimeAt) {
+        // Salaire journalier : brut du mois civil precedent / 30,42, plafonne.
+        const moisAvant = (function () {
+          const d = new Date(ab.debut_arret.slice(0, 7) + "-01T00:00:00Z");
+          d.setUTCMonth(d.getUTCMonth() - 1);
+          return d.toISOString().slice(0, 7) + "-01";
+        })();
+        const { data: bAvant } = await supabase
+          .from("paie_bulletins").select("brut")
+          .eq("contrat_id", contratId).eq("statut", "emis").eq("periode", moisAvant)
+          .limit(1);
+        let brutAvant = bAvant && bAvant[0] ? Number((bAvant[0] as any).brut || 0) : 0;
+        estimeContrat = !(brutAvant > 0);
+        if (!(brutAvant > 0)) brutAvant = troisMois / 3;
+        const passAt = await parametre("PASS", periode);
+        let sjr = brutAvant / 30.42;
+        if (passAt !== null && sjr > Number(passAt) * 0.00834) sjr = Number(passAt) * 0.00834;
+        const ij1 = cts(sjr * 0.60);
+        const ij2 = cts(Math.min(sjr * 0.80, sjr * 0.79));
+        ijJour = ij1;
+        ijFn = function (rang: number): number { return rang < 28 ? ij1 : ij2; };
+        partImposableIj = 0.5 * 0.962;
+        noteIj = " Indemnités journalières de l'" + (nature === "mp" ? "a maladie professionnelle" : "accident")
+          + " : " + ij1.toLocaleString("fr-FR", { minimumFractionDigits: 2 }) + " € par jour (60 % du salaire "
+          + "journalier), " + ij2.toLocaleString("fr-FR", { minimumFractionDigits: 2 }) + " € à partir du 29e "
+          + "jour, sans carence ; imposables pour moitié.";
+      } else if (regimeNaissance) {
+        // Salaire journalier de base : 3 derniers mois, chacun plafonne au
+        // plafond mensuel, / 91,25 ; moins 21 %.
+        let base3 = 0;
+        const pm = Number(plafond || 0);
+        if ((derniers || []).length === 3) {
+          for (const b of (derniers || [])) base3 += pm > 0 ? Math.min(Number((b as any).brut || 0), pm) : Number((b as any).brut || 0);
+        } else {
+          base3 = pm > 0 ? Math.min(troisMois / 3, pm) * 3 : troisMois;
+        }
+        const ijN = cts(base3 / 91.25 * 0.79);
+        ijJour = ijN;
+        ijFn = function (): number { return ijN; };
+        partImposableIj = 0.962;
+        noteIj = " Indemnités journalières de " + nomNature[nature] + " : " + ijN.toLocaleString("fr-FR",
+          { minimumFractionDigits: 2 }) + " € par jour (salaire journalier de base diminué de 21 %), sans carence.";
+      }
+
+      const m = sansRegleNaissance
+        ? { droit: false, raison: "pas de maintien légal pour un congé de " + nomNature[nature]
+            + " ; la convention peut en prévoir un (règle maintien_" + nature + "_* à porter en base)",
+            maintien: 0, ijss: 0, joursIjss: 0, jours1: 0, jours2: 0 }
+        : maintienSalaire({
+          debutArret: ab.debut_arret, d1: ab.debut, d2: ab.fin,
+          retenue: Number(ab.retenue), joursAbs: Number(ab.jours),
+          ancienneteMois: anc, regle: regle, ijJour: ijJour,
+          ijssCarence: ijssCarenceP === null ? 3 : ijssCarenceP,
+          joursTravail: joursTravail,
+          ijFn: ijFn,
+        });
 
       // ═══════════════════════════════════════════════════════════════
       // 🆕🚨 27/09 soir — LA SUBROGATION SANS MAINTIEN DE SALAIRE
@@ -1970,27 +2090,28 @@ async function calculer(contratId: string, periode: string,
         const dj = new Date(ab.debut + "T00:00:00Z");
         const fj = Date.parse(ab.fin + "T00:00:00Z");
         let joursIj = 0;
+        let brutesJ = 0;
         while (dj.getTime() <= fj) {
           const iso = dj.toISOString().slice(0, 10);
           const rang = Math.round((dj.getTime() - t0) / 86400000);
-          if (rang >= carenceCaisse
-              && (!ab.subro_debut || iso >= ab.subro_debut)
-              && (!ab.subro_fin || iso <= ab.subro_fin)) joursIj += 1;
+          const dansSubro = (!ab.subro_debut || iso >= ab.subro_debut) && (!ab.subro_fin || iso <= ab.subro_fin);
+          // 🆕 28/09 — l IJ du jour selon la nature de l arret.
+          const v = ijFn ? ijFn(rang) : (rang >= carenceCaisse ? ijJour : 0);
+          if (dansSubro && v > 0) { joursIj += 1; brutesJ += v; }
           dj.setUTCDate(dj.getUTCDate() + 1);
         }
-        const brutes = cts(joursIj * ijJour);
+        const brutes = cts(brutesJ);
         if (brutes <= 0) {
           notesArret.push(motifNote + " Subrogation : aucun jour du mois n'ouvre "
-            + "droit aux indemnités journalières (carence de la caisse de "
-            + carenceCaisse + " jours), rien n'est reversé.");
+            + "droit aux indemnités journalières" + (ijFn ? "" : " (carence de la caisse de "
+            + carenceCaisse + " jours)") + ", rien n'est reversé.");
           return;
         }
         const nettes = cts(brutes * (1 - 0.067));
-        const imposables = cts(brutes * 0.962);
+        const imposables = cts(brutes * partImposableIj);
         lignesBrut.push({
           libelle: "Indemnités journalières reversées (subrogation, sans maintien de "
-            + "salaire), nettes de CSG et de CRDS (" + joursIj + " j × "
-            + ijJour.toLocaleString("fr-FR", { minimumFractionDigits: 2 }) + " €, estimées)",
+            + "salaire, " + nomNature[nature] + "), nettes de CSG et de CRDS (" + joursIj + " j, estimées)",
           quantite: joursIj, taux: ijJour, montant: nettes, hors_brut: true,
         });
         nonSoumis += nettes;
@@ -2014,8 +2135,9 @@ async function calculer(contratId: string, periode: string,
 
       if (!m.droit) {
         const note = "Pas de maintien de salaire pour l'arrêt du "
-          + ab.debut.slice(8, 10) + "/" + ab.debut.slice(5, 7) + " : "
-          + (m.raison || "aucun jour couvert") + ".";
+          + ab.debut.slice(8, 10) + "/" + ab.debut.slice(5, 7)
+          + (nature !== "maladie" ? " (" + nomNature[nature] + ")" : "") + " : "
+          + (m.raison || "aucun jour couvert") + "." + noteIj;
         if (ab.subrogation) reverserSansMaintien(note);
         else notesArret.push(note + " Le salarié perçoit les seules indemnités "
           + "journalières de la Sécurité sociale.");
@@ -2025,14 +2147,15 @@ async function calculer(contratId: string, periode: string,
         const note = "Maintien de salaire ouvert pour l'arrêt du "
           + ab.debut.slice(8, 10) + "/" + ab.debut.slice(5, 7) + ", mais aucun "
           + "jour du mois n'est couvert (carence de " + regle.carenceJours
-          + " jours, ou durée épuisée).";
+          + " jours, ou durée épuisée)." + noteIj;
         if (ab.subrogation) reverserSansMaintien(note);
         else notesArret.push(note);
         continue;
       }
 
       lignesBrut.push({
-        libelle: "Maintien de salaire maladie (" + m.jours1 + " j à "
+        libelle: "Maintien de salaire " + (nature === "maladie" ? "maladie" : "(" + nomNature[nature] + ")")
+          + " (" + m.jours1 + " j à "
           + regle.taux1 + " %" + (m.jours2 > 0
             ? ", " + m.jours2 + " j à " + String(regle.taux2).replace(".", ",") + " %" : "")
           + ")",
@@ -2087,7 +2210,7 @@ async function calculer(contratId: string, periode: string,
           quantite: null, taux: null, montant: ijssNettes, hors_brut: true,
         });
         nonSoumis += ijssNettes;
-        ijssImposablesArret = cts(m.ijss * 0.962);
+        ijssImposablesArret = cts(m.ijss * partImposableIj);
         ijssImposables += ijssImposablesArret;
       }
 
@@ -2100,15 +2223,16 @@ async function calculer(contratId: string, periode: string,
         jours_ijss: m.joursIjss, subrogation: ab.subrogation,
       });
 
-      notesArret.push("Maintien de salaire (" + regle.origine + ", "
+      notesArret.push("Maintien de salaire (" + (nature !== "maladie" ? nomNature[nature] + ", " : "")
+        + regle.origine + ", "
         + anc + " mois d'ancienneté) : " + m.maintien.toLocaleString("fr-FR",
           { minimumFractionDigits: 2 }) + " € maintenus, "
         + m.ijss.toLocaleString("fr-FR", { minimumFractionDigits: 2 })
         + " € d'indemnités journalières déduites. ⚠️ LES IJSS SONT ESTIMÉES"
-        + (estimeContrat ? " SUR LE SALAIRE DU CONTRAT, faute de trois "
-          + "bulletins émis avant l'arrêt" : " sur les trois derniers bulletins")
+        + (estimeContrat ? " SUR LE SALAIRE DU CONTRAT, faute de bulletins "
+          + "émis avant l'arrêt" : (regimeAt ? " sur le bulletin du mois précédent" : " sur les trois derniers bulletins"))
         + " : le décompte de la caisse fait foi, l'écart se régularise le "
-        + "mois suivant."
+        + "mois suivant." + noteIj
         + (ab.subrogation ? " Subrogation : les indemnités reversées sont "
           + "ajoutées au net à payer, et leur part imposable ("
           + ijssImposablesArret.toLocaleString("fr-FR", { minimumFractionDigits: 2 })
@@ -4107,13 +4231,18 @@ export async function GET(req: NextRequest) {
     if (aDuMaintien) {
       const habituel = await calculer(contratId, periode, { sansArrets: true });
       if (!habituel.erreur) {
-        const netHabituel = Number(habituel.net_a_payer || 0);
+        // 🆕🚨 28/09 — LA COMPARAISON SE FAIT AVANT IMPOT. Le prelevement a la
+        // source (27/09) change de tranche d un calcul a l autre : compare
+        // apres impot, le plafond laissait le salarie 4,31 € SOUS son net
+        // habituel (banc d essai, accident du travail). Le plafond de la loi
+        // porte sur le salaire net de charges SOCIALES, pas sur l impot.
+        const netHabituel = Number(habituel.net_avant_impot || habituel.net_a_payer || 0);
         const recu = function (x: any): number {
           let horsSubrogation = 0;
           for (const mt of (x.maintiens || [])) {
             if (!mt.subrogation) horsSubrogation += Number(mt.ijss_brutes || 0) * (1 - 0.067);
           }
-          return Number(x.net_a_payer || 0) + horsSubrogation;
+          return Number(x.net_avant_impot || x.net_a_payer || 0) + horsSubrogation;
         };
         let excedent = Math.round((recu(r) - netHabituel) * 100) / 100;
         let reduction = 0;
@@ -4129,7 +4258,7 @@ export async function GET(req: NextRequest) {
         }
         if (reduction > 0 && Array.isArray(r.reserves)) {
           r.reserves.unshift("Maintien de salaire plafonné au net habituel (article "
-            + "D1226-5 du code du travail) : sans arrêt, le salarié aurait touché "
+            + "D1226-5 du code du travail) : sans arrêt, le salarié aurait touché, avant impôt, "
             + netHabituel.toLocaleString("fr-FR", { minimumFractionDigits: 2 })
             + " € nets ; le complément de l'employeur est réduit de "
             + reduction.toLocaleString("fr-FR", { minimumFractionDigits: 2 })
