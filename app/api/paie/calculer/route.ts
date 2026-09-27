@@ -712,6 +712,64 @@ async function calculer(contratId: string, periode: string,
   const repartitionParDefaut = !String((contrat as any).jours_travailles || "").trim();
 
   // ═══════════════════════════════════════════════════════════════════
+  // 🆕🚨 27/09 — ENTREE OU SORTIE EN COURS DE MOIS
+  //
+  // Jusqu au 27/09, un salarie embauche le 15 touchait son mois ENTIER, et
+  // un salarie sorti le 10 aussi : le salaire mensuel n etait jamais
+  // proratise. Trouve en verifiant, avant l essai du temps partiel, qu aucun
+  // autre calcul ne supposait cinq jours.
+  // CE QUI EST PRORATISE :
+  //   · le SALAIRE DE BASE, aux heures reelles comme les absences :
+  //     salaire × heures de la periode d emploi / heures du mois, sur les
+  //     jours travailles du contrat (Cass. soc. 11/02/1982, meme methode) ;
+  //   · le SMIC de la reduction generale, dans le meme rapport (BOSS §850 :
+  //     le SMIC suit la remuneration due) ;
+  //   · le PLAFOND DE SECURITE SOCIALE, en JOURS CALENDAIRES : plafond ×
+  //     jours calendaires de la periode d emploi / jours calendaires du mois
+  //     (regle en vigueur depuis le 01/01/2018, R242-2 du code de la
+  //     securite sociale, rappelee par net-entreprises).
+  // La fin d emploi est la plus proche de `date_fin` et `rompu_le`.
+  // ═══════════════════════════════════════════════════════════════════
+  const moisPremier = String(periode).slice(0, 7) + "-01";
+  const moisDernier = (function () {
+    const d = new Date(moisPremier + "T00:00:00Z");
+    d.setUTCMonth(d.getUTCMonth() + 1);
+    d.setUTCDate(0);
+    return d.toISOString().slice(0, 10);
+  })();
+  let debutEmploi = moisPremier;
+  let finEmploi = moisDernier;
+  {
+    const dDeb = String(contrat.date_debut || "").slice(0, 10);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dDeb) && dDeb > debutEmploi) debutEmploi = dDeb;
+    for (const x of [String(contrat.date_fin || "").slice(0, 10), String((contrat as any).rompu_le || "").slice(0, 10)]) {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(x) && x < finEmploi) finEmploi = x;
+    }
+  }
+  const compterJoursTravail = function (a: string, b: string): number {
+    if (b < a) return 0;
+    let n = 0;
+    const d = new Date(a + "T00:00:00Z");
+    const f = new Date(b + "T00:00:00Z").getTime();
+    while (d.getTime() <= f) {
+      if (joursTravail.indexOf(d.getUTCDay()) >= 0) n += 1;
+      d.setUTCDate(d.getUTCDate() + 1);
+    }
+    return n;
+  };
+  const periodePartielle = debutEmploi > moisPremier || finEmploi < moisDernier;
+  const joursTravailMois = compterJoursTravail(moisPremier, moisDernier);
+  const joursTravailEmploi = compterJoursTravail(debutEmploi, finEmploi);
+  const proportionPeriode = periodePartielle && joursTravailMois > 0
+    ? Math.max(0, Math.min(1, joursTravailEmploi / joursTravailMois)) : 1;
+  const joursCalendairesMois = Number(moisDernier.slice(8, 10));
+  const joursCalendairesEmploi = finEmploi >= debutEmploi
+    ? Math.round((Date.parse(finEmploi + "T00:00:00Z") - Date.parse(debutEmploi + "T00:00:00Z")) / 86400000) + 1
+    : 0;
+  const proportionPlafond = periodePartielle && joursCalendairesMois > 0
+    ? Math.max(0, Math.min(1, joursCalendairesEmploi / joursCalendairesMois)) : 1;
+
+  // ═══════════════════════════════════════════════════════════════════
   // 🆕🚨 22/09 — L APPRENTI : SON MINIMUM LEGAL ET SON SEUIL D EXONERATION
   //
   // Tout ce qui suit ne sert QUE si le contrat est un apprentissage. Sur
@@ -919,6 +977,23 @@ async function calculer(contratId: string, periode: string,
       libelle = "Salaire de base apprenti (" + appr.pourcentage + " % du SMIC"
         + (appr.annee_execution ? ", année " + appr.annee_execution : "")
         + (appr.age !== null ? ", " + appr.age + " ans" : "") + ")";
+    }
+
+    // 🆕 27/09 — ENTREE OU SORTIE EN COURS DE MOIS : le salaire de base ne
+    // couvre que la periode d emploi (voir proportionPeriode).
+    if (base > 0 && proportionPeriode < 1) {
+      if (quantite !== null && taux !== null) {
+        quantite = cts(Number(quantite) * proportionPeriode);
+        base = Number(quantite) * Number(taux);
+        libelle = libelle.replace(/ \([0-9 ,]+ h\)$/, "")
+          + " (" + Number(quantite).toLocaleString("fr-FR",
+            { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " h)";
+      } else {
+        base = base * proportionPeriode;
+      }
+      libelle += " — du " + debutEmploi.slice(8, 10) + "/" + debutEmploi.slice(5, 7)
+        + " au " + finEmploi.slice(8, 10) + "/" + finEmploi.slice(5, 7)
+        + ", " + joursTravailEmploi + " jour(s) travaillé(s) sur " + joursTravailMois;
     }
 
     if (base > 0) {
@@ -1842,6 +1917,9 @@ async function calculer(contratId: string, periode: string,
     else if (contrat.salaire_horaire && dureeMensuelle) {
       baseRef = Number(contrat.salaire_horaire) * Number(dureeMensuelle);
     }
+    // 🆕 27/09 — la reference est le salaire de la PERIODE D EMPLOI : une
+    // entree en cours de mois n est pas une absence.
+    baseRef = baseRef * proportionPeriode;
     if (baseRef > 0 && retenueArrets > 0) {
       let du = baseRef - retenueArrets;
       for (const mt of maintiens) {
@@ -2006,7 +2084,9 @@ async function calculer(contratId: string, periode: string,
     // ⚠️ CELA NE CONCERNE QUE LE PLAFOND : les assiettes deplafonnees ne
     // bougent pas.
     // ═══════════════════════════════════════════════════════════════
-    const plafondContrat = Number(plafond) * proportionTemps;
+    // 🆕 27/09 — et en jours calendaires en cas d entree ou de sortie en
+    // cours de mois (proportionPlafond).
+    const plafondContrat = Number(plafond) * proportionTemps * proportionPlafond;
     const base = assiette(String(c.assiette_type), brutTotal, plafondContrat);
     if (base <= 0) continue;
 
@@ -2246,7 +2326,9 @@ async function calculer(contratId: string, periode: string,
     // du salarie (BOSS, assiette generale, §830). Une reserve le dit.
     const proportionForfaitReduit = (auForfaitJours && forfaitJoursAn > 0 && forfaitJoursAn < 218)
       ? forfaitJoursAn / 218 : 1;
-    const smicMensuelRef = smicRef * dureeContratMois * proportionForfaitReduit;
+    // 🆕 27/09 — et proratise a la periode d emploi (entree ou sortie en
+    // cours de mois).
+    const smicMensuelRef = smicRef * dureeContratMois * proportionForfaitReduit * proportionPeriode;
     const plafondEligibilite = smicMensuelRef * seuil;
 
     // ═══════════════════════════════════════════════════════════════════
@@ -2913,6 +2995,15 @@ async function calculer(contratId: string, periode: string,
         r.unshift("🚨 EFFECTIF INCONNU pour cette société : le FNAL et le Tdelta de la "
           + "RGDU sont ceux des MOINS DE 50 SALARIÉS. Si l'entreprise est plus grande, "
           + "la cotisation est sous-évaluée et la réduction sur-évaluée.");
+      }
+      // 🆕 27/09 — ENTREE OU SORTIE EN COURS DE MOIS
+      if (periodePartielle) {
+        r.unshift("Période d'emploi du " + debutEmploi.split("-").reverse().join("/")
+          + " au " + finEmploi.split("-").reverse().join("/") + " : salaire de base "
+          + "et SMIC de la réduction générale proratisés aux jours travaillés ("
+          + joursTravailEmploi + " sur " + joursTravailMois + "), plafond de Sécurité "
+          + "sociale aux jours calendaires (" + joursCalendairesEmploi + " sur "
+          + joursCalendairesMois + ", article R242-2 du code de la sécurité sociale).");
       }
       if (tempsPartiel) {
         r.unshift("Temps partiel : " + dureeHebdo.toLocaleString("fr-FR")
