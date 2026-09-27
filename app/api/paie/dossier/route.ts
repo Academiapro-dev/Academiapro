@@ -520,6 +520,40 @@ export async function POST(req: NextRequest) {
         else maj.date_fin = t;
       }
 
+      // ---- 🆕 28/09 — LE VEHICULE DE FONCTION (avantage en nature) ----
+      // Un objet, ou vide pour le retirer. Le moteur en tire l avantage du
+      // mois ; ici on controle ce qu il lui faut.
+      if (donne("vehicule")) {
+        const v = c.vehicule;
+        if (v === null || v === "" || v === false) maj.vehicule = null;
+        else if (typeof v !== "object") refus.push("véhicule : données illisibles.");
+        else {
+          const mode = String(v.mode || "achat");
+          const valeur = nombreFr(v.valeur);
+          const dAchat = propre(v.achat_le);
+          const dDispo = propre(v.mis_a_disposition_le);
+          const dRendu = propre(v.fin);
+          const pSaisie = propre(v.participation);
+          const part = pSaisie === null ? 0 : nombreFr(pSaisie);
+          if (["achat", "location"].indexOf(mode) < 0) refus.push("véhicule : acheté ou loué.");
+          if (valeur === null || !(valeur > 0)) {
+            refus.push("véhicule : " + (mode === "location" ? "le coût global annuel de location (loyers, entretien, assurance)"
+              : "le prix d'achat TTC") + " est obligatoire.");
+          }
+          if (!dDispo || !dateOk(dDispo)) refus.push("véhicule : la date de mise à disposition est obligatoire.");
+          if (mode === "achat" && (!dAchat || !dateOk(dAchat))) refus.push("véhicule acheté : la date d'achat est obligatoire (elle dit s'il a plus de 5 ans).");
+          if (dRendu && !dateOk(dRendu)) refus.push("véhicule : date de restitution au format AAAA-MM-JJ.");
+          if (part === null || part < 0) refus.push("véhicule : la participation mensuelle du salarié n'est pas un montant.");
+          maj.vehicule = {
+            mode: mode, valeur: valeur, achat_le: mode === "achat" ? dAchat : null,
+            mis_a_disposition_le: dDispo, fin: dRendu,
+            carburant: v.carburant === true, electrique: v.electrique === true,
+            eco_score: v.electrique === true && v.eco_score === true,
+            participation: part || 0,
+          };
+        }
+      }
+
       // ---- LA RUPTURE : date et motif, ou les deux vides pour l annuler ----
       if (donne("rompu_le") || donne("motif_rupture_dsn")) {
         const r = donne("rompu_le") ? propre(c.rompu_le)
