@@ -220,7 +220,7 @@ export async function POST(req: NextRequest) {
     if (action === "contrats") {
       const { data, error } = await supabase
         .from("paie_contrats")
-        .select("*, paie_salaries(nom, prenom)")
+        .select("*, paie_salaries(nom, prenom, taux_pas, taux_pas_date_effet, taux_pas_identifiant_crm)")
         .eq("statut", "actif")
         .order("date_debut", { ascending: false })
         .limit(200);
@@ -426,6 +426,63 @@ export async function POST(req: NextRequest) {
             ? " (forfait en jours : sans effet sur le calcul, qui ne compte pas d'heures)."
             : ", soit " + parJour.toLocaleString("fr-FR") + " h par jour. Les retenues d'absence "
               + "des prochains calculs en tiennent compte ; un bulletin déjà émis ne change pas."),
+      });
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // 🆕 27/09 — LE TAUX PERSONNALISE DE PRELEVEMENT A LA SOURCE
+    //
+    // Communique par l administration (compte rendu de la DSN, ou tableau de
+    // bord net-entreprises) ; tant qu il n est pas saisi, le moteur applique
+    // la grille du taux non personnalise. Il se range sur le SALARIE
+    // (`paie_salaries.taux_pas`, `taux_pas_date_effet`, `taux_pas_origine`,
+    // `taux_pas_identifiant_crm`) : c est lui que lit aussi la DSN.
+    // Un taux vide EFFACE le taux personnalise (retour a la grille).
+    // ═══════════════════════════════════════════════════════════════════
+    if (action === "taux_pas") {
+      const contratId = propre(c.contrat_id);
+      if (!contratId) return NextResponse.json({ erreur: "contrat manquant" }, { status: 400 });
+      const { data: ct, error: eL } = await supabase
+        .from("paie_contrats")
+        .select("id, salarie_id")
+        .eq("id", contratId)
+        .maybeSingle();
+      if (eL) return NextResponse.json({ erreur: eL.message }, { status: 500 });
+      if (!ct || !(ct as any).salarie_id) return NextResponse.json({ erreur: "contrat ou salarié introuvable" }, { status: 404 });
+
+      const brut = String(c.taux === undefined || c.taux === null ? "" : c.taux).trim();
+      if (brut === "") {
+        const { error: eV } = await supabase
+          .from("paie_salaries")
+          .update({ taux_pas: null, taux_pas_date_effet: null, taux_pas_origine: null, taux_pas_identifiant_crm: null })
+          .eq("id", (ct as any).salarie_id);
+        if (eV) return NextResponse.json({ erreur: eV.message }, { status: 500 });
+        return NextResponse.json({ success: true, message: "Taux personnalisé effacé : le taux non personnalisé (grille officielle) s'applique." });
+      }
+
+      const taux = nombreFr(brut);
+      if (taux === null || !isFinite(taux) || taux < 0 || taux > 60) {
+        return NextResponse.json({ erreur: "taux illisible : indiquez le taux communiqué par l'administration, en pourcentage (par exemple 7,5)." }, { status: 400 });
+      }
+      const effet = propre(c.date_effet);
+      if (effet && !/^\d{4}-\d{2}-\d{2}$/.test(effet)) {
+        return NextResponse.json({ erreur: "date d'effet illisible." }, { status: 400 });
+      }
+      const { error: eU } = await supabase
+        .from("paie_salaries")
+        .update({
+          taux_pas: Math.round(taux * 100) / 100,
+          taux_pas_date_effet: effet || null,
+          taux_pas_origine: "saisie a l ecran",
+          taux_pas_identifiant_crm: propre(c.identifiant_crm) || null,
+        })
+        .eq("id", (ct as any).salarie_id);
+      if (eU) return NextResponse.json({ erreur: eU.message }, { status: 500 });
+      return NextResponse.json({
+        success: true,
+        message: "Taux personnalisé enregistré : " + (Math.round(taux * 100) / 100).toLocaleString("fr-FR")
+          + " %" + (effet ? " à compter du " + effet.split("-").reverse().join("/") : "")
+          + ". Il s'applique aux prochains calculs ; un bulletin déjà émis ne change pas.",
       });
     }
 
