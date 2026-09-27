@@ -1248,6 +1248,11 @@ export default function PagePaie() {
                           titre de son mandat. Ni chomage, ni AGS, ni reduction
                           generale, ni conges payes. */}
                       <option value="mandat_social">Mandat social (dirigeant assimilé salarié)</option>
+                      {/* 🆕 28/09 — LE STAGIAIRE : la gratification se saisit en
+                          « Salaire mensuel brut » ; la franchise de cotisations
+                          se calcule sur les heures du mois. Date de fin
+                          obligatoire (celle de la convention de stage). */}
+                      <option value="stage">Convention de stage (gratification)</option>
                     </select>
                   </div>
                   <div style={{ flex: "1 1 140px" }}>
@@ -1287,7 +1292,7 @@ export default function PagePaie() {
                       ⚠️ L UN OU L AUTRE : un salaire mensuel l emporte sur le
                       taux horaire dans le moteur. */}
                   <div style={{ flex: "1 1 140px" }}>
-                    <span style={LIB}>Salaire mensuel brut</span>
+                    <span style={LIB}>{f.type_contrat === "stage" ? "Gratification mensuelle" : "Salaire mensuel brut"}</span>
                     <input value={f.salaire_mensuel || ""} style={CHAMP} placeholder="ex. 2 400"
                       onChange={(ev) => setF({ ...f, salaire_mensuel: ev.target.value })} />
                   </div>
@@ -1454,6 +1459,7 @@ export default function PagePaie() {
                       {c.type_contrat === "mission" ? "Contrat de mission"
                         : c.type_contrat === "apprentissage" ? "Apprentissage"
                         : c.type_contrat === "mandat_social" ? "Mandat social"
+                        : c.type_contrat === "stage" ? "Stage"
                         : c.type_contrat.toUpperCase()}
                     </span>
                   </div>
@@ -1504,6 +1510,7 @@ export default function PagePaie() {
                 const typeLib = choisi.type_contrat === "mission" ? "Contrat de mission"
                   : choisi.type_contrat === "apprentissage" ? "Apprentissage"
                   : choisi.type_contrat === "mandat_social" ? "Mandat social"
+                  : choisi.type_contrat === "stage" ? "Convention de stage"
                   : String(choisi.type_contrat || "").toUpperCase();
                 const dateFr = function (x: any): string { return String(x || "").slice(0, 10).split("-").reverse().join("/"); };
                 const morceaux: string[] = [typeLib];
@@ -2226,7 +2233,8 @@ export default function PagePaie() {
             {/* 🆕 28/09 — pas de certificat de travail ni de reçu pour solde
                 de tout compte pour un mandataire : il n a pas de contrat de
                 travail. */}
-            {choisi && (choisi.rompu_le || choisi.date_fin) && choisi.type_contrat !== "mandat_social" && (
+            {choisi && (choisi.rompu_le || choisi.date_fin) && choisi.type_contrat !== "mandat_social"
+              && choisi.type_contrat !== "stage" && (
               <div style={CADRE}>
                 <h3 style={{ color: OR, fontSize: "16px", marginTop: 0 }}>
                   Documents de fin de contrat
