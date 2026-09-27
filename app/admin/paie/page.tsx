@@ -100,6 +100,9 @@ const MOTIFS = [
 const TYPES_ELEMENT = [
   { cle: "heures_sup_25", nom: "Heures supplémentaires 25 %", soumis: true },
   { cle: "heures_sup_50", nom: "Heures supplémentaires 50 %", soumis: true },
+  // 🆕 28/09 — les heures complémentaires du temps partiel.
+  { cle: "heures_comp_10", nom: "Heures complémentaires 10 % (temps partiel)", soumis: true },
+  { cle: "heures_comp_25", nom: "Heures complémentaires 25 % (temps partiel)", soumis: true },
   { cle: "prime", nom: "Prime", soumis: true },
   { cle: "panier", nom: "Panier repas", soumis: false },
   { cle: "transport", nom: "Transport", soumis: false },
@@ -122,6 +125,12 @@ const TYPES_ELEMENT = [
 // cas et la valeur faciale du titre dans l'autre : personne ne peut le
 // deviner, et une saisie inversée passe inaperçue sur le bulletin.
 const AIDE_ELEMENT: any = {
+  heures_comp_10: "Temps partiel seulement. Quantité = nombre d'heures au-delà de la durée du "
+    + "contrat, dans la limite du dixième de cette durée. Taux : laisser vide, il se calcule "
+    + "(taux horaire majoré de 10 %). Montant : laisser vide.",
+  heures_comp_25: "Temps partiel seulement. Quantité = heures au-delà du dixième de la durée du "
+    + "contrat (un accord doit le permettre ; jamais plus du tiers). Taux : laisser vide "
+    + "(majoré de 25 %). Montant : laisser vide.",
   avantage_repas: "Quantité = nombre de repas fournis dans le mois. "
     + "Taux = participation du salarié PAR REPAS (laisser vide s'il ne paie "
     + "rien). Montant : ne rien mettre, le barème URSSAF s'applique.",
@@ -524,12 +533,21 @@ export default function PagePaie() {
   // contrat majore d un quart — la machine connait les deux.
   // ⚠️ UN TAUX SAISI L EMPORTE TOUJOURS : certaines conventions majorent
   // autrement, et c est alors une negociation, pas un calcul.
+  // 🆕 28/09 — AUSSI POUR UN SALARIE PAYE AU MOIS : le taux horaire vaut le
+  // salaire mensuel divise par la duree mensuelle du contrat (heures par
+  // semaine × 52 / 12). Et pour les heures complementaires (10 % et 25 %).
   function tauxMajore(): number | null {
-    if (!choisi || !choisi.salaire_horaire) return null;
-    const base = Number(choisi.salaire_horaire);
-    if (e.type_element === "heures_sup_25") return Math.round(base * 1.25 * 10000) / 10000;
-    if (e.type_element === "heures_sup_50") return Math.round(base * 1.5 * 10000) / 10000;
-    return null;
+    if (!choisi || choisi.type_contrat === "mandat_social" || choisi.forfait_jours_annuel) return null;
+    let base = Number(choisi.salaire_horaire || 0);
+    if (!(base > 0) && Number(choisi.salaire_mensuel) > 0) {
+      const hebdo = Number(choisi.duree_hebdo) > 0 ? Number(choisi.duree_hebdo) : 35;
+      base = Number(choisi.salaire_mensuel) / (Math.round(hebdo * 52 / 12 * 100) / 100);
+    }
+    if (!(base > 0)) return null;
+    const maj: any = { heures_sup_25: 1.25, heures_sup_50: 1.5, heures_comp_10: 1.10, heures_comp_25: 1.25 };
+    const k = maj[e.type_element];
+    // ⚠️ QUATRE DECIMALES, comme avant : 8 h × 13,50 × 1,25 = 135,00 exactement.
+    return k ? Math.round(base * k * 10000) / 10000 : null;
   }
 
   async function ajouterElement() {
