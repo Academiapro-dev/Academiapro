@@ -259,6 +259,8 @@ export default function PagePaie() {
   const [periode, setPeriode] = useState(moisCourant());
   const [elements, setElements] = useState<any[]>([]);
   const [calcul, setCalcul] = useState<any>(null);
+  // 🆕 27/09 — les jours travailles en cours de modification (null = ferme).
+  const [joursSaisie, setJoursSaisie] = useState<number[] | null>(null);
   const [bulletins, setBulletins] = useState<any[]>([]);
   // ⚠️ LES CONGES NE CONCERNENT QUE LE CDI : sur une mission ou un CDD ils
   // sont compenses par l ICCP, et ce bloc reste invisible.
@@ -332,6 +334,40 @@ export default function PagePaie() {
     }
   }
 
+  // ═══════════════════════════════════════════════════════════════════
+  // 🆕 27/09 — LES JOURS TRAVAILLES DANS LA SEMAINE
+  // 0 = dimanche … 6 = samedi, comme le moteur. Vide sur le contrat = du
+  // lundi au vendredi.
+  // ═══════════════════════════════════════════════════════════════════
+  function joursDuContrat(c: any): number[] {
+    const brut = String((c && c.jours_travailles) || "").trim();
+    if (!brut) return [1, 2, 3, 4, 5];
+    const l: number[] = [];
+    for (const m of brut.split(/[^0-9]+/)) {
+      if (m === "") continue;
+      const n = Number(m);
+      if (n >= 0 && n <= 6 && l.indexOf(n) < 0) l.push(n);
+    }
+    return l.length > 0 ? l.sort(function (a, b) { return a - b; }) : [1, 2, 3, 4, 5];
+  }
+
+  async function enregistrerJours() {
+    if (!choisi || !joursSaisie) return;
+    setErr(""); setMsg(""); setOccupe("jours");
+    const d = await appeler({ action: "repartition", contrat_id: choisi.id, jours: joursSaisie });
+    if (d && d.success) {
+      setMsg(d.message || "Enregistré.");
+      const maj = { ...choisi, jours_travailles: d.jours_travailles };
+      setChoisi(maj);
+      setContrats(contrats.map(function (x: any) { return x.id === maj.id ? maj : x; }));
+      setJoursSaisie(null);
+      setCalcul(null);
+    } else {
+      setErr(lisible(d && d.erreur ? d.erreur : "enregistrement impossible"));
+    }
+    setOccupe("");
+  }
+
   async function charger(s?: string) {
     setErr(""); setOccupe("charger");
     const d = await appeler({ action: "contrats" }, s);
@@ -345,6 +381,7 @@ export default function PagePaie() {
   async function ouvrir(c: any) {
     setChoisi(c); setCalcul(null); setMsg(""); setErr("");
     setConges(null); setJoursPris("");
+    setJoursSaisie(null);
     setEvenements(null);
     // 🆕 LE FORMULAIRE REPART A VIDE QUAND ON CHANGE DE SALARIE : sinon un
     // arret a moitie saisi pour l un s enregistrerait sur le contrat de
@@ -1313,6 +1350,79 @@ export default function PagePaie() {
                 <input type="month" value={periode.slice(0, 7)} style={CHAMP}
                   onChange={(ev) => changerPeriode(ev.target.value + "-01")} />
               </div>
+
+              {/* ═══════════════════════════════════════════════════════
+                  🆕 27/09 — LES JOURS TRAVAILLES DANS LA SEMAINE
+                  Les retenues d'absence se font aux heures réelles : pour un
+                  temps partiel sur moins de cinq jours, ou un samedi
+                  travaillé, il faut savoir quels jours le salarié travaille.
+                  ═══════════════════════════════════════════════════════ */}
+              {(function () {
+                const noms = ["dim.", "lun.", "mar.", "mer.", "jeu.", "ven.", "sam."];
+                const nomsLongs = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
+                const ordre = [1, 2, 3, 4, 5, 6, 0];
+                const actuels = joursDuContrat(choisi);
+                const renseigne = !!String(choisi.jours_travailles || "").trim();
+                const hebdo = Number(choisi.duree_hebdo) > 0 ? Number(choisi.duree_hebdo) : 35;
+                const auForfait = !!choisi.forfait_jours_annuel;
+                return (
+                  <div style={{ marginTop: "14px" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between",
+                      alignItems: "baseline", flexWrap: "wrap", gap: "8px" }}>
+                      <p style={{ margin: 0, fontSize: "12.5px", lineHeight: "1.6",
+                        color: "rgba(255,255,255,0.55)" }}>
+                        Jours travaillés dans la semaine :{" "}
+                        {actuels.map(function (j) { return nomsLongs[j]; }).join(", ")}
+                        {auForfait ? " — forfait en jours, sans effet sur le calcul"
+                          : " — " + (Math.round(hebdo / actuels.length * 100) / 100)
+                            .toLocaleString("fr-FR") + " h par jour"}
+                        {renseigne ? "" : " (par défaut)"}
+                      </p>
+                      <button onClick={() => setJoursSaisie(joursSaisie ? null : actuels.slice())}
+                        style={{ ...LIEN, color: OR }}>
+                        {joursSaisie ? "annuler" : "modifier"}
+                      </button>
+                    </div>
+                    {joursSaisie && (
+                      <div style={{ marginTop: "8px" }}>
+                        <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                          {ordre.map(function (j) {
+                            const coche = joursSaisie.indexOf(j) >= 0;
+                            return (
+                              <button key={j}
+                                onClick={() => setJoursSaisie(coche
+                                  ? joursSaisie.filter(function (x) { return x !== j; })
+                                  : joursSaisie.concat([j]))}
+                                style={{ ...SECOND, padding: "6px 10px", fontSize: "13px",
+                                  background: coche ? OR : "transparent",
+                                  color: coche ? "#0b0b10" : OR }}>
+                                {noms[j]}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <p style={{ margin: "8px 0 0", fontSize: "11.5px", lineHeight: "1.6",
+                          color: "rgba(255,255,255,0.42)" }}>
+                          {joursSaisie.length > 0 && !auForfait
+                            ? hebdo.toLocaleString("fr-FR") + " h réparties sur "
+                              + joursSaisie.length + " jour(s), soit "
+                              + (Math.round(hebdo / joursSaisie.length * 100) / 100)
+                                .toLocaleString("fr-FR") + " h par jour. "
+                            : ""}
+                          Les absences se retiendront sur ces jours-là. Un bulletin
+                          déjà émis ne change pas.
+                        </p>
+                        <button onClick={enregistrerJours}
+                          disabled={occupe !== "" || joursSaisie.length === 0}
+                          style={{ ...BOUTON, marginTop: "8px",
+                            opacity: joursSaisie.length === 0 ? 0.4 : 1 }}>
+                          {occupe === "jours" ? "…" : "Enregistrer les jours travaillés"}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
 
               {/* 🆕 16/09 — CE QUI EXISTE DEJA POUR CE MOIS SE VOIT ICI,
                   avant tout clic. Un seul bulletin par mois : autant dire
