@@ -1035,6 +1035,7 @@ async function calculer(contratId: string, periode: string,
   let hsBrut = 0;
   let hsHeures = 0;
   let acomptes = 0;
+  let indemniteRupture = 0;
 
   for (const e of (elements || [])) {
     const t = String(e.type_element || "");
@@ -1286,6 +1287,13 @@ async function calculer(contratId: string, periode: string,
         });
         nonSoumis -= partSalariale;
       }
+      continue;
+    }
+
+    // ─────────── 🆕 27/09 — L INDEMNITE DE RUPTURE (licenciement, rupture
+    // conventionnelle) : mise de cote, son regime social se calcule plus bas.
+    if (t === "indemnite_rupture") {
+      indemniteRupture += cts(Math.abs(Number(e.montant || 0)));
       continue;
     }
 
@@ -2044,7 +2052,186 @@ async function calculer(contratId: string, periode: string,
 
   // 🚨 LES INDEMNITES SONT SOUMISES A COTISATIONS. L IFM et l ICCP entrent
   // dans le brut cotise — ce ne sont pas des remboursements de frais.
+  // ═══════════════════════════════════════════════════════════════════
+  // 🆕🚨 27/09 — LA FIN D UN CDI (ou d un contrat d apprentissage)
+  //
+  // 1. L INDEMNITE COMPENSATRICE DES CONGES NON PRIS (article L3141-28) :
+  //    le solde du compteur (acquis − pris − deja payes), plus
+  //    l acquisition du dernier mois (proratisee si le mois est incomplet),
+  //    valorise au plus favorable du maintien de salaire (1/26 du mensuel
+  //    par jour ouvrable) et du dixieme (10 % du brut de la periode de
+  //    reference, rapporte aux jours acquis). Soumise a cotisations.
+  //    Jusqu au 27/09, un CDI qui partait perdait ses conges non pris.
+  // ═══════════════════════════════════════════════════════════════════
+  let iccpCdi = 0;
+  const finCdi: any = { jours: 0, maintien: 0, dixieme: 0 };
+  const notesFin: string[] = [];
+  const typeFin = String(contrat.type_contrat || "");
+  const finContrat = (function () {
+    let f = "";
+    for (const x of [String(contrat.date_fin || "").slice(0, 10), String((contrat as any).rompu_le || "").slice(0, 10)]) {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(x) && (!f || x < f)) f = x;
+    }
+    return f;
+  })();
+  const finDansLeMois = !!finContrat && finContrat >= moisPremier && finContrat <= moisDernier;
+  if (finDansLeMois && (typeFin === "cdi" || typeFin === "apprentissage")) {
+    const { data: mvts } = await supabase
+      .from("paie_conges")
+      .select("periode, periode_ref, type_mouvement, jours")
+      .eq("contrat_id", contratId);
+    let solde = 0;
+    let acquisPeriode = 0;
+    let dejaAcquisCeMois = false;
+    const refCourante = (Number(periode.slice(5, 7)) >= 6 ? Number(periode.slice(0, 4)) : Number(periode.slice(0, 4)) - 1) + "-06-01";
+    for (const mv of (mvts || [])) {
+      const tm = String((mv as any).type_mouvement || "");
+      const j = Number((mv as any).jours || 0);
+      if (tm === "acquisition") {
+        solde += j;
+        if (String((mv as any).periode_ref || "").slice(0, 10) === refCourante) acquisPeriode += j;
+        if (String((mv as any).periode || "").slice(0, 7) === periode.slice(0, 7)) dejaAcquisCeMois = true;
+      } else {
+        solde -= j;   // prise ou paiement
+      }
+    }
+    if (!dejaAcquisCeMois) {
+      // L acquisition du dernier mois, comme a l emission (2,5 j, ou au
+      // prorata des jours ouvrables de presence / 24).
+      let ouvrables = 0;
+      const d = new Date(debutEmploi + "T00:00:00Z");
+      const f = new Date(finEmploi + "T00:00:00Z").getTime();
+      while (d.getTime() <= f) { if (d.getUTCDay() !== 0) ouvrables += 1; d.setUTCDate(d.getUTCDate() + 1); }
+      const acq = periodePartielle ? Math.round(Math.min(2.5, 2.5 * ouvrables / 24) * 100) / 100 : 2.5;
+      solde += acq;
+      acquisPeriode += acq;
+      finCdi.acquisition_du_mois = acq;
+    }
+    solde = Math.round(solde * 100) / 100;
+    if (solde > 0) {
+      let mensuel = Number(contrat.salaire_mensuel || 0);
+      if (!(mensuel > 0) && contrat.salaire_horaire) mensuel = Number(contrat.salaire_horaire) * dureeContratMois;
+      if (!(mensuel > 0) && appr && appr.minimum_legal) mensuel = Number(appr.minimum_legal);
+      const maintien = mensuel / 26 * solde;
+      const { data: bRef } = await supabase
+        .from("paie_bulletins")
+        .select("brut")
+        .eq("contrat_id", contratId)
+        .eq("statut", "emis")
+        .gte("periode", refCourante)
+        .lt("periode", periode);
+      let brutRef = brutSoumis;
+      for (const b0 of (bRef || [])) brutRef += Number((b0 as any).brut || 0);
+      const dixieme = acquisPeriode > 0 ? (brutRef * 0.10) / acquisPeriode * solde : 0;
+      iccpCdi = cts(Math.max(maintien, dixieme));
+      finCdi.jours = solde;
+      finCdi.maintien = cts(maintien);
+      finCdi.dixieme = cts(dixieme);
+      finCdi.montant = iccpCdi;
+      if (iccpCdi > 0) {
+        lignesBrut.push({
+          libelle: "Indemnité compensatrice de congés payés (" + solde.toLocaleString("fr-FR")
+            + " jour(s) ouvrable(s) non pris, " + (maintien >= dixieme ? "maintien de salaire" : "règle du dixième") + ")",
+          quantite: solde, taux: null, montant: iccpCdi,
+        });
+        brutSoumis += iccpCdi;
+        notesFin.push("Fin de contrat le " + finContrat.split("-").reverse().join("/") + " : "
+          + solde.toLocaleString("fr-FR") + " jour(s) de congés non pris, payés "
+          + iccpCdi.toLocaleString("fr-FR", { minimumFractionDigits: 2 }) + " € (maintien "
+          + cts(maintien).toLocaleString("fr-FR", { minimumFractionDigits: 2 }) + " €, dixième "
+          + cts(dixieme).toLocaleString("fr-FR", { minimumFractionDigits: 2 }) + " €). À l'émission, "
+          + "ces jours sont soldés au compteur.");
+      }
+    }
+  }
+
   const brutTotal = cts(brutSoumis + ifm + iccp);
+
+  // ═══════════════════════════════════════════════════════════════════
+  // 🆕🚨 27/09 — 2. L INDEMNITE DE LICENCIEMENT OU DE RUPTURE
+  // CONVENTIONNELLE (element « indemnite_rupture », montant saisi)
+  //
+  //   · LE MINIMUM LEGAL (L1234-9, R1234-2) : 1/4 de mois de salaire par
+  //     annee d anciennete jusqu a 10 ans, 1/3 au-dela, sur le plus
+  //     favorable de la moyenne des 12 ou des 3 derniers mois ; 8 mois
+  //     d anciennete au moins. Calcule pour controle et pour le regime.
+  //   · LE REGIME (simplifie, cas courant) : exoneree de cotisations dans
+  //     la limite de 2 PASS ; CSG-CRDS sur la part au-dela du minimum
+  //     legal, sans abattement ; exoneree d impot dans la limite du plus
+  //     eleve du minimum legal et de la moitie de l indemnite (6 PASS au
+  //     plus) ;
+  //   · RUPTURE CONVENTIONNELLE (motif 043) : contribution patronale de
+  //     40 % (fin de contrat depuis le 01/01/2026 ; 30 % avant) sur la part
+  //     exoneree de cotisations (`CONTRIBUTION_PATRONALE_RC`, CTP 719).
+  // ⚠️ Non geres : l indemnite conventionnelle plus favorable (a saisir en
+  // montant), la part au-dela de 2 PASS soumise a cotisations, le plafond
+  // de 2 fois la remuneration annuelle, la mise a la retraite.
+  // ═══════════════════════════════════════════════════════════════════
+  let csgBaseRupture = 0;
+  let irImposableRupture = 0;
+  let contributionRc = 0;
+  const rupture: any = indemniteRupture > 0 ? { montant: indemniteRupture } : null;
+  if (indemniteRupture > 0) {
+    const motif = String((contrat as any).motif_rupture_dsn || (contrat as any).motif_rupture || "");
+    const estRc = motif === "043";
+    const dDeb = String(contrat.date_debut || "").slice(0, 10);
+    const dFin = finContrat || moisDernier;
+    const moisAnc = dDeb ? Math.max(0, (Date.parse(dFin + "T00:00:00Z") - Date.parse(dDeb + "T00:00:00Z")) / 86400000 / 30.4375) : 0;
+    const annees = moisAnc / 12;
+    const { data: derniers } = await supabase
+      .from("paie_bulletins")
+      .select("brut, periode")
+      .eq("contrat_id", contratId)
+      .eq("statut", "emis")
+      .lt("periode", periode)
+      .order("periode", { ascending: false })
+      .limit(12);
+    const bruts = (derniers || []).map(function (x: any) { return Number(x.brut || 0); });
+    bruts.unshift(brutTotal);   // le mois de la rupture compte
+    const moy12 = bruts.slice(0, 12).reduce(function (a: number, b: number) { return a + b; }, 0) / Math.max(1, Math.min(12, bruts.length));
+    const moy3 = bruts.slice(0, 3).reduce(function (a: number, b: number) { return a + b; }, 0) / Math.max(1, Math.min(3, bruts.length));
+    const salRef = Math.max(moy12, moy3);
+    const legal = moisAnc >= 8
+      ? cts(salRef / 4 * Math.min(annees, 10) + salRef / 3 * Math.max(0, annees - 10)) : 0;
+    const pass = await parametre("PASS", periode);
+    const deuxPass = pass !== null ? 2 * Number(pass) : Infinity;
+    const exoCotis = Math.min(indemniteRupture, deuxPass);
+    rupture.exoneree_cotisations = cts(exoCotis);
+    csgBaseRupture = cts(Math.max(0, indemniteRupture - legal));
+    const exoIr = Math.min(Math.max(legal, indemniteRupture / 2), pass !== null ? 6 * Number(pass) : Infinity);
+    irImposableRupture = cts(Math.max(0, indemniteRupture - exoIr));
+    rupture.legal = legal; rupture.salaire_reference = cts(salRef); rupture.anciennete_annees = Math.round(annees * 100) / 100;
+    rupture.base_csg = csgBaseRupture; rupture.imposable = irImposableRupture; rupture.rupture_conventionnelle = estRc;
+    if (estRc) {
+      const tRc = await parametre("CONTRIBUTION_PATRONALE_RC", dFin);
+      if (tRc === null) {
+        notesFin.push("⛔ Contribution patronale sur la rupture conventionnelle non calculée : son taux est absent de la base.");
+      } else {
+        contributionRc = cts(exoCotis * Number(tRc) / 100);
+        rupture.contribution_patronale = contributionRc;
+        rupture.taux_contribution = Number(tRc);
+      }
+    }
+    lignesBrut.push({
+      libelle: (estRc ? "Indemnité spécifique de rupture conventionnelle" : "Indemnité de licenciement")
+        + " (non soumise à cotisations)",
+      quantite: null, taux: null, montant: indemniteRupture,
+    });
+    nonSoumis += indemniteRupture;
+    if (indemniteRupture < legal) {
+      notesFin.push("🚨 L'indemnité saisie (" + indemniteRupture.toLocaleString("fr-FR", { minimumFractionDigits: 2 })
+        + " €) est INFÉRIEURE au minimum légal calculé (" + legal.toLocaleString("fr-FR", { minimumFractionDigits: 2 })
+        + " € : " + (Math.round(annees * 100) / 100).toLocaleString("fr-FR") + " an(s) d'ancienneté, salaire de référence "
+        + cts(salRef).toLocaleString("fr-FR", { minimumFractionDigits: 2 }) + " €). À corriger avant d'émettre.");
+    }
+    notesFin.push((estRc ? "Rupture conventionnelle" : "Indemnité de licenciement") + " : minimum légal "
+      + legal.toLocaleString("fr-FR", { minimumFractionDigits: 2 }) + " € ; CSG-CRDS sur "
+      + csgBaseRupture.toLocaleString("fr-FR", { minimumFractionDigits: 2 }) + " € ; imposable "
+      + irImposableRupture.toLocaleString("fr-FR", { minimumFractionDigits: 2 }) + " €"
+      + (estRc && contributionRc > 0 ? " ; contribution patronale de " + contributionRc.toLocaleString("fr-FR", { minimumFractionDigits: 2 }) + " €" : "")
+      + ". ⚠️ Régime simplifié : indemnité conventionnelle plus favorable, part au-delà de 2 plafonds annuels et mise à la retraite non gérées."
+      + (motif ? "" : " ⚠️ Le motif de rupture du contrat n'est pas renseigné : traité comme un licenciement."));
+  }
 
   // ═══════════════════════════════════════════════════════════════════
   // 🆕🚨 20/09 — LE SALAIRE RETABLI : CE QUE LE SALARIE AURAIT TOUCHE SANS
@@ -2229,8 +2416,9 @@ async function calculer(contratId: string, periode: string,
     let exoApprentiLigne = false;
     // 🆕 27/09 — la part patronale de la mutuelle et de la prevoyance entre
     // dans l assiette CSG-CRDS, sans abattement (sauf apprenti).
-    const ajoutCsgGaranties = String(c.assiette_type) === "csg" && patronalGaranties > 0 && !apprentiGaranties
-      ? patronalGaranties : 0;
+    const ajoutCsgGaranties = String(c.assiette_type) === "csg"
+      ? (patronalGaranties > 0 && !apprentiGaranties ? patronalGaranties : 0) + csgBaseRupture
+      : 0;
 
     if (appr && appr.seuil_exoneration > 0 && Number(c.taux_salarial) !== 0) {
       const horsExoneration = (c as any).garantie_complementaire === true
@@ -2410,6 +2598,18 @@ async function calculer(contratId: string, periode: string,
       + (patronalSante > 0 ? " ; part patronale santé de " + patronalSante.toLocaleString("fr-FR")
         + " € réintégrée au net imposable" : "") + ". ⚠️ Les limites d'exclusion d'assiette (6 % du plafond "
       + "+ 1,5 % de la rémunération, etc.) ne sont pas contrôlées.");
+  }
+
+  // 🆕 27/09 — la contribution patronale sur la rupture conventionnelle.
+  if (contributionRc > 0) {
+    lignesCotis.push({
+      code: "CONTRIBUTION_PATRONALE_RC", libelle: "Contribution patronale sur indemnité de rupture conventionnelle",
+      famille: "contribution", base: rupture ? Number(rupture.exoneree_cotisations || 0) : 0,
+      base_salariale: null, exoneration_apprenti: false, taux_salarial: 0,
+      taux_patronal: rupture ? rupture.taux_contribution : 0, part_salariale: 0, part_patronale: contributionRc,
+      eligible_rgdu: false, garantie_complementaire: false, alerte: null, insee: null,
+    });
+    totalPatronal += contributionRc;
   }
 
   totalSalarial = cts(totalSalarial);
@@ -2789,7 +2989,7 @@ async function calculer(contratId: string, periode: string,
   // 🆕 27/09 — ET LES HEURES SUPPLEMENTAIRES : leur remuneration nette
   // imposable exoneree sort du net imposable (plafond annuel compris).
   const netImposable = cts(brutTotal - totalSalarial + csgNonDeductible + ijssImposables
-    - hsExonereIr + patronalSante);
+    - hsExonereIr + patronalSante + irImposableRupture);
   // ⚠️ LE COUT EMPLOYEUR EST NET DE LA REDUCTION : c est ce que l entreprise
   // debourse reellement.
   const coutEmployeur = cts(brutTotal + totalPatronalApresRgdu);
@@ -3159,6 +3359,9 @@ async function calculer(contratId: string, periode: string,
     } : null,
     deduction_hs: deductionHs,
     acomptes: cts(acomptes),
+    // 🆕 27/09 — la fin d un CDI : conges non pris et indemnite de rupture.
+    iccp_cdi: iccpCdi > 0 ? finCdi : null,
+    rupture: rupture,
     net_a_payer: netAPayer,
     cout_employeur: coutEmployeur,
 
@@ -3398,6 +3601,7 @@ async function calculer(contratId: string, periode: string,
       // 🆕 27/09 — les heures supplementaires, la mutuelle et la prevoyance.
       for (const n of notesHs) r.unshift(n);
       for (const n of notesGaranties) r.unshift(n);
+      for (const n of notesFin) r.unshift(n);
       for (const n of notesArret) r.unshift(n);
       return r;
     })(),
