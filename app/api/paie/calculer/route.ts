@@ -2084,11 +2084,90 @@ async function calculer(contratId: string, periode: string,
   let csgNonDeductible = 0;
   let patronalEligible = 0;
 
+  // ═══════════════════════════════════════════════════════════════════
+  // 🆕🚨 27/09 — LA MUTUELLE ET LA PREVOYANCE DE LA SOCIETE
+  //
+  // Jusqu au 27/09 elles ne se saisissaient nulle part : les lignes
+  // n apparaissaient jamais. Elles viennent desormais de
+  // `paie_garanties_societe`, saisies a l ecran DSN (bloc « Recouvrement
+  // URSSAF ») : nature (sante ou prevoyance), categorie (tous, cadres,
+  // non-cadres), mode (forfait en euros, % du plafond, % du brut, % de la
+  // tranche A), part patronale en %.
+  // LEUR REGIME, lu dans les textes (article D242-1 et L137-15 du code de
+  // la securite sociale ; BOSS) :
+  //   · la part SALARIALE est une cotisation deductible du net imposable ;
+  //   · la part PATRONALE echappe aux cotisations de securite sociale (dans
+  //     les limites legales, rarement atteintes — reserve), mais ENTRE DANS
+  //     L ASSIETTE CSG-CRDS, sans abattement de 1,75 % ;
+  //   · FORFAIT SOCIAL de 8 % sur la part patronale, a partir de 11
+  //     salaries (`FORFAIT_SOCIAL_PREVOYANCE`) ;
+  //   · la part patronale de la MUTUELLE SANTE est reintegree au net
+  //     imposable ; celle de la prevoyance non.
+  //   · l apprenti : CSG-CRDS non dues sur ces sommes, par simplification.
+  // ═══════════════════════════════════════════════════════════════════
+  const lignesGaranties: any[] = [];
+  let patronalGaranties = 0;
+  let patronalSante = 0;
+  const notesGaranties: string[] = [];
+  {
+    const { data: garanties, error: eG } = await supabase
+      .from("paie_garanties_societe")
+      .select("nature, categorie, mode, montant, taux, part_patronale_pct, organisme")
+      .eq("societe_id", contrat.societe_id)
+      .lte("date_effet", periode)
+      .or("date_fin.is.null,date_fin.gte." + periode);
+    if (eG) {
+      notesGaranties.push("⛔ La mutuelle et la prévoyance de la société n'ont pas pu être lues ("
+        + eG.message + ") : aucune ligne portée.");
+    }
+    const estCadre = String(contrat.categorie || "") === "cadre";
+    const plafondMois = Number(plafond) * proportionTemps * proportionPlafond;
+    for (const g of (garanties || [])) {
+      const cat = String((g as any).categorie || "tous");
+      if (cat === "cadre" && !estCadre) continue;
+      if (cat === "non_cadre" && estCadre) continue;
+      const mode = String((g as any).mode || "forfait");
+      let total = 0;
+      if (mode === "forfait") total = Number((g as any).montant || 0);
+      else if (mode === "pct_pmss") total = Number(plafond) * Number((g as any).taux || 0) / 100;
+      else if (mode === "pct_brut") total = brutTotal * Number((g as any).taux || 0) / 100;
+      else if (mode === "pct_tranche_a") total = Math.min(brutTotal, plafondMois) * Number((g as any).taux || 0) / 100;
+      total = cts(total);
+      if (total <= 0) continue;
+      const pctPat = Math.max(0, Math.min(100, Number((g as any).part_patronale_pct || 0)));
+      const pat = cts(total * pctPat / 100);
+      const sal = cts(total - pat);
+      const sante = String((g as any).nature) === "sante";
+      lignesGaranties.push({
+        code: sante ? "MUTUELLE" : "PREVOYANCE",
+        libelle: (sante ? "Complémentaire santé" : "Prévoyance")
+          + ((g as any).organisme ? " (" + (g as any).organisme + ")" : ""),
+        famille: "complementaire", base: mode === "forfait" ? null : cts(total * 100 / Math.max(0.0001, Number((g as any).taux || 0))),
+        base_salariale: null, exoneration_apprenti: false,
+        taux_salarial: mode === "forfait" ? null : Math.round(Number((g as any).taux || 0) * (100 - pctPat)) / 100,
+        taux_patronal: mode === "forfait" ? null : Math.round(Number((g as any).taux || 0) * pctPat) / 100,
+        part_salariale: sal, part_patronale: pat, eligible_rgdu: false,
+        garantie_complementaire: true, alerte: null, insee: null,
+      });
+      patronalGaranties += pat;
+      if (sante) patronalSante += pat;
+    }
+    patronalGaranties = cts(patronalGaranties);
+    patronalSante = cts(patronalSante);
+    if (lignesGaranties.length === 0 && !eG) {
+      notesGaranties.push("⚠️ Aucune mutuelle ni prévoyance n'est renseignée pour la société (écran DSN, "
+        + "bloc « Recouvrement URSSAF ») : la complémentaire santé est obligatoire dans toute entreprise.");
+    }
+  }
+  const apprentiGaranties = String(contrat.type_contrat || "") === "apprentissage";
+
   for (const c of (cotisations || [])) {
     // ⚠️ CERTAINES COTISATIONS NE CONCERNENT QU UNE CATEGORIE (APEC pour
     // les cadres) ou QU UN TYPE DE CONTRAT.
     if (c.categorie && c.categorie !== contrat.categorie) continue;
     if (c.type_contrat && c.type_contrat !== contrat.type_contrat) continue;
+    // 🆕 27/09 — les garanties viennent desormais de la societe.
+    if ((c as any).garantie_complementaire === true && lignesGaranties.length > 0) continue;
 
     // 🚨 LES DEUX LIGNES FNAL SONT EXCLUSIVES : l effectif tranche.
     // ⚠️ SANS EFFECTIF CONNU, on prend celle des moins de 50 — et on le
@@ -2148,6 +2227,10 @@ async function calculer(contratId: string, periode: string,
     // ═══════════════════════════════════════════════════════════════
     let baseSal = base;
     let exoApprentiLigne = false;
+    // 🆕 27/09 — la part patronale de la mutuelle et de la prevoyance entre
+    // dans l assiette CSG-CRDS, sans abattement (sauf apprenti).
+    const ajoutCsgGaranties = String(c.assiette_type) === "csg" && patronalGaranties > 0 && !apprentiGaranties
+      ? patronalGaranties : 0;
 
     if (appr && appr.seuil_exoneration > 0 && Number(c.taux_salarial) !== 0) {
       const horsExoneration = (c as any).garantie_complementaire === true
@@ -2232,7 +2315,7 @@ async function calculer(contratId: string, periode: string,
       }
     }
 
-    const partSal = cts(baseSal * Number(c.taux_salarial) / 100);
+    const partSal = cts((baseSal + ajoutCsgGaranties) * Number(c.taux_salarial) / 100);
     const partPat = cts(base * tPat / 100);
 
     // 🆕 16/09 — UNE LIGNE A ZERO DES DEUX COTES DISPARAIT, SAUF CELLES QUI
@@ -2264,7 +2347,7 @@ async function calculer(contratId: string, periode: string,
       code: c.code,
       libelle: c.libelle,
       famille: c.famille,
-      base: cts(base),
+      base: cts(base + ajoutCsgGaranties),
       // 🆕 22/09 — L ASSIETTE SALARIALE QUAND ELLE DIFFERE DE L ASSIETTE
       // PATRONALE. Sur un apprenti, le bulletin doit montrer les deux :
       // une ligne ou l employeur cotise sur 1 200 EUR et le salarie sur
@@ -2295,6 +2378,38 @@ async function calculer(contratId: string, periode: string,
       // d avoir a le retrouver au moment d ecrire le fichier.
       insee: String(c.code) === "VERSEMENT_MOBILITE" && inseeVm ? inseeVm : null,
     });
+  }
+
+  // 🆕 27/09 — LES LIGNES DE MUTUELLE ET DE PREVOYANCE, puis le forfait
+  // social de 8 % sur leur part patronale (11 salaries et plus).
+  for (const lg of lignesGaranties) {
+    lignesCotis.push(lg);
+    totalSalarial += Number(lg.part_salariale || 0);
+    totalPatronal += Number(lg.part_patronale || 0);
+  }
+  if (patronalGaranties > 0) {
+    if (!effectifConnu) {
+      notesGaranties.push("⚠️ Forfait social sur la mutuelle et la prévoyance non calculé : l'effectif de la société n'est pas renseigné.");
+    } else if (effectif >= 11) {
+      const tFs = await parametre("FORFAIT_SOCIAL_PREVOYANCE", periode);
+      if (tFs === null) {
+        notesGaranties.push("⛔ Forfait social sur la mutuelle et la prévoyance non calculé : son taux est absent de la base.");
+      } else {
+        const fs = cts(patronalGaranties * Number(tFs) / 100);
+        lignesCotis.push({
+          code: "FORFAIT_SOCIAL_PREVOYANCE", libelle: "Forfait social sur mutuelle et prévoyance",
+          famille: "contribution", base: patronalGaranties, base_salariale: null, exoneration_apprenti: false,
+          taux_salarial: 0, taux_patronal: Number(tFs), part_salariale: 0, part_patronale: fs,
+          eligible_rgdu: false, garantie_complementaire: false, alerte: null, insee: null,
+        });
+        totalPatronal += fs;
+      }
+    }
+    notesGaranties.push("Mutuelle et prévoyance : part patronale de " + patronalGaranties.toLocaleString("fr-FR")
+      + " € ajoutée à l'assiette de la CSG-CRDS" + (apprentiGaranties ? " (sauf apprenti)" : "")
+      + (patronalSante > 0 ? " ; part patronale santé de " + patronalSante.toLocaleString("fr-FR")
+        + " € réintégrée au net imposable" : "") + ". ⚠️ Les limites d'exclusion d'assiette (6 % du plafond "
+      + "+ 1,5 % de la rémunération, etc.) ne sont pas contrôlées.");
   }
 
   totalSalarial = cts(totalSalarial);
@@ -2674,7 +2789,7 @@ async function calculer(contratId: string, periode: string,
   // 🆕 27/09 — ET LES HEURES SUPPLEMENTAIRES : leur remuneration nette
   // imposable exoneree sort du net imposable (plafond annuel compris).
   const netImposable = cts(brutTotal - totalSalarial + csgNonDeductible + ijssImposables
-    - hsExonereIr);
+    - hsExonereIr + patronalSante);
   // ⚠️ LE COUT EMPLOYEUR EST NET DE LA REDUCTION : c est ce que l entreprise
   // debourse reellement.
   const coutEmployeur = cts(brutTotal + totalPatronalApresRgdu);
@@ -3280,8 +3395,9 @@ async function calculer(contratId: string, periode: string,
           + "reçoit une réduction trop forte.");
       }
       for (const n of notesAvantages) r.unshift(n);
-      // 🆕 27/09 — les heures supplementaires.
+      // 🆕 27/09 — les heures supplementaires, la mutuelle et la prevoyance.
       for (const n of notesHs) r.unshift(n);
+      for (const n of notesGaranties) r.unshift(n);
       for (const n of notesArret) r.unshift(n);
       return r;
     })(),
