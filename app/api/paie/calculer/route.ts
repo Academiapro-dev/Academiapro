@@ -1030,6 +1030,11 @@ async function calculer(contratId: string, periode: string,
   const pTrMax = await parametre("TR_PART_MAX", periode);
 
   const notesAvantages: string[] = [];
+  // 🆕 27/09 — les heures supplementaires du mois (pour leurs reductions)
+  // et les acomptes deja verses (retenus sur le net).
+  let hsBrut = 0;
+  let hsHeures = 0;
+  let acomptes = 0;
 
   for (const e of (elements || [])) {
     const t = String(e.type_element || "");
@@ -1284,8 +1289,33 @@ async function calculer(contratId: string, periode: string,
       continue;
     }
 
+    // ─────────── 🆕 27/09 — L ACOMPTE DEJA VERSE ───────────
+    // Une avance sur le salaire du mois, deja payee : elle se retient sur le
+    // NET, comme la part salariale des titres-restaurant. Ni cotisation, ni
+    // impot : elle ne touche ni le brut, ni le net imposable.
+    if (t === "acompte") {
+      const a = cts(Math.abs(Number(e.montant || 0)));
+      if (a > 0) {
+        lignesBrut.push({
+          libelle: "Acompte déjà versé" + (e.libelle && String(e.libelle) !== "Element"
+            && String(e.libelle).toLowerCase().indexOf("acompte") < 0 ? " (" + e.libelle + ")" : ""),
+          quantite: null, taux: null, montant: -a,
+        });
+        nonSoumis -= a;
+        acomptes += a;
+      }
+      continue;
+    }
+
     // ─────────── TOUS LES AUTRES ELEMENTS ───────────
     const m = cts(Number(e.montant || 0));
+    // 🆕 27/09 — LES HEURES SUPPLEMENTAIRES SONT COMPTEES A PART : elles
+    // ouvrent droit a la reduction de cotisations salariales, a
+    // l exoneration d impot et a la deduction forfaitaire patronale.
+    if ((t === "heures_sup_25" || t === "heures_sup_50") && e.soumis_cotisations !== false) {
+      hsBrut += m;
+      hsHeures += Number(e.quantite || 0);
+    }
     lignesBrut.push({
       libelle: e.libelle,
       quantite: e.quantite ? Number(e.quantite) : null,
@@ -2273,6 +2303,98 @@ async function calculer(contratId: string, periode: string,
   patronalEligible = cts(patronalEligible);
 
   // ═══════════════════════════════════════════════════════════════════
+  // 🆕🚨 27/09 — LES HEURES SUPPLEMENTAIRES : REDUCTION SALARIALE ET
+  // EXONERATION D IMPOT (article L241-17 du code de la securite sociale,
+  // article 81 quater du CGI ; BOSS, exonerations heures supplementaires)
+  //
+  //   · REDUCTION SALARIALE = remuneration des HS × le taux des cotisations
+  //     salariales d assurance vieillesse (de base et complementaire), au
+  //     plus 11,31 %. Sur un salaire au-dessus du plafond, c est le taux
+  //     EFFECTIF (cotisations vieillesse salariales / brut) qui s applique.
+  //   · LA CSG ET LA CRDS RESTENT DUES, et la CSG sur les HS devient
+  //     INTEGRALEMENT NON DEDUCTIBLE (BOSS §440).
+  //   · EXONERATION D IMPOT de la remuneration nette des HS, dans la limite
+  //     annuelle de `HS_PLAFOND_EXONERATION_IR` (7 500 €), cumulee sur les
+  //     bulletins emis de l annee pour ce contrat.
+  // Jusqu au 27/09, les HS etaient payees et cotisees comme du salaire.
+  // ═══════════════════════════════════════════════════════════════════
+  let reductionHs = 0;
+  let tauxReductionHs = 0;
+  let hsExonereIr = 0;
+  let csgDedHs = 0;
+  const notesHs: string[] = [];
+  if (hsBrut > 0) {
+    let vieillesseSal = 0;
+    let salarialHorsCsg = 0;
+    let tauxCsgDed = 0;
+    for (const l of lignesCotis) {
+      const code = String((l as any).code || "");
+      if (/^(VIEILLESSE|RETRAITE_C|CEG|CET)/.test(code)) vieillesseSal += Number((l as any).part_salariale || 0);
+      if (code === "CSG_DED") tauxCsgDed = Number((l as any).taux_salarial || 0);
+      if (code !== "CSG_DED" && code !== "CSG_NON_DED" && code !== "CRDS") {
+        salarialHorsCsg += Number((l as any).part_salariale || 0);
+      }
+    }
+    tauxReductionHs = brutTotal > 0 ? Math.min(0.1131, vieillesseSal / brutTotal) : 0;
+    reductionHs = cts(hsBrut * tauxReductionHs);
+    if (reductionHs > 0) {
+      totalSalarial = cts(totalSalarial - reductionHs);
+      lignesCotis.push({
+        code: "REDUCTION_HS", libelle: "Réduction de cotisations salariales sur heures supplémentaires",
+        famille: "reduction", base: cts(hsBrut), base_salariale: null, exoneration_apprenti: false,
+        taux_salarial: -Math.round(tauxReductionHs * 10000) / 100, taux_patronal: 0,
+        part_salariale: -reductionHs, part_patronale: 0, eligible_rgdu: false,
+        garantie_complementaire: false, alerte: null, insee: null,
+      } as any);
+    }
+    // La CSG deductible afferente aux HS.
+    csgDedHs = cts(hsBrut * 0.9825 * tauxCsgDed / 100);
+
+    // L exoneration d impot porte sur la REMUNERATION NETTE IMPOSABLE des
+    // HS : leur brut, moins les cotisations salariales hors CSG-CRDS qui
+    // restent a charge apres la reduction, moins la CSG deductible qui s y
+    // rattache. C est ce montant que plafonnent les 7 500 € (article
+    // 81 quater du CGI ; BOSS §440 : la CSG sur ces heures ne vient alors
+    // en deduction d aucun autre revenu).
+    const partHorsCsgHs = brutTotal > 0 ? hsBrut * (salarialHorsCsg / brutTotal) : 0;
+    let exonere = Math.max(0, hsBrut - Math.max(0, partHorsCsgHs - reductionHs) - csgDedHs);
+    const plafondIr = await parametre("HS_PLAFOND_EXONERATION_IR", periode);
+    if (plafondIr === null) {
+      exonere = 0;
+      notesHs.push("⛔ Exonération d'impôt des heures supplémentaires NON appliquée : le plafond "
+        + "HS_PLAFOND_EXONERATION_IR est absent de la base pour cette période.");
+    } else {
+      const annee = String(periode).slice(0, 4);
+      const { data: precedents } = await supabase
+        .from("paie_bulletins")
+        .select("detail, periode")
+        .eq("contrat_id", contratId)
+        .eq("statut", "emis")
+        .gte("periode", annee + "-01-01")
+        .lt("periode", periode);
+      let cumul = 0;
+      for (const bp of (precedents || [])) {
+        const hs0 = bp && (bp as any).detail && (bp as any).detail.heures_sup;
+        if (hs0 && hs0.exonere_ir) cumul += Number(hs0.exonere_ir);
+      }
+      const reste = Math.max(0, Number(plafondIr) - cumul);
+      if (exonere > reste) {
+        notesHs.push("Exonération d'impôt des heures supplémentaires plafonnée : "
+          + Number(plafondIr).toLocaleString("fr-FR") + " € par an, dont "
+          + cts(cumul).toLocaleString("fr-FR") + " € déjà exonérés cette année.");
+        exonere = reste;
+      }
+    }
+    hsExonereIr = cts(exonere);
+    notesHs.push("Heures supplémentaires : " + hsHeures.toLocaleString("fr-FR") + " h payées "
+      + cts(hsBrut).toLocaleString("fr-FR") + " €. Réduction de cotisations salariales de "
+      + reductionHs.toLocaleString("fr-FR") + " € (taux "
+      + (Math.round(tauxReductionHs * 10000) / 100).toLocaleString("fr-FR") + " %, au plus 11,31 %) ; "
+      + hsExonereIr.toLocaleString("fr-FR") + " € de rémunération nette exonérés d'impôt, retirés "
+      + "du net imposable (la CSG sur ces heures n'est déductible d'aucun autre revenu).");
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
   // ---- LA REDUCTION GENERALE DEGRESSIVE UNIQUE (RGDU) ----
   //
   // 🚨 DEPUIS LE 1er JANVIER 2026, elle remplace l ancienne reduction
@@ -2469,7 +2591,35 @@ async function calculer(contratId: string, periode: string,
 
   // 🚨 LA REDUCTION S IMPUTE SUR LES COTISATIONS PATRONALES, jamais sur les
   // salariales. Elle diminue le cout employeur, pas le net du salarie.
-  const totalPatronalApresRgdu = cts(totalPatronal - rgdu);
+  // ═══════════════════════════════════════════════════════════════════
+  // 🆕 27/09 — LA DEDUCTION FORFAITAIRE PATRONALE SUR LES HEURES
+  // SUPPLEMENTAIRES (article L241-18 du code de la securite sociale) :
+  // 1,50 € par heure sous 20 salaries, 0,50 € au-dela (etendue a 250
+  // salaries et plus pour les heures effectuees depuis le 01/01/2026, LFSS
+  // 2026). Montants en base (HS_DEDUCTION_MOINS20, HS_DEDUCTION_20PLUS).
+  // ⚠️ Elle suppose l effectif connu ; elle ne depasse jamais les
+  // cotisations patronales restantes.
+  // ═══════════════════════════════════════════════════════════════════
+  let deductionHs = 0;
+  if (hsHeures > 0) {
+    if (!effectifConnu) {
+      notesHs.push("⚠️ Déduction forfaitaire patronale sur heures supplémentaires non appliquée : "
+        + "l'effectif de la société n'est pas renseigné.");
+    } else {
+      const parHeure = await parametre(effectif < 20 ? "HS_DEDUCTION_MOINS20" : "HS_DEDUCTION_20PLUS", periode);
+      if (parHeure === null) {
+        notesHs.push("⛔ Déduction forfaitaire patronale sur heures supplémentaires non appliquée : "
+          + "son montant par heure est absent de la base pour cette période.");
+      } else {
+        deductionHs = cts(Math.min(hsHeures * Number(parHeure), Math.max(0, totalPatronal - rgdu)));
+        notesHs.push("Déduction forfaitaire patronale : " + hsHeures.toLocaleString("fr-FR")
+          + " h × " + Number(parHeure).toLocaleString("fr-FR", { minimumFractionDigits: 2 })
+          + " € = " + deductionHs.toLocaleString("fr-FR", { minimumFractionDigits: 2 })
+          + " € (" + (effectif < 20 ? "moins de 20 salariés" : "20 salariés et plus") + ").");
+      }
+    }
+  }
+  const totalPatronalApresRgdu = cts(totalPatronal - rgdu - deductionHs);
 
   // ═══════════════════════════════════════════════════════════════════
   // ---- LES CONGES PAYES ----
@@ -2521,19 +2671,101 @@ async function calculer(contratId: string, periode: string,
   const netAvantImpot = cts(brutTotal - totalSalarial + nonSoumis);
   // 🆕 25/09 — ET LA PART IMPOSABLE DES IJSS VERSEES PAR SUBROGATION.
   ijssImposables = cts(ijssImposables);
-  const netImposable = cts(brutTotal - totalSalarial + csgNonDeductible + ijssImposables);
+  // 🆕 27/09 — ET LES HEURES SUPPLEMENTAIRES : leur remuneration nette
+  // imposable exoneree sort du net imposable (plafond annuel compris).
+  const netImposable = cts(brutTotal - totalSalarial + csgNonDeductible + ijssImposables
+    - hsExonereIr);
   // ⚠️ LE COUT EMPLOYEUR EST NET DE LA REDUCTION : c est ce que l entreprise
   // debourse reellement.
   const coutEmployeur = cts(brutTotal + totalPatronalApresRgdu);
 
-  // ⚠️ LE PRELEVEMENT A LA SOURCE N EST PAS CALCULE ICI : son taux est
-  // transmis par l administration fiscale dans le compte rendu metier de
-  // la DSN. Tant que la DSN n est pas branchee, il reste a zero.
-  // 🆕 16/09 — ET LE BULLETIN LE DIT. Une ligne « Prelevement a la source
-  // 0,00 » sans explication laisse croire a un salarie non imposable ;
-  // c est un taux NEUTRE en attente du retour de l administration.
-  const prelevementSource = 0;
-  const prelevementMention = "taux neutre — en attente du retour DSN";
+  // ═══════════════════════════════════════════════════════════════════
+  // 🆕🚨 27/09 — LE PRELEVEMENT A LA SOURCE, ENFIN CALCULE
+  //
+  // Jusqu au 27/09 il valait TOUJOURS zero, avec la mention « taux neutre »
+  // — ce qui etait faux deux fois : le taux neutre n est pas zero, et
+  // l employeur repond de la retenue qu il n a pas faite.
+  // LA REGLE (article 204 H du CGI) :
+  //   · TAUX PERSONNALISE : celui que l administration a communique pour le
+  //     salarie (`paie_salaries.taux_pas`, saisi a l ecran, avec sa date
+  //     d effet) ; il prime des qu il est en vigueur ;
+  //   · A DEFAUT, TAUX NON PERSONNALISE : la grille officielle du mois
+  //     (`paie_bareme_pas`, zone metropole, en base avec sa source), lue sur
+  //     l assiette ;
+  //   · CONTRAT COURT (CDD ou mission de deux mois au plus, taux non
+  //     personnalise) : un abattement d un demi-SMIC net imposable est
+  //     retire de l assiette avant de lire la grille
+  //     (`PAS_ABATTEMENT_CONTRAT_COURT`, en base par periode).
+  // L ASSIETTE est le net imposable. Le montant = assiette × taux.
+  // ⚠️ Salaries domicilies outre-mer : grilles propres, non chargees — le
+  // moteur applique la grille metropole et la reserve le dit.
+  // ═══════════════════════════════════════════════════════════════════
+  let prelevementSource = 0;
+  let prelevementMention = "";
+  const pas: any = { assiette: netImposable, abattement: 0, taux: 0, nature: "", grille_trouvee: true };
+  {
+    const sal: any = (contrat as any).paie_salaries || {};
+    const brutTaux = sal.taux_pas;
+    const tauxPerso = brutTaux === null || brutTaux === undefined || String(brutTaux).trim() === ""
+      ? null : Number(brutTaux);
+    const effetPerso = sal.taux_pas_date_effet ? String(sal.taux_pas_date_effet).slice(0, 10) : "";
+    const persoEnVigueur = tauxPerso !== null && isFinite(tauxPerso) && tauxPerso >= 0
+      && (!effetPerso || effetPerso <= moisDernier);
+
+    if (persoEnVigueur) {
+      pas.taux = Number(tauxPerso);
+      pas.nature = "personnalise";
+      prelevementSource = cts(Math.max(0, netImposable) * pas.taux / 100);
+      prelevementMention = "taux personnalisé " + pas.taux.toLocaleString("fr-FR",
+        { minimumFractionDigits: 1, maximumFractionDigits: 2 }) + " %";
+    } else {
+      pas.nature = "non_personnalise";
+      let assiettePas = Math.max(0, netImposable);
+
+      // Contrat court : CDD ou mission dont la duree INITIALE est de deux
+      // mois au plus.
+      const typeC = String(contrat.type_contrat || "");
+      const dDebC = String(contrat.date_debut || "").slice(0, 10);
+      const dFinC = String(contrat.date_fin || "").slice(0, 10);
+      let court = false;
+      if ((typeC === "cdd" || typeC === "mission") && dDebC && dFinC) {
+        const limite = new Date(dDebC + "T00:00:00Z");
+        limite.setUTCMonth(limite.getUTCMonth() + 2);
+        court = dFinC < limite.toISOString().slice(0, 10);
+      }
+      if (court) {
+        const ab = await parametre("PAS_ABATTEMENT_CONTRAT_COURT", periode);
+        if (ab !== null && Number(ab) > 0) {
+          pas.abattement = Number(ab);
+          assiettePas = Math.max(0, assiettePas - pas.abattement);
+        }
+      }
+
+      const { data: grille, error: eGrille } = await supabase
+        .from("paie_bareme_pas")
+        .select("base_min, taux")
+        .eq("zone", "metropole")
+        .lte("date_effet", periode)
+        .or("date_fin.is.null,date_fin.gte." + periode)
+        .order("base_min", { ascending: true });
+      if (eGrille || !grille || grille.length === 0) {
+        pas.grille_trouvee = false;
+        prelevementMention = "grille du taux non personnalisé introuvable pour ce mois — aucun prélèvement calculé";
+      } else {
+        let t = 0;
+        for (const g of grille) {
+          if (assiettePas >= Number((g as any).base_min)) t = Number((g as any).taux);
+        }
+        pas.taux = t;
+        prelevementSource = cts(assiettePas * t / 100);
+        prelevementMention = "taux non personnalisé " + t.toLocaleString("fr-FR",
+          { minimumFractionDigits: 1, maximumFractionDigits: 2 }) + " % (grille métropole"
+          + (pas.abattement > 0 ? ", abattement contrat court de "
+            + pas.abattement.toLocaleString("fr-FR") + " €" : "") + ")";
+      }
+      pas.assiette_apres_abattement = cts(assiettePas);
+    }
+  }
   const netAPayer = cts(netAvantImpot - prelevementSource);
 
   // ---- LE MONTANT NET SOCIAL ----
@@ -2803,6 +3035,15 @@ async function calculer(contratId: string, periode: string,
     net_avant_impot: netAvantImpot,
     prelevement_source: prelevementSource,
     prelevement_mention: prelevementMention,
+    prelevement: pas,
+    // 🆕 27/09 — les heures supplementaires et l acompte.
+    heures_sup: hsBrut > 0 ? {
+      brut: cts(hsBrut), heures: hsHeures, taux_reduction: Math.round(tauxReductionHs * 10000) / 100,
+      reduction_salariale: reductionHs, exonere_ir: hsExonereIr, csg_deductible_reintegree: csgDedHs,
+      deduction_patronale: deductionHs,
+    } : null,
+    deduction_hs: deductionHs,
+    acomptes: cts(acomptes),
     net_a_payer: netAPayer,
     cout_employeur: coutEmployeur,
 
@@ -2813,7 +3054,14 @@ async function calculer(contratId: string, periode: string,
     reserves: (function () {
       const r = [
         "Les taux doivent être recoupés sur boss.gouv.fr avant tout bulletin réel.",
-        "Le prélèvement à la source est à zéro : son taux vient du retour DSN.",
+        (pas.nature === "personnalise"
+          ? "Prélèvement à la source au taux personnalisé du salarié (" + prelevementMention + ")."
+          : "Prélèvement à la source au taux non personnalisé (grille officielle du mois, article 204 H du CGI) : "
+            + "tant que le taux personnalisé du salarié n'est pas saisi sur sa fiche, c'est la grille qui s'applique. "
+            + "⚠️ Salarié domicilié outre-mer : sa grille est différente, elle n'est pas chargée."
+            + (contrat.type_contrat === "apprentissage"
+              ? " ⚠️ Apprenti : son salaire est exonéré d'impôt jusqu'au SMIC annuel ; l'exonération n'est pas déduite de l'assiette."
+              : "")),
         "Le salaire minimum conventionnel est contrôlé quand le contrat porte un coefficient. ⚠️ Les valeurs de point ne sont pas encore recoupées sur Légifrance, et une règle de branche — la prime de vacances — n'est pas appliquée au bulletin. ⚠️ ELLE EST UNE OBLIGATION D'ENTREPRISE : la calculer depuis le bloc « Prime de vacances ». Le maintien de salaire en maladie et les congés d'ancienneté, eux, sont appliqués.",
         "La RGDU est calculée en régularisation progressive sur le cumul annuel, méthode recommandée par l'URSSAF : une prime en fin d'année est régularisée le mois même plutôt que de créer un rappel.",
         "Le montant net social réintègre la part patronale des garanties complémentaires (arrêté du 31 janvier 2023). ⚠️ Les taux de mutuelle et de prévoyance sont propres à chaque contrat collectif : tant qu'ils ne sont pas renseignés pour la société, ces lignes n'apparaissent pas.",
@@ -3032,6 +3280,8 @@ async function calculer(contratId: string, periode: string,
           + "reçoit une réduction trop forte.");
       }
       for (const n of notesAvantages) r.unshift(n);
+      // 🆕 27/09 — les heures supplementaires.
+      for (const n of notesHs) r.unshift(n);
       for (const n of notesArret) r.unshift(n);
       return r;
     })(),
