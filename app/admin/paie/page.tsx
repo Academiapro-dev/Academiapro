@@ -53,6 +53,8 @@ import { useState, useEffect } from "react";
 const OR = "#c8a96e";
 const VERT = "#7fc97f";
 const ROUGE = "#e57373";
+// 🆕 28/09 — le troisieme feu de la validation.
+const ORANGE = "#f0a860";
 const FOND = "#0b0b10";
 const CARTE = "rgba(255,255,255,0.04)";
 const BORD = "1px solid rgba(255,255,255,0.10)";
@@ -199,6 +201,93 @@ function jma(d: any): string {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
+// 🆕🚨 28/09 — LES AIDES DE LA VALIDATION DU MOIS
+// ═══════════════════════════════════════════════════════════════════════
+function couleurPastille(c: any): string {
+  if (c === "rouge") return ROUGE;
+  if (c === "orange") return ORANGE;
+  if (c === "vert") return VERT;
+  return "rgba(255,255,255,0.25)";
+}
+
+function etatValidation(b: any): string {
+  if (!b) return "";
+  if (b.statut === "emis") return "émis" + (b.valide_par ? " par " + b.valide_par : "");
+  if (b.validation === "a_valider") return "à valider (soumis par " + (b.soumis_par || "?") + ")";
+  if (b.validation === "renvoye") return "renvoyé pour correction";
+  return "brouillon";
+}
+
+function texteDroits(d: any): string {
+  if (!d || !d.voir) return "aucun";
+  const l: string[] = [];
+  if (d.contrats) l.push("fiches et contrats");
+  if (d.preparer) l.push("préparer la paie");
+  if (d.emettre) l.push("émettre");
+  if (d.deposer) l.push("déposer");
+  return (l.length > 0 ? l.join(", ") : "consultation seule")
+    + (d.carte_blanche ? " — carte blanche"
+      : d.emettre ? " — sans carte blanche : vos bulletins passent par une validation" : "");
+}
+
+function texteRecap(r: any): string {
+  if (!r) return "pas encore envoyé. Sans la confirmation du client, aucun bulletin du mois ne peut être émis.";
+  const le = jma(String(r.envoye_le || "").slice(0, 10));
+  if (r.statut === "envoye") return "envoyé à " + (r.destinataire || "?") + " le " + le + ", en attente de sa confirmation.";
+  if (r.statut === "confirme") {
+    return r.a_jour
+      ? "confirmé par le client le " + jma(String(r.repondu_le || "").slice(0, 10)) + "."
+      : "confirmé le " + jma(String(r.repondu_le || "").slice(0, 10)) + ", mais la paie a changé depuis : renvoyez-le.";
+  }
+  if (r.statut === "conteste") return "le client signale une erreur : « " + (r.remarque || "sans précision") + " ». Corrigez, puis renvoyez-le.";
+  if (r.statut === "leve") return "attente du client levée par " + (r.envoye_par || "?") + " : « " + (r.remarque || "") + " ».";
+  return String(r.statut || "");
+}
+
+// 🆕 28/09 — LA PIECE JUSTIFICATIVE PART LEGERE. Une photo d iPad pese
+// plusieurs megaoctets ; la route n accepte que 3 Mo (la requete entiere
+// est limitee a 4,5 Mo chez Vercel). On la redessine a 1 600 pixels au
+// plus, en JPEG : largement lisible, dix fois plus legere.
+function lireBase64(f: File): Promise<string> {
+  return new Promise(function (ok, ko) {
+    const r = new FileReader();
+    r.onload = function () { ok(String(r.result || "").split(",")[1] || ""); };
+    r.onerror = function () { ko(new Error("lecture impossible")); };
+    r.readAsDataURL(f);
+  });
+}
+
+async function fichierPourEnvoi(f: File): Promise<{ type: string; base64: string }> {
+  const type = String(f.type || "").toLowerCase();
+  if (type === "application/pdf") {
+    if (f.size > 3 * 1024 * 1024) throw new Error("PDF trop lourd : 3 Mo au plus");
+    return { type: type, base64: await lireBase64(f) };
+  }
+  if (type.indexOf("image/") === 0) {
+    const url = URL.createObjectURL(f);
+    try {
+      const img: any = await new Promise(function (ok, ko) {
+        const i = new Image();
+        i.onload = function () { ok(i); };
+        i.onerror = function () { ko(new Error("image illisible")); };
+        i.src = url;
+      });
+      const k = Math.min(1, 1600 / Math.max(img.width || 1, img.height || 1));
+      const toile = document.createElement("canvas");
+      toile.width = Math.max(1, Math.round(img.width * k));
+      toile.height = Math.max(1, Math.round(img.height * k));
+      const g = toile.getContext("2d");
+      if (!g) throw new Error("image illisible");
+      g.drawImage(img, 0, 0, toile.width, toile.height);
+      return { type: "image/jpeg", base64: toile.toDataURL("image/jpeg", 0.8).split(",")[1] || "" };
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  }
+  throw new Error("format non accepté : un PDF ou une photo");
+}
+
+// ═══════════════════════════════════════════════════════════════════════
 // 🆕🚨 22/09 — UN MESSAGE D ERREUR NE SE RECOPIE PAS TEL QUEL A L ECRAN
 //
 // Dans la nuit du 21 au 22/09, Supabase est tombee. La route a relaye le
@@ -288,7 +377,18 @@ function octetsLatin1(texte: string): any {
 }
 
 export default function PagePaie() {
-  const [secret, setSecret] = useState("");
+  // 🆕🚨 28/09 — PLUS DE CLE. L ecran s ouvre avec la connexion : la route
+  // sait qui regarde, borne tout a son organisme et verifie chaque geste.
+  // Decision de Jacques : « libre acces » une fois connecte, et la paie
+  // ouverte aux collaborateurs selon leurs droits.
+  const [pret, setPret] = useState(false);
+  const [connexionRequise, setConnexionRequise] = useState(false);
+  const [profil, setProfil] = useState<any>(null);
+  // 🆕 28/09 — la validation du mois, le recapitulatif, la mesure.
+  const [mois, setMois] = useState<any>(null);
+  const [recapDest, setRecapDest] = useState("");
+  const [motifs, setMotifs] = useState<any>({});
+  const [mesure, setMesure] = useState<any>(null);
   const [contrats, setContrats] = useState<any[]>([]);
   const [societes, setSocietes] = useState<any[]>([]);
   const [choisi, setChoisi] = useState<any>(null);
@@ -340,8 +440,7 @@ export default function PagePaie() {
   // ⚠️ LE SECRET EST DEMANDE UNE FOIS ET GARDE DANS L ONGLET. Il ne part
   // pas en base et disparait a la fermeture.
   useEffect(function () {
-    const s = sessionStorage.getItem("paie_secret") || "";
-    if (s) { setSecret(s); charger(s); }
+    charger();
     const nav: any = typeof navigator !== "undefined" ? navigator : null;
     setPartagePossible(!!(nav && nav.share && nav.canShare));
   }, []);
@@ -354,10 +453,9 @@ export default function PagePaie() {
   // AUCUN MESSAGE n apparaissait. L ecran semblait mort.
   // ⚠️ ON REND TOUJOURS UN OBJET, jamais une exception : les appelants
   // testent `d.success` et `d.erreur`, ils n ont pas a se proteger chacun.
-  async function appeler(corps: any, s?: string): Promise<any> {
-    const cle = s || secret;
+  async function appeler(corps: any): Promise<any> {
     try {
-      const r = await fetch("/api/paie/dossier?secret=" + encodeURIComponent(cle), {
+      const r = await fetch("/api/paie/dossier", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(corps),
@@ -501,18 +599,131 @@ export default function PagePaie() {
     setOccupe("");
   }
 
-  async function charger(s?: string) {
+  async function charger() {
     setErr(""); setOccupe("charger");
-    const d = await appeler({ action: "contrats" }, s);
+    const d = await appeler({ action: "contrats" });
     if (d.success) {
       setContrats(d.contrats); setSocietes(d.societes);
-      if (s) sessionStorage.setItem("paie_secret", s);
+      setProfil(d.profil || null);
+      if (d.avertissement) setMsg(d.avertissement);
+    } else if (d.connexion) {
+      setConnexionRequise(true);
     } else setErr(d.erreur || "chargement impossible");
+    setPret(true);
     setOccupe("");
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // 🆕🚨 28/09 — LA VALIDATION DU MOIS
+  // Tous les salaries de la societe du contrat ouvert, avec leur feu
+  // (vert, orange, rouge), l etat de leur bulletin, et le recapitulatif
+  // envoye au client. La route refait chaque controle : l ecran ne fait
+  // que montrer.
+  // ═══════════════════════════════════════════════════════════════════
+  async function chargerMois(ct?: any, p?: string) {
+    const c0 = ct || choisi;
+    if (!c0 || !c0.societe_id) return;
+    const d = await appeler({ action: "tableau_mois", societe_id: c0.societe_id, periode: p || periode });
+    if (d && d.success) {
+      setMois(d);
+      setRecapDest(function (v: string) { return v || d.destinataire_propose || ""; });
+    } else {
+      setMois(null);
+      if (d && d.erreur) setErr(d.erreur);
+    }
+  }
+
+  async function soumettre(contratId: string, bulletinId?: string) {
+    setErr(""); setMsg(""); setOccupe("valider");
+    const just = bulletinId ? String(motifs["m_" + bulletinId] || "").trim() : "";
+    const d = await appeler({ action: "soumettre", contrat_id: contratId, periode: periode,
+      justification: just || undefined });
+    setOccupe("");
+    if (d && d.success) setMsg(d.message); else setErr((d && d.erreur) || "soumission impossible");
+    if (choisi) {
+      const b = await appeler({ action: "bulletins", contrat_id: choisi.id });
+      if (b.success) setBulletins(b.bulletins);
+    }
+    await chargerMois();
+  }
+
+  // justifier (orange), renvoyer (motif), lever (rouge, motif)
+  async function geste(action: string, b: any) {
+    const texte = String(motifs["m_" + b.id] || "").trim();
+    if (action !== "justifier" && !confirm(action === "renvoyer"
+      ? "Renvoyer le bulletin " + b.numero + " à celui qui l'a préparé ?"
+      : "Lever le point rouge du bulletin " + b.numero + " ? Votre motif sera inscrit au journal.")) return;
+    setErr(""); setMsg(""); setOccupe("valider");
+    const d = await appeler(action === "justifier"
+      ? { action: action, id: b.id, texte: texte }
+      : { action: action, id: b.id, motif: texte });
+    setOccupe("");
+    if (d && d.success) {
+      setMsg(d.message);
+      if (action !== "justifier") setMotifs({ ...motifs, ["m_" + b.id]: "" });
+    } else setErr((d && d.erreur) || "enregistrement impossible");
+    await chargerMois();
+  }
+
+  async function envoyerRecap() {
+    if (!choisi) return;
+    if (!confirm("Envoyer le récapitulatif de ce mois à " + (recapDest || "l'adresse du client") + " ?\n\n"
+      + "Le client le vérifie et le confirme ; aucun bulletin du mois ne s'émet avant.")) return;
+    setErr(""); setMsg(""); setOccupe("recap");
+    const d = await appeler({ action: "envoyer_recap", societe_id: choisi.societe_id,
+      periode: periode, destinataire: recapDest });
+    setOccupe("");
+    if (d && d.success) setMsg(d.message); else setErr((d && d.erreur) || "envoi impossible");
+    await chargerMois();
+  }
+
+  async function leverRecap() {
+    if (!choisi) return;
+    if (!confirm("Émettre ce mois SANS la confirmation du client ?\n\nVotre motif est inscrit au journal.")) return;
+    setErr(""); setMsg(""); setOccupe("recap");
+    const d = await appeler({ action: "lever_recap", societe_id: choisi.societe_id,
+      periode: periode, motif: String(motifs.recap || "").trim() });
+    setOccupe("");
+    if (d && d.success) { setMsg(d.message); setMotifs({ ...motifs, recap: "" }); }
+    else setErr((d && d.erreur) || "levée impossible");
+    await chargerMois();
+  }
+
+  async function chargerMesure() {
+    setErr(""); setOccupe("mesure");
+    const d = await appeler({ action: "mesure" });
+    setOccupe("");
+    if (d && d.success) setMesure(d); else setErr((d && d.erreur) || "lecture impossible");
+  }
+
+  async function joindrePiece(el: any, fichier: File) {
+    setErr(""); setMsg(""); setOccupe("piece");
+    try {
+      const prep = await fichierPourEnvoi(fichier);
+      const d = await appeler({ action: "joindre_preuve", id: el.id, nom: fichier.name,
+        type: prep.type, contenu: prep.base64 });
+      if (d && d.success) {
+        setMsg(d.message);
+        const l = await appeler({ action: "elements", contrat_id: choisi.id, periode: periode });
+        if (l.success) setElements(l.elements);
+        await chargerMois();
+      } else setErr((d && d.erreur) || "dépôt impossible");
+    } catch (e: any) {
+      setErr("pièce non envoyée : " + String(e && e.message ? e.message : e));
+    }
+    setOccupe("");
+  }
+
+  async function voirPiece(id: string) {
+    const d = await appeler({ action: "voir_preuve", id: id });
+    if (d && d.success && d.url) window.open(d.url, "_blank");
+    else setErr((d && d.erreur) || "ouverture impossible");
   }
 
   async function ouvrir(c: any) {
     setChoisi(c); setCalcul(null); setMsg(""); setErr("");
+    setMois(null); setMesure(null);
+    if (!choisi || choisi.societe_id !== c.societe_id) setRecapDest("");
     setContratSaisie(null);
     setConges(null); setJoursPris("");
     setJoursSaisie(null);
@@ -540,6 +751,7 @@ export default function PagePaie() {
       chargerConges(c.id);
     }
     chargerEvenements(c.id);
+    chargerMois(c);
   }
 
   // 🆕🚨 22/09 — CHANGER DE MOIS EFFACE LES MESSAGES DU MOIS PRECEDENT.
@@ -557,6 +769,8 @@ export default function PagePaie() {
     if (!choisi) return;
     const d = await appeler({ action: "elements", contrat_id: choisi.id, periode: p });
     if (d.success) setElements(d.elements);
+    setMois(null);
+    chargerMois(choisi, p);
   }
 
   // 🆕 16/09 — LE TAUX MAJORE SE CALCULE TOUT SEUL.
@@ -614,6 +828,7 @@ export default function PagePaie() {
       setCalcul(null);
       const l = await appeler({ action: "elements", contrat_id: choisi.id, periode: periode });
       if (l.success) setElements(l.elements);
+      chargerMois();
     } else setErr(d.erreur || "ajout impossible");
     setOccupe("");
   }
@@ -625,6 +840,7 @@ export default function PagePaie() {
     setCalcul(null);
     const l = await appeler({ action: "elements", contrat_id: choisi.id, periode: periode });
     if (l.success) setElements(l.elements);
+    chargerMois();
     setOccupe("");
   }
 
@@ -636,17 +852,9 @@ export default function PagePaie() {
     // 🆕 22/09 — MEME PROTECTION QUE `appeler` : le calcul est l appel le
     // plus long de l ecran, donc le premier a souffrir d une passerelle qui
     // coupe. Sans ce garde-fou, l ecran restait sur « … » sans rien dire.
-    let d: any = null;
-    try {
-      const r = await fetch("/api/paie/calculer?contrat=" + encodeURIComponent(choisi.id)
-        + "&periode=" + encodeURIComponent(periode)
-        + "&secret=" + encodeURIComponent(secret));
-      const texte = await r.text();
-      try { d = JSON.parse(texte); }
-      catch (e) { d = { erreur: texte || ("réponse illisible (" + r.status + ")") }; }
-    } catch (e: any) {
-      d = { erreur: String(e && e.message ? e.message : e) };
-    }
+    // 🆕 28/09 — PAR LE RELAIS de la route dossier (droits verifies),
+    // plus par un appel direct avec la cle.
+    const d: any = await appeler({ action: "calculer", contrat_id: choisi.id, periode: periode });
     setOccupe("");
     if (d && d.erreur) setErr(d.erreur); else setCalcul(d);
   }
@@ -664,6 +872,11 @@ export default function PagePaie() {
     return b.statut === "emis";
   })[0] || null;
 
+  // 🆕 28/09 — ce que la session peut faire sur le dossier ouvert. Sert a
+  // montrer les bons boutons ; la route reverifie chaque geste.
+  const droitsIci: any = (mois && mois.droits)
+    || (choisi && profil && profil.dossiers ? profil.dossiers[choisi.societe_id] : null) || {};
+
   async function genererBulletin() {
     // ⚠️ ON PREVIENT AVANT D OUVRIR UN RECTIFICATIF : ce n est pas le meme
     // geste que sortir un premier bulletin, et il annulera un document deja
@@ -678,24 +891,15 @@ export default function PagePaie() {
     // PDF est archive dans le bucket AVANT la reponse, donc une coupure de
     // reseau peut laisser un document ecrit sans que l ecran le sache. Le
     // message doit donc inviter a RECHARGER, pas a recliquer a l aveugle.
-    let d: any = null;
-    try {
-      const r = await fetch("/api/paie/bulletin?secret=" + encodeURIComponent(secret), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contrat_id: choisi.id, periode: periode }),
-      });
-      const texte = await r.text();
-      try { d = JSON.parse(texte); }
-      catch (e) { d = { erreur: texte || ("réponse illisible (" + r.status + ")") }; }
-    } catch (e: any) {
-      d = { erreur: String(e && e.message ? e.message : e) };
-    }
+    // 🆕 28/09 — PAR LE RELAIS : la route verifie le droit de preparer, et
+    // un brouillon ressorti repart de zero (il faudra le resoumettre).
+    const d: any = await appeler({ action: "sortir_bulletin", contrat_id: choisi.id, periode: periode });
     if (d && d.success) {
       setMsg(d.message);
       if (d.url) window.open(d.url, "_blank");
       const b = await appeler({ action: "bulletins", contrat_id: choisi.id });
       if (b.success) setBulletins(b.bulletins);
+      chargerMois();
     } else setErr((d && d.erreur) || "génération impossible");
     setOccupe("");
   }
@@ -867,16 +1071,9 @@ export default function PagePaie() {
   async function genererSignalement(id: string, reprise?: boolean) {
     setErr(""); setErrEv(""); setMsg("");
     setOccupe(reprise ? "reprise" : "signalement");
-    let d: any = null;
-    try {
-      const r = await fetch("/api/dsn/evenement", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cle: secret, evenement_id: id,
-          reprise: reprise === true }),
-      });
-      d = await r.json();
-    } catch (e: any) { setErrEv(String(e)); }
+    // 🆕 28/09 — PAR LE RELAIS de la route dossier, plus avec la cle.
+    const d: any = await appeler({ action: "signalement", evenement_id: id,
+      reprise: reprise === true });
     setOccupe("");
     if (!d) return;
     if (d.erreur) { setErrEv(d.erreur); return; }
@@ -923,20 +1120,8 @@ export default function PagePaie() {
     if (!choisi) return;
     setErr(""); setMsg(""); setFinDoc(null);
     setOccupe("findoc");
-    let d: any = null;
-    try {
-      const r = await fetch("/api/paie/fin-contrat?secret="
-        + encodeURIComponent(secret), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contrat_id: choisi.id }),
-      });
-      d = await r.json();
-    } catch (e: any) {
-      setOccupe("");
-      setErr("appel impossible : " + String(e));
-      return;
-    }
+    // 🆕 28/09 — PAR LE RELAIS : le droit d emettre est verifie.
+    const d: any = await appeler({ action: "fin_contrat", contrat_id: choisi.id });
     setOccupe("");
     if (!d) return;
     if (d.erreur) { setErr(d.erreur); return; }
@@ -1096,7 +1281,10 @@ export default function PagePaie() {
     if (!confirm(avertissement)) return;
 
     setOccupe("emettre");
-    const d = await appeler({ action: "emettre", id: b.id });
+    // 🆕 28/09 — la justification des points orange part avec l emission.
+    const just = String(motifs["m_" + b.id] || "").trim();
+    const d = await appeler({ action: "emettre", id: b.id, justification: just || undefined });
+    chargerMois();
     if (d.success) {
       setMsg(d.message);
       const l = await appeler({ action: "bulletins", contrat_id: choisi.id });
@@ -1124,7 +1312,12 @@ export default function PagePaie() {
   }
 
   // ---- L ECRAN D ENTREE ----
-  if (!secret || contrats.length === 0 && !occupe && !err) {
+  // 🆕🚨 28/09 — PLUS DE CLE A TAPER. On attend la reponse de la route ;
+  // si la session manque ou a expire, on le dit et on mene a la connexion.
+  // ⚠️ UN CABINET SANS AUCUN CONTRAT ARRIVE SUR L ECRAN NORMAL : l ancien
+  // ecran d entree s affichait tant qu il n y avait aucun contrat, et un
+  // nouveau client n aurait jamais trouve « Nouveau salarié ».
+  if (!pret || connexionRequise) {
     return (
       <div style={{ background: FOND, minHeight: "100vh", color: "#fff",
         fontFamily: "Georgia,serif", padding: "40px 20px" }}>
@@ -1132,18 +1325,25 @@ export default function PagePaie() {
           <h1 style={{ color: OR, fontSize: "24px", marginBottom: "6px" }}>Paie</h1>
           <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "14px",
             lineHeight: "1.6", marginBottom: "22px" }}>
-            Bulletins de paie et contrats de mission.
+            Bulletins de paie et déclarations sociales.
           </p>
           <div style={CADRE}>
-            <span style={LIB}>Clé d&apos;accès</span>
-            <input type="password" value={secret} style={CHAMP}
-              onChange={(ev) => setSecret(ev.target.value)}
-              onKeyDown={(ev) => { if (ev.key === "Enter") charger(secret); }} />
-            <button onClick={() => charger(secret)} disabled={!secret}
-              style={{ ...BOUTON, marginTop: "12px", width: "100%",
-                opacity: secret ? 1 : 0.4 }}>
-              Ouvrir
-            </button>
+            {connexionRequise ? (
+              <>
+                <p style={{ fontSize: "14px", lineHeight: 1.6, marginTop: 0 }}>
+                  Votre session est absente ou a expiré. Connectez-vous pour
+                  ouvrir la paie : vous recevrez un lien par courriel.
+                </p>
+                <a href="/connexion" style={{ ...BOUTON, display: "block", textAlign: "center",
+                  textDecoration: "none" }}>
+                  Se connecter
+                </a>
+              </>
+            ) : (
+              <p style={{ fontSize: "14px", margin: 0, color: "rgba(255,255,255,0.6)" }}>
+                Lecture…
+              </p>
+            )}
           </div>
           {err && <p style={{ color: ROUGE, fontSize: "13px" }}>{lisible(err)}</p>}
         </div>
@@ -2002,6 +2202,26 @@ export default function PagePaie() {
                           cursor: "pointer", fontSize: "12px" }}>
                         retirer
                       </button>
+                      {/* 🆕 28/09 — LA PIECE JUSTIFICATIVE. Exigee a partir
+                          d un seuil (point rouge sinon) ; elle part au coffre. */}
+                      {el.preuve_chemin ? (
+                        <button onClick={() => voirPiece(el.id)}
+                          style={{ ...LIEN, color: VERT, marginLeft: "10px" }}>
+                          pièce ✓
+                        </button>
+                      ) : (
+                        <label style={{ ...LIEN, color: OR, marginLeft: "10px",
+                          cursor: "pointer", fontSize: "12px" }}>
+                          {occupe === "piece" ? "…" : "joindre une pièce"}
+                          <input type="file" accept="image/*,application/pdf"
+                            style={{ display: "none" }}
+                            onChange={(ev) => {
+                              const fi = ev.target.files && ev.target.files[0];
+                              if (fi) joindrePiece(el, fi);
+                              ev.target.value = "";
+                            }} />
+                        </label>
+                      )}
                     </span>
                   </div>
                 );
@@ -2091,15 +2311,213 @@ export default function PagePaie() {
                   || choisi.type_contrat === "apprentissage" || choisi.type_contrat === "professionnalisation")
                   ? " aucun jour de congé n'est acquis."
                   : " il n'est pas définitif."}
-                <button onClick={() => emettre(brouillonDuMois)}
-                  disabled={occupe !== ""}
-                  style={{ marginLeft: "12px", background: "none",
-                    border: "1px solid " + VERT, color: VERT, borderRadius: "6px",
-                    padding: "5px 12px", cursor: "pointer", fontSize: "12.5px" }}>
-                  {occupe === "emettre" ? "…" : "Émettre ce bulletin"}
-                </button>
+                {/* 🆕 28/09 — SANS LA CARTE BLANCHE, ON SOUMET. */}
+                {(droitsIci.emettre && droitsIci.carte_blanche) ? (
+                  <button onClick={() => emettre(brouillonDuMois)}
+                    disabled={occupe !== ""}
+                    style={{ marginLeft: "12px", background: "none",
+                      border: "1px solid " + VERT, color: VERT, borderRadius: "6px",
+                      padding: "5px 12px", cursor: "pointer", fontSize: "12.5px" }}>
+                    {occupe === "emettre" ? "…" : "Émettre ce bulletin"}
+                  </button>
+                ) : droitsIci.preparer ? (
+                  <button onClick={() => soumettre(choisi.id, brouillonDuMois.id)}
+                    disabled={occupe !== ""}
+                    style={{ marginLeft: "12px", background: "none",
+                      border: "1px solid " + OR, color: OR, borderRadius: "6px",
+                      padding: "5px 12px", cursor: "pointer", fontSize: "12.5px" }}>
+                    {occupe === "valider" ? "…" : "Soumettre à validation"}
+                  </button>
+                ) : null}
+                <span style={{ display: "block", marginTop: "6px", fontSize: "12px",
+                  color: "rgba(255,255,255,0.55)" }}>
+                  Avant l&apos;émission : les contrôles et le récapitulatif client, dans
+                  « Validation du mois » ci-dessous.
+                </span>
               </div>
             )}
+
+            {/* ═══════════════════════════════════════════════════════════
+                🆕🚨 28/09 — LA VALIDATION DU MOIS
+                Tous les salaries de la societe, avec leur feu : vert (rien a
+                signaler), orange (une justification est demandee), rouge
+                (emission bloquee tant que ce n est pas corrige, ou leve avec
+                un motif par qui a la carte blanche). Puis le recapitulatif
+                que le client confirme avant toute emission.
+                ═══════════════════════════════════════════════════════════ */}
+            <div style={CADRE}>
+              <div style={{ display: "flex", justifyContent: "space-between",
+                alignItems: "baseline", flexWrap: "wrap", gap: "8px" }}>
+                <h3 style={{ color: OR, fontSize: "16px", margin: 0 }}>
+                  Validation du mois
+                </h3>
+                <button onClick={() => chargerMois()} disabled={occupe !== ""}
+                  style={{ ...LIEN, color: OR }}>
+                  actualiser
+                </button>
+              </div>
+              <p style={{ fontSize: "12px", color: "rgba(255,255,255,0.55)",
+                margin: "6px 0 12px", lineHeight: 1.6 }}>
+                Vos droits sur ce dossier : {texteDroits(droitsIci)}.
+              </p>
+
+              {!mois ? (
+                <p style={{ fontSize: "13px", color: "rgba(255,255,255,0.45)" }}>Lecture…</p>
+              ) : (
+                <>
+                  <div style={{ padding: "10px 12px", borderRadius: "8px", border: BORD,
+                    marginBottom: "12px", fontSize: "13px", lineHeight: 1.6 }}>
+                    <strong style={{ color: OR }}>Récapitulatif client</strong>
+                    {" — "}{texteRecap(mois.recap)}
+                    {mois.recap_manquants && mois.recap_manquants.length > 0 && (
+                      <div style={{ color: ROUGE, marginTop: "6px" }}>
+                        Sans bulletin ce mois-ci : {mois.recap_manquants.join(", ")}.
+                      </div>
+                    )}
+                    {droitsIci.preparer && (
+                      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap",
+                        marginTop: "8px", alignItems: "center" }}>
+                        <input value={recapDest} placeholder="adresse électronique du client"
+                          style={{ ...CHAMP, flex: "1 1 220px", width: "auto" }}
+                          onChange={(ev) => setRecapDest(ev.target.value)} />
+                        <button onClick={envoyerRecap} disabled={occupe !== ""} style={SECOND}>
+                          {occupe === "recap" ? "…"
+                            : mois.recap ? "Renvoyer le récapitulatif" : "Envoyer le récapitulatif"}
+                        </button>
+                      </div>
+                    )}
+                    {droitsIci.emettre && droitsIci.carte_blanche
+                      && (!mois.recap || mois.recap.statut !== "leve") && (
+                      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap",
+                        marginTop: "8px", alignItems: "center" }}>
+                        <input value={motifs.recap || ""}
+                          placeholder="motif pour émettre sans la confirmation du client"
+                          style={{ ...CHAMP, flex: "1 1 220px", width: "auto" }}
+                          onChange={(ev) => setMotifs({ ...motifs, recap: ev.target.value })} />
+                        <button onClick={leverRecap} disabled={occupe !== ""}
+                          style={{ ...SECOND, borderColor: ROUGE, color: ROUGE }}>
+                          Lever l&apos;attente
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {mois.lignes.length === 0 && (
+                    <p style={{ fontSize: "13px", color: "rgba(255,255,255,0.45)" }}>
+                      Aucun salarié en poste ce mois-ci dans ce dossier.
+                    </p>
+                  )}
+                  {mois.lignes.map(function (l: any) {
+                    const b = l.bulletin;
+                    const ctl = l.controle;
+                    const coul = ctl ? ctl.couleur : null;
+                    return (
+                      <div key={l.contrat_id} style={{ padding: "10px 0",
+                        borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between",
+                          gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
+                          <span style={{ fontSize: "13.5px" }}>
+                            <span style={{ display: "inline-block", width: "11px", height: "11px",
+                              borderRadius: "50%", background: couleurPastille(coul),
+                              marginRight: "8px", verticalAlign: "middle" }} />
+                            {l.salarie}
+                            {choisi && l.contrat_id === choisi.id ? " (ouvert)" : ""}
+                          </span>
+                          <span style={{ fontSize: "12.5px", color: "rgba(255,255,255,0.65)" }}>
+                            {!b ? "pas encore de bulletin"
+                              : b.numero + " · net " + euros(b.net_a_payer) + " € · " + etatValidation(b)}
+                          </span>
+                        </div>
+                        {ctl && ctl.alertes.length > 0 && (
+                          <div style={{ marginTop: "6px" }}>
+                            {ctl.alertes.map(function (a: any, i: number) {
+                              return (
+                                <p key={i} style={{ margin: "3px 0", fontSize: "12.5px", lineHeight: 1.5,
+                                  color: a.niveau === "rouge" ? ROUGE
+                                    : a.niveau === "orange" ? ORANGE : "rgba(255,255,255,0.5)" }}>
+                                  {a.niveau === "info" ? "○ " : "● "}{a.texte}
+                                </p>
+                              );
+                            })}
+                          </div>
+                        )}
+                        {b && b.justification && (
+                          <p style={{ margin: "4px 0", fontSize: "12px", color: "rgba(255,255,255,0.6)" }}>
+                            Justification : {b.justification}
+                          </p>
+                        )}
+                        {b && b.levee_motif && (
+                          <p style={{ margin: "4px 0", fontSize: "12px", color: "rgba(255,255,255,0.6)" }}>
+                            Point rouge levé par {b.levee_par || "?"} : {b.levee_motif}
+                          </p>
+                        )}
+                        {b && b.validation === "renvoye" && b.renvoi_motif && (
+                          <p style={{ margin: "4px 0", fontSize: "12.5px", color: ROUGE }}>
+                            Renvoyé pour correction : {b.renvoi_motif}
+                          </p>
+                        )}
+                        {b && b.statut === "brouillon" && (droitsIci.preparer || droitsIci.emettre) && (
+                          <div style={{ display: "flex", gap: "10px", flexWrap: "wrap",
+                            marginTop: "8px", alignItems: "center" }}>
+                            <input value={motifs["m_" + b.id] || ""}
+                              placeholder="justification, ou motif du renvoi ou de la levée"
+                              style={{ ...CHAMP, flex: "1 1 220px", width: "auto" }}
+                              onChange={(ev) => setMotifs({ ...motifs, ["m_" + b.id]: ev.target.value })} />
+                            {droitsIci.preparer && coul === "orange" && (
+                              <button onClick={() => geste("justifier", b)} disabled={occupe !== ""}
+                                style={{ ...LIEN, color: ORANGE }}>justifier</button>
+                            )}
+                            {droitsIci.preparer && b.validation !== "a_valider" && (
+                              <button onClick={() => soumettre(l.contrat_id, b.id)} disabled={occupe !== ""}
+                                style={{ ...LIEN, color: OR }}>soumettre</button>
+                            )}
+                            {droitsIci.emettre && droitsIci.carte_blanche && (
+                              <>
+                                <button onClick={() => geste("renvoyer", b)} disabled={occupe !== ""}
+                                  style={{ ...LIEN, color: ROUGE }}>renvoyer</button>
+                                {coul === "rouge" && !b.levee_motif && (
+                                  <button onClick={() => geste("lever", b)} disabled={occupe !== ""}
+                                    style={{ ...LIEN, color: ROUGE }}>lever le rouge</button>
+                                )}
+                                <button onClick={() => emettre(b)} disabled={occupe !== ""}
+                                  style={{ ...LIEN, color: VERT }}>émettre</button>
+                              </>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+
+                  {profil && profil.gerer_equipe && (
+                    <div style={{ marginTop: "14px", borderTop: BORD, paddingTop: "10px" }}>
+                      <button onClick={chargerMesure} disabled={occupe !== ""}
+                        style={{ ...LIEN, color: OR }}>
+                        {occupe === "mesure" ? "…" : "Suivi des corrections par personne (six mois)"}
+                      </button>
+                      {mesure && (mesure.personnes.length === 0 ? (
+                        <p style={{ fontSize: "12.5px", color: "rgba(255,255,255,0.5)", margin: "6px 0 0" }}>
+                          Aucune soumission sur la période.
+                        </p>
+                      ) : mesure.personnes.map(function (p: any) {
+                        return (
+                          <p key={p.email} style={{ fontSize: "12.5px", margin: "5px 0 0", lineHeight: 1.5 }}>
+                            {p.email} : {p.soumis} soumis, {p.renvoyes} renvoyé(s), {p.leves} levée(s),
+                            {" "}{p.emis} émis
+                            {p.taux_corrections !== null
+                              ? " — " + Number(p.taux_corrections).toLocaleString("fr-FR") + " % de corrections" : ""}
+                          </p>
+                        );
+                      }))}
+                      <p style={{ fontSize: "11.5px", color: "rgba(255,255,255,0.4)", margin: "8px 0 0" }}>
+                        La carte blanche se donne dossier par dossier, dans l&apos;écran des{" "}
+                        <a href="/admin/compliance/collaborateurs" style={{ color: OR }}>collaborateurs</a>.
+                      </p>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
 
             {calcul && (
               <div style={CADRE}>
