@@ -426,6 +426,19 @@ export default function PagePaie() {
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
   const [occupe, setOccupe] = useState("");
+  // 🆕 28/09 — UN SEUL MESSAGE A LA FOIS : LE DERNIER. Essai du 28/09 :
+  // « Justification enregistrée. » restait affiche a cote du refus qui a
+  // suivi. Un message de reussite s efface seul apres dix secondes ; un
+  // refus reste jusqu a ce qu on le ferme.
+  const [seuilsVus, setSeuilsVus] = useState<any>(null);
+  const [seuilsSaisie, setSeuilsSaisie] = useState<any>({});
+  useEffect(function () { if (msg) setErr(""); }, [msg]);
+  useEffect(function () { if (err) setMsg(""); }, [err]);
+  useEffect(function () {
+    if (!msg) return;
+    const t = setTimeout(function () { setMsg(""); }, 10000);
+    return function () { clearTimeout(t); };
+  }, [msg]);
   // 🆕 28/09 — la modification du contrat, et la liste des motifs de rupture.
   const [contratSaisie, setContratSaisie] = useState<any>(null);
   const [motifsRupture, setMotifsRupture] = useState<any[]>([]);
@@ -660,7 +673,7 @@ export default function PagePaie() {
     setOccupe("");
     if (d && d.success) {
       setMsg(d.message);
-      if (action !== "justifier") setMotifs({ ...motifs, ["m_" + b.id]: "" });
+      setMotifs({ ...motifs, ["m_" + b.id]: "" });
     } else setErr((d && d.erreur) || "enregistrement impossible");
     await chargerMois();
   }
@@ -687,6 +700,83 @@ export default function PagePaie() {
     if (d && d.success) { setMsg(d.message); setMotifs({ ...motifs, recap: "" }); }
     else setErr((d && d.erreur) || "levée impossible");
     await chargerMois();
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // 🆕 28/09 — LES GESTES EN MASSE. Un cabinet qui paie cinquante salariés
+  // ne sort pas cinquante brouillons un par un : un bouton sort tous les
+  // brouillons manquants du mois, un autre émet tous les bulletins prêts.
+  // Chaque bulletin passe par la même route, les mêmes contrôles et le
+  // même verrou qu'un bulletin seul ; un refus n'arrête pas les suivants,
+  // il est compté et dit à la fin.
+  // ═══════════════════════════════════════════════════════════════════
+  async function sortirTousLesBrouillons() {
+    if (!mois || sansBulletin.length === 0) return;
+    if (!confirm("Sortir le brouillon de " + sansBulletin.length + " salarié(s) pour ce mois ?")) return;
+    setErr(""); setMsg(""); setOccupe("masse");
+    let ok = 0;
+    const refus: string[] = [];
+    for (let i = 0; i < sansBulletin.length; i++) {
+      const l = sansBulletin[i];
+      setMsg("Brouillons : " + (i + 1) + " sur " + sansBulletin.length + " (" + l.salarie + ")…");
+      const d = await appeler({ action: "sortir_bulletin", contrat_id: l.contrat_id, periode: periode });
+      if (d && d.success) ok++;
+      else refus.push(l.salarie + " : " + ((d && d.erreur) || "refusé"));
+    }
+    setOccupe("");
+    await chargerMois();
+    if (refus.length > 0) setErr(ok + " brouillon(s) sorti(s). Refusé(s) : " + refus.join(" · "));
+    else setMsg(ok + " brouillon(s) sorti(s).");
+  }
+
+  async function emettreLesPrets() {
+    if (!mois || prets.length === 0) return;
+    if (!confirm("Émettre " + prets.length + " bulletin(s) de ce mois ?\n\nUn bulletin émis est définitif : "
+      + "il ne se corrige plus que par un bulletin rectificatif.")) return;
+    setErr(""); setMsg(""); setOccupe("masse");
+    let ok = 0;
+    const refus: string[] = [];
+    for (let i = 0; i < prets.length; i++) {
+      const l = prets[i];
+      setMsg("Émission : " + (i + 1) + " sur " + prets.length + " (" + l.salarie + ")…");
+      const d = await appeler({ action: "emettre", id: l.bulletin.id });
+      if (d && d.success) ok++;
+      else refus.push(l.salarie + " : " + ((d && d.erreur) || "refusé"));
+    }
+    setOccupe("");
+    await chargerMois();
+    if (choisi) {
+      const b = await appeler({ action: "bulletins", contrat_id: choisi.id });
+      if (b.success) setBulletins(b.bulletins);
+    }
+    if (refus.length > 0) setErr(ok + " bulletin(s) émis. Refusé(s) : " + refus.join(" · "));
+    else setMsg(ok + " bulletin(s) émis.");
+  }
+
+  // 🆕 28/09 — les seuils du cabinet (associés et administrateur).
+  async function chargerSeuils() {
+    if (!choisi) return;
+    setErr(""); setOccupe("seuils");
+    const d = await appeler({ action: "seuils", societe_id: choisi.societe_id });
+    setOccupe("");
+    if (d && d.success) {
+      setSeuilsVus(d.seuils);
+      const s: any = {};
+      for (const x of d.seuils) s[x.code] = x.cabinet === null ? "" : String(x.cabinet).replace(".", ",");
+      setSeuilsSaisie(s);
+    } else setErr((d && d.erreur) || "lecture impossible");
+  }
+
+  async function enregistrerSeuils() {
+    if (!choisi) return;
+    setErr(""); setMsg(""); setOccupe("seuils");
+    const d = await appeler({ action: "regler_seuils", societe_id: choisi.societe_id, valeurs: seuilsSaisie });
+    setOccupe("");
+    if (d && d.success) {
+      setMsg(d.message || "Seuils enregistrés.");
+      setSeuilsVus(d.seuils);
+      await chargerMois();
+    } else setErr((d && d.erreur) || "enregistrement impossible");
   }
 
   async function chargerMesure() {
@@ -900,6 +990,31 @@ export default function PagePaie() {
   // montrer les bons boutons ; la route reverifie chaque geste.
   const droitsIci: any = (mois && mois.droits)
     || (choisi && profil && profil.dossiers ? profil.dossiers[choisi.societe_id] : null) || {};
+  // 🆕 28/09 — LES BOUTONS SUIVENT LES DROITS. Un collaborateur ne voit plus
+  // les gestes qui lui seraient refuses (la route les refuse de toute facon).
+  const peutCreer: boolean = !!(profil && (profil.admin || Object.keys(profil.dossiers || {})
+    .some(function (k: string) { return profil.dossiers[k] && profil.dossiers[k].contrats; })));
+  function cache(ok: any): any { return ok ? {} : { display: "none" }; }
+
+  // 🆕 28/09 — les bulletins prets a emettre d un coup : brouillon, aucun
+  // rouge non leve, les oranges justifies, et le recapitulatif confirme et
+  // a jour (ou l attente levee).
+  const recapOk: boolean = !!(mois && mois.recap
+    && (mois.recap.statut === "leve" || (mois.recap.statut === "confirme" && mois.recap.a_jour)));
+  const prets: any[] = !mois ? [] : mois.lignes.filter(function (l: any) {
+    const b = l.bulletin;
+    const ctl = l.controle;
+    if (!b || b.statut !== "brouillon" || !ctl) return false;
+    if (ctl.couleur === "rouge" && !b.levee_motif) return false;
+    if (ctl.couleur === "orange" && !b.justification) return false;
+    return true;
+  });
+  // Sans bulletin, ou avec un brouillon perime (une saisie posterieure).
+  const sansBulletin: any[] = !mois ? [] : mois.lignes.filter(function (l: any) {
+    if (!l.bulletin) return true;
+    return l.bulletin.statut === "brouillon" && l.controle
+      && l.controle.alertes.some(function (a: any) { return a.code === "PERIME"; });
+  });
 
   async function genererBulletin() {
     // ⚠️ ON PREVIENT AVANT D OUVRIR UN RECTIFICATIF : ce n est pas le meme
@@ -1386,14 +1501,30 @@ export default function PagePaie() {
           {contrats.length} contrat{contrats.length > 1 ? "s" : ""} en cours
         </p>
 
-        {msg && <p style={{ color: VERT, fontSize: "14px", marginBottom: "14px" }}>{msg}</p>}
-        {err && <p style={{ color: ROUGE, fontSize: "14px", marginBottom: "14px" }}>{lisible(err)}</p>}
+        {/* 🆕 28/09 — LE MESSAGE SUIT L ECRAN. Il s affichait en haut de la
+            page, loin du bouton qui l avait provoque : un refus d emission
+            passait inapercu (essai du 28/09). Il s affiche desormais dans un
+            bandeau fixe en bas de l ecran, la ou l on regarde. */}
+        {(msg || err) && (
+          <div style={{ position: "fixed", left: "50%", bottom: "18px", transform: "translateX(-50%)",
+            zIndex: 3000, width: "min(92vw, 760px)", background: "#15151c",
+            border: "1px solid " + (err ? ROUGE : VERT), borderRadius: "10px",
+            padding: "12px 44px 12px 16px", boxShadow: "0 8px 30px rgba(0,0,0,0.6)",
+            fontSize: "14px", lineHeight: 1.6, color: err ? ROUGE : VERT }}>
+            {err ? lisible(err) : msg}
+            <button onClick={() => { setMsg(""); setErr(""); }} aria-label="fermer"
+              style={{ position: "absolute", top: "6px", right: "10px", background: "none",
+                border: "none", color: "rgba(255,255,255,0.6)", fontSize: "20px", cursor: "pointer" }}>
+              ×
+            </button>
+          </div>
+        )}
 
         {/* ---- LA LISTE DES CONTRATS ---- */}
         {!choisi && (
           <>
             <div style={{ display: "flex", gap: "10px", marginBottom: "16px" }}>
-              <button onClick={() => setNouveau(!nouveau)} style={SECOND}>
+              <button onClick={() => setNouveau(!nouveau)} style={{ ...SECOND, ...cache(peutCreer) }}>
                 {nouveau ? "Annuler" : "Nouveau salarié"}
               </button>
             </div>
@@ -1829,7 +1960,7 @@ export default function PagePaie() {
                         color: "rgba(255,255,255,0.55)" }}>
                         Contrat : {morceaux.join(" · ")}
                       </p>
-                      <button onClick={ouvrirContrat} style={{ ...LIEN, color: OR }}>
+                      <button onClick={ouvrirContrat} style={{ ...LIEN, color: OR, ...cache(droitsIci.contrats) }}>
                         {cs ? "annuler" : "modifier le contrat"}
                       </button>
                     </div>
@@ -2045,7 +2176,7 @@ export default function PagePaie() {
                         {renseigne ? "" : " (par défaut)"}
                       </p>
                       <button onClick={() => setJoursSaisie(joursSaisie ? null : actuels.slice())}
-                        style={{ ...LIEN, color: OR }}>
+                        style={{ ...LIEN, color: OR, ...cache(droitsIci.contrats) }}>
                         {joursSaisie ? "annuler" : "modifier"}
                       </button>
                     </div>
@@ -2115,7 +2246,7 @@ export default function PagePaie() {
                           taux: perso ? String(sal.taux_pas).replace(".", ",") : "",
                           date_effet: sal.taux_pas_date_effet ? String(sal.taux_pas_date_effet).slice(0, 10) : "",
                           identifiant_crm: sal.taux_pas_identifiant_crm || "" })}
-                        style={{ ...LIEN, color: OR }}>
+                        style={{ ...LIEN, color: OR, ...cache(droitsIci.contrats) }}>
                         {pasSaisie ? "annuler" : (perso ? "modifier" : "saisir le taux personnalisé")}
                       </button>
                     </div>
@@ -2223,7 +2354,7 @@ export default function PagePaie() {
                       </span>
                       <button onClick={() => retirer(el.id)}
                         style={{ background: "none", border: "none", color: ROUGE,
-                          cursor: "pointer", fontSize: "12px" }}>
+                          cursor: "pointer", fontSize: "12px", ...cache(droitsIci.preparer) }}>
                         retirer
                       </button>
                       {/* 🆕 28/09 — LA PIECE JUSTIFICATIVE. Exigee a partir
@@ -2235,7 +2366,7 @@ export default function PagePaie() {
                         </button>
                       ) : (
                         <label style={{ ...LIEN, color: OR, marginLeft: "10px",
-                          cursor: "pointer", fontSize: "12px" }}>
+                          cursor: "pointer", fontSize: "12px", ...cache(droitsIci.preparer) }}>
                           {occupe === "piece" ? "…" : "joindre une pièce"}
                           <input type="file" accept="image/*,application/pdf"
                             style={{ display: "none" }}
@@ -2285,7 +2416,7 @@ export default function PagePaie() {
                   <input value={e.montant || ""} style={CHAMP}
                     onChange={(ev) => setE({ ...e, montant: ev.target.value })} />
                 </div>
-                <button onClick={ajouterElement} disabled={occupe !== ""} style={SECOND}>
+                <button onClick={ajouterElement} disabled={occupe !== ""} style={{ ...SECOND, ...cache(droitsIci.preparer) }}>
                   Ajouter
                 </button>
               </div>
@@ -2304,7 +2435,7 @@ export default function PagePaie() {
                 {occupe === "calcul" ? "…" : "Calculer le bulletin"}
               </button>
               {calcul && (
-                <button onClick={genererBulletin} disabled={occupe !== ""} style={SECOND}>
+                <button onClick={genererBulletin} disabled={occupe !== ""} style={{ ...SECOND, ...cache(droitsIci.preparer) }}>
                   {occupe === "bulletin" ? "…"
                     : (!brouillonDuMois && emisDuMois) ? "Ouvrir un rectificatif"
                     : brouillonDuMois ? "Refaire le PDF du brouillon"
@@ -2398,6 +2529,11 @@ export default function PagePaie() {
                         Sans bulletin ce mois-ci : {mois.recap_manquants.join(", ")}.
                       </div>
                     )}
+                    {mois.recap_perimes && mois.recap_perimes.length > 0 && (
+                      <div style={{ color: ROUGE, marginTop: "6px" }}>
+                        Brouillon à ressortir (saisie postérieure) : {mois.recap_perimes.join(", ")}.
+                      </div>
+                    )}
                     {droitsIci.preparer && (
                       <div style={{ display: "flex", gap: "8px", flexWrap: "wrap",
                         marginTop: "8px", alignItems: "center" }}>
@@ -2426,6 +2562,29 @@ export default function PagePaie() {
                     )}
                   </div>
 
+                  {/* 🆕 28/09 — les gestes en masse */}
+                  {(sansBulletin.length > 0 && droitsIci.preparer)
+                    || (prets.length > 0 && droitsIci.emettre && droitsIci.carte_blanche) ? (
+                    <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginBottom: "12px" }}>
+                      {sansBulletin.length > 0 && droitsIci.preparer && (
+                        <button onClick={sortirTousLesBrouillons} disabled={occupe !== ""} style={SECOND}>
+                          {occupe === "masse" ? "…" : "Sortir les " + sansBulletin.length + " brouillon(s) manquant(s) ou périmé(s)"}
+                        </button>
+                      )}
+                      {prets.length > 0 && droitsIci.emettre && droitsIci.carte_blanche && (
+                        <button onClick={emettreLesPrets} disabled={occupe !== "" || !recapOk}
+                          style={{ ...SECOND, borderColor: VERT, color: VERT, opacity: recapOk ? 1 : 0.45 }}>
+                          {occupe === "masse" ? "…" : "Émettre les " + prets.length + " bulletin(s) prêt(s)"}
+                        </button>
+                      )}
+                      {prets.length > 0 && droitsIci.emettre && droitsIci.carte_blanche && !recapOk && (
+                        <span style={{ fontSize: "12px", color: "rgba(255,255,255,0.5)", alignSelf: "center" }}>
+                          en attente du récapitulatif confirmé par le client
+                        </span>
+                      )}
+                    </div>
+                  ) : null}
+
                   {mois.lignes.length === 0 && (
                     <p style={{ fontSize: "13px", color: "rgba(255,255,255,0.45)" }}>
                       Aucun salarié en poste ce mois-ci dans ce dossier.
@@ -2449,7 +2608,9 @@ export default function PagePaie() {
                           </span>
                           <span style={{ fontSize: "12.5px", color: "rgba(255,255,255,0.65)" }}>
                             {!b ? "pas encore de bulletin"
-                              : b.numero + " · net " + euros(b.net_a_payer) + " € · " + etatValidation(b)}
+                              : b.numero + " · net " + euros(b.net_a_payer) + " € · " + etatValidation(b)
+                                + (coul === "orange" && b.justification ? " · justifié" : "")
+                                + (coul === "rouge" && b.levee_motif ? " · rouge levé" : "")}
                           </span>
                         </div>
                         {ctl && ctl.alertes.length > 0 && (
@@ -2537,6 +2698,38 @@ export default function PagePaie() {
                         La carte blanche se donne dossier par dossier, dans l&apos;écran des{" "}
                         <a href="/admin/compliance/collaborateurs" style={{ color: OR }}>collaborateurs</a>.
                       </p>
+
+                      {/* 🆕 28/09 — LES SEUILS DU CABINET */}
+                      <button onClick={() => seuilsVus ? setSeuilsVus(null) : chargerSeuils()}
+                        disabled={occupe !== ""} style={{ ...LIEN, color: OR, marginTop: "12px", display: "block" }}>
+                        {occupe === "seuils" ? "…" : seuilsVus ? "Fermer les seuils des contrôles" : "Régler les seuils des contrôles"}
+                      </button>
+                      {seuilsVus && (
+                        <div style={{ marginTop: "8px" }}>
+                          <p style={{ fontSize: "12px", color: "rgba(255,255,255,0.5)", lineHeight: 1.6, margin: "0 0 8px" }}>
+                            Ils valent pour tous les dossiers de votre cabinet. Une case vide reprend la valeur commune.
+                          </p>
+                          {seuilsVus.map(function (x: any) {
+                            return (
+                              <div key={x.code} style={{ display: "flex", gap: "10px", alignItems: "center",
+                                flexWrap: "wrap", padding: "6px 0", borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+                                <span style={{ flex: "1 1 300px", fontSize: "12.5px", lineHeight: 1.5,
+                                  color: x.niveau === "rouge" ? ROUGE : ORANGE }}>
+                                  {x.libelle} <span style={{ color: "rgba(255,255,255,0.45)" }}>
+                                    (commun : {String(x.commun).replace(".", ",")} {x.unite || ""})</span>
+                                </span>
+                                <input value={seuilsSaisie[x.code] || ""} placeholder={String(x.commun).replace(".", ",")}
+                                  onChange={(ev) => setSeuilsSaisie({ ...seuilsSaisie, [x.code]: ev.target.value })}
+                                  style={{ ...CHAMP, width: "110px" }} />
+                                <span style={{ fontSize: "12px", color: "rgba(255,255,255,0.5)" }}>{x.unite || ""}</span>
+                              </div>
+                            );
+                          })}
+                          <button onClick={enregistrerSeuils} disabled={occupe !== ""} style={{ ...SECOND, marginTop: "8px" }}>
+                            {occupe === "seuils" ? "…" : "Enregistrer les seuils du cabinet"}
+                          </button>
+                        </div>
+                      )}
                     </div>
                   )}
                 </>
@@ -2768,7 +2961,7 @@ export default function PagePaie() {
                       placeholder="ex. 5" style={{ ...CHAMP, width: "120px" }} />
                   </div>
                   <button onClick={poserConges} disabled={occupe !== ""}
-                    style={SECOND}>
+                    style={{ ...SECOND, ...cache(droitsIci.preparer) }}>
                     {occupe === "conges" ? "…" : "Poser ces congés"}
                   </button>
                 </div>
@@ -2866,7 +3059,7 @@ export default function PagePaie() {
                 </p>
 
                 <button onClick={documentsFinContrat} disabled={occupe !== ""}
-                  style={{ ...BOUTON, marginTop: "4px" }}>
+                  style={{ ...BOUTON, marginTop: "4px", ...cache(droitsIci.emettre) }}>
                   {occupe === "findoc" ? "…" : "Produire les documents"}
                 </button>
 
@@ -3261,7 +3454,7 @@ export default function PagePaie() {
                 <div style={{ display: "flex", gap: "10px", alignItems: "center",
                   flexWrap: "wrap", marginTop: "12px" }}>
                   <button onClick={ajouterEvenement} disabled={occupe !== ""}
-                    style={SECOND}>
+                    style={{ ...SECOND, ...cache(droitsIci.preparer) }}>
                     {occupe === "evenement" ? "…"
                       : modifie ? "Enregistrer la modification"
                       : "Enregistrer ce signalement"}
@@ -3342,7 +3535,7 @@ export default function PagePaie() {
                               </button>
                             ) : (
                               <label style={{ ...LIEN, color: ORANGE, marginLeft: "10px",
-                                cursor: "pointer", fontSize: "12px" }}>
+                                cursor: "pointer", fontSize: "12px", ...cache(droitsIci.preparer) }}>
                                 {occupe === "piece" ? "…" : "joindre l'avis d'arrêt"}
                                 <input type="file" accept="image/*,application/pdf"
                                   style={{ display: "none" }}
@@ -3422,7 +3615,7 @@ export default function PagePaie() {
                             {x.fichier && manques.length === 0 && (
                               <button onClick={() => deposerSignalement(x.id)}
                                 disabled={occupe !== ""}
-                                style={{ ...LIEN, color: OR }}>
+                                style={{ ...LIEN, color: OR, ...cache(droitsIci.deposer) }}>
                                 {occupe === "depot" ? "…" : "déposé"}
                               </button>
                             )}
@@ -3431,7 +3624,7 @@ export default function PagePaie() {
                               && Number(x.numero_ordre || 0) > 0 && (
                               <button onClick={() => deposerSignalement(x.id, true)}
                                 disabled={occupe !== ""}
-                                style={{ ...LIEN, color: OR }}>
+                                style={{ ...LIEN, color: OR, ...cache(droitsIci.deposer) }}>
                                 {occupe === "depot-reprise"
                                   ? "…" : "reprise déposée"}
                               </button>
